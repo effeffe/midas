@@ -701,7 +701,7 @@ static INT cm_msg_format(char* message, int sizeof_message, INT message_type, co
    return CM_SUCCESS;
 }
 
-static INT cm_msg_open_buffer()
+INT cm_msg_open_sysmsg()
 {
    int status;
 
@@ -732,7 +732,7 @@ static INT cm_msg_send_event(INT ts, INT message_type, const char *send_message)
    if (message_type != MT_LOG) {
       /* if no message buffer already opened, do so now */
       if (_msg_buffer == 0) {
-         status = cm_msg_open_buffer();
+         status = cm_msg_open_sysmsg();
          if (status != CM_SUCCESS)
             return status;
       }
@@ -998,7 +998,7 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
    if (message_type != MT_LOG) {
       /* if no message buffer already opened, do so now */
       if (_msg_buffer == 0) {
-         status = cm_msg_open_buffer();
+         status = cm_msg_open_sysmsg();
          if (status != CM_SUCCESS) {
             in_routine = FALSE;
             return status;
@@ -1063,7 +1063,7 @@ INT cm_msg_register(void (*func) (HNDLE, HNDLE, EVENT_HEADER *, void *))
 
    /* if no message buffer already opened, do so now */
    if (_msg_buffer == 0) {
-      status = cm_msg_open_buffer();
+      status = cm_msg_open_sysmsg();
       if (status != CM_SUCCESS)
          return status;
    }
@@ -2139,7 +2139,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       if (status != RPC_SUCCESS)
          return status;
 
-      status = cm_msg_open_buffer();
+      status = cm_msg_open_sysmsg();
       if (status != CM_SUCCESS)
          return status;
 
@@ -2169,7 +2169,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       cm_set_experiment_name(exptab[i].name);
       cm_set_path(exptab[i].directory);
 
-      status = cm_msg_open_buffer();
+      status = cm_msg_open_sysmsg();
       if (status != CM_SUCCESS)
          return status;
 
@@ -12845,8 +12845,11 @@ INT rpc_server_accept(int lsock)
          callback.index = idx;
 
         /*----- multi thread server ------------------------*/
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MTHREAD)
-            ss_thread_create(rpc_server_thread, (void *) (&callback));
+         if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MTHREAD) {
+            // the ST_MTHREAD code will be removed. K.O.
+            abort();
+            //ss_thread_create(rpc_server_thread, (void *) (&callback));
+         }
 
         /*----- single thread server -----------------------*/
          if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE ||
@@ -13202,8 +13205,7 @@ INT rpc_server_thread(void *pointer)
 
   Routine: rpc_server_thread
 
-  Purpose: New thread for a multi-threaded server. Callback to the
-           client and process RPC requests.
+  Purpose: this is the mserver main loop: wait for RPC requests, dispatch them.
 
   Input:
     vcoid  pointer          pointer to callback_addr structure.
@@ -13226,8 +13228,6 @@ INT rpc_server_thread(void *pointer)
 
    if (status != RPC_SUCCESS)
       return status;
-
-   cm_create_experiment_semaphores();
 
    do {
       status = ss_suspend(5000, 0);

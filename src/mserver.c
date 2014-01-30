@@ -380,6 +380,9 @@ int main(int argc, char **argv)
       }
 #endif
 
+      cm_msg_open_sysmsg();
+      cm_create_experiment_semaphores();
+
       rpc_register_server(ST_SUBPROCESS, NULL, NULL, rpc_server_dispatch);
 
       /* register MIDAS library functions */
