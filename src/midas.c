@@ -371,6 +371,95 @@ INT cm_set_msg_print(INT system_mask, INT user_mask, int (*func) (const char *))
    return BM_SUCCESS;
 }
 
+int cm_get_experiment_logfile(char* path, int path_size)
+{
+   int status;
+   int size;
+   HNDLE hDB;
+   char dir[256];
+   char filename[256], linkname[256];
+   char lpath[256];
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   if (!hDB) {
+      strlcpy(path, "midas.log", path_size);
+      return CM_SUCCESS;
+   }
+
+   linkname[0] = 0;
+   strlcpy(filename, "midas.log", sizeof(filename));
+   size = sizeof(filename);
+   db_get_value(hDB, 0, "/Logger/Message file", filename, &size, TID_STRING, TRUE);
+   
+   if (strchr(filename, '%')) {
+      char str[256];
+      
+      /* replace stings such as midas_%y%m%d.mid with current date */
+      time_t now;
+      struct tm *tms;
+      
+      tzset();
+      time(&now);
+      tms = localtime(&now);
+      
+      strlcpy(linkname, filename, sizeof(linkname));
+      if (strchr(linkname, '%'))
+         *strchr(linkname, '%') = 0;
+      if (strchr(linkname, '_'))
+         *strchr(linkname, '_') = 0;
+      if (strchr(linkname, '.') == NULL && strchr(filename, '.'))
+         strlcat(linkname, strchr(filename, '.'), sizeof(linkname));
+      
+      strftime(str, sizeof(str), filename, tms);
+      strlcpy(filename, str, sizeof(filename));
+   }
+   
+   if (strchr(filename, DIR_SEPARATOR) == NULL) {
+      HNDLE hKey;
+      status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
+      if (status == DB_SUCCESS) {
+         size = sizeof(dir);
+         memset(dir, 0, size);
+         db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
+         if (dir[0] != 0)
+            if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
+               strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
+         
+         strlcpy(path, dir, path_size);
+         strlcat(path, filename, path_size);
+         if (linkname[0]) {
+            strlcpy(lpath, dir, sizeof(lpath));
+            strlcat(lpath, linkname, sizeof(lpath));
+         }
+      } else {
+         cm_get_path(dir, sizeof(dir));
+         if (dir[0] != 0)
+            if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
+               strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
+         
+         strlcpy(path, dir, path_size);
+         strlcat(path, "midas.log", path_size);
+         if (linkname[0]) {
+            strlcpy(lpath, dir, sizeof(lpath));
+            strlcat(lpath, linkname, sizeof(lpath));
+         }
+      }
+   } else {
+      strlcpy(path, filename, path_size);
+      if (linkname[0]) {
+         strlcpy(lpath, linkname, sizeof(lpath));
+      }
+   }
+
+#ifdef OS_LINUX
+   if (lpath[0])
+      symlink(path, lpath);
+#endif
+
+   return CM_SUCCESS;
+}
+
 /********************************************************************/
 /**
 Write message to logging file. Called by cm_msg.
@@ -381,117 +470,33 @@ Write message to logging file. Called by cm_msg.
 */
 INT cm_msg_log(INT message_type, const char *message)
 {
-   char path[256], lpath[256];
-   INT status, size, fh;
-   HNDLE hDB, hKey;
-
-   path[0] = 0;
-   lpath[0] = 0;
-   
    if (rpc_is_remote())
       return rpc_call(RPC_CM_MSG_LOG, message_type, message);
 
    if (message_type != MT_DEBUG) {
-      cm_get_experiment_database(&hDB, NULL);
+      int status, fh;
+      char path[256];
 
-      if (hDB) {
-         char dir[256];
-         char filename[256], linkname[256];
-
-         linkname[0] = 0;
-         strlcpy(filename, "midas.log", sizeof(filename));
-         size = sizeof(filename);
-         db_get_value(hDB, 0, "/Logger/Message file", filename, &size, TID_STRING, TRUE);
-
-         if (strchr(filename, '%')) {
-            char str[256];
-
-            /* replace stings such as midas_%y%m%d.mid with current date */
-            time_t now;
-            struct tm *tms;
-
-            tzset();
-            time(&now);
-            tms = localtime(&now);
-
-            strlcpy(linkname, filename, sizeof(linkname));
-            if (strchr(linkname, '%'))
-               *strchr(linkname, '%') = 0;
-            if (strchr(linkname, '_'))
-               *strchr(linkname, '_') = 0;
-            if (strchr(linkname, '.') == NULL && strchr(filename, '.'))
-               strlcat(linkname, strchr(filename, '.'), sizeof(linkname));
-            
-            strftime(str, sizeof(str), filename, tms);
-            strlcpy(filename, str, sizeof(filename));
-         }
-
-         if (strchr(filename, DIR_SEPARATOR) == NULL) {
-            status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
-            if (status == DB_SUCCESS) {
-               size = sizeof(dir);
-               memset(dir, 0, size);
-               db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
-               if (dir[0] != 0)
-                  if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                     strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
-
-               strcpy(path, dir);
-               strcat(path, filename);
-               if (linkname[0]) {
-                  strcpy(lpath, dir);
-                  strcat(lpath, linkname);
-               }
-            } else {
-               cm_get_path(dir, sizeof(dir));
-               if (dir[0] != 0)
-                  if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                     strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
-
-               strlcpy(path, dir, sizeof(path));
-               strlcat(path, "midas.log", sizeof(path));
-               if (linkname[0]) {
-                  strlcpy(lpath, dir, sizeof(lpath));
-                  strlcat(lpath, linkname, sizeof(lpath));
-               }
-            }
-         } else {
-            strlcpy(path, filename, sizeof(path));
-            if (linkname[0]) {
-               strlcpy(lpath, linkname, sizeof(lpath));
-            }
-         }
-      } else
-         strlcpy(path, "midas.log", sizeof(path));
+      cm_get_experiment_logfile(path, sizeof(path));
 
       fh = open(path, O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
       if (fh < 0) {
-         printf("Cannot open message log file %s\n", path);
+         cm_msg(MERROR, "cm_msg_log", "Cannot open message log file \'%s\', open() error %d (%s)\n", path, errno, strerror(errno));
       } else {
-         char str[256];
-
-         status = ss_semaphore_wait_for(_semaphore_msg, 5 * 1000);
-         if (status != SS_SUCCESS) {
-            printf("cm_msg_log: Something is wrong with our semaphore, ss_semaphore_wait_for() returned %d, aborting.\n", status);
-            //abort(); // DOES NOT RETURN
-            printf("cm_msg_log: Cannot abort - this will lock you out of odb. From this point, MIDAS will not work correctly. Please read the discussion at https://midas.triumf.ca/elog/Midas/945\n");
-            // NOT REACHED
-            return status;
-         }
+         char str[1024];
 
          strlcpy(str, ss_asctime(), sizeof(str));
-         write(fh, str, strlen(str));
-         write(fh, " ", 1);
-         write(fh, message, strlen(message));
-         write(fh, "\n", 1);
-         close(fh);
-         
-#ifdef OS_LINUX
-         if (lpath[0])
-            symlink(path, lpath);
-#endif
+         strlcat(str, " ", sizeof(str));
+         strlcat(str, message, sizeof(str) - 5); // leave space for trailing "\n"
+         strlcat(str, "\n", sizeof(str));
 
-         status = ss_semaphore_release(_semaphore_msg);
+         status = write(fh, str, strlen(str));
+
+         if (status != strlen(str)) {
+            cm_msg(MERROR, "cm_msg_log", "Cannot write to message log file \'%s\', write() error %d (%s)\n", path, errno, strerror(errno));
+         }
+
+         close(fh);
       }
    }
 

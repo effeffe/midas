@@ -1674,6 +1674,8 @@ extern "C" {
    INT EXPRT cm_disconnect_client(HNDLE hConn, BOOL bShutdown);
    INT EXPRT cm_set_experiment_database(HNDLE hDB, HNDLE hKeyClient);
    INT EXPRT cm_get_experiment_database(HNDLE * hDB, HNDLE * hKeyClient);
+   INT EXPRT cm_get_experiment_logfile(char* filename, int filename_size);
+
    INT EXPRT cm_create_experiment_semaphores();
    INT EXPRT cm_delete_experiment_semaphores();
    INT EXPRT cm_set_experiment_semaphore(INT semaphore_alarm, INT semaphore_elog, INT semaphore_history, INT semaphore_msg);
