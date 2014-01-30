@@ -1415,16 +1415,7 @@ INT db_close_database(HNDLE hDB)
 
       /* if we are the last one, also delete other semaphores */
       if (destroy_flag) {
-         extern INT _semaphore_elog, _semaphore_alarm, _semaphore_history, _semaphore_msg;
-
-         if (_semaphore_elog)
-            ss_semaphore_delete(_semaphore_elog, TRUE);
-         if (_semaphore_alarm)
-            ss_semaphore_delete(_semaphore_alarm, TRUE);
-         if (_semaphore_history)
-            ss_semaphore_delete(_semaphore_history, TRUE);
-         if (_semaphore_msg)
-            ss_semaphore_delete(_semaphore_msg, TRUE);
+         cm_delete_experiment_semaphores();
       }
 
    }

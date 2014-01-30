@@ -40,7 +40,7 @@ can be found through the MIDAS Wiki at http://midas.triumf.ca
  */
 /** @defgroup bmfunctionc Midas Buffer Manager Functions (bm_xxx)
  */
-/** @defgroup msgfunctionc Midas Message Functions (msg_xxx)
+/** @defgroup msgfunctionc Midas Message Functions (cm_msg_xxx)
  */
 /** @defgroup bkfunctionc Midas Bank Functions (bk_xxx)
  */
@@ -119,6 +119,8 @@ struct {
 #ifdef OS_MSDOS
 extern unsigned _stklen = 60000U;
 #endif
+
+static INT _semaphore_alarm, _semaphore_elog, _semaphore_history, _semaphore_msg;
 
 extern DATABASE *_database;
 extern INT _database_entries;
@@ -380,7 +382,7 @@ Write message to logging file. Called by cm_msg.
 INT cm_msg_log(INT message_type, const char *message)
 {
    char path[256], lpath[256];
-   INT status, size, fh, semaphore;
+   INT status, size, fh;
    HNDLE hDB, hKey;
 
    path[0] = 0;
@@ -468,8 +470,7 @@ INT cm_msg_log(INT message_type, const char *message)
       } else {
          char str[256];
 
-         cm_get_experiment_semaphore(NULL, NULL, NULL, &semaphore);
-         status = ss_semaphore_wait_for(semaphore, 5 * 1000);
+         status = ss_semaphore_wait_for(_semaphore_msg, 5 * 1000);
          if (status != SS_SUCCESS) {
             printf("cm_msg_log: Something is wrong with our semaphore, ss_semaphore_wait_for() returned %d, aborting.\n", status);
             //abort(); // DOES NOT RETURN
@@ -490,7 +491,7 @@ INT cm_msg_log(INT message_type, const char *message)
             symlink(path, lpath);
 #endif
 
-         status = ss_semaphore_release(semaphore);
+         status = ss_semaphore_release(_semaphore_msg);
       }
    }
 
@@ -695,6 +696,21 @@ static INT cm_msg_format(char* message, int sizeof_message, INT message_type, co
    return CM_SUCCESS;
 }
 
+static INT cm_msg_open_buffer()
+{
+   int status;
+
+   if (_msg_buffer)
+      return CM_SUCCESS;
+
+   status = bm_open_buffer(MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &_msg_buffer);
+   if (status != BM_SUCCESS && status != BM_CREATED) {
+      return status;
+   }
+
+   return CM_SUCCESS;
+}
+
 static INT cm_msg_send_event(INT ts, INT message_type, const char *send_message)
 {
    int status;
@@ -711,10 +727,9 @@ static INT cm_msg_send_event(INT ts, INT message_type, const char *send_message)
    if (message_type != MT_LOG) {
       /* if no message buffer already opened, do so now */
       if (_msg_buffer == 0) {
-         status = bm_open_buffer(MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &_msg_buffer);
-         if (status != BM_SUCCESS && status != BM_CREATED) {
+         status = cm_msg_open_buffer();
+         if (status != CM_SUCCESS)
             return status;
-         }
       }
 
       /* setup the event header and send the message */
@@ -978,8 +993,8 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
    if (message_type != MT_LOG) {
       /* if no message buffer already opened, do so now */
       if (_msg_buffer == 0) {
-         status = bm_open_buffer(MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &_msg_buffer);
-         if (status != BM_SUCCESS && status != BM_CREATED) {
+         status = cm_msg_open_buffer();
+         if (status != CM_SUCCESS) {
             in_routine = FALSE;
             return status;
          }
@@ -1043,8 +1058,8 @@ INT cm_msg_register(void (*func) (HNDLE, HNDLE, EVENT_HEADER *, void *))
 
    /* if no message buffer already opened, do so now */
    if (_msg_buffer == 0) {
-      status = bm_open_buffer(MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &_msg_buffer);
-      if (status != BM_SUCCESS && status != BM_CREATED)
+      status = cm_msg_open_buffer();
+      if (status != CM_SUCCESS)
          return status;
    }
 
@@ -1336,7 +1351,6 @@ static char _client_name[NAME_LENGTH];
 static char _path_name[MAX_STRING_LENGTH];
 static INT _call_watchdog = TRUE;
 static INT _watchdog_timeout = DEFAULT_WATCHDOG_TIMEOUT;
-INT _semaphore_alarm, _semaphore_elog, _semaphore_history, _semaphore_msg;
 
 /**dox***************************************************************/
 /** @addtogroup cmfunctionc
@@ -2077,7 +2091,7 @@ Connect to a MIDAS experiment (to the online database) on
 INT cm_connect_experiment1(const char *host_name, const char *exp_name,
                            const char *client_name, void (*func) (char *), INT odb_size, DWORD watchdog_timeout)
 {
-   INT status, i, semaphore_elog, semaphore_alarm, semaphore_history, semaphore_msg, size;
+   INT status, i, size;
    char local_host_name[HOST_NAME_LENGTH];
    char client_name1[NAME_LENGTH];
    char password[NAME_LENGTH], str[256], exp_name1[NAME_LENGTH];
@@ -2120,6 +2134,10 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       if (status != RPC_SUCCESS)
          return status;
 
+      status = cm_msg_open_buffer();
+      if (status != CM_SUCCESS)
+         return status;
+
       /* register MIDAS library functions */
       status = rpc_register_functions(rpc_get_internal_list(1), NULL);
       if (status != RPC_SUCCESS)
@@ -2146,29 +2164,13 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       cm_set_experiment_name(exptab[i].name);
       cm_set_path(exptab[i].directory);
 
-      /* create alarm and elog semaphores */
-      status = ss_semaphore_create("ALARM", &semaphore_alarm);
-      if (status != SS_CREATED && status != SS_SUCCESS) {
-         cm_msg(MERROR, "cm_connect_experiment", "Cannot create alarm semaphore");
+      status = cm_msg_open_buffer();
+      if (status != CM_SUCCESS)
          return status;
-      }
-      status = ss_semaphore_create("ELOG", &semaphore_elog);
-      if (status != SS_CREATED && status != SS_SUCCESS) {
-         cm_msg(MERROR, "cm_connect_experiment", "Cannot create elog semaphore");
-         return status;
-      }
-      status = ss_semaphore_create("HISTORY", &semaphore_history);
-      if (status != SS_CREATED && status != SS_SUCCESS) {
-         cm_msg(MERROR, "cm_connect_experiment", "Cannot create history semaphore");
-         return status;
-      }
-      status = ss_semaphore_create("MSG", &semaphore_msg);
-      if (status != SS_CREATED && status != SS_SUCCESS) {
-         cm_msg(MERROR, "cm_connect_experiment", "Cannot create message semaphore");
-         return status;
-      }
 
-      cm_set_experiment_semaphore(semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg);
+      status = cm_create_experiment_semaphores();
+      if (status != CM_SUCCESS)
+         return status;
    }
 
    /* open ODB */
@@ -2611,6 +2613,64 @@ INT cm_set_experiment_database(HNDLE hDB, HNDLE hKeyClient)
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
+int cm_create_experiment_semaphores()
+{
+   int status;
+
+   if (_semaphore_alarm == 0) {
+      status = ss_semaphore_create("ALARM", &_semaphore_alarm);
+      if (status != SS_CREATED && status != SS_SUCCESS) {
+         cm_msg(MERROR, "cm_create_experiment_semaphores", "Cannot create alarm semaphore");
+         return status;
+      }
+   }
+
+   if (_semaphore_elog == 0) {
+      status = ss_semaphore_create("ELOG", &_semaphore_elog);
+      if (status != SS_CREATED && status != SS_SUCCESS) {
+         cm_msg(MERROR, "cm_create_experiment_semaphoresconnect_experiment", "Cannot create elog semaphore");
+         return status;
+      }
+   }
+
+   if (_semaphore_history == 0) {
+      status = ss_semaphore_create("HISTORY", &_semaphore_history);
+      if (status != SS_CREATED && status != SS_SUCCESS) {
+         cm_msg(MERROR, "cm_create_experiment_semaphores", "Cannot create history semaphore");
+         return status;
+      }
+   }
+
+   if (_semaphore_msg == 0) {
+      status = ss_semaphore_create("MSG", &_semaphore_msg);
+      if (status != SS_CREATED && status != SS_SUCCESS) {
+         cm_msg(MERROR, "cm_create_experiment_semaphores", "Cannot create message semaphore");
+         return status;
+      }
+   }
+
+   return CM_SUCCESS;
+}
+
+int cm_delete_experiment_semaphores()
+{
+   if (_semaphore_elog)
+      ss_semaphore_delete(_semaphore_elog, TRUE);
+   if (_semaphore_alarm)
+      ss_semaphore_delete(_semaphore_alarm, TRUE);
+   if (_semaphore_history)
+      ss_semaphore_delete(_semaphore_history, TRUE);
+   if (_semaphore_msg)
+      ss_semaphore_delete(_semaphore_msg, TRUE);
+   
+   _semaphore_elog = 0;
+   _semaphore_alarm = 0;
+   _semaphore_history = 0;
+   _semaphore_msg = 0;
+
+   return CM_SUCCESS;
+}
+   
 /********************************************************************/
 INT cm_set_experiment_semaphore(INT semaphore_alarm, INT semaphore_elog, INT semaphore_history, INT semaphore_msg)
 /********************************************************************\
@@ -2633,13 +2693,19 @@ INT cm_set_experiment_semaphore(INT semaphore_alarm, INT semaphore_elog, INT sem
 
 \********************************************************************/
 {
-   _semaphore_alarm = semaphore_alarm;
-   _semaphore_elog = semaphore_elog;
-   _semaphore_history = semaphore_history;
-   _semaphore_msg = semaphore_msg;
+   if (semaphore_alarm)
+      _semaphore_alarm = semaphore_alarm;
+   if (semaphore_elog)
+      _semaphore_elog = semaphore_elog;
+   if (semaphore_history)
+      _semaphore_history = semaphore_history;
+   if (semaphore_msg)
+       _semaphore_msg = semaphore_msg;
 
    return CM_SUCCESS;
 }
+
+
 
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
@@ -13146,7 +13212,7 @@ INT rpc_server_thread(void *pointer)
 \********************************************************************/
 {
    struct callback_addr callback;
-   int status, semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg;
+   int status;
    static DWORD last_checked = 0;
 
    memcpy(&callback, pointer, sizeof(callback));
@@ -13156,12 +13222,7 @@ INT rpc_server_thread(void *pointer)
    if (status != RPC_SUCCESS)
       return status;
 
-   /* create alarm and elog semaphores */
-   ss_semaphore_create("ALARM", &semaphore_alarm);
-   ss_semaphore_create("ELOG", &semaphore_elog);
-   ss_semaphore_create("HISTORY", &semaphore_history);
-   ss_semaphore_create("MSG", &semaphore_msg);
-   cm_set_experiment_semaphore(semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg);
+   cm_create_experiment_semaphores();
 
    do {
       status = ss_suspend(5000, 0);
