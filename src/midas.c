@@ -2202,7 +2202,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
    status = db_open_database("ODB", odb_size, &hDB, client_name);
    if (status != DB_SUCCESS && status != DB_CREATED) {
-      cm_msg(MERROR, "cm_connect_experiment1", "cannot open database");
+      cm_msg(MERROR, "cm_connect_experiment1", "cannot open database, db_open_database() status %d", status);
       return status;
    }
 
