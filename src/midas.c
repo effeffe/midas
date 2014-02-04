@@ -371,6 +371,13 @@ INT cm_set_msg_print(INT system_mask, INT user_mask, int (*func) (const char *))
    return BM_SUCCESS;
 }
 
+/********************************************************************/
+/**
+Get path name of the midas log file.
+@param path string buffer for the log file path
+@param path_size length of the path string buffer
+@return CM_SUCCESS
+*/
 int cm_get_experiment_logfile(char* path, int path_size)
 {
    int status;
@@ -701,14 +708,23 @@ static INT cm_msg_format(char* message, int sizeof_message, INT message_type, co
    return CM_SUCCESS;
 }
 
+/********************************************************************/
+/**
+Open the SYSMSG buffer for use by cm_msg() and cm_msg_flush()
+@return CM_SUCCESS
+@return otherwise status of bm_open_buffer()
+*/
 INT cm_msg_open_sysmsg()
 {
    int status;
+
+   //printf("cm_msg_open_sysmsg!\n");
 
    if (_msg_buffer)
       return CM_SUCCESS;
 
    status = bm_open_buffer(MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &_msg_buffer);
+
    if (status != BM_SUCCESS && status != BM_CREATED) {
       return status;
    }
@@ -716,6 +732,11 @@ INT cm_msg_open_sysmsg()
    return CM_SUCCESS;
 }
 
+/********************************************************************/
+/**
+Write message into the SYSMSG buffer
+@return CM_SUCCESS on success
+*/
 static INT cm_msg_send_event(INT ts, INT message_type, const char *send_message)
 {
    int status;
@@ -746,6 +767,11 @@ static INT cm_msg_send_event(INT ts, INT message_type, const char *send_message)
    return CM_SUCCESS;
 }
 
+/********************************************************************/
+/**
+Store message in the cm_msg internal ring buffer _msg_rb
+@return CM_SUCCESS on success
+*/
 static INT cm_msg_buffer(int ts, int message_type, const char *message)
 {
    int status;
@@ -799,7 +825,9 @@ static INT cm_msg_buffer(int ts, int message_type, const char *message)
 
 /********************************************************************/
 /**
-This routine can be called to process messages buffered by cm_msg(). Normally
+Move messages from the cm_msg() internal ring buffer _msg_rb to midas.log and the SYSMSG shared buffer.
+This routine should be called frequently to avoid having error messages stuck inside the cm_msg() ring buffer
+for too long or lost if the process crashes and exists without calling cm_msg_flush_buffer(). Normally
 it is called from cm_yield() and cm_disconnect_experiment() to make sure
 all accumulated messages are processed.
 */
@@ -2073,15 +2101,13 @@ CM_VERSION_MISMATCH MIDAS library version different on local and remote computer
 INT cm_connect_experiment(const char *host_name, const char *exp_name, const char *client_name, void (*func) (char *))
 {
    INT status;
-   char str[256];
 
    status =
        cm_connect_experiment1(host_name, exp_name, client_name, func, DEFAULT_ODB_SIZE,
                               DEFAULT_WATCHDOG_TIMEOUT);
    cm_msg_flush_buffer();
    if (status != CM_SUCCESS) {
-      cm_get_error(status, str);
-      puts(str);
+      printf("Cannot connect to experiment: cm_connect_experiment1() returned status %d\n", status);
    }
 
    return status;
@@ -2139,10 +2165,6 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       if (status != RPC_SUCCESS)
          return status;
 
-      status = cm_msg_open_sysmsg();
-      if (status != CM_SUCCESS)
-         return status;
-
       /* register MIDAS library functions */
       status = rpc_register_functions(rpc_get_internal_list(1), NULL);
       if (status != RPC_SUCCESS)
@@ -2168,10 +2190,6 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
       cm_set_experiment_name(exptab[i].name);
       cm_set_path(exptab[i].directory);
-
-      status = cm_msg_open_sysmsg();
-      if (status != CM_SUCCESS)
-         return status;
 
       status = cm_create_experiment_semaphores();
       if (status != CM_SUCCESS)
@@ -2209,7 +2227,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       /* re-open database */
       status = db_open_database("ODB", odb_size, &hDB, client_name);
       if (status != DB_SUCCESS && status != DB_CREATED) {
-         cm_msg(MERROR, "cm_connect_experiment1", "cannot open database");
+         cm_msg(MERROR, "cm_connect_experiment1", "cannot open database, db_open_database() status %d", status);
          return status;
       }
 
@@ -2226,6 +2244,10 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    }
 
    cm_set_experiment_database(hDB, hKeyClient);
+
+   status = cm_msg_open_sysmsg();
+   if (status != CM_SUCCESS)
+      return status;
 
    /* set experiment name in ODB */
    db_set_value(hDB, 0, "/Experiment/Name", exp_name1, NAME_LENGTH, 1, TID_STRING);
@@ -4989,7 +5011,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       bm_cleanup("bm_open_buffer", ss_millitime(), FALSE);
 
       if (!buffer_name || !buffer_name[0]) {
-         cm_msg(MERROR, "bm_open_buffer", "cannot open buffer with zero name");
+         cm_msg(MERROR, "bm_open_buffer", "cannot open buffer with empty or NULL name");
          return BM_INVALID_PARAM;
       }
 
@@ -5001,7 +5023,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       status = cm_get_experiment_database(&hDB, &odb_key);
 
       if (status != SUCCESS || hDB == 0) {
-         //cm_msg(MERROR, "bm_open_buffer", "cannot open buffer \'%s\' - not connected to ODB", buffer_name);
+         cm_msg(MERROR, "bm_open_buffer", "cannot open buffer \'%s\' - not connected to ODB", buffer_name);
          return BM_NO_SHM;
       }
 
