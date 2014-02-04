@@ -380,7 +380,6 @@ int main(int argc, char **argv)
       }
 #endif
 
-      cm_msg_open_sysmsg();
       cm_create_experiment_semaphores();
 
       rpc_register_server(ST_SUBPROCESS, NULL, NULL, rpc_server_dispatch);
@@ -446,6 +445,10 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
    case RPC_CM_SET_CLIENT_INFO:
       status = cm_set_client_info(CHNDLE(0), CPHNDLE(1), (use_callback_addr?callback.host_name:CSTRING(2)),
                                   CSTRING(3), CINT(4), CSTRING(5), CINT(6));
+      if (status == CM_SUCCESS) {
+         // in the mserver, this is the first place where we are connected to ODB and we can open SYSMSG
+         cm_msg_open_sysmsg();
+      }
       break;
 
    case RPC_CM_CHECK_CLIENT:
@@ -986,3 +989,11 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
 
    return status;
 }
+
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */
