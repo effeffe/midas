@@ -751,6 +751,9 @@ static INT cm_msg_send_event(INT ts, INT message_type, const char *send_message)
 
    /* send event if not of type MLOG */
    if (message_type != MT_LOG) {
+      if (!_msg_buffer)
+         return CM_SUCCESS;
+      
       /* if no message buffer already opened, do so now */
       if (_msg_buffer == 0) {
          status = cm_msg_open_sysmsg();
@@ -2578,6 +2581,7 @@ INT cm_disconnect_experiment(void)
          cm_delete_client_info(hDB, 0);
 
       bm_close_all_buffers();
+      _msg_buffer = 0;
       db_close_all_databases();
    }
 
@@ -13464,6 +13468,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 #endif
 
          bm_close_all_buffers();
+         _msg_buffer = 0;
          cm_delete_client_info(hDB, 0);
          db_close_all_databases();
 
@@ -13478,8 +13483,6 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
          if (_msg_rb)
             rb_delete(_msg_rb);
          _msg_rb = 0;
-
-         _msg_buffer = 0;
       }
    }
 
