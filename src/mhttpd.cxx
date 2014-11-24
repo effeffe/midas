@@ -3476,8 +3476,6 @@ void show_rawfile(const char *path)
    /*---- file contents ----*/
 
    rsprintf("<tr><td colspan=2>\n");
-
-   //PAA change font to fix and left-aligned for the runlog only.
    rsprintf("<pre style='font-family:monospace; text-align:left'>\n");
 
    buf_size = sizeof(buffer);
@@ -3528,7 +3526,7 @@ void show_rawfile(const char *path)
 
    rsputs(buffer);
 
-   rsprintf("</pre></font>\n");
+   rsprintf("</pre>\n");
 
    rsprintf("</td></tr></table>\r\n");
    page_footer(TRUE);
