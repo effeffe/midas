@@ -116,7 +116,9 @@ INT gen_read(EQUIPMENT * pequipment, int channel)
                           channel - gen_info->channel_offset[channel],
                           &gen_info->demand[channel]);
 
-   if (gen_info->demand[channel] != gen_info->demand_mirror[channel]) {
+   if ((gen_info->demand[channel] != gen_info->demand_mirror[channel] && !ss_isnan(gen_info->demand[channel])) ||
+       (ss_isnan(gen_info->demand[channel]) && !ss_isnan(gen_info->demand_mirror[channel])) ||
+       (!ss_isnan(gen_info->demand[channel]) && ss_isnan(gen_info->demand_mirror[channel]))) {
       gen_info->demand_mirror[channel] = gen_info->demand[channel];
       db_set_data(hDB, gen_info->hKeyDemand, gen_info->demand,
                   sizeof(float) * gen_info->num_channels, gen_info->num_channels,
