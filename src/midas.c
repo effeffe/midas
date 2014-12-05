@@ -1086,7 +1086,7 @@ INT cm_msg_retrieve(INT n_message, char *message, INT buf_size)
    char path[256], *message2;
    INT status, size, n, i;
    HNDLE hDB, hKey;
-   time_t now;
+   time_t now = 0;
    struct tm *tms;
 
    if (rpc_is_remote())
