@@ -13367,23 +13367,14 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
    int size, status;
    char str[256];
 
-   /* header */
-   rsprintf("HTTP/1.1 200 Document follows\r\n");
-   rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Accept-Ranges: bytes\r\n");
-   rsprintf("Pragma: no-cache\r\n");
-   rsprintf("Expires: Fri, 01 Jan 1983 00:00:00 GMT\r\n");
-   rsprintf("Content-Type: text/plain\r\n");
-   rsprintf("Content-disposition: attachment; filename=\"export.csv\"\r\n");
-   rsprintf("\r\n");
-
    cm_get_experiment_database(&hDB, NULL);
 
    /* check panel name in ODB */
    sprintf(str, "/History/Display/%s", path);
    db_find_key(hDB, 0, str, &hkeypanel);
    if (!hkeypanel) {
-      rsprintf("Cannot find /History/Display/%s in ODB\n", path);
+      sprintf(str, "Cannot find /History/Display/%s in ODB\n", path);
+      show_error(str);
       return;
    }
 
@@ -13420,7 +13411,8 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
 
    status = read_history(hDB, path, index, runmarker, starttime, endtime, 0, hsdata);
    if (status != HS_SUCCESS) {
-      rsprintf(str, "History error, status %d\n", status);
+      sprintf(str, "History error, status %d\n", status);
+      show_error(str);
       return;
    }
 
@@ -13440,7 +13432,7 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
             t = hsdata->t[i][0];
 
    if (t == 0 && hsdata->nvars > 1) {
-      rsprintf("=== No history available for choosen period ===\n");
+      show_error("No history available for choosen period");
       free(i_var);
       return;
    }
@@ -13462,6 +13454,16 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
 
    //printf("runmarker %d, state %d, run %d\n", runmarker, state_index, run_index);
 
+   /* header */
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
+   rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   rsprintf("Accept-Ranges: bytes\r\n");
+   rsprintf("Pragma: no-cache\r\n");
+   rsprintf("Expires: Fri, 01 Jan 1983 00:00:00 GMT\r\n");
+   rsprintf("Content-Type: text/plain\r\n");
+   rsprintf("Content-disposition: attachment; filename=\"export.csv\"\r\n");
+   rsprintf("\r\n");
+   
    /* output header line with variable names */
    if (runmarker && t_run_number)
       rsprintf("Time, Timestamp, Run, Run State, ");
