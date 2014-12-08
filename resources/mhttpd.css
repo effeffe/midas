@@ -318,10 +318,6 @@ table.dialogTable td{
 	border:none;
 }
 
-.historyConfigTable {
-	border: none;
-}
-
 table.historyConfigTable td{
     border-bottom: 1px solid;
     text-align: left;
