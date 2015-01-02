@@ -13369,6 +13369,8 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
    int size, status;
    char str[256];
 
+   int debug = 0;
+
    cm_get_experiment_database(&hDB, NULL);
 
    /* check panel name in ODB */
@@ -13423,7 +13425,8 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
       return;
    }
 
-   //hsdata->Print();
+   if (debug)
+      hsdata->Print();
 
    int *i_var = (int *)malloc(sizeof(int)*hsdata->nvars);
 
@@ -13494,7 +13497,8 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
 
    do {
 
-      //printf("hsdata %p, t %d, irun %d\n", hsdata, t, i_run);
+      if (debug)
+         printf("hsdata %p, t %d, irun %d\n", hsdata, (int)t, i_run);
 
       /* find run number/state which is valid for t */
       if (runmarker && t_run_number)
@@ -13511,10 +13515,18 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
       /* finish if last point for all variables reached */
       bool done = true;
       for (int i = 0 ; i < hsdata->nvars ; i++)
-         if (hsdata->num_entries[i] > 0 && i_var[i] < hsdata->num_entries[i] - 1) {
+         if (hsdata->num_entries[i] > 0 && i_var[i] < hsdata->num_entries[i]) {
             done = false;
             break;
          }
+
+      if (debug) {
+         printf("step to time %d: ", (int)t);
+         for (int i = 0; i < hsdata->nvars; i++) {
+            printf(" [%d] %d, ", hsdata->num_entries[i], i_var[i]);
+         }
+         printf(" done: %d\n", done);
+      }
 
       if (done)
          break;
@@ -13534,9 +13546,11 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
       } else
          rsprintf("%s, %d, ", str, (int)t);
 
-      //for (int i= 0 ; i < hsdata->nvars ; i++)
-      //printf(" %d", i_var[i]);
-      //printf("\n");
+      if (debug) {
+         for (int i= 0 ; i < hsdata->nvars ; i++)
+            printf(" %d (%g)", i_var[i], hsdata->v[i][i_var[i]]);
+         printf("\n");
+      }
 
       for (int i=0, first=1 ; i<hsdata->nvars ; i++) {
          if (i_var[i] < 0)
@@ -13554,10 +13568,17 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
       /* find next t as smallest delta t */
       int dt = -1;
       for (int i = 0 ; i < hsdata->nvars ; i++)
-         if (i_var[i]>=0 && hsdata->odb_index[i]>=0)
-            if (dt <= 0 || hsdata->t[i][i_var[i]+1] - t < dt)
-               dt = (int)(hsdata->t[i][i_var[i]+1] - t);
+         if (i_var[i]>=0 && hsdata->odb_index[i]>=0 && hsdata->num_entries[i]>0 && i_var[i]<hsdata->num_entries[i]-1) {
+            int xdt = hsdata->t[i][i_var[i]+1] - t;
+            if (debug)
+               printf("var %d, i_var %d->%d, t %d->%d, dt %d\n", i, i_var[i], i_var[i]+1, (int)hsdata->t[i][i_var[i]], (int)hsdata->t[i][i_var[i]+1], xdt);
+            if (dt <= 0 || xdt < dt)
+               dt = xdt;
+         }
 
+      if (debug)
+         printf("dt %d\n", dt);
+      
       if (dt <= 0)
          break;
 
