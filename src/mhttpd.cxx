@@ -1,8 +1,3 @@
-
-
-
-
-
 /********************************************************************\
 
   Name:         mhttpd.cxx
@@ -594,7 +589,7 @@ void urlDecode(char *p)
             str[0] = p[0];
             str[1] = p[1];
             str[2] = 0;
-            sscanf(p, "%02X", &i);
+            sscanf(str, "%02X", &i);
 
             *pD++ = (char) i;
             p += 2;
@@ -8185,7 +8180,7 @@ void create_mscb_tree()
 
 void show_mscb_page(const char *path, int refresh)
 {
-   int i, j, n, ind, fi, fd, status, size, n_addr, *addr, cur_subm_index, cur_node, adr, show_hidden;
+   int i, j, n, ind, fi, fd, status, size, n_addr, *addr, cur_node, adr, show_hidden;
    unsigned int uptime;
    BOOL comment_created;
    float fvalue;
@@ -8518,7 +8513,6 @@ void show_mscb_page(const char *path, int refresh)
 
       if ((cur_subm_name[0] && equal_ustring(cur_subm_name, key.name)) ||
           (cur_subm_name[0] == 0 && i == 0)) {
-         cur_subm_index = i;
          rsprintf("<option value=\"%s\" selected>%s</option>\r\n", key.name, str);
          hKeyCurSubm = hKey;
       } else
@@ -11208,19 +11202,8 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
    int sort_vars = 0;
    int old_vars = 0;
    char var_status[MAX_VARS][256];
-   double tstart, tend;
    time_t starttime, endtime;
    int flags;
-
-   static char *ybuffer;
-   static DWORD *tbuffer;
-   static int hbuffer_size = 0;
-
-   if (hbuffer_size == 0) {
-      hbuffer_size = 1000 * sizeof(DWORD);
-      tbuffer = (DWORD*)malloc(hbuffer_size);
-      ybuffer = (char*)malloc(hbuffer_size);
-   }
 
    time_t now = ss_time();
 
@@ -11312,8 +11295,6 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
 
    ymin = ymax = 0;
    logaxis = runmarker = 0;
-
-   tstart = ss_millitime();
 
    for (i = 0; i < n_vars; i++) {
       if (index != -1 && index != i)
@@ -11662,8 +11643,6 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
 
       assert(n_point[i]<=MAX_POINTS);
    }
-
-   tend = ss_millitime();
 
    if (ymin < minvalue)
       ymin = minvalue;
@@ -12730,7 +12709,7 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
 {
    int status, size, index, sort_vars, old_vars;
    BOOL flag;
-   HNDLE hDB, hKeyVar;
+   HNDLE hDB;
    int max_display_events = 20;
    int max_display_tags = 200;
    char str[256], cmd[256], ref[256];
@@ -12748,7 +12727,6 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
    db_get_value(hDB, 0, "/History/MaxDisplayTags", &max_display_tags, &size, TID_INT, TRUE);
 
    strlcpy(cmd, getparam("cmd"), sizeof(cmd));
-   hKeyVar = 0;
 
    if (equal_ustring(cmd, "Clear history cache")) {
       strcpy(cmd, "refresh");
@@ -16190,7 +16168,6 @@ void server_loop()
    struct hostent *local_phe = NULL;
    fd_set readfds;
    struct timeval timeout;
-   INT last_time = 0;
    struct hostent *remote_phe;
    char hname[256];
    BOOL allowed;
@@ -16284,8 +16261,6 @@ void server_loop()
 #else
          _sock = accept(lsock, (struct sockaddr *) &acc_addr, (socklen_t *)&len);
 #endif
-
-         last_time = (INT) ss_time();
 
          /* save remote host address */
          memcpy(&remote_addr, &(acc_addr.sin_addr), sizeof(remote_addr));
