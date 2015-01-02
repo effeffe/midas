@@ -475,11 +475,9 @@ int main(int argc, char **argv)
       peqp = strstr(eqpstr, "\n");
       *peqp = 0;
    } else {
-      INT size;
       /* creation of config file requested */
       /* check if equipment string is a valifd key in order to
          prevent overwriting the configuration file */
-      size = sizeof(eqpstr);
       if (db_find_key(hDB, 0, eqpstr, &hKey) != DB_SUCCESS) {
          printf("unknown odb path under -q arg. (%s)\n", eqpstr);
          goto error;

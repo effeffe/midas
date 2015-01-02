@@ -249,7 +249,6 @@ void process_event(HNDLE hBuf, HNDLE request_id, EVENT_HEADER * pheader, void *p
   static int i_bar;
   static EVENT_HEADER pevh;
   INT internal_data_fmt, status, index, size;
-  DWORD *plrl;
   char banklist[STRING_BANKLIST_MAX];
   BANK_HEADER *pmbh;
   DWORD bklen, bktyp;
@@ -288,7 +287,6 @@ void process_event(HNDLE hBuf, HNDLE request_id, EVENT_HEADER * pheader, void *p
       assert(!"YBOS not supported anymore");
     
     /* pointer to data section */
-    plrl = (DWORD *) pevent;
     pmbh = (BANK_HEADER *) pevent;
     
     /* display header comes ALWAYS from MIDAS header */

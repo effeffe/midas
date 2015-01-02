@@ -3246,7 +3246,6 @@ void receive_event(HNDLE buffer_handle, HNDLE request_id, EVENT_HEADER * pheader
                    void *pevent)
 /* receive online event */
 {
-   INT i;
    ANALYZE_REQUEST *par;
    static DWORD buffer_size = 0;
    static char *buffer = NULL;
@@ -3270,7 +3269,7 @@ void receive_event(HNDLE buffer_handle, HNDLE request_id, EVENT_HEADER * pheader
 
    par = analyze_request;
 
-   for (i = 0; par->event_name[0]; par++)
+   for (; par->event_name[0]; par++)
       if (par->buffer_handle == buffer_handle && par->request_id == request_id) {
          process_event(par, (EVENT_HEADER *) pb);
       }
@@ -4047,7 +4046,7 @@ INT analyze_run(INT run_number, char *input_file_name, char *output_file_name)
 {
    EVENT_HEADER *pevent, *pevent_unaligned;
    ANALYZE_REQUEST *par;
-   INT i, n, size;
+   INT n, size;
    DWORD num_events_in, num_events_out;
    char error[256], str[256];
    INT status = SUCCESS;
@@ -4166,7 +4165,7 @@ INT analyze_run(INT run_number, char *input_file_name, char *output_file_name)
          /* find request belonging to this event */
          par = analyze_request;
          status = SUCCESS;
-         for (i = 0; par->event_name[0]; par++)
+         for (; par->event_name[0]; par++)
             if ((par->ar_info.event_id == EVENTID_ALL ||
                  par->ar_info.event_id == pevent->event_id) &&
                 (par->ar_info.trigger_mask == TRIGGER_ALL ||

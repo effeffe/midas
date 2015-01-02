@@ -292,7 +292,6 @@ INT lazy_file_remove(const char *pufile)
 INT lazy_log_update(INT action, INT run, const char *label, const char *file, DWORD perf_time)
 {
    char str[MAX_FILE_PATH];
-   INT blocks;
 
    strcpy(str, "no action");
 
@@ -315,7 +314,6 @@ INT lazy_log_update(INT action, INT run, const char *label, const char *file, DW
                  label, lazyst.nfiles, (double) perf_time / 1000.,
                  lazy.path, lazyst.backfile, lazyst.file_size / 1024.0 / 1024.0);
       } else if (equal_ustring(lazy.type, "Tape")) {
-         blocks = (int) (lazyst.cur_dev_size / 32.0 / 1024.0) + lazyst.nfiles;
          /* June 2002, use variable blockn from the real tape position */
          sprintf(str, "%s[%i] (cp:%.1fs) %s/%s %1.3lfMB  file NEW (position at block %d)",
                  label, lazyst.nfiles, (double) perf_time / 1000.,
@@ -1168,7 +1166,7 @@ Function value:
    void *plazy = NULL;
    DWORD szlazy;
    INT status, no_cpy_last_time = 0;
-   INT last_time, cpy_loop_time;
+   INT cpy_loop_time;
    DWORD watchdog_timeout;
    static INT last_error = 0;
    //char *pext;
@@ -1180,7 +1178,6 @@ Function value:
 
    /* init copy variables */
    lazyst.cur_size = 0.0f;
-   last_time = 0;
 
    /* open any logging file (output) */
    strlcpy(filename, outfile, sizeof(filename));        // ftp modifies filename

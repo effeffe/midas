@@ -7360,7 +7360,7 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
    {
       BUFFER *pbuf;
       BUFFER_HEADER *pheader;
-      BUFFER_CLIENT *pclient, *pc;
+      BUFFER_CLIENT *pc;
       char *pdata;
       INT convert_flags;
       INT i, size, max_size;
@@ -7401,7 +7401,6 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
       pheader = pbuf->buffer_header;
       pdata = (char *) (pheader + 1);
       my_client_index = bm_validate_client_index(pbuf, TRUE);
-      pclient = pheader->client;
       pc = pheader->client + my_client_index;
 
       /* first do a quick check without locking the buffer */
@@ -7672,7 +7671,7 @@ INT bm_push_event(char *buffer_name)
    {
       BUFFER *pbuf;
       BUFFER_HEADER *pheader;
-      BUFFER_CLIENT *pclient, *pc;
+      BUFFER_CLIENT *pc;
       char *pdata;
       INT i, size, buffer_handle;
       INT my_client_index;
@@ -7715,7 +7714,6 @@ INT bm_push_event(char *buffer_name)
       pheader = pbuf->buffer_header;
       pdata = (char *) (pheader + 1);
       my_client_index = bm_validate_client_index(pbuf, TRUE);
-      pclient = pheader->client;
       pc = pheader->client + my_client_index;
 
       /* first do a quick check without locking the buffer */
@@ -8316,7 +8314,6 @@ void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
 \********************************************************************/
 {
    INT i;
-   static int j = -1;
 
    if ((pevent->event_id & 0xF000) == EVENTID_FRAG1) {
       /*---- start new event ----*/
@@ -8374,8 +8371,6 @@ void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
 
       // printf("First frag[%d] (ID %d) Ser#:%d sz:%d\n", i, defrag_buffer[i].event_id,
       //       pevent->serial_number, defrag_buffer[i].data_size);
-
-      j = 0;
 
       return;
    }
@@ -12084,7 +12079,7 @@ INT rpc_execute_ascii(INT sock, char *buffer)
 #define N_APARAM           1024
 
    INT i, j, idx, status, index_in;
-   char *in_param_ptr, *out_param_ptr, *last_param_ptr;
+   char *in_param_ptr, *out_param_ptr;
    INT routine_id, tid, flags, array_tid, n_param;
    INT param_size, item_size, num_values;
    void *prpc_param[20];
@@ -12227,8 +12222,6 @@ INT rpc_execute_ascii(INT sock, char *buffer)
 
    strcat(debug_line, ")");
    rpc_debug_printf(debug_line);
-
-   last_param_ptr = out_param_ptr;
 
    /*********************************\
    *   call dispatch function        *
@@ -14473,7 +14466,7 @@ int rb_increment_wp(int handle, int size)
 \********************************************************************/
 {
    int h;
-   unsigned char *old_wp, *new_wp;
+   unsigned char *new_wp;
 
    if (handle < 1 || handle > MAX_RING_BUFFER || rb[handle - 1].buffer == NULL)
       return DB_INVALID_HANDLE;
@@ -14483,7 +14476,6 @@ int rb_increment_wp(int handle, int size)
    if ((DWORD) size > rb[h].max_event_size)
       return DB_INVALID_PARAM;
 
-   old_wp = rb[h].wp;
    new_wp = rb[h].wp + size;
 
    /* wrap around wp if not enough space */
@@ -14600,7 +14592,7 @@ int rb_increment_rp(int handle, int size)
 {
    int h;
 
-   unsigned char *new_rp, *old_rp;
+   unsigned char *new_rp;
 
    if (handle < 1 || handle > MAX_RING_BUFFER || rb[handle - 1].buffer == NULL)
       return DB_INVALID_HANDLE;
@@ -14610,7 +14602,6 @@ int rb_increment_rp(int handle, int size)
    if ((DWORD) size > rb[h].max_event_size)
       return DB_INVALID_PARAM;
 
-   old_rp = rb[h].rp;
    new_rp = rb[h].rp + size;
 
    /* wrap around if not enough space left */

@@ -768,13 +768,11 @@ INT initialize_equipment(void)
    char str[256];
    DWORD start_time, delta_time;
    EQUIPMENT_INFO *eq_info;
-   EQUIPMENT_STATS *eq_stats;
    BOOL manual_trig_flag = FALSE;
 
    /* scan EQUIPMENT table from user frontend */
    for (idx = 0; equipment[idx].name[0]; idx++) {
       eq_info = &equipment[idx].info;
-      eq_stats = &equipment[idx].stats;
 
       /*---- initialize interrupt events -----------------------------*/
 
