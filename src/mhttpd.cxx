@@ -13404,6 +13404,11 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
       scale = time_to_sec(str);
    }
 
+   time_t now = ss_time();
+
+   if (endtime == 0)
+      endtime = now;
+
    HistoryData hsxxx;
    HistoryData* hsdata = &hsxxx;
 
