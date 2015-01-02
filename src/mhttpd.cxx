@@ -10933,6 +10933,7 @@ int read_history(HNDLE hDB, const char *path, int index, int flags, time_t tstar
    HNDLE hkeypanel, hkeydvar, hkey;
    KEY key;
    int n_vars, status;
+   int debug = 0;
 
    // printf("read_history, path %s, index %d, runmarker %d, start %d, end %d, scale %d, data %p\n", path, index, runmarker, (int)tstart, (int)tend, (int)scale, data);
 
@@ -11042,6 +11043,13 @@ int read_history(HNDLE hDB, const char *path, int index, int flags, time_t tstar
                            data->t,
                            data->v,
                            data->status);
+      
+      if (debug) {
+         printf("read_history: nvars %d, hs_read() status %d\n", data->nvars, status);
+         for (int i=0; i<data->nvars; i++) {
+            printf("read_history: %d: event [%s], var [%s], index %d, odb index %d, status %d, num_entries %d\n", i, data->event_names[i], data->var_names[i], data->var_index[i], data->odb_index[i], data->status[i], data->num_entries[i]);
+         }
+      }
 
       if (status != HS_SUCCESS) {
          cm_msg(MERROR, "read_history", "Complete history failure, hs_read() status %d, see messages", status);
@@ -12077,17 +12085,33 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
                           offset[i] < 0 ? '-' : '+', fabs(offset[i]));
             }
          }
+         
+         int k=0;
+         for (int j=0; j<hsdata->nvars; j++)
+            if (hsdata->odb_index[j] == i) {
+               k = j;
+               break;
+            }
+         
+         if (0) {
+            printf("graph %d: odb index %d, n_point %d, num_entries %d, have_last_written %d %d, status %d, var_status [%s]\n", i, k, n_point[i], hsdata->num_entries[k], hsdata->have_last_written, (int)hsdata->last_written[k], hsdata->status[k], var_status[i]);
+         }
 
          if (show_values) {
             char xstr[256];
             if (n_point[i] > 0) {
                sprintf(xstr," = %g", y[i][n_point[i]-1]);
+            } else if (hsdata->num_entries[k] > 0) {
+               sprintf(xstr," = all data is NaN or INF");
             } else if (hsdata->have_last_written) {
-               if (hsdata->last_written[i]) {
-                  sprintf(xstr," = last data %s", ctime(&hsdata->last_written[i]));
+               if (hsdata->last_written[k]) {
+                  sprintf(xstr," = last data %s", ctime(&hsdata->last_written[k]));
                   // kill trailing '\n'
                   char*s = strchr(xstr, '\n');
                   if (s) *s=0;
+                  // clear the unnecessary error status report
+                  if (hsdata->status[k] == HS_UNDEFINED_VAR)
+                     var_status[i][0] = 0;
                } else {
                   sprintf(xstr," = no data ever");
                }
@@ -13406,8 +13430,9 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
    /* find first time where all variables are available */
    for (int i = 0; i < hsdata->nvars; i++)
       if (hsdata->odb_index[i] >= 0)
-         if ((t == 0) || (hsdata->num_entries[i] > 0 && hsdata->t[i][0] > t))
-            t = hsdata->t[i][0];
+         if (hsdata->num_entries[i] > 0)
+            if ((t == 0) || (hsdata->t[i][0] > t))
+               t = hsdata->t[i][0];
 
    if (t == 0 && hsdata->nvars > 1) {
       show_error("No history available for choosen period");
