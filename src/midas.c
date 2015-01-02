@@ -3656,13 +3656,17 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    INT i, j, status, idx, size, sequence_number, port, state, n_tr_clients;
    HNDLE hDB, hRootKey, hSubkey, hKey, hKeylocal, hKeyTrans;
    DWORD seconds;
-   char host_name[HOST_NAME_LENGTH], client_name[NAME_LENGTH], str[256], error[256], tr_key_name[256];
+   char host_name[HOST_NAME_LENGTH], client_name[NAME_LENGTH], str[256], tr_key_name[256];
    char *trname = "unknown";
    KEY key;
    BOOL deferred;
    PROGRAM_INFO program_info;
    TR_CLIENT *tr_client;
 
+   /* erase error string */
+   if (errstr)
+      errstr[0] = 0;
+   
    /* get key of local client */
    cm_get_experiment_database(&hDB, &hKeylocal);
 
@@ -4069,9 +4073,6 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    /* contact ordered clients for transition -----------------------*/
    status = CM_SUCCESS;
    for (idx = 0; idx < n_tr_clients; idx++) {
-      /* erase error string */
-      error[0] = 0;
-
       if (debug_flag == 1)
          printf("\n==== Found client \"%s\" with sequence number %d\n",
                 tr_client[idx].client_name, tr_client[idx].sequence_number);
