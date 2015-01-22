@@ -16356,8 +16356,7 @@ void server_loop()
             struct hostent *remote_phe;
             char str[256];
 
-            printf("%s", ss_asctime());
-            printf("=== Received request from ");
+            printf("=========== Received request from ");
 
             remote_phe = gethostbyaddr((char *) &remote_addr, 4, PF_INET);
             if (remote_phe == NULL) {
@@ -16366,8 +16365,7 @@ void server_loop()
             } else
                strlcpy(str, remote_phe->h_name, sizeof(str));
 
-            puts(str);
-            printf("===========\n");
+            printf("%s at %s ===========\n", str, ss_asctime());
             fflush(stdout);
          }
 
@@ -16450,7 +16448,7 @@ void server_loop()
                i = send_tcp(_sock, return_buffer, return_length, 0x10000);
 
                if (verbose) {
-                  printf("==== Return error info %i bytes ==============\n", return_length);
+                  printf("########## Return error info %i bytes ##########\n", return_length);
                   puts(return_buffer);
                   printf("\n\n");
                }
@@ -16618,8 +16616,7 @@ void server_loop()
                return_length = strlen(return_buffer);
 
             if (verbose) {
-               printf("%s", ss_asctime());
-               printf("==== Return buffer %i bytes ===\n", return_length);
+               printf("########## Return buffer %i bytes at %s ##########\n", return_length, ss_asctime());
                printf("\n\n");
             }
 
