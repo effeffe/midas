@@ -24,6 +24,9 @@
 #include "strlcpy.h"
 #endif
 
+// make mysql/my_global.h happy - it redefines closesocket()
+#undef closesocket
+
 //
 // benchmarks
 //
@@ -108,7 +111,7 @@ static bool MatchEventName(const char* event_name, const char* var_event_name)
 
    //printf("looking for event_name [%s], try table [%s] event name [%s], new style [%d]\n", var_event_name, table_name, event_name, newStyleEventName);
 
-   if (strcmp(event_name, var_event_name) == 0) {
+   if (strcasecmp(event_name, var_event_name) == 0) {
       return true;
    } else if (newStyleEventName) {
       return false;
@@ -150,11 +153,11 @@ static bool MatchTagName(const char* tag_name, int n_data, const char* var_tag_n
 
    //printf("  looking for tag [%s] alt [%s], try column name [%s]\n", var_tag_name, alt_tag_name, tag_name);
 
-   if (strcmp(tag_name, var_tag_name) == 0)
+   if (strcasecmp(tag_name, var_tag_name) == 0)
       if (var_tag_index >= 0 && var_tag_index < n_data)
          return true;
 
-   if (strcmp(tag_name, alt_tag_name) == 0)
+   if (strcasecmp(tag_name, alt_tag_name) == 0)
       return true;
 
    return false;
@@ -2333,7 +2336,7 @@ int SchemaHistoryBase::hs_define_event(const char* event_name, time_t timestamp,
          return HS_FILE_ERROR;
       }
       for (int j=i+1; j<ntags; j++) {
-         if (strcmp(tags[i].name, tags[j].name) == 0) {
+         if (strcasecmp(tags[i].name, tags[j].name) == 0) {
             cm_msg(MERROR, "hs_define_event", "Error: History event \'%s\' has duplicate tag name \'%s\' at indices %d and %d", event_name, tags[i].name, i, j);
             return HS_FILE_ERROR;
          }
@@ -2536,7 +2539,7 @@ int SchemaHistoryBase::hs_get_tags(const char* event_name, time_t t, std::vector
          bool dupe = false;
 
          for (unsigned k=0; k<ptags->size(); k++)
-            if (strcmp((*ptags)[k].name, tagname) == 0) {
+            if (strcasecmp((*ptags)[k].name, tagname) == 0) {
                dupe = true;
                break;
             }
@@ -2689,7 +2692,7 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
    }
 
    if (0||fDebug) {
-      printf("Collected schema:\n");
+      printf("Found %d matching schema:\n", (int)slist.size());
 
       for (unsigned i=0; i<slist.size(); i++) {
          HsSchema* s = slist[i];
@@ -2836,8 +2839,11 @@ int HsSchema::match_event_var(const char* event_name, const char* var_name, cons
       return -1;
 
    for (unsigned j=0; j<this->variables.size(); j++) {
-      if (MatchTagName(this->variables[j].name.c_str(), this->variables[j].n_data, var_name, var_index))
-         return j;
+      if (MatchTagName(this->variables[j].name.c_str(), this->variables[j].n_data, var_name, var_index)) {
+         if (var_index < this->variables[j].n_data) {
+            return j;
+         }
+      }
    }
 
    return -1;
@@ -4340,10 +4346,13 @@ int FileHistory::read_schema(HsSchemaVector* sv, const char* event_name, const t
 
    std::vector<std::string> flist;
 
-   char *plist;
+   char *plist = NULL;
    int n = ss_file_find((char *)fPath.c_str(), "mhf_*.dat", &plist);
    for (int i=0 ; i<n ; i++)
       flist.push_back(plist+i*MAX_STRING_LENGTH);
+
+   free(plist);
+   plist = NULL;
 
    //printf("Found %d files\n", flist.size());
 
