@@ -2045,7 +2045,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    if (exp_name == NULL)
       exp_name = "";
 
-   strcpy(exp_name1, exp_name);
+   strlcpy(exp_name1, exp_name, sizeof(exp_name1));
    if (exp_name1[0] == 0) {
       status = cm_select_experiment(host_name, exp_name1);
       if (status != CM_SUCCESS)
@@ -2926,6 +2926,25 @@ INT cm_register_server(void)
 
       /* lock database */
       db_set_mode(hDB, hKey, MODE_READ, TRUE);
+
+      db_find_key(hDB, 0, "/Experiment/Security/rpc hosts", &hKey); 
+      if (hKey) {
+         int i;
+         //printf("clear rpc hosts!\n");
+         rpc_clear_allowed_hosts();
+         for (i = 0;; i++) { 
+            HNDLE hSubkey;
+            KEY key;
+            status = db_enum_key(hDB, hKey, i, &hSubkey); 
+            if (status == DB_NO_MORE_SUBKEYS) 
+               break; 
+            status = db_get_key(hDB, hSubkey, &key);
+            if (status == DB_SUCCESS) {
+               //printf("add rpc hosts %d [%s]\n", i, key.name);
+               rpc_add_allowed_host(key.name);
+            }
+         }
+      }
    }
 
    return CM_SUCCESS;
@@ -12513,7 +12532,14 @@ INT rpc_server_accept(int lsock)
       }
 
       if (!allowed) {
-         cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\'", hname);
+         static int max_report = 10; 
+         if (max_report > 0) { 
+            max_report--; 
+            if (max_report == 0) 
+               cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\', this message will no longer be reported", hname); 
+            else 
+               cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\'", hname); 
+         } 
          closesocket(sock);
          return RPC_NET_ERROR;
       }
@@ -12794,6 +12820,53 @@ INT rpc_client_accept(int lsock)
   strcpy(host_name, phe->h_name);
 #endif
 */
+
+   /* check access control list */ 
+   if (n_allowed_hosts > 0) { 
+      int allowed = FALSE; 
+      struct hostent *remote_phe; 
+      char hname[256]; 
+      struct in_addr remote_addr; 
+
+      /* save remote host address */ 
+      memcpy(&remote_addr, &(acc_addr.sin_addr), sizeof(remote_addr)); 
+
+      remote_phe = gethostbyaddr((char *) &remote_addr, 4, PF_INET); 
+
+      if (remote_phe == NULL) { 
+         /* use IP number instead */ 
+         strlcpy(hname, (char *)inet_ntoa(remote_addr), sizeof(hname)); 
+      } else 
+         strlcpy(hname, remote_phe->h_name, sizeof(hname)); 
+
+      /* always permit localhost */ 
+      if (strcmp(hname, "localhost.localdomain") == 0) 
+         allowed = TRUE; 
+      if (strcmp(hname, "localhost") == 0) 
+         allowed = TRUE; 
+ 
+      if (!allowed) { 
+         for (i=0 ; i<n_allowed_hosts ; i++) 
+            if (strcmp(hname, allowed_host[i]) == 0) { 
+               allowed = TRUE; 
+               break; 
+            } 
+      } 
+
+      if (!allowed) { 
+         static int max_report = 10;
+         if (max_report > 0) {
+            max_report--;
+            if (max_report == 0)
+               cm_msg(MERROR, "rpc_client_accept", "rejecting connection from unallowed host \'%s\', this message will no longer be reported", hname);
+            else
+               cm_msg(MERROR, "rpc_client_accept", "rejecting connection from unallowed host \'%s\'", hname);
+         }
+         closesocket(sock); 
+         return RPC_NET_ERROR; 
+      } 
+   }
+
    strcpy(host_name, "(unknown)");
 
    strcpy(client_program, "(unknown)");
