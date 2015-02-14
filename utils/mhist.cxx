@@ -600,6 +600,8 @@ int main(int argc, char *argv[])
 
    MidasHistoryInterface* mh = NULL;
 
+   cm_get_environment(host_name, sizeof(host_name), expt_name, sizeof(expt_name));
+
    if (argc == 1) {
       status = cm_connect_experiment1(host_name, expt_name, "mhist", 0, DEFAULT_ODB_SIZE, 0);
       assert(status == CM_SUCCESS);
@@ -652,16 +654,17 @@ int main(int argc, char *argv[])
             else if (strncmp(argv[i], "-s", 2) == 0) {
                strcpy(start_name, argv[++i]);
                start_time = convert_time(argv[i]);
-               do_hst_file = true;
-            } else if (strncmp(argv[i], "-p", 2) == 0)
+            } else if (strncmp(argv[i], "-p", 2) == 0) {
                end_time = convert_time(argv[++i]);
-            else if (strncmp(argv[i], "-t", 2) == 0)
+            } else if (strncmp(argv[i], "-t", 2) == 0) {
                interval = atoi(argv[++i]);
-            else if (strncmp(argv[i], "-f", 2) == 0) {
+            } else if (strncmp(argv[i], "-f", 2) == 0) {
                strcpy(path_name, argv[++i]);
                do_hst_file = true;
-            } else if (strncmp(argv[i], "-z", 2) == 0)
+            } else if (strncmp(argv[i], "-z", 2) == 0) {
                strcpy(path1_name, argv[++i]);
+               do_hst_file = true;
+            }
          } else {
           usage:
             printf("\nusage: mhist [-e Event ID] [-v Variable Name]\n");
