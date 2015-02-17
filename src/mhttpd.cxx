@@ -16761,7 +16761,7 @@ static int event_handler_mg(struct mg_event *event)
          int max_post_data = 1024*1024;
          char *post_data = (char *)malloc(max_post_data);
          // User has submitted a form, show submitted data and a variable value
-         int post_data_len = mg_read(event->conn, post_data, sizeof(post_data));
+         int post_data_len = mg_read(event->conn, post_data, max_post_data);
 
          char boundary[256];
          boundary[0] = 0;
