@@ -320,6 +320,7 @@ PROGS = $(BIN_DIR)/mserver $(BIN_DIR)/mhttpd \
 	$(BIN_DIR)/mana_link_test \
 	$(BIN_DIR)/fal_link_test \
 	$(BIN_DIR)/mjson_test \
+	$(BIN_DIR)/mcnaf \
 	$(SPECIFIC_OS_PRG)
 
 ANALYZER = $(LIB_DIR)/mana.o

@@ -779,8 +779,7 @@ INT decode_line(CAMAC * P, char *ss)
 void help_page(INT which)
 {
    if (which == MAIN) {
-      printf("\n*-v%d----------- H E L P   C N A F -------------------*\n",
-             cm_get_revision());
+      printf("\n*-v%s----------- H E L P   C N A F -------------------*\n", cm_get_revision());
       printf("          Interactive Midas CAMAC command\n");
       printf("          ===============================\n");
       printf(" Output : Data [dec/hex X=0/1 - Q=0/1 ]\n");
@@ -798,11 +797,9 @@ void help_page(INT which)
       printf("           O :  Octal       Data     [0 - max data_size]\n");
       printf("           X :  Hexadecimal Data     [0 - max data_size]\n");
       printf("\n");
-      printf
-          (">>>>>>>>>> Data has to be given LAST if needed in the command string <<<<<\n");
+      printf(">>>>>>>>>> Data has to be given LAST if needed in the command string <<<<<\n");
       printf("\n");
-      printf
-          (" The commands below are following the ESONE standard for a A2 controller\n");
+      printf(" The commands below are following the ESONE standard for a A2 controller\n");
       printf(" N30A9F24 : Crate clear inhibit    N30A9F26 : Crate set inhibit\n");
       printf(" N28A8F26 : Z crate                N28A9F26 : C crate\n");
       printf(" N30A13F17: CC Lam enable          N30A12F17: CC Lam disable\n");
@@ -813,8 +810,7 @@ void help_page(INT which)
       printf("      CNAF> [B0C1N30A00F00 [0/0x000000 Q0X0] R1W0M24] :n30a9f24\n");
       printf("      CNAF> [B0C1N06A00F24 [0/0x000000 Q1X1] R1W0M24] :n6f9a0\n");
    } else {
-      printf("\n*-v%d----------- H E L P   C N A F -------------------*\n",
-             cm_get_revision());
+      printf("\n*-v%s----------- H E L P   C N A F -------------------*\n", cm_get_revision());
       printf("          Interactive MCStd CAMAC command\n");
       printf("The action taken is dependent on the driver implementation\n");
       printf("[Q/E]            : Exit this level\n");
@@ -823,8 +819,7 @@ void help_page(INT which)
       printf("cam16/24i        : 16/24bit input\n");
       printf("cam16/24i_q      : 16/24bit input with Q response\n");
       printf("cam16/24i_r      : 16/24bit input repeat until R reached (max 100)\n");
-      printf
-          ("cam16/24i_rq     : 16/24bit input repeat until NoQ or R reached (max 100)\n");
+      printf("cam16/24i_rq     : 16/24bit input repeat until NoQ or R reached (max 100)\n");
       printf("cam16/24i_sa     : 16/24bit input scan R times over A\n");
       printf("cam16/24i_sn     : 16/24bit input scan R times over N\n");
       printf("cam16/24o        : 16/24bit output\n");
@@ -887,8 +882,7 @@ int main(int argc, char **argv)
             cmd_mode = TRUE;
          } else {
           usage:
-            printf
-                ("usage: mcnaf [-f Frontend] [-h Hostname] [-e Experiment] [-s RPC server]\n");
+            printf("usage: mcnaf [-f Frontend] [-h Hostname] [-e Experiment] [-s RPC server]\n");
             printf("             [-c Command] [-c @CommandFile] \n\n");
             return 0;
          }
