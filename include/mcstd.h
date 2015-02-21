@@ -589,8 +589,7 @@ Initialize CAMAC access for rpc calls
 @param rpc_server RPC server name
 @return 1: success
 */
-   EXTERNAL int EXPRT cam_init_rpc(char *host_name, char *exp_name, char *fe_name,
-                                          char *client_name, char *rpc_server);
+   EXTERNAL int EXPRT cam_init_rpc(const char *host_name, const char *exp_name, const char *fe_name, const char *client_name, const char *rpc_server);
 
 /********************************************************************/
 /**
