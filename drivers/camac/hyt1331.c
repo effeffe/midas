@@ -774,8 +774,7 @@ int gbl_sw1d[MAX_HYTEC_CARDS][MAX_CRATES_PER_CARD];
 
 /*------------------------------------------------------------------*/
 
- int cam_init_rpc(char *host_name, char *exp_name, char *fe_name,
-                        char *client_name, char *rpc_server)
+int cam_init_rpc(const char *host_name, const char *exp_name, const char *fe_name, const char *client_name, const char *rpc_server)
 {
    /* dummy routine for compatibility */
    return 1;

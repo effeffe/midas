@@ -17,6 +17,8 @@
  *
  *---------------------------------------------------------------------------*/
 
+#error This driver is obsolete. Use hyt1331.c instead.
+
 #ifndef INLINE
 #if defined( _MSC_VER )
 #define INLINE __inline

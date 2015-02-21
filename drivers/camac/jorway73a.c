@@ -99,18 +99,18 @@ unsigned int cdchn(int branch, int channel, int route);
 /* supports ... */
 
 /*------------------------------------------------------------------*/
-INLINE void cam8i(const int c, const int n, const int a, const int f, unsigned char *d)
+void cam8i(const int c, const int n, const int a, const int f, unsigned char *d)
 {
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cami(const int c, const int n, const int a, const int f, WORD * d)
+void cami(const int c, const int n, const int a, const int f, WORD * d)
 {
    cam16i(c, n, a, f, d);
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16i(const int c, const int n, const int a, const int f, WORD * d)
+void cam16i(const int c, const int n, const int a, const int f, WORD * d)
 {
    int cmd;
    unsigned short locdat[2] = { 0, 0 };
@@ -124,7 +124,7 @@ INLINE void cam16i(const int c, const int n, const int a, const int f, WORD * d)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24i(const int c, const int n, const int a, const int f, DWORD * d)
+void cam24i(const int c, const int n, const int a, const int f, DWORD * d)
 {
    int cmd;                     /* Take a page from sjy_cfsa.c */
    cmd = NAFCMD(n, a, f);       /* get cmd to pass to sjy_read */
@@ -134,14 +134,14 @@ INLINE void cam24i(const int c, const int n, const int a, const int f, DWORD * d
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam8i_q(const int c, const int n, const int a, const int f,
+void cam8i_q(const int c, const int n, const int a, const int f,
                     unsigned char *d, int *x, int *q)
 {
    fprintf(stderr, "cam8i_q not implemented\n");
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16i_q(const int c, const int n, const int a, const int f,
+void cam16i_q(const int c, const int n, const int a, const int f,
                      WORD * d, int *x, int *q)
 {
    int cmd;                     /* Take a page from sjy_cfsa.c */
@@ -158,7 +158,7 @@ INLINE void cam16i_q(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24i_q(const int c, const int n, const int a, const int f,
+void cam24i_q(const int c, const int n, const int a, const int f,
                      DWORD * d, int *x, int *q)
 {
    int cmd;                     /* Take a page from sjy_cfsa.c */
@@ -171,7 +171,7 @@ INLINE void cam24i_q(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16i_r(const int c, const int n, const int a, const int f,
+void cam16i_r(const int c, const int n, const int a, const int f,
                      WORD ** d, const int r)
 {
 #ifndef NODMA
@@ -192,7 +192,7 @@ INLINE void cam16i_r(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24i_r(const int c, const int n, const int a, const int f,
+void cam24i_r(const int c, const int n, const int a, const int f,
                      DWORD ** d, const int r)
 {
 #ifndef NODMA
@@ -213,7 +213,7 @@ INLINE void cam24i_r(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16i_rq(const int c, const int n, const int a, const int f,
+void cam16i_rq(const int c, const int n, const int a, const int f,
                       WORD ** d, const int r)
 {
 #ifndef NODMA
@@ -237,7 +237,7 @@ INLINE void cam16i_rq(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24i_rq(const int c, const int n, const int a, const int f,
+void cam24i_rq(const int c, const int n, const int a, const int f,
                       DWORD ** d, const int r)
 {
 #ifndef NODMA
@@ -263,7 +263,7 @@ INLINE void cam24i_rq(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16i_sa(const int c, const int n, const int a, const int f,
+void cam16i_sa(const int c, const int n, const int a, const int f,
                       WORD ** d, const int r)
 {
    WORD i, aa;
@@ -276,7 +276,7 @@ INLINE void cam16i_sa(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24i_sa(const int c, const int n, const int a, const int f,
+void cam24i_sa(const int c, const int n, const int a, const int f,
                       DWORD ** d, const int r)
 {
    WORD i, aa;
@@ -289,7 +289,7 @@ INLINE void cam24i_sa(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16i_sn(const int c, const int n, const int a, const int f,
+void cam16i_sn(const int c, const int n, const int a, const int f,
                       WORD ** d, const int r)
 {
    int i;
@@ -299,7 +299,7 @@ INLINE void cam16i_sn(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24i_sn(const int c, const int n, const int a, const int f,
+void cam24i_sn(const int c, const int n, const int a, const int f,
                       DWORD ** d, const int r)
 {
    int i;
@@ -308,31 +308,31 @@ INLINE void cam24i_sn(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam8o(const int c, const int n, const int a, const int f, unsigned char d)
+void cam8o(const int c, const int n, const int a, const int f, unsigned char d)
 {
    fprintf(stderr, "cam8o not implemented\n");
 }
 
 /*------------------------------------------------------------------*/
-INLINE void camo(const int c, const int n, const int a, const int f, WORD d)
+void camo(const int c, const int n, const int a, const int f, WORD d)
 {
    cam16o(c, n, a, f, d);
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16o(const int c, const int n, const int a, const int f, WORD d)
+void cam16o(const int c, const int n, const int a, const int f, WORD d)
 {
    cam16o_q(c, n, a, f, d, &xdummy, &qdummy);
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24o(const int c, const int n, const int a, const int f, DWORD d)
+void cam24o(const int c, const int n, const int a, const int f, DWORD d)
 {
    cam24o_q(c, n, a, f, d, &xdummy, &qdummy);
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16o_q(const int c, const int n, const int a, const int f,
+void cam16o_q(const int c, const int n, const int a, const int f,
                      WORD d, int *x, int *q)
 {
    int cmd;                     /* Take a page from sjy_cfsa.c */
@@ -348,7 +348,7 @@ INLINE void cam16o_q(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24o_q(const int c, const int n, const int a, const int f,
+void cam24o_q(const int c, const int n, const int a, const int f,
                      DWORD d, int *x, int *q)
 {
    int cmd;                     /* Take a page from sjy_cfsa.c */
@@ -361,13 +361,13 @@ INLINE void cam24o_q(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam8o_r(const int c, const int n, const int a, const int f,
+void cam8o_r(const int c, const int n, const int a, const int f,
                     BYTE * d, const int r)
 {
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16o_r(const int c, const int n, const int a, const int f,
+void cam16o_r(const int c, const int n, const int a, const int f,
                      WORD * d, const int r)
 {
 #ifndef NODMA
@@ -388,7 +388,7 @@ INLINE void cam16o_r(const int c, const int n, const int a, const int f,
 
 
 /*------------------------------------------------------------------*/
-INLINE void cam24o_r(const int c, const int n, const int a, const int f,
+void cam24o_r(const int c, const int n, const int a, const int f,
                      DWORD * d, const int r)
 {
 #ifndef NODMA
@@ -408,7 +408,7 @@ INLINE void cam24o_r(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE int camc_chk(const int c)
+int camc_chk(const int c)
 {
    /* GH:  Interpret this as being a "test unit ready" as far as SCSI goes */
    int status, ext_add;
@@ -420,14 +420,14 @@ INLINE int camc_chk(const int c)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void camc(const int c, const int n, const int a, const int f)
+void camc(const int c, const int n, const int a, const int f)
 {
    /* Non-data command */
    camc_q(c, n, a, f, &qdummy);
 }
 
 /*------------------------------------------------------------------*/
-INLINE void camc_q(const int c, const int n, const int a, const int f, int *q)
+void camc_q(const int c, const int n, const int a, const int f, int *q)
 {
    int cmd;
    cmd = NAFCMD(n, a, f);
@@ -436,7 +436,7 @@ INLINE void camc_q(const int c, const int n, const int a, const int f, int *q)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void camc_sa(const int c, const int n, const int a, const int f, const int r)
+void camc_sa(const int c, const int n, const int a, const int f, const int r)
 {
    int i;
    for (i = 0; i < r; i++)
@@ -444,7 +444,7 @@ INLINE void camc_sa(const int c, const int n, const int a, const int f, const in
 }
 
 /*------------------------------------------------------------------*/
-INLINE void camc_sn(const int c, const int n, const int a, const int f, const int r)
+void camc_sn(const int c, const int n, const int a, const int f, const int r)
 {
    int i;
    for (i = 0; i < r; i++)
@@ -453,7 +453,7 @@ INLINE void camc_sn(const int c, const int n, const int a, const int f, const in
 
 /*------------------------------------------------------------------*/
 
-INLINE int cam_init(void)
+int cam_init(void)
 {
    /* Not the best way to do this ... but ... */
    /* I'll handle this by opening EVERY available one. */
@@ -475,7 +475,7 @@ INLINE int cam_init(void)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_exit(void)
+void cam_exit(void)
 {
    /* Not the best way to do this ... but ... */
    /* I'll handle this by opening EVERY available one. */
@@ -490,31 +490,31 @@ INLINE void cam_exit(void)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_inhibit_set(const int c)
+void cam_inhibit_set(const int c)
 {
    camc(c, 30, 9, 26);
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_inhibit_clear(const int c)
+void cam_inhibit_clear(const int c)
 {
    camc(c, 30, 9, 24);
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_crate_clear(const int c)
+void cam_crate_clear(const int c)
 {
    camc(c, 28, 9, 26);
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_crate_zinit(const int c)
+void cam_crate_zinit(const int c)
 {
    camc(c, 28, 8, 26);
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_lam_enable(const int c, const int n)
+void cam_lam_enable(const int c, const int n)
 {
    /* enable LAM mask for slot n in controller */
    jorway_crate_LAM[c] |= (1 << (n - 1));
@@ -522,7 +522,7 @@ INLINE void cam_lam_enable(const int c, const int n)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_lam_disable(const int c, const int n)
+void cam_lam_disable(const int c, const int n)
 {
    /* disable LAM mask for slot n in controller */
    jorway_crate_LAM[c] &= ~(1 << (n - 1));
@@ -530,37 +530,36 @@ INLINE void cam_lam_disable(const int c, const int n)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_lam_read(const int c, DWORD * lam)
+void cam_lam_read(const int c, DWORD * lam)
 {
    cam24i(c, 30, 0, 26, lam);
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_lam_clear(const int c, const int n)
+void cam_lam_clear(const int c, const int n)
 {
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_interrupt_enable(const int c)
+void cam_interrupt_enable(const int c)
 {
    fprintf(stderr, "cam_interrupt_enable not implemented\n");
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_interrupt_disable(const int c)
+void cam_interrupt_disable(const int c)
 {
    fprintf(stderr, "cam_interrupt_disable not implemented\n");
 }
 
 /*------------------------------------------------------------------*/
-INLINE int cam_init_rpc(char *host_name, char *exp_name, char *fe_name,
-                        char *client_name, char *rpc_server)
+int cam_init_rpc(const char *host_name, const char *exp_name, const char *fe_name, const char *client_name, const char *rpc_server)
 {
    return 1;
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_op()
+void cam_op()
 {
 }
 
@@ -610,8 +609,8 @@ int sjy_get_qx(int branch)
 #include <fcntl.h>
 #include <errno.h>
 #include <signal.h>
-/*#include <scsi/sg.h>*/
-#include "/usr/src/linux/include/scsi/sg.h"
+#include <scsi/sg.h>
+//#include "/usr/src/linux/include/scsi/sg.h"
 #define SCSI_OFF sizeof(struct sg_header)
 #define USER_BUF_SIZE (SG_BIG_BUFF - (SCSI_OFF + 18 + 511))
 #define CMD_SIZE (SCSI_OFF + 18 + USER_BUF_SIZE)
@@ -1256,7 +1255,7 @@ unsigned int cdchn(int branch, int channel, int route)
    return (CAM_S_SUCCESS);
 }
 
-static char *devtble[] = { "/dev/sga",  /* scsi generic devices */
+static const char *devtble[] = { "/dev/sga",  /* scsi generic devices */
    "/dev/sgb",
    "/dev/sgc",
    "/dev/sgd",
@@ -1425,8 +1424,7 @@ int sjy_inisem()
    /* create the key file */
    if (fd = open(SJY_FILE, O_CREAT | O_EXCL, 664) < 0) {
       if (errno != EEXIST) {
-         fprintf(stderr, "sjy_semops: Severe Error, could not create key file %s, 
-        error=%d\n", SJY_FILE, errno);
+         fprintf(stderr, "sjy_semops: Severe Error, could not create key file %s, error=%d\n", SJY_FILE, errno);
          return (-1);
       }
    }
