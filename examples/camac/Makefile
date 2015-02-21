@@ -16,7 +16,7 @@ all:: camac_mcnaf_rpc.exe
 all:: camac_mcnaf_hyt1331.exe
 all:: camac_mcnaf_ces8210_gef.exe
 
-MIDASARCH=linux-m32
+MIDASARCH=linux
 
 MIDASLIB=$(MIDASSYS)/$(MIDASARCH)/lib/libmidas.a -lrt -lutil
 
