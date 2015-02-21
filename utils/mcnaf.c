@@ -98,7 +98,7 @@ CAMAC Prompt[2] = { {24, 0, 0, 1, 2, 0, 0, 0, 1, 0, 0, 0},
 /* Default job file name */
 char job_name[128] = "cnaf.cnf";
 
-HNDLE hDB, hKey, hConn;
+HNDLE hDB, hKey;
 FILE *pF;
 BOOL jobflag;
 char addr[128];
@@ -414,7 +414,7 @@ INT read_job_file(FILE * pF, INT action, CAMAC **job, char *name)
          while (fgets(line, 128, pF))
             n++;
          /* allocate memory for full job */
-         *job = malloc((n + 1) * sizeof(CAMAC));
+         *job = (CAMAC*)malloc((n + 1) * sizeof(CAMAC));
          pjob = *job;
          /* preset the full job with 0 */
          memset((char *) pjob, 0, (n + 1) * sizeof(CAMAC));
@@ -561,7 +561,7 @@ INT cnafsub(BOOL cmd_mode, char *cmd)
 /*--------------------------------------------------------------------*/
 INT decode_line(CAMAC * P, char *ss)
 {
-   char empty[16] = { "                " };
+   char empty[17] = { "                " };
    char *c, *cmd;
    char pp[128], *p, *s, *ps;
    DWORD tmp, i;
