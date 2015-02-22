@@ -164,16 +164,18 @@ The MIDAS package requires the \b mxml auxiliary package which can be found at t
  \anchor idx_ROME_installation 
 @subsection  Q_Linux_Rome_Installation ROME Package Installation
 
-  The PSI ROME analysis package can be found at
-  <a href="http://midas.psi.ch/rome/index.html" >ROME analyzer</a>
+  The PSI ROME analysis program generator can be found at
+  <a href="http://midas.psi.ch/rome/index.html" >ROME analysis program generator</a>
   The same extraction procedure as for the MIDAS package can be followed. For its operation please
   refer to the <a href="http://midas.psi.ch/rome/index.html" >ROME web site</a>.
   @code
   cd $HOME/packages
-  svn co svn+ssh://svn@savannah.psi.ch/afs/psi.ch/project/meg/svn/rome/trunk rome
+  git clone https://bitbucket.org/muegamma/rome3.git rome
   cd rome
   make
   @endcode
+  For using ROME for analyzing/monitoring MIDAS data, please
+  refer to the <a href="http://midas.psi.ch/rome/midas.html" >ROME MIDAS page</a>.
   
 \anchor idx_ROODY_installation
 @subsection  Q_Linux_Roody_Installation ROODY Package Installation
