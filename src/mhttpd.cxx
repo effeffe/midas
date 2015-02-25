@@ -6041,22 +6041,56 @@ void show_custom_file(const char *name)
 {
    char str[256], filename[256], custom_path[256];
    int i, fh, size;
-   HNDLE hDB;
+   HNDLE hDB, hkey;
+   KEY key;
 
    cm_get_experiment_database(&hDB, NULL);
 
    custom_path[0] = 0;
    size = sizeof(custom_path);
+   // Get custom page value
+   custom_path[0] = 0;
    db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, FALSE);
 
+   // Get value of name
+   sprintf(str, "/Custom/%s", name);
+   db_find_key(hDB, 0, str, &hkey);
+
+   if(!hkey){
+      sprintf(str,"Invalid custom page: /Custom/%s not found in ODB",name);
+      show_error(str);
+      return;
+   }
+
+   char* ctext;
+   int status;
+   
+   status = db_get_key(hDB, hkey, &key);
+   assert(status == DB_SUCCESS);
+   size = key.total_size;
+   ctext = (char*)malloc(size);
+   status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
+   if (status != DB_SUCCESS) {
+      sprintf(str, "Error: db_get_data() status %d", status);
+      show_error(str);
+      free(ctext);
+      return;
+   }
+
    /* check for file */
-   strlcpy(filename, custom_path, sizeof(str));
-   if (filename[strlen(filename)-1] != DIR_SEPARATOR)
-      strlcat(filename, DIR_SEPARATOR_STR, sizeof(filename));
-   strlcat(filename, name, sizeof(filename));
+   if (custom_path[0]) {
+      strlcpy(filename, custom_path, sizeof(filename));
+      if (filename[strlen(filename)-1] != DIR_SEPARATOR)
+         strlcat(filename, DIR_SEPARATOR_STR, sizeof(filename));
+      strlcat(filename, ctext, sizeof(filename));
+   } else {
+      strlcpy(filename, ctext, sizeof(filename));
+   }
+
+
    fh = open(filename, O_RDONLY | O_BINARY);
    if (fh < 0) {
-      sprintf(str, "Cannot open file \"%s\" and cannot find ODB key \"/Custom/Images/%s\"", filename, name);
+      sprintf(str, "Cannot open file \"%s\" ", filename);
       show_error(str);
       return;
    }
