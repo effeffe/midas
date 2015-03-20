@@ -5667,6 +5667,106 @@ int evaluate_src(char *key, char *src, double *fvalue)
 
 /*------------------------------------------------------------------*/
 
+void show_custom_file(const char *name)
+{
+   char str[256], filename[256], custom_path[256];
+   int i, fh, size;
+   HNDLE hDB, hkey;
+   KEY key;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   custom_path[0] = 0;
+   size = sizeof(custom_path);
+   // Get custom page value
+   custom_path[0] = 0;
+   db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, FALSE);
+
+
+   /* check for PATH variable */
+   if (custom_path[0]) {
+      strlcpy(filename, custom_path, sizeof(filename));
+      if (filename[strlen(filename)-1] != DIR_SEPARATOR)
+         strlcat(filename, DIR_SEPARATOR_STR, sizeof(filename));
+      strlcat(filename, name, sizeof(filename));
+   } else {
+      
+      sprintf(str, "/Custom/%s", name);
+      db_find_key(hDB, 0, str, &hkey);
+
+      if (!hkey) {
+         sprintf(str, "/Custom/%s&", name);
+         db_find_key(hDB, 0, str, &hkey);
+         if (!hkey) {
+            sprintf(str, "/Custom/%s!", name);
+            db_find_key(hDB, 0, str, &hkey);
+         }
+      }
+      
+      if(!hkey){
+         sprintf(str,"Invalid custom page: /Custom/%s not found in ODB",name);
+         show_error(str);
+         return;
+      }
+      
+      char* ctext;
+      int status;
+      
+      status = db_get_key(hDB, hkey, &key);
+      assert(status == DB_SUCCESS);
+      size = key.total_size;
+      ctext = (char*)malloc(size);
+      status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
+      if (status != DB_SUCCESS) {
+         sprintf(str, "Error: db_get_data() status %d", status);
+         show_error(str);
+         free(ctext);
+         return;
+      }      
+      strlcpy(filename, ctext, sizeof(filename));
+   }
+
+
+   fh = open(filename, O_RDONLY | O_BINARY);
+   if (fh < 0) {
+      sprintf(str, "Cannot open file \"%s\" ", filename);
+      show_error(str);
+      return;
+   }
+
+   size = lseek(fh, 0, SEEK_END);
+   lseek(fh, 0, SEEK_SET);
+
+   /* return audio file */
+   rsprintf("HTTP/1.0 200 Document follows\r\n");
+   rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+
+   /* return proper header for file type */
+   for (i = 0; i < (int) strlen(name); i++)
+      str[i] = toupper(name[i]);
+   str[i] = 0;
+
+   for (i = 0; filetype[i].ext[0]; i++)
+      if (strstr(str, filetype[i].ext))
+         break;
+
+   if (filetype[i].ext[0])
+      rsprintf("Content-Type: %s\r\n", filetype[i].type);
+   else if (strchr(str, '.') == NULL)
+      rsprintf("Content-Type: text/plain\r\n");
+   else
+      rsprintf("Content-Type: application/octet-stream\r\n");
+
+   rsprintf("Content-Length: %d\r\n\r\n", size);
+
+   rread(filename, fh, size);
+
+   close(fh);
+   return;
+}
+
+/*------------------------------------------------------------------*/
+
 void show_custom_gif(const char *name)
 {
    char str[256], filename[256], data[256], value[256], src[256], custom_path[256],
@@ -5693,33 +5793,9 @@ void show_custom_gif(const char *name)
    db_find_key(hDB, 0, str, &hkeygif);
    if (!hkeygif) {
 
-      /* check for file */
-      strlcpy(filename, custom_path, sizeof(str));
-      if (filename[strlen(filename)-1] != DIR_SEPARATOR)
-         strlcat(filename, DIR_SEPARATOR_STR, sizeof(filename));
-      strlcat(filename, name, sizeof(filename));
-      fh = open(filename, O_RDONLY | O_BINARY);
-      if (fh < 0) {
-         sprintf(str, "Cannot open file \"%s\" and cannot find ODB key \"/Custom/Images/%s\"", filename, name);
-         show_error(str);
-         return;
-      }
-
-      size = lseek(fh, 0, SEEK_END);
-      lseek(fh, 0, SEEK_SET);
-
-      /* return GIF image */
-      rsprintf("HTTP/1.0 200 Document follows\r\n");
-      rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-
-      rsprintf("Content-Type: image/gif\r\n");
-      rsprintf("Content-Length: %d\r\n", size);
-      rsprintf("Pragma: no-cache\r\n");
-      rsprintf("Expires: Fri, 01-Jan-1983 00:00:00 GMT\r\n\r\n");
-
-      rread(filename, fh, size);
-
-      close(fh);
+      // If we don't have Images directory, 
+      // then just treat this like any other custom file.
+      show_custom_file(name);
       return;
    }
 
@@ -6035,96 +6111,7 @@ void show_custom_gif(const char *name)
    rmemcpy(gb.data, length);
 }
 
-/*------------------------------------------------------------------*/
 
-void show_custom_file(const char *name)
-{
-   char str[256], filename[256], custom_path[256];
-   int i, fh, size;
-   HNDLE hDB, hkey;
-   KEY key;
-
-   cm_get_experiment_database(&hDB, NULL);
-
-   custom_path[0] = 0;
-   size = sizeof(custom_path);
-   // Get custom page value
-   custom_path[0] = 0;
-   db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, FALSE);
-
-   // Get value of name
-   sprintf(str, "/Custom/%s", name);
-   db_find_key(hDB, 0, str, &hkey);
-
-   if(!hkey){
-      sprintf(str,"Invalid custom page: /Custom/%s not found in ODB",name);
-      show_error(str);
-      return;
-   }
-
-   char* ctext;
-   int status;
-   
-   status = db_get_key(hDB, hkey, &key);
-   assert(status == DB_SUCCESS);
-   size = key.total_size;
-   ctext = (char*)malloc(size);
-   status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
-   if (status != DB_SUCCESS) {
-      sprintf(str, "Error: db_get_data() status %d", status);
-      show_error(str);
-      free(ctext);
-      return;
-   }
-
-   /* check for file */
-   if (custom_path[0]) {
-      strlcpy(filename, custom_path, sizeof(filename));
-      if (filename[strlen(filename)-1] != DIR_SEPARATOR)
-         strlcat(filename, DIR_SEPARATOR_STR, sizeof(filename));
-      strlcat(filename, ctext, sizeof(filename));
-   } else {
-      strlcpy(filename, ctext, sizeof(filename));
-   }
-
-
-   fh = open(filename, O_RDONLY | O_BINARY);
-   if (fh < 0) {
-      sprintf(str, "Cannot open file \"%s\" ", filename);
-      show_error(str);
-      return;
-   }
-
-   size = lseek(fh, 0, SEEK_END);
-   lseek(fh, 0, SEEK_SET);
-
-   /* return audio file */
-   rsprintf("HTTP/1.0 200 Document follows\r\n");
-   rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-
-   /* return proper header for file type */
-   for (i = 0; i < (int) strlen(name); i++)
-      str[i] = toupper(name[i]);
-   str[i] = 0;
-
-   for (i = 0; filetype[i].ext[0]; i++)
-      if (strstr(str, filetype[i].ext))
-         break;
-
-   if (filetype[i].ext[0])
-      rsprintf("Content-Type: %s\r\n", filetype[i].type);
-   else if (strchr(str, '.') == NULL)
-      rsprintf("Content-Type: text/plain\r\n");
-   else
-      rsprintf("Content-Type: application/octet-stream\r\n");
-
-   rsprintf("Content-Length: %d\r\n\r\n", size);
-
-   rread(filename, fh, size);
-
-   close(fh);
-   return;
-}
 
 /*------------------------------------------------------------------*/
 
