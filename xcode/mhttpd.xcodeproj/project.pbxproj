@@ -22,8 +22,8 @@
 		D570599A179871EA00DA5416 /* odb.c in Sources */ = {isa = PBXBuildFile; fileRef = D570598F179871EA00DA5416 /* odb.c */; };
 		D570599B179871EA00DA5416 /* sequencer.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D5705990179871EA00DA5416 /* sequencer.cxx */; };
 		D570599C179871EA00DA5416 /* system.c in Sources */ = {isa = PBXBuildFile; fileRef = D5705991179871EA00DA5416 /* system.c */; };
-		D5F40E051798757A004CBF77 /* mscb.c in Sources */ = {isa = PBXBuildFile; fileRef = D5F40E041798757A004CBF77 /* mscb.c */; };
-		D5F40E0717987594004CBF77 /* mscbrpc.c in Sources */ = {isa = PBXBuildFile; fileRef = D5F40E0617987593004CBF77 /* mscbrpc.c */; };
+		D5C8CD7D1ACC0797008B1201 /* mscb.c in Sources */ = {isa = PBXBuildFile; fileRef = D5C8CD7B1ACC0797008B1201 /* mscb.c */; };
+		D5C8CD7E1ACC0797008B1201 /* mscbrpc.c in Sources */ = {isa = PBXBuildFile; fileRef = D5C8CD7C1ACC0797008B1201 /* mscbrpc.c */; };
 		D5F40E0A179876ED004CBF77 /* mgd.c in Sources */ = {isa = PBXBuildFile; fileRef = D5F40E09179876ED004CBF77 /* mgd.c */; };
 		D5FBFAE517BE1B49000025D7 /* history_schema.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D5FBFAE417BE1B49000025D7 /* history_schema.cxx */; };
 /* End PBXBuildFile section */
@@ -62,9 +62,9 @@
 		D570599F1798722600DA5416 /* msystem.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = msystem.h; path = /midas/include/msystem.h; sourceTree = "<absolute>"; };
 		D5BE377E17BCE2B3004233D8 /* mhttpd.css */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.css; name = mhttpd.css; path = /midas/resources/mhttpd.css; sourceTree = "<absolute>"; };
 		D5BE377F17BCE2B3004233D8 /* mhttpd.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; name = mhttpd.js; path = /midas/resources/mhttpd.js; sourceTree = "<absolute>"; };
-		D5F40E041798757A004CBF77 /* mscb.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mscb.c; path = /mscb/mscb.c; sourceTree = "<absolute>"; };
-		D5F40E0617987593004CBF77 /* mscbrpc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mscbrpc.c; path = /mscb/mscbrpc.c; sourceTree = "<absolute>"; };
-		D5F40E08179875A6004CBF77 /* mscb.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mscb.h; path = /mscb/mscb.h; sourceTree = "<absolute>"; };
+		D5C8CD7B1ACC0797008B1201 /* mscb.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mscb.c; path = ../../../mscb/src/mscb.c; sourceTree = "<group>"; };
+		D5C8CD7C1ACC0797008B1201 /* mscbrpc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mscbrpc.c; path = ../../../mscb/src/mscbrpc.c; sourceTree = "<group>"; };
+		D5C8CD7F1ACC07AF008B1201 /* mscb.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mscb.h; path = ../../../mscb/include/mscb.h; sourceTree = "<group>"; };
 		D5F40E09179876ED004CBF77 /* mgd.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mgd.c; path = /midas/src/mgd.c; sourceTree = "<absolute>"; };
 		D5FBFAE417BE1B49000025D7 /* history_schema.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = history_schema.cxx; path = /midas/src/history_schema.cxx; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
@@ -109,7 +109,7 @@
 		D570598517986EF300DA5416 /* Includes */ = {
 			isa = PBXGroup;
 			children = (
-				D5F40E08179875A6004CBF77 /* mscb.h */,
+				D5C8CD7F1ACC07AF008B1201 /* mscb.h */,
 				D570599D1798722600DA5416 /* midas.h */,
 				D570599E1798722600DA5416 /* midasinc.h */,
 				D570599F1798722600DA5416 /* msystem.h */,
@@ -120,14 +120,14 @@
 		D570598617986EFF00DA5416 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				D5C8CD7B1ACC0797008B1201 /* mscb.c */,
+				D5C8CD7C1ACC0797008B1201 /* mscbrpc.c */,
 				D5043BCC18A2485800F3B297 /* history_midas.cxx */,
 				D5043BCA18A2484800F3B297 /* history_common.cxx */,
 				D534757D183A1979004316B0 /* mongoose.c */,
 				D51A109B1798772E00ED6F5F /* mxml.c */,
 				D51A109C1798772E00ED6F5F /* strlcpy.c */,
 				D5F40E09179876ED004CBF77 /* mgd.c */,
-				D5F40E0617987593004CBF77 /* mscbrpc.c */,
-				D5F40E041798757A004CBF77 /* mscb.c */,
 				D5705987179871EA00DA5416 /* alarm.c */,
 				D5705988179871EA00DA5416 /* elog.c */,
 				D570598A179871EA00DA5416 /* history_odbc.cxx */,
@@ -205,6 +205,8 @@
 			files = (
 				D5705992179871EA00DA5416 /* alarm.c in Sources */,
 				D5705993179871EA00DA5416 /* elog.c in Sources */,
+				D5C8CD7D1ACC0797008B1201 /* mscb.c in Sources */,
+				D5C8CD7E1ACC0797008B1201 /* mscbrpc.c in Sources */,
 				D5705995179871EA00DA5416 /* history_odbc.cxx in Sources */,
 				D5705996179871EA00DA5416 /* history.c in Sources */,
 				D5705997179871EA00DA5416 /* mhttpd.cxx in Sources */,
@@ -215,8 +217,6 @@
 				D570599B179871EA00DA5416 /* sequencer.cxx in Sources */,
 				D534757E183A1979004316B0 /* mongoose.c in Sources */,
 				D570599C179871EA00DA5416 /* system.c in Sources */,
-				D5F40E051798757A004CBF77 /* mscb.c in Sources */,
-				D5F40E0717987594004CBF77 /* mscbrpc.c in Sources */,
 				D5F40E0A179876ED004CBF77 /* mgd.c in Sources */,
 				D51A109D1798772E00ED6F5F /* mxml.c in Sources */,
 				D51A109E1798772E00ED6F5F /* strlcpy.c in Sources */,
@@ -298,7 +298,7 @@
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = NO;
 				HEADER_SEARCH_PATHS = (
-					/midas/mscb,
+					/mscb/include,
 					/midas/include,
 					/mxml,
 				);
@@ -318,7 +318,7 @@
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = NO;
 				HEADER_SEARCH_PATHS = (
-					/midas/mscb,
+					/mscb/include,
 					/midas/include,
 					/mxml,
 				);

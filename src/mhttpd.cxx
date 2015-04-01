@@ -5771,7 +5771,7 @@ void show_custom_gif(const char *name)
 {
    char str[256], filename[256], data[256], value[256], src[256], custom_path[256],
       full_filename[256];
-   int i, fh, index, length, status, size, width, height, bgcol, fgcol, bdcol, r, g, b, x, y;
+   int i, index, length, status, size, width, height, bgcol, fgcol, bdcol, r, g, b, x, y;
    HNDLE hDB, hkeygif, hkeyroot, hkey, hkeyval;
    double fvalue, ratio;
    KEY key, vkey;

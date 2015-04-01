@@ -623,14 +623,14 @@ INT decode_line(CAMAC * P, char *ss)
       *ps = 0;
       if (P->m == D24) {
          tmp = strtoul((cmd + 1), NULL, 16);
-         if (tmp >= 0x0 && tmp <= 0xffffff) {
+         if (tmp <= 0xffffff) {
             P->d24 = tmp;
             ok = TRUE;
          } else
             printf("mcnaf-E- Data out of range 0x0:0xffffff\n");
       } else {
          tmp = strtoul((cmd + 1), NULL, 16);
-         if (tmp >= 0x0 && tmp <= 0xffff) {
+         if (tmp <= 0xffff) {
             P->d16 = (WORD) tmp;
             ok = TRUE;
          } else
@@ -644,14 +644,14 @@ INT decode_line(CAMAC * P, char *ss)
       *ps = 0;
       if (P->m == D24) {
          tmp = strtoul((cmd + 1), NULL, 8);
-         if (tmp >= 0 && tmp <= 077777777) {
+         if (tmp <= 077777777) {
             P->d24 = tmp;
             ok = TRUE;
          } else
             printf("mcnaf-E- Data out of range O0:O77777777\n");
       } else {
          tmp = strtoul((cmd + 1), NULL, 8);
-         if (tmp >= 00 && tmp <= 0177777) {
+         if (tmp <= 0177777) {
             P->d16 = (WORD) tmp;
             ok = TRUE;
          } else
@@ -665,14 +665,14 @@ INT decode_line(CAMAC * P, char *ss)
       *ps = 0;
       if (P->m == D24) {
          tmp = strtoul((cmd + 1), NULL, 10);
-         if (tmp >= 0x0 && tmp <= 0xffffff) {
+         if (tmp <= 0xffffff) {
             P->d24 = tmp;
             ok = TRUE;
          } else
             printf("mcnaf-E- Data out of range 0:16777215\n");
       } else {
          tmp = strtoul((cmd + 1), NULL, 10);
-         if (tmp >= 0x0 && tmp <= 0xffff) {
+         if (tmp <= 0xffff) {
             P->d16 = (WORD) tmp;
             ok = TRUE;
          } else
@@ -685,7 +685,7 @@ INT decode_line(CAMAC * P, char *ss)
       ps = strchr(cmd, ' ');
       *ps = 0;
       tmp = atoi((cmd + 1));
-      if (tmp < 8 && tmp >= 0) {
+      if (tmp < 8) {
          P->b = tmp;
          ok = TRUE;
       } else
@@ -696,7 +696,7 @@ INT decode_line(CAMAC * P, char *ss)
       ps = strchr(cmd, ' ');
       *ps = 0;
       tmp = atoi((cmd + 1));
-      if (tmp < 8 && tmp >= 0) {
+      if (tmp < 8) {
          P->c = tmp;
          ok = TRUE;
       } else
@@ -707,7 +707,7 @@ INT decode_line(CAMAC * P, char *ss)
       ps = strchr(cmd, ' ');
       *ps = 0;
       tmp = atoi((cmd + 1));
-      if (tmp < 32 && tmp >= 0) {
+      if (tmp < 32) {
          P->n = tmp;
          ok = TRUE;
       } else
@@ -718,7 +718,7 @@ INT decode_line(CAMAC * P, char *ss)
       ps = strchr(cmd, ' ');
       *ps = 0;
       tmp = atoi((cmd + 1));
-      if (tmp < 16 && tmp >= 0) {
+      if (tmp < 16) {
          P->a = tmp;
          ok = TRUE;
       } else
@@ -729,7 +729,7 @@ INT decode_line(CAMAC * P, char *ss)
       ps = strchr(cmd, ' ');
       *ps = 0;
       tmp = atoi((cmd + 1));
-      if (tmp < 32 && tmp >= 0) {
+      if (tmp < 32) {
          P->f = tmp;
          ok = TRUE;
       } else
@@ -740,7 +740,7 @@ INT decode_line(CAMAC * P, char *ss)
       ps = strchr(cmd, ' ');
       *ps = 0;
       tmp = atoi((cmd + 1));
-      if (tmp < 1000 && tmp >= 0) {
+      if (tmp < 1000) {
          if (tmp == 0)
             tmp = 1;
          P->r = tmp;
@@ -752,7 +752,7 @@ INT decode_line(CAMAC * P, char *ss)
       ps = strchr(cmd, ' ');
       *ps = 0;
       tmp = atoi((cmd + 1));
-      if (tmp < 10001 || tmp >= 0)
+      if (tmp < 10001)
          P->w = tmp;
       else
          printf("mcnaf-E- W out of range 0:10000\n");

@@ -107,7 +107,7 @@ NEED_ZLIB=
 #
 CC = gcc $(USERFLAGS)
 CXX = g++ $(USERFLAGS)
-CFLAGS = -g -O2 -Wall -Wno-strict-aliasing -Wuninitialized -I$(INC_DIR) -I$(DRV_DIR) -I$(MXML_DIR) -I$(MSCB_DIR) -DHAVE_FTPLIB
+CFLAGS = -g -O2 -Wall -Wno-strict-aliasing -Wuninitialized -I$(INC_DIR) -I$(DRV_DIR) -I$(MXML_DIR) -I$(MSCB_DIR)/include -DHAVE_FTPLIB
 
 #-----------------------
 # Ovevwrite MAX_EVENT_SIZE with environment variable
@@ -593,8 +593,8 @@ $(LIB_DIR)/strlcpy.o:$(MXML_DIR)/strlcpy.c
 	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $(MXML_DIR)/strlcpy.c
 
 ifdef HAVE_MSCB
-$(LIB_DIR)/mscb.o:$(MSCB_DIR)/mscb.c $(MSCB_DIR)/mscb.h
-	$(CXX) -x c++ -c $(CFLAGS) $(OSFLAGS) -o $@ $(MSCB_DIR)/mscb.c
+$(LIB_DIR)/mscb.o:$(MSCB_DIR)/src/mscb.c $(MSCB_DIR)/include/mscb.h
+	$(CXX) -x c++ -c $(CFLAGS) $(OSFLAGS) -o $@ $(MSCB_DIR)/src/mscb.c
 endif
 
 $(LIB_DIR)/mhttpd.o: msystem.h midas.h midasinc.h mrpc.h
