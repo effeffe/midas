@@ -105,6 +105,49 @@ int log_generate_file_name(LOG_CHN *log_chn);
 
 /*== common code FAL/MLOGGER start =================================*/
 
+class WriterInterface
+{
+public:
+   virtual int open(LOG_CHN* log_chn, int run_number) = 0;
+   virtual int write_event(LOG_CHN* log_chn, const EVENT_HEADER* pevent, const int evt_size) = 0;
+   virtual int close(LOG_CHN* log_chn, int run_number) = 0;
+   virtual ~WriterInterface() {}; // dtor
+};
+
+/*---- LZ4 compressed writer  --------------------------------------*/
+
+class WriterLZ4 : public WriterInterface
+{
+public:
+   WriterLZ4(LOG_CHN* log_chn) // ctor
+   {
+      printf("WriterLZ4: path [%s]\n", log_chn->path);
+   }
+
+   ~WriterLZ4() // dtor
+   {
+      printf("WriterLZ4: destructor\n");
+   }
+
+   int open(LOG_CHN* log_chn, int run_number)
+   {
+      printf("WriterLZ4: open path [%s]\n", log_chn->path);
+      return SUCCESS;
+   }
+
+   int write_event(LOG_CHN* log_chn, const EVENT_HEADER* pevent, const int evt_size)
+   {
+      printf("WriterLZ4: write path [%s], event size %d\n", log_chn->path, evt_size);
+      return SUCCESS;
+   }
+
+   int close(LOG_CHN* log_chn, int run_number)
+   {
+      printf("WriterLZ4: close path [%s]\n", log_chn->path);
+      return SUCCESS;
+   }
+};
+
 /*---- Logging initialization --------------------------------------*/
 
 void logger_init()
@@ -1049,6 +1092,10 @@ INT midas_flush_buffer(LOG_CHN * log_chn)
 
 INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 {
+   if (log_chn->writer_class) {
+      return ((WriterInterface*)log_chn->writer_class)->write_event(log_chn, pevent, evt_size);
+   }
+
    INT i, written, size_left;
    MIDAS_INFO *info;
    static DWORD stat_last = 0;
@@ -1112,6 +1159,10 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 
 INT midas_log_open(LOG_CHN * log_chn, INT run_number)
 {
+   if (log_chn->writer_class) {
+      return ((WriterInterface*)log_chn->writer_class)->open(log_chn, run_number);
+   }
+
    MIDAS_INFO *info;
    INT status;
 
@@ -1257,6 +1308,10 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
 
 INT midas_log_close(LOG_CHN * log_chn, INT run_number)
 {
+   if (log_chn->writer_class) {
+      return ((WriterInterface*)log_chn->writer_class)->close(log_chn, run_number);
+   }
+
    int written;
 #ifdef HAVE_ZLIB
    off_t n;
@@ -2349,6 +2404,9 @@ INT log_open(LOG_CHN * log_chn, INT run_number)
 #endif
    } else if (equal_ustring(log_chn->settings.format, "MIDAS")) {
       log_chn->format = FORMAT_MIDAS;
+      if (log_chn->compression==100) {
+	 log_chn->writer_class = (void*)new WriterLZ4(log_chn);
+      }
       status = midas_log_open(log_chn, run_number);
    } else
       return SS_INVALID_FORMAT;
@@ -2393,6 +2451,11 @@ INT log_close(LOG_CHN * log_chn, INT run_number)
    log_chn->statistics.files_written += 1;
    log_chn->handle = 0;
    log_chn->ftp_con = NULL;
+
+   if (log_chn->writer_class) {
+      delete ((WriterInterface*)log_chn->writer_class);
+      log_chn->writer_class = NULL;
+   }
 
    return SS_SUCCESS;
 }

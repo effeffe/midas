@@ -527,6 +527,7 @@ typedef struct {
    FTP_CON *ftp_con;
    void *gzfile;
    FILE *pfile;
+   void *writer_class;
 } LOG_CHN;
 
 #define LOG_TYPE_DISK 1
