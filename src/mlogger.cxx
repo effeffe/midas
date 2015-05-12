@@ -108,13 +108,99 @@ int log_generate_file_name(LOG_CHN *log_chn);
 class WriterInterface
 {
 public:
-   virtual int open(LOG_CHN* log_chn, int run_number) = 0;
-   virtual int write_event(LOG_CHN* log_chn, const EVENT_HEADER* pevent, const int evt_size) = 0;
-   virtual int close(LOG_CHN* log_chn, int run_number) = 0;
+   virtual int wr_open(LOG_CHN* log_chn, int run_number, const char* suffix) = 0;
+   virtual int wr_write(LOG_CHN* log_chn, const void* data, const int size) = 0;
+   virtual int wr_close(LOG_CHN* log_chn, int run_number) = 0;
    virtual ~WriterInterface() {}; // dtor
+public:
+   double fBytesIn;
+   double fBytesOut;
+};
+
+/*---- File writer  --------------------------------------*/
+
+class WriterFile : public WriterInterface
+{
+public:
+   WriterFile(LOG_CHN* log_chn) // ctor
+   {
+      printf("WriterFile: path [%s]\n", log_chn->path);
+   }
+
+   ~WriterFile() // dtor
+   {
+      printf("WriterFile: destructor\n");
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number, const char* suffix)
+   {
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      printf("WriterFile: open path [%s] suffix [%s]\n", log_chn->path, suffix);
+
+      strlcat(log_chn->path, suffix, sizeof(log_chn->path));
+
+#ifdef OS_WINNT
+      fFileno = (int) CreateFile(log_chn->path, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH | FILE_FLAG_SEQUENTIAL_SCAN, 0);
+#else
+      fFileno = open(log_chn->path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_LARGEFILE, 0644);
+#endif
+      if (fFileno < 0) {
+	 printf("cannot open [%s], errno %d (%s)\n", log_chn->path, errno, strerror(errno));
+	 return SS_FILE_ERROR;
+      }
+
+      log_chn->handle = fFileno;
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      printf("WriterFile: write path [%s], size %d\n", log_chn->path, size);
+
+      fBytesIn += size;
+
+      int wr = write(fFileno, data, size);
+
+      if (wr > 0)
+	 fBytesOut += wr;
+
+      if (wr != size) {
+	 printf("write(%d) wrote %d bytes, errno %d (%s)\n", size, wr, errno, strerror(errno));
+	 return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      int err;
+
+      printf("WriterFile: close path [%s]\n", log_chn->path);
+
+      err = close(fFileno);
+      fFileno = -1;
+
+      if (err != 0) {
+	 printf("close() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+	 return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+private:
+   int fFileno;
 };
 
 /*---- LZ4 compressed writer  --------------------------------------*/
+
+#define MEMZERO(obj) memset(&(obj), 0, sizeof(obj))
+
+#include "lz4frame.h"
 
 class WriterLZ4 : public WriterInterface
 {
@@ -129,23 +215,137 @@ public:
       printf("WriterLZ4: destructor\n");
    }
 
-   int open(LOG_CHN* log_chn, int run_number)
+   int wr_open(LOG_CHN* log_chn, int run_number, const char* suffix)
    {
-      printf("WriterLZ4: open path [%s]\n", log_chn->path);
+      LZ4F_errorCode_t errorCode;
+      printf("WriterLZ4: open path [%s], suffix [%s]\n", log_chn->path, suffix);
+
+      errorCode = LZ4F_createCompressionContext(&fContext, LZ4F_VERSION);
+      if (LZ4F_isError(errorCode)) {
+	 //EXM_THROW(30, "Allocation error : can't create LZ4F context : %s", LZ4F_getErrorName(errorCode));
+	 return SS_FILE_ERROR;
+      }
+
+      LZ4F_blockSizeID_t blockSizeId = LZ4F_max4MB;
+      fBlockSize = 4*1024*1024;
+      fBufferSize = LZ4F_compressFrameBound(fBlockSize, NULL);
+      fBuffer = (char*)malloc(fBufferSize);
+      if (fBuffer == NULL) {
+	 //EXM_THROW(32, "File header generation failed : %s", LZ4F_getErrorName(headerSize));
+	 return SS_FILE_ERROR;
+      }
+
+      MEMZERO(fPrefs);
+
+      fPrefs.compressionLevel = 0; // 0=fast, non-zero=???
+      fPrefs.autoFlush = 0; // ???
+      fPrefs.frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled;
+      fPrefs.frameInfo.blockSizeID = blockSizeId;
+
+      size_t headerSize = LZ4F_compressBegin(fContext, fBuffer, fBufferSize, &fPrefs);
+      
+      if (LZ4F_isError(headerSize)) {
+	 //EXM_THROW(32, "File header generation failed : %s", LZ4F_getErrorName(headerSize));
+	 return SS_FILE_ERROR;
+      }
+
+      int status = wr->wr_write(log_chn, fBuffer, headerSize);
+
+      fBytesIn += 0;
+      fBytesOut = wr->fBytesOut;
+
+      if (status != SUCCESS) {
+	 //EXM_THROW(33, "Write error : cannot write header");
+	 return SS_FILE_ERROR;
+      }
+
       return SUCCESS;
    }
 
-   int write_event(LOG_CHN* log_chn, const EVENT_HEADER* pevent, const int evt_size)
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
    {
-      printf("WriterLZ4: write path [%s], event size %d\n", log_chn->path, evt_size);
+      printf("WriterLZ4: write path [%s], size %d\n", log_chn->path, size);
+
+      while (1) {
+	 //size = fBlockSize;
+	 size_t outSize = LZ4F_compressUpdate(fContext, fBuffer, fBufferSize, data, size, NULL);
+
+	 if (LZ4F_isError(outSize)) {
+	    //EXM_THROW(34, "Compression failed : %s", LZ4F_getErrorName(outSize));
+	    return SS_FILE_ERROR;
+	 }
+	 
+	 int status = wr->wr_write(log_chn, fBuffer, outSize);
+	 
+	 fBytesIn += size;
+	 fBytesOut = wr->fBytesOut;
+	 
+	 if (status != SUCCESS) {
+	    //EXM_THROW(35, "Write error : cannot write compressed block");
+	    return SS_FILE_ERROR;
+	 }
+      }
+
       return SUCCESS;
    }
 
-   int close(LOG_CHN* log_chn, int run_number)
+   int wr_close(LOG_CHN* log_chn, int run_number)
    {
+      LZ4F_errorCode_t errorCode;
       printf("WriterLZ4: close path [%s]\n", log_chn->path);
-      return SUCCESS;
+
+      /* write End of Stream mark */
+      size_t headerSize = LZ4F_compressEnd(fContext, fBuffer, fBufferSize, NULL);
+
+      if (LZ4F_isError(headerSize)) {
+	 //EXM_THROW(36, "End of file generation failed : %s", LZ4F_getErrorName(headerSize));
+	 return SS_FILE_ERROR;
+      }
+
+      int xstatus = SUCCESS;
+      int status = wr->wr_write(log_chn, fBuffer, headerSize);
+
+      fBytesIn += 0;
+      fBytesOut = wr->fBytesOut;
+
+      if (status != SUCCESS) {
+	 //EXM_THROW(37, "Write error : cannot write end of stream");
+	 xstatus = status;
+      }
+
+      /* close downstream writer */
+
+      status = wr->wr_close(log_chn, run_number);
+
+      if (status != SUCCESS) {
+	 //EXM_THROW(37, "Write error : cannot write end of stream");
+	 xstatus = status;
+      }
+
+      /* free resources */
+
+      free(fBuffer);
+      fBuffer = NULL;
+      fBufferSize = 0;
+
+      errorCode = LZ4F_freeCompressionContext(fContext);
+      if (LZ4F_isError(errorCode)) {
+	 //EXM_THROW(38, "Error : can't free LZ4F context resource : %s", LZ4F_getErrorName(errorCode));
+	 xstatus = SS_FILE_ERROR;
+      }
+
+      return xstatus;
    }
+
+public:
+   WriterInterface *wr;
+
+private:
+   LZ4F_compressionContext_t fContext;
+   LZ4F_preferences_t fPrefs;
+   char* fBuffer;
+   int   fBufferSize;
+   int   fBlockSize;
 };
 
 /*---- Logging initialization --------------------------------------*/
@@ -1093,7 +1293,7 @@ INT midas_flush_buffer(LOG_CHN * log_chn)
 INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 {
    if (log_chn->writer_class) {
-      return ((WriterInterface*)log_chn->writer_class)->write_event(log_chn, pevent, evt_size);
+      return ((WriterInterface*)log_chn->writer_class)->wr_write(log_chn, pevent, evt_size);
    }
 
    INT i, written, size_left;
@@ -1160,7 +1360,7 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 INT midas_log_open(LOG_CHN * log_chn, INT run_number)
 {
    if (log_chn->writer_class) {
-      return ((WriterInterface*)log_chn->writer_class)->open(log_chn, run_number);
+      return ((WriterInterface*)log_chn->writer_class)->wr_open(log_chn, run_number, "");
    }
 
    MIDAS_INFO *info;
@@ -1309,7 +1509,7 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
 INT midas_log_close(LOG_CHN * log_chn, INT run_number)
 {
    if (log_chn->writer_class) {
-      return ((WriterInterface*)log_chn->writer_class)->close(log_chn, run_number);
+      return ((WriterInterface*)log_chn->writer_class)->wr_close(log_chn, run_number);
    }
 
    int written;
