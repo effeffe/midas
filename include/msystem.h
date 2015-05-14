@@ -498,12 +498,12 @@ typedef struct {
 } CHN_SETTINGS;
 
 typedef struct {
-   double events_written;
-   double bytes_written;
-   double bytes_written_uncompressed;
-   double bytes_written_total;
-   double bytes_written_subrun;
-   double files_written;
+   double events_written; /* count events, reset in tr_start() */
+   double bytes_written;  /* count bytes written out (compressed), reset in tr_start() */
+   double bytes_written_uncompressed; /* count bytes before compression, reset in tr_start() */
+   double bytes_written_total;  /* count bytes written out (compressed), reset in log_callback(RPC_LOG_REWIND) */
+   double bytes_written_subrun; /* count bytes written out (compressed), reset in tr_start() and on subrun increment */
+   double files_written;  /* incremented in log_close(), reset in log_callback(RPC_LOG_REWIND) */
    double disk_level;
 } CHN_STATISTICS;
 
