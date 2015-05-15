@@ -127,6 +127,7 @@ public:
 
 WriterInterface::WriterInterface()
 {
+   //fTrace = true; // <------ to enable (disable) tracing printout, set to "true" ("false")
    fTrace = false; // <------ to enable (disable) tracing printout, set to "true" ("false")
    fBytesIn = 0;
    fBytesOut = 0;
@@ -288,6 +289,230 @@ public:
 private:
    int fFileno;
 };
+
+class WriterPopen : public WriterInterface
+{
+public:
+   WriterPopen(LOG_CHN* log_chn, const char* pipe_command, const char* file_ext) // ctor
+   {
+      if (fTrace)
+         printf("WriterPopen: path [%s]\n", log_chn->path);
+      fFp = NULL;
+      fPipeCommand = pipe_command;
+      fFileExt = file_ext;
+   }
+
+   ~WriterPopen() // dtor
+   {
+      if (fTrace)
+         printf("WriterPopen: destructor\n");
+      if (fFp)
+         pclose(fFp);
+      fFp = NULL;
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      if (fTrace)
+         printf("WriterPopen: open path [%s] pipe [%s] ext [%s]\n", log_chn->path, fPipeCommand.c_str(), fFileExt.c_str());
+
+      assert(fFp == NULL);
+
+#ifdef OS_WINNT
+      // sorry no popen?!?
+      return SS_FILE_ERROR;
+#else
+      std::string cmd = fPipeCommand + log_chn->path;
+
+      fFp = popen(cmd.c_str(), "w");
+      if (fFp == NULL) {
+         printf("cannot popen(%s), errno %d (%s)\n", cmd.c_str(), errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      log_chn->handle = 9999;
+
+      return SUCCESS;
+#endif
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterPopen: write path [%s], size %d\n", log_chn->path, size);
+
+      if (size == 0)
+         return SUCCESS;
+
+      assert(fFp != NULL);
+
+      fBytesIn += size;
+
+      int wr = fwrite(data, 1, size, fFp);
+
+      if (wr > 0)
+         fBytesOut += wr;
+
+      if (wr != size) {
+         printf("fwrite(%d) wrote %d bytes, errno %d (%s)\n", size, wr, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      int err;
+
+      if (fTrace)
+         printf("WriterPopen: close path [%s]\n", log_chn->path);
+
+      assert(fFp != NULL);
+
+      log_chn->handle = 0;
+
+#ifdef OS_WINNT
+      // sorry no popen?!?
+      return SS_FILE_ERROR;
+#else
+      err = pclose(fFp);
+      fFp = NULL;
+
+      if (err != 0) {
+         printf("pclose() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+#endif
+   }
+
+   std::string wr_get_file_ext()
+   {
+      return fFileExt;
+   }
+
+private:
+   FILE* fFp;
+   std::string fPipeCommand;
+   std::string fFileExt;
+};
+
+/*---- CRC32-ZLIB computation --------------------------------------*/
+
+#ifdef HAVE_ZLIB
+#include <zlib.h>
+
+class WriterCRC32Zlib : public WriterInterface
+{
+public:
+   WriterCRC32Zlib(LOG_CHN* log_chn, WriterInterface* wr) // ctor
+   {
+      if (fTrace)
+         printf("WriterCRC32Zlib: path [%s]\n", log_chn->path);
+
+      assert(wr != NULL);
+
+      fWr = wr;
+      fCrc32 = 0;
+   }
+
+   ~WriterCRC32Zlib() // dtor
+   {
+      if (fTrace)
+         printf("WriterCRC32Zlib: destructor\n");
+      DELETE(fWr);
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      int status;
+
+      if (fTrace)
+         printf("WriterCRC32Zlib: open path [%s]\n", log_chn->path);
+
+      status = fWr->wr_open(log_chn, run_number);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      log_chn->handle = 9999;
+
+      fCrc32 = crc32(0, Z_NULL, 0);
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterCRC32Zlib: write path [%s], size %d\n", log_chn->path, size);
+
+      fCrc32 = crc32(fCrc32, (const Bytef*)data, size);
+
+      int status = fWr->wr_write(log_chn, data, size);
+
+      fBytesIn += size;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         //EXM_THROW(35, "Write error : cannot write compressed block");
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      if (fTrace)
+         printf("WriterCRC32Zlib: close path [%s]\n", log_chn->path);
+
+      log_chn->handle = 0;
+
+      cm_msg(MLOG, "CRC32Zlib", "File \'%s\' CRC32-zlib checksum: 0x%08lx, %.0f bytes", log_chn->path, (unsigned long)fCrc32, fBytesIn);
+
+      std::string f = std::string(log_chn->path) + ".crc32zlib";
+      FILE *fp = fopen(f.c_str(), "w");
+      if (!fp) {
+         //EXM_THROW(37, "Write error : cannot write end of stream");
+      } else {
+         fprintf(fp, "%08lx %.0f %s\n", (unsigned long)fCrc32, fBytesIn, log_chn->path);
+         fclose(fp);
+      }
+
+      /* close downstream writer */
+
+      int status = fWr->wr_close(log_chn, run_number);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         //EXM_THROW(37, "Write error : cannot write end of stream");
+         return status;
+      }
+
+      return SUCCESS;
+   }
+
+   std::string wr_get_file_ext() {
+      return fWr->wr_get_file_ext();
+   }
+
+private:
+   WriterInterface *fWr;
+   uLong fCrc32;
+};
+#endif
 
 /*---- LZ4 compressed writer  --------------------------------------*/
 
@@ -497,7 +722,18 @@ int log_create_writer(LOG_CHN *log_chn)
          WriterFile* wr = new WriterFile(log_chn);
          WriterLZ4* lz4 = new WriterLZ4(log_chn, wr);
          wri = lz4;
+      } else if (log_chn->compression==200) {
+         WriterPopen* wr = new WriterPopen(log_chn, "bzip2 -z > ", ".bz2");
+         wri = wr;
+      } else if (log_chn->compression==201) {
+         WriterPopen* wr = new WriterPopen(log_chn, "pbzip2 -c -z > ", ".bz2");
+         wri = wr;
       }
+
+      if (wri) {
+         wri = new WriterCRC32Zlib(log_chn, wri);
+      }
+
       log_chn->writer_class = (void*)wri;
    }
 
@@ -4897,6 +5133,11 @@ int main(int argc, char *argv[])
    free(rargv);
    rargv = NULL;
 
+#endif
+
+#ifdef SIGPIPE
+   // undo ROOT overwrites SIGPIPE
+   signal(SIGPIPE, SIG_IGN);
 #endif
 
    setbuf(stdout, NULL);
