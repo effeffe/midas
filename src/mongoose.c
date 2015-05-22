@@ -333,7 +333,8 @@ typedef struct ssl_ctx_st SSL_CTX;
 #define SSL_OP_NO_TLSv1_2                               0x08000000L 
 #define SSL_OP_NO_TLSv1_1                               0x10000000L 
 
-#include <openssl/ec.h>
+//#include <openssl/ec.h>
+typedef void* EC_KEY;
 #define NID_X9_62_prime256v1 415
 
 #define SSL_CTRL_SET_TMP_RSA                    2 
@@ -384,7 +385,9 @@ struct ssl_func {
 #define SSL_shutdown (* (int (*)(SSL *)) ssl_sw[20].ptr)
 #define SSL_CTX_ctrl (* (int (*)(SSL_CTX *ctx, int cmd, long larg, void *parg)) ssl_sw[21].ptr)
 #define SSL_CTX_set_cipher_list (* (int (*)(SSL_CTX *ctx, const char *str)) ssl_sw[22].ptr)
-#define TLSv1_2_server_method (* (SSL_METHOD * (*)(void)) ssl_sw[23].ptr)
+#define EC_KEY_new_by_curve_name (* (EC_KEY* (*)(int nid)) ssl_sw[23].ptr)
+#define EC_KEY_free (* (int (*)(EC_KEY *)) ssl_sw[24].ptr)
+#define SSL_get_cipher_list (* (const char* (*)(const SSL*, int)) ssl_sw[25].ptr)
 
 #define CRYPTO_num_locks (* (int (*)(void)) crypto_sw[0].ptr)
 #define CRYPTO_set_locking_callback \
@@ -1961,7 +1964,9 @@ static struct ssl_func ssl_sw[] = {
   {"SSL_shutdown",   NULL},
   {"SSL_CTX_ctrl",   NULL},
   {"SSL_CTX_set_cipher_list",   NULL},
-  {"TLSv1_2_server_method", NULL},
+  {"EC_KEY_new_by_curve_name", NULL},
+  {"EC_KEY_free", NULL},
+  {"SSL_get_cipher_list", NULL},
   {NULL,    NULL}
 };
 
@@ -2107,12 +2112,10 @@ static int set_ssl_option(struct mg_context *ctx) {
 
      EC_KEY *ecdh = EC_KEY_new_by_curve_name (NID_X9_62_prime256v1);
      if (! ecdh) {
-        //error ();
-        printf("EC_KEY_new_by_curve_name (NID_X9_62_prime256v1) failed!\n");
+        cry(fc(ctx), "%s: EC_KEY_new_by_curve_name (NID_X9_62_prime256v1) failed: %s", __func__, ssl_error());
      } else {
         if (1 != SSL_CTX_set_tmp_ecdh (ctx->ssl_ctx, ecdh)) {
-           //error ();
-           printf("SSL_CTX_set_tmp_ecdh (ctx->ssl_ctx, ecdh) failed!\n");
+	   cry(fc(ctx), "%s: SSL_CTX_set_tmp_ecdh (ctx->ssl_ctx, ecdh) failed: %s", __func__, ssl_error());
         }
         EC_KEY_free (ecdh);
      }
@@ -2122,12 +2125,33 @@ static int set_ssl_option(struct mg_context *ctx) {
   SSL_CTX_set_options(ctx->ssl_ctx, SSL_OP_SINGLE_DH_USE);
   SSL_CTX_set_options(ctx->ssl_ctx, SSL_OP_SINGLE_ECDH_USE);
 
-  // enable only "modern cryptography" ciphers. ECDHE ciphers are required for this.
+  // get cipher list
 
-  const char* cipher_list = "ALL:!AECDH:!RC4:!DES-CBC-SHA:!DES:!AES128-SHA+RSA:!AES256-SHA+RSA:!DES-CBC3-SHA:!ADH:!EXPORT:!SSLv2:RC4+RSA:+HIGH:+MEDIUM:+LOW";
+  bool ecdh_available = false;
 
-  // if no ECDHE ciphers available, use this list - weak ciphers are disabled, but no "forward secrecy" available
-  //const char* cipher_list = "ALL:!RC4:!DES-CBC-SHA:!DES:!DES-CBC3-SHA:!ADH:!EXPORT:!SSLv2:RC4+RSA:+HIGH:+MEDIUM:+LOW";
+  {
+    SSL* ssl = SSL_new(ctx->ssl_ctx);
+    for (int priority=0; 1; priority++) {
+      const char* available_cipher_list = SSL_get_cipher_list(ssl, priority);
+      if (available_cipher_list == NULL)
+	break;
+      printf("priority %d cipher list: %s\n", priority, available_cipher_list);
+      if (strstr(available_cipher_list, "ECDHE") != NULL)
+	ecdh_available = true;
+    }
+    SSL_free(ssl);
+  }
+
+  if (!ecdh_available) {
+    cry(fc(ctx), "%s: openssl \"modern cryptography\" ECDH ciphers not available", __func__);
+  }
+
+  // disable weak ciphers
+  const char* cipher_list = "ALL:!RC4:!DES-CBC-SHA:!DES:!DES-CBC3-SHA:!ADH:!EXPORT:!SSLv2:RC4+RSA:+HIGH:+MEDIUM:+LOW";
+
+  // enable only "modern cryptography" ciphers if ECDHE ciphers available
+  if (ecdh_available)
+    cipher_list = "ALL:!AECDH:!RC4:!DES-CBC-SHA:!DES:!AES128-SHA+RSA:!AES256-SHA+RSA:!DES-CBC3-SHA:!ADH:!EXPORT:!SSLv2:RC4+RSA:+HIGH:+MEDIUM:+LOW";
 
   SSL_CTX_set_cipher_list(ctx->ssl_ctx, cipher_list);
 
