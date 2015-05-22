@@ -2127,17 +2127,18 @@ static int set_ssl_option(struct mg_context *ctx) {
 
   // get cipher list
 
-  bool ecdh_available = false;
+  int ecdh_available = 0;
 
   {
+    int priority;
     SSL* ssl = SSL_new(ctx->ssl_ctx);
-    for (int priority=0; 1; priority++) {
+    for (priority=0; 1; priority++) {
       const char* available_cipher_list = SSL_get_cipher_list(ssl, priority);
       if (available_cipher_list == NULL)
 	break;
-      printf("priority %d cipher list: %s\n", priority, available_cipher_list);
+      //printf("priority %d cipher list: %s\n", priority, available_cipher_list);
       if (strstr(available_cipher_list, "ECDHE") != NULL)
-	ecdh_available = true;
+	ecdh_available = 1;
     }
     SSL_free(ssl);
   }
