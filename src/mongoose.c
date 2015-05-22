@@ -319,6 +319,39 @@ typedef struct ssl_st SSL;
 typedef struct ssl_method_st SSL_METHOD;
 typedef struct ssl_ctx_st SSL_CTX;
 
+/* As server, disallow session resumption on renegotiation */ 
+#define SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION   0x00010000L 
+
+/* If set, always create a new key when using tmp_ecdh parameters */ 
+#define SSL_OP_SINGLE_ECDH_USE                          0x00080000L 
+/* If set, always create a new key when using tmp_dh parameters */ 
+#define SSL_OP_SINGLE_DH_USE                            0x00100000L 
+
+#define SSL_OP_NO_SSLv2                                 0x01000000L 
+#define SSL_OP_NO_SSLv3                                 0x02000000L 
+#define SSL_OP_NO_TLSv1                                 0x04000000L 
+#define SSL_OP_NO_TLSv1_2                               0x08000000L 
+#define SSL_OP_NO_TLSv1_1                               0x10000000L 
+
+#include <openssl/ec.h>
+#define NID_X9_62_prime256v1 415
+
+#define SSL_CTRL_SET_TMP_RSA                    2 
+#define SSL_CTRL_SET_TMP_DH                     3 
+#define SSL_CTRL_SET_TMP_ECDH                   4 
+#define SSL_CTRL_SET_TMP_RSA_CB                 5 
+#define SSL_CTRL_SET_TMP_DH_CB                  6 
+#define SSL_CTRL_SET_TMP_ECDH_CB                7 
+
+#define SSL_CTRL_OPTIONS                        32 
+
+#define SSL_CTX_set_options(ctx,op) SSL_CTX_ctrl((ctx),SSL_CTRL_OPTIONS,(op),NULL) 
+#define SSL_CTX_clear_options(ctx,op) SSL_CTX_ctrl((ctx),SSL_CTRL_CLEAR_OPTIONS,(op),NULL) 
+#define SSL_CTX_get_options(ctx) SSL_CTX_ctrl((ctx),SSL_CTRL_OPTIONS,0,NULL) 
+
+#define SSL_CTX_set_tmp_dh(ctx,dh) SSL_CTX_ctrl(ctx,SSL_CTRL_SET_TMP_DH,0,(char *)dh) 
+#define SSL_CTX_set_tmp_ecdh(ctx,ecdh) SSL_CTX_ctrl(ctx,SSL_CTRL_SET_TMP_ECDH,0,(char *)ecdh) 
+
 struct ssl_func {
   const char *name;   // SSL function name
   void  (*ptr)(void); // Function pointer
@@ -349,6 +382,9 @@ struct ssl_func {
 #define SSL_pending (* (int (*)(SSL *)) ssl_sw[18].ptr)
 #define SSL_CTX_set_verify (* (void (*)(SSL_CTX *, int, int)) ssl_sw[19].ptr)
 #define SSL_shutdown (* (int (*)(SSL *)) ssl_sw[20].ptr)
+#define SSL_CTX_ctrl (* (int (*)(SSL_CTX *ctx, int cmd, long larg, void *parg)) ssl_sw[21].ptr)
+#define SSL_CTX_set_cipher_list (* (int (*)(SSL_CTX *ctx, const char *str)) ssl_sw[22].ptr)
+#define TLSv1_2_server_method (* (SSL_METHOD * (*)(void)) ssl_sw[23].ptr)
 
 #define CRYPTO_num_locks (* (int (*)(void)) crypto_sw[0].ptr)
 #define CRYPTO_set_locking_callback \
@@ -1923,6 +1959,9 @@ static struct ssl_func ssl_sw[] = {
   {"SSL_pending", NULL},
   {"SSL_CTX_set_verify", NULL},
   {"SSL_shutdown",   NULL},
+  {"SSL_CTX_ctrl",   NULL},
+  {"SSL_CTX_set_cipher_list",   NULL},
+  {"TLSv1_2_server_method", NULL},
   {NULL,    NULL}
 };
 
@@ -2028,6 +2067,69 @@ static int set_ssl_option(struct mg_context *ctx) {
     cry(fc(ctx), "SSL_CTX_new (server) error: %s", ssl_error());
     return 0;
   }
+
+  SSL_CTX_set_options(ctx->ssl_ctx, SSL_OP_NO_SSLv2);
+  SSL_CTX_set_options(ctx->ssl_ctx, SSL_OP_NO_SSLv3);
+
+#if 0
+  {
+     //
+     // enable Diffie-Hellman key exchange - the DHE series of ciphers
+     //
+     // this code is from here:
+     // https://www.openssl.org/docs/ssl/SSL_CTX_set_tmp_dh_callback.html
+     // to generate the pem file: openssl dhparam -out dh_param_2048.pem 2048
+
+     /* Set up ephemeral DH parameters. */
+     void *dh_2048 = NULL;
+     FILE *paramfile;
+     paramfile = fopen("dh_param_2048.pem", "r");
+     if (paramfile) {
+        dh_2048 = PEM_read_DHparams(paramfile, NULL, NULL, NULL);
+        fclose(paramfile);
+     } else {
+        /* Error. */
+     }
+     if (dh_2048 == NULL) {
+        /* Error. */
+     }
+     if (SSL_CTX_set_tmp_dh(ctx->ssl_ctx, dh_2048) != 1) {
+        /* Error. */
+     }
+  }
+#endif
+
+#if 1
+  {
+     //
+     // enable Elliptic Curve Diffie-Hellman key exchange - the ECDHE series of ciphers
+     //
+
+     EC_KEY *ecdh = EC_KEY_new_by_curve_name (NID_X9_62_prime256v1);
+     if (! ecdh) {
+        //error ();
+        printf("EC_KEY_new_by_curve_name (NID_X9_62_prime256v1) failed!\n");
+     } else {
+        if (1 != SSL_CTX_set_tmp_ecdh (ctx->ssl_ctx, ecdh)) {
+           //error ();
+           printf("SSL_CTX_set_tmp_ecdh (ctx->ssl_ctx, ecdh) failed!\n");
+        }
+        EC_KEY_free (ecdh);
+     }
+  }
+#endif
+
+  SSL_CTX_set_options(ctx->ssl_ctx, SSL_OP_SINGLE_DH_USE);
+  SSL_CTX_set_options(ctx->ssl_ctx, SSL_OP_SINGLE_ECDH_USE);
+
+  // enable only "modern cryptography" ciphers. ECDHE ciphers are required for this.
+
+  const char* cipher_list = "ALL:!AECDH:!RC4:!DES-CBC-SHA:!DES:!AES128-SHA+RSA:!AES256-SHA+RSA:!DES-CBC3-SHA:!ADH:!EXPORT:!SSLv2:RC4+RSA:+HIGH:+MEDIUM:+LOW";
+
+  // if no ECDHE ciphers available, use this list - weak ciphers are disabled, but no "forward secrecy" available
+  //const char* cipher_list = "ALL:!RC4:!DES-CBC-SHA:!DES:!DES-CBC3-SHA:!ADH:!EXPORT:!SSLv2:RC4+RSA:+HIGH:+MEDIUM:+LOW";
+
+  SSL_CTX_set_cipher_list(ctx->ssl_ctx, cipher_list);
 
   // If user callback returned non-NULL, that means that user callback has
   // set up certificate itself. In this case, skip sertificate setting.
