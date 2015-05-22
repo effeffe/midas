@@ -17000,7 +17000,7 @@ int start_mg(const char* tcp_ports, int verbose)
 
       if (status != SUCCESS) {
          cm_msg(MERROR, "mongoose", "cannot find SSL certificate file \"%s\"", path.c_str());
-         cm_msg(MERROR, "mongoose", "please create SSL certificate file: openssl genrsa -out privkey.pem; openssl req -new -key privkey.pem -out certreq.csr; openssl x509 -req -days 365 -in certreq.csr -signkey privkey.pem -out ssl_cert.pem; cat privkey.pem >> ssl_cert.pem");
+         cm_msg(MERROR, "mongoose", "please create SSL certificate file: openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
          return SS_FILE_ERROR;
       }
 
