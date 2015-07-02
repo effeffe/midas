@@ -12100,7 +12100,7 @@ INT rpc_execute_ascii(INT sock, char *buffer)
    INT i, j, idx, status, index_in;
    char *in_param_ptr, *out_param_ptr;
    INT routine_id, tid, flags, array_tid, n_param;
-   INT param_size, item_size, num_values;
+   INT param_size=0, item_size, num_values;
    void *prpc_param[20];
    char *arpc_param[N_APARAM], *pc;
    char str[1024], debug_line[1024];

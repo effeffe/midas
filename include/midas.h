@@ -221,6 +221,11 @@ typedef pthread_mutex_t MUTEX_T;
 typedef INT MUTEX_T;
 #endif
 
+/* OSX brings its own strlcpy/stlcat */
+#ifdef OS_DARWIN
+#define HAVE_STRLCPY
+#endif
+
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 

@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 
    bm_get_buffer_info(msg_buf, &buffer_header);
 
-   bm_request_event(msg_buf, EVENTID_ALL, TRIGGER_ALL, GET_SOME, &id, NULL);
+   bm_request_event(msg_buf, EVENTID_ALL, TRIGGER_ALL, GET_NONBLOCKING, &id, NULL);
 
    pstring = event + sizeof(EVENT_HEADER);
    pheader = (EVENT_HEADER *) event;
@@ -62,7 +62,7 @@ int main(int argc, char **argv)
 
       do {
          size = 10000;
-         status = bm_receive_event(msg_buf, event, &size, SYNC);
+         status = bm_receive_event(msg_buf, event, &size, BM_WAIT);
 
          if (status != BM_SUCCESS) {
             printf("Error receiving event.\n");
@@ -74,7 +74,7 @@ int main(int argc, char **argv)
             if (pheader->trigger_mask & (1 << i))
                strcat(type_string, type_name[i]);
 
-         printf("serial %ld, type %s, time %1.3lf\n",
+         printf("serial %d, type %s, time %1.3lf\n",
                 pheader->serial_number, type_string, pheader->time_stamp / 1000.0);
          printf("%s\n\n", pstring);
       } while (1);
@@ -103,7 +103,7 @@ int main(int argc, char **argv)
 
       do {
          size = 10000;
-         status = bm_receive_event(msg_buf, event, &size, ASYNC);
+         status = bm_receive_event(msg_buf, event, &size, BM_NO_WAIT);
          if (status == BM_ASYNC_RETURN) {
             fclose(f);
             break;
@@ -114,7 +114,7 @@ int main(int argc, char **argv)
             if (pheader->trigger_mask & (1 << i))
                strcat(type_string, type_name[i]);
 
-         fprintf(f, "serial %ld, type %s, time %1.3lf\n",
+         fprintf(f, "serial %d, type %s, time %1.3lf\n",
                  pheader->serial_number, type_string, pheader->time_stamp / 1000.0);
          fprintf(f, "%s\n\n", pstring);
       } while (1);

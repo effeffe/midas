@@ -395,7 +395,7 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
 {
    int i, size, offset, direction, last, status;
    struct tm *tms, ltms;
-   time_t lt, ltime, lact;
+   time_t lt, ltime=0, lact;
    char str[256], file_name[256], dir[256];
    HNDLE hDB;
 
@@ -817,7 +817,7 @@ INT el_search_run(int run, char *return_tag)
 
 \********************************************************************/
 {
-   int actual_run, fh, status;
+   int actual_run=0, fh, status;
    char tag[256];
 
    tag[0] = return_tag[0] = 0;
