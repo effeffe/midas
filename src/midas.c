@@ -7954,7 +7954,7 @@ INT bm_check_buffers()
             /* one bm_push_event could cause a run stop and a buffer close, which
                would crash the next call to bm_push_event(). So check for valid
                buffer on each call */
-            if (idx < _buffer_entries && _buffer[idx].buffer_header->name != NULL)
+            if (idx < _buffer_entries && _buffer[idx].buffer_header->name[0] != 0)
                status = bm_push_event(_buffer[idx].buffer_header->name);
 
             if (status != BM_MORE_EVENTS)
