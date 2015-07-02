@@ -25,9 +25,9 @@ int main()
 {
    INT hBuf, status, i;
    char *event, str[256];
-   INT *pdata, count;
+   INT *pdata;
    INT start, stop;
-   double rate;
+   double count, rate;
    int id, size, event_size, act_size, variable_size, rpc_mode, flush = 0;
    char host_name[256];
    BUFFER_HEADER buffer_header;
