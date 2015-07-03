@@ -449,6 +449,8 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
                     list[2][0] == '1'? " wait=\"1\"" : "", list[1]);
 
          } else if (equal_ustring(list[0], "odbinc")) {
+            if (list[2][0] == 0)
+               strlcpy(list[2], "1", 2);
             fprintf(fout, "<ODBInc l=\"%d\" path=\"%s\">%s</ODBInc>\n", line+1, list[1], list[2]);
             
          } else if (equal_ustring(list[0], "odbset")) {
@@ -1004,7 +1006,10 @@ void show_seq_page()
                   sprintf(str, "x%d", n++);
                   strlcpy(buffer, getparam(str), sizeof(buffer));
                   sprintf(str, "/Sequencer/Variables/%s", name);
-                  db_set_value(hDB, 0, str, buffer, strlen(buffer)+1, 1, TID_STRING);
+                  size = strlen(buffer)+1;
+                  if (size < 32)
+                     size = 32;
+                  db_set_value(hDB, 0, str, buffer, size, 1, TID_STRING);
                }
             }
          }
@@ -2182,7 +2187,7 @@ void sequencer()
             db_sprintf(str, data, size, 0, key.type);
             d = atof(str);
             d += atof(value);
-            sprintf(str, "%lf", d);
+            sprintf(str, "%lg", d);
             size = sizeof(data);
             db_sscanf(str, data, &size, 0, key.type);
             
