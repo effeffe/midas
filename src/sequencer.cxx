@@ -430,7 +430,9 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
                endl = line+1;
             if (list[2][0] == 0)
                fprintf(fout, "<Loop l=\"%d\" le=\"%d\" n=\"%s\">\n", line+1, endl, list[1]);
-            else {
+            else if (list[3][0] == 0){
+               fprintf(fout, "<Loop l=\"%d\" le=\"%d\" var=\"%s\" n=\"%s\">\n", line+1, endl, list[1], list[2]);
+            } else {
                fprintf(fout, "<Loop l=\"%d\" le=\"%d\" var=\"%s\" values=\"", line+1, endl, list[1]);
                for (i=2 ; i < 100 && list[i][0] ; i++) {
                   if (i > 2)
@@ -1982,12 +1984,16 @@ void sequencer()
             seq.current_line_number++;
          } else {
             pn = mxml_get_node_at_line(pnseq, seq.loop_start_line[i]);
-            if (mxml_get_attribute(pn, "var") && mxml_get_attribute(pn, "values")) {
-               strlcpy(data, mxml_get_attribute(pn, "values"), sizeof(data));
-               strbreak(data, list, 100, ",", FALSE);
+            if (mxml_get_attribute(pn, "var")) {
                strlcpy(name, mxml_get_attribute(pn, "var"), sizeof(name));
-               if (!eval_var(list[seq.loop_counter[i]], value, sizeof(value)))
-                  return;
+               if (mxml_get_attribute(pn, "values")) {
+                  strlcpy(data, mxml_get_attribute(pn, "values"), sizeof(data));
+                  strbreak(data, list, 100, ",", FALSE);
+                  if (!eval_var(list[seq.loop_counter[i]], value, sizeof(value)))
+                     return;
+               } else if (mxml_get_attribute(pn, "n")) {
+                  sprintf(value, "%d", seq.loop_counter[i]+1);
+               }
                sprintf(str, "/Sequencer/Variables/%s", name);
                db_set_value(hDB, 0, str, value, strlen(value)+1, 1, TID_STRING);
             }
@@ -2391,21 +2397,8 @@ void sequencer()
       if (mxml_get_attribute(pn, "le"))
          seq.sloop_end_line[i] = atoi(mxml_get_attribute(pn, "le"));
       seq.loop_counter[i] = 1;
-      if (mxml_get_attribute(pn, "var")) {
-         if (!mxml_get_attribute(pn, "values")) {
-            seq_error("Missing \"value\" attribute");
-            return;
-         }
-         strlcpy(data, mxml_get_attribute(pn, "values"), sizeof(data));
-         seq.loop_n[i] = strbreak(data, list, 100, ",", FALSE);
-         
-         strlcpy(name, mxml_get_attribute(pn, "var"), sizeof(name));
-         if (!eval_var(list[0], value, sizeof(value)))
-            return;
-         sprintf(str, "/Sequencer/Variables/%s", name);
-         db_set_value(hDB, 0, str, value, strlen(value)+1, 1, TID_STRING);
-         
-      } else if (mxml_get_attribute(pn, "n")) {
+
+      if (mxml_get_attribute(pn, "n")) {
          if (equal_ustring(mxml_get_attribute(pn, "n"), "infinite"))
             seq.loop_n[i] = -1;
          else {
@@ -2413,7 +2406,23 @@ void sequencer()
                return;
             seq.loop_n[i] = atoi(value);
          }
+         strlcpy(value, "1", sizeof(value));
+      } else if (mxml_get_attribute(pn, "values")) {
+         strlcpy(data, mxml_get_attribute(pn, "values"), sizeof(data));
+         seq.loop_n[i] = strbreak(data, list, 100, ",", FALSE);
+         if (!eval_var(list[0], value, sizeof(value)))
+            return;
+      } else {
+         seq_error("Missing \"var\" or \"n\" attribute");
+         return;
       }
+
+      if (mxml_get_attribute(pn, "var")) {
+         strlcpy(name, mxml_get_attribute(pn, "var"), sizeof(name));
+         sprintf(str, "/Sequencer/Variables/%s", name);
+         db_set_value(hDB, 0, str, value, strlen(value)+1, 1, TID_STRING);
+      }
+
       seq.current_line_number++;
    }
    
