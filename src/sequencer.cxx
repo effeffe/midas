@@ -492,8 +492,8 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
                fprintf(fout, "<Script l=\"%d\">%s</Script>\n", line+1, list[1]);
             else {
                fprintf(fout, "<Script l=\"%d\" params=\"", line+1);
-               for (i=1 ; i < 100 && list[i][0] ; i++) {
-                  if (i > 1)
+               for (i=2 ; i < 100 && list[i][0] ; i++) {
+                  if (i > 2)
                      fprintf(fout, ",");
                   fprintf(fout, "%s", list[i]);
                }
@@ -2206,10 +2206,18 @@ void sequencer()
    
    /*---- Script ----*/
    else if (equal_ustring(mxml_get_name(pn), "Script")) {
-      if (mxml_get_attribute(pn, "loop_counter"))
-         sprintf(str, "%s %d %d %d %d", mxml_get_value(pn), seq.loop_counter[0], seq.loop_counter[1], seq.loop_counter[2], seq.loop_counter[3]);
-      else
-         sprintf(str, "%s", mxml_get_value(pn));
+      sprintf(str, "%s", mxml_get_value(pn));
+      
+      if (mxml_get_attribute(pn, "params")) {
+         strlcpy(data, mxml_get_attribute(pn, "params"), sizeof(data));
+         n = strbreak(data, list, 100, ",", FALSE);
+         for (i=0 ; i<n ; i++) {
+            if (!eval_var(list[i], value, sizeof(value)))
+               return;
+            strlcat(str, " ", sizeof(str));
+            strlcat(str, value, sizeof(str));
+         }
+      }
       ss_system(str);
       seq.current_line_number++;
    }
