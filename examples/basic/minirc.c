@@ -37,15 +37,15 @@ int main()
    printf("Start run\n");
 
    /* start run */
-   if (cm_transition(TR_START, run_number, str, sizeof(str), SYNC, MT_INFO) != CM_SUCCESS)
-      printf(str);
+   if (cm_transition(TR_START, run_number, str, sizeof(str), BM_WAIT, MT_INFO) != CM_SUCCESS)
+      printf("%s", str);
 
    printf("Hit RETURN to stop run");
    getchar();
 
    /* stop run */
-   if (cm_transition(TR_STOP, run_number, str, sizeof(str), SYNC, MT_INFO) != CM_SUCCESS)
-      printf(str);
+   if (cm_transition(TR_STOP, run_number, str, sizeof(str), BM_WAIT, MT_INFO) != CM_SUCCESS)
+      printf("%s", str);
 
    cm_disconnect_experiment();
 

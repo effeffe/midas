@@ -430,7 +430,9 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
                endl = line+1;
             if (list[2][0] == 0)
                fprintf(fout, "<Loop l=\"%d\" le=\"%d\" n=\"%s\">\n", line+1, endl, list[1]);
-            else {
+            else if (list[3][0] == 0){
+               fprintf(fout, "<Loop l=\"%d\" le=\"%d\" var=\"%s\" n=\"%s\">\n", line+1, endl, list[1], list[2]);
+            } else {
                fprintf(fout, "<Loop l=\"%d\" le=\"%d\" var=\"%s\" values=\"", line+1, endl, list[1]);
                for (i=2 ; i < 100 && list[i][0] ; i++) {
                   if (i > 2)
@@ -447,6 +449,8 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
                     list[2][0] == '1'? " wait=\"1\"" : "", list[1]);
 
          } else if (equal_ustring(list[0], "odbinc")) {
+            if (list[2][0] == 0)
+               strlcpy(list[2], "1", 2);
             fprintf(fout, "<ODBInc l=\"%d\" path=\"%s\">%s</ODBInc>\n", line+1, list[1], list[2]);
             
          } else if (equal_ustring(list[0], "odbset")) {
@@ -457,6 +461,7 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
             
          } else if (equal_ustring(list[0], "odbget")) {
                fprintf(fout, "<ODBGet l=\"%d\" path=\"%s\">%s</ODBGet>\n", line+1, list[1], list[2]);
+
          } else if (equal_ustring(list[0], "odbsubdir")) {
             if (list[2][0])
                fprintf(fout, "<ODBSubdir l=\"%d\" notify=\"%s\" path=\"%s\">\n", line+1, list[2], list[1]);
@@ -490,8 +495,8 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
                fprintf(fout, "<Script l=\"%d\">%s</Script>\n", line+1, list[1]);
             else {
                fprintf(fout, "<Script l=\"%d\" params=\"", line+1);
-               for (i=1 ; i < 100 && list[i][0] ; i++) {
-                  if (i > 1)
+               for (i=2 ; i < 100 && list[i][0] ; i++) {
+                  if (i > 2)
                      fprintf(fout, ",");
                   fprintf(fout, "%s", list[i]);
                }
@@ -1002,7 +1007,10 @@ void show_seq_page()
                   sprintf(str, "x%d", n++);
                   strlcpy(buffer, getparam(str), sizeof(buffer));
                   sprintf(str, "/Sequencer/Variables/%s", name);
-                  db_set_value(hDB, 0, str, buffer, strlen(buffer)+1, 1, TID_STRING);
+                  size = strlen(buffer)+1;
+                  if (size < 32)
+                     size = 32;
+                  db_set_value(hDB, 0, str, buffer, size, 1, TID_STRING);
                }
             }
          }
@@ -1982,14 +1990,21 @@ void sequencer()
             seq.current_line_number++;
          } else {
             pn = mxml_get_node_at_line(pnseq, seq.loop_start_line[i]);
-            if (mxml_get_attribute(pn, "var") && mxml_get_attribute(pn, "values")) {
-               strlcpy(data, mxml_get_attribute(pn, "values"), sizeof(data));
-               strbreak(data, list, 100, ",", FALSE);
+            if (mxml_get_attribute(pn, "var")) {
                strlcpy(name, mxml_get_attribute(pn, "var"), sizeof(name));
-               if (!eval_var(list[seq.loop_counter[i]], value, sizeof(value)))
-                  return;
+               if (mxml_get_attribute(pn, "values")) {
+                  strlcpy(data, mxml_get_attribute(pn, "values"), sizeof(data));
+                  strbreak(data, list, 100, ",", FALSE);
+                  if (!eval_var(list[seq.loop_counter[i]], value, sizeof(value)))
+                     return;
+               } else if (mxml_get_attribute(pn, "n")) {
+                  sprintf(value, "%d", seq.loop_counter[i]+1);
+               }
                sprintf(str, "/Sequencer/Variables/%s", name);
-               db_set_value(hDB, 0, str, value, strlen(value)+1, 1, TID_STRING);
+               size = strlen(value)+1;
+               if (size < 32)
+                  size = 32;
+               db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
             }
             seq.loop_counter[i]++;
             seq.current_line_number = seq.loop_start_line[i]+1;
@@ -2063,8 +2078,17 @@ void sequencer()
                   while (*pc == '.' || *pc == '-')
                      pc++;
                   index2 = atoi(pc);
-               } else
-                  index1 = atoi(strchr(odbpath, '[') + 1);
+               } else {
+                  if (*(strchr(odbpath, '[') + 1) == '$') {
+                     strlcpy(str, strchr(odbpath, '[') + 1, sizeof(str));
+                     if (strchr(str, ']'))
+                        *strchr(str, ']') = 0;
+                     if (!eval_var(str, value, sizeof(value)))
+                        return;
+                     index1 = atoi(value);
+                  } else
+                     index1 = atoi(strchr(odbpath, '[') + 1);
+               }
             }
             *strchr(odbpath, '[') = 0;
          }
@@ -2121,8 +2145,18 @@ void sequencer()
          /* check if index is supplied */
          index1 = 0;
          if (odbpath[strlen(odbpath) - 1] == ']') {
-            if (strchr(odbpath, '['))
-               index1 = atoi(strchr(odbpath, '[') + 1);
+            if (strchr(odbpath, '[')) {
+             
+               if (*(strchr(odbpath, '[') + 1) == '$') {
+                  strlcpy(str, strchr(odbpath, '[') + 1, sizeof(str));
+                  if (strchr(str, ']'))
+                     *strchr(str, ']') = 0;
+                  if (!eval_var(str, value, sizeof(value)))
+                     return;
+                  index1 = atoi(value);
+               } else
+                  index1 = atoi(strchr(odbpath, '[') + 1);
+            }
             *strchr(odbpath, '[') = 0;
          }
          
@@ -2140,7 +2174,10 @@ void sequencer()
             db_sprintf(value, data, size, 0, key.type);
             
             sprintf(str, "/Sequencer/Variables/%s", name);
-            db_set_value(hDB, 0, str, value, strlen(value)+1, 1, TID_STRING);
+            size = strlen(value)+1;
+            if (size < 32)
+               size = 32;
+            db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
             
             size = sizeof(seq);
             db_get_record(hDB, hKeySeq, &seq, &size, 0); // could have changed seq tree
@@ -2176,7 +2213,7 @@ void sequencer()
             db_sprintf(str, data, size, 0, key.type);
             d = atof(str);
             d += atof(value);
-            sprintf(str, "%lf", d);
+            sprintf(str, "%lg", d);
             size = sizeof(data);
             db_sscanf(str, data, &size, 0, key.type);
             
@@ -2186,6 +2223,8 @@ void sequencer()
             if (mxml_get_attribute(pn, "notify"))
                notify = atoi(mxml_get_attribute(pn, "notify"));
             
+            if (key.item_size < 32)
+               key.item_size = 32;
             db_set_data_index2(hDB, hKey, data, key.item_size, index, key.type, notify);
             seq.current_line_number++;
          }
@@ -2200,10 +2239,18 @@ void sequencer()
    
    /*---- Script ----*/
    else if (equal_ustring(mxml_get_name(pn), "Script")) {
-      if (mxml_get_attribute(pn, "loop_counter"))
-         sprintf(str, "%s %d %d %d %d", mxml_get_value(pn), seq.loop_counter[0], seq.loop_counter[1], seq.loop_counter[2], seq.loop_counter[3]);
-      else
-         sprintf(str, "%s", mxml_get_value(pn));
+      sprintf(str, "%s", mxml_get_value(pn));
+      
+      if (mxml_get_attribute(pn, "params")) {
+         strlcpy(data, mxml_get_attribute(pn, "params"), sizeof(data));
+         n = strbreak(data, list, 100, ",", FALSE);
+         for (i=0 ; i<n ; i++) {
+            if (!eval_var(list[i], value, sizeof(value)))
+               return;
+            strlcat(str, " ", sizeof(str));
+            strlcat(str, value, sizeof(str));
+         }
+      }
       ss_system(str);
       seq.current_line_number++;
    }
@@ -2391,21 +2438,8 @@ void sequencer()
       if (mxml_get_attribute(pn, "le"))
          seq.sloop_end_line[i] = atoi(mxml_get_attribute(pn, "le"));
       seq.loop_counter[i] = 1;
-      if (mxml_get_attribute(pn, "var")) {
-         if (!mxml_get_attribute(pn, "values")) {
-            seq_error("Missing \"value\" attribute");
-            return;
-         }
-         strlcpy(data, mxml_get_attribute(pn, "values"), sizeof(data));
-         seq.loop_n[i] = strbreak(data, list, 100, ",", FALSE);
-         
-         strlcpy(name, mxml_get_attribute(pn, "var"), sizeof(name));
-         if (!eval_var(list[0], value, sizeof(value)))
-            return;
-         sprintf(str, "/Sequencer/Variables/%s", name);
-         db_set_value(hDB, 0, str, value, strlen(value)+1, 1, TID_STRING);
-         
-      } else if (mxml_get_attribute(pn, "n")) {
+
+      if (mxml_get_attribute(pn, "n")) {
          if (equal_ustring(mxml_get_attribute(pn, "n"), "infinite"))
             seq.loop_n[i] = -1;
          else {
@@ -2413,7 +2447,26 @@ void sequencer()
                return;
             seq.loop_n[i] = atoi(value);
          }
+         strlcpy(value, "1", sizeof(value));
+      } else if (mxml_get_attribute(pn, "values")) {
+         strlcpy(data, mxml_get_attribute(pn, "values"), sizeof(data));
+         seq.loop_n[i] = strbreak(data, list, 100, ",", FALSE);
+         if (!eval_var(list[0], value, sizeof(value)))
+            return;
+      } else {
+         seq_error("Missing \"var\" or \"n\" attribute");
+         return;
       }
+
+      if (mxml_get_attribute(pn, "var")) {
+         strlcpy(name, mxml_get_attribute(pn, "var"), sizeof(name));
+         sprintf(str, "/Sequencer/Variables/%s", name);
+         size = strlen(value)+1;
+         if (size < 32)
+            size = 32;
+         db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
+      }
+
       seq.current_line_number++;
    }
    
@@ -2486,7 +2539,10 @@ void sequencer()
       if (!eval_var(mxml_get_value(pn), value, sizeof(value)))
          return;
       sprintf(str, "/Sequencer/Variables/%s", name);
-      db_set_value(hDB, 0, str, value, strlen(value)+1, 1, TID_STRING);
+      size = strlen(value)+1;
+      if (size < 32)
+         size = 32;
+      db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
       
       seq.current_line_number = mxml_get_line_number_end(pn)+1;
    }
@@ -2519,7 +2575,10 @@ void sequencer()
       if (!concatenate(value, sizeof(value), mxml_get_value(pn)))
          return;
       sprintf(str, "/Sequencer/Variables/%s", name);
-      db_set_value(hDB, 0, str, value, strlen(value)+1, 1, TID_STRING);
+      size = strlen(value)+1;
+      if (size < 32)
+         size = 32;
+      db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
       
       seq.current_line_number = mxml_get_line_number_end(pn)+1;
    }

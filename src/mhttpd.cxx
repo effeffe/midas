@@ -1056,7 +1056,7 @@ void show_help_page()
 
    rsprintf("        <tr>\n");
    rsprintf("          <td style=\"text-align:right;\">midas.log:</td>\n");
-   cm_msg_get_logfile(NULL, str, sizeof(str));
+   cm_msg_get_logfile(NULL, str, sizeof(str), NULL, 0);
    rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
    rsprintf("        </tr>\n");
 
@@ -17245,6 +17245,8 @@ int main(int argc, const char *argv[])
    /* initialize sequencer */
    init_sequencer();
 
+   cm_msg1(MINFO, "lazy", "main", "This is a test of the LAZY facility");
+   
 #ifdef HAVE_MG
    if (use_mg) {
       status = start_mg(tcp_ports, verbose);

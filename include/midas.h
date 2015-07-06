@@ -221,6 +221,13 @@ typedef pthread_mutex_t MUTEX_T;
 typedef INT MUTEX_T;
 #endif
 
+/* OSX brings its own strlcpy/stlcat */
+#ifdef OS_DARWIN
+#ifndef HAVE_STRLCPY
+#define HAVE_STRLCPY
+#endif
+#endif
+
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
@@ -1705,7 +1712,7 @@ extern "C" {
    INT EXPRT cm_msg_register(void (*func)
                               (HNDLE, HNDLE, EVENT_HEADER *, void *));
    INT EXPRT cm_msg_retrieve(INT n_message, char *message, INT buf_size);
-   void EXPRT cm_msg_get_logfile(const char *facility, char *str, int size);
+   void EXPRT cm_msg_get_logfile(const char *facility, char *filename, int fsize, char *linkname, int lsize);
 
    BOOL EXPRT equal_ustring(const char *str1, const char *str2);
 
