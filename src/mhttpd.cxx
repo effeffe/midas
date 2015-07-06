@@ -2228,10 +2228,11 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
 /*------------------------------------------------------------------*/
 
-void show_messages_page(int refresh, int n_message)
+void show_messages_page(int refresh)
 {
-   int size, more;
+   int size, i, n, n_message = 100;
    char str[256], *buffer, *line, *pline;
+   char *plist, bclass[256], facility[256];
    time_t now;
    HNDLE hDB;
    BOOL eob;
@@ -2246,17 +2247,34 @@ void show_messages_page(int refresh, int n_message)
    show_header("Messages", "GET", "./", 0);
    show_navigation_bar("Messages");
 
-   /*---- messages ----*/
-   /* more button */
-   if (n_message == 20)
-      more = 100;
-   else
-      more = n_message + 100;
+   /*---- facilities button bar ----*/
 
-   rsprintf("<button type=submit name=cmd value=\"More%d\">%d More</button><div class=\"messageBox\" id=\"messageFrame\">\n", more, more);
+   if (getparam("facility") && *getparam("facility"))
+      strlcpy(facility, getparam("facility"), sizeof(facility));
+   else
+      strlcpy(facility, "midas", sizeof(facility));
+   
+   n = cm_msg_facilities(&plist);
+   
+   rsprintf("<table class=\"navigationTable\"><tr><td>\n");
+   for (i=0 ; i<n ; i++) {
+      strlcpy(str, plist+i*MAX_STRING_LENGTH, sizeof(str));
+      if (equal_ustring(str, facility))
+         strlcpy(bclass, "navButtonSel", sizeof(bclass));
+      else
+         strlcpy(bclass, "navButton", sizeof(bclass));
+      rsprintf("<input type=\"button\" name=\"facility\" value=\"%s\" class=\"%s\" ", str, bclass);
+      rsprintf("onclick=\"window.location.href='./?cmd=Messages&facility=%s';return false;\">\n", str);
+   }
+   free(plist);
+   rsprintf("</td></tr></table>\n");
+
+   /*---- messages ----*/
    buffer = (char *)malloc(1000000);
    line = (char *)malloc(1000000);
    cm_msg_retrieve(n_message, buffer, 1000000);
+
+   rsprintf("<div class=\"messageBox\" id=\"messageFrame\">\n");
 
    pline = buffer;
    eob = FALSE;
@@ -2281,9 +2299,9 @@ void show_messages_page(int refresh, int n_message)
       else
          rsprintf("<p style=\"padding:0.25em\">%s</p>", line);
    } while (!eob && *pline);
+   
    //title at the bottom so it ends up on top after reversal:
    rsprintf("<h1 class=\"subStatusTitle\">Messages</h1>");
-
 
    //some JS to reverse the order of messages, so latest appears at the top:
    rsprintf("<script type=\"text/JavaScript\">");
@@ -15810,15 +15828,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    /*---- Messages command ------------------------------------------*/
 
    if (equal_ustring(command, "messages")) {
-      show_messages_page(refresh, 20);
-      return;
-   }
-
-   if (strncmp(command, "More", 4) == 0 && strncmp(dec_path, "EL/", 3) != 0) {
-      i = atoi(command + 4);
-      if (i == 0)
-         i = 100;
-      show_messages_page(0, i);
+      show_messages_page(refresh);
       return;
    }
 
