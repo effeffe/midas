@@ -331,33 +331,36 @@ INT cm_get_error(INT code, char *string)
 
 /********************************************************************/
 
-void cm_msg_get_logfile(const char *facility, char *result, int result_size)
+void cm_msg_get_logfile(const char *fac, char *filename, int filename_size,
+                        char *linkname, int linkname_size)
 {
    HNDLE hDB, hKey;
    char dir[256];
-   char filename[256];
-   char linkname[256];
-   char path[256];
-   char lpath[256];
+   char str[256];
+   char date_ext[256];
+   char facility[256];
    int status, size;
    
    cm_get_experiment_database(&hDB, NULL);
+   if (linkname)
+      linkname[0] = 0;
    
    if (hDB) {
-      linkname[0] = 0;
-      if (facility && facility[0]) {
-         strlcpy(filename, facility, sizeof(filename));
-         strlcat(filename, ".log", sizeof(filename));
-      } else
-         strlcpy(filename, "midas.log", sizeof(filename));
-      
-      size = sizeof(filename);
-      db_get_value(hDB, 0, "/Logger/Message file", filename, &size, TID_STRING, TRUE);
-      
-      if (strchr(filename, '%')) {
-         char str[256];
+      if (fac && fac[0])
+         strlcpy(facility, fac, sizeof(facility));
+      else
+         strlcpy(facility, "midas", sizeof(facility));
          
-         /* replace stings such as midas_%y%m%d.mid with current date */
+      strlcpy(str, "midas.log", sizeof(str));
+      size = sizeof(str);
+      db_get_value(hDB, 0, "/Logger/Message file", str, &size, TID_STRING, TRUE);
+
+      /* extension must be .log and will be added later */
+      if (strchr(str, '.'))
+         *strchr(str, '.') = 0;
+
+      if (strchr(str, '%')) {
+         /* replace stings such as %y%m%d with current date */
          time_t now;
          struct tm *tms;
          
@@ -365,19 +368,12 @@ void cm_msg_get_logfile(const char *facility, char *result, int result_size)
          time(&now);
          tms = localtime(&now);
          
-         strlcpy(linkname, filename, sizeof(linkname));
-         if (strchr(linkname, '%'))
-            *strchr(linkname, '%') = 0;
-         if (strchr(linkname, '_'))
-            *strchr(linkname, '_') = 0;
-         if (strchr(linkname, '.') == NULL && strchr(filename, '.'))
-            strlcat(linkname, strchr(filename, '.'), sizeof(linkname));
-         
-         strftime(str, sizeof(str), filename, tms);
-         strlcpy(filename, str, sizeof(filename));
-      }
+         date_ext[0] = '_';
+         strftime(date_ext+1, sizeof(date_ext), strchr(str, '%'), tms);
+      } else
+         date_ext[0] = 0;
       
-      if (strchr(filename, DIR_SEPARATOR) == NULL) {
+      if (strchr(str, DIR_SEPARATOR) == NULL) {
          status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
          if (status == DB_SUCCESS) {
             size = sizeof(dir);
@@ -386,46 +382,29 @@ void cm_msg_get_logfile(const char *facility, char *result, int result_size)
             if (dir[0] != 0)
                if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
                   strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
-            
-            strcpy(path, dir);
-            strcat(path, filename);
-            if (linkname[0]) {
-               strcpy(lpath, dir);
-               strcat(lpath, linkname);
-            }
          } else {
             cm_get_path(dir, sizeof(dir));
             if (dir[0] != 0)
                if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
                   strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
-            
-            strlcpy(path, dir, sizeof(path));
-            
-            if (facility && facility[0]) {
-               strlcat(path, facility, sizeof(path));
-               strlcat(path, ".log", sizeof(path));
-            } else
-               strlcat(path, "midas.log", sizeof(path));
-            if (linkname[0]) {
-               strlcpy(lpath, dir, sizeof(lpath));
-               strlcat(lpath, linkname, sizeof(lpath));
-            }
          }
       } else {
-         strlcpy(path, filename, sizeof(path));
-         if (linkname[0]) {
-            strlcpy(lpath, linkname, sizeof(lpath));
-         }
+         strlcpy(dir, str, sizeof(dir));
+         *(strrchr(dir, DIR_SEPARATOR)+1) = 0;
       }
-   } else {
-      if (facility && facility[0]) {
-         strlcpy(path, facility, sizeof(path));
-         strlcat(path, ".log", sizeof(path));
-      } else
-         strlcpy(path, "midas.log", sizeof(path));
    }
+
+
+   strlcpy(filename, dir, filename_size);
+   strlcat(filename, facility, filename_size);
+   strlcat(filename, date_ext, filename_size);
+   strlcat(filename, ".log", filename_size);
    
-   strlcpy(result, path, result_size);
+   if (date_ext[0] && linkname) {
+      strlcpy(linkname, dir, filename_size);
+      strlcat(linkname, facility, filename_size);
+      strlcat(linkname, ".log", filename_size);
+   }
 }
 
 /********************************************************************/
@@ -478,21 +457,21 @@ Write message to logging file. Called by cm_msg.
 */
 INT cm_msg_log(INT message_type, const char *message)
 {
-   char path[256], lpath[256];
+   char filename[256], lpath[256], linkname[256];
    INT status, fh, semaphore;
 
-   path[0] = 0;
+   filename[0] = 0;
    lpath[0] = 0;
 
    if (rpc_is_remote())
       return rpc_call(RPC_CM_MSG_LOG, message_type, message);
 
    if (message_type != MT_DEBUG) {
-      cm_msg_get_logfile("", path, sizeof(path));
+      cm_msg_get_logfile("", filename, sizeof(filename), linkname, sizeof(linkname));
       
-      fh = open(path, O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
+      fh = open(filename, O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
       if (fh < 0) {
-         printf("Cannot open message log file %s\n", path);
+         printf("Cannot open message log file %s\n", filename);
       } else {
          char str[256];
 
@@ -514,8 +493,8 @@ INT cm_msg_log(INT message_type, const char *message)
          close(fh);
 
 #ifdef OS_LINUX
-         if (lpath[0])
-            symlink(path, lpath);
+         if (linkname[0])
+            symlink(filename, linkname);
 #endif
 
          status = ss_semaphore_release(semaphore);
@@ -555,7 +534,7 @@ INT cm_msg_log1(INT message_type, const char *message, const char *facility)
 
 \********************************************************************/
 {
-   char filename[256];
+   char filename[256], linkname[256];
    char str[256];
    FILE *f;
 
@@ -564,7 +543,7 @@ INT cm_msg_log1(INT message_type, const char *message, const char *facility)
 
    if (message_type != MT_DEBUG) {
 
-      cm_msg_get_logfile(facility, filename, sizeof(filename));
+      cm_msg_get_logfile(facility, filename, sizeof(filename), linkname, sizeof(linkname));
       
       f = fopen(filename, "a");
       if (f == NULL) {
@@ -575,6 +554,11 @@ INT cm_msg_log1(INT message_type, const char *message, const char *facility)
          fprintf(f, " %s\n", message);
          fclose(f);
       }
+      
+#ifdef OS_LINUX
+      if (linkname[0])
+         symlink(filename, linkname);
+#endif
    }
 
    return CM_SUCCESS;
@@ -897,9 +881,6 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
    va_start(argptr, format);
    cm_msg_format(message, sizeof(message), message_type, filename, line, routine, format, &argptr);
    va_end(argptr);
-
-   if (facility)
-      sprintf(message + strlen(message), "{%s} ", facility);
 
    /* call user function if set via cm_set_msg_print */
    if (_message_print != NULL && (message_type & _message_mask_user) != 0)
