@@ -6488,7 +6488,7 @@ int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
 {
    char type[256], data[256], test_str[256];
    char *buf = NULL;
-   int i, idx, status, size, tid, num_values;
+   int i, idx, status, size=0, tid, num_values;
    HNDLE hKey;
    PMXML_NODE child;
 
@@ -8083,7 +8083,7 @@ INT db_sscanf(const char *data_str, void *data, INT * data_size, INT i, DWORD ti
 
 \********************************************************************/
 {
-   DWORD value;
+   DWORD value = 0;
    BOOL hex = FALSE;
 
    if (data_str == NULL)

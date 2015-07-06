@@ -7490,6 +7490,14 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
          for (i = 0; i < pc->max_request_index; i++, prequest++)
             if (prequest->valid && bm_match_event(prequest->event_id, prequest->trigger_mask, pevent)) {
 
+               /* check if this is a recent event */
+               if (prequest->sampling_type == GET_RECENT) {
+                  if (ss_time() - pevent->time_stamp > 1) {
+                     /* skip that event */
+                     continue;
+                  }
+               }
+               
                /* we found a request for this event, so copy it */
 
                if (pbuf->read_cache_size > 0 && total_size < pbuf->read_cache_size) {
@@ -7781,8 +7789,6 @@ INT bm_push_event(char *buffer_name)
                      /* skip that event */
                      continue;
                   }
-
-                  printf("now: %d, event: %d\n", ss_time(), pevent->time_stamp);
                }
 
                /* we found a request for this event, so copy it */
@@ -7954,7 +7960,7 @@ INT bm_check_buffers()
             /* one bm_push_event could cause a run stop and a buffer close, which
                would crash the next call to bm_push_event(). So check for valid
                buffer on each call */
-            if (idx < _buffer_entries && _buffer[idx].buffer_header->name[0])
+            if (idx < _buffer_entries && _buffer[idx].buffer_header->name[0] != 0)
                status = bm_push_event(_buffer[idx].buffer_header->name);
 
             if (status != BM_MORE_EVENTS)
@@ -8138,7 +8144,6 @@ INT bm_poll_event(INT flag)
       status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &max_event_size, &size, TID_DWORD, TRUE);
 
       size = max_event_size + sizeof(EVENT_HEADER);
-      //printf("alloc event buffer %d\n", size);
       _event_buffer = (EVENT_HEADER *) M_MALLOC(size);
       if (!_event_buffer) {
          cm_msg(MERROR, "bm_poll_event", "not enough memory to allocate event buffer of size %d", size);
@@ -8171,7 +8176,6 @@ INT bm_poll_event(INT flag)
          /* receive event */
          size = _event_buffer_size;
          status = bm_receive_event(_request_list[request_id].buffer_handle, _event_buffer, &size, BM_NO_WAIT);
-         //printf("receive_event buf %d, event %d, status %d\n", _event_buffer_size, size, status);
 
          /* call user function if successful */
          if (status == BM_SUCCESS)
@@ -12100,7 +12104,7 @@ INT rpc_execute_ascii(INT sock, char *buffer)
    INT i, j, idx, status, index_in;
    char *in_param_ptr, *out_param_ptr;
    INT routine_id, tid, flags, array_tid, n_param;
-   INT param_size, item_size, num_values;
+   INT param_size=0, item_size, num_values;
    void *prpc_param[20];
    char *arpc_param[N_APARAM], *pc;
    char str[1024], debug_line[1024];

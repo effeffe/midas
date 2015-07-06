@@ -39,8 +39,8 @@ INT tr_stop(INT rn, char *error)
 
    running = FALSE;
 
-   rpc_flush_event();           /* send events in TCP cache */
-   bm_flush_cache(hBuf, SYNC);  /* flush buffer cache */
+   rpc_flush_event();              /* send events in TCP cache */
+   bm_flush_cache(hBuf, BM_WAIT);  /* flush buffer cache */
 
    printf(" done\n");
 
@@ -52,10 +52,10 @@ INT tr_stop(INT rn, char *error)
 #ifdef OS_VXWORKS
 minife(char *ahost_name)
 #else
-main()
+int main(void)
 #endif
 {
-   INT status, size, *pdata, id;
+   INT status, size, *pdata, id=0;
    INT convert_flags;
    DWORD last_time = 0;
    char event[2000];
@@ -75,8 +75,8 @@ main()
    if (status != CM_SUCCESS)
       return 1;
 
-   if (cm_register_transition(TR_START, tr_start) != CM_SUCCESS ||
-       cm_register_transition(TR_STOP, tr_stop) != CM_SUCCESS) {
+   if (cm_register_transition(TR_START, tr_start, 500) != CM_SUCCESS ||
+       cm_register_transition(TR_STOP, tr_stop, 500) != CM_SUCCESS) {
       printf("Cannot start server");
       return 0;
    }
@@ -84,8 +84,8 @@ main()
    cm_set_watchdog_params(TRUE, 0);
 #endif
 
-   /* open the "system" buffer, 1M size */
-   bm_open_buffer(EVENT_BUFFER_NAME, EVENT_BUFFER_SIZE, &hBuf);
+   /* open the "system" buffer, 2x maximal event size */
+   bm_open_buffer(EVENT_BUFFER_NAME, 2*MAX_EVENT_SIZE, &hBuf);
 
    /* set the buffer cache size on the server */
    bm_set_cache_size(hBuf, 0, 100000);
@@ -135,7 +135,7 @@ main()
             ((EVENT_HEADER *) event)->serial_number = serial++;
          }
 
-         status = rpc_send_event(hBuf, event, size + sizeof(EVENT_HEADER), ASYNC);
+         status = rpc_send_event(hBuf, event, size + sizeof(EVENT_HEADER), BM_NO_WAIT, 1);
          if (status == BM_ASYNC_RETURN)
             blocked = TRUE;
          else if (status == BM_SUCCESS)
