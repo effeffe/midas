@@ -451,11 +451,12 @@ INT cm_set_msg_print(INT system_mask, INT user_mask, int (*func) (const char *))
 /**
 Write message to logging file. Called by cm_msg.
 @attention May burn your fingers
-@param message_type      Message type
+@param message_type     Message type
 @param message          Message string
+@param facility         Message facility, filename in which messages will be written
 @return CM_SUCCESS
 */
-INT cm_msg_log(INT message_type, const char *message)
+INT cm_msg_log(INT message_type, const char *facility, const char *message)
 {
    char filename[256], lpath[256], linkname[256];
    INT status, fh, semaphore;
@@ -467,7 +468,7 @@ INT cm_msg_log(INT message_type, const char *message)
       return rpc_call(RPC_CM_MSG_LOG, message_type, message);
 
    if (message_type != MT_DEBUG) {
-      cm_msg_get_logfile("", filename, sizeof(filename), linkname, sizeof(linkname));
+      cm_msg_get_logfile(facility, filename, sizeof(filename), linkname, sizeof(linkname));
       
       fh = open(filename, O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
       if (fh < 0) {
@@ -504,65 +505,6 @@ INT cm_msg_log(INT message_type, const char *message)
    return CM_SUCCESS;
 }
 
-/********************************************************************/
-/**
-Write message to logging file. Called by cm_msg().
-@internal
-@param message_type      Message type
-@param message          Message string
-@param facility         Message facility, filename in which messages will be written
-@return CM_SUCCESS
-*/
-INT cm_msg_log1(INT message_type, const char *message, const char *facility)
-/********************************************************************\
-
-  Routine: cm_msg_log1
-
-  Purpose: Write message to logging file. Called by cm_msg.
-           Internal use only
-
-  Input:
-    INT    message_type      Message type
-    char   *message          Message string
-    char   *
-
-  Output:
-    none
-
-  Function value:
-    CM_SUCCESS
-
-\********************************************************************/
-{
-   char filename[256], linkname[256];
-   char str[256];
-   FILE *f;
-
-   if (rpc_is_remote())
-      return rpc_call(RPC_CM_MSG_LOG1, message_type, message, facility);
-
-   if (message_type != MT_DEBUG) {
-
-      cm_msg_get_logfile(facility, filename, sizeof(filename), linkname, sizeof(linkname));
-      
-      f = fopen(filename, "a");
-      if (f == NULL) {
-         printf("Cannot open message log file %s\n", filename);
-      } else {
-         strcpy(str, ss_asctime());
-         fprintf(f, "%s", str);
-         fprintf(f, " %s\n", message);
-         fclose(f);
-      }
-      
-#ifdef OS_LINUX
-      if (linkname[0])
-         symlink(filename, linkname);
-#endif
-   }
-
-   return CM_SUCCESS;
-}
 
 static INT cm_msg_format(char* message, int sizeof_message, INT message_type, const char *filename, INT line, const char *routine, const char *format, va_list* argptr)
 {
@@ -768,7 +710,7 @@ INT cm_msg_flush_buffer()
       ss_mutex_release(_msg_mutex);
 
       /* log message */
-      cm_msg_log(message_type, message);
+      cm_msg_log(message_type, "midas", message);
 
       /* send message to SYSMSG */
       status = cm_msg_send_event(ts, message_type, message);
@@ -913,7 +855,7 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
    }
 
    /* log message */
-   cm_msg_log1(message_type, message, facility);
+   cm_msg_log(message_type, facility, message);
 
    in_routine = FALSE;
 

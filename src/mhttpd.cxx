@@ -2256,19 +2256,21 @@ void show_messages_page(int refresh)
    
    n = cm_msg_facilities(&plist);
    
-   rsprintf("<table class=\"navigationTable\"><tr><td>\n");
-   for (i=0 ; i<n ; i++) {
-      strlcpy(str, plist+i*MAX_STRING_LENGTH, sizeof(str));
-      if (equal_ustring(str, facility))
-         strlcpy(bclass, "navButtonSel", sizeof(bclass));
-      else
-         strlcpy(bclass, "navButton", sizeof(bclass));
-      rsprintf("<input type=\"button\" name=\"facility\" value=\"%s\" class=\"%s\" ", str, bclass);
-      rsprintf("onclick=\"window.location.href='./?cmd=Messages&facility=%s';return false;\">\n", str);
+   if (n> 0) {
+      rsprintf("<table class=\"navigationTable\"><tr><td>\n");
+      for (i=0 ; i<n ; i++) {
+         strlcpy(str, plist+i*MAX_STRING_LENGTH, sizeof(str));
+         if (equal_ustring(str, facility))
+            strlcpy(bclass, "navButtonSel", sizeof(bclass));
+         else
+            strlcpy(bclass, "navButton", sizeof(bclass));
+         rsprintf("<input type=\"button\" name=\"facility\" value=\"%s\" class=\"%s\" ", str, bclass);
+         rsprintf("onclick=\"window.location.href='./?cmd=Messages&facility=%s';return false;\">\n", str);
+      }
+      free(plist);
+      rsprintf("</td></tr></table>\n");
    }
-   free(plist);
-   rsprintf("</td></tr></table>\n");
-
+   
    /*---- messages ----*/
    buffer = (char *)malloc(1000000);
    line = (char *)malloc(1000000);
