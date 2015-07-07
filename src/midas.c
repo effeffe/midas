@@ -486,7 +486,17 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message)
             return status;
          }
 
-         strlcpy(str, ss_asctime(), sizeof(str));
+         struct timeval tv;
+         struct tm *tms;
+
+         tzset();
+         gettimeofday(&tv, NULL);
+         tms = localtime(&tv.tv_sec);
+         
+         strftime(str, sizeof(str), "%H:%M:%S", tms);
+         sprintf(str+strlen(str), ".%03d ", tv.tv_usec / 1000);
+         strftime(str+strlen(str), sizeof(str), "%G/%m/%d", tms);
+         
          write(fh, str, strlen(str));
          write(fh, " ", 1);
          write(fh, message, strlen(message));
