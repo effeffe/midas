@@ -507,8 +507,10 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message)
          close(fh);
 
 #ifdef OS_LINUX
-         if (linkname[0])
+         if (linkname[0]) {
+            unlink(linkname);
             symlink(filename, linkname);
+         }
 #endif
 
          status = ss_semaphore_release(semaphore);
@@ -972,12 +974,15 @@ INT cm_msg_register(void (*func) (HNDLE, HNDLE, EVENT_HEADER *, void *))
 }
 
 /* Retrieve message from an individual file. Internal use only */
-INT cm_msg_retrieve1(char *filename, time_t t, INT n_message, char *message, INT buf_size)
+INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, INT buf_size)
 {
+   BOOL stop;
    int fh, size;
    INT i, n, s;
    char *p, *buffer, *pm, str[1000];
    struct stat stat_buf;
+   struct tm tms;
+   time_t tstamp, tstamp_last;
 
    fh = open(filename, O_RDONLY | O_TEXT, 0644);
    if (fh < 0) {
@@ -1005,10 +1010,12 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_message, char *message, INT
    pm = message;
    p = buffer + size - 1;
    s = 0;
+   tstamp_last = 0;
+   stop = FALSE;
    
    while (*p == '\n' || *p == '\r')
       p--;
-   for (n=0 ; n<n_message && p>buffer && s<buf_size ; n++) {
+   for (n=0 ; !stop && p>buffer && s<buf_size ; ) {
       
       /* go to beginning of line */
       for (i=0 ; p != buffer && (*p != '\n' && *p != '\r') ; i++)
@@ -1022,14 +1029,51 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_message, char *message, INT
          memcpy(str, p, i);
       } else
          memcpy(str, p+1, i);
-      str[i] = '\n';
+      str[i] = 0;
+      if (strchr(str, '\n'))
+         *strchr(str, '\n') = 0;
+      if (strchr(str, '\r'))
+         *strchr(str, '\r') = 0;
+      strlcat(str, "\n", sizeof(str));
       
-      strlcpy(pm, str, buf_size-s);
-      pm += strlen(str);
-      s += strlen(str);
+      /* extract time tag */
+      time_t now;
+      time(&now);
+      memcpy(&tms, localtime(&now), sizeof(tms));
+      tms.tm_hour = atoi(str);
+      tms.tm_min = atoi(str+3);
+      tms.tm_sec = atoi(str+6);
+      tms.tm_year = atoi(str+13)-1900;
+      tms.tm_mon = atoi(str+18)-1;
+      tms.tm_mday = atoi(str+21);
+      tstamp = mktime(&tms);
+      assert(tstamp > 0);
+
+      if (tstamp_last > 0 && tstamp < tstamp_last)
+         break;
+      
+      if (t == 0 || tstamp <= t) {
+         sprintf(pm, "%ld ", tstamp);
+         s += strlen(pm);
+         pm += strlen(pm);
+         
+         strlcpy(pm, str, buf_size-s);
+         s += strlen(pm);
+         pm += strlen(pm);
+         
+         n++;
+      }
       
       while (*p == '\n' || *p == '\r')
          p--;
+      
+      if (n_messages < 2)
+         stop = TRUE;
+      else {
+         // continue collecting messages until time stamp differs from current one
+         if (n == n_messages)
+            tstamp_last = tstamp;
+      }
    }
    message[s] = 0;
 

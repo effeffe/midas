@@ -1692,7 +1692,8 @@ void show_status_page(int refresh, const char *cookie_wpwd)
                rsprintf("<tr><td colspan=6 style=\"background-color:%s;border-radius:12px;\" align=center>", bgcol);
                rsprintf("<table width=\"100%%\"><tr><td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"%s\" size=+3>%s: %s</font></td>\n", fgcol,
                         alarm_class, str);
-               rsprintf("<td width=\"1%%\" style=\"border:0px;\"><button type=\"button\" onclick=\"document.location.href='?cmd=alrst&name=%s'\"n\">Reset</button></td></tr></table></td></tr>\n", key.name);
+               rsprintf("<td width=\"1%%\" style=\"border:0px;\"><button type=\"button\"");
+               rsprintf(" onclick=\"document.location.href='?cmd=alrst&name=%s'\"n\">Reset</button></td></tr></table></td></tr>\n", key.name);
             }
          }
       }
@@ -2249,12 +2250,11 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
 void show_messages_page(int refresh)
 {
-   int size, i, n, n_message = 100;
-   char str[256], *buffer, *line, *pline;
+   int size, i, n;
+   char str[256];
    char *plist, bclass[256], facility[256];
    time_t now;
    HNDLE hDB;
-   BOOL eob;
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -2264,6 +2264,7 @@ void show_messages_page(int refresh)
    time(&now);
 
    show_header("Messages", "GET", "./", 0);
+   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
    show_navigation_bar("Messages");
 
    /*---- facilities button bar ----*/
@@ -2290,52 +2291,14 @@ void show_messages_page(int refresh)
    }
    free(plist);
    
-   /*---- messages ----*/
-   buffer = (char *)malloc(1000000);
-   line = (char *)malloc(1000000);
-   cm_msg_retrieve(facility, 0, n_message, buffer, 1000000);
-
    rsprintf("<div class=\"messageBox\" id=\"messageFrame\">\n");
    rsprintf("<h1 class=\"subStatusTitle\">Messages</h1>");
 
-   pline = buffer;
-   eob = FALSE;
-
-   do {
-      strlcpy(line, pline, 1000000);
-
-      /* extract single line */
-      if (strchr(line, '\n'))
-         *strchr(line, '\n') = 0;
-      if (strchr(line, '\r'))
-         *strchr(line, '\r') = 0;
-
-      pline += strlen(line);
-
-      while (*pline == '\r' || *pline == '\n')
-         pline++;
-
-      /* check for error */
-      if (strstr(line, ",ERROR]"))
-         rsprintf("<p style=\"color:white;background-color:red; padding:0.25em\">%s</p>", line);
-      else
-         rsprintf("<p style=\"padding:0.25em\">%s</p>", line);
-   } while (!eob && *pline);
-   
-   //some JS to reverse the order of messages, so latest appears at the top:
-   /*
-   rsprintf("<script type=\"text/JavaScript\">");
-   rsprintf("var messages = document.getElementById(\"messageFrame\");");
-   rsprintf("var i = messages.childNodes.length;");
-   rsprintf("while (i--)");
-   rsprintf("messages.appendChild(messages.childNodes[i]);");
-   rsprintf("</script>");
-   */
+   /*---- messages will be dynamically loaded via JS ----*/
+   rsprintf("<script type=\"text/javascript\">msg_load('%s');</script>\n", facility);
 
    rsprintf("</div>\n");
    page_footer(TRUE);
-   free(buffer);
-   free(line);
 }
 
 /*------------------------------------------------------------------*/
@@ -6581,7 +6544,8 @@ bool starts_with(const std::string& s1, const char* s2)
 void javascript_commands(const char *cookie_cpwd)
 {
    int status;
-   int size, i, index;
+   int size, i, n, index;
+   unsigned int t;
    char str[TEXT_SIZE], ppath[256], format[256], facility[256];
    HNDLE hDB, hkey;
    KEY key;
@@ -7473,12 +7437,16 @@ void javascript_commands(const char *cookie_cpwd)
       else
          strlcpy(facility, "midas", sizeof(facility));
 
-      i = 1;
+      n = 1;
       if (*getparam("n"))
-         i = atoi(getparam("n"));
+         n = atoi(getparam("n"));
+
+      t = 0;
+      if (*getparam("t"))
+         t = atoi(getparam("t"));
 
       show_text_header();
-      cm_msg_retrieve(facility, 0, i, str, sizeof(str));
+      cm_msg_retrieve(facility, t, n, str, sizeof(str));
       rsputs(str);
       return;
    }

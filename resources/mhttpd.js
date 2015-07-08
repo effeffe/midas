@@ -1,4 +1,13 @@
-/* MIDAS type definitions */
+/********************************************************************\
+ 
+ Name:         mhttpd.js
+ Created by:   Stefan Ritt
+ 
+ Contents:     JavaScript midas library used by mhttpd
+ 
+\********************************************************************/
+
+// MIDAS type definitions
 var TID_BYTE = 1;
 var TID_SBYTE = 2;
 var TID_CHAR = 3;
@@ -385,16 +394,18 @@ function ODBRpc(program_name, command_name, arguments_string, callback, max_repl
    return ODBCall(url, callback);
 }
 
-function ODBGetMsg(n)
+function ODBGetMsg(facility, start, n)
 {
    var request = XMLHttpRequestGeneric();
 
-   var url = ODBUrlBase + '?cmd=jmsg&n=' + n;
+   var url = ODBUrlBase + '?cmd=jmsg&f='+facility+'&t=' + start+'&n=' + n;
    request.open('GET', url, false);
    request.send(null);
 
    if (n > 1) {
       var array = request.responseText.split('\n');
+      while (array.length > 1 && array[array.length-1] == "")
+         array = array.slice(0, array.length-1);
       return array;
    } else
       return request.responseText;
@@ -499,7 +510,7 @@ function ODBInlineEdit(p, odb_path, bracket)
    var index;
    
    p.ODBsent = false;
-   var str = cur_val.replace(/"/g, '&quot;');
+   var str = cur_val.replace("/\"/g, '&quot;'");
    if (odb_path.indexOf('[') > 0) {
       index = odb_path.substr(odb_path.indexOf('['));
       if (bracket == 0) {
@@ -599,3 +610,42 @@ function mhttpd_delete_page_handle_cancel(mouseEvent)
    location.search = ""; // reloads the document
    return false;
 }
+
+var facility;
+var last_tstamp = 0;
+
+function msg_append(msg)
+{
+   var mf = document.getElementById('messageFrame');
+   
+   for(i=0 ; i<msg.length ; i++) {
+      line = msg[i];
+      last_tstamp = parseInt(line);
+      //if (line.indexOf(" "))
+      //   line = line.substr(line.indexOf(" "));
+      var e = document.createElement("p");
+      e.appendChild(document.createTextNode(line));
+      if (line.search("ERROR]") > 0) {
+         e.style.backgroundColor = "red";
+         e.style.color = "white";
+      }
+      mf.appendChild(e);
+   }
+}
+
+function msg_load(f)
+{
+   facility = f;
+   var msg = ODBGetMsg(facility, 0, 5);
+   msg_append(msg);
+   
+   window.setInterval(msg_extend, 3000);
+   //window.setTimeout(msg_extend, 3000);
+}
+
+function msg_extend()
+{
+   var msg = ODBGetMsg(facility, last_tstamp-1, 5);
+   msg_append(msg);
+}
+
