@@ -331,7 +331,7 @@ INT cm_get_error(INT code, char *string)
 
 /********************************************************************/
 
-void cm_msg_get_logfile(const char *fac, char *filename, int filename_size,
+void cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_size,
                         char *linkname, int linkname_size)
 {
    HNDLE hDB, hKey;
@@ -361,12 +361,12 @@ void cm_msg_get_logfile(const char *fac, char *filename, int filename_size,
 
       if (strchr(str, '%')) {
          /* replace stings such as %y%m%d with current date */
-         time_t now;
          struct tm *tms;
          
          tzset();
-         time(&now);
-         tms = localtime(&now);
+         if (t == 0)
+            time(&t);
+         tms = localtime(&t);
          
          date_ext[0] = '_';
          strftime(date_ext+1, sizeof(date_ext), strchr(str, '%'), tms);
@@ -392,8 +392,11 @@ void cm_msg_get_logfile(const char *fac, char *filename, int filename_size,
          strlcpy(dir, str, sizeof(dir));
          *(strrchr(dir, DIR_SEPARATOR)+1) = 0;
       }
+   } else {
+      dir[0] = 0;
+      strlcpy(facility, "midad", sizeof(facility));
+      date_ext[0] = 0;
    }
-
 
    strlcpy(filename, dir, filename_size);
    strlcat(filename, facility, filename_size);
@@ -468,7 +471,7 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message)
       return rpc_call(RPC_CM_MSG_LOG, message_type, message);
 
    if (message_type != MT_DEBUG) {
-      cm_msg_get_logfile(facility, filename, sizeof(filename), linkname, sizeof(linkname));
+      cm_msg_get_logfile(facility, 0, filename, sizeof(filename), linkname, sizeof(linkname));
       
       fh = open(filename, O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
       if (fh < 0) {
@@ -887,7 +890,7 @@ INT EXPRT cm_msg_facilities(char **plist)
    
    n_fac = 0;
    
-   cm_msg_get_logfile("midas", path, sizeof(path), NULL, 0);
+   cm_msg_get_logfile("midas", 0, path, sizeof(path), NULL, 0);
    
    if (strrchr(path, DIR_SEPARATOR))
       *strrchr(path, DIR_SEPARATOR) = 0;
@@ -969,14 +972,15 @@ INT cm_msg_register(void (*func) (HNDLE, HNDLE, EVENT_HEADER *, void *))
 }
 
 /* Retrieve message from an individual file. Internal use only */
-INT cm_msg_retrieve1(char *filename, INT n_message, char *message, INT buf_size)
+INT cm_msg_retrieve1(char *filename, time_t t, INT n_message, char *message, INT buf_size)
 {
-   FILE *f;
-   INT offset, i, j;
-   char *p;
+   int fh, size;
+   INT i, n, s;
+   char *p, *buffer, *pm, str[1000];
+   struct stat stat_buf;
 
-   f = fopen(filename, "rb");
-   if (f == NULL) {
+   fh = open(filename, O_RDONLY | O_TEXT, 0644);
+   if (fh < 0) {
       sprintf(message, "Cannot open message log file %s\n", filename);
       return -1;
    }
@@ -984,64 +988,58 @@ INT cm_msg_retrieve1(char *filename, INT n_message, char *message, INT buf_size)
    if (buf_size <= 2)
       return 0;
 
-   /* position buf_size bytes before the EOF */
-   fseek(f, -(buf_size - 1), SEEK_END);
-   offset = ftell(f);
-   if (offset != 0) {
-      /* go to end of line */
-      fgets(message, buf_size - 1, f);
-      offset = ftell(f) - offset;
-      buf_size -= offset;
+   /* read whole file into memory */
+   fstat(fh, &stat_buf);
+   size = stat_buf.st_size;
+   buffer = (char *) malloc(size + 1);
+   if (buffer == NULL) {
+      sprintf(message, "Not enough memory to open message log file %s\n", filename);
+      return -1;
    }
-
+   i = read(fh, buffer, size);
+   buffer[size] = 0;
+   close(fh);
+   
    memset(message, 0, buf_size);
-   fread(message, 1, buf_size - 1, f);
-   message[buf_size - 1] = 0;
-   fclose(f);
 
-   p = message + (buf_size - 2);
-
-   /* goto end of buffer */
-   while (p != message && *p == 0)
+   pm = message;
+   p = buffer + size - 1;
+   s = 0;
+   
+   while (*p == '\n' || *p == '\r')
       p--;
-
-   /* strip line break */
-   j = 0;
-   while (p != message && (*p == '\n' || *p == '\r')) {
-      *(p--) = 0;
-      j = 1;
-   }
-
-   /* trim buffer so that last n_messages remain */
-   for (i = 0; i < n_message; i++) {
-      while (p != message && *p != '\n')
+   for (n=0 ; n<n_message && p>buffer && s<buf_size ; n++) {
+      
+      /* go to beginning of line */
+      for (i=0 ; p != buffer && (*p != '\n' && *p != '\r') ; i++)
          p--;
-
-      while (p != message && (*p == '\n' || *p == '\r'))
-         p--;
-
-      if (p == message)
+      
+      if (s+i > buf_size)
          break;
-
-      j++;
-   }
-   if (p != message) {
-      p++;
+      
+      if (p == buffer) {
+         i++;
+         memcpy(str, p, i);
+      } else
+         memcpy(str, p+1, i);
+      str[i] = '\n';
+      
+      strlcpy(pm, str, buf_size-s);
+      pm += strlen(str);
+      s += strlen(str);
+      
       while (*p == '\n' || *p == '\r')
-         p++;
+         p--;
    }
+   message[s] = 0;
 
-   buf_size = (buf_size - 1) - (p - message);
-
-   memmove(message, p, buf_size);
-   message[buf_size] = 0;
-
-   return j;
+   return n;
 }
 
 /********************************************************************/
 /**
 Retrieve old messages from log file
+@param  facility         Logging facility ("midas", "lazy", ...)
 @param  n_message        Number of messages to retrieve
 @param  message          buf_size bytes of messages, separated
                          by \n characters. The returned number
@@ -1051,101 +1049,25 @@ Retrieve old messages from log file
 @param *buf_size         Size of message buffer to fill
 @return CM_SUCCESS
 */
-INT cm_msg_retrieve(INT n_message, char *message, INT buf_size)
+INT cm_msg_retrieve(const char *facility, time_t t, INT n_message, char *message, INT buf_size)
 {
-   char dir[256];
-   char filename[256], filename2[256];
-   char path[256], *message2;
-   INT status, size, n, i;
-   HNDLE hDB, hKey;
-   time_t now = 0;
-   struct tm *tms;
+   char filename[256], *message2;
+   INT n, i;
 
    if (rpc_is_remote())
-      return rpc_call(RPC_CM_MSG_RETRIEVE, n_message, message, buf_size);
+      return rpc_call(RPC_CM_MSG_RETRIEVE, facility, t, n_message, message, buf_size);
 
-   cm_get_experiment_database(&hDB, NULL);
-   status = 0;
-
-   if (hDB) {
-      strcpy(filename, "midas.log");
-      size = sizeof(filename);
-      db_get_value(hDB, 0, "/Logger/Message file", filename, &size, TID_STRING, TRUE);
-
-      strlcpy(filename2, filename, sizeof(filename2));
-
-      if (strchr(filename, '%')) {
-         /* replace strings such as midas_%y%m%d.mid with current date */
-         tzset();
-         time(&now);
-         tms = localtime(&now);
-
-         strftime(filename2, sizeof(filename2), filename, tms);
-      }
-
-      if (strchr(filename2, DIR_SEPARATOR) == NULL) {
-         status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
-         if (status == DB_SUCCESS) {
-            size = sizeof(dir);
-            memset(dir, 0, size);
-            db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
-            if (dir[0] != 0)
-               if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                  strcat(dir, DIR_SEPARATOR_STR);
-
-            strcpy(path, dir);
-            strcat(path, filename2);
-         } else {
-            cm_get_path(dir, sizeof(dir));
-            if (dir[0] != 0)
-               if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                  strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
-
-            strlcpy(path, dir, sizeof(path));
-            strlcat(path, filename2, sizeof(path));
-         }
-      } else {
-         strlcpy(path, filename2, sizeof(path));
-      }
-   } else
-      strlcpy(path, "midas.log", sizeof(path));
-
-   n = cm_msg_retrieve1(path, n_message, message, buf_size);
+   cm_msg_get_logfile(facility, t, filename, sizeof(filename), NULL, 0);
+   n = cm_msg_retrieve1(filename, t, n_message, message, buf_size);
 
    while (n < n_message && strchr(filename, '%')) {
-      now -= 3600 * 24;         // go one day back
-      tms = localtime(&now);
+      t -= 3600 * 24;         // go one day back
 
-      strftime(filename2, sizeof(filename2), filename, tms);
-
-      if (strchr(filename2, DIR_SEPARATOR) == NULL) {
-         status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
-         if (status == DB_SUCCESS) {
-            size = sizeof(dir);
-            memset(dir, 0, size);
-            db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
-            if (dir[0] != 0)
-               if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                  strcat(dir, DIR_SEPARATOR_STR);
-
-            strcpy(path, dir);
-            strcat(path, filename2);
-         } else {
-            cm_get_path(dir, sizeof(dir));
-            if (dir[0] != 0)
-               if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                  strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
-
-            strlcpy(path, dir, sizeof(path));
-            strlcat(path, filename2, sizeof(path));
-         }
-      } else {
-         strlcpy(path, filename2, sizeof(path));
-      }
-
+      cm_msg_get_logfile(facility, t, filename, sizeof(filename), NULL, 0);
+      
       message2 = (char *) malloc(buf_size);
 
-      i = cm_msg_retrieve1(path, n_message - n, message2, buf_size - strlen(message) - 1);
+      i = cm_msg_retrieve1(filename, t, n_message - n, message2, buf_size - strlen(message) - 1);
       if (i < 0)
          break;
       strlcat(message2, "\r\n", buf_size);
@@ -1156,7 +1078,39 @@ INT cm_msg_retrieve(INT n_message, char *message, INT buf_size)
       n += i;
    }
 
-   return status;
+   return CM_SUCCESS;
+}
+
+INT cm_msg_retrieve_old(const char *facility, time_t t, INT n_message, char *message, INT buf_size)
+{
+   char filename[256], *message2;
+   INT n, i;
+   
+   if (rpc_is_remote())
+      return rpc_call(RPC_CM_MSG_RETRIEVE, facility, t, n_message, message, buf_size);
+   
+   cm_msg_get_logfile(facility, t, filename, sizeof(filename), NULL, 0);
+   n = cm_msg_retrieve1(filename, t, n_message, message, buf_size);
+   
+   while (n < n_message && strchr(filename, '%')) {
+      t -= 3600 * 24;         // go one day back
+      
+      cm_msg_get_logfile(facility, t, filename, sizeof(filename), NULL, 0);
+      
+      message2 = (char *) malloc(buf_size);
+      
+      i = cm_msg_retrieve1(filename, t, n_message - n, message2, buf_size - strlen(message) - 1);
+      if (i < 0)
+         break;
+      strlcat(message2, "\r\n", buf_size);
+      
+      memmove(message + strlen(message2), message, strlen(message) + 1);
+      memmove(message, message2, strlen(message2));
+      free(message2);
+      n += i;
+   }
+   
+   return CM_SUCCESS;
 }
 
 /**dox***************************************************************/

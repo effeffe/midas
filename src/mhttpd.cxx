@@ -980,7 +980,8 @@ FILE *open_resource_file(const char *filename, std::string* pfilename);
 void show_help_page()
 {
    const char *s;
-   char str[256];
+   char str[256], *plist;
+   int i, n;
 
    show_header("Help", "", "./", 0);
    show_navigation_bar("Help");
@@ -1054,14 +1055,32 @@ void show_help_page()
    rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
    rsprintf("        </tr>\n");
 
-   rsprintf("        <tr>\n");
-   rsprintf("          <td style=\"text-align:right;\">midas.log:</td>\n");
-   cm_msg_get_logfile(NULL, str, sizeof(str), NULL, 0);
-   rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
-   rsprintf("        </tr>\n");
+   
+   n = cm_msg_facilities(&plist);
+   if (n== 1) {
+      rsprintf("        <tr>\n");
+      rsprintf("          <td style=\"text-align:right;\">Sytem logfile:</td>\n");
+      cm_msg_get_logfile("midas", 0, str, sizeof(str), NULL, 0);
+      rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
+      rsprintf("        </tr>\n");
+   } else {
+      rsprintf("        <tr>\n");
+      rsprintf("          <td style=\"text-align:right;\">Logfiles:</td>\n");
+      rsprintf("          <td style=\"text-align:left;\">\n", str);
+      for (i=0 ; i<n ; i++) {
+         cm_msg_get_logfile(plist+i*MAX_STRING_LENGTH, 0, str, sizeof(str), NULL, 0);
+         rsputs(str);
+         if (i<n-1)
+            rsputs("<br />\n");
+      }
+      rsprintf("\n          </td>\n");
+      rsprintf("        </tr>\n");
+      
+   }
+   free(plist);
 
    rsprintf("        <tr>\n");
-   rsprintf("          <td style=\"text-align:right;\">%s:</td>\n", get_css_filename());
+   rsprintf("          <td style=\"text-align:right;\">CSS File:</td>\n");
    std::string f;
    FILE *fp = open_resource_file(get_css_filename(), &f);
    if (fp) {
@@ -1072,7 +1091,7 @@ void show_help_page()
    rsprintf("        </tr>\n");
 
    rsprintf("        <tr>\n");
-   rsprintf("          <td style=\"text-align:right;\">%s:</td>\n", get_js_filename());
+   rsprintf("          <td style=\"text-align:right;\">JavaScript File:</td>\n");
    fp = open_resource_file(get_js_filename(), &f);
    if (fp) {
       fclose(fp);
@@ -2267,16 +2286,17 @@ void show_messages_page(int refresh)
          rsprintf("<input type=\"button\" name=\"facility\" value=\"%s\" class=\"%s\" ", str, bclass);
          rsprintf("onclick=\"window.location.href='./?cmd=Messages&facility=%s';return false;\">\n", str);
       }
-      free(plist);
       rsprintf("</td></tr></table>\n");
    }
+   free(plist);
    
    /*---- messages ----*/
    buffer = (char *)malloc(1000000);
    line = (char *)malloc(1000000);
-   cm_msg_retrieve(n_message, buffer, 1000000);
+   cm_msg_retrieve(facility, 0, n_message, buffer, 1000000);
 
    rsprintf("<div class=\"messageBox\" id=\"messageFrame\">\n");
+   rsprintf("<h1 class=\"subStatusTitle\">Messages</h1>");
 
    pline = buffer;
    eob = FALSE;
@@ -2302,17 +2322,15 @@ void show_messages_page(int refresh)
          rsprintf("<p style=\"padding:0.25em\">%s</p>", line);
    } while (!eob && *pline);
    
-   //title at the bottom so it ends up on top after reversal:
-   rsprintf("<h1 class=\"subStatusTitle\">Messages</h1>");
-
    //some JS to reverse the order of messages, so latest appears at the top:
+   /*
    rsprintf("<script type=\"text/JavaScript\">");
    rsprintf("var messages = document.getElementById(\"messageFrame\");");
    rsprintf("var i = messages.childNodes.length;");
    rsprintf("while (i--)");
    rsprintf("messages.appendChild(messages.childNodes[i]);");
    rsprintf("</script>");
-
+   */
 
    rsprintf("</div>\n");
    page_footer(TRUE);
@@ -6564,7 +6582,7 @@ void javascript_commands(const char *cookie_cpwd)
 {
    int status;
    int size, i, index;
-   char str[TEXT_SIZE], ppath[256], format[256];
+   char str[TEXT_SIZE], ppath[256], format[256], facility[256];
    HNDLE hDB, hkey;
    KEY key;
    char data[TEXT_SIZE];
@@ -7450,12 +7468,17 @@ void javascript_commands(const char *cookie_cpwd)
    /* process "jmsg" command */
    if (equal_ustring(getparam("cmd"), "jmsg")) {
 
+      if (*getparam("facility"))
+         strlcpy(facility, getparam("facility"), sizeof(facility));
+      else
+         strlcpy(facility, "midas", sizeof(facility));
+
       i = 1;
       if (*getparam("n"))
          i = atoi(getparam("n"));
 
       show_text_header();
-      cm_msg_retrieve(i, str, sizeof(str));
+      cm_msg_retrieve(facility, 0, i, str, sizeof(str));
       rsputs(str);
       return;
    }
@@ -17257,7 +17280,7 @@ int main(int argc, const char *argv[])
    /* initialize sequencer */
    init_sequencer();
 
-   cm_msg1(MINFO, "lazy", "main", "This is a test of the LAZY facility");
+   // cm_msg1(MINFO, "lazy", "main", "This is a test of the LAZY facility");
    
 #ifdef HAVE_MG
    if (use_mg) {
