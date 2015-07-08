@@ -17202,6 +17202,9 @@ int main(int argc, const char *argv[])
          else if (argv[i][1] == 'a') {
             if (n_allowed_hosts < MAX_N_ALLOWED_HOSTS)
                strlcpy(allowed_host[n_allowed_hosts++], argv[++i], sizeof(allowed_host[0]));
+         } else if (argv[i][1] == 'p') {
+            printf("Option \"-p port_number\" for the old web server is obsolete. mongoose web server is the new default, port number is set in ODB or with \"--mg port_number\". To run the obsolete old web server, please use \"--oldserver\" switch.\n");
+            return 1;
          } else {
           usage:
             printf("usage: %s [-h Hostname[:port]] [-e Experiment] [-v] [-D] [-a Hostname]\n\n", argv[0]);
