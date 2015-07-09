@@ -1353,7 +1353,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    int i, j, k, h, m, s, status, size, type, n_alarm, n_items, n_hidden;
    BOOL flag, first, expand;
    char str[1000], msg[256], name[32], ref[256], bgcol[32], fgcol[32], alarm_class[32],
-      value_str[256], status_data[256];
+      value_str[256], status_data[256], spk[256];
    const char *trans_name[] = { "Start", "Stop", "Pause", "Resume" };
    time_t now;
    DWORD difftime;
@@ -1673,6 +1673,12 @@ void show_status_page(int refresh, const char *cookie_wpwd)
                rsprintf("<table width=\"100%%\"><tr><td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"%s\" size=+3>%s: %s</font></td>\n", fgcol,
                         alarm_class, str);
                rsprintf("<td width=\"1%%\" style=\"border:0px;\"><button type=\"button\" onclick=\"document.location.href='?cmd=alrst&name=%s'\"n\">Reset</button></td></tr></table></td></tr>\n", key.name);
+               
+               // speak alarm
+               strlcpy(spk, alarm_class, sizeof(spk));
+               strlcat(spk, ".", sizeof(spk));
+               strlcat(spk, str, sizeof(spk));
+               rsprintf("<script type=\"text/javascript\">u=new SpeechSynthesisUtterance('%s');window.speechSynthesis.speak(u);</script>\n", spk);
             }
          }
       }
