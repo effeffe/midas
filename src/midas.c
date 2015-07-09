@@ -331,7 +331,7 @@ INT cm_get_error(INT code, char *string)
 
 /********************************************************************/
 
-void cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_size,
+int cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_size,
                         char *linkname, int linkname_size)
 {
    HNDLE hDB, hKey;
@@ -339,11 +339,12 @@ void cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_
    char str[256];
    char date_ext[256];
    char facility[256];
-   int status, size;
+   int status, size, flag;
    
    cm_get_experiment_database(&hDB, NULL);
    if (linkname)
       linkname[0] = 0;
+   flag = 0;
    
    if (hDB) {
       if (fac && fac[0])
@@ -363,6 +364,7 @@ void cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_
          /* replace stings such as %y%m%d with current date */
          struct tm *tms;
          
+         flag = 1;
          tzset();
          if (t == 0)
             time(&t);
@@ -408,6 +410,8 @@ void cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_
       strlcat(linkname, facility, filename_size);
       strlcat(linkname, ".log", filename_size);
    }
+   
+   return flag;
 }
 
 /********************************************************************/
@@ -499,7 +503,7 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message)
          strftime(str, sizeof(str), "%H:%M:%S", tms);
          sprintf(str+strlen(str), ".%03d ", tv.tv_usec / 1000);
          strftime(str+strlen(str), sizeof(str), "%G/%m/%d", tms);
-         
+
          write(fh, str, strlen(str));
          write(fh, " ", 1);
          write(fh, message, strlen(message));
@@ -973,6 +977,8 @@ INT cm_msg_register(void (*func) (HNDLE, HNDLE, EVENT_HEADER *, void *))
    return status;
 }
 
+extern char *mname[];
+
 /* Retrieve message from an individual file. Internal use only */
 INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, INT buf_size)
 {
@@ -982,8 +988,10 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, IN
    char *p, *buffer, *pm, str[1000];
    struct stat stat_buf;
    struct tm tms;
-   time_t tstamp, tstamp_last;
+   time_t tstamp, tstamp_valid, tstamp_last;
 
+   printf("cm_msg_retrieve1: %s %ld %d ...", filename, t, n_messages);
+   
    fh = open(filename, O_RDONLY | O_TEXT, 0644);
    if (fh < 0) {
       sprintf(message, "Cannot open message log file %s\n", filename);
@@ -1010,7 +1018,7 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, IN
    pm = message;
    p = buffer + size - 1;
    s = 0;
-   tstamp_last = 0;
+   tstamp_last = tstamp_valid = 0;
    stop = FALSE;
    
    while (*p == '\n' || *p == '\r')
@@ -1036,23 +1044,41 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, IN
          *strchr(str, '\r') = 0;
       strlcat(str, "\n", sizeof(str));
       
-      /* extract time tag */
+      // extract time tag
       time_t now;
       time(&now);
       memcpy(&tms, localtime(&now), sizeof(tms));
-      tms.tm_hour = atoi(str);
-      tms.tm_min = atoi(str+3);
-      tms.tm_sec = atoi(str+6);
-      tms.tm_year = atoi(str+13)-1900;
-      tms.tm_mon = atoi(str+18)-1;
-      tms.tm_mday = atoi(str+21);
+      
+      if (isnumber(str[0])) {
+         // new format
+         tms.tm_hour = atoi(str);
+         tms.tm_min = atoi(str+3);
+         tms.tm_sec = atoi(str+6);
+         tms.tm_year = atoi(str+13)-1900;
+         tms.tm_mon = atoi(str+18)-1;
+         tms.tm_mday = atoi(str+21);
+      } else {
+         // old format
+         tms.tm_hour = atoi(str+11);
+         tms.tm_min = atoi(str+14);
+         tms.tm_sec = atoi(str+17);
+         tms.tm_year = atoi(str+20)-1900;
+         for (i = 0; i < 12; i++)
+            if (strncmp(str + 4, mname[i], 3) == 0)
+               break;
+         tms.tm_mon = i;
+         tms.tm_mday = atoi(str+8);
+      }
       tstamp = mktime(&tms);
-      assert(tstamp > 0);
+      if (tstamp != -1)
+         tstamp_valid = tstamp;
+      else
+         t = t;
 
-      if (tstamp_last > 0 && tstamp < tstamp_last)
+      if (tstamp_last > 0 && tstamp_valid < tstamp_last)
          break;
       
-      if (t == 0 || tstamp <= t) {
+      if (t == 0 || tstamp <= t || tstamp == -1) {
          sprintf(pm, "%ld ", tstamp);
          s += strlen(pm);
          pm += strlen(pm);
@@ -1061,7 +1087,8 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, IN
          s += strlen(pm);
          pm += strlen(pm);
          
-         n++;
+         if (tstamp != -1)
+            n++;
       }
       
       while (*p == '\n' || *p == '\r')
@@ -1072,11 +1099,13 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, IN
       else {
          // continue collecting messages until time stamp differs from current one
          if (n == n_messages)
-            tstamp_last = tstamp;
+            tstamp_last = tstamp_valid;
       }
    }
    message[s] = 0;
 
+   printf(" %d messages\n", n);
+   
    return n;
 }
 
@@ -1095,30 +1124,28 @@ Retrieve old messages from log file
 */
 INT cm_msg_retrieve(const char *facility, time_t t, INT n_message, char *message, INT buf_size)
 {
-   char filename[256], *message2;
-   INT n, i;
+   char filename[256], *p;
+   INT n, i, flag;
+   time_t filedate;
 
    if (rpc_is_remote())
       return rpc_call(RPC_CM_MSG_RETRIEVE, facility, t, n_message, message, buf_size);
 
-   cm_msg_get_logfile(facility, t, filename, sizeof(filename), NULL, 0);
+   time(&filedate);
+   flag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), NULL, 0);
    n = cm_msg_retrieve1(filename, t, n_message, message, buf_size);
 
-   while (n < n_message && strchr(filename, '%')) {
-      t -= 3600 * 24;         // go one day back
+   while (n < n_message && flag) {
+      filedate -= 3600 * 24;         // go one day back
 
-      cm_msg_get_logfile(facility, t, filename, sizeof(filename), NULL, 0);
+      cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), NULL, 0);
       
-      message2 = (char *) malloc(buf_size);
-
-      i = cm_msg_retrieve1(filename, t, n_message - n, message2, buf_size - strlen(message) - 1);
-      if (i < 0)
+      p = message+strlen(message);
+      i = cm_msg_retrieve1(filename, t, n_message - n, p, buf_size - strlen(message) - 1);
+      if (i < 0) {
+         *p = 0;
          break;
-      strlcat(message2, "\r\n", buf_size);
-
-      memmove(message + strlen(message2), message, strlen(message) + 1);
-      memmove(message, message2, strlen(message2));
-      free(message2);
+      }
       n += i;
    }
 

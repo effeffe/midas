@@ -2298,7 +2298,8 @@ void show_messages_page(int refresh)
    rsprintf("<script type=\"text/javascript\">msg_load('%s');</script>\n", facility);
 
    rsprintf("</div>\n");
-   page_footer(TRUE);
+   rsprintf("</form>\n");
+   rsprintf("</body></html>\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -7432,17 +7433,17 @@ void javascript_commands(const char *cookie_cpwd)
    /* process "jmsg" command */
    if (equal_ustring(getparam("cmd"), "jmsg")) {
 
-      if (*getparam("facility"))
-         strlcpy(facility, getparam("facility"), sizeof(facility));
+      if (getparam("f") && *getparam("f"))
+         strlcpy(facility, getparam("f"), sizeof(facility));
       else
          strlcpy(facility, "midas", sizeof(facility));
 
       n = 1;
-      if (*getparam("n"))
+      if (getparam("n") && *getparam("n"))
          n = atoi(getparam("n"));
 
       t = 0;
-      if (*getparam("t"))
+      if (getparam("t") && getparam("t"))
          t = atoi(getparam("t"));
 
       show_text_header();
@@ -17248,7 +17249,10 @@ int main(int argc, const char *argv[])
    /* initialize sequencer */
    init_sequencer();
 
-   // cm_msg1(MINFO, "lazy", "main", "This is a test of the LAZY facility");
+   for (i=0 ; i<1000 ; i++) {
+      cm_msg1(MINFO, "lazy", "main", "This is a test of the LAZY facility");
+      ss_sleep(100);
+   }
    
 #ifdef HAVE_MG
    if (use_mg) {

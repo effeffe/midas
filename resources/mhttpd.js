@@ -510,7 +510,10 @@ function ODBInlineEdit(p, odb_path, bracket)
    var index;
    
    p.ODBsent = false;
-   var str = cur_val.replace("/\"/g, '&quot;'");
+   var str = cur_val;
+   while (str.indexOf('"') >= 0)
+      str = str.replace('"', '&quot;');
+
    if (odb_path.indexOf('[') > 0) {
       index = odb_path.substr(odb_path.indexOf('['));
       if (bracket == 0) {
@@ -613,6 +616,7 @@ function mhttpd_delete_page_handle_cancel(mouseEvent)
 
 var facility;
 var last_tstamp = 0;
+var end_of_messages = false;
 
 function msg_append(msg)
 {
@@ -620,7 +624,8 @@ function msg_append(msg)
    
    for(i=0 ; i<msg.length ; i++) {
       line = msg[i];
-      last_tstamp = parseInt(line);
+      if (parseInt(line) != -1)
+         last_tstamp = parseInt(line);
       //if (line.indexOf(" "))
       //   line = line.substr(line.indexOf(" "));
       var e = document.createElement("p");
@@ -636,16 +641,24 @@ function msg_append(msg)
 function msg_load(f)
 {
    facility = f;
-   var msg = ODBGetMsg(facility, 0, 5);
+   var msg = ODBGetMsg(facility, 0, 50);
    msg_append(msg);
+   if (isNaN(last_tstamp))
+      end_of_messages = true;
    
-   window.setInterval(msg_extend, 3000);
-   //window.setTimeout(msg_extend, 3000);
+   //if (!end_of_messages)
+   //   window.setTimeout(msg_extend, 3000);
 }
 
 function msg_extend()
 {
    var msg = ODBGetMsg(facility, last_tstamp-1, 5);
-   msg_append(msg);
+   if (msg[0] == "")
+      end_of_messages = true;
+   
+   if (!end_of_messages) {
+      msg_append(msg);
+      window.setTimeout(msg_extend, 3000);
+   }
 }
 
