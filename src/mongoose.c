@@ -15,6 +15,8 @@
 // Alternatively, you can license this library under a commercial
 // license, as set out in <http://cesanta.com/products.html>.
 
+#define NO_SSL_DL 1
+
 #if defined(_WIN32)
 #undef _UNICODE
 #undef _MBCS
@@ -1936,6 +1938,8 @@ static int mg_chunked_printf(struct mg_connection *conn, const char *fmt, ...) {
 
 
 #if !defined(NO_SSL)
+
+#if !defined(NO_SSL_DL)
 // set_ssl_option() function updates this array.
 // It loads SSL library dynamically and changes NULLs to the actual addresses
 // of respective functions. The macros above (like SSL_connect()) are really
@@ -1979,6 +1983,7 @@ static struct ssl_func crypto_sw[] = {
   {"ERR_error_string", NULL},
   {NULL,    NULL}
 };
+#endif
 
 static pthread_mutex_t *ssl_mutexes;
 
