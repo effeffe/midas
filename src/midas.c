@@ -1002,8 +1002,6 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, IN
    struct tm tms;
    time_t tstamp, tstamp_valid, tstamp_last;
 
-   printf("cm_msg_retrieve1: %s %ld %d ...", filename, t, n_messages);
-   
    fh = open(filename, O_RDONLY | O_TEXT, 0644);
    if (fh < 0) {
       sprintf(message, "Cannot open message log file %s\n", filename);
