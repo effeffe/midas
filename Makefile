@@ -230,6 +230,9 @@ NEED_RANLIB=1
 NEED_RPATH=
 SHLIB+=$(LIB_DIR)/libmidas-shared.dylib
 SHLIB+=$(LIB_DIR)/libmidas-shared.so
+# use the macports version of openssl
+OSFLAGS += -I/opt/local/include -L/opt/local/lib
+LIBS += -lssl -lcrypto
 endif
 
 #-----------------------
