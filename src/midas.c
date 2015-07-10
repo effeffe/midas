@@ -515,7 +515,7 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message)
          tms = localtime(&tv.tv_sec);
          
          strftime(str, sizeof(str), "%H:%M:%S", tms);
-         sprintf(str+strlen(str), ".%03d ", tv.tv_usec / 1000);
+         sprintf(str+strlen(str), ".%03d ", (int)(tv.tv_usec / 1000));
          strftime(str+strlen(str), sizeof(str), "%G/%m/%d", tms);
 
          write(fh, str, strlen(str));
