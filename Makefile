@@ -231,8 +231,8 @@ NEED_RPATH=
 SHLIB+=$(LIB_DIR)/libmidas-shared.dylib
 SHLIB+=$(LIB_DIR)/libmidas-shared.so
 # use the macports version of openssl
-OSFLAGS += -I/opt/local/include -L/opt/local/lib
-LIBS += -lssl -lcrypto
+OSFLAGS += -I/opt/local/include
+LIBS += -L/opt/local/lib -lssl -lcrypto
 endif
 
 #-----------------------
