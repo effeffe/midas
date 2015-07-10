@@ -315,21 +315,28 @@ EXAMPLES = $(BIN_DIR)/consume $(BIN_DIR)/produce \
 	$(BIN_DIR)/rpc_test $(BIN_DIR)/msgdump $(BIN_DIR)/minife \
 	$(BIN_DIR)/minirc $(BIN_DIR)/odb_test
 
-PROGS = $(BIN_DIR)/mserver $(BIN_DIR)/mhttpd \
-	$(BIN_DIR)/mlogger $(BIN_DIR)/odbedit \
-	$(BIN_DIR)/mtape $(BIN_DIR)/mhist \
-	$(BIN_DIR)/mstat $(BIN_DIR)/mdump \
+PROGS = $(BIN_DIR)/mserver \
+	$(BIN_DIR)/odbedit \
+	$(BIN_DIR)/mhttpd  \
+	$(BIN_DIR)/mlogger \
+	$(BIN_DIR)/mtape \
+	$(BIN_DIR)/mhist \
+	$(BIN_DIR)/mstat \
+	$(BIN_DIR)/mdump \
 	$(BIN_DIR)/lazylogger \
 	$(BIN_DIR)/mtransition \
 	$(BIN_DIR)/mhdump \
-	$(BIN_DIR)/mchart $(BIN_DIR)/stripchart.tcl \
-	$(BIN_DIR)/webpaw $(BIN_DIR)/odbhist \
-	$(BIN_DIR)/melog \
-	$(BIN_DIR)/mh2sql \
-	$(BIN_DIR)/mfe_link_test \
+	$(BIN_DIR)/mchart \
+	$(BIN_DIR)/stripchart.tcl \
+	$(BIN_DIR)/webpaw  \
+	$(BIN_DIR)/odbhist \
+	$(BIN_DIR)/melog   \
+	$(BIN_DIR)/mh2sql  \
+	$(BIN_DIR)/mfe_link_test  \
 	$(BIN_DIR)/mana_link_test \
 	$(BIN_DIR)/mjson_test \
-	$(BIN_DIR)/mcnaf \
+	$(BIN_DIR)/mcnaf    \
+	$(BIN_DIR)/rmlogger \
 	$(SPECIFIC_OS_PRG)
 
 ANALYZER = $(LIB_DIR)/mana.o
@@ -472,7 +479,7 @@ ROOTLIBS    := $(ROOTSYS)/lib/libRoot.a -lssl -ldl -lcrypt
 ROOTGLIBS   := $(ROOTLIBS) -lfreetype
 endif
 
-CFLAGS     += -DHAVE_ROOT
+ROOTCFLAGS  += -DHAVE_ROOT
 
 endif # ROOTSYS
 
@@ -486,6 +493,9 @@ CFLAGS     += -DHAVE_MSCB
 endif
 
 $(BIN_DIR)/mlogger: $(BIN_DIR)/%: $(SRC_DIR)/%.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
+
+$(BIN_DIR)/rmlogger: $(BIN_DIR)/%: $(SRC_DIR)/mlogger.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -o $@ $< $(LIB) $(ROOTLIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
 
 $(BIN_DIR)/%:$(SRC_DIR)/%.c
