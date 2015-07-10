@@ -402,7 +402,7 @@ function ODBGetMsg(facility, start, n)
    request.open('GET', url, false);
    request.send(null);
 
-   if (n > 1) {
+   if (n > 1 || n == 0) {
       var array = request.responseText.split('\n');
       while (array.length > 1 && array[array.length-1] == "")
          array = array.slice(0, array.length-1);
@@ -615,6 +615,7 @@ function mhttpd_delete_page_handle_cancel(mouseEvent)
 }
 
 var facility;
+var first_tstamp = 0;
 var last_tstamp = 0;
 var end_of_messages = false;
 
@@ -623,9 +624,13 @@ function msg_append(msg)
    var mf = document.getElementById('messageFrame');
    
    for(i=0 ; i<msg.length ; i++) {
-      line = msg[i];
-      if (parseInt(line) != -1)
-         last_tstamp = parseInt(line);
+      var line = msg[i];
+      var t = parseInt(line);
+      
+      if (t != -1 && t > first_tstamp)
+         first_tstamp = t;
+      if (t != -1 && (last_tstamp == 0 || t < last_tstamp))
+         last_tstamp = t;
       //if (line.indexOf(" "))
       //   line = line.substr(line.indexOf(" "));
       var e = document.createElement("p");
@@ -634,31 +639,99 @@ function msg_append(msg)
          e.style.backgroundColor = "red";
          e.style.color = "white";
       }
+
       mf.appendChild(e);
+   }
+}
+
+function msg_prepend(msg)
+{
+   var mf = document.getElementById('messageFrame');
+   
+   for(i=0 ; i<msg.length ; i++) {
+      var line = msg[i];
+      var t = parseInt(line);
+      
+      //if (line.indexOf(" "))
+      //   line = line.substr(line.indexOf(" "));
+      var e = document.createElement("p");
+      e.appendChild(document.createTextNode(line));
+
+      if (e.innerHTML == mf.childNodes[2+i].innerHTML)
+         break;
+      mf.insertBefore(e, mf.childNodes[2+i]);
+      first_tstamp = t;
+
+      if (line.search("ERROR]") > 0) {
+         e.style.backgroundColor = "red";
+         e.style.color = "white";
+      } else {
+         e.style.backgroundColor = "yellow";
+         e.age = new Date()/1000;
+         e.style.setProperty("-webkit-transition", "background-color 3s");
+         e.style.setProperty("transition", "background-color 3s");
+      }
+   
    }
 }
 
 function msg_load(f)
 {
    facility = f;
-   var msg = ODBGetMsg(facility, 0, 50);
-   msg_append(msg);
+   var msg = ODBGetMsg(facility, 0, 100);
+   msg_append(msg, true);
    if (isNaN(last_tstamp))
       end_of_messages = true;
    
-   //if (!end_of_messages)
-   //   window.setTimeout(msg_extend, 3000);
+   // set message window height to fit browser window
+   mf = document.getElementById('messageFrame');
+   mf.style.height = window.innerHeight-findPos(mf)[1]-4;
+  
+   // check for new messages and end of scroll
+   window.setTimeout(msg_extend, 1000);
+}
+
+function findPos(obj) {
+   var curleft = curtop = 0;
+   if (obj.offsetParent) {
+      do {
+         curleft += obj.offsetLeft;
+         curtop += obj.offsetTop;
+         } while (obj = obj.offsetParent);
+      return [curleft,curtop];
+   }
 }
 
 function msg_extend()
 {
-   var msg = ODBGetMsg(facility, last_tstamp-1, 5);
-   if (msg[0] == "")
-      end_of_messages = true;
-   
-   if (!end_of_messages) {
-      msg_append(msg);
-      window.setTimeout(msg_extend, 3000);
+   // set message window height to fit browser window
+   mf = document.getElementById('messageFrame');
+   mf.style.height = window.innerHeight-findPos(mf)[1]-4;
+
+   // if scroll bar is close to end, append messages
+   if (mf.scrollHeight-mf.scrollTop-mf.clientHeight < 2000) {
+      if (!end_of_messages) {
+         var msg = ODBGetMsg(facility, last_tstamp-1, 100);
+         if (msg[0] == "")
+            end_of_messages = true;
+         if (!end_of_messages) {
+            msg_append(msg);
+         }
+      }
    }
+   
+   // check for new message
+   var msg = ODBGetMsg(facility, first_tstamp, 0);
+   msg_prepend(msg);
+   
+   // remove color of elements
+   for (i=2 ; i<mf.childNodes.length ; i++) {
+      if (mf.childNodes[i].age != undefined) {
+         t = new Date()/1000;
+         if (t > mf.childNodes[i].age + 5)
+            mf.childNodes[i].style.backgroundColor = "";
+      }
+   }
+   window.setTimeout(msg_extend, 1000);
 }
 

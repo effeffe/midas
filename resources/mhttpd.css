@@ -569,8 +569,7 @@ td.meterCell{
 /*---- Messages Page----*/
 .messageBox{
 	text-align: left;
-	max-height:95%;
-	overflow:scroll;
+	overflow: scroll;
 	line-height: 0.75em;
 	margin-left: auto;
 	margin-right: auto;

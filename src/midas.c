@@ -115,6 +115,21 @@ struct {
    TR_DEFERRED, "DEFERRED",}, {
 0, "",},};
 
+const char *mname[] = {
+   "January",
+   "February",
+   "March",
+   "April",
+   "May",
+   "June",
+   "July",
+   "August",
+   "September",
+   "October",
+   "November",
+   "December"
+};
+
 /* Globals */
 #ifdef OS_MSDOS
 extern unsigned _stklen = 60000U;
@@ -977,8 +992,6 @@ INT cm_msg_register(void (*func) (HNDLE, HNDLE, EVENT_HEADER *, void *))
    return status;
 }
 
-extern char *mname[];
-
 /* Retrieve message from an individual file. Internal use only */
 INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, INT buf_size)
 {
@@ -1072,13 +1085,22 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, IN
       tstamp = mktime(&tms);
       if (tstamp != -1)
          tstamp_valid = tstamp;
-      else
-         t = t;
 
-      if (tstamp_last > 0 && tstamp_valid < tstamp_last)
-         break;
+      // for new messages (n=0!), stop when t reached
+      if (n_messages == 0) {
+         if (tstamp_valid < t)
+            break;
+      }
+   
+      // for old messages, stop when all messages belonging to tstamp_last are sent
+      if (n_messages != 0) {
+         if (tstamp_last > 0 && tstamp_valid < tstamp_last)
+            break;
+      }
       
-      if (t == 0 || tstamp <= t || tstamp == -1) {
+      if (t == 0 || tstamp == -1 ||
+          (n_messages > 0 && tstamp <= t) ||
+          (n_messages == 0 && tstamp >= t)) {
          sprintf(pm, "%ld ", tstamp);
          s += strlen(pm);
          pm += strlen(pm);
@@ -1094,15 +1116,16 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, IN
       while (*p == '\n' || *p == '\r')
          p--;
       
-      if (n_messages < 2)
+      if (n_messages == 1)
          stop = TRUE;
-      else {
+      else if (n_messages > 1) {
          // continue collecting messages until time stamp differs from current one
          if (n == n_messages)
             tstamp_last = tstamp_valid;
       }
    }
    message[s] = 0;
+   free(buffer);
 
    printf(" %d messages\n", n);
    
