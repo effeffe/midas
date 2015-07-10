@@ -7914,7 +7914,7 @@ void show_cnaf_page()
 #ifdef HAVE_MSCB
 
 typedef struct {
-   char id;
+   signed char id;
    char name[32];
 } NAME_TABLE;
 
