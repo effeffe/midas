@@ -231,8 +231,8 @@ NEED_RPATH=
 SHLIB+=$(LIB_DIR)/libmidas-shared.dylib
 SHLIB+=$(LIB_DIR)/libmidas-shared.so
 # use the macports version of openssl
-OSFLAGS += -I/opt/local/include
-LIBS += -L/opt/local/lib -lssl -lcrypto
+CFLAGS += -I/opt/local/include
+SSL_LIBS = -L/opt/local/lib -lssl -lcrypto
 endif
 
 #-----------------------
@@ -268,6 +268,10 @@ OS_DIR = linux
 OSFLAGS += -DOS_LINUX -fPIC -Wno-unused-function
 LIBS = -lutil -lpthread -lrt -ldl
 SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker $(BIN_DIR)/dio
+
+# add OpenSSL
+SSL_LIBS += -lssl -lcrypto
+
 endif
 
 #-----------------------
@@ -491,10 +495,10 @@ $(BIN_DIR)/odbedit: $(SRC_DIR)/odbedit.cxx $(SRC_DIR)/cmdedit.cxx
 
 ifdef HAVE_MSCB
 $(BIN_DIR)/mhttpd: $(LIB_DIR)/mhttpd.o $(LIB_DIR)/mongoose.o $(LIB_DIR)/mgd.o $(LIB_DIR)/mscb.o $(LIB_DIR)/sequencer.o
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(LIBS) -lm
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
 else
 $(BIN_DIR)/mhttpd: $(LIB_DIR)/mhttpd.o $(LIB_DIR)/mongoose.o $(LIB_DIR)/mgd.o $(LIB_DIR)/sequencer.o
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(LIBS) -lm
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
 endif
 
 $(BIN_DIR)/mh2sql: $(BIN_DIR)/%: $(UTL_DIR)/mh2sql.cxx
