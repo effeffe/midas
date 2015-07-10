@@ -16992,9 +16992,6 @@ int start_mg(const char* tcp_ports, int verbose)
    if (verbose)
       debug_mg = 1;
 
-   // List of options. Last element must be NULL.
-   //const char *options[] = {"num_threads", "5", "listening_ports", "8081,8043s", "ssl_certificate", "ssl_cert.pem", NULL};
-
    status = cm_get_experiment_database(&hDB, NULL);
    assert(status == CM_SUCCESS);
 
@@ -17019,15 +17016,13 @@ int start_mg(const char* tcp_ports, int verbose)
       tcp_ports = mongoose_ports;
 
    if (tcp_ports) {
-      //printf("ports [%s]\n", ports);
       add_option_mg("listening_ports", tcp_ports);
       have_ports = true;
       if (strchr(tcp_ports, 's')) {
          need_cert_file = true;
          need_password_file = true;
       }
-      cm_msg(MINFO, "mongoose", "mongoose web server will listen on ports \"%s\"", tcp_ports);
-      //printf("mongoose web server will listen on ports \"%s\" (use https:// for ports marked \'s\')\n", ports);
+      printf("Web server will listen on ports \"%s\"\n", tcp_ports);
    }
 
    if (!have_ports)
@@ -17043,7 +17038,7 @@ int start_mg(const char* tcp_ports, int verbose)
          return SS_FILE_ERROR;
       }
 
-      cm_msg(MINFO, "mongoose", "mongoose web server will use SSL certificate file \"%s\"", path.c_str());
+      printf("Web server will use SSL certificate file \"%s\"\n", path.c_str());
       add_option_mg("ssl_certificate", path.c_str());
    }
 
@@ -17104,11 +17099,11 @@ int start_mg(const char* tcp_ports, int verbose)
       add_option_mg("authentication_domain", realm);
       add_option_mg("global_auth_file", path.c_str());
 
-      cm_msg(MINFO, "mongoose", "mongoose web server will use authentication realm \"%s\", password file \"%s\"", realm, path.c_str());
+      printf("Web server will use authentication realm \"%s\", password file \"%s\"\n", realm, path.c_str());
    }
 
    if (strlen(mongoose_acl) > 0) {
-      cm_msg(MINFO, "mongoose", "mongoose web server access control list: \"%s\"", mongoose_acl);
+      printf("Web server access control list: \"%s\"\n", mongoose_acl);
       add_option_mg("access_control_list", mongoose_acl);
    }
 
