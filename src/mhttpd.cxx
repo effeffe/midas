@@ -72,20 +72,7 @@ char allowed_host[MAX_N_ALLOWED_HOSTS][PARAM_LENGTH];
 int  n_allowed_hosts;
 BOOL expand_equipment;
 
-const char *mname[] = {
-   "January",
-   "February",
-   "March",
-   "April",
-   "May",
-   "June",
-   "July",
-   "August",
-   "September",
-   "October",
-   "November",
-   "December"
-};
+extern const char *mname[];
 
 char type_list[20][NAME_LENGTH] = {
    "Routine",
@@ -979,7 +966,8 @@ FILE *open_resource_file(const char *filename, std::string* pfilename);
 void show_help_page()
 {
    const char *s;
-   char str[256];
+   char str[256], *plist;
+   int i, n;
 
    show_header("Help", "", "./", 0);
    show_navigation_bar("Help");
@@ -1053,14 +1041,32 @@ void show_help_page()
    rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
    rsprintf("        </tr>\n");
 
-   rsprintf("        <tr>\n");
-   rsprintf("          <td style=\"text-align:right;\">midas.log:</td>\n");
-   cm_msg_get_logfile(NULL, str, sizeof(str), NULL, 0);
-   rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
-   rsprintf("        </tr>\n");
+   
+   n = cm_msg_facilities(&plist);
+   if (n== 1) {
+      rsprintf("        <tr>\n");
+      rsprintf("          <td style=\"text-align:right;\">Sytem logfile:</td>\n");
+      cm_msg_get_logfile("midas", 0, str, sizeof(str), NULL, 0);
+      rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
+      rsprintf("        </tr>\n");
+   } else {
+      rsprintf("        <tr>\n");
+      rsprintf("          <td style=\"text-align:right;\">Logfiles:</td>\n");
+      rsprintf("          <td style=\"text-align:left;\">\n", str);
+      for (i=0 ; i<n ; i++) {
+         cm_msg_get_logfile(plist+i*MAX_STRING_LENGTH, 0, str, sizeof(str), NULL, 0);
+         rsputs(str);
+         if (i<n-1)
+            rsputs("<br />\n");
+      }
+      rsprintf("\n          </td>\n");
+      rsprintf("        </tr>\n");
+      
+   }
+   free(plist);
 
    rsprintf("        <tr>\n");
-   rsprintf("          <td style=\"text-align:right;\">%s:</td>\n", get_css_filename());
+   rsprintf("          <td style=\"text-align:right;\">CSS File:</td>\n");
    std::string f;
    FILE *fp = open_resource_file(get_css_filename(), &f);
    if (fp) {
@@ -1071,7 +1077,7 @@ void show_help_page()
    rsprintf("        </tr>\n");
 
    rsprintf("        <tr>\n");
-   rsprintf("          <td style=\"text-align:right;\">%s:</td>\n", get_js_filename());
+   rsprintf("          <td style=\"text-align:right;\">JavaScript File:</td>\n");
    fp = open_resource_file(get_js_filename(), &f);
    if (fp) {
       fclose(fp);
@@ -2234,13 +2240,13 @@ void show_status_page(int refresh, int tts_enable, const char *cookie_wpwd)
 
 /*------------------------------------------------------------------*/
 
-void show_messages_page(int refresh, int n_message)
+void show_messages_page(int refresh)
 {
-   int size, more;
-   char str[256], *buffer, *line, *pline;
+   int size, i, n;
+   char str[256];
+   char *plist, bclass[256], facility[256];
    time_t now;
    HNDLE hDB;
-   BOOL eob;
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -2250,60 +2256,44 @@ void show_messages_page(int refresh, int n_message)
    time(&now);
 
    show_header("Messages", "GET", "./", 0);
+   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
    show_navigation_bar("Messages");
 
-   /*---- messages ----*/
-   /* more button */
-   if (n_message == 20)
-      more = 100;
+   /*---- facilities button bar ----*/
+
+   if (getparam("facility") && *getparam("facility"))
+      strlcpy(facility, getparam("facility"), sizeof(facility));
    else
-      more = n_message + 100;
+      strlcpy(facility, "midas", sizeof(facility));
+   
+   n = cm_msg_facilities(&plist);
+   
+   if (n > 1) {
+      rsprintf("<table class=\"navigationTable\"><tr><td>\n");
+      for (i=0 ; i<n ; i++) {
+         strlcpy(str, plist+i*MAX_STRING_LENGTH, sizeof(str));
+         if (equal_ustring(str, facility))
+            strlcpy(bclass, "navButtonSel", sizeof(bclass));
+         else
+            strlcpy(bclass, "navButton", sizeof(bclass));
+         rsprintf("<input type=\"button\" name=\"facility\" value=\"%s\" class=\"%s\" ", str, bclass);
+         rsprintf("onclick=\"window.location.href='./?cmd=Messages&facility=%s';return false;\">\n", str);
+      }
+      rsprintf("</td></tr></table>\n");
+   }
+   free(plist);
+   
 
-   rsprintf("<button type=submit name=cmd value=\"More%d\">%d More</button><div class=\"messageBox\" id=\"messageFrame\">\n", more, more);
-   buffer = (char *)malloc(1000000);
-   line = (char *)malloc(1000000);
-   cm_msg_retrieve(n_message, buffer, 1000000);
+   /*---- messages will be dynamically loaded via JS ----*/
 
-   pline = buffer;
-   eob = FALSE;
-
-   do {
-      strlcpy(line, pline, 1000000);
-
-      /* extract single line */
-      if (strchr(line, '\n'))
-         *strchr(line, '\n') = 0;
-      if (strchr(line, '\r'))
-         *strchr(line, '\r') = 0;
-
-      pline += strlen(line);
-
-      while (*pline == '\r' || *pline == '\n')
-         pline++;
-
-      /* check for error */
-      if (strstr(line, ",ERROR]"))
-         rsprintf("<p style=\"color:white;background-color:red; padding:0.25em\">%s</p>", line);
-      else
-         rsprintf("<p style=\"padding:0.25em\">%s</p>", line);
-   } while (!eob && *pline);
-   //title at the bottom so it ends up on top after reversal:
+   rsprintf("<div class=\"messageBox\" id=\"messageFrame\">\n");
    rsprintf("<h1 class=\"subStatusTitle\">Messages</h1>");
-
-
-   //some JS to reverse the order of messages, so latest appears at the top:
-   rsprintf("<script type=\"text/JavaScript\">");
-   rsprintf("var messages = document.getElementById(\"messageFrame\");");
-   rsprintf("var i = messages.childNodes.length;");
-   rsprintf("while (i--)");
-   rsprintf("messages.appendChild(messages.childNodes[i]);");
-   rsprintf("</script>");
-
-
    rsprintf("</div>\n");
-   page_footer(TRUE);
-   free(buffer);
-   free(line);
+   
+   rsprintf("<script type=\"text/javascript\">msg_load('%s');</script>\n", facility);
+
+   rsprintf("</form>\n");
+   rsprintf("</body></html>\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -6544,8 +6534,9 @@ bool starts_with(const std::string& s1, const char* s2)
 void javascript_commands(const char *cookie_cpwd)
 {
    int status;
-   int size, i, index;
-   char str[TEXT_SIZE], ppath[256], format[256];
+   int size, i, n, index;
+   unsigned int t;
+   char str[TEXT_SIZE], ppath[256], format[256], facility[256];
    HNDLE hDB, hkey;
    KEY key;
    char data[TEXT_SIZE];
@@ -7431,12 +7422,21 @@ void javascript_commands(const char *cookie_cpwd)
    /* process "jmsg" command */
    if (equal_ustring(getparam("cmd"), "jmsg")) {
 
-      i = 1;
-      if (*getparam("n"))
-         i = atoi(getparam("n"));
+      if (getparam("f") && *getparam("f"))
+         strlcpy(facility, getparam("f"), sizeof(facility));
+      else
+         strlcpy(facility, "midas", sizeof(facility));
+
+      n = 1;
+      if (getparam("n") && *getparam("n"))
+         n = atoi(getparam("n"));
+
+      t = 0;
+      if (getparam("t") && getparam("t"))
+         t = atoi(getparam("t"));
 
       show_text_header();
-      cm_msg_retrieve(i, str, sizeof(str));
+      cm_msg_retrieve(facility, t, n, str, sizeof(str));
       rsputs(str);
       return;
    }
@@ -15831,15 +15831,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    /*---- Messages command ------------------------------------------*/
 
    if (equal_ustring(command, "messages")) {
-      show_messages_page(refresh, 20);
-      return;
-   }
-
-   if (strncmp(command, "More", 4) == 0 && strncmp(dec_path, "EL/", 3) != 0) {
-      i = atoi(command + 4);
-      if (i == 0)
-         i = 100;
-      show_messages_page(0, i);
+      show_messages_page(refresh);
       return;
    }
 
@@ -17237,7 +17229,9 @@ int main(int argc, const char *argv[])
             if (n_allowed_hosts < MAX_N_ALLOWED_HOSTS)
                strlcpy(allowed_host[n_allowed_hosts++], argv[++i], sizeof(allowed_host[0]));
          } else if (argv[i][1] == 'p') {
-            printf("Option \"-p port_number\" for the old web server is obsolete. mongoose web server is the new default, port number is set in ODB or with \"--mg port_number\". To run the obsolete old web server, please use \"--oldserver\" switch.\n");
+            printf("Option \"-p port_number\" for the old web server is obsolete.\n");
+            printf("mongoose web server is the new default, port number is set in ODB or with \"--mg port_number\".\n");
+            printf("To run the obsolete old web server, please use \"--oldserver\" switch.\n");
             return 1;
          } else {
           usage:
@@ -17250,7 +17244,8 @@ int main(int argc, const char *argv[])
             printf("       -H only display history plots\n");
             printf("       -a only allow access for specific host(s), several [-a Hostname] statements might be given\n");
 #ifdef HAVE_MG
-            printf("       --mg [port,port,port,...] use the mongoose web server (default) on specified ports (defaults are taken from ODB). Example: --mg 8443s,8080r\n");
+            printf("       --mg [port,port,port,...] use the mongoose web server (default) on specified ports \n");
+            printf("          (defaults are taken from ODB). Example: --mg 8443s,8080r\n");
             printf("       --nomg use the old mhttpd web server\n");
 #endif
 #ifdef HAVE_OLDSERVER
