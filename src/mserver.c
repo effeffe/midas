@@ -466,11 +466,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       break;
 
    case RPC_CM_MSG_LOG:
-      status = cm_msg_log(CINT(0), CSTRING(1));
-      break;
-
-   case RPC_CM_MSG_LOG1:
-      status = cm_msg_log1(CINT(0), CSTRING(1), CSTRING(2));
+      status = cm_msg_log(CINT(0), CSTRING(2), CSTRING(1));
       break;
 
    case RPC_CM_EXECUTE:
@@ -494,7 +490,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       break;
 
    case RPC_CM_MSG_RETRIEVE:
-      status = cm_msg_retrieve(CINT(0), CSTRING(1), CINT(2));
+      status = cm_msg_retrieve(CSTRING(0), CDWORD(1), CINT(2), CSTRING(3), CINT(4));
       break;
 
       /* buffer manager functions */

@@ -60,11 +60,12 @@
 		D570599D1798722600DA5416 /* midas.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = midas.h; path = "/midas//include/midas.h"; sourceTree = "<absolute>"; };
 		D570599E1798722600DA5416 /* midasinc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = midasinc.h; path = /midas/include/midasinc.h; sourceTree = "<absolute>"; };
 		D570599F1798722600DA5416 /* msystem.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = msystem.h; path = /midas/include/msystem.h; sourceTree = "<absolute>"; };
+		D576CEA51B4DCBEC00FB242B /* develop.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; name = develop.js; path = /midas/resources/develop.js; sourceTree = "<group>"; };
 		D5BE377E17BCE2B3004233D8 /* mhttpd.css */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.css; name = mhttpd.css; path = /midas/resources/mhttpd.css; sourceTree = "<absolute>"; };
 		D5BE377F17BCE2B3004233D8 /* mhttpd.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; name = mhttpd.js; path = /midas/resources/mhttpd.js; sourceTree = "<absolute>"; };
-		D5C8CD7B1ACC0797008B1201 /* mscb.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mscb.c; path = /mscb/mscb.c; sourceTree = "<group>"; };
-		D5C8CD7C1ACC0797008B1201 /* mscbrpc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mscbrpc.c; path = /mscb/mscbrpc.c; sourceTree = "<group>"; };
-		D5C8CD7F1ACC07AF008B1201 /* mscb.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mscb.h; path = /mscb/mscb.h; sourceTree = "<group>"; };
+		D5C8CD7B1ACC0797008B1201 /* mscb.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mscb.c; path = /mscb/src/mscb.c; sourceTree = "<group>"; };
+		D5C8CD7C1ACC0797008B1201 /* mscbrpc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mscbrpc.c; path = /mscb/src/mscbrpc.c; sourceTree = "<group>"; };
+		D5C8CD7F1ACC07AF008B1201 /* mscb.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mscb.h; path = /mscb/include/mscb.h; sourceTree = "<group>"; };
 		D5F40E09179876ED004CBF77 /* mgd.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mgd.c; path = /midas/src/mgd.c; sourceTree = "<absolute>"; };
 		D5FBFAE417BE1B49000025D7 /* history_schema.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = history_schema.cxx; path = /midas/src/history_schema.cxx; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
@@ -146,6 +147,7 @@
 		D5BE377D17BCE29C004233D8 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				D576CEA51B4DCBEC00FB242B /* develop.js */,
 				D5BE377E17BCE2B3004233D8 /* mhttpd.css */,
 				D5BE377F17BCE2B3004233D8 /* mhttpd.js */,
 			);
@@ -306,7 +308,7 @@
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = NO;
 				HEADER_SEARCH_PATHS = (
-					/mscb,
+					/mscb/include,
 					/midas/include,
 					/mxml,
 				);
@@ -326,7 +328,7 @@
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = NO;
 				HEADER_SEARCH_PATHS = (
-					/mscb,
+					/mscb/include,
 					/midas/include,
 					/mxml,
 				);

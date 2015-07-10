@@ -2504,7 +2504,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          if (param[1][0])
             i = atoi(param[1]);
 
-         cm_msg_retrieve(i, data, sizeof(data));
+         cm_msg_retrieve("midas", 0, i, data, sizeof(data));
          printf("%s\n\n", data);
       }
 
