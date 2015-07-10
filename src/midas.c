@@ -1127,8 +1127,6 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, IN
    message[s] = 0;
    free(buffer);
 
-   printf(" %d messages\n", n);
-   
    return n;
 }
 
