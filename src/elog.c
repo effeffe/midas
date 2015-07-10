@@ -393,7 +393,7 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
 /********************************************************************/
 INT el_search_message(char *tag, int *fh, BOOL walk)
 {
-   int i, size, offset, direction, last, status;
+   int i, size, offset, direction, status;
    struct tm *tms, ltms;
    time_t lt, ltime=0, lact;
    char str[256], file_name[256], dir[256];
@@ -580,7 +580,7 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
       /* seek next message */
 
       /* read current message size */
-      last = TELL(*fh);
+      TELL(*fh);
 
       i = read(*fh, str, 15);
       if (i <= 0) {
@@ -675,7 +675,7 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
 
 \********************************************************************/
 {
-   int size, fh = 0, offset, search_status, rd;
+   int size, fh = 0, search_status, rd;
    char str[256], *p;
    char message[10000], thread[256];
    char attachment_all[3*256+100]; /* size of attachement1/2/3 from show_elog_submit_query() */
@@ -693,7 +693,7 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
    }
 
    /* extract message size */
-   offset = TELL(fh);
+   TELL(fh);
    rd = read(fh, str, 15);
    assert(rd == 15);
 
@@ -881,7 +881,7 @@ INT el_delete_message(const char *tag)
 \********************************************************************/
 {
 #ifdef LOCAL_ROUTINES
-   INT n, size, fh, semaphore, offset = 0, tail_size, status;
+   INT size, fh, semaphore, offset = 0, tail_size, status;
    char dir[256], str[256], file_name[256];
    HNDLE hDB;
    char *buffer = NULL;
@@ -937,12 +937,12 @@ INT el_delete_message(const char *tag)
       }
 
       lseek(fh, offset + size, SEEK_SET);
-      n = read(fh, buffer, tail_size);
+      read(fh, buffer, tail_size);
    }
    lseek(fh, offset, SEEK_SET);
 
    if (tail_size > 0) {
-      n = write(fh, buffer, tail_size);
+      write(fh, buffer, tail_size);
       M_FREE(buffer);
    }
 

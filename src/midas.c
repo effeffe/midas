@@ -457,11 +457,10 @@ Write message to logging file. Called by cm_msg.
 */
 INT cm_msg_log(INT message_type, const char *message)
 {
-   char filename[256], lpath[256], linkname[256];
+   char filename[256], linkname[256];
    INT status, fh, semaphore;
 
    filename[0] = 0;
-   lpath[0] = 0;
 
    if (rpc_is_remote())
       return rpc_call(RPC_CM_MSG_LOG, message_type, message);
@@ -4279,7 +4278,6 @@ INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size,
 {
    int mflag = async_flag & TR_MTHREAD;
    int sflag = async_flag & TR_SYNC;
-   midas_thread_t tr_main;
 
    if (mflag) {
       _trp.transition = transition;
@@ -4305,7 +4303,7 @@ INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size,
       if (errstr)
          *errstr = 0; // null error string
 
-      tr_main = ss_thread_create(tr_main_thread, &_trp);
+      ss_thread_create(tr_main_thread, &_trp);
       if (sflag) {
 
          /* wait until main thread has finished */
@@ -4373,10 +4371,6 @@ static BOOL _ctrlc_pressed = FALSE;
 
 void cm_ctrlc_handler(int sig)
 {
-   int i;
-
-   i = sig;                     /* avoid compiler warning */
-
    if (_ctrlc_pressed) {
       printf("Received 2nd break. Hard abort.\n");
       exit(0);
@@ -12770,7 +12764,8 @@ INT rpc_client_accept(int lsock)
 
 \********************************************************************/
 {
-   INT idx, i, version, status;
+   INT idx, i, status;
+   //int version;
    unsigned int size;
    int sock;
    struct sockaddr_in acc_addr;
@@ -12879,7 +12874,7 @@ INT rpc_client_accept(int lsock)
       p = strtok(NULL, " ");
    }
    if (p != NULL) {
-      version = atoi(p);
+      //version = atoi(p);
       p = strtok(NULL, " ");
    }
    if (p != NULL) {
@@ -12891,10 +12886,7 @@ INT rpc_client_accept(int lsock)
       p = strtok(NULL, " ");
    }
 
-#if 0
-   printf("rpc_client_accept: client_hw_type %d, version %d, client_name \'%s\', hostname \'%s\'\n",
-             client_hw_type, version, client_program, host_name);
-#endif
+   //printf("rpc_client_accept: client_hw_type %d, version %d, client_name \'%s\', hostname \'%s\'\n", client_hw_type, version, client_program, host_name);
    
    /* save information in _server_acception structure */
    _server_acception[idx].recv_sock = sock;
@@ -13918,7 +13910,7 @@ INT adc_calib(EVENT_HEADER *pheader, void *pevent)
 */
 INT bk_list(void *event, char *bklist)
 {                               /* Full event */
-   INT nbk, size;
+   INT nbk;
    BANK *pmbk = NULL;
    BANK32 *pmbk32 = NULL;
    char *pdata;
@@ -13929,11 +13921,11 @@ INT bk_list(void *event, char *bklist)
    do {
       /* scan all banks for bank name only */
       if (bk_is32(event)) {
-         size = bk_iterate32(event, &pmbk32, &pdata);
+         bk_iterate32(event, &pmbk32, &pdata);
          if (pmbk32 == NULL)
             break;
       } else {
-         size = bk_iterate(event, &pmbk, &pdata);
+         bk_iterate(event, &pmbk, &pdata);
          if (pmbk == NULL)
             break;
       }

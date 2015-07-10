@@ -874,9 +874,6 @@ INT ss_shm_close(const char *name, void *adr, HNDLE handle, INT destroy_flag)
 
       struct shmid_ds buf;
       FILE *fh;
-      int i;
-
-      i = destroy_flag;         /* avoid compiler warning */
 
       /* get info about shared memory */
       memset(&buf, 0, sizeof(buf));
@@ -1061,9 +1058,6 @@ INT ss_shm_protect(HNDLE handle, void *adr)
 #ifdef OS_UNIX
 
    if (use_sysv_shm) {
-
-      int i;
-      i = handle;                  /* avoid compiler warning */
 
       if (shmdt(adr) < 0) {
          cm_msg(MERROR, "ss_shm_protect", "shmdt() failed");
@@ -3413,8 +3407,6 @@ INT ss_exception_handler(void (*func) ())
    signal(SIGTERM, MidasExceptionSignal);
 
 #else                           /* OS_VMS */
-   void *p;
-   p = func;                    /* avoid compiler warning */
 #endif
 
    return SS_SUCCESS;
@@ -6178,9 +6170,6 @@ void ss_set_screen_size(int x, int y)
    SetConsoleScreenBufferSize(hConsole, coordSize);
 
 #else                           /* OS_WINNT */
-   int i;
-   i = x;                       /* avoid compiler warning */
-   i = y;
 #endif
 }
 
@@ -6644,9 +6633,6 @@ INT ss_directio_give_port(INT start, INT end)
 
    return SS_SUCCESS;
 #else
-   int i;
-   i = start;                   /* avoid compiler warning */
-   i = end;
    return SS_SUCCESS;
 #endif
 }
@@ -6683,9 +6669,6 @@ INT ss_directio_lock_port(INT start, INT end)
 
    return SS_SUCCESS;
 #else
-   int i;
-   i = start;                   /* avoid compiler warning */
-   i = end;
    return SS_SUCCESS;
 #endif
 }
