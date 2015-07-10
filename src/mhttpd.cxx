@@ -5601,7 +5601,7 @@ int evaluate_src(char *key, char *src, double *fvalue)
 {
    HNDLE hDB, hkeyval;
    KEY vkey;
-   int i, n, size, status, ivalue;
+   int i, n, size, ivalue;
    char str[256], data[256], value[256];
 
    cm_get_experiment_database(&hDB, NULL);
@@ -5626,7 +5626,7 @@ int evaluate_src(char *key, char *src, double *fvalue)
 
    db_get_key(hDB, hkeyval, &vkey);
    size = sizeof(data);
-   status = db_get_value(hDB, 0, src, data, &size, vkey.type, FALSE);
+   db_get_value(hDB, 0, src, data, &size, vkey.type, FALSE);
    db_sprintf(value, data, size, 0, vkey.type);
    if (equal_ustring(value, "NAN"))
       return 0;
@@ -6136,7 +6136,7 @@ void do_jrpc_rev0()
       { 0 }
    };
 
-   int status, count = 0, substring = 0, rpc;
+   int count = 0, substring = 0, rpc;
 
    const char *xname   = getparam("name");
    const char *srpc    = getparam("rpc");
@@ -6164,9 +6164,7 @@ void do_jrpc_rev0()
    }
 
    rpc_list[0].id = rpc;
-   status = rpc_register_functions(rpc_list, NULL);
-
-   //printf("cm_register_functions() for format \'%s\' status %d\n", sformat, status);
+   rpc_register_functions(rpc_list, NULL);
 
    show_text_header();
    rsprintf("calling rpc %d | ", rpc);
@@ -11216,7 +11214,8 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
    //int x_marker;
    int length, aoffset;
    int flag, x1, y1, x2, y2, xs, xs_old, ys, xold, yold, xmaxm;
-   int white, black, grey, ltgrey, red, green, blue;
+   int white, grey, red;
+   //int black, ltgrey, green, blue;
    int fgcol, bgcol, gridcol;
    int curve_col[MAX_VARS], state_col[3];
    char str[256], panel[256], *p, odbpath[256];
@@ -11265,12 +11264,12 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
    gridcol = gdImageColorAllocate(im, r, g, b);
 
    grey = gdImageColorAllocate(im, 192, 192, 192);
-   ltgrey = gdImageColorAllocate(im, 208, 208, 208);
+   //ltgrey = gdImageColorAllocate(im, 208, 208, 208);
    white = gdImageColorAllocate(im, 255, 255, 255);
-   black = gdImageColorAllocate(im, 0, 0, 0);
+   //black = gdImageColorAllocate(im, 0, 0, 0);
    red = gdImageColorAllocate(im, 255, 0, 0);
-   green = gdImageColorAllocate(im, 0, 255, 0);
-   blue = gdImageColorAllocate(im, 0, 0, 255);
+   //green = gdImageColorAllocate(im, 0, 255, 0);
+   //blue = gdImageColorAllocate(im, 0, 0, 255);
 
    curve_col[0] = gdImageColorAllocate(im, 0, 0, 255);
    curve_col[1] = gdImageColorAllocate(im, 0, 192, 0);
@@ -12543,6 +12542,7 @@ static int cmp_vars(const void *a, const void *b)
    return ((const hist_var_t*)a)->hist_order >= ((const hist_var_t*)b)->hist_order;
 }
 
+#if 0
 static void print_vars(const hist_var_t vars[])
 {
    for (int i=0; i<MAX_VARS; i++) {
@@ -12551,6 +12551,7 @@ static void print_vars(const hist_var_t vars[])
       printf("%d event [%s][%s] factor %f, offset %f, color [%s] label [%s] order %d\n", i, vars[i].event_name, vars[i].var_name, vars[i].hist_factor, vars[i].hist_offset, vars[i].hist_col, vars[i].hist_label, vars[i].hist_order);
    }
 }
+#endif
 
 int xdb_get_data_index(HNDLE hDB, const char* str, void *value, int size, int index, int tid)
 {
@@ -13201,7 +13202,7 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
 
          status = mh->hs_get_tags(events[e].c_str(), t, &tags);
 
-         if (tags.size() > 0) {
+         if (status == HS_SUCCESS && tags.size() > 0) {
 
             if (sort_vars)
                std::sort(tags.begin(), tags.end(), cmp_tags);
@@ -13307,7 +13308,7 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
 
          status = mh->hs_get_tags(vars[index].event_name, t, &tags);
 
-         if (tags.size() > 0) {
+         if (status == HS_SUCCESS && tags.size() > 0) {
 
             if (0) {
                printf("Compare %d\n", cmp_names("AAA", "BBB"));
