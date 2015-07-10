@@ -1349,7 +1349,7 @@ void show_navigation_bar(const char *cur_page)
 int requested_transition = 0;
 int requested_old_state = 0;
 
-void show_status_page(int refresh, const char *cookie_wpwd)
+void show_status_page(int refresh, int tts_enable, const char *cookie_wpwd)
 {
    int i, j, k, h, m, s, status, size, type, n_alarm, n_items, n_hidden;
    BOOL flag, first, expand;
@@ -1674,12 +1674,13 @@ void show_status_page(int refresh, const char *cookie_wpwd)
                rsprintf("<table width=\"100%%\"><tr><td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"%s\" size=+3>%s: %s</font></td>\n", fgcol,
                         alarm_class, str);
                rsprintf("<td width=\"1%%\" style=\"border:0px;\"><button type=\"button\" onclick=\"document.location.href='?cmd=alrst&name=%s'\"n\">Reset</button></td></tr></table></td></tr>\n", key.name);
-               
-               // speak alarm
-               strlcpy(spk, alarm_class, sizeof(spk));
-               strlcat(spk, ".", sizeof(spk));
-               strlcat(spk, str, sizeof(spk));
-               rsprintf("<script type=\"text/javascript\">u=new SpeechSynthesisUtterance('%s');window.speechSynthesis.speak(u);</script>\n", spk);
+               if (tts_enable) {
+                  // speak alarm
+                  strlcpy(spk, alarm_class, sizeof(spk));
+                  strlcat(spk, ".", sizeof(spk));
+                  strlcat(spk, str, sizeof(spk));
+                  rsprintf("<script type=\"text/javascript\">u=new SpeechSynthesisUtterance('%s');window.speechSynthesis.speak(u);</script>\n", spk);
+               }
             }
          }
       }
@@ -10274,7 +10275,7 @@ void show_programs_page()
 
 /*------------------------------------------------------------------*/
 
-void show_config_page(int refresh)
+void show_config_page(int refresh, int tts_enable)
 {
    char str[80];
    HNDLE hDB;
@@ -10292,6 +10293,12 @@ void show_config_page(int refresh)
 
    sprintf(str, "5");
    rsprintf("<td><input type=text size=5 maxlength=5 name=refr value=%d>\n", refresh);
+   rsprintf("</tr>\n");
+
+   rsprintf("<tr><td>Text-to-Speech Enable\n");
+
+   sprintf(str, "5");
+   rsprintf("<td><input type=text size=5 maxlength=5 name=ttse value=%d>\n", tts_enable);
    rsprintf("</tr>\n");
 
    rsprintf("<tr><td align=center colspan=2>\n");
@@ -15163,7 +15170,7 @@ void send_alarm_sound()
 
 /*------------------------------------------------------------------*/
 
-void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, const char *dec_path, int refresh)
+void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, const char *dec_path, int refresh, int tts_enable)
 /********************************************************************\
 
  Routine: interprete
@@ -15809,7 +15816,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    /*---- config command --------------------------------------------*/
 
    if (equal_ustring(command, "config")) {
-      show_config_page(refresh);
+      show_config_page(refresh, tts_enable);
       return;
    }
 
@@ -15859,6 +15866,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    if (equal_ustring(command, "accept")) {
       refresh = atoi(getparam("refr"));
+      tts_enable = atoi(getparam("ttse"));
 
       /* redirect with cookie */
       rsprintf("HTTP/1.0 302 Found\r\n");
@@ -15871,6 +15879,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       strftime(str, sizeof(str), "%A, %d-%b-%Y %H:00:00 GMT", gmt);
 
       rsprintf("Set-Cookie: midas_refr=%d; path=/; expires=%s\r\n", refresh, str);
+      rsprintf("Set-Cookie: midas_ttse=%d; path=/; expires=%s\r\n", tts_enable, str);
 
       rsprintf("Location: ./\r\n\r\n<html>redir</html>\r\n");
 
@@ -15950,7 +15959,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
          return;
       }
 
-      show_status_page(refresh, cookie_wpwd);
+      show_status_page(refresh, tts_enable, cookie_wpwd);
       return;
    }
 
@@ -16000,7 +16009,7 @@ void decode_query(const char *query_string)
    free(buf);
 }
 
-void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, int refresh, bool decode_url, const char* url, const char* query_string)
+void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, int refresh, int tts_enable, bool decode_url, const char* url, const char* query_string)
 {
    char path[256];
 
@@ -16034,7 +16043,7 @@ void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, c
    if (decode_url)
       urlDecode(dec_path);
 
-   interprete(cookie_pwd, cookie_wpwd, cookie_cpwd, dec_path, refresh);
+   interprete(cookie_pwd, cookie_wpwd, cookie_cpwd, dec_path, refresh, tts_enable);
 
    freeparam();
 }
@@ -16042,7 +16051,7 @@ void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, c
 /*------------------------------------------------------------------*/
 
 void decode_post(const char *header, char *string, const char *boundary, int length,
-                 const char *cookie_pwd, const char *cookie_wpwd, int refresh, bool decode_url, const char* url)
+                 const char *cookie_pwd, const char *cookie_wpwd, int refresh, int tts_enable, bool decode_url, const char* url)
 {
    char *pinit, *p, *pitem, *ptmp, file_name[256], str[256], path[256];
    int n;
@@ -16156,7 +16165,7 @@ void decode_post(const char *header, char *string, const char *boundary, int len
    if (decode_url)
       urlDecode(dec_path);
 
-   interprete(cookie_pwd, cookie_wpwd, "", dec_path, refresh);
+   interprete(cookie_pwd, cookie_wpwd, "", dec_path, refresh, tts_enable);
 }
 
 /*------------------------------------------------------------------*/
@@ -16238,7 +16247,7 @@ char net_buffer[WEB_BUFFER_SIZE];
 
 void server_loop()
 {
-   int status, i, refresh, n_error;
+   int status, i, refresh, tts_enable, n_error;
    struct sockaddr_in bind_addr, acc_addr;
    char cookie_pwd[256], cookie_wpwd[256], cookie_cpwd[256], boundary[256], *p;
    int lsock, flag, content_length, header_length;
@@ -16565,6 +16574,12 @@ void server_loop()
          else
             refresh = DEFAULT_REFRESH;
 
+         tts_enable = 0;
+         if (strstr(net_buffer, "midas_ttse=") != NULL)
+            tts_enable = atoi(strstr(net_buffer, "midas_ttse=") + 11);
+         else
+            tts_enable = 0;
+
          if (strstr(net_buffer, "expeq=") != NULL)
             expand_equipment = atoi(strstr(net_buffer, "expeq=") + 6);
          else
@@ -16626,7 +16641,7 @@ void server_loop()
                locked = true;
             }
             /* decode command and return answer */
-            decode_get(net_buffer + 4, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, true, NULL, NULL);
+            decode_get(net_buffer + 4, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, tts_enable, true, NULL, NULL);
          } else {
             if (request_mutex) {
                status = ss_mutex_wait_for(request_mutex, 0);
@@ -16634,7 +16649,7 @@ void server_loop()
                locked = true;
             }
             decode_post(net_buffer + 5, net_buffer + header_length, boundary,
-                        content_length, cookie_pwd, cookie_wpwd, refresh,
+                        content_length, cookie_pwd, cookie_wpwd, refresh, tts_enable, 
                         true, NULL);
          }
 
@@ -16776,13 +16791,19 @@ static int event_handler_mg(struct mg_event *event)
       if (p)
          refresh = atoi(p);
 
+      // extract refresh rate
+      int tts_enable = 0;
+      p = find_cookie_mg(event, "midas_ttse");
+      if (p)
+         tts_enable = atoi(p);
+
       bool locked = false;
 
       if (strcmp( event->request_info->request_method, "GET") == 0) {
          status = ss_mutex_wait_for(request_mutex, 0);
          assert(status == SS_SUCCESS);
          locked = true;
-         decode_get(NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, false, event->request_info->uri, event->request_info->query_string);
+         decode_get(NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, tts_enable, false, event->request_info->uri, event->request_info->query_string);
       } else if (strcmp( event->request_info->request_method, "POST") == 0) {
 
          int max_post_data = 1024*1024;
@@ -16804,7 +16825,7 @@ static int event_handler_mg(struct mg_event *event)
          status = ss_mutex_wait_for(request_mutex, 0);
          assert(status == SS_SUCCESS);
          locked = true;
-         decode_post(NULL, post_data, boundary, post_data_len, cookie_pwd, cookie_wpwd, refresh, false, event->request_info->uri);
+         decode_post(NULL, post_data, boundary, post_data_len, cookie_pwd, cookie_wpwd, refresh, tts_enable, false, event->request_info->uri);
          free(post_data);
       }
 
