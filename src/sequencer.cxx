@@ -726,7 +726,7 @@ int eval_condition(const char *condition)
 
 void init_sequencer()
 {
-   int status, size;
+   int status;
    HNDLE hDB;
    HNDLE hKey;
    char str[256];
@@ -739,7 +739,6 @@ void init_sequencer()
       abort();
    }
    db_find_key(hDB, 0, "/Sequencer/State", &hKey);
-   size = sizeof(seq);
    status = db_open_record(hDB, hKey, &seq, sizeof(seq), MODE_READ, NULL, NULL);
    assert(status == DB_SUCCESS);
    
@@ -920,7 +919,7 @@ void show_seq_page()
 {
    INT i, size, n,  width, state, eob, last_line, error_line, sectionEmpty;
    HNDLE hDB;
-   char str[256], path[256], dir[256], error[256], comment[256], filename[256], data[256], buffer[10000], line[256], name[32];
+   char str[256], path[256], dir[256], error[256], comment[256], data[256], buffer[10000], line[256], name[32];
    time_t now;
    char *flist = NULL, *pc, *pline, *buf;
    PMXML_NODE pn;
@@ -938,7 +937,7 @@ void show_seq_page()
       if (isparam("dir"))
          strlcpy(seq.filename, getparam("dir"), sizeof(seq.filename));
       else
-         filename[0] = 0;
+         seq.filename[0] = 0;
       if (isparam("fs"))
          strlcat(seq.filename, getparam("fs"), sizeof(seq.filename));
       

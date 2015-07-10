@@ -52,13 +52,12 @@ MUTEX_T *tm;
 
 INT thread(void *p)
 {
-   int status;
    char str[32];
    HNDLE hDB;
    cm_get_experiment_database(&hDB, NULL);
    do {
       sprintf(str, "%d", ss_gettid());
-      status = db_set_value(hDB, 0, "/Experiment/Name", str, sizeof(str), 1, TID_STRING);
+      db_set_value(hDB, 0, "/Experiment/Name", str, sizeof(str), 1, TID_STRING);
    } while (1);
 
    return 0;

@@ -278,9 +278,6 @@ INT tr_resume(INT rn, char *error)
 
 INT manual_trigger(INT idx, void *prpc_param[])
 {
-   int i;
-
-   i = idx; /* avoid compiler warning */
    manual_trigger_event_id = CWORD(0);
    return SUCCESS;
 }

@@ -138,7 +138,7 @@ INT mchart_get_names(HNDLE hDB, char *eqpstr, char *element, char **pname, INT *
    char strtmp[128];
    HNDLE hKeyS, hSubKey;
    KEY key;
-   INT i, size, status;
+   INT i, size;
    BOOL bslash = FALSE;
 
    /* convert to upper */
@@ -178,7 +178,7 @@ INT mchart_get_names(HNDLE hDB, char *eqpstr, char *element, char **pname, INT *
                   *esize = key.item_size;
                   size = *esize * key.num_values;
                   *pname = malloc(size);
-                  status = db_get_data(hDB, hSubKey, *pname, &size, key.type);
+                  db_get_data(hDB, hSubKey, *pname, &size, key.type);
                   return key.num_values;
                }
             }
@@ -193,7 +193,7 @@ INT mchart_get_names(HNDLE hDB, char *eqpstr, char *element, char **pname, INT *
                   *esize = key.item_size;
                   size = *esize * key.num_values;
                   *pname = malloc(size);
-                  status = db_get_data(hDB, hSubKey, *pname, &size, key.type);
+                  db_get_data(hDB, hSubKey, *pname, &size, key.type);
                   return key.num_values;
                }
             }

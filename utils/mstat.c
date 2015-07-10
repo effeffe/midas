@@ -570,6 +570,9 @@ int main(int argc, char **argv)
       }
    }
 
+   if (debug) // avoid complaint about unused "debug"
+      status = SUCCESS;
+
    /* connect to experiment */
    status = cm_connect_experiment(host_name, expt_name, "MStatus", 0);
    if (status != CM_SUCCESS)
