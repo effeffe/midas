@@ -2216,7 +2216,7 @@ static SOCKET conn2(const char *host, int port, int use_ssl,
   if (host == NULL) {
     snprintf(ebuf, ebuf_len, "%s", "NULL host");
 #ifndef NO_SSL
-  } else if (use_ssl && SSLv23_client_method == NULL) {
+  } else if (use_ssl && (void *)SSLv23_client_method == NULL) {
     snprintf(ebuf, ebuf_len, "%s", "SSL is not initialized");
     // TODO(lsm): use something threadsafe instead of gethostbyname()
 #endif
