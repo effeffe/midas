@@ -1109,8 +1109,7 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, IN
          s += strlen(pm);
          pm += strlen(pm);
          
-         if (tstamp != -1)
-            n++;
+         n++;
       }
       
       while (*p == '\n' || *p == '\r')
@@ -1122,6 +1121,10 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, IN
          // continue collecting messages until time stamp differs from current one
          if (n == n_messages)
             tstamp_last = tstamp_valid;
+         
+         // if all messages without time tags, just return after n
+         if (n == n_messages && tstamp_valid == 0)
+            break;
       }
    }
    message[s] = 0;

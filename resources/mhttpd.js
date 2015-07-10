@@ -618,6 +618,7 @@ var facility;
 var first_tstamp = 0;
 var last_tstamp = 0;
 var end_of_messages = false;
+var n_messages = 0;
 
 function msg_append(msg)
 {
@@ -631,8 +632,8 @@ function msg_append(msg)
          first_tstamp = t;
       if (t != -1 && (last_tstamp == 0 || t < last_tstamp))
          last_tstamp = t;
-      //if (line.indexOf(" "))
-      //   line = line.substr(line.indexOf(" "));
+      if (line.indexOf(" "))
+         line = line.substr(line.indexOf(" "));
       var e = document.createElement("p");
       e.appendChild(document.createTextNode(line));
       if (line.search("ERROR]") > 0) {
@@ -641,6 +642,7 @@ function msg_append(msg)
       }
 
       mf.appendChild(e);
+      n_messages++;
    }
 }
 
@@ -652,8 +654,8 @@ function msg_prepend(msg)
       var line = msg[i];
       var t = parseInt(line);
       
-      //if (line.indexOf(" "))
-      //   line = line.substr(line.indexOf(" "));
+      if (line.indexOf(" "))
+         line = line.substr(line.indexOf(" "));
       var e = document.createElement("p");
       e.appendChild(document.createTextNode(line));
 
@@ -661,6 +663,7 @@ function msg_prepend(msg)
          break;
       mf.insertBefore(e, mf.childNodes[2+i]);
       first_tstamp = t;
+      n_messages++;
 
       if (line.search("ERROR]") > 0) {
          e.style.backgroundColor = "red";
@@ -679,7 +682,7 @@ function msg_load(f)
 {
    facility = f;
    var msg = ODBGetMsg(facility, 0, 100);
-   msg_append(msg, true);
+   msg_append(msg);
    if (isNaN(last_tstamp))
       end_of_messages = true;
    
@@ -711,18 +714,32 @@ function msg_extend()
    // if scroll bar is close to end, append messages
    if (mf.scrollHeight-mf.scrollTop-mf.clientHeight < 2000) {
       if (!end_of_messages) {
-         var msg = ODBGetMsg(facility, last_tstamp-1, 100);
-         if (msg[0] == "")
-            end_of_messages = true;
-         if (!end_of_messages) {
+         
+         if (last_tstamp > 0) {
+            var msg = ODBGetMsg(facility, last_tstamp-1, 100);
+            if (msg[0] == "")
+               end_of_messages = true;
+            if (!end_of_messages) {
+               msg_append(msg);
+            }
+         } else {
+            // in non-timestamped mode, simple load full message list
+            var msg = ODBGetMsg(facility, 0, n_messages+100);
+            n_messages = 0;
+
+            var mf = document.getElementById('messageFrame');
+            for (i=mf.childNodes.length-1 ; i>1 ; i--)
+               mf.removeChild(mf.childNodes[i]);
             msg_append(msg);
          }
       }
    }
    
-   // check for new message
-   var msg = ODBGetMsg(facility, first_tstamp, 0);
-   msg_prepend(msg);
+   // check for new message if time stamping is on
+   if (first_tstamp) {
+      var msg = ODBGetMsg(facility, first_tstamp, 0);
+      msg_prepend(msg);
+   }
    
    // remove color of elements
    for (i=2 ; i<mf.childNodes.length ; i++) {

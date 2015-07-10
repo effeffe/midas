@@ -2268,7 +2268,7 @@ void show_messages_page(int refresh)
    
    n = cm_msg_facilities(&plist);
    
-   if (n> 0) {
+   if (n > 1) {
       rsprintf("<table class=\"navigationTable\"><tr><td>\n");
       for (i=0 ; i<n ; i++) {
          strlcpy(str, plist+i*MAX_STRING_LENGTH, sizeof(str));
@@ -17233,7 +17233,9 @@ int main(int argc, const char *argv[])
             if (n_allowed_hosts < MAX_N_ALLOWED_HOSTS)
                strlcpy(allowed_host[n_allowed_hosts++], argv[++i], sizeof(allowed_host[0]));
          } else if (argv[i][1] == 'p') {
-            printf("Option \"-p port_number\" for the old web server is obsolete. mongoose web server is the new default, port number is set in ODB or with \"--mg port_number\". To run the obsolete old web server, please use \"--oldserver\" switch.\n");
+            printf("Option \"-p port_number\" for the old web server is obsolete.\n");
+            printf("mongoose web server is the new default, port number is set in ODB or with \"--mg port_number\".\n");
+            printf("To run the obsolete old web server, please use \"--oldserver\" switch.\n");
             return 1;
          } else {
           usage:
@@ -17246,7 +17248,8 @@ int main(int argc, const char *argv[])
             printf("       -H only display history plots\n");
             printf("       -a only allow access for specific host(s), several [-a Hostname] statements might be given\n");
 #ifdef HAVE_MG
-            printf("       --mg [port,port,port,...] use the mongoose web server (default) on specified ports (defaults are taken from ODB). Example: --mg 8443s,8080r\n");
+            printf("       --mg [port,port,port,...] use the mongoose web server (default) on specified ports \n");
+            printf("          (defaults are taken from ODB). Example: --mg 8443s,8080r\n");
             printf("       --nomg use the old mhttpd web server\n");
 #endif
 #ifdef HAVE_OLDSERVER
