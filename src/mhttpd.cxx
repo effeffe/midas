@@ -12659,6 +12659,12 @@ static int xdb_find_key(HNDLE hDB, HNDLE dir, const char* str, HNDLE* hKey, int 
 
    db_create_key(hDB, dir, str, tid);
    status = db_find_key(hDB, dir, str, hKey);
+   if (status != DB_SUCCESS || !*hKey) {
+      cm_msg(MERROR, "xdb_find_key", "Invalid ODB path \"%s\"", str);
+      str = "bad_xdb_find_key";
+      db_create_key(hDB, dir, str, tid);
+      db_find_key(hDB, dir, str, hKey);
+   }
    assert(*hKey);
 
    if (tid == TID_STRING) {
@@ -13803,8 +13809,11 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       /* create new panel */
       sprintf(str, "/History/Display/%s/%s", hgroup, panel);
       db_create_key(hDB, 0, str, TID_KEY);
-      db_find_key(hDB, 0, str, &hkey);
-      assert(hkey);
+      status = db_find_key(hDB, 0, str, &hkey);
+      if (status != DB_SUCCESS || !hkey) {
+         cm_msg(MERROR, "show_hist_page", "Cannot create history panel with invalid ODB path \"%s\"", str);
+         return;
+      }
       db_set_value(hDB, hkey, "Timescale", "1h", NAME_LENGTH, 1, TID_STRING);
       i = 1;
       db_set_value(hDB, hkey, "Zero ylow", &i, sizeof(BOOL), 1, TID_BOOL);
@@ -13924,8 +13933,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
          /* save attachment */
          fh = open(str, O_CREAT | O_RDWR | O_BINARY, 0644);
          if (fh < 0) {
-            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\"",
-                     str);
+            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\"", str);
          } else {
             write(fh, fbuffer, fsize);
             close(fh);
@@ -14398,8 +14406,11 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       if (hkeybutton == 0) {
          /* create default buttons */
          db_create_key(hDB, 0, str, TID_STRING);
-         db_find_key(hDB, 0, str, &hkeybutton);
-	 assert(hkeybutton);
+         status = db_find_key(hDB, 0, str, &hkeybutton);
+         if (status != DB_SUCCESS || !hkey) {
+            cm_msg(MERROR, "show_hist_page", "Cannot create history panel with invalid ODB path \"%s\"", str);
+            return;
+         }
          db_set_data(hDB, hkeybutton, def_button, sizeof(def_button), 7, TID_STRING);
       }
 
