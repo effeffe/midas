@@ -523,7 +523,8 @@ int main(int argc, char **argv)
    INT status, last_time = 0, file_mode;
    HNDLE hDB, hKey;
    char host_name[HOST_NAME_LENGTH], expt_name[NAME_LENGTH], str[32];
-   char ch, svpath[256];
+   char svpath[256];
+   signed char ch;
    INT fHandle, i, j = 0, last_max_line = 0;
    INT msg;
    BOOL debug;

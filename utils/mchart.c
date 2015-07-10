@@ -334,7 +334,8 @@ int main(int argc, char **argv)
    HNDLE hDB, hKey;
    char host_name[HOST_NAME_LENGTH], expt_name[NAME_LENGTH];
    char eqpstr[128] = { '\0' };
-   char ch, cmdline[256];
+   char cmdline[256];
+   signed char ch;
    char mchart_dir[128] = { '\0' }, mchart_data[128], mchart_conf[128];
    INT msg, childpid;
    int sys_err;
