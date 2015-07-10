@@ -15,7 +15,14 @@
 // Alternatively, you can license this library under a commercial
 // license, as set out in <http://cesanta.com/products.html>.
 
+// build MIDAS with explicit dependance on OpenSSL
 #define NO_SSL_DL 1
+
+// if requested a no-openssl build, use dynamically linked openssl option - 
+// mongoose has no support for completely no-openssl build.
+#if defined(NO_SSL)
+#undef  NO_SSL_DL
+#endif
 
 #if defined(_WIN32)
 #undef _UNICODE

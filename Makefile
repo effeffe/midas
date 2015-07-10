@@ -131,6 +131,8 @@ CFLAGS += -DOS_LINUX
 NEED_MYSQL=
 HAVE_ODBC=
 HAVE_SQLITE=
+# For cross compilation targets lacking openssl, define -DNO_SSL
+#CFLAGS += -DNO_SSL
 endif
 
 #-----------------------
@@ -171,6 +173,7 @@ NEED_MYSQL=
 HAVE_ODBC=
 HAVE_SQLITE=
 ROOTSYS=
+SSL_LIBS += -lssl -lcrypto
 endif
 
 #-----------------------
@@ -387,7 +390,7 @@ clean64:
 
 crosscompile:
 	echo OSTYPE=$(OSTYPE)
-	$(MAKE) ROOTSYS= OS_DIR=$(OSTYPE)-crosscompile OSTYPE=crosscompile
+	$(MAKE) ROOTSYS= HAVE_MYSQL= HAVE_ODBC= HAVE_SQLITE= OS_DIR=$(OSTYPE)-crosscompile OSTYPE=crosscompile
 
 linuxarm:
 	echo OSTYPE=$(OSTYPE)
