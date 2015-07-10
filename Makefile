@@ -337,6 +337,7 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/mjson_test \
 	$(BIN_DIR)/mcnaf    \
 	$(BIN_DIR)/rmlogger \
+	$(BIN_DIR)/rmana_link_test \
 	$(SPECIFIC_OS_PRG)
 
 ANALYZER = $(LIB_DIR)/mana.o
@@ -643,6 +644,9 @@ $(BIN_DIR)/mfe_link_test: $(SRC_DIR)/mfe.c
 
 $(BIN_DIR)/mana_link_test: $(SRC_DIR)/mana.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mana.cxx $(LIB) $(LIBS)
+
+$(BIN_DIR)/rmana_link_test: $(SRC_DIR)/mana.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mana.cxx $(ROOTLIBS) $(LIB) $(LIBS)
 
 $(BIN_DIR)/mhdump: $(UTL_DIR)/mhdump.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $<

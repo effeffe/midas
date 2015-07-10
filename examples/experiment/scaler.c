@@ -75,7 +75,7 @@ INT scaler_accum(EVENT_HEADER * pheader, void *pevent)
       return 1;
 
    /* create acummulated scaler bank */
-   bk_create(pevent, "ACUM", TID_DOUBLE, &pacum);
+   bk_create(pevent, "ACUM", TID_DOUBLE, (void**)&pacum);
 
    /* accumulate scalers */
    for (i = 0; i < n; i++) {
