@@ -1930,7 +1930,7 @@ void show_seq_page()
 void sequencer()
 {
    PMXML_NODE pn, pr, pt;
-   char odbpath[256], value[256], data[256], str[256], name[32], op[32];
+   char odbpath[256], value[256], data[256], str[256], str1[256], name[32], op[32];
    char list[100][NAME_LENGTH], *pc;
    int i, l, n, status, size, index, index1, index2, last_line, state, run_number, cont;
    HNDLE hDB, hKey, hKeySeq;
@@ -2336,9 +2336,9 @@ void sequencer()
          }
          seq.wait_value = (float)d;
       } else  if (equal_ustring(mxml_get_attribute(pn, "for"), "ODBValue")) {
-         if (!eval_var(mxml_get_value(pn), str, sizeof(str)))
+         if (!eval_var(mxml_get_value(pn), str1, sizeof(str1)))
             return;
-         v = (float)atof(str);
+         v = (float)atof(str1);
          seq.wait_limit = v;
          strcpy(seq.wait_type, "ODB");
          if (!mxml_get_attribute(pn, "path")) {
@@ -2357,21 +2357,24 @@ void sequencer()
                seq_error(str);
                return;
             } else {
+               if (mxml_get_attribute(pn, "op"))
+                  strlcpy(op, mxml_get_attribute(pn, "op"), sizeof(op));
+               else
+                  strcpy(op, "!=");
+               strlcat(seq.wait_type, op, sizeof(seq.wait_type));
+
                db_get_key(hDB, hKey, &key);
                size = sizeof(data);
                db_get_data_index(hDB, hKey, data, &size, index, key.type);
                db_sprintf(str, data, size, 0, key.type);
-               seq.wait_value = (float)atof(str);
-               if (mxml_get_attribute(pn, "op"))
-                  strlcpy(op, mxml_get_attribute(pn, "op"), sizeof(op));
-               else
-                  strcpy(op, ">=");
-               strlcat(seq.wait_type, op, sizeof(seq.wait_type));
-               
                cont = FALSE;
+               if (key.type == TID_BOOL)
+                  seq.wait_value = (float)(str[0] == 'y');
+               else
+                  seq.wait_value = (float)atof(str);
                if (equal_ustring(op, ">=")) {
                   cont = (seq.wait_value >= seq.wait_limit);
-               } else if (equal_ustring(op, ">")) { 
+               } else if (equal_ustring(op, ">")) {
                   cont = (seq.wait_value > seq.wait_limit);
                } else if (equal_ustring(op, "<=")) {
                   cont = (seq.wait_value >= seq.wait_limit);
