@@ -48,7 +48,6 @@ int strlen_retbuf;
 int return_length;
 char host_name[256];
 char referer[256];
-int tcp_port = 80;
 
 #define MAX_GROUPS    32
 #define MAX_VARS     100
@@ -3902,10 +3901,7 @@ void submit_elog()
    // we do not know if access is through a proxy or redirect
    // we do not know if it's http: or https:, etc. Better
    // to read the whole "mhttpd_full_url" string from ODB.
-   if (tcp_port == 80)
-      sprintf(mhttpd_full_url, "http://%s/", host_name);
-   else
-      sprintf(mhttpd_full_url, "http://%s:%d/", host_name, tcp_port);
+   sprintf(mhttpd_full_url, "http://%s/", host_name);
 
    /* check for mail submissions */
    mail_param[0] = 0;
@@ -16243,9 +16239,13 @@ void ctrlc_handler(int sig)
 
 /*------------------------------------------------------------------*/
 
+#define HAVE_OLDSERVER 1
+
+#ifdef HAVE_OLDSERVER
+
 char net_buffer[WEB_BUFFER_SIZE];
 
-void server_loop()
+void server_loop(int tcp_port)
 {
    int status, i, refresh, tts_enable, n_error;
    struct sockaddr_in bind_addr, acc_addr;
@@ -16292,9 +16292,8 @@ void server_loop()
    status = bind(lsock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
 
    if (status < 0) {
-      printf
-          ("Cannot bind to port %d.\nPlease try later or use the \"-p\" flag to specify a different port\n",
-           tcp_port);
+      printf("Cannot bind to port %d, bind() errno %d (%s)\n", tcp_port, errno, strerror(errno));
+      printf("Please try later or use the \"-p\" flag to specify a different port\n");
       return;
    }
 
@@ -16697,6 +16696,8 @@ void server_loop()
 
    } while (!_abort);
 }
+
+#endif // HAVE_OLDSERVER
 
 /*------------------------------------------------------------------*/
 
@@ -17165,8 +17166,14 @@ int main(int argc, const char *argv[])
    int i, status;
    int daemon = FALSE;
    char str[256];
-   int use_mg = 0;
-   const char* tcp_ports = NULL;
+#ifdef HAVE_MG
+   int use_mg = 1;
+   const char* use_mg_ports = NULL;
+#endif
+#ifdef HAVE_OLDSERVER
+   int use_oldserver = 0;
+   int use_oldserver_port = 80;
+#endif
    const char *myname = "mhttpd";
 
    setbuf(stdout, NULL);
@@ -17193,36 +17200,56 @@ int main(int argc, const char *argv[])
 #ifdef HAVE_MG
       } else if (strcmp(argv[i], "--mg") == 0) {
          use_mg = 1;
+         if (argv[i+1]) {
+            use_mg_ports = argv[i+1];
+         }
       } else if (strcmp(argv[i], "--nomg") == 0) {
          use_mg = 0;
+#endif
+#ifdef HAVE_OLDSERVER
+      } else if (strcmp(argv[i], "--oldserver") == 0) {
+         use_oldserver = 1;
+         if (argv[i+1]) {
+            int port = atoi(argv[i+1]);
+            if (port > 0) {
+               i++;
+               use_oldserver_port = port;
+            }
+         }
+      } else if (strcmp(argv[i], "--nooldserver") == 0) {
+         use_oldserver = 0;
 #endif
       } else if (argv[i][0] == '-') {
          if (i + 1 >= argc || argv[i + 1][0] == '-')
             goto usage;
-         if (argv[i][1] == 'p') {
-            i++;
-            tcp_port = atoi(argv[i]);
-            tcp_ports = argv[i];
-         } else if (argv[i][1] == 'h')
+         if (argv[i][1] == 'h')
             strlcpy(midas_hostname, argv[++i], sizeof(midas_hostname));
          else if (argv[i][1] == 'e')
             strlcpy(midas_expt, argv[++i], sizeof(midas_hostname));
          else if (argv[i][1] == 'a') {
             if (n_allowed_hosts < MAX_N_ALLOWED_HOSTS)
                strlcpy(allowed_host[n_allowed_hosts++], argv[++i], sizeof(allowed_host[0]));
+         } else if (argv[i][1] == 'p') {
+            printf("Option \"-p port_number\" for the old web server is obsolete. mongoose web server is the new default, port number is set in ODB or with \"--mg port_number\". To run the obsolete old web server, please use \"--oldserver\" switch.\n");
+            return 1;
          } else {
           usage:
-            printf("usage: %s [-h Hostname[:port]] [-e Experiment] [-p [host:]port] [-v] [-D] [-a Hostname] [--mg] [--nomg]\n\n", argv[0]);
+            printf("usage: %s [-h Hostname[:port]] [-e Experiment] [-v] [-D] [-a Hostname]\n\n", argv[0]);
             printf("       -h connect to midas server (mserver) on given host\n");
             printf("       -e experiment to connect to\n");
-            printf("       -p listen on tcp port\n");
             printf("       -v display verbose HTTP communication\n");
             printf("       -D become a daemon\n");
             printf("       -E only display ELog system\n");
             printf("       -H only display history plots\n");
             printf("       -a only allow access for specific host(s), several [-a Hostname] statements might be given\n");
-            printf("       --mg use the mongoose web server\n");
+#ifdef HAVE_MG
+            printf("       --mg [port,port,port,...] use the mongoose web server (default) on specified ports (defaults are taken from ODB). Example: --mg 8443s,8080r\n");
             printf("       --nomg use the old mhttpd web server\n");
+#endif
+#ifdef HAVE_OLDSERVER
+            printf("       --oldserver [port] - use the old web server on given port\n");
+            printf("       --nooldserver - do not use the old mhttpd web server\n");
+#endif
             return 0;
          }
       }
@@ -17276,7 +17303,7 @@ int main(int argc, const char *argv[])
    
 #ifdef HAVE_MG
    if (use_mg) {
-      status = start_mg(tcp_ports, verbose);
+      status = start_mg(use_mg_ports, verbose);
       if (status != SUCCESS) {
          // At least print something!
          printf("could not start the mongoose web server, see messages and midas.log, bye!\n");
@@ -17292,13 +17319,19 @@ int main(int argc, const char *argv[])
    /* redirect message display, turn on message logging */
    cm_set_msg_print(MT_ALL, MT_ALL, print_message);
 
-#ifdef HAVE_MG
-   if (!use_mg)
-      server_loop();
-   else
+#if defined(HAVE_MG) && defined(HAVE_OLDSERVER)
+   if (use_oldserver)
+      server_loop(use_oldserver_port);
+   else if (use_mg)
       loop_mg();
+#elif defined(HAVE_MG)
+   if (use_mg)
+      loop_mg();
+#elif defined(HAVE_OLDSERVER)
+   if (use_oldserver)
+      server_loop(use_oldserver_port);
 #else
-   server_loop();
+#error Have neither mongoose web server nor old web server. Please define HAVE_MG or HAVE_OLDSERVER or both
 #endif
 
 #ifdef HAVE_MG
