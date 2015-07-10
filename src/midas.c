@@ -1059,7 +1059,7 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, IN
       time(&now);
       memcpy(&tms, localtime(&now), sizeof(tms));
       
-      if (isnumber(str[0])) {
+      if (str[0] >= '0' && str[0] <= '9') {
          // new format
          tms.tm_hour = atoi(str);
          tms.tm_min = atoi(str+3);
