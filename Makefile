@@ -328,7 +328,6 @@ PROGS = $(BIN_DIR)/mserver $(BIN_DIR)/mhttpd \
 	$(BIN_DIR)/mh2sql \
 	$(BIN_DIR)/mfe_link_test \
 	$(BIN_DIR)/mana_link_test \
-	$(BIN_DIR)/fal_link_test \
 	$(BIN_DIR)/mjson_test \
 	$(BIN_DIR)/mcnaf \
 	$(SPECIFIC_OS_PRG)
@@ -371,7 +370,7 @@ all: check-mxml \
 	$(LIBNAME) $(SHLIB) \
 	$(ANALYZER) \
 	$(LIB_DIR)/mfe.o \
-	$(LIB_DIR)/fal.o $(PROGS)
+	$(PROGS)
 
 dox:
 	doxygen
@@ -570,10 +569,7 @@ endif
 $(LIB_DIR)/history_sql.o $(LIB_DIR)/history_schema.o $(LIB_DIR)/history_midas.o $(LIB_DIR)/mhttpd.o $(LIB_DIR)/mlogger.o: history.h
 
 $(LIB_DIR)/mfe.o: msystem.h midas.h midasinc.h mrpc.h
-$(LIB_DIR)/fal.o: $(SRC_DIR)/fal.cxx msystem.h midas.h midasinc.h mrpc.h
 
-$(LIB_DIR)/fal.o: $(SRC_DIR)/fal.cxx msystem.h midas.h midasinc.h mrpc.h
-	$(CXX) -Dextname -DMANA_LITE -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 $(LIB_DIR)/mana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
 	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 $(LIB_DIR)/hmana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
@@ -635,9 +631,6 @@ $(BIN_DIR)/mdump: $(UTL_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx
 $(BIN_DIR)/mfe_link_test: $(SRC_DIR)/mfe.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mfe.c $(LIB) $(LIBS)
 
-$(BIN_DIR)/fal_link_test: $(SRC_DIR)/fal.cxx
-	$(CXX) $(CFLAGS) $(OSFLAGS) -DMANA_LITE -DLINK_TEST -o $@ $(SRC_DIR)/fal.cxx $(LIB)  $(MYSQL_LIBS) $(LIBS)
-
 $(BIN_DIR)/mana_link_test: $(SRC_DIR)/mana.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mana.cxx $(LIB) $(LIBS)
 
@@ -697,7 +690,7 @@ install:
 	@echo "... Installing library and objects to $(SYSLIB_DIR)"
 	@echo "... "
 
-	@for i in libmidas.a mana.o mfe.o fal.o ; \
+	@for i in libmidas.a mana.o mfe.o ; \
 	  do \
 	  install -v -D -m 644 $(LIB_DIR)/$$i $(SYSLIB_DIR)/$$i ; \
 	  done
