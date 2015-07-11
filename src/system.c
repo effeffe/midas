@@ -127,7 +127,8 @@ static void check_shm_type(const char* shm_type)
 
    cm_get_path(path, sizeof(path));
    if (path[0] == 0) {
-      getcwd(path, sizeof(path));
+      if (!getcwd(path, sizeof(path)))
+         path[0] = 0;
       strlcat(path, "/", sizeof(path));
    }
 
@@ -152,7 +153,9 @@ static void check_shm_type(const char* shm_type)
       }
    }
 
-   fgets(buf, sizeof(buf), fp);
+   if (!fgets(buf, sizeof(buf), fp))
+      buf[0] = 0;
+
    fclose(fp);
 
    s = strchr(buf, '\n');
@@ -209,7 +212,8 @@ static void check_shm_host()
 
    cm_get_path(path, sizeof(path));
    if (path[0] == 0) {
-      getcwd(path, sizeof(path));
+      if (!getcwd(path, sizeof(path)))
+         path[0] = 0;
 #if defined(OS_VMS)
 #elif defined(OS_UNIX)
       strlcat(path, "/", sizeof(path));
@@ -238,7 +242,9 @@ static void check_shm_host()
 
    buf[0] = 0;
 
-   fgets(buf, sizeof(buf), fp);
+   if (!fgets(buf, sizeof(buf), fp))
+      buf[0] = 0;
+
    fclose(fp);
 
    s = strchr(buf, '\n');
@@ -285,7 +291,8 @@ static int ss_shm_name(const char* name, char* mem_name, int mem_name_size, char
    assert(strlen(exptname) > 0);
 
    if (path[0] == 0) {
-      getcwd(path, sizeof(path));
+      if (!getcwd(path, sizeof(path)))
+         path[0] = 0;
 #if defined(OS_VMS)
 #elif defined(OS_UNIX)
       strlcat(path, "/", sizeof(path));
@@ -508,7 +515,9 @@ INT ss_shm_open(const char *name, INT size, void **adr, HNDLE * handle, BOOL get
       if (key == -1) {
          fh = open(file_name, O_CREAT | O_TRUNC | O_BINARY | O_RDWR, 0644);
          if (fh > 0) {
-            ftruncate(fh, size);
+            status = ftruncate(fh, size);
+            if (status != 0)
+               cm_msg(MERROR, "ss_shm_open", "ftruncate() failed, errno %d (%s)", errno, strerror(errno));
             close(fh);
          }
          key = ftok(file_name, 'M');
@@ -575,8 +584,11 @@ INT ss_shm_open(const char *name, INT size, void **adr, HNDLE * handle, BOOL get
          fh = open(file_name, O_RDONLY, 0644);
          if (fh == -1)
             fh = open(file_name, O_CREAT | O_RDWR, 0644);
-         else
-            read(fh, *adr, size);
+         else {
+            int rd = read(fh, *adr, size);
+            if (rd != size)
+               cm_msg(MERROR, "ss_shm_open", "File size mismatch shared memory \'%s\' size %d, file \'%s\' read %d, errno %d (%s)", name, size, file_name, rd, errno, strerror(errno));
+         }
          close(fh);
       }
 
@@ -815,7 +827,8 @@ INT ss_shm_close(const char *name, void *adr, HNDLE handle, INT destroy_flag)
    /* append .SHM and preceed the path for the shared memory file name */
    cm_get_path(path, sizeof(path));
    if (path[0] == 0) {
-      getcwd(path, sizeof(path));
+      if (!getcwd(path, sizeof(path)))
+         path[0] = 0;
 #if defined(OS_VMS)
 #elif defined(OS_UNIX)
       strlcat(path, "/", sizeof(path));
@@ -2235,7 +2248,8 @@ INT ss_semaphore_create(const char *name, HNDLE * semaphore_handle)
          /* Build the filename out of the path and the name of the semaphore */
          cm_get_path(path, sizeof(path));
          if (path[0] == 0) {
-            getcwd(path, sizeof(path));
+            if (!getcwd(path, sizeof(path)))
+               path[0] = 0;
             strlcat(path, "/", sizeof(path));
          }
 
@@ -5073,10 +5087,14 @@ INT ss_tape_status(char *path)
 \********************************************************************/
 {
 #ifdef OS_UNIX
+   int status;
    char str[256];
    /* let 'mt' do the job */
    sprintf(str, "mt -f %s status", path);
-   system(str);
+   status = system(str);
+   if (status == -1)
+      return SS_TAPE_ERROR;
+   return SS_SUCCESS;
 #endif                          /* OS_UNIX */
 
 #ifdef OS_WINNT
@@ -5303,7 +5321,7 @@ INT ss_tape_write_eof(INT channel)
    cm_enable_watchdog(TRUE);
 
    if (status < 0) {
-      cm_msg(MERROR, "ss_tape_write_eof", strerror(errno));
+      cm_msg(MERROR, "ss_tape_write_eof", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
       return errno;
    }
 #endif                          /* OS_UNIX */
@@ -5373,7 +5391,7 @@ INT ss_tape_fskip(INT channel, INT count)
    cm_enable_watchdog(TRUE);
 
    if (status < 0) {
-      cm_msg(MERROR, "ss_tape_fskip", strerror(errno));
+      cm_msg(MERROR, "ss_tape_fskip", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
       return errno;
    }
 #endif                          /* OS_UNIX */
@@ -5433,7 +5451,7 @@ INT ss_tape_rskip(INT channel, INT count)
    cm_enable_watchdog(TRUE);
 
    if (status < 0) {
-      cm_msg(MERROR, "ss_tape_rskip", strerror(errno));
+      cm_msg(MERROR, "ss_tape_rskip", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
       return errno;
    }
 #endif                          /* OS_UNIX */
@@ -5485,7 +5503,7 @@ INT ss_tape_rewind(INT channel)
    cm_enable_watchdog(TRUE);
 
    if (status < 0) {
-      cm_msg(MERROR, "ss_tape_rewind", strerror(errno));
+      cm_msg(MERROR, "ss_tape_rewind", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
       return errno;
    }
 #endif                          /* OS_UNIX */
@@ -5541,7 +5559,7 @@ INT ss_tape_spool(INT channel)
    cm_enable_watchdog(TRUE);
 
    if (status < 0) {
-      cm_msg(MERROR, "ss_tape_rewind", strerror(errno));
+      cm_msg(MERROR, "ss_tape_rewind", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
       return errno;
    }
 #endif                          /* OS_UNIX */
@@ -5597,7 +5615,7 @@ INT ss_tape_mount(INT channel)
    cm_enable_watchdog(TRUE);
 
    if (status < 0) {
-      cm_msg(MERROR, "ss_tape_mount", strerror(errno));
+      cm_msg(MERROR, "ss_tape_mount", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
       return errno;
    }
 #endif                          /* OS_UNIX */
@@ -5653,7 +5671,7 @@ INT ss_tape_unmount(INT channel)
    cm_enable_watchdog(TRUE);
 
    if (status < 0) {
-      cm_msg(MERROR, "ss_tape_unmount", strerror(errno));
+      cm_msg(MERROR, "ss_tape_unmount", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
       return errno;
    }
 #endif                          /* OS_UNIX */
@@ -5698,7 +5716,7 @@ blockn:  >0 = block number, =0 option not available, <0 errno
       if (errno == EIO)
          return 0;
       else {
-         cm_msg(MERROR, "ss_tape_get_blockn", strerror(errno));
+         cm_msg(MERROR, "ss_tape_get_blockn", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
          return -errno;
       }
    }
@@ -6367,8 +6385,9 @@ INT ss_getchar(BOOL reset)
          return 27;
 
       /* cursor keys return 2 chars, others 3 chars */
-      if (c[1] < 65)
-         read(fd, c, 1);
+      if (c[1] < 65) {
+         i = read(fd, c, 1);
+      }
 
       /* convert ESC sequence to CH_xxx */
       switch (c[1]) {
