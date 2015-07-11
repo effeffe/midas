@@ -64,7 +64,9 @@ static void xwrite(const char* filename, int fd, const void* data, int size)
 static int xread(const char* filename, int fd, void* data, int size)
 {
    int rd = read(fd, data, size);
-   if (rd < 0) {
+   if (rd == 0) {
+      // end of file
+   } else if (rd < 0) {
       cm_msg(MERROR, "xread", "cannot read from \'%s\', read(%d) returned %d, errno %d (%s)", filename, size, rd, errno, strerror(errno));
    } else if (rd != size) {
       cm_msg(MERROR, "xread", "truncated read from \'%s\', read(%d) returned %d", filename, size, rd);
@@ -266,7 +268,10 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
          assert(strncmp(str, "$Start$", 7) == 0);
 
          size = atoi(str + 9);
-         xread(file_name, fh, message, size);
+         status = read(fh, message, size);
+         if (status != size || status + 16 != size) {
+            return EL_FILE_ERROR;
+         }
 
          el_decode(message, "Date: ", date, sizeof(date));
          el_decode(message, "Thread: ", thread, sizeof(thread));
@@ -288,7 +293,8 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
 
             lseek(fh, offset + size, SEEK_SET);
             n = xread(file_name, fh, buffer, tail_size);
-            assert(n == tail_size);
+            if (n != tail_size)
+               return EL_FILE_ERROR;
          }
          lseek(fh, offset, SEEK_SET);
       } else {
@@ -739,7 +745,7 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
 
    memset(message, 0, sizeof(message));
 
-   rd = xread("(unknown)", fh, message, size);
+   rd = read(fh, message, size);
    if (rd <= 0 || !((rd + 15 == size) || (rd == size)))
       return EL_FILE_ERROR;
 
