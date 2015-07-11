@@ -889,6 +889,9 @@ int main(int argc, char **argv)
       }
    }
 
+   if (debug)
+      status = SUCCESS;
+
    if (rpc_server[0])
       status = cam_init_rpc("", "", "", "mcnaf", rpc_server);
    else

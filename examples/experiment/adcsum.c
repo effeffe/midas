@@ -23,6 +23,7 @@
 
 /* midas includes */
 #include "midas.h"
+#include "rmidas.h"
 #include "experim.h"
 #include "analyzer.h"
 
@@ -96,7 +97,7 @@ INT adc_summing(EVENT_HEADER * pheader, void *pevent)
       return 1;
 
    /* create ADC sum bank */
-   bk_create(pevent, "ASUM", TID_STRUCT, &asum);
+   bk_create(pevent, "ASUM", TID_STRUCT, (void**)&asum);
 
    /* sum all channels above threashold */
    asum->sum = 0.f;

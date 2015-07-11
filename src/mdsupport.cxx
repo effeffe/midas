@@ -189,8 +189,6 @@ Function value:
 status : from lower function
 \********************************************************************/
 {
-   INT status;
-
    /* fill up record with file name */
    strcpy(my.name, infile);
 
@@ -213,7 +211,7 @@ status : from lower function
    /* open file */
    if (!my.zipfile) {
       if (my.type == LOG_TYPE_TAPE) {
-         status = ss_tape_open(my.name, O_RDONLY | O_BINARY, &my.handle);
+         ss_tape_open(my.name, O_RDONLY | O_BINARY, &my.handle);
       } else if ((my.handle = open(my.name, O_RDONLY | O_BINARY | O_LARGEFILE, 0644)) == -1) {
          printf("dev name :%s Handle:%d \n", my.name, my.handle);
          return (SS_FILE_ERROR);
@@ -276,10 +274,6 @@ Function value:
 status : from lower function
 *******************************************************************/
 {
-   int i;
-
-   i = data_fmt;                /* avoid compiler warning */
-
    switch (my.type) {
    case LOG_TYPE_TAPE:
    case LOG_TYPE_DISK:
@@ -625,10 +619,8 @@ Function value:
 status : from lower function
 \********************************************************************/
 {
-   INT status;
-
    if (data_fmt == FORMAT_MIDAS) {
-      status = midas_event_skip(bl);
+      midas_event_skip(bl);
       return MD_SUCCESS;
    } else
       return MD_UNKNOWN_FORMAT;

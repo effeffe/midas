@@ -48,7 +48,6 @@ int strlen_retbuf;
 int return_length;
 char host_name[256];
 char referer[256];
-int tcp_port = 80;
 
 #define MAX_GROUPS    32
 #define MAX_VARS     100
@@ -73,20 +72,7 @@ char allowed_host[MAX_N_ALLOWED_HOSTS][PARAM_LENGTH];
 int  n_allowed_hosts;
 BOOL expand_equipment;
 
-const char *mname[] = {
-   "January",
-   "February",
-   "March",
-   "April",
-   "May",
-   "June",
-   "July",
-   "August",
-   "September",
-   "October",
-   "November",
-   "December"
-};
+extern const char *mname[];
 
 char type_list[20][NAME_LENGTH] = {
    "Routine",
@@ -980,7 +966,8 @@ FILE *open_resource_file(const char *filename, std::string* pfilename);
 void show_help_page()
 {
    const char *s;
-   char str[256];
+   char str[256], *plist;
+   int i, n;
 
    show_header("Help", "", "./", 0);
    show_navigation_bar("Help");
@@ -1050,18 +1037,37 @@ void show_help_page()
 
    rsprintf("        <tr>\n");
    rsprintf("          <td style=\"text-align:right;\">CWD:</td>\n");
-   getcwd(str, sizeof(str));
+   if (!getcwd(str, sizeof(str)))
+      str[0] = 0;
    rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
    rsprintf("        </tr>\n");
 
-   rsprintf("        <tr>\n");
-   rsprintf("          <td style=\"text-align:right;\">midas.log:</td>\n");
-   cm_msg_get_logfile(NULL, str, sizeof(str), NULL, 0);
-   rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
-   rsprintf("        </tr>\n");
+   
+   n = cm_msg_facilities(&plist);
+   if (n== 1) {
+      rsprintf("        <tr>\n");
+      rsprintf("          <td style=\"text-align:right;\">Sytem logfile:</td>\n");
+      cm_msg_get_logfile("midas", 0, str, sizeof(str), NULL, 0);
+      rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
+      rsprintf("        </tr>\n");
+   } else {
+      rsprintf("        <tr>\n");
+      rsprintf("          <td style=\"text-align:right;\">Logfiles:</td>\n");
+      rsprintf("          <td style=\"text-align:left;\">\n", str);
+      for (i=0 ; i<n ; i++) {
+         cm_msg_get_logfile(plist+i*MAX_STRING_LENGTH, 0, str, sizeof(str), NULL, 0);
+         rsputs(str);
+         if (i<n-1)
+            rsputs("<br />\n");
+      }
+      rsprintf("\n          </td>\n");
+      rsprintf("        </tr>\n");
+      
+   }
+   free(plist);
 
    rsprintf("        <tr>\n");
-   rsprintf("          <td style=\"text-align:right;\">%s:</td>\n", get_css_filename());
+   rsprintf("          <td style=\"text-align:right;\">CSS File:</td>\n");
    std::string f;
    FILE *fp = open_resource_file(get_css_filename(), &f);
    if (fp) {
@@ -1072,7 +1078,7 @@ void show_help_page()
    rsprintf("        </tr>\n");
 
    rsprintf("        <tr>\n");
-   rsprintf("          <td style=\"text-align:right;\">%s:</td>\n", get_js_filename());
+   rsprintf("          <td style=\"text-align:right;\">JavaScript File:</td>\n");
    fp = open_resource_file(get_js_filename(), &f);
    if (fp) {
       fclose(fp);
@@ -1267,7 +1273,7 @@ void exec_script(HNDLE hkey)
 void show_navigation_bar(const char *cur_page)
 {
    HNDLE hDB;
-   char str[1000], dec_path[256], path[256], filename[256], *p;
+   char str[1000], dec_path[256], path[256], filename[256];
    int fh, size;
 
    cm_get_experiment_database(&hDB, NULL);
@@ -1285,14 +1291,15 @@ void show_navigation_bar(const char *cur_page)
       fh = open(filename, O_RDONLY | O_BINARY);
       if (fh > 0) {
          // show file contents
-         p = NULL;
          size = lseek(fh, 0, SEEK_END) + 1;
          lseek(fh, 0, SEEK_SET);
-         p = (char*)malloc(size);
-         memset(p, 0, size);
-         read(fh, p, size);
+         char* p = (char*)malloc(size+1);
+         int rd = read(fh, p, size);
+         if (rd > 0) {
+            p[rd] = 0; // make sure string is zero-terminated
+            rsputs(p);
+         }
          close(fh);
-         rsputs(p);
          free(p);
       } else {
          // show HTML text directly
@@ -1306,9 +1313,9 @@ void show_navigation_bar(const char *cur_page)
    /*---- menu buttons ----*/
 
 #ifdef HAVE_MSCB
-   strlcpy(str, "Status, ODB, Messages, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Help", sizeof(str));
+   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Help", sizeof(str));
 #else
-   strlcpy(str, "Status, ODB, Messages, ELog, Alarms, Programs, History, Sequencer, Config, Help", sizeof(str));
+   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, Sequencer, Config, Help", sizeof(str));
 #endif
    size = sizeof(str);
    db_get_value(hDB, 0, "/Experiment/Menu Buttons", str, &size, TID_STRING, TRUE);
@@ -1316,6 +1323,8 @@ void show_navigation_bar(const char *cur_page)
    /* add one "../" for each level */
    strlcpy(dec_path, get_dec_path(), sizeof(dec_path));
    path[0] = 0;
+
+   char*p;
    for (p = dec_path ; *p ; p++)
       if (*p == '/')
          strlcat(path, "../", sizeof(path));
@@ -1349,12 +1358,12 @@ void show_navigation_bar(const char *cur_page)
 int requested_transition = 0;
 int requested_old_state = 0;
 
-void show_status_page(int refresh, const char *cookie_wpwd)
+void show_status_page(int refresh, int tts_enable, const char *cookie_wpwd)
 {
    int i, j, k, h, m, s, status, size, type, n_alarm, n_items, n_hidden;
    BOOL flag, first, expand;
    char str[1000], msg[256], name[32], ref[256], bgcol[32], fgcol[32], alarm_class[32],
-      value_str[256], status_data[256];
+      value_str[256], status_data[256], spk[256];
    const char *trans_name[] = { "Start", "Stop", "Pause", "Resume" };
    time_t now;
    DWORD difftime;
@@ -1674,6 +1683,13 @@ void show_status_page(int refresh, const char *cookie_wpwd)
                rsprintf("<table width=\"100%%\"><tr><td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"%s\" size=+3>%s: %s</font></td>\n", fgcol,
                         alarm_class, str);
                rsprintf("<td width=\"1%%\" style=\"border:0px;\"><button type=\"button\" onclick=\"document.location.href='?cmd=alrst&name=%s'\"n\">Reset</button></td></tr></table></td></tr>\n", key.name);
+               if (tts_enable) {
+                  // speak alarm
+                  strlcpy(spk, alarm_class, sizeof(spk));
+                  strlcat(spk, ".", sizeof(spk));
+                  strlcat(spk, str, sizeof(spk));
+                  rsprintf("<script type=\"text/javascript\">u=new SpeechSynthesisUtterance('%s');window.speechSynthesis.speak(u);</script>\n", spk);
+               }
             }
          }
       }
@@ -2228,13 +2244,13 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
 /*------------------------------------------------------------------*/
 
-void show_messages_page(int refresh, int n_message)
+void show_messages_page()
 {
-   int size, more;
-   char str[256], *buffer, *line, *pline;
+   int size, i, n;
+   char str[256];
+   char *plist, bclass[256], facility[256];
    time_t now;
    HNDLE hDB;
-   BOOL eob;
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -2244,60 +2260,73 @@ void show_messages_page(int refresh, int n_message)
    time(&now);
 
    show_header("Messages", "GET", "./", 0);
+   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
    show_navigation_bar("Messages");
 
-   /*---- messages ----*/
-   /* more button */
-   if (n_message == 20)
-      more = 100;
+   /*---- facilities button bar ----*/
+
+   if (getparam("facility") && *getparam("facility"))
+      strlcpy(facility, getparam("facility"), sizeof(facility));
    else
-      more = n_message + 100;
+      strlcpy(facility, "midas", sizeof(facility));
+   
+   n = cm_msg_facilities(&plist);
+   
+   if (n > 1) {
+      rsprintf("<table class=\"navigationTable\"><tr><td>\n");
+      for (i=0 ; i<n ; i++) {
+         strlcpy(str, plist+i*MAX_STRING_LENGTH, sizeof(str));
+         if (equal_ustring(str, facility))
+            strlcpy(bclass, "navButtonSel", sizeof(bclass));
+         else
+            strlcpy(bclass, "navButton", sizeof(bclass));
+         rsprintf("<input type=\"button\" name=\"facility\" value=\"%s\" class=\"%s\" ", str, bclass);
+         rsprintf("onclick=\"window.location.href='./?cmd=Messages&facility=%s';return false;\">\n", str);
+      }
+      rsprintf("</td></tr></table>\n");
+   }
+   free(plist);
+   
 
-   rsprintf("<button type=submit name=cmd value=\"More%d\">%d More</button><div class=\"messageBox\" id=\"messageFrame\">\n", more, more);
-   buffer = (char *)malloc(1000000);
-   line = (char *)malloc(1000000);
-   cm_msg_retrieve(n_message, buffer, 1000000);
+   /*---- messages will be dynamically loaded via JS ----*/
 
-   pline = buffer;
-   eob = FALSE;
-
-   do {
-      strlcpy(line, pline, 1000000);
-
-      /* extract single line */
-      if (strchr(line, '\n'))
-         *strchr(line, '\n') = 0;
-      if (strchr(line, '\r'))
-         *strchr(line, '\r') = 0;
-
-      pline += strlen(line);
-
-      while (*pline == '\r' || *pline == '\n')
-         pline++;
-
-      /* check for error */
-      if (strstr(line, ",ERROR]"))
-         rsprintf("<p style=\"color:white;background-color:red; padding:0.25em\">%s</p>", line);
-      else
-         rsprintf("<p style=\"padding:0.25em\">%s</p>", line);
-   } while (!eob && *pline);
-   //title at the bottom so it ends up on top after reversal:
+   rsprintf("<div class=\"messageBox\" id=\"messageFrame\">\n");
    rsprintf("<h1 class=\"subStatusTitle\">Messages</h1>");
-
-
-   //some JS to reverse the order of messages, so latest appears at the top:
-   rsprintf("<script type=\"text/JavaScript\">");
-   rsprintf("var messages = document.getElementById(\"messageFrame\");");
-   rsprintf("var i = messages.childNodes.length;");
-   rsprintf("while (i--)");
-   rsprintf("messages.appendChild(messages.childNodes[i]);");
-   rsprintf("</script>");
-
-
    rsprintf("</div>\n");
-   page_footer(TRUE);
-   free(buffer);
-   free(line);
+   
+   rsprintf("<script type=\"text/javascript\">msg_load('%s');</script>\n", facility);
+
+   rsprintf("</form>\n");
+   rsprintf("</body></html>\n");
+}
+
+/*------------------------------------------------------------------*/
+
+void show_chat_page()
+{
+   show_header("Messages", "GET", "./", 0);
+   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
+   show_navigation_bar("Chat");
+   
+   /*---- messages will be dynamically loaded via JS ----*/
+
+   rsprintf("<div class=\"chatBox\" id=\"chatInput\" style=\"padding:0\">\n");
+   rsprintf("  <table width=\"100%%\"><tr>\n");
+   rsprintf("    <td><input style=\"width:100%%\" type=\"text\" id=\"text\" autofocus=\"autofocus\" onkeypress=\"return chat_kp(event)\"></td>\n");
+   rsprintf("    <td nowrap width=\"10%%\"><input type=\"button\" name=\"send\" value=\"Send\" onClick=\"chat_send()\">");
+   rsprintf("&nbsp;&nbsp;Your name: <input type=\"text\" id=\"name\" size=\"10\" onkeypress=\"return chat_kp(event)\">\n");
+   rsprintf("    <input type=\"checkbox\" name=\"speak\" id=\"speak\">Speak</td>");
+   rsprintf("  </tr></table>");
+   rsprintf("</div>\n");
+   
+   rsprintf("<div class=\"chatBox\" id=\"messageFrame\">\n");
+   rsprintf("<h1 class=\"subStatusTitle\">Chat messages</h1>");
+   rsprintf("</div>\n");
+   
+   rsprintf("<script type=\"text/javascript\">chat_load();</script>\n");
+   
+   rsprintf("</form>\n");
+   rsprintf("</body></html>\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -3810,11 +3839,13 @@ void submit_elog()
             size = lseek(fh, 0, SEEK_END);
             buffer[i] = (char*)M_MALLOC(size);
             lseek(fh, 0, SEEK_SET);
-            read(fh, buffer[i], size);
+            int rd = read(fh, buffer[i], size);
+            if (rd < 0)
+               rd = 0;
             close(fh);
             strlcpy(att_file[i], path, sizeof(att_file[0]));
             _attachment_buffer[i] = buffer[i];
-            _attachment_size[i] = size;
+            _attachment_size[i] = rd;
          } else if (strncmp(path, "/HS/", 4) == 0) {
            buffer[i] = (char*)M_MALLOC(100000);
             size = 100000;
@@ -3895,10 +3926,7 @@ void submit_elog()
    // we do not know if access is through a proxy or redirect
    // we do not know if it's http: or https:, etc. Better
    // to read the whole "mhttpd_full_url" string from ODB.
-   if (tcp_port == 80)
-      sprintf(mhttpd_full_url, "http://%s/", host_name);
-   else
-      sprintf(mhttpd_full_url, "http://%s:%d/", host_name, tcp_port);
+   sprintf(mhttpd_full_url, "http://%s/", host_name);
 
    /* check for mail submissions */
    mail_param[0] = 0;
@@ -4145,10 +4173,12 @@ void show_elog_page(char *path, int path_size)
          /* save attachment */
          fh = open(str, O_CREAT | O_RDWR | O_BINARY, 0644);
          if (fh < 0) {
-            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\"",
-                     str);
+            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", open() errno %d (%s)", str, errno, strerror(errno));
          } else {
-            write(fh, fbuffer, fsize);
+            int wr = write(fh, fbuffer, fsize);
+            if (wr != fsize) {
+               cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", write(%d) returned %d, errno %d (%s)", str, fsize, wr, errno, strerror(errno));
+            }
             close(fh);
          }
 
@@ -4612,7 +4642,8 @@ void show_elog_page(char *path, int path_size)
                   if (f != NULL) {
                      while (!feof(f)) {
                         str[0] = 0;
-                        fgets(str, sizeof(str), f);
+                        if (!fgets(str, sizeof(str), f))
+                           str[0] = 0;
                         if (!strstr(att, ".HTML"))
                            rsputs2(str);
                         else
@@ -5598,7 +5629,7 @@ int evaluate_src(char *key, char *src, double *fvalue)
 {
    HNDLE hDB, hkeyval;
    KEY vkey;
-   int i, n, size, status, ivalue;
+   int i, n, size, ivalue;
    char str[256], data[256], value[256];
 
    cm_get_experiment_database(&hDB, NULL);
@@ -5623,7 +5654,7 @@ int evaluate_src(char *key, char *src, double *fvalue)
 
    db_get_key(hDB, hkeyval, &vkey);
    size = sizeof(data);
-   status = db_get_value(hDB, 0, src, data, &size, vkey.type, FALSE);
+   db_get_value(hDB, 0, src, data, &size, vkey.type, FALSE);
    db_sprintf(value, data, size, 0, vkey.type);
    if (equal_ustring(value, "NAN"))
       return 0;
@@ -6133,7 +6164,7 @@ void do_jrpc_rev0()
       { 0 }
    };
 
-   int status, count = 0, substring = 0, rpc;
+   int count = 0, substring = 0, rpc;
 
    const char *xname   = getparam("name");
    const char *srpc    = getparam("rpc");
@@ -6161,9 +6192,7 @@ void do_jrpc_rev0()
    }
 
    rpc_list[0].id = rpc;
-   status = rpc_register_functions(rpc_list, NULL);
-
-   //printf("cm_register_functions() for format \'%s\' status %d\n", sformat, status);
+   rpc_register_functions(rpc_list, NULL);
 
    show_text_header();
    rsprintf("calling rpc %d | ", rpc);
@@ -6543,8 +6572,9 @@ bool starts_with(const std::string& s1, const char* s2)
 void javascript_commands(const char *cookie_cpwd)
 {
    int status;
-   int size, i, index;
-   char str[TEXT_SIZE], ppath[256], format[256];
+   int size, i, n, index, type;
+   unsigned int t;
+   char str[TEXT_SIZE], ppath[256], format[256], facility[256], user[256];
    HNDLE hDB, hkey;
    KEY key;
    char data[TEXT_SIZE];
@@ -7430,12 +7460,21 @@ void javascript_commands(const char *cookie_cpwd)
    /* process "jmsg" command */
    if (equal_ustring(getparam("cmd"), "jmsg")) {
 
-      i = 1;
-      if (*getparam("n"))
-         i = atoi(getparam("n"));
+      if (getparam("f") && *getparam("f"))
+         strlcpy(facility, getparam("f"), sizeof(facility));
+      else
+         strlcpy(facility, "midas", sizeof(facility));
+
+      n = 1;
+      if (getparam("n") && *getparam("n"))
+         n = atoi(getparam("n"));
+
+      t = 0;
+      if (getparam("t") && getparam("t"))
+         t = atoi(getparam("t"));
 
       show_text_header();
-      cm_msg_retrieve(i, str, sizeof(str));
+      cm_msg_retrieve(facility, t, n, str, sizeof(str));
       rsputs(str);
       return;
    }
@@ -7443,8 +7482,23 @@ void javascript_commands(const char *cookie_cpwd)
    /* process "jgenmsg" command */
    if (equal_ustring(getparam("cmd"), "jgenmsg")) {
 
-      if (*getparam("msg")) {
-         cm_msg(MINFO, "javascript_commands", "%s", getparam("msg"));
+      if (getparam("facility") && *getparam("facility"))
+         strlcpy(facility, getparam("facility"), sizeof(facility));
+      else
+         strlcpy(facility, "midas", sizeof(facility));
+      
+      if (getparam("user") && *getparam("user"))
+         strlcpy(user, getparam("user"), sizeof(user));
+      else
+         strlcpy(user, "javascript_commands", sizeof(user));
+      
+      if (getparam("type") && *getparam("type"))
+         type = atoi(getparam("type"));
+      else
+         type = MT_INFO;
+
+      if (getparam("msg") && *getparam("msg")) {
+         cm_msg1(type, __FILE__, __LINE__, facility, user, "%s", getparam("msg"));
       }
 
       show_text_header();
@@ -7550,7 +7604,7 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
          }
          fh = open(filename, O_RDONLY | O_BINARY);
          if (fh < 0) {
-            sprintf(str, "Cannot open file \"%s\"", filename);
+            sprintf(str, "Cannot open file \"%s\", errno %d (%s)", filename, errno, strerror(errno));
             show_error(str);
             free(ctext);
             return;
@@ -7559,9 +7613,15 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
          ctext = NULL;
          size = lseek(fh, 0, SEEK_END) + 1;
          lseek(fh, 0, SEEK_SET);
-         ctext = (char*)malloc(size);
-         memset(ctext, 0, size);
-         read(fh, ctext, size);
+         ctext = (char*)malloc(size+1);
+         int rd = read(fh, ctext, size);
+         if (rd > 0) {
+            ctext[rd] = 0; // make sure string is zero-terminated
+            size = rd;
+         } else {
+            ctext[0] = 0;
+            size = 0;
+         }
          close(fh);
       }
 
@@ -7582,7 +7642,7 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
                strlcpy(str, path, sizeof(str));
                if (strlen(str)>0 && str[strlen(str)-1] == '&')
                   str[strlen(str)-1] = 0;
-               if (*getparam("pnam"))
+               if (getparam("pnam") && *getparam("pnam"))
                   sprintf(ppath, "/Custom/Pwd/%s", getparam("pnam"));
                else
                   sprintf(ppath, "/Custom/Pwd/%s", str);
@@ -7603,7 +7663,7 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
       /* process toggle command */
       if (equal_ustring(getparam("cmd"), "Toggle")) {
 
-         if (*getparam("pnam")) {
+         if (getparam("pnam") && *getparam("pnam")) {
             sprintf(ppath, "/Custom/Pwd/%s", getparam("pnam"));
             str[0] = 0;
             db_get_value(hDB, 0, ppath, str, &size, TID_STRING, TRUE);
@@ -7911,7 +7971,7 @@ void show_cnaf_page()
 #ifdef HAVE_MSCB
 
 typedef struct {
-   char id;
+   signed char id;
    char name[32];
 } NAME_TABLE;
 
@@ -9501,7 +9561,7 @@ void show_set_page(char *enc_path, int enc_path_size,
 
       memset(data, 0, sizeof(data));
 
-      if (*getparam("text"))
+      if (getparam("text") && *getparam("text"))
          strlcpy(data, getparam("text"), sizeof(data));
       else
          db_sscanf(value, data, &size, 0, key.type);
@@ -10092,7 +10152,7 @@ void show_programs_page()
    cm_get_experiment_database(&hDB, NULL);
 
    /* stop command */
-   if (*getparam("Stop")) {
+   if (getparam("Stop") && *getparam("Stop")) {
       status = cm_shutdown(getparam("Stop") + 5, FALSE);
 
       if (status == CM_SUCCESS)
@@ -10108,7 +10168,7 @@ void show_programs_page()
    }
 
    /* start command */
-   if (*getparam("Start")) {
+   if (getparam("Start") && *getparam("Start")) {
       /* for NT: close reply socket before starting subprocess */
       redirect2("./?cmd=programs");
 
@@ -10268,7 +10328,7 @@ void show_programs_page()
 
 /*------------------------------------------------------------------*/
 
-void show_config_page(int refresh)
+void show_config_page(int refresh, int tts_enable)
 {
    char str[80];
    HNDLE hDB;
@@ -10286,6 +10346,12 @@ void show_config_page(int refresh)
 
    sprintf(str, "5");
    rsprintf("<td><input type=text size=5 maxlength=5 name=refr value=%d>\n", refresh);
+   rsprintf("</tr>\n");
+
+   rsprintf("<tr><td>Text-to-Speech Enable\n");
+
+   sprintf(str, "5");
+   rsprintf("<td><input type=text size=5 maxlength=5 name=ttse value=%d>\n", tts_enable);
    rsprintf("</tr>\n");
 
    rsprintf("<tr><td align=center colspan=2>\n");
@@ -11207,7 +11273,8 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
    //int x_marker;
    int length, aoffset;
    int flag, x1, y1, x2, y2, xs, xs_old, ys, xold, yold, xmaxm;
-   int white, black, grey, ltgrey, red, green, blue;
+   int white, grey, red;
+   //int black, ltgrey, green, blue;
    int fgcol, bgcol, gridcol;
    int curve_col[MAX_VARS], state_col[3];
    char str[256], panel[256], *p, odbpath[256];
@@ -11256,12 +11323,12 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
    gridcol = gdImageColorAllocate(im, r, g, b);
 
    grey = gdImageColorAllocate(im, 192, 192, 192);
-   ltgrey = gdImageColorAllocate(im, 208, 208, 208);
+   //ltgrey = gdImageColorAllocate(im, 208, 208, 208);
    white = gdImageColorAllocate(im, 255, 255, 255);
-   black = gdImageColorAllocate(im, 0, 0, 0);
+   //black = gdImageColorAllocate(im, 0, 0, 0);
    red = gdImageColorAllocate(im, 255, 0, 0);
-   green = gdImageColorAllocate(im, 0, 255, 0);
-   blue = gdImageColorAllocate(im, 0, 0, 255);
+   //green = gdImageColorAllocate(im, 0, 255, 0);
+   //blue = gdImageColorAllocate(im, 0, 0, 255);
 
    curve_col[0] = gdImageColorAllocate(im, 0, 0, 255);
    curve_col[1] = gdImageColorAllocate(im, 0, 192, 0);
@@ -12259,7 +12326,7 @@ void show_query_page(const char *path)
    HNDLE hDB;
    char str[256], redir[256];
 
-   if (*getparam("m1")) {
+   if (getparam("m1") && *getparam("m1")) {
       struct tm tms;
       memset(&tms, 0, sizeof(struct tm));
 
@@ -12534,6 +12601,7 @@ static int cmp_vars(const void *a, const void *b)
    return ((const hist_var_t*)a)->hist_order >= ((const hist_var_t*)b)->hist_order;
 }
 
+#if 0
 static void print_vars(const hist_var_t vars[])
 {
    for (int i=0; i<MAX_VARS; i++) {
@@ -12542,6 +12610,7 @@ static void print_vars(const hist_var_t vars[])
       printf("%d event [%s][%s] factor %f, offset %f, color [%s] label [%s] order %d\n", i, vars[i].event_name, vars[i].var_name, vars[i].hist_factor, vars[i].hist_offset, vars[i].hist_col, vars[i].hist_label, vars[i].hist_order);
    }
 }
+#endif
 
 int xdb_get_data_index(HNDLE hDB, const char* str, void *value, int size, int index, int tid)
 {
@@ -12650,6 +12719,12 @@ static int xdb_find_key(HNDLE hDB, HNDLE dir, const char* str, HNDLE* hKey, int 
 
    db_create_key(hDB, dir, str, tid);
    status = db_find_key(hDB, dir, str, hKey);
+   if (status != DB_SUCCESS || !*hKey) {
+      cm_msg(MERROR, "xdb_find_key", "Invalid ODB path \"%s\"", str);
+      str = "bad_xdb_find_key";
+      db_create_key(hDB, dir, str, tid);
+      db_find_key(hDB, dir, str, hKey);
+   }
    assert(*hKey);
 
    if (tid == TID_STRING) {
@@ -12861,19 +12936,19 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
    if (cmd[0] && equal_ustring(cmd, "save")) {
       save_vars_odb(hDB, path, vars);
 
-      if (*getparam("timescale")) {
+      if (getparam("timescale") && *getparam("timescale")) {
          sprintf(ref, "/History/Display/%s/Timescale", path);
          strlcpy(str, getparam("timescale"), sizeof(str));
          db_set_value(hDB, 0, ref, str, NAME_LENGTH, 1, TID_STRING);
       }
 
-      if (*getparam("minimum")) {
+      if (getparam("minimum") && *getparam("minimum")) {
          float val = (float) strtod(getparam("minimum"),NULL);
          sprintf(ref, "/History/Display/%s/Minimum", path);
          db_set_value(hDB, 0, ref, &val, sizeof(val), 1, TID_FLOAT);
       }
 
-      if (*getparam("maximum")) {
+      if (getparam("maximum") && *getparam("maximum")) {
          float val = (float) strtod(getparam("maximum"),NULL);
          sprintf(ref, "/History/Display/%s/Maximum", path);
          db_set_value(hDB, 0, ref, &val, sizeof(val), 1, TID_FLOAT);
@@ -13186,7 +13261,7 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
 
          status = mh->hs_get_tags(events[e].c_str(), t, &tags);
 
-         if (tags.size() > 0) {
+         if (status == HS_SUCCESS && tags.size() > 0) {
 
             if (sort_vars)
                std::sort(tags.begin(), tags.end(), cmp_tags);
@@ -13292,7 +13367,7 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
 
          status = mh->hs_get_tags(vars[index].event_name, t, &tags);
 
-         if (tags.size() > 0) {
+         if (status == HS_SUCCESS && tags.size() > 0) {
 
             if (0) {
                printf("Compare %d\n", cmp_names("AAA", "BBB"));
@@ -13775,7 +13850,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       return;
    }
 
-   if (*getparam("panel")) {
+   if (getparam("panel") && *getparam("panel")) {
       strlcpy(panel, getparam("panel"), sizeof(panel));
 
       /* strip leading/trailing spaces */
@@ -13794,8 +13869,11 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       /* create new panel */
       sprintf(str, "/History/Display/%s/%s", hgroup, panel);
       db_create_key(hDB, 0, str, TID_KEY);
-      db_find_key(hDB, 0, str, &hkey);
-      assert(hkey);
+      status = db_find_key(hDB, 0, str, &hkey);
+      if (status != DB_SUCCESS || !hkey) {
+         cm_msg(MERROR, "show_hist_page", "Cannot create history panel with invalid ODB path \"%s\"", str);
+         return;
+      }
       db_set_value(hDB, hkey, "Timescale", "1h", NAME_LENGTH, 1, TID_STRING);
       i = 1;
       db_set_value(hDB, hkey, "Zero ylow", &i, sizeof(BOOL), 1, TID_BOOL);
@@ -13915,10 +13993,12 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
          /* save attachment */
          fh = open(str, O_CREAT | O_RDWR | O_BINARY, 0644);
          if (fh < 0) {
-            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\"",
-                     str);
+            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", open() errno %d (%s)", str, errno, strerror(errno));
          } else {
-            write(fh, fbuffer, fsize);
+            int wr = write(fh, fbuffer, fsize);
+            if (wr != fsize) {
+               cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", write(%d) returned %d, errno %d (%s)", str, fsize, wr, errno, strerror(errno));
+            }
             close(fh);
          }
 
@@ -14389,8 +14469,11 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       if (hkeybutton == 0) {
          /* create default buttons */
          db_create_key(hDB, 0, str, TID_STRING);
-         db_find_key(hDB, 0, str, &hkeybutton);
-	 assert(hkeybutton);
+         status = db_find_key(hDB, 0, str, &hkeybutton);
+         if (status != DB_SUCCESS || !hkey) {
+            cm_msg(MERROR, "show_hist_page", "Cannot create history panel with invalid ODB path \"%s\"", str);
+            return;
+         }
          db_set_data(hDB, hkeybutton, def_button, sizeof(def_button), 7, TID_STRING);
       }
 
@@ -15157,7 +15240,7 @@ void send_alarm_sound()
 
 /*------------------------------------------------------------------*/
 
-void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, const char *dec_path, int refresh)
+void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, const char *dec_path, int refresh, int tts_enable)
 /********************************************************************\
 
  Routine: interprete
@@ -15424,7 +15507,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    /*---- alarms reset command --------------------------------------*/
 
    if (equal_ustring(command, "alrst")) {
-      if (*getparam("name"))
+      if (getparam("name") && *getparam("name"))
          al_reset_alarm(getparam("name"));
       redirect("");
       return;
@@ -15787,9 +15870,9 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       }
 
       str[0] = 0;
-      if (*getparam("Start"))
+      if (getparam("Start") && *getparam("Start"))
          sprintf(str, "?cmd=programs&Start=%s", getparam("Start"));
-      if (*getparam("Stop"))
+      if (getparam("Stop") && *getparam("Stop"))
          sprintf(str, "?cmd=programs&Stop=%s", getparam("Stop"));
 
       if (str[0])
@@ -15803,25 +15886,24 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    /*---- config command --------------------------------------------*/
 
    if (equal_ustring(command, "config")) {
-      show_config_page(refresh);
+      show_config_page(refresh, tts_enable);
       return;
    }
 
    /*---- Messages command ------------------------------------------*/
 
    if (equal_ustring(command, "messages")) {
-      show_messages_page(refresh, 20);
+      show_messages_page();
       return;
    }
 
-   if (strncmp(command, "More", 4) == 0 && strncmp(dec_path, "EL/", 3) != 0) {
-      i = atoi(command + 4);
-      if (i == 0)
-         i = 100;
-      show_messages_page(0, i);
+   /*---- Chat command ------------------------------------------*/
+   
+   if (equal_ustring(command, "chat")) {
+      show_chat_page();
       return;
    }
-
+   
    /*---- ELog command ----------------------------------------------*/
 
    if (equal_ustring(command, "elog")) {
@@ -15853,6 +15935,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    if (equal_ustring(command, "accept")) {
       refresh = atoi(getparam("refr"));
+      tts_enable = atoi(getparam("ttse"));
 
       /* redirect with cookie */
       rsprintf("HTTP/1.0 302 Found\r\n");
@@ -15865,6 +15948,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       strftime(str, sizeof(str), "%A, %d-%b-%Y %H:00:00 GMT", gmt);
 
       rsprintf("Set-Cookie: midas_refr=%d; path=/; expires=%s\r\n", refresh, str);
+      rsprintf("Set-Cookie: midas_ttse=%d; path=/; expires=%s\r\n", tts_enable, str);
 
       rsprintf("Location: ./\r\n\r\n<html>redir</html>\r\n");
 
@@ -15944,7 +16028,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
          return;
       }
 
-      show_status_page(refresh, cookie_wpwd);
+      show_status_page(refresh, tts_enable, cookie_wpwd);
       return;
    }
 
@@ -15994,7 +16078,7 @@ void decode_query(const char *query_string)
    free(buf);
 }
 
-void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, int refresh, bool decode_url, const char* url, const char* query_string)
+void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, int refresh, int tts_enable, bool decode_url, const char* url, const char* query_string)
 {
    char path[256];
 
@@ -16028,7 +16112,7 @@ void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, c
    if (decode_url)
       urlDecode(dec_path);
 
-   interprete(cookie_pwd, cookie_wpwd, cookie_cpwd, dec_path, refresh);
+   interprete(cookie_pwd, cookie_wpwd, cookie_cpwd, dec_path, refresh, tts_enable);
 
    freeparam();
 }
@@ -16036,7 +16120,7 @@ void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, c
 /*------------------------------------------------------------------*/
 
 void decode_post(const char *header, char *string, const char *boundary, int length,
-                 const char *cookie_pwd, const char *cookie_wpwd, int refresh, bool decode_url, const char* url)
+                 const char *cookie_pwd, const char *cookie_wpwd, int refresh, int tts_enable, bool decode_url, const char* url)
 {
    char *pinit, *p, *pitem, *ptmp, file_name[256], str[256], path[256];
    int n;
@@ -16150,7 +16234,7 @@ void decode_post(const char *header, char *string, const char *boundary, int len
    if (decode_url)
       urlDecode(dec_path);
 
-   interprete(cookie_pwd, cookie_wpwd, "", dec_path, refresh);
+   interprete(cookie_pwd, cookie_wpwd, "", dec_path, refresh, tts_enable);
 }
 
 /*------------------------------------------------------------------*/
@@ -16228,11 +16312,15 @@ void ctrlc_handler(int sig)
 
 /*------------------------------------------------------------------*/
 
+#define HAVE_OLDSERVER 1
+
+#ifdef HAVE_OLDSERVER
+
 char net_buffer[WEB_BUFFER_SIZE];
 
-void server_loop()
+void server_loop(int tcp_port)
 {
-   int status, i, refresh, n_error;
+   int status, i, refresh, tts_enable, n_error;
    struct sockaddr_in bind_addr, acc_addr;
    char cookie_pwd[256], cookie_wpwd[256], cookie_cpwd[256], boundary[256], *p;
    int lsock, flag, content_length, header_length;
@@ -16277,9 +16365,8 @@ void server_loop()
    status = bind(lsock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
 
    if (status < 0) {
-      printf
-          ("Cannot bind to port %d.\nPlease try later or use the \"-p\" flag to specify a different port\n",
-           tcp_port);
+      printf("Cannot bind to port %d, bind() errno %d (%s)\n", tcp_port, errno, strerror(errno));
+      printf("Please try later or use the \"-p\" flag to specify a different port\n");
       return;
    }
 
@@ -16296,8 +16383,8 @@ void server_loop()
 
 #ifdef OS_UNIX
    /* give up root privilege */
-   setuid(getuid());
-   setgid(getgid());
+   assert(setuid(getuid()) == 0);
+   assert(setgid(getgid()) == 0);
 #endif
 
    /* listen for connection */
@@ -16559,6 +16646,12 @@ void server_loop()
          else
             refresh = DEFAULT_REFRESH;
 
+         tts_enable = 0;
+         if (strstr(net_buffer, "midas_ttse=") != NULL)
+            tts_enable = atoi(strstr(net_buffer, "midas_ttse=") + 11);
+         else
+            tts_enable = 0;
+
          if (strstr(net_buffer, "expeq=") != NULL)
             expand_equipment = atoi(strstr(net_buffer, "expeq=") + 6);
          else
@@ -16620,7 +16713,7 @@ void server_loop()
                locked = true;
             }
             /* decode command and return answer */
-            decode_get(net_buffer + 4, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, true, NULL, NULL);
+            decode_get(net_buffer + 4, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, tts_enable, true, NULL, NULL);
          } else {
             if (request_mutex) {
                status = ss_mutex_wait_for(request_mutex, 0);
@@ -16628,7 +16721,7 @@ void server_loop()
                locked = true;
             }
             decode_post(net_buffer + 5, net_buffer + header_length, boundary,
-                        content_length, cookie_pwd, cookie_wpwd, refresh,
+                        content_length, cookie_pwd, cookie_wpwd, refresh, tts_enable, 
                         true, NULL);
          }
 
@@ -16676,6 +16769,8 @@ void server_loop()
 
    } while (!_abort);
 }
+
+#endif // HAVE_OLDSERVER
 
 /*------------------------------------------------------------------*/
 
@@ -16770,13 +16865,19 @@ static int event_handler_mg(struct mg_event *event)
       if (p)
          refresh = atoi(p);
 
+      // extract refresh rate
+      int tts_enable = 0;
+      p = find_cookie_mg(event, "midas_ttse");
+      if (p)
+         tts_enable = atoi(p);
+
       bool locked = false;
 
       if (strcmp( event->request_info->request_method, "GET") == 0) {
          status = ss_mutex_wait_for(request_mutex, 0);
          assert(status == SS_SUCCESS);
          locked = true;
-         decode_get(NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, false, event->request_info->uri, event->request_info->query_string);
+         decode_get(NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, tts_enable, false, event->request_info->uri, event->request_info->query_string);
       } else if (strcmp( event->request_info->request_method, "POST") == 0) {
 
          int max_post_data = 1024*1024;
@@ -16798,7 +16899,7 @@ static int event_handler_mg(struct mg_event *event)
          status = ss_mutex_wait_for(request_mutex, 0);
          assert(status == SS_SUCCESS);
          locked = true;
-         decode_post(NULL, post_data, boundary, post_data_len, cookie_pwd, cookie_wpwd, refresh, false, event->request_info->uri);
+         decode_post(NULL, post_data, boundary, post_data_len, cookie_pwd, cookie_wpwd, refresh, tts_enable, false, event->request_info->uri);
          free(post_data);
       }
 
@@ -16953,9 +17054,6 @@ int start_mg(const char* tcp_ports, int verbose)
    if (verbose)
       debug_mg = 1;
 
-   // List of options. Last element must be NULL.
-   //const char *options[] = {"num_threads", "5", "listening_ports", "8081,8043s", "ssl_certificate", "ssl_cert.pem", NULL};
-
    status = cm_get_experiment_database(&hDB, NULL);
    assert(status == CM_SUCCESS);
 
@@ -16980,15 +17078,13 @@ int start_mg(const char* tcp_ports, int verbose)
       tcp_ports = mongoose_ports;
 
    if (tcp_ports) {
-      //printf("ports [%s]\n", ports);
       add_option_mg("listening_ports", tcp_ports);
       have_ports = true;
       if (strchr(tcp_ports, 's')) {
          need_cert_file = true;
          need_password_file = true;
       }
-      cm_msg(MINFO, "mongoose", "mongoose web server will listen on ports \"%s\"", tcp_ports);
-      //printf("mongoose web server will listen on ports \"%s\" (use https:// for ports marked \'s\')\n", ports);
+      printf("Web server will listen on ports \"%s\"\n", tcp_ports);
    }
 
    if (!have_ports)
@@ -17004,7 +17100,7 @@ int start_mg(const char* tcp_ports, int verbose)
          return SS_FILE_ERROR;
       }
 
-      cm_msg(MINFO, "mongoose", "mongoose web server will use SSL certificate file \"%s\"", path.c_str());
+      printf("Web server will use SSL certificate file \"%s\"\n", path.c_str());
       add_option_mg("ssl_certificate", path.c_str());
    }
 
@@ -17065,11 +17161,11 @@ int start_mg(const char* tcp_ports, int verbose)
       add_option_mg("authentication_domain", realm);
       add_option_mg("global_auth_file", path.c_str());
 
-      cm_msg(MINFO, "mongoose", "mongoose web server will use authentication realm \"%s\", password file \"%s\"", realm, path.c_str());
+      printf("Web server will use authentication realm \"%s\", password file \"%s\"\n", realm, path.c_str());
    }
 
    if (strlen(mongoose_acl) > 0) {
-      cm_msg(MINFO, "mongoose", "mongoose web server access control list: \"%s\"", mongoose_acl);
+      printf("Web server access control list: \"%s\"\n", mongoose_acl);
       add_option_mg("access_control_list", mongoose_acl);
    }
 
@@ -17138,8 +17234,14 @@ int main(int argc, const char *argv[])
    int i, status;
    int daemon = FALSE;
    char str[256];
-   int use_mg = 0;
-   const char* tcp_ports = NULL;
+#ifdef HAVE_MG
+   int use_mg = 1;
+   const char* use_mg_ports = NULL;
+#endif
+#ifdef HAVE_OLDSERVER
+   int use_oldserver = 0;
+   int use_oldserver_port = 80;
+#endif
    const char *myname = "mhttpd";
 
    setbuf(stdout, NULL);
@@ -17166,36 +17268,59 @@ int main(int argc, const char *argv[])
 #ifdef HAVE_MG
       } else if (strcmp(argv[i], "--mg") == 0) {
          use_mg = 1;
+         if (argv[i+1]) {
+            use_mg_ports = argv[i+1];
+         }
       } else if (strcmp(argv[i], "--nomg") == 0) {
          use_mg = 0;
+#endif
+#ifdef HAVE_OLDSERVER
+      } else if (strcmp(argv[i], "--oldserver") == 0) {
+         use_oldserver = 1;
+         if (argv[i+1]) {
+            int port = atoi(argv[i+1]);
+            if (port > 0) {
+               i++;
+               use_oldserver_port = port;
+            }
+         }
+      } else if (strcmp(argv[i], "--nooldserver") == 0) {
+         use_oldserver = 0;
 #endif
       } else if (argv[i][0] == '-') {
          if (i + 1 >= argc || argv[i + 1][0] == '-')
             goto usage;
-         if (argv[i][1] == 'p') {
-            i++;
-            tcp_port = atoi(argv[i]);
-            tcp_ports = argv[i];
-         } else if (argv[i][1] == 'h')
+         if (argv[i][1] == 'h')
             strlcpy(midas_hostname, argv[++i], sizeof(midas_hostname));
          else if (argv[i][1] == 'e')
             strlcpy(midas_expt, argv[++i], sizeof(midas_hostname));
          else if (argv[i][1] == 'a') {
             if (n_allowed_hosts < MAX_N_ALLOWED_HOSTS)
                strlcpy(allowed_host[n_allowed_hosts++], argv[++i], sizeof(allowed_host[0]));
+         } else if (argv[i][1] == 'p') {
+            printf("Option \"-p port_number\" for the old web server is obsolete.\n");
+            printf("mongoose web server is the new default, port number is set in ODB or with \"--mg port_number\".\n");
+            printf("To run the obsolete old web server, please use \"--oldserver\" switch.\n");
+            return 1;
          } else {
           usage:
-            printf("usage: %s [-h Hostname[:port]] [-e Experiment] [-p [host:]port] [-v] [-D] [-a Hostname] [--mg] [--nomg]\n\n", argv[0]);
+            printf("usage: %s [-h Hostname[:port]] [-e Experiment] [-v] [-D] [-a Hostname]\n\n", argv[0]);
             printf("       -h connect to midas server (mserver) on given host\n");
             printf("       -e experiment to connect to\n");
-            printf("       -p listen on tcp port\n");
             printf("       -v display verbose HTTP communication\n");
             printf("       -D become a daemon\n");
             printf("       -E only display ELog system\n");
             printf("       -H only display history plots\n");
             printf("       -a only allow access for specific host(s), several [-a Hostname] statements might be given\n");
-            printf("       --mg use the mongoose web server\n");
+#ifdef HAVE_MG
+            printf("       --mg [port,port,port,...] use the mongoose web server (default) on specified ports \n");
+            printf("          (defaults are taken from ODB). Example: --mg 8443s,8080r\n");
             printf("       --nomg use the old mhttpd web server\n");
+#endif
+#ifdef HAVE_OLDSERVER
+            printf("       --oldserver [port] - use the old web server on given port\n");
+            printf("       --nooldserver - do not use the old mhttpd web server\n");
+#endif
             return 0;
          }
       }
@@ -17245,11 +17370,9 @@ int main(int argc, const char *argv[])
    /* initialize sequencer */
    init_sequencer();
 
-   cm_msg1(MINFO, "lazy", "main", "This is a test of the LAZY facility");
-   
 #ifdef HAVE_MG
    if (use_mg) {
-      status = start_mg(tcp_ports, verbose);
+      status = start_mg(use_mg_ports, verbose);
       if (status != SUCCESS) {
          // At least print something!
          printf("could not start the mongoose web server, see messages and midas.log, bye!\n");
@@ -17265,13 +17388,19 @@ int main(int argc, const char *argv[])
    /* redirect message display, turn on message logging */
    cm_set_msg_print(MT_ALL, MT_ALL, print_message);
 
-#ifdef HAVE_MG
-   if (!use_mg)
-      server_loop();
-   else
+#if defined(HAVE_MG) && defined(HAVE_OLDSERVER)
+   if (use_oldserver)
+      server_loop(use_oldserver_port);
+   else if (use_mg)
       loop_mg();
+#elif defined(HAVE_MG)
+   if (use_mg)
+      loop_mg();
+#elif defined(HAVE_OLDSERVER)
+   if (use_oldserver)
+      server_loop(use_oldserver_port);
 #else
-   server_loop();
+#error Have neither mongoose web server nor old web server. Please define HAVE_MG or HAVE_OLDSERVER or both
 #endif
 
 #ifdef HAVE_MG

@@ -15,6 +15,15 @@
 // Alternatively, you can license this library under a commercial
 // license, as set out in <http://cesanta.com/products.html>.
 
+// build MIDAS with explicit dependance on OpenSSL
+#define NO_SSL_DL 1
+
+// if requested a no-openssl build, use dynamically linked openssl option - 
+// mongoose has no support for completely no-openssl build.
+#if defined(NO_SSL)
+#undef  NO_SSL_DL
+#endif
+
 #if defined(_WIN32)
 #undef _UNICODE
 #undef _MBCS
@@ -1936,6 +1945,8 @@ static int mg_chunked_printf(struct mg_connection *conn, const char *fmt, ...) {
 
 
 #if !defined(NO_SSL)
+
+#if !defined(NO_SSL_DL)
 // set_ssl_option() function updates this array.
 // It loads SSL library dynamically and changes NULLs to the actual addresses
 // of respective functions. The macros above (like SSL_connect()) are really
@@ -1979,6 +1990,7 @@ static struct ssl_func crypto_sw[] = {
   {"ERR_error_string", NULL},
   {NULL,    NULL}
 };
+#endif
 
 static pthread_mutex_t *ssl_mutexes;
 
@@ -2211,7 +2223,7 @@ static SOCKET conn2(const char *host, int port, int use_ssl,
   if (host == NULL) {
     snprintf(ebuf, ebuf_len, "%s", "NULL host");
 #ifndef NO_SSL
-  } else if (use_ssl && SSLv23_client_method == NULL) {
+  } else if (use_ssl && (void *)SSLv23_client_method == NULL) {
     snprintf(ebuf, ebuf_len, "%s", "SSL is not initialized");
     // TODO(lsm): use something threadsafe instead of gethostbyname()
 #endif

@@ -138,7 +138,7 @@ INT mchart_get_names(HNDLE hDB, char *eqpstr, char *element, char **pname, INT *
    char strtmp[128];
    HNDLE hKeyS, hSubKey;
    KEY key;
-   INT i, size, status;
+   INT i, size;
    BOOL bslash = FALSE;
 
    /* convert to upper */
@@ -178,7 +178,7 @@ INT mchart_get_names(HNDLE hDB, char *eqpstr, char *element, char **pname, INT *
                   *esize = key.item_size;
                   size = *esize * key.num_values;
                   *pname = malloc(size);
-                  status = db_get_data(hDB, hSubKey, *pname, &size, key.type);
+                  db_get_data(hDB, hSubKey, *pname, &size, key.type);
                   return key.num_values;
                }
             }
@@ -193,7 +193,7 @@ INT mchart_get_names(HNDLE hDB, char *eqpstr, char *element, char **pname, INT *
                   *esize = key.item_size;
                   size = *esize * key.num_values;
                   *pname = malloc(size);
-                  status = db_get_data(hDB, hSubKey, *pname, &size, key.type);
+                  db_get_data(hDB, hSubKey, *pname, &size, key.type);
                   return key.num_values;
                }
             }
@@ -334,7 +334,8 @@ int main(int argc, char **argv)
    HNDLE hDB, hKey;
    char host_name[HOST_NAME_LENGTH], expt_name[NAME_LENGTH];
    char eqpstr[128] = { '\0' };
-   char ch, cmdline[256];
+   char cmdline[256];
+   signed char ch;
    char mchart_dir[128] = { '\0' }, mchart_data[128], mchart_conf[128];
    INT msg, childpid;
    int sys_err;

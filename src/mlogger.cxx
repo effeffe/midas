@@ -14,6 +14,7 @@
 #include "hardware.h"
 #include <errno.h>              /* for mkdir() */
 #include <assert.h>
+#include <string>
 
 #ifndef HAVE_STRLCPY
 #include "strlcpy.h"
@@ -740,6 +741,16 @@ int log_create_writer(LOG_CHN *log_chn)
    return SS_SUCCESS;
 }
 
+/*---- Utility functions      --------------------------------------*/
+
+static void xwrite(const char* filename, int fd, const void* data, int size)
+{
+   int wr = write(fd, data, size);
+   if (wr != size) {
+      cm_msg(MERROR, "xwrite", "cannot write to \'%s\', write(%d) returned %d, errno %d (%s)", filename, size, wr, errno, strerror(errno));
+   }
+}
+
 /*---- Logging initialization --------------------------------------*/
 
 void logger_init()
@@ -886,7 +897,7 @@ typedef struct {
    char data[256];
 } SQL_LIST;
 
-const char *mname[] = {
+static const char *mname[] = {
    "January",
    "February",
    "March",
@@ -969,10 +980,10 @@ int mysql_query_debug(MYSQL * db, char *query)
 
       fh = open(path, O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
       if (fh < 0) {
-         printf("Cannot open message log file %s\n", path);
+         printf("Cannot open message log file \'%s\', open() returned %d, errno %d (%s)\n", path, fh, errno, strerror(errno));
       } else {
-         write(fh, query, strlen(query));
-         write(fh, ";\n", 2);
+         xwrite(path, fh, query, strlen(query));
+         xwrite(path, fh, ";\n", 2);
          close(fh);
       }
    }
@@ -1254,7 +1265,7 @@ int sql_insert(MYSQL * db, char *database, char *table, HNDLE hKeyRoot, BOOL cre
 
       } else {
          status = mysql_errno(db);
-         cm_msg(MERROR, "sql_insert", "Failed to update database: Error: %s", mysql_error(db));
+         cm_msg(MERROR, "sql_insert", "Failed to update database: Errno: %d, Error: %s", status, mysql_error(db));
          return mysql_errno(db);
       }
    }
@@ -1513,33 +1524,6 @@ void write_sql(BOOL bor)
 
 #endif                          // HAVE_MYSQL
 
-/*---- open tape and check for data --------------------------------*/
-
-INT tape_open(char *dev, INT * handle)
-{
-   INT status, count;
-   char buffer[16];
-
-   status = ss_tape_open(dev, O_RDWR | O_CREAT | O_TRUNC, handle);
-   if (status != SS_SUCCESS)
-      return status;
-
-   /* check if tape contains data */
-   count = sizeof(buffer);
-   status = ss_tape_read(*handle, buffer, &count);
-
-   if (count == sizeof(buffer)) {
-      /* tape contains data -> don't start */
-      ss_tape_rskip(*handle, -1);
-      cm_msg(MINFO, "tape_open", "Tape contains data, please spool tape with 'mtape seod'");
-      cm_msg(MINFO, "tape_open", "or erase it with 'mtape weof', 'mtape rewind', then try again.");
-      ss_tape_close(*handle);
-      return SS_TAPE_ERROR;
-   }
-
-   return SS_SUCCESS;
-}
-
 /*---- open FTP channel --------------------------------------------*/
 
 INT ftp_error(char *message)
@@ -1637,9 +1621,7 @@ INT midas_flush_buffer(LOG_CHN * log_chn)
       return 0;
 
    /* write record to device */
-   if (log_chn->type == LOG_TYPE_TAPE)
-      written = ss_tape_write(log_chn->handle, info->buffer, size);
-   else if (log_chn->type == LOG_TYPE_FTP)
+   if (log_chn->type == LOG_TYPE_FTP)
       written =
           ftp_send(((FTP_CON *) log_chn->ftp_con)->data, info->buffer,
                    size) == size ? SS_SUCCESS : SS_FILE_ERROR;
@@ -1815,15 +1797,7 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
    info->write_pointer = info->buffer;
 
    /* Create device channel */
-   if (log_chn->type == LOG_TYPE_TAPE) {
-      status = tape_open(log_chn->path, &log_chn->handle);
-      if (status != SS_SUCCESS) {
-         free(info->buffer);
-         free(info);
-         log_chn->handle = 0;
-         return status;
-      }
-   } else if (log_chn->type == LOG_TYPE_FTP) {
+   if (log_chn->type == LOG_TYPE_FTP) {
       status = ftp_open(log_chn->path, &log_chn->ftp_con);
       if (status != SS_SUCCESS) {
          free(info->buffer);
@@ -1972,12 +1946,7 @@ INT midas_log_close(LOG_CHN * log_chn, INT run_number)
    log_chn->statistics.bytes_written += written;
    log_chn->statistics.bytes_written_total += written;
 
-   /* Write EOF if Tape */
-   if (log_chn->type == LOG_TYPE_TAPE) {
-      /* writing EOF mark on tape Fonly */
-      ss_tape_write_eof(log_chn->handle);
-      ss_tape_close(log_chn->handle);
-   } else if (log_chn->type == LOG_TYPE_FTP) {
+   if (log_chn->type == LOG_TYPE_FTP) {
       ftp_close(log_chn->ftp_con);
       ftp_bye(log_chn->ftp_con);
    } else {
@@ -2056,7 +2025,7 @@ EVENT_DEF *db_get_event_definition(short int event_id)
    /* check for system events */
    if (event_id < 0) {
       event_def[index].event_id = event_id;
-      event_def[index].format = FORMAT_ASCII;
+      event_def[index].format = FORMAT_MIDAS;
       event_def[index].hDefKey = 0;
       return &event_def[index];
    }
@@ -2090,16 +2059,10 @@ EVENT_DEF *db_get_event_definition(short int event_id)
 
          if (equal_ustring(str, "Fixed"))
             event_def[index].format = FORMAT_FIXED;
-         else if (equal_ustring(str, "ASCII"))
-            event_def[index].format = FORMAT_ASCII;
          else if (equal_ustring(str, "MIDAS"))
             event_def[index].format = FORMAT_MIDAS;
-         else if (equal_ustring(str, "YBOS"))
-            event_def[index].format = FORMAT_YBOS;
-         else if (equal_ustring(str, "DUMP"))
-            event_def[index].format = FORMAT_DUMP;
          else {
-            cm_msg(MERROR, "db_get_event_definition", "unknown data format");
+            cm_msg(MERROR, "db_get_event_definition", "unknown data format name \"%s\"", str);
             event_def[index].event_id = 0;
             return NULL;
          }
@@ -2108,485 +2071,6 @@ EVENT_DEF *db_get_event_definition(short int event_id)
          return &event_def[index];
       }
    }
-}
-
-/*---- DUMP format routines ----------------------------------------*/
-
-#define STR_INC(p,base) { p+=strlen(p); \
-                          if (p > base+sizeof(base)) \
-                            cm_msg(MERROR, "STR_INC", "ASCII buffer too small"); }
-
-
-INT dump_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
-{
-   INT status, size, i, j;
-   EVENT_DEF *event_def;
-   BANK_HEADER *pbh;
-   BANK *pbk;
-   BANK32 *pbk32;
-   void *pdata;
-   char buffer[100000], *pbuf, name[5], type_name[10];
-   HNDLE hKey;
-   KEY key;
-   DWORD bkname;
-   WORD bktype;
-   static DWORD stat_last = 0;
-
-   event_def = db_get_event_definition(pevent->event_id);
-   if (event_def == NULL)
-      return SS_SUCCESS;
-
-   /* write event header */
-   pbuf = buffer;
-   name[4] = 0;
-
-   if (pevent->event_id == EVENTID_BOR)
-      sprintf(pbuf, "%%ID BOR NR %d\n", pevent->serial_number);
-   else if (pevent->event_id == EVENTID_EOR)
-      sprintf(pbuf, "%%ID EOR NR %d\n", pevent->serial_number);
-   else
-      sprintf(pbuf, "%%ID %d TR %d NR %d\n", pevent->event_id, pevent->trigger_mask, pevent->serial_number);
-   STR_INC(pbuf, buffer);
-
-  /*---- MIDAS format ----------------------------------------------*/
-   if (event_def->format == FORMAT_MIDAS) {
-      LRS1882_DATA *lrs1882;
-      LRS1877_DATA *lrs1877;
-      LRS1877_HEADER *lrs1877_header;
-
-      pbh = (BANK_HEADER *) (pevent + 1);
-      bk_swap(pbh, FALSE);
-
-      pbk = NULL;
-      pbk32 = NULL;
-      do {
-         /* scan all banks */
-         if (bk_is32(pbh)) {
-            size = bk_iterate32(pbh, &pbk32, &pdata);
-            if (pbk32 == NULL)
-               break;
-            bkname = *((DWORD *) pbk32->name);
-            bktype = (WORD) pbk32->type;
-         } else {
-            size = bk_iterate(pbh, &pbk, &pdata);
-            if (pbk == NULL)
-               break;
-            bkname = *((DWORD *) pbk->name);
-            bktype = (WORD) pbk->type;
-         }
-
-         if (rpc_tid_size(bktype & 0xFF))
-            size /= rpc_tid_size(bktype & 0xFF);
-
-         lrs1882 = (LRS1882_DATA *) pdata;
-         lrs1877 = (LRS1877_DATA *) pdata;
-         lrs1877_header = (LRS1877_HEADER *) pdata;
-
-         /* write bank header */
-         *((DWORD *) name) = bkname;
-
-         if ((bktype & 0xFF00) == 0)
-            strcpy(type_name, rpc_tid_name(bktype & 0xFF));
-         else if ((bktype & 0xFF00) == TID_LRS1882)
-            strcpy(type_name, "LRS1882");
-         else if ((bktype & 0xFF00) == TID_LRS1877)
-            strcpy(type_name, "LRS1877");
-         else if ((bktype & 0xFF00) == TID_PCOS3)
-            strcpy(type_name, "PCOS3");
-         else
-            strcpy(type_name, "unknown");
-
-         sprintf(pbuf, "BK %s TP %s SZ %d\n", name, type_name, size);
-         STR_INC(pbuf, buffer);
-
-         /* write data */
-         for (i = 0; i < size; i++) {
-            if ((bktype & 0xFF00) == 0)
-               db_sprintf(pbuf, pdata, size, i, bktype & 0xFF);
-
-            else if ((bktype & 0xFF00) == TID_LRS1882)
-               sprintf(pbuf, "GA %d CH %02d DA %d", lrs1882[i].geo_addr, lrs1882[i].channel, lrs1882[i].data);
-
-            else if ((bktype & 0xFF00) == TID_LRS1877) {
-               if (i == 0)      /* header */
-                  sprintf(pbuf, "GA %d BF %d CN %d",
-                          lrs1877_header[i].geo_addr, lrs1877_header[i].buffer, lrs1877_header[i].count);
-               else             /* data */
-                  sprintf(pbuf, "GA %d CH %02d ED %d DA %1.1lf",
-                          lrs1877[i].geo_addr, lrs1877[i].channel, lrs1877[i].edge, lrs1877[i].data * 0.5);
-            }
-
-            else if ((bktype & 0xFF00) == TID_PCOS3)
-               *pbuf = '\0';
-            else
-               db_sprintf(pbuf, pdata, size, i, bktype & 0xFF);
-
-            strcat(pbuf, "\n");
-            STR_INC(pbuf, buffer);
-         }
-
-      } while (1);
-   }
-
-  /*---- FIXED format ----------------------------------------------*/
-   if (event_def->format == FORMAT_FIXED) {
-      if (event_def->hDefKey == 0)
-         cm_msg(MERROR, "dump_write", "cannot find event definition");
-      else {
-         pdata = (char *) (pevent + 1);
-         for (i = 0;; i++) {
-            status = db_enum_key(hDB, event_def->hDefKey, i, &hKey);
-            if (status == DB_NO_MORE_SUBKEYS)
-               break;
-
-            db_get_key(hDB, hKey, &key);
-            sprintf(pbuf, "%s\n", key.name);
-            STR_INC(pbuf, buffer);
-
-            /* adjust for alignment */
-            pdata = (void *) VALIGN(pdata, MIN(ss_get_struct_align(), key.item_size));
-
-            for (j = 0; j < key.num_values; j++) {
-               db_sprintf(pbuf, pdata, key.item_size, j, key.type);
-               strcat(pbuf, "\n");
-               STR_INC(pbuf, buffer);
-            }
-
-            /* shift data pointer to next item */
-            pdata = ((char *) pdata) + key.item_size * key.num_values;
-         }
-      }
-   }
-
-  /*---- ASCII format ----------------------------------------------*/
-   if (event_def->format == FORMAT_ASCII) {
-      /* write event header to device */
-      size = strlen(buffer);
-      if (log_chn->type == LOG_TYPE_TAPE)
-         status = ss_tape_write(log_chn->handle, buffer, size);
-      else
-         status = write(log_chn->handle, buffer, size) == size ? SS_SUCCESS : SS_FILE_ERROR;
-
-      /* write event directly to device */
-      size = strlen((char *) (pevent + 1));
-      if (log_chn->type == LOG_TYPE_TAPE)
-         status = ss_tape_write(log_chn->handle, (char *) (pevent + 1), size);
-      else if (log_chn->type == LOG_TYPE_FTP)
-         status = ftp_send((log_chn->ftp_con)->data, buffer, size) == size ?
-             SS_SUCCESS : SS_FILE_ERROR;
-      else
-         status = write(log_chn->handle, (char *) (pevent + 1), size) == size ? SS_SUCCESS : SS_FILE_ERROR;
-   } else {
-      /* non-ascii format: only write buffer */
-
-      /* insert empty line after each event */
-      strcat(pbuf, "\n");
-      size = strlen(buffer);
-
-      /* write record to device */
-      if (log_chn->type == LOG_TYPE_TAPE)
-         status = ss_tape_write(log_chn->handle, buffer, size);
-      else if (log_chn->type == LOG_TYPE_FTP)
-         status = ftp_send((log_chn->ftp_con)->data, buffer, size) == size ?
-             SS_SUCCESS : SS_FILE_ERROR;
-      else
-         status = write(log_chn->handle, buffer, size) == size ? SS_SUCCESS : SS_FILE_ERROR;
-   }
-
-   /* update statistics */
-   log_chn->statistics.events_written++;
-   log_chn->statistics.bytes_written += size;
-   log_chn->statistics.bytes_written_total += size;
-   if (ss_time() > stat_last+DISK_CHECK_INTERVAL) {
-      log_chn->statistics.disk_level = 1.0-ss_disk_free(log_chn->path)/ss_disk_size(log_chn->path);
-      stat_last = ss_time();
-   }
-
-   return status;
-}
-
-/*------------------------------------------------------------------*/
-
-INT dump_log_open(LOG_CHN * log_chn, INT run_number)
-{
-   INT status;
-
-   /* Create device channel */
-   if (log_chn->type == LOG_TYPE_TAPE) {
-      status = tape_open(log_chn->path, &log_chn->handle);
-      if (status != SS_SUCCESS) {
-         log_chn->handle = 0;
-         return status;
-      }
-   } else if (log_chn->type == LOG_TYPE_FTP) {
-      status = ftp_open(log_chn->path, &log_chn->ftp_con);
-      if (status != SS_SUCCESS) {
-         log_chn->handle = 0;
-         return status;
-      } else
-         log_chn->handle = 1;
-   } else {
-      log_chn->handle = open(log_chn->path, O_WRONLY | O_CREAT | O_TRUNC | O_LARGEFILE, 0644);
-
-      if (log_chn->handle < 0) {
-         log_chn->handle = 0;
-         return SS_FILE_ERROR;
-      }
-   }
-
-   /* write ODB dump */
-   if (log_chn->settings.odb_dump)
-      log_odb_dump(log_chn, EVENTID_BOR, run_number);
-
-   return SS_SUCCESS;
-}
-
-/*------------------------------------------------------------------*/
-
-INT dump_log_close(LOG_CHN * log_chn, INT run_number)
-{
-   /* write ODB dump */
-   if (log_chn->settings.odb_dump)
-      log_odb_dump(log_chn, EVENTID_EOR, run_number);
-
-   /* Write EOF if Tape */
-   if (log_chn->type == LOG_TYPE_TAPE) {
-      /* writing EOF mark on tape only */
-      ss_tape_write_eof(log_chn->handle);
-      ss_tape_close(log_chn->handle);
-   } else if (log_chn->type == LOG_TYPE_FTP) {
-      ftp_close(log_chn->ftp_con);
-      ftp_bye(log_chn->ftp_con);
-   } else
-      close(log_chn->handle);
-
-   return SS_SUCCESS;
-}
-
-/*---- ASCII format routines ---------------------------------------*/
-
-INT ascii_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
-{
-   INT status, size, i, j;
-   EVENT_DEF *event_def;
-   BANK_HEADER *pbh;
-   BANK *pbk;
-   BANK32 *pbk32;
-   void *pdata;
-   char buffer[10000], name[5], type_name[10];
-   char *ph, header_line[10000];
-   char *pd, data_line[10000];
-   HNDLE hKey;
-   KEY key;
-   static short int last_event_id = -1;
-   DWORD bkname;
-   WORD bktype;
-   static DWORD stat_last = 0;
-
-   if (pevent->serial_number == 0)
-      last_event_id = -1;
-
-   event_def = db_get_event_definition(pevent->event_id);
-   if (event_def == NULL)
-      return SS_SUCCESS;
-
-   name[4] = 0;
-   header_line[0] = 0;
-   data_line[0] = 0;
-   ph = header_line;
-   pd = data_line;
-
-  /*---- MIDAS format ----------------------------------------------*/
-   if (event_def->format == FORMAT_MIDAS) {
-      LRS1882_DATA *lrs1882;
-      LRS1877_DATA *lrs1877;
-      LRS1877_HEADER *lrs1877_header;
-
-      pbh = (BANK_HEADER *) (pevent + 1);
-      bk_swap(pbh, FALSE);
-
-      pbk = NULL;
-      pbk32 = NULL;
-      do {
-         /* scan all banks */
-         if (bk_is32(pbh)) {
-            size = bk_iterate32(pbh, &pbk32, &pdata);
-            if (pbk32 == NULL)
-               break;
-            bkname = *((DWORD *) pbk32->name);
-            bktype = (WORD) pbk32->type;
-         } else {
-            size = bk_iterate(pbh, &pbk, &pdata);
-            if (pbk == NULL)
-               break;
-            bkname = *((DWORD *) pbk->name);
-            bktype = (WORD) pbk->type;
-         }
-
-         if (rpc_tid_size(bktype & 0xFF))
-            size /= rpc_tid_size(bktype & 0xFF);
-
-         lrs1882 = (LRS1882_DATA *) pdata;
-         lrs1877 = (LRS1877_DATA *) pdata;
-         lrs1877_header = (LRS1877_HEADER *) pdata;
-
-         /* write bank header */
-         *((DWORD *) name) = bkname;
-
-         if ((bktype & 0xFF00) == 0)
-            strcpy(type_name, rpc_tid_name(bktype & 0xFF));
-         else if ((bktype & 0xFF00) == TID_LRS1882)
-            strcpy(type_name, "LRS1882");
-         else if ((bktype & 0xFF00) == TID_LRS1877)
-            strcpy(type_name, "LRS1877");
-         else if ((bktype & 0xFF00) == TID_PCOS3)
-            strcpy(type_name, "PCOS3");
-         else
-            strcpy(type_name, "unknown");
-
-         sprintf(ph, "%s[%d]\t", name, size);
-         STR_INC(ph, header_line);
-
-         /* write data */
-         for (i = 0; i < size; i++) {
-            db_sprintf(pd, pdata, size, i, bktype & 0xFF);
-            strcat(pd, "\t");
-            STR_INC(pd, data_line);
-         }
-
-      } while (1);
-   }
-
-  /*---- FIXED format ----------------------------------------------*/
-   if (event_def->format == FORMAT_FIXED) {
-      if (event_def->hDefKey == 0)
-         cm_msg(MERROR, "ascii_write", "cannot find event definition");
-      else {
-         pdata = (char *) (pevent + 1);
-         for (i = 0;; i++) {
-            status = db_enum_key(hDB, event_def->hDefKey, i, &hKey);
-            if (status == DB_NO_MORE_SUBKEYS)
-               break;
-
-            db_get_key(hDB, hKey, &key);
-
-            /* adjust for alignment */
-            pdata = (void *) VALIGN(pdata, MIN(ss_get_struct_align(), key.item_size));
-
-            for (j = 0; j < key.num_values; j++) {
-               if (pevent->event_id != last_event_id) {
-                  if (key.num_values == 1)
-                     sprintf(ph, "%s\t", key.name);
-                  else
-                     sprintf(ph, "%s%d\t", key.name, j);
-
-                  STR_INC(ph, header_line);
-               }
-
-               db_sprintf(pd, pdata, key.item_size, j, key.type);
-               strcat(pd, "\t");
-               STR_INC(pd, data_line);
-            }
-
-            /* shift data pointer to next item */
-            pdata = ((char *) pdata) + key.item_size * key.num_values;
-         }
-      }
-   }
-
-   if (*(pd - 1) == '\t')
-      *(pd - 1) = '\n';
-
-   if (last_event_id != pevent->event_id) {
-      if (*(ph - 1) == '\t')
-         *(ph - 1) = '\n';
-      last_event_id = pevent->event_id;
-      strcpy(buffer, header_line);
-      strcat(buffer, data_line);
-   } else
-      strcpy(buffer, data_line);
-
-   /* write buffer to device */
-   size = strlen(buffer);
-
-   if (log_chn->type == LOG_TYPE_TAPE)
-      status = ss_tape_write(log_chn->handle, buffer, size);
-   else if (log_chn->type == LOG_TYPE_FTP)
-      status = ftp_send(log_chn->ftp_con->data, buffer, size) == size ?
-          SS_SUCCESS : SS_FILE_ERROR;
-   else
-      status = write(log_chn->handle, buffer, size) == size ? SS_SUCCESS : SS_FILE_ERROR;
-
-   /* update statistics */
-   log_chn->statistics.events_written++;
-   log_chn->statistics.bytes_written += size;
-   log_chn->statistics.bytes_written_total += size;
-   if (ss_time() > stat_last+DISK_CHECK_INTERVAL) {
-      log_chn->statistics.disk_level = 1.0-ss_disk_free(log_chn->path)/ss_disk_size(log_chn->path);
-      stat_last = ss_time();
-   }
-
-   return status;
-}
-
-/*------------------------------------------------------------------*/
-
-INT ascii_log_open(LOG_CHN * log_chn, INT run_number)
-{
-   INT status;
-   EVENT_HEADER event;
-
-   /* Create device channel */
-   if (log_chn->type == LOG_TYPE_TAPE) {
-      status = tape_open(log_chn->path, &log_chn->handle);
-      if (status != SS_SUCCESS) {
-         log_chn->handle = 0;
-         return status;
-      }
-   } else if (log_chn->type == LOG_TYPE_FTP) {
-      status = ftp_open(log_chn->path, &log_chn->ftp_con);
-      if (status != SS_SUCCESS) {
-         log_chn->handle = 0;
-         return status;
-      } else
-         log_chn->handle = 1;
-   } else {
-      log_chn->handle = open(log_chn->path, O_WRONLY | O_CREAT | O_TRUNC | O_LARGEFILE, 0644);
-
-      if (log_chn->handle < 0) {
-         log_chn->handle = 0;
-         return SS_FILE_ERROR;
-      }
-   }
-
-   /* write ODB dump */
-   if (log_chn->settings.odb_dump) {
-      event.event_id = EVENTID_BOR;
-      event.data_size = 0;
-      event.serial_number = run_number;
-
-      ascii_write(log_chn, &event, sizeof(EVENT_HEADER));
-   }
-
-   return SS_SUCCESS;
-}
-
-/*------------------------------------------------------------------*/
-
-INT ascii_log_close(LOG_CHN * log_chn, INT run_number)
-{
-   /* Write EOF if Tape */
-   if (log_chn->type == LOG_TYPE_TAPE) {
-      /* writing EOF mark on tape only */
-      ss_tape_write_eof(log_chn->handle);
-      ss_tape_close(log_chn->handle);
-   } else if (log_chn->type == LOG_TYPE_FTP) {
-      ftp_close(log_chn->ftp_con);
-      ftp_bye(log_chn->ftp_con);
-   } else
-      close(log_chn->handle);
-
-   return SS_SUCCESS;
 }
 
 /*---- ROOT format routines ----------------------------------------*/
@@ -2808,7 +2292,6 @@ INT root_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
    EVENT_DEF *event_def;
    BANK_HEADER *pbh;
    void *pdata;
-   static short int last_event_id = -1;
    TREE_STRUCT *ts;
    EVENT_TREE *et;
    BANK *pbk;
@@ -2818,9 +2301,6 @@ INT root_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
    WORD bktype;
    TBranch *branch;
    static DWORD stat_last = 0;
-
-   if (pevent->serial_number == 0)
-      last_event_id = -1;
 
    event_def = db_get_event_definition(pevent->event_id);
    if (event_def == NULL) {
@@ -2935,11 +2415,10 @@ INT root_log_open(LOG_CHN * log_chn, INT run_number)
 {
    INT size, level;
    char str[256], name[256];
-   EVENT_HEADER event;
    TREE_STRUCT *tree_struct;
 
    /* Create device channel */
-   if (log_chn->type == LOG_TYPE_TAPE || log_chn->type == LOG_TYPE_FTP) {
+   if (log_chn->type == LOG_TYPE_FTP) {
       cm_msg(MERROR, "root_log_open", "ROOT files can only reside on disk");
       log_chn->handle = 0;
       return -1;
@@ -2988,14 +2467,18 @@ INT root_log_open(LOG_CHN * log_chn, INT run_number)
       log_chn->format_info = (void **) tree_struct;
    }
 
+#if 0
    /* write ODB dump */
    if (log_chn->settings.odb_dump) {
+      EVENT_HEADER event;
+
       event.event_id = EVENTID_BOR;
       event.data_size = 0;
       event.serial_number = run_number;
 
       //root_write(log_chn, &event, sizeof(EVENT_HEADER));
    }
+#endif
 
    return SS_SUCCESS;
 }
@@ -3032,15 +2515,7 @@ INT log_open(LOG_CHN * log_chn, INT run_number)
 {
    INT status;
 
-   if (equal_ustring(log_chn->settings.format, "YBOS")) {
-     assert(!"YBOS not supported anymore");
-   } else if (equal_ustring(log_chn->settings.format, "ASCII")) {
-      log_chn->format = FORMAT_ASCII;
-      status = ascii_log_open(log_chn, run_number);
-   } else if (equal_ustring(log_chn->settings.format, "DUMP")) {
-      log_chn->format = FORMAT_DUMP;
-      status = dump_log_open(log_chn, run_number);
-   } else if (equal_ustring(log_chn->settings.format, "ROOT")) {
+   if (equal_ustring(log_chn->settings.format, "ROOT")) {
 #ifdef HAVE_ROOT
       log_chn->format = FORMAT_ROOT;
       status = root_log_open(log_chn, run_number);
@@ -3061,15 +2536,6 @@ INT log_open(LOG_CHN * log_chn, INT run_number)
 INT log_close(LOG_CHN * log_chn, INT run_number)
 {
    char str[256], *p;
-
-   if (log_chn->format == FORMAT_YBOS)
-     assert(!"YBOS not supported anymore");
-
-   if (log_chn->format == FORMAT_ASCII)
-      ascii_log_close(log_chn, run_number);
-
-   if (log_chn->format == FORMAT_DUMP)
-      dump_log_close(log_chn, run_number);
 
 #ifdef HAVE_ROOT
    if (log_chn->format == FORMAT_ROOT)
@@ -3224,26 +2690,14 @@ int start_the_run()
 
 INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 {
-   INT status = 0, size, izero;
-   DWORD actual_time, start_time, watchdog_timeout, duration;
-   BOOL watchdog_flag, next_subrun;
+   INT status = 0, size;
+   DWORD actual_time, start_time, duration;
+   BOOL next_subrun;
    static DWORD last_checked = 0;
-   HNDLE htape, stats_hkey;
-   char tape_name[256];
-   double dzero;
 
    //printf("log_write %d\n", pevent->data_size + sizeof(EVENT_HEADER));
 
    start_time = ss_millitime();
-
-   if (log_chn->format == FORMAT_YBOS)
-     assert(!"YBOS not supported anymore");
-
-   if (log_chn->format == FORMAT_ASCII)
-      status = ascii_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
-
-   if (log_chn->format == FORMAT_DUMP)
-      status = dump_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
 
    if (log_chn->format == FORMAT_MIDAS)
       status = midas_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
@@ -3364,40 +2818,6 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
              log_chn->statistics.bytes_written / 1E6);
 
       status = stop_the_run(1);
-
-      return status;
-   }
-
-   /* check if capacity is reached for tapes */
-   if (!stop_requested && !in_stop_transition &&
-       log_chn->type == LOG_TYPE_TAPE &&
-       log_chn->settings.tape_capacity > 0 &&
-       log_chn->statistics.bytes_written_total >= log_chn->settings.tape_capacity) {
-      stop_requested = TRUE;
-      cm_msg(MTALK, "log_write", "tape capacity reached, stopping run");
-
-      /* remember tape name */
-      strcpy(tape_name, log_chn->path);
-      stats_hkey = log_chn->stats_hkey;
-
-      status = stop_the_run(0);
-
-      /* rewind tape */
-      ss_tape_open(tape_name, O_RDONLY, &htape);
-      cm_msg(MTALK, "log_write", "rewinding tape %s, please wait", log_chn->path);
-
-      cm_get_watchdog_params(&watchdog_flag, &watchdog_timeout);
-      cm_set_watchdog_params(watchdog_flag, 300000);    /* 5 min for tape rewind */
-      ss_tape_unmount(htape);
-      ss_tape_close(htape);
-      cm_set_watchdog_params(watchdog_flag, watchdog_timeout);
-
-      /* zero statistics */
-      dzero = izero = 0;
-      db_set_value(hDB, stats_hkey, "Bytes written total", &dzero, sizeof(dzero), 1, TID_DOUBLE);
-      db_set_value(hDB, stats_hkey, "Files written", &izero, sizeof(izero), 1, TID_INT);
-
-      cm_msg(MTALK, "log_write", "Please insert new tape and start new run.");
 
       return status;
    }
@@ -4323,87 +3743,6 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
 
 /*------------------------------------------------------------------*/
 
-INT log_callback(INT index, void *prpc_param[])
-{
-   HNDLE hKeyRoot, hKeyChannel;
-   INT i, status, size, channel, izero, htape, online_mode;
-   DWORD watchdog_timeout;
-   BOOL watchdog_flag;
-   char str[256];
-   double dzero;
-
-   /* rewind tapes */
-   if (index == RPC_LOG_REWIND) {
-      channel = *((INT *) prpc_param[0]);
-
-      /* loop over all channels */
-      status = db_find_key(hDB, 0, "/Logger/Channels", &hKeyRoot);
-      if (status != DB_SUCCESS) {
-         cm_msg(MERROR, "log_callback", "cannot find Logger/Channels entry in database");
-         return 0;
-      }
-
-      /* check online mode */
-      online_mode = 0;
-      size = sizeof(online_mode);
-      db_get_value(hDB, 0, "/Runinfo/online mode", &online_mode, &size, TID_INT, TRUE);
-
-      for (i = 0; i < MAX_CHANNELS; i++) {
-         status = db_enum_key(hDB, hKeyRoot, i, &hKeyChannel);
-         if (status == DB_NO_MORE_SUBKEYS)
-            break;
-
-         /* skip if wrong channel, -1 means rewind all channels */
-         if (channel != i && channel != -1)
-            continue;
-
-         if (status == DB_SUCCESS) {
-            size = sizeof(str);
-            status = db_get_value(hDB, hKeyChannel, "Settings/Type", str, &size, TID_STRING, TRUE);
-            if (status != DB_SUCCESS)
-               continue;
-
-            if (equal_ustring(str, "Tape")) {
-               size = sizeof(str);
-               status = db_get_value(hDB, hKeyChannel, "Settings/Filename", str, &size, TID_STRING, TRUE);
-               if (status != DB_SUCCESS)
-                  continue;
-
-               if (ss_tape_open(str, O_RDONLY, &htape) == SS_SUCCESS) {
-                  cm_msg(MTALK, "log_callback", "rewinding tape #%d, please wait", i);
-
-                  cm_get_watchdog_params(&watchdog_flag, &watchdog_timeout);
-                  cm_set_watchdog_params(watchdog_flag, 300000);        /* 5 min for tape rewind */
-                  ss_tape_rewind(htape);
-                  if (online_mode)
-                     ss_tape_unmount(htape);
-                  cm_set_watchdog_params(watchdog_flag, watchdog_timeout);
-
-                  cm_msg(MINFO, "log_callback", "Tape %s rewound sucessfully", str);
-               } else
-                  cm_msg(MERROR, "log_callback", "Cannot rewind tape %s", str);
-
-               ss_tape_close(htape);
-
-               /* clear statistics */
-               dzero = izero = 0;
-               log_chn[i].statistics.bytes_written_total = 0;
-               log_chn[i].statistics.files_written = 0;
-               db_set_value(hDB, hKeyChannel, "Statistics/Bytes written total", &dzero,
-                            sizeof(dzero), 1, TID_DOUBLE);
-               db_set_value(hDB, hKeyChannel, "Statistics/Files written", &izero, sizeof(izero), 1, TID_INT);
-            }
-         }
-      }
-
-      cm_msg(MTALK, "log_callback", "tape rewind finished");
-   }
-
-   return RPC_SUCCESS;
-}
-
-/*------------------------------------------------------------------*/
-
 int log_generate_file_name(LOG_CHN *log_chn)
 {
    INT size, status, run_number;
@@ -4537,10 +3876,6 @@ int close_channels(int run_number, BOOL* p_tape_flag)
    for (i = 0; i < MAX_CHANNELS; i++) {
       if (log_chn[i].handle || log_chn[i].ftp_con|| log_chn[i].pfile) {
          /* generate MTALK message */
-         if (log_chn[i].type == LOG_TYPE_TAPE && tape_message) {
-            tape_flag = TRUE;
-            cm_msg(MTALK, "tr_stop", "closing tape channel #%d, please wait", i);
-         }
 #ifndef FAL_MAIN
          /* wait until buffer is empty */
          if (log_chn[i].buffer_handle) {
@@ -4757,23 +4092,12 @@ INT tr_start(INT run_number, char *error)
             return 0;
          }
 
-         /* don't start run if tape is full */
-         if (log_chn[index].type == LOG_TYPE_TAPE &&
-             chn_settings->tape_capacity > 0 &&
-             log_chn[index].statistics.bytes_written_total >= chn_settings->tape_capacity) {
-            strcpy(error, "Tape capacity reached. Please load new tape");
-            cm_msg(MERROR, "tr_start", "%s", error);
-            return 0;
-         }
-
          /* check if active */
          if (!chn_settings->active || !write_data)
             continue;
 
          /* check for type */
-         if (equal_ustring(chn_settings->type, "Tape"))
-            log_chn[index].type = LOG_TYPE_TAPE;
-         else if (equal_ustring(chn_settings->type, "FTP"))
+         if (equal_ustring(chn_settings->type, "FTP"))
             log_chn[index].type = LOG_TYPE_FTP;
          else if (equal_ustring(chn_settings->type, "Disk"))
             log_chn[index].type = LOG_TYPE_DISK;
@@ -4795,12 +4119,6 @@ INT tr_start(INT run_number, char *error)
 
          log_create_writer(&log_chn[index]);
          log_generate_file_name(&log_chn[index]);
-
-         if (log_chn[index].type == LOG_TYPE_TAPE &&
-             log_chn[index].statistics.bytes_written_total == 0 && tape_message) {
-            tape_flag = TRUE;
-            cm_msg(MTALK, "tr_start", "mounting tape #%d, please wait", index);
-         }
 
          if (log_chn[index].type == LOG_TYPE_DISK) {
             strlcpy(str, log_chn->path, sizeof(str));
@@ -5213,9 +4531,6 @@ int main(int argc, char *argv[])
    cm_register_transition(TR_STOP, tr_stop, 800);
    cm_register_transition(TR_PAUSE, tr_pause, 800);
    cm_register_transition(TR_RESUME, tr_resume, 200);
-
-   /* register callback for rewinding tapes */
-   cm_register_function(RPC_LOG_REWIND, log_callback);
 
    /* initialize ODB */
    logger_init();

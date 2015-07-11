@@ -131,6 +131,8 @@ CFLAGS += -DOS_LINUX
 NEED_MYSQL=
 HAVE_ODBC=
 HAVE_SQLITE=
+# For cross compilation targets lacking openssl, define -DNO_SSL
+#CFLAGS += -DNO_SSL
 endif
 
 #-----------------------
@@ -171,6 +173,7 @@ NEED_MYSQL=
 HAVE_ODBC=
 HAVE_SQLITE=
 ROOTSYS=
+SSL_LIBS += -lssl -lcrypto
 endif
 
 #-----------------------
@@ -230,6 +233,9 @@ NEED_RANLIB=1
 NEED_RPATH=
 SHLIB+=$(LIB_DIR)/libmidas-shared.dylib
 SHLIB+=$(LIB_DIR)/libmidas-shared.so
+# use the macports version of openssl
+CFLAGS += -I/opt/local/include
+SSL_LIBS = -L/opt/local/lib -lssl -lcrypto
 endif
 
 #-----------------------
@@ -265,6 +271,10 @@ OS_DIR = linux
 OSFLAGS += -DOS_LINUX -fPIC -Wno-unused-function
 LIBS = -lutil -lpthread -lrt -ldl
 SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker $(BIN_DIR)/dio
+
+# add OpenSSL
+SSL_LIBS += -lssl -lcrypto
+
 endif
 
 #-----------------------
@@ -305,22 +315,29 @@ EXAMPLES = $(BIN_DIR)/consume $(BIN_DIR)/produce \
 	$(BIN_DIR)/rpc_test $(BIN_DIR)/msgdump $(BIN_DIR)/minife \
 	$(BIN_DIR)/minirc $(BIN_DIR)/odb_test
 
-PROGS = $(BIN_DIR)/mserver $(BIN_DIR)/mhttpd \
-	$(BIN_DIR)/mlogger $(BIN_DIR)/odbedit \
-	$(BIN_DIR)/mtape $(BIN_DIR)/mhist \
-	$(BIN_DIR)/mstat $(BIN_DIR)/mdump \
+PROGS = $(BIN_DIR)/mserver \
+	$(BIN_DIR)/odbedit \
+	$(BIN_DIR)/mhttpd  \
+	$(BIN_DIR)/mlogger \
+	$(BIN_DIR)/mtape \
+	$(BIN_DIR)/mhist \
+	$(BIN_DIR)/mstat \
+	$(BIN_DIR)/mdump \
 	$(BIN_DIR)/lazylogger \
 	$(BIN_DIR)/mtransition \
 	$(BIN_DIR)/mhdump \
-	$(BIN_DIR)/mchart $(BIN_DIR)/stripchart.tcl \
-	$(BIN_DIR)/webpaw $(BIN_DIR)/odbhist \
-	$(BIN_DIR)/melog \
-	$(BIN_DIR)/mh2sql \
-	$(BIN_DIR)/mfe_link_test \
+	$(BIN_DIR)/mchart \
+	$(BIN_DIR)/stripchart.tcl \
+	$(BIN_DIR)/webpaw  \
+	$(BIN_DIR)/odbhist \
+	$(BIN_DIR)/melog   \
+	$(BIN_DIR)/mh2sql  \
+	$(BIN_DIR)/mfe_link_test  \
 	$(BIN_DIR)/mana_link_test \
-	$(BIN_DIR)/fal_link_test \
 	$(BIN_DIR)/mjson_test \
-	$(BIN_DIR)/mcnaf \
+	$(BIN_DIR)/mcnaf    \
+	$(BIN_DIR)/rmlogger \
+	$(BIN_DIR)/rmana_link_test \
 	$(SPECIFIC_OS_PRG)
 
 ANALYZER = $(LIB_DIR)/mana.o
@@ -362,7 +379,7 @@ all: check-mxml \
 	$(LIBNAME) $(SHLIB) \
 	$(ANALYZER) \
 	$(LIB_DIR)/mfe.o \
-	$(LIB_DIR)/fal.o $(PROGS)
+	$(PROGS)
 
 dox:
 	doxygen
@@ -381,7 +398,7 @@ clean64:
 
 crosscompile:
 	echo OSTYPE=$(OSTYPE)
-	$(MAKE) ROOTSYS= OS_DIR=$(OSTYPE)-crosscompile OSTYPE=crosscompile
+	$(MAKE) ROOTSYS= HAVE_MYSQL= HAVE_ODBC= HAVE_SQLITE= OS_DIR=$(OSTYPE)-crosscompile OSTYPE=crosscompile
 
 linuxarm:
 	echo OSTYPE=$(OSTYPE)
@@ -464,7 +481,7 @@ ROOTLIBS    := $(ROOTSYS)/lib/libRoot.a -lssl -ldl -lcrypt
 ROOTGLIBS   := $(ROOTLIBS) -lfreetype
 endif
 
-CFLAGS     += -DHAVE_ROOT
+ROOTCFLAGS  += -DHAVE_ROOT
 
 endif # ROOTSYS
 
@@ -478,6 +495,9 @@ CFLAGS     += -DHAVE_MSCB
 endif
 
 $(BIN_DIR)/mlogger: $(BIN_DIR)/%: $(SRC_DIR)/%.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
+
+$(BIN_DIR)/rmlogger: $(BIN_DIR)/%: $(SRC_DIR)/mlogger.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -o $@ $< $(LIB) $(ROOTLIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
 
 $(BIN_DIR)/%:$(SRC_DIR)/%.c
@@ -489,10 +509,10 @@ $(BIN_DIR)/odbedit: $(SRC_DIR)/odbedit.cxx $(SRC_DIR)/cmdedit.cxx
 
 ifdef HAVE_MSCB
 $(BIN_DIR)/mhttpd: $(LIB_DIR)/mhttpd.o $(LIB_DIR)/mongoose.o $(LIB_DIR)/mgd.o $(LIB_DIR)/mscb.o $(LIB_DIR)/sequencer.o
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(LIBS) -lm
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
 else
 $(BIN_DIR)/mhttpd: $(LIB_DIR)/mhttpd.o $(LIB_DIR)/mongoose.o $(LIB_DIR)/mgd.o $(LIB_DIR)/sequencer.o
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(LIBS) -lm
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
 endif
 
 $(BIN_DIR)/mh2sql: $(BIN_DIR)/%: $(UTL_DIR)/mh2sql.cxx
@@ -561,10 +581,7 @@ endif
 $(LIB_DIR)/history_sql.o $(LIB_DIR)/history_schema.o $(LIB_DIR)/history_midas.o $(LIB_DIR)/mhttpd.o $(LIB_DIR)/mlogger.o: history.h
 
 $(LIB_DIR)/mfe.o: msystem.h midas.h midasinc.h mrpc.h
-$(LIB_DIR)/fal.o: $(SRC_DIR)/fal.cxx msystem.h midas.h midasinc.h mrpc.h
 
-$(LIB_DIR)/fal.o: $(SRC_DIR)/fal.cxx msystem.h midas.h midasinc.h mrpc.h
-	$(CXX) -Dextname -DMANA_LITE -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 $(LIB_DIR)/mana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
 	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 $(LIB_DIR)/hmana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
@@ -626,11 +643,11 @@ $(BIN_DIR)/mdump: $(UTL_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx
 $(BIN_DIR)/mfe_link_test: $(SRC_DIR)/mfe.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mfe.c $(LIB) $(LIBS)
 
-$(BIN_DIR)/fal_link_test: $(SRC_DIR)/fal.cxx
-	$(CXX) $(CFLAGS) $(OSFLAGS) -DMANA_LITE -DLINK_TEST -o $@ $(SRC_DIR)/fal.cxx $(LIB)  $(MYSQL_LIBS) $(LIBS)
-
 $(BIN_DIR)/mana_link_test: $(SRC_DIR)/mana.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mana.cxx $(LIB) $(LIBS)
+
+$(BIN_DIR)/rmana_link_test: $(SRC_DIR)/mana.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mana.cxx $(ROOTLIBS) $(LIB) $(LIBS)
 
 $(BIN_DIR)/mhdump: $(UTL_DIR)/mhdump.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $<
@@ -688,7 +705,7 @@ install:
 	@echo "... Installing library and objects to $(SYSLIB_DIR)"
 	@echo "... "
 
-	@for i in libmidas.a mana.o mfe.o fal.o ; \
+	@for i in libmidas.a mana.o mfe.o ; \
 	  do \
 	  install -v -D -m 644 $(LIB_DIR)/$$i $(SYSLIB_DIR)/$$i ; \
 	  done

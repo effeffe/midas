@@ -726,7 +726,7 @@ int eval_condition(const char *condition)
 
 void init_sequencer()
 {
-   int status, size;
+   int status;
    HNDLE hDB;
    HNDLE hKey;
    char str[256];
@@ -739,12 +739,13 @@ void init_sequencer()
       abort();
    }
    db_find_key(hDB, 0, "/Sequencer/State", &hKey);
-   size = sizeof(seq);
    status = db_open_record(hDB, hKey, &seq, sizeof(seq), MODE_READ, NULL, NULL);
    assert(status == DB_SUCCESS);
    
    if (seq.path[0] == 0)
-      getcwd(seq.path, sizeof(seq.path)); 
+      if (!getcwd(seq.path, sizeof(seq.path)))
+         seq.path[0] = 0;
+
    if (strlen(seq.path)>0 && seq.path[strlen(seq.path)-1] != DIR_SEPARATOR) {
       strlcat(seq.path, DIR_SEPARATOR_STR, sizeof(seq.path));
    }
@@ -920,7 +921,7 @@ void show_seq_page()
 {
    INT i, size, n,  width, state, eob, last_line, error_line, sectionEmpty;
    HNDLE hDB;
-   char str[256], path[256], dir[256], error[256], comment[256], filename[256], data[256], buffer[10000], line[256], name[32];
+   char str[256], path[256], dir[256], error[256], comment[256], data[256], buffer[10000], line[256], name[32];
    time_t now;
    char *flist = NULL, *pc, *pline, *buf;
    PMXML_NODE pn;
@@ -938,7 +939,7 @@ void show_seq_page()
       if (isparam("dir"))
          strlcpy(seq.filename, getparam("dir"), sizeof(seq.filename));
       else
-         filename[0] = 0;
+         seq.filename[0] = 0;
       if (isparam("fs"))
          strlcat(seq.filename, getparam("fs"), sizeof(seq.filename));
       
@@ -1067,9 +1068,16 @@ void show_seq_page()
          strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
       strlcat(str, seq.filename, sizeof(str));
       fh = open(str, O_RDWR | O_TRUNC | O_CREAT | O_TEXT, 0644);
-      if (fh > 0 && isparam("scripttext")) {
-         i = strlen(getparam("scripttext"));
-         write(fh, getparam("scripttext"), i);
+      if (fh < 0) {
+         cm_msg(MERROR, "show_seq_page", "Cannot save file \'%s\', open() errno %d (%s)", str, errno, strerror(errno));
+      } else {
+         if (isparam("scripttext")) {
+            i = strlen(getparam("scripttext"));
+            int wr = write(fh, getparam("scripttext"), i);
+            if (wr != i) {
+               cm_msg(MERROR, "show_seq_page", "Cannot save file \'%s\', write() errno %d (%s)", str, errno, strerror(errno));
+            }
+         }
          close(fh);
       }
       strlcpy(str, seq.path, sizeof(str));
@@ -1658,8 +1666,8 @@ void show_seq_page()
             if (f) {
                for (int line=0 ; !feof(f) ; line++) {
                   str[0] = 0;
-                  fgets(str, sizeof(str), f);
-                  rsprintf(str);
+                  if (fgets(str, sizeof(str), f))
+                     rsprintf(str);
                }
                fclose(f);
             }
@@ -1871,7 +1879,7 @@ void show_seq_page()
             rsprintf("<font id=\"sequencerMessages\" style=\"font-family:monospace\">\n");
             rsprintf("<a href=\"../?cmd=Messages\">...</a><br>\n");
             
-            cm_msg_retrieve(10, buffer, sizeof(buffer));
+            cm_msg_retrieve("midas", 0, 10, buffer, sizeof(buffer));
             
             pline = buffer;
             eob = FALSE;
@@ -1930,7 +1938,7 @@ void show_seq_page()
 void sequencer()
 {
    PMXML_NODE pn, pr, pt;
-   char odbpath[256], value[256], data[256], str[256], name[32], op[32];
+   char odbpath[256], value[256], data[256], str[256], str1[256], name[32], op[32];
    char list[100][NAME_LENGTH], *pc;
    int i, l, n, status, size, index, index1, index2, last_line, state, run_number, cont;
    HNDLE hDB, hKey, hKeySeq;
@@ -1946,7 +1954,7 @@ void sequencer()
    if (!hKeySeq)
       return;
    
-   cm_msg_retrieve(1, str, sizeof(str));
+   cm_msg_retrieve("midas", 0, 1, str, sizeof(str));
    str[19] = 0;
    strcpy(seq.last_msg, str+11);
    
@@ -2336,9 +2344,9 @@ void sequencer()
          }
          seq.wait_value = (float)d;
       } else  if (equal_ustring(mxml_get_attribute(pn, "for"), "ODBValue")) {
-         if (!eval_var(mxml_get_value(pn), str, sizeof(str)))
+         if (!eval_var(mxml_get_value(pn), str1, sizeof(str1)))
             return;
-         v = (float)atof(str);
+         v = (float)atof(str1);
          seq.wait_limit = v;
          strcpy(seq.wait_type, "ODB");
          if (!mxml_get_attribute(pn, "path")) {
@@ -2357,21 +2365,24 @@ void sequencer()
                seq_error(str);
                return;
             } else {
+               if (mxml_get_attribute(pn, "op"))
+                  strlcpy(op, mxml_get_attribute(pn, "op"), sizeof(op));
+               else
+                  strcpy(op, "!=");
+               strlcat(seq.wait_type, op, sizeof(seq.wait_type));
+
                db_get_key(hDB, hKey, &key);
                size = sizeof(data);
                db_get_data_index(hDB, hKey, data, &size, index, key.type);
                db_sprintf(str, data, size, 0, key.type);
-               seq.wait_value = (float)atof(str);
-               if (mxml_get_attribute(pn, "op"))
-                  strlcpy(op, mxml_get_attribute(pn, "op"), sizeof(op));
-               else
-                  strcpy(op, ">=");
-               strlcat(seq.wait_type, op, sizeof(seq.wait_type));
-               
                cont = FALSE;
+               if (key.type == TID_BOOL)
+                  seq.wait_value = (float)(str[0] == 'y');
+               else
+                  seq.wait_value = (float)atof(str);
                if (equal_ustring(op, ">=")) {
                   cont = (seq.wait_value >= seq.wait_limit);
-               } else if (equal_ustring(op, ">")) { 
+               } else if (equal_ustring(op, ">")) {
                   cont = (seq.wait_value > seq.wait_limit);
                } else if (equal_ustring(op, "<=")) {
                   cont = (seq.wait_value >= seq.wait_limit);
