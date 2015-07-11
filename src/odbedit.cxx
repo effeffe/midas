@@ -962,7 +962,7 @@ void del_tree(HNDLE hDB, HNDLE hKey, INT level)
 
 /*------------------------------------------------------------------*/
 
-void xwrite(const char* filename, int fd, const void* data, int size)
+static void xwrite(const char* filename, int fd, const void* data, int size)
 {
    int wr = write(fd, data, size);
    if (wr != size) {

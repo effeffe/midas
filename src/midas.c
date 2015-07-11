@@ -303,7 +303,7 @@ void dbg_free(void *adr, char *file, int line)
    fclose(f);
 }
 
-void xwrite(const char* filename, int fd, const void* data, int size)
+static void xwrite(const char* filename, int fd, const void* data, int size)
 {
    int wr = write(fd, data, size);
    if (wr != size) {
