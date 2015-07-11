@@ -1155,6 +1155,8 @@ INT cm_msg_retrieve(const char *facility, time_t t, INT n_message, char *message
    time(&filedate);
    flag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), NULL, 0);
    n = cm_msg_retrieve1(filename, t, n_message, message, buf_size);
+   if (strstr(filename, "chat") != NULL && n == -1)
+      message[0] = 0;
 
    while (n < n_message && flag) {
       filedate -= 3600 * 24;         // go one day back
