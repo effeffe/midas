@@ -1037,7 +1037,8 @@ void show_help_page()
 
    rsprintf("        <tr>\n");
    rsprintf("          <td style=\"text-align:right;\">CWD:</td>\n");
-   getcwd(str, sizeof(str));
+   if (!getcwd(str, sizeof(str)))
+      str[0] = 0;
    rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
    rsprintf("        </tr>\n");
 
@@ -1272,7 +1273,7 @@ void exec_script(HNDLE hkey)
 void show_navigation_bar(const char *cur_page)
 {
    HNDLE hDB;
-   char str[1000], dec_path[256], path[256], filename[256], *p;
+   char str[1000], dec_path[256], path[256], filename[256];
    int fh, size;
 
    cm_get_experiment_database(&hDB, NULL);
@@ -1290,14 +1291,15 @@ void show_navigation_bar(const char *cur_page)
       fh = open(filename, O_RDONLY | O_BINARY);
       if (fh > 0) {
          // show file contents
-         p = NULL;
          size = lseek(fh, 0, SEEK_END) + 1;
          lseek(fh, 0, SEEK_SET);
-         p = (char*)malloc(size);
-         memset(p, 0, size);
-         read(fh, p, size);
+         char* p = (char*)malloc(size+1);
+         int rd = read(fh, p, size);
+         if (rd > 0) {
+            p[rd] = 0; // make sure string is zero-terminated
+            rsputs(p);
+         }
          close(fh);
-         rsputs(p);
          free(p);
       } else {
          // show HTML text directly
@@ -1321,6 +1323,8 @@ void show_navigation_bar(const char *cur_page)
    /* add one "../" for each level */
    strlcpy(dec_path, get_dec_path(), sizeof(dec_path));
    path[0] = 0;
+
+   char*p;
    for (p = dec_path ; *p ; p++)
       if (*p == '/')
          strlcat(path, "../", sizeof(path));
@@ -3835,11 +3839,13 @@ void submit_elog()
             size = lseek(fh, 0, SEEK_END);
             buffer[i] = (char*)M_MALLOC(size);
             lseek(fh, 0, SEEK_SET);
-            read(fh, buffer[i], size);
+            int rd = read(fh, buffer[i], size);
+            if (rd < 0)
+               rd = 0;
             close(fh);
             strlcpy(att_file[i], path, sizeof(att_file[0]));
             _attachment_buffer[i] = buffer[i];
-            _attachment_size[i] = size;
+            _attachment_size[i] = rd;
          } else if (strncmp(path, "/HS/", 4) == 0) {
            buffer[i] = (char*)M_MALLOC(100000);
             size = 100000;
@@ -4167,10 +4173,12 @@ void show_elog_page(char *path, int path_size)
          /* save attachment */
          fh = open(str, O_CREAT | O_RDWR | O_BINARY, 0644);
          if (fh < 0) {
-            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\"",
-                     str);
+            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", open() errno %d (%s)", str, errno, strerror(errno));
          } else {
-            write(fh, fbuffer, fsize);
+            int wr = write(fh, fbuffer, fsize);
+            if (wr != fsize) {
+               cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", write(%d) returned %d, errno %d (%s)", str, fsize, wr, errno, strerror(errno));
+            }
             close(fh);
          }
 
@@ -4634,7 +4642,8 @@ void show_elog_page(char *path, int path_size)
                   if (f != NULL) {
                      while (!feof(f)) {
                         str[0] = 0;
-                        fgets(str, sizeof(str), f);
+                        if (!fgets(str, sizeof(str), f))
+                           str[0] = 0;
                         if (!strstr(att, ".HTML"))
                            rsputs2(str);
                         else
@@ -7580,7 +7589,7 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
          }
          fh = open(filename, O_RDONLY | O_BINARY);
          if (fh < 0) {
-            sprintf(str, "Cannot open file \"%s\"", filename);
+            sprintf(str, "Cannot open file \"%s\", errno %d (%s)", filename, errno, strerror(errno));
             show_error(str);
             free(ctext);
             return;
@@ -7589,9 +7598,15 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
          ctext = NULL;
          size = lseek(fh, 0, SEEK_END) + 1;
          lseek(fh, 0, SEEK_SET);
-         ctext = (char*)malloc(size);
-         memset(ctext, 0, size);
-         read(fh, ctext, size);
+         ctext = (char*)malloc(size+1);
+         int rd = read(fh, ctext, size);
+         if (rd > 0) {
+            ctext[rd] = 0; // make sure string is zero-terminated
+            size = rd;
+         } else {
+            ctext[0] = 0;
+            size = 0;
+         }
          close(fh);
       }
 
@@ -13963,9 +13978,12 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
          /* save attachment */
          fh = open(str, O_CREAT | O_RDWR | O_BINARY, 0644);
          if (fh < 0) {
-            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\"", str);
+            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", open() errno %d (%s)", str, errno, strerror(errno));
          } else {
-            write(fh, fbuffer, fsize);
+            int wr = write(fh, fbuffer, fsize);
+            if (wr != fsize) {
+               cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", write(%d) returned %d, errno %d (%s)", str, fsize, wr, errno, strerror(errno));
+            }
             close(fh);
          }
 
@@ -16350,8 +16368,8 @@ void server_loop(int tcp_port)
 
 #ifdef OS_UNIX
    /* give up root privilege */
-   setuid(getuid());
-   setgid(getgid());
+   assert(setuid(getuid()) == 0);
+   assert(setgid(getgid()) == 0);
 #endif
 
    /* listen for connection */
