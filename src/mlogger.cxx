@@ -105,6 +105,14 @@ int log_generate_file_name(LOG_CHN *log_chn);
 
 /*== common code FAL/MLOGGER start =================================*/
 
+static void xwrite(const char* filename, int fd, const void* data, int size)
+{
+   int wr = write(fd, data, size);
+   if (wr != size) {
+      cm_msg(MERROR, "xwrite", "cannot write to \'%s\', write(%d) returned %d, errno %d (%s)", filename, size, wr, errno, strerror(errno));
+   }
+}
+
 /*---- Logging initialization --------------------------------------*/
 
 void logger_init()
@@ -334,10 +342,10 @@ int mysql_query_debug(MYSQL * db, char *query)
 
       fh = open(path, O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
       if (fh < 0) {
-         printf("Cannot open message log file %s\n", path);
+         printf("Cannot open message log file \'%s\', open() returned %d, errno %d (%s)\n", path, fh, errno, strerror(errno));
       } else {
-         write(fh, query, strlen(query));
-         write(fh, ";\n", 2);
+         xwrite(path, fh, query, strlen(query));
+         xwrite(path, fh, ";\n", 2);
          close(fh);
       }
    }
@@ -878,33 +886,6 @@ void write_sql(BOOL bor)
 
 #endif                          // HAVE_MYSQL
 
-/*---- open tape and check for data --------------------------------*/
-
-INT tape_open(char *dev, INT * handle)
-{
-   INT status, count;
-   char buffer[16];
-
-   status = ss_tape_open(dev, O_RDWR | O_CREAT | O_TRUNC, handle);
-   if (status != SS_SUCCESS)
-      return status;
-
-   /* check if tape contains data */
-   count = sizeof(buffer);
-   status = ss_tape_read(*handle, buffer, &count);
-
-   if (count == sizeof(buffer)) {
-      /* tape contains data -> don't start */
-      ss_tape_rskip(*handle, -1);
-      cm_msg(MINFO, "tape_open", "Tape contains data, please spool tape with 'mtape seod'");
-      cm_msg(MINFO, "tape_open", "or erase it with 'mtape weof', 'mtape rewind', then try again.");
-      ss_tape_close(*handle);
-      return SS_TAPE_ERROR;
-   }
-
-   return SS_SUCCESS;
-}
-
 /*---- open FTP channel --------------------------------------------*/
 
 INT ftp_error(char *message)
@@ -1002,9 +983,7 @@ INT midas_flush_buffer(LOG_CHN * log_chn)
       return 0;
 
    /* write record to device */
-   if (log_chn->type == LOG_TYPE_TAPE)
-      written = ss_tape_write(log_chn->handle, info->buffer, size);
-   else if (log_chn->type == LOG_TYPE_FTP)
+   if (log_chn->type == LOG_TYPE_FTP)
       written =
           ftp_send(((FTP_CON *) log_chn->ftp_con)->data, info->buffer,
                    size) == size ? SS_SUCCESS : SS_FILE_ERROR;
@@ -1134,15 +1113,7 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
    info->write_pointer = info->buffer;
 
    /* Create device channel */
-   if (log_chn->type == LOG_TYPE_TAPE) {
-      status = tape_open(log_chn->path, &log_chn->handle);
-      if (status != SS_SUCCESS) {
-         free(info->buffer);
-         free(info);
-         log_chn->handle = 0;
-         return status;
-      }
-   } else if (log_chn->type == LOG_TYPE_FTP) {
+   if (log_chn->type == LOG_TYPE_FTP) {
       status = ftp_open(log_chn->path, &log_chn->ftp_con);
       if (status != SS_SUCCESS) {
          free(info->buffer);
@@ -1272,12 +1243,7 @@ INT midas_log_close(LOG_CHN * log_chn, INT run_number)
    log_chn->statistics.bytes_written += written;
    log_chn->statistics.bytes_written_total += written;
 
-   /* Write EOF if Tape */
-   if (log_chn->type == LOG_TYPE_TAPE) {
-      /* writing EOF mark on tape Fonly */
-      ss_tape_write_eof(log_chn->handle);
-      ss_tape_close(log_chn->handle);
-   } else if (log_chn->type == LOG_TYPE_FTP) {
+   if (log_chn->type == LOG_TYPE_FTP) {
       ftp_close(log_chn->ftp_con);
       ftp_bye(log_chn->ftp_con);
    } else {
@@ -1749,7 +1715,7 @@ INT root_log_open(LOG_CHN * log_chn, INT run_number)
    TREE_STRUCT *tree_struct;
 
    /* Create device channel */
-   if (log_chn->type == LOG_TYPE_TAPE || log_chn->type == LOG_TYPE_FTP) {
+   if (log_chn->type == LOG_TYPE_FTP) {
       cm_msg(MERROR, "root_log_open", "ROOT files can only reside on disk");
       log_chn->handle = 0;
       return -1;
@@ -2016,13 +1982,10 @@ int start_the_run()
 
 INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 {
-   INT status = 0, size, izero;
-   DWORD actual_time, start_time, watchdog_timeout, duration;
-   BOOL watchdog_flag, next_subrun;
+   INT status = 0, size;
+   DWORD actual_time, start_time, duration;
+   BOOL next_subrun;
    static DWORD last_checked = 0;
-   HNDLE htape, stats_hkey;
-   char tape_name[256];
-   double dzero;
 
    start_time = ss_millitime();
 
@@ -2142,40 +2105,6 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
              log_chn->statistics.bytes_written / 1E6);
 
       status = stop_the_run(1);
-
-      return status;
-   }
-
-   /* check if capacity is reached for tapes */
-   if (!stop_requested && !in_stop_transition &&
-       log_chn->type == LOG_TYPE_TAPE &&
-       log_chn->settings.tape_capacity > 0 &&
-       log_chn->statistics.bytes_written_total >= log_chn->settings.tape_capacity) {
-      stop_requested = TRUE;
-      cm_msg(MTALK, "log_write", "tape capacity reached, stopping run");
-
-      /* remember tape name */
-      strcpy(tape_name, log_chn->path);
-      stats_hkey = log_chn->stats_hkey;
-
-      status = stop_the_run(0);
-
-      /* rewind tape */
-      ss_tape_open(tape_name, O_RDONLY, &htape);
-      cm_msg(MTALK, "log_write", "rewinding tape %s, please wait", log_chn->path);
-
-      cm_get_watchdog_params(&watchdog_flag, &watchdog_timeout);
-      cm_set_watchdog_params(watchdog_flag, 300000);    /* 5 min for tape rewind */
-      ss_tape_unmount(htape);
-      ss_tape_close(htape);
-      cm_set_watchdog_params(watchdog_flag, watchdog_timeout);
-
-      /* zero statistics */
-      dzero = izero = 0;
-      db_set_value(hDB, stats_hkey, "Bytes written total", &dzero, sizeof(dzero), 1, TID_DOUBLE);
-      db_set_value(hDB, stats_hkey, "Files written", &izero, sizeof(izero), 1, TID_INT);
-
-      cm_msg(MTALK, "log_write", "Please insert new tape and start new run.");
 
       return status;
    }
@@ -3101,87 +3030,6 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
 
 /*------------------------------------------------------------------*/
 
-INT log_callback(INT index, void *prpc_param[])
-{
-   HNDLE hKeyRoot, hKeyChannel;
-   INT i, status, size, channel, izero, htape, online_mode;
-   DWORD watchdog_timeout;
-   BOOL watchdog_flag;
-   char str[256];
-   double dzero;
-
-   /* rewind tapes */
-   if (index == RPC_LOG_REWIND) {
-      channel = *((INT *) prpc_param[0]);
-
-      /* loop over all channels */
-      status = db_find_key(hDB, 0, "/Logger/Channels", &hKeyRoot);
-      if (status != DB_SUCCESS) {
-         cm_msg(MERROR, "log_callback", "cannot find Logger/Channels entry in database");
-         return 0;
-      }
-
-      /* check online mode */
-      online_mode = 0;
-      size = sizeof(online_mode);
-      db_get_value(hDB, 0, "/Runinfo/online mode", &online_mode, &size, TID_INT, TRUE);
-
-      for (i = 0; i < MAX_CHANNELS; i++) {
-         status = db_enum_key(hDB, hKeyRoot, i, &hKeyChannel);
-         if (status == DB_NO_MORE_SUBKEYS)
-            break;
-
-         /* skip if wrong channel, -1 means rewind all channels */
-         if (channel != i && channel != -1)
-            continue;
-
-         if (status == DB_SUCCESS) {
-            size = sizeof(str);
-            status = db_get_value(hDB, hKeyChannel, "Settings/Type", str, &size, TID_STRING, TRUE);
-            if (status != DB_SUCCESS)
-               continue;
-
-            if (equal_ustring(str, "Tape")) {
-               size = sizeof(str);
-               status = db_get_value(hDB, hKeyChannel, "Settings/Filename", str, &size, TID_STRING, TRUE);
-               if (status != DB_SUCCESS)
-                  continue;
-
-               if (ss_tape_open(str, O_RDONLY, &htape) == SS_SUCCESS) {
-                  cm_msg(MTALK, "log_callback", "rewinding tape #%d, please wait", i);
-
-                  cm_get_watchdog_params(&watchdog_flag, &watchdog_timeout);
-                  cm_set_watchdog_params(watchdog_flag, 300000);        /* 5 min for tape rewind */
-                  ss_tape_rewind(htape);
-                  if (online_mode)
-                     ss_tape_unmount(htape);
-                  cm_set_watchdog_params(watchdog_flag, watchdog_timeout);
-
-                  cm_msg(MINFO, "log_callback", "Tape %s rewound sucessfully", str);
-               } else
-                  cm_msg(MERROR, "log_callback", "Cannot rewind tape %s", str);
-
-               ss_tape_close(htape);
-
-               /* clear statistics */
-               dzero = izero = 0;
-               log_chn[i].statistics.bytes_written_total = 0;
-               log_chn[i].statistics.files_written = 0;
-               db_set_value(hDB, hKeyChannel, "Statistics/Bytes written total", &dzero,
-                            sizeof(dzero), 1, TID_DOUBLE);
-               db_set_value(hDB, hKeyChannel, "Statistics/Files written", &izero, sizeof(izero), 1, TID_INT);
-            }
-         }
-      }
-
-      cm_msg(MTALK, "log_callback", "tape rewind finished");
-   }
-
-   return RPC_SUCCESS;
-}
-
-/*------------------------------------------------------------------*/
-
 int log_generate_file_name(LOG_CHN *log_chn)
 {
    INT size, status, run_number;
@@ -3308,10 +3156,6 @@ int close_channels(int run_number, BOOL* p_tape_flag)
    for (i = 0; i < MAX_CHANNELS; i++) {
       if (log_chn[i].handle || log_chn[i].ftp_con|| log_chn[i].pfile) {
          /* generate MTALK message */
-         if (log_chn[i].type == LOG_TYPE_TAPE && tape_message) {
-            tape_flag = TRUE;
-            cm_msg(MTALK, "tr_stop", "closing tape channel #%d, please wait", i);
-         }
 #ifndef FAL_MAIN
          /* wait until buffer is empty */
          if (log_chn[i].buffer_handle) {
@@ -3528,23 +3372,12 @@ INT tr_start(INT run_number, char *error)
             return 0;
          }
 
-         /* don't start run if tape is full */
-         if (log_chn[index].type == LOG_TYPE_TAPE &&
-             chn_settings->tape_capacity > 0 &&
-             log_chn[index].statistics.bytes_written_total >= chn_settings->tape_capacity) {
-            strcpy(error, "Tape capacity reached. Please load new tape");
-            cm_msg(MERROR, "tr_start", "%s", error);
-            return 0;
-         }
-
          /* check if active */
          if (!chn_settings->active || !write_data)
             continue;
 
          /* check for type */
-         if (equal_ustring(chn_settings->type, "Tape"))
-            log_chn[index].type = LOG_TYPE_TAPE;
-         else if (equal_ustring(chn_settings->type, "FTP"))
+         if (equal_ustring(chn_settings->type, "FTP"))
             log_chn[index].type = LOG_TYPE_FTP;
          else if (equal_ustring(chn_settings->type, "Disk"))
             log_chn[index].type = LOG_TYPE_DISK;
@@ -3565,12 +3398,6 @@ INT tr_start(INT run_number, char *error)
          log_chn[index].subrun_number = 0;
 
          log_generate_file_name(&log_chn[index]);
-
-         if (log_chn[index].type == LOG_TYPE_TAPE &&
-             log_chn[index].statistics.bytes_written_total == 0 && tape_message) {
-            tape_flag = TRUE;
-            cm_msg(MTALK, "tr_start", "mounting tape #%d, please wait", index);
-         }
 
          if (log_chn[index].type == LOG_TYPE_DISK) {
             strlcpy(str, log_chn->path, sizeof(str));
@@ -3978,9 +3805,6 @@ int main(int argc, char *argv[])
    cm_register_transition(TR_STOP, tr_stop, 800);
    cm_register_transition(TR_PAUSE, tr_pause, 800);
    cm_register_transition(TR_RESUME, tr_resume, 200);
-
-   /* register callback for rewinding tapes */
-   cm_register_function(RPC_LOG_REWIND, log_callback);
 
    /* initialize ODB */
    logger_init();
