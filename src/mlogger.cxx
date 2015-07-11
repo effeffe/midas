@@ -619,7 +619,7 @@ int sql_insert(MYSQL * db, char *database, char *table, HNDLE hKeyRoot, BOOL cre
 
       } else {
          status = mysql_errno(db);
-         cm_msg(MERROR, "sql_insert", "Failed to update database: Error: %s", mysql_error(db));
+         cm_msg(MERROR, "sql_insert", "Failed to update database: Errno: %d, Error: %s", status, mysql_error(db));
          return mysql_errno(db);
       }
    }
@@ -1623,7 +1623,6 @@ INT root_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
    EVENT_DEF *event_def;
    BANK_HEADER *pbh;
    void *pdata;
-   static short int last_event_id = -1;
    TREE_STRUCT *ts;
    EVENT_TREE *et;
    BANK *pbk;
@@ -1633,9 +1632,6 @@ INT root_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
    WORD bktype;
    TBranch *branch;
    static DWORD stat_last = 0;
-
-   if (pevent->serial_number == 0)
-      last_event_id = -1;
 
    event_def = db_get_event_definition(pevent->event_id);
    if (event_def == NULL) {
@@ -1750,7 +1746,6 @@ INT root_log_open(LOG_CHN * log_chn, INT run_number)
 {
    INT size, level;
    char str[256], name[256];
-   EVENT_HEADER event;
    TREE_STRUCT *tree_struct;
 
    /* Create device channel */
@@ -1803,14 +1798,18 @@ INT root_log_open(LOG_CHN * log_chn, INT run_number)
       log_chn->format_info = (void **) tree_struct;
    }
 
+#if 0
    /* write ODB dump */
    if (log_chn->settings.odb_dump) {
+      EVENT_HEADER event;
+
       event.event_id = EVENTID_BOR;
       event.data_size = 0;
       event.serial_number = run_number;
 
       //root_write(log_chn, &event, sizeof(EVENT_HEADER));
    }
+#endif
 
    return SS_SUCCESS;
 }
