@@ -632,7 +632,7 @@ function msg_append(msg)
          first_tstamp = t;
       if (t != -1 && (last_tstamp == 0 || t < last_tstamp))
          last_tstamp = t;
-      if (line.indexOf(" "))
+      if (line.indexOf(" ") && parseInt(line)>0)
          line = line.substr(line.indexOf(" "));
       var e = document.createElement("p");
       e.appendChild(document.createTextNode(line));
@@ -654,7 +654,7 @@ function msg_prepend(msg)
       var line = msg[i];
       var t = parseInt(line);
       
-      if (line.indexOf(" "))
+      if (line.indexOf(" ") && parseInt(line)>0)
          line = line.substr(line.indexOf(" "));
       var e = document.createElement("p");
       e.appendChild(document.createTextNode(line));

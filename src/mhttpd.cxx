@@ -1311,9 +1311,9 @@ void show_navigation_bar(const char *cur_page)
    /*---- menu buttons ----*/
 
 #ifdef HAVE_MSCB
-   strlcpy(str, "Status, ODB, Messages, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Help", sizeof(str));
+   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Help", sizeof(str));
 #else
-   strlcpy(str, "Status, ODB, Messages, ELog, Alarms, Programs, History, Sequencer, Config, Help", sizeof(str));
+   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, Sequencer, Config, Help", sizeof(str));
 #endif
    size = sizeof(str);
    db_get_value(hDB, 0, "/Experiment/Menu Buttons", str, &size, TID_STRING, TRUE);
@@ -2240,7 +2240,7 @@ void show_status_page(int refresh, int tts_enable, const char *cookie_wpwd)
 
 /*------------------------------------------------------------------*/
 
-void show_messages_page(int refresh)
+void show_messages_page()
 {
    int size, i, n;
    char str[256];
@@ -2292,6 +2292,35 @@ void show_messages_page(int refresh)
    
    rsprintf("<script type=\"text/javascript\">msg_load('%s');</script>\n", facility);
 
+   rsprintf("</form>\n");
+   rsprintf("</body></html>\n");
+}
+
+/*------------------------------------------------------------------*/
+
+void show_chat_page()
+{
+   show_header("Messages", "GET", "./", 0);
+   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
+   show_navigation_bar("Chat");
+   
+   /*---- messages will be dynamically loaded via JS ----*/
+
+   rsprintf("<div class=\"chatBox\" id=\"chatInput\" style=\"padding:0\">\n");
+   rsprintf("  <table width=\"100%%\"><tr>\n");
+   rsprintf("    <td><input style=\"width:100%%\" type=\"text\" id=\"text\" autofocus=\"autofocus\"></td>\n");
+   rsprintf("    <td nowrap width=\"10%%\"><input type=\"button\" name=\"send\" value=\"Send\">");
+   rsprintf("&nbsp;&nbsp;Your name: <input type=\"text\" id=\"name\" size=\"10\">\n");
+   rsprintf("    <input type=\"checkbox\" name=\"speak\">Speak</td>");
+   rsprintf("  </tr></table>");
+   rsprintf("</div>\n");
+   
+   rsprintf("<div class=\"chatBox\" id=\"messageFrame\">\n");
+   rsprintf("<h1 class=\"subStatusTitle\">Chat messages</h1>");
+   rsprintf("</div>\n");
+   
+   rsprintf("<script type=\"text/javascript\">msg_load('chat');</script>\n");
+   
    rsprintf("</form>\n");
    rsprintf("</body></html>\n");
 }
@@ -15831,10 +15860,17 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    /*---- Messages command ------------------------------------------*/
 
    if (equal_ustring(command, "messages")) {
-      show_messages_page(refresh);
+      show_messages_page();
       return;
    }
 
+   /*---- Chat command ------------------------------------------*/
+   
+   if (equal_ustring(command, "chat")) {
+      show_chat_page();
+      return;
+   }
+   
    /*---- ELog command ----------------------------------------------*/
 
    if (equal_ustring(command, "elog")) {

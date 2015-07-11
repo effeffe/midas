@@ -286,7 +286,7 @@ div.wrapper{
     margin: 0 auto -3em;
 }
 
-.historyConfigTable, .dialogTable, .runlogTable, .messageBox, .genericTable, .sequencerTable{
+.historyConfigTable, .dialogTable, .runlogTable, .messageBox, .chatBox, .chatInput, .genericTable, .sequencerTable {
 	border-radius: 12px;
 	border: 2px solid #00B26B;
 	background-color: #EEEEEE;
@@ -566,7 +566,8 @@ td.meterCell{
 	border:none;
 }
 
-/*---- Messages Page----*/
+/*---- Messages & Chat pages ----*/
+
 .messageBox{
 	text-align: left;
 	overflow: scroll;
@@ -578,6 +579,14 @@ td.meterCell{
 	max-width: -moz-max-content;
 }
 
+.chatBox{
+   text-align: left;
+   overflow: scroll;
+   line-height: 0.75em;
+   margin: 0.25em;
+   width: 100%-0.5em;
+}
+
 /* standard link colors and decorations */
 a:link { color:#0000FF; text-decoration:none }
 a:visited { color:#800080; text-decoration:none }
@@ -585,7 +594,7 @@ a:hover { color:#0000FF; text-decoration:underline }
 a:active { color:#0000FF; text-decoration:underline }
 a:focus { color:#0000FF; text-decoration:underline }
 
-/*MSCB*/
+/* MSCB */
 .vars td.v1:nth-child(odd), .vars td.v2:nth-child(odd){
 	background-color: #EEEEEE !important;
 }
