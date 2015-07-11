@@ -899,6 +899,8 @@ function chat_append(msg)
    
    for(i=0 ; i<msg.length ; i++) {
       
+      if (msg[i] == "")
+         continue;
       var t = parseInt(msg[i]);
       if (t != -1 && t > first_tstamp)
          first_tstamp = t;
