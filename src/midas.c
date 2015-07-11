@@ -932,7 +932,7 @@ INT EXPRT cm_msg_facilities(char **plist)
    n = ss_file_find(path, "*.log", &flist);
    for (i=0 ; i<n ; i++) {
       p = flist+i*MAX_STRING_LENGTH;
-      if (strchr(p, '_') == NULL) {
+      if (strchr(p, '_') == NULL && !(p[0] >= '0' && p[0] <= '9') && !equal_ustring(p, "chat.log")) {
          *plist = (char *) realloc(*plist, (n_fac + 1) * MAX_STRING_LENGTH);
          strlcpy(*plist+n_fac*MAX_STRING_LENGTH, p, MAX_STRING_LENGTH);
          if (strchr(*plist+n_fac*MAX_STRING_LENGTH, '.'))

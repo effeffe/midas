@@ -411,11 +411,23 @@ function ODBGetMsg(facility, start, n)
       return request.responseText;
 }
 
-function ODBGenerateMsg(m)
+const MT_ERROR =  (1<<0);
+const MT_INFO  =  (1<<1);
+const MT_DEBUG =  (1<<2);
+const MT_USER  =  (1<<3);
+const MT_LOG   =  (1<<4);
+const MT_TALK  =  (1<<5);
+const MT_CALL  =  (1<<6);
+
+function ODBGenerateMsg(type,facility,user,msg)
 {
    var request = XMLHttpRequestGeneric();
 
-   var url = ODBUrlBase + '?cmd=jgenmsg&msg=' + m;
+   var url = ODBUrlBase + '?cmd=jgenmsg';
+   url += '&type='+type;
+   url += '&facility='+facility;
+   url += '&user='+user;
+   url += '&msg=' + msg;
    request.open('GET', url, false);
    request.send(null);
    return request.responseText;
@@ -614,11 +626,61 @@ function mhttpd_delete_page_handle_cancel(mouseEvent)
    return false;
 }
 
+/*---- message functions -------------------------------------*/
+
 var facility;
 var first_tstamp = 0;
 var last_tstamp = 0;
 var end_of_messages = false;
 var n_messages = 0;
+
+function msg_load(f)
+{
+   facility = f;
+   var msg = ODBGetMsg(facility, 0, 100);
+   msg_append(msg);
+   if (isNaN(last_tstamp))
+      end_of_messages = true;
+   
+   // set message window height to fit browser window
+   mf = document.getElementById('messageFrame');
+   mf.style.height = window.innerHeight-findPos(mf)[1]-4;
+   
+   // check for new messages and end of scroll
+   window.setTimeout(msg_extend, 1000);
+}
+
+function msg_prepend(msg)
+{
+   var mf = document.getElementById('messageFrame');
+   
+   for(i=0 ; i<msg.length ; i++) {
+      var line = msg[i];
+      var t = parseInt(line);
+      
+      if (line.indexOf(" ") && (t>0 || t==-1))
+         line = line.substr(line.indexOf(" ")+1);
+      var e = document.createElement("p");
+      e.appendChild(document.createTextNode(line));
+      
+      if (e.innerHTML == mf.childNodes[2+i].innerHTML)
+         break;
+      mf.insertBefore(e, mf.childNodes[2+i]);
+      first_tstamp = t;
+      n_messages++;
+      
+      if (line.search("ERROR]") > 0) {
+         e.style.backgroundColor = "red";
+         e.style.color = "white";
+      } else {
+         e.style.backgroundColor = "yellow";
+         e.age = new Date()/1000;
+         e.style.setProperty("-webkit-transition", "background-color 3s");
+         e.style.setProperty("transition", "background-color 3s");
+      }
+      
+   }
+}
 
 function msg_append(msg)
 {
@@ -632,8 +694,8 @@ function msg_append(msg)
          first_tstamp = t;
       if (t != -1 && (last_tstamp == 0 || t < last_tstamp))
          last_tstamp = t;
-      if (line.indexOf(" ") && parseInt(line)>0)
-         line = line.substr(line.indexOf(" "));
+      if (line.indexOf(" ") && (t>0 || t==-1))
+         line = line.substr(line.indexOf(" ")+1);
       var e = document.createElement("p");
       e.appendChild(document.createTextNode(line));
       if (line.search("ERROR]") > 0) {
@@ -644,54 +706,6 @@ function msg_append(msg)
       mf.appendChild(e);
       n_messages++;
    }
-}
-
-function msg_prepend(msg)
-{
-   var mf = document.getElementById('messageFrame');
-   
-   for(i=0 ; i<msg.length ; i++) {
-      var line = msg[i];
-      var t = parseInt(line);
-      
-      if (line.indexOf(" ") && parseInt(line)>0)
-         line = line.substr(line.indexOf(" "));
-      var e = document.createElement("p");
-      e.appendChild(document.createTextNode(line));
-
-      if (e.innerHTML == mf.childNodes[2+i].innerHTML)
-         break;
-      mf.insertBefore(e, mf.childNodes[2+i]);
-      first_tstamp = t;
-      n_messages++;
-
-      if (line.search("ERROR]") > 0) {
-         e.style.backgroundColor = "red";
-         e.style.color = "white";
-      } else {
-         e.style.backgroundColor = "yellow";
-         e.age = new Date()/1000;
-         e.style.setProperty("-webkit-transition", "background-color 3s");
-         e.style.setProperty("transition", "background-color 3s");
-      }
-   
-   }
-}
-
-function msg_load(f)
-{
-   facility = f;
-   var msg = ODBGetMsg(facility, 0, 100);
-   msg_append(msg);
-   if (isNaN(last_tstamp))
-      end_of_messages = true;
-   
-   // set message window height to fit browser window
-   mf = document.getElementById('messageFrame');
-   mf.style.height = window.innerHeight-findPos(mf)[1]-4;
-  
-   // check for new messages and end of scroll
-   window.setTimeout(msg_extend, 1000);
 }
 
 function findPos(obj) {
@@ -750,5 +764,213 @@ function msg_extend()
       }
    }
    window.setTimeout(msg_extend, 1000);
+}
+
+/*---- chat functions -------------------------------------*/
+
+function chat_kp(e)
+{
+   key = (e.which) ? e.which : event.keyCode;
+   if (key == '13') {
+      chat_send();
+      return false;
+   }
+   return true;
+}
+
+function rb()
+{
+   n = document.getElementById('name');
+   n.style.backgroundColor = "";
+}
+
+function chat_send()
+{
+   // check for name
+   n = document.getElementById('name');
+   if (n.value == "") {
+      n.style.backgroundColor = "#FF8080";
+      n.style.setProperty("-webkit-transition", "background-color 400ms");
+      n.style.setProperty("transition", "background-color 400ms");
+      window.setTimeout(rb, 200);
+      n.focus();
+
+   } else {
+      m = document.getElementById('text');
+      
+      ODBGenerateMsg(MT_USER, "chat", n.value, m.value);
+      
+      m.value = "";
+      m.focus();
+   }
+}
+
+function chat_load()
+{
+   var msg = ODBGetMsg("chat", 0, 100);
+   chat_append(msg);
+   if (isNaN(last_tstamp))
+      end_of_messages = true;
+   
+   // set message window height to fit browser window
+   mf = document.getElementById('messageFrame');
+   mf.style.height = window.innerHeight-findPos(mf)[1]-4;
+   
+   // check for new messages and end of scroll
+   window.setTimeout(chat_extend, 1000);
+}
+
+function chat_format(line)
+{
+   var t = parseInt(line);
+   
+   if (line.indexOf(" ") && (t>0 || t==-1))
+      line = line.substr(line.indexOf(" ")+1);
+   
+   var name = line.substr(line.indexOf("[")+1, line.indexOf(",")-line.indexOf("[")-1);
+   var text = line.substr(line.indexOf("]")+2);
+   var e = document.createElement("div");
+   
+   if (name == document.getElementById('name').value)
+      e.className = "chatBubbleMine";
+   else
+      e.className = "chatBubbleTheirs";
+   
+   var d1 = document.createElement("div");
+   var d2 = document.createElement("div");
+   d1.className = "chatName";
+   d2.className = "chatMsg";
+   d1.appendChild(document.createTextNode(name));
+   d2.appendChild(document.createTextNode(text));
+   e.appendChild(d1);
+   e.appendChild(d2);
+   
+   return e;
+}
+
+function chat_prepend(msg)
+{
+   var mf = document.getElementById('messageFrame');
+   
+   for(i=0 ; i<msg.length ; i++) {
+      var line = msg[i];
+      var t = parseInt(line);
+      
+      // cut off time stamp
+      if (line.indexOf(" ") && (t>0 || t==-1))
+         line = line.substr(line.indexOf(" ")+1);
+      
+      var e = chat_format(line);
+      
+      // stop if this message is already in the list
+      if (e.innerHTML == mf.childNodes[2+i*2].innerHTML)
+         break;
+      
+      // insert message
+      mf.insertBefore(e, mf.childNodes[2+i*2]);
+      
+      // insert div element to clear floating
+      var d = document.createElement("div");
+      d.style.clear = "both";
+      mf.insertBefore(d, mf.childNodes[3+i*2]);
+
+      // speak message if checkbox on
+      if (document.getElementById('speak').checked && e.className != "chatBubbleMine") {
+         u=new SpeechSynthesisUtterance(line.substr(line.indexOf("]")+2));
+         window.speechSynthesis.speak(u);
+      }
+      
+      first_tstamp = t;
+      n_messages++;
+      
+      // yellow fading background
+      if (e.className == "chatBubbleTheirs") {
+         e.style.backgroundColor = "yellow";
+         e.age = new Date()/1000;
+         e.style.setProperty("-webkit-transition", "background-color 3s");
+         e.style.setProperty("transition", "background-color 3s");
+      }
+   }
+}
+
+function chat_append(msg)
+{
+   var mf = document.getElementById('messageFrame');
+   
+   for(i=0 ; i<msg.length ; i++) {
+      
+      var t = parseInt(msg[i]);
+      if (t != -1 && t > first_tstamp)
+         first_tstamp = t;
+      if (t != -1 && (last_tstamp == 0 || t < last_tstamp))
+         last_tstamp = t;
+
+      mf.appendChild(chat_format(msg[i]));
+      
+      var d = document.createElement("div");
+      d.style.clear = "both";
+      mf.appendChild(d);
+      
+      n_messages++;
+   }
+}
+
+function chat_extend()
+{
+   // set message window height to fit browser window
+   mf = document.getElementById('messageFrame');
+   mf.style.height = window.innerHeight-findPos(mf)[1]-4;
+   
+   // if scroll bar is close to end, append messages
+   if (mf.scrollHeight-mf.scrollTop-mf.clientHeight < 2000) {
+      if (!end_of_messages) {
+         
+         if (last_tstamp > 0) {
+            var msg = ODBGetMsg("chat", last_tstamp-1, 100);
+            if (msg[0] == "")
+               end_of_messages = true;
+            if (!end_of_messages) {
+               chat_append(msg);
+            }
+         } else {
+            // in non-timestamped mode, simple load full message list
+            var msg = ODBGetMsg("chat", 0, n_messages+100);
+            n_messages = 0;
+            
+            var mf = document.getElementById('messageFrame');
+            for (i=mf.childNodes.length-1 ; i>1 ; i--)
+               mf.removeChild(mf.childNodes[i]);
+            chat_append(msg);
+         }
+      }
+   }
+   
+   // check for reformat of messages if name is given
+   for (i=2 ; i<mf.childNodes.length ; i+=2) {
+      var b = mf.childNodes[i];
+      
+      if (b.childNodes[0].innerHTML == document.getElementById('name').value)
+         b.className = "chatBubbleMine";
+      else
+         b.className = "chatBubbleTheirs";
+   }
+   
+   // check for new message if time stamping is on
+   if (first_tstamp) {
+      var msg = ODBGetMsg("chat", first_tstamp, 0);
+      chat_prepend(msg);
+   }
+   
+   // remove color of elements
+   for (i=2 ; i<mf.childNodes.length ; i++) {
+      if (mf.childNodes[i].age != undefined) {
+         t = new Date()/1000;
+         if (mf.childNodes[i].age != undefined) {
+            if (t > mf.childNodes[i].age + 5)
+               mf.childNodes[i].style.backgroundColor = "";
+         }
+      }
+   }
+   window.setTimeout(chat_extend, 1000);
 }
 

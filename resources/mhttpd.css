@@ -568,18 +568,15 @@ td.meterCell{
 
 /*---- Messages & Chat pages ----*/
 
-.messageBox{
+.messageBox {
 	text-align: left;
 	overflow: scroll;
 	line-height: 0.75em;
-	margin-left: auto;
-	margin-right: auto;
-	margin-top:0.25em;
-	max-width: -webkit-max-content;
-	max-width: -moz-max-content;
+	margin: 0.25em;
+   width: 100%-0.5em;
 }
 
-.chatBox{
+.chatBox {
    text-align: left;
    overflow: scroll;
    line-height: 0.75em;
@@ -587,6 +584,36 @@ td.meterCell{
    width: 100%-0.5em;
 }
 
+.chatBubbleMine {
+   border-radius:12px;
+   background-color:#20A020;
+   color:white;
+   padding:1em;
+   margin:0.25em;
+   max-width: -webkit-max-content;
+   max-width: -moz-max-content;
+   float:right;
+}
+
+.chatBubbleTheirs {
+   border-radius:12px;
+   background-color:#C0C0C0;
+   color:black;
+   padding:0.75em;
+   margin:0.25em;
+   max-width: -webkit-max-content;
+   max-width: -moz-max-content;
+   float:left;
+}
+
+.chatName {
+   font-size: 70%;
+   margin-bottom: 0.5em;
+}
+
+.chatMsg {
+   
+}
 /* standard link colors and decorations */
 a:link { color:#0000FF; text-decoration:none }
 a:visited { color:#800080; text-decoration:none }

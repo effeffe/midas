@@ -1301,7 +1301,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
    FILE *cmd_file = NULL;
    DWORD last_msg_time = 0;
    char message[2000], client_name[256], *p;
-   INT n1, n2, msg_type;
+   INT n1, n2;
    PRINT_INFO print_info;
 
    cm_get_experiment_database(&hDB, &hKeyClient);
@@ -2415,23 +2415,11 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
       /* msg */
       else if (param[0][0] == 'm' && param[0][1] == 's') {
-         /*
-            if (cm_exist("Speaker", FALSE) != CM_SUCCESS)
-            printf("Note: No speaker application present.\n");
-          */
-
-         /* user message type by default */
-         msg_type = MT_USER;
          message[0] = 0;
          if (cmd_mode)
             strcpy(user_name, "script");
 
-         if (param[3][0]) {
-            msg_type = atoi(param[1]);
-            last_msg_time = ss_time();
-            strcpy(user_name, param[2]);
-            strcpy(message, param[3]);
-         } else if (param[2][0]) {
+         if (param[2][0]) {
             last_msg_time = ss_time();
             strcpy(user_name, param[1]);
             strcpy(message, param[2]);
@@ -2451,7 +2439,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          }
 
          if (message[0])
-	    cm_msg(msg_type, __FILE__, __LINE__, user_name, "%s", message);
+	         cm_msg1(MT_USER, __FILE__, __LINE__, "chat", user_name, "%s", message);
 
          last_msg_time = ss_time();
       }
