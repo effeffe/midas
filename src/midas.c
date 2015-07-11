@@ -303,6 +303,14 @@ void dbg_free(void *adr, char *file, int line)
    fclose(f);
 }
 
+void xwrite(const char* filename, int fd, const void* data, int size)
+{
+   int wr = write(fd, data, size);
+   if (wr != size) {
+      printf("xwrite: cannot write to \'%s\', write(%d) returned %d, errno %d (%s)\n", filename, size, wr, errno, strerror(errno));
+   }
+}
+
 /********************************************************************\
 *                                                                    *
 *              Common message functions                              *
@@ -493,7 +501,7 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message)
       
       fh = open(filename, O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
       if (fh < 0) {
-         printf("Cannot open message log file %s\n", filename);
+         printf("Cannot open message log file \'%s', open() errno: %d (%s)\n", filename, errno, strerror(errno));
       } else {
          char str[256];
 
@@ -518,16 +526,19 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message)
          sprintf(str+strlen(str), ".%03d ", (int)(tv.tv_usec / 1000));
          strftime(str+strlen(str), sizeof(str), "%G/%m/%d", tms);
 
-         write(fh, str, strlen(str));
-         write(fh, " ", 1);
-         write(fh, message, strlen(message));
-         write(fh, "\n", 1);
+         xwrite(filename, fh, str, strlen(str));
+         xwrite(filename, fh, " ", 1);
+         xwrite(filename, fh, message, strlen(message));
+         xwrite(filename, fh, "\n", 1);
          close(fh);
 
 #ifdef OS_LINUX
          if (linkname[0]) {
             unlink(linkname);
-            symlink(filename, linkname);
+            status = symlink(filename, linkname);
+            if (status != 0) {
+               printf("Cannot symlink message log file \'%s' to \'%s\', symlink() errno: %d (%s)\n", filename, linkname, errno, strerror(errno));
+            }
          }
 #endif
 
@@ -4530,8 +4541,9 @@ INT cm_execute(const char *command, char *result, INT bufsize)
          close(fh);
       }
       remove(str);
-   } else
+   } else {
       system(command);
+   }
 
    return CM_SUCCESS;
 }
