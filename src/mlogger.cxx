@@ -111,6 +111,8 @@ int log_generate_file_name(LOG_CHN *log_chn);
 #define FREE(ptr) if (ptr) free(ptr); (ptr)=NULL;
 #define DELETE(ptr) if (ptr) delete (ptr); (ptr)=NULL;
 
+/*---- writer interface --------------------------------------*/
+
 class WriterInterface
 {
 public:
@@ -197,6 +199,8 @@ public:
 private:
    bool fSimulateCompression;
 };
+
+/*---- file writer --------------------------------------*/
 
 class WriterFile : public WriterInterface
 {
@@ -290,6 +294,108 @@ public:
 private:
    int fFileno;
 };
+
+/*---- gzip writer --------------------------------------*/
+
+#include <zlib.h>
+
+class WriterGzip : public WriterInterface
+{
+public:
+   WriterGzip(LOG_CHN* log_chn) // ctor
+   {
+      if (fTrace)
+         printf("WriterGzip: path [%s]\n", log_chn->path);
+      fGzfp = 0;
+   }
+
+   ~WriterGzip() // dtor
+   {
+      if (fTrace)
+         printf("WriterGzip: destructor\n");
+      assert(fGzfp == 0);
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      if (fTrace)
+         printf("WriterGzip: open path [%s]\n", log_chn->path);
+
+      assert(fGzfp == 0);
+
+      fGzfp = gzopen(log_chn->path, "wb");
+      if (fGzfp == 0) {
+         printf("cannot gzopen [%s], errno %d (%s)\n", log_chn->path, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      log_chn->handle = 8888;
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterGzip: write path [%s], size %d\n", log_chn->path, size);
+
+      if (size == 0)
+         return SUCCESS;
+
+      assert(fGzfp);
+
+      fBytesIn += size;
+
+      int wr = gzwrite(fGzfp, data, size);
+
+      //if (wr > 0)
+      //fBytesOut += wr;
+
+      if (wr != size) {
+         printf("gzwrite(%d) wrote %d bytes, errno %d (%s)\n", size, wr, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      int err;
+
+      if (fTrace)
+         printf("WriterGzip: close path [%s]\n", log_chn->path);
+
+      assert(fGzfp);
+
+      log_chn->handle = 0;
+
+      err = gzflush(fGzfp, Z_FINISH);
+
+      if (err != 0) {
+         printf("close() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      err = gzclose(fGzfp);
+      fGzfp = 0;
+
+      if (err != 0) {
+         printf("close() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+private:
+   gzFile fGzfp;
+};
+
+/*---- pipe writer --------------------------------------*/
 
 class WriterPopen : public WriterInterface
 {
@@ -703,43 +809,6 @@ private:
    int   fBufferSize;
    int   fBlockSize;
 };
-
-/*------------------------------------------------------------------*/
-
-int log_create_writer(LOG_CHN *log_chn)
-{
-   assert(log_chn->writer_class == NULL);
-   log_chn->writer_class = NULL;
-
-   if (equal_ustring(log_chn->settings.format, "MIDAS")) {
-      WriterInterface* wri = NULL;
-      if (log_chn->compression==98) {
-         WriterNull* wr = new WriterNull(log_chn);
-         wri = wr;
-      } else if (log_chn->compression==99) {
-         WriterFile* wr = new WriterFile(log_chn);
-         wri = wr;
-      } else if (log_chn->compression==100) {
-         WriterFile* wr = new WriterFile(log_chn);
-         WriterLZ4* lz4 = new WriterLZ4(log_chn, wr);
-         wri = lz4;
-      } else if (log_chn->compression==200) {
-         WriterPopen* wr = new WriterPopen(log_chn, "bzip2 -z > ", ".bz2");
-         wri = wr;
-      } else if (log_chn->compression==201) {
-         WriterPopen* wr = new WriterPopen(log_chn, "pbzip2 -c -z > ", ".bz2");
-         wri = wr;
-      }
-
-      if (wri) {
-         wri = new WriterCRC32Zlib(log_chn, wri);
-      }
-
-      log_chn->writer_class = (void*)wri;
-   }
-
-   return SS_SUCCESS;
-}
 
 /*---- Utility functions      --------------------------------------*/
 
@@ -2285,7 +2354,7 @@ INT root_book_bank(EVENT_TREE * et, HNDLE hKeyDef, int event_id, char *bank_name
 
 /*------------------------------------------------------------------*/
 
-INT root_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
+INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
 {
    INT size, i;
    char bank_name[32];
@@ -2507,7 +2576,121 @@ INT root_log_close(LOG_CHN * log_chn, INT run_number)
    return SS_SUCCESS;
 }
 
+class WriterROOT : public WriterInterface
+{
+public:
+   WriterROOT(LOG_CHN* log_chn) // ctor
+   {
+      if (fTrace)
+         printf("WriterROOT: path [%s]\n", log_chn->path);
+   }
+
+   ~WriterROOT() // dtor
+   {
+      if (fTrace)
+         printf("WriterROOT: destructor\n");
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      if (fTrace)
+         printf("WriterROOT: open path [%s]\n", log_chn->path);
+
+      int status = root_log_open(log_chn, run_number);
+      if (status != SUCCESS)
+         return status;
+
+      log_chn->handle = 9999;
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterROOT: write path [%s], size %d\n", log_chn->path, size);
+
+      if (size == 0)
+         return SUCCESS;
+
+      fBytesIn += size;
+
+      int status = root_write(log_chn, (const EVENT_HEADER*)data, size);
+      if (status != SUCCESS)
+         return status;
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      if (fTrace)
+         printf("WriterROOT: close path [%s]\n", log_chn->path);
+
+      int status = root_log_close(log_chn, run_number);
+
+      log_chn->handle = 0;
+
+      return status;
+   }
+
+   std::string wr_get_file_ext()
+   {
+      return ".root";
+   }
+
+private:
+};
+
 #endif                          /* HAVE_ROOT */
+
+/*------------------------------------------------------------------*/
+
+int log_create_writer(LOG_CHN *log_chn)
+{
+   assert(log_chn->writer_class == NULL);
+   log_chn->writer_class = NULL;
+
+   if (equal_ustring(log_chn->settings.format, "MIDAS")) {
+      WriterInterface* wri = NULL;
+      if (log_chn->compression==80) {
+#ifdef HAVE_ROOT
+         log_chn->writer_class = (void*) new WriterROOT(log_chn);
+#else
+         log_chn->writer_class = (void*) new WriterNull(log_chn);
+#endif
+      } else if (log_chn->compression==98) {
+         WriterNull* wr = new WriterNull(log_chn);
+         wri = wr;
+      } else if (log_chn->compression==99) {
+         WriterFile* wr = new WriterFile(log_chn);
+         wri = wr;
+      } else if (log_chn->compression==100) {
+         WriterFile* wr = new WriterFile(log_chn);
+         WriterLZ4* lz4 = new WriterLZ4(log_chn, wr);
+         wri = lz4;
+      } else if (log_chn->compression==200) {
+         WriterPopen* wr = new WriterPopen(log_chn, "bzip2 -z > ", ".bz2");
+         wri = wr;
+      } else if (log_chn->compression==201) {
+         WriterPopen* wr = new WriterPopen(log_chn, "pbzip2 -c -z > ", ".bz2");
+         wri = wr;
+      } else if (log_chn->compression==300) {
+         WriterGzip* gzip = new WriterGzip(log_chn);
+         wri = gzip;
+      }
+
+      if (wri) {
+         wri = new WriterCRC32Zlib(log_chn, wri);
+         log_chn->writer_class = (void*)wri;
+      }
+   }
+
+   return SS_SUCCESS;
+}
 
 /*---- log_open ----------------------------------------------------*/
 
