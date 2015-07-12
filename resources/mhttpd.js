@@ -812,6 +812,14 @@ function chat_load()
    if (isNaN(last_tstamp))
       end_of_messages = true;
    
+   // hide speak button if browser does not support
+   try {
+      u = new SpeechSynthesisUtterance("Hello");
+   } catch (err) {
+      document.getElementById('speak').style.display = 'none';
+      document.getElementById('speakLabel').style.display = 'none';
+   }
+   
    // set message window height to fit browser window
    mf = document.getElementById('messageFrame');
    mf.style.height = window.innerHeight-findPos(mf)[1]-4;
@@ -829,6 +837,8 @@ function chat_format(line)
    
    var name = line.substr(line.indexOf("[")+1, line.indexOf(",")-line.indexOf("[")-1);
    var text = line.substr(line.indexOf("]")+2);
+   var time = line.substr(0, 8);
+   var date = line.substr(13, 10);
    var e = document.createElement("div");
    
    if (name == document.getElementById('name').value)
@@ -840,7 +850,13 @@ function chat_format(line)
    var d2 = document.createElement("div");
    d1.className = "chatName";
    d2.className = "chatMsg";
-   d1.appendChild(document.createTextNode(name));
+   d1.appendChild(document.createTextNode(""));
+   
+   now = new Date();
+   if (now.getDate() == parseInt(date.substr(8, 2)))
+      d1.innerHTML = name + '&nbsp;(' + time + ')';
+   else
+      d1.innerHTML = name + '&nbsp;(' + time + '&nbsp;' + date + ')';
    d2.appendChild(document.createTextNode(text));
    e.appendChild(d1);
    e.appendChild(d2);
@@ -855,10 +871,6 @@ function chat_prepend(msg)
    for(i=0 ; i<msg.length ; i++) {
       var line = msg[i];
       var t = parseInt(line);
-      
-      // cut off time stamp
-      if (line.indexOf(" ") && (t>0 || t==-1))
-         line = line.substr(line.indexOf(" ")+1);
       
       var e = chat_format(line);
       
@@ -951,7 +963,11 @@ function chat_extend()
    for (i=2 ; i<mf.childNodes.length ; i+=2) {
       var b = mf.childNodes[i];
       
-      if (b.childNodes[0].innerHTML == document.getElementById('name').value)
+      var n = b.childNodes[0].innerHTML;
+      if (n.indexOf('&'))
+         n = n.substr(0, n.indexOf('&'));
+      
+      if (n == document.getElementById('name').value)
          b.className = "chatBubbleMine";
       else
          b.className = "chatBubbleTheirs";
