@@ -53,6 +53,35 @@ void el_decode(char *message, char *key, char *result, int size)
    assert((int) strlen(rstart) < size);
 }
 
+static void xwrite(const char* filename, int fd, const void* data, int size)
+{
+   int wr = write(fd, data, size);
+   if (wr != size) {
+      cm_msg(MERROR, "xwrite", "cannot write to \'%s\', write(%d) returned %d, errno %d (%s)", filename, size, wr, errno, strerror(errno));
+   }
+}
+
+static int xread(const char* filename, int fd, void* data, int size)
+{
+   int rd = read(fd, data, size);
+   if (rd == 0) {
+      // end of file
+   } else if (rd < 0) {
+      cm_msg(MERROR, "xread", "cannot read from \'%s\', read(%d) returned %d, errno %d (%s)", filename, size, rd, errno, strerror(errno));
+   } else if (rd != size) {
+      cm_msg(MERROR, "xread", "truncated read from \'%s\', read(%d) returned %d", filename, size, rd);
+   }
+   return rd;
+}
+
+static void xtruncate(const char* filename, int fd)
+{
+   int tr = ftruncate(fd, TELL(fd));
+   if (tr != 0) {
+      cm_msg(MERROR, "xtruncate", "cannot truncate \'%s\', ftruncate() returned %d, errno %d (%s)", filename, tr, errno, strerror(errno));
+   }
+}
+
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
@@ -94,7 +123,7 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
 
 #ifdef LOCAL_ROUTINES
    {
-      INT n, size, fh, status, run_number, semaphore, buffer_size = 0, idx, offset = 0, tail_size = 0;
+      INT size, fh, status, run_number, semaphore, buffer_size = 0, idx, offset = 0, tail_size = 0;
       struct tm *tms = NULL;
       char afilename[256], file_name[256], afile_name[3][256], dir[256], str[256],
           start_str[80], end_str[80], last[80], date[80], thread[80], attachment[256];
@@ -194,9 +223,9 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
                /* save attachment */
                fh = open(file_name, O_CREAT | O_RDWR | O_BINARY, 0644);
                if (fh < 0) {
-                  cm_msg(MERROR, "el_submit", "Cannot write attachment file \"%s\"", file_name);
+                  cm_msg(MERROR, "el_submit", "Cannot write attachment file \"%s\", open() returned %d, errno %d (%s)", file_name, fh, errno, strerror(errno));
                } else {
-                  write(fh, buffer, buffer_size);
+                  xwrite(file_name, fh, buffer, buffer_size);
                   close(fh);
                }
             }
@@ -235,11 +264,14 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
             return EL_FILE_ERROR;
          }
          lseek(fh, offset, SEEK_SET);
-         read(fh, str, 16);
+         xread(file_name, fh, str, 16);
          assert(strncmp(str, "$Start$", 7) == 0);
 
          size = atoi(str + 9);
-         read(fh, message, size);
+         status = read(fh, message, size);
+         if (status != size || status + 16 != size) {
+            return EL_FILE_ERROR;
+         }
 
          el_decode(message, "Date: ", date, sizeof(date));
          el_decode(message, "Thread: ", thread, sizeof(thread));
@@ -250,6 +282,8 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
          tail_size = TELL(fh) - (offset + size);
 
          if (tail_size > 0) {
+            int n;
+
             buffer = (char *) M_MALLOC(tail_size);
             if (buffer == NULL) {
                close(fh);
@@ -258,8 +292,9 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
             }
 
             lseek(fh, offset + size, SEEK_SET);
-            n = read(fh, buffer, tail_size);
-            assert(n == tail_size);
+            n = xread(file_name, fh, buffer, tail_size);
+            if (n != tail_size)
+               return EL_FILE_ERROR;
          }
          lseek(fh, offset, SEEK_SET);
       } else {
@@ -329,13 +364,13 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
       sprintf(start_str, "$Start$: %6d\n", size);
       sprintf(end_str, "$End$:   %6d\n\f", size);
 
-      write(fh, start_str, strlen(start_str));
-      write(fh, message, strlen(message));
-      write(fh, end_str, strlen(end_str));
+      xwrite(file_name, fh, start_str, strlen(start_str));
+      xwrite(file_name, fh, message, strlen(message));
+      xwrite(file_name, fh, end_str, strlen(end_str));
 
       if (bedit) {
          if (tail_size > 0) {
-            n = write(fh, buffer, tail_size);
+            xwrite(file_name, fh, buffer, tail_size);
             M_FREE(buffer);
          }
 
@@ -343,7 +378,7 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
 #ifdef OS_WINNT
          chsize(fh, TELL(fh));
 #else
-         ftruncate(fh, TELL(fh));
+         xtruncate(file_name, fh);
 #endif
       }
 
@@ -358,13 +393,13 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
                /* position to next thread location */
                lseek(fh, 72, SEEK_CUR);
                memset(str, 0, sizeof(str));
-               read(fh, str, 16);
+               xread("(unknown)", fh, str, 16);
                lseek(fh, -16, SEEK_CUR);
 
                /* if no reply yet, set it */
                if (atoi(str) == 0) {
                   sprintf(str, "%16s", tag);
-                  write(fh, str, 16);
+                  xwrite("(unknown)", fh, str, 16);
                   close(fh);
                   break;
                } else {
@@ -481,7 +516,7 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
       lseek(*fh, offset, SEEK_SET);
 
       /* check if start of message */
-      i = read(*fh, str, 15);
+      i = xread(file_name, *fh, str, 15);
       if (i <= 0) {
          close(*fh);
          return EL_FILE_ERROR;
@@ -551,7 +586,7 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
 
       /* read previous message size */
       lseek(*fh, -17, SEEK_CUR);
-      i = read(*fh, str, 17);
+      i = xread(file_name, *fh, str, 17);
       if (i <= 0) {
          close(*fh);
          return EL_FILE_ERROR;
@@ -582,7 +617,7 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
       /* read current message size */
       TELL(*fh);
 
-      i = read(*fh, str, 15);
+      i = xread(file_name, *fh, str, 15);
       if (i <= 0) {
          close(*fh);
          return EL_FILE_ERROR;
@@ -605,7 +640,7 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
       lseek(*fh, size, SEEK_CUR);
 
       /* if EOF, goto next day */
-      i = read(*fh, str, 15);
+      i = xread(file_name, *fh, str, 15);
       if (i < 15) {
          close(*fh);
          time((time_t *) &lact);
@@ -694,8 +729,9 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
 
    /* extract message size */
    TELL(fh);
-   rd = read(fh, str, 15);
-   assert(rd == 15);
+   rd = xread("(unknown)", fh, str, 15);
+   if (rd != 15)
+      return EL_FILE_ERROR;
 
    /* make sure the input string is zero-terminated before we call atoi() */
    str[15] = 0;
@@ -710,8 +746,8 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
    memset(message, 0, sizeof(message));
 
    rd = read(fh, message, size);
-   assert(rd > 0);
-   assert((rd + 15 == size) || (rd == size));
+   if (rd <= 0 || !((rd + 15 == size) || (rd == size)))
+      return EL_FILE_ERROR;
 
    close(fh);
 
@@ -921,7 +957,7 @@ INT el_delete_message(const char *tag)
       return EL_FILE_ERROR;
    }
    lseek(fh, offset, SEEK_SET);
-   read(fh, str, 16);
+   xread(file_name, fh, str, 16);
    size = atoi(str + 9);
 
    /* buffer tail of logfile */
@@ -937,12 +973,12 @@ INT el_delete_message(const char *tag)
       }
 
       lseek(fh, offset + size, SEEK_SET);
-      read(fh, buffer, tail_size);
+      xread(file_name, fh, buffer, tail_size);
    }
    lseek(fh, offset, SEEK_SET);
 
    if (tail_size > 0) {
-      write(fh, buffer, tail_size);
+      xwrite(file_name, fh, buffer, tail_size);
       M_FREE(buffer);
    }
 
@@ -950,7 +986,7 @@ INT el_delete_message(const char *tag)
 #ifdef OS_WINNT
    chsize(fh, TELL(fh));
 #else
-   ftruncate(fh, TELL(fh));
+   xtruncate(file_name, fh);
 #endif
 
    /* if file length gets zero, delete file */

@@ -1037,7 +1037,8 @@ void show_help_page()
 
    rsprintf("        <tr>\n");
    rsprintf("          <td style=\"text-align:right;\">CWD:</td>\n");
-   getcwd(str, sizeof(str));
+   if (!getcwd(str, sizeof(str)))
+      str[0] = 0;
    rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
    rsprintf("        </tr>\n");
 
@@ -1272,7 +1273,7 @@ void exec_script(HNDLE hkey)
 void show_navigation_bar(const char *cur_page)
 {
    HNDLE hDB;
-   char str[1000], dec_path[256], path[256], filename[256], *p;
+   char str[1000], dec_path[256], path[256], filename[256];
    int fh, size;
 
    cm_get_experiment_database(&hDB, NULL);
@@ -1290,14 +1291,15 @@ void show_navigation_bar(const char *cur_page)
       fh = open(filename, O_RDONLY | O_BINARY);
       if (fh > 0) {
          // show file contents
-         p = NULL;
          size = lseek(fh, 0, SEEK_END) + 1;
          lseek(fh, 0, SEEK_SET);
-         p = (char*)malloc(size);
-         memset(p, 0, size);
-         read(fh, p, size);
+         char* p = (char*)malloc(size+1);
+         int rd = read(fh, p, size);
+         if (rd > 0) {
+            p[rd] = 0; // make sure string is zero-terminated
+            rsputs(p);
+         }
          close(fh);
-         rsputs(p);
          free(p);
       } else {
          // show HTML text directly
@@ -1311,9 +1313,9 @@ void show_navigation_bar(const char *cur_page)
    /*---- menu buttons ----*/
 
 #ifdef HAVE_MSCB
-   strlcpy(str, "Status, ODB, Messages, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Help", sizeof(str));
+   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Help", sizeof(str));
 #else
-   strlcpy(str, "Status, ODB, Messages, ELog, Alarms, Programs, History, Sequencer, Config, Help", sizeof(str));
+   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, Sequencer, Config, Help", sizeof(str));
 #endif
    size = sizeof(str);
    db_get_value(hDB, 0, "/Experiment/Menu Buttons", str, &size, TID_STRING, TRUE);
@@ -1321,6 +1323,8 @@ void show_navigation_bar(const char *cur_page)
    /* add one "../" for each level */
    strlcpy(dec_path, get_dec_path(), sizeof(dec_path));
    path[0] = 0;
+
+   char*p;
    for (p = dec_path ; *p ; p++)
       if (*p == '/')
          strlcat(path, "../", sizeof(path));
@@ -2240,7 +2244,7 @@ void show_status_page(int refresh, int tts_enable, const char *cookie_wpwd)
 
 /*------------------------------------------------------------------*/
 
-void show_messages_page(int refresh)
+void show_messages_page()
 {
    int size, i, n;
    char str[256];
@@ -2292,6 +2296,35 @@ void show_messages_page(int refresh)
    
    rsprintf("<script type=\"text/javascript\">msg_load('%s');</script>\n", facility);
 
+   rsprintf("</form>\n");
+   rsprintf("</body></html>\n");
+}
+
+/*------------------------------------------------------------------*/
+
+void show_chat_page()
+{
+   show_header("Messages", "GET", "./", 0);
+   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
+   show_navigation_bar("Chat");
+   
+   /*---- messages will be dynamically loaded via JS ----*/
+
+   rsprintf("<div class=\"chatInput\" id=\"chatInput\">\n");
+   rsprintf("  <table width=\"100%%\" border=\"0\"><tr>\n");
+   rsprintf("    <td><input style=\"width:100%%\" type=\"text\" id=\"text\" autofocus=\"autofocus\" onkeypress=\"return chat_kp(event)\"></td>\n");
+   rsprintf("    <td nowrap width=\"10%%\"><input type=\"button\" name=\"send\" value=\"Send\" onClick=\"chat_send()\">");
+   rsprintf("&nbsp;&nbsp;Your name: <input type=\"text\" id=\"name\" size=\"10\" onkeypress=\"return chat_kp(event)\">\n");
+   rsprintf("    <input type=\"checkbox\" name=\"speak\" id=\"speak\" onClick=\"return speak_click(this);\"><span id=\"speakLabel\">Speak</span></td>");
+   rsprintf("  </tr></table>");
+   rsprintf("</div>\n");
+   
+   rsprintf("<div class=\"chatBox\" id=\"messageFrame\">\n");
+   rsprintf("<h1 class=\"subStatusTitle\">Chat messages</h1>");
+   rsprintf("</div>\n");
+   
+   rsprintf("<script type=\"text/javascript\">chat_load();</script>\n");
+   
    rsprintf("</form>\n");
    rsprintf("</body></html>\n");
 }
@@ -3806,11 +3839,13 @@ void submit_elog()
             size = lseek(fh, 0, SEEK_END);
             buffer[i] = (char*)M_MALLOC(size);
             lseek(fh, 0, SEEK_SET);
-            read(fh, buffer[i], size);
+            int rd = read(fh, buffer[i], size);
+            if (rd < 0)
+               rd = 0;
             close(fh);
             strlcpy(att_file[i], path, sizeof(att_file[0]));
             _attachment_buffer[i] = buffer[i];
-            _attachment_size[i] = size;
+            _attachment_size[i] = rd;
          } else if (strncmp(path, "/HS/", 4) == 0) {
            buffer[i] = (char*)M_MALLOC(100000);
             size = 100000;
@@ -4138,10 +4173,12 @@ void show_elog_page(char *path, int path_size)
          /* save attachment */
          fh = open(str, O_CREAT | O_RDWR | O_BINARY, 0644);
          if (fh < 0) {
-            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\"",
-                     str);
+            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", open() errno %d (%s)", str, errno, strerror(errno));
          } else {
-            write(fh, fbuffer, fsize);
+            int wr = write(fh, fbuffer, fsize);
+            if (wr != fsize) {
+               cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", write(%d) returned %d, errno %d (%s)", str, fsize, wr, errno, strerror(errno));
+            }
             close(fh);
          }
 
@@ -4605,7 +4642,8 @@ void show_elog_page(char *path, int path_size)
                   if (f != NULL) {
                      while (!feof(f)) {
                         str[0] = 0;
-                        fgets(str, sizeof(str), f);
+                        if (!fgets(str, sizeof(str), f))
+                           str[0] = 0;
                         if (!strstr(att, ".HTML"))
                            rsputs2(str);
                         else
@@ -6534,9 +6572,9 @@ bool starts_with(const std::string& s1, const char* s2)
 void javascript_commands(const char *cookie_cpwd)
 {
    int status;
-   int size, i, n, index;
+   int size, i, n, index, type;
    unsigned int t;
-   char str[TEXT_SIZE], ppath[256], format[256], facility[256];
+   char str[TEXT_SIZE], ppath[256], format[256], facility[256], user[256];
    HNDLE hDB, hkey;
    KEY key;
    char data[TEXT_SIZE];
@@ -7444,8 +7482,23 @@ void javascript_commands(const char *cookie_cpwd)
    /* process "jgenmsg" command */
    if (equal_ustring(getparam("cmd"), "jgenmsg")) {
 
-      if (*getparam("msg")) {
-         cm_msg(MINFO, "javascript_commands", "%s", getparam("msg"));
+      if (getparam("facility") && *getparam("facility"))
+         strlcpy(facility, getparam("facility"), sizeof(facility));
+      else
+         strlcpy(facility, "midas", sizeof(facility));
+      
+      if (getparam("user") && *getparam("user"))
+         strlcpy(user, getparam("user"), sizeof(user));
+      else
+         strlcpy(user, "javascript_commands", sizeof(user));
+      
+      if (getparam("type") && *getparam("type"))
+         type = atoi(getparam("type"));
+      else
+         type = MT_INFO;
+
+      if (getparam("msg") && *getparam("msg")) {
+         cm_msg1(type, __FILE__, __LINE__, facility, user, "%s", getparam("msg"));
       }
 
       show_text_header();
@@ -7551,7 +7604,7 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
          }
          fh = open(filename, O_RDONLY | O_BINARY);
          if (fh < 0) {
-            sprintf(str, "Cannot open file \"%s\"", filename);
+            sprintf(str, "Cannot open file \"%s\", errno %d (%s)", filename, errno, strerror(errno));
             show_error(str);
             free(ctext);
             return;
@@ -7560,9 +7613,15 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
          ctext = NULL;
          size = lseek(fh, 0, SEEK_END) + 1;
          lseek(fh, 0, SEEK_SET);
-         ctext = (char*)malloc(size);
-         memset(ctext, 0, size);
-         read(fh, ctext, size);
+         ctext = (char*)malloc(size+1);
+         int rd = read(fh, ctext, size);
+         if (rd > 0) {
+            ctext[rd] = 0; // make sure string is zero-terminated
+            size = rd;
+         } else {
+            ctext[0] = 0;
+            size = 0;
+         }
          close(fh);
       }
 
@@ -7583,7 +7642,7 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
                strlcpy(str, path, sizeof(str));
                if (strlen(str)>0 && str[strlen(str)-1] == '&')
                   str[strlen(str)-1] = 0;
-               if (*getparam("pnam"))
+               if (getparam("pnam") && *getparam("pnam"))
                   sprintf(ppath, "/Custom/Pwd/%s", getparam("pnam"));
                else
                   sprintf(ppath, "/Custom/Pwd/%s", str);
@@ -7604,7 +7663,7 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
       /* process toggle command */
       if (equal_ustring(getparam("cmd"), "Toggle")) {
 
-         if (*getparam("pnam")) {
+         if (getparam("pnam") && *getparam("pnam")) {
             sprintf(ppath, "/Custom/Pwd/%s", getparam("pnam"));
             str[0] = 0;
             db_get_value(hDB, 0, ppath, str, &size, TID_STRING, TRUE);
@@ -9502,7 +9561,7 @@ void show_set_page(char *enc_path, int enc_path_size,
 
       memset(data, 0, sizeof(data));
 
-      if (*getparam("text"))
+      if (getparam("text") && *getparam("text"))
          strlcpy(data, getparam("text"), sizeof(data));
       else
          db_sscanf(value, data, &size, 0, key.type);
@@ -10093,7 +10152,7 @@ void show_programs_page()
    cm_get_experiment_database(&hDB, NULL);
 
    /* stop command */
-   if (*getparam("Stop")) {
+   if (getparam("Stop") && *getparam("Stop")) {
       status = cm_shutdown(getparam("Stop") + 5, FALSE);
 
       if (status == CM_SUCCESS)
@@ -10109,7 +10168,7 @@ void show_programs_page()
    }
 
    /* start command */
-   if (*getparam("Start")) {
+   if (getparam("Start") && *getparam("Start")) {
       /* for NT: close reply socket before starting subprocess */
       redirect2("./?cmd=programs");
 
@@ -12267,7 +12326,7 @@ void show_query_page(const char *path)
    HNDLE hDB;
    char str[256], redir[256];
 
-   if (*getparam("m1")) {
+   if (getparam("m1") && *getparam("m1")) {
       struct tm tms;
       memset(&tms, 0, sizeof(struct tm));
 
@@ -12877,19 +12936,19 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
    if (cmd[0] && equal_ustring(cmd, "save")) {
       save_vars_odb(hDB, path, vars);
 
-      if (*getparam("timescale")) {
+      if (getparam("timescale") && *getparam("timescale")) {
          sprintf(ref, "/History/Display/%s/Timescale", path);
          strlcpy(str, getparam("timescale"), sizeof(str));
          db_set_value(hDB, 0, ref, str, NAME_LENGTH, 1, TID_STRING);
       }
 
-      if (*getparam("minimum")) {
+      if (getparam("minimum") && *getparam("minimum")) {
          float val = (float) strtod(getparam("minimum"),NULL);
          sprintf(ref, "/History/Display/%s/Minimum", path);
          db_set_value(hDB, 0, ref, &val, sizeof(val), 1, TID_FLOAT);
       }
 
-      if (*getparam("maximum")) {
+      if (getparam("maximum") && *getparam("maximum")) {
          float val = (float) strtod(getparam("maximum"),NULL);
          sprintf(ref, "/History/Display/%s/Maximum", path);
          db_set_value(hDB, 0, ref, &val, sizeof(val), 1, TID_FLOAT);
@@ -13791,7 +13850,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       return;
    }
 
-   if (*getparam("panel")) {
+   if (getparam("panel") && *getparam("panel")) {
       strlcpy(panel, getparam("panel"), sizeof(panel));
 
       /* strip leading/trailing spaces */
@@ -13934,9 +13993,12 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
          /* save attachment */
          fh = open(str, O_CREAT | O_RDWR | O_BINARY, 0644);
          if (fh < 0) {
-            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\"", str);
+            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", open() errno %d (%s)", str, errno, strerror(errno));
          } else {
-            write(fh, fbuffer, fsize);
+            int wr = write(fh, fbuffer, fsize);
+            if (wr != fsize) {
+               cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", write(%d) returned %d, errno %d (%s)", str, fsize, wr, errno, strerror(errno));
+            }
             close(fh);
          }
 
@@ -15445,7 +15507,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    /*---- alarms reset command --------------------------------------*/
 
    if (equal_ustring(command, "alrst")) {
-      if (*getparam("name"))
+      if (getparam("name") && *getparam("name"))
          al_reset_alarm(getparam("name"));
       redirect("");
       return;
@@ -15808,9 +15870,9 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       }
 
       str[0] = 0;
-      if (*getparam("Start"))
+      if (getparam("Start") && *getparam("Start"))
          sprintf(str, "?cmd=programs&Start=%s", getparam("Start"));
-      if (*getparam("Stop"))
+      if (getparam("Stop") && *getparam("Stop"))
          sprintf(str, "?cmd=programs&Stop=%s", getparam("Stop"));
 
       if (str[0])
@@ -15831,10 +15893,17 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    /*---- Messages command ------------------------------------------*/
 
    if (equal_ustring(command, "messages")) {
-      show_messages_page(refresh);
+      show_messages_page();
       return;
    }
 
+   /*---- Chat command ------------------------------------------*/
+   
+   if (equal_ustring(command, "chat")) {
+      show_chat_page();
+      return;
+   }
+   
    /*---- ELog command ----------------------------------------------*/
 
    if (equal_ustring(command, "elog")) {
@@ -16314,8 +16383,8 @@ void server_loop(int tcp_port)
 
 #ifdef OS_UNIX
    /* give up root privilege */
-   setuid(getuid());
-   setgid(getgid());
+   assert(setuid(getuid()) == 0);
+   assert(setgid(getgid()) == 0);
 #endif
 
    /* listen for connection */

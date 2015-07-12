@@ -743,7 +743,9 @@ void init_sequencer()
    assert(status == DB_SUCCESS);
    
    if (seq.path[0] == 0)
-      getcwd(seq.path, sizeof(seq.path)); 
+      if (!getcwd(seq.path, sizeof(seq.path)))
+         seq.path[0] = 0;
+
    if (strlen(seq.path)>0 && seq.path[strlen(seq.path)-1] != DIR_SEPARATOR) {
       strlcat(seq.path, DIR_SEPARATOR_STR, sizeof(seq.path));
    }
@@ -1066,9 +1068,16 @@ void show_seq_page()
          strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
       strlcat(str, seq.filename, sizeof(str));
       fh = open(str, O_RDWR | O_TRUNC | O_CREAT | O_TEXT, 0644);
-      if (fh > 0 && isparam("scripttext")) {
-         i = strlen(getparam("scripttext"));
-         write(fh, getparam("scripttext"), i);
+      if (fh < 0) {
+         cm_msg(MERROR, "show_seq_page", "Cannot save file \'%s\', open() errno %d (%s)", str, errno, strerror(errno));
+      } else {
+         if (isparam("scripttext")) {
+            i = strlen(getparam("scripttext"));
+            int wr = write(fh, getparam("scripttext"), i);
+            if (wr != i) {
+               cm_msg(MERROR, "show_seq_page", "Cannot save file \'%s\', write() errno %d (%s)", str, errno, strerror(errno));
+            }
+         }
          close(fh);
       }
       strlcpy(str, seq.path, sizeof(str));
@@ -1657,8 +1666,8 @@ void show_seq_page()
             if (f) {
                for (int line=0 ; !feof(f) ; line++) {
                   str[0] = 0;
-                  fgets(str, sizeof(str), f);
-                  rsprintf(str);
+                  if (fgets(str, sizeof(str), f))
+                     rsprintf(str);
                }
                fclose(f);
             }

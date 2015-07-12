@@ -23,6 +23,7 @@
 
 /* midas includes */
 #include "midas.h"
+#include "rmidas.h"
 #include "experim.h"
 #include "analyzer.h"
 
@@ -114,7 +115,7 @@ INT adc_calib(EVENT_HEADER * pheader, void *pevent)
       return 1;
 
    /* create calibrated ADC bank */
-   bk_create(pevent, "CADC", TID_FLOAT, &cadc);
+   bk_create(pevent, "CADC", TID_FLOAT, (void**)&cadc);
 
    /* zero cadc bank */
    for (i = 0; i < N_ADC; i++)

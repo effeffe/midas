@@ -962,6 +962,14 @@ void del_tree(HNDLE hDB, HNDLE hKey, INT level)
 
 /*------------------------------------------------------------------*/
 
+static void xwrite(const char* filename, int fd, const void* data, int size)
+{
+   int wr = write(fd, data, size);
+   if (wr != size) {
+      cm_msg(MERROR, "xwrite", "cannot write to \'%s\', write(%d) returned %d, errno %d (%s)", filename, size, wr, errno, strerror(errno));
+   }
+}
+
 void create_experim_h(HNDLE hDB, const char *analyzer_name)
 {
    INT i, index, subindex, hfile, status, size;
@@ -1001,17 +1009,17 @@ void create_experim_h(HNDLE hDB, const char *analyzer_name)
       cm_msg(MERROR, "create_experim_h", "cannot open experim.h file.");
 
    /* write comment to file */
-   write(hfile, experim_h_comment1, strlen(experim_h_comment1));
+   xwrite(file_name, hfile, experim_h_comment1, strlen(experim_h_comment1));
    time(&now);
    sprintf(str, "  Created on:   %s\n", ctime(&now));
-   write(hfile, str, strlen(str));
-   write(hfile, experim_h_comment2, strlen(experim_h_comment2));
+   xwrite(file_name, hfile, str, strlen(str));
+   xwrite(file_name, hfile, experim_h_comment2, strlen(experim_h_comment2));
 
    /* write /experiment/run parameters */
    db_find_key(hDB, 0, "/Experiment/Run Parameters", &hKey);
    if (hKey) {
       sprintf(str, "#define EXP_PARAM_DEFINED\n\n");
-      write(hfile, str, strlen(str));
+      xwrite(file_name, hfile, str, strlen(str));
       db_save_struct(hDB, hKey, file_name, "EXP_PARAM", TRUE);
       db_save_string(hDB, hKey, file_name, "EXP_PARAM_STR", TRUE);
       lseek(hfile, 0, SEEK_END);
@@ -1021,7 +1029,7 @@ void create_experim_h(HNDLE hDB, const char *analyzer_name)
    db_find_key(hDB, 0, "/Experiment/Edit on start", &hKey);
    if (hKey) {
       sprintf(str, "#define EXP_EDIT_DEFINED\n\n");
-      write(hfile, str, strlen(str));
+      xwrite(file_name, hfile, str, strlen(str));
       db_save_struct(hDB, hKey, file_name, "EXP_EDIT", TRUE);
       db_save_string(hDB, hKey, file_name, "EXP_EDIT_STR", TRUE);
       lseek(hfile, 0, SEEK_END);
@@ -1047,10 +1055,10 @@ void create_experim_h(HNDLE hDB, const char *analyzer_name)
 
          lseek(hfile, 0, SEEK_END);
          sprintf(str, "#ifndef EXCL_%s\n\n", eq_name);
-         write(hfile, str, strlen(str));
+         xwrite(file_name, hfile, str, strlen(str));
 
          sprintf(str, "#define %s_PARAM_DEFINED\n\n", eq_name);
-         write(hfile, str, strlen(str));
+         xwrite(file_name, hfile, str, strlen(str));
          sprintf(str, "%s_PARAM", eq_name);
          db_save_struct(hDB, hKeyPar, file_name, str, TRUE);
          sprintf(str, "%s_PARAM_STR", eq_name);
@@ -1058,7 +1066,7 @@ void create_experim_h(HNDLE hDB, const char *analyzer_name)
 
          lseek(hfile, 0, SEEK_END);
          sprintf(str, "#endif\n\n");
-         write(hfile, str, strlen(str));
+         xwrite(file_name, hfile, str, strlen(str));
       }
    }
 
@@ -1078,7 +1086,7 @@ void create_experim_h(HNDLE hDB, const char *analyzer_name)
 
          lseek(hfile, 0, SEEK_END);
          sprintf(str, "#ifndef EXCL_%s\n\n", eq_name);
-         write(hfile, str, strlen(str));
+         xwrite(file_name, hfile, str, strlen(str));
 
          size = sizeof(str);
          str[0] = 0;
@@ -1090,7 +1098,7 @@ void create_experim_h(HNDLE hDB, const char *analyzer_name)
             if (hDefKey) {
                lseek(hfile, 0, SEEK_END);
                sprintf(str, "#define %s_EVENT_DEFINED\n\n", eq_name);
-               write(hfile, str, strlen(str));
+               xwrite(file_name, hfile, str, strlen(str));
 
                sprintf(str, "%s_EVENT", eq_name);
                db_save_struct(hDB, hDefKey, file_name, str, TRUE);
@@ -1113,7 +1121,7 @@ void create_experim_h(HNDLE hDB, const char *analyzer_name)
                   if (key.type == TID_KEY) {
                      lseek(hfile, 0, SEEK_END);
                      sprintf(str, "#define %s_BANK_DEFINED\n\n", key.name);
-                     write(hfile, str, strlen(str));
+                     xwrite(file_name, hfile, str, strlen(str));
 
                      sprintf(str, "%s_BANK", key.name);
                      db_save_struct(hDB, hKeyBank, file_name, str, TRUE);
@@ -1142,7 +1150,7 @@ void create_experim_h(HNDLE hDB, const char *analyzer_name)
                 !equal_ustring(subeq_name, "variables")) {
                lseek(hfile, 0, SEEK_END);
                sprintf(str, "#define %s_%s_DEFINED\n\n", eq_name, subeq_name);
-               write(hfile, str, strlen(str));
+               xwrite(file_name, hfile, str, strlen(str));
 
                sprintf(str, "%s_%s", eq_name, subeq_name);
                db_save_struct(hDB, hDefKey, file_name, str, TRUE);
@@ -1153,13 +1161,13 @@ void create_experim_h(HNDLE hDB, const char *analyzer_name)
 
          lseek(hfile, 0, SEEK_END);
          sprintf(str, "#endif\n\n");
-         write(hfile, str, strlen(str));
+         xwrite(file_name, hfile, str, strlen(str));
       }
 
    close(hfile);
 
-   getcwd(str, sizeof(str));
-   printf("\"experim.h\" has been written to %s\n", str);
+   if (getcwd(str, sizeof(str)))
+      printf("\"experim.h\" has been written to %s\n", str);
 }
 
 /*------------------------------------------------------------------*/
@@ -1283,7 +1291,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
    INT status = 0, i, j, k, state, size, old_run_number, new_run_number, channel;
    char line[2000], prompt[256];
    char param[10][2000];
-   char str[2000], str2[80], old_dir[256], cwd[256], name[256], *pc, data_str[256];
+   char str[2000], str2[80], name[256], *pc, data_str[256];
    char old_password[32], new_password[32];
    INT nparam, flags, index1, index2, debug_flag, mthread_flag;
    WORD mode;
@@ -1293,7 +1301,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
    FILE *cmd_file = NULL;
    DWORD last_msg_time = 0;
    char message[2000], client_name[256], *p;
-   INT n1, n2, msg_type;
+   INT n1, n2;
    PRINT_INFO print_info;
 
    cm_get_experiment_database(&hDB, &hKeyClient);
@@ -1332,9 +1340,9 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          strlcpy(line, cmd, sizeof(line));
       else {
          memset(line, 0, sizeof(line));
-         fgets(line, sizeof(line), cmd_file);
+         char* s = fgets(line, sizeof(line), cmd_file);
 
-         if (line[0] == 0)
+         if (s == NULL || line[0] == 0)
             break;
 
          /* cut off CR */
@@ -1822,38 +1830,12 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
       else if (param[0][0] == 'l' && param[0][1] == 'o') {
          db_find_key(hDB, 0, pwd, &hKey);
 
-         /* keep /Logger/Data dir if new one doesn't exist */
-         cm_get_path(old_dir, sizeof(old_dir));
-         size = sizeof(old_dir);
-         db_get_value(hDB, 0, "/Logger/Data dir", old_dir, &size, TID_STRING, TRUE);
-
          std::string filename = param[1];
          if (filename.compare(filename.size()-3, 3, ".js")==0 || filename.compare(filename.size()-5, 5, ".json")==0) {
             db_load_json(hDB, hKey, filename.c_str());
          } else {
             db_load(hDB, hKey, param[1], FALSE);
          }
-
-         str[0] = 0;
-         size = sizeof(str);
-         db_get_value(hDB, 0, "/Logger/Data dir", str, &size, TID_STRING, FALSE);
-
-         /* check if new one exists */
-         getcwd(cwd, sizeof(cwd));
-         status = chdir(str);
-         if (status == -1 && strcmp(old_dir, str) != 0) {
-            printf
-                ("\"/Logger/Data dir = %s\" in file \"%s\" does not exist locally,\nset anyhow? (y/[n]): ",
-                 str, param[1]);
-            ss_gets(line, 256);
-
-            /* restor old one */
-            if (line[0] != 'y' && line[0] != 'Y')
-               db_set_value(hDB, 0, "/Logger/Data dir", old_dir, sizeof(old_dir), 1,
-                            TID_STRING);
-         }
-
-         chdir(cwd);
       }
 
       /* save */
@@ -2433,23 +2415,11 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
       /* msg */
       else if (param[0][0] == 'm' && param[0][1] == 's') {
-         /*
-            if (cm_exist("Speaker", FALSE) != CM_SUCCESS)
-            printf("Note: No speaker application present.\n");
-          */
-
-         /* user message type by default */
-         msg_type = MT_USER;
          message[0] = 0;
          if (cmd_mode)
             strcpy(user_name, "script");
 
-         if (param[3][0]) {
-            msg_type = atoi(param[1]);
-            last_msg_time = ss_time();
-            strcpy(user_name, param[2]);
-            strcpy(message, param[3]);
-         } else if (param[2][0]) {
+         if (param[2][0]) {
             last_msg_time = ss_time();
             strcpy(user_name, param[1]);
             strcpy(message, param[2]);
@@ -2469,7 +2439,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          }
 
          if (message[0])
-	    cm_msg(msg_type, __FILE__, __LINE__, user_name, "%s", message);
+	         cm_msg1(MT_USER, __FILE__, __LINE__, "chat", user_name, "%s", message);
 
          last_msg_time = ss_time();
       }
