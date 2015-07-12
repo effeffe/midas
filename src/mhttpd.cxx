@@ -2315,7 +2315,7 @@ void show_chat_page()
    rsprintf("    <td><input style=\"width:100%%\" type=\"text\" id=\"text\" autofocus=\"autofocus\" onkeypress=\"return chat_kp(event)\"></td>\n");
    rsprintf("    <td nowrap width=\"10%%\"><input type=\"button\" name=\"send\" value=\"Send\" onClick=\"chat_send()\">");
    rsprintf("&nbsp;&nbsp;Your name: <input type=\"text\" id=\"name\" size=\"10\" onkeypress=\"return chat_kp(event)\">\n");
-   rsprintf("    <input type=\"checkbox\" name=\"speak\" id=\"speak\"><span id=\"speakLabel\">Speak</span></td>");
+   rsprintf("    <input type=\"checkbox\" name=\"speak\" id=\"speak\" onClick=\"return speak_click(this);\"><span id=\"speakLabel\">Speak</span></td>");
    rsprintf("  </tr></table>");
    rsprintf("</div>\n");
    
