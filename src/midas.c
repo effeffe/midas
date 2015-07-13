@@ -5249,6 +5249,11 @@ INT bm_close_all_buffers(void)
    {
       INT i;
 
+      if (_msg_buffer) {
+         bm_close_buffer(_msg_buffer);
+         _msg_buffer = 0;
+      }
+
       for (i = _buffer_entries; i > 0; i--)
          bm_close_buffer(i);
    }
@@ -13436,8 +13441,6 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
          if (_msg_rb)
             rb_delete(_msg_rb);
          _msg_rb = 0;
-
-         _msg_buffer = 0;
       }
    }
 
