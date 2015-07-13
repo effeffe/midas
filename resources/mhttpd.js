@@ -427,7 +427,7 @@ function ODBGenerateMsg(type,facility,user,msg)
    url += '&type='+type;
    url += '&facility='+facility;
    url += '&user='+user;
-   url += '&msg=' + msg;
+   url += '&msg=' + encodeURIComponent(msg);
    request.open('GET', url, false);
    request.send(null);
    return request.responseText;
@@ -661,6 +661,7 @@ function msg_prepend(msg)
       if (line.indexOf(" ") && (t>0 || t==-1))
          line = line.substr(line.indexOf(" ")+1);
       var e = document.createElement("p");
+      e.className = "messageLine";
       e.appendChild(document.createTextNode(line));
       
       if (e.innerHTML == mf.childNodes[2+i].innerHTML)
@@ -697,6 +698,7 @@ function msg_append(msg)
       if (line.indexOf(" ") && (t>0 || t==-1))
          line = line.substr(line.indexOf(" ")+1);
       var e = document.createElement("p");
+      e.className = "messageLine";
       e.appendChild(document.createTextNode(line));
       if (line.search("ERROR]") > 0) {
          e.style.backgroundColor = "red";
@@ -784,6 +786,17 @@ function rb()
    n.style.backgroundColor = "";
 }
 
+function speak_click(t)
+{
+   if (typeof(Storage) !== "undefined") {
+      if (t.checked)
+         sessionStorage.chatSpeak = "1";
+      else
+         sessionStorage.chatSpeak = "0";
+   }
+      
+}
+
 function chat_send()
 {
    // check for name
@@ -800,6 +813,10 @@ function chat_send()
       
       ODBGenerateMsg(MT_USER, "chat", n.value, m.value);
       
+      // store name to local storage
+      if (typeof(Storage) !== "undefined")
+         sessionStorage.chatName = n.value;
+
       m.value = "";
       m.focus();
    }
@@ -812,9 +829,24 @@ function chat_load()
    if (isNaN(last_tstamp))
       end_of_messages = true;
    
-   // set message window height to fit browser window
-   mf = document.getElementById('messageFrame');
-   mf.style.height = window.innerHeight-findPos(mf)[1]-4;
+   // hide speak button if browser does not support
+   try {
+      u = new SpeechSynthesisUtterance("Hello");
+   } catch (err) {
+      document.getElementById('speak').style.display = 'none';
+      document.getElementById('speakLabel').style.display = 'none';
+   }
+   
+   // get options from local storage
+   if (typeof(Storage) !== "undefined") {
+      if (sessionStorage.chatName != undefined)
+         document.getElementById('name').value = sessionStorage.chatName;
+      if (sessionStorage.chatSpeak != undefined)
+         document.getElementById('speak').checked = (sessionStorage.chatSpeak == "1");
+
+   }
+   
+   chat_reformat();
    
    // check for new messages and end of scroll
    window.setTimeout(chat_extend, 1000);
@@ -829,6 +861,8 @@ function chat_format(line)
    
    var name = line.substr(line.indexOf("[")+1, line.indexOf(",")-line.indexOf("[")-1);
    var text = line.substr(line.indexOf("]")+2);
+   var time = line.substr(0, 8);
+   var date = line.substr(13, 10);
    var e = document.createElement("div");
    
    if (name == document.getElementById('name').value)
@@ -840,7 +874,13 @@ function chat_format(line)
    var d2 = document.createElement("div");
    d1.className = "chatName";
    d2.className = "chatMsg";
-   d1.appendChild(document.createTextNode(name));
+   d1.appendChild(document.createTextNode(""));
+   
+   now = new Date();
+   if (now.getDate() == parseInt(date.substr(8, 2)))
+      d1.innerHTML = name + '&nbsp;(' + time + ')';
+   else
+      d1.innerHTML = name + '&nbsp;(' + time + '&nbsp;' + date + ')';
    d2.appendChild(document.createTextNode(text));
    e.appendChild(d1);
    e.appendChild(d2);
@@ -855,10 +895,6 @@ function chat_prepend(msg)
    for(i=0 ; i<msg.length ; i++) {
       var line = msg[i];
       var t = parseInt(line);
-      
-      // cut off time stamp
-      if (line.indexOf(" ") && (t>0 || t==-1))
-         line = line.substr(line.indexOf(" ")+1);
       
       var e = chat_format(line);
       
@@ -883,10 +919,15 @@ function chat_prepend(msg)
       first_tstamp = t;
       n_messages++;
       
-      // yellow fading background
+      // fading background
       if (e.className == "chatBubbleTheirs") {
          e.style.backgroundColor = "yellow";
          e.age = new Date()/1000;
+         e.style.setProperty("-webkit-transition", "background-color 3s");
+         e.style.setProperty("transition", "background-color 3s");
+      } else {
+         e.style.backgroundColor = "#80FF80";
+         e.age = new Date()/1000 - 4;
          e.style.setProperty("-webkit-transition", "background-color 3s");
          e.style.setProperty("transition", "background-color 3s");
       }
@@ -917,13 +958,31 @@ function chat_append(msg)
    }
 }
 
-function chat_extend()
+function chat_reformat()
 {
    // set message window height to fit browser window
    mf = document.getElementById('messageFrame');
    mf.style.height = window.innerHeight-findPos(mf)[1]-4;
-   
+
+   // check for reformat of messages if name is given
+   for (i=2 ; i<mf.childNodes.length ; i+=2) {
+      var b = mf.childNodes[i];
+      
+      var n = b.childNodes[0].innerHTML;
+      if (n.indexOf('&'))
+         n = n.substr(0, n.indexOf('&'));
+      
+      if (n == document.getElementById('name').value)
+         b.className = "chatBubbleMine";
+      else
+         b.className = "chatBubbleTheirs";
+   }
+}
+
+function chat_extend()
+{
    // if scroll bar is close to end, append messages
+   mf = document.getElementById('messageFrame');
    if (mf.scrollHeight-mf.scrollTop-mf.clientHeight < 2000) {
       if (!end_of_messages) {
          
@@ -946,16 +1005,8 @@ function chat_extend()
          }
       }
    }
-   
-   // check for reformat of messages if name is given
-   for (i=2 ; i<mf.childNodes.length ; i+=2) {
-      var b = mf.childNodes[i];
-      
-      if (b.childNodes[0].innerHTML == document.getElementById('name').value)
-         b.className = "chatBubbleMine";
-      else
-         b.className = "chatBubbleTheirs";
-   }
+
+   chat_reformat();
    
    // check for new message if time stamping is on
    if (first_tstamp) {
