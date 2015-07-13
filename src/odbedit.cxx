@@ -121,7 +121,6 @@ void print_help(char *command)
       printf("pwd                     - show current directory\n");
       printf("resume                  - resume current run\n");
       printf("rename <old> <new>      - rename key\n");
-      printf("rewind [channel]        - rewind tapes in logger\n");
       printf("-- hit return for more --\r");
       getchar();
       printf("save [-c -s -x -j -cs] <file>  - save database at current position\n");
@@ -145,6 +144,7 @@ void print_help(char *command)
       printf("ver                     - show MIDAS library version\n");
       printf("webpasswd               - change WWW password for mhttpd\n");
       printf("wait <key>              - wait for key to get modified\n");
+      printf("watch <key>             - watch key or ODB tree to be modified\n");
 
       printf("\nquit/exit               - exit\n");
       return;
@@ -1286,9 +1286,40 @@ void assemble_prompt(char *prompt, int psize, char *host_name, char *exp_name, c
 
 /*------------------------------------------------------------------*/
 
+void watch_callback(HNDLE hDB, HNDLE hKey, INT index)
+{
+   KEY key;
+   int size;
+   char path[256], data[10000], str[256];
+   
+   db_get_key(hDB, hKey, &key);
+   db_get_path(hDB, hKey, path, sizeof(path));
+
+   if (key.type == TID_KEY)
+      printf("%s modified\n", path);
+   else {
+      size = sizeof(data);
+      if (key.num_values == 1) {
+         db_get_data(hDB, hKey, data, &size, key.type);
+         db_sprintf(str, data, size, 0, key.type);
+         printf("%s = %s\n", path, str);
+      } else {
+         if (index == -1) {
+            printf("%s[*] modified\n", path);
+         } else {
+            db_get_data_index(hDB, hKey, data, &size, index, key.type);
+            db_sprintf(str, data, size, 0, key.type);
+            printf("%s[%d] = %s\n", path, index, str);
+         }
+      }
+   }
+}
+
+/*------------------------------------------------------------------*/
+
 int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 {
-   INT status = 0, i, j, k, state, size, old_run_number, new_run_number, channel;
+   INT status = 0, i, j, k, state, size, old_run_number, new_run_number;
    char line[2000], prompt[256];
    char param[10][2000];
    char str[2000], str2[80], name[256], *pc, data_str[256];
@@ -2084,68 +2115,6 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          }
       }
 
-      /* rewind */
-      else if (param[0][0] == 'r' && param[0][1] == 'e' && param[0][2] == 'w') {
-         HNDLE hConn;
-
-         /* check if run is stopped and no transition in progress */
-         size = sizeof(i);
-         db_get_value(hDB, 0, "/Runinfo/State", &i, &size, TID_INT, TRUE);
-         db_get_value(hDB, 0, "/Runinfo/Transition in progress", &j, &size, TID_INT,
-                      TRUE);
-         if (i != STATE_STOPPED || j == 1) {
-            printf
-                ("Cannot rewind tapes when run is not stopped or transition in progress\n");
-         } else {
-            if (param[1][0] == 0)
-               channel = -1;
-            else
-               channel = atoi(param[1]);
-
-            /* find client which exports RPC_LOG_REWIND */
-            status = db_find_key(hDB, 0, "System/Clients", &hRootKey);
-            if (status == DB_SUCCESS) {
-               for (i = 0;; i++) {
-                  status = db_enum_key(hDB, hRootKey, i, &hSubkey);
-                  if (status == DB_NO_MORE_SUBKEYS) {
-                     printf("No active logger found.\n");
-                     break;
-                  }
-
-                  sprintf(str, "RPC/%d", RPC_LOG_REWIND);
-                  status = db_find_key(hDB, hSubkey, str, &hKey);
-                  if (status == DB_SUCCESS) {
-                     size = sizeof(client_name);
-                     db_get_value(hDB, hSubkey, "Name", client_name, &size, TID_STRING,
-                                  TRUE);
-                     break;
-                  }
-               }
-            }
-
-            if (status != DB_NO_MORE_SUBKEYS) {
-               if (cm_connect_client(client_name, &hConn) == CM_SUCCESS) {
-                  /* increase timeout */
-                  rpc_set_option(hConn, RPC_OTIMEOUT, 600000);
-
-                  if (channel == -1)
-                     printf("Rewinding all channels...\n");
-                  else
-                     printf("Rewinding channel %d...\n", channel);
-
-                  status = rpc_client_call(hConn, RPC_LOG_REWIND, channel);
-                  cm_disconnect_client(hConn, FALSE);
-
-                  if (status == CM_SUCCESS)
-                     printf("Rewind successful\n");
-                  else
-                     printf("Rewind error, code = %d\n", status);
-               } else
-                  printf("Cannot connect to logger\n");
-            }
-         }
-      }
-
       /* alarm reset */
       else if (param[0][0] == 'a' && param[0][1] == 'l') {
          /* go through all alarms */
@@ -2461,7 +2430,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
             in_cmd_edit = FALSE;
 
             if (message[0])
-	       cm_msg(MUSER, user_name, "%s", message);
+               cm_msg1(MUSER, "chat", user_name, "%s", message);
 
          } while (message[0]);
 
@@ -2543,43 +2512,61 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
       }
 
       /* wait */
-      else if (param[0][0] == 'w' && param[0][1] == 'a') {
+      else if (param[0][0] == 'w' && param[0][1] == 'a' && param[0][2] == 'i') {
          compose_name(pwd, param[1], str);
 
-         if (strcmp(str, "/") != 0)
-            status = db_find_link(hDB, 0, str, &hKey);
-         else
+         if (equal_ustring(str, "/")) {
+            status = DB_SUCCESS;
             hKey = 0;
+         } else
+            status = db_find_link(hDB, 0, str, &hKey);
 
-         if (status == DB_SUCCESS || !hKey) {
+         if (status == DB_SUCCESS) {
             db_get_key(hDB, hKey, &key);
-            printf("Waiting for key \"%s\" to be modified, abort with \"!\"\n", key.name);
+            printf("Waiting for key \"%s\" to be modified, abort with any key\n", key.name);
             db_get_record_size(hDB, hKey, 0, &size);
             db_open_record(hDB, hKey, data, size, MODE_READ, key_update, NULL);
             key_modified = FALSE;
 
-            i = 0;
             do {
                cm_yield(1000);
+            } while (!key_modified && !ss_kbhit());
 
-               while (ss_kbhit()) {
-                  i = ss_getchar(0);
-                  if (i == -1)
-                     i = getchar();
-
-                  if ((char) i == '!')
-                     break;
-               }
-
-            } while (!key_modified && i != '!');
-
+            while (ss_kbhit())
+               ss_getchar(0);
+            
             db_close_record(hDB, hKey);
             if (i == '!')
                printf("Wait aborted.\n");
             else
                printf("Key has been modified.\n");
          } else
-            printf("key not found\n");
+            printf("key \"%s\" not found\n", str);
+      }
+      
+      /* watch */
+      else if (param[0][0] == 'w' && param[0][1] == 'a' && param[0][2] == 't') {
+         compose_name(pwd, param[1], str);
+         
+         status = db_find_link(hDB, 0, str, &hKey);
+         if (status == DB_SUCCESS) {
+            db_get_key(hDB, hKey, &key);
+            if (key.type != TID_KEY)
+               printf("Watch key \"%s\" to be modified, abort with any key\n", str);
+            else
+               printf("Watch ODB tree \"%s\" to be modified, abort with any key\n", str);
+            db_watch(hDB, hKey, watch_callback);
+            
+            do {
+               cm_yield(1000);
+            } while (!key_modified && !ss_kbhit());
+            
+            while (ss_kbhit())
+               ss_getchar(0);
+
+            db_unwatch(hDB, hKey);
+         } else
+            printf("key \"%s\" not found\n", str);
       }
 
       /* test 1  */
