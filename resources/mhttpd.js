@@ -661,6 +661,7 @@ function msg_prepend(msg)
       if (line.indexOf(" ") && (t>0 || t==-1))
          line = line.substr(line.indexOf(" ")+1);
       var e = document.createElement("p");
+      e.className = "messageLine";
       e.appendChild(document.createTextNode(line));
       
       if (e.innerHTML == mf.childNodes[2+i].innerHTML)
@@ -697,6 +698,7 @@ function msg_append(msg)
       if (line.indexOf(" ") && (t>0 || t==-1))
          line = line.substr(line.indexOf(" ")+1);
       var e = document.createElement("p");
+      e.className = "messageLine";
       e.appendChild(document.createTextNode(line));
       if (line.search("ERROR]") > 0) {
          e.style.backgroundColor = "red";

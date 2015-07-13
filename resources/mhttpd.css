@@ -576,6 +576,11 @@ td.meterCell{
    width: 100%-0.5em;
 }
 
+.messageLine {
+   font-family: Lucida Console, Fixed, Monospace;
+   white-space: pre;
+}
+
 .chatInput {
    line-height: 0.75em;
    margin: 0.25em;
