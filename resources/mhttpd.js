@@ -427,7 +427,7 @@ function ODBGenerateMsg(type,facility,user,msg)
    url += '&type='+type;
    url += '&facility='+facility;
    url += '&user='+user;
-   url += '&msg=' + msg;
+   url += '&msg=' + encodeURIComponent(msg);
    request.open('GET', url, false);
    request.send(null);
    return request.responseText;
