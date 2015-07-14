@@ -148,7 +148,7 @@ public:
    {
       if (fTrace)
          printf("WriterNull: path [%s]\n", log_chn->path);
-      fSimulateCompression = true;
+      fSimulateCompression = false;
    }
 
    ~WriterNull() // dtor
@@ -302,11 +302,12 @@ private:
 class WriterGzip : public WriterInterface
 {
 public:
-   WriterGzip(LOG_CHN* log_chn) // ctor
+   WriterGzip(LOG_CHN* log_chn, int compress) // ctor
    {
       if (fTrace)
          printf("WriterGzip: path [%s]\n", log_chn->path);
       fGzfp = 0;
+      fCompress = compress;
    }
 
    ~WriterGzip() // dtor
@@ -318,6 +319,8 @@ public:
 
    int wr_open(LOG_CHN* log_chn, int run_number)
    {
+      int zerror;
+
       fBytesIn = 0;
       fBytesOut = 0;
 
@@ -332,6 +335,21 @@ public:
          return SS_FILE_ERROR;
       }
 
+      if (fCompress) {
+         zerror = gzsetparams(fGzfp, fCompress, Z_DEFAULT_STRATEGY);
+         if (zerror != Z_OK)
+            printf("gzsetparams zerror %d\n", zerror);
+      }
+
+#if ZLIB_VERNUM > 0x1235
+      // gzbuffer() added in zlib 1.2.3.5 (8 Jan 2010)
+      zerror = gzbuffer(fGzfp, 128*1024);
+      if (zerror != Z_OK)
+         printf("gzbuffer zerror %d\n", zerror);
+#else
+#warning Very old zlib, no gzbuffer()!
+#endif
+         
       log_chn->handle = 8888;
 
       return SUCCESS;
@@ -351,8 +369,12 @@ public:
 
       int wr = gzwrite(fGzfp, data, size);
 
-      //if (wr > 0)
-      //fBytesOut += wr;
+#if ZLIB_VERNUM > 0x1235
+      // gzoffset() added in zlib 1.2.3.5 (8 Jan 2010)
+      fBytesOut = gzoffset(fGzfp);
+#else
+#warning Very old zlib, no gzoffset()!
+#endif
 
       if (wr != size) {
          printf("gzwrite(%d) wrote %d bytes, errno %d (%s)\n", size, wr, errno, strerror(errno));
@@ -391,8 +413,14 @@ public:
       return SUCCESS;
    }
 
+   std::string wr_get_file_ext()
+   {
+      return ".gz";
+   }
+
 private:
    gzFile fGzfp;
+   int fCompress;
 };
 
 /*---- pipe writer --------------------------------------*/
@@ -2679,12 +2707,19 @@ int log_create_writer(LOG_CHN *log_chn)
          WriterPopen* wr = new WriterPopen(log_chn, "pbzip2 -c -z > ", ".bz2");
          wri = wr;
       } else if (log_chn->compression==300) {
-         WriterGzip* gzip = new WriterGzip(log_chn);
+         WriterGzip* gzip = new WriterGzip(log_chn, 0);
+         wri = gzip;
+      } else if (log_chn->compression==301) {
+         WriterGzip* gzip = new WriterGzip(log_chn, 1);
+         wri = gzip;
+      } else if (log_chn->compression==309) {
+         WriterGzip* gzip = new WriterGzip(log_chn, 9);
          wri = gzip;
       }
 
       if (wri) {
-         wri = new WriterCRC32Zlib(log_chn, wri);
+         if (0)
+            wri = new WriterCRC32Zlib(log_chn, wri);
          log_chn->writer_class = (void*)wri;
       }
    }
