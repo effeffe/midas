@@ -9642,7 +9642,7 @@ INT db_update_record(INT hDB, INT hKeyRoot, INT hKey, int index, int s)
          nc = (NET_COMMAND *) buffer;
 
          nc->header.routine_id = MSG_ODB;
-         nc->header.param_size = 2 * sizeof(INT);
+         nc->header.param_size = 4 * sizeof(INT);
          *((INT *) nc->param) = hDB;
          *((INT *) nc->param + 1) = hKeyRoot;
          *((INT *) nc->param + 2) = hKey;
@@ -9658,7 +9658,7 @@ INT db_update_record(INT hDB, INT hKeyRoot, INT hKey, int index, int s)
          }
 
          /* send the update notification to the client */
-         send_tcp(s, buffer, sizeof(NET_COMMAND_HEADER) + 6 * sizeof(INT), 0);
+         send_tcp(s, buffer, sizeof(NET_COMMAND_HEADER) + 4 * sizeof(INT), 0);
       }
 
       return DB_SUCCESS;

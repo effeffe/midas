@@ -8904,6 +8904,7 @@ INT rpc_client_dispatch(int sock)
       return SS_ABORT;
 
    if (nc->header.routine_id == MSG_ODB) {
+      assert(n == sizeof(NET_COMMAND_HEADER) + 4 * sizeof(INT));
       /* update a changed record */
       hDB = *((INT *) nc->param);
       hKeyRoot = *((INT *) nc->param + 1);

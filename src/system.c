@@ -102,7 +102,7 @@ INT ss_set_async_flag(INT flag)
 static void *mmap_addr[MAX_MMAP];
 static int mmap_size[MAX_MMAP];
 
-static int shm_trace = 1;
+static int shm_trace = 0;
 
 static int use_sysv_shm = 0;
 static int use_mmap_shm = 0;
