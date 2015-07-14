@@ -3945,6 +3945,17 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       }
    }
 
+   /* make sure odb entry is always created, otherwise we only see it after the first aborted run start, maybe never */
+   str[0] = 0;
+   size = sizeof(str);
+   db_get_value(hDB, 0, "/Programs/Execute on start abort", str, &size, TID_STRING, TRUE);
+
+   /* execute programs on startabort */
+   if (transition == TR_STARTABORT) {
+      if (str[0])
+         ss_system(str);
+   }
+
    /* set new start time in database */
    if (transition == TR_START) {
       /* ASCII format */
@@ -4293,16 +4304,14 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 /*------------------------------------------------------------------*/
 
 /* wrapper around cm_transition2() to send a TR_STARTABORT in case of failure */
-INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag,
-                   INT debug_flag)
+INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag)
 {
    int status;
 
    status = cm_transition2(transition, run_number, errstr, errstr_size, async_flag, debug_flag);
 
    if (transition == TR_START && status != CM_SUCCESS) {
-      cm_msg(MERROR, "cm_transition", "Could not start a run: cm_transition() status %d, message \'%s\'",
-             status, errstr);
+      cm_msg(MERROR, "cm_transition", "Could not start a run: cm_transition() status %d, message \'%s\'", status, errstr);
       cm_transition2(TR_STARTABORT, run_number, NULL, 0, async_flag, debug_flag);
    }
 
