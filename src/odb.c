@@ -736,6 +736,9 @@ static void db_update_open_record(HNDLE hDB, HNDLE hKey, KEY* xkey, INT level, v
    UPDATE_OPEN_RECORDS *uorp = (UPDATE_OPEN_RECORDS *)voidp;
    char path[256];
 
+   if (!hKey)
+      hKey = uorp->pheader->root_key;
+
    for (k=0; k<uorp->num_keys; k++)
       if (uorp->hkeys[k] == hKey) {
          found = 1;
@@ -9885,6 +9888,9 @@ INT db_watch(HNDLE hDB, HNDLE hKey, void (*dispatcher) (INT, INT, INT))
    INT idx, status;
    KEY key;
    char str[256];
+   
+   /* check for valid key */
+   assert(hKey);
    
    /* allocate new space for the local record list */
    if (_watch_list_entries == 0) {
