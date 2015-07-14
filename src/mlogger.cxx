@@ -103,16 +103,6 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pheader);
 void log_system_history(HNDLE hDB, HNDLE hKey, void *info);
 int log_generate_file_name(LOG_CHN *log_chn);
 
-/*== common code FAL/MLOGGER start =================================*/
-
-static void xwrite(const char* filename, int fd, const void* data, int size)
-{
-   int wr = write(fd, data, size);
-   if (wr != size) {
-      cm_msg(MERROR, "xwrite", "cannot write to \'%s\', write(%d) returned %d, errno %d (%s)", filename, size, wr, errno, strerror(errno));
-   }
-}
-
 /*---- Logging initialization --------------------------------------*/
 
 void logger_init()
@@ -248,6 +238,14 @@ void odb_save(const char *filename)
 
 
 #ifdef HAVE_MYSQL
+
+static void xwrite(const char* filename, int fd, const void* data, int size)
+{
+   int wr = write(fd, data, size);
+   if (wr != size) {
+      cm_msg(MERROR, "xwrite", "cannot write to \'%s\', write(%d) returned %d, errno %d (%s)", filename, size, wr, errno, strerror(errno));
+   }
+}
 
 /*==== SQL routines =================================================*/
 
@@ -3021,7 +3019,7 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
    /* simulate odb key update for hot links connected to system history */
    if (!rpc_is_remote()) {
       db_lock_database(hDB);
-      db_notify_clients(hDB, hist_log[index].hKeyVar, FALSE);
+      db_notify_clients(hDB, hist_log[index].hKeyVar, -1, FALSE);
       db_unlock_database(hDB);
    }
 

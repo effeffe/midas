@@ -704,10 +704,13 @@ INT al_check()
                   cm_msg(MTALK, "al_check", "Program %s restarted", key.name);
                }
             }
-         } else
-            program_info.first_failed = 0;
-         
-         db_set_record(hDB, hkey, &program_info, sizeof(program_info), 0);
+            db_set_record(hDB, hkey, &program_info, sizeof(program_info), 0);
+         } else {
+            if (program_info.first_failed != 0) {
+               program_info.first_failed = 0;
+               db_set_record(hDB, hkey, &program_info, sizeof(program_info), 0);
+            }
+         }
       }
    }
    

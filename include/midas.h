@@ -337,7 +337,8 @@ Access modes */
 #define MODE_WRITE     (1<<1)
 #define MODE_DELETE    (1<<2)
 #define MODE_EXCLUSIVE (1<<3)
-#define MODE_ALLOC     (1<<7)
+#define MODE_ALLOC     (1<<6)
+#define MODE_WATCH     (1<<7)
 
 /**
 RPC options */
@@ -1820,6 +1821,10 @@ extern "C" {
    INT EXPRT db_add_open_record(HNDLE hDB, HNDLE hKey, WORD access_mode);
    INT EXPRT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock);
 
+   INT EXPRT db_watch(HNDLE hDB, HNDLE hKey, void (*dispatcher) (INT, INT, INT));
+   INT EXPRT db_unwatch(HNDLE hDB, HNDLE hKey);
+   INT EXPRT db_unwatch_all();
+   
    INT EXPRT db_load(HNDLE hdb, HNDLE key_handle, const char *filename, BOOL bRemote);
    INT EXPRT db_save(HNDLE hdb, HNDLE key_handle, const char *filename, BOOL bRemote);
    INT EXPRT db_copy(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size, const char *path);
