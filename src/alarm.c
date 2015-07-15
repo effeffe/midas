@@ -650,9 +650,9 @@ INT al_check()
             al_trigger_alarm(key.name, str, a.alarm_class, "", AT_EVALUATED);
          } else {
             a.checked_last = ss_time();
-            status = db_set_record(hDB, hkey, &a, sizeof(a), 0);
+            status = db_set_value(hDB, hkey, "Checked last", &a.checked_last, sizeof(DWORD), 1, TID_DWORD);
             if (status != DB_SUCCESS) {
-               cm_msg(MERROR, "al_check", "Cannot write back alarm record");
+               cm_msg(MERROR, "al_check", "Cannot change alarm record");
                continue;
             }
          }
@@ -685,8 +685,10 @@ INT al_check()
          rpc_get_name(str);
          str[strlen(key.name)] = 0;
          if (!equal_ustring(str, key.name) && cm_exist(key.name, FALSE) == CM_NO_CLIENT) {
-            if (program_info.first_failed == 0)
+            if (program_info.first_failed == 0) {
                program_info.first_failed = (DWORD) now;
+               db_set_record(hDB, hkey, &program_info, sizeof(program_info), 0);
+            }
             
             /* fire alarm when not running for more than what specified in check interval */
             if (now - program_info.first_failed >= program_info.check_interval / 1000) {
@@ -704,7 +706,6 @@ INT al_check()
                   cm_msg(MTALK, "al_check", "Program %s restarted", key.name);
                }
             }
-            db_set_record(hDB, hkey, &program_info, sizeof(program_info), 0);
          } else {
             if (program_info.first_failed != 0) {
                program_info.first_failed = 0;
