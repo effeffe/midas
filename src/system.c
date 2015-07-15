@@ -692,6 +692,9 @@ INT ss_shm_open(const char *name, INT size, void **adr, HNDLE * handle, BOOL get
          printf("ss_shm_open(%s,%d) get_size %d, file_name %s, size %.0f\n", name, size, get_size, file_name, file_size);
 
       if (file_size > 0) {
+         if (get_size)
+            size = file_size;
+
          if (file_size != size) {
             cm_msg(MERROR, "ss_shm_open", "Shared memory file \'%s\' size %.0f is different from requested size %d. Please backup and remove this file and try again", file_name, file_size, size);
             if (fh >= 0)
@@ -940,6 +943,13 @@ INT ss_shm_close(const char *name, void *adr, HNDLE handle, INT destroy_flag)
       mmap_addr[handle] = NULL;
       mmap_size[handle] = 0;
 
+      if (destroy_flag) {
+         status = ss_shm_delete(name);
+         if (status != SS_SUCCESS)
+            return status;
+      }
+
+
       return SS_SUCCESS;
    }
 #endif /* OS_UNIX */
@@ -1011,7 +1021,9 @@ INT ss_shm_delete(const char *name)
 
    if (use_posix_shm) {
 
-      //printf("ss_shm_delete(%s) shm_name %s\n", name, shm_name);
+      if (shm_trace)
+         printf("ss_shm_delete(%s) shm_name %s\n", name, shm_name);
+
       status = shm_unlink(shm_name);
       if (status < 0) {
          cm_msg(MERROR, "ss_shm_delete", "shm_unlink(%s) errno %d (%s)", shm_name, errno, strerror(errno));
@@ -1193,6 +1205,9 @@ INT ss_shm_flush(const char *name, const void *adr, INT size, HNDLE handle)
       int ret;
 
       if (use_posix_shm) {
+         if (size == 0)
+            size = mmap_size[handle];
+
          if (shm_trace)
             printf("ss_shm_flush(%s) size %d, file_name %s\n", name, size, file_name);
 
