@@ -13,7 +13,6 @@
 #include <math.h>
 #include <assert.h>
 #include "midas.h"
-#include "ybos.h"
 
 typedef struct {
 

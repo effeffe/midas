@@ -46,7 +46,7 @@ endif
 INC_DIR 	= $(MIDASSYS)/include
 LIB_DIR 	= $(MIDASSYS)/$(OS_DIR)/lib
 DRV_DIR		= $(MIDASSYS)/drivers
-MSCB_DIR        = $(MIDASSYS)/mscb
+MSCB_DIR        = $(MIDASSYS)/../mscb
 MXML_DIR        = $(MIDASSYS)/../mxml
 
 #-------------------------------------------------------------------
@@ -62,7 +62,7 @@ LIB = $(LIB_DIR)/libmidas.a
 
 # compiler
 CC = cc
-CFLAGS = -g -Wall -I$(INC_DIR) -I$(DRV_DIR) -I$(MSCB_DIR) -I$(MXML_DIR)
+CFLAGS = -g -Wall -I$(INC_DIR) -I$(DRV_DIR) -I$(MSCB_DIR)/include -I$(MXML_DIR)
 LDFLAGS =
 
 all: scfe mscb_fe
@@ -85,7 +85,7 @@ nulldev.o: $(DRV_DIR)/device/nulldev.c
 mscbdev.o: $(DRV_DIR)/device/mscbdev.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -c $< -o $@
 
-mscb.o: $(MSCB_DIR)/mscb.c
+mscb.o: $(MSCB_DIR)/src/mscb.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -c $< -o $@
 
 null.o: $(DRV_DIR)/bus/null.c

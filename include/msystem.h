@@ -430,6 +430,14 @@ typedef struct {
 
 } RECORD_LIST;
 
+/* Watch record descriptor */
+
+typedef struct {
+   HNDLE handle;                /* Handle of watched base key  */
+   HNDLE hDB;                   /* Handle of watched database */
+   void (*dispatcher) (INT, INT, INT);       /* Pointer to dispatcher func. */
+} WATCH_LIST;
+
 /* Event request descriptor */
 
 typedef struct {
@@ -583,10 +591,10 @@ extern "C" {
    INT EXPRT db_lock_database(HNDLE database_handle);
    INT EXPRT db_unlock_database(HNDLE database_handle);
    INT EXPRT db_get_lock_cnt(HNDLE database_handle);
-   INT db_update_record(INT hDB, INT hKey, int s);
+   INT db_update_record(INT hDB, INT hKeyRoot, INT hKey, int index, int s);
    INT db_close_all_records(void);
    INT EXPRT db_flush_database(HNDLE hDB);
-   INT EXPRT db_notify_clients(HNDLE hDB, HNDLE hKey, BOOL bWalk);
+   INT EXPRT db_notify_clients(HNDLE hDB, HNDLE hKey, int index, BOOL bWalk);
    INT EXPRT db_set_client_name(HNDLE hDB, const char *client_name);
    INT db_delete_key1(HNDLE hDB, HNDLE hKey, INT level, BOOL follow_links);
    INT EXPRT db_show_mem(HNDLE hDB, char *result, INT buf_size, BOOL verbose);

@@ -58,6 +58,9 @@ INT _database_entries = 0;
 static RECORD_LIST *_record_list;
 static INT _record_list_entries = 0;
 
+static WATCH_LIST *_watch_list;
+static INT _watch_list_entries = 0;
+
 INT db_save_xml_key(HNDLE hDB, HNDLE hKey, INT level, MXML_WRITER * writer);
 
 /*------------------------------------------------------------------*/
@@ -732,6 +735,9 @@ static void db_update_open_record(HNDLE hDB, HNDLE hKey, KEY* xkey, INT level, v
    int k;
    UPDATE_OPEN_RECORDS *uorp = (UPDATE_OPEN_RECORDS *)voidp;
    char path[256];
+
+   if (!hKey)
+      hKey = uorp->pheader->root_key;
 
    for (k=0; k<uorp->num_keys; k++)
       if (uorp->hkeys[k] == hKey) {
@@ -1541,7 +1547,10 @@ INT db_close_all_databases(void)
    }
 #endif                          /* LOCAL_ROUTINES */
 
-   return db_close_all_records();
+   db_close_all_records();
+   db_unwatch_all();
+   
+   return DB_SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
@@ -3361,7 +3370,7 @@ INT db_set_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *da
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, TRUE);
+      db_notify_clients(hDB, hKey, -1, TRUE);
       db_unlock_database(hDB);
 
    }
@@ -5045,7 +5054,7 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, TRUE);
+      db_notify_clients(hDB, hKey, -1, TRUE);
       db_unlock_database(hDB);
 
    }
@@ -5154,7 +5163,7 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, TRUE);
+      db_notify_clients(hDB, hKey, -1, TRUE);
       db_unlock_database(hDB);
 
    }
@@ -5278,7 +5287,7 @@ INT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values)
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, TRUE);
+      db_notify_clients(hDB, hKey, -1, TRUE);
       db_unlock_database(hDB);
 
    }
@@ -5424,7 +5433,7 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, TRUE);
+      db_notify_clients(hDB, hKey, idx, TRUE);
       db_unlock_database(hDB);
 
    }
@@ -5540,7 +5549,7 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, TRUE);
+      db_notify_clients(hDB, hKey, idx, TRUE);
       db_unlock_database(hDB);
 
    }
@@ -5672,7 +5681,7 @@ INT db_set_data_index2(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
       pkey->last_written = ss_time();
 
       if (bNotify)
-         db_notify_clients(hDB, hKey, TRUE);
+         db_notify_clients(hDB, hKey, idx, TRUE);
 
       db_unlock_database(hDB);
    }
@@ -8254,7 +8263,7 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
 
                   /* notify clients which have key open */
                   if (pkey->notify_count)
-                     db_notify_clients(hDB, (POINTER_T) pkey - (POINTER_T) pheader, FALSE);
+                     db_notify_clients(hDB, (POINTER_T) pkey - (POINTER_T) pheader, -1, FALSE);
                }
             } else {
                /* copy key data if there is read access */
@@ -8304,7 +8313,7 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
             *data = (void *) ((char *) (*data) + corr);
 
          if (bSet && pkey->notify_count)
-            db_notify_clients(hDB, (POINTER_T) pkey - (POINTER_T) pheader, FALSE);
+            db_notify_clients(hDB, (POINTER_T) pkey - (POINTER_T) pheader, -1, FALSE);
       }
          
       if (pold) {
@@ -8581,7 +8590,7 @@ INT db_set_record(HNDLE hDB, HNDLE hKey, void *data, INT buf_size, INT align)
 
       db_lock_database(hDB);
       db_recurse_record_tree(hDB, hKey, &pdata, &total_size, align, NULL, TRUE, convert_flags);
-      db_notify_clients(hDB, hKey, TRUE);
+      db_notify_clients(hDB, hKey, -1, TRUE);
       db_unlock_database(hDB);
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -8749,7 +8758,7 @@ INT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock)
 
 #ifdef LOCAL_ROUTINES
 
-INT db_notify_clients(HNDLE hDB, HNDLE hKey, BOOL bWalk)
+INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
 /********************************************************************\
 
   Routine: db_notify_clients
@@ -8760,6 +8769,7 @@ INT db_notify_clients(HNDLE hDB, HNDLE hKey, BOOL bWalk)
 {
    DATABASE_HEADER *pheader;
    DATABASE_CLIENT *pclient;
+   HNDLE hKey;
    KEY *pkey;
    KEYLIST *pkeylist;
    INT i, j;
@@ -8771,7 +8781,8 @@ INT db_notify_clients(HNDLE hDB, HNDLE hKey, BOOL bWalk)
    }
 
    pheader = _database[hDB - 1].database_header;
-
+   hKey = hKeyMod;
+   
    /* check if key or parent has notify_flag set */
    pkey = (KEY *) ((char *) pheader + hKey);
 
@@ -8784,7 +8795,7 @@ INT db_notify_clients(HNDLE hDB, HNDLE hKey, BOOL bWalk)
             for (j = 0; j < pclient->max_index; j++)
                if (pclient->open_record[j].handle == hKey) {
                   /* send notification to remote process */
-                  sprintf(str, "O %d %d", hDB, hKey);
+                  sprintf(str, "O %d %d %d %d", hDB, hKey, hKeyMod, index);
                   ss_resume(pclient->port, str);
                }
          }
@@ -9612,11 +9623,12 @@ its new contents to the local copy of it.
 
 If called from a server, send a network notification to the client.
 @param hDB          ODB handle obtained via cm_get_experiment_database().
-@param hKey         Handle for key where search starts, zero for root.
-@param s            optional server socket
+@param hKey         Handle for key which changed.
+@param index        Index for array keys.
+@param s            optional server socket.
 @return DB_SUCCESS, DB_INVALID_HANDLE
 */
-INT db_update_record(INT hDB, INT hKey, int s)
+INT db_update_record(INT hDB, INT hKeyRoot, INT hKey, int index, int s)
 {
    INT i, size, convert_flags, status;
    char buffer[32];
@@ -9627,25 +9639,29 @@ INT db_update_record(INT hDB, INT hKey, int s)
       convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
 
       if (convert_flags & CF_ASCII) {
-         sprintf(buffer, "MSG_ODB&%d&%d", hDB, hKey);
+         sprintf(buffer, "MSG_ODB&%d&%d%d%d", hDB, hKeyRoot, hKey, index);
          send_tcp(s, buffer, strlen(buffer) + 1, 0);
       } else {
          nc = (NET_COMMAND *) buffer;
 
          nc->header.routine_id = MSG_ODB;
-         nc->header.param_size = 2 * sizeof(INT);
+         nc->header.param_size = 4 * sizeof(INT);
          *((INT *) nc->param) = hDB;
-         *((INT *) nc->param + 1) = hKey;
+         *((INT *) nc->param + 1) = hKeyRoot;
+         *((INT *) nc->param + 2) = hKey;
+         *((INT *) nc->param + 3) = index;
 
          if (convert_flags) {
             rpc_convert_single(&nc->header.routine_id, TID_DWORD, RPC_OUTGOING, convert_flags);
             rpc_convert_single(&nc->header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
             rpc_convert_single(&nc->param[0], TID_DWORD, RPC_OUTGOING, convert_flags);
             rpc_convert_single(&nc->param[4], TID_DWORD, RPC_OUTGOING, convert_flags);
+            rpc_convert_single(&nc->param[8], TID_DWORD, RPC_OUTGOING, convert_flags);
+            rpc_convert_single(&nc->param[12], TID_DWORD, RPC_OUTGOING, convert_flags);
          }
 
          /* send the update notification to the client */
-         send_tcp(s, buffer, sizeof(NET_COMMAND_HEADER) + 2 * sizeof(INT), 0);
+         send_tcp(s, buffer, sizeof(NET_COMMAND_HEADER) + 4 * sizeof(INT), 0);
       }
 
       return DB_SUCCESS;
@@ -9653,21 +9669,31 @@ INT db_update_record(INT hDB, INT hKey, int s)
 
    status = DB_INVALID_HANDLE;
 
-   /* check all entries for matching key */
+   /* check all record entries for matching key */
    for (i = 0; i < _record_list_entries; i++)
-      if (_record_list[i].handle == hKey) {
+      if (_record_list[i].handle == hKeyRoot) {
          status = DB_SUCCESS;
 
          /* get updated data if record not opened in write mode */
          if ((_record_list[i].access_mode & MODE_WRITE) == 0) {
             size = _record_list[i].buf_size;
             if (_record_list[i].data != NULL)
-               db_get_record(hDB, hKey, _record_list[i].data, &size, 0);
+               db_get_record(hDB, hKeyRoot, _record_list[i].data, &size, 0);
 
             /* call dispatcher if requested */
             if (_record_list[i].dispatcher)
-               _record_list[i].dispatcher(hDB, hKey, _record_list[i].info);
+               _record_list[i].dispatcher(hDB, hKeyRoot, _record_list[i].info);
          }
+      }
+
+   /* check all watch entries for matching key */
+   for (i = 0; i < _watch_list_entries; i++)
+      if (_watch_list[i].handle == hKeyRoot) {
+         status = DB_SUCCESS;
+         
+         /* call dispatcher if requested */
+         if (_watch_list[i].dispatcher)
+            _watch_list[i].dispatcher(hDB, hKey, index);
       }
 
    return status;
@@ -9844,6 +9870,135 @@ INT db_send_changed_records()
 }
 
 /*------------------------------------------------------------------*/
+
+/********************************************************************/
+/**
+ Watch an ODB subtree. The callback function gets called whenever a
+ key in the watched subtree changes. The callback function
+ receives the database handle and the key handle as parameters.
+ 
+ @param hDB          ODB handle obtained via cm_get_experiment_database().
+ @param hKey         Handle for key at top of subtree to watch, zero for root.
+ @param (*dispatcher)   Function which gets called when record is updated.The
+ argument list composed of: HNDLE hDB, HNDLE hKey
+ @return DB_SUCCESS, DB_INVALID_HANDLE, DB_NO_MEMORY, DB_NO_ACCESS, DB_STRUCT_SIZE_MISMATCH
+ */
+INT db_watch(HNDLE hDB, HNDLE hKey, void (*dispatcher) (INT, INT, INT))
+{
+   INT idx, status;
+   KEY key;
+   char str[256];
+   
+   /* check for valid key */
+   assert(hKey);
+   
+   /* allocate new space for the local record list */
+   if (_watch_list_entries == 0) {
+      _watch_list = (WATCH_LIST *) malloc(sizeof(WATCH_LIST));
+      memset(_watch_list, 0, sizeof(WATCH_LIST));
+      if (_watch_list == NULL) {
+         cm_msg(MERROR, "db_watch", "not enough memory");
+         return DB_NO_MEMORY;
+      }
+      
+      _watch_list_entries = 1;
+      idx = 0;
+   } else {
+      /* check for a deleted entry */
+      for (idx = 0; idx < _watch_list_entries; idx++)
+         if (!_watch_list[idx].handle)
+            break;
+      
+      /* if not found, create new one */
+      if (idx == _watch_list_entries) {
+         _watch_list = (WATCH_LIST *) realloc(_watch_list, sizeof(WATCH_LIST) * (_watch_list_entries + 1));
+         if (_watch_list == NULL) {
+            cm_msg(MERROR, "db_watch", "not enough memory");
+            return DB_NO_MEMORY;
+         }
+         
+         memset(&_watch_list[_watch_list_entries], 0, sizeof(WATCH_LIST));
+         
+         _watch_list_entries++;
+      }
+   }
+   
+   /* check key */
+   status = db_get_key(hDB, hKey, &key);
+   if (status != DB_SUCCESS) {
+      _watch_list_entries--;
+      db_get_path(hDB, hKey, str, sizeof(str));
+      cm_msg(MERROR, "db_watch", "cannot get key %s", str);
+      return DB_NO_MEMORY;
+   }
+   
+   /* check for read access */
+   if (!(key.access_mode & MODE_READ)) {
+      _watch_list_entries--;
+      db_get_path(hDB, hKey, str, sizeof(str));
+      cm_msg(MERROR, "db_watch", "cannot get key %s", str);
+      return DB_NO_ACCESS;
+   }
+   
+   /* initialize record list */
+   _watch_list[idx].handle = hKey;
+   _watch_list[idx].hDB = hDB;
+   _watch_list[idx].dispatcher = dispatcher;
+   
+   /* add record entry in database structure */
+   return db_add_open_record(hDB, hKey, MODE_WATCH);
+}
+
+
+/********************************************************************/
+/**
+ Remove watch callback from a key previously watched with db_watch.
+ @param hDB          ODB handle obtained via cm_get_experiment_database().
+ @param hKey         Handle for key, zero for root.
+ @return DB_SUCCESS, DB_INVALID_HANDLE
+ */
+INT db_unwatch(HNDLE hDB, HNDLE hKey)
+{
+#ifdef LOCAL_ROUTINES
+   {
+   INT i;
+   
+   for (i = 0; i < _watch_list_entries; i++)
+      if (_watch_list[i].handle == hKey && _watch_list[i].hDB == hDB)
+         break;
+   
+   if (i == _watch_list_entries)
+      return DB_INVALID_HANDLE;
+   
+   /* remove record entry from database structure */
+   db_remove_open_record(hDB, hKey, TRUE);
+   
+   memset(&_watch_list[i], 0, sizeof(WATCH_LIST));
+   }
+#endif                          /* LOCAL_ROUTINES */
+   
+   return DB_SUCCESS;
+}
+
+/********************************************************************/
+/**
+ Closes all watched variables.
+ This routines is called by db_close_all_databases() and
+ cm_disconnect_experiment()
+ @return DB_SUCCESS, DB_INVALID_HANDLE
+ */
+INT db_unwatch_all()
+{
+   INT i;
+   
+   for (i = _watch_list_entries-1; i >= 0 ; i--)
+      db_unwatch(_watch_list[i].hDB, _watch_list[i].handle);
+   
+   return DB_SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
+
 
 /**dox***************************************************************/
                                                        /** @} *//* end of odbfunctionc */

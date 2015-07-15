@@ -419,7 +419,7 @@ int cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_s
       }
    } else {
       dir[0] = 0;
-      strlcpy(facility, "midad", sizeof(facility));
+      strlcpy(facility, "midas", sizeof(facility));
       date_ext[0] = 0;
    }
 
@@ -494,7 +494,7 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message)
    filename[0] = 0;
 
    if (rpc_is_remote())
-      return rpc_call(RPC_CM_MSG_LOG, message_type, message);
+      return rpc_call(RPC_CM_MSG_LOG, message_type, facility, message);
 
    if (message_type != MT_DEBUG) {
       cm_msg_get_logfile(facility, 0, filename, sizeof(filename), linkname, sizeof(linkname));
@@ -4404,12 +4404,14 @@ INT cm_dispatch_ipc(char *message, int s)
 \********************************************************************/
 {
    if (message[0] == 'O') {
-      HNDLE hDB, hKey;
-      sscanf(message + 2, "%d %d", &hDB, &hKey);
-      return db_update_record(hDB, hKey, s);
+      HNDLE hDB, hKey, hKeyRoot;
+      INT index;
+      index = 0;
+      sscanf(message + 2, "%d %d %d %d", &hDB, &hKeyRoot, &hKey, &index);
+      return db_update_record(hDB, hKeyRoot, hKey, index, s);
    }
 
-   /* message == "B  " means "resume event sender" */
+   /* message == "B" means "resume event sender" */
    if (message[0] == 'B' && message[2] != ' ') {
       char str[80];
 
@@ -8890,7 +8892,7 @@ INT rpc_client_dispatch(int sock)
 
 \********************************************************************/
 {
-   INT hDB, hKey, n;
+   INT hDB, hKeyRoot, hKey, n, index;
    NET_COMMAND *nc;
    INT status = 0;
    char net_buffer[256];
@@ -8902,10 +8904,13 @@ INT rpc_client_dispatch(int sock)
       return SS_ABORT;
 
    if (nc->header.routine_id == MSG_ODB) {
+      assert(n == sizeof(NET_COMMAND_HEADER) + 4 * sizeof(INT));
       /* update a changed record */
       hDB = *((INT *) nc->param);
-      hKey = *((INT *) nc->param + 1);
-      status = db_update_record(hDB, hKey, 0);
+      hKeyRoot = *((INT *) nc->param + 1);
+      hKey = *((INT *) nc->param + 2);
+      index = *((INT *) nc->param + 3);
+      status = db_update_record(hDB, hKeyRoot, hKey, index, 0);
    }
 
    else if (nc->header.routine_id == MSG_WATCHDOG) {
@@ -8937,8 +8942,10 @@ INT rpc_client_dispatch(int sock)
             if (nc->header.routine_id == MSG_ODB) {
                /* update a changed record */
                hDB = *((INT *) nc->param);
-               hKey = *((INT *) nc->param + 1);
-               status = db_update_record(hDB, hKey, 0);
+               hKeyRoot = *((INT *) nc->param + 1);
+               hKey = *((INT *) nc->param + 2);
+               index = *((INT *) nc->param + 3);
+               status = db_update_record(hDB, hKeyRoot, hKey, index, 0);
             }
 
             else if (nc->header.routine_id == MSG_WATCHDOG) {
