@@ -609,6 +609,9 @@ INT ss_shm_open(const char *name, INT size, void **adr, HNDLE * handle, BOOL get
          }
       }
 
+      if (shm_trace)
+         printf("ss_shm_open(%s,%d) get_size %d, file_name %s\n", name, size, get_size, file_name);
+
       status = SS_SUCCESS;
 
       fh = open(file_name, O_RDWR | O_BINARY | O_LARGEFILE, 0644);
@@ -998,6 +1001,10 @@ INT ss_shm_delete(const char *name)
 
    if (use_mmap_shm) {
       /* no shared memory segments to delete */
+
+      if (shm_trace)
+         printf("ss_shm_delete(%s) file_name %s (no-op)\n", name, file_name);
+
       return SS_SUCCESS;
    }
 
@@ -1206,13 +1213,15 @@ INT ss_shm_flush(const char *name, const void *adr, INT size, HNDLE handle)
             printf("ss_shm_flush(%s) size %d, file_name %s\n", name, size, file_name);
 
       } else if (use_posix_shm) {
+
+         assert(handle>=0 && handle<MAX_MMAP);
+
          if (size == 0)
             size = mmap_size[handle];
 
          if (shm_trace)
             printf("ss_shm_flush(%s) size %d, file_name %s\n", name, size, file_name);
 
-         assert(handle>=0 && handle<MAX_MMAP);
          assert(adr == mmap_addr[handle]);
          assert(size == mmap_size[handle]);
       }
@@ -1241,6 +1250,18 @@ INT ss_shm_flush(const char *name, const void *adr, INT size, HNDLE handle)
    }
 
    if (use_mmap_shm) {
+
+      assert(handle>=0 && handle<MAX_MMAP);
+
+      if (size == 0)
+         size = mmap_size[handle];
+
+      if (shm_trace)
+         printf("ss_shm_flush(%s) size %d, file_name %s\n", name, size, file_name);
+
+      assert(adr == mmap_addr[handle]);
+      assert(size == mmap_size[handle]);
+
       int ret = msync((void *)adr, size, MS_ASYNC);
       if (ret != 0) {
          cm_msg(MERROR, "ss_shm_flush", "Cannot msync(): return value %d, errno %d (%s)", ret, errno, strerror(errno));
