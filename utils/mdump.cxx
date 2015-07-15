@@ -638,7 +638,7 @@ int main(int argc, char **argv)
   /* open the shared memory buffer with proper size */
   status = bm_open_buffer(buf_name, 2*MAX_EVENT_SIZE, &hBufEvent);
   if (status != BM_SUCCESS && status != BM_CREATED) {
-    cm_msg(MERROR, "mdump", "bm_open_buffer, unknown buffer");
+    cm_msg(MERROR, "mdump", "Cannot open buffer \"%s\", bm_open_buffer() status %d", buf_name, status);
     goto error;
   }
   /* set the buffer cache size if requested */
@@ -753,7 +753,7 @@ int main(int argc, char **argv)
     if (debug) {
       i = 0;
       printf("ID\tMask\tFormat\tEq_name\n");
-      while (eq[i].fmt) {
+      while (eq.size()>0 && eq[i].fmt) {
 	printf("%d\t%d\t%s\t%s\n", eq[i].id, eq[i].msk, eq[i].Fmt, eq[i].Eqname);
 	i++;
       }

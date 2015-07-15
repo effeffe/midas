@@ -5014,8 +5014,8 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       } else {
          /* check if buffer size is identical */
          if (pheader->size != buffer_size) {
-            cm_msg(MERROR, "bm_open_buffer", "Requested buffer size (%d) differs from existing size (%d)",
-                   buffer_size, pheader->size);
+            cm_msg(MERROR, "bm_open_buffer", "Cannot open buffer \"%s\": requested buffer size (%d) differs from existing size (%d)",
+                   buffer_name, buffer_size, pheader->size);
             *buffer_handle = 0;
             _buffer_entries--;
             return BM_MEMSIZE_MISMATCH;
@@ -5128,6 +5128,7 @@ INT bm_close_buffer(INT buffer_handle)
       BUFFER_CLIENT *pclient;
       BUFFER_HEADER *pheader;
       INT i, j, idx, destroy_flag;
+      char xname[256];
 
       if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
          cm_msg(MERROR, "bm_close_buffer", "invalid buffer handle %d", buffer_handle);
@@ -5211,8 +5212,12 @@ INT bm_close_buffer(INT buffer_handle)
          if (pclient->pid && (pclient->write_wait || pclient->read_wait))
             ss_resume(pclient->port, "B  ");
 
+      strlcpy(xname, pheader->name, sizeof(xname));
+
+      pheader = NULL; // after ss_shm_close(), pheader points nowhere
+
       /* unmap shared memory, delete it if we are the last */
-      ss_shm_close(pheader->name, _buffer[buffer_handle - 1].buffer_header,
+      ss_shm_close(xname, _buffer[buffer_handle - 1].buffer_header,
                    _buffer[buffer_handle - 1].shm_handle, destroy_flag);
 
       /* unlock buffer */
