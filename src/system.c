@@ -500,7 +500,8 @@ INT ss_shm_open(const char *name, INT size, void **adr, HNDLE * handle, BOOL get
 
    if (use_sysv_shm) {
 
-      int key, shmid, fh, file_size;
+      int key, shmid, fh;
+      double file_size = 0;
       struct shmid_ds buf;
 
       status = SS_SUCCESS;
@@ -512,9 +513,6 @@ INT ss_shm_open(const char *name, INT size, void **adr, HNDLE * handle, BOOL get
       if (key == -1) {
          fh = open(file_name, O_CREAT | O_TRUNC | O_BINARY | O_RDWR, 0644);
          if (fh > 0) {
-            status = ftruncate(fh, size);
-            if (status != 0)
-               cm_msg(MERROR, "ss_shm_open", "ftruncate() failed, errno %d (%s)", errno, strerror(errno));
             close(fh);
          }
          key = ftok(file_name, 'M');
@@ -532,15 +530,20 @@ INT ss_shm_open(const char *name, INT size, void **adr, HNDLE * handle, BOOL get
          shmctl(shmid, IPC_RMID, &buf);
       } else {
          /* if file exists, retrieve its size */
-         file_size = (INT) ss_file_size(file_name);
-         if (get_size) {
-            size = file_size;
-         } else if (size != file_size) {
-            cm_msg(MERROR, "ss_shm_open", "Existing file \'%s\' has size %d, different from requested size %d",
-                   file_name, file_size, size);
-            return SS_SIZE_MISMATCH;
+         file_size = ss_file_size(file_name);
+         if (file_size > 0) {
+            if (get_size) {
+               size = file_size;
+            } else if (size != file_size) {
+               cm_msg(MERROR, "ss_shm_open", "Existing file \'%s\' has size %.0f, different from requested size %d",
+                      file_name, file_size, size);
+               return SS_SIZE_MISMATCH;
+            }
          }
       }
+
+      if (shm_trace)
+         printf("ss_shm_open(%s,%d) get_size %d, file_name %s, size %.0f\n", name, size, get_size, file_name, file_size);
 
       /* get the shared memory, create if not existing */
       shmid = shmget(key, size, 0);
@@ -557,8 +560,7 @@ INT ss_shm_open(const char *name, INT size, void **adr, HNDLE * handle, BOOL get
       }
 
       if (shmid == -1) {
-         cm_msg(MERROR, "ss_shm_open", "shmget(key=0x%x,size=%d) failed, errno %d (%s)",
-                key, size, errno, strerror(errno));
+         cm_msg(MERROR, "ss_shm_open", "shmget(key=0x%x,size=%d) failed, errno %d (%s)", key, size, errno, strerror(errno));
          return SS_NO_MEMORY;
       }
 
@@ -577,7 +579,7 @@ INT ss_shm_open(const char *name, INT size, void **adr, HNDLE * handle, BOOL get
       }
 
       /* if shared memory was created, try to load it from file */
-      if (status == SS_CREATED) {
+      if (status == SS_CREATED && file_size > 0) {
          fh = open(file_name, O_RDONLY, 0644);
          if (fh == -1)
             fh = open(file_name, O_CREAT | O_RDWR, 0644);
@@ -607,6 +609,9 @@ INT ss_shm_open(const char *name, INT size, void **adr, HNDLE * handle, BOOL get
          }
       }
 
+      if (shm_trace)
+         printf("ss_shm_open(%s,%d) get_size %d, file_name %s\n", name, size, get_size, file_name);
+
       status = SS_SUCCESS;
 
       fh = open(file_name, O_RDWR | O_BINARY | O_LARGEFILE, 0644);
@@ -617,8 +622,7 @@ INT ss_shm_open(const char *name, INT size, void **adr, HNDLE * handle, BOOL get
          }
 
          if (fh < 0) {
-            cm_msg(MERROR, "ss_shm_open",
-                   "Cannot create shared memory file \'%s\', errno %d (%s)", file_name, errno, strerror(errno));
+            cm_msg(MERROR, "ss_shm_open", "Cannot create shared memory file \'%s\', errno %d (%s)", file_name, errno, strerror(errno));
             return SS_FILE_ERROR;
          }
 
@@ -692,6 +696,9 @@ INT ss_shm_open(const char *name, INT size, void **adr, HNDLE * handle, BOOL get
          printf("ss_shm_open(%s,%d) get_size %d, file_name %s, size %.0f\n", name, size, get_size, file_name, file_size);
 
       if (file_size > 0) {
+         if (get_size)
+            size = file_size;
+
          if (file_size != size) {
             cm_msg(MERROR, "ss_shm_open", "Shared memory file \'%s\' size %.0f is different from requested size %d. Please backup and remove this file and try again", file_name, file_size, size);
             if (fh >= 0)
@@ -881,36 +888,20 @@ INT ss_shm_close(const char *name, void *adr, HNDLE handle, INT destroy_flag)
          return SS_INVALID_HANDLE;
       }
 
-      /* copy to file and destroy if we are the last one */
-      if (buf.shm_nattch == 1) {
-         FILE *fh;
+      destroy_flag = (buf.shm_nattch == 1);
 
-         fh = fopen(file_name, "w");
-         
-         if (fh == NULL) {
-            cm_msg(MERROR, "ss_shm_close", "Cannot write to file %s, please check protection", file_name);
-         } else {
-            /* write shared memory to file */
-            fwrite(adr, 1, buf.shm_segsz, fh);
-            fclose(fh);
-         }
+      if (shm_trace)
+         printf("ss_shm_close(%s), destroy_flag %d, shmid %d, shm_nattach %d\n", name, destroy_flag, handle, (int)buf.shm_nattch);
 
-         if (shmdt(adr) < 0) {
-            cm_msg(MERROR, "ss_shm_close", "shmdt(shmid=%d) failed, errno %d (%s)", handle, errno, strerror(errno));
-            return SS_INVALID_ADDRESS;
-         }
+      if (shmdt(adr) < 0) {
+         cm_msg(MERROR, "ss_shm_close", "shmdt(shmid=%d) failed, errno %d (%s)", handle, errno, strerror(errno));
+         return SS_INVALID_ADDRESS;
+      }
 
-         if (shmctl(handle, IPC_RMID, &buf) < 0) {
-            cm_msg(MERROR, "ss_shm_close",
-                   "shmctl(shmid=%d,IPC_RMID) failed, errno %d (%s)", handle, errno, strerror(errno));
-            return SS_INVALID_ADDRESS;
-         }
-      } else {
-         /* only detach if we are not the last */
-         if (shmdt(adr) < 0) {
-            cm_msg(MERROR, "ss_shm_close", "shmdt(shmid=%d) failed, errno %d (%s)", handle, errno, strerror(errno));
-            return SS_INVALID_ADDRESS;
-         }
+      if (destroy_flag) {
+         int status = ss_shm_delete(name);
+         if (status != SS_SUCCESS)
+            return status;
       }
 
       return SS_SUCCESS;
@@ -925,12 +916,6 @@ INT ss_shm_close(const char *name, void *adr, HNDLE handle, INT destroy_flag)
       assert(handle>=0 && handle<MAX_MMAP);
       assert(adr == mmap_addr[handle]);
 
-      if (0 && destroy_flag) {
-         status = ss_shm_flush(name, mmap_addr[handle], mmap_size[handle], handle);
-         if (status != SS_SUCCESS)
-            return status;
-      }
-
       status = munmap(mmap_addr[handle], mmap_size[handle]);
       if (status != 0) {
          cm_msg(MERROR, "ss_shm_close", "Cannot unmap shared memory \'%s\', munmap() errno %d (%s)", name, errno, strerror(errno));
@@ -939,6 +924,13 @@ INT ss_shm_close(const char *name, void *adr, HNDLE handle, INT destroy_flag)
 
       mmap_addr[handle] = NULL;
       mmap_size[handle] = 0;
+
+      if (destroy_flag) {
+         status = ss_shm_delete(name);
+         if (status != SS_SUCCESS)
+            return status;
+      }
+
 
       return SS_SUCCESS;
    }
@@ -986,10 +978,13 @@ INT ss_shm_delete(const char *name)
 #ifdef OS_UNIX
 
    if (use_sysv_shm) {
-      int shmid;
+      int shmid = -1;
       struct shmid_ds buf;
 
       status = ss_shm_file_name_to_shmid(file_name, &shmid);
+
+      if (shm_trace)
+         printf("ss_shm_delete(%s) file_name %s, shmid %d\n", name, file_name, shmid);
 
       if (status != SS_SUCCESS)
          return status;
@@ -1006,12 +1001,18 @@ INT ss_shm_delete(const char *name)
 
    if (use_mmap_shm) {
       /* no shared memory segments to delete */
+
+      if (shm_trace)
+         printf("ss_shm_delete(%s) file_name %s (no-op)\n", name, file_name);
+
       return SS_SUCCESS;
    }
 
    if (use_posix_shm) {
 
-      //printf("ss_shm_delete(%s) shm_name %s\n", name, shm_name);
+      if (shm_trace)
+         printf("ss_shm_delete(%s) shm_name %s\n", name, shm_name);
+
       status = shm_unlink(shm_name);
       if (status < 0) {
          cm_msg(MERROR, "ss_shm_delete", "shm_unlink(%s) errno %d (%s)", shm_name, errno, strerror(errno));
@@ -1192,11 +1193,35 @@ INT ss_shm_flush(const char *name, const void *adr, INT size, HNDLE handle)
       int fd;
       int ret;
 
-      if (use_posix_shm) {
+      if (use_sysv_shm) {
+
+         if (size == 0) {
+            struct shmid_ds buf;
+
+            /* get info about shared memory */
+            memset(&buf, 0, sizeof(buf));
+
+            if (shmctl(handle, IPC_STAT, &buf) < 0) {
+               cm_msg(MERROR, "ss_shm_flush", "shmctl(shmid=%d,IPC_STAT) failed, errno %d (%s)", handle, errno, strerror(errno));
+               return SS_INVALID_HANDLE;
+            }
+            
+            size = buf.shm_segsz;
+         }
+
          if (shm_trace)
             printf("ss_shm_flush(%s) size %d, file_name %s\n", name, size, file_name);
 
+      } else if (use_posix_shm) {
+
          assert(handle>=0 && handle<MAX_MMAP);
+
+         if (size == 0)
+            size = mmap_size[handle];
+
+         if (shm_trace)
+            printf("ss_shm_flush(%s) size %d, file_name %s\n", name, size, file_name);
+
          assert(adr == mmap_addr[handle]);
          assert(size == mmap_size[handle]);
       }
@@ -1225,6 +1250,18 @@ INT ss_shm_flush(const char *name, const void *adr, INT size, HNDLE handle)
    }
 
    if (use_mmap_shm) {
+
+      assert(handle>=0 && handle<MAX_MMAP);
+
+      if (size == 0)
+         size = mmap_size[handle];
+
+      if (shm_trace)
+         printf("ss_shm_flush(%s) size %d, file_name %s\n", name, size, file_name);
+
+      assert(adr == mmap_addr[handle]);
+      assert(size == mmap_size[handle]);
+
       int ret = msync((void *)adr, size, MS_ASYNC);
       if (ret != 0) {
          cm_msg(MERROR, "ss_shm_flush", "Cannot msync(): return value %d, errno %d (%s)", ret, errno, strerror(errno));

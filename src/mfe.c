@@ -2284,8 +2284,18 @@ INT scheduler(void)
             readout_enable(TRUE);
       }
 
+      int overflow = 0;
+
+      for (i = 0; equipment[i].name[0]; i++) {
+         if (equipment[i].bytes_sent > 0x0FFFFFFF)
+            overflow = equipment[i].bytes_sent;
+      }
+
+      //if (overflow)
+      //   printf("overflow %d\n", overflow);
+
       /*---- calculate rates and update status page periodically -----*/
-      if (force_update ||
+      if (force_update || overflow ||
           (display_period
            && actual_millitime - last_time_display > (DWORD) display_period)
           || (!display_period && actual_millitime - last_time_display > 3000)) {
@@ -2299,7 +2309,7 @@ INT scheduler(void)
          }
 
          /* calculate rates after requested period */
-         if (actual_millitime - last_time_rate > (DWORD)get_rate_period()) {
+         if (overflow || (actual_millitime - last_time_rate > (DWORD)get_rate_period())) {
             max_bytes_per_sec = 0;
             for (i = 0; equipment[i].name[0]; i++) {
                eq = &equipment[i];
@@ -2308,6 +2318,8 @@ INT scheduler(void)
                eq->stats.kbytes_per_sec =
                    eq->bytes_sent / 1024.0 / ((actual_millitime - last_time_rate) /
                                               1000.0);
+
+               //printf("events %d, bytes %d, dt %d\n", n_events[i], eq->bytes_sent, actual_millitime - last_time_rate);
 
                if ((INT) eq->bytes_sent > max_bytes_per_sec)
                   max_bytes_per_sec = eq->bytes_sent;

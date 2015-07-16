@@ -1335,6 +1335,7 @@ INT db_close_database(HNDLE hDB)
       DATABASE_HEADER *pheader;
       DATABASE_CLIENT *pclient;
       INT idx, destroy_flag, i, j;
+      char xname[256];
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_close_database", "invalid database handle");
@@ -1397,10 +1398,14 @@ INT db_close_database(HNDLE hDB)
       destroy_flag = (pheader->num_clients == 0);
 
       /* flush shared memory to disk */
-      ss_shm_flush(pheader->name, pheader, sizeof(DATABASE_HEADER) + 2 * pheader->data_size, _database[hDB - 1].shm_handle);
+      ss_shm_flush(pheader->name, pheader, 0, _database[hDB - 1].shm_handle);
+
+      strlcpy(xname, pheader->name, sizeof(xname));
 
       /* unmap shared memory, delete it if we are the last */
-      ss_shm_close(pheader->name, pheader, _database[hDB - 1].shm_handle, destroy_flag);
+      ss_shm_close(xname, pheader, _database[hDB - 1].shm_handle, destroy_flag);
+
+      pheader = NULL; // after ss_shm_close(), pheader points nowhere
 
       /* unlock database */
       db_unlock_database(hDB);

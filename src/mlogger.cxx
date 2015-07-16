@@ -14,6 +14,7 @@
 #include "hardware.h"
 #include <errno.h>              /* for mkdir() */
 #include <assert.h>
+#include <string>
 
 #ifndef HAVE_STRLCPY
 #include "strlcpy.h"
@@ -102,6 +103,740 @@ void receive_event(HNDLE hBuf, HNDLE request_id, EVENT_HEADER * pheader, void *p
 INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pheader);
 void log_system_history(HNDLE hDB, HNDLE hKey, void *info);
 int log_generate_file_name(LOG_CHN *log_chn);
+
+/*== common code FAL/MLOGGER start =================================*/
+
+#define MEMZERO(obj) memset(&(obj), 0, sizeof(obj))
+
+#define FREE(ptr) if (ptr) free(ptr); (ptr)=NULL;
+#define DELETE(ptr) if (ptr) delete (ptr); (ptr)=NULL;
+
+/*---- writer interface --------------------------------------*/
+
+class WriterInterface
+{
+public:
+   virtual int wr_open(LOG_CHN* log_chn, int run_number) = 0;
+   virtual int wr_write(LOG_CHN* log_chn, const void* data, const int size) = 0;
+   virtual int wr_close(LOG_CHN* log_chn, int run_number) = 0;
+   WriterInterface(); // base ctor
+   virtual ~WriterInterface() {}; // dtor
+   virtual std::string wr_get_file_ext() { return ""; }
+public:
+   bool   fTrace;    // enable tracing printout
+   double fBytesIn;  // count bytes in (before compression)
+   double fBytesOut; // count bytes out (after compression)
+};
+
+WriterInterface::WriterInterface()
+{
+   //fTrace = true; // <------ to enable (disable) tracing printout, set to "true" ("false")
+   fTrace = false; // <------ to enable (disable) tracing printout, set to "true" ("false")
+   fBytesIn = 0;
+   fBytesOut = 0;
+
+   if (fTrace)
+      printf("WriterInterface: default constructor!\n");
+}
+
+/*---- Null writer  --------------------------------------*/
+
+class WriterNull : public WriterInterface
+{
+public:
+   WriterNull(LOG_CHN* log_chn) // ctor
+   {
+      if (fTrace)
+         printf("WriterNull: path [%s]\n", log_chn->path);
+      fSimulateCompression = false;
+   }
+
+   ~WriterNull() // dtor
+   {
+      if (fTrace)
+         printf("WriterNull: destructor\n");
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      if (fTrace)
+         printf("WriterNull: open path [%s]\n", log_chn->path);
+      fBytesIn = 0;
+      fBytesOut = 0;
+      log_chn->handle = 9999;
+      if (fSimulateCompression)
+         fBytesOut += 10; // simulate compression header
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterNull: write path [%s], size %d\n", log_chn->path, size);
+      fBytesIn += size;
+      if (fSimulateCompression)
+         fBytesOut += size/3; // simulate compression
+      else
+         fBytesOut += size;
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      if (fTrace)
+         printf("WriterNull: close path [%s]\n", log_chn->path);
+      if (fSimulateCompression)
+         fBytesOut += 20; // simulate compression footer
+      log_chn->handle = 0;
+      return SUCCESS;
+   }
+
+   std::string wr_get_file_ext()
+   {
+      return ".dat";
+   }
+
+private:
+   bool fSimulateCompression;
+};
+
+/*---- file writer --------------------------------------*/
+
+class WriterFile : public WriterInterface
+{
+public:
+   WriterFile(LOG_CHN* log_chn) // ctor
+   {
+      if (fTrace)
+         printf("WriterFile: path [%s]\n", log_chn->path);
+      fFileno = -1;
+   }
+
+   ~WriterFile() // dtor
+   {
+      if (fTrace)
+         printf("WriterFile: destructor\n");
+      fFileno = -1;
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      if (fTrace)
+         printf("WriterFile: open path [%s]\n", log_chn->path);
+
+      assert(fFileno < 0);
+
+#ifdef OS_WINNT
+      fFileno = (int) CreateFile(log_chn->path, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH | FILE_FLAG_SEQUENTIAL_SCAN, 0);
+#else
+      fFileno = open(log_chn->path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_LARGEFILE, 0644);
+#endif
+      if (fFileno < 0) {
+         printf("cannot open [%s], errno %d (%s)\n", log_chn->path, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      log_chn->handle = fFileno;
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterFile: write path [%s], size %d\n", log_chn->path, size);
+
+      if (size == 0)
+         return SUCCESS;
+
+      assert(fFileno >= 0);
+
+      fBytesIn += size;
+
+      int wr = write(fFileno, data, size);
+
+      if (wr > 0)
+         fBytesOut += wr;
+
+      if (wr != size) {
+         printf("write(%d) wrote %d bytes, errno %d (%s)\n", size, wr, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      int err;
+
+      if (fTrace)
+         printf("WriterFile: close path [%s]\n", log_chn->path);
+
+      assert(fFileno >= 0);
+
+      log_chn->handle = 0;
+
+      err = close(fFileno);
+      fFileno = -1;
+
+      if (err != 0) {
+         printf("close() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+private:
+   int fFileno;
+};
+
+/*---- gzip writer --------------------------------------*/
+
+#include <zlib.h>
+
+class WriterGzip : public WriterInterface
+{
+public:
+   WriterGzip(LOG_CHN* log_chn, int compress) // ctor
+   {
+      if (fTrace)
+         printf("WriterGzip: path [%s]\n", log_chn->path);
+      fGzfp = 0;
+      fCompress = compress;
+   }
+
+   ~WriterGzip() // dtor
+   {
+      if (fTrace)
+         printf("WriterGzip: destructor\n");
+      assert(fGzfp == 0);
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      int zerror;
+
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      if (fTrace)
+         printf("WriterGzip: open path [%s]\n", log_chn->path);
+
+      assert(fGzfp == 0);
+
+      fGzfp = gzopen(log_chn->path, "wb");
+      if (fGzfp == 0) {
+         printf("cannot gzopen [%s], errno %d (%s)\n", log_chn->path, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      if (fCompress) {
+         zerror = gzsetparams(fGzfp, fCompress, Z_DEFAULT_STRATEGY);
+         if (zerror != Z_OK)
+            printf("gzsetparams zerror %d\n", zerror);
+      }
+
+#if ZLIB_VERNUM > 0x1235
+      // gzbuffer() added in zlib 1.2.3.5 (8 Jan 2010)
+      zerror = gzbuffer(fGzfp, 128*1024);
+      if (zerror != Z_OK)
+         printf("gzbuffer zerror %d\n", zerror);
+#else
+#warning Very old zlib, no gzbuffer()!
+#endif
+         
+      log_chn->handle = 8888;
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterGzip: write path [%s], size %d\n", log_chn->path, size);
+
+      if (size == 0)
+         return SUCCESS;
+
+      assert(fGzfp);
+
+      fBytesIn += size;
+
+      int wr = gzwrite(fGzfp, data, size);
+
+#if ZLIB_VERNUM > 0x1235
+      // gzoffset() added in zlib 1.2.3.5 (8 Jan 2010)
+      fBytesOut = gzoffset(fGzfp);
+#else
+#warning Very old zlib, no gzoffset()!
+#endif
+
+      if (wr != size) {
+         printf("gzwrite(%d) wrote %d bytes, errno %d (%s)\n", size, wr, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      int err;
+
+      if (fTrace)
+         printf("WriterGzip: close path [%s]\n", log_chn->path);
+
+      assert(fGzfp);
+
+      log_chn->handle = 0;
+
+      err = gzflush(fGzfp, Z_FINISH);
+
+      if (err != 0) {
+         printf("close() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      err = gzclose(fGzfp);
+      fGzfp = 0;
+
+      if (err != 0) {
+         printf("close() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+   std::string wr_get_file_ext()
+   {
+      return ".gz";
+   }
+
+private:
+   gzFile fGzfp;
+   int fCompress;
+};
+
+/*---- pipe writer --------------------------------------*/
+
+class WriterPopen : public WriterInterface
+{
+public:
+   WriterPopen(LOG_CHN* log_chn, const char* pipe_command, const char* file_ext) // ctor
+   {
+      if (fTrace)
+         printf("WriterPopen: path [%s]\n", log_chn->path);
+      fFp = NULL;
+      fPipeCommand = pipe_command;
+      fFileExt = file_ext;
+   }
+
+   ~WriterPopen() // dtor
+   {
+      if (fTrace)
+         printf("WriterPopen: destructor\n");
+      if (fFp)
+         pclose(fFp);
+      fFp = NULL;
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      if (fTrace)
+         printf("WriterPopen: open path [%s] pipe [%s] ext [%s]\n", log_chn->path, fPipeCommand.c_str(), fFileExt.c_str());
+
+      assert(fFp == NULL);
+
+#ifdef OS_WINNT
+      // sorry no popen?!?
+      return SS_FILE_ERROR;
+#else
+      std::string cmd = fPipeCommand + log_chn->path;
+
+      fFp = popen(cmd.c_str(), "w");
+      if (fFp == NULL) {
+         printf("cannot popen(%s), errno %d (%s)\n", cmd.c_str(), errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      log_chn->handle = 9999;
+
+      return SUCCESS;
+#endif
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterPopen: write path [%s], size %d\n", log_chn->path, size);
+
+      if (size == 0)
+         return SUCCESS;
+
+      assert(fFp != NULL);
+
+      fBytesIn += size;
+
+      int wr = fwrite(data, 1, size, fFp);
+
+      if (wr > 0)
+         fBytesOut += wr;
+
+      if (wr != size) {
+         printf("fwrite(%d) wrote %d bytes, errno %d (%s)\n", size, wr, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      int err;
+
+      if (fTrace)
+         printf("WriterPopen: close path [%s]\n", log_chn->path);
+
+      assert(fFp != NULL);
+
+      log_chn->handle = 0;
+
+#ifdef OS_WINNT
+      // sorry no popen?!?
+      return SS_FILE_ERROR;
+#else
+      err = pclose(fFp);
+      fFp = NULL;
+
+      if (err != 0) {
+         printf("pclose() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+#endif
+   }
+
+   std::string wr_get_file_ext()
+   {
+      return fFileExt;
+   }
+
+private:
+   FILE* fFp;
+   std::string fPipeCommand;
+   std::string fFileExt;
+};
+
+/*---- CRC32-ZLIB computation --------------------------------------*/
+
+#ifdef HAVE_ZLIB
+#include <zlib.h>
+
+class WriterCRC32Zlib : public WriterInterface
+{
+public:
+   WriterCRC32Zlib(LOG_CHN* log_chn, WriterInterface* wr) // ctor
+   {
+      if (fTrace)
+         printf("WriterCRC32Zlib: path [%s]\n", log_chn->path);
+
+      assert(wr != NULL);
+
+      fWr = wr;
+      fCrc32 = 0;
+   }
+
+   ~WriterCRC32Zlib() // dtor
+   {
+      if (fTrace)
+         printf("WriterCRC32Zlib: destructor\n");
+      DELETE(fWr);
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      int status;
+
+      if (fTrace)
+         printf("WriterCRC32Zlib: open path [%s]\n", log_chn->path);
+
+      status = fWr->wr_open(log_chn, run_number);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      log_chn->handle = 9999;
+
+      fCrc32 = crc32(0, Z_NULL, 0);
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterCRC32Zlib: write path [%s], size %d\n", log_chn->path, size);
+
+      fCrc32 = crc32(fCrc32, (const Bytef*)data, size);
+
+      int status = fWr->wr_write(log_chn, data, size);
+
+      fBytesIn += size;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         //EXM_THROW(35, "Write error : cannot write compressed block");
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      if (fTrace)
+         printf("WriterCRC32Zlib: close path [%s]\n", log_chn->path);
+
+      log_chn->handle = 0;
+
+      cm_msg(MLOG, "CRC32Zlib", "File \'%s\' CRC32-zlib checksum: 0x%08lx, %.0f bytes", log_chn->path, (unsigned long)fCrc32, fBytesIn);
+
+      std::string f = std::string(log_chn->path) + ".crc32zlib";
+      FILE *fp = fopen(f.c_str(), "w");
+      if (!fp) {
+         //EXM_THROW(37, "Write error : cannot write end of stream");
+      } else {
+         fprintf(fp, "%08lx %.0f %s\n", (unsigned long)fCrc32, fBytesIn, log_chn->path);
+         fclose(fp);
+      }
+
+      /* close downstream writer */
+
+      int status = fWr->wr_close(log_chn, run_number);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         //EXM_THROW(37, "Write error : cannot write end of stream");
+         return status;
+      }
+
+      return SUCCESS;
+   }
+
+   std::string wr_get_file_ext() {
+      return fWr->wr_get_file_ext();
+   }
+
+private:
+   WriterInterface *fWr;
+   uLong fCrc32;
+};
+#endif
+
+/*---- LZ4 compressed writer  --------------------------------------*/
+
+#include "lz4frame.h"
+
+class WriterLZ4 : public WriterInterface
+{
+public:
+   WriterLZ4(LOG_CHN* log_chn, WriterInterface* wr) // ctor
+   {
+      if (fTrace)
+         printf("WriterLZ4: path [%s]\n", log_chn->path);
+
+      assert(wr != NULL);
+
+      fBuffer = NULL;
+      fWr = wr;
+      fBufferSize = 0;
+      fBlockSize = 0;
+   }
+
+   ~WriterLZ4() // dtor
+   {
+      if (fTrace)
+         printf("WriterLZ4: destructor\n");
+
+      FREE(fBuffer);
+      DELETE(fWr);
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      int status;
+      LZ4F_errorCode_t errorCode;
+
+      if (fTrace)
+         printf("WriterLZ4: open path [%s]\n", log_chn->path);
+
+      status = fWr->wr_open(log_chn, run_number);
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      errorCode = LZ4F_createCompressionContext(&fContext, LZ4F_VERSION);
+      if (LZ4F_isError(errorCode)) {
+         //EXM_THROW(30, "Allocation error : can't create LZ4F context : %s", LZ4F_getErrorName(errorCode));
+         return SS_FILE_ERROR;
+      }
+
+      LZ4F_blockSizeID_t blockSizeId = LZ4F_max4MB;
+      fBlockSize = 4*1024*1024;
+      fBufferSize = LZ4F_compressFrameBound(fBlockSize, NULL);
+      fBuffer = (char*)malloc(fBufferSize);
+      if (fBuffer == NULL) {
+         //EXM_THROW(32, "File header generation failed : %s", LZ4F_getErrorName(headerSize));
+         return SS_FILE_ERROR;
+      }
+
+      MEMZERO(fPrefs);
+
+      fPrefs.compressionLevel = 0; // 0=fast, non-zero=???
+      fPrefs.autoFlush = 0; // ???
+      fPrefs.frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled;
+      fPrefs.frameInfo.blockSizeID = blockSizeId;
+
+      size_t headerSize = LZ4F_compressBegin(fContext, fBuffer, fBufferSize, &fPrefs);
+      
+      if (LZ4F_isError(headerSize)) {
+         //EXM_THROW(32, "File header generation failed : %s", LZ4F_getErrorName(headerSize));
+         return SS_FILE_ERROR;
+      }
+
+      status = fWr->wr_write(log_chn, fBuffer, headerSize);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         //EXM_THROW(33, "Write error : cannot write header");
+         return SS_FILE_ERROR;
+      }
+
+      log_chn->handle = 9999;
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      const char* ptr = (const char*)data;
+      int remaining = size;
+
+      if (fTrace)
+         printf("WriterLZ4: write path [%s], size %d\n", log_chn->path, size);
+
+      while (remaining > 0) {
+         int wsize = remaining;
+
+         if (wsize > fBlockSize)
+            wsize = fBlockSize;
+
+         size_t outSize = LZ4F_compressUpdate(fContext, fBuffer, fBufferSize, ptr, wsize, NULL);
+
+         if (LZ4F_isError(outSize)) {
+            //EXM_THROW(34, "Compression failed : %s", LZ4F_getErrorName(outSize));
+            return SS_FILE_ERROR;
+         }
+	 
+         int status = fWr->wr_write(log_chn, fBuffer, outSize);
+ 
+         fBytesIn += wsize;
+         fBytesOut = fWr->fBytesOut;
+	 
+         if (status != SUCCESS) {
+            //EXM_THROW(35, "Write error : cannot write compressed block");
+            return SS_FILE_ERROR;
+         }
+
+         ptr += wsize;
+         remaining -= wsize;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      LZ4F_errorCode_t errorCode;
+
+      if (fTrace)
+         printf("WriterLZ4: close path [%s]\n", log_chn->path);
+
+      log_chn->handle = 0;
+
+      /* write End of Stream mark */
+      size_t headerSize = LZ4F_compressEnd(fContext, fBuffer, fBufferSize, NULL);
+
+      if (LZ4F_isError(headerSize)) {
+         //EXM_THROW(36, "End of file generation failed : %s", LZ4F_getErrorName(headerSize));
+         return SS_FILE_ERROR;
+      }
+
+      int xstatus = SUCCESS;
+      int status = fWr->wr_write(log_chn, fBuffer, headerSize);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         //EXM_THROW(37, "Write error : cannot write end of stream");
+         xstatus = status;
+      }
+
+      /* close downstream writer */
+
+      status = fWr->wr_close(log_chn, run_number);
+
+      if (status != SUCCESS) {
+         //EXM_THROW(37, "Write error : cannot write end of stream");
+         xstatus = status;
+      }
+
+      /* free resources */
+
+      free(fBuffer);
+      fBuffer = NULL;
+      fBufferSize = 0;
+
+      errorCode = LZ4F_freeCompressionContext(fContext);
+      if (LZ4F_isError(errorCode)) {
+         //EXM_THROW(38, "Error : can't free LZ4F context resource : %s", LZ4F_getErrorName(errorCode));
+         xstatus = SS_FILE_ERROR;
+      }
+
+      return xstatus;
+   }
+
+   std::string wr_get_file_ext() {
+      return ".lz4" + fWr->wr_get_file_ext();
+   }
+
+private:
+   WriterInterface *fWr;
+   LZ4F_compressionContext_t fContext;
+   LZ4F_preferences_t fPrefs;
+   char* fBuffer;
+   int   fBufferSize;
+   int   fBlockSize;
+};
 
 /*---- Logging initialization --------------------------------------*/
 
@@ -1026,6 +1761,30 @@ INT midas_flush_buffer(LOG_CHN * log_chn)
 
 INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 {
+   if (log_chn->writer_class) {
+      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
+      int status = wr->wr_write(log_chn, pevent, evt_size);
+
+      if (status == SUCCESS) {
+         /* update statistics */
+         log_chn->statistics.events_written++;
+         log_chn->statistics.bytes_written_uncompressed += evt_size;
+      }
+
+      double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
+      if (incr < 0)
+         incr = 0;
+
+      //printf("bytes out %f, incr %f, subrun %f, written %f, total %f\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+      
+      log_chn->statistics.bytes_written += incr;
+      log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
+      log_chn->statistics.bytes_written_total += incr;
+      log_chn->statistics.disk_level = 0;
+
+      return status;
+   }
+
    INT i, written, size_left;
    MIDAS_INFO *info;
    static DWORD stat_last = 0;
@@ -1089,6 +1848,28 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 
 INT midas_log_open(LOG_CHN * log_chn, INT run_number)
 {
+   if (log_chn->writer_class) {
+      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
+      int status = wr->wr_open(log_chn, run_number);
+      if (status == SUCCESS) {
+         /* write ODB dump */
+         if (log_chn->settings.odb_dump)
+            log_odb_dump(log_chn, EVENTID_BOR, run_number);
+
+         /* update statistics */
+         double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
+         if (incr < 0)
+            incr = 0;
+
+         //printf("bytes out %f, incr %f, subrun %f, written %f, total %f (log_open)\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+
+         log_chn->statistics.bytes_written += incr;
+         log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
+         log_chn->statistics.bytes_written_total += incr;
+      }
+      return status;
+   }
+
    MIDAS_INFO *info;
    INT status;
 
@@ -1234,6 +2015,25 @@ INT midas_log_close(LOG_CHN * log_chn, INT run_number)
    /* write ODB dump */
    if (log_chn->settings.odb_dump)
       log_odb_dump(log_chn, EVENTID_EOR, run_number);
+
+   if (log_chn->writer_class) {
+      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
+      int status = wr->wr_close(log_chn, run_number);
+      if (status == SUCCESS) {
+         /* update statistics */
+
+         double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
+         if (incr < 0)
+            incr = 0;
+
+         //printf("bytes out %f, incr %f, subrun %f, written %f, total %f (log_close)\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+
+         log_chn->statistics.bytes_written += incr;
+         log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
+         log_chn->statistics.bytes_written_total += incr;
+      }
+      return status;
+   }
 
    written = midas_flush_buffer(log_chn);
 
@@ -1580,7 +2380,7 @@ INT root_book_bank(EVENT_TREE * et, HNDLE hKeyDef, int event_id, char *bank_name
 
 /*------------------------------------------------------------------*/
 
-INT root_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
+INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
 {
    INT size, i;
    char bank_name[32];
@@ -1802,7 +2602,128 @@ INT root_log_close(LOG_CHN * log_chn, INT run_number)
    return SS_SUCCESS;
 }
 
+class WriterROOT : public WriterInterface
+{
+public:
+   WriterROOT(LOG_CHN* log_chn) // ctor
+   {
+      if (fTrace)
+         printf("WriterROOT: path [%s]\n", log_chn->path);
+   }
+
+   ~WriterROOT() // dtor
+   {
+      if (fTrace)
+         printf("WriterROOT: destructor\n");
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      if (fTrace)
+         printf("WriterROOT: open path [%s]\n", log_chn->path);
+
+      int status = root_log_open(log_chn, run_number);
+      if (status != SUCCESS)
+         return status;
+
+      log_chn->handle = 9999;
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterROOT: write path [%s], size %d\n", log_chn->path, size);
+
+      if (size == 0)
+         return SUCCESS;
+
+      fBytesIn += size;
+
+      int status = root_write(log_chn, (const EVENT_HEADER*)data, size);
+      if (status != SUCCESS)
+         return status;
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      if (fTrace)
+         printf("WriterROOT: close path [%s]\n", log_chn->path);
+
+      int status = root_log_close(log_chn, run_number);
+
+      log_chn->handle = 0;
+
+      return status;
+   }
+
+   std::string wr_get_file_ext()
+   {
+      return ".root";
+   }
+
+private:
+};
+
 #endif                          /* HAVE_ROOT */
+
+/*------------------------------------------------------------------*/
+
+int log_create_writer(LOG_CHN *log_chn)
+{
+   assert(log_chn->writer_class == NULL);
+   log_chn->writer_class = NULL;
+
+   if (equal_ustring(log_chn->settings.format, "MIDAS")) {
+      WriterInterface* wri = NULL;
+      if (log_chn->compression==80) {
+#ifdef HAVE_ROOT
+         log_chn->writer_class = (void*) new WriterROOT(log_chn);
+#else
+         log_chn->writer_class = (void*) new WriterNull(log_chn);
+#endif
+      } else if (log_chn->compression==98) {
+         WriterNull* wr = new WriterNull(log_chn);
+         wri = wr;
+      } else if (log_chn->compression==99) {
+         WriterFile* wr = new WriterFile(log_chn);
+         wri = wr;
+      } else if (log_chn->compression==100) {
+         WriterFile* wr = new WriterFile(log_chn);
+         WriterLZ4* lz4 = new WriterLZ4(log_chn, wr);
+         wri = lz4;
+      } else if (log_chn->compression==200) {
+         WriterPopen* wr = new WriterPopen(log_chn, "bzip2 -z > ", ".bz2");
+         wri = wr;
+      } else if (log_chn->compression==201) {
+         WriterPopen* wr = new WriterPopen(log_chn, "pbzip2 -c -z > ", ".bz2");
+         wri = wr;
+      } else if (log_chn->compression==300) {
+         WriterGzip* gzip = new WriterGzip(log_chn, 0);
+         wri = gzip;
+      } else if (log_chn->compression==301) {
+         WriterGzip* gzip = new WriterGzip(log_chn, 1);
+         wri = gzip;
+      } else if (log_chn->compression==309) {
+         WriterGzip* gzip = new WriterGzip(log_chn, 9);
+         wri = gzip;
+      }
+
+      if (wri) {
+         if (0)
+            wri = new WriterCRC32Zlib(log_chn, wri);
+         log_chn->writer_class = (void*)wri;
+      }
+   }
+
+   return SS_SUCCESS;
+}
 
 /*---- log_open ----------------------------------------------------*/
 
@@ -1854,6 +2775,11 @@ INT log_close(LOG_CHN * log_chn, INT run_number)
    log_chn->statistics.files_written += 1;
    log_chn->handle = 0;
    log_chn->ftp_con = NULL;
+
+   if (log_chn->writer_class) {
+      delete ((WriterInterface*)log_chn->writer_class);
+      log_chn->writer_class = NULL;
+   }
 
    return SS_SUCCESS;
 }
@@ -1985,6 +2911,8 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
    BOOL next_subrun;
    static DWORD last_checked = 0;
 
+   //printf("log_write %d\n", pevent->data_size + sizeof(EVENT_HEADER));
+
    start_time = ss_millitime();
 
    if (log_chn->format == FORMAT_MIDAS)
@@ -2040,6 +2968,7 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
       log_close(log_chn, run_number);
       log_chn->subrun_number++;
       log_chn->statistics.bytes_written_subrun = 0;
+      log_create_writer(log_chn);
       log_generate_file_name(log_chn);
       log_open(log_chn, run_number);
       subrun_start_time = ss_time();
@@ -2061,6 +2990,7 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
       log_close(log_chn, run_number);
       log_chn->subrun_number++;
       log_chn->statistics.bytes_written_subrun = 0;
+      log_create_writer(log_chn);
       log_generate_file_name(log_chn);
       log_open(log_chn, run_number);
       subrun_start_time = ss_time();
@@ -2084,6 +3014,7 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
       log_close(log_chn, run_number);
       log_chn->subrun_number++;
       log_chn->statistics.bytes_written_subrun = 0;
+      log_create_writer(log_chn);
       log_generate_file_name(log_chn);
       log_open(log_chn, run_number);
       subrun_start_time = ss_time();
@@ -3107,7 +4038,21 @@ int log_generate_file_name(LOG_CHN *log_chn)
    } else
       strcpy(path, str);
 
+   /* add required file extension */
+   if (log_chn->writer_class) {
+      WriterInterface* wr = (WriterInterface*)log_chn->writer_class;
+      std::string file_ext = wr->wr_get_file_ext();
+      strlcat(path, file_ext.c_str(), sizeof(path));
+   }
+
    strcpy(log_chn->path, path);
+
+   /* write back current file name to ODB */
+   if (strncmp(path, data_dir, strlen(data_dir)) == 0)
+      strcpy(str, path + strlen(data_dir));
+   else
+      strcpy(str, path);
+   db_set_value(hDB, log_chn->settings_hkey, "Current filename", str, 256, 1, TID_STRING);
 
    /* construct full pipe command */
    if (ispipe) {
@@ -3126,13 +4071,6 @@ int log_generate_file_name(LOG_CHN *log_chn)
       strcat(log_chn->pipe_command, path);
    }
    
-   /* write back current file name to ODB */
-   if (strncmp(path, data_dir, strlen(data_dir)) == 0)
-      strcpy(str, path + strlen(data_dir));
-   else
-      strcpy(str, path);
-   db_set_value(hDB, log_chn->settings_hkey, "Current filename", str, 256, 1, TID_STRING);
-
    return CM_SUCCESS;
 }
 
@@ -3395,6 +4333,7 @@ INT tr_start(INT run_number, char *error)
          /* initialize subrun number */
          log_chn[index].subrun_number = 0;
 
+         log_create_writer(&log_chn[index]);
          log_generate_file_name(&log_chn[index]);
 
          if (log_chn[index].type == LOG_TYPE_DISK) {
@@ -3730,6 +4669,11 @@ int main(int argc, char *argv[])
 
 #endif
 
+#ifdef SIGPIPE
+   // undo ROOT overwrites SIGPIPE
+   signal(SIGPIPE, SIG_IGN);
+#endif
+
    setbuf(stdout, NULL);
    setbuf(stderr, NULL);
 
@@ -3928,5 +4872,6 @@ int main(int argc, char *argv[])
  * Local Variables:
  * tab-width: 8
  * c-basic-offset: 3
+ * indent-tabs-mode: nil
  * End:
  */
