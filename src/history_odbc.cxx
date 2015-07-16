@@ -467,7 +467,13 @@ void SqlODBC::ReportErrors(const char* from, const char* sqlfunc, int status)
          break;
       }
 
-      if (1 || ((error != 1060) && (error != 1050))) {
+      // Catch error "MySQL has gone away" and turn it into a warning. The program should be trying to reconnect immediately
+      // and will produce an error if it fails
+      if (1 || (error == 2006) ) {
+         if (fDebug)
+            printf("%s: %s warning: state: \'%s\', message: \'%s\', native error: %d\n", from, sqlfunc, state, message, (int)error);
+         cm_msg(MINFO, from, "%s warning: state: \'%s\', message: \'%s\', native error: %d", sqlfunc, state, message, (int)error);
+      } else if (1 || ((error != 1060) && (error != 1050))) {
          if (fDebug)
             printf("%s: %s error: state: \'%s\', message: \'%s\', native error: %d\n", from, sqlfunc, state, message, (int)error);
          cm_msg(MERROR, from, "%s error: state: \'%s\', message: \'%s\', native error: %d", sqlfunc, state, message, (int)error);
