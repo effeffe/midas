@@ -235,7 +235,7 @@ public:
       fFileno = open(log_chn->path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_LARGEFILE, 0644);
 #endif
       if (fFileno < 0) {
-         printf("cannot open [%s], errno %d (%s)\n", log_chn->path, errno, strerror(errno));
+         cm_msg(MERROR, "WriteFile::wr_open", "Cannot write to file \'%s\', open() errno %d (%s)\n", log_chn->path, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -262,7 +262,7 @@ public:
          fBytesOut += wr;
 
       if (wr != size) {
-         printf("write(%d) wrote %d bytes, errno %d (%s)\n", size, wr, errno, strerror(errno));
+         cm_msg(MERROR, "WriteFile::wr_write", "Cannot write to file \'%s\', write(%d) returned %d, errno: %d (%s)\n", log_chn->path, size, wr, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -285,6 +285,7 @@ public:
 
       if (err != 0) {
          printf("close() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+         cm_msg(MERROR, "WriteFile::wr_close", "Cannot write to file \'%s\', close() errno %d (%s)\n", log_chn->path, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
