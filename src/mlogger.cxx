@@ -331,21 +331,25 @@ public:
 
       fGzfp = gzopen(log_chn->path, "wb");
       if (fGzfp == 0) {
-         printf("cannot gzopen [%s], errno %d (%s)\n", log_chn->path, errno, strerror(errno));
+         cm_msg(MERROR, "WriterGzip::wr_open", "Cannot write to file \'%s\', gzopen() errno %d (%s)\n", log_chn->path, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
       if (fCompress) {
          zerror = gzsetparams(fGzfp, fCompress, Z_DEFAULT_STRATEGY);
-         if (zerror != Z_OK)
-            printf("gzsetparams zerror %d\n", zerror);
+         if (zerror != Z_OK) {
+            cm_msg(MERROR, "WriterGzip::wr_open", "gzsetparams() zerror %d\n", zerror);
+            return SS_FILE_ERROR;
+         }
       }
 
 #if ZLIB_VERNUM > 0x1235
       // gzbuffer() added in zlib 1.2.3.5 (8 Jan 2010)
       zerror = gzbuffer(fGzfp, 128*1024);
-      if (zerror != Z_OK)
-         printf("gzbuffer zerror %d\n", zerror);
+         if (zerror != Z_OK) {
+            cm_msg(MERROR, "WriterGzip::wr_open", "gzbuffer() zerror %d\n", zerror);
+            return SS_FILE_ERROR;
+         }
 #else
 #warning Very old zlib, no gzbuffer()!
 #endif
@@ -377,7 +381,7 @@ public:
 #endif
 
       if (wr != size) {
-         printf("gzwrite(%d) wrote %d bytes, errno %d (%s)\n", size, wr, errno, strerror(errno));
+         cm_msg(MERROR, "WriterGzip::wr_write", "Cannot write to file \'%s\', gzwrite(%d) returned %d, errno: %d (%s)\n", log_chn->path, size, wr, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -386,7 +390,7 @@ public:
 
    int wr_close(LOG_CHN* log_chn, int run_number)
    {
-      int err;
+      int zerror;
 
       if (fTrace)
          printf("WriterGzip: close path [%s]\n", log_chn->path);
@@ -395,18 +399,18 @@ public:
 
       log_chn->handle = 0;
 
-      err = gzflush(fGzfp, Z_FINISH);
+      zerror = gzflush(fGzfp, Z_FINISH);
 
-      if (err != 0) {
-         printf("close() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+      if (zerror != Z_OK) {
+         cm_msg(MERROR, "WriterGzip::wr_close", "Cannot write to file \'%s\', gzflush(Z_FINISH) zerror %d, errno: %d (%s)\n", log_chn->path, zerror, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
-      err = gzclose(fGzfp);
+      zerror = gzclose(fGzfp);
       fGzfp = 0;
 
-      if (err != 0) {
-         printf("close() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+      if (zerror != Z_OK) {
+         cm_msg(MERROR, "WriterGzip::wr_close", "Cannot write to file \'%s\', gzclose() zerror %d, errno: %d (%s)\n", log_chn->path, zerror, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
