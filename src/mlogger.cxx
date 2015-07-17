@@ -235,7 +235,7 @@ public:
       fFileno = open(log_chn->path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_LARGEFILE, 0644);
 #endif
       if (fFileno < 0) {
-         cm_msg(MERROR, "WriterFile::wr_open", "Cannot write to file \'%s\', open() errno %d (%s)\n", log_chn->path, errno, strerror(errno));
+         cm_msg(MERROR, "WriterFile::wr_open", "Cannot write to file \'%s\', open() errno %d (%s)", log_chn->path, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -262,7 +262,7 @@ public:
          fBytesOut += wr;
 
       if (wr != size) {
-         cm_msg(MERROR, "WriterFile::wr_write", "Cannot write to file \'%s\', write(%d) returned %d, errno: %d (%s)\n", log_chn->path, size, wr, errno, strerror(errno));
+         cm_msg(MERROR, "WriterFile::wr_write", "Cannot write to file \'%s\', write(%d) returned %d, errno: %d (%s)", log_chn->path, size, wr, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -284,7 +284,7 @@ public:
       fFileno = -1;
 
       if (err != 0) {
-         cm_msg(MERROR, "WriterFile::wr_close", "Cannot write to file \'%s\', close() errno %d (%s)\n", log_chn->path, errno, strerror(errno));
+         cm_msg(MERROR, "WriterFile::wr_close", "Cannot write to file \'%s\', close() errno %d (%s)", log_chn->path, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -331,14 +331,14 @@ public:
 
       fGzfp = gzopen(log_chn->path, "wb");
       if (fGzfp == 0) {
-         cm_msg(MERROR, "WriterGzip::wr_open", "Cannot write to file \'%s\', gzopen() errno %d (%s)\n", log_chn->path, errno, strerror(errno));
+         cm_msg(MERROR, "WriterGzip::wr_open", "Cannot write to file \'%s\', gzopen() errno %d (%s)", log_chn->path, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
       if (fCompress) {
          zerror = gzsetparams(fGzfp, fCompress, Z_DEFAULT_STRATEGY);
          if (zerror != Z_OK) {
-            cm_msg(MERROR, "WriterGzip::wr_open", "gzsetparams() zerror %d\n", zerror);
+            cm_msg(MERROR, "WriterGzip::wr_open", "gzsetparams() zerror %d", zerror);
             return SS_FILE_ERROR;
          }
       }
@@ -347,7 +347,7 @@ public:
       // gzbuffer() added in zlib 1.2.3.5 (8 Jan 2010)
       zerror = gzbuffer(fGzfp, 128*1024);
          if (zerror != Z_OK) {
-            cm_msg(MERROR, "WriterGzip::wr_open", "gzbuffer() zerror %d\n", zerror);
+            cm_msg(MERROR, "WriterGzip::wr_open", "gzbuffer() zerror %d", zerror);
             return SS_FILE_ERROR;
          }
 #else
@@ -381,7 +381,7 @@ public:
 #endif
 
       if (wr != size) {
-         cm_msg(MERROR, "WriterGzip::wr_write", "Cannot write to file \'%s\', gzwrite(%d) returned %d, errno: %d (%s)\n", log_chn->path, size, wr, errno, strerror(errno));
+         cm_msg(MERROR, "WriterGzip::wr_write", "Cannot write to file \'%s\', gzwrite(%d) returned %d, errno: %d (%s)", log_chn->path, size, wr, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -402,7 +402,7 @@ public:
       zerror = gzflush(fGzfp, Z_FINISH);
 
       if (zerror != Z_OK) {
-         cm_msg(MERROR, "WriterGzip::wr_close", "Cannot write to file \'%s\', gzflush(Z_FINISH) zerror %d, errno: %d (%s)\n", log_chn->path, zerror, errno, strerror(errno));
+         cm_msg(MERROR, "WriterGzip::wr_close", "Cannot write to file \'%s\', gzflush(Z_FINISH) zerror %d, errno: %d (%s)", log_chn->path, zerror, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -410,7 +410,7 @@ public:
       fGzfp = 0;
 
       if (zerror != Z_OK) {
-         cm_msg(MERROR, "WriterGzip::wr_close", "Cannot write to file \'%s\', gzclose() zerror %d, errno: %d (%s)\n", log_chn->path, zerror, errno, strerror(errno));
+         cm_msg(MERROR, "WriterGzip::wr_close", "Cannot write to file \'%s\', gzclose() zerror %d, errno: %d (%s)", log_chn->path, zerror, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -468,7 +468,7 @@ public:
 
       fFp = popen(fCommand.c_str(), "w");
       if (fFp == NULL) {
-         cm_msg(MERROR, "WriterPopen::wr_open", "Cannot write to pipe \'%s\', popen() errno %d (%s)\n", fCommand.c_str(), errno, strerror(errno));
+         cm_msg(MERROR, "WriterPopen::wr_open", "Cannot write to pipe \'%s\', popen() errno %d (%s)", fCommand.c_str(), errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -486,7 +486,9 @@ public:
       if (size == 0)
          return SUCCESS;
 
-      assert(fFp != NULL);
+      if (fFp == NULL) {
+         return SS_FILE_ERROR;
+      }
 
       fBytesIn += size;
 
@@ -496,7 +498,13 @@ public:
          fBytesOut += wr;
 
       if (wr != size) {
-         cm_msg(MERROR, "WriterPopen::wr_write", "Cannot write to pipe \'%s\', fwrite(%d) returned %d, errno %d (%s)\n", fCommand.c_str(), size, wr, errno, strerror(errno));
+         cm_msg(MERROR, "WriterPopen::wr_write", "Cannot write to pipe \'%s\', fwrite(%d) returned %d, errno %d (%s)", fCommand.c_str(), size, wr, errno, strerror(errno));
+
+         if (errno == EPIPE) {
+            cm_msg(MERROR, "WriterPopen::wr_write", "Cannot write to pipe \'%s\': broken pipe, closing the pipe", fCommand.c_str());
+            wr_close(log_chn, 0);
+         }
+
          return SS_FILE_ERROR;
       }
 
@@ -522,7 +530,7 @@ public:
       fFp = NULL;
 
       if (err != 0) {
-         cm_msg(MERROR, "WriterPopen::wr_close", "Cannot write to pipe \'%s\', pclose() returned %d, errno %d (%s)\n", fCommand.c_str(), err, errno, strerror(errno));
+         cm_msg(MERROR, "WriterPopen::wr_close", "Cannot write to pipe \'%s\', pclose() returned %d, errno %d (%s)", fCommand.c_str(), err, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -622,7 +630,7 @@ public:
       std::string f = std::string(log_chn->path) + ".crc32zlib";
       FILE *fp = fopen(f.c_str(), "w");
       if (!fp) {
-         cm_msg(MERROR, "WriterCRC32Zlib::wr_close", "Cannot write CRC32Zlib to file \'%s\', fopen() errno %d (%s)\n", f.c_str(), errno, strerror(errno));
+         cm_msg(MERROR, "WriterCRC32Zlib::wr_close", "Cannot write CRC32Zlib to file \'%s\', fopen() errno %d (%s)", f.c_str(), errno, strerror(errno));
       } else {
          fprintf(fp, "%08lx %.0f %s\n", (unsigned long)fCrc32, fBytesIn, log_chn->path);
          fclose(fp);
@@ -2930,14 +2938,11 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 
    actual_time = ss_millitime();
    if ((int) actual_time - (int) start_time > 3000)
-      cm_msg(MINFO, "log_write", "Write operation on %s took %d ms", log_chn->path, actual_time - start_time);
+      cm_msg(MINFO, "log_write", "Write operation on \'%s\' took %d ms", log_chn->path, actual_time - start_time);
 
    if (status != SS_SUCCESS && !stop_requested) {
-      if (status == SS_IO_ERROR)
-         cm_msg(MTALK, "log_write", "Physical IO error on %s, stopping run", log_chn->path);
-      else
-         cm_msg(MTALK, "log_write", "Error writing to %s, stopping run", log_chn->path);
-
+      cm_msg(MTALK, "log_write", "Error writing output file, stopping run");
+      cm_msg(MERROR, "log_write", "Cannot write \'%s\', error %d, stopping run", log_chn->path, status);
       stop_the_run(0);
 
       return status;
