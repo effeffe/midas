@@ -692,7 +692,7 @@ public:
 
       errorCode = LZ4F_createCompressionContext(&fContext, LZ4F_VERSION);
       if (LZ4F_isError(errorCode)) {
-         //EXM_THROW(30, "Allocation error : can't create LZ4F context : %s", LZ4F_getErrorName(errorCode));
+         cm_msg(MERROR, "WriterLZ4::wr_open", "LZ4F_createCompressionContext() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
          return SS_FILE_ERROR;
       }
 
@@ -701,7 +701,7 @@ public:
       fBufferSize = LZ4F_compressFrameBound(fBlockSize, NULL);
       fBuffer = (char*)malloc(fBufferSize);
       if (fBuffer == NULL) {
-         //EXM_THROW(32, "File header generation failed : %s", LZ4F_getErrorName(headerSize));
+         cm_msg(MERROR, "WriterLZ4::wr_open", "Cannot malloc() %d bytes for an LZ4 compression buffer, block size %d, errno %d (%s)", fBufferSize, fBlockSize, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -715,7 +715,8 @@ public:
       size_t headerSize = LZ4F_compressBegin(fContext, fBuffer, fBufferSize, &fPrefs);
       
       if (LZ4F_isError(headerSize)) {
-         //EXM_THROW(32, "File header generation failed : %s", LZ4F_getErrorName(headerSize));
+         errorCode = headerSize;
+         cm_msg(MERROR, "WriterLZ4::wr_open", "LZ4F_compressBegin() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
          return SS_FILE_ERROR;
       }
 
@@ -725,7 +726,6 @@ public:
       fBytesOut = fWr->fBytesOut;
 
       if (status != SUCCESS) {
-         //EXM_THROW(33, "Write error : cannot write header");
          return SS_FILE_ERROR;
       }
 
@@ -751,7 +751,8 @@ public:
          size_t outSize = LZ4F_compressUpdate(fContext, fBuffer, fBufferSize, ptr, wsize, NULL);
 
          if (LZ4F_isError(outSize)) {
-            //EXM_THROW(34, "Compression failed : %s", LZ4F_getErrorName(outSize));
+            int errorCode = outSize;
+            cm_msg(MERROR, "WriterLZ4::wr_write", "LZ4F_compressUpdate() with %d bytes and block size %d, error %d (%s)", wsize, fBlockSize, (int)errorCode, LZ4F_getErrorName(errorCode));
             return SS_FILE_ERROR;
          }
 	 
@@ -761,7 +762,6 @@ public:
          fBytesOut = fWr->fBytesOut;
 	 
          if (status != SUCCESS) {
-            //EXM_THROW(35, "Write error : cannot write compressed block");
             return SS_FILE_ERROR;
          }
 
@@ -774,6 +774,7 @@ public:
 
    int wr_close(LOG_CHN* log_chn, int run_number)
    {
+      int xstatus = SUCCESS;
       LZ4F_errorCode_t errorCode;
 
       if (fTrace)
@@ -785,19 +786,19 @@ public:
       size_t headerSize = LZ4F_compressEnd(fContext, fBuffer, fBufferSize, NULL);
 
       if (LZ4F_isError(headerSize)) {
-         //EXM_THROW(36, "End of file generation failed : %s", LZ4F_getErrorName(headerSize));
+         errorCode = headerSize;
+         cm_msg(MERROR, "WriterLZ4::wr_close", "LZ4F_compressEnd() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
          return SS_FILE_ERROR;
       }
 
-      int xstatus = SUCCESS;
       int status = fWr->wr_write(log_chn, fBuffer, headerSize);
 
       fBytesIn += 0;
       fBytesOut = fWr->fBytesOut;
 
       if (status != SUCCESS) {
-         //EXM_THROW(37, "Write error : cannot write end of stream");
-         xstatus = status;
+         if (xstatus == SUCCESS)
+            xstatus = status;
       }
 
       /* close downstream writer */
@@ -805,8 +806,8 @@ public:
       status = fWr->wr_close(log_chn, run_number);
 
       if (status != SUCCESS) {
-         //EXM_THROW(37, "Write error : cannot write end of stream");
-         xstatus = status;
+         if (xstatus == SUCCESS)
+            xstatus = status;
       }
 
       /* free resources */
@@ -817,8 +818,9 @@ public:
 
       errorCode = LZ4F_freeCompressionContext(fContext);
       if (LZ4F_isError(errorCode)) {
-         //EXM_THROW(38, "Error : can't free LZ4F context resource : %s", LZ4F_getErrorName(errorCode));
-         xstatus = SS_FILE_ERROR;
+         cm_msg(MERROR, "WriterLZ4::wr_close", "LZ4F_freeCompressionContext() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
+         if (xstatus == SUCCESS)
+            xstatus = SS_FILE_ERROR;
       }
 
       return xstatus;
