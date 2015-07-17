@@ -235,7 +235,7 @@ public:
       fFileno = open(log_chn->path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_LARGEFILE, 0644);
 #endif
       if (fFileno < 0) {
-         cm_msg(MERROR, "WriteFile::wr_open", "Cannot write to file \'%s\', open() errno %d (%s)\n", log_chn->path, errno, strerror(errno));
+         cm_msg(MERROR, "WriterFile::wr_open", "Cannot write to file \'%s\', open() errno %d (%s)\n", log_chn->path, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -262,7 +262,7 @@ public:
          fBytesOut += wr;
 
       if (wr != size) {
-         cm_msg(MERROR, "WriteFile::wr_write", "Cannot write to file \'%s\', write(%d) returned %d, errno: %d (%s)\n", log_chn->path, size, wr, errno, strerror(errno));
+         cm_msg(MERROR, "WriterFile::wr_write", "Cannot write to file \'%s\', write(%d) returned %d, errno: %d (%s)\n", log_chn->path, size, wr, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -284,8 +284,7 @@ public:
       fFileno = -1;
 
       if (err != 0) {
-         printf("close() error %d, errno %d (%s)\n", err, errno, strerror(errno));
-         cm_msg(MERROR, "WriteFile::wr_close", "Cannot write to file \'%s\', close() errno %d (%s)\n", log_chn->path, errno, strerror(errno));
+         cm_msg(MERROR, "WriterFile::wr_close", "Cannot write to file \'%s\', close() errno %d (%s)\n", log_chn->path, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -461,11 +460,11 @@ public:
       // sorry no popen?!?
       return SS_FILE_ERROR;
 #else
-      std::string cmd = fPipeCommand + log_chn->path;
+      fCommand = fPipeCommand + log_chn->path;
 
-      fFp = popen(cmd.c_str(), "w");
+      fFp = popen(fCommand.c_str(), "w");
       if (fFp == NULL) {
-         printf("cannot popen(%s), errno %d (%s)\n", cmd.c_str(), errno, strerror(errno));
+         cm_msg(MERROR, "WriterPopen::wr_open", "Cannot write to pipe \'%s\', popen() errno %d (%s)\n", fCommand.c_str(), errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -493,7 +492,7 @@ public:
          fBytesOut += wr;
 
       if (wr != size) {
-         printf("fwrite(%d) wrote %d bytes, errno %d (%s)\n", size, wr, errno, strerror(errno));
+         cm_msg(MERROR, "WriterPopen::wr_write", "Cannot write to pipe \'%s\', fwrite(%d) returned %d, errno %d (%s)\n", fCommand.c_str(), size, wr, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -519,7 +518,7 @@ public:
       fFp = NULL;
 
       if (err != 0) {
-         printf("pclose() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+         cm_msg(MERROR, "WriterPopen::wr_close", "Cannot write to pipe \'%s\', pclose() returned %d, errno %d (%s)\n", fCommand.c_str(), err, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -535,6 +534,7 @@ public:
 private:
    FILE* fFp;
    std::string fPipeCommand;
+   std::string fCommand;
    std::string fFileExt;
 };
 
@@ -600,8 +600,7 @@ public:
       fBytesOut = fWr->fBytesOut;
 
       if (status != SUCCESS) {
-         //EXM_THROW(35, "Write error : cannot write compressed block");
-         return SS_FILE_ERROR;
+         return status;
       }
 
       return SUCCESS;
@@ -619,7 +618,7 @@ public:
       std::string f = std::string(log_chn->path) + ".crc32zlib";
       FILE *fp = fopen(f.c_str(), "w");
       if (!fp) {
-         //EXM_THROW(37, "Write error : cannot write end of stream");
+         cm_msg(MERROR, "WriterCRC32Zlib::wr_close", "Cannot write CRC32Zlib to file \'%s\', fopen() errno %d (%s)\n", f.c_str(), errno, strerror(errno));
       } else {
          fprintf(fp, "%08lx %.0f %s\n", (unsigned long)fCrc32, fBytesIn, log_chn->path);
          fclose(fp);
@@ -633,7 +632,6 @@ public:
       fBytesOut = fWr->fBytesOut;
 
       if (status != SUCCESS) {
-         //EXM_THROW(37, "Write error : cannot write end of stream");
          return status;
       }
 
