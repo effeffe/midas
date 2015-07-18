@@ -297,6 +297,8 @@ private:
 
 /*---- gzip writer --------------------------------------*/
 
+#ifdef HAVE_ZLIB
+
 #include <zlib.h>
 
 class WriterGzip : public WriterInterface
@@ -308,6 +310,7 @@ public:
          printf("WriterGzip: path [%s]\n", log_chn->path);
       fGzfp = 0;
       fCompress = compress;
+      fLastCheckTime = time(NULL);
    }
 
    ~WriterGzip() // dtor
@@ -373,17 +376,22 @@ public:
 
       int wr = gzwrite(fGzfp, data, size);
 
+      if (wr != size) {
+         cm_msg(MERROR, "WriterGzip::wr_write", "Cannot write to file \'%s\', gzwrite(%d) returned %d, errno: %d (%s)", log_chn->path, size, wr, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
 #if ZLIB_VERNUM > 0x1235
       // gzoffset() added in zlib 1.2.3.5 (8 Jan 2010)
       fBytesOut = gzoffset(fGzfp);
 #else
 #warning Very old zlib, no gzoffset()!
-#endif
-
-      if (wr != size) {
-         cm_msg(MERROR, "WriterGzip::wr_write", "Cannot write to file \'%s\', gzwrite(%d) returned %d, errno: %d (%s)", log_chn->path, size, wr, errno, strerror(errno));
-         return SS_FILE_ERROR;
+      time_t now = time(NULL);
+      if (now - fLastCheckTime > 2) {
+         fLastCheckTime = now;
+         fBytesOut = ss_file_size(log_chn->path);
       }
+#endif
 
       return SUCCESS;
    }
@@ -414,6 +422,8 @@ public:
          return SS_FILE_ERROR;
       }
 
+      fBytesOut = ss_file_size(log_chn->path);
+
       return SUCCESS;
    }
 
@@ -424,8 +434,11 @@ public:
 
 private:
    gzFile fGzfp;
-   int fCompress;
+   int    fCompress;
+   time_t fLastCheckTime;
 };
+
+#endif
 
 /*---- pipe writer --------------------------------------*/
 
@@ -439,6 +452,7 @@ public:
       fFp = NULL;
       fPipeCommand = pipe_command;
       fFileExt = file_ext;
+      fLastCheckTime = time(NULL);
    }
 
    ~WriterPopen() // dtor
@@ -494,8 +508,8 @@ public:
 
       int wr = fwrite(data, 1, size, fFp);
 
-      if (wr > 0)
-         fBytesOut += wr;
+      //if (wr > 0)
+      //fBytesOut += wr;
 
       if (wr != size) {
          cm_msg(MERROR, "WriterPopen::wr_write", "Cannot write to pipe \'%s\', fwrite(%d) returned %d, errno %d (%s)", fCommand.c_str(), size, wr, errno, strerror(errno));
@@ -506,6 +520,12 @@ public:
          }
 
          return SS_FILE_ERROR;
+      }
+
+      time_t now = time(NULL);
+      if (now - fLastCheckTime > 2) {
+         fLastCheckTime = now;
+         fBytesOut = ss_file_size(log_chn->path);
       }
 
       return SUCCESS;
@@ -534,6 +554,8 @@ public:
          return SS_FILE_ERROR;
       }
 
+      fBytesOut = ss_file_size(log_chn->path);
+
       return SUCCESS;
 #endif
    }
@@ -548,6 +570,7 @@ private:
    std::string fPipeCommand;
    std::string fCommand;
    std::string fFileExt;
+   time_t      fLastCheckTime;
 };
 
 /*---- CRC32-ZLIB computation --------------------------------------*/
@@ -2717,6 +2740,7 @@ int log_create_writer(LOG_CHN *log_chn)
       } else if (log_chn->compression==201) {
          WriterPopen* wr = new WriterPopen(log_chn, "pbzip2 -c -z > ", ".bz2");
          wri = wr;
+#ifdef HAVE_ZLIB
       } else if (log_chn->compression==300) {
          WriterGzip* gzip = new WriterGzip(log_chn, 0);
          wri = gzip;
@@ -2726,6 +2750,9 @@ int log_create_writer(LOG_CHN *log_chn)
       } else if (log_chn->compression==309) {
          WriterGzip* gzip = new WriterGzip(log_chn, 9);
          wri = gzip;
+      } else {
+#endif
+         // unknown compression
       }
 
       if (wri) {
