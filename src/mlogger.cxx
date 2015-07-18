@@ -1788,7 +1788,7 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
       if (incr < 0)
          incr = 0;
 
-      //printf("bytes out %f, incr %f, subrun %f, written %f, total %f\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+      //printf("events %.0f, bytes out %.0f, incr %.0f, subrun %.0f, written %.0f, total %.0f\n", log_chn->statistics.events_written, wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
       
       log_chn->statistics.bytes_written += incr;
       log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
@@ -4829,6 +4829,11 @@ int main(int argc, char *argv[])
       /* update channel statistics once every second */
       if (ss_millitime() - last_time_stat > 1000) {
          last_time_stat = ss_millitime();
+         if (0) {
+            printf("update statistics!\n");
+            //LOG_CHN* log_chn = log_chn[0];
+            printf("events %.0f, subrun %.0f, written %.0f, total %.0f\n", log_chn->statistics.events_written, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+         }
          db_send_changed_records();
       }
 
