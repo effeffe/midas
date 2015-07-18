@@ -3983,6 +3983,8 @@ INT ss_suspend(INT millisec, INT msg)
       timeout.tv_usec = (millisec % 1000) * 1000;
 
       do {
+         //printf("select millisec %d, tv_sec %d, tv_usec %d\n", millisec, (int)timeout.tv_sec, (int)timeout.tv_usec);
+
          if (millisec < 0)
             status = select(FD_SETSIZE, &readfds, NULL, NULL, NULL);    /* blocking */
          else
@@ -4082,6 +4084,8 @@ INT ss_suspend(INT millisec, INT msg)
 
       /* check IPC socket */
       if (_suspend_struct[idx].ipc_recv_socket && FD_ISSET(_suspend_struct[idx].ipc_recv_socket, &readfds)) {
+         time_t tstart, tnow;
+         int count;
          /* receive IPC message */
          size = sizeof(struct sockaddr);
 #ifdef OS_WINNT
@@ -4098,6 +4102,9 @@ INT ss_suspend(INT millisec, INT msg)
                if (sock && _suspend_struct[idx].server_acception[i].tid == ss_gettid())
                   server_socket = sock;
             }
+
+         tstart = time(NULL);
+         count = 0;
 
          /* receive further messages to empty UDP queue */
          do {
@@ -4125,6 +4132,16 @@ INT ss_suspend(INT millisec, INT msg)
                      _suspend_struct[idx].ipc_dispatch(buffer_tmp, server_socket);
             }
 
+            if (millisec > 0) {
+               tnow = time(NULL);
+               // make sure we do not loop for longer than our timeout
+               if (tnow - tstart > 1 + millisec/1000) {
+                  //printf("ss_suspend - break out dt %d, %d loops\n", (int)(tnow-tstart), count);
+                  break;
+               }
+            }
+
+            count++;
          } while (FD_ISSET(_suspend_struct[idx].ipc_recv_socket, &readfds));
 
          /* return if received requested message */
