@@ -30,7 +30,8 @@ INT save_dsp = 1, evt_display = 0;
 INT speed = 0, dsp_time = 0, dsp_fmt = 0, dsp_mode = 0, bl = -1;
 INT consistency = 0, disp_bank_list = 0, openzip = 0;
 BOOL via_callback;
-INT i, data_fmt, count;
+INT i, data_fmt;
+double count = 0;
 KEY key;
 HNDLE hSubkey;
 INT event_id, event_msk;
@@ -345,7 +346,6 @@ int main(int argc, char **argv)
   HNDLE hDB, hKey;
   char host_name[HOST_NAME_LENGTH], expt_name[NAME_LENGTH], str[80];
   char buf_name[32] = EVENT_BUFFER_NAME, rep_file[128];
-  double rate;
   unsigned int status, start_time, stop_time;
   BOOL debug = FALSE, rep_flag;
   INT ch, request_id, size, get_flag, action, single, i;
@@ -767,7 +767,7 @@ int main(int argc, char **argv)
       /* calculate rates each second */
       if (ss_millitime() - start_time > 1000) {
 	stop_time = ss_millitime();
-	rate = count / 1024.0 / 1024.0 / ((stop_time - start_time) / 1000.0);
+	double rate = count / 1024.0 / 1024.0 / ((stop_time - start_time) / 1000.0);
 	
 	/* get information about filling level of the buffer */
 	bm_get_buffer_info(hBufEvent, &buffer_header);
@@ -775,7 +775,7 @@ int main(int argc, char **argv)
 	if (size <= 0)
 	  size += buffer_header.size;
 	printf("Level: %4.3f %%, ", 100 - 100.0 * size / buffer_header.size);
-	printf("Rate: %1.3f MB/sec\n", rate);
+	printf("Rate: %1.3f MiB/sec\n", rate);
 	
 	if (debug) {
 	  int i, j;

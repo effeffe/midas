@@ -235,7 +235,7 @@ public:
       fFileno = open(log_chn->path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_LARGEFILE, 0644);
 #endif
       if (fFileno < 0) {
-         printf("cannot open [%s], errno %d (%s)\n", log_chn->path, errno, strerror(errno));
+         cm_msg(MERROR, "WriterFile::wr_open", "Cannot write to file \'%s\', open() errno %d (%s)", log_chn->path, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -262,7 +262,7 @@ public:
          fBytesOut += wr;
 
       if (wr != size) {
-         printf("write(%d) wrote %d bytes, errno %d (%s)\n", size, wr, errno, strerror(errno));
+         cm_msg(MERROR, "WriterFile::wr_write", "Cannot write to file \'%s\', write(%d) returned %d, errno: %d (%s)", log_chn->path, size, wr, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -284,7 +284,7 @@ public:
       fFileno = -1;
 
       if (err != 0) {
-         printf("close() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+         cm_msg(MERROR, "WriterFile::wr_close", "Cannot write to file \'%s\', close() errno %d (%s)", log_chn->path, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -297,6 +297,8 @@ private:
 
 /*---- gzip writer --------------------------------------*/
 
+#ifdef HAVE_ZLIB
+
 #include <zlib.h>
 
 class WriterGzip : public WriterInterface
@@ -308,6 +310,7 @@ public:
          printf("WriterGzip: path [%s]\n", log_chn->path);
       fGzfp = 0;
       fCompress = compress;
+      fLastCheckTime = time(NULL);
    }
 
    ~WriterGzip() // dtor
@@ -331,21 +334,25 @@ public:
 
       fGzfp = gzopen(log_chn->path, "wb");
       if (fGzfp == 0) {
-         printf("cannot gzopen [%s], errno %d (%s)\n", log_chn->path, errno, strerror(errno));
+         cm_msg(MERROR, "WriterGzip::wr_open", "Cannot write to file \'%s\', gzopen() errno %d (%s)", log_chn->path, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
       if (fCompress) {
          zerror = gzsetparams(fGzfp, fCompress, Z_DEFAULT_STRATEGY);
-         if (zerror != Z_OK)
-            printf("gzsetparams zerror %d\n", zerror);
+         if (zerror != Z_OK) {
+            cm_msg(MERROR, "WriterGzip::wr_open", "gzsetparams() zerror %d", zerror);
+            return SS_FILE_ERROR;
+         }
       }
 
 #if ZLIB_VERNUM > 0x1235
       // gzbuffer() added in zlib 1.2.3.5 (8 Jan 2010)
       zerror = gzbuffer(fGzfp, 128*1024);
-      if (zerror != Z_OK)
-         printf("gzbuffer zerror %d\n", zerror);
+         if (zerror != Z_OK) {
+            cm_msg(MERROR, "WriterGzip::wr_open", "gzbuffer() zerror %d", zerror);
+            return SS_FILE_ERROR;
+         }
 #else
 #warning Very old zlib, no gzbuffer()!
 #endif
@@ -369,24 +376,29 @@ public:
 
       int wr = gzwrite(fGzfp, data, size);
 
+      if (wr != size) {
+         cm_msg(MERROR, "WriterGzip::wr_write", "Cannot write to file \'%s\', gzwrite(%d) returned %d, errno: %d (%s)", log_chn->path, size, wr, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
 #if ZLIB_VERNUM > 0x1235
       // gzoffset() added in zlib 1.2.3.5 (8 Jan 2010)
       fBytesOut = gzoffset(fGzfp);
 #else
 #warning Very old zlib, no gzoffset()!
-#endif
-
-      if (wr != size) {
-         printf("gzwrite(%d) wrote %d bytes, errno %d (%s)\n", size, wr, errno, strerror(errno));
-         return SS_FILE_ERROR;
+      time_t now = time(NULL);
+      if (now - fLastCheckTime > 2) {
+         fLastCheckTime = now;
+         fBytesOut = ss_file_size(log_chn->path);
       }
+#endif
 
       return SUCCESS;
    }
 
    int wr_close(LOG_CHN* log_chn, int run_number)
    {
-      int err;
+      int zerror;
 
       if (fTrace)
          printf("WriterGzip: close path [%s]\n", log_chn->path);
@@ -395,20 +407,22 @@ public:
 
       log_chn->handle = 0;
 
-      err = gzflush(fGzfp, Z_FINISH);
+      zerror = gzflush(fGzfp, Z_FINISH);
 
-      if (err != 0) {
-         printf("close() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+      if (zerror != Z_OK) {
+         cm_msg(MERROR, "WriterGzip::wr_close", "Cannot write to file \'%s\', gzflush(Z_FINISH) zerror %d, errno: %d (%s)", log_chn->path, zerror, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
-      err = gzclose(fGzfp);
+      zerror = gzclose(fGzfp);
       fGzfp = 0;
 
-      if (err != 0) {
-         printf("close() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+      if (zerror != Z_OK) {
+         cm_msg(MERROR, "WriterGzip::wr_close", "Cannot write to file \'%s\', gzclose() zerror %d, errno: %d (%s)", log_chn->path, zerror, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
+
+      fBytesOut = ss_file_size(log_chn->path);
 
       return SUCCESS;
    }
@@ -420,8 +434,11 @@ public:
 
 private:
    gzFile fGzfp;
-   int fCompress;
+   int    fCompress;
+   time_t fLastCheckTime;
 };
+
+#endif
 
 /*---- pipe writer --------------------------------------*/
 
@@ -435,6 +452,7 @@ public:
       fFp = NULL;
       fPipeCommand = pipe_command;
       fFileExt = file_ext;
+      fLastCheckTime = time(NULL);
    }
 
    ~WriterPopen() // dtor
@@ -460,11 +478,11 @@ public:
       // sorry no popen?!?
       return SS_FILE_ERROR;
 #else
-      std::string cmd = fPipeCommand + log_chn->path;
+      fCommand = fPipeCommand + log_chn->path;
 
-      fFp = popen(cmd.c_str(), "w");
+      fFp = popen(fCommand.c_str(), "w");
       if (fFp == NULL) {
-         printf("cannot popen(%s), errno %d (%s)\n", cmd.c_str(), errno, strerror(errno));
+         cm_msg(MERROR, "WriterPopen::wr_open", "Cannot write to pipe \'%s\', popen() errno %d (%s)", fCommand.c_str(), errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -482,18 +500,32 @@ public:
       if (size == 0)
          return SUCCESS;
 
-      assert(fFp != NULL);
+      if (fFp == NULL) {
+         return SS_FILE_ERROR;
+      }
 
       fBytesIn += size;
 
       int wr = fwrite(data, 1, size, fFp);
 
-      if (wr > 0)
-         fBytesOut += wr;
+      //if (wr > 0)
+      //fBytesOut += wr;
 
       if (wr != size) {
-         printf("fwrite(%d) wrote %d bytes, errno %d (%s)\n", size, wr, errno, strerror(errno));
+         cm_msg(MERROR, "WriterPopen::wr_write", "Cannot write to pipe \'%s\', fwrite(%d) returned %d, errno %d (%s)", fCommand.c_str(), size, wr, errno, strerror(errno));
+
+         if (errno == EPIPE) {
+            cm_msg(MERROR, "WriterPopen::wr_write", "Cannot write to pipe \'%s\': broken pipe, closing the pipe", fCommand.c_str());
+            wr_close(log_chn, 0);
+         }
+
          return SS_FILE_ERROR;
+      }
+
+      time_t now = time(NULL);
+      if (now - fLastCheckTime > 2) {
+         fLastCheckTime = now;
+         fBytesOut = ss_file_size(log_chn->path);
       }
 
       return SUCCESS;
@@ -518,9 +550,11 @@ public:
       fFp = NULL;
 
       if (err != 0) {
-         printf("pclose() error %d, errno %d (%s)\n", err, errno, strerror(errno));
+         cm_msg(MERROR, "WriterPopen::wr_close", "Cannot write to pipe \'%s\', pclose() returned %d, errno %d (%s)", fCommand.c_str(), err, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
+
+      fBytesOut = ss_file_size(log_chn->path);
 
       return SUCCESS;
 #endif
@@ -534,7 +568,9 @@ public:
 private:
    FILE* fFp;
    std::string fPipeCommand;
+   std::string fCommand;
    std::string fFileExt;
+   time_t      fLastCheckTime;
 };
 
 /*---- CRC32-ZLIB computation --------------------------------------*/
@@ -599,8 +635,7 @@ public:
       fBytesOut = fWr->fBytesOut;
 
       if (status != SUCCESS) {
-         //EXM_THROW(35, "Write error : cannot write compressed block");
-         return SS_FILE_ERROR;
+         return status;
       }
 
       return SUCCESS;
@@ -618,7 +653,7 @@ public:
       std::string f = std::string(log_chn->path) + ".crc32zlib";
       FILE *fp = fopen(f.c_str(), "w");
       if (!fp) {
-         //EXM_THROW(37, "Write error : cannot write end of stream");
+         cm_msg(MERROR, "WriterCRC32Zlib::wr_close", "Cannot write CRC32Zlib to file \'%s\', fopen() errno %d (%s)", f.c_str(), errno, strerror(errno));
       } else {
          fprintf(fp, "%08lx %.0f %s\n", (unsigned long)fCrc32, fBytesIn, log_chn->path);
          fclose(fp);
@@ -632,7 +667,6 @@ public:
       fBytesOut = fWr->fBytesOut;
 
       if (status != SUCCESS) {
-         //EXM_THROW(37, "Write error : cannot write end of stream");
          return status;
       }
 
@@ -693,7 +727,7 @@ public:
 
       errorCode = LZ4F_createCompressionContext(&fContext, LZ4F_VERSION);
       if (LZ4F_isError(errorCode)) {
-         //EXM_THROW(30, "Allocation error : can't create LZ4F context : %s", LZ4F_getErrorName(errorCode));
+         cm_msg(MERROR, "WriterLZ4::wr_open", "LZ4F_createCompressionContext() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
          return SS_FILE_ERROR;
       }
 
@@ -702,7 +736,7 @@ public:
       fBufferSize = LZ4F_compressFrameBound(fBlockSize, NULL);
       fBuffer = (char*)malloc(fBufferSize);
       if (fBuffer == NULL) {
-         //EXM_THROW(32, "File header generation failed : %s", LZ4F_getErrorName(headerSize));
+         cm_msg(MERROR, "WriterLZ4::wr_open", "Cannot malloc() %d bytes for an LZ4 compression buffer, block size %d, errno %d (%s)", fBufferSize, fBlockSize, errno, strerror(errno));
          return SS_FILE_ERROR;
       }
 
@@ -716,7 +750,8 @@ public:
       size_t headerSize = LZ4F_compressBegin(fContext, fBuffer, fBufferSize, &fPrefs);
       
       if (LZ4F_isError(headerSize)) {
-         //EXM_THROW(32, "File header generation failed : %s", LZ4F_getErrorName(headerSize));
+         errorCode = headerSize;
+         cm_msg(MERROR, "WriterLZ4::wr_open", "LZ4F_compressBegin() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
          return SS_FILE_ERROR;
       }
 
@@ -726,7 +761,6 @@ public:
       fBytesOut = fWr->fBytesOut;
 
       if (status != SUCCESS) {
-         //EXM_THROW(33, "Write error : cannot write header");
          return SS_FILE_ERROR;
       }
 
@@ -752,7 +786,8 @@ public:
          size_t outSize = LZ4F_compressUpdate(fContext, fBuffer, fBufferSize, ptr, wsize, NULL);
 
          if (LZ4F_isError(outSize)) {
-            //EXM_THROW(34, "Compression failed : %s", LZ4F_getErrorName(outSize));
+            int errorCode = outSize;
+            cm_msg(MERROR, "WriterLZ4::wr_write", "LZ4F_compressUpdate() with %d bytes and block size %d, error %d (%s)", wsize, fBlockSize, (int)errorCode, LZ4F_getErrorName(errorCode));
             return SS_FILE_ERROR;
          }
 	 
@@ -762,7 +797,6 @@ public:
          fBytesOut = fWr->fBytesOut;
 	 
          if (status != SUCCESS) {
-            //EXM_THROW(35, "Write error : cannot write compressed block");
             return SS_FILE_ERROR;
          }
 
@@ -775,6 +809,7 @@ public:
 
    int wr_close(LOG_CHN* log_chn, int run_number)
    {
+      int xstatus = SUCCESS;
       LZ4F_errorCode_t errorCode;
 
       if (fTrace)
@@ -786,19 +821,19 @@ public:
       size_t headerSize = LZ4F_compressEnd(fContext, fBuffer, fBufferSize, NULL);
 
       if (LZ4F_isError(headerSize)) {
-         //EXM_THROW(36, "End of file generation failed : %s", LZ4F_getErrorName(headerSize));
+         errorCode = headerSize;
+         cm_msg(MERROR, "WriterLZ4::wr_close", "LZ4F_compressEnd() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
          return SS_FILE_ERROR;
       }
 
-      int xstatus = SUCCESS;
       int status = fWr->wr_write(log_chn, fBuffer, headerSize);
 
       fBytesIn += 0;
       fBytesOut = fWr->fBytesOut;
 
       if (status != SUCCESS) {
-         //EXM_THROW(37, "Write error : cannot write end of stream");
-         xstatus = status;
+         if (xstatus == SUCCESS)
+            xstatus = status;
       }
 
       /* close downstream writer */
@@ -806,8 +841,8 @@ public:
       status = fWr->wr_close(log_chn, run_number);
 
       if (status != SUCCESS) {
-         //EXM_THROW(37, "Write error : cannot write end of stream");
-         xstatus = status;
+         if (xstatus == SUCCESS)
+            xstatus = status;
       }
 
       /* free resources */
@@ -818,8 +853,9 @@ public:
 
       errorCode = LZ4F_freeCompressionContext(fContext);
       if (LZ4F_isError(errorCode)) {
-         //EXM_THROW(38, "Error : can't free LZ4F context resource : %s", LZ4F_getErrorName(errorCode));
-         xstatus = SS_FILE_ERROR;
+         cm_msg(MERROR, "WriterLZ4::wr_close", "LZ4F_freeCompressionContext() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
+         if (xstatus == SUCCESS)
+            xstatus = SS_FILE_ERROR;
       }
 
       return xstatus;
@@ -1775,7 +1811,7 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
       if (incr < 0)
          incr = 0;
 
-      //printf("bytes out %f, incr %f, subrun %f, written %f, total %f\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+      //printf("events %.0f, bytes out %.0f, incr %.0f, subrun %.0f, written %.0f, total %.0f\n", log_chn->statistics.events_written, wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
       
       log_chn->statistics.bytes_written += incr;
       log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
@@ -2704,6 +2740,7 @@ int log_create_writer(LOG_CHN *log_chn)
       } else if (log_chn->compression==201) {
          WriterPopen* wr = new WriterPopen(log_chn, "pbzip2 -c -z > ", ".bz2");
          wri = wr;
+#ifdef HAVE_ZLIB
       } else if (log_chn->compression==300) {
          WriterGzip* gzip = new WriterGzip(log_chn, 0);
          wri = gzip;
@@ -2713,6 +2750,9 @@ int log_create_writer(LOG_CHN *log_chn)
       } else if (log_chn->compression==309) {
          WriterGzip* gzip = new WriterGzip(log_chn, 9);
          wri = gzip;
+      } else {
+#endif
+         // unknown compression
       }
 
       if (wri) {
@@ -2925,14 +2965,11 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 
    actual_time = ss_millitime();
    if ((int) actual_time - (int) start_time > 3000)
-      cm_msg(MINFO, "log_write", "Write operation on %s took %d ms", log_chn->path, actual_time - start_time);
+      cm_msg(MINFO, "log_write", "Write operation on \'%s\' took %d ms", log_chn->path, actual_time - start_time);
 
    if (status != SS_SUCCESS && !stop_requested) {
-      if (status == SS_IO_ERROR)
-         cm_msg(MTALK, "log_write", "Physical IO error on %s, stopping run", log_chn->path);
-      else
-         cm_msg(MTALK, "log_write", "Error writing to %s, stopping run", log_chn->path);
-
+      cm_msg(MTALK, "log_write", "Error writing output file, stopping run");
+      cm_msg(MERROR, "log_write", "Cannot write \'%s\', error %d, stopping run", log_chn->path, status);
       stop_the_run(0);
 
       return status;
@@ -4819,6 +4856,11 @@ int main(int argc, char *argv[])
       /* update channel statistics once every second */
       if (ss_millitime() - last_time_stat > 1000) {
          last_time_stat = ss_millitime();
+         if (0) {
+            printf("update statistics!\n");
+            //LOG_CHN* log_chn = log_chn[0];
+            printf("events %.0f, subrun %.0f, written %.0f, total %.0f\n", log_chn->statistics.events_written, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+         }
          db_send_changed_records();
       }
 
