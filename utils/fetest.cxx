@@ -150,6 +150,7 @@ extern "C" { void set_rate_period(int ms); }
 /*-- Frontend Init -------------------------------------------------*/
 
 HNDLE hSet;
+int test_rb_wait_sleep = 1;
 
 // RPC handler
 
@@ -177,16 +178,25 @@ INT rpc_callback(INT index, void *prpc_param[])
 
 void configure()
 {
-   int size = sizeof(event_size);
-   int status = db_get_value(hDB, hSet, "event_size", &event_size, &size, TID_DWORD, TRUE);
+   int size, status;
+
+   size = sizeof(event_size);
+   status = db_get_value(hDB, hSet, "event_size", &event_size, &size, TID_DWORD, TRUE);
    assert(status == DB_SUCCESS);
 
    printf("Event size set to %d bytes\n", event_size);
+
+   size = sizeof(test_rb_wait_sleep);
+   status = db_get_value(hDB, hSet, "rb_wait_sleep", &test_rb_wait_sleep, &size, TID_DWORD, TRUE);
+   assert(status == DB_SUCCESS);
+
+   printf("Ring buffer wait sleep %d ms\n", test_rb_wait_sleep);
 }
 
 #include "msystem.h"
 
 int test_run_number = 0;
+int test_rb_wait_count = 0;
 int test_event_count = 0;
 int test_rbh = 0;
 
@@ -212,8 +222,10 @@ int test_thread(void *param)
       if (stop_all_threads)
          break;
       if (status == DB_TIMEOUT) {
-         printf("readout_thread: Ring buffer is full, waiting for space!\n");
-         ss_sleep(10);
+         test_rb_wait_count ++;
+         //printf("readout_thread: Ring buffer is full, waiting for space!\n");
+         if (test_rb_wait_sleep)
+            ss_sleep(test_rb_wait_sleep);
          continue;
       }
       if (status != DB_SUCCESS) {
@@ -340,6 +352,7 @@ INT begin_of_run(INT run_number, char *error)
    }
 
    test_event_count = 0;
+   test_rb_wait_count = 0;
    test_run_number = run_number; // tell thread to start running
    
    return SUCCESS;
@@ -363,7 +376,7 @@ INT end_of_run(INT run_number, char *error)
       ss_sleep(s);
    }
 
-   printf("test_event_count: %d events sent\n", test_event_count);
+   printf("test_event_count: %d events sent, ring buffer wait count %d\n", test_event_count, test_rb_wait_count);
 
    return SUCCESS;
 }
