@@ -2287,7 +2287,7 @@ INT scheduler(void)
       int overflow = 0;
 
       for (i = 0; equipment[i].name[0]; i++) {
-         if (equipment[i].bytes_sent > 0x0FFFFFFF)
+         if (equipment[i].bytes_sent > 0xDFFFFFFF)
             overflow = equipment[i].bytes_sent;
       }
 
