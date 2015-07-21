@@ -1922,7 +1922,6 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
       log_chn->statistics.bytes_written += incr;
       log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
       log_chn->statistics.bytes_written_total += incr;
-      log_chn->statistics.disk_level = 0;
 
       return status;
    }
@@ -3203,10 +3202,11 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
       if (strrchr(str, '/'))
          *(strrchr(str, '/')+1) = 0; // strip filename for bzip2
       
-      double MB = 1024*1024;
+      double MiB = 1024*1024;
       double disk_size = ss_disk_size(str);
       double disk_free = ss_disk_free(str);
       double limit = 10E6;
+      double level = 1.0-disk_free/disk_size;
 
       if (disk_size > 100E9) {
          limit = 1000E6;
@@ -3214,12 +3214,14 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
          limit = 100E6;
       }
 
-      // printf("disk_size %1.0lf MB, disk_free %1.0lf MB, limit %1.0f MB\n", disk_size/MB, disk_free/MB, limit/MB);
+      log_chn->statistics.disk_level = level;
+
+      //printf("disk_size %1.0lf MiB, disk_free %1.0lf MiB, limit %1.0f MiB, disk level %.1f%%\n", disk_size/MiB, disk_free/MiB, limit/MiB, level*100.0);
 
       if (disk_free < limit) {
          stop_requested = TRUE;
          cm_msg(MTALK, "log_write", "disk nearly full, stopping the run");
-         cm_msg(MERROR, "log_write", "Disk \'%s\' is almost full: %1.0lf MBytes free out of %1.0f MBytes, stopping the run", log_chn->path, disk_free/MB, disk_size/MB);
+         cm_msg(MERROR, "log_write", "Disk \'%s\' is almost full: %1.0lf MiBytes free out of %1.0f MiBytes, stopping the run", log_chn->path, disk_free/MiB, disk_size/MiB);
          
          status = stop_the_run(0);
       }
