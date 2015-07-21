@@ -45,31 +45,49 @@ SYSLIB_DIR = $(PREFIX)/lib
 SYSINC_DIR = $(PREFIX)/include
 
 #
-# Option to set the shared library path on MIDAS executables
+# Configurable and optional packages:
 #
-NEED_RPATH=1
-
+# ROOT  - mlogger output and analyzer
+# MYSQL - mlogger begin/end of run info and history
+# ODBC  - history
+# SQLITE - history
+# MSCB  - mhttpd
 #
-# Option to use the static ROOT library libRoot.a
+# In C/C++ code, optional features are controlled by "#ifdef HAVE_xxx", i.e. "#ifdef HAVE_ROOT"
+# This is passed from the Makefile as -DHAVE_xxx, i.e. -DHAVE_ROOT
+# In the Makefile, optional features are controlled by HAVE_xxx, i.e. "ifdef HAVE_ROOT"
+# Autodetection of optional features is below, it sets HAVE_xxx if feature is present, leaves HAVE_xxx unset if feature is absent
+# To explicitely disable an optional feature, use NO_xxx, i.e. "make NO_ROOT=1" to disable ROOT.
+# (These NO_xxx Makefile variables are only used to control autodetection, they do not appear in the rest of the Makefile)
 #
-# To link midas with the static ROOT library, say "make ... NEED_LIBROOTA=1"
-#
-NEED_LIBROOTA=
 
 #
 # Optional MYSQL library for mlogger and for the history
 #
+ifndef NO_ROOT
+HAVE_ROOT := $(shell root-config --version 2> /dev/null)
+endif
+
+#
+# Optional MYSQL library for mlogger and for the history
+#
+ifndef NO_MYSQL
 HAVE_MYSQL := $(shell mysql_config --include 2> /dev/null)
+endif
 
 #
 # Optional ODBC history support
 #
+ifndef NO_ODBC
 HAVE_ODBC := $(shell if [ -e /usr/include/sql.h ]; then echo 1; fi)
+endif
 
 #
 # Optional SQLITE history support
 #
+ifndef NO_SQLITE
 HAVE_SQLITE := $(shell if [ -e /usr/include/sqlite3.h ]; then echo 1; fi)
+endif
 
 #
 # Option to use our own implementation of strlcat, strlcpy
@@ -91,7 +109,9 @@ MSCB_DIR=../mscb
 #
 # Indicator that MSCB is available
 #
+ifndef NO_MSCB
 HAVE_MSCB := $(shell if [ -e $(MSCB_DIR) ]; then echo 1; fi)
+endif
 
 #
 # Optional zlib support for data compression in the mlogger and in the analyzer
@@ -128,9 +148,9 @@ CXX = $(GCC_BIN)g++
 OSTYPE = cross-ppc405
 OS_DIR = $(OSTYPE)
 CFLAGS += -DOS_LINUX
-NEED_MYSQL=
-HAVE_ODBC=
-HAVE_SQLITE=
+NO_MYSQL=1
+NO_ODBC=1
+NO_SQLITE=1
 # For cross compilation targets lacking openssl, define -DNO_SSL
 #CFLAGS += -DNO_SSL
 endif
@@ -169,10 +189,10 @@ OSTYPE = linux-arm
 OS_DIR = $(OSTYPE)
 CFLAGS += -DOS_LINUX
 CFLAGS += -fPIC
-NEED_MYSQL=
-HAVE_ODBC=
-HAVE_SQLITE=
-ROOTSYS=
+NO_MYSQL=1
+NO_ODBC=1
+NO_SQLITE=1
+NO_ROOT=1
 SSL_LIBS += -lssl -lcrypto
 endif
 
@@ -230,7 +250,6 @@ SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker
 NEED_ZLIB=1
 NEED_STRLCPY=
 NEED_RANLIB=1
-NEED_RPATH=
 SHLIB+=$(LIB_DIR)/libmidas-shared.dylib
 SHLIB+=$(LIB_DIR)/libmidas-shared.so
 # use the macports version of openssl
@@ -337,9 +356,12 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/mana_link_test \
 	$(BIN_DIR)/mjson_test \
 	$(BIN_DIR)/mcnaf    \
-	$(BIN_DIR)/rmlogger \
-	$(BIN_DIR)/rmana_link_test \
 	$(SPECIFIC_OS_PRG)
+
+ifdef HAVE_ROOT
+PROGS += $(BIN_DIR)/rmlogger
+PROGS += $(BIN_DIR)/rmana_link_test
+endif
 
 ANALYZER = $(LIB_DIR)/mana.o
 
@@ -347,7 +369,7 @@ ifdef CERNLIB
 ANALYZER += $(LIB_DIR)/hmana.o
 endif
 
-ifdef ROOTSYS
+ifdef HAVE_ROOT
 ANALYZER += $(LIB_DIR)/rmana.o
 endif
 
@@ -386,27 +408,27 @@ dox:
 	doxygen
 
 linux32:
-	$(MAKE) ROOTSYS= HAVE_MYSQL= HAVE_ODBC= HAVE_SQLITE= OS_DIR=linux-m32 USERFLAGS=-m32
+	$(MAKE) NO_ROOT=1 NO_MYSQL=1 NO_ODBC=1 NO_SQLITE=1 OS_DIR=linux-m32 USERFLAGS=-m32
 
 linux64:
-	$(MAKE) ROOTSYS= OS_DIR=linux-m64 USERFLAGS=-m64
+	$(MAKE) NO_ROOT=1 OS_DIR=linux-m64 USERFLAGS=-m64
 
 clean32:
-	$(MAKE) ROOTSYS= OS_DIR=linux-m32 USERFLAGS=-m32 clean
+	$(MAKE) NO_ROOT=1 OS_DIR=linux-m32 USERFLAGS=-m32 clean
 
 clean64:
-	$(MAKE) ROOTSYS= OS_DIR=linux-m64 USERFLAGS=-m64 clean
+	$(MAKE) NO_ROOT=1 OS_DIR=linux-m64 USERFLAGS=-m64 clean
 
 crosscompile:
 	echo OSTYPE=$(OSTYPE)
-	$(MAKE) ROOTSYS= HAVE_MYSQL= HAVE_ODBC= HAVE_SQLITE= OS_DIR=$(OSTYPE)-crosscompile OSTYPE=crosscompile
+	$(MAKE) NO_ROOT=1 NO_MYSQL=1 NO_ODBC=1 NO_SQLITE=1 OS_DIR=$(OSTYPE)-crosscompile OSTYPE=crosscompile
 
 linuxarm:
 	echo OSTYPE=$(OSTYPE)
-	$(MAKE) ROOTSYS= HAVE_MYSQL= HAVE_ODBC= HAVE_SQLITE= OS_DIR=$(OSTYPE)-arm OSTYPE=crosslinuxarm
+	$(MAKE) NO_ROOT=1 NO_MYSQL=1 NO_ODBC=1 NO_SQLITE=1 OS_DIR=$(OSTYPE)-arm OSTYPE=crosslinuxarm
 
 cleanarm:
-	$(MAKE) ROOTSYS= OS_DIR=linux-arm clean
+	$(MAKE) NO_ROOT=1 OS_DIR=linux-arm clean
 
 cleandox:
 	-rm -rf html
@@ -467,24 +489,12 @@ CFLAGS      += -DHAVE_SQLITE
 SQLITE_LIBS += -lsqlite3
 endif
 
-ifdef ROOTSYS
-ROOTLIBS    := $(shell $(ROOTSYS)/bin/root-config --libs)
-ROOTGLIBS   := $(shell $(ROOTSYS)/bin/root-config --glibs)
-ROOTCFLAGS  := $(shell $(ROOTSYS)/bin/root-config --cflags)
-
-ifdef NEED_RPATH
-ROOTLIBS   += -Wl,-rpath,$(ROOTSYS)/lib
-ROOTGLIBS  += -Wl,-rpath,$(ROOTSYS)/lib
-endif
-
-ifdef NEED_LIBROOTA
-ROOTLIBS    := $(ROOTSYS)/lib/libRoot.a -lssl -ldl -lcrypt
-ROOTGLIBS   := $(ROOTLIBS) -lfreetype
-endif
-
+ifdef HAVE_ROOT
+ROOTLIBS    := $(shell root-config --libs)
+ROOTGLIBS   := $(shell root-config --glibs)
+ROOTCFLAGS  := $(shell root-config --cflags)
 ROOTCFLAGS  += -DHAVE_ROOT
-
-endif # ROOTSYS
+endif
 
 ifdef NEED_ZLIB
 CFLAGS     += -DHAVE_ZLIB
@@ -498,8 +508,10 @@ endif
 $(BIN_DIR)/mlogger: $(BIN_DIR)/%: $(SRC_DIR)/%.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
 
+ifdef HAVE_ROOT
 $(BIN_DIR)/rmlogger: $(BIN_DIR)/%: $(SRC_DIR)/mlogger.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -o $@ $< $(LIB) $(ROOTLIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
+endif
 
 $(BIN_DIR)/%:$(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
@@ -587,9 +599,9 @@ $(LIB_DIR)/mana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
 	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 $(LIB_DIR)/hmana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
 	$(CC) -Dextname -DHAVE_HBOOK -c $(CFLAGS) $(OSFLAGS) -o $@ $<
-ifdef ROOTSYS
+ifdef HAVE_ROOT
 $(LIB_DIR)/rmana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
-	$(CXX) -DUSE_ROOT -c $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -o $@ $<
+	$(CXX) -c $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -o $@ $<
 endif
 
 #
@@ -650,8 +662,10 @@ $(BIN_DIR)/mfe_link_test: $(SRC_DIR)/mfe.c
 $(BIN_DIR)/mana_link_test: $(SRC_DIR)/mana.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mana.cxx $(LIB) $(LIBS)
 
+ifdef HAVE_ROOT
 $(BIN_DIR)/rmana_link_test: $(SRC_DIR)/mana.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mana.cxx $(ROOTLIBS) $(LIB) $(LIBS)
+endif
 
 $(BIN_DIR)/mhdump: $(UTL_DIR)/mhdump.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $<
@@ -720,7 +734,7 @@ else
 	rm -fv $(SYSLIB_DIR)/hmana.o
 	chmod +s $(SYSBIN_DIR)/mhttpd
 endif
-ifdef ROOTSYS
+ifdef HAVE_ROOT
 	install -v -m 644 $(LIB_DIR)/rmana.o $(SYSLIB_DIR)/rmana.o
 else
 	rm -fv $(SYSLIB_DIR)/rmana.o
