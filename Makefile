@@ -333,6 +333,7 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/melog   \
 	$(BIN_DIR)/mh2sql  \
 	$(BIN_DIR)/mfe_link_test  \
+	$(BIN_DIR)/fetest  \
 	$(BIN_DIR)/mana_link_test \
 	$(BIN_DIR)/mjson_test \
 	$(BIN_DIR)/mcnaf    \
@@ -639,6 +640,9 @@ $(BIN_DIR)/mcnaf: $(UTL_DIR)/mcnaf.c $(DRV_DIR)/camac/camacrpc.c
 
 $(BIN_DIR)/mdump: $(UTL_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(UTL_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx $(LIB) $(LIBS)
+
+$(BIN_DIR)/fetest: $(UTL_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/mfe_link_test: $(SRC_DIR)/mfe.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mfe.c $(LIB) $(LIBS)
