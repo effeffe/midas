@@ -51,6 +51,9 @@ int errno;                      // under NT, "ignore libcd" is required, so errn
 void create_sql_tree();
 #endif
 
+#define STRLCPY(dst, src) strlcpy((dst), (src), sizeof(dst))
+#define STRLCAT(dst, src) strlcat((dst), (src), sizeof(dst))
+
 /*---- globals -----------------------------------------------------*/
 
 #define LOGGER_TIMEOUT 60000
@@ -193,7 +196,7 @@ public:
 
    std::string wr_get_file_ext()
    {
-      return ".dat";
+      return ".null";
    }
 
 private:
@@ -1667,8 +1670,14 @@ INT ftp_open(char *destination, FTP_CON ** con)
 {
    INT status;
    short port = 0;
-   char *token, host_name[HOST_NAME_LENGTH],
-       user[32], pass[32], directory[256], file_name[256], file_mode[256];
+   char *token;
+   char host_name[HOST_NAME_LENGTH];
+   char user[32], pass[32];
+   char directory[256], file_name[256], file_mode[256];
+
+   // skip leading slash
+   if (destination[0] == '/')
+      destination += 1;
 
    /*
       destination should have the form:
@@ -1678,7 +1687,7 @@ INT ftp_open(char *destination, FTP_CON ** con)
    /* break destination in components */
    token = strtok(destination, ",");
    if (token)
-      strcpy(host_name, token);
+      STRLCPY(host_name, token);
 
    token = strtok(NULL, ", ");
    if (token)
@@ -1686,24 +1695,24 @@ INT ftp_open(char *destination, FTP_CON ** con)
 
    token = strtok(NULL, ", ");
    if (token)
-      strcpy(user, token);
+      STRLCPY(user, token);
 
    token = strtok(NULL, ", ");
    if (token)
-      strcpy(pass, token);
+      STRLCPY(pass, token);
 
    token = strtok(NULL, ", ");
    if (token)
-      strcpy(directory, token);
+      STRLCPY(directory, token);
 
    token = strtok(NULL, ", ");
    if (token)
-      strcpy(file_name, token);
+      STRLCPY(file_name, token);
 
    token = strtok(NULL, ", ");
    file_mode[0] = 0;
    if (token)
-      strcpy(file_mode, token);
+      STRLCPY(file_mode, token);
 
 #ifdef FAL_MAIN
    ftp_debug(NULL, ftp_error);
@@ -1734,6 +1743,103 @@ INT ftp_open(char *destination, FTP_CON ** con)
 
    return SS_SUCCESS;
 }
+
+/*---- FTP writer --------------------------------------*/
+
+class WriterFtp : public WriterInterface
+{
+public:
+   WriterFtp(LOG_CHN* log_chn) // ctor
+   {
+      if (fTrace)
+         printf("WriterFtp: path [%s]\n", log_chn->path);
+
+      fFtp = NULL;
+   }
+
+   ~WriterFtp() // dtor
+   {
+      if (fTrace)
+         printf("WriterFtp: destructor\n");
+
+      if (fFtp) {
+         ftp_bye(fFtp);
+         fFtp = NULL;
+      }
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      if (fTrace)
+         printf("WriterFtp: open path [%s]\n", log_chn->path);
+
+      assert(fFtp == NULL);
+
+      int status = ftp_open(log_chn->path, &fFtp);
+      if (status != SS_SUCCESS || fFtp == NULL) {
+         cm_msg(MERROR, "WriterFtp::wr_open", "Cannot open FTP connection \'%s\', ftp_open() status %d, errno %d (%s)", log_chn->path, status, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      log_chn->handle = 9999;
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterFtp: write path [%s], size %d\n", log_chn->path, size);
+
+      if (size == 0)
+         return SUCCESS;
+
+      if (fFtp == NULL) {
+         return SS_FILE_ERROR;
+      }
+
+      fBytesIn += size;
+
+      int wr = ftp_send(fFtp->data, (const char*)data, size);
+
+      if (wr > 0)
+         fBytesOut += wr;
+
+      if (wr != size) {
+         cm_msg(MERROR, "WriterFtp::wr_write", "Cannot write to FTP connection \'%s\', ftp_send(%d) returned %d, errno %d (%s)", log_chn->path, size, wr, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      if (fTrace)
+         printf("WriterFtp: close path [%s]\n", log_chn->path);
+
+      assert(fFtp != NULL);
+
+      ftp_close(fFtp);
+      ftp_bye(fFtp);
+      fFtp = NULL;
+
+      log_chn->handle = 0;
+
+      return SUCCESS;
+   }
+
+   std::string wr_get_file_ext()
+   {
+      return "";
+   }
+
+private:
+   FTP_CON* fFtp;
+};
 
 /*---- MIDAS format routines ---------------------------------------*/
 
@@ -2711,6 +2817,16 @@ private:
 
 /*------------------------------------------------------------------*/
 
+WriterInterface* NewWriterBzip2(LOG_CHN* log_chn)
+{
+   return new WriterPopen(log_chn, "bzip2 -z > ", ".bz2");
+}
+
+WriterInterface* NewWriterPbzip2(LOG_CHN* log_chn)
+{
+   return new WriterPopen(log_chn, "pbzip2 -c -z > ", ".bz2");
+}
+
 int log_create_writer(LOG_CHN *log_chn)
 {
    assert(log_chn->writer_class == NULL);
@@ -2724,6 +2840,10 @@ int log_create_writer(LOG_CHN *log_chn)
 #else
          log_chn->writer_class = (void*) new WriterNull(log_chn);
 #endif
+      } else if (log_chn->compression==81) {
+         wri = new WriterFtp(log_chn);
+      } else if (log_chn->compression==82) {
+         wri = new WriterLZ4(log_chn, new WriterFtp(log_chn));
       } else if (log_chn->compression==98) {
          WriterNull* wr = new WriterNull(log_chn);
          wri = wr;
@@ -2735,11 +2855,9 @@ int log_create_writer(LOG_CHN *log_chn)
          WriterLZ4* lz4 = new WriterLZ4(log_chn, wr);
          wri = lz4;
       } else if (log_chn->compression==200) {
-         WriterPopen* wr = new WriterPopen(log_chn, "bzip2 -z > ", ".bz2");
-         wri = wr;
+         wri = NewWriterBzip2(log_chn);
       } else if (log_chn->compression==201) {
-         WriterPopen* wr = new WriterPopen(log_chn, "pbzip2 -c -z > ", ".bz2");
-         wri = wr;
+         wri = NewWriterPbzip2(log_chn);
 #ifdef HAVE_ZLIB
       } else if (log_chn->compression==300) {
          WriterGzip* gzip = new WriterGzip(log_chn, 0);
