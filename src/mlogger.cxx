@@ -2034,6 +2034,7 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
       } else {
          log_chn->handle = 1;
          log_chn->do_disk_level = FALSE;
+         log_chn->statistics.disk_level = -1;
       }
    } else {
       /* check if file exists */
@@ -2834,9 +2835,11 @@ int log_create_writer(LOG_CHN *log_chn)
       } else if (log_chn->compression==81) {
          wri = new WriterFtp(log_chn);
          log_chn->do_disk_level = FALSE;
+         log_chn->statistics.disk_level = -1;
       } else if (log_chn->compression==82) {
          wri = new WriterLZ4(log_chn, new WriterFtp(log_chn));
          log_chn->do_disk_level = FALSE;
+         log_chn->statistics.disk_level = -1;
       } else if (log_chn->compression==98) {
          WriterNull* wr = new WriterNull(log_chn);
          wri = wr;
