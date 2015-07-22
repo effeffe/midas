@@ -3695,7 +3695,7 @@ INT open_history()
          }
 
          if (n_var == 0)
-            cm_msg(MERROR, "open_history", "defined event %d with no variables in ODB", eq_id);
+            cm_msg(MINFO, "open_history", "Equipment \"%s\" history is enabled, but there are no Variables in ODB", eq_name);
 
          /* create tag array */
          tag = (TAG *) calloc(sizeof(TAG), n_tags);
