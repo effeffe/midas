@@ -56,7 +56,7 @@ extern "C" {
    int EXPRT ftp_port(FTP_CON * con, int, int, int, int, int, int);
    int EXPRT ftp_get(FTP_CON * con, const char *local_name, const char *remote_name);
    int EXPRT ftp_put(FTP_CON * con, const char *local_name, const char *remote_name);
-   int EXPRT ftp_send(int sock, char *buffer, int n_bytes);
+   int EXPRT ftp_send(int sock, const char *buffer, int n_bytes);
    int EXPRT ftp_receive(int sock, char *buffer, int bsize);
    int EXPRT ftp_send_message(FTP_CON * con, char *message);
    int EXPRT ftp_get_message(FTP_CON * con, char *message);

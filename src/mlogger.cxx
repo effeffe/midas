@@ -51,11 +51,14 @@ int errno;                      // under NT, "ignore libcd" is required, so errn
 void create_sql_tree();
 #endif
 
+#define STRLCPY(dst, src) strlcpy((dst), (src), sizeof(dst))
+#define STRLCAT(dst, src) strlcat((dst), (src), sizeof(dst))
+
 /*---- globals -----------------------------------------------------*/
 
 #define LOGGER_TIMEOUT 60000
 
-#define DISK_CHECK_INTERVAL 3   // number of seconds between calls to ss_disk_size to save CPU
+#define DISK_CHECK_INTERVAL 10000
 
 #define MAX_CHANNELS 10
 
@@ -193,7 +196,7 @@ public:
 
    std::string wr_get_file_ext()
    {
-      return ".dat";
+      return ".null";
    }
 
 private:
@@ -1667,8 +1670,14 @@ INT ftp_open(char *destination, FTP_CON ** con)
 {
    INT status;
    short port = 0;
-   char *token, host_name[HOST_NAME_LENGTH],
-       user[32], pass[32], directory[256], file_name[256], file_mode[256];
+   char *token;
+   char host_name[HOST_NAME_LENGTH];
+   char user[32], pass[32];
+   char directory[256], file_name[256], file_mode[256];
+
+   // skip leading slash
+   if (destination[0] == '/')
+      destination += 1;
 
    /*
       destination should have the form:
@@ -1678,7 +1687,7 @@ INT ftp_open(char *destination, FTP_CON ** con)
    /* break destination in components */
    token = strtok(destination, ",");
    if (token)
-      strcpy(host_name, token);
+      STRLCPY(host_name, token);
 
    token = strtok(NULL, ", ");
    if (token)
@@ -1686,24 +1695,24 @@ INT ftp_open(char *destination, FTP_CON ** con)
 
    token = strtok(NULL, ", ");
    if (token)
-      strcpy(user, token);
+      STRLCPY(user, token);
 
    token = strtok(NULL, ", ");
    if (token)
-      strcpy(pass, token);
+      STRLCPY(pass, token);
 
    token = strtok(NULL, ", ");
    if (token)
-      strcpy(directory, token);
+      STRLCPY(directory, token);
 
    token = strtok(NULL, ", ");
    if (token)
-      strcpy(file_name, token);
+      STRLCPY(file_name, token);
 
    token = strtok(NULL, ", ");
    file_mode[0] = 0;
    if (token)
-      strcpy(file_mode, token);
+      STRLCPY(file_mode, token);
 
 #ifdef FAL_MAIN
    ftp_debug(NULL, ftp_error);
@@ -1734,6 +1743,103 @@ INT ftp_open(char *destination, FTP_CON ** con)
 
    return SS_SUCCESS;
 }
+
+/*---- FTP writer --------------------------------------*/
+
+class WriterFtp : public WriterInterface
+{
+public:
+   WriterFtp(LOG_CHN* log_chn) // ctor
+   {
+      if (fTrace)
+         printf("WriterFtp: path [%s]\n", log_chn->path);
+
+      fFtp = NULL;
+   }
+
+   ~WriterFtp() // dtor
+   {
+      if (fTrace)
+         printf("WriterFtp: destructor\n");
+
+      if (fFtp) {
+         ftp_bye(fFtp);
+         fFtp = NULL;
+      }
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      if (fTrace)
+         printf("WriterFtp: open path [%s]\n", log_chn->path);
+
+      assert(fFtp == NULL);
+
+      int status = ftp_open(log_chn->path, &fFtp);
+      if (status != SS_SUCCESS || fFtp == NULL) {
+         cm_msg(MERROR, "WriterFtp::wr_open", "Cannot open FTP connection \'%s\', ftp_open() status %d, errno %d (%s)", log_chn->path, status, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      log_chn->handle = 9999;
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterFtp: write path [%s], size %d\n", log_chn->path, size);
+
+      if (size == 0)
+         return SUCCESS;
+
+      if (fFtp == NULL) {
+         return SS_FILE_ERROR;
+      }
+
+      fBytesIn += size;
+
+      int wr = ftp_send(fFtp->data, (const char*)data, size);
+
+      if (wr > 0)
+         fBytesOut += wr;
+
+      if (wr != size) {
+         cm_msg(MERROR, "WriterFtp::wr_write", "Cannot write to FTP connection \'%s\', ftp_send(%d) returned %d, errno %d (%s)", log_chn->path, size, wr, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      if (fTrace)
+         printf("WriterFtp: close path [%s]\n", log_chn->path);
+
+      assert(fFtp != NULL);
+
+      ftp_close(fFtp);
+      ftp_bye(fFtp);
+      fFtp = NULL;
+
+      log_chn->handle = 0;
+
+      return SUCCESS;
+   }
+
+   std::string wr_get_file_ext()
+   {
+      return "";
+   }
+
+private:
+   FTP_CON* fFtp;
+};
 
 /*---- MIDAS format routines ---------------------------------------*/
 
@@ -1797,34 +1903,8 @@ INT midas_flush_buffer(LOG_CHN * log_chn)
 
 INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 {
-   if (log_chn->writer_class) {
-      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
-      int status = wr->wr_write(log_chn, pevent, evt_size);
-
-      if (status == SUCCESS) {
-         /* update statistics */
-         log_chn->statistics.events_written++;
-         log_chn->statistics.bytes_written_uncompressed += evt_size;
-      }
-
-      double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
-      if (incr < 0)
-         incr = 0;
-
-      //printf("events %.0f, bytes out %.0f, incr %.0f, subrun %.0f, written %.0f, total %.0f\n", log_chn->statistics.events_written, wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
-      
-      log_chn->statistics.bytes_written += incr;
-      log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
-      log_chn->statistics.bytes_written_total += incr;
-      log_chn->statistics.disk_level = 0;
-
-      return status;
-   }
-
    INT i, written, size_left;
    MIDAS_INFO *info;
-   static DWORD stat_last = 0;
-   char str[256];
 
    info = (MIDAS_INFO *) log_chn->format_info;
    written = 0;
@@ -1870,13 +1950,6 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
    log_chn->statistics.bytes_written += written;
    log_chn->statistics.bytes_written_subrun += written;
    log_chn->statistics.bytes_written_total += written;
-   if (ss_time() > stat_last+DISK_CHECK_INTERVAL) {
-      strlcpy(str, log_chn->path, sizeof(str));
-      if (strrchr(str, '/'))
-         *(strrchr(str, '/')+1) = 0; // strip filename for bzip2
-      log_chn->statistics.disk_level = 1.0-ss_disk_free(str)/ss_disk_size(str);
-      stat_last = ss_time();
-   }
    return SS_SUCCESS;
 }
 
@@ -1884,28 +1957,6 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 
 INT midas_log_open(LOG_CHN * log_chn, INT run_number)
 {
-   if (log_chn->writer_class) {
-      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
-      int status = wr->wr_open(log_chn, run_number);
-      if (status == SUCCESS) {
-         /* write ODB dump */
-         if (log_chn->settings.odb_dump)
-            log_odb_dump(log_chn, EVENTID_BOR, run_number);
-
-         /* update statistics */
-         double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
-         if (incr < 0)
-            incr = 0;
-
-         //printf("bytes out %f, incr %f, subrun %f, written %f, total %f (log_open)\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
-
-         log_chn->statistics.bytes_written += incr;
-         log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
-         log_chn->statistics.bytes_written_total += incr;
-      }
-      return status;
-   }
-
    MIDAS_INFO *info;
    INT status;
 
@@ -1935,8 +1986,11 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
          free(info);
          log_chn->handle = 0;
          return status;
-      } else
+      } else {
          log_chn->handle = 1;
+         log_chn->do_disk_level = FALSE;
+         log_chn->statistics.disk_level = -1;
+      }
    } else {
       /* check if file exists */
       if (strstr(log_chn->path, "null") == NULL) {
@@ -2007,6 +2061,8 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
             log_chn->handle = 0;
             return SS_FILE_ERROR;
          }
+
+         log_chn->do_disk_level = TRUE;
          
          if (log_chn->compression > 0) {
 #ifdef HAVE_ZLIB
@@ -2051,25 +2107,6 @@ INT midas_log_close(LOG_CHN * log_chn, INT run_number)
    /* write ODB dump */
    if (log_chn->settings.odb_dump)
       log_odb_dump(log_chn, EVENTID_EOR, run_number);
-
-   if (log_chn->writer_class) {
-      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
-      int status = wr->wr_close(log_chn, run_number);
-      if (status == SUCCESS) {
-         /* update statistics */
-
-         double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
-         if (incr < 0)
-            incr = 0;
-
-         //printf("bytes out %f, incr %f, subrun %f, written %f, total %f (log_close)\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
-
-         log_chn->statistics.bytes_written += incr;
-         log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
-         log_chn->statistics.bytes_written_total += incr;
-      }
-      return status;
-   }
 
    written = midas_flush_buffer(log_chn);
 
@@ -2431,7 +2468,6 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
    DWORD bkname;
    WORD bktype;
    TBranch *branch;
-   static DWORD stat_last = 0;
 
    event_def = db_get_event_definition(pevent->event_id);
    if (event_def == NULL) {
@@ -2532,10 +2568,6 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
    log_chn->statistics.events_written++;
    log_chn->statistics.bytes_written += size;
    log_chn->statistics.bytes_written_total += size;
-   if (ss_time() > stat_last+DISK_CHECK_INTERVAL) {
-      log_chn->statistics.disk_level = 1.0-ss_disk_free(log_chn->path)/ss_disk_size(log_chn->path);
-      stat_last = ss_time();
-   }
 
    return SS_SUCCESS;
 }
@@ -2711,6 +2743,16 @@ private:
 
 /*------------------------------------------------------------------*/
 
+WriterInterface* NewWriterBzip2(LOG_CHN* log_chn)
+{
+   return new WriterPopen(log_chn, "bzip2 -z > ", ".bz2");
+}
+
+WriterInterface* NewWriterPbzip2(LOG_CHN* log_chn)
+{
+   return new WriterPopen(log_chn, "pbzip2 -c -z > ", ".bz2");
+}
+
 int log_create_writer(LOG_CHN *log_chn)
 {
    assert(log_chn->writer_class == NULL);
@@ -2721,35 +2763,51 @@ int log_create_writer(LOG_CHN *log_chn)
       if (log_chn->compression==80) {
 #ifdef HAVE_ROOT
          log_chn->writer_class = (void*) new WriterROOT(log_chn);
+         log_chn->do_disk_level = TRUE;
 #else
          log_chn->writer_class = (void*) new WriterNull(log_chn);
+         log_chn->do_disk_level = TRUE;
 #endif
+      } else if (log_chn->compression==81) {
+         wri = new WriterFtp(log_chn);
+         log_chn->do_disk_level = FALSE;
+         log_chn->statistics.disk_level = -1;
+      } else if (log_chn->compression==82) {
+         wri = new WriterLZ4(log_chn, new WriterFtp(log_chn));
+         log_chn->do_disk_level = FALSE;
+         log_chn->statistics.disk_level = -1;
       } else if (log_chn->compression==98) {
          WriterNull* wr = new WriterNull(log_chn);
          wri = wr;
+         log_chn->do_disk_level = TRUE;
       } else if (log_chn->compression==99) {
          WriterFile* wr = new WriterFile(log_chn);
          wri = wr;
+         log_chn->do_disk_level = TRUE;
       } else if (log_chn->compression==100) {
          WriterFile* wr = new WriterFile(log_chn);
          WriterLZ4* lz4 = new WriterLZ4(log_chn, wr);
          wri = lz4;
+         log_chn->do_disk_level = TRUE;
       } else if (log_chn->compression==200) {
-         WriterPopen* wr = new WriterPopen(log_chn, "bzip2 -z > ", ".bz2");
-         wri = wr;
+         wri = NewWriterBzip2(log_chn);
+         log_chn->do_disk_level = TRUE;
       } else if (log_chn->compression==201) {
-         WriterPopen* wr = new WriterPopen(log_chn, "pbzip2 -c -z > ", ".bz2");
-         wri = wr;
+         wri = NewWriterPbzip2(log_chn);
+         log_chn->do_disk_level = TRUE;
 #ifdef HAVE_ZLIB
       } else if (log_chn->compression==300) {
          WriterGzip* gzip = new WriterGzip(log_chn, 0);
          wri = gzip;
+         log_chn->do_disk_level = TRUE;
       } else if (log_chn->compression==301) {
          WriterGzip* gzip = new WriterGzip(log_chn, 1);
          wri = gzip;
+         log_chn->do_disk_level = TRUE;
       } else if (log_chn->compression==309) {
          WriterGzip* gzip = new WriterGzip(log_chn, 9);
          wri = gzip;
+         log_chn->do_disk_level = TRUE;
       } else {
 #endif
          // unknown compression
@@ -2769,9 +2827,30 @@ int log_create_writer(LOG_CHN *log_chn)
 
 INT log_open(LOG_CHN * log_chn, INT run_number)
 {
-   INT status;
+   INT status = SUCCESS;
 
-   if (equal_ustring(log_chn->settings.format, "ROOT")) {
+   log_chn->last_checked = ss_millitime();
+
+   if (log_chn->writer_class) {
+      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
+      int status = wr->wr_open(log_chn, run_number);
+      if (status == SUCCESS) {
+         /* write ODB dump */
+         if (log_chn->settings.odb_dump)
+            log_odb_dump(log_chn, EVENTID_BOR, run_number);
+
+         /* update statistics */
+         double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
+         if (incr < 0)
+            incr = 0;
+
+         //printf("bytes out %f, incr %f, subrun %f, written %f, total %f (log_open)\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+
+         log_chn->statistics.bytes_written += incr;
+         log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
+         log_chn->statistics.bytes_written_total += incr;
+      }
+   } else if (equal_ustring(log_chn->settings.format, "ROOT")) {
 #ifdef HAVE_ROOT
       log_chn->format = FORMAT_ROOT;
       status = root_log_open(log_chn, run_number);
@@ -2793,13 +2872,34 @@ INT log_close(LOG_CHN * log_chn, INT run_number)
 {
    char str[256], *p;
 
+   if (log_chn->writer_class) {
+      /* write ODB dump */
+      if (log_chn->settings.odb_dump)
+         log_odb_dump(log_chn, EVENTID_EOR, run_number);
+      
+      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
+
+      int status = wr->wr_close(log_chn, run_number);
+      if (status == SUCCESS) {
+         /* update statistics */
+
+         double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
+         if (incr < 0)
+            incr = 0;
+
+         //printf("bytes out %f, incr %f, subrun %f, written %f, total %f (log_close)\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+
+         log_chn->statistics.bytes_written += incr;
+         log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
+         log_chn->statistics.bytes_written_total += incr;
+      }
 #ifdef HAVE_ROOT
-   if (log_chn->format == FORMAT_ROOT)
+   } else if (log_chn->format == FORMAT_ROOT) {
       root_log_close(log_chn, run_number);
 #endif
-
-   if (log_chn->format == FORMAT_MIDAS)
+   } else if (log_chn->format == FORMAT_MIDAS) {
       midas_log_close(log_chn, run_number);
+   }
 
    /* if file name starts with '.', rename it */
    strlcpy(str, log_chn->path, sizeof(str));
@@ -2822,6 +2922,59 @@ INT log_close(LOG_CHN * log_chn, INT run_number)
    }
 
    return SS_SUCCESS;
+}
+
+/*---- log disk levels ---------------------------------------------------*/
+
+int log_disk_level(LOG_CHN* log_chn, double* pdisk_size, double* pdisk_free)
+{
+   char str[256];
+   strlcpy(str, log_chn->path, sizeof(str));
+   if (strrchr(str, '/'))
+      *(strrchr(str, '/')+1) = 0; // strip filename for bzip2
+   
+   double MiB = 1024*1024;
+   double disk_size = ss_disk_size(str);
+   double disk_free = ss_disk_free(str);
+   double limit = 10E6;
+   double level = 1.0-disk_free/disk_size;
+
+   if (pdisk_size)
+      *pdisk_size = disk_size; // should be in statistics
+   if (pdisk_free)
+      *pdisk_free = disk_free; // should be in statistics
+
+   log_chn->statistics.disk_level = level;
+
+   if (verbose)
+      printf("log_disk_level: channel path [%s], disk_size %1.0lf MiB, disk_free %1.0lf MiB, limit %1.0f MiB, disk level %.1f%%\n", log_chn->path, disk_size/MiB, disk_free/MiB, limit/MiB, level*100.0);
+
+   return SUCCESS;
+}
+
+int maybe_check_disk_level()
+{
+   DWORD actual_time = ss_millitime();
+   static DWORD last_check_time = 0;
+
+   if (last_check_time == 0)
+      last_check_time = actual_time;
+
+   if (actual_time - last_check_time < DISK_CHECK_INTERVAL)
+      return SUCCESS;
+
+   last_check_time = actual_time;
+
+   for (int i = 0; i < MAX_CHANNELS; i++) {
+      LOG_CHN* chn = &log_chn[i];
+
+      if (!chn->do_disk_level)
+         continue;
+
+      log_disk_level(chn, NULL, NULL);
+   }
+
+   return SUCCESS;
 }
 
 /*---- log_write ---------------------------------------------------*/
@@ -2949,19 +3102,39 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
    INT status = 0, size;
    DWORD actual_time, start_time, duration;
    BOOL next_subrun;
-   static DWORD last_checked = 0;
 
    //printf("log_write %d\n", pevent->data_size + sizeof(EVENT_HEADER));
 
    start_time = ss_millitime();
 
-   if (log_chn->format == FORMAT_MIDAS)
-      status = midas_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
+   if (log_chn->writer_class) {
+      int evt_size = pevent->data_size + sizeof(EVENT_HEADER);
 
+      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
+      int status = wr->wr_write(log_chn, pevent, evt_size);
+
+      if (status == SUCCESS) {
+         /* update statistics */
+         log_chn->statistics.events_written++;
+         log_chn->statistics.bytes_written_uncompressed += evt_size;
+      }
+
+      double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
+      if (incr < 0)
+         incr = 0;
+
+      //printf("events %.0f, bytes out %.0f, incr %.0f, subrun %.0f, written %.0f, total %.0f\n", log_chn->statistics.events_written, wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+      
+      log_chn->statistics.bytes_written += incr;
+      log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
+      log_chn->statistics.bytes_written_total += incr;
+   } else if (log_chn->format == FORMAT_MIDAS) {
+      status = midas_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
 #ifdef HAVE_ROOT
-   if (log_chn->format == FORMAT_ROOT)
+   } else if (log_chn->format == FORMAT_ROOT) {
       status = root_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
 #endif
+   }
 
    actual_time = ss_millitime();
    if ((int) actual_time - (int) start_time > 3000)
@@ -3077,17 +3250,15 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 
    /* stop run if less than 10MB free disk space */
    actual_time = ss_millitime();
-   if (log_chn->type == LOG_TYPE_DISK && actual_time - last_checked > 10000) {
-      last_checked = actual_time;
+   if (log_chn->type == LOG_TYPE_DISK && log_chn->do_disk_level && actual_time - log_chn->last_checked > DISK_CHECK_INTERVAL) {
+      log_chn->last_checked = actual_time;
 
-      char str[256];
-      strlcpy(str, log_chn->path, sizeof(str));
-      if (strrchr(str, '/'))
-         *(strrchr(str, '/')+1) = 0; // strip filename for bzip2
-      
-      double MB = 1024*1024;
-      double disk_size = ss_disk_size(str);
-      double disk_free = ss_disk_free(str);
+      const double MiB = 1024*1024;
+      double disk_size = 0;
+      double disk_free = 0;
+
+      log_disk_level(log_chn, &disk_size, &disk_free);
+
       double limit = 10E6;
 
       if (disk_size > 100E9) {
@@ -3096,12 +3267,10 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
          limit = 100E6;
       }
 
-      // printf("disk_size %1.0lf MB, disk_free %1.0lf MB, limit %1.0f MB\n", disk_size/MB, disk_free/MB, limit/MB);
-
       if (disk_free < limit) {
          stop_requested = TRUE;
          cm_msg(MTALK, "log_write", "disk nearly full, stopping the run");
-         cm_msg(MERROR, "log_write", "Disk \'%s\' is almost full: %1.0lf MBytes free out of %1.0f MBytes, stopping the run", log_chn->path, disk_free/MB, disk_size/MB);
+         cm_msg(MERROR, "log_write", "Disk \'%s\' is almost full: %1.0lf MiBytes free out of %1.0f MiBytes, stopping the run", log_chn->path, disk_free/MiB, disk_size/MiB);
          
          status = stop_the_run(0);
       }
@@ -4231,7 +4400,6 @@ INT tr_start(INT run_number, char *error)
    CHN_SETTINGS *chn_settings;
    KEY key;
    BOOL write_data, tape_flag = FALSE;
-   char str[256];
 
    if (verbose)
       printf("tr_start: run %d\n", run_number);
@@ -4373,13 +4541,6 @@ INT tr_start(INT run_number, char *error)
          log_create_writer(&log_chn[index]);
          log_generate_file_name(&log_chn[index]);
 
-         if (log_chn[index].type == LOG_TYPE_DISK) {
-            strlcpy(str, log_chn->path, sizeof(str));
-            if (strrchr(str, '/'))
-               *(strrchr(str, '/')+1) = 0; // strip filename for bzip2
-            log_chn[index].statistics.disk_level = 1.0-ss_disk_free(str)/ss_disk_size(str);
-         }
-            
          /* open logging channel */
          status = log_open(&log_chn[index], run_number);
 
@@ -4852,6 +5013,9 @@ int main(int argc, char *argv[])
 
    do {
       msg = cm_yield(1000);
+
+      /* maybe update channel disk levels */
+      maybe_check_disk_level();
 
       /* update channel statistics once every second */
       if (ss_millitime() - last_time_stat > 1000) {

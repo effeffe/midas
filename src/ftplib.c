@@ -343,7 +343,7 @@ int ftp_close(FTP_CON * con)
 
 /*------------------------------------------------------------------*/
 
-int ftp_send(int sock, char *buffer, int n_bytes_to_write)
+int ftp_send(int sock, const char *buffer, int n_bytes_to_write)
 /* send number of bytes over socket */
 {
    int n_bytes_left, n_written;
