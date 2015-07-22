@@ -2888,6 +2888,8 @@ INT log_open(LOG_CHN * log_chn, INT run_number)
 {
    INT status;
 
+   log_chn->last_checked = ss_millitime();
+
    if (equal_ustring(log_chn->settings.format, "ROOT")) {
 #ifdef HAVE_ROOT
       log_chn->format = FORMAT_ROOT;
@@ -3066,7 +3068,6 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
    INT status = 0, size;
    DWORD actual_time, start_time, duration;
    BOOL next_subrun;
-   static DWORD last_checked = 0;
 
    //printf("log_write %d\n", pevent->data_size + sizeof(EVENT_HEADER));
 
@@ -3194,8 +3195,8 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 
    /* stop run if less than 10MB free disk space */
    actual_time = ss_millitime();
-   if (log_chn->type == LOG_TYPE_DISK && actual_time - last_checked > 10000) {
-      last_checked = actual_time;
+   if (log_chn->type == LOG_TYPE_DISK && actual_time - log_chn->last_checked > 10000) {
+      log_chn->last_checked = actual_time;
 
       char str[256];
       strlcpy(str, log_chn->path, sizeof(str));
@@ -3216,7 +3217,7 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 
       log_chn->statistics.disk_level = level;
 
-      //printf("disk_size %1.0lf MiB, disk_free %1.0lf MiB, limit %1.0f MiB, disk level %.1f%%\n", disk_size/MiB, disk_free/MiB, limit/MiB, level*100.0);
+      //printf("channel path [%s], disk_size %1.0lf MiB, disk_free %1.0lf MiB, limit %1.0f MiB, disk level %.1f%%\n", log_chn->path, disk_size/MiB, disk_free/MiB, limit/MiB, level*100.0);
 
       if (disk_free < limit) {
          stop_requested = TRUE;
@@ -4351,7 +4352,6 @@ INT tr_start(INT run_number, char *error)
    CHN_SETTINGS *chn_settings;
    KEY key;
    BOOL write_data, tape_flag = FALSE;
-   char str[256];
 
    if (verbose)
       printf("tr_start: run %d\n", run_number);
@@ -4493,13 +4493,6 @@ INT tr_start(INT run_number, char *error)
          log_create_writer(&log_chn[index]);
          log_generate_file_name(&log_chn[index]);
 
-         if (log_chn[index].type == LOG_TYPE_DISK) {
-            strlcpy(str, log_chn->path, sizeof(str));
-            if (strrchr(str, '/'))
-               *(strrchr(str, '/')+1) = 0; // strip filename for bzip2
-            log_chn[index].statistics.disk_level = 1.0-ss_disk_free(str)/ss_disk_size(str);
-         }
-            
          /* open logging channel */
          status = log_open(&log_chn[index], run_number);
 
