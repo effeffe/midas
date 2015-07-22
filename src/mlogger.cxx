@@ -1903,29 +1903,6 @@ INT midas_flush_buffer(LOG_CHN * log_chn)
 
 INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 {
-   if (log_chn->writer_class) {
-      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
-      int status = wr->wr_write(log_chn, pevent, evt_size);
-
-      if (status == SUCCESS) {
-         /* update statistics */
-         log_chn->statistics.events_written++;
-         log_chn->statistics.bytes_written_uncompressed += evt_size;
-      }
-
-      double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
-      if (incr < 0)
-         incr = 0;
-
-      //printf("events %.0f, bytes out %.0f, incr %.0f, subrun %.0f, written %.0f, total %.0f\n", log_chn->statistics.events_written, wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
-      
-      log_chn->statistics.bytes_written += incr;
-      log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
-      log_chn->statistics.bytes_written_total += incr;
-
-      return status;
-   }
-
    INT i, written, size_left;
    MIDAS_INFO *info;
 
@@ -1980,28 +1957,6 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 
 INT midas_log_open(LOG_CHN * log_chn, INT run_number)
 {
-   if (log_chn->writer_class) {
-      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
-      int status = wr->wr_open(log_chn, run_number);
-      if (status == SUCCESS) {
-         /* write ODB dump */
-         if (log_chn->settings.odb_dump)
-            log_odb_dump(log_chn, EVENTID_BOR, run_number);
-
-         /* update statistics */
-         double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
-         if (incr < 0)
-            incr = 0;
-
-         //printf("bytes out %f, incr %f, subrun %f, written %f, total %f (log_open)\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
-
-         log_chn->statistics.bytes_written += incr;
-         log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
-         log_chn->statistics.bytes_written_total += incr;
-      }
-      return status;
-   }
-
    MIDAS_INFO *info;
    INT status;
 
@@ -2152,25 +2107,6 @@ INT midas_log_close(LOG_CHN * log_chn, INT run_number)
    /* write ODB dump */
    if (log_chn->settings.odb_dump)
       log_odb_dump(log_chn, EVENTID_EOR, run_number);
-
-   if (log_chn->writer_class) {
-      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
-      int status = wr->wr_close(log_chn, run_number);
-      if (status == SUCCESS) {
-         /* update statistics */
-
-         double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
-         if (incr < 0)
-            incr = 0;
-
-         //printf("bytes out %f, incr %f, subrun %f, written %f, total %f (log_close)\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
-
-         log_chn->statistics.bytes_written += incr;
-         log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
-         log_chn->statistics.bytes_written_total += incr;
-      }
-      return status;
-   }
 
    written = midas_flush_buffer(log_chn);
 
@@ -2891,11 +2827,30 @@ int log_create_writer(LOG_CHN *log_chn)
 
 INT log_open(LOG_CHN * log_chn, INT run_number)
 {
-   INT status;
+   INT status = SUCCESS;
 
    log_chn->last_checked = ss_millitime();
 
-   if (equal_ustring(log_chn->settings.format, "ROOT")) {
+   if (log_chn->writer_class) {
+      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
+      int status = wr->wr_open(log_chn, run_number);
+      if (status == SUCCESS) {
+         /* write ODB dump */
+         if (log_chn->settings.odb_dump)
+            log_odb_dump(log_chn, EVENTID_BOR, run_number);
+
+         /* update statistics */
+         double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
+         if (incr < 0)
+            incr = 0;
+
+         //printf("bytes out %f, incr %f, subrun %f, written %f, total %f (log_open)\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+
+         log_chn->statistics.bytes_written += incr;
+         log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
+         log_chn->statistics.bytes_written_total += incr;
+      }
+   } else if (equal_ustring(log_chn->settings.format, "ROOT")) {
 #ifdef HAVE_ROOT
       log_chn->format = FORMAT_ROOT;
       status = root_log_open(log_chn, run_number);
@@ -2917,13 +2872,34 @@ INT log_close(LOG_CHN * log_chn, INT run_number)
 {
    char str[256], *p;
 
+   if (log_chn->writer_class) {
+      /* write ODB dump */
+      if (log_chn->settings.odb_dump)
+         log_odb_dump(log_chn, EVENTID_EOR, run_number);
+      
+      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
+
+      int status = wr->wr_close(log_chn, run_number);
+      if (status == SUCCESS) {
+         /* update statistics */
+
+         double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
+         if (incr < 0)
+            incr = 0;
+
+         //printf("bytes out %f, incr %f, subrun %f, written %f, total %f (log_close)\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+
+         log_chn->statistics.bytes_written += incr;
+         log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
+         log_chn->statistics.bytes_written_total += incr;
+      }
 #ifdef HAVE_ROOT
-   if (log_chn->format == FORMAT_ROOT)
+   } else if (log_chn->format == FORMAT_ROOT) {
       root_log_close(log_chn, run_number);
 #endif
-
-   if (log_chn->format == FORMAT_MIDAS)
+   } else if (log_chn->format == FORMAT_MIDAS) {
       midas_log_close(log_chn, run_number);
+   }
 
    /* if file name starts with '.', rename it */
    strlcpy(str, log_chn->path, sizeof(str));
@@ -3131,13 +3107,34 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 
    start_time = ss_millitime();
 
-   if (log_chn->format == FORMAT_MIDAS)
-      status = midas_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
+   if (log_chn->writer_class) {
+      int evt_size = pevent->data_size + sizeof(EVENT_HEADER);
 
+      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
+      int status = wr->wr_write(log_chn, pevent, evt_size);
+
+      if (status == SUCCESS) {
+         /* update statistics */
+         log_chn->statistics.events_written++;
+         log_chn->statistics.bytes_written_uncompressed += evt_size;
+      }
+
+      double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
+      if (incr < 0)
+         incr = 0;
+
+      //printf("events %.0f, bytes out %.0f, incr %.0f, subrun %.0f, written %.0f, total %.0f\n", log_chn->statistics.events_written, wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+      
+      log_chn->statistics.bytes_written += incr;
+      log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
+      log_chn->statistics.bytes_written_total += incr;
+   } else if (log_chn->format == FORMAT_MIDAS) {
+      status = midas_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
 #ifdef HAVE_ROOT
-   if (log_chn->format == FORMAT_ROOT)
+   } else if (log_chn->format == FORMAT_ROOT) {
       status = root_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
 #endif
+   }
 
    actual_time = ss_millitime();
    if ((int) actual_time - (int) start_time > 3000)
