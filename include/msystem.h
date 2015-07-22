@@ -537,6 +537,7 @@ typedef struct {
    FILE *pfile;
    void *writer_class;
    DWORD last_checked;
+   BOOL  do_disk_level;
 } LOG_CHN;
 
 #define LOG_TYPE_DISK 1

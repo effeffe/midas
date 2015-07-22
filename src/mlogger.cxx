@@ -58,7 +58,7 @@ void create_sql_tree();
 
 #define LOGGER_TIMEOUT 60000
 
-#define DISK_CHECK_INTERVAL 3   // number of seconds between calls to ss_disk_size to save CPU
+#define DISK_CHECK_INTERVAL 10000
 
 #define MAX_CHANNELS 10
 
@@ -1928,8 +1928,6 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 
    INT i, written, size_left;
    MIDAS_INFO *info;
-   static DWORD stat_last = 0;
-   char str[256];
 
    info = (MIDAS_INFO *) log_chn->format_info;
    written = 0;
@@ -1975,13 +1973,6 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
    log_chn->statistics.bytes_written += written;
    log_chn->statistics.bytes_written_subrun += written;
    log_chn->statistics.bytes_written_total += written;
-   if (ss_time() > stat_last+DISK_CHECK_INTERVAL) {
-      strlcpy(str, log_chn->path, sizeof(str));
-      if (strrchr(str, '/'))
-         *(strrchr(str, '/')+1) = 0; // strip filename for bzip2
-      log_chn->statistics.disk_level = 1.0-ss_disk_free(str)/ss_disk_size(str);
-      stat_last = ss_time();
-   }
    return SS_SUCCESS;
 }
 
@@ -2040,8 +2031,10 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
          free(info);
          log_chn->handle = 0;
          return status;
-      } else
+      } else {
          log_chn->handle = 1;
+         log_chn->do_disk_level = FALSE;
+      }
    } else {
       /* check if file exists */
       if (strstr(log_chn->path, "null") == NULL) {
@@ -2112,6 +2105,8 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
             log_chn->handle = 0;
             return SS_FILE_ERROR;
          }
+
+         log_chn->do_disk_level = TRUE;
          
          if (log_chn->compression > 0) {
 #ifdef HAVE_ZLIB
@@ -2536,7 +2531,6 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
    DWORD bkname;
    WORD bktype;
    TBranch *branch;
-   static DWORD stat_last = 0;
 
    event_def = db_get_event_definition(pevent->event_id);
    if (event_def == NULL) {
@@ -2637,10 +2631,6 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
    log_chn->statistics.events_written++;
    log_chn->statistics.bytes_written += size;
    log_chn->statistics.bytes_written_total += size;
-   if (ss_time() > stat_last+DISK_CHECK_INTERVAL) {
-      log_chn->statistics.disk_level = 1.0-ss_disk_free(log_chn->path)/ss_disk_size(log_chn->path);
-      stat_last = ss_time();
-   }
 
    return SS_SUCCESS;
 }
@@ -2836,37 +2826,49 @@ int log_create_writer(LOG_CHN *log_chn)
       if (log_chn->compression==80) {
 #ifdef HAVE_ROOT
          log_chn->writer_class = (void*) new WriterROOT(log_chn);
+         log_chn->do_disk_level = TRUE;
 #else
          log_chn->writer_class = (void*) new WriterNull(log_chn);
+         log_chn->do_disk_level = TRUE;
 #endif
       } else if (log_chn->compression==81) {
          wri = new WriterFtp(log_chn);
+         log_chn->do_disk_level = FALSE;
       } else if (log_chn->compression==82) {
          wri = new WriterLZ4(log_chn, new WriterFtp(log_chn));
+         log_chn->do_disk_level = FALSE;
       } else if (log_chn->compression==98) {
          WriterNull* wr = new WriterNull(log_chn);
          wri = wr;
+         log_chn->do_disk_level = TRUE;
       } else if (log_chn->compression==99) {
          WriterFile* wr = new WriterFile(log_chn);
          wri = wr;
+         log_chn->do_disk_level = TRUE;
       } else if (log_chn->compression==100) {
          WriterFile* wr = new WriterFile(log_chn);
          WriterLZ4* lz4 = new WriterLZ4(log_chn, wr);
          wri = lz4;
+         log_chn->do_disk_level = TRUE;
       } else if (log_chn->compression==200) {
          wri = NewWriterBzip2(log_chn);
+         log_chn->do_disk_level = TRUE;
       } else if (log_chn->compression==201) {
          wri = NewWriterPbzip2(log_chn);
+         log_chn->do_disk_level = TRUE;
 #ifdef HAVE_ZLIB
       } else if (log_chn->compression==300) {
          WriterGzip* gzip = new WriterGzip(log_chn, 0);
          wri = gzip;
+         log_chn->do_disk_level = TRUE;
       } else if (log_chn->compression==301) {
          WriterGzip* gzip = new WriterGzip(log_chn, 1);
          wri = gzip;
+         log_chn->do_disk_level = TRUE;
       } else if (log_chn->compression==309) {
          WriterGzip* gzip = new WriterGzip(log_chn, 9);
          wri = gzip;
+         log_chn->do_disk_level = TRUE;
       } else {
 #endif
          // unknown compression
@@ -2941,6 +2943,59 @@ INT log_close(LOG_CHN * log_chn, INT run_number)
    }
 
    return SS_SUCCESS;
+}
+
+/*---- log disk levels ---------------------------------------------------*/
+
+int log_disk_level(LOG_CHN* log_chn, double* pdisk_size, double* pdisk_free)
+{
+   char str[256];
+   strlcpy(str, log_chn->path, sizeof(str));
+   if (strrchr(str, '/'))
+      *(strrchr(str, '/')+1) = 0; // strip filename for bzip2
+   
+   double MiB = 1024*1024;
+   double disk_size = ss_disk_size(str);
+   double disk_free = ss_disk_free(str);
+   double limit = 10E6;
+   double level = 1.0-disk_free/disk_size;
+
+   if (pdisk_size)
+      *pdisk_size = disk_size; // should be in statistics
+   if (pdisk_free)
+      *pdisk_free = disk_free; // should be in statistics
+
+   log_chn->statistics.disk_level = level;
+
+   if (verbose)
+      printf("log_disk_level: channel path [%s], disk_size %1.0lf MiB, disk_free %1.0lf MiB, limit %1.0f MiB, disk level %.1f%%\n", log_chn->path, disk_size/MiB, disk_free/MiB, limit/MiB, level*100.0);
+
+   return SUCCESS;
+}
+
+int maybe_check_disk_level()
+{
+   DWORD actual_time = ss_millitime();
+   static DWORD last_check_time = 0;
+
+   if (last_check_time == 0)
+      last_check_time = actual_time;
+
+   if (actual_time - last_check_time < DISK_CHECK_INTERVAL)
+      return SUCCESS;
+
+   last_check_time = actual_time;
+
+   for (int i = 0; i < MAX_CHANNELS; i++) {
+      LOG_CHN* chn = &log_chn[i];
+
+      if (!chn->do_disk_level)
+         continue;
+
+      log_disk_level(chn, NULL, NULL);
+   }
+
+   return SUCCESS;
 }
 
 /*---- log_write ---------------------------------------------------*/
@@ -3195,29 +3250,22 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 
    /* stop run if less than 10MB free disk space */
    actual_time = ss_millitime();
-   if (log_chn->type == LOG_TYPE_DISK && actual_time - log_chn->last_checked > 10000) {
+   if (log_chn->type == LOG_TYPE_DISK && log_chn->do_disk_level && actual_time - log_chn->last_checked > DISK_CHECK_INTERVAL) {
       log_chn->last_checked = actual_time;
 
-      char str[256];
-      strlcpy(str, log_chn->path, sizeof(str));
-      if (strrchr(str, '/'))
-         *(strrchr(str, '/')+1) = 0; // strip filename for bzip2
-      
-      double MiB = 1024*1024;
-      double disk_size = ss_disk_size(str);
-      double disk_free = ss_disk_free(str);
+      const double MiB = 1024*1024;
+      double disk_size = 0;
+      double disk_free = 0;
+
+      log_disk_level(log_chn, &disk_size, &disk_free);
+
       double limit = 10E6;
-      double level = 1.0-disk_free/disk_size;
 
       if (disk_size > 100E9) {
          limit = 1000E6;
       } else if (disk_size > 10E9) {
          limit = 100E6;
       }
-
-      log_chn->statistics.disk_level = level;
-
-      //printf("channel path [%s], disk_size %1.0lf MiB, disk_free %1.0lf MiB, limit %1.0f MiB, disk level %.1f%%\n", log_chn->path, disk_size/MiB, disk_free/MiB, limit/MiB, level*100.0);
 
       if (disk_free < limit) {
          stop_requested = TRUE;
@@ -4965,6 +5013,9 @@ int main(int argc, char *argv[])
 
    do {
       msg = cm_yield(1000);
+
+      /* maybe update channel disk levels */
+      maybe_check_disk_level();
 
       /* update channel statistics once every second */
       if (ss_millitime() - last_time_stat > 1000) {
