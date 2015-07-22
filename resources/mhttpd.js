@@ -768,6 +768,46 @@ function msg_extend()
    window.setTimeout(msg_extend, 1000);
 }
 
+/*---- alarm functions -------------------------------------*/
+
+function alarm_load()
+{
+    // hide speak button if browser does not support
+    try {
+	u = new SpeechSynthesisUtterance("Hello");
+    } catch (err) {
+	document.getElementById('aspeak').style.display = 'none';
+	document.getElementById('aspeakLabel').style.display = 'none';
+    }
+    
+    // get options from local storage
+    if (typeof(Storage) !== "undefined") {
+	if (sessionStorage.alarmSpeak != undefined)
+            document.getElementById("aspeak").checked = (sessionStorage.alarmSpeak == "1");
+    }
+}
+
+function aspeak_click(t)
+{
+   if (typeof(Storage) !== "undefined") {
+      if (t.checked)
+         sessionStorage.alarmSpeak = "1";
+      else
+         sessionStorage.alarmSpeak = "0";
+   }
+      
+}
+
+function alarm_speak(t)
+{
+    if (typeof(Storage) !== "undefined") {
+	if (sessionStorage.alarmSpeak == "1")  {
+	    u = new SpeechSynthesisUtterance(t);
+	    window.speechSynthesis.speak(u);
+	    }
+    } 
+}
+
 /*---- chat functions -------------------------------------*/
 
 function chat_kp(e)

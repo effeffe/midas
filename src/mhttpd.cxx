@@ -1680,14 +1680,17 @@ void show_status_page(int refresh, int tts_enable, const char *cookie_wpwd)
 
                db_get_key(hDB, hsubkey, &key);
                rsprintf("<tr><td colspan=6 style=\"background-color:%s;border-radius:12px;\" align=center>", bgcol);
+               rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
                rsprintf("<table width=\"100%%\"><tr><td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"%s\" size=+3>%s: %s</font></td>\n", fgcol,
                         alarm_class, str);
                rsprintf("<td width=\"1%%\" style=\"border:0px;\"><button type=\"button\" onclick=\"document.location.href='?cmd=alrst&name=%s'\"n\">Reset</button></td></tr></table></td></tr>\n", key.name);
+
+               strlcpy(spk, alarm_class, sizeof(spk));
+               strlcat(spk, ". ", sizeof(spk));
+               strlcat(spk, str, sizeof(spk));
+               rsprintf("<script type=\"text/javascript\">alarm_speak(\"%s\");</script>\n", spk);
                if (tts_enable) {
                   // speak alarm
-                  strlcpy(spk, alarm_class, sizeof(spk));
-                  strlcat(spk, ".", sizeof(spk));
-                  strlcat(spk, str, sizeof(spk));
                   rsprintf("<script type=\"text/javascript\">u=new SpeechSynthesisUtterance('%s');window.speechSynthesis.speak(u);</script>\n", spk);
                }
             }
@@ -9964,6 +9967,7 @@ void show_alarm_page()
    cm_get_experiment_database(&hDB, NULL);
 
    show_header("Alarms", "GET", "./", 0);
+   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
    show_navigation_bar("Alarms");
 
    /*---- menu buttons ----*/
@@ -9973,8 +9977,10 @@ void show_alarm_page()
 
    rsprintf("<input type=submit name=cmd value=\"Reset all alarms\">\n");
    rsprintf("<input type=submit name=cmd value=\"Alarms on/off\">\n");
+   rsprintf("<input type=\"checkbox\" name=\"caspeak\" id=\"aspeak\" onClick=\"return aspeak_click(this);\"><span id=\"aspeakLabel\">Speak</span></td>");
 
    rsprintf("</tr></table>\n\n");  //used to end with an extra form closure tag, messes up the footer.
+   rsprintf("<script type=\"text/javascript\">alarm_load();</script>\n");
 
    /*---- global flag ----*/
    active = TRUE;
