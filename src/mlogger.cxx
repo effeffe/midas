@@ -3960,7 +3960,9 @@ INT open_history()
                db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history,
                               (void *) (POINTER_T) index);
 
-            status = add_event(&index, now, max_event_id, hist_name, hHistKey, n_var, tag, 10, 0);
+            int period = 10;
+
+            status = add_event(&index, now, max_event_id, hist_name, hHistKey, n_var, tag, period, 0);
             if (status != DB_SUCCESS)
                return status;
 
@@ -4145,13 +4147,16 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
          cm_disconnect_experiment();
          exit(1);
       }
-   } else {
-      hist_log[index].last_log = now;
-
-      for (unsigned h=0; h<mh.size(); h++)
-         mh[h]->hs_write_event(hist_log[index].event_name, hist_log[index].last_log, hist_log[index].buffer_size, hist_log[index].buffer);
+      return;
    }
 
+   hist_log[index].last_log = now;
+
+   if (verbose)
+      printf("write history event: \'%s\', timestamp %d, buffer %p, size %d\n", hist_log[index].event_name, hist_log[index].last_log, hist_log[index].buffer, hist_log[index].buffer_size);
+
+   for (unsigned h=0; h<mh.size(); h++)
+      mh[h]->hs_write_event(hist_log[index].event_name, hist_log[index].last_log, hist_log[index].buffer_size, hist_log[index].buffer);
 
    /* simulate odb key update for hot links connected to system history */
    if (!rpc_is_remote()) {
