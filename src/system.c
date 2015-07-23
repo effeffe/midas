@@ -3589,11 +3589,32 @@ INT ss_suspend_init_ipc(INT idx)
    bind_addr.sin_addr.s_addr = 0;
    bind_addr.sin_port = 0;
 
-#ifdef OS_DARWIN
-   strlcpy(local_host_name, "localhost", sizeof(local_host_name));
-#else
-   gethostname(local_host_name, sizeof(local_host_name));
-#endif
+   /* decide if UDP sockets are bound to localhost (they are only use for local communications)
+      or to hostname (for compatibility with old clients - their hotlinks will not work) */
+   {
+      int udp_bind_hostname = 0;
+      FILE* fp;
+      char path[256];
+      cm_get_path(path, sizeof(path));
+      if (path[0] == 0) {
+         if (!getcwd(path, sizeof(path)))
+            path[0] = 0;
+         strlcat(path, "/", sizeof(path));
+      }
+
+      strlcat(path, ".UDP_BIND_HOSTNAME", sizeof(path));
+
+      fp = fopen(path, "r");
+      if (fp) {
+         udp_bind_hostname = 1;
+         fclose(fp);
+      }
+
+      if (udp_bind_hostname)
+         gethostname(local_host_name, sizeof(local_host_name));
+      else
+         strlcpy(local_host_name, "localhost", sizeof(local_host_name));
+   }
 
 #ifdef OS_VXWORKS
    {
