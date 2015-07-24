@@ -782,8 +782,9 @@ function alarm_load()
     
     // get options from local storage
     if (typeof(Storage) !== "undefined") {
-	if (sessionStorage.alarmSpeak != undefined)
-            document.getElementById("aspeak").checked = (sessionStorage.alarmSpeak == "1");
+	if (sessionStorage.alarmSpeak === undefined) 
+	    sessionStorage.alarmSpeak = "1";
+        document.getElementById("aspeak").checked = (sessionStorage.alarmSpeak == "1");
     }
 }
 
