@@ -3111,7 +3111,7 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
       int evt_size = pevent->data_size + sizeof(EVENT_HEADER);
 
       WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
-      int status = wr->wr_write(log_chn, pevent, evt_size);
+      status = wr->wr_write(log_chn, pevent, evt_size);
 
       if (status == SUCCESS) {
          /* update statistics */
