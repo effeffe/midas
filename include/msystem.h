@@ -572,7 +572,7 @@ extern "C" {
    INT EXPRT cm_set_path(const char *path);
    INT EXPRT cm_get_path(char *path, int path_size);
    INT EXPRT cm_set_experiment_name(const char *name);
-   INT cm_dispatch_ipc(char *message, int s);
+   INT cm_dispatch_ipc(const char *message, int s);
    INT EXPRT cm_msg_log(INT message_type, const char *facility, const char *message);
    void EXPRT name2c(char *str);
 

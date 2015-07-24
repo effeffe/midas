@@ -4383,7 +4383,7 @@ INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size,
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-INT cm_dispatch_ipc(char *message, int s)
+INT cm_dispatch_ipc(const char *message, int s)
 /********************************************************************\
 
   Routine: cm_dispatch_ipc
@@ -4415,7 +4415,7 @@ INT cm_dispatch_ipc(char *message, int s)
    if (message[0] == 'B' && message[2] != ' ') {
       char str[80];
 
-      strcpy(str, message + 2);
+      strlcpy(str, message + 2, sizeof(str));
       if (strchr(str, ' '))
          *strchr(str, ' ') = 0;
 
@@ -4424,6 +4424,8 @@ INT cm_dispatch_ipc(char *message, int s)
       else
          return bm_push_event(str);
    }
+
+   //printf("cm_dispatch_ipc: message [%s] ignored\n", message);
 
    return CM_SUCCESS;
 }
@@ -6668,6 +6670,15 @@ static void bm_wakeup_producers(const BUFFER_HEADER * pheader, const BUFFER_CLIE
    int i;
    int size;
    const BUFFER_CLIENT *pctmp = pheader->client;
+   int have_get_all_requests = 0;
+
+   for (i = 0; i < pc->max_request_index; i++)
+      if (pc->event_request[i].valid)
+         have_get_all_requests |= (pc->event_request[i].sampling_type == GET_ALL);
+   
+   /* only GET_ALL requests actually free space in the event buffer */
+   if (!have_get_all_requests)
+      return;
 
    /*
       If read pointer has been changed, it may have freed up some space
