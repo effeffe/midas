@@ -169,6 +169,8 @@ static INT _watchdog_last_called = 0;
 
 int _rpc_connect_timeout = 10000;
 
+static int bind_rpc_to_localhost = 1;
+
 /* table for transition functions */
 
 typedef struct {
@@ -2150,8 +2152,15 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       return status;
    }
 
+   size = sizeof(bind_rpc_to_localhost);
+   status = db_get_value(hDB, 0, "/Experiment/Bind RPC to localhost", &bind_rpc_to_localhost, &size, TID_BOOL, TRUE);
+   assert(status == DB_SUCCESS);
+
    /* now setup client info */
-   gethostname(local_host_name, sizeof(local_host_name));
+   if (bind_rpc_to_localhost)
+      strlcpy(local_host_name, "localhost", sizeof(local_host_name));
+   else
+      gethostname(local_host_name, sizeof(local_host_name));
 
    /* check watchdog timeout */
    if (watchdog_timeout == 0)
@@ -11644,7 +11653,6 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 {
    struct sockaddr_in bind_addr;
    INT status, flag;
-   unsigned int size;
 
 #ifdef OS_WINNT
    {
@@ -11698,7 +11706,12 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
    /* bind local node name and port to socket */
    memset(&bind_addr, 0, sizeof(bind_addr));
    bind_addr.sin_family = AF_INET;
-   bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+   if (bind_rpc_to_localhost) {
+      bind_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+   } else {
+      bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+   }
 
    if (!port)
       bind_addr.sin_port = htons(MIDAS_TCP_PORT);
@@ -11724,11 +11737,11 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 
    /* return port wich OS has choosen */
    if (port && *port == 0) {
-      size = sizeof(bind_addr);
+      socklen_t sosize = sizeof(bind_addr);
 #ifdef OS_WINNT
-      getsockname(_lsock, (struct sockaddr *) &bind_addr, (int *) &size);
+      getsockname(_lsock, (struct sockaddr *) &bind_addr, (int *) &sosize);
 #else
-      getsockname(_lsock, (struct sockaddr *) &bind_addr, &size);
+      getsockname(_lsock, (struct sockaddr *) &bind_addr, &sosize);
 #endif
       *port = ntohs(bind_addr.sin_port);
    }

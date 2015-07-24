@@ -74,6 +74,7 @@ INT frontend_index = -1;        /* frontend index for event building */
 BOOL lockout_readout_thread = TRUE; /* manual triggers, periodic events and 1Hz flush cache lockout the readout thread */
 
 HNDLE hDB;
+HNDLE hClient;
 
 extern EQUIPMENT equipment[];
 
@@ -627,11 +628,14 @@ INT register_equipment(void)
       else                      /* default format is MIDAS */
          equipment[idx].format = FORMAT_MIDAS;
 
-      gethostname(eq_info->frontend_host, sizeof(eq_info->frontend_host));
-      strcpy(eq_info->frontend_name, full_frontend_name);
-      strcpy(eq_info->frontend_file_name, frontend_file_name);
+      size = sizeof(str);
+      status = db_get_value(hDB, hClient, "Host", str, &size, TID_STRING, FALSE);
+      assert(status == DB_SUCCESS);
+      strlcpy(eq_info->frontend_host, str, sizeof(eq_info->frontend_host));
+      strlcpy(eq_info->frontend_name, full_frontend_name, sizeof(eq_info->frontend_name));
+      strlcpy(eq_info->frontend_file_name, frontend_file_name, sizeof(eq_info->frontend_file_name));
       sprintf(eq_info->status, "%s@%s", full_frontend_name, eq_info->frontend_host);
-      strcpy(eq_info->status_color, "#00FF00");
+      strlcpy(eq_info->status_color, "#00FF00", sizeof(eq_info->status_color));
 
       /* update variables in ODB */
       status = db_set_record(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), 0);
@@ -2723,7 +2727,7 @@ int main(int argc, char *argv[])
    }
    cm_set_run_state(run_state);
 
-   cm_get_experiment_database(&hDB, &status);
+   cm_get_experiment_database(&hDB, &hClient);
    /* set time from server */
 #ifdef OS_VXWORKS
    cm_synchronize(NULL);
