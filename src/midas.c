@@ -4537,6 +4537,7 @@ INT cm_execute(const char *command, char *result, INT bufsize)
    char str[256];
    INT n;
    int fh;
+   int status = 0;
    static int check_cm_execute = 1;
    static int enable_cm_execute = 0;
 
@@ -4570,7 +4571,7 @@ INT cm_execute(const char *command, char *result, INT bufsize)
       strcpy(str, command);
       sprintf(str, "%s > %d.tmp", command, ss_getpid());
 
-      system(str);
+      status = system(str);
 
       sprintf(str, "%d.tmp", ss_getpid());
       fh = open(str, O_RDONLY, 0644);
@@ -4582,7 +4583,12 @@ INT cm_execute(const char *command, char *result, INT bufsize)
       }
       remove(str);
    } else {
-      system(command);
+      status = system(command);
+   }
+
+   if (status < 0) {
+      cm_msg(MERROR, "cm_execute", "cm_execute(%s) error %d", command, status);
+      return CM_SET_ERROR;
    }
 
    return CM_SUCCESS;
