@@ -24,6 +24,8 @@ Contents:     Dump event on screen with MIDAS or YBOS data format
 #define  REP_EVENT     4
 #define  REP_BANKLIST  5
 
+int sys_max_event_size = DEFAULT_MAX_EVENT_SIZE;
+
 char bank_name[4], sbank_name[4];
 INT hBufEvent;
 INT save_dsp = 1, evt_display = 0;
@@ -636,7 +638,7 @@ int main(int argc, char **argv)
 #endif
   
   /* open the shared memory buffer with proper size */
-  status = bm_open_buffer(buf_name, 2*MAX_EVENT_SIZE, &hBufEvent);
+  status = bm_open_buffer(buf_name, DEFAULT_BUFFER_SIZE, &hBufEvent);
   if (status != BM_SUCCESS && status != BM_CREATED) {
     cm_msg(MERROR, "mdump", "Cannot open buffer \"%s\", bm_open_buffer() status %d", buf_name, status);
     goto error;
@@ -657,6 +659,8 @@ int main(int argc, char **argv)
   /* connect to the database */
   cm_get_experiment_database(&hDB, &hKey);
   
+  size = sizeof(sys_max_event_size);
+  status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &sys_max_event_size, &size, TID_DWORD, TRUE);
   
   {   /* ID block */
     INT l = 0;

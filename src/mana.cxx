@@ -233,6 +233,8 @@ extern INT pawc_size;
 #define EXT_EVENT_SIZE (2*(MAX_EVENT_SIZE+sizeof(EVENT_HEADER)))
 #endif
 
+static int sys_max_event_size = DEFAULT_MAX_EVENT_SIZE;
+
 /* command line parameters */
 static struct {
    INT online;
@@ -2337,7 +2339,7 @@ INT write_event_midas(FILE * file, EVENT_HEADER * pevent, ANALYZE_REQUEST * par)
    static char *buffer = NULL;
 
    if (buffer == NULL)
-      buffer = (char *) malloc(MAX_EVENT_SIZE);
+      buffer = (char *) malloc(sys_max_event_size);
 
    pevent_copy = (EVENT_HEADER *) ALIGN8((POINTER_T) buffer);
 
@@ -3132,7 +3134,7 @@ INT process_event(ANALYZE_REQUEST * par, EVENT_HEADER * pevent)
    /* keep copy of original event */
    if (clp.filter) {
       if (orig_event == NULL)
-         orig_event = (char *) malloc(MAX_EVENT_SIZE + sizeof(EVENT_HEADER));
+         orig_event = (char *) malloc(sys_max_event_size + sizeof(EVENT_HEADER));
       memcpy(orig_event, pevent, pevent->data_size + sizeof(EVENT_HEADER));
    }
 
@@ -3163,7 +3165,7 @@ INT process_event(ANALYZE_REQUEST * par, EVENT_HEADER * pevent)
    if (event_def->format == FORMAT_MIDAS) {
       /* check if event got too large */
       i = bk_size(pevent + 1);
-      if (i > MAX_EVENT_SIZE)
+      if (i > sys_max_event_size)
          cm_msg(MERROR, "process_event", "Event got too large (%d Bytes) in analyzer", i);
 
       /* correct for increased event size */
@@ -3252,11 +3254,10 @@ void receive_event(HNDLE buffer_handle, HNDLE request_id, EVENT_HEADER * pheader
    char *pb;
 
    if (buffer == NULL) {
-      buffer = (char *) malloc(MAX_EVENT_SIZE + sizeof(EVENT_HEADER));
+      buffer = (char *) malloc(sys_max_event_size + sizeof(EVENT_HEADER));
 
       if (buffer == NULL) {
-         cm_msg(MERROR, "receive_event", "Not enough memory to buffer event of size %d",
-                buffer_size);
+         cm_msg(MERROR, "receive_event", "Not enough memory to buffer event of size %d", buffer_size);
          return;
       }
    }
@@ -3352,8 +3353,7 @@ void register_requests(void)
 
       if (clp.online) {
          /*---- open event buffer ---------------------------------------*/
-         bm_open_buffer(ar_info->buffer, 2*MAX_EVENT_SIZE,
-                        &analyze_request[index].buffer_handle);
+         bm_open_buffer(ar_info->buffer, DEFAULT_BUFFER_SIZE, &analyze_request[index].buffer_handle);
 
          /* set the default buffer cache size */
          bm_set_cache_size(analyze_request[index].buffer_handle, 100000, 0);
@@ -4065,9 +4065,7 @@ INT analyze_run(INT run_number, char *input_file_name, char *output_file_name)
    assert(run_number > 0);
 
    /* set run number in ODB */
-   status =
-       db_set_value(hDB, 0, "/Runinfo/Run number", &run_number, sizeof(run_number), 1,
-                    TID_INT);
+   status = db_set_value(hDB, 0, "/Runinfo/Run number", &run_number, sizeof(run_number), 1, TID_INT);
    assert(status == SUCCESS);
 
    /* set file name in out_info */
@@ -4083,7 +4081,9 @@ INT analyze_run(INT run_number, char *input_file_name, char *output_file_name)
       return -1;
    }
 
-   pevent_unaligned = (EVENT_HEADER *) malloc(EXT_EVENT_SIZE);
+   int ext_event_size = (2*(sys_max_event_size+sizeof(EVENT_HEADER)));
+
+   pevent_unaligned = (EVENT_HEADER *) malloc(ext_event_size);
    if (pevent_unaligned == NULL) {
       printf("Not enough memeory\n");
       return -1;
@@ -4100,7 +4100,7 @@ INT analyze_run(INT run_number, char *input_file_name, char *output_file_name)
    /* event loop */
    do {
       /* read next event */
-      n = ma_read_event(file, pevent, EXT_EVENT_SIZE);
+      n = ma_read_event(file, pevent, ext_event_size);
       if (n <= 0)
          break;
 
@@ -5432,8 +5432,11 @@ int main(int argc, char *argv[])
 
    /* set online/offline mode */
    cm_get_experiment_database(&hDB, NULL);
-   db_set_value(hDB, 0, "/Runinfo/Online Mode", &clp.online, sizeof(clp.online), 1,
-                TID_INT);
+
+   size = sizeof(sys_max_event_size);
+   status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &sys_max_event_size, &size, TID_DWORD, TRUE);
+
+   db_set_value(hDB, 0, "/Runinfo/Online Mode", &clp.online, sizeof(clp.online), 1, TID_INT);
 
    if (clp.online) {
       /* check for duplicate name */

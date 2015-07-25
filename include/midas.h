@@ -229,10 +229,8 @@ typedef INT MUTEX_T;
 
 /* Definition of implementation specific constants */
 
-/* all buffer sizes must be multiples of 4 ! */
-#ifndef MAX_EVENT_SIZE                       /* value can be set via Makefile */
-#define MAX_EVENT_SIZE         0x400000      /**< maximum event size 4MB      */
-#endif
+#define DEFAULT_MAX_EVENT_SIZE (4*1024*1024) /**< default maximum event size 4MiB, actual maximum event size is set by ODB /Experiment/MAX_EVENT_SIZE */
+#define DEFAULT_BUFFER_SIZE   (32*1024*1024) /**< default event buffer size 32MiB, actual event buffer size is set by ODB /Experiment/Buffer sizes/SYSTEM */
 
 #ifdef OS_WINNT
 #define TAPE_BUFFER_SIZE       0x100000      /**< buffer size for taping data */

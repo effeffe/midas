@@ -4392,7 +4392,7 @@ INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size,
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-INT cm_dispatch_ipc(char *message, int s)
+INT cm_dispatch_ipc(const char *message, int s)
 /********************************************************************\
 
   Routine: cm_dispatch_ipc
@@ -4424,7 +4424,7 @@ INT cm_dispatch_ipc(char *message, int s)
    if (message[0] == 'B' && message[2] != ' ') {
       char str[80];
 
-      strcpy(str, message + 2);
+      strlcpy(str, message + 2, sizeof(str));
       if (strchr(str, ' '))
          *strchr(str, ' ') = 0;
 
@@ -4433,6 +4433,8 @@ INT cm_dispatch_ipc(char *message, int s)
       else
          return bm_push_event(str);
    }
+
+   //printf("cm_dispatch_ipc: message [%s] ignored\n", message);
 
    return CM_SUCCESS;
 }
@@ -4544,15 +4546,41 @@ INT cm_execute(const char *command, char *result, INT bufsize)
    char str[256];
    INT n;
    int fh;
+   int status = 0;
+   static int check_cm_execute = 1;
+   static int enable_cm_execute = 0;
 
    if (rpc_is_remote())
       return rpc_call(RPC_CM_EXECUTE, command, result, bufsize);
+
+   if (check_cm_execute) {
+      int status;
+      int size;
+      HNDLE hDB;
+      check_cm_execute = 0;
+
+      status = cm_get_experiment_database(&hDB, NULL);
+      assert(status == DB_SUCCESS);
+
+      size = sizeof(enable_cm_execute);
+      status = db_get_value(hDB, 0, "/Experiment/Enable cm_execute", &enable_cm_execute, &size, TID_BOOL, TRUE);
+      assert(status == DB_SUCCESS);
+
+      //printf("enable_cm_execute %d\n", enable_cm_execute);
+   }
+
+   if (!enable_cm_execute) {
+      char buf[32];
+      strlcpy(buf, command, sizeof(buf));
+      cm_msg(MERROR, "cm_execute", "cm_execute(%s...) is disabled by ODB \"/Experiment/Enable cm_execute\"", buf);
+      return CM_WRONG_PASSWORD;
+   }
 
    if (bufsize > 0) {
       strcpy(str, command);
       sprintf(str, "%s > %d.tmp", command, ss_getpid());
 
-      system(str);
+      status = system(str);
 
       sprintf(str, "%d.tmp", ss_getpid());
       fh = open(str, O_RDONLY, 0644);
@@ -4564,7 +4592,12 @@ INT cm_execute(const char *command, char *result, INT bufsize)
       }
       remove(str);
    } else {
-      system(command);
+      status = system(command);
+   }
+
+   if (status < 0) {
+      cm_msg(MERROR, "cm_execute", "cm_execute(%s) error %d", command, status);
+      return CM_SET_ERROR;
    }
 
    return CM_SUCCESS;
@@ -4852,14 +4885,13 @@ Two default buffers are created by the system.
 The "SYSTEM" buffer is used to
 exchange events and the "SYSMSG" buffer is used to exchange system messages.
 The name and size of the event buffers is defined in midas.h as
-EVENT_BUFFER_NAME and 2*MAX_EVENT_SIZE.
+EVENT_BUFFER_NAME and DEFAULT_BUFFER_SIZE.
 Following example opens the "SYSTEM" buffer, requests events with ID 1 and
 enters a main loop. Events are then received in process_event()
 \code
 #include <stdio.h>
 #include "midas.h"
-void process_event(HNDLE hbuf, HNDLE request_id,
-           EVENT_HEADER *pheader, void *pevent)
+void process_event(HNDLE hbuf, HNDLE request_id, EVENT_HEADER *pheader, void *pevent)
 {
   printf("Received event #%d\r",
   pheader->serial_number);
@@ -4871,7 +4903,7 @@ main()
   status = cm_connect_experiment("pc810", "Sample", "Simple Analyzer", NULL);
   if (status != CM_SUCCESS)
   return 1;
-  bm_open_buffer(EVENT_BUFFER_NAME, 2*MAX_EVENT_SIZE, &hbuf);
+  bm_open_buffer(EVENT_BUFFER_NAME, DEFAULT_BUFFER_SIZE, &hbuf);
   bm_request_event(hbuf, 1, TRIGGER_ALL, GET_ALL, request_id, process_event);
 
   do
@@ -6677,6 +6709,15 @@ static void bm_wakeup_producers(const BUFFER_HEADER * pheader, const BUFFER_CLIE
    int i;
    int size;
    const BUFFER_CLIENT *pctmp = pheader->client;
+   int have_get_all_requests = 0;
+
+   for (i = 0; i < pc->max_request_index; i++)
+      if (pc->event_request[i].valid)
+         have_get_all_requests |= (pc->event_request[i].sampling_type == GET_ALL);
+   
+   /* only GET_ALL requests actually free space in the event buffer */
+   if (!have_get_all_requests)
+      return;
 
    /*
       If read pointer has been changed, it may have freed up some space
@@ -6999,7 +7040,7 @@ main()
  status = cm_connect_experiment("", "Sample", "Producer", NULL);
  if (status != CM_SUCCESS)
  return 1;
- bm_open_buffer(EVENT_BUFFER_NAME, 2*MAX_EVENT_SIZE, &hbuf);
+ bm_open_buffer(EVENT_BUFFER_NAME, DEFAULT_BUFFER_SIZE, &hbuf);
 
  // create event with ID 1, trigger mask 0, size 100 bytes and serial number 1
  bm_compose_event((EVENT_HEADER *) event, 1, 0, 100, 1);
@@ -7024,8 +7065,8 @@ value of BM_ASYNC_RETURN without writing the event to the buffer
 BM_ASYNC_RETURN Routine called with async_flag == BM_NO_WAIT and
 buffer has not enough space to receive event<br>
 BM_NO_MEMORY   Event is too large for network buffer or event buffer.
-One has to increase MAX_EVENT_SIZE in midas.h and
-recompile.
+One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
+and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
 INT bm_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag)
 {
@@ -7214,8 +7255,8 @@ immediately with a value of BM_ASYNC_RETURN without writing the cache.
 BM_ASYNC_RETURN Routine called with async_flag == BM_NO_WAIT
 and buffer has not enough space to receive cache<br>
 BM_NO_MEMORY Event is too large for network buffer or event buffer.
-One has to increase MAX_EVENT_SIZE in midas.h
-and recompile.
+One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
+and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
 INT bm_flush_cache(INT buffer_handle, INT async_flag)
 {
@@ -7385,7 +7426,7 @@ main()
   "Simple Analyzer", NULL);
   if (status != CM_SUCCESS)
    return 1;
-  bm_open_buffer(EVENT_BUFFER_NAME, 2*MAX_EVENT_SIZE, &hbuf);
+  bm_open_buffer(EVENT_BUFFER_NAME, DEFAULT_BUFFER_SIZE, &hbuf);
   bm_request_event(hbuf, 1, TRIGGER_ALL, GET_ALL, request_id, NULL);
 
   do
@@ -8192,7 +8233,7 @@ INT bm_poll_event(INT flag)
 
    if (_event_buffer_size == 0) {
       HNDLE hDB, odb_key;
-      int max_event_size = MAX_EVENT_SIZE;
+      int max_event_size = DEFAULT_MAX_EVENT_SIZE;
 
       /* get max event size from ODB */
       status = cm_get_experiment_database(&hDB, &odb_key);
@@ -11262,8 +11303,7 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
       _server_acception[idx].misalign = 0;
    }
    if (!_server_acception[idx].net_buffer) {
-      cm_msg(MERROR, "recv_tcp_server", "Cannot allocate %d bytes for network buffer",
-             _server_acception[idx].net_buffer_size);
+      cm_msg(MERROR, "recv_tcp_server", "Cannot allocate %d bytes for network buffer", _server_acception[idx].net_buffer_size);
       return -1;
    }
 
@@ -11507,7 +11547,7 @@ INT recv_event_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT *
 
          /* check if data part fits in buffer */
          if ((INT) buffer_size < aligned_event_size + header_size) {
-            cm_msg(MERROR, "recv_event_server", "event size %d too large for network buffer size %d", aligned_event_size + header_size, buffer_size);
+            cm_msg(MERROR, "recv_event_server", "event size %d too large for buffer size %d", aligned_event_size + header_size, buffer_size);
             psa->ev_read_ptr = psa->ev_write_ptr = 0;
             return -1;
          }
@@ -11537,8 +11577,7 @@ INT recv_event_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT *
 
       /* abort if connection broken */
       if (write_ptr <= 0) {
-         cm_msg(MERROR, "recv_event_server", "recv() returned %d, errno: %d (%s)", write_ptr, errno,
-                strerror(errno));
+         cm_msg(MERROR, "recv_event_server", "recv() returned %d, errno: %d (%s)", write_ptr, errno, strerror(errno));
 
          if (remaining)
             *remaining = 0;
@@ -13297,7 +13336,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
    /* init network buffer */
    if (_net_recv_buffer_size == 0) {
-      int size = MAX_EVENT_SIZE + sizeof(EVENT_HEADER) + 1024;
+      int size = DEFAULT_MAX_EVENT_SIZE + sizeof(EVENT_HEADER) + 1024;
       _net_recv_buffer = (char *) M_MALLOC(size);
       if (_net_recv_buffer == NULL) {
          cm_msg(MERROR, "rpc_server_receive", "Cannot allocate %d bytes for network buffer", size);
@@ -13312,7 +13351,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
    if (_net_recv_buffer_size_odb == 0) {
       HNDLE hDB;
       int size;
-      int max_event_size = MAX_EVENT_SIZE;
+      int max_event_size = DEFAULT_MAX_EVENT_SIZE;
 
       /* get max event size from ODB */
       status = cm_get_experiment_database(&hDB, NULL);

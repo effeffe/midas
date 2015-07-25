@@ -43,6 +43,8 @@ $Id$
 BOOL debug = FALSE;
 BOOL nodelete = FALSE;
 
+int sys_max_event_size = DEFAULT_MAX_EVENT_SIZE;
+
 typedef struct {
    std::string filename;
    INT runno;
@@ -2406,6 +2408,9 @@ int main(int argc, char **argv)
 
    cm_get_experiment_database(&hDB, &hKey);
    
+   size = sizeof(sys_max_event_size);
+   status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &sys_max_event_size, &size, TID_DWORD, TRUE);
+  
    /* Remove temporary Lazy entry */
    {
      HNDLE hPkey;

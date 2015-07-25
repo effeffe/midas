@@ -742,11 +742,9 @@ INT register_equipment(void)
 
       if (eq_info->buffer[0]) {
          status =
-             bm_open_buffer(eq_info->buffer, 2*MAX_EVENT_SIZE,
-                            &equipment[idx].buffer_handle);
+             bm_open_buffer(eq_info->buffer, DEFAULT_BUFFER_SIZE, &equipment[idx].buffer_handle);
          if (status != BM_SUCCESS && status != BM_CREATED) {
-            cm_msg(MERROR, "register_equipment",
-                   "Cannot open event buffer \"%s\" size %d, bm_open_buffer() status %d", eq_info->buffer, 2*MAX_EVENT_SIZE, status);
+            cm_msg(MERROR, "register_equipment", "Cannot open event buffer \"%s\" size %d, bm_open_buffer() status %d", eq_info->buffer, DEFAULT_BUFFER_SIZE, status);
             return 0;
          }
 
@@ -2562,7 +2560,7 @@ int main(int argc, char *argv[])
 {
    INT status, i, j, size;
    INT daemon_flag;
-   int sys_max_event_size = MAX_EVENT_SIZE;
+   int sys_max_event_size = DEFAULT_MAX_EVENT_SIZE;
 
    host_name[0] = 0;
    exp_name[0] = 0;

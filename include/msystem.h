@@ -114,8 +114,7 @@ Definition of implementation specific constants */
 #define MESSAGE_BUFFER_NAME    "SYSMSG" /**< buffer name for messages */
 #define MAX_RPC_CONNECTION     64       /**< server/client connections   */
 #define MAX_STRING_LENGTH      256      /**< max string length for odb */
-#define NET_BUFFER_SIZE        (ALIGN8(MAX_EVENT_SIZE)+sizeof(EVENT_HEADER)+\
-4*8 + sizeof(NET_COMMAND_HEADER))
+#define NET_BUFFER_SIZE        (8*1024*1024) /**< size of network receive buffers */
 
 /*------------------------------------------------------------------*/
 /* flag for conditional compilation of debug messages */
@@ -146,9 +145,6 @@ Definition of implementation specific constants */
 
 #undef NET_TCP_SIZE
 #define NET_TCP_SIZE 0x7FFF
-
-#undef MAX_EVENT_SIZE
-#define MAX_EVENT_SIZE 4096
 
 #endif /* OS_MSDOS */
 
@@ -572,7 +568,7 @@ extern "C" {
    INT EXPRT cm_set_path(const char *path);
    INT EXPRT cm_get_path(char *path, int path_size);
    INT EXPRT cm_set_experiment_name(const char *name);
-   INT cm_dispatch_ipc(char *message, int s);
+   INT cm_dispatch_ipc(const char *message, int s);
    INT EXPRT cm_msg_log(INT message_type, const char *facility, const char *message);
    void EXPRT name2c(char *str);
 

@@ -16893,10 +16893,18 @@ static int event_handler_mg(struct mg_event *event)
          if (debug_mg)
             printf("mongoose: corrected return buffer length %d bytes\n", return_length);
 
-         mg_write(event->conn, return_buffer, return_length);
+         char* buf = (char*)malloc(return_length);
+         assert(buf != NULL);
+
+         memcpy(buf, return_buffer, return_length);
 
          if (locked)
             ss_mutex_release(request_mutex);
+
+         mg_write(event->conn, buf, return_length);
+
+         free(buf);
+         buf = NULL;
 
          return 1;
       }

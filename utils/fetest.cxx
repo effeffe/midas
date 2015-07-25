@@ -332,8 +332,12 @@ INT begin_of_run(INT run_number, char *error)
    printf("begin_of_run %d\n", run_number);
 
    int fail = 0;
-   int size = sizeof(fail);
-   int status = db_get_value(hDB, hSet, "fail_begin_of_run", &fail, &size, TID_INT, TRUE);
+   int status;
+   int size;
+
+   size = sizeof(fail);
+   status = db_get_value(hDB, hSet, "fail_begin_of_run", &fail, &size, TID_INT, TRUE);
+   assert(status == DB_SUCCESS);
 
    if (fail) {
       printf("fail_begin_of_run: returning error status %d\n", fail);
@@ -345,6 +349,7 @@ INT begin_of_run(INT run_number, char *error)
    int s = 0;
    size = sizeof(s);
    status = db_get_value(hDB, hSet, "sleep_begin_of_run", &s, &size, TID_INT, TRUE);
+   assert(status == DB_SUCCESS);
    
    if (s) {
       printf("sleep_begin_of_run: calling ss_sleep(%d)\n", s);
