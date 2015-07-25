@@ -4845,14 +4845,13 @@ Two default buffers are created by the system.
 The "SYSTEM" buffer is used to
 exchange events and the "SYSMSG" buffer is used to exchange system messages.
 The name and size of the event buffers is defined in midas.h as
-EVENT_BUFFER_NAME and 2*MAX_EVENT_SIZE.
+EVENT_BUFFER_NAME and DEFAULT_BUFFER_SIZE.
 Following example opens the "SYSTEM" buffer, requests events with ID 1 and
 enters a main loop. Events are then received in process_event()
 \code
 #include <stdio.h>
 #include "midas.h"
-void process_event(HNDLE hbuf, HNDLE request_id,
-           EVENT_HEADER *pheader, void *pevent)
+void process_event(HNDLE hbuf, HNDLE request_id, EVENT_HEADER *pheader, void *pevent)
 {
   printf("Received event #%d\r",
   pheader->serial_number);
@@ -4864,7 +4863,7 @@ main()
   status = cm_connect_experiment("pc810", "Sample", "Simple Analyzer", NULL);
   if (status != CM_SUCCESS)
   return 1;
-  bm_open_buffer(EVENT_BUFFER_NAME, 2*MAX_EVENT_SIZE, &hbuf);
+  bm_open_buffer(EVENT_BUFFER_NAME, DEFAULT_BUFFER_SIZE, &hbuf);
   bm_request_event(hbuf, 1, TRIGGER_ALL, GET_ALL, request_id, process_event);
 
   do
@@ -7001,7 +7000,7 @@ main()
  status = cm_connect_experiment("", "Sample", "Producer", NULL);
  if (status != CM_SUCCESS)
  return 1;
- bm_open_buffer(EVENT_BUFFER_NAME, 2*MAX_EVENT_SIZE, &hbuf);
+ bm_open_buffer(EVENT_BUFFER_NAME, DEFAULT_BUFFER_SIZE, &hbuf);
 
  // create event with ID 1, trigger mask 0, size 100 bytes and serial number 1
  bm_compose_event((EVENT_HEADER *) event, 1, 0, 100, 1);
@@ -7026,8 +7025,8 @@ value of BM_ASYNC_RETURN without writing the event to the buffer
 BM_ASYNC_RETURN Routine called with async_flag == BM_NO_WAIT and
 buffer has not enough space to receive event<br>
 BM_NO_MEMORY   Event is too large for network buffer or event buffer.
-One has to increase MAX_EVENT_SIZE in midas.h and
-recompile.
+One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
+and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
 INT bm_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag)
 {
@@ -7216,8 +7215,8 @@ immediately with a value of BM_ASYNC_RETURN without writing the cache.
 BM_ASYNC_RETURN Routine called with async_flag == BM_NO_WAIT
 and buffer has not enough space to receive cache<br>
 BM_NO_MEMORY Event is too large for network buffer or event buffer.
-One has to increase MAX_EVENT_SIZE in midas.h
-and recompile.
+One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
+and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
 INT bm_flush_cache(INT buffer_handle, INT async_flag)
 {
@@ -7387,7 +7386,7 @@ main()
   "Simple Analyzer", NULL);
   if (status != CM_SUCCESS)
    return 1;
-  bm_open_buffer(EVENT_BUFFER_NAME, 2*MAX_EVENT_SIZE, &hbuf);
+  bm_open_buffer(EVENT_BUFFER_NAME, DEFAULT_BUFFER_SIZE, &hbuf);
   bm_request_event(hbuf, 1, TRIGGER_ALL, GET_ALL, request_id, NULL);
 
   do
@@ -8194,7 +8193,7 @@ INT bm_poll_event(INT flag)
 
    if (_event_buffer_size == 0) {
       HNDLE hDB, odb_key;
-      int max_event_size = MAX_EVENT_SIZE;
+      int max_event_size = DEFAULT_MAX_EVENT_SIZE;
 
       /* get max event size from ODB */
       status = cm_get_experiment_database(&hDB, &odb_key);
@@ -11264,8 +11263,7 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
       _server_acception[idx].misalign = 0;
    }
    if (!_server_acception[idx].net_buffer) {
-      cm_msg(MERROR, "recv_tcp_server", "Cannot allocate %d bytes for network buffer",
-             _server_acception[idx].net_buffer_size);
+      cm_msg(MERROR, "recv_tcp_server", "Cannot allocate %d bytes for network buffer", _server_acception[idx].net_buffer_size);
       return -1;
    }
 
@@ -11509,7 +11507,7 @@ INT recv_event_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT *
 
          /* check if data part fits in buffer */
          if ((INT) buffer_size < aligned_event_size + header_size) {
-            cm_msg(MERROR, "recv_event_server", "event size %d too large for network buffer size %d", aligned_event_size + header_size, buffer_size);
+            cm_msg(MERROR, "recv_event_server", "event size %d too large for buffer size %d", aligned_event_size + header_size, buffer_size);
             psa->ev_read_ptr = psa->ev_write_ptr = 0;
             return -1;
          }
@@ -11539,8 +11537,7 @@ INT recv_event_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT *
 
       /* abort if connection broken */
       if (write_ptr <= 0) {
-         cm_msg(MERROR, "recv_event_server", "recv() returned %d, errno: %d (%s)", write_ptr, errno,
-                strerror(errno));
+         cm_msg(MERROR, "recv_event_server", "recv() returned %d, errno: %d (%s)", write_ptr, errno, strerror(errno));
 
          if (remaining)
             *remaining = 0;
@@ -13295,7 +13292,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
    /* init network buffer */
    if (_net_recv_buffer_size == 0) {
-      int size = MAX_EVENT_SIZE + sizeof(EVENT_HEADER) + 1024;
+      int size = DEFAULT_MAX_EVENT_SIZE + sizeof(EVENT_HEADER) + 1024;
       _net_recv_buffer = (char *) M_MALLOC(size);
       if (_net_recv_buffer == NULL) {
          cm_msg(MERROR, "rpc_server_receive", "Cannot allocate %d bytes for network buffer", size);
@@ -13310,7 +13307,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
    if (_net_recv_buffer_size_odb == 0) {
       HNDLE hDB;
       int size;
-      int max_event_size = MAX_EVENT_SIZE;
+      int max_event_size = DEFAULT_MAX_EVENT_SIZE;
 
       /* get max event size from ODB */
       status = cm_get_experiment_database(&hDB, NULL);

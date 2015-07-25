@@ -48,6 +48,8 @@ FTP_CON *ftp_con;
 
 #include "mdsupport.h"
 
+extern int sys_max_event_size;
+
 INT  md_dev_os_read(INT handle, INT type, void *prec, DWORD nbytes, DWORD * nread);
 INT  md_dev_os_write(INT handle, INT type, void *prec, DWORD nbytes, DWORD * written);
 void md_bank_event_display(void *pevent, INT data_fmt, INT dsp_fmt, INT dsp_mode, char *bn);
@@ -247,11 +249,11 @@ status : from lower function
       /* allocate memory for one full event */
       if (my.pmrd != NULL)
          free(my.pmrd);
-      my.pmrd = (char *) malloc(5 * MAX_EVENT_SIZE);    /* in bytes */
+      my.pmrd = (char *) malloc(5 * sys_max_event_size);    /* in bytes */
       ptopmrd = my.pmrd;
       if (my.pmrd == NULL)
          return SS_NO_MEMORY;
-      memset((char *) my.pmrd, -1, 5 * MAX_EVENT_SIZE);
+      memset((char *) my.pmrd, -1, 5 * sys_max_event_size);
       my.pmh = (EVENT_HEADER *) my.pmrd;
    }
 
@@ -643,7 +645,7 @@ MD_SUCCESS        Ok
    void *pevent;
    DWORD size;
 
-   size = MAX_EVENT_SIZE;
+   size = sys_max_event_size;
    if (evtn == -1) {
       /*    if(midas_event_get(&pevent, &size) == MD_SUCCESS) */
       return MD_SUCCESS;

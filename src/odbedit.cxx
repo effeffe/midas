@@ -2458,7 +2458,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          if (param[2][0] == '-' && param[2][1] == 'f')
             force = TRUE;
 
-         bm_open_buffer(EVENT_BUFFER_NAME, 2*MAX_EVENT_SIZE, &hBuf);
+         bm_open_buffer(EVENT_BUFFER_NAME, DEFAULT_BUFFER_SIZE, &hBuf);
 
          if (param[1][0] && param[1][0] != '-')
             cm_cleanup(param[1], force);
@@ -2487,7 +2487,6 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          printf("MIDAS version:      %s\n", cm_get_version());
          printf("GIT revision:       %s\n", cm_get_revision());
          printf("ODB version:        %d\n", DATABASE_VERSION);
-         printf("Maximum event size: %1.1lf MB\n", MAX_EVENT_SIZE/1024.0/1024.0);
       }
 
       /* exec */
