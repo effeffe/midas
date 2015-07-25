@@ -130,13 +130,6 @@ CXX = g++ $(USERFLAGS)
 CFLAGS = -g -O2 -Wall -Wno-strict-aliasing -Wuninitialized -I$(INC_DIR) -I$(DRV_DIR) -I$(MXML_DIR) -I$(MSCB_DIR)/include -DHAVE_FTPLIB
 
 #-----------------------
-# Ovevwrite MAX_EVENT_SIZE with environment variable
-#
-ifdef MIDAS_MAX_EVENT_SIZE
-CFLAGS += -DMAX_EVENT_SIZE=$(MIDAS_MAX_EVENT_SIZE)
-endif
-
-#-----------------------
 # Cross-compilation, change GCC_PREFIX
 #
 ifeq ($(OSTYPE),crosscompile)
