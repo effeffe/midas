@@ -4537,9 +4537,34 @@ INT cm_execute(const char *command, char *result, INT bufsize)
    char str[256];
    INT n;
    int fh;
+   static int check_cm_execute = 1;
+   static int enable_cm_execute = 0;
 
    if (rpc_is_remote())
       return rpc_call(RPC_CM_EXECUTE, command, result, bufsize);
+
+   if (check_cm_execute) {
+      int status;
+      int size;
+      HNDLE hDB;
+      check_cm_execute = 0;
+
+      status = cm_get_experiment_database(&hDB, NULL);
+      assert(status == DB_SUCCESS);
+
+      size = sizeof(enable_cm_execute);
+      status = db_get_value(hDB, 0, "/Experiment/Enable cm_execute", &enable_cm_execute, &size, TID_BOOL, TRUE);
+      assert(status == DB_SUCCESS);
+
+      //printf("enable_cm_execute %d\n", enable_cm_execute);
+   }
+
+   if (!enable_cm_execute) {
+      char buf[32];
+      strlcpy(buf, command, sizeof(buf));
+      cm_msg(MERROR, "cm_execute", "cm_execute(%s...) is disabled by ODB \"/Experiment/Enable cm_execute\"", buf);
+      return CM_WRONG_PASSWORD;
+   }
 
    if (bufsize > 0) {
       strcpy(str, command);
