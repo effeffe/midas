@@ -1319,7 +1319,7 @@ void watch_callback(HNDLE hDB, HNDLE hKey, INT index)
 
 int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 {
-   INT status = 0, i, j, k, state, size, old_run_number, new_run_number;
+   INT status = 0, i, k, state, size, old_run_number, new_run_number;
    char line[2000], prompt[256];
    char param[10][2000];
    char str[2000], str2[80], name[256], *pc, data_str[256];
@@ -1435,7 +1435,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          /* parse options */
          for (i = 1; i < 4; i++)
             if (param[i][0] == '-') {
-               for (j = 1; param[i][j] != ' ' && param[i][j]; j++) {
+               for (int j = 1; param[i][j] != ' ' && param[i][j]; j++) {
                   if (param[i][j] == 'l')
                      print_info.flags |= PI_LONG;
                   if (param[i][j] == 'r')
@@ -1549,6 +1549,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          /* check if array */
 
          k = -1;
+         int j = 0;
          if (str[strlen(str) - 1] == ']') {
             if (strchr(str, '[')) {
                j = atoi(strchr(str, '[') + 1);
@@ -2173,13 +2174,13 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                   size = sizeof(name);
                   db_get_value(hDB, hSubkey, "Name", name, &size, TID_STRING, TRUE);
                   printf("%s", name);
-                  for (j = 0; j < 20 - (int) strlen(name); j++)
+                  for (int j = 0; j < 20 - (int) strlen(name); j++)
                      printf(" ");
 
                   size = sizeof(str);
                   db_get_value(hDB, hSubkey, "Host", str, &size, TID_STRING, TRUE);
                   printf("%s", str);
-                  for (j = 0; j < 20 - (int) strlen(str); j++)
+                  for (int j = 0; j < 20 - (int) strlen(str); j++)
                      printf(" ");
 
                   /* display optional watchdog info */
@@ -2251,7 +2252,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                         if (status != DB_SUCCESS)
                            continue;
 
-                        for (j = 0; j < key.num_values; j++) {
+                        for (int j = 0; j < key.num_values; j++) {
                            db_sprintf(data_str, data, key.item_size, j, key.type);
                            sprintf(prompt, "%s : ", str);
 
