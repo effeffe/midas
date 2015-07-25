@@ -2814,8 +2814,10 @@ int log_create_writer(LOG_CHN *log_chn)
       }
 
       if (wri) {
+#ifdef HAVE_ZLIB
          if (0)
             wri = new WriterCRC32Zlib(log_chn, wri);
+#endif
          log_chn->writer_class = (void*)wri;
       }
    }
