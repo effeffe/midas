@@ -2202,8 +2202,10 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
    /* register server to be able to be called by other clients */
    status = cm_register_server();
-   if (status != CM_SUCCESS)
+   if (status != CM_SUCCESS) {
+      cm_msg(MERROR, "cm_connect_experiment", "Cannot register RPC server, cm_register_server() status %d", status);
       return status;
+   }
 
    /* set watchdog timeout */
    cm_get_watchdog_params(&call_watchdog, &watchdog_timeout);
@@ -2936,11 +2938,27 @@ INT cm_register_server(void)
 
 \********************************************************************/
 {
-   INT status, port;
-   HNDLE hDB, hKey;
-
    if (!_server_registered) {
-      port = 0;
+      INT status;
+      int size;
+      HNDLE hDB, hKey;
+      char name[NAME_LENGTH];
+      char str[256];
+      int port = 0;
+
+      cm_get_experiment_database(&hDB, &hKey);
+
+      size = sizeof(name);
+      status = db_get_value(hDB, hKey, "Name", &name, &size, TID_STRING, FALSE);
+      assert(status == DB_SUCCESS);
+
+      strlcpy(str, "/Experiment/Security/RPC ports/", sizeof(str));
+      strlcat(str, name, sizeof(str));
+
+      size = sizeof(port);
+      status = db_get_value(hDB, 0, str, &port, &size, TID_DWORD, TRUE);
+      assert(status == DB_SUCCESS);
+
       status = rpc_register_server(ST_REMOTE, NULL, &port, NULL);
       if (status != RPC_SUCCESS)
          return status;
@@ -2950,7 +2968,6 @@ INT cm_register_server(void)
       rpc_register_functions(rpc_get_internal_list(1), NULL);
 
       /* store port number in ODB */
-      cm_get_experiment_database(&hDB, &hKey);
 
       status = db_find_key(hDB, hKey, "Server Port", &hKey);
       if (status != DB_SUCCESS)
@@ -11718,8 +11735,7 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
    /* create a socket for listening */
    _lsock = socket(AF_INET, SOCK_STREAM, 0);
    if (_lsock == -1) {
-      cm_msg(MERROR, "rpc_register_server", "socket(AF_INET, SOCK_STREAM) failed, errno %d (%s)", errno,
-             strerror(errno));
+      cm_msg(MERROR, "rpc_register_server", "socket(AF_INET, SOCK_STREAM) failed, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
@@ -11727,8 +11743,7 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 #if defined(F_SETFD) && defined(FD_CLOEXEC)
    status = fcntl(_lsock, F_SETFD, fcntl(_lsock, F_GETFD) | FD_CLOEXEC);
    if (status < 0) {
-      cm_msg(MERROR, "rpc_register_server", "fcntl(F_SETFD, FD_CLOEXEC) failed, errno %d (%s)", errno,
-             strerror(errno));
+      cm_msg(MERROR, "rpc_register_server", "fcntl(F_SETFD, FD_CLOEXEC) failed, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 #endif
@@ -11737,8 +11752,7 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
    flag = 1;
    status = setsockopt(_lsock, SOL_SOCKET, SO_REUSEADDR, (char *) &flag, sizeof(INT));
    if (status < 0) {
-      cm_msg(MERROR, "rpc_register_server", "setsockopt(SO_REUSEADDR) failed, errno %d (%s)", errno,
-             strerror(errno));
+      cm_msg(MERROR, "rpc_register_server", "setsockopt(SO_REUSEADDR) failed, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
@@ -11759,7 +11773,7 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 
    status = bind(_lsock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
    if (status < 0) {
-      cm_msg(MERROR, "rpc_register_server", "bind() failed, errno %d (%s)", errno, strerror(errno));
+      cm_msg(MERROR, "rpc_register_server", "bind() to port %d failed, errno %d (%s)", ntohs(bind_addr.sin_port), errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
