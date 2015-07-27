@@ -1917,7 +1917,7 @@ usage:
   cm_disconnect_experiment();
 }
 \endcode
-@param host_name           Contents of MIDAS_SERVER_HOST environment variable.
+@param host_name          Contents of MIDAS_SERVER_HOST environment variable.
 @param host_name_size     string length
 @param exp_name           Contents of MIDAS_EXPT_NAME environment variable.
 @param exp_name_size      string length
@@ -1925,12 +1925,15 @@ usage:
 */
 INT cm_get_environment(char *host_name, int host_name_size, char *exp_name, int exp_name_size)
 {
-   host_name[0] = exp_name[0] = 0;
+   if (host_name)
+      host_name[0] = 0;
+   if (exp_name)
+      exp_name[0] = 0;
 
-   if (getenv("MIDAS_SERVER_HOST"))
+   if (host_name && getenv("MIDAS_SERVER_HOST"))
       strlcpy(host_name, getenv("MIDAS_SERVER_HOST"), host_name_size);
 
-   if (getenv("MIDAS_EXPT_NAME"))
+   if (exp_name && getenv("MIDAS_EXPT_NAME"))
       strlcpy(exp_name, getenv("MIDAS_EXPT_NAME"), exp_name_size);
 
    return CM_SUCCESS;
@@ -10133,7 +10136,7 @@ INT rpc_set_name(const char *name)
 
 \********************************************************************/
 {
-   strcpy(_client_name, name);
+   strlcpy(_client_name, name, sizeof(_client_name));
 
    return RPC_SUCCESS;
 }
