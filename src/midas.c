@@ -169,7 +169,9 @@ static INT _watchdog_last_called = 0;
 
 int _rpc_connect_timeout = 10000;
 
-static int bind_rpc_to_localhost = 1;
+// for use on a single machine it is best to restrict RPC access to localhost
+// by binding the RPC listener socket to the localhost IP address.
+static int disable_bind_rpc_to_localhost = 0;
 
 /* table for transition functions */
 
@@ -2155,12 +2157,12 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       return status;
    }
 
-   size = sizeof(bind_rpc_to_localhost);
-   status = db_get_value(hDB, 0, "/Experiment/Bind RPC to localhost", &bind_rpc_to_localhost, &size, TID_BOOL, TRUE);
+   size = sizeof(disable_bind_rpc_to_localhost);
+   status = db_get_value(hDB, 0, "/Experiment/Security/Enable non-localhost RPC", &disable_bind_rpc_to_localhost, &size, TID_BOOL, TRUE);
    assert(status == DB_SUCCESS);
 
    /* now setup client info */
-   if (bind_rpc_to_localhost)
+   if (!disable_bind_rpc_to_localhost)
       strlcpy(local_host_name, "localhost", sizeof(local_host_name));
    else
       gethostname(local_host_name, sizeof(local_host_name));
@@ -3000,7 +3002,7 @@ INT cm_register_server(void)
          int i, size;
          size = sizeof(i);
          i = 0;
-         status = db_get_value(hDB, 0, "/Experiment/Security/Disable RPC host access control list", &i, &size, TID_BOOL, TRUE);
+         status = db_get_value(hDB, 0, "/Experiment/Security/Disable RPC hosts check", &i, &size, TID_BOOL, TRUE);
          assert(status == DB_SUCCESS);
 
          if (i)
@@ -11784,7 +11786,7 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
    memset(&bind_addr, 0, sizeof(bind_addr));
    bind_addr.sin_family = AF_INET;
 
-   if (bind_rpc_to_localhost) {
+   if (!disable_bind_rpc_to_localhost) {
       bind_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
    } else {
       bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
