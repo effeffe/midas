@@ -2987,11 +2987,32 @@ INT cm_register_server(void)
       /* lock database */
       db_set_mode(hDB, hKey, MODE_READ, TRUE);
 
-      db_find_key(hDB, 0, "/Experiment/Security/rpc hosts", &hKey); 
-      if (hKey) {
+      status = db_find_key(hDB, 0, "/Experiment/Security/RPC hosts", &hKey);
+      if (status != DB_SUCCESS) {
+         int i, size;
+         size = sizeof(i);
+         i = 0;
+         status = db_get_value(hDB, 0, "/Experiment/Security/RPC hosts/localhost", &i, &size, TID_INT, TRUE);
+         assert(status == DB_SUCCESS);
+      }
+
+      if (status == DB_SUCCESS) {
+         int i, size;
+         size = sizeof(i);
+         i = 0;
+         status = db_get_value(hDB, 0, "/Experiment/Security/Disable RPC host access control list", &i, &size, TID_BOOL, TRUE);
+         assert(status == DB_SUCCESS);
+
+         if (i)
+            hKey = 0;
+         else
+            status = db_find_key(hDB, 0, "/Experiment/Security/RPC hosts", &hKey);
+      }
+
+      if (status == DB_SUCCESS && hKey) {
          int i;
          //printf("clear rpc hosts!\n");
-         rpc_clear_allowed_hosts();
+         //rpc_clear_allowed_hosts();
          for (i = 0;; i++) { 
             HNDLE hSubkey;
             KEY key;
@@ -12556,6 +12577,8 @@ INT rpc_add_allowed_host(const char* hostname)
    if (n_allowed_hosts >= MAX_N_ALLOWED_HOSTS)
       return RPC_NO_MEMORY;
 
+   //cm_msg(MINFO, "rpc_add_allowed_host", "Adding allowed host \'%s\'", hostname); 
+
    strlcpy(allowed_host[n_allowed_hosts++], hostname, sizeof(allowed_host[0]));
    return RPC_SUCCESS;
 }
@@ -12664,7 +12687,7 @@ INT rpc_server_accept(int lsock)
             if (max_report == 0) 
                cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\', this message will no longer be reported", hname); 
             else 
-               cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\'", hname); 
+               cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\'. Add this host to \"/Experiment/Security/RPC hosts\"", hname); 
          } 
          closesocket(sock);
          return RPC_NET_ERROR;
@@ -12987,7 +13010,7 @@ INT rpc_client_accept(int lsock)
             if (max_report == 0)
                cm_msg(MERROR, "rpc_client_accept", "rejecting connection from unallowed host \'%s\', this message will no longer be reported", hname);
             else
-               cm_msg(MERROR, "rpc_client_accept", "rejecting connection from unallowed host \'%s\'", hname);
+               cm_msg(MERROR, "rpc_client_accept", "rejecting connection from unallowed host \'%s\'. Add this host to \"/Experiment/Security/RPC hosts\"", hname);
          }
          closesocket(sock); 
          return RPC_NET_ERROR; 
