@@ -2057,6 +2057,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    char local_host_name[HOST_NAME_LENGTH];
    char client_name1[NAME_LENGTH];
    char password[NAME_LENGTH], str[256], exp_name1[NAME_LENGTH];
+   char xclient_name[NAME_LENGTH];
    HNDLE hDB, hKeyClient;
    BOOL call_watchdog;
 
@@ -2223,10 +2224,13 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    if (strchr(local_host_name, '.'))
       *strchr(local_host_name, '.') = 0;
 
+   /* get final client name */
+   rpc_get_name(xclient_name);
+
    /* startup message is not displayed */
    _message_print = NULL;
 
-   cm_msg(MINFO, "cm_connect_experiment", "Program %s on host %s started", client_name, local_host_name);
+   cm_msg(MINFO, "cm_connect_experiment", "Program %s on host %s started", xclient_name, local_host_name);
 
    /* enable system and user messages to stdout as default */
    cm_set_msg_print(MT_ALL, MT_ALL, puts);
@@ -2496,9 +2500,14 @@ INT cm_disconnect_experiment(void)
 
    /* send shutdown notification */
    rpc_get_name(client_name);
-   gethostname(local_host_name, sizeof(local_host_name));
-   if (strchr(local_host_name, '.'))
-      *strchr(local_host_name, '.') = 0;
+
+   if (!disable_bind_rpc_to_localhost)
+      strlcpy(local_host_name, "localhost", sizeof(local_host_name));
+   else {
+      gethostname(local_host_name, sizeof(local_host_name));
+      if (strchr(local_host_name, '.'))
+         *strchr(local_host_name, '.') = 0;
+   }
 
    /* disconnect message not displayed */
    _message_print = NULL;
