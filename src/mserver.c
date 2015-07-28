@@ -339,7 +339,12 @@ int main(int argc, char **argv)
       rpc_register_functions(rpc_get_internal_list(1), rpc_server_dispatch);
 
       /* run forever */
-      while (ss_suspend(5000, 0) != RPC_SHUTDOWN);
+      while (1) {
+         status = cm_yield(5000);
+         //printf("status %d\n", status);
+         if (status == RPC_SHUTDOWN)
+            break;
+      }
    } else {
 
       /* here we come if this program is started as a subprocess */
