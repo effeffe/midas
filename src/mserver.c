@@ -89,20 +89,36 @@ int odb_configure(const char* expt_name, int* port)
    int status;
    int size;
    HNDLE hDB;
+   HNDLE hClient;
 
    /* connect to experiment */
    status = cm_connect_experiment(NULL, expt_name, "mserver", 0);
    if (status != CM_SUCCESS)
       return status;
 
-   status = cm_get_experiment_database(&hDB, NULL);
+   status = cm_get_experiment_database(&hDB, &hClient);
    assert(status == CM_SUCCESS);
+
+   if (1) {
+      int v;
+
+      status = db_set_mode(hDB, hClient, MODE_READ|MODE_WRITE, TRUE);
+      assert(status == DB_SUCCESS);
+
+      v = 0;
+      size = sizeof(v);
+      status = db_set_value(hDB, hClient, "Server Port", &v, size, 1, TID_INT);
+      assert(status == DB_SUCCESS);
+
+      status = db_set_mode(hDB, hClient, MODE_READ, TRUE);
+      assert(status == DB_SUCCESS);
+   }
 
    if (port) {
       int odb_port = MIDAS_TCP_PORT;
       size = sizeof(odb_port);
       status = db_get_value(hDB, 0, "/Experiment/Midas server port", &odb_port, &size, TID_DWORD, TRUE);
-      assert(status == CM_SUCCESS);
+      assert(status == DB_SUCCESS);
 
       if (*port == 0)
          *port = odb_port;
