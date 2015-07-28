@@ -304,6 +304,12 @@ int main(int argc, char **argv)
          rpc_debug_printf("Debugging mode is on");
       }
 
+      /* become a daemon */
+      if (daemon) {
+         printf("Becoming a daemon...\n");
+         ss_daemon_init(FALSE);
+      }
+
       odb_configure(expt_name, &port);
 
       if (port == 0)
@@ -320,12 +326,6 @@ int main(int argc, char **argv)
 
          printf("NOTE: THE MULTI THREADED SERVER IS BUGGY, ONLY USE IT FOR TEST PURPOSES\n");
          printf("Multi thread server started\n");
-      }
-
-      /* become a daemon */
-      if (daemon) {
-         printf("Becoming a daemon...\n");
-         ss_daemon_init(FALSE);
       }
 
       /* register server */
