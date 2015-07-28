@@ -361,6 +361,8 @@ int main(int argc, char **argv)
          if (status == RPC_SHUTDOWN)
             break;
       }
+
+      cm_disconnect_experiment();
    } else {
 
       /* here we come if this program is started as a subprocess */
