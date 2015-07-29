@@ -653,7 +653,7 @@ $(BIN_DIR)/fetest: $(UTL_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/crc32c: $(SRC_DIR)/crc32c.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -DTEST -o $@ $^
+	$(CC) $(CFLAGS) $(OSFLAGS) -DTEST -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/mfe_link_test: $(SRC_DIR)/mfe.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mfe.c $(LIB) $(LIBS)
