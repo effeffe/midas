@@ -370,6 +370,8 @@ endif
 OBJS =  $(LIB_DIR)/midas.o $(LIB_DIR)/system.o $(LIB_DIR)/mrpc.o \
 	$(LIB_DIR)/odb.o $(LIB_DIR)/ftplib.o \
 	$(LIB_DIR)/crc32c.o \
+	$(LIB_DIR)/sha256.o \
+	$(LIB_DIR)/sha512.o \
 	$(LIB_DIR)/mxml.o \
 	$(LIB_DIR)/mjson.o \
 	$(LIB_DIR)/json_paste.o \
