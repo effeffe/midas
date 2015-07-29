@@ -688,10 +688,20 @@ int eval_condition(const char *condition)
    if (!eval_var(value2_str, value2_var, sizeof(value2_var)))
       return -1;
    for (i=0 ; i<(int)strlen(value1_var) ; i++)
-      if (isdigit(value1_var[i]))
+      if (!isdigit(value1_var[i]))
          break;
-   if (i == (int)strlen(value1_var))
+   if (i < (int)strlen(value1_var)) {
+      // string comparison
+      if (strcmp(op, "=") == 0)
+         if (equal_ustring(value1_var, value2_var)) return 1;
+      if (strcmp(op, "==") == 0)
+         if (equal_ustring(value1_var, value2_var)) return 1;
+      if (strcmp(op, "!=") == 0)
+         if (!equal_ustring(value1_var, value2_var)) return 1;
       return -1;
+   }
+   
+   // numberic comparison
    for (i=0 ; i<(int)strlen(value2_var) ; i++)
       if (isdigit(value2_var[i]))
          break;
@@ -1173,7 +1183,8 @@ void show_seq_page()
    rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
    
    if (!equal_ustring(getparam("cmd"), "Load Script") && !isparam("fs") &&
-       !equal_ustring(getparam("cmd"), "Edit Script"))
+       !equal_ustring(getparam("cmd"), "Edit Script") &&
+       !equal_ustring(getparam("cmd"), "New Script"))
       rsprintf("<meta http-equiv=\"Refresh\" content=\"60\">\n");
    
    /* update script */
