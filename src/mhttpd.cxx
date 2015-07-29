@@ -124,6 +124,8 @@ const Filetype filetype[] = {
    ".JS",  "application/javascript"}, {
 ""},};
 
+#define HTTP_ENCODING "UTF-8"
+
 /*------------------------------------------------------------------*/
 
 const unsigned char favicon_png[] = {
@@ -831,9 +833,9 @@ void redirect(const char *path)
       strcpy(str, "./");
 
    /* redirect */
-   rsprintf("HTTP/1.0 302 Found\r\n");
+   rsprintf("HTTP/1.1 302 Found\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n");
+   rsprintf("Content-Type: text/html; charset=%s\r\n", HTTP_ENCODING);
 
    if (strncmp(path, "http:", 5) == 0)
       rsprintf("Location: %s\r\n\r\n<html>redir</html>\r\n", str);
@@ -1127,11 +1129,11 @@ void show_header(const char *title, const char *method, const char *path, int re
    cm_get_experiment_database(&hDB, NULL);
 
    /* header */
-   rsprintf("HTTP/1.0 200 Document follows\r\n");
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Pragma: no-cache\r\n");
+   rsprintf("Cache-control: private, max-age=0, no-cache\r\n");
    rsprintf("Expires: Fri, 01 Jan 1983 00:00:00 GMT\r\n");
-   rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
+   rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    rsprintf("<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">\n");
    rsprintf("<html><head>\n");
@@ -1174,12 +1176,12 @@ void show_header(const char *title, const char *method, const char *path, int re
 
 void show_text_header()
 {
-   rsprintf("HTTP/1.0 200 Document follows\r\n");
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
    rsprintf("Access-Control-Allow-Origin: *\r\n");
-   rsprintf("Pragma: no-cache\r\n");
+   rsprintf("Cache-control: private, max-age=0, no-cache\r\n");
    rsprintf("Expires: Fri, 01 Jan 1983 00:00:00 GMT\r\n");
-   rsprintf("Content-Type: text/plain; charset=iso-8859-1\r\n\r\n");
+   rsprintf("Content-Type: text/plain; charset=%s\r\n\r\n", HTTP_ENCODING);
 }
 
 /*------------------------------------------------------------------*/
@@ -1187,9 +1189,9 @@ void show_text_header()
 void show_error(const char *error)
 {
    /* header */
-   rsprintf("HTTP/1.0 200 Document follows\r\n");
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
+   rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
@@ -1386,7 +1388,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    expand = FALSE;
    if (isparam("expand")) {
       expand = (BOOL)atoi(getparam("expand"));
-      rsprintf("HTTP/1.0 302 Found\r\n");
+      rsprintf("HTTP/1.1 302 Found\r\n");
       rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
 
       time(&now);
@@ -1435,8 +1437,8 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    /* header */
    rsprintf("HTTP/1.1 200 OK\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n");
-   rsprintf("Pragma: no-cache\r\n");
+   rsprintf("Content-Type: text/html; charset=%s\r\n", HTTP_ENCODING);
+   rsprintf("Cache-control: private, max-age=0, no-cache\r\n");
    rsprintf("Expires: Fri, 01-Jan-1983 00:00:00 GMT\r\n");
    if (cookie_wpwd[0]) {
       time(&now);
@@ -2489,9 +2491,9 @@ void show_elog_new(const char *path, BOOL bedit, const char *odb_att, const char
    }
 
    /* header */
-   rsprintf("HTTP/1.0 200 Document follows\r\n");
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
+   rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
@@ -2742,9 +2744,9 @@ void show_elog_query()
                 TRUE);
 
    /* header */
-   rsprintf("HTTP/1.0 200 Document follows\r\n");
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
+   rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
@@ -2987,9 +2989,9 @@ void show_elog_submit_query(INT last_n)
 
 #if 0
    /* header */
-   rsprintf("HTTP/1.0 200 Document follows\r\n");
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
+   rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
@@ -3434,9 +3436,9 @@ void show_rawfile(const char *path)
       lines *= 2;
 
    /* header */
-   rsprintf("HTTP/1.0 200 Document follows\r\n");
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
+   rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
@@ -3568,9 +3570,9 @@ void show_form_query()
    cm_get_experiment_database(&hDB, NULL);
 
    /* header */
-   rsprintf("HTTP/1.0 200 Document follows\r\n");
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
+   rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
@@ -3799,9 +3801,9 @@ void submit_elog()
 
    /* check for author */
    if (*getparam("author") == 0) {
-      rsprintf("HTTP/1.0 200 Document follows\r\n");
+      rsprintf("HTTP/1.1 200 Document follows\r\n");
       rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-      rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
+      rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
       rsprintf("<html><head>\n");
       rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
@@ -3876,9 +3878,9 @@ void submit_elog()
             unsetparam("width");
             unsetparam("index");
          } else {
-            rsprintf("HTTP/1.0 200 Document follows\r\n");
+            rsprintf("HTTP/1.1 200 Document follows\r\n");
             rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-            rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
+            rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
             rsprintf("<html><head>\n");
             rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
@@ -4001,7 +4003,7 @@ void submit_elog()
          buffer[i] = NULL;
       }
 
-   rsprintf("HTTP/1.0 302 Found\r\n");
+   rsprintf("HTTP/1.1 302 Found\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
 
    if (mail_param[0])
@@ -4022,9 +4024,9 @@ void submit_form()
 
    /* check for author */
    if (*getparam("author") == 0) {
-      rsprintf("HTTP/1.0 200 Document follows\r\n");
+      rsprintf("HTTP/1.1 200 Document follows\r\n");
       rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-      rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
+      rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
       rsprintf("<html><head>\n");
       rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
@@ -4288,7 +4290,7 @@ void show_elog_page(char *path, int path_size)
          length = TELL(fh);
          lseek(fh, 0, SEEK_SET);
 
-         rsprintf("HTTP/1.0 200 Document follows\r\n");
+         rsprintf("HTTP/1.1 200 Document follows\r\n");
          rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
          rsprintf("Accept-Ranges: bytes\r\n");
 
@@ -5768,7 +5770,7 @@ void show_custom_file(const char *name)
    lseek(fh, 0, SEEK_SET);
 
    /* return audio file */
-   rsprintf("HTTP/1.0 200 Document follows\r\n");
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
 
    /* return proper header for file type */
@@ -6130,12 +6132,12 @@ void show_custom_gif(const char *name)
    gdImageDestroy(im);
    length = gb.size;
 
-   rsprintf("HTTP/1.0 200 Document follows\r\n");
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
 
    rsprintf("Content-Type: image/gif\r\n");
    rsprintf("Content-Length: %d\r\n", length);
-   rsprintf("Pragma: no-cache\r\n");
+   rsprintf("Cache-control: private, max-age=0, no-cache\r\n");
    rsprintf("Expires: Fri, 01-Jan-1983 00:00:00 GMT\r\n\r\n");
 
    rmemcpy(gb.data, length);
@@ -6327,7 +6329,7 @@ void do_jrpc_rev1()
    std::string reply_header;
    std::string reply_body;
 
-   //rsprintf("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n");
+   //rsprintf("<?xml version=\"1.0\" encoding=\"%s\"?>\n", HTTP_ENCODING);
    //rsprintf("<!-- created by MHTTPD on (timestamp) -->\n");
    //rsprintf("<jrpc_rev1>\n");
    //rsprintf("  <rpc>%d</rpc>\n", rpc);
@@ -6870,7 +6872,7 @@ void javascript_commands(const char *cookie_cpwd)
             rsputs("(");
          }
          if (fmt_xml) {
-            rsputs("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n");
+            rsprintf("<?xml version=\"1.0\" encoding=\"%s\"?>\n", HTTP_ENCODING);
             rsputs("<jcopy>\n");
             rsputs("<data>\n");
          } else if (fmt_json)
@@ -7701,9 +7703,9 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
       }
 
       /* HTTP header */
-      rsprintf("HTTP/1.0 200 Document follows\r\n");
+      rsprintf("HTTP/1.1 200 Document follows\r\n");
       rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-      rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
+      rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
       /* interprete text, replace <odb> tags with ODB values */
       p = ps = ctext;
@@ -7781,9 +7783,9 @@ void show_cnaf_page()
    }
 
    /* header */
-   rsprintf("HTTP/1.0 200 Document follows\r\n");
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
+   rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
@@ -8791,9 +8793,9 @@ mscb_error:
 
 void show_password_page(const char *password, const char *experiment)
 {
-   rsprintf("HTTP/1.0 200 Document follows\r\n");
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
+   rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
@@ -8843,9 +8845,9 @@ BOOL check_web_password(const char *password, const char *redir, const char *exp
          return TRUE;
 
       /* show web password page */
-      rsprintf("HTTP/1.0 200 Document follows\r\n");
+      rsprintf("HTTP/1.1 200 Document follows\r\n");
       rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-      rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
+      rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
       rsprintf("<html><head>\n");
       rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
@@ -12241,12 +12243,12 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
    length = gb.size;
 
    if (buffer == NULL) {
-      rsprintf("HTTP/1.0 200 Document follows\r\n");
+      rsprintf("HTTP/1.1 200 Document follows\r\n");
       rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
 
       rsprintf("Content-Type: image/gif\r\n");
       rsprintf("Content-Length: %d\r\n", length);
-      rsprintf("Pragma: no-cache\r\n");
+      rsprintf("Cache-control: private, max-age=0, no-cache\r\n");
       rsprintf("Expires: Fri, 01-Jan-1983 00:00:00 GMT\r\n\r\n");
 
       rmemcpy(gb.data, length);
@@ -13561,7 +13563,7 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
    rsprintf("HTTP/1.1 200 Document follows\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
    rsprintf("Accept-Ranges: bytes\r\n");
-   rsprintf("Pragma: no-cache\r\n");
+   rsprintf("Cache-control: private, max-age=0, no-cache\r\n");
    rsprintf("Expires: Fri, 01 Jan 1983 00:00:00 GMT\r\n");
    rsprintf("Content-Type: text/plain\r\n");
    rsprintf("Content-disposition: attachment; filename=\"export.csv\"\r\n");
@@ -15332,7 +15334,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    /*---- redirect with cookie if password given --------------------*/
 
    if (password[0]) {
-      rsprintf("HTTP/1.0 302 Found\r\n");
+      rsprintf("HTTP/1.1 302 Found\r\n");
       rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
 
       time(&now);
@@ -15352,7 +15354,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       if (!check_web_password(ss_crypt(wpassword, "mi"), getparam("redir"), experiment))
          return;
 
-      rsprintf("HTTP/1.0 302 Found\r\n");
+      rsprintf("HTTP/1.1 302 Found\r\n");
       rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
 
       time(&now);
@@ -15933,9 +15935,9 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       refresh = atoi(getparam("refr"));
 
       /* redirect with cookie */
-      rsprintf("HTTP/1.0 302 Found\r\n");
+      rsprintf("HTTP/1.1 302 Found\r\n");
       rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-      rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n");
+      rsprintf("Content-Type: text/html; charset=%s\r\n", HTTP_ENCODING);
 
       time(&now);
       now += 3600 * 24 * 365;

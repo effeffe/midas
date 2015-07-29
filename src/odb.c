@@ -8145,7 +8145,8 @@ INT db_sscanf(const char *data_str, void *data, INT * data_size, INT i, DWORD ti
          *((INT *) data + i) = atol(data_str);
       break;
    case TID_BOOL:
-      if (data_str[0] == 'y' || data_str[0] == 'Y' || atoi(data_str) > 0)
+      if (data_str[0] == 'y' || data_str[0] == 'Y' ||
+          data_str[0] == 't' || data_str[0] == 'T' || atoi(data_str) > 0)
          *((BOOL *) data + i) = 1;
       else
          *((BOOL *) data + i) = 0;

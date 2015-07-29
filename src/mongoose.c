@@ -2116,7 +2116,7 @@ static int set_ssl_option(struct mg_context *ctx) {
   }
 #endif
 
-#if 1
+#ifdef EC_KEY
   {
      //
      // enable Elliptic Curve Diffie-Hellman key exchange - the ECDHE series of ciphers

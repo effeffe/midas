@@ -349,6 +349,7 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/mana_link_test \
 	$(BIN_DIR)/mjson_test \
 	$(BIN_DIR)/mcnaf    \
+	$(BIN_DIR)/crc32c   \
 	$(SPECIFIC_OS_PRG)
 
 ifdef HAVE_ROOT
@@ -368,6 +369,9 @@ endif
 
 OBJS =  $(LIB_DIR)/midas.o $(LIB_DIR)/system.o $(LIB_DIR)/mrpc.o \
 	$(LIB_DIR)/odb.o $(LIB_DIR)/ftplib.o \
+	$(LIB_DIR)/crc32c.o \
+	$(LIB_DIR)/sha256.o \
+	$(LIB_DIR)/sha512.o \
 	$(LIB_DIR)/mxml.o \
 	$(LIB_DIR)/mjson.o \
 	$(LIB_DIR)/json_paste.o \
@@ -647,6 +651,9 @@ $(BIN_DIR)/mdump: $(UTL_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx
 
 $(BIN_DIR)/fetest: $(UTL_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
+
+$(BIN_DIR)/crc32c: $(SRC_DIR)/crc32c.c
+	$(CC) $(CFLAGS) $(OSFLAGS) -DTEST -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/mfe_link_test: $(SRC_DIR)/mfe.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mfe.c $(LIB) $(LIBS)
