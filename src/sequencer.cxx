@@ -70,6 +70,10 @@ typedef struct {
    char  subdir[256];
    int   subdir_end_line;
    int   subdir_not_notify;
+   int   if_index;
+   int   if_line[4];
+   int   if_else_line[4];
+   int   if_endif_line[4];
    int   stack_index;
    int   subroutine_end_line[4];
    int   subroutine_return_line[4];
@@ -132,6 +136,22 @@ typedef struct {
 "Subdir = STRING : [256] ",\
 "Subdir end line = INT : 0",\
 "Subdir not notify = INT : 0",\
+"If index = INT : 0",\
+"If line = INT[4] :",\
+"[0] 0",\
+"[1] 0",\
+"[2] 0",\
+"[3] 0",\
+"If else line = INT[4] :",\
+"[0] 0",\
+"[1] 0",\
+"[2] 0",\
+"[3] 0",\
+"If endif line = INT[4] :",\
+"[0] 0",\
+"[1] 0",\
+"[2] 0",\
+"[3] 0",\
 "Stack index = INT : 0",\
 "Subroutine end line = INT[4] :",\
 "[0] 0",\
@@ -408,7 +428,14 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
             fprintf(fout, "<Goto l=\"%d\" sline=\"%s\" />\n", line+1, list[1]);
             
          } else if (equal_ustring(list[0], "if")) {
-            fprintf(fout, "<If l=\"%d\" condition=\"%s\">\n", line+1, list[1]);
+            fprintf(fout, "<If l=\"%d\" condition=\"", line+1);
+            for (i=1 ; i<100 && list[i][0] && stricmp(list[i], "THEN") != 0 ; i++)
+               fprintf(fout, "%s", list[i]);
+            fprintf(fout, "\">\n");
+
+         } else if (equal_ustring(list[0], "else")) {
+            fprintf(fout, "<Else />\n");
+            
          } else if (equal_ustring(list[0], "endif")) {
             fprintf(fout, "</If>\n");
             
@@ -1044,6 +1071,8 @@ void show_seq_page()
             seq.loop_n[i] = 0;
          }
          for (i=0 ; i<4 ; i++) {
+            seq.if_else_line[i] = 0;
+            seq.if_endif_line[i] = 0;
             seq.subroutine_end_line[i] = 0;
             seq.subroutine_return_line[i] = 0;
             seq.subroutine_call_line[i] = 0;
@@ -1052,6 +1081,7 @@ void show_seq_page()
          }
          seq.current_line_number = 1;
          seq.scurrent_line_number = 1;
+         seq.if_index = 0;
          seq.stack_index = 0;
          seq.error[0] = 0;
          seq.error_line = 0;
@@ -1948,10 +1978,10 @@ void show_seq_page()
 
 void sequencer()
 {
-   PMXML_NODE pn, pr, pt;
+   PMXML_NODE pn, pr, pt, pe;
    char odbpath[256], value[256], data[256], str[256], str1[256], name[32], op[32];
    char list[100][NAME_LENGTH], *pc;
-   int i, l, n, status, size, index, index1, index2, last_line, state, run_number, cont;
+   int i, j, l, n, status, size, index, index1, index2, last_line, state, run_number, cont;
    HNDLE hDB, hKey, hKeySeq;
    KEY key;
    double d;
@@ -2031,6 +2061,15 @@ void sequencer()
          db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
          return;
       }
+   }
+   
+   /* check for end of "if" statement */
+   if (seq.if_index > 0 && seq.current_line_number == seq.if_endif_line[seq.if_index-1]) {
+      seq.if_index --;
+      seq.if_line[seq.if_index] = 0;
+      seq.if_else_line[seq.if_index] = 0;
+      seq.if_endif_line[seq.if_index] = 0;
+      seq.current_line_number++;
    }
    
    /* check for ODBSubdir end */
@@ -2190,7 +2229,10 @@ void sequencer()
             size = sizeof(data);
 
             status = db_get_data_index(hDB, hKey, data, &size, index1, key.type);
-            db_sprintf(value, data, size, 0, key.type);
+            if (key.type == TID_BOOL)
+               strlcpy(value, *((int*)data) > 0 ? "1" : "0", sizeof(value));
+            else
+               db_sprintf(value, data, size, 0, key.type);
             
             sprintf(str, "/Sequencer/Variables/%s", name);
             size = strlen(value)+1;
@@ -2385,12 +2427,12 @@ void sequencer()
                db_get_key(hDB, hKey, &key);
                size = sizeof(data);
                db_get_data_index(hDB, hKey, data, &size, index, key.type);
-               db_sprintf(str, data, size, 0, key.type);
-               cont = FALSE;
                if (key.type == TID_BOOL)
-                  seq.wait_value = (float)(str[0] == 'y');
+                  strlcpy(str, *((int*)data) > 0 ? "1" : "0", sizeof(str));
                else
-                  seq.wait_value = (float)atof(str);
+                  db_sprintf(str, data, size, 0, key.type);
+               cont = FALSE;
+               seq.wait_value = (float)atof(str);
                if (equal_ustring(op, ">=")) {
                   cont = (seq.wait_value >= seq.wait_limit);
                } else if (equal_ustring(op, ">")) {
@@ -2494,16 +2536,50 @@ void sequencer()
    
    /*---- If ----*/
    else if (equal_ustring(mxml_get_name(pn), "If")) {
+      
+      if (seq.if_index == 4) {
+         seq_error("Maximum number of nexted if..endif exceeded");
+         return;
+      }
+      
+      // store if, else and endif lines
+      seq.if_line[seq.if_index] = seq.current_line_number;
+      seq.if_endif_line[seq.if_index] = mxml_get_line_number_end(pn);
+
+      seq.if_else_line[seq.if_index] = 0;
+      for (j=seq.current_line_number+1 ; j<mxml_get_line_number_end(pn)+1 ; j++) {
+         pe = mxml_get_node_at_line(pnseq, j);
+         if (pe && equal_ustring(mxml_get_name(pe), "Else")) {
+            seq.if_else_line[seq.if_index] = j;
+            break;
+         }
+      }
+      
       strlcpy(str, mxml_get_attribute(pn, "condition"), sizeof(str));
       i = eval_condition(str);
       if (i < 0) {
          seq_error("Invalid number in comparison");
          return;
       }
+      
       if (i == 1)
          seq.current_line_number++;
+      else if (seq.if_else_line[seq.if_index])
+         seq.current_line_number = seq.if_else_line[seq.if_index]+1;
       else
-         seq.current_line_number = mxml_get_line_number_end(pn) + 1;
+         seq.current_line_number = seq.if_endif_line[seq.if_index];
+      
+      seq.if_index++;
+   }
+
+   /*---- Else ----*/
+   else if (equal_ustring(mxml_get_name(pn), "Else")) {
+      // goto next "Endif"
+      if (seq.if_index == 0) {
+         seq_error("Unexpected Else");
+         return;
+      }
+      seq.current_line_number = seq.if_endif_line[seq.if_index-1];
    }
 
    /*---- Goto ----*/
