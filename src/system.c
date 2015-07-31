@@ -35,9 +35,6 @@ The Midas System file
  *
  *  @{  */
 
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
-
 #include <stdio.h>
 #include <math.h>
 
@@ -1907,9 +1904,6 @@ BOOL ss_existpid(INT pid)
 }
 
 
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
-
 /********************************************************************/
 /**
 Execute command in a separate process, close all open file descriptors
@@ -1942,9 +1936,6 @@ INT ss_system(const char *command)
 
 #endif
 }
-
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /*------------------------------------------------------------------*/
 INT ss_exec(const char *command, INT * pid)
@@ -2017,9 +2008,6 @@ INT ss_exec(const char *command, INT * pid)
 
    return SS_SUCCESS;
 }
-
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
 /********************************************************************/
 /**
@@ -2167,9 +2155,6 @@ INT ss_thread_kill(midas_thread_t thread_id)
 
 #endif
 }
-
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /*------------------------------------------------------------------*/
 static INT skip_semaphore_handle = -1;
@@ -2919,9 +2904,6 @@ INT ss_mutex_delete(MUTEX_T *mutex)
 #endif                          /* OS_UNIX */
 }
 
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
-
 /********************************************************************/
 /**
 Returns the actual time in milliseconds with an arbitrary
@@ -3022,9 +3004,6 @@ DWORD ss_time()
 #endif
    return (DWORD) time(NULL);
 }
-
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /*------------------------------------------------------------------*/
 DWORD ss_settime(DWORD seconds)
@@ -3163,9 +3142,6 @@ void ss_cont()
 }
 #endif
 
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
-
 /********************************************************************/
 /**
 Suspend the calling process for a certain time.
@@ -3212,9 +3188,6 @@ INT ss_sleep(INT millisec)
 
    return SS_SUCCESS;
 }
-
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /*------------------------------------------------------------------*/
 BOOL ss_kbhit()
@@ -6990,9 +6963,6 @@ void ss_stack_history_dump(char *filename)
    } else
       printf("Cannot open %s: errno=%d\n", filename, errno);
 }
-
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
          /** @} *//* end of msfunctionc */
          /** @} *//* end of msystemincludecode */
