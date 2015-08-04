@@ -2015,7 +2015,7 @@ void sequencer()
    }
 
    /* check for last line of script */
-   if (seq.current_line_number >= last_line) {
+   if (seq.current_line_number > last_line) {
       seq.running = FALSE;
       seq.finished = TRUE;
       db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
@@ -2070,6 +2070,8 @@ void sequencer()
       seq.if_else_line[seq.if_index] = 0;
       seq.if_endif_line[seq.if_index] = 0;
       seq.current_line_number++;
+      db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
+      return;
    }
    
    /* check for ODBSubdir end */
@@ -2183,6 +2185,7 @@ void sequencer()
                seq_error(str);
                return;
             }
+            
             size = sizeof(seq);
             db_get_record(hDB, hKeySeq, &seq, &size, 0); // could have changed seq tree
             seq.current_line_number++;
@@ -2641,6 +2644,16 @@ void sequencer()
       if (size < 32)
          size = 32;
       db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
+      
+      // check if variable is used in loop
+      for (i=3 ; i>=0 ; i--)
+         if (seq.loop_start_line[i] > 0) {
+            pr = mxml_get_node_at_line(pnseq, seq.loop_start_line[i]);
+            if (mxml_get_attribute(pr, "var")) {
+               if (equal_ustring(mxml_get_attribute(pr, "var"), name))
+                  seq.loop_counter[i] = atoi(value);
+            }
+         }
       
       seq.current_line_number = mxml_get_line_number_end(pn)+1;
    }
