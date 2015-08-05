@@ -3791,19 +3791,235 @@ static int add_event(int* indexp, time_t timestamp, int event_id, const char* ev
    return SUCCESS;
 }
 
+static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_name, int eq_id, time_t now, int period, bool per_variable_history, int* indexp)
+{
+   int status;
+
+   if (verbose)
+      printf("\n==================== Equipment \"%s\", ID %d  =======================\n", eq_name, eq_id);
+
+   /* count keys in variables tree */
+   int n_var = 0;
+   int n_tags = 0;
+
+   for (;; n_var++) {
+      HNDLE hKey;
+      KEY key;
+
+      status = db_enum_key(hDB, hKeyVar, n_var, &hKey);
+      if (status == DB_NO_MORE_SUBKEYS)
+         break;
+
+      db_get_key(hDB, hKey, &key);
+      if (key.type != TID_KEY) {
+         n_tags += key.num_values;
+      }
+      else {
+         for (int ii=0;; ii++) {
+            KEY vvarkey;
+            HNDLE hhKey;
+            
+            status = db_enum_key(hDB, hKey, ii, &hhKey);
+            if (status == DB_NO_MORE_SUBKEYS)
+               break;
+
+            /* get variable key */
+            db_get_key(hDB, hhKey, &vvarkey);
+            
+            n_tags += vvarkey.num_values;
+         }
+      }
+   }
+
+   if (n_var == 0) {
+      cm_msg(MINFO, "open_history", "Equipment \"%s\" history is enabled, but there are no Variables in ODB", eq_name);
+      return SUCCESS;
+   }
+
+   /* create tag array */
+   TAG* tag = (TAG *) calloc(sizeof(TAG), n_tags);
+ 
+   int i_tag = 0;
+   for (int i=0; ; i++) {
+      HNDLE hKey;
+      KEY varkey;
+
+      status = db_enum_key(hDB, hKeyVar, i, &hKey);
+      if (status == DB_NO_MORE_SUBKEYS)
+         break;
+      
+      /* get variable key */
+      db_get_key(hDB, hKey, &varkey);
+      
+      
+      BOOL single_names = false;
+      HNDLE hKeyNames = 0;
+      int n_names = 0;
+
+      {
+         KEY key;
+      
+         /* look for names */
+         
+         if (!hKeyNames) {
+            char str[256];
+            sprintf(str, "Settings/Names %s", varkey.name);
+            db_find_key(hDB, hKeyEq, str, &hKeyNames);
+            if (hKeyNames) {
+               if (verbose)
+                  printf("Using \"/Equipment/%s/Settings/Names %s\" for variable \"%s\"\n", eq_name, varkey.name, varkey.name);
+               
+               /* define tags from names list */
+               db_get_key(hDB, hKeyNames, &key);
+               n_names = key.num_values;
+            }
+         }
+         
+         if (!hKeyNames) {
+            db_find_key(hDB, hKeyEq, "Settings/Names", &hKeyNames);
+            single_names = (hKeyNames > 0);
+            
+            if (hKeyNames) {
+               if (verbose)
+                  printf("Using \"/Equipment/%s/Settings/Names\" for variable \"%s\"\n", eq_name, varkey.name);
+               
+               /* define tags from names list */
+               db_get_key(hDB, hKeyNames, &key);
+               n_names = key.num_values;
+            }
+         }
+      
+         if (hKeyNames && n_names < varkey.num_values) {
+            cm_msg(MERROR, "open_history",
+                   "Names array size mismatch: \"/Equipment/%s/Settings/%s\" has %d entries while \"/Equipment/%s/Variables/%s\" has %d entries",
+                   eq_name, key.name, n_names,
+                   eq_name, varkey.name, varkey.num_values);
+            free(tag);
+            return 0;
+         }
+      }
+
+      if (hKeyNames) {
+         /* loop over array elements */
+         for (int j = 0; j < varkey.num_values; j++) {
+            char xname[256];
+            
+            tag[i_tag].name[0] = 0;
+            
+            /* get name #j */
+            int size = sizeof(xname);
+            status = db_get_data_index(hDB, hKeyNames, xname, &size, j, TID_STRING);
+            if (status == DB_SUCCESS)
+               strlcpy(tag[i_tag].name, xname, sizeof(tag[i_tag].name));
+            
+            if (strlen(tag[i_tag].name) < 1) {
+               char buf[256];
+               sprintf(buf, "%d", j);
+               strlcpy(tag[i_tag].name, varkey.name, NAME_LENGTH);
+               strlcat(tag[i_tag].name, "_", NAME_LENGTH);
+               strlcat(tag[i_tag].name, buf, NAME_LENGTH);
+            }
+            
+            /* append variable key name for single name array */
+            if (single_names) {
+               if (strlen(tag[i_tag].name) + 1 + strlen(varkey.name) >= NAME_LENGTH) {
+                  cm_msg(MERROR, "open_history", "Name for history entry \"%s %s\" too long", tag[i_tag].name, varkey.name);
+                  free(tag);
+                  return 0;
+               }
+               strlcat(tag[i_tag].name, " ", NAME_LENGTH);
+               strlcat(tag[i_tag].name, varkey.name, NAME_LENGTH);
+            }
+            
+            tag[i_tag].type = varkey.type;
+            tag[i_tag].n_data = 1;
+            
+            if (verbose)
+               printf("Defined tag %d, name \"%s\", type %d, num_values %d\n", i_tag, tag[i_tag].name, tag[i_tag].type, tag[i_tag].n_data);
+
+            i_tag++;
+         }
+      } else if (varkey.type == TID_KEY) {
+         for (int ii=0;; ii++) {
+            KEY vvarkey;
+            HNDLE hhKey;
+            
+            status = db_enum_key(hDB, hKey, ii, &hhKey);
+            if (status == DB_NO_MORE_SUBKEYS)
+               break;
+            
+            /* get variable key */
+            db_get_key(hDB, hhKey, &vvarkey);
+            
+            strlcpy(tag[i_tag].name, varkey.name, NAME_LENGTH);
+            strlcat(tag[i_tag].name, "_", NAME_LENGTH);
+            strlcat(tag[i_tag].name, vvarkey.name, NAME_LENGTH);
+            tag[i_tag].type = vvarkey.type;
+            tag[i_tag].n_data = vvarkey.num_values;
+            
+            if (verbose)
+               printf("Defined tag %d, name \"%s\", type %d, num_values %d\n", i_tag, tag[i_tag].name, tag[i_tag].type, tag[i_tag].n_data);
+
+            i_tag++;
+         }
+      } else {
+         strlcpy(tag[i_tag].name, varkey.name, NAME_LENGTH);
+         tag[i_tag].type = varkey.type;
+         tag[i_tag].n_data = varkey.num_values;
+         
+         if (verbose)
+            printf("Defined tag %d, name \"%s\", type %d, num_values %d\n", i_tag, tag[i_tag].name, tag[i_tag].type, tag[i_tag].n_data);
+
+         i_tag++;
+      }
+      
+      if (per_variable_history && i_tag>0) {
+         WORD event_id = 0;
+         char event_name[NAME_LENGTH];
+         
+         strlcpy(event_name, eq_name, NAME_LENGTH);
+         strlcat(event_name, "/", NAME_LENGTH);
+         strlcat(event_name, varkey.name, NAME_LENGTH);
+
+         assert(i_tag <= n_tags);
+         
+         status = add_event(indexp, now, event_id, event_name, hKey, i_tag, tag, period, 1);
+         if (status != DB_SUCCESS)
+            return status;
+         
+         i_tag = 0;
+      } /* if per-variable history */
+      
+   } /* loop over variables */
+   
+   if (!per_variable_history && i_tag>0) {
+      assert(i_tag <= n_tags);
+      
+      status = add_event(indexp, now, eq_id, eq_name, hKeyVar, i_tag, tag, period, 1);
+      if (status != DB_SUCCESS)
+         return status;
+   }
+   
+   if (tag) {
+      free(tag);
+      tag = NULL;
+   }
+
+   return SUCCESS;
+}
+
 INT open_history()
 {
-   INT size, index, i_tag, status, i, j, li, max_event_id;
+   INT size, index, status, i, li, max_event_id;
    int ieq;
-   INT n_var, n_tags, n_names = 0;
+   INT n_var;
    HNDLE hKeyRoot, hKeyVar, hLinkKey, hVarKey, hKeyEq, hHistKey, hKey;
    HNDLE hKeyHist;
    DWORD history;
    TAG *tag = NULL;
    KEY key, varkey, linkkey, histkey;
    WORD eq_id;
-   char str[256], eq_name[NAME_LENGTH], hist_name[NAME_LENGTH];
-   int count_events = 0;
+   char eq_name[NAME_LENGTH], hist_name[NAME_LENGTH];
    int global_per_variable_history = 0;
 
    time_t now = time(NULL);
@@ -4059,209 +4275,7 @@ INT open_history()
          status = db_get_value(hDB, hKeyEq, "Settings/PerVariableHistory", &per_variable_history, &size, TID_INT, FALSE);
          assert(status == DB_SUCCESS || status == DB_NO_KEY);
 
-         if (verbose)
-            printf
-                ("\n==================== Equipment \"%s\", ID %d  =======================\n",
-                 eq_name, eq_id);
-
-         /* count keys in variables tree */
-         for (n_var = 0, n_tags = 0;; n_var++) {
-            status = db_enum_key(hDB, hKeyVar, n_var, &hKey);
-            if (status == DB_NO_MORE_SUBKEYS)
-               break;
-            db_get_key(hDB, hKey, &key);
-            if (key.type != TID_KEY) {
-               n_tags += key.num_values;
-            }
-            else {
-               int ii;
-               for (ii=0;; ii++) {
-                  KEY vvarkey;
-                  HNDLE hhKey;
-
-                  status = db_enum_key(hDB, hKey, ii, &hhKey);
-                  if (status == DB_NO_MORE_SUBKEYS)
-                     break;
-
-                  /* get variable key */
-                  db_get_key(hDB, hhKey, &vvarkey);
-
-                  n_tags += vvarkey.num_values;
-               }
-            }
-         }
-
-         if (n_var == 0)
-            cm_msg(MINFO, "open_history", "Equipment \"%s\" history is enabled, but there are no Variables in ODB", eq_name);
-
-         /* create tag array */
-         tag = (TAG *) calloc(sizeof(TAG), n_tags);
- 
-         i_tag = 0;
-         for (i=0; ; i++) {
-            status = db_enum_key(hDB, hKeyVar, i, &hKey);
-            if (status == DB_NO_MORE_SUBKEYS)
-               break;
-
-            /* get variable key */
-            db_get_key(hDB, hKey, &varkey);
-
-
-            HNDLE hKeyNames = 0;
-            BOOL single_names = false;
-
-            /* look for names */
-
-            if (!hKeyNames) {
-               sprintf(str, "Settings/Names %s", varkey.name);
-               db_find_key(hDB, hKeyEq, str, &hKeyNames);
-               if (hKeyNames) {
-                  if (verbose)
-                     printf("Using \"/Equipment/%s/Settings/Names %s\" for variable \"%s\"\n", eq_name, varkey.name, varkey.name);
-
-                  /* define tags from names list */
-                  db_get_key(hDB, hKeyNames, &key);
-                  n_names = key.num_values;
-               }
-            }
-
-            if (!hKeyNames) {
-               db_find_key(hDB, hKeyEq, "Settings/Names", &hKeyNames);
-               single_names = (hKeyNames > 0);
-
-               if (hKeyNames) {
-                  if (verbose)
-                     printf("Using \"/Equipment/%s/Settings/Names\" for variable \"%s\"\n", eq_name, varkey.name);
-                  
-                  /* define tags from names list */
-                  db_get_key(hDB, hKeyNames, &key);
-                  n_names = key.num_values;
-               }
-            }
-
-            if (hKeyNames && n_names < varkey.num_values) {
-               cm_msg(MERROR, "open_history",
-                      "Array size mismatch: \"/Equipment/%s/Settings/%s\" has %d entries while \"/Equipment/%s/Variables/%s\" has %d entries",
-                      eq_name, key.name, n_names,
-                      eq_name, varkey.name, varkey.num_values);
-               free(tag);
-               return 0;
-            }
-
-            if (hKeyNames) {
-               /* loop over array elements */
-               for (j = 0; j < varkey.num_values; j++) {
-                  char xname[256];
-
-                  tag[i_tag].name[0] = 0;
-
-                  /* get name #j */
-                  size = sizeof(xname);
-                  status = db_get_data_index(hDB, hKeyNames, xname, &size, j, TID_STRING);
-                  if (status == DB_SUCCESS)
-                     strlcpy(tag[i_tag].name, xname, sizeof(tag[i_tag].name));
-
-                  if (strlen(tag[i_tag].name) < 1) {
-                     char buf[256];
-                     sprintf(buf, "%d", j);
-                     strlcpy(tag[i_tag].name, varkey.name, NAME_LENGTH);
-                     strlcat(tag[i_tag].name, "_", NAME_LENGTH);
-                     strlcat(tag[i_tag].name, buf, NAME_LENGTH);
-                  }
-
-                  /* append variable key name for single name array */
-                  if (single_names) {
-                     if (strlen(tag[i_tag].name) + 1 + strlen(varkey.name) >= NAME_LENGTH) {
-                        cm_msg(MERROR, "open_history",
-                               "Name for history entry \"%s %s\" too long", tag[i_tag].name, varkey.name);
-                        free(tag);
-                        return 0;
-                     }
-                     strlcat(tag[i_tag].name, " ", NAME_LENGTH);
-                     strlcat(tag[i_tag].name, varkey.name, NAME_LENGTH);
-                  }
-
-                  tag[i_tag].type = varkey.type;
-                  tag[i_tag].n_data = 1;
-
-                  if (verbose)
-                     printf("Defined tag %d, name \"%s\", type %d, num_values %d\n",
-                            i_tag, tag[i_tag].name, tag[i_tag].type, tag[i_tag].n_data);
-
-                  i_tag++;
-               }
-            } else if (varkey.type == TID_KEY) {
-               int ii;
-               for (ii=0;; ii++) {
-                  KEY vvarkey;
-                  HNDLE hhKey;
-
-                  status = db_enum_key(hDB, hKey, ii, &hhKey);
-                  if (status == DB_NO_MORE_SUBKEYS)
-                     break;
-
-                  /* get variable key */
-                  db_get_key(hDB, hhKey, &vvarkey);
-
-                  strlcpy(tag[i_tag].name, varkey.name, NAME_LENGTH);
-                  strlcat(tag[i_tag].name, "_", NAME_LENGTH);
-                  strlcat(tag[i_tag].name, vvarkey.name, NAME_LENGTH);
-                  tag[i_tag].type = vvarkey.type;
-                  tag[i_tag].n_data = vvarkey.num_values;
-
-                  if (verbose)
-                     printf("Defined tag %d, name \"%s\", type %d, num_values %d\n", i_tag, tag[i_tag].name,
-                            tag[i_tag].type, tag[i_tag].n_data);
-
-                  i_tag++;
-               }
-            } else {
-               strlcpy(tag[i_tag].name, varkey.name, NAME_LENGTH);
-               tag[i_tag].type = varkey.type;
-               tag[i_tag].n_data = varkey.num_values;
-
-               if (verbose)
-                  printf("Defined tag %d, name \"%s\", type %d, num_values %d\n", i_tag, tag[i_tag].name,
-                         tag[i_tag].type, tag[i_tag].n_data);
-
-               i_tag++;
-            }
-
-            if (per_variable_history && i_tag>0) {
-               WORD event_id = 0;
-               char event_name[NAME_LENGTH];
-
-               strlcpy(event_name, eq_name, NAME_LENGTH);
-               strlcat(event_name, "/", NAME_LENGTH);
-               strlcat(event_name, varkey.name, NAME_LENGTH);
-
-               assert(i_tag <= n_tags);
-
-               status = add_event(&index, now, event_id, event_name, hKey, i_tag, tag, history, 1);
-               if (status != DB_SUCCESS)
-                  return status;
-
-               count_events++;
-
-               i_tag = 0;
-            } /* if per-variable history */
-
-         } /* loop over variables */
-
-         if (!per_variable_history && i_tag>0) {
-            assert(i_tag <= n_tags);
-
-            status = add_event(&index, now, eq_id, eq_name, hKeyVar, i_tag, tag, history, 1);
-            if (status != DB_SUCCESS)
-               return status;
-
-            count_events++;
-         }
-
-         if (tag) {
-            free(tag);
-            tag = NULL;
-         }
+         status = add_equipment(hDB, hKeyEq, hKeyVar, eq_name, eq_id, now, history, per_variable_history, &index);
 
          /* remember maximum event id for later use with system events */
          if (eq_id > max_event_id)
@@ -4366,7 +4380,6 @@ INT open_history()
             free(tag);
             tag = NULL;
 
-            count_events++;
             max_event_id++;
          }
       }
@@ -4398,10 +4411,6 @@ INT open_history()
 
    free(tag);
    tag = NULL;
-
-   /* outcommented not to produce a log entry on every run
-   cm_msg(MINFO, "open_history", "Configured history with %d events", count_events);
-   */
 
    status = hs_save_event_list(&history_events);
    if (status != HS_SUCCESS)
