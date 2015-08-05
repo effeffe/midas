@@ -3677,12 +3677,79 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 
 /*---- open_history ------------------------------------------------*/
 
+void reload_history(void);
+void maybe_flush_history(DWORD now);
 void log_history(HNDLE hDB, HNDLE hKey, void *info);
 
 #include "history.h"
 
 static std::vector<MidasHistoryInterface*> mh;
 static std::vector<std::string> history_events;
+
+static void watch_history(HNDLE hDB, HNDLE hKey, int index)
+{
+   int status;
+   KEY key;
+
+   status = db_get_key(hDB, hKey, &key);
+   if (status != DB_SUCCESS) {
+      cm_msg(MINFO, "watch_history", "Cannot get key for hKey %d, reloading the history", hKey);
+      reload_history();
+      return;
+   }
+
+   printf("watch_history: hDB %d, hKey %d, name [%s], index %d\n", hDB, hKey, key.name, index);
+
+   struct hist_log_s* h = NULL;
+   for (int i=0; i<hist_log.size(); i++)
+      if (hist_log[i].hKeyVar == hKey) {
+         h = &hist_log[i];
+         break;
+      }
+
+   if (!h) {
+      // FIXME: print the full pathto offending hKey
+      cm_msg(MINFO, "watch_history", "Cannot find history event for hKey %d, reloading the history", hKey);
+      reload_history();
+      return;
+   }
+
+   /* check if over period */
+   if (key.last_written - h->last_log < h->period)
+      return;
+
+   /* check if event size has changed */
+   int size = h->buffer_size;
+   status = db_get_data(hDB, hKey, h->buffer, &size, key.type);
+
+   if (status != DB_SUCCESS) {
+      // FIXME: print the full pathto offending hKey
+      cm_msg(MINFO, "watch_history", "Hhistory event \'%s\' db_get_data() error %d, reloading the history", h->event_name, status);
+      reload_history();
+      return;
+   }
+
+   if (size != h->buffer_size) {
+      // FIXME: print the full pathto offending hKey
+      cm_msg(MINFO, "watch_history", "Size of history event \'%s\' changed from %d to %d, reloading the history", h->event_name, h->buffer_size, size);
+      reload_history();
+      return;
+   }
+
+   h->last_log = key.last_written;
+
+   if (verbose)
+      printf("write history event: \'%s\', timestamp %d, buffer %p, size %d\n", h->event_name, h->last_log, h->buffer, h->buffer_size);
+
+   for (unsigned hh=0; hh<mh.size(); hh++) {
+      status = mh[hh]->hs_write_event(h->event_name, h->last_log, h->buffer_size, h->buffer);
+      if (verbose)
+         if (status != HS_SUCCESS)
+            printf("hs_write_event() status %d\n", status);
+   }
+
+   maybe_flush_history(h->last_log);
+}
 
 static int add_event(time_t timestamp, int event_id, const char* event_name, HNDLE hKey, int ntags, const TAG* tags, int period, int hotlink)
 {
@@ -3815,6 +3882,9 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
       cm_msg(MINFO, "open_history", "Equipment \"%s\" history is enabled, but there are no Variables in ODB", eq_name);
       return SUCCESS;
    }
+
+   status = db_watch(hDB, hKeyVar, watch_history);
+   assert(status == DB_SUCCESS);
 
    /* create tag array */
    TAG* tag = (TAG *) calloc(sizeof(TAG), n_tags);
@@ -4444,6 +4514,20 @@ void close_history()
       status  = mh[h]->hs_disconnect();
 }
 
+/*---- reload_history -------------------------------------------------*/
+
+void reload_history()
+{
+   int status;
+   close_history();
+   status = open_history();
+   if (status != CM_SUCCESS) {
+      printf("Error in history system, aborting.\n");
+      cm_disconnect_experiment();
+      exit(1);
+   }
+}
+
 /*---- log_history -------------------------------------------------*/
 
 void log_history(HNDLE hDB, HNDLE hKey, void *info)
@@ -4469,13 +4553,7 @@ void log_history(HNDLE hDB, HNDLE hKey, void *info)
    /* check if event size has changed */
    db_get_record_size(hDB, hKey, 0, &size);
    if (size != hist_log[i].buffer_size) {
-      close_history();
-      status = open_history();
-      if (status != CM_SUCCESS) {
-         printf("Error in history system, aborting.\n");
-         cm_disconnect_experiment();
-         exit(1);
-      }
+      reload_history();
       return;
    }
 
@@ -4521,13 +4599,7 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
    }
 
    if (i != h->n_var) {
-      close_history();
-      status = open_history();
-      if (status != CM_SUCCESS) {
-         printf("Error in history system, aborting.\n");
-         cm_disconnect_experiment();
-         exit(1);
-      }
+      reload_history();
       return;
    }
 
