@@ -4029,16 +4029,115 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
    return SUCCESS;
 }
 
+static int add_history_links(HNDLE hDB, HNDLE hHistKey, const char* link_name, int type, time_t now, int period)
+{
+   int status;
+
+   if (verbose)
+      printf("\n==================== History link \"%s\" =======================\n", link_name);
+
+   {
+      int n_var = 0;
+
+      /* count subkeys in link */
+      for (int i=0; ; i++) {
+         HNDLE hKey;
+         KEY key;
+         
+         status = db_enum_key(hDB, hHistKey, i, &hKey);
+         if (status == DB_NO_MORE_SUBKEYS)
+            break;
+         
+         if (status == DB_SUCCESS && db_get_key(hDB, hKey, &key) == DB_SUCCESS) {
+            if (key.type != TID_KEY)
+               n_var++;
+         } else {
+            db_enum_link(hDB, hHistKey, i, &hKey);
+            db_get_key(hDB, hKey, &key);
+            cm_msg(MERROR, "open_history", "History link /History/Links/%s/%s is invalid", link_name, key.name);
+            return 0;
+         }
+      }
+      
+      if (n_var == 0) {
+         cm_msg(MERROR, "open_history", "/History/Links/%s has no variables in ODB", link_name);
+         return SUCCESS;
+      }
+   }
+
+   /* create tag array */
+   TAG * tags = NULL;
+   int maxtags = 0;
+   int ntags = 0;
+
+   int n_var = 0;
+   int size = 0;
+   for (int i=0; ; i++) {
+      HNDLE hLinkKey;
+      KEY linkkey;
+
+      status = db_enum_link(hDB, hHistKey, i, &hLinkKey);
+      if (status == DB_NO_MORE_SUBKEYS)
+         break;
+
+      /* get link key */
+      db_get_key(hDB, hLinkKey, &linkkey);
+      
+      if (linkkey.type == TID_KEY)
+         continue;
+      
+      /* get link target */
+      HNDLE hVarKey;
+
+      db_enum_key(hDB, hHistKey, i, &hVarKey);
+
+      KEY varkey;
+      if (db_get_key(hDB, hVarKey, &varkey) == DB_SUCCESS) {
+         /* hot-link individual values */
+         if (type == TID_KEY) {
+            db_open_record(hDB, hVarKey, NULL, varkey.total_size, MODE_READ, log_system_history, (void*)(size_t)hHistKey);
+            printf("add_system_event: hKey %d open record AAA\n", hHistKey);
+         }
+         
+         //strcpy(tag[n_var].name, linkkey.name);
+         //tag[n_var].type = varkey.type;
+         //tag[n_var].n_data = varkey.num_values;
+
+         TAG* t = AddTag(&tags, &ntags, &maxtags, linkkey.name, varkey.type, varkey.num_values);
+         
+         if (verbose)
+            printf("Defined tag \"%s\", type %d, num_values %d\n", t->name, t->type, t->n_data);
+         
+         size += varkey.total_size;
+         n_var++;
+      }
+   }
+   
+   /* hot-link whole subtree */
+   if (type == TID_LINK) {
+      db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history, (void*)(size_t)hHistKey);
+      printf("add_system_event: hKey %d open record BBB\n", hHistKey);
+   }
+   
+   printf("add_system_event: hKey %d\n", hHistKey);
+   
+   status = add_event(now, link_name, hHistKey, hHistKey, ntags, tags, period);
+   if (status != DB_SUCCESS)
+      return status;
+   
+   if (tags) {
+      free(tags);
+      tags = NULL;
+   }
+
+   return SUCCESS;
+}
+
 INT open_history()
 {
-   INT size, status, i;
-   INT n_var;
-   HNDLE hKeyRoot, hKeyVar, hLinkKey, hVarKey, hKeyEq, hHistKey, hKey;
-   HNDLE hKeyHist;
-   DWORD history;
-   TAG *tag = NULL;
-   KEY key, varkey, linkkey, histkey;
-   char eq_name[NAME_LENGTH], hist_name[NAME_LENGTH];
+   INT size, status;
+   HNDLE hKeyRoot; // handle for /Equipment and /History/Links
+   HNDLE hKeyHist; // handle for /Logger/History
 
    time_t now = time(NULL);
 
@@ -4157,6 +4256,8 @@ INT open_history()
    // loop over history channels
 
    for (int ichan = 0; ; ichan++) {
+      HNDLE hKey;
+
       status = db_enum_key(hDB, hKeyHist, ichan, &hKey);
       if (status != DB_SUCCESS)
          break;
@@ -4187,6 +4288,8 @@ INT open_history()
       /* create default history keys */
       db_create_key(hDB, 0, "/History/Links", TID_KEY);
 
+      HNDLE hKeyEq;
+
       if (db_find_key(hDB, 0, "/Equipment/Trigger/Statistics/Events per sec.", &hKeyEq) == DB_SUCCESS)
          db_create_link(hDB, 0, "/History/Links/System/Trigger per sec.",
                         "/Equipment/Trigger/Statistics/Events per sec.");
@@ -4199,168 +4302,96 @@ INT open_history()
    /*---- define equipment events as history ------------------------*/
 
    status = db_find_key(hDB, 0, "/Equipment", &hKeyRoot);
-   if (status == DB_NO_KEY) {
-      cm_msg(MINFO, "open_history", "Cannot find /Equipment entry in database, history system is inactive");
-      return CM_SUCCESS;
-   }
+   if (status == DB_SUCCESS && hKeyRoot) {
 
-   if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "open_history", "Cannot find /Equipment entry in database, db_find_key() status %d", status);
-      return status;
-   }
+      /* loop over equipment */
+      for (int ieq = 0; ; ieq++) {
+         HNDLE hKeyEq;
 
-   /* loop over equipment */
-   for (int ieq = 0; ; ieq++) {
-      status = db_enum_key(hDB, hKeyRoot, ieq, &hKeyEq);
-      if (status != DB_SUCCESS)
-         break;
+         status = db_enum_key(hDB, hKeyRoot, ieq, &hKeyEq);
+         if (status != DB_SUCCESS)
+            break;
 
-      /* check history flag */
-      size = sizeof(history);
-      db_get_value(hDB, hKeyEq, "Common/Log history", &history, &size, TID_INT, TRUE);
-
-      /* define history tags only if log history flag is on */
-      if (history > 0) {
-         /* get equipment name */
-         db_get_key(hDB, hKeyEq, &key);
-         strcpy(eq_name, key.name);
-
-         if (strchr(eq_name, ':'))
-            cm_msg(MERROR, "open_history", "Equipment name \'%s\' contains characters \':\', this may break the history system", eq_name);
-
-         status = db_find_key(hDB, hKeyEq, "Variables", &hKeyVar);
-         if (status != DB_SUCCESS) {
-            cm_msg(MERROR, "open_history", "Cannot find /Equipment/%s/Variables entry in database", eq_name);
-            return 0;
+         /* check history flag */
+         DWORD history = 0;
+         size = sizeof(history);
+         db_get_value(hDB, hKeyEq, "Common/Log history", &history, &size, TID_INT, TRUE);
+         
+         /* define history tags only if log history flag is on */
+         if (history > 0) {
+            HNDLE hKeyVar;
+            KEY key;
+            
+            /* get equipment name */
+            db_get_key(hDB, hKeyEq, &key);
+            
+            if (strchr(key.name, ':'))
+               cm_msg(MERROR, "open_history", "Equipment name \'%s\' contains characters \':\', this may break the history system", key.name);
+            
+            status = db_find_key(hDB, hKeyEq, "Variables", &hKeyVar);
+            if (status != DB_SUCCESS) {
+               cm_msg(MERROR, "open_history", "Cannot find /Equipment/%s/Variables entry in database", key.name);
+               return 0;
+            }
+            
+            status = add_equipment(hDB, hKeyEq, hKeyVar, key.name, now, history);
          }
-
-         status = add_equipment(hDB, hKeyEq, hKeyVar, eq_name, now, history);
-      }
-   } /* loop over equipments */
+      } /* loop over equipments */
+   }
 
    /*---- define linked trees ---------------------------------------*/
 
    status = db_find_key(hDB, 0, "/History/Links", &hKeyRoot);
-   if (status == DB_SUCCESS) {
+   if (status == DB_SUCCESS && hKeyRoot) {
       for (int li = 0;; li++) {
-         status = db_enum_link(hDB, hKeyRoot, li, &hHistKey);
+         HNDLE hLinkKey;
+         KEY key;
+
+         status = db_enum_link(hDB, hKeyRoot, li, &hLinkKey);
          if (status == DB_NO_MORE_SUBKEYS)
             break;
 
-         db_get_key(hDB, hHistKey, &histkey);
-         strcpy(hist_name, histkey.name);
-         db_enum_key(hDB, hKeyRoot, li, &hHistKey);
+         db_get_key(hDB, hLinkKey, &key);
 
-         db_get_key(hDB, hHistKey, &key);
          if (key.type != TID_KEY) {
-            cm_msg(MERROR, "open_history", "Only subkeys allows in /history/links");
+            cm_msg(MERROR, "open_history", "/History/Links/%s is not a subdirectory", key.name);
             continue;
          }
 
-         if (verbose)
-            printf("\n==================== History link \"%s\" =======================\n", hist_name);
+         int period = 10;
 
-         /* count subkeys in link */
-         for (i = n_var = 0;; i++) {
-            status = db_enum_key(hDB, hHistKey, i, &hKey);
-            if (status == DB_NO_MORE_SUBKEYS)
-               break;
-
-            if (status == DB_SUCCESS && db_get_key(hDB, hKey, &key) == DB_SUCCESS) {
-               if (key.type != TID_KEY)
-                  n_var++;
-            } else {
-               db_enum_link(hDB, hHistKey, i, &hKey);
-               db_get_key(hDB, hKey, &key);
-               cm_msg(MERROR, "open_history", "History link /History/Links/%s/%s is invalid", hist_name, key.name);
-               return 0;
-            }
-         }
-
-         if (n_var == 0)
-            cm_msg(MERROR, "open_history", "History event %s has no variables in ODB", hist_name);
-         else {
-            /* create tag array */
-            tag = (TAG *) calloc(sizeof(TAG), n_var);
-
-            for (i = 0, size = 0, n_var = 0;; i++) {
-               status = db_enum_link(hDB, hHistKey, i, &hLinkKey);
-               if (status == DB_NO_MORE_SUBKEYS)
-                  break;
-
-               /* get link key */
-               db_get_key(hDB, hLinkKey, &linkkey);
-
-               if (linkkey.type == TID_KEY)
-                  continue;
-
-               /* get link target */
-               db_enum_key(hDB, hHistKey, i, &hVarKey);
-               if (db_get_key(hDB, hVarKey, &varkey) == DB_SUCCESS) {
-                  /* hot-link individual values */
-                  if (histkey.type == TID_KEY) {
-                     db_open_record(hDB, hVarKey, NULL, varkey.total_size, MODE_READ, log_system_history, (void*)(size_t)hHistKey);
-                     printf("add_system_event: hKey %d open record AAA\n", hHistKey);
-                  }
-
-                  strcpy(tag[n_var].name, linkkey.name);
-                  tag[n_var].type = varkey.type;
-                  tag[n_var].n_data = varkey.num_values;
-
-                  if (verbose)
-                     printf("Defined tag \"%s\", type %d, num_values %d\n", tag[n_var].name, tag[n_var].type, tag[n_var].n_data);
-
-                  size += varkey.total_size;
-                  n_var++;
-               }
-            }
-
-            /* hot-link whole subtree */
-            if (histkey.type == TID_LINK) {
-               db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history, (void*)(size_t)hHistKey);
-               printf("add_system_event: hKey %d open record BBB\n", hHistKey);
-            }
-
-            printf("add_system_event: hKey %d\n", hHistKey);
-
-            int period = 10;
-
-            status = add_event(now, hist_name, hHistKey, hHistKey, n_var, tag, period);
-            if (status != DB_SUCCESS)
-               return status;
-
-            free(tag);
-            tag = NULL;
-         }
+         add_history_links(hDB, hLinkKey, key.name, key.type, now, period);
       }
    }
 
    /*---- define run start/stop event -------------------------------*/
 
-   tag = (TAG *) calloc(sizeof(TAG), 2);
+   {
+      TAG* tag = (TAG *) calloc(sizeof(TAG), 2);
 
-   strcpy(tag[0].name, "State");
-   tag[0].type = TID_DWORD;
-   tag[0].n_data = 1;
+      strcpy(tag[0].name, "State");
+      tag[0].type = TID_DWORD;
+      tag[0].n_data = 1;
 
-   strcpy(tag[1].name, "Run number");
-   tag[1].type = TID_DWORD;
-   tag[1].n_data = 1;
+      strcpy(tag[1].name, "Run number");
+      tag[1].type = TID_DWORD;
+      tag[1].n_data = 1;
 
-   const char* event_name = "Run transitions";
+      const char* event_name = "Run transitions";
 
-   for (unsigned i=0; i<mh.size(); i++) {
-      status = mh[i]->hs_define_event(event_name, now, 2, tag);
-      if (status != HS_SUCCESS) {
-         cm_msg(MERROR, "add_event", "Cannot define event \"%s\", hs_define_event() status %d", event_name, status);
-         return 0;
+      for (unsigned i=0; i<mh.size(); i++) {
+         status = mh[i]->hs_define_event(event_name, now, 2, tag);
+         if (status != HS_SUCCESS) {
+            cm_msg(MERROR, "add_event", "Cannot define event \"%s\", hs_define_event() status %d", event_name, status);
+            return 0;
+         }
       }
+
+      history_events.push_back(event_name);
+
+      free(tag);
+      tag = NULL;
    }
-
-   history_events.push_back(event_name);
-
-   free(tag);
-   tag = NULL;
 
    status = hs_save_event_list(&history_events);
    if (status != HS_SUCCESS)
