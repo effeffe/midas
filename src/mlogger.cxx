@@ -3831,6 +3831,34 @@ static int add_event(time_t timestamp, const char* event_name, HNDLE hKeyEq, HND
    return SUCCESS;
 }
 
+static TAG* AddTag(TAG** ptags, int *pntags, int *pmaxtags, const std::string& name, int type, int n_data)
+{
+   //printf("AddTag: ptags %p, pntags %p, pmaxtags %p, name [%s], type %d, n_data %d\n", ptags, pntags, pmaxtags, name.c_str(), type, n_data);
+   //printf("AddTag: ntags %d, maxtags %d\n", *pntags, *pmaxtags);
+
+   int itag = *pntags;
+
+   if (itag + 10 > *pmaxtags) {
+      int maxtags = *pmaxtags + 20;
+      TAG* tags = (TAG*)realloc(*ptags, sizeof(TAG)*maxtags);
+      if (!tags) {
+         // FIXME
+         abort();
+      }
+
+      *ptags = tags;
+      *pmaxtags = maxtags;
+   }
+
+   strlcpy((*ptags)[itag].name, name.c_str(), sizeof((*ptags)[itag].name));
+   (*ptags)[itag].type = type;
+   (*ptags)[itag].n_data = n_data;
+
+   (*pntags) = itag + 1;
+
+   return &(*ptags)[itag];
+}
+
 static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_name, time_t now, int period)
 {
    int status;
@@ -3838,51 +3866,12 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
    if (verbose)
       printf("\n==================== Equipment \"%s\"  =======================\n", eq_name);
 
-   /* count keys in variables tree */
-   int n_var = 0;
-   int n_tags = 0;
-
-   for (;; n_var++) {
-      HNDLE hKey;
-      KEY key;
-
-      status = db_enum_key(hDB, hKeyVar, n_var, &hKey);
-      if (status == DB_NO_MORE_SUBKEYS)
-         break;
-
-      db_get_key(hDB, hKey, &key);
-      if (key.type != TID_KEY) {
-         n_tags += key.num_values;
-      }
-      else {
-         for (int ii=0;; ii++) {
-            KEY vvarkey;
-            HNDLE hhKey;
-            
-            status = db_enum_key(hDB, hKey, ii, &hhKey);
-            if (status == DB_NO_MORE_SUBKEYS)
-               break;
-
-            /* get variable key */
-            db_get_key(hDB, hhKey, &vvarkey);
-            
-            n_tags += vvarkey.num_values;
-         }
-      }
-   }
-
-   if (n_var == 0) {
-      cm_msg(MINFO, "open_history", "Equipment \"%s\" history is enabled, but there are no Variables in ODB", eq_name);
-      return SUCCESS;
-   }
-
    status = db_watch(hDB, hKeyVar, watch_history);
    assert(status == DB_SUCCESS);
 
-   /* create tag array */
-   TAG* tag = (TAG *) calloc(sizeof(TAG), n_tags);
- 
-   int i_tag = 0;
+   TAG* tags = NULL;
+   int maxtags = 0;
+
    for (int i=0; ; i++) {
       HNDLE hKey;
       KEY varkey;
@@ -3892,12 +3881,14 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
          break;
       
       /* get variable key */
-      db_get_key(hDB, hKey, &varkey);
-      
+      status = db_get_key(hDB, hKey, &varkey);
+      assert(status == DB_SUCCESS);
       
       BOOL single_names = false;
       HNDLE hKeyNames = 0;
       int n_names = 0;
+
+      int ntags = 0;
 
       {
          KEY key;
@@ -3937,7 +3928,7 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
                    "Names array size mismatch: \"/Equipment/%s/Settings/%s\" has %d entries while \"/Equipment/%s/Variables/%s\" has %d entries",
                    eq_name, key.name, n_names,
                    eq_name, varkey.name, varkey.num_values);
-            free(tag);
+            free(tags);
             return 0;
          }
       }
@@ -3945,42 +3936,42 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
       if (hKeyNames) {
          /* loop over array elements */
          for (int j = 0; j < varkey.num_values; j++) {
+            std::string tagname;
             char xname[256];
-            
-            tag[i_tag].name[0] = 0;
             
             /* get name #j */
             int size = sizeof(xname);
             status = db_get_data_index(hDB, hKeyNames, xname, &size, j, TID_STRING);
             if (status == DB_SUCCESS)
-               strlcpy(tag[i_tag].name, xname, sizeof(tag[i_tag].name));
+               tagname = xname;
             
-            if (strlen(tag[i_tag].name) < 1) {
+            if (tagname.length() < 1) {
                char buf[256];
                sprintf(buf, "%d", j);
-               strlcpy(tag[i_tag].name, varkey.name, NAME_LENGTH);
-               strlcat(tag[i_tag].name, "_", NAME_LENGTH);
-               strlcat(tag[i_tag].name, buf, NAME_LENGTH);
+               tagname = "";
+               tagname += varkey.name;
+               tagname += "_";
+               tagname += buf;
             }
             
             /* append variable key name for single name array */
             if (single_names) {
-               if (strlen(tag[i_tag].name) + 1 + strlen(varkey.name) >= NAME_LENGTH) {
-                  cm_msg(MERROR, "open_history", "Name for history entry \"%s %s\" too long", tag[i_tag].name, varkey.name);
-                  free(tag);
+               if (tagname.length() + 1 + strlen(varkey.name) >= NAME_LENGTH) {
+                  cm_msg(MERROR, "open_history", "Name for history entry \"%s %s\" too long", tagname.c_str(), varkey.name);
+                  free(tags);
                   return 0;
                }
-               strlcat(tag[i_tag].name, " ", NAME_LENGTH);
-               strlcat(tag[i_tag].name, varkey.name, NAME_LENGTH);
+               tagname += " ";
+               tagname += varkey.name;
             }
+
+            TAG* t = AddTag(&tags, &ntags, &maxtags, tagname, varkey.type, 1);
             
-            tag[i_tag].type = varkey.type;
-            tag[i_tag].n_data = 1;
+            //tag[i_tag].type = varkey.type;
+            //tag[i_tag].n_data = 1;
             
             if (verbose)
-               printf("Defined tag %d, name \"%s\", type %d, num_values %d\n", i_tag, tag[i_tag].name, tag[i_tag].type, tag[i_tag].n_data);
-
-            i_tag++;
+               printf("Defined tag: name \"%s\", type %d, num_values %d (named array)\n", t->name, t->type, t->n_data);
          }
       } else if (varkey.type == TID_KEY) {
          for (int ii=0;; ii++) {
@@ -3992,51 +3983,47 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
                break;
             
             /* get variable key */
-            db_get_key(hDB, hhKey, &vvarkey);
+            status = db_get_key(hDB, hhKey, &vvarkey);
+            assert(status == DB_SUCCESS);
             
-            strlcpy(tag[i_tag].name, varkey.name, NAME_LENGTH);
-            strlcat(tag[i_tag].name, "_", NAME_LENGTH);
-            strlcat(tag[i_tag].name, vvarkey.name, NAME_LENGTH);
-            tag[i_tag].type = vvarkey.type;
-            tag[i_tag].n_data = vvarkey.num_values;
+            //strlcpy(tag[i_tag].name, varkey.name, NAME_LENGTH);
+            //strlcat(tag[i_tag].name, "_", NAME_LENGTH);
+            //strlcat(tag[i_tag].name, vvarkey.name, NAME_LENGTH);
+            //tag[i_tag].type = vvarkey.type;
+            //tag[i_tag].n_data = vvarkey.num_values;
+
+            TAG* t = AddTag(&tags, &ntags, &maxtags, std::string(varkey.name) + "_" + vvarkey.name, vvarkey.type, vvarkey.num_values);
             
             if (verbose)
-               printf("Defined tag %d, name \"%s\", type %d, num_values %d\n", i_tag, tag[i_tag].name, tag[i_tag].type, tag[i_tag].n_data);
-
-            i_tag++;
+               printf("Defined tag: name \"%s\", type %d, num_values %d (record)\n", t->name, t->type, t->n_data);
          }
       } else {
-         strlcpy(tag[i_tag].name, varkey.name, NAME_LENGTH);
-         tag[i_tag].type = varkey.type;
-         tag[i_tag].n_data = varkey.num_values;
+         //strlcpy(tag[i_tag].name, varkey.name, NAME_LENGTH);
+         //tag[i_tag].type = varkey.type;
+         //tag[i_tag].n_data = varkey.num_values;
+
+         TAG* t = AddTag(&tags, &ntags, &maxtags, varkey.name, varkey.type, varkey.num_values);
          
          if (verbose)
-            printf("Defined tag %d, name \"%s\", type %d, num_values %d\n", i_tag, tag[i_tag].name, tag[i_tag].type, tag[i_tag].n_data);
-
-         i_tag++;
+            printf("Defined tag: name \"%s\", type %d, num_values %d (unnamed array or normal variable)\n", t->name, t->type, t->n_data);
       }
       
-      if (i_tag>0) {
-         char event_name[NAME_LENGTH];
-         
-         strlcpy(event_name, eq_name, NAME_LENGTH);
-         strlcat(event_name, "/", NAME_LENGTH);
-         strlcat(event_name, varkey.name, NAME_LENGTH);
+      if (ntags > 0) {
+         std::string event_name;
+         event_name += eq_name;
+         event_name += "/";
+         event_name += varkey.name;
 
-         assert(i_tag <= n_tags);
-         
-         status = add_event(now, event_name, hKeyEq, hKey, i_tag, tag, period);
+         status = add_event(now, event_name.c_str(), hKeyEq, hKey, ntags, tags, period);
          if (status != DB_SUCCESS)
             return status;
-         
-         i_tag = 0;
-      } /* if per-variable history */
+      }
       
    } /* loop over variables */
    
-   if (tag) {
-      free(tag);
-      tag = NULL;
+   if (tags) {
+      free(tags);
+      tags = NULL;
    }
 
    return SUCCESS;
