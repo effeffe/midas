@@ -78,6 +78,7 @@ struct hist_log_s {
    char event_name[256];
    char *buffer;
    INT buffer_size;
+   HNDLE hKeyEq;
    HNDLE hKeyVar;
    DWORD n_var;
    DWORD period;
@@ -3679,7 +3680,7 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 
 void reload_history(void);
 void maybe_flush_history(DWORD now);
-void log_history(HNDLE hDB, HNDLE hKey, void *info);
+//void log_history(HNDLE hDB, HNDLE hKey, void *info);
 
 #include "history.h"
 
@@ -3739,7 +3740,7 @@ static void watch_history(HNDLE hDB, HNDLE hKey, int index)
    h->last_log = key.last_written;
 
    if (verbose)
-      printf("write history event: \'%s\', timestamp %d, buffer %p, size %d\n", h->event_name, h->last_log, h->buffer, h->buffer_size);
+      printf("write history event: \'%s\', timestamp %d, buffer %p, size %d (watch_history)\n", h->event_name, h->last_log, h->buffer, h->buffer_size);
 
    for (unsigned hh=0; hh<mh.size(); hh++) {
       status = mh[hh]->hs_write_event(h->event_name, h->last_log, h->buffer_size, h->buffer);
@@ -3751,7 +3752,7 @@ static void watch_history(HNDLE hDB, HNDLE hKey, int index)
    maybe_flush_history(h->last_log);
 }
 
-static int add_event(time_t timestamp, int event_id, const char* event_name, HNDLE hKey, int ntags, const TAG* tags, int period, int hotlink)
+static int add_event(time_t timestamp, const char* event_name, HNDLE hKeyEq, HNDLE hKey, int ntags, const TAG* tags, int period)
 {
    int status;
    int size;
@@ -3759,7 +3760,7 @@ static int add_event(time_t timestamp, int event_id, const char* event_name, HND
 #if 0
    {
       /* print the tags */
-      printf("add_event: event %d, name \"%s\", ntags %d\n", event_id, event_name, ntags);
+      printf("add_event: event \"%s\", ntags %d\n", event_name, ntags);
       for (i=0; i<ntags; i++) {
          printf("tag %d: name \"%s\", type %d, n_data %d\n", i, tags[i].name, tags[i].type, tags[i].n_data);
       }
@@ -3769,7 +3770,7 @@ static int add_event(time_t timestamp, int event_id, const char* event_name, HND
    /* check for duplicate event id's */
    for (int i=0; i<hist_log.size(); i++) {
       if (strcmp(hist_log[i].event_name, event_name) == 0) {
-         cm_msg(MERROR, "add_event", "Duplicate event name \'%s\' with event id %d", event_name, event_id);
+         cm_msg(MERROR, "add_event", "Duplicate event name \'%s\'", event_name);
          return 0;
       }
    }
@@ -3777,11 +3778,11 @@ static int add_event(time_t timestamp, int event_id, const char* event_name, HND
    /* check for invalid history tags */
    for (int i=0; i<ntags; i++) {
       if (tags[i].type == TID_STRING) {
-         cm_msg(MERROR, "add_event", "Invalid tag %d \'%s\' in event %d \'%s\': cannot do history for TID_STRING data, sorry!", i, tags[i].name, event_id, event_name);
+         cm_msg(MERROR, "add_event", "Invalid tag %d \'%s\' in event \'%s\': cannot do history for TID_STRING data, sorry!", i, tags[i].name, event_name);
          return 0;
       }
       if (rpc_tid_size(tags[i].type) == 0) {
-         cm_msg(MERROR, "add_event", "Invalid tag %d \'%s\' in event %d \'%s\': type %d size is zero", i, tags[i].name, event_id, event_name, tags[i].type);
+         cm_msg(MERROR, "add_event", "Invalid tag %d \'%s\' in event \'%s\': type %d size is zero", i, tags[i].name, event_name, tags[i].type);
          return 0;
       }
    }
@@ -3789,7 +3790,7 @@ static int add_event(time_t timestamp, int event_id, const char* event_name, HND
    /* check for trailing spaces in tag names */
    for (int i=0; i<ntags; i++) {
       if (isspace(tags[i].name[strlen(tags[i].name)-1])) {
-         cm_msg(MERROR, "add_event", "Invalid tag %d \'%s\' in event %d \'%s\': has trailing spaces", i, tags[i].name, event_id, event_name);
+         cm_msg(MERROR, "add_event", "Invalid tag %d \'%s\' in event \'%s\': has trailing spaces", i, tags[i].name, event_name);
          return 0;
       }
    }
@@ -3809,6 +3810,7 @@ static int add_event(time_t timestamp, int event_id, const char* event_name, HND
    struct hist_log_s h;
    strlcpy(h.event_name, event_name, sizeof(h.event_name));
    h.n_var       = ntags;
+   h.hKeyEq      = hKeyEq;
    h.hKeyVar     = hKey;
    h.buffer_size = size;
    h.buffer      = (char*)malloc(size);
@@ -3820,30 +3822,21 @@ static int add_event(time_t timestamp, int event_id, const char* event_name, HND
       return 0;
    }
    
-   /* open hot link to variables */
-   if (hotlink) {
-      status = db_open_record(hDB, hKey, h.buffer, size, MODE_READ, log_history, NULL);
-      if (status != DB_SUCCESS) {
-         cm_msg(MERROR, "add_event", "Cannot hotlink event %d \"%s\" for history logging, db_open_record() status %d", event_id, event_name, status);
-         return status;
-      }
-   }
-
    hist_log.push_back(h);
    history_events.push_back(event_name);
    
    if (verbose)
-      printf("Created event %d for equipment \"%s\", %d tags, size %d\n", event_id, event_name, ntags, size);
+      printf("Created event \"%s\", %d tags, size %d\n", event_name, ntags, size);
 
    return SUCCESS;
 }
 
-static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_name, int eq_id, time_t now, int period, bool per_variable_history)
+static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_name, time_t now, int period)
 {
    int status;
 
    if (verbose)
-      printf("\n==================== Equipment \"%s\", ID %d  =======================\n", eq_name, eq_id);
+      printf("\n==================== Equipment \"%s\"  =======================\n", eq_name);
 
    /* count keys in variables tree */
    int n_var = 0;
@@ -4023,8 +4016,7 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
          i_tag++;
       }
       
-      if (per_variable_history && i_tag>0) {
-         WORD event_id = 0;
+      if (i_tag>0) {
          char event_name[NAME_LENGTH];
          
          strlcpy(event_name, eq_name, NAME_LENGTH);
@@ -4033,7 +4025,7 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
 
          assert(i_tag <= n_tags);
          
-         status = add_event(now, event_id, event_name, hKey, i_tag, tag, period, 1);
+         status = add_event(now, event_name, hKeyEq, hKey, i_tag, tag, period);
          if (status != DB_SUCCESS)
             return status;
          
@@ -4041,14 +4033,6 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
       } /* if per-variable history */
       
    } /* loop over variables */
-   
-   if (!per_variable_history && i_tag>0) {
-      assert(i_tag <= n_tags);
-      
-      status = add_event(now, eq_id, eq_name, hKeyVar, i_tag, tag, period, 1);
-      if (status != DB_SUCCESS)
-         return status;
-   }
    
    if (tag) {
       free(tag);
@@ -4060,16 +4044,14 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
 
 INT open_history()
 {
-   INT size, status, i, max_event_id;
+   INT size, status, i;
    INT n_var;
    HNDLE hKeyRoot, hKeyVar, hLinkKey, hVarKey, hKeyEq, hHistKey, hKey;
    HNDLE hKeyHist;
    DWORD history;
    TAG *tag = NULL;
    KEY key, varkey, linkkey, histkey;
-   WORD eq_id;
    char eq_name[NAME_LENGTH], hist_name[NAME_LENGTH];
-   int global_per_variable_history = 0;
 
    time_t now = time(NULL);
 
@@ -4197,30 +4179,6 @@ INT open_history()
       status = hs_get_history(hDB, hKey, HS_GET_WRITER, verbose, &hi);
 
       if (status==HS_SUCCESS && hi) {
-         if (strcasecmp(hi->type, "MIDAS")==0) {
-            i = 0;
-            size = sizeof(i);
-            status = db_get_value(hDB, hKey, "PerVariableHistory", &i, &size, TID_INT, TRUE);
-            assert(status==DB_SUCCESS);
-            
-            if (i)
-               global_per_variable_history = 1;
-	 } else if (strcasecmp(hi->type, "FILE")==0) {
-            i = 0;
-            size = sizeof(i);
-            status = db_get_value(hDB, hKey, "PerVariableHistory", &i, &size, TID_INT, TRUE);
-            assert(status==DB_SUCCESS);
-            
-            if (i)
-               global_per_variable_history = 1;
-         } else if (strcasecmp(hi->type, "ODBC")==0) {
-            global_per_variable_history = 1;
-         } else if (strcasecmp(hi->type, "SQLITE")==0) {
-            global_per_variable_history = 1;
-         } else if (strcasecmp(hi->type, "MYSQL")==0) {
-            global_per_variable_history = 1;
-         }
-
          if (verbose)
             cm_msg(MINFO, "open_history", "Writing history to channel \'%s\' type \'%s\'", hi->name, hi->type);
 
@@ -4233,28 +4191,6 @@ INT open_history()
    for (unsigned i=0; i<mh.size(); i++) {
       status = mh[i]->hs_clear_cache();
       assert(status == HS_SUCCESS);
-   }
-
-   // check global per-variable history settings
-
-   i = 0;
-   size = sizeof(i);
-   status = db_get_value(hDB, 0, "/History/PerVariableHistory", &i, &size, TID_INT, FALSE);
-   if (status==DB_SUCCESS) {
-      cm_msg(MERROR, "open_history", "mlogger ODB setting /History/PerVariableHistory is obsolete, please delete it. Use /Logger/History/MIDAS/PerVariableHistory instead");
-      if (i)
-         global_per_variable_history = i;
-   }
-
-   if (global_per_variable_history) {
-      static int previous = -1;
-      if (global_per_variable_history != previous) {
-         if (global_per_variable_history)
-            cm_msg(MINFO, "open_history", "Per-variable history is enabled");
-         else
-            ;//cm_msg(MINFO, "open_history", "Per-variable history is disabled");
-      }
-      previous = global_per_variable_history;
    }
 
    // setup history links
@@ -4274,8 +4210,6 @@ INT open_history()
    }
 
    /*---- define equipment events as history ------------------------*/
-
-   max_event_id = 0;
 
    status = db_find_key(hDB, 0, "/Equipment", &hKeyRoot);
    if (status == DB_NO_KEY) {
@@ -4300,8 +4234,6 @@ INT open_history()
 
       /* define history tags only if log history flag is on */
       if (history > 0) {
-         BOOL per_variable_history = global_per_variable_history;
-
          /* get equipment name */
          db_get_key(hDB, hKeyEq, &key);
          strcpy(eq_name, key.name);
@@ -4315,26 +4247,11 @@ INT open_history()
             return 0;
          }
 
-         size = sizeof(eq_id);
-         status = db_get_value(hDB, hKeyEq, "Common/Event ID", &eq_id, &size, TID_WORD, TRUE);
-         assert(status == DB_SUCCESS);
-
-         size = sizeof(int);
-         status = db_get_value(hDB, hKeyEq, "Settings/PerVariableHistory", &per_variable_history, &size, TID_INT, FALSE);
-         assert(status == DB_SUCCESS || status == DB_NO_KEY);
-
-         status = add_equipment(hDB, hKeyEq, hKeyVar, eq_name, eq_id, now, history, per_variable_history);
-
-         /* remember maximum event id for later use with system events */
-         if (eq_id > max_event_id)
-            max_event_id = eq_id;
+         status = add_equipment(hDB, hKeyEq, hKeyVar, eq_name, now, history);
       }
    } /* loop over equipments */
 
    /*---- define linked trees ---------------------------------------*/
-
-   /* round up event id */
-   max_event_id = ((int) ((max_event_id + 1) / 10) + 1) * 10;
 
    status = db_find_key(hDB, 0, "/History/Links", &hKeyRoot);
    if (status == DB_SUCCESS) {
@@ -4354,7 +4271,7 @@ INT open_history()
          }
 
          if (verbose)
-            printf("\n==================== History link \"%s\", ID %d  =======================\n", hist_name, max_event_id);
+            printf("\n==================== History link \"%s\" =======================\n", hist_name);
 
          /* count subkeys in link */
          for (i = n_var = 0;; i++) {
@@ -4394,8 +4311,10 @@ INT open_history()
                db_enum_key(hDB, hHistKey, i, &hVarKey);
                if (db_get_key(hDB, hVarKey, &varkey) == DB_SUCCESS) {
                   /* hot-link individual values */
-                  if (histkey.type == TID_KEY)
-                     db_open_record(hDB, hVarKey, NULL, varkey.total_size, MODE_READ, log_system_history, NULL);
+                  if (histkey.type == TID_KEY) {
+                     db_open_record(hDB, hVarKey, NULL, varkey.total_size, MODE_READ, log_system_history, (void*)(size_t)hHistKey);
+                     printf("add_system_event: hKey %d open record AAA\n", hHistKey);
+                  }
 
                   strcpy(tag[n_var].name, linkkey.name);
                   tag[n_var].type = varkey.type;
@@ -4410,19 +4329,21 @@ INT open_history()
             }
 
             /* hot-link whole subtree */
-            if (histkey.type == TID_LINK)
-               db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history, NULL);
+            if (histkey.type == TID_LINK) {
+               db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history, (void*)(size_t)hHistKey);
+               printf("add_system_event: hKey %d open record BBB\n", hHistKey);
+            }
+
+            printf("add_system_event: hKey %d\n", hHistKey);
 
             int period = 10;
 
-            status = add_event(now, max_event_id, hist_name, hHistKey, n_var, tag, period, 0);
+            status = add_event(now, hist_name, hHistKey, hHistKey, n_var, tag, period);
             if (status != DB_SUCCESS)
                return status;
 
             free(tag);
             tag = NULL;
-
-            max_event_id++;
          }
       }
    }
@@ -4530,9 +4451,12 @@ void reload_history()
 
 /*---- log_history -------------------------------------------------*/
 
+#if 0
 void log_history(HNDLE hDB, HNDLE hKey, void *info)
 {
    INT i, size, status;
+
+   printf("log_history: hDB %d, hKey %d, info %p\n", hDB, hKey, info);
 
    bool found = false;
    for (i = 0; i < hist_log.size(); i++)
@@ -4560,7 +4484,7 @@ void log_history(HNDLE hDB, HNDLE hKey, void *info)
    hist_log[i].last_log = now;
 
    if (verbose)
-      printf("write history event: \'%s\', timestamp %d, buffer %p, size %d\n", hist_log[i].event_name, hist_log[i].last_log, hist_log[i].buffer, hist_log[i].buffer_size);
+      printf("write history event: \'%s\', timestamp %d, buffer %p, size %d (log_history)\n", hist_log[i].event_name, hist_log[i].last_log, hist_log[i].buffer, hist_log[i].buffer_size);
 
    for (unsigned h=0; h<mh.size(); h++) {
       status = mh[h]->hs_write_event(hist_log[i].event_name, hist_log[i].last_log, hist_log[i].buffer_size, hist_log[i].buffer);
@@ -4571,6 +4495,7 @@ void log_history(HNDLE hDB, HNDLE hKey, void *info)
 
    maybe_flush_history(now);
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -4579,9 +4504,25 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
    INT size, total_size, status;
    DWORD i;
    KEY key;
-   struct hist_log_s* h = (struct hist_log_s*) info;
+   HNDLE hKeyEq = (HNDLE)(size_t) info;
 
    DWORD now = ss_time();
+
+   printf("log_system_history: hDB %d, hKey %d, info %p, hKeyEq %d\n", hDB, hKey, info, hKeyEq);
+
+   struct hist_log_s* h = NULL;
+   for (int i=0; i<hist_log.size(); i++)
+      if (hist_log[i].hKeyEq == hKeyEq) {
+         h = &hist_log[i];
+         break;
+      }
+
+   if (!h) {
+      // FIXME: print the full pathto offending hKey
+      cm_msg(MINFO, "log_system_history", "Cannot find history event for hKey %d, reloading the history", hKey);
+      reload_history();
+      return;
+   }
 
    /* check if over period */
    if (now - h->last_log < h->period)
@@ -4606,7 +4547,7 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
    h->last_log = now;
 
    if (verbose)
-      printf("write history event: \'%s\', timestamp %d, buffer %p, size %d\n", h->event_name, h->last_log, h->buffer, h->buffer_size);
+      printf("write history event: \'%s\', timestamp %d, buffer %p, size %d (log_system_history)\n", h->event_name, h->last_log, h->buffer, h->buffer_size);
 
    for (unsigned hh=0; hh<mh.size(); hh++)
       mh[hh]->hs_write_event(h->event_name, h->last_log, h->buffer_size, h->buffer);
