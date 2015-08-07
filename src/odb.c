@@ -8268,8 +8268,7 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
                   pkey->last_written = ss_time();
 
                   /* notify clients which have key open */
-                  if (pkey->notify_count)
-                     db_notify_clients(hDB, (POINTER_T) pkey - (POINTER_T) pheader, -1, FALSE);
+                  db_notify_clients(hDB, (POINTER_T) pkey - (POINTER_T) pheader, -1, TRUE);
                }
             } else {
                /* copy key data if there is read access */
@@ -8318,6 +8317,7 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
          if (data)
             *data = (void *) ((char *) (*data) + corr);
 
+         // FIXME: this breaks db_watch?
          if (bSet && pkey->notify_count)
             db_notify_clients(hDB, (POINTER_T) pkey - (POINTER_T) pheader, -1, FALSE);
       }
@@ -8596,7 +8596,6 @@ INT db_set_record(HNDLE hDB, HNDLE hKey, void *data, INT buf_size, INT align)
 
       db_lock_database(hDB);
       db_recurse_record_tree(hDB, hKey, &pdata, &total_size, align, NULL, TRUE, convert_flags);
-      db_notify_clients(hDB, hKey, -1, TRUE);
       db_unlock_database(hDB);
    }
 #endif                          /* LOCAL_ROUTINES */
