@@ -2142,7 +2142,7 @@ INT db_delete_key1(HNDLE hDB, HNDLE hKey, INT level, BOOL follow_links)
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_delete_key1", "invalid key handle");
+         cm_msg(MERROR, "db_delete_key1", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -3972,7 +3972,7 @@ INT db_get_key(HNDLE hDB, HNDLE hKey, KEY * key)
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER) && hKey != 0) {
-         cm_msg(MERROR, "db_get_key", "invalid key handle");
+         cm_msg(MERROR, "db_get_key", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -4051,7 +4051,7 @@ INT db_get_link(HNDLE hDB, HNDLE hKey, KEY * key)
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER) && hKey != 0) {
-         cm_msg(MERROR, "db_get_link", "invalid key handle");
+         cm_msg(MERROR, "db_get_link", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -4115,7 +4115,7 @@ INT db_get_key_time(HNDLE hDB, HNDLE hKey, DWORD * delta)
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_get_key", "invalid key handle");
+         cm_msg(MERROR, "db_get_key", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -4174,7 +4174,7 @@ INT db_get_key_info(HNDLE hDB, HNDLE hKey, char *name, INT name_size, INT * type
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_get_key_info", "invalid key handle");
+         cm_msg(MERROR, "db_get_key_info", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -4263,7 +4263,7 @@ INT db_rename_key(HNDLE hDB, HNDLE hKey, const char *name)
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_rename_key", "invalid key handle");
+         cm_msg(MERROR, "db_rename_key", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -4359,7 +4359,7 @@ INT db_reorder_key(HNDLE hDB, HNDLE hKey, INT idx)
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_rename_key", "invalid key handle");
+         cm_msg(MERROR, "db_rename_key", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -4501,7 +4501,7 @@ INT db_get_data(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type)
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_get_data", "invalid key handle");
+         cm_msg(MERROR, "db_get_data", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -4626,7 +4626,7 @@ INT db_get_link_data(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD ty
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_get_data", "invalid key handle");
+         cm_msg(MERROR, "db_get_data", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -4744,7 +4744,7 @@ INT db_get_data1(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type, 
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_get_data", "invalid key handle");
+         cm_msg(MERROR, "db_get_data", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -4852,7 +4852,7 @@ INT db_get_data_index(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT idx
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_get_data", "invalid key handle");
+         cm_msg(MERROR, "db_get_data", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -4976,7 +4976,7 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_set_data", "invalid key handle");
+         cm_msg(MERROR, "db_set_data", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -5100,7 +5100,7 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_set_data", "invalid key handle");
+         cm_msg(MERROR, "db_set_data", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -5222,7 +5222,7 @@ INT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values)
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_set_num_values", "invalid key handle");
+         cm_msg(MERROR, "db_set_num_values", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -5343,7 +5343,7 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_set_data_index", "invalid key handle");
+         cm_msg(MERROR, "db_set_data_index", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -5481,7 +5481,7 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_set_data_index", "invalid key handle");
+         cm_msg(MERROR, "db_set_data_index", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
@@ -5614,7 +5614,7 @@ INT db_set_data_index2(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_set_data_index2", "invalid key handle");
+         cm_msg(MERROR, "db_set_data_index2", "invalid key handle %d", hKey);
          return DB_INVALID_HANDLE;
       }
 
