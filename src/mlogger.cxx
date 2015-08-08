@@ -4165,6 +4165,9 @@ INT open_history()
 
    history_events.clear();
 
+   // close_history() should have been called before open_history()
+   assert(hist_log.size() == 0);
+
    // create and initialize the history channels tree
 
    status = db_find_key(hDB, 0, "/Logger/History", &hKeyHist);
@@ -4466,8 +4469,7 @@ void close_history()
    }
 
    /* close event history */
-   // FIXME: why counting from 1? is event #0 special somehow?
-   for (i = 1; i < hist_log.size(); i++)
+   for (int i=0; i < hist_log.size(); i++)
       if (hist_log[i].hKeyVar) {
          db_close_record(hDB, hist_log[i].hKeyVar);
          hist_log[i].hKeyVar = 0;
@@ -4475,6 +4477,8 @@ void close_history()
             free(hist_log[i].buffer);
          hist_log[i].buffer = NULL;
       }
+
+   hist_log.clear();
 
    for (unsigned h=0; h<mh.size(); h++)
       status  = mh[h]->hs_disconnect();
