@@ -78,9 +78,7 @@ struct hist_log_s {
    char event_name[256];
    char *buffer;
    INT buffer_size;
-   HNDLE hKeyEq;
    HNDLE hKeyVar;
-   DWORD n_var;
    DWORD period;
    DWORD last_log;
 };
@@ -3763,7 +3761,7 @@ static void watch_history(HNDLE hDB, HNDLE hKey, int index)
    maybe_flush_history(ts);
 }
 
-static int add_event(time_t timestamp, const char* event_name, HNDLE hKeyEq, HNDLE hKey, int ntags, const TAG* tags, int period)
+static int add_event(time_t timestamp, const char* event_name, HNDLE hKey, int ntags, const TAG* tags, int period)
 {
    int status;
    int size;
@@ -3778,7 +3776,6 @@ static int add_event(time_t timestamp, const char* event_name, HNDLE hKeyEq, HND
    }
 #endif
 
-   assert(hKeyEq != 0);
    assert(hKey != 0);
    assert(ntags > 0);
 
@@ -3824,8 +3821,6 @@ static int add_event(time_t timestamp, const char* event_name, HNDLE hKeyEq, HND
    /* setup hist_log structure for this event */
    struct hist_log_s h;
    strlcpy(h.event_name, event_name, sizeof(h.event_name));
-   h.n_var       = ntags;
-   h.hKeyEq      = hKeyEq;
    h.hKeyVar     = hKey;
    h.buffer_size = size;
    h.buffer      = (char*)malloc(size);
@@ -4029,7 +4024,7 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
          event_name += "/";
          event_name += varkey.name;
 
-         status = add_event(now, event_name.c_str(), hKeyEq, hKey, ntags, tags, period);
+         status = add_event(now, event_name.c_str(), hKey, ntags, tags, period);
          if (status != DB_SUCCESS)
             return status;
       }
@@ -4090,7 +4085,7 @@ static int add_history_links_link(HNDLE hDB, HNDLE hLinkKey, const char* link_na
       event_name += "/";
       event_name += key.name;
 
-      status = add_event(now, event_name.c_str(), hLinkKey, hKey, 1, t, period);
+      status = add_event(now, event_name.c_str(), hKey, 1, t, period);
    }
 
    return SUCCESS;
@@ -4147,7 +4142,7 @@ static int add_history_links_key(HNDLE hDB, HNDLE hLinkKey, const char* link_nam
       event_name += "/";
       event_name += key.name;
 
-      status = add_event(now, event_name.c_str(), hLinkKey, hVarKey, 1, t, period);
+      status = add_event(now, event_name.c_str(), hVarKey, 1, t, period);
       status = db_watch(hDB, hVarKey, watch_history);
    }
    
