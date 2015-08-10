@@ -102,7 +102,6 @@ typedef struct {
 
 void receive_event(HNDLE hBuf, HNDLE request_id, EVENT_HEADER * pheader, void *pevent);
 INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pheader);
-//void log_system_history(HNDLE hDB, HNDLE hKey, void *info);
 int log_generate_file_name(LOG_CHN *log_chn);
 
 /*== common code FAL/MLOGGER start =================================*/
@@ -3678,7 +3677,16 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 
 void reload_history(void);
 void maybe_flush_history(DWORD now);
-//void log_history(HNDLE hDB, HNDLE hKey, void *info);
+
+static std::string get_odb_path(HNDLE hDB, HNDLE hKey)
+{
+   char str[MAX_ODB_PATH];
+   int status = db_get_path(hDB, hKey, str, sizeof(str));
+   if (status == DB_SUCCESS)
+      return str;
+   sprintf(str,"hKey %d db_get_path() error %d", hKey, status);
+   return str;
+}
 
 #include "history.h"
 
@@ -3723,16 +3731,13 @@ static void watch_history(HNDLE hDB, HNDLE hKey, int index)
          status = db_get_data(hDB, h->hKeyVar, h->buffer, &size, key.type);
 
          if (status != DB_SUCCESS) {
-            printf("here!\n");
-            // FIXME: print the full pathto offending hKey
-            cm_msg(MERROR, "watch_history", "History event \'%s\' error: db_get_data() returned %d, reloading the history", h->event_name, status);
+            cm_msg(MERROR, "watch_history", "History event \'%s\', odb \'%s\' db_get_data() returned %d, reloading the history", h->event_name, get_odb_path(hDB, h->hKeyVar).c_str(), status);
             reload_history();
             return;
          }
 
          if (size != h->buffer_size) {
-            // FIXME: print the full pathto offending hKey
-            cm_msg(MERROR, "watch_history", "Size of history event \'%s\' changed from %d to %d, reloading the history", h->event_name, h->buffer_size, size);
+            cm_msg(MERROR, "watch_history", "History event \'%s\', odb \'%s\' size changed from %d to %d, reloading the history", h->event_name, get_odb_path(hDB, h->hKeyVar).c_str(), h->buffer_size, size);
             reload_history();
             return;
          }
@@ -3752,8 +3757,7 @@ static void watch_history(HNDLE hDB, HNDLE hKey, int index)
    }
 
    if (!found) {
-      // FIXME: print the full pathto offending hKey
-      cm_msg(MERROR, "watch_history", "Cannot find history event for hKey %d, reloading the history", hKey);
+      cm_msg(MERROR, "watch_history", "Cannot find history event for hKey %d, odb \'%s\', reloading the history", hKey, get_odb_path(hDB, hKey).c_str());
       reload_history();
       return;
    }
@@ -3852,7 +3856,8 @@ static TAG* AddTag(TAG** ptags, int *pntags, int *pmaxtags, const std::string& n
       int maxtags = *pmaxtags + 20;
       TAG* tags = (TAG*)realloc(*ptags, sizeof(TAG)*maxtags);
       if (!tags) {
-         // FIXME
+         cm_msg(MERROR, "AddTag", "Cannot reallocate tags array from %d to %d bytes", *pmaxtags, maxtags);
+         cm_msg_flush_buffer();
          abort();
       }
 
@@ -4065,7 +4070,7 @@ static int add_history_links_link(HNDLE hDB, HNDLE hLinkKey, const char* link_na
       printf("key %s type %d\n", key.name, key.type);
       
       if ((key.type == TID_KEY) || key.type == TID_LINK) {
-         // FIXME: not permitted
+         cm_msg(MERROR, "add_history_links_link", "Ignoring history link element \'%s\': should not be a subdirectory or a link", get_odb_path(hDB, hKey).c_str());
          continue;
       }
 
@@ -4111,7 +4116,7 @@ static int add_history_links_key(HNDLE hDB, HNDLE hLinkKey, const char* link_nam
       assert(status == DB_SUCCESS);
       
       if (key.type != TID_LINK) {
-         // FIXME: not permitted
+         cm_msg(MERROR, "add_history_links_key", "Ignoring history link element \'%s\': should be a link", get_odb_path(hDB, hKey).c_str());
          continue;
       }
       
@@ -4497,121 +4502,6 @@ void reload_history()
       exit(1);
    }
 }
-
-/*---- log_history -------------------------------------------------*/
-
-#if 0
-void log_history(HNDLE hDB, HNDLE hKey, void *info)
-{
-   INT i, size, status;
-
-   printf("log_history: hDB %d, hKey %d, info %p\n", hDB, hKey, info);
-
-   bool found = false;
-   for (i = 0; i < hist_log.size(); i++)
-      if (hist_log[i].hKeyVar == hKey) {
-         found = true;
-         break;
-      }
-
-   if (!found)
-      return;
-
-   DWORD now = ss_time();
-
-   /* check if over period */
-   if (now - hist_log[i].last_log < hist_log[i].period)
-      return;
-
-   /* check if event size has changed */
-   db_get_record_size(hDB, hKey, 0, &size);
-   if (size != hist_log[i].buffer_size) {
-      reload_history();
-      return;
-   }
-
-   hist_log[i].last_log = now;
-
-   if (verbose)
-      printf("write history event: \'%s\', timestamp %d, buffer %p, size %d (log_history)\n", hist_log[i].event_name, hist_log[i].last_log, hist_log[i].buffer, hist_log[i].buffer_size);
-
-   for (unsigned h=0; h<mh.size(); h++) {
-      status = mh[h]->hs_write_event(hist_log[i].event_name, hist_log[i].last_log, hist_log[i].buffer_size, hist_log[i].buffer);
-      if (verbose)
-         if (status != HS_SUCCESS)
-            printf("hs_write_event() status %d\n", status);
-   }
-
-   maybe_flush_history(now);
-}
-#endif
-
-/*------------------------------------------------------------------*/
-
-#if 0
-void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
-{
-   INT size, total_size, status;
-   DWORD i;
-   KEY key;
-   HNDLE hKeyEq = (HNDLE)(size_t) info;
-
-   DWORD now = ss_time();
-
-   printf("log_system_history: hDB %d, hKey %d, info %p, hKeyEq %d\n", hDB, hKey, info, hKeyEq);
-
-   struct hist_log_s* h = NULL;
-   for (int i=0; i<hist_log.size(); i++)
-      if (hist_log[i].hKeyEq == hKeyEq) {
-         h = &hist_log[i];
-         break;
-      }
-
-   if (!h) {
-      // FIXME: print the full pathto offending hKey
-      cm_msg(MINFO, "log_system_history", "Cannot find history event for hKey %d, reloading the history", hKey);
-      reload_history();
-      return;
-   }
-
-   /* check if over period */
-   if (now - h->last_log < h->period)
-      return;
-
-   for (i = 0, total_size = 0;; i++) {
-      status = db_enum_key(hDB, h->hKeyVar, i, &hKey);
-      if (status == DB_NO_MORE_SUBKEYS)
-         break;
-
-      db_get_key(hDB, hKey, &key);
-      size = key.total_size;
-      db_get_data(hDB, hKey, (char *) h->buffer + total_size, &size, key.type);
-      total_size += size;
-   }
-
-   if (i != h->n_var) {
-      reload_history();
-      return;
-   }
-
-   h->last_log = now;
-
-   if (verbose)
-      printf("write history event: \'%s\', timestamp %d, buffer %p, size %d (log_system_history)\n", h->event_name, h->last_log, h->buffer, h->buffer_size);
-
-   for (unsigned hh=0; hh<mh.size(); hh++)
-      mh[hh]->hs_write_event(h->event_name, h->last_log, h->buffer_size, h->buffer);
-
-   /* simulate odb key update for hot links connected to system history */
-   if (!rpc_is_remote()) {
-      db_lock_database(hDB);
-      db_notify_clients(hDB, h->hKeyVar, -1, FALSE);
-      db_unlock_database(hDB);
-   }
-
-   maybe_flush_history(now);
-}
-#endif
 
 /*------------------------------------------------------------------*/
 
