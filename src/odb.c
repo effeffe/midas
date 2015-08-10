@@ -3115,16 +3115,16 @@ INT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size)
       *path = 0;
       do {
          /* add key name in front of path */
-         strcpy(str, path);
-         strcpy(path, "/");
-         strcat(path, pkey->name);
+         strlcpy(str, path, sizeof(str));
+         strlcpy(path, "/", buf_size);
+         strlcat(path, pkey->name, buf_size);
 
          if (strlen(path) + strlen(str) + 1 > (DWORD) buf_size) {
             *path = 0;
             db_unlock_database(hDB);
             return DB_NO_MEMORY;
          }
-         strcat(path, str);
+         strlcat(path, str, buf_size);
 
          /* find parent key */
          pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
