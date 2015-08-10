@@ -4386,6 +4386,9 @@ INT open_history()
          status = db_get_value(hDB, 0, str.c_str(), &period, &size, TID_INT, TRUE);
          assert(status == DB_SUCCESS);
 
+         if (period == 0)
+            continue;
+
          if (key.type == TID_KEY) {
             add_history_links_key(hDB, hLinkKey, key.name, now, period);
          } else if (key.type == TID_LINK) {
