@@ -110,6 +110,7 @@ const Filetype filetype[] = {
    ".JPG", "image/jpeg",}, {
    ".GIF", "image/gif",}, {
    ".PNG", "image/png",}, {
+   ".SVG", "image/svg+xml",}, {
    ".PS",  "application/postscript",}, {
    ".EPS", "application/postscript",}, {
    ".HTML","text/html",}, {
