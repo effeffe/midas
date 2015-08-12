@@ -280,14 +280,12 @@ int main(int argc, char **argv)
             server_type = ST_MPROCESS;
          else if (argv[i][0] == '-' && argv[i][1] == 'p')
             port = strtoul(argv[++i], NULL, 0);
-         else if (argv[i][0] == '-' && argv[i][1] == 'a')
-            rpc_add_allowed_host(argv[++i]);
          else if (argv[i][0] == '-') {
             if (i + 1 >= argc || argv[i + 1][0] == '-')
                goto usage;
             else {
              usage:
-               printf("usage: mserver [-e Experiment] [-s][-t][-m][-d][-p port][-a hostname]\n");
+               printf("usage: mserver [-e Experiment] [-s][-t][-m][-d][-p port]\n");
                printf("               -e    experiment to connect to\n");
                printf("               -s    Single process server (DO NOT USE!)\n");
                printf("               -t    Multi threaded server (DO NOT USE!)\n");
@@ -299,7 +297,6 @@ int main(int argc, char **argv)
 #else
                printf("               -d    Write debug info\"\n\n");
 #endif
-               printf("               -a hostname Only allow access for specified hosts in addition to those listed in ODB \"/Experiment/Security/RPC hosts\"\n");
                return 0;
             }
          }
