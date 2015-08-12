@@ -1985,8 +1985,12 @@ void show_status_page(int refresh, const char *cookie_wpwd)
                   rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"greenLight\">%s@%s", ref, key.name,
                            equipment.frontend_name, equipment.frontend_host);
                else {
-                  rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"%s\">%s", ref, key.name,
-                           equipment.status_class, equipment.status);
+                  if (stristr(equipment.status_color, "Light"))
+                     rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"%s\">%s", ref, key.name,
+                              equipment.status_color, equipment.status);
+                  else
+                     rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"Light\" style=\"background-color:%s\">%s",
+                              ref, key.name, equipment.status_color, equipment.status);
                }
             } else
                rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"yellowLight\">Disabled", ref, key.name);

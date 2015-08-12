@@ -635,7 +635,7 @@ INT register_equipment(void)
       strcpy(eq_info->frontend_name, full_frontend_name);
       strcpy(eq_info->frontend_file_name, frontend_file_name);
       sprintf(eq_info->status, "%s@%s", full_frontend_name, eq_info->frontend_host);
-      strcpy(eq_info->status_class, "greenLight");
+      strcpy(eq_info->status_color, "greenLight");
 
       /* update variables in ODB */
       status = db_set_record(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), 0);
@@ -998,7 +998,7 @@ int set_equipment_status(const char *name, const char *equipment_status, const c
 
       status = db_set_value(hDB, hKey, "Status", equipment_status, 256, 1, TID_STRING);
       assert(status == DB_SUCCESS);
-      status = db_set_value(hDB, hKey, "Status class", status_class, 32, 1, TID_STRING);
+      status = db_set_value(hDB, hKey, "Status color", status_class, 32, 1, TID_STRING);
       assert(status == DB_SUCCESS);
    }
 

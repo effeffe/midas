@@ -490,6 +490,13 @@ td.meterCell{
 
 .whiteLight{
 	background-color: #EEEEEE;
+   border-radius: 5px;
+   border: 1px solid #000000 !important;
+}
+
+.Light{
+   border-radius: 5px;
+   border: 1px solid #000000 !important;
 }
 
 .msgService{

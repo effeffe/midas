@@ -1012,7 +1012,7 @@ typedef struct {
    char frontend_name[NAME_LENGTH];   /**< Frontend name                     */
    char frontend_file_name[256];      /**< Source file used for user FE      */
    char status[256];                  /**< Current status of equipment       */
-   char status_class[NAME_LENGTH];    /**< CSS class to be used by mhttpd for status */
+   char status_color[NAME_LENGTH];    /**< Color or class to be used by mhttpd for status */
    BOOL hidden;                       /**< Hidden flag                       */
 } EQUIPMENT_INFO;
 
@@ -1033,7 +1033,7 @@ Frontend host = STRING : [32] \n\
 Frontend name = STRING : [32] \n\
 Frontend file name = STRING : [256] \n\
 Status = STRING : [256] \n\
-Status class = STRING : [32] \n\
+Status color = STRING : [32] \n\
 Hidden = BOOL : 0\n\
 "
 
