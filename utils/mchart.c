@@ -458,6 +458,7 @@ int main(int argc, char **argv)
       FILE *f;
       char strtmp[128];
       char *peqp;
+      char *s;
 
       config_done = TRUE;
       create = FALSE;
@@ -467,7 +468,11 @@ int main(int argc, char **argv)
          printf("Error: Cannot open %s\n", mchart_conf);
          goto error;
       }
-      fgets(strtmp, 128, f);
+      s = fgets(strtmp, 128, f);
+      if (s == NULL) {
+         printf("Error: Cannot read %s\n", mchart_conf);
+         goto error;
+      }
       if (strstr(strtmp, "#Equipment")) {
          peqp = strstr(strtmp, ">");
          sprintf(eqpstr, "%s", peqp + 1);

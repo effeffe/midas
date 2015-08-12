@@ -129,12 +129,17 @@ int odb_hist(char *file_name, int run_number, char *var_name, int quiet,
 
    /* search path */
    do {
-      fgets(line, sizeof(line), f);
+      char* s;
+      s = fgets(line, sizeof(line), f);
+      if (s == NULL)
+         break;
       if (line[0] == '[')
          if (equal_ustring(line, path)) {
             /* look for key */
             do {
-               fgets(line, sizeof(line), f);
+               s = fgets(line, sizeof(line), f);
+               if (s == NULL)
+                  break;
                if (strchr(line, '=') != NULL) {
                   strcpy(str, line);
                   *(strchr(str, '=') - 1) = 0;
@@ -157,8 +162,11 @@ int odb_hist(char *file_name, int run_number, char *var_name, int quiet,
                         }
                      } else {
                         /* arrays */
-                        for (i = 0; i <= index; i++)
-                           fgets(line, sizeof(line), f);
+                        for (i = 0; i <= index; i++) {
+                           s = fgets(line, sizeof(line), f);
+                           if (s == NULL)
+                              break;
+                        }
                         if (line[0] == '[' && atoi(line + 1) == index) {
                            strcpy(str, strchr(line, ']') + 2);
                            if (strchr(str, '\n') != NULL)

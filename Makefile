@@ -461,7 +461,7 @@ $(BIN_DIR):
 #
 $(GIT_REVISION): $(SRC_DIR)/midas.c $(SRC_DIR)/odb.c $(SRC_DIR)/system.c
 	echo \#define GIT_REVISION \"`git log -n 1 --pretty=format:"%ad - %h"`\" > $(GIT_REVISION)
-
+include/midas.h: $(GIT_REVISION)
 #
 # main binaries
 #
