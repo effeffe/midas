@@ -3517,13 +3517,19 @@ void show_rawfile(const char *path)
    offset = ftell(f);
    if (offset != 0) {
       /* go to end of line */
-      fgets(buffer, buf_size - 1, f);
+      char* s = fgets(buffer, buf_size - 1, f);
+      if (s) {
+         *s = 0; // avoid compiler warning about unused "s"
+      }
+
       offset = ftell(f) - offset;
       buf_size -= offset;
    }
 
    memset(buffer, 0, buf_size);
-   fread(buffer, 1, buf_size - 1, f);
+   int rd = fread(buffer, 1, buf_size - 1, f);
+   if (rd > 0)
+      buffer[rd] = 0;
    buffer[buf_size - 1] = 0;
    fclose(f);
 
