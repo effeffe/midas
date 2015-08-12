@@ -674,6 +674,7 @@ System message types */
 #define FE_ERR_HW                   603   /**< - */
 #define FE_ERR_DISABLED             604   /**< - */
 #define FE_ERR_DRIVER               605   /**< - */
+#define FE_PARTIALLY_DISABLED       606   /**< - */
 
 /**
 History error code */
@@ -1011,7 +1012,7 @@ typedef struct {
    char frontend_name[NAME_LENGTH];   /**< Frontend name                     */
    char frontend_file_name[256];      /**< Source file used for user FE      */
    char status[256];                  /**< Current status of equipment       */
-   char status_color[NAME_LENGTH];    /**< Color to be used by mhttpd for status */
+   char status_color[NAME_LENGTH];    /**< Color or class to be used by mhttpd for status */
    BOOL hidden;                       /**< Hidden flag                       */
 } EQUIPMENT_INFO;
 
@@ -1042,6 +1043,7 @@ typedef struct {
    INT channels;                      /**< Number of channels                */
    INT(*bd) (INT cmd, ...);           /**< Bus driver entry point            */
    DWORD flags;                       /**< Combination of DF_xx              */
+   BOOL enabled;                      /**< Enable flag                       */
    void *dd_info;                     /**< Private info for device driver    */
    DD_MT_BUFFER *mt_buffer;           /**< pointer to multithread buffer     */
    INT stop_thread;                   /**< flag used to stop the thread      */

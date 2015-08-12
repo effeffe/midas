@@ -231,6 +231,7 @@ INT multi_init(EQUIPMENT * pequipment)
    char str[256];
    HNDLE hDB, hKey, hNamesIn, hNamesOut;
    MULTI_INFO *m_info;
+   BOOL partially_disabled;
 
    /* allocate private data */
    pequipment->cd_info = calloc(1, sizeof(MULTI_INFO));
@@ -372,6 +373,7 @@ INT multi_init(EQUIPMENT * pequipment)
    /*---- Initialize device drivers ----*/
 
    /* call init method */
+   partially_disabled = FALSE;
    for (i = 0; pequipment->driver[i].name[0]; i++) {
       sprintf(str, "Settings/Devices/%s", pequipment->driver[i].name);
       status = db_find_key(hDB, m_info->hKeyRoot, str, &hKey);
@@ -386,11 +388,22 @@ INT multi_init(EQUIPMENT * pequipment)
          }
       }
 
-      status = device_driver(&pequipment->driver[i], CMD_INIT, hKey);
-      if (status != FE_SUCCESS) {
-         free_mem(m_info);
-         return status;
-      }
+      /* check enabled flag */
+      size = sizeof(pequipment->driver[i].enabled);
+      pequipment->driver[i].enabled = 1;
+      sprintf(str, "Settings/Devices/%s/Enabled", pequipment->driver[i].name);
+      status = db_get_value(hDB, m_info->hKeyRoot, str, &pequipment->driver[i].enabled, &size, TID_BOOL, TRUE);
+      if (status != DB_SUCCESS)
+         return FE_ERR_ODB;
+
+      if (pequipment->driver[i].enabled) {
+         status = device_driver(&pequipment->driver[i], CMD_INIT, hKey);
+         if (status != FE_SUCCESS) {
+            free_mem(m_info);
+            return status;
+         }
+      } else
+         partially_disabled = TRUE;
    }
 
    /* compose device driver channel assignment */
@@ -427,10 +440,20 @@ INT multi_init(EQUIPMENT * pequipment)
          device_driver(m_info->driver_input[i], CMD_GET_LABEL,
                        i - m_info->channel_offset_input[i], 
                        m_info->names_input + NAME_LENGTH * i);
+
+         /* merge existing names with labels from driver */
+         status = db_find_key(hDB, m_info->hKeyRoot, "Settings/Names Input", &hKey);
+         if (status != DB_SUCCESS) {
+            db_create_key(hDB, m_info->hKeyRoot, "Settings/Names Input", TID_STRING);
+            db_find_key(hDB, m_info->hKeyRoot, "Settings/Names Input", &hKey);
+            db_set_data(hDB, hKey, m_info->names_input, NAME_LENGTH, 1, TID_STRING);
+         } else {
+            size = sizeof(str);
+            db_get_data_index(hDB, hKey, str, &size, i, TID_STRING);
+            if (!str[0])
+               db_set_data_index(hDB, hKey, m_info->names_input+NAME_LENGTH*i, NAME_LENGTH, i, TID_STRING);
+         }
       }
-      db_merge_data(hDB, m_info->hKeyRoot, "Settings/Names Input",
-                    m_info->names_input, NAME_LENGTH * m_info->num_channels_input,
-                    m_info->num_channels_input, TID_STRING);
    }
 
    if (m_info->num_channels_output) {
@@ -439,10 +462,21 @@ INT multi_init(EQUIPMENT * pequipment)
          device_driver(m_info->driver_output[i], CMD_GET_LABEL, 
                        i - m_info->channel_offset_output[i], 
                        m_info->names_output + NAME_LENGTH * i);
+
+         /* merge existing names with labels from driver */
+         status = db_find_key(hDB, m_info->hKeyRoot, "Settings/Names Output", &hKey);
+         if (status != DB_SUCCESS) {
+            db_create_key(hDB, m_info->hKeyRoot, "Settings/Names Output", TID_STRING);
+            db_find_key(hDB, m_info->hKeyRoot, "Settings/Names Output", &hKey);
+            db_set_data(hDB, hKey, m_info->names_input, NAME_LENGTH, 1, TID_STRING);
+         } else {
+            size = sizeof(str);
+            db_get_data_index(hDB, hKey, str, &size, i, TID_STRING);
+            if (!str[0])
+               db_set_data_index(hDB, hKey, m_info->names_input+NAME_LENGTH*i, NAME_LENGTH, i, TID_STRING);
+         }
+
       }
-      db_merge_data(hDB, m_info->hKeyRoot, "Settings/Names Output",
-                    m_info->names_output, NAME_LENGTH * m_info->num_channels_output,
-                    m_info->num_channels_output, TID_STRING);
    }
 
    /*---- set labels from midas SC names ----*/
@@ -507,6 +541,9 @@ INT multi_init(EQUIPMENT * pequipment)
    if (m_info->num_channels_input)
       multi_read(pequipment, -1);
 
+   if (partially_disabled)
+      return FE_PARTIALLY_DISABLED;
+   
    return FE_SUCCESS;
 }
 

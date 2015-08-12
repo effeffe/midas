@@ -82,6 +82,54 @@ void debug_print(char *msg)
    }
 }
 
+/*---- configure from ODB -------------------------------------------*/
+
+int odb_configure(const char* expt_name, int* port)
+{
+   int status;
+   int size;
+   HNDLE hDB;
+   HNDLE hClient;
+
+   /* connect to experiment */
+   status = cm_connect_experiment(NULL, expt_name, "mserver", 0);
+   if (status != CM_SUCCESS)
+      return status;
+
+   status = cm_get_experiment_database(&hDB, &hClient);
+   assert(status == CM_SUCCESS);
+
+   if (1) {
+      int v;
+
+      status = db_set_mode(hDB, hClient, MODE_READ|MODE_WRITE, TRUE);
+      assert(status == DB_SUCCESS);
+
+      v = 0;
+      size = sizeof(v);
+      status = db_set_value(hDB, hClient, "Server Port", &v, size, 1, TID_INT);
+      assert(status == DB_SUCCESS);
+
+      status = db_set_mode(hDB, hClient, MODE_READ, TRUE);
+      assert(status == DB_SUCCESS);
+   }
+
+   if (port) {
+      int odb_port = MIDAS_TCP_PORT;
+      size = sizeof(odb_port);
+      status = db_get_value(hDB, 0, "/Experiment/Midas server port", &odb_port, &size, TID_DWORD, TRUE);
+      assert(status == DB_SUCCESS);
+
+      if (*port == 0)
+         *port = odb_port;
+   }
+
+   // stay connected to experiment otherwise cm_msg() does not work
+   //status = cm_disconnect_experiment();
+
+   return SUCCESS;
+}
+
 /*---- main --------------------------------------------------------*/
 
 int main(int argc, char **argv)
@@ -133,7 +181,7 @@ int main(int argc, char **argv)
    int i, flag, size, server_type;
    char name[256], str[1000];
    BOOL inetd, daemon, debug;
-   int port = MIDAS_TCP_PORT;
+   int port = 0;
 
 #ifdef OS_WINNT
    /* init critical section object for open/close buffer */
@@ -209,9 +257,18 @@ int main(int argc, char **argv)
    server_type = ST_MPROCESS;
 
    if (argc < 7 || argv[1][0] == '-') {
+      int status;
+      char expt_name[NAME_LENGTH];
+
+      /* Get if existing the pre-defined experiment */
+      expt_name[0] = 0;
+      cm_get_environment(NULL, 0, expt_name, sizeof(expt_name));
+
       /* parse command line parameters */
       for (i = 1; i < argc; i++) {
-         if (argv[i][0] == '-' && argv[i][1] == 'd')
+         if (strncmp(argv[i], "-e", 2) == 0) {
+            strlcpy(expt_name, argv[++i], sizeof(expt_name));
+         } else if (argv[i][0] == '-' && argv[i][1] == 'd')
             debug = TRUE;
          else if (argv[i][0] == '-' && argv[i][1] == 'D')
             daemon = TRUE;
@@ -223,25 +280,23 @@ int main(int argc, char **argv)
             server_type = ST_MPROCESS;
          else if (argv[i][0] == '-' && argv[i][1] == 'p')
             port = strtoul(argv[++i], NULL, 0);
-         else if (argv[i][0] == '-' && argv[i][1] == 'a')
-            rpc_add_allowed_host(argv[++i]);
          else if (argv[i][0] == '-') {
             if (i + 1 >= argc || argv[i + 1][0] == '-')
                goto usage;
             else {
              usage:
-               printf("usage: mserver [-s][-t][-m][-d][-p port][-a hostname]\n");
+               printf("usage: mserver [-e Experiment] [-s][-t][-m][-d][-p port]\n");
+               printf("               -e    experiment to connect to\n");
                printf("               -s    Single process server (DO NOT USE!)\n");
                printf("               -t    Multi threaded server (DO NOT USE!)\n");
                printf("               -m    Multi process server (default)\n");
-               printf("               -p port Listen for connections on non-default tcp port\n");
+               printf("               -p port Listen for connections on specifed tcp port. Default value is taken from ODB \"/Experiment/midas server port\"\n");
 #ifdef OS_LINUX
                printf("               -D    Become a daemon\n");
                printf("               -d    Write debug info to stdout or to \"/tmp/mserver.log\"\n\n");
 #else
                printf("               -d    Write debug info\"\n\n");
 #endif
-               printf("               -a hostname Only allow access for specified hosts\n");
                return 0;
             }
          }
@@ -262,34 +317,49 @@ int main(int argc, char **argv)
          rpc_debug_printf("Debugging mode is on");
       }
 
-      /* if command line parameter given, start according server type */
-      if (server_type == ST_MTHREAD) {
-         if (ss_thread_create(NULL, NULL) == 0) {
-            printf("MIDAS doesn't support threads on this OS.\n");
-            return 0;
-         }
-
-         printf("NOTE: THE MULTI THREADED SERVER IS BUGGY, ONLY USE IT FOR TEST PURPOSES\n");
-         printf("Multi thread server started\n");
-      }
-
       /* become a daemon */
       if (daemon) {
          printf("Becoming a daemon...\n");
          ss_daemon_init(FALSE);
       }
 
+      odb_configure(expt_name, &port);
+
+      if (port == 0)
+         port = MIDAS_TCP_PORT;
+
+      printf("mserver will listen on TCP port %d\n", port);
+
+      /* if command line parameter given, start according server type */
+      if (server_type == ST_MTHREAD) {
+         if (ss_thread_create(NULL, NULL) == 0) {
+            printf("MIDAS doesn't support threads on this OS.\n");
+            return 1;
+         }
+
+         printf("NOTE: THE MULTI THREADED SERVER IS BUGGY, ONLY USE IT FOR TEST PURPOSES\n");
+         printf("Multi thread server started\n");
+      }
+
       /* register server */
-      if (rpc_register_server(server_type, argv[0], &port, rpc_server_dispatch) != RPC_SUCCESS) {
-         printf("Cannot start server\n");
-         return 0;
+      status =  rpc_register_server(server_type, argv[0], &port, rpc_server_dispatch);
+      if (status != RPC_SUCCESS) {
+         printf("Cannot start server, rpc_register_server() status %d\n", status);
+         return 1;
       }
 
       /* register MIDAS library functions */
       rpc_register_functions(rpc_get_internal_list(1), rpc_server_dispatch);
 
       /* run forever */
-      while (ss_suspend(5000, 0) != RPC_SHUTDOWN);
+      while (1) {
+         status = cm_yield(5000);
+         //printf("status %d\n", status);
+         if (status == RPC_SHUTDOWN)
+            break;
+      }
+
+      cm_disconnect_experiment();
    } else {
 
       /* here we come if this program is started as a subprocess */
@@ -388,7 +458,7 @@ int main(int argc, char **argv)
       rpc_server_thread(&callback);
    }
 
-   return BM_SUCCESS;
+   return 0;
 }
 
 /*------------------------------------------------------------------*/
@@ -979,3 +1049,11 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
 
    return status;
 }
+
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */

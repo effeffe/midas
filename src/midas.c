@@ -169,6 +169,10 @@ static INT _watchdog_last_called = 0;
 
 int _rpc_connect_timeout = 10000;
 
+// for use on a single machine it is best to restrict RPC access to localhost
+// by binding the RPC listener socket to the localhost IP address.
+static int disable_bind_rpc_to_localhost = 0;
+
 /* table for transition functions */
 
 typedef struct {
@@ -1156,15 +1160,23 @@ Retrieve old messages from log file
 */
 INT cm_msg_retrieve(const char *facility, time_t t, INT n_message, char *message, INT buf_size)
 {
-   char filename[256], *p;
-   INT n, i, flag;
+   char filename[256], linkname[256], *p;
+   INT n, i, fh, flag;
    time_t filedate;
 
    if (rpc_is_remote())
       return rpc_call(RPC_CM_MSG_RETRIEVE, facility, t, n_message, message, buf_size);
 
    time(&filedate);
-   flag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), NULL, 0);
+   flag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), linkname, sizeof(linkname));
+   
+   // see if file exists, use linkname if not
+   fh = open(filename, O_RDONLY | O_TEXT, 0644);
+   if (fh < 0)
+      strlcpy(filename, linkname, sizeof(filename));
+   else
+      close(fh);
+   
    n = cm_msg_retrieve1(filename, t, n_message, message, buf_size);
    if (strstr(filename, "chat") != NULL && n == -1)
       message[0] = 0;
@@ -1915,7 +1927,7 @@ usage:
   cm_disconnect_experiment();
 }
 \endcode
-@param host_name           Contents of MIDAS_SERVER_HOST environment variable.
+@param host_name          Contents of MIDAS_SERVER_HOST environment variable.
 @param host_name_size     string length
 @param exp_name           Contents of MIDAS_EXPT_NAME environment variable.
 @param exp_name_size      string length
@@ -1923,12 +1935,15 @@ usage:
 */
 INT cm_get_environment(char *host_name, int host_name_size, char *exp_name, int exp_name_size)
 {
-   host_name[0] = exp_name[0] = 0;
+   if (host_name)
+      host_name[0] = 0;
+   if (exp_name)
+      exp_name[0] = 0;
 
-   if (getenv("MIDAS_SERVER_HOST"))
+   if (host_name && getenv("MIDAS_SERVER_HOST"))
       strlcpy(host_name, getenv("MIDAS_SERVER_HOST"), host_name_size);
 
-   if (getenv("MIDAS_EXPT_NAME"))
+   if (exp_name && getenv("MIDAS_EXPT_NAME"))
       strlcpy(exp_name, getenv("MIDAS_EXPT_NAME"), exp_name_size);
 
    return CM_SUCCESS;
@@ -2050,6 +2065,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    char local_host_name[HOST_NAME_LENGTH];
    char client_name1[NAME_LENGTH];
    char password[NAME_LENGTH], str[256], exp_name1[NAME_LENGTH];
+   char xclient_name[NAME_LENGTH];
    HNDLE hDB, hKeyClient;
    BOOL call_watchdog;
 
@@ -2150,8 +2166,15 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       return status;
    }
 
+   size = sizeof(disable_bind_rpc_to_localhost);
+   status = db_get_value(hDB, 0, "/Experiment/Security/Enable non-localhost RPC", &disable_bind_rpc_to_localhost, &size, TID_BOOL, TRUE);
+   assert(status == DB_SUCCESS);
+
    /* now setup client info */
-   gethostname(local_host_name, sizeof(local_host_name));
+   if (!disable_bind_rpc_to_localhost)
+      strlcpy(local_host_name, "localhost", sizeof(local_host_name));
+   else
+      gethostname(local_host_name, sizeof(local_host_name));
 
    /* check watchdog timeout */
    if (watchdog_timeout == 0)
@@ -2193,8 +2216,10 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
    /* register server to be able to be called by other clients */
    status = cm_register_server();
-   if (status != CM_SUCCESS)
+   if (status != CM_SUCCESS) {
+      cm_msg(MERROR, "cm_connect_experiment", "Cannot register RPC server, cm_register_server() status %d", status);
       return status;
+   }
 
    /* set watchdog timeout */
    cm_get_watchdog_params(&call_watchdog, &watchdog_timeout);
@@ -2207,10 +2232,13 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    if (strchr(local_host_name, '.'))
       *strchr(local_host_name, '.') = 0;
 
+   /* get final client name */
+   rpc_get_name(xclient_name);
+
    /* startup message is not displayed */
    _message_print = NULL;
 
-   cm_msg(MINFO, "cm_connect_experiment", "Program %s on host %s started", client_name, local_host_name);
+   cm_msg(MINFO, "cm_connect_experiment", "Program %s on host %s started", xclient_name, local_host_name);
 
    /* enable system and user messages to stdout as default */
    cm_set_msg_print(MT_ALL, MT_ALL, puts);
@@ -2480,9 +2508,14 @@ INT cm_disconnect_experiment(void)
 
    /* send shutdown notification */
    rpc_get_name(client_name);
-   gethostname(local_host_name, sizeof(local_host_name));
-   if (strchr(local_host_name, '.'))
-      *strchr(local_host_name, '.') = 0;
+
+   if (!disable_bind_rpc_to_localhost)
+      strlcpy(local_host_name, "localhost", sizeof(local_host_name));
+   else {
+      gethostname(local_host_name, sizeof(local_host_name));
+      if (strchr(local_host_name, '.'))
+         *strchr(local_host_name, '.') = 0;
+   }
 
    /* disconnect message not displayed */
    _message_print = NULL;
@@ -2908,6 +2941,105 @@ INT cm_get_watchdog_info(HNDLE hDB, char *client_name, DWORD * timeout, DWORD * 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
+
+static void load_rpc_hosts(HNDLE hDB, HNDLE hKey, int index)
+{
+   int status;
+   int i, last;
+   KEY key;
+   int max_size;
+   char* str;
+
+   if (index != -99)
+      cm_msg(MINFO, "load_rpc_hosts", "Reloading RPC hosts access control list via hotlink callback");
+
+   status = db_get_key(hDB, hKey, &key);
+
+   if (status != DB_SUCCESS)
+      return;
+
+   //printf("clear rpc hosts!\n");
+   rpc_clear_allowed_hosts();
+
+   max_size = key.item_size;
+   str = malloc(max_size);
+
+   last = 0;
+   for (i=0; i<key.num_values; i++) {
+      int size = max_size;
+      status = db_get_data_index(hDB, hKey, str, &size, i, TID_STRING);
+      if (status != DB_SUCCESS)
+         break;
+
+      if (strlen(str) < 1) // skip emties
+         continue;
+
+      if (str[0] == '#') // skip commented-out entries
+         continue;
+
+      //printf("add rpc hosts %d [%s]\n", i, str);
+      rpc_add_allowed_host(str);
+      last = i;
+   }
+
+   if (key.num_values - last < 10) {
+      int new_size = last + 10;
+      status = db_set_num_values(hDB, hKey, new_size);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "load_rpc_hosts", "Cannot resize the RPC hosts access control list, db_set_num_values(%d) status %d", new_size, status);
+      }
+   }
+
+   free(str);
+}
+
+static void init_rpc_hosts(HNDLE hDB)
+{
+   int status;
+   char buf[256];
+   int size, i;
+   HNDLE hKey;
+
+   strcpy(buf, "localhost");
+   size = sizeof(buf);
+
+   status = db_get_value(hDB, 0, "/Experiment/Security/RPC hosts/Allowed hosts[0]", buf, &size, TID_STRING, TRUE);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_rpc_hosts", "Cannot create the RPC hosts access control list, db_get_value() status %d", status);
+      return;
+   }
+
+   size = sizeof(i);
+   i = 0;
+   status = db_get_value(hDB, 0, "/Experiment/Security/Disable RPC hosts check", &i, &size, TID_BOOL, TRUE);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_rpc_hosts", "Cannot create \"Disable RPC hosts check\", db_get_value() status %d", status);
+      return;
+   }
+
+   if (i != 0) // RPC hosts check is disabled
+      return;
+
+   status = db_find_key(hDB, 0, "/Experiment/Security/RPC hosts/Allowed hosts", &hKey);
+
+   if (status != DB_SUCCESS || hKey == 0) {
+      cm_msg(MERROR, "init_rpc_hosts", "Cannot find the RPC hosts access control list, db_find_key() status %d", status);
+      return;
+   }
+
+   load_rpc_hosts(hDB, hKey, -99);
+
+   status = db_watch(hDB, hKey, load_rpc_hosts);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_rpc_hosts", "Cannot watch the RPC hosts access control list, db_watch() status %d", status);
+      return;
+   }
+}
+
+/********************************************************************/
 INT cm_register_server(void)
 /********************************************************************\
 
@@ -2927,11 +3059,27 @@ INT cm_register_server(void)
 
 \********************************************************************/
 {
-   INT status, port;
-   HNDLE hDB, hKey;
-
    if (!_server_registered) {
-      port = 0;
+      INT status;
+      int size;
+      HNDLE hDB, hKey;
+      char name[NAME_LENGTH];
+      char str[256];
+      int port = 0;
+
+      cm_get_experiment_database(&hDB, &hKey);
+
+      size = sizeof(name);
+      status = db_get_value(hDB, hKey, "Name", &name, &size, TID_STRING, FALSE);
+      assert(status == DB_SUCCESS);
+
+      strlcpy(str, "/Experiment/Security/RPC ports/", sizeof(str));
+      strlcat(str, name, sizeof(str));
+
+      size = sizeof(port);
+      status = db_get_value(hDB, 0, str, &port, &size, TID_DWORD, TRUE);
+      assert(status == DB_SUCCESS);
+
       status = rpc_register_server(ST_REMOTE, NULL, &port, NULL);
       if (status != RPC_SUCCESS)
          return status;
@@ -2941,7 +3089,6 @@ INT cm_register_server(void)
       rpc_register_functions(rpc_get_internal_list(1), NULL);
 
       /* store port number in ODB */
-      cm_get_experiment_database(&hDB, &hKey);
 
       status = db_find_key(hDB, hKey, "Server Port", &hKey);
       if (status != DB_SUCCESS)
@@ -2958,24 +3105,7 @@ INT cm_register_server(void)
       /* lock database */
       db_set_mode(hDB, hKey, MODE_READ, TRUE);
 
-      db_find_key(hDB, 0, "/Experiment/Security/rpc hosts", &hKey); 
-      if (hKey) {
-         int i;
-         //printf("clear rpc hosts!\n");
-         rpc_clear_allowed_hosts();
-         for (i = 0;; i++) { 
-            HNDLE hSubkey;
-            KEY key;
-            status = db_enum_key(hDB, hKey, i, &hSubkey); 
-            if (status == DB_NO_MORE_SUBKEYS) 
-               break; 
-            status = db_get_key(hDB, hSubkey, &key);
-            if (status == DB_SUCCESS) {
-               //printf("add rpc hosts %d [%s]\n", i, key.name);
-               rpc_add_allowed_host(key.name);
-            }
-         }
-      }
+      init_rpc_hosts(hDB);
    }
 
    return CM_SUCCESS;
@@ -10107,7 +10237,7 @@ INT rpc_set_name(const char *name)
 
 \********************************************************************/
 {
-   strcpy(_client_name, name);
+   strlcpy(_client_name, name, sizeof(_client_name));
 
    return RPC_SUCCESS;
 }
@@ -11683,7 +11813,6 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 {
    struct sockaddr_in bind_addr;
    INT status, flag;
-   unsigned int size;
 
 #ifdef OS_WINNT
    {
@@ -11710,8 +11839,7 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
    /* create a socket for listening */
    _lsock = socket(AF_INET, SOCK_STREAM, 0);
    if (_lsock == -1) {
-      cm_msg(MERROR, "rpc_register_server", "socket(AF_INET, SOCK_STREAM) failed, errno %d (%s)", errno,
-             strerror(errno));
+      cm_msg(MERROR, "rpc_register_server", "socket(AF_INET, SOCK_STREAM) failed, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
@@ -11719,8 +11847,7 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 #if defined(F_SETFD) && defined(FD_CLOEXEC)
    status = fcntl(_lsock, F_SETFD, fcntl(_lsock, F_GETFD) | FD_CLOEXEC);
    if (status < 0) {
-      cm_msg(MERROR, "rpc_register_server", "fcntl(F_SETFD, FD_CLOEXEC) failed, errno %d (%s)", errno,
-             strerror(errno));
+      cm_msg(MERROR, "rpc_register_server", "fcntl(F_SETFD, FD_CLOEXEC) failed, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 #endif
@@ -11729,15 +11856,19 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
    flag = 1;
    status = setsockopt(_lsock, SOL_SOCKET, SO_REUSEADDR, (char *) &flag, sizeof(INT));
    if (status < 0) {
-      cm_msg(MERROR, "rpc_register_server", "setsockopt(SO_REUSEADDR) failed, errno %d (%s)", errno,
-             strerror(errno));
+      cm_msg(MERROR, "rpc_register_server", "setsockopt(SO_REUSEADDR) failed, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
    /* bind local node name and port to socket */
    memset(&bind_addr, 0, sizeof(bind_addr));
    bind_addr.sin_family = AF_INET;
-   bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+   if (!disable_bind_rpc_to_localhost) {
+      bind_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+   } else {
+      bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+   }
 
    if (!port)
       bind_addr.sin_port = htons(MIDAS_TCP_PORT);
@@ -11746,7 +11877,7 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 
    status = bind(_lsock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
    if (status < 0) {
-      cm_msg(MERROR, "rpc_register_server", "bind() failed, errno %d (%s)", errno, strerror(errno));
+      cm_msg(MERROR, "rpc_register_server", "bind() to port %d failed, errno %d (%s)", ntohs(bind_addr.sin_port), errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
@@ -11763,11 +11894,11 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 
    /* return port wich OS has choosen */
    if (port && *port == 0) {
-      size = sizeof(bind_addr);
+      socklen_t sosize = sizeof(bind_addr);
 #ifdef OS_WINNT
-      getsockname(_lsock, (struct sockaddr *) &bind_addr, (int *) &size);
+      getsockname(_lsock, (struct sockaddr *) &bind_addr, (int *) &sosize);
 #else
-      getsockname(_lsock, (struct sockaddr *) &bind_addr, &size);
+      getsockname(_lsock, (struct sockaddr *) &bind_addr, &sosize);
 #endif
       *port = ntohs(bind_addr.sin_port);
    }
@@ -12526,6 +12657,8 @@ INT rpc_add_allowed_host(const char* hostname)
    if (n_allowed_hosts >= MAX_N_ALLOWED_HOSTS)
       return RPC_NO_MEMORY;
 
+   //cm_msg(MINFO, "rpc_add_allowed_host", "Adding allowed host \'%s\'", hostname); 
+
    strlcpy(allowed_host[n_allowed_hosts++], hostname, sizeof(allowed_host[0]));
    return RPC_SUCCESS;
 }
@@ -12634,7 +12767,7 @@ INT rpc_server_accept(int lsock)
             if (max_report == 0) 
                cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\', this message will no longer be reported", hname); 
             else 
-               cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\'", hname); 
+               cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\'. Add this host to \"/Experiment/Security/RPC hosts/Allowed hosts\"", hname); 
          } 
          closesocket(sock);
          return RPC_NET_ERROR;
@@ -12957,7 +13090,7 @@ INT rpc_client_accept(int lsock)
             if (max_report == 0)
                cm_msg(MERROR, "rpc_client_accept", "rejecting connection from unallowed host \'%s\', this message will no longer be reported", hname);
             else
-               cm_msg(MERROR, "rpc_client_accept", "rejecting connection from unallowed host \'%s\'", hname);
+               cm_msg(MERROR, "rpc_client_accept", "rejecting connection from unallowed host \'%s\'. Add this host to \"/Experiment/Security/RPC hosts/Allowed hosts\"", hname);
          }
          closesocket(sock); 
          return RPC_NET_ERROR; 

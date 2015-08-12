@@ -2614,10 +2614,15 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
       /* test 3 */
       else if (param[0][0] == 't' && param[0][1] == '3') {
-         ss_mutex_create(&tm);
-         ss_thread_create(thread, NULL);
-         ss_thread_create(thread, NULL);
-         ss_thread_create(thread, NULL);
+         db_find_key(hDB, 0, "/Logger/Channels/0/Statistics", &hKey);
+         CHN_STATISTICS stat;
+         
+         if (hKey) {
+            status = db_open_record(hDB, hKey, &stat,
+                                    sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL);
+            stat.events_written++;
+            db_set_record(hDB, hKey, &stat, sizeof(stat), 0);
+         }
       }
 
       /* exit/quit */

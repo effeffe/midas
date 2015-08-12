@@ -3538,8 +3538,7 @@ INT ss_suspend_init_ipc(INT idx)
    INT status, sock;
    unsigned int size;
    struct sockaddr_in bind_addr;
-   char local_host_name[HOST_NAME_LENGTH];
-   struct hostent *phe;
+   int udp_bind_hostname = 0; // bind to localhost or bind to hostname or bind to INADDR_ANY?
 
 #ifdef OS_WINNT
    {
@@ -3562,26 +3561,49 @@ INT ss_suspend_init_ipc(INT idx)
    bind_addr.sin_addr.s_addr = 0;
    bind_addr.sin_port = 0;
 
-#ifdef OS_DARWIN
-   strlcpy(local_host_name, "localhost", sizeof(local_host_name));
-#else
-   gethostname(local_host_name, sizeof(local_host_name));
-#endif
+   /* decide if UDP sockets are bound to localhost (they are only use for local communications)
+      or to hostname (for compatibility with old clients - their hotlinks will not work) */
+   {
+      FILE* fp;
+      char path[256];
+      cm_get_path(path, sizeof(path));
+      if (path[0] == 0) {
+         if (!getcwd(path, sizeof(path)))
+            path[0] = 0;
+         strlcat(path, "/", sizeof(path));
+      }
+
+      strlcat(path, ".UDP_BIND_HOSTNAME", sizeof(path));
+
+      fp = fopen(path, "r");
+      if (fp) {
+         udp_bind_hostname = 1;
+         fclose(fp);
+      }
+   }
 
 #ifdef OS_VXWORKS
    {
+      char local_host_name[HOST_NAME_LENGTH];
       INT host_addr;
+
+      gethostname(local_host_name, sizeof(local_host_name));
 
       host_addr = hostGetByName(local_host_name);
       memcpy((char *) &(bind_addr.sin_addr), &host_addr, 4);
    }
 #else
-   phe = gethostbyname(local_host_name);
-   if (phe == NULL) {
-      cm_msg(MERROR, "ss_suspend_init_ipc", "cannot get IP address for host name \'%s\'", local_host_name);
-      return SS_SOCKET_ERROR;
+   if (udp_bind_hostname) {
+      char local_host_name[HOST_NAME_LENGTH];
+      struct hostent *phe = gethostbyname(local_host_name);
+      if (phe == NULL) {
+         cm_msg(MERROR, "ss_suspend_init_ipc", "cannot get IP address for host name \'%s\'", local_host_name);
+         return SS_SOCKET_ERROR;
+      }
+      memcpy((char *) &(bind_addr.sin_addr), phe->h_addr, phe->h_length);
+   } else {
+      bind_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
    }
-   memcpy((char *) &(bind_addr.sin_addr), phe->h_addr, phe->h_length);
 #endif
 
    status = bind(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
@@ -3618,13 +3640,15 @@ INT ss_suspend_init_ipc(INT idx)
       memcpy((char *) &(bind_addr.sin_addr), &host_addr, 4);
    }
 #else
-   memcpy((char *) &(bind_addr.sin_addr), phe->h_addr, phe->h_length);
-#endif
+   if (udp_bind_hostname) {
+      // nothing
+   } else {
+      bind_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
-#ifdef OS_DARWIN
-   status = bind(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-   if (status < 0)
-      return SS_SOCKET_ERROR;
+      status = bind(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
+      if (status < 0)
+         return SS_SOCKET_ERROR;
+   }
 #endif
 
    memcpy(&_suspend_struct[idx].bind_addr, &bind_addr, sizeof(bind_addr));

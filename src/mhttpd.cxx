@@ -110,6 +110,7 @@ const Filetype filetype[] = {
    ".JPG", "image/jpeg",}, {
    ".GIF", "image/gif",}, {
    ".PNG", "image/png",}, {
+   ".SVG", "image/svg+xml",}, {
    ".PS",  "application/postscript",}, {
    ".EPS", "application/postscript",}, {
    ".HTML","text/html",}, {
@@ -1976,17 +1977,23 @@ void show_status_page(int refresh, const char *cookie_wpwd)
          /* check if client running this equipment is present */
          if (cm_exist(equipment.frontend_name, TRUE) != CM_SUCCESS
              && cm_exist("FAL", TRUE) != CM_SUCCESS)
-            rsprintf
-                ("<tr><td><a href=\"%s\">%s</a><td align=center class=\"redLight\">(frontend stopped)",
+            rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"redLight\">Frontend stopped",
                  ref, key.name);
          else {
             if (equipment.enabled) {
                if (equipment.status[0] == 0)
-                  rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"greenLight\">%s@%s", ref, key.name, equipment.frontend_name, equipment.frontend_host);
-               else
-                  rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"%s\">%s", ref, key.name, ( !strcasecmp(equipment.status_color, "#00FF00") )? "greenLight" : ( (!strcasecmp(equipment.status_color, "#FF0000")? "redLight" : ( (!strcasecmp(equipment.status_color, "#FFFFFF"))?"":"yellowLight") ) ), equipment.status);
+                  rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"greenLight\">%s@%s", ref, key.name,
+                           equipment.frontend_name, equipment.frontend_host);
+               else {
+                  if (stristr(equipment.status_color, "Light"))
+                     rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"%s\">%s", ref, key.name,
+                              equipment.status_color, equipment.status);
+                  else
+                     rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"Light\" style=\"background-color:%s\">%s",
+                              ref, key.name, equipment.status_color, equipment.status);
+               }
             } else
-               rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"yellowLight\">(disabled)", ref, key.name);
+               rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"yellowLight\">Disabled", ref, key.name);
          }
 
          /* event statistics */
