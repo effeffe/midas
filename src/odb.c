@@ -8316,10 +8316,6 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
          *total_size += corr;
          if (data)
             *data = (void *) ((char *) (*data) + corr);
-
-         // FIXME: this breaks db_watch?
-         if (bSet && pkey->notify_count)
-            db_notify_clients(hDB, (POINTER_T) pkey - (POINTER_T) pheader, -1, FALSE);
       }
          
       if (pold) {
