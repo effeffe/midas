@@ -600,11 +600,14 @@ int main(int argc, char **argv)
          esc_flag = 0;
          compose_status(hDB, hKey);
          while ((j < cur_max_line) && (ststr[j][0] != '\0')) {
+            int wr;
             strncpy(svpath, ststr[j], 80);
             svpath[80] = '\0';
             printf("%s\n", svpath);
-            write(fHandle, "\n", 1);
-            write(fHandle, ststr[j], strlen(ststr[j]));
+            wr = write(fHandle, "\n", 1);
+            assert(wr == 1);
+            wr = write(fHandle, ststr[j], strlen(ststr[j]));
+            assert(wr == strlen(ststr[j]));
             j++;
          }
          close(fHandle);
