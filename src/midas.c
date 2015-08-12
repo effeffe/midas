@@ -1160,15 +1160,23 @@ Retrieve old messages from log file
 */
 INT cm_msg_retrieve(const char *facility, time_t t, INT n_message, char *message, INT buf_size)
 {
-   char filename[256], *p;
-   INT n, i, flag;
+   char filename[256], linkname[256], *p;
+   INT n, i, fh, flag;
    time_t filedate;
 
    if (rpc_is_remote())
       return rpc_call(RPC_CM_MSG_RETRIEVE, facility, t, n_message, message, buf_size);
 
    time(&filedate);
-   flag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), NULL, 0);
+   flag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), linkname, sizeof(linkname));
+   
+   // see if file exists, use linkname if not
+   fh = open(filename, O_RDONLY | O_TEXT, 0644);
+   if (fh < 0)
+      strlcpy(filename, linkname, sizeof(filename));
+   else
+      close(fh);
+   
    n = cm_msg_retrieve1(filename, t, n_message, message, buf_size);
    if (strstr(filename, "chat") != NULL && n == -1)
       message[0] = 0;

@@ -390,6 +390,10 @@ INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...)
    va_start(argptr, cmd);
    status = FE_SUCCESS;
 
+   /* don't execute command if driver is disabled */
+   if (!device_drv->enabled)
+      return FE_PARTIALLY_DISABLED;
+   
    switch (cmd) {
    case CMD_INIT:
       hKey = va_arg(argptr, HNDLE);
@@ -635,7 +639,7 @@ INT register_equipment(void)
       strlcpy(eq_info->frontend_name, full_frontend_name, sizeof(eq_info->frontend_name));
       strlcpy(eq_info->frontend_file_name, frontend_file_name, sizeof(eq_info->frontend_file_name));
       sprintf(eq_info->status, "%s@%s", full_frontend_name, eq_info->frontend_host);
-      strlcpy(eq_info->status_color, "#00FF00", sizeof(eq_info->status_color));
+      strlcpy(eq_info->status_color, "greenLight", sizeof(eq_info->status_color));
 
       /* update variables in ODB */
       status = db_set_record(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), 0);
@@ -903,7 +907,7 @@ INT initialize_equipment(void)
 
       if (eq_info->eq_type & EQ_SLOW) {
 
-         set_equipment_status(equipment[idx].name, "Initializing...", "yellow");
+         set_equipment_status(equipment[idx].name, "Initializing...", "yellowLight");
 
          /* resolve duplicate device names */
          for (i = 0; equipment[idx].driver[i].name[0]; i++)
@@ -931,23 +935,28 @@ INT initialize_equipment(void)
                strcpy(str, "ODB error");
             else if (equipment[idx].status == FE_ERR_DRIVER)
                strcpy(str, "Driver error");
+            else if (equipment[idx].status == FE_PARTIALLY_DISABLED)
+               strcpy(str, "Partially disabled");
             else
                strcpy(str, "Error");
 
             if (equipment[idx].status == FE_SUCCESS)
-               set_equipment_status(equipment[idx].name, str, "#00FF00");
-            else {
-               set_equipment_status(equipment[idx].name, str, "#FF0000");
+               set_equipment_status(equipment[idx].name, str, "greenLight");
+            else if (equipment[idx].status == FE_PARTIALLY_DISABLED) {
+               set_equipment_status(equipment[idx].name, str, "yellowGreenLight");
+               cm_msg(MERROR, "initialize_equipment", "Equipment %s partially disabled", equipment[idx].name);
+            } else {
+               set_equipment_status(equipment[idx].name, str, "redLight");
                cm_msg(MERROR, "initialize_equipment", "Equipment %s disabled because of %s", equipment[idx].name, str);
             }
 
          } else {
             equipment[idx].status = FE_ERR_DISABLED;
-            set_equipment_status(equipment[idx].name, "Disabled", "yellow");
+            set_equipment_status(equipment[idx].name, "Disabled", "yellowLight");
          }
 
          /* now start threads if requested */
-         if (equipment[idx].status == FE_SUCCESS)
+         if (equipment[idx].status == FE_SUCCESS || equipment[idx].status == FE_PARTIALLY_DISABLED)
             equipment[idx].cd(CMD_START, &equipment[idx]);   /* start threads for this equipment */
 
          /* remember that we have slowcontrol equipment (needed later for scheduler) */
@@ -976,7 +985,7 @@ INT initialize_equipment(void)
 
 /*------------------------------------------------------------------*/
 
-int set_equipment_status(const char *name, const char *eqipment_status, const char *status_color)
+int set_equipment_status(const char *name, const char *equipment_status, const char *status_class)
 {
    int status, idx;
    char str[256];
@@ -991,9 +1000,9 @@ int set_equipment_status(const char *name, const char *eqipment_status, const ch
       db_find_key(hDB, 0, str, &hKey);
       assert(hKey);
 
-      status = db_set_value(hDB, hKey, "Status", eqipment_status, 256, 1, TID_STRING);
+      status = db_set_value(hDB, hKey, "Status", equipment_status, 256, 1, TID_STRING);
       assert(status == DB_SUCCESS);
-      status = db_set_value(hDB, hKey, "Status color", status_color, 32, 1, TID_STRING);
+      status = db_set_value(hDB, hKey, "Status color", status_class, 32, 1, TID_STRING);
       assert(status == DB_SUCCESS);
    }
 
@@ -1942,11 +1951,12 @@ INT scheduler(void)
          if (!eq_info->enabled)
             continue;
 
-         if (eq->status != FE_SUCCESS)
+         if (eq->status != FE_SUCCESS && eq->status != FE_PARTIALLY_DISABLED)
             continue;
 
          /*---- call idle routine for slow control equipment ----*/
-         if ((eq_info->eq_type & EQ_SLOW) && eq->status == FE_SUCCESS) {
+         if ((eq_info->eq_type & EQ_SLOW) &&
+             (eq->status == FE_SUCCESS || eq->status == FE_PARTIALLY_DISABLED)) {
             /* if equipment is multi-threaded, read all channel in one loop */
              
             if (eq_info->event_limit > 0) {
@@ -2816,18 +2826,21 @@ int main(int argc, char *argv[])
 
    /* close slow control drivers */
    for (i = 0; equipment[i].name[0]; i++)
-      if ((equipment[i].info.eq_type & EQ_SLOW) && equipment[i].status == FE_SUCCESS) {
+      if ((equipment[i].info.eq_type & EQ_SLOW) &&
+          (equipment[i].status == FE_SUCCESS || equipment[i].status == FE_PARTIALLY_DISABLED)) {
 
          for (j = 0; equipment[i].driver[j].name[0]; j++)
             if (equipment[i].driver[j].flags & DF_MULTITHREAD)
                break;
 
          /* stop all threads if multithreaded */
-         if (equipment[i].driver[j].name[0] && equipment[i].status == FE_SUCCESS)
+         if (equipment[i].driver[j].name[0] &&
+             (equipment[i].status == FE_SUCCESS || equipment[i].status == FE_PARTIALLY_DISABLED))
             equipment[i].cd(CMD_STOP, &equipment[i]);   /* stop all threads */
       }
    for (i = 0; equipment[i].name[0]; i++)
-      if ((equipment[i].info.eq_type & EQ_SLOW) && equipment[i].status == FE_SUCCESS)
+      if ((equipment[i].info.eq_type & EQ_SLOW) &&
+          (equipment[i].status == FE_SUCCESS || equipment[i].status == FE_PARTIALLY_DISABLED))
          equipment[i].cd(CMD_EXIT, &equipment[i]);      /* close physical connections */
 
    free(n_events);

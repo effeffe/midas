@@ -424,6 +424,16 @@ td.meterCell{
 	border: 1px solid #000000 !important;
 }
 
+.yellowGreenLight{
+	background: linear-gradient(45deg, #00E600 25%, #f1c40f 25%, 
+                                           #f1c40f 50%, #00E600 50%, 
+                                           #00E600 75%, #f1c40f 75%,
+                                           #f1c40f);
+        background-size: 50px 50px;
+	border-radius: 5px;
+	border: 1px solid #000000 !important;
+}
+
 .redLight{
 	background-color: #c0392b;
 	border-radius: 5px;
@@ -480,6 +490,13 @@ td.meterCell{
 
 .whiteLight{
 	background-color: #EEEEEE;
+   border-radius: 5px;
+   border: 1px solid #000000 !important;
+}
+
+.Light{
+   border-radius: 5px;
+   border: 1px solid #000000 !important;
 }
 
 .msgService{
