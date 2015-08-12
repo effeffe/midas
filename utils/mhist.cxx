@@ -101,6 +101,7 @@ INT query_params(MidasHistoryInterface* mh, std::string* event_name, DWORD * sta
 {
    DWORD status, hour;
    int var_index;
+   int rd;
 
    time_t t = 0;
 
@@ -124,7 +125,9 @@ INT query_params(MidasHistoryInterface* mh, std::string* event_name, DWORD * sta
    else {
       int i;
       printf("\nSelect event: ");
-      scanf("%d", &i);
+      rd = scanf("%d", &i);
+      if (rd != 1)
+         return HS_FILE_ERROR;
       *event_name = events[i];
    }
 
@@ -147,7 +150,9 @@ INT query_params(MidasHistoryInterface* mh, std::string* event_name, DWORD * sta
    *index = var_index = 0;
    if (tags.size() > 1) {
       printf("\nSelect variable (0..%d,-1 for all): ", (int)tags.size() - 1);
-      scanf("%d", &var_index);
+      rd = scanf("%d", &var_index);
+      if (rd != 1)
+         return HS_FILE_ERROR;
       if (var_index >= (int)tags.size())
          var_index = tags.size() - 1;
    } else {
@@ -163,17 +168,23 @@ INT query_params(MidasHistoryInterface* mh, std::string* event_name, DWORD * sta
 
       if (tags[var_index].n_data > 1 && tags[var_index].type != TID_STRING) {
          printf("\nSelect index (0..%d): ", tags[var_index].n_data - 1);
-         scanf("%d", index);
+         rd = scanf("%d", index);
+         if (rd != 1)
+            return HS_FILE_ERROR;
       }
    }
 
    printf("\nHow many hours: ");
-   scanf("%d", &hour);
+   rd = scanf("%d", &hour);
+   if (rd != 1)
+      return HS_FILE_ERROR;
    *end_time = ss_time();
    *start_time = (*end_time) - hour * 3600;
 
    printf("\nInterval [sec]: ");
-   scanf("%d", interval);
+   rd = scanf("%d", interval);
+   if (rd != 1)
+      return HS_FILE_ERROR;
    printf("\n");
 
    return HS_SUCCESS;
