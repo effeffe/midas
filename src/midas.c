@@ -2933,6 +2933,105 @@ INT cm_get_watchdog_info(HNDLE hDB, char *client_name, DWORD * timeout, DWORD * 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
+
+static void load_rpc_hosts(HNDLE hDB, HNDLE hKey, int index)
+{
+   int status;
+   int i, last;
+   KEY key;
+   int max_size;
+   char* str;
+
+   if (index != -99)
+      cm_msg(MINFO, "load_rpc_hosts", "Reloading RPC hosts access control list via hotlink callback");
+
+   status = db_get_key(hDB, hKey, &key);
+
+   if (status != DB_SUCCESS)
+      return;
+
+   //printf("clear rpc hosts!\n");
+   rpc_clear_allowed_hosts();
+
+   max_size = key.item_size;
+   str = malloc(max_size);
+
+   last = 0;
+   for (i=0; i<key.num_values; i++) {
+      int size = max_size;
+      status = db_get_data_index(hDB, hKey, str, &size, i, TID_STRING);
+      if (status != DB_SUCCESS)
+         break;
+
+      if (strlen(str) < 1) // skip emties
+         continue;
+
+      if (str[0] == '#') // skip commented-out entries
+         continue;
+
+      //printf("add rpc hosts %d [%s]\n", i, str);
+      rpc_add_allowed_host(str);
+      last = i;
+   }
+
+   if (key.num_values - last < 10) {
+      int new_size = last + 10;
+      status = db_set_num_values(hDB, hKey, new_size);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "load_rpc_hosts", "Cannot resize the RPC hosts access control list, db_set_num_values(%d) status %d", new_size, status);
+      }
+   }
+
+   free(str);
+}
+
+static void init_rpc_hosts(HNDLE hDB)
+{
+   int status;
+   char buf[256];
+   int size, i;
+   HNDLE hKey;
+
+   strcpy(buf, "localhost");
+   size = sizeof(buf);
+
+   status = db_get_value(hDB, 0, "/Experiment/Security/RPC hosts/Allowed hosts[0]", buf, &size, TID_STRING, TRUE);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_rpc_hosts", "Cannot create the RPC hosts access control list, db_get_value() status %d", status);
+      return;
+   }
+
+   size = sizeof(i);
+   i = 0;
+   status = db_get_value(hDB, 0, "/Experiment/Security/Disable RPC hosts check", &i, &size, TID_BOOL, TRUE);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_rpc_hosts", "Cannot create \"Disable RPC hosts check\", db_get_value() status %d", status);
+      return;
+   }
+
+   if (i != 0) // RPC hosts check is disabled
+      return;
+
+   status = db_find_key(hDB, 0, "/Experiment/Security/RPC hosts/Allowed hosts", &hKey);
+
+   if (status != DB_SUCCESS || hKey == 0) {
+      cm_msg(MERROR, "init_rpc_hosts", "Cannot find the RPC hosts access control list, db_find_key() status %d", status);
+      return;
+   }
+
+   load_rpc_hosts(hDB, hKey, -99);
+
+   status = db_watch(hDB, hKey, load_rpc_hosts);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_rpc_hosts", "Cannot watch the RPC hosts access control list, db_watch() status %d", status);
+      return;
+   }
+}
+
+/********************************************************************/
 INT cm_register_server(void)
 /********************************************************************\
 
@@ -2998,45 +3097,7 @@ INT cm_register_server(void)
       /* lock database */
       db_set_mode(hDB, hKey, MODE_READ, TRUE);
 
-      status = db_find_key(hDB, 0, "/Experiment/Security/RPC hosts", &hKey);
-      if (status != DB_SUCCESS) {
-         int i, size;
-         size = sizeof(i);
-         i = 0;
-         status = db_get_value(hDB, 0, "/Experiment/Security/RPC hosts/localhost", &i, &size, TID_INT, TRUE);
-         assert(status == DB_SUCCESS);
-      }
-
-      if (status == DB_SUCCESS) {
-         int i, size;
-         size = sizeof(i);
-         i = 0;
-         status = db_get_value(hDB, 0, "/Experiment/Security/Disable RPC hosts check", &i, &size, TID_BOOL, TRUE);
-         assert(status == DB_SUCCESS);
-
-         if (i)
-            hKey = 0;
-         else
-            status = db_find_key(hDB, 0, "/Experiment/Security/RPC hosts", &hKey);
-      }
-
-      if (status == DB_SUCCESS && hKey) {
-         int i;
-         //printf("clear rpc hosts!\n");
-         //rpc_clear_allowed_hosts();
-         for (i = 0;; i++) { 
-            HNDLE hSubkey;
-            KEY key;
-            status = db_enum_key(hDB, hKey, i, &hSubkey); 
-            if (status == DB_NO_MORE_SUBKEYS) 
-               break; 
-            status = db_get_key(hDB, hSubkey, &key);
-            if (status == DB_SUCCESS) {
-               //printf("add rpc hosts %d [%s]\n", i, key.name);
-               rpc_add_allowed_host(key.name);
-            }
-         }
-      }
+      init_rpc_hosts(hDB);
    }
 
    return CM_SUCCESS;
@@ -12698,7 +12759,7 @@ INT rpc_server_accept(int lsock)
             if (max_report == 0) 
                cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\', this message will no longer be reported", hname); 
             else 
-               cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\'. Add this host to \"/Experiment/Security/RPC hosts\"", hname); 
+               cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\'. Add this host to \"/Experiment/Security/RPC hosts/Allowed hosts\"", hname); 
          } 
          closesocket(sock);
          return RPC_NET_ERROR;
@@ -13021,7 +13082,7 @@ INT rpc_client_accept(int lsock)
             if (max_report == 0)
                cm_msg(MERROR, "rpc_client_accept", "rejecting connection from unallowed host \'%s\', this message will no longer be reported", hname);
             else
-               cm_msg(MERROR, "rpc_client_accept", "rejecting connection from unallowed host \'%s\'. Add this host to \"/Experiment/Security/RPC hosts\"", hname);
+               cm_msg(MERROR, "rpc_client_accept", "rejecting connection from unallowed host \'%s\'. Add this host to \"/Experiment/Security/RPC hosts/Allowed hosts\"", hname);
          }
          closesocket(sock); 
          return RPC_NET_ERROR; 
