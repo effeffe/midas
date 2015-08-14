@@ -151,6 +151,8 @@ static inline void gf2_matrix_square(uint32_t *square, uint32_t *mat)
         square[n] = gf2_matrix_times(mat, mat[n]);
 }
 
+#ifdef HAVE_HWCRC32C
+
 /* Construct an operator to apply len zeros to a crc.  len must be a power of
    two.  If len is not a power of two, then the result is the same as for the
    largest power of two less than len.  The result for len == 0 is the same as
@@ -208,6 +210,8 @@ static void crc32c_zeros(uint32_t zeros[][256], size_t len)
         zeros[3][n] = gf2_matrix_times(op, n << 24);
     }
 }
+
+#endif
 
 /* Apply the zeros operator table to crc. */
 static inline uint32_t crc32c_shift(uint32_t zeros[][256], uint32_t crc)

@@ -3133,19 +3133,25 @@ WriterInterface* NewWriterPbzip2(LOG_CHN* log_chn)
 
 WriterInterface* NewChecksum(LOG_CHN* log_chn, int code, WriterInterface* chained)
 {
-   if (code == 0)
+   if (code == 0) {
       return chained;
-   else if (code == 1)
+   } else if (code == 1) {
+#ifdef HAVE_ZLIB
       return new WriterCRC32Zlib(log_chn, chained);
-   else if (code == 2)
+#else
+      cm_msg(MERROR, "log_create_writer", "channel %s requested CRC32ZLib checksum, but ZLIB is not available", log_chn->path);
+      return chained;
+#endif
+   } else if (code == 2) {
       return new WriterCRC32C(log_chn, chained);
-   else if (code == 3)
+   } else if (code == 3) {
       return new WriterSHA256(log_chn, chained);
-   else if (code == 4)
+   } else if (code == 4) {
       return new WriterSHA512(log_chn, chained);
-
-   cm_msg(MERROR, "log_create_writer", "channel %s unknown checksum code %d", log_chn->path, code);
-   return chained;
+   } else {
+      cm_msg(MERROR, "log_create_writer", "channel %s unknown checksum code %d", log_chn->path, code);
+      return chained;
+   }
 }
 
 int log_create_writer(LOG_CHN *log_chn)
