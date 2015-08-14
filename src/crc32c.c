@@ -11,6 +11,10 @@
 
 #include "crc32c.h"
 
+#ifdef __SSE__
+#define HAVE_HWCRC32C 1
+#endif
+
 /* crc32c.c -- compute CRC-32C using the Intel crc32 instruction
  * Copyright (C) 2013 Mark Adler
  * Version 1.1  1 Aug 2013  Mark Adler
@@ -227,6 +231,8 @@ static pthread_once_t crc32c_once_hw = PTHREAD_ONCE_INIT;
 static uint32_t crc32c_long[4][256];
 static uint32_t crc32c_short[4][256];
 
+#ifdef HAVE_HWCRC32C
+
 /* Initialize tables for shifting crcs. */
 static void crc32c_init_hw(void)
 {
@@ -339,14 +345,22 @@ uint32_t crc32c_hw(uint32_t crc, const void *buf, size_t len)
         (have) = (ecx >> 20) & 1; \
     } while (0)
 
+#endif // HAVE_HWCRC32C
+
+
 /* Compute a CRC-32C.  If the crc32 instruction is available, use the hardware
    version.  Otherwise, use the software version. */
 uint32_t crc32c(uint32_t crc, const void *buf, size_t len)
 {
+#ifdef HAVE_HWCRC32C
     int sse42;
 
     SSE42(sse42);
     return sse42 ? crc32c_hw(crc, buf, len) : crc32c_sw(crc, buf, len);
+#else
+#warning Hardware accelerated CRC32C is not available.
+    return crc32c_sw(crc, buf, len);
+#endif // HAVE_HWCRC32C
 }
 
 #ifdef TEST
