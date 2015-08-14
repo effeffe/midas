@@ -226,12 +226,12 @@ static inline uint32_t crc32c_shift(uint32_t zeros[][256], uint32_t crc)
 #define SHORTx1 "256"
 #define SHORTx2 "512"
 
+#ifdef HAVE_HWCRC32C
+
 /* Tables for hardware crc that shift a crc by LONG and SHORT zeros. */
 static pthread_once_t crc32c_once_hw = PTHREAD_ONCE_INIT;
 static uint32_t crc32c_long[4][256];
 static uint32_t crc32c_short[4][256];
-
-#ifdef HAVE_HWCRC32C
 
 /* Initialize tables for shifting crcs. */
 static void crc32c_init_hw(void)
