@@ -4268,16 +4268,28 @@ int MysqlHistory::update_column(const char* event_name, const char* table_name, 
 //               File history class                   //
 ////////////////////////////////////////////////////////
 
+const time_t kDay = 24*60*60;
+const time_t kMonth = 30*kDay;
+
+const double KiB = 1024;
+const double MiB = KiB*KiB;
+//const double GiB = KiB*MiB;
+
 class FileHistory: public SchemaHistoryBase
 {
 protected:
    std::string fPath;
-   time_t last_mtime;
+   time_t fPathLastMtime;
+   time_t fConfMaxFileAge;
+   double fConfMaxFileSize;
 
 public:
    FileHistory() // ctor
    {
-      last_mtime = 0;
+      fConfMaxFileAge = 1*kMonth;
+      fConfMaxFileSize = 100*MiB;
+
+      fPathLastMtime = 0;
    }
 
    int hs_connect(const char* connect_string);
@@ -4333,13 +4345,13 @@ int FileHistory::read_schema(HsSchemaVector* sv, const char* event_name, const t
 
    //printf("dir [%s], mtime: %d %d last: %d %d, mtime %s", fPath.c_str(), stat_buf.st_mtimespec.tv_sec, stat_buf.st_mtimespec.tv_nsec, last_mtimespec.tv_sec, last_mtimespec.tv_nsec, ctime(&stat_buf.st_mtimespec.tv_sec));
 
-   if (stat_buf.st_mtime == last_mtime) {
+   if (stat_buf.st_mtime == fPathLastMtime) {
       if (fDebug)
          printf("FileHistory::read_schema: loading schema for event [%s] at time %s: nothing to reload, history directory mtime did not change\n", event_name, TimeToString(timestamp).c_str());
       return HS_SUCCESS;
    }
 
-   last_mtime = stat_buf.st_mtime;
+   fPathLastMtime = stat_buf.st_mtime;
 
    if (fDebug)
       printf("FileHistory::read_schema: loading schema for event [%s] at time %s\n", event_name, TimeToString(timestamp).c_str());
@@ -4470,33 +4482,27 @@ HsSchema* FileHistory::new_event(const char* event_name, time_t timestamp, int n
    if (s) {
       // maybe this schema is too old - rotate files every so often
       time_t age = timestamp - s->time_from;
-      const time_t kDay = 24*60*60;
-      const time_t kMonth = 30*kDay;
       //printf("*** age %s (%.1f months), timestamp %s, time_from %s, file %s\n", TimeToString(age).c_str(), (double)age/(double)kMonth, TimeToString(timestamp).c_str(), TimeToString(s->time_from).c_str(), s->file_name.c_str());
-      if (age > 6*kMonth) {
+      if (age > fConfMaxFileAge) {
          if (fDebug)
             printf("FileHistory::new_event: event [%s], timestamp %s, ntags %d: schema is too old, age %.1f months, starting a new file.\n", event_name, TimeToString(timestamp).c_str(), ntags, (double)age/(double)kMonth);
 
-         //printf("*** age %s (%.1f months), timestamp %s, time_from %s, file %s\n", TimeToString(age).c_str(), (double)age/(double)kMonth, TimeToString(timestamp).c_str(), TimeToString(s->time_from).c_str(), s->file_name.c_str());
-
+         // force creation of a new file
          s = NULL;
       }
    }
 
    if (s) {
       // maybe this file is too big - rotate files to limit maximum size
-#if 0
-      time_t age = timestamp - s->time_from;
-      const time_t kDay = 24*60*60;
-      const time_t kMonth = 30*kDay;
-      printf("*** age %s (%.1f months), timestamp %s, time_from %s, file %s\n", TimeToString(age).c_str(), (double)age/(double)kMonth, TimeToString(timestamp).c_str(), TimeToString(s->time_from).c_str(), s->file_name.c_str());
-      if (age > 6*kMonth) {
+      double size = ss_file_size(s->file_name.c_str());
+      //printf("*** size %.0f, file %s\n", size, s->file_name.c_str());
+      if (size > fConfMaxFileSize) {
          if (fDebug)
-            printf("FileHistory::new_event: event [%s], timestamp %s, ntags %d: schema is too old, age %.1f months, starting a new file.\n", event_name, TimeToString(timestamp).c_str(), ntags, (double)age/(double)kMonth);
+            printf("FileHistory::new_event: event [%s], timestamp %s, ntags %d: file too big, size %.1f MiBytes, starting a new file.\n", event_name, TimeToString(timestamp).c_str(), ntags, size/MiB);
 
+         // force creation of a new file
          s = NULL;
       }
-#endif
    }
 
    if (!s) {
