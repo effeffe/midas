@@ -5376,7 +5376,7 @@ int main(int argc, char *argv[])
    size = sizeof(dir);
    db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
    printf("Log     directory is %s\n", dir);
-   printf("Data    directory is same as Log unless specified in channels/\n");
+   printf("Data    directory is same as Log unless specified in /Logger/channels/\n");
 
    /* Alternate History and Elog path */
    size = sizeof(dir);
@@ -5386,7 +5386,7 @@ int main(int argc, char *argv[])
       db_get_value(hDB, 0, "/Logger/History dir", dir, &size, TID_STRING, TRUE);
    else
       sprintf(dir, "same as Log");
-   printf("History directory is %s\n", dir);
+   printf("History directory is %s unless specified in /Logger/history/\n", dir);
 
    size = sizeof(dir);
    dir[0] = 0;
