@@ -1384,6 +1384,8 @@ void odb_save(const char *filename)
 
    if (strstr(filename, ".xml") || strstr(filename, ".XML"))
       db_save_xml(hDB, 0, path);
+   else if (strstr(filename, ".js") || strstr(filename, ".JS"))
+      db_save_json(hDB, 0, path);
    else
       db_save(hDB, 0, path, FALSE);
 }
