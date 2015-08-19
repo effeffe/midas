@@ -523,6 +523,7 @@ function ODBInlineEdit(p, odb_path, bracket)
    
    p.ODBsent = false;
    var str = cur_val;
+   var width = p.offsetWidth - 10;
    while (str.indexOf('"') >= 0)
       str = str.replace('"', '&quot;');
 
@@ -532,7 +533,7 @@ function ODBInlineEdit(p, odb_path, bracket)
          p.innerHTML = "<input type=\"text\" size=\""+size+"\" value=\""+str+"\" onKeydown=\"return ODBInlineEditKeydown(event, this.parentNode,\'"+odb_path+"\',"+bracket+");\" onBlur=\"ODBFinishInlineEdit(this.parentNode,\'"+odb_path+"\',"+bracket+");\" >";
          setTimeout(function(){p.childNodes[0].focus();p.childNodes[0].select();}, 10); // needed for Firefox
       } else {
-         p.innerHTML = index+"&nbsp;<input type=\"text\" size=\""+size+"\" value=\""+str+"\" onKeydown=\"return ODBInlineEditKeydown(event, this.parentNode,\'"+odb_path+"\',"+breacket+");\" onBlur=\"ODBFinishInlineEdit(this.parentNode,\'"+odb_path+"\',"+breacket+");\" >";
+         p.innerHTML = index+"&nbsp;<input type=\"text\" size=\""+size+"\" value=\""+str+"\" onKeydown=\"return ODBInlineEditKeydown(event, this.parentNode,\'"+odb_path+"\',"+bracket+");\" onBlur=\"ODBFinishInlineEdit(this.parentNode,\'"+odb_path+"\',"+bracket+");\" >";
          setTimeout(function(){p.childNodes[1].focus();p.childNodes[1].select();}, 10); // needed for Firefox
       }
    } else {
@@ -541,6 +542,8 @@ function ODBInlineEdit(p, odb_path, bracket)
 
       setTimeout(function(){p.childNodes[0].focus();p.childNodes[0].select();}, 10); // needed for Firefox
    }
+   
+   p.style.width = width+"px";
 }
 
 function mhttpd_create_page_handle_create(mouseEvent)
