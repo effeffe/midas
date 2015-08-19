@@ -1115,6 +1115,7 @@ public:
       LZ4F_blockSizeID_t blockSizeId = LZ4F_max4MB;
       fBlockSize = 4*1024*1024;
       fBufferSize = LZ4F_compressFrameBound(fBlockSize, NULL);
+      fBufferSize *= 2; // kludge
       fBuffer = (char*)malloc(fBufferSize);
       if (fBuffer == NULL) {
          cm_msg(MERROR, "WriterLZ4::wr_open", "Cannot malloc() %d bytes for an LZ4 compression buffer, block size %d, errno %d (%s)", fBufferSize, fBlockSize, errno, strerror(errno));
@@ -1170,6 +1171,10 @@ public:
             int errorCode = outSize;
             cm_msg(MERROR, "WriterLZ4::wr_write", "LZ4F_compressUpdate() with %d bytes, block size %d, buffer size %d, write size %d, remaining %d bytes, error %d (%s)", wsize, fBlockSize, fBufferSize, size, remaining, (int)errorCode, LZ4F_getErrorName(errorCode));
             return SS_FILE_ERROR;
+         }
+
+         if ((int)outSize > wsize) {
+            cm_msg(MINFO, "WriterLZ4::wr_write", "LZ4F_compressUpdate() with %d bytes, block size %d, buffer size %d, write size %d, remaining %d bytes, data has expanded to %d bytes", wsize, fBlockSize, fBufferSize, size, remaining, (int)outSize);
          }
 	 
          int status = fWr->wr_write(log_chn, fBuffer, outSize);
