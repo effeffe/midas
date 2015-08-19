@@ -10890,6 +10890,18 @@ const char* time_to_string(time_t t)
 
 /*------------------------------------------------------------------*/
 
+static bool gDoSetupHistoryWatch = true;
+static bool gDoReloadHistory = false;
+
+static void history_watch_callback(HNDLE hDB, HNDLE hKey, int index)
+{
+   //printf("history_watch_callback %d %d %d\n", hDB, hKey, index);
+   gDoReloadHistory = true;
+   cm_msg(MINFO, "history_watch_callback", "History configuration may have changed, will reconnect");
+}
+
+/*------------------------------------------------------------------*/
+
 static MidasHistoryInterface* get_history(bool reset = false)
 {
    int status;
@@ -10897,23 +10909,50 @@ static MidasHistoryInterface* get_history(bool reset = false)
    static MidasHistoryInterface* mh = NULL;
    static HNDLE mhkey = 0;
 
+   // history reconnect requested by watch callback?
+
+   if (gDoReloadHistory) {
+      gDoReloadHistory = false;
+      reset = true;
+   }
+
+   // disconnect from previous history
+
    if (reset && mh) {
       mh->hs_disconnect();
       delete mh;
       mh = NULL;
+      mhkey = 0;
    }
 
    status = cm_get_experiment_database(&hDB, NULL);
    assert(status == CM_SUCCESS);
 
-   // findout if ODB settings have changed and we need to connect to a different history channel
+   // setup a watch on history configuration
 
-   HNDLE hKey;
+   if (gDoSetupHistoryWatch) {
+      HNDLE hKey;
+      gDoSetupHistoryWatch = false;
+
+      status = db_find_key(hDB, 0, "/Logger/History", &hKey);
+      if (status == DB_SUCCESS)
+         status = db_watch(hDB, hKey, history_watch_callback);
+
+      status = db_find_key(hDB, 0, "/History/LoggerHistoryChannel", &hKey);
+      if (status == DB_SUCCESS)
+         status = db_watch(hDB, hKey, history_watch_callback);
+   }
+
+   // find out if ODB settings have changed and we need to connect to a different history channel
+
+   HNDLE hKey = 0;
    status = hs_find_reader_channel(hDB, &hKey, verbose);
    if (status != HS_SUCCESS)
       return mh;
 
-   if (hKey == mhkey) // same channel as before
+   //printf("mh %p, hKey %d, mhkey %d\n", mh, hKey, mhkey);
+
+   if (mh && hKey == mhkey) // same channel as before
       return mh;
 
    status = hs_get_history(hDB, hKey, HS_GET_READER|HS_GET_INACTIVE, verbose, &mh);
