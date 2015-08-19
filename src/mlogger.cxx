@@ -1168,7 +1168,7 @@ public:
 
          if (LZ4F_isError(outSize)) {
             int errorCode = outSize;
-            cm_msg(MERROR, "WriterLZ4::wr_write", "LZ4F_compressUpdate() with %d bytes and block size %d, error %d (%s)", wsize, fBlockSize, (int)errorCode, LZ4F_getErrorName(errorCode));
+            cm_msg(MERROR, "WriterLZ4::wr_write", "LZ4F_compressUpdate() with %d bytes, block size %d, buffer size %d, write size %d, remaining %d bytes, error %d (%s)", wsize, fBlockSize, fBufferSize, size, remaining, (int)errorCode, LZ4F_getErrorName(errorCode));
             return SS_FILE_ERROR;
          }
 	 
