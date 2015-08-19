@@ -1173,17 +1173,15 @@ public:
             return SS_FILE_ERROR;
          }
 
-         if ((int)outSize > wsize) {
-            cm_msg(MINFO, "WriterLZ4::wr_write", "LZ4F_compressUpdate() with %d bytes, block size %d, buffer size %d, write size %d, remaining %d bytes, data has expanded to %d bytes", wsize, fBlockSize, fBufferSize, size, remaining, (int)outSize);
-         }
-	 
-         int status = fWr->wr_write(log_chn, fBuffer, outSize);
+         if (outSize > 0) {
+            int status = fWr->wr_write(log_chn, fBuffer, outSize);
  
-         fBytesIn += wsize;
-         fBytesOut = fWr->fBytesOut;
-	 
-         if (status != SUCCESS) {
-            return SS_FILE_ERROR;
+            fBytesIn += wsize;
+            fBytesOut = fWr->fBytesOut;
+            
+            if (status != SUCCESS) {
+               return SS_FILE_ERROR;
+            }
          }
 
          ptr += wsize;
