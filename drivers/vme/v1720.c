@@ -77,8 +77,10 @@ void v1720_ChannelSet(MVME_INTERFACE *mvme, uint32_t base, uint32_t channel, uin
   if (what == V1720_CHANNEL_THRESHOLD)   mask = 0x0FFF;
   if (what == V1720_CHANNEL_OUTHRESHOLD) mask = 0x0FFF;
   if (what == V1720_CHANNEL_DAC)         mask = 0xFFFF;
+  if (what == V1720_ZS_THRESHOLD)         mask = 0xFFFFFFFF;
+  if (what == V1720_ZS_NSAMP)         mask = 0xFFFFFFFF;
   reg = what | (channel << 8);
-  printf("base:0x%x reg:0x%x, this:%x\n", base, reg, that);
+  printf("base:0x%x reg:0x%x, this:%x\n", base, reg, (that & mask));
   regWrite(mvme, base, reg, (that & mask));
 }
 
@@ -182,7 +184,7 @@ void v1720_ChannelConfig(MVME_INTERFACE *mvme, uint32_t base, uint32_t operation
 {
   uint32_t reg;
   
-  regWrite(mvme, base, V1720_CHANNEL_CONFIG, 0x10);
+//  regWrite(mvme, base, V1720_CHANNEL_CONFIG, 0x10);
   reg = regRead(mvme, base, V1720_CHANNEL_CONFIG);  
   printf("Channel_config1: 0x%x\n", regRead(mvme, base, V1720_CHANNEL_CONFIG));  
   switch (operation) {
@@ -274,7 +276,7 @@ void v1720_DataBlockRead(MVME_INTERFACE* mvme, uint32_t base, uint32_t* pbuf32, 
   int i, to_read32, status;
   uint32_t w;
   printf("--------------------- DataBlockRead() nwords32:%d\n", nwords32);
-  if (nwords32 < 100) { // PIO
+  if (nwords32 < 50) { // PIO
     for (i=0; i<nwords32; i++) {
       w = regRead(mvme, base, 0);
       //printf("word %d: 0x%08x\n", i, w);                                                    
@@ -294,6 +296,7 @@ void v1720_DataBlockRead(MVME_INTERFACE* mvme, uint32_t base, uint32_t* pbuf32, 
         to_read32 = 0xFF0/4;
       else
         to_read32 = nwords32 - 8;
+      to_read32 &= ~0x3;
       if (to_read32 <= 0)
         break;
       printf("going to read: read %d, total %d\n", to_read32*4, nwords32*4);                
