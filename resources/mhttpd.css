@@ -595,7 +595,7 @@ td.meterCell{
 
 .messageLine {
    font-family: Lucida Console, Fixed, Monospace;
-   white-space: pre;
+   white-space: pre-wrap;
 }
 
 .chatInput {
