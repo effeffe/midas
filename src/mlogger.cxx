@@ -3763,6 +3763,7 @@ static void watch_history(HNDLE hDB, HNDLE hKey, int index)
    }
 
    maybe_flush_history(ts);
+   cm_msg_flush_buffer();
 }
 
 static int add_event(time_t timestamp, const char* event_name, HNDLE hKey, int ntags, const TAG* tags, int period)
@@ -4047,18 +4048,21 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
 static int add_history_links_link(HNDLE hDB, HNDLE hLinkKey, const char* link_name, time_t now, int period)
 {
    int status;
+   KEY key;
 
    if (verbose)
       printf("\n==================== History link \"%s\" =======================\n", link_name);
 
-   /* setup watch */
-
-   status = db_watch(hDB, hLinkKey, watch_history);
+   status = db_get_key(hDB, hLinkKey, &key);
    assert(status == DB_SUCCESS);
+
+   if (key.type != TID_KEY) {
+      cm_msg(MERROR, "add_history_links_link", "Ignoring history link element \'%s\': must be a subdirectory", get_odb_path(hDB, hLinkKey).c_str());
+      return SUCCESS;
+   }
 
    for (int i=0; ; i++) {
       HNDLE hKey;
-      KEY key;
 
       status = db_enum_link(hDB, hLinkKey, i, &hKey);
       if (status == DB_NO_MORE_SUBKEYS)
@@ -4067,11 +4071,16 @@ static int add_history_links_link(HNDLE hDB, HNDLE hLinkKey, const char* link_na
       /* get link key */
       db_get_key(hDB, hKey, &key);
 
-      printf("key %s type %d\n", key.name, key.type);
+      //printf("key %s type %d\n", key.name, key.type);
       
-      if ((key.type == TID_KEY) || key.type == TID_LINK) {
-         cm_msg(MERROR, "add_history_links_link", "Ignoring history link element \'%s\': should not be a subdirectory or a link", get_odb_path(hDB, hKey).c_str());
+      if (key.type == TID_KEY) {
+         cm_msg(MERROR, "add_history_links_link", "Ignoring history link element \'%s\': subdirectory \'%s\' is not permitted", get_odb_path(hDB, hLinkKey).c_str(), get_odb_path(hDB, hKey).c_str());
+         return SUCCESS;
+      } else if (key.type == TID_LINK) {
+         cm_msg(MERROR, "add_history_links_link", "Ignoring history link element \'%s\': link is not permitted", get_odb_path(hDB, hKey).c_str());
          continue;
+      } else {
+         // everything else is okey
       }
 
       TAG tt;
@@ -4092,6 +4101,11 @@ static int add_history_links_link(HNDLE hDB, HNDLE hLinkKey, const char* link_na
 
       status = add_event(now, event_name.c_str(), hKey, 1, t, period);
    }
+
+   /* setup watch only if everything is okey */
+
+   status = db_watch(hDB, hLinkKey, watch_history);
+   assert(status == DB_SUCCESS);
 
    return SUCCESS;
 }
@@ -4115,9 +4129,13 @@ static int add_history_links_key(HNDLE hDB, HNDLE hLinkKey, const char* link_nam
       status = db_get_key(hDB, hKey, &key);
       assert(status == DB_SUCCESS);
       
-      if (key.type != TID_LINK) {
-         cm_msg(MERROR, "add_history_links_key", "Ignoring history link element \'%s\': should be a link", get_odb_path(hDB, hKey).c_str());
+      if (key.type == TID_LINK) {
+         // link is okey
+      } if (key.type == TID_KEY) {
+         cm_msg(MERROR, "add_history_links_key", "Ignoring history link element \'%s\': subdirectory is not permitted", get_odb_path(hDB, hKey).c_str());
          continue;
+      } else {
+         // plain values are okey
       }
       
       /* get link target */
@@ -4397,7 +4415,7 @@ INT open_history()
             assert(status == DB_SUCCESS);
             add_history_links_link(hDB, hKey, key.name, now, period);
          } else {
-            cm_msg(MERROR, "open_history", "/History/Links/%s should be a link or a subdirectory", key.name);
+            cm_msg(MERROR, "open_history", "Ignoring history link element \'/History/Links/%s\': should be a link or a subdirectory", key.name);
          }
       }
    }
@@ -4434,6 +4452,8 @@ INT open_history()
    status = hs_save_event_list(&history_events);
    if (status != HS_SUCCESS)
       return status;
+
+   cm_msg_flush_buffer();
 
    return CM_SUCCESS;
 }
