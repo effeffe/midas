@@ -3999,6 +3999,9 @@ INT ss_suspend(INT millisec, INT msg)
 
          if (_suspend_struct[idx].listen_dispatch) {
             status = _suspend_struct[idx].listen_dispatch(sock);
+            // listen_dispatch actually calls:
+            // all midas client programs (server_type is ST_REMOTE) status = rpc_client_accept(sock);
+            // mserver main listener (server_type ST_MPROCESS, etc) status = rpc_server_accept(sock);
             if (status == RPC_SHUTDOWN)
                return status;
          }
@@ -4019,6 +4022,7 @@ INT ss_suspend(INT millisec, INT msg)
             if (recv_tcp_check(sock) || FD_ISSET(sock, &readfds)) {
                if (_suspend_struct[idx].server_dispatch) {
                   status = _suspend_struct[idx].server_dispatch(i, sock, msg != 0);
+                  // server_dispatch actually calls - status = rpc_server_receive(i, sock, msg != 0);
                   _suspend_struct[idx].server_acception[i].last_activity = ss_millitime();
 
                   if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
@@ -4036,6 +4040,7 @@ INT ss_suspend(INT millisec, INT msg)
             if (recv_event_check(sock) || FD_ISSET(sock, &readfds)) {
                if (_suspend_struct[idx].server_dispatch) {
                   status = _suspend_struct[idx].server_dispatch(i, sock, msg != 0);
+                  // server_dispatch actually calls - status = rpc_server_receive(i, sock, msg != 0);
                   _suspend_struct[idx].server_acception[i].last_activity = ss_millitime();
 
                   if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
@@ -4051,9 +4056,10 @@ INT ss_suspend(INT millisec, INT msg)
          sock = _suspend_struct[idx].server_connection->recv_sock;
 
          if (sock && FD_ISSET(sock, &readfds)) {
-            if (_suspend_struct[idx].client_dispatch)
+            if (_suspend_struct[idx].client_dispatch) {
                status = _suspend_struct[idx].client_dispatch(sock);
-            else {
+               // client_dispatch actually calls - status = rpc_client_dispatch(sock);
+            } else {
                status = SS_SUCCESS;
                size = recv_tcp(sock, buffer, sizeof(buffer), 0);
 
@@ -4125,8 +4131,10 @@ INT ss_suspend(INT millisec, INT msg)
 
                /* don't forward same MSG_BM as above */
                if (buffer_tmp[0] != 'B' || strcmp(buffer_tmp, buffer) != 0)
-                  if (_suspend_struct[idx].ipc_dispatch)
+                  if (_suspend_struct[idx].ipc_dispatch) {
                      _suspend_struct[idx].ipc_dispatch(buffer_tmp, server_socket);
+                     // ipc_dispatch actually calls - cm_dispatch_ipc(buffer_tmp, server_socket);
+                  }
             }
 
             if (millisec > 0) {
@@ -4148,8 +4156,10 @@ INT ss_suspend(INT millisec, INT msg)
             return SS_SUCCESS;
 
          /* call dispatcher */
-         if (_suspend_struct[idx].ipc_dispatch)
+         if (_suspend_struct[idx].ipc_dispatch) {
             _suspend_struct[idx].ipc_dispatch(buffer, server_socket);
+            // ipc_dispatch actually calls - cm_dispatch_ipc(buffer_tmp, server_socket);
+         }
 
          return_status = SS_SUCCESS;
       }
