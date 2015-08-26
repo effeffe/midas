@@ -9731,7 +9731,7 @@ void show_create_page(const char *enc_path, const char *dec_path, const char *va
       rsprintf("<option value=7> Integer (32-bit)\n");
       rsprintf("<option value=9> Float (4 Bytes)\n");
       rsprintf("<option value=12> String\n");
-      rsprintf("<option value=13> Multi-line String\n");
+      //rsprintf("<option value=13> Multi-line String\n");
       rsprintf("<option value=15> Subdirectory\n");
 
       rsprintf("<option value=1> Byte\n");
