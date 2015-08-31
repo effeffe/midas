@@ -67,9 +67,6 @@ BOOL history_mode = FALSE;
 BOOL verbose = FALSE;
 char midas_hostname[256];
 char midas_expt[256];
-#define MAX_N_ALLOWED_HOSTS 10
-char allowed_host[MAX_N_ALLOWED_HOSTS][PARAM_LENGTH];
-int  n_allowed_hosts;
 BOOL expand_equipment;
 
 extern const char *mname[];
@@ -16359,6 +16356,140 @@ void ctrlc_handler(int sig)
 
 /*------------------------------------------------------------------*/
 
+
+static std::vector<std::string> gUserAllowedHosts;
+static std::vector<std::string> gAllowedHosts;
+
+static void load_allowed_hosts(HNDLE hDB, HNDLE hKey, int index)
+{
+   int status;
+   int i, last;
+   KEY key;
+
+   if (index != -99)
+      cm_msg(MINFO, "load_allowed_hosts", "Reloading mhttpd hosts access control list via hotlink callback");
+
+   status = db_get_key(hDB, hKey, &key);
+
+   if (status != DB_SUCCESS)
+      return;
+
+   gAllowedHosts.clear();
+
+   // copy the user allowed hosts
+   for (int i=0; i<gUserAllowedHosts.size(); i++)
+      gAllowedHosts.push_back(gUserAllowedHosts[i]);
+
+   int max_size = key.item_size;
+   char* str = (char*)malloc(max_size);
+
+   last = 0;
+   for (i=0; i<key.num_values; i++) {
+      int size = max_size;
+      status = db_get_data_index(hDB, hKey, str, &size, i, TID_STRING);
+      if (status != DB_SUCCESS)
+         break;
+
+      if (strlen(str) < 1) // skip emties
+         continue;
+
+      if (str[0] == '#') // skip commented-out entries
+         continue;
+
+      //printf("add allowed hosts %d [%s]\n", i, str);
+      gAllowedHosts.push_back(str);
+      last = i;
+   }
+
+   if (key.num_values - last < 5) {
+      int new_size = last + 10;
+      status = db_set_num_values(hDB, hKey, new_size);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "load_allowed_hosts", "Cannot resize the allowed hosts access control list, db_set_num_values(%d) status %d", new_size, status);
+      }
+   }
+
+   free(str);
+}
+
+static int init_allowed_hosts()
+{
+   HNDLE hDB;
+   int status;
+   char buf[256];
+   int size;
+   HNDLE hKey;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   buf[0] = 0;
+   size = sizeof(buf);
+
+   status = db_get_value(hDB, 0, "/Experiment/Security/mhttpd hosts/Allowed hosts[0]", buf, &size, TID_STRING, TRUE);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_allowed_hosts", "Cannot create the mhttpd hosts access control list, db_get_value() status %d", status);
+      return status;
+   }
+
+   status = db_find_key(hDB, 0, "/Experiment/Security/mhttpd hosts/Allowed hosts", &hKey);
+
+   if (status != DB_SUCCESS || hKey == 0) {
+      cm_msg(MERROR, "init_allowed_hosts", "Cannot find the mhttpd hosts access control list, db_find_key() status %d", status);
+      return status;
+   }
+
+   load_allowed_hosts(hDB, hKey, -99);
+
+   status = db_watch(hDB, hKey, load_allowed_hosts);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_allowed_hosts", "Cannot watch the mhttpd hosts access control list, db_watch() status %d", status);
+      return status;
+   }
+
+   return SUCCESS;
+}
+
+extern "C" {
+   int check_midas_acl(const struct sockaddr *sa, int len) {
+      // access control list is empty?
+      if (gAllowedHosts.size() == 0)
+         return 1;
+
+      char hname[NI_MAXHOST];
+
+      int status = getnameinfo(sa, len, hname, sizeof(hname), NULL, 0, 0);
+
+      printf("connection from [%s], status %d\n", hname, status);
+
+#if 0
+      /* decode numeric IP address */
+      strlcpy(hname, inet_ntoa(sa->sin_addr), sizeof(hname));
+         
+      struct hostent *phe = gethostbyaddr((char *) sa->sin_addr, 4, PF_INET);
+         
+      if (phe) {
+         strlcpy(hname, phe->h_name, sizeof(hname));
+      }
+#endif
+         
+      /* always permit localhost */
+      if (strcmp(hname, "localhost.localdomain") == 0)
+         return 1;
+      if (strcmp(hname, "localhost") == 0)
+         return 1;
+         
+      for (int i=0 ; i<gAllowedHosts.size() ; i++)
+         if (gAllowedHosts[i] == hname) {
+            return 1;
+         }
+
+      printf("Rejecting http connection from \'%s\'\n", hname);
+      return 0;
+   }
+}
+
 #define HAVE_OLDSERVER 1
 
 #ifdef HAVE_OLDSERVER
@@ -16375,9 +16506,6 @@ void server_loop(int tcp_port)
    struct hostent *local_phe = NULL;
    fd_set readfds;
    struct timeval timeout;
-   struct hostent *remote_phe;
-   char hname[256];
-   BOOL allowed;
 
    /* establish Ctrl-C handler */
    ss_ctrlc_handler(ctrlc_handler);
@@ -16472,37 +16600,10 @@ void server_loop(int tcp_port)
          memcpy(&remote_addr, &(acc_addr.sin_addr), sizeof(remote_addr));
 
          /* check access control list */
-         if (n_allowed_hosts > 0) {
-            allowed = FALSE;
-
-            remote_phe = gethostbyaddr((char *) &remote_addr, 4, PF_INET);
-
-            if (remote_phe == NULL) {
-               /* use IP number instead */
-               strlcpy(hname, (char *)inet_ntoa(remote_addr), sizeof(hname));
-            } else
-               strlcpy(hname, remote_phe->h_name, sizeof(hname));
-
-            /* always permit localhost */
-            if (strcmp(hname, "localhost.localdomain") == 0)
-               allowed = TRUE;
-            if (strcmp(hname, "localhost") == 0)
-               allowed = TRUE;
-
-            if (!allowed) {
-               for (i=0 ; i<n_allowed_hosts ; i++)
-                  if (strcmp(hname, allowed_host[i]) == 0) {
-                     allowed = TRUE;
-                     break;
-                  }
-            }
-
-            if (!allowed) {
-               printf("Rejecting http connection from \'%s\'\n", hname);
-               closesocket(_sock);
-               _sock = -1;
-               continue;
-            }
+         if (!check_midas_acl((struct sockaddr *) &acc_addr, len)) {
+            closesocket(_sock);
+            _sock = -1;
+            continue;
          }
 
          /* save remote host address */
@@ -17344,7 +17445,7 @@ int main(int argc, const char *argv[])
    cm_get_environment(midas_hostname, sizeof(midas_hostname), midas_expt, sizeof(midas_expt));
 
    /* parse command line parameters */
-   n_allowed_hosts = 0;
+   gUserAllowedHosts.clear();
    for (int i = 1; i < argc; i++) {
       if (argv[i][0] == '-' && argv[i][1] == 'D')
          daemon = TRUE;
@@ -17385,8 +17486,7 @@ int main(int argc, const char *argv[])
          else if (argv[i][1] == 'e')
             strlcpy(midas_expt, argv[++i], sizeof(midas_hostname));
          else if (argv[i][1] == 'a') {
-            if (n_allowed_hosts < MAX_N_ALLOWED_HOSTS)
-               strlcpy(allowed_host[n_allowed_hosts++], argv[++i], sizeof(allowed_host[0]));
+            gUserAllowedHosts.push_back(argv[++i]);
          } else if (argv[i][1] == 'p') {
             printf("Option \"-p port_number\" for the old web server is obsolete.\n");
             printf("mongoose web server is the new default, port number is set in ODB or with \"--mg port_number\".\n");
@@ -17401,9 +17501,9 @@ int main(int argc, const char *argv[])
             printf("       -D become a daemon\n");
             printf("       -E only display ELog system\n");
             printf("       -H only display history plots\n");
-            printf("       -a only allow access for specific host(s), several [-a Hostname] statements might be given\n");
-            printf("       --http port - bind to specified HTTP port (default is ODB \"/Experiment/midas http port\"\n");
-            printf("       --https port - bind to specified HTTP port (default is ODB \"/Experiment/midas https port\"\n");
+            printf("       -a only allow access for specific host(s), several [-a Hostname] statements might be given (default list is ODB \"/Experiment/security/mhttpd hosts/allowed hosts\")\n");
+            printf("       --http port - bind to specified HTTP port (default is ODB \"/Experiment/midas http port\")\n");
+            printf("       --https port - bind to specified HTTP port (default is ODB \"/Experiment/midas https port\")\n");
 #ifdef HAVE_MG
             printf("       --nomg use the old mhttpd web server\n");
 #endif
@@ -17455,6 +17555,26 @@ int main(int argc, const char *argv[])
       printf("check_odb_records() failed, see messages and midas.log, bye!\n");
       cm_disconnect_experiment();
       return 1;
+   }
+
+   if (init_allowed_hosts() != SUCCESS) {
+      printf("init_allowed_hosts() failed, see messages and midas.log, bye!\n");
+      cm_disconnect_experiment();
+      return 1;
+   }
+
+   if (verbose) {
+      if (gAllowedHosts.size() > 0) {
+         printf("mhttpd allowed hosts list: ");
+         for (int i=0; i<gAllowedHosts.size(); i++) {
+            if (i>0)
+               printf(", ");
+            printf("%s", gAllowedHosts[i].c_str());
+         }
+         printf("\n");
+      } else {
+         printf("mhttpd allowed hosts list is empty\n");
+      }
    }
 
    /* initialize sequencer */
