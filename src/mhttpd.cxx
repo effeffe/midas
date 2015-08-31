@@ -16461,14 +16461,14 @@ extern "C" {
 
       int status = getnameinfo(sa, len, hname, sizeof(hname), NULL, 0, 0);
 
-      printf("connection from [%s], status %d\n", hname, status);
+      //printf("connection from [%s], status %d\n", hname, status);
 
 #if 0
       /* decode numeric IP address */
       strlcpy(hname, inet_ntoa(sa->sin_addr), sizeof(hname));
-         
+
       struct hostent *phe = gethostbyaddr((char *) sa->sin_addr, 4, PF_INET);
-         
+
       if (phe) {
          strlcpy(hname, phe->h_name, sizeof(hname));
       }
