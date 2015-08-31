@@ -16377,7 +16377,7 @@ static void load_allowed_hosts(HNDLE hDB, HNDLE hKey, int index)
    gAllowedHosts.clear();
 
    // copy the user allowed hosts
-   for (int i=0; i<gUserAllowedHosts.size(); i++)
+   for (unsigned int i=0; i<gUserAllowedHosts.size(); i++)
       gAllowedHosts.push_back(gUserAllowedHosts[i]);
 
    int max_size = key.item_size;
@@ -16480,7 +16480,7 @@ extern "C" {
       if (strcmp(hname, "localhost") == 0)
          return 1;
          
-      for (int i=0 ; i<gAllowedHosts.size() ; i++)
+      for (unsigned int i=0 ; i<gAllowedHosts.size() ; i++)
          if (gAllowedHosts[i] == hname) {
             return 1;
          }
@@ -17566,7 +17566,7 @@ int main(int argc, const char *argv[])
    if (verbose) {
       if (gAllowedHosts.size() > 0) {
          printf("mhttpd allowed hosts list: ");
-         for (int i=0; i<gAllowedHosts.size(); i++) {
+         for (unsigned int i=0; i<gAllowedHosts.size(); i++) {
             if (i>0)
                printf(", ");
             printf("%s", gAllowedHosts[i].c_str());
