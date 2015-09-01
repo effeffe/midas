@@ -9728,7 +9728,7 @@ void show_create_page(const char *enc_path, const char *dec_path, const char *va
       rsprintf("<option value=7> Integer (32-bit)\n");
       rsprintf("<option value=9> Float (4 Bytes)\n");
       rsprintf("<option value=12> String\n");
-      rsprintf("<option value=13> Multi-line String\n");
+      //rsprintf("<option value=13> Multi-line String\n");
       rsprintf("<option value=15> Subdirectory\n");
 
       rsprintf("<option value=1> Byte\n");
@@ -17404,13 +17404,22 @@ int loop_mg()
    ss_ctrlc_handler(ctrlc_handler);
 
    while (!_abort) {
+
+      /* cm_yield() is not thread safe, need to take a lock */
+
+      status = ss_mutex_wait_for(request_mutex, 0);
+
       /* check for shutdown message */
-      status = cm_yield(100);
+      status = cm_yield(0);
       if (status == RPC_SHUTDOWN)
          break;
 
       /* call sequencer periodically */
       sequencer();
+
+      status = ss_mutex_release(request_mutex);
+
+      ss_sleep(100);
    }
 
    return status;
