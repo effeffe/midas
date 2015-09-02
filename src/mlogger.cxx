@@ -3994,9 +3994,6 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
 
             TAG* t = AddTag(&tags, &ntags, &maxtags, tagname, varkey.type, 1);
             
-            //tag[i_tag].type = varkey.type;
-            //tag[i_tag].n_data = 1;
-            
             if (verbose)
                printf("Defined tag: name \"%s\", type %d, num_values %d (named array)\n", t->name, t->type, t->n_data);
          }
@@ -4023,11 +4020,14 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
                continue;
             }
 
-            //TAG* t = AddTag(&tags, &ntags, &maxtags, varname + "_" + vvarkey.name, vvarkey.type, vvarkey.num_values);
-            TAG* t = AddTag(&tags, &ntags, &maxtags, vvarkey.name, vvarkey.type, vvarkey.num_values);
+            TAG tt;
+
+            strlcpy(tt.name, vvarkey.name, sizeof(tt.name));
+            tt.type = vvarkey.type;
+            tt.n_data = vvarkey.num_values;
             
             if (verbose)
-               printf("Defined tag: name \"%s\", type %d, num_values %d (subdir %s)\n", t->name, t->type, t->n_data, varname.c_str());
+               printf("Defined tag \"%s\", type %d, num_values %d (subdir %s)\n", tt.name, tt.type, tt.n_data, varname.c_str());
 
             std::string event_name;
             event_name += eq_name;
@@ -4036,7 +4036,7 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
             event_name += "/";
             event_name += vvarkey.name;
 
-            status = add_event(now, event_name.c_str(), hhKey, ntags, tags, period);
+            status = add_event(now, event_name.c_str(), hhKey, 1, &tt, period);
             if (status != DB_SUCCESS)
                return status;
 
@@ -4122,17 +4122,15 @@ static int add_history_links_link(HNDLE hDB, HNDLE hLinkKey, const char* link_na
       tt.type = key.type;
       tt.n_data = key.num_values;
 
-      TAG* t = &tt;
-      
       if (verbose)
-         printf("Defined tag \"%s\", type %d, num_values %d\n", t->name, t->type, t->n_data);
+         printf("Defined tag \"%s\", type %d, num_values %d\n", tt.name, tt.type, tt.n_data);
 
       std::string event_name;
       event_name += link_name;
       event_name += "/";
       event_name += key.name;
 
-      status = add_event(now, event_name.c_str(), hKey, 1, t, period);
+      status = add_event(now, event_name.c_str(), hKey, 1, &tt, period);
    }
 
    /* setup watch only if everything is okey */
@@ -4188,17 +4186,15 @@ static int add_history_links_key(HNDLE hDB, HNDLE hLinkKey, const char* link_nam
       tt.type = varkey.type;
       tt.n_data = varkey.num_values;
 
-      TAG *t = &tt;
-         
       if (verbose)
-         printf("Defined tag \"%s\", type %d, num_values %d\n", t->name, t->type, t->n_data);
+         printf("Defined tag \"%s\", type %d, num_values %d\n", tt.name, tt.type, tt.n_data);
 
       std::string event_name;
       event_name += link_name;
       event_name += "/";
       event_name += key.name;
 
-      status = add_event(now, event_name.c_str(), hVarKey, 1, t, period);
+      status = add_event(now, event_name.c_str(), hVarKey, 1, &tt, period);
       status = db_watch(hDB, hVarKey, watch_history);
    }
    
