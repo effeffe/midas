@@ -3846,44 +3846,12 @@ static int add_event(time_t timestamp, const char* event_name, HNDLE hKey, int n
    return SUCCESS;
 }
 
-static TAG* AddTag(TAG** ptags, int *pntags, int *pmaxtags, const std::string& name, int type, int n_data)
-{
-   //printf("AddTag: ptags %p, pntags %p, pmaxtags %p, name [%s], type %d, n_data %d\n", ptags, pntags, pmaxtags, name.c_str(), type, n_data);
-   //printf("AddTag: ntags %d, maxtags %d\n", *pntags, *pmaxtags);
-
-   int itag = *pntags;
-
-   if (itag + 10 > *pmaxtags) {
-      int maxtags = *pmaxtags + 20;
-      TAG* tags = (TAG*)realloc(*ptags, sizeof(TAG)*maxtags);
-      if (!tags) {
-         cm_msg(MERROR, "AddTag", "Cannot reallocate tags array from %d to %d bytes", *pmaxtags, maxtags);
-         cm_msg_flush_buffer();
-         abort();
-      }
-
-      *ptags = tags;
-      *pmaxtags = maxtags;
-   }
-
-   strlcpy((*ptags)[itag].name, name.c_str(), sizeof((*ptags)[itag].name));
-   (*ptags)[itag].type = type;
-   (*ptags)[itag].n_data = n_data;
-
-   (*pntags) = itag + 1;
-
-   return &(*ptags)[itag];
-}
-
 static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_name, time_t now, int period)
 {
    int status;
 
    if (verbose)
       printf("\n==================== Equipment \"%s\"  =======================\n", eq_name);
-
-   TAG* tags = NULL;
-   int maxtags = 0;
 
    for (int i=0; ; i++) {
       HNDLE hKey;
@@ -3900,6 +3868,10 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
 
       std::string varname = varkey.name;
 
+      // resolve link,
+      // remember link name for use in event name,
+      // remember link target to setup db_watch()
+
       if (varkey.type == TID_LINK) {
          status = db_enum_key(hDB, hKeyVar, i, &hWatchKey);
          assert(status == DB_SUCCESS);
@@ -3910,102 +3882,17 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
          assert(status == DB_SUCCESS);
       }
 
-      BOOL single_names = false;
-      HNDLE hKeyNames = 0;
-      int n_names = 0;
+      // do different things for different data types
 
-      int ntags = 0;
-
-      {
-         KEY key;
-      
-         /* look for names */
-         
-         if (!hKeyNames) {
-            char str[256];
-            sprintf(str, "Settings/Names %s", varname.c_str());
-            db_find_key(hDB, hKeyEq, str, &hKeyNames);
-            if (hKeyNames) {
-               if (verbose)
-                  printf("Using \"/Equipment/%s/Settings/Names %s\" for variable \"%s\"\n", eq_name, varname.c_str(), varname.c_str());
-               
-               /* define tags from names list */
-               db_get_key(hDB, hKeyNames, &key);
-               n_names = key.num_values;
-            }
-         }
-         
-         if (!hKeyNames) {
-            db_find_key(hDB, hKeyEq, "Settings/Names", &hKeyNames);
-            single_names = (hKeyNames > 0);
-            
-            if (hKeyNames) {
-               if (verbose)
-                  printf("Using \"/Equipment/%s/Settings/Names\" for variable \"%s\"\n", eq_name, varname.c_str());
-               
-               /* define tags from names list */
-               db_get_key(hDB, hKeyNames, &key);
-               n_names = key.num_values;
-            }
-         }
-      
-         if (hKeyNames && n_names < varkey.num_values) {
-            cm_msg(MERROR, "open_history",
-                   "Names array size mismatch: \"/Equipment/%s/Settings/%s\" has %d entries while \"/Equipment/%s/Variables/%s\" has %d entries",
-                   eq_name, key.name, n_names,
-                   eq_name, varname.c_str(), varkey.num_values);
-            free(tags);
-            return 0;
-         }
-      }
-
-      if (hKeyNames) {
-         /* loop over array elements */
-         for (int j = 0; j < varkey.num_values; j++) {
-            std::string tagname;
-            char xname[256];
-            
-            /* get name #j */
-            int size = sizeof(xname);
-            status = db_get_data_index(hDB, hKeyNames, xname, &size, j, TID_STRING);
-            if (status == DB_SUCCESS)
-               tagname = xname;
-            
-            if (tagname.length() < 1) {
-               char buf[256];
-               sprintf(buf, "%d", j);
-               tagname = "";
-               tagname += varname;
-               tagname += "_";
-               tagname += buf;
-            }
-            
-            /* append variable key name for single name array */
-            if (single_names) {
-               tagname += " ";
-               tagname += varname.c_str();
-
-               if (tagname.length() >= NAME_LENGTH) {
-                  cm_msg(MERROR, "open_history", "Name for history entry \"%s\" is longer than NAME_LENGTH (%d)", tagname.c_str(), NAME_LENGTH);
-                  free(tags);
-                  return 0;
-               }
-            }
-
-            TAG* t = AddTag(&tags, &ntags, &maxtags, tagname, varkey.type, 1);
-            
-            if (verbose)
-               printf("Defined tag: name \"%s\", type %d, num_values %d (named array)\n", t->name, t->type, t->n_data);
-         }
-      } else if (varkey.type == TID_KEY) {
+      if (varkey.type == TID_KEY) { // structured bank or subdirectory
          for (int ii=0;; ii++) {
             KEY vvarkey;
             HNDLE hhKey;
-            
+
             status = db_enum_link(hDB, hKey, ii, &hhKey);
             if (status == DB_NO_MORE_SUBKEYS)
                break;
-            
+
             /* get variable key */
             status = db_get_key(hDB, hhKey, &vvarkey);
             assert(status == DB_SUCCESS);
@@ -4025,7 +3912,7 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
             strlcpy(tt.name, vvarkey.name, sizeof(tt.name));
             tt.type = vvarkey.type;
             tt.n_data = vvarkey.num_values;
-            
+
             if (verbose)
                printf("Defined tag \"%s\", type %d, num_values %d (subdir %s)\n", tt.name, tt.type, tt.n_data, varname.c_str());
 
@@ -4039,38 +3926,146 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
             status = add_event(now, event_name.c_str(), hhKey, 1, &tt, period);
             if (status != DB_SUCCESS)
                return status;
-
-            ntags = 0;
          }
-      } else {
-         TAG* t = AddTag(&tags, &ntags, &maxtags, varname, varkey.type, varkey.num_values);
-         
-         if (verbose)
-            printf("Defined tag: name \"%s\", type %d, num_values %d (unnamed array or normal variable)\n", t->name, t->type, t->n_data);
-      }
-      
-      if (ntags > 0) {
-         std::string event_name;
-         event_name += eq_name;
-         event_name += "/";
-         event_name += varname;
+      } else if (varkey.type == TID_LINK) { // links have been resolved beforehand
+         assert(!"impossible");
+      } else { // normal variables or arrays
+         bool named_array = false;
+         bool single_names = false;
+         HNDLE hKeyNames = 0;
+         int n_names = 0;
+         KEY key;
 
-         status = add_event(now, event_name.c_str(), hKey, ntags, tags, period);
-         if (status != DB_SUCCESS)
-            return status;
+         /* look for names */
+
+         if (!hKeyNames) {
+            std::string s;
+            s += "Settings/Names ";
+            s += varname;
+
+            db_find_key(hDB, hKeyEq, s.c_str(), &hKeyNames);
+
+            if (hKeyNames) {
+               if (verbose)
+                  printf("Using \"/Equipment/%s/%s\" for variable \"%s\"\n", eq_name, s.c_str(), varname.c_str());
+
+               /* define tags from names list */
+               db_get_key(hDB, hKeyNames, &key);
+               n_names = key.num_values;
+
+               named_array = true;
+            }
+         }
+
+         if (!hKeyNames) {
+            db_find_key(hDB, hKeyEq, "Settings/Names", &hKeyNames);
+
+            if (hKeyNames) {
+               if (verbose)
+                  printf("Using \"/Equipment/%s/Settings/Names\" for variable \"%s\"\n", eq_name, varname.c_str());
+
+               /* define tags from names list */
+               db_get_key(hDB, hKeyNames, &key);
+               n_names = key.num_values;
+
+               named_array = true;
+               single_names = true;
+            }
+         }
+
+         if (hKeyNames && n_names < varkey.num_values) {
+            cm_msg(MERROR, "open_history",
+                   "Names array size mismatch: \"/Equipment/%s/Settings/%s\" has %d entries while \"/Equipment/%s/Variables/%s\" has %d entries",
+                   eq_name, key.name, n_names,
+                   eq_name, varname.c_str(), varkey.num_values);
+            return 0;
+         }
+
+         if (named_array) {
+            int ntags = varkey.num_values;
+            TAG* tags = (TAG*)malloc(ntags*sizeof(TAG));
+
+            /* loop over array elements */
+            for (int j = 0; j < ntags; j++) {
+               std::string tagname;
+               char xname[256];
+
+               /* get name #j */
+               int size = sizeof(xname);
+               status = db_get_data_index(hDB, hKeyNames, xname, &size, j, TID_STRING);
+               if (status == DB_SUCCESS)
+                  tagname = xname;
+
+               // if name is empty use "_0", "_1", etc.
+
+               if (tagname.length() < 1) {
+                  char buf[256];
+                  sprintf(buf, "%d", j);
+                  tagname = "";
+                  tagname += varname;
+                  tagname += "_";
+                  tagname += buf;
+               }
+
+               /* append variable key name for single name array */
+               if (single_names) {
+                  tagname += " ";
+                  tagname += varname;
+
+                  if (tagname.length() >= NAME_LENGTH) {
+                     cm_msg(MERROR, "open_history", "Name for history entry \"%s\" is longer than NAME_LENGTH (%d)", tagname.c_str(), NAME_LENGTH);
+                     free(tags);
+                     return 0;
+                  }
+               }
+
+               TAG* t = &tags[j];
+
+               STRLCPY(t->name, tagname.c_str());
+               t->type = varkey.type;
+               t->n_data = 1;
+
+               if (verbose)
+                  printf("Defined tag: name \"%s\", type %d, num_values %d (named array %s)\n", t->name, t->type, t->n_data, varname.c_str());
+            }
+
+            std::string event_name;
+            event_name += eq_name;
+            event_name += "/";
+            event_name += varname;
+
+            status = add_event(now, event_name.c_str(), hKey, ntags, tags, period);
+            if (status != DB_SUCCESS)
+               return status;
+
+            free(tags);
+         } else {
+            TAG tt;
+
+            strlcpy(tt.name, varname.c_str(), sizeof(tt.name));
+            tt.type = varkey.type;
+            tt.n_data = varkey.num_values;
+
+            if (verbose)
+               printf("Defined tag \"%s\", type %d, num_values %d (unnamed array)\n", tt.name, tt.type, tt.n_data);
+
+            std::string event_name;
+            event_name += eq_name;
+            event_name += "/";
+            event_name += varname;
+
+            status = add_event(now, event_name.c_str(), hKey, 1, &tt, period);
+            if (status != DB_SUCCESS)
+               return status;
+         }
       }
 
       if (hWatchKey) {
          status = db_watch(hDB, hWatchKey, watch_history);
          assert(status == DB_SUCCESS);
       }
-      
+
    } /* loop over variables */
-   
-   if (tags) {
-      free(tags);
-      tags = NULL;
-   }
 
    status = db_watch(hDB, hKeyVar, watch_history);
    assert(status == DB_SUCCESS);
