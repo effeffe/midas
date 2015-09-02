@@ -205,7 +205,14 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
    } else if (strcasecmp(type, "FILE")==0) {
 
       char expt_path[1024];
-      cm_get_path(expt_path, sizeof(expt_path));
+      expt_path[0] = 0;
+
+      size = sizeof(expt_path);
+      status = db_get_value(hDB, 0, "/Logger/History dir", expt_path, &size, TID_STRING, FALSE);
+      if (status != DB_SUCCESS)
+         status = db_get_value(hDB, 0, "/Logger/Data dir", expt_path, &size, TID_STRING, TRUE);
+      if (status != DB_SUCCESS || strlen(expt_path) < 1)
+         cm_get_path(expt_path, sizeof(expt_path));
 
       char dir[1024];
       dir[0] = 0;
@@ -225,6 +232,8 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
             path += DIR_SEPARATOR_STR;
          path += dir;
       }
+
+      //printf("FILE path [%s], expt_path [%s], local History Dir [%s]\n", path.c_str(), expt_path, dir);
 
       if (active || (flags & HS_GET_INACTIVE)) {
          *mh = MakeMidasHistoryFile();

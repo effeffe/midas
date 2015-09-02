@@ -695,7 +695,7 @@ int eval_condition(const char *condition)
    strcpy(str, condition);
    op[1] = op[2] = 0;
    value1 = value2 = 0;
-   
+
    /* find value and operator */
    for (i = 0; i < (int)strlen(str) ; i++)
       if (strchr("<>=!&", str[i]) != NULL)
@@ -2441,13 +2441,13 @@ void sequencer()
                } else if (equal_ustring(op, ">")) {
                   cont = (seq.wait_value > seq.wait_limit);
                } else if (equal_ustring(op, "<=")) {
-                  cont = (seq.wait_value >= seq.wait_limit);
+                  cont = (seq.wait_value <= seq.wait_limit);
                } else if (equal_ustring(op, "<")) {
-                  cont = (seq.wait_value >= seq.wait_limit);
+                  cont = (seq.wait_value < seq.wait_limit);
                } else if (equal_ustring(op, "==")) {
-                  cont = (seq.wait_value >= seq.wait_limit);
+                  cont = (seq.wait_value == seq.wait_limit);
                } else if (equal_ustring(op, "!=")) {
-                  cont = (seq.wait_value >= seq.wait_limit);
+                  cont = (seq.wait_value != seq.wait_limit);
                } else {
                   sprintf(str, "Invalid comaprison \"%s\"", op);
                   seq_error(str);

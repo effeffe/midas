@@ -1112,6 +1112,7 @@ public:
       LZ4F_blockSizeID_t blockSizeId = LZ4F_max4MB;
       fBlockSize = 4*1024*1024;
       fBufferSize = LZ4F_compressFrameBound(fBlockSize, NULL);
+      fBufferSize *= 2; // kludge
       fBuffer = (char*)malloc(fBufferSize);
       if (fBuffer == NULL) {
          cm_msg(MERROR, "WriterLZ4::wr_open", "Cannot malloc() %d bytes for an LZ4 compression buffer, block size %d, errno %d (%s)", fBufferSize, fBlockSize, errno, strerror(errno));
@@ -1165,17 +1166,19 @@ public:
 
          if (LZ4F_isError(outSize)) {
             int errorCode = outSize;
-            cm_msg(MERROR, "WriterLZ4::wr_write", "LZ4F_compressUpdate() with %d bytes and block size %d, error %d (%s)", wsize, fBlockSize, (int)errorCode, LZ4F_getErrorName(errorCode));
+            cm_msg(MERROR, "WriterLZ4::wr_write", "LZ4F_compressUpdate() with %d bytes, block size %d, buffer size %d, write size %d, remaining %d bytes, error %d (%s)", wsize, fBlockSize, fBufferSize, size, remaining, (int)errorCode, LZ4F_getErrorName(errorCode));
             return SS_FILE_ERROR;
          }
-	 
-         int status = fWr->wr_write(log_chn, fBuffer, outSize);
+
+         if (outSize > 0) {
+            int status = fWr->wr_write(log_chn, fBuffer, outSize);
  
-         fBytesIn += wsize;
-         fBytesOut = fWr->fBytesOut;
-	 
-         if (status != SUCCESS) {
-            return SS_FILE_ERROR;
+            fBytesIn += wsize;
+            fBytesOut = fWr->fBytesOut;
+            
+            if (status != SUCCESS) {
+               return SS_FILE_ERROR;
+            }
          }
 
          ptr += wsize;
@@ -1381,6 +1384,8 @@ void odb_save(const char *filename)
 
    if (strstr(filename, ".xml") || strstr(filename, ".XML"))
       db_save_xml(hDB, 0, path);
+   else if (strstr(filename, ".js") || strstr(filename, ".JS"))
+      db_save_json(hDB, 0, path);
    else
       db_save(hDB, 0, path, FALSE);
 }
@@ -3130,19 +3135,25 @@ WriterInterface* NewWriterPbzip2(LOG_CHN* log_chn)
 
 WriterInterface* NewChecksum(LOG_CHN* log_chn, int code, WriterInterface* chained)
 {
-   if (code == 0)
+   if (code == 0) {
       return chained;
-   else if (code == 1)
+   } else if (code == 1) {
+#ifdef HAVE_ZLIB
       return new WriterCRC32Zlib(log_chn, chained);
-   else if (code == 2)
+#else
+      cm_msg(MERROR, "log_create_writer", "channel %s requested CRC32ZLib checksum, but ZLIB is not available", log_chn->path);
+      return chained;
+#endif
+   } else if (code == 2) {
       return new WriterCRC32C(log_chn, chained);
-   else if (code == 3)
+   } else if (code == 3) {
       return new WriterSHA256(log_chn, chained);
-   else if (code == 4)
+   } else if (code == 4) {
       return new WriterSHA512(log_chn, chained);
-
-   cm_msg(MERROR, "log_create_writer", "channel %s unknown checksum code %d", log_chn->path, code);
-   return chained;
+   } else {
+      cm_msg(MERROR, "log_create_writer", "channel %s unknown checksum code %d", log_chn->path, code);
+      return chained;
+   }
 }
 
 int log_create_writer(LOG_CHN *log_chn)
@@ -5355,7 +5366,7 @@ int main(int argc, char *argv[])
    size = sizeof(dir);
    db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
    printf("Log     directory is %s\n", dir);
-   printf("Data    directory is same as Log unless specified in channels/\n");
+   printf("Data    directory is same as Log unless specified in /Logger/channels/\n");
 
    /* Alternate History and Elog path */
    size = sizeof(dir);
@@ -5365,7 +5376,7 @@ int main(int argc, char *argv[])
       db_get_value(hDB, 0, "/Logger/History dir", dir, &size, TID_STRING, TRUE);
    else
       sprintf(dir, "same as Log");
-   printf("History directory is %s\n", dir);
+   printf("History directory is %s unless specified in /Logger/history/\n", dir);
 
    size = sizeof(dir);
    dir[0] = 0;
@@ -5407,11 +5418,14 @@ int main(int argc, char *argv[])
       /* update channel statistics once every second */
       if (ss_millitime() - last_time_stat > 1000) {
          last_time_stat = ss_millitime();
-         if (0) {
-            printf("update statistics!\n");
-            //LOG_CHN* log_chn = log_chn[0];
-            printf("events %.0f, subrun %.0f, written %.0f, total %.0f\n", log_chn->statistics.events_written, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
-         }
+         /*
+         printf("update statistics!\n");
+         //LOG_CHN* log_chn = log_chn[0];
+         printf("events %.0f, subrun %.0f, written %.0f, total %.0f\n", log_chn->statistics.events_written,
+                log_chn->statistics.bytes_written_subrun,
+                log_chn->statistics.bytes_written,
+                log_chn->statistics.bytes_written_total);
+         */
          db_send_changed_records();
       }
 

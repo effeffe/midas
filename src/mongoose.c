@@ -2060,6 +2060,8 @@ static int load_dll(struct mg_context *ctx, const char *dll_name,
 static int set_ssl_option(struct mg_context *ctx) {
   int i, size;
   const char *pem;
+  int ecdh_enabled = 0;
+  int ecdh_available = 0;
 
   // If PEM file is not specified and the init_ssl callback
   // is not specified, skip SSL initialization.
@@ -2116,7 +2118,7 @@ static int set_ssl_option(struct mg_context *ctx) {
   }
 #endif
 
-#ifdef NID_X9_62_prime256v1
+#ifdef OPENSSL_EC_NAMED_CURVE
   {
      //
      // enable Elliptic Curve Diffie-Hellman key exchange - the ECDHE series of ciphers
@@ -2130,16 +2132,17 @@ static int set_ssl_option(struct mg_context *ctx) {
 	   cry(fc(ctx), "%s: SSL_CTX_set_tmp_ecdh (ctx->ssl_ctx, ecdh) failed: %s", __func__, ssl_error());
         }
         EC_KEY_free (ecdh);
+        ecdh_enabled = 1;
      }
   }
+#else
+#warning Very old openssl, no EC_KEY, no ECDH for modern criptography!
 #endif
 
   SSL_CTX_set_options(ctx->ssl_ctx, SSL_OP_SINGLE_DH_USE);
   SSL_CTX_set_options(ctx->ssl_ctx, SSL_OP_SINGLE_ECDH_USE);
 
   // get cipher list
-
-  int ecdh_available = 0;
 
   {
     int priority;
@@ -2155,7 +2158,7 @@ static int set_ssl_option(struct mg_context *ctx) {
     SSL_free(ssl);
   }
 
-  if (!ecdh_available) {
+  if (!ecdh_available || !ecdh_enabled) {
     cry(fc(ctx), "%s: openssl \"modern cryptography\" ECDH ciphers not available", __func__);
   }
 
@@ -2163,7 +2166,7 @@ static int set_ssl_option(struct mg_context *ctx) {
   const char* cipher_list = "ALL:!RC4:!DES-CBC-SHA:!DES:!DES-CBC3-SHA:!ADH:!EXPORT:!SSLv2:RC4+RSA:+HIGH:+MEDIUM:+LOW";
 
   // enable only "modern cryptography" ciphers if ECDHE ciphers available
-  if (ecdh_available)
+  if (ecdh_available && ecdh_enabled)
     cipher_list = "ALL:!AECDH:!RC4:!DES-CBC-SHA:!DES:!AES128-SHA+RSA:!AES256-SHA+RSA:!DES-CBC3-SHA:!ADH:!EXPORT:!SSLv2:RC4+RSA:+HIGH:+MEDIUM:+LOW";
 
   SSL_CTX_set_cipher_list(ctx->ssl_ctx, cipher_list);
@@ -5321,9 +5324,10 @@ static void accept_new_connection(const struct socket *listener,
   char src_addr[IP_ADDR_STR_LEN];
   socklen_t len = sizeof(so.rsa);
   int on = 1;
+  extern int check_midas_acl(const struct sockaddr *sa, int len);
 
   if ((so.sock = accept(listener->sock, &so.rsa.sa, &len)) == INVALID_SOCKET) {
-  } else if (!check_acl(ctx, ntohl(* (uint32_t *) &so.rsa.sin.sin_addr))) {
+  } else if ((!check_acl(ctx, ntohl(* (uint32_t *) &so.rsa.sin.sin_addr))) || (!check_midas_acl(&so.rsa.sa, len))) {
     sockaddr_to_string(src_addr, sizeof(src_addr), &so.rsa);
     cry(fc(ctx), "%s: %s is not allowed to connect", __func__, src_addr);
     closesocket(so.sock);

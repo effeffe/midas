@@ -11,6 +11,10 @@
 
 #include "crc32c.h"
 
+#ifdef __SSE__
+#define HAVE_HWCRC32C 1
+#endif
+
 /* crc32c.c -- compute CRC-32C using the Intel crc32 instruction
  * Copyright (C) 2013 Mark Adler
  * Version 1.1  1 Aug 2013  Mark Adler
@@ -147,6 +151,8 @@ static inline void gf2_matrix_square(uint32_t *square, uint32_t *mat)
         square[n] = gf2_matrix_times(mat, mat[n]);
 }
 
+#ifdef HAVE_HWCRC32C
+
 /* Construct an operator to apply len zeros to a crc.  len must be a power of
    two.  If len is not a power of two, then the result is the same as for the
    largest power of two less than len.  The result for len == 0 is the same as
@@ -205,6 +211,8 @@ static void crc32c_zeros(uint32_t zeros[][256], size_t len)
     }
 }
 
+#endif
+
 /* Apply the zeros operator table to crc. */
 static inline uint32_t crc32c_shift(uint32_t zeros[][256], uint32_t crc)
 {
@@ -221,6 +229,8 @@ static inline uint32_t crc32c_shift(uint32_t zeros[][256], uint32_t crc)
 #define SHORT 256
 #define SHORTx1 "256"
 #define SHORTx2 "512"
+
+#ifdef HAVE_HWCRC32C
 
 /* Tables for hardware crc that shift a crc by LONG and SHORT zeros. */
 static pthread_once_t crc32c_once_hw = PTHREAD_ONCE_INIT;
@@ -339,14 +349,22 @@ uint32_t crc32c_hw(uint32_t crc, const void *buf, size_t len)
         (have) = (ecx >> 20) & 1; \
     } while (0)
 
+#endif // HAVE_HWCRC32C
+
+
 /* Compute a CRC-32C.  If the crc32 instruction is available, use the hardware
    version.  Otherwise, use the software version. */
 uint32_t crc32c(uint32_t crc, const void *buf, size_t len)
 {
+#ifdef HAVE_HWCRC32C
     int sse42;
 
     SSE42(sse42);
     return sse42 ? crc32c_hw(crc, buf, len) : crc32c_sw(crc, buf, len);
+#else
+#warning Hardware accelerated CRC32C is not available.
+    return crc32c_sw(crc, buf, len);
+#endif // HAVE_HWCRC32C
 }
 
 #ifdef TEST
