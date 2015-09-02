@@ -4023,10 +4023,24 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
                continue;
             }
 
-            TAG* t = AddTag(&tags, &ntags, &maxtags, varname + "_" + vvarkey.name, vvarkey.type, vvarkey.num_values);
+            //TAG* t = AddTag(&tags, &ntags, &maxtags, varname + "_" + vvarkey.name, vvarkey.type, vvarkey.num_values);
+            TAG* t = AddTag(&tags, &ntags, &maxtags, vvarkey.name, vvarkey.type, vvarkey.num_values);
             
             if (verbose)
-               printf("Defined tag: name \"%s\", type %d, num_values %d (record)\n", t->name, t->type, t->n_data);
+               printf("Defined tag: name \"%s\", type %d, num_values %d (subdir %s)\n", t->name, t->type, t->n_data, varname.c_str());
+
+            std::string event_name;
+            event_name += eq_name;
+            event_name += "/";
+            event_name += varname;
+            event_name += "/";
+            event_name += vvarkey.name;
+
+            status = add_event(now, event_name.c_str(), hhKey, ntags, tags, period);
+            if (status != DB_SUCCESS)
+               return status;
+
+            ntags = 0;
          }
       } else {
          TAG* t = AddTag(&tags, &ntags, &maxtags, varname, varkey.type, varkey.num_values);
