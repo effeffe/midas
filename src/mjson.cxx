@@ -662,7 +662,7 @@ static char toHexChar(int c)
       return 'A' + c;
 }
 
-static std::string quote(const char* s)
+std::string MJsonNode::Encode(const char* s)
 {
    std::string v;
    while (*s) {
@@ -714,7 +714,7 @@ std::string MJsonNode::Stringify(int flags) const
       for (unsigned i=0; i<objectnames.size(); i++) {
          if (i > 0)
             v += ",";
-         v += std::string("\"") + quote(objectnames[i].c_str()) + "\"";
+         v += std::string("\"") + Encode(objectnames[i].c_str()) + "\"";
          v += ":";
          v += subnodes[i]->Stringify(flags);
       }
@@ -722,7 +722,7 @@ std::string MJsonNode::Stringify(int flags) const
       return v;
    }
    case MJSON_STRING: {
-      return std::string("\"") + quote(stringvalue.c_str()) + "\"";
+      return std::string("\"") + Encode(stringvalue.c_str()) + "\"";
    }
    case MJSON_INT: {
       char buf[256];
