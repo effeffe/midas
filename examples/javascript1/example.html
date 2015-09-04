@@ -163,6 +163,48 @@
       clearTimeout(updateTimerId);
       }
 
+function mjrpc_call(method, params, id, callback)
+{
+   if (id == null)
+      id = Date.now();
+
+   var jreq = new Object();
+   jreq.jsonrpc = "2.0"; // version
+   jreq.method = method;
+   jreq.params = params;
+   jreq.id = id;
+
+   var request = new XMLHttpRequest();
+   request.responseType = 'json';
+      
+   if (callback != undefined) {
+      request.onreadystatechange = function() 
+         {
+            if (request.readyState == 4) {
+               if (request.status == 200) {
+                  callback(method, params, id, request.response);
+               }
+            }
+         }
+   }
+
+   request.open('POST', '?mjsonrpc');
+   request.setRequestHeader('Content-Type', 'application/json');
+   request.setRequestHeader('Accept', 'application/json');
+   request.send(JSON.stringify(jreq));
+   return request;
+}
+
+function mjsonrpc_debug_callback(m, p, id, r) {
+alert("mjsonrpc: method: " + m + ", params: " + p + ", id: " + id + ", response: "+JSON.stringify(r));
+}
+
+function testPOST()
+{
+   mjrpc_call("echo", "[ 1 ]", null, mjsonrpc_debug_callback);
+   //mjrpc_call("error", "[ 1 ]", null, mjsonrpc_debug_callback);
+   //mjrpc_call("invalid_json", "[ 1 ]", null, mjsonrpc_debug_callback);
+}
     </script>
   </head>
 
@@ -580,6 +622,16 @@ ODBEdit(path);
 (empty)
         </pre>
 
+      <li>
+        <h2>Test HTTP POST</h2>
+      
+        <p>
+          <input type=button value='test' onClick='testPOST();'></input>
+        </p>
+        <pre id='getalarms_target'>
+(empty)
+        </pre>
+
     </ul>
 
     <script type="text/javascript">
@@ -591,6 +643,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Fri Feb 21 09:53:50 PST 2014 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Fri Sep  4 12:46:00 PDT 2015 <!-- hhmts end -->
   </body>
 </html>
