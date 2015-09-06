@@ -16365,128 +16365,6 @@ static std::string toString(int i)
 
 /*------------------------------------------------------------------*/
 
-#include "mjson.h"
-
-// http://www.simple-is-better.org/json-rpc/transport_http.html
-//
-// Typical JSON-RPC request:
-//
-// {
-//    "jsonrpc": "2.0",
-//    "method": "sum",
-//    "params": { "b": 34, "c": 56, "a": 12 },
-//    "id": 123
-// }
-//
-// Typical JSON-RPC reply:
-//
-// {
-//    "jsonrpc": "2.0",
-//    "result": 102,
-//    "id": 5
-// }
-//
-// {
-//    "jsonrpc": "2.0",
-//    "error": {
-//        "code": -32600,
-//        "message": "Invalid Request.",
-//        "data": "'method' is missing"
-//        },
-//    "id": 6
-//    }
-// }
-
-extern const MJsonNode* mjson_rpc_handler(const char* method, const MJsonNode* params);
-extern const MJsonNode* mjson_rpc_user_handler(const char* method, const MJsonNode* params);
-
-std::string mjsonrpc_error(int ierror, const char* message, const char* data, const MJsonNode* id)
-{
-   std::string reply;
-   reply += "{";
-   reply += "\"jsonrpc\": \"2.0\",";
-   reply += "\"error\":{";
-   reply += "\"code\":" + toString(ierror) + ",";
-   reply += "\"message\":\"" + MJsonNode::Encode(message) + "\",";
-   reply += "\"data\":\"" + MJsonNode::Encode(data) + "\"";
-   reply += "},";
-   if (id)
-      reply += "\"id\":" + id->Stringify();
-   else
-      reply += "\"id\":null";
-   reply += "}";
-   return reply;
-}
-
-std::string mjsonrpc_handler(const MJsonNode* request)
-{
-   bool nodelete = false;
-
-   request->Dump();
-
-   // find required request elements
-   const MJsonNode* version = request->FindObjectNode("jsonrpc");
-   const MJsonNode* method  = request->FindObjectNode("method");
-   const MJsonNode* params  = request->FindObjectNode("params");
-   const MJsonNode* id      = request->FindObjectNode("id");
-
-   if (!version || !method || !params || !id || version->GetType() != MJSON_STRING || method->GetType() != MJSON_STRING) {
-      std::string reply;
-      reply += "{";
-      reply += "\"jsonrpc\": \"2.0\",";
-      reply += "\"error\":{";
-      reply += "\"code\":-32600,";
-      reply += "\"message\":\"malformed request\",";
-      reply += "\"data\":\"something is missing\",";
-      reply += "},";
-      if (id)
-         reply += "\"id\":" + id->Stringify();
-      else
-         reply += "\"id\":null";
-      reply += "}";
-      return reply;
-   }
-
-   const char* m = method->GetString().c_str();
-
-   const MJsonNode* result = NULL;
-
-   if (strcmp(m, "echo") == 0) {
-      nodelete = true;
-      result = request;
-   } else if (strcmp(m, "error") == 0) {
-      return mjsonrpc_error(-1, "test error", "test error", id);
-   } else if (strcmp(m, "invalid_json") == 0) {
-      return "this is invalid json data";
-   }
-
-   if (!result) {
-      result = mjson_rpc_handler(m, params);
-   }
-
-   if (!result) {
-      result = mjson_rpc_user_handler(m, params);
-   }
-
-   if (!result) {
-      return mjsonrpc_error(-32600, "unknown method", (std::string("unknown method [") + m + "]").c_str(), id);
-   }
-
-   std::string reply;
-   reply += "{";
-   reply += "\"jsonrpc\": \"2.0\",";
-   reply += "\"result\":" + result->Stringify() + ",";
-   reply += "\"id\":" + id->Stringify();
-   reply += "}";
-
-   if (!nodelete)
-      delete result;
-
-   return reply;
-}
-
-/*------------------------------------------------------------------*/
-
 
 static std::vector<std::string> gUserAllowedHosts;
 static std::vector<std::string> gAllowedHosts;
@@ -17137,42 +17015,30 @@ static int event_handler_mg(struct mg_event *event)
       if (p)
          refresh = atoi(p);
 
-      bool locked = false;
-
-      if (strcmp( event->request_info->request_method, "GET") == 0) {
-         status = ss_mutex_wait_for(request_mutex, 0);
-         assert(status == SS_SUCCESS);
-         locked = true;
-         decode_get(NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, false, event->request_info->uri, event->request_info->query_string);
-      } else if (strcmp( event->request_info->request_method, "POST") == 0) {
-         int max_post_data = 1024*1024;
-         int clength = max_post_data;
-
+      if ((strcmp(event->request_info->request_method, "POST") == 0) &&
+          (strcmp(event->request_info->query_string, "mjsonrpc") == 0)) {
          const char* clength_header = find_header_mg(event, "Content-Length");
-         if (clength_header)
-            clength = atoi(clength_header);
+         if (clength_header) {
+            int clength = atoi(clength_header);
 
-         const int KiB = 1024;
-         // align length to KiB
-         int alloc_size_kib = (clength+KiB-1)/KiB;
+            char *post_data = (char *)malloc(clength+1);
 
-         char *post_data = (char *)malloc(KiB*alloc_size_kib);
+            int len = mg_read(event->conn, post_data, clength);
 
-         // User has submitted a form, show submitted data and a variable value
-         int post_data_len = mg_read(event->conn, post_data, clength);
-
-         if (strcmp(event->request_info->query_string, "mjsonrpc") == 0) {
-            //printf("mjsonrpc call, content length %d, post_data_length %d, data [%s]\n", clength, post_data_len, post_data);
-            MJsonNode *request = MJsonNode::Parse(post_data);
-            if (request) {
-               std::string reply;
+            // make sure we have a zero-terminated string
+            if (len > 0) {
+               post_data[len] = 0;
 
                status = ss_mutex_wait_for(request_mutex, 0);
                assert(status == SS_SUCCESS);
 
-               reply = mjsonrpc_handler(request);
+               extern std::string mjsonrpc_decode_post_data(const char*post_data);
+               std::string reply = mjsonrpc_decode_post_data(post_data);
 
                ss_mutex_release(request_mutex);
+
+               free(post_data);
+               post_data = NULL;
 
                int reply_length = reply.length();
 
@@ -17190,31 +17056,45 @@ static int event_handler_mg(struct mg_event *event)
 
                mg_write(event->conn, send.c_str(), send.length());
 
-               delete request;
-               free(post_data);
-
                return 1;
             }
-            free(post_data);
-            return 0;
-         } else {
-            char boundary[256];
-            boundary[0] = 0;
-            const char* ct = find_header_mg(event, "Content-Type");
-            if (ct) {
-               const char* s = strstr(ct, "boundary=");
-               if (s)
-                  strlcpy(boundary, s+9, sizeof(boundary));
-            }
-            
-            //printf("post_data_len %d, data [%s], boundary [%s]\n", post_data_len, post_data, boundary);
-            
-            status = ss_mutex_wait_for(request_mutex, 0);
-            assert(status == SS_SUCCESS);
-            locked = true;
-            decode_post(NULL, post_data, boundary, post_data_len, cookie_pwd, cookie_wpwd, refresh, false, event->request_info->uri);
+
             free(post_data);
          }
+
+         return 0;
+      }
+
+      bool locked = false;
+
+      if (strcmp( event->request_info->request_method, "GET") == 0) {
+         status = ss_mutex_wait_for(request_mutex, 0);
+         assert(status == SS_SUCCESS);
+         locked = true;
+         decode_get(NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, false, event->request_info->uri, event->request_info->query_string);
+      } else if (strcmp( event->request_info->request_method, "POST") == 0) {
+
+         int max_post_data = 1024*1024;
+         char *post_data = (char *)malloc(max_post_data);
+         // User has submitted a form, show submitted data and a variable value
+         int post_data_len = mg_read(event->conn, post_data, max_post_data);
+
+         char boundary[256];
+         boundary[0] = 0;
+         const char* ct = find_header_mg(event, "Content-Type");
+         if (ct) {
+            const char* s = strstr(ct, "boundary=");
+            if (s)
+               strlcpy(boundary, s+9, sizeof(boundary));
+         }
+
+         //printf("post_data_len %d, data [%s], boundary [%s]\n", post_data_len, post_data, boundary);
+
+         status = ss_mutex_wait_for(request_mutex, 0);
+         assert(status == SS_SUCCESS);
+         locked = true;
+         decode_post(NULL, post_data, boundary, post_data_len, cookie_pwd, cookie_wpwd, refresh, false, event->request_info->uri);
+         free(post_data);
       }
 
       if (debug_mg)
@@ -17231,12 +17111,12 @@ static int event_handler_mg(struct mg_event *event)
          assert(buf != NULL);
 
          memcpy(buf, return_buffer, return_length);
-         
+
          if (locked)
             ss_mutex_release(request_mutex);
 
          mg_write(event->conn, buf, return_length);
-         
+
          free(buf);
          buf = NULL;
 
