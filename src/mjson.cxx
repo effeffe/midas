@@ -562,7 +562,8 @@ static MJsonNode* parse_number(const char* sin, const char* s, const char** sout
 
       if (overflow) {
          // overflow, convert to double
-         //printf("integer overflow!\n");
+         //printf("integer overflow: sign %d, int: [%s], frac [%s], expsign %d, exp [%s]\n", sign, sint.c_str(), sfrac.c_str(), expsign, sexp.c_str());
+
          double vv = atof(sint.c_str());
          *sout = s;
          return MJsonNode::MakeNumber(sign*vv);
