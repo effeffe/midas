@@ -171,7 +171,11 @@ function mjrpc_call(method, params, id, callback)
    var jreq = new Object();
    jreq.jsonrpc = "2.0"; // version
    jreq.method = method;
-   jreq.params = params;
+   if (typeof params == 'string') {
+      jreq.params = JSON.parse(params);
+   } else {
+      jreq.params = params;
+   }
    jreq.id = id;
 
    var request = new XMLHttpRequest();
@@ -201,9 +205,30 @@ alert("mjsonrpc: method: " + m + ", params: " + p + ", id: " + id + ", response:
 
 function testPOST()
 {
-   mjrpc_call("echo", "[ 1 ]", null, mjsonrpc_debug_callback);
+   //mjrpc_call("echo", "[ 1 ]", null, mjsonrpc_debug_callback);
    //mjrpc_call("error", "[ 1 ]", null, mjsonrpc_debug_callback);
    //mjrpc_call("invalid_json", "[ 1 ]", null, mjsonrpc_debug_callback);
+   mjrpc_call("null", "[ 1 ]", null, mjsonrpc_debug_callback);
+}
+
+function testExist1()
+{
+   mjrpc_call("cm_exist", "{ \"name\": \"mhttpd\" }", null, mjsonrpc_debug_callback);
+}
+
+function testExist2()
+{
+   mjrpc_call("cm_exist", "{ \"name\": \"odbedit\" }", null, mjsonrpc_debug_callback);
+}
+
+function testShutdown()
+{
+   mjrpc_call("cm_shutdown", "{ \"name\": \"odbedit\" }", null, mjsonrpc_debug_callback);
+}
+
+function testShutdownMissingParameter()
+{
+   mjrpc_call("cm_shutdown", "{ \"zname\": \"odbedit\" }", null, mjsonrpc_debug_callback);
 }
     </script>
   </head>
@@ -626,7 +651,16 @@ ODBEdit(path);
         <h2>Test HTTP POST</h2>
       
         <p>
+          <input type=button value='test echo' onClick='mjrpc_call("echo", "[ 1 ]", null, mjsonrpc_debug_callback);'></input>
+          <input type=button value='test error' onClick='mjrpc_call("error", "[ 1 ]", null, mjsonrpc_debug_callback);'></input>
+          <input type=button value='test invalid_json' onClick='mjrpc_call("invalid_json", "[ 1 ]", null, mjsonrpc_debug_callback);'></input>
+          <input type=button value='test invalid_params' onClick='mjrpc_call("invalid_json", 10, null, mjsonrpc_debug_callback);'></input>
+          <input type=button value='test null' onClick='mjrpc_call("null", "[ 1 ]", null, mjsonrpc_debug_callback);'></input>
           <input type=button value='test' onClick='testPOST();'></input>
+          <input type=button value='test exist1' onClick='testExist1();'></input>
+          <input type=button value='test exist2' onClick='testExist2();'></input>
+          <input type=button value='test shutdown' onClick='testShutdown();'></input>
+          <input type=button value='test shutdown with missing parameter' onClick='testShutdownMissingParameter();'></input>
         </p>
         <pre id='getalarms_target'>
 (empty)
@@ -643,6 +677,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Fri Sep  4 12:46:00 PDT 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Sun Sep  6 10:38:37 PDT 2015 <!-- hhmts end -->
   </body>
 </html>
