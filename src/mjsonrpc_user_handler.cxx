@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include "mjson.h"
 
-const MJsonNode* mjson_rpc_user_handler(const char* method, const MJsonNode* params)
+const MJsonNode* mjsonrpc_user_handler(const char* method, const MJsonNode* params)
 {
    return NULL;
 }
