@@ -231,6 +231,65 @@ function ODBCopy(path, format)
    return request.responseText;
 }
 
+function mjsonrpc_call(method, params, id, callback)
+{
+   if (id == null)
+      id = Date.now();
+
+   var req = new Object();
+   req.jsonrpc = "2.0"; // version
+   req.method = method;
+   if (typeof params == 'string') {
+      req.params = JSON.parse(params);
+   } else {
+      req.params = params;
+   }
+   req.id = id;
+
+   var request = new XMLHttpRequest();
+   request.responseType = 'json';
+
+   if (callback != undefined) {
+      request.onreadystatechange = function()
+      {
+         if (request.readyState == 4) {
+	    if (request.status == 200) {
+               callback(method, params, id, request.response);
+	    }
+         }
+      }
+   }
+
+   request.open('POST', '?mjsonrpc');
+   request.setRequestHeader('Content-Type', 'application/json');
+   request.setRequestHeader('Accept', 'application/json');
+   request.send(JSON.stringify(req));
+   return request;
+}
+
+function mjsonrpc_debug_callback(m, p, id, r) {
+   alert("mjsonrpc_debug_callback: method: \"" + m + "\", params: " + p + ", id: " + id + ", response: "+JSON.stringify(r));
+}
+
+function mjsonrpc_start_program(name, id, callback) {
+   var req = new Object();
+   req.name = name;
+   return mjsonrpc_call("start_program", req, id, callback);
+}
+
+function mjsonrpc_stop_program(name, unique, id, callback) {
+   var req = new Object();
+   req.name = name;
+   req.unique = unique;
+   return mjsonrpc_call("cm_shutdown", req, id, callback);
+}
+
+function mjsonrpc_db_copy(paths, id, callback) {
+   var req = new Object();
+   req.paths = paths;
+   return mjsonrpc_call("db_copy", req, id, callback);
+}
+
 function ODBCall(url, callback)
 {
    var request = XMLHttpRequestGeneric();
@@ -546,6 +605,8 @@ function ODBInlineEdit(p, odb_path, bracket)
    p.style.width = width+"px";
 }
 
+/*---- mhttpd functions -------------------------------------*/
+
 function mhttpd_create_page_handle_create(mouseEvent)
 {
    var form = document.getElementsByTagName('form')[0];
@@ -627,6 +688,245 @@ function mhttpd_delete_page_handle_cancel(mouseEvent)
 {
    location.search = ""; // reloads the document
    return false;
+}
+
+function mhttpd_programs_page_add_table_entry(table, name, colspan)
+{
+   function new_attribute(name, value)
+   {
+      var att = document.createAttribute(name);
+      if (value)
+         att.value = value;
+      return att;
+   }
+
+   var tr = document.createElement("tr");
+   tr.setAttributeNode(new_attribute("id", "program " + name));
+   var td;
+   var input;
+
+   td = document.createElement("td");
+   td.setAttributeNode(new_attribute("id", "program name " + name));
+   td.setAttributeNode(new_attribute("align", "center"));
+   td.setAttributeNode(new_attribute("colspan", colspan));
+   td.innerHTML = "<a href='Programs/" + name + "'>"+name+"</a>";
+   tr.appendChild(td);
+
+   td = document.createElement("td");
+   td.setAttributeNode(new_attribute("id", "program host " + name));
+   td.setAttributeNode(new_attribute("align", "center"));
+   tr.appendChild(td);
+
+   td = document.createElement("td");
+   td.setAttributeNode(new_attribute("id", "program alarm " + name));
+   td.setAttributeNode(new_attribute("align", "center"));
+   tr.appendChild(td);
+
+   td = document.createElement("td");
+   td.setAttributeNode(new_attribute("id", "program autorestart " + name));
+   td.setAttributeNode(new_attribute("align", "center"));
+   tr.appendChild(td);
+
+   td = document.createElement("td");
+   td.setAttributeNode(new_attribute("id", "program control " + name));
+
+   var start_button = document.createElement("button");
+   input = start_button;
+   input.id = "start " + name;
+   input.type = "button";
+   input.innerHTML = "Start";
+   input.disabled = true;
+   input.onclick = function() {
+      start_button.disabled = true;
+      //alert('Start!');
+      mjsonrpc_start_program(name, null, mjsonrpc_debug_callback);
+   };
+
+   td.appendChild(input);
+
+   // need spacer beteen the buttons
+   //td.appendChild("x&nbspx");
+
+   var stop_button = document.createElement("button");
+   input = stop_button;
+   input.id = "stop " + name;
+   input.type = "button";
+   input.innerHTML = "Stop";
+   input.disabled = true;
+   input.onclick = function() {
+      stop_button.disabled = true;
+      //alert('Stop!');
+      mjsonrpc_stop_program(name, false, null, mjsonrpc_debug_callback);
+   };
+
+   td.appendChild(input);
+
+   tr.appendChild(td);
+
+   table.appendChild(tr);
+
+   return tr;
+}
+
+var mhttpd_programs_page_updateTimerId;
+
+function mhttpd_programs_page_callback(m, p, id, r)
+{
+   document.getElementById('updateStatus').innerHTML = "Processing new data...";
+
+   function set_text(dom_prefix, item, value)
+   {
+      var e = document.getElementById(dom_prefix + item);
+      if (e) e.innerHTML = value;
+   }
+
+   function set_color(dom_prefix, item, value)
+   {
+      var e = document.getElementById(dom_prefix + item);
+      if (e) e.style.backgroundColor = value;
+   }
+
+   function set_class(dom_prefix, item, value)
+   {
+      var e = document.getElementById(dom_prefix + item);
+      if (e) e.className = value;
+   }
+
+   function set_attr(id, attr, value)
+   {
+      var e = document.getElementById(id);
+      if (e) {
+         if (typeof e[attr] != 'undefined') {
+            e[attr] = value;
+         }
+      }
+   }
+
+   function get(obj, name)
+   {
+      var name_lc = name.toLowerCase(name);
+      for (var key in obj) {
+         if (key.toLowerCase() == name_lc)
+            return obj[key]
+         }
+      return null;
+   }
+
+   function find_client(clients, name)
+   {
+      var found;
+      var name_lc = name.toLowerCase(name);
+      for (var key in clients) {
+         var cname = get(clients[key], "name");
+         var cname_lc =  cname.toLowerCase();
+         var same_name = (cname_lc == name_lc);
+         var matching_name = false;
+
+         if (!same_name) {
+            var n = cname_lc.search(name_lc);
+            if (n==0) {
+               matching_name = true;
+               // FIXME: check that remaining text is all numbers: for "odbedit", match "odbedit111", but not "odbeditxxx"
+            }
+         }
+
+         if (same_name || matching_name) {
+            if (!found)
+               found = new Array();
+            found.push(key);
+         }
+      }
+      return found;
+   }
+
+   //alert("Hello: " + JSON.stringify(r));
+
+   var programs = r.result.data[0];
+   var clients  = r.result.data[1];
+   var alarms   = r.result.data[2];
+
+   for (var name in programs) {
+      var e = document.getElementById("program " + name);
+      var required = get(programs[name], "required");
+      var xclients = find_client(clients, name);
+      //alert("name " + name + " clients: " + JSON.stringify(xclients));
+      if (required || xclients) {
+         if (!e) {
+            e = mhttpd_programs_page_add_table_entry(document.getElementById("xstripeList"), name, 1);
+         }
+
+         e.style.display = '';
+
+         if (xclients) {
+            var s = "";
+            for (var i=0; i<xclients.length; i++) {
+               var key = xclients[i];
+               var host = get(clients[key], "host");
+               if (host) {
+                  if (s.length > 0)
+                     s += "<br>";
+                  s += "<a href='/System/Clients/"+key+"'>"+host+"</a>";
+               }
+            }
+            set_text("program host ", name, s);
+            set_class("program host ", name, "greenLight");
+            // enable start/stop buttons
+            set_attr("start " + name, "disabled", true);
+            set_attr("stop " + name, "disabled", false);
+         } else {
+            set_text("program host ", name, "Not running");
+            set_class("program host ", name, "redLight");
+            // enable start/stop buttons
+            set_attr("start " + name, "disabled", false);
+            set_attr("stop " + name, "disabled", true);
+         }
+
+         var alarm_class = get(programs[name], "alarm class");
+         if (alarm_class.length > 0) {
+            set_text("program alarm ", name, "<a href='Alarms/Classes/"+ alarm_class + "'>" + alarm_class + "</a>");
+            set_class("program alarm ", name, "yellowLight");
+         } else {
+            set_text("program alarm ", name, "-");
+         }
+
+         if (get(programs[name], "auto restart"))
+            set_text("program autorestart ", name, "Yes");
+         else
+            set_text("program autorestart ", name, "No");
+      } else {
+         if (e) {
+            e.style.display = 'none';
+         }
+      }
+   }
+
+   document.getElementById('lastUpdated').innerHTML = "Last updated: " + new Date;
+   document.getElementById('updateStatus').innerHTML = "";
+}
+
+function mhttpd_programs_page_update()
+{
+   clearTimeout(mhttpd_programs_page_updateTimerId);
+   var updatePeriod = 1000; // in milli-seconds
+   var paths = [ "/Programs", "/System/Clients", "/Alarms" ];
+   document.getElementById('updateStatus').innerHTML = "Requesting new data...";
+   mjsonrpc_db_copy(paths, null, mhttpd_programs_page_callback);
+   document.getElementById('updateStatus').innerHTML = "Waiting for new data...";
+   mhttpd_programs_page_updateTimerId = setTimeout('mhttpd_programs_page_update()', updatePeriod);
+}
+
+function mhttpd_programs_page()
+{
+   // this is called when the "programs" page is loaded
+
+   document.write("<td><input type=button value=\'Refresh now\' onClick=\'mhttpd_programs_page_update();\'></input> <tt id='lastUpdated'>lastUpdated</tt> <tt id='updateStatus'>updateStatus</tt></td>\n");
+
+   document.write("<table class=\"subStatusTable\" id=\"xstripeList\">\n");
+   document.write("<tr><td colspan=5 class=\"subStatusTitle\">Programs</td></tr>");
+   document.write("<tr class=\"titleRow\"><th>Program<th>Running on host<th>Alarm class<th>Autorestart<th>Commands</tr>\n");
+   document.write("</table>\n");
+
+   document.write("<script>mhttpd_programs_page_update();</script>\n");
 }
 
 /*---- message functions -------------------------------------*/
@@ -1071,3 +1371,11 @@ function chat_extend()
    window.setTimeout(chat_extend, 1000);
 }
 
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * js-indent-level: 3
+ * indent-tabs-mode: nil
+ * End:
+ */
