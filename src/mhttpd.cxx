@@ -10210,6 +10210,9 @@ void show_programs_page()
    show_header("Programs", "GET", "", 0);
    show_navigation_bar("Programs");
 
+   /* use javascript file */
+   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
+
    rsprintf("<input type=hidden name=cmd value=Programs>\n");
 
    /*---- programs ----*/
@@ -10320,23 +10323,33 @@ void show_programs_page()
          size = sizeof(str);
          db_get_value(hDB, hkey, "Start Command", str, &size, TID_STRING, TRUE);
          if (str[0] && count == 0) {
+#if 0
             sprintf(str, "Start %s", key.name);
             rsprintf("<td align=center><input type=submit name=\"Start\" value=\"%s\">\n",
                      str);
+#else
+            rsprintf("<td><input type=button value=\'Start %s\' onClick=\'mjsonrpc_start_program(\"%s\", null, mjsonrpc_debug_callback);\'></input></td>\n", key.name, key.name);
+#endif
          }
 
          if (count > 0 && strncmp(key.name, "mhttpd", 6) != 0) {
+#if 0
             sprintf(str, "Stop %s", key.name);
             rsprintf("<td align=center><input type=submit name=\"Stop\" value=\"%s\">\n",
                      str);
+#else
+            rsprintf("<td><input type=button value=\'Stop %s\' onClick=\'mjsonrpc_stop_program(\"%s\", false, null, mjsonrpc_debug_callback);\'></input></td>\n", key.name, key.name);
+#endif
          }
 
          rsprintf("</tr>\n");
       }
    }
 
-
    rsprintf("</table>\n");
+
+   rsprintf("<script>mhttpd_programs_page()</script>\n");
+
    page_footer(TRUE);
 }
 
