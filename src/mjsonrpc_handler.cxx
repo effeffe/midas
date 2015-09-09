@@ -12,6 +12,7 @@
 
 #include "mjson.h"
 #include "midas.h"
+#include "msystem.h"
 
 MJsonNode* mjsonrpc_make_error(int code, const char* message, const char* data)
 {
@@ -32,10 +33,16 @@ MJsonNode* mjsonrpc_make_result(MJsonNode* node)
    return result;
 }
 
-MJsonNode* mjsonrpc_make_result(const char* name, MJsonNode* value)
+MJsonNode* mjsonrpc_make_result(const char* name, MJsonNode* value, const char* name2 = NULL, MJsonNode* value2 = NULL, const char* name3 = NULL, MJsonNode* value3 = NULL)
 {
    MJsonNode* node = MJsonNode::MakeObject();
-   node->AddToObject(name, value);
+
+   if (name)
+      node->AddToObject(name, value);
+   if (name2)
+      node->AddToObject(name2, value2);
+   if (name3)
+      node->AddToObject(name3, value3);
 
    MJsonNode* result = MJsonNode::MakeObject();
    result->AddToObject("result", node);
@@ -99,6 +106,65 @@ static MJsonNode* js_cm_shutdown(const MJsonNode* params)
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
 
+static MJsonNode* js_start_program(const MJsonNode* params)
+{
+   MJsonNode* error = NULL;
+
+   const char* name = mjsonrpc_get_param(params, "name", &error)->GetString().c_str(); if (error) return error;
+
+   std::string path = "";
+   path += "/Programs/";
+   path += name;
+   path += "/Start command";
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   char command[256];
+   int size = sizeof(command);
+   int status = db_get_value(hDB, 0, path.c_str(), command, &size, TID_STRING, FALSE);
+
+   if (status == DB_SUCCESS && command[0]) {
+      status = ss_system(command);
+   }
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+}
+
+static MJsonNode* js_db_copy(const MJsonNode* params)
+{
+   MJsonNode* error = NULL;
+
+   const MJsonNodeVector* paths = mjsonrpc_get_param(params, "paths", &error)->GetArray(); if (error) return error;
+
+   MJsonNode* dresult = MJsonNode::MakeArray();
+   MJsonNode* sresult = MJsonNode::MakeArray();
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   for (unsigned i=0; i<paths->size(); i++) {
+      HNDLE hkey;
+      int status = db_find_key(hDB, 0, (*paths)[i]->GetString().c_str(), &hkey);
+      if (status == DB_SUCCESS) {
+         char* buf = NULL;
+         int bufsize = 0;
+         int end = 0;
+         status = db_copy_json(hDB, hkey, &buf, &bufsize, &end, 1, 1, 1);
+         if (status == DB_SUCCESS) {
+            dresult->AddToArray(MJsonNode::Parse(buf));
+         }
+         if (buf)
+            free(buf);
+      }
+      if (status != DB_SUCCESS)
+         dresult->AddToArray(MJsonNode::MakeNull());
+      sresult->AddToArray(MJsonNode::MakeInt(status));
+   }
+
+   return mjsonrpc_make_result("data", dresult, "status", sresult);
+}
+
 typedef MJsonNode* (handler_t)(const MJsonNode* params);
 
 static struct {
@@ -108,6 +174,8 @@ static struct {
    { "null", null },
    { "cm_exist", js_cm_exist },
    { "cm_shutdown", js_cm_shutdown },
+   { "start_program", js_start_program },
+   { "db_copy", js_db_copy },
    { NULL, NULL } // mark end of the table
 };
 
