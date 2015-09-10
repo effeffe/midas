@@ -231,7 +231,7 @@ function ODBCopy(path, format)
    return request.responseText;
 }
 
-function mjsonrpc_call(method, params, id, callback)
+function mjsonrpc_call(method, params, id, callback, error_callback)
 {
    if (id == null)
       id = Date.now();
@@ -246,48 +246,105 @@ function mjsonrpc_call(method, params, id, callback)
    }
    req.id = id;
 
-   var request = new XMLHttpRequest();
-   request.responseType = 'json';
+   var xhr = new XMLHttpRequest();
+   xhr.responseType = 'json';
 
-   if (callback != undefined) {
-      request.onreadystatechange = function()
-      {
-         if (request.readyState == 4) {
-	    if (request.status == 200) {
-               callback(method, params, id, request.response);
-	    }
+   xhr.onreadystatechange = function()
+   {
+      if (xhr.readyState == 4) {
+         var exc = null;
+
+         if (xhr.status == 200) {
+            var have_response = false;
+            try {
+               if (xhr.response) {
+                  var response = xhr.response;
+                  var error = response.error;
+                  // alert("e " + JSON.stringify(xhr.response));
+                  // (typeof xhr.response.error == 'undefined')
+                  have_response = (error == null);
+               }
+            } catch (xexc) {
+               // fall through
+               alert("exception " + xexc);
+               exc = xexc;
+            }
+
+            if (have_response) {
+               if (callback != undefined)
+                  callback(method, params, id, xhr.response);
+               return;
+            }
+         }
+
+         if (error_callback != undefined) {
+            error_callback(method, params, id, xhr, exc);
          }
       }
    }
 
-   request.open('POST', '?mjsonrpc');
-   request.setRequestHeader('Content-Type', 'application/json');
-   request.setRequestHeader('Accept', 'application/json');
-   request.send(JSON.stringify(req));
-   return request;
+   xhr.open('POST', '?mjsonrpc');
+   xhr.setRequestHeader('Content-Type', 'application/json');
+   xhr.setRequestHeader('Accept', 'application/json');
+   xhr.send(JSON.stringify(req));
+   return xhr;
 }
 
 function mjsonrpc_debug_callback(m, p, id, r) {
    alert("mjsonrpc_debug_callback: method: \"" + m + "\", params: " + p + ", id: " + id + ", response: "+JSON.stringify(r));
 }
 
-function mjsonrpc_start_program(name, id, callback) {
-   var req = new Object();
-   req.name = name;
-   return mjsonrpc_call("start_program", req, id, callback);
+function mjsonrpc_decode_error_callback(m, p, id, xhr, exc) {
+   function is_network_error(xhr) {
+      return xhr.readyState==4 && xhr.status==0;
+   }
+   function is_http_error(xhr) {
+      return xhr.readyState==4 && xhr.status!=200;
+   }
+   function print_xhr(xhr) {
+      return "readyState: " + xhr.readyState + ", HTTP status: " + xhr.status + " (" + xhr.statusText + ")";
+   }
+   function print_request(m, p, id) {
+      return "method: \"" + m + "\", params: " + p + ", id: " + id;
+   }
+
+   if (is_network_error(xhr)) {
+      return "network error: see javascript console, " + print_request(m, p, id);
+   } else if (is_http_error(xhr)) {
+      return "http error: " + print_xhr(xhr) + ", " + print_request(m, p, id);
+   } else if (exc) {
+      return "exception: " + exc + ", " + print_request(m, p, id);
+   } else if (!xhr.response) {
+      return "json-rpc error: null response, " + print_request(m, p, id);
+   } else if (xhr.response.error) {
+      return "json-rpc error: " + JSON.stringify(xhr.response.error) + ", " + print_request(m, p, id);
+   } else {
+      return "what happened?!?, " + print_request(mp, p, id) + ", xhr: " + print_xhr(xhr) + ", exc: " + exc;
+   }
 }
 
-function mjsonrpc_stop_program(name, unique, id, callback) {
+function mjsonrpc_debug_error_callback(m, p, id, xhr, exc) {
+   var s = mjsonrpc_decode_error_callback(m, p, id, xhr, exc);
+   alert("mjsonrpc_debug_error_callback: " + s);
+}
+
+function mjsonrpc_start_program(name, id, callback, error_callback) {
+   var req = new Object();
+   req.name = name;
+   return mjsonrpc_call("start_program", req, id, callback, error_callback);
+}
+
+function mjsonrpc_stop_program(name, unique, id, callback, error_callback) {
    var req = new Object();
    req.name = name;
    req.unique = unique;
-   return mjsonrpc_call("cm_shutdown", req, id, callback);
+   return mjsonrpc_call("cm_shutdown", req, id, callback, error_callback);
 }
 
-function mjsonrpc_db_copy(paths, id, callback) {
+function mjsonrpc_db_copy(paths, id, callback, error_callback) {
    var req = new Object();
    req.paths = paths;
-   return mjsonrpc_call("db_copy", req, id, callback);
+   return mjsonrpc_call("db_copy", req, id, callback, error_callback);
 }
 
 function ODBCall(url, callback)
