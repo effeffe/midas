@@ -166,7 +166,7 @@ static MJsonNode* js_cm_shutdown(const MJsonNode* params)
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
 
-static MJsonNode* js_start_program(const MJsonNode* params)
+static MJsonNode* start_program(const MJsonNode* params)
 {
    MJsonNode* error = NULL;
 
@@ -225,6 +225,17 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
    return mjsonrpc_make_result("data", dresult, "status", sresult);
 }
 
+static MJsonNode* get_debug(const MJsonNode* params)
+{
+   return mjsonrpc_make_result("debug", MJsonNode::MakeInt(mjsonrpc_debug));
+}
+
+static MJsonNode* set_debug(const MJsonNode* params)
+{
+   mjsonrpc_debug = params->GetInt();
+   return mjsonrpc_make_result("debug", MJsonNode::MakeInt(mjsonrpc_debug));
+}
+
 static std::map<std::string, mjsonrpc_handler_t*> gHandlers;
 
 void mjsonrpc_add_handler(const char* method, mjsonrpc_handler_t* handler)
@@ -239,10 +250,12 @@ void mjsonrpc_init()
    }
 
    mjsonrpc_add_handler("null", null);
-   mjsonrpc_add_handler("cm_exist", js_cm_exist);
+   mjsonrpc_add_handler("get_debug",   get_debug);
+   mjsonrpc_add_handler("set_debug",   set_debug);
+   mjsonrpc_add_handler("cm_exist",    js_cm_exist);
    mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
-   mjsonrpc_add_handler("start_program", js_start_program);
-   mjsonrpc_add_handler("db_copy", js_db_copy);
+   mjsonrpc_add_handler("db_copy",     js_db_copy);
+   mjsonrpc_add_handler("start_program", start_program);
 }
 
 static void add(std::string* s, const char* text)
@@ -271,6 +284,30 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
       printf("mjsonrpc: request:\n");
       request->Dump();
       printf("\n");
+   }
+
+   if (request->GetType() == MJSON_ERROR) {
+      std::string reply;
+      reply += "{";
+      reply += "\"jsonrpc\": \"2.0\",";
+      reply += "\"error\":{";
+      reply += "\"code\":-32700,";
+      reply += "\"message\":\"Parse error\",";
+      reply += "\"data\":\"" + MJsonNode::Encode(request->GetError().c_str()) + "\"";
+      reply += "},";
+      reply += "\"id\":null";
+      reply += "}";
+
+      if (request)
+         delete request;
+
+      if (mjsonrpc_debug) {
+         printf("mjsonrpc: invalid json: reply:\n");
+         printf("%s\n", reply.c_str());
+         printf("\n");
+      }
+
+      return reply;
    }
 
    // find required request elements
@@ -305,7 +342,7 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
       reply += "\"error\":{";
       reply += "\"code\":-32600,";
       reply += "\"message\":\"Invalid request\",";
-      reply += "\"data\":\"" + bad + "\"";
+      reply += "\"data\":\"" + MJsonNode::Encode(bad.c_str()) + "\"";
       reply += "},";
       if (id)
          reply += "\"id\":" + id->Stringify();
@@ -317,7 +354,7 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
          delete request;
 
       if (mjsonrpc_debug) {
-         printf("mjsonrpc: reply:\n");
+         printf("mjsonrpc: invalid request: reply:\n");
          printf("%s\n", reply.c_str());
          printf("\n");
       }
@@ -349,7 +386,7 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
       if (h)
          result = (*h)(params);
       else
-         result = mjsonrpc_make_error(-32601, "Method not found", (std::string("unknown method [") + m + "]").c_str());
+         result = mjsonrpc_make_error(-32601, "Method not found", (std::string("unknown method: ") + m).c_str());
    }
 
    if (mjsonrpc_debug) {

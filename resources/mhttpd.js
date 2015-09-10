@@ -286,7 +286,10 @@ function mjsonrpc_call(method, params, id, callback, error_callback)
    xhr.open('POST', '?mjsonrpc');
    xhr.setRequestHeader('Content-Type', 'application/json');
    xhr.setRequestHeader('Accept', 'application/json');
-   xhr.send(JSON.stringify(req));
+   if (method == "send invalid json")
+      xhr.send("invalid json");
+   else
+      xhr.send(JSON.stringify(req));
    return xhr;
 }
 

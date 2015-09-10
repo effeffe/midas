@@ -610,29 +610,38 @@ ODBEdit(path);
       <li>
         <h2>Test JSON RPC calls</h2>
       
-        <p>
+        <p> Test built-in functions:
+          <input type=button value='set debug 0' onClick='mjsonrpc_call("set_debug", "0", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='set debug 1' onClick='mjsonrpc_call("set_debug", "1", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='get debug' onClick='mjsonrpc_call("get_debug", "{}", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='test echo request' onClick='mjsonrpc_call("echo", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='test error request' onClick='mjsonrpc_call("error", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+        </p>
+        <p> Test error responses:
           <input type=button value='test unknown method request' onClick='mjsonrpc_call("unknown method", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='test invalid request' onClick='mjsonrpc_call("echo", function(){ ; }, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='test send invalid json' onClick='mjsonrpc_call("send invalid json", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='test invalid_json reply' onClick='mjsonrpc_call("invalid_json", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='test request with null response' onClick='mjsonrpc_call("null", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='test' onClick='testPOST();'></input>
-          <input type=button value='test exist1' onClick='testExist1();'></input>
-          <input type=button value='test exist2' onClick='testExist2();'></input>
-          <input type=button value='test shutdown' onClick='testShutdown();'></input>
-          <input type=button value='test shutdown with missing parameter' onClick='testShutdownMissingParameter();'></input>
+        </p>
+        <p> Test examples from mjsonrpc_user.cxx
           <input type=button value='user example1 with wrong arguments' onClick='mjsonrpc_call("user_example1", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='user example1 with one argument' onClick='mjsonrpc_call("user_example1", "{ \"arg\": \"small brown fox etc\" }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='user example1 with two arguments' onClick='mjsonrpc_call("user_example1", "{ \"arg\": \"small brown fox etc\", \"optional_arg\": 123456 }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='user example2' onClick='mjsonrpc_call("user_example2", "{ \"arg\": \"big red fox etc\" }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='user example3 normal' onClick='mjsonrpc_call("user_example3", "{ \"arg\": 100 }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='user example3 error' onClick='mjsonrpc_call("user_example3", "{ \"arg\": 0 }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='user example3 error'
+          onClick='mjsonrpc_call("user_example3", "{ \"arg\": 0 }",
+          null, mjsonrpc_debug_callback,
+          mjsonrpc_debug_error_callback);'></input>
         </p>
-        <pre id='getalarms_target'>
-(empty)
-        </pre>
-
+        <p> test other stuff
+          <input type=button value='test' onClick='testPOST();'></input>
+          <input type=button value='test exist1' onClick='testExist1();'></input>
+          <input type=button value='test exist2' onClick='testExist2();'></input>
+          <input type=button value='test shutdown' onClick='testShutdown();'></input>
+          <input type=button value='test shutdown with missing parameter' onClick='testShutdownMissingParameter();'></input>
+        </p>
     </ul>
 
     <script type="text/javascript">
@@ -644,6 +653,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Thu Sep 10 10:33:27 PDT 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Thu Sep 10 11:01:49 PDT 2015 <!-- hhmts end -->
   </body>
 </html>
