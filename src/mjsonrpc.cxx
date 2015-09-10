@@ -1,6 +1,6 @@
 /********************************************************************\
 
-  Name:         mjsonrpc_handler.cxx
+  Name:         mjsonrpc.cxx
   Created by:   Konstantin Olchanski
 
   Contents:     handler of MIDAS standard JSON-RPC requests
@@ -9,10 +9,13 @@
 
 #include <stdio.h>
 #include <assert.h>
+#include <map>
 
 #include "mjson.h"
 #include "midas.h"
 #include "msystem.h"
+
+#include "mjsonrpc.h"
 
 //
 // Specifications for JSON-RPC
@@ -67,6 +70,8 @@
 // }
 //
 
+int mjsonrpc_debug = 0;
+
 MJsonNode* mjsonrpc_make_error(int code, const char* message, const char* data)
 {
    MJsonNode* errnode = MJsonNode::MakeObject();
@@ -86,7 +91,7 @@ MJsonNode* mjsonrpc_make_result(MJsonNode* node)
    return result;
 }
 
-MJsonNode* mjsonrpc_make_result(const char* name, MJsonNode* value, const char* name2 = NULL, MJsonNode* value2 = NULL, const char* name3 = NULL, MJsonNode* value3 = NULL)
+MJsonNode* mjsonrpc_make_result(const char* name, MJsonNode* value, const char* name2, MJsonNode* value2, const char* name3, MJsonNode* value3)
 {
    MJsonNode* node = MJsonNode::MakeObject();
 
@@ -137,7 +142,8 @@ static MJsonNode* js_cm_exist(const MJsonNode* params)
 
    int status = cm_exist(name, unique);
 
-   printf("cm_exist(%s,%d) -> %d\n", name, unique, status);
+   if (mjsonrpc_debug)
+      printf("cm_exist(%s,%d) -> %d\n", name, unique, status);
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
@@ -154,7 +160,8 @@ static MJsonNode* js_cm_shutdown(const MJsonNode* params)
 
    int status = cm_shutdown(name, unique);
 
-   printf("cm_shutdown(%s,%d) -> %d\n", name, unique, status);
+   if (mjsonrpc_debug)
+      printf("cm_shutdown(%s,%d) -> %d\n", name, unique, status);
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
@@ -218,28 +225,24 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
    return mjsonrpc_make_result("data", dresult, "status", sresult);
 }
 
-typedef MJsonNode* (handler_t)(const MJsonNode* params);
+static std::map<std::string, mjsonrpc_handler_t*> gHandlers;
 
-static struct {
-   const char* method;
-   handler_t*  handler;
-} table[] = {
-   { "null", null },
-   { "cm_exist", js_cm_exist },
-   { "cm_shutdown", js_cm_shutdown },
-   { "start_program", js_start_program },
-   { "db_copy", js_db_copy },
-   { NULL, NULL } // mark end of the table
-};
-
-MJsonNode* mjsonrpc_dispatch(const char* method, const MJsonNode* params)
+void mjsonrpc_add_handler(const char* method, mjsonrpc_handler_t* handler)
 {
-   for (int i=0; table[i].method != NULL; i++) {
-      if (strcmp(method, table[i].method) == 0)
-         return table[i].handler(params);
+   gHandlers[method] = handler;
+}
+
+void mjsonrpc_init()
+{
+   if (mjsonrpc_debug) {
+      printf("mjsonrpc_init!\n");
    }
 
-   return NULL;
+   mjsonrpc_add_handler("null", null);
+   mjsonrpc_add_handler("cm_exist", js_cm_exist);
+   mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
+   mjsonrpc_add_handler("start_program", js_start_program);
+   mjsonrpc_add_handler("db_copy", js_db_copy);
 }
 
 static void add(std::string* s, const char* text)
@@ -252,14 +255,23 @@ static void add(std::string* s, const char* text)
 
 std::string mjsonrpc_decode_post_data(const char* post_data)
 {
+   static bool gFirstTime = true;
+   if (gFirstTime) {
+      gFirstTime = false;
+      mjsonrpc_init();
+      mjsonrpc_user_init();
+   }
+
    //printf("mjsonrpc call, data [%s]\n", post_data);
    MJsonNode *request = MJsonNode::Parse(post_data);
 
    assert(request != NULL); // Parse never returns NULL - either parsed data or an MJSON_ERROR node
 
-   printf("mjsonrpc: request:\n");
-   request->Dump();
-   printf("\n");
+   if (mjsonrpc_debug) {
+      printf("mjsonrpc: request:\n");
+      request->Dump();
+      printf("\n");
+   }
 
    // find required request elements
    const MJsonNode* version = request->FindObjectNode("jsonrpc");
@@ -304,9 +316,11 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
       if (request)
          delete request;
 
-      printf("mjsonrpc: reply:\n");
-      printf("%s\n", reply.c_str());
-      printf("\n");
+      if (mjsonrpc_debug) {
+         printf("mjsonrpc: reply:\n");
+         printf("%s\n", reply.c_str());
+         printf("\n");
+      }
 
       return reply;
    }
@@ -325,21 +339,24 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
    } else if (strcmp(m, "invalid_json") == 0) {
       if (request)
          delete request;
-      printf("mjsonrpc: reply with invalid json\n");
+      if (mjsonrpc_debug) {
+         printf("mjsonrpc: reply with invalid json\n");
+      }
       return "this is invalid json data";
+   } else {
+      std::string mm = m;
+      mjsonrpc_handler_t *h = gHandlers[mm];
+      if (h)
+         result = (*h)(params);
+      else
+         result = mjsonrpc_make_error(-32601, "Method not found", (std::string("unknown method [") + m + "]").c_str());
    }
 
-   if (!result) {
-      result = mjsonrpc_dispatch(m, params);
+   if (mjsonrpc_debug) {
+      printf("mjsonrpc: handler reply:\n");
+      result->Dump();
+      printf("\n");
    }
-
-   if (!result) {
-      result = mjsonrpc_make_error(-32601, "Method not found", (std::string("unknown method [") + m + "]").c_str());
-   }
-
-   printf("mjsonrpc: dispatcher reply:\n");
-   result->Dump();
-   printf("\n");
 
    const MJsonNode *nerror  = result->FindObjectNode("error");
    const MJsonNode *nresult = result->FindObjectNode("result");
