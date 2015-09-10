@@ -14,6 +14,59 @@
 #include "midas.h"
 #include "msystem.h"
 
+//
+// Specifications for JSON-RPC
+//
+// https://tools.ietf.org/html/rfc4627 - JSON RFC
+// http://www.jsonrpc.org/specification - specification of JSON-RPC 2.0
+// http://www.simple-is-better.org/json-rpc/transport_http.html
+//
+// NB - MIDAS JSON (odb.c and mjson.cxx) encode IEEE754/854 numeric values
+//      NaN and +/-Inf into JSON strings "NaN", "Infinity" and "-Infinity"
+//      for reasons unknown, the JSON standard does not specify a standard
+//      way for encoding these numeric values.
+//
+//
+// JSON-RPC error codes:
+//
+// -32700	Parse error	Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text.
+// -32600	Invalid Request	The JSON sent is not a valid Request object.
+// -32601	Method not found	The method does not exist / is not available.
+// -32602	Invalid params	Invalid method parameter(s).
+// -32603	Internal error	Internal JSON-RPC error.
+// -32000 to -32099	Server error	Reserved for implementation-defined server-errors.
+//
+// Typical JSON-RPC request:
+//
+// {
+//    "jsonrpc": "2.0",
+//    "method": "sum",
+//    "params": { "b": 34, "c": 56, "a": 12 },
+//    "id": 123
+// }
+//
+// Typical JSON-RPC reply:
+//
+// {
+//    "jsonrpc": "2.0",
+//    "result": 102,
+//    "id": 5
+// }
+//
+// Typical error reply:
+//
+// {
+//    "jsonrpc": "2.0",
+//    "error": {
+//        "code": -32600,
+//        "message": "Invalid Request.",
+//        "data": "'method' is missing"
+//        },
+//    "id": 6
+//    }
+// }
+//
+
 MJsonNode* mjsonrpc_make_error(int code, const char* message, const char* data)
 {
    MJsonNode* errnode = MJsonNode::MakeObject();
@@ -58,7 +111,7 @@ const MJsonNode* mjsonrpc_get_param(const MJsonNode* params, const char* name, M
    const MJsonNode* obj = params->FindObjectNode(name);
    if (!obj) {
       if (error)
-         *error = mjsonrpc_make_error(-1, "missing parameter", (std::string("missing parameter: ") + name).c_str());
+         *error = mjsonrpc_make_error(-32602, "Invalid params", (std::string("missing parameter: ") + name).c_str());
       return null_node;
    }
 
@@ -189,35 +242,13 @@ MJsonNode* mjsonrpc_dispatch(const char* method, const MJsonNode* params)
    return NULL;
 }
 
-// http://www.simple-is-better.org/json-rpc/transport_http.html
-//
-// Typical JSON-RPC request:
-//
-// {
-//    "jsonrpc": "2.0",
-//    "method": "sum",
-//    "params": { "b": 34, "c": 56, "a": 12 },
-//    "id": 123
-// }
-//
-// Typical JSON-RPC reply:
-//
-// {
-//    "jsonrpc": "2.0",
-//    "result": 102,
-//    "id": 5
-// }
-//
-// {
-//    "jsonrpc": "2.0",
-//    "error": {
-//        "code": -32600,
-//        "message": "Invalid Request.",
-//        "data": "'method' is missing"
-//        },
-//    "id": 6
-//    }
-// }
+static void add(std::string* s, const char* text)
+{
+   assert(s != NULL);
+   if (s->length() > 0)
+      *s += ", ";
+   *s += text;
+}
 
 std::string mjsonrpc_decode_post_data(const char* post_data)
 {
@@ -236,14 +267,33 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
    const MJsonNode* params  = request->FindObjectNode("params");
    const MJsonNode* id      = request->FindObjectNode("id");
 
-   if (!version || !method || !params || !id || version->GetType() != MJSON_STRING || method->GetType() != MJSON_STRING) {
+   std::string bad = "";
+
+   if (!version)
+      add(&bad, "jsonrpc version is missing");
+   if (!method)
+      add(&bad, "method is missing");
+   if (!params)
+      add(&bad, "params is missing");
+   if (!id)
+      add(&bad, "id is missing");
+
+   if (version&&version->GetType() != MJSON_STRING)
+      add(&bad, "jsonrpc version is not a string");
+   if (version&&version->GetString() != "2.0")
+      add(&bad, "jsonrpc version is not 2.0");
+
+   if (method&&method->GetType() != MJSON_STRING)
+      add(&bad, "method is not a string");
+
+   if (bad.length() > 0) {
       std::string reply;
       reply += "{";
       reply += "\"jsonrpc\": \"2.0\",";
       reply += "\"error\":{";
       reply += "\"code\":-32600,";
-      reply += "\"message\":\"malformed request\",";
-      reply += "\"data\":\"something is missing\"";
+      reply += "\"message\":\"Invalid request\",";
+      reply += "\"data\":\"" + bad + "\"";
       reply += "},";
       if (id)
          reply += "\"id\":" + id->Stringify();
@@ -271,7 +321,7 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
       result = mjsonrpc_make_result(request);
       request = NULL; // request object is now owned by the result object
    } else if (strcmp(m, "error") == 0) {
-      result = mjsonrpc_make_error(-1, "test error", "test error");
+      result = mjsonrpc_make_error(1, "test error", "test error");
    } else if (strcmp(m, "invalid_json") == 0) {
       if (request)
          delete request;
@@ -284,7 +334,7 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
    }
 
    if (!result) {
-      result = mjsonrpc_make_error(-32600, "unknown method", (std::string("unknown method [") + m + "]").c_str());
+      result = mjsonrpc_make_error(-32601, "Method not found", (std::string("unknown method [") + m + "]").c_str());
    }
 
    printf("mjsonrpc: dispatcher reply:\n");
@@ -302,7 +352,7 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
    } else if (nresult) {
       reply += "\"result\":" + nresult->Stringify() + ",";
    } else {
-      nerror = mjsonrpc_make_error(-1, "bad", "very bad");
+      nerror = mjsonrpc_make_error(-32603, "Internal error", "bad dispatcher reply: no result and no error");
       reply += "\"error\":" + nerror->Stringify() + ",";
       delete nerror;
       nerror = NULL;

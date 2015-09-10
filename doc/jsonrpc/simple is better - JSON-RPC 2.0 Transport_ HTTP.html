@@ -1,0 +1,238 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+          "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>simple is better - JSON-RPC 2.0 Transport: HTTP</title>
+
+    <meta name="keywords" content="simple RPC, JSON, json-rpc, JSON-RPC 2.0, transport, HTTP, HTTPS">
+    <meta name="author" content="Roland Koebler">
+    <meta name="language" content="en">
+    <meta name="robots" content="all">
+    <!-- http://www.simple-is-better.org -->
+
+    <style type="text/css">
+	body  { background-color: #CCBC59; max-width: 65em; margin: 1em auto; padding-left: 1ex; padding-right: 1ex; font-family: Helvetica,Arial,sans-serif; font-size: 90%; }
+	blockquote#header { font-family: serif }
+	#main { background-color: #FFFFFF; border-top-style: groove; border-bottom-style: ridge; padding-left: 1em; padding-right: 1em }
+	#footer { margin-top: 1ex; font-size: small }
+	#footer span.left { float: left }
+	#footer span.right{ float: right }
+	#footer img { vertical-align: top }
+	#footer_img { text-align: right }
+	#footer_img img { vertical-align: top }
+	h1 a     { color: #000000; text-decoration: none }
+	h1.title { background-color: #FFEC70; text-align: center; margin-left: 1em; margin-right: 1em; }
+	h2,h3,h4,h5 { background-color: #FFFC90; }
+	h3 { text-decoration: underline }
+	table.docinfo  { margin: 0em 2em; text-align: left; }
+	table.footnote { border-left: 1px solid black; margin-left: 1px; font-size: small }
+	table.field-list { text-align: left; margin-bottom: 1ex; }
+	table.border td, table.border th { border: 1px solid black; padding: 0.25ex 0.5ex; }
+	.pre  { background-color: #EEEEEE; font-family: monospace; }
+	tt    { background-color: #EEEEEE; font-family: monospace; }
+	pre   { background-color: #EEEEEE; margin-left: 2em; margin-right: 2em; overflow: auto; }
+	table { background-color: #FFFFFF; border-collapse: collapse; border-color: #808080; }
+	ol.loweralpha { list-style-type: lower-alpha; }
+    </style>
+</head>
+<body>
+
+<h1><a href="../index.html">simple is better</a></h1>
+
+
+
+<div id="main">
+<div class="document" id="json-rpc-2-0-transport-http">
+<h1 class="title">JSON-RPC 2.0 Transport: HTTP</h1>
+<table class="docinfo" frame="void" rules="none">
+<col class="docinfo-name">
+<col class="docinfo-content">
+<tbody valign="top">
+<tr><th class="docinfo-name">Status:</th>
+<td><strong class="first last">proposal/draft</strong></td></tr>
+<tr><th class="docinfo-name">Date:</th>
+<td>2013-05-10</td></tr>
+<tr><th class="docinfo-name">Author:</th>
+<td>Roland Koebler &lt;rk <em>at</em> simple-is-better <em>dot</em> org&gt;</td></tr>
+</tbody>
+</table>
+<div class="contents topic" id="table-of-contents">
+<p class="topic-title first"><strong>Table of Contents</strong></p>
+<ul class="auto-toc simple">
+<li><a class="reference internal" href="#pipelined-requests-responses" id="id1">1&nbsp;&nbsp;&nbsp;pipelined Requests/Responses</a></li>
+<li><a class="reference internal" href="#post-request" id="id2">2&nbsp;&nbsp;&nbsp;POST Request</a></li>
+<li><a class="reference internal" href="#get-request" id="id3">3&nbsp;&nbsp;&nbsp;GET Request</a></li>
+<li><a class="reference internal" href="#response" id="id4">4&nbsp;&nbsp;&nbsp;Response</a></li>
+</ul>
+</div>
+<hr class="docutils">
+<p>JSON-RPC can be simply tunneled through HTTP or HTTPS.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name">
+<col class="field-body">
+<tbody valign="top">
+<tr class="field"><th class="field-name">SeeAlso:</th><td class="field-body">HTTP specification (<a class="reference external" href="http://www.ietf.org/rfc/rfc2616.txt">RFC 2616</a>)</td>
+</tr>
+</tbody>
+</table>
+<div class="section" id="pipelined-requests-responses">
+<h2>1&nbsp;&nbsp;&nbsp;pipelined Requests/Responses</h2>
+<p>By default, every HTTP-message contains only a single JSON-RPC object.</p>
+<p>But high-performance servers MAY allow several concatenated JSON-RPC
+Requests in a single HTTP message by using e.g. a <a class="reference external" href="transport_sockets.html#pipelined-requests-responses-json-splitter">JSON-splitter</a>,
+and MAY then return concatenated Responses.</p>
+<p>(Note that this has nothing to do with HTTP/1.1 pipelining;
+HTTP/1.1 pipelining is not usable for JSON-RPC, since pipelining
+should not be used for HTTP POST requests.)</p>
+</div>
+<div class="section" id="post-request">
+<h2>2&nbsp;&nbsp;&nbsp;POST Request</h2>
+<p>A HTTP POST request MUST specify the following headers:</p>
+<ul class="simple">
+<li><tt class="docutils literal"><span class="pre">Content-Type</span></tt>: MUST be <tt class="docutils literal">application/json</tt>.</li>
+<li><tt class="docutils literal"><span class="pre">Content-Length</span></tt>: MUST contain the correct <a class="reference external" href="http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.4">length</a> according to the
+HTTP-specification.</li>
+<li><tt class="docutils literal">Accept</tt>: MUST be <tt class="docutils literal">application/json</tt>.</li>
+</ul>
+<p>Of course, additional HTTP-features and -headers (e.g. Authorization)
+can be used.</p>
+<p>The Request itself is carried in the body of the HTTP message.</p>
+<p><strong>Example</strong>:</p>
+<pre class="literal-block">
+POST /myservice HTTP/1.1
+Host: rpc.example.com
+Content-Type: application/json
+Content-Length: ...
+Accept: application/json
+
+{
+    &quot;jsonrpc&quot;: &quot;2.0&quot;,
+    &quot;method&quot;: &quot;sum&quot;,
+    &quot;params&quot;: { &quot;b&quot;: 34, &quot;c&quot;: 56, &quot;a&quot;: 12 },
+    &quot;id&quot;: 123
+}
+</pre>
+</div>
+<div class="section" id="get-request">
+<h2>3&nbsp;&nbsp;&nbsp;GET Request</h2>
+<p>HTTP GET is <strong>not recommended</strong> for JSON-RPC, and JSON-RPC servers usually
+don't implement it.</p>
+<p>HTTP GET is not really suited for RPC, since HTTP GET is only allowed for
+<a class="reference external" href="http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html#sec9.1">safe and idempotent methods</a>. Additionally, HTTP GET may be cached, needs
+some special URL-encoding, partly has problems with lengths over 255 bytes,
+and usually uses a flat list of variables, whereas JSON-RPC uses nested
+datastructures.</p>
+<p>Nevertheless, the following defines how it can be done. But note that:</p>
+<ul class="simple">
+<li>Often, it's better to use HTTP POST.</li>
+<li>Only procedures that are considered safe and idempotent MAY be invoked using
+HTTP GET (according to <a class="reference external" href="http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html#sec9.1">HTTP Section 9.1, Safe and Idempotent Methods</a>).
+Calling other procedures via HTTP GET SHOULD result in an error.</li>
+<li>Keep in mind that HTTP GET requests may be cached! So, HTTP GET requests
+may not even reach the RPC-server.</li>
+<li>Some old clients and proxies have issues with URI lengths over 255 bytes.</li>
+<li>URL-encoding may not work for all characters;
+especially non-ISO-8859-1-characters may be problematic.</li>
+<li>If you really need HTTP GET, it's probably better to write a small
+RESTful wrapper around your JSON-RPC-server!</li>
+</ul>
+<p>A HTTP GET request message uses the JSON-RPC-members as query-fields
+in the URL, and the values SHOULD be <a class="reference external" href="http://en.wikipedia.org/wiki/URL-encoding">URL-encoded</a>.
+The <tt class="docutils literal">id</tt> field always has to be considered as string.</p>
+<p><strong>Example</strong>:</p>
+<pre class="literal-block">
+{&quot;jsonrpc&quot;: &quot;2.0&quot;, &quot;method&quot;: &quot;sum&quot;, &quot;params&quot;: [3, 4], &quot;id&quot;: &quot;1&quot;}
+-&gt;
+http://rpc.example.com/myservice?jsonrpc=2.0&amp;method=sum&amp;params=%5B3%2C4%5D&amp;id=1
+
+{&quot;jsonrpc&quot;: &quot;2.0&quot;, &quot;method&quot;: &quot;sum&quot;, &quot;params&quot;: {&quot;a&quot;: 3, &quot;b&quot;: 4}, &quot;id&quot;: &quot;2&quot;}
+-&gt;
+http://rpc.example.com/myservice?jsonrpc=2.0&amp;method=sum&amp;params=%7B%27a%27%3A+3%2C+%27b%27%3A+4%7D&amp;id=2
+</pre>
+</div>
+<div class="section" id="response">
+<h2>4&nbsp;&nbsp;&nbsp;Response</h2>
+<p>The HTTP response MUST specify the following headers:</p>
+<ul class="simple">
+<li><tt class="docutils literal"><span class="pre">Content-Type</span></tt>: MUST be <tt class="docutils literal">application/json</tt></li>
+<li><tt class="docutils literal"><span class="pre">Content-Length</span></tt>: MUST contain the correct <a class="reference external" href="http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.4">length</a> according to the
+HTTP-specification.</li>
+</ul>
+<p>The status code SHOULD be:</p>
+<dl class="docutils">
+<dt><strong>200 OK</strong></dt>
+<dd>for responses (both for Response and Error objects)</dd>
+<dt><strong>204 No Response</strong> / <strong>202 Accepted</strong></dt>
+<dd>for empty responses, i.e. as response to a Notification</dd>
+<dt><strong>307 Temporary Redirect</strong> / <strong>308 Permanent Redirect</strong></dt>
+<dd>for HTTP-redirections
+(note that the request may not be automatically retransmitted)</dd>
+<dt><strong>405 Method Not Allowed</strong></dt>
+<dd><div class="first last line-block">
+<div class="line">if HTTP GET is not supported: for all HTTP GET requests</div>
+<div class="line">if HTTP GET is supported: if the client tries to call a
+non-safe/non-indempotent method via HTTP GET</div>
+</div>
+</dd>
+<dt><strong>415 Unsupported Media Type</strong></dt>
+<dd>if the Content-Type is not <tt class="docutils literal">application/json</tt></dd>
+<dt><strong>others</strong></dt>
+<dd>for HTTP-errors or HTTP-features outside of the scope of JSON-RPC</dd>
+</dl>
+<p>The Response (both on success and error) is carried in the HTTP body.</p>
+<p><strong>Example on Success</strong>:</p>
+<pre class="literal-block">
+HTTP/1.1 200 OK
+Connection: close
+Content-Length: ...
+Content-Type: application/json
+Date: Sat, 08 Jul 2006 12:04:08 GMT
+
+{
+    &quot;jsonrpc&quot;: &quot;2.0&quot;,
+    &quot;result&quot;: 102,
+    &quot;id&quot;: 5
+}
+</pre>
+<p><strong>Example on Error</strong>:</p>
+<pre class="literal-block">
+HTTP/1.1 200 OK
+Connection: close
+Content-Length: ...
+Content-Type: application/json
+Date: Sat, 08 Jul 2006 12:04:08 GMT
+
+{
+    &quot;jsonrpc&quot;: &quot;2.0&quot;,
+    &quot;error&quot;: {
+        &quot;code&quot;: -32600,
+        &quot;message&quot;: &quot;Invalid Request.&quot;,
+        &quot;data&quot;: &quot;'method' is missing&quot;
+        },
+    &quot;id&quot;: 6
+    }
+}
+</pre>
+</div>
+</div>
+ 
+<hr><p><small><a href="transport_http.txt">View document source</a>.</small></p>
+
+</div>
+
+<div id="footer">
+<span class="left">
+<a href="webmaster(at)simple-is-better(dot)org">webmaster(at)simple-is-better(dot)org</a>
+
+</span>
+<span class="right">
+<a href="http://www.anybrowser.org/campaign/"><img src="../img/anybrowser2.png" alt="best viewed with any browser" width="88" height="31"></a>
+<a href="http://validator.w3.org/"><img src="../img/valid-html401.png" alt="Valid HTML 4.01 Transitional" height="31" width="88" border="0"></a>
+<a href="http://www.wirspeichernnicht.de/content/view/10/22/"><img src="../img/wirspeichernnichtsiegel.png" alt="Wir speichern nicht - Weitere Informationen hier..." title="Wir speichern nicht - Weitere Informationen hier..." border="0" width="93" height="94"></a>
+</span>
+
+</div>
+</body>
+</html>
+

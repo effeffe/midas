@@ -17030,6 +17030,24 @@ static int event_handler_mg(struct mg_event *event)
 
       if ((strcmp(event->request_info->request_method, "POST") == 0) &&
           (strcmp(event->request_info->query_string, "mjsonrpc") == 0)) {
+         const char* ctype_header = find_header_mg(event, "Content-Type");
+
+         if (strcmp(ctype_header, "application/json") != 0) {
+            std::string headers;
+            headers += "HTTP/1.1 415 Unsupported Media Type\n";
+            //headers += "Connection: close\n";
+            //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+
+            //printf("sending headers: %s\n", headers.c_str());
+            //printf("sending reply: %s\n", reply.c_str());
+
+            std::string send = headers + "\n";
+
+            mg_write(event->conn, send.c_str(), send.length());
+
+            return 1;
+         }
+
          const char* clength_header = find_header_mg(event, "Content-Length");
          if (clength_header) {
             int clength = atoi(clength_header);

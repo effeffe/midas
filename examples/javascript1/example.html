@@ -611,11 +611,12 @@ ODBEdit(path);
         <h2>Test HTTP POST</h2>
       
         <p>
-          <input type=button value='test echo' onClick='mjsonrpc_call("echo", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='test error' onClick='mjsonrpc_call("error", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='test invalid_json' onClick='mjsonrpc_call("invalid_json", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='test invalid_params' onClick='mjsonrpc_call("echo", function(){ ; }, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='test null' onClick='mjsonrpc_call("null", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='test echo request' onClick='mjsonrpc_call("echo", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='test error request' onClick='mjsonrpc_call("error", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='test unknown method request' onClick='mjsonrpc_call("unknown method", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='test invalid request' onClick='mjsonrpc_call("echo", function(){ ; }, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='test invalid_json reply' onClick='mjsonrpc_call("invalid_json", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='test request with null response' onClick='mjsonrpc_call("null", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='test' onClick='testPOST();'></input>
           <input type=button value='test exist1' onClick='testExist1();'></input>
           <input type=button value='test exist2' onClick='testExist2();'></input>
@@ -637,6 +638,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Wed Sep  9 16:47:02 PDT 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Thu Sep 10 09:26:17 PDT 2015 <!-- hhmts end -->
   </body>
 </html>
