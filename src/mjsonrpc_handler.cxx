@@ -243,7 +243,7 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
       reply += "\"error\":{";
       reply += "\"code\":-32600,";
       reply += "\"message\":\"malformed request\",";
-      reply += "\"data\":\"something is missing\",";
+      reply += "\"data\":\"something is missing\"";
       reply += "},";
       if (id)
          reply += "\"id\":" + id->Stringify();
@@ -253,6 +253,10 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
 
       if (request)
          delete request;
+
+      printf("mjsonrpc: reply:\n");
+      printf("%s\n", reply.c_str());
+      printf("\n");
 
       return reply;
    }
@@ -271,6 +275,7 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
    } else if (strcmp(m, "invalid_json") == 0) {
       if (request)
          delete request;
+      printf("mjsonrpc: reply with invalid json\n");
       return "this is invalid json data";
    }
 
