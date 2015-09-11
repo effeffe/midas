@@ -17032,7 +17032,7 @@ static int event_handler_mg(struct mg_event *event)
           (strcmp(event->request_info->query_string, "mjsonrpc") == 0)) {
          const char* ctype_header = find_header_mg(event, "Content-Type");
 
-         if (strcmp(ctype_header, "application/json") != 0) {
+         if (strstr(ctype_header, "application/json") == NULL) {
             std::string headers;
             headers += "HTTP/1.1 415 Unsupported Media Type\n";
             //headers += "Connection: close\n";
