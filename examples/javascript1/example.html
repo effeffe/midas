@@ -190,6 +190,17 @@ function testShutdownMissingParameter()
 {
    mjsonrpc_call("cm_shutdown", "{ \"zname\": \"odbedit\" }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);
 }
+
+      function test_nan_inf()
+      {
+      var data = new Array();
+      data[0] = 3.1415;
+      data[1] = 1.0/0.0; // +infinity
+      data[2] = -1.0/0.0; // -infinity
+      data[3] = 0.0/0.0; // nan
+      data[4] = Math.sqrt(-1.0); // nan
+      alert("Data array: " + data + ", JSON: " + JSON.stringify(data));
+      }
     </script>
   </head>
 
@@ -641,6 +652,9 @@ ODBEdit(path);
           <input type=button value='test exist2' onClick='testExist2();'></input>
           <input type=button value='test shutdown' onClick='testShutdown();'></input>
           <input type=button value='test shutdown with missing parameter' onClick='testShutdownMissingParameter();'></input>
+        </p>
+        <p> nan and inf
+          <input type=button value='test nan and inf' onClick='test_nan_inf();'></input>
         </p>
     </ul>
 
