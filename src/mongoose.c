@@ -5324,9 +5324,10 @@ static void accept_new_connection(const struct socket *listener,
   char src_addr[IP_ADDR_STR_LEN];
   socklen_t len = sizeof(so.rsa);
   int on = 1;
+  extern int check_midas_acl(const struct sockaddr *sa, int len);
 
   if ((so.sock = accept(listener->sock, &so.rsa.sa, &len)) == INVALID_SOCKET) {
-  } else if (!check_acl(ctx, ntohl(* (uint32_t *) &so.rsa.sin.sin_addr))) {
+  } else if ((!check_acl(ctx, ntohl(* (uint32_t *) &so.rsa.sin.sin_addr))) || (!check_midas_acl(&so.rsa.sa, len))) {
     sockaddr_to_string(src_addr, sizeof(src_addr), &so.rsa);
     cry(fc(ctx), "%s: %s is not allowed to connect", __func__, src_addr);
     closesocket(so.sock);

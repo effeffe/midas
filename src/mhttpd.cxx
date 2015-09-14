@@ -67,9 +67,6 @@ BOOL history_mode = FALSE;
 BOOL verbose = FALSE;
 char midas_hostname[256];
 char midas_expt[256];
-#define MAX_N_ALLOWED_HOSTS 10
-char allowed_host[MAX_N_ALLOWED_HOSTS][PARAM_LENGTH];
-int  n_allowed_hosts;
 BOOL expand_equipment;
 
 extern const char *mname[];
@@ -16359,6 +16356,140 @@ void ctrlc_handler(int sig)
 
 /*------------------------------------------------------------------*/
 
+
+static std::vector<std::string> gUserAllowedHosts;
+static std::vector<std::string> gAllowedHosts;
+
+static void load_allowed_hosts(HNDLE hDB, HNDLE hKey, int index)
+{
+   int status;
+   int i, last;
+   KEY key;
+
+   if (index != -99)
+      cm_msg(MINFO, "load_allowed_hosts", "Reloading mhttpd hosts access control list via hotlink callback");
+
+   status = db_get_key(hDB, hKey, &key);
+
+   if (status != DB_SUCCESS)
+      return;
+
+   gAllowedHosts.clear();
+
+   // copy the user allowed hosts
+   for (unsigned int i=0; i<gUserAllowedHosts.size(); i++)
+      gAllowedHosts.push_back(gUserAllowedHosts[i]);
+
+   int max_size = key.item_size;
+   char* str = (char*)malloc(max_size);
+
+   last = 0;
+   for (i=0; i<key.num_values; i++) {
+      int size = max_size;
+      status = db_get_data_index(hDB, hKey, str, &size, i, TID_STRING);
+      if (status != DB_SUCCESS)
+         break;
+
+      if (strlen(str) < 1) // skip emties
+         continue;
+
+      if (str[0] == '#') // skip commented-out entries
+         continue;
+
+      //printf("add allowed hosts %d [%s]\n", i, str);
+      gAllowedHosts.push_back(str);
+      last = i;
+   }
+
+   if (key.num_values - last < 5) {
+      int new_size = last + 10;
+      status = db_set_num_values(hDB, hKey, new_size);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "load_allowed_hosts", "Cannot resize the allowed hosts access control list, db_set_num_values(%d) status %d", new_size, status);
+      }
+   }
+
+   free(str);
+}
+
+static int init_allowed_hosts()
+{
+   HNDLE hDB;
+   int status;
+   char buf[256];
+   int size;
+   HNDLE hKey;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   buf[0] = 0;
+   size = sizeof(buf);
+
+   status = db_get_value(hDB, 0, "/Experiment/Security/mhttpd hosts/Allowed hosts[0]", buf, &size, TID_STRING, TRUE);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_allowed_hosts", "Cannot create the mhttpd hosts access control list, db_get_value() status %d", status);
+      return status;
+   }
+
+   status = db_find_key(hDB, 0, "/Experiment/Security/mhttpd hosts/Allowed hosts", &hKey);
+
+   if (status != DB_SUCCESS || hKey == 0) {
+      cm_msg(MERROR, "init_allowed_hosts", "Cannot find the mhttpd hosts access control list, db_find_key() status %d", status);
+      return status;
+   }
+
+   load_allowed_hosts(hDB, hKey, -99);
+
+   status = db_watch(hDB, hKey, load_allowed_hosts);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_allowed_hosts", "Cannot watch the mhttpd hosts access control list, db_watch() status %d", status);
+      return status;
+   }
+
+   return SUCCESS;
+}
+
+extern "C" {
+   int check_midas_acl(const struct sockaddr *sa, int len) {
+      // access control list is empty?
+      if (gAllowedHosts.size() == 0)
+         return 1;
+
+      char hname[NI_MAXHOST];
+
+      int status = getnameinfo(sa, len, hname, sizeof(hname), NULL, 0, 0);
+
+      //printf("connection from [%s], status %d\n", hname, status);
+
+#if 0
+      /* decode numeric IP address */
+      strlcpy(hname, inet_ntoa(sa->sin_addr), sizeof(hname));
+
+      struct hostent *phe = gethostbyaddr((char *) sa->sin_addr, 4, PF_INET);
+
+      if (phe) {
+         strlcpy(hname, phe->h_name, sizeof(hname));
+      }
+#endif
+         
+      /* always permit localhost */
+      if (strcmp(hname, "localhost.localdomain") == 0)
+         return 1;
+      if (strcmp(hname, "localhost") == 0)
+         return 1;
+         
+      for (unsigned int i=0 ; i<gAllowedHosts.size() ; i++)
+         if (gAllowedHosts[i] == hname) {
+            return 1;
+         }
+
+      printf("Rejecting http connection from \'%s\'\n", hname);
+      return 0;
+   }
+}
+
 #define HAVE_OLDSERVER 1
 
 #ifdef HAVE_OLDSERVER
@@ -16375,9 +16506,6 @@ void server_loop(int tcp_port)
    struct hostent *local_phe = NULL;
    fd_set readfds;
    struct timeval timeout;
-   struct hostent *remote_phe;
-   char hname[256];
-   BOOL allowed;
 
    /* establish Ctrl-C handler */
    ss_ctrlc_handler(ctrlc_handler);
@@ -16472,37 +16600,10 @@ void server_loop(int tcp_port)
          memcpy(&remote_addr, &(acc_addr.sin_addr), sizeof(remote_addr));
 
          /* check access control list */
-         if (n_allowed_hosts > 0) {
-            allowed = FALSE;
-
-            remote_phe = gethostbyaddr((char *) &remote_addr, 4, PF_INET);
-
-            if (remote_phe == NULL) {
-               /* use IP number instead */
-               strlcpy(hname, (char *)inet_ntoa(remote_addr), sizeof(hname));
-            } else
-               strlcpy(hname, remote_phe->h_name, sizeof(hname));
-
-            /* always permit localhost */
-            if (strcmp(hname, "localhost.localdomain") == 0)
-               allowed = TRUE;
-            if (strcmp(hname, "localhost") == 0)
-               allowed = TRUE;
-
-            if (!allowed) {
-               for (i=0 ; i<n_allowed_hosts ; i++)
-                  if (strcmp(hname, allowed_host[i]) == 0) {
-                     allowed = TRUE;
-                     break;
-                  }
-            }
-
-            if (!allowed) {
-               printf("Rejecting http connection from \'%s\'\n", hname);
-               closesocket(_sock);
-               _sock = -1;
-               continue;
-            }
+         if (!check_midas_acl((struct sockaddr *) &acc_addr, len)) {
+            closesocket(_sock);
+            _sock = -1;
+            continue;
          }
 
          /* save remote host address */
@@ -17087,7 +17188,14 @@ int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace
    return SS_FILE_ERROR;
 }
 
-int start_mg(const char* tcp_ports, int verbose)
+std::string toString(int i)
+{
+   char buf[256];
+   sprintf(buf, "%d", i);
+   return buf;
+}
+
+int start_mg(int user_http_port, int user_https_port, int verbose)
 {
    HNDLE hDB;
    int size;
@@ -17099,38 +17207,79 @@ int start_mg(const char* tcp_ports, int verbose)
    status = cm_get_experiment_database(&hDB, NULL);
    assert(status == CM_SUCCESS);
 
-   char mongoose_ports[256];
-   char mongoose_acl[256];
+   int http_port = 8080;
+   int https_port = 8443;
+   int http_redirect_to_https = 1;
 
-   size = sizeof(mongoose_ports);
-   STRLCPY(mongoose_ports, "8080r,8443s");
-   db_get_value(hDB, 0, "/Experiment/Mongoose listening_port", mongoose_ports, &size, TID_STRING, TRUE);
+   size = sizeof(http_port);
+   db_get_value(hDB, 0, "/Experiment/midas http port", &http_port, &size, TID_INT, TRUE);
 
-   size = sizeof(mongoose_acl);
-   STRLCPY(mongoose_acl, "");
-   db_get_value(hDB, 0, "/Experiment/Mongoose access_control_list", mongoose_acl, &size, TID_STRING, TRUE);
+   size = sizeof(https_port);
+   db_get_value(hDB, 0, "/Experiment/midas https port", &https_port, &size, TID_INT, TRUE);
 
-   bool have_ports = false;
+   size = sizeof(http_redirect_to_https);
+   db_get_value(hDB, 0, "/Experiment/http redirect to https", &http_redirect_to_https, &size, TID_BOOL, TRUE);
+
+   {
+      HNDLE hKey;
+
+      status = db_find_key(hDB, 0, "/Experiment/Mongoose listening_port", &hKey);
+      if (status == DB_SUCCESS)
+         cm_msg(MERROR, "mongoose", "ODB \"/Experiment/Mongoose listening_port\" is obsolete, please delete it");
+
+      status = db_find_key(hDB, 0, "/Experiment/Mongoose access_control_list", &hKey);
+      if (status == DB_SUCCESS)
+         cm_msg(MERROR, "mongoose", "ODB \"/Experiment/Mongoose access_control_list\" is obsolete, please delete it");
+   }
+
    bool need_cert_file = false;
    bool need_password_file = false;
 
    add_option_mg("num_threads", "1");
 
-   if (!tcp_ports)
-      tcp_ports = mongoose_ports;
+   std::string listening_ports;
 
-   if (tcp_ports) {
-      add_option_mg("listening_ports", tcp_ports);
-      have_ports = true;
-      if (strchr(tcp_ports, 's')) {
-         need_cert_file = true;
-         need_password_file = true;
+   //STRLCPY(listening_ports, "8080r,8443s");
+
+   if (user_http_port || user_https_port) { // use user ports
+      if (user_http_port)
+         listening_ports += toString(user_http_port);
+      if (user_https_port) {
+         if (listening_ports.length() > 0)
+            listening_ports += ",";
+         listening_ports += toString(user_https_port);
+         listening_ports += "s";
+         if (!user_http_port)
+            need_password_file = true; // passwords only if non-https port is disabled
       }
-      printf("Web server will listen on ports \"%s\"\n", tcp_ports);
+   } else {
+      if (http_port) {
+         listening_ports += toString(http_port);
+         if (https_port && http_redirect_to_https)
+            listening_ports += "r";
+      }
+      if (https_port) {
+         if (listening_ports.length() > 0)
+            listening_ports += ",";
+         listening_ports += toString(https_port);
+         listening_ports += "s";
+         if (!http_port || http_redirect_to_https)
+            need_password_file = true; // passwords only if non-https port is disabled or redirects to https
+      }
    }
 
-   if (!have_ports)
+   printf("Mongoose web server will listen on ports \"%s\"\n", listening_ports.c_str());
+
+   if (listening_ports.length() < 1) {
+      cm_msg(MERROR, "mongoose", "cannot start: no ports defined");
       return SS_FILE_ERROR;
+   }
+
+   add_option_mg("listening_ports", listening_ports.c_str());
+
+   if (https_port || user_https_port) {
+      need_cert_file = true;
+   }
 
    if (need_cert_file) {
       std::string path;
@@ -17142,7 +17291,7 @@ int start_mg(const char* tcp_ports, int verbose)
          return SS_FILE_ERROR;
       }
 
-      printf("Web server will use SSL certificate file \"%s\"\n", path.c_str());
+      printf("Mongoose web server will use SSL certificate file \"%s\"\n", path.c_str());
       add_option_mg("ssl_certificate", path.c_str());
    }
 
@@ -17203,13 +17352,13 @@ int start_mg(const char* tcp_ports, int verbose)
       add_option_mg("authentication_domain", realm);
       add_option_mg("global_auth_file", path.c_str());
 
-      printf("Web server will use authentication realm \"%s\", password file \"%s\"\n", realm, path.c_str());
+      printf("Mongoose web server will use authentication realm \"%s\", password file \"%s\"\n", realm, path.c_str());
    }
 
-   if (strlen(mongoose_acl) > 0) {
-      printf("Web server access control list: \"%s\"\n", mongoose_acl);
-      add_option_mg("access_control_list", mongoose_acl);
-   }
+   //if (strlen(mongoose_acl) > 0) {
+   //   printf("Web server access control list: \"%s\"\n", mongoose_acl);
+   //   add_option_mg("access_control_list", mongoose_acl);
+   //}
 
    const char** options = get_options_mg();
 
@@ -17282,32 +17431,31 @@ int loop_mg()
 
 int main(int argc, const char *argv[])
 {
-   int i, status;
+   int status;
    int daemon = FALSE;
    char str[256];
-#ifdef HAVE_MG
+   int user_http_port = 0;
+   int user_https_port = 0;
    int use_mg = 1;
-   const char* use_mg_ports = NULL;
-#endif
 #ifdef HAVE_OLDSERVER
    int use_oldserver = 0;
    int use_oldserver_port = 80;
 #endif
    const char *myname = "mhttpd";
-
+   
    setbuf(stdout, NULL);
    setbuf(stderr, NULL);
 #ifdef SIGPIPE
    /* avoid getting killed by "Broken pipe" signals */
    signal(SIGPIPE, SIG_IGN);
 #endif
-
+   
    /* get default from environment */
    cm_get_environment(midas_hostname, sizeof(midas_hostname), midas_expt, sizeof(midas_expt));
 
    /* parse command line parameters */
-   n_allowed_hosts = 0;
-   for (i = 1; i < argc; i++) {
+   gUserAllowedHosts.clear();
+   for (int i = 1; i < argc; i++) {
       if (argv[i][0] == '-' && argv[i][1] == 'D')
          daemon = TRUE;
       else if (argv[i][0] == '-' && argv[i][1] == 'v')
@@ -17316,15 +17464,16 @@ int main(int argc, const char *argv[])
          elog_mode = TRUE;
       else if (argv[i][0] == '-' && argv[i][1] == 'H') {
          history_mode = TRUE;
-#ifdef HAVE_MG
-      } else if (strcmp(argv[i], "--mg") == 0) {
-         use_mg = 1;
+      } else if (strcmp(argv[i], "--http") == 0) {
          if (argv[i+1]) {
-            use_mg_ports = argv[i+1];
+            user_http_port = atoi(argv[i+1]);
+         }
+      } else if (strcmp(argv[i], "--https") == 0) {
+         if (argv[i+1]) {
+            user_https_port = atoi(argv[i+1]);
          }
       } else if (strcmp(argv[i], "--nomg") == 0) {
          use_mg = 0;
-#endif
 #ifdef HAVE_OLDSERVER
       } else if (strcmp(argv[i], "--oldserver") == 0) {
          use_oldserver = 1;
@@ -17346,8 +17495,7 @@ int main(int argc, const char *argv[])
          else if (argv[i][1] == 'e')
             strlcpy(midas_expt, argv[++i], sizeof(midas_hostname));
          else if (argv[i][1] == 'a') {
-            if (n_allowed_hosts < MAX_N_ALLOWED_HOSTS)
-               strlcpy(allowed_host[n_allowed_hosts++], argv[++i], sizeof(allowed_host[0]));
+            gUserAllowedHosts.push_back(argv[++i]);
          } else if (argv[i][1] == 'p') {
             printf("Option \"-p port_number\" for the old web server is obsolete.\n");
             printf("mongoose web server is the new default, port number is set in ODB or with \"--mg port_number\".\n");
@@ -17362,10 +17510,10 @@ int main(int argc, const char *argv[])
             printf("       -D become a daemon\n");
             printf("       -E only display ELog system\n");
             printf("       -H only display history plots\n");
-            printf("       -a only allow access for specific host(s), several [-a Hostname] statements might be given\n");
+            printf("       -a only allow access for specific host(s), several [-a Hostname] statements might be given (default list is ODB \"/Experiment/security/mhttpd hosts/allowed hosts\")\n");
+            printf("       --http port - bind to specified HTTP port (default is ODB \"/Experiment/midas http port\")\n");
+            printf("       --https port - bind to specified HTTP port (default is ODB \"/Experiment/midas https port\")\n");
 #ifdef HAVE_MG
-            printf("       --mg [port,port,port,...] use the mongoose web server (default) on specified ports \n");
-            printf("          (defaults are taken from ODB). Example: --mg 8443s,8080r\n");
             printf("       --nomg use the old mhttpd web server\n");
 #endif
 #ifdef HAVE_OLDSERVER
@@ -17418,12 +17566,32 @@ int main(int argc, const char *argv[])
       return 1;
    }
 
+   if (init_allowed_hosts() != SUCCESS) {
+      printf("init_allowed_hosts() failed, see messages and midas.log, bye!\n");
+      cm_disconnect_experiment();
+      return 1;
+   }
+
+   if (verbose) {
+      if (gAllowedHosts.size() > 0) {
+         printf("mhttpd allowed hosts list: ");
+         for (unsigned int i=0; i<gAllowedHosts.size(); i++) {
+            if (i>0)
+               printf(", ");
+            printf("%s", gAllowedHosts[i].c_str());
+         }
+         printf("\n");
+      } else {
+         printf("mhttpd allowed hosts list is empty\n");
+      }
+   }
+
    /* initialize sequencer */
    init_sequencer();
 
 #ifdef HAVE_MG
    if (use_mg) {
-      status = start_mg(use_mg_ports, verbose);
+      status = start_mg(user_http_port, user_https_port, verbose);
       if (status != SUCCESS) {
          // At least print something!
          printf("could not start the mongoose web server, see messages and midas.log, bye!\n");
