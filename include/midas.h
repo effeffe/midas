@@ -1842,6 +1842,7 @@ extern "C" {
 
    INT EXPRT db_load_json(HNDLE hdb, HNDLE key_handle, const char *filename);
    INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKeyRoot, const char *buffer);
+   INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKeyRoot, int index, const /* MJsonNode */ void *json_node);
 
    INT EXPRT db_sprintf(char *string, const void *data, INT data_size, INT index, DWORD type);
    INT EXPRT db_sprintff(char *string, const char *format, const void *data, INT data_size, INT index, DWORD type);

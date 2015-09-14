@@ -191,7 +191,7 @@ function testShutdownMissingParameter()
    mjsonrpc_call("cm_shutdown", "{ \"zname\": \"odbedit\" }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);
 }
 
-      function test_nan_inf()
+      function test_nan_inf_encode()
       {
       var data = new Array();
       data[0] = 3.1415;
@@ -199,8 +199,41 @@ function testShutdownMissingParameter()
       data[2] = -1.0/0.0; // -infinity
       data[3] = 0.0/0.0; // nan
       data[4] = Math.sqrt(-1.0); // nan
-      alert("Data array: " + data + ", JSON: " + JSON.stringify(data));
+      alert("Test of JSON encode: data array: " + data + ", encoded to JSON: " + JSON.stringify(data));
       }
+
+      function test_nan_inf_decode()
+      {
+      var json = '[ 2.5, "NaN", 1, "+Infinity", "-Infinity", 1e10000, 1e-10000 ]';
+      var data = JSON.parse(json);
+      alert("Test of JSON decode: " + json + " decoded as data array: " + data);
+      }
+
+      function db_copy_callback(m, p, id, r)
+      {
+      document.getElementById('db_copy_json_data').innerHTML = JSON.stringify(r);
+      var now = new Date().getTime()/1000;
+      var status = r.result.status;
+      var runinfo = r.result.data[0];
+      var runnumber = r.result.data[1];
+      var error = r.result.data[2];
+      var settings = r.result.data[3];
+      var variables = r.result.data[4];
+      document.getElementById('db_copy_status').innerHTML = status;
+      document.getElementById('db_copy_runstate').innerHTML = runinfo.State;
+      document.getElementById('db_copy_runnumber').innerHTML = runnumber["Run number"];
+      document.getElementById('db_copy_settings_example_int').innerHTML = settings.example_int;
+      document.getElementById('db_copy_data0').innerHTML = variables.SLOW[0];
+      document.getElementById('db_copy_data1').innerHTML = variables.SLOW[1];
+      document.getElementById('db_copy_data2').innerHTML = variables.SLOW[2];
+      var lw;
+      if (variables['SLOW/key'])
+      lw = variables['SLOW/key'].last_written;
+      else
+      lw = variables['SLOW/last_written'];
+      document.getElementById('db_copy_data_age').innerHTML = now - lw;
+      }
+
     </script>
   </head>
 
@@ -654,8 +687,47 @@ ODBEdit(path);
           <input type=button value='test shutdown with missing parameter' onClick='testShutdownMissingParameter();'></input>
         </p>
         <p> nan and inf
-          <input type=button value='test nan and inf' onClick='test_nan_inf();'></input>
+          <input type=button value='test nan and inf' onClick='test_nan_inf_encode();'></input>
+          <input type=button value='test nan and inf' onClick='test_nan_inf_decode();'></input>
         </p>
+
+      <li>
+        <h2>mjsonrpc_db_copy()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='clearTimeout(updateTimerId); var paths = [
+          "/Runinfo", "/Runinfo/Run number", "/does-not-exist",
+          "/Equipment/RpcExample/Settings",
+          "/Equipment/RpcExample/Variables" ];
+          mjsonrpc_db_copy(paths, null, db_copy_callback, mjsonrpc_debug_error_callback); update();'></input>
+        </p>
+        <ul>
+          <li>JSON data: <tt id='db_copy_json_data'></tt>
+          <li>db_copy() status: <tt id='db_copy_status'></tt>
+          <li>Runinfo/State: <tt id='db_copy_runstate'></tt>
+          <li>Run number: <tt id='db_copy_runnumber'></tt>
+          <li>Settings/example_int: <tt id='db_copy_settings_example_int'></tt>
+          <li>SLOW[0]: <tt id='db_copy_data0'></tt>
+          <li>SLOW[1]: <tt id='db_copy_data1'></tt>
+          <li>SLOW[2]: <tt id='db_copy_data2'></tt>
+          <li>data age: <tt id='db_copy_data_age'></tt>
+        </ul>
+
+      <li>
+        <h2>mjsonrpc_db_paste()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='clearTimeout(updateTimerId); var paths = [
+          "/test/int",
+	  "/test/intarray[1]",
+	  "/does-not-exist-test-db-paste",
+	  ];
+	  var values = [ 1, 2, 3 ];
+          mjsonrpc_db_paste(paths, values, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback); update();'></input>
+        </p>
+
     </ul>
 
     <script type="text/javascript">
@@ -667,6 +739,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Thu Sep 10 11:01:49 PDT 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Mon Sep 14 09:41:03 PDT 2015 <!-- hhmts end -->
   </body>
 </html>

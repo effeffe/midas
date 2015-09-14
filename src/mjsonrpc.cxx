@@ -225,6 +225,45 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
    return mjsonrpc_make_result("data", dresult, "status", sresult);
 }
 
+static MJsonNode* js_db_paste(const MJsonNode* params)
+{
+   MJsonNode* error = NULL;
+
+   const MJsonNodeVector* paths  = mjsonrpc_get_param(params, "paths",  &error)->GetArray(); if (error) return error;
+   const MJsonNodeVector* values = mjsonrpc_get_param(params, "values", &error)->GetArray(); if (error) return error;
+
+   if (paths->size() != values->size()) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "paths and values should have the same length");
+   }
+
+   MJsonNode* sresult = MJsonNode::MakeArray();
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   for (unsigned i=0; i<paths->size(); i++) {
+      int status = 0;
+      HNDLE hkey;
+      const char* s = (*paths)[i]->GetString().c_str();
+      if (strchr(s, '[')) {
+         // indexing of array elements not implemented
+         cm_msg(MERROR, "js_db_paste", "indexing array element for \"%s\" is not implemented", s);
+         status = DB_NO_KEY;
+      } else {
+         status = db_find_key(hDB, 0, s, &hkey);
+         if (status == DB_SUCCESS) {
+            const MJsonNode* v = (*values)[i];
+            assert(v != NULL);
+            int index = 0;
+            status = db_paste_json_node(hDB, hkey, index, v);
+         }
+      }
+      sresult->AddToArray(MJsonNode::MakeInt(status));
+   }
+
+   return mjsonrpc_make_result("status", sresult);
+}
+
 static MJsonNode* get_debug(const MJsonNode* params)
 {
    return mjsonrpc_make_result("debug", MJsonNode::MakeInt(mjsonrpc_debug));
@@ -255,6 +294,7 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("cm_exist",    js_cm_exist);
    mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
    mjsonrpc_add_handler("db_copy",     js_db_copy);
+   mjsonrpc_add_handler("db_paste",    js_db_paste);
    mjsonrpc_add_handler("start_program", start_program);
 }
 

@@ -350,6 +350,13 @@ function mjsonrpc_db_copy(paths, id, callback, error_callback) {
    return mjsonrpc_call("db_copy", req, id, callback, error_callback);
 }
 
+function mjsonrpc_db_paste(paths, values, id, callback, error_callback) {
+   var req = new Object();
+   req.paths = paths;
+   req.values = values;
+   return mjsonrpc_call("db_paste", req, id, callback, error_callback);
+}
+
 function ODBCall(url, callback)
 {
    var request = XMLHttpRequestGeneric();

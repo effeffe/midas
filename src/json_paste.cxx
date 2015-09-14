@@ -426,6 +426,32 @@ INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
    return status;
 }
 
+INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKeyRoot, int index, const void *json_node)
+{
+   int status;
+   char path[MAX_ODB_PATH];
+   KEY key;
+
+   status = db_get_key(hDB, hKeyRoot, &key);
+   if (status != DB_SUCCESS)
+      return status;
+
+   status = db_get_path(hDB, hKeyRoot, path, sizeof(path));
+   if (status != DB_SUCCESS)
+      return status;
+
+   const MJsonNode* node = (const MJsonNode*)json_node;
+
+   int tid = key.type;
+   int string_length = 0;
+   if (tid == TID_STRING)
+      string_length = key.item_size;
+
+   status = paste_node(hDB, hKeyRoot, path, index, node, tid, string_length, NULL);
+
+   return status;
+}
+
 /* emacs
  * Local Variables:
  * tab-width: 8
