@@ -598,6 +598,17 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
          printf("mjsonrpc: reply with invalid json\n");
       }
       return "this is invalid json data";
+   } else if (strcmp(m, "test_nan_inf") == 0) {
+      double one = 1;
+      double zero = 0;
+      double nan = zero/zero;
+      double plusinf = one/zero;
+      double minusinf = -one/zero;
+      MJsonNode* n = MJsonNode::MakeArray();
+      n->AddToArray(MJsonNode::MakeNumber(nan));
+      n->AddToArray(MJsonNode::MakeNumber(plusinf));
+      n->AddToArray(MJsonNode::MakeNumber(minusinf));
+      result = mjsonrpc_make_result("test_nan_plusinf_minusinf", n);
    } else {
       std::string mm = m;
       mjsonrpc_handler_t *h = gHandlers[mm];

@@ -731,9 +731,20 @@ std::string MJsonNode::Stringify(int flags) const
       return buf;
    }
    case MJSON_NUMBER: {
-      char buf[256];
-      sprintf(buf, "%.16e", numbervalue);
-      return buf;
+      if (isfinite(numbervalue)) {
+         char buf[256];
+         sprintf(buf, "%.16e", numbervalue);
+         return buf;
+      } else if (isnan(numbervalue)) {
+         return "\"NaN\"";
+      } else if (isinf(numbervalue)) {
+         if (numbervalue > 0)
+            return "\"Infinity\"";
+         else
+            return "\"-Infinity\"";
+      } else {
+         assert(!"this cannot happen!");
+      }
    }
    case MJSON_BOOL:
       if (intvalue)
