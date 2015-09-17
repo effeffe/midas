@@ -687,8 +687,23 @@ ODBEdit(path);
           <input type=button value='test shutdown with missing parameter' onClick='testShutdownMissingParameter();'></input>
         </p>
         <p> nan and inf
-          <input type=button value='test nan and inf' onClick='test_nan_inf_encode();'></input>
-          <input type=button value='test nan and inf' onClick='test_nan_inf_decode();'></input>
+          <input type=button value='test encode of nan and inf' onClick='test_nan_inf_encode();'></input>
+          <input type=button value='test decode of nan and inf' onClick='test_nan_inf_decode();'></input>
+          <input type=button value='test db_paste of nan and inf'
+          onClick='var paths = [
+          "/test/nan",
+	  "/test/plusinf",
+	  "/test/minusinf",
+	  ];
+	  var values = [ "NaN", "Infinity", "-Infinity" ];
+          mjsonrpc_db_paste(paths, values, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='test db_copy of nan and inf'
+          onClick='var paths = [
+          "/test/nan",
+	  "/test/plusinf",
+	  "/test/minusinf",
+	  ];
+          mjsonrpc_db_copy(paths, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
         </p>
 
       <li>
@@ -696,11 +711,21 @@ ODBEdit(path);
 
         <p>
           <input type=button value='Push me'
-          onClick='clearTimeout(updateTimerId); var paths = [
-          "/Runinfo", "/Runinfo/Run number", "/does-not-exist",
+          onClick='var paths = [
+          "/Runinfo",
+          "/Runinfo/Run number",
+          "/does-not-exist",
           "/Equipment/RpcExample/Settings",
-          "/Equipment/RpcExample/Variables" ];
-          mjsonrpc_db_copy(paths, null, db_copy_callback, mjsonrpc_debug_error_callback); update();'></input>
+          "/Equipment/RpcExample/Variables",
+          "/test/intarray[0]",
+          "/test/intarray[0,2]",
+          "/test/intarray[0-2]",
+          "/test/intarray[0,3-4,1-2]",
+          "/test/intarray[4-0]",
+          "/test/intarray[1,100]",
+          "/test/intarray[invalid index]"
+          ];
+          mjsonrpc_db_copy(paths, null, db_copy_callback, mjsonrpc_debug_error_callback);'></input>
         </p>
         <ul>
           <li>JSON data: <tt id='db_copy_json_data'></tt>
@@ -719,13 +744,15 @@ ODBEdit(path);
 
         <p>
           <input type=button value='Push me'
-          onClick='clearTimeout(updateTimerId); var paths = [
+          onClick='var paths = [
           "/test/int",
-	  "/test/intarray[1]",
+	  "/test/intarray[2]",
+	  "/test/intarray[3,4]",
+	  "/test/intarray[invalid index]",
 	  "/does-not-exist-test-db-paste",
 	  ];
-	  var values = [ 1, 2, 3 ];
-          mjsonrpc_db_paste(paths, values, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback); update();'></input>
+	  var values = [ 1, 2, [ 3, 4], 110, 120 ];
+          mjsonrpc_db_paste(paths, values, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
         </p>
 
     </ul>
@@ -739,6 +766,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Mon Sep 14 09:41:03 PDT 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Thu Sep 17 13:25:14 PDT 2015 <!-- hhmts end -->
   </body>
 </html>

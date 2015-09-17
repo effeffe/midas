@@ -8,6 +8,7 @@
 \********************************************************************/
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <assert.h>
 #include <map>
 
@@ -191,6 +192,86 @@ static MJsonNode* start_program(const MJsonNode* params)
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
 
+static int parse_array_index_list(const char* method, const char* path, std::vector<unsigned> *list)
+{
+   // parse array index in form of:
+   // odbpath[number]
+   // odbpath[number,number]
+   // odbpath[number-number]
+   // or any combination of them, i.e. odbpath[1,10-15,20,30-40]
+
+   const char*s = strchr(path, '[');
+
+   if (!s) {
+      cm_msg(MERROR, method, "expected an array index character \'[\' in \"%s\"", path);
+      return DB_OUT_OF_RANGE;
+   }
+  
+   s++; // skip '[' itself
+
+   while (s && (*s != 0)) {
+
+      // check that we have a number
+      if (!isdigit(*s)) {
+         cm_msg(MERROR, method, "expected a number in array index in \"%s\" at \"%s\"", path, s);
+         return DB_OUT_OF_RANGE;
+      }
+
+      unsigned value1 = strtoul(s, (char**)&s, 10);
+      
+      // array range, 
+      if (*s == '-') {
+         s++; // skip the minus char
+
+         if (!isdigit(*s)) {
+            cm_msg(MERROR, method, "expected a number in array index in \"%s\" at \"%s\"", path, s);
+            return DB_OUT_OF_RANGE;
+         }
+
+         unsigned value2 = strtoul(s, (char**)&s, 10);
+
+         if (value2 >= value1)
+            for (unsigned i=value1; i<=value2; i++)
+               list->push_back(i);
+         else {
+            // this is stupid. simple loop like this
+            // for (unsigned i=value1; i>=value2; i--)
+            // does not work for range 4-0, because value2 is 0,
+            // and x>=0 is always true for unsigned numbers,
+            // so we would loop forever... K.O.
+            for (unsigned i=value1; i!=value2; i--)
+               list->push_back(i);
+            list->push_back(value2);
+         }
+      } else {
+         list->push_back(value1);
+      }
+
+      if (*s == ',') {
+         s++; // skip the comma char
+         continue; // back to the begin of loop
+      }
+
+      if (*s == ']') {
+         s++; // skip the closing bracket
+         s = NULL;
+         continue; // done
+      }
+
+      cm_msg(MERROR, method, "invalid char in array index in \"%s\" at \"%s\"", path, s);
+      return DB_OUT_OF_RANGE;
+   }
+
+#if 0
+   printf("parsed array indices for \"%s\" size is %d: ", path, (int)list->size());
+   for (unsigned i=0; i<list->size(); i++)
+      printf(" %d", (*list)[i]);
+   printf("\n");
+#endif
+
+   return SUCCESS;
+}
+
 static MJsonNode* js_db_copy(const MJsonNode* params)
 {
    MJsonNode* error = NULL;
@@ -204,22 +285,86 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
    cm_get_experiment_database(&hDB, NULL);
 
    for (unsigned i=0; i<paths->size(); i++) {
+      int status = 0;
       HNDLE hkey;
-      int status = db_find_key(hDB, 0, (*paths)[i]->GetString().c_str(), &hkey);
-      if (status == DB_SUCCESS) {
+      std::string path = (*paths)[i]->GetString();
+
+      status = db_find_key(hDB, 0, path.c_str(), &hkey);
+      if (status != DB_SUCCESS) {
+         dresult->AddToArray(MJsonNode::MakeNull());
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+         continue;
+      }
+
+      if (path.find("[") != std::string::npos) {
+         std::vector<unsigned> list;
+         status = parse_array_index_list("js_db_copy", path.c_str(), &list);
+
+         if (status != SUCCESS) {
+            dresult->AddToArray(MJsonNode::MakeNull());
+            sresult->AddToArray(MJsonNode::MakeInt(status));
+            continue;
+         }
+
+         if (list.size() > 1) {
+            MJsonNode *ddresult = MJsonNode::MakeArray();
+            MJsonNode *ssresult = MJsonNode::MakeArray();
+
+            for (unsigned i=0; i<list.size(); i++) {
+               char* buf = NULL;
+               int bufsize = 0;
+               int end = 0;
+               
+               status = db_copy_json_index(hDB, hkey, list[i], &buf, &bufsize, &end);
+               if (status == DB_SUCCESS) {
+                  ddresult->AddToArray(MJsonNode::MakeJSON(buf));
+                  ssresult->AddToArray(MJsonNode::MakeInt(status));
+               } else {
+                  ddresult->AddToArray(MJsonNode::MakeNull());
+                  ssresult->AddToArray(MJsonNode::MakeInt(status));
+               }
+
+               if (buf)
+                  free(buf);
+            }
+
+            dresult->AddToArray(ddresult);
+            sresult->AddToArray(ssresult);
+
+         } else {
+            char* buf = NULL;
+            int bufsize = 0;
+            int end = 0;
+            
+            status = db_copy_json_index(hDB, hkey, list[0], &buf, &bufsize, &end);
+            if (status == DB_SUCCESS) {
+               dresult->AddToArray(MJsonNode::MakeJSON(buf));
+               sresult->AddToArray(MJsonNode::MakeInt(status));
+            } else {
+               dresult->AddToArray(MJsonNode::MakeNull());
+               sresult->AddToArray(MJsonNode::MakeInt(status));
+            }
+            
+            if (buf)
+               free(buf);
+         }
+      } else {
          char* buf = NULL;
          int bufsize = 0;
          int end = 0;
+
          status = db_copy_json(hDB, hkey, &buf, &bufsize, &end, 1, 1, 1);
          if (status == DB_SUCCESS) {
-            dresult->AddToArray(MJsonNode::Parse(buf));
+            dresult->AddToArray(MJsonNode::MakeJSON(buf));
+            sresult->AddToArray(MJsonNode::MakeInt(status));
+         } else {
+            dresult->AddToArray(MJsonNode::MakeNull());
+            sresult->AddToArray(MJsonNode::MakeInt(status));
          }
+
          if (buf)
             free(buf);
       }
-      if (status != DB_SUCCESS)
-         dresult->AddToArray(MJsonNode::MakeNull());
-      sresult->AddToArray(MJsonNode::MakeInt(status));
    }
 
    return mjsonrpc_make_result("data", dresult, "status", sresult);
@@ -244,21 +389,54 @@ static MJsonNode* js_db_paste(const MJsonNode* params)
    for (unsigned i=0; i<paths->size(); i++) {
       int status = 0;
       HNDLE hkey;
-      const char* s = (*paths)[i]->GetString().c_str();
-      if (strchr(s, '[')) {
-         // indexing of array elements not implemented
-         cm_msg(MERROR, "js_db_paste", "indexing array element for \"%s\" is not implemented", s);
-         status = DB_NO_KEY;
-      } else {
-         status = db_find_key(hDB, 0, s, &hkey);
-         if (status == DB_SUCCESS) {
-            const MJsonNode* v = (*values)[i];
-            assert(v != NULL);
-            int index = 0;
-            status = db_paste_json_node(hDB, hkey, index, v);
-         }
+      std::string path = (*paths)[i]->GetString();
+
+      status = db_find_key(hDB, 0, path.c_str(), &hkey);
+      if (status != DB_SUCCESS) {
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+         continue;
       }
-      sresult->AddToArray(MJsonNode::MakeInt(status));
+
+      const MJsonNode* v = (*values)[i];
+      assert(v != NULL);
+
+      if (path.find("[") != std::string::npos) {
+         std::vector<unsigned> list;
+         status = parse_array_index_list("js_db_paste", path.c_str(), &list);
+
+         if (status != SUCCESS) {
+            sresult->AddToArray(MJsonNode::MakeInt(status));
+            continue;
+         }
+
+         if (list.size() > 1) {
+            if (v->GetType() != MJSON_ARRAY) {
+               cm_msg(MERROR, "js_db_paste", "expected an array of values for array path \"%s\"", path.c_str());
+               sresult->AddToArray(MJsonNode::MakeInt(DB_TYPE_MISMATCH));
+               continue;
+            }
+
+            const MJsonNodeVector* vvalues = v->GetArray();
+
+            MJsonNode *ssresult = MJsonNode::MakeArray();
+
+            for (unsigned i=0; i<list.size(); i++) {
+               const MJsonNode* vv = (*vvalues)[i];
+               assert(vv != NULL);
+               
+               status = db_paste_json_node(hDB, hkey, list[i], vv);
+               ssresult->AddToArray(MJsonNode::MakeInt(status));
+            }
+            
+            sresult->AddToArray(ssresult);
+         } else {
+            status = db_paste_json_node(hDB, hkey, list[0], v);
+            sresult->AddToArray(MJsonNode::MakeInt(status));
+         }
+      } else {
+         status = db_paste_json_node(hDB, hkey, 0, v);
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+      }
    }
 
    return mjsonrpc_make_result("status", sresult);
