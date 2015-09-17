@@ -7223,6 +7223,109 @@ static void json_write(char **buffer, int* buffer_size, int* buffer_end, int lev
    assert(remain > 0);
 }
 
+static void json_write_data(char **buffer, int* buffer_size, int* buffer_end, int level, const KEY* key, const char* p)
+{
+   char str[256];
+   switch (key->type) {
+   case TID_BYTE:
+      sprintf(str, "%u", *(unsigned char*)p);
+      json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+      break;
+   case TID_SBYTE:
+      sprintf(str, "%d", *(char*)p);
+      json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+      break;
+   case TID_CHAR:
+      sprintf(str, "%c", *(char*)p);
+      json_write(buffer, buffer_size, buffer_end, 0, str, 1);
+      break;
+   case TID_WORD:
+      sprintf(str, "\"0x%04x\"", *(WORD*)p);
+      json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+      break;
+   case TID_SHORT:
+      sprintf(str, "%d", *(short*)p);
+      json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+      break;
+   case TID_DWORD:
+      sprintf(str, "\"0x%08x\"", *(DWORD*)p);
+      json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+      break;
+   case TID_INT:
+      sprintf(str, "%d", *(int*)p);
+      json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+      break;
+   case TID_BOOL:
+      if (*(int*)p)
+         json_write(buffer, buffer_size, buffer_end, 0, "true", 0);
+      else
+         json_write(buffer, buffer_size, buffer_end, 0, "false", 0);
+      break;
+   case TID_FLOAT: {
+      float flt = (*(float*)p);
+      if (isnan(flt))
+         json_write(buffer, buffer_size, buffer_end, 0, "\"NaN\"", 0);
+      else if (isinf(flt)) {
+         if (flt > 0)
+            json_write(buffer, buffer_size, buffer_end, 0, "\"Infinity\"", 0);
+         else
+            json_write(buffer, buffer_size, buffer_end, 0, "\"-Infinity\"", 0);
+      } else if (flt == 0)
+         json_write(buffer, buffer_size, buffer_end, 0, "0", 0);
+      else if (flt == (int)flt) {
+         sprintf(str, "%.0f", flt);
+         json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+      } else {
+         sprintf(str, "%.7e", flt);
+         json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+      }
+      break;
+   }
+   case TID_DOUBLE: {
+      double dbl = (*(double*)p);
+      if (isnan(dbl))
+         json_write(buffer, buffer_size, buffer_end, 0, "\"NaN\"", 0);
+      else if (isinf(dbl)) {
+         if (dbl > 0)
+            json_write(buffer, buffer_size, buffer_end, 0, "\"Infinity\"", 0);
+         else
+            json_write(buffer, buffer_size, buffer_end, 0, "\"-Infinity\"", 0);
+      } else if (dbl == 0)
+         json_write(buffer, buffer_size, buffer_end, 0, "0", 0);
+      else if (dbl == (int)dbl) {
+         sprintf(str, "%.0f", dbl);
+         json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+      } else {
+         sprintf(str, "%.16e", dbl);
+         json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+      }
+      break;
+   }
+   case TID_BITFIELD:
+      json_write(buffer, buffer_size, buffer_end, 0, "(TID_BITFIELD value)", 1);
+      break;
+   case TID_STRING:
+      // data is already NUL terminated // p[key.item_size-1] = 0;  // make sure string is NUL terminated!
+      json_write(buffer, buffer_size, buffer_end, 0, p, 1);
+      break;
+   case TID_ARRAY:
+      json_write(buffer, buffer_size, buffer_end, 0, "(TID_ARRAY value)", 1);
+      break;
+   case TID_STRUCT:
+      json_write(buffer, buffer_size, buffer_end, 0, "(TID_STRUCT value)", 1);
+      break;
+   case TID_KEY:
+      json_write(buffer, buffer_size, buffer_end, 0, "{ }", 0);
+      break;
+   case TID_LINK:
+      // data is already NUL terminated // p[key.item_size-1] = 0;  // make sure string is NUL terminated!
+      json_write(buffer, buffer_size, buffer_end, 0, p, 1);
+      break;
+   default:
+      json_write(buffer, buffer_size, buffer_end, 0, "(TID_UNKNOWN value)", 1);
+   }
+}
+
 INT db_save_json_key(HNDLE hDB, HNDLE hKey, INT level, char **buffer, int* buffer_size, int* buffer_end, int save_keys, int follow_links, int recurse)
 {
    INT i, size, status;
@@ -7422,12 +7525,15 @@ INT db_save_json_key(HNDLE hDB, HNDLE hKey, INT level, char **buffer, int* buffe
       }
 
       for (i = 0; i < key.num_values; i++) {
-         char str[256];
+         //char str[256];
          char *p = data + key.item_size*i;
 
          if (i != 0)
             json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
 
+         json_write_data(buffer, buffer_size, buffer_end, 0, &key, p);
+
+#if 0
          switch (key.type) {
          case TID_BYTE:
             sprintf(str, "%u", *(unsigned char*)p);
@@ -7526,7 +7632,7 @@ INT db_save_json_key(HNDLE hDB, HNDLE hKey, INT level, char **buffer, int* buffe
          default:
             json_write(buffer, buffer_size, buffer_end, 0, "(TID_UNKNOWN value)", 1);
          }
-
+#endif
       }
 
       if (key.num_values > 1) {
@@ -7542,6 +7648,49 @@ INT db_save_json_key(HNDLE hDB, HNDLE hKey, INT level, char **buffer, int* buffe
          json_write(buffer, buffer_size, buffer_end, 0, "\n}", 0);
       }
    }
+
+   return DB_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Copy an ODB array element in JSON format to a buffer
+
+@param hDB          ODB handle obtained via cm_get_experiment_database().
+@param hKey Handle for key
+@param index Array index
+@param buffer returns pointer to ASCII buffer with ODB contents
+@param buffer_size returns size of ASCII buffer
+@param buffer_end returns number of bytes contained in buffer
+@return DB_SUCCESS, DB_NO_MEMORY
+*/
+INT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int* buffer_size, int* buffer_end)
+{
+   int status;
+   KEY key;
+
+   status = db_get_key(hDB, hKey, &key);
+
+   if (status != DB_SUCCESS)
+      return status;
+
+   int size = key.item_size;
+   char* data = malloc(size + 1); // extra byte for string NUL termination
+   assert(data != NULL);
+
+   status = db_get_data_index(hDB, hKey, data, &size, index, key.type);
+
+   if (status != DB_SUCCESS) {
+      free(data);
+      return status;
+   }
+
+   assert(size <= key.item_size);
+   data[key.item_size] = 0; // make sure data is NUL terminated, in case of strings.
+
+   json_write_data(buffer, buffer_size, buffer_end, 0, &key, data);
+
+   free(data);
 
    return DB_SUCCESS;
 }

@@ -1839,10 +1839,11 @@ extern "C" {
 
    INT EXPRT db_save_json(HNDLE hDB, HNDLE hKey, const char *file_name);
    INT EXPRT db_copy_json(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int save_keys, int follow_links, int recurse);
+   INT EXPRT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int *buffer_size, int *buffer_end);
 
    INT EXPRT db_load_json(HNDLE hdb, HNDLE key_handle, const char *filename);
-   INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKeyRoot, const char *buffer);
-   INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKeyRoot, int index, const /* MJsonNode */ void *json_node);
+   INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKey, const char *buffer);
+   INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKey, int index, const /* MJsonNode */ void *json_node);
 
    INT EXPRT db_sprintf(char *string, const void *data, INT data_size, INT index, DWORD type);
    INT EXPRT db_sprintff(char *string, const char *format, const void *data, INT data_size, INT index, DWORD type);
