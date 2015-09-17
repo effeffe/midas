@@ -742,6 +742,8 @@ std::string MJsonNode::Stringify(int flags) const
          return "false";
    case MJSON_NULL:
       return "null";
+   case MJSON_JSON:
+      return stringvalue;
    case MJSON_ERROR:
       return std::string("json parse error: ") + stringvalue;
    default:
@@ -835,6 +837,14 @@ MJsonNode* MJsonNode::MakeNull()
 {
    MJsonNode* n = new MJsonNode();
    n->type = MJSON_NULL;
+   return n;
+}
+
+MJsonNode* MJsonNode::MakeJSON(const char* json)
+{
+   MJsonNode* n = new MJsonNode();
+   n->type = MJSON_JSON;
+   n->stringvalue = json;
    return n;
 }
 
@@ -979,6 +989,7 @@ const char* MJsonNode::TypeToString(int type)
    case MJSON_NUMBER: return "NUMBER";
    case MJSON_BOOL: return "BOOL";
    case MJSON_NULL: return "NULL";
+   case MJSON_JSON: return "JSON";
    }
 }
 
@@ -997,6 +1008,8 @@ void MJsonNode::Dump(int nest) const // debug
    case MJSON_INT: printf(", value %d\n", intvalue); break;
    case MJSON_NUMBER: printf(", value %g\n", numbervalue); break;
    case MJSON_BOOL: printf(", value %d\n", intvalue); break;
+   case MJSON_NULL: printf(", null\n"); break;
+   case MJSON_JSON: printf(", json [%s]\n", stringvalue.c_str()); break;
    case MJSON_ARRAY:
       printf("\n");
       for (unsigned i=0; i<subnodes.size(); i++) {

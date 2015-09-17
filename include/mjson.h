@@ -22,6 +22,7 @@
 #define MJSON_NUMBER 5
 #define MJSON_BOOL   6
 #define MJSON_NULL   7
+#define MJSON_JSON   8
 
 class MJsonNode;
 
@@ -57,6 +58,7 @@ class MJsonNode {
    static MJsonNode* MakeNumber(double value);
    static MJsonNode* MakeBool(bool value);
    static MJsonNode* MakeNull();
+   static MJsonNode* MakeJSON(const char* json);
    static MJsonNode* MakeError(MJsonNode* errornode, const char* errormessage, const char* sin, const char* serror);
    
  public: // public "put" methods
