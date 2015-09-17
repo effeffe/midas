@@ -280,6 +280,7 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
 
    MJsonNode* dresult = MJsonNode::MakeArray();
    MJsonNode* sresult = MJsonNode::MakeArray();
+   MJsonNode* lwresult = MJsonNode::MakeArray();
 
    HNDLE hDB;
    cm_get_experiment_database(&hDB, NULL);
@@ -287,12 +288,22 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
    for (unsigned i=0; i<paths->size(); i++) {
       int status = 0;
       HNDLE hkey;
+      KEY key;
       std::string path = (*paths)[i]->GetString();
 
       status = db_find_key(hDB, 0, path.c_str(), &hkey);
       if (status != DB_SUCCESS) {
          dresult->AddToArray(MJsonNode::MakeNull());
          sresult->AddToArray(MJsonNode::MakeInt(status));
+         lwresult->AddToArray(MJsonNode::MakeNull());
+         continue;
+      }
+
+      status = db_get_key(hDB, hkey, &key);
+      if (status != DB_SUCCESS) {
+         dresult->AddToArray(MJsonNode::MakeNull());
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+         lwresult->AddToArray(MJsonNode::MakeNull());
          continue;
       }
 
@@ -303,6 +314,7 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
          if (status != SUCCESS) {
             dresult->AddToArray(MJsonNode::MakeNull());
             sresult->AddToArray(MJsonNode::MakeInt(status));
+            lwresult->AddToArray(MJsonNode::MakeInt(key.last_written));
             continue;
          }
 
@@ -330,6 +342,7 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
 
             dresult->AddToArray(ddresult);
             sresult->AddToArray(ssresult);
+            lwresult->AddToArray(MJsonNode::MakeInt(key.last_written));
 
          } else {
             char* buf = NULL;
@@ -340,9 +353,11 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
             if (status == DB_SUCCESS) {
                dresult->AddToArray(MJsonNode::MakeJSON(buf));
                sresult->AddToArray(MJsonNode::MakeInt(status));
+               lwresult->AddToArray(MJsonNode::MakeInt(key.last_written));
             } else {
                dresult->AddToArray(MJsonNode::MakeNull());
                sresult->AddToArray(MJsonNode::MakeInt(status));
+               lwresult->AddToArray(MJsonNode::MakeInt(key.last_written));
             }
             
             if (buf)
@@ -357,9 +372,11 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
          if (status == DB_SUCCESS) {
             dresult->AddToArray(MJsonNode::MakeJSON(buf));
             sresult->AddToArray(MJsonNode::MakeInt(status));
+            lwresult->AddToArray(MJsonNode::MakeInt(key.last_written));
          } else {
             dresult->AddToArray(MJsonNode::MakeNull());
             sresult->AddToArray(MJsonNode::MakeInt(status));
+            lwresult->AddToArray(MJsonNode::MakeInt(key.last_written));
          }
 
          if (buf)
@@ -367,7 +384,7 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
       }
    }
 
-   return mjsonrpc_make_result("data", dresult, "status", sresult);
+   return mjsonrpc_make_result("data", dresult, "status", sresult, "last_written", lwresult);
 }
 
 static MJsonNode* js_db_paste(const MJsonNode* params)
