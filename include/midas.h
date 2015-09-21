@@ -1838,10 +1838,19 @@ extern "C" {
    INT EXPRT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size);
 
    INT EXPRT db_save_json(HNDLE hDB, HNDLE hKey, const char *file_name);
-   INT EXPRT db_copy_json(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int save_keys, int follow_links, int recurse);
+   INT EXPRT db_load_json(HNDLE hdb, HNDLE key_handle, const char *filename);
+
+   /* db_copy_json() is obsolete, use db_copy_json_all, _values and _ls instead */
+   INT EXPRT db_copy_json_obsolete(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int save_keys, int follow_links, int recurse);
+
+   /* general purpose json encoders of ODB data */
+   INT EXPRT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
+   INT EXPRT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
+   INT EXPRT db_copy_json_save(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
+   /* json encoder for ODB array and array single element */
+   INT EXPRT db_copy_json_array(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end);
    INT EXPRT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int *buffer_size, int *buffer_end);
 
-   INT EXPRT db_load_json(HNDLE hdb, HNDLE key_handle, const char *filename);
    INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKey, const char *buffer);
    INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKey, int index, const /* MJsonNode */ void *json_node);
 

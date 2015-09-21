@@ -7326,12 +7326,64 @@ static void json_write_data(char **buffer, int* buffer_size, int* buffer_end, in
    }
 }
 
-INT db_save_json_key(HNDLE hDB, HNDLE hKey, INT level, char **buffer, int* buffer_size, int* buffer_end, int save_keys, int follow_links, int recurse)
+static void json_write_key(HNDLE hDB, HNDLE hKey, const KEY* key, const char* link_path, char **buffer, int* buffer_size, int* buffer_end)
 {
-   INT i, size, status;
-   char *data;
+   char str[256]; // not used to store anything long, only numeric values like: "item_size: 100"
+
+   json_write(buffer, buffer_size, buffer_end, 0, "{ ", 0);
+
+   sprintf(str, "\"type\" : %d", key->type);
+   json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+
+   if (link_path) {
+      json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
+      json_write(buffer, buffer_size, buffer_end, 0, "link", 1);
+      json_write(buffer, buffer_size, buffer_end, 0, ": ", 0);
+      json_write(buffer, buffer_size, buffer_end, 0, link_path, 1);
+   }
+
+   if (key->num_values > 1) {
+      json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
+
+      sprintf(str, "\"num_values\" : %d", key->num_values);
+      json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+   }
+
+   if (key->type == TID_STRING) {
+      json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
+
+      sprintf(str, "\"item_size\" : %d", key->item_size);
+      json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+   }
+
+   if (key->notify_count > 0) {
+      json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
+
+      sprintf(str, "\"notify_count\" : %d", key->notify_count);
+      json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+   }
+
+   json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
+
+   sprintf(str, "\"access_mode\" : %d", key->access_mode);
+   json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+
+   json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
+
+   sprintf(str, "\"last_written\" : %d", key->last_written);
+   json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+
+   json_write(buffer, buffer_size, buffer_end, 0, " ", 0);
+
+   json_write(buffer, buffer_size, buffer_end, 0, "}", 0);
+}
+
+static int db_save_json_key_obsolete(HNDLE hDB, HNDLE hKey, INT level, char **buffer, int* buffer_size, int* buffer_end, int save_keys, int follow_links, int recurse)
+{
+   INT size, status;
    KEY key;
    KEY link_key;
+   HNDLE link_hKey;
    char link_path[MAX_ODB_PATH];
    int omit_top_level_braces = 0;
 
@@ -7347,6 +7399,7 @@ INT db_save_json_key(HNDLE hDB, HNDLE hKey, INT level, char **buffer, int* buffe
    if (status != DB_SUCCESS)
       return status;
 
+   link_hKey = hKey;
    link_key = key;
 
    if (key.type == TID_LINK) {
@@ -7411,7 +7464,7 @@ INT db_save_json_key(HNDLE hDB, HNDLE hKey, INT level, char **buffer, int* buffe
             }
 
             /* save subtree */
-            status = db_save_json_key(hDB, hSubkey, level + 1, buffer, buffer_size, buffer_end, save_keys, follow_links, recurse);
+            status = db_save_json_key_obsolete(hDB, hSubkey, level + 1, buffer, buffer_size, buffer_end, save_keys, follow_links, recurse);
             if (status != DB_SUCCESS)
                return status;
          }
@@ -7434,67 +7487,18 @@ INT db_save_json_key(HNDLE hDB, HNDLE hKey, INT level, char **buffer, int* buffe
       if (save_keys == 1) {
          char str[NAME_LENGTH+15];
          sprintf(str, "%s/key", link_key.name);
-
          json_write(buffer, buffer_size, buffer_end, level, str, 1);
-         json_write(buffer, buffer_size, buffer_end, 0, " : { ", 0);
-
-         sprintf(str, "\"type\" : %d", key.type);
-         json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-
-         if (link_key.type == TID_LINK && follow_links) {
-            json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
-            json_write(buffer, buffer_size, buffer_end, 0, "link", 1);
-            json_write(buffer, buffer_size, buffer_end, 0, ": ", 0);
-            json_write(buffer, buffer_size, buffer_end, 0, link_path, 1);
-         }
-
-         if (key.num_values > 1) {
-            json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
-
-            sprintf(str, "\"num_values\" : %d", key.num_values);
-            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-         }
-
-         if (key.type == TID_STRING || key.type == TID_LINK) {
-            json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
-
-            sprintf(str, "\"item_size\" : %d", key.item_size);
-            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-         }
-
-         if (key.notify_count > 0) {
-            json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
-
-            sprintf(str, "\"notify_count\" : %d", key.notify_count);
-            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-         }
-
-         json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
-
-         sprintf(str, "\"access_mode\" : %d", key.access_mode);
-         json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-
-         json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
-
-         sprintf(str, "\"last_written\" : %d", key.last_written);
-         json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-
-         json_write(buffer, buffer_size, buffer_end, 0, " ", 0);
-
-         json_write(buffer, buffer_size, buffer_end, 0, "}", 0);
-
+         json_write(buffer, buffer_size, buffer_end, 0, " : ", 0);
+         json_write_key(hDB, link_hKey, &key, NULL, buffer, buffer_size, buffer_end);
          json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
       }
 
       if (save_keys == 2) {
          char str[NAME_LENGTH+15];
          sprintf(str, "%s/last_written", link_key.name);
-
          json_write(buffer, buffer_size, buffer_end, level, str, 1);
-
          sprintf(str, " : %d", key.last_written);
          json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-
          json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
       }
 
@@ -7503,151 +7507,84 @@ INT db_save_json_key(HNDLE hDB, HNDLE hKey, INT level, char **buffer, int* buffe
          json_write(buffer, buffer_size, buffer_end, 0, " : ", 0);
       }
 
-      if (key.num_values > 1) {
-         json_write(buffer, buffer_size, buffer_end, 0, "[ ", 0);
-      }
-
-      size = key.total_size;
-      data = (char *) malloc(size);
-      if (data == NULL) {
-         cm_msg(MERROR, "db_save_json_key", "cannot allocate data buffer for %d bytes", size);
-         return DB_NO_MEMORY;
-      }
-
-      if (key.type != TID_KEY) {
-         if (follow_links)
-            status = db_get_data(hDB, hKey, data, &size, key.type);
-         else
-            status = db_get_link_data(hDB, hKey, data, &size, key.type);
-
+      if (follow_links || link_key.type != TID_LINK) {
+         status = db_copy_json_array(hDB, hKey, buffer, buffer_size, buffer_end);
          if (status != DB_SUCCESS)
             return status;
-      }
-
-      for (i = 0; i < key.num_values; i++) {
-         //char str[256];
-         char *p = data + key.item_size*i;
-
-         if (i != 0)
-            json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
-
-         json_write_data(buffer, buffer_size, buffer_end, 0, &key, p);
-
-#if 0
-         switch (key.type) {
-         case TID_BYTE:
-            sprintf(str, "%u", *(unsigned char*)p);
-            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-            break;
-         case TID_SBYTE:
-            sprintf(str, "%d", *(char*)p);
-            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-            break;
-         case TID_CHAR:
-            sprintf(str, "%c", *(char*)p);
-            json_write(buffer, buffer_size, buffer_end, 0, str, 1);
-            break;
-         case TID_WORD:
-            sprintf(str, "\"0x%04x\"", *(WORD*)p);
-            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-            break;
-         case TID_SHORT:
-            sprintf(str, "%d", *(short*)p);
-            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-            break;
-         case TID_DWORD:
-            sprintf(str, "\"0x%08x\"", *(DWORD*)p);
-            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-            break;
-         case TID_INT:
-            sprintf(str, "%d", *(int*)p);
-            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-            break;
-         case TID_BOOL:
-            if (*(int*)p)
-               json_write(buffer, buffer_size, buffer_end, 0, "true", 0);
-            else
-               json_write(buffer, buffer_size, buffer_end, 0, "false", 0);
-            break;
-         case TID_FLOAT: {
-            float flt = (*(float*)p);
-            if (isnan(flt))
-               json_write(buffer, buffer_size, buffer_end, 0, "\"NaN\"", 0);
-            else if (isinf(flt)) {
-               if (flt > 0)
-                  json_write(buffer, buffer_size, buffer_end, 0, "\"Infinity\"", 0);
-               else
-                  json_write(buffer, buffer_size, buffer_end, 0, "\"-Infinity\"", 0);
-            } else if (flt == 0)
-               json_write(buffer, buffer_size, buffer_end, 0, "0", 0);
-            else if (flt == (int)flt) {
-               sprintf(str, "%.0f", flt);
-               json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-            } else {
-               sprintf(str, "%.7e", flt);
-               json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-            }
-            break;
-         }
-         case TID_DOUBLE: {
-            double dbl = (*(double*)p);
-            if (isnan(dbl))
-               json_write(buffer, buffer_size, buffer_end, 0, "\"NaN\"", 0);
-            else if (isinf(dbl)) {
-               if (dbl > 0)
-                  json_write(buffer, buffer_size, buffer_end, 0, "\"Infinity\"", 0);
-               else
-                  json_write(buffer, buffer_size, buffer_end, 0, "\"-Infinity\"", 0);
-            } else if (dbl == 0)
-               json_write(buffer, buffer_size, buffer_end, 0, "0", 0);
-            else if (dbl == (int)dbl) {
-               sprintf(str, "%.0f", dbl);
-               json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-            } else {
-               sprintf(str, "%.16e", dbl);
-               json_write(buffer, buffer_size, buffer_end, 0, str, 0);
-            }
-            break;
-         }
-         case TID_BITFIELD:
-            json_write(buffer, buffer_size, buffer_end, 0, "(TID_BITFIELD value)", 1);
-            break;
-         case TID_STRING:
-            p[key.item_size-1] = 0;  // make sure string is NUL terminated!
-            json_write(buffer, buffer_size, buffer_end, 0, p, 1);
-            break;
-         case TID_ARRAY:
-            json_write(buffer, buffer_size, buffer_end, 0, "(TID_ARRAY value)", 1);
-            break;
-         case TID_STRUCT:
-            json_write(buffer, buffer_size, buffer_end, 0, "(TID_STRUCT value)", 1);
-            break;
-         case TID_KEY:
-            json_write(buffer, buffer_size, buffer_end, 0, "{ }", 0);
-            break;
-         case TID_LINK:
-            p[key.item_size-1] = 0;  // make sure string is NUL terminated!
-            json_write(buffer, buffer_size, buffer_end, 0, p, 1);
-            break;
-         default:
-            json_write(buffer, buffer_size, buffer_end, 0, "(TID_UNKNOWN value)", 1);
-         }
-#endif
-      }
-
-      if (key.num_values > 1) {
-         json_write(buffer, buffer_size, buffer_end, 0, " ]", 0);
       } else {
-         json_write(buffer, buffer_size, buffer_end, 0, "", 0);
+         char link_path[MAX_ODB_PATH];
+         size = sizeof(link_path);
+         status = db_get_link_data(hDB, hKey, link_path, &size, TID_LINK);
+         if (status != DB_SUCCESS)
+            return status;
+         json_write(buffer, buffer_size, buffer_end, 0, link_path, 1);
       }
-
-      free(data);
-      data = NULL;
 
       if (save_keys && level == 0) {
          json_write(buffer, buffer_size, buffer_end, 0, "\n}", 0);
       }
    }
+
+   return DB_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Copy an ODB array in JSON format to a buffer
+
+@param hDB          ODB handle obtained via cm_get_experiment_database().
+@param hKey Handle for key
+@param buffer returns pointer to ASCII buffer with ODB contents
+@param buffer_size returns size of ASCII buffer
+@param buffer_end returns number of bytes contained in buffer
+@return DB_SUCCESS, DB_NO_MEMORY
+*/
+INT db_copy_json_array(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
+{
+   int size;
+   int status;
+   char* data;
+   int i;
+   KEY key;
+
+   status = db_get_key(hDB, hKey, &key);
+   if (status != DB_SUCCESS)
+      return status;
+
+   assert(key.type != TID_KEY);
+
+   if (key.num_values > 1) {
+      json_write(buffer, buffer_size, buffer_end, 0, "[ ", 0);
+   }
+
+   size = key.total_size;
+   data = (char *) malloc(size);
+   if (data == NULL) {
+      cm_msg(MERROR, "db_save_json_key_data", "cannot allocate data buffer for %d bytes", size);
+      return DB_NO_MEMORY;
+   }
+
+   status = db_get_data(hDB, hKey, data, &size, key.type);
+   if (status != DB_SUCCESS) {
+      free(data);
+      return status;
+   }
+
+   for (i = 0; i < key.num_values; i++) {
+      char *p = data + key.item_size*i;
+
+      if (i != 0)
+         json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
+      
+      json_write_data(buffer, buffer_size, buffer_end, 0, &key, p);
+   }
+   
+   if (key.num_values > 1) {
+      json_write(buffer, buffer_size, buffer_end, 0, " ]", 0);
+   }
+   
+   free(data);
+   data = NULL;
 
    return DB_SUCCESS;
 }
@@ -7695,6 +7632,139 @@ INT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int* buf
    return DB_SUCCESS;
 }
 
+static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int level, int must_be_subdir, int save_keys, int follow_links, int recurse);
+
+static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int level, int save_keys, int follow_links, int recurse)
+{
+   int status;
+   int i;
+
+   for (i=0; ; i++) {
+      HNDLE hLink, hLinkTarget;
+      KEY link, link_target;
+      char* link_path = NULL;
+      char link_buf[MAX_ODB_PATH];
+
+      status = db_enum_link(hDB, hKey, i, &hLink);
+      if (status != DB_SUCCESS && !hLink)
+         break;
+
+      status = db_get_link(hDB, hLink, &link);
+      if (status != DB_SUCCESS)
+         return status;
+
+      hLinkTarget = hLink;
+
+      if (link.type == TID_LINK) {
+         int size = sizeof(link_buf);
+         status = db_get_link_data(hDB, hLink, link_buf, &size, TID_LINK);
+         if (status != DB_SUCCESS)
+            return status;
+
+         link_path = link_buf;
+
+         // resolve the link, unless it is a link to an array element
+         if (follow_links && strchr(link_path, '[') == NULL) {
+            status = db_find_key(hDB, 0, link_path, &hLinkTarget);
+            if (status != DB_SUCCESS) {
+               // dangling link to nowhere
+               hLinkTarget = hLink;
+            }
+         }
+      }
+
+      status = db_get_key(hDB, hLinkTarget, &link_target);
+      if (status != DB_SUCCESS)
+         return status;
+
+      if (i != 0) {
+         json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
+      } else {
+         json_write(buffer, buffer_size, buffer_end, 0, "\n", 0);
+      }
+
+      if (link.type != TID_KEY && save_keys) {
+         char buf[MAX_ODB_PATH];
+         strlcpy(buf, link.name, sizeof(buf));
+         strlcat(buf, "/key", sizeof(buf));
+         json_write(buffer, buffer_size, buffer_end, level, buf, 1);
+         json_write(buffer, buffer_size, buffer_end, 0, " : " , 0);
+         json_write_key(hDB, hLink, &link_target, link_path, buffer, buffer_size, buffer_end);
+         json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
+      } else if (link_target.type != TID_KEY) {
+         char buf[MAX_ODB_PATH];
+         strlcpy(buf, link.name, sizeof(buf));
+         strlcat(buf, "/last_written", sizeof(buf));
+         json_write(buffer, buffer_size, buffer_end, level, buf, 1);
+         json_write(buffer, buffer_size, buffer_end, 0, " : " , 0);
+         sprintf(buf, "%d", link_target.last_written);
+         json_write(buffer, buffer_size, buffer_end, 0, buf, 0);
+         json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
+      }
+
+      json_write(buffer, buffer_size, buffer_end, level, link.name, 1);
+      json_write(buffer, buffer_size, buffer_end, 0, " : " , 0);
+
+      if (link_target.type == TID_KEY && !recurse) {
+         json_write(buffer, buffer_size, buffer_end, 0, "{ }" , 0);
+      } else {
+         status = json_write_anything(hDB, hLinkTarget, buffer, buffer_size, buffer_end, level, 0, save_keys, follow_links, recurse);
+         if (status != DB_SUCCESS)
+            return status;
+      }
+   }
+
+   return DB_SUCCESS;
+}
+
+static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int level, int must_be_subdir, int save_keys, int follow_links, int recurse)
+{
+   int status;
+   KEY key;
+
+   status = db_get_key(hDB, hKey, &key);
+   if (status != DB_SUCCESS)
+      return status;
+
+   if (key.type == TID_KEY) {
+
+      json_write(buffer, buffer_size, buffer_end, 0, "{", 0);
+
+      status = json_write_bare_subdir(hDB, hKey, buffer, buffer_size, buffer_end, level+1, save_keys, follow_links, recurse);
+      if (status != DB_SUCCESS)
+         return status;
+
+      json_write(buffer, buffer_size, buffer_end, 0, "\n", 0);
+      json_write(buffer, buffer_size, buffer_end, level, "}", 0);
+
+   } else {
+      if (must_be_subdir)
+         return DB_TYPE_MISMATCH;
+
+      status = db_copy_json_array(hDB, hKey, buffer, buffer_size, buffer_end);
+
+      if (status != DB_SUCCESS)
+         return status;
+   }
+
+   return DB_SUCCESS;
+}
+
+INT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
+{
+   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, 0, 1, 1, 1, 0);
+}
+
+INT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
+{
+   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, 0, 0, 0, 1, 1);
+}
+
+INT db_copy_json_all(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
+{
+   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, 0, 1, 1, 0, 1);
+}
+
 /********************************************************************/
 /**
 Copy an ODB subtree in JSON format to a buffer
@@ -7706,9 +7776,9 @@ Copy an ODB subtree in JSON format to a buffer
 @param buffer_end returns number of bytes contained in buffer
 @return DB_SUCCESS, DB_NO_MEMORY
 */
-INT db_copy_json(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end, int save_keys, int follow_links, int recurse)
+INT db_copy_json_obsolete(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end, int save_keys, int follow_links, int recurse)
 {
-   db_save_json_key(hDB, hKey, 0, buffer, buffer_size, buffer_end, save_keys, follow_links, recurse);
+   db_save_json_key_obsolete(hDB, hKey, 0, buffer, buffer_size, buffer_end, save_keys, follow_links, recurse);
    json_write(buffer, buffer_size, buffer_end, 0, "\n", 0);
    return DB_SUCCESS;
 }
@@ -7769,7 +7839,8 @@ INT db_save_json(HNDLE hDB, HNDLE hKey, const char *filename)
       json_write(&buffer, &buffer_size, &buffer_end, 0, path, 1);
       json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
 
-      status = db_save_json_key(hDB, hKey, -1, &buffer, &buffer_size, &buffer_end, 1, 0, 1);
+      //status = db_save_json_key_obsolete(hDB, hKey, -1, &buffer, &buffer_size, &buffer_end, 1, 0, 1);
+      status = json_write_bare_subdir(hDB, hKey, &buffer, &buffer_size, &buffer_end, 1, 1, 0, 1);
 
       json_write(&buffer, &buffer_size, &buffer_end, 0, "\n}\n", 0);
 
