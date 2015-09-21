@@ -368,7 +368,7 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
          int bufsize = 0;
          int end = 0;
 
-         status = db_copy_json(hDB, hkey, &buf, &bufsize, &end, 1, 1, 1);
+         status = db_copy_json_values(hDB, hkey, &buf, &bufsize, &end);
          if (status == DB_SUCCESS) {
             dresult->AddToArray(MJsonNode::MakeJSON(buf));
             sresult->AddToArray(MJsonNode::MakeInt(status));

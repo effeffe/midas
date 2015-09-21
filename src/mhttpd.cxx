@@ -6861,7 +6861,7 @@ void javascript_commands(const char *cookie_cpwd)
             if (fmt_xml)
                db_copy_xml(hDB, hkey, buf, &bufsize);
             else if (fmt_json)
-               db_copy_json(hDB, hkey, &buf, &bufsize, &end, save_keys, follow_links, recurse);
+               db_copy_json_obsolete(hDB, hkey, &buf, &bufsize, &end, save_keys, follow_links, recurse);
             else
                db_copy(hDB, hkey, buf, &bufsize, (char *)"");
 
@@ -6934,7 +6934,7 @@ void javascript_commands(const char *cookie_cpwd)
                   s = buf;
                rsputs(s);
             } else if (fmt_json) {
-               db_copy_json(hDB, hkey, &buf, &bufsize, &end, save_keys, follow_links, recurse);
+               db_copy_json_obsolete(hDB, hkey, &buf, &bufsize, &end, save_keys, follow_links, recurse);
                rsputs(buf);
             } else {
                db_copy(hDB, hkey, buf, &bufsize, (char *)"");

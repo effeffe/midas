@@ -1895,6 +1895,38 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
             db_save(hDB, hKey, param[1], FALSE);
       }
 
+      /* jsvalues */
+      else if (strncmp(param[0], "json", 4) == 0) {
+         db_find_key(hDB, 0, pwd, &hKey);
+
+	 char* buffer = NULL;
+	 int buffer_size = 0;
+	 int buffer_end = 0;
+
+	 status = db_copy_json_values(hDB, hKey, &buffer, &buffer_size, &buffer_end);
+
+	 printf("status: %d, json: %s\n", status, buffer);
+
+	 if (buffer)
+	   free(buffer);
+      }
+
+      /* jsls */
+      else if (strncmp(param[0], "jsls", 4) == 0) {
+         db_find_key(hDB, 0, pwd, &hKey);
+
+	 char* buffer = NULL;
+	 int buffer_size = 0;
+	 int buffer_end = 0;
+
+	 status = db_copy_json_ls(hDB, hKey, &buffer, &buffer_size, &buffer_end);
+
+	 printf("jsls \"%s\", status: %d, json: %s\n", pwd, status, buffer);
+
+	 if (buffer)
+	   free(buffer);
+      }
+
       /* make */
       else if (param[0][0] == 'm' && param[0][1] == 'a') {
          if (param[1][0])
