@@ -13424,13 +13424,19 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
          rsprintf("<option selected value=\"%s\">%s\n", plot.vars[index].event_name.c_str(), plot.vars[index].event_name.c_str());
          rsprintf("<option>(%d events omitted)\n", events.size());
       } else { // show all events
+         bool found = false;
          for (unsigned e=0; e<events.size(); e++) {
             const char *s = "";
             const char *p = events[e].c_str();
             if (equal_ustring(plot.vars[index].event_name.c_str(), p)) {
                s = "selected";
+               found = true;
             }
             rsprintf("<option %s value=\"%s\">%s\n", s, p, p);
+         }
+         if (!found) {
+            const char *p = plot.vars[index].event_name.c_str();
+            rsprintf("<option selected value=\"%s\">%s\n", p, p);
          }
       }
 
