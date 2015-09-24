@@ -16481,7 +16481,7 @@ extern "C" {
 
       char hname[NI_MAXHOST];
 
-      int status = getnameinfo(sa, len, hname, sizeof(hname), NULL, 0, 0);
+      getnameinfo(sa, len, hname, sizeof(hname), NULL, 0, 0);
 
       //printf("connection from [%s], status %d\n", hname, status);
 
