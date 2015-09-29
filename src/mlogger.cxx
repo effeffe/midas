@@ -116,6 +116,43 @@ int log_generate_file_name(LOG_CHN *log_chn);
 
 /*---- writer interface --------------------------------------*/
 
+class WatchdogGuard
+{
+public:
+   bool  fDoRestore;
+   BOOL  fCallWatchdog;
+   DWORD fTimeout;
+
+   WatchdogGuard(bool disable_watchdog) // ctor
+   {
+      fDoRestore = false;
+      if (disable_watchdog)
+         DisableWatchdog();
+   };
+
+   ~WatchdogGuard() // ctor
+   {
+      if (fDoRestore)
+         RestoreWatchdog();
+   };
+
+   void DisableWatchdog()
+   {
+      cm_get_watchdog_params(&fCallWatchdog, &fTimeout);
+      cm_set_watchdog_params(FALSE, 0);
+      fDoRestore = true;
+   }
+
+   void RestoreWatchdog()
+   {
+      assert(fDoRestore);
+      cm_set_watchdog_params(fCallWatchdog, fTimeout);
+      fDoRestore = false;
+   }
+};
+
+/*---- writer interface --------------------------------------*/
+
 class WriterInterface
 {
 public:
@@ -3336,6 +3373,8 @@ INT log_close(LOG_CHN * log_chn, INT run_number)
 
 int log_disk_level(LOG_CHN* log_chn, double* pdisk_size, double* pdisk_free)
 {
+   WatchdogGuard guard(true); // disable watchdog here. watchdog is restored when object goes out of scope.
+
    char str[256];
    strlcpy(str, log_chn->path, sizeof(str));
    if (strrchr(str, '/'))
@@ -3510,6 +3549,7 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
    INT status = 0, size;
    DWORD actual_time, start_time, duration;
    BOOL next_subrun;
+   WatchdogGuard watchdog(true); // disable watchdog here. watchdog is restored when object goes out of scope
 
    //printf("log_write %d\n", pevent->data_size + sizeof(EVENT_HEADER));
 
@@ -3547,6 +3587,8 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
    actual_time = ss_millitime();
    if ((int) actual_time - (int) start_time > 3000)
       cm_msg(MINFO, "log_write", "Write operation on \'%s\' took %d ms", log_chn->path, actual_time - start_time);
+
+   watchdog.RestoreWatchdog(); // restore original watchdog settings
 
    if (status != SS_SUCCESS && !stop_requested) {
       cm_msg(MTALK, "log_write", "Error writing output file, stopping run");
@@ -4480,6 +4522,7 @@ void log_history(HNDLE hDB, HNDLE hKey, void *info)
    INT i, size, status;
    int actual_time;
    int start_time = ss_millitime();
+   WatchdogGuard watchdog(true); // disable watchdog here. watchdog is restored when object goes out of scope
 
    for (i = 0; i < hist_log_max; i++)
       if (hist_log[i].hKeyVar == hKey)
@@ -4535,6 +4578,7 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
    KEY key;
    int actual_time;
    int start_time = ss_millitime();
+   WatchdogGuard watchdog(true); // disable watchdog here. watchdog is restored when object goes out of scope
 
    index = (INT) (POINTER_T) info;
 
