@@ -5504,10 +5504,12 @@ void cm_watchdog(int dummy)
 
    /* extra check on watchdog interval */
 #if 0
-   static time_t last = 0;
-   time_t now = time(NULL);
-   fprintf(stderr, "cm_watchdog interval %d\n", (int)(now - last));
-   last = now;
+   if (1) {
+      static time_t last = 0;
+      time_t now = time(NULL);
+      fprintf(stderr, "cm_watchdog interval %d\n", (int)(now - last));
+      last = now;
+   }
 #endif
    
    /* tell system services that we are in async mode ... */

@@ -4478,6 +4478,8 @@ void close_history()
 void log_history(HNDLE hDB, HNDLE hKey, void *info)
 {
    INT i, size, status;
+   int actual_time;
+   int start_time = ss_millitime();
 
    for (i = 0; i < hist_log_max; i++)
       if (hist_log[i].hKeyVar == hKey)
@@ -4518,6 +4520,10 @@ void log_history(HNDLE hDB, HNDLE hKey, void *info)
    }
 
    maybe_flush_history(now);
+
+   actual_time = ss_millitime();
+   if (actual_time - start_time > 3000)
+      cm_msg(MINFO, "log_history", "History write operation took %d ms", actual_time - start_time);
 }
 
 /*------------------------------------------------------------------*/
@@ -4527,6 +4533,8 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
    INT size, total_size, status, index;
    DWORD i;
    KEY key;
+   int actual_time;
+   int start_time = ss_millitime();
 
    index = (INT) (POINTER_T) info;
 
@@ -4574,6 +4582,10 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
    }
 
    maybe_flush_history(now);
+
+   actual_time = ss_millitime();
+   if (actual_time - start_time > 3000)
+      cm_msg(MINFO, "log_system_history", "History write operation took %d ms", actual_time - start_time);
 }
 
 /*------------------------------------------------------------------*/
