@@ -17528,7 +17528,7 @@ int main(int argc, const char *argv[])
             gUserAllowedHosts.push_back(argv[++i]);
          } else if (argv[i][1] == 'p') {
             printf("Option \"-p port_number\" for the old web server is obsolete.\n");
-            printf("mongoose web server is the new default, port number is set in ODB or with \"--mg port_number\".\n");
+            printf("mongoose web server is the new default, port number is set in ODB or with \"--http port_number\".\n");
             printf("To run the obsolete old web server, please use \"--oldserver\" switch.\n");
             return 1;
          } else {
