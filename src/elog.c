@@ -34,9 +34,9 @@
 \********************************************************************/
 
 /********************************************************************/
-void el_decode(char *message, char *key, char *result, int size)
+static void el_decode(const char *message, const char *key, char *result, int size)
 {
-   char *rstart = result;
+   int i;
    char *pc;
 
    if (result == NULL)
@@ -44,13 +44,27 @@ void el_decode(char *message, char *key, char *result, int size)
 
    *result = 0;
 
-   if (strstr(message, key)) {
-      for (pc = strstr(message, key) + strlen(key); *pc != '\n';)
-         *result++ = *pc++;
-      *result = 0;
+   pc = strstr(message, key);
+
+   if (!pc)
+     return;
+
+   pc += strlen(key);
+
+   for (i=0; i<size; i++) {
+     if (pc[i] == 0)
+       break;
+     if (pc[i] == '\n')
+       break;
+     result[i] = pc[i];
    }
 
-   assert((int) strlen(rstart) < size);
+   assert(i<=size); // ensure that code above did not overrun the "result" array
+
+   if (i==size)
+     result[size-1] = 0;
+   else
+     result[i] = 0;
 }
 
 static void xwrite(const char* filename, int fd, const void* data, int size)
