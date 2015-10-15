@@ -281,16 +281,31 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
          }
          lseek(fh, offset, SEEK_SET);
          xread(file_name, fh, str, 16);
-         assert(strncmp(str, "$Start$", 7) == 0);
+
+         if (strncmp(str, "$Start$", 7) != 0) {
+            cm_msg(MERROR, "el_submit", "cannot read from \'%s\', corrupted file: no $Start$ in \"%s\"", file_name, str);
+            close(fh);
+            return EL_FILE_ERROR;
+         }
 
          size = atoi(str + 9);
-         assert(size > 1);
+
+         if (size < 1) {
+            cm_msg(MERROR, "el_submit", "cannot read from \'%s\', corrupted file: bad size %d in \"%s\"", file_name, size, str);
+            close(fh);
+            return EL_FILE_ERROR;
+         }
 
          message = malloc(size);
-         assert(message);
+
+         if (!message) {
+            cm_msg(MERROR, "el_submit", "cannot read from \'%s\', corrupted file: bad size %d in \"%s\", cannot malloc(%d): errno %d (%s)", file_name, size, str, size, errno, strerror(errno));
+            close(fh);
+            return EL_FILE_ERROR;
+         }
 
          status = read(fh, message, size);
-         if (status != size || status + 16 != size) {
+         if (status != size && status + 16 != size) {
             free(message);
             return EL_FILE_ERROR;
          }
@@ -362,7 +377,12 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
       //printf("message_size %d, text %d\n", (int)message_size, (int)strlen(text));
 
       message = malloc(message_size);
-      assert(message);
+
+      if (!message) {
+         cm_msg(MERROR, "el_submit", "cannot malloc() %d bytes: errno %d (%s)", size, errno, strerror(errno));
+         close(fh);
+         return EL_FILE_ERROR;
+      }
 
       /* compose message */
 
@@ -665,7 +685,10 @@ INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilen
       str[15] = 0;
 
       size = atoi(str + 7);
-      assert(size > 15);
+      if (size <= 15) {
+         close(*fh);
+         return EL_FILE_ERROR;
+      }
 
       lseek(*fh, -size, SEEK_CUR);
 
@@ -697,7 +720,11 @@ INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilen
       str[15] = 0;
 
       size = atoi(str + 9);
-      assert(size > 15);
+
+      if (size <= 15) {
+         close(*fh);
+         return EL_FILE_ERROR;
+      }
 
       lseek(*fh, size, SEEK_CUR);
 
@@ -809,12 +836,21 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
    /* get size */
    size = atoi(str + 9);
 
-   assert(strncmp(str, "$Start$:", 8) == 0);
-   assert(size > 15);
+   if ((strncmp(str, "$Start$:", 8) != 0) || (size <= 15)) {
+      cm_msg(MERROR, "el_retrieve", "cannot read from \'%s\', corrupted file: no $Start$ or bad size in \"%s\"", filename, str);
+      close(fh);
+      return EL_FILE_ERROR;
+   }
 
    message_size = size + 1;
    message = malloc(message_size);
-   assert(message);
+
+   if (!message) {
+      cm_msg(MERROR, "el_retrieve", "cannot read from \'%s\', cannot malloc() %d bytes, errno %d (%s)", filename, (int)message_size, errno, strerror(errno));
+      free(message);
+      close(fh);
+      return EL_FILE_ERROR;
+   }
 
    memset(message, 0, message_size);
 
