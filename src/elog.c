@@ -435,18 +435,19 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
       if (reply_to[0] && !bedit) {
          strcpy(last, reply_to);
          do {
-            status = el_search_message(last, &fh, FALSE);
+            char filename[256];
+            status = el_search_message(last, &fh, FALSE, filename, sizeof(filename));
             if (status == EL_SUCCESS) {
                /* position to next thread location */
                lseek(fh, 72, SEEK_CUR);
                memset(str, 0, sizeof(str));
-               xread("(unknown)", fh, str, 16);
+               xread(filename, fh, str, 16);
                lseek(fh, -16, SEEK_CUR);
 
                /* if no reply yet, set it */
                if (atoi(str) == 0) {
                   sprintf(str, "%16s", tag);
-                  xwrite("(unknown)", fh, str, 16);
+                  xwrite(filename, fh, str, 16);
                   close(fh);
                   break;
                } else {
@@ -473,7 +474,7 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-INT el_search_message(char *tag, int *fh, BOOL walk)
+INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilename_size)
 {
    int i, size, offset, direction, status;
    struct tm *tms, ltms;
@@ -486,6 +487,9 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
    tzset();
 #endif
 #endif
+
+   if (xfilename && xfilename_size > 0)
+      *xfilename = 0;
 
    /* open file */
    cm_get_experiment_database(&hDB, NULL);
@@ -531,6 +535,10 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
          tms = localtime(&ltime);
 
          sprintf(file_name, "%s%02d%02d%02d.log", dir, tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
+
+         if (xfilename)
+            strlcpy(xfilename, file_name, xfilename_size);
+
          *fh = open(file_name, O_RDWR | O_BINARY, 0644);
 
          if (*fh < 0) {
@@ -585,6 +593,10 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
          tms = localtime(&ltime);
 
          sprintf(file_name, "%s%02d%02d%02d.log", dir, tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
+
+         if (xfilename)
+            strlcpy(xfilename, file_name, xfilename_size);
+
          *fh = open(file_name, O_RDWR | O_BINARY, 0644);
 
          if (*fh < 0)
@@ -617,7 +629,10 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
             tms = localtime(&lt);
             sprintf(str, "%02d%02d%02d.0", tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
 
-            status = el_search_message(str, fh, FALSE);
+            status = el_search_message(str, fh, FALSE, file_name, sizeof(file_name));
+
+            if (xfilename)
+               strlcpy(xfilename, file_name, xfilename_size);
 
          } while (status != EL_SUCCESS && (INT) ltime - (INT) lt < 3600 * 24 * 365);
 
@@ -698,7 +713,10 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
             tms = localtime(&lt);
             sprintf(str, "%02d%02d%02d.0", tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
 
-            status = el_search_message(str, fh, FALSE);
+            status = el_search_message(str, fh, FALSE, file_name, sizeof(file_name));
+
+            if (xfilename)
+               strlcpy(xfilename, file_name, xfilename_size);
 
          } while (status != EL_SUCCESS && (INT) lt - (INT) lact < 3600 * 24);
 
@@ -763,22 +781,25 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
    char attachment_all[3*256+100]; /* size of attachement1/2/3 from show_elog_submit_query() */
    char *message = NULL;
    size_t message_size = 0;
+   char filename[256];
 
    if (tag[0]) {
-      search_status = el_search_message(tag, &fh, TRUE);
+      search_status = el_search_message(tag, &fh, TRUE, filename, sizeof(filename));
       if (search_status != EL_SUCCESS)
          return search_status;
    } else {
       /* open most recent message */
       strcpy(tag, "-1");
-      search_status = el_search_message(tag, &fh, TRUE);
+      search_status = el_search_message(tag, &fh, TRUE, filename, sizeof(filename));
       if (search_status != EL_SUCCESS)
          return search_status;
    }
 
+   //printf("el_retrieve: reading [%s]\n", filename);
+
    /* extract message size */
    TELL(fh);
-   rd = xread("(unknown)", fh, str, 15);
+   rd = xread(filename, fh, str, 15);
    if (rd != 15)
       return EL_FILE_ERROR;
 
@@ -799,6 +820,7 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
 
    rd = read(fh, message, size);
    if (rd <= 0 || !((rd + 15 == size) || (rd == size))) {
+      cm_msg(MERROR, "el_retrieve", "cannot read from \'%s\', read(%d) returned %d, errno %d (%s)", filename, size, rd, errno, strerror(errno));
       free(message);
       close(fh);
       return EL_FILE_ERROR;
@@ -916,7 +938,7 @@ INT el_search_run(int run, char *return_tag)
    do {
       /* open first message in file */
       strcat(tag, "-1");
-      status = el_search_message(tag, &fh, TRUE);
+      status = el_search_message(tag, &fh, TRUE, NULL, 0);
       if (status == EL_FIRST_MSG)
          break;
       if (status != EL_SUCCESS)
@@ -932,7 +954,7 @@ INT el_search_run(int run, char *return_tag)
 
    while (actual_run < run) {
       strcat(tag, "+1");
-      status = el_search_message(tag, &fh, TRUE);
+      status = el_search_message(tag, &fh, TRUE, NULL, 0);
       if (status == EL_LAST_MSG)
          break;
       if (status != EL_SUCCESS)

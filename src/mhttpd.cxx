@@ -4349,7 +4349,7 @@ void show_elog_page(char *path, int path_size)
 
       do {
          strlcat(path, equal_ustring(command, "next") ? "+1" : "-1", path_size);
-         status = el_search_message(path, &fh, TRUE);
+         status = el_search_message(path, &fh, TRUE, NULL, 0);
          close(fh);
          if (status != EL_SUCCESS) {
             if (equal_ustring(command, "next"))
