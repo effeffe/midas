@@ -143,7 +143,9 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
           start_str[80], end_str[80], last[80], date[80], thread[80], attachment[256];
       HNDLE hDB;
       time_t now;
-      char message[10000], *p;
+      char *p;
+      char* message = NULL;
+      size_t message_size = 0;
       char *buffer = NULL;
       BOOL bedit;
 
@@ -282,14 +284,23 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
          assert(strncmp(str, "$Start$", 7) == 0);
 
          size = atoi(str + 9);
+         assert(size > 1);
+
+         message = malloc(size);
+         assert(message);
+
          status = read(fh, message, size);
          if (status != size || status + 16 != size) {
+            free(message);
             return EL_FILE_ERROR;
          }
 
          el_decode(message, "Date: ", date, sizeof(date));
          el_decode(message, "Thread: ", thread, sizeof(thread));
          el_decode(message, "Attachment: ", attachment, sizeof(attachment));
+
+         free(message);
+         message = NULL;
 
          /* buffer tail of logfile */
          lseek(fh, 0, SEEK_END);
@@ -335,6 +346,24 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
          lseek(fh, 0, SEEK_END);
       }
 
+      message_size = 1000;
+      message_size += strlen(date);
+      message_size += strlen(author);
+      message_size += strlen(type);
+      message_size += strlen(syst);
+      message_size += strlen(subject);
+      message_size += strlen(attachment);
+      message_size += strlen(afile_name[0]);
+      message_size += strlen(afile_name[1]);
+      message_size += strlen(afile_name[2]);
+      message_size += strlen(encoding);
+      message_size += strlen(text);
+
+      //printf("message_size %d, text %d\n", (int)message_size, (int)strlen(text));
+
+      message = malloc(message_size);
+      assert(message);
+
       /* compose message */
 
       sprintf(message, "Date: %s\n", date);
@@ -361,7 +390,7 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
       sprintf(message + strlen(message), "========================================\n");
       strcat(message, text);
 
-      assert(strlen(message) < sizeof(message));        /* bomb out on array overrun. */
+      assert(strlen(message) < message_size);        /* bomb out on array overrun. */
 
       size = 0;
       sprintf(start_str, "$Start$: %6d\n", size);
@@ -381,6 +410,10 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
       xwrite(file_name, fh, start_str, strlen(start_str));
       xwrite(file_name, fh, message, strlen(message));
       xwrite(file_name, fh, end_str, strlen(end_str));
+
+      free(message);
+      message = NULL;
+      message_size = 0;
 
       if (bedit) {
          if (tail_size > 0) {
@@ -1023,3 +1056,10 @@ INT el_delete_message(const char *tag)
 /**dox***************************************************************/
 /** @} *//* end of elfunctioncode */
 
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */
