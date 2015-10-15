@@ -759,8 +759,10 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
 {
    int size, fh = 0, search_status, rd;
    char str[256], *p;
-   char message[10000], thread[256];
+   char thread[256];
    char attachment_all[3*256+100]; /* size of attachement1/2/3 from show_elog_submit_query() */
+   char *message = NULL;
+   size_t message_size = 0;
 
    if (tag[0]) {
       search_status = el_search_message(tag, &fh, TRUE);
@@ -788,13 +790,19 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
 
    assert(strncmp(str, "$Start$:", 8) == 0);
    assert(size > 15);
-   assert(size < (int)sizeof(message));
 
-   memset(message, 0, sizeof(message));
+   message_size = size + 1;
+   message = malloc(message_size);
+   assert(message);
+
+   memset(message, 0, message_size);
 
    rd = read(fh, message, size);
-   if (rd <= 0 || !((rd + 15 == size) || (rd == size)))
+   if (rd <= 0 || !((rd + 15 == size) || (rd == size))) {
+      free(message);
+      close(fh);
       return EL_FILE_ERROR;
+   }
 
    close(fh);
 
@@ -816,19 +824,15 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
       attachment1[0] = attachment2[0] = attachment3[0] = 0;
       p = strtok(attachment_all, ",");
       if (p != NULL) {
-         strcpy(attachment1, p);
+         strlcpy(attachment1, p, 256);          /* size from show_elog_submit_query() */
          p = strtok(NULL, ",");
          if (p != NULL) {
-            strcpy(attachment2, p);
+            strlcpy(attachment2, p, 256);       /* size from show_elog_submit_query() */
             p = strtok(NULL, ",");
             if (p != NULL)
-               strcpy(attachment3, p);
+               strlcpy(attachment3, p, 256);    /* size from show_elog_submit_query() */
          }
       }
-
-      assert(strlen(attachment1) < 256);        /* size from show_elog_submit_query() */
-      assert(strlen(attachment2) < 256);        /* size from show_elog_submit_query() */
-      assert(strlen(attachment3) < 256);        /* size from show_elog_submit_query() */
    }
 
    /* conver thread in reply-to and reply-from */
@@ -857,6 +861,7 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
          if ((int) strlen(p) >= *textsize) {
             strncpy(text, p, *textsize - 1);
             text[*textsize - 1] = 0;
+            free(message);
             return EL_TRUNCATED;
          } else {
             strcpy(text, p);
@@ -872,6 +877,9 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
          *textsize = 0;
       }
    }
+
+   free(message);
+   message = NULL;
 
    if (search_status == EL_LAST_MSG)
       return EL_LAST_MSG;
