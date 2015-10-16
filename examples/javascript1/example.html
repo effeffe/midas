@@ -1,13 +1,20 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<!DOCTYPE html>
 <html>
   <head>
     <title>Example MIDAS Javascript functions</title>
 
     <script src='mhttpd.js'></script>
+    <!--- <script src='https://localhost:8443/mhttpd.js'></script> --->
+    <!--- <script src='http://localhost:8080/mhttpd.js'></script> --->
 
     <script type="text/javascript">
 
-      //ODBSetURL("http://localhost:8080/");
+      if (false) {
+         var cors_url = "https://localhost:8443";
+         //var cors_url = "http://localhost:8080";
+         ODBSetURL(cors_url);
+         mjsonrpc_set_url(cors_url);
+      }
 
       function htmlize(text)
       {
@@ -768,6 +775,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Thu Sep 17 13:37:24 PDT 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Fri Oct 16 11:00:17 PDT 2015 <!-- hhmts end -->
   </body>
 </html>
