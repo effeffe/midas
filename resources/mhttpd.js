@@ -359,6 +359,12 @@ function mjsonrpc_db_copy(paths, id, callback, error_callback) {
    return mjsonrpc_call("db_copy", req, id, callback, error_callback);
 }
 
+function mjsonrpc_db_get_values(paths, id, callback, error_callback) {
+   var req = new Object();
+   req.paths = paths;
+   return mjsonrpc_call("db_get_values", req, id, callback, error_callback);
+}
+
 function mjsonrpc_db_paste(paths, values, id, callback, error_callback) {
    var req = new Object();
    req.paths = paths;
@@ -810,7 +816,7 @@ function mhttpd_programs_page_add_table_entry(table, name, colspan)
    input = start_button;
    input.id = "start " + name;
    input.type = "button";
-   input.innerHTML = "Start";
+   input.innerHTML = "Start " + name;
    input.disabled = true;
    input.onclick = function() {
       start_button.disabled = true;
@@ -827,7 +833,7 @@ function mhttpd_programs_page_add_table_entry(table, name, colspan)
    input = stop_button;
    input.id = "stop " + name;
    input.type = "button";
-   input.innerHTML = "Stop";
+   input.innerHTML = "Stop " + name;
    input.disabled = true;
    input.onclick = function() {
       stop_button.disabled = true;
@@ -878,22 +884,12 @@ function mhttpd_programs_page_callback(m, p, id, r)
       }
    }
 
-   function get(obj, name)
-   {
-      var name_lc = name.toLowerCase(name);
-      for (var key in obj) {
-         if (key.toLowerCase() == name_lc)
-            return obj[key]
-         }
-      return null;
-   }
-
    function find_client(clients, name)
    {
       var found;
       var name_lc = name.toLowerCase(name);
       for (var key in clients) {
-         var cname = get(clients[key], "name");
+         var cname = clients[key].name;
          var cname_lc =  cname.toLowerCase();
          var same_name = (cname_lc == name_lc);
          var matching_name = false;
@@ -923,7 +919,7 @@ function mhttpd_programs_page_callback(m, p, id, r)
 
    for (var name in programs) {
       var e = document.getElementById("program " + name);
-      var required = get(programs[name], "required");
+      var required = programs[name].required;
       var xclients = find_client(clients, name);
       //alert("name " + name + " clients: " + JSON.stringify(xclients));
       if (required || xclients) {
@@ -937,7 +933,7 @@ function mhttpd_programs_page_callback(m, p, id, r)
             var s = "";
             for (var i=0; i<xclients.length; i++) {
                var key = xclients[i];
-               var host = get(clients[key], "host");
+               var host = clients[key].host;
                if (host) {
                   if (s.length > 0)
                      s += "<br>";
@@ -957,7 +953,7 @@ function mhttpd_programs_page_callback(m, p, id, r)
             set_attr("stop " + name, "disabled", true);
          }
 
-         var alarm_class = get(programs[name], "alarm class");
+         var alarm_class = programs[name]["alarm class"];
          if (alarm_class.length > 0) {
             set_text("program alarm ", name, "<a href='Alarms/Classes/"+ alarm_class + "'>" + alarm_class + "</a>");
             set_class("program alarm ", name, "yellowLight");
@@ -965,7 +961,7 @@ function mhttpd_programs_page_callback(m, p, id, r)
             set_text("program alarm ", name, "-");
          }
 
-         if (get(programs[name], "auto restart"))
+         if (programs[name]["auto restart"])
             set_text("program autorestart ", name, "Yes");
          else
             set_text("program autorestart ", name, "No");
@@ -986,7 +982,7 @@ function mhttpd_programs_page_update()
    var updatePeriod = 1000; // in milli-seconds
    var paths = [ "/Programs", "/System/Clients", "/Alarms" ];
    document.getElementById('updateStatus').innerHTML = "Requesting new data...";
-   mjsonrpc_db_copy(paths, null, mhttpd_programs_page_callback);
+   mjsonrpc_db_get_values(paths, null, mhttpd_programs_page_callback);
    document.getElementById('updateStatus').innerHTML = "Waiting for new data...";
    mhttpd_programs_page_updateTimerId = setTimeout('mhttpd_programs_page_update()', updatePeriod);
 }

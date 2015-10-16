@@ -228,7 +228,7 @@ function testShutdownMissingParameter()
       var variables = r.result.data[4];
       document.getElementById('db_copy_status').innerHTML = status;
       document.getElementById('db_copy_runstate').innerHTML = runinfo.State;
-      document.getElementById('db_copy_runnumber').innerHTML = runnumber["Run number"];
+      document.getElementById('db_copy_runnumber').innerHTML = runnumber;
       document.getElementById('db_copy_settings_example_int').innerHTML = settings.example_int;
       document.getElementById('db_copy_data0').innerHTML = variables.SLOW[0];
       document.getElementById('db_copy_data1').innerHTML = variables.SLOW[1];
@@ -749,6 +749,31 @@ ODBEdit(path);
         </ul>
 
       <li>
+        <h2>mjsonrpc_db_get_values()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='var paths = [
+          "/Runinfo",
+          "/Runinfo/Run number",
+          "/does-not-exist",
+          "/Equipment/RpcExample/Settings",
+          "/Equipment/RpcExample/Variables",
+          "/test/intarray[0]",
+          "/test/intarray[0,2]",
+          "/test/intarray[0-2]",
+          "/test/intarray[0,3-4,1-2]",
+          "/test/intarray[4-0]",
+          "/test/intarray[1,100]",
+          "/test/intarray[invalid index]"
+          ];
+          mjsonrpc_db_get_values(paths, null, db_copy_callback, mjsonrpc_debug_error_callback);'></input>
+        </p>
+        <ul>
+	  db_get_values results are loaded into the db_copy section above
+        </ul>
+
+      <li>
         <h2>mjsonrpc_db_paste()</h2>
 
         <p>
@@ -775,6 +800,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Fri Oct 16 11:00:17 PDT 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Fri Oct 16 11:21:12 PDT 2015 <!-- hhmts end -->
   </body>
 </html>

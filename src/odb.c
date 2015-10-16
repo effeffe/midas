@@ -7632,9 +7632,9 @@ INT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int* buf
    return DB_SUCCESS;
 }
 
-static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int level, int must_be_subdir, int save_keys, int follow_links, int recurse);
+static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int level, int must_be_subdir, int save_keys, int follow_links, int recurse, int lowercase);
 
-static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int level, int save_keys, int follow_links, int recurse)
+static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int level, int save_keys, int follow_links, int recurse, int lowercase)
 {
    int status;
    int i;
@@ -7683,6 +7683,12 @@ static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buf
          json_write(buffer, buffer_size, buffer_end, 0, "\n", 0);
       }
 
+      if (lowercase) {
+         int i;
+         for (i=0; i<sizeof(link.name) && link.name[i]; i++)
+            link.name[i] = tolower(link.name[i]);
+      }
+
       if (link.type != TID_KEY && save_keys) {
          char buf[MAX_ODB_PATH];
          strlcpy(buf, link.name, sizeof(buf));
@@ -7708,7 +7714,7 @@ static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buf
       if (link_target.type == TID_KEY && !recurse) {
          json_write(buffer, buffer_size, buffer_end, 0, "{ }" , 0);
       } else {
-         status = json_write_anything(hDB, hLinkTarget, buffer, buffer_size, buffer_end, level, 0, save_keys, follow_links, recurse);
+         status = json_write_anything(hDB, hLinkTarget, buffer, buffer_size, buffer_end, level, 0, save_keys, follow_links, recurse, lowercase);
          if (status != DB_SUCCESS)
             return status;
       }
@@ -7717,7 +7723,7 @@ static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buf
    return DB_SUCCESS;
 }
 
-static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int level, int must_be_subdir, int save_keys, int follow_links, int recurse)
+static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int level, int must_be_subdir, int save_keys, int follow_links, int recurse, int lowercase)
 {
    int status;
    KEY key;
@@ -7730,7 +7736,7 @@ static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer
 
       json_write(buffer, buffer_size, buffer_end, 0, "{", 0);
 
-      status = json_write_bare_subdir(hDB, hKey, buffer, buffer_size, buffer_end, level+1, save_keys, follow_links, recurse);
+      status = json_write_bare_subdir(hDB, hKey, buffer, buffer_size, buffer_end, level+1, save_keys, follow_links, recurse, lowercase);
       if (status != DB_SUCCESS)
          return status;
 
@@ -7752,17 +7758,17 @@ static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer
 
 INT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
 {
-   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, 0, 1, 1, 1, 0);
+   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, 0, 1, 1, 1, 0, 0);
 }
 
 INT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
 {
-   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, 0, 0, 0, 1, 1);
+   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, 0, 0, 0, 1, 1, 1);
 }
 
-INT db_copy_json_all(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
+INT db_copy_json_save(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
 {
-   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, 0, 1, 1, 0, 1);
+   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, 0, 1, 1, 0, 1, 0);
 }
 
 /********************************************************************/
@@ -7840,7 +7846,7 @@ INT db_save_json(HNDLE hDB, HNDLE hKey, const char *filename)
       json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
 
       //status = db_save_json_key_obsolete(hDB, hKey, -1, &buffer, &buffer_size, &buffer_end, 1, 0, 1);
-      status = json_write_bare_subdir(hDB, hKey, &buffer, &buffer_size, &buffer_end, 1, 1, 0, 1);
+      status = json_write_bare_subdir(hDB, hKey, &buffer, &buffer_size, &buffer_end, 1, 1, 0, 1, 0);
 
       json_write(&buffer, &buffer_size, &buffer_end, 0, "\n}\n", 0);
 

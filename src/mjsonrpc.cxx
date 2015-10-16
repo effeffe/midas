@@ -272,7 +272,7 @@ static int parse_array_index_list(const char* method, const char* path, std::vec
    return SUCCESS;
 }
 
-static MJsonNode* js_db_copy(const MJsonNode* params)
+static MJsonNode* x_db_copy(const MJsonNode* params, bool values_flag)
 {
    MJsonNode* error = NULL;
 
@@ -368,7 +368,11 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
          int bufsize = 0;
          int end = 0;
 
-         status = db_copy_json_values(hDB, hkey, &buf, &bufsize, &end);
+         if (values_flag)
+            status = db_copy_json_values(hDB, hkey, &buf, &bufsize, &end);
+         else
+            status = db_copy_json_save(hDB, hkey, &buf, &bufsize, &end);
+
          if (status == DB_SUCCESS) {
             dresult->AddToArray(MJsonNode::MakeJSON(buf));
             sresult->AddToArray(MJsonNode::MakeInt(status));
@@ -385,6 +389,16 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
    }
 
    return mjsonrpc_make_result("data", dresult, "status", sresult, "last_written", lwresult);
+}
+
+static MJsonNode* js_db_copy(const MJsonNode* params)
+{
+   return x_db_copy(params, false);
+}
+
+static MJsonNode* js_db_get_values(const MJsonNode* params)
+{
+   return x_db_copy(params, true);
 }
 
 static MJsonNode* js_db_paste(const MJsonNode* params)
@@ -490,6 +504,7 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
    mjsonrpc_add_handler("db_copy",     js_db_copy);
    mjsonrpc_add_handler("db_paste",    js_db_paste);
+   mjsonrpc_add_handler("db_get_values", js_db_get_values);
    mjsonrpc_add_handler("start_program", start_program);
 }
 
