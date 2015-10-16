@@ -126,7 +126,7 @@ const MJsonNode* mjsonrpc_get_param(const MJsonNode* params, const char* name, M
    return obj;
 }
 
-static MJsonNode* null(const MJsonNode* params)
+static MJsonNode* xnull(const MJsonNode* params)
 {
    return mjsonrpc_make_result(MJsonNode::MakeNull());
 }
@@ -483,7 +483,7 @@ void mjsonrpc_init()
       printf("mjsonrpc_init!\n");
    }
 
-   mjsonrpc_add_handler("null", null);
+   mjsonrpc_add_handler("null", xnull);
    mjsonrpc_add_handler("get_debug",   get_debug);
    mjsonrpc_add_handler("set_debug",   set_debug);
    mjsonrpc_add_handler("cm_exist",    js_cm_exist);
