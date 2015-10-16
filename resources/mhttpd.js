@@ -231,6 +231,14 @@ function ODBCopy(path, format)
    return request.responseText;
 }
 
+var mjsonrpc_default_url = "";
+var mjsonrpc_url = mjsonrpc_default_url;
+
+function mjsonrpc_set_url(url)
+{
+   mjsonrpc_url = url;
+}
+
 function mjsonrpc_call(method, params, id, callback, error_callback)
 {
    if (id == null)
@@ -248,6 +256,7 @@ function mjsonrpc_call(method, params, id, callback, error_callback)
 
    var xhr = new XMLHttpRequest();
    xhr.responseType = 'json';
+   xhr.withCredentials = true;
 
    xhr.onreadystatechange = function()
    {
@@ -283,7 +292,7 @@ function mjsonrpc_call(method, params, id, callback, error_callback)
       }
    }
 
-   xhr.open('POST', '?mjsonrpc');
+   xhr.open('POST', mjsonrpc_url + "?mjsonrpc");
    xhr.setRequestHeader('Content-Type', 'application/json');
    xhr.setRequestHeader('Accept', 'application/json');
    if (method == "send invalid json")
