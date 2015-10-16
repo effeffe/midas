@@ -17028,6 +17028,62 @@ static int event_handler_mg(struct mg_event *event)
       if (p)
          refresh = atoi(p);
 
+      if ((strcmp(event->request_info->request_method, "OPTIONS") == 0) &&
+          (strcmp(event->request_info->query_string, "mjsonrpc") == 0)) {
+         // JSON-RPC CORS pre-flight request, see
+         // https://en.wikipedia.org/wiki/Cross-origin_resource_sharing
+         //
+         // OPTIONS /resources/post-here/ HTTP/1.1
+         // Host: bar.other
+         // User-Agent: Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.5; en-US; rv:1.9.1b3pre) Gecko/20081130 Minefield/3.1b3pre
+         // Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+         // Accept-Language: en-us,en;q=0.5
+         // Accept-Encoding: gzip,deflate
+         // Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+         // Connection: keep-alive
+         // Origin: http://foo.example
+         // Access-Control-Request-Method: POST
+         // Access-Control-Request-Headers: X-PINGOTHER
+         //
+         // HTTP/1.1 200 OK
+         // Date: Mon, 01 Dec 2008 01:15:39 GMT
+         // Server: Apache/2.0.61 (Unix)
+         // Access-Control-Allow-Origin: http://foo.example
+         // Access-Control-Allow-Methods: POST, GET, OPTIONS
+         // Access-Control-Allow-Headers: X-PINGOTHER
+         // Access-Control-Max-Age: 1728000
+         // Vary: Accept-Encoding, Origin
+         // Content-Encoding: gzip
+         // Content-Length: 0
+         // Keep-Alive: timeout=2, max=100
+         // Connection: Keep-Alive
+         // Content-Type: text/plain
+         //
+
+         const char* origin_header = find_header_mg(event, "Origin");
+
+         std::string headers;
+         headers += "HTTP/1.1 200 OK\n";
+         //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+         if (origin_header)
+            headers += "Access-Control-Allow-Origin: " + std::string(origin_header) + "\n";
+         else
+            headers += "Access-Control-Allow-Origin: *\n";
+         headers += "Access-Control-Allow-Headers: Content-Type\n";
+         headers += "Access-Control-Allow-Credentials: true\n";
+         headers += "Access-Control-Max-Age: 120\n";
+         headers += "Content-Length: 0\n";
+         headers += "Content-Type: text/plain\n";
+         //printf("sending headers: %s\n", headers.c_str());
+         //printf("sending reply: %s\n", reply.c_str());
+
+         std::string send = headers + "\n";
+
+         mg_write(event->conn, send.c_str(), send.length());
+
+         return 1;
+      }
+
       if ((strcmp(event->request_info->request_method, "POST") == 0) &&
           (strcmp(event->request_info->query_string, "mjsonrpc") == 0)) {
          const char* ctype_header = find_header_mg(event, "Content-Type");
@@ -17073,9 +17129,16 @@ static int event_handler_mg(struct mg_event *event)
 
                int reply_length = reply.length();
 
+               const char* origin_header = find_header_mg(event, "Origin");
+
                std::string headers;
                headers += "HTTP/1.1 200 OK\n";
                //headers += "Connection: close\n";
+               if (origin_header)
+                  headers += "Access-Control-Allow-Origin: " + std::string(origin_header) + "\n";
+               else
+                  headers += "Access-Control-Allow-Origin: *\n";
+               headers += "Access-Control-Allow-Credentials: true\n";
                headers += "Content-Length: " + toString(reply_length) + "\n";
                headers += "Content-Type: application/json\n";
                //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
