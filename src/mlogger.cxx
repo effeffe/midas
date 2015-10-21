@@ -54,6 +54,35 @@ void create_sql_tree();
 #define STRLCPY(dst, src) strlcpy((dst), (src), sizeof(dst))
 #define STRLCAT(dst, src) strlcat((dst), (src), sizeof(dst))
 
+/*---- logger channel definition---------------------------------------*/
+
+class WriterInterface;
+
+typedef struct {
+   INT handle;
+   char path[256];
+   char pipe_command[256];
+   INT type;
+   INT format;
+   INT compression;
+   INT subrun_number;
+   INT buffer_handle;
+   INT msg_buffer_handle;
+   INT request_id;
+   INT msg_request_id;
+   HNDLE stats_hkey;
+   HNDLE settings_hkey;
+   CHN_SETTINGS settings;
+   CHN_STATISTICS statistics;
+   void **format_info;
+   FTP_CON *ftp_con;
+   void *gzfile;
+   FILE *pfile;
+   WriterInterface *writer;
+   DWORD last_checked;
+   BOOL  do_disk_level;
+} LOG_CHN;
+
 /*---- globals -----------------------------------------------------*/
 
 #define LOGGER_DEFAULT_TIMEOUT 60000
@@ -3161,8 +3190,8 @@ WriterInterface* NewChecksum(LOG_CHN* log_chn, int code, WriterInterface* chaine
 
 int log_create_writer(LOG_CHN *log_chn)
 {
-   assert(log_chn->writer_class == NULL);
-   log_chn->writer_class = NULL;
+   assert(log_chn->writer == NULL);
+   log_chn->writer = NULL;
 
    int xcompress = log_chn->compression;
    // compression format: ABNNN
@@ -3179,44 +3208,44 @@ int log_create_writer(LOG_CHN *log_chn)
 
    if (compression==80) {
 #ifdef HAVE_ROOT
-      log_chn->writer_class = (void*) new WriterROOT(log_chn);
+      log_chn->writer = new WriterROOT(log_chn);
       log_chn->do_disk_level = TRUE;
 #else
-      log_chn->writer_class = (void*) new WriterNull(log_chn);
+      log_chn->writer = new WriterNull(log_chn);
       log_chn->do_disk_level = TRUE;
 #endif
    } else if (compression==81) {
-      log_chn->writer_class = new WriterFtp(log_chn);
+      log_chn->writer = new WriterFtp(log_chn);
       log_chn->do_disk_level = FALSE;
       log_chn->statistics.disk_level = -1;
    } else if (compression==82) {
-      log_chn->writer_class = new WriterLZ4(log_chn, NewChecksum(log_chn, postchecksum, new WriterFtp(log_chn)));
+      log_chn->writer = new WriterLZ4(log_chn, NewChecksum(log_chn, postchecksum, new WriterFtp(log_chn)));
       log_chn->do_disk_level = FALSE;
       log_chn->statistics.disk_level = -1;
    } else if (compression==98) {
-      log_chn->writer_class = new WriterNull(log_chn);
+      log_chn->writer = new WriterNull(log_chn);
       log_chn->do_disk_level = TRUE;
    } else if (compression==99) {
-      log_chn->writer_class = new WriterFile(log_chn);
+      log_chn->writer = new WriterFile(log_chn);
       log_chn->do_disk_level = TRUE;
    } else if (compression==100) {
-      log_chn->writer_class = new WriterLZ4(log_chn, NewChecksum(log_chn, postchecksum, new WriterFile(log_chn)));
+      log_chn->writer = new WriterLZ4(log_chn, NewChecksum(log_chn, postchecksum, new WriterFile(log_chn)));
       log_chn->do_disk_level = TRUE;
    } else if (compression==200) {
-      log_chn->writer_class = NewWriterBzip2(log_chn);
+      log_chn->writer = NewWriterBzip2(log_chn);
       log_chn->do_disk_level = TRUE;
    } else if (compression==201) {
-      log_chn->writer_class = NewWriterPbzip2(log_chn);
+      log_chn->writer = NewWriterPbzip2(log_chn);
       log_chn->do_disk_level = TRUE;
 #ifdef HAVE_ZLIB
    } else if (compression==300) {
-      log_chn->writer_class = new WriterGzip(log_chn, 0);
+      log_chn->writer = new WriterGzip(log_chn, 0);
       log_chn->do_disk_level = TRUE;
    } else if (compression==301) {
-      log_chn->writer_class = new WriterGzip(log_chn, 1);
+      log_chn->writer = new WriterGzip(log_chn, 1);
       log_chn->do_disk_level = TRUE;
    } else if (compression==309) {
-      log_chn->writer_class = new WriterGzip(log_chn, 9);
+      log_chn->writer = new WriterGzip(log_chn, 9);
       log_chn->do_disk_level = TRUE;
    } else {
 #endif
@@ -3225,7 +3254,7 @@ int log_create_writer(LOG_CHN *log_chn)
    }
 
    if (prechecksum) {
-      log_chn->writer_class = (void*)NewChecksum(log_chn, prechecksum, (WriterInterface*)log_chn->writer_class);
+      log_chn->writer = NewChecksum(log_chn, prechecksum, log_chn->writer);
    }
 
    return SS_SUCCESS;
@@ -3239,8 +3268,8 @@ INT log_open(LOG_CHN * log_chn, INT run_number)
 
    log_chn->last_checked = ss_millitime();
 
-   if (log_chn->writer_class) {
-      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
+   if (log_chn->writer) {
+      WriterInterface* wr = log_chn->writer;
       int status = wr->wr_open(log_chn, run_number);
       if (status == SUCCESS) {
          /* write ODB dump */
@@ -3280,12 +3309,12 @@ INT log_close(LOG_CHN * log_chn, INT run_number)
 {
    char str[256], *p;
 
-   if (log_chn->writer_class) {
+   if (log_chn->writer) {
       /* write ODB dump */
       if (log_chn->settings.odb_dump)
          log_odb_dump(log_chn, EVENTID_EOR, run_number);
       
-      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
+      WriterInterface* wr = log_chn->writer;
 
       int status = wr->wr_close(log_chn, run_number);
       if (status == SUCCESS) {
@@ -3324,9 +3353,9 @@ INT log_close(LOG_CHN * log_chn, INT run_number)
    log_chn->handle = 0;
    log_chn->ftp_con = NULL;
 
-   if (log_chn->writer_class) {
-      delete ((WriterInterface*)log_chn->writer_class);
-      log_chn->writer_class = NULL;
+   if (log_chn->writer) {
+      delete log_chn->writer;
+      log_chn->writer = NULL;
    }
 
    return SS_SUCCESS;
@@ -3515,10 +3544,10 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 
    start_time = ss_millitime();
 
-   if (log_chn->writer_class) {
+   if (log_chn->writer) {
       int evt_size = pevent->data_size + sizeof(EVENT_HEADER);
 
-      WriterInterface* wr = ((WriterInterface*)log_chn->writer_class);
+      WriterInterface* wr = log_chn->writer;
       status = wr->wr_write(log_chn, pevent, evt_size);
 
       if (status == SUCCESS) {
@@ -4670,9 +4699,8 @@ int log_generate_file_name(LOG_CHN *log_chn)
       strcpy(path, str);
 
    /* add required file extension */
-   if (log_chn->writer_class) {
-      WriterInterface* wr = (WriterInterface*)log_chn->writer_class;
-      std::string file_ext = wr->wr_get_file_ext();
+   if (log_chn->writer) {
+      std::string file_ext = log_chn->writer->wr_get_file_ext();
       strlcat(path, file_ext.c_str(), sizeof(path));
    }
 
