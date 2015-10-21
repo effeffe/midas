@@ -4335,6 +4335,7 @@ int FileHistory::hs_disconnect()
 int FileHistory::read_schema(HsSchemaVector* sv, const char* event_name, const time_t timestamp)
 {
    int status;
+   DWORD start_time = ss_millitime();
 
    struct stat stat_buf;
    status = stat(fPath.c_str(), &stat_buf);
@@ -4402,6 +4403,11 @@ int FileHistory::read_schema(HsSchemaVector* sv, const char* event_name, const t
       //       if (s->time_from <= timestamp)
       //          break;
    }
+
+   DWORD end_time = ss_millitime();
+   DWORD elapsed = end_time - start_time;
+   if (elapsed > 3000)
+      cm_msg(MINFO, "FileHistory::read_schema", "Loading schema for event \"%s\" timestamp %s, operation took %d ms", event_name, TimeToString(timestamp).c_str(), (int)elapsed);
 
    return HS_SUCCESS;
 }
