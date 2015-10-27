@@ -34,9 +34,9 @@
 \********************************************************************/
 
 /********************************************************************/
-void el_decode(char *message, char *key, char *result, int size)
+static void el_decode(const char *message, const char *key, char *result, int size)
 {
-   char *rstart = result;
+   int i;
    char *pc;
 
    if (result == NULL)
@@ -44,13 +44,27 @@ void el_decode(char *message, char *key, char *result, int size)
 
    *result = 0;
 
-   if (strstr(message, key)) {
-      for (pc = strstr(message, key) + strlen(key); *pc != '\n';)
-         *result++ = *pc++;
-      *result = 0;
+   pc = strstr(message, key);
+
+   if (!pc)
+     return;
+
+   pc += strlen(key);
+
+   for (i=0; i<size; i++) {
+     if (pc[i] == 0)
+       break;
+     if (pc[i] == '\n')
+       break;
+     result[i] = pc[i];
    }
 
-   assert((int) strlen(rstart) < size);
+   assert(i<=size); // ensure that code above did not overrun the "result" array
+
+   if (i==size)
+     result[size-1] = 0;
+   else
+     result[i] = 0;
 }
 
 static void xwrite(const char* filename, int fd, const void* data, int size)
@@ -129,7 +143,9 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
           start_str[80], end_str[80], last[80], date[80], thread[80], attachment[256];
       HNDLE hDB;
       time_t now;
-      char message[10000], *p;
+      char *p;
+      char* message = NULL;
+      size_t message_size = 0;
       char *buffer = NULL;
       BOOL bedit;
 
@@ -265,17 +281,41 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
          }
          lseek(fh, offset, SEEK_SET);
          xread(file_name, fh, str, 16);
-         assert(strncmp(str, "$Start$", 7) == 0);
+
+         if (strncmp(str, "$Start$", 7) != 0) {
+            cm_msg(MERROR, "el_submit", "cannot read from \'%s\', corrupted file: no $Start$ in \"%s\"", file_name, str);
+            close(fh);
+            return EL_FILE_ERROR;
+         }
 
          size = atoi(str + 9);
+
+         if (size < 1) {
+            cm_msg(MERROR, "el_submit", "cannot read from \'%s\', corrupted file: bad size %d in \"%s\"", file_name, size, str);
+            close(fh);
+            return EL_FILE_ERROR;
+         }
+
+         message = malloc(size);
+
+         if (!message) {
+            cm_msg(MERROR, "el_submit", "cannot read from \'%s\', corrupted file: bad size %d in \"%s\", cannot malloc(%d): errno %d (%s)", file_name, size, str, size, errno, strerror(errno));
+            close(fh);
+            return EL_FILE_ERROR;
+         }
+
          status = read(fh, message, size);
-         if (status != size || status + 16 != size) {
+         if (status != size && status + 16 != size) {
+            free(message);
             return EL_FILE_ERROR;
          }
 
          el_decode(message, "Date: ", date, sizeof(date));
          el_decode(message, "Thread: ", thread, sizeof(thread));
          el_decode(message, "Attachment: ", attachment, sizeof(attachment));
+
+         free(message);
+         message = NULL;
 
          /* buffer tail of logfile */
          lseek(fh, 0, SEEK_END);
@@ -321,6 +361,29 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
          lseek(fh, 0, SEEK_END);
       }
 
+      message_size = 1000;
+      message_size += strlen(date);
+      message_size += strlen(author);
+      message_size += strlen(type);
+      message_size += strlen(syst);
+      message_size += strlen(subject);
+      message_size += strlen(attachment);
+      message_size += strlen(afile_name[0]);
+      message_size += strlen(afile_name[1]);
+      message_size += strlen(afile_name[2]);
+      message_size += strlen(encoding);
+      message_size += strlen(text);
+
+      //printf("message_size %d, text %d\n", (int)message_size, (int)strlen(text));
+
+      message = malloc(message_size);
+
+      if (!message) {
+         cm_msg(MERROR, "el_submit", "cannot malloc() %d bytes: errno %d (%s)", size, errno, strerror(errno));
+         close(fh);
+         return EL_FILE_ERROR;
+      }
+
       /* compose message */
 
       sprintf(message, "Date: %s\n", date);
@@ -347,7 +410,7 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
       sprintf(message + strlen(message), "========================================\n");
       strcat(message, text);
 
-      assert(strlen(message) < sizeof(message));        /* bomb out on array overrun. */
+      assert(strlen(message) < message_size);        /* bomb out on array overrun. */
 
       size = 0;
       sprintf(start_str, "$Start$: %6d\n", size);
@@ -367,6 +430,10 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
       xwrite(file_name, fh, start_str, strlen(start_str));
       xwrite(file_name, fh, message, strlen(message));
       xwrite(file_name, fh, end_str, strlen(end_str));
+
+      free(message);
+      message = NULL;
+      message_size = 0;
 
       if (bedit) {
          if (tail_size > 0) {
@@ -388,18 +455,19 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
       if (reply_to[0] && !bedit) {
          strcpy(last, reply_to);
          do {
-            status = el_search_message(last, &fh, FALSE);
+            char filename[256];
+            status = el_search_message(last, &fh, FALSE, filename, sizeof(filename));
             if (status == EL_SUCCESS) {
                /* position to next thread location */
                lseek(fh, 72, SEEK_CUR);
                memset(str, 0, sizeof(str));
-               xread("(unknown)", fh, str, 16);
+               xread(filename, fh, str, 16);
                lseek(fh, -16, SEEK_CUR);
 
                /* if no reply yet, set it */
                if (atoi(str) == 0) {
                   sprintf(str, "%16s", tag);
-                  xwrite("(unknown)", fh, str, 16);
+                  xwrite(filename, fh, str, 16);
                   close(fh);
                   break;
                } else {
@@ -426,7 +494,7 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-INT el_search_message(char *tag, int *fh, BOOL walk)
+INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilename_size)
 {
    int i, size, offset, direction, status;
    struct tm *tms, ltms;
@@ -439,6 +507,9 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
    tzset();
 #endif
 #endif
+
+   if (xfilename && xfilename_size > 0)
+      *xfilename = 0;
 
    /* open file */
    cm_get_experiment_database(&hDB, NULL);
@@ -484,6 +555,10 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
          tms = localtime(&ltime);
 
          sprintf(file_name, "%s%02d%02d%02d.log", dir, tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
+
+         if (xfilename)
+            strlcpy(xfilename, file_name, xfilename_size);
+
          *fh = open(file_name, O_RDWR | O_BINARY, 0644);
 
          if (*fh < 0) {
@@ -538,6 +613,10 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
          tms = localtime(&ltime);
 
          sprintf(file_name, "%s%02d%02d%02d.log", dir, tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
+
+         if (xfilename)
+            strlcpy(xfilename, file_name, xfilename_size);
+
          *fh = open(file_name, O_RDWR | O_BINARY, 0644);
 
          if (*fh < 0)
@@ -570,7 +649,10 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
             tms = localtime(&lt);
             sprintf(str, "%02d%02d%02d.0", tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
 
-            status = el_search_message(str, fh, FALSE);
+            status = el_search_message(str, fh, FALSE, file_name, sizeof(file_name));
+
+            if (xfilename)
+               strlcpy(xfilename, file_name, xfilename_size);
 
          } while (status != EL_SUCCESS && (INT) ltime - (INT) lt < 3600 * 24 * 365);
 
@@ -603,7 +685,10 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
       str[15] = 0;
 
       size = atoi(str + 7);
-      assert(size > 15);
+      if (size <= 15) {
+         close(*fh);
+         return EL_FILE_ERROR;
+      }
 
       lseek(*fh, -size, SEEK_CUR);
 
@@ -635,7 +720,11 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
       str[15] = 0;
 
       size = atoi(str + 9);
-      assert(size > 15);
+
+      if (size <= 15) {
+         close(*fh);
+         return EL_FILE_ERROR;
+      }
 
       lseek(*fh, size, SEEK_CUR);
 
@@ -651,7 +740,10 @@ INT el_search_message(char *tag, int *fh, BOOL walk)
             tms = localtime(&lt);
             sprintf(str, "%02d%02d%02d.0", tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
 
-            status = el_search_message(str, fh, FALSE);
+            status = el_search_message(str, fh, FALSE, file_name, sizeof(file_name));
+
+            if (xfilename)
+               strlcpy(xfilename, file_name, xfilename_size);
 
          } while (status != EL_SUCCESS && (INT) lt - (INT) lact < 3600 * 24);
 
@@ -712,24 +804,29 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
 {
    int size, fh = 0, search_status, rd;
    char str[256], *p;
-   char message[10000], thread[256];
+   char thread[256];
    char attachment_all[3*256+100]; /* size of attachement1/2/3 from show_elog_submit_query() */
+   char *message = NULL;
+   size_t message_size = 0;
+   char filename[256];
 
    if (tag[0]) {
-      search_status = el_search_message(tag, &fh, TRUE);
+      search_status = el_search_message(tag, &fh, TRUE, filename, sizeof(filename));
       if (search_status != EL_SUCCESS)
          return search_status;
    } else {
       /* open most recent message */
       strcpy(tag, "-1");
-      search_status = el_search_message(tag, &fh, TRUE);
+      search_status = el_search_message(tag, &fh, TRUE, filename, sizeof(filename));
       if (search_status != EL_SUCCESS)
          return search_status;
    }
 
+   //printf("el_retrieve: reading [%s]\n", filename);
+
    /* extract message size */
    TELL(fh);
-   rd = xread("(unknown)", fh, str, 15);
+   rd = xread(filename, fh, str, 15);
    if (rd != 15)
       return EL_FILE_ERROR;
 
@@ -739,15 +836,31 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
    /* get size */
    size = atoi(str + 9);
 
-   assert(strncmp(str, "$Start$:", 8) == 0);
-   assert(size > 15);
-   assert(size < (int)sizeof(message));
+   if ((strncmp(str, "$Start$:", 8) != 0) || (size <= 15)) {
+      cm_msg(MERROR, "el_retrieve", "cannot read from \'%s\', corrupted file: no $Start$ or bad size in \"%s\"", filename, str);
+      close(fh);
+      return EL_FILE_ERROR;
+   }
 
-   memset(message, 0, sizeof(message));
+   message_size = size + 1;
+   message = malloc(message_size);
+
+   if (!message) {
+      cm_msg(MERROR, "el_retrieve", "cannot read from \'%s\', cannot malloc() %d bytes, errno %d (%s)", filename, (int)message_size, errno, strerror(errno));
+      free(message);
+      close(fh);
+      return EL_FILE_ERROR;
+   }
+
+   memset(message, 0, message_size);
 
    rd = read(fh, message, size);
-   if (rd <= 0 || !((rd + 15 == size) || (rd == size)))
+   if (rd <= 0 || !((rd + 15 == size) || (rd == size))) {
+      cm_msg(MERROR, "el_retrieve", "cannot read from \'%s\', read(%d) returned %d, errno %d (%s)", filename, size, rd, errno, strerror(errno));
+      free(message);
+      close(fh);
       return EL_FILE_ERROR;
+   }
 
    close(fh);
 
@@ -769,19 +882,15 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
       attachment1[0] = attachment2[0] = attachment3[0] = 0;
       p = strtok(attachment_all, ",");
       if (p != NULL) {
-         strcpy(attachment1, p);
+         strlcpy(attachment1, p, 256);          /* size from show_elog_submit_query() */
          p = strtok(NULL, ",");
          if (p != NULL) {
-            strcpy(attachment2, p);
+            strlcpy(attachment2, p, 256);       /* size from show_elog_submit_query() */
             p = strtok(NULL, ",");
             if (p != NULL)
-               strcpy(attachment3, p);
+               strlcpy(attachment3, p, 256);    /* size from show_elog_submit_query() */
          }
       }
-
-      assert(strlen(attachment1) < 256);        /* size from show_elog_submit_query() */
-      assert(strlen(attachment2) < 256);        /* size from show_elog_submit_query() */
-      assert(strlen(attachment3) < 256);        /* size from show_elog_submit_query() */
    }
 
    /* conver thread in reply-to and reply-from */
@@ -810,6 +919,7 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
          if ((int) strlen(p) >= *textsize) {
             strncpy(text, p, *textsize - 1);
             text[*textsize - 1] = 0;
+            free(message);
             return EL_TRUNCATED;
          } else {
             strcpy(text, p);
@@ -825,6 +935,9 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
          *textsize = 0;
       }
    }
+
+   free(message);
+   message = NULL;
 
    if (search_status == EL_LAST_MSG)
       return EL_LAST_MSG;
@@ -861,7 +974,7 @@ INT el_search_run(int run, char *return_tag)
    do {
       /* open first message in file */
       strcat(tag, "-1");
-      status = el_search_message(tag, &fh, TRUE);
+      status = el_search_message(tag, &fh, TRUE, NULL, 0);
       if (status == EL_FIRST_MSG)
          break;
       if (status != EL_SUCCESS)
@@ -877,7 +990,7 @@ INT el_search_run(int run, char *return_tag)
 
    while (actual_run < run) {
       strcat(tag, "+1");
-      status = el_search_message(tag, &fh, TRUE);
+      status = el_search_message(tag, &fh, TRUE, NULL, 0);
       if (status == EL_LAST_MSG)
          break;
       if (status != EL_SUCCESS)
@@ -1009,3 +1122,10 @@ INT el_delete_message(const char *tag)
 /**dox***************************************************************/
 /** @} *//* end of elfunctioncode */
 
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */

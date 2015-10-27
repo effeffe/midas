@@ -1983,7 +1983,7 @@ extern "C" {
                        INT buffer_size1, const char *afilename2, char *buffer2,
                        INT buffer_size2, const char *afilename3, char *buffer3,
                        INT buffer_size3, char *tag, INT tag_size);
-   INT EXPRT el_search_message(char *tag, int *fh, BOOL walk);
+   INT EXPRT el_search_message(char *tag, int *fh, BOOL walk, char* filename, int filename_size);
    INT EXPRT el_search_run(int run, char *return_tag);
    INT EXPRT el_delete_message(const char *tag);
 
