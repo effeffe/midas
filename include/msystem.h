@@ -511,31 +511,6 @@ typedef struct {
    double disk_level;
 } CHN_STATISTICS;
 
-typedef struct {
-   INT handle;
-   char path[256];
-   char pipe_command[256];
-   INT type;
-   INT format;
-   INT compression;
-   INT subrun_number;
-   INT buffer_handle;
-   INT msg_buffer_handle;
-   INT request_id;
-   INT msg_request_id;
-   HNDLE stats_hkey;
-   HNDLE settings_hkey;
-   CHN_SETTINGS settings;
-   CHN_STATISTICS statistics;
-   void **format_info;
-   FTP_CON *ftp_con;
-   void *gzfile;
-   FILE *pfile;
-   void *writer_class;
-   DWORD last_checked;
-   BOOL  do_disk_level;
-} LOG_CHN;
-
 #define LOG_TYPE_DISK 1
 #define LOG_TYPE_TAPE 2
 #define LOG_TYPE_FTP  3
