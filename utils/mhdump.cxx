@@ -216,8 +216,10 @@ int readHstFile(FILE*f)
                      }
                   else
                      {
-                        e->tagNames.clear();
-                        e->tagIndexes.clear();
+                        if (e->printAllTags) {
+                           e->tagNames.clear();
+                           e->tagIndexes.clear();
+                        }
                      }
 
                   e->size = 0;
