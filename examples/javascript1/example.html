@@ -216,9 +216,14 @@ function testShutdownMissingParameter()
       alert("Test of JSON decode: " + json + " decoded as data array: " + data);
       }
 
-      function db_copy_callback(m, p, id, r)
+      function db_copy_callback(request, r)
       {
       document.getElementById('db_copy_json_data').innerHTML = JSON.stringify(r);
+      }
+
+      function db_get_values_callback(request, r)
+      {
+      document.getElementById('db_get_values_json_data').innerHTML = JSON.stringify(r);
       var now = new Date().getTime()/1000;
       var status = r.result.status;
       var runinfo = r.result.data[0];
@@ -226,19 +231,19 @@ function testShutdownMissingParameter()
       var error = r.result.data[2];
       var settings = r.result.data[3];
       var variables = r.result.data[4];
-      document.getElementById('db_copy_status').innerHTML = status;
-      document.getElementById('db_copy_runstate').innerHTML = runinfo.State;
-      document.getElementById('db_copy_runnumber').innerHTML = runnumber;
-      document.getElementById('db_copy_settings_example_int').innerHTML = settings.example_int;
-      document.getElementById('db_copy_data0').innerHTML = variables.SLOW[0];
-      document.getElementById('db_copy_data1').innerHTML = variables.SLOW[1];
-      document.getElementById('db_copy_data2').innerHTML = variables.SLOW[2];
+      document.getElementById('db_get_values_status').innerHTML = status;
+      document.getElementById('db_get_values_runstate').innerHTML = runinfo.state;
+      document.getElementById('db_get_values_runnumber').innerHTML = runnumber;
+      document.getElementById('db_get_values_settings_example_int').innerHTML = settings.example_int;
+      document.getElementById('db_get_values_data0').innerHTML = variables.slow[0];
+      document.getElementById('db_get_values_data1').innerHTML = variables.slow[1];
+      document.getElementById('db_get_values_data2').innerHTML = variables.slow[2];
       var lw;
-      if (variables['SLOW/key'])
-      lw = variables['SLOW/key'].last_written;
+      if (variables['slow/key'])
+      lw = variables['slow/key'].last_written;
       else
-      lw = variables['SLOW/last_written'];
-      document.getElementById('db_copy_data_age').innerHTML = now - lw;
+      lw = variables['slow/last_written'];
+      document.getElementById('db_get_values_data_age').innerHTML = now - lw;
       }
 
     </script>
@@ -671,7 +676,7 @@ ODBEdit(path);
         <p> Test error responses:
           <input type=button value='test unknown method request' onClick='mjsonrpc_call("unknown method", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='test invalid request' onClick='mjsonrpc_call("echo", function(){ ; }, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='test send invalid json' onClick='mjsonrpc_call("send invalid json", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='test send invalid json' onClick='mjsonrpc_send_request("send invalid json", mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='test invalid_json reply' onClick='mjsonrpc_call("invalid_json", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='test request with null response' onClick='mjsonrpc_call("null", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
         </p>
@@ -738,14 +743,6 @@ ODBEdit(path);
         </p>
         <ul>
           <li>JSON data: <tt id='db_copy_json_data'></tt>
-          <li>db_copy() status: <tt id='db_copy_status'></tt>
-          <li>Runinfo/State: <tt id='db_copy_runstate'></tt>
-          <li>Run number: <tt id='db_copy_runnumber'></tt>
-          <li>Settings/example_int: <tt id='db_copy_settings_example_int'></tt>
-          <li>SLOW[0]: <tt id='db_copy_data0'></tt>
-          <li>SLOW[1]: <tt id='db_copy_data1'></tt>
-          <li>SLOW[2]: <tt id='db_copy_data2'></tt>
-          <li>data age: <tt id='db_copy_data_age'></tt>
         </ul>
 
       <li>
@@ -767,10 +764,18 @@ ODBEdit(path);
           "/test/intarray[1,100]",
           "/test/intarray[invalid index]"
           ];
-          mjsonrpc_db_get_values(paths, null, db_copy_callback, mjsonrpc_debug_error_callback);'></input>
+          mjsonrpc_db_get_values(paths, null, db_get_values_callback, mjsonrpc_debug_error_callback);'></input>
         </p>
         <ul>
-	  db_get_values results are loaded into the db_copy section above
+          <li>JSON data: <tt id='db_get_values_json_data'></tt>
+          <li>db_get_values() status: <tt id='db_get_values_status'></tt>
+          <li>Runinfo/State: <tt id='db_get_values_runstate'></tt>
+          <li>Run number: <tt id='db_get_values_runnumber'></tt>
+          <li>Settings/example_int: <tt id='db_get_values_settings_example_int'></tt>
+          <li>SLOW[0]: <tt id='db_get_values_data0'></tt>
+          <li>SLOW[1]: <tt id='db_get_values_data1'></tt>
+          <li>SLOW[2]: <tt id='db_get_values_data2'></tt>
+          <li>data age: <tt id='db_get_values_data_age'></tt>
         </ul>
 
       <li>
@@ -800,6 +805,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Fri Oct 16 11:21:12 PDT 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Wed Oct 28 12:22:18 PDT 2015 <!-- hhmts end -->
   </body>
 </html>

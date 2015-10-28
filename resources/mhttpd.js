@@ -236,23 +236,19 @@ var mjsonrpc_url = mjsonrpc_default_url;
 
 function mjsonrpc_set_url(url)
 {
+   /// Change the URL of JSON-RPC server
+   /// @param[in] url the new URL, i.e. "https://daqserver.example.com:8443" (string)
+   /// @returns nothing
    mjsonrpc_url = url;
 }
 
-function mjsonrpc_call(method, params, id, callback, error_callback)
+function mjsonrpc_send_request(req, callback, error_callback)
 {
-   if (id == null)
-      id = Date.now();
-
-   var req = new Object();
-   req.jsonrpc = "2.0"; // version
-   req.method = method;
-   if (typeof params == 'string') {
-      req.params = JSON.parse(params);
-   } else {
-      req.params = params;
-   }
-   req.id = id;
+   /// Sends JSON-RPC request(s) via HTTP POST
+   /// @param[in] req request object or an array of request objects (object or array)
+   /// @param[in,out] callback optional function to receive RPC reply (see mjsonrpc_debug_callback()) (function)
+   /// @param[in,out] error_callback optional function to receive RPC error status (see mjsonrpc_debug_error_callback()) (function)
+   /// @returns the request XHR object (object)
 
    var xhr = new XMLHttpRequest();
    xhr.responseType = 'json';
@@ -281,13 +277,13 @@ function mjsonrpc_call(method, params, id, callback, error_callback)
 
             if (have_response) {
                if (callback != undefined)
-                  callback(method, params, id, xhr.response);
+                  callback(req, xhr.response);
                return;
             }
          }
 
          if (error_callback != undefined) {
-            error_callback(method, params, id, xhr, exc);
+            error_callback(req, xhr, exc);
          }
       }
    }
@@ -295,18 +291,28 @@ function mjsonrpc_call(method, params, id, callback, error_callback)
    xhr.open('POST', mjsonrpc_url + "?mjsonrpc");
    xhr.setRequestHeader('Content-Type', 'application/json');
    xhr.setRequestHeader('Accept', 'application/json');
-   if (method == "send invalid json")
+   if (req == "send invalid json")
       xhr.send("invalid json");
    else
       xhr.send(JSON.stringify(req));
    return xhr;
 }
 
-function mjsonrpc_debug_callback(m, p, id, r) {
-   alert("mjsonrpc_debug_callback: method: \"" + m + "\", params: " + p + ", id: " + id + ", response: "+JSON.stringify(r));
+function mjsonrpc_debug_callback(request, response) {
+   /// Receives the response to a JSON-RPC request
+   /// @param[in] request JSON-RPC request (object)
+   /// @param[in] response JSON-RPC request response (object)
+   /// @returns nothing
+   alert("mjsonrpc_debug_callback: method: \"" + request.method + "\", params: " + request.params + ", id: " + request.id + ", response: "+JSON.stringify(response));
 }
 
-function mjsonrpc_decode_error_callback(m, p, id, xhr, exc) {
+function mjsonrpc_decode_error_callback(request, xhr, exc) {
+   /// Convert RPC error status to human-readable string
+   /// @param[in] request request object (object)
+   /// @param[in] xhr request XHR object (object)
+   /// @param[in] exc request exception object (object)
+   /// @returns decoded error report (string)
+
    function is_network_error(xhr) {
       return xhr.readyState==4 && xhr.status==0;
    }
@@ -316,37 +322,91 @@ function mjsonrpc_decode_error_callback(m, p, id, xhr, exc) {
    function print_xhr(xhr) {
       return "readyState: " + xhr.readyState + ", HTTP status: " + xhr.status + " (" + xhr.statusText + ")";
    }
-   function print_request(m, p, id) {
-      return "method: \"" + m + "\", params: " + p + ", id: " + id;
+   function print_request(request) {
+      return "method: \"" + request.method + "\", params: " + request.params + ", id: " + request.id;
    }
 
    if (is_network_error(xhr)) {
-      return "network error: see javascript console, " + print_request(m, p, id);
+      return "network error: see javascript console, " + print_request(request);
    } else if (is_http_error(xhr)) {
-      return "http error: " + print_xhr(xhr) + ", " + print_request(m, p, id);
+      return "http error: " + print_xhr(xhr) + ", " + print_request(request);
    } else if (exc) {
-      return "exception: " + exc + ", " + print_request(m, p, id);
+      return "exception: " + exc + ", " + print_request(request);
    } else if (!xhr.response) {
-      return "json-rpc error: null response, " + print_request(m, p, id);
+      return "json-rpc error: null response, " + print_request(request);
    } else if (xhr.response.error) {
-      return "json-rpc error: " + JSON.stringify(xhr.response.error) + ", " + print_request(m, p, id);
+      return "json-rpc error: " + JSON.stringify(xhr.response.error) + ", " + print_request(request);
    } else {
-      return "what happened?!?, " + print_request(mp, p, id) + ", xhr: " + print_xhr(xhr) + ", exc: " + exc;
+      return "what happened?!?, " + print_request(request) + ", xhr: " + print_xhr(xhr) + ", exc: " + exc;
    }
 }
 
-function mjsonrpc_debug_error_callback(m, p, id, xhr, exc) {
-   var s = mjsonrpc_decode_error_callback(m, p, id, xhr, exc);
+function mjsonrpc_debug_error_callback(request, xhr, exc) {
+   /// Handle all errors
+   /// @param[in] request request object (object)
+   /// @param[in] xhr request XHR object (object)
+   /// @param[in] exc request exception object (object)
+   /// @returns nothing
+   var s = mjsonrpc_decode_error_callback(request, xhr, exc);
    alert("mjsonrpc_debug_error_callback: " + s);
 }
 
+function mjsonrpc_make_request(method, params, id)
+{
+   /// Create a JSON-RPC request
+   /// @param[in] method name of the RPC method (string)
+   /// @param[in] params parameters of the RPC method (object)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns the request object (object)
+
+   if (id == null)
+      id = Date.now();
+
+   var req = new Object();
+   req.jsonrpc = "2.0"; // version
+   req.method = method;
+   if (typeof params == 'string') {
+      req.params = JSON.parse(params);
+   } else {
+      req.params = params;
+   }
+   req.id = id;
+
+   return req;
+}
+
+function mjsonrpc_call(method, params, id, callback, error_callback)
+{
+   /// Creates a JSON-RPC request and sends it to mhttpd via HTTP POST
+   /// @param[in] method name of the RPC method (string)
+   /// @param[in] params parameters of the RPC method (object)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @param[in,out] callback optional function to receive RPC reply (see mjsonrpc_debug_callback()) (function)
+   /// @param[in,out] error_callback optional function to receive RPC error status (see mjsonrpc_debug_error_callback()) (function)
+   /// @returns the request XHR object (object)
+
+   var req = mjsonrpc_make_request(method, params, id);
+   return mjsonrpc_send_request(req, callback, error_callback);
+}
+
 function mjsonrpc_start_program(name, id, callback, error_callback) {
+   /// Start a MIDAS program
+   /// @param[in] name Name of program to start, should be same as the ODB entry "/Programs/name" (string)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @param[in,out] callback optional function to receive RPC reply (see mjsonrpc_debug_callback()) (function)
+   /// @param[in,out] error_callback optional function to receive RPC error status (see mjsonrpc_debug_error_callback()) (function)
    var req = new Object();
    req.name = name;
    return mjsonrpc_call("start_program", req, id, callback, error_callback);
 }
 
 function mjsonrpc_stop_program(name, unique, id, callback, error_callback) {
+   /// Stop a MIDAS program via cm_shutdown()
+   /// @param[in] name Name of program to stop (string)
+   /// @param[in] unique bUnique argument to cm_shutdown() (bool)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @param[in,out] callback optional function to receive RPC reply (see mjsonrpc_debug_callback()) (function)
+   /// @param[in,out] error_callback optional function to receive RPC error status (see mjsonrpc_debug_error_callback()) (function)
    var req = new Object();
    req.name = name;
    req.unique = unique;
@@ -852,7 +912,7 @@ function mhttpd_programs_page_add_table_entry(table, name, colspan)
 
 var mhttpd_programs_page_updateTimerId;
 
-function mhttpd_programs_page_callback(m, p, id, r)
+function mhttpd_programs_page_callback(request, r)
 {
    document.getElementById('updateStatus').innerHTML = "Processing new data...";
 
