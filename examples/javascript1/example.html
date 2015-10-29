@@ -794,6 +794,21 @@ ODBEdit(path);
           mjsonrpc_db_paste(paths, values, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
         </p>
 
+      <li>
+        <h2>mjsonrpc_db_create()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='var paths = [
+          { "path" : "/test_create/int", "type" : TID_INT },
+          { "path" : "/test_create/string1", "type" : TID_STRING },
+          { "path" : "/test_create/string2", "type" : TID_STRING, "string_length": 10 },
+          { "path" : "/test_create/double_array", "type" : TID_DOUBLE, "array_length": 5 },
+	  ];
+	  var values = [ 1, 2, [ 3, 4], 110, 120 ];
+          mjsonrpc_db_create(paths, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+        </p>
+
     </ul>
 
     <script type="text/javascript">
@@ -805,6 +820,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Wed Oct 28 12:22:18 PDT 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Thu Oct 29 13:00:48 PDT 2015 <!-- hhmts end -->
   </body>
 </html>

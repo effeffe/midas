@@ -432,6 +432,17 @@ function mjsonrpc_db_paste(paths, values, id, callback, error_callback) {
    return mjsonrpc_call("db_paste", req, id, callback, error_callback);
 }
 
+function mjsonrpc_db_create(paths, id, callback, error_callback) {
+   /// Create ODB entries
+   /// @param[in] paths Array of ODB entries to create (array of objects)
+   /// @param[in] paths[i].path ODB path name to create (string)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @param[in,out] callback optional function to receive RPC reply (see mjsonrpc_debug_callback()) (function)
+   /// @param[in,out] error_callback optional function to receive RPC error status (see mjsonrpc_debug_error_callback()) (function)
+
+   return mjsonrpc_call("db_create", paths, id, callback, error_callback);
+}
+
 function ODBCall(url, callback)
 {
    var request = XMLHttpRequestGeneric();
