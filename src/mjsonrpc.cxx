@@ -18,6 +18,7 @@
 
 #include "mjsonrpc.h"
 
+//////////////////////////////////////////////////////////////////////
 //
 // Specifications for JSON-RPC
 //
@@ -30,6 +31,7 @@
 //      for reasons unknown, the JSON standard does not specify a standard
 //      way for encoding these numeric values.
 //
+//////////////////////////////////////////////////////////////////////
 //
 // JSON-RPC error codes:
 //
@@ -70,6 +72,32 @@
 //    }
 // }
 //
+//////////////////////////////////////////////////////////////////////
+//
+// JSON-RPC is documented via an automatically generated JSON Schema.
+//
+// For more information about JSON Schemas, see:
+//
+// https://tools.ietf.org/html/draft-zyp-json-schema-04
+// http://spacetelescope.github.io/understanding-json-schema/
+// http://json-schema.org/
+//
+// JSON Schema examples:
+// http://json-schema.org/examples.html
+// http://json-schema.org/example1.html
+//
+// JSON Schema visualization: (schema file has to have a .json extension)
+// https://github.com/lbovet/docson
+//
+// Non-standard proposed JSON-RPC schema is *NOT* used: (no visualization tools)
+// http://www.simple-is-better.org/json-rpc/jsonrpc20-schema-service-descriptor.html
+//
+// Variances of MIDAS JSON-RPC Schema from standard:
+//
+// - optional parameters end with "?" and have an "optional:true" attribute, i.e. "bUnique?"
+// - array parameters end with "[]", JSON Schema array schema is not generated yet
+//
+//////////////////////////////////////////////////////////////////////
 
 int mjsonrpc_debug = 0;
 
