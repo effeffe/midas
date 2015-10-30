@@ -161,137 +161,178 @@ const MJsonNode* mjsonrpc_get_param(const MJsonNode* params, const char* name, M
    return obj;
 }
 
-struct MjsonrpcDoc
+MJSO* MJSO::MakeObjectSchema(const char* description) // constructor for object schema
 {
-   MJsonNode* doc;
-   MJsonNode* params;
-   MJsonNode* result;
-
-   MJsonNode* params_required;
-   MJsonNode* result_required;
-
-   MjsonrpcDoc() // ctor
-   {
-      doc = MJsonNode::MakeObject();
-      params = NULL;
-      result = NULL;
-
-      params_required = NULL;
-      result_required = NULL;
-   }
-
-   ~MjsonrpcDoc() // dtor
-   {
-
-   }
-
-   void D(const char* description)
-   {
-      doc->AddToObject("description", MJsonNode::MakeString(description));
-   }
-
-   void P(const char* param_name, int mjson_type, const char* description)
-   {
-      bool optional = strchr(param_name, '?');
-      bool array = strchr(param_name, '[');
-
-      std::string name = param_name;
-
-      if (name.length() < 1)
-         name = "anything";
-
-      if (!params)
-         params = MJsonNode::MakeObject();
-
-      MJsonNode* p = MJsonNode::MakeObject();
+   MJSO* p = new MJSO();
+   if (description)
       p->AddToObject("description", MJsonNode::MakeString(description));
-      if (mjson_type != 0)
-         p->AddToObject("type", MJsonNode::MakeString(MJsonNode::TypeToString(mjson_type)));
-      params->AddToObject(name.c_str(), p);
+   p->AddToObject("type", MJsonNode::MakeString("object"));
+   p->properties = MJsonNode::MakeObject();
+   p->required = MJsonNode::MakeArray();
+   p->AddToObject("properties", p->properties);
+   p->AddToObject("required", p->required);
+   return p;
+}
 
-      if (optional)
-         p->AddToObject("optional", MJsonNode::MakeBool(true));
+MJSO* MJSO::MakeArraySchema(const char* description) // constructor for array schema
+{
+   MJSO* p = new MJSO();
+   p->AddToObject("description", MJsonNode::MakeString(description));
+   p->AddToObject("type", MJsonNode::MakeString("array"));
+   p->items = MJsonNode::MakeArray();
+   p->AddToObject("items", p->items);
+   return p;
+}
 
+void MJSO::AddToSchema(MJsonNode* s, const char* name)
+{
+   if (!name)
+      name = "";
+
+   bool optional = strchr(name, '?');
+   bool array = strchr(name, '[');
+
+   if (optional)
+      s->AddToObject("optional", MJsonNode::MakeBool(true));
+
+   if (array) { // insert an array schema
+      MJSO* ss = MakeArraySchema(s->FindObjectNode("description")->GetString().c_str());
+      s->DeleteObjectNode("description");
+      ss->AddToSchema(s, "");
+      s = ss;
+   }
+
+   if (items)
+      items->AddToArray(s);
+   else {
+      assert(properties);
+      assert(required);
+      properties->AddToObject(name, s);
       if (!optional) {
-         if (!params_required)
-            params_required = MJsonNode::MakeArray();
-         params_required->AddToArray(MJsonNode::MakeString(name.c_str()));
+         required->AddToArray(MJsonNode::MakeString(name));
       }
    }
+}
 
-   void R(const char* result_name, int mjson_type, const char* description)
-   {
-      bool optional = strchr(result_name, '?');
-      bool array = strchr(result_name, '[');
+MJSO* MJSO::I()
+{
+   return MakeObjectSchema(NULL);
+}
 
-      std::string name = result_name;
+void MJSO::D(const char* description)
+{
+   this->AddToObject("description", MJsonNode::MakeString(description));
+}
 
-      if (name.length() < 1)
-         name = "anything";
-
-      if (!result)
-         result = MJsonNode::MakeObject();
-
-      MJsonNode* r = MJsonNode::MakeObject();
-      r->AddToObject("description", MJsonNode::MakeString(description));
-      if (mjson_type != 0)
-         r->AddToObject("type", MJsonNode::MakeString(MJsonNode::TypeToString(mjson_type)));
-      result->AddToObject(name.c_str(), r);
-
-      if (optional)
-         r->AddToObject("optional", MJsonNode::MakeBool(true));
-
-      if (!optional) {
-         if (!result_required)
-            result_required = MJsonNode::MakeArray();
-         result_required->AddToArray(MJsonNode::MakeString(name.c_str()));
-      }
+MJSO* MJSO::Params()
+{
+   if (!params) {
+      params = MakeObjectSchema(NULL);
+      this->AddToSchema(params, "params");
    }
+   return params;
+}
 
-   MJsonNode* X()
-   {
-      doc->AddToObject("type", MJsonNode::MakeString("object"));
-
-      MJsonNode* prop = MJsonNode::MakeObject();
-
-      if (params) {
-         MJsonNode* p = MJsonNode::MakeObject();
-         p->AddToObject("type", MJsonNode::MakeString("object"));
-         p->AddToObject("properties", params);
-         if (params_required)
-            p->AddToObject("required", params_required);
-         prop->AddToObject("params", p);
-      }
-
-      if (result) {
-         MJsonNode* r = MJsonNode::MakeObject();
-         r->AddToObject("type", MJsonNode::MakeString("object"));
-         r->AddToObject("properties", result);
-         if (result_required)
-            r->AddToObject("required", result_required);
-         prop->AddToObject("result", r);
-      }
-
-      doc->AddToObject("properties", prop);
-
-      MJsonNode* req = MJsonNode::MakeArray();
-      if (params_required)
-         req->AddToArray(MJsonNode::MakeString("params"));
-      if (result_required)
-         req->AddToArray(MJsonNode::MakeString("result"));
-      doc->AddToObject("required", req);
-      return doc;
+MJSO* MJSO::Result()
+{
+   if (!result) {
+      result = MakeObjectSchema(NULL);
+      this->AddToSchema(result, "result");
    }
-};
+   return result;
+}
+
+MJSO* MJSO::PA(const char* description)
+{
+   MJSO* s = MakeArraySchema(description);
+   this->AddToSchema(s, "params");
+   return s;
+}
+
+MJSO* MJSO::RA(const char* description)
+{
+   MJSO* s = MakeArraySchema(description);
+   this->AddToSchema(s, "result");
+   return s;
+}
+
+void MJSO::P(const char* name, int mjson_type, const char* description)
+{
+   if (name == NULL)
+      this->Add("params", mjson_type, description);
+   else
+      Params()->Add(name, mjson_type, description);
+}
+
+void MJSO::R(const char* name, int mjson_type, const char* description)
+{
+   if (name == NULL)
+      this->Add("result", mjson_type, description);
+   else
+      Result()->Add(name, mjson_type, description);
+}
+
+void MJSO::Add(const char* name, int mjson_type, const char* description)
+{
+   MJsonNode* p = MJsonNode::MakeObject();
+   p->AddToObject("description", MJsonNode::MakeString(description));
+   if (mjson_type == MJSON_ARRAY)
+      p->AddToObject("type", MJsonNode::MakeString("array"));
+   else if (mjson_type == MJSON_OBJECT)
+      p->AddToObject("type", MJsonNode::MakeString("object"));
+   else if (mjson_type == MJSON_STRING)
+      p->AddToObject("type", MJsonNode::MakeString("string"));
+   else if (mjson_type == MJSON_INT)
+      p->AddToObject("type", MJsonNode::MakeString("integer"));
+   else if (mjson_type == MJSON_NUMBER)
+      p->AddToObject("type", MJsonNode::MakeString("number"));
+   else if (mjson_type == MJSON_BOOL)
+      p->AddToObject("type", MJsonNode::MakeString("bool"));
+   else if (mjson_type == MJSON_NULL)
+      p->AddToObject("type", MJsonNode::MakeString("null"));
+   else if (mjson_type == 0)
+      ;
+   else
+      assert(!"invalid value of mjson_type");
+   this->AddToSchema(p, name);
+}
+
+MJSO* MJSO::AddObject(const char* name, const char* description)
+{
+   MJSO* s = MakeObjectSchema(description);
+   s->AddToObject("description", MJsonNode::MakeString(description));
+   s->AddToObject("type", MJsonNode::MakeString("object"));
+   this->AddToSchema(s, name);
+   return s;
+}
+
+MJSO* MJSO::AddArray(const char* name, const char* description)
+{
+   MJSO* s = MakeArraySchema(description);
+   s->AddToObject("description", MJsonNode::MakeString(description));
+   s->AddToObject("type", MJsonNode::MakeString("array"));
+   this->AddToSchema(s, name);
+   return s;
+}
+
+MJSO::MJSO() // ctor
+   : MJsonNode(MJSON_OBJECT)
+{
+   properties = NULL;
+   required = NULL;
+   items = NULL;
+   params = NULL;
+   result = NULL;
+}
 
 static MJsonNode* xnull(const MJsonNode* params)
 {
    if (!params) {
-      MjsonrpcDoc doc;
-      doc.D("RPC method always returns null");
-      doc.P("", 0, "method parameters are ignored");
-      doc.R("", MJSON_NULL, "always returns null");
-      return doc.X();
+      MJSO* doc = MJSO::I();
+      doc->D("RPC method always returns null");
+      doc->P(NULL, 0, "method parameters are ignored");
+      doc->R(NULL, MJSON_NULL, "always returns null");
+      return doc;
    }
 
    return mjsonrpc_make_result(MJsonNode::MakeNull());
@@ -300,12 +341,12 @@ static MJsonNode* xnull(const MJsonNode* params)
 static MJsonNode* js_cm_exist(const MJsonNode* params)
 {
    if (!params) {
-      MjsonrpcDoc doc;
-      doc.D("calls MIDAS cm_exist() to check if given MIDAS program is running");
-      doc.P("name", MJSON_STRING, "name of the program, corresponding to ODB /Programs/name");
-      doc.P("unique?", MJSON_BOOL, "bUnique argument to cm_exist()");
-      doc.R("status", MJSON_NUMBER, "return status of cm_exist()");
-      return doc.X();
+      MJSO* doc = MJSO::I();
+      doc->D("calls MIDAS cm_exist() to check if given MIDAS program is running");
+      doc->P("name", MJSON_STRING, "name of the program, corresponding to ODB /Programs/name");
+      doc->P("unique?", MJSON_BOOL, "bUnique argument to cm_exist()");
+      doc->R("status", MJSON_INT, "return status of cm_exist()");
+      return doc;
    }
 
    MJsonNode* error = NULL;
@@ -327,12 +368,12 @@ static MJsonNode* js_cm_exist(const MJsonNode* params)
 static MJsonNode* js_cm_shutdown(const MJsonNode* params)
 {
    if (!params) {
-      MjsonrpcDoc doc;
-      doc.D("calls MIDAS cm_shutdown() to stop given MIDAS program");
-      doc.P("name", MJSON_STRING, "name of the program, corresponding to ODB /Programs/name");
-      doc.P("unique?", MJSON_BOOL, "bUnique argument to cm_shutdown()");
-      doc.R("status", MJSON_NUMBER, "return status of cm_shutdown()");
-      return doc.X();
+      MJSO *doc = MJSO::I();
+      doc->D("calls MIDAS cm_shutdown() to stop given MIDAS program");
+      doc->P("name", MJSON_STRING, "name of the program, corresponding to ODB /Programs/name");
+      doc->P("unique?", MJSON_BOOL, "bUnique argument to cm_shutdown()");
+      doc->R("status", MJSON_INT, "return status of cm_shutdown()");
+      return doc;
    }
 
    MJsonNode* error = NULL;
@@ -354,11 +395,11 @@ static MJsonNode* js_cm_shutdown(const MJsonNode* params)
 static MJsonNode* start_program(const MJsonNode* params)
 {
    if (!params) {
-      MjsonrpcDoc doc;
-      doc.D("start MIDAS program defined in ODB /Programs/name");
-      doc.P("name", MJSON_STRING, "name of the program, corresponding to ODB /Programs/name");
-      doc.R("status", MJSON_NUMBER, "return status of ss_system()");
-      return doc.X();
+      MJSO* doc = MJSO::I();
+      doc->D("start MIDAS program defined in ODB /Programs/name");
+      doc->P("name", MJSON_STRING, "name of the program, corresponding to ODB /Programs/name");
+      doc->R("status", MJSON_INT, "return status of ss_system()");
+      return doc;
    }
 
    MJsonNode* error = NULL;
@@ -467,19 +508,19 @@ static int parse_array_index_list(const char* method, const char* path, std::vec
 static MJsonNode* x_db_copy(const MJsonNode* params, bool values_flag)
 {
    if (!params) {
-      MjsonrpcDoc doc;
+      MJSO* doc = MJSO::I();
       if (values_flag)
-         doc.D("get values of ODB data from given subtrees");
+         doc->D("get values of ODB data from given subtrees");
       else
-         doc.D("get copies of given ODB subtrees in the \"save\" json encoding");
-      doc.P("paths[]", MJSON_STRING, "array of ODB subtree paths");
+         doc->D("get copies of given ODB subtrees in the \"save\" json encoding");
+      doc->P("paths[]", MJSON_STRING, "array of ODB subtree paths, see note on array indices");
       if (values_flag)
-         doc.R("data[]", 0, "values of ODB data for each path, all key names are in lower case, all symlinks are followed");
+         doc->R("data[]", 0, "values of ODB data for each path, all key names are in lower case, all symlinks are followed");
       else
-         doc.R("data[]", 0, "copy of ODB data for each path");
-      doc.R("status[]", MJSON_NUMBER, "return status of db_copy_json() for each path");
-      doc.R("last_written[]", MJSON_NUMBER, "last_written value of the ODB subtree for each path");
-      return doc.X();
+         doc->R("data[]", MJSON_OBJECT, "copy of ODB data for each path");
+      doc->R("status[]", MJSON_INT, "return status of db_copy_json() for each path");
+      doc->R("last_written[]", MJSON_NUMBER, "last_written value of the ODB subtree for each path");
+      return doc;
    }
 
    MJsonNode* error = NULL;
@@ -611,6 +652,15 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
 
 static MJsonNode* js_db_paste(const MJsonNode* params)
 {
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("write data into ODB");
+      doc->P("paths[]", MJSON_STRING, "array of ODB subtree paths, see note on array indices");
+      doc->P("values[]", 0, "data to be written using db_paste_json()");
+      doc->R("status[]", MJSON_INT, "return status of db_paste_json() for each path");
+      return doc;
+   }
+
    MJsonNode* error = NULL;
 
    const MJsonNodeVector* paths  = mjsonrpc_get_param(params, "paths",  &error)->GetArray(); if (error) return error;
@@ -684,15 +734,15 @@ static MJsonNode* js_db_paste(const MJsonNode* params)
 static MJsonNode* js_db_create(const MJsonNode* params)
 {
    if (!params) {
-      MjsonrpcDoc doc;
-      doc.D("get copies of given ODB subtrees in the \"save\" json encoding");
-      doc.P("[]", 0, "array of ODB paths to be created");
-      doc.P("[].path", MJSON_STRING, "ODB path");
-      doc.P("[].type", MJSON_NUMBER, "MIDAS TID_xxx type");
-      doc.P("[].array_length?", MJSON_NUMBER, "optional array length, default is 1");
-      doc.P("[].string_length?", MJSON_NUMBER, "for TID_STRING, optional string length, default is NAME_LENGTH");
-      doc.R("status[]", MJSON_NUMBER, "return status of db_create() for each path");
-      return doc.X();
+      MJSO* doc = MJSO::I();
+      doc->D("get copies of given ODB subtrees in the \"save\" json encoding");
+      MJSO* o = doc->PA("array of ODB paths to be created")->AddObject("", "arguments to db_create() and db_resize()");
+      o->Add("path", MJSON_STRING, "ODB path");
+      o->Add("type", MJSON_INT, "MIDAS TID_xxx type");
+      o->Add("array_length?", MJSON_INT, "optional array length, default is 1");
+      o->Add("string_length?", MJSON_INT, "for TID_STRING, optional string length, default is NAME_LENGTH");
+      doc->R("status[]", MJSON_INT, "return status of db_create() for each path");
+      return doc;
    }
 
    MJsonNode* sresult = MJsonNode::MakeArray();
@@ -722,11 +772,11 @@ static MJsonNode* js_db_create(const MJsonNode* params)
 static MJsonNode* get_debug(const MJsonNode* params)
 {
    if (!params) {
-      MjsonrpcDoc doc;
-      doc.D("get current value of mjsonrpc_debug");
-      doc.P("", 0, "there are no input parameters");
-      doc.R("", MJSON_NUMBER, "current value of mjsonrpc_debug");
-      return doc.X();
+      MJSO *doc = MJSO::I();
+      doc->D("get current value of mjsonrpc_debug");
+      doc->P(NULL, 0, "there are no input parameters");
+      doc->R(NULL, MJSON_INT, "current value of mjsonrpc_debug");
+      return doc;
    }
 
    return mjsonrpc_make_result("debug", MJsonNode::MakeInt(mjsonrpc_debug));
@@ -735,16 +785,18 @@ static MJsonNode* get_debug(const MJsonNode* params)
 static MJsonNode* set_debug(const MJsonNode* params)
 {
    if (!params) {
-      MjsonrpcDoc doc;
-      doc.D("set new value of mjsonrpc_debug");
-      doc.P("", MJSON_NUMBER, "new value of mjsonrpc_debug");
-      doc.R("", MJSON_NUMBER, "new value of mjsonrpc_debug");
-      return doc.X();
+      MJSO* doc = MJSO::I();
+      doc->D("set new value of mjsonrpc_debug");
+      doc->P(NULL, MJSON_INT, "new value of mjsonrpc_debug");
+      doc->R(NULL, MJSON_INT, "new value of mjsonrpc_debug");
+      return doc;
    }
 
    mjsonrpc_debug = params->GetInt();
    return mjsonrpc_make_result("debug", MJsonNode::MakeInt(mjsonrpc_debug));
 }
+
+static MJsonNode* get_schema(const MJsonNode* params);
 
 typedef std::map<std::string, mjsonrpc_handler_t*> MethodHandlers;
 typedef MethodHandlers::iterator MethodHandlersIterator;
@@ -765,6 +817,7 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("null", xnull);
    mjsonrpc_add_handler("get_debug",   get_debug);
    mjsonrpc_add_handler("set_debug",   set_debug);
+   mjsonrpc_add_handler("get_schema",  get_schema);
    mjsonrpc_add_handler("cm_exist",    js_cm_exist);
    mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
    mjsonrpc_add_handler("db_copy",     js_db_copy);
@@ -810,6 +863,19 @@ static void mjsonrpc_print_schema()
    printf("MJSON-RPC schema:\n");
    printf("%s\n", str.c_str());
    delete s;
+}
+
+static MJsonNode* get_schema(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("set new value of mjsonrpc_debug");
+      doc->P(NULL, 0, "there are no input parameters");
+      doc->R(NULL, MJSON_OBJECT, "returns the MIDAS JSON-RPC schema JSON object");
+      return doc;
+   }
+
+   return mjsonrpc_make_result(mjsonrpc_make_schema(&gHandlers));
 }
 
 static void add(std::string* s, const char* text)
