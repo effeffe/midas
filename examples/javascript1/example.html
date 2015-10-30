@@ -809,6 +809,20 @@ ODBEdit(path);
           mjsonrpc_db_create(paths, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
         </p>
 
+      <li>
+        <h2>mjsonrpc_get_schema()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='mjsonrpc_call("get_schema", null, null,
+          function(req, r)
+          { document.getElementById("get_schema_data").innerHTML =
+          JSON.stringify(r.result, null, " "); }, mjsonrpc_debug_error_callback);'></input>
+        </p>
+        <ul>
+          <li>JSON-RPC schema: <tt id='get_schema_data'></tt>
+        </ul>
+
     </ul>
 
     <script type="text/javascript">
@@ -820,6 +834,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Thu Oct 29 13:00:48 PDT 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Thu Oct 29 23:49:47 PDT 2015 <!-- hhmts end -->
   </body>
 </html>
