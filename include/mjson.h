@@ -65,6 +65,9 @@ class MJsonNode {
    void AddToArray(MJsonNode* node); /// add node to an array. the array takes ownership of this node
    void AddToObject(const char* name, MJsonNode* node); /// add node to an object. the object takes ownership of this node
 
+ public: // public "delete" methods
+   void DeleteObjectNode(const char* name); /// delete a node from an object
+
  public: // public "get" methods
    int                    GetType() const;   /// get node type: MJSON_xxx
    const MJsonNodeVector* GetArray() const;  /// get array value, NULL if not array, empty array if value is JSON "null"
@@ -81,8 +84,8 @@ class MJsonNode {
    static const char* TypeToString(int type); /// return node type as string
    void Dump(int nest = 0) const; /// dump the subtree to standard output
 
- private:
-   MJsonNode(); // private constructor
+ protected:
+   MJsonNode(int type); // protected constructor for subclassing
 };
 
 #endif
