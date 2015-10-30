@@ -796,7 +796,18 @@ static MJsonNode* set_debug(const MJsonNode* params)
    return mjsonrpc_make_result("debug", MJsonNode::MakeInt(mjsonrpc_debug));
 }
 
-static MJsonNode* get_schema(const MJsonNode* params);
+static MJsonNode* get_schema(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("set new value of mjsonrpc_debug");
+      doc->P(NULL, 0, "there are no input parameters");
+      doc->R(NULL, MJSON_OBJECT, "returns the MIDAS JSON-RPC schema JSON object");
+      return doc;
+   }
+
+   return mjsonrpc_make_result(mjsonrpc_get_schema());
+}
 
 typedef std::map<std::string, mjsonrpc_handler_t*> MethodHandlers;
 typedef MethodHandlers::iterator MethodHandlersIterator;
@@ -825,6 +836,8 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("db_get_values", js_db_get_values);
    mjsonrpc_add_handler("db_create", js_db_create);
    mjsonrpc_add_handler("start_program", start_program);
+
+   mjsonrpc_user_init();
 }
 
 static MJsonNode* mjsonrpc_make_schema(MethodHandlers* h)
@@ -855,27 +868,19 @@ static MJsonNode* mjsonrpc_make_schema(MethodHandlers* h)
    return s;
 }
 
+MJsonNode* mjsonrpc_get_schema()
+{
+   return mjsonrpc_make_schema(&gHandlers);
+}
+
 static void mjsonrpc_print_schema()
 {
-   MJsonNode *s = mjsonrpc_make_schema(&gHandlers);
+   MJsonNode *s = mjsonrpc_get_schema();
    s->Dump(0);
    std::string str = s->Stringify(1);
    printf("MJSON-RPC schema:\n");
    printf("%s\n", str.c_str());
    delete s;
-}
-
-static MJsonNode* get_schema(const MJsonNode* params)
-{
-   if (!params) {
-      MJSO* doc = MJSO::I();
-      doc->D("set new value of mjsonrpc_debug");
-      doc->P(NULL, 0, "there are no input parameters");
-      doc->R(NULL, MJSON_OBJECT, "returns the MIDAS JSON-RPC schema JSON object");
-      return doc;
-   }
-
-   return mjsonrpc_make_result(mjsonrpc_make_schema(&gHandlers));
 }
 
 static void add(std::string* s, const char* text)
@@ -888,14 +893,6 @@ static void add(std::string* s, const char* text)
 
 std::string mjsonrpc_decode_post_data(const char* post_data)
 {
-   static bool gFirstTime = true;
-   if (gFirstTime) {
-      gFirstTime = false;
-      mjsonrpc_init();
-      mjsonrpc_user_init();
-      mjsonrpc_print_schema();
-   }
-
    //printf("mjsonrpc call, data [%s]\n", post_data);
    MJsonNode *request = MJsonNode::Parse(post_data);
 

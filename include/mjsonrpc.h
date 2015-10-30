@@ -19,6 +19,7 @@ extern int mjsonrpc_debug;
 void mjsonrpc_init();
 void mjsonrpc_user_init();
 void mjsonrpc_add_handler(const char* method, mjsonrpc_handler_t *handler);
+MJsonNode* mjsonrpc_get_schema();
 
 MJsonNode* mjsonrpc_make_error(int code, const char* message, const char* data);
 MJsonNode* mjsonrpc_make_result(MJsonNode* node);

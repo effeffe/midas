@@ -27,6 +27,8 @@ extern "C" {
 #include "mscb.h"
 #endif
 
+#include "mjsonrpc.h"
+
 #define STRLCPY(dst, src) strlcpy((dst), (src), sizeof(dst))
 #define STRLCAT(dst, src) strlcat((dst), (src), sizeof(dst))
 
@@ -1085,6 +1087,11 @@ void show_help_page()
       rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
    } else
       rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
+   rsprintf("        </tr>\n");
+
+   rsprintf("        <tr>\n");
+   rsprintf("          <td style=\"text-align:right;\">JSON RPC schema:</td>\n");
+   rsprintf("          <td style=\"text-align:left;\"><a href=\"?mjsonrpc_schema\">here</a></td>\n");
    rsprintf("        </tr>\n");
 
    rsprintf("      </table>\n");
@@ -17029,6 +17036,7 @@ static int event_handler_mg(struct mg_event *event)
          refresh = atoi(p);
 
       if ((strcmp(event->request_info->request_method, "OPTIONS") == 0) &&
+          (event->request_info->query_string != NULL) &&
           (strcmp(event->request_info->query_string, "mjsonrpc") == 0)) {
          // JSON-RPC CORS pre-flight request, see
          // https://en.wikipedia.org/wiki/Cross-origin_resource_sharing
@@ -17084,7 +17092,42 @@ static int event_handler_mg(struct mg_event *event)
          return 1;
       }
 
+      if ((strcmp(event->request_info->request_method, "GET") == 0) &&
+          (event->request_info->query_string != NULL) &&
+          (strcmp(event->request_info->query_string, "mjsonrpc_schema") == 0)) {
+
+         MJsonNode* s = mjsonrpc_get_schema();
+         std::string reply = s->Stringify();
+         delete s;
+
+         int reply_length = reply.length();
+
+         const char* origin_header = find_header_mg(event, "Origin");
+
+         std::string headers;
+         headers += "HTTP/1.1 200 OK\n";
+         //headers += "Connection: close\n";
+         if (origin_header)
+            headers += "Access-Control-Allow-Origin: " + std::string(origin_header) + "\n";
+         else
+            headers += "Access-Control-Allow-Origin: *\n";
+         headers += "Access-Control-Allow-Credentials: true\n";
+         headers += "Content-Length: " + toString(reply_length) + "\n";
+         headers += "Content-Type: application/json\n";
+         //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+         
+         //printf("sending headers: %s\n", headers.c_str());
+         //printf("sending reply: %s\n", reply.c_str());
+         
+         std::string send = headers + "\n" + reply;
+         
+         mg_write(event->conn, send.c_str(), send.length());
+         
+         return 1;
+      }
+
       if ((strcmp(event->request_info->request_method, "POST") == 0) &&
+          (event->request_info->query_string != NULL) &&
           (strcmp(event->request_info->query_string, "mjsonrpc") == 0)) {
          const char* ctype_header = find_header_mg(event, "Content-Type");
 
@@ -17119,7 +17162,6 @@ static int event_handler_mg(struct mg_event *event)
                status = ss_mutex_wait_for(request_mutex, 0);
                assert(status == SS_SUCCESS);
 
-               extern std::string mjsonrpc_decode_post_data(const char*post_data);
                std::string reply = mjsonrpc_decode_post_data(post_data);
 
                ss_mutex_release(request_mutex);
@@ -17734,6 +17776,9 @@ int main(int argc, const char *argv[])
 
    /* initialize sequencer */
    init_sequencer();
+
+   /* initialize the JSON RPC handlers */
+   mjsonrpc_init();
 
 #ifdef HAVE_MG
    if (use_mg) {
