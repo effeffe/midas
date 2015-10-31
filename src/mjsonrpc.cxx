@@ -800,7 +800,7 @@ static MJsonNode* get_schema(const MJsonNode* params)
 {
    if (!params) {
       MJSO* doc = MJSO::I();
-      doc->D("set new value of mjsonrpc_debug");
+      doc->D("Get the MIDAS JSON-RPC schema JSON object");
       doc->P(NULL, 0, "there are no input parameters");
       doc->R(NULL, MJSON_OBJECT, "returns the MIDAS JSON-RPC schema JSON object");
       return doc;
@@ -881,6 +881,277 @@ static void mjsonrpc_print_schema()
    printf("MJSON-RPC schema:\n");
    printf("%s\n", str.c_str());
    delete s;
+}
+
+static std::string indent(int x, const char* p = " ")
+{
+   if (x<1)
+      return "";
+   std::string s;
+   for (int i=0; i<x; i++)
+      s += p;
+   return s;
+}
+
+struct NestedLine {
+   int nest;
+   bool span;
+   std::string text;
+};
+
+typedef std::vector<NestedLine> NestedText;
+
+NestedText nested_output;
+
+static void output(int nest, bool span, std::string text)
+{
+   if (text.length() < 1)
+      return;
+
+   NestedLine l;
+   l.nest = nest;
+   l.span = span;
+   l.text = text;
+   nested_output.push_back(l);
+};
+
+static std::string nested_dump()
+{
+   std::string s;
+
+   for (unsigned i=0; i<nested_output.size(); i++) {
+      char buf[256];
+      sprintf(buf, "%d", nested_output[i].nest);
+      s += std::string(buf) + ": " + nested_output[i].text;
+      if (nested_output[i].span)
+         s += " ----> span to end";
+      s += "\n";
+   }
+
+   return s;
+}
+
+static std::string nested_print()
+{
+   std::vector<int> tablen;
+   std::vector<std::string> tab;
+   std::vector<std::string> tabx;
+   std::vector<std::string> taby;
+
+   tablen.push_back(0);
+   tab.push_back("");
+   tabx.push_back("");
+   taby.push_back("");
+
+   std::string xtab = "";
+   std::string ytab = "";
+   for (int n=0; ; n++) {
+      int len = -1;
+      for (unsigned i=0; i<nested_output.size(); i++) {
+         int nn = nested_output[i].nest;
+         bool pp = nested_output[i].span;
+         if (pp)
+            continue;
+         if (nn != n)
+            continue;
+         int l = nested_output[i].text.length();
+         if (l>len)
+            len = l;
+      }
+      //printf("nest %d len %d\n", n, len);
+      if (len < 0)
+         break; // nothing with this nest level
+      tablen.push_back(len);
+      tab.push_back(indent(len, " ") + " | ");
+      xtab += indent(len, " ") + " | ";
+      ytab += indent(len, "-") + "-+-";
+      tabx.push_back(xtab);
+      taby.push_back(ytab);
+   }
+
+   std::string s;
+   int nest = 0;
+
+   for (unsigned i=0; i<nested_output.size(); i++) {
+      int n = nested_output[i].nest;
+      bool p = nested_output[i].span;
+
+      std::string pad;
+
+      if (!p) {
+         int ipad = tablen[n+1] - nested_output[i].text.length();
+         pad = indent(ipad, " ");
+      }
+
+      if (n > nest)
+         s += std::string(" | ") + nested_output[i].text + pad;
+      else if (n == nest)
+         s += std::string("\n") + tabx[n] + nested_output[i].text + pad;
+      else
+         s += std::string("\n") + tabx[n] + nested_output[i].text + pad;
+
+      nest = n;
+   }
+
+   return s;
+}
+
+std::string mjsonrpc_schema_to_html_anything(const MJsonNode* schema, int nest_level);
+
+static std::string mjsonrpc_schema_to_html_object(const MJsonNode* schema, int nest_level)
+{
+   const MJsonNode* d = schema->FindObjectNode("description");
+   std::string description;
+   if (d)
+      description = d->GetString();
+
+   std::string xshort = "object";
+   if (description.length() > 1)
+      xshort += "</td><td>" + description;
+
+   const MJsonNode* properties = schema->FindObjectNode("properties");
+   const MJsonNode* required = schema->FindObjectNode("required");
+
+   if (!properties) {
+      output(nest_level, false, "object");
+      output(nest_level+1, true, description);
+      return xshort;
+   }
+
+   const MJsonStringVector *names = properties->GetObjectNames();
+   const MJsonNodeVector *nodes = properties->GetObjectNodes();
+
+   if (!names || !nodes) {
+      output(nest_level, false, "object");
+      output(nest_level+1, true, description);
+      return xshort;
+   }
+
+   std::string nest = indent(nest_level * 4);
+
+   std::string s;
+
+   s += nest + "<table border=1>\n";
+
+   if (description.length() > 1) {
+      s += nest + "<tr>\n";
+      s += nest + "  <td colspan=3>" + description + "</td>\n";
+      s += nest + "</tr>\n";
+   }
+
+   output(nest_level, true, description);
+
+   for (unsigned i=0; i<names->size(); i++) {
+      output(nest_level, false, (*names)[i]);
+
+      s += nest + "<tr>\n";
+      s += nest + "  <td>" + (*names)[i] + "</td>\n";
+      s += nest + "  <td>";
+      s += mjsonrpc_schema_to_html_anything((*nodes)[i], nest_level + 1);
+      s += "</td>\n";
+      s += nest + "</tr>\n";
+   }
+
+   s += nest + "</table>\n";
+
+   return s;
+}
+
+static std::string mjsonrpc_schema_to_html_array(const MJsonNode* schema, int nest_level)
+{
+   const MJsonNode* d = schema->FindObjectNode("description");
+   std::string description;
+   if (d)
+      description = d->GetString();
+
+   std::string xshort = "array";
+   if (description.length() > 1)
+      xshort += "</td><td>" + description;
+
+   const MJsonNode* items = schema->FindObjectNode("items");
+
+   if (!items) {
+      output(nest_level, false, "array");
+      output(nest_level+1, true, description);
+      return xshort;
+   }
+
+   const MJsonNodeVector *nodes = items->GetArray();
+
+   if (!nodes) {
+      output(nest_level, false, "array");
+      output(nest_level+1, true, description);
+      return xshort;
+   }
+
+   std::string nest = indent(nest_level * 4);
+
+   std::string s;
+
+   //s += "array</td><td>";
+
+   s += nest + "<table border=1>\n";
+
+   if (description.length() > 1) {
+      s += nest + "<tr>\n";
+      s += nest + "  <td>" + description + "</td>\n";
+      s += nest + "</tr>\n";
+   }
+
+   output(nest_level, true, description);
+
+   for (unsigned i=0; i<nodes->size(); i++) {
+      output(nest_level, false, "array of");
+
+      s += nest + "<tr>\n";
+      s += nest + "  <td> array of " + mjsonrpc_schema_to_html_anything((*nodes)[i], nest_level + 1) + "</td>\n";
+      s += nest + "</tr>\n";
+   }
+
+   s += nest + "</table>\n";
+
+   return s;
+}
+
+std::string mjsonrpc_schema_to_html_anything(const MJsonNode* schema, int nest_level)
+{
+   std::string type;
+   std::string description;
+
+   const MJsonNode* t = schema->FindObjectNode("type");
+   if (t)
+      type = t->GetString();
+   else
+      type = "any";
+
+   const MJsonNode* d = schema->FindObjectNode("description");
+   if (d)
+      description = d->GetString();
+
+   if (type == "object") {
+      return mjsonrpc_schema_to_html_object(schema, nest_level);
+   } else if (type == "array") {
+      return mjsonrpc_schema_to_html_array(schema, nest_level);
+   } else {
+      output(nest_level, false, type);
+      output(nest_level+1, true, description);
+      if (description.length() > 1) {
+         return (type + "</td><td>" + description);
+      } else {
+         return (type);
+      }
+   }
+}
+
+std::string mjsonrpc_schema_to_text(const MJsonNode* schema)
+{
+   std::string s;
+   mjsonrpc_schema_to_html_anything(schema, 0);
+   //s += "<pre>\n";
+   //s += nested_dump();
+   //s += "</pre>\n";
+   s += nested_print();
+   return s;
 }
 
 static void add(std::string* s, const char* text)

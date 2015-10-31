@@ -1091,7 +1091,7 @@ void show_help_page()
 
    rsprintf("        <tr>\n");
    rsprintf("          <td style=\"text-align:right;\">JSON RPC schema:</td>\n");
-   rsprintf("          <td style=\"text-align:left;\"><a href=\"?mjsonrpc_schema\">here</a></td>\n");
+   rsprintf("          <td style=\"text-align:left;\"><a href=\"?mjsonrpc_schema\">json format</a> or <a href=\"?mjsonrpc_schema_text\">text table format</a></td>\n");
    rsprintf("        </tr>\n");
 
    rsprintf("      </table>\n");
@@ -17123,6 +17123,40 @@ static int event_handler_mg(struct mg_event *event)
          
          mg_write(event->conn, send.c_str(), send.length());
          
+         return 1;
+      }
+
+      if ((strcmp(event->request_info->request_method, "GET") == 0) &&
+          (event->request_info->query_string != NULL) &&
+          (strcmp(event->request_info->query_string, "mjsonrpc_schema_text") == 0)) {
+
+         MJsonNode* s = mjsonrpc_get_schema();
+         std::string reply = mjsonrpc_schema_to_text(s);
+         delete s;
+
+         int reply_length = reply.length();
+
+         const char* origin_header = find_header_mg(event, "Origin");
+
+         std::string headers;
+         headers += "HTTP/1.1 200 OK\n";
+         //headers += "Connection: close\n";
+         if (origin_header)
+            headers += "Access-Control-Allow-Origin: " + std::string(origin_header) + "\n";
+         else
+            headers += "Access-Control-Allow-Origin: *\n";
+         headers += "Access-Control-Allow-Credentials: true\n";
+         headers += "Content-Length: " + toString(reply_length) + "\n";
+         headers += "Content-Type: text/plain\n";
+         //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+
+         //printf("sending headers: %s\n", headers.c_str());
+         //printf("sending reply: %s\n", reply.c_str());
+
+         std::string send = headers + "\n" + reply;
+
+         mg_write(event->conn, send.c_str(), send.length());
+
          return 1;
       }
 
