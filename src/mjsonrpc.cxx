@@ -936,15 +936,13 @@ static std::string nested_print()
    std::vector<int> tablen;
    std::vector<std::string> tab;
    std::vector<std::string> tabx;
-   std::vector<std::string> taby;
 
    tablen.push_back(0);
    tab.push_back("");
    tabx.push_back("");
-   taby.push_back("");
 
    std::string xtab = "";
-   std::string ytab = "";
+   int maxlen = 0;
    for (int n=0; ; n++) {
       int len = -1;
       for (unsigned i=0; i<nested_output.size(); i++) {
@@ -964,9 +962,8 @@ static std::string nested_print()
       tablen.push_back(len);
       tab.push_back(indent(len, " ") + " | ");
       xtab += indent(len, " ") + " | ";
-      ytab += indent(len, "-") + "-+-";
       tabx.push_back(xtab);
-      taby.push_back(ytab);
+      maxlen += 3+len;
    }
 
    std::string s;
@@ -983,12 +980,21 @@ static std::string nested_print()
          pad = indent(ipad, " ");
       }
 
+      std::string hr = indent(maxlen-tabx[n].length(), "-");
+
       if (n > nest)
          s += std::string(" | ") + nested_output[i].text + pad;
-      else if (n == nest)
-         s += std::string("\n") + tabx[n] + nested_output[i].text + pad;
-      else
-         s += std::string("\n") + tabx[n] + nested_output[i].text + pad;
+      else if (n == nest) {
+         s += "\n";
+         if (n == 0 || n == 1)
+            s += tabx[n] + hr + "\n";
+         s += tabx[n] + nested_output[i].text + pad;
+      } else {
+         s += "\n";
+         if (n == 0 || n == 1)
+            s += tabx[n] + hr + "\n";
+         s += tabx[n] + nested_output[i].text + pad;
+      }
 
       nest = n;
    }
