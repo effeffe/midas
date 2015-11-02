@@ -12922,7 +12922,7 @@ struct hist_plot_t
 	 if (par.length() < 1)
             continue;
 
-	 int pos = par.find(':');
+	 unsigned pos = par.find(':');
          if (pos == std::string::npos)
             continue;
 
@@ -13104,8 +13104,8 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
 {
    int status, size;
    HNDLE hDB;
-   int max_display_events = 20;
-   int max_display_tags = 200;
+   unsigned max_display_events = 20;
+   unsigned max_display_tags = 200;
    char str[256], cmd[256];
    hist_plot_t plot;
 
@@ -13479,7 +13479,7 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
                }
             }
 
-            int count_tags = 0;
+            unsigned count_tags = 0;
             for (unsigned v=0; v<tags.size(); v++)
                count_tags += tags[v].n_data;
 
