@@ -679,6 +679,8 @@ ODBEdit(path);
           <input type=button value='test send invalid json' onClick='mjsonrpc_send_request("send invalid json", mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='test invalid_json reply' onClick='mjsonrpc_call("invalid_json", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='test request with null response' onClick='mjsonrpc_call("null", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='test db_create array check' onClick='mjsonrpc_db_create({"this is not an array":0}, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='test db_copy array check' onClick='mjsonrpc_db_copy("this is not an array", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
         </p>
         <p> Test examples from mjsonrpc_user.cxx
           <input type=button value='user example1 with wrong arguments' onClick='mjsonrpc_call("user_example1", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
@@ -805,7 +807,6 @@ ODBEdit(path);
           { "path" : "/test_create/string2", "type" : TID_STRING, "string_length": 10 },
           { "path" : "/test_create/double_array", "type" : TID_DOUBLE, "array_length": 5 },
 	  ];
-	  var values = [ 1, 2, [ 3, 4], 110, 120 ];
           mjsonrpc_db_create(paths, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
         </p>
 
@@ -834,6 +835,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Thu Oct 29 23:49:47 PDT 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Tue Nov 10 13:10:11 PST 2015 <!-- hhmts end -->
   </body>
 </html>

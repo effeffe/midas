@@ -161,6 +161,35 @@ const MJsonNode* mjsonrpc_get_param(const MJsonNode* params, const char* name, M
    return obj;
 }
 
+const MJsonNodeVector* mjsonrpc_get_param_array(const MJsonNode* params, const char* name, MJsonNode** error)
+{
+   // NULL params is a request for documentation, return NULL
+   if (!params) {
+      if (error)
+         *error = MJsonNode::MakeObject();
+      return NULL;
+   }
+
+   const MJsonNode* node = mjsonrpc_get_param(params, name, error);
+
+   // handle error return from mjsonrpc_get_param()
+   if (error && *error) {
+      return NULL;
+   }
+
+   const MJsonNodeVector* v = node->GetArray();
+
+   if (!v) {
+      if (error)
+         *error = mjsonrpc_make_error(-32602, "Invalid params", (std::string("parameter must be an array: ") + name).c_str());
+      return NULL;
+   }
+
+   if (error)
+      *error = NULL;
+   return v;
+}
+
 MJSO* MJSO::MakeObjectSchema(const char* description) // constructor for object schema
 {
    MJSO* p = new MJSO();
@@ -525,7 +554,7 @@ static MJsonNode* x_db_copy(const MJsonNode* params, bool values_flag)
 
    MJsonNode* error = NULL;
 
-   const MJsonNodeVector* paths = mjsonrpc_get_param(params, "paths", &error)->GetArray(); if (error) return error;
+   const MJsonNodeVector* paths = mjsonrpc_get_param_array(params, "paths", &error); if (error) return error;
 
    MJsonNode* dresult = MJsonNode::MakeArray();
    MJsonNode* sresult = MJsonNode::MakeArray();
@@ -663,8 +692,8 @@ static MJsonNode* js_db_paste(const MJsonNode* params)
 
    MJsonNode* error = NULL;
 
-   const MJsonNodeVector* paths  = mjsonrpc_get_param(params, "paths",  &error)->GetArray(); if (error) return error;
-   const MJsonNodeVector* values = mjsonrpc_get_param(params, "values", &error)->GetArray(); if (error) return error;
+   const MJsonNodeVector* paths  = mjsonrpc_get_param_array(params, "paths",  &error); if (error) return error;
+   const MJsonNodeVector* values = mjsonrpc_get_param_array(params, "values", &error); if (error) return error;
 
    if (paths->size() != values->size()) {
       return mjsonrpc_make_error(-32602, "Invalid params", "paths and values should have the same length");
@@ -748,6 +777,10 @@ static MJsonNode* js_db_create(const MJsonNode* params)
    MJsonNode* sresult = MJsonNode::MakeArray();
 
    const MJsonNodeVector* pp = params->GetArray();
+
+   if (!pp) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "parameters must be an array of objects");
+   }
 
    HNDLE hDB;
    cm_get_experiment_database(&hDB, NULL);
