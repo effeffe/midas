@@ -17,6 +17,16 @@
 
 static MJsonNode* user_example1(const MJsonNode* params)
 {
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("example of user defined RPC method that returns up to 3 results");
+      doc->P("arg", MJSON_STRING, "example string argment");
+      doc->P("optional_arg?", MJSON_INT, "optional example integer argument");
+      doc->R("string", MJSON_STRING, "returns the value of \"arg\" parameter");
+      doc->R("integer", MJSON_INT, "returns the value of \"optional_arg\" parameter");
+      return doc;
+   }
+
    MJsonNode* error = NULL;
 
    const char* arg  = mjsonrpc_get_param(params, "arg", &error)->GetString().c_str(); if (error) return error;
@@ -34,13 +44,26 @@ static MJsonNode* user_example1(const MJsonNode* params)
 
 static MJsonNode* user_example2(const MJsonNode* params)
 {
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("example of user defined RPC method that returns more than 3 results");
+      doc->P("arg", MJSON_STRING, "example string argment");
+      doc->P("optional_arg?", MJSON_INT, "optional example integer argument");
+      doc->R("string1", MJSON_STRING, "returns the value of \"arg\" parameter");
+      doc->R("string2", MJSON_STRING, "returns \"hello\"");
+      doc->R("string3", MJSON_STRING, "returns \"world!\"");
+      doc->R("value1", MJSON_INT, "returns the value of \"optional_arg\" parameter");
+      doc->R("value2", MJSON_NUMBER, "returns 3.14");
+      return doc;
+   }
+
    MJsonNode* error = NULL;
 
    const char* arg  = mjsonrpc_get_param(params, "arg", &error)->GetString().c_str(); if (error) return error;
    int optional_arg = mjsonrpc_get_param(params, "optional_arg", NULL)->GetInt();
 
    if (mjsonrpc_debug)
-      printf("user_example1(%s,%d)\n", arg, optional_arg);
+      printf("user_example2(%s,%d)\n", arg, optional_arg);
 
    MJsonNode* result = MJsonNode::MakeObject();
 
@@ -59,6 +82,14 @@ static MJsonNode* user_example2(const MJsonNode* params)
 
 static MJsonNode* user_example3(const MJsonNode* params)
 {
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("example of user defined RPC method that returns an error");
+      doc->P("arg", MJSON_INT, "integer value, if zero, throws a JSON-RPC error");
+      doc->R("status", MJSON_INT, "returns the value of \"arg\" parameter");
+      return doc;
+   }
+
    MJsonNode* error = NULL;
 
    int arg  = mjsonrpc_get_param(params, "arg", &error)->GetInt(); if (error) return error;
