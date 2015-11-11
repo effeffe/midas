@@ -99,6 +99,9 @@ void print_help(char *command)
       printf("help/? [command]        - print this help [for a specific command]\n");
       printf("hi [analyzer] [id]      - tell analyzer to clear histos\n");
       printf("imp <filename> [key]    - import ASCII file into string key\n");
+      printf("json                    - print \"ODB save\" encoding of current directory\n");
+      printf("jsls                    - print \"ls\" encoding of current directory\n");
+      printf("jsvalues                - print \"get_values\" encoding of current directory\n");
       printf("ln <source> <linkname>  - create a link to <source> key\n");
       printf
           ("load <file>             - load database from .ODB file at current position\n");
@@ -127,8 +130,8 @@ void print_help(char *command)
       printf("                          in ASCII format\n");
       printf("  -c                      as a C structure\n");
       printf("  -s                      as a #define'd string\n");
-      printf("  -x                      as a XML file\n");
-      printf("  -j                      as a JSON file\n");
+      printf("  -x                      as an XML file, or use file.xml\n");
+      printf("  -j                      as a JSON file, or use file.json\n");
       printf("set <key> <value>       - set the value of a key\n");
       printf("set <key>[i] <value>    - set the value of index i\n");
       printf("set <key>[*] <value>    - set the value of all indices of a key\n");
@@ -1895,8 +1898,24 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
             db_save(hDB, hKey, param[1], FALSE);
       }
 
+      /* json */
+      else if (strncmp(param[0], "json", 8) == 0) {
+         db_find_key(hDB, 0, pwd, &hKey);
+
+	 char* buffer = NULL;
+	 int buffer_size = 0;
+	 int buffer_end = 0;
+
+	 status = db_copy_json_save(hDB, hKey, &buffer, &buffer_size, &buffer_end);
+
+	 printf("status: %d, json: %s\n", status, buffer);
+
+	 if (buffer)
+	   free(buffer);
+      }
+
       /* jsvalues */
-      else if (strncmp(param[0], "json", 4) == 0) {
+      else if (strncmp(param[0], "jsvalues", 8) == 0) {
          db_find_key(hDB, 0, pwd, &hKey);
 
 	 char* buffer = NULL;
