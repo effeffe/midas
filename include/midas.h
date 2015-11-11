@@ -1840,15 +1840,18 @@ extern "C" {
    INT EXPRT db_save_json(HNDLE hDB, HNDLE hKey, const char *file_name);
    INT EXPRT db_load_json(HNDLE hdb, HNDLE key_handle, const char *filename);
 
-   /* db_copy_json() is obsolete, use db_copy_json_all, _values and _ls instead */
+   /* db_copy_json() is obsolete, use db_copy_json_save, _values and _ls instead */
    INT EXPRT db_copy_json_obsolete(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int save_keys, int follow_links, int recurse);
 
-   /* general purpose json encoders of ODB data */
-   INT EXPRT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
-   INT EXPRT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
+   /* json encoder using the "ODB save" encoding, for use with "ODB load" and db_paste_json() */
    INT EXPRT db_copy_json_save(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
-   /* json encoder for ODB array and array single element */
+   /* json encoder using the "ls" format, for getting the contents of a single ODB subdirectory */
+   INT EXPRT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
+   /* json encoder using the "get_values" format, for resolving links and normalized ODB path names (converted to lower-case) */
+   INT EXPRT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
+   /* json encoder for an ODB array */
    INT EXPRT db_copy_json_array(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end);
+   /* json encoder for a single element of an ODB array */
    INT EXPRT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int *buffer_size, int *buffer_end);
 
    INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKey, const char *buffer);
