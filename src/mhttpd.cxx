@@ -12934,7 +12934,7 @@ struct hist_plot_t
 	 if (par.length() < 1)
             continue;
 
-	 unsigned pos = par.find(':');
+         std::string::size_type pos = par.find(':');
          if (pos == std::string::npos)
             continue;
 
