@@ -213,13 +213,28 @@ MJSO* MJSO::MakeArraySchema(const char* description) // constructor for array sc
    return p;
 }
 
-void MJSO::AddToSchema(MJsonNode* s, const char* name)
+static std::string remove(const std::string s, char c)
 {
-   if (!name)
-      name = "";
+   std::string::size_type pos = s.find(c);
+   if (pos == std::string::npos)
+      return s;
+   else
+      return s.substr(0, pos);
+}
 
-   bool optional = strchr(name, '?');
-   bool array = strchr(name, '[');
+void MJSO::AddToSchema(MJsonNode* s, const char* xname)
+{
+   if (!xname)
+      xname = "";
+
+   bool optional = strchr(xname, '?');
+   bool array = strchr(xname, '[');
+
+   // remove the "?" and "[]" marker characters
+   std::string name = xname;
+   name = remove(name, '?');
+   name = remove(name, '[');
+   name = remove(name, ']');
 
    if (optional)
       s->AddToObject("optional", MJsonNode::MakeBool(true));
@@ -236,9 +251,9 @@ void MJSO::AddToSchema(MJsonNode* s, const char* name)
    else {
       assert(properties);
       assert(required);
-      properties->AddToObject(name, s);
+      properties->AddToObject(name.c_str(), s);
       if (!optional) {
-         required->AddToArray(MJsonNode::MakeString(name));
+         required->AddToArray(MJsonNode::MakeString(name.c_str()));
       }
    }
 }
@@ -1049,7 +1064,11 @@ static std::string mjsonrpc_schema_to_html_object(const MJsonNode* schema, int n
       xshort += "</td><td>" + description;
 
    const MJsonNode* properties = schema->FindObjectNode("properties");
-   const MJsonNode* required = schema->FindObjectNode("required");
+
+   const MJsonNodeVector* required_list = NULL;
+   const MJsonNode* r = schema->FindObjectNode("required");
+   if (r)
+      required_list = r->GetArray();
 
    if (!properties) {
       output(nest_level, false, "object");
@@ -1081,12 +1100,35 @@ static std::string mjsonrpc_schema_to_html_object(const MJsonNode* schema, int n
    output(nest_level, true, description);
 
    for (unsigned i=0; i<names->size(); i++) {
-      output(nest_level, false, (*names)[i]);
+      std::string name = (*names)[i];
+      const MJsonNode* node = (*nodes)[i];
+
+      bool required = false;
+      if (required_list)
+         for (unsigned j=0; j<required_list->size(); j++)
+            if ((*required_list)[j])
+               if ((*required_list)[j]->GetString() == name) {
+                  required = true;
+                  break;
+               }
+
+      bool is_array = false;
+      const MJsonNode* type = node->FindObjectNode("type");
+      if (type && type->GetString() == "array")
+         is_array = true;
+
+      if (is_array)
+         name += "[]";
+
+      if (!required)
+         name += "?";
+
+      output(nest_level, false, name);
 
       s += nest + "<tr>\n";
-      s += nest + "  <td>" + (*names)[i] + "</td>\n";
+      s += nest + "  <td>" + name + "</td>\n";
       s += nest + "  <td>";
-      s += mjsonrpc_schema_to_html_anything((*nodes)[i], nest_level + 1);
+      s += mjsonrpc_schema_to_html_anything(node, nest_level + 1);
       s += "</td>\n";
       s += nest + "</tr>\n";
    }
@@ -1156,6 +1198,7 @@ std::string mjsonrpc_schema_to_html_anything(const MJsonNode* schema, int nest_l
 {
    std::string type;
    std::string description;
+   //bool        optional = false;
 
    const MJsonNode* t = schema->FindObjectNode("type");
    if (t)
@@ -1167,11 +1210,19 @@ std::string mjsonrpc_schema_to_html_anything(const MJsonNode* schema, int nest_l
    if (d)
       description = d->GetString();
 
+   //const MJsonNode* o = schema->FindObjectNode("optional");
+   //if (o)
+   //   optional = o->GetBool();
+
    if (type == "object") {
       return mjsonrpc_schema_to_html_object(schema, nest_level);
    } else if (type == "array") {
       return mjsonrpc_schema_to_html_array(schema, nest_level);
    } else {
+      //if (optional)
+      //   output(nest_level, false, "?");
+      //else
+      //   output(nest_level, false, "!");
       output(nest_level, false, type);
       output(nest_level+1, true, description);
       if (description.length() > 1) {
