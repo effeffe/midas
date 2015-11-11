@@ -4754,6 +4754,8 @@ static void handle_request(struct mg_connection *conn) {
   if (!conn->client.is_ssl && conn->client.ssl_redir &&
       (ssl_index = get_first_ssl_listener_index(conn->ctx)) > -1) {
     redirect_to_https_port(conn, ssl_index);
+  } else if (!strcmp(ri->request_method, "OPTIONS") && (call_user(MG_REQUEST_BEGIN, conn, (void *) ri->uri) == 1)) {
+    // CORS "pre-flight" "OPTIONS" requests are sent without authentication, duh!
   } else if (!is_put_or_delete_request(conn) &&
              !check_authorization(conn, path)) {
     send_authorization_request(conn);
