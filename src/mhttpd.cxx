@@ -10330,23 +10330,15 @@ void show_programs_page()
          size = sizeof(str);
          db_get_value(hDB, hkey, "Start Command", str, &size, TID_STRING, TRUE);
          if (str[0] && count == 0) {
-#if 0
             sprintf(str, "Start %s", key.name);
             rsprintf("<td align=center><input type=submit name=\"Start\" value=\"%s\">\n",
                      str);
-#else
-            rsprintf("<td><input type=button value=\'Start %s\' onClick=\'mjsonrpc_start_program(\"%s\", null, mjsonrpc_debug_callback);\'></input></td>\n", key.name, key.name);
-#endif
          }
 
          if (count > 0 && strncmp(key.name, "mhttpd", 6) != 0) {
-#if 0
             sprintf(str, "Stop %s", key.name);
             rsprintf("<td align=center><input type=submit name=\"Stop\" value=\"%s\">\n",
                      str);
-#else
-            rsprintf("<td><input type=button value=\'Stop %s\' onClick=\'mjsonrpc_stop_program(\"%s\", false, null, mjsonrpc_debug_callback);\'></input></td>\n", key.name, key.name);
-#endif
          }
 
          rsprintf("</tr>\n");
@@ -10355,7 +10347,7 @@ void show_programs_page()
 
    rsprintf("</table>\n");
 
-   rsprintf("<script>mhttpd_programs_page()</script>\n");
+   //rsprintf("<script>mhttpd_programs_page()</script>\n");
 
    page_footer(TRUE);
 }
