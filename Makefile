@@ -519,7 +519,6 @@ MHTTPD_OBJS=
 MHTTPD_OBJS += $(LIB_DIR)/mhttpd.o
 MHTTPD_OBJS += $(LIB_DIR)/mongoose.o
 MHTTPD_OBJS += $(LIB_DIR)/mgd.o
-MHTTPD_OBJS += $(LIB_DIR)/mscb.o
 MHTTPD_OBJS += $(LIB_DIR)/sequencer.o
 MHTTPD_OBJS += $(LIB_DIR)/mjsonrpc.o $(LIB_DIR)/mjsonrpc_user.o
 ifdef HAVE_MSCB
