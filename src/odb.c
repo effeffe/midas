@@ -7420,10 +7420,10 @@ static void json_write_key(HNDLE hDB, HNDLE hKey, const KEY* key, const char* li
 
 static int db_save_json_key_obsolete(HNDLE hDB, HNDLE hKey, INT level, char **buffer, int* buffer_size, int* buffer_end, int save_keys, int follow_links, int recurse)
 {
-   INT size, status;
+   INT i, size, status;
+   char *data;
    KEY key;
    KEY link_key;
-   HNDLE link_hKey;
    char link_path[MAX_ODB_PATH];
    int omit_top_level_braces = 0;
 
@@ -7439,7 +7439,6 @@ static int db_save_json_key_obsolete(HNDLE hDB, HNDLE hKey, INT level, char **bu
    if (status != DB_SUCCESS)
       return status;
 
-   link_hKey = hKey;
    link_key = key;
 
    if (key.type == TID_LINK) {
@@ -7527,18 +7526,67 @@ static int db_save_json_key_obsolete(HNDLE hDB, HNDLE hKey, INT level, char **bu
       if (save_keys == 1) {
          char str[NAME_LENGTH+15];
          sprintf(str, "%s/key", link_key.name);
+
          json_write(buffer, buffer_size, buffer_end, level, str, 1);
-         json_write(buffer, buffer_size, buffer_end, 0, " : ", 0);
-         json_write_key(hDB, link_hKey, &key, NULL, buffer, buffer_size, buffer_end);
+         json_write(buffer, buffer_size, buffer_end, 0, " : { ", 0);
+
+         sprintf(str, "\"type\" : %d", key.type);
+         json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+
+         if (link_key.type == TID_LINK && follow_links) {
+            json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
+            json_write(buffer, buffer_size, buffer_end, 0, "link", 1);
+            json_write(buffer, buffer_size, buffer_end, 0, ": ", 0);
+            json_write(buffer, buffer_size, buffer_end, 0, link_path, 1);
+         }
+
+         if (key.num_values > 1) {
+            json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
+
+            sprintf(str, "\"num_values\" : %d", key.num_values);
+            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+         }
+
+         if (key.type == TID_STRING || key.type == TID_LINK) {
+            json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
+
+            sprintf(str, "\"item_size\" : %d", key.item_size);
+            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+         }
+
+         if (key.notify_count > 0) {
+            json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
+
+            sprintf(str, "\"notify_count\" : %d", key.notify_count);
+            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+         }
+
+         json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
+
+         sprintf(str, "\"access_mode\" : %d", key.access_mode);
+         json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+
+         json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
+
+         sprintf(str, "\"last_written\" : %d", key.last_written);
+         json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+
+         json_write(buffer, buffer_size, buffer_end, 0, " ", 0);
+
+         json_write(buffer, buffer_size, buffer_end, 0, "}", 0);
+
          json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
       }
 
       if (save_keys == 2) {
          char str[NAME_LENGTH+15];
          sprintf(str, "%s/last_written", link_key.name);
+
          json_write(buffer, buffer_size, buffer_end, level, str, 1);
+
          sprintf(str, " : %d", key.last_written);
          json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+
          json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
       }
 
@@ -7547,18 +7595,143 @@ static int db_save_json_key_obsolete(HNDLE hDB, HNDLE hKey, INT level, char **bu
          json_write(buffer, buffer_size, buffer_end, 0, " : ", 0);
       }
 
-      if (follow_links || link_key.type != TID_LINK) {
-         status = db_copy_json_array(hDB, hKey, buffer, buffer_size, buffer_end);
-         if (status != DB_SUCCESS)
-            return status;
-      } else {
-         char link_path[MAX_ODB_PATH];
-         size = sizeof(link_path);
-         status = db_get_link_data(hDB, hKey, link_path, &size, TID_LINK);
-         if (status != DB_SUCCESS)
-            return status;
-         json_write(buffer, buffer_size, buffer_end, 0, link_path, 1);
+      if (key.num_values > 1) {
+         json_write(buffer, buffer_size, buffer_end, 0, "[ ", 0);
       }
+
+      size = key.total_size;
+      data = (char *) malloc(size);
+      if (data == NULL) {
+         cm_msg(MERROR, "db_save_json_key", "cannot allocate data buffer for %d bytes", size);
+         return DB_NO_MEMORY;
+      }
+
+      if (key.type != TID_KEY) {
+         if (follow_links)
+            status = db_get_data(hDB, hKey, data, &size, key.type);
+         else
+            status = db_get_link_data(hDB, hKey, data, &size, key.type);
+
+         if (status != DB_SUCCESS)
+            return status;
+      }
+
+      for (i = 0; i < key.num_values; i++) {
+         char str[256];
+         char *p = data + key.item_size*i;
+
+         if (i != 0)
+            json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
+
+         switch (key.type) {
+         case TID_BYTE:
+            sprintf(str, "%u", *(unsigned char*)p);
+            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+            break;
+         case TID_SBYTE:
+            sprintf(str, "%d", *(char*)p);
+            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+            break;
+         case TID_CHAR:
+            sprintf(str, "%c", *(char*)p);
+            json_write(buffer, buffer_size, buffer_end, 0, str, 1);
+            break;
+         case TID_WORD:
+            sprintf(str, "\"0x%04x\"", *(WORD*)p);
+            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+            break;
+         case TID_SHORT:
+            sprintf(str, "%d", *(short*)p);
+            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+            break;
+         case TID_DWORD:
+            sprintf(str, "\"0x%08x\"", *(DWORD*)p);
+            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+            break;
+         case TID_INT:
+            sprintf(str, "%d", *(int*)p);
+            json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+            break;
+         case TID_BOOL:
+            if (*(int*)p)
+               json_write(buffer, buffer_size, buffer_end, 0, "true", 0);
+            else
+               json_write(buffer, buffer_size, buffer_end, 0, "false", 0);
+            break;
+         case TID_FLOAT: {
+            float flt = (*(float*)p);
+            if (isnan(flt))
+               json_write(buffer, buffer_size, buffer_end, 0, "\"NaN\"", 0);
+            else if (isinf(flt)) {
+               if (flt > 0)
+                  json_write(buffer, buffer_size, buffer_end, 0, "\"Infinity\"", 0);
+               else
+                  json_write(buffer, buffer_size, buffer_end, 0, "\"-Infinity\"", 0);
+            } else if (flt == 0)
+               json_write(buffer, buffer_size, buffer_end, 0, "0", 0);
+            else if (flt == (int)flt) {
+               sprintf(str, "%.0f", flt);
+               json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+            } else {
+               sprintf(str, "%.7e", flt);
+               json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+            }
+            break;
+         }
+         case TID_DOUBLE: {
+            double dbl = (*(double*)p);
+            if (isnan(dbl))
+               json_write(buffer, buffer_size, buffer_end, 0, "\"NaN\"", 0);
+            else if (isinf(dbl)) {
+               if (dbl > 0)
+                  json_write(buffer, buffer_size, buffer_end, 0, "\"Infinity\"", 0);
+               else
+                  json_write(buffer, buffer_size, buffer_end, 0, "\"-Infinity\"", 0);
+            } else if (dbl == 0)
+               json_write(buffer, buffer_size, buffer_end, 0, "0", 0);
+            else if (dbl == (int)dbl) {
+               sprintf(str, "%.0f", dbl);
+               json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+            } else {
+               sprintf(str, "%.16e", dbl);
+               json_write(buffer, buffer_size, buffer_end, 0, str, 0);
+            }
+            break;
+         }
+         case TID_BITFIELD:
+            json_write(buffer, buffer_size, buffer_end, 0, "(TID_BITFIELD value)", 1);
+            break;
+         case TID_STRING:
+            p[key.item_size-1] = 0;  // make sure string is NUL terminated!
+            json_write(buffer, buffer_size, buffer_end, 0, p, 1);
+            break;
+         case TID_ARRAY:
+            json_write(buffer, buffer_size, buffer_end, 0, "(TID_ARRAY value)", 1);
+            break;
+         case TID_STRUCT:
+            json_write(buffer, buffer_size, buffer_end, 0, "(TID_STRUCT value)", 1);
+            break;
+         case TID_KEY:
+            json_write(buffer, buffer_size, buffer_end, 0, "{ }", 0);
+            break;
+         case TID_LINK:
+            p[key.item_size-1] = 0;  // make sure string is NUL terminated!
+            json_write(buffer, buffer_size, buffer_end, 0, p, 1);
+            break;
+         default:
+            json_write(buffer, buffer_size, buffer_end, 0, "(TID_UNKNOWN value)", 1);
+         }
+
+      }
+
+      if (key.num_values > 1) {
+         json_write(buffer, buffer_size, buffer_end, 0, " ]", 0);
+      } else {
+         json_write(buffer, buffer_size, buffer_end, 0, "", 0);
+      }
+
+      free(data);
+      data = NULL;
 
       if (save_keys && level == 0) {
          json_write(buffer, buffer_size, buffer_end, 0, "\n}", 0);
