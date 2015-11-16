@@ -6523,8 +6523,10 @@ int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
 
       if (status == DB_NO_KEY) {
          status = db_create_key(hDB, hKeyRoot, mxml_get_attribute(node, "name"), TID_KEY);
-         if (status == DB_NO_ACCESS)
+         if (status == DB_NO_ACCESS) {
+            cm_msg(MINFO, "db_paste_node", "cannot load key \"%s\": write protected", mxml_get_attribute(node, "name"));
             return DB_SUCCESS;  /* key or tree is locked, just skip it */
+         }
 
          if (status != DB_SUCCESS && status != DB_KEY_EXIST) {
             cm_msg(MERROR, "db_paste_node", "cannot create key \"%s\" in ODB, status = %d", mxml_get_attribute(node, "name"), status);
@@ -6569,8 +6571,10 @@ int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
       status = db_find_link(hDB, hKeyRoot, mxml_get_attribute(node, "name"), &hKey);
       if (status == DB_NO_KEY) {
          status = db_create_key(hDB, hKeyRoot, mxml_get_attribute(node, "name"), tid);
-         if (status == DB_NO_ACCESS)
+         if (status == DB_NO_ACCESS) {
+            cm_msg(MINFO, "db_paste_node", "cannot load key \"%s\": write protected", mxml_get_attribute(node, "name"));
             return DB_SUCCESS;  /* key or tree is locked, just skip it */
+         }
 
          if (status != DB_SUCCESS) {
             cm_msg(MERROR, "db_paste_node", "cannot create key \"%s\" in ODB, status = %d", mxml_get_attribute(node, "name"), status);
@@ -6601,16 +6605,34 @@ int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
             if (tid == TID_STRING || tid == TID_LINK) {
                if (mxml_get_value(child) == NULL) {
                   status = db_set_data_index(hDB, hKey, "", size, i, tid);
-                  assert(status == DB_SUCCESS);
+                  if (status == DB_NO_ACCESS) {
+                     cm_msg(MINFO, "db_paste_node", "cannot load string or link \"%s\": write protected", mxml_get_attribute(node, "name"));
+                     return DB_SUCCESS;  /* key or tree is locked, just skip it */
+                  } else if (status != DB_SUCCESS) {
+                     cm_msg(MERROR, "db_paste_node", "cannot load string or link \"%s\": db_set_data_index() status %d", mxml_get_attribute(node, "name"), status);
+                     return status;
+                  }
                } else {
                   strlcpy(buf, mxml_get_value(child), size);
                   status = db_set_data_index(hDB, hKey, buf, size, idx, tid);
-                  assert(status == DB_SUCCESS);
+                  if (status == DB_NO_ACCESS) {
+                     cm_msg(MINFO, "db_paste_node", "cannot load array element \"%s\": write protected", mxml_get_attribute(node, "name"));
+                     return DB_SUCCESS;  /* key or tree is locked, just skip it */
+                  } else if (status != DB_SUCCESS) {
+                     cm_msg(MERROR, "db_paste_node", "cannot load array element \"%s\": db_set_data_index() status %d", mxml_get_attribute(node, "name"), status);
+                     return status;
+                  }
                }
             } else {
                db_sscanf(mxml_get_value(child), data, &size, 0, tid);
                status = db_set_data_index(hDB, hKey, data, rpc_tid_size(tid), idx, tid);
-               assert(status == DB_SUCCESS);
+               if (status == DB_NO_ACCESS) {
+                  cm_msg(MINFO, "db_paste_node", "cannot load array element \"%s\": write protected", mxml_get_attribute(node, "name"));
+                  return DB_SUCCESS;  /* key or tree is locked, just skip it */
+               } else if (status != DB_SUCCESS) {
+                  cm_msg(MERROR, "db_paste_node", "cannot load array element \"%s\": db_set_data_index() status %d", mxml_get_attribute(node, "name"), status);
+                  return status;
+               }
             }
          }
 
@@ -6619,16 +6641,34 @@ int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
             size = atoi(mxml_get_attribute(node, "size"));
             if (mxml_get_value(node) == NULL) {
                status = db_set_data(hDB, hKey, "", size, 1, tid);
-               assert(status == DB_SUCCESS);
+               if (status == DB_NO_ACCESS) {
+                  cm_msg(MINFO, "db_paste_node", "cannot load string or link \"%s\": write protected", mxml_get_attribute(node, "name"));
+                  return DB_SUCCESS;  /* key or tree is locked, just skip it */
+               } else if (status != DB_SUCCESS) {
+                  cm_msg(MERROR, "db_paste_node", "cannot load string or link \"%s\": db_set_data() status %d", mxml_get_attribute(node, "name"), status);
+                  return status;
+               }
             } else {
                strlcpy(buf, mxml_get_value(node), size);
                status = db_set_data(hDB, hKey, buf, size, 1, tid);
-               assert(status == DB_SUCCESS);
+               if (status == DB_NO_ACCESS) {
+                  cm_msg(MINFO, "db_paste_node", "cannot load value \"%s\": write protected", mxml_get_attribute(node, "name"));
+                  return DB_SUCCESS;  /* key or tree is locked, just skip it */
+               } else if (status != DB_SUCCESS) {
+                  cm_msg(MERROR, "db_paste_node", "cannot load value \"%s\": db_set_data() status %d", mxml_get_attribute(node, "name"), status);
+                  return status;
+               }
             }
          } else {
             db_sscanf(mxml_get_value(node), data, &size, 0, tid);
             status = db_set_data(hDB, hKey, data, rpc_tid_size(tid), 1, tid);
-            assert(status == DB_SUCCESS);
+            if (status == DB_NO_ACCESS) {
+               cm_msg(MINFO, "db_paste_node", "cannot load value \"%s\": write protected", mxml_get_attribute(node, "name"));
+               return DB_SUCCESS;  /* key or tree is locked, just skip it */
+            } else if (status != DB_SUCCESS) {
+               cm_msg(MERROR, "db_paste_node", "cannot load value \"%s\": db_set_data() status %d", mxml_get_attribute(node, "name"), status);
+               return status;
+            }
          }
       }
 
