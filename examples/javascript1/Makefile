@@ -1,5 +1,7 @@
 # Makefile
 
+MIDAS_OS=linux
+
 ifndef MIDASSYS
 MIDASSYS=$(HOME)/packages/midas
 MIDAS_OS=linux
