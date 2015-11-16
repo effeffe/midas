@@ -152,6 +152,8 @@ INT rpc_callback(INT index, void *prpc_param[])
    int example_int = strtol(args, NULL, 0);
    int size = sizeof(int);
    int status = db_set_value(hDB, 0, "/Equipment/" EQ_NAME "/Settings/example_int", &example_int, size, 1, TID_INT);
+   if (status != DB_SUCCESS)
+     printf("db_set_value() status %d\n", status);
 
    char tmp[256];
    time_t now = time(NULL);
@@ -294,7 +296,7 @@ int read_slow_event(char *pevent, int off)
   count_slow++;
 
   double* pdatad;
-  bk_create(pevent, "SLOW", TID_DOUBLE, &pdatad);
+  bk_create(pevent, "SLOW", TID_DOUBLE, (void**)&pdatad);
 
   time_t t = time(NULL);
   pdatad[0] = count_slow;
