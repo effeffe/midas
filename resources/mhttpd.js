@@ -242,60 +242,65 @@ function mjsonrpc_set_url(url)
    mjsonrpc_url = url;
 }
 
-function mjsonrpc_send_request(req, callback, error_callback)
+function mjsonrpc_send_request(req)
 {
    /// Sends JSON-RPC request(s) via HTTP POST
    /// @param[in] req request object or an array of request objects (object or array)
    /// @param[in,out] callback optional function to receive RPC reply (see mjsonrpc_debug_callback()) (function)
    /// @param[in,out] error_callback optional function to receive RPC error status (see mjsonrpc_debug_error_callback()) (function)
-   /// @returns the request XHR object (object)
+   /// @returns new Promise
 
-   var xhr = new XMLHttpRequest();
-   xhr.responseType = 'json';
-   xhr.withCredentials = true;
+   return new Promise(function(resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.responseType = 'json';
+      xhr.withCredentials = true;
 
-   xhr.onreadystatechange = function()
-   {
-      if (xhr.readyState == 4) {
-         var exc = null;
+      xhr.onreadystatechange = function()
+      {
+         if (xhr.readyState == 4) {
+            var exc = null;
 
-         if (xhr.status == 200) {
-            var have_response = false;
-            try {
-               if (xhr.response) {
-                  var response = xhr.response;
-                  var error = response.error;
-                  // alert("e " + JSON.stringify(xhr.response));
-                  // (typeof xhr.response.error == 'undefined')
-                  have_response = (error == null);
+            if (xhr.status == 200) {
+               var have_response = false;
+               try {
+                  if (xhr.response) {
+                     var response = xhr.response;
+                     var error = response.error;
+                     // alert("e " + JSON.stringify(xhr.response));
+                     // (typeof xhr.response.error == 'undefined')
+                     have_response = (error == null);
+                  }
+               } catch (xexc) {
+                  // fall through
+                  //alert("exception " + xexc);
+                  exc = xexc;
                }
-            } catch (xexc) {
-               // fall through
-               alert("exception " + xexc);
-               exc = xexc;
+
+               if (have_response) {
+                  var r = new Object;
+                  r.request = req;
+                  r.response = response;
+                  resolve(r);
+                  return;
+               }
             }
 
-            if (have_response) {
-               if (callback != undefined)
-                  callback(req, xhr.response);
-               return;
-            }
-         }
-
-         if (error_callback != undefined) {
-            error_callback(req, xhr, exc);
+            var r = new Object;
+            r.request = req;
+            r.xhr = xhr;
+            r.exception = exc;
+            reject(r);
          }
       }
-   }
 
-   xhr.open('POST', mjsonrpc_url + "?mjsonrpc");
-   xhr.setRequestHeader('Content-Type', 'application/json');
-   xhr.setRequestHeader('Accept', 'application/json');
-   if (req == "send invalid json")
-      xhr.send("invalid json");
-   else
-      xhr.send(JSON.stringify(req));
-   return xhr;
+      xhr.open('POST', mjsonrpc_url + "?mjsonrpc");
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.setRequestHeader('Accept', 'application/json');
+      if (req == "send invalid json")
+         xhr.send("invalid json");
+      else
+         xhr.send(JSON.stringify(req));
+   });
 }
 
 function mjsonrpc_debug_callback(request, response) {
@@ -348,6 +353,14 @@ function mjsonrpc_debug_error_callback(request, xhr, exc) {
    /// @param[in] exc request exception object (object)
    /// @returns nothing
    var s = mjsonrpc_decode_error_callback(request, xhr, exc);
+   alert("mjsonrpc_debug_error_callback: " + s);
+}
+
+function mjsonrpc_error_alert(error) {
+   /// Handle all errors
+   /// @param[in] error rejected promise (object)
+   /// @returns nothing
+   var s = mjsonrpc_decode_error_callback(error.request, error.xhr, error.exception);
    alert("mjsonrpc_debug_error_callback: " + s);
 }
 

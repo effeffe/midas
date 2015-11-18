@@ -674,7 +674,8 @@ ODBEdit(path);
           <input type=button value='test error request' onClick='mjsonrpc_call("error", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
         </p>
         <p> Test error responses:
-          <input type=button value='test unknown method request' onClick='mjsonrpc_call("unknown method", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='test unknown method request'
+          onClick='mjsonrpc_call("unknown method").then(function(response){mjsonrpc_response_alert(response) }).catch(function(error){mjsonrpc_error_alert(error);});'></input>
           <input type=button value='test invalid request' onClick='mjsonrpc_call("echo", function(){ ; }, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='test send invalid json' onClick='mjsonrpc_send_request("send invalid json", mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
           <input type=button value='test invalid_json reply' onClick='mjsonrpc_call("invalid_json", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
@@ -741,7 +742,10 @@ ODBEdit(path);
           "/test/intarray[1,100]",
           "/test/intarray[invalid index]"
           ];
-          mjsonrpc_db_copy(paths, null, db_copy_callback, mjsonrpc_debug_error_callback);'></input>
+          mjsonrpc_db_copy(paths).then(function(response) {
+          document.getElementById("db_copy_json_data").innerHTML =
+          JSON.stringify(response.response); }).catch(function(error)
+          { mjsonrpc_error_alert(error); });'></input>
         </p>
         <ul>
           <li>JSON data: <tt id='db_copy_json_data'></tt>
@@ -835,6 +839,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Tue Nov 10 13:10:11 PST 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Wed Nov 18 07:50:18 PST 2015 <!-- hhmts end -->
   </body>
 </html>
