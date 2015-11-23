@@ -10347,7 +10347,7 @@ void show_programs_page()
 
    rsprintf("</table>\n");
 
-   //rsprintf("<script>mhttpd_programs_page()</script>\n");
+   rsprintf("<script>mhttpd_programs_page()</script>\n");
 
    page_footer(TRUE);
 }

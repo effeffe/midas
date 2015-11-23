@@ -773,6 +773,45 @@ function ODBInlineEdit(p, odb_path, bracket)
 
 /*---- mhttpd functions -------------------------------------*/
 
+function mhttpd_disable_button(button)
+{
+   button.disabled = true;
+}
+
+function mhttpd_enable_button(button)
+{
+   button.disabled = false;
+}
+
+function mhttpd_hide_button(button)
+{
+   button.style.visibility = "hidden";
+   button.style.display = "none";
+}
+
+function mhttpd_unhide_button(button)
+{
+   button.style.visibility = "visible";
+   button.style.display = "";
+}
+
+function mhttpd_page_footer()
+{
+   /*---- spacer for footer ----*/
+   //document.write("<div class=\"push\"></div>\n");
+
+   /*---- footer div ----*/
+   document.write("<div id=\"footerDiv\" class=\"footerDiv\">\n");
+   mjsonrpc_db_get_values(["/Experiment/Name"]).then(function(result) {
+      document.getElementById("mhttpd_expt_name").innerHTML = "Experiment " + result.response.result.data[0];
+   }).catch(function(error) {
+   });
+   document.write("<div style=\"display:inline; float:left;\" id=\"mhttpd_expt_name\">Experiment %s</div>");
+   document.write("<div style=\"display:inline;\"><a href=\"?cmd=Help\">Help</a></div>");
+   document.write("<div style=\"display:inline; float:right;\" id=\"mhttpd_last_updated\">" + new Date + "</div>");
+   document.write("</div>\n");
+}
+
 function mhttpd_create_page_handle_create(mouseEvent)
 {
    var form = document.getElementsByTagName('form')[0];
@@ -901,9 +940,9 @@ function mhttpd_programs_page_add_table_entry(table, name, colspan)
    input.id = "start " + name;
    input.type = "button";
    input.innerHTML = "Start " + name;
-   input.disabled = true;
+   mhttpd_disable_button(input);
    input.onclick = function() {
-      start_button.disabled = true;
+      mhttpd_disable_button(start_button);
       //alert('Start!');
       mjsonrpc_start_program(name, null, mjsonrpc_debug_callback);
    };
@@ -918,9 +957,9 @@ function mhttpd_programs_page_add_table_entry(table, name, colspan)
    input.id = "stop " + name;
    input.type = "button";
    input.innerHTML = "Stop " + name;
-   input.disabled = true;
+   mhttpd_disable_button(input);
    input.onclick = function() {
-      stop_button.disabled = true;
+      mhttpd_disable_button(stop_button);
       //alert('Stop!');
       mjsonrpc_stop_program(name, false, null, mjsonrpc_debug_callback);
    };
@@ -956,16 +995,6 @@ function mhttpd_programs_page_callback(request, r)
    {
       var e = document.getElementById(dom_prefix + item);
       if (e) e.className = value;
-   }
-
-   function set_attr(id, attr, value)
-   {
-      var e = document.getElementById(id);
-      if (e) {
-         if (typeof e[attr] != 'undefined') {
-            e[attr] = value;
-         }
-      }
    }
 
    function find_client(clients, name)
@@ -1027,14 +1056,30 @@ function mhttpd_programs_page_callback(request, r)
             set_text("program host ", name, s);
             set_class("program host ", name, "greenLight");
             // enable start/stop buttons
-            set_attr("start " + name, "disabled", true);
-            set_attr("stop " + name, "disabled", false);
+            var e = document.getElementById("start " + name);
+            if (e) {
+               mhttpd_disable_button(e);
+               mhttpd_hide_button(e);
+            }
+            var e = document.getElementById("stop " + name);
+            if (e) {
+               mhttpd_enable_button(e);
+               mhttpd_unhide_button(e);
+            }
          } else {
             set_text("program host ", name, "Not running");
             set_class("program host ", name, "redLight");
             // enable start/stop buttons
-            set_attr("start " + name, "disabled", false);
-            set_attr("stop " + name, "disabled", true);
+            var e = document.getElementById("start " + name);
+            if (e) {
+               mhttpd_enable_button(e);
+               mhttpd_unhide_button(e);
+            }
+            var e = document.getElementById("stop " + name);
+            if (e) {
+               mhttpd_disable_button(e);
+               mhttpd_hide_button(e);
+            }
          }
 
          var alarm_class = programs[name]["alarm class"];
@@ -1056,7 +1101,7 @@ function mhttpd_programs_page_callback(request, r)
       }
    }
 
-   document.getElementById('lastUpdated').innerHTML = "Last updated: " + new Date;
+   document.getElementById('mhttpd_last_updated').innerHTML = new Date;
    document.getElementById('updateStatus').innerHTML = "";
 }
 
@@ -1066,7 +1111,11 @@ function mhttpd_programs_page_update()
    var updatePeriod = 1000; // in milli-seconds
    var paths = [ "/Programs", "/System/Clients", "/Alarms" ];
    document.getElementById('updateStatus').innerHTML = "Requesting new data...";
-   mjsonrpc_db_get_values(paths, null, mhttpd_programs_page_callback);
+   mjsonrpc_db_get_values(paths).then(function(result) {
+      mhttpd_programs_page_callback(result.request, result.response);
+   }).catch(function(error) {
+      document.getElementById('updateStatus').innerHTML = "RPC error...";
+   });
    document.getElementById('updateStatus').innerHTML = "Waiting for new data...";
    mhttpd_programs_page_updateTimerId = setTimeout('mhttpd_programs_page_update()', updatePeriod);
 }
@@ -1083,6 +1132,7 @@ function mhttpd_programs_page()
    document.write("</table>\n");
 
    document.write("<script>mhttpd_programs_page_update();</script>\n");
+   mhttpd_page_footer();
 }
 
 /*---- message functions -------------------------------------*/
