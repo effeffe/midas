@@ -402,7 +402,7 @@ function mjsonrpc_call(method, params, id, callback, error_callback)
    return mjsonrpc_send_request(req, callback, error_callback);
 }
 
-function mjsonrpc_start_program(name, id, callback, error_callback) {
+function mjsonrpc_start_program(name, id) {
    /// Start a MIDAS program
    /// @param[in] name Name of program to start, should be same as the ODB entry "/Programs/name" (string)
    /// @param[in] id optional request id (see JSON-RPC specs) (object)
@@ -410,10 +410,10 @@ function mjsonrpc_start_program(name, id, callback, error_callback) {
    /// @param[in,out] error_callback optional function to receive RPC error status (see mjsonrpc_debug_error_callback()) (function)
    var req = new Object();
    req.name = name;
-   return mjsonrpc_call("start_program", req, id, callback, error_callback);
+   return mjsonrpc_call("start_program", req, id);
 }
 
-function mjsonrpc_stop_program(name, unique, id, callback, error_callback) {
+function mjsonrpc_stop_program(name, unique, id) {
    /// Stop a MIDAS program via cm_shutdown()
    /// @param[in] name Name of program to stop (string)
    /// @param[in] unique bUnique argument to cm_shutdown() (bool)
@@ -423,7 +423,20 @@ function mjsonrpc_stop_program(name, unique, id, callback, error_callback) {
    var req = new Object();
    req.name = name;
    req.unique = unique;
-   return mjsonrpc_call("cm_shutdown", req, id, callback, error_callback);
+   return mjsonrpc_call("cm_shutdown", req, id);
+}
+
+function mjsonrpc_cm_exist(name, unique, id) {
+   /// Stop a MIDAS program via cm_exist()
+   /// @param[in] name Name of program to stop (string)
+   /// @param[in] unique bUnique argument to cm_shutdown() (bool)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @param[in,out] callback optional function to receive RPC reply (see mjsonrpc_debug_callback()) (function)
+   /// @param[in,out] error_callback optional function to receive RPC error status (see mjsonrpc_debug_error_callback()) (function)
+   var req = new Object();
+   req.name = name;
+   req.unique = unique;
+   return mjsonrpc_call("cm_exist", req, id);
 }
 
 function mjsonrpc_db_copy(paths, id, callback, error_callback) {
@@ -795,6 +808,36 @@ function mhttpd_unhide_button(button)
    button.style.display = "";
 }
 
+function mhttpd_init_overlay(overlay)
+{
+   mhttpd_hide_overlay(overlay);
+
+   // this element will hide the underlaying web page
+   
+   overlay.style.zIndex = 10;
+   //overlay.style.backgroundColor = "rgba(0,0,0,0.5)"; /*dim the background*/
+   overlay.style.backgroundColor = "white";
+   overlay.style.position = "fixed";
+   overlay.style.top = "0%";
+   overlay.style.left = "0%";
+   overlay.style.width = "100%";
+   overlay.style.height = "100%";
+
+   return overlay.children[0];
+}
+
+function mhttpd_hide_overlay(overlay)
+{
+   overlay.style.visibility = "hidden";
+   overlay.style.display = "none";
+}
+
+function mhttpd_unhide_overlay(overlay)
+{
+   overlay.style.visibility = "visible";
+   overlay.style.display = "";
+}
+
 function mhttpd_page_footer()
 {
    /*---- spacer for footer ----*/
@@ -802,8 +845,8 @@ function mhttpd_page_footer()
 
    /*---- footer div ----*/
    document.write("<div id=\"footerDiv\" class=\"footerDiv\">\n");
-   mjsonrpc_db_get_values(["/Experiment/Name"]).then(function(result) {
-      document.getElementById("mhttpd_expt_name").innerHTML = "Experiment " + result.response.result.data[0];
+   mjsonrpc_db_get_values(["/Experiment/Name"]).then(function(rpc) {
+      document.getElementById("mhttpd_expt_name").innerHTML = "Experiment " + rpc.response.result.data[0];
    }).catch(function(error) {
    });
    document.write("<div style=\"display:inline; float:left;\" id=\"mhttpd_expt_name\">Experiment %s</div>");
@@ -895,7 +938,53 @@ function mhttpd_delete_page_handle_cancel(mouseEvent)
    return false;
 }
 
-function mhttpd_programs_page_add_table_entry(table, name, colspan)
+var mhttpd_programs_page_update_timer_id;
+var mhttpd_programs_start_stop_overlay;
+var mhttpd_programs_start_stop_modal;
+var mhttpd_programs_start_stop_timer_id;
+
+function mhttpd_programs_start_stop_poll(msg, name, start_command, count)
+{
+   //msg.style.textAlign = "left";
+   if (start_command) {
+      msg.children[0].innerHTML = "Waiting for program \"" + name + "\" to start.";
+      msg.children[1].innerHTML = "Start command: " + start_command;
+   } else {
+      msg.children[0].innerHTML = "Waiting for program \"" + name + "\" to stop.";
+      msg.children[1].innerHTML = "";
+   }
+   mjsonrpc_cm_exist(name, false).then(function(rpc) {
+      var done = false;
+      if (start_command)
+         done = (rpc.response.result.status == 1);
+      else
+         done = (rpc.response.result.status != 1);
+      msg.children[2].innerHTML = "cm_exist() status: " + rpc.response.result.status + " done: " + done;
+      msg.children[3].innerHTML = "Will try again: " + count;
+      if (done) {
+         //mhttpd_hide_overlay(mhttpd_programs_start_stop_overlay);
+         //mhttpd_programs_page_update();
+         if (start_command)
+            msg.children[3].innerHTML = "Program started";
+         else
+            msg.children[3].innerHTML = "Program stopped";
+      } else {
+         if (count > 0) {
+            mhttpd_programs_start_stop_timer_id = setTimeout(function() { mhttpd_programs_start_stop_poll(msg, name, start_command, count-1); }, 1000);
+         } else {
+            if (start_command)
+               msg.children[3].innerHTML = "Timeout. Program cannot be started by MIDAS. Try to start it in a terminal, run: " + start_command;
+            else
+               msg.children[3].innerHTML = "Timeout. Program cannot be stopped by MIDAS. Try to kill it with \"kill -KILL\"";
+         }
+      }
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+      mhttpd_hide_overlay(mhttpd_programs_start_stop_overlay);
+   });
+}
+
+function mhttpd_programs_page_add_table_entry(table, name, start_command, colspan)
 {
    function new_attribute(name, value)
    {
@@ -943,8 +1032,14 @@ function mhttpd_programs_page_add_table_entry(table, name, colspan)
    mhttpd_disable_button(input);
    input.onclick = function() {
       mhttpd_disable_button(start_button);
+      mhttpd_unhide_overlay(mhttpd_programs_start_stop_overlay);
       //alert('Start!');
-      mjsonrpc_start_program(name, null, mjsonrpc_debug_callback);
+      mjsonrpc_start_program(name).then(function(rpc) {
+         mhttpd_programs_start_stop_poll(mhttpd_programs_start_stop_modal, name, start_command, 10);
+      }).catch(function(error) {
+         mjsonrpc_error_alert(error);
+         mhttpd_hide_overlay(mhttpd_programs_start_stop_overlay);
+      });
    };
 
    td.appendChild(input);
@@ -960,8 +1055,14 @@ function mhttpd_programs_page_add_table_entry(table, name, colspan)
    mhttpd_disable_button(input);
    input.onclick = function() {
       mhttpd_disable_button(stop_button);
+      mhttpd_unhide_overlay(mhttpd_programs_start_stop_overlay);
       //alert('Stop!');
-      mjsonrpc_stop_program(name, false, null, mjsonrpc_debug_callback);
+      mjsonrpc_stop_program(name, false).then(function(rpc) {
+         mhttpd_programs_start_stop_poll(mhttpd_programs_start_stop_modal, name, null, 10);
+      }).catch(function(error) {
+         mjsonrpc_error_alert(error);
+         mhttpd_hide_overlay(mhttpd_programs_start_stop_overlay);
+      });
    };
 
    td.appendChild(input);
@@ -972,8 +1073,6 @@ function mhttpd_programs_page_add_table_entry(table, name, colspan)
 
    return tr;
 }
-
-var mhttpd_programs_page_updateTimerId;
 
 function mhttpd_programs_page_callback(request, r)
 {
@@ -1036,8 +1135,10 @@ function mhttpd_programs_page_callback(request, r)
       var xclients = find_client(clients, name);
       //alert("name " + name + " clients: " + JSON.stringify(xclients));
       if (required || xclients) {
+         var start_command = programs[name]["start command"];
+
          if (!e) {
-            e = mhttpd_programs_page_add_table_entry(document.getElementById("xstripeList"), name, 1);
+            e = mhttpd_programs_page_add_table_entry(document.getElementById("xstripeList"), name, start_command, 1);
          }
 
          e.style.display = '';
@@ -1071,7 +1172,7 @@ function mhttpd_programs_page_callback(request, r)
             set_class("program host ", name, "redLight");
             // enable start/stop buttons
             var e = document.getElementById("start " + name);
-            if (e) {
+            if (e && start_command) {
                mhttpd_enable_button(e);
                mhttpd_unhide_button(e);
             }
@@ -1107,17 +1208,22 @@ function mhttpd_programs_page_callback(request, r)
 
 function mhttpd_programs_page_update()
 {
-   clearTimeout(mhttpd_programs_page_updateTimerId);
-   var updatePeriod = 1000; // in milli-seconds
    var paths = [ "/Programs", "/System/Clients", "/Alarms" ];
    document.getElementById('updateStatus').innerHTML = "Requesting new data...";
-   mjsonrpc_db_get_values(paths).then(function(result) {
-      mhttpd_programs_page_callback(result.request, result.response);
+   mjsonrpc_db_get_values(paths).then(function(rpc) {
+      mhttpd_programs_page_callback(rpc.request, rpc.response);
    }).catch(function(error) {
       document.getElementById('updateStatus').innerHTML = "RPC error...";
    });
    document.getElementById('updateStatus').innerHTML = "Waiting for new data...";
-   mhttpd_programs_page_updateTimerId = setTimeout('mhttpd_programs_page_update()', updatePeriod);
+}
+
+function mhttpd_programs_page_update_periodic()
+{
+   clearTimeout(mhttpd_programs_page_update_timer_id);
+   var update_period = 1000;
+   mhttpd_programs_page_update();
+   mhttpd_programs_page_update_timer_id = setTimeout('mhttpd_programs_page_update_periodic()', update_period);
 }
 
 function mhttpd_programs_page()
@@ -1126,12 +1232,26 @@ function mhttpd_programs_page()
 
    document.write("<td><input type=button value=\'Refresh now\' onClick=\'mhttpd_programs_page_update();\'></input> <tt id='lastUpdated'>lastUpdated</tt> <tt id='updateStatus'>updateStatus</tt></td>\n");
 
+   document.write("<div id=\"mhttpd_programs_start_stop_overlay\">\n");
+   document.write("<div>\n");
+   document.write("<p>text1</p>\n");
+   document.write("<p>text2</p>\n");
+   document.write("<p>text3</p>\n");
+   document.write("<p>text4</p>\n");
+   document.write("<input type=button value=\'Close overlay\' onClick=\'clearTimeout(mhttpd_programs_start_stop_timer_id); mhttpd_hide_overlay(mhttpd_programs_start_stop_overlay); mhttpd_programs_page_update();\'></input>\n");
+   document.write("</div>\n");
+   document.write("</div>\n");
+   
    document.write("<table class=\"subStatusTable\" id=\"xstripeList\">\n");
    document.write("<tr><td colspan=5 class=\"subStatusTitle\">Programs</td></tr>");
    document.write("<tr class=\"titleRow\"><th>Program<th>Running on host<th>Alarm class<th>Autorestart<th>Commands</tr>\n");
    document.write("</table>\n");
 
-   document.write("<script>mhttpd_programs_page_update();</script>\n");
+   mhttpd_programs_start_stop_overlay = document.getElementById("mhttpd_programs_start_stop_overlay");
+   mhttpd_programs_start_stop_modal = mhttpd_init_overlay(mhttpd_programs_start_stop_overlay);
+   //mhttpd_unhide_overlay(mhttpd_programs_start_stop_overlay);
+
+   document.write("<script>mhttpd_programs_page_update_periodic();</script>\n");
    mhttpd_page_footer();
 }
 
