@@ -426,6 +426,8 @@ function mjsonrpc_start_program(name, id) {
    /// \ingroup mjsonrpc_js
    /// Start a MIDAS program
    ///
+   /// RPC method: "start_program"
+   ///
    /// \code
    /// mjsonrpc_start_program("logger").then(function(rpc) {
    ///    var req    = rpc.request; // reference to the rpc request
@@ -450,6 +452,8 @@ function mjsonrpc_stop_program(name, unique, id) {
    /// \ingroup mjsonrpc_js
    /// Stop a MIDAS program via cm_shutdown()
    ///
+   /// RPC method: "cm_shutdown"
+   ///
    /// \code
    /// mjsonrpc_stop_program("logger").then(function(rpc) {
    ///    var req    = rpc.request; // reference to the rpc request
@@ -472,34 +476,113 @@ function mjsonrpc_stop_program(name, unique, id) {
    return mjsonrpc_call("cm_shutdown", req, id);
 }
 
-function mjsonrpc_db_copy(paths, id, callback, error_callback) {
+function mjsonrpc_db_copy(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Get a copy of ODB. Symlinks are not resolved, ODB path names are not converted to lower-case.
+   ///
+   /// Instead of this function, please use db_get_values() as a simple way to get easy to use ODB values.
+   ///
+   /// RPC method: "db_copy"
+   ///
+   /// \code
+   /// mjsonrpc_db_copy(["/runinfo", "/equipment/foo"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_get_value() for /runinfo
+   ///    ... result.status[1]; // status of db_get_value() for /equipment
+   ///    ... result.last_written[0]; // "last written" timestamp for /runinfo
+   ///    ... result.last_written[1]; // "last written" timestamp for /equipment
+   ///    var runinfo = result.data[0]; // javascript object representing the ODB runinfo structure
+   ///    var equipment = result.data[1]; // javascript object representing /equipment/foo
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
    var req = new Object();
    req.paths = paths;
-   return mjsonrpc_call("db_copy", req, id, callback, error_callback);
+   return mjsonrpc_call("db_copy", req, id);
 }
 
-function mjsonrpc_db_get_values(paths, id, callback, error_callback) {
+function mjsonrpc_db_get_values(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Get values of ODB variables
+   ///
+   /// RPC method: "db_get_values"
+   ///
+   /// \code
+   /// mjsonrpc_db_get_values(["/runinfo", "/equipment"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_get_value() for /runinfo
+   ///    ... result.status[1]; // status of db_get_value() for /equipment
+   ///    ... result.last_written[0]; // "last written" timestamp for /runinfo
+   ///    ... result.last_written[1]; // "last written" timestamp for /equipment
+   ///    var runinfo = result.data[0]; // javascript object representing the ODB runinfo structure
+   ///    ... runinfo["run number"];    // access the run number, note: all ODB names should be in lower-case.
+   ///    ... runinfo["run number/last_written"]; // "last_written" timestamp for the run number
+   ///    ... result.data[1].foo.variables.bar;   // access /equipment/foo/variables/bar
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
    var req = new Object();
    req.paths = paths;
-   return mjsonrpc_call("db_get_values", req, id, callback, error_callback);
+   return mjsonrpc_call("db_get_values", req, id);
 }
 
-function mjsonrpc_db_paste(paths, values, id, callback, error_callback) {
+function mjsonrpc_db_paste(paths, values, id) {
+   /// \ingroup mjsonrpc_js
+   /// Write values info ODB.
+   ///
+   /// RPC method: "db_paste"
+   ///
+   /// \code
+   /// mjsonrpc_db_paste(["/runinfo/run number", "/equipment/foo/settings/bar"], [123,456]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_set_value() for /runinfo
+   ///    ... result.status[1]; // status of db_set_value() for /equipment
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] values Array of ODB values (array of anything)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
    var req = new Object();
    req.paths = paths;
    req.values = values;
-   return mjsonrpc_call("db_paste", req, id, callback, error_callback);
+   return mjsonrpc_call("db_paste", req, id);
 }
 
-function mjsonrpc_db_create(paths, id, callback, error_callback) {
+function mjsonrpc_db_create(paths, id) {
+   /// \ingroup mjsonrpc_js
    /// Create ODB entries
+   ///
+   /// RPC method: "db_create"
+   ///
    /// @param[in] paths Array of ODB entries to create (array of objects)
    /// @param[in] paths[i].path ODB path name to create (string)
+   /// @param[in] paths[i].type TID_xxx data type (integer)
+   /// @param[in] paths[i].array_length Optional array length (default is 1) (integer)
+   /// @param[in] paths[i].string_length Optional string length (default is NAME_LENGTH) (integer)
    /// @param[in] id optional request id (see JSON-RPC specs) (object)
-   /// @param[in,out] callback optional function to receive RPC reply (see mjsonrpc_debug_callback()) (function)
-   /// @param[in,out] error_callback optional function to receive RPC error status (see mjsonrpc_debug_error_callback()) (function)
+   /// @returns new Promise
 
-   return mjsonrpc_call("db_create", paths, id, callback, error_callback);
+   return mjsonrpc_call("db_create", paths, id);
 }
 
 function ODBCall(url, callback)
