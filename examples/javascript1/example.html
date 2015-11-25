@@ -170,34 +170,6 @@
       clearTimeout(updateTimerId);
       }
 
-function testPOST()
-{
-   //mjrpc_call("echo", "[ 1 ]", null, mjsonrpc_debug_callback);
-   //mjrpc_call("error", "[ 1 ]", null, mjsonrpc_debug_callback);
-   //mjrpc_call("invalid_json", "[ 1 ]", null, mjsonrpc_debug_callback);
-   mjsonrpc_call("null", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);
-}
-
-function testExist1()
-{
-   mjsonrpc_call("cm_exist", "{ \"name\": \"mhttpd\" }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);
-}
-
-function testExist2()
-{
-   mjsonrpc_call("cm_exist", "{ \"name\": \"odbedit\" }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);
-}
-
-function testShutdown()
-{
-   mjsonrpc_call("cm_shutdown", "{ \"name\": \"odbedit\" }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);
-}
-
-function testShutdownMissingParameter()
-{
-   mjsonrpc_call("cm_shutdown", "{ \"zname\": \"odbedit\" }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);
-}
-
       function test_nan_inf_encode()
       {
       var data = new Array();
@@ -215,37 +187,6 @@ function testShutdownMissingParameter()
       var data = JSON.parse(json);
       alert("Test of JSON decode: " + json + " decoded as data array: " + data);
       }
-
-      function db_copy_callback(request, r)
-      {
-      document.getElementById('db_copy_json_data').innerHTML = JSON.stringify(r);
-      }
-
-      function db_get_values_callback(request, r)
-      {
-      document.getElementById('db_get_values_json_data').innerHTML = JSON.stringify(r);
-      var now = new Date().getTime()/1000;
-      var status = r.result.status;
-      var runinfo = r.result.data[0];
-      var runnumber = r.result.data[1];
-      var error = r.result.data[2];
-      var settings = r.result.data[3];
-      var variables = r.result.data[4];
-      document.getElementById('db_get_values_status').innerHTML = status;
-      document.getElementById('db_get_values_runstate').innerHTML = runinfo.state;
-      document.getElementById('db_get_values_runnumber').innerHTML = runnumber;
-      document.getElementById('db_get_values_settings_example_int').innerHTML = settings.example_int;
-      document.getElementById('db_get_values_data0').innerHTML = variables.slow[0];
-      document.getElementById('db_get_values_data1').innerHTML = variables.slow[1];
-      document.getElementById('db_get_values_data2').innerHTML = variables.slow[2];
-      var lw;
-      if (variables['slow/key'])
-      lw = variables['slow/key'].last_written;
-      else
-      lw = variables['slow/last_written'];
-      document.getElementById('db_get_values_data_age').innerHTML = now - lw;
-      }
-
     </script>
   </head>
 
@@ -257,14 +198,20 @@ function testShutdownMissingParameter()
     <p>For full documentation, go here: https://midas.triumf.ca/MidasWiki/index.php/Mhttpd.js</p>
     <p>List of functions used in this example:</p>
     <pre>
-ODBSet(path, value, pwdname);
-ODBGet(path, format, defval, len, type); ---- use ODBMCopy() instead
-ODBMGet(paths, callback, formats); ---- use ODBMCopy() instead
-ODBGetRecord(path); ---- use ODBMCopy() instead
-ODBExtractRecord(record, key); ---- use ODBMCopy() instead
+mjsonrpc_set_url(url);
+mjsonrpc_db_get_values(paths);
+mjsonrpc_db_paste(paths, values);
+test cm_exist()
+test cm_shutdown()
+test start_program()
+ODBSet(path, value, pwdname); ---- use mjsonrpc_db_paste() instead
+ODBGet(path, format, defval, len, type); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
+ODBMGet(paths, callback, formats); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
+ODBGetRecord(path); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
+ODBExtractRecord(record, key); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
 new ODBKey(path); ---- use ODBMKey() instead
-ODBCopy(path, format); ---- use ODBMCopy() instead
-ODBMCopy(paths, callback, format);
+ODBCopy(path, format); ---- use ODBMCopy() instead ---- use mjsonrpc_db_copy() instead
+ODBMCopy(paths, callback, format); ---- use mjsonrpc_db_copy() instead
 ODBMLs(paths, callback);
 ODBMCreate(paths, types);
 ODBMCreate(paths, types, arraylengths, stringlengths, callback);  
@@ -300,6 +247,79 @@ ODBEdit(path);
         </p>
         
       <li>
+        <h2>mjsonrpc_db_get_values()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='var paths = [
+          "/Runinfo",
+          "/Runinfo/Run number",
+          "/does-not-exist",
+          "/Equipment/RpcExample/Settings",
+          "/Equipment/RpcExample/Variables",
+          "/test/intarray[0]",
+          "/test/intarray[0,2]",
+          "/test/intarray[0-2]",
+          "/test/intarray[0,3-4,1-2]",
+          "/test/intarray[4-0]",
+          "/test/intarray[1,100]",
+          "/test/intarray[invalid index]"
+          ];
+          mjsonrpc_db_get_values(paths).then(function(rpc) {
+      document.getElementById("db_get_values_json_data").innerHTML = JSON.stringify(rpc);
+      var now = new Date().getTime()/1000;
+      var status = rpc.result.status;
+      var runinfo = rpc.result.data[0];
+      var runnumber = rpc.result.data[1];
+      var error = rpc.result.data[2];
+      var settings = rpc.result.data[3];
+      var variables = rpc.result.data[4];
+      document.getElementById("db_get_values_status").innerHTML = status;
+      document.getElementById("db_get_values_runstate").innerHTML = runinfo.state;
+      document.getElementById("db_get_values_runnumber").innerHTML = runnumber;
+      document.getElementById("db_get_values_settings_example_int").innerHTML = settings.example_int;
+      document.getElementById("db_get_values_data0").innerHTML = variables.slow[0];
+      document.getElementById("db_get_values_data1").innerHTML = variables.slow[1];
+      document.getElementById("db_get_values_data2").innerHTML = variables.slow[2];
+      var lw;
+      if (variables["slow/key"])
+      lw = variables["slow/key"].last_written;
+      else
+      lw = variables["slow/last_written"];
+      document.getElementById("db_get_values_data_age").innerHTML = now - lw;
+          }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+        </p>
+        <ul>
+          <li>JSON data: <tt id='db_get_values_json_data'></tt>
+          <li>db_get_values() status: <tt id='db_get_values_status'></tt>
+          <li>Runinfo/State: <tt id='db_get_values_runstate'></tt>
+          <li>Run number: <tt id='db_get_values_runnumber'></tt>
+          <li>Settings/example_int: <tt id='db_get_values_settings_example_int'></tt>
+          <li>SLOW[0]: <tt id='db_get_values_data0'></tt>
+          <li>SLOW[1]: <tt id='db_get_values_data1'></tt>
+          <li>SLOW[2]: <tt id='db_get_values_data2'></tt>
+          <li>data age: <tt id='db_get_values_data_age'></tt>
+        </ul>
+
+      <li>
+        <h2>mjsonrpc_db_paste()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='var paths = [
+          "/test/int",
+	  "/test/intarray[2]",
+	  "/test/intarray[3,4]",
+	  "/test/intarray[invalid index]",
+	  "/does-not-exist-test-db-paste",
+	  ];
+	  var values = [ 1, 2, [ 3, 4], 110, 120 ];
+	  mjsonrpc_db_paste(paths, values).then(function(rpc) {
+          mjsonrpc_debug_alert(rpc);
+	  }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+        </p>
+
+      <li>
         <h2>javascript code to update the data on the page</h2>
 
         <input type=button value='Update now once' onClick='updatePeriod=0; update();'></input>
@@ -307,7 +327,7 @@ ODBEdit(path);
         <input type=button value='Update every 10 sec' onClick='updatePeriod=10000; update();'></input>
 
       <li>
-        <h2>ODBGet() ---- use ODBMCopy() instead</h2>
+        <h2>ODBGet() ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead</h2>
 
         <p>
           <i>This data is updated by the javascript update() function - press the "update now" button above</i>
@@ -320,7 +340,7 @@ ODBEdit(path);
         </p>
 
       <li>
-        <h2>ODBMGet() ---- use ODBMCopy() instead</h2>
+        <h2>ODBMGet() ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead</h2>
 
         <p>
           <i>This data is updated by the javascript update() function - press the "update now" button above</i>
@@ -333,7 +353,7 @@ ODBEdit(path);
         </p>
 
       <li>
-        <h2>ODBGetRecord() and ODBExtractRecord() ---- use ODBMCopy() instead</h2>
+        <h2>ODBGetRecord() and ODBExtractRecord() ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead</h2>
 
         <p>
           <input type=button value='Get /Equipment/RpcExample/Variables and Settings' onClick='clearTimeout(updateTimerId); getrecord_example(); update();'></input>
@@ -362,7 +382,7 @@ ODBEdit(path);
         </pre>
 
       <li>
-        <h2>ODBCopy() --- use ODBMCopy() instead</h2>
+        <h2>ODBCopy() --- use ODBMCopy() instead ---- use mjsonrpc_db_copy() instead</h2>
 
         <p>
           <input type=button value='ODBCopy(/Equipment/RpcExample)' onClick='clearTimeout(updateTimerId); copy_example(); update();'></input>
@@ -407,7 +427,7 @@ ODBEdit(path);
         <script src='?cmd=jcopy&odb=/Equipment/RpcExample/Variables&format=json-p&callback=jsonp_callback'></script>
 
       <li>
-        <h2>ODBMCopy()</h2>
+        <h2>ODBMCopy() ---- use mjsonrpc_db_get_values() instead</h2>
 
         <p>
           <input type=button value='Push me' onClick='clearTimeout(updateTimerId); mcopy_example(); update();'></input>
@@ -588,7 +608,7 @@ ODBEdit(path);
         </p> 
 
       <li>
-        <h2>ODBSet()</h2>
+        <h2>ODBSet() ---- use mjsonrpc_db_paste() instead</h2>
       
         <p>
           <i>Press these buttons to write new values to ODB. ODB variables of appropriate type have to be created before calling ODBSet(). Observe updated values in the ODBGet() section above.</i>
@@ -633,7 +653,7 @@ ODBEdit(path);
         </p>
 
       <li>
-        <h2>ODBGetMsg()</h2>
+        <h2>ODBGetMsg() ---- this example is broken</h2>
       
         <p>
           <input type=button value='Get MIDAS messages' onClick='var data = ODBGetMsg(10); document.getElementById("getmsg_target").innerHTML = data.join("\n");'></input>
@@ -643,7 +663,7 @@ ODBEdit(path);
         </pre>
 
       <li>
-        <h2>ODBGenerateMsg()</h2>
+        <h2>ODBGenerateMsg() ---- this example is broken</h2>
       
         <p>
           <i>Type in a message and press Enter. See the new message on the MIDAS "messages" page
@@ -667,39 +687,37 @@ ODBEdit(path);
         <h2>Test JSON RPC calls</h2>
       
         <p> Test built-in functions:
-          <input type=button value='set debug 0' onClick='mjsonrpc_call("set_debug", "0", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='set debug 1' onClick='mjsonrpc_call("set_debug", "1", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='get debug' onClick='mjsonrpc_call("get_debug", "{}", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='test echo request' onClick='mjsonrpc_call("echo", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='test error request' onClick='mjsonrpc_call("error", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='set debug 0' onClick='mjsonrpc_call("set_debug", "0").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='set debug 1' onClick='mjsonrpc_call("set_debug", "1").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='get debug' onClick='mjsonrpc_call("get_debug", "{}").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='test echo request' onClick='mjsonrpc_call("echo", "[ 1 ]").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='test error request' onClick='mjsonrpc_call("error", "[ 1 ]").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
         </p>
         <p> Test error responses:
           <input type=button value='test unknown method request'
-          onClick='mjsonrpc_call("unknown method").then(function(response){mjsonrpc_response_alert(response) }).catch(function(error){mjsonrpc_error_alert(error);});'></input>
-          <input type=button value='test invalid request' onClick='mjsonrpc_call("echo", function(){ ; }, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='test send invalid json' onClick='mjsonrpc_send_request("send invalid json", mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='test invalid_json reply' onClick='mjsonrpc_call("invalid_json", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='test request with null response' onClick='mjsonrpc_call("null", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='test db_create array check' onClick='mjsonrpc_db_create({"this is not an array":0}, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='test db_copy array check' onClick='mjsonrpc_db_copy("this is not an array", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          onClick='mjsonrpc_call("test call of unknown method", ["some params"]) .then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='test missing parameters'
+          onClick='mjsonrpc_call("test call with missing parameters").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='test invalid request' onClick='mjsonrpc_call("echo", function(){ ; }).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='test send invalid json' onClick='mjsonrpc_send_request("send invalid json").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='test invalid_json reply' onClick='mjsonrpc_call("invalid_json", "[ 1 ]").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='test request with null response' onClick='mjsonrpc_call("null", "[ 1 ]").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='test db_create array check' onClick='mjsonrpc_db_create({"this is not an array":0}).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='test db_copy array check' onClick='mjsonrpc_db_copy("this is not an array").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
         </p>
         <p> Test examples from mjsonrpc_user.cxx
-          <input type=button value='user example1 with wrong arguments' onClick='mjsonrpc_call("user_example1", "[ 1 ]", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='user example1 with one argument' onClick='mjsonrpc_call("user_example1", "{ \"arg\": \"small brown fox etc\" }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='user example1 with two arguments' onClick='mjsonrpc_call("user_example1", "{ \"arg\": \"small brown fox etc\", \"optional_arg\": 123456 }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='user example2' onClick='mjsonrpc_call("user_example2", "{ \"arg\": \"big red fox etc\" }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-          <input type=button value='user example3 normal' onClick='mjsonrpc_call("user_example3", "{ \"arg\": 100 }", null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          <input type=button value='user example1 with wrong arguments' onClick='mjsonrpc_call("user_example1", "[ 1 ]").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='user example1 with one argument' onClick='mjsonrpc_call("user_example1", "{ \"arg\": \"small brown fox etc\" }").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='user example1 with two arguments' onClick='mjsonrpc_call("user_example1", "{ \"arg\": \"small brown fox etc\", \"optional_arg\": 123456 }").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='user example2' onClick='mjsonrpc_call("user_example2", "{ \"arg\": \"big red fox etc\" }").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='user example3 normal' onClick='mjsonrpc_call("user_example3", "{ \"arg\": 100 }").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
           <input type=button value='user example3 error'
-          onClick='mjsonrpc_call("user_example3", "{ \"arg\": 0 }",
-          null, mjsonrpc_debug_callback,
-          mjsonrpc_debug_error_callback);'></input>
+          onClick='mjsonrpc_call("user_example3", "{ \"arg\": 0 }") .then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
         </p>
         <p> test other stuff
-          <input type=button value='test' onClick='testPOST();'></input>
-          <input type=button value='test exist1' onClick='testExist1();'></input>
-          <input type=button value='test exist2' onClick='testExist2();'></input>
-          <input type=button value='test shutdown' onClick='testShutdown();'></input>
-          <input type=button value='test shutdown with missing parameter' onClick='testShutdownMissingParameter();'></input>
+          <input type=button value='test cm_shutdown' onClick='mjsonrpc_call("cm_shutdown", "{ \"name\": \"odbedit\" }") .then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='test cm_exist' onClick='mjsonrpc_call("cm_exist", "{ \"name\": \"odbedit\" }") .then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='test start_program' onClick='mjsonrpc_call("start_program", "{ \"name\": \"whatever\" }") .then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
         </p>
         <p> nan and inf
           <input type=button value='test encode of nan and inf' onClick='test_nan_inf_encode();'></input>
@@ -711,16 +729,16 @@ ODBEdit(path);
 	  "/test/minusinf",
 	  ];
 	  var values = [ "NaN", "Infinity", "-Infinity" ];
-          mjsonrpc_db_paste(paths, values, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          mjsonrpc_db_paste(paths, values).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
           <input type=button value='test db_copy of nan and inf'
           onClick='var paths = [
           "/test/nan",
 	  "/test/plusinf",
 	  "/test/minusinf",
 	  ];
-          mjsonrpc_db_copy(paths, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          mjsonrpc_db_copy(paths).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
           <input type=button value='test MJSonNode encoding of nan and inf'
-          onClick='mjsonrpc_call("test_nan_inf", null, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          onClick='mjsonrpc_call("test_nan_inf").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
         </p>
 
       <li>
@@ -742,63 +760,14 @@ ODBEdit(path);
           "/test/intarray[1,100]",
           "/test/intarray[invalid index]"
           ];
-          mjsonrpc_db_copy(paths).then(function(response) {
+          mjsonrpc_db_copy(paths).then(function(rpc) {
           document.getElementById("db_copy_json_data").innerHTML =
-          JSON.stringify(response.response); }).catch(function(error)
+          JSON.stringify(rpc.result); }).catch(function(error)
           { mjsonrpc_error_alert(error); });'></input>
         </p>
         <ul>
           <li>JSON data: <tt id='db_copy_json_data'></tt>
         </ul>
-
-      <li>
-        <h2>mjsonrpc_db_get_values()</h2>
-
-        <p>
-          <input type=button value='Push me'
-          onClick='var paths = [
-          "/Runinfo",
-          "/Runinfo/Run number",
-          "/does-not-exist",
-          "/Equipment/RpcExample/Settings",
-          "/Equipment/RpcExample/Variables",
-          "/test/intarray[0]",
-          "/test/intarray[0,2]",
-          "/test/intarray[0-2]",
-          "/test/intarray[0,3-4,1-2]",
-          "/test/intarray[4-0]",
-          "/test/intarray[1,100]",
-          "/test/intarray[invalid index]"
-          ];
-          mjsonrpc_db_get_values(paths, null, db_get_values_callback, mjsonrpc_debug_error_callback);'></input>
-        </p>
-        <ul>
-          <li>JSON data: <tt id='db_get_values_json_data'></tt>
-          <li>db_get_values() status: <tt id='db_get_values_status'></tt>
-          <li>Runinfo/State: <tt id='db_get_values_runstate'></tt>
-          <li>Run number: <tt id='db_get_values_runnumber'></tt>
-          <li>Settings/example_int: <tt id='db_get_values_settings_example_int'></tt>
-          <li>SLOW[0]: <tt id='db_get_values_data0'></tt>
-          <li>SLOW[1]: <tt id='db_get_values_data1'></tt>
-          <li>SLOW[2]: <tt id='db_get_values_data2'></tt>
-          <li>data age: <tt id='db_get_values_data_age'></tt>
-        </ul>
-
-      <li>
-        <h2>mjsonrpc_db_paste()</h2>
-
-        <p>
-          <input type=button value='Push me'
-          onClick='var paths = [
-          "/test/int",
-	  "/test/intarray[2]",
-	  "/test/intarray[3,4]",
-	  "/test/intarray[invalid index]",
-	  "/does-not-exist-test-db-paste",
-	  ];
-	  var values = [ 1, 2, [ 3, 4], 110, 120 ];
-          mjsonrpc_db_paste(paths, values, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
-        </p>
 
       <li>
         <h2>mjsonrpc_db_create()</h2>
@@ -811,7 +780,7 @@ ODBEdit(path);
           { "path" : "/test_create/string2", "type" : TID_STRING, "string_length": 10 },
           { "path" : "/test_create/double_array", "type" : TID_DOUBLE, "array_length": 5 },
 	  ];
-          mjsonrpc_db_create(paths, null, mjsonrpc_debug_callback, mjsonrpc_debug_error_callback);'></input>
+          mjsonrpc_db_create(paths).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
         </p>
 
       <li>
@@ -819,10 +788,8 @@ ODBEdit(path);
 
         <p>
           <input type=button value='Push me'
-          onClick='mjsonrpc_call("get_schema", null, null,
-          function(req, r)
-          { document.getElementById("get_schema_data").innerHTML =
-          JSON.stringify(r.result, null, " "); }, mjsonrpc_debug_error_callback);'></input>
+          onClick='mjsonrpc_call("get_schema").then(function(rpc){document.getElementById("get_schema_data").innerHTML =
+          JSON.stringify(rpc.result, null, " ");}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
         </p>
         <ul>
           <li>JSON-RPC schema: <tt id='get_schema_data'></tt>
@@ -839,6 +806,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Wed Nov 18 07:50:18 PST 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Wed Nov 25 10:25:14 PST 2015 <!-- hhmts end -->
   </body>
 </html>
