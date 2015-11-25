@@ -1089,10 +1089,10 @@ function mhttpd_programs_start_stop_poll(msg, name, start_command, count)
    mjsonrpc_cm_exist(name, false).then(function(rpc) {
       var done = false;
       if (start_command)
-         done = (rpc.response.result.status == 1);
+         done = (rpc.result.status == 1);
       else
-         done = (rpc.response.result.status != 1);
-      msg.children[2].innerHTML = "cm_exist() status: " + rpc.response.result.status + " done: " + done;
+         done = (rpc.result.status != 1);
+      msg.children[2].innerHTML = "cm_exist() status: " + rpc.result.status + " done: " + done;
       msg.children[3].innerHTML = "Will try again: " + count;
       if (done) {
          //mhttpd_hide_overlay(mhttpd_programs_start_stop_overlay);
@@ -1207,7 +1207,7 @@ function mhttpd_programs_page_add_table_entry(table, name, start_command, colspa
    return tr;
 }
 
-function mhttpd_programs_page_callback(request, r)
+function mhttpd_programs_page_callback(rpc)
 {
    document.getElementById('updateStatus').innerHTML = "Processing new data...";
 
@@ -1258,9 +1258,9 @@ function mhttpd_programs_page_callback(request, r)
 
    //alert("Hello: " + JSON.stringify(r));
 
-   var programs = r.result.data[0];
-   var clients  = r.result.data[1];
-   var alarms   = r.result.data[2];
+   var programs = rpc.result.data[0];
+   var clients  = rpc.result.data[1];
+   var alarms   = rpc.result.data[2];
 
    for (var name in programs) {
       var e = document.getElementById("program " + name);
@@ -1344,7 +1344,7 @@ function mhttpd_programs_page_update()
    var paths = [ "/Programs", "/System/Clients", "/Alarms" ];
    document.getElementById('updateStatus').innerHTML = "Requesting new data...";
    mjsonrpc_db_get_values(paths).then(function(rpc) {
-      mhttpd_programs_page_callback(rpc.request, rpc.response);
+      mhttpd_programs_page_callback(rpc);
    }).catch(function(error) {
       document.getElementById('updateStatus').innerHTML = "RPC error...";
    });
