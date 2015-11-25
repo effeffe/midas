@@ -324,7 +324,7 @@ function mjsonrpc_debug_alert(rpc) {
    /// Debug method to show RPC response
    /// @param[in] rpc object (object), see mjsonrpc_send_request()
    /// @returns nothing
-   alert("mjsonrpc_debug_callback: method: \"" + rpc.request.method + "\", params: " + rpc.request.params + ", id: " + JSON.stringify(rpc.id) + ", response: " + JSON.stringify(rpc.response));
+   alert("mjsonrpc_debug_alert: method: \"" + rpc.request.method + "\", params: " + rpc.request.params + ", id: " + JSON.stringify(rpc.id) + ", response: " + JSON.stringify(rpc.result));
 }
 
 function mjsonrpc_decode_error(request, xhr, exc) {
@@ -392,6 +392,8 @@ function mjsonrpc_make_request(method, params, id)
    } else {
       req.params = params;
    }
+   if (!req.params)
+      req.params = null; // make sure we have "params", even if set to null or undefined
    req.id = id;
 
    return req;
