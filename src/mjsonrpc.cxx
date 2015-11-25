@@ -807,9 +807,28 @@ static MJsonNode* js_db_create(const MJsonNode* params)
       int array_length = mjsonrpc_get_param(p, "array_length", NULL)->GetInt();
       int string_length = mjsonrpc_get_param(p, "string_length", NULL)->GetInt();
 
-      printf("create odb [%s], type %d, array %d, string %d\n", path.c_str(), type, array_length, string_length);
+      //printf("create odb [%s], type %d, array %d, string %d\n", path.c_str(), type, array_length, string_length);
 
-      int status = DB_SUCCESS;
+      int status = db_create_key(hDB, 0, path.c_str(), type);
+
+      if (status == DB_SUCCESS && string_length > 0 && type == TID_STRING) {
+         HNDLE hKey;
+         status = db_find_key(hDB, 0, path.c_str(), &hKey);
+         if (status == DB_SUCCESS) {
+            char* buf = (char*)calloc(1, string_length);
+            assert(buf != NULL);
+            int size = string_length;
+            status = db_set_data(hDB, hKey, buf, size, 1, TID_STRING);
+            free(buf);
+         }
+      }
+
+      if (status == DB_SUCCESS && array_length > 1) {
+         HNDLE hKey;
+         status = db_find_key(hDB, 0, path.c_str(), &hKey);
+         if (status == DB_SUCCESS)
+            status = db_set_num_values(hDB, hKey, array_length);
+      }
 
       sresult->AddToArray(MJsonNode::MakeInt(status));
    }

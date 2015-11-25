@@ -1005,16 +1005,40 @@ function mhttpd_create_page_handle_create(mouseEvent)
       return false;
    }
 
-   if (arraylength < 1) {
+   if (parseInt(arraylength) < 1) {
       alert("Bad array length: " + arraylength);
       return false;
    }
 
-   if (stringlength < 1) {
+   if (parseInt(stringlength) < 1) {
       alert("Bad string length " + stringlength);
       return false;
    }
 
+   var param = {};
+   param.path = path + "/" + name;
+   param.type = parseInt(type);
+   if (arraylength>1)
+      param.array_length = parseInt(arraylength);
+   if (stringlength>0)
+      param.string_length = parseInt(stringlength);
+
+   mjsonrpc_db_create([param]).then(function(rpc) {
+      var status = rpc.result.status[0];
+      if (status == 311) {
+         alert("ODB entry with this name already exists.");
+      } else if (status != 1) {
+         alert("db_create_key() error " + status + ", see MIDAS messages.");
+      } else {
+         location.search = ""; // reloads the document
+      }
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+      location.search = ""; // reloads the document
+   });
+
+   return false;
+   
    var result = JSON.parse(ODBMCreate([ path + "/" + name ], [ type ], [ arraylength ], [ stringlength ]));
 
    if (result[0] == 311) {
