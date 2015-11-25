@@ -272,6 +272,7 @@ function mjsonrpc_send_request(req)
 
       xhr.onreadystatechange = function()
       {
+         //alert("XHR: ready state " + xhr.readyState + " status " + xhr.status);
          if (xhr.readyState == 4) {
             var exc = null;
 
@@ -368,8 +369,13 @@ function mjsonrpc_error_alert(error) {
    /// Handle all errors
    /// @param[in] error rejected promise error object (object)
    /// @returns nothing
-   var s = mjsonrpc_decode_error(error.request, error.xhr, error.exception);
-   alert("mjsonrpc_error_alert: " + s);
+
+   if (error.request) {
+      var s = mjsonrpc_decode_error(error.request, error.xhr, error.exception);
+      alert("mjsonrpc_error_alert: " + s);
+   } else {
+      alert("mjsonroc_error_alert: " + error);
+   }
 }
 
 function mjsonrpc_make_request(method, params, id)
@@ -1081,6 +1087,28 @@ function mhttpd_delete_page_handle_delete(mouseEvent)
    }
 
    //alert(names);
+
+   var params = {};
+   params.paths = names;
+   mjsonrpc_call("db_delete", params).then(function(rpc) {
+      var message = "";
+      var status = rpc.result.status;
+      //alert(JSON.stringify(status));
+      for (var i=0; i<status.length; i++) {
+         if (status[i] != 1) {
+            message += "Cannot delete \"" + rpc.request.params.paths[i] + "\", db_delete_key() status " + status[i] + "\n";
+         }
+      }
+      if (message.length > 0)
+         alert(message);
+      location.search = ""; // reloads the document
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+      location.search = ""; // reloads the document
+   });
+
+   //location.search = ""; // reloads the document
+   return false;
 
    var result = JSON.parse(ODBMDelete(names));
 
