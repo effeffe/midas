@@ -979,8 +979,9 @@ function mhttpd_page_footer()
    /*---- footer div ----*/
    document.write("<div id=\"footerDiv\" class=\"footerDiv\">\n");
    mjsonrpc_db_get_values(["/Experiment/Name"]).then(function(rpc) {
-      document.getElementById("mhttpd_expt_name").innerHTML = "Experiment " + rpc.response.result.data[0];
+      document.getElementById("mhttpd_expt_name").innerHTML = "Experiment " + rpc.result.data[0];
    }).catch(function(error) {
+      mjsonrpc_error_alert(error);
    });
    document.write("<div style=\"display:inline; float:left;\" id=\"mhttpd_expt_name\">Experiment %s</div>");
    document.write("<div style=\"display:inline;\"><a href=\"?cmd=Help\">Help</a></div>");
