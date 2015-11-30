@@ -779,13 +779,13 @@ static MJsonNode* js_db_create(const MJsonNode* params)
 {
    if (!params) {
       MJSO* doc = MJSO::I();
-      doc->D("get copies of given ODB subtrees in the \"save\" json encoding");
-      MJSO* o = doc->PA("array of ODB paths to be created")->AddObject("", "arguments to db_create() and db_resize()");
-      o->Add("path", MJSON_STRING, "ODB path");
+      doc->D("Create new ODB entries");
+      MJSO* o = doc->PA("array of ODB paths to be created")->AddObject("", "arguments to db_create_key() and db_set_num_values()");
+      o->Add("path", MJSON_STRING, "ODB path to be created");
       o->Add("type", MJSON_INT, "MIDAS TID_xxx type");
       o->Add("array_length?", MJSON_INT, "optional array length, default is 1");
       o->Add("string_length?", MJSON_INT, "for TID_STRING, optional string length, default is NAME_LENGTH");
-      doc->R("status[]", MJSON_INT, "return status of db_create() for each path");
+      doc->R("status[]", MJSON_INT, "return status of db_create_key(), db_set_num_values() and db_set_data() (for TID_STRING) for each path");
       return doc;
    }
 
@@ -950,6 +950,11 @@ struct NestedLine {
 typedef std::vector<NestedLine> NestedText;
 
 NestedText nested_output;
+
+static void nested_clear()
+{
+   nested_output.clear();
+}
 
 static void output(int nest, bool span, std::string text)
 {
@@ -1236,6 +1241,7 @@ std::string mjsonrpc_schema_to_html_anything(const MJsonNode* schema, int nest_l
 std::string mjsonrpc_schema_to_text(const MJsonNode* schema)
 {
    std::string s;
+   nested_clear();
    mjsonrpc_schema_to_html_anything(schema, 0);
    //s += "<pre>\n";
    //s += nested_dump();
