@@ -10347,8 +10347,6 @@ void show_programs_page()
 
    rsprintf("</table>\n");
 
-   rsprintf("<script>mhttpd_programs_page()</script>\n");
-
    page_footer(TRUE);
 }
 
@@ -14939,6 +14937,54 @@ void send_css()
 
 /*------------------------------------------------------------------*/
 
+void send_resource(const char* name)
+{
+   char str[256], format[256];
+   time_t now;
+   struct tm *gmt;
+   const char* type = "text/plain";
+
+   if (strstr(name, ".css"))
+      type = "text/css";
+   else if (strstr(name, ".html"))
+      type = "text/html";
+   else if (strstr(name, ".js"))
+      type = "application/javascript";
+
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
+   rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   rsprintf("Accept-Ranges: bytes\r\n");
+
+   /* set expiration time to one day */
+   time(&now);
+   now += (int) (3600 * 24);
+   gmt = gmtime(&now);
+   strcpy(format, "%A, %d-%b-%y %H:%M:%S GMT");
+   strftime(str, sizeof(str), format, gmt);
+   rsprintf("Expires: %s\r\n", str);
+   rsprintf("Content-Type: %s\r\n", type);
+
+   std::string filename;
+   FILE *fp = open_resource_file(name, &filename);
+
+   if (fp) {
+      struct stat stat_buf;
+      fstat(fileno(fp), &stat_buf);
+      int length = stat_buf.st_size;
+      rsprintf("Content-Length: %d\r\n\r\n", length);
+
+      rread(filename.c_str(), fileno(fp), length);
+
+      fclose(fp);
+      return;
+   }
+
+   int length = 0;
+   rsprintf("Content-Length: %d\r\n\r\n", length);
+}
+
+/*------------------------------------------------------------------*/
+
 const char *mhttpd_js =
 "/* MIDAS type definitions */\n"
 "var TID_BYTE = 1;\n"
@@ -15948,6 +15994,9 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    /*---- programs command ------------------------------------------*/
 
    if (equal_ustring(command, "programs")) {
+      send_resource("programs.html");
+      return;
+
       str[0] = 0;
       for (p=dec_path ; *p ; p++)
          if (*p == '/')
