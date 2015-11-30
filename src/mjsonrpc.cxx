@@ -807,10 +807,115 @@ static MJsonNode* js_db_create(const MJsonNode* params)
       int array_length = mjsonrpc_get_param(p, "array_length", NULL)->GetInt();
       int string_length = mjsonrpc_get_param(p, "string_length", NULL)->GetInt();
 
-      printf("create odb [%s], type %d, array %d, string %d\n", path.c_str(), type, array_length, string_length);
+      //printf("create odb [%s], type %d, array %d, string %d\n", path.c_str(), type, array_length, string_length);
 
-      int status = DB_SUCCESS;
+      int status = db_create_key(hDB, 0, path.c_str(), type);
 
+      if (status == DB_SUCCESS && string_length > 0 && type == TID_STRING) {
+         HNDLE hKey;
+         status = db_find_key(hDB, 0, path.c_str(), &hKey);
+         if (status == DB_SUCCESS) {
+            char* buf = (char*)calloc(1, string_length);
+            assert(buf != NULL);
+            int size = string_length;
+            status = db_set_data(hDB, hKey, buf, size, 1, TID_STRING);
+            free(buf);
+         }
+      }
+
+      if (status == DB_SUCCESS && array_length > 1) {
+         HNDLE hKey;
+         status = db_find_key(hDB, 0, path.c_str(), &hKey);
+         if (status == DB_SUCCESS)
+            status = db_set_num_values(hDB, hKey, array_length);
+      }
+
+      sresult->AddToArray(MJsonNode::MakeInt(status));
+   }
+
+   return mjsonrpc_make_result("status", sresult);
+}
+
+static MJsonNode* js_db_delete(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("delete ODB keys");
+      doc->P("paths[]", MJSON_STRING, "array of ODB paths to delete");
+      doc->R("status[]", MJSON_INT, "return status of db_delete_key() for each path");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const MJsonNodeVector* paths  = mjsonrpc_get_param_array(params, "paths",  &error); if (error) return error;
+
+   MJsonNode* sresult = MJsonNode::MakeArray();
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   for (unsigned i=0; i<paths->size(); i++) {
+      int status = 0;
+      HNDLE hkey;
+      std::string path = (*paths)[i]->GetString();
+
+      status = db_find_key(hDB, 0, path.c_str(), &hkey);
+      if (status != DB_SUCCESS) {
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+         continue;
+      }
+
+      status = db_delete_key(hDB, hkey, false);
+      sresult->AddToArray(MJsonNode::MakeInt(status));
+   }
+
+   return mjsonrpc_make_result("status", sresult);
+}
+
+static MJsonNode* js_db_resize(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("Change size of ODB arrays");
+      doc->P("paths[]", MJSON_STRING, "array of ODB paths to resize");
+      doc->P("new_lengths[]", MJSON_INT, "array of new lengths for each ODB path");
+      doc->R("status[]", MJSON_INT, "return status of db_set_num_values() for each path");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const MJsonNodeVector* paths   = mjsonrpc_get_param_array(params, "paths",  &error); if (error) return error;
+   const MJsonNodeVector* lengths = mjsonrpc_get_param_array(params, "new_lengths", &error); if (error) return error;
+
+   if (paths->size() != lengths->size()) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "arrays \"paths\" and \"new_lengths\" should have the same length");
+   }
+
+   MJsonNode* sresult = MJsonNode::MakeArray();
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   for (unsigned i=0; i<paths->size(); i++) {
+      int status = 0;
+      HNDLE hkey;
+      std::string path = (*paths)[i]->GetString();
+
+      status = db_find_key(hDB, 0, path.c_str(), &hkey);
+      if (status != DB_SUCCESS) {
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+         continue;
+      }
+
+      int length = (*lengths)[i]->GetInt();
+      if (length < 1) {
+         sresult->AddToArray(MJsonNode::MakeInt(DB_INVALID_PARAM));
+         continue;
+      }
+
+      status = db_set_num_values(hDB, hkey, length);
       sresult->AddToArray(MJsonNode::MakeInt(status));
    }
 
@@ -883,6 +988,8 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("db_paste",    js_db_paste);
    mjsonrpc_add_handler("db_get_values", js_db_get_values);
    mjsonrpc_add_handler("db_create", js_db_create);
+   mjsonrpc_add_handler("db_delete", js_db_delete);
+   mjsonrpc_add_handler("db_resize", js_db_resize);
    mjsonrpc_add_handler("start_program", start_program);
 
    mjsonrpc_user_init();
