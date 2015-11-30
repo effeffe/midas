@@ -977,6 +977,52 @@ function mhttpd_unhide_overlay(overlay)
    overlay.style.display = "";
 }
 
+function mhttpd_getParameterByName(name) {
+    var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function mhttpd_navigation_bar(current_page)
+{
+   document.write("<div id=\"customHeader\">\n");
+   document.write("</div>\n");
+
+   document.write("<div>\n");
+   document.write("<table class=\"navigationTable\">\n");
+   document.write("<tr><td id=\"navigationTableButtons\">\n");
+   document.write("</td></tr></table>\n\n");
+   document.write("</div>\n");
+
+   mjsonrpc_db_get_values(["/Custom/Header", "/Experiment/Menu Buttons"]).then(function(rpc) {
+      var custom_header = rpc.result.data[0];
+      //alert(custom_header);
+
+      if (custom_header && custom_header.length > 0)
+         document.getElementById("customHeader").innerHTML = custom_header;
+
+      var buttons = rpc.result.data[1];
+      //alert(buttons);
+
+      if (buttons.length < 1)
+         buttons = "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Help";
+
+      var b = buttons.split(",");
+
+      var html = "";
+
+      for (var i=0; i<b.length; i++) {
+         var bb = b[i].trim();
+         var cc = "navButton";
+         if (bb == current_page)
+            cc = "navButtonSel";
+         html += "<input type=button name=cmd value=\""+bb+"\" class=\""+cc+"\" onclick=\"window.location.href=\'?cmd="+bb+"\';return false;\">\n";
+      }
+      document.getElementById("navigationTableButtons").innerHTML = html;
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+   });
+}
+
 function mhttpd_page_footer()
 {
    /*---- spacer for footer ----*/
@@ -1415,6 +1461,8 @@ function mhttpd_programs_page_update_periodic()
 function mhttpd_programs_page()
 {
    // this is called when the "programs" page is loaded
+
+   mhttpd_navigation_bar("Programs");
 
    document.write("<td><input type=button value=\'Refresh now\' onClick=\'mhttpd_programs_page_update();\'></input> <tt id='lastUpdated'>lastUpdated</tt> <tt id='updateStatus'>updateStatus</tt></td>\n");
 
