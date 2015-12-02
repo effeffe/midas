@@ -201,17 +201,18 @@
 mjsonrpc_set_url(url);
 mjsonrpc_db_get_values(paths);
 mjsonrpc_db_paste(paths, values);
+mjsonrpc_cm_msg(message);
 test cm_exist()
 test cm_shutdown()
 test start_program()
-ODBSet(path, value, pwdname); ---- use mjsonrpc_db_paste() instead
-ODBGet(path, format, defval, len, type); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
-ODBMGet(paths, callback, formats); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
-ODBGetRecord(path); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
-ODBExtractRecord(record, key); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
+--- ODBSet(path, value, pwdname); ---- use mjsonrpc_db_paste() instead
+--- ODBGet(path, format, defval, len, type); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
+--- ODBMGet(paths, callback, formats); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
+--- ODBGetRecord(path); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
+--- ODBExtractRecord(record, key); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
 new ODBKey(path); ---- use ODBMKey() instead
-ODBCopy(path, format); ---- use ODBMCopy() instead ---- use mjsonrpc_db_copy() instead
-ODBMCopy(paths, callback, format); ---- use mjsonrpc_db_copy() instead
+--- ODBCopy(path, format); ---- use ODBMCopy() instead ---- use mjsonrpc_db_copy() instead
+--- ODBMCopy(paths, callback, format); ---- use mjsonrpc_db_copy() instead
 ODBMLs(paths, callback);
 ODBMCreate(paths, types);
 ODBMCreate(paths, types, arraylengths, stringlengths, callback);  
@@ -223,7 +224,7 @@ ODBMKey(paths, callback);
 ODBMDelete(paths, callback);
 ODBRpc(name, command, args[, callback[, max_reply_length]]); 
 ODBGetMsg(n);
-ODBGenerateMsg(m);
+--- ODBGenerateMsg(m); ---- use mjsonrpc_cm_msg() instead
 ODBGetAlarms();
 ODBEdit(path);
 </pre>
@@ -317,6 +318,20 @@ ODBEdit(path);
 	  mjsonrpc_db_paste(paths, values).then(function(rpc) {
           mjsonrpc_debug_alert(rpc);
 	  }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+	</p>
+
+      <li>
+        <h2>mjsonrpc_cm_msg()</h2>
+      
+        <p>
+          <i>Type in a message and press Enter. See the new message on the MIDAS "messages" page
+            or press "Get MIDAS messages" button in the ODBGetMsg() section above</i>
+        </p>
+        <p>
+          <input type=input size=40 value='' onKeyPress='if
+          (event.keyCode==13) {
+          mjsonrpc_cm_msg(this.value).then(function(rpc)
+          { mjsonrpc_debug_alert(rpc); }).catch(function(error) { mjsonrpc_error_alert(error); }); }'></input>
         </p>
 
       <li>
@@ -663,7 +678,7 @@ ODBEdit(path);
         </pre>
 
       <li>
-        <h2>ODBGenerateMsg() ---- this example is broken</h2>
+        <h2>ODBGenerateMsg() ---- this example is broken ---- use mjsonrpc_cm_msg() instead</h2>
       
         <p>
           <i>Type in a message and press Enter. See the new message on the MIDAS "messages" page
@@ -806,6 +821,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Wed Nov 25 10:25:14 PST 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Wed Dec  2 11:32:28 PST 2015 <!-- hhmts end -->
   </body>
 </html>

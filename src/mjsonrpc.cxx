@@ -922,6 +922,38 @@ static MJsonNode* js_db_resize(const MJsonNode* params)
    return mjsonrpc_make_result("status", sresult);
 }
 
+static MJsonNode* js_cm_msg1(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO *doc = MJSO::I();
+      doc->D("Generate a midas message using cm_msg1()");
+      doc->P("facility?", MJSON_STRING, "message facility, default is \"midas\"");
+      doc->P("user?", MJSON_STRING, "message user, default is \"javascript_commands\"");
+      doc->P("type?", MJSON_INT, "message type, MT_xxx from midas.h, default is MT_INFO");
+      doc->P("message", MJSON_STRING, "message text");
+      doc->R("status", MJSON_INT, "return status of cm_msg1()");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const char* facility = mjsonrpc_get_param(params, "facility", &error)->GetString().c_str();
+   const char* user = mjsonrpc_get_param(params, "user", &error)->GetString().c_str();
+   int type = mjsonrpc_get_param(params, "type", &error)->GetInt();
+   const char* message = mjsonrpc_get_param(params, "message", &error)->GetString().c_str(); if (error) return error;
+
+   if (strlen(facility)<1)
+      facility = "midas";
+   if (strlen(user)<1)
+      user = "javascript_commands";
+   if (type == 0)
+      type = MT_INFO;
+
+   int status = cm_msg1(type, __FILE__, __LINE__, facility, user, "%s", message);
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+}
+
 static MJsonNode* get_debug(const MJsonNode* params)
 {
    if (!params) {
@@ -982,7 +1014,9 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("get_debug",   get_debug);
    mjsonrpc_add_handler("set_debug",   set_debug);
    mjsonrpc_add_handler("get_schema",  get_schema);
+   //mjsonrpc_add_handler("get_messages",  get_messages);
    mjsonrpc_add_handler("cm_exist",    js_cm_exist);
+   mjsonrpc_add_handler("cm_msg1",     js_cm_msg1);
    mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
    mjsonrpc_add_handler("db_copy",     js_db_copy);
    mjsonrpc_add_handler("db_paste",    js_db_paste);

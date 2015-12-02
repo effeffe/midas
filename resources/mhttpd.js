@@ -587,6 +587,34 @@ function mjsonrpc_db_create(paths, id) {
    return mjsonrpc_call("db_create", paths, id);
 }
 
+function mjsonrpc_cm_msg(message, type, id) {
+   /// \ingroup mjsonrpc_js
+   /// Get values of ODB variables
+   ///
+   /// RPC method: "cm_msg1"
+   ///
+   /// \code
+   /// mjsonrpc_cm_msg("this is a new message").then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var status = rpc.result.status;  // return status of MIDAS cm_msg1()
+   ///    ...
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] message Text of midas message (string)
+   /// @param[in] type optional message type, one of MT_xxx. Default is MT_INFO (integer)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.message = message;
+   if (type)
+      req.type = type;
+   return mjsonrpc_call("cm_msg1", req, id);
+}
+
 function ODBCall(url, callback)
 {
    var request = XMLHttpRequestGeneric();
