@@ -2351,7 +2351,9 @@ void sequencer()
             db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
             if (state != STATE_STOPPED) {
                status = cm_transition(TR_STOP, 0, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
-               if (status != CM_SUCCESS) {
+               if (status == CM_DEFERRED_TRANSITION) {
+                  // do nothing
+               } else if (status != CM_SUCCESS) {
                   sprintf(str, "Cannot stop run: %s", str);
                   seq_error(str);
                }
