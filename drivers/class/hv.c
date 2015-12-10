@@ -617,6 +617,7 @@ INT hv_init(EQUIPMENT * pequipment)
    char str[256];
    HNDLE hDB, hKey;
    HV_INFO *hv_info;
+   BOOL partially_disabled;
 
    /* allocate private data */
    pequipment->cd_info = calloc(1, sizeof(HV_INFO));
@@ -693,6 +694,7 @@ INT hv_init(EQUIPMENT * pequipment)
    /*---- Initialize device drivers ----*/
 
    /* call init method */
+   partially_disabled = FALSE;
    for (i = 0; pequipment->driver[i].name[0]; i++) {
       sprintf(str, "Settings/Devices/%s", pequipment->driver[i].name);
       status = db_find_key(hDB, hv_info->hKeyRoot, str, &hKey);
@@ -706,11 +708,22 @@ INT hv_init(EQUIPMENT * pequipment)
          }
       }
 
-      status = device_driver(&pequipment->driver[i], CMD_INIT, hKey);
-      if (status != FE_SUCCESS) {
-         free_mem(hv_info);
-         return status;
-      }
+      /* check enabled flag */
+      size = sizeof(pequipment->driver[i].enabled);
+      pequipment->driver[i].enabled = 1;
+      sprintf(str, "Settings/Devices/%s/Enabled", pequipment->driver[i].name);
+      status = db_get_value(hDB, hv_info->hKeyRoot, str, &pequipment->driver[i].enabled, &size, TID_BOOL, TRUE);
+      if (status != DB_SUCCESS)
+         return FE_ERR_ODB;
+      
+      if (pequipment->driver[i].enabled) {
+         status = device_driver(&pequipment->driver[i], CMD_INIT, hKey);
+         if (status != FE_SUCCESS) {
+            free_mem(hv_info);
+            return status;
+         }
+      } else
+         partially_disabled = TRUE;
    }
 
    /* compose device driver channel assignment */
@@ -942,6 +955,10 @@ INT hv_init(EQUIPMENT * pequipment)
                   TID_FLOAT);
 
    pequipment->odb_out++;
+   
+   if (partially_disabled)
+      return FE_PARTIALLY_DISABLED;
+   
    return FE_SUCCESS;
 }
 
