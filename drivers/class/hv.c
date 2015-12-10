@@ -990,12 +990,18 @@ INT hv_idle(EQUIPMENT * pequipment)
    /* do ramping */
    hv_ramp(hv_info);
 
-   /* select next measurement channel */
-   hv_info->last_channel = (hv_info->last_channel + 1) % hv_info->num_channels;
-
-   /* measure channel */
-   status = hv_read(pequipment, hv_info->last_channel);
-
+   if (pequipment->info.event_limit == 1) {
+      /* special flag: read all channels each time */
+      for (act = 0 ; act < hv_info->num_channels ; act++)
+         status = hv_read(pequipment, act);
+   } else {
+      /* select next measurement channel */
+      hv_info->last_channel = (hv_info->last_channel + 1) % hv_info->num_channels;
+      
+      /* measure channel */
+      status = hv_read(pequipment, hv_info->last_channel);
+   }
+   
    /* additionally read channel recently updated if not multithreaded */
    if (!(hv_info->driver[hv_info->last_channel]->flags & DF_MULTITHREAD)) {
 
