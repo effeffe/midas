@@ -6229,7 +6229,7 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
    char test_str[MAX_STRING_LENGTH];
    char *pc, *data;
    const char *pold;
-   INT data_size;
+   INT data_size, index;
    INT tid, i, j, n_data, string_length, status, size;
    HNDLE hKey;
    KEY root_key;
@@ -6411,15 +6411,15 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
                      pc = data_str;
 
                      if (n_data > 1 && data_str[0] == '[') {
+                        index = atoi(data_str+1);
                         pc = strchr(data_str, ']') + 1;
                         while (*pc && *pc == ' ')
                            pc++;
-                     }
-
-                     db_sscanf(pc, data, &size, i, tid);
+                     } else
+                        index = 0;
 
                      /* increase data buffer if necessary */
-                     if (size * (i + 1) >= data_size) {
+                     if (size * (index + 1) >= data_size) {
                         data_size += 1000;
                         data = (char *) realloc(data, data_size);
                         if (data == NULL) {
@@ -6428,6 +6428,7 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
                         }
                      }
 
+                     db_sscanf(pc, data, &size, index, tid);
                   }
 
                   if (i < n_data - 1) {
