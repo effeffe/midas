@@ -6419,7 +6419,7 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
                         index = 0;
 
                      /* increase data buffer if necessary */
-                     if (size * (index + 1) >= data_size) {
+                     if (rpc_tid_size(tid) * (index + 1) >= data_size) {
                         data_size += 1000;
                         data = (char *) realloc(data, data_size);
                         if (data == NULL) {
