@@ -465,13 +465,13 @@ CNAF commands */
 /**
 MAX */
 #ifndef MAX
-#define MAX(a,b)            (((a) > (b)) ? (a) : (b))
+#define MAX(a,b)            (((a)>(b))?(a):(b))
 #endif
 
 /**
 MIN */
 #ifndef MIN
-#define MIN(a,b)            (((a) < (b)) ? (a) : (b))
+#define MIN(a,b)            (((a)<(b))?(a):(b))
 #endif
 
 /*------------------------------------------------------------------*/
@@ -1838,10 +1838,24 @@ extern "C" {
    INT EXPRT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size);
 
    INT EXPRT db_save_json(HNDLE hDB, HNDLE hKey, const char *file_name);
-   INT EXPRT db_copy_json(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int save_keys, int follow_links, int recurse);
-
    INT EXPRT db_load_json(HNDLE hdb, HNDLE key_handle, const char *filename);
-   INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKeyRoot, const char *buffer);
+
+   /* db_copy_json() is obsolete, use db_copy_json_save, _values and _ls instead */
+   INT EXPRT db_copy_json_obsolete(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int save_keys, int follow_links, int recurse);
+
+   /* json encoder using the "ODB save" encoding, for use with "ODB load" and db_paste_json() */
+   INT EXPRT db_copy_json_save(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
+   /* json encoder using the "ls" format, for getting the contents of a single ODB subdirectory */
+   INT EXPRT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
+   /* json encoder using the "get_values" format, for resolving links and normalized ODB path names (converted to lower-case) */
+   INT EXPRT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
+   /* json encoder for an ODB array */
+   INT EXPRT db_copy_json_array(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end);
+   /* json encoder for a single element of an ODB array */
+   INT EXPRT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int *buffer_size, int *buffer_end);
+
+   INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKey, const char *buffer);
+   INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKey, int index, const /* MJsonNode */ void *json_node);
 
    INT EXPRT db_sprintf(char *string, const void *data, INT data_size, INT index, DWORD type);
    INT EXPRT db_sprintff(char *string, const char *format, const void *data, INT data_size, INT index, DWORD type);

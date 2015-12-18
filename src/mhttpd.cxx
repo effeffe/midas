@@ -27,6 +27,8 @@ extern "C" {
 #include "mscb.h"
 #endif
 
+#include "mjsonrpc.h"
+
 #define STRLCPY(dst, src) strlcpy((dst), (src), sizeof(dst))
 #define STRLCAT(dst, src) strlcat((dst), (src), sizeof(dst))
 
@@ -1085,6 +1087,11 @@ void show_help_page()
       rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
    } else
       rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
+   rsprintf("        </tr>\n");
+
+   rsprintf("        <tr>\n");
+   rsprintf("          <td style=\"text-align:right;\">JSON RPC schema:</td>\n");
+   rsprintf("          <td style=\"text-align:left;\"><a href=\"?mjsonrpc_schema\">json format</a> or <a href=\"?mjsonrpc_schema_text\">text table format</a></td>\n");
    rsprintf("        </tr>\n");
 
    rsprintf("      </table>\n");
@@ -6861,7 +6868,7 @@ void javascript_commands(const char *cookie_cpwd)
             if (fmt_xml)
                db_copy_xml(hDB, hkey, buf, &bufsize);
             else if (fmt_json)
-               db_copy_json(hDB, hkey, &buf, &bufsize, &end, save_keys, follow_links, recurse);
+               db_copy_json_obsolete(hDB, hkey, &buf, &bufsize, &end, save_keys, follow_links, recurse);
             else
                db_copy(hDB, hkey, buf, &bufsize, (char *)"");
 
@@ -6934,7 +6941,7 @@ void javascript_commands(const char *cookie_cpwd)
                   s = buf;
                rsputs(s);
             } else if (fmt_json) {
-               db_copy_json(hDB, hkey, &buf, &bufsize, &end, save_keys, follow_links, recurse);
+               db_copy_json_obsolete(hDB, hkey, &buf, &bufsize, &end, save_keys, follow_links, recurse);
                rsputs(buf);
             } else {
                db_copy(hDB, hkey, buf, &bufsize, (char *)"");
@@ -10210,6 +10217,9 @@ void show_programs_page()
    show_header("Programs", "GET", "", 0);
    show_navigation_bar("Programs");
 
+   /* use javascript file */
+   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
+
    rsprintf("<input type=hidden name=cmd value=Programs>\n");
 
    /*---- programs ----*/
@@ -10335,8 +10345,10 @@ void show_programs_page()
       }
    }
 
-
    rsprintf("</table>\n");
+
+   //rsprintf("<script>mhttpd_programs_page()</script>\n");
+
    page_footer(TRUE);
 }
 
@@ -12922,7 +12934,7 @@ struct hist_plot_t
 	 if (par.length() < 1)
             continue;
 
-	 int pos = par.find(':');
+         std::string::size_type pos = par.find(':');
          if (pos == std::string::npos)
             continue;
 
@@ -13104,8 +13116,8 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
 {
    int status, size;
    HNDLE hDB;
-   int max_display_events = 20;
-   int max_display_tags = 200;
+   unsigned max_display_events = 20;
+   unsigned max_display_tags = 200;
    char str[256], cmd[256];
    hist_plot_t plot;
 
@@ -13479,7 +13491,7 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
                }
             }
 
-            int count_tags = 0;
+            unsigned count_tags = 0;
             for (unsigned v=0; v<tags.size(); v++)
                count_tags += tags[v].n_data;
 
@@ -16386,6 +16398,15 @@ void ctrlc_handler(int sig)
 
 /*------------------------------------------------------------------*/
 
+static std::string toString(int i)
+{
+   char buf[256];
+   sprintf(buf, "%d", i);
+   return buf;
+}
+
+/*------------------------------------------------------------------*/
+
 
 static std::vector<std::string> gUserAllowedHosts;
 static std::vector<std::string> gAllowedHosts;
@@ -16489,7 +16510,7 @@ extern "C" {
 
       char hname[NI_MAXHOST];
 
-      int status = getnameinfo(sa, len, hname, sizeof(hname), NULL, 0, 0);
+      getnameinfo(sa, len, hname, sizeof(hname), NULL, 0, 0);
 
       //printf("connection from [%s], status %d\n", hname, status);
 
@@ -17036,6 +17057,206 @@ static int event_handler_mg(struct mg_event *event)
       if (p)
          refresh = atoi(p);
 
+      if ((strcmp(event->request_info->request_method, "OPTIONS") == 0) &&
+          (event->request_info->query_string != NULL) &&
+          (strcmp(event->request_info->query_string, "mjsonrpc") == 0)) {
+         // JSON-RPC CORS pre-flight request, see
+         // https://en.wikipedia.org/wiki/Cross-origin_resource_sharing
+         //
+         // OPTIONS /resources/post-here/ HTTP/1.1
+         // Host: bar.other
+         // User-Agent: Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.5; en-US; rv:1.9.1b3pre) Gecko/20081130 Minefield/3.1b3pre
+         // Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+         // Accept-Language: en-us,en;q=0.5
+         // Accept-Encoding: gzip,deflate
+         // Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+         // Connection: keep-alive
+         // Origin: http://foo.example
+         // Access-Control-Request-Method: POST
+         // Access-Control-Request-Headers: X-PINGOTHER
+         //
+         // HTTP/1.1 200 OK
+         // Date: Mon, 01 Dec 2008 01:15:39 GMT
+         // Server: Apache/2.0.61 (Unix)
+         // Access-Control-Allow-Origin: http://foo.example
+         // Access-Control-Allow-Methods: POST, GET, OPTIONS
+         // Access-Control-Allow-Headers: X-PINGOTHER
+         // Access-Control-Max-Age: 1728000
+         // Vary: Accept-Encoding, Origin
+         // Content-Encoding: gzip
+         // Content-Length: 0
+         // Keep-Alive: timeout=2, max=100
+         // Connection: Keep-Alive
+         // Content-Type: text/plain
+         //
+
+         const char* origin_header = find_header_mg(event, "Origin");
+
+         std::string headers;
+         headers += "HTTP/1.1 200 OK\n";
+         //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+         if (origin_header)
+            headers += "Access-Control-Allow-Origin: " + std::string(origin_header) + "\n";
+         else
+            headers += "Access-Control-Allow-Origin: *\n";
+         headers += "Access-Control-Allow-Headers: Content-Type\n";
+         headers += "Access-Control-Allow-Credentials: true\n";
+         headers += "Access-Control-Max-Age: 120\n";
+         headers += "Content-Length: 0\n";
+         headers += "Content-Type: text/plain\n";
+         //printf("sending headers: %s\n", headers.c_str());
+         //printf("sending reply: %s\n", reply.c_str());
+
+         std::string send = headers + "\n";
+
+         mg_write(event->conn, send.c_str(), send.length());
+
+         return 1;
+      }
+
+      if ((strcmp(event->request_info->request_method, "GET") == 0) &&
+          (event->request_info->query_string != NULL) &&
+          (strcmp(event->request_info->query_string, "mjsonrpc_schema") == 0)) {
+
+         MJsonNode* s = mjsonrpc_get_schema();
+         std::string reply = s->Stringify();
+         delete s;
+
+         int reply_length = reply.length();
+
+         const char* origin_header = find_header_mg(event, "Origin");
+
+         std::string headers;
+         headers += "HTTP/1.1 200 OK\n";
+         //headers += "Connection: close\n";
+         if (origin_header)
+            headers += "Access-Control-Allow-Origin: " + std::string(origin_header) + "\n";
+         else
+            headers += "Access-Control-Allow-Origin: *\n";
+         headers += "Access-Control-Allow-Credentials: true\n";
+         headers += "Content-Length: " + toString(reply_length) + "\n";
+         headers += "Content-Type: application/json\n";
+         //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+         
+         //printf("sending headers: %s\n", headers.c_str());
+         //printf("sending reply: %s\n", reply.c_str());
+         
+         std::string send = headers + "\n" + reply;
+         
+         mg_write(event->conn, send.c_str(), send.length());
+         
+         return 1;
+      }
+
+      if ((strcmp(event->request_info->request_method, "GET") == 0) &&
+          (event->request_info->query_string != NULL) &&
+          (strcmp(event->request_info->query_string, "mjsonrpc_schema_text") == 0)) {
+
+         MJsonNode* s = mjsonrpc_get_schema();
+         std::string reply = mjsonrpc_schema_to_text(s);
+         delete s;
+
+         int reply_length = reply.length();
+
+         const char* origin_header = find_header_mg(event, "Origin");
+
+         std::string headers;
+         headers += "HTTP/1.1 200 OK\n";
+         //headers += "Connection: close\n";
+         if (origin_header)
+            headers += "Access-Control-Allow-Origin: " + std::string(origin_header) + "\n";
+         else
+            headers += "Access-Control-Allow-Origin: *\n";
+         headers += "Access-Control-Allow-Credentials: true\n";
+         headers += "Content-Length: " + toString(reply_length) + "\n";
+         headers += "Content-Type: text/plain\n";
+         //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+
+         //printf("sending headers: %s\n", headers.c_str());
+         //printf("sending reply: %s\n", reply.c_str());
+
+         std::string send = headers + "\n" + reply;
+
+         mg_write(event->conn, send.c_str(), send.length());
+
+         return 1;
+      }
+
+      if ((strcmp(event->request_info->request_method, "POST") == 0) &&
+          (event->request_info->query_string != NULL) &&
+          (strcmp(event->request_info->query_string, "mjsonrpc") == 0)) {
+         const char* ctype_header = find_header_mg(event, "Content-Type");
+
+         if (strstr(ctype_header, "application/json") == NULL) {
+            std::string headers;
+            headers += "HTTP/1.1 415 Unsupported Media Type\n";
+            //headers += "Connection: close\n";
+            //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+
+            //printf("sending headers: %s\n", headers.c_str());
+            //printf("sending reply: %s\n", reply.c_str());
+
+            std::string send = headers + "\n";
+
+            mg_write(event->conn, send.c_str(), send.length());
+
+            return 1;
+         }
+
+         const char* clength_header = find_header_mg(event, "Content-Length");
+         if (clength_header) {
+            int clength = atoi(clength_header);
+
+            char *post_data = (char *)malloc(clength+1);
+
+            int len = mg_read(event->conn, post_data, clength);
+
+            // make sure we have a zero-terminated string
+            if (len > 0) {
+               post_data[len] = 0;
+
+               status = ss_mutex_wait_for(request_mutex, 0);
+               assert(status == SS_SUCCESS);
+
+               std::string reply = mjsonrpc_decode_post_data(post_data);
+
+               ss_mutex_release(request_mutex);
+
+               free(post_data);
+               post_data = NULL;
+
+               int reply_length = reply.length();
+
+               const char* origin_header = find_header_mg(event, "Origin");
+
+               std::string headers;
+               headers += "HTTP/1.1 200 OK\n";
+               //headers += "Connection: close\n";
+               if (origin_header)
+                  headers += "Access-Control-Allow-Origin: " + std::string(origin_header) + "\n";
+               else
+                  headers += "Access-Control-Allow-Origin: *\n";
+               headers += "Access-Control-Allow-Credentials: true\n";
+               headers += "Content-Length: " + toString(reply_length) + "\n";
+               headers += "Content-Type: application/json\n";
+               //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+
+               //printf("sending headers: %s\n", headers.c_str());
+               //printf("sending reply: %s\n", reply.c_str());
+
+               std::string send = headers + "\n" + reply;
+
+               mg_write(event->conn, send.c_str(), send.length());
+
+               return 1;
+            }
+
+            free(post_data);
+         }
+
+         return 0;
+      }
+
       bool locked = false;
 
       if (strcmp( event->request_info->request_method, "GET") == 0) {
@@ -17216,13 +17437,6 @@ int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace
    // setup default filename
    try_file_mg(exptdir, filename, path, NULL, false);
    return SS_FILE_ERROR;
-}
-
-std::string toString(int i)
-{
-   char buf[256];
-   sprintf(buf, "%d", i);
-   return buf;
 }
 
 int start_mg(int user_http_port, int user_https_port, int verbose)
@@ -17618,6 +17832,9 @@ int main(int argc, const char *argv[])
 
    /* initialize sequencer */
    init_sequencer();
+
+   /* initialize the JSON RPC handlers */
+   mjsonrpc_init();
 
 #ifdef HAVE_MG
    if (use_mg) {

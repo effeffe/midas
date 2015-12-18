@@ -99,6 +99,9 @@ void print_help(char *command)
       printf("help/? [command]        - print this help [for a specific command]\n");
       printf("hi [analyzer] [id]      - tell analyzer to clear histos\n");
       printf("imp <filename> [key]    - import ASCII file into string key\n");
+      printf("json                    - print \"ODB save\" encoding of current directory\n");
+      printf("jsls                    - print \"ls\" encoding of current directory\n");
+      printf("jsvalues                - print \"get_values\" encoding of current directory\n");
       printf("ln <source> <linkname>  - create a link to <source> key\n");
       printf
           ("load <file>             - load database from .ODB file at current position\n");
@@ -114,7 +117,8 @@ void print_help(char *command)
       printf("mem [-v]                - show memeory usage [verbose]\n");
       printf("mkdir <subdir>          - make new <subdir>\n");
       printf("move <key> [top/bottom/[n]] - move key to position in keylist\n");
-      printf("msg [type] [user] <msg> - compose user message\n");
+      printf("msg [user] <msg>        - send chat message (from interactive odbedit)\n");
+      printf("msg [facility] [type] <msg> - send chat message (from command line via -c \"msg ...\")\n");
       printf("old [n]                 - display old n messages\n");
       printf("passwd                  - change MIDAS password\n");
       printf("pause                   - pause current run\n");
@@ -127,8 +131,8 @@ void print_help(char *command)
       printf("                          in ASCII format\n");
       printf("  -c                      as a C structure\n");
       printf("  -s                      as a #define'd string\n");
-      printf("  -x                      as a XML file\n");
-      printf("  -j                      as a JSON file\n");
+      printf("  -x                      as an XML file, or use file.xml\n");
+      printf("  -j                      as a JSON file, or use file.json\n");
       printf("set <key> <value>       - set the value of a key\n");
       printf("set <key>[i] <value>    - set the value of index i\n");
       printf("set <key>[*] <value>    - set the value of all indices of a key\n");
@@ -1331,7 +1335,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
    char user_name[80] = "";
    FILE *cmd_file = NULL;
    DWORD last_msg_time = 0;
-   char message[2000], client_name[256], *p;
+   char message[2000], facility[256], client_name[256], *p;
    INT n1, n2;
    PRINT_INFO print_info;
 
@@ -1895,6 +1899,54 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
             db_save(hDB, hKey, param[1], FALSE);
       }
 
+      /* json */
+      else if (strncmp(param[0], "json", 8) == 0) {
+         db_find_key(hDB, 0, pwd, &hKey);
+
+	 char* buffer = NULL;
+	 int buffer_size = 0;
+	 int buffer_end = 0;
+
+	 status = db_copy_json_save(hDB, hKey, &buffer, &buffer_size, &buffer_end);
+
+	 printf("status: %d, json: %s\n", status, buffer);
+
+	 if (buffer)
+	   free(buffer);
+      }
+
+      /* jsvalues */
+      else if (strncmp(param[0], "jsvalues", 8) == 0) {
+         db_find_key(hDB, 0, pwd, &hKey);
+
+	 char* buffer = NULL;
+	 int buffer_size = 0;
+	 int buffer_end = 0;
+
+	 status = db_copy_json_values(hDB, hKey, &buffer, &buffer_size, &buffer_end);
+
+	 printf("status: %d, json: %s\n", status, buffer);
+
+	 if (buffer)
+	   free(buffer);
+      }
+
+      /* jsls */
+      else if (strncmp(param[0], "jsls", 4) == 0) {
+         db_find_key(hDB, 0, pwd, &hKey);
+
+	 char* buffer = NULL;
+	 int buffer_size = 0;
+	 int buffer_end = 0;
+
+	 status = db_copy_json_ls(hDB, hKey, &buffer, &buffer_size, &buffer_end);
+
+	 printf("jsls \"%s\", status: %d, json: %s\n", pwd, status, buffer);
+
+	 if (buffer)
+	   free(buffer);
+      }
+
       /* make */
       else if (param[0][0] == 'm' && param[0][1] == 'a') {
          if (param[1][0])
@@ -2386,17 +2438,28 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
       /* msg */
       else if (param[0][0] == 'm' && param[0][1] == 's') {
          message[0] = 0;
-         if (cmd_mode)
+         strcpy(facility, "midas");
+         int type = MT_USER;
+         if (cmd_mode) {
             strcpy(user_name, "script");
+            if (param[3][0]) {
+               strlcpy(message, param[3], sizeof(message));
+               type = atoi(param[2]);
+               strlcpy(facility, param[2], sizeof(facility));
+            } else if (param[2][0]) {
+               strlcpy(message, param[2], sizeof(message));
+               strlcpy(facility, param[1], sizeof(facility));
+            } else if (param[1][0]) {
+               strlcpy(message, param[1], sizeof(message));
+            }
+         } else { // !cmd_mode
+            if (param[2][0]) {
+               last_msg_time = ss_time();
+               strcpy(user_name, param[1]);
+               strcpy(message, param[2]);
+            } else if (param[1][0])
+               strlcpy(message, param[1], sizeof(message));
 
-         if (param[2][0]) {
-            last_msg_time = ss_time();
-            strcpy(user_name, param[1]);
-            strcpy(message, param[2]);
-         } else if (param[1][0])
-            strlcpy(message, param[1], sizeof(message));
-
-         if (!cmd_mode) {
             if (ss_time() - last_msg_time > 300) {
                printf("Your name> ");
                ss_gets(user_name, 80);
@@ -2409,7 +2472,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          }
 
          if (message[0])
-	         cm_msg1(MT_USER, __FILE__, __LINE__, "chat", user_name, "%s", message);
+	         cm_msg1(type, __FILE__, __LINE__, "chat", user_name, "%s", message);
 
          last_msg_time = ss_time();
       }

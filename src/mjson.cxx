@@ -562,7 +562,8 @@ static MJsonNode* parse_number(const char* sin, const char* s, const char** sout
 
       if (overflow) {
          // overflow, convert to double
-         //printf("integer overflow!\n");
+         //printf("integer overflow: sign %d, int: [%s], frac [%s], expsign %d, exp [%s]\n", sign, sint.c_str(), sfrac.c_str(), expsign, sexp.c_str());
+
          double vv = atof(sint.c_str());
          *sout = s;
          return MJsonNode::MakeNumber(sign*vv);
@@ -662,7 +663,7 @@ static char toHexChar(int c)
       return 'A' + c;
 }
 
-static std::string quote(const char* s)
+std::string MJsonNode::Encode(const char* s)
 {
    std::string v;
    while (*s) {
@@ -714,7 +715,7 @@ std::string MJsonNode::Stringify(int flags) const
       for (unsigned i=0; i<objectnames.size(); i++) {
          if (i > 0)
             v += ",";
-         v += std::string("\"") + quote(objectnames[i].c_str()) + "\"";
+         v += std::string("\"") + Encode(objectnames[i].c_str()) + "\"";
          v += ":";
          v += subnodes[i]->Stringify(flags);
       }
@@ -722,7 +723,7 @@ std::string MJsonNode::Stringify(int flags) const
       return v;
    }
    case MJSON_STRING: {
-      return std::string("\"") + quote(stringvalue.c_str()) + "\"";
+      return std::string("\"") + Encode(stringvalue.c_str()) + "\"";
    }
    case MJSON_INT: {
       char buf[256];
@@ -730,9 +731,20 @@ std::string MJsonNode::Stringify(int flags) const
       return buf;
    }
    case MJSON_NUMBER: {
-      char buf[256];
-      sprintf(buf, "%.16e", numbervalue);
-      return buf;
+      if (isfinite(numbervalue)) {
+         char buf[256];
+         sprintf(buf, "%.16e", numbervalue);
+         return buf;
+      } else if (isnan(numbervalue)) {
+         return "\"NaN\"";
+      } else if (isinf(numbervalue)) {
+         if (numbervalue > 0)
+            return "\"Infinity\"";
+         else
+            return "\"-Infinity\"";
+      } else {
+         assert(!"this cannot happen!");
+      }
    }
    case MJSON_BOOL:
       if (intvalue)
@@ -741,6 +753,8 @@ std::string MJsonNode::Stringify(int flags) const
          return "false";
    case MJSON_NULL:
       return "null";
+   case MJSON_JSON:
+      return stringvalue;
    case MJSON_ERROR:
       return std::string("json parse error: ") + stringvalue;
    default:
@@ -751,8 +765,7 @@ std::string MJsonNode::Stringify(int flags) const
 
 MJsonNode* MJsonNode::MakeError(MJsonNode* errornode, const char* errormessage, const char* sin, const char* serror)
 {
-   MJsonNode* n = new MJsonNode();
-   n->type = MJSON_ERROR;
+   MJsonNode* n = new MJsonNode(MJSON_ERROR);
    if (errornode)
       n->subnodes.push_back(errornode);
    n->stringvalue = errormessage;
@@ -782,30 +795,24 @@ MJsonNode* MJsonNode::MakeError(MJsonNode* errornode, const char* errormessage, 
 
 MJsonNode* MJsonNode::MakeArray()
 {
-   MJsonNode* n = new MJsonNode();
-   n->type = MJSON_ARRAY;
-   return n;
+   return new MJsonNode(MJSON_ARRAY);
 }
 
 MJsonNode* MJsonNode::MakeObject()
 {
-   MJsonNode* n = new MJsonNode();
-   n->type = MJSON_OBJECT;
-   return n;
+   return new MJsonNode(MJSON_OBJECT);
 }
 
 MJsonNode* MJsonNode::MakeString(const char* value)
 {
-   MJsonNode* n = new MJsonNode();
-   n->type = MJSON_STRING;
+   MJsonNode* n = new MJsonNode(MJSON_STRING);
    n->stringvalue = value;
    return n;
 }
 
 MJsonNode* MJsonNode::MakeInt(int value)
 {
-   MJsonNode* n = new MJsonNode();
-   n->type = MJSON_INT;
+   MJsonNode* n = new MJsonNode(MJSON_INT);
    n->intvalue = value;
    n->numbervalue = value;
    return n;
@@ -813,16 +820,14 @@ MJsonNode* MJsonNode::MakeInt(int value)
 
 MJsonNode* MJsonNode::MakeNumber(double value)
 {
-   MJsonNode* n = new MJsonNode();
-   n->type = MJSON_NUMBER;
+   MJsonNode* n = new MJsonNode(MJSON_NUMBER);
    n->numbervalue = value;
    return n;
 }
 
 MJsonNode* MJsonNode::MakeBool(bool value)
 {
-   MJsonNode* n = new MJsonNode();
-   n->type = MJSON_BOOL;
+   MJsonNode* n = new MJsonNode(MJSON_BOOL);
    if (value)
       n->intvalue = 1;
    else
@@ -832,8 +837,13 @@ MJsonNode* MJsonNode::MakeBool(bool value)
 
 MJsonNode* MJsonNode::MakeNull()
 {
-   MJsonNode* n = new MJsonNode();
-   n->type = MJSON_NULL;
+   return new MJsonNode(MJSON_NULL);
+}
+
+MJsonNode* MJsonNode::MakeJSON(const char* json)
+{
+   MJsonNode* n = new MJsonNode(MJSON_JSON);
+   n->stringvalue = json;
    return n;
 }
 
@@ -898,6 +908,22 @@ const MJsonNode* MJsonNode::FindObjectNode(const char* name) const
    return NULL;
 }
 
+void MJsonNode::DeleteObjectNode(const char* name)
+{
+   if (type != MJSON_OBJECT)
+      return;
+   for (unsigned i=0; i<objectnames.size(); i++)
+      if (strcmp(objectnames[i].c_str(), name) == 0) {
+         objectnames[i] = "";
+         delete subnodes[i];
+         subnodes[i] = NULL;
+
+         objectnames.erase(objectnames.begin()+i);
+         subnodes.erase(subnodes.begin()+i);
+         return;
+      }
+}
+
 std::string MJsonNode::GetString() const
 {
    if (type == MJSON_STRING)
@@ -957,10 +983,10 @@ std::string MJsonNode::GetError() const
       return "";
 }
 
-MJsonNode::MJsonNode() // private constructor
+MJsonNode::MJsonNode(int xtype) // default constructor
 {
    // C++ does not know how to initialize elemental types, we have to do it by hand:
-   type = MJSON_NONE;
+   type = xtype;
    intvalue = 0;
    numbervalue = 0;
 }
@@ -978,6 +1004,7 @@ const char* MJsonNode::TypeToString(int type)
    case MJSON_NUMBER: return "NUMBER";
    case MJSON_BOOL: return "BOOL";
    case MJSON_NULL: return "NULL";
+   case MJSON_JSON: return "JSON";
    }
 }
 
@@ -996,6 +1023,8 @@ void MJsonNode::Dump(int nest) const // debug
    case MJSON_INT: printf(", value %d\n", intvalue); break;
    case MJSON_NUMBER: printf(", value %g\n", numbervalue); break;
    case MJSON_BOOL: printf(", value %d\n", intvalue); break;
+   case MJSON_NULL: printf(", null\n"); break;
+   case MJSON_JSON: printf(", json [%s]\n", stringvalue.c_str()); break;
    case MJSON_ARRAY:
       printf("\n");
       for (unsigned i=0; i<subnodes.size(); i++) {

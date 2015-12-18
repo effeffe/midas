@@ -22,6 +22,7 @@
 #define MJSON_NUMBER 5
 #define MJSON_BOOL   6
 #define MJSON_NULL   7
+#define MJSON_JSON   8
 
 class MJsonNode;
 
@@ -45,6 +46,9 @@ class MJsonNode {
    
  public: // encoder
    std::string Stringify(int flags = 0) const;
+
+ public: // string encoder
+   static std::string Encode(const char* s);
    
  public: // public factory constructors
    static MJsonNode* MakeArray();
@@ -54,11 +58,15 @@ class MJsonNode {
    static MJsonNode* MakeNumber(double value);
    static MJsonNode* MakeBool(bool value);
    static MJsonNode* MakeNull();
+   static MJsonNode* MakeJSON(const char* json);
    static MJsonNode* MakeError(MJsonNode* errornode, const char* errormessage, const char* sin, const char* serror);
    
  public: // public "put" methods
    void AddToArray(MJsonNode* node); /// add node to an array. the array takes ownership of this node
    void AddToObject(const char* name, MJsonNode* node); /// add node to an object. the object takes ownership of this node
+
+ public: // public "delete" methods
+   void DeleteObjectNode(const char* name); /// delete a node from an object
 
  public: // public "get" methods
    int                    GetType() const;   /// get node type: MJSON_xxx
@@ -76,8 +84,8 @@ class MJsonNode {
    static const char* TypeToString(int type); /// return node type as string
    void Dump(int nest = 0) const; /// dump the subtree to standard output
 
- private:
-   MJsonNode(); // private constructor
+ protected:
+   MJsonNode(int type); // protected constructor for subclassing
 };
 
 #endif

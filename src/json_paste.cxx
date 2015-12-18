@@ -139,7 +139,10 @@ static int paste_array(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode*
       if (!n)
          continue;
       status = paste_node(hDB, hKey, path, i, n, tid, slength, key);
-      if (status != DB_SUCCESS)
+      if (status == DB_NO_ACCESS) {
+         cm_msg(MERROR, "db_paste_json", "skipping write-protected array \"%s\"", path);
+         return DB_SUCCESS;
+      } else if (status != DB_SUCCESS)
          return status;
    }
 
@@ -212,8 +215,15 @@ static int paste_object(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode
          return status;
       }
 
-      status = paste_node(hDB, hSubkey, (std::string(path)+"/"+name).c_str(), 0, node, tid, 0, key);
-      if (status != DB_SUCCESS) {
+      std::string node_name;
+      node_name += path;
+      node_name += "/";
+      node_name += name;
+
+      status = paste_node(hDB, hSubkey, node_name.c_str(), 0, node, tid, 0, key);
+      if (status == DB_NO_ACCESS) {
+         cm_msg(MERROR, "db_paste_json", "skipping write-protected node \"%s\"", node_name.c_str());
+      } else if (status != DB_SUCCESS) {
          //cm_msg(MERROR, "db_paste_json", "cannot..."); // paste_node() reports it's own failures
          return status;
       }
@@ -422,6 +432,32 @@ INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
    MJsonNode* node = MJsonNode::Parse(buffer);
    status = paste_node(hDB, hKeyRoot, path, 0, node, 0, 0, NULL);
    delete node;
+
+   return status;
+}
+
+INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKeyRoot, int index, const void *json_node)
+{
+   int status;
+   char path[MAX_ODB_PATH];
+   KEY key;
+
+   status = db_get_key(hDB, hKeyRoot, &key);
+   if (status != DB_SUCCESS)
+      return status;
+
+   status = db_get_path(hDB, hKeyRoot, path, sizeof(path));
+   if (status != DB_SUCCESS)
+      return status;
+
+   const MJsonNode* node = (const MJsonNode*)json_node;
+
+   int tid = key.type;
+   int string_length = 0;
+   if (tid == TID_STRING)
+      string_length = key.item_size;
+
+   status = paste_node(hDB, hKeyRoot, path, index, node, tid, string_length, NULL);
 
    return status;
 }

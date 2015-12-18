@@ -11,6 +11,9 @@
 		D5043BCD18A2485800F3B297 /* history_midas.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D5043BCC18A2485800F3B297 /* history_midas.cxx */; };
 		D51A109D1798772E00ED6F5F /* mxml.c in Sources */ = {isa = PBXBuildFile; fileRef = D51A109B1798772E00ED6F5F /* mxml.c */; };
 		D51A109E1798772E00ED6F5F /* strlcpy.c in Sources */ = {isa = PBXBuildFile; fileRef = D51A109C1798772E00ED6F5F /* strlcpy.c */; };
+		D51B325E1BB3FCAA0015F608 /* mjson.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D51B325D1BB3FCAA0015F608 /* mjson.cxx */; settings = {ASSET_TAGS = (); }; };
+		D530FC761BB3FC1900098C9B /* mjsonrpc.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D530FC751BB3FC1900098C9B /* mjsonrpc.cxx */; settings = {ASSET_TAGS = (); }; };
+		D530FC781BB3FC4800098C9B /* mjsonrpc_user.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D530FC771BB3FC4800098C9B /* mjsonrpc_user.cxx */; settings = {ASSET_TAGS = (); }; };
 		D534757E183A1979004316B0 /* mongoose.c in Sources */ = {isa = PBXBuildFile; fileRef = D534757D183A1979004316B0 /* mongoose.c */; };
 		D5705992179871EA00DA5416 /* alarm.c in Sources */ = {isa = PBXBuildFile; fileRef = D5705987179871EA00DA5416 /* alarm.c */; };
 		D5705993179871EA00DA5416 /* elog.c in Sources */ = {isa = PBXBuildFile; fileRef = D5705988179871EA00DA5416 /* elog.c */; };
@@ -22,6 +25,7 @@
 		D570599A179871EA00DA5416 /* odb.c in Sources */ = {isa = PBXBuildFile; fileRef = D570598F179871EA00DA5416 /* odb.c */; };
 		D570599B179871EA00DA5416 /* sequencer.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D5705990179871EA00DA5416 /* sequencer.cxx */; };
 		D570599C179871EA00DA5416 /* system.c in Sources */ = {isa = PBXBuildFile; fileRef = D5705991179871EA00DA5416 /* system.c */; };
+		D5A00FB81BB3FCFF00549585 /* json_paste.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D5A00FB71BB3FCFF00549585 /* json_paste.cxx */; settings = {ASSET_TAGS = (); }; };
 		D5C8CD7D1ACC0797008B1201 /* mscb.c in Sources */ = {isa = PBXBuildFile; fileRef = D5C8CD7B1ACC0797008B1201 /* mscb.c */; };
 		D5C8CD7E1ACC0797008B1201 /* mscbrpc.c in Sources */ = {isa = PBXBuildFile; fileRef = D5C8CD7C1ACC0797008B1201 /* mscbrpc.c */; };
 		D5CA47D71B5081D9004C613F /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D5CA47D51B5081D9004C613F /* libcrypto.a */; };
@@ -47,6 +51,9 @@
 		D5043BCC18A2485800F3B297 /* history_midas.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = history_midas.cxx; path = /midas/src/history_midas.cxx; sourceTree = "<absolute>"; };
 		D51A109B1798772E00ED6F5F /* mxml.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mxml.c; path = /mxml/mxml.c; sourceTree = "<absolute>"; };
 		D51A109C1798772E00ED6F5F /* strlcpy.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = strlcpy.c; path = /mxml/strlcpy.c; sourceTree = "<absolute>"; };
+		D51B325D1BB3FCAA0015F608 /* mjson.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mjson.cxx; path = /midas/src/mjson.cxx; sourceTree = "<group>"; };
+		D530FC751BB3FC1900098C9B /* mjsonrpc.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mjsonrpc.cxx; path = /midas/src/mjsonrpc.cxx; sourceTree = "<group>"; };
+		D530FC771BB3FC4800098C9B /* mjsonrpc_user.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mjsonrpc_user.cxx; path = /midas/src/mjsonrpc_user.cxx; sourceTree = "<group>"; };
 		D534757D183A1979004316B0 /* mongoose.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mongoose.c; path = /midas/src/mongoose.c; sourceTree = "<absolute>"; };
 		D570596317986E2F00DA5416 /* mhttpd */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mhttpd; sourceTree = BUILT_PRODUCTS_DIR; };
 		D5705987179871EA00DA5416 /* alarm.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = alarm.c; path = /midas/src/alarm.c; sourceTree = "<absolute>"; };
@@ -63,6 +70,7 @@
 		D570599E1798722600DA5416 /* midasinc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = midasinc.h; path = /midas/include/midasinc.h; sourceTree = "<absolute>"; };
 		D570599F1798722600DA5416 /* msystem.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = msystem.h; path = /midas/include/msystem.h; sourceTree = "<absolute>"; };
 		D576CEA51B4DCBEC00FB242B /* develop.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; name = develop.js; path = /midas/resources/develop.js; sourceTree = "<group>"; };
+		D5A00FB71BB3FCFF00549585 /* json_paste.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = json_paste.cxx; path = /midas/src/json_paste.cxx; sourceTree = "<group>"; };
 		D5BE377E17BCE2B3004233D8 /* mhttpd.css */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.css; name = mhttpd.css; path = /midas/resources/mhttpd.css; sourceTree = "<absolute>"; };
 		D5BE377F17BCE2B3004233D8 /* mhttpd.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; name = mhttpd.js; path = /midas/resources/mhttpd.js; sourceTree = "<absolute>"; };
 		D5C8CD7B1ACC0797008B1201 /* mscb.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mscb.c; path = /mscb/src/mscb.c; sourceTree = "<group>"; };
@@ -128,6 +136,10 @@
 		D570598617986EFF00DA5416 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				D5A00FB71BB3FCFF00549585 /* json_paste.cxx */,
+				D51B325D1BB3FCAA0015F608 /* mjson.cxx */,
+				D530FC771BB3FC4800098C9B /* mjsonrpc_user.cxx */,
+				D530FC751BB3FC1900098C9B /* mjsonrpc.cxx */,
 				D5C8CD7B1ACC0797008B1201 /* mscb.c */,
 				D5C8CD7C1ACC0797008B1201 /* mscbrpc.c */,
 				D5043BCC18A2485800F3B297 /* history_midas.cxx */,
@@ -197,7 +209,7 @@
 		D570595B17986E2F00DA5416 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0500;
+				LastUpgradeCheck = 0700;
 				ORGANIZATIONNAME = "Stefan Ritt";
 			};
 			buildConfigurationList = D570595E17986E2F00DA5416 /* Build configuration list for PBXProject "mhttpd" */;
@@ -223,16 +235,20 @@
 			buildActionMask = 2147483647;
 			files = (
 				D5705992179871EA00DA5416 /* alarm.c in Sources */,
+				D51B325E1BB3FCAA0015F608 /* mjson.cxx in Sources */,
+				D530FC781BB3FC4800098C9B /* mjsonrpc_user.cxx in Sources */,
 				D5705993179871EA00DA5416 /* elog.c in Sources */,
 				D5C8CD7D1ACC0797008B1201 /* mscb.c in Sources */,
 				D5C8CD7E1ACC0797008B1201 /* mscbrpc.c in Sources */,
 				D5705995179871EA00DA5416 /* history_odbc.cxx in Sources */,
+				D530FC761BB3FC1900098C9B /* mjsonrpc.cxx in Sources */,
 				D5705996179871EA00DA5416 /* history.c in Sources */,
 				D5705997179871EA00DA5416 /* mhttpd.cxx in Sources */,
 				D5705998179871EA00DA5416 /* midas.c in Sources */,
 				D5705999179871EA00DA5416 /* mrpc.c in Sources */,
 				D5043BCD18A2485800F3B297 /* history_midas.cxx in Sources */,
 				D570599A179871EA00DA5416 /* odb.c in Sources */,
+				D5A00FB81BB3FCFF00549585 /* json_paste.cxx in Sources */,
 				D570599B179871EA00DA5416 /* sequencer.cxx in Sources */,
 				D534757E183A1979004316B0 /* mongoose.c in Sources */,
 				D570599C179871EA00DA5416 /* system.c in Sources */,
@@ -260,6 +276,7 @@
 				CLANG_WARN_INT_CONVERSION = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;

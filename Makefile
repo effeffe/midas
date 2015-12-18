@@ -515,14 +515,18 @@ $(BIN_DIR)/%:$(SRC_DIR)/%.c
 $(BIN_DIR)/odbedit: $(SRC_DIR)/odbedit.cxx $(SRC_DIR)/cmdedit.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(SRC_DIR)/odbedit.cxx $(SRC_DIR)/cmdedit.cxx $(LIB) $(LIBS)
 
-
+MHTTPD_OBJS=
+MHTTPD_OBJS += $(LIB_DIR)/mhttpd.o
+MHTTPD_OBJS += $(LIB_DIR)/mongoose.o
+MHTTPD_OBJS += $(LIB_DIR)/mgd.o
+MHTTPD_OBJS += $(LIB_DIR)/sequencer.o
+MHTTPD_OBJS += $(LIB_DIR)/mjsonrpc.o $(LIB_DIR)/mjsonrpc_user.o
 ifdef HAVE_MSCB
-$(BIN_DIR)/mhttpd: $(LIB_DIR)/mhttpd.o $(LIB_DIR)/mongoose.o $(LIB_DIR)/mgd.o $(LIB_DIR)/mscb.o $(LIB_DIR)/sequencer.o
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
-else
-$(BIN_DIR)/mhttpd: $(LIB_DIR)/mhttpd.o $(LIB_DIR)/mongoose.o $(LIB_DIR)/mgd.o $(LIB_DIR)/sequencer.o
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
+MHTTPD_OBJS += $(LIB_DIR)/mscb.o
 endif
+
+$(BIN_DIR)/mhttpd: $(MHTTPD_OBJS)
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
 
 $(BIN_DIR)/mh2sql: $(BIN_DIR)/%: $(UTL_DIR)/mh2sql.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)

@@ -231,6 +231,390 @@ function ODBCopy(path, format)
    return request.responseText;
 }
 
+/// \defgroup mjsonrpc_js JSON-RPC Javascript library (mjsonrpc_xxx)
+
+var mjsonrpc_default_url = "";
+var mjsonrpc_url = mjsonrpc_default_url;
+
+function mjsonrpc_set_url(url)
+{
+   /// \ingroup mjsonrpc_js
+   /// Change the URL of JSON-RPC server
+   /// @param[in] url the new URL, i.e. "https://daqserver.example.com:8443" (string)
+   /// @returns nothing
+   mjsonrpc_url = url;
+}
+
+function mjsonrpc_send_request(req)
+{
+   /// \ingroup mjsonrpc_js
+   /// Send JSON-RPC request(s) via HTTP POST. RPC response and error handling is done using the Javascript Promise mechanism:
+   ///
+   /// \code
+   /// var req = mjsonrpc_make_request(method, params, id);
+   /// mjsonrpc_send_request(req).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ...
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   ///
+   /// @param[in] req request object or an array of request objects (object or array of objects)
+   /// @returns new Promise
+
+   return new Promise(function(resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.responseType = 'json';
+      xhr.withCredentials = true;
+
+      xhr.onreadystatechange = function()
+      {
+         if (xhr.readyState == 4) {
+            var exc = null;
+
+            if (xhr.status == 200) {
+               var have_response = false;
+               try {
+                  if (xhr.response) {
+                     var response = xhr.response;
+                     var error = response.error;
+                     // alert("e " + JSON.stringify(xhr.response));
+                     // (typeof xhr.response.error == 'undefined')
+                     have_response = (error == null);
+                  }
+               } catch (xexc) {
+                  // fall through
+                  //alert("exception " + xexc);
+                  exc = xexc;
+               }
+
+               if (have_response) {
+                  var r = new Object;
+                  r.request = req;
+                  r.id = response.id;
+                  r.result = response.result;
+                  resolve(r);
+                  return;
+               }
+            }
+
+            var r = new Object;
+            r.request = req;
+            r.xhr = xhr;
+            r.exception = exc;
+            reject(r);
+         }
+      }
+
+      xhr.open('POST', mjsonrpc_url + "?mjsonrpc");
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.setRequestHeader('Accept', 'application/json');
+      if (req == "send invalid json")
+         xhr.send("invalid json");
+      else
+         xhr.send(JSON.stringify(req));
+   });
+}
+
+function mjsonrpc_debug_alert(rpc) {
+   /// \ingroup mjsonrpc_js
+   /// Debug method to show RPC response
+   /// @param[in] rpc object (object), see mjsonrpc_send_request()
+   /// @returns nothing
+   alert("mjsonrpc_debug_alert: method: \"" + rpc.request.method + "\", params: " + rpc.request.params + ", id: " + JSON.stringify(rpc.id) + ", response: " + JSON.stringify(rpc.result));
+}
+
+function mjsonrpc_decode_error(request, xhr, exc) {
+   /// \ingroup mjsonrpc_js
+   /// Convert RPC error status to human-readable string
+   /// @param[in] request request object (object)
+   /// @param[in] xhr request XHR object (object)
+   /// @param[in] exc request exception object (object)
+   /// @returns decoded error report (string)
+
+   function is_network_error(xhr) {
+      return xhr.readyState==4 && xhr.status==0;
+   }
+   function is_http_error(xhr) {
+      return xhr.readyState==4 && xhr.status!=200;
+   }
+   function print_xhr(xhr) {
+      return "readyState: " + xhr.readyState + ", HTTP status: " + xhr.status + " (" + xhr.statusText + ")";
+   }
+   function print_request(request) {
+      return "method: \"" + request.method + "\", params: " + request.params + ", id: " + request.id;
+   }
+
+   if (is_network_error(xhr)) {
+      return "network error: see javascript console, " + print_request(request);
+   } else if (is_http_error(xhr)) {
+      return "http error: " + print_xhr(xhr) + ", " + print_request(request);
+   } else if (exc) {
+      return "exception: " + exc + ", " + print_request(request);
+   } else if (!xhr.response) {
+      return "json-rpc error: null response, " + print_request(request);
+   } else if (xhr.response.error) {
+      return "json-rpc error: " + JSON.stringify(xhr.response.error) + ", " + print_request(request);
+   } else {
+      return "what happened?!?, " + print_request(request) + ", xhr: " + print_xhr(xhr) + ", exc: " + exc;
+   }
+}
+
+function mjsonrpc_error_alert(error) {
+   /// \ingroup mjsonrpc_js
+   /// Handle all errors
+   /// @param[in] error rejected promise error object (object)
+   /// @returns nothing
+   var s = mjsonrpc_decode_error(error.request, error.xhr, error.exception);
+   alert("mjsonrpc_error_alert: " + s);
+}
+
+function mjsonrpc_make_request(method, params, id)
+{
+   /// \ingroup mjsonrpc_js
+   /// Creates a new JSON-RPC request object
+   /// @param[in] method name of the RPC method (string)
+   /// @param[in] params parameters of the RPC method (object)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns the request object (object)
+
+   if (id == null)
+      id = Date.now();
+
+   var req = new Object();
+   req.jsonrpc = "2.0"; // version
+   req.method = method;
+   if (typeof params == 'string') {
+      req.params = JSON.parse(params);
+   } else {
+      req.params = params;
+   }
+   if (!req.params)
+      req.params = null; // make sure we have "params", even if set to null or undefined
+   req.id = id;
+
+   return req;
+}
+
+function mjsonrpc_call(method, params, id)
+{
+   /// \ingroup mjsonrpc_js
+   /// Creates a JSON-RPC request and sends it to mhttpd via HTTP POST.
+   /// RPC response and error handling is done using the Javascript Promise mechanism:
+   ///
+   /// \code
+   /// mjsonrpc_call(method, params, id).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ...
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] method name of the RPC method (string)
+   /// @param[in] params parameters of the RPC method (object)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+
+   var req = mjsonrpc_make_request(method, params, id);
+   return mjsonrpc_send_request(req);
+}
+
+function mjsonrpc_start_program(name, id) {
+   /// \ingroup mjsonrpc_js
+   /// Start a MIDAS program
+   ///
+   /// RPC method: "start_program"
+   ///
+   /// \code
+   /// mjsonrpc_start_program("logger").then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    var status = rpc.result.status; // return status of ss_system(), see MIDAS JSON-RPC docs
+   ///    ...
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] name Name of program to start, should be same as the ODB entry "/Programs/name" (string)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+
+   var req = new Object();
+   req.name = name;
+   return mjsonrpc_call("start_program", req, id);
+}
+
+function mjsonrpc_stop_program(name, unique, id) {
+   /// \ingroup mjsonrpc_js
+   /// Stop a MIDAS program via cm_shutdown()
+   ///
+   /// RPC method: "cm_shutdown"
+   ///
+   /// \code
+   /// mjsonrpc_stop_program("logger").then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    var status = rpc.result.status; // return status of cm_shutdown(), see MIDAS JSON-RPC docs and cm_shutdown() docs
+   ///    ...
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] name Name of program to stop (string)
+   /// @param[in] unique bUnique argument to cm_shutdown() (bool)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+
+   var req = new Object();
+   req.name = name;
+   req.unique = unique;
+   return mjsonrpc_call("cm_shutdown", req, id);
+}
+
+function mjsonrpc_db_copy(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Get a copy of ODB. Symlinks are not resolved, ODB path names are not converted to lower-case.
+   ///
+   /// Instead of this function, please use db_get_values() as a simple way to get easy to use ODB values.
+   ///
+   /// RPC method: "db_copy"
+   ///
+   /// \code
+   /// mjsonrpc_db_copy(["/runinfo", "/equipment/foo"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_get_value() for /runinfo
+   ///    ... result.status[1]; // status of db_get_value() for /equipment
+   ///    ... result.last_written[0]; // "last written" timestamp for /runinfo
+   ///    ... result.last_written[1]; // "last written" timestamp for /equipment
+   ///    var runinfo = result.data[0]; // javascript object representing the ODB runinfo structure
+   ///    var equipment = result.data[1]; // javascript object representing /equipment/foo
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   return mjsonrpc_call("db_copy", req, id);
+}
+
+function mjsonrpc_db_get_values(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Get values of ODB variables
+   ///
+   /// RPC method: "db_get_values"
+   ///
+   /// \code
+   /// mjsonrpc_db_get_values(["/runinfo", "/equipment"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_get_value() for /runinfo
+   ///    ... result.status[1]; // status of db_get_value() for /equipment
+   ///    ... result.last_written[0]; // "last written" timestamp for /runinfo
+   ///    ... result.last_written[1]; // "last written" timestamp for /equipment
+   ///    var runinfo = result.data[0]; // javascript object representing the ODB runinfo structure
+   ///    ... runinfo["run number"];    // access the run number, note: all ODB names should be in lower-case.
+   ///    ... runinfo["run number/last_written"]; // "last_written" timestamp for the run number
+   ///    ... result.data[1].foo.variables.bar;   // access /equipment/foo/variables/bar
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   return mjsonrpc_call("db_get_values", req, id);
+}
+
+function mjsonrpc_db_paste(paths, values, id) {
+   /// \ingroup mjsonrpc_js
+   /// Write values info ODB.
+   ///
+   /// RPC method: "db_paste"
+   ///
+   /// \code
+   /// mjsonrpc_db_paste(["/runinfo/run number", "/equipment/foo/settings/bar"], [123,456]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_set_value() for /runinfo
+   ///    ... result.status[1]; // status of db_set_value() for /equipment
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] values Array of ODB values (array of anything)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   req.values = values;
+   return mjsonrpc_call("db_paste", req, id);
+}
+
+function mjsonrpc_db_create(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Create ODB entries
+   ///
+   /// RPC method: "db_create"
+   ///
+   /// @param[in] paths Array of ODB entries to create (array of objects)
+   /// @param[in] paths[i].path ODB path name to create (string)
+   /// @param[in] paths[i].type TID_xxx data type (integer)
+   /// @param[in] paths[i].array_length Optional array length (default is 1) (integer)
+   /// @param[in] paths[i].string_length Optional string length (default is NAME_LENGTH) (integer)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+
+   return mjsonrpc_call("db_create", paths, id);
+}
+
+function mjsonrpc_cm_msg(message, type, id) {
+   /// \ingroup mjsonrpc_js
+   /// Get values of ODB variables
+   ///
+   /// RPC method: "cm_msg1"
+   ///
+   /// \code
+   /// mjsonrpc_cm_msg("this is a new message").then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var status = rpc.result.status;  // return status of MIDAS cm_msg1()
+   ///    ...
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] message Text of midas message (string)
+   /// @param[in] type optional message type, one of MT_xxx. Default is MT_INFO (integer)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.message = message;
+   if (type)
+      req.type = type;
+   return mjsonrpc_call("cm_msg1", req, id);
+}
+
 function ODBCall(url, callback)
 {
    var request = XMLHttpRequestGeneric();
@@ -546,6 +930,8 @@ function ODBInlineEdit(p, odb_path, bracket)
    p.style.width = width+"px";
 }
 
+/*---- mhttpd functions -------------------------------------*/
+
 function mhttpd_create_page_handle_create(mouseEvent)
 {
    var form = document.getElementsByTagName('form')[0];
@@ -627,6 +1013,235 @@ function mhttpd_delete_page_handle_cancel(mouseEvent)
 {
    location.search = ""; // reloads the document
    return false;
+}
+
+function mhttpd_programs_page_add_table_entry(table, name, colspan)
+{
+   function new_attribute(name, value)
+   {
+      var att = document.createAttribute(name);
+      if (value)
+         att.value = value;
+      return att;
+   }
+
+   var tr = document.createElement("tr");
+   tr.setAttributeNode(new_attribute("id", "program " + name));
+   var td;
+   var input;
+
+   td = document.createElement("td");
+   td.setAttributeNode(new_attribute("id", "program name " + name));
+   td.setAttributeNode(new_attribute("align", "center"));
+   td.setAttributeNode(new_attribute("colspan", colspan));
+   td.innerHTML = "<a href='Programs/" + name + "'>"+name+"</a>";
+   tr.appendChild(td);
+
+   td = document.createElement("td");
+   td.setAttributeNode(new_attribute("id", "program host " + name));
+   td.setAttributeNode(new_attribute("align", "center"));
+   tr.appendChild(td);
+
+   td = document.createElement("td");
+   td.setAttributeNode(new_attribute("id", "program alarm " + name));
+   td.setAttributeNode(new_attribute("align", "center"));
+   tr.appendChild(td);
+
+   td = document.createElement("td");
+   td.setAttributeNode(new_attribute("id", "program autorestart " + name));
+   td.setAttributeNode(new_attribute("align", "center"));
+   tr.appendChild(td);
+
+   td = document.createElement("td");
+   td.setAttributeNode(new_attribute("id", "program control " + name));
+
+   var start_button = document.createElement("button");
+   input = start_button;
+   input.id = "start " + name;
+   input.type = "button";
+   input.innerHTML = "Start " + name;
+   input.disabled = true;
+   input.onclick = function() {
+      start_button.disabled = true;
+      //alert('Start!');
+      mjsonrpc_start_program(name, null, mjsonrpc_debug_callback);
+   };
+
+   td.appendChild(input);
+
+   // need spacer beteen the buttons
+   //td.appendChild("x&nbspx");
+
+   var stop_button = document.createElement("button");
+   input = stop_button;
+   input.id = "stop " + name;
+   input.type = "button";
+   input.innerHTML = "Stop " + name;
+   input.disabled = true;
+   input.onclick = function() {
+      stop_button.disabled = true;
+      //alert('Stop!');
+      mjsonrpc_stop_program(name, false, null, mjsonrpc_debug_callback);
+   };
+
+   td.appendChild(input);
+
+   tr.appendChild(td);
+
+   table.appendChild(tr);
+
+   return tr;
+}
+
+var mhttpd_programs_page_updateTimerId;
+
+function mhttpd_programs_page_callback(request, r)
+{
+   document.getElementById('updateStatus').innerHTML = "Processing new data...";
+
+   function set_text(dom_prefix, item, value)
+   {
+      var e = document.getElementById(dom_prefix + item);
+      if (e) e.innerHTML = value;
+   }
+
+   function set_color(dom_prefix, item, value)
+   {
+      var e = document.getElementById(dom_prefix + item);
+      if (e) e.style.backgroundColor = value;
+   }
+
+   function set_class(dom_prefix, item, value)
+   {
+      var e = document.getElementById(dom_prefix + item);
+      if (e) e.className = value;
+   }
+
+   function set_attr(id, attr, value)
+   {
+      var e = document.getElementById(id);
+      if (e) {
+         if (typeof e[attr] != 'undefined') {
+            e[attr] = value;
+         }
+      }
+   }
+
+   function find_client(clients, name)
+   {
+      var found;
+      var name_lc = name.toLowerCase(name);
+      for (var key in clients) {
+         var cname = clients[key].name;
+         var cname_lc =  cname.toLowerCase();
+         var same_name = (cname_lc == name_lc);
+         var matching_name = false;
+
+         if (!same_name) {
+            var n = cname_lc.search(name_lc);
+            if (n==0) {
+               matching_name = true;
+               // FIXME: check that remaining text is all numbers: for "odbedit", match "odbedit111", but not "odbeditxxx"
+            }
+         }
+
+         if (same_name || matching_name) {
+            if (!found)
+               found = new Array();
+            found.push(key);
+         }
+      }
+      return found;
+   }
+
+   //alert("Hello: " + JSON.stringify(r));
+
+   var programs = r.result.data[0];
+   var clients  = r.result.data[1];
+   var alarms   = r.result.data[2];
+
+   for (var name in programs) {
+      var e = document.getElementById("program " + name);
+      var required = programs[name].required;
+      var xclients = find_client(clients, name);
+      //alert("name " + name + " clients: " + JSON.stringify(xclients));
+      if (required || xclients) {
+         if (!e) {
+            e = mhttpd_programs_page_add_table_entry(document.getElementById("xstripeList"), name, 1);
+         }
+
+         e.style.display = '';
+
+         if (xclients) {
+            var s = "";
+            for (var i=0; i<xclients.length; i++) {
+               var key = xclients[i];
+               var host = clients[key].host;
+               if (host) {
+                  if (s.length > 0)
+                     s += "<br>";
+                  s += "<a href='/System/Clients/"+key+"'>"+host+"</a>";
+               }
+            }
+            set_text("program host ", name, s);
+            set_class("program host ", name, "greenLight");
+            // enable start/stop buttons
+            set_attr("start " + name, "disabled", true);
+            set_attr("stop " + name, "disabled", false);
+         } else {
+            set_text("program host ", name, "Not running");
+            set_class("program host ", name, "redLight");
+            // enable start/stop buttons
+            set_attr("start " + name, "disabled", false);
+            set_attr("stop " + name, "disabled", true);
+         }
+
+         var alarm_class = programs[name]["alarm class"];
+         if (alarm_class.length > 0) {
+            set_text("program alarm ", name, "<a href='Alarms/Classes/"+ alarm_class + "'>" + alarm_class + "</a>");
+            set_class("program alarm ", name, "yellowLight");
+         } else {
+            set_text("program alarm ", name, "-");
+         }
+
+         if (programs[name]["auto restart"])
+            set_text("program autorestart ", name, "Yes");
+         else
+            set_text("program autorestart ", name, "No");
+      } else {
+         if (e) {
+            e.style.display = 'none';
+         }
+      }
+   }
+
+   document.getElementById('lastUpdated').innerHTML = "Last updated: " + new Date;
+   document.getElementById('updateStatus').innerHTML = "";
+}
+
+function mhttpd_programs_page_update()
+{
+   clearTimeout(mhttpd_programs_page_updateTimerId);
+   var updatePeriod = 1000; // in milli-seconds
+   var paths = [ "/Programs", "/System/Clients", "/Alarms" ];
+   document.getElementById('updateStatus').innerHTML = "Requesting new data...";
+   mjsonrpc_db_get_values(paths, null, mhttpd_programs_page_callback);
+   document.getElementById('updateStatus').innerHTML = "Waiting for new data...";
+   mhttpd_programs_page_updateTimerId = setTimeout('mhttpd_programs_page_update()', updatePeriod);
+}
+
+function mhttpd_programs_page()
+{
+   // this is called when the "programs" page is loaded
+
+   document.write("<td><input type=button value=\'Refresh now\' onClick=\'mhttpd_programs_page_update();\'></input> <tt id='lastUpdated'>lastUpdated</tt> <tt id='updateStatus'>updateStatus</tt></td>\n");
+
+   document.write("<table class=\"subStatusTable\" id=\"xstripeList\">\n");
+   document.write("<tr><td colspan=5 class=\"subStatusTitle\">Programs</td></tr>");
+   document.write("<tr class=\"titleRow\"><th>Program<th>Running on host<th>Alarm class<th>Autorestart<th>Commands</tr>\n");
+   document.write("</table>\n");
+
+   document.write("<script>mhttpd_programs_page_update();</script>\n");
 }
 
 /*---- message functions -------------------------------------*/
@@ -1071,3 +1686,11 @@ function chat_extend()
    window.setTimeout(chat_extend, 1000);
 }
 
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * js-indent-level: 3
+ * indent-tabs-mode: nil
+ * End:
+ */
