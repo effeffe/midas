@@ -14,6 +14,8 @@
 #include "strlcpy.h"
 #endif
 
+#define CALLOC(num, type) (type*)calloc((num),sizeof(type))
+#define FREE(ptr) free(ptr); (ptr)=NULL;
 
 void tmp()
 {
@@ -403,18 +405,9 @@ void display_range_hist(MidasHistoryInterface* mh, const char* event_name, time_
 void display_all_hist(MidasHistoryInterface* mh, const char* event_name, time_t start_time, time_t end_time, time_t interval)
 /* read back history */
 {
-   const int kMaxVars = 50;
-   time_t* tbuffer[kMaxVars];
-   double* buffer[kMaxVars];
-   const char* en[kMaxVars];
-   const char* vn[kMaxVars];
-   int in[kMaxVars];
-   int hs_status[kMaxVars];
-   int n_data[kMaxVars];
-   char str[256];
    INT status = 0;
-   time_t ltime;
-   int n[kMaxVars];
+
+   printf("Here!\n");
 
    std::vector<TAG> tags;
    status = mh->hs_get_tags(event_name, start_time, &tags);
@@ -431,45 +424,53 @@ void display_all_hist(MidasHistoryInterface* mh, const char* event_name, time_t 
          printf("%d: %s\n", j, tags[j].name);
    }
 
-   if (tags.size() > kMaxVars-1) {
-      printf("Event \'%s\' has too many variables: %d, maximum is %d\n", event_name, (int)tags.size(), kMaxVars);
-      return;
+   int xvars = 0;
+
+   for (unsigned i=0; i<tags.size(); i++) {
+      if (tags[i].n_data == 1) {
+         xvars++;
+      } else {
+         for (unsigned j=0; j<tags[i].n_data; j++) {
+            xvars++;
+         }
+      }
    }
+
+   const char** en = CALLOC(xvars, const char*);
+   const char** vn = CALLOC(xvars, const char*);
+   int* in         = CALLOC(xvars, int);
+   int* n_data     = CALLOC(xvars, int);
+   int* n          = CALLOC(xvars, int);
 
    int nvars = 0;
 
    for (unsigned i=0; i<tags.size(); i++) {
-      if (nvars >= kMaxVars-1) {
-         printf("Event \'%s\' has too many variables or array elements: %d, maximum is %d\n", event_name, nvars, kMaxVars);
-         break;
-      }
-
+      if (tags[i].name[0] == '/') // skip system tags
+         continue;
       if (tags[i].n_data == 1) {
          en[nvars] = event_name;
          vn[nvars] = tags[i].name;
          in[nvars] = 0;
-         hs_status[nvars] = 0;
          n_data[nvars] = tags[i].n_data;
          nvars++;
       } else {
          for (unsigned j=0; j<tags[i].n_data; j++) {
-            if (nvars >= kMaxVars-1) {
-               printf("Event \'%s\' has too many variables or array elements: %d, maximum is %d\n", event_name, nvars, kMaxVars);
-               break;
-            }
             en[nvars] = event_name;
             vn[nvars] = tags[i].name;
             in[nvars] = j;
-            hs_status[nvars] = 0;
             n_data[nvars] = tags[i].n_data;
             nvars++;
          }
       }
    }
 
-   assert(nvars < kMaxVars);
+   assert(nvars <= xvars);
 
-   status = mh->hs_read(start_time, end_time, interval, nvars, en, vn, in, n, tbuffer, buffer, hs_status);
+   time_t** tbuffer = CALLOC(nvars, time_t*);
+   double** vbuffer = CALLOC(nvars, double*);
+   int* hs_status   = CALLOC(nvars, int);
+
+   status = mh->hs_read(start_time, end_time, interval, nvars, en, vn, in, n, tbuffer, vbuffer, hs_status);
    
    if (status != HS_SUCCESS) {
       printf("Cannot read history data, hs_read() error %d\n", status);
@@ -477,14 +478,25 @@ void display_all_hist(MidasHistoryInterface* mh, const char* event_name, time_t 
    }
 
    int nread = n[0];
+
+   bool ok = true;
       
    for (int i=0; i<nvars; i++) {
-      if (n[i] == 0)
+      if (n[i] == 0) {
          printf("No data for event \"%s\" variable \"%s\" index %d found in specified time range\n", en[i], vn[i], in[i]);
-      else if (hs_status[i] != HS_SUCCESS)
+         ok = false;
+      } else if (hs_status[i] != HS_SUCCESS) {
          printf("Cannot read event \"%s\" variable \"%s\" index %d, status %d\n", en[i], vn[i], in[i], hs_status[i]);
-      else if (n[i] == nread)
+         ok = false;
+      } else if (n[i] != nread) {
          printf("Number of entries for event \"%s\" variable \"%s\" index %d is %d instead of %d\n", en[i], vn[i], in[i], n[i], nread);
+         ok = false;
+      }
+   }
+
+   if (!ok) {
+      printf("Cannot print history data because of timestamp skew\n");
+      return;
    }
 
    printf("Event \'%s\', %d variables, %d entries\n", event_name, nvars, nread);
@@ -493,37 +505,55 @@ void display_all_hist(MidasHistoryInterface* mh, const char* event_name, time_t 
    printf("\t");
    for (int i=0; i<nvars; i++) {
       if (n_data[i] == 1) {
+         printf("\t");
          printf("%s ", vn[i]);
       } else {
+         printf("\t");
          printf("%s[%d] ", vn[i], in[i]);
       }
-      printf("\t");
    }
    printf("\n");
 
    for (int i = 0; i < nread; i++) {
       if (binary_time)
-         sprintf(str, "%d ", (int)tbuffer[0][i]);
+         printf("%d ", (int)tbuffer[0][i]);
       else {
-         ltime = (time_t) tbuffer[0][i];
-         sprintf(str, "%s", ctime(&ltime) + 4);
-         str[20] = '\t';
+         char buf[256];
+         time_t ltime = (time_t) tbuffer[0][i];
+         sprintf(buf, "%s", ctime(&ltime) + 4);
+         char* c = strchr(buf, '\n');
+         if (c)
+            *c = 0; // kill trailing '\n'
+         printf("%s", buf);
+         putchar('\t');
       }
 
       for (int j=0; j<nvars; j++) {
-         strcat(str, "\t");
-         sprintf(&str[strlen(str)], "%.16g", buffer[j][i]);
+         if (tbuffer[j][i] != tbuffer[0][i]) {
+            printf("Cannot print history data because of timestamp skew\n");
+            return;
+         }
+         putchar('\t');
+         printf("%.16g", vbuffer[j][i]);
       }
 
-      strcat(str, "\n");
-
-      printf("%s", str);
+      putchar('\n');
    }
 
    for (int i=0; i<nvars; i++) {
-      free(tbuffer[i]);
-      free(buffer[i]);
+      FREE(tbuffer[i]);
+      FREE(vbuffer[i]);
    }
+   
+   FREE(tbuffer);
+   FREE(vbuffer);
+   FREE(hs_status);
+
+   FREE(en);
+   FREE(vn);
+   FREE(in);
+   FREE(n_data);
+   FREE(n);
 }
 
 /*------------------------------------------------------------------*/
@@ -767,3 +797,11 @@ int main(int argc, char *argv[])
 
    return 0;
 }
+
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */
