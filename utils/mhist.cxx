@@ -331,36 +331,31 @@ void display_range_hist(MidasHistoryInterface* mh, const char* event_name, time_
                         time_t interval, const char *var_name, int index1, int index2)
 /* read back history */
 {
-   const int kMaxVars = 50;
-   time_t* tbuffer[kMaxVars];
-   double* buffer[kMaxVars];
-   const char* en[kMaxVars];
-   const char* vn[kMaxVars];
-   int in[kMaxVars];
-   int hs_status[kMaxVars];
-   char str[256];
    INT status = 0;
-   time_t ltime;
-   int n[kMaxVars];
 
-   if (index2 > index1 + kMaxVars-1) {
-      printf("Specified range too large (max %d)\n", kMaxVars);
-      return;
-   } else if (index2 < index1) {
+   if (index2 < index1) {
       printf("Wrong specified range (low>high)\n");
       return;
    }
 
    int nvars = index2 - index1 + 1;
 
+   const char** en = CALLOC(nvars, const char*);
+   const char** vn = CALLOC(nvars, const char*);
+   int* in = CALLOC(nvars, int);
+
    for (int i=0; i<nvars; i++) {
       en[i] = event_name;
       vn[i] = var_name;
       in[i] = index1 + i;
-      hs_status[i] = 0;
    }
 
-   status = mh->hs_read(start_time, end_time, interval, nvars, en, vn, in, n, tbuffer, buffer, hs_status);
+   int* n = CALLOC(nvars, int);
+   time_t** tbuffer = CALLOC(nvars, time_t*);
+   double** vbuffer = CALLOC(nvars, double*);
+   int* hs_status = CALLOC(nvars, int);
+
+   status = mh->hs_read(start_time, end_time, interval, nvars, en, vn, in, n, tbuffer, vbuffer, hs_status);
    
    if (status != HS_SUCCESS) {
       printf("Cannot read history data, hs_read() error %d\n", status);
@@ -377,27 +372,36 @@ void display_range_hist(MidasHistoryInterface* mh, const char* event_name, time_
    printf("mhist for Var:%s[%d:%d]\n", var_name, index1, index2);
    for (int i = 0; i < n[0]; i++) {
       if (binary_time)
-         sprintf(str, "%d ", (int)tbuffer[0][i]);
+         printf("%d ", (int)tbuffer[0][i]);
       else {
-         ltime = (time_t) tbuffer[0][i];
+         char str[256];
+         time_t ltime = (time_t) tbuffer[0][i];
          sprintf(str, "%s", ctime(&ltime) + 4);
          str[20] = '\t';
+         printf("%s", str);
       }
 
       for (int j = 0, idx = index1; idx < index2 + 1; idx++, j++) {
-         strcat(str, "\t");
-         sprintf(&str[strlen(str)], "%.16g", buffer[j][i]);
+         putchar('\t');
+         printf("%.16g", vbuffer[j][i]);
       }
 
-      strcat(str, "\n");
-
-      printf("%s", str);
+      putchar('\n');
    }
 
    for (int i=0; i<nvars; i++) {
-      free(tbuffer[i]);
-      free(buffer[i]);
+      FREE(tbuffer[i]);
+      FREE(vbuffer[i]);
    }
+
+   FREE(n);
+   FREE(tbuffer);
+   FREE(vbuffer);
+   FREE(hs_status);
+
+   FREE(en);
+   FREE(vn);
+   FREE(in);
 }
 
 /*------------------------------------------------------------------*/
@@ -406,8 +410,6 @@ void display_all_hist(MidasHistoryInterface* mh, const char* event_name, time_t 
 /* read back history */
 {
    INT status = 0;
-
-   printf("Here!\n");
 
    std::vector<TAG> tags;
    status = mh->hs_get_tags(event_name, start_time, &tags);
@@ -440,7 +442,6 @@ void display_all_hist(MidasHistoryInterface* mh, const char* event_name, time_t 
    const char** vn = CALLOC(xvars, const char*);
    int* in         = CALLOC(xvars, int);
    int* n_data     = CALLOC(xvars, int);
-   int* n          = CALLOC(xvars, int);
 
    int nvars = 0;
 
@@ -466,6 +467,7 @@ void display_all_hist(MidasHistoryInterface* mh, const char* event_name, time_t 
 
    assert(nvars <= xvars);
 
+   int* n           = CALLOC(nvars, int);
    time_t** tbuffer = CALLOC(nvars, time_t*);
    double** vbuffer = CALLOC(nvars, double*);
    int* hs_status   = CALLOC(nvars, int);
@@ -545,6 +547,7 @@ void display_all_hist(MidasHistoryInterface* mh, const char* event_name, time_t 
       FREE(vbuffer[i]);
    }
    
+   FREE(n);
    FREE(tbuffer);
    FREE(vbuffer);
    FREE(hs_status);
@@ -553,7 +556,6 @@ void display_all_hist(MidasHistoryInterface* mh, const char* event_name, time_t 
    FREE(vn);
    FREE(in);
    FREE(n_data);
-   FREE(n);
 }
 
 /*------------------------------------------------------------------*/
