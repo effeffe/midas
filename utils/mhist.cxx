@@ -710,7 +710,7 @@ int main(int argc, char *argv[])
             }
          } else {
           usage:
-            printf("\nusage: mhist [-e Event ID] [-v Variable Name]\n");
+            printf("\nusage: mhist [-e Event Name] [-v Variable Name]\n");
             printf("         [-i Index] index of variables which are arrays\n");
             printf("         [-i Index1:Index2] index range of variables which are arrays (max 50)\n");
             printf("         [-t Interval] minimum interval in sec. between two displayed records\n");
@@ -721,7 +721,6 @@ int main(int argc, char *argv[])
             printf("         [-p End date] specify end date YYMMDD[.HHMM[SS]]\n");
             printf("         [-l] list available events and variables\n");
             printf("         [-b] display time stamp in decimal format\n");
-            printf("         [-z path] path to the location of the history files (def:cwd)\n");
             return 1;
          }
       }
