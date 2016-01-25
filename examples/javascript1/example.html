@@ -200,11 +200,13 @@
     <pre>
 mjsonrpc_set_url(url);
 mjsonrpc_db_get_values(paths);
-mjsonrpc_db_paste(paths, values);
+mjsonrpc_db_paste(paths, values); 
+mjsonrpc_db_ls(paths);
 mjsonrpc_cm_msg(message);
 test cm_exist()
 test cm_shutdown()
-test start_program()
+test start_program() 
+test db_copy() 
 --- ODBSet(path, value, pwdname); ---- use mjsonrpc_db_paste() instead
 --- ODBGet(path, format, defval, len, type); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
 --- ODBMGet(paths, callback, formats); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
@@ -213,7 +215,7 @@ test start_program()
 new ODBKey(path); ---- use ODBMKey() instead
 --- ODBCopy(path, format); ---- use ODBMCopy() instead ---- use mjsonrpc_db_copy() instead
 --- ODBMCopy(paths, callback, format); ---- use mjsonrpc_db_copy() instead
-ODBMLs(paths, callback);
+--- ODBMLs(paths, callback); ---- use mjsonrpc_db_ls() instead
 ODBMCreate(paths, types);
 ODBMCreate(paths, types, arraylengths, stringlengths, callback);  
 ODBMResize(paths, arraylengths, stringlengths, callback);  
@@ -303,6 +305,37 @@ ODBEdit(path);
         </ul>
 
       <li>
+        <h2>mjsonrpc_db_get_values() omit all optional information to reduce data size</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='var paths = [
+          "/Runinfo",
+          "/Runinfo/Run number",
+          "/does-not-exist",
+          "/Equipment/RpcExample/Settings",
+          "/Equipment/RpcExample/Variables",
+          "/test/intarray[0]",
+          "/test/intarray[0,2]",
+          "/test/intarray[0-2]",
+          "/test/intarray[0,3-4,1-2]",
+          "/test/intarray[4-0]",
+          "/test/intarray[1,100]",
+          "/test/intarray[invalid index]"
+          ];
+	  var req = new Object();
+	  req.paths = paths;
+          req.omit_names = true;
+          req.omit_last_written = true;
+          mjsonrpc_call("db_get_values", req).then(function(rpc) {
+          document.getElementById("db_get_values_json_data_min").innerHTML = JSON.stringify(rpc);
+          }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+        </p>
+        <ul>
+          <li>JSON data: <tt id='db_get_values_json_data_min'></tt>
+        </ul>
+
+      <li>
         <h2>mjsonrpc_db_paste()</h2>
 
         <p>
@@ -319,6 +352,29 @@ ODBEdit(path);
           mjsonrpc_debug_alert(rpc);
 	  }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
 	</p>
+
+      <li>
+        <h2>mjsonrpc_db_ls()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='var paths = [
+	  "/equipment",
+	  "/test",
+	  "/does-not-exist-test-db-ls",
+	  ];
+	  mjsonrpc_db_ls(paths).then(function(rpc) {
+	  document.getElementById("db_ls_status").innerHTML = rpc.result.status;
+	  document.getElementById("db_ls_equipment").innerHTML = JSON.stringify(rpc.result.data[0]);
+	  document.getElementById("db_ls_test").innerHTML = JSON.stringify(rpc.result.data[1]);
+          //mjsonrpc_debug_alert(rpc);
+	  }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+	</p>
+        <ul>
+          <li>Status: <tt id='db_ls_status'></tt>
+          <li>/Equipment: <tt id='db_ls_equipment'></tt>
+          <li>/Test: <tt id='db_ls_test'></tt>
+        </ul>
 
       <li>
         <h2>mjsonrpc_cm_msg()</h2>
@@ -789,17 +845,10 @@ ODBEdit(path);
           <input type=button value='Push me'
           onClick='var paths = [
           "/Runinfo",
-          "/Runinfo/Run number",
           "/does-not-exist",
           "/Equipment/RpcExample/Settings",
           "/Equipment/RpcExample/Variables",
-          "/test/intarray[0]",
-          "/test/intarray[0,2]",
-          "/test/intarray[0-2]",
-          "/test/intarray[0,3-4,1-2]",
-          "/test/intarray[4-0]",
-          "/test/intarray[1,100]",
-          "/test/intarray[invalid index]"
+          "/test/intarray"
           ];
           mjsonrpc_db_copy(paths).then(function(rpc) {
           document.getElementById("db_copy_json_data").innerHTML =
@@ -847,6 +896,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Mon Jan 25 10:17:55 PST 2016 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Mon Jan 25 12:50:18 PST 2016 <!-- hhmts end -->
   </body>
 </html>

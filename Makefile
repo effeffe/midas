@@ -628,7 +628,7 @@ $(LIB_DIR)/mscb.o:$(MSCB_DIR)/src/mscb.c $(MSCB_DIR)/include/mscb.h
 	$(CXX) -x c++ -c $(CFLAGS) $(OSFLAGS) -o $@ $(MSCB_DIR)/src/mscb.c
 endif
 
-$(LIB_DIR)/mhttpd.o: msystem.h midas.h midasinc.h mrpc.h
+$(LIB_DIR)/mhttpd.o: msystem.h midas.h midasinc.h mrpc.h mjsonrpc.h
 $(LIB_DIR)/midas.o: msystem.h midas.h midasinc.h mrpc.h
 $(LIB_DIR)/system.o: msystem.h midas.h midasinc.h mrpc.h
 $(LIB_DIR)/mrpc.o: msystem.h midas.h mrpc.h
@@ -637,6 +637,7 @@ $(LIB_DIR)/mdsupport.o: msystem.h midas.h midasinc.h
 $(LIB_DIR)/ftplib.o: msystem.h midas.h midasinc.h
 $(LIB_DIR)/mxml.o: msystem.h midas.h midasinc.h $(MXML_DIR)/mxml.h
 $(LIB_DIR)/alarm.o: msystem.h midas.h midasinc.h
+$(LIB_DIR)/mjsonrpc.o: midas.h mjsonrpc.h
 
 #
 # utilities

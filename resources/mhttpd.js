@@ -493,8 +493,6 @@ function mjsonrpc_db_copy(paths, id) {
    ///    var result = rpc.result;  // rpc response result
    ///    ... result.status[0]; // status of db_get_value() for /runinfo
    ///    ... result.status[1]; // status of db_get_value() for /equipment
-   ///    ... result.last_written[0]; // "last written" timestamp for /runinfo
-   ///    ... result.last_written[1]; // "last written" timestamp for /equipment
    ///    var runinfo = result.data[0]; // javascript object representing the ODB runinfo structure
    ///    var equipment = result.data[1]; // javascript object representing /equipment/foo
    /// }).catch(function(error) {
@@ -540,6 +538,34 @@ function mjsonrpc_db_get_values(paths, id) {
    var req = new Object();
    req.paths = paths;
    return mjsonrpc_call("db_get_values", req, id);
+}
+
+function mjsonrpc_db_ls(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Get list of contents of an ODB subdirectory, similar to odbedit command "ls -l". To get values of ODB variables, use db_get_values().
+   ///
+   /// RPC method: "db_ls"
+   ///
+   /// \code
+   /// mjsonrpc_db_ls(["/alarms/alarms", "/equipment"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_copy_json_ls() for /alarms/alarms
+   ///    ... result.status[1]; // status of db_copy_json_ls() for /equipment
+   ///    var alarms = result.data[0]; // javascript object representing the contents of ODB /alarms/alarms
+   ///    var equipment = result.data[1]; // javascript object representing the contents of ODB /equipment
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   return mjsonrpc_call("db_ls", req, id);
 }
 
 function mjsonrpc_db_paste(paths, values, id) {

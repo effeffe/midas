@@ -549,27 +549,29 @@ static int parse_array_index_list(const char* method, const char* path, std::vec
    return SUCCESS;
 }
 
-static MJsonNode* x_db_copy(const MJsonNode* params, bool values_flag)
+static MJsonNode* js_db_get_values(const MJsonNode* params)
 {
    if (!params) {
       MJSO* doc = MJSO::I();
-      if (values_flag)
-         doc->D("get values of ODB data from given subtrees");
-      else
-         doc->D("get copies of given ODB subtrees in the \"save\" json encoding");
+      doc->D("get values of ODB data from given subtrees");
       doc->P("paths[]", MJSON_STRING, "array of ODB subtree paths, see note on array indices");
-      if (values_flag)
-         doc->R("data[]", 0, "values of ODB data for each path, all key names are in lower case, all symlinks are followed");
-      else
-         doc->R("data[]", MJSON_OBJECT, "copy of ODB data for each path");
-      doc->R("status[]", MJSON_INT, "return status of db_copy_json() for each path");
-      doc->R("last_written[]", MJSON_NUMBER, "last_written value of the ODB subtree for each path");
+      doc->P("omit_names?", MJSON_BOOL, "omit the /name entries");
+      doc->P("omit_last_written?", MJSON_BOOL, "omit the /last_written entries");
+      doc->P("omit_old_timestamp?", MJSON_NUMBER, "omit data older than given ODB timestamp");
+      doc->R("data[]", 0, "values of ODB data for each path, all key names are in lower case, all symlinks are followed");
+      doc->R("status[]", MJSON_INT, "return status of db_copy_json_values() or db_copy_json_index() for each path");
+      doc->R("last_written?[]", MJSON_NUMBER, "last_written value of the ODB subtree for each path, absent if omit_last_written is true");
       return doc;
    }
 
    MJsonNode* error = NULL;
 
    const MJsonNodeVector* paths = mjsonrpc_get_param_array(params, "paths", &error); if (error) return error;
+
+   bool omit_names = mjsonrpc_get_param(params, "omit_names", NULL)->GetBool();
+   bool omit_last_written = mjsonrpc_get_param(params, "omit_last_written", NULL)->GetBool();
+   double xomit_old_timestamp = mjsonrpc_get_param(params, "omit_old_timestamp", NULL)->GetNumber();
+   time_t omit_old_timestamp = xomit_old_timestamp;
 
    MJsonNode* dresult = MJsonNode::MakeArray();
    MJsonNode* sresult = MJsonNode::MakeArray();
@@ -602,7 +604,7 @@ static MJsonNode* x_db_copy(const MJsonNode* params, bool values_flag)
 
       if (path.find("[") != std::string::npos) {
          std::vector<unsigned> list;
-         status = parse_array_index_list("js_db_copy", path.c_str(), &list);
+         status = parse_array_index_list("js_db_get_values", path.c_str(), &list);
 
          if (status != SUCCESS) {
             dresult->AddToArray(MJsonNode::MakeNull());
@@ -661,10 +663,7 @@ static MJsonNode* x_db_copy(const MJsonNode* params, bool values_flag)
          int bufsize = 0;
          int end = 0;
 
-         if (values_flag)
-            status = db_copy_json_values(hDB, hkey, &buf, &bufsize, &end);
-         else
-            status = db_copy_json_save(hDB, hkey, &buf, &bufsize, &end);
+         status = db_copy_json_values(hDB, hkey, &buf, &bufsize, &end, omit_names, omit_last_written, omit_old_timestamp);
 
          if (status == DB_SUCCESS) {
             dresult->AddToArray(MJsonNode::MakeJSON(buf));
@@ -681,17 +680,119 @@ static MJsonNode* x_db_copy(const MJsonNode* params, bool values_flag)
       }
    }
 
-   return mjsonrpc_make_result("data", dresult, "status", sresult, "last_written", lwresult);
+   if (omit_last_written) {
+      delete lwresult;
+      return mjsonrpc_make_result("data", dresult, "status", sresult);
+   } else
+      return mjsonrpc_make_result("data", dresult, "status", sresult, "last_written", lwresult);
+}
+
+static MJsonNode* js_db_ls(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get contents of given ODB subdirectory in the \"ls\" json encoding - similar to odbedit command \"ls -l\"");
+      doc->P("paths[]",  MJSON_STRING, "array of ODB subtree paths");
+      doc->R("data[]",   MJSON_OBJECT, "keys and values of ODB data for each path");
+      doc->R("status[]", MJSON_INT, "return status of db_copy_json_ls() for each path");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const MJsonNodeVector* paths = mjsonrpc_get_param_array(params, "paths", &error); if (error) return error;
+
+   MJsonNode* dresult = MJsonNode::MakeArray();
+   MJsonNode* sresult = MJsonNode::MakeArray();
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   for (unsigned i=0; i<paths->size(); i++) {
+      int status = 0;
+      HNDLE hkey;
+      std::string path = (*paths)[i]->GetString();
+
+      status = db_find_key(hDB, 0, path.c_str(), &hkey);
+      if (status != DB_SUCCESS) {
+         dresult->AddToArray(MJsonNode::MakeNull());
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+         continue;
+      }
+
+      char* buf = NULL;
+      int bufsize = 0;
+      int end = 0;
+
+      status = db_copy_json_ls(hDB, hkey, &buf, &bufsize, &end);
+
+      if (status == DB_SUCCESS) {
+         dresult->AddToArray(MJsonNode::MakeJSON(buf));
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+      } else {
+         dresult->AddToArray(MJsonNode::MakeNull());
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+      }
+
+      if (buf)
+         free(buf);
+   }
+
+   return mjsonrpc_make_result("data", dresult, "status", sresult);
 }
 
 static MJsonNode* js_db_copy(const MJsonNode* params)
 {
-   return x_db_copy(params, false);
-}
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get complete ODB data in the \"save\" json encoding, suitable for reloading with odbedit command \"load\"");
+      doc->P("paths[]",  MJSON_STRING, "array of ODB subtree paths");
+      doc->R("data[]",   MJSON_OBJECT, "keys and values of ODB data for each path");
+      doc->R("status[]", MJSON_INT, "return status of db_copy_json_save() for each path");
+      return doc;
+   }
 
-static MJsonNode* js_db_get_values(const MJsonNode* params)
-{
-   return x_db_copy(params, true);
+   MJsonNode* error = NULL;
+
+   const MJsonNodeVector* paths = mjsonrpc_get_param_array(params, "paths", &error); if (error) return error;
+
+   MJsonNode* dresult = MJsonNode::MakeArray();
+   MJsonNode* sresult = MJsonNode::MakeArray();
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   for (unsigned i=0; i<paths->size(); i++) {
+      int status = 0;
+      HNDLE hkey;
+      std::string path = (*paths)[i]->GetString();
+
+      status = db_find_key(hDB, 0, path.c_str(), &hkey);
+      if (status != DB_SUCCESS) {
+         dresult->AddToArray(MJsonNode::MakeNull());
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+         continue;
+      }
+
+      char* buf = NULL;
+      int bufsize = 0;
+      int end = 0;
+
+      status = db_copy_json_save(hDB, hkey, &buf, &bufsize, &end);
+
+      if (status == DB_SUCCESS) {
+         dresult->AddToArray(MJsonNode::MakeJSON(buf));
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+      } else {
+         dresult->AddToArray(MJsonNode::MakeNull());
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+      }
+
+      if (buf)
+         free(buf);
+   }
+
+   return mjsonrpc_make_result("data", dresult, "status", sresult);
 }
 
 static MJsonNode* js_db_paste(const MJsonNode* params)
@@ -1048,6 +1149,7 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("db_copy",     js_db_copy);
    mjsonrpc_add_handler("db_paste",    js_db_paste);
    mjsonrpc_add_handler("db_get_values", js_db_get_values);
+   mjsonrpc_add_handler("db_ls",       js_db_ls);
    mjsonrpc_add_handler("db_create", js_db_create);
    mjsonrpc_add_handler("db_delete", js_db_delete);
    mjsonrpc_add_handler("db_resize", js_db_resize);
