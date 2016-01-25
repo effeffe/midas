@@ -734,6 +734,32 @@ ODBEdit(path);
           <input type=button value='test cm_exist' onClick='mjsonrpc_call("cm_exist", "{ \"name\": \"odbedit\" }") .then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
           <input type=button value='test start_program' onClick='mjsonrpc_call("start_program", "{ \"name\": \"whatever\" }") .then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
         </p>
+        <p> test mjsonrpc_db_get_values() crash</h2>
+          <input type=button value='test db_get_values'
+          onClick='mjsonrpc_db_get_values(["/test/intarray[0,3-4]"]).then(function(rpc) { mjsonrpc_debug_alert(rpc); }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+        </p>
+        <p> test mjsonrpc_db_paste() korner cases</h2>
+          <input type=button value='test single path'
+          onClick='mjsonrpc_db_paste(["/test/intarray[0,3-4]"], [[111,222,333]]).then(function(rpc) { mjsonrpc_debug_alert(rpc); }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+          <input type=button value='test1 bad array index (error)'
+          onClick='mjsonrpc_db_paste(["/test/intarray[]"], [1111]).then(function(rpc) { mjsonrpc_debug_alert(rpc); }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+          <input type=button value='test2 bad array index (error)'
+          onClick='mjsonrpc_db_paste(["/test/intarray[bad array index]"], [1111]).then(function(rpc) { mjsonrpc_debug_alert(rpc); }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+          <input type=button value='test too many data elements (error)'
+          onClick='mjsonrpc_db_paste(["/test/intarray[1,2]"], [[11110,22220,33330]]).then(function(rpc) { mjsonrpc_debug_alert(rpc); }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+          <input type=button value='test too few data elements (error)'
+          onClick='mjsonrpc_db_paste(["/test/intarray[1,2,3]"], [[11118,22228]]).then(function(rpc) { mjsonrpc_debug_alert(rpc); }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+          <input type=button value='test single array element'
+          onClick='mjsonrpc_db_paste(["/test/intarray[1]"], [1111]).then(function(rpc) { mjsonrpc_debug_alert(rpc); }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+          <input type=button value='test single array element wrong data (error)'
+          onClick='mjsonrpc_db_paste(["/test/intarray[1]"], [[9111,9222,9333]]).then(function(rpc) { mjsonrpc_debug_alert(rpc); }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+          <input type=button value='test single array element wrong encoding (error)'
+          onClick='mjsonrpc_db_paste(["/test/intarray[2]"], [[11111]]).then(function(rpc) { mjsonrpc_debug_alert(rpc); }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+          <input type=button value='test array fill with single value'
+          onClick='mjsonrpc_db_paste(["/test/intarray[0,3-4]"], [999]).then(function(rpc) { mjsonrpc_debug_alert(rpc); }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+          <input type=button value='zero the test array'
+          onClick='mjsonrpc_db_paste(["/test/intarray[0-4]"], [0]).then(function(rpc) { mjsonrpc_debug_alert(rpc); }).catch(function(error) { mjsonrpc_error_alert(error); });'></input>
+        </p>
         <p> nan and inf
           <input type=button value='test encode of nan and inf' onClick='test_nan_inf_encode();'></input>
           <input type=button value='test decode of nan and inf' onClick='test_nan_inf_decode();'></input>
@@ -821,6 +847,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Wed Dec  2 11:32:28 PST 2015 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Mon Jan 25 10:17:55 PST 2016 <!-- hhmts end -->
   </body>
 </html>

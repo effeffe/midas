@@ -700,8 +700,8 @@ static MJsonNode* js_db_paste(const MJsonNode* params)
       MJSO* doc = MJSO::I();
       doc->D("write data into ODB");
       doc->P("paths[]", MJSON_STRING, "array of ODB subtree paths, see note on array indices");
-      doc->P("values[]", 0, "data to be written using db_paste_json()");
-      doc->R("status[]", MJSON_INT, "return status of db_paste_json() for each path");
+      doc->P("values[]", 0, "array of data values written to ODB via db_paste_json() for each path");
+      doc->R("status[]", MJSON_INT, "array of return status of db_paste_json() for each path");
       return doc;
    }
 
@@ -742,29 +742,56 @@ static MJsonNode* js_db_paste(const MJsonNode* params)
             continue;
          }
 
-         if (list.size() > 1) {
-            if (v->GetType() != MJSON_ARRAY) {
-               cm_msg(MERROR, "js_db_paste", "expected an array of values for array path \"%s\"", path.c_str());
+         // supported permutations of array indices and data values:
+         // single index: intarray[1] -> data should be a single value: MJSON_ARRAY is rejected right here, MJSON_OBJECT is rejected by db_paste
+         // multiple index intarray[1,2,3] -> data should be an array of equal length, or
+         // multiple index intarray[1,2,3] -> if data is a single value, all array elements are set to this same value
+         
+         if (list.size() < 1) {
+            cm_msg(MERROR, "js_db_paste", "invalid array indices for array path \"%s\"", path.c_str());
+            sresult->AddToArray(MJsonNode::MakeInt(DB_TYPE_MISMATCH));
+            continue;
+         } else if (list.size() == 1) {
+            if (v->GetType() == MJSON_ARRAY) {
+               cm_msg(MERROR, "js_db_paste", "unexpected array of values for array path \"%s\"", path.c_str());
                sresult->AddToArray(MJsonNode::MakeInt(DB_TYPE_MISMATCH));
                continue;
             }
 
+            status = db_paste_json_node(hDB, hkey, list[0], v);
+            sresult->AddToArray(MJsonNode::MakeInt(status));
+         } else if ((list.size() > 1) && (v->GetType() == MJSON_ARRAY)) {
             const MJsonNodeVector* vvalues = v->GetArray();
+
+            if (list.size() != vvalues->size()) {
+               cm_msg(MERROR, "js_db_paste", "length of values array %d should be same as number of indices %d for array path \"%s\"", (int)vvalues->size(), (int)list.size(), path.c_str());
+               sresult->AddToArray(MJsonNode::MakeInt(DB_TYPE_MISMATCH));
+               continue;
+            }
 
             MJsonNode *ssresult = MJsonNode::MakeArray();
 
             for (unsigned i=0; i<list.size(); i++) {
                const MJsonNode* vv = (*vvalues)[i];
-               assert(vv != NULL);
-               
+
+               if (vv == NULL) {
+                  cm_msg(MERROR, "js_db_paste", "internal error: NULL array value at index %d for array path \"%s\"", i, path.c_str());
+                  sresult->AddToArray(MJsonNode::MakeInt(DB_TYPE_MISMATCH));
+                  continue;
+               }
+
                status = db_paste_json_node(hDB, hkey, list[i], vv);
                ssresult->AddToArray(MJsonNode::MakeInt(status));
             }
             
             sresult->AddToArray(ssresult);
          } else {
-            status = db_paste_json_node(hDB, hkey, list[0], v);
-            sresult->AddToArray(MJsonNode::MakeInt(status));
+            MJsonNode *ssresult = MJsonNode::MakeArray();
+            for (unsigned i=0; i<list.size(); i++) {
+               status = db_paste_json_node(hDB, hkey, list[i], v);
+               ssresult->AddToArray(MJsonNode::MakeInt(status));
+            }
+            sresult->AddToArray(ssresult);
          }
       } else {
          status = db_paste_json_node(hDB, hkey, 0, v);
