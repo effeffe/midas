@@ -568,6 +568,60 @@ function mjsonrpc_db_ls(paths, id) {
    return mjsonrpc_call("db_ls", req, id);
 }
 
+function mjsonrpc_db_resize(paths, new_lengths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Change size of ODB arrays
+   ///
+   /// RPC method: "db_resize"
+   ///
+   /// \code
+   /// mjsonrpc_db_resize(["/test/intarray1", "/test/dblarray2"], [10, 20]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_set_num_values() for 1st path
+   ///    ... result.status[1]; // status of db_set_num_values() for 2nd path
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] new_sizes Array of new sizes for each path (array of ints)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   req.new_lengths = new_lengths;
+   return mjsonrpc_call("db_resize", req, id);
+}
+
+function mjsonrpc_db_delete(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Delete ODB entries
+   ///
+   /// RPC method: "db_delete"
+   ///
+   /// \code
+   /// mjsonrpc_db_delete(["/test/test1", "/test/test2"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_delete() for 1st path
+   ///    ... result.status[1]; // status of db_delete() for 2nd path
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   return mjsonrpc_call("db_delete", req, id);
+}
+
 function mjsonrpc_db_paste(paths, values, id) {
    /// \ingroup mjsonrpc_js
    /// Write values info ODB.

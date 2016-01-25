@@ -200,30 +200,33 @@
     <pre>
 mjsonrpc_set_url(url);
 mjsonrpc_db_get_values(paths);
-mjsonrpc_db_paste(paths, values); 
-mjsonrpc_db_ls(paths);
+mjsonrpc_db_copy(paths);
+mjsonrpc_db_paste(paths, values);
+mjsonrpc_db_ls(paths); 
+mjsonrpc_db_create(specs);
+mjsonrpc_db_resize(paths, new_lengths);
+mjsonrpc_db_delete(paths);
 mjsonrpc_cm_msg(message);
 test cm_exist()
 test cm_shutdown()
 test start_program() 
-test db_copy() 
 --- ODBSet(path, value, pwdname); ---- use mjsonrpc_db_paste() instead
 --- ODBGet(path, format, defval, len, type); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
 --- ODBMGet(paths, callback, formats); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
 --- ODBGetRecord(path); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
 --- ODBExtractRecord(record, key); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
 new ODBKey(path); ---- use ODBMKey() instead
---- ODBCopy(path, format); ---- use ODBMCopy() instead ---- use mjsonrpc_db_copy() instead
---- ODBMCopy(paths, callback, format); ---- use mjsonrpc_db_copy() instead
+--- ODBCopy(path, format); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
+--- ODBMCopy(paths, callback, format); ---- use mjsonrpc_db_get_values() instead
 --- ODBMLs(paths, callback); ---- use mjsonrpc_db_ls() instead
-ODBMCreate(paths, types);
-ODBMCreate(paths, types, arraylengths, stringlengths, callback);  
-ODBMResize(paths, arraylengths, stringlengths, callback);  
+--- ODBMCreate(paths, types); ---- use mjsonrpc_db_create() instead
+--- ODBMCreate(paths, types, arraylengths, stringlengths, callback); ---- use mjsonrpc_db_create() instead
+--- ODBMResize(paths, arraylengths, stringlengths, callback); ---- use mjsonrpc_db_resize() instead
 ODBMRename(paths, names, callback);  
 ODBMLink(paths, links, callback);  
 ODBMReorder(paths, indices, callback);
 ODBMKey(paths, callback);
-ODBMDelete(paths, callback);
+--- ODBMDelete(paths, callback); ---- use mjsonrpc_db_delete() instead
 ODBRpc(name, command, args[, callback[, max_reply_length]]); 
 ODBGetMsg(n);
 --- ODBGenerateMsg(m); ---- use mjsonrpc_cm_msg() instead
@@ -336,6 +339,27 @@ ODBEdit(path);
         </ul>
 
       <li>
+        <h2>mjsonrpc_db_copy()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='var paths = [
+          "/Runinfo",
+          "/does-not-exist",
+          "/Equipment/RpcExample/Settings",
+          "/Equipment/RpcExample/Variables",
+          "/test/intarray"
+          ];
+          mjsonrpc_db_copy(paths).then(function(rpc) {
+          document.getElementById("db_copy_json_data").innerHTML =
+          JSON.stringify(rpc.result); }).catch(function(error)
+          { mjsonrpc_error_alert(error); });'></input>
+        </p>
+        <ul>
+          <li>JSON data: <tt id='db_copy_json_data'></tt>
+        </ul>
+
+      <li>
         <h2>mjsonrpc_db_paste()</h2>
 
         <p>
@@ -374,7 +398,49 @@ ODBEdit(path);
           <li>Status: <tt id='db_ls_status'></tt>
           <li>/Equipment: <tt id='db_ls_equipment'></tt>
           <li>/Test: <tt id='db_ls_test'></tt>
-        </ul>
+	</ul>
+	
+      <li>
+        <h2>mjsonrpc_db_create()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='var paths = [
+          { "path" : "/test_create/int", "type" : TID_INT },
+          { "path" : "/test_create/string1", "type" : TID_STRING },
+          { "path" : "/test_create/string2", "type" : TID_STRING, "string_length": 10 },
+          { "path" : "/test_create/double_array", "type" : TID_DOUBLE, "array_length": 5 },
+	  ];
+          mjsonrpc_db_create(paths).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        </p>
+
+      <li>
+        <h2>mjsonrpc_db_resize()</h2>
+
+        <p>
+          <input type=button value='Push me to grow'
+          onClick='
+          mjsonrpc_db_resize(["/test_create/double_array", "/no-exist"], [ 20, 1 ]).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        </p>
+        <p>
+          <input type=button value='Push me to shrink'
+          onClick='
+          mjsonrpc_db_resize(["/test_create/double_array", "/no-exist"], [ 5, 1 ]).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        </p>
+
+      <li>
+        <h2>mjsonrpc_db_delete()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='var paths = [
+          "/test_create/int",
+          "/test_create/string1",
+          "/test_create/double_array",
+          "/no-exist"
+	  ];
+          mjsonrpc_db_delete(paths).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        </p>
 
       <li>
         <h2>mjsonrpc_cm_msg()</h2>
@@ -839,41 +905,6 @@ ODBEdit(path);
         </p>
 
       <li>
-        <h2>mjsonrpc_db_copy()</h2>
-
-        <p>
-          <input type=button value='Push me'
-          onClick='var paths = [
-          "/Runinfo",
-          "/does-not-exist",
-          "/Equipment/RpcExample/Settings",
-          "/Equipment/RpcExample/Variables",
-          "/test/intarray"
-          ];
-          mjsonrpc_db_copy(paths).then(function(rpc) {
-          document.getElementById("db_copy_json_data").innerHTML =
-          JSON.stringify(rpc.result); }).catch(function(error)
-          { mjsonrpc_error_alert(error); });'></input>
-        </p>
-        <ul>
-          <li>JSON data: <tt id='db_copy_json_data'></tt>
-        </ul>
-
-      <li>
-        <h2>mjsonrpc_db_create()</h2>
-
-        <p>
-          <input type=button value='Push me'
-          onClick='var paths = [
-          { "path" : "/test_create/int", "type" : TID_INT },
-          { "path" : "/test_create/string1", "type" : TID_STRING },
-          { "path" : "/test_create/string2", "type" : TID_STRING, "string_length": 10 },
-          { "path" : "/test_create/double_array", "type" : TID_DOUBLE, "array_length": 5 },
-	  ];
-          mjsonrpc_db_create(paths).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
-        </p>
-
-      <li>
         <h2>mjsonrpc_get_schema()</h2>
 
         <p>
@@ -896,6 +927,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Mon Jan 25 12:50:18 PST 2016 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Mon Jan 25 15:56:21 PST 2016 <!-- hhmts end -->
   </body>
 </html>
