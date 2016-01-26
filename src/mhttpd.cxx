@@ -14937,50 +14937,58 @@ void send_css()
 
 /*------------------------------------------------------------------*/
 
-void send_resource(const char* name)
+bool send_resource(const std::string& name)
 {
-   char str[256], format[256];
-   time_t now;
-   struct tm *gmt;
-   const char* type = "text/plain";
+   std::string filename;
+   FILE *fp = open_resource_file(name.c_str(), &filename);
 
-   if (strstr(name, ".css"))
-      type = "text/css";
-   else if (strstr(name, ".html"))
-      type = "text/html";
-   else if (strstr(name, ".js"))
-      type = "application/javascript";
+   if (!fp) {
+      return false;
+   }
 
+   // send HTTP headers
+   
    rsprintf("HTTP/1.1 200 Document follows\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
    rsprintf("Accept-Ranges: bytes\r\n");
 
-   /* set expiration time to one day */
-   time(&now);
+   // send HTTP cache control headers
+
+   time_t now = time(NULL);
    now += (int) (3600 * 24);
-   gmt = gmtime(&now);
-   strcpy(format, "%A, %d-%b-%y %H:%M:%S GMT");
+   struct tm* gmt = gmtime(&now);
+   const char* format = "%A, %d-%b-%y %H:%M:%S GMT";
+   char str[256];
    strftime(str, sizeof(str), format, gmt);
    rsprintf("Expires: %s\r\n", str);
+
+   // send Content-Type header
+
+   const char* type = "text/plain";
+
+   if (name.rfind(".css") != std::string::npos)
+      type = "text/css";
+   else if (name.rfind(".html") != std::string::npos)
+      type = "text/html";
+   else if (name.rfind(".js") != std::string::npos)
+      type = "application/javascript";
+
    rsprintf("Content-Type: %s\r\n", type);
 
-   std::string filename;
-   FILE *fp = open_resource_file(name, &filename);
+   // send Content-Length header
 
-   if (fp) {
-      struct stat stat_buf;
-      fstat(fileno(fp), &stat_buf);
-      int length = stat_buf.st_size;
-      rsprintf("Content-Length: %d\r\n\r\n", length);
-
-      rread(filename.c_str(), fileno(fp), length);
-
-      fclose(fp);
-      return;
-   }
-
-   int length = 0;
+   struct stat stat_buf;
+   fstat(fileno(fp), &stat_buf);
+   int length = stat_buf.st_size;
    rsprintf("Content-Length: %d\r\n\r\n", length);
+
+   // send file data
+   
+   rread(filename.c_str(), fileno(fp), length);
+   
+   fclose(fp);
+
+   return true;
 }
 
 /*------------------------------------------------------------------*/
@@ -15556,6 +15564,11 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       return;
    }
 
+   /*---- redirect if web page --------------------------------------*/
+
+   if (send_resource(std::string(command) + ".html"))
+      return;
+
    /*---- redirect if status command --------------------------------*/
 
    if (equal_ustring(command, "status")) {
@@ -15994,8 +16007,8 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    /*---- programs command ------------------------------------------*/
 
    if (equal_ustring(command, "programs")) {
-      send_resource("programs.html");
-      return;
+      if (send_resource("programs.html"))
+         return;
 
       str[0] = 0;
       for (p=dec_path ; *p ; p++)
