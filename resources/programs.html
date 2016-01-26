@@ -88,7 +88,7 @@ function start_stop_poll(msg, name, start_command, count)
    });
 }
 
-function add_table_entry(table, name, start_command, colspan)
+function add_table_entry(table, name, full_name, start_command, colspan)
 {
    function new_attribute(name, value)
    {
@@ -107,7 +107,7 @@ function add_table_entry(table, name, start_command, colspan)
    td.setAttributeNode(new_attribute("id", "program name " + name));
    td.setAttributeNode(new_attribute("align", "center"));
    td.setAttributeNode(new_attribute("colspan", colspan));
-   td.innerHTML = "<a href='Programs/" + name + "'>"+name+"</a>";
+   td.innerHTML = "<a href='Programs/" + full_name + "'>"+full_name+"</a>";
    tr.appendChild(td);
 
    td = document.createElement("td");
@@ -132,7 +132,7 @@ function add_table_entry(table, name, start_command, colspan)
    input = start_button;
    input.id = "start " + name;
    input.type = "button";
-   input.innerHTML = "Start " + name;
+   input.innerHTML = "Start " + full_name;
    mhttpd_disable_button(input);
    input.onclick = function() {
       mhttpd_disable_button(start_button);
@@ -155,7 +155,7 @@ function add_table_entry(table, name, start_command, colspan)
    input = stop_button;
    input.id = "stop " + name;
    input.type = "button";
-   input.innerHTML = "Stop " + name;
+   input.innerHTML = "Stop " + full_name;
    mhttpd_disable_button(input);
    input.onclick = function() {
       mhttpd_disable_button(stop_button);
@@ -206,6 +206,9 @@ function callback(rpc)
       var name_lc = name.toLowerCase(name);
       for (var key in clients) {
          var cname = clients[key].name;
+         if (!cname) {
+            continue;
+         }
          var cname_lc =  cname.toLowerCase();
          var same_name = (cname_lc == name_lc);
          var matching_name = false;
@@ -234,6 +237,8 @@ function callback(rpc)
    var alarms   = rpc.result.data[2];
 
    for (var name in programs) {
+      if (typeof programs[name] !== 'object') continue;
+      var full_name = programs[name + "/name"];
       var e = document.getElementById("program " + name);
       var required = programs[name].required;
       var xclients = find_client(clients, name);
@@ -242,7 +247,7 @@ function callback(rpc)
          var start_command = programs[name]["start command"];
 
          if (!e) {
-            e = add_table_entry(document.getElementById("stripeList"), name, start_command, 1);
+            e = add_table_entry(document.getElementById("stripeList"), name, full_name, start_command, 1);
          }
 
          e.style.display = '';
