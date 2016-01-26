@@ -25,6 +25,11 @@ var TID_STRUCT = 14;
 var TID_KEY = 15;
 var TID_LINK = 16;
 
+var AT_INTERNAL  = 1;
+var AT_PROGRAM   = 2;
+var AT_EVALUATED = 3;
+var AT_PERIODIC  = 4;
+
 function XMLHttpRequestGeneric()
 {
    var request;
