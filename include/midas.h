@@ -465,13 +465,13 @@ CNAF commands */
 /**
 MAX */
 #ifndef MAX
-#define MAX(a,b)            (((a) > (b)) ? (a) : (b))
+#define MAX(a,b)            (((a)>(b))?(a):(b))
 #endif
 
 /**
 MIN */
 #ifndef MIN
-#define MIN(a,b)            (((a) < (b)) ? (a) : (b))
+#define MIN(a,b)            (((a)<(b))?(a):(b))
 #endif
 
 /*------------------------------------------------------------------*/
@@ -1848,7 +1848,7 @@ extern "C" {
    /* json encoder using the "ls" format, for getting the contents of a single ODB subdirectory */
    INT EXPRT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
    /* json encoder using the "get_values" format, for resolving links and normalized ODB path names (converted to lower-case) */
-   INT EXPRT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
+  INT EXPRT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end, int omit_names, int omit_last_written, time_t omit_old_timestamp);
    /* json encoder for an ODB array */
    INT EXPRT db_copy_json_array(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end);
    /* json encoder for a single element of an ODB array */

@@ -514,8 +514,6 @@ function mjsonrpc_db_copy(paths, id) {
    ///    var result = rpc.result;  // rpc response result
    ///    ... result.status[0]; // status of db_get_value() for /runinfo
    ///    ... result.status[1]; // status of db_get_value() for /equipment
-   ///    ... result.last_written[0]; // "last written" timestamp for /runinfo
-   ///    ... result.last_written[1]; // "last written" timestamp for /equipment
    ///    var runinfo = result.data[0]; // javascript object representing the ODB runinfo structure
    ///    var equipment = result.data[1]; // javascript object representing /equipment/foo
    /// }).catch(function(error) {
@@ -563,6 +561,114 @@ function mjsonrpc_db_get_values(paths, id) {
    return mjsonrpc_call("db_get_values", req, id);
 }
 
+function mjsonrpc_db_ls(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Get list of contents of an ODB subdirectory, similar to odbedit command "ls -l". To get values of ODB variables, use db_get_values().
+   ///
+   /// RPC method: "db_ls"
+   ///
+   /// \code
+   /// mjsonrpc_db_ls(["/alarms/alarms", "/equipment"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_copy_json_ls() for /alarms/alarms
+   ///    ... result.status[1]; // status of db_copy_json_ls() for /equipment
+   ///    var alarms = result.data[0]; // javascript object representing the contents of ODB /alarms/alarms
+   ///    var equipment = result.data[1]; // javascript object representing the contents of ODB /equipment
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   return mjsonrpc_call("db_ls", req, id);
+}
+
+function mjsonrpc_db_resize(paths, new_lengths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Change size of ODB arrays
+   ///
+   /// RPC method: "db_resize"
+   ///
+   /// \code
+   /// mjsonrpc_db_resize(["/test/intarray1", "/test/dblarray2"], [10, 20]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_set_num_values() for 1st path
+   ///    ... result.status[1]; // status of db_set_num_values() for 2nd path
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] new_sizes Array of new sizes for each path (array of ints)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   req.new_lengths = new_lengths;
+   return mjsonrpc_call("db_resize", req, id);
+}
+
+function mjsonrpc_db_key(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Get ODB keys
+   ///
+   /// RPC method: "db_key"
+   ///
+   /// \code
+   /// mjsonrpc_db_key(["/test/intarray1", "/test/dblarray2"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_get_key() for 1st path
+   ///    ... result.status[1]; // status of db_get_key() for 2nd path
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   return mjsonrpc_call("db_key", req, id);
+}
+
+function mjsonrpc_db_delete(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Delete ODB entries
+   ///
+   /// RPC method: "db_delete"
+   ///
+   /// \code
+   /// mjsonrpc_db_delete(["/test/test1", "/test/test2"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_delete() for 1st path
+   ///    ... result.status[1]; // status of db_delete() for 2nd path
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   return mjsonrpc_call("db_delete", req, id);
+}
+
 function mjsonrpc_db_paste(paths, values, id) {
    /// \ingroup mjsonrpc_js
    /// Write values info ODB.
@@ -606,6 +712,34 @@ function mjsonrpc_db_create(paths, id) {
    /// @returns new Promise
 
    return mjsonrpc_call("db_create", paths, id);
+}
+
+function mjsonrpc_cm_msg(message, type, id) {
+   /// \ingroup mjsonrpc_js
+   /// Get values of ODB variables
+   ///
+   /// RPC method: "cm_msg1"
+   ///
+   /// \code
+   /// mjsonrpc_cm_msg("this is a new message").then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var status = rpc.result.status;  // return status of MIDAS cm_msg1()
+   ///    ...
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] message Text of midas message (string)
+   /// @param[in] type optional message type, one of MT_xxx. Default is MT_INFO (integer)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.message = message;
+   if (type)
+      req.type = type;
+   return mjsonrpc_call("cm_msg1", req, id);
 }
 
 function ODBCall(url, callback)

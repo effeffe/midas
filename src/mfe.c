@@ -349,10 +349,10 @@ int sc_thread(void *info)
                ss_semaphore_wait_for(device_drv->semaphore, 1000);
                value = device_drv->mt_buffer->channel[i].variable[cmd];
                device_drv->mt_buffer->channel[i].variable[cmd] = (float) ss_nan();
-               device_drv->mt_buffer->status = status;
                ss_semaphore_release(device_drv->semaphore);
 
                status = device_drv->dd(cmd, device_drv->dd_info, i, value);
+               device_drv->mt_buffer->status = status;
                last_update[i] = ss_millitime();
             }
          }

@@ -117,7 +117,8 @@ void print_help(char *command)
       printf("mem [-v]                - show memeory usage [verbose]\n");
       printf("mkdir <subdir>          - make new <subdir>\n");
       printf("move <key> [top/bottom/[n]] - move key to position in keylist\n");
-      printf("msg [type] [user] <msg> - compose user message\n");
+      printf("msg [user] <msg>        - send chat message (from interactive odbedit)\n");
+      printf("msg [facility] [type] <msg> - send chat message (from command line via -c \"msg ...\")\n");
       printf("old [n]                 - display old n messages\n");
       printf("passwd                  - change MIDAS password\n");
       printf("pause                   - pause current run\n");
@@ -1334,7 +1335,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
    char user_name[80] = "";
    FILE *cmd_file = NULL;
    DWORD last_msg_time = 0;
-   char message[2000], client_name[256], *p;
+   char message[2000], facility[256], client_name[256], *p;
    INT n1, n2;
    PRINT_INFO print_info;
 
@@ -1922,7 +1923,11 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 	 int buffer_size = 0;
 	 int buffer_end = 0;
 
-	 status = db_copy_json_values(hDB, hKey, &buffer, &buffer_size, &buffer_end);
+	 int omit_names = 0;
+	 int omit_last_written = 0;
+	 time_t omit_old_timestamp = 0;
+
+	 status = db_copy_json_values(hDB, hKey, &buffer, &buffer_size, &buffer_end, omit_names, omit_last_written, omit_old_timestamp);
 
 	 printf("status: %d, json: %s\n", status, buffer);
 
@@ -2437,17 +2442,28 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
       /* msg */
       else if (param[0][0] == 'm' && param[0][1] == 's') {
          message[0] = 0;
-         if (cmd_mode)
+         strcpy(facility, "midas");
+         int type = MT_USER;
+         if (cmd_mode) {
             strcpy(user_name, "script");
+            if (param[3][0]) {
+               strlcpy(message, param[3], sizeof(message));
+               type = atoi(param[2]);
+               strlcpy(facility, param[2], sizeof(facility));
+            } else if (param[2][0]) {
+               strlcpy(message, param[2], sizeof(message));
+               strlcpy(facility, param[1], sizeof(facility));
+            } else if (param[1][0]) {
+               strlcpy(message, param[1], sizeof(message));
+            }
+         } else { // !cmd_mode
+            if (param[2][0]) {
+               last_msg_time = ss_time();
+               strcpy(user_name, param[1]);
+               strcpy(message, param[2]);
+            } else if (param[1][0])
+               strlcpy(message, param[1], sizeof(message));
 
-         if (param[2][0]) {
-            last_msg_time = ss_time();
-            strcpy(user_name, param[1]);
-            strcpy(message, param[2]);
-         } else if (param[1][0])
-            strlcpy(message, param[1], sizeof(message));
-
-         if (!cmd_mode) {
             if (ss_time() - last_msg_time > 300) {
                printf("Your name> ");
                ss_gets(user_name, 80);
@@ -2460,7 +2476,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          }
 
          if (message[0])
-	         cm_msg1(MT_USER, __FILE__, __LINE__, "chat", user_name, "%s", message);
+	         cm_msg1(type, __FILE__, __LINE__, "chat", user_name, "%s", message);
 
          last_msg_time = ss_time();
       }
