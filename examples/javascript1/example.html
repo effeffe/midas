@@ -205,7 +205,8 @@ mjsonrpc_db_paste(paths, values);
 mjsonrpc_db_ls(paths); 
 mjsonrpc_db_create(specs);
 mjsonrpc_db_resize(paths, new_lengths);
-mjsonrpc_db_delete(paths);
+mjsonrpc_db_key(paths); 
+mjsonrpc_db_delete(paths); 
 mjsonrpc_cm_msg(message);
 test cm_exist()
 test cm_shutdown()
@@ -215,7 +216,7 @@ test start_program()
 --- ODBMGet(paths, callback, formats); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
 --- ODBGetRecord(path); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
 --- ODBExtractRecord(record, key); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
-new ODBKey(path); ---- use ODBMKey() instead
+--- new ODBKey(path); ---- use ODBMKey() instead
 --- ODBCopy(path, format); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
 --- ODBMCopy(paths, callback, format); ---- use mjsonrpc_db_get_values() instead
 --- ODBMLs(paths, callback); ---- use mjsonrpc_db_ls() instead
@@ -225,7 +226,7 @@ new ODBKey(path); ---- use ODBMKey() instead
 ODBMRename(paths, names, callback);  
 ODBMLink(paths, links, callback);  
 ODBMReorder(paths, indices, callback);
-ODBMKey(paths, callback);
+--- ODBMKey(paths, callback); ---- use mjsonrpc_db_key() instead
 --- ODBMDelete(paths, callback); ---- use mjsonrpc_db_delete() instead
 ODBRpc(name, command, args[, callback[, max_reply_length]]); 
 ODBGetMsg(n);
@@ -427,6 +428,25 @@ ODBEdit(path);
           onClick='
           mjsonrpc_db_resize(["/test_create/double_array", "/no-exist"], [ 5, 1 ]).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
         </p>
+
+      <li>
+        <h2>mjsonrpc_db_key()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='var paths = [
+          "/Runinfo/run number",
+          "/test/intarray",
+          "/does-not-exist"
+          ];
+          mjsonrpc_db_key(paths).then(function(rpc) {
+          document.getElementById("db_key_json_data").innerHTML =
+          JSON.stringify(rpc.result); }).catch(function(error)
+          { mjsonrpc_error_alert(error); });'></input>
+        </p>
+        <ul>
+          <li>JSON data: <tt id='db_key_json_data'></tt>
+        </ul>
 
       <li>
         <h2>mjsonrpc_db_delete()</h2>
@@ -927,6 +947,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Mon Jan 25 15:56:21 PST 2016 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Mon Jan 25 16:13:23 PST 2016 <!-- hhmts end -->
   </body>
 </html>

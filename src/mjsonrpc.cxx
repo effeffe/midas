@@ -1050,6 +1050,79 @@ static MJsonNode* js_db_resize(const MJsonNode* params)
    return mjsonrpc_make_result("status", sresult);
 }
 
+static MJsonNode* js_db_key(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get ODB keys");
+      doc->P("paths[]", MJSON_STRING, "array of ODB paths");
+      doc->R("keys[]", MJSON_OBJECT, "key data for each path");
+      doc->R("status[]", MJSON_INT, "return status of db_key() for each path");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const MJsonNodeVector* paths  = mjsonrpc_get_param_array(params, "paths",  &error); if (error) return error;
+
+   MJsonNode* kresult = MJsonNode::MakeArray();
+   MJsonNode* sresult = MJsonNode::MakeArray();
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   for (unsigned i=0; i<paths->size(); i++) {
+      int status = 0;
+      HNDLE hkey;
+      KEY key;
+      std::string path = (*paths)[i]->GetString();
+
+      status = db_find_key(hDB, 0, path.c_str(), &hkey);
+      if (status != DB_SUCCESS) {
+         kresult->AddToArray(MJsonNode::MakeNull());
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+         continue;
+      }
+
+      status = db_get_key(hDB, hkey, &key);
+      if (status != DB_SUCCESS) {
+         kresult->AddToArray(MJsonNode::MakeNull());
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+         continue;
+      }
+
+      MJsonNode* jkey = MJsonNode::MakeObject();
+
+      // typedef struct {
+      //    DWORD type;                        /**< TID_xxx type                      */
+      //    INT num_values;                    /**< number of values                  */
+      //    char name[NAME_LENGTH];            /**< name of variable                  */
+      //    INT data;                          /**< Address of variable (offset)      */
+      //    INT total_size;                    /**< Total size of data block          */
+      //    INT item_size;                     /**< Size of single data item          */
+      //    WORD access_mode;                  /**< Access mode                       */
+      //    WORD notify_count;                 /**< Notify counter                    */
+      //    INT next_key;                      /**< Address of next key               */
+      //    INT parent_keylist;                /**< keylist to which this key belongs */
+      //    INT last_written;                  /**< Time of last write action  */
+      // } KEY;
+
+      jkey->AddToObject("type", MJsonNode::MakeInt(key.type));
+      jkey->AddToObject("num_values", MJsonNode::MakeInt(key.num_values));
+      jkey->AddToObject("name", MJsonNode::MakeString(key.name));
+      jkey->AddToObject("total_size", MJsonNode::MakeInt(key.total_size));
+      jkey->AddToObject("item_size", MJsonNode::MakeInt(key.item_size));
+      jkey->AddToObject("access_mode", MJsonNode::MakeInt(key.access_mode));
+      jkey->AddToObject("notify_count", MJsonNode::MakeInt(key.notify_count));
+      jkey->AddToObject("last_written", MJsonNode::MakeInt(key.last_written));
+
+      kresult->AddToArray(jkey);
+      sresult->AddToArray(MJsonNode::MakeInt(status));
+   }
+
+   return mjsonrpc_make_result("keys", kresult, "status", sresult);
+}
+
 static MJsonNode* js_cm_msg1(const MJsonNode* params)
 {
    if (!params) {
@@ -1153,6 +1226,7 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("db_create", js_db_create);
    mjsonrpc_add_handler("db_delete", js_db_delete);
    mjsonrpc_add_handler("db_resize", js_db_resize);
+   mjsonrpc_add_handler("db_key",    js_db_key);
    mjsonrpc_add_handler("start_program", start_program);
 
    mjsonrpc_user_init();

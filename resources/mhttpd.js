@@ -596,6 +596,32 @@ function mjsonrpc_db_resize(paths, new_lengths, id) {
    return mjsonrpc_call("db_resize", req, id);
 }
 
+function mjsonrpc_db_key(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Get ODB keys
+   ///
+   /// RPC method: "db_key"
+   ///
+   /// \code
+   /// mjsonrpc_db_key(["/test/intarray1", "/test/dblarray2"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_get_key() for 1st path
+   ///    ... result.status[1]; // status of db_get_key() for 2nd path
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   return mjsonrpc_call("db_key", req, id);
+}
+
 function mjsonrpc_db_delete(paths, id) {
    /// \ingroup mjsonrpc_js
    /// Delete ODB entries
