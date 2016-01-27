@@ -25,6 +25,11 @@ var TID_STRUCT = 14;
 var TID_KEY = 15;
 var TID_LINK = 16;
 
+var AT_INTERNAL  = 1;
+var AT_PROGRAM   = 2;
+var AT_EVALUATED = 3;
+var AT_PERIODIC  = 4;
+
 function XMLHttpRequestGeneric()
 {
    var request;
@@ -476,6 +481,62 @@ function mjsonrpc_stop_program(name, unique, id) {
    req.name = name;
    req.unique = unique;
    return mjsonrpc_call("cm_shutdown", req, id);
+}
+
+function mjsonrpc_al_reset_alarm(alarms, id) {
+   /// \ingroup mjsonrpc_js
+   /// Reset alarms
+   ///
+   /// RPC method: "al_reset_alarm"
+   ///
+   /// \code
+   /// mjsonrpc_al_reset_alarm(["alarm1", "alarm2"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of al_reset_alarm() for 1st alarm
+   ///    ... result.status[1]; // status of al_reset_alarm() for 2nd alarm
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] alarms Array of alarm names (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.alarms = alarms;
+   return mjsonrpc_call("al_reset_alarm", req, id);
+}
+
+function mjsonrpc_al_trigger_alarm(name, message, xclass, condition, type, id) {
+   /// \ingroup mjsonrpc_js
+   /// Reset alarms
+   ///
+   /// RPC method: "al_reset_alarm"
+   ///
+   /// \code
+   /// mjsonrpc_al_reset_alarm(["alarm1", "alarm2"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of al_reset_alarm() for 1st alarm
+   ///    ... result.status[1]; // status of al_reset_alarm() for 2nd alarm
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] alarms Array of alarm names (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.name = name;
+   req.message = message;
+   req.class = xclass;
+   req.condition = condition;
+   req.type = type;
+   return mjsonrpc_call("al_trigger_alarm", req, id);
 }
 
 function mjsonrpc_db_copy(paths, id) {

@@ -210,7 +210,8 @@ mjsonrpc_db_delete(paths);
 mjsonrpc_cm_msg(message);
 test cm_exist()
 test cm_shutdown()
-test start_program() 
+test start_program()
+test al_reset_alarm()
 --- ODBSet(path, value, pwdname); ---- use mjsonrpc_db_paste() instead
 --- ODBGet(path, format, defval, len, type); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
 --- ODBMGet(paths, callback, formats); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
@@ -925,6 +926,22 @@ ODBEdit(path);
         </p>
 
       <li>
+        <h2>mjsonrpc_al_trigger_alarm()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='mjsonrpc_al_trigger_alarm("example_alarm", "message of the example alarm", "Warning", "condition of the example alarm", AT_INTERNAL).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        </p>
+
+      <li>
+        <h2>mjsonrpc_al_reset_alarm()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='mjsonrpc_al_reset_alarm(["example_alarm"]).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        </p>
+
+      <li>
         <h2>mjsonrpc_get_schema()</h2>
 
         <p>
@@ -947,6 +964,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Mon Jan 25 16:13:23 PST 2016 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Wed Jan 27 10:00:41 PST 2016 <!-- hhmts end -->
   </body>
 </html>

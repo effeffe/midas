@@ -1155,6 +1155,80 @@ static MJsonNode* js_cm_msg1(const MJsonNode* params)
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
 
+static MJsonNode* js_al_reset_alarm(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("reset alarms");
+      doc->P("alarms[]", MJSON_STRING, "array of alarm names");
+      doc->R("status[]", MJSON_INT, "return status of al_reset_alarm() for each alarm");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const MJsonNodeVector* alarms  = mjsonrpc_get_param_array(params, "alarms",  &error); if (error) return error;
+
+   MJsonNode* sresult = MJsonNode::MakeArray();
+
+   for (unsigned i=0; i<alarms->size(); i++) {
+      int status = al_reset_alarm((*alarms)[i]->GetString().c_str());
+      sresult->AddToArray(MJsonNode::MakeInt(status));
+   }
+
+   return mjsonrpc_make_result("status", sresult);
+}
+
+static MJsonNode* js_al_trigger_alarm(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("trigger an alarm");
+      doc->P("name", MJSON_STRING, "alarm name");
+      doc->P("message", MJSON_STRING, "alarm message");
+      doc->P("class", MJSON_STRING, "alarm class");
+      doc->P("condition", MJSON_STRING, "alarm condition");
+      doc->P("type", MJSON_INT, "alarm type (AT_xxx)");
+      doc->R("status", MJSON_INT, "return status of al_trigger_alarm()");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const char* name = mjsonrpc_get_param(params, "name", &error)->GetString().c_str(); if (error) return error;
+   const char* message = mjsonrpc_get_param(params, "message", &error)->GetString().c_str(); if (error) return error;
+   const char* xclass = mjsonrpc_get_param(params, "class", &error)->GetString().c_str(); if (error) return error;
+   const char* condition = mjsonrpc_get_param(params, "condition", &error)->GetString().c_str(); if (error) return error;
+   int type = mjsonrpc_get_param(params, "type", &error)->GetInt(); if (error) return error;
+
+   int status = al_trigger_alarm(name, message, xclass, condition, type);
+   
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+}
+
+static MJsonNode* js_al_trigger_class(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("trigger an alarm");
+      doc->P("class", MJSON_STRING, "alarm class");
+      doc->P("message", MJSON_STRING, "alarm message");
+      doc->P("first?", MJSON_BOOL, "see al_trigger_class() in midas.c");
+      doc->R("status", MJSON_INT, "return status of al_trigger_class()");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const char* xclass = mjsonrpc_get_param(params, "class", &error)->GetString().c_str(); if (error) return error;
+   const char* message = mjsonrpc_get_param(params, "message", &error)->GetString().c_str(); if (error) return error;
+   bool first = mjsonrpc_get_param(params, "first", NULL)->GetBool();
+
+   int status = al_trigger_class(xclass, message, first);
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+}
+
 static MJsonNode* get_debug(const MJsonNode* params)
 {
    if (!params) {
@@ -1216,6 +1290,9 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("set_debug",   set_debug);
    mjsonrpc_add_handler("get_schema",  get_schema);
    //mjsonrpc_add_handler("get_messages",  get_messages);
+   mjsonrpc_add_handler("al_reset_alarm",    js_al_reset_alarm);
+   mjsonrpc_add_handler("al_trigger_alarm",  js_al_trigger_alarm);
+   mjsonrpc_add_handler("al_trigger_class",  js_al_trigger_class);
    mjsonrpc_add_handler("cm_exist",    js_cm_exist);
    mjsonrpc_add_handler("cm_msg1",     js_cm_msg1);
    mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
