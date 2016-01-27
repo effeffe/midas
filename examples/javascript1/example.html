@@ -212,6 +212,7 @@ test cm_exist()
 test cm_shutdown()
 test start_program()
 test al_reset_alarm()
+test get_alarms()
 --- ODBSet(path, value, pwdname); ---- use mjsonrpc_db_paste() instead
 --- ODBGet(path, format, defval, len, type); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
 --- ODBMGet(paths, callback, formats); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
@@ -232,7 +233,7 @@ ODBMReorder(paths, indices, callback);
 ODBRpc(name, command, args[, callback[, max_reply_length]]); 
 ODBGetMsg(n);
 --- ODBGenerateMsg(m); ---- use mjsonrpc_cm_msg() instead
-ODBGetAlarms();
+--- ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
 ODBEdit(path);
 </pre>
 
@@ -979,6 +980,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Wed Jan 27 11:49:59 PST 2016 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Wed Jan 27 13:39:01 PST 2016 <!-- hhmts end -->
   </body>
 </html>
