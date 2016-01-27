@@ -17,7 +17,7 @@
 </script>
 
 <div>
-  <button id='al_reset_all'>Reset all alarms</button>
+  <button id='al_reset_all' onclick='reset_all_alarms()'>Reset all alarms</button>
   <button id='al_system_enable' onclick='write_alarm_system_active(true)'>Enable the alarm system</button>
   <button id='al_system_disable' onclick='write_alarm_system_active(false)'>Disable the alarm system</button>
   <input type="checkbox" name="caspeak" id="aspeak" onclick="return aspeak_click(this);">Speak</input>
@@ -79,29 +79,22 @@ function write_alarm_system_active(value)
 <script> 
 var update_timer_id;
 
-function callback(rpc)
+function create_alarm(name, type)
 {
-   document.getElementById('updateStatus').innerHTML = "RWP_";
-
-function find_or_create_alarm(name, full_name, type)
-{
-   var e = document.getElementById("alarm " + name);
-   if (e) return e;
-
    var table;
-if (type == AT_INTERNAL)
-table = document.getElementById("internalAlarms"); 
-else if (type == AT_PROGRAM)
-table = document.getElementById("programAlarms");
-else if (type == AT_EVALUATED)
-table = document.getElementById("evaluatedAlarms");
-else if (type == AT_PERIODIC)
-table = document.getElementById("periodicAlarms");
+   if (type == AT_INTERNAL)
+      table = document.getElementById("internalAlarms"); 
+   else if (type == AT_PROGRAM)
+      table = document.getElementById("programAlarms");
+   else if (type == AT_EVALUATED)
+      table = document.getElementById("evaluatedAlarms");
+   else if (type == AT_PERIODIC)
+      table = document.getElementById("periodicAlarms");
 
-if (!table)
-return; // unknown alarm type
+   if (!table)
+      return; // unknown alarm type
 
-   console.log("Creating: " + name + " type: " + alarm.type + " table: " + table);
+   //console.log("Creating: " + name + " type: " + alarm.type + " table: " + table);
 
    var tr = document.createElement("tr");
    tr.id = "alarm " + name;
@@ -111,7 +104,7 @@ return; // unknown alarm type
 
    td = document.createElement("td");
    td.align = "center";
-   td.innerHTML = "<a href='Alarms/Alarms/" + full_name + "'>"+full_name+"</a>";
+   td.innerHTML = "<a href='Alarms/Alarms/" + name + "'>"+name+"</a>";
    tr.appendChild(td);
 
    td = document.createElement("td");
@@ -166,12 +159,11 @@ if (type == AT_INTERNAL) {
    mhttpd_disable_button(input);
    input.onclick = function() {
       mhttpd_disable_button(reset_button);
-  //    mjsonrpc_start_program(name).then(function(rpc) {
-  //       start_stop_poll(start_stop_modal, name, start_command, 10);
-  //    }).catch(function(error) {
-  //       mjsonrpc_error_alert(error);
-  //       mhttpd_hide_overlay(start_stop_overlay);
-  //    });
+      mjsonrpc_call("al_reset_alarm", { "alarms" : [ name ] }).then(function(rpc) {
+         update();
+      }).catch(function(error) {
+         mjsonrpc_error_alert(error);
+      });
    };
 
    td.appendChild(input);
@@ -183,10 +175,12 @@ if (type == AT_INTERNAL) {
    return tr;
 }
 
-   //alert("Hello: " + JSON.stringify(r));
+function callback(rpc)
+{
+   document.getElementById('updateStatus').innerHTML = "RWP_";
 
-var alarms   = rpc.result.data[0].alarms;
-var alarms_system_active = rpc.result.data[0]["alarm system active"];
+var alarms   = rpc.result.alarms; 
+var alarms_system_active = rpc.result.alarm_system_active;
 
 if (alarms_system_active) {
   var e = document.getElementById("al_system_disable");
@@ -221,12 +215,12 @@ if (alarms_system_active) {
 }
 
    for (var name in alarms) {
-      if (typeof alarms[name] !== 'object') continue;
-var full_name = alarms[name + "/name"];
-var alarm = alarms[name];
-var e = find_or_create_alarm(name, full_name, alarm.type);
-if (!e) continue;
-//console.log(name + " | " + full_name + " | " + e);
+      var alarm = alarms[name];
+      var e = document.getElementById("alarm " + name);
+      if (!e) e = create_alarm(name, alarm.type);
+
+      if (!e) continue;
+      //console.log(name + " | " + name + " | " + e);
 
 if (!alarm.active) {
 e.childNodes[1].innerHTML = "Disabled";
@@ -239,23 +233,29 @@ e.childNodes[1].innerHTML = "OK";
 e.childNodes[1].className = "greenLight";
 }
 
-if (alarm["time triggered first"]) {
-e.childNodes[2].innerHTML = new Date(alarm["time triggered first"]);
+if (alarm.time_triggered_first) {
+   e.childNodes[2].innerHTML = alarm.time_triggered_first;
 } else {
-e.childNodes[2].innerHTML = "-";
+   e.childNodes[2].innerHTML = "-";
 }
 
-e.childNodes[3].innerHTML = "<a href=\"" + "/Alarms/Classes/" + alarm["alarm class"] + "\">" + alarm["alarm class"] + "</a>";
+e.childNodes[3].innerHTML = "<a href=\"" + "/Alarms/Classes/" + alarm.class + "\">" + alarm.class + "</a>";
 
 if (alarm.type == AT_INTERNAL) {
-   e.childNodes[4].innerHTML = alarm["alarm message"];
+   if (alarm.triggered) 
+      e.childNodes[4].innerHTML = alarm.message;
+   else
+      e.childNodes[4].innerHTML = alarm.condition;
 } else if (alarm.type == AT_PROGRAM) {
    e.childNodes[4].innerHTML = alarm.condition;
 } else if (alarm.type == AT_EVALUATED) {
    e.childNodes[4].innerHTML = alarm.condition;
-   e.childNodes[5].innerHTML = "value";
+   e.childNodes[5].innerHTML = alarm.evaluated_value;
 } else if (alarm.type == AT_PERIODIC) {
-   e.childNodes[4].innerHTML = "message";
+   if (alarm.triggered) 
+      e.childNodes[4].innerHTML = alarm.message; 
+   else
+      e.childNodes[4].innerHTML = "Alarm triggers at " + alarm.periodic_next_time;
 }
 
 if (alarm.triggered) {
@@ -271,11 +271,29 @@ if (alarm.triggered) {
    document.getElementById('updateStatus').innerHTML = "RWPD";
 }
 
+function reset_all_alarms()
+{
+   //console.log("reset all alarms!");
+   mjsonrpc_call("get_alarms").then(function(rpc) {
+      var names = [];
+      for (var name in rpc.result.alarms) {
+         //console.log("reset alarm " + name);
+         names.push(name);
+      }
+      return names;
+   }).then(function(names) {
+      return mjsonrpc_al_reset_alarm(names);
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+   });
+}
+
 function update()
 {
-   var paths = [ "/Alarms" ];
    document.getElementById('updateStatus').innerHTML = "R___";
-   mjsonrpc_db_get_values(paths).then(function(rpc) {
+   //var paths = [ "/Alarms" ];
+   //mjsonrpc_db_get_values(paths).then(function(rpc) {
+   mjsonrpc_call("get_alarms", { "get_all":true }).then(function(rpc) {
       callback(rpc);
    }).catch(function(error) {
       document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error.";
