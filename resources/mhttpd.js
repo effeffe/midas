@@ -373,8 +373,12 @@ function mjsonrpc_error_alert(error) {
    /// Handle all errors
    /// @param[in] error rejected promise error object (object)
    /// @returns nothing
-   var s = mjsonrpc_decode_error(error.request, error.xhr, error.exception);
-   alert("mjsonrpc_error_alert: " + s);
+   if (error.request) {
+      var s = mjsonrpc_decode_error(error.request, error.xhr, error.exception);
+      alert("mjsonrpc_error_alert: " + s);
+   } else {
+      alert("mjsonroc_error_alert: " + error);
+   }
 }
 
 function mjsonrpc_make_request(method, params, id)
@@ -481,6 +485,21 @@ function mjsonrpc_stop_program(name, unique, id) {
    req.name = name;
    req.unique = unique;
    return mjsonrpc_call("cm_shutdown", req, id);
+}
+
+function mjsonrpc_cm_exist(name, unique, id) {
+   /// \ingroup mjsonrpc_js
+   /// Stop a MIDAS program via cm_exist()
+   ///
+   /// RPC method: "cm_exist"
+   ///
+   /// @param[in] name Name of program to stop (string)
+   /// @param[in] unique bUnique argument to cm_shutdown() (bool)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   var req = new Object();
+   req.name = name;
+   req.unique = unique;
+   return mjsonrpc_call("cm_exist", req, id);
 }
 
 function mjsonrpc_al_reset_alarm(alarms, id) {
