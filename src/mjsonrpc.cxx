@@ -1155,6 +1155,283 @@ static MJsonNode* js_cm_msg1(const MJsonNode* params)
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
 
+static MJsonNode* js_al_reset_alarm(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("reset alarms");
+      doc->P("alarms[]", MJSON_STRING, "array of alarm names");
+      doc->R("status[]", MJSON_INT, "return status of al_reset_alarm() for each alarm");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const MJsonNodeVector* alarms  = mjsonrpc_get_param_array(params, "alarms",  &error); if (error) return error;
+
+   MJsonNode* sresult = MJsonNode::MakeArray();
+
+   for (unsigned i=0; i<alarms->size(); i++) {
+      int status = al_reset_alarm((*alarms)[i]->GetString().c_str());
+      sresult->AddToArray(MJsonNode::MakeInt(status));
+   }
+
+   return mjsonrpc_make_result("status", sresult);
+}
+
+static MJsonNode* js_al_trigger_alarm(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("trigger an alarm");
+      doc->P("name", MJSON_STRING, "alarm name");
+      doc->P("message", MJSON_STRING, "alarm message");
+      doc->P("class", MJSON_STRING, "alarm class");
+      doc->P("condition", MJSON_STRING, "alarm condition");
+      doc->P("type", MJSON_INT, "alarm type (AT_xxx)");
+      doc->R("status", MJSON_INT, "return status of al_trigger_alarm()");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const char* name = mjsonrpc_get_param(params, "name", &error)->GetString().c_str(); if (error) return error;
+   const char* message = mjsonrpc_get_param(params, "message", &error)->GetString().c_str(); if (error) return error;
+   const char* xclass = mjsonrpc_get_param(params, "class", &error)->GetString().c_str(); if (error) return error;
+   const char* condition = mjsonrpc_get_param(params, "condition", &error)->GetString().c_str(); if (error) return error;
+   int type = mjsonrpc_get_param(params, "type", &error)->GetInt(); if (error) return error;
+
+   int status = al_trigger_alarm(name, message, xclass, condition, type);
+   
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+}
+
+static MJsonNode* js_al_trigger_class(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("trigger an alarm");
+      doc->P("class", MJSON_STRING, "alarm class");
+      doc->P("message", MJSON_STRING, "alarm message");
+      doc->P("first?", MJSON_BOOL, "see al_trigger_class() in midas.c");
+      doc->R("status", MJSON_INT, "return status of al_trigger_class()");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const char* xclass = mjsonrpc_get_param(params, "class", &error)->GetString().c_str(); if (error) return error;
+   const char* message = mjsonrpc_get_param(params, "message", &error)->GetString().c_str(); if (error) return error;
+   bool first = mjsonrpc_get_param(params, "first", NULL)->GetBool();
+
+   int status = al_trigger_class(xclass, message, first);
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+}
+
+static MJsonNode* get_alarms(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get alarm data");
+      doc->P("get_all?", MJSON_BOOL, "get all alarms, even in alarm system not active and alarms not triggered");
+      doc->R("status", MJSON_INT, "return status of midas library calls");
+      doc->R("alarm_system_active", MJSON_BOOL, "value of ODB \"/Alarms/alarm system active\"");
+      doc->R("alarms", MJSON_OBJECT, "alarm data, keyed by alarm name");
+      doc->R("alarms[].triggered", MJSON_BOOL, "alarm is triggered");
+      doc->R("alarms[].active", MJSON_BOOL, "alarm is enabled");
+      doc->R("alarms[].class", MJSON_STRING, "alarm class");
+      doc->R("alarms[].type", MJSON_INT, "alarm type AT_xxx");
+      doc->R("alarms[].bgcolor", MJSON_STRING, "display background color");
+      doc->R("alarms[].fgcolor", MJSON_STRING, "display foreground color");
+      doc->R("alarms[].message", MJSON_STRING, "alarm ODB message field");
+      doc->R("alarms[].condition", MJSON_STRING, "alarm ODB condition field");
+      doc->R("alarms[].evaluated_value?", MJSON_STRING, "evaluated alarm condition (AT_EVALUATED alarms only)");
+      doc->R("alarms[].periodic_next_time?", MJSON_STRING, "next time the periodic alarm will fire (AT_PERIODIC alarms only)");
+      doc->R("alarms[].time_triggered_first", MJSON_STRING, "time when alarm was triggered");
+      doc->R("alarms[].show_to_user", MJSON_STRING, "final alarm text shown to user by mhttpd");
+      return doc;
+   }
+
+   //MJsonNode* error = NULL;
+
+   bool get_all = mjsonrpc_get_param(params, "get_all", NULL)->GetBool();
+
+   int status;
+   HNDLE hDB;
+
+   status = cm_get_experiment_database(&hDB, NULL);
+
+   if (status != DB_SUCCESS) {
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+   }
+
+   int flag;
+   int size;
+   int alarm_system_active = 0;
+
+   /* check global alarm flag */
+   flag = TRUE;
+   size = sizeof(flag);
+   status = db_get_value(hDB, 0, "/Alarms/Alarm System active", &flag, &size, TID_BOOL, TRUE);
+
+   if (status != DB_SUCCESS) {
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+   }
+
+   alarm_system_active = flag;
+
+   if (!alarm_system_active)
+      if (!get_all) {
+         return mjsonrpc_make_result("status", MJsonNode::MakeInt(SUCCESS),
+                                     "alarm_system_active", MJsonNode::MakeBool(alarm_system_active!=0),
+                                     "alarms", MJsonNode::MakeObject());
+      }
+
+   /* go through all alarms */
+   HNDLE hkey;
+   status = db_find_key(hDB, 0, "/Alarms/Alarms", &hkey);
+
+   if (status != DB_SUCCESS) {
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+   }
+
+   MJsonNode* alarms = MJsonNode::MakeObject();
+
+   for (int i = 0;; i++) {
+      HNDLE hsubkey;
+      KEY key;
+
+      db_enum_link(hDB, hkey, i, &hsubkey);
+
+      if (!hsubkey)
+         break;
+
+      status = db_get_key(hDB, hsubkey, &key);
+         
+      const char* name = key.name;
+
+      flag = 0;
+      size = sizeof(flag);
+      status = db_get_value(hDB, hsubkey, "Triggered", &flag, &size, TID_INT, TRUE);
+
+      // skip un-triggered alarms
+      if (!flag)
+         if (!get_all)
+            continue;
+
+      MJsonNode* a = MJsonNode::MakeObject();
+
+      a->AddToObject("triggered", MJsonNode::MakeBool(flag!=0));
+
+      flag = 1;
+      size = sizeof(BOOL);
+      status = db_get_value(hDB, hsubkey, "Active", &flag, &size, TID_BOOL, TRUE);
+
+      a->AddToObject("active", MJsonNode::MakeBool(flag!=0));
+
+      char alarm_class[NAME_LENGTH];
+      strcpy(alarm_class, "Alarm");
+      size = sizeof(alarm_class);
+      status = db_get_value(hDB, hsubkey, "Alarm Class", alarm_class, &size, TID_STRING, TRUE);
+         
+      a->AddToObject("class", MJsonNode::MakeString(alarm_class));
+
+      int atype = 0;
+      size = sizeof(atype);
+      status = db_get_value(hDB, hsubkey, "Type", &atype, &size, TID_INT, TRUE);
+         
+      a->AddToObject("type", MJsonNode::MakeInt(atype));
+
+      char str[256];
+
+      char bgcol[256];
+      strcpy(bgcol, "red");
+      sprintf(str, "/Alarms/Classes/%s/Display BGColor", alarm_class);
+      size = sizeof(bgcol);
+      status = db_get_value(hDB, 0, str, bgcol, &size, TID_STRING, TRUE);
+         
+      a->AddToObject("bgcolor", MJsonNode::MakeString(bgcol));
+
+      char fgcol[256];
+      strcpy(fgcol, "black");
+      sprintf(str, "/Alarms/Classes/%s/Display FGColor", alarm_class);
+      size = sizeof(fgcol);
+      status = db_get_value(hDB, 0, str, fgcol, &size, TID_STRING, TRUE);
+         
+      a->AddToObject("fgcolor", MJsonNode::MakeString(fgcol));
+
+      char msg[256];
+      msg[0] = 0;
+      size = sizeof(msg);
+      status = db_get_value(hDB, hsubkey, "Alarm Message", msg, &size, TID_STRING, TRUE);
+         
+      a->AddToObject("message", MJsonNode::MakeString(msg));
+
+      char cond[256];
+      cond[0] = 0;
+      size = sizeof(cond);
+      status = db_get_value(hDB, hsubkey, "Condition", cond, &size, TID_STRING, TRUE);
+
+      a->AddToObject("condition", MJsonNode::MakeString(cond));
+
+      char show_to_user[256];
+      
+      if (atype == AT_EVALUATED) {
+         char value_str[256];
+         /* retrieve value */
+         al_evaluate_condition(cond, value_str);
+         // check for array overflow by at_evaluate_condition
+         assert(strlen(value_str) + 1 < sizeof(value_str));
+
+         sprintf(show_to_user, msg, value_str);
+         // check for array overflow by sprintf()
+         assert(strlen(show_to_user) + 1 < sizeof(show_to_user));
+
+         a->AddToObject("evaluated_value", MJsonNode::MakeString(value_str));
+      } else
+         strlcpy(show_to_user, msg, sizeof(show_to_user));
+      
+      a->AddToObject("show_to_user", MJsonNode::MakeString(show_to_user));
+
+      str[0] = 0;
+      size = sizeof(str);
+      status = db_get_value(hDB, hsubkey, "Time triggered first", str, &size, TID_STRING, TRUE);
+
+      a->AddToObject("time_triggered_first", MJsonNode::MakeString(str));
+
+      if (atype == AT_PERIODIC) {
+         DWORD last = 0;
+         size = sizeof(last);
+         db_get_value(hDB, hsubkey, "Checked last", &last, &size, TID_DWORD, TRUE);
+
+         if (last == 0) {
+            last = ss_time();
+            db_set_value(hDB, hsubkey, "Checked last", &last, size, 1, TID_DWORD);
+         }
+
+         int interval = 0;
+         size = sizeof(interval);
+         db_get_value(hDB, hsubkey, "Check interval", &interval, &size, TID_INT, TRUE);
+
+         time_t tnext = last + interval;
+
+         const char* snext = ctime(&tnext);
+
+         if (!snext)
+            snext = "<invalid time>";
+
+         a->AddToObject("periodic_next_time", MJsonNode::MakeString(snext));
+      }
+
+      alarms->AddToObject(name, a);
+   }
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(SUCCESS),
+                               "alarm_system_active", MJsonNode::MakeBool(alarm_system_active!=0),
+                               "alarms", alarms);
+}
+
 static MJsonNode* get_debug(const MJsonNode* params)
 {
    if (!params) {
@@ -1211,14 +1488,20 @@ void mjsonrpc_init()
       printf("mjsonrpc_init!\n");
    }
 
+   // system methods
    mjsonrpc_add_handler("null", xnull);
    mjsonrpc_add_handler("get_debug",   get_debug);
    mjsonrpc_add_handler("set_debug",   set_debug);
    mjsonrpc_add_handler("get_schema",  get_schema);
-   //mjsonrpc_add_handler("get_messages",  get_messages);
+   // interface to alarm functions
+   mjsonrpc_add_handler("al_reset_alarm",    js_al_reset_alarm);
+   mjsonrpc_add_handler("al_trigger_alarm",  js_al_trigger_alarm);
+   mjsonrpc_add_handler("al_trigger_class",  js_al_trigger_class);
+   // interface to midas.c functions
    mjsonrpc_add_handler("cm_exist",    js_cm_exist);
    mjsonrpc_add_handler("cm_msg1",     js_cm_msg1);
    mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
+   // interface to odb functions
    mjsonrpc_add_handler("db_copy",     js_db_copy);
    mjsonrpc_add_handler("db_paste",    js_db_paste);
    mjsonrpc_add_handler("db_get_values", js_db_get_values);
@@ -1227,6 +1510,9 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("db_delete", js_db_delete);
    mjsonrpc_add_handler("db_resize", js_db_resize);
    mjsonrpc_add_handler("db_key",    js_db_key);
+   // methods that perform computations or invoke actions
+   mjsonrpc_add_handler("get_alarms",  get_alarms);
+   //mjsonrpc_add_handler("get_messages",  get_messages);
    mjsonrpc_add_handler("start_program", start_program);
 
    mjsonrpc_user_init();

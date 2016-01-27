@@ -374,7 +374,6 @@ function mjsonrpc_error_alert(error) {
    /// Handle all errors
    /// @param[in] error rejected promise error object (object)
    /// @returns nothing
-
    if (error.request) {
       var s = mjsonrpc_decode_error(error.request, error.xhr, error.exception);
       alert("mjsonrpc_error_alert: " + s);
@@ -502,6 +501,62 @@ function mjsonrpc_cm_exist(name, unique, id) {
    req.name = name;
    req.unique = unique;
    return mjsonrpc_call("cm_exist", req, id);
+}
+
+function mjsonrpc_al_reset_alarm(alarms, id) {
+   /// \ingroup mjsonrpc_js
+   /// Reset alarms
+   ///
+   /// RPC method: "al_reset_alarm"
+   ///
+   /// \code
+   /// mjsonrpc_al_reset_alarm(["alarm1", "alarm2"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of al_reset_alarm() for 1st alarm
+   ///    ... result.status[1]; // status of al_reset_alarm() for 2nd alarm
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] alarms Array of alarm names (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.alarms = alarms;
+   return mjsonrpc_call("al_reset_alarm", req, id);
+}
+
+function mjsonrpc_al_trigger_alarm(name, message, xclass, condition, type, id) {
+   /// \ingroup mjsonrpc_js
+   /// Reset alarms
+   ///
+   /// RPC method: "al_reset_alarm"
+   ///
+   /// \code
+   /// mjsonrpc_al_reset_alarm(["alarm1", "alarm2"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of al_reset_alarm() for 1st alarm
+   ///    ... result.status[1]; // status of al_reset_alarm() for 2nd alarm
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] alarms Array of alarm names (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.name = name;
+   req.message = message;
+   req.class = xclass;
+   req.condition = condition;
+   req.type = type;
+   return mjsonrpc_call("al_trigger_alarm", req, id);
 }
 
 function mjsonrpc_db_copy(paths, id) {
@@ -1307,325 +1362,6 @@ function mhttpd_delete_page_handle_cancel(mouseEvent)
 {
    location.search = ""; // reloads the document
    return false;
-}
-
-var mhttpd_programs_page_update_timer_id;
-var mhttpd_programs_start_stop_overlay;
-var mhttpd_programs_start_stop_modal;
-var mhttpd_programs_start_stop_timer_id;
-
-function mhttpd_programs_start_stop_poll(msg, name, start_command, count)
-{
-   //msg.style.textAlign = "left";
-   if (start_command) {
-      msg.children[0].innerHTML = "Waiting for program \"" + name + "\" to start.";
-      msg.children[1].innerHTML = "Start command: " + start_command;
-   } else {
-      msg.children[0].innerHTML = "Waiting for program \"" + name + "\" to stop.";
-      msg.children[1].innerHTML = "";
-   }
-   mjsonrpc_cm_exist(name, false).then(function(rpc) {
-      var done = false;
-      if (start_command)
-         done = (rpc.result.status == 1);
-      else
-         done = (rpc.result.status != 1);
-      msg.children[2].innerHTML = "cm_exist() status: " + rpc.result.status + " done: " + done;
-      msg.children[3].innerHTML = "Will try again: " + count;
-      if (done) {
-         //mhttpd_hide_overlay(mhttpd_programs_start_stop_overlay);
-         //mhttpd_programs_page_update();
-         if (start_command)
-            msg.children[3].innerHTML = "Program started";
-         else
-            msg.children[3].innerHTML = "Program stopped";
-      } else {
-         if (count > 0) {
-            mhttpd_programs_start_stop_timer_id = setTimeout(function() { mhttpd_programs_start_stop_poll(msg, name, start_command, count-1); }, 1000);
-         } else {
-            if (start_command)
-               msg.children[3].innerHTML = "Timeout. Program cannot be started by MIDAS. Try to start it in a terminal, run: " + start_command;
-            else
-               msg.children[3].innerHTML = "Timeout. Program cannot be stopped by MIDAS. Try to kill it with \"kill -KILL\"";
-         }
-      }
-   }).catch(function(error) {
-      mjsonrpc_error_alert(error);
-      mhttpd_hide_overlay(mhttpd_programs_start_stop_overlay);
-   });
-}
-
-function mhttpd_programs_page_add_table_entry(table, name, start_command, colspan)
-{
-   function new_attribute(name, value)
-   {
-      var att = document.createAttribute(name);
-      if (value)
-         att.value = value;
-      return att;
-   }
-
-   var tr = document.createElement("tr");
-   tr.setAttributeNode(new_attribute("id", "program " + name));
-   var td;
-   var input;
-
-   td = document.createElement("td");
-   td.setAttributeNode(new_attribute("id", "program name " + name));
-   td.setAttributeNode(new_attribute("align", "center"));
-   td.setAttributeNode(new_attribute("colspan", colspan));
-   td.innerHTML = "<a href='Programs/" + name + "'>"+name+"</a>";
-   tr.appendChild(td);
-
-   td = document.createElement("td");
-   td.setAttributeNode(new_attribute("id", "program host " + name));
-   td.setAttributeNode(new_attribute("align", "center"));
-   tr.appendChild(td);
-
-   td = document.createElement("td");
-   td.setAttributeNode(new_attribute("id", "program alarm " + name));
-   td.setAttributeNode(new_attribute("align", "center"));
-   tr.appendChild(td);
-
-   td = document.createElement("td");
-   td.setAttributeNode(new_attribute("id", "program autorestart " + name));
-   td.setAttributeNode(new_attribute("align", "center"));
-   tr.appendChild(td);
-
-   td = document.createElement("td");
-   td.setAttributeNode(new_attribute("id", "program control " + name));
-
-   var start_button = document.createElement("button");
-   input = start_button;
-   input.id = "start " + name;
-   input.type = "button";
-   input.innerHTML = "Start " + name;
-   mhttpd_disable_button(input);
-   input.onclick = function() {
-      mhttpd_disable_button(start_button);
-      mhttpd_unhide_overlay(mhttpd_programs_start_stop_overlay);
-      //alert('Start!');
-      mjsonrpc_start_program(name).then(function(rpc) {
-         mhttpd_programs_start_stop_poll(mhttpd_programs_start_stop_modal, name, start_command, 10);
-      }).catch(function(error) {
-         mjsonrpc_error_alert(error);
-         mhttpd_hide_overlay(mhttpd_programs_start_stop_overlay);
-      });
-   };
-
-   td.appendChild(input);
-
-   // need spacer beteen the buttons
-   //td.appendChild("x&nbspx");
-
-   var stop_button = document.createElement("button");
-   input = stop_button;
-   input.id = "stop " + name;
-   input.type = "button";
-   input.innerHTML = "Stop " + name;
-   mhttpd_disable_button(input);
-   input.onclick = function() {
-      mhttpd_disable_button(stop_button);
-      mhttpd_unhide_overlay(mhttpd_programs_start_stop_overlay);
-      //alert('Stop!');
-      mjsonrpc_stop_program(name, false).then(function(rpc) {
-         mhttpd_programs_start_stop_poll(mhttpd_programs_start_stop_modal, name, null, 10);
-      }).catch(function(error) {
-         mjsonrpc_error_alert(error);
-         mhttpd_hide_overlay(mhttpd_programs_start_stop_overlay);
-      });
-   };
-
-   td.appendChild(input);
-
-   tr.appendChild(td);
-
-   table.appendChild(tr);
-
-   return tr;
-}
-
-function mhttpd_programs_page_callback(rpc)
-{
-   document.getElementById('updateStatus').innerHTML = "Processing new data...";
-
-   function set_text(dom_prefix, item, value)
-   {
-      var e = document.getElementById(dom_prefix + item);
-      if (e) e.innerHTML = value;
-   }
-
-   function set_color(dom_prefix, item, value)
-   {
-      var e = document.getElementById(dom_prefix + item);
-      if (e) e.style.backgroundColor = value;
-   }
-
-   function set_class(dom_prefix, item, value)
-   {
-      var e = document.getElementById(dom_prefix + item);
-      if (e) e.className = value;
-   }
-
-   function find_client(clients, name)
-   {
-      var found;
-      var name_lc = name.toLowerCase(name);
-      for (var key in clients) {
-         var cname = clients[key].name;
-         var cname_lc =  cname.toLowerCase();
-         var same_name = (cname_lc == name_lc);
-         var matching_name = false;
-
-         if (!same_name) {
-            var n = cname_lc.search(name_lc);
-            if (n==0) {
-               matching_name = true;
-               // FIXME: check that remaining text is all numbers: for "odbedit", match "odbedit111", but not "odbeditxxx"
-            }
-         }
-
-         if (same_name || matching_name) {
-            if (!found)
-               found = new Array();
-            found.push(key);
-         }
-      }
-      return found;
-   }
-
-   //alert("Hello: " + JSON.stringify(r));
-
-   var programs = rpc.result.data[0];
-   var clients  = rpc.result.data[1];
-   var alarms   = rpc.result.data[2];
-
-   for (var name in programs) {
-      var e = document.getElementById("program " + name);
-      var required = programs[name].required;
-      var xclients = find_client(clients, name);
-      //alert("name " + name + " clients: " + JSON.stringify(xclients));
-      if (required || xclients) {
-         var start_command = programs[name]["start command"];
-
-         if (!e) {
-            e = mhttpd_programs_page_add_table_entry(document.getElementById("xstripeList"), name, start_command, 1);
-         }
-
-         e.style.display = '';
-
-         if (xclients) {
-            var s = "";
-            for (var i=0; i<xclients.length; i++) {
-               var key = xclients[i];
-               var host = clients[key].host;
-               if (host) {
-                  if (s.length > 0)
-                     s += "<br>";
-                  s += "<a href='/System/Clients/"+key+"'>"+host+"</a>";
-               }
-            }
-            set_text("program host ", name, s);
-            set_class("program host ", name, "greenLight");
-            // enable start/stop buttons
-            var e = document.getElementById("start " + name);
-            if (e) {
-               mhttpd_disable_button(e);
-               mhttpd_hide_button(e);
-            }
-            var e = document.getElementById("stop " + name);
-            if (e) {
-               mhttpd_enable_button(e);
-               mhttpd_unhide_button(e);
-            }
-         } else {
-            set_text("program host ", name, "Not running");
-            set_class("program host ", name, "redLight");
-            // enable start/stop buttons
-            var e = document.getElementById("start " + name);
-            if (e && start_command) {
-               mhttpd_enable_button(e);
-               mhttpd_unhide_button(e);
-            }
-            var e = document.getElementById("stop " + name);
-            if (e) {
-               mhttpd_disable_button(e);
-               mhttpd_hide_button(e);
-            }
-         }
-
-         var alarm_class = programs[name]["alarm class"];
-         if (alarm_class.length > 0) {
-            set_text("program alarm ", name, "<a href='Alarms/Classes/"+ alarm_class + "'>" + alarm_class + "</a>");
-            set_class("program alarm ", name, "yellowLight");
-         } else {
-            set_text("program alarm ", name, "-");
-         }
-
-         if (programs[name]["auto restart"])
-            set_text("program autorestart ", name, "Yes");
-         else
-            set_text("program autorestart ", name, "No");
-      } else {
-         if (e) {
-            e.style.display = 'none';
-         }
-      }
-   }
-
-   document.getElementById('mhttpd_last_updated').innerHTML = new Date;
-   document.getElementById('updateStatus').innerHTML = "";
-}
-
-function mhttpd_programs_page_update()
-{
-   var paths = [ "/Programs", "/System/Clients", "/Alarms" ];
-   document.getElementById('updateStatus').innerHTML = "Requesting new data...";
-   mjsonrpc_db_get_values(paths).then(function(rpc) {
-      mhttpd_programs_page_callback(rpc);
-   }).catch(function(error) {
-      document.getElementById('updateStatus').innerHTML = "RPC error...";
-   });
-   document.getElementById('updateStatus').innerHTML = "Waiting for new data...";
-}
-
-function mhttpd_programs_page_update_periodic()
-{
-   clearTimeout(mhttpd_programs_page_update_timer_id);
-   var update_period = 1000;
-   mhttpd_programs_page_update();
-   mhttpd_programs_page_update_timer_id = setTimeout('mhttpd_programs_page_update_periodic()', update_period);
-}
-
-function mhttpd_programs_page()
-{
-   // this is called when the "programs" page is loaded
-
-   mhttpd_navigation_bar("Programs");
-
-   document.write("<td><input type=button value=\'Refresh now\' onClick=\'mhttpd_programs_page_update();\'></input> <tt id='lastUpdated'>lastUpdated</tt> <tt id='updateStatus'>updateStatus</tt></td>\n");
-
-   document.write("<div id=\"mhttpd_programs_start_stop_overlay\">\n");
-   document.write("<div>\n");
-   document.write("<p>text1</p>\n");
-   document.write("<p>text2</p>\n");
-   document.write("<p>text3</p>\n");
-   document.write("<p>text4</p>\n");
-   document.write("<input type=button value=\'Close overlay\' onClick=\'clearTimeout(mhttpd_programs_start_stop_timer_id); mhttpd_hide_overlay(mhttpd_programs_start_stop_overlay); mhttpd_programs_page_update();\'></input>\n");
-   document.write("</div>\n");
-   document.write("</div>\n");
-   
-   document.write("<table class=\"subStatusTable\" id=\"xstripeList\">\n");
-   document.write("<tr><td colspan=5 class=\"subStatusTitle\">Programs</td></tr>");
-   document.write("<tr class=\"titleRow\"><th>Program<th>Running on host<th>Alarm class<th>Autorestart<th>Commands</tr>\n");
-   document.write("</table>\n");
-
-   mhttpd_programs_start_stop_overlay = document.getElementById("mhttpd_programs_start_stop_overlay");
-   mhttpd_programs_start_stop_modal = mhttpd_init_overlay(mhttpd_programs_start_stop_overlay);
-   //mhttpd_unhide_overlay(mhttpd_programs_start_stop_overlay);
-
-   document.write("<script>mhttpd_programs_page_update_periodic();</script>\n");
-   mhttpd_page_footer();
 }
 
 /*---- message functions -------------------------------------*/
