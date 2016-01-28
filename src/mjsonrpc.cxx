@@ -1360,6 +1360,61 @@ static MJsonNode* js_al_trigger_class(const MJsonNode* params)
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
 
+static MJsonNode* jrpc(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("make RPC call into frontend program via RPC_JRPC");
+      doc->P("client_name", MJSON_STRING, "Connect to this MIDAS client, see cm_connect_client()");
+      doc->P("cmd", MJSON_STRING, "Command passed to client");
+      doc->P("args", MJSON_STRING, "Parameters passed to client as a string, could be JSON encoded");
+      doc->P("max_reply_length?", MJSON_INT, "Optional maximum length of client reply. MIDAS RPC does not support returning strings of arbitrary length, maximum length has to be known ahead of time.");
+      doc->R("reply", MJSON_STRING, "Reply from client as a string, could be JSON encoded");
+      doc->R("status", MJSON_INT, "return status of cm_connect_client() and rpc_client_call()");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   std::string name   = mjsonrpc_get_param(params, "client_name", &error)->GetString(); if (error) return error;
+   std::string cmd    = mjsonrpc_get_param(params, "cmd", &error)->GetString(); if (error) return error;
+   std::string args   = mjsonrpc_get_param(params, "args", &error)->GetString(); if (error) return error;
+   int max_reply_length = mjsonrpc_get_param(params, "max_reply_length", NULL)->GetInt();
+
+   int status;
+
+   int buf_length = 1024;
+
+   if (max_reply_length > buf_length)
+      buf_length = max_reply_length;
+
+   char* buf = (char*)malloc(buf_length);
+   buf[0] = 0;
+
+   HNDLE hconn;
+
+   status = cm_connect_client(name.c_str(), &hconn);
+
+   if (status != RPC_SUCCESS) {
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+   }
+
+   status = rpc_client_call(hconn, RPC_JRPC, cmd.c_str(), args.c_str(), buf, buf_length);
+
+   if (status != RPC_SUCCESS) {
+      free(buf);
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+   }
+
+   MJsonNode* reply = MJsonNode::MakeString(buf);
+   free(buf);
+
+   // return status ignored on purpose.
+   status = cm_disconnect_client(hconn, FALSE);
+   
+   return mjsonrpc_make_result("reply", reply, "status", MJsonNode::MakeInt(SUCCESS));
+}
+
 static MJsonNode* get_alarms(const MJsonNode* params)
 {
    if (!params) {
@@ -1647,6 +1702,7 @@ void mjsonrpc_init()
    // methods that perform computations or invoke actions
    mjsonrpc_add_handler("get_alarms",  get_alarms);
    //mjsonrpc_add_handler("get_messages",  get_messages);
+   mjsonrpc_add_handler("jrpc",  jrpc);
    mjsonrpc_add_handler("start_program", start_program);
 
    mjsonrpc_user_init();

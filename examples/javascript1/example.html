@@ -216,7 +216,8 @@ test cm_shutdown()
 test start_program()
 test al_trigger_alarm()  
 test al_reset_alarm()  
-test get_alarms()
+test get_alarms() 
+test jrpc() 
 --- ODBSet(path, value, pwdname); ---- use mjsonrpc_db_paste() instead
 --- ODBGet(path, format, defval, len, type); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
 --- ODBMGet(paths, callback, formats); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
@@ -234,7 +235,7 @@ test get_alarms()
 --- ODBMReorder(paths, indices, callback); ---- use RPC "db_reorder"
 --- ODBMKey(paths, callback); ---- use mjsonrpc_db_key() instead
 --- ODBMDelete(paths, callback); ---- use mjsonrpc_db_delete() instead
-ODBRpc(name, command, args[, callback[, max_reply_length]]); 
+--- ODBRpc(name, command, args[, callback[, max_reply_length]]); ---- use RPC "jrpc"
 ODBGetMsg(n);
 --- ODBGenerateMsg(m); ---- use mjsonrpc_cm_msg() instead
 --- ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
@@ -991,6 +992,20 @@ ODBEdit(path);
         </ul>
 
       <li>
+        <h2>mjsonrpc_jrpc()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='mjsonrpc_call("jrpc", { "client_name":"fetest",
+          "cmd":"xxx", "args":"xxx" }).then(function(rpc){document.getElementById("jrpc_data").innerHTML =
+          JSON.stringify(rpc.result, null, "	");}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+	(note: frontend "fetest" should be running)
+        </p>
+        <ul>
+          <li>JRPC: <tt id='jrpc_data'></tt>
+        </ul>
+
+      <li>
         <h2>mjsonrpc_get_schema()</h2>
 
         <p>
@@ -1013,6 +1028,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Wed Jan 27 17:04:35 PST 2016 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Wed Jan 27 18:04:43 PST 2016 <!-- hhmts end -->
   </body>
 </html>
