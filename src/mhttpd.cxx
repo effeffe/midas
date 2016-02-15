@@ -17663,7 +17663,7 @@ int loop_mg()
 
       status = ss_mutex_release(request_mutex);
 
-      ss_sleep(100);
+      ss_sleep(10);
    }
 
    return status;
