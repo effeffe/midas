@@ -1254,6 +1254,30 @@ static MJsonNode* js_db_reorder(const MJsonNode* params)
    return mjsonrpc_make_result("status", sresult);
 }
 
+static MJsonNode* js_cm_msg_facilities(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get message facilities using cm_msg_facilities()");
+      doc->R("status", MJSON_INT, "return status of cm_msg_facilities()");
+      doc->R("facilities[]", MJSON_STRING, "array of facility names");
+      return doc;
+   }
+
+   STRING_LIST list;
+   
+   int status = cm_msg_facilities(&list);
+
+   MJsonNode* facilities = MJsonNode::MakeArray();
+
+   for (unsigned i=0; i<list.size(); i++) {
+      facilities->AddToArray(MJsonNode::MakeString(list[i].c_str()));
+   }
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status),
+                               "facilities", facilities);
+}
+
 static MJsonNode* js_cm_msg1(const MJsonNode* params)
 {
    if (!params) {
@@ -1685,6 +1709,7 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("al_trigger_class",  js_al_trigger_class);
    // interface to midas.c functions
    mjsonrpc_add_handler("cm_exist",    js_cm_exist);
+   mjsonrpc_add_handler("cm_msg_facilities", js_cm_msg_facilities);
    mjsonrpc_add_handler("cm_msg1",     js_cm_msg1);
    mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
    // interface to odb functions

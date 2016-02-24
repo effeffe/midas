@@ -318,6 +318,25 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
       </div>
     </p>
 
+    <h2>cm_msg_facilities</h2>
+    
+    <p>
+      <div>
+        <input type=button value='Get list of message facilities'
+          onClick='mjsonrpc_call("cm_msg_facilities")
+                   .then(function(rpc) {
+                   document.getElementById("cm_msg_facilities_data").innerHTML = JSON.stringify(rpc.result.facilities);
+                   //mjsonrpc_debug_alert(rpc);
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+      </div>
+      <div id="cm_msg_facilities_data">
+        list of messages facilities goes here
+      </div>
+    </p>
+
     <hr>
 
     <h2>Inline editor functions</h2>
