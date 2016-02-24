@@ -272,45 +272,54 @@ function mjsonrpc_send_request(req)
 
    return new Promise(function(resolve, reject) {
       var xhr = new XMLHttpRequest();
-      xhr.responseType = 'json';
+      //xhr.responseType = 'json'; // this does not work: behaviour is not defined if RPC returns unparsable JSON
+      xhr.responseType = 'text';
       xhr.withCredentials = true;
 
       xhr.onreadystatechange = function()
       {
          if (xhr.readyState == 4) {
-            var exc = null;
 
-            if (xhr.status == 200) {
-               var have_response = false;
-               try {
-                  if (xhr.response) {
-                     var response = xhr.response;
-                     var error = response.error;
-                     // alert("e " + JSON.stringify(xhr.response));
-                     // (typeof xhr.response.error == 'undefined')
-                     have_response = (error == null);
-                  }
-               } catch (xexc) {
-                  // fall through
-                  //alert("exception " + xexc);
-                  exc = xexc;
-               }
-
-               if (have_response) {
-                  var r = new Object;
-                  r.request = req;
-                  r.id = response.id;
-                  r.result = response.result;
-                  resolve(r);
-                  return;
-               }
+            if (xhr.status != 200) {
+               var error = new Object;
+               error.request = req;
+               error.xhr = xhr;
+               reject(error);
+               return;
             }
 
-            var r = new Object;
-            r.request = req;
-            r.xhr = xhr;
-            r.exception = exc;
-            reject(r);
+            var rpc_response = null;
+
+            try {
+               rpc_response = JSON.parse(xhr.responseText);
+               if (!rpc_response) {
+                  throw "JSON parser returned null";
+               }
+            } catch (exc) {
+               //alert("exception " + exc);
+               var error = new Object;
+               error.request = req;
+               error.xhr = xhr;
+               error.exception = exc;
+               reject(error);
+               return;
+            }
+            
+            if (rpc_response.error) {
+               var error = new Object;
+               error.request = req;
+               error.xhr = xhr;
+               error.error = rpc_response.error;
+               reject(error);
+               return;
+            }
+            
+            var rpc = new Object;
+            rpc.request = req;
+            rpc.id = rpc_response.id;
+            rpc.result = rpc_response.result;
+            resolve(rpc);
+            return;
          }
       }
 
@@ -332,12 +341,10 @@ function mjsonrpc_debug_alert(rpc) {
    alert("mjsonrpc_debug_alert: method: \"" + rpc.request.method + "\", params: " + rpc.request.params + ", id: " + JSON.stringify(rpc.id) + ", response: " + JSON.stringify(rpc.result));
 }
 
-function mjsonrpc_decode_error(request, xhr, exc) {
+function mjsonrpc_decode_error(error) {
    /// \ingroup mjsonrpc_js
    /// Convert RPC error status to human-readable string
-   /// @param[in] request request object (object)
-   /// @param[in] xhr request XHR object (object)
-   /// @param[in] exc request exception object (object)
+   /// @param[in] error rejected promise error object (object)
    /// @returns decoded error report (string)
 
    function is_network_error(xhr) {
@@ -353,18 +360,16 @@ function mjsonrpc_decode_error(request, xhr, exc) {
       return "method: \"" + request.method + "\", params: " + request.params + ", id: " + request.id;
    }
 
-   if (is_network_error(xhr)) {
-      return "network error: see javascript console, " + print_request(request);
-   } else if (is_http_error(xhr)) {
-      return "http error: " + print_xhr(xhr) + ", " + print_request(request);
-   } else if (exc) {
-      return "exception: " + exc + ", " + print_request(request);
-   } else if (!xhr.response) {
-      return "json-rpc error: null response, " + print_request(request);
-   } else if (xhr.response.error) {
-      return "json-rpc error: " + JSON.stringify(xhr.response.error) + ", " + print_request(request);
+   if (is_network_error(error.xhr)) {
+      return "network error: see javascript console, " + print_request(error.request);
+   } else if (is_http_error(error.xhr)) {
+      return "http error: " + print_xhr(error.xhr) + ", " + print_request(error.request);
+   } else if (error.exception) {
+      return "json parser exception: " + error.exception + ", " + print_request(error.request);
+   } else if (error.error) {
+      return "json-rpc error: " + JSON.stringify(error.error) + ", " + print_request(error.request);
    } else {
-      return "what happened?!?, " + print_request(request) + ", xhr: " + print_xhr(xhr) + ", exc: " + exc;
+      return "unknown error, request: " + print_request(error.request) + ", xhr: " + print_xhr(error.xhr);
    }
 }
 
@@ -374,7 +379,7 @@ function mjsonrpc_error_alert(error) {
    /// @param[in] error rejected promise error object (object)
    /// @returns nothing
    if (error.request) {
-      var s = mjsonrpc_decode_error(error.request, error.xhr, error.exception);
+      var s = mjsonrpc_decode_error(error);
       alert("mjsonrpc_error_alert: " + s);
    } else {
       alert("mjsonroc_error_alert: " + error);
