@@ -1090,8 +1090,13 @@ void show_help_page()
    rsprintf("        </tr>\n");
 
    rsprintf("        <tr>\n");
-   rsprintf("          <td style=\"text-align:right;\">JSON RPC schema:</td>\n");
+   rsprintf("          <td style=\"text-align:right;\">JSON-RPC schema:</td>\n");
    rsprintf("          <td style=\"text-align:left;\"><a href=\"?mjsonrpc_schema\">json format</a> or <a href=\"?mjsonrpc_schema_text\">text table format</a></td>\n");
+   rsprintf("        </tr>\n");
+
+   rsprintf("        <tr>\n");
+   rsprintf("          <td style=\"text-align:right;\">JavaScript examples:</td>\n");
+   rsprintf("          <td style=\"text-align:left;\"><a href=\"?cmd=example\">example.html</a></td>\n");
    rsprintf("        </tr>\n");
 
    rsprintf("      </table>\n");
@@ -1320,9 +1325,9 @@ void show_navigation_bar(const char *cur_page)
    /*---- menu buttons ----*/
 
 #ifdef HAVE_MSCB
-   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Help", sizeof(str));
+   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Example, Help", sizeof(str));
 #else
-   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, Sequencer, Config, Help", sizeof(str));
+   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, Sequencer, Config, Example, Help", sizeof(str));
 #endif
    size = sizeof(str);
    db_get_value(hDB, 0, "/Experiment/Menu Buttons", str, &size, TID_STRING, TRUE);
@@ -14939,6 +14944,62 @@ void send_css()
 
 /*------------------------------------------------------------------*/
 
+bool send_resource(const std::string& name)
+{
+   std::string filename;
+   FILE *fp = open_resource_file(name.c_str(), &filename);
+
+   if (!fp) {
+      return false;
+   }
+
+   // send HTTP headers
+   
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
+   rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   rsprintf("Accept-Ranges: bytes\r\n");
+
+   // send HTTP cache control headers
+
+   time_t now = time(NULL);
+   now += (int) (3600 * 24);
+   struct tm* gmt = gmtime(&now);
+   const char* format = "%A, %d-%b-%y %H:%M:%S GMT";
+   char str[256];
+   strftime(str, sizeof(str), format, gmt);
+   rsprintf("Expires: %s\r\n", str);
+
+   // send Content-Type header
+
+   const char* type = "text/plain";
+
+   if (name.rfind(".css") != std::string::npos)
+      type = "text/css";
+   else if (name.rfind(".html") != std::string::npos)
+      type = "text/html";
+   else if (name.rfind(".js") != std::string::npos)
+      type = "application/javascript";
+
+   rsprintf("Content-Type: %s\r\n", type);
+
+   // send Content-Length header
+
+   struct stat stat_buf;
+   fstat(fileno(fp), &stat_buf);
+   int length = stat_buf.st_size;
+   rsprintf("Content-Length: %d\r\n\r\n", length);
+
+   // send file data
+   
+   rread(filename.c_str(), fileno(fp), length);
+   
+   fclose(fp);
+
+   return true;
+}
+
+/*------------------------------------------------------------------*/
+
 const char *mhttpd_js =
 "/* MIDAS type definitions */\n"
 "var TID_BYTE = 1;\n"
@@ -15477,6 +15538,13 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    if (equal_ustring(dec_path, "alarm.mid")) {
       send_alarm_sound();
+      return;
+   }
+
+   /*---- send example web page -------------------------------------*/
+
+   if (equal_ustring(command, "example")) {
+      send_resource("example.html");
       return;
    }
 
