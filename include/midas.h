@@ -222,6 +222,12 @@ typedef INT MUTEX_T;
 #endif
 #endif
 
+#ifdef __cplusplus
+#include <vector>
+#include <string>
+typedef std::vector<std::string> STRING_LIST;
+#endif
+
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
@@ -1707,7 +1713,10 @@ extern "C" {
    INT EXPRT cm_msg_register(void (*func)
                               (HNDLE, HNDLE, EVENT_HEADER *, void *));
    INT EXPRT cm_msg_retrieve(const char *facility, time_t t, INT n_message, char *message, INT buf_size);
-   INT EXPRT cm_msg_facilities(char **plist);
+   //INT EXPRT cm_msg_facilities(char **plist);
+#ifdef __cplusplus
+   INT EXPRT cm_msg_facilities(STRING_LIST *list);
+#endif
    INT EXPRT cm_msg_get_logfile(const char *facility, time_t t, char *filename, int fsize, char *linkname, int lsize);
 
    BOOL EXPRT equal_ustring(const char *str1, const char *str2);

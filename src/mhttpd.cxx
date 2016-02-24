@@ -968,8 +968,8 @@ FILE *open_resource_file(const char *filename, std::string* pfilename);
 void show_help_page()
 {
    const char *s;
-   char str[256], *plist;
-   int i, n;
+   char str[256];
+   int status;
 
    show_header("Help", "", "./", 0);
    show_navigation_bar("Help");
@@ -1044,9 +1044,10 @@ void show_help_page()
    rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
    rsprintf("        </tr>\n");
 
+   STRING_LIST list;
+   status = cm_msg_facilities(&list);
    
-   n = cm_msg_facilities(&plist);
-   if (n== 1) {
+   if (list.size() == 1) {
       rsprintf("        <tr>\n");
       rsprintf("          <td style=\"text-align:right;\">Sytem logfile:</td>\n");
       cm_msg_get_logfile("midas", 0, str, sizeof(str), NULL, 0);
@@ -1056,17 +1057,16 @@ void show_help_page()
       rsprintf("        <tr>\n");
       rsprintf("          <td style=\"text-align:right;\">Logfiles:</td>\n");
       rsprintf("          <td style=\"text-align:left;\">\n", str);
-      for (i=0 ; i<n ; i++) {
-         cm_msg_get_logfile(plist+i*MAX_STRING_LENGTH, 0, str, sizeof(str), NULL, 0);
-         rsputs(str);
-         if (i<n-1)
+      for (unsigned i=0 ; i<list.size() ; i++) {
+         if (i>0)
             rsputs("<br />\n");
+         cm_msg_get_logfile(list[i].c_str(), 0, str, sizeof(str), NULL, 0);
+         rsputs(str);
       }
       rsprintf("\n          </td>\n");
       rsprintf("        </tr>\n");
       
    }
-   free(plist);
 
    rsprintf("        <tr>\n");
    rsprintf("          <td style=\"text-align:right;\">CSS File:</td>\n");
@@ -2263,9 +2263,10 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
 void show_messages_page()
 {
-   int size, i, n;
+   int status;
+   int size;
    char str[256];
-   char *plist, bclass[256], facility[256];
+   char bclass[256], facility[256];
    time_t now;
    HNDLE hDB;
 
@@ -2286,13 +2287,14 @@ void show_messages_page()
       strlcpy(facility, getparam("facility"), sizeof(facility));
    else
       strlcpy(facility, "midas", sizeof(facility));
+
+   STRING_LIST list;
+   status = cm_msg_facilities(&list);
    
-   n = cm_msg_facilities(&plist);
-   
-   if (n > 1) {
+   if (list.size() > 0) {
       rsprintf("<table class=\"navigationTable\"><tr><td>\n");
-      for (i=0 ; i<n ; i++) {
-         strlcpy(str, plist+i*MAX_STRING_LENGTH, sizeof(str));
+      for (unsigned i=0 ; i<list.size() ; i++) {
+         strlcpy(str, list[i].c_str(), sizeof(str));
          if (equal_ustring(str, facility))
             strlcpy(bclass, "navButtonSel", sizeof(bclass));
          else
@@ -2302,8 +2304,6 @@ void show_messages_page()
       }
       rsprintf("</td></tr></table>\n");
    }
-   free(plist);
-   
 
    /*---- messages will be dynamically loaded via JS ----*/
 

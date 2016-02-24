@@ -912,45 +912,6 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
 
 /********************************************************************/
 /**
- Retrieve list of message facilities by searching logfiles on disk
- @param  list             List of facilities
- @param  max_n            Size of list
- @return n                Number of facilities
- */
-
-INT EXPRT cm_msg_facilities(char **plist)
-{
-   char path[256], *flist, *p;
-   int i, n, n_fac;
-   
-   n_fac = 0;
-   
-   cm_msg_get_logfile("midas", 0, path, sizeof(path), NULL, 0);
-   
-   if (strrchr(path, DIR_SEPARATOR))
-      *strrchr(path, DIR_SEPARATOR) = 0;
-   else
-      path[0] = 0;
-   
-   *plist = (char *) malloc(MAX_STRING_LENGTH);
-   n = ss_file_find(path, "*.log", &flist);
-   for (i=0 ; i<n ; i++) {
-      p = flist+i*MAX_STRING_LENGTH;
-      if (strchr(p, '_') == NULL && !(p[0] >= '0' && p[0] <= '9') && !equal_ustring(p, "chat.log")) {
-         *plist = (char *) realloc(*plist, (n_fac + 1) * MAX_STRING_LENGTH);
-         strlcpy(*plist+n_fac*MAX_STRING_LENGTH, p, MAX_STRING_LENGTH);
-         if (strchr(*plist+n_fac*MAX_STRING_LENGTH, '.'))
-             *strchr(*plist+n_fac*MAX_STRING_LENGTH, '.') = 0;
-         n_fac++;
-      }
-   }
-   free(flist);
-   
-   return n_fac;
-}
-
-/********************************************************************/
-/**
 Register a dispatch function for receiving system messages.
 - example code from mlxspeaker.c
 \code
