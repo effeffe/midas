@@ -7755,7 +7755,7 @@ Copy an ODB array in JSON format to a buffer
 */
 INT db_copy_json_array(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
 {
-   int size;
+   int size, asize;
    int status;
    char* data;
    int i;
@@ -7772,11 +7772,18 @@ INT db_copy_json_array(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, i
    }
 
    size = key.total_size;
-   data = (char *) malloc(size);
+
+   asize = size;
+   if (asize < 1024)
+      asize = 1024;
+   
+   data = (char *) malloc(asize);
    if (data == NULL) {
-      cm_msg(MERROR, "db_save_json_key_data", "cannot allocate data buffer for %d bytes", size);
+      cm_msg(MERROR, "db_save_json_key_data", "cannot allocate data buffer for %d bytes", asize);
       return DB_NO_MEMORY;
    }
+
+   data[0] = 0; // protect against TID_STRING that has key.total_size == 0.
 
    status = db_get_data(hDB, hKey, data, &size, key.type);
    if (status != DB_SUCCESS) {
