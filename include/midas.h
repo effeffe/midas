@@ -558,6 +558,7 @@ System message types */
 #define CM_TIMEOUT                  112 /**< - */
 #define CM_INVALID_TRANSITION       113 /**< - */
 #define CM_TOO_MANY_REQUESTS        114 /**< - */
+#define CM_TRUNCATED                115 /**< - */
 /**dox***************************************************************/
           /** @} *//* end of err21 */
 
@@ -1712,8 +1713,8 @@ extern "C" {
    INT EXPRT cm_msg_flush_buffer();
    INT EXPRT cm_msg_register(void (*func)
                               (HNDLE, HNDLE, EVENT_HEADER *, void *));
-   INT EXPRT cm_msg_retrieve(const char *facility, time_t t, INT n_message, char *message, INT buf_size);
-   //INT EXPRT cm_msg_facilities(char **plist);
+   INT EXPRT cm_msg_retrieve(INT n_message, char *message, INT buf_size);
+   INT EXPRT cm_msg_retrieve2(const char *facility, time_t t, int min_messages, char** messages, int* num_messages);
 #ifdef __cplusplus
    INT EXPRT cm_msg_facilities(STRING_LIST *list);
 #endif
