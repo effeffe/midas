@@ -40,7 +40,7 @@ INT EXPRT cm_msg_facilities(STRING_LIST *list)
 
    for (unsigned i=0 ; i<n ; i++) {
       char* p = flist+i*MAX_STRING_LENGTH;
-      if (strchr(p, '_') == NULL && !(p[0] >= '0' && p[0] <= '9') && !equal_ustring(p, "chat.log")) {
+      if (strchr(p, '_') == NULL && !(p[0] >= '0' && p[0] <= '9')) {
          char *s = strchr(p, '.');
          if (s)
             *s = 0;
