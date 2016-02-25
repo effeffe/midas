@@ -1003,7 +1003,7 @@ static int cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char** mes
 {
    BOOL stop;
    int fh, size;
-   INT i, n, s;
+   INT i, n;
    char *p, *buffer, str[1000];
    struct stat stat_buf;
    struct tm tms;
@@ -1040,7 +1040,6 @@ static int cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char** mes
    close(fh);
    
    p = buffer + size - 1;
-   s = 0;
    tstamp_last = tstamp_valid = 0;
    stop = FALSE;
    
