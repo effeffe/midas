@@ -7497,8 +7497,13 @@ void javascript_commands(const char *cookie_cpwd)
          t = atoi(getparam("t"));
 
       show_text_header();
-      cm_msg_retrieve(facility, t, n, str, sizeof(str));
-      rsputs(str);
+      char* messages = NULL;
+      int num_messages = 0;
+      cm_msg_retrieve2(facility, t, n, &messages, &num_messages);
+      if (messages) {
+         rsputs(messages);
+         free(messages);
+      }
       return;
    }
 
