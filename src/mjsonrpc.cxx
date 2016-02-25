@@ -1310,6 +1310,49 @@ static MJsonNode* js_cm_msg1(const MJsonNode* params)
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
 
+static MJsonNode* js_cm_retrieve(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO *doc = MJSO::I();
+      doc->D("Retrieve midas messages using cm_msg_retrieve2()");
+      doc->P("facility?", MJSON_STRING, "message facility, default is \"midas\"");
+      doc->P("min_messages?", MJSON_INT, "get at least this many messages, default is 1");
+      doc->P("time?", MJSON_NUMBER, "start from given timestamp, value 0 means give me newest messages, default is 0");
+      doc->R("num_messages", MJSON_INT, "number of messages returned");
+      doc->R("messages", MJSON_STRING, "messages separated by \\n");
+      doc->R("status", MJSON_INT, "return status of cm_msg_retrieve2()");
+      return doc;
+   }
+
+   const char* facility = mjsonrpc_get_param(params, "facility", NULL)->GetString().c_str();
+   int min_messages = mjsonrpc_get_param(params, "min_messages", NULL)->GetInt();
+   double time = mjsonrpc_get_param(params, "time", NULL)->GetNumber();
+
+   if (strlen(facility) < 1)
+      facility = "midas";
+
+   if (min_messages < 1)
+      min_messages = 1;
+
+   int num_messages = 0;
+   char* messages = NULL;
+
+   int status = cm_msg_retrieve2(facility, time, min_messages, &messages, &num_messages);
+
+   MJsonNode* result = MJsonNode::MakeObject();
+
+   result->AddToObject("status", MJsonNode::MakeInt(status));
+   result->AddToObject("num_messages", MJsonNode::MakeInt(num_messages));
+
+   if (messages) {
+      result->AddToObject("messages", MJsonNode::MakeString(messages));
+      free(messages);
+      messages = NULL;
+   }
+
+   return mjsonrpc_make_result(result);
+}
+
 static MJsonNode* js_al_reset_alarm(const MJsonNode* params)
 {
    if (!params) {
@@ -1710,6 +1753,7 @@ void mjsonrpc_init()
    // interface to midas.c functions
    mjsonrpc_add_handler("cm_exist",    js_cm_exist);
    mjsonrpc_add_handler("cm_msg_facilities", js_cm_msg_facilities);
+   mjsonrpc_add_handler("cm_msg_retrieve",   js_cm_retrieve);
    mjsonrpc_add_handler("cm_msg1",     js_cm_msg1);
    mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
    // interface to odb functions

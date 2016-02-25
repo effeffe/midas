@@ -43,6 +43,8 @@ test db_link
 test db_reorder
 mjsonrpc_db_delete(paths); 
 mjsonrpc_cm_msg(message);
+test cm_msg_facilities();
+test cm_msg_retrieve(facility, time, min_messages);
 test cm_exist()
 test cm_shutdown()
 test start_program()
@@ -50,7 +52,6 @@ test al_trigger_alarm()
 test al_reset_alarm()  
 test get_alarms()
 test jrpc()
-ODBGetMsg(n);
 ODBEdit(path);
     </pre>
 
@@ -76,6 +77,7 @@ ODBMKey(paths, callback); ---- use mjsonrpc_db_key() instead
 ODBMDelete(paths, callback); ---- use mjsonrpc_db_delete() instead
 ODBRpc(name, command, args[, callback[, max_reply_length]]); ---- use RPC "jrpc"
 ODBGenerateMsg(m); ---- use mjsonrpc_cm_msg() instead
+ODBGetMsg(n); --- use RPC "cm_msg_retrieve"
 ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
     </pre>
 
@@ -334,6 +336,49 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
       </div>
       <div id="cm_msg_facilities_data">
         list of messages facilities goes here
+      </div>
+    </p>
+
+    <h2>cm_msg_retrieve</h2>
+    
+    <p>
+      <div>
+        <input type=button value='Get last midas message'
+          onClick='mjsonrpc_call("cm_msg_retrieve", { "min_messages": 1 })
+                   .then(function(rpc) {
+                   document.getElementById("cm_msg_retrieve_num_messages").innerHTML = JSON.stringify(rpc.result.num_messages);
+                   document.getElementById("cm_msg_retrieve_messages").innerHTML = JSON.stringify(rpc.result.messages);
+                   //mjsonrpc_debug_alert(rpc);
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+        <input type=button value='Get last 10 midas messages'
+          onClick='mjsonrpc_call("cm_msg_retrieve", { "min_messages": 10 })
+                   .then(function(rpc) {
+                   document.getElementById("cm_msg_retrieve_num_messages").innerHTML = JSON.stringify(rpc.result.num_messages);
+                   document.getElementById("cm_msg_retrieve_messages").innerHTML = JSON.stringify(rpc.result.messages);
+                   //mjsonrpc_debug_alert(rpc);
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+        <input type=button value='Get last chat message'
+          onClick='mjsonrpc_call("cm_msg_retrieve", { "facility": "chat", "min_messages": 1 })
+                   .then(function(rpc) {
+                   document.getElementById("cm_msg_retrieve_num_messages").innerHTML = JSON.stringify(rpc.result.num_messages);
+                   document.getElementById("cm_msg_retrieve_messages").innerHTML = JSON.stringify(rpc.result.messages);
+                   //mjsonrpc_debug_alert(rpc);
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+      </div>
+      <div id="cm_msg_retrieve_num_messages">
+        number of messages goes here
+      </div>
+      <div id="cm_msg_retrieve_messages">
+        list of messages goes here
       </div>
     </p>
 
