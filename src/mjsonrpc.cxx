@@ -1482,6 +1482,59 @@ static MJsonNode* jrpc(const MJsonNode* params)
    return mjsonrpc_make_result("reply", reply, "status", MJsonNode::MakeInt(SUCCESS));
 }
 
+static MJsonNode* js_cm_transition(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("start and stop runs");
+      doc->P("transition", MJSON_STRING, "requested transition: TR_START, TR_STOP, TR_PAUSE, TR_RESUME");
+      doc->P("run_number?", MJSON_INT, "New run number, value 0 means /runinfo/run_number + 1, default is 0");
+      doc->P("async_flag?", MJSON_INT, "Transition type. Default is multithreaded transition TR_MTHREAD");
+      doc->P("debug_flag?", MJSON_INT, "See cm_transition(), value 1: trace to stdout, value 2: trace to midas.log");
+      doc->R("status", MJSON_INT, "return status of cm_transition()");
+      doc->R("error_string?", MJSON_STRING, "return error string from cm_transition()");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   std::string xtransition = mjsonrpc_get_param(params, "transition", &error)->GetString(); if (error) return error;
+   int run_number = mjsonrpc_get_param(params, "run_number", NULL)->GetInt();
+   int async_flag = mjsonrpc_get_param(params, "async_flag", NULL)->GetInt();
+   int debug_flag = mjsonrpc_get_param(params, "debug_flag", NULL)->GetInt();
+
+   int status;
+
+   int transition = 0;
+
+   if (xtransition == "TR_START")
+      transition = TR_START;
+   else if (xtransition == "TR_STOP")
+      transition = TR_STOP;
+   else if (xtransition == "TR_PAUSE")
+      transition = TR_PAUSE;
+   else if (xtransition == "TR_RESUME")
+      transition = TR_RESUME;
+   else {
+      return mjsonrpc_make_error(15, "invalid value of \"transition\"", xtransition.c_str());
+   }
+
+   if (async_flag == 0)
+      async_flag = TR_MTHREAD;
+
+   char error_str[1024];
+   
+   status = cm_transition(transition, run_number, error_str, sizeof(error_str), async_flag, debug_flag);
+
+   MJsonNode* result = MJsonNode::MakeObject();
+
+   result->AddToObject("status", MJsonNode::MakeInt(status));
+   if (strlen(error_str) > 0) {
+      result->AddToObject("error_string", MJsonNode::MakeString(error_str));
+   }
+   return mjsonrpc_make_result(result);
+}
+
 static MJsonNode* get_alarms(const MJsonNode* params)
 {
    if (!params) {
@@ -1756,6 +1809,7 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("cm_msg_retrieve",   js_cm_retrieve);
    mjsonrpc_add_handler("cm_msg1",     js_cm_msg1);
    mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
+   mjsonrpc_add_handler("cm_transition", js_cm_transition);
    // interface to odb functions
    mjsonrpc_add_handler("db_copy",     js_db_copy);
    mjsonrpc_add_handler("db_paste",    js_db_paste);

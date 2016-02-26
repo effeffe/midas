@@ -410,6 +410,19 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
 
     <hr>
 
+    <h2>Run control</h2>
+
+    <p>Observe the effect of these functions on the MIDAS Status page and Messages page.</p>
+
+    <h2>test cm_transition()</h2>
+
+    <p>
+      <input type=button value='Start a new run' onClick='mjsonrpc_call("cm_transition", { "transition":"TR_START", "debug_flag":2 }).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+      <input type=button value='Stop the run' onClick='mjsonrpc_call("cm_transition", { "transition":"TR_STOP", "debug_flag":2 }).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+    </p>
+
+    <hr>
+
     <h2>Alarm functions</h2>
 
     <p>Observe the effect of these functions on the MIDAS Alarms page and Status page.</p>
