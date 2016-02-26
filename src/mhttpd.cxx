@@ -1,3 +1,4 @@
+
 /********************************************************************\
 
   Name:         mhttpd.cxx
@@ -287,6 +288,30 @@ char *stristr(const char *str, const char *pattern)
 
    return NULL;
 }
+
+/*------------------------------------------------------------------*/
+
+class auto_string
+{
+private:
+   char* ptr;
+
+public:
+   auto_string(int size) // ctor
+   {
+      ptr = (char*)malloc(size);
+   }
+
+   ~auto_string() // dtor
+   {
+      if (ptr)
+         free(ptr);
+      ptr = NULL;
+   }
+
+   char* str() { return ptr; };
+   char* c_str() { return ptr; };
+};
 
 /*------------------------------------------------------------------*/
 
@@ -1211,7 +1236,7 @@ void show_error(const char *error)
 
 /*------------------------------------------------------------------*/
 
-void exec_script(HNDLE hkey)
+int exec_script(HNDLE hkey)
 /********************************************************************\
 
   Routine: exec_script
@@ -1240,44 +1265,70 @@ void exec_script(HNDLE hkey)
 
 \********************************************************************/
 {
-   INT i, size;
+   HNDLE hDB;
    KEY key;
-   HNDLE hDB, hsubkey;
-   char command[256];
-   char data[1000], str[256];
+   std::string command;
 
    cm_get_experiment_database(&hDB, NULL);
    db_get_key(hDB, hkey, &key);
-   command[0] = 0;
 
    if (key.type == TID_STRING) {
-      size = sizeof(command);
-      db_get_data(hDB, hkey, command, &size, TID_STRING);
-   } else
-      for (i = 0;; i++) {
+      int size = key.item_size;
+      auto_string data(size);
+      int status = db_get_data(hDB, hkey, data.str(), &size, TID_STRING);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "exec_script", "key \"%s\" of type TID_STRING, db_get_data() error %d", key.name, status);
+         return status;
+      }
+      command = data.c_str();
+   } else if (key.type == TID_KEY) {
+      for (int i = 0;; i++) {
+         HNDLE hsubkey;
+         KEY subkey;
          db_enum_key(hDB, hkey, i, &hsubkey);
          if (!hsubkey)
             break;
-         db_get_key(hDB, hsubkey, &key);
+         db_get_key(hDB, hsubkey, &subkey);
 
-         if (key.type != TID_KEY) {
-            size = sizeof(data);
-            db_get_data(hDB, hsubkey, data, &size, key.type);
-            db_sprintf(str, data, key.item_size, 0, key.type);
+         if (i > 0)
+            command += " ";
 
-            if (i > 0)
-               strlcat(command, " ", sizeof(command));
-
-            strlcat(command, str, sizeof(command));
+         if (subkey.type == TID_KEY) {
+            cm_msg(MERROR, "exec_script", "key \"%s/%s\" should not be TID_KEY", key.name, subkey.name);
+            return DB_TYPE_MISMATCH;
+         } else if (subkey.type == TID_STRING) {
+            int size = subkey.item_size;
+            auto_string data(size);
+            int status = db_get_data(hDB, hsubkey, data.str(), &size, TID_STRING);
+            if (status != DB_SUCCESS) {
+               cm_msg(MERROR, "exec_script", "key \"%s/%s\" of type TID_STRING, db_get_data() error %d", key.name, subkey.name, status);
+               return status;
+            }
+            command += data.c_str();
+         } else {
+            char str[256];
+            int size = subkey.item_size;
+            auto_string data(size);
+            int status = db_get_data(hDB, hsubkey, data.str(), &size, subkey.type);
+            if (status != DB_SUCCESS) {
+               cm_msg(MERROR, "exec_script", "key \"%s/%s\" of type %d, db_get_data() error %d", key.name, subkey.name, subkey.type, status);
+               return status;
+            }
+            db_sprintf(str, data.c_str(), subkey.item_size, 0, subkey.type);
+            command += str;
          }
       }
+   } else {
+      cm_msg(MERROR, "exec_script", "key \"%s\" has invalid type %d, should be TID_STRING or TID_KEY", key.name, key.type);
+      return DB_TYPE_MISMATCH;
+   }
 
-   /* printf("exec_script: %s\n", command); */
+   // printf("exec_script: %s\n", command.c_str());
 
-   if (command[0])
-      ss_system(command);
+   if (command.length() > 0)
+      ss_system(command.c_str());
 
-   return;
+   return SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
