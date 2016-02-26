@@ -3494,6 +3494,140 @@ int tr_thread(void *param)
 
 /*------------------------------------------------------------------*/
 
+static int tr_previous_transition_n = 0;
+static TR_CLIENT* tr_previous_transition = NULL;
+
+static int tr_current_transition_n = 0;
+static TR_CLIENT* tr_current_transition = NULL;
+
+static void json_write(char **buffer, int* buffer_size, int* buffer_end, int level, const char* s, int quoted)
+{
+   int len, remain, xlevel;
+
+   len = strlen(s);
+   remain = *buffer_size - *buffer_end;
+   assert(remain >= 0);
+
+   xlevel = 2*level;
+
+   while (10 + xlevel + 3*len > remain) {
+      // reallocate the buffer
+      int new_buffer_size = 2*(*buffer_size);
+      if (new_buffer_size < 4*1024)
+         new_buffer_size = 4*1024;
+      //printf("reallocate: len %d, size %d, remain %d, allocate %d\n", len, *buffer_size, remain, new_buffer_size);
+      *buffer = (char *)realloc(*buffer, new_buffer_size);
+      assert(*buffer);
+      *buffer_size = new_buffer_size;
+      remain = *buffer_size - *buffer_end;
+      assert(remain >= 0);
+   }
+
+   if (xlevel) {
+      int i;
+      for (i=0; i<xlevel; i++)
+         (*buffer)[(*buffer_end)++] = ' ';
+   }
+
+   if (!quoted) {
+      memcpy(*buffer + *buffer_end, s, len);
+      *buffer_end += len;
+      (*buffer)[*buffer_end] = 0; // NUL-terminate the buffer
+      return;
+   }
+
+   (*buffer)[(*buffer_end)++] = '"';
+
+   while (*s) {
+      switch (*s) {
+      case '\"':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = '\"';
+         s++;
+         break;
+      case '\\':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = '\\';
+         s++;
+         break;
+#if 0
+      case '/':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = '/';
+         s++;
+         break;
+#endif
+      case '\b':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 'b';
+         s++;
+         break;
+      case '\f':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 'f';
+         s++;
+         break;
+      case '\n':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 'n';
+         s++;
+         break;
+      case '\r':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 'r';
+         s++;
+         break;
+      case '\t':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 't';
+         s++;
+         break;
+      default:
+         (*buffer)[(*buffer_end)++] = *s++;
+      }
+   }
+
+   (*buffer)[(*buffer_end)++] = '"';
+   (*buffer)[*buffer_end] = 0; // NUL-terminate the buffer
+
+   remain = *buffer_size - *buffer_end;
+   assert(remain > 0);
+}
+
+int cm_transition_status_json(char** json_status)
+{
+   char* buf = NULL;
+   int bufs = 0;
+   int bufe = 0;
+
+   int n = tr_current_transition_n;
+   const TR_CLIENT* t = tr_current_transition;
+   int i;
+
+   json_write(&buf, &bufs, &bufe, 0, "{", 0);
+   json_write(&buf, &bufs, &bufe, 0, "clients", 1);
+   json_write(&buf, &bufs, &bufe, 0, ": [", 0);
+
+   for (i=0; i<n; i++) {
+      if (i>0)
+         json_write(&buf, &bufs, &bufe, 1, ",", 0);
+
+      json_write(&buf, &bufs, &bufe, 1, "{", 0);
+      json_write(&buf, &bufs, &bufe, 1, "name", 1);
+      json_write(&buf, &bufs, &bufe, 1, ":", 0);
+      json_write(&buf, &bufs, &bufe, 1, t[i].client_name, 1);
+      json_write(&buf, &bufs, &bufe, 1, "}", 0);
+   }
+   
+   json_write(&buf, &bufs, &bufe, 0, "]", 0);
+   json_write(&buf, &bufs, &bufe, 0, "}", 0);
+
+   *json_status = buf;
+   return CM_SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
+
 /* Perform a detached transition through teh externam "mtransition" program */
 int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag)
 {
@@ -4253,6 +4387,28 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       }
    }
 
+   /* construction of tr_client is complete, export it to outside watchers */
+   if (tr_previous_transition) {
+      int n = tr_previous_transition_n;
+      TR_CLIENT*t = tr_previous_transition;
+
+      for (i=0 ; i<n ; i++)
+         if (t[i].pred)
+            free(t[i].pred);
+
+      free(tr_previous_transition);
+      tr_previous_transition = NULL;
+      tr_previous_transition_n = 0;
+   }
+
+   if (tr_current_transition) {
+      tr_previous_transition_n = tr_current_transition_n;
+      tr_previous_transition = tr_current_transition;
+   }
+
+   tr_current_transition_n = n_tr_clients;
+   tr_current_transition = tr_client;
+
    /* contact ordered clients for transition -----------------------*/
    status = CM_SUCCESS;
    for (idx = 0; idx < n_tr_clients; idx++) {
@@ -4314,16 +4470,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       i = 0;
       db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
 
-      free(tr_client);
       return status;
-   }
-
-   if (tr_client) {
-      for (i=0 ; i<n_tr_clients ; i++)
-         if (tr_client[i].pred)
-            free(tr_client[i].pred);
-      free(tr_client);
-      tr_client = NULL;
    }
 
    if (debug_flag == 1)

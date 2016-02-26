@@ -421,6 +421,12 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
       <input type=button value='Stop the run' onClick='mjsonrpc_call("cm_transition", { "transition":"TR_STOP", "debug_flag":2 }).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
     </p>
 
+    <h2>test cm_transition_status()</h2>
+
+    <p>
+      <input type=button value='get transition status' onClick='mjsonrpc_call("cm_transition_status").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+    </p>
+
     <hr>
 
     <h2>Alarm functions</h2>

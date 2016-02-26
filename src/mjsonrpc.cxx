@@ -1535,6 +1535,30 @@ static MJsonNode* js_cm_transition(const MJsonNode* params)
    return mjsonrpc_make_result(result);
 }
 
+static MJsonNode* js_cm_transition_status(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("start and stop runs");
+      doc->P("transition", MJSON_STRING, "requested transition: TR_START, TR_STOP, TR_PAUSE, TR_RESUME");
+      doc->P("run_number?", MJSON_INT, "New run number, value 0 means /runinfo/run_number + 1, default is 0");
+      doc->P("async_flag?", MJSON_INT, "Transition type. Default is multithreaded transition TR_MTHREAD");
+      doc->P("debug_flag?", MJSON_INT, "See cm_transition(), value 1: trace to stdout, value 2: trace to midas.log");
+      doc->R("status", MJSON_INT, "return status of cm_transition()");
+      doc->R("error_string?", MJSON_STRING, "return error string from cm_transition()");
+      return doc;
+   }
+
+   char* data = NULL;
+   int status = cm_transition_status_json(&data);
+
+   MJsonNode* result = MJsonNode::MakeJSON(data);
+
+   free(data);
+
+   return mjsonrpc_make_result(result);
+}
+
 static MJsonNode* get_alarms(const MJsonNode* params)
 {
    if (!params) {
@@ -1810,6 +1834,7 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("cm_msg1",     js_cm_msg1);
    mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
    mjsonrpc_add_handler("cm_transition", js_cm_transition);
+   mjsonrpc_add_handler("cm_transition_status", js_cm_transition_status);
    // interface to odb functions
    mjsonrpc_add_handler("db_copy",     js_db_copy);
    mjsonrpc_add_handler("db_paste",    js_db_paste);
