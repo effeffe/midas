@@ -38,7 +38,7 @@ INT EXPRT cm_msg_facilities(STRING_LIST *list)
    
    int n = ss_file_find(path, "*.log", &flist);
 
-   for (unsigned i=0 ; i<n ; i++) {
+   for (int i=0 ; i<n ; i++) {
       char* p = flist+i*MAX_STRING_LENGTH;
       if (strchr(p, '_') == NULL && !(p[0] >= '0' && p[0] <= '9')) {
          char *s = strchr(p, '.');
