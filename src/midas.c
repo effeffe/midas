@@ -3494,11 +3494,21 @@ int tr_thread(void *param)
 
 /*------------------------------------------------------------------*/
 
-static int tr_previous_transition_n = 0;
-static TR_CLIENT* tr_previous_transition = NULL;
+typedef struct {
+   int   transition;
+   int   run_number;
+   int   async_flag;
+   int   debug_flag;
+   int   status;
+   char  errorstr[256];
+   int   num_clients;
+   TR_CLIENT* clients;
+} TR_STATE;
 
-static int tr_current_transition_n = 0;
-static TR_CLIENT* tr_current_transition = NULL;
+static TR_STATE* tr_previous_transition = NULL;
+static TR_STATE* tr_current_transition = NULL;
+
+/*------------------------------------------------------------------*/
 
 static void json_write(char **buffer, int* buffer_size, int* buffer_end, int level, const char* s, int quoted)
 {
@@ -3594,35 +3604,122 @@ static void json_write(char **buffer, int* buffer_size, int* buffer_end, int lev
    assert(remain > 0);
 }
 
+static void json_write_kvp_s(char **buf, int* bufs, int* bufe, int level, const char* key, const char* value)
+{
+   json_write(buf, bufs, bufe, level, key, 1);
+   json_write(buf, bufs, bufe, 0, ":", 0);
+   json_write(buf, bufs, bufe, 0, value, 1);
+}
+
+static void json_write_kvp_i(char **buf, int* bufs, int* bufe, int level, const char* key, int value)
+{
+   char str[256];
+   sprintf(str, "%d", value);
+   json_write(buf, bufs, bufe, level, key, 1);
+   json_write(buf, bufs, bufe, 0, ":", 0);
+   json_write(buf, bufs, bufe, 0, str, 0);
+}
+
 int cm_transition_status_json(char** json_status)
 {
    char* buf = NULL;
    int bufs = 0;
    int bufe = 0;
 
-   int n = tr_current_transition_n;
-   const TR_CLIENT* t = tr_current_transition;
-   int i;
+   int level = 0;
 
-   json_write(&buf, &bufs, &bufe, 0, "{", 0);
-   json_write(&buf, &bufs, &bufe, 0, "clients", 1);
-   json_write(&buf, &bufs, &bufe, 0, ": [", 0);
+   const TR_STATE *s = tr_current_transition;
 
-   for (i=0; i<n; i++) {
-      if (i>0)
-         json_write(&buf, &bufs, &bufe, 1, ",", 0);
-
-      json_write(&buf, &bufs, &bufe, 1, "{", 0);
-      json_write(&buf, &bufs, &bufe, 1, "name", 1);
-      json_write(&buf, &bufs, &bufe, 1, ":", 0);
-      json_write(&buf, &bufs, &bufe, 1, t[i].client_name, 1);
-      json_write(&buf, &bufs, &bufe, 1, "}", 0);
+   if (s && s->transition == TR_STARTABORT) {
+      s = tr_previous_transition;
    }
-   
-   json_write(&buf, &bufs, &bufe, 0, "]", 0);
-   json_write(&buf, &bufs, &bufe, 0, "}", 0);
 
+   if (!s) {
+      json_write(&buf, &bufs, &bufe, level, "{", 0);
+      json_write(&buf, &bufs, &bufe, level, "}", 0);
+   } else {
+      int n = s->num_clients;
+      const TR_CLIENT* t = s->clients;
+      int i;
+
+      json_write(&buf, &bufs, &bufe, level, "{", 0);
+
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "transition", s->transition);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "run_number", s->run_number);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "async_flag", s->async_flag);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "debug_flag", s->debug_flag);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "status",     s->status);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_s(&buf, &bufs, &bufe, level, "errorstr",   s->errorstr);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      
+      json_write(&buf, &bufs, &bufe, level, "clients", 1);
+      json_write(&buf, &bufs, &bufe, 0, ": [", 0);
+      
+      for (i=0; i<n; i++) {
+         if (i>0)
+            json_write(&buf, &bufs, &bufe, level, ",", 0);
+         
+         json_write(&buf, &bufs, &bufe, level, "{", 0);
+         
+         json_write_kvp_s(&buf, &bufs, &bufe, level, "name", t[i].client_name);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "sequence_number", t[i].sequence_number);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "transition", t[i].transition);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "run_number", t[i].run_number);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "async_flag", t[i].async_flag);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "debug_flag", t[i].debug_flag);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_s(&buf, &bufs, &bufe, level, "host_name",  t[i].host_name);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "port",       t[i].port);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_s(&buf, &bufs, &bufe, level, "key_name",   t[i].key_name);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+
+         if (t[i].n_pred > 0) {
+            int j;
+            PTR_CLIENT* p = t[i].pred;
+
+            json_write(&buf, &bufs, &bufe, level, "wait_for_clients", 1);
+            json_write(&buf, &bufs, &bufe, 0, ": [", 0);
+            
+            for (j=0; j<t[i].n_pred; j++) {
+               if (j>0)
+                  json_write(&buf, &bufs, &bufe, 0, ",", 0);
+               json_write(&buf, &bufs, &bufe, level, "{", 0);
+               json_write_kvp_s(&buf, &bufs, &bufe, level, "name", p[j]->client_name);
+               json_write(&buf, &bufs, &bufe, 0, ",", 0);
+               json_write_kvp_i(&buf, &bufs, &bufe, level, "sequence_number", p[j]->sequence_number);
+               json_write(&buf, &bufs, &bufe, 0, ",", 0);
+               json_write_kvp_i(&buf, &bufs, &bufe, level, "status", p[j]->status);
+               json_write(&buf, &bufs, &bufe, level, "}", 0);
+            }
+            json_write(&buf, &bufs, &bufe, 0, "]", 0);
+            json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         }
+         
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "status",     t[i].status);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_s(&buf, &bufs, &bufe, level, "errorstr",   t[i].errorstr);
+         
+         json_write(&buf, &bufs, &bufe, level, "}", 0);
+      }
+      
+      json_write(&buf, &bufs, &bufe, 0, "]", 0);
+      json_write(&buf, &bufs, &bufe, 0, "}", 0);
+   }
+      
    *json_status = buf;
+
    return CM_SUCCESS;
 }
 
@@ -4388,26 +4485,44 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    }
 
    /* construction of tr_client is complete, export it to outside watchers */
+
+   /* delete previous transition state */
+
    if (tr_previous_transition) {
-      int n = tr_previous_transition_n;
-      TR_CLIENT*t = tr_previous_transition;
+      TR_STATE *s = tr_previous_transition;
+      int n = s->num_clients;
+      TR_CLIENT*t = s->clients;
 
       for (i=0 ; i<n ; i++)
          if (t[i].pred)
             free(t[i].pred);
 
-      free(tr_previous_transition);
+      free(s->clients);
+      s->clients = NULL;
+      free(s);
       tr_previous_transition = NULL;
-      tr_previous_transition_n = 0;
    }
 
    if (tr_current_transition) {
-      tr_previous_transition_n = tr_current_transition_n;
       tr_previous_transition = tr_current_transition;
    }
+   
+   /* construct new transition state */
 
-   tr_current_transition_n = n_tr_clients;
-   tr_current_transition = tr_client;
+   if (1) {
+      TR_STATE *s = calloc(1, sizeof(TR_STATE));
+
+      s->transition = transition;
+      s->run_number = run_number;
+      s->async_flag = async_flag;
+      s->debug_flag = debug_flag;
+      s->status     = 0;
+      s->errorstr[0] = 0;
+      s->num_clients = n_tr_clients;
+      s->clients = tr_client;
+
+      tr_current_transition = s;
+   }
 
    /* contact ordered clients for transition -----------------------*/
    status = CM_SUCCESS;
@@ -4460,6 +4575,9 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
          status = tr_client[idx].status;
          if (errstr)
             strlcpy(errstr, tr_client[idx].errorstr, errstr_size);
+         strlcpy(tr_current_transition->errorstr, "Aborted by client \"", sizeof(tr_current_transition->errorstr));
+         strlcat(tr_current_transition->errorstr, tr_client[idx].client_name, sizeof(tr_current_transition->errorstr));
+         strlcat(tr_current_transition->errorstr, "\"", sizeof(tr_current_transition->errorstr));
          break;
       }
 
@@ -4469,6 +4587,8 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       db_set_value(hDB, 0, "/Runinfo/Start abort", &i, sizeof(INT), 1, TID_INT);
       i = 0;
       db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
+
+      tr_current_transition->status = status;
 
       return status;
    }
@@ -4566,6 +4686,9 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
    if (errstr != NULL)
       strlcpy(errstr, "Success", errstr_size);
+
+   tr_current_transition->status = CM_SUCCESS;
+   strlcpy(tr_current_transition->errorstr, "Success", sizeof(tr_current_transition->errorstr));
 
    return CM_SUCCESS;
 }
