@@ -1550,7 +1550,7 @@ static MJsonNode* js_cm_transition_status(const MJsonNode* params)
    }
 
    char* data = NULL;
-   int status = cm_transition_status_json(&data);
+   cm_transition_status_json(&data);
 
    MJsonNode* result = MJsonNode::MakeJSON(data);
 
