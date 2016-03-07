@@ -205,13 +205,19 @@ mjsonrpc_db_paste(paths, values);
 mjsonrpc_db_ls(paths); 
 mjsonrpc_db_create(specs);
 mjsonrpc_db_resize(paths, new_lengths);
-mjsonrpc_db_key(paths); 
+mjsonrpc_db_key(paths);
+test db_rename
+test db_link
+test db_reorder
 mjsonrpc_db_delete(paths); 
 mjsonrpc_cm_msg(message);
 test cm_exist()
 test cm_shutdown()
 test start_program()
-test al_reset_alarm()
+test al_trigger_alarm()  
+test al_reset_alarm()  
+test get_alarms() 
+test jrpc() 
 --- ODBSet(path, value, pwdname); ---- use mjsonrpc_db_paste() instead
 --- ODBGet(path, format, defval, len, type); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
 --- ODBMGet(paths, callback, formats); ---- use ODBMCopy() instead ---- use mjsonrpc_db_get_values() instead
@@ -224,15 +230,15 @@ test al_reset_alarm()
 --- ODBMCreate(paths, types); ---- use mjsonrpc_db_create() instead
 --- ODBMCreate(paths, types, arraylengths, stringlengths, callback); ---- use mjsonrpc_db_create() instead
 --- ODBMResize(paths, arraylengths, stringlengths, callback); ---- use mjsonrpc_db_resize() instead
-ODBMRename(paths, names, callback);  
-ODBMLink(paths, links, callback);  
-ODBMReorder(paths, indices, callback);
+--- ODBMRename(paths, names, callback);  ---- use RPC "db_rename"
+--- ODBMLink(paths, links, callback);  ---- use RPC "db_link"
+--- ODBMReorder(paths, indices, callback); ---- use RPC "db_reorder"
 --- ODBMKey(paths, callback); ---- use mjsonrpc_db_key() instead
 --- ODBMDelete(paths, callback); ---- use mjsonrpc_db_delete() instead
-ODBRpc(name, command, args[, callback[, max_reply_length]]); 
+--- ODBRpc(name, command, args[, callback[, max_reply_length]]); ---- use RPC "jrpc"
 ODBGetMsg(n);
 --- ODBGenerateMsg(m); ---- use mjsonrpc_cm_msg() instead
-ODBGetAlarms();
+--- ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
 ODBEdit(path);
 </pre>
 
@@ -450,17 +456,46 @@ ODBEdit(path);
         </ul>
 
       <li>
+        <h2>mjsonrpc_db_rename()</h2>
+
+        <p>
+          <input type=button value='Rename int to intint' onClick='mjsonrpc_call("db_rename", { "paths":["/test_create/int"], "new_names":["intint"] }).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='Rename intint back to int' onClick='mjsonrpc_call("db_rename", { "paths":["/test_create/intint"], "new_names":["int"] }).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        </p>
+
+      <li>
+        <h2>mjsonrpc_db_link()</h2>
+
+        <p>
+          <input type=button value='Symlink int to intlink' onClick='mjsonrpc_call("db_link", { "new_links":["/test_create/intlink"], "target_paths":["/test_create/int"]}).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        </p>
+
+      <li>
+        <h2>mjsonrpc_db_reorder()</h2>
+
+        <p>
+          <input type=button value='Move int to top' onClick='mjsonrpc_call("db_reorder", { "paths":["/test_create/int"], "indices":[0]}).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='Move int to bottom' onClick='mjsonrpc_call("db_reorder", { "paths":["/test_create/int"], "indices":[-1]}).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        </p>
+
+      <li>
         <h2>mjsonrpc_db_delete()</h2>
 
         <p>
           <input type=button value='Push me'
           onClick='var paths = [
           "/test_create/int",
+          "/test_create/intint",
+          "/test_create/intlink",
           "/test_create/string1",
+          "/test_create/string2",
           "/test_create/double_array",
           "/no-exist"
 	  ];
           mjsonrpc_db_delete(paths).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        </p>
+        <p>
+          <input type=button value='Delete /test_create' onClick='var paths = mjsonrpc_db_delete(["/test_create"]).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
         </p>
 
       <li>
@@ -957,6 +992,20 @@ ODBEdit(path);
         </ul>
 
       <li>
+        <h2>mjsonrpc_jrpc()</h2>
+
+        <p>
+          <input type=button value='Push me'
+          onClick='mjsonrpc_call("jrpc", { "client_name":"fetest",
+          "cmd":"xxx", "args":"xxx" }).then(function(rpc){document.getElementById("jrpc_data").innerHTML =
+          JSON.stringify(rpc.result, null, "	");}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+	(note: frontend "fetest" should be running)
+        </p>
+        <ul>
+          <li>JRPC: <tt id='jrpc_data'></tt>
+        </ul>
+
+      <li>
         <h2>mjsonrpc_get_schema()</h2>
 
         <p>
@@ -979,6 +1028,6 @@ ODBEdit(path);
     <hr>
     <address><a href="mailto:xxx@xxx">MIDAS Example</a></address>
 <!-- Created: Tue Sep 21 15:44:39 PDT 2010 -->
-<!-- hhmts start -->Last modified: Wed Jan 27 11:49:59 PST 2016 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Wed Jan 27 18:04:43 PST 2016 <!-- hhmts end -->
   </body>
 </html>

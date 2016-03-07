@@ -222,6 +222,12 @@ typedef INT MUTEX_T;
 #endif
 #endif
 
+#ifdef __cplusplus
+#include <vector>
+#include <string>
+typedef std::vector<std::string> STRING_LIST;
+#endif
+
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
@@ -552,6 +558,7 @@ System message types */
 #define CM_TIMEOUT                  112 /**< - */
 #define CM_INVALID_TRANSITION       113 /**< - */
 #define CM_TOO_MANY_REQUESTS        114 /**< - */
+#define CM_TRUNCATED                115 /**< - */
 /**dox***************************************************************/
           /** @} *//* end of err21 */
 
@@ -1670,6 +1677,7 @@ extern "C" {
    INT EXPRT cm_check_deferred_transition(void);
    INT EXPRT cm_transition(INT transition, INT run_number, char *error,
                            INT strsize, INT async_flag, INT debug_flag);
+   INT EXPRT cm_transition_status_json(char** json_status);
    INT EXPRT cm_register_server(void);
    INT EXPRT cm_register_function(INT id, INT(*func) (INT, void **));
    INT EXPRT cm_connect_client(const char *client_name, HNDLE * hConn);
@@ -1706,8 +1714,11 @@ extern "C" {
    INT EXPRT cm_msg_flush_buffer();
    INT EXPRT cm_msg_register(void (*func)
                               (HNDLE, HNDLE, EVENT_HEADER *, void *));
-   INT EXPRT cm_msg_retrieve(const char *facility, time_t t, INT n_message, char *message, INT buf_size);
-   INT EXPRT cm_msg_facilities(char **plist);
+   INT EXPRT cm_msg_retrieve(INT n_message, char *message, INT buf_size);
+   INT EXPRT cm_msg_retrieve2(const char *facility, time_t t, int min_messages, char** messages, int* num_messages);
+#ifdef __cplusplus
+   INT EXPRT cm_msg_facilities(STRING_LIST *list);
+#endif
    INT EXPRT cm_msg_get_logfile(const char *facility, time_t t, char *filename, int fsize, char *linkname, int lsize);
 
    BOOL EXPRT equal_ustring(const char *str1, const char *str2);

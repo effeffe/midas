@@ -1056,8 +1056,16 @@ static MJsonNode* js_db_key(const MJsonNode* params)
       MJSO* doc = MJSO::I();
       doc->D("get ODB keys");
       doc->P("paths[]", MJSON_STRING, "array of ODB paths");
-      doc->R("keys[]", MJSON_OBJECT, "key data for each path");
       doc->R("status[]", MJSON_INT, "return status of db_key() for each path");
+      doc->R("keys[]", MJSON_OBJECT, "key data for each path");
+      doc->R("keys[].type", MJSON_INT, "key type TID_xxx");
+      doc->R("keys[].num_values", MJSON_INT, "array length, 1 for normal entries");
+      doc->R("keys[].name", MJSON_STRING, "key name");
+      doc->R("keys[].total_size", MJSON_INT, "data total size in bytes");
+      doc->R("keys[].item_size", MJSON_INT, "array element size, string length for TID_STRING");
+      doc->R("keys[].access_mode", MJSON_INT, "access mode bitmap of MODE_xxx");
+      doc->R("keys[].notify_count", MJSON_INT, "number of hotlinks attached to this key");
+      doc->R("keys[].last_written", MJSON_INT, "timestamp when data was last updated");
       return doc;
    }
 
@@ -1093,20 +1101,6 @@ static MJsonNode* js_db_key(const MJsonNode* params)
 
       MJsonNode* jkey = MJsonNode::MakeObject();
 
-      // typedef struct {
-      //    DWORD type;                        /**< TID_xxx type                      */
-      //    INT num_values;                    /**< number of values                  */
-      //    char name[NAME_LENGTH];            /**< name of variable                  */
-      //    INT data;                          /**< Address of variable (offset)      */
-      //    INT total_size;                    /**< Total size of data block          */
-      //    INT item_size;                     /**< Size of single data item          */
-      //    WORD access_mode;                  /**< Access mode                       */
-      //    WORD notify_count;                 /**< Notify counter                    */
-      //    INT next_key;                      /**< Address of next key               */
-      //    INT parent_keylist;                /**< keylist to which this key belongs */
-      //    INT last_written;                  /**< Time of last write action  */
-      // } KEY;
-
       jkey->AddToObject("type", MJsonNode::MakeInt(key.type));
       jkey->AddToObject("num_values", MJsonNode::MakeInt(key.num_values));
       jkey->AddToObject("name", MJsonNode::MakeString(key.name));
@@ -1121,6 +1115,167 @@ static MJsonNode* js_db_key(const MJsonNode* params)
    }
 
    return mjsonrpc_make_result("keys", kresult, "status", sresult);
+}
+
+static MJsonNode* js_db_rename(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("Change size of ODB arrays");
+      doc->P("paths[]", MJSON_STRING, "array of ODB paths to rename");
+      doc->P("new_names[]", MJSON_STRING, "array of new names for each ODB path");
+      doc->R("status[]", MJSON_INT, "return status of db_rename_key() for each path");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const MJsonNodeVector* paths = mjsonrpc_get_param_array(params, "paths",  &error); if (error) return error;
+   const MJsonNodeVector* names = mjsonrpc_get_param_array(params, "new_names", &error); if (error) return error;
+
+   if (paths->size() != names->size()) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "arrays \"paths\" and \"new_names\" should have the same length");
+   }
+
+   MJsonNode* sresult = MJsonNode::MakeArray();
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   for (unsigned i=0; i<paths->size(); i++) {
+      int status = 0;
+      HNDLE hkey;
+      std::string path = (*paths)[i]->GetString();
+
+      status = db_find_key(hDB, 0, path.c_str(), &hkey);
+      if (status != DB_SUCCESS) {
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+         continue;
+      }
+
+      std::string new_name = (*names)[i]->GetString();
+      if (new_name.length() < 1) {
+         sresult->AddToArray(MJsonNode::MakeInt(DB_INVALID_PARAM));
+         continue;
+      }
+
+      status = db_rename_key(hDB, hkey, new_name.c_str());
+
+      sresult->AddToArray(MJsonNode::MakeInt(status));
+   }
+
+   return mjsonrpc_make_result("status", sresult);
+}
+
+static MJsonNode* js_db_link(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("Create ODB symlinks");
+      doc->P("new_links[]", MJSON_STRING, "array of new symlinks to be created");
+      doc->P("target_paths[]", MJSON_STRING, "array of existing ODB paths for each link");
+      doc->R("status[]", MJSON_INT, "return status of db_create_link() for each path");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const MJsonNodeVector* target_paths = mjsonrpc_get_param_array(params, "target_paths",  &error); if (error) return error;
+   const MJsonNodeVector* new_links = mjsonrpc_get_param_array(params, "new_links", &error); if (error) return error;
+
+   if (target_paths->size() != new_links->size()) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "arrays \"target_paths\" and \"new_links\" should have the same length");
+   }
+
+   MJsonNode* sresult = MJsonNode::MakeArray();
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   for (unsigned i=0; i<new_links->size(); i++) {
+      int status = 0;
+      std::string target_path = (*target_paths)[i]->GetString();
+      std::string new_link = (*new_links)[i]->GetString();
+      if (new_link.length() < 1) {
+         sresult->AddToArray(MJsonNode::MakeInt(DB_INVALID_PARAM));
+         continue;
+      }
+
+      status = db_create_link(hDB, 0, new_link.c_str(), target_path.c_str());
+
+      sresult->AddToArray(MJsonNode::MakeInt(status));
+   }
+
+   return mjsonrpc_make_result("status", sresult);
+}
+
+static MJsonNode* js_db_reorder(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("Change order of ODB keys in a subdirectory");
+      doc->P("paths[]", MJSON_STRING, "array of new symlinks to be created");
+      doc->P("indices[]", MJSON_INT, "array of existing ODB paths for each link");
+      doc->R("status[]", MJSON_INT, "return status of db_reorder_key() for each path");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const MJsonNodeVector* paths = mjsonrpc_get_param_array(params, "paths",  &error); if (error) return error;
+   const MJsonNodeVector* indices = mjsonrpc_get_param_array(params, "indices", &error); if (error) return error;
+
+   if (paths->size() != indices->size()) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "arrays \"paths\" and \"indices\" should have the same length");
+   }
+
+   MJsonNode* sresult = MJsonNode::MakeArray();
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   for (unsigned i=0; i<paths->size(); i++) {
+      int status = 0;
+      HNDLE hkey;
+      std::string path = (*paths)[i]->GetString();
+      int index = (*indices)[i]->GetInt();
+
+      status = db_find_key(hDB, 0, path.c_str(), &hkey);
+      if (status != DB_SUCCESS) {
+         sresult->AddToArray(MJsonNode::MakeInt(status));
+         continue;
+      }
+
+      status = db_reorder_key(hDB, hkey, index);
+
+      sresult->AddToArray(MJsonNode::MakeInt(status));
+   }
+
+   return mjsonrpc_make_result("status", sresult);
+}
+
+static MJsonNode* js_cm_msg_facilities(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get message facilities using cm_msg_facilities()");
+      doc->R("status", MJSON_INT, "return status of cm_msg_facilities()");
+      doc->R("facilities[]", MJSON_STRING, "array of facility names");
+      return doc;
+   }
+
+   STRING_LIST list;
+   
+   int status = cm_msg_facilities(&list);
+
+   MJsonNode* facilities = MJsonNode::MakeArray();
+
+   for (unsigned i=0; i<list.size(); i++) {
+      facilities->AddToArray(MJsonNode::MakeString(list[i].c_str()));
+   }
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status),
+                               "facilities", facilities);
 }
 
 static MJsonNode* js_cm_msg1(const MJsonNode* params)
@@ -1153,6 +1308,49 @@ static MJsonNode* js_cm_msg1(const MJsonNode* params)
    int status = cm_msg1(type, __FILE__, __LINE__, facility, user, "%s", message);
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+}
+
+static MJsonNode* js_cm_retrieve(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO *doc = MJSO::I();
+      doc->D("Retrieve midas messages using cm_msg_retrieve2()");
+      doc->P("facility?", MJSON_STRING, "message facility, default is \"midas\"");
+      doc->P("min_messages?", MJSON_INT, "get at least this many messages, default is 1");
+      doc->P("time?", MJSON_NUMBER, "start from given timestamp, value 0 means give me newest messages, default is 0");
+      doc->R("num_messages", MJSON_INT, "number of messages returned");
+      doc->R("messages", MJSON_STRING, "messages separated by \\n");
+      doc->R("status", MJSON_INT, "return status of cm_msg_retrieve2()");
+      return doc;
+   }
+
+   const char* facility = mjsonrpc_get_param(params, "facility", NULL)->GetString().c_str();
+   int min_messages = mjsonrpc_get_param(params, "min_messages", NULL)->GetInt();
+   double time = mjsonrpc_get_param(params, "time", NULL)->GetNumber();
+
+   if (strlen(facility) < 1)
+      facility = "midas";
+
+   if (min_messages < 1)
+      min_messages = 1;
+
+   int num_messages = 0;
+   char* messages = NULL;
+
+   int status = cm_msg_retrieve2(facility, time, min_messages, &messages, &num_messages);
+
+   MJsonNode* result = MJsonNode::MakeObject();
+
+   result->AddToObject("status", MJsonNode::MakeInt(status));
+   result->AddToObject("num_messages", MJsonNode::MakeInt(num_messages));
+
+   if (messages) {
+      result->AddToObject("messages", MJsonNode::MakeString(messages));
+      free(messages);
+      messages = NULL;
+   }
+
+   return mjsonrpc_make_result(result);
 }
 
 static MJsonNode* js_al_reset_alarm(const MJsonNode* params)
@@ -1227,6 +1425,138 @@ static MJsonNode* js_al_trigger_class(const MJsonNode* params)
    int status = al_trigger_class(xclass, message, first);
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+}
+
+static MJsonNode* jrpc(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("make RPC call into frontend program via RPC_JRPC");
+      doc->P("client_name", MJSON_STRING, "Connect to this MIDAS client, see cm_connect_client()");
+      doc->P("cmd", MJSON_STRING, "Command passed to client");
+      doc->P("args", MJSON_STRING, "Parameters passed to client as a string, could be JSON encoded");
+      doc->P("max_reply_length?", MJSON_INT, "Optional maximum length of client reply. MIDAS RPC does not support returning strings of arbitrary length, maximum length has to be known ahead of time.");
+      doc->R("reply", MJSON_STRING, "Reply from client as a string, could be JSON encoded");
+      doc->R("status", MJSON_INT, "return status of cm_connect_client() and rpc_client_call()");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   std::string name   = mjsonrpc_get_param(params, "client_name", &error)->GetString(); if (error) return error;
+   std::string cmd    = mjsonrpc_get_param(params, "cmd", &error)->GetString(); if (error) return error;
+   std::string args   = mjsonrpc_get_param(params, "args", &error)->GetString(); if (error) return error;
+   int max_reply_length = mjsonrpc_get_param(params, "max_reply_length", NULL)->GetInt();
+
+   int status;
+
+   int buf_length = 1024;
+
+   if (max_reply_length > buf_length)
+      buf_length = max_reply_length;
+
+   char* buf = (char*)malloc(buf_length);
+   buf[0] = 0;
+
+   HNDLE hconn;
+
+   status = cm_connect_client(name.c_str(), &hconn);
+
+   if (status != RPC_SUCCESS) {
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+   }
+
+   status = rpc_client_call(hconn, RPC_JRPC, cmd.c_str(), args.c_str(), buf, buf_length);
+
+   if (status != RPC_SUCCESS) {
+      free(buf);
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+   }
+
+   MJsonNode* reply = MJsonNode::MakeString(buf);
+   free(buf);
+
+   // return status ignored on purpose.
+   status = cm_disconnect_client(hconn, FALSE);
+   
+   return mjsonrpc_make_result("reply", reply, "status", MJsonNode::MakeInt(SUCCESS));
+}
+
+static MJsonNode* js_cm_transition(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("start and stop runs");
+      doc->P("transition", MJSON_STRING, "requested transition: TR_START, TR_STOP, TR_PAUSE, TR_RESUME");
+      doc->P("run_number?", MJSON_INT, "New run number, value 0 means /runinfo/run_number + 1, default is 0");
+      doc->P("async_flag?", MJSON_INT, "Transition type. Default is multithreaded transition TR_MTHREAD");
+      doc->P("debug_flag?", MJSON_INT, "See cm_transition(), value 1: trace to stdout, value 2: trace to midas.log");
+      doc->R("status", MJSON_INT, "return status of cm_transition()");
+      doc->R("error_string?", MJSON_STRING, "return error string from cm_transition()");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   std::string xtransition = mjsonrpc_get_param(params, "transition", &error)->GetString(); if (error) return error;
+   int run_number = mjsonrpc_get_param(params, "run_number", NULL)->GetInt();
+   int async_flag = mjsonrpc_get_param(params, "async_flag", NULL)->GetInt();
+   int debug_flag = mjsonrpc_get_param(params, "debug_flag", NULL)->GetInt();
+
+   int status;
+
+   int transition = 0;
+
+   if (xtransition == "TR_START")
+      transition = TR_START;
+   else if (xtransition == "TR_STOP")
+      transition = TR_STOP;
+   else if (xtransition == "TR_PAUSE")
+      transition = TR_PAUSE;
+   else if (xtransition == "TR_RESUME")
+      transition = TR_RESUME;
+   else {
+      return mjsonrpc_make_error(15, "invalid value of \"transition\"", xtransition.c_str());
+   }
+
+   if (async_flag == 0)
+      async_flag = TR_MTHREAD;
+
+   char error_str[1024];
+   
+   status = cm_transition(transition, run_number, error_str, sizeof(error_str), async_flag, debug_flag);
+
+   MJsonNode* result = MJsonNode::MakeObject();
+
+   result->AddToObject("status", MJsonNode::MakeInt(status));
+   if (strlen(error_str) > 0) {
+      result->AddToObject("error_string", MJsonNode::MakeString(error_str));
+   }
+   return mjsonrpc_make_result(result);
+}
+
+static MJsonNode* js_cm_transition_status(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("start and stop runs");
+      doc->P("transition", MJSON_STRING, "requested transition: TR_START, TR_STOP, TR_PAUSE, TR_RESUME");
+      doc->P("run_number?", MJSON_INT, "New run number, value 0 means /runinfo/run_number + 1, default is 0");
+      doc->P("async_flag?", MJSON_INT, "Transition type. Default is multithreaded transition TR_MTHREAD");
+      doc->P("debug_flag?", MJSON_INT, "See cm_transition(), value 1: trace to stdout, value 2: trace to midas.log");
+      doc->R("status", MJSON_INT, "return status of cm_transition()");
+      doc->R("error_string?", MJSON_STRING, "return error string from cm_transition()");
+      return doc;
+   }
+
+   char* data = NULL;
+   cm_transition_status_json(&data);
+
+   MJsonNode* result = MJsonNode::MakeJSON(data);
+
+   free(data);
+
+   return mjsonrpc_make_result(result);
 }
 
 static MJsonNode* get_alarms(const MJsonNode* params)
@@ -1499,8 +1829,12 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("al_trigger_class",  js_al_trigger_class);
    // interface to midas.c functions
    mjsonrpc_add_handler("cm_exist",    js_cm_exist);
+   mjsonrpc_add_handler("cm_msg_facilities", js_cm_msg_facilities);
+   mjsonrpc_add_handler("cm_msg_retrieve",   js_cm_retrieve);
    mjsonrpc_add_handler("cm_msg1",     js_cm_msg1);
    mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
+   mjsonrpc_add_handler("cm_transition", js_cm_transition);
+   mjsonrpc_add_handler("cm_transition_status", js_cm_transition_status);
    // interface to odb functions
    mjsonrpc_add_handler("db_copy",     js_db_copy);
    mjsonrpc_add_handler("db_paste",    js_db_paste);
@@ -1509,10 +1843,14 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("db_create", js_db_create);
    mjsonrpc_add_handler("db_delete", js_db_delete);
    mjsonrpc_add_handler("db_resize", js_db_resize);
+   mjsonrpc_add_handler("db_rename", js_db_rename);
+   mjsonrpc_add_handler("db_link",   js_db_link);
+   mjsonrpc_add_handler("db_reorder", js_db_reorder);
    mjsonrpc_add_handler("db_key",    js_db_key);
    // methods that perform computations or invoke actions
    mjsonrpc_add_handler("get_alarms",  get_alarms);
    //mjsonrpc_add_handler("get_messages",  get_messages);
+   mjsonrpc_add_handler("jrpc",  jrpc);
    mjsonrpc_add_handler("start_program", start_program);
 
    mjsonrpc_user_init();

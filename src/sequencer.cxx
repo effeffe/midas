@@ -1920,7 +1920,7 @@ void show_seq_page()
             rsprintf("<font id=\"sequencerMessages\" style=\"font-family:monospace\">\n");
             rsprintf("<a href=\"../?cmd=Messages\">...</a><br>\n");
             
-            cm_msg_retrieve("midas", 0, 10, buffer, sizeof(buffer));
+            cm_msg_retrieve(10, buffer, sizeof(buffer));
             
             pline = buffer;
             eob = FALSE;
@@ -1995,7 +1995,7 @@ void sequencer()
    if (!hKeySeq)
       return;
    
-   cm_msg_retrieve("midas", 0, 1, str, sizeof(str));
+   cm_msg_retrieve(1, str, sizeof(str));
    str[19] = 0;
    strcpy(seq.last_msg, str+11);
    
@@ -2351,7 +2351,9 @@ void sequencer()
             db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
             if (state != STATE_STOPPED) {
                status = cm_transition(TR_STOP, 0, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
-               if (status != CM_SUCCESS) {
+               if (status == CM_DEFERRED_TRANSITION) {
+                  // do nothing
+               } else if (status != CM_SUCCESS) {
                   sprintf(str, "Cannot stop run: %s", str);
                   seq_error(str);
                }

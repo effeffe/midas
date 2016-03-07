@@ -118,7 +118,7 @@ void print_help(char *command)
       printf("mkdir <subdir>          - make new <subdir>\n");
       printf("move <key> [top/bottom/[n]] - move key to position in keylist\n");
       printf("msg [user] <msg>        - send chat message (from interactive odbedit)\n");
-      printf("msg [facility] [type] <msg> - send chat message (from command line via -c \"msg ...\")\n");
+      printf("msg [type] [name] <msg> - send message to midas log (from command line via -c \"msg ...\")\n");
       printf("old [n]                 - display old n messages\n");
       printf("passwd                  - change MIDAS password\n");
       printf("pause                   - pause current run\n");
@@ -2442,21 +2442,24 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
       /* msg */
       else if (param[0][0] == 'm' && param[0][1] == 's') {
          message[0] = 0;
-         strcpy(facility, "midas");
-         int type = MT_USER;
-         if (cmd_mode) {
-            strcpy(user_name, "script");
+         strcpy(facility, "midas"); // default
+         int type = MT_USER; // type=8 default ([script,USER])
+         if (cmd_mode) {         // param[1]  type   param[2] name  param[3] message
+	   strcpy(user_name, "script");  // default
             if (param[3][0]) {
                strlcpy(message, param[3], sizeof(message));
-               type = atoi(param[2]);
-               strlcpy(facility, param[2], sizeof(facility));
+               type = atoi(param[1]);
+               strlcpy(user_name, param[2], sizeof(user_name));
             } else if (param[2][0]) {
                strlcpy(message, param[2], sizeof(message));
-               strlcpy(facility, param[1], sizeof(facility));
+	       type = atoi(param[1]);
             } else if (param[1][0]) {
                strlcpy(message, param[1], sizeof(message));
             }
+            if(type==0) type= MT_USER; // default
+          
          } else { // !cmd_mode
+              strcpy(facility, "chat");
             if (param[2][0]) {
                last_msg_time = ss_time();
                strcpy(user_name, param[1]);
@@ -2476,7 +2479,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          }
 
          if (message[0])
-	         cm_msg1(type, __FILE__, __LINE__, "chat", user_name, "%s", message);
+	   cm_msg1(type, __FILE__, __LINE__, facility, user_name, "%s", message);
 
          last_msg_time = ss_time();
       }
@@ -2511,7 +2514,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          if (param[1][0])
             i = atoi(param[1]);
 
-         cm_msg_retrieve("midas", 0, i, data, sizeof(data));
+         cm_msg_retrieve(i, data, sizeof(data));
          printf("%s\n\n", data);
       }
 

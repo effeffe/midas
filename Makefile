@@ -367,8 +367,13 @@ ifdef HAVE_ROOT
 ANALYZER += $(LIB_DIR)/rmana.o
 endif
 
-OBJS =  $(LIB_DIR)/midas.o $(LIB_DIR)/system.o $(LIB_DIR)/mrpc.o \
-	$(LIB_DIR)/odb.o $(LIB_DIR)/ftplib.o \
+OBJS = \
+   $(LIB_DIR)/midas.o \
+   $(LIB_DIR)/midas_cxx.o \
+   $(LIB_DIR)/system.o \
+   $(LIB_DIR)/mrpc.o \
+	$(LIB_DIR)/odb.o \
+   $(LIB_DIR)/ftplib.o \
 	$(LIB_DIR)/crc32c.o \
 	$(LIB_DIR)/sha256.o \
 	$(LIB_DIR)/sha512.o \
@@ -380,7 +385,9 @@ OBJS =  $(LIB_DIR)/midas.o $(LIB_DIR)/system.o $(LIB_DIR)/mrpc.o \
 	$(LIB_DIR)/history_odbc.o \
 	$(LIB_DIR)/history_schema.o \
 	$(LIB_DIR)/lz4.o $(LIB_DIR)/lz4frame.o $(LIB_DIR)/lz4hc.o $(LIB_DIR)/xxhash.o \
-	$(LIB_DIR)/history.o $(LIB_DIR)/alarm.o $(LIB_DIR)/elog.o
+	$(LIB_DIR)/history.o \
+   $(LIB_DIR)/alarm.o \
+   $(LIB_DIR)/elog.o
 
 ifdef NEED_STRLCPY
 OBJS += $(LIB_DIR)/strlcpy.o
@@ -459,7 +466,7 @@ $(BIN_DIR):
 #
 # put current GIT revision into header file to be included by programs
 #
-$(GIT_REVISION): $(SRC_DIR)/midas.c $(SRC_DIR)/odb.c $(SRC_DIR)/system.c
+$(GIT_REVISION): $(SRC_DIR)/midas.c $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.c $(SRC_DIR)/system.c
 	echo \#define GIT_REVISION \"`git log -n 1 --pretty=format:"%ad - %h"`\" > $(GIT_REVISION)
 include/midas.h: $(GIT_REVISION)
 #
@@ -630,6 +637,7 @@ endif
 
 $(LIB_DIR)/mhttpd.o: msystem.h midas.h midasinc.h mrpc.h mjsonrpc.h
 $(LIB_DIR)/midas.o: msystem.h midas.h midasinc.h mrpc.h
+$(LIB_DIR)/midas_cxx.o: msystem.h midas.h midasinc.h mrpc.h
 $(LIB_DIR)/system.o: msystem.h midas.h midasinc.h mrpc.h
 $(LIB_DIR)/mrpc.o: msystem.h midas.h mrpc.h
 $(LIB_DIR)/odb.o: msystem.h midas.h midasinc.h mrpc.h
