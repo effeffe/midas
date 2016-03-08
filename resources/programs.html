@@ -22,7 +22,7 @@
         <p>text2</p>
         <p>text3</p>
         <p>text4</p>
-        <input type=button value="Close overlay" onClick='clearTimeout(start_stop_timer_id); mhttpd_hide_overlay(start_stop_overlay); page_update();'></input>
+        <input type=button value="Close overlay" onClick='clearTimeout(start_stop_timer_id); mhttpd_hide_overlay(start_stop_overlay); update();'></input>
       </div>
     </div>
 
@@ -88,45 +88,32 @@
        });
     }
     
-    function add_table_entry(table, name, full_name, start_command, colspan)
+    function add_table_entry(table, name, full_name, start_command)
     {
-       function new_attribute(name, value)
-       {
-          var att = document.createAttribute(name);
-          if (value)
-             att.value = value;
-          return att;
-       }
-       
        var tr = document.createElement("tr");
-       tr.setAttributeNode(new_attribute("id", "program " + name));
+       tr.id = "program " + name;
+
        var td;
        var input;
        
        td = document.createElement("td");
-       td.setAttributeNode(new_attribute("id", "program name " + name));
-       td.setAttributeNode(new_attribute("align", "center"));
-       td.setAttributeNode(new_attribute("colspan", colspan));
+       td.align = "center";
        td.innerHTML = "<a href='Programs/" + full_name + "'>"+full_name+"</a>";
        tr.appendChild(td);
        
        td = document.createElement("td");
-       td.setAttributeNode(new_attribute("id", "program host " + name));
-       td.setAttributeNode(new_attribute("align", "center"));
+       td.align = "center";
        tr.appendChild(td);
        
        td = document.createElement("td");
-       td.setAttributeNode(new_attribute("id", "program alarm " + name));
-       td.setAttributeNode(new_attribute("align", "center"));
+       td.align = "center";
        tr.appendChild(td);
        
        td = document.createElement("td");
-       td.setAttributeNode(new_attribute("id", "program autorestart " + name));
-       td.setAttributeNode(new_attribute("align", "center"));
+       td.align = "center";
        tr.appendChild(td);
        
        td = document.createElement("td");
-       td.setAttributeNode(new_attribute("id", "program control " + name));
        
        var start_button = document.createElement("button");
        input = start_button;
@@ -180,27 +167,9 @@
     
     function callback(rpc)
     {
-       document.getElementById('updateStatus').innerHTML = "Requesting...Waiting...Processing...";
+       document.getElementById('updateStatus').innerHTML = "RWP_";
        
-       function set_text(dom_prefix, item, value)
-       {
-          var e = document.getElementById(dom_prefix + item);
-          if (e) e.innerHTML = value;
-       }
-       
-       function set_color(dom_prefix, item, value)
-       {
-          var e = document.getElementById(dom_prefix + item);
-          if (e) e.style.backgroundColor = value;
-       }
-       
-       function set_class(dom_prefix, item, value)
-       {
-          var e = document.getElementById(dom_prefix + item);
-          if (e) e.className = value;
-       }
-       
-       function find_client(clients, name)
+       function find_clients(clients, name)
        {
           var found;
           var name_lc = name.toLowerCase(name);
@@ -238,93 +207,100 @@
        
        for (var name in programs) {
           if (typeof programs[name] !== 'object') continue;
-          var full_name = programs[name + "/name"];
+
           var e = document.getElementById("program " + name);
+
           var required = programs[name].required;
-          var xclients = find_client(clients, name);
+          var xclients = find_clients(clients, name);
+
           //alert("name " + name + " clients: " + JSON.stringify(xclients));
-          if (required || xclients) {
-             var start_command = programs[name]["start command"];
-             
-             if (!e) {
-                e = add_table_entry(document.getElementById("stripeList"), name, full_name, start_command, 1);
-             }
-             
-             e.style.display = '';
-             
-             if (xclients) {
-                var s = "";
-                for (var i=0; i<xclients.length; i++) {
-                   var key = xclients[i];
-                   var host = clients[key].host;
-                   if (host) {
-                      if (s.length > 0)
-                         s += "<br>";
-                      s += "<a href='/System/Clients/"+key+"'>"+host+"</a>";
-                   }
-                }
-                set_text("program host ", name, s);
-                set_class("program host ", name, "greenLight");
-                // enable start/stop buttons
-                var e = document.getElementById("start " + name);
-                if (e) {
-                   mhttpd_disable_button(e);
-                   mhttpd_hide_button(e);
-                }
-                var e = document.getElementById("stop " + name);
-                if (e) {
-                   mhttpd_enable_button(e);
-                   mhttpd_unhide_button(e);
-                }
-             } else {
-                set_text("program host ", name, "Not running");
-                set_class("program host ", name, "redLight");
-                // enable start/stop buttons
-                var e = document.getElementById("start " + name);
-                if (e && start_command) {
-                   mhttpd_enable_button(e);
-                   mhttpd_unhide_button(e);
-                }
-                var e = document.getElementById("stop " + name);
-                if (e) {
-                   mhttpd_disable_button(e);
-                   mhttpd_hide_button(e);
-                }
-             }
-             
-             var alarm_class = programs[name]["alarm class"];
-             if (alarm_class.length > 0) {
-                set_text("program alarm ", name, "<a href='Alarms/Classes/"+ alarm_class + "'>" + alarm_class + "</a>");
-                set_class("program alarm ", name, "yellowLight");
-             } else {
-                set_text("program alarm ", name, "-");
-             }
-             
-             if (programs[name]["auto restart"])
-                set_text("program autorestart ", name, "Yes");
-             else
-                set_text("program autorestart ", name, "No");
-          } else {
+
+          if (!xclients && !required) {
              if (e) {
+                // hide this table row
                 e.style.display = 'none';
              }
+             continue;
           }
+
+          var start_command = programs[name]["start command"];
+
+          if (!e) {
+             var full_name = programs[name + "/name"];
+             e = add_table_entry(document.getElementById("stripeList"), name, full_name, start_command);
+          }
+
+          // unhide this table row
+          e.style.display = '';
+          
+          if (xclients) {
+             var s = "";
+             for (var i=0; i<xclients.length; i++) {
+                var key = xclients[i];
+                var host = clients[key].host;
+                if (host) {
+                   if (s.length > 0)
+                      s += "<br>";
+                   s += "<a href='/System/Clients/"+key+"'>"+host+"</a>";
+                }
+             }
+             e.childNodes[1].innerHTML = s;
+             e.childNodes[1].className = "greenLight";
+             // enable start/stop buttons
+             var b = document.getElementById("start " + name);
+             if (b) {
+                mhttpd_disable_button(b);
+                mhttpd_hide_button(b);
+             }
+             var b = document.getElementById("stop " + name);
+             if (b) {
+                mhttpd_enable_button(b);
+                mhttpd_unhide_button(b);
+             }
+          } else {
+             e.childNodes[1].innerHTML = "Not running";
+             e.childNodes[1].className = "redLight";
+             // enable start/stop buttons
+             var b = document.getElementById("start " + name);
+             if (b && start_command) {
+                mhttpd_enable_button(b);
+                mhttpd_unhide_button(b);
+             }
+             var b = document.getElementById("stop " + name);
+             if (b) {
+                mhttpd_disable_button(b);
+                mhttpd_hide_button(b);
+             }
+          }
+             
+          var alarm_class = programs[name]["alarm class"];
+          if (alarm_class.length > 0) {
+             e.childNodes[2].innerHTML = "<a href='Alarms/Classes/"+ alarm_class + "'>" + alarm_class + "</a>";
+             e.childNodes[2].className = "yellowLight";
+          } else {
+             e.childNodes[2].innerHTML = "-";
+          }
+          
+          if (programs[name]["auto restart"])
+             e.childNodes[3].innerHTML = "Yes";
+          else
+             e.childNodes[3].innerHTML = "No";
        }
        
        document.getElementById('mhttpd_last_updated').innerHTML = new Date;
-       document.getElementById('updateStatus').innerHTML = "Requesting...Waiting...Processing...Done.";
+       document.getElementById('updateStatus').innerHTML = "RWPD";
     }
     
     function update()
     {
        var paths = [ "/Programs", "/System/Clients", "/Alarms" ];
-       document.getElementById('updateStatus').innerHTML = "Requesting...";
+       document.getElementById('updateStatus').innerHTML = "R___";
        mjsonrpc_db_get_values(paths).then(function(rpc) {
           callback(rpc);
        }).catch(function(error) {
-          document.getElementById('updateStatus').innerHTML = "Requesting...Waiting...RPC error.";
+          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error.";
        });
-       document.getElementById('updateStatus').innerHTML = "Requesting...Waiting...";
+       document.getElementById('updateStatus').innerHTML = "RW__";
     }
     
     function update_periodic()
