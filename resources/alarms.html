@@ -20,7 +20,7 @@
   <button id='al_reset_all' onclick='reset_all_alarms()'>Reset all alarms</button>
   <button id='al_system_enable' onclick='write_alarm_system_active(true)'>Enable the alarm system</button>
   <button id='al_system_disable' onclick='write_alarm_system_active(false)'>Disable the alarm system</button>
-  <input type="checkbox" name="caspeak" id="aspeak" onclick="return aspeak_click(this);">Speak</input>
+  <input type="checkbox" name="caspeak" id="aspeak" onclick="return aspeak_click(this);"><span id="aspeakLabel">Speak</span></input><script type="text/javascript">alarm_load();</script>
 </div>
 
 <div id='al_sysem_disabled_notice' class='redLight'>
@@ -29,33 +29,45 @@ Alarm system disabled
 </p>
 </div>
 
-<div>
-  <table class="alarmTable" id="evaluatedAlarms">
-    <tr><td colspan=7 class="subStatusTitle">Evaluated alarms</td></tr>
-    <tr class="titleRow"><th>Alarm<th>State<th>First triggered<th>Class<th>Condition<th>Current value</tr>
-  </table>
-</div>
-   
-<div>
-  <table class="alarmTable" id="programAlarms">
-    <tr><td colspan=7 class="subStatusTitle">Program alarms</td></tr>
-    <tr class="titleRow"><th>Alarm<th>State<th>First triggered<th>Class<th>Condition</tr>
-  </table>
-</div>
-   
-<div>
-  <table class="alarmTable" id="internalAlarms">
-    <tr><td colspan=7 class="subStatusTitle">Internal alarms</td></tr>
-    <tr class="titleRow"><th>Alarm<th>State<th>First triggered<th>Class<th>Condition/Message</tr>
-  </table>
-</div>
-   
-<div>
-  <table class="alarmTable" id="periodicAlarms">
-    <tr><td colspan=7 class="subStatusTitle">Periodic alarms</td></tr>
-    <tr class="titleRow"><th>Alarm<th>State<th>First triggered<th>Class<th>Time/Message</tr>
-  </table>
-</div>
+<table>
+  <tbody>
+    <tr>
+      <td>
+        <table width="100%" class="alarmTable" id="evaluatedAlarms">
+          <tr><td colspan=7 class="subStatusTitle">Evaluated alarms</td></tr>
+          <tr class="titleRow"><th>Alarm<th>State<th>First triggered<th>Class<th>Condition<th>Current value</tr>
+        </table>
+      </td>
+    </tr>
+    
+    <tr>
+      <td>
+        <table width="100%" class="alarmTable" id="programAlarms">
+          <tr><td colspan=7 class="subStatusTitle">Program alarms</td></tr>
+          <tr class="titleRow"><th>Alarm<th>State<th>First triggered<th>Class<th>Condition</tr>
+        </table>
+      </td>
+    </tr>
+    
+    <tr>
+      <td>
+        <table width="100%" class="alarmTable" id="internalAlarms">
+          <tr><td colspan=7 class="subStatusTitle">Internal alarms</td></tr>
+          <tr class="titleRow"><th>Alarm<th>State<th>First triggered<th>Class<th>Condition/Message</tr>
+        </table>
+      </td>
+    </tr>
+    
+    <tr>
+      <td>
+        <table width="100%" class="alarmTable" id="periodicAlarms">
+          <tr><td colspan=7 class="subStatusTitle">Periodic alarms</td></tr>
+          <tr class="titleRow"><th>Alarm<th>State<th>First triggered<th>Class<th>Time/Message</tr>
+        </table>
+      </td>
+    </tr>
+  </tbody>
+</table>
    
 <div id="updateStatus" align="left">
   updateStatus
