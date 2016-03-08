@@ -30,6 +30,14 @@ var AT_PROGRAM   = 2;
 var AT_EVALUATED = 3;
 var AT_PERIODIC  = 4;
 
+var MT_ERROR =  (1<<0);
+var MT_INFO  =  (1<<1);
+var MT_DEBUG =  (1<<2);
+var MT_USER  =  (1<<3);
+var MT_LOG   =  (1<<4);
+var MT_TALK  =  (1<<5);
+var MT_CALL  =  (1<<6);
+
 function XMLHttpRequestGeneric()
 {
    var request;
@@ -986,14 +994,6 @@ function ODBGetMsg(facility, start, n)
    } else
       return request.responseText;
 }
-
-const MT_ERROR =  (1<<0);
-const MT_INFO  =  (1<<1);
-const MT_DEBUG =  (1<<2);
-const MT_USER  =  (1<<3);
-const MT_LOG   =  (1<<4);
-const MT_TALK  =  (1<<5);
-const MT_CALL  =  (1<<6);
 
 function ODBGenerateMsg(type,facility,user,msg)
 {
