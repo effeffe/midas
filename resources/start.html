@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="mhttpd.css">
+    <script src="mhttpd.js"></script>
+    <title>XStart a new run</title>
+  </head>
+  
+  <body>
+    
+    <script>
+    url = mhttpd_getParameterByName("URL");
+    if (url)
+       mjsonrpc_set_url(url);
+    //mhttpd_navigation_bar("Alarms");
+    </script>
+    
+    <table class="ODBtable">
+      <tbody>
+        <tr>
+          <th colspan="2" class="subStatusTitle">Start a new run</th>
+        </tr>
+        <tr>
+          <td>
+            aaa
+          </td>
+          <td>
+            123
+          </td>
+        </tr>
+        <tr>
+          <td>
+            bbb
+          </td>
+          <td>
+            456
+          </td>
+        </tr>
+        <tr>
+          <td>
+            ccc
+          </td>
+          <td>
+            789
+          </td>
+        </tr>
+        <tr align="center">
+          <td colspan="2" align="center">
+            <button onclick='start_a_new_run()'>Start</button>
+            <button onclick='location.search=""'>Cancel</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    
+    <div id="updateStatus" align="left">
+      updateStatus
+    </div>
+    
+    <script>
+    mhttpd_page_footer();
+    </script>
+    
+    <script>
+    function start_a_new_run()
+    {
+       mjsonrpc_call("cm_transition", { "transition":"TR_START" }).then(function(rpc) {
+          location.search="cmd=Transition";
+          // not reached: reloads the page
+       }).catch(function(error) {
+          mjsonrpc_error_alert(error);
+       });
+    }
+    </script>
+  </body>
+</html>
