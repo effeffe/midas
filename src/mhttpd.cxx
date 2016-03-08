@@ -16075,9 +16075,6 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    /*---- programs command ------------------------------------------*/
 
    if (equal_ustring(command, "programs")) {
-      if (send_resource("programs.html"))
-         return;
-
       str[0] = 0;
       for (p=dec_path ; *p ; p++)
          if (*p == '/')
