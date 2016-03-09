@@ -16,37 +16,13 @@
     //mhttpd_navigation_bar("Alarms");
     </script>
     
-    <table class="ODBtable">
+    <table class="ODBtable" id="stripeList">
       <tbody>
         <tr>
-          <th colspan="2" class="subStatusTitle">Start a new run</th>
-        </tr>
-        <tr>
-          <td>
-            aaa
-          </td>
-          <td>
-            123
-          </td>
-        </tr>
-        <tr>
-          <td>
-            bbb
-          </td>
-          <td>
-            456
-          </td>
-        </tr>
-        <tr>
-          <td>
-            ccc
-          </td>
-          <td>
-            789
-          </td>
+          <th colspan="3" class="subStatusTitle">Start a new run</th>
         </tr>
         <tr align="center">
-          <td colspan="2" align="center">
+          <td colspan="3" align="center">
             <button onclick='start_a_new_run()'>Start</button>
             <button onclick='location.search=""'>Cancel</button>
           </td>
@@ -72,6 +48,108 @@
           mjsonrpc_error_alert(error);
        });
     }
+
+    function add_table_entry(table, name, value, comment, editable)
+    {
+       var tr = document.createElement("tr");
+       //tr.id = "program " + name;
+
+       var td;
+       var input;
+       
+       td = document.createElement("td");
+       td.align = "center";
+       td.innerHTML = name;
+       tr.appendChild(td);
+       
+       td = document.createElement("td");
+
+       if (editable) {
+          var i = document.createElement("input");
+          i.value = value;
+          td.appendChild(i);
+          td.align = "center";
+       } else {
+          td.align = "center";
+          td.innerHTML = value;
+       }
+
+       tr.appendChild(td);
+       
+       td = document.createElement("td");
+       td.align = "center";
+       td.innerHTML = comment;
+       tr.appendChild(td);
+       
+       table.appendChild(tr);
+    }
+    
+    function callback(rpc)
+    {
+       document.getElementById('updateStatus').innerHTML = "RWP_";
+       
+       var runinfo     = rpc.result.data[0];
+       var editonstart = rpc.result.data[1];
+       var comments    = rpc.result.data[2];
+
+       var edit_run_number = true;
+       if (editonstart) {
+          for (var k in editonstart) {
+             if (k.toLowerCase() == "edit run number") {
+                if (!editonstart[k])
+                   edit_run_number = false;
+             }
+          }
+       }
+
+       if (runinfo) {
+          var runno = 0;
+          for (var k in runinfo) {
+             if (k.toLowerCase() == "run number") {
+                runno = runinfo[k];
+             }
+          }
+          add_table_entry(document.getElementById("stripeList"), "Run number", runno+1, "", edit_run_number);
+       }
+
+       if (editonstart) {
+          for (var k in editonstart) {
+             if (k.toLowerCase() == "edit run number")
+                continue;
+             if (k.indexOf("/") > 0)
+                continue;
+             var v = editonstart[k];
+             var c = "";
+
+             if (comments) {
+                for (var kk in comments) {
+                   if (kk.toLowerCase() == k.toLowerCase()) {
+                      c = comments[kk];
+                   }
+                }
+             }
+
+             add_table_entry(document.getElementById("stripeList"), k, v, c, true);
+          }
+       }
+       
+       document.getElementById('mhttpd_last_updated').innerHTML = new Date;
+       document.getElementById('updateStatus').innerHTML = "RWPD";
+    }
+    
+    function update()
+    {
+       var paths = [ "/Runinfo", "/Experiment/Edit on start", "/Experiment/Parameter comments" ];
+       document.getElementById('updateStatus').innerHTML = "R___";
+       mjsonrpc_call("db_ls", {"paths":paths}).then(function(rpc) {
+          callback(rpc);
+       }).catch(function(error) {
+          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error.";
+       });
+       document.getElementById('updateStatus').innerHTML = "RW__";
+    }
+    
+    update();
     </script>
   </body>
 </html>
