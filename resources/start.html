@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <link rel="stylesheet" href="mhttpd.css">
     <script src="mhttpd.js"></script>
-    <title>XStart a new run</title>
+    <title>Start a new run</title>
   </head>
   
   <body>
@@ -39,9 +39,47 @@
     </script>
     
     <script>
+    var write_back = {};
+    
     function start_a_new_run()
     {
-       mjsonrpc_call("cm_transition", { "transition":"TR_START" }).then(function(rpc) {
+       var runno;
+
+       var paths = [];
+       var values = [];
+
+       for (var k in write_back) {
+          var v = write_back[k].value;
+          if (k.toLowerCase() == "run number") {
+             runno = v;
+          } else {
+             paths.push("/experiment/edit on start/" + k);
+             values.push(v);
+          }
+       }
+
+       //alert(JSON.stringify(write_back));
+       //alert(JSON.stringify(paths));
+       //alert(JSON.stringify(values));
+       //alert("runno: " + runno);
+
+       mjsonrpc_call("db_paste", { "paths":paths, "values":values }).then(function(rpc) {
+          //mjsonrpc_debug_alert(rpc);
+          for (var i=0; i<rpc.result.status.length; i++) {
+             if (rpc.result.status[i] != 1) {
+                throw new Error("Cannot write ODB \'" + paths[i] + "\', status " + rpc.result.status[i] + ", see MIDAS messages");
+             }
+          }
+          var tr_params = {};
+          tr_params.transition = "TR_START";
+          if (runno)
+             tr_params.run_number = runno;
+          return mjsonrpc_call("cm_transition", tr_params);
+       }).then(function(rpc) {
+          //mjsonrpc_debug_alert(rpc);
+          if (rpc.result.status != 1) {
+             throw new Error("Cannot start run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
+          }
           location.search="cmd=Transition";
           // not reached: reloads the page
        }).catch(function(error) {
@@ -69,6 +107,7 @@
           i.value = value;
           td.appendChild(i);
           td.align = "center";
+          write_back[name] = i;
        } else {
           td.align = "center";
           td.innerHTML = value;
