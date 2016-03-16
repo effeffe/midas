@@ -570,7 +570,7 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
 
    bool omit_names = mjsonrpc_get_param(params, "omit_names", NULL)->GetBool();
    bool omit_last_written = mjsonrpc_get_param(params, "omit_last_written", NULL)->GetBool();
-   double xomit_old_timestamp = mjsonrpc_get_param(params, "omit_old_timestamp", NULL)->GetNumber();
+   double xomit_old_timestamp = mjsonrpc_get_param(params, "omit_old_timestamp", NULL)->GetDouble();
    time_t omit_old_timestamp = xomit_old_timestamp;
 
    MJsonNode* dresult = MJsonNode::MakeArray();
@@ -1326,7 +1326,7 @@ static MJsonNode* js_cm_retrieve(const MJsonNode* params)
 
    const char* facility = mjsonrpc_get_param(params, "facility", NULL)->GetString().c_str();
    int min_messages = mjsonrpc_get_param(params, "min_messages", NULL)->GetInt();
-   double time = mjsonrpc_get_param(params, "time", NULL)->GetNumber();
+   double time = mjsonrpc_get_param(params, "time", NULL)->GetDouble();
 
    if (strlen(facility) < 1)
       facility = "midas";
