@@ -244,17 +244,76 @@ static int paste_bool(HNDLE hDB, HNDLE hKey, const char* path, int index, const 
    return DB_SUCCESS;
 }
 
-static DWORD GetDWORD(const MJsonNode* node, const char* path)
+static int GetDWORD(const MJsonNode* node, const char* path, DWORD* dw)
 {
    switch (node->GetType()) {
    default:
-      cm_msg(MERROR, "db_paste_json", "GetDWORD: unexpeted node type %d at \"%s\"", node->GetType(), path);
-      return 0;
+      cm_msg(MERROR, "db_paste_json", "GetDWORD: unexpected node type %d at \"%s\"", node->GetType(), path);
+      *dw = 0;
+      return DB_FILE_ERROR;
    case MJSON_INT:
-      return node->GetInt();
+      *dw = node->GetInt();
+      return SUCCESS;
+   case MJSON_NUMBER:
+      *dw = node->GetDouble();
+      return SUCCESS;
    case MJSON_STRING:
-      return strtoul(node->GetString().c_str(), NULL, 0);
+      std::string s = node->GetString();
+      errno = 0;
+      if (s[0] == '0' && s[1] == 'x') { // hex encoded number
+         *dw = strtoul(s.c_str(), NULL, 16);
+      } else if (isdigit(s[0]) || (s[0]=='-' && isdigit(s[1]))) { // probably a number
+         *dw = strtoul(s.c_str(), NULL, 0);
+      } else {
+         cm_msg(MERROR, "db_paste_json", "GetDWORD: MJSON_STRING node invalid numeric value \'%s\' at \"%s\"", s.c_str(), path);
+         *dw = 0;
+         return DB_FILE_ERROR;
+      }
+      if (errno != 0) {
+         cm_msg(MERROR, "db_paste_json", "GetDWORD: MJSON_STRING node invalid numeric value \'%s\', strtoul() errno %d (%s) at \"%s\"", s.c_str(), errno, strerror(errno), path);
+         *dw = 0;
+         return DB_FILE_ERROR;
+      }
+      return SUCCESS;
    }
+   // NOT REACHED
+}
+
+static int GetDOUBLE(const MJsonNode* node, const char* path, double* dw)
+{
+   switch (node->GetType()) {
+   default:
+      cm_msg(MERROR, "db_paste_json", "GetDOUBLE: unexpected node type %d at \"%s\"", node->GetType(), path);
+      *dw = 0;
+      return DB_FILE_ERROR;
+   case MJSON_INT:
+      *dw = node->GetInt();
+      return SUCCESS;
+   case MJSON_NUMBER:
+      *dw = node->GetDouble();
+      return SUCCESS;
+   case MJSON_STRING:
+      std::string s = node->GetString();
+      errno = 0;
+      if (s == "NaN" || s == "Infinity" || s == "-Infinity") {
+         *dw = node->GetDouble();
+      } else if (s[0] == '0' && s[1] == 'x') { // hex encoded number
+         *dw = strtoul(s.c_str(), NULL, 16);
+      } else if (isdigit(s[0]) || (s[0]=='-' && isdigit(s[1]))) { // probably a number
+         *dw = strtod(s.c_str(), NULL);
+      } else {
+         cm_msg(MERROR, "db_paste_json", "GetDOUBLE: MJSON_STRING node invalid numeric value \'%s\' at \"%s\"", s.c_str(), path);
+         *dw = 0;
+         return DB_FILE_ERROR;
+      }
+      if (errno != 0) {
+         cm_msg(MERROR, "db_paste_json", "GetDOUBLE: MJSON_STRING node invalid numeric value \'%s\', strtoul() errno %d (%s) at \"%s\"", s.c_str(), errno, strerror(errno), path);
+         *dw = 0;
+         return DB_FILE_ERROR;
+      }
+      return SUCCESS;
+   }
+   // NOT REACHED
 }
 
 static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const MJsonNode* node, int tid, int string_length, const MJsonNode* key)
@@ -280,10 +339,19 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const
       return DB_SUCCESS;
    }
    case TID_BOOL: {
-      DWORD dw = GetDWORD(node, path);
       BOOL v;
-      if (dw) v = TRUE;
-      else v = FALSE;
+      if (node->GetType() == MJSON_STRING && node->GetString() == "true") {
+         v = true;
+      } else if (node->GetType() == MJSON_STRING && node->GetString() == "false") {
+         v = false;
+      } else {
+         DWORD dw;
+         status = GetDWORD(node, path, &dw);
+         if (status != SUCCESS)
+            return status;
+         if (dw) v = TRUE;
+         else v = FALSE;
+      }
       int size = sizeof(v);
       status = db_set_data_index(hDB, hKey, &v, size, index, TID_BOOL);
       if (status != DB_SUCCESS) {
@@ -305,7 +373,11 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const
    }
    case TID_WORD:
    case TID_SHORT: {
-      WORD v = (WORD)GetDWORD(node, path);
+      DWORD dw;
+      status = GetDWORD(node, path, &dw);
+      if (status != SUCCESS)
+         return status;
+      WORD v = (WORD)dw;
       int size = sizeof(v);
       status = db_set_data_index(hDB, hKey, &v, size, index, tid);
       if (status != DB_SUCCESS) {
@@ -315,7 +387,10 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const
       return DB_SUCCESS;
    }
    case TID_DWORD: {
-      DWORD v = GetDWORD(node, path);
+      DWORD v;
+      status = GetDWORD(node, path, &v);
+      if (status != SUCCESS)
+         return status;
       int size = sizeof(v);
       status = db_set_data_index(hDB, hKey, &v, size, index, TID_DWORD);
       if (status != DB_SUCCESS) {
@@ -325,7 +400,31 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const
       return DB_SUCCESS;
    }
    case TID_INT: {
-      int v = node->GetInt();
+      int v = 0;
+      switch (node->GetType()) {
+      default:
+         cm_msg(MERROR, "db_paste_json", "unexpected node type %d at \"%s\"", node->GetType(), path);
+         return DB_FILE_ERROR;
+      case MJSON_INT: {
+         v = node->GetInt();
+         break;
+      }
+      case MJSON_NUMBER: {
+         double dv = node->GetDouble();
+         if (dv > INT_MAX || dv < INT_MIN) {
+            cm_msg(MERROR, "db_paste_json", "numeric value %f out of range at \"%s\"", dv, path);
+            return DB_FILE_ERROR;
+         }
+         v = dv;
+         break;
+      }
+      case MJSON_STRING: {
+         status = GetDWORD(node, path, (DWORD*)&v);
+         if (status != SUCCESS)
+            return status;
+         break;
+      }
+      }
       int size = sizeof(v);
       status = db_set_data_index(hDB, hKey, &v, size, index, TID_INT);
       if (status != DB_SUCCESS) {
@@ -335,7 +434,11 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const
       return DB_SUCCESS;
    }
    case TID_FLOAT: {
-      float v = (float)node->GetNumber();
+      double dv;
+      status = GetDOUBLE(node, path, &dv);
+      if (status != SUCCESS)
+         return status;
+      float v = dv;
       int size = sizeof(v);
       status = db_set_data_index(hDB, hKey, &v, size, index, TID_FLOAT);
       if (status != DB_SUCCESS) {
@@ -345,7 +448,10 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const
       return DB_SUCCESS;
    }
    case TID_DOUBLE: {
-      double v = node->GetNumber();
+      double v;
+      status = GetDOUBLE(node, path, &v);
+      if (status != SUCCESS)
+         return status;
       int size = sizeof(v);
       status = db_set_data_index(hDB, hKey, &v, size, index, TID_DOUBLE);
       if (status != DB_SUCCESS) {
@@ -411,10 +517,13 @@ static int paste_node(HNDLE hDB, HNDLE hKey, const char* path, int index, const 
    case MJSON_NUMBER: return paste_value(hDB, hKey, path, index, node, tid, 0, key);
    case MJSON_BOOL:   return paste_bool(hDB, hKey, path, index, node);
    case MJSON_ERROR:
-      cm_msg(MERROR, "db_paste_json", "JSON parse error: %s", node->GetError().c_str());
+      cm_msg(MERROR, "db_paste_json", "JSON parse error: \"%s\" at \"%s\"", node->GetError().c_str(), path);
+      return DB_FILE_ERROR;
+   case MJSON_NULL:
+      cm_msg(MERROR, "db_paste_json", "unexpected JSON null value at \"%s\"", path);
       return DB_FILE_ERROR;
    default:
-      cm_msg(MERROR, "db_paste_json", "unexpected JSON node type %d (%s)", node->GetType(), MJsonNode::TypeToString(node->GetType()));
+      cm_msg(MERROR, "db_paste_json", "unexpected JSON node type %d (%s) at \"%s\"", node->GetType(), MJsonNode::TypeToString(node->GetType()), path);
       return DB_FILE_ERROR;
    }
    // NOT REACHED

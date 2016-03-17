@@ -76,7 +76,7 @@ class MJsonNode {
    const MJsonNode*       FindObjectNode(const char* name) const; /// find subnode with given name, NULL if not object, NULL is name not found
    std::string            GetString() const; /// get string value, "" if not string or value is JSON "null"
    int                    GetInt() const;    /// get integer value, 0 if not an integer or value is JSON "null"
-   double                 GetNumber() const; /// get number or integer value, 0 if not a number or value is JSON "null"
+   double                 GetDouble() const; /// get number or integer value, 0 if not a number or value is JSON "null"
    bool                   GetBool() const;   /// get boolean value, false if not a boolean or value is JSON "null"
    std::string            GetError() const;  /// get error message from MJSON_ERROR nodes
 
