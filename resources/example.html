@@ -99,6 +99,9 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
              { "path" : "/Example/string2", "type" : TID_STRING, "string_length": 10 },
              { "path" : "/Example/int_array", "type" : TID_INT, "array_length": 5 },
              { "path" : "/Example/double_array", "type" : TID_DOUBLE, "array_length": 5 },
+             { "path" : "/Example/test_nan", "type" : TID_DOUBLE },
+             { "path" : "/Example/test_plusinf", "type" : TID_DOUBLE },
+             { "path" : "/Example/test_minusinf", "type" : TID_DOUBLE },
           ];
           mjsonrpc_db_create(paths).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
     </p>
@@ -593,22 +596,22 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
         type=button
         value='test db_paste of nan and inf'
         onClick='var paths = [
-                 "/test/nan",
-	              "/test/plusinf",
-	              "/test/minusinf",
-	              ];
-	              var values = [ "NaN", "Infinity", "-Infinity" ];
-                 mjsonrpc_db_paste(paths, values).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'>
+             "/example/test_nan",
+	          "/example/test_plusinf",
+	          "/example/test_minusinf",
+	       ];
+	       var values = [ "NaN", "Infinity", "-Infinity" ];
+          mjsonrpc_db_paste(paths, values).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'>
       </input>
       <input
         type=button
         value='test db_copy of nan and inf'
         onClick='var paths = [
-                 "/test/nan",
-	              "/test/plusinf",
-	              "/test/minusinf",
-	              ];
-                 mjsonrpc_db_copy(paths).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+             "/example/test_nan",
+	          "/example/test_plusinf",
+	          "/example/test_minusinf",
+	       ];
+          mjsonrpc_db_get_values(paths).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
       <input type=button value='test MJSonNode encoding of nan and inf' onClick='mjsonrpc_call("test_nan_inf").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
     </p>
 

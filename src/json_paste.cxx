@@ -295,7 +295,9 @@ static int GetDOUBLE(const MJsonNode* node, const char* path, double* dw)
    case MJSON_STRING:
       std::string s = node->GetString();
       errno = 0;
-      if (s[0] == '0' && s[1] == 'x') { // hex encoded number
+      if (s == "NaN" || s == "Infinity" || s == "-Infinity") {
+         *dw = node->GetDouble();
+      } else if (s[0] == '0' && s[1] == 'x') { // hex encoded number
          *dw = strtoul(s.c_str(), NULL, 16);
       } else if (isdigit(s[0]) || (s[0]=='-' && isdigit(s[1]))) { // probably a number
          *dw = strtod(s.c_str(), NULL);
