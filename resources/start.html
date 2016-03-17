@@ -43,13 +43,16 @@
     
     function start_a_new_run()
     {
-       var runno;
+       var runno = 0;
 
        var paths = [];
        var values = [];
 
        for (var k in write_back) {
           var v = write_back[k].value;
+          if (write_back[k].type == "checkbox") {
+             v = write_back[k].checked;
+          }
           if (k.toLowerCase() == "run number") {
              runno = v;
           } else {
@@ -73,7 +76,7 @@
           var tr_params = {};
           tr_params.transition = "TR_START";
           if (runno)
-             tr_params.run_number = runno;
+             tr_params.run_number = parseInt(runno);
           return mjsonrpc_call("cm_transition", tr_params);
        }).then(function(rpc) {
           //mjsonrpc_debug_alert(rpc);
@@ -102,19 +105,21 @@
        
        td = document.createElement("td");
 
-       if (editable) {
-          var i = document.createElement("input");
-          i.value = value;
-          td.appendChild(i);
-          td.align = "center";
-          write_back[name] = i;
-       } else {
-          td.align = "center";
-          td.innerHTML = value;
+       var i = document.createElement("input");
+       if (!editable)
+          i.disabled = true;
+       if (typeof value == "boolean") {
+          i.type = "checkbox";
+          if (value)
+             i.checked = true;
        }
+       i.value = value;
+       td.appendChild(i);
+       td.align = "center";
+       write_back[name] = i;
 
        tr.appendChild(td);
-       
+
        td = document.createElement("td");
        td.align = "center";
        td.innerHTML = comment;
@@ -159,6 +164,7 @@
                 continue;
              var v = editonstart[k];
              var c = "";
+             var n = editonstart[k+"/key"].num_values;
 
              if (comments) {
                 for (var kk in comments) {
@@ -168,7 +174,24 @@
                 }
              }
 
-             add_table_entry(document.getElementById("stripeList"), k, v, c, true);
+             if (n) {
+                var cc = c;
+                for (var i=0; i<n; i++) {
+                   if (i != 0)
+                      cc = null;
+                   add_table_entry(document.getElementById("stripeList"), k + "[" + i + "]", v[i], cc, true);
+                }
+             } else {
+                if (comments) {
+                   for (var kk in comments) {
+                      if (kk.toLowerCase() == k.toLowerCase()) {
+                         c = comments[kk];
+                      }
+                   }
+                }
+
+                add_table_entry(document.getElementById("stripeList"), k, v, c, true);
+             }
           }
        }
        
