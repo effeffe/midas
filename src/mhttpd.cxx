@@ -15602,6 +15602,28 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       return;
    }
 
+   /*---- send the new html pages -----------------------------------*/
+
+   if (equal_ustring(command, "start")) {
+      send_resource("start.html");
+      return;
+   }
+
+   if (equal_ustring(command, "programs")) {
+      send_resource("programs.html");
+      return;
+   }
+
+   if (equal_ustring(command, "alarms")) {
+      send_resource("alarms.html");
+      return;
+   }
+
+   if (equal_ustring(command, "transition")) {
+      send_resource("transition.html");
+      return;
+   }
+
    /*---- java script commands --------------------------------------*/
 
    if (equal_ustring(command, "jset") ||
@@ -15634,8 +15656,8 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    /*---- redirect if web page --------------------------------------*/
 
-   if (send_resource(std::string(command) + ".html"))
-      return;
+   //if (send_resource(std::string(command) + ".html"))
+   //   return;
 
    /*---- redirect if status command --------------------------------*/
 
