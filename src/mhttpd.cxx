@@ -1532,16 +1532,12 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    rsprintf("<title>%s status</title>\n", str);
 
    if (n_alarm) {
-      rsprintf("<bgsound src=\"alarm.mid\" loop=\"false\">\n");
+      rsprintf("<audio autoplay src=\"alarm.mid\">!midas alarm sound!</audio>\n");
    }
 
    rsprintf("</head>\n");
 
    rsprintf("<body><form method=\"GET\" action=\".\">\n");
-
-   if (n_alarm) {
-      rsprintf("<embed src=\"alarm.mid\" autostart=\"true\" loop=\"false\" hidden=\"true\" height=\"0\" width=\"0\">\n");
-   }
 
    rsprintf("<div id=\"wrapper\" class=\"wrapper\">\n");
 
