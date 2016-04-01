@@ -1603,14 +1603,14 @@ function aspeak_click(t)
       
 }
 
-function alarm_speak(t)
+function mhttpd_alarm_speak(t)
 {
-    if (typeof(Storage) !== "undefined") {
-	if (sessionStorage.alarmSpeak == "1")  {
-	    u = new SpeechSynthesisUtterance(t);
-	    window.speechSynthesis.speak(u);
-	    }
-    } 
+   if (typeof(Storage) !== "undefined") {
+      if (sessionStorage.alarmSpeak != "0")  {
+	 u = new SpeechSynthesisUtterance(t);
+	 window.speechSynthesis.speak(u);
+      }
+   } 
 }
 
 /*---- chat functions -------------------------------------*/

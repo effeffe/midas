@@ -1535,6 +1535,8 @@ void show_status_page(int refresh, const char *cookie_wpwd)
       rsprintf("<audio autoplay src=\"alarm.mid\">!midas alarm sound!</audio>\n");
    }
 
+   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
+
    rsprintf("</head>\n");
 
    rsprintf("<body><form method=\"GET\" action=\".\">\n");
@@ -1738,16 +1740,22 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
 
                db_get_key(hDB, hsubkey, &key);
-               rsprintf("<tr><td colspan=6 style=\"background-color:%s;border-radius:12px;\" align=center>", bgcol);
-               rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
-               rsprintf("<table width=\"100%%\"><tr><td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"%s\" size=+3>%s: %s</font></td>\n", fgcol,
-                        alarm_class, str);
-               rsprintf("<td width=\"1%%\" style=\"border:0px;\"><button type=\"button\" onclick=\"document.location.href='?cmd=alrst&name=%s'\"n\">Reset</button></td></tr></table></td></tr>\n", key.name);
+
+               rsprintf("<tr>\n");
+
+               rsprintf("<td colspan=6 style=\"background-color:%s;border-radius:12px;\" align=center>", bgcol);
+               rsprintf("<table width=\"100%%\"><tr>\n");
+               rsprintf("<td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"%s\" size=+3>%s: %s</font></td>\n", fgcol, alarm_class, str);
+               rsprintf("<td width=\"1%%\" style=\"border:0px;\"><button type=\"button\" onclick=\"mhttpd_reset_alarm(\\\"%s\\\");\">Reset</button></td>\n", key.name);
+               rsprintf("</tr></table>\n");
+               rsprintf("</td>\n");
 
                strlcpy(spk, alarm_class, sizeof(spk));
                strlcat(spk, ". ", sizeof(spk));
                strlcat(spk, str, sizeof(spk));
-               rsprintf("<script type=\"text/javascript\">alarm_speak(\"%s\");</script>\n", spk);
+               rsprintf("<script type=\"text/javascript\">mhttpd_alarm_speak(\"%s\");</script>\n", spk);
+
+               rsprintf("</tr>\n");
             }
          }
       }
