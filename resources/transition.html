@@ -94,7 +94,7 @@
        document.getElementById('updateStatus').innerHTML = "RWP_";
 
        set_text("run_number", rpc.result.run_number);
-       set_text("transition", rpc.result.transition);
+       set_text("transition", rpc.result.transition + " (" + transition_names[rpc.result.transition] + ")");
        set_text("status",     rpc.result.status);
        set_text("errorstr",   rpc.result.errorstr);
        

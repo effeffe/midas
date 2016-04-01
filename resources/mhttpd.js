@@ -38,6 +38,8 @@ var MT_LOG   =  (1<<4);
 var MT_TALK  =  (1<<5);
 var MT_CALL  =  (1<<6);
 
+var transition_names = { 1:"Start", 2:"Stop", 4:"Pause", 8:"Resume", 16:"Start abort", 4096:"Deferred" };
+
 function XMLHttpRequestGeneric()
 {
    var request;
