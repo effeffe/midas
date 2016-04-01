@@ -1816,18 +1816,10 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    db_get_value(hDB, 0, "/Experiment/Start-Stop Buttons", &flag, &size, TID_BOOL, TRUE);
    if (flag) {
       if (runinfo.state == STATE_STOPPED)
-         rsprintf("<input type=submit name=cmd %s value=Start>\n", runinfo.transition_in_progress?"disabled":"");
+         rsprintf("<input type=button %s value=Start onClick=\"mhttpd_start_run();\">\n", runinfo.transition_in_progress?"disabled":"");
       else {
-         rsprintf("<script type=\"text/javascript\">\n");
-         rsprintf("function stop()\n");
-         rsprintf("{\n");
-         rsprintf("   flag = confirm('Are you sure to stop the run?');\n");
-         rsprintf("   if (flag == true)\n");
-         rsprintf("      window.location.href = '?cmd=Stop';\n");
-         rsprintf("}\n");
          if (runinfo.state == STATE_PAUSED || runinfo.state == STATE_RUNNING)
-            rsprintf("document.write('<input type=button %s value=Stop onClick=\"stop();\">\\n');\n", runinfo.transition_in_progress?"disabled":"");
-         rsprintf("</script>\n");
+            rsprintf("<input type=button %s value=Stop onClick=\"mhttpd_stop_run();\">\n", runinfo.transition_in_progress?"disabled":"");
       }
    }
 
@@ -1836,24 +1828,10 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    db_get_value(hDB, 0, "/Experiment/Pause-Resume Buttons", &flag, &size, TID_BOOL, TRUE);
    if (flag) {
       if (runinfo.state != STATE_STOPPED) {
-         rsprintf("<script type=\"text/javascript\">\n");
-         rsprintf("function pause()\n");
-         rsprintf("{\n");
-         rsprintf("   flag = confirm('Are you sure to pause the run?');\n");
-         rsprintf("   if (flag == true)\n");
-         rsprintf("      window.location.href = '?cmd=Pause';\n");
-         rsprintf("}\n");
-         rsprintf("function resume()\n");
-         rsprintf("{\n");
-         rsprintf("   flag = confirm('Are you sure to resume the run?');\n");
-         rsprintf("   if (flag == true)\n");
-         rsprintf("      window.location.href = '?cmd=Resume';\n");
-         rsprintf("}\n");
          if (runinfo.state == STATE_RUNNING)
-            rsprintf("document.write('<input type=button %s value=Pause onClick=\"pause();\"\\n>');\n", runinfo.transition_in_progress?"disabled":"");
+            rsprintf("<input type=button %s value=Pause onClick=\"mhttpd_pause_run();\">\n", runinfo.transition_in_progress?"disabled":"");
          if (runinfo.state == STATE_PAUSED)
-            rsprintf("document.write('<input type=button %s value=Resume onClick=\"resume();\"\\n>');\n", runinfo.transition_in_progress?"disabled":"");
-         rsprintf("</script>\n");
+            rsprintf("<input type=button %s value=Resume onClick=\"mhttpd_resume_run();\">\n", runinfo.transition_in_progress?"disabled":"");
       }
    }
 

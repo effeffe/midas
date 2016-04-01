@@ -1181,6 +1181,11 @@ function mhttpd_getParameterByName(name) {
     return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
 }
 
+function mhttpd_goto_page(page) {
+   window.location.href = '?cmd=' + page; // reloads the page from new URL
+   // DOES NOT RETURN
+}
+
 function mhttpd_navigation_bar(current_page)
 {
    document.write("<div id=\"customHeader\">\n");
@@ -1367,6 +1372,60 @@ function mhttpd_delete_page_handle_cancel(mouseEvent)
 {
    location.search = ""; // reloads the document
    return false;
+}
+
+function mhttpd_start_run()
+{
+   mhttpd_goto_page("Start"); // DOES NOT RETURN
+}
+
+function mhttpd_stop_run()
+{
+   var flag = confirm('Are you sure to stop the run?');
+   if (flag == true) {
+      mjsonrpc_call("cm_transition", {"transition":"TR_STOP"}).then(function(rpc) {
+         //mjsonrpc_debug_alert(rpc);
+         if (rpc.result.status != 1) {
+            throw new Error("Cannot stop run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
+         }
+         mhttpd_goto_page("Transition"); // DOES NOT RETURN
+      }).catch(function(error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
+}
+
+function mhttpd_pause_run()
+{
+   var flag = confirm('Are you sure to pause the run?');
+   if (flag == true) {
+      mjsonrpc_call("cm_transition", {"transition":"TR_PAUSE"}).then(function(rpc) {
+         //mjsonrpc_debug_alert(rpc);
+         if (rpc.result.status != 1) {
+            throw new Error("Cannot pause run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
+         }
+         mhttpd_goto_page("Transition"); // DOES NOT RETURN
+      }).catch(function(error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
+}
+
+
+function mhttpd_resume_run()
+{
+   var flag = confirm('Are you sure to resume the run?');
+   if (flag == true) {
+      mjsonrpc_call("cm_transition", {"transition":"TR_RESUME"}).then(function(rpc) {
+         //mjsonrpc_debug_alert(rpc);
+         if (rpc.result.status != 1) {
+            throw new Error("Cannot resume run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
+         }
+         mhttpd_goto_page("Transition"); // DOES NOT RETURN
+      }).catch(function(error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
 }
 
 /*---- message functions -------------------------------------*/
