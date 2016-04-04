@@ -1296,18 +1296,6 @@ function mhttpd_create_page_handle_create(mouseEvent)
    });
 
    return false;
-   
-   var result = JSON.parse(ODBMCreate([ path + "/" + name ], [ type ], [ arraylength ], [ stringlength ]));
-
-   if (result[0] == 311) {
-      alert("ODB entry with this name already exists.");
-   } else if (result[0] != 1) {
-      alert("ODBMCreate() error " + result + ", and that's all we know.");
-   } else {
-      location.search = ""; // reloads the document
-   }
-   //window.reload();
-   return false;
 }
 
 function mhttpd_create_page_handle_cancel(mouseEvent)
@@ -1360,13 +1348,6 @@ function mhttpd_delete_page_handle_delete(mouseEvent)
    });
 
    //location.search = ""; // reloads the document
-   return false;
-
-   var result = JSON.parse(ODBMDelete(names));
-
-   location.search = ""; // reloads the document
-
-   //window.reload();
    return false;
 }
 
