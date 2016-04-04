@@ -1746,7 +1746,9 @@ void show_status_page(int refresh, const char *cookie_wpwd)
                rsprintf("<td colspan=6 style=\"background-color:%s;border-radius:12px;\" align=center>", bgcol);
                rsprintf("<table width=\"100%%\"><tr>\n");
                rsprintf("<td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"%s\" size=+3>%s: %s</font></td>\n", fgcol, alarm_class, str);
-               rsprintf("<td width=\"1%%\" style=\"border:0px;\"><button type=\"button\" onclick=\"mhttpd_reset_alarm(\\\"%s\\\");\">Reset</button></td>\n", key.name);
+               rsprintf("<td width=\"1%%\" style=\"border:0px;\">\n");
+               rsprintf("<button type=\"button\" onclick=\"mhttpd_reset_alarm(\'%s\');\">Reset</button>\n", key.name);
+               rsprintf("</td>\n");
                rsprintf("</tr></table>\n");
                rsprintf("</td>\n");
 

@@ -1430,6 +1430,19 @@ function mhttpd_resume_run()
    }
 }
 
+function mhttpd_reset_alarm(alarm_name)
+{
+   mjsonrpc_call("al_reset_alarm", { "alarms" : [ alarm_name ] }).then(function(rpc) {
+      //mjsonrpc_debug_alert(rpc);
+      if (rpc.result.status != 1 && rpc.result.status != 1004) {
+         throw new Error("Cannot reset alarm, status " + rpc.result.status + ", see MIDAS messages");
+      }
+      location.search = ""; // reloads the document
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+   });
+}
+
 /*---- message functions -------------------------------------*/
 
 var facility;
