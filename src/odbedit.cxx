@@ -2328,10 +2328,17 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
                   /* increment run number */
                   new_run_number = old_run_number + 1;
-                  printf("Run number [%d]: ", new_run_number);
-                  ss_gets(line, 256);
-                  if (line[0] && atoi(line) > 0)
-                     new_run_number = atoi(line);
+                  
+                  if (db_find_key(hDB, 0, "/Experiment/Edit on start/Edit Run number", &hKey) ==
+                      DB_SUCCESS && db_get_data(hDB, hKey, &i, &size, TID_BOOL) && i == 0) {
+                     printf("Run number: %d\n", new_run_number);
+                  } else {
+                     
+                     printf("Run number [%d]: ", new_run_number);
+                     ss_gets(line, 256);
+                     if (line[0] && atoi(line) > 0)
+                        new_run_number = atoi(line);
+                  }
 
                   printf("Are the above parameters correct? ([y]/n/q): ");
                   ss_gets(line, 256);
