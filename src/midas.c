@@ -4324,10 +4324,11 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       db_set_value(hDB, 0, "Runinfo/Start Time binary", &seconds, sizeof(seconds), 1, TID_DWORD);
    }
 
+   size = sizeof(state);
+   status = db_get_value(hDB, 0, "Runinfo/State", &state, &size, TID_INT, TRUE);
+
    /* set stop time in database */
    if (transition == TR_STOP) {
-      size = sizeof(state);
-      status = db_get_value(hDB, 0, "Runinfo/State", &state, &size, TID_INT, TRUE);
       if (status != DB_SUCCESS)
          cm_msg(MERROR, "cm_transition", "cannot get Runinfo/State in database");
 
