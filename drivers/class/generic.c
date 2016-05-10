@@ -258,18 +258,18 @@ INT gen_init(EQUIPMENT * pequipment)
       pequipment->driver[i].enabled = 1;
       sprintf(str, "Settings/Devices/%s/Enabled", pequipment->driver[i].name);
       status = db_get_value(hDB, gen_info->hKeyRoot, str, &pequipment->driver[i].enabled
-			    , &size, TID_BOOL, TRUE);
+                            , &size, TID_BOOL, TRUE);
       if (status != DB_SUCCESS)
-	return FE_ERR_ODB;
+         return FE_ERR_ODB;
       
       if (pequipment->driver[i].enabled) {
-	status = device_driver(&pequipment->driver[i], CMD_INIT, hKey);
-	if (status != FE_SUCCESS) {
-	  free_mem(gen_info);
-	  return status;
-	}
+         status = device_driver(&pequipment->driver[i], CMD_INIT, hKey);
+         if (status != FE_SUCCESS) {
+            free_mem(gen_info);
+            return status;
+         }
       } else
-	partially_disabled = TRUE;
+         partially_disabled = TRUE;
    }
 
    /* compose device driver channel assignment */
