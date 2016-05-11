@@ -18,8 +18,10 @@ int main()
    ca_context = ca_current_context();
    SEVCHK(ca_task_initialize(), "ca_task_initialize");
    SEVCHK(ca_create_channel("QSE42:IST:2", 0, 0, 0, &id), "ca_create_channel");
+   ca_pend_io(0);
    
    SEVCHK(ca_get(DBR_FLOAT, id, &value), "ca_get");
+   ca_pend_io(0);
    
    printf("QSE42:IST:2        %lg\n", value);
          
