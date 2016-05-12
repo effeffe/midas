@@ -274,7 +274,7 @@ int readHstFile(FILE*f)
                   //if (doPrintTags)
                   //printf("  Event size %d\n", e->size);
 
-                  delete tags;
+                  delete[] tags;
                   break;
                }
 
@@ -387,7 +387,7 @@ int readHstFile(FILE*f)
                            printf(" %s", ctime(&t));
                      }
 
-                  delete buf;
+                  delete[] buf;
                   break;
                }
             }
