@@ -2387,6 +2387,10 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
    if (result)
       delete result;
 
+   // this sleep is for testing web pages for correct loading
+   // when rpc requests have unexpected (long) network delays.
+   //ss_sleep(5000);
+   
    return reply;
 }
 

@@ -23,7 +23,7 @@
         </tr>
         <tr align="center">
           <td colspan="3" align="center">
-            <button onclick='start_a_new_run()'>Start</button>
+            <button onclick='start_a_new_run()' disabled id="start_button">Start</button>
             <button onclick='location.search=""'>Cancel</button>
           </td>
         </tr>
@@ -194,6 +194,8 @@
              }
           }
        }
+
+       mhttpd_enable_button(document.getElementById('start_button'));
        
        document.getElementById('mhttpd_last_updated').innerHTML = new Date;
        document.getElementById('updateStatus').innerHTML = "RWPD";
