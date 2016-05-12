@@ -571,7 +571,7 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
    bool omit_names = mjsonrpc_get_param(params, "omit_names", NULL)->GetBool();
    bool omit_last_written = mjsonrpc_get_param(params, "omit_last_written", NULL)->GetBool();
    double xomit_old_timestamp = mjsonrpc_get_param(params, "omit_old_timestamp", NULL)->GetDouble();
-   time_t omit_old_timestamp = xomit_old_timestamp;
+   time_t omit_old_timestamp = (time_t)xomit_old_timestamp;
 
    MJsonNode* dresult = MJsonNode::MakeArray();
    MJsonNode* sresult = MJsonNode::MakeArray();
@@ -1337,7 +1337,7 @@ static MJsonNode* js_cm_retrieve(const MJsonNode* params)
    int num_messages = 0;
    char* messages = NULL;
 
-   int status = cm_msg_retrieve2(facility, time, min_messages, &messages, &num_messages);
+   int status = cm_msg_retrieve2(facility, (time_t)time, min_messages, &messages, &num_messages);
 
    MJsonNode* result = MJsonNode::MakeObject();
 

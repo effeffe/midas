@@ -255,7 +255,7 @@ static int GetDWORD(const MJsonNode* node, const char* path, DWORD* dw)
       *dw = node->GetInt();
       return SUCCESS;
    case MJSON_NUMBER:
-      *dw = node->GetDouble();
+      *dw = (unsigned int)node->GetDouble();
       return SUCCESS;
    case MJSON_STRING:
       std::string s = node->GetString();
@@ -415,7 +415,7 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const
             cm_msg(MERROR, "db_paste_json", "numeric value %f out of range at \"%s\"", dv, path);
             return DB_FILE_ERROR;
          }
-         v = dv;
+         v = (int)dv;
          break;
       }
       case MJSON_STRING: {

@@ -299,6 +299,9 @@ int sc_thread(void *info)
    last_update = calloc(device_drv->channels, sizeof(int));
    last_time = ss_millitime();
 
+   // call CMD_START of device driver
+   device_drv->dd(CMD_START, device_drv->dd_info, 0, NULL);
+   
    do {
       /* read one channel from device */
       for (cmd = CMD_GET_FIRST; cmd <= CMD_GET_LAST; cmd++) {
