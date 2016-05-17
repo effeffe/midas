@@ -255,7 +255,7 @@ static int GetDWORD(const MJsonNode* node, const char* path, DWORD* dw)
       *dw = node->GetInt();
       return SUCCESS;
    case MJSON_NUMBER:
-      *dw = (unsigned int)node->GetDouble();
+      *dw = (DWORD)node->GetDouble();
       return SUCCESS;
    case MJSON_STRING:
       std::string s = node->GetString();
