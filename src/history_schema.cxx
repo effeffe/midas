@@ -1689,7 +1689,7 @@ static int FindTime(const char* file_name, int fd, int offset, int recsize, int 
 
    status = ReadRecord(file_name, fd, offset, recsize, rec1, buf);
    if (status != HS_SUCCESS) {
-      delete buf;
+      delete[] buf;
       return HS_FILE_ERROR;
    }
 
@@ -1705,7 +1705,7 @@ static int FindTime(const char* file_name, int fd, int offset, int recsize, int 
 
    status = ReadRecord(file_name, fd, offset, recsize, rec2, buf);
    if (status != HS_SUCCESS) {
-      delete buf;
+      delete[] buf;
       return HS_FILE_ERROR;
    }
 
@@ -1732,7 +1732,7 @@ static int FindTime(const char* file_name, int fd, int offset, int recsize, int 
 
       status = ReadRecord(file_name, fd, offset, recsize, rec, buf);
       if (status != HS_SUCCESS) {
-         delete buf;
+         delete[] buf;
          return HS_FILE_ERROR;
       }
 
@@ -1764,7 +1764,7 @@ static int FindTime(const char* file_name, int fd, int offset, int recsize, int 
    *trecp = t1;
    *trecp2 = t2;
 
-   delete buf;
+   delete[] buf;
    return HS_SUCCESS;
 }
 
@@ -1806,14 +1806,14 @@ int HsFileSchema::read_last_written(const time_t timestamp,
 
       status = ReadRecord(s->file_name.c_str(), fd, s->data_offset, s->record_size, nrec - 1, buf);
       if (status != HS_SUCCESS) {
-         delete buf;
+         delete[] buf;
          ::close(fd);
          return HS_FILE_ERROR;
       }
 
       lw = *(DWORD*)buf;
 
-      delete buf;
+      delete[] buf;
    }
 
    if (lw >= timestamp) {
@@ -1978,7 +1978,7 @@ int HsFileSchema::read_data(const time_t start_time,
          }
       }
 
-      delete buf;
+      delete[] buf;
    }
 
    ::close(fd);
@@ -2765,8 +2765,8 @@ int SchemaHistoryBase::hs_read(time_t start_time, time_t end_time, time_t interv
       delete buffer[i];
    }
 
-   delete buffer;
-   delete bi;
+   delete[] buffer;
+   delete[] bi;
 
    return status;
 }
@@ -2813,8 +2813,8 @@ int SchemaHistoryBase::hs_read_binned(time_t start_time, time_t end_time, int nu
       delete buffer[i];
    }
 
-   delete buffer;
-   delete xbuffer;
+   delete[] buffer;
+   delete[] xbuffer;
 
    return status;
 }
