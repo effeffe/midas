@@ -17091,8 +17091,69 @@ void server_loop(int tcp_port)
 /*------------------------------------------------------------------*/
 
 #define HAVE_MG 1
+//#define HAVE_MG4 1
+#define HAVE_MG6 1
 
 #ifdef HAVE_MG
+
+int try_file_mg(const char* try_dir, const char* filename, std::string& path, FILE** fpp, bool trace)
+{
+   if (fpp)
+      *fpp = NULL;
+   if (!try_dir)
+      return SS_FILE_ERROR;
+   if (strlen(try_dir) < 1)
+      return SS_FILE_ERROR;
+
+   path = try_dir;
+   if (path[path.length()-1] != DIR_SEPARATOR)
+      path += DIR_SEPARATOR_STR;
+   path += filename;
+
+   FILE* fp = fopen(path.c_str(), "r");
+
+   if (trace) {
+      if (fp)
+         printf("file \"%s\": OK!\n", path.c_str());
+      else
+         printf("file \"%s\": not found.\n", path.c_str());
+   }
+
+   if (!fp)
+      return SS_FILE_ERROR;
+   else if (fpp)
+      *fpp = fp;
+   else
+      fclose(fp);
+
+   return SUCCESS;
+}
+
+int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace)
+{
+   char exptdir[256];
+   cm_get_path(exptdir, sizeof(exptdir));
+
+   if (try_file_mg(".", filename, path, fpp, trace) == SUCCESS)
+      return SUCCESS;
+
+   if (try_file_mg(getenv("MIDAS_DIR"), filename, path, fpp, trace) == SUCCESS)
+      return SUCCESS;
+
+   if (try_file_mg(exptdir, filename, path, fpp, trace) == SUCCESS)
+      return SUCCESS;
+
+   if (try_file_mg(getenv("MIDASSYS"), filename, path, fpp, trace) == SUCCESS)
+      return SUCCESS;
+
+   // setup default filename
+   try_file_mg(exptdir, filename, path, NULL, false);
+   return SS_FILE_ERROR;
+}
+
+#endif
+
+#ifdef HAVE_MG4
 
 #include "mongoose.h"
 
@@ -17508,61 +17569,6 @@ const char** get_options_mg()
    return s;
 }
 
-int try_file_mg(const char* try_dir, const char* filename, std::string& path, FILE** fpp, bool trace)
-{
-   if (fpp)
-      *fpp = NULL;
-   if (!try_dir)
-      return SS_FILE_ERROR;
-   if (strlen(try_dir) < 1)
-      return SS_FILE_ERROR;
-
-   path = try_dir;
-   if (path[path.length()-1] != DIR_SEPARATOR)
-      path += DIR_SEPARATOR_STR;
-   path += filename;
-
-   FILE* fp = fopen(path.c_str(), "r");
-
-   if (trace) {
-      if (fp)
-         printf("file \"%s\": OK!\n", path.c_str());
-      else
-         printf("file \"%s\": not found.\n", path.c_str());
-   }
-
-   if (!fp)
-      return SS_FILE_ERROR;
-   else if (fpp)
-      *fpp = fp;
-   else
-      fclose(fp);
-
-   return SUCCESS;
-}
-
-int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace)
-{
-   char exptdir[256];
-   cm_get_path(exptdir, sizeof(exptdir));
-
-   if (try_file_mg(".", filename, path, fpp, trace) == SUCCESS)
-      return SUCCESS;
-
-   if (try_file_mg(getenv("MIDAS_DIR"), filename, path, fpp, trace) == SUCCESS)
-      return SUCCESS;
-
-   if (try_file_mg(exptdir, filename, path, fpp, trace) == SUCCESS)
-      return SUCCESS;
-
-   if (try_file_mg(getenv("MIDASSYS"), filename, path, fpp, trace) == SUCCESS)
-      return SUCCESS;
-
-   // setup default filename
-   try_file_mg(exptdir, filename, path, NULL, false);
-   return SS_FILE_ERROR;
-}
-
 int start_mg(int user_http_port, int user_https_port, int verbose)
 {
    HNDLE hDB;
@@ -17759,6 +17765,259 @@ int stop_mg()
    if (ctx_mg)
       mg_stop(ctx_mg);
    ctx_mg = NULL;
+   if (debug_mg)
+      printf("stop_mg done!\n");
+   return SUCCESS;
+}
+
+int loop_mg()
+{
+   int status = SUCCESS;
+
+   /* establish Ctrl-C handler - will set _abort to TRUE */
+   ss_ctrlc_handler(ctrlc_handler);
+
+   while (!_abort) {
+
+      /* cm_yield() is not thread safe, need to take a lock */
+
+      status = ss_mutex_wait_for(request_mutex, 0);
+
+      /* check for shutdown message */
+      status = cm_yield(0);
+      if (status == RPC_SHUTDOWN)
+         break;
+
+      /* call sequencer periodically */
+      sequencer();
+
+      status = ss_mutex_release(request_mutex);
+
+      ss_sleep(10);
+   }
+
+   return status;
+}
+
+#endif
+
+#ifdef HAVE_MG6
+
+#include "mongoose.h"
+
+static int debug_mg = 0;
+static struct mg_mgr mgr_mg;
+
+// Generic event handler
+
+static void handle_event_mg(struct mg_connection *nc, int ev, void *ev_data) {
+  struct mbuf *io = &nc->recv_mbuf;
+
+  switch (ev) {
+    case MG_EV_RECV:
+      // This event handler implements simple TCP echo server
+      mg_send(nc, io->buf, io->len);  // Echo received data back
+      mbuf_remove(io, io->len);      // Discard data from recv buffer
+      break;
+    default:
+      break;
+  }
+}
+
+// HTTP event handler
+
+static void handle_http_event_mg(struct mg_connection *nc, int ev, void *ev_data) {
+  (void) ev; (void) ev_data;
+  mg_printf(nc, "HTTP/1.0 200 OK\r\n\r\n[I am Hello1]");
+ nc->flags |= MG_F_SEND_AND_CLOSE;
+}
+
+int start_mg(int user_http_port, int user_https_port, int verbose)
+{
+   HNDLE hDB;
+   int size;
+   int status;
+
+   if (verbose)
+      debug_mg = 1;
+
+   status = cm_get_experiment_database(&hDB, NULL);
+   assert(status == CM_SUCCESS);
+
+   int http_port = 8080;
+   int https_port = 8443;
+   int http_redirect_to_https = 1;
+
+   size = sizeof(http_port);
+   db_get_value(hDB, 0, "/Experiment/midas http port", &http_port, &size, TID_INT, TRUE);
+
+   size = sizeof(https_port);
+   db_get_value(hDB, 0, "/Experiment/midas https port", &https_port, &size, TID_INT, TRUE);
+
+   size = sizeof(http_redirect_to_https);
+   db_get_value(hDB, 0, "/Experiment/http redirect to https", &http_redirect_to_https, &size, TID_BOOL, TRUE);
+
+   bool need_cert_file = false;
+   bool need_password_file = false;
+
+   std::string listening_ports;
+
+   if (user_http_port || user_https_port) { // use user ports
+      if (user_http_port)
+         listening_ports += toString(user_http_port);
+      if (user_https_port) {
+         if (listening_ports.length() > 0)
+            listening_ports += ",";
+         listening_ports += toString(user_https_port);
+         listening_ports += "s";
+         if (!user_http_port)
+            need_password_file = true; // passwords only if non-https port is disabled
+      }
+   } else {
+      if (http_port) {
+         listening_ports += toString(http_port);
+         if (https_port && http_redirect_to_https)
+            listening_ports += "r";
+      }
+      if (https_port) {
+         if (listening_ports.length() > 0)
+            listening_ports += ",";
+         listening_ports += toString(https_port);
+         listening_ports += "s";
+         if (!http_port || http_redirect_to_https)
+            need_password_file = true; // passwords only if non-https port is disabled or redirects to https
+      }
+   }
+
+   printf("Mongoose web server will listen on ports \"%s\"\n", listening_ports.c_str());
+
+   if (listening_ports.length() < 1) {
+      cm_msg(MERROR, "mongoose", "cannot start: no ports defined");
+      return SS_FILE_ERROR;
+   }
+
+   //add_option_mg("listening_ports", listening_ports.c_str());
+
+   if (https_port || user_https_port) {
+      need_cert_file = true;
+   }
+
+   if (need_cert_file) {
+      std::string path;
+      status = find_file_mg("ssl_cert.pem", path, NULL, debug_mg>0);
+
+      if (status != SUCCESS) {
+         cm_msg(MERROR, "mongoose", "cannot find SSL certificate file \"%s\"", path.c_str());
+         cm_msg(MERROR, "mongoose", "please create SSL certificate file: openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
+         return SS_FILE_ERROR;
+      }
+
+      printf("Mongoose web server will use SSL certificate file \"%s\"\n", path.c_str());
+      //add_option_mg("ssl_certificate", path.c_str());
+   }
+
+   if (need_password_file) {
+      char realm[256];
+      realm[0] = 0;
+      cm_get_experiment_name(realm, sizeof(realm));
+
+      if (strlen(realm) < 1)
+         STRLCPY(realm, "midas");
+
+      std::string path;
+      FILE *fp;
+      status = find_file_mg("htpasswd.txt", path, &fp, debug_mg>0);
+
+      bool realm_ok = false;
+
+      if (fp) { // check that the password file has our realm name
+         while (1) {
+            char buf[256];
+            char* s = fgets(buf, sizeof(buf), fp);
+            if (!s)
+               break; // end of file
+            // format is: user:realm:password
+            //printf("[%s]\n", s);
+            char* ss = strchr(s, ':');
+            if (ss) {
+               ss++;
+               char* sss = strchr(ss, ':');
+               if (sss) {
+                  //printf("[%s] ss [%s] sss [%s]\n", s, ss, sss);
+                  *sss = 0;
+                  if (strcmp(ss, realm) == 0) {
+                     // found at least one entry with matching realm name
+                     realm_ok = true;
+                     break;
+                  }
+               }
+            }
+         }
+         fclose(fp);
+         fp = NULL;
+      }
+
+      if (status != SUCCESS) {
+         cm_msg(MERROR, "mongoose", "mongoose web server cannot find password file \"%s\"", path.c_str());
+         cm_msg(MERROR, "mongoose", "please create password file: htdigest -c %s %s midas", path.c_str(), realm);
+         return SS_FILE_ERROR;
+      }
+
+      if (!realm_ok) {
+         cm_msg(MERROR, "mongoose", "mongoose web server password file \"%s\" has no passwords for realm \"%s\"", path.c_str(), realm);
+         cm_msg(MERROR, "mongoose", "please add passwords: htdigest %s %s midas", path.c_str(), realm);
+         return SS_FILE_ERROR;
+      }
+
+      // create or overwrite exiting password file: htdigest -c htpasswd.txt expt midas
+      //add_option_mg("authentication_domain", realm);
+      //add_option_mg("global_auth_file", path.c_str());
+
+      printf("Mongoose web server will use authentication realm \"%s\", password file \"%s\"\n", realm, path.c_str());
+   }
+
+   //if (strlen(mongoose_acl) > 0) {
+   //   printf("Web server access control list: \"%s\"\n", mongoose_acl);
+   //   add_option_mg("access_control_list", mongoose_acl);
+   //}
+
+   // const char** options = get_options_mg();
+
+   if (debug_mg)
+      printf("start_mg!\n");
+
+#ifndef OS_WINNT
+   signal(SIGPIPE, SIG_IGN);
+#endif
+
+   if (!request_mutex) {
+      status = ss_mutex_create(&request_mutex);
+      assert(status==SS_SUCCESS || status==SS_CREATED);
+   }
+
+   //   // Start the web server.
+   //   ctx_mg = mg_start(options, &event_handler_mg, NULL);
+
+   mg_mgr_init(&mgr_mg, NULL);
+   struct mg_connection* nc = mg_bind(&mgr_mg, "12345", handle_event_mg);
+   //mg_set_ssl(nc, ...);
+   //mg_enable_multithreading(nc);
+   mg_register_http_endpoint(nc, "/", handle_http_event_mg);
+
+   //   if (debug_mg)
+   //      printf("start_mg: ctx %p\n", ctx_mg);
+
+   return SUCCESS;
+}
+
+int stop_mg()
+{
+   if (debug_mg)
+      printf("stop_mg!\n");
+
+   // Stop the server.
+   mg_mgr_free(&mgr_mg);
+   
    if (debug_mg)
       printf("stop_mg done!\n");
    return SUCCESS;
