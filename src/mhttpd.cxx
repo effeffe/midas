@@ -1071,26 +1071,27 @@ void show_help_page()
 
    STRING_LIST list;
    status = cm_msg_facilities(&list);
-   
-   if (list.size() == 1) {
-      rsprintf("        <tr>\n");
-      rsprintf("          <td style=\"text-align:right;\">Sytem logfile:</td>\n");
-      cm_msg_get_logfile("midas", 0, str, sizeof(str), NULL, 0);
-      rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
-      rsprintf("        </tr>\n");
-   } else {
-      rsprintf("        <tr>\n");
-      rsprintf("          <td style=\"text-align:right;\">Logfiles:</td>\n");
-      rsprintf("          <td style=\"text-align:left;\">\n", str);
-      for (unsigned i=0 ; i<list.size() ; i++) {
-         if (i>0)
-            rsputs("<br />\n");
-         cm_msg_get_logfile(list[i].c_str(), 0, str, sizeof(str), NULL, 0);
-         rsputs(str);
+
+   if (status == CM_SUCCESS) {
+      if (list.size() == 1) {
+         rsprintf("        <tr>\n");
+         rsprintf("          <td style=\"text-align:right;\">System logfile:</td>\n");
+         cm_msg_get_logfile("midas", 0, str, sizeof(str), NULL, 0);
+         rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
+         rsprintf("        </tr>\n");
+      } else {
+         rsprintf("        <tr>\n");
+         rsprintf("          <td style=\"text-align:right;\">Logfiles:</td>\n");
+         rsprintf("          <td style=\"text-align:left;\">\n", str);
+         for (unsigned i=0 ; i<list.size() ; i++) {
+            if (i>0)
+               rsputs("<br />\n");
+            cm_msg_get_logfile(list[i].c_str(), 0, str, sizeof(str), NULL, 0);
+            rsputs(str);
+         }
+         rsprintf("\n          </td>\n");
+         rsprintf("        </tr>\n");
       }
-      rsprintf("\n          </td>\n");
-      rsprintf("        </tr>\n");
-      
    }
 
    rsprintf("        <tr>\n");
@@ -2342,7 +2343,7 @@ void show_messages_page()
    STRING_LIST list;
    status = cm_msg_facilities(&list);
    
-   if (list.size() > 0) {
+   if ((status == CM_SUCCESS) && (list.size() > 0)) {
       rsprintf("<table class=\"navigationTable\"><tr><td>\n");
       for (unsigned i=0 ; i<list.size() ; i++) {
          strlcpy(str, list[i].c_str(), sizeof(str));
