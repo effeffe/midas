@@ -17806,30 +17806,104 @@ int loop_mg()
 #include "mongoose.h"
 
 static int debug_mg = 0;
+static bool trace_mg = false;
 static struct mg_mgr mgr_mg;
 
 // Generic event handler
 
-static void handle_event_mg(struct mg_connection *nc, int ev, void *ev_data) {
-  struct mbuf *io = &nc->recv_mbuf;
-
-  switch (ev) {
-    case MG_EV_RECV:
+static void handle_event_mg(struct mg_connection *nc, int ev, void *ev_data)
+{
+   struct mbuf *io = &nc->recv_mbuf;
+   switch (ev) {
+   case MG_EV_POLL: // periodic call from loop_mg() via mg_mgr_poll()
+      break;
+   case MG_EV_ACCEPT:
+      if (trace_mg)
+         printf("handle_event_mg: nc %p, ev %d, ev_data %p -> accept\n", nc, ev, ev_data);
+      break;
+   case MG_EV_RECV:
+      if (trace_mg)
+         printf("handle_event_mg: nc %p, ev %d, ev_data %p -> recv %d, buffered %d bytes\n", nc, ev, ev_data, *(int*)ev_data, (int)io->len);
+#if 0      
       // This event handler implements simple TCP echo server
       mg_send(nc, io->buf, io->len);  // Echo received data back
       mbuf_remove(io, io->len);      // Discard data from recv buffer
+#endif
       break;
-    default:
+   case MG_EV_SEND:
+      if (trace_mg)
+         printf("handle_event_mg: nc %p, ev %d, ev_data %p -> send %d bytes\n", nc, ev, ev_data, *(int*)ev_data);
       break;
-  }
+   case MG_EV_CLOSE:
+      if (trace_mg)
+         printf("handle_event_mg: nc %p, ev %d, ev_data %p -> close\n", nc, ev, ev_data);
+      break;
+   default:
+      if (trace_mg)
+         printf("handle_event_mg: nc %p, ev %d, ev_data %p\n", nc, ev, ev_data);
+      break;
+   }
+}
+
+static std::string mgstr(const mg_str* s)
+{
+   return std::string(s->p, s->len);
+}
+
+void xxx()
+{
+   //status = ss_mutex_wait_for(request_mutex, 0);
+   //assert(status == SS_SUCCESS);
+   //locked = true;
+   //decode_get(NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, false, event->request_info->uri, event->request_info->query_string);
+}
+
+static void handle_http_get(struct mg_connection *nc, http_message* msg)
+{
+   if (trace_mg)
+      printf("handle_http_get: uri [%s]\n", mgstr(&msg->uri).c_str());
+
+   std::string response = "test";
+   mg_send_head(nc, 200, response.length(), NULL); // 200 OK
+   mg_send(nc, response.c_str(), response.length());
 }
 
 // HTTP event handler
 
-static void handle_http_event_mg(struct mg_connection *nc, int ev, void *ev_data) {
-  (void) ev; (void) ev_data;
-  mg_printf(nc, "HTTP/1.0 200 OK\r\n\r\n[I am Hello1]");
- nc->flags |= MG_F_SEND_AND_CLOSE;
+static void handle_http_message(struct mg_connection *nc, http_message* msg)
+{
+   std::string method = mgstr(&msg->method);
+   
+   if (trace_mg)
+      printf("handle_http_message: method [%s] uri [%s] proto [%s]\n", method.c_str(), mgstr(&msg->uri).c_str(), mgstr(&msg->proto).c_str());
+
+   if (method == "GET")
+      handle_http_get(nc, msg);
+   else {
+      std::string response = "501 Not Implemented";
+      mg_send_head(nc, 501, response.length(), NULL); // 501 Not Implemented
+      mg_send(nc, response.c_str(), response.length());
+   }
+}
+
+static void handle_http_event_mg(struct mg_connection *nc, int ev, void *ev_data)
+{
+   if (trace_mg)
+      printf("handle_http_event_mg: nc %p, ev %d, ev_data %p\n", nc, ev, ev_data);
+
+   switch (ev) {
+   case MG_EV_HTTP_REQUEST:
+      if (trace_mg)
+         printf("handle_http_event_mg: nc %p, ev %d, ev_data %p -> http request\n", nc, ev, ev_data);
+      handle_http_message(nc, (http_message*)ev_data);
+      break;
+   default:
+      if (trace_mg)
+         printf("handle_http_event_mg: nc %p, ev %d, ev_data %p\n", nc, ev, ev_data);
+      //mg_printf(nc, "HTTP/1.0 200 OK\r\n\r\n[I am Hello1]");
+      //nc->flags |= MG_F_SEND_AND_CLOSE;
+      break;
+   }
 }
 
 int start_mg(int user_http_port, int user_https_port, int verbose)
@@ -17840,6 +17914,9 @@ int start_mg(int user_http_port, int user_https_port, int verbose)
 
    if (verbose)
       debug_mg = 1;
+
+   if (verbose)
+      trace_mg = true;
 
    status = cm_get_experiment_database(&hDB, NULL);
    assert(status == CM_SUCCESS);
@@ -17860,60 +17937,42 @@ int start_mg(int user_http_port, int user_https_port, int verbose)
    bool need_cert_file = false;
    bool need_password_file = false;
 
-   std::string listening_ports;
+   if (user_http_port)
+      http_port = user_http_port;
 
-   if (user_http_port || user_https_port) { // use user ports
-      if (user_http_port)
-         listening_ports += toString(user_http_port);
-      if (user_https_port) {
-         if (listening_ports.length() > 0)
-            listening_ports += ",";
-         listening_ports += toString(user_https_port);
-         listening_ports += "s";
-         if (!user_http_port)
-            need_password_file = true; // passwords only if non-https port is disabled
-      }
-   } else {
-      if (http_port) {
-         listening_ports += toString(http_port);
-         if (https_port && http_redirect_to_https)
-            listening_ports += "r";
-      }
-      if (https_port) {
-         if (listening_ports.length() > 0)
-            listening_ports += ",";
-         listening_ports += toString(https_port);
-         listening_ports += "s";
-         if (!http_port || http_redirect_to_https)
-            need_password_file = true; // passwords only if non-https port is disabled or redirects to https
-      }
+   if (user_https_port)
+      https_port = user_https_port;
+
+   if (https_port) {
+      need_cert_file = true;
+      need_password_file = true;
    }
 
-   printf("Mongoose web server will listen on ports \"%s\"\n", listening_ports.c_str());
+   if (http_port && !http_redirect_to_https) {
+      // no passwords serving over http unless
+      // http is just a redict to https
+      need_password_file = false;
+   }
 
-   if (listening_ports.length() < 1) {
+   printf("Mongoose web server will listen on https port %d, http port %d, redirect to https: %d\n", https_port, http_port, http_redirect_to_https);
+
+   if (!http_port && !https_port) {
       cm_msg(MERROR, "mongoose", "cannot start: no ports defined");
       return SS_FILE_ERROR;
    }
 
-   //add_option_mg("listening_ports", listening_ports.c_str());
-
-   if (https_port || user_https_port) {
-      need_cert_file = true;
-   }
+   std::string cert_file;
 
    if (need_cert_file) {
-      std::string path;
-      status = find_file_mg("ssl_cert.pem", path, NULL, debug_mg>0);
+      status = find_file_mg("ssl_cert.pem", cert_file, NULL, debug_mg>0);
 
       if (status != SUCCESS) {
-         cm_msg(MERROR, "mongoose", "cannot find SSL certificate file \"%s\"", path.c_str());
+         cm_msg(MERROR, "mongoose", "cannot find SSL certificate file \"%s\"", cert_file.c_str());
          cm_msg(MERROR, "mongoose", "please create SSL certificate file: openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
          return SS_FILE_ERROR;
       }
 
-      printf("Mongoose web server will use SSL certificate file \"%s\"\n", path.c_str());
-      //add_option_mg("ssl_certificate", path.c_str());
+      printf("Mongoose web server will use SSL certificate file \"%s\"\n", cert_file.c_str());
    }
 
    if (need_password_file) {
@@ -17976,13 +18035,6 @@ int start_mg(int user_http_port, int user_https_port, int verbose)
       printf("Mongoose web server will use authentication realm \"%s\", password file \"%s\"\n", realm, path.c_str());
    }
 
-   //if (strlen(mongoose_acl) > 0) {
-   //   printf("Web server access control list: \"%s\"\n", mongoose_acl);
-   //   add_option_mg("access_control_list", mongoose_acl);
-   //}
-
-   // const char** options = get_options_mg();
-
    if (debug_mg)
       printf("start_mg!\n");
 
@@ -17995,17 +18047,30 @@ int start_mg(int user_http_port, int user_https_port, int verbose)
       assert(status==SS_SUCCESS || status==SS_CREATED);
    }
 
-   //   // Start the web server.
-   //   ctx_mg = mg_start(options, &event_handler_mg, NULL);
-
    mg_mgr_init(&mgr_mg, NULL);
-   struct mg_connection* nc = mg_bind(&mgr_mg, "12345", handle_event_mg);
-   //mg_set_ssl(nc, ...);
-   //mg_enable_multithreading(nc);
-   mg_register_http_endpoint(nc, "/", handle_http_event_mg);
 
-   //   if (debug_mg)
-   //      printf("start_mg: ctx %p\n", ctx_mg);
+   if (http_port) {
+      char str[256];
+      sprintf(str, "%d", http_port);
+      struct mg_connection* nc = mg_bind(&mgr_mg, str, handle_event_mg);
+#ifdef MG_ENABLE_THREADS
+      mg_enable_multithreading(nc);
+#endif
+      mg_set_protocol_http_websocket(nc);
+      mg_register_http_endpoint(nc, "/", handle_http_event_mg);
+   }
+
+   if (https_port) {
+      char str[256];
+      sprintf(str, "%d", https_port);
+      struct mg_connection* nc = mg_bind(&mgr_mg, str, handle_event_mg);
+      mg_set_ssl(nc, cert_file.c_str(), NULL);
+#ifdef MG_ENABLE_THREADS
+      mg_enable_multithreading(nc);
+#endif
+      mg_set_protocol_http_websocket(nc);
+      mg_register_http_endpoint(nc, "/", handle_http_event_mg);
+   }
 
    return SUCCESS;
 }
@@ -18046,7 +18111,9 @@ int loop_mg()
 
       status = ss_mutex_release(request_mutex);
 
-      ss_sleep(10);
+      //ss_sleep(10);
+
+      mg_mgr_poll(&mgr_mg, 10);
    }
 
    return status;

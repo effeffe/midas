@@ -508,6 +508,9 @@ ifdef HAVE_MSCB
 CFLAGS     += -DHAVE_MSCB
 endif
 
+CFLAGS     += -DMG_ENABLE_THREADS
+CFLAGS     += -DMG_ENABLE_SSL
+
 $(BIN_DIR)/mlogger: $(BIN_DIR)/%: $(SRC_DIR)/%.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
 
