@@ -17888,9 +17888,6 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
 
 static void handle_http_event_mg(struct mg_connection *nc, int ev, void *ev_data)
 {
-   if (trace_mg)
-      printf("handle_http_event_mg: nc %p, ev %d, ev_data %p\n", nc, ev, ev_data);
-
    switch (ev) {
    case MG_EV_HTTP_REQUEST:
       if (trace_mg)
@@ -17900,9 +17897,28 @@ static void handle_http_event_mg(struct mg_connection *nc, int ev, void *ev_data
    default:
       if (trace_mg)
          printf("handle_http_event_mg: nc %p, ev %d, ev_data %p\n", nc, ev, ev_data);
-      //mg_printf(nc, "HTTP/1.0 200 OK\r\n\r\n[I am Hello1]");
-      //nc->flags |= MG_F_SEND_AND_CLOSE;
       break;
+   }
+}
+
+static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data)
+{
+   switch (ev) {
+   case MG_EV_HTTP_REQUEST:
+      {
+         http_message* msg = (http_message*)ev_data;
+         if (trace_mg)
+            printf("handle_http_redirect: nc %p, ev %d, ev_data %p -> http request\n", nc, ev, ev_data);
+         
+         mg_printf(nc, "HTTP/1.1 302 Found\r\nLocation: https://%s%s\r\n\r\n",
+                   ((std::string*)(nc->user_data))->c_str(),
+                   mgstr(&msg->uri).c_str());
+         nc->flags |= MG_F_SEND_AND_CLOSE;
+      }
+      break;
+   default:
+      if (trace_mg)
+         printf("handle_http_redirect: nc %p, ev %d, ev_data %p\n", nc, ev, ev_data);
    }
 }
 
@@ -18057,7 +18073,18 @@ int start_mg(int user_http_port, int user_https_port, int verbose)
       mg_enable_multithreading(nc);
 #endif
       mg_set_protocol_http_websocket(nc);
-      mg_register_http_endpoint(nc, "/", handle_http_event_mg);
+
+      if (http_redirect_to_https) {
+         char hostname[256];
+         gethostname(hostname, sizeof(host_name));
+         char str[256];
+         sprintf(str, "%d", https_port);
+         std::string s = std::string(hostname) + ":" + std::string(str);
+         nc->user_data = new std::string(s);
+         mg_register_http_endpoint(nc, "/", handle_http_redirect);
+      } else {
+         mg_register_http_endpoint(nc, "/", handle_http_event_mg);
+      }
    }
 
    if (https_port) {
