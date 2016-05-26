@@ -17809,6 +17809,43 @@ static int debug_mg = 0;
 static bool trace_mg = false;
 static struct mg_mgr mgr_mg;
 
+static std::string mgstr(const mg_str* s)
+{
+   return std::string(s->p, s->len);
+}
+
+#if 0
+static const std::string find_header_mg(const struct http_message *msg, const char* name)
+{
+   int nlen = strlen(name);
+   for (int i=0; i<MG_MAX_HTTP_HEADERS; i++) {
+      if (msg->header_names[i].len != nlen)
+         continue;
+      if (strncmp(msg->header_names[i].p, name, nlen) != 0)
+         continue;
+      return mgstr(&msg->header_values[i]);
+   }
+   return "";
+}
+
+static const std::string find_cookie_mg(const struct http_message *msg, const char* cookie_name)
+{
+   const std::string cookies = find_header_mg(msg, "Cookie");
+   FIXME....
+   if (!cookies)
+      return NULL;
+   const char* p = strstr(cookies, cookie_name);
+   if (!p)
+      return NULL;
+   const char* v = p+strlen(cookie_name);
+   if (*v != '=')
+      return NULL;
+   v++;
+   printf("cookie [%s] value [%s]\n", cookie_name, v);
+   return v;
+}
+#endif
+
 // Generic event handler
 
 static void handle_event_mg(struct mg_connection *nc, int ev, void *ev_data)
@@ -17845,27 +17882,95 @@ static void handle_event_mg(struct mg_connection *nc, int ev, void *ev_data)
    }
 }
 
-static std::string mgstr(const mg_str* s)
+static bool handle_decode_get(struct mg_connection *nc, const char* uri, const char* query_string)
 {
-   return std::string(s->p, s->len);
-}
+   int status;
+   
+   status = ss_mutex_wait_for(request_mutex, 0);
+   assert(status == SS_SUCCESS);
 
-void xxx()
-{
-   //status = ss_mutex_wait_for(request_mutex, 0);
-   //assert(status == SS_SUCCESS);
-   //locked = true;
-   //decode_get(NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, false, event->request_info->uri, event->request_info->query_string);
-}
+   // extract password cookies
+   
+   char cookie_pwd[256]; // general access password
+   char cookie_wpwd[256]; // "write mode" password
+   char cookie_cpwd[256]; // custom page and javascript password
+   
+   cookie_pwd[0] = 0;
+   cookie_wpwd[0] = 0;
+   cookie_cpwd[0] = 0;
 
-static void handle_http_get(struct mg_connection *nc, http_message* msg)
-{
+#if 0
+   char* p;
+   
+   p = find_cookie_mg(event, "midas_pwd");
+   if (p) {
+      STRLCPY(cookie_pwd, p);
+      cookie_pwd[strcspn(cookie_pwd, " ;\r\n")] = 0;
+   }
+   
+   p = find_cookie_mg(event, "midas_wpwd");
+   if (p) {
+      STRLCPY(cookie_wpwd, p);
+      cookie_wpwd[strcspn(cookie_wpwd, " ;\r\n")] = 0;
+   }
+   
+   p = find_cookie_mg(event, "cpwd");
+   if (p) {
+      STRLCPY(cookie_cpwd, p);
+      cookie_cpwd[strcspn(cookie_cpwd, " ;\r\n")] = 0;
+   }
+#endif
+   
+   // extract refresh rate
+   int refresh = DEFAULT_REFRESH;
+#if 0
+   p = find_cookie_mg(event, "midas_refr");
+   if (p)
+      refresh = atoi(p);
+#endif
+   
+   // prepare return buffer
+   memset(return_buffer, 0, return_size);
+   strlen_retbuf = 0;
+   return_length = 0;
+   
+   decode_get(NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, false, uri, query_string);
+
    if (trace_mg)
-      printf("handle_http_get: uri [%s]\n", mgstr(&msg->uri).c_str());
+      printf("handle_decode_get: return buffer length %d bytes, strlen %d\n", return_length, (int)strlen(return_buffer));
 
-   std::string response = "test";
-   mg_send_head(nc, 200, response.length(), NULL); // 200 OK
-   mg_send(nc, response.c_str(), response.length());
+   if (return_length == -1) {
+      ss_mutex_release(request_mutex);
+      return false;
+   }
+
+   if (return_length == 0)
+      return_length = strlen(return_buffer);
+   
+   char* buf = (char*)malloc(return_length);
+   assert(buf != NULL);
+   
+   memcpy(buf, return_buffer, return_length);
+   
+   ss_mutex_release(request_mutex);
+   
+   mg_send(nc, buf, return_length);
+   
+   free(buf);
+   buf = NULL;
+   
+   return true;
+}
+
+static bool handle_http_get(struct mg_connection *nc, http_message* msg)
+{
+   std::string uri = mgstr(&msg->uri);
+   std::string query_string = mgstr(&msg->query_string);
+
+   if (trace_mg)
+      printf("handle_http_get: uri [%s], query [%s]\n", uri.c_str(), query_string.c_str());
+
+   return handle_decode_get(nc, uri.c_str(), query_string.c_str());
 }
 
 // HTTP event handler
@@ -17877,9 +17982,12 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
    if (trace_mg)
       printf("handle_http_message: method [%s] uri [%s] proto [%s]\n", method.c_str(), mgstr(&msg->uri).c_str(), mgstr(&msg->proto).c_str());
 
+   bool response_sent = false;
+
    if (method == "GET")
-      handle_http_get(nc, msg);
-   else {
+      response_sent = handle_http_get(nc, msg);
+
+   if (!response_sent) {
       std::string response = "501 Not Implemented";
       mg_send_head(nc, 501, response.length(), NULL); // 501 Not Implemented
       mg_send(nc, response.c_str(), response.length());
