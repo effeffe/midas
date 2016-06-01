@@ -468,12 +468,12 @@ INT multi_init(EQUIPMENT * pequipment)
          if (status != DB_SUCCESS) {
             db_create_key(hDB, m_info->hKeyRoot, "Settings/Names Output", TID_STRING);
             db_find_key(hDB, m_info->hKeyRoot, "Settings/Names Output", &hKey);
-            db_set_data(hDB, hKey, m_info->names_input, NAME_LENGTH, 1, TID_STRING);
+            db_set_data(hDB, hKey, m_info->names_output, NAME_LENGTH, 1, TID_STRING);
          } else {
             size = sizeof(str);
             db_get_data_index(hDB, hKey, str, &size, i, TID_STRING);
             if (!str[0])
-               db_set_data_index(hDB, hKey, m_info->names_input+NAME_LENGTH*i, NAME_LENGTH, i, TID_STRING);
+               db_set_data_index(hDB, hKey, m_info->names_output+NAME_LENGTH*i, NAME_LENGTH, i, TID_STRING);
          }
 
       }

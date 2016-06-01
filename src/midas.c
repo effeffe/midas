@@ -912,45 +912,6 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
 
 /********************************************************************/
 /**
- Retrieve list of message facilities by searching logfiles on disk
- @param  list             List of facilities
- @param  max_n            Size of list
- @return n                Number of facilities
- */
-
-INT EXPRT cm_msg_facilities(char **plist)
-{
-   char path[256], *flist, *p;
-   int i, n, n_fac;
-   
-   n_fac = 0;
-   
-   cm_msg_get_logfile("midas", 0, path, sizeof(path), NULL, 0);
-   
-   if (strrchr(path, DIR_SEPARATOR))
-      *strrchr(path, DIR_SEPARATOR) = 0;
-   else
-      path[0] = 0;
-   
-   *plist = (char *) malloc(MAX_STRING_LENGTH);
-   n = ss_file_find(path, "*.log", &flist);
-   for (i=0 ; i<n ; i++) {
-      p = flist+i*MAX_STRING_LENGTH;
-      if (strchr(p, '_') == NULL && !(p[0] >= '0' && p[0] <= '9') && !equal_ustring(p, "chat.log")) {
-         *plist = (char *) realloc(*plist, (n_fac + 1) * MAX_STRING_LENGTH);
-         strlcpy(*plist+n_fac*MAX_STRING_LENGTH, p, MAX_STRING_LENGTH);
-         if (strchr(*plist+n_fac*MAX_STRING_LENGTH, '.'))
-             *strchr(*plist+n_fac*MAX_STRING_LENGTH, '.') = 0;
-         n_fac++;
-      }
-   }
-   free(flist);
-   
-   return n_fac;
-}
-
-/********************************************************************/
-/**
 Register a dispatch function for receiving system messages.
 - example code from mlxspeaker.c
 \code
@@ -1006,56 +967,89 @@ INT cm_msg_register(void (*func) (HNDLE, HNDLE, EVENT_HEADER *, void *))
    return status;
 }
 
+static void add_message(char** messages, int* length, int* allocated, time_t tstamp, const char* new_message)
+{
+   int new_message_length = strlen(new_message);
+   int new_allocated = 1024 + 2*((*allocated) + new_message_length);
+   char buf[100];
+   int buf_length;
+
+   //printf("add_message: new message %d, length %d, new end: %d, allocated: %d, maybe reallocate size %d\n", new_message_length, *length, *length + new_message_length, *allocated, new_allocated);
+
+   if (*length + new_message_length + 100 > *allocated) {
+      *messages = realloc(*messages, new_allocated);
+      assert(*messages != NULL);
+      *allocated = new_allocated;
+   }
+
+   if (*length > 0)
+      if ((*messages)[(*length)-1] != '\n') {
+         (*messages)[*length] = '\n'; // separator between messages
+         (*length) += 1;
+      }
+
+   sprintf(buf, "%ld ", tstamp);
+   buf_length = strlen(buf);
+   memcpy(&((*messages)[*length]), buf, buf_length);
+   (*length) += buf_length;
+
+   memcpy(&((*messages)[*length]), new_message, new_message_length);
+   (*length) += new_message_length;
+   (*messages)[*length] = 0; // make sure string is NUL terminated
+}
+
 /* Retrieve message from an individual file. Internal use only */
-INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, INT buf_size)
+static int cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char** messages, int* length, int* allocated, int* num_messages)
 {
    BOOL stop;
    int fh, size;
-   INT i, n, s;
-   char *p, *buffer, *pm, str[1000];
+   INT i, n;
+   char *p, *buffer, str[1000];
    struct stat stat_buf;
    struct tm tms;
    time_t tstamp, tstamp_valid, tstamp_last;
 
+   *num_messages = 0;
+
    fh = open(filename, O_RDONLY | O_TEXT, 0644);
    if (fh < 0) {
-      sprintf(message, "Cannot open message log file %s\n", filename);
-      return -1;
+      cm_msg(MERROR, "cm_msg_retrieve1", "Cannot open log file \"%s\", errno %d (%s)", filename, errno, strerror(errno));
+      return SS_FILE_ERROR;
    }
-
-   if (buf_size <= 2)
-      return 0;
 
    /* read whole file into memory */
    fstat(fh, &stat_buf);
    size = stat_buf.st_size;
    buffer = (char *) malloc(size + 1);
+
    if (buffer == NULL) {
-      sprintf(message, "Not enough memory to open message log file %s\n", filename);
-      return -1;
+      cm_msg(MERROR, "cm_msg_retrieve1", "Cannot malloc %d bytes to read log file \"%s\", errno %d (%s)", size, filename, errno, strerror(errno));
+      close(fh);
+      return SS_FILE_ERROR;
    }
+
    i = read(fh, buffer, size);
+
+   if (i != size) {
+      cm_msg(MERROR, "cm_msg_retrieve1", "Cannot read %d bytes from log file \"%s\", read() returned %d, errno %d (%s)", size, filename, i, errno, strerror(errno));
+      close(fh);
+      return SS_FILE_ERROR;
+   }
+   
    buffer[size] = 0;
    close(fh);
    
-   memset(message, 0, buf_size);
-
-   pm = message;
    p = buffer + size - 1;
-   s = 0;
    tstamp_last = tstamp_valid = 0;
    stop = FALSE;
    
    while (*p == '\n' || *p == '\r')
       p--;
-   for (n=0 ; !stop && p>buffer && s<buf_size ; ) {
+   for (n=0 ; !stop && p>buffer ; ) {
       
       /* go to beginning of line */
       for (i=0 ; p != buffer && (*p != '\n' && *p != '\r') ; i++)
          p--;
-      
-      if (s+i > buf_size)
-         break;
       
       if (p == buffer) {
          i++;
@@ -1113,15 +1107,10 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, IN
       if (t == 0 || tstamp == -1 ||
           (n_messages > 0 && tstamp <= t) ||
           (n_messages == 0 && tstamp >= t)) {
-         sprintf(pm, "%ld ", tstamp);
-         s += strlen(pm);
-         pm += strlen(pm);
-         
-         strlcpy(pm, str, buf_size-s);
-         s += strlen(pm);
-         pm += strlen(pm);
          
          n++;
+
+         add_message(messages, length, allocated, tstamp, str);
       }
       
       while (*p == '\n' || *p == '\r')
@@ -1139,16 +1128,70 @@ INT cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char *message, IN
             break;
       }
    }
-   message[s] = 0;
+
    free(buffer);
 
-   return n;
+   *num_messages = n;
+
+   return CM_SUCCESS;
 }
 
 /********************************************************************/
 /**
 Retrieve old messages from log file
-@param  facility         Logging facility ("midas", "lazy", ...)
+@param  facility         Logging facility ("midas", "chat", "lazy", ...)
+@param  t                Return messages logged before and including time t, value 0 means start with newest messages
+@param  min_messages     Minimum number of messages to return
+@param  messages         messages, newest first, separated by \n characters. caller should free() this buffer at the end.
+@param  num_messages     Number of messages returned
+@return CM_SUCCESS
+*/
+INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char** messages, int* num_messages)
+{
+   char filename[256], linkname[256];
+   INT n, i, flag;
+   time_t filedate;
+   int length = 0;
+   int allocated = 0;
+   int status;
+
+   time(&filedate);
+   flag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), linkname, sizeof(linkname));
+
+   //printf("facility %s, filename \"%s\" \"%s\"\n", facility, filename, linkname);
+
+   if (strlen(linkname) > 0) {
+      int fh;
+      // see if file exists, use linkname if not
+      fh = open(filename, O_RDONLY | O_TEXT, 0644);
+      if (fh < 0)
+         strlcpy(filename, linkname, sizeof(filename));
+      else
+         close(fh);
+   }
+   
+   status = cm_msg_retrieve1(filename, t, n_message, messages, &length, &allocated, &n);
+
+   while (n < n_message && flag) {
+      filedate -= 3600 * 24;         // go one day back
+
+      cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), NULL, 0);
+      
+      status = cm_msg_retrieve1(filename, t, n_message - n, messages, &length, &allocated, &i);
+      if (status != CM_SUCCESS) {
+         break;
+      }
+      n += i;
+   }
+
+   *num_messages = n;
+
+   return CM_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Retrieve newest messages from "midas" facility log file
 @param  n_message        Number of messages to retrieve
 @param  message          buf_size bytes of messages, separated
                          by \n characters. The returned number
@@ -1156,78 +1199,27 @@ Retrieve old messages from log file
                          initial buf_size, since only full
                          lines are returned.
 @param *buf_size         Size of message buffer to fill
-@return CM_SUCCESS
+@return CM_SUCCESS, CM_TRUNCATED
 */
-INT cm_msg_retrieve(const char *facility, time_t t, INT n_message, char *message, INT buf_size)
+INT cm_msg_retrieve(INT n_message, char *message, INT buf_size)
 {
-   char filename[256], linkname[256], *p;
-   INT n, i, fh, flag;
-   time_t filedate;
+   int status;
+   char* messages = NULL;
+   int num_messages = 0;
 
    if (rpc_is_remote())
-      return rpc_call(RPC_CM_MSG_RETRIEVE, facility, t, n_message, message, buf_size);
+      return rpc_call(RPC_CM_MSG_RETRIEVE, n_message, message, buf_size);
 
-   time(&filedate);
-   flag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), linkname, sizeof(linkname));
-   
-   // see if file exists, use linkname if not
-   fh = open(filename, O_RDONLY | O_TEXT, 0644);
-   if (fh < 0)
-      strlcpy(filename, linkname, sizeof(filename));
-   else
-      close(fh);
-   
-   n = cm_msg_retrieve1(filename, t, n_message, message, buf_size);
-   if (strstr(filename, "chat") != NULL && n == -1)
-      message[0] = 0;
+   status = cm_msg_retrieve2("midas", 0, n_message, &messages, &num_messages);
 
-   while (n < n_message && flag) {
-      filedate -= 3600 * 24;         // go one day back
-
-      cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), NULL, 0);
-      
-      p = message+strlen(message);
-      i = cm_msg_retrieve1(filename, t, n_message - n, p, buf_size - strlen(message) - 1);
-      if (i < 0) {
-         *p = 0;
-         break;
-      }
-      n += i;
+   if (messages) {
+      strlcpy(message, messages, buf_size);
+      if (strlen(messages) > buf_size)
+         status = CM_TRUNCATED;
+      free(messages);
    }
 
-   return CM_SUCCESS;
-}
-
-INT cm_msg_retrieve_old(const char *facility, time_t t, INT n_message, char *message, INT buf_size)
-{
-   char filename[256], *message2;
-   INT n, i;
-   
-   if (rpc_is_remote())
-      return rpc_call(RPC_CM_MSG_RETRIEVE, facility, t, n_message, message, buf_size);
-   
-   cm_msg_get_logfile(facility, t, filename, sizeof(filename), NULL, 0);
-   n = cm_msg_retrieve1(filename, t, n_message, message, buf_size);
-   
-   while (n < n_message && strchr(filename, '%')) {
-      t -= 3600 * 24;         // go one day back
-      
-      cm_msg_get_logfile(facility, t, filename, sizeof(filename), NULL, 0);
-      
-      message2 = (char *) malloc(buf_size);
-      
-      i = cm_msg_retrieve1(filename, t, n_message - n, message2, buf_size - strlen(message) - 1);
-      if (i < 0)
-         break;
-      strlcat(message2, "\r\n", buf_size);
-      
-      memmove(message + strlen(message2), message, strlen(message) + 1);
-      memmove(message, message2, strlen(message2));
-      free(message2);
-      n += i;
-   }
-   
-   return CM_SUCCESS;
+   return status;
 }
 
 /**dox***************************************************************/
@@ -3502,6 +3494,237 @@ int tr_thread(void *param)
 
 /*------------------------------------------------------------------*/
 
+typedef struct {
+   int   transition;
+   int   run_number;
+   int   async_flag;
+   int   debug_flag;
+   int   status;
+   char  errorstr[256];
+   int   num_clients;
+   TR_CLIENT* clients;
+} TR_STATE;
+
+static TR_STATE* tr_previous_transition = NULL;
+static TR_STATE* tr_current_transition = NULL;
+
+/*------------------------------------------------------------------*/
+
+static void json_write(char **buffer, int* buffer_size, int* buffer_end, int level, const char* s, int quoted)
+{
+   int len, remain, xlevel;
+
+   len = strlen(s);
+   remain = *buffer_size - *buffer_end;
+   assert(remain >= 0);
+
+   xlevel = 2*level;
+
+   while (10 + xlevel + 3*len > remain) {
+      // reallocate the buffer
+      int new_buffer_size = 2*(*buffer_size);
+      if (new_buffer_size < 4*1024)
+         new_buffer_size = 4*1024;
+      //printf("reallocate: len %d, size %d, remain %d, allocate %d\n", len, *buffer_size, remain, new_buffer_size);
+      *buffer = (char *)realloc(*buffer, new_buffer_size);
+      assert(*buffer);
+      *buffer_size = new_buffer_size;
+      remain = *buffer_size - *buffer_end;
+      assert(remain >= 0);
+   }
+
+   if (xlevel) {
+      int i;
+      for (i=0; i<xlevel; i++)
+         (*buffer)[(*buffer_end)++] = ' ';
+   }
+
+   if (!quoted) {
+      memcpy(*buffer + *buffer_end, s, len);
+      *buffer_end += len;
+      (*buffer)[*buffer_end] = 0; // NUL-terminate the buffer
+      return;
+   }
+
+   (*buffer)[(*buffer_end)++] = '"';
+
+   while (*s) {
+      switch (*s) {
+      case '\"':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = '\"';
+         s++;
+         break;
+      case '\\':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = '\\';
+         s++;
+         break;
+#if 0
+      case '/':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = '/';
+         s++;
+         break;
+#endif
+      case '\b':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 'b';
+         s++;
+         break;
+      case '\f':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 'f';
+         s++;
+         break;
+      case '\n':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 'n';
+         s++;
+         break;
+      case '\r':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 'r';
+         s++;
+         break;
+      case '\t':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 't';
+         s++;
+         break;
+      default:
+         (*buffer)[(*buffer_end)++] = *s++;
+      }
+   }
+
+   (*buffer)[(*buffer_end)++] = '"';
+   (*buffer)[*buffer_end] = 0; // NUL-terminate the buffer
+
+   remain = *buffer_size - *buffer_end;
+   assert(remain > 0);
+}
+
+static void json_write_kvp_s(char **buf, int* bufs, int* bufe, int level, const char* key, const char* value)
+{
+   json_write(buf, bufs, bufe, level, key, 1);
+   json_write(buf, bufs, bufe, 0, ":", 0);
+   json_write(buf, bufs, bufe, 0, value, 1);
+}
+
+static void json_write_kvp_i(char **buf, int* bufs, int* bufe, int level, const char* key, int value)
+{
+   char str[256];
+   sprintf(str, "%d", value);
+   json_write(buf, bufs, bufe, level, key, 1);
+   json_write(buf, bufs, bufe, 0, ":", 0);
+   json_write(buf, bufs, bufe, 0, str, 0);
+}
+
+int cm_transition_status_json(char** json_status)
+{
+   char* buf = NULL;
+   int bufs = 0;
+   int bufe = 0;
+
+   int level = 0;
+
+   const TR_STATE *s = tr_current_transition;
+
+   if (s && s->transition == TR_STARTABORT) {
+      s = tr_previous_transition;
+   }
+
+   if (!s) {
+      json_write(&buf, &bufs, &bufe, level, "{", 0);
+      json_write(&buf, &bufs, &bufe, level, "}", 0);
+   } else {
+      int n = s->num_clients;
+      const TR_CLIENT* t = s->clients;
+      int i;
+
+      json_write(&buf, &bufs, &bufe, level, "{", 0);
+
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "transition", s->transition);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "run_number", s->run_number);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "async_flag", s->async_flag);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "debug_flag", s->debug_flag);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "status",     s->status);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_s(&buf, &bufs, &bufe, level, "errorstr",   s->errorstr);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      
+      json_write(&buf, &bufs, &bufe, level, "clients", 1);
+      json_write(&buf, &bufs, &bufe, 0, ": [", 0);
+      
+      for (i=0; i<n; i++) {
+         if (i>0)
+            json_write(&buf, &bufs, &bufe, level, ",", 0);
+         
+         json_write(&buf, &bufs, &bufe, level, "{", 0);
+         
+         json_write_kvp_s(&buf, &bufs, &bufe, level, "name", t[i].client_name);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "sequence_number", t[i].sequence_number);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "transition", t[i].transition);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "run_number", t[i].run_number);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "async_flag", t[i].async_flag);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "debug_flag", t[i].debug_flag);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_s(&buf, &bufs, &bufe, level, "host_name",  t[i].host_name);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "port",       t[i].port);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_s(&buf, &bufs, &bufe, level, "key_name",   t[i].key_name);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+
+         if (t[i].n_pred > 0) {
+            int j;
+            PTR_CLIENT* p = t[i].pred;
+
+            json_write(&buf, &bufs, &bufe, level, "wait_for_clients", 1);
+            json_write(&buf, &bufs, &bufe, 0, ": [", 0);
+            
+            for (j=0; j<t[i].n_pred; j++) {
+               if (j>0)
+                  json_write(&buf, &bufs, &bufe, 0, ",", 0);
+               json_write(&buf, &bufs, &bufe, level, "{", 0);
+               json_write_kvp_s(&buf, &bufs, &bufe, level, "name", p[j]->client_name);
+               json_write(&buf, &bufs, &bufe, 0, ",", 0);
+               json_write_kvp_i(&buf, &bufs, &bufe, level, "sequence_number", p[j]->sequence_number);
+               json_write(&buf, &bufs, &bufe, 0, ",", 0);
+               json_write_kvp_i(&buf, &bufs, &bufe, level, "status", p[j]->status);
+               json_write(&buf, &bufs, &bufe, level, "}", 0);
+            }
+            json_write(&buf, &bufs, &bufe, 0, "]", 0);
+            json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         }
+         
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "status",     t[i].status);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_s(&buf, &bufs, &bufe, level, "errorstr",   t[i].errorstr);
+         
+         json_write(&buf, &bufs, &bufe, level, "}", 0);
+      }
+      
+      json_write(&buf, &bufs, &bufe, 0, "]", 0);
+      json_write(&buf, &bufs, &bufe, 0, "}", 0);
+   }
+      
+   *json_status = buf;
+
+   return CM_SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
+
 /* Perform a detached transition through teh externam "mtransition" program */
 int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag)
 {
@@ -4101,10 +4324,11 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       db_set_value(hDB, 0, "Runinfo/Start Time binary", &seconds, sizeof(seconds), 1, TID_DWORD);
    }
 
+   size = sizeof(state);
+   status = db_get_value(hDB, 0, "Runinfo/State", &state, &size, TID_INT, TRUE);
+
    /* set stop time in database */
    if (transition == TR_STOP) {
-      size = sizeof(state);
-      status = db_get_value(hDB, 0, "Runinfo/State", &state, &size, TID_INT, TRUE);
       if (status != DB_SUCCESS)
          cm_msg(MERROR, "cm_transition", "cannot get Runinfo/State in database");
 
@@ -4261,6 +4485,46 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       }
    }
 
+   /* construction of tr_client is complete, export it to outside watchers */
+
+   /* delete previous transition state */
+
+   if (tr_previous_transition) {
+      TR_STATE *s = tr_previous_transition;
+      int n = s->num_clients;
+      TR_CLIENT*t = s->clients;
+
+      for (i=0 ; i<n ; i++)
+         if (t[i].pred)
+            free(t[i].pred);
+
+      free(s->clients);
+      s->clients = NULL;
+      free(s);
+      tr_previous_transition = NULL;
+   }
+
+   if (tr_current_transition) {
+      tr_previous_transition = tr_current_transition;
+   }
+   
+   /* construct new transition state */
+
+   if (1) {
+      TR_STATE *s = calloc(1, sizeof(TR_STATE));
+
+      s->transition = transition;
+      s->run_number = run_number;
+      s->async_flag = async_flag;
+      s->debug_flag = debug_flag;
+      s->status     = 0;
+      s->errorstr[0] = 0;
+      s->num_clients = n_tr_clients;
+      s->clients = tr_client;
+
+      tr_current_transition = s;
+   }
+
    /* contact ordered clients for transition -----------------------*/
    status = CM_SUCCESS;
    for (idx = 0; idx < n_tr_clients; idx++) {
@@ -4312,6 +4576,9 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
          status = tr_client[idx].status;
          if (errstr)
             strlcpy(errstr, tr_client[idx].errorstr, errstr_size);
+         strlcpy(tr_current_transition->errorstr, "Aborted by client \"", sizeof(tr_current_transition->errorstr));
+         strlcat(tr_current_transition->errorstr, tr_client[idx].client_name, sizeof(tr_current_transition->errorstr));
+         strlcat(tr_current_transition->errorstr, "\"", sizeof(tr_current_transition->errorstr));
          break;
       }
 
@@ -4322,16 +4589,9 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       i = 0;
       db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
 
-      free(tr_client);
-      return status;
-   }
+      tr_current_transition->status = status;
 
-   if (tr_client) {
-      for (i=0 ; i<n_tr_clients ; i++)
-         if (tr_client[i].pred)
-            free(tr_client[i].pred);
-      free(tr_client);
-      tr_client = NULL;
+      return status;
    }
 
    if (debug_flag == 1)
@@ -4427,6 +4687,9 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
    if (errstr != NULL)
       strlcpy(errstr, "Success", errstr_size);
+
+   tr_current_transition->status = CM_SUCCESS;
+   strlcpy(tr_current_transition->errorstr, "Success", sizeof(tr_current_transition->errorstr));
 
    return CM_SUCCESS;
 }

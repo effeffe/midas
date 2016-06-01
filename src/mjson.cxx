@@ -940,7 +940,7 @@ int MJsonNode::GetInt() const
       return 0;
 }
 
-double MJsonNode::GetNumber() const
+double MJsonNode::GetDouble() const
 {
    if (type == MJSON_INT)
       return intvalue;
@@ -959,8 +959,6 @@ double MJsonNode::GetNumber() const
          double zero = 0;
          double one = -1;
          return one/zero; // IEEE-754 -1.0/0.0 is -infinity
-      } else if (stringvalue[0]=='0' && stringvalue[1]=='x') {
-         return strtoul(stringvalue.c_str(), NULL, 16);
       }
       return 0;
    } else

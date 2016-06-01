@@ -1,3 +1,4 @@
+
 /********************************************************************\
 
   Name:         mhttpd.cxx
@@ -287,6 +288,30 @@ char *stristr(const char *str, const char *pattern)
 
    return NULL;
 }
+
+/*------------------------------------------------------------------*/
+
+class auto_string
+{
+private:
+   char* ptr;
+
+public:
+   auto_string(int size) // ctor
+   {
+      ptr = (char*)malloc(size);
+   }
+
+   ~auto_string() // dtor
+   {
+      if (ptr)
+         free(ptr);
+      ptr = NULL;
+   }
+
+   char* str() { return ptr; };
+   char* c_str() { return ptr; };
+};
 
 /*------------------------------------------------------------------*/
 
@@ -968,8 +993,8 @@ FILE *open_resource_file(const char *filename, std::string* pfilename);
 void show_help_page()
 {
    const char *s;
-   char str[256], *plist;
-   int i, n;
+   char str[256];
+   int status;
 
    show_header("Help", "", "./", 0);
    show_navigation_bar("Help");
@@ -1044,29 +1069,30 @@ void show_help_page()
    rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
    rsprintf("        </tr>\n");
 
-   
-   n = cm_msg_facilities(&plist);
-   if (n== 1) {
-      rsprintf("        <tr>\n");
-      rsprintf("          <td style=\"text-align:right;\">Sytem logfile:</td>\n");
-      cm_msg_get_logfile("midas", 0, str, sizeof(str), NULL, 0);
-      rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
-      rsprintf("        </tr>\n");
-   } else {
-      rsprintf("        <tr>\n");
-      rsprintf("          <td style=\"text-align:right;\">Logfiles:</td>\n");
-      rsprintf("          <td style=\"text-align:left;\">\n", str);
-      for (i=0 ; i<n ; i++) {
-         cm_msg_get_logfile(plist+i*MAX_STRING_LENGTH, 0, str, sizeof(str), NULL, 0);
-         rsputs(str);
-         if (i<n-1)
-            rsputs("<br />\n");
+   STRING_LIST list;
+   status = cm_msg_facilities(&list);
+
+   if (status == CM_SUCCESS) {
+      if (list.size() == 1) {
+         rsprintf("        <tr>\n");
+         rsprintf("          <td style=\"text-align:right;\">System logfile:</td>\n");
+         cm_msg_get_logfile("midas", 0, str, sizeof(str), NULL, 0);
+         rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
+         rsprintf("        </tr>\n");
+      } else {
+         rsprintf("        <tr>\n");
+         rsprintf("          <td style=\"text-align:right;\">Logfiles:</td>\n");
+         rsprintf("          <td style=\"text-align:left;\">\n", str);
+         for (unsigned i=0 ; i<list.size() ; i++) {
+            if (i>0)
+               rsputs("<br />\n");
+            cm_msg_get_logfile(list[i].c_str(), 0, str, sizeof(str), NULL, 0);
+            rsputs(str);
+         }
+         rsprintf("\n          </td>\n");
+         rsprintf("        </tr>\n");
       }
-      rsprintf("\n          </td>\n");
-      rsprintf("        </tr>\n");
-      
    }
-   free(plist);
 
    rsprintf("        <tr>\n");
    rsprintf("          <td style=\"text-align:right;\">CSS File:</td>\n");
@@ -1090,8 +1116,13 @@ void show_help_page()
    rsprintf("        </tr>\n");
 
    rsprintf("        <tr>\n");
-   rsprintf("          <td style=\"text-align:right;\">JSON RPC schema:</td>\n");
+   rsprintf("          <td style=\"text-align:right;\">JSON-RPC schema:</td>\n");
    rsprintf("          <td style=\"text-align:left;\"><a href=\"?mjsonrpc_schema\">json format</a> or <a href=\"?mjsonrpc_schema_text\">text table format</a></td>\n");
+   rsprintf("        </tr>\n");
+
+   rsprintf("        <tr>\n");
+   rsprintf("          <td style=\"text-align:right;\">JavaScript examples:</td>\n");
+   rsprintf("          <td style=\"text-align:left;\"><a href=\"?cmd=example\">example.html</a></td>\n");
    rsprintf("        </tr>\n");
 
    rsprintf("      </table>\n");
@@ -1206,7 +1237,7 @@ void show_error(const char *error)
 
 /*------------------------------------------------------------------*/
 
-void exec_script(HNDLE hkey)
+int exec_script(HNDLE hkey)
 /********************************************************************\
 
   Routine: exec_script
@@ -1235,44 +1266,70 @@ void exec_script(HNDLE hkey)
 
 \********************************************************************/
 {
-   INT i, size;
+   HNDLE hDB;
    KEY key;
-   HNDLE hDB, hsubkey;
-   char command[256];
-   char data[1000], str[256];
+   std::string command;
 
    cm_get_experiment_database(&hDB, NULL);
    db_get_key(hDB, hkey, &key);
-   command[0] = 0;
 
    if (key.type == TID_STRING) {
-      size = sizeof(command);
-      db_get_data(hDB, hkey, command, &size, TID_STRING);
-   } else
-      for (i = 0;; i++) {
+      int size = key.item_size;
+      auto_string data(size);
+      int status = db_get_data(hDB, hkey, data.str(), &size, TID_STRING);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "exec_script", "key \"%s\" of type TID_STRING, db_get_data() error %d", key.name, status);
+         return status;
+      }
+      command = data.c_str();
+   } else if (key.type == TID_KEY) {
+      for (int i = 0;; i++) {
+         HNDLE hsubkey;
+         KEY subkey;
          db_enum_key(hDB, hkey, i, &hsubkey);
          if (!hsubkey)
             break;
-         db_get_key(hDB, hsubkey, &key);
+         db_get_key(hDB, hsubkey, &subkey);
 
-         if (key.type != TID_KEY) {
-            size = sizeof(data);
-            db_get_data(hDB, hsubkey, data, &size, key.type);
-            db_sprintf(str, data, key.item_size, 0, key.type);
+         if (i > 0)
+            command += " ";
 
-            if (i > 0)
-               strlcat(command, " ", sizeof(command));
-
-            strlcat(command, str, sizeof(command));
+         if (subkey.type == TID_KEY) {
+            cm_msg(MERROR, "exec_script", "key \"%s/%s\" should not be TID_KEY", key.name, subkey.name);
+            return DB_TYPE_MISMATCH;
+         } else if (subkey.type == TID_STRING) {
+            int size = subkey.item_size;
+            auto_string data(size);
+            int status = db_get_data(hDB, hsubkey, data.str(), &size, TID_STRING);
+            if (status != DB_SUCCESS) {
+               cm_msg(MERROR, "exec_script", "key \"%s/%s\" of type TID_STRING, db_get_data() error %d", key.name, subkey.name, status);
+               return status;
+            }
+            command += data.c_str();
+         } else {
+            char str[256];
+            int size = subkey.item_size;
+            auto_string data(size);
+            int status = db_get_data(hDB, hsubkey, data.str(), &size, subkey.type);
+            if (status != DB_SUCCESS) {
+               cm_msg(MERROR, "exec_script", "key \"%s/%s\" of type %d, db_get_data() error %d", key.name, subkey.name, subkey.type, status);
+               return status;
+            }
+            db_sprintf(str, data.c_str(), subkey.item_size, 0, subkey.type);
+            command += str;
          }
       }
+   } else {
+      cm_msg(MERROR, "exec_script", "key \"%s\" has invalid type %d, should be TID_STRING or TID_KEY", key.name, key.type);
+      return DB_TYPE_MISMATCH;
+   }
 
-   /* printf("exec_script: %s\n", command); */
+   // printf("exec_script: %s\n", command.c_str());
 
-   if (command[0])
-      ss_system(command);
+   if (command.length() > 0)
+      ss_system(command.c_str());
 
-   return;
+   return SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
@@ -1320,9 +1377,9 @@ void show_navigation_bar(const char *cur_page)
    /*---- menu buttons ----*/
 
 #ifdef HAVE_MSCB
-   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Help", sizeof(str));
+   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Example, Help", sizeof(str));
 #else
-   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, Sequencer, Config, Help", sizeof(str));
+   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, Sequencer, Config, Example, Help", sizeof(str));
 #endif
    size = sizeof(str);
    db_get_value(hDB, 0, "/Experiment/Menu Buttons", str, &size, TID_STRING, TRUE);
@@ -2258,9 +2315,10 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
 void show_messages_page()
 {
-   int size, i, n;
+   int status;
+   int size;
    char str[256];
-   char *plist, bclass[256], facility[256];
+   char bclass[256], facility[256];
    time_t now;
    HNDLE hDB;
 
@@ -2281,13 +2339,14 @@ void show_messages_page()
       strlcpy(facility, getparam("facility"), sizeof(facility));
    else
       strlcpy(facility, "midas", sizeof(facility));
+
+   STRING_LIST list;
+   status = cm_msg_facilities(&list);
    
-   n = cm_msg_facilities(&plist);
-   
-   if (n > 1) {
+   if ((status == CM_SUCCESS) && (list.size() > 0)) {
       rsprintf("<table class=\"navigationTable\"><tr><td>\n");
-      for (i=0 ; i<n ; i++) {
-         strlcpy(str, plist+i*MAX_STRING_LENGTH, sizeof(str));
+      for (unsigned i=0 ; i<list.size() ; i++) {
+         strlcpy(str, list[i].c_str(), sizeof(str));
          if (equal_ustring(str, facility))
             strlcpy(bclass, "navButtonSel", sizeof(bclass));
          else
@@ -2297,8 +2356,6 @@ void show_messages_page()
       }
       rsprintf("</td></tr></table>\n");
    }
-   free(plist);
-   
 
    /*---- messages will be dynamically loaded via JS ----*/
 
@@ -7492,8 +7549,13 @@ void javascript_commands(const char *cookie_cpwd)
          t = atoi(getparam("t"));
 
       show_text_header();
-      cm_msg_retrieve(facility, t, n, str, sizeof(str));
-      rsputs(str);
+      char* messages = NULL;
+      int num_messages = 0;
+      cm_msg_retrieve2(facility, t, n, &messages, &num_messages);
+      if (messages) {
+         rsputs(messages);
+         free(messages);
+      }
       return;
    }
 
@@ -14939,6 +15001,62 @@ void send_css()
 
 /*------------------------------------------------------------------*/
 
+bool send_resource(const std::string& name)
+{
+   std::string filename;
+   FILE *fp = open_resource_file(name.c_str(), &filename);
+
+   if (!fp) {
+      return false;
+   }
+
+   // send HTTP headers
+   
+   rsprintf("HTTP/1.1 200 Document follows\r\n");
+   rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   rsprintf("Accept-Ranges: bytes\r\n");
+
+   // send HTTP cache control headers
+
+   time_t now = time(NULL);
+   now += (int) (3600 * 24);
+   struct tm* gmt = gmtime(&now);
+   const char* format = "%A, %d-%b-%y %H:%M:%S GMT";
+   char str[256];
+   strftime(str, sizeof(str), format, gmt);
+   rsprintf("Expires: %s\r\n", str);
+
+   // send Content-Type header
+
+   const char* type = "text/plain";
+
+   if (name.rfind(".css") != std::string::npos)
+      type = "text/css";
+   else if (name.rfind(".html") != std::string::npos)
+      type = "text/html";
+   else if (name.rfind(".js") != std::string::npos)
+      type = "application/javascript";
+
+   rsprintf("Content-Type: %s\r\n", type);
+
+   // send Content-Length header
+
+   struct stat stat_buf;
+   fstat(fileno(fp), &stat_buf);
+   int length = stat_buf.st_size;
+   rsprintf("Content-Length: %d\r\n\r\n", length);
+
+   // send file data
+   
+   rread(filename.c_str(), fileno(fp), length);
+   
+   fclose(fp);
+
+   return true;
+}
+
+/*------------------------------------------------------------------*/
+
 const char *mhttpd_js =
 "/* MIDAS type definitions */\n"
 "var TID_BYTE = 1;\n"
@@ -15477,6 +15595,13 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    if (equal_ustring(dec_path, "alarm.mid")) {
       send_alarm_sound();
+      return;
+   }
+
+   /*---- send example web page -------------------------------------*/
+
+   if (equal_ustring(command, "example")) {
+      send_resource("example.html");
       return;
    }
 
@@ -17663,7 +17788,7 @@ int loop_mg()
 
       status = ss_mutex_release(request_mutex);
 
-      ss_sleep(100);
+      ss_sleep(10);
    }
 
    return status;

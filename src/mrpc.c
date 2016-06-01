@@ -115,9 +115,7 @@ static RPC_LIST rpc_list_library[] = {
      {0}}},
 
    {RPC_CM_MSG_RETRIEVE, "cm_msg_retrieve",
-    {{TID_STRING, RPC_IN},
-     {TID_DWORD, RPC_IN},
-     {TID_INT, RPC_IN},
+    {{TID_INT, RPC_IN},
      {TID_STRING, RPC_OUT},
      {TID_INT, RPC_IN},
      {0}}},

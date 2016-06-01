@@ -25,6 +25,11 @@ var TID_STRUCT = 14;
 var TID_KEY = 15;
 var TID_LINK = 16;
 
+var AT_INTERNAL  = 1;
+var AT_PROGRAM   = 2;
+var AT_EVALUATED = 3;
+var AT_PERIODIC  = 4;
+
 function XMLHttpRequestGeneric()
 {
    var request;
@@ -267,45 +272,54 @@ function mjsonrpc_send_request(req)
 
    return new Promise(function(resolve, reject) {
       var xhr = new XMLHttpRequest();
-      xhr.responseType = 'json';
+      //xhr.responseType = 'json'; // this does not work: behaviour is not defined if RPC returns unparsable JSON
+      xhr.responseType = 'text';
       xhr.withCredentials = true;
 
       xhr.onreadystatechange = function()
       {
          if (xhr.readyState == 4) {
-            var exc = null;
 
-            if (xhr.status == 200) {
-               var have_response = false;
-               try {
-                  if (xhr.response) {
-                     var response = xhr.response;
-                     var error = response.error;
-                     // alert("e " + JSON.stringify(xhr.response));
-                     // (typeof xhr.response.error == 'undefined')
-                     have_response = (error == null);
-                  }
-               } catch (xexc) {
-                  // fall through
-                  //alert("exception " + xexc);
-                  exc = xexc;
-               }
-
-               if (have_response) {
-                  var r = new Object;
-                  r.request = req;
-                  r.id = response.id;
-                  r.result = response.result;
-                  resolve(r);
-                  return;
-               }
+            if (xhr.status != 200) {
+               var error = new Object;
+               error.request = req;
+               error.xhr = xhr;
+               reject(error);
+               return;
             }
 
-            var r = new Object;
-            r.request = req;
-            r.xhr = xhr;
-            r.exception = exc;
-            reject(r);
+            var rpc_response = null;
+
+            try {
+               rpc_response = JSON.parse(xhr.responseText);
+               if (!rpc_response) {
+                  throw "JSON parser returned null";
+               }
+            } catch (exc) {
+               //alert("exception " + exc);
+               var error = new Object;
+               error.request = req;
+               error.xhr = xhr;
+               error.exception = exc;
+               reject(error);
+               return;
+            }
+            
+            if (rpc_response.error) {
+               var error = new Object;
+               error.request = req;
+               error.xhr = xhr;
+               error.error = rpc_response.error;
+               reject(error);
+               return;
+            }
+            
+            var rpc = new Object;
+            rpc.request = req;
+            rpc.id = rpc_response.id;
+            rpc.result = rpc_response.result;
+            resolve(rpc);
+            return;
          }
       }
 
@@ -327,12 +341,10 @@ function mjsonrpc_debug_alert(rpc) {
    alert("mjsonrpc_debug_alert: method: \"" + rpc.request.method + "\", params: " + rpc.request.params + ", id: " + JSON.stringify(rpc.id) + ", response: " + JSON.stringify(rpc.result));
 }
 
-function mjsonrpc_decode_error(request, xhr, exc) {
+function mjsonrpc_decode_error(error) {
    /// \ingroup mjsonrpc_js
    /// Convert RPC error status to human-readable string
-   /// @param[in] request request object (object)
-   /// @param[in] xhr request XHR object (object)
-   /// @param[in] exc request exception object (object)
+   /// @param[in] error rejected promise error object (object)
    /// @returns decoded error report (string)
 
    function is_network_error(xhr) {
@@ -348,18 +360,16 @@ function mjsonrpc_decode_error(request, xhr, exc) {
       return "method: \"" + request.method + "\", params: " + request.params + ", id: " + request.id;
    }
 
-   if (is_network_error(xhr)) {
-      return "network error: see javascript console, " + print_request(request);
-   } else if (is_http_error(xhr)) {
-      return "http error: " + print_xhr(xhr) + ", " + print_request(request);
-   } else if (exc) {
-      return "exception: " + exc + ", " + print_request(request);
-   } else if (!xhr.response) {
-      return "json-rpc error: null response, " + print_request(request);
-   } else if (xhr.response.error) {
-      return "json-rpc error: " + JSON.stringify(xhr.response.error) + ", " + print_request(request);
+   if (is_network_error(error.xhr)) {
+      return "network error: see javascript console, " + print_request(error.request);
+   } else if (is_http_error(error.xhr)) {
+      return "http error: " + print_xhr(error.xhr) + ", " + print_request(error.request);
+   } else if (error.exception) {
+      return "json parser exception: " + error.exception + ", " + print_request(error.request);
+   } else if (error.error) {
+      return "json-rpc error: " + JSON.stringify(error.error) + ", " + print_request(error.request);
    } else {
-      return "what happened?!?, " + print_request(request) + ", xhr: " + print_xhr(xhr) + ", exc: " + exc;
+      return "unknown error, request: " + print_request(error.request) + ", xhr: " + print_xhr(error.xhr);
    }
 }
 
@@ -368,8 +378,12 @@ function mjsonrpc_error_alert(error) {
    /// Handle all errors
    /// @param[in] error rejected promise error object (object)
    /// @returns nothing
-   var s = mjsonrpc_decode_error(error.request, error.xhr, error.exception);
-   alert("mjsonrpc_error_alert: " + s);
+   if (error.request) {
+      var s = mjsonrpc_decode_error(error);
+      alert("mjsonrpc_error_alert: " + s);
+   } else {
+      alert("mjsonroc_error_alert: " + error);
+   }
 }
 
 function mjsonrpc_make_request(method, params, id)
@@ -478,6 +492,77 @@ function mjsonrpc_stop_program(name, unique, id) {
    return mjsonrpc_call("cm_shutdown", req, id);
 }
 
+function mjsonrpc_cm_exist(name, unique, id) {
+   /// \ingroup mjsonrpc_js
+   /// Stop a MIDAS program via cm_exist()
+   ///
+   /// RPC method: "cm_exist"
+   ///
+   /// @param[in] name Name of program to stop (string)
+   /// @param[in] unique bUnique argument to cm_shutdown() (bool)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   var req = new Object();
+   req.name = name;
+   req.unique = unique;
+   return mjsonrpc_call("cm_exist", req, id);
+}
+
+function mjsonrpc_al_reset_alarm(alarms, id) {
+   /// \ingroup mjsonrpc_js
+   /// Reset alarms
+   ///
+   /// RPC method: "al_reset_alarm"
+   ///
+   /// \code
+   /// mjsonrpc_al_reset_alarm(["alarm1", "alarm2"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of al_reset_alarm() for 1st alarm
+   ///    ... result.status[1]; // status of al_reset_alarm() for 2nd alarm
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] alarms Array of alarm names (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.alarms = alarms;
+   return mjsonrpc_call("al_reset_alarm", req, id);
+}
+
+function mjsonrpc_al_trigger_alarm(name, message, xclass, condition, type, id) {
+   /// \ingroup mjsonrpc_js
+   /// Reset alarms
+   ///
+   /// RPC method: "al_reset_alarm"
+   ///
+   /// \code
+   /// mjsonrpc_al_reset_alarm(["alarm1", "alarm2"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of al_reset_alarm() for 1st alarm
+   ///    ... result.status[1]; // status of al_reset_alarm() for 2nd alarm
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] alarms Array of alarm names (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.name = name;
+   req.message = message;
+   req.class = xclass;
+   req.condition = condition;
+   req.type = type;
+   return mjsonrpc_call("al_trigger_alarm", req, id);
+}
+
 function mjsonrpc_db_copy(paths, id) {
    /// \ingroup mjsonrpc_js
    /// Get a copy of ODB. Symlinks are not resolved, ODB path names are not converted to lower-case.
@@ -493,8 +578,6 @@ function mjsonrpc_db_copy(paths, id) {
    ///    var result = rpc.result;  // rpc response result
    ///    ... result.status[0]; // status of db_get_value() for /runinfo
    ///    ... result.status[1]; // status of db_get_value() for /equipment
-   ///    ... result.last_written[0]; // "last written" timestamp for /runinfo
-   ///    ... result.last_written[1]; // "last written" timestamp for /equipment
    ///    var runinfo = result.data[0]; // javascript object representing the ODB runinfo structure
    ///    var equipment = result.data[1]; // javascript object representing /equipment/foo
    /// }).catch(function(error) {
@@ -540,6 +623,114 @@ function mjsonrpc_db_get_values(paths, id) {
    var req = new Object();
    req.paths = paths;
    return mjsonrpc_call("db_get_values", req, id);
+}
+
+function mjsonrpc_db_ls(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Get list of contents of an ODB subdirectory, similar to odbedit command "ls -l". To get values of ODB variables, use db_get_values().
+   ///
+   /// RPC method: "db_ls"
+   ///
+   /// \code
+   /// mjsonrpc_db_ls(["/alarms/alarms", "/equipment"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_copy_json_ls() for /alarms/alarms
+   ///    ... result.status[1]; // status of db_copy_json_ls() for /equipment
+   ///    var alarms = result.data[0]; // javascript object representing the contents of ODB /alarms/alarms
+   ///    var equipment = result.data[1]; // javascript object representing the contents of ODB /equipment
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   return mjsonrpc_call("db_ls", req, id);
+}
+
+function mjsonrpc_db_resize(paths, new_lengths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Change size of ODB arrays
+   ///
+   /// RPC method: "db_resize"
+   ///
+   /// \code
+   /// mjsonrpc_db_resize(["/test/intarray1", "/test/dblarray2"], [10, 20]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_set_num_values() for 1st path
+   ///    ... result.status[1]; // status of db_set_num_values() for 2nd path
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] new_sizes Array of new sizes for each path (array of ints)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   req.new_lengths = new_lengths;
+   return mjsonrpc_call("db_resize", req, id);
+}
+
+function mjsonrpc_db_key(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Get ODB keys
+   ///
+   /// RPC method: "db_key"
+   ///
+   /// \code
+   /// mjsonrpc_db_key(["/test/intarray1", "/test/dblarray2"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_get_key() for 1st path
+   ///    ... result.status[1]; // status of db_get_key() for 2nd path
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   return mjsonrpc_call("db_key", req, id);
+}
+
+function mjsonrpc_db_delete(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Delete ODB entries
+   ///
+   /// RPC method: "db_delete"
+   ///
+   /// \code
+   /// mjsonrpc_db_delete(["/test/test1", "/test/test2"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_delete() for 1st path
+   ///    ... result.status[1]; // status of db_delete() for 2nd path
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = paths;
+   return mjsonrpc_call("db_delete", req, id);
 }
 
 function mjsonrpc_db_paste(paths, values, id) {
@@ -1013,235 +1204,6 @@ function mhttpd_delete_page_handle_cancel(mouseEvent)
 {
    location.search = ""; // reloads the document
    return false;
-}
-
-function mhttpd_programs_page_add_table_entry(table, name, colspan)
-{
-   function new_attribute(name, value)
-   {
-      var att = document.createAttribute(name);
-      if (value)
-         att.value = value;
-      return att;
-   }
-
-   var tr = document.createElement("tr");
-   tr.setAttributeNode(new_attribute("id", "program " + name));
-   var td;
-   var input;
-
-   td = document.createElement("td");
-   td.setAttributeNode(new_attribute("id", "program name " + name));
-   td.setAttributeNode(new_attribute("align", "center"));
-   td.setAttributeNode(new_attribute("colspan", colspan));
-   td.innerHTML = "<a href='Programs/" + name + "'>"+name+"</a>";
-   tr.appendChild(td);
-
-   td = document.createElement("td");
-   td.setAttributeNode(new_attribute("id", "program host " + name));
-   td.setAttributeNode(new_attribute("align", "center"));
-   tr.appendChild(td);
-
-   td = document.createElement("td");
-   td.setAttributeNode(new_attribute("id", "program alarm " + name));
-   td.setAttributeNode(new_attribute("align", "center"));
-   tr.appendChild(td);
-
-   td = document.createElement("td");
-   td.setAttributeNode(new_attribute("id", "program autorestart " + name));
-   td.setAttributeNode(new_attribute("align", "center"));
-   tr.appendChild(td);
-
-   td = document.createElement("td");
-   td.setAttributeNode(new_attribute("id", "program control " + name));
-
-   var start_button = document.createElement("button");
-   input = start_button;
-   input.id = "start " + name;
-   input.type = "button";
-   input.innerHTML = "Start " + name;
-   input.disabled = true;
-   input.onclick = function() {
-      start_button.disabled = true;
-      //alert('Start!');
-      mjsonrpc_start_program(name, null, mjsonrpc_debug_callback);
-   };
-
-   td.appendChild(input);
-
-   // need spacer beteen the buttons
-   //td.appendChild("x&nbspx");
-
-   var stop_button = document.createElement("button");
-   input = stop_button;
-   input.id = "stop " + name;
-   input.type = "button";
-   input.innerHTML = "Stop " + name;
-   input.disabled = true;
-   input.onclick = function() {
-      stop_button.disabled = true;
-      //alert('Stop!');
-      mjsonrpc_stop_program(name, false, null, mjsonrpc_debug_callback);
-   };
-
-   td.appendChild(input);
-
-   tr.appendChild(td);
-
-   table.appendChild(tr);
-
-   return tr;
-}
-
-var mhttpd_programs_page_updateTimerId;
-
-function mhttpd_programs_page_callback(request, r)
-{
-   document.getElementById('updateStatus').innerHTML = "Processing new data...";
-
-   function set_text(dom_prefix, item, value)
-   {
-      var e = document.getElementById(dom_prefix + item);
-      if (e) e.innerHTML = value;
-   }
-
-   function set_color(dom_prefix, item, value)
-   {
-      var e = document.getElementById(dom_prefix + item);
-      if (e) e.style.backgroundColor = value;
-   }
-
-   function set_class(dom_prefix, item, value)
-   {
-      var e = document.getElementById(dom_prefix + item);
-      if (e) e.className = value;
-   }
-
-   function set_attr(id, attr, value)
-   {
-      var e = document.getElementById(id);
-      if (e) {
-         if (typeof e[attr] != 'undefined') {
-            e[attr] = value;
-         }
-      }
-   }
-
-   function find_client(clients, name)
-   {
-      var found;
-      var name_lc = name.toLowerCase(name);
-      for (var key in clients) {
-         var cname = clients[key].name;
-         var cname_lc =  cname.toLowerCase();
-         var same_name = (cname_lc == name_lc);
-         var matching_name = false;
-
-         if (!same_name) {
-            var n = cname_lc.search(name_lc);
-            if (n==0) {
-               matching_name = true;
-               // FIXME: check that remaining text is all numbers: for "odbedit", match "odbedit111", but not "odbeditxxx"
-            }
-         }
-
-         if (same_name || matching_name) {
-            if (!found)
-               found = new Array();
-            found.push(key);
-         }
-      }
-      return found;
-   }
-
-   //alert("Hello: " + JSON.stringify(r));
-
-   var programs = r.result.data[0];
-   var clients  = r.result.data[1];
-   var alarms   = r.result.data[2];
-
-   for (var name in programs) {
-      var e = document.getElementById("program " + name);
-      var required = programs[name].required;
-      var xclients = find_client(clients, name);
-      //alert("name " + name + " clients: " + JSON.stringify(xclients));
-      if (required || xclients) {
-         if (!e) {
-            e = mhttpd_programs_page_add_table_entry(document.getElementById("xstripeList"), name, 1);
-         }
-
-         e.style.display = '';
-
-         if (xclients) {
-            var s = "";
-            for (var i=0; i<xclients.length; i++) {
-               var key = xclients[i];
-               var host = clients[key].host;
-               if (host) {
-                  if (s.length > 0)
-                     s += "<br>";
-                  s += "<a href='/System/Clients/"+key+"'>"+host+"</a>";
-               }
-            }
-            set_text("program host ", name, s);
-            set_class("program host ", name, "greenLight");
-            // enable start/stop buttons
-            set_attr("start " + name, "disabled", true);
-            set_attr("stop " + name, "disabled", false);
-         } else {
-            set_text("program host ", name, "Not running");
-            set_class("program host ", name, "redLight");
-            // enable start/stop buttons
-            set_attr("start " + name, "disabled", false);
-            set_attr("stop " + name, "disabled", true);
-         }
-
-         var alarm_class = programs[name]["alarm class"];
-         if (alarm_class.length > 0) {
-            set_text("program alarm ", name, "<a href='Alarms/Classes/"+ alarm_class + "'>" + alarm_class + "</a>");
-            set_class("program alarm ", name, "yellowLight");
-         } else {
-            set_text("program alarm ", name, "-");
-         }
-
-         if (programs[name]["auto restart"])
-            set_text("program autorestart ", name, "Yes");
-         else
-            set_text("program autorestart ", name, "No");
-      } else {
-         if (e) {
-            e.style.display = 'none';
-         }
-      }
-   }
-
-   document.getElementById('lastUpdated').innerHTML = "Last updated: " + new Date;
-   document.getElementById('updateStatus').innerHTML = "";
-}
-
-function mhttpd_programs_page_update()
-{
-   clearTimeout(mhttpd_programs_page_updateTimerId);
-   var updatePeriod = 1000; // in milli-seconds
-   var paths = [ "/Programs", "/System/Clients", "/Alarms" ];
-   document.getElementById('updateStatus').innerHTML = "Requesting new data...";
-   mjsonrpc_db_get_values(paths, null, mhttpd_programs_page_callback);
-   document.getElementById('updateStatus').innerHTML = "Waiting for new data...";
-   mhttpd_programs_page_updateTimerId = setTimeout('mhttpd_programs_page_update()', updatePeriod);
-}
-
-function mhttpd_programs_page()
-{
-   // this is called when the "programs" page is loaded
-
-   document.write("<td><input type=button value=\'Refresh now\' onClick=\'mhttpd_programs_page_update();\'></input> <tt id='lastUpdated'>lastUpdated</tt> <tt id='updateStatus'>updateStatus</tt></td>\n");
-
-   document.write("<table class=\"subStatusTable\" id=\"xstripeList\">\n");
-   document.write("<tr><td colspan=5 class=\"subStatusTitle\">Programs</td></tr>");
-   document.write("<tr class=\"titleRow\"><th>Program<th>Running on host<th>Alarm class<th>Autorestart<th>Commands</tr>\n");
-   document.write("</table>\n");
-
-   document.write("<script>mhttpd_programs_page_update();</script>\n");
 }
 
 /*---- message functions -------------------------------------*/
