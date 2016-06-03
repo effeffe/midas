@@ -17809,6 +17809,182 @@ static int debug_mg = 0;
 static bool trace_mg = false;
 static struct mg_mgr mgr_mg;
 
+struct AuthEntry {
+   std::string username;
+   std::string realm;
+   std::string password;
+};
+
+struct Auth {
+   std::string realm;
+   std::string passwd_filename;
+   std::vector<AuthEntry> passwords;
+};
+
+static Auth auth_mg;
+
+static void xmg_mkmd5resp(const char *method, size_t method_len, const char *uri,
+                         size_t uri_len, const char *ha1, size_t ha1_len,
+                         const char *nonce, size_t nonce_len, const char *nc,
+                         size_t nc_len, const char *cnonce, size_t cnonce_len,
+                         const char *qop, size_t qop_len, char *resp) {
+  static const char colon[] = ":";
+  static const size_t one = 1;
+  char ha2[33];
+
+  cs_md5(ha2, method, method_len, colon, one, uri, uri_len, NULL);
+  cs_md5(resp, ha1, ha1_len, colon, one, nonce, nonce_len, colon, one, nc,
+         nc_len, colon, one, cnonce, cnonce_len, colon, one, qop, qop_len,
+         colon, one, ha2, sizeof(ha2) - 1, NULL);
+}
+
+/*
+ * Check for authentication timeout.
+ * Clients send time stamp encoded in nonce. Make sure it is not too old,
+ * to prevent replay attacks.
+ * Assumption: nonce is a hexadecimal number of seconds since 1970.
+ */
+static int xmg_check_nonce(const char *nonce) {
+  unsigned long now = (unsigned long) time(NULL);
+  unsigned long val = (unsigned long) strtoul(nonce, NULL, 16);
+  return now < val || now - val < 3600;
+}
+
+/*
+ * Authenticate HTTP request against opened passwords file.
+ * Returns 1 if authenticated, 0 otherwise.
+ */
+static int xmg_http_check_digest_auth(struct http_message *hm,
+                                     const char *auth_domain, FILE *fp) {
+  struct mg_str *hdr;
+  char buf[128], f_user[sizeof(buf)], f_ha1[sizeof(buf)], f_domain[sizeof(buf)];
+  char user[50], cnonce[33], response[40], uri[200], qop[20], nc[20], nonce[30];
+  char expected_response[33];
+
+  /* Parse "Authorization:" header, fail fast on parse error */
+  if (hm == NULL || fp == NULL ||
+      (hdr = mg_get_http_header(hm, "Authorization")) == NULL ||
+      mg_http_parse_header(hdr, "username", user, sizeof(user)) == 0 ||
+      mg_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0 ||
+      mg_http_parse_header(hdr, "response", response, sizeof(response)) == 0 ||
+      mg_http_parse_header(hdr, "uri", uri, sizeof(uri)) == 0 ||
+      mg_http_parse_header(hdr, "qop", qop, sizeof(qop)) == 0 ||
+      mg_http_parse_header(hdr, "nc", nc, sizeof(nc)) == 0 ||
+      mg_http_parse_header(hdr, "nonce", nonce, sizeof(nonce)) == 0 ||
+      xmg_check_nonce(nonce) == 0) {
+    return 0;
+  }
+
+  /*
+   * Read passwords file line by line. If should have htdigest format,
+   * i.e. each line should be a colon-separated sequence:
+   * USER_NAME:DOMAIN_NAME:HA1_HASH_OF_USER_DOMAIN_AND_PASSWORD
+   */
+  while (fgets(buf, sizeof(buf), fp) != NULL) {
+    if (sscanf(buf, "%[^:]:%[^:]:%s", f_user, f_domain, f_ha1) == 3 &&
+        strcmp(user, f_user) == 0 &&
+        /* NOTE(lsm): due to a bug in MSIE, we do not compare URIs */
+        strcmp(auth_domain, f_domain) == 0) {
+      /* User and domain matched, check the password */
+      xmg_mkmd5resp(
+          hm->method.p, hm->method.len, hm->uri.p,
+          hm->uri.len + (hm->query_string.len ? hm->query_string.len + 1 : 0),
+          f_ha1, strlen(f_ha1), nonce, strlen(nonce), nc, strlen(nc), cnonce,
+          strlen(cnonce), qop, strlen(qop), expected_response);
+      return mg_casecmp(response, expected_response) == 0;
+    }
+  }
+
+  /* None of the entries in the passwords file matched - return failure */
+  return 0;
+}
+
+static void xmg_http_send_digest_auth_request(struct mg_connection *c,
+                                             const char *domain) {
+  mg_printf(c,
+            "HTTP/1.1 401 Unauthorized\r\n"
+            "WWW-Authenticate: Digest qop=\"auth\", "
+            "realm=\"%s\", nonce=\"%lu\"\r\n"
+            "Content-Length: 0\r\n\r\n",
+            domain, (unsigned long) time(NULL));
+}
+
+static bool read_passwords(Auth* auth)
+{
+   FILE *fp = fopen(auth->passwd_filename.c_str(), "r");
+   if (!fp)
+      return false;
+
+   bool have_realm = false;
+   char buf[256];
+   
+   /*
+    * Read passwords file line by line. If should have htdigest format,
+    * i.e. each line should be a colon-separated sequence:
+    * USER_NAME:DOMAIN_NAME:HA1_HASH_OF_USER_DOMAIN_AND_PASSWORD
+    */
+   while (fgets(buf, sizeof(buf), fp) != NULL) {
+      char f_user[256];
+      char f_domain[256];
+      char f_ha1[256];
+
+      if (sscanf(buf, "%[^:]:%[^:]:%s", f_user, f_domain, f_ha1) == 3) {
+         AuthEntry e;
+         e.realm = f_domain;
+         e.username = f_user;
+         e.password = f_ha1;
+
+         if (e.realm == auth->realm) {
+            have_realm = true;
+            auth->passwords.push_back(e);
+         }
+      }
+   }
+
+   fclose(fp);
+
+   return have_realm;
+}
+
+static std::string check_digest_auth(struct http_message *hm, Auth* auth)
+{
+   struct mg_str *hdr;
+   char user[50], cnonce[33], response[40], uri[200], qop[20], nc[20], nonce[30];
+   char expected_response[33];
+   
+   /* Parse "Authorization:" header, fail fast on parse error */
+   if (0 ||
+       (hdr = mg_get_http_header(hm, "Authorization")) == NULL ||
+       mg_http_parse_header(hdr, "username", user, sizeof(user)) == 0 ||
+       mg_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0 ||
+       mg_http_parse_header(hdr, "response", response, sizeof(response)) == 0 ||
+       mg_http_parse_header(hdr, "uri", uri, sizeof(uri)) == 0 ||
+       mg_http_parse_header(hdr, "qop", qop, sizeof(qop)) == 0 ||
+       mg_http_parse_header(hdr, "nc", nc, sizeof(nc)) == 0 ||
+       mg_http_parse_header(hdr, "nonce", nonce, sizeof(nonce)) == 0 ||
+       xmg_check_nonce(nonce) == 0) {
+      return 0;
+   }
+
+   for (unsigned i=0; i<auth->passwords.size(); i++) {
+      AuthEntry* e = &auth->passwords[i];
+      if (e->username != user)
+         continue;
+      if (e->realm != auth->realm)
+         continue;
+      const char* f_ha1 = e->password.c_str();
+      xmg_mkmd5resp(hm->method.p, hm->method.len, hm->uri.p,
+                    hm->uri.len + (hm->query_string.len ? hm->query_string.len + 1 : 0),
+                    f_ha1, strlen(f_ha1), nonce, strlen(nonce), nc, strlen(nc), cnonce,
+                    strlen(cnonce), qop, strlen(qop), expected_response);
+      if (mg_casecmp(response, expected_response) == 0) {
+         return e->username;
+      }
+    }
+
+   return "";
+}
+
 static std::string mgstr(const mg_str* s)
 {
    return std::string(s->p, s->len);
@@ -17847,6 +18023,8 @@ static const std::string find_cookie_mg(const struct http_message *msg, const ch
 
 static void handle_event_mg(struct mg_connection *nc, int ev, void *ev_data)
 {
+   printf("nc %p, proto_data %p\n", nc, nc->proto_data);
+
    struct mbuf *io = &nc->recv_mbuf;
    switch (ev) {
    case MG_EV_POLL: // periodic call from loop_mg() via mg_mgr_poll()
@@ -18161,7 +18339,7 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg)
          return true;
       }
 
-      printf("post body: %s\n", post_data.c_str());
+      //printf("post body: %s\n", post_data.c_str());
       
       int status = ss_mutex_wait_for(request_mutex, 0);
       assert(status == SS_SUCCESS);
@@ -18200,7 +18378,7 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg)
 
 // HTTP event handler
 
-static void handle_http_message(struct mg_connection *nc, const http_message* msg)
+static void handle_http_message(struct mg_connection *nc, http_message* msg)
 {
    std::string method = mgstr(&msg->method);
    
@@ -18208,6 +18386,22 @@ static void handle_http_message(struct mg_connection *nc, const http_message* ms
       printf("handle_http_message: method [%s] uri [%s] proto [%s]\n", method.c_str(), mgstr(&msg->uri).c_str(), mgstr(&msg->proto).c_str());
 
    bool response_sent = false;
+
+   std::string username = check_digest_auth(msg, &auth_mg);
+
+   // if auth failed, reread password file - maybe user added or password changed
+   if (username.length() < 1) {
+      bool ok = read_passwords(&auth_mg);
+      if (ok)
+         username = check_digest_auth(msg, &auth_mg);
+   }
+
+   printf("auth user: %s\n", username.c_str());
+
+   if (username.length() == 0) {
+      xmg_http_send_digest_auth_request(nc, auth_mg.realm.c_str());
+      return;
+   }
 
    if (method == "GET")
       response_sent = handle_http_get(nc, msg);
@@ -18234,6 +18428,9 @@ static void handle_http_event_mg(struct mg_connection *nc, int ev, void *ev_data
          printf("handle_http_event_mg: nc %p, ev %d, ev_data %p\n", nc, ev, ev_data);
       break;
    }
+
+   
+   printf("nc %p, proto_data %p\n", nc, nc->proto_data);
 }
 
 static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data)
@@ -18334,6 +18531,8 @@ int start_mg(int user_http_port, int user_https_port, int verbose)
       if (strlen(realm) < 1)
          STRLCPY(realm, "midas");
 
+      auth_mg.realm = realm;
+      
       std::string path;
       FILE *fp;
       status = find_file_mg("htpasswd.txt", path, &fp, debug_mg>0);
@@ -18341,6 +18540,9 @@ int start_mg(int user_http_port, int user_https_port, int verbose)
       bool realm_ok = false;
 
       if (fp) { // check that the password file has our realm name
+
+         auth_mg.passwd_filename = path;
+
          while (1) {
             char buf[256];
             char* s = fgets(buf, sizeof(buf), fp);
