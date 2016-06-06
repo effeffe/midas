@@ -2072,6 +2072,7 @@ extern void mg_ev_mgr_remove_conn(struct mg_connection *nc);
 
 MG_INTERNAL void mg_add_conn(struct mg_mgr *mgr, struct mg_connection *c) {
   DBG(("%p %p", mgr, c));
+  //printf("nc %p -> mg_add_conn, mgr %p %p, pd %p, fp %p\n", c, c->mgr, mgr, c->proto_data, (c->proto_data?*(FILE**)c->proto_data:NULL));
   c->mgr = mgr;
   c->next = mgr->active_connections;
   mgr->active_connections = c;
@@ -3598,6 +3599,8 @@ time_t mg_mgr_poll(struct mg_mgr *mgr, int timeout_ms) {
   for (nc = mgr->active_connections, num_fds = 0; nc != NULL; nc = tmp) {
     tmp = nc->next;
 
+    //printf("nc %p -> mg_mgr_poll, mgr %p %p, pd %p, fp %p\n", nc, nc->mgr, mgr, nc->proto_data, (nc->proto_data?*(FILE**)nc->proto_data:NULL));
+
     if (nc->sock != INVALID_SOCKET) {
       num_fds++;
 
@@ -3680,6 +3683,7 @@ time_t mg_mgr_poll(struct mg_mgr *mgr, int timeout_ms) {
     tmp = nc->next;
     if ((nc->flags & MG_F_CLOSE_IMMEDIATELY) ||
         (nc->send_mbuf.len == 0 && (nc->flags & MG_F_SEND_AND_CLOSE))) {
+      //printf("nc %p -> mg_close_conn, mgr %p %p, pd %p, fp %p\n", nc, nc->mgr, mgr, nc->proto_data, (nc->proto_data?*(FILE**)nc->proto_data:NULL));
       mg_close_conn(nc);
     }
   }
@@ -3852,6 +3856,11 @@ static void spawn_handling_thread(struct mg_connection *nc) {
   c[1]->proto_handler = nc->proto_handler;
   c[1]->proto_data = nc->proto_data;
   c[1]->user_data = nc->user_data;
+
+  //printf("dup proto_data %p, nc %p\n", nc->proto_data, nc);
+
+  // fix https://github.com/cesanta/mongoose/issues/646
+  nc->proto_data = NULL;
 
   mg_start_thread(per_connection_thread_function, c[1]);
 }
@@ -4133,7 +4142,10 @@ static struct mg_http_proto_data *mg_http_get_proto_data(
   if (c->proto_data == NULL) {
     c->proto_data = MG_CALLOC(1, sizeof(struct mg_http_proto_data));
     c->proto_data_destructor = mg_http_conn_destructor;
+    //printf("conn_new, pd %p, fp %p\n", c->proto_data, (c->proto_data?*(FILE**)c->proto_data:NULL));
   }
+
+  //printf("nc %p -> get_proto_data, pd %p, fp %p\n", c, c->proto_data, (c->proto_data?*(FILE**)c->proto_data:NULL));
 
   return (struct mg_http_proto_data *) c->proto_data;
 }
@@ -4185,6 +4197,7 @@ static void mg_http_free_proto_data_endpoints(struct mg_http_endpoint **ep) {
 
 static void mg_http_conn_destructor(void *proto_data) {
   struct mg_http_proto_data *pd = (struct mg_http_proto_data *) proto_data;
+  //printf("conn_destructor, pd %p, fp %p\n", proto_data, (proto_data?*(FILE**)proto_data:NULL));
 #ifndef MG_DISABLE_FILESYSTEM
   mg_http_free_proto_data_file(&pd->file);
 #endif
@@ -4991,6 +5004,10 @@ void mg_http_handler(struct mg_connection *nc, int ev, void *ev_data) {
   }
 
 #ifndef MG_DISABLE_FILESYSTEM
+  if (pd->file.fp)
+    printf("nc %p, pd %p, file fp %p cl %d\n", nc, pd, pd->file.fp, (int)pd->file.cl);
+  //printf("fp %p\n", pd->file.fp);
+  assert(pd->file.fp == NULL);
   if (pd->file.fp != NULL) {
     mg_http_transfer_file_data(nc);
   }
