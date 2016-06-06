@@ -17911,9 +17911,17 @@ static void xmg_http_send_digest_auth_request(struct mg_connection *c,
 
 static bool read_passwords(Auth* auth)
 {
-   FILE *fp = fopen(auth->passwd_filename.c_str(), "r");
-   if (!fp)
+   std::string path;
+   FILE *fp;
+   int status = find_file_mg("htpasswd.txt", path, &fp, trace_mg);
+
+   auth_mg.passwd_filename = path;
+
+   if (status != SUCCESS || fp == NULL) {
+      cm_msg(MERROR, "mongoose", "mongoose web server cannot find password file \"%s\"", path.c_str());
+      cm_msg(MERROR, "mongoose", "please create password file: touch %s", path.c_str());
       return false;
+   }
 
    bool have_realm = false;
    char buf[256];
@@ -18023,8 +18031,6 @@ static const std::string find_cookie_mg(const struct http_message *msg, const ch
 
 static void handle_event_mg(struct mg_connection *nc, int ev, void *ev_data)
 {
-   printf("nc %p, proto_data %p\n", nc, nc->proto_data);
-
    struct mbuf *io = &nc->recv_mbuf;
    switch (ev) {
    case MG_EV_POLL: // periodic call from loop_mg() via mg_mgr_poll()
@@ -18396,7 +18402,7 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
          username = check_digest_auth(msg, &auth_mg);
    }
 
-   printf("auth user: %s\n", username.c_str());
+   //printf("auth user: %s\n", username.c_str());
 
    if (username.length() == 0) {
       xmg_http_send_digest_auth_request(nc, auth_mg.realm.c_str());
@@ -18428,9 +18434,6 @@ static void handle_http_event_mg(struct mg_connection *nc, int ev, void *ev_data
          printf("handle_http_event_mg: nc %p, ev %d, ev_data %p\n", nc, ev, ev_data);
       break;
    }
-
-   
-   printf("nc %p, proto_data %p\n", nc, nc->proto_data);
 }
 
 static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data)
@@ -18524,71 +18527,26 @@ int start_mg(int user_http_port, int user_https_port, int verbose)
    }
 
    if (need_password_file) {
-      char realm[256];
-      realm[0] = 0;
-      cm_get_experiment_name(realm, sizeof(realm));
+      char exptname[256];
+      exptname[0] = 0;
+      cm_get_experiment_name(exptname, sizeof(exptname));
 
-      if (strlen(realm) < 1)
-         STRLCPY(realm, "midas");
+      if (strlen(exptname) > 0)
+         auth_mg.realm = exptname;
+      else
+         auth_mg.realm = "midas";
 
-      auth_mg.realm = realm;
-      
-      std::string path;
-      FILE *fp;
-      status = find_file_mg("htpasswd.txt", path, &fp, debug_mg>0);
-
-      bool realm_ok = false;
-
-      if (fp) { // check that the password file has our realm name
-
-         auth_mg.passwd_filename = path;
-
-         while (1) {
-            char buf[256];
-            char* s = fgets(buf, sizeof(buf), fp);
-            if (!s)
-               break; // end of file
-            // format is: user:realm:password
-            //printf("[%s]\n", s);
-            char* ss = strchr(s, ':');
-            if (ss) {
-               ss++;
-               char* sss = strchr(ss, ':');
-               if (sss) {
-                  //printf("[%s] ss [%s] sss [%s]\n", s, ss, sss);
-                  *sss = 0;
-                  if (strcmp(ss, realm) == 0) {
-                     // found at least one entry with matching realm name
-                     realm_ok = true;
-                     break;
-                  }
-               }
-            }
-         }
-         fclose(fp);
-         fp = NULL;
-      }
-
-      if (status != SUCCESS) {
-         cm_msg(MERROR, "mongoose", "mongoose web server cannot find password file \"%s\"", path.c_str());
-         cm_msg(MERROR, "mongoose", "please create password file: htdigest -c %s %s midas", path.c_str(), realm);
+      bool ok = read_passwords(&auth_mg);
+      if (!ok) {
+         cm_msg(MERROR, "mongoose", "mongoose web server password file \"%s\" has no passwords for realm \"%s\"", auth_mg.passwd_filename.c_str(), auth_mg.realm.c_str());
+         cm_msg(MERROR, "mongoose", "please add passwords by running: htdigest %s %s midas", auth_mg.passwd_filename.c_str(), auth_mg.realm.c_str());
          return SS_FILE_ERROR;
       }
 
-      if (!realm_ok) {
-         cm_msg(MERROR, "mongoose", "mongoose web server password file \"%s\" has no passwords for realm \"%s\"", path.c_str(), realm);
-         cm_msg(MERROR, "mongoose", "please add passwords: htdigest %s %s midas", path.c_str(), realm);
-         return SS_FILE_ERROR;
-      }
-
-      // create or overwrite exiting password file: htdigest -c htpasswd.txt expt midas
-      //add_option_mg("authentication_domain", realm);
-      //add_option_mg("global_auth_file", path.c_str());
-
-      printf("Mongoose web server will use authentication realm \"%s\", password file \"%s\"\n", realm, path.c_str());
+      printf("Mongoose web server will use authentication realm \"%s\", password file \"%s\"\n", auth_mg.realm.c_str(), auth_mg.passwd_filename.c_str());
    }
 
-   if (debug_mg)
+   if (trace_mg)
       printf("start_mg!\n");
 
 #ifndef OS_WINNT
