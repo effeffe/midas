@@ -17092,8 +17092,69 @@ void server_loop(int tcp_port)
 /*------------------------------------------------------------------*/
 
 #define HAVE_MG 1
+#define HAVE_MG4 1
+//#define HAVE_MG6 1
 
 #ifdef HAVE_MG
+
+int try_file_mg(const char* try_dir, const char* filename, std::string& path, FILE** fpp, bool trace)
+{
+   if (fpp)
+      *fpp = NULL;
+   if (!try_dir)
+      return SS_FILE_ERROR;
+   if (strlen(try_dir) < 1)
+      return SS_FILE_ERROR;
+
+   path = try_dir;
+   if (path[path.length()-1] != DIR_SEPARATOR)
+      path += DIR_SEPARATOR_STR;
+   path += filename;
+
+   FILE* fp = fopen(path.c_str(), "r");
+
+   if (trace) {
+      if (fp)
+         printf("file \"%s\": OK!\n", path.c_str());
+      else
+         printf("file \"%s\": not found.\n", path.c_str());
+   }
+
+   if (!fp)
+      return SS_FILE_ERROR;
+   else if (fpp)
+      *fpp = fp;
+   else
+      fclose(fp);
+
+   return SUCCESS;
+}
+
+int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace)
+{
+   char exptdir[256];
+   cm_get_path(exptdir, sizeof(exptdir));
+
+   if (try_file_mg(".", filename, path, fpp, trace) == SUCCESS)
+      return SUCCESS;
+
+   if (try_file_mg(getenv("MIDAS_DIR"), filename, path, fpp, trace) == SUCCESS)
+      return SUCCESS;
+
+   if (try_file_mg(exptdir, filename, path, fpp, trace) == SUCCESS)
+      return SUCCESS;
+
+   if (try_file_mg(getenv("MIDASSYS"), filename, path, fpp, trace) == SUCCESS)
+      return SUCCESS;
+
+   // setup default filename
+   try_file_mg(exptdir, filename, path, NULL, false);
+   return SS_FILE_ERROR;
+}
+
+#endif
+
+#ifdef HAVE_MG4
 
 #include "mongoose4.h"
 
@@ -17509,61 +17570,6 @@ const char** get_options_mg()
    return s;
 }
 
-int try_file_mg(const char* try_dir, const char* filename, std::string& path, FILE** fpp, bool trace)
-{
-   if (fpp)
-      *fpp = NULL;
-   if (!try_dir)
-      return SS_FILE_ERROR;
-   if (strlen(try_dir) < 1)
-      return SS_FILE_ERROR;
-
-   path = try_dir;
-   if (path[path.length()-1] != DIR_SEPARATOR)
-      path += DIR_SEPARATOR_STR;
-   path += filename;
-
-   FILE* fp = fopen(path.c_str(), "r");
-
-   if (trace) {
-      if (fp)
-         printf("file \"%s\": OK!\n", path.c_str());
-      else
-         printf("file \"%s\": not found.\n", path.c_str());
-   }
-
-   if (!fp)
-      return SS_FILE_ERROR;
-   else if (fpp)
-      *fpp = fp;
-   else
-      fclose(fp);
-
-   return SUCCESS;
-}
-
-int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace)
-{
-   char exptdir[256];
-   cm_get_path(exptdir, sizeof(exptdir));
-
-   if (try_file_mg(".", filename, path, fpp, trace) == SUCCESS)
-      return SUCCESS;
-
-   if (try_file_mg(getenv("MIDAS_DIR"), filename, path, fpp, trace) == SUCCESS)
-      return SUCCESS;
-
-   if (try_file_mg(exptdir, filename, path, fpp, trace) == SUCCESS)
-      return SUCCESS;
-
-   if (try_file_mg(getenv("MIDASSYS"), filename, path, fpp, trace) == SUCCESS)
-      return SUCCESS;
-
-   // setup default filename
-   try_file_mg(exptdir, filename, path, NULL, false);
-   return SS_FILE_ERROR;
-}
-
 int start_mg(int user_http_port, int user_https_port, int verbose)
 {
    HNDLE hDB;
@@ -17789,6 +17795,915 @@ int loop_mg()
       status = ss_mutex_release(request_mutex);
 
       ss_sleep(10);
+   }
+
+   return status;
+}
+
+#endif
+
+#ifdef HAVE_MG6
+
+#include "mongoose6.h"
+
+static int debug_mg = 0;
+static bool trace_mg = false;
+static struct mg_mgr mgr_mg;
+
+struct AuthEntry {
+   std::string username;
+   std::string realm;
+   std::string password;
+};
+
+struct Auth {
+   std::string realm;
+   std::string passwd_filename;
+   std::vector<AuthEntry> passwords;
+};
+
+static Auth auth_mg;
+
+static void xmg_mkmd5resp(const char *method, size_t method_len, const char *uri,
+                         size_t uri_len, const char *ha1, size_t ha1_len,
+                         const char *nonce, size_t nonce_len, const char *nc,
+                         size_t nc_len, const char *cnonce, size_t cnonce_len,
+                         const char *qop, size_t qop_len, char *resp) {
+  static const char colon[] = ":";
+  static const size_t one = 1;
+  char ha2[33];
+
+  cs_md5(ha2, method, method_len, colon, one, uri, uri_len, NULL);
+  cs_md5(resp, ha1, ha1_len, colon, one, nonce, nonce_len, colon, one, nc,
+         nc_len, colon, one, cnonce, cnonce_len, colon, one, qop, qop_len,
+         colon, one, ha2, sizeof(ha2) - 1, NULL);
+}
+
+/*
+ * Check for authentication timeout.
+ * Clients send time stamp encoded in nonce. Make sure it is not too old,
+ * to prevent replay attacks.
+ * Assumption: nonce is a hexadecimal number of seconds since 1970.
+ */
+static int xmg_check_nonce(const char *nonce) {
+  unsigned long now = (unsigned long) time(NULL);
+  unsigned long val = (unsigned long) strtoul(nonce, NULL, 16);
+  return now < val || now - val < 3600;
+}
+
+/*
+ * Authenticate HTTP request against opened passwords file.
+ * Returns 1 if authenticated, 0 otherwise.
+ */
+static int xmg_http_check_digest_auth(struct http_message *hm,
+                                     const char *auth_domain, FILE *fp) {
+  struct mg_str *hdr;
+  char buf[128], f_user[sizeof(buf)], f_ha1[sizeof(buf)], f_domain[sizeof(buf)];
+  char user[50], cnonce[33], response[40], uri[200], qop[20], nc[20], nonce[30];
+  char expected_response[33];
+
+  /* Parse "Authorization:" header, fail fast on parse error */
+  if (hm == NULL || fp == NULL ||
+      (hdr = mg_get_http_header(hm, "Authorization")) == NULL ||
+      mg_http_parse_header(hdr, "username", user, sizeof(user)) == 0 ||
+      mg_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0 ||
+      mg_http_parse_header(hdr, "response", response, sizeof(response)) == 0 ||
+      mg_http_parse_header(hdr, "uri", uri, sizeof(uri)) == 0 ||
+      mg_http_parse_header(hdr, "qop", qop, sizeof(qop)) == 0 ||
+      mg_http_parse_header(hdr, "nc", nc, sizeof(nc)) == 0 ||
+      mg_http_parse_header(hdr, "nonce", nonce, sizeof(nonce)) == 0 ||
+      xmg_check_nonce(nonce) == 0) {
+    return 0;
+  }
+
+  /*
+   * Read passwords file line by line. If should have htdigest format,
+   * i.e. each line should be a colon-separated sequence:
+   * USER_NAME:DOMAIN_NAME:HA1_HASH_OF_USER_DOMAIN_AND_PASSWORD
+   */
+  while (fgets(buf, sizeof(buf), fp) != NULL) {
+    if (sscanf(buf, "%[^:]:%[^:]:%s", f_user, f_domain, f_ha1) == 3 &&
+        strcmp(user, f_user) == 0 &&
+        /* NOTE(lsm): due to a bug in MSIE, we do not compare URIs */
+        strcmp(auth_domain, f_domain) == 0) {
+      /* User and domain matched, check the password */
+      xmg_mkmd5resp(
+          hm->method.p, hm->method.len, hm->uri.p,
+          hm->uri.len + (hm->query_string.len ? hm->query_string.len + 1 : 0),
+          f_ha1, strlen(f_ha1), nonce, strlen(nonce), nc, strlen(nc), cnonce,
+          strlen(cnonce), qop, strlen(qop), expected_response);
+      return mg_casecmp(response, expected_response) == 0;
+    }
+  }
+
+  /* None of the entries in the passwords file matched - return failure */
+  return 0;
+}
+
+static void xmg_http_send_digest_auth_request(struct mg_connection *c,
+                                             const char *domain) {
+  mg_printf(c,
+            "HTTP/1.1 401 Unauthorized\r\n"
+            "WWW-Authenticate: Digest qop=\"auth\", "
+            "realm=\"%s\", nonce=\"%lu\"\r\n"
+            "Content-Length: 0\r\n\r\n",
+            domain, (unsigned long) time(NULL));
+}
+
+static bool read_passwords(Auth* auth)
+{
+   std::string path;
+   FILE *fp;
+   int status = find_file_mg("htpasswd.txt", path, &fp, trace_mg);
+
+   auth_mg.passwd_filename = path;
+
+   if (status != SUCCESS || fp == NULL) {
+      cm_msg(MERROR, "mongoose", "mongoose web server cannot find password file \"%s\"", path.c_str());
+      cm_msg(MERROR, "mongoose", "please create password file: touch %s", path.c_str());
+      return false;
+   }
+
+   bool have_realm = false;
+   char buf[256];
+   
+   /*
+    * Read passwords file line by line. If should have htdigest format,
+    * i.e. each line should be a colon-separated sequence:
+    * USER_NAME:DOMAIN_NAME:HA1_HASH_OF_USER_DOMAIN_AND_PASSWORD
+    */
+   while (fgets(buf, sizeof(buf), fp) != NULL) {
+      char f_user[256];
+      char f_domain[256];
+      char f_ha1[256];
+
+      if (sscanf(buf, "%[^:]:%[^:]:%s", f_user, f_domain, f_ha1) == 3) {
+         AuthEntry e;
+         e.realm = f_domain;
+         e.username = f_user;
+         e.password = f_ha1;
+
+         if (e.realm == auth->realm) {
+            have_realm = true;
+            auth->passwords.push_back(e);
+         }
+      }
+   }
+
+   fclose(fp);
+
+   return have_realm;
+}
+
+static std::string check_digest_auth(struct http_message *hm, Auth* auth)
+{
+   char user[50], cnonce[33], response[40], uri[200], qop[20], nc[20], nonce[30];
+   char expected_response[33];
+   
+   /* Parse "Authorization:" header, fail fast on parse error */
+   struct mg_str *hdr = mg_get_http_header(hm, "Authorization");
+ 
+   if (!hdr)
+      return "";
+
+   if (mg_http_parse_header(hdr, "username", user, sizeof(user)) == 0 ||
+       mg_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0 ||
+       mg_http_parse_header(hdr, "response", response, sizeof(response)) == 0 ||
+       mg_http_parse_header(hdr, "uri", uri, sizeof(uri)) == 0 ||
+       mg_http_parse_header(hdr, "qop", qop, sizeof(qop)) == 0 ||
+       mg_http_parse_header(hdr, "nc", nc, sizeof(nc)) == 0 ||
+       mg_http_parse_header(hdr, "nonce", nonce, sizeof(nonce)) == 0 ||
+       xmg_check_nonce(nonce) == 0) {
+      return "";
+   }
+
+   for (unsigned i=0; i<auth->passwords.size(); i++) {
+      AuthEntry* e = &auth->passwords[i];
+      if (e->username != user)
+         continue;
+      if (e->realm != auth->realm)
+         continue;
+      const char* f_ha1 = e->password.c_str();
+      xmg_mkmd5resp(hm->method.p, hm->method.len, hm->uri.p,
+                    hm->uri.len + (hm->query_string.len ? hm->query_string.len + 1 : 0),
+                    f_ha1, strlen(f_ha1), nonce, strlen(nonce), nc, strlen(nc), cnonce,
+                    strlen(cnonce), qop, strlen(qop), expected_response);
+      if (mg_casecmp(response, expected_response) == 0) {
+         return e->username;
+      }
+    }
+
+   return "";
+}
+
+static std::string mgstr(const mg_str* s)
+{
+   return std::string(s->p, s->len);
+}
+
+static const std::string find_header_mg(const struct http_message *msg, const char* name)
+{
+   int nlen = strlen(name);
+   for (int i=0; i<MG_MAX_HTTP_HEADERS; i++) {
+      if (msg->header_names[i].len != nlen)
+         continue;
+      if (strncmp(msg->header_names[i].p, name, nlen) != 0)
+         continue;
+      return mgstr(&msg->header_values[i]);
+   }
+   return "";
+}
+
+static const std::string find_cookie_mg(const struct http_message *msg, const char* cookie_name)
+{
+   const std::string cookies = find_header_mg(msg, "Cookie");
+   if (cookies.length() < 1)
+      return "";
+   const char* p = strstr(cookies.c_str(), cookie_name);
+   if (!p)
+      return "";
+   const char* v = p+strlen(cookie_name);
+   if (*v != '=')
+      return "";
+   v++;
+   //printf("cookie [%s] value [%s]\n", cookie_name, v);
+   return v;
+}
+
+// Generic event handler
+
+static void handle_event_mg(struct mg_connection *nc, int ev, void *ev_data)
+{
+   struct mbuf *io = &nc->recv_mbuf;
+   switch (ev) {
+   case MG_EV_POLL: // periodic call from loop_mg() via mg_mgr_poll()
+      break;
+   case MG_EV_ACCEPT:
+      if (trace_mg)
+         printf("handle_event_mg: nc %p, ev %d, ev_data %p -> accept\n", nc, ev, ev_data);
+      break;
+   case MG_EV_RECV:
+      if (trace_mg)
+         printf("handle_event_mg: nc %p, ev %d, ev_data %p -> recv %d, buffered %d bytes\n", nc, ev, ev_data, *(int*)ev_data, (int)io->len);
+#if 0      
+      // This event handler implements simple TCP echo server
+      mg_send(nc, io->buf, io->len);  // Echo received data back
+      mbuf_remove(io, io->len);      // Discard data from recv buffer
+#endif
+      break;
+   case MG_EV_SEND:
+      if (trace_mg)
+         printf("handle_event_mg: nc %p, ev %d, ev_data %p -> send %d bytes\n", nc, ev, ev_data, *(int*)ev_data);
+      break;
+   case MG_EV_CLOSE:
+      if (trace_mg)
+         printf("handle_event_mg: nc %p, ev %d, ev_data %p -> close\n", nc, ev, ev_data);
+      break;
+   default:
+      if (trace_mg)
+         printf("handle_event_mg: nc %p, ev %d, ev_data %p\n", nc, ev, ev_data);
+      break;
+   }
+}
+
+static bool handle_decode_get(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string)
+{
+   int status;
+   
+   // extract password cookies
+   
+   char cookie_pwd[256]; // general access password
+   char cookie_wpwd[256]; // "write mode" password
+   char cookie_cpwd[256]; // custom page and javascript password
+   
+   cookie_pwd[0] = 0;
+   cookie_wpwd[0] = 0;
+   cookie_cpwd[0] = 0;
+
+   std::string s = find_cookie_mg(msg, "midas_pwd");
+   if (s.length() > 0) {
+      STRLCPY(cookie_pwd, s.c_str());
+      cookie_pwd[strcspn(cookie_pwd, " ;\r\n")] = 0;
+   }
+   
+   s = find_cookie_mg(msg, "midas_wpwd");
+   if (s.length()) {
+      STRLCPY(cookie_wpwd, s.c_str());
+      cookie_wpwd[strcspn(cookie_wpwd, " ;\r\n")] = 0;
+   }
+   
+   s = find_cookie_mg(msg, "cpwd");
+   if (s.length()) {
+      STRLCPY(cookie_cpwd, s.c_str());
+      cookie_cpwd[strcspn(cookie_cpwd, " ;\r\n")] = 0;
+   }
+   
+   // extract refresh rate
+   int refresh = DEFAULT_REFRESH;
+   s = find_cookie_mg(msg, "midas_refr");
+   if (s.length() > 0)
+      refresh = atoi(s.c_str());
+
+   // lock shared structures
+   
+   status = ss_mutex_wait_for(request_mutex, 0);
+   assert(status == SS_SUCCESS);
+
+   // prepare return buffer
+
+   memset(return_buffer, 0, return_size);
+   strlen_retbuf = 0;
+   return_length = 0;
+
+   // call midas
+   
+   decode_get(NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, false, uri, query_string);
+
+   if (trace_mg)
+      printf("handle_decode_get: return buffer length %d bytes, strlen %d\n", return_length, (int)strlen(return_buffer));
+
+   if (return_length == -1) {
+      ss_mutex_release(request_mutex);
+      return false;
+   }
+
+   if (return_length == 0)
+      return_length = strlen(return_buffer);
+   
+   char* buf = (char*)malloc(return_length);
+   assert(buf != NULL);
+   
+   memcpy(buf, return_buffer, return_length);
+   
+   ss_mutex_release(request_mutex);
+   
+   mg_send(nc, buf, return_length);
+
+   if (!strstr(buf, "Content-Length")) {
+      // cannot do pipelined http if response generated by mhttpd
+      // decode_get() has no Content-Length header.
+      // must close the connection.
+      nc->flags |= MG_F_SEND_AND_CLOSE;
+   }
+   
+   free(buf);
+   buf = NULL;
+   
+   return true;
+}
+
+static bool handle_decode_post(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string)
+{
+   int status;
+   
+   // extract password cookies
+   
+   char cookie_pwd[256]; // general access password
+   char cookie_wpwd[256]; // "write mode" password
+   char cookie_cpwd[256]; // custom page and javascript password
+   
+   cookie_pwd[0] = 0;
+   cookie_wpwd[0] = 0;
+   cookie_cpwd[0] = 0;
+
+   std::string s = find_cookie_mg(msg, "midas_pwd");
+   if (s.length() > 0) {
+      STRLCPY(cookie_pwd, s.c_str());
+      cookie_pwd[strcspn(cookie_pwd, " ;\r\n")] = 0;
+   }
+   
+   s = find_cookie_mg(msg, "midas_wpwd");
+   if (s.length()) {
+      STRLCPY(cookie_wpwd, s.c_str());
+      cookie_wpwd[strcspn(cookie_wpwd, " ;\r\n")] = 0;
+   }
+   
+   s = find_cookie_mg(msg, "cpwd");
+   if (s.length()) {
+      STRLCPY(cookie_cpwd, s.c_str());
+      cookie_cpwd[strcspn(cookie_cpwd, " ;\r\n")] = 0;
+   }
+   
+   // extract refresh rate
+   int refresh = DEFAULT_REFRESH;
+   s = find_cookie_mg(msg, "midas_refr");
+   if (s.length() > 0)
+      refresh = atoi(s.c_str());
+
+   char boundary[256];
+   boundary[0] = 0;
+   const std::string ct = find_header_mg(msg, "Content-Type");
+   if (ct.length() > 0) {
+      const char* s = strstr(ct.c_str(), "boundary=");
+      if (s)
+         strlcpy(boundary, s+9, sizeof(boundary));
+   }
+
+   const char* post_data = msg->body.p;
+   int post_data_len = msg->body.len;
+
+   // lock shared strctures
+   
+   status = ss_mutex_wait_for(request_mutex, 0);
+   assert(status == SS_SUCCESS);
+
+   // prepare return buffer
+
+   memset(return_buffer, 0, return_size);
+   strlen_retbuf = 0;
+   return_length = 0;
+   
+   //printf("post_data_len %d, data [%s], boundary [%s]\n", post_data_len, post_data, boundary);
+
+   decode_post(NULL, (char*)post_data, boundary, post_data_len, cookie_pwd, cookie_wpwd, refresh, false, uri);
+
+   if (trace_mg)
+      printf("handle_decode_post: return buffer length %d bytes, strlen %d\n", return_length, (int)strlen(return_buffer));
+
+   if (return_length == -1) {
+      ss_mutex_release(request_mutex);
+      return false;
+   }
+
+   if (return_length == 0)
+      return_length = strlen(return_buffer);
+   
+   char* buf = (char*)malloc(return_length);
+   assert(buf != NULL);
+   
+   memcpy(buf, return_buffer, return_length);
+   
+   ss_mutex_release(request_mutex);
+   
+   mg_send(nc, buf, return_length);
+
+   if (!strstr(buf, "Content-Length")) {
+      // cannot do pipelined http if response generated by mhttpd
+      // decode_get() has no Content-Length header.
+      // must close the connection.
+      nc->flags |= MG_F_SEND_AND_CLOSE;
+   }
+   
+   free(buf);
+   buf = NULL;
+   
+   return true;
+}
+
+static bool handle_http_get(struct mg_connection *nc, const http_message* msg)
+{
+   std::string uri = mgstr(&msg->uri);
+   std::string query_string = mgstr(&msg->query_string);
+
+   if (trace_mg)
+      printf("handle_http_get: uri [%s], query [%s]\n", uri.c_str(), query_string.c_str());
+
+   if (query_string == "mjsonrpc_schema") {
+      MJsonNode* s = mjsonrpc_get_schema();
+      std::string reply = s->Stringify();
+      delete s;
+      
+      int reply_length = reply.length();
+      
+      const std::string origin_header = find_header_mg(msg, "Origin");
+      
+      std::string headers;
+      headers += "HTTP/1.1 200 OK\n";
+      if (origin_header.length() > 0)
+         headers += "Access-Control-Allow-Origin: " + std::string(origin_header) + "\n";
+      else
+         headers += "Access-Control-Allow-Origin: *\n";
+      headers += "Access-Control-Allow-Credentials: true\n";
+      headers += "Content-Length: " + toString(reply_length) + "\n";
+      headers += "Content-Type: application/json\n";
+      //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+      
+      //printf("sending headers: %s\n", headers.c_str());
+      //printf("sending reply: %s\n", reply.c_str());
+      
+      std::string send = headers + "\n" + reply;
+      
+      mg_send(nc, send.c_str(), send.length());
+      
+      return true;
+   }
+
+   if (query_string == "mjsonrpc_schema_text") {
+      MJsonNode* s = mjsonrpc_get_schema();
+      std::string reply = mjsonrpc_schema_to_text(s);
+      delete s;
+      
+      int reply_length = reply.length();
+      
+      const std::string origin_header = find_header_mg(msg, "Origin");
+      
+      std::string headers;
+      headers += "HTTP/1.1 200 OK\n";
+      if (origin_header.length() > 0)
+         headers += "Access-Control-Allow-Origin: " + std::string(origin_header) + "\n";
+      else
+         headers += "Access-Control-Allow-Origin: *\n";
+      headers += "Access-Control-Allow-Credentials: true\n";
+      headers += "Content-Length: " + toString(reply_length) + "\n";
+      headers += "Content-Type: text/plain\n";
+      //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+      
+      //printf("sending headers: %s\n", headers.c_str());
+      //printf("sending reply: %s\n", reply.c_str());
+      
+      std::string send = headers + "\n" + reply;
+      
+      mg_send(nc, send.c_str(), send.length());
+      
+      return true;
+   }
+   
+   return handle_decode_get(nc, msg, uri.c_str(), query_string.c_str());
+}
+
+static bool handle_http_post(struct mg_connection *nc, const http_message* msg)
+{
+   std::string uri = mgstr(&msg->uri);
+   std::string query_string = mgstr(&msg->query_string);
+   std::string post_data = mgstr(&msg->body);
+
+   if (trace_mg)
+      printf("handle_http_post: uri [%s], query [%s], post data %d bytes\n", uri.c_str(), query_string.c_str(), (int)post_data.length());
+
+   if (query_string == "mjsonrpc") {
+      const std::string ctype_header = find_header_mg(msg, "Content-Type");
+      
+      if (strstr(ctype_header.c_str(), "application/json") == NULL) {
+         std::string headers;
+         headers += "HTTP/1.1 415 Unsupported Media Type\n";
+         //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+         
+         //printf("sending headers: %s\n", headers.c_str());
+         //printf("sending reply: %s\n", reply.c_str());
+         
+         std::string send = headers + "\n";
+         
+         mg_send(nc, send.c_str(), send.length());
+         
+         return true;
+      }
+
+      //printf("post body: %s\n", post_data.c_str());
+      
+      int status = ss_mutex_wait_for(request_mutex, 0);
+      assert(status == SS_SUCCESS);
+         
+      std::string reply = mjsonrpc_decode_post_data(post_data.c_str());
+         
+      ss_mutex_release(request_mutex);
+         
+      int reply_length = reply.length();
+         
+      const std::string origin_header = find_header_mg(msg, "Origin");
+         
+      std::string headers;
+      headers += "HTTP/1.1 200 OK\n";
+      if (origin_header.length() > 0)
+         headers += "Access-Control-Allow-Origin: " + std::string(origin_header) + "\n";
+      else
+         headers += "Access-Control-Allow-Origin: *\n";
+      headers += "Access-Control-Allow-Credentials: true\n";
+      headers += "Content-Length: " + toString(reply_length) + "\n";
+      headers += "Content-Type: application/json\n";
+      //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+      
+      //printf("sending headers: %s\n", headers.c_str());
+      //printf("sending reply: %s\n", reply.c_str());
+      
+      std::string send = headers + "\n" + reply;
+      
+      mg_send(nc, send.c_str(), send.length());
+      
+      return true;
+   }
+
+   return handle_decode_post(nc, msg, uri.c_str(), query_string.c_str());
+}
+
+static bool handle_http_options_cors(struct mg_connection *nc, const http_message* msg)
+{
+   //
+   // JSON-RPC CORS pre-flight request, see
+   // https://en.wikipedia.org/wiki/Cross-origin_resource_sharing
+   //
+   // OPTIONS /resources/post-here/ HTTP/1.1
+   // Host: bar.other
+   // User-Agent: Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.5; en-US; rv:1.9.1b3pre) Gecko/20081130 Minefield/3.1b3pre
+   // Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+   // Accept-Language: en-us,en;q=0.5
+   // Accept-Encoding: gzip,deflate
+   // Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+   // Connection: keep-alive
+   // Origin: http://foo.example
+   // Access-Control-Request-Method: POST
+   // Access-Control-Request-Headers: X-PINGOTHER
+   //
+   // HTTP/1.1 200 OK
+   // Date: Mon, 01 Dec 2008 01:15:39 GMT
+   // Server: Apache/2.0.61 (Unix)
+   // Access-Control-Allow-Origin: http://foo.example
+   // Access-Control-Allow-Methods: POST, GET, OPTIONS
+   // Access-Control-Allow-Headers: X-PINGOTHER
+   // Access-Control-Max-Age: 1728000
+   // Vary: Accept-Encoding, Origin
+   // Content-Encoding: gzip
+   // Content-Length: 0
+   // Keep-Alive: timeout=2, max=100
+   // Connection: Keep-Alive
+   // Content-Type: text/plain
+   //
+   
+   const std::string origin_header = find_header_mg(msg, "Origin");
+
+   std::string headers;
+   headers += "HTTP/1.1 200 OK\n";
+   //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+   if (origin_header.length() > 0)
+      headers += "Access-Control-Allow-Origin: " + origin_header + "\n";
+   else
+      headers += "Access-Control-Allow-Origin: *\n";
+   headers += "Access-Control-Allow-Headers: Content-Type\n";
+   headers += "Access-Control-Allow-Credentials: true\n";
+   headers += "Access-Control-Max-Age: 120\n";
+   headers += "Content-Length: 0\n";
+   headers += "Content-Type: text/plain\n";
+   //printf("sending headers: %s\n", headers.c_str());
+   //printf("sending reply: %s\n", reply.c_str());
+   
+   std::string send = headers + "\n";
+   
+   mg_send(nc, send.c_str(), send.length());
+   
+   return true;
+}
+
+// HTTP event handler
+
+static void handle_http_message(struct mg_connection *nc, http_message* msg)
+{
+   std::string method = mgstr(&msg->method);
+   std::string query = mgstr(&msg->query_string);
+   
+   if (trace_mg)
+      printf("handle_http_message: method [%s] uri [%s] proto [%s]\n", method.c_str(), mgstr(&msg->uri).c_str(), mgstr(&msg->proto).c_str());
+
+   bool response_sent = false;
+
+   // process OPTIONS for Cross-origin (CORS) preflight request
+   // see https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS
+   if (method == "OPTIONS" && query == "mjsonrpc" && mg_get_http_header(msg, "Access-Control-Request-Method") != NULL) {
+      handle_http_options_cors(nc, msg);
+      return;
+   }
+
+   std::string username = check_digest_auth(msg, &auth_mg);
+
+   // if auth failed, reread password file - maybe user added or password changed
+   if (username.length() < 1) {
+      bool ok = read_passwords(&auth_mg);
+      if (ok)
+         username = check_digest_auth(msg, &auth_mg);
+   }
+
+   //printf("auth user: %s\n", username.c_str());
+
+   if (username.length() == 0) {
+      xmg_http_send_digest_auth_request(nc, auth_mg.realm.c_str());
+      return;
+   }
+
+   if (method == "GET")
+      response_sent = handle_http_get(nc, msg);
+   else if (method == "POST")
+      response_sent = handle_http_post(nc, msg);
+
+   if (!response_sent) {
+      std::string response = "501 Not Implemented";
+      mg_send_head(nc, 501, response.length(), NULL); // 501 Not Implemented
+      mg_send(nc, response.c_str(), response.length());
+   }
+}
+
+static void handle_http_event_mg(struct mg_connection *nc, int ev, void *ev_data)
+{
+   switch (ev) {
+   case MG_EV_HTTP_REQUEST:
+      if (trace_mg)
+         printf("handle_http_event_mg: nc %p, ev %d, ev_data %p -> http request\n", nc, ev, ev_data);
+      handle_http_message(nc, (http_message*)ev_data);
+      break;
+   default:
+      if (trace_mg)
+         printf("handle_http_event_mg: nc %p, ev %d, ev_data %p\n", nc, ev, ev_data);
+      break;
+   }
+}
+
+static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data)
+{
+   switch (ev) {
+   case MG_EV_HTTP_REQUEST:
+      {
+         http_message* msg = (http_message*)ev_data;
+         if (trace_mg)
+            printf("handle_http_redirect: nc %p, ev %d, ev_data %p -> http request\n", nc, ev, ev_data);
+         
+         mg_printf(nc, "HTTP/1.1 302 Found\r\nLocation: https://%s%s\r\n\r\n",
+                   ((std::string*)(nc->user_data))->c_str(),
+                   mgstr(&msg->uri).c_str());
+         nc->flags |= MG_F_SEND_AND_CLOSE;
+      }
+      break;
+   default:
+      if (trace_mg)
+         printf("handle_http_redirect: nc %p, ev %d, ev_data %p\n", nc, ev, ev_data);
+   }
+}
+
+int start_mg(int user_http_port, int user_https_port, int verbose)
+{
+   HNDLE hDB;
+   int size;
+   int status;
+
+   if (verbose)
+      debug_mg = 1;
+
+   if (verbose)
+      trace_mg = true;
+
+   status = cm_get_experiment_database(&hDB, NULL);
+   assert(status == CM_SUCCESS);
+
+   int http_port = 8080;
+   int https_port = 8443;
+   int http_redirect_to_https = 1;
+
+   size = sizeof(http_port);
+   db_get_value(hDB, 0, "/Experiment/midas http port", &http_port, &size, TID_INT, TRUE);
+
+   size = sizeof(https_port);
+   db_get_value(hDB, 0, "/Experiment/midas https port", &https_port, &size, TID_INT, TRUE);
+
+   size = sizeof(http_redirect_to_https);
+   db_get_value(hDB, 0, "/Experiment/http redirect to https", &http_redirect_to_https, &size, TID_BOOL, TRUE);
+
+   bool need_cert_file = false;
+   bool need_password_file = false;
+
+   if (user_http_port)
+      http_port = user_http_port;
+
+   if (user_https_port)
+      https_port = user_https_port;
+
+   if (https_port) {
+      need_cert_file = true;
+      need_password_file = true;
+   }
+
+   if (http_port && !http_redirect_to_https) {
+      // no passwords serving over http unless
+      // http is just a redict to https
+      need_password_file = false;
+   }
+
+   printf("Mongoose web server will listen on https port %d, http port %d, redirect to https: %d\n", https_port, http_port, http_redirect_to_https);
+
+   if (!http_port && !https_port) {
+      cm_msg(MERROR, "mongoose", "cannot start: no ports defined");
+      return SS_FILE_ERROR;
+   }
+
+   std::string cert_file;
+
+   if (need_cert_file) {
+      status = find_file_mg("ssl_cert.pem", cert_file, NULL, debug_mg>0);
+
+      if (status != SUCCESS) {
+         cm_msg(MERROR, "mongoose", "cannot find SSL certificate file \"%s\"", cert_file.c_str());
+         cm_msg(MERROR, "mongoose", "please create SSL certificate file: openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
+         return SS_FILE_ERROR;
+      }
+
+      printf("Mongoose web server will use SSL certificate file \"%s\"\n", cert_file.c_str());
+   }
+
+   if (need_password_file) {
+      char exptname[256];
+      exptname[0] = 0;
+      cm_get_experiment_name(exptname, sizeof(exptname));
+
+      if (strlen(exptname) > 0)
+         auth_mg.realm = exptname;
+      else
+         auth_mg.realm = "midas";
+
+      bool ok = read_passwords(&auth_mg);
+      if (!ok) {
+         cm_msg(MERROR, "mongoose", "mongoose web server password file \"%s\" has no passwords for realm \"%s\"", auth_mg.passwd_filename.c_str(), auth_mg.realm.c_str());
+         cm_msg(MERROR, "mongoose", "please add passwords by running: htdigest %s %s midas", auth_mg.passwd_filename.c_str(), auth_mg.realm.c_str());
+         return SS_FILE_ERROR;
+      }
+
+      printf("Mongoose web server will use authentication realm \"%s\", password file \"%s\"\n", auth_mg.realm.c_str(), auth_mg.passwd_filename.c_str());
+   }
+
+   if (trace_mg)
+      printf("start_mg!\n");
+
+#ifndef OS_WINNT
+   signal(SIGPIPE, SIG_IGN);
+#endif
+
+   if (!request_mutex) {
+      status = ss_mutex_create(&request_mutex);
+      assert(status==SS_SUCCESS || status==SS_CREATED);
+   }
+
+   mg_mgr_init(&mgr_mg, NULL);
+
+   if (http_port) {
+      char str[256];
+      sprintf(str, "%d", http_port);
+      struct mg_connection* nc = mg_bind(&mgr_mg, str, handle_event_mg);
+#ifdef MG_ENABLE_THREADS
+      mg_enable_multithreading(nc);
+#endif
+      mg_set_protocol_http_websocket(nc);
+
+      if (http_redirect_to_https) {
+         char hostname[256];
+         gethostname(hostname, sizeof(host_name));
+         char str[256];
+         sprintf(str, "%d", https_port);
+         std::string s = std::string(hostname) + ":" + std::string(str);
+         nc->user_data = new std::string(s);
+         mg_register_http_endpoint(nc, "/", handle_http_redirect);
+      } else {
+         mg_register_http_endpoint(nc, "/", handle_http_event_mg);
+      }
+   }
+
+   if (https_port) {
+      char str[256];
+      sprintf(str, "%d", https_port);
+      struct mg_connection* nc = mg_bind(&mgr_mg, str, handle_event_mg);
+      mg_set_ssl(nc, cert_file.c_str(), NULL);
+#ifdef MG_ENABLE_THREADS
+      mg_enable_multithreading(nc);
+#endif
+      mg_set_protocol_http_websocket(nc);
+      mg_register_http_endpoint(nc, "/", handle_http_event_mg);
+   }
+
+   return SUCCESS;
+}
+
+int stop_mg()
+{
+   if (debug_mg)
+      printf("stop_mg!\n");
+
+   // Stop the server.
+   mg_mgr_free(&mgr_mg);
+   
+   if (debug_mg)
+      printf("stop_mg done!\n");
+   return SUCCESS;
+}
+
+int loop_mg()
+{
+   int status = SUCCESS;
+
+   /* establish Ctrl-C handler - will set _abort to TRUE */
+   ss_ctrlc_handler(ctrlc_handler);
+
+   while (!_abort) {
+
+      /* cm_yield() is not thread safe, need to take a lock */
+
+      status = ss_mutex_wait_for(request_mutex, 0);
+
+      /* check for shutdown message */
+      status = cm_yield(0);
+      if (status == RPC_SHUTDOWN)
+         break;
+
+      /* call sequencer periodically */
+      sequencer();
+
+      status = ss_mutex_release(request_mutex);
+
+      //ss_sleep(10);
+
+      mg_mgr_poll(&mgr_mg, 10);
    }
 
    return status;
