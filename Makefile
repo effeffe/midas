@@ -524,7 +524,7 @@ $(BIN_DIR)/odbedit: $(SRC_DIR)/odbedit.cxx $(SRC_DIR)/cmdedit.cxx
 
 MHTTPD_OBJS=
 MHTTPD_OBJS += $(LIB_DIR)/mhttpd.o
-MHTTPD_OBJS += $(LIB_DIR)/mongoose.o
+MHTTPD_OBJS += $(LIB_DIR)/mongoose4.o
 MHTTPD_OBJS += $(LIB_DIR)/mgd.o
 MHTTPD_OBJS += $(LIB_DIR)/sequencer.o
 MHTTPD_OBJS += $(LIB_DIR)/mjsonrpc.o $(LIB_DIR)/mjsonrpc_user.o

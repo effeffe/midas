@@ -17095,7 +17095,7 @@ void server_loop(int tcp_port)
 
 #ifdef HAVE_MG
 
-#include "mongoose.h"
+#include "mongoose4.h"
 
 static int debug_mg = 0;
 
