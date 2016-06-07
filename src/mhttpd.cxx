@@ -17956,14 +17956,16 @@ static bool read_passwords(Auth* auth)
 
 static std::string check_digest_auth(struct http_message *hm, Auth* auth)
 {
-   struct mg_str *hdr;
    char user[50], cnonce[33], response[40], uri[200], qop[20], nc[20], nonce[30];
    char expected_response[33];
    
    /* Parse "Authorization:" header, fail fast on parse error */
-   if (0 ||
-       (hdr = mg_get_http_header(hm, "Authorization")) == NULL ||
-       mg_http_parse_header(hdr, "username", user, sizeof(user)) == 0 ||
+   struct mg_str *hdr = mg_get_http_header(hm, "Authorization");
+ 
+   if (!hdr)
+      return "";
+
+   if (mg_http_parse_header(hdr, "username", user, sizeof(user)) == 0 ||
        mg_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0 ||
        mg_http_parse_header(hdr, "response", response, sizeof(response)) == 0 ||
        mg_http_parse_header(hdr, "uri", uri, sizeof(uri)) == 0 ||
@@ -17971,7 +17973,7 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
        mg_http_parse_header(hdr, "nc", nc, sizeof(nc)) == 0 ||
        mg_http_parse_header(hdr, "nonce", nonce, sizeof(nonce)) == 0 ||
        xmg_check_nonce(nonce) == 0) {
-      return 0;
+      return "";
    }
 
    for (unsigned i=0; i<auth->passwords.size(); i++) {
@@ -18382,16 +18384,81 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg)
    return handle_decode_post(nc, msg, uri.c_str(), query_string.c_str());
 }
 
+static bool handle_http_options_cors(struct mg_connection *nc, const http_message* msg)
+{
+   //
+   // JSON-RPC CORS pre-flight request, see
+   // https://en.wikipedia.org/wiki/Cross-origin_resource_sharing
+   //
+   // OPTIONS /resources/post-here/ HTTP/1.1
+   // Host: bar.other
+   // User-Agent: Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.5; en-US; rv:1.9.1b3pre) Gecko/20081130 Minefield/3.1b3pre
+   // Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+   // Accept-Language: en-us,en;q=0.5
+   // Accept-Encoding: gzip,deflate
+   // Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+   // Connection: keep-alive
+   // Origin: http://foo.example
+   // Access-Control-Request-Method: POST
+   // Access-Control-Request-Headers: X-PINGOTHER
+   //
+   // HTTP/1.1 200 OK
+   // Date: Mon, 01 Dec 2008 01:15:39 GMT
+   // Server: Apache/2.0.61 (Unix)
+   // Access-Control-Allow-Origin: http://foo.example
+   // Access-Control-Allow-Methods: POST, GET, OPTIONS
+   // Access-Control-Allow-Headers: X-PINGOTHER
+   // Access-Control-Max-Age: 1728000
+   // Vary: Accept-Encoding, Origin
+   // Content-Encoding: gzip
+   // Content-Length: 0
+   // Keep-Alive: timeout=2, max=100
+   // Connection: Keep-Alive
+   // Content-Type: text/plain
+   //
+   
+   const std::string origin_header = find_header_mg(msg, "Origin");
+
+   std::string headers;
+   headers += "HTTP/1.1 200 OK\n";
+   //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+   if (origin_header.length() > 0)
+      headers += "Access-Control-Allow-Origin: " + origin_header + "\n";
+   else
+      headers += "Access-Control-Allow-Origin: *\n";
+   headers += "Access-Control-Allow-Headers: Content-Type\n";
+   headers += "Access-Control-Allow-Credentials: true\n";
+   headers += "Access-Control-Max-Age: 120\n";
+   headers += "Content-Length: 0\n";
+   headers += "Content-Type: text/plain\n";
+   //printf("sending headers: %s\n", headers.c_str());
+   //printf("sending reply: %s\n", reply.c_str());
+   
+   std::string send = headers + "\n";
+   
+   mg_send(nc, send.c_str(), send.length());
+   
+   return true;
+}
+
 // HTTP event handler
 
 static void handle_http_message(struct mg_connection *nc, http_message* msg)
 {
    std::string method = mgstr(&msg->method);
+   std::string query = mgstr(&msg->query_string);
    
    if (trace_mg)
       printf("handle_http_message: method [%s] uri [%s] proto [%s]\n", method.c_str(), mgstr(&msg->uri).c_str(), mgstr(&msg->proto).c_str());
 
    bool response_sent = false;
+
+   // process OPTIONS for Cross-origin (CORS) preflight request
+   // see https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS
+   if (method == "OPTIONS" && query == "mjsonrpc" && mg_get_http_header(msg, "Access-Control-Request-Method") != NULL) {
+      handle_http_options_cors(nc, msg);
+      return;
+   }
 
    std::string username = check_digest_auth(msg, &auth_mg);
 
