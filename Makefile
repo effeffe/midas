@@ -508,9 +508,6 @@ ifdef HAVE_MSCB
 CFLAGS     += -DHAVE_MSCB
 endif
 
-CFLAGS     += -DMG_ENABLE_THREADS
-CFLAGS     += -DMG_ENABLE_SSL
-
 $(BIN_DIR)/mlogger: $(BIN_DIR)/%: $(SRC_DIR)/%.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
 
@@ -527,13 +524,17 @@ $(BIN_DIR)/odbedit: $(SRC_DIR)/odbedit.cxx $(SRC_DIR)/cmdedit.cxx
 
 MHTTPD_OBJS=
 MHTTPD_OBJS += $(LIB_DIR)/mhttpd.o
-MHTTPD_OBJS += $(LIB_DIR)/mongoose.o
 MHTTPD_OBJS += $(LIB_DIR)/mgd.o
 MHTTPD_OBJS += $(LIB_DIR)/sequencer.o
 MHTTPD_OBJS += $(LIB_DIR)/mjsonrpc.o $(LIB_DIR)/mjsonrpc_user.o
 ifdef HAVE_MSCB
 MHTTPD_OBJS += $(LIB_DIR)/mscb.o
 endif
+
+#MHTTPD_OBJS += $(LIB_DIR)/mongoose4.o
+MHTTPD_OBJS += $(LIB_DIR)/mongoose6.o
+CFLAGS      += -DMG_ENABLE_THREADS
+CFLAGS      += -DMG_ENABLE_SSL
 
 $(BIN_DIR)/mhttpd: $(MHTTPD_OBJS)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm

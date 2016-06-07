@@ -17155,7 +17155,7 @@ int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace
 
 #ifdef HAVE_MG4
 
-#include "mongoose.h"
+#include "mongoose4.h"
 
 static int debug_mg = 0;
 
@@ -17803,7 +17803,7 @@ int loop_mg()
 
 #ifdef HAVE_MG6
 
-#include "mongoose.h"
+#include "mongoose6.h"
 
 static int debug_mg = 0;
 static bool trace_mg = false;
