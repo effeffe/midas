@@ -582,7 +582,46 @@ char *mhttpd_revision(void)
 
 /*------------------------------------------------------------------*/
 
-void urlDecode(char *p)
+static std::string UrlDecode(const char* p)
+/********************************************************************\
+   Decode the given string in-place by expanding %XX escapes
+\********************************************************************/
+{
+   std::string s;
+
+   //printf("URL decode: [%s] --> ", p);
+
+   while (*p) {
+      if (*p == '%') {
+         /* Escape: next 2 chars are hex representation of the actual character */
+         p++;
+         if (isxdigit(p[0]) && isxdigit(p[1])) {
+            int i = 0;
+            char str[3];
+            str[0] = p[0];
+            str[1] = p[1];
+            str[2] = 0;
+            sscanf(str, "%02X", &i);
+
+            s += (char) i;
+            p += 2;
+         } else
+            s += '%';
+      } else if (*p == '+') {
+         /* convert '+' to ' ' */
+         s += ' ';
+         p++;
+      } else {
+         s += *p++;
+      }
+   }
+
+   //printf("[%s]\n", s.c_str());
+
+   return s;
+}
+
+static void urlDecode(char *p)
 /********************************************************************\
    Decode the given string in-place by expanding %XX escapes
 \********************************************************************/
@@ -621,7 +660,7 @@ void urlDecode(char *p)
    //printf("[%s]\n", px);
 }
 
-void urlEncode(char *ps, int ps_size)
+static void urlEncode(char *ps, int ps_size)
 /********************************************************************\
    Encode mhttpd ODB path for embedding into HTML <a href="xxx"> elements.
    Encoding is intended to be compatible with RFC 3986 section 2 (adding of %XX escapes)
@@ -18251,13 +18290,12 @@ static bool handle_decode_post(struct mg_connection *nc, const http_message* msg
    return true;
 }
 
-static bool handle_http_get(struct mg_connection *nc, const http_message* msg)
+static bool handle_http_get(struct mg_connection *nc, const http_message* msg, const char* uri)
 {
-   std::string uri = mgstr(&msg->uri);
    std::string query_string = mgstr(&msg->query_string);
 
    if (trace_mg)
-      printf("handle_http_get: uri [%s], query [%s]\n", uri.c_str(), query_string.c_str());
+      printf("handle_http_get: uri [%s], query [%s]\n", uri, query_string.c_str());
 
    if (query_string == "mjsonrpc_schema") {
       MJsonNode* s = mjsonrpc_get_schema();
@@ -18319,17 +18357,16 @@ static bool handle_http_get(struct mg_connection *nc, const http_message* msg)
       return true;
    }
    
-   return handle_decode_get(nc, msg, uri.c_str(), query_string.c_str());
+   return handle_decode_get(nc, msg, uri, query_string.c_str());
 }
 
-static bool handle_http_post(struct mg_connection *nc, const http_message* msg)
+static bool handle_http_post(struct mg_connection *nc, const http_message* msg, const char* uri)
 {
-   std::string uri = mgstr(&msg->uri);
    std::string query_string = mgstr(&msg->query_string);
    std::string post_data = mgstr(&msg->body);
 
    if (trace_mg)
-      printf("handle_http_post: uri [%s], query [%s], post data %d bytes\n", uri.c_str(), query_string.c_str(), (int)post_data.length());
+      printf("handle_http_post: uri [%s], query [%s], post data %d bytes\n", uri, query_string.c_str(), (int)post_data.length());
 
    if (query_string == "mjsonrpc") {
       const std::string ctype_header = find_header_mg(msg, "Content-Type");
@@ -18383,7 +18420,7 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg)
       return true;
    }
 
-   return handle_decode_post(nc, msg, uri.c_str(), query_string.c_str());
+   return handle_decode_post(nc, msg, uri, query_string.c_str());
 }
 
 static bool handle_http_options_cors(struct mg_connection *nc, const http_message* msg)
@@ -18449,9 +18486,11 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
 {
    std::string method = mgstr(&msg->method);
    std::string query = mgstr(&msg->query_string);
+   std::string uri_encoded = mgstr(&msg->uri);
+   std::string uri = UrlDecode(uri_encoded.c_str());
    
    if (trace_mg)
-      printf("handle_http_message: method [%s] uri [%s] proto [%s]\n", method.c_str(), mgstr(&msg->uri).c_str(), mgstr(&msg->proto).c_str());
+      printf("handle_http_message: method [%s] uri [%s] proto [%s]\n", method.c_str(), uri.c_str(), mgstr(&msg->proto).c_str());
 
    bool response_sent = false;
 
@@ -18479,9 +18518,9 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
    }
 
    if (method == "GET")
-      response_sent = handle_http_get(nc, msg);
+      response_sent = handle_http_get(nc, msg, uri.c_str());
    else if (method == "POST")
-      response_sent = handle_http_post(nc, msg);
+      response_sent = handle_http_post(nc, msg, uri.c_str());
 
    if (!response_sent) {
       std::string response = "501 Not Implemented";
