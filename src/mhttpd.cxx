@@ -16634,22 +16634,23 @@ extern "C" {
          return 1;
 
       char hname[NI_MAXHOST];
+      hname[0] = 0;
 
-      getnameinfo(sa, len, hname, sizeof(hname), NULL, 0, 0);
+      int status;
+      const char* status_string = "success";
 
-      //printf("connection from [%s], status %d\n", hname, status);
+      status = getnameinfo(sa, len, hname, sizeof(hname), NULL, 0, 0);
 
-#if 0
-      /* decode numeric IP address */
-      strlcpy(hname, inet_ntoa(sa->sin_addr), sizeof(hname));
+      if (status)
+         status_string = gai_strerror(status);
 
-      struct hostent *phe = gethostbyaddr((char *) sa->sin_addr, 4, PF_INET);
+      //printf("connection from [%s], status %d (%s)\n", hname, status, status_string);
 
-      if (phe) {
-         strlcpy(hname, phe->h_name, sizeof(hname));
+      if (status != 0) {
+         printf("Rejecting http connection from \'%s\', getnameinfo() status %d (%s)\n", hname, status, status_string);
+         return 0;
       }
-#endif
-         
+
       /* always permit localhost */
       if (strcmp(hname, "localhost.localdomain") == 0)
          return 1;
