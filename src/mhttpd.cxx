@@ -17092,8 +17092,8 @@ void server_loop(int tcp_port)
 
 /*------------------------------------------------------------------*/
 
-#define HAVE_MG 1
-#define HAVE_MG4 1
+//#define HAVE_MG 1
+//#define HAVE_MG4 1
 //#define HAVE_MG6 1
 
 #ifdef HAVE_MG
