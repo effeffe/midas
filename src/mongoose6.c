@@ -3194,10 +3194,15 @@ static void mg_accept_conn(struct mg_connection *lc) {
   struct mg_connection *nc;
   union socket_address sa;
   socklen_t sa_len = sizeof(sa);
+  extern int check_midas_acl(const struct sockaddr *sa, int len);
   /* NOTE(lsm): on Windows, sock is always > FD_SETSIZE */
   sock_t sock = accept(lc->sock, &sa.sa, &sa_len);
   if (sock < 0) {
     DBG(("%p: failed to accept: %d", lc, errno));
+    return;
+  }
+  if (!check_midas_acl(&sa.sa, sa_len)) {
+    closesocket(sock);
     return;
   }
   nc = mg_if_accept_new_conn(lc);
