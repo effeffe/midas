@@ -17911,6 +17911,7 @@ struct AuthEntry {
 };
 
 struct Auth {
+   bool active;
    std::string realm;
    std::string passwd_filename;
    std::vector<AuthEntry> passwords;
@@ -18555,20 +18556,22 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       return;
    }
 
-   std::string username = check_digest_auth(msg, &auth_mg);
-
-   // if auth failed, reread password file - maybe user added or password changed
-   if (username.length() < 1) {
-      bool ok = read_passwords(&auth_mg);
-      if (ok)
-         username = check_digest_auth(msg, &auth_mg);
-   }
-
-   //printf("auth user: %s\n", username.c_str());
-
-   if (username.length() == 0) {
-      xmg_http_send_digest_auth_request(nc, auth_mg.realm.c_str());
-      return;
+   if (auth_mg.active) {
+      std::string username = check_digest_auth(msg, &auth_mg);
+      
+      // if auth failed, reread password file - maybe user added or password changed
+      if (username.length() < 1) {
+         bool ok = read_passwords(&auth_mg);
+         if (ok)
+            username = check_digest_auth(msg, &auth_mg);
+      }
+      
+      //printf("auth user: %s\n", username.c_str());
+      
+      if (username.length() == 0) {
+         xmg_http_send_digest_auth_request(nc, auth_mg.realm.c_str());
+         return;
+      }
    }
 
    if (method == "GET")
@@ -18661,6 +18664,9 @@ int start_mg(int user_http_port, int user_https_port, int port80_socket, int ver
       need_password_file = true;
    }
 
+   if (!https_port)
+      http_redirect_to_https = 0;
+
    if (http_port && !http_redirect_to_https) {
       // no passwords serving over http unless
       // http is just a redict to https
@@ -18694,6 +18700,8 @@ int start_mg(int user_http_port, int user_https_port, int port80_socket, int ver
       printf("Mongoose web server will use SSL certificate file \"%s\"\n", cert_file.c_str());
    }
 
+   auth_mg.active = false;
+
    if (need_password_file) {
       char exptname[256];
       exptname[0] = 0;
@@ -18710,6 +18718,8 @@ int start_mg(int user_http_port, int user_https_port, int port80_socket, int ver
          cm_msg(MERROR, "mongoose", "please add passwords by running: htdigest %s %s midas", auth_mg.passwd_filename.c_str(), auth_mg.realm.c_str());
          return SS_FILE_ERROR;
       }
+
+      auth_mg.active = true;
 
       printf("Mongoose web server will use authentication realm \"%s\", password file \"%s\"\n", auth_mg.realm.c_str(), auth_mg.passwd_filename.c_str());
    }
