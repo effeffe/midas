@@ -16706,6 +16706,55 @@ extern "C" {
    }
 }
 
+int open_setuid_port_80()
+{
+   int status;
+   struct sockaddr_in bind_addr;
+
+   int tcp_port = 8081;
+
+   /* create a new socket */
+   int lsock = socket(AF_INET, SOCK_STREAM, 0);
+
+   if (lsock == -1) {
+      printf("Cannot create socket, socket() errno %d (%s)\n", errno, strerror(errno));
+      return -1;
+   }
+
+   /* bind local node name and port to socket */
+   memset(&bind_addr, 0, sizeof(bind_addr));
+   bind_addr.sin_family = AF_INET;
+   bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+   bind_addr.sin_port = htons((short) tcp_port);
+
+   /* try reusing address */
+   int flag = 1;
+   status = setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, (char *) &flag, sizeof(INT));
+
+   if (status < 0) {
+      printf("Cannot setsockopt(SOL_SOCKET, SO_REUSEADDR), errno %d (%s)\n", errno, strerror(errno));
+      return -1;
+   }
+
+   status = bind(lsock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
+
+   if (status < 0) {
+      printf("Cannot bind() to port %d, bind() errno %d (%s)\n", tcp_port, errno, strerror(errno));
+      return -1;
+   }
+
+   /* listen for connection */
+   status = listen(lsock, SOMAXCONN);
+   if (status < 0) {
+      printf("Cannot listen() on port %d, errno %d (%s), bye!\n", tcp_port, errno, strerror(errno));
+      return -1;
+   }
+
+   printf("mhttpd is listening on port %d\n", tcp_port);
+
+   return lsock;
+}
+
 #define HAVE_OLDSERVER 1
 
 #ifdef HAVE_OLDSERVER
@@ -17610,11 +17659,16 @@ const char** get_options_mg()
    return s;
 }
 
-int start_mg(int user_http_port, int user_https_port, int verbose)
+int start_mg(int user_http_port, int user_https_port, int port80_socket, int verbose)
 {
    HNDLE hDB;
    int size;
    int status;
+
+   if (port80_socket >= 0) {
+      printf("Mongoose version 4 cannot listen to port 80 in setuid mode. Please use mongoose version 6. Sorry, bye!\n");
+      exit(1);
+   }
 
    if (verbose)
       debug_mg = 1;
@@ -18565,7 +18619,7 @@ static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data
    }
 }
 
-int start_mg(int user_http_port, int user_https_port, int verbose)
+int start_mg(int user_http_port, int user_https_port, int port80_socket, int verbose)
 {
    HNDLE hDB;
    int size;
@@ -18611,6 +18665,12 @@ int start_mg(int user_http_port, int user_https_port, int verbose)
       // no passwords serving over http unless
       // http is just a redict to https
       need_password_file = false;
+   }
+
+   if (port80_socket >= 0) {
+      // no passwords if serving unencrypted http on port 80
+      need_password_file = false;
+      printf("Mongoose web server password portection is disabled: serving unencrypted http on port 80\n");
    }
 
    printf("Mongoose web server will listen on https port %d, http port %d, redirect to https: %d\n", https_port, http_port, http_redirect_to_https);
@@ -18702,6 +18762,16 @@ int start_mg(int user_http_port, int user_https_port, int verbose)
       mg_register_http_endpoint(nc, "/", handle_http_event_mg);
    }
 
+   if (port80_socket >= 0) {
+      struct mg_connection* nc = mg_add_sock(&mgr_mg, port80_socket, handle_event_mg);
+      nc->flags |= MG_F_LISTENING;
+#ifdef MG_ENABLE_THREADS
+      mg_enable_multithreading(nc);
+#endif
+      mg_set_protocol_http_websocket(nc);
+      mg_register_http_endpoint(nc, "/", handle_http_event_mg);
+   }
+
    return SUCCESS;
 }
 
@@ -18772,6 +18842,34 @@ int main(int argc, const char *argv[])
 #ifdef SIGPIPE
    /* avoid getting killed by "Broken pipe" signals */
    signal(SIGPIPE, SIG_IGN);
+#endif
+
+   //
+   // if running setuid-root, unconditionally bind to port 80.
+   //
+   
+   int port80 = -1;
+
+#if 0
+#ifdef OS_UNIX
+   if (1 || getuid() != geteuid()) {
+      printf("mhttpd is running in setuid-root mode!\n");
+
+      port80 = open_setuid_port_80();
+
+      /* give up root privilege */
+      status = setuid(getuid());
+      if (status != 0) {
+         printf("Cannot give up root privelege, bye!\n");
+         exit(1);
+      }
+      status = setuid(getuid());
+      if (status != 0) {
+         printf("Cannot give up root privelege, bye!\n");
+         exit(1);
+      }
+   }
+#endif
 #endif
    
    /* get default from environment */
@@ -18918,7 +19016,7 @@ int main(int argc, const char *argv[])
 
 #ifdef HAVE_MG
    if (use_mg) {
-      status = start_mg(user_http_port, user_https_port, verbose);
+      status = start_mg(user_http_port, user_https_port, port80, verbose);
       if (status != SUCCESS) {
          // At least print something!
          printf("could not start the mongoose web server, see messages and midas.log, bye!\n");
