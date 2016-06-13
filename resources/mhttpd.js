@@ -248,8 +248,17 @@ function ODBCopy(path, format)
 
 /// \defgroup mjsonrpc_js JSON-RPC Javascript library (mjsonrpc_xxx)
 
-var mjsonrpc_default_url = "";
-var mjsonrpc_url = mjsonrpc_default_url;
+var mjsonrpc_default_url_web = "";
+var mjsonrpc_default_url_file = "https://localhost:8443/";
+
+var mjsonrpc_url;
+
+if (window.location.protocol == 'file:') {
+   mjsonrpc_url = mjsonrpc_default_url_file;
+} else {
+   mjsonrpc_url = mjsonrpc_default_url_web;
+}
+
 
 function mjsonrpc_set_url(url)
 {
