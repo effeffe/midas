@@ -16711,7 +16711,7 @@ int open_setuid_port_80()
    int status;
    struct sockaddr_in bind_addr;
 
-   int tcp_port = 8081;
+   int tcp_port = 80;
 
    /* create a new socket */
    int lsock = socket(AF_INET, SOCK_STREAM, 0);
@@ -16761,7 +16761,7 @@ int open_setuid_port_80()
 
 char net_buffer[WEB_BUFFER_SIZE];
 
-void server_loop(int tcp_port)
+void server_loop(int tcp_port, int port80_socket)
 {
    int status, i, refresh, n_error;
    struct sockaddr_in bind_addr, acc_addr;
@@ -16785,42 +16785,47 @@ void server_loop(int tcp_port)
    }
 #endif
 
-   /* create a new socket */
-   lsock = socket(AF_INET, SOCK_STREAM, 0);
+   if (port80_socket >= 0) {
+      lsock = port80_socket;
+   } else {
 
-   if (lsock == -1) {
-      printf("Cannot create socket\n");
-      return;
+      /* create a new socket */
+      lsock = socket(AF_INET, SOCK_STREAM, 0);
+      
+      if (lsock == -1) {
+         printf("Cannot create socket\n");
+         return;
+      }
+      
+      /* bind local node name and port to socket */
+      memset(&bind_addr, 0, sizeof(bind_addr));
+      bind_addr.sin_family = AF_INET;
+      bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+      bind_addr.sin_port = htons((short) tcp_port);
+      
+      /* try reusing address */
+      flag = 1;
+      setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, (char *) &flag, sizeof(INT));
+      status = bind(lsock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
+      
+      if (status < 0) {
+         printf("Cannot bind to port %d, bind() errno %d (%s)\n", tcp_port, errno, strerror(errno));
+         printf("Please try later or use the \"-p\" flag to specify a different port\n");
+         return;
+      }
    }
-
-   /* bind local node name and port to socket */
-   memset(&bind_addr, 0, sizeof(bind_addr));
-   bind_addr.sin_family = AF_INET;
-   bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-   bind_addr.sin_port = htons((short) tcp_port);
-
-   /* try reusing address */
-   flag = 1;
-   setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, (char *) &flag, sizeof(INT));
-   status = bind(lsock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-
-   if (status < 0) {
-      printf("Cannot bind to port %d, bind() errno %d (%s)\n", tcp_port, errno, strerror(errno));
-      printf("Please try later or use the \"-p\" flag to specify a different port\n");
-      return;
-   }
-
+      
    /* get host name for mail notification */
    gethostname(host_name, sizeof(host_name));
-
+   
    local_phe = gethostbyname(host_name);
    if (local_phe != NULL)
       local_phe = gethostbyaddr(local_phe->h_addr, sizeof(int), AF_INET);
-
+   
    /* if domain name is not in host name, hope to get it from phe */
    if (local_phe != NULL && strchr(host_name, '.') == NULL)
       strlcpy(host_name, local_phe->h_name, sizeof(host_name));
-
+   
 #ifdef OS_UNIX
    /* give up root privilege */
    assert(setuid(getuid()) == 0);
@@ -16834,7 +16839,11 @@ void server_loop(int tcp_port)
       return;
    }
 
-   printf("Server listening on port %d...\n", tcp_port);
+   if (port80_socket >= 0) {
+      printf("Server listening on port 80 in setuid-root mode\n");
+   } else {
+      printf("Server listening on port %d...\n", tcp_port);
+   }
 
    do {
       FD_ZERO(&readfds);
@@ -18860,9 +18869,8 @@ int main(int argc, const char *argv[])
    
    int port80 = -1;
 
-#if 0
 #ifdef OS_UNIX
-   if (1 || getuid() != geteuid()) {
+   if (getuid() != geteuid()) {
       printf("mhttpd is running in setuid-root mode!\n");
 
       port80 = open_setuid_port_80();
@@ -18879,7 +18887,6 @@ int main(int argc, const char *argv[])
          exit(1);
       }
    }
-#endif
 #endif
    
    /* get default from environment */
@@ -19044,7 +19051,7 @@ int main(int argc, const char *argv[])
 
 #if defined(HAVE_MG) && defined(HAVE_OLDSERVER)
    if (use_oldserver)
-      server_loop(use_oldserver_port);
+      server_loop(use_oldserver_port, port80);
    else if (use_mg)
       loop_mg();
 #elif defined(HAVE_MG)
@@ -19052,7 +19059,7 @@ int main(int argc, const char *argv[])
       loop_mg();
 #elif defined(HAVE_OLDSERVER)
    if (use_oldserver)
-      server_loop(use_oldserver_port);
+      server_loop(use_oldserver_port, port80);
 #else
 #error Have neither mongoose web server nor old web server. Please define HAVE_MG or HAVE_OLDSERVER or both
 #endif
