@@ -18107,7 +18107,7 @@ static std::string mgstr(const mg_str* s)
 
 static const std::string find_header_mg(const struct http_message *msg, const char* name)
 {
-   int nlen = strlen(name);
+   size_t nlen = strlen(name);
    for (int i=0; i<MG_MAX_HTTP_HEADERS; i++) {
       if (msg->header_names[i].len != nlen)
          continue;
