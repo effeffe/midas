@@ -2598,6 +2598,9 @@ const char *mg_set_ssl(struct mg_connection *nc, const char *cert,
     SSL_set_fd(nc->ssl, nc->sock);
   }
 
+  SSL_CTX_set_options(nc->ssl_ctx, SSL_OP_NO_SSLv2);
+  SSL_CTX_set_options(nc->ssl_ctx, SSL_OP_NO_SSLv3);
+
 #ifndef MG_DISABLE_PFS
   SSL_CTX_set_cipher_list(nc->ssl_ctx, mg_s_cipher_list);
 #endif
