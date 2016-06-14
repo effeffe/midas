@@ -18689,7 +18689,10 @@ int start_mg(int user_http_port, int user_https_port, int port80_socket, int ver
       printf("Mongoose web server password portection is disabled: serving unencrypted http on port 80\n");
    }
 
-   printf("Mongoose web server will listen on https port %d, http port %d, redirect to https: %d\n", https_port, http_port, http_redirect_to_https);
+   if (!https_port)
+      printf("Mongoose web server will listen on http port %d\n", http_port);
+   else
+      printf("Mongoose web server will listen on https port %d, http port %d, redirect to https: %d\n", https_port, http_port, http_redirect_to_https);
 
    if (!http_port && !https_port) {
       cm_msg(MERROR, "mongoose", "cannot start: no ports defined");
