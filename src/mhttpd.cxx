@@ -1,4 +1,3 @@
-
 /********************************************************************\
 
   Name:         mhttpd.cxx
@@ -17906,6 +17905,8 @@ int loop_mg()
 #endif
 
 #ifdef HAVE_MG6
+
+#undef closesocket // this is defined in msystem.h and mongoose.h, so let's remove the previous definition
 
 #include "mongoose6.h"
 
