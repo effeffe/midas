@@ -380,16 +380,18 @@ function mjsonrpc_decode_error(error) {
       return "method: \"" + request.method + "\", params: " + request.params + ", id: " + request.id;
    }
 
-   if (is_network_error(error.xhr)) {
+   if (error.xhr && is_network_error(error.xhr)) {
       return "network error: see javascript console, " + print_request(error.request);
-   } else if (is_http_error(error.xhr)) {
+   } else if (error.xhr && is_http_error(error.xhr)) {
       return "http error: " + print_xhr(error.xhr) + ", " + print_request(error.request);
    } else if (error.exception) {
       return "json parser exception: " + error.exception + ", " + print_request(error.request);
    } else if (error.error) {
       return "json-rpc error: " + JSON.stringify(error.error) + ", " + print_request(error.request);
-   } else {
+   } else if (error.request && error.xhr) {
       return "unknown error, request: " + print_request(error.request) + ", xhr: " + print_xhr(error.xhr);
+   } else {
+      return error;
    }
 }
 
