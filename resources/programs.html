@@ -16,36 +16,6 @@
     mhttpd_navigation_bar("Programs");
     </script>
     
-    <div id="start_box" style="display:none">
-      <div id="start_msg">
-        <p>text1</p>
-        <p>text2</p>
-        <p>text3</p>
-        <p>text4</p>
-        <input type=button value="Close box" onClick='clearTimeout(start_timer_id); this.parentNode.parentNode.style.display="none"; update();'></input>
-      </div>
-    </div>
-
-    <div id="stop_box" style="display:none">
-      <div id="stop_msg">
-        <p>text1</p>
-        <p>text2</p>
-        <p>text3</p>
-        <p>text4</p>
-        <input type=button value="Close box" onClick='clearTimeout(stop_timer_id); this.parentNode.parentNode.style.display="none"; update();'></input>
-      </div>
-    </div>
-
-    <div id="start_stop_overlay">
-      <div>
-        <p>text1</p>
-        <p>text2</p>
-        <p>text3</p>
-        <p>text4</p>
-        <input type=button value="Close overlay" onClick='clearTimeout(start_stop_timer_id); mhttpd_hide_overlay(start_stop_overlay); update();'></input>
-      </div>
-    </div>
-
     <div>
       <table class="subStatusTable" id="stripeList">
         <tr><td colspan=5 class="subStatusTitle">Programs</td></tr>
@@ -63,97 +33,50 @@
 
     <script>
     var update_timer_id;
-
-    var start_stop_overlay;
-    var start_stop_modal;
-    var start_stop_timer_id;
     var start_timer_id;
     var stop_timer_id;
+
+    var program_status = new Array();
     
-    function start_poll(box, msg, name, start_command, count)
+    function start_poll(name, start_command, count)
     {
-       msg.children[0].innerHTML = "Waiting for program \"" + name + "\" to start.";
-       msg.children[1].innerHTML = "Start command: " + start_command;
+       program_status[name] = "Starting " + count;
 
        mjsonrpc_cm_exist(name, false).then(function(rpc) {
           var done = (rpc.result.status == 1);
-          msg.children[2].innerHTML = "cm_exist() status: " + rpc.result.status + " done: " + done;
-          msg.children[3].innerHTML = "Will try again: " + count;
           if (done) {
-             msg.children[3].innerHTML = "Program started";
-             setTimeout(function() { box.style.display = "none"; }, 1000);
+             program_status[name] = "";
              update();
           } else if (count > 0) {
-             start_timer_id = setTimeout(function() { start_poll(box, msg, name, start_command, count-1); }, 1000);
+             start_timer_id = setTimeout(function() { start_poll(name, start_command, count-1); }, 1000);
           } else {
-             msg.children[3].innerHTML = "Timeout. Program cannot be started by MIDAS. Try to start it in a terminal, run: " + start_command;
+             program_status[name] = "";
+             alert("Program \'" + name + "\' could not be started by MIDAS. Try to start it manually using this command: " + start_command);
+             update();
           }
        }).catch(function(error) {
           mjsonrpc_error_alert(error);
        });
     }
     
-    function stop_poll(box, msg, name, count)
+    function stop_poll(name, count)
     {
-       msg.children[0].innerHTML = "Waiting for program \"" + name + "\" to stop.";
-       msg.children[1].innerHTML = "";
+       program_status[name] = "Stopping " + count;
 
        mjsonrpc_cm_exist(name, false).then(function(rpc) {
           var done = (rpc.result.status != 1);
-          msg.children[2].innerHTML = "cm_exist() status: " + rpc.result.status + " done: " + done;
-          msg.children[3].innerHTML = "Will try again: " + count;
           if (done) {
-             msg.children[3].innerHTML = "Program stopped";
-             setTimeout(function() { box.style.display = "none"; }, 1000);
+             program_status[name] = "";
              update();
           } else if (count > 0) {
-             stop_timer_id = setTimeout(function() { stop_poll(box, msg, name, count-1); }, 1000);
+             stop_timer_id = setTimeout(function() { stop_poll(name, count-1); }, 1000);
           } else {
-             msg.children[3].innerHTML = "Timeout. Program cannot be stopped by MIDAS. Try to kill it with \"kill -KILL\"";
+             program_status[name] = "";
+             alert("Program \'" + name + "\' could not be stopped by MIDAS. Try to kill it with \"kill -KILL\"");
+             update();
           }
        }).catch(function(error) {
           mjsonrpc_error_alert(error);
-       });
-    }
-    
-    function start_stop_poll(msg, name, start_command, count)
-    {
-       //msg.style.textAlign = "left";
-       if (start_command) {
-          msg.children[0].innerHTML = "Waiting for program \"" + name + "\" to start.";
-          msg.children[1].innerHTML = "Start command: " + start_command;
-       } else {
-          msg.children[0].innerHTML = "Waiting for program \"" + name + "\" to stop.";
-          msg.children[1].innerHTML = "";
-       }
-       mjsonrpc_cm_exist(name, false).then(function(rpc) {
-          var done = false;
-          if (start_command)
-             done = (rpc.result.status == 1);
-          else
-             done = (rpc.result.status != 1);
-          msg.children[2].innerHTML = "cm_exist() status: " + rpc.result.status + " done: " + done;
-          msg.children[3].innerHTML = "Will try again: " + count;
-          if (done) {
-             //mhttpd_hide_overlay(start_stop_overlay);
-             //update();
-             if (start_command)
-                msg.children[3].innerHTML = "Program started";
-             else
-                msg.children[3].innerHTML = "Program stopped";
-          } else {
-             if (count > 0) {
-                start_stop_timer_id = setTimeout(function() { start_stop_poll(msg, name, start_command, count-1); }, 1000);
-             } else {
-                if (start_command)
-                   msg.children[3].innerHTML = "Timeout. Program cannot be started by MIDAS. Try to start it in a terminal, run: " + start_command;
-                else
-                   msg.children[3].innerHTML = "Timeout. Program cannot be stopped by MIDAS. Try to kill it with \"kill -KILL\"";
-             }
-          }
-       }).catch(function(error) {
-          mjsonrpc_error_alert(error);
-          mhttpd_hide_overlay(start_stop_overlay);
        });
     }
     
@@ -191,13 +114,9 @@
        input.innerHTML = "Start " + full_name;
        mhttpd_disable_button(input);
        input.onclick = function() {
-          var start_box = document.getElementById("start_box");
-          var start_msg = document.getElementById("start_msg");
           mhttpd_disable_button(start_button);
-          start_box.style.display = "";
           mjsonrpc_start_program(name).then(function(rpc) {
-             //start_stop_poll(start_modal, name, start_command, 10);
-             start_poll(start_box, start_msg, name, start_command, 10);
+             start_poll(name, start_command, 10);
           }).catch(function(error) {
              mjsonrpc_error_alert(error);
           });
@@ -215,13 +134,9 @@
        input.innerHTML = "Stop " + full_name;
        mhttpd_disable_button(input);
        input.onclick = function() {
-          var stop_box = document.getElementById("stop_box");
-          var stop_msg = document.getElementById("stop_msg");
           mhttpd_disable_button(stop_button);
-          stop_box.style.display = "";
           mjsonrpc_stop_program(name, false).then(function(rpc) {
-             //start_stop_poll(start_stop_modal, name, null, 10);
-             stop_poll(stop_box, stop_msg, name, 10);
+             stop_poll(name, 10);
           }).catch(function(error) {
              mjsonrpc_error_alert(error);
           });
@@ -238,8 +153,8 @@
     
     function callback(rpc)
     {
-       document.getElementById('updateStatus').innerHTML = "RWP_";
-       
+       //document.getElementById('updateStatus').innerHTML = "RWP_";
+
        function find_clients(clients, name)
        {
           var found;
@@ -328,6 +243,19 @@
                 mhttpd_enable_button(b);
                 mhttpd_unhide_button(b);
              }
+          } else if (program_status[name]) {
+             e.childNodes[1].innerHTML = program_status[name];
+             e.childNodes[1].className = "yellowLight";
+             var b = document.getElementById("start " + name);
+             if (b && start_command) {
+                mhttpd_disable_button(b);
+                //mhttpd_hide_button(b);
+             }
+             var b = document.getElementById("stop " + name);
+             if (b) {
+                mhttpd_disable_button(b);
+                //mhttpd_hide_button(b);
+             }
           } else {
              e.childNodes[1].innerHTML = "Not running";
              e.childNodes[1].className = "redLight";
@@ -359,19 +287,20 @@
        }
        
        document.getElementById('mhttpd_last_updated').innerHTML = new Date;
-       document.getElementById('updateStatus').innerHTML = "RWPD";
+       //document.getElementById('updateStatus').innerHTML = "RWPD";
+       document.getElementById('updateStatus').innerHTML = "";
     }
     
     function update()
     {
        var paths = [ "/Programs", "/System/Clients", "/Alarms" ];
-       document.getElementById('updateStatus').innerHTML = "R___";
+       //document.getElementById('updateStatus').innerHTML = "R___";
        mjsonrpc_db_get_values(paths).then(function(rpc) {
           callback(rpc);
        }).catch(function(error) {
-          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error.";
+          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
        });
-       document.getElementById('updateStatus').innerHTML = "RW__";
+       //document.getElementById('updateStatus').innerHTML = "RW__";
     }
     
     function update_periodic()
@@ -382,9 +311,6 @@
        update_timer_id = setTimeout('update_periodic()', update_period);
     }
 
-    start_stop_overlay = document.getElementById("start_stop_overlay");
-    start_stop_modal = mhttpd_init_overlay(start_stop_overlay);
-    //mhttpd_unhide_overlay(start_stop_overlay);
     update_periodic();
     </script>
   </body>
