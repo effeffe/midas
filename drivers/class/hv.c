@@ -922,7 +922,7 @@ INT hv_init(EQUIPMENT * pequipment)
 
    /* initially read all channels */
    for (i=0 ; i<hv_info->num_channels ; i++) {
-
+if (hv_info->driver[i]->enabled) {
       hv_info->driver[i]->dd(CMD_GET, hv_info->driver[i]->dd_info, 
                              i - hv_info->channel_offset[i], &hv_info->measured[i]);
       hv_info->driver[i]->dd(CMD_GET_CURRENT, hv_info->driver[i]->dd_info, 
@@ -938,6 +938,7 @@ INT hv_init(EQUIPMENT * pequipment)
       hv_info->current_mirror[i]  = hv_info->current[i];
       hv_info->chStatus_mirror[i]  = hv_info->chStatus[i];
       hv_info->temperature_mirror[i]  = hv_info->temperature[i];
+}
    }
 
    db_set_data(hDB, hv_info->hKeyCurrent, hv_info->current,
