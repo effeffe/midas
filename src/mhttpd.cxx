@@ -126,6 +126,13 @@ const Filetype filetype[] = {
 
 #define HTTP_ENCODING "UTF-8"
 
+typedef struct {
+   char user[256];
+   char msg[256];
+   time_t last_time;
+   time_t prev_time;
+} LASTMSG;
+
 /*------------------------------------------------------------------*/
 
 const unsigned char favicon_png[] = {
@@ -704,7 +711,7 @@ static void urlEncode(char *ps, int ps_size)
 
 /*------------------------------------------------------------------*/
 
-char message_buffer[256] = "";
+LASTMSG lastMsg;
 
 INT print_message(const char *message)
 {
@@ -713,6 +720,8 @@ INT print_message(const char *message)
 
    /* prepare time */
    time(&tm);
+   lastMsg.prev_time = lastMsg.last_time;
+   time(&lastMsg.last_time);
    strcpy(str, ctime(&tm));
    str[19] = 0;
 
@@ -721,7 +730,7 @@ INT print_message(const char *message)
    strlcat(line, " ", sizeof(line));
    strlcat(line, (char *) message, sizeof(line));
 
-   strlcpy(message_buffer, line, sizeof(message_buffer));
+   strlcpy(lastMsg.msg, line, sizeof(lastMsg.msg));
    return SUCCESS;
 }
 
@@ -1016,10 +1025,49 @@ void page_footer(BOOL bForm)  //wraps up body wrapper and inserts page footer
    cm_get_experiment_database(&hDB, NULL);
    db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
    rsprintf("<div style=\"display:inline; float:left;\">Experiment %s</div>", str);
-   rsprintf("<div style=\"display:inline;\"><a href=\"?cmd=Help\">Help</a></div>");
+   rsprintf("<div style=\"display:inline;\">");
+   
+   // add speak JS code for chat messages
+   if (strstr(lastMsg.msg, ",USER]")) {
+      char usr[256];
+      char msg[256];
+      char tim[256];
+      time_t now;
+      
+      strlcpy(tim, ctime(&lastMsg.last_time)+11, sizeof(tim));
+      tim[8] = 0;
+      if (strchr(lastMsg.msg, '[')) {
+         strlcpy(usr, strchr(lastMsg.msg, '[')+1, sizeof(usr));
+         if (strchr(usr, ','))
+            *strchr(usr, ',') = 0;
+         if (strchr(lastMsg.msg, ']')) {
+            strlcpy(msg, strchr(lastMsg.msg, ']')+2, sizeof(msg));
+            rsprintf("<span style=\"color:#FFFFFF;background-color:#20A020\">&nbsp;<b>%s&nbsp;%s:%s</b>&nbsp;</span>\n",
+                     tim, usr, msg);
+            rsprintf("&nbsp;<input type=\"button\" name=\"cmd\" value=\"Chat\" class=\"navButton\" onclick=\"window.location.href='./?cmd=Chat';return false;\">\n");
+            
+            time(&now);
+            if (now < lastMsg.last_time+60) {
+               rsprintf("<script>\n");
+               rsprintf("try {\n");
+               rsprintf("  if (sessionStorage.lastSpeak != '%s') {\n", tim);
+               rsprintf("    var u = new SpeechSynthesisUtterance('%s');\n", msg);
+               rsprintf("    window.speechSynthesis.speak(u);\n");
+               rsprintf("    sessionStorage.lastSpeak = '%s';", tim);
+               rsprintf("  }\n");
+               rsprintf("} catch (err) {}\n");
+               rsprintf("</script>\n");
+            }
+         }
+      }
+   } else
+      rsprintf("<a href=\"?cmd=Help\">Help</a>");
+   
+   rsprintf("</div>");
    time(&now);
    rsprintf("<div style=\"display:inline; float:right;\">%s</div>", ctime(&now));
    rsprintf("</div>\n");
+   
    /*---- top level form ----*/
    if (bForm)
       rsprintf("</form>\n");
@@ -1571,7 +1619,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    rsprintf("<title>%s status</title>\n", str);
 
    if (n_alarm) {
-      rsprintf("<bgsound src=\"alarm.mid\" loop=\"false\">\n");
+      rsprintf("<bgsound src=\"alarm.mp3\" loop=\"false\">\n");
    }
 
    rsprintf("</head>\n");
@@ -1579,7 +1627,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    rsprintf("<body><form method=\"GET\" action=\".\">\n");
 
    if (n_alarm) {
-      rsprintf("<embed src=\"alarm.mid\" autostart=\"true\" loop=\"false\" hidden=\"true\" height=\"0\" width=\"0\">\n");
+      rsprintf("<embed src=\"alarm.mp3\" autostart=\"true\" loop=\"false\" hidden=\"true\" height=\"0\" width=\"0\">\n");
    }
 
    rsprintf("<div id=\"wrapper\" class=\"wrapper\">\n");
@@ -1989,12 +2037,46 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
    rsprintf("<tr><td colspan=6 class=msgService>");
 
-   if (message_buffer[0]) {
-      if (strstr(message_buffer, ",ERROR]") || strstr(message_buffer, ",TALK]"))
+   if (lastMsg.msg[0]) {
+      if (strstr(lastMsg.msg, ",ERROR]") || strstr(lastMsg.msg, ",TALK]"))
          rsprintf("<span style=\"color:#EEEEEE;background-color:#c0392b\"><b>%s</b></span>",
-                  message_buffer);
-      else
-         rsprintf("<b>%s</b>", message_buffer);
+                  lastMsg.msg);
+      
+      // add speak JS code for chat messages
+      else if (strstr(lastMsg.msg, ",USER]")) {
+         char usr[256];
+         char msg[256];
+         char tim[256];
+         time_t now;
+         
+         strlcpy(tim, ctime(&lastMsg.last_time)+11, sizeof(tim));
+         tim[8] = 0;
+         if (strchr(lastMsg.msg, '[')) {
+            strlcpy(usr, strchr(lastMsg.msg, '[')+1, sizeof(usr));
+            if (strchr(usr, ','))
+               *strchr(usr, ',') = 0;
+            if (strchr(lastMsg.msg, ']')) {
+               strlcpy(msg, strchr(lastMsg.msg, ']')+2, sizeof(msg));
+               rsprintf("<span style=\"color:#FFFFFF;background-color:#20A020\">&nbsp;<b>%s&nbsp;%s:%s</b>&nbsp;</span>\n",
+                        tim, usr, msg);
+               rsprintf("&nbsp;<input type=\"button\" name=\"cmd\" value=\"Chat\" class=\"navButton\" onclick=\"window.location.href='./?cmd=Chat';return false;\">\n");
+               
+               time(&now);
+               if (now < lastMsg.last_time+60) {
+                  rsprintf("<script>\n");
+                  rsprintf("try {\n");
+                  rsprintf("  if (sessionStorage.lastSpeak != '%s') {\n", tim);
+                  rsprintf("    var u = new SpeechSynthesisUtterance('%s');\n", msg);
+                  rsprintf("    window.speechSynthesis.speak(u);\n");
+                  rsprintf("    sessionStorage.lastSpeak = '%s';", tim);
+                  rsprintf("  }\n");
+                  rsprintf("} catch (err) {}\n");
+                  rsprintf("</script>\n");
+               }
+            }
+         }
+      }  else
+         rsprintf("<b>%s</b>", lastMsg.msg);
    }
 
    rsprintf("</tr>");
@@ -15074,6 +15156,8 @@ bool send_resource(const std::string& name)
       type = "text/html";
    else if (name.rfind(".js") != std::string::npos)
       type = "application/javascript";
+   else if (name.rfind(".mp3") != std::string::npos)
+      type = "audio/mpeg";
 
    rsprintf("Content-Type: %s\r\n", type);
 
@@ -15458,33 +15542,6 @@ void send_js()
 
 /*------------------------------------------------------------------*/
 
-// 0x27: handclap
-// 0x39: crash
-// 0x51: open triangle
-
-unsigned char alarm_sound[] = {
-0x4D,0x54,0x68,0x64,0x00,0x00,0x00,0x06,0x00,0x01,
-0x00,0x01,0x01,0xE0,0x4D,0x54,0x72,0x6B,0x00,0x00,
-0x00,0x2B,0x00,0xFF,0x03,0x07,0x44,0x72,0x75,0x6D,
-0x6B,0x69,0x74,0x00,0xC9,0x00,0x00,0xFF,0x51,0x03,
-0x07,0xA1,0x20,0x00,0xFF,0x58,0x04,0x04,0x02,0x18,
-0x08,0x87,0x40,0x99,0x51,0x48,0x96,0x40,0x89,0x51,  // <-- 4 & 9
-0x40,0x00,0xFF,0x2F,0x00,
-};
-
-void send_alarm_sound()
-{
-   rsprintf("HTTP/1.1 200 Document follows\r\n");
-   rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Accept-Ranges: bytes\r\n");
-   rsprintf("Content-Type: audio/midi\r\n");
-   rsprintf("Content-Length: %d\r\n\r\n", sizeof(alarm_sound));
-
-   rmemcpy(alarm_sound, sizeof(alarm_sound));
-}
-
-/*------------------------------------------------------------------*/
-
 void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, const char *dec_path, int refresh)
 /********************************************************************\
 
@@ -15631,8 +15688,8 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    /*---- send sound file -------------------------------------------*/
 
-   if (equal_ustring(dec_path, "alarm.mid")) {
-      send_alarm_sound();
+   if (equal_ustring(dec_path, "alarm.mp3")) {
+      send_resource("alarm.mp3");
       return;
    }
 
