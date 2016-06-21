@@ -1502,7 +1502,10 @@ function chat_format(line)
    
    var d1 = document.createElement("div");
    var d2 = document.createElement("div");
-   d1.className = "chatName";
+   if (name == document.getElementById('name').value)
+      d1.className = "chatNameMine";
+   else
+      d1.className = "chatNameTheirs";
    d2.className = "chatMsg";
    d1.appendChild(document.createTextNode(""));
    
@@ -1602,10 +1605,13 @@ function chat_reformat()
       if (n.indexOf('&'))
          n = n.substr(0, n.indexOf('&'));
       
-      if (n == document.getElementById('name').value)
+      if (n == document.getElementById('name').value) {
          b.className = "chatBubbleMine";
-      else
+         b.childNodes[0].className = "chatNameMine";
+      } else {
          b.className = "chatBubbleTheirs";
+         b.childNodes[0].className = "chatNameTheirs";
+      }
    }
 }
 

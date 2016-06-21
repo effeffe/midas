@@ -243,6 +243,18 @@ input[type=button].navButtonSel {
    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#676767', endColorstr='#999999',GradientType=0 ); /* IE6-9 */
 }
 
+input[type=button].botButton {
+   background-color: #CCCCCC; /*#00B26B;*/
+   color: #444444;
+   font-size: 70%;
+   padding:0.25em;
+   padding-left: 0.5em;
+   padding-right: 0.5em;
+   border:1px solid #808080;
+   border-radius: 5px;
+   vertical-align: middle;
+}
+
 table.headerTable{
 	width:100%;
 	color:#EEEEEE;
@@ -387,6 +399,16 @@ table.historyConfigTable th{
 	border-radius:12px;
 	background-color:#3498db; 
 	color:#EEEEEE; 
+}
+
+.chatTitle{
+   font-size: 120%;
+   font-weight: bold;
+   border-radius:12px;
+   background-color:#3498db;
+   color:#EEEEEE;
+   padding-left: 10em;
+   padding-right: 10em;
 }
 
 /*make sure fills in subStatusTable cells don't have sharp corners poking into the curved table corner"*/
@@ -640,7 +662,7 @@ td.meterCell{
    border-radius:12px;
    background-color:#C0C0C0;
    color:black;
-   padding:0.75em;
+   padding:1em;
    margin:0.25em;
    margin-right:1.5em;
    max-width: -webkit-max-content;
@@ -648,14 +670,24 @@ td.meterCell{
    float:left;
 }
 
-.chatName {
+.chatNameTheirs {
+   text-align: left;
    font-size: 70%;
    margin-bottom: 0.5em;
+   color:#808080;
+}
+
+.chatNameMine {
+   text-align: right;
+   font-size: 70%;
+   margin-bottom: 0.5em;
+   color:#E0E0E0;
 }
 
 .chatMsg {
-   
+   line-height: 1.5em;
 }
+
 /* standard link colors and decorations */
 a:link { color:#0000FF; text-decoration:none }
 a:visited { color:#800080; text-decoration:none }

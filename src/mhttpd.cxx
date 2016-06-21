@@ -1032,8 +1032,21 @@ void page_footer(BOOL bForm)  //wraps up body wrapper and inserts page footer
       char usr[256];
       char msg[256];
       char tim[256];
+      char dec_path[256], path[256];
       time_t now;
       
+      
+      /* add one "../" for each level */
+      strlcpy(dec_path, get_dec_path(), sizeof(dec_path));
+      path[0] = 0;
+      
+      char*p;
+      for (p = dec_path ; *p ; p++)
+         if (*p == '/')
+            strlcat(path, "../", sizeof(path));
+      if (path[strlen(path)-1] == '/')
+         path[strlen(path)-1] = 0;
+
       strlcpy(tim, ctime(&lastMsg.last_time)+11, sizeof(tim));
       tim[8] = 0;
       if (strchr(lastMsg.msg, '[')) {
@@ -1042,9 +1055,9 @@ void page_footer(BOOL bForm)  //wraps up body wrapper and inserts page footer
             *strchr(usr, ',') = 0;
          if (strchr(lastMsg.msg, ']')) {
             strlcpy(msg, strchr(lastMsg.msg, ']')+2, sizeof(msg));
-            rsprintf("<span style=\"color:#FFFFFF;background-color:#20A020\">&nbsp;<b>%s&nbsp;%s:%s</b>&nbsp;</span>\n",
+            rsprintf("<span style=\"color:#FFFFFF;background-color:#20A020;vertical-align:middle;\">&nbsp;<b>%s&nbsp;%s:%s</b>&nbsp;</span>\n",
                      tim, usr, msg);
-            rsprintf("&nbsp;<input type=\"button\" name=\"cmd\" value=\"Chat\" class=\"navButton\" onclick=\"window.location.href='./?cmd=Chat';return false;\">\n");
+            rsprintf("&nbsp;<input type=\"button\" name=\"cmd\" value=\"Chat\" class=\"botButton\" onclick=\"window.location.href='./%s?cmd=Chat';return false;\">\n", path);
             
             time(&now);
             if (now < lastMsg.last_time+60) {
@@ -2509,7 +2522,7 @@ void show_chat_page()
    rsprintf("</div>\n");
    
    rsprintf("<div class=\"chatBox\" id=\"messageFrame\">\n");
-   rsprintf("<h1 class=\"subStatusTitle\">Chat messages</h1>");
+   rsprintf("<h1 class=\"chatTitle\">Chat messages</h1>");
    rsprintf("</div>\n");
    
    rsprintf("<script type=\"text/javascript\">chat_load();</script>\n");
