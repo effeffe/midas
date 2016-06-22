@@ -16775,7 +16775,7 @@ extern "C" {
    }
 }
 
-int open_priviledged_port(int port)
+int open_listening_socket(int port)
 {
    int status;
    struct sockaddr_in bind_addr;
@@ -19025,19 +19025,23 @@ int main(int argc, const char *argv[])
 #ifdef OS_UNIX
    // in setuid-root mode bind to priviledged port
    if (getuid() != geteuid()) {
-      printf("mhttpd is running in setuid-root mode!\n");
+      printf("mhttpd is running in setuid-root mode.\n");
       
-      socket_priviledged_port = open_priviledged_port(80);
+      socket_priviledged_port = open_listening_socket(user_http_port ? user_http_port : 80);
+      if (socket_priviledged_port < 0) {
+         printf("Aborting.\n");
+         exit(1);
+      }
       
       // give up root privilege
       status = setuid(getuid());
       if (status != 0) {
-         printf("Cannot give up root privelege, bye!\n");
+         printf("Cannot give up root privelege, aborting.\n");
          exit(1);
       }
       status = setuid(getuid());
       if (status != 0) {
-         printf("Cannot give up root privelege, bye!\n");
+         printf("Cannot give up root privelege, aborting.\n");
          exit(1);
       }
    }
