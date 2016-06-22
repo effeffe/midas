@@ -475,7 +475,7 @@ include/midas.h: $(GIT_REVISION)
 
 ifdef HAVE_MYSQL
 CFLAGS      += -DHAVE_MYSQL $(shell mysql_config --include)
-MYSQL_LIBS  += -L/usr/lib/mysql $(shell mysql_config --libs)
+MYSQL_LIBS  += $(shell mysql_config --libs)
 NEED_ZLIB = 1
 endif
 
