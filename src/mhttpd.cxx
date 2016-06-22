@@ -16775,12 +16775,10 @@ extern "C" {
    }
 }
 
-int open_setuid_port_80()
+int open_priviledged_port(int port)
 {
    int status;
    struct sockaddr_in bind_addr;
-
-   int tcp_port = 80;
 
    /* create a new socket */
    int lsock = socket(AF_INET, SOCK_STREAM, 0);
@@ -16794,7 +16792,7 @@ int open_setuid_port_80()
    memset(&bind_addr, 0, sizeof(bind_addr));
    bind_addr.sin_family = AF_INET;
    bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-   bind_addr.sin_port = htons((short) tcp_port);
+   bind_addr.sin_port = htons((short) port);
 
    /* try reusing address */
    int flag = 1;
@@ -16808,18 +16806,18 @@ int open_setuid_port_80()
    status = bind(lsock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
 
    if (status < 0) {
-      printf("Cannot bind() to port %d, bind() errno %d (%s)\n", tcp_port, errno, strerror(errno));
+      printf("Cannot bind() to port %d, bind() errno %d (%s)\n", port, errno, strerror(errno));
       return -1;
    }
 
    /* listen for connection */
    status = listen(lsock, SOMAXCONN);
    if (status < 0) {
-      printf("Cannot listen() on port %d, errno %d (%s), bye!\n", tcp_port, errno, strerror(errno));
+      printf("Cannot listen() on port %d, errno %d (%s), bye!\n", port, errno, strerror(errno));
       return -1;
    }
 
-   printf("mhttpd is listening on port %d\n", tcp_port);
+   printf("mhttpd is listening on port %d\n", port);
 
    return lsock;
 }
@@ -18702,7 +18700,7 @@ static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data
    }
 }
 
-int start_mg(int user_http_port, int user_https_port, int port80_socket, int verbose)
+int start_mg(int user_http_port, int user_https_port, int socket_priviledged_port, int verbose)
 {
    HNDLE hDB;
    int size;
@@ -18753,7 +18751,7 @@ int start_mg(int user_http_port, int user_https_port, int port80_socket, int ver
       need_password_file = false;
    }
 
-   if (port80_socket >= 0) {
+   if (socket_priviledged_port) {
       // no passwords if serving unencrypted http on port 80
       need_password_file = false;
       printf("Mongoose web server password portection is disabled: serving unencrypted http on port 80\n");
@@ -18821,10 +18819,26 @@ int start_mg(int user_http_port, int user_https_port, int port80_socket, int ver
 
    mg_mgr_init(&mgr_mg, NULL);
 
-   if (http_port) {
+   // use socket bound to priviledged port (setuid-mode)
+   if (socket_priviledged_port) {
+      struct mg_connection* nc = mg_add_sock(&mgr_mg, socket_priviledged_port, handle_event_mg);
+      nc->flags |= MG_F_LISTENING;
+#ifdef MG_ENABLE_THREADS
+      mg_enable_multithreading(nc);
+#endif
+      mg_set_protocol_http_websocket(nc);
+      mg_register_http_endpoint(nc, "/", handle_http_event_mg);
+   }
+
+   else if (http_port) {
       char str[256];
       sprintf(str, "%d", http_port);
       struct mg_connection* nc = mg_bind(&mgr_mg, str, handle_event_mg);
+      if (nc == NULL) {
+         cm_msg(MERROR, "mongoose", "Cannot bind to port %d", http_port);
+         return SS_SOCKET_ERROR;
+      }
+      
 #ifdef MG_ENABLE_THREADS
       mg_enable_multithreading(nc);
 #endif
@@ -18848,16 +18862,6 @@ int start_mg(int user_http_port, int user_https_port, int port80_socket, int ver
       sprintf(str, "%d", https_port);
       struct mg_connection* nc = mg_bind(&mgr_mg, str, handle_event_mg);
       mg_set_ssl(nc, cert_file.c_str(), NULL);
-#ifdef MG_ENABLE_THREADS
-      mg_enable_multithreading(nc);
-#endif
-      mg_set_protocol_http_websocket(nc);
-      mg_register_http_endpoint(nc, "/", handle_http_event_mg);
-   }
-
-   if (port80_socket >= 0) {
-      struct mg_connection* nc = mg_add_sock(&mgr_mg, port80_socket, handle_event_mg);
-      nc->flags |= MG_F_LISTENING;
 #ifdef MG_ENABLE_THREADS
       mg_enable_multithreading(nc);
 #endif
@@ -18941,28 +18945,8 @@ int main(int argc, const char *argv[])
    // if running setuid-root, unconditionally bind to port 80.
    //
    
-   int port80 = -1;
+   int socket_priviledged_port = 0;
 
-#ifdef OS_UNIX
-   if (getuid() != geteuid()) {
-      printf("mhttpd is running in setuid-root mode!\n");
-
-      port80 = open_setuid_port_80();
-
-      /* give up root privilege */
-      status = setuid(getuid());
-      if (status != 0) {
-         printf("Cannot give up root privelege, bye!\n");
-         exit(1);
-      }
-      status = setuid(getuid());
-      if (status != 0) {
-         printf("Cannot give up root privelege, bye!\n");
-         exit(1);
-      }
-   }
-#endif
-   
    /* get default from environment */
    cm_get_environment(midas_hostname, sizeof(midas_hostname), midas_expt, sizeof(midas_expt));
 
@@ -19017,13 +19001,13 @@ int main(int argc, const char *argv[])
          } else {
           usage:
             printf("usage: %s [-h Hostname[:port]] [-e Experiment] [-v] [-D] [-a Hostname]\n\n", argv[0]);
-            printf("       -h connect to midas server (mserver) on given host\n");
+            printf("       -a only allow access for specific host(s), several [-a Hostname] statements might be given (default list is ODB \"/Experiment/security/mhttpd hosts/allowed hosts\")\n");
             printf("       -e experiment to connect to\n");
+            printf("       -h connect to midas server (mserver) on given host\n");
             printf("       -v display verbose HTTP communication\n");
             printf("       -D become a daemon\n");
             printf("       -E only display ELog system\n");
             printf("       -H only display history plots\n");
-            printf("       -a only allow access for specific host(s), several [-a Hostname] statements might be given (default list is ODB \"/Experiment/security/mhttpd hosts/allowed hosts\")\n");
             printf("       --http port - bind to specified HTTP port (default is ODB \"/Experiment/midas http port\")\n");
             printf("       --https port - bind to specified HTTP port (default is ODB \"/Experiment/midas https port\")\n");
 #ifdef HAVE_MG
@@ -19038,6 +19022,27 @@ int main(int argc, const char *argv[])
       }
    }
 
+#ifdef OS_UNIX
+   // in setuid-root mode bind to priviledged port
+   if (getuid() != geteuid()) {
+      printf("mhttpd is running in setuid-root mode!\n");
+      
+      socket_priviledged_port = open_priviledged_port(80);
+      
+      // give up root privilege
+      status = setuid(getuid());
+      if (status != 0) {
+         printf("Cannot give up root privelege, bye!\n");
+         exit(1);
+      }
+      status = setuid(getuid());
+      if (status != 0) {
+         printf("Cannot give up root privelege, bye!\n");
+         exit(1);
+      }
+   }
+#endif
+   
    if (daemon) {
       printf("Becoming a daemon...\n");
       ss_daemon_init(FALSE);
@@ -19107,7 +19112,7 @@ int main(int argc, const char *argv[])
 
 #ifdef HAVE_MG
    if (use_mg) {
-      status = start_mg(user_http_port, user_https_port, port80, verbose);
+      status = start_mg(user_http_port, user_https_port, socket_priviledged_port, verbose);
       if (status != SUCCESS) {
          // At least print something!
          printf("could not start the mongoose web server, see messages and midas.log, bye!\n");
@@ -19125,7 +19130,7 @@ int main(int argc, const char *argv[])
 
 #if defined(HAVE_MG) && defined(HAVE_OLDSERVER)
    if (use_oldserver)
-      server_loop(use_oldserver_port, port80);
+      server_loop(use_oldserver_port, socket_priviledged_port);
    else if (use_mg)
       loop_mg();
 #elif defined(HAVE_MG)
@@ -19133,7 +19138,7 @@ int main(int argc, const char *argv[])
       loop_mg();
 #elif defined(HAVE_OLDSERVER)
    if (use_oldserver)
-      server_loop(use_oldserver_port, port80);
+      server_loop(use_oldserver_port, socket_priviledged_port);
 #else
 #error Have neither mongoose web server nor old web server. Please define HAVE_MG or HAVE_OLDSERVER or both
 #endif
