@@ -644,12 +644,16 @@ td.meterCell{
    margin-right: auto;
    max-width: -webkit-max-content;
    max-width: -moz-max-content;
+   background: #B2E1FF;
+   background: -moz-linear-gradient(top,  #B2E1FF 0%, #66B6FC 100%);
+   background: -webkit-linear-gradient(top,  #B2E1FF 0%,#66B6FC 100%);
+   background: linear-gradient(to bottom,  #B2E1FF 0%,#66B6FC 100%);
 }
 
 .chatBubbleMine {
    border-radius:12px;
-   background-color:#20A020;
-   color:white;
+   background-color:#DCF8C6;
+   color:black;
    padding:1em;
    margin:0.25em;
    margin-left:1.5em;
@@ -660,7 +664,7 @@ td.meterCell{
 
 .chatBubbleTheirs {
    border-radius:12px;
-   background-color:#C0C0C0;
+   background-color:white;
    color:black;
    padding:1em;
    margin:0.25em;
@@ -681,7 +685,7 @@ td.meterCell{
    text-align: right;
    font-size: 70%;
    margin-bottom: 0.5em;
-   color:#E0E0E0;
+   color:#808080;
 }
 
 .chatMsg {
