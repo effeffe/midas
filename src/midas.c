@@ -1051,6 +1051,10 @@ static int cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char** mes
       for (i=0 ; p != buffer && (*p != '\n' && *p != '\r') ; i++)
          p--;
       
+      /* limit line length to sizeof(str) */
+      if (i >= sizeof(str))
+         i = sizeof(str)-1;
+      
       if (p == buffer) {
          i++;
          memcpy(str, p, i);
