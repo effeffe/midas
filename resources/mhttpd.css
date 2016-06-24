@@ -534,7 +534,26 @@ td.meterCell{
 .msgService{
 	background-color: #C0C0C0;
 	border-radius: 12px;
-   padding: 0.6em;
+   padding: 1em;
+}
+
+.msgServiceTalk{
+   background-color: #C0E0C0;
+   border-radius: 12px;
+   padding: 1em;
+}
+
+.msgServiceErr{
+   background-color: #FF0000;
+   color:black;
+   border-radius: 12px;
+   border: 1px solid #000000;
+   padding: 1em;
+}
+
+.msgChatService{
+   border-radius: 12px;
+   padding: 1em;
 }
 
 /*---- ODB pages ----*/
@@ -679,10 +698,12 @@ td.meterCell{
 .chatBubbleFooter {
    border-radius:12px;
    background-color:#DCF8C6;
-   color:black;
-   padding:0.25em;
-   padding-right:0.5em;
-   margin-left:1.5em;
+   padding:0.5em;
+   margin:0.5em;
+}
+
+span.chatBubbleFooter a {
+   color:blue;
 }
 
 .chatStatus {
@@ -693,6 +714,7 @@ td.meterCell{
 
 .chatTextFooter {
    padding:0.25em;
+   color:black;
 }
 
 .chatNameTheirs {

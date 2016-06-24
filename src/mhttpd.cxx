@@ -712,6 +712,8 @@ static void urlEncode(char *ps, int ps_size)
 /*------------------------------------------------------------------*/
 
 LASTMSG lastMsg;
+LASTMSG lastChatMsg;
+LASTMSG lastTalkMsg;
 
 INT print_message(const char *message)
 {
@@ -720,8 +722,6 @@ INT print_message(const char *message)
 
    /* prepare time */
    time(&tm);
-   lastMsg.prev_time = lastMsg.last_time;
-   time(&lastMsg.last_time);
    strcpy(str, ctime(&tm));
    str[19] = 0;
 
@@ -730,7 +730,20 @@ INT print_message(const char *message)
    strlcat(line, " ", sizeof(line));
    strlcat(line, (char *) message, sizeof(line));
 
-   strlcpy(lastMsg.msg, line, sizeof(lastMsg.msg));
+   if (strstr(message, ",USER]") != NULL) {
+      strlcpy(lastChatMsg.msg, line, sizeof(lastMsg.msg));
+      lastChatMsg.prev_time = lastChatMsg.last_time;
+      time(&lastChatMsg.last_time);
+   } else if (strstr(message, ",TALK]") != NULL) {
+      strlcpy(lastTalkMsg.msg, line, sizeof(lastMsg.msg));
+      lastTalkMsg.prev_time = lastTalkMsg.last_time;
+      time(&lastTalkMsg.last_time);
+   } else {
+      strlcpy(lastMsg.msg, line, sizeof(lastMsg.msg));
+      lastMsg.prev_time = lastMsg.last_time;
+      time(&lastMsg.last_time);
+   }
+   
    return SUCCESS;
 }
 
@@ -1013,6 +1026,7 @@ void page_footer(BOOL bForm)  //wraps up body wrapper and inserts page footer
    int size;
    char str[1000];
    HNDLE hDB;
+   char dec_path[256], path[256];
 
    /*---- spacer for footer ----*/
    rsprintf("<div class=\"push\"></div>\n");
@@ -1027,58 +1041,85 @@ void page_footer(BOOL bForm)  //wraps up body wrapper and inserts page footer
    rsprintf("<div style=\"display:inline; float:left;\">Experiment %s</div>", str);
    rsprintf("<div style=\"display:inline;\">");
    
+   /* add one "../" for each level */
+   strlcpy(dec_path, get_dec_path(), sizeof(dec_path));
+   path[0] = 0;
+   char*p;
+   for (p = dec_path ; *p ; p++)
+      if (*p == '/')
+         strlcat(path, "../", sizeof(path));
+   if (path[strlen(path)-1] == '/')
+      path[strlen(path)-1] = 0;
+
    // add speak JS code for chat messages
-   if (strstr(lastMsg.msg, ",USER]")) {
+   time(&now);
+   if (now < lastChatMsg.last_time + 60) {
       char usr[256];
       char msg[256];
       char tim[256];
-      char dec_path[256], path[256];
-      time_t now;
-      
-      
-      /* add one "../" for each level */
-      strlcpy(dec_path, get_dec_path(), sizeof(dec_path));
-      path[0] = 0;
-      
-      char*p;
-      for (p = dec_path ; *p ; p++)
-         if (*p == '/')
-            strlcat(path, "../", sizeof(path));
-      if (path[strlen(path)-1] == '/')
-         path[strlen(path)-1] = 0;
 
-      strlcpy(tim, ctime(&lastMsg.last_time)+11, sizeof(tim));
+      strlcpy(tim, ctime(&lastChatMsg.last_time)+11, sizeof(tim));
       tim[8] = 0;
-      if (strchr(lastMsg.msg, '[')) {
-         strlcpy(usr, strchr(lastMsg.msg, '[')+1, sizeof(usr));
+      if (strchr(lastChatMsg.msg, '[')) {
+         strlcpy(usr, strchr(lastChatMsg.msg, '[')+1, sizeof(usr));
          if (strchr(usr, ','))
             *strchr(usr, ',') = 0;
-         if (strchr(lastMsg.msg, ']')) {
-            strlcpy(msg, strchr(lastMsg.msg, ']')+2, sizeof(msg));
+         if (strchr(lastChatMsg.msg, ']')) {
+            strlcpy(msg, strchr(lastChatMsg.msg, ']')+2, sizeof(msg));
             rsprintf("<span class=\"chatBubbleFooter\">");
-            rsprintf("<span class=\"chatTextFooter\";<b>%s %s:%s</span>\n", tim, usr, msg);
-            rsprintf("<input type=\"button\" name=\"cmd\" value=\"Chat\" class=\"botButton\" onclick=\"window.location.href='./%s?cmd=Chat';return false;\">\n", path);
+            rsprintf("<a href=\"./%s?cmd=Chat\">%s %s:%s</a>\n",
+                     path, tim, usr, msg);
             rsprintf("</span>\n");
             
-            time(&now);
-            if (now < lastMsg.last_time+60) {
-               rsprintf("<script>\n");
-               rsprintf("try {\n");
-               rsprintf("  if (sessionStorage.lastSpeak != '%s') {\n", tim);
-               rsprintf("    var u = new SpeechSynthesisUtterance('%s');\n", msg);
-               rsprintf("    window.speechSynthesis.speak(u);\n");
-               rsprintf("    sessionStorage.lastSpeak = '%s';", tim);
-               rsprintf("  }\n");
-               rsprintf("} catch (err) {}\n");
-               rsprintf("</script>\n");
-            }
+            rsprintf("<script>\n");
+            rsprintf("try {\n");
+            rsprintf("  if (sessionStorage.lastChatSpeak != '%s') {\n", tim);
+            rsprintf("    var u = new SpeechSynthesisUtterance('%s');\n", msg);
+            rsprintf("    window.speechSynthesis.speak(u);\n");
+            rsprintf("    sessionStorage.lastChatSpeak = '%s';", tim);
+            rsprintf("  }\n");
+            rsprintf("} catch (err) {}\n");
+            rsprintf("</script>\n");
          }
       }
-   } else
-      rsprintf("<a href=\"?cmd=Help\">Help</a>");
+   }
+
+   // add speak JS code for talk messages
+   time(&now);
+   if (now < lastTalkMsg.last_time + 60) {
+      char usr[256];
+      char msg[256];
+      char tim[256];
+      
+      strlcpy(tim, ctime(&lastTalkMsg.last_time)+11, sizeof(tim));
+      tim[8] = 0;
+      if (strchr(lastTalkMsg.msg, '[')) {
+         strlcpy(usr, strchr(lastTalkMsg.msg, '[')+1, sizeof(usr));
+         if (strchr(usr, ','))
+            *strchr(usr, ',') = 0;
+         if (strchr(lastTalkMsg.msg, ']')) {
+            strlcpy(msg, strchr(lastTalkMsg.msg, ']')+2, sizeof(msg));
+            rsprintf("<span class=\"chatBubbleFooter\">");
+            rsprintf("<a href=\"./%s?cmd=Messages\">%s %s:%s</a>\n",
+                     path, tim, usr, msg);
+            rsprintf("</span>\n");
+            
+            rsprintf("<script>\n");
+            rsprintf("try {\n");
+            rsprintf("  if (sessionStorage.lastTalkSpeak != '%s') {\n", tim);
+            rsprintf("    var u = new SpeechSynthesisUtterance('%s');\n", msg);
+            rsprintf("    window.speechSynthesis.speak(u);\n");
+            rsprintf("    sessionStorage.lastTalkSpeak = '%s';", tim);
+            rsprintf("  }\n");
+            rsprintf("} catch (err) {}\n");
+            rsprintf("</script>\n");
+         }
+      }
+   }
+
+   rsprintf("<a href=\"./%s?cmd=Help\">Help</a>", path);
    
    rsprintf("</div>");
-   time(&now);
    rsprintf("<div style=\"display:inline; float:right;\">%s</div>", ctime(&now));
    rsprintf("</div>\n");
    
@@ -2049,51 +2090,67 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
    /*---- Messages ----*/
 
-   rsprintf("<tr><td colspan=6 class=\"msgService\">");
+   time(&now);
+   if (now < lastChatMsg.last_time + 60) {
+      rsprintf("<tr><td colspan=6 class=\"msgService\">");
 
-   if (lastMsg.msg[0]) {
+      /*
       if (strstr(lastMsg.msg, ",ERROR]") || strstr(lastMsg.msg, ",TALK]"))
          rsprintf("<span style=\"color:#EEEEEE;background-color:#c0392b\"><b>%s</b></span>",
                   lastMsg.msg);
+      */
       
       // add speak JS code for chat messages
-      else if (strstr(lastMsg.msg, ",USER]")) {
-         char usr[256];
-         char msg[256];
-         char tim[256];
-         time_t now;
-         
-         strlcpy(tim, ctime(&lastMsg.last_time)+11, sizeof(tim));
-         tim[8] = 0;
-         if (strchr(lastMsg.msg, '[')) {
-            strlcpy(usr, strchr(lastMsg.msg, '[')+1, sizeof(usr));
-            if (strchr(usr, ','))
-               *strchr(usr, ',') = 0;
-            if (strchr(lastMsg.msg, ']')) {
-               strlcpy(msg, strchr(lastMsg.msg, ']')+2, sizeof(msg));
-               rsprintf("<span class=\"chatStatus\">&nbsp;<b>%s&nbsp;%s:%s</b>&nbsp;\n",
-                        tim, usr, msg);
-               rsprintf("&nbsp;<input type=\"button\" name=\"cmd\" value=\"Chat\" class=\"navButton\" onclick=\"window.location.href='./?cmd=Chat';return false;\"></span>\n");
-               
-               time(&now);
-               if (now < lastMsg.last_time+60) {
-                  rsprintf("<script>\n");
-                  rsprintf("try {\n");
-                  rsprintf("  if (sessionStorage.lastSpeak != '%s') {\n", tim);
-                  rsprintf("    var u = new SpeechSynthesisUtterance('%s');\n", msg);
-                  rsprintf("    window.speechSynthesis.speak(u);\n");
-                  rsprintf("    sessionStorage.lastSpeak = '%s';", tim);
-                  rsprintf("  }\n");
-                  rsprintf("} catch (err) {}\n");
-                  rsprintf("</script>\n");
-               }
-            }
+      char usr[256];
+      char msg[256];
+      char tim[256];
+      
+      strlcpy(tim, ctime(&lastChatMsg.last_time)+11, sizeof(tim));
+      tim[8] = 0;
+      if (strchr(lastChatMsg.msg, '[')) {
+         strlcpy(usr, strchr(lastChatMsg.msg, '[')+1, sizeof(usr));
+         if (strchr(usr, ','))
+            *strchr(usr, ',') = 0;
+         if (strchr(lastChatMsg.msg, ']')) {
+            strlcpy(msg, strchr(lastChatMsg.msg, ']')+2, sizeof(msg));
+            rsprintf("<span class=\"chatBubbleFooter\">");
+            rsprintf("<a href=\"?cmd=Chat\">%s %s:%s</a>\n",
+                     tim, usr, msg);
+            rsprintf("</span>\n");
          }
-      }  else
-         rsprintf("<b>%s</b>", lastMsg.msg);
+      }
+      rsprintf("</tr>");
    }
 
-   rsprintf("</tr>");
+   if (now < lastTalkMsg.last_time + 60) {
+      rsprintf("<tr><td colspan=6 class=\"msgServiceTalk\">");
+      
+      char usr[256];
+      char msg[256];
+      char tim[256];
+      
+      strlcpy(tim, ctime(&lastTalkMsg.last_time)+11, sizeof(tim));
+      tim[8] = 0;
+      if (strchr(lastTalkMsg.msg, '[')) {
+         strlcpy(usr, strchr(lastTalkMsg.msg, '[')+1, sizeof(usr));
+         if (strchr(usr, ','))
+            *strchr(usr, ',') = 0;
+         if (strchr(lastTalkMsg.msg, ']')) {
+            strlcpy(msg, strchr(lastTalkMsg.msg, ']')+2, sizeof(msg));
+            rsprintf("%s %s:%s\n", tim, usr, msg);
+         }
+      }
+      rsprintf("</tr>");
+   }
+
+   if (now < lastMsg.last_time + 600) {
+      if (strstr(lastMsg.msg, ",ERROR]") != NULL)
+         rsprintf("<tr><td colspan=6 class=\"msgServiceErr\">");
+      else
+         rsprintf("<tr><td colspan=6 class=\"msgService\">");
+      rsprintf("%s\n", lastMsg.msg);
+      rsprintf("</tr>");
+   }
 
    rsprintf("</table></td></tr>\n");  //end summary table
 
