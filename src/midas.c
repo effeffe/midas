@@ -1157,7 +1157,6 @@ INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char** messa
    time_t filedate;
    int length = 0;
    int allocated = 0;
-   int status;
 
    time(&filedate);
    flag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), linkname, sizeof(linkname));
@@ -1170,7 +1169,10 @@ INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char** messa
          strlcpy(filename, linkname, sizeof(filename));
    }
    
-   status = cm_msg_retrieve1(filename, t, n_message, messages, &length, &allocated, &n);
+   if (ss_file_exist(filename))
+      cm_msg_retrieve1(filename, t, n_message, messages, &length, &allocated, &n);
+   else
+      n = 0;
 
    int missing = 0;
    while (n < n_message && flag) {
@@ -1179,7 +1181,7 @@ INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char** messa
       cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), NULL, 0);
       
       if (ss_file_exist(filename)) {
-         status = cm_msg_retrieve1(filename, t, n_message - n, messages, &length, &allocated, &i);
+         cm_msg_retrieve1(filename, t, n_message - n, messages, &length, &allocated, &i);
          n += i;
          missing = 0;
       } else
