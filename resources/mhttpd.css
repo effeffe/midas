@@ -252,7 +252,9 @@ input[type=button].botButton {
    padding-right: 0.5em;
    border:1px solid #808080;
    border-radius: 5px;
-   vertical-align: middle;
+   position: relative;
+   top: 50%;
+   transform: translateY(-50%);
 }
 
 table.headerTable{
@@ -532,7 +534,7 @@ td.meterCell{
 .msgService{
 	background-color: #C0C0C0;
 	border-radius: 12px;
-	line-height: 105%;
+   padding: 0.6em;
 }
 
 /*---- ODB pages ----*/
@@ -672,6 +674,25 @@ td.meterCell{
    max-width: -webkit-max-content;
    max-width: -moz-max-content;
    float:left;
+}
+
+.chatBubbleFooter {
+   border-radius:12px;
+   background-color:#DCF8C6;
+   color:black;
+   padding:0.25em;
+   padding-right:0.5em;
+   margin-left:1.5em;
+}
+
+.chatStatus {
+   border-radius:12px;
+   background-color:#DCF8C6;
+   padding:0.5em;
+}
+
+.chatTextFooter {
+   padding:0.25em;
 }
 
 .chatNameTheirs {

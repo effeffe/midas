@@ -1055,9 +1055,10 @@ void page_footer(BOOL bForm)  //wraps up body wrapper and inserts page footer
             *strchr(usr, ',') = 0;
          if (strchr(lastMsg.msg, ']')) {
             strlcpy(msg, strchr(lastMsg.msg, ']')+2, sizeof(msg));
-            rsprintf("<span style=\"color:#FFFFFF;background-color:#20A020;vertical-align:middle;\">&nbsp;<b>%s&nbsp;%s:%s</b>&nbsp;</span>\n",
-                     tim, usr, msg);
-            rsprintf("&nbsp;<input type=\"button\" name=\"cmd\" value=\"Chat\" class=\"botButton\" onclick=\"window.location.href='./%s?cmd=Chat';return false;\">\n", path);
+            rsprintf("<span class=\"chatBubbleFooter\">");
+            rsprintf("<span class=\"chatTextFooter\";<b>%s %s:%s</span>\n", tim, usr, msg);
+            rsprintf("<input type=\"button\" name=\"cmd\" value=\"Chat\" class=\"botButton\" onclick=\"window.location.href='./%s?cmd=Chat';return false;\">\n", path);
+            rsprintf("</span>\n");
             
             time(&now);
             if (now < lastMsg.last_time+60) {
@@ -2048,7 +2049,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
    /*---- Messages ----*/
 
-   rsprintf("<tr><td colspan=6 class=msgService>");
+   rsprintf("<tr><td colspan=6 class=\"msgService\">");
 
    if (lastMsg.msg[0]) {
       if (strstr(lastMsg.msg, ",ERROR]") || strstr(lastMsg.msg, ",TALK]"))
@@ -2070,9 +2071,9 @@ void show_status_page(int refresh, const char *cookie_wpwd)
                *strchr(usr, ',') = 0;
             if (strchr(lastMsg.msg, ']')) {
                strlcpy(msg, strchr(lastMsg.msg, ']')+2, sizeof(msg));
-               rsprintf("<span style=\"color:#FFFFFF;background-color:#20A020\">&nbsp;<b>%s&nbsp;%s:%s</b>&nbsp;</span>\n",
+               rsprintf("<span class=\"chatStatus\">&nbsp;<b>%s&nbsp;%s:%s</b>&nbsp;\n",
                         tim, usr, msg);
-               rsprintf("&nbsp;<input type=\"button\" name=\"cmd\" value=\"Chat\" class=\"navButton\" onclick=\"window.location.href='./?cmd=Chat';return false;\">\n");
+               rsprintf("&nbsp;<input type=\"button\" name=\"cmd\" value=\"Chat\" class=\"navButton\" onclick=\"window.location.href='./?cmd=Chat';return false;\"></span>\n");
                
                time(&now);
                if (now < lastMsg.last_time+60) {
