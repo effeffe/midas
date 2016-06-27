@@ -475,7 +475,7 @@ include/midas.h: $(GIT_REVISION)
 
 ifdef HAVE_MYSQL
 CFLAGS      += -DHAVE_MYSQL $(shell mysql_config --include)
-MYSQL_LIBS  += -L/usr/lib/mysql $(shell mysql_config --libs)
+MYSQL_LIBS  += $(shell mysql_config --libs)
 NEED_ZLIB = 1
 endif
 
@@ -524,12 +524,25 @@ $(BIN_DIR)/odbedit: $(SRC_DIR)/odbedit.cxx $(SRC_DIR)/cmdedit.cxx
 
 MHTTPD_OBJS=
 MHTTPD_OBJS += $(LIB_DIR)/mhttpd.o
-MHTTPD_OBJS += $(LIB_DIR)/mongoose.o
 MHTTPD_OBJS += $(LIB_DIR)/mgd.o
 MHTTPD_OBJS += $(LIB_DIR)/sequencer.o
 MHTTPD_OBJS += $(LIB_DIR)/mjsonrpc.o $(LIB_DIR)/mjsonrpc_user.o
 ifdef HAVE_MSCB
 MHTTPD_OBJS += $(LIB_DIR)/mscb.o
+endif
+
+USE_MONGOOSE4=1
+//USE_MONGOOSE6=1
+
+ifdef USE_MONGOOSE4
+CFLAGS      += -DHAVE_MG -DHAVE_MG4
+MHTTPD_OBJS += $(LIB_DIR)/mongoose4.o
+endif
+ifdef USE_MONGOOSE6
+CFLAGS      += -DHAVE_MG -DHAVE_MG6
+MHTTPD_OBJS += $(LIB_DIR)/mongoose6.o
+CFLAGS      += -DMG_ENABLE_THREADS
+CFLAGS      += -DMG_ENABLE_SSL
 endif
 
 $(BIN_DIR)/mhttpd: $(MHTTPD_OBJS)

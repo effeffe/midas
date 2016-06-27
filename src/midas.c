@@ -1051,6 +1051,10 @@ static int cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char** mes
       for (i=0 ; p != buffer && (*p != '\n' && *p != '\r') ; i++)
          p--;
       
+      /* limit line length to sizeof(str) */
+      if (i >= sizeof(str))
+         i = sizeof(str)-1;
+      
       if (p == buffer) {
          i++;
          memcpy(str, p, i);
@@ -1153,35 +1157,39 @@ INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char** messa
    time_t filedate;
    int length = 0;
    int allocated = 0;
-   int status;
 
    time(&filedate);
    flag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), linkname, sizeof(linkname));
 
    //printf("facility %s, filename \"%s\" \"%s\"\n", facility, filename, linkname);
 
+   // see if file exists, use linkname if not
    if (strlen(linkname) > 0) {
-      int fh;
-      // see if file exists, use linkname if not
-      fh = open(filename, O_RDONLY | O_TEXT, 0644);
-      if (fh < 0)
+      if (!ss_file_exist(filename))
          strlcpy(filename, linkname, sizeof(filename));
-      else
-         close(fh);
    }
    
-   status = cm_msg_retrieve1(filename, t, n_message, messages, &length, &allocated, &n);
+   if (ss_file_exist(filename))
+      cm_msg_retrieve1(filename, t, n_message, messages, &length, &allocated, &n);
+   else
+      n = 0;
 
+   int missing = 0;
    while (n < n_message && flag) {
       filedate -= 3600 * 24;         // go one day back
 
       cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), NULL, 0);
       
-      status = cm_msg_retrieve1(filename, t, n_message - n, messages, &length, &allocated, &i);
-      if (status != CM_SUCCESS) {
+      if (ss_file_exist(filename)) {
+         cm_msg_retrieve1(filename, t, n_message - n, messages, &length, &allocated, &i);
+         n += i;
+         missing = 0;
+      } else
+         missing++;
+      
+      // stop if ten consecutive files are not found
+      if (missing > 10)
          break;
-      }
-      n += i;
    }
 
    *num_messages = n;

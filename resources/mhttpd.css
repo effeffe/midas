@@ -243,6 +243,20 @@ input[type=button].navButtonSel {
    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#676767', endColorstr='#999999',GradientType=0 ); /* IE6-9 */
 }
 
+input[type=button].botButton {
+   background-color: #CCCCCC; /*#00B26B;*/
+   color: #444444;
+   font-size: 70%;
+   padding:0.25em;
+   padding-left: 0.5em;
+   padding-right: 0.5em;
+   border:1px solid #808080;
+   border-radius: 5px;
+   position: relative;
+   top: 50%;
+   transform: translateY(-50%);
+}
+
 table.headerTable{
 	width:100%;
 	color:#EEEEEE;
@@ -389,6 +403,16 @@ table.historyConfigTable th{
 	color:#EEEEEE; 
 }
 
+.chatTitle{
+   font-size: 120%;
+   font-weight: bold;
+   border-radius:12px;
+   background-color:#3498db;
+   color:#EEEEEE;
+   padding-left: 10em;
+   padding-right: 10em;
+}
+
 /*make sure fills in subStatusTable cells don't have sharp corners poking into the curved table corner"*/
 .subStatusTable tr:first-child td:first-child{
 	border-top-left-radius: 12px;
@@ -510,7 +534,26 @@ td.meterCell{
 .msgService{
 	background-color: #C0C0C0;
 	border-radius: 12px;
-	line-height: 105%;
+   padding: 1em;
+}
+
+.msgServiceTalk{
+   background-color: #C0E0C0;
+   border-radius: 12px;
+   padding: 1em;
+}
+
+.msgServiceErr{
+   background-color: #FF0000;
+   color:black;
+   border-radius: 12px;
+   border: 1px solid #000000;
+   padding: 1em;
+}
+
+.msgChatService{
+   border-radius: 12px;
+   padding: 1em;
 }
 
 /*---- ODB pages ----*/
@@ -622,12 +665,16 @@ td.meterCell{
    margin-right: auto;
    max-width: -webkit-max-content;
    max-width: -moz-max-content;
+   background: #B2E1FF;
+   background: -moz-linear-gradient(top,  #B2E1FF 0%, #66B6FC 100%);
+   background: -webkit-linear-gradient(top,  #B2E1FF 0%,#66B6FC 100%);
+   background: linear-gradient(to bottom,  #B2E1FF 0%,#66B6FC 100%);
 }
 
 .chatBubbleMine {
    border-radius:12px;
-   background-color:#20A020;
-   color:white;
+   background-color:#DCF8C6;
+   color:black;
    padding:1em;
    margin:0.25em;
    margin-left:1.5em;
@@ -638,9 +685,9 @@ td.meterCell{
 
 .chatBubbleTheirs {
    border-radius:12px;
-   background-color:#C0C0C0;
+   background-color:white;
    color:black;
-   padding:0.75em;
+   padding:1em;
    margin:0.25em;
    margin-right:1.5em;
    max-width: -webkit-max-content;
@@ -648,14 +695,46 @@ td.meterCell{
    float:left;
 }
 
-.chatName {
+.chatBubbleFooter {
+   border-radius:12px;
+   background-color:#DCF8C6;
+   padding:0.5em;
+   margin:0.5em;
+}
+
+span.chatBubbleFooter a {
+   color:blue;
+}
+
+.chatStatus {
+   border-radius:12px;
+   background-color:#DCF8C6;
+   padding:0.5em;
+}
+
+.chatTextFooter {
+   padding:0.25em;
+   color:black;
+}
+
+.chatNameTheirs {
+   text-align: left;
    font-size: 70%;
    margin-bottom: 0.5em;
+   color:#808080;
+}
+
+.chatNameMine {
+   text-align: right;
+   font-size: 70%;
+   margin-bottom: 0.5em;
+   color:#808080;
 }
 
 .chatMsg {
-   
+   line-height: 1.5em;
 }
+
 /* standard link colors and decorations */
 a:link { color:#0000FF; text-decoration:none }
 a:visited { color:#800080; text-decoration:none }
