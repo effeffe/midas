@@ -17793,13 +17793,13 @@ const char** get_options_mg()
    return s;
 }
 
-int start_mg(int user_http_port, int user_https_port, int port80_socket, int verbose)
+int start_mg(int user_http_port, int user_https_port, int socket_priviledged_port, int verbose)
 {
    HNDLE hDB;
    int size;
    int status;
 
-   if (port80_socket >= 0) {
+   if (socket_priviledged_port) {
       printf("Mongoose version 4 cannot listen to port 80 in setuid mode. Please use mongoose version 6. Sorry, bye!\n");
       exit(1);
    }
