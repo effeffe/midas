@@ -451,7 +451,7 @@ INT read_trigger_event(char *pevent, INT off)
   bk_init(pevent);
   
   /* create Midas bank named ADTD */
-  bk_create(pevent, "ADTD", TID_WORD, &pdata);
+  bk_create(pevent, "ADTD", TID_WORD, (void *)&pdata);
   
   // Read CC-USB buffer, returns nbytes, use for 32-bit data
   ret = xxusb_bulk_read(udev, pdata, 8192, 500);  
