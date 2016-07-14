@@ -2290,8 +2290,10 @@ INT ss_semaphore_create(const char *name, HNDLE * semaphore_handle)
 
       /* create or get semaphore */
       *semaphore_handle = (HNDLE) semget(key, 1, 0);
+      //printf("create1 key 0x%x, id %d, errno %d (%s)\n", key, *semaphore_handle, errno, strerror(errno));
       if (*semaphore_handle < 0) {
          *semaphore_handle = (HNDLE) semget(key, 1, IPC_CREAT);
+         //printf("create2 key 0x%x, id %d, errno %d (%s)\n", key, *semaphore_handle, errno, strerror(errno));
          status = SS_CREATED;
       }
 
@@ -2611,9 +2613,12 @@ INT ss_semaphore_delete(HNDLE semaphore_handle, INT destroy_flag)
 
    memset(&arg, 0, sizeof(arg));
 
-   if (destroy_flag)
-      if (semctl(semaphore_handle, 0, IPC_RMID, arg) < 0)
+   if (destroy_flag) {
+      int status = semctl(semaphore_handle, 0, IPC_RMID, arg);
+      //printf("semctl(ID=%d, IPC_RMID) returned %d, errno %d (%s)\n", semaphore_handle, status, errno, strerror(errno));
+      if (status < 0)
          return SS_NO_SEMAPHORE;
+   }
 
    return SS_SUCCESS;
 
