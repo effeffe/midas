@@ -1659,6 +1659,8 @@ extern "C" {
                                 char *exp_name, int exp_name_size);
    INT EXPRT cm_list_experiments(const char *host_name,
                                  char exp_name[MAX_EXPERIMENT][NAME_LENGTH]);
+   INT EXPRT cm_get_exptab_filename(char* filename, int filename_size);
+   INT EXPRT cm_get_exptab(const char* exp_name, char* expdir, int expdir_size, char* expuser, int expuser_size);
    INT EXPRT cm_select_experiment(const char *host_name, char *exp_name);
    INT EXPRT cm_connect_experiment(const char *host_name, const char *exp_name,
                                    const char *client_name, void (*func) (char *));

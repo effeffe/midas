@@ -329,6 +329,7 @@ EXAMPLES = $(BIN_DIR)/consume $(BIN_DIR)/produce \
 
 PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/odbedit \
+	$(BIN_DIR)/odbinit \
 	$(BIN_DIR)/mhttpd  \
 	$(BIN_DIR)/mlogger \
 	$(BIN_DIR)/mtape \
@@ -522,6 +523,9 @@ $(BIN_DIR)/%:$(SRC_DIR)/%.c
 
 $(BIN_DIR)/odbedit: $(SRC_DIR)/odbedit.cxx $(SRC_DIR)/cmdedit.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(SRC_DIR)/odbedit.cxx $(SRC_DIR)/cmdedit.cxx $(LIB) $(LIBS)
+
+$(BIN_DIR)/odbinit: $(BIN_DIR)/%: $(SRC_DIR)/%.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
 MHTTPD_OBJS=
 MHTTPD_OBJS += $(LIB_DIR)/mhttpd.o

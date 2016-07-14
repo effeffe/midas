@@ -1426,6 +1426,7 @@ typedef struct {
    char user[NAME_LENGTH];
 } experiment_table;
 
+static char exptab_filename[MAX_STRING_LENGTH];
 static experiment_table exptab[MAX_EXPERIMENT];
 
 /**dox***************************************************************/
@@ -1449,6 +1450,7 @@ INT cm_scan_experiments(void)
 
    /* MIDAS_DIR overrides exptab */
    if (getenv("MIDAS_DIR")) {
+      strlcpy(exptab_filename, "", sizeof(exptab_filename));
       strlcpy(str, getenv("MIDAS_DIR"), sizeof(str));
 
       strcpy(exptab[0].name, "Default");
@@ -1483,6 +1485,8 @@ INT cm_scan_experiments(void)
       strlcpy(str, getenv("MIDAS_EXPTAB"), sizeof(str));
       strlcpy(alt_str, getenv("MIDAS_EXPTAB"), sizeof(alt_str));
    }
+
+   strlcpy(exptab_filename, str, sizeof(exptab_filename));
 
    /* read list of available experiments */
    f = fopen(str, "r");
@@ -1522,6 +1526,41 @@ INT cm_scan_experiments(void)
     */
 
    return CM_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Return location of exptab file
+@param s               Pointer to string buffer
+@param size            Size of string buffer
+@return CM_SUCCESS
+*/
+int cm_get_exptab_filename(char* s, int size)
+{
+   strlcpy(s, exptab_filename, size);
+   return CM_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Return exptab information for given experiment
+@param s               Pointer to string buffer
+@param size            Size of string buffer
+@return CM_SUCCESS
+*/
+int cm_get_exptab(const char* expname, char* dir, int dir_size, char* user, int user_size)
+{
+   int i;
+   for (i = 0; i < MAX_EXPERIMENT; i++) {
+      if (strcmp(exptab[i].name, expname) == 0) {
+         if (dir)
+            strlcpy(dir, exptab[i].directory, dir_size);
+         if (user)
+            strlcpy(user, exptab[i].user, user_size);
+         return CM_SUCCESS;
+      }
+   }
+   return CM_UNDEF_EXP;
 }
 
 /********************************************************************/
