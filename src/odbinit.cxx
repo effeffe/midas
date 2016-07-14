@@ -29,7 +29,6 @@ int main(int argc, char *argv[])
    char cmd[2000], dir[256], str[2000];
    BOOL debug;
    BOOL corrupted;
-   BOOL reload_from_file = FALSE;
    HNDLE hDB;
 
    int odb_size = DEFAULT_ODB_SIZE;
@@ -45,6 +44,44 @@ int main(int argc, char *argv[])
 
    printf("Checking environment... experiment name is \"%s\", remote hostname is \"%s\"\n", exp_name, host_name);
 
+   bool cleanup = false;
+   bool dry_run = false;
+
+   /* parse command line parameters */
+   for (i = 1; i < argc; i++) {
+      if (strcmp(argv[i], "-g") == 0) {
+         debug = TRUE;
+      } else if (strcmp(argv[i], "-n") == 0) {
+         dry_run = true;
+      } else if (strcmp(argv[i], "--cleanup") == 0) {
+         cleanup = true;
+      } else if (argv[i][0] == '-' && argv[i][1] == 'C')
+         corrupted = TRUE;
+      else if (argv[i][0] == '-') {
+         if (i + 1 >= argc || argv[i + 1][0] == '-')
+            goto usage;
+         if (argv[i][1] == 'e')
+            strcpy(exp_name, argv[++i]);
+         else if (argv[i][1] == 's')
+            odb_size = atoi(argv[++i]);
+         else {
+          usage:
+            printf("usage: odbinit [options...]\n");
+            printf("options:\n");
+            printf("               [-e Experiment] --- specify experiment name\n");
+            printf("               [-s size]\n");
+            printf("               [--cleanup] --- cleanup (preserve) old (existing) ODB files\n");
+            printf("               [-n] --- dry run, report everything that will be done, but do not actually do anything\n");
+            printf("               [-g] --- debug\n");
+            printf("               [-C (connect to corrupted ODB)]\n");
+            return 0;
+         }
+      } else
+         strlcpy(host_name, argv[i], sizeof(host_name));
+   }
+
+   printf("Checking command line... experiment \"%s\", cleanup %d, dry_run %d\n", exp_name, cleanup, dry_run);
+
    status = cm_list_experiments(host_name, exp_names);
 
    status = cm_get_exptab_filename(exptab_filename, sizeof(exptab_filename));
@@ -59,7 +96,7 @@ int main(int argc, char *argv[])
       if (exp_name[0] == 0)
          strlcpy(exp_name, exp_names[i], sizeof (exp_name));
       if (equal_ustring(exp_names[i], exp_name)) {
-         printf(" *** selected experiment ***");
+         printf(" <-- selected experiment");
          strlcpy(exp_name, exp_names[i], sizeof (exp_name));
          found_exp = true;
       }
@@ -75,41 +112,95 @@ int main(int argc, char *argv[])
    char exp_user[MAX_STRING_LENGTH];
 
    status = cm_get_exptab(exp_name, exp_dir, sizeof(exp_dir), exp_user, sizeof(exp_user));
-   
+
+   printf("\n");
    printf("Checking exptab... selected experiment \"%s\", experiment directory \"%s\"\n", exp_name, exp_dir);
-   
-   /* parse command line parameters */
-   for (i = 1; i < argc; i++) {
-      if (argv[i][0] == '-' && argv[i][1] == 'g')
-         debug = TRUE;
-      else if (argv[i][0] == '-' && argv[i][1] == 'R')
-         reload_from_file = TRUE;
-      else if (argv[i][0] == '-' && argv[i][1] == 'C')
-         corrupted = TRUE;
-      else if (argv[i][0] == '-') {
-         if (i + 1 >= argc || argv[i + 1][0] == '-')
-            goto usage;
-         if (argv[i][1] == 'e')
-            strcpy(exp_name, argv[++i]);
-         else if (argv[i][1] == 'h')
-            strcpy(host_name, argv[++i]);
-         else if (argv[i][1] == 's')
-            odb_size = atoi(argv[++i]);
-         else {
-          usage:
-            printf("usage: odbedit [-h Hostname] [-e Experiment]\n");
-            printf("               [-s size]\n");
-            printf("               [-g (debug)] [-C (connect to corrupted ODB)]\n");
-            printf("               [-R (reload ODB from .ODB.SHM)]\n\n");
-            return 0;
+
+   cm_set_experiment_name(exp_name);
+   cm_set_path(exp_dir);
+
+
+   printf("\n");
+   printf("Checking experiment directory \"%s\"\n", exp_dir);
+
+   std::string odb_path;
+
+   {
+      std::string path;
+      path += exp_dir;
+      path += ".ODB.SHM";
+
+      FILE *fp = fopen(path.c_str(), "r");
+      if (fp) {
+         fclose(fp);
+         printf("Found existing ODB save file: \"%s\"\n", path.c_str());
+         if (cleanup) {
+            // cannot get rid of ODB save file yet - it is used as SysV semaphore key
+            // so delete semaphore first, delete .ODB.SHM next.
+            // hope deleting the semaphore and crashing all MIDAS programs does not corrupt the ODB save file.
+            odb_path = path;
+         } else {
+            printf("Looks like this experiment ODB is already initialized.\n");
+            printf("To create new empty ODB, please rerun odbinit with the \"--cleanup\" option.\n");
+            exit(1);
          }
-      } else
-         strlcpy(host_name, argv[i], sizeof(host_name));
+      } else {
+         printf("Good: no ODB save file\n");
+      }
    }
 
-   printf("We will initialize ODB for experiment \"%s\" on host \"%s\" with size %d bytes\n", exp_name, host_name, odb_size);
+   printf("\n");
+   printf("Checking shared memory...\n");
 
-   status = cm_connect_experiment1(host_name, exp_name, "ODBEdit", NULL, odb_size, DEFAULT_WATCHDOG_TIMEOUT);
+   {
+      printf("Deleting old ODB shared memory...\n");
+      if (!dry_run) {
+         status = ss_shm_delete("ODB");
+         if (status == SS_NO_MEMORY) {
+            printf("Good: no ODB shared memory\n");
+         } else if (status == SS_SUCCESS) {
+            printf("Deleted existing ODB shared memory, please check that all MIDAS programs are stopped and try again.\n");
+            exit(1);
+         } else {
+            printf("ss_shm_delete(ODB) status %d\n", status);
+            printf("Please check that all MIDAS programs are stopped and try again.\n");
+            exit(1);
+         }
+      }
+   }
+   
+   {
+      printf("Deleting old ODB semaphore...\n");
+      if (!dry_run) {
+         HNDLE sem;
+         int cstatus = ss_semaphore_create("ODB", &sem);
+         int dstatus = ss_semaphore_delete(sem, TRUE);
+         printf("Deleting old ODB semaphore... create status %d, delete status %d\n", cstatus, dstatus);
+      }
+   }
+   
+   if (odb_path.length() > 0 && cleanup) {
+      time_t now = time(NULL);
+      std::string path1;
+      path1 += odb_path;
+      path1 += ".";
+      path1 += std::to_string(now);
+      printf("Preserving old ODB save file \%s\" to \"%s\"\n", odb_path.c_str(), path1.c_str());
+      if (!dry_run) {
+         status = rename(odb_path.c_str(), path1.c_str());
+         if (status != 0) {
+            printf("rename(%s, %s) returned %d, errno %d (%s)\n", odb_path.c_str(), path1.c_str(), status, errno, strerror(errno));
+            printf("Sorry.\n");
+            exit(1);
+         }
+      }
+   }
+
+   printf("\n");
+   printf("We will initialize ODB for experiment \"%s\" on host \"%s\" with size %d bytes\n", exp_name, host_name, odb_size);
+   printf("\n");
+
+   status = cm_connect_experiment1(host_name, exp_name, "ODBInit", NULL, odb_size, DEFAULT_WATCHDOG_TIMEOUT);
 
    if (status == CM_WRONG_PASSWORD)
       return 1;
@@ -117,13 +208,6 @@ int main(int argc, char *argv[])
    printf("Connected to ODB for experiment \"%s\" on host \"%s\" with size %d bytes\n", exp_name, host_name, odb_size);
 
    cm_msg_flush_buffer();
-
-   if (reload_from_file) {
-      status = ss_shm_delete("ODB");
-      printf("ss_shm_delete(ODB) status %d\n", status);
-      printf("Please run odbedit again without \'-R\' and ODB will be reloaded from .ODB.SHM\n");
-      return 1;
-   }
 
    if ((status == DB_INVALID_HANDLE) && corrupted) {
       cm_get_error(status, str);
