@@ -18815,15 +18815,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
       printf("Mongoose web server password portection is disabled: serving unencrypted http on port 80\n");
    }
 
-   if (!https_port)
-      printf("Mongoose web server will listen on http port %d\n", http_port);
-   else
-      printf("Mongoose web server will listen on https port %d, http port %d, redirect to https: %d\n", https_port, http_port, http_redirect_to_https);
-
-   if (!http_port && !https_port) {
-      cm_msg(MERROR, "mongoose", "cannot start: no ports defined");
-      return SS_FILE_ERROR;
-   }
+   bool have_at_least_one_port = false;
 
    std::string cert_file;
 
@@ -18880,15 +18872,23 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
    // use socket bound to priviledged port (setuid-mode)
    if (socket_priviledged_port) {
       struct mg_connection* nc = mg_add_sock(&mgr_mg, socket_priviledged_port, handle_event_mg);
+      if (nc == NULL) {
+         cm_msg(MERROR, "mongoose", "Cannot create mg_connection for set-uid-root privileged port");
+         return SS_SOCKET_ERROR;
+      }
+
       nc->flags |= MG_F_LISTENING;
 #ifdef MG_ENABLE_THREADS
       mg_enable_multithreading(nc);
 #endif
       mg_set_protocol_http_websocket(nc);
       mg_register_http_endpoint(nc, "/", handle_http_event_mg);
+
+      have_at_least_one_port = true;
+      printf("mongoose web server is listening on the set-uid-root privileged port\n");
    }
 
-   else if (http_port) {
+   if (http_port) {
       char str[256];
       sprintf(str, "%d", http_port);
       struct mg_connection* nc = mg_bind(&mgr_mg, str, handle_event_mg);
@@ -18910,21 +18910,38 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
          std::string s = std::string(hostname) + ":" + std::string(str);
          nc->user_data = new std::string(s);
          mg_register_http_endpoint(nc, "/", handle_http_redirect);
+         printf("mongoose web server is redirecting HTTP port %d to https://%s\n", http_port, s.c_str());
       } else {
          mg_register_http_endpoint(nc, "/", handle_http_event_mg);
       }
+
+      have_at_least_one_port = true;
+      printf("mongoose web server is listening on the HTTP port %d\n", http_port);
    }
 
    if (https_port) {
       char str[256];
       sprintf(str, "%d", https_port);
       struct mg_connection* nc = mg_bind(&mgr_mg, str, handle_event_mg);
+      if (nc == NULL) {
+         cm_msg(MERROR, "mongoose", "Cannot bind to port %d", https_port);
+         return SS_SOCKET_ERROR;
+      }
+
       mg_set_ssl(nc, cert_file.c_str(), NULL);
 #ifdef MG_ENABLE_THREADS
       mg_enable_multithreading(nc);
 #endif
       mg_set_protocol_http_websocket(nc);
       mg_register_http_endpoint(nc, "/", handle_http_event_mg);
+
+      have_at_least_one_port = true;
+      printf("mongoose web server is listening on the HTTPS port %d\n", https_port);
+   }
+
+   if (!have_at_least_one_port) {
+      cm_msg(MERROR, "mongoose", "cannot start: no ports defined");
+      return SS_FILE_ERROR;
    }
 
    return SUCCESS;
