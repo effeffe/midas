@@ -15,7 +15,7 @@
 		D51B325E1BB3FCAA0015F608 /* mjson.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D51B325D1BB3FCAA0015F608 /* mjson.cxx */; };
 		D530FC761BB3FC1900098C9B /* mjsonrpc.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D530FC751BB3FC1900098C9B /* mjsonrpc.cxx */; };
 		D530FC781BB3FC4800098C9B /* mjsonrpc_user.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D530FC771BB3FC4800098C9B /* mjsonrpc_user.cxx */; };
-		D534757E183A1979004316B0 /* mongoose.c in Sources */ = {isa = PBXBuildFile; fileRef = D534757D183A1979004316B0 /* mongoose.c */; };
+		D534757E183A1979004316B0 /* mongoose6.c in Sources */ = {isa = PBXBuildFile; fileRef = D534757D183A1979004316B0 /* mongoose6.c */; };
 		D5705992179871EA00DA5416 /* alarm.c in Sources */ = {isa = PBXBuildFile; fileRef = D5705987179871EA00DA5416 /* alarm.c */; };
 		D5705993179871EA00DA5416 /* elog.c in Sources */ = {isa = PBXBuildFile; fileRef = D5705988179871EA00DA5416 /* elog.c */; };
 		D5705995179871EA00DA5416 /* history_odbc.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D570598A179871EA00DA5416 /* history_odbc.cxx */; };
@@ -56,7 +56,8 @@
 		D51B325D1BB3FCAA0015F608 /* mjson.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mjson.cxx; path = /midas/src/mjson.cxx; sourceTree = "<group>"; };
 		D530FC751BB3FC1900098C9B /* mjsonrpc.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mjsonrpc.cxx; path = /midas/src/mjsonrpc.cxx; sourceTree = "<group>"; };
 		D530FC771BB3FC4800098C9B /* mjsonrpc_user.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mjsonrpc_user.cxx; path = /midas/src/mjsonrpc_user.cxx; sourceTree = "<group>"; };
-		D534757D183A1979004316B0 /* mongoose.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mongoose.c; path = /midas/src/mongoose.c; sourceTree = "<absolute>"; };
+		D534757D183A1979004316B0 /* mongoose6.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mongoose6.c; path = /midas/src/mongoose6.c; sourceTree = "<absolute>"; };
+		D551953D1D10159A005B66A7 /* mongoose6.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mongoose6.h; path = /midas/include/mongoose6.h; sourceTree = "<group>"; };
 		D570596317986E2F00DA5416 /* mhttpd */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mhttpd; sourceTree = BUILT_PRODUCTS_DIR; };
 		D5705987179871EA00DA5416 /* alarm.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = alarm.c; path = /midas/src/alarm.c; sourceTree = "<absolute>"; };
 		D5705988179871EA00DA5416 /* elog.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = elog.c; path = /midas/src/elog.c; sourceTree = "<absolute>"; };
@@ -127,6 +128,7 @@
 		D570598517986EF300DA5416 /* Includes */ = {
 			isa = PBXGroup;
 			children = (
+				D551953D1D10159A005B66A7 /* mongoose6.h */,
 				D5C8CD7F1ACC07AF008B1201 /* mscb.h */,
 				D570599D1798722600DA5416 /* midas.h */,
 				D570599E1798722600DA5416 /* midasinc.h */,
@@ -147,7 +149,7 @@
 				D5C8CD7C1ACC0797008B1201 /* mscbrpc.c */,
 				D5043BCC18A2485800F3B297 /* history_midas.cxx */,
 				D5043BCA18A2484800F3B297 /* history_common.cxx */,
-				D534757D183A1979004316B0 /* mongoose.c */,
+				D534757D183A1979004316B0 /* mongoose6.c */,
 				D51A109B1798772E00ED6F5F /* mxml.c */,
 				D51A109C1798772E00ED6F5F /* strlcpy.c */,
 				D5F40E09179876ED004CBF77 /* mgd.c */,
@@ -254,7 +256,7 @@
 				D51868561C8880DD0061AEEE /* midas_cxx.cxx in Sources */,
 				D5A00FB81BB3FCFF00549585 /* json_paste.cxx in Sources */,
 				D570599B179871EA00DA5416 /* sequencer.cxx in Sources */,
-				D534757E183A1979004316B0 /* mongoose.c in Sources */,
+				D534757E183A1979004316B0 /* mongoose6.c in Sources */,
 				D570599C179871EA00DA5416 /* system.c in Sources */,
 				D5F40E0A179876ED004CBF77 /* mgd.c in Sources */,
 				D51A109D1798772E00ED6F5F /* mxml.c in Sources */,
@@ -343,6 +345,10 @@
 					USE_POSIX_SHM,
 					HAVE_MSCB,
 					HAVE_STRLCPY,
+					HAVE_MG6,
+					HAVE_MG,
+					MG_ENABLE_SSL,
+					MG_ENABLE_THREADS,
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = NO;
 				HEADER_SEARCH_PATHS = (

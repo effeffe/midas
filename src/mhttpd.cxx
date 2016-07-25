@@ -1,4 +1,3 @@
-
 /********************************************************************\
 
   Name:         mhttpd.cxx
@@ -126,6 +125,13 @@ const Filetype filetype[] = {
 ""},};
 
 #define HTTP_ENCODING "UTF-8"
+
+typedef struct {
+   char user[256];
+   char msg[256];
+   time_t last_time;
+   time_t prev_time;
+} LASTMSG;
 
 /*------------------------------------------------------------------*/
 
@@ -705,7 +711,9 @@ static void urlEncode(char *ps, int ps_size)
 
 /*------------------------------------------------------------------*/
 
-char message_buffer[256] = "";
+LASTMSG lastMsg;
+LASTMSG lastChatMsg;
+LASTMSG lastTalkMsg;
 
 INT print_message(const char *message)
 {
@@ -722,7 +730,20 @@ INT print_message(const char *message)
    strlcat(line, " ", sizeof(line));
    strlcat(line, (char *) message, sizeof(line));
 
-   strlcpy(message_buffer, line, sizeof(message_buffer));
+   if (strstr(message, ",USER]") != NULL) {
+      strlcpy(lastChatMsg.msg, line, sizeof(lastMsg.msg));
+      lastChatMsg.prev_time = lastChatMsg.last_time;
+      time(&lastChatMsg.last_time);
+   } else if (strstr(message, ",TALK]") != NULL) {
+      strlcpy(lastTalkMsg.msg, line, sizeof(lastMsg.msg));
+      lastTalkMsg.prev_time = lastTalkMsg.last_time;
+      time(&lastTalkMsg.last_time);
+   } else {
+      strlcpy(lastMsg.msg, line, sizeof(lastMsg.msg));
+      lastMsg.prev_time = lastMsg.last_time;
+      time(&lastMsg.last_time);
+   }
+   
    return SUCCESS;
 }
 
@@ -1005,6 +1026,7 @@ void page_footer(BOOL bForm)  //wraps up body wrapper and inserts page footer
    int size;
    char str[1000];
    HNDLE hDB;
+   char dec_path[256], path[256];
 
    /*---- spacer for footer ----*/
    rsprintf("<div class=\"push\"></div>\n");
@@ -1017,10 +1039,90 @@ void page_footer(BOOL bForm)  //wraps up body wrapper and inserts page footer
    cm_get_experiment_database(&hDB, NULL);
    db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
    rsprintf("<div style=\"display:inline; float:left;\">Experiment %s</div>", str);
-   rsprintf("<div style=\"display:inline;\"><a href=\"?cmd=Help\">Help</a></div>");
+   rsprintf("<div style=\"display:inline;\">");
+   
+   /* add one "../" for each level */
+   strlcpy(dec_path, get_dec_path(), sizeof(dec_path));
+   path[0] = 0;
+   char*p;
+   for (p = dec_path ; *p ; p++)
+      if (*p == '/')
+         strlcat(path, "../", sizeof(path));
+   if (path[strlen(path)-1] == '/')
+      path[strlen(path)-1] = 0;
+
+   // add speak JS code for chat messages
    time(&now);
+   if (now < lastChatMsg.last_time + 60) {
+      char usr[256];
+      char msg[256];
+      char tim[256];
+
+      strlcpy(tim, ctime(&lastChatMsg.last_time)+11, sizeof(tim));
+      tim[8] = 0;
+      if (strchr(lastChatMsg.msg, '[')) {
+         strlcpy(usr, strchr(lastChatMsg.msg, '[')+1, sizeof(usr));
+         if (strchr(usr, ','))
+            *strchr(usr, ',') = 0;
+         if (strchr(lastChatMsg.msg, ']')) {
+            strlcpy(msg, strchr(lastChatMsg.msg, ']')+2, sizeof(msg));
+            rsprintf("<span class=\"chatBubbleFooter\">");
+            rsprintf("<a href=\"./%s?cmd=Chat\">%s %s:%s</a>\n",
+                     path, tim, usr, msg);
+            rsprintf("</span>\n");
+            
+            rsprintf("<script>\n");
+            rsprintf("try {\n");
+            rsprintf("  if (sessionStorage.lastChatSpeak != '%s') {\n", tim);
+            rsprintf("    var u = new SpeechSynthesisUtterance('%s');\n", msg);
+            rsprintf("    window.speechSynthesis.speak(u);\n");
+            rsprintf("    sessionStorage.lastChatSpeak = '%s';", tim);
+            rsprintf("  }\n");
+            rsprintf("} catch (err) {}\n");
+            rsprintf("</script>\n");
+         }
+      }
+   }
+
+   // add speak JS code for talk messages
+   time(&now);
+   if (now < lastTalkMsg.last_time + 60) {
+      char usr[256];
+      char msg[256];
+      char tim[256];
+      
+      strlcpy(tim, ctime(&lastTalkMsg.last_time)+11, sizeof(tim));
+      tim[8] = 0;
+      if (strchr(lastTalkMsg.msg, '[')) {
+         strlcpy(usr, strchr(lastTalkMsg.msg, '[')+1, sizeof(usr));
+         if (strchr(usr, ','))
+            *strchr(usr, ',') = 0;
+         if (strchr(lastTalkMsg.msg, ']')) {
+            strlcpy(msg, strchr(lastTalkMsg.msg, ']')+2, sizeof(msg));
+            rsprintf("<span class=\"chatBubbleFooter\">");
+            rsprintf("<a href=\"./%s?cmd=Messages\">%s %s:%s</a>\n",
+                     path, tim, usr, msg);
+            rsprintf("</span>\n");
+            
+            rsprintf("<script>\n");
+            rsprintf("try {\n");
+            rsprintf("  if (sessionStorage.lastTalkSpeak != '%s') {\n", tim);
+            rsprintf("    var u = new SpeechSynthesisUtterance('%s');\n", msg);
+            rsprintf("    window.speechSynthesis.speak(u);\n");
+            rsprintf("    sessionStorage.lastTalkSpeak = '%s';", tim);
+            rsprintf("  }\n");
+            rsprintf("} catch (err) {}\n");
+            rsprintf("</script>\n");
+         }
+      }
+   }
+
+   rsprintf("<a href=\"./%s?cmd=Help\">Help</a>", path);
+   
+   rsprintf("</div>");
    rsprintf("<div style=\"display:inline; float:right;\">%s</div>", ctime(&now));
    rsprintf("</div>\n");
+   
    /*---- top level form ----*/
    if (bForm)
       rsprintf("</form>\n");
@@ -1572,7 +1674,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    rsprintf("<title>%s status</title>\n", str);
 
    if (n_alarm) {
-      rsprintf("<audio autoplay src=\"alarm.mid\">!midas alarm sound!</audio>\n");
+      rsprintf("<bgsound src=\"alarm.mp3\" loop=\"false\">\n");
    }
 
    rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
@@ -1580,6 +1682,10 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    rsprintf("</head>\n");
 
    rsprintf("<body><form method=\"GET\" action=\".\">\n");
+
+   if (n_alarm) {
+      rsprintf("<embed src=\"alarm.mp3\" autostart=\"true\" loop=\"false\" hidden=\"true\" height=\"0\" width=\"0\">\n");
+   }
 
    rsprintf("<div id=\"wrapper\" class=\"wrapper\">\n");
 
@@ -1972,17 +2078,67 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
    /*---- Messages ----*/
 
-   rsprintf("<tr><td colspan=6 class=msgService>");
+   time(&now);
+   if (now < lastChatMsg.last_time + 60) {
+      rsprintf("<tr><td colspan=6 class=\"msgService\">");
 
-   if (message_buffer[0]) {
-      if (strstr(message_buffer, ",ERROR]") || strstr(message_buffer, ",TALK]"))
+      /*
+      if (strstr(lastMsg.msg, ",ERROR]") || strstr(lastMsg.msg, ",TALK]"))
          rsprintf("<span style=\"color:#EEEEEE;background-color:#c0392b\"><b>%s</b></span>",
-                  message_buffer);
-      else
-         rsprintf("<b>%s</b>", message_buffer);
+                  lastMsg.msg);
+      */
+      
+      // add speak JS code for chat messages
+      char usr[256];
+      char msg[256];
+      char tim[256];
+      
+      strlcpy(tim, ctime(&lastChatMsg.last_time)+11, sizeof(tim));
+      tim[8] = 0;
+      if (strchr(lastChatMsg.msg, '[')) {
+         strlcpy(usr, strchr(lastChatMsg.msg, '[')+1, sizeof(usr));
+         if (strchr(usr, ','))
+            *strchr(usr, ',') = 0;
+         if (strchr(lastChatMsg.msg, ']')) {
+            strlcpy(msg, strchr(lastChatMsg.msg, ']')+2, sizeof(msg));
+            rsprintf("<span class=\"chatBubbleFooter\">");
+            rsprintf("<a href=\"?cmd=Chat\">%s %s:%s</a>\n",
+                     tim, usr, msg);
+            rsprintf("</span>\n");
+         }
+      }
+      rsprintf("</tr>");
    }
 
-   rsprintf("</tr>");
+   if (now < lastTalkMsg.last_time + 60) {
+      rsprintf("<tr><td colspan=6 class=\"msgServiceTalk\">");
+      
+      char usr[256];
+      char msg[256];
+      char tim[256];
+      
+      strlcpy(tim, ctime(&lastTalkMsg.last_time)+11, sizeof(tim));
+      tim[8] = 0;
+      if (strchr(lastTalkMsg.msg, '[')) {
+         strlcpy(usr, strchr(lastTalkMsg.msg, '[')+1, sizeof(usr));
+         if (strchr(usr, ','))
+            *strchr(usr, ',') = 0;
+         if (strchr(lastTalkMsg.msg, ']')) {
+            strlcpy(msg, strchr(lastTalkMsg.msg, ']')+2, sizeof(msg));
+            rsprintf("%s %s:%s\n", tim, usr, msg);
+         }
+      }
+      rsprintf("</tr>");
+   }
+
+   if (now < lastMsg.last_time + 600) {
+      if (strstr(lastMsg.msg, ",ERROR]") != NULL)
+         rsprintf("<tr><td colspan=6 class=\"msgServiceErr\">");
+      else
+         rsprintf("<tr><td colspan=6 class=\"msgService\">");
+      rsprintf("%s\n", lastMsg.msg);
+      rsprintf("</tr>");
+   }
 
    rsprintf("</table></td></tr>\n");  //end summary table
 
@@ -2407,12 +2563,12 @@ void show_chat_page()
    rsprintf("    <td><input style=\"width:100%%\" type=\"text\" id=\"text\" autofocus=\"autofocus\" onkeypress=\"return chat_kp(event)\"></td>\n");
    rsprintf("    <td nowrap width=\"10%%\"><input type=\"button\" name=\"send\" value=\"Send\" onClick=\"chat_send()\">");
    rsprintf("&nbsp;&nbsp;Your name: <input type=\"text\" id=\"name\" size=\"10\" onkeypress=\"return chat_kp(event)\">\n");
-   rsprintf("    <input type=\"checkbox\" name=\"speak\" id=\"speak\" onClick=\"return speak_click(this);\"><span id=\"speakLabel\">Speak</span></td>");
+   rsprintf("    <input type=\"checkbox\" name=\"speak\" id=\"speak\" onClick=\"return speak_click(this);\"><span id=\"speakLabel\">Audio</span></td>");
    rsprintf("  </tr></table>");
    rsprintf("</div>\n");
    
    rsprintf("<div class=\"chatBox\" id=\"messageFrame\">\n");
-   rsprintf("<h1 class=\"subStatusTitle\">Chat messages</h1>");
+   rsprintf("<h1 class=\"chatTitle\">Chat messages</h1>");
    rsprintf("</div>\n");
    
    rsprintf("<script type=\"text/javascript\">chat_load();</script>\n");
@@ -10077,7 +10233,7 @@ void show_alarm_page()
 
    rsprintf("<input type=submit name=cmd value=\"Reset all alarms\">\n");
    rsprintf("<input type=submit name=cmd value=\"Alarms on/off\">\n");
-   rsprintf("<input type=\"checkbox\" name=\"caspeak\" id=\"aspeak\" onClick=\"return aspeak_click(this);\"><span id=\"aspeakLabel\">Speak</span></td>");
+   rsprintf("<input type=\"checkbox\" name=\"caspeak\" id=\"aspeak\" onClick=\"return aspeak_click(this);\"><span id=\"aspeakLabel\">Audio</span></td>");
 
    rsprintf("</tr></table>\n\n");  //used to end with an extra form closure tag, messes up the footer.
    rsprintf("<script type=\"text/javascript\">alarm_load();</script>\n");
@@ -15057,6 +15213,8 @@ bool send_resource(const std::string& name)
       type = "text/html";
    else if (name.rfind(".js") != std::string::npos)
       type = "application/javascript";
+   else if (name.rfind(".mp3") != std::string::npos)
+      type = "audio/mpeg";
 
    rsprintf("Content-Type: %s\r\n", type);
 
@@ -15441,33 +15599,6 @@ void send_js()
 
 /*------------------------------------------------------------------*/
 
-// 0x27: handclap
-// 0x39: crash
-// 0x51: open triangle
-
-unsigned char alarm_sound[] = {
-0x4D,0x54,0x68,0x64,0x00,0x00,0x00,0x06,0x00,0x01,
-0x00,0x01,0x01,0xE0,0x4D,0x54,0x72,0x6B,0x00,0x00,
-0x00,0x2B,0x00,0xFF,0x03,0x07,0x44,0x72,0x75,0x6D,
-0x6B,0x69,0x74,0x00,0xC9,0x00,0x00,0xFF,0x51,0x03,
-0x07,0xA1,0x20,0x00,0xFF,0x58,0x04,0x04,0x02,0x18,
-0x08,0x87,0x40,0x99,0x51,0x48,0x96,0x40,0x89,0x51,  // <-- 4 & 9
-0x40,0x00,0xFF,0x2F,0x00,
-};
-
-void send_alarm_sound()
-{
-   rsprintf("HTTP/1.1 200 Document follows\r\n");
-   rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Accept-Ranges: bytes\r\n");
-   rsprintf("Content-Type: audio/midi\r\n");
-   rsprintf("Content-Length: %d\r\n\r\n", sizeof(alarm_sound));
-
-   rmemcpy(alarm_sound, sizeof(alarm_sound));
-}
-
-/*------------------------------------------------------------------*/
-
 void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, const char *dec_path, int refresh)
 /********************************************************************\
 
@@ -15614,8 +15745,8 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    /*---- send sound file -------------------------------------------*/
 
-   if (equal_ustring(dec_path, "alarm.mid")) {
-      send_alarm_sound();
+   if (equal_ustring(dec_path, "alarm.mp3")) {
+      send_resource("alarm.mp3");
       return;
    }
 
@@ -16715,12 +16846,10 @@ extern "C" {
    }
 }
 
-int open_setuid_port_80()
+int open_listening_socket(int port)
 {
    int status;
    struct sockaddr_in bind_addr;
-
-   int tcp_port = 80;
 
    /* create a new socket */
    int lsock = socket(AF_INET, SOCK_STREAM, 0);
@@ -16734,7 +16863,7 @@ int open_setuid_port_80()
    memset(&bind_addr, 0, sizeof(bind_addr));
    bind_addr.sin_family = AF_INET;
    bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-   bind_addr.sin_port = htons((short) tcp_port);
+   bind_addr.sin_port = htons((short) port);
 
    /* try reusing address */
    int flag = 1;
@@ -16748,18 +16877,18 @@ int open_setuid_port_80()
    status = bind(lsock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
 
    if (status < 0) {
-      printf("Cannot bind() to port %d, bind() errno %d (%s)\n", tcp_port, errno, strerror(errno));
+      printf("Cannot bind() to port %d, bind() errno %d (%s)\n", port, errno, strerror(errno));
       return -1;
    }
 
    /* listen for connection */
    status = listen(lsock, SOMAXCONN);
    if (status < 0) {
-      printf("Cannot listen() on port %d, errno %d (%s), bye!\n", tcp_port, errno, strerror(errno));
+      printf("Cannot listen() on port %d, errno %d (%s), bye!\n", port, errno, strerror(errno));
       return -1;
    }
 
-   printf("mhttpd is listening on port %d\n", tcp_port);
+   printf("mhttpd is listening on port %d\n", port);
 
    return lsock;
 }
@@ -17677,13 +17806,13 @@ const char** get_options_mg()
    return s;
 }
 
-int start_mg(int user_http_port, int user_https_port, int port80_socket, int verbose)
+int start_mg(int user_http_port, int user_https_port, int socket_priviledged_port, int verbose)
 {
    HNDLE hDB;
    int size;
    int status;
 
-   if (port80_socket >= 0) {
+   if (socket_priviledged_port) {
       printf("Mongoose version 4 cannot listen to port 80 in setuid mode. Please use mongoose version 6. Sorry, bye!\n");
       exit(1);
    }
@@ -17915,6 +18044,8 @@ int loop_mg()
 #endif
 
 #ifdef HAVE_MG6
+
+#undef closesocket // this is defined in msystem.h and mongoose.h, so let's remove the previous definition
 
 #include "mongoose6.h"
 
@@ -18640,7 +18771,7 @@ static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data
    }
 }
 
-int start_mg(int user_http_port, int user_https_port, int port80_socket, int verbose)
+int start_mg(int user_http_port, int user_https_port, int socket_priviledged_port, int verbose)
 {
    HNDLE hDB;
    int size;
@@ -18691,13 +18822,16 @@ int start_mg(int user_http_port, int user_https_port, int port80_socket, int ver
       need_password_file = false;
    }
 
-   if (port80_socket >= 0) {
+   if (socket_priviledged_port) {
       // no passwords if serving unencrypted http on port 80
       need_password_file = false;
       printf("Mongoose web server password portection is disabled: serving unencrypted http on port 80\n");
    }
 
-   printf("Mongoose web server will listen on https port %d, http port %d, redirect to https: %d\n", https_port, http_port, http_redirect_to_https);
+   if (!https_port)
+      printf("Mongoose web server will listen on http port %d\n", http_port);
+   else
+      printf("Mongoose web server will listen on https port %d, http port %d, redirect to https: %d\n", https_port, http_port, http_redirect_to_https);
 
    if (!http_port && !https_port) {
       cm_msg(MERROR, "mongoose", "cannot start: no ports defined");
@@ -18756,10 +18890,26 @@ int start_mg(int user_http_port, int user_https_port, int port80_socket, int ver
 
    mg_mgr_init(&mgr_mg, NULL);
 
-   if (http_port) {
+   // use socket bound to priviledged port (setuid-mode)
+   if (socket_priviledged_port) {
+      struct mg_connection* nc = mg_add_sock(&mgr_mg, socket_priviledged_port, handle_event_mg);
+      nc->flags |= MG_F_LISTENING;
+#ifdef MG_ENABLE_THREADS
+      mg_enable_multithreading(nc);
+#endif
+      mg_set_protocol_http_websocket(nc);
+      mg_register_http_endpoint(nc, "/", handle_http_event_mg);
+   }
+
+   else if (http_port) {
       char str[256];
       sprintf(str, "%d", http_port);
       struct mg_connection* nc = mg_bind(&mgr_mg, str, handle_event_mg);
+      if (nc == NULL) {
+         cm_msg(MERROR, "mongoose", "Cannot bind to port %d", http_port);
+         return SS_SOCKET_ERROR;
+      }
+      
 #ifdef MG_ENABLE_THREADS
       mg_enable_multithreading(nc);
 #endif
@@ -18783,16 +18933,6 @@ int start_mg(int user_http_port, int user_https_port, int port80_socket, int ver
       sprintf(str, "%d", https_port);
       struct mg_connection* nc = mg_bind(&mgr_mg, str, handle_event_mg);
       mg_set_ssl(nc, cert_file.c_str(), NULL);
-#ifdef MG_ENABLE_THREADS
-      mg_enable_multithreading(nc);
-#endif
-      mg_set_protocol_http_websocket(nc);
-      mg_register_http_endpoint(nc, "/", handle_http_event_mg);
-   }
-
-   if (port80_socket >= 0) {
-      struct mg_connection* nc = mg_add_sock(&mgr_mg, port80_socket, handle_event_mg);
-      nc->flags |= MG_F_LISTENING;
 #ifdef MG_ENABLE_THREADS
       mg_enable_multithreading(nc);
 #endif
@@ -18876,28 +19016,8 @@ int main(int argc, const char *argv[])
    // if running setuid-root, unconditionally bind to port 80.
    //
    
-   int port80 = -1;
+   int socket_priviledged_port = 0;
 
-#ifdef OS_UNIX
-   if (getuid() != geteuid()) {
-      printf("mhttpd is running in setuid-root mode!\n");
-
-      port80 = open_setuid_port_80();
-
-      /* give up root privilege */
-      status = setuid(getuid());
-      if (status != 0) {
-         printf("Cannot give up root privelege, bye!\n");
-         exit(1);
-      }
-      status = setuid(getuid());
-      if (status != 0) {
-         printf("Cannot give up root privelege, bye!\n");
-         exit(1);
-      }
-   }
-#endif
-   
    /* get default from environment */
    cm_get_environment(midas_hostname, sizeof(midas_hostname), midas_expt, sizeof(midas_expt));
 
@@ -18952,13 +19072,13 @@ int main(int argc, const char *argv[])
          } else {
           usage:
             printf("usage: %s [-h Hostname[:port]] [-e Experiment] [-v] [-D] [-a Hostname]\n\n", argv[0]);
-            printf("       -h connect to midas server (mserver) on given host\n");
+            printf("       -a only allow access for specific host(s), several [-a Hostname] statements might be given (default list is ODB \"/Experiment/security/mhttpd hosts/allowed hosts\")\n");
             printf("       -e experiment to connect to\n");
+            printf("       -h connect to midas server (mserver) on given host\n");
             printf("       -v display verbose HTTP communication\n");
             printf("       -D become a daemon\n");
             printf("       -E only display ELog system\n");
             printf("       -H only display history plots\n");
-            printf("       -a only allow access for specific host(s), several [-a Hostname] statements might be given (default list is ODB \"/Experiment/security/mhttpd hosts/allowed hosts\")\n");
             printf("       --http port - bind to specified HTTP port (default is ODB \"/Experiment/midas http port\")\n");
             printf("       --https port - bind to specified HTTP port (default is ODB \"/Experiment/midas https port\")\n");
 #ifdef HAVE_MG
@@ -18973,6 +19093,31 @@ int main(int argc, const char *argv[])
       }
    }
 
+#ifdef OS_UNIX
+   // in setuid-root mode bind to priviledged port
+   if (getuid() != geteuid()) {
+      printf("mhttpd is running in setuid-root mode.\n");
+      
+      socket_priviledged_port = open_listening_socket(user_http_port ? user_http_port : 80);
+      if (socket_priviledged_port < 0) {
+         printf("Aborting.\n");
+         exit(1);
+      }
+      
+      // give up root privilege
+      status = setuid(getuid());
+      if (status != 0) {
+         printf("Cannot give up root privelege, aborting.\n");
+         exit(1);
+      }
+      status = setuid(getuid());
+      if (status != 0) {
+         printf("Cannot give up root privelege, aborting.\n");
+         exit(1);
+      }
+   }
+#endif
+   
    if (daemon) {
       printf("Becoming a daemon...\n");
       ss_daemon_init(FALSE);
@@ -19042,7 +19187,7 @@ int main(int argc, const char *argv[])
 
 #ifdef HAVE_MG
    if (use_mg) {
-      status = start_mg(user_http_port, user_https_port, port80, verbose);
+      status = start_mg(user_http_port, user_https_port, socket_priviledged_port, verbose);
       if (status != SUCCESS) {
          // At least print something!
          printf("could not start the mongoose web server, see messages and midas.log, bye!\n");
@@ -19060,7 +19205,7 @@ int main(int argc, const char *argv[])
 
 #if defined(HAVE_MG) && defined(HAVE_OLDSERVER)
    if (use_oldserver)
-      server_loop(use_oldserver_port, port80);
+      server_loop(use_oldserver_port, socket_priviledged_port);
    else if (use_mg)
       loop_mg();
 #elif defined(HAVE_MG)
@@ -19068,7 +19213,7 @@ int main(int argc, const char *argv[])
       loop_mg();
 #elif defined(HAVE_OLDSERVER)
    if (use_oldserver)
-      server_loop(use_oldserver_port, port80);
+      server_loop(use_oldserver_port, socket_priviledged_port);
 #else
 #error Have neither mongoose web server nor old web server. Please define HAVE_MG or HAVE_OLDSERVER or both
 #endif

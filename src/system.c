@@ -6148,6 +6148,31 @@ double ss_disk_size(const char *path)
    return 1e9;
 }
 
+int ss_file_exist(const char *path)
+/********************************************************************\
+ 
+ Routine: ss_file_exist
+ 
+ Purpose: Check if a file exists
+ 
+ Input:
+ char  *path             Name of a file in file to check
+ 
+ Output:
+ 
+ Function value:
+ int                     1: file exists
+                         0: file does not exist
+ 
+ \********************************************************************/
+{
+   int fd = open(path, O_RDONLY, 0);
+   if (fd < 0)
+      return 0;
+   close(fd);
+   return 1;
+}
+
 /*------------------------------------------------------------------*/
 /********************************************************************\
 *                                                                    *

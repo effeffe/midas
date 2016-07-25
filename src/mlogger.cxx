@@ -40,8 +40,8 @@
 
 #ifdef HAVE_MYSQL
 #ifdef OS_UNIX
-#include <mysql/mysql.h>
-#include <mysql/mysqld_error.h>
+#include <mysql.h>
+#include <mysqld_error.h>
 #endif
 #ifdef OS_WINNT
 #include <mysql.h>

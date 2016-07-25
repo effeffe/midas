@@ -137,7 +137,7 @@ int copyHstFile(const char* filename, FILE*f, MidasHistoryInterface *mh)
 
                   gEventName[rec.event_id] = strdup(event_name);
 
-                  delete tags;
+                  delete[] tags;
                   break;
                }
 

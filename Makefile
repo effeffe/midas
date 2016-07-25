@@ -346,6 +346,7 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/mh2sql  \
 	$(BIN_DIR)/mfe_link_test  \
 	$(BIN_DIR)/fetest  \
+	$(BIN_DIR)/feudp   \
 	$(BIN_DIR)/mana_link_test \
 	$(BIN_DIR)/mjson_test \
 	$(BIN_DIR)/mcnaf    \
@@ -475,7 +476,7 @@ include/midas.h: $(GIT_REVISION)
 
 ifdef HAVE_MYSQL
 CFLAGS      += -DHAVE_MYSQL $(shell mysql_config --include)
-MYSQL_LIBS  += -L/usr/lib/mysql $(shell mysql_config --libs)
+MYSQL_LIBS  += $(shell mysql_config --libs)
 NEED_ZLIB = 1
 endif
 
@@ -676,6 +677,9 @@ $(BIN_DIR)/mdump: $(UTL_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(UTL_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx $(LIB) $(LIBS)
 
 $(BIN_DIR)/fetest: $(UTL_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
+
+$(BIN_DIR)/feudp: $(UTL_DIR)/feudp.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/crc32c: $(SRC_DIR)/crc32c.c

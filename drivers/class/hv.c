@@ -922,22 +922,23 @@ INT hv_init(EQUIPMENT * pequipment)
 
    /* initially read all channels */
    for (i=0 ; i<hv_info->num_channels ; i++) {
-
-      hv_info->driver[i]->dd(CMD_GET, hv_info->driver[i]->dd_info, 
-                             i - hv_info->channel_offset[i], &hv_info->measured[i]);
-      hv_info->driver[i]->dd(CMD_GET_CURRENT, hv_info->driver[i]->dd_info, 
-                             i - hv_info->channel_offset[i], &hv_info->current[i]);
-      if (hv_info->driver[i]->flags & DF_REPORT_STATUS)
-         hv_info->driver[i]->dd(CMD_GET_STATUS, hv_info->driver[i]->dd_info,
-                                i - hv_info->channel_offset[i], &hv_info->chStatus[i]);
-      if (hv_info->driver[i]->flags & DF_REPORT_TEMP)
-         hv_info->driver[i]->dd(CMD_GET_TEMPERATURE, hv_info->driver[i]->dd_info,
-                                i - hv_info->channel_offset[i], &hv_info->temperature[i]);
-
-      hv_info->measured_mirror[i] = hv_info->measured[i];
-      hv_info->current_mirror[i]  = hv_info->current[i];
-      hv_info->chStatus_mirror[i]  = hv_info->chStatus[i];
-      hv_info->temperature_mirror[i]  = hv_info->temperature[i];
+      if (hv_info->driver[i]->enabled) {
+         hv_info->driver[i]->dd(CMD_GET, hv_info->driver[i]->dd_info,
+                                i - hv_info->channel_offset[i], &hv_info->measured[i]);
+         hv_info->driver[i]->dd(CMD_GET_CURRENT, hv_info->driver[i]->dd_info,
+                                i - hv_info->channel_offset[i], &hv_info->current[i]);
+         if (hv_info->driver[i]->flags & DF_REPORT_STATUS)
+            hv_info->driver[i]->dd(CMD_GET_STATUS, hv_info->driver[i]->dd_info,
+                                   i - hv_info->channel_offset[i], &hv_info->chStatus[i]);
+         if (hv_info->driver[i]->flags & DF_REPORT_TEMP)
+            hv_info->driver[i]->dd(CMD_GET_TEMPERATURE, hv_info->driver[i]->dd_info,
+                                   i - hv_info->channel_offset[i], &hv_info->temperature[i]);
+         
+         hv_info->measured_mirror[i] = hv_info->measured[i];
+         hv_info->current_mirror[i]  = hv_info->current[i];
+         hv_info->chStatus_mirror[i]  = hv_info->chStatus[i];
+         hv_info->temperature_mirror[i]  = hv_info->temperature[i];
+      }
    }
 
    db_set_data(hDB, hv_info->hKeyCurrent, hv_info->current,
