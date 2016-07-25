@@ -131,8 +131,42 @@ bool addr_match(const Source* s, void *addr, int addr_len)
   return v==0;
 }
 
+int wait_udp(int socket, int msec)
+{
+   int status;
+   fd_set fdset;
+   struct timeval timeout;
+
+   FD_ZERO(&fdset);
+   FD_SET(socket, &fdset);
+
+   timeout.tv_sec = msec/1000;
+   timeout.tv_usec = (msec%1000)*1000;
+
+   status = select(socket+1, &fdset, NULL, NULL, &timeout);
+
+   if (status < 0) {
+      cm_msg(MERROR, "wait_udp", "select() returned %d, errno %d (%s)", status, errno, strerror(errno));
+      return -1;
+   }
+
+   if (status == 0) {
+      return 0; // timeout
+   }
+
+   if (FD_ISSET(socket, &fdset)) {
+      return 1; // have data
+   }
+
+   // timeout
+   return 0;
+}
+
 int read_udp(int socket, char* buf, int bufsize, char* pbankname)
 {
+   if (wait_udp(socket, 100) < 1)
+      return 0;
+
    struct sockaddr addr;
    socklen_t addr_len = sizeof(addr);
    int rd = recvfrom(socket, buf, bufsize, 0, &addr, &addr_len);
