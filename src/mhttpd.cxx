@@ -18920,6 +18920,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
    }
 
    if (https_port) {
+#ifdef MG_ENABLE_SSL
       char str[256];
       sprintf(str, "%d", https_port);
       struct mg_connection* nc = mg_bind(&mgr_mg, str, handle_event_mg);
@@ -18937,6 +18938,10 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
 
       have_at_least_one_port = true;
       printf("mongoose web server is listening on the HTTPS port %d\n", https_port);
+#else
+      cm_msg(MERROR, "mongoose", "https port %d requested, but mhttpd compiled without MG_ENABLE_SSL", https_port);
+      return SS_SOCKET_ERROR;
+#endif
    }
 
    if (!have_at_least_one_port) {
