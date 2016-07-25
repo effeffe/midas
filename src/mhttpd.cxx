@@ -1674,7 +1674,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    rsprintf("<title>%s status</title>\n", str);
 
    if (n_alarm) {
-      rsprintf("<bgsound src=\"alarm.mp3\" loop=\"false\">\n");
+      rsprintf("<audio autoplay src=\"alarm.mp3\">!midas alarm sound!</audio>\n");
    }
 
    rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
