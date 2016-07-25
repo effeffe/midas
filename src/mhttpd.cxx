@@ -19005,6 +19005,33 @@ int main(int argc, const char *argv[])
    
    int socket_priviledged_port = 0;
 
+#ifdef OS_UNIX
+   // in setuid-root mode bind to priviledged port
+   if (getuid() != geteuid()) {
+      int port80 = 80;
+      
+      printf("mhttpd is running in setuid-root mode.\n");
+      
+      socket_priviledged_port = open_listening_socket(port80);
+      if (socket_priviledged_port < 0) {
+         printf("Cannot open listening socket on TCP port %d, aborting.\n", port80);
+         exit(1);
+      }
+      
+      // give up root privilege
+      status = setuid(getuid());
+      if (status != 0) {
+         printf("Cannot give up root privelege, aborting.\n");
+         exit(1);
+      }
+      status = setuid(getuid());
+      if (status != 0) {
+         printf("Cannot give up root privelege, aborting.\n");
+         exit(1);
+      }
+   }
+#endif
+   
    /* get default from environment */
    cm_get_environment(midas_hostname, sizeof(midas_hostname), midas_expt, sizeof(midas_expt));
 
@@ -19080,31 +19107,6 @@ int main(int argc, const char *argv[])
       }
    }
 
-#ifdef OS_UNIX
-   // in setuid-root mode bind to priviledged port
-   if (getuid() != geteuid()) {
-      printf("mhttpd is running in setuid-root mode.\n");
-      
-      socket_priviledged_port = open_listening_socket(user_http_port ? user_http_port : 80);
-      if (socket_priviledged_port < 0) {
-         printf("Aborting.\n");
-         exit(1);
-      }
-      
-      // give up root privilege
-      status = setuid(getuid());
-      if (status != 0) {
-         printf("Cannot give up root privelege, aborting.\n");
-         exit(1);
-      }
-      status = setuid(getuid());
-      if (status != 0) {
-         printf("Cannot give up root privelege, aborting.\n");
-         exit(1);
-      }
-   }
-#endif
-   
    if (daemon) {
       printf("Becoming a daemon...\n");
       ss_daemon_init(FALSE);
