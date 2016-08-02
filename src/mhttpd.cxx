@@ -18032,11 +18032,9 @@ int loop_mg()
 
 #ifdef HAVE_MG6
 
-#undef closesocket // this is defined in msystem.h and mongoose.h, so let's remove the previous definition
-
 #include "mongoose6.h"
 
-static int debug_mg = 0;
+static bool verbose_mg = false;
 static bool trace_mg = false;
 static struct mg_mgr mgr_mg;
 
@@ -18145,7 +18143,7 @@ static bool read_passwords(Auth* auth)
 {
    std::string path;
    FILE *fp;
-   int status = find_file_mg("htpasswd.txt", path, &fp, trace_mg);
+   int status = find_file_mg("htpasswd.txt", path, &fp, trace_mg||verbose_mg);
 
    auth_mg.passwd_filename = path;
 
@@ -18485,7 +18483,7 @@ static bool handle_http_get(struct mg_connection *nc, const http_message* msg, c
 {
    std::string query_string = mgstr(&msg->query_string);
 
-   if (trace_mg)
+   if (trace_mg||verbose_mg)
       printf("handle_http_get: uri [%s], query [%s]\n", uri, query_string.c_str());
 
    if (query_string == "mjsonrpc_schema") {
@@ -18556,7 +18554,7 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg, 
    std::string query_string = mgstr(&msg->query_string);
    std::string post_data = mgstr(&msg->body);
 
-   if (trace_mg)
+   if (trace_mg||verbose_mg)
       printf("handle_http_post: uri [%s], query [%s], post data %d bytes\n", uri, query_string.c_str(), (int)post_data.length());
 
    if (query_string == "mjsonrpc") {
@@ -18649,6 +18647,9 @@ static bool handle_http_options_cors(struct mg_connection *nc, const http_messag
    
    const std::string origin_header = find_header_mg(msg, "Origin");
 
+   if (trace_mg||verbose_mg)
+      printf("handle_http_options_cors: origin [%s]\n", origin_header.c_str());
+
    std::string headers;
    headers += "HTTP/1.1 200 OK\n";
    //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
@@ -18701,10 +18702,14 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
          if (ok)
             username = check_digest_auth(msg, &auth_mg);
       }
-      
-      //printf("auth user: %s\n", username.c_str());
+
+      if (trace_mg)
+         printf("handle_http_message: auth user: \"%s\"\n", username.c_str());
       
       if (username.length() == 0) {
+         if (trace_mg||verbose_mg)
+            printf("handle_http_message: sending auth request for realm \"%s\"\n", auth_mg.realm.c_str());
+
          xmg_http_send_digest_auth_request(nc, auth_mg.realm.c_str());
          return;
       }
@@ -18716,6 +18721,9 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       response_sent = handle_http_post(nc, msg, uri.c_str());
 
    if (!response_sent) {
+      if (trace_mg||verbose_mg)
+         printf("handle_http_message: sending 501 Not Implemented error\n");
+
       std::string response = "501 Not Implemented";
       mg_send_head(nc, 501, response.length(), NULL); // 501 Not Implemented
       mg_send(nc, response.c_str(), response.length());
@@ -18764,11 +18772,11 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
    int size;
    int status;
 
-   if (verbose)
-      debug_mg = 1;
+   //if (verbose)
+   //   trace_mg = true;
 
    if (verbose)
-      trace_mg = true;
+      verbose_mg = true;
 
    status = cm_get_experiment_database(&hDB, NULL);
    assert(status == CM_SUCCESS);
@@ -18820,7 +18828,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
    std::string cert_file;
 
    if (need_cert_file) {
-      status = find_file_mg("ssl_cert.pem", cert_file, NULL, debug_mg>0);
+      status = find_file_mg("ssl_cert.pem", cert_file, NULL, trace_mg);
 
       if (status != SUCCESS) {
          cm_msg(MERROR, "mongoose", "cannot find SSL certificate file \"%s\"", cert_file.c_str());
@@ -18954,13 +18962,13 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
 
 int stop_mg()
 {
-   if (debug_mg)
+   if (trace_mg)
       printf("stop_mg!\n");
 
    // Stop the server.
    mg_mgr_free(&mgr_mg);
    
-   if (debug_mg)
+   if (trace_mg)
       printf("stop_mg done!\n");
    return SUCCESS;
 }
