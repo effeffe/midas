@@ -5,6 +5,12 @@
     <link rel="stylesheet" href="mhttpd.css">
     <script src="mhttpd.js"></script>
     <title>Alarms</title>
+    
+    <style>
+     html, body {
+       height: 100%;
+     }
+    </style>
   </head>
   
   <body>
@@ -13,64 +19,101 @@
     url = mhttpd_getParameterByName("URL");
     if (url)
        mjsonrpc_set_url(url);
-    mhttpd_navigation_bar("Alarms");
     </script>
     
-    <div>
-      <button id='al_reset_all' onclick='reset_all_alarms()'>Reset all alarms</button>
-      <button id='al_system_enable' onclick='write_alarm_system_active(true)'>Enable the alarm system</button>
-      <button id='al_system_disable' onclick='write_alarm_system_active(false)'>Disable the alarm system</button>
-      <input type="checkbox" name="caspeak" id="aspeak" onclick="return aspeak_click(this);"><span id="aspeakLabel">Speak</span></input><script type="text/javascript">alarm_load();</script>
-    </div>
+    <div id="wrapper" class="wrapper">
+      <script>
+      mhttpd_navigation_bar("Alarms");
+      </script>
+      
+      <div>
+        <button id='al_reset_all' onclick='reset_all_alarms()'>Reset all alarms</button>
+        <button id='al_system_enable' onclick='enable_alarm_system()'>Enable the alarm system</button>
+        <button id='al_system_disable' onclick='disable_alarm_system(false)'>Disable the alarm system</button>
+        <input type="checkbox" name="caspeak" id="aspeak" onclick="return aspeak_click(this);"><span id="aspeakLabel">Speak</span></input><script type="text/javascript">alarm_load();</script>
+      </div>
     
-    <div id='al_sysem_disabled_notice' class='redLight'>
-      <p> 
-        Alarm system disabled
-      </p>
-    </div>
+      <div id='al_sysem_disabled_notice' class='redLight'>
+        <p> 
+          Alarm system disabled
+        </p>
+      </div>
+      
+      <table>
+        <tbody>
+          <tr>
+            <td>
+              <table width="100%" class="alarmTable" id="evaluatedAlarms">
+                <tr><td colspan=7 class="subStatusTitle">Evaluated alarms</td></tr>
+                <tr class="titleRow">
+                  <th>Alarm</th>
+                  <th>State</th>
+                  <th>First triggered</th>
+                  <th>Class</th>
+                  <th>Condition</th>
+                  <th>Current value</th>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <table width="100%" class="alarmTable" id="programAlarms">
+                <tr><td colspan=7 class="subStatusTitle">Program alarms</td></tr>
+                <tr class="titleRow">
+                  <th>Alarm</th>
+                  <th>State</th>
+                  <th>First triggered</th>
+                  <th>Class</th>
+                  <th>Condition</th>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <table width="100%" class="alarmTable" id="internalAlarms">
+                <tr>
+                  <td colspan=7 class="subStatusTitle">Internal alarms</td>
+                </tr>
+                <tr class="titleRow">
+                  <th>Alarm</th>
+                  <th>State</th>
+                  <th>First triggered</th>
+                  <th>Class</th>
+                  <th>Condition/Message</th>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <table width="100%" class="alarmTable" id="periodicAlarms">
+                <tr>
+                  <td colspan=7 class="subStatusTitle">Periodic alarms</td>
+                </tr>
+                <tr class="titleRow">
+                  <th>Alarm</th>
+                  <th>State</th>
+                  <th>First triggered</th>
+                  <th>Class</th>
+                  <th>Time/Message</th>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     
-    <table>
-      <tbody>
-        <tr>
-          <td>
-            <table width="100%" class="alarmTable" id="evaluatedAlarms">
-              <tr><td colspan=7 class="subStatusTitle">Evaluated alarms</td></tr>
-              <tr class="titleRow"><th>Alarm<th>State<th>First triggered<th>Class<th>Condition<th>Current value</tr>
-            </table>
-          </td>
-        </tr>
-        
-        <tr>
-          <td>
-            <table width="100%" class="alarmTable" id="programAlarms">
-              <tr><td colspan=7 class="subStatusTitle">Program alarms</td></tr>
-              <tr class="titleRow"><th>Alarm<th>State<th>First triggered<th>Class<th>Condition</tr>
-            </table>
-          </td>
-        </tr>
-        
-        <tr>
-          <td>
-            <table width="100%" class="alarmTable" id="internalAlarms">
-              <tr><td colspan=7 class="subStatusTitle">Internal alarms</td></tr>
-              <tr class="titleRow"><th>Alarm<th>State<th>First triggered<th>Class<th>Condition/Message</tr>
-            </table>
-          </td>
-        </tr>
-        
-        <tr>
-          <td>
-            <table width="100%" class="alarmTable" id="periodicAlarms">
-              <tr><td colspan=7 class="subStatusTitle">Periodic alarms</td></tr>
-              <tr class="titleRow"><th>Alarm<th>State<th>First triggered<th>Class<th>Time/Message</tr>
-            </table>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    
-    <div id="updateStatus" align="left">
-      updateStatus
+      <div id="updateStatus" align="left">
+        updateStatus
+      </div>
+
+      <div class="push">
+      </div>
     </div>
     
     <script>
@@ -85,6 +128,20 @@
        }).catch(function(error) {
           mjsonrpc_error_alert(error);
        });
+    }
+
+    function enable_alarm_system()
+    {
+       if (window.confirm("Please confirm: Enable the MIDAS alarm system?")) {
+          write_alarm_system_active(true);
+       }
+    }
+
+    function disable_alarm_system()
+    {
+       if (window.confirm("Please confirm: Disable the MIDAS alarm system?")) {
+          write_alarm_system_active(false);
+       }
     }
     </script>
     

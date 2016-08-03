@@ -5,43 +5,64 @@
     <link rel="stylesheet" href="mhttpd.css">
     <script src="mhttpd.js"></script>
     <title>Programs</title>
+
+    <style>
+     html, body {
+       height: 100%;
+     }
+    </style>
   </head>
-
+  
   <body>
-
+    
     <script>
     url = mhttpd_getParameterByName("URL");
     if (url)
        mjsonrpc_set_url(url);
-    mhttpd_navigation_bar("Programs");
     </script>
-    
-    <div>
-      <table class="subStatusTable" id="stripeList">
-        <tr><td colspan=5 class="subStatusTitle">Programs</td></tr>
-        <tr class="titleRow"><th>Program<th>Running on host<th>Alarm class<th>Autorestart<th>Commands</tr>
-      </table>
-    </div>
-   
-    <div id="updateStatus" align="left">
-      updateStatus
-    </div>
 
+    <div id="wrapper" class="wrapper">
+      <script>
+      mhttpd_navigation_bar("Programs");
+      </script>
+      
+      <div>
+        <table class="subStatusTable" id="stripeList">
+          <tr>
+            <td colspan=5 class="subStatusTitle">Programs</td>
+          </tr>
+          <tr class="titleRow">
+            <th>Program</th>
+            <th>Running on host</th>
+            <th>Alarm class</th>
+            <th>Autorestart</th>
+            <th>Commands</th>
+          </tr>
+        </table>
+      </div>
+      <div id="updateStatus" align="left">
+        updateStatus
+      </div>
+      
+      <div class="push">
+      </div>
+    </div>
+    
     <script>
     mhttpd_page_footer();
     </script>
-
+    
     <script>
     var update_timer_id;
     var start_timer_id;
     var stop_timer_id;
-
+    
     var program_status = new Array();
     
     function start_poll(name, start_command, count)
     {
        program_status[name] = "Starting " + count;
-
+       
        mjsonrpc_cm_exist(name, false).then(function(rpc) {
           var done = (rpc.result.status == 1);
           if (done) {
@@ -62,7 +83,7 @@
     function stop_poll(name, count)
     {
        program_status[name] = "Stopping " + count;
-
+       
        mjsonrpc_cm_exist(name, false).then(function(rpc) {
           var done = (rpc.result.status != 1);
           if (done) {
@@ -84,7 +105,7 @@
     {
        var tr = document.createElement("tr");
        tr.id = "program " + name;
-
+       
        var td;
        var input;
        
@@ -154,7 +175,7 @@
     function callback(rpc)
     {
        //document.getElementById('updateStatus').innerHTML = "RWP_";
-
+       
        function find_clients(clients, name)
        {
           var found;
@@ -193,14 +214,14 @@
        
        for (var name in programs) {
           if (typeof programs[name] !== 'object') continue;
-
+          
           var e = document.getElementById("program " + name);
-
+          
           var required = programs[name].required;
           var xclients = find_clients(clients, name);
-
+          
           //alert("name " + name + " clients: " + JSON.stringify(xclients));
-
+          
           if (!xclients && !required) {
              if (e) {
                 // hide this table row
@@ -208,9 +229,9 @@
              }
              continue;
           }
-
+          
           var start_command = programs[name]["start command"];
-
+          
           if (!e) {
              var full_name = programs[name + "/name"];
              e = add_table_entry(document.getElementById("stripeList"), name, full_name, start_command);
@@ -218,7 +239,7 @@
 
           // unhide this table row
           e.style.display = '';
-          
+           
           if (xclients) {
              var s = "";
              for (var i=0; i<xclients.length; i++) {
@@ -271,7 +292,7 @@
                 mhttpd_hide_button(b);
              }
           }
-             
+          
           var alarm_class = programs[name]["alarm class"];
           if (alarm_class.length > 0) {
              e.childNodes[2].innerHTML = "<a href='Alarms/Classes/"+ alarm_class + "'>" + alarm_class + "</a>";
@@ -310,7 +331,7 @@
        update();
        update_timer_id = setTimeout('update_periodic()', update_period);
     }
-
+    
     update_periodic();
     </script>
   </body>
