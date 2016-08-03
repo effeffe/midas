@@ -18158,7 +18158,8 @@ static bool read_passwords(Auth* auth)
    FILE *fp;
    int status = find_file_mg("htpasswd.txt", path, &fp, trace_mg||verbose_mg);
 
-   auth_mg.passwd_filename = path;
+   auth->passwd_filename = path;
+   auth->passwords.clear();
 
    if (status != SUCCESS || fp == NULL) {
       cm_msg(MERROR, "mongoose", "mongoose web server cannot find password file \"%s\"", path.c_str());
@@ -18226,10 +18227,17 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
       if (e->realm != auth->realm)
          continue;
       const char* f_ha1 = e->password.c_str();
-      xmg_mkmd5resp(hm->method.p, hm->method.len, hm->uri.p,
-                    hm->uri.len + (hm->query_string.len ? hm->query_string.len + 1 : 0),
-                    f_ha1, strlen(f_ha1), nonce, strlen(nonce), nc, strlen(nc), cnonce,
-                    strlen(cnonce), qop, strlen(qop), expected_response);
+      int uri_len = hm->uri.len;
+      if (hm->uri.p[uri_len] == '?')
+         uri_len += hm->query_string.len + 1; // "+1" accounts for the "?" character
+      xmg_mkmd5resp(hm->method.p, hm->method.len,
+                    hm->uri.p, uri_len,
+                    f_ha1, strlen(f_ha1),
+                    nonce, strlen(nonce),
+                    nc, strlen(nc),
+                    cnonce, strlen(cnonce),
+                    qop, strlen(qop),
+                    expected_response);
       if (mg_casecmp(response, expected_response) == 0) {
          return e->username;
       }
@@ -18690,7 +18698,7 @@ static bool handle_http_options_cors(struct mg_connection *nc, const http_messag
 static void handle_http_message(struct mg_connection *nc, http_message* msg)
 {
    std::string method = mgstr(&msg->method);
-   std::string query = mgstr(&msg->query_string);
+   std::string query_string = mgstr(&msg->query_string);
    std::string uri_encoded = mgstr(&msg->uri);
    std::string uri = UrlDecode(uri_encoded.c_str());
    
@@ -18701,7 +18709,7 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
 
    // process OPTIONS for Cross-origin (CORS) preflight request
    // see https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS
-   if (method == "OPTIONS" && query == "mjsonrpc" && mg_get_http_header(msg, "Access-Control-Request-Method") != NULL) {
+   if (method == "OPTIONS" && query_string == "mjsonrpc" && mg_get_http_header(msg, "Access-Control-Request-Method") != NULL) {
       handle_http_options_cors(nc, msg);
       return;
    }
@@ -18721,7 +18729,7 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       
       if (username.length() == 0) {
          if (trace_mg||verbose_mg)
-            printf("handle_http_message: sending auth request for realm \"%s\"\n", auth_mg.realm.c_str());
+            printf("handle_http_message: method [%s] uri [%s] query [%s] proto [%s], sending auth request for realm \"%s\"\n", method.c_str(), uri.c_str(), query_string.c_str(), mgstr(&msg->proto).c_str(), auth_mg.realm.c_str());
 
          xmg_http_send_digest_auth_request(nc, auth_mg.realm.c_str());
          return;
