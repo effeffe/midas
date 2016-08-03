@@ -189,7 +189,7 @@
     
     function callback(rpc)
     {
-       document.getElementById('updateStatus').innerHTML = "RWP_";
+       //document.getElementById('updateStatus').innerHTML = "RWP_";
        
        var alarms   = rpc.result.alarms; 
        var alarms_system_active = rpc.result.alarm_system_active;
@@ -280,7 +280,8 @@
        } // loop over all alarms
        
        document.getElementById('mhttpd_last_updated').innerHTML = new Date;
-       document.getElementById('updateStatus').innerHTML = "RWPD";
+       //document.getElementById('updateStatus').innerHTML = "RWPD";
+       document.getElementById('updateStatus').innerHTML = "";
     }
     
     function reset_all_alarms()
@@ -302,15 +303,13 @@
     
     function update()
     {
-       document.getElementById('updateStatus').innerHTML = "R___";
-       //var paths = [ "/Alarms" ];
-       //mjsonrpc_db_get_values(paths).then(function(rpc) {
+       //document.getElementById('updateStatus').innerHTML = "R___";
        mjsonrpc_call("get_alarms", { "get_all":true }).then(function(rpc) {
           callback(rpc);
        }).catch(function(error) {
-          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error.";
+          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
        });
-       document.getElementById('updateStatus').innerHTML = "RW__";
+       //document.getElementById('updateStatus').innerHTML = "RW__";
     }
     
     function update_periodic()
