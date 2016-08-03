@@ -18214,10 +18214,17 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
       if (e->realm != auth->realm)
          continue;
       const char* f_ha1 = e->password.c_str();
-      xmg_mkmd5resp(hm->method.p, hm->method.len, hm->uri.p,
-                    hm->uri.len + (hm->query_string.len ? hm->query_string.len + 1 : 0),
-                    f_ha1, strlen(f_ha1), nonce, strlen(nonce), nc, strlen(nc), cnonce,
-                    strlen(cnonce), qop, strlen(qop), expected_response);
+      int uri_len = hm->uri.len;
+      if (hm->uri.p[uri_len] == '?')
+         uri_len += hm->query_string.len + 1; // "+1" accounts for the "?" character
+      xmg_mkmd5resp(hm->method.p, hm->method.len,
+                    hm->uri.p, uri_len,
+                    f_ha1, strlen(f_ha1),
+                    nonce, strlen(nonce),
+                    nc, strlen(nc),
+                    cnonce, strlen(cnonce),
+                    qop, strlen(qop),
+                    expected_response);
       if (mg_casecmp(response, expected_response) == 0) {
          return e->username;
       }
