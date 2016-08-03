@@ -18685,7 +18685,7 @@ static bool handle_http_options_cors(struct mg_connection *nc, const http_messag
 static void handle_http_message(struct mg_connection *nc, http_message* msg)
 {
    std::string method = mgstr(&msg->method);
-   std::string query = mgstr(&msg->query_string);
+   std::string query_string = mgstr(&msg->query_string);
    std::string uri_encoded = mgstr(&msg->uri);
    std::string uri = UrlDecode(uri_encoded.c_str());
    
@@ -18696,7 +18696,7 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
 
    // process OPTIONS for Cross-origin (CORS) preflight request
    // see https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS
-   if (method == "OPTIONS" && query == "mjsonrpc" && mg_get_http_header(msg, "Access-Control-Request-Method") != NULL) {
+   if (method == "OPTIONS" && query_string == "mjsonrpc" && mg_get_http_header(msg, "Access-Control-Request-Method") != NULL) {
       handle_http_options_cors(nc, msg);
       return;
    }
@@ -18716,7 +18716,7 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       
       if (username.length() == 0) {
          if (trace_mg||verbose_mg)
-            printf("handle_http_message: sending auth request for realm \"%s\"\n", auth_mg.realm.c_str());
+            printf("handle_http_message: method [%s] uri [%s] query [%s] proto [%s], sending auth request for realm \"%s\"\n", method.c_str(), uri.c_str(), query_string.c_str(), mgstr(&msg->proto).c_str(), auth_mg.realm.c_str());
 
          xmg_http_send_digest_auth_request(nc, auth_mg.realm.c_str());
          return;
