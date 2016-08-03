@@ -18145,7 +18145,8 @@ static bool read_passwords(Auth* auth)
    FILE *fp;
    int status = find_file_mg("htpasswd.txt", path, &fp, trace_mg||verbose_mg);
 
-   auth_mg.passwd_filename = path;
+   auth->passwd_filename = path;
+   auth->passwords.clear();
 
    if (status != SUCCESS || fp == NULL) {
       cm_msg(MERROR, "mongoose", "mongoose web server cannot find password file \"%s\"", path.c_str());
