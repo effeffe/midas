@@ -369,11 +369,24 @@ INT end_of_run(INT run_number, char *error)
 {
    printf("end_of_run %d\n", run_number);
 
+   int fail = 0;
+   int status;
+   int size;
+
+   size = sizeof(fail);
+   status = db_get_value(hDB, hSet, "fail_end_of_run", &fail, &size, TID_INT, TRUE);
+   assert(status == DB_SUCCESS);
+
+   if (fail) {
+      printf("fail_end_of_run: returning error status %d\n", fail);
+      return fail;
+   }
+   
    test_run_number = 0; // tell thread to stop running
 
    int s = 0;
-   int size = sizeof(s);
-   int status = db_get_value(hDB, hSet, "sleep_end_of_run", &s, &size, TID_INT, TRUE);
+   size = sizeof(s);
+   status = db_get_value(hDB, hSet, "sleep_end_of_run", &s, &size, TID_INT, TRUE);
    assert(status == DB_SUCCESS);
    
    if (s) {
@@ -391,6 +404,20 @@ INT end_of_run(INT run_number, char *error)
 INT pause_run(INT run_number, char *error)
 {
    printf("pause_run %d\n", run_number);
+
+   int fail = 0;
+   int status;
+   int size;
+
+   size = sizeof(fail);
+   status = db_get_value(hDB, hSet, "fail_pause_run", &fail, &size, TID_INT, TRUE);
+   assert(status == DB_SUCCESS);
+
+   if (fail) {
+      printf("fail_pause_run: returning error status %d\n", fail);
+      return fail;
+   }
+   
    test_run_number = 0; // tell thread to stop running
    return SUCCESS;
 }
@@ -400,6 +427,20 @@ INT pause_run(INT run_number, char *error)
 INT resume_run(INT run_number, char *error)
 {
    printf("resume_run %d\n", run_number);
+
+   int fail = 0;
+   int status;
+   int size;
+
+   size = sizeof(fail);
+   status = db_get_value(hDB, hSet, "fail_resume_run", &fail, &size, TID_INT, TRUE);
+   assert(status == DB_SUCCESS);
+
+   if (fail) {
+      printf("fail_resume_run: returning error status %d\n", fail);
+      return fail;
+   }
+
    test_run_number = run_number; // tell thread to start running
    return SUCCESS;
 }
