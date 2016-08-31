@@ -1654,14 +1654,20 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
    rsprintf("\r\n<html>\n");
 
+#ifndef NEW_START_STOP
    /* auto refresh */
    i = 0;
    size = sizeof(i);
    db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT, FALSE);
    if (i > 0)
       rsprintf("<head><meta http-equiv=\"Refresh\" content=\"1\">\n");
-   else if (refresh > 0)
-      rsprintf("<head><meta http-equiv=\"Refresh\" content=\"%02d\">\n", refresh);
+   else {
+#endif
+      if (refresh > 0)
+         rsprintf("<head><meta http-equiv=\"Refresh\" content=\"%02d\">\n", refresh);
+#ifndef NEW_START_STOP
+   }
+#endif
 
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
    rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
@@ -1939,7 +1945,6 @@ void show_status_page(int refresh, const char *cookie_wpwd)
       rsprintf("<p id=\"transitionMessage\">Run pause requested</p>");
    else if (requested_transition == TR_RESUME)
       rsprintf("<p id=\"transitionMessage\">Run resume requested</p>");
-
    else if (runinfo.transition_in_progress == TR_STOP)
       rsprintf("<p id=\"transitionMessage\">Stopping run</p>");
    else if (runinfo.transition_in_progress == TR_START)
@@ -1948,7 +1953,6 @@ void show_status_page(int refresh, const char *cookie_wpwd)
       rsprintf("<p id=\"transitionMessage\">Pausing run</p>");
    else if (runinfo.transition_in_progress == TR_RESUME)
       rsprintf("<p id=\"transitionMessage\">Resuming run</p>");
-
    else if (runinfo.requested_transition) {
       for (i = 0; i < 4; i++)
          if (runinfo.requested_transition & (1 << i))
@@ -1967,7 +1971,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    size = sizeof(flag);
    db_get_value(hDB, 0, "/Experiment/Start-Stop Buttons", &flag, &size, TID_BOOL, TRUE);
 #ifdef NEW_START_STOP
-   if (flag) {
+   if (flag && !runinfo.transition_in_progress) {
       if (runinfo.state == STATE_STOPPED)
          rsprintf("<input type=button %s value=Start onClick=\"mhttpd_start_run();\">\n", runinfo.transition_in_progress?"disabled":"");
       else {
@@ -1998,7 +2002,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    size = sizeof(flag);
    db_get_value(hDB, 0, "/Experiment/Pause-Resume Buttons", &flag, &size, TID_BOOL, TRUE);
 #ifdef NEW_START_STOP
-   if (flag) {
+   if (flag && !runinfo.transition_in_progress) {
       if (runinfo.state != STATE_STOPPED) {
          if (runinfo.state == STATE_RUNNING)
             rsprintf("<input type=button %s value=Pause onClick=\"mhttpd_pause_run();\">\n", runinfo.transition_in_progress?"disabled":"");
@@ -2030,6 +2034,10 @@ void show_status_page(int refresh, const char *cookie_wpwd)
       }
    }
 #endif
+
+   if (runinfo.transition_in_progress) {
+      rsprintf("<input type=button value=Cancel onClick=\"mhttpd_cancel_transition();\">\n");
+   }
 
    /*---- time ----*/
 

@@ -1422,6 +1422,22 @@ function mhttpd_resume_run()
    }
 }
 
+function mhttpd_cancel_transition()
+{
+   var flag = confirm('Are you sure to cancel the currently active run transition?');
+   if (flag == true) {
+      mjsonrpc_call("db_paste", {"paths":["/Runinfo/Transition in progress"], "values":[0]}).then(function(rpc) {
+         //mjsonrpc_debug_alert(rpc);
+         if (rpc.result.status != 1) {
+            throw new Error("Cannot cancel transition, db_paste() status " + rpc.result.status + ", see MIDAS messages");
+         }
+         mhttpd_goto_page("Transition"); // DOES NOT RETURN
+      }).catch(function(error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
+}
+
 function mhttpd_reset_alarm(alarm_name)
 {
    mjsonrpc_call("al_reset_alarm", { "alarms" : [ alarm_name ] }).then(function(rpc) {
