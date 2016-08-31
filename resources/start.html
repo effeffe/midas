@@ -5,6 +5,11 @@
     <link rel="stylesheet" href="mhttpd.css">
     <script src="mhttpd.js"></script>
     <title>Start a new run</title>
+    <style>
+     html, body {
+       height: 100%;
+     }
+    </style>
   </head>
   
   <body>
@@ -13,25 +18,33 @@
     url = mhttpd_getParameterByName("URL");
     if (url)
        mjsonrpc_set_url(url);
-    //mhttpd_navigation_bar("Alarms");
     </script>
+
+    <div id="wrapper" class="wrapper">
+      <script>
+      mhttpd_navigation_bar("Start");
+      </script>
     
-    <table class="ODBtable" id="stripeList">
-      <tbody>
-        <tr>
-          <th colspan="3" class="subStatusTitle">Start a new run</th>
-        </tr>
-        <tr align="center">
-          <td colspan="3" align="center">
-            <button onclick='start_a_new_run()' disabled id="start_button">Start</button>
-            <button onclick='location.search=""'>Cancel</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    
-    <div id="updateStatus" align="left">
-      updateStatus
+      <table class="ODBtable" id="stripeList">
+        <tbody>
+          <tr>
+            <th colspan="3" class="subStatusTitle">Start a new run</th>
+          </tr>
+          <tr align="center">
+            <td colspan="3" align="center">
+              <button onclick='start_a_new_run()' disabled id="start_button">Start</button>
+              <button onclick='location.search=""'>Cancel</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <div id="updateStatus" align="left">
+        updateStatus
+      </div>
+
+      <div class="push">
+      </div>
     </div>
     
     <script>
@@ -130,7 +143,7 @@
     
     function callback(rpc)
     {
-       document.getElementById('updateStatus').innerHTML = "RWP_";
+       //document.getElementById('updateStatus').innerHTML = "RWP_";
        
        var runinfo     = rpc.result.data[0];
        var editonstart = rpc.result.data[1];
@@ -198,19 +211,20 @@
        mhttpd_enable_button(document.getElementById('start_button'));
        
        document.getElementById('mhttpd_last_updated').innerHTML = new Date;
-       document.getElementById('updateStatus').innerHTML = "RWPD";
+       //document.getElementById('updateStatus').innerHTML = "RWPD";
+       document.getElementById('updateStatus').innerHTML = "";
     }
     
     function update()
     {
        var paths = [ "/Runinfo", "/Experiment/Edit on start", "/Experiment/Parameter comments" ];
-       document.getElementById('updateStatus').innerHTML = "R___";
+       //document.getElementById('updateStatus').innerHTML = "R___";
        mjsonrpc_call("db_ls", {"paths":paths}).then(function(rpc) {
           callback(rpc);
        }).catch(function(error) {
-          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error.";
+          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
        });
-       document.getElementById('updateStatus').innerHTML = "RW__";
+       //document.getElementById('updateStatus').innerHTML = "RW__";
     }
     
     update();
