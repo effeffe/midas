@@ -32,6 +32,7 @@
         <tr>
           <td colspan="4">
             Run number: <span id="run_number">run_number</span>, Transition: <span id="transition">transition</span>, Status: <span id="status">status</span> (<span id="errorstr">errorstr</span>)
+            <input id="cancelButton" type=button value=Cancel onClick="mhttpd_cancel_transition();">
           </td>
         </tr>
         <tr class="titleRow">
@@ -110,6 +111,12 @@
        set_text("transition", rpc.result.transition + " (" + transition_names[rpc.result.transition] + ")");
        set_text("status",     rpc.result.status);
        set_text("errorstr",   rpc.result.errorstr);
+
+       if (rpc.result.status) {
+          document.getElementById("cancelButton").disabled = true;
+       } else {
+          document.getElementById("cancelButton").disabled = false;
+       }
        
        var clients = rpc.result.clients; 
        
