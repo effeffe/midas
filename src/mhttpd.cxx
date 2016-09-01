@@ -1572,7 +1572,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    const char *trans_name[] = { "Start", "Stop", "Pause", "Resume" };
    time_t now;
    DWORD difftime;
-   double d, value, compression_ratio;
+   double d, value;
    HNDLE hDB, hkey, hLKey, hsubkey, hkeytmp;
    KEY key;
    int  ftp_mode, previous_mode;
@@ -1583,8 +1583,6 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    RUNINFO runinfo;
    EQUIPMENT_INFO equipment;
    EQUIPMENT_STATS equipment_stats;
-   CHN_SETTINGS chn_settings;
-   CHN_STATISTICS chn_stats;
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -2310,8 +2308,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
    /*---- Logging channels ----*/
 
-   rsprintf
-       ("<tr class=\"titleRow\"><th colspan=2>Channel<th>Events<th>MB written<th>Compr.<th>Disk level</tr>\n");
+   rsprintf("<tr class=\"titleRow\"><th colspan=2>Channel<th>Events<th>MiB written<th>Compr.<th>Disk level</tr>\n");
 
    if (db_find_key(hDB, 0, "/Logger/Channels", &hkey) == DB_SUCCESS) {
       for (i = 0;; i++) {
@@ -2321,23 +2318,77 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
          db_get_key(hDB, hsubkey, &key);
 
-         db_find_key(hDB, hsubkey, "Settings", &hkeytmp);
-	 assert(hkeytmp);
-         size = sizeof(chn_settings);
-         if (db_get_record(hDB, hkeytmp, &chn_settings, &size, 0) != DB_SUCCESS)
+         HNDLE hSet;
+         status = db_find_key(hDB, hsubkey, "Settings", &hSet);
+         if (status != DB_SUCCESS || !hSet)
             continue;
 
-         db_find_key(hDB, hsubkey, "Statistics", &hkeytmp);
-	 assert(hkeytmp);
-         size = sizeof(chn_stats);
-         if (db_get_record(hDB, hkeytmp, &chn_stats, &size, 0) != DB_SUCCESS)
+         HNDLE hStat;
+         status = db_find_key(hDB, hsubkey, "Statistics", &hStat);
+         if (status != DB_SUCCESS || !hStat)
+            continue;
+
+         // read channel settings
+
+         char chn_current_filename[MAX_STRING_LENGTH];
+         chn_current_filename[0] = 0;
+         size = sizeof(chn_current_filename);
+         status = db_get_value(hDB, hSet, "current filename", chn_current_filename, &size, TID_STRING, FALSE);
+         if (status != DB_SUCCESS)
+            continue;
+
+         char chn_type[MAX_STRING_LENGTH];
+         chn_type[0] = 0;
+         size = sizeof(chn_type);
+         status = db_get_value(hDB, hSet, "type", chn_type, &size, TID_STRING, FALSE);
+         if (status != DB_SUCCESS)
+            continue;
+
+         BOOL chn_active = 0;
+         size = sizeof(chn_active);
+         status = db_get_value(hDB, hSet, "active", &chn_active, &size, TID_BOOL, FALSE);
+         if (status != DB_SUCCESS)
+            continue;
+
+         int chn_compression = 0;
+         size = sizeof(chn_compression);
+         status = db_get_value(hDB, hSet, "compression", &chn_compression, &size, TID_INT, FALSE);
+         if (status != DB_SUCCESS)
+            continue;
+
+         //printf("current_filename [%s] type [%s] active [%d] compression [%d]\n", chn_current_filename, chn_type, chn_active, chn_compression);
+
+         // read channel statistics
+
+         double chn_events_written = 0;
+         size = sizeof(chn_events_written);
+         status = db_get_value(hDB, hStat, "events written", &chn_events_written, &size, TID_DOUBLE, FALSE);
+         if (status != DB_SUCCESS)
+            continue;
+         
+         double chn_bytes_written = 0;
+         size = sizeof(chn_bytes_written);
+         status = db_get_value(hDB, hStat, "bytes written", &chn_bytes_written, &size, TID_DOUBLE, FALSE);
+         if (status != DB_SUCCESS)
+            continue;
+         
+         double chn_bytes_written_uncompressed = 0;
+         size = sizeof(chn_bytes_written_uncompressed);
+         status = db_get_value(hDB, hStat, "bytes written uncompressed", &chn_bytes_written_uncompressed, &size, TID_DOUBLE, FALSE);
+         if (status != DB_SUCCESS)
+            continue;
+
+         double chn_disk_level = 0;
+         size = sizeof(chn_disk_level);
+         status = db_get_value(hDB, hStat, "disk level", &chn_disk_level, &size, TID_DOUBLE, FALSE);
+         if (status != DB_SUCCESS)
             continue;
 
          /* filename */
 
-         strlcpy(str, chn_settings.current_filename, sizeof(str));
+         strlcpy(str, chn_current_filename, sizeof(str));
 
-         if (equal_ustring(chn_settings.type, "FTP")) {
+         if (equal_ustring(chn_type, "FTP")) {
             char *token, orig[256];
 
             strlcpy(orig, str, sizeof(orig));
@@ -2367,7 +2418,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
             rsprintf("<tr><td colspan=2 class=\"redLight\">");
          else if (!flag)
             rsprintf("<tr><td colspan=2 class=\"yellowLight\">");
-         else if (chn_settings.active)
+         else if (chn_active)
             rsprintf("<tr><td colspan=2 class=\"greenLight\">");
          else
             rsprintf("<tr><td colspan=2 class=\"yellowLight\">");
@@ -2376,38 +2427,36 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
          /* statistics */
 
-         if (chn_settings.compression > 0) {
-            rsprintf("<td align=center>%1.0lf<td align=center>%1.3lf\n",
-                 chn_stats.events_written, chn_stats.bytes_written / 1024 / 1024);
-
-            if (chn_stats.bytes_written_uncompressed > 0)
-               compression_ratio = 1 - chn_stats.bytes_written / chn_stats.bytes_written_uncompressed;
+         rsprintf("<td align=center>%1.0lf</td>\n", chn_events_written);
+         rsprintf("<td align=center>%1.3lf</td>\n", chn_bytes_written / 1024 / 1024);
+         
+         if (chn_compression > 0) {
+            double compression_ratio;
+            if (chn_bytes_written_uncompressed > 0)
+               compression_ratio = 1 - chn_bytes_written / chn_bytes_written_uncompressed;
             else
                compression_ratio = 0;
-
-            rsprintf("<td align=center>%4.1lf%%", compression_ratio * 100);
+            rsprintf("<td align=center>%4.1lf%%</td>", compression_ratio * 100);
          } else {
-            rsprintf("<td align=center>%1.0lf<td align=center>%1.3lf\n",
-                 chn_stats.events_written, chn_stats.bytes_written_uncompressed / 1024 / 1024);
-
             rsprintf("<td align=center>N/A</td>");
          }
 
          char col[80];
-         if (chn_stats.disk_level >= 0.9)
+         if (chn_disk_level >= 0.9)
             strcpy(col, "#c0392b");
-         else if (chn_stats.disk_level >= 0.7)
+         else if (chn_disk_level >= 0.7)
             strcpy(col, "#f1c40f");
          else
             strcpy(col, "#00E600");
 
          rsprintf("<td class=\"meterCell\">\n");
          rsprintf("<div style=\"display:block; width:90%%; height:100%%; position:relative; border:1px solid black;\">");  //wrapper to fill table cell
-         rsprintf("<div style=\"background-color:%s;width:%d%%;height:100%%; position:relative; display:inline-block; padding-top:2px;\">&nbsp;%1.1lf&nbsp;%%</div>\n", col, (int)(chn_stats.disk_level*100), chn_stats.disk_level*100);
-         rsprintf("</td></tr>\n");
+         rsprintf("<div style=\"background-color:%s;width:%d%%;height:100%%; position:relative; display:inline-block; padding-top:2px;\">&nbsp;%1.1lf&nbsp;%%</div>\n", col, (int)(chn_disk_level*100), chn_disk_level*100);
+         rsprintf("</td>\n");
+         rsprintf("</tr>\n");
       }
    }
-
+   
    /*---- Lazy Logger ----*/
 
    if (db_find_key(hDB, 0, "/Lazy", &hkey) == DB_SUCCESS) {

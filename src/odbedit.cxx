@@ -2691,6 +2691,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
       /* test 3 */
       else if (param[0][0] == 't' && param[0][1] == '3') {
+#if 0
          db_find_key(hDB, 0, "/Logger/Channels/0/Statistics", &hKey);
          CHN_STATISTICS stat;
          
@@ -2700,6 +2701,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
             stat.events_written++;
             db_set_record(hDB, hKey, &stat, sizeof(stat), 0);
          }
+#endif
       }
 
       /* exit/quit */

@@ -54,6 +54,67 @@ void create_sql_tree();
 #define STRLCPY(dst, src) strlcpy((dst), (src), sizeof(dst))
 #define STRLCAT(dst, src) strlcat((dst), (src), sizeof(dst))
 
+/*---- Logging channel information ---------------------------------*/
+
+#define CHN_SETTINGS_STR(_name) const char *_name[] = {\
+"[Settings]",\
+"Active = BOOL : 1",\
+"Type = STRING : [8] Disk",\
+"Filename = STRING : [256] run%05d.mid",\
+"Format = STRING : [8] MIDAS",\
+"Compression = INT : 0",\
+"ODB dump = BOOL : 1",\
+"Log messages = DWORD : 0",\
+"Buffer = STRING : [32] SYSTEM",\
+"Event ID = INT : -1",\
+"Trigger mask = INT : -1",\
+"Event limit = DOUBLE : 0",\
+"Byte limit = DOUBLE : 0",\
+"Subrun Byte limit = DOUBLE : 0",\
+"Tape capacity = DOUBLE : 0",\
+"Subdir format = STRING : [32]",\
+"Current filename = STRING : [256]",\
+"",\
+"[Statistics]",\
+"Events written = DOUBLE : 0",\
+"Bytes written = DOUBLE : 0",\
+"Bytes written uncompressed = DOUBLE : 0",\
+"Bytes written total = DOUBLE : 0",\
+"Bytes written subrun = DOUBLE : 0",\
+"Files written = DOUBLE : 0",\
+"Disk level = DOUBLE : 0",\
+"",\
+NULL}
+
+typedef struct {
+   BOOL active;
+   char type[8];
+   char filename[256];
+   char format[8];
+   INT compression;
+   BOOL odb_dump;
+   DWORD log_messages;
+   char buffer[32];
+   INT event_id;
+   INT trigger_mask;
+   double event_limit;
+   double byte_limit;
+   double subrun_byte_limit;
+   double tape_capacity;
+   char subdir_format[32];
+   char current_filename[256];
+} CHN_SETTINGS;
+
+typedef struct {
+   double events_written; /* count events, reset in tr_start() */
+   double bytes_written;  /* count bytes written out (compressed), reset in tr_start() */
+   double bytes_written_uncompressed; /* count bytes before compression, reset in tr_start() */
+   double bytes_written_total;  /* count bytes written out (compressed), reset in log_callback(RPC_LOG_REWIND) */
+   double bytes_written_subrun; /* count bytes written out (compressed), reset in tr_start() and on subrun increment */
+   double files_written;  /* incremented in log_close(), reset in log_callback(RPC_LOG_REWIND) */
+   double disk_level;
+} CHN_STATISTICS;
+
 /*---- logger channel definition---------------------------------------*/
 
 class WriterInterface;
