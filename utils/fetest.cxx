@@ -68,11 +68,13 @@ HNDLE hDB;
 
 int read_test_event(char *pevent, int off);
 int read_slow_event(char *pevent, int off);
+int read_random_event(char *pevent, int off);
 
 /*-- Equipment list ------------------------------------------------*/
 
 #define EVID_TEST 1
 #define EVID_SLOW 2
+#define EVID_RANDOM 3
 
 EQUIPMENT equipment[] = {
 
@@ -109,6 +111,23 @@ EQUIPMENT equipment[] = {
       "", "", ""
     },
     read_slow_event,/* readout routine */
+  },
+  { "random"   ,         /* equipment name */
+    {
+      EVID_RANDOM, (1<<EVID_RANDOM),           /* event ID, trigger mask */
+      "SYSTEM",             /* event buffer */
+      EQ_PERIODIC,          /* equipment type */
+      0,                    /* event source */
+      "MIDAS",              /* format */
+      TRUE,                 /* enabled */
+      RO_RUNNING,           /* Read when running */
+      100,                  /* poll every so milliseconds */
+      0,                    /* stop run after this event limit */
+      0,                    /* number of sub events */
+      0,                    /* history period */
+      "", "", ""
+    },
+    read_random_event,/* readout routine */
   },
   { "" }
 };
@@ -527,6 +546,39 @@ int read_slow_event(char *pevent, int off)
    printf("time %d, data %f\n", (int)t, pdataf[0]);
 
    bk_close(pevent, pdataf + 1);
+
+   return bk_size(pevent);
+}
+
+int read_random_event(char *pevent, int off)
+{
+   if (drand48() < 0.5)
+      bk_init(pevent);
+   else
+      bk_init32(pevent);
+
+   int nbank = 1+8*drand48();
+
+   for (int i=nbank; i>=0; i--) {
+      char name[5];
+      name[0] = 'R';
+      name[1] = 'N';
+      name[2] = 'D';
+      name[3] = '0' + i;
+      name[4] = 0;
+
+      int tid = 1+(TID_LAST-1)*drand48();
+
+      int size = 100*drand48();
+
+      char* ptr;
+      bk_create(pevent, name, tid, (void**)&ptr);
+
+      for (int j=0; j<size; j++)
+         ptr[j] = i;
+
+      bk_close(pevent, ptr + size);
+   }
 
    return bk_size(pevent);
 }
