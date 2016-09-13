@@ -18006,7 +18006,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
 
       if (status != SUCCESS) {
          cm_msg(MERROR, "mongoose", "cannot find SSL certificate file \"%s\"", path.c_str());
-         cm_msg(MERROR, "mongoose", "please create SSL certificate file: openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
+         cm_msg(MERROR, "mongoose", "please create SSL certificate file: cd $MIDASSYS; openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
          return SS_FILE_ERROR;
       }
 
@@ -18303,8 +18303,10 @@ static bool read_passwords(Auth* auth)
 
 static std::string check_digest_auth(struct http_message *hm, Auth* auth)
 {
-   char user[50], cnonce[33], response[40], uri[200], qop[20], nc[20], nonce[30];
+   char user[255], cnonce[33], response[40], uri[4000], qop[20], nc[20], nonce[30];
    char expected_response[33];
+
+   //printf("HereA!\n");
    
    /* Parse "Authorization:" header, fail fast on parse error */
    struct mg_str *hdr = mg_get_http_header(hm, "Authorization");
@@ -18312,16 +18314,26 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
    if (!hdr)
       return "";
 
-   if (mg_http_parse_header(hdr, "username", user, sizeof(user)) == 0 ||
-       mg_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0 ||
-       mg_http_parse_header(hdr, "response", response, sizeof(response)) == 0 ||
-       mg_http_parse_header(hdr, "uri", uri, sizeof(uri)) == 0 ||
-       mg_http_parse_header(hdr, "qop", qop, sizeof(qop)) == 0 ||
-       mg_http_parse_header(hdr, "nc", nc, sizeof(nc)) == 0 ||
-       mg_http_parse_header(hdr, "nonce", nonce, sizeof(nonce)) == 0 ||
-       xmg_check_nonce(nonce) == 0) {
-      return "";
-   }
+   //printf("HereB!\n");
+
+   if (mg_http_parse_header(hdr, "username", user, sizeof(user)) == 0) return "";
+   //printf("HereB1!\n");
+   if (mg_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0) return "";
+   //printf("HereB2!\n");
+   if (mg_http_parse_header(hdr, "response", response, sizeof(response)) == 0) return "";
+   //printf("HereB3!\n");
+   if (mg_http_parse_header(hdr, "uri", uri, sizeof(uri)) == 0) return "";
+   //printf("HereB4!\n");
+   if (mg_http_parse_header(hdr, "qop", qop, sizeof(qop)) == 0) return "";
+   //printf("HereB5!\n");
+   if (mg_http_parse_header(hdr, "nc", nc, sizeof(nc)) == 0) return "";
+   //printf("HereB6!\n");
+   if (mg_http_parse_header(hdr, "nonce", nonce, sizeof(nonce)) == 0) return "";
+   //printf("HereB7!\n");
+   if (xmg_check_nonce(nonce) == 0) return "";
+   //printf("HereB8!\n");
+
+   //printf("HereC!\n");
 
    for (unsigned i=0; i<auth->passwords.size(); i++) {
       AuthEntry* e = &auth->passwords[i];
@@ -18341,6 +18353,7 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
                     cnonce, strlen(cnonce),
                     qop, strlen(qop),
                     expected_response);
+      //printf("digest_auth: expected %s, got %s\n", expected_response, response);
       if (mg_casecmp(response, expected_response) == 0) {
          return e->username;
       }
@@ -18956,7 +18969,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
 
       if (status != SUCCESS) {
          cm_msg(MERROR, "mongoose", "cannot find SSL certificate file \"%s\"", cert_file.c_str());
-         cm_msg(MERROR, "mongoose", "please create SSL certificate file: openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
+         cm_msg(MERROR, "mongoose", "please create SSL certificate file: cd $MIDASSYS; openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
          return SS_FILE_ERROR;
       }
 
