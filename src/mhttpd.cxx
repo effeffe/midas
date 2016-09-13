@@ -18335,6 +18335,21 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
 
    //printf("HereC!\n");
 
+   const char* uri_end = strchr(hm->uri.p, ' ');
+   if (!uri_end) return "";
+
+   int uri_length = uri_end - hm->uri.p;
+
+   if (uri_length != (int)strlen(uri))
+      return "";
+
+   int cmp = strncmp(hm->uri.p, uri, uri_length);
+
+   //printf("check URI: message %d %d [%d] authorization [%s]\n", (int)hm->uri.len, uri_length, cmp, uri);
+
+   if (cmp != 0)
+      return "";
+
    for (unsigned i=0; i<auth->passwords.size(); i++) {
       AuthEntry* e = &auth->passwords[i];
       if (e->username != user)
