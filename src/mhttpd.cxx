@@ -17915,7 +17915,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
    int size;
    int status;
 
-   if (socket_priviledged_port) {
+   if (socket_priviledged_port >= 0) {
       printf("Mongoose version 4 cannot listen to port 80 in setuid mode. Please use mongoose version 6. Sorry, bye!\n");
       exit(1);
    }
@@ -18969,7 +18969,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
       need_password_file = false;
    }
 
-   if (socket_priviledged_port) {
+   if (socket_priviledged_port >= 0) {
       // no passwords if serving unencrypted http on port 80
       need_password_file = false;
       printf("Mongoose web server password portection is disabled: serving unencrypted http on port 80\n");
@@ -19030,7 +19030,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
    mg_mgr_init(&mgr_mg, NULL);
 
    // use socket bound to priviledged port (setuid-mode)
-   if (socket_priviledged_port) {
+   if (socket_priviledged_port >= 0) {
       struct mg_connection* nc = mg_add_sock(&mgr_mg, socket_priviledged_port, handle_event_mg);
       if (nc == NULL) {
          cm_msg(MERROR, "mongoose", "Cannot create mg_connection for set-uid-root privileged port");
@@ -19185,7 +19185,7 @@ int main(int argc, const char *argv[])
    // if running setuid-root, unconditionally bind to port 80.
    //
    
-   int socket_priviledged_port = 0;
+   int socket_priviledged_port = -1;
 
 #ifdef OS_UNIX
    // in setuid-root mode bind to priviledged port
