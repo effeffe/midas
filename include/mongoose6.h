@@ -338,7 +338,9 @@ typedef struct stat cs_stat_t;
 #endif
 #endif
 
+#ifndef closesocket
 #define closesocket(x) close(x)
+#endif
 
 #ifndef MG_MAX_HTTP_REQUEST_SIZE
 #define MG_MAX_HTTP_REQUEST_SIZE 8192

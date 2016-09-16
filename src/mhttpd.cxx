@@ -1572,7 +1572,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    const char *trans_name[] = { "Start", "Stop", "Pause", "Resume" };
    time_t now;
    DWORD difftime;
-   double d, value, compression_ratio;
+   double d, value;
    HNDLE hDB, hkey, hLKey, hsubkey, hkeytmp;
    KEY key;
    int  ftp_mode, previous_mode;
@@ -1583,8 +1583,6 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    RUNINFO runinfo;
    EQUIPMENT_INFO equipment;
    EQUIPMENT_STATS equipment_stats;
-   CHN_SETTINGS chn_settings;
-   CHN_STATISTICS chn_stats;
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -1654,14 +1652,20 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
    rsprintf("\r\n<html>\n");
 
+#ifndef NEW_START_STOP
    /* auto refresh */
    i = 0;
    size = sizeof(i);
    db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT, FALSE);
    if (i > 0)
       rsprintf("<head><meta http-equiv=\"Refresh\" content=\"1\">\n");
-   else if (refresh > 0)
-      rsprintf("<head><meta http-equiv=\"Refresh\" content=\"%02d\">\n", refresh);
+   else {
+#endif
+      if (refresh > 0)
+         rsprintf("<head><meta http-equiv=\"Refresh\" content=\"%02d\">\n", refresh);
+#ifndef NEW_START_STOP
+   }
+#endif
 
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
    rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
@@ -1674,8 +1678,10 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    rsprintf("<title>%s status</title>\n", str);
 
    if (n_alarm) {
-      rsprintf("<bgsound src=\"alarm.mp3\" loop=\"false\">\n");
+      rsprintf("<audio autoplay src=\"alarm.mp3\">!midas alarm sound!</audio>\n");
    }
+
+   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
 
    rsprintf("</head>\n");
 
@@ -1884,16 +1890,24 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
 
                db_get_key(hDB, hsubkey, &key);
-               rsprintf("<tr><td colspan=6 style=\"background-color:%s;border-radius:12px;\" align=center>", bgcol);
-               rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
-               rsprintf("<table width=\"100%%\"><tr><td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"%s\" size=+3>%s: %s</font></td>\n", fgcol,
-                        alarm_class, str);
-               rsprintf("<td width=\"1%%\" style=\"border:0px;\"><button type=\"button\" onclick=\"document.location.href='?cmd=alrst&name=%s'\"n\">Reset</button></td></tr></table></td></tr>\n", key.name);
+
+               rsprintf("<tr>\n");
+
+               rsprintf("<td colspan=6 style=\"background-color:%s;border-radius:12px;\" align=center>", bgcol);
+               rsprintf("<table width=\"100%%\"><tr>\n");
+               rsprintf("<td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"%s\" size=+3>%s: %s</font></td>\n", fgcol, alarm_class, str);
+               rsprintf("<td width=\"1%%\" style=\"border:0px;\">\n");
+               rsprintf("<button type=\"button\" onclick=\"mhttpd_reset_alarm(\'%s\');\">Reset</button>\n", key.name);
+               rsprintf("</td>\n");
+               rsprintf("</tr></table>\n");
+               rsprintf("</td>\n");
 
                strlcpy(spk, alarm_class, sizeof(spk));
                strlcat(spk, ". ", sizeof(spk));
                strlcat(spk, str, sizeof(spk));
-               rsprintf("<script type=\"text/javascript\">alarm_speak(\"%s\");</script>\n", spk);
+               rsprintf("<script type=\"text/javascript\">mhttpd_alarm_speak(\"%s\");</script>\n", spk);
+
+               rsprintf("</tr>\n");
             }
          }
       }
@@ -1929,7 +1943,6 @@ void show_status_page(int refresh, const char *cookie_wpwd)
       rsprintf("<p id=\"transitionMessage\">Run pause requested</p>");
    else if (requested_transition == TR_RESUME)
       rsprintf("<p id=\"transitionMessage\">Run resume requested</p>");
-
    else if (runinfo.transition_in_progress == TR_STOP)
       rsprintf("<p id=\"transitionMessage\">Stopping run</p>");
    else if (runinfo.transition_in_progress == TR_START)
@@ -1938,7 +1951,6 @@ void show_status_page(int refresh, const char *cookie_wpwd)
       rsprintf("<p id=\"transitionMessage\">Pausing run</p>");
    else if (runinfo.transition_in_progress == TR_RESUME)
       rsprintf("<p id=\"transitionMessage\">Resuming run</p>");
-
    else if (runinfo.requested_transition) {
       for (i = 0; i < 4; i++)
          if (runinfo.requested_transition & (1 << i))
@@ -1956,6 +1968,16 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    flag = TRUE;
    size = sizeof(flag);
    db_get_value(hDB, 0, "/Experiment/Start-Stop Buttons", &flag, &size, TID_BOOL, TRUE);
+#ifdef NEW_START_STOP
+   if (flag && !runinfo.transition_in_progress) {
+      if (runinfo.state == STATE_STOPPED)
+         rsprintf("<input type=button %s value=Start onClick=\"mhttpd_start_run();\">\n", runinfo.transition_in_progress?"disabled":"");
+      else {
+         if (runinfo.state == STATE_PAUSED || runinfo.state == STATE_RUNNING)
+            rsprintf("<input type=button %s value=Stop onClick=\"mhttpd_stop_run();\">\n", runinfo.transition_in_progress?"disabled":"");
+      }
+   }
+#else
    if (flag) {
       if (runinfo.state == STATE_STOPPED)
          rsprintf("<input type=submit name=cmd %s value=Start>\n", runinfo.transition_in_progress?"disabled":"");
@@ -1972,10 +1994,21 @@ void show_status_page(int refresh, const char *cookie_wpwd)
          rsprintf("</script>\n");
       }
    }
+#endif
 
    flag = FALSE;
    size = sizeof(flag);
    db_get_value(hDB, 0, "/Experiment/Pause-Resume Buttons", &flag, &size, TID_BOOL, TRUE);
+#ifdef NEW_START_STOP
+   if (flag && !runinfo.transition_in_progress) {
+      if (runinfo.state != STATE_STOPPED) {
+         if (runinfo.state == STATE_RUNNING)
+            rsprintf("<input type=button %s value=Pause onClick=\"mhttpd_pause_run();\">\n", runinfo.transition_in_progress?"disabled":"");
+         if (runinfo.state == STATE_PAUSED)
+            rsprintf("<input type=button %s value=Resume onClick=\"mhttpd_resume_run();\">\n", runinfo.transition_in_progress?"disabled":"");
+      }
+   }
+#else
    if (flag) {
       if (runinfo.state != STATE_STOPPED) {
          rsprintf("<script type=\"text/javascript\">\n");
@@ -1997,6 +2030,11 @@ void show_status_page(int refresh, const char *cookie_wpwd)
             rsprintf("document.write('<input type=button %s value=Resume onClick=\"resume();\"\\n>');\n", runinfo.transition_in_progress?"disabled":"");
          rsprintf("</script>\n");
       }
+   }
+#endif
+
+   if (runinfo.transition_in_progress) {
+      rsprintf("<input type=button value=Cancel onClick=\"mhttpd_cancel_transition();\">\n");
    }
 
    /*---- time ----*/
@@ -2270,8 +2308,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
    /*---- Logging channels ----*/
 
-   rsprintf
-       ("<tr class=\"titleRow\"><th colspan=2>Channel<th>Events<th>MB written<th>Compr.<th>Disk level</tr>\n");
+   rsprintf("<tr class=\"titleRow\"><th colspan=2>Channel<th>Events<th>MiB written<th>Compr.<th>Disk level</tr>\n");
 
    if (db_find_key(hDB, 0, "/Logger/Channels", &hkey) == DB_SUCCESS) {
       for (i = 0;; i++) {
@@ -2281,23 +2318,77 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
          db_get_key(hDB, hsubkey, &key);
 
-         db_find_key(hDB, hsubkey, "Settings", &hkeytmp);
-	 assert(hkeytmp);
-         size = sizeof(chn_settings);
-         if (db_get_record(hDB, hkeytmp, &chn_settings, &size, 0) != DB_SUCCESS)
+         HNDLE hSet;
+         status = db_find_key(hDB, hsubkey, "Settings", &hSet);
+         if (status != DB_SUCCESS || !hSet)
             continue;
 
-         db_find_key(hDB, hsubkey, "Statistics", &hkeytmp);
-	 assert(hkeytmp);
-         size = sizeof(chn_stats);
-         if (db_get_record(hDB, hkeytmp, &chn_stats, &size, 0) != DB_SUCCESS)
+         HNDLE hStat;
+         status = db_find_key(hDB, hsubkey, "Statistics", &hStat);
+         if (status != DB_SUCCESS || !hStat)
+            continue;
+
+         // read channel settings
+
+         char chn_current_filename[MAX_STRING_LENGTH];
+         chn_current_filename[0] = 0;
+         size = sizeof(chn_current_filename);
+         status = db_get_value(hDB, hSet, "current filename", chn_current_filename, &size, TID_STRING, FALSE);
+         if (status != DB_SUCCESS)
+            continue;
+
+         char chn_type[MAX_STRING_LENGTH];
+         chn_type[0] = 0;
+         size = sizeof(chn_type);
+         status = db_get_value(hDB, hSet, "type", chn_type, &size, TID_STRING, FALSE);
+         if (status != DB_SUCCESS)
+            continue;
+
+         BOOL chn_active = 0;
+         size = sizeof(chn_active);
+         status = db_get_value(hDB, hSet, "active", &chn_active, &size, TID_BOOL, FALSE);
+         if (status != DB_SUCCESS)
+            continue;
+
+         int chn_compression = 0;
+         size = sizeof(chn_compression);
+         status = db_get_value(hDB, hSet, "compression", &chn_compression, &size, TID_INT, FALSE);
+         if (status != DB_SUCCESS)
+            continue;
+
+         //printf("current_filename [%s] type [%s] active [%d] compression [%d]\n", chn_current_filename, chn_type, chn_active, chn_compression);
+
+         // read channel statistics
+
+         double chn_events_written = 0;
+         size = sizeof(chn_events_written);
+         status = db_get_value(hDB, hStat, "events written", &chn_events_written, &size, TID_DOUBLE, FALSE);
+         if (status != DB_SUCCESS)
+            continue;
+         
+         double chn_bytes_written = 0;
+         size = sizeof(chn_bytes_written);
+         status = db_get_value(hDB, hStat, "bytes written", &chn_bytes_written, &size, TID_DOUBLE, FALSE);
+         if (status != DB_SUCCESS)
+            continue;
+         
+         double chn_bytes_written_uncompressed = 0;
+         size = sizeof(chn_bytes_written_uncompressed);
+         status = db_get_value(hDB, hStat, "bytes written uncompressed", &chn_bytes_written_uncompressed, &size, TID_DOUBLE, FALSE);
+         if (status != DB_SUCCESS)
+            continue;
+
+         double chn_disk_level = 0;
+         size = sizeof(chn_disk_level);
+         status = db_get_value(hDB, hStat, "disk level", &chn_disk_level, &size, TID_DOUBLE, FALSE);
+         if (status != DB_SUCCESS)
             continue;
 
          /* filename */
 
-         strlcpy(str, chn_settings.current_filename, sizeof(str));
+         strlcpy(str, chn_current_filename, sizeof(str));
 
-         if (equal_ustring(chn_settings.type, "FTP")) {
+         if (equal_ustring(chn_type, "FTP")) {
             char *token, orig[256];
 
             strlcpy(orig, str, sizeof(orig));
@@ -2327,7 +2418,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
             rsprintf("<tr><td colspan=2 class=\"redLight\">");
          else if (!flag)
             rsprintf("<tr><td colspan=2 class=\"yellowLight\">");
-         else if (chn_settings.active)
+         else if (chn_active)
             rsprintf("<tr><td colspan=2 class=\"greenLight\">");
          else
             rsprintf("<tr><td colspan=2 class=\"yellowLight\">");
@@ -2336,38 +2427,36 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
          /* statistics */
 
-         if (chn_settings.compression > 0) {
-            rsprintf("<td align=center>%1.0lf<td align=center>%1.3lf\n",
-                 chn_stats.events_written, chn_stats.bytes_written / 1024 / 1024);
-
-            if (chn_stats.bytes_written_uncompressed > 0)
-               compression_ratio = 1 - chn_stats.bytes_written / chn_stats.bytes_written_uncompressed;
+         rsprintf("<td align=center>%1.0lf</td>\n", chn_events_written);
+         rsprintf("<td align=center>%1.3lf</td>\n", chn_bytes_written / 1024 / 1024);
+         
+         if (chn_compression > 0) {
+            double compression_ratio;
+            if (chn_bytes_written_uncompressed > 0)
+               compression_ratio = 1 - chn_bytes_written / chn_bytes_written_uncompressed;
             else
                compression_ratio = 0;
-
-            rsprintf("<td align=center>%4.1lf%%", compression_ratio * 100);
+            rsprintf("<td align=center>%4.1lf%%</td>", compression_ratio * 100);
          } else {
-            rsprintf("<td align=center>%1.0lf<td align=center>%1.3lf\n",
-                 chn_stats.events_written, chn_stats.bytes_written_uncompressed / 1024 / 1024);
-
             rsprintf("<td align=center>N/A</td>");
          }
 
          char col[80];
-         if (chn_stats.disk_level >= 0.9)
+         if (chn_disk_level >= 0.9)
             strcpy(col, "#c0392b");
-         else if (chn_stats.disk_level >= 0.7)
+         else if (chn_disk_level >= 0.7)
             strcpy(col, "#f1c40f");
          else
             strcpy(col, "#00E600");
 
          rsprintf("<td class=\"meterCell\">\n");
          rsprintf("<div style=\"display:block; width:90%%; height:100%%; position:relative; border:1px solid black;\">");  //wrapper to fill table cell
-         rsprintf("<div style=\"background-color:%s;width:%d%%;height:100%%; position:relative; display:inline-block; padding-top:2px;\">&nbsp;%1.1lf&nbsp;%%</div>\n", col, (int)(chn_stats.disk_level*100), chn_stats.disk_level*100);
-         rsprintf("</td></tr>\n");
+         rsprintf("<div style=\"background-color:%s;width:%d%%;height:100%%; position:relative; display:inline-block; padding-top:2px;\">&nbsp;%1.1lf&nbsp;%%</div>\n", col, (int)(chn_disk_level*100), chn_disk_level*100);
+         rsprintf("</td>\n");
+         rsprintf("</tr>\n");
       }
    }
-
+   
    /*---- Lazy Logger ----*/
 
    if (db_find_key(hDB, 0, "/Lazy", &hkey) == DB_SUCCESS) {
@@ -10600,8 +10689,6 @@ void show_programs_page()
 
    rsprintf("</table>\n");
 
-   //rsprintf("<script>mhttpd_programs_page()</script>\n");
-
    page_footer(TRUE);
 }
 
@@ -15771,6 +15858,30 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       return;
    }
 
+   /*---- send the new html pages -----------------------------------*/
+
+#ifdef NEW_START_STOP
+   if (equal_ustring(command, "start")) {
+      send_resource("start.html");
+      return;
+   }
+#endif
+
+   if (equal_ustring(command, "programs")) {
+      send_resource("programs.html");
+      return;
+   }
+
+   if (equal_ustring(command, "alarms")) {
+      send_resource("alarms.html");
+      return;
+   }
+
+   if (equal_ustring(command, "transition")) {
+      send_resource("transition.html");
+      return;
+   }
+
    /*---- java script commands --------------------------------------*/
 
    if (equal_ustring(command, "jset") ||
@@ -15800,6 +15911,11 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       redirect("SC/");
       return;
    }
+
+   /*---- redirect if web page --------------------------------------*/
+
+   //if (send_resource(std::string(command) + ".html"))
+   //   return;
 
    /*---- redirect if status command --------------------------------*/
 
@@ -17799,7 +17915,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
    int size;
    int status;
 
-   if (socket_priviledged_port) {
+   if (socket_priviledged_port >= 0) {
       printf("Mongoose version 4 cannot listen to port 80 in setuid mode. Please use mongoose version 6. Sorry, bye!\n");
       exit(1);
    }
@@ -17890,7 +18006,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
 
       if (status != SUCCESS) {
          cm_msg(MERROR, "mongoose", "cannot find SSL certificate file \"%s\"", path.c_str());
-         cm_msg(MERROR, "mongoose", "please create SSL certificate file: openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
+         cm_msg(MERROR, "mongoose", "please create SSL certificate file: cd $MIDASSYS; openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
          return SS_FILE_ERROR;
       }
 
@@ -18032,11 +18148,9 @@ int loop_mg()
 
 #ifdef HAVE_MG6
 
-#undef closesocket // this is defined in msystem.h and mongoose.h, so let's remove the previous definition
-
 #include "mongoose6.h"
 
-static int debug_mg = 0;
+static bool verbose_mg = false;
 static bool trace_mg = false;
 static struct mg_mgr mgr_mg;
 
@@ -18145,9 +18259,10 @@ static bool read_passwords(Auth* auth)
 {
    std::string path;
    FILE *fp;
-   int status = find_file_mg("htpasswd.txt", path, &fp, trace_mg);
+   int status = find_file_mg("htpasswd.txt", path, &fp, trace_mg||verbose_mg);
 
-   auth_mg.passwd_filename = path;
+   auth->passwd_filename = path;
+   auth->passwords.clear();
 
    if (status != SUCCESS || fp == NULL) {
       cm_msg(MERROR, "mongoose", "mongoose web server cannot find password file \"%s\"", path.c_str());
@@ -18188,8 +18303,10 @@ static bool read_passwords(Auth* auth)
 
 static std::string check_digest_auth(struct http_message *hm, Auth* auth)
 {
-   char user[50], cnonce[33], response[40], uri[200], qop[20], nc[20], nonce[30];
+   char user[255], cnonce[33], response[40], uri[4000], qop[20], nc[20], nonce[30];
    char expected_response[33];
+
+   //printf("HereA!\n");
    
    /* Parse "Authorization:" header, fail fast on parse error */
    struct mg_str *hdr = mg_get_http_header(hm, "Authorization");
@@ -18197,16 +18314,41 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
    if (!hdr)
       return "";
 
-   if (mg_http_parse_header(hdr, "username", user, sizeof(user)) == 0 ||
-       mg_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0 ||
-       mg_http_parse_header(hdr, "response", response, sizeof(response)) == 0 ||
-       mg_http_parse_header(hdr, "uri", uri, sizeof(uri)) == 0 ||
-       mg_http_parse_header(hdr, "qop", qop, sizeof(qop)) == 0 ||
-       mg_http_parse_header(hdr, "nc", nc, sizeof(nc)) == 0 ||
-       mg_http_parse_header(hdr, "nonce", nonce, sizeof(nonce)) == 0 ||
-       xmg_check_nonce(nonce) == 0) {
+   //printf("HereB!\n");
+
+   if (mg_http_parse_header(hdr, "username", user, sizeof(user)) == 0) return "";
+   //printf("HereB1!\n");
+   if (mg_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0) return "";
+   //printf("HereB2!\n");
+   if (mg_http_parse_header(hdr, "response", response, sizeof(response)) == 0) return "";
+   //printf("HereB3!\n");
+   if (mg_http_parse_header(hdr, "uri", uri, sizeof(uri)) == 0) return "";
+   //printf("HereB4!\n");
+   if (mg_http_parse_header(hdr, "qop", qop, sizeof(qop)) == 0) return "";
+   //printf("HereB5!\n");
+   if (mg_http_parse_header(hdr, "nc", nc, sizeof(nc)) == 0) return "";
+   //printf("HereB6!\n");
+   if (mg_http_parse_header(hdr, "nonce", nonce, sizeof(nonce)) == 0) return "";
+   //printf("HereB7!\n");
+   if (xmg_check_nonce(nonce) == 0) return "";
+   //printf("HereB8!\n");
+
+   //printf("HereC!\n");
+
+   const char* uri_end = strchr(hm->uri.p, ' ');
+   if (!uri_end) return "";
+
+   int uri_length = uri_end - hm->uri.p;
+
+   if (uri_length != (int)strlen(uri))
       return "";
-   }
+
+   int cmp = strncmp(hm->uri.p, uri, uri_length);
+
+   //printf("check URI: message %d %d [%d] authorization [%s]\n", (int)hm->uri.len, uri_length, cmp, uri);
+
+   if (cmp != 0)
+      return "";
 
    for (unsigned i=0; i<auth->passwords.size(); i++) {
       AuthEntry* e = &auth->passwords[i];
@@ -18215,10 +18357,18 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
       if (e->realm != auth->realm)
          continue;
       const char* f_ha1 = e->password.c_str();
-      xmg_mkmd5resp(hm->method.p, hm->method.len, hm->uri.p,
-                    hm->uri.len + (hm->query_string.len ? hm->query_string.len + 1 : 0),
-                    f_ha1, strlen(f_ha1), nonce, strlen(nonce), nc, strlen(nc), cnonce,
-                    strlen(cnonce), qop, strlen(qop), expected_response);
+      int uri_len = hm->uri.len;
+      if (hm->uri.p[uri_len] == '?')
+         uri_len += hm->query_string.len + 1; // "+1" accounts for the "?" character
+      xmg_mkmd5resp(hm->method.p, hm->method.len,
+                    hm->uri.p, uri_len,
+                    f_ha1, strlen(f_ha1),
+                    nonce, strlen(nonce),
+                    nc, strlen(nc),
+                    cnonce, strlen(cnonce),
+                    qop, strlen(qop),
+                    expected_response);
+      //printf("digest_auth: expected %s, got %s\n", expected_response, response);
       if (mg_casecmp(response, expected_response) == 0) {
          return e->username;
       }
@@ -18485,7 +18635,7 @@ static bool handle_http_get(struct mg_connection *nc, const http_message* msg, c
 {
    std::string query_string = mgstr(&msg->query_string);
 
-   if (trace_mg)
+   if (trace_mg||verbose_mg)
       printf("handle_http_get: uri [%s], query [%s]\n", uri, query_string.c_str());
 
    if (query_string == "mjsonrpc_schema") {
@@ -18556,7 +18706,7 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg, 
    std::string query_string = mgstr(&msg->query_string);
    std::string post_data = mgstr(&msg->body);
 
-   if (trace_mg)
+   if (trace_mg||verbose_mg)
       printf("handle_http_post: uri [%s], query [%s], post data %d bytes\n", uri, query_string.c_str(), (int)post_data.length());
 
    if (query_string == "mjsonrpc") {
@@ -18649,6 +18799,9 @@ static bool handle_http_options_cors(struct mg_connection *nc, const http_messag
    
    const std::string origin_header = find_header_mg(msg, "Origin");
 
+   if (trace_mg||verbose_mg)
+      printf("handle_http_options_cors: origin [%s]\n", origin_header.c_str());
+
    std::string headers;
    headers += "HTTP/1.1 200 OK\n";
    //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
@@ -18676,7 +18829,7 @@ static bool handle_http_options_cors(struct mg_connection *nc, const http_messag
 static void handle_http_message(struct mg_connection *nc, http_message* msg)
 {
    std::string method = mgstr(&msg->method);
-   std::string query = mgstr(&msg->query_string);
+   std::string query_string = mgstr(&msg->query_string);
    std::string uri_encoded = mgstr(&msg->uri);
    std::string uri = UrlDecode(uri_encoded.c_str());
    
@@ -18687,7 +18840,7 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
 
    // process OPTIONS for Cross-origin (CORS) preflight request
    // see https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS
-   if (method == "OPTIONS" && query == "mjsonrpc" && mg_get_http_header(msg, "Access-Control-Request-Method") != NULL) {
+   if (method == "OPTIONS" && query_string == "mjsonrpc" && mg_get_http_header(msg, "Access-Control-Request-Method") != NULL) {
       handle_http_options_cors(nc, msg);
       return;
    }
@@ -18701,10 +18854,14 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
          if (ok)
             username = check_digest_auth(msg, &auth_mg);
       }
-      
-      //printf("auth user: %s\n", username.c_str());
+
+      if (trace_mg)
+         printf("handle_http_message: auth user: \"%s\"\n", username.c_str());
       
       if (username.length() == 0) {
+         if (trace_mg||verbose_mg)
+            printf("handle_http_message: method [%s] uri [%s] query [%s] proto [%s], sending auth request for realm \"%s\"\n", method.c_str(), uri.c_str(), query_string.c_str(), mgstr(&msg->proto).c_str(), auth_mg.realm.c_str());
+
          xmg_http_send_digest_auth_request(nc, auth_mg.realm.c_str());
          return;
       }
@@ -18716,6 +18873,9 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       response_sent = handle_http_post(nc, msg, uri.c_str());
 
    if (!response_sent) {
+      if (trace_mg||verbose_mg)
+         printf("handle_http_message: sending 501 Not Implemented error\n");
+
       std::string response = "501 Not Implemented";
       mg_send_head(nc, 501, response.length(), NULL); // 501 Not Implemented
       mg_send(nc, response.c_str(), response.length());
@@ -18764,11 +18924,11 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
    int size;
    int status;
 
-   if (verbose)
-      debug_mg = 1;
+   //if (verbose)
+   //   trace_mg = true;
 
    if (verbose)
-      trace_mg = true;
+      verbose_mg = true;
 
    status = cm_get_experiment_database(&hDB, NULL);
    assert(status == CM_SUCCESS);
@@ -18809,30 +18969,22 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
       need_password_file = false;
    }
 
-   if (socket_priviledged_port) {
+   if (socket_priviledged_port >= 0) {
       // no passwords if serving unencrypted http on port 80
       need_password_file = false;
       printf("Mongoose web server password portection is disabled: serving unencrypted http on port 80\n");
    }
 
-   if (!https_port)
-      printf("Mongoose web server will listen on http port %d\n", http_port);
-   else
-      printf("Mongoose web server will listen on https port %d, http port %d, redirect to https: %d\n", https_port, http_port, http_redirect_to_https);
-
-   if (!http_port && !https_port) {
-      cm_msg(MERROR, "mongoose", "cannot start: no ports defined");
-      return SS_FILE_ERROR;
-   }
+   bool have_at_least_one_port = false;
 
    std::string cert_file;
 
    if (need_cert_file) {
-      status = find_file_mg("ssl_cert.pem", cert_file, NULL, debug_mg>0);
+      status = find_file_mg("ssl_cert.pem", cert_file, NULL, trace_mg);
 
       if (status != SUCCESS) {
          cm_msg(MERROR, "mongoose", "cannot find SSL certificate file \"%s\"", cert_file.c_str());
-         cm_msg(MERROR, "mongoose", "please create SSL certificate file: openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
+         cm_msg(MERROR, "mongoose", "please create SSL certificate file: cd $MIDASSYS; openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
          return SS_FILE_ERROR;
       }
 
@@ -18878,17 +19030,25 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
    mg_mgr_init(&mgr_mg, NULL);
 
    // use socket bound to priviledged port (setuid-mode)
-   if (socket_priviledged_port) {
+   if (socket_priviledged_port >= 0) {
       struct mg_connection* nc = mg_add_sock(&mgr_mg, socket_priviledged_port, handle_event_mg);
+      if (nc == NULL) {
+         cm_msg(MERROR, "mongoose", "Cannot create mg_connection for set-uid-root privileged port");
+         return SS_SOCKET_ERROR;
+      }
+
       nc->flags |= MG_F_LISTENING;
 #ifdef MG_ENABLE_THREADS
       mg_enable_multithreading(nc);
 #endif
       mg_set_protocol_http_websocket(nc);
       mg_register_http_endpoint(nc, "/", handle_http_event_mg);
+
+      have_at_least_one_port = true;
+      printf("mongoose web server is listening on the set-uid-root privileged port\n");
    }
 
-   else if (http_port) {
+   if (http_port) {
       char str[256];
       sprintf(str, "%d", http_port);
       struct mg_connection* nc = mg_bind(&mgr_mg, str, handle_event_mg);
@@ -18910,21 +19070,43 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
          std::string s = std::string(hostname) + ":" + std::string(str);
          nc->user_data = new std::string(s);
          mg_register_http_endpoint(nc, "/", handle_http_redirect);
+         printf("mongoose web server is redirecting HTTP port %d to https://%s\n", http_port, s.c_str());
       } else {
          mg_register_http_endpoint(nc, "/", handle_http_event_mg);
       }
+
+      have_at_least_one_port = true;
+      printf("mongoose web server is listening on the HTTP port %d\n", http_port);
    }
 
    if (https_port) {
+#ifdef MG_ENABLE_SSL
       char str[256];
       sprintf(str, "%d", https_port);
       struct mg_connection* nc = mg_bind(&mgr_mg, str, handle_event_mg);
+      if (nc == NULL) {
+         cm_msg(MERROR, "mongoose", "Cannot bind to port %d", https_port);
+         return SS_SOCKET_ERROR;
+      }
+
       mg_set_ssl(nc, cert_file.c_str(), NULL);
 #ifdef MG_ENABLE_THREADS
       mg_enable_multithreading(nc);
 #endif
       mg_set_protocol_http_websocket(nc);
       mg_register_http_endpoint(nc, "/", handle_http_event_mg);
+
+      have_at_least_one_port = true;
+      printf("mongoose web server is listening on the HTTPS port %d\n", https_port);
+#else
+      cm_msg(MERROR, "mongoose", "https port %d requested, but mhttpd compiled without MG_ENABLE_SSL", https_port);
+      return SS_SOCKET_ERROR;
+#endif
+   }
+
+   if (!have_at_least_one_port) {
+      cm_msg(MERROR, "mongoose", "cannot start: no ports defined");
+      return SS_FILE_ERROR;
    }
 
    return SUCCESS;
@@ -18932,13 +19114,13 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
 
 int stop_mg()
 {
-   if (debug_mg)
+   if (trace_mg)
       printf("stop_mg!\n");
 
    // Stop the server.
    mg_mgr_free(&mgr_mg);
    
-   if (debug_mg)
+   if (trace_mg)
       printf("stop_mg done!\n");
    return SUCCESS;
 }
@@ -19003,8 +19185,35 @@ int main(int argc, const char *argv[])
    // if running setuid-root, unconditionally bind to port 80.
    //
    
-   int socket_priviledged_port = 0;
+   int socket_priviledged_port = -1;
 
+#ifdef OS_UNIX
+   // in setuid-root mode bind to priviledged port
+   if (getuid() != geteuid()) {
+      int port80 = 80;
+      
+      printf("mhttpd is running in setuid-root mode.\n");
+      
+      socket_priviledged_port = open_listening_socket(port80);
+      if (socket_priviledged_port < 0) {
+         printf("Cannot open listening socket on TCP port %d, aborting.\n", port80);
+         exit(1);
+      }
+      
+      // give up root privilege
+      status = setuid(getuid());
+      if (status != 0) {
+         printf("Cannot give up root privelege, aborting.\n");
+         exit(1);
+      }
+      status = setuid(getuid());
+      if (status != 0) {
+         printf("Cannot give up root privelege, aborting.\n");
+         exit(1);
+      }
+   }
+#endif
+   
    /* get default from environment */
    cm_get_environment(midas_hostname, sizeof(midas_hostname), midas_expt, sizeof(midas_expt));
 
@@ -19080,31 +19289,6 @@ int main(int argc, const char *argv[])
       }
    }
 
-#ifdef OS_UNIX
-   // in setuid-root mode bind to priviledged port
-   if (getuid() != geteuid()) {
-      printf("mhttpd is running in setuid-root mode.\n");
-      
-      socket_priviledged_port = open_listening_socket(user_http_port ? user_http_port : 80);
-      if (socket_priviledged_port < 0) {
-         printf("Aborting.\n");
-         exit(1);
-      }
-      
-      // give up root privilege
-      status = setuid(getuid());
-      if (status != 0) {
-         printf("Cannot give up root privelege, aborting.\n");
-         exit(1);
-      }
-      status = setuid(getuid());
-      if (status != 0) {
-         printf("Cannot give up root privelege, aborting.\n");
-         exit(1);
-      }
-   }
-#endif
-   
    if (daemon) {
       printf("Becoming a daemon...\n");
       ss_daemon_init(FALSE);

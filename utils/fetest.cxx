@@ -68,11 +68,13 @@ HNDLE hDB;
 
 int read_test_event(char *pevent, int off);
 int read_slow_event(char *pevent, int off);
+int read_random_event(char *pevent, int off);
 
 /*-- Equipment list ------------------------------------------------*/
 
 #define EVID_TEST 1
 #define EVID_SLOW 2
+#define EVID_RANDOM 3
 
 EQUIPMENT equipment[] = {
 
@@ -109,6 +111,23 @@ EQUIPMENT equipment[] = {
       "", "", ""
     },
     read_slow_event,/* readout routine */
+  },
+  { "random"   ,         /* equipment name */
+    {
+      EVID_RANDOM, (1<<EVID_RANDOM),           /* event ID, trigger mask */
+      "SYSTEM",             /* event buffer */
+      EQ_PERIODIC,          /* equipment type */
+      0,                    /* event source */
+      "MIDAS",              /* format */
+      TRUE,                 /* enabled */
+      RO_RUNNING,           /* Read when running */
+      100,                  /* poll every so milliseconds */
+      0,                    /* stop run after this event limit */
+      0,                    /* number of sub events */
+      0,                    /* history period */
+      "", "", ""
+    },
+    read_random_event,/* readout routine */
   },
   { "" }
 };
@@ -369,11 +388,24 @@ INT end_of_run(INT run_number, char *error)
 {
    printf("end_of_run %d\n", run_number);
 
+   int fail = 0;
+   int status;
+   int size;
+
+   size = sizeof(fail);
+   status = db_get_value(hDB, hSet, "fail_end_of_run", &fail, &size, TID_INT, TRUE);
+   assert(status == DB_SUCCESS);
+
+   if (fail) {
+      printf("fail_end_of_run: returning error status %d\n", fail);
+      return fail;
+   }
+   
    test_run_number = 0; // tell thread to stop running
 
    int s = 0;
-   int size = sizeof(s);
-   int status = db_get_value(hDB, hSet, "sleep_end_of_run", &s, &size, TID_INT, TRUE);
+   size = sizeof(s);
+   status = db_get_value(hDB, hSet, "sleep_end_of_run", &s, &size, TID_INT, TRUE);
    assert(status == DB_SUCCESS);
    
    if (s) {
@@ -391,6 +423,20 @@ INT end_of_run(INT run_number, char *error)
 INT pause_run(INT run_number, char *error)
 {
    printf("pause_run %d\n", run_number);
+
+   int fail = 0;
+   int status;
+   int size;
+
+   size = sizeof(fail);
+   status = db_get_value(hDB, hSet, "fail_pause_run", &fail, &size, TID_INT, TRUE);
+   assert(status == DB_SUCCESS);
+
+   if (fail) {
+      printf("fail_pause_run: returning error status %d\n", fail);
+      return fail;
+   }
+   
    test_run_number = 0; // tell thread to stop running
    return SUCCESS;
 }
@@ -400,6 +446,20 @@ INT pause_run(INT run_number, char *error)
 INT resume_run(INT run_number, char *error)
 {
    printf("resume_run %d\n", run_number);
+
+   int fail = 0;
+   int status;
+   int size;
+
+   size = sizeof(fail);
+   status = db_get_value(hDB, hSet, "fail_resume_run", &fail, &size, TID_INT, TRUE);
+   assert(status == DB_SUCCESS);
+
+   if (fail) {
+      printf("fail_resume_run: returning error status %d\n", fail);
+      return fail;
+   }
+
    test_run_number = run_number; // tell thread to start running
    return SUCCESS;
 }
@@ -486,6 +546,39 @@ int read_slow_event(char *pevent, int off)
    printf("time %d, data %f\n", (int)t, pdataf[0]);
 
    bk_close(pevent, pdataf + 1);
+
+   return bk_size(pevent);
+}
+
+int read_random_event(char *pevent, int off)
+{
+   if (drand48() < 0.5)
+      bk_init(pevent);
+   else
+      bk_init32(pevent);
+
+   int nbank = 1+8*drand48();
+
+   for (int i=nbank; i>=0; i--) {
+      char name[5];
+      name[0] = 'R';
+      name[1] = 'N';
+      name[2] = 'D';
+      name[3] = '0' + i;
+      name[4] = 0;
+
+      int tid = 1+(TID_LAST-1)*drand48();
+
+      int size = 100*drand48();
+
+      char* ptr;
+      bk_create(pevent, name, tid, (void**)&ptr);
+
+      for (int j=0; j<size; j++)
+         ptr[j] = i;
+
+      bk_close(pevent, ptr + size);
+   }
 
    return bk_size(pevent);
 }

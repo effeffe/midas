@@ -30,6 +30,16 @@ var AT_PROGRAM   = 2;
 var AT_EVALUATED = 3;
 var AT_PERIODIC  = 4;
 
+var MT_ERROR =  (1<<0);
+var MT_INFO  =  (1<<1);
+var MT_DEBUG =  (1<<2);
+var MT_USER  =  (1<<3);
+var MT_LOG   =  (1<<4);
+var MT_TALK  =  (1<<5);
+var MT_CALL  =  (1<<6);
+
+var transition_names = { 1:"Start", 2:"Stop", 4:"Pause", 8:"Resume", 16:"Start abort", 4096:"Deferred" };
+
 function XMLHttpRequestGeneric()
 {
    var request;
@@ -287,6 +297,7 @@ function mjsonrpc_send_request(req)
 
       xhr.onreadystatechange = function()
       {
+         //alert("XHR: ready state " + xhr.readyState + " status " + xhr.status);
          if (xhr.readyState == 4) {
 
             if (xhr.status != 200) {
@@ -369,16 +380,18 @@ function mjsonrpc_decode_error(error) {
       return "method: \"" + request.method + "\", params: " + request.params + ", id: " + request.id;
    }
 
-   if (is_network_error(error.xhr)) {
+   if (error.xhr && is_network_error(error.xhr)) {
       return "network error: see javascript console, " + print_request(error.request);
-   } else if (is_http_error(error.xhr)) {
+   } else if (error.xhr && is_http_error(error.xhr)) {
       return "http error: " + print_xhr(error.xhr) + ", " + print_request(error.request);
    } else if (error.exception) {
       return "json parser exception: " + error.exception + ", " + print_request(error.request);
    } else if (error.error) {
       return "json-rpc error: " + JSON.stringify(error.error) + ", " + print_request(error.request);
-   } else {
+   } else if (error.request && error.xhr) {
       return "unknown error, request: " + print_request(error.request) + ", xhr: " + print_xhr(error.xhr);
+   } else {
+      return error;
    }
 }
 
@@ -995,14 +1008,6 @@ function ODBGetMsg(facility, start, n)
       return request.responseText;
 }
 
-const MT_ERROR =  (1<<0);
-const MT_INFO  =  (1<<1);
-const MT_DEBUG =  (1<<2);
-const MT_USER  =  (1<<3);
-const MT_LOG   =  (1<<4);
-const MT_TALK  =  (1<<5);
-const MT_CALL  =  (1<<6);
-
 function ODBGenerateMsg(type,facility,user,msg)
 {
    var request = XMLHttpRequestGeneric();
@@ -1132,6 +1137,127 @@ function ODBInlineEdit(p, odb_path, bracket)
 
 /*---- mhttpd functions -------------------------------------*/
 
+function mhttpd_disable_button(button)
+{
+   button.disabled = true;
+}
+
+function mhttpd_enable_button(button)
+{
+   button.disabled = false;
+}
+
+function mhttpd_hide_button(button)
+{
+   button.style.visibility = "hidden";
+   button.style.display = "none";
+}
+
+function mhttpd_unhide_button(button)
+{
+   button.style.visibility = "visible";
+   button.style.display = "";
+}
+
+function mhttpd_init_overlay(overlay)
+{
+   mhttpd_hide_overlay(overlay);
+
+   // this element will hide the underlaying web page
+   
+   overlay.style.zIndex = 10;
+   //overlay.style.backgroundColor = "rgba(0,0,0,0.5)"; /*dim the background*/
+   overlay.style.backgroundColor = "white";
+   overlay.style.position = "fixed";
+   overlay.style.top = "0%";
+   overlay.style.left = "0%";
+   overlay.style.width = "100%";
+   overlay.style.height = "100%";
+
+   return overlay.children[0];
+}
+
+function mhttpd_hide_overlay(overlay)
+{
+   overlay.style.visibility = "hidden";
+   overlay.style.display = "none";
+}
+
+function mhttpd_unhide_overlay(overlay)
+{
+   overlay.style.visibility = "visible";
+   overlay.style.display = "";
+}
+
+function mhttpd_getParameterByName(name) {
+    var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function mhttpd_goto_page(page) {
+   window.location.href = '?cmd=' + page; // reloads the page from new URL
+   // DOES NOT RETURN
+}
+
+function mhttpd_navigation_bar(current_page)
+{
+   document.write("<div id=\"customHeader\">\n");
+   document.write("</div>\n");
+
+   document.write("<div>\n");
+   document.write("<table class=\"navigationTable\">\n");
+   document.write("<tr><td id=\"navigationTableButtons\">\n");
+   document.write("</td></tr></table>\n\n");
+   document.write("</div>\n");
+
+   mjsonrpc_db_get_values(["/Custom/Header", "/Experiment/Menu Buttons"]).then(function(rpc) {
+      var custom_header = rpc.result.data[0];
+      //alert(custom_header);
+
+      if (custom_header && custom_header.length > 0)
+         document.getElementById("customHeader").innerHTML = custom_header;
+
+      var buttons = rpc.result.data[1];
+      //alert(buttons);
+
+      if (buttons.length < 1)
+         buttons = "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Help";
+
+      var b = buttons.split(",");
+
+      var html = "";
+
+      for (var i=0; i<b.length; i++) {
+         var bb = b[i].trim();
+         var cc = "navButton";
+         if (bb == current_page)
+            cc = "navButtonSel";
+         html += "<input type=button name=cmd value=\""+bb+"\" class=\""+cc+"\" onclick=\"window.location.href=\'?cmd="+bb+"\';return false;\">\n";
+      }
+      document.getElementById("navigationTableButtons").innerHTML = html;
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+   });
+}
+
+function mhttpd_page_footer()
+{
+   /*---- spacer for footer ----*/
+   //document.write("<div class=\"push\"></div>\n");
+
+   /*---- footer div ----*/
+   document.write("<div id=\"footerDiv\" class=\"footerDiv\">\n");
+   mjsonrpc_db_get_values(["/Experiment/Name"]).then(function(rpc) {
+      document.getElementById("mhttpd_expt_name").innerHTML = "Experiment " + rpc.result.data[0];
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+   });
+   document.write("<div style=\"display:inline; float:left;\" id=\"mhttpd_expt_name\">Experiment %s</div>");
+   document.write("<div style=\"display:inline;\"><a href=\"?cmd=Help\">Help</a></div>");
+   document.write("<div style=\"display:inline; float:right;\" id=\"mhttpd_last_updated\">" + new Date + "</div>");
+   document.write("</div>\n");
+}
+
 function mhttpd_create_page_handle_create(mouseEvent)
 {
    var form = document.getElementsByTagName('form')[0];
@@ -1148,26 +1274,38 @@ function mhttpd_create_page_handle_create(mouseEvent)
       return false;
    }
 
-   if (arraylength < 1) {
+   if (parseInt(arraylength) < 1) {
       alert("Bad array length: " + arraylength);
       return false;
    }
 
-   if (stringlength < 1) {
+   if (parseInt(stringlength) < 1) {
       alert("Bad string length " + stringlength);
       return false;
    }
 
-   var result = JSON.parse(ODBMCreate([ path + "/" + name ], [ type ], [ arraylength ], [ stringlength ]));
+   var param = {};
+   param.path = path + "/" + name;
+   param.type = parseInt(type);
+   if (arraylength>1)
+      param.array_length = parseInt(arraylength);
+   if (stringlength>0)
+      param.string_length = parseInt(stringlength);
 
-   if (result[0] == 311) {
-      alert("ODB entry with this name already exists.");
-   } else if (result[0] != 1) {
-      alert("ODBMCreate() error " + result + ", and that's all we know.");
-   } else {
+   mjsonrpc_db_create([param]).then(function(rpc) {
+      var status = rpc.result.status[0];
+      if (status == 311) {
+         alert("ODB entry with this name already exists.");
+      } else if (status != 1) {
+         alert("db_create_key() error " + status + ", see MIDAS messages.");
+      } else {
+         location.search = ""; // reloads the document
+      }
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
       location.search = ""; // reloads the document
-   }
-   //window.reload();
+   });
+
    return false;
 }
 
@@ -1201,11 +1339,26 @@ function mhttpd_delete_page_handle_delete(mouseEvent)
 
    //alert(names);
 
-   var result = JSON.parse(ODBMDelete(names));
+   var params = {};
+   params.paths = names;
+   mjsonrpc_call("db_delete", params).then(function(rpc) {
+      var message = "";
+      var status = rpc.result.status;
+      //alert(JSON.stringify(status));
+      for (var i=0; i<status.length; i++) {
+         if (status[i] != 1) {
+            message += "Cannot delete \"" + rpc.request.params.paths[i] + "\", db_delete_key() status " + status[i] + "\n";
+         }
+      }
+      if (message.length > 0)
+         alert(message);
+      location.search = ""; // reloads the document
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+      location.search = ""; // reloads the document
+   });
 
-   location.search = ""; // reloads the document
-
-   //window.reload();
+   //location.search = ""; // reloads the document
    return false;
 }
 
@@ -1213,6 +1366,89 @@ function mhttpd_delete_page_handle_cancel(mouseEvent)
 {
    location.search = ""; // reloads the document
    return false;
+}
+
+function mhttpd_start_run()
+{
+   mhttpd_goto_page("Start"); // DOES NOT RETURN
+}
+
+function mhttpd_stop_run()
+{
+   var flag = confirm('Are you sure to stop the run?');
+   if (flag == true) {
+      mjsonrpc_call("cm_transition", {"transition":"TR_STOP"}).then(function(rpc) {
+         //mjsonrpc_debug_alert(rpc);
+         if (rpc.result.status != 1) {
+            throw new Error("Cannot stop run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
+         }
+         mhttpd_goto_page("Transition"); // DOES NOT RETURN
+      }).catch(function(error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
+}
+
+function mhttpd_pause_run()
+{
+   var flag = confirm('Are you sure to pause the run?');
+   if (flag == true) {
+      mjsonrpc_call("cm_transition", {"transition":"TR_PAUSE"}).then(function(rpc) {
+         //mjsonrpc_debug_alert(rpc);
+         if (rpc.result.status != 1) {
+            throw new Error("Cannot pause run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
+         }
+         mhttpd_goto_page("Transition"); // DOES NOT RETURN
+      }).catch(function(error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
+}
+
+
+function mhttpd_resume_run()
+{
+   var flag = confirm('Are you sure to resume the run?');
+   if (flag == true) {
+      mjsonrpc_call("cm_transition", {"transition":"TR_RESUME"}).then(function(rpc) {
+         //mjsonrpc_debug_alert(rpc);
+         if (rpc.result.status != 1) {
+            throw new Error("Cannot resume run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
+         }
+         mhttpd_goto_page("Transition"); // DOES NOT RETURN
+      }).catch(function(error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
+}
+
+function mhttpd_cancel_transition()
+{
+   var flag = confirm('Are you sure to cancel the currently active run transition?');
+   if (flag == true) {
+      mjsonrpc_call("db_paste", {"paths":["/Runinfo/Transition in progress"], "values":[0]}).then(function(rpc) {
+         //mjsonrpc_debug_alert(rpc);
+         if (rpc.result.status != 1) {
+            throw new Error("Cannot cancel transition, db_paste() status " + rpc.result.status + ", see MIDAS messages");
+         }
+         mhttpd_goto_page("Transition"); // DOES NOT RETURN
+      }).catch(function(error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
+}
+
+function mhttpd_reset_alarm(alarm_name)
+{
+   mjsonrpc_call("al_reset_alarm", { "alarms" : [ alarm_name ] }).then(function(rpc) {
+      //mjsonrpc_debug_alert(rpc);
+      if (rpc.result.status != 1 && rpc.result.status != 1004) {
+         throw new Error("Cannot reset alarm, status " + rpc.result.status + ", see MIDAS messages");
+      }
+      location.search = ""; // reloads the document
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+   });
 }
 
 /*---- message functions -------------------------------------*/
@@ -1388,14 +1624,14 @@ function aspeak_click(t)
       
 }
 
-function alarm_speak(t)
+function mhttpd_alarm_speak(t)
 {
-    if (typeof(Storage) !== "undefined") {
-	if (sessionStorage.alarmSpeak == "1")  {
-	    u = new SpeechSynthesisUtterance(t);
-	    window.speechSynthesis.speak(u);
-	    }
-    } 
+   if (typeof(Storage) !== "undefined") {
+      if (sessionStorage.alarmSpeak != "0")  {
+	 u = new SpeechSynthesisUtterance(t);
+	 window.speechSynthesis.speak(u);
+      }
+   } 
 }
 
 /*---- chat functions -------------------------------------*/

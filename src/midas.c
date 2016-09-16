@@ -3862,7 +3862,7 @@ int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errst
 /* contact a client via RPC and execute the remote transition */
 int cm_transition_call(void *param)
 {
-   INT old_timeout, status, i, t1, t0, size, n_wait;
+   INT old_timeout, status, i, t1, t0, size;
    HNDLE hDB, hConn, hKey;
    int connect_timeout = 10000;
    int timeout = 120000;
@@ -3875,23 +3875,42 @@ int cm_transition_call(void *param)
 
    /* wait for predecessor if set */
    if (tr_client->async_flag & TR_MTHREAD && tr_client->pred) {
-      do {
-         n_wait = 0;
+      while (1) {
+         int wait_for = -1;
+
          for (i=0 ; i<tr_client->n_pred ; i++) {
             if (tr_client->pred[i]->status == 0) {
-               n_wait++;
-               if (tr_client->debug_flag == 1)
-                  printf("Client \"%s\" waits for client \"%s\"\n", tr_client->client_name, tr_client->pred[i]->client_name);
-               ss_sleep(100); // FIXME: check if transition was canceled
-            } else {
-               if (tr_client->pred[i]->status != SUCCESS && tr_client->transition != TR_STOP) {
-                  cm_msg(MERROR, "cm_transition_call", "Transition %d aborted: client \"%s\" returned status %d", tr_client->transition, tr_client->pred[i]->client_name, tr_client->pred[i]->status);
-                  tr_client->status = -1;
-                  return CM_SUCCESS;
-               }
+               wait_for = i;
+               break;
+            }
+
+            if (tr_client->pred[i]->status != SUCCESS && tr_client->transition != TR_STOP) {
+               cm_msg(MERROR, "cm_transition_call", "Transition %d aborted: client \"%s\" returned status %d", tr_client->transition, tr_client->pred[i]->client_name, tr_client->pred[i]->status);
+               tr_client->status = -1;
+               sprintf(tr_client->errorstr, "Aborted by failure of client \"%s\"", tr_client->pred[i]->client_name);
+               return CM_SUCCESS;
             }
          }
-      } while (n_wait > 0);
+
+         if (wait_for < 0)
+            break;
+
+         if (tr_client->debug_flag == 1)
+            printf("Client \"%s\" waits for client \"%s\"\n", tr_client->client_name, tr_client->pred[wait_for]->client_name);
+
+         i = 0;
+         size = sizeof(i);
+         status = db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT, FALSE);
+
+         if (status == DB_SUCCESS && i == 0) {
+            cm_msg(MERROR, "cm_transition_call", "Client \"%s\" transition %d aborted while waiting for client \"%s\": \"/Runinfo/Transition in progress\" was cleared", tr_client->client_name, tr_client->transition, tr_client->pred[wait_for]->client_name);
+            tr_client->status = -1;
+            sprintf(tr_client->errorstr, "Canceled");
+            return CM_SUCCESS;
+         }
+
+         ss_sleep(100);
+      };
    }
 
    /* contact client if transition mask set */
@@ -3984,20 +4003,20 @@ int cm_transition_call(void *param)
    rpc_set_option(hConn, RPC_OTIMEOUT, old_timeout);
 
    if (tr_client->debug_flag == 1)
-      printf("RPC transition finished client \"%s\" on host %s in %d ms with status %d\n",
+      printf("RPC transition finished client \"%s\" on host \"%s\" in %d ms with status %d\n",
              tr_client->client_name, tr_client->host_name, t1 - t0, status);
    if (tr_client->debug_flag == 2)
       cm_msg(MINFO, "cm_transition_call",
-             "cm_transition: RPC transition finished client \"%s\" on host %s in %d ms with status %d",
+             "cm_transition: RPC transition finished client \"%s\" on host \"%s\" in %d ms with status %d",
              tr_client->client_name, tr_client->host_name, t1 - t0, status);
 
    if (status == RPC_NET_ERROR || status == RPC_TIMEOUT) {
-      sprintf(tr_client->errorstr, "RPC network error or timeout from client \'%s\' on host %s", tr_client->client_name, tr_client->host_name);
+      sprintf(tr_client->errorstr, "RPC network error or timeout from client \'%s\' on host \"%s\"", tr_client->client_name, tr_client->host_name);
       /* clients that do not respond to transitions are dead or defective, get rid of them. K.O. */
       cm_shutdown(tr_client->client_name, TRUE);
       cm_cleanup(tr_client->client_name, TRUE);
    } else if (status != CM_SUCCESS && strlen(tr_client->errorstr) < 2) {
-      sprintf(tr_client->errorstr, "Unknown error %d from client \'%s\' on host %s", status, tr_client->client_name, tr_client->host_name);
+      sprintf(tr_client->errorstr, "Unknown error %d from client \'%s\' on host \"%s\"", status, tr_client->client_name, tr_client->host_name);
    }
 
    tr_client->status = status;
@@ -4608,13 +4627,36 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
    if (async_flag & TR_MTHREAD) {
       /* wait until all threads have finished */
-      do {
-         ss_sleep(10); // FIXME: check if transition was canceled
-         for (idx = 0 ; idx < n_tr_clients ; idx++)
-            if (tr_client[idx].status == 0)
-               break;
+      while (1) {
+         int all_done = 1;
 
-      } while (idx < n_tr_clients);
+         for (idx = 0; idx < tr_current_transition->num_clients; idx++)
+            if (tr_current_transition->clients[idx].status == 0) {
+               all_done = 0;
+               break;
+            }
+         
+         if (all_done)
+            break;
+
+         i = 0;
+         size = sizeof(i);
+         status = db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT, FALSE);
+
+         if (status == DB_SUCCESS && i == 0) {
+            cm_msg(MERROR, "cm_transition", "transition %s aborted: \"/Runinfo/Transition in progress\" was cleared", trname);
+
+            if (errstr != NULL)
+               strlcpy(errstr, "Canceled", errstr_size);
+
+            tr_current_transition->status = CM_INVALID_TRANSITION;
+            strlcpy(tr_current_transition->errorstr, "Canceled", sizeof(tr_current_transition->errorstr));
+
+            return CM_INVALID_TRANSITION;
+         }
+
+         ss_sleep(100);
+      }
    }
 
    /* search for any error */

@@ -54,6 +54,75 @@ void create_sql_tree();
 #define STRLCPY(dst, src) strlcpy((dst), (src), sizeof(dst))
 #define STRLCAT(dst, src) strlcat((dst), (src), sizeof(dst))
 
+/*---- Logging channel information ---------------------------------*/
+
+#define CHN_SETTINGS_STR(_name) const char *_name[] = {\
+"[Settings]",\
+"Active = BOOL : 1",\
+"Type = STRING : [8] Disk",\
+"Filename = STRING : [256] run%05d.mid",\
+"Format = STRING : [8] MIDAS",\
+"Compression = INT : 0",\
+"ODB dump = BOOL : 1",\
+"Log messages = DWORD : 0",\
+"Buffer = STRING : [32] SYSTEM",\
+"Event ID = INT : -1",\
+"Trigger mask = INT : -1",\
+"Event limit = DOUBLE : 0",\
+"Byte limit = DOUBLE : 0",\
+"Subrun Byte limit = DOUBLE : 0",\
+"Tape capacity = DOUBLE : 0",\
+"Subdir format = STRING : [32]",\
+"Current filename = STRING : [256]",\
+"Data checksum = STRING : [256]",\
+"File checksum = STRING : [256]",\
+"Compress = STRING : [256]",\
+"Output = STRING : [256]",\
+"",\
+"[Statistics]",\
+"Events written = DOUBLE : 0",\
+"Bytes written = DOUBLE : 0",\
+"Bytes written uncompressed = DOUBLE : 0",\
+"Bytes written total = DOUBLE : 0",\
+"Bytes written subrun = DOUBLE : 0",\
+"Files written = DOUBLE : 0",\
+"Disk level = DOUBLE : 0",\
+"",\
+NULL}
+
+typedef struct {
+   BOOL active;
+   char type[8];
+   char filename[256];
+   char format[8];
+   INT compression;
+   BOOL odb_dump;
+   DWORD log_messages;
+   char buffer[32];
+   INT event_id;
+   INT trigger_mask;
+   double event_limit;
+   double byte_limit;
+   double subrun_byte_limit;
+   double tape_capacity;
+   char subdir_format[32];
+   char current_filename[256];
+   char data_checksum[256];
+   char file_checksum[256];
+   char compress[256];
+   char output[256];
+} CHN_SETTINGS;
+
+typedef struct {
+   double events_written; /* count events, reset in tr_start() */
+   double bytes_written;  /* count bytes written out (compressed), reset in tr_start() */
+   double bytes_written_uncompressed; /* count bytes before compression, reset in tr_start() */
+   double bytes_written_total;  /* count bytes written out (compressed), reset in log_callback(RPC_LOG_REWIND) */
+   double bytes_written_subrun; /* count bytes written out (compressed), reset in tr_start() and on subrun increment */
+   double files_written;  /* incremented in log_close(), reset in log_callback(RPC_LOG_REWIND) */
+   double disk_level;
+} CHN_STATISTICS;
+
 /*---- logger channel definition---------------------------------------*/
 
 class WriterInterface;
@@ -81,6 +150,10 @@ typedef struct {
    WriterInterface *writer;
    DWORD last_checked;
    BOOL  do_disk_level;
+   int pre_checksum_module;  // CHECKSUM_xxx
+   int compression_module;   // COMPRESS_xxx
+   int post_checksum_module; // CHECKSUM_xxx
+   int output_module;        // OUTPUT_xxx
 } LOG_CHN;
 
 /*---- globals -----------------------------------------------------*/
@@ -154,6 +227,7 @@ public:
    WriterInterface(); // base ctor
    virtual ~WriterInterface() {}; // dtor
    virtual std::string wr_get_file_ext() { return ""; }
+   virtual std::string wr_get_chain() = 0;
 public:
    bool   fTrace;    // enable tracing printout
    double fBytesIn;  // count bytes in (before compression)
@@ -228,6 +302,11 @@ public:
       return ".null";
    }
 
+   std::string wr_get_chain()
+   {
+      return "NULL";
+   }
+
 private:
    bool fSimulateCompression;
 };
@@ -273,6 +352,7 @@ public:
 
       log_chn->handle = fFileno;
 
+      fFilename = log_chn->path;
       return SUCCESS;
    }
 
@@ -323,7 +403,13 @@ public:
       return SUCCESS;
    }
 
+   std::string wr_get_chain()
+   {
+      return ">" + fFilename;
+   }
+
 private:
+   std::string fFilename;
    int fFileno;
 };
 
@@ -391,6 +477,7 @@ public:
          
       log_chn->handle = 8888;
 
+      fFilename = log_chn->path;
       return SUCCESS;
    }
 
@@ -464,7 +551,13 @@ public:
       return ".gz";
    }
 
+   std::string wr_get_chain()
+   {
+      return "gzip > " + fFilename;
+   }
+
 private:
+   std::string fFilename;
    gzFile fGzfp;
    int    fCompress;
    time_t fLastCheckTime;
@@ -597,6 +690,11 @@ public:
       return fFileExt;
    }
 
+   std::string wr_get_chain()
+   {
+      return fPipeCommand;
+   }
+
 private:
    FILE* fFp;
    std::string fPipeCommand;
@@ -709,6 +807,10 @@ public:
       return fWr->wr_get_file_ext();
    }
 
+   std::string wr_get_chain() {
+      return "CRC32ZLIB | " + fWr->wr_get_chain();
+   }
+
 private:
    WriterInterface *fWr;
    uLong fCrc32;
@@ -818,6 +920,10 @@ public:
 
    std::string wr_get_file_ext() {
       return fWr->wr_get_file_ext();
+   }
+
+   std::string wr_get_chain() {
+      return "CRC32C | " + fWr->wr_get_chain();
    }
 
 private:
@@ -954,6 +1060,10 @@ public:
       return fWr->wr_get_file_ext();
    }
 
+   std::string wr_get_chain() {
+      return "SHA256 | " + fWr->wr_get_chain();
+   }
+
 private:
    WriterInterface *fWr;
    mbedtls_sha256_context fCtx;
@@ -1086,6 +1196,10 @@ public:
 
    std::string wr_get_file_ext() {
       return fWr->wr_get_file_ext();
+   }
+
+   std::string wr_get_chain() {
+      return "SHA512 | " + fWr->wr_get_chain();
    }
 
 private:
@@ -1276,6 +1390,10 @@ public:
 
    std::string wr_get_file_ext() {
       return ".lz4" + fWr->wr_get_file_ext();
+   }
+
+   std::string wr_get_chain() {
+      return "lz4 | " + fWr->wr_get_chain();
    }
 
 private:
@@ -2249,6 +2367,11 @@ public:
       return "";
    }
 
+   std::string wr_get_chain()
+   {
+      return "FTP";
+   }
+
 private:
    FTP_CON* fFtp;
 };
@@ -3148,6 +3271,11 @@ public:
       return ".root";
    }
 
+   std::string wr_get_chain()
+   {
+      return "ROOT";
+   }
+
 private:
 };
 
@@ -3165,22 +3293,28 @@ WriterInterface* NewWriterPbzip2(LOG_CHN* log_chn)
    return new WriterPopen(log_chn, "pbzip2 -c -z > ", ".bz2");
 }
 
+#define CHECKSUM_NONE   0
+#define CHECKSUM_ZLIB   1
+#define CHECKSUM_CRC32C 2
+#define CHECKSUM_SHA256 3
+#define CHECKSUM_SHA512 4
+
 WriterInterface* NewChecksum(LOG_CHN* log_chn, int code, WriterInterface* chained)
 {
-   if (code == 0) {
+   if (code == CHECKSUM_NONE) {
       return chained;
-   } else if (code == 1) {
+   } else if (code == CHECKSUM_ZLIB) {
 #ifdef HAVE_ZLIB
       return new WriterCRC32Zlib(log_chn, chained);
 #else
       cm_msg(MERROR, "log_create_writer", "channel %s requested CRC32ZLib checksum, but ZLIB is not available", log_chn->path);
       return chained;
 #endif
-   } else if (code == 2) {
+   } else if (code == CHECKSUM_CRC32C) {
       return new WriterCRC32C(log_chn, chained);
-   } else if (code == 3) {
+   } else if (code == CHECKSUM_SHA256) {
       return new WriterSHA256(log_chn, chained);
-   } else if (code == 4) {
+   } else if (code == CHECKSUM_SHA512) {
       return new WriterSHA512(log_chn, chained);
    } else {
       cm_msg(MERROR, "log_create_writer", "channel %s unknown checksum code %d", log_chn->path, code);
@@ -3188,10 +3322,200 @@ WriterInterface* NewChecksum(LOG_CHN* log_chn, int code, WriterInterface* chaine
    }
 }
 
+#define COMPRESS_NONE   0
+#define COMPRESS_ZLIB   1
+#define COMPRESS_LZ4    2
+#define COMPRESS_BZIP2  3
+#define COMPRESS_PBZIP2 4
+
+WriterInterface* NewCompression(LOG_CHN* log_chn, int code, WriterInterface* chained)
+{
+   if (code == COMPRESS_NONE) {
+      return chained;
+   } else if (code == COMPRESS_LZ4) {
+      return new WriterLZ4(log_chn, chained);
+   } else {
+      cm_msg(MERROR, "log_create_writer", "channel %s unknown compression code %d", log_chn->path, code);
+      return chained;
+   }
+}
+
+#define OUTPUT_NONE   0
+#define OUTPUT_NULL   1
+#define OUTPUT_FILE   2
+#define OUTPUT_FTP    3
+#define OUTPUT_ROOT   4
+#define OUTPUT_PIPE   5
+
+std::string get_value(HNDLE hDB, HNDLE hDir, const char* name)
+{
+   char value[MAX_STRING_LENGTH];
+   value[0] = 0;
+   int  size = sizeof(value);
+   int status = db_get_value(hDB, hDir, name, &value, &size, TID_STRING, FALSE);
+   if (status != DB_SUCCESS)
+      return "";
+   return value;
+}
+
+void set_value(HNDLE hDB, HNDLE hDir, const char* name, const std::string& set, const std::string& def)
+{
+   std::string s = set + " (one of:" + def + ")";
+   const char* value = s.c_str();
+   int  size = 256; // MUST match record definition // strlen(value);
+   db_set_value(hDB, hDir, name, value, size, 1, TID_STRING);
+}
+
+int check_add(int v, int n, const std::string& val, const char* str, bool bdef, std::string* def, std::string* sel)
+{
+   (*def) += std::string(" ") + str;
+   if (v)
+      return v; // keep returning the first selection
+   if (val.find(str) == 0) {
+      *sel = str;
+      return n; // if no selection yet, return the new selection
+   }
+   return v;
+}
+
+int select_checksum_module(HNDLE hDB, HNDLE hSet, const char* name)
+{
+   std::string val = get_value(hDB, hSet, name);
+   std::string sel;
+   std::string def;
+   int s = 0;
+   s = check_add(s, CHECKSUM_NONE,   val, "NONE",   false, &def, &sel);
+   s = check_add(s, CHECKSUM_CRC32C, val, "CRC32C", true,  &def, &sel);
+   s = check_add(s, CHECKSUM_SHA256, val, "SHA256", false, &def, &sel);
+   s = check_add(s, CHECKSUM_SHA512, val, "SHA512", false, &def, &sel);
+   s = check_add(s, CHECKSUM_ZLIB,   val, "ZLIB",   false, &def, &sel);
+   if (sel == "")
+      sel = "CRC32C";
+   set_value(hDB, hSet, name, sel, def);
+   return s;
+}
+
+int select_compression_module(HNDLE hDB, HNDLE hSet, const char* name)
+{
+   std::string val = get_value(hDB, hSet, name);
+   std::string sel;
+   std::string def;
+   int s = 0;
+   s = check_add(s, COMPRESS_NONE,   val, "none",   false, &def, &sel);
+   s = check_add(s, COMPRESS_ZLIB,   val, "gzip",   true,  &def, &sel);
+   s = check_add(s, COMPRESS_LZ4,    val, "lz4",    false, &def, &sel);
+   s = check_add(s, COMPRESS_BZIP2,  val, "bzip2",  false, &def, &sel);
+   s = check_add(s, COMPRESS_PBZIP2, val, "pbzip2", false, &def, &sel);
+   if (sel == "")
+      sel = "gzip";
+   set_value(hDB, hSet, name, sel, def);
+   return s;
+}
+
+int select_output_module(HNDLE hDB, HNDLE hSet, const char* name)
+{
+   std::string val = get_value(hDB, hSet, name);
+   std::string sel;
+   std::string def;
+   int s = 0;
+   s = check_add(s, OUTPUT_NULL, val, "NULL", false, &def, &sel);
+   s = check_add(s, OUTPUT_FILE, val, "FILE", true,  &def, &sel);
+   s = check_add(s, OUTPUT_FTP,  val, "FTP",  false, &def, &sel);
+   s = check_add(s, OUTPUT_ROOT, val, "ROOT", false, &def, &sel);
+   s = check_add(s, OUTPUT_PIPE, val, "PIPE", false, &def, &sel);
+   if (sel == "")
+      sel = "NULL";
+   set_value(hDB, hSet, name, sel, def);
+   return s;
+}
+
 int log_create_writer(LOG_CHN *log_chn)
 {
    assert(log_chn->writer == NULL);
    log_chn->writer = NULL;
+
+   if (log_chn->output_module > 0) {
+
+      if (log_chn->compression_module == COMPRESS_ZLIB) {
+
+#ifdef HAVE_ZLIB
+         if (log_chn->output_module != OUTPUT_FILE) {
+            cm_msg(MERROR, "log_create_writer", "channel %s requested GZIP/ZLIB compression, output module must be FILE", log_chn->path);
+            return SS_FILE_ERROR;
+         }
+
+         log_chn->writer = new WriterGzip(log_chn, 0);
+         log_chn->do_disk_level = TRUE;
+#else
+         cm_msg(MERROR, "log_create_writer", "channel %s requested GZIP/ZLIB compression, but ZLIB is not available", log_chn->path);
+         return SS_FILE_ERROR;
+#endif
+      }
+      else if (log_chn->compression_module == COMPRESS_BZIP2) {
+
+         if (log_chn->output_module != OUTPUT_FILE) {
+            cm_msg(MERROR, "log_create_writer", "channel %s requested BZIP2 compression, output module must be FILE", log_chn->path);
+            return SS_FILE_ERROR;
+         }
+         
+         log_chn->writer = NewWriterBzip2(log_chn);
+         log_chn->do_disk_level = TRUE;
+         
+      }
+      else if (log_chn->compression_module == COMPRESS_PBZIP2) {
+
+         if (log_chn->output_module != OUTPUT_FILE) {
+            cm_msg(MERROR, "log_create_writer", "channel %s requested PBZIP2 compression, output module must be FILE", log_chn->path);
+            return SS_FILE_ERROR;
+         }
+         
+         log_chn->writer = NewWriterPbzip2(log_chn);
+         log_chn->do_disk_level = TRUE;
+      }
+      else if (log_chn->output_module == OUTPUT_NULL) {
+
+         log_chn->writer = new WriterNull(log_chn);
+         log_chn->do_disk_level = TRUE;
+      }
+      else if (log_chn->output_module == OUTPUT_FILE) {
+
+         log_chn->writer = NewCompression(log_chn, log_chn->compression_module, NewChecksum(log_chn, log_chn->post_checksum_module, new WriterFile(log_chn)));
+         log_chn->do_disk_level = TRUE;
+      }
+      else if (log_chn->output_module == OUTPUT_FTP) {
+
+         log_chn->writer = NewCompression(log_chn, log_chn->compression_module, NewChecksum(log_chn, log_chn->post_checksum_module, new WriterFtp(log_chn)));
+         log_chn->do_disk_level = FALSE;
+         log_chn->statistics.disk_level = -1;
+      }
+      else if (log_chn->output_module == OUTPUT_ROOT) {
+
+#ifdef HAVE_ROOT
+         log_chn->writer = new WriterROOT(log_chn);
+         log_chn->do_disk_level = TRUE;
+#else
+         log_chn->writer = new WriterNull(log_chn);
+         log_chn->do_disk_level = TRUE;
+#endif
+      }
+      else if (log_chn->output_module == OUTPUT_PIPE) {
+
+         log_chn->writer = NewCompression(log_chn, log_chn->compression_module, NewChecksum(log_chn, log_chn->post_checksum_module, new WriterPopen(log_chn, "xxx", "")));
+         log_chn->do_disk_level = FALSE;
+         log_chn->statistics.disk_level = -1;
+      }
+         
+      //log_chn->writer = new WriterROOT(log_chn);
+      //log_chn->do_disk_level = TRUE;
+
+      if (log_chn->pre_checksum_module) {
+         log_chn->writer = NewChecksum(log_chn, log_chn->pre_checksum_module, log_chn->writer);
+      }
+
+      cm_msg(MINFO, "log_create_writer", "channel %s writer chain: %s", log_chn->path, log_chn->writer->wr_get_chain().c_str());
+
+      return SUCCESS;
+   }
 
    int xcompress = log_chn->compression;
    // compression format: ABNNN
@@ -4965,6 +5289,13 @@ INT tr_start(INT run_number, char *error)
             cm_msg(MERROR, "tr_start", "%s", error);
             return 0;
          }
+
+         log_chn[index].pre_checksum_module = select_checksum_module(hDB, log_chn[index].settings_hkey, "data checksum");
+         log_chn[index].post_checksum_module = select_checksum_module(hDB, log_chn[index].settings_hkey, "file checksum");
+         log_chn[index].compression_module = select_compression_module(hDB, log_chn[index].settings_hkey, "compress");
+         log_chn[index].output_module = select_output_module(hDB, log_chn[index].settings_hkey, "output");
+
+         //printf("channel settings pre [%d] compress [%d] post [%d] output [%d]\n", log_chn[index].pre_checksum_module, log_chn[index].compression_module, log_chn[index].post_checksum_module, log_chn[index].output_module);
 
          /* check if active */
          if (!chn_settings->active || !write_data)
