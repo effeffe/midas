@@ -1020,7 +1020,7 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 
 /*------------------------------------------------------------------*/
 
-void page_footer(BOOL bForm)  //wraps up body wrapper and inserts page footer
+void page_footer(BOOL bForm)  // wraps up body wrapper and inserts page footer
 {
    time_t now;
    int size;
@@ -1678,7 +1678,10 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    rsprintf("<title>%s status</title>\n", str);
 
    if (n_alarm) {
-      rsprintf("<audio autoplay src=\"alarm.mp3\">!midas alarm sound!</audio>\n");
+      strlcpy(str, "alarm.mp3", sizeof(str));
+      size = sizeof(str);
+      db_get_value(hDB, 0, "/Alarms/Sound", str, &size, TID_STRING, true);
+      rsprintf("<audio autoplay src=\"%s\">!midas alarm sound!</audio>\n", str);
    }
 
    rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
@@ -1688,7 +1691,10 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    rsprintf("<body><form method=\"GET\" action=\".\">\n");
 
    if (n_alarm) {
-      rsprintf("<embed src=\"alarm.mp3\" autostart=\"true\" loop=\"false\" hidden=\"true\" height=\"0\" width=\"0\">\n");
+      strlcpy(str, "alarm.mp3", sizeof(str));
+      size = sizeof(str);
+      db_get_value(hDB, 0, "/Alarms/Sound", str, &size, TID_STRING, true);
+      rsprintf("<embed src=\"%s\" autostart=\"true\" loop=\"false\" hidden=\"true\" height=\"0\" width=\"0\">\n", str);
    }
 
    rsprintf("<div id=\"wrapper\" class=\"wrapper\">\n");
@@ -15846,8 +15852,11 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    /*---- send sound file -------------------------------------------*/
 
-   if (equal_ustring(dec_path, "alarm.mp3")) {
-      send_resource("alarm.mp3");
+   if (strlen(dec_path) > 3 &&
+       dec_path[strlen(dec_path)-3] == 'm' &&
+       dec_path[strlen(dec_path)-2] == 'p' &&
+       dec_path[strlen(dec_path)-1] == '3') {
+      send_resource(dec_path);
       return;
    }
 
