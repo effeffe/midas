@@ -61,6 +61,15 @@ EQUIPMENT equipment[] = {
 };
 ////////////////////////////////////////////////////////////////////////////
 
+#include <sys/time.h>
+
+static double GetTimeSec()
+{
+   struct timeval tv;
+   gettimeofday(&tv,NULL);
+   return tv.tv_sec + 0.000001*tv.tv_usec;
+}
+
 struct Source
 {
   struct sockaddr addr;
@@ -74,6 +83,9 @@ static HNDLE hDB;
 static HNDLE hKeySet; // equipment settings
 
 static int gDataSocket;
+
+static int gUnknownPacketCount = 0;
+static bool gSkipUnknownPackets = false;
 
 int open_udp_socket(int server_port)
 {
@@ -95,6 +107,7 @@ int open_udp_socket(int server_port)
    }
 
    int bufsize = 8*1024*1024;
+   //int bufsize = 20*1024;
 
    status = setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
 
@@ -116,6 +129,20 @@ int open_udp_socket(int server_port)
       cm_msg(MERROR, "open_udp_socket", "bind(port=%d) returned %d, errno %d (%s)", server_port, status, errno, strerror(errno));
       return -1;
    }
+
+   int xbufsize = 0;
+   unsigned size = sizeof(xbufsize);
+
+   status = getsockopt(fd, SOL_SOCKET, SO_RCVBUF, &xbufsize, &size);
+
+   //printf("status %d, xbufsize %d, size %d\n", status, xbufsize, size);
+
+   if (status == -1) {
+      cm_msg(MERROR, "open_udp_socket", "getsockopt(SOL_SOCKET,SO_RCVBUF) returned %d, errno %d (%s)", status, errno, strerror(errno));
+      return -1;
+   }
+
+   cm_msg(MINFO, "open_udp_socket", "UDP port %d socket receive buffer size is %d", server_port, xbufsize);
 
    return fd;
 }
@@ -145,6 +172,12 @@ int wait_udp(int socket, int msec)
 
    status = select(socket+1, &fdset, NULL, NULL, &timeout);
 
+#ifdef EINTR
+   if (status < 0 && errno == EINTR) {
+      return 0; // watchdog interrupt, try again
+   }
+#endif
+
    if (status < 0) {
       cm_msg(MERROR, "wait_udp", "select() returned %d, errno %d (%s)", status, errno, strerror(errno));
       return -1;
@@ -162,10 +195,67 @@ int wait_udp(int socket, int msec)
    return 0;
 }
 
+int find_source(Source* src, const sockaddr* paddr, int addr_len)
+{
+   char host[NI_MAXHOST], service[NI_MAXSERV];
+      
+   int status = getnameinfo(paddr, addr_len, host, NI_MAXHOST, service, NI_MAXSERV, NI_NUMERICSERV);
+      
+   if (status != 0) {
+      cm_msg(MERROR, "read_udp", "getnameinfo() returned %d (%s), errno %d (%s)", status, gai_strerror(status), errno, strerror(errno));
+      return -1;
+   }
+
+   char bankname[NAME_LENGTH];
+   int size = sizeof(bankname);
+      
+   status = db_get_value(hDB, hKeySet, host, bankname, &size, TID_STRING, FALSE);
+   
+   if (status == DB_NO_KEY) {
+      cm_msg(MERROR, "read_udp", "UDP packet from unknown host \"%s\"", host);
+      cm_msg(MINFO, "read_udp", "Register this host by running following commands:");
+      cm_msg(MINFO, "read_udp", "odbedit -c \"create STRING /Equipment/%s/Settings/%s\"", EQ_NAME, host);
+      cm_msg(MINFO, "read_udp", "odbedit -c \"set /Equipment/%s/Settings/%s AAAA\", where AAAA is the MIDAS bank name for this host", EQ_NAME, host);
+      return -1;
+   } else if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "read_udp", "db_get_value(\"/Equipment/%s/Settings/%s\") status %d", EQ_NAME, host, status);
+      return -1;
+   }
+
+   if (strlen(bankname) != 4) {
+      cm_msg(MERROR, "read_udp", "ODB \"/Equipment/%s/Settings/%s\" should be set to a 4 character MIDAS bank name", EQ_NAME, host);
+      cm_msg(MINFO, "read_udp", "Use this command:");
+      cm_msg(MINFO, "read_udp", "odbedit -c \"set /Equipment/%s/Settings/%s AAAA\", where AAAA is the MIDAS bank name for this host", EQ_NAME, host);
+      return -1;
+   }
+      
+   cm_msg(MINFO, "read_udp", "UDP packets from host \"%s\" will be stored in bank \"%s\"", host, bankname);
+      
+   src->host_name = host;
+   strlcpy(src->bank_name, bankname, 5);
+   memcpy(&src->addr, paddr, sizeof(src->addr));
+   
+   return 0;
+}
+
 int read_udp(int socket, char* buf, int bufsize, char* pbankname)
 {
    if (wait_udp(socket, 100) < 1)
       return 0;
+
+#if 0
+   static int count = 0;
+   static double tt = 0;
+   double t = GetTimeSec();
+
+   double dt = (t-tt)*1e6;
+   count++;
+   if (dt > 1000) {
+      printf("read_udp: %5d %6.0f usec\n", count, dt);
+      count = 0;
+   }
+   tt = t;
+#endif
 
    struct sockaddr addr;
    socklen_t addr_len = sizeof(addr);
@@ -183,63 +273,32 @@ int read_udp(int socket, char* buf, int bufsize, char* pbankname)
          return rd;
       }
    }
-   
-   static int count_down = 10;
 
-   if (count_down > 0) {
-      count_down--;
+   if (gSkipUnknownPackets)
+      return -1;
 
-      if (count_down == 0) {
+   Source sss;
+
+   int status = find_source(&sss, &addr, addr_len);
+
+   if (status < 0) {
+
+      gUnknownPacketCount++;
+
+      if (gUnknownPacketCount > 10) {
+         gSkipUnknownPackets = true;
          cm_msg(MERROR, "read_udp", "further messages are now suppressed...");
          return -1;
       }
-   
-      char host[NI_MAXHOST], service[NI_MAXSERV];
-      
-      int status = getnameinfo(&addr, addr_len, host, NI_MAXHOST, service, NI_MAXSERV, NI_NUMERICSERV);
 
-      if (status != 0) {
-         cm_msg(MERROR, "read_udp", "getnameinfo() returned %d (%s), errno %d (%s)", status, gai_strerror(status), errno, strerror(errno));
-         return -1;
-      }
-
-      char bankname[NAME_LENGTH];
-      int size = sizeof(bankname);
-      
-      status = db_get_value(hDB, hKeySet, host, bankname, &size, TID_STRING, FALSE);
-      
-      if (status == DB_NO_KEY) {
-         cm_msg(MERROR, "read_udp", "UDP packet from unknown host \"%s\"", host);
-         cm_msg(MINFO, "read_udp", "Register this host by running following commands:");
-         cm_msg(MINFO, "read_udp", "odbedit -c \"create STRING /Equipment/%s/Settings/%s\"", EQ_NAME, host);
-         cm_msg(MINFO, "read_udp", "odbedit -c \"set /Equipment/%s/Settings/%s AAAA\", where AAAA is the MIDAS bank name for this host", EQ_NAME, host);
-         return -1;
-      } else if (status == DB_SUCCESS) {
-         if (strlen(bankname) != 4) {
-            cm_msg(MERROR, "read_udp", "ODB \"/Equipment/%s/Settings/%s\" should be set to a 4 character MIDAS bank name", EQ_NAME, host);
-            cm_msg(MINFO, "read_udp", "Use this command:");
-            cm_msg(MINFO, "read_udp", "odbedit -c \"set /Equipment/%s/Settings/%s AAAA\", where AAAA is the MIDAS bank name for this host", EQ_NAME, host);
-            return -1;
-         }
-
-         cm_msg(MINFO, "read_udp", "UDP packets from host \"%s\" will be stored in bank \"%s\"", host, bankname);
-         
-         Source s;
-         s.host_name = host;
-         strlcpy(s.bank_name, bankname, 5);
-         memcpy(&s.addr, &addr, sizeof(s.addr));
-         gSrc.push_back(s);
-         
-         strlcpy(pbankname, bankname, 5);
-         
-         return rd;
-      } else {
-         cm_msg(MERROR, "read_udp", "db_get_value(\"/Equipment/%s/Settings/%s\") status %d", EQ_NAME, host, status);
-         return -1;
-      }
+      return -1;
    }
-   
-   return -1;
+
+   gSrc.push_back(sss);
+         
+   strlcpy(pbankname, sss.bank_name, 5);
+         
+   return rd;
 }
 
 int interrupt_configure(INT cmd, INT source, PTYPE adr)
@@ -301,6 +360,8 @@ int frontend_loop()
 
 int begin_of_run(int run_number, char *error)
 {
+   gUnknownPacketCount = 0;
+   gSkipUnknownPackets = false;
    return SUCCESS;
 }
 
