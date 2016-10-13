@@ -47,7 +47,6 @@ int main(int argc, char *argv[])
    INT status;
    char host_name[HOST_NAME_LENGTH];
    char exp_name[NAME_LENGTH];
-   HNDLE hDB;
 
    int odb_size = 0; // DEFAULT_ODB_SIZE;
 
@@ -285,40 +284,56 @@ int main(int argc, char *argv[])
    printf("We will initialize ODB for experiment \"%s\" on host \"%s\" with size %d bytes\n", exp_name, host_name, odb_size);
    printf("\n");
 
-   status = cm_connect_experiment1(host_name, exp_name, "ODBInit", NULL, odb_size, DEFAULT_WATCHDOG_TIMEOUT);
 
-   if (status == CM_WRONG_PASSWORD)
-      return 1;
+   {
+      HNDLE hDB;
+      printf("Creating ODB...\n");
+      status = db_open_database("ODB", odb_size, &hDB, "odbinit");
+      printf("Creating ODB... db_open_database() status %d\n", status);
+      if ((status != DB_SUCCESS) && (status != DB_CREATED)) {
+         printf("Something went wrong... continuing...\n");
+      }
+      printf("Saving ODB...\n");
+      status = db_close_database(hDB);
+      printf("Saving ODB... db_close_database() status %d\n", status);
+      if (status != DB_SUCCESS) {
+         printf("Something went wrong... continuing...\n");
+      }
+   }
 
+   printf("Connecting to experiment...\n");
+
+   status = cm_connect_experiment1(host_name, exp_name, "ODBInit", NULL, 0, DEFAULT_WATCHDOG_TIMEOUT);
+
+   if (status != CM_SUCCESS) {
+      printf("Error: cm_connect_experiment() status %d\n", status);
+      printf("Sorry...\n");
+      exit(1);
+   }
+
+   printf("\n");
    printf("Connected to ODB for experiment \"%s\" on host \"%s\" with size %d bytes\n", exp_name, host_name, odb_size);
 
    cm_msg_flush_buffer();
 
-   if (status == DB_INVALID_HANDLE) {
-      char str[2000];
-      cm_get_error(status, str);
-      puts(str);
-      printf("ODB is corrupted, connecting anyway...\n");
-   } else if (status != CM_SUCCESS) {
-      char str[2000];
-      cm_get_error(status, str);
-      puts(str);
-      return 1;
-   }
-
-   /* get experiment name */
-   if (!exp_name[0]) {
+   {
+      HNDLE hDB;
       cm_get_experiment_database(&hDB, NULL);
       int size = NAME_LENGTH;
-      db_get_value(hDB, 0, "/Experiment/Name", exp_name, &size, TID_STRING, TRUE);
+      char buf[NAME_LENGTH];
+      status = db_get_value(hDB, 0, "/Experiment/Name", buf, &size, TID_STRING, FALSE);
+      printf("Checking experiment name... status %d, found \"%s\"\n", status, buf);
+      //status = db_save_json(hDB, 0, "odbinit.json");
+      //printf("Saving odbinit.json... status %d\n", status);
    }
 
+   printf("Disconnecting from experiment...\n");
    cm_disconnect_experiment();
 
-   if (status != 1)
-      return EXIT_FAILURE;
+   printf("\n");
+   printf("Done\n");
 
-   return EXIT_SUCCESS;
+   return 0;
 }
 
 /* emacs
