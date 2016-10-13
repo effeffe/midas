@@ -19,11 +19,25 @@
 #include "strlcpy.h"
 #endif
 
-std::string to_string(int v)
+static std::string to_string(int v)
 {
    char buf[1024];
    sprintf(buf, "%d", v);
    return buf;
+}
+
+/*------------------------------------------------------------------*/
+
+static void usage()
+{
+   printf("usage: odbinit [options...]\n");
+   printf("options:\n");
+   printf("  [-e Experiment] --- specify experiment name\n");
+   printf("  [-s size] --- specify new size of ODB in bytes, default is %d\n", DEFAULT_ODB_SIZE);
+   printf("  [--cleanup] --- cleanup (preserve) old (existing) ODB files\n");
+   printf("  [-n] --- dry run, report everything that will be done, but do not actually do anything\n");
+   //printf("  [-g] --- debug\n");
+   exit(1);
 }
 
 /*------------------------------------------------------------------*/
@@ -33,12 +47,9 @@ int main(int argc, char *argv[])
    INT status;
    char host_name[HOST_NAME_LENGTH];
    char exp_name[NAME_LENGTH];
-   BOOL corrupted;
    HNDLE hDB;
 
    int odb_size = 0; // DEFAULT_ODB_SIZE;
-
-   corrupted = FALSE;
 
    char exptab_filename[MAX_STRING_LENGTH];
    char exp_names[MAX_EXPERIMENT][NAME_LENGTH];
@@ -47,6 +58,11 @@ int main(int argc, char *argv[])
    status = cm_get_environment(host_name, sizeof(host_name), exp_name, sizeof(exp_name));
 
    printf("Checking environment... experiment name is \"%s\", remote hostname is \"%s\"\n", exp_name, host_name);
+
+   if (strlen(host_name) > 0) {
+      printf("Error: trying to use a remote connection to host \"%s\". odbinit must run locally. Sorry.\n", host_name);
+      exit(1);
+   }
 
    bool cleanup = false;
    bool dry_run = false;
@@ -59,29 +75,15 @@ int main(int argc, char *argv[])
          dry_run = true;
       } else if (strcmp(argv[i], "--cleanup") == 0) {
          cleanup = true;
-      } else if (argv[i][0] == '-' && argv[i][1] == 'C')
-         corrupted = TRUE;
-      else if (argv[i][0] == '-') {
-         if (i + 1 >= argc || argv[i + 1][0] == '-')
-            goto usage;
-         if (argv[i][1] == 'e')
-            strcpy(exp_name, argv[++i]);
-         else if (argv[i][1] == 's')
-            odb_size = atoi(argv[++i]);
-         else {
-          usage:
-            printf("usage: odbinit [options...]\n");
-            printf("options:\n");
-            printf("               [-e Experiment] --- specify experiment name\n");
-            printf("               [-s size] --- specify new size of ODB in bytes, default is %d\n", DEFAULT_ODB_SIZE);
-            printf("               [--cleanup] --- cleanup (preserve) old (existing) ODB files\n");
-            printf("               [-n] --- dry run, report everything that will be done, but do not actually do anything\n");
-            printf("               [-g] --- debug\n");
-            printf("               [-C (connect to corrupted ODB)]\n");
-            return 0;
-         }
-      } else
-         strlcpy(host_name, argv[i], sizeof(host_name));
+      } else if (strcmp(argv[i], "-e") == 0) {
+         i++;
+         strlcpy(exp_name, argv[i], sizeof(exp_name));
+      } else if (strcmp(argv[i], "-s") == 0) {
+         i++;
+         odb_size = strtoul(argv[i], NULL, 0);
+      } else {
+         usage(); // DOES NOT RETURN
+      }
    }
 
    printf("Checking command line... experiment \"%s\", cleanup %d, dry_run %d\n", exp_name, cleanup, dry_run);
@@ -292,7 +294,7 @@ int main(int argc, char *argv[])
 
    cm_msg_flush_buffer();
 
-   if ((status == DB_INVALID_HANDLE) && corrupted) {
+   if (status == DB_INVALID_HANDLE) {
       char str[2000];
       cm_get_error(status, str);
       puts(str);
