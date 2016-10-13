@@ -30,18 +30,15 @@ std::string to_string(int v)
 
 int main(int argc, char *argv[])
 {
-   INT status, i, size;
+   INT status;
    char host_name[HOST_NAME_LENGTH];
    char exp_name[NAME_LENGTH];
-   char cmd[2000], dir[256], str[2000];
-   BOOL debug;
    BOOL corrupted;
    HNDLE hDB;
 
    int odb_size = DEFAULT_ODB_SIZE;
 
-   cmd[0] = dir[0] = 0;
-   debug = corrupted = FALSE;
+   corrupted = FALSE;
 
    char exptab_filename[MAX_STRING_LENGTH];
    char exp_names[MAX_EXPERIMENT][NAME_LENGTH];
@@ -55,9 +52,9 @@ int main(int argc, char *argv[])
    bool dry_run = false;
 
    /* parse command line parameters */
-   for (i = 1; i < argc; i++) {
+   for (int i = 1; i < argc; i++) {
       if (strcmp(argv[i], "-g") == 0) {
-         debug = TRUE;
+         //debug = TRUE;
       } else if (strcmp(argv[i], "-n") == 0) {
          dry_run = true;
       } else if (strcmp(argv[i], "--cleanup") == 0) {
@@ -217,10 +214,12 @@ int main(int argc, char *argv[])
    cm_msg_flush_buffer();
 
    if ((status == DB_INVALID_HANDLE) && corrupted) {
+      char str[2000];
       cm_get_error(status, str);
       puts(str);
       printf("ODB is corrupted, connecting anyway...\n");
    } else if (status != CM_SUCCESS) {
+      char str[2000];
       cm_get_error(status, str);
       puts(str);
       return 1;
@@ -229,7 +228,7 @@ int main(int argc, char *argv[])
    /* get experiment name */
    if (!exp_name[0]) {
       cm_get_experiment_database(&hDB, NULL);
-      size = NAME_LENGTH;
+      int size = NAME_LENGTH;
       db_get_value(hDB, 0, "/Experiment/Name", exp_name, &size, TID_STRING, TRUE);
    }
 
