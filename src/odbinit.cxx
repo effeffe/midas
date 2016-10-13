@@ -117,6 +117,11 @@ int main(int argc, char *argv[])
 
    status = cm_get_exptab(exp_name, exp_dir, sizeof(exp_dir), exp_user, sizeof(exp_user));
 
+   if (status != CM_SUCCESS) {
+      printf("Specified experiment \"%s\" not found in exptab, cm_get_exptab() returned %d. Sorry...\n", exp_name, status);
+      exit(1);
+   }
+
    printf("\n");
    printf("Checking exptab... selected experiment \"%s\", experiment directory \"%s\"\n", exp_name, exp_dir);
 
