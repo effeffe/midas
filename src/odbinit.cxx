@@ -125,8 +125,30 @@ int main(int argc, char *argv[])
 
 
    printf("\n");
-   printf("Checking experiment directory \"%s\"\n", exp_dir);
 
+   {
+      printf("Checking experiment directory \"%s\"\n", exp_dir);
+
+#ifdef S_ISDIR
+      struct stat stat_buf;
+      int v = stat(exp_dir, &stat_buf);
+
+      if (v != 0) {
+         printf("Invalid experiment directory \"%s\" does not seem to exist, stat() returned %d, errno %d (%s)\n", exp_dir, v, errno, strerror(errno));
+         printf("Sorry.\n");
+         exit(1);
+      }
+
+      if (!S_ISDIR(stat_buf.st_mode)) {
+         printf("Invalid experiment directory \"%s\" is not a directory\n", exp_dir);
+         printf("Sorry.\n");
+         exit(1);
+      }
+#else
+#error No support for stat() and S_ISDIR on this system!
+#endif
+   }
+   
    std::string odb_path;
 
    {
