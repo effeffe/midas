@@ -332,7 +332,6 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/odbinit \
 	$(BIN_DIR)/mhttpd  \
 	$(BIN_DIR)/mlogger \
-	$(BIN_DIR)/mtape \
 	$(BIN_DIR)/mhist \
 	$(BIN_DIR)/mstat \
 	$(BIN_DIR)/mdump \
@@ -341,7 +340,6 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/mhdump \
 	$(BIN_DIR)/mchart \
 	$(BIN_DIR)/stripchart.tcl \
-	$(BIN_DIR)/webpaw  \
 	$(BIN_DIR)/odbhist \
 	$(BIN_DIR)/melog   \
 	$(BIN_DIR)/mh2sql  \
@@ -737,10 +735,8 @@ install:
 	  install -v -D -m 755 $$file $(SYSBIN_DIR)/`basename $$file` ; \
 	  done
 
-	install -v -m 755 $(UTL_DIR)/mcleanup $(SYSBIN_DIR)
 	if [ -f $(SYSBIN_DIR)/dio ]; then chmod +s $(SYSBIN_DIR)/dio ; fi
 	if [ -f $(SYSBIN_DIR)/mhttpd ]; then chmod +s $(SYSBIN_DIR)/mhttpd; fi
-	if [ -f $(SYSBIN_DIR)/webpaw ]; then chmod +s $(SYSBIN_DIR)/webpaw; fi
 	ln -fs $(SYSBIN_DIR)/stripchart.tcl $(SYSBIN_DIR)/stripchart
 
 # include
@@ -803,7 +799,6 @@ minimal_install:
 ifeq ($(OSTYPE),linux)
 	install -v -m 755 $(BIN_DIR)/dio $(SYSBIN_DIR)
 endif
-	install -v -m 755 $(UTL_DIR)/mcleanup $(SYSBIN_DIR)
 	if [ -f $(SYSBIN_DIR)/dio ]; then chmod +s $(SYSBIN_DIR)/dio; fi
 	if [ -f $(SYSBIN_DIR)/mhttpd ]; then chmod +s $(SYSBIN_DIR)/mhttpd; fi
 
