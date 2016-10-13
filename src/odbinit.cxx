@@ -19,6 +19,13 @@
 #include "strlcpy.h"
 #endif
 
+std::string to_string(int v)
+{
+   char buf[1024];
+   sprintf(buf, "%d", v);
+   return buf;
+}
+
 /*------------------------------------------------------------------*/
 
 int main(int argc, char *argv[])
@@ -184,7 +191,7 @@ int main(int argc, char *argv[])
       std::string path1;
       path1 += odb_path;
       path1 += ".";
-      path1 += std::to_string(now);
+      path1 += to_string(now);
       printf("Preserving old ODB save file \%s\" to \"%s\"\n", odb_path.c_str(), path1.c_str());
       if (!dry_run) {
          status = rename(odb_path.c_str(), path1.c_str());
