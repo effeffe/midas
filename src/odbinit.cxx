@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
    BOOL corrupted;
    HNDLE hDB;
 
-   int odb_size = DEFAULT_ODB_SIZE;
+   int odb_size = 0; // DEFAULT_ODB_SIZE;
 
    corrupted = FALSE;
 
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
             printf("usage: odbinit [options...]\n");
             printf("options:\n");
             printf("               [-e Experiment] --- specify experiment name\n");
-            printf("               [-s size]\n");
+            printf("               [-s size] --- specify new size of ODB in bytes, default is %d\n", DEFAULT_ODB_SIZE);
             printf("               [--cleanup] --- cleanup (preserve) old (existing) ODB files\n");
             printf("               [-n] --- dry run, report everything that will be done, but do not actually do anything\n");
             printf("               [-g] --- debug\n");
@@ -201,6 +201,58 @@ int main(int argc, char *argv[])
    }
 
    printf("\n");
+
+   {
+      printf("Checking ODB size...\n");
+      printf("Requested ODB size is %d bytes\n", odb_size);
+
+      std::string path1;
+      path1 += exp_dir;
+      path1 += "/";
+      path1 += ".ODB_SIZE.TXT";
+
+      printf("ODB size file is \"%s\"\n", path1.c_str());
+
+      FILE *fp = fopen(path1.c_str(), "r");
+      if (!fp) {
+         printf("ODB size file \"%s\" does not exist, creating it...\n", path1.c_str());
+         fp = fopen(path1.c_str(), "w");
+         if (!fp) {
+            printf("Cannot create ODB size file \"%s\", fopen() errno %d (%s)\n", path1.c_str(), errno, strerror(errno));
+            printf("Sorry.\n");
+            exit(1);
+         }
+         if (odb_size == 0)
+            fprintf(fp, "%d\n", DEFAULT_ODB_SIZE);
+         else
+            fprintf(fp, "%d\n", odb_size);
+         fclose(fp);
+
+         fp = fopen(path1.c_str(), "r");
+         if (!fp) {
+            printf("Creation of ODB size file \"%s\" somehow failed.\n", path1.c_str());
+            printf("Sorry.\n");
+            exit(1);
+         }
+      }
+
+      int file_odb_size = 0;
+      fscanf(fp, "%d", &file_odb_size);
+      fclose(fp);
+
+      printf("Saved ODB size from \"%s\" is %d bytes\n", path1.c_str(), file_odb_size);
+
+      if (odb_size == 0)
+         odb_size = file_odb_size;
+
+      if (file_odb_size != odb_size) {
+         printf("Requested ODB size %d is different from previous ODB size %d. You have 2 choices:\n", odb_size, file_odb_size);
+         printf("1) to create ODB with old size, please try again without the \"-s\" switch.\n");
+         printf("2) to create ODB with new size, please delete the file \"%s\" and try again.\n", path1.c_str());
+         exit(1);
+      }
+   }
+   
    printf("We will initialize ODB for experiment \"%s\" on host \"%s\" with size %d bytes\n", exp_name, host_name, odb_size);
    printf("\n");
 
