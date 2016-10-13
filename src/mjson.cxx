@@ -573,8 +573,10 @@ static MJsonNode* parse_number(const char* sin, const char* s, const char** sout
       return MJsonNode::MakeInt(v);
    }
 
+   /* code will never be executed
    *sout = s;
    return MJsonNode::MakeError(NULL, "cannot parse number", sin, s);
+   */
 }
 
 static MJsonNode* parse_null(const char* sin, const char* s, const char** sout)

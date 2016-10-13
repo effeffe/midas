@@ -696,7 +696,7 @@ static void urlEncode(char *ps, int ps_size)
    }
    *pd = '\0';
 
-   if (0) {
+   if (/* DISABLES CODE */ (0)) {
       printf("urlEncode [");
       for (p=ps; *p!=0; p++)
          printf("0x%02x ", (*p)&0xFF);
@@ -1020,7 +1020,7 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 
 /*------------------------------------------------------------------*/
 
-void page_footer(BOOL bForm)  //wraps up body wrapper and inserts page footer
+void page_footer(BOOL bForm)  // wraps up body wrapper and inserts page footer
 {
    time_t now;
    int size;
@@ -1678,7 +1678,10 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    rsprintf("<title>%s status</title>\n", str);
 
    if (n_alarm) {
-      rsprintf("<audio autoplay src=\"alarm.mp3\">!midas alarm sound!</audio>\n");
+      strlcpy(str, "alarm.mp3", sizeof(str));
+      size = sizeof(str);
+      db_get_value(hDB, 0, "/Alarms/Sound", str, &size, TID_STRING, true);
+      rsprintf("<audio autoplay src=\"%s\">!midas alarm sound!</audio>\n", str);
    }
 
    rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
@@ -1688,7 +1691,10 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    rsprintf("<body><form method=\"GET\" action=\".\">\n");
 
    if (n_alarm) {
-      rsprintf("<embed src=\"alarm.mp3\" autostart=\"true\" loop=\"false\" hidden=\"true\" height=\"0\" width=\"0\">\n");
+      strlcpy(str, "alarm.mp3", sizeof(str));
+      size = sizeof(str);
+      db_get_value(hDB, 0, "/Alarms/Sound", str, &size, TID_STRING, true);
+      rsprintf("<embed src=\"%s\" autostart=\"true\" loop=\"false\" hidden=\"true\" height=\"0\" width=\"0\">\n", str);
    }
 
    rsprintf("<div id=\"wrapper\" class=\"wrapper\">\n");
@@ -6994,7 +7000,7 @@ void javascript_commands(const char *cookie_cpwd)
       }
    }
 
-   if (0) {
+   if (/* DISABLES CODE */ (0)) {
       printf("command [%s], encoding %d [%s], jsonp %d, single %d, multiple %d, odb array size %d\n", cmd_parameter.c_str(), encoding, encoding_parameter.c_str(), jsonp, single, multiple, (int)odb.size());
    }
 
@@ -11651,7 +11657,7 @@ int get_hist_last_written(const char *path, time_t endtime, int index, int want_
 
    double tend = ss_millitime();
 
-   if (0)
+   if (/* DISABLES CODE */ (0))
       printf("get_hist_last_written: elapsed time %f ms\n", tend-tstart);
 
    return HS_SUCCESS;
@@ -12233,7 +12239,7 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
    /* old code for run markers, new code is below */
 
    /* write run markes if selected */
-   if (0 && runmarker) {
+   if (/* DISABLES CODE */ (0) && runmarker) {
 
       const char* event_names[] = {
          "Run transitions",
@@ -12363,7 +12369,7 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
       if (ok)
          ok = (hsdata->status[index_run_number] == HS_SUCCESS);
 
-      if (0 && ok)
+      if (/* DISABLES CODE */ (0) && ok)
          printf("read run info: indexes: %d, %d, status: %d, %d, entries: %d, %d\n", index_state, index_run_number, hsdata->status[index_state], hsdata->status[index_run_number], hsdata->num_entries[index_state], hsdata->num_entries[index_run_number]);
 
       if (ok)
@@ -12580,7 +12586,7 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
                break;
             }
          
-         if (0) {
+         if (/* DISABLES CODE */ (0)) {
             printf("graph %d: odb index %d, n_point %d, num_entries %d, have_last_written %d %d, status %d, var_status [%s]\n", i, k, n_point[i], hsdata->num_entries[k], hsdata->have_last_written, (int)hsdata->last_written[k], hsdata->status[k], var_status[i]);
          }
 
@@ -13809,7 +13815,7 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
 
          if (status == HS_SUCCESS && tags.size() > 0) {
 
-            if (0) {
+            if (/* DISABLES CODE */ (0)) {
                printf("Compare %d\n", cmp_names("AAA", "BBB"));
                printf("Compare %d\n", cmp_names("BBB", "AAA"));
                printf("Compare %d\n", cmp_names("AAA", "AAA"));
@@ -13823,7 +13829,7 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
             if (sort_vars)
                std::sort(tags.begin(), tags.end(), cmp_tags);
 
-            if (0) {
+            if (/* DISABLES CODE */ (0)) {
                printf("Event [%s] %d tags\n", plot.vars[index].event_name.c_str(), (int)tags.size());
 
                for (unsigned v=0; v<tags.size(); v++) {
@@ -15846,8 +15852,11 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    /*---- send sound file -------------------------------------------*/
 
-   if (equal_ustring(dec_path, "alarm.mp3")) {
-      send_resource("alarm.mp3");
+   if (strlen(dec_path) > 3 &&
+       dec_path[strlen(dec_path)-3] == 'm' &&
+       dec_path[strlen(dec_path)-2] == 'p' &&
+       dec_path[strlen(dec_path)-1] == '3') {
+      send_resource(dec_path);
       return;
    }
 
@@ -18200,50 +18209,6 @@ static int xmg_check_nonce(const char *nonce) {
  * Authenticate HTTP request against opened passwords file.
  * Returns 1 if authenticated, 0 otherwise.
  */
-static int xmg_http_check_digest_auth(struct http_message *hm,
-                                     const char *auth_domain, FILE *fp) {
-  struct mg_str *hdr;
-  char buf[128], f_user[sizeof(buf)], f_ha1[sizeof(buf)], f_domain[sizeof(buf)];
-  char user[50], cnonce[33], response[40], uri[200], qop[20], nc[20], nonce[30];
-  char expected_response[33];
-
-  /* Parse "Authorization:" header, fail fast on parse error */
-  if (hm == NULL || fp == NULL ||
-      (hdr = mg_get_http_header(hm, "Authorization")) == NULL ||
-      mg_http_parse_header(hdr, "username", user, sizeof(user)) == 0 ||
-      mg_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0 ||
-      mg_http_parse_header(hdr, "response", response, sizeof(response)) == 0 ||
-      mg_http_parse_header(hdr, "uri", uri, sizeof(uri)) == 0 ||
-      mg_http_parse_header(hdr, "qop", qop, sizeof(qop)) == 0 ||
-      mg_http_parse_header(hdr, "nc", nc, sizeof(nc)) == 0 ||
-      mg_http_parse_header(hdr, "nonce", nonce, sizeof(nonce)) == 0 ||
-      xmg_check_nonce(nonce) == 0) {
-    return 0;
-  }
-
-  /*
-   * Read passwords file line by line. If should have htdigest format,
-   * i.e. each line should be a colon-separated sequence:
-   * USER_NAME:DOMAIN_NAME:HA1_HASH_OF_USER_DOMAIN_AND_PASSWORD
-   */
-  while (fgets(buf, sizeof(buf), fp) != NULL) {
-    if (sscanf(buf, "%[^:]:%[^:]:%s", f_user, f_domain, f_ha1) == 3 &&
-        strcmp(user, f_user) == 0 &&
-        /* NOTE(lsm): due to a bug in MSIE, we do not compare URIs */
-        strcmp(auth_domain, f_domain) == 0) {
-      /* User and domain matched, check the password */
-      xmg_mkmd5resp(
-          hm->method.p, hm->method.len, hm->uri.p,
-          hm->uri.len + (hm->query_string.len ? hm->query_string.len + 1 : 0),
-          f_ha1, strlen(f_ha1), nonce, strlen(nonce), nc, strlen(nc), cnonce,
-          strlen(cnonce), qop, strlen(qop), expected_response);
-      return mg_casecmp(response, expected_response) == 0;
-    }
-  }
-
-  /* None of the entries in the passwords file matched - return failure */
-  return 0;
-}
 
 static void xmg_http_send_digest_auth_request(struct mg_connection *c,
                                              const char *domain) {

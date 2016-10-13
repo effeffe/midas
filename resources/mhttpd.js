@@ -1597,20 +1597,20 @@ function msg_extend()
 
 function alarm_load()
 {
-    // hide speak button if browser does not support
-    try {
-	u = new SpeechSynthesisUtterance("Hello");
-    } catch (err) {
-	document.getElementById('aspeak').style.display = 'none';
-	document.getElementById('aspeakLabel').style.display = 'none';
-    }
-    
-    // get options from local storage
-    if (typeof(Storage) !== "undefined") {
-	if (sessionStorage.alarmSpeak === undefined) 
-	    sessionStorage.alarmSpeak = "1";
-        document.getElementById("aspeak").checked = (sessionStorage.alarmSpeak == "1");
-    }
+   // hide speak button if browser does not support
+   try {
+      var u = new SpeechSynthesisUtterance("Hello");
+   } catch (err) {
+      document.getElementById('aspeak').style.display = 'none';
+      document.getElementById('aspeakLabel').style.display = 'none';
+   }
+   
+   // get options from local storage
+   if (typeof(Storage) !== "undefined") {
+      if (sessionStorage.alarmSpeak === undefined)
+         sessionStorage.alarmSpeak = "1";
+      document.getElementById("aspeak").checked = (sessionStorage.alarmSpeak == "1");
+   }
 }
 
 function aspeak_click(t)
@@ -1621,17 +1621,20 @@ function aspeak_click(t)
       else
          sessionStorage.alarmSpeak = "0";
    }
-      
+   
 }
 
 function mhttpd_alarm_speak(t)
 {
    if (typeof(Storage) !== "undefined") {
       if (sessionStorage.alarmSpeak != "0")  {
-	 u = new SpeechSynthesisUtterance(t);
-	 window.speechSynthesis.speak(u);
+         var u = new SpeechSynthesisUtterance(t);
+         window.speechSynthesis.speak(u);
       }
-   } 
+   } else {
+      u = new SpeechSynthesisUtterance(t);
+      window.speechSynthesis.speak(u);
+   }
 }
 
 /*---- chat functions -------------------------------------*/

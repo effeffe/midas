@@ -1889,6 +1889,7 @@ MJsonNode* mjsonrpc_get_schema()
    return mjsonrpc_make_schema(&gHandlers);
 }
 
+#ifdef MJSON_DEBUG
 static void mjsonrpc_print_schema()
 {
    MJsonNode *s = mjsonrpc_get_schema();
@@ -1898,6 +1899,7 @@ static void mjsonrpc_print_schema()
    printf("%s\n", str.c_str());
    delete s;
 }
+#endif
 
 static std::string indent(int x, const char* p = " ")
 {
@@ -1935,22 +1937,6 @@ static void output(int nest, bool span, std::string text)
    l.text = text;
    nested_output.push_back(l);
 };
-
-static std::string nested_dump()
-{
-   std::string s;
-
-   for (unsigned i=0; i<nested_output.size(); i++) {
-      char buf[256];
-      sprintf(buf, "%d", nested_output[i].nest);
-      s += std::string(buf) + ": " + nested_output[i].text;
-      if (nested_output[i].span)
-         s += " ----> span to end";
-      s += "\n";
-   }
-
-   return s;
-}
 
 static std::string nested_print()
 {
