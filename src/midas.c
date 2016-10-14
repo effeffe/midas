@@ -3527,6 +3527,13 @@ typedef struct tr_client {
    char  key_name[NAME_LENGTH]; /* this client key name in /System/Clients */
    int   status;
    char  errorstr[256];
+   DWORD init_time;    // time when tr_client created
+   DWORD connect_timeout;
+   DWORD connect_start_time; // time when client rpc connection is started
+   DWORD connect_end_time;   // time when client rpc connection is finished
+   DWORD rpc_timeout;
+   DWORD rpc_start_time;     // time client rpc call is started
+   DWORD rpc_end_time;       // time client rpc call is finished
 } TR_CLIENT;
 
 int tr_compare(const void *arg1, const void *arg2)
@@ -3548,6 +3555,8 @@ typedef struct {
    int   debug_flag;
    int   status;
    char  errorstr[256];
+   DWORD start_time;
+   DWORD end_time;
    int   num_clients;
    TR_CLIENT* clients;
 } TR_STATE;
@@ -3667,6 +3676,15 @@ static void json_write_kvp_i(char **buf, int* bufs, int* bufe, int level, const 
    json_write(buf, bufs, bufe, 0, str, 0);
 }
 
+static void json_write_kvp_DWORD(char **buf, int* bufs, int* bufe, int level, const char* key, DWORD value)
+{
+   char str[256];
+   sprintf(str, "%d", value);
+   json_write(buf, bufs, bufe, level, key, 1);
+   json_write(buf, bufs, bufe, 0, ":", 0);
+   json_write(buf, bufs, bufe, 0, str, 0);
+}
+
 int cm_transition_status_json(char** json_status)
 {
    char* buf = NULL;
@@ -3702,6 +3720,12 @@ int cm_transition_status_json(char** json_status)
       json_write_kvp_i(&buf, &bufs, &bufe, level, "status",     s->status);
       json_write(&buf, &bufs, &bufe, 0, ",", 0);
       json_write_kvp_s(&buf, &bufs, &bufe, level, "errorstr",   s->errorstr);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "millitime", ss_millitime());
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "start_time", s->start_time);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "end_time", s->end_time);
       json_write(&buf, &bufs, &bufe, 0, ",", 0);
       
       json_write(&buf, &bufs, &bufe, level, "clients", 1);
@@ -3754,6 +3778,23 @@ int cm_transition_status_json(char** json_status)
             json_write(&buf, &bufs, &bufe, 0, ",", 0);
          }
          
+         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "init_time", t[i].init_time);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+
+         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "connect_timeout", t[i].connect_timeout);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "connect_start_time", t[i].connect_start_time);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "connect_end_time", t[i].connect_end_time);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+
+         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "rpc_timeout", t[i].rpc_timeout);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "rpc_start_time", t[i].rpc_start_time);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "rpc_end_time", t[i].rpc_end_time);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+
          json_write_kvp_i(&buf, &bufs, &bufe, level, "status",     t[i].status);
          json_write(&buf, &bufs, &bufe, 0, ",", 0);
          json_write_kvp_s(&buf, &bufs, &bufe, level, "errorstr",   t[i].errorstr);
@@ -3872,6 +3913,13 @@ int cm_transition_call(void *param)
    tr_client = (TR_CLIENT *)param;
 
    tr_client->errorstr[0] = 0;
+   tr_client->init_time = ss_millitime();
+   tr_client->connect_timeout    = 0;
+   tr_client->connect_start_time = 0;
+   tr_client->connect_end_time   = 0;
+   tr_client->rpc_timeout    = 0;
+   tr_client->rpc_start_time = 0;
+   tr_client->rpc_end_time   = 0;
 
    /* wait for predecessor if set */
    if (tr_client->async_flag & TR_MTHREAD && tr_client->pred) {
@@ -3940,10 +3988,15 @@ int cm_transition_call(void *param)
    old_timeout = rpc_get_option(-2, RPC_OTIMEOUT);
    rpc_set_option(-2, RPC_OTIMEOUT, connect_timeout);
 
+   tr_client->connect_timeout = connect_timeout;
+   tr_client->connect_start_time = ss_millitime();
+
    /* client found -> connect to its server port */
    status = rpc_client_connect(tr_client->host_name, tr_client->port, tr_client->client_name, &hConn);
 
    rpc_set_option(-2, RPC_OTIMEOUT, old_timeout);
+
+   tr_client->connect_end_time = ss_millitime();
 
    if (status != RPC_SUCCESS) {
       cm_msg(MERROR, "cm_transition_call",
@@ -3981,6 +4034,9 @@ int cm_transition_call(void *param)
    old_timeout = rpc_get_option(hConn, RPC_OTIMEOUT);
    rpc_set_option(hConn, RPC_OTIMEOUT, timeout);
 
+   tr_client->rpc_timeout = timeout;
+   tr_client->rpc_start_time = ss_millitime();
+
    if (tr_client->debug_flag == 1)
       printf("Executing RPC transition client \"%s\" on host %s...\n",
              tr_client->client_name, tr_client->host_name);
@@ -3994,6 +4050,8 @@ int cm_transition_call(void *param)
    status = rpc_client_call(hConn, RPC_RC_TRANSITION, tr_client->transition, tr_client->run_number, tr_client->errorstr, sizeof(tr_client->errorstr), tr_client->sequence_number);
 
    t1 = ss_millitime();
+
+   tr_client->rpc_end_time = ss_millitime();
 
    /* fix for clients returning 0 as error code */
    if (status == 0)
@@ -4585,11 +4643,15 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       s->debug_flag = debug_flag;
       s->status     = 0;
       s->errorstr[0] = 0;
+      s->start_time = 0;
+      s->end_time = 0;
       s->num_clients = n_tr_clients;
       s->clients = tr_client;
 
       tr_current_transition = s;
    }
+
+   tr_current_transition->start_time = ss_millitime();
 
    /* contact ordered clients for transition -----------------------*/
    status = CM_SUCCESS;
@@ -4679,6 +4741,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
 
       tr_current_transition->status = status;
+      tr_current_transition->end_time = ss_millitime();
 
       return status;
    }
@@ -4777,6 +4840,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    if (errstr != NULL)
       strlcpy(errstr, "Success", errstr_size);
 
+   tr_current_transition->end_time = ss_millitime();
    tr_current_transition->status = CM_SUCCESS;
    strlcpy(tr_current_transition->errorstr, "Success", sizeof(tr_current_transition->errorstr));
 
