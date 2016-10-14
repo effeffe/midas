@@ -38,7 +38,20 @@ var MT_LOG   =  (1<<4);
 var MT_TALK  =  (1<<5);
 var MT_CALL  =  (1<<6);
 
-var transition_names = { 1:"Start", 2:"Stop", 4:"Pause", 8:"Resume", 16:"Start abort", 4096:"Deferred" };
+var STATE_STOPPED = 1;      /**< MIDAS run stopped                  */
+var STATE_PAUSED  = 2;      /**< MIDAS run paused                   */
+var STATE_RUNNING = 3;      /**< MIDAS run running                  */
+
+var TR_START      =    1;   /**< Start transition  */
+var TR_STOP       =    2;   /**< Stop transition  */
+var TR_PAUSE      =    4;   /**< Pause transition */
+var TR_RESUME     =    8;   /**< Resume transition  */
+var TR_STARTABORT =   16;   /**< Start aborted transition  */
+var TR_DEFERRED   = 4096;
+
+var run_state_names = { 1:"Stopped", 2:"Paused", 3:"Running" };
+
+var transition_names = { 1:"Starting run...", 2:"Stopping run...", 4:"Pausing run...", 8:"Resuming run...", 16:"Start abort", 4096:"Deferred" };
 
 function XMLHttpRequestGeneric()
 {
