@@ -34,10 +34,12 @@
                   <th colspan="4" class="subStatusTitle">Run Status</th>
                 </tr>
                 <tr>
-                  <td colspan="4">
+                  <td colspan="1" height="100%" id="run_info" class="redLight">
                     Run
                     <span id="run_number">run_number</span>
                     <span id="run_state">run_state</span>
+                  </td>
+                  <td colspan="3">
                     <input id="startButton" type=button value=Start onClick="mhttpd_start_run();">
                     <input id="stopButton" type=button value=Stop onClick="mhttpd_stop_run();">
                     <input id="pauseButton" type=button value=Pause onClick="mhttpd_pause_run();">
@@ -50,13 +52,18 @@
           </tr>
           <tr>
             <td>
+              <span id="tr_status">tr_status</span>
+            </td>
+          </tr>
+          <tr>
+            <td>
               <table width="100%" class="subStatusTable" id="stripeList">
                 <tr>
                   <th colspan="5" class="subStatusTitle">Run transition</th>
                 </tr>
                 <tr>
                   <td colspan="5">
-                    Transition: <span id="transition">transition</span>, Status: <span id="status">status</span> (<span id="errorstr">errorstr</span>), Time: <span id="time">time</span>
+                    Last transition: <span id="transition">transition</span>, Status: <span id="status">status</span> (<span id="errorstr">errorstr</span>), Time: <span id="time">time</span>
                   </td>
                 </tr>
                 <tr class="titleRow">
@@ -141,6 +148,19 @@
           e.innerHTML = text;
     }
 
+    function adjust_colors(runstate)
+    {
+       if (runstate == STATE_RUNNING) {
+          document.getElementById("run_info").className = "greenLight";
+       } else if (runstate == STATE_PAUSED) {
+          document.getElementById("run_info").className = "yellowLight";
+       } else if (runstate == STATE_STOPPED) {
+          document.getElementById("run_info").className = "redLight";
+       } else {
+          document.getElementById("run_info").className = "greenLight";
+       }
+    }
+
     function adjust_buttons(runstate)
     {
        if (runstate == STATE_RUNNING) {
@@ -177,6 +197,14 @@
           return "0";
        return v/10.0 + "s";
     }
+
+    function tr_name(tr)
+    {
+       var v = transition_names[tr];
+       if (v)
+          return v;
+       return "TR_" + tr;
+    }
     
     function callback(rpc)
     {
@@ -193,31 +221,41 @@
 
        set_text("run_number", rpc.result.run_number);
        if (rpc.result.status == 0) {
-          set_text("run_state",  transition_names[rpc.result.transition]);
+          set_text("run_state",  tr_name(rpc.result.transition));
           adjust_buttons(0);
+          adjust_colors(0);
        } else {
           var fake_runstate = transition_fake_runstate[rpc.result.transition];
           adjust_buttons(fake_runstate);
+          adjust_colors(fake_runstate);
           set_text("run_state",  run_state_names[fake_runstate]);
        }
-       set_text("transition", rpc.result.transition + " (" + transition_names[rpc.result.transition] + ")");
+       set_text("transition", tr_name(rpc.result.transition));
        set_text("status",     rpc.result.status);
        set_text("errorstr",   rpc.result.errorstr);
 
        var millitime = rpc.result.millitime;
 
+       var tr_time_text = "";
+       
        if (rpc.result.end_time == 0) {
           var tr_time = millitime - rpc.result.start_time;
-          set_text("time", time2sec(tr_time));
+          tr_time_text = time2sec(tr_time);
+          set_text("time", tr_time_text);
        } else {
           var tr_time = rpc.result.end_time - rpc.result.start_time;
-          set_text("time", time2sec(tr_time));
+          tr_time_text = time2sec(tr_time);
+          set_text("time", tr_time_text);
        }
 
        if (rpc.result.status) {
+          // transition is completed
           document.getElementById("cancelButton").disabled = true;
+          set_text("tr_status", "");
        } else {
+          // transition still in progress
           document.getElementById("cancelButton").disabled = false;
+          set_text("tr_status", "Transition \"" + tr_name(rpc.result.transition) + "\" in progress, elapsed time: " + tr_time_text);
        }
        
        var clients = rpc.result.clients;
