@@ -1652,6 +1652,8 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
    rsprintf("\r\n<html>\n");
 
+#define NEW_START_STOP 1
+
 #ifndef NEW_START_STOP
    /* auto refresh */
    i = 0;
