@@ -14066,8 +14066,10 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       return status;
 
    /* don't abort if other than main connection is broken */
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_REMOTE)
+   if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_REMOTE) {
+      cm_msg(MERROR, "rpc_server_receive", "rpc check ok, abort canceled");
       return SS_SUCCESS;
+   }
 
    return status;
 }
