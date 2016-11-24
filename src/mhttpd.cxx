@@ -7,10 +7,16 @@
 
 \********************************************************************/
 
+#include <stdio.h>
 #include <math.h>
 #include <assert.h>
 #include <float.h>
+#include <errno.h> // errno
+#include <fcntl.h> // open() flags
+#include <sys/stat.h> // fstat() struct stat
+
 #include <algorithm>
+
 #include "midas.h"
 #include "msystem.h"
 #include "mxml.h"

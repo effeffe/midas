@@ -11,11 +11,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <errno.h> // errno
 
 #include <map>
 
 #include "midas.h"
-#include "msystem.h"
+#include "msystem.h" // cm_get_path()
 #include "history.h"
 
 #ifndef HAVE_STRLCPY

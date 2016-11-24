@@ -7,8 +7,11 @@
 
 \********************************************************************/
 
+#include <stdio.h>
+#include <stdlib.h> // strtod()
+#include <errno.h>  // errno
+
 #include "midas.h"
-#include "msystem.h"
 #include "mjson.h"
 
 #ifndef HAVE_STRLCPY

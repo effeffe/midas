@@ -9,6 +9,10 @@
 
 \********************************************************************/
 
+#include <stdio.h>
+#include <fcntl.h> // open() flags
+#include <errno.h> // errno
+
 #include "midas.h"
 #include "msystem.h"
 #include "strlcpy.h"

@@ -15,7 +15,7 @@
 #include "msystem.h"
 #include "hardware.h"
 
-#include "mdsupport.h"
+//#include "mdsupport.h"
 
 #ifdef HAVE_ZLIB
 #include "zlib.h"

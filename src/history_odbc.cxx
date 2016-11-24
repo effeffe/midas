@@ -7,8 +7,8 @@
 
 \********************************************************************/
 
-#include "midas.h"
-#include "msystem.h"
+#include <stdio.h>
+#include <assert.h> // assert()
 
 #include <vector>
 #include <string>

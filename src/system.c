@@ -36,7 +36,15 @@ The Midas System file
  *  @{  */
 
 #include <stdio.h>
+#include <string.h> // memset()
+#include <errno.h>  // errno
+#include <fcntl.h>  // open() flags
+#include <stdlib.h> // getenv()
+#include <unistd.h> // read()
+#include <assert.h> // assert()
 #include <math.h>
+#include <dirent.h> // opendir()
+#include <syslog.h> // openlog()
 
 #include "midas.h"
 #include "msystem.h"
@@ -334,6 +342,9 @@ static int ss_shm_name(const char* name, char* mem_name, int mem_name_size, char
 }
 
 #if defined OS_UNIX
+
+#include <sys/shm.h>
+
 static int ss_shm_file_name_to_shmid(const char* file_name, int* shmid)
 {
    int key, status;
@@ -1579,6 +1590,12 @@ INT ss_spawnv(INT mode, const char *cmdname, char *argv[])
 #endif                          /* OS_UNIX */
 }
 
+#ifdef OS_UNIX
+#ifndef NO_PTY
+#include <util.h> // forkpty()
+#endif
+#endif
+
 /*------------------------------------------------------------------*/
 INT ss_shell(int sock)
 /********************************************************************\
@@ -2160,6 +2177,10 @@ INT ss_thread_kill(midas_thread_t thread_id)
 static INT skip_semaphore_handle = -1;
 static int semaphore_trace = 0;
 static int semaphore_nest_level = 0;
+
+#ifdef OS_UNIX
+#include <sys/sem.h> // semget()
+#endif
 
 INT ss_semaphore_create(const char *name, HNDLE * semaphore_handle)
 /********************************************************************\

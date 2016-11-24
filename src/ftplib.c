@@ -11,6 +11,14 @@
 
 \********************************************************************/
 
+#include <stdio.h>
+#include <stdarg.h> // va_list
+#include <string.h> // strcpy()
+#include <stdlib.h> // free()
+#include <unistd.h> // read()
+#include <fcntl.h>  // open() flags
+#include <errno.h>  // errno
+
 #include "midas.h"
 #include "msystem.h"
 #include "ftplib.h"
