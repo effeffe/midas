@@ -45,6 +45,12 @@ The Midas System file
 #include <math.h>
 #include <dirent.h> // opendir()
 #include <syslog.h> // openlog()
+#include <stdarg.h> // va_start()
+#include <fnmatch.h> // fnmatch()
+
+#if defined(OS_UNIX) || defined(OS_LINUX) || defined(OS_DARWIN)
+#include <sys/ioctl.h> // ioctl()
+#endif
 
 #include "midas.h"
 #include "msystem.h"

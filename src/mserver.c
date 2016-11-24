@@ -9,6 +9,12 @@
 
 \********************************************************************/
 
+#include <stdio.h>
+#include <string.h> // strlcpy()
+#include <errno.h>  // errno
+#include <assert.h> // assert()
+#include <stdlib.h> // getenv()
+
 #include "midas.h"
 #include "msystem.h"
 
