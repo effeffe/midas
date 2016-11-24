@@ -23,7 +23,6 @@
 #endif
 
 #ifdef OS_UNIX
-#include <grp.h>
 #include <sys/types.h>
 #endif
 
@@ -410,37 +409,6 @@ int main(int argc, char **argv)
       
       if (callback.experiment[0])
          cm_set_experiment_name(callback.experiment);
-
-#ifdef OS_UNIX
-
-      /* under UNIX, change user and group ID if started under root */
-      if (callback.user[0] && geteuid() == 0) {
-         struct passwd *pw;
-
-         pw = getpwnam(callback.user);
-         if (pw == NULL) {
-            rpc_debug_printf("Cannot change UID, unknown user \"%s\"", callback.user);
-            cm_msg(MERROR, "main", "Cannot change UID, unknown user \"%s\"", callback.user);
-         } else {
-            if (setgid(pw->pw_gid) < 0 || initgroups(pw->pw_name, pw->pw_gid) < 0) {
-               rpc_debug_printf("Unable to set group premission for user %s", callback.user);
-               cm_msg(MERROR, "main", "Unable to set group premission for user %s", callback.user);
-            } else {
-               if (setuid(pw->pw_uid) < 0) {
-                  rpc_debug_printf("Unable to set user ID for %s", callback.user);
-                  cm_msg(MERROR, "main", "Unable to set user ID for %s", callback.user);
-               } else {
-                  if (debug) {
-                     rpc_debug_printf("Changed UID to user %s (GID %d, UID %d)",
-                                      callback.user, pw->pw_gid, pw->pw_uid);
-                     cm_msg(MLOG, "main", "Changed UID to user %s (GID %d, UID %d)",
-                            callback.user, pw->pw_gid, pw->pw_uid);
-                  }
-               }
-            }
-         }
-      }
-#endif
 
       rpc_register_server(ST_SUBPROCESS, NULL, NULL, rpc_server_dispatch);
 
