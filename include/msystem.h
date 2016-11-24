@@ -592,9 +592,6 @@ extern "C" {
    INT EXPRT ss_socket_wait(int sock, int millisec);
    INT EXPRT ss_recv_net_command(int sock, DWORD* routine_id, DWORD* param_size, char **param_ptr, int timeout_ms);
 
-   /*---- system logging ----*/
-   INT EXPRT ss_syslog(const char *message);
-
    /*---- event buffer routines ----*/
    INT EXPRT eb_create_buffer(INT size);
    INT EXPRT eb_free_buffer(void);

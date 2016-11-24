@@ -32,17 +32,6 @@ BOOL use_callback_addr = TRUE;
 
 INT rpc_server_dispatch(INT index, void *prpc_param[]);
 
-/*---- msg_print ---------------------------------------------------*/
-
-INT msg_print(const char *msg)
-{
-   /* print message to system log */
-   ss_syslog(msg);
-
-   /* print message to stdout */
-   return puts(msg);
-}
-
 /*---- debug_print -------------------------------------------------*/
 
 void debug_print(char *msg)
@@ -221,9 +210,6 @@ int main(int argc, char **argv)
       use_callback_addr = FALSE;
 
    rpc_set_server_option(RPC_OSERVER_NAME, (POINTER_T) name);
-
-   /* redirect message print */
-   cm_set_msg_print(MT_ALL, MT_ALL, msg_print);
 
    /* find out if we were started by inetd */
    size = sizeof(int);
