@@ -10,6 +10,10 @@
 \********************************************************************/
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>  // errno
+#include <sys/stat.h> // S_ISDIR
+
 #include <string>
 
 #include "midas.h"

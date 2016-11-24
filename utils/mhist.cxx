@@ -7,8 +7,10 @@
 
 \********************************************************************/
 
-#include "midas.h"
-#include "msystem.h"
+#include <stdio.h>
+#include <stdlib.h> // free()
+#include <assert.h> // assert()
+
 #include "history.h"
 #ifndef HAVE_STRLCPY
 #include "strlcpy.h"

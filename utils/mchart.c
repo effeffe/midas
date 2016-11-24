@@ -22,7 +22,12 @@
 
 \********************************************************************/
 
+#include <stdio.h>
 #include <fcntl.h>
+#include <string.h> // strcpy()
+#include <stdlib.h> // atof()
+#include <ctype.h>  // tolower()
+
 #include "midas.h"
 #include "msystem.h"
 

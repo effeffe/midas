@@ -9,6 +9,11 @@
 
 \********************************************************************/
 
+#include <stdio.h>
+#include <string.h> // strlen()
+#include <ctype.h>  // isdigit()
+#include <stdlib.h> // atoi()
+
 #include "midas.h"
 #include "msystem.h"
 #ifndef HAVE_STRLCPY

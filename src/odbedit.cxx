@@ -10,6 +10,8 @@
 \********************************************************************/
 
 #include <stdio.h>
+#include <errno.h> // errno
+#include <fcntl.h> // open() flags
 #include "midas.h"
 #include "msystem.h"
 #include <assert.h>

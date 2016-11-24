@@ -9,9 +9,13 @@
 
 \********************************************************************/
 
+#include <stdio.h>
+
 #include "midas.h"
 #include "msystem.h"
 #include "hardware.h"
+#include "ftplib.h"
+
 #include <errno.h>              /* for mkdir() */
 #include <assert.h>
 #include <string>

@@ -29,6 +29,10 @@ The Midas Dump support file
 /* include files */
 /* moved #define HAVE_FTPLIB into makefile (!vxWorks) */
 
+#include <stdio.h>
+#include <assert.h> // assert()
+#include <errno.h>  // errno
+
 #define TRACE
 #include "midas.h"
 #include "msystem.h"

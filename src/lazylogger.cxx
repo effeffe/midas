@@ -7,6 +7,10 @@ Contents:     Disk to Tape copier for background job.
 $Id$
 
 \********************************************************************/
+
+#include <stdio.h>
+#include <errno.h> // errno
+
 #include "midas.h"
 #include "msystem.h"
 #ifndef HAVE_STRLCPY

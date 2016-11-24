@@ -9,6 +9,11 @@
 
 \********************************************************************/
 
+#include <stdio.h>
+#include <assert.h> // assert()
+#include <string.h> // strcat()
+#include <unistd.h> // write()
+#include <stdlib.h> // atoi()
 #include <fcntl.h>
 #include "midas.h"
 #include "msystem.h"
