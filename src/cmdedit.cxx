@@ -9,6 +9,10 @@
 
 \********************************************************************/
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "midas.h"
 #include "msystem.h"
 

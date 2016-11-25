@@ -48,8 +48,31 @@ The Midas System file
 #include <stdarg.h> // va_start()
 #include <fnmatch.h> // fnmatch()
 
+#ifdef OS_LINUX
+#include <sys/time.h> // gettimeofday()
+#endif
+
+#ifdef OS_LINUX
+#include <sys/statfs.h> // statfs()
+#endif
+
 #if defined(OS_UNIX) || defined(OS_LINUX) || defined(OS_DARWIN)
 #include <sys/ioctl.h> // ioctl()
+#endif
+
+// stuff for SYS_gettid
+#if defined(OS_UNIX) || defined(OS_LINUX)
+#define _GNU_SOURCE        /* or _BSD_SOURCE or _SVID_SOURCE */
+#include <unistd.h>
+#include <sys/syscall.h>   /* For SYS_xxx definitions */
+#endif
+
+#ifdef OS_LINUX
+#include <sys/wait.h>
+#endif
+
+#ifdef OS_LINUX
+#include <sys/mtio.h>
 #endif
 
 #include "midas.h"
@@ -1596,9 +1619,15 @@ INT ss_spawnv(INT mode, const char *cmdname, char *argv[])
 #endif                          /* OS_UNIX */
 }
 
-#ifdef OS_UNIX
+#ifdef OS_DARWIN
 #ifndef NO_PTY
 #include <util.h> // forkpty()
+#endif
+#endif
+
+#ifdef OS_LINUX
+#ifndef NO_PTY
+#include <pty.h>
 #endif
 #endif
 
@@ -2185,6 +2214,14 @@ static int semaphore_trace = 0;
 static int semaphore_nest_level = 0;
 
 #ifdef OS_UNIX
+
+// for semtimedop()
+#ifdef OS_LINUX
+#ifndef __USE_GNU
+#define __USE_GNU
+#endif
+#endif
+
 #include <sys/sem.h> // semget()
 #endif
 
@@ -5783,7 +5820,7 @@ blockn:  >0 = block number, =0 option not available, <0 errno
 
    return 0;
 
-#elif defined(OS_UNIX)
+#elif defined(MTIOCPOS)
 
    INT status;
    struct mtpos arg;
@@ -5809,6 +5846,11 @@ blockn:  >0 = block number, =0 option not available, <0 errno
    /* I'm not sure the partition count corresponds to the block count */
    status = GetTapeParameters((HANDLE) channel, GET_TAPE_MEDIA_INFORMATION, &size, &media);
    return (media.PartitionCount);
+
+#else
+
+#warning No support for tape I/O: no MTIOCPOS
+   return 0;
 
 #endif
 }

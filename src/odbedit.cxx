@@ -11,6 +11,8 @@
 
 #include <stdio.h>
 #include <errno.h> // errno
+#include <string.h>
+#include <stdlib.h>
 #include <fcntl.h> // open() flags
 #include "midas.h"
 #include "msystem.h"

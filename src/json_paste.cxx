@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h> // strtod()
 #include <errno.h>  // errno
+#include <string.h> // strchr()
+#include <limits.h> // INT_MAX
 
 #include "midas.h"
 #include "mjson.h"

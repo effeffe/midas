@@ -14,6 +14,11 @@
 #include <math.h>
 #include <assert.h> // assert()
 #include <dirent.h> // opendir()
+#include <string.h>
+#include <stdlib.h>
+#ifdef OS_LINUX
+#include <sys/stat.h> // stat()
+#endif
 
 #include <vector>
 #include <string>

@@ -11,6 +11,9 @@
 #include <math.h>
 #include <assert.h>
 #include <float.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdarg.h>
 #include <errno.h> // errno
 #include <fcntl.h> // open() flags
 #include <sys/stat.h> // fstat() struct stat

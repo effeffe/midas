@@ -10,6 +10,9 @@
 
 \********************************************************************/
 
+#include <stdio.h>
+#include <string.h> // strlen()
+#include <stdlib.h> // malloc()
 #include <assert.h>
 #include "midas.h"
 #include "msystem.h"
