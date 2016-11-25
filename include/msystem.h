@@ -190,8 +190,6 @@ typedef struct {
 #define P_NOWAIT 1
 #define P_DETACH 4
 
-extern char **environ;
-
 #endif
 
 #ifndef FD_SETSIZE
