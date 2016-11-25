@@ -2302,13 +2302,8 @@ Connect to a MIDAS server and return all defined
 INT cm_list_experiments(const char *host_name, char exp_name[MAX_EXPERIMENT][NAME_LENGTH])
 {
    INT i, status;
-   struct sockaddr_in bind_addr;
    INT sock;
    char str[MAX_EXPERIMENT * NAME_LENGTH];
-   struct hostent *phe;
-   int port = MIDAS_TCP_PORT;
-   char hname[256];
-   char *s;
 
    if (host_name == NULL || host_name[0] == 0 || equal_ustring(host_name, "local")) {
       status = cm_scan_experiments();
@@ -2330,55 +2325,10 @@ INT cm_list_experiments(const char *host_name, char exp_name[MAX_EXPERIMENT][NAM
    }
 #endif
 
-   /* create a new socket for connecting to remote server */
-   sock = socket(AF_INET, SOCK_STREAM, 0);
+   sock = ss_new_tcp_socket(host_name, MIDAS_TCP_PORT);
+
    if (sock == -1) {
-      cm_msg(MERROR, "cm_list_experiments", "cannot create socket");
-      return RPC_NET_ERROR;
-   }
-
-   /* extract port number from host_name */
-   strlcpy(hname, host_name, sizeof(hname));
-   s = strchr(hname, ':');
-   if (s) {
-      *s = 0;
-      port = strtoul(s + 1, NULL, 0);
-   }
-
-   /* connect to remote node */
-   memset(&bind_addr, 0, sizeof(bind_addr));
-   bind_addr.sin_family = AF_INET;
-   bind_addr.sin_addr.s_addr = 0;
-   bind_addr.sin_port = htons(port);
-
-#ifdef OS_VXWORKS
-   {
-      INT host_addr;
-
-      host_addr = hostGetByName(hname);
-      memcpy((char *) &(bind_addr.sin_addr), &host_addr, 4);
-   }
-#else
-   phe = gethostbyname(hname);
-   if (phe == NULL) {
-      cm_msg(MERROR, "cm_list_experiments", "cannot resolve host name \'%s\'", hname);
-      return RPC_NET_ERROR;
-   }
-   memcpy((char *) &(bind_addr.sin_addr), phe->h_addr, phe->h_length);
-#endif
-
-#ifdef OS_UNIX
-   do {
-      status = connect(sock, (void *) &bind_addr, sizeof(bind_addr));
-
-      /* don't return if an alarm signal was cought */
-   } while (status == -1 && errno == EINTR);
-#else
-   status = connect(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-#endif
-
-   if (status != 0) {
-/*    cm_msg(MERROR, "cannot connect"); message should be displayed by application */
+      cm_msg(MERROR, "cm_list_experiments", "cannot connect to mserver at \"%s\"", host_name);
       return RPC_NET_ERROR;
    }
 
@@ -2399,7 +2349,7 @@ INT cm_list_experiments(const char *host_name, char exp_name[MAX_EXPERIMENT][NAM
    }
 
    exp_name[i][0] = 0;
-   closesocket(sock);
+   ss_close_socket(sock);
 
    return CM_SUCCESS;
 }
@@ -9586,14 +9536,12 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
 \********************************************************************/
 {
    INT i, status, idx, size;
-   struct sockaddr_in bind_addr;
    INT sock;
    INT remote_hw_type, hw_type;
    char str[200];
    char version[32], v1[32];
    char local_prog_name[NAME_LENGTH];
    char local_host_name[HOST_NAME_LENGTH];
-   struct hostent *phe;
    static MUTEX_T *mtx = NULL;
 
 #ifdef OS_WINNT
@@ -9635,7 +9583,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
             return RPC_SUCCESS;
          }
          //cm_msg(MINFO, "rpc_client_connect", "Stale connection to \"%s\" on host %s is closed", _client_connection[i].client_name, _client_connection[i].host_name);
-         closesocket(_client_connection[i].send_sock);
+         ss_close_socket(_client_connection[i].send_sock);
          _client_connection[i].send_sock = 0;
       }
 
@@ -9652,9 +9600,9 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    }
 
    /* create a new socket for connecting to remote server */
-   sock = socket(AF_INET, SOCK_STREAM, 0);
+   sock = ss_new_tcp_socket(host_name, port);
    if (sock == -1) {
-      cm_msg(MERROR, "rpc_client_connect", "cannot create socket, socket() errno %d (%s)", errno, strerror(errno));
+      cm_msg(MERROR, "rpc_client_connect", "cannot connect to host \"%s\" port %d", host_name, port);
       ss_mutex_release(mtx);
       return RPC_NET_ERROR;
    }
@@ -9668,50 +9616,9 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    _client_connection[idx].rpc_timeout = DEFAULT_RPC_TIMEOUT;
    _client_connection[idx].rpc_timeout = DEFAULT_RPC_TIMEOUT;
    _client_connection[idx].send_sock = sock;
-   _client_connection[idx].connected = 0;
+   _client_connection[idx].connected = 1;
 
    ss_mutex_release(mtx);
-
-   /* connect to remote node */
-   memset(&bind_addr, 0, sizeof(bind_addr));
-   bind_addr.sin_family = AF_INET;
-   bind_addr.sin_addr.s_addr = 0;
-   bind_addr.sin_port = htons((short) port);
-
-#ifdef OS_VXWORKS
-   {
-      INT host_addr;
-
-      host_addr = hostGetByName(host_name);
-      memcpy((char *) &(bind_addr.sin_addr), &host_addr, 4);
-   }
-#else
-   phe = gethostbyname(host_name);
-   if (phe == NULL) {
-      cm_msg(MERROR, "rpc_client_connect", "cannot lookup host name \'%s\'", host_name);
-      _client_connection[idx].send_sock = 0;
-      return RPC_NET_ERROR;
-   }
-   memcpy((char *) &(bind_addr.sin_addr), phe->h_addr, phe->h_length);
-#endif
-
-#ifdef OS_UNIX
-   do {
-      status = connect(sock, (void *) &bind_addr, sizeof(bind_addr));
-
-      /* don't return if an alarm signal was cought */
-   } while (status == -1 && errno == EINTR);
-#else
-   status = connect(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-#endif
-
-   if (status != 0) {
-      cm_msg(MERROR, "rpc_client_connect", "cannot connect to host \"%s\", port %d: connect() returned %d, errno %d (%s)", host_name, port, status, errno, strerror(errno));
-      _client_connection[idx].send_sock = 0;
-      return RPC_NET_ERROR;
-   }
-
-   _client_connection[idx].connected = 1;
 
    /* set TCP_NODELAY option for better performance */
    i = 1;
@@ -9844,7 +9751,7 @@ void rpc_client_check()
          //       _client_connection[i].client_name, _client_connection[i].host_name);
 
          // connection lost, close the socket
-         closesocket(sock);
+         ss_close_socket(sock);
          _client_connection[i].send_sock = 0;
       }
 }
@@ -9888,11 +9795,8 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    unsigned int size;
    char str[200], version[32], v1[32];
    char local_prog_name[NAME_LENGTH];
-   struct hostent *phe;
    fd_set readfds;
    struct timeval timeout;
-   int port = MIDAS_TCP_PORT;
-   char *s;
 
 #ifdef OS_WINNT
    {
@@ -9983,55 +9887,9 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    listen_port3 = ntohs(bind_addr.sin_port);
 #endif
 
-   /* create a new socket for connecting to remote server */
-   sock = socket(AF_INET, SOCK_STREAM, 0);
+   sock = ss_new_tcp_socket(host_name, MIDAS_TCP_PORT);
    if (sock == -1) {
-      cm_msg(MERROR, "rpc_server_connect", "cannot create socket");
-      return RPC_NET_ERROR;
-   }
-
-   /* extract port number from host_name */
-   strlcpy(str, host_name, sizeof(str));
-   s = strchr(str, ':');
-   if (s) {
-      *s = 0;
-      port = strtoul(s + 1, NULL, 0);
-   }
-
-   /* connect to remote node */
-   memset(&bind_addr, 0, sizeof(bind_addr));
-   bind_addr.sin_family = AF_INET;
-   bind_addr.sin_addr.s_addr = 0;
-   bind_addr.sin_port = htons(port);
-
-#ifdef OS_VXWORKS
-   {
-      INT host_addr;
-
-      host_addr = hostGetByName(str);
-      memcpy((char *) &(bind_addr.sin_addr), &host_addr, 4);
-   }
-#else
-   phe = gethostbyname(str);
-   if (phe == NULL) {
-      cm_msg(MERROR, "rpc_server_connect", "cannot resolve host name \'%s\'", str);
-      return RPC_NET_ERROR;
-   }
-   memcpy((char *) &(bind_addr.sin_addr), phe->h_addr, phe->h_length);
-#endif
-
-#ifdef OS_UNIX
-   do {
-      status = connect(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-
-      /* don't return if an alarm signal was cought */
-   } while (status == -1 && errno == EINTR);
-#else
-   status = connect(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-#endif
-
-   if (status != 0) {
-/*    cm_msg(MERROR, "rpc_server_connect", "cannot connect"); message should be displayed by application */
+      cm_msg(MERROR, "rpc_server_connect", "cannot connect to mserver at \"%s\"", host_name);
       return RPC_NET_ERROR;
    }
 
@@ -10043,7 +9901,7 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
 
    send(sock, str, strlen(str) + 1, 0);
    i = recv_string(sock, str, sizeof(str), _rpc_connect_timeout);
-   closesocket(sock);
+   ss_close_socket(sock);
    if (i <= 0) {
       cm_msg(MERROR, "rpc_server_connect", "timeout on receive status from server");
       return RPC_NET_ERROR;
@@ -10092,9 +9950,9 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
 
    if (!FD_ISSET(lsock1, &readfds)) {
       cm_msg(MERROR, "rpc_server_connect", "mserver subprocess could not be started (check path)");
-      closesocket(lsock1);
-      closesocket(lsock2);
-      closesocket(lsock3);
+      ss_close_socket(lsock1);
+      ss_close_socket(lsock2);
+      ss_close_socket(lsock3);
       return RPC_NET_ERROR;
    }
 
@@ -10116,9 +9974,9 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
       return RPC_NET_ERROR;
    }
 
-   closesocket(lsock1);
-   closesocket(lsock2);
-   closesocket(lsock3);
+   ss_close_socket(lsock1);
+   ss_close_socket(lsock2);
+   ss_close_socket(lsock3);
 
    /* set TCP_NODELAY option for better performance */
    flag = 1;
@@ -10187,7 +10045,7 @@ INT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown)
       for (i = 0; i < MAX_RPC_CONNECTION; i++)
          if (_server_acception[i].recv_sock) {
             send(_server_acception[i].recv_sock, "EXIT", 5, 0);
-            closesocket(_server_acception[i].recv_sock);
+            ss_close_socket(_server_acception[i].recv_sock);
          }
    } else {
       /* notify server about exit */
@@ -10198,7 +10056,7 @@ INT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown)
 
       /* close socket */
       if (_client_connection[hConn - 1].send_sock)
-         closesocket(_client_connection[hConn - 1].send_sock);
+         ss_close_socket(_client_connection[hConn - 1].send_sock);
 
       memset(&_client_connection[hConn - 1], 0, sizeof(RPC_CLIENT_CONNECTION));
    }
@@ -10243,9 +10101,9 @@ INT rpc_server_disconnect()
    rpc_call(RPC_ID_EXIT);
 
    /* close sockets */
-   closesocket(_server_connection.send_sock);
-   closesocket(_server_connection.recv_sock);
-   closesocket(_server_connection.event_sock);
+   ss_close_socket(_server_connection.send_sock);
+   ss_close_socket(_server_connection.recv_sock);
+   ss_close_socket(_server_connection.event_sock);
 
    memset(&_server_connection, 0, sizeof(RPC_SERVER_CONNECTION));
 
@@ -13187,7 +13045,7 @@ INT rpc_server_accept(int lsock)
             else 
                cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\'. Add this host to \"/Experiment/Security/RPC hosts/Allowed hosts\"", hname); 
          } 
-         closesocket(sock);
+         ss_close_socket(sock);
          return RPC_NET_ERROR;
       }
    }
@@ -13203,7 +13061,7 @@ INT rpc_server_accept(int lsock)
       case 'S':
 
          /*----------- shutdown listener ----------------------*/
-         closesocket(sock);
+         ss_close_socket(sock);
          return RPC_SHUTDOWN;
 
       case 'I':
@@ -13216,7 +13074,7 @@ INT rpc_server_accept(int lsock)
             send(sock, str, strlen(str) + 1, 0);
          }
          send(sock, "", 1, 0);
-         closesocket(sock);
+         ss_close_socket(sock);
          break;
 
       case 'C':
@@ -13324,7 +13182,7 @@ INT rpc_server_accept(int lsock)
                cm_msg(MERROR, "rpc_server_accept", "%s", str);
 
                send(sock, "2", 2, 0);   /* 2 means exp. not found */
-               closesocket(sock);
+               ss_close_socket(sock);
                break;
             }
 
@@ -13359,17 +13217,17 @@ INT rpc_server_accept(int lsock)
 
                sprintf(str, "3");       /* 3 means cannot spawn subprocess */
                send(sock, str, strlen(str) + 1, 0);
-               closesocket(sock);
+               ss_close_socket(sock);
                break;
             }
 
             sprintf(str, "1 %s", cm_get_version());     /* 1 means ok */
             send(sock, str, strlen(str) + 1, 0);
-            closesocket(sock);
+            ss_close_socket(sock);
          } else {
             sprintf(str, "1 %s", cm_get_version());     /* 1 means ok */
             send(sock, str, strlen(str) + 1, 0);
-            closesocket(sock);
+            ss_close_socket(sock);
          }
 
          /* look for next free entry */
@@ -13393,7 +13251,7 @@ INT rpc_server_accept(int lsock)
 
       default:
          cm_msg(MERROR, "rpc_server_accept", "received unknown command '%c' code %d", command, command);
-         closesocket(sock);
+         ss_close_socket(sock);
          break;
 
       }
@@ -13403,7 +13261,7 @@ INT rpc_server_accept(int lsock)
       ling.l_onoff = 1;
       ling.l_linger = 0;
       setsockopt(sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling));
-      closesocket(sock);
+      ss_close_socket(sock);
    }
 
    return RPC_SUCCESS;
@@ -13510,7 +13368,7 @@ INT rpc_client_accept(int lsock)
             else
                cm_msg(MERROR, "rpc_client_accept", "rejecting connection from unallowed host \'%s\'. Add this host to \"/Experiment/Security/RPC hosts/Allowed hosts\"", hname);
          }
-         closesocket(sock); 
+         ss_close_socket(sock); 
          return RPC_NET_ERROR; 
       } 
    }
@@ -13524,14 +13382,14 @@ INT rpc_client_accept(int lsock)
       if (_server_acception[idx].recv_sock == 0)
          break;
    if (idx == MAX_RPC_CONNECTION) {
-      closesocket(sock);
+      ss_close_socket(sock);
       return RPC_NET_ERROR;
    }
 
    /* receive string with timeout */
    i = recv_string(sock, net_buffer, sizeof(net_buffer), 10000);
    if (i <= 0) {
-      closesocket(sock);
+      ss_close_socket(sock);
       return RPC_NET_ERROR;
    }
 
@@ -13770,9 +13628,9 @@ INT rpc_server_callback(struct callback_addr * pcallback)
 
  error:
 
-   closesocket(recv_sock);
-   closesocket(send_sock);
-   closesocket(event_sock);
+   ss_close_socket(recv_sock);
+   ss_close_socket(send_sock);
+   ss_close_socket(event_sock);
 
    return RPC_NET_ERROR;
 }
@@ -14048,11 +13906,11 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
    /* close server connection */
    if (_server_acception[idx].recv_sock)
-      closesocket(_server_acception[idx].recv_sock);
+      ss_close_socket(_server_acception[idx].recv_sock);
    if (_server_acception[idx].send_sock)
-      closesocket(_server_acception[idx].send_sock);
+      ss_close_socket(_server_acception[idx].send_sock);
    if (_server_acception[idx].event_sock)
-      closesocket(_server_acception[idx].event_sock);
+      ss_close_socket(_server_acception[idx].event_sock);
 
    /* free TCP cache */
    M_FREE(_server_acception[idx].net_buffer);
@@ -14104,16 +13962,16 @@ INT rpc_server_shutdown(void)
          ling.l_onoff = 1;
          ling.l_linger = 0;
          setsockopt(_server_acception[i].recv_sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling));
-         closesocket(_server_acception[i].recv_sock);
+         ss_close_socket(_server_acception[i].recv_sock);
 
          if (_server_acception[i].send_sock) {
             setsockopt(_server_acception[i].send_sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling));
-            closesocket(_server_acception[i].send_sock);
+            ss_close_socket(_server_acception[i].send_sock);
          }
 
          if (_server_acception[i].event_sock) {
             setsockopt(_server_acception[i].event_sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling));
-            closesocket(_server_acception[i].event_sock);
+            ss_close_socket(_server_acception[i].event_sock);
          }
 
          _server_acception[i].recv_sock = 0;
@@ -14122,7 +13980,7 @@ INT rpc_server_shutdown(void)
       }
 
    if (_lsock) {
-      closesocket(_lsock);
+      ss_close_socket(_lsock);
       _lsock = 0;
       _server_registered = FALSE;
    }
@@ -14229,11 +14087,11 @@ INT rpc_check_channels(void)
 
    /* close server connection */
    if (_server_acception[idx].recv_sock)
-      closesocket(_server_acception[idx].recv_sock);
+      ss_close_socket(_server_acception[idx].recv_sock);
    if (_server_acception[idx].send_sock)
-      closesocket(_server_acception[idx].send_sock);
+      ss_close_socket(_server_acception[idx].send_sock);
    if (_server_acception[idx].event_sock)
-      closesocket(_server_acception[idx].event_sock);
+      ss_close_socket(_server_acception[idx].event_sock);
 
    /* free TCP cache */
    M_FREE(_server_acception[idx].net_buffer);

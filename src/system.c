@@ -4291,6 +4291,152 @@ int ss_socket_wait(int sock, INT millisec)
 }
 
 /*------------------------------------------------------------------*/
+INT ss_new_tcp_socket(const char* host_port, int default_port)
+/********************************************************************\
+
+  Routine: ss_new_tcp_socket
+
+  Purpose: Open TCP socket to specified host and port. 
+
+  Input:
+    char* host_port          Destination hostname and port in host:port format.
+    int   default_port       Port number to use if not specified in host_port.
+
+  Function value:
+    INT                      TCP socket handle returned by socket() or -1 if error.
+
+\********************************************************************/
+{
+   int sock;
+   char hname[256];
+   int port = default_port;
+   struct sockaddr_in bind_addr;
+   char* s;
+   int status;
+   
+   /* create a new socket for connecting to remote server */
+   sock = socket(AF_INET, SOCK_STREAM, 0);
+   if (sock == -1) {
+      cm_msg(MERROR, "ss_new_tcp_socket", "socket() errno %d (%s)", errno, strerror(errno));
+      return -1;
+   }
+
+   /* extract port number from host_name */
+   strlcpy(hname, host_port, sizeof(hname));
+   s = strchr(hname, ':');
+   if (s) {
+      *s = 0;
+      port = strtoul(s + 1, NULL, 0);
+   }
+
+#if 0
+   {
+      struct addrinfo *res;
+
+      error = getaddrinfo("www.kame.net", "http", &hints, &res0);
+      if (error) {
+         errx(1, "%s", gai_strerror(error));
+         /*NOTREACHED*/
+      }
+      s = -1;
+      for (res = res0; res; res = res->ai_next) {
+         s = socket(res->ai_family, res->ai_socktype,
+                    res->ai_protocol);
+         if (s < 0) {
+            cause = "socket";
+            continue;
+         }
+         
+         if (connect(s, res->ai_addr, res->ai_addrlen) < 0) {
+            cause = "connect";
+            close(s);
+            s = -1;
+            continue;
+         }
+         
+         break;  /* okay we got one */
+      }
+      if (s < 0) {
+         err(1, "%s", cause);
+         /*NOTREACHED*/
+      }
+      freeaddrinfo(res0);
+   }
+
+#else
+
+   /* connect to remote node */
+   memset(&bind_addr, 0, sizeof(bind_addr));
+   bind_addr.sin_family = AF_INET;
+   bind_addr.sin_addr.s_addr = 0;
+   bind_addr.sin_port = htons(port);
+
+#ifdef OS_VXWORKS
+   {
+      INT host_addr;
+
+      host_addr = hostGetByName(hname);
+      memcpy((char *) &(bind_addr.sin_addr), &host_addr, 4);
+   }
+#else
+   {
+      struct hostent *phe;
+      // FIXME: who is supposed to free() the phe pointer?
+      phe = gethostbyname(hname);
+      if (phe == NULL) {
+         cm_msg(MERROR, "ss_new_tcp_socket", "cannot resolve host name \'%s\'", hname);
+         ss_close_socket(sock);
+         return -1;
+      }
+      memcpy((char *) &(bind_addr.sin_addr), phe->h_addr, phe->h_length);
+   }
+#endif
+
+#ifdef OS_UNIX
+   do {
+      status = connect(sock, (void *) &bind_addr, sizeof(bind_addr));
+
+      /* don't return if an alarm signal was cought */
+   } while (status == -1 && errno == EINTR);
+#else
+   status = connect(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
+#endif
+
+   if (status != 0) {
+      cm_msg(MERROR, "ss_new_tcp_socket", "cannot connect to host \"%s\" port %d, connect() errno %d (%s)", hname, port, errno, strerror(errno));
+      ss_close_socket(sock);
+      return -1;
+   }
+
+#endif
+
+   return sock;
+}
+
+/*------------------------------------------------------------------*/
+INT ss_close_socket(int sock)
+/********************************************************************\
+
+  Routine: ss_close_socket
+
+  Purpose: Close TCP or UDP socket
+
+  Input:
+    int   sock               This socket will be closed.
+
+  Function value:
+    INT                      returns the value of close()
+
+\********************************************************************/
+{
+   int status = close(sock);
+   if (status != 0) {
+      cm_msg(MERROR, "ss_close_socket", "close() errno %d (%s)", errno, strerror(errno));
+   }
+   return status;
+}
+
+/*------------------------------------------------------------------*/
 INT send_tcp(int sock, char *buffer, DWORD buffer_size, INT flags)
 /********************************************************************\
 

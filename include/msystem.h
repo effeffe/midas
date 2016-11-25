@@ -575,6 +575,8 @@ extern "C" {
    void EXPRT ss_stack_history_dump(char *filename);
 
    /*---- socket routines ----*/
+   INT EXPRT ss_new_tcp_socket(const char* host_port, int default_port);
+   INT EXPRT ss_close_socket(int sock);
    INT EXPRT send_tcp(int sock, char *buffer, DWORD buffer_size, INT flags);
    INT EXPRT recv_tcp(int sock, char *buffer, DWORD buffer_size, INT flags);
    INT EXPRT recv_tcp2(int sock, char *buffer, int buffer_size, int timeout_ms);
