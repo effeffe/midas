@@ -52,8 +52,11 @@ The Midas System file
 #include <sys/time.h> // gettimeofday()
 #endif
 
+#ifdef OS_DARWIN
+#else
 #ifdef OS_LINUX
 #include <sys/statfs.h> // statfs()
+#endif
 #endif
 
 #if defined(OS_UNIX) || defined(OS_LINUX) || defined(OS_DARWIN)
@@ -71,8 +74,11 @@ The Midas System file
 #include <sys/wait.h>
 #endif
 
+#ifdef OS_DARWIN
+#else
 #ifdef OS_LINUX
 #include <sys/mtio.h>
+#endif
 #endif
 
 #include "midas.h"
@@ -1625,9 +1631,12 @@ INT ss_spawnv(INT mode, const char *cmdname, char *argv[])
 #endif
 #endif
 
+#ifdef OS_DARWIN
+#else
 #ifdef OS_LINUX
 #ifndef NO_PTY
 #include <pty.h>
+#endif
 #endif
 #endif
 
