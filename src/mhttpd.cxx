@@ -17,6 +17,7 @@
 #include <errno.h> // errno
 #include <fcntl.h> // open() flags
 #include <sys/stat.h> // fstat() struct stat
+#include <unistd.h> // write()
 
 #include <algorithm>
 

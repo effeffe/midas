@@ -17,6 +17,7 @@
 #include "midas.h"
 #include "msystem.h"
 #include <assert.h>
+#include <unistd.h> // write()
 
 #include <string>
 

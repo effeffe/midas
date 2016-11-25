@@ -14,6 +14,7 @@
 #include <errno.h> // errno
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h> // write()
 
 #include "midas.h"
 #include "msystem.h"

@@ -10,6 +10,7 @@ $Id$
 
 #include <stdio.h>
 #include <errno.h> // errno
+#include <unistd.h> // read()
 
 #include "midas.h"
 #include "msystem.h"
