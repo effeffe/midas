@@ -12,6 +12,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h> // errno
+#include <unistd.h> // write()
 
 #include <map>
 

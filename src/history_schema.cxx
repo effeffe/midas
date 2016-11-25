@@ -19,6 +19,9 @@
 #ifdef OS_LINUX
 #include <sys/stat.h> // stat()
 #endif
+#include <unistd.h>
+#include <errno.h> // errno
+#include <fcntl.h> // open() flags
 
 #include <vector>
 #include <string>
