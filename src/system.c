@@ -48,6 +48,9 @@ The Midas System file
 #include <stdarg.h> // va_start()
 #include <fnmatch.h> // fnmatch()
 
+#include "midas.h"
+#include "msystem.h"
+
 #ifdef OS_LINUX
 #include <sys/time.h> // gettimeofday()
 #endif
@@ -60,7 +63,7 @@ The Midas System file
 #endif
 
 #ifdef OS_CYGWIN
-#include <sys/statfs.h>
+#include <sys/statvfs.h>
 #endif
 
 #if defined(OS_UNIX) || defined(OS_LINUX) || defined(OS_DARWIN)
@@ -84,9 +87,6 @@ The Midas System file
 #include <sys/mtio.h>
 #endif
 #endif
-
-#include "midas.h"
-#include "msystem.h"
 
 #ifndef HAVE_STRLCPY
 #include "strlcpy.h"
@@ -5936,6 +5936,11 @@ double ss_disk_free(const char *path)
    if (status != 0)
       return -1;
    return (double) st.f_bavail * st.f_bsize;
+#elif defined(OS_CYGWIN)
+#warning FIXME: check statvfs() output!
+   struct statvfs st;
+   statvfs(path, &st);
+   return (double) st.f_bavail * st.f_bsize;
 #elif defined(OS_SOLARIS)
    struct statvfs st;
    statvfs(path, &st);
@@ -6218,13 +6223,21 @@ double ss_disk_size(const char *path)
    struct statfs st;
    statfs(path, &st, sizeof(st));
    return (double) st.f_blocks * st.f_fsize;
-#elif defined(OS_LINUX) || defined(OS_CYGWIN)
+#elif defined(OS_LINUX)
    int status;
    struct statfs st;
    status = statfs(path, &st);
    if (status != 0)
       return -1;
    return (double) st.f_blocks * st.f_bsize;
+#elif defined(OS_CYGWIN)
+#warning FIXME: Check statvfs output!
+   struct statvfs st;
+   statvfs(path, &st);
+   if (st.f_frsize > 0)
+      return (double) st.f_blocks * st.f_frsize;
+   else
+      return (double) st.f_blocks * st.f_bsize;
 #elif defined(OS_SOLARIS)
    struct statvfs st;
    statvfs(path, &st);
