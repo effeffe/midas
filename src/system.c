@@ -6214,7 +6214,7 @@ double ss_disk_size(const char *path)
    struct statfs st;
    statfs(path, &st, sizeof(st));
    return (double) st.f_blocks * st.f_fsize;
-#elif defined(OS_LINUX)
+#elif defined(OS_LINUX) || defined(OS_CYGWIN)
    int status;
    struct statfs st;
    status = statfs(path, &st);
