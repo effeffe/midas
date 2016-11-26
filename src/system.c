@@ -2819,7 +2819,7 @@ INT ss_mutex_wait_for(MUTEX_T *mutex, INT timeout)
 #endif                          /* OS_VXWORKS */
 #if defined(OS_UNIX)
 
-#if defined(OS_DARWIN)
+#if defined(OS_DARWIN) || defined(OS_CYGWIN)
 
    if (timeout > 0) {
       // emulate pthread_mutex_timedlock under OS_DARWIN
