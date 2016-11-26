@@ -267,7 +267,7 @@ OS_DIR = cygwin
 OSFLAGS = -DOS_CYGWIN
 LIBS = -lutil -lpthread
 SSL_LIBS = -lssl -lcrypto
-SHLIB :=
+NO_SHLIB := 1
 
 endif
 
@@ -406,7 +406,10 @@ endif
 
 LIBNAME = $(LIB_DIR)/libmidas.a
 LIB     = $(LIBNAME)
+
+ifndef NO_SHLIB
 SHLIB   = $(LIB_DIR)/libmidas-shared.so
+endif
 
 VPATH = $(LIB_DIR):$(INC_DIR)
 
