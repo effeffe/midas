@@ -10,6 +10,7 @@
 \********************************************************************/
 
 #include <stdio.h>
+#include <unistd.h> // write()
 
 #include "midas.h"
 #include "msystem.h"

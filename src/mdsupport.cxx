@@ -32,6 +32,7 @@ The Midas Dump support file
 #include <stdio.h>
 #include <assert.h> // assert()
 #include <errno.h>  // errno
+#include <unistd.h> // read()
 
 #define TRACE
 #include "midas.h"
