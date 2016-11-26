@@ -59,6 +59,10 @@ The Midas System file
 #endif
 #endif
 
+#ifdef OS_CYGWIN
+#include <sys/statfs.h>
+#endif
+
 #if defined(OS_UNIX) || defined(OS_LINUX) || defined(OS_DARWIN)
 #include <sys/ioctl.h> // ioctl()
 #endif
