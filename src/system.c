@@ -71,7 +71,7 @@ The Midas System file
 #endif
 
 // stuff for SYS_gettid
-#if defined(OS_UNIX) || defined(OS_LINUX)
+#if defined(OS_LINUX)
 #define _GNU_SOURCE        /* or _BSD_SOURCE or _SVID_SOURCE */
 #include <unistd.h>
 #include <sys/syscall.h>   /* For SYS_xxx definitions */
