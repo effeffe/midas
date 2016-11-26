@@ -10,10 +10,18 @@
 
 \********************************************************************/
 
-#include "midas.h"
-#include "msystem.h"
-
+#include <stdio.h>
 #include <math.h>
+#include <assert.h> // assert()
+#include <dirent.h> // opendir()
+#include <string.h>
+#include <stdlib.h>
+#ifdef OS_LINUX
+#include <sys/stat.h> // stat()
+#endif
+#include <unistd.h>
+#include <errno.h> // errno
+#include <fcntl.h> // open() flags
 
 #include <vector>
 #include <string>
@@ -23,6 +31,9 @@
 #ifndef HAVE_STRLCPY
 #include "strlcpy.h"
 #endif
+
+#include "midas.h"
+#include "msystem.h" // MAX_STRING_LENGTH
 
 // make mysql/my_global.h happy - it redefines closesocket()
 #undef closesocket

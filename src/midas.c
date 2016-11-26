@@ -9,10 +9,23 @@
 
 \********************************************************************/
 
-#include "midas.h"
-#include "msystem.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h> // va_start()
+#include <string.h>
+#include <fcntl.h>  // open()
+#include <unistd.h> // write()
+#include <errno.h>  // errno
+#include <sys/time.h>  // gettimeofday()
+#include <sys/types.h> // struct stat
+#include <sys/stat.h>  // struct stat
+#include <sys/ioctl.h>  // ioctl()
+#include <ctype.h>      // toupper()
 #include <assert.h>
 #include <signal.h>
+
+#include "midas.h"
+#include "msystem.h"
 
 #ifndef HAVE_STRLCPY
 #include "strlcpy.h"

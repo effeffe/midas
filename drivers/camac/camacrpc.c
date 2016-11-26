@@ -12,6 +12,8 @@
 \********************************************************************/
 
 #include <stdio.h>
+#include <stdlib.h> // atoi()
+#include <string.h> // strcpy()
 #include "midas.h"
 #include "msystem.h"
 #include "mcstd.h"

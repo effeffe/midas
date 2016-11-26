@@ -7,8 +7,14 @@
 
 \********************************************************************/
 
+#include <stdio.h>
+#include <stdlib.h> // strtod()
+#include <errno.h>  // errno
+#include <string.h> // strchr()
+#include <limits.h> // INT_MAX
+#include <unistd.h> // read()
+
 #include "midas.h"
-#include "msystem.h"
 #include "mjson.h"
 
 #ifndef HAVE_STRLCPY

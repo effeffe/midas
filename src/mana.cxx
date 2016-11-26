@@ -10,12 +10,15 @@
 
 \********************************************************************/
 
+#include <stdio.h>
+#include <string.h> // strlen()
+#include <stdlib.h> // malloc()
 #include <assert.h>
 #include "midas.h"
 #include "msystem.h"
 #include "hardware.h"
 
-#include "mdsupport.h"
+//#include "mdsupport.h"
 
 #ifdef HAVE_ZLIB
 #include "zlib.h"

@@ -8,9 +8,13 @@ Contents:     Dump event on screen with MIDAS or YBOS data format
 
 \********************************************************************/
 
+#include <stdio.h>
+#include <assert.h> // assert()
+
 #include "midas.h"
 #include "msystem.h"
 #include "mrpc.h"
+#include "ftplib.h"
 #include "mdsupport.h"
 #ifndef HAVE_STRLCPY
 #include "strlcpy.h"

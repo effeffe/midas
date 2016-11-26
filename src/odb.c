@@ -32,6 +32,15 @@ The Online Database file
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
+#include <stdio.h>
+#include <errno.h> // errno
+#include <string.h> // memcmp()
+#include <stdlib.h> // atof()
+#include <unistd.h> // write()
+#include <fcntl.h>  // open() flags
+#include <ctype.h>  // tolower()
+#include <sys/stat.h> // fstat()
+
 #include "midas.h"
 #include "msystem.h"
 #include "mxml.h"

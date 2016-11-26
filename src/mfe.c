@@ -12,6 +12,10 @@
 
 #include <stdio.h>
 #include <assert.h>
+#include <stdlib.h> // abort()
+#include <string.h> // strlen()
+#include <stdarg.h> // va_arg()
+
 #include "midas.h"
 #include "msystem.h"
 

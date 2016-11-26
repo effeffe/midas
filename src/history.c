@@ -9,6 +9,13 @@
 
 \********************************************************************/
 
+#include <stdio.h>
+#include <string.h> // memcmp()
+#include <stdlib.h> // malloc()
+#include <unistd.h> // read()
+#include <fcntl.h>  // open() flags
+#include <errno.h>  // errno
+
 #include "midas.h"
 #include "msystem.h"
 #ifndef HAVE_STRLCPY

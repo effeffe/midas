@@ -12,6 +12,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
+#include <errno.h> // errno
+#include <stdlib.h> // atoi()
 #include "midas.h"
 #include "msystem.h"
 

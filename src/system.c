@@ -36,7 +36,50 @@ The Midas System file
  *  @{  */
 
 #include <stdio.h>
+#include <string.h> // memset()
+#include <errno.h>  // errno
+#include <fcntl.h>  // open() flags
+#include <stdlib.h> // getenv()
+#include <unistd.h> // read()
+#include <assert.h> // assert()
 #include <math.h>
+#include <dirent.h> // opendir()
+#include <syslog.h> // openlog()
+#include <stdarg.h> // va_start()
+#include <fnmatch.h> // fnmatch()
+
+#ifdef OS_LINUX
+#include <sys/time.h> // gettimeofday()
+#endif
+
+#ifdef OS_DARWIN
+#else
+#ifdef OS_LINUX
+#include <sys/statfs.h> // statfs()
+#endif
+#endif
+
+#if defined(OS_UNIX) || defined(OS_LINUX) || defined(OS_DARWIN)
+#include <sys/ioctl.h> // ioctl()
+#endif
+
+// stuff for SYS_gettid
+#if defined(OS_UNIX) || defined(OS_LINUX)
+#define _GNU_SOURCE        /* or _BSD_SOURCE or _SVID_SOURCE */
+#include <unistd.h>
+#include <sys/syscall.h>   /* For SYS_xxx definitions */
+#endif
+
+#ifdef OS_LINUX
+#include <sys/wait.h>
+#endif
+
+#ifdef OS_DARWIN
+#else
+#ifdef OS_LINUX
+#include <sys/mtio.h>
+#endif
+#endif
 
 #include "midas.h"
 #include "msystem.h"
@@ -334,6 +377,9 @@ static int ss_shm_name(const char* name, char* mem_name, int mem_name_size, char
 }
 
 #if defined OS_UNIX
+
+#include <sys/shm.h>
+
 static int ss_shm_file_name_to_shmid(const char* file_name, int* shmid)
 {
    int key, status;
@@ -1579,6 +1625,21 @@ INT ss_spawnv(INT mode, const char *cmdname, char *argv[])
 #endif                          /* OS_UNIX */
 }
 
+#ifdef OS_DARWIN
+#ifndef NO_PTY
+#include <util.h> // forkpty()
+#endif
+#endif
+
+#ifdef OS_DARWIN
+#else
+#ifdef OS_LINUX
+#ifndef NO_PTY
+#include <pty.h>
+#endif
+#endif
+#endif
+
 /*------------------------------------------------------------------*/
 INT ss_shell(int sock)
 /********************************************************************\
@@ -2160,6 +2221,18 @@ INT ss_thread_kill(midas_thread_t thread_id)
 static INT skip_semaphore_handle = -1;
 static int semaphore_trace = 0;
 static int semaphore_nest_level = 0;
+
+#ifdef OS_UNIX
+
+// for semtimedop()
+#ifdef OS_LINUX
+#ifndef __USE_GNU
+#define __USE_GNU
+#endif
+#endif
+
+#include <sys/sem.h> // semget()
+#endif
 
 INT ss_semaphore_create(const char *name, HNDLE * semaphore_handle)
 /********************************************************************\
@@ -5756,7 +5829,7 @@ blockn:  >0 = block number, =0 option not available, <0 errno
 
    return 0;
 
-#elif defined(OS_UNIX)
+#elif defined(MTIOCPOS)
 
    INT status;
    struct mtpos arg;
@@ -5782,6 +5855,11 @@ blockn:  >0 = block number, =0 option not available, <0 errno
    /* I'm not sure the partition count corresponds to the block count */
    status = GetTapeParameters((HANDLE) channel, GET_TAPE_MEDIA_INFORMATION, &size, &media);
    return (media.PartitionCount);
+
+#else
+
+#warning No support for tape I/O: no MTIOCPOS
+   return 0;
 
 #endif
 }

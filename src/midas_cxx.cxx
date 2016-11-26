@@ -9,6 +9,10 @@
 
 \********************************************************************/
 
+#include <stdio.h>
+#include <stdlib.h> // free()
+#include <string.h> // strchr()
+
 #include "midas.h"
 #include "msystem.h"
 #include <assert.h>

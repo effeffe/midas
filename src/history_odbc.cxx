@@ -7,8 +7,10 @@
 
 \********************************************************************/
 
-#include "midas.h"
-#include "msystem.h"
+#include <stdio.h>
+#include <assert.h> // assert()
+#include <string.h> // strcmp()
+#include <stdlib.h> // atoi()
 
 #include <vector>
 #include <string>

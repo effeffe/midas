@@ -9,6 +9,9 @@
              
 \********************************************************************/
 #include <stdio.h>
+#include <string.h> // strncmp()
+#include <stdlib.h> // atoi()
+#include <ctype.h>  // toupper()
 #include "midas.h"
 #include "msystem.h"
 #include "mcstd.h"

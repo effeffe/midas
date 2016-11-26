@@ -135,6 +135,12 @@ Definition of implementation specific constants */
 
 /*------------------------------------------------------------------*/
 
+#include <netinet/in.h> // inet_ntoa()
+#include <arpa/inet.h>  // inet_ntoa()
+#include <netinet/tcp.h> // TCP_NODELAY
+#include <sys/socket.h> // socket()
+#include <netdb.h>      // gethostbyname()
+
 /* Mapping of function names for socket operations */
 
 #ifdef OS_MSDOS
