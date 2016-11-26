@@ -5031,6 +5031,37 @@ INT recv_udp(int sock, char *buffer, DWORD buffer_size, INT flags)
 }
 
 /*------------------------------------------------------------------*/
+INT ss_gethostname(char* buffer, int buffer_size)
+/********************************************************************\
+
+  Routine: ss_gethostname
+
+  Purpose: Get name of local machine using gethostname() syscall
+
+  Input:
+    int   buffer_size        Size of the buffer in bytes.
+
+  Output:
+    char  *buffer            receive buffer
+
+  Function value:
+    INT                      SS_SUCCESS or SS_IO_ERROR
+
+\********************************************************************/
+{
+   int status = gethostname(buffer, buffer_size);
+
+   printf("gethostname %d (%s)\n", status, buffer);
+
+   if (status != 0) {
+      cm_msg(MERROR, "ss_gethostname", "gethostname() errno %d (%s)", errno, strerror(errno));
+      return SS_IO_ERROR;
+   }
+
+   return SS_SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
 
 #ifdef OS_MSDOS
 #ifdef sopen
