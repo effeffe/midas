@@ -2213,7 +2213,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    if (!disable_bind_rpc_to_localhost)
       strlcpy(local_host_name, "localhost", sizeof(local_host_name));
    else
-      gethostname(local_host_name, sizeof(local_host_name));
+      ss_gethostname(local_host_name, sizeof(local_host_name));
 
    /* check watchdog timeout */
    if (watchdog_timeout == 0)
@@ -2551,7 +2551,7 @@ INT cm_disconnect_experiment(void)
    if (!disable_bind_rpc_to_localhost)
       strlcpy(local_host_name, "localhost", sizeof(local_host_name));
    else {
-      gethostname(local_host_name, sizeof(local_host_name));
+      ss_gethostname(local_host_name, sizeof(local_host_name));
       if (strchr(local_host_name, '.'))
          *strchr(local_host_name, '.') = 0;
    }
@@ -9719,7 +9719,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
 
    /* send local computer info */
    rpc_get_name(local_prog_name);
-   gethostname(local_host_name, sizeof(local_host_name));
+   ss_gethostname(local_host_name, sizeof(local_host_name));
 
    hw_type = rpc_get_option(0, RPC_OHW_TYPE);
    sprintf(str, "%d %s %s %s", hw_type, cm_get_version(), local_prog_name, local_host_name);

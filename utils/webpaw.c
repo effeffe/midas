@@ -1306,7 +1306,7 @@ void server_loop(int tcp_port, int daemon)
    bind_addr.sin_addr.s_addr = 0;
    bind_addr.sin_port = htons((short) tcp_port);
 
-   gethostname(host_name, sizeof(host_name));
+   ss_gethostname(host_name, sizeof(host_name));
 
    phe = gethostbyname(host_name);
    if (phe == NULL) {

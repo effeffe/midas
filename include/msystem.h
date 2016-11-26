@@ -573,6 +573,7 @@ extern "C" {
    void EXPRT ss_stack_print();
    void EXPRT ss_stack_history_entry(char *tag);
    void EXPRT ss_stack_history_dump(char *filename);
+   INT ss_gethostname(char* buffer, int buffer_size);
 
    /*---- socket routines ----*/
    INT EXPRT send_tcp(int sock, char *buffer, DWORD buffer_size, INT flags);
