@@ -257,11 +257,18 @@ ifeq ($(OSTYPE),CYGWIN_NT-5.1)
 OSTYPE = cygwin
 endif
 
+ifeq ($(OSTYPE),CYGWIN_NT-10.0)
+OSTYPE = cygwin
+endif
+
 ifeq ($(OSTYPE),cygwin)
 
 OS_DIR = cygwin
-OSFLAGS = -DOS_LINUX -DOS_CYGWIN -Wno-unused-function
+OSFLAGS = -DOS_CYGWIN
 LIBS = -lutil -lpthread
+SSL_LIBS = -lssl -lcrypto
+SHLIB :=
+
 endif
 
 #-----------------------
