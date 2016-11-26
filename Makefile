@@ -300,6 +300,10 @@ LIBS = -lsocket -lnsl
 SPECIFIC_OS_PRG = 
 endif
 
+ifndef OS_DIR
+OS_DIR = unknown
+endif
+
 #####################################################################
 # end of conditional code
 #####################################################################
