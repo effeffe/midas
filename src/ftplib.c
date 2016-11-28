@@ -66,7 +66,7 @@ int ftp_connect(FTP_CON ** con, const char *host_name, unsigned short port)
 
    /* check for status */
    if (status == FTP_QUIT || !ftp_good(status, 120, 220, EOF)) {
-      closesocket(sock);
+      ss_close_socket(sock);
       free(*con);
       return FTP_NET_ERROR;
    }
@@ -222,7 +222,7 @@ int ftp_data(FTP_CON * con, const char *command, const char *file)
 
    if (setsockopt(listen_socket, SOL_SOCKET, SO_REUSEADDR,
                   (char *) &one, sizeof(one)) < 0) {
-      closesocket(listen_socket);
+      ss_close_socket(listen_socket);
       return FTP_NET_ERROR;
    }
 
@@ -231,7 +231,7 @@ int ftp_data(FTP_CON * con, const char *command, const char *file)
    data.sin_addr.s_addr = *(unsigned long *) *(host->h_addr_list);
 
    if (bind(listen_socket, (struct sockaddr *) &data, sizeof(data)) == -1) {
-      closesocket(listen_socket);
+      ss_close_socket(listen_socket);
       return FTP_NET_ERROR;
    }
 
@@ -240,12 +240,12 @@ int ftp_data(FTP_CON * con, const char *command, const char *file)
 #else
    if (getsockname(listen_socket, (struct sockaddr *) &data, &len) < 0) {
 #endif
-      closesocket(listen_socket);
+      ss_close_socket(listen_socket);
       return FTP_NET_ERROR;
    }
 
    if (listen(listen_socket, 1) != 0) {
-      closesocket(listen_socket);
+      ss_close_socket(listen_socket);
       return FTP_NET_ERROR;
    }
 
@@ -268,11 +268,11 @@ int ftp_data(FTP_CON * con, const char *command, const char *file)
 #endif
 
    if (data_socket == -1) {
-      closesocket(listen_socket);
+      ss_close_socket(listen_socket);
       return FTP_NET_ERROR;
    }
 
-   closesocket(listen_socket);
+   ss_close_socket(listen_socket);
 
    con->data = data_socket;
 
@@ -286,7 +286,7 @@ int ftp_close(FTP_CON * con)
 {
    char str[256];
 
-   closesocket(con->data);
+   ss_close_socket(con->data);
 
    return ftp_get_message(con, str);
 }
@@ -377,7 +377,7 @@ int ftp_bye(FTP_CON * con)
    ftp_send_message(con, "QUIT");
    ftp_get_message(con, str);
 
-   closesocket(con->sock);
+   ss_close_socket(con->sock);
    free(con);
 
    return FTP_SUCCESS;
