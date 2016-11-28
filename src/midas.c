@@ -12054,8 +12054,8 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 
 \********************************************************************/
 {
-   struct sockaddr_in bind_addr;
-   INT status, flag;
+   INT status;
+   int xport = MIDAS_TCP_PORT;
 
 #ifdef OS_WINNT
    {
@@ -12080,9 +12080,14 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
       return RPC_SUCCESS;
 
    /* create a socket for listening */
-   _lsock = socket(AF_INET, SOCK_STREAM, 0);
+
+   if (port)
+      xport = *port;
+
+   _lsock = ss_new_tcp_listener(!disable_bind_rpc_to_localhost, xport, 0, port);
+
    if (_lsock == -1) {
-      cm_msg(MERROR, "rpc_register_server", "socket(AF_INET, SOCK_STREAM) failed, errno %d (%s)", errno, strerror(errno));
+      cm_msg(MERROR, "rpc_register_server", "cannot listen on TCP port %d", xport);
       return RPC_NET_ERROR;
    }
 
@@ -12094,57 +12099,6 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
       return RPC_NET_ERROR;
    }
 #endif
-
-   /* reuse address, needed if previous server stopped (30s timeout!) */
-   flag = 1;
-   status = setsockopt(_lsock, SOL_SOCKET, SO_REUSEADDR, (char *) &flag, sizeof(INT));
-   if (status < 0) {
-      cm_msg(MERROR, "rpc_register_server", "setsockopt(SO_REUSEADDR) failed, errno %d (%s)", errno, strerror(errno));
-      return RPC_NET_ERROR;
-   }
-
-   /* bind local node name and port to socket */
-   memset(&bind_addr, 0, sizeof(bind_addr));
-   bind_addr.sin_family = AF_INET;
-
-   if (!disable_bind_rpc_to_localhost) {
-      bind_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-   } else {
-      bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-   }
-
-   if (!port)
-      bind_addr.sin_port = htons(MIDAS_TCP_PORT);
-   else
-      bind_addr.sin_port = htons((short) (*port));
-
-   status = bind(_lsock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-   if (status < 0) {
-      cm_msg(MERROR, "rpc_register_server", "bind() to port %d failed, errno %d (%s)", ntohs(bind_addr.sin_port), errno, strerror(errno));
-      return RPC_NET_ERROR;
-   }
-
-   /* listen for connection */
-#ifdef OS_MSDOS
-   status = listen(_lsock, 1);
-#else
-   status = listen(_lsock, SOMAXCONN);
-#endif
-   if (status < 0) {
-      cm_msg(MERROR, "rpc_register_server", "listen() failed, errno %d (%s)", errno, strerror(errno));
-      return RPC_NET_ERROR;
-   }
-
-   /* return port wich OS has choosen */
-   if (port && *port == 0) {
-      socklen_t sosize = sizeof(bind_addr);
-#ifdef OS_WINNT
-      getsockname(_lsock, (struct sockaddr *) &bind_addr, (int *) &sosize);
-#else
-      getsockname(_lsock, (struct sockaddr *) &bind_addr, &sosize);
-#endif
-      *port = ntohs(bind_addr.sin_port);
-   }
 
    /* define callbacks for ss_suspend */
    if (server_type == ST_REMOTE)

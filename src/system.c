@@ -4440,7 +4440,7 @@ INT ss_new_tcp_listener(int bind_localhost, int port, int backlog, int* actual_p
   Input:
     int   bind_localhost     Bind to localhost interface, if true
     int   port               Port number to use, if zero, random port number is assigned
-    int   backlog            Backlog argument to the listen() syscall.
+    int   backlog            Backlog argument to the listen() syscall, if 0 use SOMAXCONN
 
   Output:
     int*  actual_port        if not NULL, return actual port number assigned to this socket
@@ -4468,8 +4468,16 @@ INT ss_new_tcp_listener(int bind_localhost, int port, int backlog, int* actual_p
    }
 #endif
 
-   //printf("ss_new_tcp_listener: bind_localhost %d, port %d, backlog %d\n", bind_localhost, port, backlog);
+   if (backlog == 0) {
+#ifdef OS_MSDOS
+      backlog = 1;
+#else
+      backlog = SOMAXCONN;
+#endif
+   }
 
+   //printf("ss_new_tcp_listener: bind_localhost %d, port %d, backlog %d\n", bind_localhost, port, backlog);
+   
    /* create new TCP sockets for listening */
    lsock = socket(AF_INET, SOCK_STREAM, 0);
    if (lsock == -1) {
