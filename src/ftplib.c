@@ -42,70 +42,20 @@ int ftp_connect(FTP_CON ** con, const char *host_name, unsigned short port)
 /* Connect to a FTP server on a host at a given port (usually 21).
    Return a FTP_CON structure if successful */
 {
-   struct sockaddr_in bind_addr;
    int sock;
    char str[4000];
    int status;
-   struct hostent *phe;
 
    *con = NULL;
 
-#ifdef OS_WINNT
-   {
-      WSADATA WSAData;
+   sock = ss_new_tcp_socket(host_name, port);
 
-      /* Start windows sockets */
-      if (WSAStartup(MAKEWORD(1, 1), &WSAData) != 0)
-         return FTP_NET_ERROR;
-   }
-#endif
-
-   if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-      if (ftp_error_func)
-         ftp_error_func("cannot create socket");
-      return FTP_NET_ERROR;
-   }
-
-   /* connect to remote node */
-   memset(&bind_addr, 0, sizeof(bind_addr));
-   bind_addr.sin_family = AF_INET;
-   bind_addr.sin_addr.s_addr = 0;
-   bind_addr.sin_port = htons(port);
-
-#ifdef OS_VXWORKS
-   {
-      INT host_addr;
-
-      host_addr = hostGetByName(host_name);
-      memcpy((char *) &(bind_addr.sin_addr), &host_addr, 4);
-   }
-#else
-   phe = gethostbyname(host_name);
-   if (phe == NULL) {
-      if (ftp_error_func)
-         ftp_error_func("cannot get host name");
-      return RPC_NET_ERROR;
-   }
-   memcpy((char *) &(bind_addr.sin_addr), phe->h_addr, phe->h_length);
-#endif
-
-#ifdef OS_UNIX
-   do {
-      status = connect(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-
-      /* don't return if an alarm signal was cought */
-   } while (status == -1 && errno == EINTR);
-#else
-   status = connect(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-#endif
-
-   if (status != 0) {
-      sprintf(str, "cannot connect to host %s, port %d", host_name, port);
+   if (sock == -1) {
+      sprintf(str, "cannot connect to host \"%s\", port %d", host_name, port);
       if (ftp_error_func)
          ftp_error_func(str);
       return FTP_NET_ERROR;
    }
-
 
    *con = (FTP_CON *) malloc(sizeof(FTP_CON));
    (*con)->sock = sock;

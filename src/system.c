@@ -4313,6 +4313,18 @@ INT ss_new_tcp_socket(const char* host_port, int default_port)
    struct sockaddr_in bind_addr;
    char* s;
    int status;
+
+   //printf("ss_new_tcp_socket: connect host \"%s\" port %d...\n", host_port, default_port);
+
+#ifdef OS_WINNT
+   {
+      WSADATA WSAData;
+
+      /* Start windows sockets */
+      if (WSAStartup(MAKEWORD(1, 1), &WSAData) != 0)
+         return FTP_NET_ERROR;
+   }
+#endif
    
    /* create a new socket for connecting to remote server */
    sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -4409,6 +4421,8 @@ INT ss_new_tcp_socket(const char* host_port, int default_port)
    }
 
 #endif
+
+   //printf("ss_new_tcp_socket: connect host \"%s\" port %d, done.\n", host_port, default_port);
 
    return sock;
 }
