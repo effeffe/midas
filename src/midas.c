@@ -13480,85 +13480,27 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    memcpy(&callback, pcallback, sizeof(callback));
    idx = callback.index;
 
-   /* create new sockets for TCP */
-   recv_sock = socket(AF_INET, SOCK_STREAM, 0);
-   send_sock = socket(AF_INET, SOCK_STREAM, 0);
-   event_sock = socket(AF_INET, SOCK_STREAM, 0);
-   if (event_sock == -1)
-      return RPC_NET_ERROR;
+   recv_sock = ss_new_tcp_socket(callback.host_name, callback.host_port1);
 
-   /* callback to remote node */
-   memset(&bind_addr, 0, sizeof(bind_addr));
-   bind_addr.sin_family = AF_INET;
-   bind_addr.sin_port = htons(callback.host_port1);
-
-#ifdef OS_VXWORKS
-   {
-      INT host_addr;
-
-      host_addr = hostGetByName(callback.host_name);
-      memcpy((char *) &(bind_addr.sin_addr), &host_addr, 4);
-   }
-#else
-   phe = gethostbyname(callback.host_name);
-   if (phe == NULL) {
-      cm_msg(MERROR, "rpc_server_callback", "cannot lookup host name \'%s\'", callback.host_name);
+   if (recv_sock == -1) {
+      cm_msg(MERROR, "rpc_server_callback", "cannot connect recv socket");
       return RPC_NET_ERROR;
    }
-   memcpy((char *) &(bind_addr.sin_addr), phe->h_addr, phe->h_length);
-#endif
 
-   /* connect receive socket */
-#ifdef OS_UNIX
-   do {
-      status = connect(recv_sock, (void *) &bind_addr, sizeof(bind_addr));
+   send_sock = ss_new_tcp_socket(callback.host_name, callback.host_port2);
 
-      /* don't return if an alarm signal was cought */
-   } while (status == -1 && errno == EINTR);
-#else
-   status = connect(recv_sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-#endif
-
-   if (status != 0) {
-      cm_msg(MERROR, "rpc_server_callback", "cannot connect receive socket");
-      goto error;
-   }
-
-   bind_addr.sin_port = htons(callback.host_port2);
-
-   /* connect send socket */
-#ifdef OS_UNIX
-   do {
-      status = connect(send_sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-
-      /* don't return if an alarm signal was cought */
-   } while (status == -1 && errno == EINTR);
-#else
-   status = connect(send_sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-#endif
-
-   if (status != 0) {
+   if (send_sock == -1) {
       cm_msg(MERROR, "rpc_server_callback", "cannot connect send socket");
-      goto error;
+      return RPC_NET_ERROR;
    }
 
-   bind_addr.sin_port = htons(callback.host_port3);
+   event_sock = ss_new_tcp_socket(callback.host_name, callback.host_port3);
 
-   /* connect event socket */
-#ifdef OS_UNIX
-   do {
-      status = connect(event_sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-
-      /* don't return if an alarm signal was cought */
-   } while (status == -1 && errno == EINTR);
-#else
-   status = connect(event_sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-#endif
-
-   if (status != 0) {
+   if (event_sock == -1) {
       cm_msg(MERROR, "rpc_server_callback", "cannot connect event socket");
-      goto error;
+      return RPC_NET_ERROR;
    }
+   
 #ifndef OS_ULTRIX               /* crashes ULTRIX... */
    /* increase send buffer size to 2 Mbytes, on Linux also limited by sysctl net.ipv4.tcp_rmem and net.ipv4.tcp_wmem */
    flag = 2 * 1024 * 1024;
