@@ -9799,6 +9799,14 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    struct timeval timeout;
    int bind_localhost = 0;
 
+   // bind to localhost address if hostname is "localhost" or "localhost:port"
+   if (strncmp(host_name, "localhost", 9) == 0) {
+      if (host_name[9] == 0 || host_name[9] == ':')
+         bind_localhost = 1;
+   }
+
+   //printf("rpc server connect [%s] [%s], localhost %d\n", host_name, exp_name, bind_localhost);
+
 #ifdef OS_WINNT
    {
       WSADATA WSAData;
