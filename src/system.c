@@ -4321,8 +4321,10 @@ INT ss_new_tcp_socket(const char* host_port, int default_port)
       WSADATA WSAData;
 
       /* Start windows sockets */
-      if (WSAStartup(MAKEWORD(1, 1), &WSAData) != 0)
-         return FTP_NET_ERROR;
+      if (WSAStartup(MAKEWORD(1, 1), &WSAData) != 0) {
+         cm_msg(MERROR, "ss_new_tcp_socket", "WSAStartup() error");
+         return -1;
+      }
    }
 #endif
    
@@ -4425,6 +4427,108 @@ INT ss_new_tcp_socket(const char* host_port, int default_port)
    //printf("ss_new_tcp_socket: connect host \"%s\" port %d, done.\n", host_port, default_port);
 
    return sock;
+}
+
+/*------------------------------------------------------------------*/
+INT ss_new_tcp_listener(int bind_localhost, int port, int backlog, int* actual_port)
+/********************************************************************\
+
+  Routine: ss_new_tcp_listener
+
+  Purpose: Create new TCP listener socket on specified TCP port. 
+
+  Input:
+    int   bind_localhost     Bind to localhost interface, if true
+    int   port               Port number to use, if zero, random port number is assigned
+    int   backlog            Backlog argument to the listen() syscall.
+
+  Output:
+    int*  actual_port        if not NULL, return actual port number assigned to this socket
+
+  Function value:
+    INT                      TCP socket handle returned by socket() or -1 if error.
+
+\********************************************************************/
+{
+   struct sockaddr_in bind_addr;
+   int lsock;
+   int status;
+   int flag;
+   int xport;
+
+#ifdef OS_WINNT
+   {
+      WSADATA WSAData;
+
+      /* Start windows sockets */
+      if (WSAStartup(MAKEWORD(1, 1), &WSAData) != 0) {
+         cm_msg(MERROR, "ss_new_tcp_listener", "WSAStartup() error");
+         return -1;
+      }
+   }
+#endif
+
+   //printf("ss_new_tcp_listener: bind_localhost %d, port %d, backlog %d\n", bind_localhost, port, backlog);
+
+   /* create new TCP sockets for listening */
+   lsock = socket(AF_INET, SOCK_STREAM, 0);
+   if (lsock == -1) {
+      cm_msg(MERROR, "ss_new_tcp_listener", "socket() error, errno %d (%s)", errno, strerror(errno));
+      return -1;
+   }
+
+   flag = 1;
+   status = setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, (char *) &flag, sizeof(INT));
+   if (status < 0) {
+      cm_msg(MERROR, "ss_new_tcp_listener", "setsockopt(SOL_SOCKET, SO_REUSEADDR) error, errno %d (%s)", errno, strerror(errno));
+      return -1;
+   }
+
+   /* let OS choose any port number */
+   memset(&bind_addr, 0, sizeof(bind_addr));
+   bind_addr.sin_family = AF_INET;
+   if (bind_localhost)
+      bind_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+   else
+      bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+   bind_addr.sin_port = htons(port);
+
+   status = bind(lsock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
+   if (status < 0) {
+      cm_msg(MERROR, "ss_new_tcp_listener", "bind() error, errno %d (%s)", errno, strerror(errno));
+      return -1;
+   }
+
+   /* listen for connection */
+   status = listen(lsock, backlog);
+   if (status < 0) {
+      cm_msg(MERROR, "ss_new_tcp_listener", "listen() error, errno %d (%s)", errno, strerror(errno));
+      return -1;
+   }
+
+   xport = 0;
+
+   if (actual_port) {
+      /* find out which port OS has chosen */
+      socklen_t size = sizeof(bind_addr);
+#ifdef OS_WINNT
+      status = getsockname(lsock, (struct sockaddr *) &bind_addr, (int*) &size);
+#else
+      status = getsockname(lsock, (struct sockaddr *) &bind_addr, &size);
+#endif
+      if (status < 0) {
+         cm_msg(MERROR, "ss_new_tcp_listener", "getsockname() error, errno %d (%s)", errno, strerror(errno));
+         return -1;
+      }
+      
+      xport = ntohs(bind_addr.sin_port);
+
+      *actual_port = xport;
+   }
+
+   //printf("ss_new_tcp_listener: bind_localhost %d, port %d, backlog %d, actual port %d, done\n", bind_localhost, port, backlog, xport);
+
+   return lsock;
 }
 
 /*------------------------------------------------------------------*/

@@ -9797,6 +9797,7 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    char local_prog_name[NAME_LENGTH];
    fd_set readfds;
    struct timeval timeout;
+   int bind_localhost = 0;
 
 #ifdef OS_WINNT
    {
@@ -9831,61 +9832,27 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    _server_connection.rpc_timeout = DEFAULT_RPC_TIMEOUT;
 
    /* create new TCP sockets for listening */
-   lsock1 = socket(AF_INET, SOCK_STREAM, 0);
-   lsock2 = socket(AF_INET, SOCK_STREAM, 0);
-   lsock3 = socket(AF_INET, SOCK_STREAM, 0);
+
+   lsock1 = ss_new_tcp_listener(bind_localhost, 0, 1, &listen_port1);
+
+   if (lsock1 == -1) {
+      cm_msg(MERROR, "rpc_server_connect", "cannot create listener socket 1");
+      return RPC_NET_ERROR;
+   }
+
+   lsock2 = ss_new_tcp_listener(bind_localhost, 0, 1, &listen_port2);
+
+   if (lsock2 == -1) {
+      cm_msg(MERROR, "rpc_server_connect", "cannot create listener socket 2");
+      return RPC_NET_ERROR;
+   }
+
+   lsock3 = ss_new_tcp_listener(bind_localhost, 0, 1, &listen_port3);
+
    if (lsock3 == -1) {
-      cm_msg(MERROR, "rpc_server_connect", "cannot create socket");
+      cm_msg(MERROR, "rpc_server_connect", "cannot create listener socket 3");
       return RPC_NET_ERROR;
    }
-
-   flag = 1;
-   setsockopt(lsock1, SOL_SOCKET, SO_REUSEADDR, (char *) &flag, sizeof(INT));
-   setsockopt(lsock2, SOL_SOCKET, SO_REUSEADDR, (char *) &flag, sizeof(INT));
-   setsockopt(lsock3, SOL_SOCKET, SO_REUSEADDR, (char *) &flag, sizeof(INT));
-
-   /* let OS choose any port number */
-   memset(&bind_addr, 0, sizeof(bind_addr));
-   bind_addr.sin_family = AF_INET;
-   bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-   bind_addr.sin_port = 0;
-
-   status = bind(lsock1, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-   bind_addr.sin_port = 0;
-   status = bind(lsock2, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-   bind_addr.sin_port = 0;
-   status = bind(lsock3, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
-   if (status < 0) {
-      cm_msg(MERROR, "rpc_server_connect", "cannot bind");
-      return RPC_NET_ERROR;
-   }
-
-   /* listen for connection */
-   status = listen(lsock1, 1);
-   status = listen(lsock2, 1);
-   status = listen(lsock3, 1);
-   if (status < 0) {
-      cm_msg(MERROR, "rpc_server_connect", "cannot listen");
-      return RPC_NET_ERROR;
-   }
-
-   /* find out which port OS has chosen */
-   size = sizeof(bind_addr);
-#ifdef OS_WINNT
-   getsockname(lsock1, (struct sockaddr *) &bind_addr, (int *) &size);
-   listen_port1 = ntohs(bind_addr.sin_port);
-   getsockname(lsock2, (struct sockaddr *) &bind_addr, (int *) &size);
-   listen_port2 = ntohs(bind_addr.sin_port);
-   getsockname(lsock3, (struct sockaddr *) &bind_addr, (int *) &size);
-   listen_port3 = ntohs(bind_addr.sin_port);
-#else
-   getsockname(lsock1, (struct sockaddr *) &bind_addr, &size);
-   listen_port1 = ntohs(bind_addr.sin_port);
-   getsockname(lsock2, (struct sockaddr *) &bind_addr, &size);
-   listen_port2 = ntohs(bind_addr.sin_port);
-   getsockname(lsock3, (struct sockaddr *) &bind_addr, &size);
-   listen_port3 = ntohs(bind_addr.sin_port);
-#endif
 
    sock = ss_new_tcp_socket(host_name, MIDAS_TCP_PORT);
    if (sock == -1) {
