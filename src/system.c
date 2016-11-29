@@ -4594,11 +4594,61 @@ INT ss_reset_socket(int sock)
 
 INT ss_socket_set_sndbuf(int sock, int bufsize)
 {
+   int status;
+   int flag = bufsize;
+   int readback = 0;
+   socklen_t size;
+
+   //printf("ss_socket_set_sndbuf %d, bufsize %d\n", sock, bufsize);
+   
+   status = setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char *)&flag, sizeof(flag));
+   if (status != 0) {
+      cm_msg(MERROR, "ss_socket_set_sndbuf", "setsockopt(SOL_SOCKET, SO_SNDBUF) returned %d, errno %d (%s)", status, errno, strerror(errno));
+      return SS_SOCKET_ERROR;
+   }
+
+   size = sizeof(readback);
+   status = getsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char *)&readback, &size);
+   if (status != 0) {
+      cm_msg(MERROR, "ss_socket_set_sndbuf", "getsockopt(SOL_SOCKET, SO_SNDBUF) returned %d, errno %d (%s)", status, errno, strerror(errno));
+      return SS_SOCKET_ERROR;
+   }
+
+   if (readback != bufsize) {
+      cm_msg(MERROR, "ss_socket_set_sndbuf", "cannot set socket SO_SNDBUF to %d, got back %d", bufsize, readback);
+      return SS_SOCKET_ERROR;
+   }
+   
    return SS_SUCCESS;
 }
 
 INT ss_socket_set_rcvbuf(int sock, int bufsize)
 {
+   int status;
+   int flag = bufsize;
+   int readback = 0;
+   socklen_t size;
+
+   //printf("ss_socket_set_rcvbuf %d, bufsize %d\n", sock, bufsize);
+   
+   status = setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char *)&flag, sizeof(flag));
+   if (status != 0) {
+      cm_msg(MERROR, "ss_socket_set_rcvbuf", "setsockopt(SOL_SOCKET, SO_RCVBUF) returned %d, errno %d (%s)", status, errno, strerror(errno));
+      return SS_SOCKET_ERROR;
+   }
+
+   size = sizeof(readback);
+   status = getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char *)&readback, &size);
+   if (status != 0) {
+      cm_msg(MERROR, "ss_socket_set_rcvbuf", "getsockopt(SOL_SOCKET, SO_RCVBUF) returned %d, errno %d (%s)", status, errno, strerror(errno));
+      return SS_SOCKET_ERROR;
+   }
+
+   if (readback != bufsize) {
+      cm_msg(MERROR, "ss_socket_set_rcvbuf", "cannot set socket SO_RCVBUF to %d, got back %d", bufsize, readback);
+      return SS_SOCKET_ERROR;
+   }
+   
    return SS_SUCCESS;
 }
 

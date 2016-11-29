@@ -131,7 +131,7 @@ int open_udp_socket(int server_port)
    }
 
    int xbufsize = 0;
-   unsigned size = sizeof(xbufsize);
+   socklen_t size = sizeof(xbufsize);
 
    status = getsockopt(fd, SOL_SOCKET, SO_RCVBUF, &xbufsize, &size);
 

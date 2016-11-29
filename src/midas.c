@@ -9959,11 +9959,9 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    setsockopt(_server_connection.event_sock, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(flag));
 
    /* increase send buffer size to 2 Mbytes, on Linux also limited by sysctl net.ipv4.tcp_rmem and net.ipv4.tcp_wmem */
-   flag = 2 * 1024 * 1024;
-   status = setsockopt(_server_connection.event_sock, SOL_SOCKET, SO_SNDBUF, (char *) &flag, sizeof(flag));
-   if (status != 0)
-      cm_msg(MERROR, "rpc_server_connect", "cannot setsockopt(SOL_SOCKET, SO_SNDBUF), errno %d (%s)", errno,
-             strerror(errno));
+   status = ss_socket_set_sndbuf(_server_connection.event_sock, 2 * 1024 * 1024);
+   if (status != SS_SUCCESS)
+      cm_msg(MERROR, "rpc_server_connect", "cannot increase socket send buffer");
 
    /* send local computer info */
    rpc_get_name(local_prog_name);
@@ -13397,7 +13395,6 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    char net_buffer[256];
    struct callback_addr callback;
    char *p;
-   int flag;
 
    /* copy callback information */
    memcpy(&callback, pcallback, sizeof(callback));
@@ -13426,11 +13423,9 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    
 #ifndef OS_ULTRIX               /* crashes ULTRIX... */
    /* increase send buffer size to 2 Mbytes, on Linux also limited by sysctl net.ipv4.tcp_rmem and net.ipv4.tcp_wmem */
-   flag = 2 * 1024 * 1024;
-   status = setsockopt(event_sock, SOL_SOCKET, SO_RCVBUF, (char *) &flag, sizeof(INT));
-   if (status != 0)
-      cm_msg(MERROR, "rpc_server_callback", "cannot setsockopt(SOL_SOCKET, SO_RCVBUF), errno %d (%s)", errno,
-             strerror(errno));
+   status = ss_socket_set_rcvbuf(event_sock, 2 * 1024 * 1024);
+   if (status != SS_SUCCESS)
+      cm_msg(MERROR, "rpc_server_callback", "cannot increase socket receive buffer");
 #endif
 
    if (recv_string(recv_sock, net_buffer, 256, _rpc_connect_timeout) <= 0) {
