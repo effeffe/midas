@@ -9621,9 +9621,8 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    ss_mutex_release(mtx);
 
    /* set TCP_NODELAY option for better performance */
-   i = 1;
-   setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &i, sizeof(i));
-
+   ss_socket_set_nodelay(sock, 1);
+   
    /* send local computer info */
    rpc_get_name(local_prog_name);
    gethostname(local_host_name, sizeof(local_host_name));
@@ -9787,7 +9786,7 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
 
 \********************************************************************/
 {
-   INT i, status, flag;
+   INT i, status;
    struct sockaddr_in bind_addr;
    INT sock, lsock1, lsock2, lsock3;
    INT listen_port1, listen_port2, listen_port3;
@@ -9954,9 +9953,8 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    ss_close_socket(lsock3);
 
    /* set TCP_NODELAY option for better performance */
-   flag = 1;
-   setsockopt(_server_connection.send_sock, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(flag));
-   setsockopt(_server_connection.event_sock, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(flag));
+   ss_socket_set_nodelay(_server_connection.send_sock, 1);
+   ss_socket_set_nodelay(_server_connection.event_sock, 1);
 
    /* increase send buffer size to 2 Mbytes, on Linux also limited by sysctl net.ipv4.tcp_rmem and net.ipv4.tcp_wmem */
    status = ss_socket_set_sndbuf(_server_connection.event_sock, 2 * 1024 * 1024);
@@ -10304,10 +10302,9 @@ INT rpc_set_option(HNDLE hConn, INT item, INT value)
 
    case RPC_NODELAY:
       if (hConn == -1)
-         setsockopt(_server_connection.send_sock, IPPROTO_TCP, TCP_NODELAY, (char *) &value, sizeof(value));
+         ss_socket_set_nodelay(_server_connection.send_sock, value);
       else
-         setsockopt(_client_connection[hConn - 1].send_sock, IPPROTO_TCP, TCP_NODELAY, (char *) &value,
-                    sizeof(value));
+         ss_socket_set_nodelay(_client_connection[hConn - 1].send_sock, value);
       break;
 
    default:

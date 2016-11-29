@@ -579,6 +579,7 @@ extern "C" {
    INT EXPRT ss_new_tcp_listener(int bind_localhost, int port, int backlog, int* actual_port);
    INT EXPRT ss_close_socket(int sock);
    INT EXPRT ss_reset_socket(int sock);
+   INT EXPRT ss_socket_set_nodelay(int sock, int nodelay);
    INT EXPRT ss_socket_set_sndbuf(int sock, int bufsize);
    INT EXPRT ss_socket_set_rcvbuf(int sock, int bufsize);
    INT EXPRT send_tcp(int sock, char *buffer, DWORD buffer_size, INT flags);

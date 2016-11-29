@@ -4592,6 +4592,23 @@ INT ss_reset_socket(int sock)
    return ss_close_socket(sock);
 }
 
+INT ss_socket_set_nodelay(int sock, int nodelay)
+{
+   int status;
+   int i;
+
+   printf("ss_socket_set_nodelay %d to %d\n", sock, nodelay);
+   
+   i = nodelay;
+   status = setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &i, sizeof(i));
+   if (status != 0) {
+      cm_msg(MERROR, "ss_socket_set_nodelay", "setsockopt(IPPROTO_TCP, TCP_NODELAY) returned %d, errno %d (%s)", status, errno, strerror(errno));
+      return SS_SOCKET_ERROR;
+   }
+
+   return SS_SUCCESS;
+}
+
 INT ss_socket_set_sndbuf(int sock, int bufsize)
 {
    int status;
