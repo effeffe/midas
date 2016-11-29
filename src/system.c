@@ -4597,7 +4597,7 @@ INT ss_socket_set_nodelay(int sock, int nodelay)
    int status;
    int i;
 
-   printf("ss_socket_set_nodelay %d to %d\n", sock, nodelay);
+   //printf("ss_socket_set_nodelay %d to %d\n", sock, nodelay);
    
    i = nodelay;
    status = setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &i, sizeof(i));
