@@ -12907,7 +12907,6 @@ INT rpc_server_accept(int lsock)
    char debug_str[30];
    char *argv[10];
    char net_buffer[256];
-   struct linger ling;
 
    static struct callback_addr callback;
 
@@ -13185,12 +13184,7 @@ INT rpc_server_accept(int lsock)
 
       }
    } else {                     /* if i>0 */
-
-      /* lingering needed for PCTCP */
-      ling.l_onoff = 1;
-      ling.l_linger = 0;
-      setsockopt(sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling));
-      ss_close_socket(sock);
+      ss_reset_socket(sock);
    }
 
    return RPC_SUCCESS;
@@ -13824,30 +13818,22 @@ INT rpc_server_shutdown(void)
 \********************************************************************/
 {
    INT i;
-   struct linger ling;
 
    /* close all open connections */
    for (i = 0; i < MAX_RPC_CONNECTION; i++)
       if (_server_acception[i].recv_sock != 0) {
-         /* lingering needed for PCTCP */
-         ling.l_onoff = 1;
-         ling.l_linger = 0;
-         setsockopt(_server_acception[i].recv_sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling));
-         ss_close_socket(_server_acception[i].recv_sock);
+         ss_reset_socket(_server_acception[i].recv_sock);
+         _server_acception[i].recv_sock = 0;
 
          if (_server_acception[i].send_sock) {
-            setsockopt(_server_acception[i].send_sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling));
-            ss_close_socket(_server_acception[i].send_sock);
+            ss_reset_socket(_server_acception[i].send_sock);
+            _server_acception[i].send_sock = 0;
          }
 
          if (_server_acception[i].event_sock) {
-            setsockopt(_server_acception[i].event_sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling));
-            ss_close_socket(_server_acception[i].event_sock);
+            ss_reset_socket(_server_acception[i].event_sock);
+            _server_acception[i].event_sock = 0;
          }
-
-         _server_acception[i].recv_sock = 0;
-         _server_acception[i].send_sock = 0;
-         _server_acception[i].event_sock = 0;
       }
 
    if (_lsock) {

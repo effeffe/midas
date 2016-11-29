@@ -4563,6 +4563,46 @@ INT ss_close_socket(int sock)
 }
 
 /*------------------------------------------------------------------*/
+INT ss_reset_socket(int sock)
+/********************************************************************\
+
+  Routine: ss_reset_socket
+
+  Purpose: Reset/abort/forcefully close TCP socket using SO_LINGER.
+           See http://stackoverflow.com/questions/3757289/tcp-option-so-linger-zero-when-its-required
+           on how it is different from a normal socket shutdown.
+
+  Input:
+    int   sock               This socket will be closed.
+
+  Function value:
+    INT                      returns the value of close()
+
+\********************************************************************/
+{
+   int status;
+   struct linger ling;
+   //printf("ss_reset_socket %d\n", sock);
+   ling.l_onoff = 1;
+   ling.l_linger = 0;
+   status = setsockopt(sock, SOL_SOCKET, SO_LINGER, (char *)&ling, sizeof(ling));
+   if (status != 0) {
+      cm_msg(MERROR, "ss_reset_socket", "setsockopt(SOL_SOCKET, SO_LINGER) returned %d, errno %d (%s)", status, errno, strerror(errno));
+   }
+   return ss_close_socket(sock);
+}
+
+INT ss_socket_set_sndbuf(int sock, int bufsize)
+{
+   return SS_SUCCESS;
+}
+
+INT ss_socket_set_rcvbuf(int sock, int bufsize)
+{
+   return SS_SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
 INT send_tcp(int sock, char *buffer, DWORD buffer_size, INT flags)
 /********************************************************************\
 
