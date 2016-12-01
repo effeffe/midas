@@ -5010,7 +5010,7 @@ INT ss_gethostname(char* buffer, int buffer_size)
 {
    int status = gethostname(buffer, buffer_size);
 
-   printf("gethostname %d (%s)\n", status, buffer);
+   //printf("gethostname %d (%s)\n", status, buffer);
 
    if (status != 0) {
       cm_msg(MERROR, "ss_gethostname", "gethostname() errno %d (%s)", errno, strerror(errno));
