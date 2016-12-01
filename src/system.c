@@ -2672,16 +2672,48 @@ INT ss_mutex_create(MUTEX_T ** mutex)
 
    {
       int status;
+      pthread_mutexattr_t *attr;
+
+      attr = malloc(sizeof(*attr));
+      assert(attr);
+
+      status = pthread_mutexattr_init(attr);
+      if (status != 0) {
+         fprintf(stderr, "ss_mutex_create: pthread_mutexattr_init() returned errno %d (%s)\n", status, strerror(status));
+      }
+      
+#if 0
+      status = pthread_mutexattr_settype(attr, PTHREAD_MUTEX_RECURSIVE);
+      if (status != 0) {
+         fprintf(stderr, "ss_mutex_create: pthread_mutexattr_settype() returned errno %d (%s)\n", status, strerror(status));
+      }
+#endif
 
       *mutex = malloc(sizeof(pthread_mutex_t));
       assert(*mutex);
 
-      status = pthread_mutex_init(*mutex, NULL);
+      status = pthread_mutex_init(*mutex, attr);
       if (status != 0) {
          fprintf(stderr, "ss_mutex_create: pthread_mutex_init() returned errno %d (%s), aborting...\n", status, strerror(status));
          abort(); // does not return
          return SS_NO_MUTEX;
       }
+
+#if 0
+      // test recursive locks
+
+      status = pthread_mutex_trylock(*mutex);
+      assert(status == 0);
+
+      status = pthread_mutex_trylock(*mutex);
+      assert(status == 0); // EBUSY if PTHREAD_MUTEX_RECURSIVE does not work
+
+      status = pthread_mutex_unlock(*mutex);
+      assert(status == 0);
+
+      status = pthread_mutex_unlock(*mutex);
+      assert(status == 0);
+#endif
 
       return SS_SUCCESS;
    }
@@ -5357,7 +5389,7 @@ INT ss_gethostname(char* buffer, int buffer_size)
 {
    int status = gethostname(buffer, buffer_size);
 
-   printf("gethostname %d (%s)\n", status, buffer);
+   //printf("gethostname %d (%s)\n", status, buffer);
 
    if (status != 0) {
       cm_msg(MERROR, "ss_gethostname", "gethostname() errno %d (%s)", errno, strerror(errno));
