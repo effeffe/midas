@@ -1818,6 +1818,92 @@ BOOL equal_ustring(const char *str1, const char *str2)
    return TRUE;
 }
 
+// Method to check if a given string is valid UTF-8.  Returns 1 if it is.
+// This method was taken from stackoverflow user Christoph, specifically
+// http://stackoverflow.com/questions/1031645/how-to-detect-utf-8-in-plain-c
+BOOL is_utf8(const char * string)
+{
+    if(!string)
+        return 0;
+
+    const unsigned char * bytes = (const unsigned char *)string;
+    while(*bytes)
+    {
+        if( (// ASCII
+             // use bytes[0] <= 0x7F to allow ASCII control characters
+                bytes[0] == 0x09 ||
+                bytes[0] == 0x0A ||
+                bytes[0] == 0x0D ||
+                (0x20 <= bytes[0] && bytes[0] <= 0x7E)
+            )
+        ) {
+            bytes += 1;
+            continue;
+        }
+
+        if( (// non-overlong 2-byte
+                (0xC2 <= bytes[0] && bytes[0] <= 0xDF) &&
+                (0x80 <= bytes[1] && bytes[1] <= 0xBF)
+            )
+        ) {
+            bytes += 2;
+            continue;
+        }
+
+        if( (// excluding overlongs
+                bytes[0] == 0xE0 &&
+                (0xA0 <= bytes[1] && bytes[1] <= 0xBF) &&
+                (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+            ) ||
+            (// straight 3-byte
+                ((0xE1 <= bytes[0] && bytes[0] <= 0xEC) ||
+                    bytes[0] == 0xEE ||
+                    bytes[0] == 0xEF) &&
+                (0x80 <= bytes[1] && bytes[1] <= 0xBF) &&
+                (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+            ) ||
+            (// excluding surrogates
+                bytes[0] == 0xED &&
+                (0x80 <= bytes[1] && bytes[1] <= 0x9F) &&
+                (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+            )
+        ) {
+            bytes += 3;
+            continue;
+        }
+
+        if( (// planes 1-3
+                bytes[0] == 0xF0 &&
+                (0x90 <= bytes[1] && bytes[1] <= 0xBF) &&
+                (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+                (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+            ) ||
+            (// planes 4-15
+                (0xF1 <= bytes[0] && bytes[0] <= 0xF3) &&
+                (0x80 <= bytes[1] && bytes[1] <= 0xBF) &&
+                (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+                (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+            ) ||
+            (// plane 16
+                bytes[0] == 0xF4 &&
+                (0x80 <= bytes[1] && bytes[1] <= 0x8F) &&
+                (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+                (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+            )
+        ) {
+            bytes += 4;
+            continue;
+        }
+
+        return 0;
+    }
+
+    return 1;
+}
+
+
+
+
 /********************************************************************/
 /**
 Create a new key in a database
@@ -1829,6 +1915,13 @@ Create a new key in a database
 */
 INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
 {
+
+   // Comment out the UTF-8 check, temporarily. T. Lindner
+   //if(!is_utf8(key_name)){
+   //   cm_msg(MERROR, "db_create_key", "invalid non-UTF-8 key name \'%s\'", key_name);
+   //   return DB_INVALID_PARAM;         
+   //}
+
    if (rpc_is_remote())
       return rpc_call(RPC_DB_CREATE_KEY, hDB, hKey, key_name, type);
 
