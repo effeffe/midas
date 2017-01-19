@@ -523,12 +523,18 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message)
          char str[256];
 
          cm_get_experiment_semaphore(NULL, NULL, NULL, &semaphore);
+
+         if (semaphore == -1) {
+            fprintf(stderr, "cm_msg_log: Message \"%s\" not written to midas.log because message system is not initialized yet.\n", message);
+            return CM_SUCCESS;
+         }
+         
          status = ss_semaphore_wait_for(semaphore, 5 * 1000);
          if (status != SS_SUCCESS) {
-            printf("cm_msg_log: Something is wrong with our semaphore, ss_semaphore_wait_for() returned %d, aborting.\n", status);
+            fprintf(stderr, "cm_msg_log: Something is wrong with our semaphore, ss_semaphore_wait_for() returned %d, aborting.\n", status);
             //abort(); // DOES NOT RETURN
-            printf("cm_msg_log: Cannot abort - this will lock you out of odb. From this point, MIDAS will not work correctly. Please read the discussion at https://midas.triumf.ca/elog/Midas/945\n");
             // NOT REACHED
+            fprintf(stderr, "cm_msg_log: Cannot abort - this will lock you out of odb. From this point, MIDAS will not work correctly. Please read the discussion at https://midas.triumf.ca/elog/Midas/945\n");
             return status;
          }
 
@@ -1333,7 +1339,10 @@ static char _client_name[NAME_LENGTH];
 static char _path_name[MAX_STRING_LENGTH];
 static INT _call_watchdog = TRUE;
 static INT _watchdog_timeout = DEFAULT_WATCHDOG_TIMEOUT;
-INT _semaphore_alarm, _semaphore_elog, _semaphore_history, _semaphore_msg;
+INT _semaphore_alarm   = -1;
+INT _semaphore_elog    = -1;
+INT _semaphore_history = -1;
+INT _semaphore_msg     = -1;
 
 /**dox***************************************************************/
 /** @addtogroup cmfunctionc
@@ -2226,7 +2235,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    if (!disable_bind_rpc_to_localhost)
       strlcpy(local_host_name, "localhost", sizeof(local_host_name));
    else
-      gethostname(local_host_name, sizeof(local_host_name));
+      ss_gethostname(local_host_name, sizeof(local_host_name));
 
    /* check watchdog timeout */
    if (watchdog_timeout == 0)
@@ -2564,7 +2573,7 @@ INT cm_disconnect_experiment(void)
    if (!disable_bind_rpc_to_localhost)
       strlcpy(local_host_name, "localhost", sizeof(local_host_name));
    else {
-      gethostname(local_host_name, sizeof(local_host_name));
+      ss_gethostname(local_host_name, sizeof(local_host_name));
       if (strchr(local_host_name, '.'))
          *strchr(local_host_name, '.') = 0;
    }
@@ -9732,7 +9741,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
 
    /* send local computer info */
    rpc_get_name(local_prog_name);
-   gethostname(local_host_name, sizeof(local_host_name));
+   ss_gethostname(local_host_name, sizeof(local_host_name));
 
    hw_type = rpc_get_option(0, RPC_OHW_TYPE);
    sprintf(str, "%d %s %s %s", hw_type, cm_get_version(), local_prog_name, local_host_name);

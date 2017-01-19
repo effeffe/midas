@@ -17078,7 +17078,7 @@ void server_loop(int tcp_port, int port80_socket)
    }
       
    /* get host name for mail notification */
-   gethostname(host_name, sizeof(host_name));
+   ss_gethostname(host_name, sizeof(host_name));
    
    local_phe = gethostbyname(host_name);
    if (local_phe != NULL)
@@ -19041,7 +19041,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
 
       if (http_redirect_to_https) {
          char hostname[256];
-         gethostname(hostname, sizeof(host_name));
+         ss_gethostname(hostname, sizeof(host_name));
          char str[256];
          sprintf(str, "%d", https_port);
          std::string s = std::string(hostname) + ":" + std::string(str);

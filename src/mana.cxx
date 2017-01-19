@@ -3331,7 +3331,7 @@ void register_requests(void)
       analyze_request[index].hkey_common = hKey;
 
       strcpy(ar_info->client_name, analyzer_name);
-      gethostname(ar_info->host, sizeof(ar_info->host));
+      ss_gethostname(ar_info->host, sizeof(ar_info->host));
       db_set_record(hDB, hKey, ar_info, sizeof(AR_INFO), 0);
 
       /* open hot link to analyzer request info */
