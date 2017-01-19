@@ -2,11 +2,11 @@
 # $Id$
 #MIDASSYS=/home/olchansk/daq/midas/midas
 
-OSFLAGS  = -m32 -DOS_LINUX -Dextname
+OSFLAGS  = -DOS_LINUX -Dextname
 CFLAGS   =  -g -O2 -Wall -Wuninitialized -I$(INC_DIR) -I$(DRV_DIR) -I$(VMICHOME)/include
 CXXFLAGS = $(CFLAGS) -DHAVE_ROOT -DUSE_ROOT -I$(ROOTSYS)/include
 
-LIBS = -lm -lz -lutil -lnsl -lpthread
+LIBS = -lm -lz -lutil  -lpthread
 
 DRV_DIR         = $(MIDASSYS)/drivers
 INC_DIR         = $(MIDASSYS)/include
@@ -14,6 +14,14 @@ LIB_DIR         = $(MIDASSYS)/linux/lib
 
 # MIDAS library
 MIDASLIBS = $(LIB_DIR)/libmidas.a
+
+# fix these for MacOS
+UNAME=$(shell uname)
+ifeq ($(UNAME),Darwin)
+MIDASLIBS = $(MIDASSYS)/darwin/lib/libmidas.a
+LIB_DIR         = $(MIDASSYS)/darwin/lib
+endif
+
 
 # ROOT library
 ROOTLIBS = $(shell $(ROOTSYS)/bin/root-config --libs) -lThread -Wl,-rpath,$(ROOTSYS)/lib
@@ -31,6 +39,9 @@ fevme.exe: $(MIDASLIBS) $(LIB_DIR)/mfe.o fevme.o vmicvme.o v792.o v1190B.o
 
 analyzer.exe: $(LIB_DIR)/rmana.o analyzer.o modules.o $(MIDASLIBS)
 	g++ -o $@ -m32 -O2 -g $^ $(ROOTLIBS) $(LIBS)
+
+fesimdaq.exe: $(MIDASLIBS) $(LIB_DIR)/mfe.o fesimdaq.o
+	$(CXX) -o $@ $(CFLAGS) $(OSFLAGS) $^ $(MIDASLIBS) $(LIBS) 
 
 %.o: %.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -c $<
