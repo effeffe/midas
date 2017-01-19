@@ -622,14 +622,14 @@ endif
 
 $(LIB_DIR)/history_sql.o $(LIB_DIR)/history_schema.o $(LIB_DIR)/history_midas.o $(LIB_DIR)/mhttpd.o $(LIB_DIR)/mlogger.o: history.h
 
-$(LIB_DIR)/mfe.o: msystem.h midas.h midasinc.h mrpc.h
+$(LIB_DIR)/mfe.o: msystem.h midas.h mrpc.h
 
-$(LIB_DIR)/mana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
+$(LIB_DIR)/mana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h  mrpc.h
 	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
-$(LIB_DIR)/hmana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
+$(LIB_DIR)/hmana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h  mrpc.h
 	$(CC) -Dextname -DHAVE_HBOOK -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 ifdef HAVE_ROOT
-$(LIB_DIR)/rmana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
+$(LIB_DIR)/rmana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h  mrpc.h
 	$(CXX) -c $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -o $@ $<
 endif
 
@@ -657,16 +657,16 @@ $(LIB_DIR)/mscb.o:$(MSCB_DIR)/src/mscb.c $(MSCB_DIR)/include/mscb.h
 	$(CXX) -x c++ -c $(CFLAGS) $(OSFLAGS) -o $@ $(MSCB_DIR)/src/mscb.c
 endif
 
-$(LIB_DIR)/mhttpd.o: msystem.h midas.h midasinc.h mrpc.h mjsonrpc.h
-$(LIB_DIR)/midas.o: msystem.h midas.h midasinc.h mrpc.h
-$(LIB_DIR)/midas_cxx.o: msystem.h midas.h midasinc.h mrpc.h
-$(LIB_DIR)/system.o: msystem.h midas.h midasinc.h mrpc.h
+$(LIB_DIR)/mhttpd.o: msystem.h midas.h  mrpc.h mjsonrpc.h
+$(LIB_DIR)/midas.o: msystem.h midas.h  mrpc.h
+$(LIB_DIR)/midas_cxx.o: msystem.h midas.h  mrpc.h
+$(LIB_DIR)/system.o: msystem.h midas.h  mrpc.h
 $(LIB_DIR)/mrpc.o: msystem.h midas.h mrpc.h
-$(LIB_DIR)/odb.o: msystem.h midas.h midasinc.h mrpc.h
-$(LIB_DIR)/mdsupport.o: msystem.h midas.h midasinc.h
-$(LIB_DIR)/ftplib.o: msystem.h midas.h midasinc.h
-$(LIB_DIR)/mxml.o: msystem.h midas.h midasinc.h $(MXML_DIR)/mxml.h
-$(LIB_DIR)/alarm.o: msystem.h midas.h midasinc.h
+$(LIB_DIR)/odb.o: msystem.h midas.h  mrpc.h
+$(LIB_DIR)/mdsupport.o: msystem.h midas.h 
+$(LIB_DIR)/ftplib.o: msystem.h midas.h 
+$(LIB_DIR)/mxml.o: msystem.h midas.h  $(MXML_DIR)/mxml.h
+$(LIB_DIR)/alarm.o: msystem.h midas.h 
 $(LIB_DIR)/mjsonrpc.o: midas.h mjsonrpc.h
 
 #
