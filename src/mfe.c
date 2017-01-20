@@ -1017,7 +1017,7 @@ int set_equipment_status(const char *name, const char *equipment_status, const c
 void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
 {
    INT size, i, status, n_data;
-   char *pdata;
+   char *pdata, *pdata0;
    char name[5];
    BANK_HEADER *pbh;
    BANK *pbk;
@@ -1062,7 +1062,8 @@ void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
          /* get bank key */
          *((DWORD *) name) = bkname;
          name[4] = 0;
-
+         /* record the start of the data in case it is struct */
+         pdata0 = pdata;
          if (bktype == TID_STRUCT) {
             status = db_find_key(hDB, hKey, name, &hKeyRoot);
             if (status != DB_SUCCESS) {
@@ -1082,7 +1083,7 @@ void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
                /* adjust for alignment */
                if (key.type != TID_STRING && key.type != TID_LINK)
                   pdata =
-                      (void *) VALIGN(pdata, MIN(ss_get_struct_align(), key.item_size));
+                    (void *) (pdata0 + VALIGN(pdata-pdata0, MIN(ss_get_struct_align(), key.item_size)));
 
                status = db_set_data(hDB, hKeyl, pdata, key.item_size * key.num_values,
                                     key.num_values, key.type);
