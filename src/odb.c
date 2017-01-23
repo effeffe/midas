@@ -538,6 +538,8 @@ BOOL is_utf8(const char * string)
     return 1;
 }
 
+BOOL utfCheckEnvVar = 0;
+BOOL checkUtfValidString = 0;
 
 /*------------------------------------------------------------------*/
 static int db_validate_name(const char* name, int maybe_path, const char* caller_name)
@@ -554,13 +556,22 @@ static int db_validate_name(const char* name, int maybe_path, const char* caller
       return DB_INVALID_NAME;
    }
 
-   // Disabled check for UTF-8 compatible names.  Don't immediately uncomment, since the
-   // db_validate_db check will immediately start renaming invalid key names (might not be what people want).
-   if(0)
-      if (!is_utf8(name)) {
-         cm_msg(MERROR, "db_validate_name", "Invalid name passed to %s: UTF-8 incompatible string", caller_name);
-         return DB_INVALID_NAME;
+   // Disabled check for UTF-8 compatible names. 
+   // Check can be disabled by having an environment variable called "MIDAS_INVALID_STRING_IS_OK"
+   // Check the environment variable only first time
+   if(!utfCheckEnvVar){
+      if (getenv("MIDAS_INVALID_STRING_IS_OK")){
+         checkUtfValidString = 0;
+      }else{
+         checkUtfValidString = 1;
       }
+      utfCheckEnvVar = 1;
+   }
+   
+   if (checkUtfValidString && !is_utf8(name)) {
+      cm_msg(MERROR, "db_validate_name", "Invalid name \"%s\" passed to %s: UTF-8 incompatible string", name,caller_name);
+      return DB_INVALID_NAME;
+   }
    
    if (!maybe_path) {
       if (strchr(name, '/')) {
