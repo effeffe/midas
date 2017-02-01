@@ -7616,7 +7616,7 @@ BM_NO_MEMORY   Event is too large for network buffer or event buffer.
 One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
 and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
-INT bm_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag)
+INT bm_send_event(INT buffer_handle, const void *source, INT buf_size, INT async_flag)
 {
    EVENT_HEADER *pevent;
 
@@ -14287,7 +14287,7 @@ void bk_init(void *event)
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-BOOL bk_is32(void *event)
+BOOL bk_is32(const void *event)
 /********************************************************************\
 
   Routine: bk_is32
@@ -14332,7 +14332,7 @@ of the event header (sizeof(EVENT_HEADER)).
 @param event pointer to the area of event
 @return number of bytes contained in data area of event
 */
-INT bk_size(void *event)
+INT bk_size(const void *event)
 {
    return ((BANK_HEADER *) event)->data_size + sizeof(BANK_HEADER);
 }
@@ -14585,7 +14585,7 @@ INT adc_calib(EVENT_HEADER *pheader, void *pevent)
 @param bklist returned ASCII string, has to be booked with STRING_BANKLIST_MAX.
 @return number of bank found in this event.
 */
-INT bk_list(void *event, char *bklist)
+INT bk_list(const void *event, char *bklist)
 {                               /* Full event */
    INT nbk;
    BANK *pmbk = NULL;
@@ -14629,7 +14629,7 @@ Locates a MIDAS bank of given name inside an event.
 @param pdata pointer to data area of bank, NULL if bank not found
 @return number of values inside the bank
 */
-INT bk_locate(void *event, const char *name, void *pdata)
+INT bk_locate(const void *event, const char *name, void *pdata)
 {
    BANK *pbk;
    BANK32 *pbk32;
@@ -14679,7 +14679,7 @@ Finds a MIDAS bank of given name inside an event.
 @param pdata pointer to data area of bank, NULL if bank not found
 @return 1 if bank found, 0 otherwise
 */
-INT bk_find(BANK_HEADER * pbkh, const char *name, DWORD * bklen, DWORD * bktype, void **pdata)
+INT bk_find(const BANK_HEADER * pbkh, const char *name, DWORD * bklen, DWORD * bktype, void **pdata)
 {
    BANK *pbk;
    BANK32 *pbk32;
@@ -14760,7 +14760,7 @@ this function.
 call to this function
 @return Size of bank in bytes
 */
-INT bk_iterate(void *event, BANK ** pbk, void *pdata)
+INT bk_iterate(const void *event, BANK ** pbk, void *pdata)
 {
    if (*pbk == NULL)
       *pbk = (BANK *) (((BANK_HEADER *) event) + 1);
@@ -14782,7 +14782,7 @@ INT bk_iterate(void *event, BANK ** pbk, void *pdata)
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-INT bk_iterate32(void *event, BANK32 ** pbk, void *pdata)
+INT bk_iterate32(const void *event, BANK32 ** pbk, void *pdata)
 /********************************************************************\
 
   Routine: bk_iterate

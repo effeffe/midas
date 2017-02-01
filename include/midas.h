@@ -1749,7 +1749,7 @@ extern "C" {
                                                                    void *),
                                   INT request_id);
    INT EXPRT bm_delete_request(INT request_id);
-   INT EXPRT bm_send_event(INT buffer_handle, void *event, INT buf_size, INT async_flag);
+   INT EXPRT bm_send_event(INT buffer_handle, const void *event, INT buf_size, INT async_flag);
    INT EXPRT bm_receive_event(INT buffer_handle, void *destination,
                               INT * buf_size, INT async_flag);
    INT EXPRT bm_skip_event(INT buffer_handle);
@@ -1879,19 +1879,18 @@ extern "C" {
    /*---- Bank routines ----*/
    void EXPRT bk_init(void *pbh);
    void EXPRT bk_init32(void *event);
-   BOOL EXPRT bk_is32(void *event);
-   INT EXPRT bk_size(void *pbh);
+   BOOL EXPRT bk_is32(const void *event);
+   INT EXPRT bk_size(const void *pbh);
    void EXPRT bk_create(void *pbh, const char *name, WORD type, void **pdata);
    INT EXPRT bk_delete(void *event, const char *name);
    INT EXPRT bk_close(void *pbh, void *pdata);
-   INT EXPRT bk_list(void *pbh, char *bklist);
-   INT EXPRT bk_locate(void *pbh, const char *name, void *pdata);
-   INT EXPRT bk_iterate(void *pbh, BANK ** pbk, void *pdata);
-   INT EXPRT bk_iterate32(void *pbh, BANK32 ** pbk, void *pdata);
+   INT EXPRT bk_list(const void *pbh, char *bklist);
+   INT EXPRT bk_locate(const void *pbh, const char *name, void *pdata);
+   INT EXPRT bk_iterate(const void *pbh, BANK ** pbk, void *pdata);
+   INT EXPRT bk_iterate32(const void *pbh, BANK32 ** pbk, void *pdata);
    INT EXPRT bk_copy(char * pevent, char * psrce, const char * bkname);
    INT EXPRT bk_swap(void *event, BOOL force);
-   INT EXPRT bk_find(BANK_HEADER * pbkh, const char *name, DWORD * bklen,
-                     DWORD * bktype, void **pdata);
+   INT EXPRT bk_find(const BANK_HEADER * pbkh, const char *name, DWORD * bklen, DWORD * bktype, void **pdata);
 
    /*---- RPC routines ----*/
    INT EXPRT rpc_clear_allowed_hosts();
