@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="mhttpd.css">
+    <script src="mhttpd.js"></script>
+    <title>Template</title>
+
+    <style>
+     html, body {
+       height: 100%;
+     }
+    </style>
+  </head>
+  
+  <body>
+    
+    <script>
+    url = mhttpd_getParameterByName("URL");
+    if (url)
+       mjsonrpc_set_url(url);
+    </script>
+
+    <div id="wrapper" class="wrapper">
+      <script>
+      mhttpd_navigation_bar("Template");
+      </script>
+      
+      <div>
+        <p>page contents goes here</p>
+        <p>page contents goes here</p>
+        <p>page contents goes here</p>
+        <p>page contents goes here</p>
+        <p>page contents goes here</p>
+        <p>page contents goes here</p>
+        <p>page contents goes here</p>
+        <p>page contents goes here</p>
+        <p>page contents goes here</p>
+        <p>page contents goes here</p>
+      </div>
+      <div id="updateStatus" align="left">
+        updateStatus
+      </div>
+      
+      <div class="push">
+      </div>
+    </div>
+    
+    <script>
+    mhttpd_page_footer();
+    </script>
+    
+    <script>
+    //
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    //
+    //update_periodic();
+    </script>
+  </body>
+</html>
