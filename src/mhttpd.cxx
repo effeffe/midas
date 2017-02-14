@@ -252,7 +252,9 @@ void haxis(gdImagePtr im, gdFont * font, int col, int gcol, int x1, int y1, int 
 void get_elog_url(char *url, int len);
 void show_header(const char *title, const char *method, const char *path, int refresh);
 void show_navigation_bar(const char *cur_page);
+#ifdef OBSOLETE
 char *get_js_filename();
+#endif
 char *get_css_filename();
 
 /* functions from sequencer.cxx */
@@ -1247,8 +1249,38 @@ void show_help_page()
    rsprintf("        </tr>\n");
 
    rsprintf("        <tr>\n");
-   rsprintf("          <td style=\"text-align:right;\">JavaScript File:</td>\n");
-   fp = open_resource_file(get_js_filename(), &f);
+   rsprintf("          <td style=\"text-align:right;\">midas.css:</td>\n");
+   fp = open_resource_file("midas.css", &f);
+   if (fp) {
+      fclose(fp);
+      rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
+   } else
+      rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
+   rsprintf("        </tr>\n");
+
+   rsprintf("        <tr>\n");
+   rsprintf("          <td style=\"text-align:right;\">midas.js:</td>\n");
+   fp = open_resource_file("midas.js", &f);
+   if (fp) {
+      fclose(fp);
+      rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
+   } else
+      rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
+   rsprintf("        </tr>\n");
+
+   rsprintf("        <tr>\n");
+   rsprintf("          <td style=\"text-align:right;\">mhttpd.js:</td>\n");
+   fp = open_resource_file("mhttpd.js", &f);
+   if (fp) {
+      fclose(fp);
+      rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
+   } else
+      rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
+   rsprintf("        </tr>\n");
+
+   rsprintf("        <tr>\n");
+   rsprintf("          <td style=\"text-align:right;\">obsolete.js:</td>\n");
+   fp = open_resource_file("obsolete.js", &f);
    if (fp) {
       fclose(fp);
       rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
@@ -1686,7 +1718,9 @@ void show_status_page(int refresh, const char *cookie_wpwd)
       rsprintf("<audio autoplay src=\"%s\">!midas alarm sound!</audio>\n", str);
    }
 
-   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
+   rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
 
    rsprintf("</head>\n");
 
@@ -2618,7 +2652,9 @@ void show_messages_page()
    time(&now);
 
    show_header("Messages", "GET", "./", 0);
-   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
+   rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
    show_navigation_bar("Messages");
 
    /*---- facilities button bar ----*/
@@ -2662,7 +2698,9 @@ void show_messages_page()
 void show_chat_page()
 {
    show_header("Messages", "GET", "./", 0);
-   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
+   rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
    show_navigation_bar("Chat");
    
    /*---- messages will be dynamically loaded via JS ----*/
@@ -5151,7 +5189,9 @@ void show_sc_page(const char *path, int refresh)
    sprintf(str, "%s", group);
    show_header("MIDAS slow control", "", str, i_edit == -1 ? refresh : 0);
    show_navigation_bar("SC");
-   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
+   rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
 
    /*---- menu buttons ----*/
 
@@ -9404,6 +9444,7 @@ void show_odb_page(char *enc_path, int enc_path_size, char *dec_path, int write_
       strlcpy(str, "root", sizeof(str));
    show_header("MIDAS online database", "", str, 0);
 
+#if 0
    /* add one "../" for each level */
    tmp_path[0] = 0;
    for (p = dec_path ; *p ; p++)
@@ -9411,9 +9452,13 @@ void show_odb_page(char *enc_path, int enc_path_size, char *dec_path, int write_
          strlcat(tmp_path, "../", sizeof(tmp_path));
    strlcat(tmp_path, "../", sizeof(tmp_path));
    strlcat(tmp_path, get_js_filename(), sizeof(tmp_path));
+   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", tmp_path);
+#endif
 
    /* use javascript file */
-   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", tmp_path);
+   rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
 
    /* find key via path */
    status = db_find_key(hDB, 0, dec_path, &hkeyroot);
@@ -10074,7 +10119,9 @@ void show_create_page(const char *enc_path, const char *dec_path, const char *va
       //close header:
       rsprintf("</table>");
 
-      rsprintf("<script src=\'%s\'></script>\n", get_js_filename());
+      rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
+      rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
+      rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
 
       rsprintf("<table class=\"dialogTable\">");
       rsprintf("<tr><th colspan=2>Create ODB entry</tr>\n");
@@ -10235,7 +10282,9 @@ void show_delete_page(const char *enc_path, const char *dec_path, const char *va
       //close header
       rsprintf("</table>");
 
-      rsprintf("<script src=\'%s\'></script>\n", get_js_filename());
+      rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
+      rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
+      rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
 
       rsprintf("<table class=\"dialogTable\">");
       rsprintf("<tr><th colspan=2>Delete ODB entries:</tr>\n");
@@ -10332,7 +10381,9 @@ void show_alarm_page()
    cm_get_experiment_database(&hDB, NULL);
 
    show_header("Alarms", "GET", "./", 0);
-   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
+   rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
    show_navigation_bar("Alarms");
 
    /*---- menu buttons ----*/
@@ -10568,7 +10619,9 @@ void show_programs_page()
    show_navigation_bar("Programs");
 
    /* use javascript file */
-   rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", get_js_filename());
+   rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
 
    rsprintf("<input type=hidden name=cmd value=Programs>\n");
 
@@ -15228,6 +15281,8 @@ char *get_css_filename()
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
+
 static char _js_file[1024];
 
 char *get_js_filename()
@@ -15242,6 +15297,8 @@ char *get_js_filename()
    strlcpy(_js_file, filename, sizeof(_js_file));
    return _js_file;
 }
+
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -15344,6 +15401,8 @@ bool send_resource(const std::string& name)
 }
 
 /*------------------------------------------------------------------*/
+
+#ifdef OBSOLETE
 
 const char *mhttpd_js =
 "/* MIDAS type definitions */\n"
@@ -15666,6 +15725,10 @@ const char *mhttpd_js =
 "}\n"
 "";
 
+#endif
+
+#ifdef OBSOLETE
+
 void send_js()
 {
    int length;
@@ -15705,6 +15768,8 @@ void send_js()
 
    rmemcpy(mhttpd_js, length);
 }
+
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -15748,10 +15813,12 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       return;
    }
 
+#ifdef OBSOLETE
    if (strstr(dec_path, get_js_filename())) {
       send_js();
       return;
    }
+#endif
 
    strlcpy(enc_path, dec_path, sizeof(enc_path));
    urlEncode(enc_path, sizeof(enc_path));
