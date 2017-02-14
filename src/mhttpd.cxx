@@ -15862,6 +15862,32 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       return;
    }
 
+   /*---- send midas.js and midas.css -------------------------------*/
+
+   if (strstr(dec_path, "midas.js")) {
+      send_resource("midas.js");
+      return;
+   }
+
+   if (strstr(dec_path, "midas.css")) {
+      send_resource("midas.css");
+      return;
+   }
+
+   /*---- send mhttpd.js --------------------------------------------*/
+
+   if (strstr(dec_path, "mhttpd.js")) {
+      send_resource("mhttpd.js");
+      return;
+   }
+
+   /*---- send obsolete.js ------------------------------------------*/
+
+   if (strstr(dec_path, "obsolete.js")) {
+      send_resource("obsolete.js");
+      return;
+   }
+
    /*---- send example web page -------------------------------------*/
 
    if (equal_ustring(command, "example")) {
