@@ -1507,13 +1507,14 @@ int exec_script(HNDLE hkey)
 
 /*------------------------------------------------------------------*/
 
-void xshow_navigation_bar(const char *cur_page)
+void show_navigation_bar(const char *cur_page)
 {
    rsprintf("<script>\n");
    rsprintf("mhttpd_navigation_bar(\"%s\");\n", cur_page);
    rsprintf("</script>\n");
 }
 
+#ifdef OBSOLETE
 void show_navigation_bar(const char *cur_page)
 {
    HNDLE hDB;
@@ -1596,6 +1597,7 @@ void show_navigation_bar(const char *cur_page)
 
    rsprintf("</td></tr></table>\n\n");
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
