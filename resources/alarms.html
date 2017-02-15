@@ -2,19 +2,13 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="mhttpd.css">
+    <link rel="stylesheet" href="midas.css">
     <script src="midas.js"></script>
     <script src="mhttpd.js"></script>
     <title>Alarms</title>
-    
-    <style>
-     html, body {
-       height: 100%;
-     }
-    </style>
   </head>
   
-  <body>
+  <body class="mcss">
     
     <script>
     url = mhttpd_getParameterByName("URL");
@@ -27,86 +21,66 @@
       mhttpd_navigation_bar("Alarms");
       </script>
       
-      <div>
-        <button id='al_reset_all' onclick='reset_all_alarms()'>Reset all alarms</button>
-        <button id='al_system_enable' onclick='enable_alarm_system()'>Enable the alarm system</button>
-        <button id='al_system_disable' onclick='disable_alarm_system(false)'>Disable the alarm system</button>
-        <input type="checkbox" name="caspeak" id="aspeak" onclick="return aspeak_click(this);"><span id="aspeakLabel">Speak</span></input><script type="text/javascript">alarm_load();</script>
+      <div align="center">
+        <button class="mbuttoncss" id='al_reset_all' onclick='reset_all_alarms()'>Reset all alarms</button>
+        <button class="mbuttoncss" id='al_system_enable' onclick='enable_alarm_system()'>Enable the alarm system</button>
+        <button class="mbuttoncss" id='al_system_disable' onclick='disable_alarm_system(false)'>Disable the alarm system</button>
+        <input class="mfontcss" type="checkbox" name="caspeak" id="aspeak" onclick="return aspeak_click(this);"><span class="mfontcss" id="aspeakLabel">Speak</span></input><script type="text/javascript">alarm_load();</script>
       </div>
     
-      <div id='al_sysem_disabled_notice' class='redLight'>
-        <p> 
+      <div id='al_sysem_disabled_notice' class='mfontcss mredcolour redLight'>
+        <p align="center"> 
           Alarm system disabled
         </p>
       </div>
       
-      <table>
-        <tbody>
-          <tr>
-            <td>
-              <table width="100%" class="alarmTable" id="evaluatedAlarms">
-                <tr><td colspan=7 class="subStatusTitle">Evaluated alarms</td></tr>
-                <tr class="titleRow">
-                  <th>Alarm</th>
-                  <th>State</th>
-                  <th>First triggered</th>
-                  <th>Class</th>
-                  <th>Condition</th>
-                  <th>Current value</th>
-                </tr>
-              </table>
-            </td>
-          </tr>
+      <table width="95%" class="mtablecss alarmTable" id="evaluatedAlarms">
+        <tr><td colspan=7 class="mtableheadercss subStatusTitle">Evaluated alarms</td></tr>
+        <tr class="mtabletitlecss titleRow">
+          <th>Alarm</th>
+          <th>State</th>
+          <th>First triggered</th>
+          <th>Class</th>
+          <th>Condition</th>
+          <th>Current value</th>
+        </tr>
+      </table>
 
-          <tr>
-            <td>
-              <table width="100%" class="alarmTable" id="programAlarms">
-                <tr><td colspan=7 class="subStatusTitle">Program alarms</td></tr>
-                <tr class="titleRow">
-                  <th>Alarm</th>
-                  <th>State</th>
-                  <th>First triggered</th>
-                  <th>Class</th>
-                  <th>Condition</th>
-                </tr>
-              </table>
-            </td>
-          </tr>
+      <table width="95%" class="mtablecss alarmTable" id="programAlarms">
+        <tr><td colspan=7 class="mtableheadercss subStatusTitle">Program alarms</td></tr>
+        <tr class="titleRow">
+          <th>Alarm</th>
+          <th>State</th>
+          <th>First triggered</th>
+          <th>Class</th>
+          <th>Condition</th>
+        </tr>
+      </table>
 
-          <tr>
-            <td>
-              <table width="100%" class="alarmTable" id="internalAlarms">
-                <tr>
-                  <td colspan=7 class="subStatusTitle">Internal alarms</td>
-                </tr>
-                <tr class="titleRow">
-                  <th>Alarm</th>
-                  <th>State</th>
-                  <th>First triggered</th>
-                  <th>Class</th>
-                  <th>Condition/Message</th>
-                </tr>
-              </table>
-            </td>
-          </tr>
+      <table width="95%" class="mtablecss alarmTable" id="internalAlarms">
+        <tr>
+          <td colspan=7 class="mtableheadercss subStatusTitle">Internal alarms</td>
+        </tr>
+        <tr class="titleRow">
+          <th>Alarm</th>
+          <th>State</th>
+          <th>First triggered</th>
+          <th>Class</th>
+          <th>Condition/Message</th>
+        </tr>
+      </table>
 
-          <tr>
-            <td>
-              <table width="100%" class="alarmTable" id="periodicAlarms">
-                <tr>
-                  <td colspan=7 class="subStatusTitle">Periodic alarms</td>
-                </tr>
-                <tr class="titleRow">
-                  <th>Alarm</th>
-                  <th>State</th>
-                  <th>First triggered</th>
-                  <th>Class</th>
-                  <th>Time/Message</th>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </tbody>
+      <table width="95%" class="mtablecss alarmTable" id="periodicAlarms">
+        <tr>
+          <td colspan=7 class="mtableheadercss subStatusTitle">Periodic alarms</td>
+        </tr>
+        <tr class="titleRow">
+          <th>Alarm</th>
+          <th>State</th>
+          <th>First triggered</th>
+          <th>Class</th>
+          <th>Time/Message</th>
+        </tr>
       </table>
     
       <div id="updateStatus" align="left">
@@ -168,6 +142,7 @@
        
        var tr = document.createElement("tr");
        tr.id = "alarm " + name;
+       tr.className = "mtablecss";
        
        var td;
        var input;
@@ -225,6 +200,7 @@
        input = reset_button;
        input.id = "reset alarm " + name;
        input.type = "button";
+       input.className = "mbuttoncss";
        input.innerHTML = "Reset";
        mhttpd_disable_button(input);
        input.onclick = function() {
@@ -294,13 +270,13 @@
           
           if (!alarm.active) {
              e.childNodes[1].innerHTML = "Disabled";
-             e.childNodes[1].className = "yellowLight";
+             e.childNodes[1].className = "myellowcolour yellowLight";
           } else if (alarm.triggered) { 
              e.childNodes[1].innerHTML = "Triggered";
-             e.childNodes[1].className = "redLight";
+             e.childNodes[1].className = "mredcolour redLight";
           } else {
              e.childNodes[1].innerHTML = "OK"; 
-             e.childNodes[1].className = "greenLight";
+             e.childNodes[1].className = "mgreencolour greenLight";
           }
           
           if (alarm.time_triggered_first) {

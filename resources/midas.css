@@ -12,7 +12,7 @@ body.mcss {
 
 /* common settings: fonts, colours, etc */
 
-.mnavcss, .mbuttoncss, .mfootercss, .mtablecss {
+.mfontcss, .mnavcss, .mbuttoncss, .mfootercss, .mtablecss {
     font-family: verdana,tahoma,sans-serif;
 }
 
