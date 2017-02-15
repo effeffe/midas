@@ -2,19 +2,13 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="mhttpd.css">
+    <link rel="stylesheet" href="midas.css">
     <script src="midas.js"></script>
     <script src="mhttpd.js"></script>
     <title>Programs</title>
-
-    <style>
-     html, body {
-       height: 100%;
-     }
-    </style>
   </head>
   
-  <body>
+  <body class="mcss">
     
     <script>
     url = mhttpd_getParameterByName("URL");
@@ -28,11 +22,11 @@
       </script>
       
       <div>
-        <table class="subStatusTable" id="stripeList">
+        <table class="mtablecss subStatusTable" id="stripeList">
           <tr>
-            <td colspan=5 class="subStatusTitle">Programs</td>
+            <td colspan=5 class="mtableheadercss subStatusTitle">Programs</td>
           </tr>
-          <tr class="titleRow">
+          <tr class="mtabletitlecss titleRow">
             <th>Program</th>
             <th>Running on host</th>
             <th>Alarm class</th>
@@ -106,6 +100,7 @@
     {
        var tr = document.createElement("tr");
        tr.id = "program " + name;
+       tr.className = "mtablecss";
        
        var td;
        var input;
@@ -133,6 +128,7 @@
        input = start_button;
        input.id = "start " + name;
        input.type = "button";
+       input.className = "mbuttoncss";
        input.innerHTML = "Start " + full_name;
        mhttpd_disable_button(input);
        input.onclick = function() {
@@ -153,6 +149,7 @@
        input = stop_button;
        input.id = "stop " + name;
        input.type = "button";
+       input.className = "mbuttoncss";
        input.innerHTML = "Stop " + full_name;
        mhttpd_disable_button(input);
        input.onclick = function() {
@@ -253,7 +250,7 @@
                 }
              }
              e.childNodes[1].innerHTML = s;
-             e.childNodes[1].className = "greenLight";
+             e.childNodes[1].className = "mgreencolour greenLight";
              // enable start/stop buttons
              var b = document.getElementById("start " + name);
              if (b) {
@@ -267,7 +264,7 @@
              }
           } else if (program_status[name]) {
              e.childNodes[1].innerHTML = program_status[name];
-             e.childNodes[1].className = "yellowLight";
+             e.childNodes[1].className = "myellowcolour yellowLight";
              var b = document.getElementById("start " + name);
              if (b && start_command) {
                 mhttpd_disable_button(b);
@@ -280,7 +277,7 @@
              }
           } else {
              e.childNodes[1].innerHTML = "Not running";
-             e.childNodes[1].className = "redLight";
+             e.childNodes[1].className = "mredcolour redLight";
              // enable start/stop buttons
              var b = document.getElementById("start " + name);
              if (b && start_command) {
@@ -297,7 +294,7 @@
           var alarm_class = programs[name]["alarm class"];
           if (alarm_class.length > 0) {
              e.childNodes[2].innerHTML = "<a href='Alarms/Classes/"+ alarm_class + "'>" + alarm_class + "</a>";
-             e.childNodes[2].className = "yellowLight";
+             e.childNodes[2].className = "myellowcolour yellowLight";
           } else {
              e.childNodes[2].innerHTML = "-";
           }
