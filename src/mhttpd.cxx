@@ -1507,6 +1507,13 @@ int exec_script(HNDLE hkey)
 
 /*------------------------------------------------------------------*/
 
+void xshow_navigation_bar(const char *cur_page)
+{
+   rsprintf("<script>\n");
+   rsprintf("mhttpd_navigation_bar(\"%s\");\n", cur_page);
+   rsprintf("</script>\n");
+}
+
 void show_navigation_bar(const char *cur_page)
 {
    HNDLE hDB;
@@ -10368,6 +10375,7 @@ void show_delete_page(const char *enc_path, const char *dec_path, const char *va
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void show_alarm_page()
 {
    INT i, size, triggered, type, index, ai;
@@ -10560,9 +10568,11 @@ void show_alarm_page()
    //rsprintf("</script>\n");
 
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void show_programs_page()
 {
    INT i, j, k, size, count, status;
@@ -10752,6 +10762,7 @@ void show_programs_page()
 
    page_footer(TRUE);
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -16088,6 +16099,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       return;
    }
 
+#ifdef OBSOLETE
    /*---- alarms command --------------------------------------------*/
 
    if (equal_ustring(command, "alarms")) {
@@ -16112,6 +16124,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       redirect("");
       return;
    }
+#endif
 
    /*---- history command -------------------------------------------*/
 
@@ -16431,6 +16444,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       return;
    }
 
+#ifdef OBSOLETE
    /*---- alarms command --------------------------------------------*/
 
    if (equal_ustring(command, "reset all alarms")) {
@@ -16455,7 +16469,9 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       redirect("Alarms/Alarm system active?cmd=set");
       return;
    }
+#endif
 
+#ifdef OBSOLETE
    /*---- programs command ------------------------------------------*/
 
    if (equal_ustring(command, "programs")) {
@@ -16482,6 +16498,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       show_programs_page();
       return;
    }
+#endif
 
    /*---- config command --------------------------------------------*/
 
