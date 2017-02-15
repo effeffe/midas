@@ -1,19 +1,14 @@
 <!DOCTYPE html>
-<html>
+<html class="mcss">
   <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="mhttpd.css">
+    <link rel="stylesheet" href="midas.css">
     <script src="midas.js"></script>
     <script src="mhttpd.js"></script>
     <title>Start a new run</title>
-    <style>
-     html, body {
-       height: 100%;
-     }
-    </style>
   </head>
   
-  <body>
+  <body class="mcss">
     
     <script>
     url = mhttpd_getParameterByName("URL");
@@ -21,20 +16,20 @@
        mjsonrpc_set_url(url);
     </script>
 
-    <div id="wrapper" class="wrapper">
+    <div class="mwrapper">
       <script>
       mhttpd_navigation_bar("Start");
       </script>
     
-      <table class="ODBtable" id="stripeList">
+      <table class="mtablecss ODBtable" id="stripeList">
         <tbody>
           <tr>
-            <th colspan="3" class="subStatusTitle">Start a new run</th>
+            <th colspan="3" class="mtableheadercss subStatusTitle">Start a new run</th>
           </tr>
           <tr align="center">
             <td colspan="3" align="center">
-              <button onclick='start_a_new_run()' disabled id="start_button">Start</button>
-              <button onclick='location.search=""'>Cancel</button>
+              <button class="mbuttoncss" onclick='start_a_new_run()' disabled id="start_button">Start</button>
+              <button class="mbuttoncss" onclick='location.search=""'>Cancel</button>
             </td>
           </tr>
         </tbody>
@@ -44,7 +39,7 @@
         updateStatus
       </div>
 
-      <div class="push">
+      <div class="mpush">
       </div>
     </div>
     

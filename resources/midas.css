@@ -1,5 +1,5 @@
 /*----------------------------------------------------------
-   CSS formatting for use midas web pages
+   CSS formatting for midas web pages
    this css does not contaminate generic html formatting
 -----------------------------------------------------------*/
 
@@ -7,6 +7,10 @@
 
 body.mcss {
     margin: 0;     /* navigation bar matches window edges */
+    height: 100%;  /* for the floating footer */
+}
+
+html.mcss {
     height: 100%;  /* for the floating footer */
 }
 
@@ -92,7 +96,18 @@ tr:nth-child(even).mtablecss {
     padding: 0.25em;
 }
 
-/* mfooter*css is the footer */
+/* floating footer */
+
+div.mwrapper {
+    min-height: 100%;
+    height: auto !important;
+    height: 100%;
+    margin: 0 auto -3em;
+}
+
+div.mpush{
+	 height: 3em;
+}
 
 .mfootercss {
     background-color: #808080;
