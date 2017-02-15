@@ -17119,8 +17119,6 @@ int open_listening_socket(int port)
    return lsock;
 }
 
-#define HAVE_OLDSERVER 1
-
 #ifdef HAVE_OLDSERVER
 
 char net_buffer[WEB_BUFFER_SIZE];
