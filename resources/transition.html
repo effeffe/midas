@@ -1,19 +1,14 @@
 <!DOCTYPE html>
-<html>
+<html class="mcss">
   <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="mhttpd.css">
+    <link rel="stylesheet" href="midas.css">
     <script src="midas.js"></script>
     <script src="mhttpd.js"></script>
     <title>Run transition</title>
-    <style>
-     html, body {
-       height: 100%;
-     }
-    </style>
   </head>
   
-  <body>
+  <body class="mcss">
     
     <script>
     url = mhttpd_getParameterByName("URL");
@@ -21,70 +16,56 @@
        mjsonrpc_set_url(url);
     </script>
 
-    <div id="wrapper" class="wrapper">
+    <div class="mwrapper">
       <script>
       mhttpd_navigation_bar("Transition");
       </script>
 
-      <table>
-        <tbody>
-          <tr>
-            <td>
-              <table width="100%" class="runStatusTable" id="xstripeList">
-                <tr>
-                  <th colspan="4" class="subStatusTitle">Run Status</th>
-                </tr>
-                <tr>
-                  <td colspan="1" height="100%" id="run_info" class="redLight">
-                    Run
-                    <span id="run_number">run_number</span>
-                    <span id="run_state">run_state</span>
-                  </td>
-                  <td colspan="3">
-                    <input id="startButton" type=button value=Start onClick="mhttpd_start_run();">
-                    <input id="stopButton" type=button value=Stop onClick="mhttpd_stop_run();">
-                    <input id="pauseButton" type=button value=Pause onClick="mhttpd_pause_run();">
-                    <input id="resumeButton" type=button value=Resume onClick="mhttpd_resume_run();">
-                    <input id="cancelButton" type=button value="Cancel Transition" onClick="mhttpd_cancel_transition();">
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <span id="tr_status">tr_status</span>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <table width="100%" class="subStatusTable" id="stripeList">
-                <tr>
-                  <th colspan="5" class="subStatusTitle">Run transition</th>
-                </tr>
-                <tr>
-                  <td colspan="5">
-                    Last transition: <span id="transition">transition</span>, Status: <span id="status">status</span> (<span id="errorstr">errorstr</span>), Time: <span id="time">time</span>
-                  </td>
-                </tr>
-                <tr class="titleRow">
-                  <th>Client</th>
-                  <th>Sequence</th>
-                  <th>Time</th>
-                  <th>Status</th>
-                  <th style="text-align:left">Error message</th>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </tbody>
+      <table width="95%" class="mtablecss runStatusTable" id="xstripeList">
+        <tr>
+          <th colspan="4" class="mtableheadercss subStatusTitle">Run Status</th>
+        </tr>
+        <tr>
+          <td colspan="1" height="100%" id="run_info" class="mredcolour redLight">
+            Run
+            <span id="run_number">run_number</span>
+            <span id="run_state">run_state</span>
+          </td>
+          <td colspan="3">
+            <input class="mbuttoncss" id="startButton" type=button value=Start onClick="mhttpd_start_run();">
+            <input class="mbuttoncss" id="stopButton" type=button value=Stop onClick="mhttpd_stop_run();">
+            <input class="mbuttoncss" id="pauseButton" type=button value=Pause onClick="mhttpd_pause_run();">
+            <input class="mbuttoncss" id="resumeButton" type=button value=Resume onClick="mhttpd_resume_run();">
+            <input class="mbuttoncss" id="cancelButton" type=button value="Cancel Transition" onClick="mhttpd_cancel_transition();">
+          </td>
+        </tr>
+      </table>
+
+      <span class="mfontcss" id="tr_status">tr_status</span>
+
+      <table width="95%" class="mtablecss subStatusTable" id="stripeList">
+        <tr>
+          <th colspan="5" class="mtableheadercss subStatusTitle">Run transition</th>
+        </tr>
+        <tr>
+          <td colspan="5">
+            Last transition: <span id="transition">transition</span>, Status: <span id="status">status</span> (<span id="errorstr">errorstr</span>), Time: <span id="time">time</span>
+          </td>
+        </tr>
+        <tr class="mtabletitlecss titleRow">
+          <th>Client</th>
+          <th>Sequence</th>
+          <th>Time</th>
+          <th>Status</th>
+          <th style="text-align:left">Error message</th>
+        </tr>
       </table>
       
       <div id="updateStatus" align="left">
         updateStatus
       </div>
       
-      <div class="push">
+      <div class="mpush">
       </div>
     </div>
 
@@ -108,6 +89,7 @@
        
        var tr = document.createElement("tr");
        tr.id = "client " + name;
+       tr.className = "mtablecss";
        
        var td;
 
@@ -152,13 +134,13 @@
     function adjust_colors(runstate)
     {
        if (runstate == STATE_RUNNING) {
-          document.getElementById("run_info").className = "greenLight";
+          document.getElementById("run_info").className = "mgreencolour greenLight";
        } else if (runstate == STATE_PAUSED) {
-          document.getElementById("run_info").className = "yellowLight";
+          document.getElementById("run_info").className = "myellowcolour yellowLight";
        } else if (runstate == STATE_STOPPED) {
-          document.getElementById("run_info").className = "redLight";
+          document.getElementById("run_info").className = "mredcolour redLight";
        } else {
-          document.getElementById("run_info").className = "greenLight";
+          document.getElementById("run_info").className = "mgreencolour greenLight";
        }
     }
 
@@ -322,10 +304,10 @@
              e.childNodes[3].className = "";
           } else if (client.status == 1) {
              e.childNodes[3].innerHTML = "Success";
-             e.childNodes[3].className = "greenLight";
+             e.childNodes[3].className = "mgreencolour greenLight";
           } else {
              e.childNodes[3].innerHTML = client.status;
-             e.childNodes[3].className = "redLight";
+             e.childNodes[3].className = "mredcolour redLight";
           }
 
           if (client.errorstr.length > 0) {
