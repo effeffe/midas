@@ -177,7 +177,7 @@ function mhttpd_navigation_bar(current_page)
 
    document.write("<div class=\"mnavcss\">\n");
    document.write("<table class=\"navigationTable\">\n");
-   document.write("<tr><td id=\"navigationTableButtons\">\n</td></tr>\n");
+   document.write("<tr><td id=\"navigationTableButtons\">(navigation buttons will be loaded here)\n</td></tr>\n");
    document.write("</table>\n\n");
    document.write("</div>\n");
 
