@@ -25,6 +25,7 @@ input.mnavcss {
     background: linear-gradient(to bottom, #f5f5f5 0%,#c0c0c0 100%);
     font-size: 100%;
     font-family: verdana,tahoma,sans-serif;
+    margin: 2px;
 }
 
 /* selected navigation button */
@@ -32,6 +33,11 @@ input.mnavcss {
 input.mnavselcss {
     color: #F8F8F8;
     background: linear-gradient(to bottom, #676767 0%,#999999 100%);
+}
+
+/* colours for hovered buttons */
+input.mnavcss:hover {
+   background: linear-gradient(to bottom,  #ffffff 0%,#f3f3f3 50%,#ededed 51%,#ffffff 100%);
 }
 
 /* mfooter*css is the footer */
