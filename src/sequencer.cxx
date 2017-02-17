@@ -1218,7 +1218,12 @@ void show_seq_page()
       rsprintf("<meta http-equiv=\"Refresh\" content=\"60\">\n");
    
    /* update script */
-   rsprintf("<script type=\"text/javascript\" src=\"../mhttpd.js\"></script>\n");
+   //rsprintf("<script type=\"text/javascript\" src=\"../mhttpd.js\"></script>\n");
+
+   rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
+
    rsprintf("<script type=\"text/javascript\">\n");
    rsprintf("<!--\n");
    rsprintf("var show_all_lines = false;\n");

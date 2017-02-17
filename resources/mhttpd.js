@@ -170,7 +170,7 @@ function mhttpd_goto_page(page) {
    // DOES NOT RETURN
 }
 
-function mhttpd_navigation_bar(current_page)
+function mhttpd_navigation_bar(current_page, path)
 {
    document.write("<div id=\"customHeader\">\n");
    document.write("</div>\n");
@@ -180,6 +180,12 @@ function mhttpd_navigation_bar(current_page)
    document.write("<tr><td id=\"navigationTableButtons\">(navigation buttons will be loaded here)\n</td></tr>\n");
    document.write("</table>\n\n");
    document.write("</div>\n");
+
+   //console.log("current_page: " + current_page + ", path: " + path);
+
+   if (!path) {
+      path = "";
+   }
 
    mjsonrpc_db_get_values(["/Custom/Header", "/Experiment/Menu Buttons"]).then(function(rpc) {
       var custom_header = rpc.result.data[0];
@@ -204,7 +210,7 @@ function mhttpd_navigation_bar(current_page)
          if (bb == current_page) {
             cc = "mnavcss mnavselcss navButtonSel";
          }
-         html += "<input type=button name=cmd value=\""+bb+"\" class=\""+cc+"\" onclick=\"window.location.href=\'?cmd="+bb+"\';return false;\">\n";
+         html += "<input type=button name=cmd value=\""+bb+"\" class=\""+cc+"\" onclick=\"window.location.href=\'"+path+"?cmd="+bb+"\';return false;\">\n";
       }
       document.getElementById("navigationTableButtons").innerHTML = html;
    }).catch(function(error) {

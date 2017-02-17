@@ -1511,11 +1511,26 @@ int exec_script(HNDLE hkey)
 
 void show_navigation_bar(const char *cur_page)
 {
+   char dec_path[256], path[256];
+
+   /* add one "../" for each level */
+   strlcpy(dec_path, get_dec_path(), sizeof(dec_path));
+   path[0] = 0;
+
+   for (char* p = dec_path ; *p ; p++)
+      if (*p == '/')
+         strlcat(path, "../", sizeof(path));
+   if (path[strlen(path)-1] == '/')
+      path[strlen(path)-1] = 0;
+
+   //printf("dec_path [%s], path [%s]\n", dec_path, path);
+
    rsprintf("<script>\n");
-   rsprintf("mhttpd_navigation_bar(\"%s\");\n", cur_page);
+   rsprintf("mhttpd_navigation_bar(\"%s\", \"%s\");\n", cur_page, path);
    rsprintf("</script>\n");
 }
 
+#ifdef OBSOLETE
 void xshow_navigation_bar(const char *cur_page)
 {
    HNDLE hDB;
@@ -1577,6 +1592,8 @@ void xshow_navigation_bar(const char *cur_page)
    if (path[strlen(path)-1] == '/')
       path[strlen(path)-1] = 0;
 
+   //printf("dec_path [%s], path [%s]\n", dec_path, path);
+   
    p = strtok(str, ",");
    while (p) {
 
@@ -1598,6 +1615,7 @@ void xshow_navigation_bar(const char *cur_page)
 
    rsprintf("</td></tr></table>\n\n");
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -3406,7 +3424,7 @@ void show_elog_submit_query(INT last_n)
    show_header("ELog", "GET", "./", 0);
    rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   xshow_navigation_bar("ELog");
+   show_navigation_bar("ELog");
 
    /*---- body needs wrapper div to pin footer ----*/
    rsprintf("<div class=\"wrapper\">\n");
@@ -4834,7 +4852,7 @@ void show_elog_page(char *path, int path_size)
    show_header("ELog", "GET", action, 0);
    rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   xshow_navigation_bar("Elog");
+   show_navigation_bar("Elog");
 
    /*---- begin page header ----*/
    rsprintf("<table class=\"headerTable\">\n");
@@ -5204,7 +5222,7 @@ void show_sc_page(const char *path, int refresh)
    rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
-   xshow_navigation_bar("SC");
+   show_navigation_bar("SC");
 
    /*---- menu buttons ----*/
 
@@ -8900,7 +8918,7 @@ void show_mscb_page(const char *path, int refresh)
    show_header("MSCB", "GET", "./", refresh);
    rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   xshow_navigation_bar("MSCB");
+   show_navigation_bar("MSCB");
 
    /* style sheet */
    rsprintf("<style type=\"text/css\">\r\n");
@@ -9514,7 +9532,7 @@ void show_odb_page(char *enc_path, int enc_path_size, char *dec_path, int write_
       rsprintf("<input type=button value=ELog onclick=\"self.location=\'?cmd=Alarms\';\">\n");
       rsprintf("</td></tr></table>\n\n");
    } else
-      xshow_navigation_bar("ODB");
+      show_navigation_bar("ODB");
 
    /*---- begin ODB directory table ----*/
 
@@ -14666,7 +14684,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
    show_header(str, "GET", str, xrefresh);
    rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   xshow_navigation_bar("History");
+   show_navigation_bar("History");
 
    rsprintf("<table class=\"genericTable\">");
    rsprintf("<tr><th class=\"subStatusTitle\" colspan=2>History</th></tr>");
