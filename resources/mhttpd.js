@@ -573,80 +573,61 @@ function msg_extend()
 
 /*---- site and session storage ----------------------------*/
 
+function storage_get(name, default_value)
+{
+   //console.log("storage_get: name [" + name + "], default value [" + default_value + "]");
+   try {
+      var x = name in localStorage;
+      var v = localStorage[name];
+      //console.log("storage_get: in: " + x + ", value [" + v + "]");
+      if (!x) {
+         //console.log("storage_get: name [" + name + "], undefined, default value [" + default_value + "]");
+         return default_value;
+      } else {
+         return localStorage.getItem(name);
+      }
+   } catch (err) {
+      return default_value;
+   }
+}
+
+function storage_set(name, value)
+{
+   //console.log("storage_set: name [" + name + "], value [" + value + "]");
+   try {
+      localStorage.setItem(name, value);
+   } catch (err) {
+   }
+}
+
 function storage_chatSpeak(v)
 {
-   if (typeof(Storage) !== "undefined") {
-      console.log("storage_chatSpeak: value [" + v + "], stored [" + sessionStorage.chatSpeak + "]");
-      if (v == true) {
-         sessionStorage.chatSpeak = "1";
-      } else if (v == false) {
-         sessionStorage.chatSpeak = "0";
-      } else {
-         if (sessionStorage.chatSpeak == "0")
-            return false;
-         if (sessionStorage.chatSpeak == "1")
-            return true;
-         return false; // if unset, default to no speak
-      }
+   if (v == true) {
+      storage_set("chatSpeak", "1");
+   } else if (v == false) {
+      storage_set("chatSpeak", "0");
    } else {
-      return false; // if no session storage, default to no speak
+      return storage_get("chatSpeak", "0") == "1";
    }
 }
 
 function storage_alarmSpeak(v)
 {
-   if (typeof(Storage) !== "undefined") {
-      console.log("storage_alarmSpeak: value [" + v + "], stored [" + sessionStorage.alarmSpeak + "]");
-      if (v == true) {
-         sessionStorage.alarmSpeak = "1";
-      } else if (v == false) {
-         sessionStorage.alarmSpeak = "0";
-      } else {
-         if (sessionStorage.alarmSpeak == "0")
-            return false;
-         if (sessionStorage.alarmSpeak == "1")
-            return true;
-         return true; // if unset, default to speak
-      }
+   if (v == true) {
+      storage_set("alarmSpeak", "1");
+   } else if (v == false) {
+      storage_set("alarmSpeak", "0");
    } else {
-      return true; // if no session storage, default to speak
+      return storage_get("alarmSpeak", "1") == "1";
    }
 }
 
 /*---- alarm functions -------------------------------------*/
 
-function alarm_load() // this function is obsolete, not used
-{
-   // hide speak button if browser does not support
-   try {
-      var u = new SpeechSynthesisUtterance("Hello");
-   } catch (err) {
-      document.getElementById('aspeak').style.display = 'none';
-      document.getElementById('aspeakLabel').style.display = 'none';
-   }
-   
-   // get options from local storage
-   if (typeof(Storage) !== "undefined") {
-      if (sessionStorage.alarmSpeak === undefined)
-         sessionStorage.alarmSpeak = "1";
-      document.getElementById("aspeak").checked = (sessionStorage.alarmSpeak == "1");
-   }
-}
-
-function aspeak_click(t) // this function is obsolete, not used
-{
-   storage_alarmSpeak(t.checked);
-}
-
 function mhttpd_alarm_speak(t)
 {
-   if (typeof(Storage) !== "undefined") {
-      if (sessionStorage.alarmSpeak != "0")  {
-         var u = new SpeechSynthesisUtterance(t);
-         window.speechSynthesis.speak(u);
-      }
-   } else {
-      u = new SpeechSynthesisUtterance(t);
+   if (storage_alarmSpeak()) {
+      var u = new SpeechSynthesisUtterance(t);
       window.speechSynthesis.speak(u);
    }
 }
@@ -656,10 +637,10 @@ function mhttpd_alarm_speak(t)
 function talk_maybeSpeak(tim, msg)
 {
    try {
-      if (storage_alarmSpeak() && sessionStorage.lastTalkSpeak != tim) {
+      if (storage_alarmSpeak() && storage_get("lastTalkSpeak", "") != tim) {
          var u = new SpeechSynthesisUtterance(msg);
          window.speechSynthesis.speak(u);
-         sessionStorage.lastTalkSpeak = tim;
+         storage_set("lastTalkSpeak", tim);
       }
    } catch (err) {}
 }
@@ -690,10 +671,10 @@ function speak_click(t)
 function chat_maybeSpeak(tim, msg)
 {
    try {
-      if (storage_chatSpeak() && sessionStorage.lastChatSpeak != tim) {
+      if (storage_chatSpeak() && storage_get("lastChatSpeak", "") != tim) {
          var u = new SpeechSynthesisUtterance(msg);
          window.speechSynthesis.speak(u);
-         sessionStorage.lastChatSpeak = tim;
+         storage_set("lastChatSpeak", tim);
       }
    } catch (err) {}
 }
@@ -710,14 +691,13 @@ function chat_send()
       n.focus();
 
    } else {
+      // store name to local storage
+      storage_set("chatName", n.value);
+
       m = document.getElementById('text');
       
       ODBGenerateMsg(MT_USER, "chat", n.value, m.value);
       
-      // store name to local storage
-      if (typeof(Storage) !== "undefined")
-         sessionStorage.chatName = n.value;
-
       m.value = "";
       m.focus();
    }
@@ -739,14 +719,14 @@ function chat_load()
    }
    
    // get options from local storage
-   if (typeof(Storage) !== "undefined") {
-      if (sessionStorage.chatName != undefined)
-         document.getElementById('name').value = sessionStorage.chatName;
-      if (sessionStorage.chatSpeak != undefined)
-         document.getElementById('speak').checked = (sessionStorage.chatSpeak == "1");
 
+   var stored_name = storage_get("chatName", false);
+   if (stored_name) {
+      document.getElementById('name').value = stored_name;
    }
-   
+
+   document.getElementById('speak').checked = storage_get("chatSpeak", false);
+
    chat_reformat();
    
    // check for new messages and end of scroll
