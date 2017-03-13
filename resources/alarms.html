@@ -25,10 +25,10 @@
         <button class="mbuttoncss" id='al_reset_all' onclick='reset_all_alarms()'>Reset all alarms</button>
         <button class="mbuttoncss" id='al_system_enable' onclick='enable_alarm_system()'>Enable the alarm system</button>
         <button class="mbuttoncss" id='al_system_disable' onclick='disable_alarm_system(false)'>Disable the alarm system</button>
-        <input class="mfontcss" type="checkbox" name="caspeak" id="aspeak" onclick="return aspeak_click(this);"><span class="mfontcss" id="aspeakLabel">Speak</span></input><script type="text/javascript">alarm_load();</script>
+        <input class="mfontcss" type="checkbox" id="al_speak_checkbox" onclick="storage_alarmSpeak(this.checked);"><span class="mfontcss">Speak</span></input>
       </div>
     
-      <div id='al_sysem_disabled_notice' class='mfontcss mredcolour redLight'>
+      <div id='al_system_disabled_notice' class='mfontcss mredcolour redLight'>
         <p align="center"> 
           Alarm system disabled
         </p>
@@ -239,7 +239,7 @@
              mhttpd_disable_button(e);
              mhttpd_hide_button(e);
           }
-          e = document.getElementById("al_sysem_disabled_notice");
+          e = document.getElementById("al_system_disabled_notice");
           if (e) {
              mhttpd_hide_button(e);
           }
@@ -254,12 +254,14 @@
              mhttpd_disable_button(e);
              mhttpd_hide_button(e);
           }
-          e = document.getElementById("al_sysem_disabled_notice");
+          e = document.getElementById("al_system_disabled_notice");
           if (e) {
              mhttpd_unhide_button(e);
           }
        }
-       
+
+       document.getElementById("al_speak_checkbox").checked = storage_alarmSpeak();
+
        for (var name in alarms) {
           var alarm = alarms[name];
           var e = document.getElementById("alarm " + name);

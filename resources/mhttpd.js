@@ -571,9 +571,51 @@ function msg_extend()
    window.setTimeout(msg_extend, 1000);
 }
 
+/*---- site and session storage ----------------------------*/
+
+function storage_chatSpeak(v)
+{
+   if (typeof(Storage) !== "undefined") {
+      console.log("storage_chatSpeak: value [" + v + "], stored [" + sessionStorage.chatSpeak + "]");
+      if (v == true) {
+         sessionStorage.chatSpeak = "1";
+      } else if (v == false) {
+         sessionStorage.chatSpeak = "0";
+      } else {
+         if (sessionStorage.chatSpeak == "0")
+            return false;
+         if (sessionStorage.chatSpeak == "1")
+            return true;
+         return false; // if unset, default to no speak
+      }
+   } else {
+      return false; // if no session storage, default to no speak
+   }
+}
+
+function storage_alarmSpeak(v)
+{
+   if (typeof(Storage) !== "undefined") {
+      console.log("storage_alarmSpeak: value [" + v + "], stored [" + sessionStorage.alarmSpeak + "]");
+      if (v == true) {
+         sessionStorage.alarmSpeak = "1";
+      } else if (v == false) {
+         sessionStorage.alarmSpeak = "0";
+      } else {
+         if (sessionStorage.alarmSpeak == "0")
+            return false;
+         if (sessionStorage.alarmSpeak == "1")
+            return true;
+         return true; // if unset, default to speak
+      }
+   } else {
+      return true; // if no session storage, default to speak
+   }
+}
+
 /*---- alarm functions -------------------------------------*/
 
-function alarm_load()
+function alarm_load() // this function is obsolete, not used
 {
    // hide speak button if browser does not support
    try {
@@ -591,15 +633,9 @@ function alarm_load()
    }
 }
 
-function aspeak_click(t)
+function aspeak_click(t) // this function is obsolete, not used
 {
-   if (typeof(Storage) !== "undefined") {
-      if (t.checked)
-         sessionStorage.alarmSpeak = "1";
-      else
-         sessionStorage.alarmSpeak = "0";
-   }
-   
+   storage_alarmSpeak(t.checked);
 }
 
 function mhttpd_alarm_speak(t)
@@ -613,6 +649,19 @@ function mhttpd_alarm_speak(t)
       u = new SpeechSynthesisUtterance(t);
       window.speechSynthesis.speak(u);
    }
+}
+
+/*---- MTALK messages -------------------------------------*/
+
+function talk_maybeSpeak(tim, msg)
+{
+   try {
+      if (storage_alarmSpeak() && sessionStorage.lastTalkSpeak != tim) {
+         var u = new SpeechSynthesisUtterance(msg);
+         window.speechSynthesis.speak(u);
+         sessionStorage.lastTalkSpeak = tim;
+      }
+   } catch (err) {}
 }
 
 /*---- chat functions -------------------------------------*/
@@ -635,13 +684,18 @@ function rb()
 
 function speak_click(t)
 {
-   if (typeof(Storage) !== "undefined") {
-      if (t.checked)
-         sessionStorage.chatSpeak = "1";
-      else
-         sessionStorage.chatSpeak = "0";
-   }
-      
+   storage_chatSpeak(t.checked);
+}
+
+function chat_maybeSpeak(tim, msg)
+{
+   try {
+      if (storage_chatSpeak() && sessionStorage.lastChatSpeak != tim) {
+         var u = new SpeechSynthesisUtterance(msg);
+         window.speechSynthesis.speak(u);
+         sessionStorage.lastChatSpeak = tim;
+      }
+   } catch (err) {}
 }
 
 function chat_send()

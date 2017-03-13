@@ -1074,13 +1074,7 @@ void page_footer(BOOL bForm)  // wraps up body wrapper and inserts page footer
             rsprintf("</span>\n");
             
             rsprintf("<script>\n");
-            rsprintf("try {\n");
-            rsprintf("  if (sessionStorage.lastChatSpeak != '%s') {\n", tim);
-            rsprintf("    var u = new SpeechSynthesisUtterance('%s');\n", msg);
-            rsprintf("    window.speechSynthesis.speak(u);\n");
-            rsprintf("    sessionStorage.lastChatSpeak = '%s';", tim);
-            rsprintf("  }\n");
-            rsprintf("} catch (err) {}\n");
+            rsprintf("  chat_maybeSpeak(\'%s\',\'%s\');\n", tim, msg);
             rsprintf("</script>\n");
          }
       }
@@ -1107,13 +1101,7 @@ void page_footer(BOOL bForm)  // wraps up body wrapper and inserts page footer
             rsprintf("</span>\n");
             
             rsprintf("<script>\n");
-            rsprintf("try {\n");
-            rsprintf("  if (sessionStorage.lastTalkSpeak != '%s') {\n", tim);
-            rsprintf("    var u = new SpeechSynthesisUtterance('%s');\n", msg);
-            rsprintf("    window.speechSynthesis.speak(u);\n");
-            rsprintf("    sessionStorage.lastTalkSpeak = '%s';", tim);
-            rsprintf("  }\n");
-            rsprintf("} catch (err) {}\n");
+            rsprintf("  talk_maybeSpeak(\'%s\',\'%s\');\n", tim, msg);
             rsprintf("</script>\n");
          }
       }
@@ -2724,7 +2712,7 @@ void show_messages_page()
 
 void show_chat_page()
 {
-   show_header("Messages", "GET", "./", 0);
+   show_header("Chat", "GET", "./", 0);
    rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
