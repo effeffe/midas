@@ -1612,7 +1612,7 @@ int requested_old_state = 0;
 
 void show_status_page(int refresh, const char *cookie_wpwd)
 {
-   int i, j, k, h, m, s, status, size, type, n_alarm, n_items, n_hidden;
+   int i, j, k, h, m, s, status, size, type, n_items, n_hidden;
    BOOL flag, first, expand;
    char str[1000], msg[256], name[32], ref[256], bgcol[32], fgcol[32], alarm_class[32],
       value_str[256], status_data[256], spk[256];
@@ -1659,29 +1659,6 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    status = db_get_record(hDB, hkey, &runinfo, &size, 0);
    assert(status == DB_SUCCESS);
 
-   /* count alarms */
-   db_find_key(hDB, 0, "/Alarms/Alarms", &hkey);
-   n_alarm = 0;
-   if (hkey) {
-      /* check global alarm flag */
-      flag = TRUE;
-      size = sizeof(flag);
-      db_get_value(hDB, 0, "/Alarms/Alarm System active", &flag, &size, TID_BOOL, TRUE);
-      if (flag) {
-         for (i = 0;; i++) {
-            db_enum_link(hDB, hkey, i, &hsubkey);
-
-            if (!hsubkey)
-               break;
-
-            size = sizeof(flag);
-            db_get_value(hDB, hsubkey, "Triggered", &flag, &size, TID_INT, TRUE);
-            if (flag)
-               n_alarm = 1;
-         }
-      }
-   }
-
    /* header */
    rsprintf("HTTP/1.1 200 OK\r\n");
    rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
@@ -1726,13 +1703,6 @@ void show_status_page(int refresh, const char *cookie_wpwd)
 
    rsprintf("<title>%s status</title>\n", str);
 
-   if (n_alarm) {
-      strlcpy(str, "alarm.mp3", sizeof(str));
-      size = sizeof(str);
-      db_get_value(hDB, 0, "/Alarms/Sound", str, &size, TID_STRING, true);
-      rsprintf("<audio autoplay src=\"%s\">!midas alarm sound!</audio>\n", str);
-   }
-
    rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
@@ -1740,13 +1710,6 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    rsprintf("</head>\n");
 
    rsprintf("<body><form method=\"GET\" action=\".\">\n");
-
-   if (n_alarm) {
-      strlcpy(str, "alarm.mp3", sizeof(str));
-      size = sizeof(str);
-      db_get_value(hDB, 0, "/Alarms/Sound", str, &size, TID_STRING, true);
-      rsprintf("<embed src=\"%s\" autostart=\"true\" loop=\"false\" hidden=\"true\" height=\"0\" width=\"0\">\n", str);
-   }
 
    rsprintf("<div id=\"wrapper\" class=\"wrapper\">\n");
 
@@ -1901,6 +1864,7 @@ void show_status_page(int refresh, const char *cookie_wpwd)
    /* go through all triggered alarms */
    db_find_key(hDB, 0, "/Alarms/Alarms", &hkey);
    if (hkey) {
+      bool first_alarm = true;
       /* check global alarm flag */
       flag = TRUE;
       size = sizeof(flag);
@@ -1962,6 +1926,15 @@ void show_status_page(int refresh, const char *cookie_wpwd)
                strlcpy(spk, alarm_class, sizeof(spk));
                strlcat(spk, ". ", sizeof(spk));
                strlcat(spk, str, sizeof(spk));
+
+               if (first_alarm) {
+                  first_alarm = false;
+                  strlcpy(str, "alarm.mp3", sizeof(str));
+                  size = sizeof(str);
+                  db_get_value(hDB, 0, "/Alarms/Sound", str, &size, TID_STRING, true);
+                  rsprintf("<script>mhttpd_alarm_play(\"%s\");</script>\n", str);
+               }
+
                rsprintf("<script type=\"text/javascript\">mhttpd_alarm_speak(\"%s\");</script>\n", spk);
 
                rsprintf("</tr>\n");

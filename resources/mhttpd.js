@@ -611,6 +611,17 @@ function storage_chatSpeak(v)
    }
 }
 
+function storage_alarmSound(v)
+{
+   if (v == true) {
+      storage_set("alarmSound", "1");
+   } else if (v == false) {
+      storage_set("alarmSound", "0");
+   } else {
+      return storage_get("alarmSound", "1") == "1";
+   }
+}
+
 function storage_alarmSpeak(v)
 {
    if (v == true) {
@@ -623,6 +634,15 @@ function storage_alarmSpeak(v)
 }
 
 /*---- alarm functions -------------------------------------*/
+
+function mhttpd_alarm_play(url)
+{
+   //console.log("maybePlay: [" + url + "]");
+   if (storage_alarmSound()) {
+      var audio = new Audio(url);
+      audio.play();
+   }
+}
 
 function mhttpd_alarm_speak(t)
 {
