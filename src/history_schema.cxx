@@ -4519,8 +4519,10 @@ HsSchema* FileHistory::new_event(const char* event_name, time_t timestamp, int n
          return NULL;
 
       HsFileSchema* ss = read_file_schema(filename.c_str());
-      if (!ss)
+      if (!ss) {
+         cm_msg(MERROR, "FileHistory::new_event", "Error: Cannot create schema for event \'%s\', see previous messages", event_name);
          return NULL;
+      }
 
       fWriterCurrentSchema.add(ss);
 
@@ -4750,8 +4752,9 @@ HsFileSchema* FileHistory::read_file_schema(const char* filename)
 
       //printf("read: %s\n", b);
 
-      if (!b)
+      if (!b) {
          break; // end of file
+      }
 
       char*bb;
 
@@ -4773,10 +4776,8 @@ HsFileSchema* FileHistory::read_file_schema(const char* filename)
       }
 
       if (!s) {
-         cm_msg(MERROR, "FileHistory::read_file_schema", "Malformed history schema in \'%s\', maybe it is not a history file", filename);
-         if (s)
-            delete s;
-         return NULL;
+         // malformed history file
+         break;
       }
 
       bb = strstr(b, "event_name: ");
@@ -4850,6 +4851,11 @@ HsFileSchema* FileHistory::read_file_schema(const char* filename)
    }
 
    fclose(fp);
+
+   if (!s) {
+      cm_msg(MERROR, "FileHistory::read_file_schema", "Malformed history schema in \'%s\', maybe it is not a history file", filename);
+      return NULL;
+   }
 
    if (rd_recsize != s->record_size) {
       cm_msg(MERROR, "FileHistory::read_file_schema", "Record size mismatch in history schema from \'%s\', file says %d while total of all tags is %d", filename, s->record_size, rd_recsize);
