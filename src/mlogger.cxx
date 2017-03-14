@@ -216,6 +216,22 @@ int log_generate_file_name(LOG_CHN *log_chn);
 #define FREE(ptr) if (ptr) free(ptr); (ptr)=NULL;
 #define DELETE(ptr) if (ptr) delete (ptr); (ptr)=NULL;
 
+/*---- writer helper    --------------------------------------*/
+
+std::string xpathname(const char* xpath, int level)
+{
+   std::string path = xpath;
+   while (level > 0) {
+      size_t p = path.rfind(".");
+      //printf("level %d, path [%s], pos %d\n", level, path.c_str(), (int)p);
+      if (p == std::string::npos)
+         break;
+      path = path.substr(0, p);
+      level--;
+   }
+   return path;
+}
+
 /*---- writer interface --------------------------------------*/
 
 class WriterInterface
@@ -711,13 +727,14 @@ private:
 class WriterCRC32Zlib : public WriterInterface
 {
 public:
-   WriterCRC32Zlib(LOG_CHN* log_chn, WriterInterface* wr) // ctor
+   WriterCRC32Zlib(LOG_CHN* log_chn, int level, WriterInterface* wr) // ctor
    {
       if (fTrace)
-         printf("WriterCRC32Zlib: path [%s]\n", log_chn->path);
+         printf("WriterCRC32Zlib: path [%s], level %d\n", log_chn->path, level);
 
       assert(wr != NULL);
 
+      fLevel = level;
       fWr = wr;
       fCrc32 = 0;
    }
@@ -734,7 +751,7 @@ public:
       int status;
 
       if (fTrace)
-         printf("WriterCRC32Zlib: open path [%s]\n", log_chn->path);
+         printf("WriterCRC32Zlib: open path [%s], level %d\n", log_chn->path, fLevel);
 
       status = fWr->wr_open(log_chn, run_number);
 
@@ -773,19 +790,21 @@ public:
 
    int wr_close(LOG_CHN* log_chn, int run_number)
    {
+      std::string x = xpathname(log_chn->path, fLevel);
+      std::string f = x + ".crc32zlib";
+
       if (fTrace)
-         printf("WriterCRC32Zlib: close path [%s]\n", log_chn->path);
+         printf("WriterCRC32Zlib: close path [%s], level %d, file [%s]\n", log_chn->path, fLevel, f.c_str());
 
       log_chn->handle = 0;
 
-      cm_msg(MLOG, "CRC32Zlib", "File \'%s\' CRC32-zlib checksum: 0x%08lx, %.0f bytes", log_chn->path, (unsigned long)fCrc32, fBytesIn);
+      cm_msg(MLOG, "CRC32Zlib", "File \'%s\' CRC32-zlib checksum: 0x%08lx, %.0f bytes", x.c_str(), (unsigned long)fCrc32, fBytesIn);
 
-      std::string f = std::string(log_chn->path) + ".crc32zlib";
       FILE *fp = fopen(f.c_str(), "w");
       if (!fp) {
          cm_msg(MERROR, "WriterCRC32Zlib::wr_close", "Cannot write CRC32Zlib to file \'%s\', fopen() errno %d (%s)", f.c_str(), errno, strerror(errno));
       } else {
-         fprintf(fp, "%08lx %.0f %s\n", (unsigned long)fCrc32, fBytesIn, log_chn->path);
+         fprintf(fp, "%08lx %.0f %s\n", (unsigned long)fCrc32, fBytesIn, x.c_str());
          fclose(fp);
       }
 
@@ -812,6 +831,7 @@ public:
    }
 
 private:
+   int fLevel;
    WriterInterface *fWr;
    uLong fCrc32;
 };
@@ -826,13 +846,14 @@ extern "C" {
 class WriterCRC32C : public WriterInterface
 {
 public:
-   WriterCRC32C(LOG_CHN* log_chn, WriterInterface* wr) // ctor
+   WriterCRC32C(LOG_CHN* log_chn, int level, WriterInterface* wr) // ctor
    {
       if (fTrace)
-         printf("WriterCRC32C: path [%s]\n", log_chn->path);
+         printf("WriterCRC32C: path [%s], level %d\n", log_chn->path, level);
 
       assert(wr != NULL);
 
+      fLevel = level;
       fWr = wr;
       fCrc32 = 0;
    }
@@ -849,7 +870,7 @@ public:
       int status;
 
       if (fTrace)
-         printf("WriterCRC32C: open path [%s]\n", log_chn->path);
+         printf("WriterCRC32C: open path [%s], level %d\n", log_chn->path, fLevel);
 
       status = fWr->wr_open(log_chn, run_number);
 
@@ -888,19 +909,21 @@ public:
 
    int wr_close(LOG_CHN* log_chn, int run_number)
    {
+      std::string x = xpathname(log_chn->path, fLevel);
+      std::string f = x + ".crc32c";
+
       if (fTrace)
-         printf("WriterCRC32C: close path [%s]\n", log_chn->path);
+         printf("WriterCRC32C: close path [%s], level %d, file [%s]\n", log_chn->path, fLevel, f.c_str());
 
       log_chn->handle = 0;
 
-      cm_msg(MLOG, "CRC32C", "File \'%s\' CRC32C checksum: 0x%08lx, %.0f bytes", log_chn->path, (unsigned long)fCrc32, fBytesIn);
+      cm_msg(MLOG, "CRC32C", "File \'%s\' CRC32C checksum: 0x%08lx, %.0f bytes", x.c_str(), (unsigned long)fCrc32, fBytesIn);
 
-      std::string f = std::string(log_chn->path) + ".crc32c";
       FILE *fp = fopen(f.c_str(), "w");
       if (!fp) {
          cm_msg(MERROR, "WriterCRC32C::wr_close", "Cannot write CRC32C to file \'%s\', fopen() errno %d (%s)", f.c_str(), errno, strerror(errno));
       } else {
-         fprintf(fp, "%08lx %.0f %s\n", (unsigned long)fCrc32, fBytesIn, log_chn->path);
+         fprintf(fp, "%08lx %.0f %s\n", (unsigned long)fCrc32, fBytesIn, x.c_str());
          fclose(fp);
       }
 
@@ -927,6 +950,7 @@ public:
    }
 
 private:
+   int fLevel;
    WriterInterface *fWr;
    uint32_t fCrc32;
 };
@@ -940,13 +964,14 @@ extern "C" {
 class WriterSHA256 : public WriterInterface
 {
 public:
-   WriterSHA256(LOG_CHN* log_chn, WriterInterface* wr) // ctor
+   WriterSHA256(LOG_CHN* log_chn, int level, WriterInterface* wr) // ctor
    {
       if (fTrace)
-         printf("WriterSHA256: path [%s]\n", log_chn->path);
+         printf("WriterSHA256: path [%s], level %d\n", log_chn->path, level);
 
       assert(wr != NULL);
 
+      fLevel = level;
       fWr = wr;
 
       mbedtls_sha256_init(&fCtx);
@@ -966,7 +991,7 @@ public:
       int status;
 
       if (fTrace)
-         printf("WriterSHA256: open path [%s]\n", log_chn->path);
+         printf("WriterSHA256: open path [%s], level %d\n", log_chn->path, fLevel);
 
       status = fWr->wr_open(log_chn, run_number);
 
@@ -1020,8 +1045,11 @@ public:
 
    int wr_close(LOG_CHN* log_chn, int run_number)
    {
+      std::string x = xpathname(log_chn->path, fLevel);
+      std::string f = x + ".sha256";
+
       if (fTrace)
-         printf("WriterSHA256: close path [%s]\n", log_chn->path);
+         printf("WriterSHA256: close path [%s], level %d, file [%s]\n", log_chn->path, fLevel, f.c_str());
 
       log_chn->handle = 0;
 
@@ -1031,14 +1059,13 @@ public:
       //std::string s = toString(sha256sum);
       //printf("sha256 %s\n", s.c_str());
 
-      cm_msg(MLOG, "SHA256", "File \'%s\' SHA-256 checksum: %s, %.0f bytes", log_chn->path, toString(sha256sum).c_str(), fBytesIn);
+      cm_msg(MLOG, "SHA256", "File \'%s\' SHA-256 checksum: %s, %.0f bytes", x.c_str(), toString(sha256sum).c_str(), fBytesIn);
 
-      std::string f = std::string(log_chn->path) + ".sha256";
       FILE *fp = fopen(f.c_str(), "w");
       if (!fp) {
          cm_msg(MERROR, "WriterSHA256::wr_close", "Cannot write SHA-256 checksum to file \'%s\', fopen() errno %d (%s)", f.c_str(), errno, strerror(errno));
       } else {
-         fprintf(fp, "%s %.0f %s\n", toString(sha256sum).c_str(), fBytesIn, log_chn->path);
+         fprintf(fp, "%s %.0f %s\n", toString(sha256sum).c_str(), fBytesIn, x.c_str());
          fclose(fp);
       }
 
@@ -1065,6 +1092,7 @@ public:
    }
 
 private:
+   int fLevel;
    WriterInterface *fWr;
    mbedtls_sha256_context fCtx;
 };
@@ -1078,13 +1106,14 @@ extern "C" {
 class WriterSHA512 : public WriterInterface
 {
 public:
-   WriterSHA512(LOG_CHN* log_chn, WriterInterface* wr) // ctor
+   WriterSHA512(LOG_CHN* log_chn, int level, WriterInterface* wr) // ctor
    {
       if (fTrace)
-         printf("WriterSHA512: path [%s]\n", log_chn->path);
+         printf("WriterSHA512: path [%s], level %d\n", log_chn->path, level);
 
       assert(wr != NULL);
 
+      fLevel = level;
       fWr = wr;
 
       mbedtls_sha512_init(&fCtx);
@@ -1104,7 +1133,7 @@ public:
       int status;
 
       if (fTrace)
-         printf("WriterSHA512: open path [%s]\n", log_chn->path);
+         printf("WriterSHA512: open path [%s], level %d\n", log_chn->path, fLevel);
 
       status = fWr->wr_open(log_chn, run_number);
 
@@ -1158,8 +1187,11 @@ public:
 
    int wr_close(LOG_CHN* log_chn, int run_number)
    {
+      std::string x = xpathname(log_chn->path, fLevel);
+      std::string f = x + ".sha512";
+
       if (fTrace)
-         printf("WriterSHA512: close path [%s]\n", log_chn->path);
+         printf("WriterSHA512: close path [%s], level %d, file [%s]\n", log_chn->path, fLevel, f.c_str());
 
       log_chn->handle = 0;
 
@@ -1169,14 +1201,13 @@ public:
       //std::string s = toString(sha512sum);
       //printf("sha512 %s\n", s.c_str());
 
-      cm_msg(MLOG, "SHA512", "File \'%s\' SHA-512 checksum: %s, %.0f bytes", log_chn->path, toString(sha512sum).c_str(), fBytesIn);
+      cm_msg(MLOG, "SHA512", "File \'%s\' SHA-512 checksum: %s, %.0f bytes", x.c_str(), toString(sha512sum).c_str(), fBytesIn);
 
-      std::string f = std::string(log_chn->path) + ".sha512";
       FILE *fp = fopen(f.c_str(), "w");
       if (!fp) {
          cm_msg(MERROR, "WriterSHA512::wr_close", "Cannot write SHA-512 checksum to file \'%s\', fopen() errno %d (%s)", f.c_str(), errno, strerror(errno));
       } else {
-         fprintf(fp, "%s %.0f %s\n", toString(sha512sum).c_str(), fBytesIn, log_chn->path);
+         fprintf(fp, "%s %.0f %s\n", toString(sha512sum).c_str(), fBytesIn, x.c_str());
          fclose(fp);
       }
 
@@ -1203,6 +1234,7 @@ public:
    }
 
 private:
+   int fLevel;
    WriterInterface *fWr;
    mbedtls_sha512_context fCtx;
 };
@@ -3299,23 +3331,23 @@ WriterInterface* NewWriterPbzip2(LOG_CHN* log_chn)
 #define CHECKSUM_SHA256 3
 #define CHECKSUM_SHA512 4
 
-WriterInterface* NewChecksum(LOG_CHN* log_chn, int code, WriterInterface* chained)
+WriterInterface* NewChecksum(LOG_CHN* log_chn, int code, int level, WriterInterface* chained)
 {
    if (code == CHECKSUM_NONE) {
       return chained;
    } else if (code == CHECKSUM_ZLIB) {
 #ifdef HAVE_ZLIB
-      return new WriterCRC32Zlib(log_chn, chained);
+      return new WriterCRC32Zlib(log_chn, level, chained);
 #else
       cm_msg(MERROR, "log_create_writer", "channel %s requested CRC32ZLib checksum, but ZLIB is not available", log_chn->path);
       return chained;
 #endif
    } else if (code == CHECKSUM_CRC32C) {
-      return new WriterCRC32C(log_chn, chained);
+      return new WriterCRC32C(log_chn, level, chained);
    } else if (code == CHECKSUM_SHA256) {
-      return new WriterSHA256(log_chn, chained);
+      return new WriterSHA256(log_chn, level, chained);
    } else if (code == CHECKSUM_SHA512) {
-      return new WriterSHA512(log_chn, chained);
+      return new WriterSHA512(log_chn, level, chained);
    } else {
       cm_msg(MERROR, "log_create_writer", "channel %s unknown checksum code %d", log_chn->path, code);
       return chained;
@@ -3479,12 +3511,12 @@ int log_create_writer(LOG_CHN *log_chn)
       }
       else if (log_chn->output_module == OUTPUT_FILE) {
 
-         log_chn->writer = NewCompression(log_chn, log_chn->compression_module, NewChecksum(log_chn, log_chn->post_checksum_module, new WriterFile(log_chn)));
+         log_chn->writer = NewCompression(log_chn, log_chn->compression_module, NewChecksum(log_chn, log_chn->post_checksum_module, 0, new WriterFile(log_chn)));
          log_chn->do_disk_level = TRUE;
       }
       else if (log_chn->output_module == OUTPUT_FTP) {
 
-         log_chn->writer = NewCompression(log_chn, log_chn->compression_module, NewChecksum(log_chn, log_chn->post_checksum_module, new WriterFtp(log_chn)));
+         log_chn->writer = NewCompression(log_chn, log_chn->compression_module, NewChecksum(log_chn, log_chn->post_checksum_module, 0, new WriterFtp(log_chn)));
          log_chn->do_disk_level = FALSE;
          log_chn->statistics.disk_level = -1;
       }
@@ -3500,7 +3532,7 @@ int log_create_writer(LOG_CHN *log_chn)
       }
       else if (log_chn->output_module == OUTPUT_PIPE) {
 
-         log_chn->writer = NewCompression(log_chn, log_chn->compression_module, NewChecksum(log_chn, log_chn->post_checksum_module, new WriterPopen(log_chn, "xxx", "")));
+         log_chn->writer = NewCompression(log_chn, log_chn->compression_module, NewChecksum(log_chn, log_chn->post_checksum_module, 0, new WriterPopen(log_chn, "xxx", "")));
          log_chn->do_disk_level = FALSE;
          log_chn->statistics.disk_level = -1;
       }
@@ -3509,7 +3541,7 @@ int log_create_writer(LOG_CHN *log_chn)
       //log_chn->do_disk_level = TRUE;
 
       if (log_chn->pre_checksum_module) {
-         log_chn->writer = NewChecksum(log_chn, log_chn->pre_checksum_module, log_chn->writer);
+         log_chn->writer = NewChecksum(log_chn, log_chn->pre_checksum_module, 1, log_chn->writer);
       }
 
       cm_msg(MINFO, "log_create_writer", "channel %s writer chain: %s", log_chn->path, log_chn->writer->wr_get_chain().c_str());
@@ -3543,7 +3575,7 @@ int log_create_writer(LOG_CHN *log_chn)
       log_chn->do_disk_level = FALSE;
       log_chn->statistics.disk_level = -1;
    } else if (compression==82) {
-      log_chn->writer = new WriterLZ4(log_chn, NewChecksum(log_chn, postchecksum, new WriterFtp(log_chn)));
+      log_chn->writer = new WriterLZ4(log_chn, NewChecksum(log_chn, postchecksum, 0, new WriterFtp(log_chn)));
       log_chn->do_disk_level = FALSE;
       log_chn->statistics.disk_level = -1;
    } else if (compression==98) {
@@ -3553,7 +3585,7 @@ int log_create_writer(LOG_CHN *log_chn)
       log_chn->writer = new WriterFile(log_chn);
       log_chn->do_disk_level = TRUE;
    } else if (compression==100) {
-      log_chn->writer = new WriterLZ4(log_chn, NewChecksum(log_chn, postchecksum, new WriterFile(log_chn)));
+      log_chn->writer = new WriterLZ4(log_chn, NewChecksum(log_chn, postchecksum, 0, new WriterFile(log_chn)));
       log_chn->do_disk_level = TRUE;
    } else if (compression==200) {
       log_chn->writer = NewWriterBzip2(log_chn);
@@ -3578,7 +3610,7 @@ int log_create_writer(LOG_CHN *log_chn)
    }
 
    if (prechecksum) {
-      log_chn->writer = NewChecksum(log_chn, prechecksum, log_chn->writer);
+      log_chn->writer = NewChecksum(log_chn, prechecksum, 1, log_chn->writer);
    }
 
    return SS_SUCCESS;
