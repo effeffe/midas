@@ -195,7 +195,7 @@
 
        //console.log(JSON.stringify(rpc.result));
 
-       if (!rpc.result.run_number) {
+       if (!rpc.result.run_number && !rpc.result.status) {
           document.getElementById('mhttpd_last_updated').innerHTML = new Date;
           //document.getElementById('updateStatus').innerHTML = "RWPD";
           document.getElementById('updateStatus').innerHTML = "";

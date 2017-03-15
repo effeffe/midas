@@ -3575,6 +3575,23 @@ static TR_STATE* tr_current_transition = NULL;
 
 /*------------------------------------------------------------------*/
 
+int tr_finish(int status, const char* errorstr)
+{
+   if (tr_current_transition) {
+      tr_current_transition->status = status;
+      tr_current_transition->end_time = ss_millitime();
+      if (errorstr) {
+         strlcpy(tr_current_transition->errorstr, errorstr, sizeof(tr_current_transition->errorstr));
+      } else {
+         strlcpy(tr_current_transition->errorstr, "(null)", sizeof(tr_current_transition->errorstr));
+      }
+   }
+
+   return status;
+}
+
+/*------------------------------------------------------------------*/
+
 static void json_write(char **buffer, int* buffer_size, int* buffer_end, int level, const char* s, int quoted)
 {
    int len, remain, xlevel;
@@ -4198,10 +4215,16 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    BOOL deferred;
    PROGRAM_INFO program_info;
    TR_CLIENT *tr_client;
+   char xerrstr[256];
+
+   /* if needed, use internal error string */
+   if (!errstr) {
+      errstr = xerrstr;
+      errstr_size = sizeof(xerrstr);
+   }
 
    /* erase error string */
-   if (errstr)
-      errstr[0] = 0;
+   errstr[0] = 0;
    
    /* get key of local client */
    cm_get_experiment_database(&hDB, &hKeylocal);
@@ -4213,9 +4236,48 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    if (transition != TR_START && transition != TR_STOP && transition != TR_PAUSE && transition != TR_RESUME
        && transition != TR_STARTABORT) {
       cm_msg(MERROR, "cm_transition", "Invalid transition request \"%d\"", transition);
-      if (errstr != NULL)
-         strlcpy(errstr, "Invalid transition request", errstr_size);
+      strlcpy(errstr, "Invalid transition request", errstr_size);
       return CM_INVALID_TRANSITION;
+   }
+
+   /* delete previous transition state */
+
+   if (tr_previous_transition) {
+      TR_STATE *s = tr_previous_transition;
+      int n = s->num_clients;
+      TR_CLIENT*t = s->clients;
+
+      for (i=0 ; i<n ; i++)
+         if (t[i].pred)
+            free(t[i].pred);
+
+      free(s->clients);
+      s->clients = NULL;
+      free(s);
+      tr_previous_transition = NULL;
+   }
+
+   if (tr_current_transition) {
+      tr_previous_transition = tr_current_transition;
+   }
+   
+   /* construct new transition state */
+
+   if (1) {
+      TR_STATE *s = calloc(1, sizeof(TR_STATE));
+
+      s->transition = transition;
+      s->run_number = run_number;
+      s->async_flag = async_flag;
+      s->debug_flag = debug_flag;
+      s->status     = 0;
+      s->errorstr[0] = 0;
+      s->start_time = ss_millitime();
+      s->end_time = 0;
+      s->num_clients = 0;
+      s->clients = NULL;
+
+      tr_current_transition = s;
    }
 
    /* check for alarms */
@@ -4226,10 +4288,9 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       al_check();
       if (al_get_alarms(str, sizeof(str)) > 0) {
          cm_msg(MERROR, "cm_transition", "Run start abort due to alarms: %s", str);
-         if (errstr) {
-            strlcpy(errstr, str, errstr_size);
-         }
-         return AL_TRIGGERED;
+         sprintf(errstr, "Cannot start run due to alarms: ");
+         strlcat(errstr, str, errstr_size);
+         return tr_finish(AL_TRIGGERED, errstr);
       }
    }
 
@@ -4266,10 +4327,9 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
                rpc_get_name(str);
                str[strlen(key.name)] = 0;
                if (!equal_ustring(str, key.name) && cm_exist(key.name, FALSE) == CM_NO_CLIENT) {
-                  cm_msg(MERROR, "cm_transition", "Run start abort due to program %s not running", key.name);
-                  if (errstr)
-                     sprintf(errstr, "Run start abort due to program %s not running", key.name);
-                  return AL_TRIGGERED;
+                  cm_msg(MERROR, "cm_transition", "Run start abort due to program \"%s\" not running", key.name);
+                  sprintf(errstr, "Run start abort due to program \"%s\" not running", key.name);
+                  return tr_finish(AL_TRIGGERED, errstr);
                }
             }
          }
@@ -4277,11 +4337,12 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    }
 
    /* do detached transition via mtransition tool */
-   if (async_flag & TR_DETACH)
-      return cm_transition_detach(transition, run_number, errstr, errstr_size, async_flag, debug_flag);
+   if (async_flag & TR_DETACH) {
+      status = cm_transition_detach(transition, run_number, errstr, errstr_size, async_flag, debug_flag);
+      return tr_finish(status, errstr);
+   }
 
-   if (errstr != NULL)
-      strlcpy(errstr, "Unknown error", errstr_size);
+   strlcpy(errstr, "Unknown error", errstr_size);
 
    if (debug_flag == 0) {
       size = sizeof(i);
@@ -4293,6 +4354,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       size = sizeof(run_number);
       status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
       assert(status == SUCCESS);
+      tr_current_transition->run_number = run_number;
    }
 
    if (run_number <= 0) {
@@ -4306,11 +4368,9 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       size = sizeof(i);
       db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT, TRUE);
       if (i == 1) {
-         if (errstr) {
-            sprintf(errstr, "Start/Stop transition %d already in progress, please try again later\n", i);
-            strlcat(errstr, "or set \"/Runinfo/Transition in progress\" manually to zero.\n", errstr_size);
-         }
-         return CM_TRANSITION_IN_PROGRESS;
+         sprintf(errstr, "Start/Stop transition %d already in progress, please try again later\n", i);
+         strlcat(errstr, "or set \"/Runinfo/Transition in progress\" manually to zero.\n", errstr_size);
+         return tr_finish(CM_TRANSITION_IN_PROGRESS, "Transition already in progress, see messages");
       }
    }
 
@@ -4337,6 +4397,11 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    }
 
    if (deferred) {
+      if (debug_flag == 1)
+         printf("Clearing /Runinfo/Requested transition\n");
+      if (debug_flag == 2)
+         cm_msg(MINFO, "cm_transition", "cm_transition: Clearing /Runinfo/Requested transition");
+      
       /* remove transition request */
       i = 0;
       db_set_value(hDB, 0, "/Runinfo/Requested transition", &i, sizeof(int), 1, TID_INT);
@@ -4344,18 +4409,17 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       status = db_find_key(hDB, 0, "System/Clients", &hRootKey);
       if (status != DB_SUCCESS) {
          cm_msg(MERROR, "cm_transition", "cannot find System/Clients entry in database");
-         if (errstr != NULL)
-            strlcpy(errstr, "Cannot find /System/Clients in ODB", errstr_size);
-         return status;
+         strlcpy(errstr, "Cannot find /System/Clients in ODB", errstr_size);
+         return tr_finish(status, errstr);
       }
 
       /* check if deferred transition already in progress */
       size = sizeof(i);
       db_get_value(hDB, 0, "/Runinfo/Requested transition", &i, &size, TID_INT, TRUE);
       if (i) {
-         if (errstr != NULL)
-            strlcpy(errstr, "Deferred transition already in progress", errstr_size);
-         return CM_TRANSITION_IN_PROGRESS;
+         strlcpy(errstr, "Deferred transition already in progress", errstr_size);
+         strlcat(errstr, ", to cancel, set \"/Runinfo/Requested transition\" to zero", errstr_size);
+         return tr_finish(CM_TRANSITION_IN_PROGRESS, errstr);
       }
 
       for (i = 0; trans_name[i].name[0] != 0; i++)
@@ -4380,18 +4444,26 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
             if (status == DB_SUCCESS) {
                size = NAME_LENGTH;
                db_get_value(hDB, hSubkey, "Name", str, &size, TID_STRING, TRUE);
-               db_set_value(hDB, 0, "/Runinfo/Requested transition", &transition, sizeof(int), 1, TID_INT);
 
                if (debug_flag == 1)
                   printf("---- Transition %s deferred by client \"%s\" ----\n", trname, str);
                if (debug_flag == 2)
-                  cm_msg(MINFO, "cm_transition",
-                         "cm_transition: ---- Transition %s deferred by client \"%s\" ----", trname, str);
+                  cm_msg(MINFO, "cm_transition", "cm_transition: ---- Transition %s deferred by client \"%s\" ----", trname, str);
 
-               if (errstr)
-                  sprintf(errstr, "Transition %s deferred by client \"%s\"", trname, str);
+               if (debug_flag == 1)
+                  printf("Setting /Runinfo/Requested transition\n");
+               if (debug_flag == 2)
+                  cm_msg(MINFO, "cm_transition", "cm_transition: Setting /Runinfo/Requested transition");
 
-               return CM_DEFERRED_TRANSITION;
+               /* /Runinfo/Requested transition is hot-linked by mfe.c and writing to it
+                * will activate the deferred transition code in the frontend.
+                * the transition itself will be run from the frontend via cm_transition(TR_DEFERRED) */
+
+               db_set_value(hDB, 0, "/Runinfo/Requested transition", &transition, sizeof(int), 1, TID_INT);
+
+               sprintf(errstr, "Transition %s deferred by client \"%s\"", trname, str);
+
+               return tr_finish(CM_DEFERRED_TRANSITION, errstr);
             }
          }
       }
@@ -4483,9 +4555,8 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    status = db_find_key(hDB, 0, "System/Clients", &hRootKey);
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "cm_transition", "cannot find System/Clients entry in database");
-      if (errstr)
-         strlcpy(errstr, "Cannot find /System/Clients in ODB", errstr_size);
-      return status;
+      strlcpy(errstr, "Cannot find /System/Clients in ODB", errstr_size);
+      return tr_finish(status, errstr);
    }
 
    for (i = 0; trans_name[i].name[0] != 0; i++)
@@ -4620,47 +4691,8 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
    /* construction of tr_client is complete, export it to outside watchers */
 
-   /* delete previous transition state */
-
-   if (tr_previous_transition) {
-      TR_STATE *s = tr_previous_transition;
-      int n = s->num_clients;
-      TR_CLIENT*t = s->clients;
-
-      for (i=0 ; i<n ; i++)
-         if (t[i].pred)
-            free(t[i].pred);
-
-      free(s->clients);
-      s->clients = NULL;
-      free(s);
-      tr_previous_transition = NULL;
-   }
-
-   if (tr_current_transition) {
-      tr_previous_transition = tr_current_transition;
-   }
-   
-   /* construct new transition state */
-
-   if (1) {
-      TR_STATE *s = calloc(1, sizeof(TR_STATE));
-
-      s->transition = transition;
-      s->run_number = run_number;
-      s->async_flag = async_flag;
-      s->debug_flag = debug_flag;
-      s->status     = 0;
-      s->errorstr[0] = 0;
-      s->start_time = 0;
-      s->end_time = 0;
-      s->num_clients = n_tr_clients;
-      s->clients = tr_client;
-
-      tr_current_transition = s;
-   }
-
-   tr_current_transition->start_time = ss_millitime();
+   tr_current_transition->num_clients = n_tr_clients;
+   tr_current_transition->clients     = tr_client;
 
    /* contact ordered clients for transition -----------------------*/
    status = CM_SUCCESS;
