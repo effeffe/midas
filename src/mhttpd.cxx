@@ -1518,6 +1518,38 @@ void show_navigation_bar(const char *cur_page)
    rsprintf("</script>\n");
 }
 
+void init_menu_buttons()
+{
+   int status;
+   HNDLE hDB;
+   BOOL value = TRUE;
+   int size = sizeof(value);
+   cm_get_experiment_database(&hDB, NULL);
+   db_get_value(hDB, 0, "/Experiment/Menu/Status", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Start", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Transition", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/ODB", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Messages", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Chat", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Elog", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Alarms", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Programs", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/History", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/MSCB", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Sequencer", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Config", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Example", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Help", &value, &size, TID_BOOL, TRUE);
+   //strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Example, Help", sizeof(str));
+
+   char buf[1024];
+   size = sizeof(buf);
+   status = db_get_value(hDB, 0, "/Experiment/Menu buttons", buf, &size, TID_STRING, FALSE);
+   if (status == DB_SUCCESS) {
+      cm_msg(MERROR, "init_menu_buttons", "ODB \"/Experiment/Menu buttons\" is obsolete, please delete it.");
+   }
+}
+
 #ifdef OBSOLETE
 void xshow_navigation_bar(const char *cur_page)
 {
@@ -2867,8 +2899,7 @@ void show_elog_new(const char *path, BOOL bedit, const char *odb_att, const char
    }
 
    if (run_number < 0) {
-      cm_msg(MERROR, "show_elog_new", "aborting on attempt to use invalid run number %d",
-             run_number);
+      cm_msg(MERROR, "show_elog_new", "aborting on attempt to use invalid run number %d", run_number);
       abort();
    }
 
@@ -19415,6 +19446,9 @@ int main(int argc, const char *argv[])
          printf("mhttpd allowed hosts list is empty\n");
       }
    }
+
+   /* initialize menu buttons */
+   init_menu_buttons();
 
    /* initialize sequencer */
    init_sequencer();

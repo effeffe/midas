@@ -187,23 +187,36 @@ function mhttpd_navigation_bar(current_page, path)
       path = "";
    }
 
-   mjsonrpc_db_get_values(["/Custom/Header", "/Experiment/Menu Buttons"]).then(function(rpc) {
+   mjsonrpc_db_get_values(["/Custom/Header", "/Experiment/Menu", "/Experiment/Menu Buttons"]).then(function(rpc) {
       var custom_header = rpc.result.data[0];
       //alert(custom_header);
 
       if (custom_header && custom_header.length > 0)
          document.getElementById("customHeader").innerHTML = custom_header;
 
-      var buttons = rpc.result.data[1];
-      //alert(buttons);
+      var menu    = rpc.result.data[1];
+      var buttons = rpc.result.data[2];
+      var b = [];
 
-      if (buttons.length < 1)
-         buttons = "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Help";
+      if (menu) {
+         for (var k in menu) {
+            var kk = k + "/name";
+            if (kk in menu) {
+               if (menu[k]) {
+                  b.push(menu[kk]);
+               }
+            }
+         }
+      } else if (buttons && buttons.length > 0) {
+         b = buttons.split(",");
+      }
 
-      var b = buttons.split(",");
+      if (!b || b.length < 1) {
+         b = [ "Status", "ODB", "Messages", "Chat", "ELog", "Alarms", "Programs", "History", "MSCB", "Sequencer", "Config", "Example", "Help" ];
+      }
 
       var html = "";
-
+      
       for (var i=0; i<b.length; i++) {
          var bb = b[i].trim();
          var cc = "mnavcss navButton";
