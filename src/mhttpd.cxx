@@ -69,7 +69,6 @@ BOOL history_mode = FALSE;
 BOOL verbose = FALSE;
 char midas_hostname[256];
 char midas_expt[256];
-BOOL expand_equipment;
 
 extern const char *mname[];
 
@@ -1642,7 +1641,7 @@ void xshow_navigation_bar(const char *cur_page)
 int requested_transition = 0;
 int requested_old_state = 0;
 
-void show_status_page(int refresh, const char *cookie_wpwd)
+void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment)
 {
    int i, j, k, h, m, s, status, size, type, n_items, n_hidden;
    BOOL flag, first, expand;
@@ -1677,9 +1676,9 @@ void show_status_page(int refresh, const char *cookie_wpwd)
       strftime(str, sizeof(str), "%A, %d-%b-%Y %H:00:00 GMT", gmt);
 
       if (expand)
-         rsprintf("Set-Cookie: expeq=1; path=/; expires=%s\r\n");
+         rsprintf("Set-Cookie: midas_expeq=1; path=/; expires=%s\r\n", str);
       else
-         rsprintf("Set-Cookie: expeq=; path=/; expires=%s\r\n");
+         rsprintf("Set-Cookie: midas_expeq=; path=/;\r\n");
       rsprintf("Location: ./\n\n<html>redir</html>\r\n");
       return;
    }
@@ -15806,7 +15805,7 @@ void send_js()
 
 /*------------------------------------------------------------------*/
 
-void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, const char *dec_path, int refresh)
+void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, const char *dec_path, int refresh, int expand_equipment)
 /********************************************************************\
 
  Routine: interprete
@@ -16664,7 +16663,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
          return;
       }
 
-      show_status_page(refresh, cookie_wpwd);
+      show_status_page(refresh, cookie_wpwd, expand_equipment);
       return;
    }
 
@@ -16714,7 +16713,7 @@ void decode_query(const char *query_string)
    free(buf);
 }
 
-void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, int refresh, bool decode_url, const char* url, const char* query_string)
+void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, int refresh, int expand_equipment, bool decode_url, const char* url, const char* query_string)
 {
    char path[256];
 
@@ -16748,7 +16747,7 @@ void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, c
    if (decode_url)
       urlDecode(dec_path);
 
-   interprete(cookie_pwd, cookie_wpwd, cookie_cpwd, dec_path, refresh);
+   interprete(cookie_pwd, cookie_wpwd, cookie_cpwd, dec_path, refresh, expand_equipment);
 
    freeparam();
 }
@@ -16756,7 +16755,7 @@ void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, c
 /*------------------------------------------------------------------*/
 
 void decode_post(const char *header, char *string, const char *boundary, int length,
-                 const char *cookie_pwd, const char *cookie_wpwd, int refresh, bool decode_url, const char* url)
+                 const char *cookie_pwd, const char *cookie_wpwd, int refresh, int expand_equipment, bool decode_url, const char* url)
 {
    char *pinit, *p, *pitem, *ptmp, file_name[256], str[256], path[256];
    int n;
@@ -16870,7 +16869,7 @@ void decode_post(const char *header, char *string, const char *boundary, int len
    if (decode_url)
       urlDecode(dec_path);
 
-   interprete(cookie_pwd, cookie_wpwd, "", dec_path, refresh);
+   interprete(cookie_pwd, cookie_wpwd, "", dec_path, refresh, expand_equipment);
 }
 
 /*------------------------------------------------------------------*/
@@ -17450,8 +17449,8 @@ void server_loop(int tcp_port, int port80_socket)
          else
             refresh = DEFAULT_REFRESH;
 
-         if (strstr(net_buffer, "expeq=") != NULL)
-            expand_equipment = atoi(strstr(net_buffer, "expeq=") + 6);
+         if (strstr(net_buffer, "midas_expeq=") != NULL)
+            expand_equipment = atoi(strstr(net_buffer, "midas_expeq=") + 6);
          else
             expand_equipment = FALSE;
 
@@ -17722,6 +17721,12 @@ static int event_handler_mg(struct mg_event *event)
       p = find_cookie_mg(event, "midas_refr");
       if (p)
          refresh = atoi(p);
+
+      // extract equipment expand flag
+      int expand_equipment = 0;
+      p = find_cookie_mg(event, "midas_expeq");
+      if (p)
+         expand_equipment = atoi(p);
 
       if ((strcmp(event->request_info->request_method, "OPTIONS") == 0) &&
           (event->request_info->query_string != NULL) &&
@@ -18582,6 +18587,12 @@ static bool handle_decode_get(struct mg_connection *nc, const http_message* msg,
    if (s.length() > 0)
       refresh = atoi(s.c_str());
 
+   // extract expand flag
+   int expand = 0;
+   s = find_cookie_mg(msg, "midas_expeq");
+   if (s.length() > 0)
+      expand = atoi(s.c_str());
+   
    // lock shared structures
    
    status = ss_mutex_wait_for(request_mutex, 0);
@@ -18595,7 +18606,7 @@ static bool handle_decode_get(struct mg_connection *nc, const http_message* msg,
 
    // call midas
    
-   decode_get(NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, false, uri, query_string);
+   decode_get(NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, expand, false, uri, query_string);
 
    if (trace_mg)
       printf("handle_decode_get: return buffer length %d bytes, strlen %d\n", return_length, (int)strlen(return_buffer));
@@ -18668,6 +18679,12 @@ static bool handle_decode_post(struct mg_connection *nc, const http_message* msg
    if (s.length() > 0)
       refresh = atoi(s.c_str());
 
+   // extract equipment expand flag
+   int expand_equipment = 0;
+   s = find_cookie_mg(msg, "midas_expeq");
+   if (s.length() > 0)
+      expand_equipment = atoi(s.c_str());
+
    char boundary[256];
    boundary[0] = 0;
    const std::string ct = find_header_mg(msg, "Content-Type");
@@ -18693,7 +18710,8 @@ static bool handle_decode_post(struct mg_connection *nc, const http_message* msg
    
    //printf("post_data_len %d, data [%s], boundary [%s]\n", post_data_len, post_data, boundary);
 
-   decode_post(NULL, (char*)post_data, boundary, post_data_len, cookie_pwd, cookie_wpwd, refresh, false, uri);
+   decode_post(NULL, (char*)post_data, boundary, post_data_len, cookie_pwd, cookie_wpwd,
+               refresh, expand_equipment, false, uri);
 
    if (trace_mg)
       printf("handle_decode_post: return buffer length %d bytes, strlen %d\n", return_length, (int)strlen(return_buffer));
