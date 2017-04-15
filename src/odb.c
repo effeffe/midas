@@ -6077,8 +6077,9 @@ INT db_copy(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size, const char *
    INT i, j, size, status;
    KEY key;
    HNDLE hSubkey;
-   char full_path[MAX_ODB_PATH], str[MAX_STRING_LENGTH * 2];
-   char *data, line[MAX_STRING_LENGTH * 2];
+   char full_path[MAX_ODB_PATH];
+   char *data;
+   char line[MAX_STRING_LENGTH * 2];
    BOOL bWritten;
 
    strlcpy(full_path, path, sizeof(full_path));
@@ -6135,6 +6136,7 @@ INT db_copy(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size, const char *
 
                   strcpy(line, "\n====#$@$#====\n");
                } else {
+                  char str[MAX_STRING_LENGTH]; // buffer for db_sprintf()
                   db_sprintf(str, data, key.item_size, 0, key.type);
 
                   if (key.type == TID_STRING || key.type == TID_LINK)
@@ -6143,6 +6145,7 @@ INT db_copy(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size, const char *
                   sprintf(line + strlen(line), "%s\n", str);
                }
             } else {
+               char str[MAX_STRING_LENGTH]; // buffer for db_sprintf()
                sprintf(line, "%s = %s[%d] :\n", key.name, rpc_tid_name(key.type), key.num_values);
 
                for (j = 0; j < key.num_values; j++) {
@@ -6201,6 +6204,8 @@ INT db_copy(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size, const char *
       line[0] = 0;
 
       if (key.type == TID_KEY) {
+         char str[MAX_ODB_PATH];
+
          /* new line */
          if (bWritten) {
             if (*buffer_size < 2) {
@@ -6272,6 +6277,8 @@ INT db_copy(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size, const char *
 
                strcpy(line, "\n====#$@$#====\n");
             } else {
+               char str[MAX_STRING_LENGTH]; // buffer for db_sprintf()
+               
                db_sprintf(str, data, key.item_size, 0, key.type);
 
                if (key.type == TID_STRING || key.type == TID_LINK)
@@ -6283,6 +6290,8 @@ INT db_copy(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size, const char *
             sprintf(line + strlen(line), "%s = %s[%d] :\n", key.name, rpc_tid_name(key.type), key.num_values);
 
             for (j = 0; j < key.num_values; j++) {
+               char str[MAX_STRING_LENGTH]; // buffer for db_sprintf()
+
                if (key.type == TID_STRING || key.type == TID_LINK)
                   sprintf(line + strlen(line), "[%d] ", key.item_size);
                else
