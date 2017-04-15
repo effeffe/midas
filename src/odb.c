@@ -6374,15 +6374,15 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
    }
 
    do {
-      char line[MAX_STRING_LENGTH]; // FIXME: no overflow, not sure if trailing \0 is ok. Max line length should be bigger than max string length. K.O.
+      char line[2*MAX_STRING_LENGTH]; // FIXME: no overflow, not sure if trailing \0 is ok. Max line length should match max line length in db_copy(). K.O.
 
       if (*buffer == 0)
          break;
 
-      for (i = 0; *buffer != '\n' && *buffer && i < MAX_STRING_LENGTH; i++)
+      for (i = 0; *buffer != '\n' && *buffer && i < 2*MAX_STRING_LENGTH; i++)
          line[i] = *buffer++;
 
-      if (i == MAX_STRING_LENGTH) {
+      if (i == 2*MAX_STRING_LENGTH) {
          line[MAX_STRING_LENGTH/4] = 0;
          cm_msg(MERROR, "db_paste", "line too long: %s...", line);
          free(data);
