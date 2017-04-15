@@ -2790,7 +2790,6 @@ INT db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
       KEYLIST *pkeylist;
       KEY *pkey;
       const char *pkey_name;
-      char str[MAX_STRING_LENGTH];
       INT i;
 
       *subhKey = 0;
@@ -2840,6 +2839,8 @@ INT db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
 
       pkey_name = key_name;
       do {
+         char str[MAX_ODB_PATH];
+
          /* extract single subkey from key_name */
          pkey_name = extract_key(pkey_name, str, sizeof(str));
 
@@ -2946,7 +2947,6 @@ INT db_find_link1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
       KEYLIST *pkeylist;
       KEY *pkey;
       const char *pkey_name;
-      char str[MAX_STRING_LENGTH];
       INT i;
 
       *subhKey = 0;
@@ -2990,6 +2990,7 @@ INT db_find_link1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
 
       pkey_name = key_name;
       do {
+         char str[MAX_ODB_PATH];
          /* extract single subkey from key_name */
          pkey_name = extract_key(pkey_name, str, sizeof(str));
 
