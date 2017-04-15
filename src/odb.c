@@ -6341,12 +6341,8 @@ Copy an ODB subtree in ASCII format from a buffer
 */
 INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
 {
-   char line[MAX_STRING_LENGTH];
-   char title[MAX_STRING_LENGTH];
-   char key_name[MAX_STRING_LENGTH];
-   char data_str[MAX_STRING_LENGTH + 50];
-   char test_str[MAX_STRING_LENGTH];
-   char *pc, *data;
+   char title[MAX_STRING_LENGTH]; // FIXME: no overflow, not sure if it should be MAX_ODB_PATH or longer. K.O.
+   char *data;
    const char *pold;
    INT data_size, index;
    INT tid, i, j, n_data, string_length, status, size;
@@ -6369,6 +6365,8 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
    }
 
    do {
+      char line[MAX_STRING_LENGTH]; // FIXME: no overflow, not sure if trailing \0 is ok. Max line length should be bigger than max string length. K.O.
+
       if (*buffer == 0)
          break;
 
@@ -6376,7 +6374,8 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
          line[i] = *buffer++;
 
       if (i == MAX_STRING_LENGTH) {
-         cm_msg(MERROR, "db_paste", "line too long");
+         line[MAX_STRING_LENGTH/4] = 0;
+         cm_msg(MERROR, "db_paste", "line too long: %s...", line);
          free(data);
          return DB_TRUNCATED;
       }
@@ -6396,26 +6395,30 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
       } else {
          /* valid data line if it includes '=' and no ';' */
          if (strchr(line, '=') && line[0] != ';') {
+            char key_name[MAX_ODB_PATH];
+            char test_str[MAX_ODB_PATH];
+            char data_str[MAX_STRING_LENGTH + 50]; // FIXME: not sure if this should be max line length. K.O.
+
             /* copy type info and data */
-            pc = strrchr(line, '=') + 1;
-            while (strstr(line, ": [") != NULL && strstr(line, ": [") < pc) {
-               pc -= 2;
-               while (*pc != '=' && pc > line)
-                  pc--;
-               pc++;
+            char* pline = strrchr(line, '=') + 1;
+            while (strstr(line, ": [") != NULL && strstr(line, ": [") < pline) {
+               pline -= 2;
+               while (*pline != '=' && pline > line)
+                  pline--;
+               pline++;
             }
-            while (*pc == ' ')
-               pc++;
-            strlcpy(data_str, pc, sizeof(data_str));
+            while (*pline == ' ')
+               pline++;
+            strlcpy(data_str, pline, sizeof(data_str));
 
             /* extract key name */
             *strrchr(line, '=') = 0;
             while (strstr(line, ": [") && strchr(line, '='))
                *strrchr(line, '=') = 0;
 
-            pc = &line[strlen(line) - 1];
-            while (*pc == ' ')
-               *pc-- = 0;
+            pline = &line[strlen(line) - 1];
+            while (*pline == ' ')
+               *pline-- = 0;
 
             key_name[0] = 0;
             if (title[0] != '.')
@@ -6444,7 +6447,7 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
                cm_msg(MERROR, "db_paste", "found unknown data type \"%s\" in ODB file", line);
             else {
                /* skip type info */
-               pc = data_str;
+               char* pc = data_str;
                while (*pc != ' ' && *pc)
                   pc++;
                while ((*pc == ' ' || *pc == ':') && *pc)
@@ -6468,7 +6471,7 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
 
                for (i = 0; i < n_data; i++) {
                   /* strip trailing \n */
-                  pc = &data_str[strlen(data_str) - 1];
+                  char* pc = &data_str[strlen(data_str) - 1];
                   while (*pc == '\n' || *pc == '\r')
                      *pc-- = 0;
 
@@ -6480,7 +6483,7 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
                            string_length = atoi(data_str + 1);
                         if (string_length > MAX_STRING_LENGTH) {
                            string_length = MAX_STRING_LENGTH;
-                           cm_msg(MERROR, "db_paste", "found string exceeding MAX_STRING_LENGTH");
+                           cm_msg(MERROR, "db_paste", "found string exceeding MAX_STRING_LENGTH, odb path \"%s\"", key_name);
                         }
                      }
 
@@ -6505,7 +6508,7 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
                         } else
                            cm_msg(MERROR, "db_paste", "found multi-line string without termination sequence");
                      } else {
-                        pc = data_str + 2;
+                        char* pc = data_str + 2;
                         while (*pc && *pc != ' ')
                            pc++;
                         while (*pc && *pc == ' ')
@@ -6527,7 +6530,7 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
                         strlcpy(data + string_length * i, pc, string_length);
                      }
                   } else {
-                     pc = data_str;
+                     char* pc = data_str;
 
                      if (n_data > 1 && data_str[0] == '[') {
                         index = atoi(data_str+1);
@@ -6573,7 +6576,7 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
                }
 
                /* skip system client entries */
-               strcpy(test_str, key_name);
+               strlcpy(test_str, key_name, sizeof(test_str));
                test_str[15] = 0;
 
                if (!equal_ustring(test_str, "/System/Clients")) {
