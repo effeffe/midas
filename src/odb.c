@@ -7141,7 +7141,7 @@ void xml_encode(char *src, int size)
 INT db_save_xml_key(HNDLE hDB, HNDLE hKey, INT level, MXML_WRITER * writer)
 {
    INT i, idx, size, status;
-   char str[MAX_STRING_LENGTH * 2], *data;
+   char *data;
    HNDLE hSubkey;
    KEY key;
 
@@ -7175,7 +7175,6 @@ INT db_save_xml_key(HNDLE hDB, HNDLE hKey, INT level, MXML_WRITER * writer)
          mxml_end_element(writer);
 
    } else {
-
       /* save key value */
 
       if (key.num_values > 1)
@@ -7186,11 +7185,13 @@ INT db_save_xml_key(HNDLE hDB, HNDLE hKey, INT level, MXML_WRITER * writer)
       mxml_write_attribute(writer, "type", rpc_tid_name(key.type));
 
       if (key.type == TID_STRING || key.type == TID_LINK) {
+         char str[256];
          sprintf(str, "%d", key.item_size);
          mxml_write_attribute(writer, "size", str);
       }
 
       if (key.num_values > 1) {
+         char str[256];
          sprintf(str, "%d", key.num_values);
          mxml_write_attribute(writer, "num_values", str);
       }
@@ -7205,8 +7206,14 @@ INT db_save_xml_key(HNDLE hDB, HNDLE hKey, INT level, MXML_WRITER * writer)
       db_get_link_data(hDB, hKey, data, &size, key.type);
 
       if (key.num_values == 1) {
-
+         char str[MAX_STRING_LENGTH];
+         // FIXME: does db_sprintf() overflow str?
          db_sprintf(str, data, key.item_size, 0, key.type);
+         if (key.type == TID_STRING && strlen(data) >= MAX_STRING_LENGTH) {
+            char path[MAX_ODB_PATH];
+            db_get_path(hDB, hKey, path, sizeof(path));
+            cm_msg(MERROR, "db_save_xml_key", "Long odb string probably truncated, odb path \"%s\", string length %d truncated to %d", path, (int)strlen(data), (int)strlen(str));
+         }
          mxml_write_value(writer, str);
          mxml_end_element(writer);
 
@@ -7214,12 +7221,25 @@ INT db_save_xml_key(HNDLE hDB, HNDLE hKey, INT level, MXML_WRITER * writer)
 
          for (i = 0; i < key.num_values; i++) {
 
-            mxml_start_element(writer, "value");
-            sprintf(str, "%d", i);
-            mxml_write_attribute(writer, "index", str);
-            db_sprintf(str, data, key.item_size, i, key.type);
-            mxml_write_value(writer, str);
-            mxml_end_element(writer);
+            {
+               char str[256];
+               mxml_start_element(writer, "value");
+               sprintf(str, "%d", i);
+               mxml_write_attribute(writer, "index", str);
+            }
+
+            {
+               char str[MAX_STRING_LENGTH];
+               // FIXME: does db_sprintf() overflow str?
+               db_sprintf(str, data, key.item_size, i, key.type);
+               if (key.type == TID_STRING && strlen(str) >= MAX_STRING_LENGTH) {
+                  char path[MAX_ODB_PATH];
+                  db_get_path(hDB, hKey, path, sizeof(path));
+                  cm_msg(MERROR, "db_save_xml_key", "Long odb string array probably truncated, odb path \"%s\"", path);
+               }
+               mxml_write_value(writer, str);
+               mxml_end_element(writer);
+            }
          }
 
          mxml_end_element(writer);      /* keyarray */
