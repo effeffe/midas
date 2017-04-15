@@ -544,7 +544,7 @@ BOOL checkUtfValidString = 0;
 /*------------------------------------------------------------------*/
 static int db_validate_name(const char* name, int maybe_path, const char* caller_name)
 {
-   //printf("db_validate_name [%s] maybe_path %d from %s\n", name, maybe_path, caller_name);
+   //printf("db_validate_name [%s] length %d, maybe_path %d from %s\n", name, (int)strlen(name), maybe_path, caller_name);
 
    if (name == NULL) {
       cm_msg(MERROR, "db_validate_name", "Invalid name passed to %s: should not be NULL", caller_name);
@@ -576,6 +576,11 @@ static int db_validate_name(const char* name, int maybe_path, const char* caller
    if (!maybe_path) {
       if (strchr(name, '/')) {
          cm_msg(MERROR, "db_validate_name", "Invalid name \"%s\" passed to %s: should not contain \"/\"", name, caller_name);
+         return DB_INVALID_NAME;
+      }
+
+      if (strlen(name) >= NAME_LENGTH) {
+         cm_msg(MERROR, "db_validate_name", "Invalid name \"%s\" passed to %s: length %d should be less than %d", name, caller_name, (int)strlen(name), NAME_LENGTH);
          return DB_INVALID_NAME;
       }
    }
@@ -1945,7 +1950,6 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
       KEYLIST *pkeylist;
       KEY *pkey, *pprev_key, *pkeyparent;
       const char *pkey_name;
-      char str[MAX_STRING_LENGTH];
       INT i;
       int status;
 
@@ -1992,6 +1996,10 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
 
       pkey_name = key_name;
       do {
+         // key name is limited to NAME_LENGTH, but buffer has to be slightly longer
+         // to prevent truncation before db_validate_name checks for correct length. K.O.
+         char str[NAME_LENGTH+100];
+
          /* extract single key from key_name */
          pkey_name = extract_key(pkey_name, str, sizeof(str));
 
