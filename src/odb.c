@@ -6933,11 +6933,12 @@ static void db_save_tree_struct(HNDLE hDB, HNDLE hKey, int hfile, INT level)
    INT i, idx;
    KEY key;
    HNDLE hSubkey;
-   char line[MAX_ODB_PATH], str[MAX_STRING_LENGTH], name[MAX_STRING_LENGTH];
    int wr;
 
    /* first enumerate this level */
    for (idx = 0;; idx++) {
+      char name[MAX_ODB_PATH];
+
       db_enum_link(hDB, hKey, idx, &hSubkey);
       if (!hSubkey)
          break;
@@ -6950,6 +6951,9 @@ static void db_save_tree_struct(HNDLE hDB, HNDLE hKey, int hfile, INT level)
       db_get_key(hDB, hSubkey, &key);
 
       if (key.type != TID_KEY) {
+         char line[MAX_ODB_PATH];
+         char str[MAX_ODB_PATH];
+
          for (i = 0; i <= level; i++) {
             wr = write(hfile, "  ", 2);
             assert(wr == 2);
@@ -6983,8 +6987,8 @@ static void db_save_tree_struct(HNDLE hDB, HNDLE hKey, int hfile, INT level)
             break;
          }
 
-         strcat(line, "                    ");
-         strcpy(str, name);
+         strlcat(line, "                    ", sizeof(line));
+         strlcpy(str, name, sizeof(str));
          name2c(str);
 
          if (key.num_values > 1)
@@ -6992,12 +6996,15 @@ static void db_save_tree_struct(HNDLE hDB, HNDLE hKey, int hfile, INT level)
          if (key.type == TID_STRING || key.type == TID_LINK)
             sprintf(str + strlen(str), "[%d]", key.item_size);
 
-         strcpy(line + 10, str);
-         strcat(line, ";\n");
+         strlcpy(line + 10, str, sizeof(line) - 10);
+         strlcat(line, ";\n", sizeof(line));
 
          wr = write(hfile, line, strlen(line));
          assert(wr > 0);
       } else {
+         char line[MAX_ODB_PATH];
+         char str[MAX_ODB_PATH];
+
          /* recurse subtree */
          for (i = 0; i <= level; i++) {
             wr = write(hfile, "  ", 2);
