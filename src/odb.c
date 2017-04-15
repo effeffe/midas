@@ -2452,7 +2452,6 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
       KEYLIST *pkeylist;
       KEY *pkey;
       const char *pkey_name;
-      char str[MAX_STRING_LENGTH];
       INT i, status;
 
       *subhKey = 0;
@@ -2491,6 +2490,7 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
 
       if (pkey->type != TID_KEY) {
          db_unlock_database(hDB);
+         char str[MAX_ODB_PATH];
          db_get_path(hDB, hKey, str, sizeof(str));
          *subhKey = 0;
          cm_msg(MERROR, "db_find_key", "key \"%s\" has no subkeys", str);
@@ -2513,6 +2513,8 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
 
       pkey_name = key_name;
       do {
+         char str[MAX_ODB_PATH];
+         
          /* extract single subkey from key_name */
          pkey_name = extract_key(pkey_name, str, sizeof(str));
 
