@@ -164,10 +164,10 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
       }
    } else if (strcasecmp(type, "SQLITE")==0) {
 
-      char expt_path[1024];
+      char expt_path[MAX_STRING_LENGTH];
       cm_get_path(expt_path, sizeof(expt_path));
 
-      char dir[1024];
+      char dir[MAX_STRING_LENGTH];
       dir[0] = 0;
 
       std::string path;
@@ -204,7 +204,7 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
       }
    } else if (strcasecmp(type, "FILE")==0) {
 
-      char expt_path[1024];
+      char expt_path[MAX_STRING_LENGTH];
       expt_path[0] = 0;
 
       size = sizeof(expt_path);
@@ -214,7 +214,7 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
       if (status != DB_SUCCESS || strlen(expt_path) < 1)
          cm_get_path(expt_path, sizeof(expt_path));
 
-      char dir[1024];
+      char dir[MAX_STRING_LENGTH];
       dir[0] = 0;
 
       std::string path;
@@ -278,7 +278,7 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
       if (dsn[0] == DIR_SEPARATOR)
          path = dsn;
       else {
-         char expt_path[1024];
+         char expt_path[MAX_STRING_LENGTH];
          cm_get_path(expt_path, sizeof(expt_path));
 
          path = expt_path;

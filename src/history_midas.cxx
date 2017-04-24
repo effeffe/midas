@@ -95,7 +95,7 @@ public:
    int hs_connect(const char* unused_connect_string)
    {
       int status;
-      char str[1024];
+      char str[MAX_STRING_LENGTH];
 
       status = cm_get_experiment_database(&fDB, NULL);
       assert(status == CM_SUCCESS);

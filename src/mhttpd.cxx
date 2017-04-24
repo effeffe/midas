@@ -1541,7 +1541,7 @@ void init_menu_buttons()
    db_get_value(hDB, 0, "/Experiment/Menu/Help", &value, &size, TID_BOOL, TRUE);
    //strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Example, Help", sizeof(str));
 
-   char buf[1024];
+   char buf[MAX_STRING_LENGTH];
    size = sizeof(buf);
    status = db_get_value(hDB, 0, "/Experiment/Menu buttons", buf, &size, TID_STRING, FALSE);
    if (status == DB_SUCCESS) {
@@ -1645,8 +1645,8 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
 {
    int i, j, k, h, m, s, status, size, type, n_items, n_hidden;
    BOOL flag, first, expand;
-   char str[1000], msg[256], name[32], ref[256], bgcol[32], fgcol[32], alarm_class[32],
-      value_str[256], status_data[256], spk[256];
+   char str[MAX_STRING_LENGTH], msg[MAX_STRING_LENGTH], name[32], ref[MAX_STRING_LENGTH], bgcol[32], fgcol[32], alarm_class[32],
+      value_str[MAX_STRING_LENGTH], status_data[MAX_STRING_LENGTH], spk[MAX_STRING_LENGTH];
    const char *trans_name[] = { "Start", "Stop", "Pause", "Resume" };
    time_t now;
    DWORD difftime;
@@ -15220,7 +15220,7 @@ FILE *open_resource_file(const char *filename, std::string* pfilename)
 
    do { // THIS IS NOT A LOOP
 
-      char buf[1024];
+      char buf[MAX_STRING_LENGTH];
       int size = sizeof(buf);
       status = db_get_value(hDB, 0, "/Experiment/Resources", buf, &size, TID_STRING, FALSE);
       if (status == DB_SUCCESS && strlen(buf) > 0) {
@@ -15296,14 +15296,14 @@ FILE *open_resource_file(const char *filename, std::string* pfilename)
 
 /*------------------------------------------------------------------*/
 
-static char _css_file[1024];
+static char _css_file[MAX_STRING_LENGTH];
 
 char *get_css_filename()
 {
    HNDLE hDB;
 
    cm_get_experiment_database(&hDB, NULL);
-   char filename[1024];
+   char filename[MAX_STRING_LENGTH];
    int size = sizeof(filename);
    strcpy(filename, "mhttpd.css");
    db_get_value(hDB, 0, "/Experiment/CSS File", filename, &size, TID_STRING, TRUE);
@@ -15315,14 +15315,14 @@ char *get_css_filename()
 
 #ifdef OBSOLETE
 
-static char _js_file[1024];
+static char _js_file[MAX_STRING_LENGTH];
 
 char *get_js_filename()
 {
    HNDLE hDB;
 
    cm_get_experiment_database(&hDB, NULL);
-   char filename[1024];
+   char filename[MAX_STRING_LENGTH];
    int size = sizeof(filename);
    strcpy(filename, "mhttpd.js");
    db_get_value(hDB, 0, "/Experiment/JS File", filename, &size, TID_STRING, TRUE);
@@ -15336,7 +15336,7 @@ char *get_js_filename()
 
 void send_css()
 {
-   char str[256], format[256];
+   char str[MAX_STRING_LENGTH], format[MAX_STRING_LENGTH];
    time_t now;
    struct tm *gmt;
 
