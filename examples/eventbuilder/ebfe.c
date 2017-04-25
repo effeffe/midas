@@ -261,7 +261,7 @@ INT read_trigger_event(char *pevent, INT off)
    bk_init(pevent);
 
    /* create ADC bank */
-   bk_create(pevent, Adcx, TID_WORD, &pdata);
+   bk_create(pevent, Adcx, TID_WORD, (void**)&pdata);
 
    /* read ADC bank */
    for (a = 0; a < N_ADC; a++)
@@ -273,7 +273,7 @@ INT read_trigger_event(char *pevent, INT off)
    bk_close(pevent, pdata);
 
    /* create TDC bank */
-   bk_create(pevent, Tdcx, TID_WORD, &pdata);
+   bk_create(pevent, Tdcx, TID_WORD, (void**)&pdata);
 
    /* read TDC bank */
    for (a = 0; a < N_TDC; a++)
@@ -307,7 +307,7 @@ INT read_scaler_event(char *pevent, INT off)
    bk_init(pevent);
 
    /* create SCLR bank */
-   bk_create(pevent, Sclx, TID_DWORD, &pdata);
+   bk_create(pevent, Sclx, TID_DWORD, (void**)&pdata);
 
    /* read scaler bank */
    for (a = 0; a < N_SCLR; a++)
