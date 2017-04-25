@@ -44,8 +44,6 @@ FTP_CON *ftp_con;
 
 #include "mdsupport.h"
 
-extern int sys_max_event_size;
-
 INT  md_dev_os_read(INT handle, INT type, void *prec, DWORD nbytes, DWORD * nread);
 INT  md_dev_os_write(INT handle, INT type, void *prec, DWORD nbytes, DWORD * written);
 void md_bank_event_display(void *pevent, INT data_fmt, INT dsp_fmt, INT dsp_mode, char *bn);
@@ -173,7 +171,7 @@ INT mftp_open(char *destination, FTP_CON ** con)
 #endif // HAVE_FTPLIB
 
 /*------------------------------------------------------------------*/
-INT md_file_ropen(char *infile, INT data_fmt, INT openzip)
+INT md_file_ropen(char *infile, INT data_fmt, INT openzip, INT max_event_size)
 /********************************************************************\
 Routine: external md_any_file_ropen
 Purpose: Open data file for replay for the given data format.
@@ -245,11 +243,11 @@ status : from lower function
       /* allocate memory for one full event */
       if (my.pmrd != NULL)
          free(my.pmrd);
-      my.pmrd = (char *) malloc(5 * sys_max_event_size);    /* in bytes */
+      my.pmrd = (char *) malloc(5 * max_event_size);    /* in bytes */
       ptopmrd = my.pmrd;
       if (my.pmrd == NULL)
          return SS_NO_MEMORY;
-      memset((char *) my.pmrd, -1, 5 * sys_max_event_size);
+      memset((char *) my.pmrd, -1, 5 * max_event_size);
       my.pmh = (EVENT_HEADER *) my.pmrd;
    }
 
@@ -641,7 +639,7 @@ MD_SUCCESS        Ok
    void *pevent;
    DWORD size;
 
-   size = sys_max_event_size;
+   size = 0;
    if (evtn == -1) {
       /*    if(midas_event_get(&pevent, &size) == MD_SUCCESS) */
       return MD_SUCCESS;

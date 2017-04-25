@@ -24,7 +24,7 @@ Contents:     Dump event on screen with MIDAS or YBOS data format
 #define  REP_EVENT     4
 #define  REP_BANKLIST  5
 
-int sys_max_event_size = DEFAULT_MAX_EVENT_SIZE;
+//int sys_max_event_size = DEFAULT_MAX_EVENT_SIZE;
 
 char bank_name[4], sbank_name[4];
 INT hBufEvent;
@@ -103,7 +103,7 @@ DWORD data_format_check(EVENT_HEADER * pevent, INT * i)
 }
 
 /*----- Replog function ----------------------------------------*/
-int replog(int data_fmt, char *rep_file, int bl, int action)
+int replog(int data_fmt, char *rep_file, int bl, int action, int max_event_size)
 {
   char banklist[STRING_BANKLIST_MAX];
   short int msk, id;
@@ -123,7 +123,7 @@ int replog(int data_fmt, char *rep_file, int bl, int action)
     assert(!"YBOS not supported anymore");
   
   /* open data file */
-  if (md_file_ropen(rep_file, data_fmt, openzip) != SS_SUCCESS)
+  if (md_file_ropen(rep_file, data_fmt, openzip, max_event_size) != SS_SUCCESS)
     return (-1);
   
   switch (action) {
@@ -611,7 +611,7 @@ int main(int argc, char **argv)
   
   /* steer to replog function */
   if (rep_flag) {
-    replog(data_fmt, rep_file, bl, action);
+    replog(data_fmt, rep_file, bl, action, DEFAULT_MAX_EVENT_SIZE);
     return 0;
   } else {
     /* check parameters */
@@ -658,9 +658,11 @@ int main(int argc, char **argv)
   
   /* connect to the database */
   cm_get_experiment_database(&hDB, &hKey);
-  
+
+#if 0
   size = sizeof(sys_max_event_size);
   status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &sys_max_event_size, &size, TID_DWORD, TRUE);
+#endif
   
   {   /* ID block */
     INT l = 0;

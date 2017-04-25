@@ -43,8 +43,6 @@ $Id$
 BOOL debug = FALSE;
 BOOL nodelete = FALSE;
 
-int sys_max_event_size = DEFAULT_MAX_EVENT_SIZE;
-
 typedef struct {
    std::string filename;
    INT runno;
@@ -210,8 +208,8 @@ INT blockn = 0;
 /* prototypes */
 INT moduloCheck(INT lModulo, INT lPosition, INT lrun);
 BOOL lazy_file_exists(char *dir, char *file);
-INT lazy_main(INT, LAZY_INFO *);
-INT lazy_copy(char *dev, char *file);
+INT lazy_main(INT, LAZY_INFO *, int max_event_size);
+INT lazy_copy(char *dev, char *file, int max_event_size);
 INT lazy_load_params(HNDLE hDB, HNDLE hKey);
 INT build_log_list(const char *fmt, const char *dir, DIRLOGLIST *plog);
 INT build_done_list_odb(HNDLE, INT **);
@@ -1151,7 +1149,7 @@ BOOL :  new copy condition
 }
 
 /*------------------------------------------------------------------*/
-INT lazy_copy(char *outfile, char *infile)
+INT lazy_copy(char *outfile, char *infile, int max_event_size)
 /********************************************************************\
 Routine: lazy_copy
 Purpose: backup file to backup device
@@ -1211,7 +1209,7 @@ Function value:
    last_error = 0;
 
    /* open input data file */
-   if (md_file_ropen(infile, data_fmt, DONTOPENZIP) != MD_SUCCESS)
+   if (md_file_ropen(infile, data_fmt, DONTOPENZIP, max_event_size) != MD_SUCCESS)
       return (FORCE_EXIT);
 
    /* run shell command if available */
@@ -1743,7 +1741,7 @@ INT lazy_maintain_free_space(LAZY_INFO *pLch, LAZY_INFO *pLall)
 
 
 /*------------------------------------------------------------------*/
-INT lazy_main(INT channel, LAZY_INFO * pLall)
+INT lazy_main(INT channel, LAZY_INFO * pLall, int max_event_size)
 /********************************************************************\
 Routine: lazy_main
 Purpose: check if backup is necessary...
@@ -2079,7 +2077,7 @@ Function value:
       } else if (dev_type == LOG_TYPE_DISK) {
          status = lazy_disk_copy(outffile, inffile);
       } else {
-         status = lazy_copy(outffile, inffile);
+        status = lazy_copy(outffile, inffile, max_event_size);
       }
 
       if ((status != 0) && (status != EXIT_REQUEST)) {
@@ -2407,9 +2405,11 @@ int main(int argc, char **argv)
    }
 
    cm_get_experiment_database(&hDB, &hKey);
+
+   int max_event_size = DEFAULT_MAX_EVENT_SIZE;
    
-   size = sizeof(sys_max_event_size);
-   status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &sys_max_event_size, &size, TID_DWORD, TRUE);
+   size = sizeof(max_event_size);
+   status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &max_event_size, &size, TID_DWORD, TRUE);
   
    /* Remove temporary Lazy entry */
    {
@@ -2503,7 +2503,7 @@ int main(int argc, char **argv)
       if (period < 1)
          period = 1;
       if ((ss_millitime() - mainlast_time) > period) {
-         status = lazy_main(channel, &lazyinfo[0]);
+        status = lazy_main(channel, &lazyinfo[0], max_event_size);
          if (status == FORCE_EXIT) {
             cm_msg(MERROR, "lazy", "Exit requested by program");
             break;
