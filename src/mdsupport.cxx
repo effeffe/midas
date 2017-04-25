@@ -32,10 +32,6 @@ The Midas Dump support file
 #define TRACE
 #include "midas.h"
 #include "msystem.h"
-#ifndef HAVE_STRLCPY
-#include "strlcpy.h"
-#endif
-
 
 #ifdef HAVE_FTPLIB
 #include "ftplib.h"
