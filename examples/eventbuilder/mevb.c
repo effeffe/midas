@@ -308,7 +308,7 @@ INT load_fragment(void)
    if (equipment[0].format == FORMAT_MIDAS)
       meb_fragment_add = eb_mfragment_add;
    else {
-      cm_msg(MERROR, "load_fragment", "Unknown data format :%d", format);
+      cm_msg(MERROR, "load_fragment", "Unknown data format :%s", format);
       return EB_ERROR;
    }
 
@@ -933,7 +933,7 @@ INT source_unbooking()
          if (debug)
             printf("unbook: bm_close_buffer[%d] hndle:%d stat:%d\n", i, ebch[i].hBuf, status);
          if (status != BM_SUCCESS) {
-            cm_msg(MERROR, "source_unbooking", "Close buffer[%d] stat:", i, status);
+            cm_msg(MERROR, "source_unbooking", "Close buffer[%d] stat: %d", i, status);
             return status;
          }
       }
