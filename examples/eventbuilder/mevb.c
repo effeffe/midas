@@ -214,7 +214,7 @@ INT register_equipment(void)
 
     /*---- open event buffer ---------------------------------------*/
       if (eq_info->buffer[0]) {
-         status = bm_open_buffer(eq_info->buffer, 2 * MAX_EVENT_SIZE, &equipment[index].buffer_handle);
+         status = bm_open_buffer(eq_info->buffer, DEFAULT_BUFFER_SIZE, &equipment[index].buffer_handle);
          if (status != BM_SUCCESS && status != BM_CREATED) {
             cm_msg(MERROR, "register_equipment",
                    "Cannot open event buffer. Try to reduce EVENT_BUFFER_SIZE in midas.h \
@@ -845,7 +845,7 @@ INT source_booking()
       /* Book only the requested event mask */
       if (ebset.preqfrag[i]) {
          /* Connect channel to source buffer */
-         status1 = bm_open_buffer(ebch[i].buffer, 2 * MAX_EVENT_SIZE, &(ebch[i].hBuf));
+         status1 = bm_open_buffer(ebch[i].buffer, DEFAULT_BUFFER_SIZE, &(ebch[i].hBuf));
 
          if (debug)
             printf("bm_open_buffer frag:%d buf:%s handle:%d stat:%d\n",
