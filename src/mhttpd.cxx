@@ -48,7 +48,6 @@ char *return_buffer = (char*)malloc(return_size);
 
 int strlen_retbuf;
 int return_length;
-char host_name[256];
 char referer[256];
 
 #define MAX_GROUPS    32
@@ -254,7 +253,7 @@ void show_navigation_bar(const char *cur_page);
 #ifdef OBSOLETE
 char *get_js_filename();
 #endif
-char *get_css_filename();
+const char *get_css_filename();
 
 /* functions from sequencer.cxx */
 extern void show_seq_page();
@@ -755,7 +754,7 @@ void receive_message(HNDLE hBuf, HNDLE id, EVENT_HEADER * pheader, void *message
 
 /*-------------------------------------------------------------------*/
 
-INT sendmail(const char *smtp_host, const char *from, const char *to, const char *subject, const char *text)
+INT sendmail(const char* from_host, const char *smtp_host, const char *from, const char *to, const char *subject, const char *text)
 {
    struct sockaddr_in bind_addr;
    struct hostent *phe;
@@ -802,7 +801,7 @@ INT sendmail(const char *smtp_host, const char *from, const char *to, const char
          puts(str);
    } while (str[0]);
 
-   sprintf(str, "HELO %s\r\n", host_name);
+   sprintf(str, "HELO %s\r\n", from_host);
    send(s, str, strlen(str), 0);
    if (verbose)
       puts(str);
@@ -1024,8 +1023,6 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 void page_footer(BOOL bForm)  // wraps up body wrapper and inserts page footer
 {
    time_t now;
-   int size;
-   char str[1000];
    HNDLE hDB;
    char dec_path[256], path[256];
 
@@ -1035,11 +1032,10 @@ void page_footer(BOOL bForm)  // wraps up body wrapper and inserts page footer
 
    /*---- footer div ----*/
    rsprintf("<div id=\"footerDiv\" class=\"footerDiv\">\n");
-   size = sizeof(str);
-   str[0] = 0;
    cm_get_experiment_database(&hDB, NULL);
-   db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
-   rsprintf("<div style=\"display:inline; float:left;\">Experiment %s</div>", str);
+   std::string exptname;
+   db_get_value_string(hDB, 0, "/Experiment/Name", 0, &exptname, TRUE);
+   rsprintf("<div style=\"display:inline; float:left;\">Experiment %s</div>", exptname.c_str());
    rsprintf("<div style=\"display:inline;\">");
    
    /* add one "../" for each level */
@@ -1322,7 +1318,6 @@ void show_header(const char *title, const char *method, const char *path, int re
    HNDLE hDB;
    time_t now;
    char str[256];
-   int size;
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -1361,9 +1356,8 @@ void show_header(const char *title, const char *method, const char *path, int re
 
    /* title row */
 
-   size = sizeof(str);
-   str[0] = 0;
-   db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
+   std::string exptname;
+   db_get_value_string(hDB, 0, "/Experiment/Name", 0, &exptname, TRUE);
    time(&now);
 
    /*---- body needs wrapper div to pin footer ----*/
@@ -1541,9 +1535,8 @@ void init_menu_buttons()
    db_get_value(hDB, 0, "/Experiment/Menu/Help", &value, &size, TID_BOOL, TRUE);
    //strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Example, Help", sizeof(str));
 
-   char buf[MAX_STRING_LENGTH];
-   size = sizeof(buf);
-   status = db_get_value(hDB, 0, "/Experiment/Menu buttons", buf, &size, TID_STRING, FALSE);
+   std::string buf;
+   status = db_get_value_string(hDB, 0, "/Experiment/Menu buttons", 0, &buf, FALSE);
    if (status == DB_SUCCESS) {
       cm_msg(MERROR, "init_menu_buttons", "ODB \"/Experiment/Menu buttons\" is obsolete, please delete it.");
    }
@@ -1727,12 +1720,12 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
    rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
 
-   size = sizeof(str);
-   str[0] = 0;
-   db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
+   std::string exptname;
+   db_get_value_string(hDB, 0, "/Experiment/Name", 0, &exptname, TRUE);
+
    time(&now);
 
-   rsprintf("<title>%s status</title>\n", str);
+   rsprintf("<title>%s status</title>\n", exptname.c_str());
 
    rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
@@ -1960,10 +1953,9 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
 
                if (first_alarm) {
                   first_alarm = false;
-                  strlcpy(str, "alarm.mp3", sizeof(str));
-                  size = sizeof(str);
-                  db_get_value(hDB, 0, "/Alarms/Sound", str, &size, TID_STRING, true);
-                  rsprintf("<script>mhttpd_alarm_play(\"%s\");</script>\n", str);
+                  std::string filename = "alarm.mp3";
+                  db_get_value_string(hDB, 0, "/Alarms/Sound", 0, &filename, TRUE);
+                  rsprintf("<script>mhttpd_alarm_play(\"%s\");</script>\n", filename.c_str());
                }
 
                rsprintf("<script type=\"text/javascript\">mhttpd_alarm_speak(\"%s\");</script>\n", spk);
@@ -2391,17 +2383,13 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
 
          // read channel settings
 
-         char chn_current_filename[MAX_STRING_LENGTH];
-         chn_current_filename[0] = 0;
-         size = sizeof(chn_current_filename);
-         status = db_get_value(hDB, hSet, "current filename", chn_current_filename, &size, TID_STRING, FALSE);
+         std::string chn_current_filename;
+         status = db_get_value_string(hDB, hSet, "current filename", 0, &chn_current_filename, FALSE);
          if (status != DB_SUCCESS)
             continue;
 
-         char chn_type[MAX_STRING_LENGTH];
-         chn_type[0] = 0;
-         size = sizeof(chn_type);
-         status = db_get_value(hDB, hSet, "type", chn_type, &size, TID_STRING, FALSE);
+         std::string chn_type;
+         status = db_get_value_string(hDB, hSet, "type", 0, &chn_type, FALSE);
          if (status != DB_SUCCESS)
             continue;
 
@@ -2447,9 +2435,9 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
 
          /* filename */
 
-         strlcpy(str, chn_current_filename, sizeof(str));
+         strlcpy(str, chn_current_filename.c_str(), sizeof(str));
 
-         if (equal_ustring(chn_type, "FTP")) {
+         if (equal_ustring(chn_type.c_str(), "FTP")) {
             char *token, orig[256];
 
             strlcpy(orig, str, sizeof(orig));
@@ -2629,12 +2617,12 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
          if (i % 3 == 0)
             rsprintf("<tr>");
 
-         size = sizeof(name);
-         db_get_value(hDB, hsubkey, "Name", name, &size, TID_STRING, TRUE);
-         size = sizeof(str);
-         db_get_value(hDB, hsubkey, "Host", str, &size, TID_STRING, TRUE);
+         std::string name;
+         db_get_value_string(hDB, hsubkey, "Name", 0, &name, TRUE);
+         std::string host;
+         db_get_value_string(hDB, hsubkey, "Host", 0, &host, TRUE);
 
-         rsprintf("<td colspan=2 align=center>%s [%s]", name, str);
+         rsprintf("<td colspan=2 align=center>%s [%s]", name.c_str(), host.c_str());
 
          if (i % 3 == 2)
             rsprintf("</tr>\n");
@@ -2657,17 +2645,14 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
 void show_messages_page()
 {
    int status;
-   int size;
-   char str[256];
    char bclass[256], facility[256];
    time_t now;
    HNDLE hDB;
 
    cm_get_experiment_database(&hDB, NULL);
 
-   size = sizeof(str);
-   str[0] = 0;
-   db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
+   std::string exptname;
+   db_get_value_string(hDB, 0, "/Experiment/Name", 0, &exptname, TRUE);
    time(&now);
 
    show_header("Messages", "GET", "./", 0);
@@ -2689,6 +2674,7 @@ void show_messages_page()
    if ((status == CM_SUCCESS) && (list.size() > 0)) {
       rsprintf("<table class=\"navigationTable\"><tr><td>\n");
       for (unsigned i=0 ; i<list.size() ; i++) {
+         char str[1024];
          strlcpy(str, list[i].c_str(), sizeof(str));
          if (equal_ustring(str, facility))
             strlcpy(bclass, "navButtonSel", sizeof(bclass));
@@ -2881,8 +2867,7 @@ void show_elog_new(const char *path, BOOL bedit, const char *odb_att, const char
    cm_get_experiment_database(&hDB, NULL);
    display_run_number = TRUE;
    size = sizeof(BOOL);
-   db_get_value(hDB, 0, "/Elog/Display run number", &display_run_number, &size, TID_BOOL,
-                TRUE);
+   db_get_value(hDB, 0, "/Elog/Display run number", &display_run_number, &size, TID_BOOL, TRUE);
 
    /* get message for reply */
    type[0] = system[0] = 0;
@@ -2921,9 +2906,9 @@ void show_elog_new(const char *path, BOOL bedit, const char *odb_att, const char
 
    /*---- title row ----*/
 
-   size = sizeof(str);
-   str[0] = 0;
-   db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
+   //size = sizeof(str);
+   //str[0] = 0;
+   //db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
    rsprintf("<tr><td></td></tr>\n");
 /*
    rsprintf("<tr><th>MIDAS Electronic Logbook");
@@ -2961,21 +2946,17 @@ void show_elog_new(const char *path, BOOL bedit, const char *odb_att, const char
       if (!bedit) {
          run_number = 0;
          size = sizeof(run_number);
-         status =
-             db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, &size, TID_INT,
-                          TRUE);
+         status = db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
          assert(status == SUCCESS);
       }
 
       if (run_number < 0) {
-         cm_msg(MERROR, "show_elog_new",
-                "aborting on attempt to use invalid run number %d", run_number);
+         cm_msg(MERROR, "show_elog_new", "aborting on attempt to use invalid run number %d", run_number);
          abort();
       }
 
       rsprintf("<td>Run number: ");
-      rsprintf("<input type=\"text\" size=10 maxlength=10 name=\"run\" value=\"%d\"</tr>",
-               run_number);
+      rsprintf("<input type=\"text\" size=10 maxlength=10 name=\"run\" value=\"%d\"</tr>", run_number);
    } else {
       if (bedit) {
          rsprintf("<tr><td colspan=2>Entry date: %s<br>", date);
@@ -3141,7 +3122,6 @@ void show_elog_new(const char *path, BOOL bedit, const char *odb_att, const char
 void show_elog_query()
 {
    int i, size;
-   char str[256];
    time_t now;
    struct tm *tms;
    HNDLE hDB, hkey, hkeyroot;
@@ -3152,8 +3132,7 @@ void show_elog_query()
    cm_get_experiment_database(&hDB, NULL);
    display_run_number = TRUE;
    size = sizeof(BOOL);
-   db_get_value(hDB, 0, "/Elog/Display run number", &display_run_number, &size, TID_BOOL,
-                TRUE);
+   db_get_value(hDB, 0, "/Elog/Display run number", &display_run_number, &size, TID_BOOL, TRUE);
 
    /* header */
    rsprintf("HTTP/1.1 200 Document follows\r\n");
@@ -3173,9 +3152,9 @@ void show_elog_query()
 
   /*---- title row ----*/
 
-   size = sizeof(str);
-   str[0] = 0;
-   db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
+   //size = sizeof(str);
+   //str[0] = 0;
+   //db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
    rsprintf("<tr><td></td></tr>\n");
 /*
    rsprintf("<tr><th colspan=2>MIDAS Electronic Logbook");
@@ -3385,7 +3364,7 @@ void show_elog_submit_query(INT last_n)
    int i, size, run, status, m1, d2, m2, y2, index, colspan;
    char date[80], author[80], type[80], system[80], subject[256], text[10000],
        orig_tag[80], reply_tag[80], attachment[3][256], encoding[80];
-   char str[256], str2[10000], tag[256], ref[256], file_name[256], *pc;
+   char str[256], str2[10000], tag[256], ref[256], *pc;
    HNDLE hDB;
    BOOL full, show_attachments, display_run_number;
    time_t ltime_start, ltime_end, ltime_current, now;
@@ -3396,8 +3375,7 @@ void show_elog_submit_query(INT last_n)
    cm_get_experiment_database(&hDB, NULL);
    display_run_number = TRUE;
    size = sizeof(BOOL);
-   db_get_value(hDB, 0, "/Elog/Display run number", &display_run_number, &size, TID_BOOL,
-                TRUE);
+   db_get_value(hDB, 0, "/Elog/Display run number", &display_run_number, &size, TID_BOOL, TRUE);
 
 #if 0
    /* header */
@@ -3433,9 +3411,9 @@ void show_elog_submit_query(INT last_n)
 
    /*---- title row ----*/
 
-   size = sizeof(str);
-   str[0] = 0;
-   db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
+   //size = sizeof(str);
+   //str[0] = 0;
+   //db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
 
    colspan = full ? 3 : 4;
    if (!display_run_number)
@@ -3774,17 +3752,14 @@ void show_elog_submit_query(INT last_n)
                            /* display attachment */
                            rsprintf("<br><pre class=\"elogText\">");
 
-                           file_name[0] = 0;
-                           size = sizeof(file_name);
-                           memset(file_name, 0, size);
-                           db_get_value(hDB, 0, "/Logger/Data dir", file_name, &size,
-                                        TID_STRING, TRUE);
-                           if (file_name[0] != 0)
-                              if (file_name[strlen(file_name) - 1] != DIR_SEPARATOR)
-                                 strlcat(file_name, DIR_SEPARATOR_STR, sizeof(file_name));
-                           strlcat(file_name, attachment[index], sizeof(file_name));
+                           std::string file_name;
+                           db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &file_name, TRUE);
+                           if (file_name.length() > 0)
+                              if (file_name[file_name.length() - 1] != DIR_SEPARATOR)
+                                 file_name += DIR_SEPARATOR_STR;
+                           file_name += attachment[index];
 
-                           f = fopen(file_name, "rt");
+                           f = fopen(file_name.c_str(), "rt");
                            if (f != NULL) {
                               while (!feof(f)) {
                                  str[0] = 0;
@@ -3837,7 +3812,7 @@ void show_rawfile(const char *path)
    int size, lines, i, buf_size, offset;
    char *p;
    FILE *f;
-   char file_name[256], str[100], buffer[100000];
+   char file_name[256], buffer[100000];
    HNDLE hDB;
 
    cm_get_experiment_database(&hDB, NULL);
@@ -3869,9 +3844,9 @@ void show_rawfile(const char *path)
 
    /*---- title row ----*/
 
-   size = sizeof(str);
-   str[0] = 0;
-   db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
+   //size = sizeof(str);
+   //str[0] = 0;
+   //db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
 
    if (!elog_mode)
       rsprintf("<tr><td colspan=2><input type=submit name=cmd value=\"Status\"></td></tr>");
@@ -4034,8 +4009,7 @@ void show_form_query()
 
    run_number = 0;
    size = sizeof(run_number);
-   status =
-       db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
+   status = db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
    assert(status == SUCCESS);
 
    if (run_number < 0) {
@@ -4108,7 +4082,7 @@ void gen_odb_attachment(const char *path, char *b)
    HNDLE hDB, hkeyroot, hkey;
    KEY key;
    INT i, j, size;
-   char str[256], data_str[256], hex_str[256];
+   char data_str[256], hex_str[256];
    char data[10000];
    time_t now;
 
@@ -4117,9 +4091,9 @@ void gen_odb_attachment(const char *path, char *b)
    assert(hkeyroot);
 
    /* title row */
-   size = sizeof(str);
-   str[0] = 0;
-   db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
+   //size = sizeof(str);
+   //str[0] = 0;
+   //db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
    time(&now);
 
    sprintf(b, "<table border=3 cellpadding=1 class=\"dialogTable\">\n");
@@ -4204,7 +4178,7 @@ void gen_odb_attachment(const char *path, char *b)
 
 void submit_elog()
 {
-   char str[80], author[256], path[256], path1[256];
+   char author[256], path[256], path1[256];
    char mail_to[256], mail_from[256], mail_text[10000], mail_list[256],
        smtp_host[256], tag[80], mail_param[1000];
    char *buffer[3], *p, *pitem;
@@ -4238,6 +4212,7 @@ void submit_elog()
    /* check for valid attachment files */
    for (i = 0; i < 3; i++) {
       buffer[i] = NULL;
+      char str[256];
       sprintf(str, "attachment%d", i);
       if (getparam(str) && *getparam(str) && _attachment_size[i] == 0) {
          /* replace '\' by '/' */
@@ -4316,18 +4291,21 @@ void submit_elog()
       }
    }
 
-   /* add remote host name to author */
-   phe = gethostbyaddr((char *) &remote_addr, 4, PF_INET);
-   if (phe == NULL) {
-      /* use IP number instead */
-      strlcpy(str, (char *) inet_ntoa(remote_addr), sizeof(str));
-   } else
-      strlcpy(str, phe->h_name, sizeof(str));
-
-   strlcpy(author, getparam("author"), sizeof(author));
-   strlcat(author, "@", sizeof(author));
-   strlcat(author, str, sizeof(author));
-
+   {
+      char str[256];
+      /* add remote host name to author */
+      phe = gethostbyaddr((char *) &remote_addr, 4, PF_INET);
+      if (phe == NULL) {
+         /* use IP number instead */
+         strlcpy(str, (char *) inet_ntoa(remote_addr), sizeof(str));
+      } else
+         strlcpy(str, phe->h_name, sizeof(str));
+      
+      strlcpy(author, getparam("author"), sizeof(author));
+      strlcat(author, "@", sizeof(author));
+      strlcat(author, str, sizeof(author));
+   }
+      
    tag[0] = 0;
    if (*getparam("edit"))
       strlcpy(tag, getparam("orig"), sizeof(tag));
@@ -4340,24 +4318,25 @@ void submit_elog()
              att_file[2], _attachment_buffer[2], _attachment_size[2], tag, sizeof(tag));
 
    /* supersede host name with "/Elog/Host name" */
-   size = sizeof(host_name);
-   db_get_value(hDB, 0, "/Elog/Host name", host_name, &size, TID_STRING, TRUE);
+   std::string elog_host_name;
+   db_get_value_string(hDB, 0, "/Elog/Host name", 0, &elog_host_name, TRUE);
 
    // K.O. FIXME: we cannot guess the Elog URL like this because
    // we do not know if access is through a proxy or redirect
    // we do not know if it's http: or https:, etc. Better
    // to read the whole "mhttpd_full_url" string from ODB.
-   sprintf(mhttpd_full_url, "http://%s/", host_name);
+   sprintf(mhttpd_full_url, "http://%s/", elog_host_name.c_str());
 
    /* check for mail submissions */
    mail_param[0] = 0;
    n_mail = 0;
 
    for (index = 0; index <= 1; index++) {
+      char str[256];
       if (index == 0)
-         sprintf(str, "/Elog/Email %s", getparam("type"));
+         sprintf(str, "/Elog/Email %s", getparam("type")); // FIXME: string overrun
       else
-         sprintf(str, "/Elog/Email %s", getparam("system"));
+         sprintf(str, "/Elog/Email %s", getparam("system")); // FIXME: string overrun
 
       if (db_find_key(hDB, 0, str, &hkey) == DB_SUCCESS) {
          size = sizeof(mail_list);
@@ -4374,22 +4353,18 @@ void submit_elog()
          for (i = 0; p; i++) {
             strlcpy(mail_to, p, sizeof(mail_to));
 
-            size = sizeof(str);
-            str[0] = 0;
-            db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
+            std::string exptname;
+            db_get_value_string(hDB, 0, "/Experiment/Name", 0, &exptname, TRUE);
 
-            sprintf(mail_from, "MIDAS %s <MIDAS@%s>", str, host_name);
+            sprintf(mail_from, "MIDAS %s <MIDAS@%s>", exptname.c_str(), elog_host_name.c_str());
 
             sprintf(mail_text, "A new entry has been submitted by %s:\n\n", author);
-            sprintf(mail_text + strlen(mail_text), "Experiment : %s\n", str);
+            sprintf(mail_text + strlen(mail_text), "Experiment : %s\n", exptname.c_str());
             sprintf(mail_text + strlen(mail_text), "Type       : %s\n", getparam("type"));
-            sprintf(mail_text + strlen(mail_text), "System     : %s\n",
-                    getparam("system"));
-            sprintf(mail_text + strlen(mail_text), "Subject    : %s\n",
-                    getparam("subject"));
+            sprintf(mail_text + strlen(mail_text), "System     : %s\n", getparam("system"));
+            sprintf(mail_text + strlen(mail_text), "Subject    : %s\n", getparam("subject"));
 
-            sprintf(mail_text + strlen(mail_text), "Link       : %sEL/%s\n",
-                       mhttpd_full_url, tag);
+            sprintf(mail_text + strlen(mail_text), "Link       : %sEL/%s\n", mhttpd_full_url, tag);
 
             assert(strlen(mail_text) + 100 < sizeof(mail_text));        // bomb out on array overrun.
 
@@ -4400,7 +4375,7 @@ void submit_elog()
 
             assert(strlen(mail_text) < sizeof(mail_text));      // bomb out on array overrun.
 
-            sendmail(smtp_host, mail_from, mail_to, getparam("type"), mail_text);
+            sendmail(elog_host_name.c_str(), smtp_host, mail_from, mail_to, getparam("type"), mail_text);
 
             if (mail_param[0] == 0)
                strlcpy(mail_param, "?", sizeof(mail_param));
@@ -4527,8 +4502,7 @@ void show_elog_page(char *path, int path_size)
    display_run_number = TRUE;
    allow_delete = FALSE;
    size = sizeof(BOOL);
-   db_get_value(hDB, 0, "/Elog/Display run number", &display_run_number, &size, TID_BOOL,
-                TRUE);
+   db_get_value(hDB, 0, "/Elog/Display run number", &display_run_number, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Elog/Allow delete", &allow_delete, &size, TID_BOOL, TRUE);
 
    /*---- interprete commands ---------------------------------------*/
@@ -4692,9 +4666,7 @@ void show_elog_page(char *path, int path_size)
          size = sizeof(file_name);
          memset(file_name, 0, size);
 
-         status =
-             db_get_value(hDB, 0, "/Logger/Elog dir", file_name, &size, TID_STRING,
-                          FALSE);
+         status = db_get_value(hDB, 0, "/Logger/Elog dir", file_name, &size, TID_STRING, FALSE);
          if (status != DB_SUCCESS)
             db_get_value(hDB, 0, "/Logger/Data dir", file_name, &size, TID_STRING, TRUE);
 
@@ -4850,9 +4822,9 @@ void show_elog_page(char *path, int path_size)
 
    /*---- title row ----*/
 
-   size = sizeof(str);
-   str[0] = 0;
-   db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
+   //size = sizeof(str);
+   //str[0] = 0;
+   //db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
 /*
    rsprintf("<tr><th>MIDAS Electronic Logbook");
    if (elog_mode)
@@ -5054,8 +5026,7 @@ void show_elog_page(char *path, int path_size)
                   file_name[0] = 0;
                   size = sizeof(file_name);
                   memset(file_name, 0, size);
-                  db_get_value(hDB, 0, "/Logger/Data dir", file_name, &size, TID_STRING,
-                               TRUE);
+                  db_get_value(hDB, 0, "/Logger/Data dir", file_name, &size, TID_STRING, TRUE);
                   if (file_name[0] != 0)
                      if (file_name[strlen(file_name) - 1] != DIR_SEPARATOR)
                         strlcat(file_name, DIR_SEPARATOR_STR, sizeof(file_name));
@@ -6125,28 +6096,25 @@ int evaluate_src(char *key, char *src, double *fvalue)
 
 void show_custom_file(const char *name)
 {
-   char str[256], filename[256], custom_path[256];
+   char str[256];
+   std::string filename;
+   std::string custom_path;
    int i, fh, size;
    HNDLE hDB, hkey;
    KEY key;
 
    cm_get_experiment_database(&hDB, NULL);
 
-   custom_path[0] = 0;
-   size = sizeof(custom_path);
    // Get custom page value
-   custom_path[0] = 0;
-   db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, FALSE);
-
+   db_get_value_string(hDB, 0, "/Custom/Path", 0, &custom_path, FALSE);
 
    /* check for PATH variable */
-   if (custom_path[0]) {
-      strlcpy(filename, custom_path, sizeof(filename));
-      if (filename[strlen(filename)-1] != DIR_SEPARATOR)
-         strlcat(filename, DIR_SEPARATOR_STR, sizeof(filename));
-      strlcat(filename, name, sizeof(filename));
+   if (custom_path.length() > 0) {
+      filename = custom_path;
+      if (filename[filename.length()-1] != DIR_SEPARATOR)
+         filename += DIR_SEPARATOR_STR;
+      filename += name;
    } else {
-      
       sprintf(str, "/Custom/%s", name);
       db_find_key(hDB, 0, str, &hkey);
 
@@ -6179,13 +6147,13 @@ void show_custom_file(const char *name)
          free(ctext);
          return;
       }      
-      strlcpy(filename, ctext, sizeof(filename));
+      filename = ctext;
    }
 
 
-   fh = open(filename, O_RDONLY | O_BINARY);
+   fh = open(filename.c_str(), O_RDONLY | O_BINARY);
    if (fh < 0) {
-      sprintf(str, "Cannot open file \"%s\" ", filename);
+      sprintf(str, "Cannot open file \"%s\" ", filename.c_str());
       show_error(str);
       return;
    }
@@ -6215,7 +6183,7 @@ void show_custom_file(const char *name)
 
    rsprintf("Content-Length: %d\r\n\r\n", size);
 
-   rread(filename, fh, size);
+   rread(filename.c_str(), fh, size);
 
    close(fh);
    return;
@@ -15220,10 +15188,9 @@ FILE *open_resource_file(const char *filename, std::string* pfilename)
 
    do { // THIS IS NOT A LOOP
 
-      char buf[MAX_STRING_LENGTH];
-      int size = sizeof(buf);
-      status = db_get_value(hDB, 0, "/Experiment/Resources", buf, &size, TID_STRING, FALSE);
-      if (status == DB_SUCCESS && strlen(buf) > 0) {
+      std::string buf;
+      status = db_get_value_string(hDB, 0, "/Experiment/Resources", 0, &buf, FALSE);
+      if (status == DB_SUCCESS && buf.length() > 0) {
          path = buf;
          if (path[path.length()-1] != DIR_SEPARATOR)
             path += DIR_SEPARATOR_STR;
@@ -15296,19 +15263,14 @@ FILE *open_resource_file(const char *filename, std::string* pfilename)
 
 /*------------------------------------------------------------------*/
 
-static char _css_file[MAX_STRING_LENGTH];
+static std::string css_file = "mhttpd.css";
 
-char *get_css_filename()
+const char *get_css_filename()
 {
    HNDLE hDB;
-
    cm_get_experiment_database(&hDB, NULL);
-   char filename[MAX_STRING_LENGTH];
-   int size = sizeof(filename);
-   strcpy(filename, "mhttpd.css");
-   db_get_value(hDB, 0, "/Experiment/CSS File", filename, &size, TID_STRING, TRUE);
-   strlcpy(_css_file, filename, sizeof(_css_file));
-   return _css_file;
+   db_get_value_string(hDB, 0, "/Experiment/CSS File", 0, &css_file, TRUE);
+   return css_file.c_str();
 }
 
 /*------------------------------------------------------------------*/
@@ -19179,7 +19141,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
 
       if (http_redirect_to_https) {
          char hostname[256];
-         ss_gethostname(hostname, sizeof(host_name));
+         ss_gethostname(hostname, sizeof(hostname));
          char str[256];
          sprintf(str, "%d", https_port);
          std::string s = std::string(hostname) + ":" + std::string(str);
