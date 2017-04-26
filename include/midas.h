@@ -1768,6 +1768,10 @@ extern "C" {
    INT EXPRT db_set_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, const void *data, INT size, INT num_values, DWORD type);
    INT EXPRT db_set_value_index(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *data, INT data_size, INT index, DWORD type, BOOL truncate);
    INT EXPRT db_get_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, void *data, INT * size, DWORD type, BOOL create);
+#ifdef __cplusplus
+   INT EXPRT db_get_value_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int index, std::string* s, BOOL create);
+   INT EXPRT db_set_value_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const std::string* s);
+#endif
    INT EXPRT db_find_key(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
    INT EXPRT db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
    INT EXPRT db_find_key1(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);

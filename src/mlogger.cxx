@@ -4218,14 +4218,13 @@ INT open_history()
 
    if (status == DB_NO_KEY) {
       int active;
-      char type[NAME_LENGTH];
+      std::string type;
       int debug;
 
       // create entry for the MIDAS history
 
-      strlcpy(type, "MIDAS", sizeof(type));
-      size = sizeof(type);
-      status = db_get_value(hDB, 0, "/Logger/History/MIDAS/Type", type, &size, TID_STRING, TRUE);
+      type = "MIDAS";
+      status = db_get_value_string(hDB, 0, "/Logger/History/MIDAS/Type", 0, &type, TRUE);
       assert(status==DB_SUCCESS);
 
       active = 1;
@@ -4240,9 +4239,8 @@ INT open_history()
 
       // create entry for ODBC (MySQL) history
 
-      strlcpy(type, "ODBC", sizeof(type));
-      size = sizeof(type);
-      status = db_get_value(hDB, 0, "/Logger/History/ODBC/Type", type, &size, TID_STRING, TRUE);
+      type = "ODBC";
+      status = db_get_value_string(hDB, 0, "/Logger/History/ODBC/Type", 0, &type, TRUE);
       assert(status==DB_SUCCESS);
 
       active = 0;
@@ -4257,9 +4255,8 @@ INT open_history()
 
       // create entry for SQLITE history
 
-      strlcpy(type, "SQLITE", sizeof(type));
-      size = sizeof(type);
-      status = db_get_value(hDB, 0, "/Logger/History/SQLITE/Type", type, &size, TID_STRING, TRUE);
+      type = "SQLITE";
+      status = db_get_value_string(hDB, 0, "/Logger/History/SQLITE/Type", 0, &type, TRUE);
       assert(status==DB_SUCCESS);
 
       active = 0;
@@ -4274,9 +4271,8 @@ INT open_history()
 
       // create entry for MYSQL history writer
 
-      strlcpy(type, "MYSQL", sizeof(type));
-      size = sizeof(type);
-      status = db_get_value(hDB, 0, "/Logger/History/MYSQL/Type", type, &size, TID_STRING, TRUE);
+      type = "MYSQL";
+      status = db_get_value_string(hDB, 0, "/Logger/History/MYSQL/Type", 0, &type, TRUE);
       assert(status==DB_SUCCESS);
 
       active = 0;
@@ -4291,9 +4287,8 @@ INT open_history()
 
       // create entry for FILE history
 
-      strlcpy(type, "FILE", sizeof(type));
-      size = sizeof(type);
-      status = db_get_value(hDB, 0, "/Logger/History/FILE/Type", type, &size, TID_STRING, TRUE);
+      type = "FILE";
+      status = db_get_value_string(hDB, 0, "/Logger/History/FILE/Type", 0, &type, TRUE);
       assert(status==DB_SUCCESS);
 
       active = 0;
