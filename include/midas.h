@@ -1758,30 +1758,22 @@ extern "C" {
    INT EXPRT bm_empty_buffers(void);
 
    /*---- online database functions -----*/
-   INT EXPRT db_open_database(const char *database_name, INT database_size,
-                              HNDLE * hdb, const char *client_name);
+   INT EXPRT db_open_database(const char *database_name, INT database_size, HNDLE * hdb, const char *client_name);
    INT EXPRT db_close_database(HNDLE database_handle);
    INT EXPRT db_close_all_databases(void);
    INT EXPRT db_protect_database(HNDLE database_handle);
 
    INT EXPRT db_create_key(HNDLE hdb, HNDLE key_handle, const char *key_name, DWORD type);
-   INT EXPRT db_create_link(HNDLE hdb, HNDLE key_handle, const char *link_name,
-                            const char *destination);
-   INT EXPRT db_set_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name,
-                          const void *data, INT size, INT num_values, DWORD type);
-   INT EXPRT db_set_value_index(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *data,
-                 INT data_size, INT index, DWORD type, BOOL truncate);
-   INT EXPRT db_get_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name,
-                          void *data, INT * size, DWORD type, BOOL create);
+   INT EXPRT db_create_link(HNDLE hdb, HNDLE key_handle, const char *link_name, const char *destination);
+   INT EXPRT db_set_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, const void *data, INT size, INT num_values, DWORD type);
+   INT EXPRT db_set_value_index(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *data, INT data_size, INT index, DWORD type, BOOL truncate);
+   INT EXPRT db_get_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, void *data, INT * size, DWORD type, BOOL create);
    INT EXPRT db_find_key(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
    INT EXPRT db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
    INT EXPRT db_find_key1(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
    INT EXPRT db_find_link1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
-   INT EXPRT db_scan_tree(HNDLE hDB, HNDLE hKey, int level,
-                          INT(*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
-   INT EXPRT db_scan_tree_link(HNDLE hDB, HNDLE hKey, int level,
-                               void (*callback) (HNDLE, HNDLE, KEY *, INT,
-                                                 void *), void *info);
+   INT EXPRT db_scan_tree(HNDLE hDB, HNDLE hKey, int level, INT(*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
+   INT EXPRT db_scan_tree_link(HNDLE hDB, HNDLE hKey, int level, void (*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
    INT EXPRT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size);
    INT EXPRT db_delete_key(HNDLE database_handle, HNDLE key_handle, BOOL follow_links);
    INT EXPRT db_enum_key(HNDLE hdb, HNDLE key_handle, INT index, HNDLE * subkey_handle);
@@ -1789,47 +1781,31 @@ extern "C" {
    INT EXPRT db_get_next_link(HNDLE hdb, HNDLE key_handle, HNDLE * subkey_handle);
    INT EXPRT db_get_key(HNDLE hdb, HNDLE key_handle, KEY * key);
    INT EXPRT db_get_link(HNDLE hdb, HNDLE key_handle, KEY * key);
-   INT EXPRT db_get_key_info(HNDLE hDB, HNDLE hKey, char *name,
-                             INT name_size, INT * type, INT * num_values,
-                             INT * item_size);
+   INT EXPRT db_get_key_info(HNDLE hDB, HNDLE hKey, char *name, INT name_size, INT * type, INT * num_values, INT * item_size);
    INT EXPRT db_get_key_time(HNDLE hdb, HNDLE key_handle, DWORD * delta);
    INT EXPRT db_rename_key(HNDLE hDB, HNDLE hKey, const char *name);
    INT EXPRT db_reorder_key(HNDLE hDB, HNDLE hKey, INT index);
-   INT EXPRT db_get_data(HNDLE hdb, HNDLE key_handle, void *data,
-                         INT * buf_size, DWORD type);
-   INT EXPRT db_get_link_data(HNDLE hdb, HNDLE key_handle, void *data,
-                         INT * buf_size, DWORD type);
-   INT EXPRT db_get_data1(HNDLE hDB, HNDLE hKey, void *data,
-                          INT * buf_size, DWORD type, INT * num_values);
-   INT EXPRT db_get_data_index(HNDLE hDB, HNDLE hKey, void *data,
-                               INT * buf_size, INT index, DWORD type);
-   INT EXPRT db_set_data(HNDLE hdb, HNDLE hKey, const void *data, INT buf_size,
-                         INT num_values, DWORD type);
-   INT EXPRT db_set_link_data(HNDLE hDB, HNDLE hKey,
-                              const void *data, INT buf_size, INT num_values, DWORD type);
-   INT EXPRT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT size,
-                               INT index, DWORD type);
-   INT EXPRT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT size,
-                                    INT index, DWORD type);
-   INT EXPRT db_set_data_index2(HNDLE hDB, HNDLE hKey, const void *data,
-                                INT size, INT index, DWORD type, BOOL bNotify);
+   INT EXPRT db_get_data(HNDLE hdb, HNDLE key_handle, void *data, INT * buf_size, DWORD type);
+   INT EXPRT db_get_link_data(HNDLE hdb, HNDLE key_handle, void *data, INT * buf_size, DWORD type);
+   INT EXPRT db_get_data1(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type, INT * num_values);
+   INT EXPRT db_get_data_index(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT index, DWORD type);
+   INT EXPRT db_set_data(HNDLE hdb, HNDLE hKey, const void *data, INT buf_size, INT num_values, DWORD type);
+   INT EXPRT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_values, DWORD type);
+   INT EXPRT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type);
+   INT EXPRT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type);
+   INT EXPRT db_set_data_index2(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type, BOOL bNotify);
    INT EXPRT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values);
-   INT EXPRT db_merge_data(HNDLE hDB, HNDLE hKeyRoot, const char *name,
-                           void *data, INT data_size, INT num_values, INT type);
+   INT EXPRT db_merge_data(HNDLE hDB, HNDLE hKeyRoot, const char *name, void *data, INT data_size, INT num_values, INT type);
    INT EXPRT db_set_mode(HNDLE hdb, HNDLE key_handle, WORD mode, BOOL recurse);
    INT EXPRT db_create_record(HNDLE hdb, HNDLE hkey, const char *name, const char *init_str);
-   INT EXPRT db_check_record(HNDLE hDB, HNDLE hKey, const char *key_name,
-                             const char *rec_str, BOOL correct);
-   INT EXPRT db_open_record(HNDLE hdb, HNDLE hkey, void *ptr, INT rec_size,
-                            WORD access, void (*dispatcher) (INT, INT,
-                                                             void *), void *info);
+   INT EXPRT db_check_record(HNDLE hDB, HNDLE hKey, const char *key_name, const char *rec_str, BOOL correct);
+   INT EXPRT db_open_record(HNDLE hdb, HNDLE hkey, void *ptr, INT rec_size, WORD access, void (*dispatcher) (INT, INT, void *), void *info);
    INT EXPRT db_close_record(HNDLE hdb, HNDLE hkey);
    INT EXPRT db_get_record(HNDLE hdb, HNDLE hKey, void *data, INT * buf_size, INT align);
    INT EXPRT db_get_record_size(HNDLE hdb, HNDLE hKey, INT align, INT * buf_size);
    INT EXPRT db_set_record(HNDLE hdb, HNDLE hKey, void *data, INT buf_size, INT align);
    INT EXPRT db_send_changed_records(void);
-   INT EXPRT db_get_open_records(HNDLE hDB, HNDLE hKey, char *str,
-                                 INT buf_size, BOOL fix);
+   INT EXPRT db_get_open_records(HNDLE hDB, HNDLE hKey, char *str, INT buf_size, BOOL fix);
 
    INT EXPRT db_add_open_record(HNDLE hDB, HNDLE hKey, WORD access_mode);
    INT EXPRT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock);
@@ -1843,10 +1819,8 @@ extern "C" {
    INT EXPRT db_copy(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size, const char *path);
    INT EXPRT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer);
    INT EXPRT db_paste_xml(HNDLE hDB, HNDLE hKeyRoot, const char *buffer);
-   INT EXPRT db_save_struct(HNDLE hDB, HNDLE hKey, const char *file_name,
-                            const char *struct_name, BOOL append);
-   INT EXPRT db_save_string(HNDLE hDB, HNDLE hKey, const char *file_name,
-                            const char *string_name, BOOL append);
+   INT EXPRT db_save_struct(HNDLE hDB, HNDLE hKey, const char *file_name, const char *struct_name, BOOL append);
+   INT EXPRT db_save_string(HNDLE hDB, HNDLE hKey, const char *file_name, const char *string_name, BOOL append);
    INT EXPRT db_save_xml(HNDLE hDB, HNDLE hKey, const char *file_name);
    INT EXPRT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size);
 
