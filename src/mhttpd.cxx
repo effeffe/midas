@@ -1638,7 +1638,7 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
 {
    int i, j, k, h, m, s, status, size, type, n_items, n_hidden;
    BOOL flag, first, expand;
-   char str[MAX_STRING_LENGTH], msg[MAX_STRING_LENGTH], name[32], ref[MAX_STRING_LENGTH], bgcol[32], fgcol[32], alarm_class[32],
+   char msg[MAX_STRING_LENGTH], name[32], ref[MAX_STRING_LENGTH], bgcol[32], fgcol[32], alarm_class[32],
       value_str[MAX_STRING_LENGTH], status_data[MAX_STRING_LENGTH], spk[MAX_STRING_LENGTH];
    const char *trans_name[] = { "Start", "Stop", "Pause", "Resume" };
    time_t now;
@@ -1666,6 +1666,8 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
       time(&now);
       now += 3600 * 24;
       gmt = gmtime(&now);
+
+      char str[256];
       strftime(str, sizeof(str), "%A, %d-%b-%Y %H:00:00 GMT", gmt);
 
       if (expand)
@@ -1693,6 +1695,8 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
       time(&now);
       now += 3600 * 24;
       gmt = gmtime(&now);
+
+      char str[256];
       strftime(str, sizeof(str), "%A, %d-%b-%Y %H:%M:%S GMT", gmt);
 
       rsprintf("Set-Cookie: midas_wpwd=%s; path=/; expires=%s\r\n", cookie_wpwd, str);
@@ -1781,6 +1785,7 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
 
                first = FALSE;
 
+               char str[256];
                sprintf(str, "Trigger %s event", key.name);
                rsprintf("<input type=submit name=cmd value=\"%s\">\n", str);
             }
@@ -1904,10 +1909,12 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
             db_get_value(hDB, hsubkey, "Triggered", &flag, &size, TID_INT, TRUE);
             if (flag) {
                size = sizeof(alarm_class);
-               db_get_value(hDB, hsubkey, "Alarm Class", alarm_class, &size, TID_STRING,
-                            TRUE);
+               db_get_value(hDB, hsubkey, "Alarm Class", alarm_class, &size, TID_STRING, TRUE);
 
                strcpy(bgcol, "red");
+
+               char str[MAX_ODB_PATH];
+
                sprintf(str, "/Alarms/Classes/%s/Display BGColor", alarm_class);
                size = sizeof(bgcol);
                db_get_value(hDB, 0, str, bgcol, &size, TID_STRING, TRUE);
@@ -2110,9 +2117,12 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
 
    size = sizeof(flag);
    db_get_value(hDB, 0, "Alarms/Alarm system active", &flag, &size, TID_BOOL, TRUE);
-   strlcpy(str, flag ? "class=\"greenLight\"" : "class=\"redLight\"", sizeof(str));
-   rsprintf("<td %s><a href=\"%s\">Alarms: %s</a>", str, ref,
-            flag ? "On" : "Off");
+
+   {
+      char str[256];
+      strlcpy(str, flag ? "class=\"greenLight\"" : "class=\"redLight\"", sizeof(str));
+      rsprintf("<td %s><a href=\"%s\">Alarms: %s</a>", str, ref, flag ? "On" : "Off");
+   }
 
    sprintf(ref, "Logger/Auto restart?cmd=set");
 
@@ -2125,9 +2135,9 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
    else {
      size = sizeof(flag);
      db_get_value(hDB, 0, "Logger/Auto restart", &flag, &size, TID_BOOL, TRUE);
+     char str[256];
      strlcpy(str, flag ? "greenLight" : "yellowLight", sizeof(str));
-     rsprintf("<td class=%s><a href=\"%s\">Restart: %s</a>", str, ref,
-              flag ? "Yes" : "No");
+     rsprintf("<td class=%s><a href=\"%s\">Restart: %s</a>", str, ref, flag ? "Yes" : "No");
    }
 
    if (cm_exist("Logger", FALSE) != CM_SUCCESS && cm_exist("FAL", FALSE) != CM_SUCCESS)
@@ -2140,10 +2150,9 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
       if (!flag)
          rsprintf("<td colspan=2 class=\"yellowLight\">Logging disabled</tr>\n");
       else {
-         size = sizeof(str);
-         db_get_value(hDB, 0, "/Logger/Data dir", str, &size, TID_STRING, TRUE);
-
-         rsprintf("<td colspan=2>Data dir: %s</tr>\n", str);
+         std::string data_dir;
+         db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &data_dir, TRUE);
+         rsprintf("<td colspan=2>Data dir: %s</tr>\n", data_dir.c_str());
       }
    }
 
@@ -2171,6 +2180,7 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
          db_get_key(hDB, hsubkey, &key);
          size = sizeof(status_data);
          if (db_get_data(hDB, hsubkey, status_data, &size, key.type) == DB_SUCCESS) {
+            char str[MAX_STRING_LENGTH]; // for db_sprintf()
             db_sprintf(str, status_data, key.item_size, 0, key.type);
             rsprintf("<td style=\"text-align:left;\">%s</td></tr>\n", str);
          }
@@ -2339,6 +2349,8 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
                rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"yellowLight\">Disabled", ref, key.name);
          }
 
+         char str[256];
+
          /* event statistics */
          d = equipment_stats.events_sent;
          if (d > 1E9)
@@ -2435,29 +2447,32 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
 
          /* filename */
 
-         strlcpy(str, chn_current_filename.c_str(), sizeof(str));
+         std::string xfilename = chn_current_filename;
 
          if (equal_ustring(chn_type.c_str(), "FTP")) {
             char *token, orig[256];
 
-            strlcpy(orig, str, sizeof(orig));
+            strlcpy(orig, chn_current_filename.c_str(), sizeof(orig));
 
-            strlcpy(str, "ftp://", sizeof(str));
+            std::string str;
+            str = "ftp://";
             token = strtok(orig, ", ");
             if (token) {
-               strlcat(str, token, sizeof(str));
+               str += token;
                token = strtok(NULL, ", ");
                token = strtok(NULL, ", ");
                token = strtok(NULL, ", ");
                token = strtok(NULL, ", ");
                if (token) {
-                  strlcat(str, "/", sizeof(str));
-                  strlcat(str, token, sizeof(str));
-                  strlcat(str, "/", sizeof(str));
+                  str += "/";
+                  str += token;
+                  str += "/";
                   token = strtok(NULL, ", ");
-                  strlcat(str, token, sizeof(str));
+                  str += token;
                }
             }
+
+            xfilename = str;
          }
 
          sprintf(ref, "Logger/Channels/%s/Settings", key.name);
@@ -2472,7 +2487,7 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
          else
             rsprintf("<tr><td colspan=2 class=\"yellowLight\">");
 
-         rsprintf("<B><a href=\"%s\">#%s:</a></B> %s", ref, key.name, str);
+         rsprintf("<B><a href=\"%s\">#%s:</a></B> %s", ref, key.name, xfilename.c_str());
 
          /* statistics */
 
@@ -2527,12 +2542,12 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
             db_get_value(hDB, hsubkey, "Name", client_name, &size, TID_STRING, TRUE);
             client_name[4] = 0; /* search only for the 4 first char */
             if (equal_ustring(client_name, "Lazy")) {
+               char str[MAX_ODB_PATH];
                sprintf(str, "/Lazy/%s", &client_name[5]);
                status = db_find_key(hDB, 0, str, &hLKey);
                if (status == DB_SUCCESS) {
                   size = sizeof(str);
-                  db_get_value(hDB, hLKey, "Settings/Backup Type", str, &size, TID_STRING,
-                               TRUE);
+                  db_get_value(hDB, hLKey, "Settings/Backup Type", str, &size, TID_STRING, TRUE);
                   ftp_mode = equal_ustring(str, "FTP");
 
                   if (previous_mode != ftp_mode)
