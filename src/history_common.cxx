@@ -221,7 +221,7 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
 
       size = sizeof(dir);
       status = db_get_value(hDB, hKey, "History dir", dir, &size, TID_STRING, TRUE);
-      assert(status == DB_SUCCESS);
+      assert(status == DB_SUCCESS || status == DB_TRUNCATED);
 
       if (dir[0] == DIR_SEPARATOR)
          path = dir;
