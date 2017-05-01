@@ -16936,20 +16936,12 @@ static std::string toString(int i)
 
 static std::vector<std::string> gUserAllowedHosts;
 static std::vector<std::string> gAllowedHosts;
+static const std::string gOdbAllowedHosts = "/Experiment/Security/mhttpd hosts/Allowed hosts";
 
 static void load_allowed_hosts(HNDLE hDB, HNDLE hKey, int index)
 {
-   int status;
-   int i, last;
-   KEY key;
-
-   if (index != -99)
+   if (hKey != 0)
       cm_msg(MINFO, "load_allowed_hosts", "Reloading mhttpd hosts access control list via hotlink callback");
-
-   status = db_get_key(hDB, hKey, &key);
-
-   if (status != DB_SUCCESS)
-      return;
 
    gAllowedHosts.clear();
 
@@ -16957,36 +16949,38 @@ static void load_allowed_hosts(HNDLE hDB, HNDLE hKey, int index)
    for (unsigned int i=0; i<gUserAllowedHosts.size(); i++)
       gAllowedHosts.push_back(gUserAllowedHosts[i]);
 
-   int max_size = key.item_size;
-   char* str = (char*)malloc(max_size);
-
-   last = 0;
-   for (i=0; i<key.num_values; i++) {
-      int size = max_size;
-      status = db_get_data_index(hDB, hKey, str, &size, i, TID_STRING);
-      if (status != DB_SUCCESS)
+   int total = 0;
+   int last = 0;
+   for (int i=0; ; i++) {
+      std::string s;
+      int status = db_get_value_string(hDB, 0, gOdbAllowedHosts.c_str(), i, &s, FALSE);
+      printf("get %d, status %d, string [%s]\n", i, status, s.c_str());
+      if (status != DB_SUCCESS) {
+         total = i;
          break;
+      }
 
-      if (strlen(str) < 1) // skip emties
+      if (s.length() < 1) // skip emties
          continue;
 
-      if (str[0] == '#') // skip commented-out entries
+      if (s[0] == '#') // skip commented-out entries
          continue;
 
-      //printf("add allowed hosts %d [%s]\n", i, str);
-      gAllowedHosts.push_back(str);
+      //printf("add allowed hosts %d [%s]\n", i, s.c_str());
+      gAllowedHosts.push_back(s);
       last = i;
    }
 
-   if (key.num_values - last < 5) {
+   //printf("total %d, last %d\n", total, last);
+
+   if (total - last < 5) {
       int new_size = last + 10;
-      status = db_set_num_values(hDB, hKey, new_size);
+      //printf("new size %d\n", new_size);
+      int status = db_resize_string(hDB, 0, gOdbAllowedHosts.c_str(), new_size, 256);
       if (status != DB_SUCCESS) {
-         cm_msg(MERROR, "load_allowed_hosts", "Cannot resize the allowed hosts access control list, db_set_num_values(%d) status %d", new_size, status);
+         cm_msg(MERROR, "load_allowed_hosts", "Cannot resize the allowed hosts access control list, db_resize_string(%d) status %d", new_size, status);
       }
    }
-
-   free(str);
 }
 
 static int init_allowed_hosts()
@@ -17002,21 +16996,24 @@ static int init_allowed_hosts()
    buf[0] = 0;
    size = sizeof(buf);
 
-   status = db_get_value(hDB, 0, "/Experiment/Security/mhttpd hosts/Allowed hosts[0]", buf, &size, TID_STRING, TRUE);
+   // create "allowed hosts" so we can watch it
+
+   std::string s;
+   status = db_get_value_string(hDB, 0, gOdbAllowedHosts.c_str(), 0, &s, TRUE);
 
    if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "init_allowed_hosts", "Cannot create the mhttpd hosts access control list, db_get_value() status %d", status);
+      cm_msg(MERROR, "init_allowed_hosts", "Cannot create the mhttpd hosts access control list, db_get_value_string() status %d", status);
       return status;
    }
 
-   status = db_find_key(hDB, 0, "/Experiment/Security/mhttpd hosts/Allowed hosts", &hKey);
+   status = db_find_key(hDB, 0, gOdbAllowedHosts.c_str(), &hKey);
 
    if (status != DB_SUCCESS || hKey == 0) {
       cm_msg(MERROR, "init_allowed_hosts", "Cannot find the mhttpd hosts access control list, db_find_key() status %d", status);
       return status;
    }
 
-   load_allowed_hosts(hDB, hKey, -99);
+   load_allowed_hosts(hDB, 0, 0);
 
    status = db_watch(hDB, hKey, load_allowed_hosts);
 
