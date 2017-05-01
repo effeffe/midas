@@ -1050,6 +1050,59 @@ static MJsonNode* js_db_resize(const MJsonNode* params)
    return mjsonrpc_make_result("status", sresult);
 }
 
+static MJsonNode* js_db_resize_string(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("Change size of ODB string arrays");
+      doc->P("paths[]", MJSON_STRING, "array of ODB paths to resize");
+      doc->P("new_lengths[]", MJSON_INT, "array of new lengths for each ODB path");
+      doc->P("new_string_lengths[]", MJSON_INT, "array of new string lengths for each ODB path");
+      doc->R("status[]", MJSON_INT, "return status of db_resize_string() for each path");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const MJsonNodeVector* paths   = mjsonrpc_get_param_array(params, "paths",  &error); if (error) return error;
+   const MJsonNodeVector* lengths = mjsonrpc_get_param_array(params, "new_lengths", &error); if (error) return error;
+   const MJsonNodeVector* string_lengths = mjsonrpc_get_param_array(params, "new_string_lengths", &error); if (error) return error;
+
+   if (paths->size() != lengths->size()) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "arrays \"paths\" and \"new_lengths\" should have the same length");
+   }
+
+   if (paths->size() != string_lengths->size()) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "arrays \"paths\" and \"new_string_lengths\" should have the same length");
+   }
+
+   MJsonNode* sresult = MJsonNode::MakeArray();
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   for (unsigned i=0; i<paths->size(); i++) {
+      std::string path = (*paths)[i]->GetString();
+
+      int length = (*lengths)[i]->GetInt();
+      if (length < 0) {
+         sresult->AddToArray(MJsonNode::MakeInt(DB_INVALID_PARAM));
+         continue;
+      }
+
+      int string_length = (*string_lengths)[i]->GetInt();
+      if (length < 0) {
+         sresult->AddToArray(MJsonNode::MakeInt(DB_INVALID_PARAM));
+         continue;
+      }
+
+      int status = db_resize_string(hDB, 0, path.c_str(), length, string_length);
+      sresult->AddToArray(MJsonNode::MakeInt(status));
+   }
+
+   return mjsonrpc_make_result("status", sresult);
+}
+
 static MJsonNode* js_db_key(const MJsonNode* params)
 {
    if (!params) {
@@ -1843,6 +1896,7 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("db_create", js_db_create);
    mjsonrpc_add_handler("db_delete", js_db_delete);
    mjsonrpc_add_handler("db_resize", js_db_resize);
+   mjsonrpc_add_handler("db_resize_string", js_db_resize_string);
    mjsonrpc_add_handler("db_rename", js_db_rename);
    mjsonrpc_add_handler("db_link",   js_db_link);
    mjsonrpc_add_handler("db_reorder", js_db_reorder);

@@ -46,6 +46,7 @@ mjsonrpc_db_paste(paths, values);
 mjsonrpc_db_ls(paths); 
 mjsonrpc_db_create(specs);
 mjsonrpc_db_resize(paths, new_lengths);
+test db_resize_string(paths, new_lengths, new_string_lengths);
 mjsonrpc_db_key(paths);
 test db_rename
 test db_link
@@ -263,6 +264,13 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
         <p>
           <input type=button value='Push me to grow /Example/double_array' onClick='mjsonrpc_db_resize(["/Example/double_array", "/no-exist"], [ 20, 1 ]).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
           <input type=button value='Push me to shrink /Example/double_array' onClick='mjsonrpc_db_resize(["/Example/double_array", "/no-exist"], [ 5, 1 ]).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        </p>
+
+        <h2>db_resize_string()</h2>
+        
+        <p>
+          <input type=button value='Push me to grow /Example/string_array' onClick='mjsonrpc_call("db_resize_string", {"paths":["/Example/string_array"], "new_lengths":[20], "new_string_lengths":[256]}).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='Push me to shrink /Example/string_array' onClick='mjsonrpc_call("db_resize_string", {"paths":["/Example/string_array"], "new_lengths":[10], "new_string_lengths":[32]}).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
         </p>
 
         <h2>mjsonrpc_db_key()</h2>
