@@ -1638,8 +1638,8 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
 {
    int i, j, k, h, m, s, status, size, type, n_items, n_hidden;
    BOOL flag, first, expand;
-   char msg[MAX_STRING_LENGTH], name[32], ref[MAX_STRING_LENGTH], bgcol[32], fgcol[32], alarm_class[32],
-      value_str[MAX_STRING_LENGTH], status_data[MAX_STRING_LENGTH], spk[MAX_STRING_LENGTH];
+   char name[32], ref[MAX_STRING_LENGTH],
+      value_str[MAX_STRING_LENGTH], status_data[MAX_STRING_LENGTH];
    const char *trans_name[] = { "Start", "Stop", "Pause", "Resume" };
    time_t now;
    DWORD difftime;
@@ -1908,55 +1908,62 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
             size = sizeof(flag);
             db_get_value(hDB, hsubkey, "Triggered", &flag, &size, TID_INT, TRUE);
             if (flag) {
-               size = sizeof(alarm_class);
-               db_get_value(hDB, hsubkey, "Alarm Class", alarm_class, &size, TID_STRING, TRUE);
+               std::string alarm_class;
+               db_get_value_string(hDB, hsubkey, "Alarm Class", 0, &alarm_class, TRUE);
 
-               strcpy(bgcol, "red");
+               std::string path;
+               path  = "/Alarms/Classes/";
+               path += alarm_class;
+               path += "/Display BGColor";
 
-               char str[MAX_ODB_PATH];
+               std::string bgcol = "red";
+               db_get_value_string(hDB, 0, path.c_str(), 0, &bgcol, TRUE);
 
-               sprintf(str, "/Alarms/Classes/%s/Display BGColor", alarm_class);
-               size = sizeof(bgcol);
-               db_get_value(hDB, 0, str, bgcol, &size, TID_STRING, TRUE);
+               path  = "/Alarms/Classes/";
+               path += alarm_class;
+               path += "/Display FGColor";
 
-               strcpy(fgcol, "black");
-               sprintf(str, "/Alarms/Classes/%s/Display FGColor", alarm_class);
-               size = sizeof(fgcol);
-               db_get_value(hDB, 0, str, fgcol, &size, TID_STRING, TRUE);
+               std::string fgcol = "black";
+               db_get_value_string(hDB, 0, path.c_str(), 0, &fgcol, TRUE);
 
-               size = sizeof(msg);
-               db_get_value(hDB, hsubkey, "Alarm Message", msg, &size, TID_STRING, TRUE);
+               std::string msg;
+               db_get_value_string(hDB, hsubkey, "Alarm Message", 0, &msg, TRUE);
 
                size = sizeof(j);
                db_get_value(hDB, hsubkey, "Type", &j, &size, TID_INT, TRUE);
 
+               std::string text;
+
                if (j == AT_EVALUATED) {
-                  size = sizeof(str);
-                  db_get_value(hDB, hsubkey, "Condition", str, &size, TID_STRING, TRUE);
+                  std::string cond;
+                  db_get_value_string(hDB, hsubkey, "Condition", 0, &cond, TRUE);
 
                   /* retrieve value */
-                  al_evaluate_condition(str, value_str);
-                  sprintf(str, msg, value_str);
-               } else
-                  strlcpy(str, msg, sizeof(str));
-
+                  al_evaluate_condition(cond.c_str(), value_str);
+                  char str[MAX_STRING_LENGTH];
+                  sprintf(str, msg.c_str(), value_str); // FIXME: overflows str!
+                  text = str;
+               } else {
+                  text = msg;
+               }
 
                db_get_key(hDB, hsubkey, &key);
 
                rsprintf("<tr>\n");
 
-               rsprintf("<td colspan=6 style=\"background-color:%s;border-radius:12px;\" align=center>", bgcol);
+               rsprintf("<td colspan=6 style=\"background-color:%s;border-radius:12px;\" align=center>", bgcol.c_str());
                rsprintf("<table width=\"100%%\"><tr>\n");
-               rsprintf("<td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"%s\" size=+3>%s: %s</font></td>\n", fgcol, alarm_class, str);
+               rsprintf("<td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"%s\" size=+3>%s: %s</font></td>\n", fgcol.c_str(), alarm_class.c_str(), text.c_str());
                rsprintf("<td width=\"1%%\" style=\"border:0px;\">\n");
                rsprintf("<button type=\"button\" onclick=\"mhttpd_reset_alarm(\'%s\');\">Reset</button>\n", key.name);
                rsprintf("</td>\n");
                rsprintf("</tr></table>\n");
                rsprintf("</td>\n");
 
-               strlcpy(spk, alarm_class, sizeof(spk));
-               strlcat(spk, ". ", sizeof(spk));
-               strlcat(spk, str, sizeof(spk));
+               std::string spk;
+               spk = alarm_class;
+               spk +=  ". ";
+               spk += text;
 
                if (first_alarm) {
                   first_alarm = false;
@@ -1965,7 +1972,7 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
                   rsprintf("<script>mhttpd_alarm_play(\"%s\");</script>\n", filename.c_str());
                }
 
-               rsprintf("<script type=\"text/javascript\">mhttpd_alarm_speak(\"%s\");</script>\n", spk);
+               rsprintf("<script type=\"text/javascript\">mhttpd_alarm_speak(\"%s\");</script>\n", spk.c_str());
 
                rsprintf("</tr>\n");
             }
@@ -2563,14 +2570,12 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
                   previous_mode = ftp_mode;
                   if (ftp_mode) {
                      size = sizeof(str);
-                     db_get_value(hDB, hLKey, "Settings/Path", str, &size, TID_STRING,
-                                  TRUE);
+                     db_get_value(hDB, hLKey, "Settings/Path", str, &size, TID_STRING, TRUE);
                      if (strchr(str, ','))
                         *strchr(str, ',') = 0;
                   } else {
                      size = sizeof(str);
-                     db_get_value(hDB, hLKey, "Settings/List Label", str, &size,
-                                  TID_STRING, TRUE);
+                     db_get_value(hDB, hLKey, "Settings/List Label", str, &size, TID_STRING, TRUE);
                      if (str[0] == 0)
                         strcpy(str, "(empty)");
                   }
@@ -2580,30 +2585,25 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
                   rsprintf("<tr><td colspan=2><B><a href=\"%s\">%s</a></B>", ref, str);
 
                   size = sizeof(value);
-                  db_get_value(hDB, hLKey, "Statistics/Copy progress (%)", &value, &size,
-                               TID_DOUBLE, TRUE);
+                  db_get_value(hDB, hLKey, "Statistics/Copy progress (%)", &value, &size, TID_DOUBLE, TRUE);
                   rsprintf("<td align=center>%1.0f %%", value);
 
                   size = sizeof(str);
-                  db_get_value(hDB, hLKey, "Statistics/Backup File", str, &size,
-                               TID_STRING, TRUE);
+                  db_get_value(hDB, hLKey, "Statistics/Backup File", str, &size, TID_STRING, TRUE);
                   rsprintf("<td align=center>%s", str);
 
                   if (ftp_mode) {
                      size = sizeof(value);
-                     db_get_value(hDB, hLKey, "Statistics/Copy Rate (Bytes per s)",
-                                  &value, &size, TID_DOUBLE, TRUE);
+                     db_get_value(hDB, hLKey, "Statistics/Copy Rate (Bytes per s)", &value, &size, TID_DOUBLE, TRUE);
                      rsprintf("<td align=center>%1.1f", value / 1024.0 / 1024.0);
                   } else {
                      size = sizeof(i);
-                     db_get_value(hDB, hLKey, "/Statistics/Number of files", &i, &size,
-                                  TID_INT, TRUE);
+                     db_get_value(hDB, hLKey, "/Statistics/Number of files", &i, &size, TID_INT, TRUE);
                      rsprintf("<td align=center>%d", i);
                   }
 
                   size = sizeof(value);
-                  db_get_value(hDB, hLKey, "Statistics/Backup status (%)", &value, &size,
-                               TID_DOUBLE, TRUE);
+                  db_get_value(hDB, hLKey, "Statistics/Backup status (%)", &value, &size, TID_DOUBLE, TRUE);
                   rsprintf("<td align=center>%1.1f %%", value);
                   k++;
                }
