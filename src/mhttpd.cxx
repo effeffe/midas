@@ -11928,21 +11928,19 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
 
       /* get timescale */
       if (scale == 0) {
-         strlcpy(str, "1h", sizeof(str));
-         size = NAME_LENGTH;
-         status = db_get_value(hDB, hkeypanel, "Timescale", str, &size, TID_STRING, TRUE);
+         std::string ts = "1h";
+         status = db_get_value_string(hDB, hkeypanel, "Timescale", 0, &ts, TRUE);
          if (status != DB_SUCCESS) {
             /* delete old integer key */
             db_find_key(hDB, hkeypanel, "Timescale", &hkey);
             if (hkey)
                db_delete_key(hDB, hkey, FALSE);
 
-            strcpy(str, "1h");
-            size = NAME_LENGTH;
-            status = db_get_value(hDB, hkeypanel, "Timescale", str, &size, TID_STRING, TRUE);
+            ts = "1h";
+            status = db_get_value_string(hDB, hkeypanel, "Timescale", 0, &ts, TRUE);
          }
 
-         scale = time_to_sec(str);
+         scale = time_to_sec(ts.c_str());
       }
 
       for (j = 0; j < MAX_VARS; j++) {
@@ -13173,15 +13171,13 @@ struct hist_plot_t
       }
 
       int size;
-      char str[256];
       float val;
       BOOL flag;
 
-      STRLCPY(str, timescale.c_str());
-      size = NAME_LENGTH;
-      status = db_get_value(hDB, hDir, "Timescale", str, &size, TID_STRING, FALSE);
+      std::string ts = timescale;
+      status = db_get_value_string(hDB, hDir, "Timescale", 0, &ts, FALSE);
       if (status == DB_SUCCESS)
-         timescale = str;
+         timescale = ts;
 
       val = minimum;
       size = sizeof(val);
@@ -13988,21 +13984,19 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
 
    if (scale == 0) {
       /* get timescale */
-      strlcpy(str, "1h", sizeof(str));
-      size = NAME_LENGTH;
-      status = db_get_value(hDB, hkeypanel, "Timescale", str, &size, TID_STRING, TRUE);
+      std::string ts = "1h";
+      status = db_get_value_string(hDB, hkeypanel, "Timescale", 0, &ts, TRUE);
       if (status != DB_SUCCESS) {
          /* delete old integer key */
          db_find_key(hDB, hkeypanel, "Timescale", &hkey);
          if (hkey)
             db_delete_key(hDB, hkey, FALSE);
 
-         strcpy(str, "1h");
-         size = NAME_LENGTH;
-         status = db_get_value(hDB, hkeypanel, "Timescale", str, &size, TID_STRING, TRUE);
+         ts = "1h";
+         status = db_get_value_string(hDB, hkeypanel, "Timescale", 0, &ts, TRUE);
       }
 
-      scale = time_to_sec(str);
+      scale = time_to_sec(ts.c_str());
    }
 
    time_t now = ss_time();
@@ -14192,10 +14186,9 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
 
 void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, int *buffer_size, int refresh)
 {
-   char str[256], ref[256], ref2[256], paramstr[256], scalestr[256], hgroup[256],
-       bgcolor[32], fgcolor[32], gridcolor[32], url[256], dir[256], file_name[256],
+   char ref[256], ref2[256],
+       bgcolor[32], fgcolor[32], gridcolor[32],
        back_path[256], panel[256];
-   char hurl[256], strwidth[256];
    const char *p;
    HNDLE hDB, hkey, hikeyp, hkeyp, hkeybutton;
    KEY key, ikey;
@@ -14209,6 +14202,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
    //printf("show_hist_page: path [%s], enc_path [%s]\n", dec_path, enc_path);
 
    if (equal_ustring(getparam("cmd"), "Reset")) {
+      char str[MAX_STRING_LENGTH];
       strlcpy(str, dec_path, sizeof(str));
       if (strrchr(str, '/'))
          strlcpy(str, strrchr(str, '/')+1, sizeof(str));
@@ -14222,6 +14216,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
    }
 
    if (equal_ustring(getparam("cmd"), "Cancel")) {
+      char str[MAX_STRING_LENGTH];
       strlcpy(str, dec_path, sizeof(str));
       if (strrchr(str, '/'))
          strlcpy(str, strrchr(str, '/')+1, sizeof(str));
@@ -14240,6 +14235,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
        || equal_ustring(getparam("cmd"), "Clear history cache")
        || equal_ustring(getparam("cmd"), "Refresh")) {
 
+      char hgroup[256];
       /* get group and panel from path if not given */
       if (!isparam("group")) {
          strlcpy(hgroup, dec_path, sizeof(hgroup));
@@ -14266,12 +14262,13 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
    if (isparam("fpanel") && isparam("fgroup") &&
       !isparam("scale")  && !isparam("shift") && !isparam("width") && !isparam("cmd")) {
 
+      char hgroup[256];
       if (strchr(dec_path, '/')) {
          strlcpy(panel, strchr(dec_path, '/') + 1, sizeof(panel));
          strlcpy(hgroup, dec_path, sizeof(hgroup));
          *strchr(hgroup, '/') = 0;
       } else {
-         strlcpy(hgroup, dec_path, sizeof(str));
+         strlcpy(hgroup, dec_path, sizeof(hgroup));
          panel[0] = 0;
       }
 
@@ -14296,6 +14293,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
    }
 
    if (equal_ustring(getparam("cmd"), "New")) {
+      char str[MAX_STRING_LENGTH];
       strlcpy(str, dec_path, sizeof(str));
       if (strrchr(str, '/'))
          strlcpy(str, strrchr(str, '/')+1, sizeof(str));
@@ -14345,7 +14343,9 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
    }
 
    if (equal_ustring(getparam("cmd"), "Delete Panel")) {
-      sprintf(str, "/History/Display/%s", dec_path);
+      char str[MAX_ODB_PATH];
+      strlcpy(str, "/History/Display/", sizeof(str));
+      strlcat(str, dec_path, sizeof(str));
       if (db_find_key(hDB, 0, str, &hkey)==DB_SUCCESS)
          db_delete_key(hDB, hkey, FALSE);
 
@@ -14358,19 +14358,23 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
 
       /* strip leading/trailing spaces */
       while (*panel == ' ') {
+         char str[256];
          strlcpy(str, panel+1, sizeof(str));
          strlcpy(panel, str, sizeof(panel));
       }
       while (strlen(panel)> 1 && panel[strlen(panel)-1] == ' ')
          panel[strlen(panel)-1] = 0;
 
+      char hgroup[256];
       strlcpy(hgroup, getparam("group"), sizeof(hgroup));
       /* use new group if present */
       if (isparam("new_group") && *getparam("new_group"))
          strlcpy(hgroup, getparam("new_group"), sizeof(hgroup));
 
+      char str[MAX_ODB_PATH];
+
       /* create new panel */
-      sprintf(str, "/History/Display/%s/%s", hgroup, panel);
+      sprintf(str, "/History/Display/%s/%s", hgroup, panel); // FIXME: overflow str
       db_create_key(hDB, 0, str, TID_KEY);
       status = db_find_key(hDB, 0, str, &hkey);
       if (status != DB_SUCCESS || !hkey) {
@@ -14442,15 +14446,16 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
    /* use contents of "/History/URL" to access history images (*images only*)
     * otherwise, use relative addresses from "back_path" */
 
-   size = sizeof(hurl);
-   status = db_get_value(hDB, 0, "/History/URL", hurl, &size, TID_STRING, FALSE);
+   std::string hurl;
+   status = db_get_value_string(hDB, 0, "/History/URL", 0, &hurl, FALSE);
    if (status != DB_SUCCESS)
-      strlcpy(hurl, back_path, sizeof(hurl));
+      hurl = back_path;
 
    if (equal_ustring(getparam("cmd"), "Create ELog")) {
-      size = sizeof(url);
-      if (db_get_value(hDB, 0, "/Elog/URL", url, &size, TID_STRING, FALSE) == DB_SUCCESS) {
-
+      std::string xurl;
+      status = db_get_value_string(hDB, 0, "/Elog/URL", 0, &xurl, FALSE);
+      if (status == DB_SUCCESS) {
+         char url[256];
          get_elog_url(url, sizeof(url));
 
          /*---- use external ELOG ----*/
@@ -14475,32 +14480,35 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
          generate_hist_graph(dec_path, fbuffer, &fsize, width, height, endtime, scale, index, labels, bgcolor, fgcolor, gridcolor);
 
          /* save temporary file */
-         size = sizeof(dir);
-         dir[0] = 0;
-         db_get_value(hDB, 0, "/Elog/Logbook Dir", dir, &size, TID_STRING, TRUE);
-         if (strlen(dir) > 0 && dir[strlen(dir)-1] != DIR_SEPARATOR)
-            strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
+         std::string dir;
+         db_get_value_string(hDB, 0, "/Elog/Logbook Dir", 0, &dir, TRUE);
+         if (dir.length() > 0 && dir[dir.length()-1] != DIR_SEPARATOR)
+            dir += DIR_SEPARATOR_STR;
 
          time_t now = time(NULL);
          tms = localtime(&now);
+
+         char str[MAX_STRING_LENGTH];
 
          if (strchr(dec_path, '/'))
             strlcpy(str, strchr(dec_path, '/') + 1, sizeof(str));
          else
             strlcpy(str, dec_path, sizeof(str));
+
+         char file_name[256];
          sprintf(file_name, "%02d%02d%02d_%02d%02d%02d_%s.gif",
                   tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday,
-                  tms->tm_hour, tms->tm_min, tms->tm_sec, str);
-         sprintf(str, "%s%s", dir, file_name);
+                  tms->tm_hour, tms->tm_min, tms->tm_sec, str); // FIXME: overflows file_name
+         std::string fname = dir + file_name;
 
          /* save attachment */
-         fh = open(str, O_CREAT | O_RDWR | O_BINARY, 0644);
+         fh = open(fname.c_str(), O_CREAT | O_RDWR | O_BINARY, 0644);
          if (fh < 0) {
-            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", open() errno %d (%s)", str, errno, strerror(errno));
+            cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", open() errno %d (%s)", fname.c_str(), errno, strerror(errno));
          } else {
             int wr = write(fh, fbuffer, fsize);
             if (wr != fsize) {
-               cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", write(%d) returned %d, errno %d (%s)", str, fsize, wr, errno, strerror(errno));
+               cm_msg(MERROR, "show_hist_page", "Cannot write attachment file \"%s\", write(%d) returned %d, errno %d (%s)", fname.c_str(), fsize, wr, errno, strerror(errno));
             }
             close(fh);
          }
@@ -14516,8 +14524,9 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
          return;
 
       } else {
+         char str[MAX_STRING_LENGTH];
          /*---- use internal ELOG ----*/
-         sprintf(str, "\\HS\\%s.gif", dec_path);
+         sprintf(str, "\\HS\\%s.gif", dec_path); // FIXME: overflows str
          if (getparam("hscale") && *getparam("hscale"))
             sprintf(str + strlen(str), "?scale=%s", getparam("hscale"));
          if (getparam("htime") && *getparam("htime")) {
@@ -14647,15 +14656,19 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       scale *= 2;
    }
 
-   strlcpy(str, dec_path, sizeof(str));
-   if (strrchr(str, '/'))
-      strlcpy(str, strrchr(str, '/')+1, sizeof(str));
-   int xrefresh = refresh;
-   if (endtime != 0)
-      xrefresh = 0;
-   //if (offset != 0)
-   //   xrefresh = 0;
-   show_header(str, "GET", str, xrefresh);
+   {
+      char str[256];
+      strlcpy(str, dec_path, sizeof(str));
+      if (strrchr(str, '/'))
+         strlcpy(str, strrchr(str, '/')+1, sizeof(str));
+      int xrefresh = refresh;
+      if (endtime != 0)
+         xrefresh = 0;
+      //if (offset != 0)
+      //   xrefresh = 0;
+      show_header(str, "GET", str, xrefresh);
+   }
+   
    rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    show_navigation_bar("History");
@@ -14663,14 +14676,17 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
    rsprintf("<table class=\"genericTable\">");
    rsprintf("<tr><th class=\"subStatusTitle\" colspan=2>History</th></tr>");
 
-   /* check if panel exists */
-   sprintf(str, "/History/Display/%s", dec_path);
-   status = db_find_key(hDB, 0, str, &hkey);
-   if (status != DB_SUCCESS && !equal_ustring(dec_path, "All") && !equal_ustring(dec_path,"")) {
-      rsprintf("<h1>Error: History panel \"%s\" does not exist</h1>\n", dec_path);
-      rsprintf("</table>\r\n");
-      page_footer(TRUE);
-      return;
+   {
+      char str[MAX_ODB_PATH];
+      /* check if panel exists */
+      sprintf(str, "/History/Display/%s", dec_path);
+      status = db_find_key(hDB, 0, str, &hkey);
+      if (status != DB_SUCCESS && !equal_ustring(dec_path, "All") && !equal_ustring(dec_path,"")) {
+         rsprintf("<h1>Error: History panel \"%s\" does not exist</h1>\n", dec_path);
+         rsprintf("</table>\r\n");
+         page_footer(TRUE);
+         return;
+      }
    }
 
    /* define hidden field for parameters */
@@ -14679,24 +14695,23 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
    else {
       /* if no scale and offset given, get it from default */
       if (dec_path[0] && !equal_ustring(dec_path, "All") && strchr(dec_path, '/') != NULL) {
-         sprintf(str, "/History/Display/%s/Timescale", dec_path);
+         char str[MAX_ODB_PATH];
+         sprintf(str, "/History/Display/%s/Timescale", dec_path); // FIXME: overflows str
 
-         strcpy(scalestr, "1h");
-         size = NAME_LENGTH;
-         status = db_get_value(hDB, 0, str, scalestr, &size, TID_STRING, TRUE);
+         std::string scalestr = "1h";
+         status = db_get_value_string(hDB, 0, str, 0, &scalestr, TRUE);
          if (status != DB_SUCCESS) {
             /* delete old integer key */
             db_find_key(hDB, 0, str, &hkey);
             if (hkey)
                db_delete_key(hDB, hkey, FALSE);
 
-            strcpy(scalestr, "1h");
-            size = NAME_LENGTH;
-            db_get_value(hDB, 0, str, scalestr, &size, TID_STRING, TRUE);
+            scalestr = "1h";
+            db_get_value_string(hDB, 0, str, 0, &scalestr, TRUE);
          }
 
-         rsprintf("<input type=hidden name=hscale value=%s>\n", scalestr);
-         scale = time_to_sec(scalestr);
+         rsprintf("<input type=hidden name=hscale value=%s>\n", scalestr.c_str());
+         scale = time_to_sec(scalestr.c_str());
       }
    }
 
@@ -14735,31 +14750,25 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       db_find_key(hDB, 0, "/History/Display", &hkey);
       if (!hkey) {
          /* create default panel */
+         char str[256];
          strcpy(str, "System:Trigger per sec.");
          strcpy(str + 2 * NAME_LENGTH, "System:Trigger kB per sec.");
-         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Variables",
-                      str, NAME_LENGTH * 4, 2, TID_STRING);
+         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Variables", str, NAME_LENGTH * 4, 2, TID_STRING);
          strcpy(str, "1h");
-         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Time Scale",
-                      str, NAME_LENGTH, 1, TID_STRING);
+         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Time Scale", str, NAME_LENGTH, 1, TID_STRING);
 
          factor[0] = 1;
          factor[1] = 1;
-         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Factor",
-                      factor, 2 * sizeof(float), 2, TID_FLOAT);
+         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Factor", factor, 2 * sizeof(float), 2, TID_FLOAT);
          factor[0] = 0;
          factor[1] = 0;
-         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Offset",
-                      factor, 2 * sizeof(float), 2, TID_FLOAT);
+         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Offset", factor, 2 * sizeof(float), 2, TID_FLOAT);
          strcpy(str, "1h");
-         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Timescale",
-                      str, NAME_LENGTH, 1, TID_STRING);
+         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Timescale", str, NAME_LENGTH, 1, TID_STRING);
          i = 1;
-         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Zero ylow", &i,
-                      sizeof(BOOL), 1, TID_BOOL);
+         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Zero ylow", &i, sizeof(BOOL), 1, TID_BOOL);
          i = 1;
-         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Show run markers",
-                      &i, sizeof(BOOL), 1, TID_BOOL);
+         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Show run markers", &i, sizeof(BOOL), 1, TID_BOOL);
       }
 
       db_find_key(hDB, 0, "/History/Display", &hkey);
@@ -14772,6 +14781,8 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
 
             // Group key
             db_get_key(hDB, hkeyp, &key);
+
+            char str[256];
 
             if (strchr(dec_path, '/'))
                strlcpy(str, strchr(dec_path, '/') + 1, sizeof(str));
@@ -14830,6 +14841,8 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       db_find_key(hDB, 0, "/History/Display", &hkey);
       if (hkey) {
          hkeyp = 0;
+         char hgroup[256];
+         hgroup[0] = 0;
          for (i = 0;; i++) {
             db_enum_link(hDB, hkey, i, &hikeyp);
 
@@ -14847,7 +14860,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
                strlcpy(hgroup, dec_path, sizeof(hgroup));
                *strchr(hgroup, '/') = 0;
             } else {
-               strlcpy(hgroup, dec_path, sizeof(str));
+               strlcpy(hgroup, dec_path, sizeof(hgroup));
                panel[0] = 0;
             }
 
@@ -14879,6 +14892,8 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
 
                // Item key
                db_get_key(hDB, hikeyp, &key);
+
+               char str[256];
 
                if (strchr(dec_path, '/'))
                   strlcpy(str, strchr(dec_path, '/') + 1, sizeof(str));
@@ -14922,11 +14937,11 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
 
    /* check if whole group should be displayed */
    if (dec_path[0] && !equal_ustring(dec_path, "ALL") && strchr(dec_path, '/') == NULL) {
-      strcpy(strwidth, "Small");
-      size = sizeof(strwidth);
-      db_get_value(hDB, 0, "/History/Display Settings/Width Group", strwidth, &size, TID_STRING, TRUE);
+      std::string strwidth = "Small";
+      db_get_value_string(hDB, 0, "/History/Display Settings/Width Group", 0, &strwidth, TRUE);
 
-      sprintf(str, "/History/Display/%s", dec_path);
+      char str[MAX_ODB_PATH];
+      sprintf(str, "/History/Display/%s", dec_path); // FIXME: overflows str
       db_find_key(hDB, 0, str, &hkey);
       if (hkey) {
          for (i = 0 ;; i++) {     // scan group
@@ -14941,7 +14956,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
             strlcpy(enc_name, key.name, sizeof(enc_name));
             urlEncode(enc_name, sizeof(enc_name));
 
-            sprintf(ref, "%s%s/%s.gif?width=%s", hurl, enc_path, enc_name, strwidth);
+            sprintf(ref, "%s%s/%s.gif?width=%s", hurl.c_str(), enc_path, enc_name, strwidth.c_str());
             sprintf(ref2, "%s/%s", enc_path, enc_name);
 
             if (endtime != 0) {
@@ -14969,7 +14984,8 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       /* navigation links */
       rsprintf("<tr><td>\n");
 
-      sprintf(str, "/History/Display/%s/Buttons", dec_path);
+      char str[MAX_ODB_PATH];
+      sprintf(str, "/History/Display/%s/Buttons", dec_path); // FIXME: overflow str
       db_find_key(hDB, 0, str, &hkeybutton);
       if (hkeybutton == 0) {
          /* create default buttons */
@@ -15015,6 +15031,8 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
 
       rsprintf("</tr>\n");
 
+      char paramstr[256];
+      
       paramstr[0] = 0;
       sprintf(paramstr + strlen(paramstr), "&scale=%d", scale);
       //if (offset != 0)
@@ -15024,17 +15042,17 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       if (pmag && *pmag)
          sprintf(paramstr + strlen(paramstr), "&width=%s", pmag);
       else {
-         strlcpy(str, "640", sizeof(str));
-         size = sizeof(str);
-         db_get_value(hDB, 0, "/History/Display Settings/Width Individual", str, &size, TID_STRING, TRUE);
-         sprintf(paramstr + strlen(paramstr), "&width=%s", str);
+         std::string wi = "640";
+         db_get_value_string(hDB, 0, "/History/Display Settings/Width Individual", 0, &wi, TRUE);
+         sprintf(paramstr + strlen(paramstr), "&width=%s", wi.c_str());
       }
 
       /* define image map */
       rsprintf("<map name=\"%s\">\r\n", enc_path);
 
       if (!(pindex && *pindex)) {
-         sprintf(str, "/History/Display/%s/Variables", dec_path);
+         char str[MAX_ODB_PATH];
+         sprintf(str, "/History/Display/%s/Variables", dec_path); // FIXME: overflows str
          db_find_key(hDB, 0, str, &hkey);
          if (hkey) {
             db_get_key(hDB, hkey, &key);
@@ -15074,9 +15092,9 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       if (pindex && *pindex)
          sprintf(paramstr + strlen(paramstr), "&index=%s", pindex);
       if (paramstr[0])
-         sprintf(ref, "%s%s.gif?%s", hurl, enc_path, paramstr);
+         sprintf(ref, "%s%s.gif?%s", hurl.c_str(), enc_path, paramstr);
       else
-         sprintf(ref, "%s%s.gif", hurl, enc_path);
+         sprintf(ref, "%s%s.gif", hurl.c_str(), enc_path);
 
       /* put reference to graph */
       rsprintf("<tr><td colspan=2><img src=\"%s\" alt=\"%s.gif\" usemap=\"#%s\"></tr>\n", ref, dec_path, enc_path);
@@ -15111,7 +15129,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
                strlcpy(enc_iname, ikey.name, sizeof(enc_iname));
                urlEncode(enc_iname, sizeof(enc_iname));
 
-               sprintf(ref, "%s%s/%s.gif?width=Small", hurl, enc_name, enc_iname);
+               sprintf(ref, "%s%s/%s.gif?width=Small", hurl.c_str(), enc_name, enc_iname);
                sprintf(ref2, "%s/%s", enc_name, enc_iname);
 
                if (endtime != 0) {
@@ -16954,7 +16972,7 @@ static void load_allowed_hosts(HNDLE hDB, HNDLE hKey, int index)
    for (int i=0; ; i++) {
       std::string s;
       int status = db_get_value_string(hDB, 0, gOdbAllowedHosts.c_str(), i, &s, FALSE);
-      printf("get %d, status %d, string [%s]\n", i, status, s.c_str());
+      //printf("get %d, status %d, string [%s]\n", i, status, s.c_str());
       if (status != DB_SUCCESS) {
          total = i;
          break;
