@@ -11941,7 +11941,6 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
          }
 
          scale = time_to_sec(ts.c_str());
-         printf("scale %d [%s]\n", scale, ts.c_str());
       }
 
       for (j = 0; j < MAX_VARS; j++) {
@@ -13200,7 +13199,6 @@ struct hist_plot_t
 
       std::string ts = timescale;
       status = db_get_value_string(hDB, hDir, "Timescale", 0, &ts, FALSE);
-      printf("status %d, ts [%s] timescale [%s]\n", status, ts.c_str(), timescale.c_str());
       if (status == DB_SUCCESS)
          timescale = ts;
 
@@ -14022,7 +14020,6 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
       }
 
       scale = time_to_sec(ts.c_str());
-      printf("xxx scale %d ts [%s]\n", scale, ts.c_str());
    }
 
    time_t now = ss_time();
@@ -14264,8 +14261,9 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       /* get group and panel from path if not given */
       if (!isparam("group")) {
          hgroup = dec_path;
-         if (strchr(hgroup.c_str(), '/'))
-            *strchr(hgroup.c_str(), '/') = 0;
+         std::string::size_type pos = hgroup.find("/");
+         if (pos != std::string::npos)
+            hgroup.resize(pos);
          panel = "";
          if (strrchr(dec_path, '/'))
             panel = strrchr(dec_path, '/')+1;
@@ -14287,7 +14285,9 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       std::string hgroup;
       if (strchr(dec_path, '/')) {
          hgroup = dec_path;
-         *strchr(hgroup.c_str(), '/') = 0;
+         std::string::size_type pos = hgroup.find("/");
+         if (pos != std::string::npos)
+            hgroup.resize(pos);
       } else {
          hgroup = dec_path;
       }
