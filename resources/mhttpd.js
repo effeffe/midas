@@ -64,7 +64,7 @@ function mhttpd_escape(s)
    while (ss.indexOf('<') >= 0)
       ss = ss.replace('<', '&lt;');
    
-   console.log("mie_escape: [" + s + "] becomes [" + ss + "]");
+   //console.log("mhttpd_escape: [" + s + "] becomes [" + ss + "]");
    return ss;
 }
 
