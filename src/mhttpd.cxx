@@ -537,6 +537,15 @@ const char *getparam(const char *param)
    return _value[i];
 }
 
+std::string xgetparam(const char *param)
+{
+   const char* s = getparam(param);
+   if (s)
+      return s;
+   else
+      return "";
+}
+
 BOOL isparam(const char *param)
 {
    int i;
@@ -3522,13 +3531,9 @@ void show_elog_submit_query(INT last_n)
 
    if (*getparam("r1")) {
       if (*getparam("r2"))
-         rsprintf
-             ("<tr><td colspan=%d class=\"yellowLight\"><b>Query result between runs %s and %s</b></tr>\n",
-              colspan, getparam("r1"), getparam("r2"));
+         rsprintf("<tr><td colspan=%d class=\"yellowLight\"><b>Query result between runs %s and %s</b></tr>\n", colspan, getparam("r1"), getparam("r2"));
       else
-         rsprintf
-             ("<tr><td colspan=%d class=\"yellowLight\"><b>Query result between run %s and today</b></tr>\n",
-              colspan, getparam("r1"));
+         rsprintf("<tr><td colspan=%d class=\"yellowLight\"><b>Query result between run %s and today</b></tr>\n", colspan, getparam("r1"));
    } else {
       if (last_n) {
          if (last_n < 24) {
@@ -11495,7 +11500,7 @@ int read_history(HNDLE hDB, const char *path, int index, int flags, time_t tstar
    int n_vars, status;
    int debug = 0;
 
-   // printf("read_history, path %s, index %d, runmarker %d, start %d, end %d, scale %d, data %p\n", path, index, runmarker, (int)tstart, (int)tend, (int)scale, data);
+   //printf("read_history, path %s, index %d, flags 0x%x, start %d, end %d, scale %d, data %p\n", path, index, flags, (int)tstart, (int)tend, (int)scale, data);
 
    /* connect to history */
    MidasHistoryInterface* mh = get_history();
@@ -11742,10 +11747,9 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
    KEY key;
    gdImagePtr im;
    gdGifBuffer gb;
-   int i, j, k, l, n_vars, size, status, row, n_vp, r, g, b;
+   int i, j, k, l, n_vars, size, status, r, g, b;
    //int x_marker;
-   int length, aoffset;
-   int flag, x1, y1, x2, y2, xs, xs_old, ys, xold, yold, xmaxm;
+   int length;
    int white, grey, red;
    //int black, ltgrey, green, blue;
    int fgcol, bgcol, gridcol;
@@ -11754,23 +11758,16 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
    INT var_index[MAX_VARS];
    char event_name[MAX_VARS][NAME_LENGTH];
    char tag_name[MAX_VARS][64], var_name[MAX_VARS][NAME_LENGTH], varname[64], key_name[256];
-#define MAX_POINTS 1000
-   DWORD n_point[MAX_VARS];
-   int x[MAX_VARS][MAX_POINTS];
-   double y[MAX_VARS][MAX_POINTS];
    float factor[MAX_VARS], offset[MAX_VARS];
    BOOL logaxis, runmarker;
    //double xmin, xrange;
    double ymin, ymax;
-   gdPoint poly[3];
    double upper_limit[MAX_VARS], lower_limit[MAX_VARS];
-   double yb1, yb2, yf1, yf2, ybase;
    float minvalue = (float) -HUGE_VAL;
    float maxvalue = (float) +HUGE_VAL;
    int show_values = 0;
    int sort_vars = 0;
    int old_vars = 0;
-   char var_status[MAX_VARS][256];
    time_t starttime, endtime;
    int flags;
 
@@ -11778,6 +11775,9 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
 
    if (xendtime == 0)
       xendtime = now;
+
+   std::vector<int> x[MAX_VARS];
+   std::vector<double> y[MAX_VARS];
 
    HistoryData  hsxxx;
    HistoryData* hsdata = &hsxxx;
@@ -11941,6 +11941,7 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
          }
 
          scale = time_to_sec(ts.c_str());
+         printf("scale %d [%s]\n", scale, ts.c_str());
       }
 
       for (j = 0; j < MAX_VARS; j++) {
@@ -12152,6 +12153,9 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
       goto error;
    }
 
+   DWORD n_point[MAX_VARS];
+   char var_status[MAX_VARS][256];
+
    for (int k=0; k<hsdata->nvars; k++) {
       int i = hsdata->odb_index[k];
 
@@ -12172,45 +12176,65 @@ void generate_hist_graph(const char *path, char *buffer, int *buffer_size,
          continue;
       }
 
-      for (int j = n_vp = 0; j < hsdata->num_entries[k]; j++) {
-         x[i][n_vp] = (int)(hsdata->t[k][j]);
-         y[i][n_vp] = hsdata->v[k][j];
+      int n_vp = 0;
+      for (int j=0; j<hsdata->num_entries[k]; j++) {
+         int xx = (int)(hsdata->t[k][j]);
+         double yy = hsdata->v[k][j];
 
          /* skip NaNs */
-         if (ss_isnan(y[i][n_vp]))
+         if (ss_isnan(yy))
             continue;
-
+         
          /* skip INFs */
-         if (!ss_isfin(y[i][n_vp]))
+         if (!ss_isfin(yy))
             continue;
-
+         
          /* avoid overflow */
-         if (y[i][n_vp] > 1E30)
-            y[i][n_vp] = 1E30f;
-
+         if (yy > 1E30)
+            yy = 1E30f;
+         
          /* apply factor and offset */
-         y[i][n_vp] = y[i][n_vp] * factor[i] + offset[i];
-
+         yy = yy * factor[i] + offset[i];
+         
          /* calculate ymin and ymax */
          if ((i == 0 || index != -1) && n_vp == 0)
-            ymin = ymax = y[i][0];
+            ymin = ymax = yy;
          else {
-            if (y[i][n_vp] > ymax)
-               ymax = y[i][n_vp];
-            if (y[i][n_vp] < ymin)
-               ymin = y[i][n_vp];
+            if (yy > ymax)
+               ymax = yy;
+            if (yy < ymin)
+               ymin = yy;
          }
 
          /* increment number of valid points */
+         
+         x[i].push_back(xx);
+         y[i].push_back(yy);
+      
          n_vp++;
 
       } // loop over data
 
       n_point[i] = n_vp;
 
-      assert(n_point[i]<=MAX_POINTS);
+      assert(x[i].size() == y[i].size());
    }
 
+   int flag;
+   int xmaxm;
+   int row;
+   int xold;
+   int yold;
+   int aoffset;
+   double yb1, yb2, yf1, yf2;
+   int xs, ys;
+   int x1, x2;
+   int y1, y2;
+   int xs_old;
+   double ybase;
+
+   gdPoint poly[3];
+   
    if (ymin < minvalue)
       ymin = minvalue;
 
@@ -13176,6 +13200,7 @@ struct hist_plot_t
 
       std::string ts = timescale;
       status = db_get_value_string(hDB, hDir, "Timescale", 0, &ts, FALSE);
+      printf("status %d, ts [%s] timescale [%s]\n", status, ts.c_str(), timescale.c_str());
       if (status == DB_SUCCESS)
          timescale = ts;
 
@@ -13692,7 +13717,7 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
       rsprintf("<tr><th colspan=8 class=\"subStatusTitle\">List of available history variables</th></tr>\n");
       rsprintf("<tr><th colspan=1>Sel<th colspan=1>Equipment<th colspan=1>Event<th colspan=1>Variable</tr>\n");
 
-      std::string cmdx = getparam("cmdx");
+      std::string cmdx = xgetparam("cmdx");
       std::string xeqname;
 
       int i=0;
@@ -13997,6 +14022,7 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
       }
 
       scale = time_to_sec(ts.c_str());
+      printf("xxx scale %d ts [%s]\n", scale, ts.c_str());
    }
 
    time_t now = ss_time();
@@ -14186,9 +14212,6 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
 
 void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, int *buffer_size, int refresh)
 {
-   char ref[256], ref2[256],
-       bgcolor[32], fgcolor[32], gridcolor[32],
-       back_path[256], panel[256];
    const char *p;
    HNDLE hDB, hkey, hikeyp, hkeyp, hkeybutton;
    KEY key, ikey;
@@ -14235,53 +14258,50 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
        || equal_ustring(getparam("cmd"), "Clear history cache")
        || equal_ustring(getparam("cmd"), "Refresh")) {
 
-      char hgroup[256];
+      std::string hgroup = xgetparam("group");
+      std::string panel = xgetparam("panel");
+      
       /* get group and panel from path if not given */
       if (!isparam("group")) {
-         strlcpy(hgroup, dec_path, sizeof(hgroup));
-         if (strchr(hgroup, '/'))
-            *strchr(hgroup, '/') = 0;
-         panel[0] = 0;
+         hgroup = dec_path;
+         if (strchr(hgroup.c_str(), '/'))
+            *strchr(hgroup.c_str(), '/') = 0;
+         panel = "";
          if (strrchr(dec_path, '/'))
-            strlcpy(panel, strrchr(dec_path, '/')+1, sizeof(panel));
-      } else {
-         strlcpy(hgroup, getparam("group"), sizeof(hgroup));
-         strlcpy(panel, getparam("panel"), sizeof(panel));
+            panel = strrchr(dec_path, '/')+1;
       }
 
-      show_hist_config_page(dec_path, hgroup, panel);
+      show_hist_config_page(dec_path, hgroup.c_str(), panel.c_str());
       return;
    }
 
    /* evaluate path pointing back to /HS */
-   back_path[0] = 0;
+   std::string back_path;
    for (p=enc_path ; *p ; p++)
       if (*p == '/')
-         strlcat(back_path, "../", sizeof(back_path));
+         back_path += "../";
 
    if (isparam("fpanel") && isparam("fgroup") &&
       !isparam("scale")  && !isparam("shift") && !isparam("width") && !isparam("cmd")) {
 
-      char hgroup[256];
+      std::string hgroup;
       if (strchr(dec_path, '/')) {
-         strlcpy(panel, strchr(dec_path, '/') + 1, sizeof(panel));
-         strlcpy(hgroup, dec_path, sizeof(hgroup));
-         *strchr(hgroup, '/') = 0;
+         hgroup = dec_path;
+         *strchr(hgroup.c_str(), '/') = 0;
       } else {
-         strlcpy(hgroup, dec_path, sizeof(hgroup));
-         panel[0] = 0;
+         hgroup = dec_path;
       }
 
       /* rewrite path if parameters come from a form submission */
 
       char path[256];
       /* check if group changed */
-      if (!equal_ustring(getparam("fgroup"), hgroup))
-         sprintf(path, "%s%s", back_path, getparam("fgroup"));
+      if (!equal_ustring(getparam("fgroup"), hgroup.c_str()))
+         sprintf(path, "%s%s", back_path.c_str(), getparam("fgroup"));
       else if (*getparam("fpanel"))
-         sprintf(path, "%s%s/%s", back_path, getparam("fgroup"), getparam("fpanel"));
+         sprintf(path, "%s%s/%s", back_path.c_str(), getparam("fgroup"), getparam("fpanel"));
       else
-         sprintf(path, "%s%s", back_path, getparam("fgroup"));
+         sprintf(path, "%s%s", back_path.c_str(), getparam("fgroup"));
 
       if (isparam("hscale"))
          add_param_to_url(path, sizeof(path), "scale", getparam("hscale"));
@@ -14354,6 +14374,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
    }
 
    if (getparam("panel") && *getparam("panel")) {
+      char panel[256];
       strlcpy(panel, getparam("panel"), sizeof(panel));
 
       /* strip leading/trailing spaces */
@@ -14411,20 +14432,17 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
    if (*getparam("labels") && atoi(getparam("labels")) == 0)
       labels = 0;
 
+   std::string bgcolor = "FFFFFF";
    if (*getparam("bgcolor"))
-      strlcpy(bgcolor, getparam("bgcolor"), sizeof(bgcolor));
-   else
-      strcpy(bgcolor, "FFFFFF");
+      bgcolor = xgetparam("bgcolor");
 
+   std::string fgcolor = "000000";
    if (*getparam("fgcolor"))
-      strlcpy(fgcolor, getparam("fgcolor"), sizeof(fgcolor));
-   else
-      strcpy(fgcolor, "000000");
+      fgcolor = xgetparam("fgcolor");
 
+   std::string gridcolor = "A0A0A0";
    if (*getparam("gcolor"))
-      strlcpy(gridcolor, getparam("gcolor"), sizeof(gridcolor));
-   else
-      strcpy(gridcolor, "A0A0A0");
+      gridcolor = xgetparam("gcolor");
 
    /* evaluate scale and offset */
 
@@ -14477,7 +14495,8 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
             height = 200;
          }
 
-         generate_hist_graph(dec_path, fbuffer, &fsize, width, height, endtime, scale, index, labels, bgcolor, fgcolor, gridcolor);
+         printf("hereA\n");
+         generate_hist_graph(dec_path, fbuffer, &fsize, width, height, endtime, scale, index, labels, bgcolor.c_str(), fgcolor.c_str(), gridcolor.c_str());
 
          /* save temporary file */
          std::string dir;
@@ -14582,7 +14601,9 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
          height = (int)(0.625 * width);
       }
 
-      generate_hist_graph(dec_path, buffer, buffer_size, width, height, endtime, scale, index, labels, bgcolor, fgcolor, gridcolor);
+      //printf("dec_path [%s], buf %p, %p, width %d, height %d, endtime %ld, scale %d, index %d, labels %d\n", dec_path, buffer, buffer_size, width, height, endtime, scale, index, labels);
+
+      generate_hist_graph(dec_path, buffer, buffer_size, width, height, endtime, scale, index, labels, bgcolor.c_str(), fgcolor.c_str(), gridcolor.c_str());
 
       return;
    }
@@ -14743,7 +14764,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       if (equal_ustring(dec_path, "All"))
          rsprintf("All &nbsp;&nbsp;");
       else
-         rsprintf("<a href=\"%sAll\">ALL</a>\n", back_path);
+         rsprintf("<a href=\"%sAll\">ALL</a>\n", back_path.c_str());
       rsprintf("</td></tr>\n");
 
       /* Setup History table links */
@@ -14796,7 +14817,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
             if (equal_ustring(str, key.name))
                rsprintf("<tr><td class=\"titleCell\">%s</td>\n<td>", key.name);
             else
-               rsprintf("<tr><td class=\"titleCell\"><a href=\"%s%s\">%s</a></td>\n<td>", back_path, enc_name, key.name);
+               rsprintf("<tr><td class=\"titleCell\"><a href=\"%s%s\">%s</a></td>\n<td>", back_path.c_str(), enc_name, key.name);
 
             for (j = 0;; j++) {
                // scan items
@@ -14821,7 +14842,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
                if (equal_ustring(str, ikey.name))
                   rsprintf("<small><b>%s</b></small> &nbsp;", ikey.name);
                else
-                  rsprintf("<small><a href=\"%s%s/%s\">%s</a></small> &nbsp;\n", back_path, enc_name, enc_iname, ikey.name);
+                  rsprintf("<small><a href=\"%s%s/%s\">%s</a></small> &nbsp;\n", back_path.c_str(), enc_name, enc_iname, ikey.name);
             }
          }
       }
@@ -14856,12 +14877,10 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
             db_get_key(hDB, hikeyp, &key);
 
             if (strchr(dec_path, '/')) {
-               strlcpy(panel, strchr(dec_path, '/') + 1, sizeof(panel));
                strlcpy(hgroup, dec_path, sizeof(hgroup));
                *strchr(hgroup, '/') = 0;
             } else {
                strlcpy(hgroup, dec_path, sizeof(hgroup));
-               panel[0] = 0;
             }
 
             if (equal_ustring(key.name, hgroup)) {
@@ -14956,22 +14975,32 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
             strlcpy(enc_name, key.name, sizeof(enc_name));
             urlEncode(enc_name, sizeof(enc_name));
 
-            sprintf(ref, "%s%s/%s.gif?width=%s", hurl.c_str(), enc_path, enc_name, strwidth.c_str());
-            sprintf(ref2, "%s/%s", enc_path, enc_name);
+            std::string ref;
+            ref += hurl;
+            ref += enc_path;
+            ref += "/";
+            ref += enc_name;
+            ref += ".gif?width=";
+            ref += strwidth;
+
+            std::string ref2;
+            ref2 += enc_path;
+            ref2 += "/";
+            ref2 += enc_name;
 
             if (endtime != 0) {
                char tmp[256];
                sprintf(tmp, "time=%s&scale=%d", time_to_string(endtime), scale);
-               strlcat(ref, "&", sizeof(ref));
-               strlcat(ref, tmp, sizeof(ref));
-               strlcat(ref2, "?", sizeof(ref2));
-               strlcat(ref2, tmp, sizeof(ref2));
+               ref += "&";
+               ref += tmp;
+               ref2 += "?";
+               ref2 += tmp;
             }
 
             if (i % 2 == 0)
-               rsprintf("<tr><td><a href=\"%s%s\"><img src=\"%s\" alt=\"%s.gif\"></a>\n", back_path, ref2, ref, key.name);
+               rsprintf("<tr><td><a href=\"%s%s\"><img src=\"%s\" alt=\"%s.gif\"></a>\n", back_path.c_str(), ref2.c_str(), ref.c_str(), key.name);
             else
-               rsprintf("<td><a href=\"%s%s\"><img src=\"%s\" alt=\"%s.gif\"></a></tr>\n", back_path, ref2, ref, key.name);
+               rsprintf("<td><a href=\"%s%s\"><img src=\"%s\" alt=\"%s.gif\"></a></tr>\n", back_path.c_str(), ref2.c_str(), ref.c_str(), key.name);
          }
 
       } else {
@@ -15058,20 +15087,26 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
             db_get_key(hDB, hkey, &key);
 
             for (i = 0; i < key.num_values; i++) {
+               char ref[256];
                if (paramstr[0])
                   sprintf(ref, "%s?%s&index=%d", enc_path, paramstr, i);
                else
                   sprintf(ref, "%s?index=%d", enc_path, i);
 
                rsprintf("  <area shape=rect coords=\"%d,%d,%d,%d\" href=\"%s%s\">\r\n",
-                        30, 31 + 23 * i, 150, 30 + 23 * i + 17, back_path, ref);
+                        30, 31 + 23 * i, 150, 30 + 23 * i + 17, back_path.c_str(), ref);
             }
          }
       } else {
-         if (paramstr[0])
-            sprintf(ref, "%s?%s", enc_path, paramstr);
-         else
-            sprintf(ref, "%s", enc_path);
+         std::string ref;
+         
+         if (paramstr[0]) {
+            ref += enc_path;
+            ref += "?";
+            ref += paramstr;
+         } else {
+            ref = enc_path;
+         }
 
          if (equal_ustring(pmag, "Large"))
             width = 1024;
@@ -15082,8 +15117,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
          else
             width = 640;
 
-         rsprintf("  <area shape=rect coords=\"%d,%d,%d,%d\" href=\"%s%s\">\r\n", 0, 0,
-                  width, 20, back_path, ref);
+         rsprintf("  <area shape=rect coords=\"%d,%d,%d,%d\" href=\"%s%s\">\r\n", 0, 0, width, 20, back_path.c_str(), ref.c_str());
       }
 
       rsprintf("</map>\r\n");
@@ -15091,6 +15125,8 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       /* Display individual panels */
       if (pindex && *pindex)
          sprintf(paramstr + strlen(paramstr), "&index=%s", pindex);
+
+      char ref[256];
       if (paramstr[0])
          sprintf(ref, "%s%s.gif?%s", hurl.c_str(), enc_path, paramstr);
       else
@@ -15129,22 +15165,31 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
                strlcpy(enc_iname, ikey.name, sizeof(enc_iname));
                urlEncode(enc_iname, sizeof(enc_iname));
 
-               sprintf(ref, "%s%s/%s.gif?width=Small", hurl.c_str(), enc_name, enc_iname);
-               sprintf(ref2, "%s/%s", enc_name, enc_iname);
+               std::string ref;
+               ref += hurl;
+               ref += enc_name;
+               ref += "/";
+               ref += enc_iname;
+               ref += ".gif?width=Small";
+
+               std::string ref2;
+               ref2 += enc_name;
+               ref2 += "/";
+               ref2 += enc_iname;
 
                if (endtime != 0) {
                   char tmp[256];
                   sprintf(tmp, "time=%s&scale=%d", time_to_string(endtime), scale);
-                  strlcat(ref, "&", sizeof(ref));
-                  strlcat(ref, tmp, sizeof(ref));
-                  strlcat(ref2, "?", sizeof(ref2));
-                  strlcat(ref2, tmp, sizeof(ref2));
+                  ref += "&";
+                  ref += tmp;
+                  ref2 += "?";
+                  ref2 += tmp;
                }
 
                if (k % 2 == 0)
-                  rsprintf("<tr><td><a href=\"%s%s\"><img src=\"%s\" alt=\"%s.gif\"></a>\n", back_path, ref2, ref, ikey.name);
+                  rsprintf("<tr><td><a href=\"%s%s\"><img src=\"%s\" alt=\"%s.gif\"></a>\n", back_path.c_str(), ref2.c_str(), ref.c_str(), ikey.name);
                else
-                  rsprintf("<td><a href=\"%s%s\"><img src=\"%s\" alt=\"%s.gif\"></a></tr>\n", back_path, ref2, ref, ikey.name);
+                  rsprintf("<td><a href=\"%s%s\"><img src=\"%s\" alt=\"%s.gif\"></a></tr>\n", back_path.c_str(), ref2.c_str(), ref.c_str(), ikey.name);
             }                   // items loop
          }                      // Groups loop
    }                            // All
