@@ -344,6 +344,22 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const
          v = true;
       } else if (node->GetType() == MJSON_STRING && node->GetString() == "false") {
          v = false;
+      } else if (node->GetType() == MJSON_STRING && node->GetString()[0] == 'y') {
+         v = true;
+      } else if (node->GetType() == MJSON_STRING && node->GetString()[0] == 'n') {
+         v = false;
+      } else if (node->GetType() == MJSON_STRING && node->GetString()[0] == 'Y') {
+         v = true;
+      } else if (node->GetType() == MJSON_STRING && node->GetString()[0] == 'N') {
+         v = false;
+      } else if (node->GetType() == MJSON_STRING && node->GetString()[0] == 't') {
+         v = true;
+      } else if (node->GetType() == MJSON_STRING && node->GetString()[0] == 'f') {
+         v = false;
+      } else if (node->GetType() == MJSON_STRING && node->GetString()[0] == 'T') {
+         v = true;
+      } else if (node->GetType() == MJSON_STRING && node->GetString()[0] == 'F') {
+         v = false;
       } else {
          DWORD dw;
          status = GetDWORD(node, path, &dw);
@@ -467,6 +483,7 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const
       const std::string value = node->GetString();
       if (string_length == 0)
          string_length = item_size_from_key(key);
+      //printf("string_length %d\n", string_length);
       if (string_length) {
          buf = new char[string_length];
          strlcpy(buf, value.c_str(), string_length);
@@ -477,7 +494,16 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const
          size = strlen(ptr) + 1;
       }
 
-      status = db_set_data_index(hDB, hKey, ptr, size, index, TID_STRING);
+      //printf("set_data_index index %d, size %d\n", index, size);
+
+      if (string_length > 0) {
+         status = db_set_data_index(hDB, hKey, ptr, size, index, TID_STRING);
+      } else if (index != 0) {
+         cm_msg(MERROR, "db_paste_json", "cannot set TID_STRING value for \"%s\" index %d, it is not an array", path, index);
+         status = DB_OUT_OF_RANGE;
+      } else {
+         status = db_set_data(hDB, hKey, ptr, size, 1, TID_STRING);
+      }
 
       if (buf)
          delete buf;
@@ -563,7 +589,7 @@ INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKeyRoot, int index, const void *j
 
    int tid = key.type;
    int string_length = 0;
-   if (tid == TID_STRING)
+   if (tid == TID_STRING && key.num_values > 1)
       string_length = key.item_size;
 
    status = paste_node(hDB, hKeyRoot, path, index, node, tid, string_length, NULL);
