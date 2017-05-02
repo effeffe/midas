@@ -13,6 +13,95 @@ var run_state_names = { 1:"Stopped", 2:"Paused", 3:"Running" };
 
 var transition_names = { 1:"Starting run...", 2:"Stopping run...", 4:"Pausing run...", 8:"Resuming run...", 16:"Start abort", 4096:"Deferred" };
 
+//
+// convert json dom values to text for display and editing
+// this is similar to db_sprintf()
+//
+
+function mie_to_string(tid, jvalue)
+{
+   if (tid == TID_BOOL) {
+      if (jvalue)
+         return "y";
+      else
+         return "n";
+   }
+   
+   var t = typeof jvalue;
+
+   if (t == 'number') {
+      return "" + jvalue;
+   }
+
+   if (tid == TID_DWORD) {
+      return parseInt(jvalue) + " (" + jvalue + ")";
+   }
+   
+   if (t == 'string') {
+      return jvalue;
+   }
+
+   return jvalue + " (" + t + ")";
+}
+
+//
+// stupid javascript does not have a function
+// to escape javascript and html characters
+// to make it safe to assign a json string
+// to p.innerHTML. What gives? K.O.
+//
+
+function mhttpd_escape(s)
+{
+   var ss = s;
+
+   while (ss.indexOf('"') >= 0)
+      ss = ss.replace('"', '&quot;');
+   
+   while (ss.indexOf('>') >= 0)
+      ss = ss.replace('>', '&gt;');
+   
+   while (ss.indexOf('<') >= 0)
+      ss = ss.replace('<', '&lt;');
+   
+   console.log("mie_escape: [" + s + "] becomes [" + ss + "]");
+   return ss;
+}
+
+//
+// odb inline edit - make element a link to inline editor
+//
+
+function mie_back_to_link(p, path, bracket)
+{
+   var link = document.createElement('a');
+   link.href = path+"?cmd=Set";
+   link.innerHTML = "(loading...)";
+
+   mjsonrpc_db_get_values([path]).then(function(rpc) {
+      var value = rpc.result.data[0];
+      var tid = rpc.result.tid[0];
+      var mvalue = mie_to_string(tid, value);
+      if (mvalue == "")
+         mvalue = "(empty)";
+      link.innerHTML = mhttpd_escape(mvalue);
+      link.onclick = function(){ODBInlineEdit(p,path,bracket);return false;};
+      link.onfocus = function(){ODBInlineEdit(p,path,bracket);};
+
+      // what is this for?!?
+      if (p.childNodes.length == 2)
+         setTimeout(function(){p.appendChild(link);p.removeChild(p.childNodes[1])}, 10);
+      else
+         setTimeout(function(){p.appendChild(link);p.removeChild(p.childNodes[0])}, 10);
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+   });
+}
+
+//
+// odb inline edit - write new value to odb
+//
+
 function ODBFinishInlineEdit(p, path, bracket)
 {
    var value;
@@ -25,22 +114,20 @@ function ODBFinishInlineEdit(p, path, bracket)
    else
       value = p.childNodes[0].value;
 
-   ODBSet(encodeURIComponent(path), value);
-   p.ODBsent = true;
-   
-   var link = document.createElement('a');
-   if (value == "")
-      value = "(empty)";
-   link.innerHTML = value;
-   link.href = path+"?cmd=Set";
-   link.onclick = function(){ODBInlineEdit(p,path,bracket);return false;};
-   link.onfocus = function(){ODBInlineEdit(p,path,bracket);};
-   
-   if (p.childNodes.length == 2)
-      setTimeout(function(){p.appendChild(link);p.removeChild(p.childNodes[1])}, 10);
-   else
-      setTimeout(function(){p.appendChild(link);p.removeChild(p.childNodes[0])}, 10);
+   //console.log("mie_write odb [" + path + "] value [" + value + "]");
+
+   mjsonrpc_db_paste([path], [value]).then(function(rpc) {
+      //mjsonrpc_debug_alert(rpc);
+      p.ODBsent = true;
+      mie_back_to_link(p, path, bracket);
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+   });
 }
+
+//
+// odb inline edit - key-press handler
+//
 
 function ODBInlineEditKeydown(event, p, path, bracket)
 {
@@ -49,21 +136,7 @@ function ODBInlineEditKeydown(event, p, path, bracket)
    if (keyCode == 27) {
       /* cancel editing */
       p.ODBsent = true;
-
-      var value = ODBGet(encodeURIComponent(path));
-      var link = document.createElement('a');
-      if (value == "")
-         value = "(empty)";
-      link.innerHTML = value;
-      link.href = path+"?cmd=Set";
-      link.onclick = function(){ODBInlineEdit(p,path,bracket);return false;};
-      link.onfocus = function(){ODBInlineEdit(p,path,bracket);};
-      
-      if (p.childNodes.length == 2)
-         setTimeout(function(){p.appendChild(link);p.removeChild(p.childNodes[1])}, 10);
-      else
-         setTimeout(function(){p.appendChild(link);p.removeChild(p.childNodes[0])}, 10);
-   
+      mie_back_to_link(p, path, bracket);
       return false;
    }
 
@@ -75,17 +148,19 @@ function ODBInlineEditKeydown(event, p, path, bracket)
    return true;
 }
 
-function ODBInlineEdit(p, odb_path, bracket)
+//
+// odb inline edit - convert link to edit field
+//
+
+function mie_link_to_edit(p, odb_path, bracket, cur_val)
 {
-   var cur_val = ODBGet(encodeURIComponent(odb_path));
    var size = cur_val.length+10;
    var index;
    
    p.ODBsent = false;
-   var str = cur_val;
+
+   var str = mhttpd_escape(cur_val);
    var width = p.offsetWidth - 10;
-   while (str.indexOf('"') >= 0)
-      str = str.replace('"', '&quot;');
 
    if (odb_path.indexOf('[') > 0) {
       index = odb_path.substr(odb_path.indexOf('['));
@@ -94,16 +169,35 @@ function ODBInlineEdit(p, odb_path, bracket)
          setTimeout(function(){p.childNodes[0].focus();p.childNodes[0].select();}, 10); // needed for Firefox
       } else {
          p.innerHTML = index+"&nbsp;<input type=\"text\" size=\""+size+"\" value=\""+str+"\" onKeydown=\"return ODBInlineEditKeydown(event, this.parentNode,\'"+odb_path+"\',"+bracket+");\" onBlur=\"ODBFinishInlineEdit(this.parentNode,\'"+odb_path+"\',"+bracket+");\" >";
+
+         // what is this for?
          setTimeout(function(){p.childNodes[1].focus();p.childNodes[1].select();}, 10); // needed for Firefox
       }
    } else {
       
       p.innerHTML = "<input type=\"text\" size=\""+size+"\" value=\""+str+"\" onKeydown=\"return ODBInlineEditKeydown(event, this.parentNode,\'"+odb_path+"\',"+bracket+");\" onBlur=\"ODBFinishInlineEdit(this.parentNode,\'"+odb_path+"\',"+bracket+");\" >";
 
+      // what is this for?
       setTimeout(function(){p.childNodes[0].focus();p.childNodes[0].select();}, 10); // needed for Firefox
    }
    
    p.style.width = width+"px";
+}
+
+//
+// odb inline edit - start editing
+//
+
+function ODBInlineEdit(p, odb_path, bracket)
+{
+   mjsonrpc_db_get_values([odb_path]).then(function(rpc) {
+      var value = rpc.result.data[0];
+      var tid = rpc.result.tid[0];
+      var mvalue = mie_to_string(tid, value);
+      mie_link_to_edit(p, odb_path, bracket, mvalue);
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+   });
 }
 
 /*---- mhttpd functions -------------------------------------*/
