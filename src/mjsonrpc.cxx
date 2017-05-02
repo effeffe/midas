@@ -556,10 +556,12 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
       doc->D("get values of ODB data from given subtrees");
       doc->P("paths[]", MJSON_STRING, "array of ODB subtree paths, see note on array indices");
       doc->P("omit_names?", MJSON_BOOL, "omit the /name entries");
-      doc->P("omit_last_written?", MJSON_BOOL, "omit the /last_written entries");
+      doc->P("omit_last_written?", MJSON_BOOL, "omit the /last_written entries and the last_written[] result");
+      doc->P("omit_tid?", MJSON_BOOL, "omit the tid[] result");
       doc->P("omit_old_timestamp?", MJSON_NUMBER, "omit data older than given ODB timestamp");
       doc->R("data[]", 0, "values of ODB data for each path, all key names are in lower case, all symlinks are followed");
       doc->R("status[]", MJSON_INT, "return status of db_copy_json_values() or db_copy_json_index() for each path");
+      doc->R("tid?[]", MJSON_INT, "odb type id for each path, absent if omit_tid is true");
       doc->R("last_written?[]", MJSON_NUMBER, "last_written value of the ODB subtree for each path, absent if omit_last_written is true");
       return doc;
    }
@@ -570,11 +572,13 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
 
    bool omit_names = mjsonrpc_get_param(params, "omit_names", NULL)->GetBool();
    bool omit_last_written = mjsonrpc_get_param(params, "omit_last_written", NULL)->GetBool();
+   bool omit_tid = mjsonrpc_get_param(params, "omit_tid", NULL)->GetBool();
    double xomit_old_timestamp = mjsonrpc_get_param(params, "omit_old_timestamp", NULL)->GetDouble();
    time_t omit_old_timestamp = (time_t)xomit_old_timestamp;
 
    MJsonNode* dresult = MJsonNode::MakeArray();
    MJsonNode* sresult = MJsonNode::MakeArray();
+   MJsonNode* tresult = MJsonNode::MakeArray();
    MJsonNode* lwresult = MJsonNode::MakeArray();
 
    HNDLE hDB;
@@ -590,6 +594,7 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
       if (status != DB_SUCCESS) {
          dresult->AddToArray(MJsonNode::MakeNull());
          sresult->AddToArray(MJsonNode::MakeInt(status));
+         tresult->AddToArray(MJsonNode::MakeNull());
          lwresult->AddToArray(MJsonNode::MakeNull());
          continue;
       }
@@ -598,6 +603,7 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
       if (status != DB_SUCCESS) {
          dresult->AddToArray(MJsonNode::MakeNull());
          sresult->AddToArray(MJsonNode::MakeInt(status));
+         tresult->AddToArray(MJsonNode::MakeNull());
          lwresult->AddToArray(MJsonNode::MakeNull());
          continue;
       }
@@ -609,6 +615,7 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
          if (status != SUCCESS) {
             dresult->AddToArray(MJsonNode::MakeNull());
             sresult->AddToArray(MJsonNode::MakeInt(status));
+            tresult->AddToArray(MJsonNode::MakeInt(key.type));
             lwresult->AddToArray(MJsonNode::MakeInt(key.last_written));
             continue;
          }
@@ -637,6 +644,7 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
 
             dresult->AddToArray(ddresult);
             sresult->AddToArray(ssresult);
+            tresult->AddToArray(MJsonNode::MakeInt(key.type));
             lwresult->AddToArray(MJsonNode::MakeInt(key.last_written));
 
          } else {
@@ -648,10 +656,12 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
             if (status == DB_SUCCESS) {
                dresult->AddToArray(MJsonNode::MakeJSON(buf));
                sresult->AddToArray(MJsonNode::MakeInt(status));
+               tresult->AddToArray(MJsonNode::MakeInt(key.type));
                lwresult->AddToArray(MJsonNode::MakeInt(key.last_written));
             } else {
                dresult->AddToArray(MJsonNode::MakeNull());
                sresult->AddToArray(MJsonNode::MakeInt(status));
+               tresult->AddToArray(MJsonNode::MakeInt(key.type));
                lwresult->AddToArray(MJsonNode::MakeInt(key.last_written));
             }
             
@@ -668,10 +678,12 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
          if (status == DB_SUCCESS) {
             dresult->AddToArray(MJsonNode::MakeJSON(buf));
             sresult->AddToArray(MJsonNode::MakeInt(status));
+            tresult->AddToArray(MJsonNode::MakeInt(key.type));
             lwresult->AddToArray(MJsonNode::MakeInt(key.last_written));
          } else {
             dresult->AddToArray(MJsonNode::MakeNull());
             sresult->AddToArray(MJsonNode::MakeInt(status));
+            tresult->AddToArray(MJsonNode::MakeInt(key.type));
             lwresult->AddToArray(MJsonNode::MakeInt(key.last_written));
          }
 
@@ -680,11 +692,20 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
       }
    }
 
-   if (omit_last_written) {
+   MJsonNode* result = MJsonNode::MakeObject();
+
+   result->AddToObject("data", dresult);
+   result->AddToObject("status", sresult);
+   if (!omit_tid)
+      result->AddToObject("tid", tresult);
+   else
+      delete tresult;
+   if (!omit_last_written)
+      result->AddToObject("last_written", lwresult);
+   else
       delete lwresult;
-      return mjsonrpc_make_result("data", dresult, "status", sresult);
-   } else
-      return mjsonrpc_make_result("data", dresult, "status", sresult, "last_written", lwresult);
+
+   return mjsonrpc_make_result(result);
 }
 
 static MJsonNode* js_db_ls(const MJsonNode* params)
