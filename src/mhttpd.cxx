@@ -17049,15 +17049,10 @@ static void load_allowed_hosts(HNDLE hDB, HNDLE hKey, int index)
 static int init_allowed_hosts()
 {
    HNDLE hDB;
-   int status;
-   char buf[256];
-   int size;
    HNDLE hKey;
+   int status;
 
    cm_get_experiment_database(&hDB, NULL);
-
-   buf[0] = 0;
-   size = sizeof(buf);
 
    // create "allowed hosts" so we can watch it
 
