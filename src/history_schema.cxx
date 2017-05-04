@@ -720,7 +720,7 @@ public:
    int fNumFields;
 
    // disconnected operation
-   int fMaxDisconnected;
+   unsigned fMaxDisconnected;
    std::list<std::string> fDisconnectedBuffer;
    time_t fNextReconnect;
    int fNextReconnectDelaySec;
