@@ -551,6 +551,10 @@ public:
    // data types
    virtual const char* ColumnType(int midas_tid) = 0;
    virtual bool TypesCompatible(int midas_tid, const char* sql_type) = 0;
+
+   // string quoting
+   virtual std::string QuoteString(const char* s) = 0; // quote text string
+   virtual std::string QuoteId(const char* s) = 0; // quote identifier, such as table or column name
 };
 
 ////////////////////////////////////////////
@@ -712,6 +716,9 @@ public:
 
    const char* ColumnType(int midas_tid);
    bool TypesCompatible(int midas_tid, const char* sql_type);
+
+   std::string QuoteId(const char* s);
+   std::string QuoteString(const char* s);
 };
 
 Mysql::Mysql() // ctor
@@ -859,22 +866,19 @@ bool Mysql::IsConnected()
 
 int Mysql::OpenTransaction(const char* table_name)
 {
-   // FIXME
-   // Exec(table_name, "START TRANSACTION");
+   return Exec(table_name, "START TRANSACTION");
    return DB_SUCCESS;
 }
 
 int Mysql::CommitTransaction(const char* table_name)
 {
-   // FIXME
-   // Exec(table_name, "COMMIT");
+   Exec(table_name, "COMMIT");
    return DB_SUCCESS;
 }
 
 int Mysql::RollbackTransaction(const char* table_name)
 {
-   // FIXME
-   // Exec(table_name, "ROLLBACK");
+   Exec(table_name, "ROLLBACK");
    return DB_SUCCESS;
 }
 
@@ -951,6 +955,9 @@ int Mysql::ListColumns(const char* table_name, std::vector<std::string> *plist)
 
 int Mysql::Exec(const char* table_name, const char* sql)
 {
+   if (fDebug)
+      printf("Mysql::Exec(%s, %s)\n", table_name, sql);
+
    // FIXME: match Sqlite::Exec() return values:
    // return values:
    // DB_SUCCESS
@@ -964,6 +971,8 @@ int Mysql::Exec(const char* table_name, const char* sql)
 
    if (mysql_query(fMysql, sql)) {
       cm_msg(MERROR, "Mysql::Exec", "mysql_query(%s) error %d (%s)", sql, mysql_errno(fMysql), mysql_error(fMysql));
+      if (mysql_errno(fMysql) == 1060)
+         return DB_KEY_EXIST;
       return DB_FILE_ERROR;
    }
 
@@ -1088,7 +1097,32 @@ bool Mysql::TypesCompatible(int midas_tid, const char* sql_type)
    if (midas_tid==TID_WORD && strcmp(sql_type, "tinyint")==0)
       return true;
 
+   // mysql quirk!
+   if (midas_tid==TID_DWORD && strcmp(sql_type, "int(10) unsigned")==0)
+      return true;
+
+   if (0)
+      printf("type mismatch!\n");
+
    return false;
+}
+
+std::string Mysql::QuoteId(const char* s)
+{
+   std::string q;
+   q += "`";
+   q += s;
+   q += "`";
+   return q;
+}
+
+std::string Mysql::QuoteString(const char* s)
+{
+   std::string q;
+   q += "\'";
+   q += s;
+   q += "\'";
+   return q;
 }
 
 #endif // HAVE_MYSQL
@@ -1142,7 +1176,28 @@ public:
 
    const char* ColumnType(int midas_tid);
    bool TypesCompatible(int midas_tid, const char* sql_type);
+
+   std::string QuoteId(const char* s);
+   std::string QuoteString(const char* s);
 };
+
+std::string Sqlite::QuoteId(const char* s)
+{
+   std::string q;
+   q += "\"";
+   q += s;
+   q += "\"";
+   return q;
+}
+
+std::string Sqlite::QuoteString(const char* s)
+{
+   std::string q;
+   q += "\'";
+   q += s;
+   q += "\'";
+   return q;
+}
 
 const char* Sqlite::ColumnType(int midas_tid)
 {
@@ -2927,9 +2982,7 @@ int HsSqlSchema::write_event(const time_t t, const char* data, const int data_si
       void* ptr = (void*)(data+offset);
 
       tags += ", ";
-      tags += "\'";
-      tags += column_name;
-      tags += "\'";
+      tags += sql->QuoteId(column_name);
 
       values += ", ";
 
@@ -2947,6 +3000,7 @@ int HsSqlSchema::write_event(const time_t t, const char* data, const int data_si
          sprintf(buf, "%d",((signed char*)ptr)[j]);
          break;
       case TID_CHAR:
+         // FIXME: quotes
          sprintf(buf, "\'%c\'",((char*)ptr)[j]);
          break;
       case TID_WORD:
@@ -2965,9 +3019,11 @@ int HsSqlSchema::write_event(const time_t t, const char* data, const int data_si
          sprintf(buf, "%u",((unsigned int *)ptr)[j]);
          break;
       case TID_FLOAT:
+         // FIXME: quotes
          sprintf(buf, "\'%.8g\'",((float*)ptr)[j]);
          break;
       case TID_DOUBLE:
+         // FIXME: quotes
          sprintf(buf, "\'%.16g\'",((double*)ptr)[j]);
          break;
       }
@@ -2980,15 +3036,15 @@ int HsSqlSchema::write_event(const time_t t, const char* data, const int data_si
    strftime(buf, sizeof(buf)-1, "%Y-%m-%d %H:%M:%S.0", localtime(&t));
 
    std::string cmd;
-   cmd = "INSERT INTO \'";
-   cmd += s->table_name;
-   cmd += "\' (_t_time, _i_time";
+   cmd = "INSERT INTO ";
+   cmd += sql->QuoteId(s->table_name.c_str());
+   cmd += " (_t_time, _i_time";
    cmd += tags;
-   cmd += ") VALUES (\'";
-   cmd += buf;
-   cmd += "\', \'";
-   cmd += TimeToString(t);
-   cmd += "\'";
+   cmd += ") VALUES (";
+   cmd += sql->QuoteString(buf);
+   cmd += ", ";
+   cmd += sql->QuoteString(TimeToString(t).c_str());
+   cmd += "";
    cmd += values;
    cmd += ");";
 
@@ -3020,9 +3076,9 @@ int HsSqlSchema::read_last_written(const time_t timestamp,
       printf("SqlHistory::read_last_written: table [%s], timestamp %s\n", table_name.c_str(), TimeToString(timestamp).c_str());
 
    std::string cmd;
-   cmd += "SELECT _i_time FROM \"";
-   cmd += table_name;
-   cmd += "\" WHERE _i_time < ";
+   cmd += "SELECT _i_time FROM ";
+   cmd += sql->QuoteId(table_name.c_str());
+   cmd += " WHERE _i_time < ";
    cmd += TimeToString(timestamp);
    cmd += " ORDER BY _i_time DESC LIMIT 2;";
 
@@ -3076,15 +3132,15 @@ int HsSqlSchema::read_data(const time_t start_time,
          continue;
       if (collist.length() > 0)
          collist += ", ";
-      collist += std::string("\"") + column_names[j] + "\"";
+      collist += sql->QuoteId(column_names[j].c_str());
    }
 
    std::string cmd;
    cmd += "SELECT _i_time, ";
    cmd += collist;
-   cmd += " FROM \"";
-   cmd += table_name;
-   cmd += "\" WHERE _i_time>=";
+   cmd += " FROM ";
+   cmd += sql->QuoteId(table_name.c_str());
+   cmd += " WHERE _i_time>=";
    cmd += TimeToString(start_time);
    cmd += " and _i_time<=";
    cmd += TimeToString(end_time);
@@ -3161,29 +3217,37 @@ static int CreateSqlTable(SqlBase* sql, const char* table_name, bool* have_trans
 
    std::string cmd;
 
-   cmd = "CREATE TABLE \'";
-   cmd += table_name;
-   cmd += "\' (_t_time TIMESTAMP NOT NULL, _i_time INTEGER NOT NULL);";
+   cmd = "CREATE TABLE ";
+   cmd += sql->QuoteId(table_name);
+   cmd += " (_t_time TIMESTAMP NOT NULL, _i_time INTEGER NOT NULL);";
 
    status = sql->Exec(table_name, cmd.c_str());
    if (status != DB_SUCCESS)
       return HS_FILE_ERROR;
 
-   cmd = "CREATE INDEX \'";
-   cmd += table_name;
-   cmd += "_i_time_index\' ON \'";
-   cmd += table_name;
-   cmd += "\' (_i_time ASC);";
+   std::string i_index_name;
+   i_index_name = table_name;
+   i_index_name += "_i_time_index";
+
+   std::string t_index_name;
+   t_index_name = table_name;
+   t_index_name += "_t_time_index";
+
+   cmd = "CREATE INDEX ";
+   cmd += sql->QuoteId(i_index_name.c_str());
+   cmd += " ON ";
+   cmd += sql->QuoteId(table_name);
+   cmd += " (_i_time ASC);";
 
    status = sql->Exec(table_name, cmd.c_str());
    if (status != DB_SUCCESS)
       return HS_FILE_ERROR;
 
-   cmd = "CREATE INDEX \'";
-   cmd += table_name;
-   cmd += "_t_time_index\' ON \'";
-   cmd += table_name;
-   cmd += "\' (_t_time);";
+   cmd = "CREATE INDEX ";
+   cmd += sql->QuoteId(t_index_name.c_str());
+   cmd += " ON ";
+   cmd += sql->QuoteId(table_name);
+   cmd += " (_t_time);";
 
    status = sql->Exec(table_name, cmd.c_str());
    if (status != DB_SUCCESS)
@@ -3202,11 +3266,11 @@ static int CreateSqlColumn(SqlBase* sql, const char* table_name, const char* col
       return status;
 
    std::string cmd;
-   cmd = "ALTER TABLE \'";
-   cmd += table_name;
-   cmd += "\' ADD COLUMN \'";
-   cmd += column_name;
-   cmd += "\' ";
+   cmd = "ALTER TABLE ";
+   cmd += sql->QuoteId(table_name);
+   cmd += " ADD COLUMN ";
+   cmd += sql->QuoteId(column_name);
+   cmd += " ";
    cmd += column_type;
    cmd += ";";
 
@@ -3492,6 +3556,8 @@ int SqlHistoryBase::update_schema1(HsSqlSchema* s, const time_t timestamp, const
                   // column with incompatible type, mark it as unused
                   schema_ok = false;
                   if (write_enable) {
+                     if (fDebug)
+                        printf("SqlHistory::update_schema: Found column \'%s\' type \'%s\' incompatible with MIDAS type \'%s\', marking it unused, event \'%s\', table \'%s\'\n", s->column_names[j].c_str(), s->column_types[j].c_str(), rpc_tid_name(tagtype), s->event_name.c_str(), s->table_name.c_str());
                      status = update_column(s->event_name.c_str(), s->table_name.c_str(), s->column_names[j].c_str(), s->column_types[j].c_str(), "" /*tagname*/, rpc_tid_name(tagtype), timestamp, have_transaction);
                      if (status != HS_SUCCESS)
                         return status;
@@ -3618,6 +3684,7 @@ static int ReadSqliteTableNames(SqlBase* sql, HsSchemaVector *sv, const char* ta
    int status;
    std::string cmd;
 
+   // FIXME: quotes
    cmd = "SELECT event_name, _i_time FROM \'_event_name_";
    cmd += table_name;
    cmd += "\' WHERE table_name='";
@@ -3780,12 +3847,16 @@ int SqliteHistory::read_column_names(HsSchemaVector *sv, const char* table_name,
 
    // then read column name information
 
+   std::string tn;
+   tn += "_column_names_";
+   tn += table_name;
+   
    std::string cmd;
-   cmd = "SELECT column_name, tag_name, tag_type, _i_time FROM \'_column_names_";
-   cmd += table_name;
-   cmd += "\' WHERE table_name='";
-   cmd += table_name;
-   cmd += "' ORDER BY _i_time ASC;";
+   cmd = "SELECT column_name, tag_name, tag_type, _i_time FROM ";
+   cmd += fSql->QuoteId(tn.c_str());
+   cmd += " WHERE table_name=";
+   cmd += fSql->QuoteString(table_name);
+   cmd += " ORDER BY _i_time ASC;";
 
    int status = fSql->Prepare(table_name, cmd.c_str());
 
@@ -3860,27 +3931,35 @@ int SqliteHistory::create_table(HsSchemaVector* sv, const char* event_name, time
 
    std::string cmd;
 
-   cmd = "CREATE TABLE \'_event_name_";
-   cmd += table_name;
-   cmd += "\' (table_name TEXT NOT NULL, event_name TEXT NOT NULL, _i_time INTEGER NOT NULL);";
+   std::string en;
+   en += "_event_name_";
+   en += table_name;
+
+   cmd = "CREATE TABLE ";
+   cmd += fSql->QuoteId(en.c_str());
+   cmd += " (table_name TEXT NOT NULL, event_name TEXT NOT NULL, _i_time INTEGER NOT NULL);";
 
    status = fSql->Exec(table_name.c_str(), cmd.c_str());
 
-   cmd = "INSERT INTO \'_event_name_";
-   cmd += table_name;
-   cmd += "\' (table_name, event_name, _i_time) VALUES (\'";
-   cmd += table_name;
-   cmd += "\', \'";
-   cmd += event_name;
-   cmd += "\', \'";
-   cmd += TimeToString(timestamp);
-   cmd += "\');";
+   cmd = "INSERT INTO ";
+   cmd += fSql->QuoteId(en.c_str());
+   cmd += " (table_name, event_name, _i_time) VALUES (";
+   cmd += fSql->QuoteString(table_name.c_str());
+   cmd += ", ";
+   cmd += fSql->QuoteString(event_name);
+   cmd += ", ";
+   cmd += fSql->QuoteString(TimeToString(timestamp).c_str());
+   cmd += ");";
 
    status = fSql->Exec(table_name.c_str(), cmd.c_str());
 
-   cmd = "CREATE TABLE \'_column_names_";
-   cmd += table_name;
-   cmd += "\' (table_name TEXT NOT NULL, column_name TEXT NOT NULL, tag_name TEXT NOT NULL, tag_type TEXT NOT NULL, column_type TEXT NOT NULL, _i_time INTEGER NOT NULL);";
+   std::string cn;
+   cn += "_column_names_";
+   cn += table_name;
+
+   cmd = "CREATE TABLE ";
+   cmd += fSql->QuoteId(cn.c_str());
+   cmd += " (table_name TEXT NOT NULL, column_name TEXT NOT NULL, tag_name TEXT NOT NULL, tag_type TEXT NOT NULL, column_type TEXT NOT NULL, _i_time INTEGER NOT NULL);";
 
    status = fSql->Exec(table_name.c_str(), cmd.c_str());
 
@@ -3901,6 +3980,7 @@ int SqliteHistory::update_column(const char* event_name, const char* table_name,
    if (status != HS_SUCCESS)
       return status;
 
+   // FIXME: quotes
    std::string cmd;
    cmd = "INSERT INTO \'_column_names_";
    cmd += table_name;
@@ -4049,9 +4129,9 @@ int MysqlHistory::read_column_names(HsSchemaVector *sv, const char* table_name, 
    // then read column name information
 
    std::string cmd;
-   cmd = "SELECT column_name, tag_name, itimestamp FROM _history_index WHERE event_name='";
-   cmd += event_name;
-   cmd += "';";
+   cmd = "SELECT column_name, tag_name, tag_type, itimestamp FROM _history_index WHERE event_name=";
+   cmd += fSql->QuoteString(event_name);
+   cmd += ";";
 
    int status = fSql->Prepare(table_name, cmd.c_str());
 
@@ -4067,13 +4147,18 @@ int MysqlHistory::read_column_names(HsSchemaVector *sv, const char* table_name, 
 
       const char* col_name  = fSql->GetText(0);
       const char* tag_name  = fSql->GetText(1);
-      time_t   schema_time  = fSql->GetTime(2);
+      const char* tag_type  = fSql->GetText(2);
+      time_t   schema_time  = fSql->GetTime(3);
 
-      //printf("read table [%s] column [%s] tag name [%s] time %s\n", table_name, col_name, tag_name, TimeToString(schema_time).c_str());
+      //printf("read table [%s] column [%s] tag name [%s] type [%s] time %s\n", table_name, col_name, tag_name, tag_type, TimeToString(schema_time).c_str());
 
       if (!col_name)
          continue;
       if (!tag_name)
+         continue;
+      if (strlen(col_name) < 1)
+         continue;
+      if (strlen(tag_name) < 1)
          continue;
 
       // make sure a schema exists at this time point
@@ -4090,13 +4175,16 @@ int MysqlHistory::read_column_names(HsSchemaVector *sv, const char* table_name, 
 
          //printf("add column to schema %d\n", s->time_from);
 
+         int tid = midas_tid(tag_type);
+         int tid_size = rpc_tid_size(tid);
+
          for (unsigned j=0; j<s->column_names.size(); j++) {
             if (col_name != s->column_names[j])
                continue;
             s->variables[j].name = tag_name;
-            s->variables[j].type = 0;
+            s->variables[j].type = tid;
             s->variables[j].n_data = 1;
-            s->variables[j].n_bytes = 0;
+            s->variables[j].n_bytes = tid_size;
          }
       }
    }
@@ -4172,59 +4260,66 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
       printf("MysqlHistory::create_table: event [%s], timestamp %s\n", event_name, TimeToString(timestamp).c_str());
 
    int status;
-   bool have_transaction = false;
    std::string table_name = MidasNameToSqlName(event_name);
 
-   // FIXME: what about duplicate table names?
-   status = CreateSqlTable(fSql, table_name.c_str(), &have_transaction);
+   for (int i=0; i<10; i++) {
+      status = fSql->OpenTransaction(table_name.c_str());
+      if (status != DB_SUCCESS) {
+         return HS_FILE_ERROR;
+      }
 
-   if (status != HS_SUCCESS) {
-      // FIXME: ???
-      // FIXME: at least close or revert the transaction
-      return status;
+      bool have_transaction = true;
+      
+      status = CreateSqlTable(fSql, table_name.c_str(), &have_transaction);
+
+      if (status != HS_SUCCESS) {
+         fSql->RollbackTransaction(table_name.c_str());
+
+         char buf[256];
+         sprintf(buf, "%d", (int)time(NULL));
+         table_name += "_";
+         table_name += buf;
+         continue;
+      }
+
+      for (int j=0; j<2; j++) {
+         std::string cmd;
+         cmd += "INSERT INTO _history_index (event_name, table_name, itimestamp) VALUES (";
+         cmd += fSql->QuoteString(event_name);
+         cmd += ", ";
+         cmd += fSql->QuoteString(table_name.c_str());
+         cmd += ", ";
+         char buf[256];
+         sprintf(buf, "%.0f", (double)timestamp);
+         cmd += fSql->QuoteString(buf);
+         cmd += ");";
+         
+         int status = fSql->Exec(table_name.c_str(), cmd.c_str());
+         if (status == DB_SUCCESS)
+            break;
+         
+         status = CreateSqlTable(fSql,  "_history_index", &have_transaction);
+         status = CreateSqlColumn(fSql, "_history_index", "event_name",  "varchar(256) not null", &have_transaction, fDebug);
+         status = CreateSqlColumn(fSql, "_history_index", "table_name",  "varchar(256)",     &have_transaction, fDebug);
+         status = CreateSqlColumn(fSql, "_history_index", "tag_name",    "varchar(256)",     &have_transaction, fDebug);
+         status = CreateSqlColumn(fSql, "_history_index", "tag_type",    "varchar(256)",     &have_transaction, fDebug);
+         status = CreateSqlColumn(fSql, "_history_index", "column_name", "varchar(256)",     &have_transaction, fDebug);
+         status = CreateSqlColumn(fSql, "_history_index", "itimestamp",  "integer not null", &have_transaction, fDebug);
+      }
+
+      status = fSql->CommitTransaction(table_name.c_str());
+
+      if (status != DB_SUCCESS) {
+         return HS_FILE_ERROR;
+      }
+      
+      return ReadMysqlTableNames(fSql, sv, table_name.c_str(), fDebug);
    }
 
-   // FIXME: should be wrapped in transaction rollback, same as update_schema()/update_schema1().
-
-   // FIXME: writing MYSQL schema?
-   assert(!"FIXME");
+   // FIXME: use cm_msg
+   printf("Could not create table after 10 attempts!\n");
 
    return HS_FILE_ERROR;
-
-#if 0
-   std::string cmd;
-
-   cmd = "CREATE TABLE \'_event_name_";
-   cmd += table_name;
-   cmd += "\' (table_name TEXT NOT NULL, event_name TEXT NOT NULL, _i_time INTEGER NOT NULL);";
-
-   status = fSql->Exec(table_name.c_str(), cmd.c_str());
-
-   cmd = "INSERT INTO \'_event_name_";
-   cmd += table_name;
-   cmd += "\' (table_name, event_name, _i_time) VALUES (\'";
-   cmd += table_name;
-   cmd += "\', \'";
-   cmd += event_name;
-   cmd += "\', \'";
-   cmd += TimeToString(timestamp);
-   cmd += "\');";
-
-   status = fSql->Exec(table_name.c_str(), cmd.c_str());
-
-   cmd = "CREATE TABLE \'_column_names_";
-   cmd += table_name;
-   cmd += "\' (table_name TEXT NOT NULL, column_name TEXT NOT NULL, tag_name TEXT NOT NULL, tag_type TEXT NOT NULL, column_type TEXT NOT NULL, _i_time INTEGER NOT NULL);";
-
-   status = fSql->Exec(table_name.c_str(), cmd.c_str());
-
-   status = fSql->CommitTransaction(table_name.c_str());
-   if (status != DB_SUCCESS) {
-      return HS_FILE_ERROR;
-   }
-
-   return ReadMysqlTableSchema(fSql, sv, table_name.c_str(), fDebug);
-#endif
 }
 
 int MysqlHistory::update_column(const char* event_name, const char* table_name, const char* column_name, const char* column_type, const char* tag_name, const char* tag_type, const time_t timestamp, bool* have_transaction)
@@ -4232,36 +4327,28 @@ int MysqlHistory::update_column(const char* event_name, const char* table_name, 
    if (fDebug)
       printf("MysqlHistory::update_column: event [%s], table [%s], column [%s], new name [%s], timestamp %s\n", event_name, table_name, column_name, tag_name, TimeToString(timestamp).c_str());
 
-   // FIXME!
-   assert(!"FIXME!");
-
-   return HS_FILE_ERROR;
-
-#if 0
-   int status = StartSqlTransaction(fSql, table_name, have_transaction);
-   if (status != HS_SUCCESS)
-      return status;
-
    std::string cmd;
-   cmd = "INSERT INTO \'_column_names_";
-   cmd += table_name;
-   cmd += "\' (table_name, column_name, tag_name, tag_type, column_type, _i_time) VALUES (\'";
-   cmd += table_name;
-   cmd += "\', \'";
-   cmd += column_name;
-   cmd += "\', \'";
-   cmd += tag_name;
-   cmd += "\', \'";
-   cmd += tag_type;
-   cmd += "\', \'";
-   cmd += column_type;
-   cmd += "\', \'";
-   cmd += TimeToString(timestamp);
-   cmd += "\');";
-   status = fSql->Exec(table_name, cmd.c_str());
+   cmd += "INSERT INTO _history_index (event_name, table_name, tag_name, tag_type, column_name, itimestamp) VALUES (";
+   cmd += fSql->QuoteString(event_name);
+   cmd += ", ";
+   cmd += fSql->QuoteString(table_name);
+   cmd += ", ";
+   cmd += fSql->QuoteString(tag_name);
+   cmd += ", ";
+   cmd += fSql->QuoteString(tag_type);
+   cmd += ", ";
+   cmd += fSql->QuoteString(column_name);
+   cmd += ", ";
+   char buf[256];
+   sprintf(buf, "%.0f", (double)timestamp);
+   cmd += fSql->QuoteString(buf);
+   cmd += ");";
+         
+   int status = fSql->Exec(table_name, cmd.c_str());
+   if (status != DB_SUCCESS)
+      return HS_FILE_ERROR;
 
-   return status;
-#endif
+   return HS_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////
