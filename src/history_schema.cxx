@@ -292,6 +292,11 @@ void DoctorSqlColumnType(std::string* col_type, const char* index_type)
       return;
    }
 
+   if (*col_type == "int(11)" && strcmp(index_type, "integer")==0) {
+      *col_type = index_type;
+      return;
+   }
+
    cm_msg(MERROR, "SqlHistory", "Cannot use this SQL database, incompatible column names: created column type [%s] is reported with column type [%s]", index_type, col_type->c_str());
    cm_msg_flush_buffer();
    abort();
@@ -480,12 +485,16 @@ HsSchema* HsSchemaVector::find_event(const char* event_name, time_t t)
       int found = 0;
       for (unsigned i=0; i<data.size(); i++) {
          HsSchema* s = data[i];
+         //printf("find_event: schema %d name [%s]\n", i, s->event_name.c_str());
          if (s->event_name != event_name)
             continue;
          s->print();
          found++;
       }
       printf("find_event: Found %d schemas for event %s\n", found, event_name);
+
+      //if (found == 0)
+      //   abort();
    }
 #endif
 
@@ -1036,6 +1045,12 @@ int Mysql::Exec(const char* table_name, const char* sql)
    assert(fRow == NULL);
 
    if (mysql_query(fMysql, sql)) {
+      if (mysql_errno(fMysql) == 1050) { // "Table already exists"
+         return DB_KEY_EXIST;
+      }         
+      if (mysql_errno(fMysql) == 1146) { // "Table does not exist"
+         return DB_FILE_ERROR;
+      }         
       cm_msg(MERROR, "Mysql::Exec", "mysql_query(%s) error %d (%s)", sql, mysql_errno(fMysql), mysql_error(fMysql));
       if (mysql_errno(fMysql) == 1060) // "Duplicate column name"
          return DB_KEY_EXIST;
@@ -1231,6 +1246,17 @@ std::string Mysql::QuoteString(const char* s)
    std::string q;
    q += "\'";
    q += s;
+#if 0
+   while (int c = *s++) {
+      if (c == '\'') {
+         q += "\\'";
+      } if (c == '"') {
+         q += "\\\"";
+      } else {
+         q += c;
+      }
+   }
+#endif
    q += "\'";
    return q;
 }
@@ -3065,6 +3091,8 @@ static HsSqlSchema* NewSqlSchema(HsSchemaVector* sv, const char* table_name, tim
    //printf("schema before:\n");
    //sv->print(false);
 
+   assert(j>=0);
+
    HsSqlSchema* s = new HsSqlSchema;
    *s = *(HsSqlSchema*)(*sv)[j]; // make a copy
    s->time_from = t;
@@ -4398,23 +4426,36 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
    int status;
    std::string table_name = MidasNameToSqlName(event_name);
 
-   for (int i=0; i<10; i++) {
+   // MySQL table name length limit is 64 bytes
+   if (table_name.length() > 40) {
+      table_name.resize(40);
+      table_name += "_T";
+   }
+
+   int max_attempts = 10;
+   for (int i=0; i<max_attempts; i++) {
       status = fSql->OpenTransaction(table_name.c_str());
       if (status != DB_SUCCESS) {
          return HS_FILE_ERROR;
       }
 
       bool have_transaction = true;
+
+      std::string xtable_name = table_name;
+
+      if (i>0) {
+         char buf[256];
+         sprintf(buf, "%d", i);
+         xtable_name += "_";
+         xtable_name += buf;
+      }
       
-      status = CreateSqlTable(fSql, table_name.c_str(), &have_transaction);
+      status = CreateSqlTable(fSql, xtable_name.c_str(), &have_transaction);
+
+      //printf("create table [%s] status %d\n", xtable_name.c_str(), status);
 
       if (status != HS_SUCCESS) {
          fSql->RollbackTransaction(table_name.c_str());
-
-         char buf[256];
-         sprintf(buf, "%d", (int)time(NULL));
-         table_name += "_";
-         table_name += buf;
          continue;
       }
 
@@ -4423,7 +4464,7 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
          cmd += "INSERT INTO _history_index (event_name, table_name, itimestamp) VALUES (";
          cmd += fSql->QuoteString(event_name);
          cmd += ", ";
-         cmd += fSql->QuoteString(table_name.c_str());
+         cmd += fSql->QuoteString(xtable_name.c_str());
          cmd += ", ";
          char buf[256];
          sprintf(buf, "%.0f", (double)timestamp);
@@ -4453,8 +4494,7 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
       return ReadMysqlTableNames(fSql, sv, table_name.c_str(), fDebug);
    }
 
-   // FIXME: use cm_msg
-   printf("Could not create table after 10 attempts!\n");
+   cm_msg(MERROR, "MysqlHistory::create_table", "Could not create table [%s] for event [%s], timestamp %s, after %d attempts\n", table_name.c_str(), event_name, TimeToString(timestamp).c_str(), max_attempts);
 
    return HS_FILE_ERROR;
 }
