@@ -282,6 +282,21 @@ static const char *sql_type_mysql[TID_LAST] = {
 };
 #endif
 
+void DoctorSqlColumnType(std::string* col_type, const char* index_type)
+{
+   if (*col_type == index_type)
+      return;
+
+   if (*col_type == "int(10) unsigned" && strcmp(index_type, "integer unsigned")==0) {
+      *col_type = index_type;
+      return;
+   }
+
+   cm_msg(MERROR, "SqlHistory", "Cannot use this SQL database, incompatible column names: created column type [%s] is reported with column type [%s]", index_type, col_type->c_str());
+   cm_msg_flush_buffer();
+   abort();
+}
+
 #if 0
 static int sql2midasType_mysql(const char* name)
 {
@@ -1193,8 +1208,8 @@ bool Mysql::TypesCompatible(int midas_tid, const char* sql_type)
       return true;
 
    // mysql quirk!
-   if (midas_tid==TID_DWORD && strcmp(sql_type, "int(10) unsigned")==0)
-      return true;
+   //if (midas_tid==TID_DWORD && strcmp(sql_type, "int(10) unsigned")==0)
+   //   return true;
 
    if (0)
       printf("type mismatch!\n");
@@ -3672,7 +3687,7 @@ int SqlHistoryBase::update_schema1(HsSqlSchema* s, const time_t timestamp, const
                   schema_ok = false;
                   if (write_enable) {
                      if (fDebug)
-                        printf("SqlHistory::update_schema: Found column \'%s\' type \'%s\' incompatible with MIDAS type \'%s\', marking it unused, event \'%s\', table \'%s\'\n", s->column_names[j].c_str(), s->column_types[j].c_str(), rpc_tid_name(tagtype), s->event_name.c_str(), s->table_name.c_str());
+                        cm_msg(MERROR, "SqlHistory::update_schema", "Found column \'%s\' type \'%s\' incompatible with MIDAS type \'%s\', marking it unused, event \'%s\', table \'%s\'", s->column_names[j].c_str(), s->column_types[j].c_str(), rpc_tid_name(tagtype), s->event_name.c_str(), s->table_name.c_str());
                      status = update_column(s->event_name.c_str(), s->table_name.c_str(), s->column_names[j].c_str(), s->column_types[j].c_str(), "" /*tagname*/, rpc_tid_name(tagtype), timestamp, have_transaction);
                      if (status != HS_SUCCESS)
                         return status;
@@ -4244,7 +4259,7 @@ int MysqlHistory::read_column_names(HsSchemaVector *sv, const char* table_name, 
    // then read column name information
 
    std::string cmd;
-   cmd = "SELECT column_name, tag_name, tag_type, itimestamp FROM _history_index WHERE event_name=";
+   cmd = "SELECT column_name, column_type, tag_name, tag_type, itimestamp FROM _history_index WHERE event_name=";
    cmd += fSql->QuoteString(event_name);
    cmd += ";";
 
@@ -4261,11 +4276,12 @@ int MysqlHistory::read_column_names(HsSchemaVector *sv, const char* table_name, 
          break;
 
       const char* col_name  = fSql->GetText(0);
-      const char* tag_name  = fSql->GetText(1);
-      const char* tag_type  = fSql->GetText(2);
-      time_t   schema_time  = fSql->GetTime(3);
+      const char* col_type  = fSql->GetText(1);
+      const char* tag_name  = fSql->GetText(2);
+      const char* tag_type  = fSql->GetText(3);
+      time_t   schema_time  = fSql->GetTime(4);
 
-      //printf("read table [%s] column [%s] tag name [%s] type [%s] time %s\n", table_name, col_name, tag_name, tag_type, TimeToString(schema_time).c_str());
+      //printf("read table [%s] column [%s] type [%s] tag name [%s] type [%s] time %s\n", table_name, col_name, col_type, tag_name, tag_type, TimeToString(schema_time).c_str());
 
       if (!col_name)
          continue;
@@ -4300,6 +4316,11 @@ int MysqlHistory::read_column_names(HsSchemaVector *sv, const char* table_name, 
             s->variables[j].type = tid;
             s->variables[j].n_data = 1;
             s->variables[j].n_bytes = tid_size;
+
+            // doctor column names in case MySQL returns different type
+            // from the type used to create the column, but the types
+            // are actually the same. K.O.
+            DoctorSqlColumnType(&s->column_types[j], col_type);
          }
       }
    }
@@ -4419,6 +4440,7 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
          status = CreateSqlColumn(fSql, "_history_index", "tag_name",    "varchar(256)",     &have_transaction, fDebug);
          status = CreateSqlColumn(fSql, "_history_index", "tag_type",    "varchar(256)",     &have_transaction, fDebug);
          status = CreateSqlColumn(fSql, "_history_index", "column_name", "varchar(256)",     &have_transaction, fDebug);
+         status = CreateSqlColumn(fSql, "_history_index", "column_type", "varchar(256)",     &have_transaction, fDebug);
          status = CreateSqlColumn(fSql, "_history_index", "itimestamp",  "integer not null", &have_transaction, fDebug);
       }
 
@@ -4440,10 +4462,10 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
 int MysqlHistory::update_column(const char* event_name, const char* table_name, const char* column_name, const char* column_type, const char* tag_name, const char* tag_type, const time_t timestamp, bool* have_transaction)
 {
    if (fDebug)
-      printf("MysqlHistory::update_column: event [%s], table [%s], column [%s], new name [%s], timestamp %s\n", event_name, table_name, column_name, tag_name, TimeToString(timestamp).c_str());
+      printf("MysqlHistory::update_column: event [%s], table [%s], column [%s], type [%s] new name [%s], timestamp %s\n", event_name, table_name, column_name, column_type, tag_name, TimeToString(timestamp).c_str());
 
    std::string cmd;
-   cmd += "INSERT INTO _history_index (event_name, table_name, tag_name, tag_type, column_name, itimestamp) VALUES (";
+   cmd += "INSERT INTO _history_index (event_name, table_name, tag_name, tag_type, column_name, column_type, itimestamp) VALUES (";
    cmd += fSql->QuoteString(event_name);
    cmd += ", ";
    cmd += fSql->QuoteString(table_name);
@@ -4453,6 +4475,8 @@ int MysqlHistory::update_column(const char* event_name, const char* table_name, 
    cmd += fSql->QuoteString(tag_type);
    cmd += ", ";
    cmd += fSql->QuoteString(column_name);
+   cmd += ", ";
+   cmd += fSql->QuoteString(column_type);
    cmd += ", ";
    char buf[256];
    sprintf(buf, "%.0f", (double)timestamp);
