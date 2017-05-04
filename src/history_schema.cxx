@@ -16,6 +16,7 @@
 #include <math.h>
 
 #include <vector>
+#include <list>
 #include <string>
 #include <map>
 #include <algorithm>
@@ -534,6 +535,7 @@ public:
 
    // sql commands
    virtual int Exec(const char* table_name, const char* sql) = 0;
+   virtual int ExecDisconnected(const char* table_name, const char* sql) = 0;
 
    // queries
    virtual int Prepare(const char* table_name, const char* sql) = 0;
@@ -563,6 +565,7 @@ public:
 
 struct HsSqlSchema : public HsSchema {
    SqlBase* sql;
+   std::vector<std::string> disconnected_buffer;
    int transaction_count;
    std::string table_name;
    std::vector<std::string> column_names;
@@ -684,10 +687,20 @@ void HsFileSchema::print(bool print_tags) const
 class Mysql: public SqlBase
 {
 public:
+   std::string fConnectString;
    MYSQL* fMysql;
+
+   // query results
    MYSQL_RES* fResult;
    MYSQL_ROW  fRow;
    int fNumFields;
+
+   // disconnected operation
+   int fMaxDisconnected;
+   std::list<std::string> fDisconnectedBuffer;
+   time_t fNextReconnect;
+   int fNextReconnectDelaySec;
+   int fDisconnectedLost;
 
    Mysql(); // ctor
    ~Mysql(); // dtor
@@ -702,6 +715,7 @@ public:
    int ListColumns(const char* table_name, std::vector<std::string> *plist);
 
    int Exec(const char* table_name, const char* sql);
+   int ExecDisconnected(const char* table_name, const char* sql);
 
    int Prepare(const char* table_name, const char* sql);
    int Step();
@@ -727,6 +741,10 @@ Mysql::Mysql() // ctor
    fResult = NULL;
    fRow = NULL;
    fNumFields = 0;
+   fMaxDisconnected = 1000;
+   fNextReconnect = 0;
+   fNextReconnectDelaySec = 0;
+   fDisconnectedLost = 0;
 }
 
 Mysql::~Mysql() // dtor
@@ -736,6 +754,9 @@ Mysql::~Mysql() // dtor
    fResult = NULL;
    fRow = NULL;
    fNumFields = 0;
+   if (fDisconnectedBuffer.size() > 0) {
+      cm_msg(MINFO, "Mysql::~Mysql", "Lost %d history entries accumulated while disconnected from the database", (int)fDisconnectedBuffer.size());
+   }
 }
 
 static char* skip_spaces(char* s)
@@ -753,6 +774,8 @@ int Mysql::Connect(const char* connect_string)
    if (fIsConnected)
       Disconnect();
 
+   fConnectString = connect_string;
+
    if (fDebug)
       cm_msg(MINFO, "Mysql::Connect", "Connecting to Mysql database specified by \'%s\'", connect_string);
 
@@ -762,6 +785,7 @@ int Mysql::Connect(const char* connect_string)
    std::string db_name;
    int tcp_port = 0;
    std::string unix_socket;
+   std::string buffer;
 
    FILE* fp = fopen(connect_string, "r");
    if (!fp) {
@@ -796,12 +820,19 @@ int Mysql::Connect(const char* connect_string)
          user_name = skip_spaces(s + 5);
       if (strncasecmp(s, "password=", 9)==0)
          user_password = skip_spaces(s + 9);
+      if (strncasecmp(s, "buffer=", 7)==0)
+         buffer = skip_spaces(s + 7);
    }
 
    fclose(fp);
 
+   int buffer_int = atoi(buffer.c_str());
+
+   if (buffer_int > 0 && buffer_int < 1000000)
+      fMaxDisconnected = buffer_int;
+
    if (fDebug)
-      printf("Mysql::Connect: connecting to server [%s] port %d, unix socket [%s], database [%s], user [%s], password [%s]\n", host_name.c_str(), tcp_port, unix_socket.c_str(), db_name.c_str(), user_name.c_str(), user_password.c_str());
+      printf("Mysql::Connect: connecting to server [%s] port %d, unix socket [%s], database [%s], user [%s], password [%s], buffer [%d]\n", host_name.c_str(), tcp_port, unix_socket.c_str(), db_name.c_str(), user_name.c_str(), user_password.c_str(), fMaxDisconnected);
 
    if (!fMysql) {
       fMysql = mysql_init(NULL);
@@ -832,10 +863,28 @@ int Mysql::Connect(const char* connect_string)
    }
 
    if (fDebug) {
-      cm_msg(MINFO, "Mysql::Connect", "Connected to a MySQL database on host [%s], port %d, unix socket [%s], database [%s], user [%s], password [%s]", host_name.c_str(), tcp_port, unix_socket.c_str(), db_name.c_str(), user_name.c_str(), "xxx");
+      cm_msg(MINFO, "Mysql::Connect", "Connected to a MySQL database on host [%s], port %d, unix socket [%s], database [%s], user [%s], password [%s], buffer %d", host_name.c_str(), tcp_port, unix_socket.c_str(), db_name.c_str(), user_name.c_str(), "xxx", fMaxDisconnected);
    }
 
    fIsConnected = true;
+
+   int count = 0;
+   while (fDisconnectedBuffer.size() > 0) {
+      status = Exec("(flush)", fDisconnectedBuffer.front().c_str());
+      if (status != DB_SUCCESS) {
+         return status;
+      }
+      fDisconnectedBuffer.pop_front();
+      count++;
+   }
+
+   if (count > 0) {
+      cm_msg(MINFO, "Mysql::Connect", "Saved %d, lost %d history events accumulated while disconnected from the database", count, fDisconnectedLost);
+   }
+
+   assert(fDisconnectedBuffer.size() == 0);
+   fDisconnectedLost = 0;
+
    return DB_SUCCESS;
 }
 
@@ -962,8 +1011,10 @@ int Mysql::Exec(const char* table_name, const char* sql)
    // return values:
    // DB_SUCCESS
    // DB_FILE_ERROR: not connected
-   // DB_NO_KEY: "table not found"
    // DB_KEY_EXIST: "table already exists"
+
+   if (!fMysql)
+      return DB_FILE_ERROR;
 
    assert(fMysql);
    assert(fResult == NULL); // there should be no unfinalized queries
@@ -971,11 +1022,52 @@ int Mysql::Exec(const char* table_name, const char* sql)
 
    if (mysql_query(fMysql, sql)) {
       cm_msg(MERROR, "Mysql::Exec", "mysql_query(%s) error %d (%s)", sql, mysql_errno(fMysql), mysql_error(fMysql));
-      if (mysql_errno(fMysql) == 1060)
+      if (mysql_errno(fMysql) == 1060) // "Duplicate column name"
          return DB_KEY_EXIST;
+      if (mysql_errno(fMysql) == 2006) { // "MySQL server has gone away"
+         Disconnect();
+         return ExecDisconnected(table_name, sql);
+      }
       return DB_FILE_ERROR;
    }
 
+   return DB_SUCCESS;
+}
+
+int Mysql::ExecDisconnected(const char* table_name, const char* sql)
+{
+   if (fDebug)
+      printf("Mysql::ExecDisconnected(%s, %s)\n", table_name, sql);
+
+   if (fDisconnectedBuffer.size() < fMaxDisconnected) {
+      fDisconnectedBuffer.push_back(sql);
+      if (fDisconnectedBuffer.size() >= fMaxDisconnected) {
+         cm_msg(MERROR, "Mysql::ExecDisconnected", "Error: Disconnected database buffer overflow, size %d, subsequent events are lost", (int)fDisconnectedBuffer.size());
+      }
+   } else {
+      fDisconnectedLost++;
+   }
+
+   time_t now = time(NULL);
+
+   if (fNextReconnect == 0 || now >= fNextReconnect) {
+      int status = Connect(fConnectString.c_str());
+      if (status == DB_SUCCESS) {
+         fNextReconnect = 0;
+         fNextReconnectDelaySec = 0;
+      } else {
+         if (fNextReconnectDelaySec == 0) {
+            fNextReconnectDelaySec = 5;
+         } else if (fNextReconnectDelaySec < 10*60) {
+            fNextReconnectDelaySec *= 2;
+         }
+         if (fDebug) {
+            cm_msg(MINFO, "Mysql::ExecDisconnected", "Next reconnect attempt in %d sec, history events buffered %d, lost %d", fNextReconnectDelaySec, (int)fDisconnectedBuffer.size(), fDisconnectedLost);
+         }
+         fNextReconnect = now + fNextReconnectDelaySec;
+      }
+   }
+   
    return DB_SUCCESS;
 }
 
@@ -983,6 +1075,9 @@ int Mysql::Prepare(const char* table_name, const char* sql)
 {
    if (fDebug)
       printf("Mysql::Prepare(%s, %s)\n", table_name, sql);
+
+   if (!fMysql)
+      return DB_FILE_ERROR;
 
    assert(fMysql);
    assert(fResult == NULL); // there should be no unfinalized queries
@@ -1162,6 +1257,7 @@ public:
    int ListColumns(const char* table_name, std::vector<std::string> *plist);
 
    int Exec(const char* table_name, const char* sql);
+   int ExecDisconnected(const char* table_name, const char* sql);
 
    int Prepare(const char* table_name, const char* sql);
    int Step();
@@ -1587,7 +1683,6 @@ int Sqlite::Exec(const char* table_name, const char* sql)
    // return values:
    // DB_SUCCESS
    // DB_FILE_ERROR: not connected
-   // DB_NO_KEY: "table not found"
    // DB_KEY_EXIST: "table already exists"
 
    if (!fIsConnected)
@@ -1616,6 +1711,12 @@ int Sqlite::Exec(const char* table_name, const char* sql)
    }
 
    return DB_SUCCESS;
+}
+
+int Sqlite::ExecDisconnected(const char* table_name, const char* sql)
+{
+   cm_msg(MERROR, "Sqlite::Exec", "sqlite driver does not support disconnected operations");
+   return DB_FILE_ERROR;
 }
 
 #endif // HAVE_SQLITE
@@ -2880,6 +2981,10 @@ int SchemaHistoryBase::hs_read_binned(time_t start_time, time_t end_time, int nu
 
 int HsSqlSchema::close_transaction()
 {
+   if (!sql->IsConnected()) {
+      return HS_SUCCESS;
+   }
+   
    int status = HS_SUCCESS;
    if (transaction_count > 0) {
       status = sql->CommitTransaction(table_name.c_str());
@@ -3048,21 +3153,31 @@ int HsSqlSchema::write_event(const time_t t, const char* data, const int data_si
    cmd += values;
    cmd += ");";
 
-   if (s->transaction_count == 0)
-      sql->OpenTransaction(s->table_name.c_str());
+   if (sql->IsConnected()) {
+      if (s->transaction_count == 0)
+         sql->OpenTransaction(s->table_name.c_str());
 
-   s->transaction_count++;
+      s->transaction_count++;
 
-   int status = sql->Exec(s->table_name.c_str(), cmd.c_str());
+      int status = sql->Exec(s->table_name.c_str(), cmd.c_str());
 
-   if (s->transaction_count > 100000) {
-      //printf("flush table %s\n", table_name);
-      sql->CommitTransaction(s->table_name.c_str());
-      s->transaction_count = 0;
-   }
-
-   if (status != DB_SUCCESS) {
-      return status;
+      // mh2sql who does not call hs_flush_buffers()
+      // so we should flush the transaction by hand
+      // some SQL engines have limited transaction buffers... K.O.
+      if (s->transaction_count > 100000) {
+         //printf("flush table %s\n", table_name);
+         sql->CommitTransaction(s->table_name.c_str());
+         s->transaction_count = 0;
+      }
+      
+      if (status != DB_SUCCESS) {
+         return status;
+      }
+   } else {
+      int status = sql->ExecDisconnected(s->table_name.c_str(), cmd.c_str());
+      if (status != DB_SUCCESS) {
+         return status;
+      }
    }
 
    return HS_SUCCESS;

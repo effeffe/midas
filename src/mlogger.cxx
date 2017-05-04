@@ -4896,7 +4896,7 @@ void log_history(HNDLE hDB, HNDLE hKey, void *info)
       status = mh[h]->hs_write_event(hist_log[i].event_name, hist_log[i].last_log, hist_log[i].buffer_size, hist_log[i].buffer);
       if (verbose)
          if (status != HS_SUCCESS)
-            printf("hs_write_event() status %d\n", status);
+            printf("write_history_event: \'%s\', channel \'%s\' hs_write_event() status %d\n", hist_log[i].event_name, mh[h]->name, status);
    }
 
    maybe_flush_history(now);
