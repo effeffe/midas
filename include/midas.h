@@ -1162,7 +1162,7 @@ typedef struct {
     INT(*exit) ();                    /**< Pointer to exit routine           */
    void *parameters;                  /**< Pointer to parameter structure    */
    INT param_size;                    /**< Size of parameter structure       */
-   char **init_str;                   /**< Parameter init string             */
+   const char **init_str;             /**< Parameter init string             */
    BOOL enabled;                      /**< Enabled flag                      */
    void *histo_folder;
 } ANA_MODULE;
@@ -2022,7 +2022,7 @@ extern "C" {
    void EXPRT add_data_dir(char *result, char *file);
    void EXPRT lock_histo(INT id);
 
-   void EXPRT open_subfolder(char *name);
+   void EXPRT open_subfolder(const char *name);
    void EXPRT close_subfolder();
 
    /* we need a duplicate of mxml/strlcpy.h or nobody can use strlcpy() from libmidas.a */

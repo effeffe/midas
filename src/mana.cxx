@@ -3436,7 +3436,7 @@ TCutG *cut_book(const char *name)
    return cut;
 }
 
-void open_subfolder(char *name)
+void open_subfolder(const char *name)
 {
 
    TFolder *current = (TFolder *) gHistoFolderStack->Last();
