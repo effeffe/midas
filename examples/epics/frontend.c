@@ -77,7 +77,7 @@ DEVICE_DRIVER epics_driver[] = {
 EQUIPMENT equipment[] = {
 
    {"Beamline",                 /* equipment name */
-    3, 0,                       /* event ID, trigger mask */
+    { 3, 0,                       /* event ID, trigger mask */
     "SYSTEM",                   /* event buffer */
     EQ_SLOW,                    /* equipment type */
     0,                          /* event source */
@@ -88,7 +88,7 @@ EQUIPMENT equipment[] = {
     0,                          /* stop run after this event limit */
     0,                          /* number of sub events */
     1,                          /* log history every event */
-    "", "", "",
+    "", "", "" },
     cd_gen_read,                /* readout routine */
     cd_gen,                     /* class driver main routine */
     epics_driver,               /* device driver list */

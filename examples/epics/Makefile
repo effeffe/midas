@@ -37,7 +37,7 @@ INC_DIR 	= $(MIDASSYS)/include
 LIB_DIR 	= $(MIDASSYS)/linux/lib
 DRV_DIR		= $(MIDASSYS)/drivers
 EPICS_DIR       = $(HOME)/base
-EPICS_LIBDIR    = $(HOME)/base/lib/linux-x86
+EPICS_LIBDIR    = $(HOME)/base/lib/linux-x86_64
 #-------------------------------------------------------------------
 # Drivers needed by the frontend program
 #                 
@@ -47,7 +47,7 @@ DRIVERS         = generic.o epics_ca.o
 # Lines below here should not be edited
 ####################################################################
 
-LIB = $(LIB_DIR)/libmidas.a $(EPICS_LIBDIR)/libca.a $(EPICS_LIBDIR)/libCom.a
+LIB = $(LIB_DIR)/libmidas.a $(EPICS_LIBDIR)/libca.a $(EPICS_LIBDIR)/libCom.a -ldl -lreadline
 
 # compiler
 CC = gcc
