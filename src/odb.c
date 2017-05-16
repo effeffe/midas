@@ -9769,6 +9769,7 @@ INT db_check_record(HNDLE hDB, HNDLE hKey, const char *keyname, const char *rec_
    INT i, j, n_data, string_length, status;
    HNDLE hKeyRoot, hKeyTest;
    KEY key;
+   int bad_string_length;
 
    if (rpc_is_remote())
       return rpc_call(RPC_DB_CHECK_RECORD, hDB, hKey, keyname, rec_str, correct);
@@ -9971,8 +9972,18 @@ INT db_check_record(HNDLE hDB, HNDLE hKey, const char *keyname, const char *rec_
                status = db_get_key(hDB, hKeyTest, &key);
                assert(status == DB_SUCCESS);
 
+               bad_string_length = 0;
+
+               if (key.type == TID_STRING) {
+                  //printf("key name [%s], tid %d/%d, num_values %d/%d, string length %d/%d\n", key_name, key.type, tid, key.num_values, n_data, string_length, key.item_size);
+                  if (string_length > 0 && string_length != key.item_size) {
+                     bad_string_length = 1;
+                  }
+               }
+
                /* check rec_str vs. ODB key */
-               if (!equal_ustring(key.name, key_name) || key.type != tid || key.num_values != n_data) {
+               if (!equal_ustring(key.name, key_name) || key.type != tid || key.num_values != n_data || bad_string_length) {
+                  //printf("miscompare key name [%s], tid %d/%d, num_values %d/%d, string length %d/%d\n", key_name, key.type, tid, key.num_values, n_data, key.item_size, string_length);
                   if (correct)
                      return db_create_record(hDB, hKey, keyname, rec_str_orig);
 
