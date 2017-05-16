@@ -260,13 +260,11 @@ INT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const ch
       }
 
       size = sizeof(a);
-      status = db_get_record(hDB, hkeyalarm, &a, &size, 0);
+      status = db_get_record1(hDB, hkeyalarm, &a, &size, 0, strcomb(alarm_odb_str));
       if (status != DB_SUCCESS || a.type < 1 || a.type > AT_LAST) {
          /* make sure alarm record has right structure */
-         db_check_record(hDB, hkeyalarm, "", strcomb(alarm_odb_str), TRUE);
-
          size = sizeof(a);
-         status = db_get_record(hDB, hkeyalarm, &a, &size, 0);
+         status = db_get_record1(hDB, hkeyalarm, &a, &size, 0, strcomb(alarm_odb_str));
          if (status != DB_SUCCESS) {
             cm_msg(MERROR, "al_trigger_alarm", "Cannot get alarm record");
             return AL_ERROR_ODB;
@@ -359,6 +357,7 @@ INT al_trigger_class(const char *alarm_class, const char *alarm_message, BOOL fi
    HNDLE hDB, hkeyclass;
    char str[256], command[256], tag[32], url[256];
    ALARM_CLASS ac;
+   ALARM_CLASS_STR(alarm_class_str);
    DWORD now = ss_time();
 
    tag[0] = 0;
@@ -374,7 +373,7 @@ INT al_trigger_class(const char *alarm_class, const char *alarm_message, BOOL fi
    }
 
    size = sizeof(ac);
-   status = db_get_record(hDB, hkeyclass, &ac, &size, 0);
+   status = db_get_record1(hDB, hkeyclass, &ac, &size, 0, strcomb(alarm_class_str));
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "al_trigger_class", "Cannot get alarm class record");
       return AL_ERROR_ODB;
@@ -448,6 +447,8 @@ INT al_reset_alarm(const char *alarm_name)
    char str[256];
    ALARM a;
    ALARM_CLASS ac;
+   ALARM_ODB_STR(alarm_str);
+   ALARM_CLASS_STR(alarm_class_str);
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -477,7 +478,7 @@ INT al_reset_alarm(const char *alarm_name)
    }
 
    size = sizeof(a);
-   status = db_get_record(hDB, hkeyalarm, &a, &size, 0);
+   status = db_get_record1(hDB, hkeyalarm, &a, &size, 0, strcomb(alarm_str));
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "al_reset_alarm", "Cannot get alarm record");
       return AL_ERROR_ODB;
@@ -491,7 +492,7 @@ INT al_reset_alarm(const char *alarm_name)
    }
 
    size = sizeof(ac);
-   status = db_get_record(hDB, hkeyclass, &ac, &size, 0);
+   status = db_get_record1(hDB, hkeyclass, &ac, &size, 0, strcomb(alarm_class_str));
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "al_reset_alarm", "Cannot get alarm class record");
       return AL_ERROR_ODB;
@@ -617,12 +618,12 @@ INT al_check()
       db_get_key(hDB, hkey, &key);
       
       size = sizeof(a);
-      status = db_get_record(hDB, hkey, &a, &size, 0);
+      status = db_get_record1(hDB, hkey, &a, &size, 0, strcomb(alarm_odb_str));
       if (status != DB_SUCCESS || a.type < 1 || a.type > AT_LAST) {
          /* make sure alarm record has right structure */
          db_check_record(hDB, hkey, "", strcomb(alarm_odb_str), TRUE);
          size = sizeof(a);
-         status = db_get_record(hDB, hkey, &a, &size, 0);
+         status = db_get_record1(hDB, hkey, &a, &size, 0, strcomb(alarm_odb_str));
          if (status != DB_SUCCESS || a.type < 1 || a.type > AT_LAST) {
             cm_msg(MERROR, "al_check", "Cannot get alarm record");
             continue;
