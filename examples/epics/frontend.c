@@ -147,23 +147,23 @@ INT frontend_loop()
     {
       watchdog_time = ss_time();
       if (!hWatch)
-	{
-	  cm_get_experiment_database(&hDB, NULL);
-	  status = db_find_key(hDB, 0, "/equipment/Beamline/variables/demand", &hWatch);
-	  status = db_find_key(hDB, 0, "/equipment/Beamline/variables/measured", &hRespond);
-	  if (status != DB_SUCCESS) {
-	    cm_msg(MERROR, "frontend_loop", "key not found");
-	    return FE_ERR_HW;
-	  }
-	}
+        {
+          cm_get_experiment_database(&hDB, NULL);
+          status = db_find_key(hDB, 0, "/equipment/Beamline/variables/demand", &hWatch);
+          status = db_find_key(hDB, 0, "/equipment/Beamline/variables/measured", &hRespond);
+          if (status != DB_SUCCESS) {
+            cm_msg(MERROR, "frontend_loop", "key not found");
+            return FE_ERR_HW;
+          }
+        }
       if (hWatch) {
-	/* Check if Epics alive */
-	size = sizeof(float);
-	db_get_data_index(hDB, hRespond, &cat, &size, 19, TID_FLOAT);
-	if (fabs(cat - dog) > 10.f)
-	  cm_msg(MINFO,"feEpics","R/W Access to Epics is in jeopardy!");
-	
-	db_set_data_index(hDB, hWatch, &dog, sizeof(float), 19, TID_FLOAT);
+        /* Check if Epics alive */
+        size = sizeof(float);
+        db_get_data_index(hDB, hRespond, &cat, &size, 19, TID_FLOAT);
+        if (fabs(cat - dog) > 10.f)
+          cm_msg(MINFO,"feEpics","R/W Access to Epics is in jeopardy, wrote %.0f, read %.0f!", dog, cat);
+        
+        db_set_data_index(hDB, hWatch, &dog, sizeof(float), 19, TID_FLOAT);
       }
       if (!((INT)++dog % 100)) dog = 0.f;
     }
