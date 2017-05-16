@@ -9108,8 +9108,7 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
          /* copy single key */
          if (key.item_size * key.num_values != *buf_size) {
             db_get_path(hDB, hKey, str, sizeof(str));
-            cm_msg(MERROR, "db_get_record",
-                   "struct size mismatch for \"%s\" (expected size: %d, size in ODB: %d", str, *buf_size, key.item_size * key.num_values);
+            cm_msg(MERROR, "db_get_record", "struct size mismatch for \"%s\" (expected size: %d, size in ODB: %d)", str, *buf_size, key.item_size * key.num_values);
             return DB_STRUCT_SIZE_MISMATCH;
          }
 
@@ -9117,8 +9116,7 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
 
          if (convert_flags) {
             if (key.num_values > 1)
-               rpc_convert_data(data, key.type,
-                                RPC_OUTGOING | RPC_FIXARRAY, key.item_size * key.num_values, convert_flags);
+               rpc_convert_data(data, key.type, RPC_OUTGOING | RPC_FIXARRAY, key.item_size * key.num_values, convert_flags);
             else
                rpc_convert_single(data, key.type, RPC_OUTGOING, convert_flags);
          }
@@ -9130,8 +9128,7 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
       db_get_record_size(hDB, hKey, align, &total_size);
       if (total_size != *buf_size) {
          db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_get_record",
-                "struct size mismatch for \"%s\" (expected size: %d, size in ODB: %d)", str, *buf_size, total_size);
+         cm_msg(MERROR, "db_get_record", "struct size mismatch for \"%s\" (expected size: %d, size in ODB: %d)", str, *buf_size, total_size);
          return DB_STRUCT_SIZE_MISMATCH;
       }
 
@@ -9147,6 +9144,45 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
 #endif                          /* LOCAL_ROUTINES */
 
    return DB_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Same as db_get_record() but if there is a record mismatch between ODB structure
+and C record, it is automatically corrected by calling db_check_record()
+
+@param hDB          ODB handle obtained via cm_get_experiment_database().
+@param hKey         Handle for key where search starts, zero for root.
+@param data         Pointer to the retrieved data.
+@param buf_size     Size of data structure, must be obtained via sizeof(RECORD-NAME).
+@param align        Byte alignment calculated by the stub and
+                    passed to the rpc side to align data
+                    according to local machine. Must be zero
+                    when called from user level.
+@param rec_str      ASCII representation of ODB record in the format
+@return DB_SUCCESS, DB_INVALID_HANDLE, DB_STRUCT_SIZE_MISMATCH
+*/
+INT db_get_record1(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align, const char *rec_str)
+{
+   int size = *buf_size;
+   int status;
+   char path[MAX_ODB_PATH];
+
+   status = db_get_record(hDB, hKey, data, buf_size, align);
+   if (status == DB_SUCCESS)
+      return status;
+
+   status = db_check_record(hDB, hKey, "", rec_str, TRUE);
+   if (status != DB_SUCCESS)
+      return status;
+
+   db_get_path(hDB, hKey, path, sizeof(path));
+   cm_msg(MERROR, "db_get_record1", "repaired struct size mismatch of \"%s\"", path);
+
+   *buf_size = size;
+   status = db_get_record(hDB, hKey, data, buf_size, align);
+
+   return status;
 }
 
 /********************************************************************/

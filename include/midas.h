@@ -1807,6 +1807,7 @@ extern "C" {
    INT EXPRT db_open_record(HNDLE hdb, HNDLE hkey, void *ptr, INT rec_size, WORD access, void (*dispatcher) (INT, INT, void *), void *info);
    INT EXPRT db_close_record(HNDLE hdb, HNDLE hkey);
    INT EXPRT db_get_record(HNDLE hdb, HNDLE hKey, void *data, INT * buf_size, INT align);
+   INT EXPRT db_get_record1(HNDLE hdb, HNDLE hKey, void *data, INT * buf_size, INT align, const char *rec_str);
    INT EXPRT db_get_record_size(HNDLE hdb, HNDLE hKey, INT align, INT * buf_size);
    INT EXPRT db_set_record(HNDLE hdb, HNDLE hKey, void *data, INT buf_size, INT align);
    INT EXPRT db_send_changed_records(void);

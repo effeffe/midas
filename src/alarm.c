@@ -542,6 +542,7 @@ INT al_check()
    ALARM a;
    char str[256], value[256];
    time_t now;
+   PROGRAM_INFO_STR(program_info_str);
    PROGRAM_INFO program_info;
    BOOL flag;
    
@@ -674,7 +675,7 @@ INT al_check()
             continue;
          
          size = sizeof(program_info);
-         status = db_get_record(hDB, hkey, &program_info, &size, 0);
+         status = db_get_record1(hDB, hkey, &program_info, &size, 0, strcomb(program_info_str));
          if (status != DB_SUCCESS) {
             cm_msg(MERROR, "al_check", "Cannot get program info record");
             continue;
