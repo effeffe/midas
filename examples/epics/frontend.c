@@ -11,6 +11,7 @@
 \********************************************************************/
 
 #include <stdio.h>
+#include <math.h>
 #include "midas.h"
 #include "class/generic.h"
 #include "device/epics_ca.h"
@@ -159,7 +160,7 @@ INT frontend_loop()
 	/* Check if Epics alive */
 	size = sizeof(float);
 	db_get_data_index(hDB, hRespond, &cat, &size, 19, TID_FLOAT);
-	if (abs(cat - dog) > 10.f)
+	if (fabs(cat - dog) > 10.f)
 	  cm_msg(MINFO,"feEpics","R/W Access to Epics is in jeopardy!");
 	
 	db_set_data_index(hDB, hWatch, &dog, sizeof(float), 19, TID_FLOAT);
