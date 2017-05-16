@@ -4305,6 +4305,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       /* check /programs alarms */
       db_find_key(hDB, 0, "/Programs", &hkeyroot);
       if (hkeyroot) {
+         PROGRAM_INFO_STR(program_info_str);
          for (i = 0;; i++) {
             status = db_enum_key(hDB, hkeyroot, i, &hkey);
             if (status == DB_NO_MORE_SUBKEYS)
@@ -4317,7 +4318,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
                continue;
 
             size = sizeof(program_info);
-            status = db_get_record(hDB, hkey, &program_info, &size, 0);
+            status = db_get_record1(hDB, hkey, &program_info, &size, 0, strcomb(program_info_str));
             if (status != DB_SUCCESS) {
                cm_msg(MERROR, "cm_transition", "Cannot get program info record");
                continue;
@@ -4479,6 +4480,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
       db_find_key(hDB, 0, "/Programs", &hRootKey);
       if (hRootKey) {
+         PROGRAM_INFO_STR(program_info_str);
          for (i = 0;; i++) {
             status = db_enum_key(hDB, hRootKey, i, &hKey);
             if (status == DB_NO_MORE_SUBKEYS)
@@ -4491,7 +4493,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
                continue;
 
             size = sizeof(program_info);
-            status = db_get_record(hDB, hKey, &program_info, &size, 0);
+            status = db_get_record1(hDB, hKey, &program_info, &size, 0, strcomb(program_info_str));
             if (status != DB_SUCCESS) {
                cm_msg(MERROR, "cm_transition", "Cannot get program info record");
                continue;
@@ -4849,6 +4851,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
       db_find_key(hDB, 0, "/Programs", &hRootKey);
       if (hRootKey) {
+         PROGRAM_INFO_STR(program_info_str);
          for (i = 0;; i++) {
             status = db_enum_key(hDB, hRootKey, i, &hKey);
             if (status == DB_NO_MORE_SUBKEYS)
@@ -4861,7 +4864,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
                continue;
 
             size = sizeof(program_info);
-            status = db_get_record(hDB, hKey, &program_info, &size, 0);
+            status = db_get_record1(hDB, hKey, &program_info, &size, 0, strcomb(program_info_str));
             if (status != DB_SUCCESS) {
                cm_msg(MERROR, "cm_transition", "Cannot get program info record");
                continue;
