@@ -1661,8 +1661,6 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
    BOOL new_window;
 
    RUNINFO runinfo;
-   EQUIPMENT_INFO equipment;
-   EQUIPMENT_STATS equipment_stats;
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -1690,8 +1688,10 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
    db_find_key(hDB, 0, "/Runinfo", &hkey);
    assert(hkey);
 
+   RUNINFO_STR(runinfo_str);
+
    size = sizeof(runinfo);
-   status = db_get_record(hDB, hkey, &runinfo, &size, 0);
+   status = db_get_record1(hDB, hkey, &runinfo, &size, 0, strcomb(runinfo_str));
    assert(status == DB_SUCCESS);
 
    /* header */
@@ -2285,9 +2285,10 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
          db_get_key(hDB, hsubkey, &key);
          db_find_key(hDB, hsubkey, "Common", &hkeytmp);
          if (hkeytmp) {
-            size = sizeof(equipment);
-            db_get_record(hDB, hkeytmp, &equipment, &size, 0);
-            if (equipment.hidden)
+            BOOL hidden = false;
+            size = sizeof(hidden);
+            db_get_value(hDB, hkeytmp, "hidden", &hidden, &size, TID_BOOL, FALSE);
+            if (hidden)
                n_hidden++;
          }
       }
@@ -2315,51 +2316,51 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
 
          db_get_key(hDB, hsubkey, &key);
 
-         memset(&equipment, 0, sizeof(equipment));
-         memset(&equipment_stats, 0, sizeof(equipment_stats));
-
          db_find_key(hDB, hsubkey, "Common", &hkeytmp);
 
-         if (hkeytmp) {
-            db_get_record_size(hDB, hkeytmp, 0, &size);
-            /* discard wrong equipments (caused by analyzer) */
-            if (size <= (int)sizeof(equipment))
-               db_get_record(hDB, hkeytmp, &equipment, &size, 0);
+         if (!hkeytmp)
+            continue;
 
-            /* skip hidden equipments */
-#ifdef USE_HIDDEN_EQ
-            if (equipment.hidden && !expand_equipment)
-               continue;
-#endif
-         }
+         int equipment_enabled = false;
+         int equipment_hidden  = false;
+         std::string equipment_frontend_name;
+         std::string equipment_frontend_host;
+         std::string equipment_status;
+         std::string equipment_status_color;
 
-         db_find_key(hDB, hsubkey, "Statistics", &hkeytmp);
+         size = sizeof(BOOL);
+         db_get_value(hDB, hkeytmp, "enabled", &equipment_enabled, &size, TID_BOOL, FALSE);
+         size = sizeof(BOOL);
+         db_get_value(hDB, hkeytmp, "hidden", &equipment_hidden, &size, TID_BOOL, FALSE);
+         db_get_value_string(hDB, hkeytmp, "frontend name", 0, &equipment_frontend_name, FALSE);
+         db_get_value_string(hDB, hkeytmp, "frontend host", 0, &equipment_frontend_host, FALSE);
+         db_get_value_string(hDB, hkeytmp, "status", 0, &equipment_status, FALSE);
+         db_get_value_string(hDB, hkeytmp, "status color", 0, &equipment_status_color, FALSE);
 
-         if (hkeytmp) {
-            db_get_record_size(hDB, hkeytmp, 0, &size);
-            if (size == sizeof(equipment_stats))
-               db_get_record(hDB, hkeytmp, &equipment_stats, &size, 0);
-         }
+         //printf("eq [%s] enabled %d, hidden %d, fe [%s] host [%s]\n", key.name, equipment_enabled, equipment_hidden, equipment_frontend_name.c_str(), equipment_frontend_host.c_str());
+
+         if (equipment_hidden && !expand_equipment)
+            continue;
 
          sprintf(ref, "SC/%s", key.name);
 
          /* check if client running this equipment is present */
-         if (cm_exist(equipment.frontend_name, TRUE) != CM_SUCCESS
+         if (cm_exist(equipment_frontend_name.c_str(), TRUE) != CM_SUCCESS
              && cm_exist("FAL", TRUE) != CM_SUCCESS)
             rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"redLight\">Frontend stopped",
                  ref, key.name);
          else {
-            if (equipment.enabled) {
-               if (equipment.status[0] == 0)
+            if (equipment_enabled) {
+               if (equipment_status.length() < 1)
                   rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"greenLight\">%s@%s", ref, key.name,
-                           equipment.frontend_name, equipment.frontend_host);
+                           equipment_frontend_name.c_str(), equipment_frontend_host.c_str());
                else {
-                  if (stristr(equipment.status_color, "Light"))
+                  if (stristr(equipment_status_color.c_str(), "Light"))
                      rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"%s\">%s", ref, key.name,
-                              equipment.status_color, equipment.status);
+                              equipment_status_color.c_str(), equipment_status.c_str());
                   else
                      rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"Light\" style=\"background-color:%s\">%s",
-                              ref, key.name, equipment.status_color, equipment.status);
+                              ref, key.name, equipment_status_color.c_str(), equipment_status.c_str());
                }
             } else
                rsprintf("<tr><td><a href=\"%s\">%s</a><td align=center class=\"yellowLight\">Disabled", ref, key.name);
@@ -2368,7 +2369,18 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
          char str[256];
 
          /* event statistics */
-         d = equipment_stats.events_sent;
+         double equipment_stats_events_sent = 0;
+         double equipment_stats_events_per_sec = 0;
+         double equipment_stats_kbytes_per_sec = 0;
+
+         size = sizeof(double);
+         db_get_value(hDB, hsubkey, "Statistics/events sent", &equipment_stats_events_sent, &size, TID_DOUBLE, FALSE);
+         size = sizeof(double);
+         db_get_value(hDB, hsubkey, "Statistics/events per sec.", &equipment_stats_events_per_sec, &size, TID_DOUBLE, FALSE);
+         size = sizeof(double);
+         db_get_value(hDB, hsubkey, "Statistics/kBytes per sec.", &equipment_stats_kbytes_per_sec, &size, TID_DOUBLE, FALSE);
+
+         d = equipment_stats_events_sent;
          if (d > 1E9)
             sprintf(str, "%1.3lfG", d / 1E9);
          else if (d > 1E6)
@@ -2377,7 +2389,7 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
             sprintf(str, "%1.0lf", d);
 
          rsprintf("<td align=center>%s<td align=center>%1.1lf<td align=center>%1.3lf\n",
-                  str, equipment_stats.events_per_sec, equipment_stats.kbytes_per_sec/1024.0);
+                  str, equipment_stats_events_per_sec, equipment_stats_kbytes_per_sec/1024.0);
       }
    }
 
@@ -6278,9 +6290,8 @@ void show_custom_gif(const char *name)
             break;
          db_get_key(hDB, hkey, &key);
 
-         db_check_record(hDB, hkey, "", strcomb(cgif_label_str), TRUE);
          size = sizeof(label);
-         status = db_get_record(hDB, hkey, &label, &size, 0);
+         status = db_get_record1(hDB, hkey, &label, &size, 0, strcomb(cgif_label_str));
          if (status != DB_SUCCESS) {
             cm_msg(MERROR, "show_custom_gif", "Cannot open data record for label \"%s\"",
                    key.name);
@@ -6378,9 +6389,8 @@ void show_custom_gif(const char *name)
             break;
          db_get_key(hDB, hkey, &key);
 
-         db_check_record(hDB, hkey, "", strcomb(cgif_bar_str), TRUE);
          size = sizeof(bar);
-         status = db_get_record(hDB, hkey, &bar, &size, 0);
+         status = db_get_record1(hDB, hkey, &bar, &size, 0, strcomb(cgif_bar_str));
          if (status != DB_SUCCESS) {
             cm_msg(MERROR, "show_custom_gif", "Cannot open data record for bar \"%s\"",
                    key.name);
