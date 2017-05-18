@@ -168,8 +168,8 @@ INT frontend_loop()
         
         db_set_data_index(hDB, hWatch, &dog, sizeof(float), 19, TID_FLOAT);
       }
+      dog += 1;
       // watchdog mismatch check above does not know how to check for wraparound. K.O.
-      //dog += 1;
       //if (dog > wraparound)
       //  dog = 0;
     }
