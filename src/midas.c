@@ -4350,11 +4350,12 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       db_get_value(hDB, 0, "/Experiment/Transition debug flag", &debug_flag, &size, TID_INT, TRUE);
    }
 
-   /* if no run number is given, get it from DB */
+   /* if no run number is given, get it from ODB and increment it */
    if (run_number == 0) {
       size = sizeof(run_number);
       status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
       assert(status == SUCCESS);
+      run_number++;
       tr_current_transition->run_number = run_number;
    }
 
