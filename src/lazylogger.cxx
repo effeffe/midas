@@ -1331,7 +1331,7 @@ int lazy_disk_copy_loop(const char *outfile, const char *infile, FILE* fpout, FI
    /* infinite loop while copying */
    while (1) {
       if (copy_continue) {
-         const int kBufSize = 10*1024*1024;
+         const int kBufSize = 1*1024*1024;
          char buf[kBufSize];
          int rd = fread(buf, 1, kBufSize, fpin);
          if (rd > 0) {
