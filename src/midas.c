@@ -1008,7 +1008,8 @@ static void add_message(char** messages, int* length, int* allocated, time_t tst
 static int cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char** messages, int* length, int* allocated, int* num_messages)
 {
    BOOL stop;
-   int fh, size;
+   int fh;
+   unsigned int size;
    INT i, n;
    char *p, *buffer, str[1000];
    struct stat stat_buf;
@@ -1026,6 +1027,14 @@ static int cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char** mes
    /* read whole file into memory */
    fstat(fh, &stat_buf);
    size = stat_buf.st_size;
+   
+   /* if file is too big, only read tail of file */
+   int maxsize = 10*1024*1024;
+   if (size > maxsize) {
+      lseek(fh, SEEK_END, -maxsize);
+      size = maxsize;
+   }
+   
    buffer = (char *) malloc(size + 1);
 
    if (buffer == NULL) {
