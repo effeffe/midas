@@ -19,3 +19,6 @@ scfe
 NT/bin/mhttpd.exp
 NT/lib/midas.exp
 catest
+ssl_cert.csr
+ssl_cert.key
+ssl_cert.pem
