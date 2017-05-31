@@ -2450,24 +2450,24 @@ int main(int argc, char **argv)
    db_find_key(hDB, 0, "/runinfo/state", &hKey);
    size = sizeof(run_state);
    db_get_data(hDB, hKey, &run_state, &size, TID_INT);
-   status = db_open_record(hDB, hKey, &run_state, sizeof(run_state), MODE_READ, NULL, NULL);
+   status = db_open_record(hDB, hKey, &run_state, sizeof(run_state), MODE_READ, NULL, NULL); // watch a TID_INT
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "Lazy", "cannot open /runinfo/state record");
    }
    /* hot link for statistics in write mode */
    size = sizeof(lazyst);
-   if (db_find_key(hDB, lazyinfo[channel].hKey, "Statistics", &hKey) == DB_SUCCESS)
-      db_get_record(hDB, hKey, &lazyst, &size, 0);
-   status = db_open_record(hDB, hKey, &lazyst, sizeof(lazyst), MODE_WRITE, NULL, NULL);
+   if (db_find_key(hDB, lazyinfo[channel].hKey, "Statistics", &hKey) == DB_SUCCESS) {
+      db_get_record1(hDB, hKey, &lazyst, &size, 0, LAZY_STATISTICS_STRING);
+   }
+   status = db_open_record1(hDB, hKey, &lazyst, sizeof(lazyst), MODE_WRITE, NULL, NULL, LAZY_STATISTICS_STRING);
    if (status == DB_NO_ACCESS) {
       /* record is probably still in exclusive access by dead FE, so reset it */
       status = db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE | MODE_DELETE, TRUE);
       if (status != DB_SUCCESS)
-         cm_msg(MERROR, "Lazy", 
-                "Cannot change access mode for %s/Statistics record, error %d", lazyinfo[channel].name, status);
+         cm_msg(MERROR, "Lazy", "Cannot change access mode for %s/Statistics record, error %d", lazyinfo[channel].name, status);
       else
          cm_msg(MINFO, "Lazy", "Recovered access mode for %s/Statistics record", lazyinfo[channel].name);
-      status = db_open_record(hDB, hKey, &lazyst, sizeof(lazyst), MODE_WRITE, NULL, NULL);
+      status = db_open_record1(hDB, hKey, &lazyst, sizeof(lazyst), MODE_WRITE, NULL, NULL, LAZY_STATISTICS_STRING);
    }
    if (status != DB_SUCCESS) {      
       cm_msg(MERROR, "Lazy", "cannot open %s/Statistics record", lazyinfo[channel].name);
@@ -2475,8 +2475,7 @@ int main(int argc, char **argv)
    /* get /settings once & hot link settings in read mode */
    db_find_key(hDB, lazyinfo[channel].hKey, "Settings", &hKey);
    size = sizeof(lazy);
-   status = db_open_record(hDB, hKey, &lazy, sizeof(lazy)
-                           , MODE_READ, lazy_settings_hotlink, NULL);
+   status = db_open_record1(hDB, hKey, &lazy, sizeof(lazy), MODE_READ, lazy_settings_hotlink, NULL, LAZY_SETTINGS_STRING);
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "Lazy", "cannot open %s/Settings record", lazyinfo[channel].name);
    }
@@ -2532,3 +2531,11 @@ int main(int argc, char **argv)
    cm_disconnect_experiment();
    return 1;
 }
+
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */
