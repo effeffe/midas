@@ -2192,7 +2192,7 @@ void sequencer()
             }
             
             size = sizeof(seq);
-            db_get_record(hDB, hKeySeq, &seq, &size, 0); // could have changed seq tree
+            db_get_record1(hDB, hKeySeq, &seq, &size, 0, strcomb(sequencer_str)); // could have changed seq tree
             seq.current_line_number++;
          }
       }
@@ -2249,7 +2249,7 @@ void sequencer()
             db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
             
             size = sizeof(seq);
-            db_get_record(hDB, hKeySeq, &seq, &size, 0); // could have changed seq tree
+            db_get_record1(hDB, hKeySeq, &seq, &size, 0, strcomb(sequencer_str)); // could have changed seq tree
             seq.current_line_number = mxml_get_line_number_end(pn)+1;
          }
       }
