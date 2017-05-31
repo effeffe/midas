@@ -1031,7 +1031,8 @@ static int cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char** mes
    /* if file is too big, only read tail of file */
    int maxsize = 10*1024*1024;
    if (size > maxsize) {
-      lseek(fh, SEEK_END, -maxsize);
+      lseek(fh, -maxsize, SEEK_END);
+      //printf("lseek status %d, errno %d (%s)\n", status, errno, strerror(errno));
       size = maxsize;
    }
    
