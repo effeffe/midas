@@ -42,6 +42,8 @@ The Online Database file
 #include <signal.h>
 #include <math.h>
 
+#define CHECK_OPEN_RECORD 1
+
 /*------------------------------------------------------------------*/
 
 /********************************************************************\
@@ -619,6 +621,16 @@ static int db_validate_data_offset(DATABASE_HEADER * pheader, int offset)
 static int db_validate_hkey(DATABASE_HEADER * pheader, HNDLE hKey)
 {
    return db_validate_key_offset(pheader, hKey);
+}
+
+static int db_validate_pkey(DATABASE_HEADER * pheader, KEY* pkey)
+{
+   /* check key type */
+   if (pkey->type <= 0 || pkey->type >= TID_LAST) {
+      //cm_msg(MERROR, "db_validate_key", "Warning: invalid key type, key \"%s\", type %d", path, pkey->type);
+      return 0;
+   }
+   return 1;
 }
 
 static int db_validate_key(DATABASE_HEADER * pheader, int recurse, const char *path, KEY * pkey)
@@ -2281,12 +2293,13 @@ INT db_delete_key1(HNDLE hDB, HNDLE hKey, INT level, BOOL follow_links)
       /* check if someone has opened key or parent */
       if (level == 0)
          do {
+#ifdef CHECK_OPEN_RECORD
             if (pkey->notify_count) {
                if (locked)
                   db_unlock_database(hDB);
                return DB_OPEN_RECORD;
             }
-
+#endif
             if (pkey->parent_keylist == 0)
                break;
 
@@ -2342,13 +2355,13 @@ INT db_delete_key1(HNDLE hDB, HNDLE hKey, INT level, BOOL follow_links)
                db_unlock_database(hDB);
             return DB_NO_ACCESS;
          }
-
+#ifdef CHECK_OPEN_RECORD
          if (pkey->notify_count) {
             if (locked)
                db_unlock_database(hDB);
             return DB_OPEN_RECORD;
          }
-
+#endif
          /* delete key data */
          if (pkey->type == TID_KEY)
             free_key(pheader, (char *) pheader + pkey->data, pkey->total_size);
@@ -3233,6 +3246,11 @@ INT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size)
 
       *path = 0;
       do {
+         if (!db_validate_pkey(pheader, pkey)) {
+            db_unlock_database(hDB);
+            return DB_INVALID_HANDLE;
+         }
+
          /* add key name in front of path */
          strcpy(str, path);
          strcpy(path, "/");
@@ -3245,8 +3263,19 @@ INT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size)
          }
          strcat(path, str);
 
+         if (!db_validate_hkey(pheader, pkey->parent_keylist)) {
+            db_unlock_database(hDB);
+            return DB_INVALID_HANDLE;
+         }
+
          /* find parent key */
          pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+
+         if (!db_validate_hkey(pheader, pkeylist->parent)) {
+            db_unlock_database(hDB);
+            return DB_INVALID_HANDLE;
+         }
+
          pkey = (KEY *) ((char *) pheader + pkeylist->parent);
       } while (pkey->parent_keylist);
 
@@ -4506,11 +4535,12 @@ INT db_reorder_key(HNDLE hDB, HNDLE hKey, INT idx)
 
       /* check if someone has opened key or parent */
       do {
+#ifdef CHECK_OPEN_RECORD
          if (pkey->notify_count) {
             db_unlock_database(hDB);
             return DB_OPEN_RECORD;
          }
-
+#endif
          if (pkey->parent_keylist == 0)
             break;
 
@@ -9682,6 +9712,7 @@ INT db_create_record(HNDLE hDB, HNDLE hKey, const char *orig_key_name, const cha
    status = db_find_key(hDB, hKey, key_name, &hKeyOrig);
    if (status == DB_SUCCESS) {
       assert(hKeyOrig != 0);
+#ifdef CHECK_OPEN_RECORD
       /* check if key or subkey is opened */
       _global_open_count = 0; // FIXME: this is not thread safe
       db_scan_tree_link(hDB, hKeyOrig, 0, check_open_keys, NULL);
@@ -9689,7 +9720,7 @@ INT db_create_record(HNDLE hDB, HNDLE hKey, const char *orig_key_name, const cha
          db_unlock_database(hDB);
          return DB_OPEN_RECORD;
       }
-
+#endif
       /* create temporary records */
       sprintf(str, "/System/Tmp/%1dI", ss_gettid());
       db_find_key(hDB, 0, str, &hKeyTmp);
@@ -10575,8 +10606,7 @@ int main(unsigned int argc,char **argv)
   }
 
   // Hot link this structure in Write mode
-  status = db_open_record(hDB, hKey, &myrec
-                          , sizeof(MY_STATISTICS), MODE_WRITE, NULL, NULL);
+  status = db_open_record(hDB, hKey, &myrec, sizeof(MY_STATISTICS), MODE_WRITE, NULL, NULL);
   if (status != DB_SUCCESS)
   {
     cm_msg(MERROR, "mychange", "cannot open My statistics record");
