@@ -196,6 +196,7 @@ NULL}
 class WriterInterface;
 
 typedef struct {
+   std::string name;
    INT handle;
    char path[256];
    char pipe_command[256];
@@ -257,13 +258,13 @@ static int         hist_log_size = 0;
 static int         hist_log_max = 0;
 static struct hist_log_s *hist_log = NULL;
 
-HNDLE hDB;
+static HNDLE hDB;
 
 /*---- ODB records -------------------------------------------------*/
 
-CHN_SETTINGS_STR(chn_settings_str);
-CHN_STATISTICS_STR(chn_statistics_str);
-CHN_TREE_STR(chn_tree_str);
+static CHN_SETTINGS_STR(chn_settings_str);
+static CHN_STATISTICS_STR(chn_statistics_str);
+static CHN_TREE_STR(chn_tree_str);
 
 /*---- data structures for MIDAS format ----------------------------*/
 
@@ -5200,7 +5201,7 @@ int close_channels(int run_number, BOOL* p_tape_flag)
          /* close statistics record */
          db_set_record(hDB, log_chn[i].stats_hkey, &log_chn[i].statistics, sizeof(CHN_STATISTICS), 0);
          db_close_record(hDB, log_chn[i].stats_hkey);
-         db_close_record(hDB, log_chn[i].settings_hkey);
+         db_unwatch(hDB, log_chn[i].settings_hkey);
          log_chn[i].stats_hkey = log_chn[i].settings_hkey = 0;
       }
    }
@@ -5256,6 +5257,24 @@ static int write_history(DWORD transition, DWORD run_number)
 
 /*------------------------------------------------------------------*/
 
+static void watch_settings(HNDLE hDB, HNDLE hKey, HNDLE index, void* info)
+{
+   int status;
+   assert(info != NULL);
+   LOG_CHN *log_chn = (LOG_CHN*)info;
+   int size = sizeof(CHN_SETTINGS);
+   status = db_get_record1(hDB, log_chn->settings_hkey, &log_chn->settings, &size, 0, strcomb(chn_settings_str));
+   if (status != DB_SUCCESS) {
+      cm_msg(MINFO, "watch_settings", "db_get_record(%s) status %d", log_chn->name.c_str(), status);
+      return;
+   }
+
+   if (verbose)
+      printf("Channel %s settings updated\n", log_chn->name.c_str());
+}
+
+/*------------------------------------------------------------------*/
+
 INT tr_start(INT run_number, char *error)
 /********************************************************************\
 
@@ -5275,9 +5294,12 @@ INT tr_start(INT run_number, char *error)
    CHN_SETTINGS *chn_settings;
    KEY key;
    BOOL write_data, tape_flag = FALSE;
+   HNDLE hDB;
 
    if (verbose)
       printf("tr_start: run %d\n", run_number);
+
+   cm_get_experiment_database(&hDB, NULL);
 
    /* save current ODB */
    odb_save("last.xml");
@@ -5350,6 +5372,8 @@ INT tr_start(INT run_number, char *error)
          /* if FTP channel already open, don't re-open it again */
          if (log_chn[index].ftp_con)
             continue;
+
+         log_chn[index].name = key.name;
 
          /* save settings key */
          status = db_find_key(hDB, hKeyChannel, "Settings", &log_chn[index].settings_hkey);
@@ -5473,9 +5497,9 @@ INT tr_start(INT run_number, char *error)
             cm_msg(MERROR, "tr_start", "Cannot open statistics record for channel %d, error %d", index, status);
 
          /* open hot link to settings tree */
-         status = db_open_record1(hDB, log_chn[index].settings_hkey, &log_chn[index].settings, sizeof(CHN_SETTINGS), MODE_READ, NULL, NULL, strcomb(chn_settings_str));
+         status = db_watch(hDB, log_chn[index].settings_hkey, watch_settings, &log_chn[index]);
          if (status != DB_SUCCESS)
-            cm_msg(MERROR, "tr_start", "cannot open channel settings record, probably other logger is using it");
+            cm_msg(MERROR, "tr_start", "db_watch() status %d, cannot open channel settings record, probably other logger is using it", status);
 
 #ifndef FAL_MAIN
          /* open buffer */
