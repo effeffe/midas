@@ -526,6 +526,15 @@ INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...)
 
 /*------------------------------------------------------------------*/
 
+#if 0
+static void eq_common_watcher(INT hDB, INT hKey, INT index)
+{
+   printf("watch %d %d %d\n", hDB, hKey, index);
+}
+#endif
+
+/*------------------------------------------------------------------*/
+
 INT register_equipment(void)
 {
    INT idx, size, status;
@@ -619,8 +628,19 @@ INT register_equipment(void)
       db_set_value(hDB, hKey, "Type", &eq_info->eq_type, sizeof(INT), 1, TID_INT);
       db_set_value(hDB, hKey, "Source", &eq_info->source, sizeof(INT), 1, TID_INT);
 
+#if 0
       /* open hot link to equipment info */
-      status = db_open_record(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), MODE_READ, NULL, NULL);
+      status = db_watch(hDB, hKey, eq_common_watcher);
+      if (status != DB_SUCCESS) {
+         printf("ERROR:  Cannot hotlink \"%s\", db_watch() status %d", str, status);
+         cm_disconnect_experiment();
+         ss_sleep(3000);
+         exit(0);
+      }
+#endif
+
+      /* open hot link to equipment info */
+      status = db_open_record1(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), MODE_READ, NULL, NULL, EQUIPMENT_COMMON_STR);
       if (status != DB_SUCCESS) {
          printf("ERROR:  Cannot hotlink \"%s\", db_open_record() status %d", str, status);
          cm_disconnect_experiment();
@@ -716,7 +736,7 @@ INT register_equipment(void)
       eq_stats->kbytes_per_sec = 0;
 
       /* open hot link to statistics tree */
-      status = db_open_record(hDB, hKey, eq_stats, sizeof(EQUIPMENT_STATS), MODE_WRITE, NULL, NULL);
+      status = db_open_record1(hDB, hKey, eq_stats, sizeof(EQUIPMENT_STATS), MODE_WRITE, NULL, NULL, EQUIPMENT_STATISTICS_STR);
       if (status == DB_NO_ACCESS) {
          /* record is probably still in exclusive access by dead FE, so reset it */
          status = db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE | MODE_DELETE, TRUE);
@@ -725,7 +745,7 @@ INT register_equipment(void)
                    "Cannot change access mode for record \'%s\', error %d", str, status);
          else
             cm_msg(MINFO, "register_equipment", "Recovered access mode for record \'%s\'", str);
-         status = db_open_record(hDB, hKey, eq_stats, sizeof(EQUIPMENT_STATS), MODE_WRITE, NULL, NULL);
+         status = db_open_record1(hDB, hKey, eq_stats, sizeof(EQUIPMENT_STATS), MODE_WRITE, NULL, NULL, EQUIPMENT_STATISTICS_STR);
       }
       if (status != DB_SUCCESS) {
          cm_msg(MERROR, "register_equipment", 
@@ -2885,3 +2905,10 @@ int interrupt_configure(INT cmd, INT source, POINTER_T adr) { return 0; };
 int frontend_loop() { return 0; };
 int poll_event(INT source, INT count, BOOL test) { return 0; };
 #endif
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */
