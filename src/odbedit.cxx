@@ -1294,10 +1294,20 @@ void watch_callback(HNDLE hDB, HNDLE hKey, INT index, void* info)
 {
    KEY key;
    int size;
-   char path[256], data[10000], str[256];
+   int status;
+   char path[MAX_ODB_PATH], data[10000], str[256];
    
-   db_get_key(hDB, hKey, &key);
-   db_get_path(hDB, hKey, path, sizeof(path));
+   status = db_get_path(hDB, hKey, path, sizeof(path));
+   if (status != DB_SUCCESS) {
+      printf("callback for invalid or deleted hkey %d\n", hKey);
+      return;
+   }
+
+   status = db_get_key(hDB, hKey, &key);
+   if (status != DB_SUCCESS) {
+      printf("callback for invalid or deleted hkey %d odb path %s\n", hKey, path);
+      return;
+   }
 
    if (key.type == TID_KEY)
       printf("%s modified\n", path);
@@ -2885,3 +2895,11 @@ int main(int argc, char *argv[])
 
    return EXIT_SUCCESS;
 }
+
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */
