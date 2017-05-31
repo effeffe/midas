@@ -5504,7 +5504,7 @@ int main(int argc, char *argv[])
    db_find_key(hDB, 0, str, &hkey);
    assert(hkey);
    size = sizeof(out_info);
-   db_get_record(hDB, hkey, &out_info, &size, 0);
+   db_get_record1(hDB, hkey, &out_info, &size, 0, ANA_OUTPUT_INFO_STR);
 
 #ifdef HAVE_ROOT
    /* create the folder for analyzer histograms */
