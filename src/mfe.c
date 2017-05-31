@@ -19,6 +19,9 @@
 #include "strlcpy.h"
 #endif
 
+#define STRLCPY(d, s) strlcpy((d), (s), sizeof(d))
+#define STRLCAT(d, s) strlcat((d), (s), sizeof(d))
+
 /*------------------------------------------------------------------*/
 
 /* items defined in user part of frontend */
@@ -527,12 +530,26 @@ INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...)
 
 /*------------------------------------------------------------------*/
 
-#if 0
-static void eq_common_watcher(INT hDB, INT hKey, INT index)
+static void eq_common_watcher(INT hDB, INT hKey, INT index, void* info)
 {
-   printf("watch %d %d %d\n", hDB, hKey, index);
+   int status;
+   assert(info != NULL);
+   EQUIPMENT *eq = (EQUIPMENT*) info;
+   HNDLE hCommon;
+   char path[MAX_ODB_PATH];
+   STRLCPY(path, "/Equipment/");
+   STRLCAT(path, eq->name);
+   STRLCAT(path, "/Common");
+   status = db_find_key(hDB, 0, path, &hCommon);
+   if (status != DB_SUCCESS)
+      return;
+   int size = sizeof(eq->info);
+   status = db_get_record1(hDB, hCommon, &eq->info, &size, 0, EQUIPMENT_COMMON_STR);
+   if (status != DB_SUCCESS) {
+      cm_msg(MINFO, "eq_common_watcher", "db_get_record(%s) status %d", path, status);
+      return;
+   }
 }
-#endif
 
 /*------------------------------------------------------------------*/
 
@@ -552,8 +569,7 @@ INT register_equipment(void)
    db_get_value(hDB, 0, "/Runinfo/State", &run_state, &size, TID_INT, TRUE);
    size = sizeof(run_number);
    run_number = 1;
-   status =
-       db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
+   status = db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
    assert(status == SUCCESS);
 
    /* scan EQUIPMENT table from user frontend */
@@ -599,23 +615,19 @@ INT register_equipment(void)
          db_find_key(hDB, 0, str, &hKey);
          size = sizeof(double);
          if (hKey)
-            db_get_value(hDB, hKey, "Event limit", &eq_info->event_limit, &size,
-                         TID_DOUBLE, TRUE);
+            db_get_value(hDB, hKey, "Event limit", &eq_info->event_limit, &size, TID_DOUBLE, TRUE);
       }
 
-      /* Check common subtree, bail out if wrong. mhttpd is supposed to correct it */
       status = db_check_record(hDB, 0, str, EQUIPMENT_COMMON_STR, FALSE);
       if (status == DB_NO_KEY) {
          db_create_record(hDB, 0, str, EQUIPMENT_COMMON_STR);
          db_find_key(hDB, 0, str, &hKey);
          db_set_record(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), 0);
       } else if (status == DB_STRUCT_MISMATCH) {
-         printf("ERROR: Found change in /Equipment/%s/Common, please update and recompile this program\n", equipment[idx].name);
-         cm_disconnect_experiment();
-         ss_sleep(3000);
-         exit(0);
+         cm_msg(MINFO, "register_equipment", "Correcting \"%s\", db_check_record() status %d", str, status);
+         db_create_record(hDB, 0, str, EQUIPMENT_COMMON_STR);
       } else if (status != DB_SUCCESS) {
-         printf("ERROR: Cannot check equipment record, status = %d\n", status);
+         printf("ERROR: Cannot check equipment record \"%s\", db_check_record() status %d\n", str, status);
          cm_disconnect_experiment();
          ss_sleep(3000);
          exit(0);
@@ -629,21 +641,10 @@ INT register_equipment(void)
       db_set_value(hDB, hKey, "Type", &eq_info->eq_type, sizeof(INT), 1, TID_INT);
       db_set_value(hDB, hKey, "Source", &eq_info->source, sizeof(INT), 1, TID_INT);
 
-#if 0
       /* open hot link to equipment info */
-      status = db_watch(hDB, hKey, eq_common_watcher);
+      status = db_watch(hDB, hKey, eq_common_watcher, &equipment[idx]);
       if (status != DB_SUCCESS) {
          printf("ERROR:  Cannot hotlink \"%s\", db_watch() status %d", str, status);
-         cm_disconnect_experiment();
-         ss_sleep(3000);
-         exit(0);
-      }
-#endif
-
-      /* open hot link to equipment info */
-      status = db_open_record1(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), MODE_READ, NULL, NULL, EQUIPMENT_COMMON_STR);
-      if (status != DB_SUCCESS) {
-         printf("ERROR:  Cannot hotlink \"%s\", db_open_record() status %d", str, status);
          cm_disconnect_experiment();
          ss_sleep(3000);
          exit(0);
