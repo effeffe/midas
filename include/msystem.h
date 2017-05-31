@@ -429,7 +429,8 @@ typedef struct {
 typedef struct {
    HNDLE handle;                /* Handle of watched base key  */
    HNDLE hDB;                   /* Handle of watched database */
-   void (*dispatcher) (INT, INT, INT);       /* Pointer to dispatcher func. */
+   void (*dispatcher) (INT, INT, INT, void* info); /* Pointer to dispatcher func. */
+   void* info;                  /* addtl. info for dispatcher */
 } WATCH_LIST;
 
 /* Event request descriptor */
@@ -630,3 +631,10 @@ extern "C" {
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
 /**dox***************************************************************//** @} *//* end of msystemincludecode */
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */

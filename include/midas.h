@@ -1817,7 +1817,7 @@ extern "C" {
    INT EXPRT db_add_open_record(HNDLE hDB, HNDLE hKey, WORD access_mode);
    INT EXPRT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock);
 
-   INT EXPRT db_watch(HNDLE hDB, HNDLE hKey, void (*dispatcher) (INT, INT, INT));
+   INT EXPRT db_watch(HNDLE hDB, HNDLE hKey, void (*dispatcher) (INT, INT, INT, void *info), void *info);
    INT EXPRT db_unwatch(HNDLE hDB, HNDLE hKey);
    INT EXPRT db_unwatch_all();
    

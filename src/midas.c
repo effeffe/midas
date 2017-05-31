@@ -3000,7 +3000,7 @@ INT cm_get_watchdog_info(HNDLE hDB, char *client_name, DWORD * timeout, DWORD * 
 
 /********************************************************************/
 
-static void load_rpc_hosts(HNDLE hDB, HNDLE hKey, int index)
+static void load_rpc_hosts(HNDLE hDB, HNDLE hKey, int index, void* info)
 {
    int status;
    int i, last;
@@ -3087,9 +3087,9 @@ static void init_rpc_hosts(HNDLE hDB)
       return;
    }
 
-   load_rpc_hosts(hDB, hKey, -99);
+   load_rpc_hosts(hDB, hKey, -99, NULL);
 
-   status = db_watch(hDB, hKey, load_rpc_hosts);
+   status = db_watch(hDB, hKey, load_rpc_hosts, NULL);
 
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "init_rpc_hosts", "Cannot watch the RPC hosts access control list, db_watch() status %d", status);

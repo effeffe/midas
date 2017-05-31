@@ -11331,7 +11331,7 @@ const char* time_to_string(time_t t)
 static bool gDoSetupHistoryWatch = true;
 static bool gDoReloadHistory = false;
 
-static void history_watch_callback(HNDLE hDB, HNDLE hKey, int index)
+static void history_watch_callback(HNDLE hDB, HNDLE hKey, int index, void* info)
 {
    //printf("history_watch_callback %d %d %d\n", hDB, hKey, index);
    gDoReloadHistory = true;
@@ -11374,11 +11374,11 @@ static MidasHistoryInterface* get_history(bool reset = false)
 
       status = db_find_key(hDB, 0, "/Logger/History", &hKey);
       if (status == DB_SUCCESS)
-         status = db_watch(hDB, hKey, history_watch_callback);
+         status = db_watch(hDB, hKey, history_watch_callback, NULL);
 
       status = db_find_key(hDB, 0, "/History/LoggerHistoryChannel", &hKey);
       if (status == DB_SUCCESS)
-         status = db_watch(hDB, hKey, history_watch_callback);
+         status = db_watch(hDB, hKey, history_watch_callback, NULL);
    }
 
    // find out if ODB settings have changed and we need to connect to a different history channel
@@ -17011,7 +17011,7 @@ static std::vector<std::string> gUserAllowedHosts;
 static std::vector<std::string> gAllowedHosts;
 static const std::string gOdbAllowedHosts = "/Experiment/Security/mhttpd hosts/Allowed hosts";
 
-static void load_allowed_hosts(HNDLE hDB, HNDLE hKey, int index)
+static void load_allowed_hosts(HNDLE hDB, HNDLE hKey, int index, void* info)
 {
    if (hKey != 0)
       cm_msg(MINFO, "load_allowed_hosts", "Reloading mhttpd hosts access control list via hotlink callback");
@@ -17081,9 +17081,9 @@ static int init_allowed_hosts()
       return status;
    }
 
-   load_allowed_hosts(hDB, 0, 0);
+   load_allowed_hosts(hDB, 0, 0, NULL);
 
-   status = db_watch(hDB, hKey, load_allowed_hosts);
+   status = db_watch(hDB, hKey, load_allowed_hosts, NULL);
 
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "init_allowed_hosts", "Cannot watch the mhttpd hosts access control list, db_watch() status %d", status);

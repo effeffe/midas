@@ -10475,7 +10475,7 @@ INT db_update_record(INT hDB, INT hKeyRoot, INT hKey, int index, int s)
          
          /* call dispatcher if requested */
          if (_watch_list[i].dispatcher)
-            _watch_list[i].dispatcher(hDB, hKey, index);
+            _watch_list[i].dispatcher(hDB, hKey, index, _watch_list[i].info);
       }
 
    return status;
@@ -10665,7 +10665,7 @@ INT db_send_changed_records()
  argument list composed of: HNDLE hDB, HNDLE hKey
  @return DB_SUCCESS, DB_INVALID_HANDLE, DB_NO_MEMORY, DB_NO_ACCESS, DB_STRUCT_SIZE_MISMATCH
  */
-INT db_watch(HNDLE hDB, HNDLE hKey, void (*dispatcher) (INT, INT, INT))
+INT db_watch(HNDLE hDB, HNDLE hKey, void (*dispatcher) (INT, INT, INT, void*), void* info)
 {
    INT idx, status;
    KEY key;
@@ -10726,6 +10726,7 @@ INT db_watch(HNDLE hDB, HNDLE hKey, void (*dispatcher) (INT, INT, INT))
    _watch_list[idx].handle = hKey;
    _watch_list[idx].hDB = hDB;
    _watch_list[idx].dispatcher = dispatcher;
+   _watch_list[idx].info = info;
    
    /* add record entry in database structure */
    return db_add_open_record(hDB, hKey, MODE_WATCH);

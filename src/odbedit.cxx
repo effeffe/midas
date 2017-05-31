@@ -1290,7 +1290,7 @@ void assemble_prompt(char *prompt, int psize, char *host_name, char *exp_name, c
 
 /*------------------------------------------------------------------*/
 
-void watch_callback(HNDLE hDB, HNDLE hKey, INT index)
+void watch_callback(HNDLE hDB, HNDLE hKey, INT index, void* info)
 {
    KEY key;
    int size;
@@ -2632,7 +2632,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                printf("Watch key \"%s\" to be modified, abort with any key\n", str);
             else
                printf("Watch ODB tree \"%s\" to be modified, abort with any key\n", str);
-            db_watch(hDB, hKey, watch_callback);
+            db_watch(hDB, hKey, watch_callback, NULL);
             
             do {
                cm_yield(1000);
