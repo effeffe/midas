@@ -56,7 +56,40 @@ void create_sql_tree();
 
 /*---- Logging channel information ---------------------------------*/
 
-#define CHN_SETTINGS_STR(_name) const char *_name[] = {\
+#define CHN_TREE_STR(_name) const char *_name[] = {\
+"[Settings]",\
+"Active = BOOL : 1",\
+"Type = STRING : [8] Disk",\
+"Filename = STRING : [256] run%05d.mid",\
+"Format = STRING : [8] MIDAS",\
+"Compression = INT : 0",\
+"ODB dump = BOOL : 1",\
+"Log messages = DWORD : 0",\
+"Buffer = STRING : [32] SYSTEM",\
+"Event ID = INT : -1",\
+"Trigger mask = INT : -1",\
+"Event limit = DOUBLE : 0",\
+"Byte limit = DOUBLE : 0",\
+"Subrun Byte limit = DOUBLE : 0",\
+"Tape capacity = DOUBLE : 0",\
+"Subdir format = STRING : [32]",\
+"Current filename = STRING : [256]",\
+"Data checksum = STRING : [256]",\
+"File checksum = STRING : [256]",\
+"Compress = STRING : [256]",\
+"Output = STRING : [256]",\
+"",\
+"[Statistics]",\
+"Events written = DOUBLE : 0",\
+"Bytes written = DOUBLE : 0",\
+"Bytes written uncompressed = DOUBLE : 0",\
+"Bytes written total = DOUBLE : 0",\
+"Bytes written subrun = DOUBLE : 0",\
+"Files written = DOUBLE : 0",\
+"Disk level = DOUBLE : 0",\
+"",\
+NULL}
+#define CHN_TREE_STR(_name) const char *_name[] = {\
 "[Settings]",\
 "Active = BOOL : 1",\
 "Type = STRING : [8] Disk",\
@@ -113,6 +146,30 @@ typedef struct {
    char output[256];
 } CHN_SETTINGS;
 
+#define CHN_SETTINGS_STR(_name) const char *_name[] = {\
+"Active = BOOL : 1",\
+"Type = STRING : [8] Disk",\
+"Filename = STRING : [256] run%05d.mid",\
+"Format = STRING : [8] MIDAS",\
+"Compression = INT : 0",\
+"ODB dump = BOOL : 1",\
+"Log messages = DWORD : 0",\
+"Buffer = STRING : [32] SYSTEM",\
+"Event ID = INT : -1",\
+"Trigger mask = INT : -1",\
+"Event limit = DOUBLE : 0",\
+"Byte limit = DOUBLE : 0",\
+"Subrun Byte limit = DOUBLE : 0",\
+"Tape capacity = DOUBLE : 0",\
+"Subdir format = STRING : [32]",\
+"Current filename = STRING : [256]",\
+"Data checksum = STRING : [256]",\
+"File checksum = STRING : [256]",\
+"Compress = STRING : [256]",\
+"Output = STRING : [256]",\
+"",\
+NULL}
+
 typedef struct {
    double events_written; /* count events, reset in tr_start() */
    double bytes_written;  /* count bytes written out (compressed), reset in tr_start() */
@@ -122,6 +179,17 @@ typedef struct {
    double files_written;  /* incremented in log_close(), reset in log_callback(RPC_LOG_REWIND) */
    double disk_level;
 } CHN_STATISTICS;
+
+#define CHN_STATISTICS_STR(_name) const char *_name[] = {\
+"Events written = DOUBLE : 0",\
+"Bytes written = DOUBLE : 0",\
+"Bytes written uncompressed = DOUBLE : 0",\
+"Bytes written total = DOUBLE : 0",\
+"Bytes written subrun = DOUBLE : 0",\
+"Files written = DOUBLE : 0",\
+"Disk level = DOUBLE : 0",\
+"",\
+NULL}
 
 /*---- logger channel definition---------------------------------------*/
 
@@ -194,6 +262,8 @@ HNDLE hDB;
 /*---- ODB records -------------------------------------------------*/
 
 CHN_SETTINGS_STR(chn_settings_str);
+CHN_STATISTICS_STR(chn_statistics_str);
+CHN_TREE_STR(chn_tree_str);
 
 /*---- data structures for MIDAS format ----------------------------*/
 
@@ -1483,7 +1553,7 @@ void logger_init()
    status = db_find_key(hDB, 0, "/Logger/Channels/0", &hKey);
    if (status != DB_SUCCESS) {
       /* if no channels are defined, define at least one */
-      status = db_create_record(hDB, 0, "/Logger/Channels/0", strcomb(chn_settings_str));
+      status = db_create_record(hDB, 0, "/Logger/Channels/0", strcomb(chn_tree_str));
       if (status != DB_SUCCESS)
          cm_msg(MERROR, "logger_init", "Cannot create channel entry in database");
    } else {
@@ -1496,7 +1566,7 @@ void logger_init()
                break;
 
             db_get_key(hDB, hKeyChannel, &key);
-            status = db_check_record(hDB, hKey, key.name, strcomb(chn_settings_str), TRUE);
+            status = db_check_record(hDB, hKey, key.name, strcomb(chn_tree_str), TRUE);
             if (status != DB_SUCCESS && status != DB_OPEN_RECORD) {
                cm_msg(MERROR, "logger_init", "Cannot create/check channel record");
                break;
@@ -4149,7 +4219,11 @@ static int add_event(int* indexp, time_t timestamp, int event_id, const char* ev
    }
 
    status = db_get_record_size(hDB, hKey, 0, &size);
-   assert(status == DB_SUCCESS);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "add_event", "Cannot define event \"%s\", db_get_record_size() status %d", event_name, status);
+      return 0;
+   }
 
    /* setup hist_log structure for this event */
    strlcpy(hist_log[index].event_name, event_name, sizeof(hist_log[index].event_name));
@@ -4167,8 +4241,7 @@ static int add_event(int* indexp, time_t timestamp, int event_id, const char* ev
    
    /* open hot link to variables */
    if (hotlink) {
-      status = db_open_record(hDB, hKey, hist_log[index].buffer,
-                              size, MODE_READ, log_history, NULL);
+      status = db_open_record(hDB, hKey, hist_log[index].buffer, size, MODE_READ, log_history, NULL);
       if (status != DB_SUCCESS) {
          cm_msg(MERROR, "add_event",
                 "Cannot hotlink event %d \"%s\" for history logging, db_open_record() status %d",
@@ -4727,8 +4800,7 @@ INT open_history()
                if (db_get_key(hDB, hVarKey, &varkey) == DB_SUCCESS) {
                   /* hot-link individual values */
                   if (histkey.type == TID_KEY)
-                     db_open_record(hDB, hVarKey, NULL, varkey.total_size, MODE_READ,
-                                    log_system_history, (void *) (POINTER_T) index);
+                     db_open_record(hDB, hVarKey, NULL, varkey.total_size, MODE_READ, log_system_history, (void *) (POINTER_T) index);
 
                   strcpy(tag[n_var].name, linkkey.name);
                   tag[n_var].type = varkey.type;
@@ -4745,8 +4817,7 @@ INT open_history()
 
             /* hot-link whole subtree */
             if (histkey.type == TID_LINK)
-               db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history,
-                              (void *) (POINTER_T) index);
+               db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history, (void *) (POINTER_T) index);
 
             int period = 10;
 
@@ -5237,7 +5308,7 @@ INT tr_start(INT run_number, char *error)
    status = db_find_key(hDB, 0, "/Logger/Channels", &hKeyRoot);
    if (status != DB_SUCCESS) {
       /* if no channels are defined, define at least one */
-      status = db_create_record(hDB, 0, "/Logger/Channels/0/", strcomb(chn_settings_str));
+      status = db_create_record(hDB, 0, "/Logger/Channels/0/", strcomb(chn_tree_str));
       if (status != DB_SUCCESS) {
          strcpy(error, "Cannot create channel entry in database");
          cm_msg(MERROR, "tr_start", "%s", error);
@@ -5259,7 +5330,7 @@ INT tr_start(INT run_number, char *error)
 
       /* correct channel record */
       db_get_key(hDB, hKeyChannel, &key);
-      status = db_check_record(hDB, hKeyRoot, key.name, strcomb(chn_settings_str), TRUE);
+      status = db_check_record(hDB, hKeyRoot, key.name, strcomb(chn_tree_str), TRUE);
       if (status != DB_SUCCESS && status != DB_OPEN_RECORD) {
          cm_msg(MERROR, "tr_start", "Cannot create/check channel record, status %d", status);
          break;
@@ -5298,7 +5369,7 @@ INT tr_start(INT run_number, char *error)
 
          /* clear statistics */
          size = sizeof(CHN_STATISTICS);
-         db_get_record(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics, &size, 0);
+         db_get_record1(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics, &size, 0, strcomb(chn_statistics_str));
 
          log_chn[index].statistics.events_written = 0;
          log_chn[index].statistics.bytes_written = 0;
@@ -5310,7 +5381,7 @@ INT tr_start(INT run_number, char *error)
          /* get channel info structure */
          chn_settings = &log_chn[index].settings;
          size = sizeof(CHN_SETTINGS);
-         status = db_get_record(hDB, log_chn[index].settings_hkey, chn_settings, &size, 0);
+         status = db_get_record1(hDB, log_chn[index].settings_hkey, chn_settings, &size, 0, strcomb(chn_settings_str));
          if (status != DB_SUCCESS) {
             strcpy(error, "Cannot read channel info");
             cm_msg(MERROR, "tr_start", "%s", error);
@@ -5387,30 +5458,24 @@ INT tr_start(INT run_number, char *error)
             db_close_record(hDB, log_chn[index].settings_hkey);
 
          /* open hot link to statistics tree */
-         status = db_open_record(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics,
-                            sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL);
+         status = db_open_record1(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics, sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL, strcomb(chn_statistics_str));
          if (status == DB_NO_ACCESS) {
             /* record is probably still in exclusive access by dead logger, so reset it */
             status = db_set_mode(hDB, log_chn[index].stats_hkey, MODE_READ | MODE_WRITE | MODE_DELETE, TRUE);
             if (status != DB_SUCCESS)
-               cm_msg(MERROR, "tr_start", 
-                      "Cannot change access mode for statistics record, error %d", status);
+               cm_msg(MERROR, "tr_start", "Cannot change access mode for statistics record, error %d", status);
             else
                cm_msg(MINFO, "tr_start", "Recovered access mode for statistics record of channel %d", index);
-            status = db_open_record(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics,
-                               sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL);
+            status = db_open_record1(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics, sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL, strcomb(chn_statistics_str));
          }
 
          if (status != DB_SUCCESS)
             cm_msg(MERROR, "tr_start", "Cannot open statistics record for channel %d, error %d", index, status);
 
          /* open hot link to settings tree */
-         status =
-             db_open_record(hDB, log_chn[index].settings_hkey, &log_chn[index].settings,
-                            sizeof(CHN_SETTINGS), MODE_READ, NULL, NULL);
+         status = db_open_record1(hDB, log_chn[index].settings_hkey, &log_chn[index].settings, sizeof(CHN_SETTINGS), MODE_READ, NULL, NULL, strcomb(chn_settings_str));
          if (status != DB_SUCCESS)
-            cm_msg(MERROR, "tr_start",
-                   "cannot open channel settings record, probably other logger is using it");
+            cm_msg(MERROR, "tr_start", "cannot open channel settings record, probably other logger is using it");
 
 #ifndef FAL_MAIN
          /* open buffer */
@@ -5436,8 +5501,7 @@ INT tr_start(INT run_number, char *error)
 
          /* open message buffer if requested */
          if (chn_settings->log_messages) {
-            status =
-                bm_open_buffer((char*)MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &log_chn[index].msg_buffer_handle);
+            status = bm_open_buffer((char*)MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &log_chn[index].msg_buffer_handle);
             if (status != BM_SUCCESS && status != BM_CREATED) {
                sprintf(error, "Cannot open buffer %s", MESSAGE_BUFFER_NAME);
                cm_msg(MERROR, "tr_start", "%s", error);

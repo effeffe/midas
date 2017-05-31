@@ -9165,18 +9165,56 @@ and C record, it is automatically corrected by calling db_check_record()
 INT db_get_record1(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align, const char *rec_str)
 {
    int size = *buf_size;
+   int odb_size = 0;
    int status;
    char path[MAX_ODB_PATH];
+
+   /* check record size first */
+
+   status = db_get_record_size(hDB, hKey, align, &odb_size);
+   if (status != DB_SUCCESS)
+      return status;
+
+   /* if size mismatch, call repair function */
+
+   if (odb_size != size) {
+      db_get_path(hDB, hKey, path, sizeof(path));
+      cm_msg(MINFO, "db_get_record1", "Fixing ODB \"%s\" struct size mismatch (expected %d, odb size %d)", path, size, odb_size);
+      status = db_create_record(hDB, hKey, "", rec_str);
+      if (status != DB_SUCCESS)
+         return status;
+   }
+
+   /* run db_get_record(), if success, we are done */
 
    status = db_get_record(hDB, hKey, data, buf_size, align);
    if (status == DB_SUCCESS)
       return status;
 
+   /* try repair with db_check_record() */
+
    status = db_check_record(hDB, hKey, "", rec_str, TRUE);
    if (status != DB_SUCCESS)
       return status;
 
+   /* verify struct size again, because there can still be a mismatch if there
+    * are extra odb entries at the end of the record as db_check_record()
+    * seems to ignore all odb entries past the end of "rec_str". K.O.
+    */
+
+   status = db_get_record_size(hDB, hKey, align, &odb_size);
+   if (status != DB_SUCCESS)
+      return status;
+
    db_get_path(hDB, hKey, path, sizeof(path));
+
+   if (odb_size != size) {
+      cm_msg(MERROR, "db_get_record1", "after db_check_record() still struct size mismatch (expected %d, odb size %d) of \"%s\", calling db_create_record()", size, odb_size, path);
+      status = db_create_record(hDB, hKey, "", rec_str);
+      if (status != DB_SUCCESS)
+         return status;
+   }
+
    cm_msg(MERROR, "db_get_record1", "repaired struct size mismatch of \"%s\"", path);
 
    *buf_size = size;
@@ -9806,6 +9844,7 @@ INT db_check_record(HNDLE hDB, HNDLE hKey, const char *keyname, const char *rec_
    HNDLE hKeyRoot, hKeyTest;
    KEY key;
    int bad_string_length;
+   int status_last = 0;
 
    if (rpc_is_remote())
       return rpc_call(RPC_DB_CHECK_RECORD, hDB, hKey, keyname, rec_str, correct);
@@ -10027,7 +10066,7 @@ INT db_check_record(HNDLE hDB, HNDLE hKey, const char *keyname, const char *rec_
                }
 
                /* get next key in ODB */
-               db_get_next_link(hDB, hKeyTest, &hKeyTest);
+               status_last = db_get_next_link(hDB, hKeyTest, &hKeyTest);
             }
          }
       }
@@ -10227,6 +10266,57 @@ INT db_open_record(HNDLE hDB, HNDLE hKey, void *ptr, INT rec_size,
 
    /* add record entry in database structure */
    return db_add_open_record(hDB, hKey, (WORD) (access_mode & ~MODE_ALLOC));
+}
+
+/********************************************************************/
+/**
+Open a record. Create a local copy and maintain an automatic update.
+
+This function is same as db_open_record(), except that it calls
+db_check_record(), db_get_record1() and db_create_record()
+to ensure that the ODB structure matches
+
+Parameters are the same as for db_open_record():
+
+@param hDB          ODB handle obtained via cm_get_experiment_database().
+@param hKey         Handle for key where search starts, zero for root.
+@param ptr          If access_mode includes MODE_ALLOC:
+                    Address of pointer which points to the record data after
+                    the call if access_mode includes not MODE_ALLOC:
+                    Address of record if ptr==NULL, only the dispatcher is called.
+@param rec_size     Record size in bytes
+@param access_mode Mode for opening record, either MODE_READ or
+                    MODE_WRITE. May be or'ed with MODE_ALLOC to
+                    let db_open_record allocate the memory for the record.
+@param (*dispatcher)   Function which gets called when record is updated.The
+                    argument list composed of: HNDLE hDB, HNDLE hKey, void *info
+@param info Additional info passed to the dispatcher.
+@param rec_str  ASCII representation of ODB record in the format
+@return DB_SUCCESS, DB_INVALID_HANDLE, DB_NO_MEMORY, DB_NO_ACCESS, DB_STRUCT_SIZE_MISMATCH
+*/
+INT db_open_record1(HNDLE hDB, HNDLE hKey, void *ptr, INT rec_size,
+                    WORD access_mode, void (*dispatcher) (INT, INT, void *), void *info,
+                     const char *rec_str)
+{
+   if (rec_str) {
+      int status;
+      if (rec_size) {
+         char* pbuf;
+         int size = rec_size;
+         pbuf = malloc(size);
+         assert(pbuf != NULL);
+         status = db_get_record1(hDB, hKey, pbuf, &size, 0, rec_str);
+         free(pbuf);
+         if (status != DB_SUCCESS)
+            return status;
+      }
+
+      status = db_check_record(hDB, hKey, "", rec_str, TRUE);
+      if (status != DB_SUCCESS)
+         return status;
+   }
+
+   return db_open_record(hDB, hKey, ptr, rec_size, access_mode, dispatcher, info);
 }
 
 /********************************************************************/
