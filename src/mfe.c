@@ -71,6 +71,7 @@ BOOL debug;                     /* disable watchdog messages from server */
 DWORD auto_restart = 0;         /* restart run after event limit reached stop */
 INT manual_trigger_event_id = 0;        /* set from the manual_trigger callback */
 INT frontend_index = -1;        /* frontend index for event building */
+INT verbosity_level = 0;        /* can be used by user code for debugging output */
 BOOL lockout_readout_thread = TRUE; /* manual triggers, periodic events and 1Hz flush cache lockout the readout thread */
 
 HNDLE hDB;
@@ -2614,6 +2615,13 @@ int main(int argc, char *argv[])
          daemon_flag = 1;
       else if (argv[i][0] == '-' && argv[i][1] == 'O')
          daemon_flag = 2;
+      else if (argv[i][1] == 'v') {
+         if (i < argc-1 && atoi(argv[i+1]) > 0)
+            verbosity_level = atoi(argv[++i]);
+         else
+            verbosity_level = 1;
+      }
+      
       else if (argv[i][0] == '-') {
          if (i + 1 >= argc || argv[i + 1][0] == '-')
             goto usage;
@@ -2625,12 +2633,12 @@ int main(int argc, char *argv[])
             frontend_index = atoi(argv[++i]);
          else if (argv[i][1] == '-') {
           usage:
-            printf
-                ("usage: frontend [-h Hostname] [-e Experiment] [-d] [-D] [-O] [-i n]\n");
+            printf("usage: frontend [-h Hostname] [-e Experiment] [-d] [-D] [-O] [-v <n>] [-i <n>]\n");
             printf("         [-d]     Used to debug the frontend\n");
             printf("         [-D]     Become a daemon\n");
             printf("         [-O]     Become a daemon but keep stdout\n");
-            printf("         [-i n]   Set frontend index (used for event building)\n");
+            printf("         [-v <n>] Set verbosity level\n");
+            printf("         [-i <n>] Set frontend index (used for event building)\n");
             return 0;
          }
       }
