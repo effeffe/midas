@@ -10457,9 +10457,11 @@ INT db_update_record(INT hDB, INT hKeyRoot, INT hKey, int index, int s)
          /* get updated data if record not opened in write mode */
          if ((_record_list[i].access_mode & MODE_WRITE) == 0) {
             size = _record_list[i].buf_size;
-            if (_record_list[i].data != NULL)
-               db_get_record(hDB, hKeyRoot, _record_list[i].data, &size, 0);
-
+            if (_record_list[i].data != NULL) {
+               status = db_get_record(hDB, hKeyRoot, _record_list[i].data, &size, 0); // db_open_record() update
+               //printf("db_open_record update status %d, size %d %d\n", status, _record_list[i].buf_size, size);
+            }
+            
             /* call dispatcher if requested */
             if (_record_list[i].dispatcher)
                _record_list[i].dispatcher(hDB, hKeyRoot, _record_list[i].info);
