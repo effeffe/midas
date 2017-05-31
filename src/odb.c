@@ -9593,12 +9593,12 @@ void merge_records(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
    }
 }
 
-static int open_count;
+static int _global_open_count; // FIXME: this is not thread-safe
 
-void check_open_keys(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
+static void check_open_keys(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
 {
    if (pkey->notify_count)
-      open_count++;
+      _global_open_count++;
 }
 
 /**dox***************************************************************/
@@ -9683,9 +9683,9 @@ INT db_create_record(HNDLE hDB, HNDLE hKey, const char *orig_key_name, const cha
    if (status == DB_SUCCESS) {
       assert(hKeyOrig != 0);
       /* check if key or subkey is opened */
-      open_count = 0;
+      _global_open_count = 0; // FIXME: this is not thread safe
       db_scan_tree_link(hDB, hKeyOrig, 0, check_open_keys, NULL);
-      if (open_count) {
+      if (_global_open_count) {
          db_unlock_database(hDB);
          return DB_OPEN_RECORD;
       }
@@ -9805,8 +9805,7 @@ INT db_create_record(HNDLE hDB, HNDLE hKey, const char *orig_key_name, const cha
          return status;
       }
    } else {
-      cm_msg(MERROR, "db_create_record",
-             "aborting on unexpected failure of db_find_key(%s), status %d", key_name, status);
+      cm_msg(MERROR, "db_create_record", "aborting on unexpected failure of db_find_key(%s), status %d", key_name, status);
       abort();
    }
 
