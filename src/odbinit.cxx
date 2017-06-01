@@ -265,7 +265,13 @@ int main(int argc, char *argv[])
       }
 
       int file_odb_size = 0;
-      fscanf(fp, "%d", &file_odb_size);
+      {
+         char buf[256];
+         char *s = fgets(buf, sizeof(buf), fp);
+         if (s) {
+            file_odb_size = strtoul(s, NULL, 0);
+         }
+      }
       fclose(fp);
 
       printf("Saved ODB size from \"%s\" is %d bytes\n", path1.c_str(), file_odb_size);
