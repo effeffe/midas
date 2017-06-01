@@ -917,20 +917,6 @@ INT lazy_select_purge(HNDLE hKey, INT channel, LAZY_INFO * pLall, const char* fm
 }
 
 /*------------------------------------------------------------------*/
-void lazy_settings_hotlink(HNDLE hDB, HNDLE hKey, void *info)
-{
-   INT size, maintain;
-
-   /* check if Maintain has been touched */
-   size = sizeof(maintain);
-   db_get_value(hDB, hKey, "Maintain free space (%)", &maintain, &size, TID_INT, TRUE);
-   if (maintain != 0)
-      maintain_touched = TRUE;
-   else
-      maintain_touched = FALSE;
-}
-
-/*------------------------------------------------------------------*/
 void lazy_maintain_check(HNDLE hKey, LAZY_INFO * pLall)
 /********************************************************************\
 Routine: lazy_maintain_check
@@ -2138,6 +2124,30 @@ Function value:
 }
 
 /*------------------------------------------------------------------*/
+
+static void watch_settings(HNDLE hDB, HNDLE hKey, HNDLE index, void* info)
+{
+   int status;
+   assert(info != NULL);
+   HNDLE hSet = *(HNDLE*)info;
+   int size = sizeof(lazy);
+   status = db_get_record1(hDB, hSet, &lazy, &size, 0, LAZY_SETTINGS_STRING);
+   if (status != DB_SUCCESS) {
+      cm_msg(MINFO, "watch_settings", "db_get_record(settings) status %d", status);
+      return;
+   }
+
+   printf("Settings updated\n");
+
+   if (lazy.pupercent != 0)
+      maintain_touched = TRUE;
+   else
+      maintain_touched = FALSE;
+
+   //printf("pup %d, touched %d\n", lazy.pupercent, maintain_touched);
+}
+
+/*------------------------------------------------------------------*/
 int main(int argc, char **argv)
 {
    char channel_name[32];
@@ -2474,12 +2484,18 @@ int main(int argc, char **argv)
    }
    /* get /settings once & hot link settings in read mode */
    db_find_key(hDB, lazyinfo[channel].hKey, "Settings", &hKey);
+
    size = sizeof(lazy);
-   status = db_open_record1(hDB, hKey, &lazy, sizeof(lazy), MODE_READ, lazy_settings_hotlink, NULL, LAZY_SETTINGS_STRING);
+   status = db_get_record1(hDB, hKey, &lazy, &size, 0, LAZY_SETTINGS_STRING);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "Lazy", "cannot get %s/Settings record, db_get_record() status %d", lazyinfo[channel].name, status);
+   }
+
+   status = db_watch(hDB, hKey, watch_settings, &hKey);
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "Lazy", "cannot open %s/Settings record", lazyinfo[channel].name);
    }
-
+   
    /* set global key for that channel */
    pcurrent_hKey = lazyinfo[channel].hKey;
 
