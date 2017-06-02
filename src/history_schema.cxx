@@ -297,6 +297,11 @@ void DoctorSqlColumnType(std::string* col_type, const char* index_type)
       return;
    }
 
+   if (*col_type == "integer" && strcmp(index_type, "int(11)")==0) {
+      *col_type = index_type;
+      return;
+   }
+
    cm_msg(MERROR, "SqlHistory", "Cannot use this SQL database, incompatible column names: created column type [%s] is reported with column type [%s]", index_type, col_type->c_str());
    cm_msg_flush_buffer();
    abort();
@@ -334,6 +339,8 @@ static int sql2midasType_sqlite(const char* name)
 ////////////////////////////////////////
 
 struct HsSchemaEntry {
+   std::string tag_name;
+   std::string tag_type;
    std::string name;
    int type;
    int n_data;
@@ -427,7 +434,7 @@ public:
          data[i]->print(print_tags);
    }
 
-   HsSchema* find_event(const char* event_name, const time_t timestamp);
+   HsSchema* find_event(const char* event_name, const time_t timestamp, int debug = 0);
 };
 
 ////////////////////////////////////////////
@@ -475,17 +482,16 @@ void HsSchemaVector::add(HsSchema* s)
    data.insert(it_last, s);
 }
 
-HsSchema* HsSchemaVector::find_event(const char* event_name, time_t t)
+HsSchema* HsSchemaVector::find_event(const char* event_name, time_t t, int debug)
 {
    HsSchema* ss = NULL;
 
-#if 0
-   {
+   if (debug) {
       printf("find_event: All schema for event %s: (total %d)\n", event_name, (int)data.size());
       int found = 0;
       for (unsigned i=0; i<data.size(); i++) {
          HsSchema* s = data[i];
-         //printf("find_event: schema %d name [%s]\n", i, s->event_name.c_str());
+         printf("find_event: schema %d name [%s]\n", i, s->event_name.c_str());
          if (s->event_name != event_name)
             continue;
          s->print();
@@ -496,7 +502,6 @@ HsSchema* HsSchemaVector::find_event(const char* event_name, time_t t)
       //if (found == 0)
       //   abort();
    }
-#endif
 
    for (unsigned i=0; i<data.size(); i++) {
       HsSchema* s = data[i];
@@ -517,12 +522,34 @@ HsSchema* HsSchemaVector::find_event(const char* event_name, time_t t)
          ss = s;
    }
 
-#if 0
-   if (ss) {
-      printf("find_event: for time %s, returning:\n", TimeToString(t).c_str());
-      ss->print();
+   // try to find
+   for (unsigned i=0; i<data.size(); i++) {
+      HsSchema* s = data[i];
+
+      // wrong event
+      if (s->event_name != event_name)
+         continue;
+
+      // schema is from after the time we are looking for
+      if (s->time_from > t)
+         continue;
+
+      if (!ss)
+         ss = s;
+
+      // remember the newest schema
+      if (s->time_from > ss->time_from)
+         ss = s;
    }
-#endif
+
+   if (debug) {
+      if (ss) {
+         printf("find_event: for time %s, returning:\n", TimeToString(t).c_str());
+         ss->print();
+      } else {
+         printf("find_event: for time %s, nothing found:\n", TimeToString(t).c_str());
+      }
+   }
 
    return ss;
 }
@@ -780,6 +807,7 @@ Mysql::~Mysql() // dtor
    fNumFields = 0;
    if (fDisconnectedBuffer.size() > 0) {
       cm_msg(MINFO, "Mysql::~Mysql", "Lost %d history entries accumulated while disconnected from the database", (int)fDisconnectedBuffer.size());
+      cm_msg_flush_buffer();
    }
 }
 
@@ -800,8 +828,10 @@ int Mysql::Connect(const char* connect_string)
 
    fConnectString = connect_string;
 
-   if (fDebug)
+   if (fDebug) {
       cm_msg(MINFO, "Mysql::Connect", "Connecting to Mysql database specified by \'%s\'", connect_string);
+      cm_msg_flush_buffer();
+   }
 
    std::string host_name;
    std::string user_name;
@@ -888,6 +918,7 @@ int Mysql::Connect(const char* connect_string)
 
    if (fDebug) {
       cm_msg(MINFO, "Mysql::Connect", "Connected to a MySQL database on host [%s], port %d, unix socket [%s], database [%s], user [%s], password [%s], buffer %d", host_name.c_str(), tcp_port, unix_socket.c_str(), db_name.c_str(), user_name.c_str(), "xxx", fMaxDisconnected);
+      cm_msg_flush_buffer();
    }
 
    fIsConnected = true;
@@ -904,6 +935,7 @@ int Mysql::Connect(const char* connect_string)
 
    if (count > 0) {
       cm_msg(MINFO, "Mysql::Connect", "Saved %d, lost %d history events accumulated while disconnected from the database", count, fDisconnectedLost);
+      cm_msg_flush_buffer();
    }
 
    assert(fDisconnectedBuffer.size() == 0);
@@ -1093,6 +1125,7 @@ int Mysql::ExecDisconnected(const char* table_name, const char* sql)
          }
          if (fDebug) {
             cm_msg(MINFO, "Mysql::ExecDisconnected", "Next reconnect attempt in %d sec, history events buffered %d, lost %d", fNextReconnectDelaySec, (int)fDisconnectedBuffer.size(), fDisconnectedLost);
+            cm_msg_flush_buffer();
          }
          fNextReconnect = now + fNextReconnectDelaySec;
       }
@@ -1252,8 +1285,12 @@ std::string Mysql::QuoteString(const char* s)
          q += "\\'";
       } if (c == '"') {
          q += "\\\"";
-      } else {
+      } else if (isprint(c)) {
          q += c;
+      } else {
+         char buf[256];
+         sprintf(buf, "\\\\x%02x", c&0xFF);
+         q += buf;
       }
    }
 #endif
@@ -3066,6 +3103,8 @@ static HsSqlSchema* NewSqlSchema(HsSchemaVector* sv, const char* table_name, tim
 {
    time_t tt = 0;
    int j=-1;
+   int jjx=-1; // remember oldest schema
+   time_t ttx = 0;
    for (unsigned i=0; i<sv->size(); i++) {
       HsSqlSchema* s = (HsSqlSchema*)(*sv)[i];
       if (s->table_name != table_name)
@@ -3081,6 +3120,18 @@ static HsSqlSchema* NewSqlSchema(HsSchemaVector* sv, const char* table_name, tim
             j = i;
          }
       }
+
+      if (jjx < 0) {
+         jjx = i;
+         ttx = s->time_from;
+      }
+
+      if (s->time_from < ttx) {
+         jjx = i;
+         ttx = s->time_from;
+      }
+
+      //printf("table_name [%s], t=%s, i=%d, j=%d %s, tt=%s, dt is %d\n", table_name, TimeToString(t).c_str(), i, j, TimeToString(s->time_from).c_str(), TimeToString(tt).c_str(), (int)(s->time_from-t));
    }
 
    //printf("NewSqlSchema: will copy schema j=%d, tt=%d at time %d\n", j, tt, t);
@@ -3091,17 +3142,35 @@ static HsSqlSchema* NewSqlSchema(HsSchemaVector* sv, const char* table_name, tim
    //printf("schema before:\n");
    //sv->print(false);
 
-   assert(j>=0);
+   if (j >= 0) {
+      HsSqlSchema* s = new HsSqlSchema;
+      *s = *(HsSqlSchema*)(*sv)[j]; // make a copy
+      s->time_from = t;
+      sv->add(s);
 
-   HsSqlSchema* s = new HsSqlSchema;
-   *s = *(HsSqlSchema*)(*sv)[j]; // make a copy
-   s->time_from = t;
-   sv->add(s);
+      //printf("schema after:\n");
+      //sv->print(false);
 
-   //printf("schema after:\n");
-   //sv->print(false);
+      return s;
+   }
 
-   return s;
+   if (jjx >= 0) {
+      cm_msg(MERROR, "NewSqlSchema", "Error: Unexpected ordering of schema for table \'%s\', good luck!", table_name);
+
+      HsSqlSchema* s = new HsSqlSchema;
+      *s = *(HsSqlSchema*)(*sv)[jjx]; // make a copy
+      s->time_from = t;
+      s->time_to = ttx;
+      sv->add(s);
+
+      //printf("schema after:\n");
+      //sv->print(false);
+
+      return s;
+   }
+
+   cm_msg(MERROR, "NewSqlSchema", "Error: Cannot clone schema for table \'%s\', good luck!", table_name);
+   return NULL;
 }
 
 int HsSqlSchema::write_event(const time_t t, const char* data, const int data_size)
@@ -3380,6 +3449,10 @@ static int CreateSqlTable(SqlBase* sql, const char* table_name, bool* have_trans
    cmd += " (_t_time TIMESTAMP NOT NULL, _i_time INTEGER NOT NULL);";
 
    status = sql->Exec(table_name, cmd.c_str());
+
+   cm_msg(MINFO, "CreateSqlTable", "Adding SQL table \"%s\", status %d", table_name, status);
+   cm_msg_flush_buffer();
+
    if (status != DB_SUCCESS)
       return HS_FILE_ERROR;
 
@@ -3432,7 +3505,12 @@ static int CreateSqlColumn(SqlBase* sql, const char* table_name, const char* col
    cmd += column_type;
    cmd += ";";
 
-   return sql->Exec(table_name, cmd.c_str());
+   status = sql->Exec(table_name, cmd.c_str());
+
+   cm_msg(MINFO, "CreateSqlColumn", "Adding column \"%s\" to SQL table \"%s\", status %d", column_name, table_name, status);
+   cm_msg_flush_buffer();
+
+   return status;
 }
 
 ////////////////////////////////////////////////////////
@@ -3474,7 +3552,7 @@ protected:
    virtual int read_table_and_event_names(HsSchemaVector *sv) = 0;
    virtual int read_column_names(HsSchemaVector *sv, const char* table_name, const char* event_name) = 0;
    virtual int create_table(HsSchemaVector* sv, const char* event_name, time_t timestamp) = 0;
-   virtual int update_column(const char* event_name, const char* table_name, const char* column_name, const char* column_type, const char* tag_name, const char* tag_type, const time_t timestamp, bool* have_transaction) = 0;
+   virtual int update_column(const char* event_name, const char* table_name, const char* column_name, const char* column_type, const char* tag_name, const char* tag_type, const time_t timestamp, bool active, bool* have_transaction) = 0;
 
    int update_schema(HsSqlSchema* s, const time_t timestamp, const int ntags, const TAG tags[], bool write_enable);
    int update_schema1(HsSqlSchema* s, const time_t timestamp, const int ntags, const TAG tags[], bool write_enable, bool* have_transaction);
@@ -3550,6 +3628,7 @@ HsSchema* SqlHistoryBase::new_event(const char* event_name, time_t timestamp, in
 
       if (!s) {
          cm_msg(MERROR, "SqlHistory::new_event", "Error: Cannot create schema for event \'%s\', see previous messages", event_name);
+         fWriterCurrentSchema.find_event(event_name, timestamp, 1);
          return NULL;
       }
    }
@@ -3601,6 +3680,9 @@ HsSchema* SqlHistoryBase::new_event(const char* event_name, time_t timestamp, in
    status = update_schema(s, timestamp, ntags, tags, false);
    if (status != HS_SUCCESS) {
       cm_msg(MERROR, "SqlHistory::new_event", "Error: Cannot create schema for event \'%s\', see previous messages", event_name);
+      //fDebug = 1;
+      //update_schema(s, timestamp, ntags, tags, false);
+      //abort();
       return NULL;
    }
 
@@ -3680,6 +3762,9 @@ int SqlHistoryBase::update_schema1(HsSqlSchema* s, const time_t timestamp, const
 {
    int status;
 
+   if (fDebug)
+      printf("update_schema1\n");
+
    // check that compare schema with tags[]
 
    bool schema_ok = true;
@@ -3713,10 +3798,13 @@ int SqlHistoryBase::update_schema1(HsSqlSchema* s, const time_t timestamp, const
                } else {
                   // column with incompatible type, mark it as unused
                   schema_ok = false;
+                  if (fDebug)
+                     printf("Incompatible column!\n");
                   if (write_enable) {
-                     if (fDebug)
-                        cm_msg(MERROR, "SqlHistory::update_schema", "Found column \'%s\' type \'%s\' incompatible with MIDAS type \'%s\', marking it unused, event \'%s\', table \'%s\'", s->column_names[j].c_str(), s->column_types[j].c_str(), rpc_tid_name(tagtype), s->event_name.c_str(), s->table_name.c_str());
-                     status = update_column(s->event_name.c_str(), s->table_name.c_str(), s->column_names[j].c_str(), s->column_types[j].c_str(), "" /*tagname*/, rpc_tid_name(tagtype), timestamp, have_transaction);
+                     cm_msg(MINFO, "SqlHistory::update_schema", "Deactivating SQL column \'%s\' type \'%s\' in table \"%s\" as incompatible with MIDAS type \'%s\' history event \"%s\" tag \"%s\"", s->column_names[j].c_str(), s->column_types[j].c_str(), s->table_name.c_str(), rpc_tid_name(tagtype), s->event_name.c_str(), tagname.c_str());
+                     cm_msg_flush_buffer();
+
+                     status = update_column(s->event_name.c_str(), s->table_name.c_str(), s->column_names[j].c_str(), s->column_types[j].c_str(), s->variables[j].tag_name.c_str(), s->variables[i].tag_type.c_str(), timestamp, false, have_transaction);
                      if (status != HS_SUCCESS)
                         return status;
                   }
@@ -3727,9 +3815,36 @@ int SqlHistoryBase::update_schema1(HsSqlSchema* s, const time_t timestamp, const
          if (count == 0) {
             // tag does not have a corresponding column
             schema_ok = false;
+            if (fDebug)
+               printf("No column for tag %s!\n", tagname.c_str());
+
+            bool found_column = false;
+            
+            if (write_enable) {
+               for (unsigned j=0; j<s->variables.size(); j++) {
+                  if (tagname == s->variables[j].tag_name) {
+                     bool typeok = s->sql->TypesCompatible(tagtype, s->column_types[j].c_str());
+                     if (typeok) {
+                        cm_msg(MINFO, "SqlHistory::update_schema", "Reactivating SQL column \'%s\' type \'%s\' in table \"%s\" for history event \"%s\" tag \"%s\"", s->column_names[j].c_str(), s->column_types[j].c_str(), s->table_name.c_str(), s->event_name.c_str(), tagname.c_str());
+                        cm_msg_flush_buffer();
+
+                        status = update_column(s->event_name.c_str(), s->table_name.c_str(), s->column_names[j].c_str(), s->column_types[j].c_str(), s->variables[j].tag_name.c_str(), s->variables[j].tag_type.c_str(), timestamp, true, have_transaction);
+                        if (status != HS_SUCCESS)
+                           return status;
+
+                        if (count == 0) {
+                           s->offsets[j] = offset;
+                           offset += rpc_tid_size(tagtype);
+                        }
+                        count++;
+                        found_column = true;
+                     }
+                  }
+               }
+            }
 
             // create column
-            if (write_enable) {
+            if (!found_column && write_enable) {
                std::string col_name = maybe_colname;
                const char* col_type = s->sql->ColumnType(tagtype);
 
@@ -3740,14 +3855,21 @@ int SqlHistoryBase::update_schema1(HsSqlSchema* s, const time_t timestamp, const
                      break;
                   }
 
+               time_t now = time(NULL);
+               
                bool retry = false;
-               for (int t=0; t<10; t++) {
+               for (int t=0; t<20; t++) {
 
                   // if duplicate column name, change it, try again
                   if (dupe || retry) {
-                     char s[256];
-                     sprintf(s, "_%d", rand());
-                     col_name = maybe_colname + s;
+                     col_name = maybe_colname;
+                     col_name += "_";
+                     col_name += TimeToString(now);
+                     if (t > 0) {
+                        char s[256];
+                        sprintf(s, "_%d", t);
+                        col_name += s;
+                     }
                   }
 
                   if (fDebug)
@@ -3771,7 +3893,7 @@ int SqlHistoryBase::update_schema1(HsSqlSchema* s, const time_t timestamp, const
                if (status != HS_SUCCESS)
                   return status;
 
-               status = update_column(s->event_name.c_str(), s->table_name.c_str(), col_name.c_str(), col_type, tagname.c_str(), rpc_tid_name(tagtype), timestamp, have_transaction);
+               status = update_column(s->event_name.c_str(), s->table_name.c_str(), col_name.c_str(), col_type, tagname.c_str(), rpc_tid_name(tagtype), timestamp, true, have_transaction);
                if (status != HS_SUCCESS)
                   return status;
             }
@@ -3780,6 +3902,8 @@ int SqlHistoryBase::update_schema1(HsSqlSchema* s, const time_t timestamp, const
          if (count > 1) {
             // schema has duplicate tags
             schema_ok = false;
+            if (fDebug)
+               printf("Duplicate tags!\n");
          }
       }
    }
@@ -3811,12 +3935,15 @@ int SqlHistoryBase::update_schema1(HsSqlSchema* s, const time_t timestamp, const
          }
 
          if (!found) {
-            // column with incompatible type, mark it as unused
+            // column not found in tags list
             schema_ok = false;
+            if (fDebug)
+               printf("Event [%s] Column [%s] tag [%s] not listed in tags list!\n", s->event_name.c_str(), s->column_names[k].c_str(), s->variables[k].name.c_str());
             if (write_enable) {
-               if (fDebug)
-                  printf("SqlHistory::update_schema: table [%s], column %d name [%s] type [%s] is marked as unused\n", s->table_name.c_str(), k, s->column_names[k].c_str(), s->column_types[k].c_str());
-               status = update_column(s->event_name.c_str(), s->table_name.c_str(), s->column_names[k].c_str(), s->column_types[k].c_str(), "" /*tagname*/, "" /* tagtype */, timestamp, have_transaction);
+               cm_msg(MINFO, "SqlHistory::update_schema", "Deactivating SQL column \'%s\' type \'%s\' in table \"%s\" for history event \"%s\" not used for any tags", s->column_names[k].c_str(), s->column_types[k].c_str(), s->table_name.c_str(), s->event_name.c_str());
+               cm_msg_flush_buffer();
+
+               status = update_column(s->event_name.c_str(), s->table_name.c_str(), s->column_names[k].c_str(), s->column_types[k].c_str(), s->variables[k].tag_name.c_str(), s->variables[k].tag_type.c_str(), timestamp, false, have_transaction);
                if (status != HS_SUCCESS)
                   return status;
             }
@@ -3824,8 +3951,11 @@ int SqlHistoryBase::update_schema1(HsSqlSchema* s, const time_t timestamp, const
       }
 
    if (!write_enable)
-      if (!schema_ok)
+      if (!schema_ok) {
+         if (fDebug)
+            printf("Return error!\n");
          return HS_FILE_ERROR;
+      }
 
    return HS_SUCCESS;
 }
@@ -3914,7 +4044,7 @@ public:
    int read_table_and_event_names(HsSchemaVector *sv);
    int read_column_names(HsSchemaVector *sv, const char* table_name, const char* event_name);
    int create_table(HsSchemaVector* sv, const char* event_name, time_t timestamp);
-   int update_column(const char* event_name, const char* table_name, const char* column_name, const char* column_type, const char* tag_name, const char* tag_type, const time_t timestamp, bool* have_transaction);
+   int update_column(const char* event_name, const char* table_name, const char* column_name, const char* column_type, const char* tag_name, const char* tag_type, const time_t timestamp, bool active, bool* have_transaction);
 };
 
 int SqliteHistory::read_table_and_event_names(HsSchemaVector *sv)
@@ -4129,7 +4259,7 @@ int SqliteHistory::create_table(HsSchemaVector* sv, const char* event_name, time
    return ReadSqliteTableSchema(fSql, sv, table_name.c_str(), fDebug);
 }
 
-int SqliteHistory::update_column(const char* event_name, const char* table_name, const char* column_name, const char* column_type, const char* tag_name, const char* tag_type, const time_t timestamp, bool* have_transaction)
+int SqliteHistory::update_column(const char* event_name, const char* table_name, const char* column_name, const char* column_type, const char* tag_name, const char* tag_type, const time_t timestamp, bool active, bool* have_transaction)
 {
    if (fDebug)
       printf("SqliteHistory::update_column: event [%s], table [%s], column [%s], new name [%s], timestamp %s\n", event_name, table_name, column_name, tag_name, TimeToString(timestamp).c_str());
@@ -4176,13 +4306,13 @@ public:
    int read_table_and_event_names(HsSchemaVector *sv);
    int read_column_names(HsSchemaVector *sv, const char* table_name, const char* event_name);
    int create_table(HsSchemaVector* sv, const char* event_name, time_t timestamp);
-   int update_column(const char* event_name, const char* table_name, const char* column_name, const char* column_type, const char* tag_name, const char* tag_type, const time_t timestamp, bool* have_transaction);
+   int update_column(const char* event_name, const char* table_name, const char* column_name, const char* column_type, const char* tag_name, const char* tag_type, const time_t timestamp, bool active, bool* have_transaction);
 };
 
-static int ReadMysqlTableNames(SqlBase* sql, HsSchemaVector *sv, const char* table_name, int debug)
+static int ReadMysqlTableNames(SqlBase* sql, HsSchemaVector *sv, const char* table_name, int debug, const char* must_have_event_name, const char* must_have_table_name)
 {
    if (debug)
-      printf("ReadMysqlTableNames: table [%s]\n", table_name);
+      printf("ReadMysqlTableNames: table [%s], must have event [%s] table [%s]\n", table_name, must_have_event_name, must_have_table_name);
 
    int status;
    std::string cmd;
@@ -4201,6 +4331,9 @@ static int ReadMysqlTableNames(SqlBase* sql, HsSchemaVector *sv, const char* tab
    if (status != DB_SUCCESS)
       return status;
 
+   bool found_must_have_table = false;
+   int count = 0;
+
    while (1) {
       status = sql->Step();
 
@@ -4211,9 +4344,19 @@ static int ReadMysqlTableNames(SqlBase* sql, HsSchemaVector *sv, const char* tab
       const char* xtable_name  = sql->GetText(1);
       time_t      xevent_time  = sql->GetTime(2);
 
-#if 0
-      printf("read event name [%s] table name [%s] time %s\n", xevent_name, xtable_name, TimeToString(xevent_time).c_str());
-#endif
+      if (debug == 999) {
+         printf("entry %d event name [%s] table name [%s] time %s\n", count, xevent_name, xtable_name, TimeToString(xevent_time).c_str());
+      }
+
+      if (must_have_table_name && (strcmp(xtable_name, must_have_table_name) == 0)) {
+         assert(must_have_event_name != NULL);
+         if (strcmp(xevent_name, must_have_event_name) == 0) {
+            found_must_have_table = true;
+            //printf("Found table [%s]: event name [%s] table name [%s] time %s\n", must_have_table_name, xevent_name, xtable_name, TimeToString(xevent_time).c_str());
+         } else {
+            //printf("Found correct table [%s] with wrong event name [%s] expected [%s] time %s\n", must_have_table_name, xevent_name, must_have_event_name, TimeToString(xevent_time).c_str());
+         }
+      }
       
       HsSqlSchema* s = new HsSqlSchema;
       s->sql = sql;
@@ -4222,9 +4365,22 @@ static int ReadMysqlTableNames(SqlBase* sql, HsSchemaVector *sv, const char* tab
       s->time_to = 0;
       s->table_name = xtable_name;
       sv->add(s);
+      count++;
    }
 
    status = sql->Finalize();
+
+   if (must_have_table_name && !found_must_have_table) {
+      cm_msg(MERROR, "ReadMysqlTableNames", "Error: Table [%s] for event [%s] missing from the history index\n", must_have_table_name, must_have_event_name);
+      if (debug == 999)
+         return HS_FILE_ERROR;
+      // NB: recursion is broken by setting debug to 999.
+      ReadMysqlTableNames(sql, sv, table_name, 999, must_have_event_name, must_have_table_name);
+      cm_msg(MERROR, "ReadMysqlTableNames", "Error: Cannot continue, nothing will work after this error\n");
+      cm_msg_flush_buffer();
+      abort();
+      return HS_FILE_ERROR;
+   }
 
    return HS_SUCCESS;
 }
@@ -4272,6 +4428,8 @@ int MysqlHistory::read_column_names(HsSchemaVector *sv, const char* table_name, 
 
          if (!found) {
             HsSchemaEntry se;
+            se.tag_name = cn;
+            se.tag_type = "";
             se.name = cn;
             se.type = 0;
             se.n_data = 1;
@@ -4287,7 +4445,7 @@ int MysqlHistory::read_column_names(HsSchemaVector *sv, const char* table_name, 
    // then read column name information
 
    std::string cmd;
-   cmd = "SELECT column_name, column_type, tag_name, tag_type, itimestamp FROM _history_index WHERE event_name=";
+   cmd = "SELECT column_name, column_type, tag_name, tag_type, itimestamp, active FROM _history_index WHERE event_name=";
    cmd += fSql->QuoteString(event_name);
    cmd += ";";
 
@@ -4308,16 +4466,16 @@ int MysqlHistory::read_column_names(HsSchemaVector *sv, const char* table_name, 
       const char* tag_name  = fSql->GetText(2);
       const char* tag_type  = fSql->GetText(3);
       time_t   schema_time  = fSql->GetTime(4);
+      const char* active    = fSql->GetText(5);
+      int iactive = atoi(active);
 
-      //printf("read table [%s] column [%s] type [%s] tag name [%s] type [%s] time %s\n", table_name, col_name, col_type, tag_name, tag_type, TimeToString(schema_time).c_str());
+      //printf("read table [%s] column [%s] type [%s] tag name [%s] type [%s] time %s active [%s] %d\n", table_name, col_name, col_type, tag_name, tag_type, TimeToString(schema_time).c_str(), active, iactive);
 
       if (!col_name)
          continue;
       if (!tag_name)
          continue;
       if (strlen(col_name) < 1)
-         continue;
-      if (strlen(tag_name) < 1)
          continue;
 
       // make sure a schema exists at this time point
@@ -4332,15 +4490,20 @@ int MysqlHistory::read_column_names(HsSchemaVector *sv, const char* table_name, 
          if (s->time_from < schema_time)
             continue;
 
-         //printf("add column to schema %d\n", s->time_from);
-
          int tid = midas_tid(tag_type);
          int tid_size = rpc_tid_size(tid);
 
          for (unsigned j=0; j<s->column_names.size(); j++) {
             if (col_name != s->column_names[j])
                continue;
-            s->variables[j].name = tag_name;
+
+            s->variables[j].tag_name = tag_name;
+            s->variables[j].tag_type = tag_type;
+            if (!iactive) {
+               s->variables[j].name = "";
+            } else {
+               s->variables[j].name = tag_name;
+            }
             s->variables[j].type = tid;
             s->variables[j].n_data = 1;
             s->variables[j].n_bytes = tid_size;
@@ -4375,7 +4538,7 @@ static int ReadMysqlTableSchema(SqlBase* sql, HsSchemaVector *sv, const char* ta
       sv->add(s);
    }
 
-   return ReadMysqlTableNames(sql, sv, table_name, debug);
+   return ReadMysqlTableNames(sql, sv, table_name, debug, NULL, NULL);
 }
 #endif
 
@@ -4413,7 +4576,7 @@ int MysqlHistory::read_table_and_event_names(HsSchemaVector *sv)
       }
    }
 
-   status = ReadMysqlTableNames(fSql, sv, NULL, fDebug);
+   status = ReadMysqlTableNames(fSql, sv, NULL, fDebug, NULL, NULL);
 
    return HS_SUCCESS;
 }
@@ -4432,6 +4595,8 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
       table_name += "_T";
    }
 
+   time_t now = time(NULL);
+
    int max_attempts = 10;
    for (int i=0; i<max_attempts; i++) {
       status = fSql->OpenTransaction(table_name.c_str());
@@ -4444,15 +4609,19 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
       std::string xtable_name = table_name;
 
       if (i>0) {
-         char buf[256];
-         sprintf(buf, "%d", i);
          xtable_name += "_";
-         xtable_name += buf;
+         xtable_name += TimeToString(now);
+         if (i>1) {
+            xtable_name += "_";
+            char buf[256];
+            sprintf(buf, "%d", i);
+            xtable_name += buf;
+         }
       }
       
       status = CreateSqlTable(fSql, xtable_name.c_str(), &have_transaction);
 
-      //printf("create table [%s] status %d\n", xtable_name.c_str(), status);
+      //printf("event [%s] create table [%s] status %d\n", event_name, xtable_name.c_str(), status);
 
       if (status != HS_SUCCESS) {
          fSql->RollbackTransaction(table_name.c_str());
@@ -4461,7 +4630,7 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
 
       for (int j=0; j<2; j++) {
          std::string cmd;
-         cmd += "INSERT INTO _history_index (event_name, table_name, itimestamp) VALUES (";
+         cmd += "INSERT INTO _history_index (event_name, table_name, itimestamp, active) VALUES (";
          cmd += fSql->QuoteString(event_name);
          cmd += ", ";
          cmd += fSql->QuoteString(xtable_name.c_str());
@@ -4469,6 +4638,8 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
          char buf[256];
          sprintf(buf, "%.0f", (double)timestamp);
          cmd += fSql->QuoteString(buf);
+         cmd += ", ";
+         cmd += fSql->QuoteString("1");
          cmd += ");";
          
          int status = fSql->Exec(table_name.c_str(), cmd.c_str());
@@ -4476,13 +4647,14 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
             break;
          
          status = CreateSqlTable(fSql,  "_history_index", &have_transaction);
-         status = CreateSqlColumn(fSql, "_history_index", "event_name",  "varchar(256) not null", &have_transaction, fDebug);
+         status = CreateSqlColumn(fSql, "_history_index", "event_name",  "varchar(256) character set binary not null", &have_transaction, fDebug);
          status = CreateSqlColumn(fSql, "_history_index", "table_name",  "varchar(256)",     &have_transaction, fDebug);
-         status = CreateSqlColumn(fSql, "_history_index", "tag_name",    "varchar(256)",     &have_transaction, fDebug);
+         status = CreateSqlColumn(fSql, "_history_index", "tag_name",    "varchar(256) character set binary",     &have_transaction, fDebug);
          status = CreateSqlColumn(fSql, "_history_index", "tag_type",    "varchar(256)",     &have_transaction, fDebug);
          status = CreateSqlColumn(fSql, "_history_index", "column_name", "varchar(256)",     &have_transaction, fDebug);
          status = CreateSqlColumn(fSql, "_history_index", "column_type", "varchar(256)",     &have_transaction, fDebug);
          status = CreateSqlColumn(fSql, "_history_index", "itimestamp",  "integer not null", &have_transaction, fDebug);
+         status = CreateSqlColumn(fSql, "_history_index", "active",      "boolean",          &have_transaction, fDebug);
       }
 
       status = fSql->CommitTransaction(table_name.c_str());
@@ -4491,7 +4663,7 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
          return HS_FILE_ERROR;
       }
       
-      return ReadMysqlTableNames(fSql, sv, table_name.c_str(), fDebug);
+      return ReadMysqlTableNames(fSql, sv, xtable_name.c_str(), fDebug, event_name, xtable_name.c_str());
    }
 
    cm_msg(MERROR, "MysqlHistory::create_table", "Could not create table [%s] for event [%s], timestamp %s, after %d attempts\n", table_name.c_str(), event_name, TimeToString(timestamp).c_str(), max_attempts);
@@ -4499,13 +4671,13 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
    return HS_FILE_ERROR;
 }
 
-int MysqlHistory::update_column(const char* event_name, const char* table_name, const char* column_name, const char* column_type, const char* tag_name, const char* tag_type, const time_t timestamp, bool* have_transaction)
+int MysqlHistory::update_column(const char* event_name, const char* table_name, const char* column_name, const char* column_type, const char* tag_name, const char* tag_type, const time_t timestamp, bool active, bool* have_transaction)
 {
    if (fDebug)
       printf("MysqlHistory::update_column: event [%s], table [%s], column [%s], type [%s] new name [%s], timestamp %s\n", event_name, table_name, column_name, column_type, tag_name, TimeToString(timestamp).c_str());
 
    std::string cmd;
-   cmd += "INSERT INTO _history_index (event_name, table_name, tag_name, tag_type, column_name, column_type, itimestamp) VALUES (";
+   cmd += "INSERT INTO _history_index (event_name, table_name, tag_name, tag_type, column_name, column_type, itimestamp, active) VALUES (";
    cmd += fSql->QuoteString(event_name);
    cmd += ", ";
    cmd += fSql->QuoteString(table_name);
@@ -4521,6 +4693,11 @@ int MysqlHistory::update_column(const char* event_name, const char* table_name, 
    char buf[256];
    sprintf(buf, "%.0f", (double)timestamp);
    cmd += fSql->QuoteString(buf);
+   cmd += ", ";
+   if (active)
+      cmd += fSql->QuoteString("1");
+   else
+      cmd += fSql->QuoteString("0");
    cmd += ");";
          
    int status = fSql->Exec(table_name, cmd.c_str());
@@ -4672,8 +4849,10 @@ int FileHistory::read_schema(HsSchemaVector* sv, const char* event_name, const t
 
    DWORD end_time = ss_millitime();
    DWORD elapsed = end_time - start_time;
-   if (elapsed > 3000)
+   if (elapsed > 3000) {
       cm_msg(MINFO, "FileHistory::read_schema", "Loading schema for event \"%s\" timestamp %s, operation took %d ms", event_name, TimeToString(timestamp).c_str(), (int)elapsed);
+      cm_msg_flush_buffer();
+   }
 
    return HS_SUCCESS;
 }
