@@ -65,7 +65,7 @@ int copyHstFile(const char* filename, FILE*f, MidasHistoryInterface *mh)
 
             case 0x46445348: // RT_DEF:
                {
-                  char event_name[NAME_LENGTH];
+                  char event_name[NAME_LENGTH+1];
                   rd = fread(event_name, 1, NAME_LENGTH, f);
 
                   if (rd != NAME_LENGTH) {
@@ -75,7 +75,14 @@ int copyHstFile(const char* filename, FILE*f, MidasHistoryInterface *mh)
                      return -1;
                      break;
                   }
-	    
+
+                  // make sure event name is NUL terminated
+                  event_name[NAME_LENGTH] = 0;
+
+                  if (strlen(event_name) == NAME_LENGTH) {
+                     //fprintf(stderr, "Warning: %s: Truncated event length in RT_DEF record: [%s]\n", filename, event_name);
+                  }
+
                   int size = rec.data_size;
                   int ntags = size/sizeof(TAG);
 
