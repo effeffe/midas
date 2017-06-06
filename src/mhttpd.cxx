@@ -9440,12 +9440,11 @@ void show_start_page(int script)
 void show_odb_page(char *enc_path, int enc_path_size, char *dec_path, int write_access)
 {
    int i, j, keyPresent, scan, size, status, line;
-   char str[256], tmp_path[256], url_path[256], data_str[TEXT_SIZE],
+   char str[256], tmp_path[256], url_path[256],
       hex_str[256], ref[256], keyname[32], link_name[256], link_ref[256],
       full_path[256], root_path[256], odb_path[256], colspan, style[32];
    char *p;
    char *pd;
-   char data[TEXT_SIZE];
    HNDLE hDB, hkey, hkeyroot;
    KEY key;
    DWORD delta;
@@ -9675,9 +9674,17 @@ void show_odb_page(char *enc_path, int enc_path_size, char *dec_path, int write_
             } else if(key.type != TID_KEY && scan == 1) {
                /* display single value */
                if (key.num_values == 1) {
+                  char data[TEXT_SIZE];
+                  char data_str[TEXT_SIZE];
                   size = sizeof(data);
                   db_get_data(hDB, hkey, data, &size, key.type);
                   db_sprintf(data_str, data, key.item_size, 0, key.type);
+
+                  if (key.type == TID_STRING) {
+                     if (strlen(data_str) >= MAX_STRING_LENGTH-1) {
+                        strlcat(data_str, "...(truncated)", sizeof(data_str));
+                     }
+                  }
 
                   if (key.type != TID_STRING)
                      db_sprintfh(hex_str, data, key.item_size, 0, key.type);
@@ -9790,7 +9797,7 @@ void show_odb_page(char *enc_path, int enc_path_size, char *dec_path, int write_
 
                   line++;
                   rsprintf("</tr>\n");
-               } else {
+               } else { /* display array value */
                   /* check for exceeding length */
                   if (key.num_values > 1000)
                      rsprintf("<tr><td class=\"ODBkey\">%s<td class=\"%s\"><i>... %d values ...</i>\n",
@@ -9805,6 +9812,9 @@ void show_odb_page(char *enc_path, int enc_path_size, char *dec_path, int write_
                                  key.num_values, keyname);
 
                      for (j = 0; j < key.num_values; j++) {
+                        char data[TEXT_SIZE];
+                        char data_str[TEXT_SIZE];
+
                         if (line % 2 == 0)
                            strlcpy(style, "ODBtableEven", sizeof(style));
                         else
@@ -9814,6 +9824,13 @@ void show_odb_page(char *enc_path, int enc_path_size, char *dec_path, int write_
                         db_get_data_index(hDB, hkey, data, &size, j, key.type);
                         db_sprintf(data_str, data, key.item_size, 0, key.type);
                         db_sprintfh(hex_str, data, key.item_size, 0, key.type);
+
+                        if (key.type == TID_STRING) {
+                           hex_str[0] = 0;
+                           if (strlen(data_str) >= MAX_STRING_LENGTH-1) {
+                              strlcat(data_str, "...(truncated)", sizeof(data_str));
+                           }
+                        }
 
                         if (data_str[0] == 0 || equal_ustring(data_str, "<NULL>")) {
                            strcpy(data_str, "(empty)");
