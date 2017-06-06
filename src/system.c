@@ -1867,7 +1867,6 @@ INT ss_daemon_init(BOOL keep_stdout)
    }
 
    setsid();                    /* become session leader */
-   umask(0);                    /* clear our file mode createion mask */
 
 #endif
 
@@ -1995,7 +1994,6 @@ INT ss_exec(const char *command, INT * pid)
 
    setsid();                    /* become session leader */
    /* chdir("/"); *//* change working directory (not on NFS!) */
-   umask(0);                    /* clear our file mode createion mask */
 
    /* execute command */
    execl("/bin/sh", "sh", "-c", command, NULL);
