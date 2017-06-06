@@ -4365,7 +4365,9 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       size = sizeof(run_number);
       status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
       assert(status == SUCCESS);
-      run_number++;
+      if (transition == TR_START) {
+         run_number++;
+      }
       tr_current_transition->run_number = run_number;
    }
 
