@@ -19,9 +19,6 @@
 #include "strlcpy.h"
 #endif
 
-#define STRLCPY(d, s) strlcpy((d), (s), sizeof(d))
-#define STRLCAT(d, s) strlcat((d), (s), sizeof(d))
-
 /*------------------------------------------------------------------*/
 
 /* items defined in user part of frontend */
@@ -537,9 +534,9 @@ static void eq_common_watcher(INT hDB, INT hKey, INT index, void* info)
    EQUIPMENT *eq = (EQUIPMENT*) info;
    HNDLE hCommon;
    char path[MAX_ODB_PATH];
-   STRLCPY(path, "/Equipment/");
-   STRLCAT(path, eq->name);
-   STRLCAT(path, "/Common");
+   strlcpy(path, "/Equipment/", MAX_ODB_PATH);
+   strlcat(path, eq->name, MAX_ODB_PATH);
+   strlcat(path, "/Common", MAX_ODB_PATH);
    status = db_find_key(hDB, 0, path, &hCommon);
    if (status != DB_SUCCESS)
       return;
