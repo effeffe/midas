@@ -515,7 +515,7 @@ void hv_set_voltage_limit(INT hDB, INT hKey, void *info)
 void hv_update_label(INT hDB, INT hKey, void *info)
 {
    
-   INT i, status;
+   INT i;
    HV_INFO *hv_info;
    EQUIPMENT *pequipment;
 
@@ -523,11 +523,9 @@ void hv_update_label(INT hDB, INT hKey, void *info)
    hv_info = (HV_INFO *) pequipment->cd_info;
 
    //update channel labels based on the midas channel names
-   for (i = 0; i < hv_info->num_channels; i++)
-      status = device_driver(hv_info->driver[i], CMD_SET_LABEL,
-                             i - hv_info->channel_offset[i],
-                             hv_info->names + NAME_LENGTH * i);
-   
+   for (i = 0; i < hv_info->num_channels; i++) {
+     device_driver(hv_info->driver[i], CMD_SET_LABEL, i - hv_info->channel_offset[i], hv_info->names + NAME_LENGTH * i);
+   }
 }
 
 /*------------------------------------------------------------------*/
@@ -542,8 +540,7 @@ void hv_set_chState(INT hDB, INT hKey, void *info)
    hv_info = (HV_INFO *) pequipment->cd_info;
    
    for (i = 0; i < hv_info->num_channels; i++){
-
-      device_driver(hv_info->driver[i], CMD_SET_CHSTATE, i - hv_info->channel_offset[i], hv_info->chState[i] );
+     device_driver(hv_info->driver[i], CMD_SET_CHSTATE, i - hv_info->channel_offset[i], (double)hv_info->chState[i] );
    }
    
    pequipment->odb_in++;
@@ -739,6 +736,22 @@ INT hv_init(EQUIPMENT * pequipment)
    }
 
    /*---- Create/Read settings ----*/
+   
+   db_create_key(hDB, hv_info->hKeyRoot, "Settings/Editable", TID_STRING);
+   status = db_find_key(hDB, hv_info->hKeyRoot, "Settings/Editable", &hKey);
+   if (status == DB_SUCCESS) {
+     const int kSize = 10;
+     char editable[kSize][NAME_LENGTH];
+     int i, count;
+     for (i=0; i<kSize; i++)
+       editable[i][0] = 0;
+     count = 0;
+     strcpy(editable[count++], "Demand");
+     if (hv_info->driver[0]->flags & DF_REPORT_CHSTATE)
+       strcpy(editable[count++], "ChState");
+     db_set_data(hDB, hKey, editable, count*NAME_LENGTH, count, TID_STRING);
+   }
+
    // Names
    for (i = 0; i < hv_info->num_channels; i++){
       if((hv_info->driver[i]->flags & DF_LABELS_FROM_DEVICE) == 0)
@@ -787,11 +800,6 @@ INT hv_init(EQUIPMENT * pequipment)
    validate_odb_array(hDB, hv_info, "Settings/Ramp Down Speed", 0, CMD_GET_RAMPDOWN, 
                       hv_info->rampdown_speed, hv_set_rampdown, pequipment);
 
-   /* Channel State */
-   if (hv_info->driver[0]->flags & DF_REPORT_CHSTATE)
-      validate_odb_array_bool(hDB, hv_info, "Settings/ChState", 'n', CMD_GET_CHSTATE,
-                         hv_info->chState, hv_set_chState, pequipment);
-
    /* Crate Map */
    if (hv_info->driver[0]->flags & DF_REPORT_CRATEMAP){
       sprintf(str, "Settings/Devices/%s/DD/crateMap", pequipment->driver[0].name);
@@ -822,6 +830,11 @@ INT hv_init(EQUIPMENT * pequipment)
    db_find_key(hDB, hv_info->hKeyRoot, "Variables/Current", &hv_info->hKeyCurrent);
    memcpy(hv_info->current_mirror, hv_info->current,
           hv_info->num_channels * sizeof(float));
+
+   /* Channel State */
+   if (hv_info->driver[0]->flags & DF_REPORT_CHSTATE)
+      validate_odb_array_bool(hDB, hv_info, "Variables/ChState", 'n', CMD_GET_CHSTATE,
+                         hv_info->chState, hv_set_chState, pequipment);
 
    /* Status */
    if (hv_info->driver[0]->flags & DF_REPORT_STATUS){
@@ -868,7 +881,7 @@ INT hv_init(EQUIPMENT * pequipment)
                                 i - hv_info->channel_offset[i], hv_info->rampdown_speed[i]);
          if (hv_info->driver[i]->flags & DF_REPORT_CHSTATE)
             status = device_driver(hv_info->driver[i], CMD_SET_CHSTATE,
-                                   i - hv_info->channel_offset[i], hv_info->chState[i]);
+                                   i - hv_info->channel_offset[i], (double)hv_info->chState[i]);
       } else {
          status = device_driver(hv_info->driver[i], CMD_GET_DEMAND,
                                 i - hv_info->channel_offset[i], hv_info->demand + i);
@@ -906,7 +919,7 @@ INT hv_init(EQUIPMENT * pequipment)
    db_find_key(hDB, hv_info->hKeyRoot, "Settings/Ramp Down Speed", &hKey);
    db_set_record(hDB, hKey, hv_info->rampdown_speed, hv_info->num_channels * sizeof(float), 0);
    if (hv_info->driver[0]->flags & DF_REPORT_CHSTATE){
-      db_find_key(hDB, hv_info->hKeyRoot, "Settings/ChState", &hKey);
+      db_find_key(hDB, hv_info->hKeyRoot, "Variables/ChState", &hKey);
       db_set_record(hDB, hKey, hv_info->chState, hv_info->num_channels * sizeof(DWORD), 'n');
    }
    if (hv_info->driver[0]->flags & DF_REPORT_CRATEMAP){
