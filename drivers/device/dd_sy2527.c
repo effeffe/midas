@@ -16,7 +16,9 @@ $Id: dd_sy2527.c 2780 2005-10-19 13:20:29Z ritt $
 #include <stdarg.h>
 #include <string.h>
 #include <stdbool.h>
+#define ALARM XALARM
 #include "midas.h"
+#undef ALARM
 #include "CAENHVWrapper.h"
 
 /*---- globals -----------------------------------------------------*/
@@ -46,8 +48,8 @@ typedef struct
 } DDSY2527_SETTINGS;
 
 #define DDSY2527_SETTINGS_STR "\
-System Name = STRING : [32] sy2527\n\
-IP = STRING : [32] 142.90.127.157\n\
+System Name = STRING : [32] hostname\n\
+IP = STRING : [32] ipaddress\n\
 LinkType = INT : 0\n\
 First Slot = INT : 0\n\
 crateMap = INT : 0\n\
@@ -61,6 +63,7 @@ write the other device's  variables. */
 
 typedef struct
 {
+  int handle;
   DDSY2527_SETTINGS dd_sy2527_settings;
   DDSY2527_SLOT slot[SY2527_MAX_SLOTS];
   float *array;
@@ -90,11 +93,9 @@ INT dd_sy2527_init (HNDLE hkey, void **pinfo, WORD channels,
   int status, size, ret, islot;
   HNDLE hDB, hkeydd;
   DDSY2527_INFO *info;
-  char keyloc[128], str[128], username[30], passwd[30];
+  char keyloc[128], username[30], passwd[30];
   //  char   listName[32][MAX_CH_NAME];
-  unsigned short NrOfCh, serNumb;
-  unsigned char fmwMax, fmwMin;
-  char model[15], descr[80], *DevName;
+  //char model[15], descr[80];
   HNDLE shkey;
 
   /*  allocate info structure */
@@ -115,34 +116,36 @@ INT dd_sy2527_init (HNDLE hkey, void **pinfo, WORD channels,
   //  Connect to device
   strcpy (username, "user");
   strcpy (passwd, "user");
-  DevName = info->dd_sy2527_settings.name;
-  ret =
-    CAENHVInitSystem (DevName, info->dd_sy2527_settings.linktype,
-    info->dd_sy2527_settings.ip, username, passwd);
+  ret = CAENHV_InitSystem (0, info->dd_sy2527_settings.linktype, info->dd_sy2527_settings.ip, username, passwd, &info->handle);
   //cm_msg (MINFO, "dd_sy2527", "device name: %s link type: %d ip: %s user: %s pass: %s",
   //  DevName, info->dd_sy2527_settings.linktype, info->dd_sy2527_settings.ip, username, passwd);
-  cm_msg (MINFO, "dd_sy2527", "CAENHVInitSystem: %s  (num. %d)",
-    CAENHVGetError (DevName), ret);
+  cm_msg (MINFO, "dd_sy2527", "CAENHV_InitSystem: %d (%s)", ret, CAENHV_GetError(info->handle));
 
   //  Retrieve slot table for channels construction
   for (channels = 0, islot = info->dd_sy2527_settings.begslot;
     islot < SY2527_MAX_SLOTS; islot++)
   {
-    ret =
-      CAENHVTestBdPresence (DevName, islot, &NrOfCh, model, descr, &serNumb,
-      &fmwMin, &fmwMax);
+    unsigned short NrOfCh, serNumb;
+    unsigned char fmwMax, fmwMin;
+    char* model = NULL;
+    char* descr = NULL;
+    ret = CAENHV_TestBdPresence (info->handle, islot, &NrOfCh, &model, &descr, &serNumb, &fmwMin, &fmwMax);
+    //printf("slot %d, ret %d\n", islot, ret);
     if (ret == CAENHV_OK)
     {
-      sprintf (str, "Slot %d: Mod. %s %s Nr.Ch: %d  Ser. %d Rel. %d.%d\n",
-        islot, model, descr, NrOfCh, serNumb, fmwMax, fmwMin);
+      {
+	char str[256];
+	sprintf (str, "Slot %d: Mod. %s %s Nr.Ch: %d  Ser. %d Rel. %d.%d", islot, model, descr, NrOfCh, serNumb, fmwMax, fmwMin);
+	cm_msg (MINFO, "dd_sy2527", str);
+      }
+
       sprintf (keyloc, "Slot %i", islot);
 
       //  Check for existance of the Slot
       if (db_find_key (hDB, hkey, keyloc, &shkey) == DB_SUCCESS)
       {
         size = sizeof (info->slot[islot].Model);
-        db_get_value (hDB, shkey, "Model", info->slot[islot].Model,
-          &size, TID_STRING, FALSE);
+        db_get_value (hDB, shkey, "Model", info->slot[islot].Model, &size, TID_STRING, FALSE);
         //   Check for correct Model in that slot
         if ((strcmp (info->slot[islot].Model, model)) == 0)
         {
@@ -158,25 +161,16 @@ INT dd_sy2527_init (HNDLE hkey, void **pinfo, WORD channels,
         }
       }
       // No Slot entry in ODB, read defaults from device
-      cm_msg (MINFO, "dd_sy2527", str);
       sprintf (keyloc, "Slot %i/Description", islot);
-      db_set_value (hDB, hkey, keyloc, descr, sizeof (str), 1,
-        TID_STRING);
-
-      sprintf (keyloc, "Slot %i/Name", islot);
-      db_set_value (hDB, hkey, keyloc, DevName, sizeof (str), 1,
-        TID_STRING);
-      strcpy (info->slot[islot].Name, DevName);
+      db_set_value (hDB, hkey, keyloc, descr, strlen(descr)+1, 1, TID_STRING);
 
       sprintf (keyloc, "Slot %i/Model", islot);
-      db_set_value (hDB, hkey, keyloc, model, sizeof (model), 1,
-        TID_STRING);
+      db_set_value (hDB, hkey, keyloc, model, strlen(model)+1, 1, TID_STRING);
       strcpy (info->slot[islot].Model, model);
 
       sprintf (keyloc, "Slot %i/Channels", islot);
       info->slot[islot].channels = NrOfCh;
-      db_set_value (hDB, hkey, keyloc, &NrOfCh, sizeof (WORD), 1,
-        TID_WORD);
+      db_set_value (hDB, hkey, keyloc, &NrOfCh, sizeof (WORD), 1, TID_WORD);
       channels += NrOfCh;
     }
   }
@@ -207,6 +201,7 @@ void get_slot (DDSY2527_INFO * info, WORD channel, WORD * chan, WORD * slot)
   *slot = info->dd_sy2527_settings.begslot;
   *chan = 0;
   while ((channel >= info->slot[*slot].channels) && (*slot < SY2527_MAX_SLOTS)) {
+    //printf("slot %d, channels %d\n", *slot, info->slot[*slot].channels);
     channel -= info->slot[*slot].channels;
     *slot += 1;
   }
@@ -225,19 +220,16 @@ INT dd_sy2527_lParam_set (DDSY2527_INFO * info, WORD nchannel, WORD channel,
   // Find out what slot we need to talk to.
   get_slot (info, channel, &ch, &islot);
   chlist[0] = ch;
-  ret =
-    CAENHVGetChParamProp (info->dd_sy2527_settings.name, islot, chlist[0],
-    ParName, "Type", &tipo);
+  ret = CAENHV_GetChParamProp (info->handle, islot, chlist[0], ParName, "Type", &tipo);
   if (ret != CAENHV_OK)
     cm_msg (MERROR, "lParam_get", "Type : %d", tipo);
   if ((ret == CAENHV_OK) && (tipo != PARAM_TYPE_NUMERIC))
   {
-    ret =
-      CAENHVSetChParam (info->dd_sy2527_settings.name, islot, ParName,
-      nchannel, chlist, lvalue);
+    ret = CAENHV_SetChParam(info->handle, islot, ParName, nchannel, chlist, lvalue);
+    //printf("SetChParam: slot %d, parname [%s], nchannel %d, chlist[] [ %d...], lvalue %d\n", islot, ParName, nchannel, chlist[0], lvalue[0]);
     if (ret != CAENHV_OK)
       // cm_msg(MINFO,"dd_sy2527","Set lParam - chNum:%i Value: %ld %ld %ld", nchannel, lvalue[0], lvalue[1], lvalue[2]);
-      cm_msg (MERROR, "lParam", "SetChlParam returns %d", ret);
+      cm_msg (MERROR, "lParam", "SetChParam returns %d", ret);
   }
 
   return FE_SUCCESS;
@@ -256,16 +248,12 @@ dd_sy2527_lParam_get (DDSY2527_INFO * info, WORD nchannel, WORD channel,
   // Find out what slot we need to talk to.
   get_slot (info, channel, &ch, &islot);
   chlist[0] = ch;
-  ret =
-    CAENHVGetChParamProp (info->dd_sy2527_settings.name, islot, chlist[0],
-    ParName, "Type", &tipo);
+  ret = CAENHV_GetChParamProp(info->handle, islot, chlist[0], ParName, "Type", &tipo);
   if (ret != CAENHV_OK)
     cm_msg (MERROR, "lParam_get", "Type : %d", tipo);
   if ((ret == CAENHV_OK) && (tipo != PARAM_TYPE_NUMERIC))
   {
-    ret =
-      CAENHVGetChParam (info->dd_sy2527_settings.name, islot, ParName,
-      nchannel, chlist, lvalue);
+    ret = CAENHV_GetChParam(info->handle, islot, ParName, nchannel, chlist, lvalue);
 
     if (ret != CAENHV_OK)
       cm_msg (MERROR, "lParam", "GetChlParam returns %d", ret);
@@ -287,9 +275,7 @@ INT dd_sy2527_fParam_set (DDSY2527_INFO * info, WORD nchannel, WORD channel,
   //  printf("fSet chi:%d cho:%d slot:%d value:%f\n", *chlist, ch, islot, *fvalue);
 
   chlist[0] = ch;
-  ret =
-    CAENHVGetChParamProp (info->dd_sy2527_settings.name, islot, chlist[0],
-    ParName, "Type", &tipo);
+  ret = CAENHV_GetChParamProp(info->handle, islot, chlist[0], ParName, "Type", &tipo);
   if (ret != CAENHV_OK)
   {
     cm_msg (MERROR, "fParam_get", "Param Not Found Type : %d", tipo);
@@ -297,8 +283,7 @@ INT dd_sy2527_fParam_set (DDSY2527_INFO * info, WORD nchannel, WORD channel,
   }
   if ((ret == CAENHV_OK) && (tipo == PARAM_TYPE_NUMERIC))
   {
-    ret =
-      CAENHVSetChParam (info->dd_sy2527_settings.name, islot, ParName, nchannel, chlist, fvalue);
+    ret = CAENHV_SetChParam(info->handle, islot, ParName, nchannel, chlist, fvalue);
     if (ret != CAENHV_OK)
     {
       //          cm_msg(MINFO,"dd_sy2527","Set fParam - chNum:%i Value: %f %f %f", nchannel, fvalue[0], fvalue[1], fvalue[2]);
@@ -321,9 +306,7 @@ INT dd_sy2527_fParam_get (DDSY2527_INFO * info, WORD nchannel, WORD channel,
   get_slot (info, channel, &ch, &islot);
 
   chlist[0] = ch;
-  ret =
-    CAENHVGetChParamProp (info->dd_sy2527_settings.name, islot, chlist[0],
-    ParName, "Type", &tipo);
+  ret = CAENHV_GetChParamProp(info->handle, islot, chlist[0], ParName, "Type", &tipo);
   if (ret != CAENHV_OK)
   {
     //cm_msg (MERROR, "fParam_get", "Param Not Found Type : %d", tipo);
@@ -332,8 +315,7 @@ INT dd_sy2527_fParam_get (DDSY2527_INFO * info, WORD nchannel, WORD channel,
   }
   if ((ret == CAENHV_OK) && (tipo == PARAM_TYPE_NUMERIC))
   {
-    ret =
-      CAENHVGetChParam (info->dd_sy2527_settings.name, islot, ParName, nchannel, chlist, fvalue);
+    ret = CAENHV_GetChParam(info->handle, islot, ParName, nchannel, chlist, fvalue);
     if (ret != CAENHV_OK)
       //         cm_msg(MINFO,"dd_sy2527","Get fParam - chNum:%i Value: %f %f %f", nchannel, fvalue[0], fvalue[1], fvalue[2]);
       cm_msg (MERROR, "fParam", "GetChfParam returns %d", ret);
@@ -356,8 +338,7 @@ INT dd_sy2527_fBoard_set (DDSY2527_INFO * info, WORD nchannel, WORD channel,
   get_slot (info, channel, &ch, &islot);
 
   chlist[0] = islot;
-  ret =
-    CAENHVGetBdParamProp (info->dd_sy2527_settings.name, islot, ParName, "Type", &tipo);
+  ret = CAENHV_GetBdParamProp(info->handle, islot, ParName, "Type", &tipo);
   if (ret != CAENHV_OK)
   {
     cm_msg (MERROR, "fBoard_get", "Param Not Found Type : %d", tipo);
@@ -365,8 +346,7 @@ INT dd_sy2527_fBoard_set (DDSY2527_INFO * info, WORD nchannel, WORD channel,
   }
   if ((ret == CAENHV_OK) && (tipo == PARAM_TYPE_NUMERIC))
   {
-    ret =
-      CAENHVSetBdParam (info->dd_sy2527_settings.name, nchannel, chlist, ParName, fvalue); /*chlist should be the list of slots...?*/
+    ret = CAENHV_SetBdParam(info->handle, nchannel, chlist, ParName, fvalue); /*chlist should be the list of slots...?*/
     if (ret != CAENHV_OK)
     {
       cm_msg (MERROR, "fParam", "SetChfParam returns %d", ret);
@@ -389,8 +369,7 @@ INT dd_sy2527_fBoard_get (DDSY2527_INFO * info, WORD nchannel, WORD channel,
   get_slot (info, channel, &ch, &islot);
 
   chlist[0] = islot;
-  ret =
-    CAENHVGetBdParamProp (info->dd_sy2527_settings.name, islot, ParName, "Type", &tipo);
+  ret = CAENHV_GetBdParamProp(info->handle, islot, ParName, "Type", &tipo);
   if (ret != CAENHV_OK)
   {
     cm_msg (MERROR, "fBoard_get", "Param Not Found Type : %d", tipo);
@@ -398,8 +377,7 @@ INT dd_sy2527_fBoard_get (DDSY2527_INFO * info, WORD nchannel, WORD channel,
   }
   if ((ret == CAENHV_OK) && (tipo == PARAM_TYPE_NUMERIC))
   {
-    ret =
-      CAENHVGetBdParam (info->dd_sy2527_settings.name, nchannel, chlist, ParName, fvalue); /*chlist should be the list of slots...?*/
+    ret = CAENHV_GetBdParam(info->handle, nchannel, chlist, ParName, fvalue); /*chlist should be the list of slots...?*/
     if (ret != CAENHV_OK)
       cm_msg (MERROR, "fParam", "GetChfParam returns %d", ret);
   }
@@ -415,7 +393,7 @@ int howBig(DDSY2527_INFO * info, int slot){
   char *ModelList, *DescriptionList;
   unsigned char *FmwRelMinList, *FmwRelMaxList;
   
-  CAENHVGetCrateMap(info->dd_sy2527_settings.name, &NrOfSlot, &NrOfChList, &ModelList, &DescriptionList, &SerNumList, &FmwRelMinList, &FmwRelMaxList);
+  CAENHV_GetCrateMap(info->handle, &NrOfSlot, &NrOfChList, &ModelList, &DescriptionList, &SerNumList, &FmwRelMinList, &FmwRelMaxList);
   
   return NrOfChList[slot];
 
@@ -461,9 +439,7 @@ INT dd_sy2527_Name_set (DDSY2527_INFO * info, WORD nchannel, WORD channel,
   // Find out what slot we need to talk to.
   get_slot (info, channel, &ch, &islot);
   chlist[0] = ch;
-  ret =
-    CAENHVSetChName (info->dd_sy2527_settings.name, islot, nchannel, chlist,
-    chName);
+  ret = CAENHV_SetChName (info->handle, islot, nchannel, chlist, chName);
   if (ret != CAENHV_OK) {
     cm_msg (MERROR, "Name Set", "SetChName returns %d", ret);
   }
@@ -485,18 +461,17 @@ INT dd_sy2527_Label_get (DDSY2527_INFO * info, WORD channel, char *label)
 }
 
 /*----------------------------------------------------------------------------*/
-INT dd_sy2527_Name_get (DDSY2527_INFO * info, WORD nchannel, WORD channel,
-                    char *chnamelist[MAX_CH_NAME])
+INT dd_sy2527_Name_get (DDSY2527_INFO * info, WORD nchannel, WORD channel, char *chnamelist[MAX_CH_NAME])
 {
   WORD ch, islot;
   CAENHVRESULT ret;
 
   // Find out what slot we need to talk to.
   get_slot (info, channel, &ch, &islot);
-  ret =
-    CAENHVGetChName (info->dd_sy2527_settings.name, islot, nchannel, &ch, chnamelist);
+  ret = CAENHV_GetChName(info->handle, islot, nchannel, &ch, chnamelist);
+  printf("slot %d, nchannel %d, channel %d, ch %d, name [%s], ret %d\n", islot, nchannel, channel, ch, chnamelist, ret);
   if (ret != CAENHV_OK) {
-    cm_msg (MERROR, "Name Set", "GetChName returns %d", ret);
+    cm_msg (MERROR, "Name Get", "GetChName returns %d", ret);
   }
 
   return ret;
@@ -603,7 +578,7 @@ INT dd_sy2527_crateMap_get (DDSY2527_INFO * info, WORD channel, INT *dummy)
   char *ModelList, *DescriptionList;
   unsigned char *FmwRelMinList, *FmwRelMaxList;
  
-  CAENHVGetCrateMap(info->dd_sy2527_settings.name, &NrOfSlot, &NrOfChList, &ModelList, &DescriptionList, &SerNumList, &FmwRelMinList, &FmwRelMaxList);
+  CAENHV_GetCrateMap(info->handle, &NrOfSlot, &NrOfChList, &ModelList, &DescriptionList, &SerNumList, &FmwRelMinList, &FmwRelMaxList);
   *dummy = 0;
   int i = 0;
   //cm_msg (MINFO, "cratemap", "dummy start: %d", *dummy);
@@ -918,7 +893,7 @@ INT dd_sy2527 (INT cmd, ...)
   case CMD_SET_CHSTATE:
     info = va_arg (argptr, void *);
     channel = (WORD) va_arg(argptr, INT);
-    state = (DWORD)va_arg(argptr, DWORD);
+    state = (DWORD)va_arg(argptr, double);
     status = dd_sy2527_chState_set (info, channel, &state);
     break;
 
