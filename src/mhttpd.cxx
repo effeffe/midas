@@ -19222,7 +19222,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
       printf("mongoose web server is listening on the set-uid-root privileged port\n");
    }
 
-   if (http_port >= 1024) {
+   if (http_port != 80) { // port 80 is already handled by socket_priviledged_port
       char str[256];
       sprintf(str, "%d", http_port);
       struct mg_connection* nc = mg_bind(&mgr_mg, str, handle_event_mg);
