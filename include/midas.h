@@ -218,7 +218,7 @@ typedef INT MUTEX_T;
 /* OSX brings its own strlcpy/stlcat */
 #ifdef OS_DARWIN
 #ifndef HAVE_STRLCPY
-#define HAVE_STRLCPY
+#define HAVE_STRLCPY 1
 #endif
 #endif
 
