@@ -9884,7 +9884,6 @@ INT db_check_record(HNDLE hDB, HNDLE hKey, const char *keyname, const char *rec_
    HNDLE hKeyRoot, hKeyTest;
    KEY key;
    int bad_string_length;
-   int status_last = 0;
 
    if (rpc_is_remote())
       return rpc_call(RPC_DB_CHECK_RECORD, hDB, hKey, keyname, rec_str, correct);
@@ -10106,7 +10105,7 @@ INT db_check_record(HNDLE hDB, HNDLE hKey, const char *keyname, const char *rec_
                }
 
                /* get next key in ODB */
-               status_last = db_get_next_link(hDB, hKeyTest, &hKeyTest);
+               db_get_next_link(hDB, hKeyTest, &hKeyTest);
             }
          }
       }
