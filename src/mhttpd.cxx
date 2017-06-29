@@ -9799,8 +9799,8 @@ void show_odb_page(char *enc_path, int enc_path_size, char *dec_path, int write_
                   rsprintf("</tr>\n");
                } else { /* display array value */
                   /* check for exceeding length */
-                  if (key.num_values > 1000)
-                     rsprintf("<tr><td class=\"ODBkey\">%s<td class=\"%s\"><i>... %d values ...</i>\n",
+                  if (key.num_values > 1000 && !isparam("all"))
+                     rsprintf("<tr><td class=\"ODBkey\">%s<td class=\"%s\"><span style=\"font-style: italic\"><a href=\"?all=1\">... %d values ...</a></span>\n",
                               keyname, style, key.num_values);
                   else {
                      /* display first value */
