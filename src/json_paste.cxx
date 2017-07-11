@@ -378,9 +378,13 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const
    }
    case TID_BYTE:
    case TID_SBYTE: {
-      char v = node->GetInt();
-      int size = sizeof(v);
-      status = db_set_data_index(hDB, hKey, &v, size, index, tid);
+      DWORD dw;
+      status = GetDWORD(node, path, &dw);
+      if (status != SUCCESS)
+         return status;
+      BYTE b = (BYTE)dw;
+      int size = sizeof(b);
+      status = db_set_data_index(hDB, hKey, &b, size, index, tid);
       if (status != DB_SUCCESS) {
          cm_msg(MERROR, "db_paste_json", "cannot set TID_BYTE/TID_SBYTE value for \"%s\", db_set_data_index() status %d", path, status);
          return status;
