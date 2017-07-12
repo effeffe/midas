@@ -4223,7 +4223,6 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    char *trname = "unknown";
    KEY key;
    BOOL deferred;
-   PROGRAM_INFO program_info;
    TR_CLIENT *tr_client;
    char xerrstr[256];
 
@@ -4315,8 +4314,8 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       /* check /programs alarms */
       db_find_key(hDB, 0, "/Programs", &hkeyroot);
       if (hkeyroot) {
-         PROGRAM_INFO_STR(program_info_str);
          for (i = 0;; i++) {
+            BOOL program_info_required = FALSE;
             status = db_enum_key(hDB, hkeyroot, i, &hkey);
             if (status == DB_NO_MORE_SUBKEYS)
                break;
@@ -4327,14 +4326,14 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
             if (key.type != TID_KEY)
                continue;
 
-            size = sizeof(program_info);
-            status = db_get_record1(hDB, hkey, &program_info, &size, 0, strcomb(program_info_str));
+            size = sizeof(program_info_required);
+            status = db_get_value(hDB, hkey, "Required", &program_info_required, &size, TID_BOOL, TRUE);
             if (status != DB_SUCCESS) {
-               cm_msg(MERROR, "cm_transition", "Cannot get program info record");
+               cm_msg(MERROR, "cm_transition", "Cannot get program info required, status %d", status);
                continue;
             }
 
-            if (program_info.required) {
+            if (program_info_required) {
                rpc_get_name(str);
                str[strlen(key.name)] = 0;
                if (!equal_ustring(str, key.name) && cm_exist(key.name, FALSE) == CM_NO_CLIENT) {
@@ -4493,8 +4492,8 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
       db_find_key(hDB, 0, "/Programs", &hRootKey);
       if (hRootKey) {
-         PROGRAM_INFO_STR(program_info_str);
          for (i = 0;; i++) {
+            BOOL program_info_auto_start = FALSE;
             status = db_enum_key(hDB, hRootKey, i, &hKey);
             if (status == DB_NO_MORE_SUBKEYS)
                break;
@@ -4505,15 +4504,29 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
             if (key.type != TID_KEY)
                continue;
 
-            size = sizeof(program_info);
-            status = db_get_record1(hDB, hKey, &program_info, &size, 0, strcomb(program_info_str));
+            size = sizeof(program_info_auto_start);
+            status = db_get_value(hDB, hKey, "Auto start", &program_info_auto_start, &size, TID_BOOL, TRUE);
             if (status != DB_SUCCESS) {
-               cm_msg(MERROR, "cm_transition", "Cannot get program info record");
+               cm_msg(MERROR, "cm_transition", "Cannot get program info auto start, status %d", status);
                continue;
             }
 
-            if (program_info.auto_start && program_info.start_command[0])
-               ss_system(program_info.start_command);
+            if (program_info_auto_start) {
+               char start_command[MAX_STRING_LENGTH];
+               start_command[0] = 0;
+
+               size = sizeof(start_command);
+               status = db_get_value(hDB, hKey, "Start command", &start_command, &size, TID_STRING, TRUE);
+               if (status != DB_SUCCESS) {
+                  cm_msg(MERROR, "cm_transition", "Cannot get program info start command, status %d", status);
+                  continue;
+               }
+
+               if (start_command[0]) {
+                  cm_msg(MINFO, "cm_transition", "Auto Starting program \"%s\", command \"%s\"", key.name, start_command);
+                  ss_system(start_command);
+               }
+            }
          }
       }
    }
@@ -4864,8 +4877,8 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
       db_find_key(hDB, 0, "/Programs", &hRootKey);
       if (hRootKey) {
-         PROGRAM_INFO_STR(program_info_str);
          for (i = 0;; i++) {
+            BOOL program_info_auto_stop = FALSE;
             status = db_enum_key(hDB, hRootKey, i, &hKey);
             if (status == DB_NO_MORE_SUBKEYS)
                break;
@@ -4876,15 +4889,17 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
             if (key.type != TID_KEY)
                continue;
 
-            size = sizeof(program_info);
-            status = db_get_record1(hDB, hKey, &program_info, &size, 0, strcomb(program_info_str));
+            size = sizeof(program_info_auto_stop);
+            status = db_get_value(hDB, hKey, "Auto stop", &program_info_auto_stop, &size, TID_BOOL, TRUE);
             if (status != DB_SUCCESS) {
-               cm_msg(MERROR, "cm_transition", "Cannot get program info record");
+               cm_msg(MERROR, "cm_transition", "Cannot get program info auto stop, status %d", status);
                continue;
             }
 
-            if (program_info.auto_stop)
+            if (program_info_auto_stop) {
+               cm_msg(MINFO, "cm_transition", "Auto Stopping program \"%s\"", key.name);
                cm_shutdown(key.name, FALSE);
+            }
          }
       }
    }
