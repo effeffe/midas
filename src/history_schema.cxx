@@ -1168,7 +1168,7 @@ int Mysql::Prepare(const char* table_name, const char* sql)
 
 int Mysql::Step()
 {
-   if (0 && fDebug)
+   if (/* DISABLES CODE */ (0) && fDebug)
       printf("Mysql::Step()\n");
 
    assert(fMysql);
@@ -1232,7 +1232,7 @@ const char* Mysql::ColumnType(int midas_tid)
 
 bool Mysql::TypesCompatible(int midas_tid, const char* sql_type)
 {
-   if (0)
+   if (/* DISABLES CODE */ (0))
       printf("compare types midas \'%s\'=\'%s\' and sql \'%s\'\n", rpc_tid_name(midas_tid), ColumnType(midas_tid), sql_type);
 
    //if (sql2midasType_mysql(sql_type) == midas_tid)
@@ -1259,7 +1259,7 @@ bool Mysql::TypesCompatible(int midas_tid, const char* sql_type)
    //if (midas_tid==TID_DWORD && strcmp(sql_type, "int(10) unsigned")==0)
    //   return true;
 
-   if (0)
+   if (/* DISABLES CODE */ (0))
       printf("type mismatch!\n");
 
    return false;
