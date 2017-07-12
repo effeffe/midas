@@ -2287,6 +2287,126 @@ static void add(std::string* s, const char* text)
    *s += text;
 }
 
+std::string mjsonrpc_handle_request(const MJsonNode* request)
+{
+   // find required request elements
+   const MJsonNode* version = request->FindObjectNode("jsonrpc");
+   const MJsonNode* method  = request->FindObjectNode("method");
+   const MJsonNode* params  = request->FindObjectNode("params");
+   const MJsonNode* id      = request->FindObjectNode("id");
+
+   std::string bad = "";
+
+   if (!version)
+      add(&bad, "jsonrpc version is missing");
+   if (!method)
+      add(&bad, "method is missing");
+   if (!params)
+      add(&bad, "params is missing");
+   if (!id)
+      add(&bad, "id is missing");
+
+   if (version&&version->GetType() != MJSON_STRING)
+      add(&bad, "jsonrpc version is not a string");
+   if (version&&version->GetString() != "2.0")
+      add(&bad, "jsonrpc version is not 2.0");
+
+   if (method&&method->GetType() != MJSON_STRING)
+      add(&bad, "method is not a string");
+
+   if (bad.length() > 0) {
+      std::string reply;
+      reply += "{";
+      reply += "\"jsonrpc\": \"2.0\",";
+      reply += "\"error\":{";
+      reply += "\"code\":-32600,";
+      reply += "\"message\":\"Invalid request\",";
+      reply += "\"data\":\"" + MJsonNode::Encode(bad.c_str()) + "\"";
+      reply += "},";
+      if (id)
+         reply += "\"id\":" + id->Stringify();
+      else
+         reply += "\"id\":null";
+      reply += "}";
+
+      if (mjsonrpc_debug) {
+         printf("mjsonrpc: invalid request: reply:\n");
+         printf("%s\n", reply.c_str());
+         printf("\n");
+      }
+
+      return reply;
+   }
+
+   const char* m = method->GetString().c_str();
+
+   const MJsonNode* result = NULL;
+
+   // special built-in methods
+
+   if (strcmp(m, "echo") == 0) {
+      result = mjsonrpc_make_result(request->Copy());
+   } else if (strcmp(m, "error") == 0) {
+      result = mjsonrpc_make_error(1, "test error", "test error");
+   } else if (strcmp(m, "invalid_json") == 0) {
+      if (mjsonrpc_debug) {
+         printf("mjsonrpc: reply with invalid json\n");
+      }
+      return "this is invalid json data";
+   } else if (strcmp(m, "test_nan_inf") == 0) {
+      double one = 1;
+      double zero = 0;
+      double nan = zero/zero;
+      double plusinf = one/zero;
+      double minusinf = -one/zero;
+      MJsonNode* n = MJsonNode::MakeArray();
+      n->AddToArray(MJsonNode::MakeNumber(nan));
+      n->AddToArray(MJsonNode::MakeNumber(plusinf));
+      n->AddToArray(MJsonNode::MakeNumber(minusinf));
+      result = mjsonrpc_make_result("test_nan_plusinf_minusinf", n);
+   } else {
+      std::string mm = m;
+      mjsonrpc_handler_t *h = gHandlers[mm];
+      if (h)
+         result = (*h)(params);
+      else
+         result = mjsonrpc_make_error(-32601, "Method not found", (std::string("unknown method: ") + m).c_str());
+   }
+
+   if (mjsonrpc_debug) {
+      printf("mjsonrpc: handler reply:\n");
+      result->Dump();
+      printf("\n");
+   }
+
+   const MJsonNode *nerror  = result->FindObjectNode("error");
+   const MJsonNode *nresult = result->FindObjectNode("result");
+
+   std::string reply;
+   reply += "{";
+   reply += "\"jsonrpc\": \"2.0\",";
+   if (nerror) {
+      reply += "\"error\":" + nerror->Stringify() + ",";
+   } else if (nresult) {
+      reply += "\"result\":" + nresult->Stringify() + ",";
+   } else {
+      nerror = mjsonrpc_make_error(-32603, "Internal error", "bad dispatcher reply: no result and no error");
+      reply += "\"error\":" + nerror->Stringify() + ",";
+      delete nerror;
+      nerror = NULL;
+   }
+   if (id)
+      reply += "\"id\":" + id->Stringify();
+   else
+      reply += "\"id\":null";
+   reply += "}";
+
+   if (result)
+      delete result;
+
+   return reply;
+}
+
 std::string mjsonrpc_decode_post_data(const char* post_data)
 {
    //printf("mjsonrpc call, data [%s]\n", post_data);
@@ -2312,8 +2432,31 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
       reply += "\"id\":null";
       reply += "}";
 
-      if (request)
-         delete request;
+      if (mjsonrpc_debug) {
+         printf("mjsonrpc: invalid json: reply:\n");
+         printf("%s\n", reply.c_str());
+         printf("\n");
+      }
+
+      delete request;
+      return reply;
+   } else if (request->GetType() == MJSON_OBJECT) {
+      std::string reply = mjsonrpc_handle_request(request);
+      delete request;
+      return reply;
+   } else if (request->GetType() == MJSON_ARRAY) {
+      assert(!"batch request not implemented!");
+   } else {
+      std::string reply;
+      reply += "{";
+      reply += "\"jsonrpc\": \"2.0\",";
+      reply += "\"error\":{";
+      reply += "\"code\":-32600,";
+      reply += "\"message\":\"Invalid Request\",";
+      reply += "\"data\":\"request is not a JSON object or JSON array\"";
+      reply += "},";
+      reply += "\"id\":null";
+      reply += "}";
 
       if (mjsonrpc_debug) {
          printf("mjsonrpc: invalid json: reply:\n");
@@ -2321,9 +2464,11 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
          printf("\n");
       }
 
+      delete request;
       return reply;
    }
-
+   
+#if 0
    // find required request elements
    const MJsonNode* version = request->FindObjectNode("jsonrpc");
    const MJsonNode* method  = request->FindObjectNode("method");
@@ -2449,6 +2594,7 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
       delete result;
 
    return reply;
+#endif
 }
 
 /* emacs
