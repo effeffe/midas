@@ -1052,6 +1052,12 @@ void MJsonNode::Dump(int nest) const // debug
    }
 }
 
+MJsonNode* MJsonNode::Copy() const
+{
+   assert(!"not implemented yet!");
+   return NULL;
+}
+
 /* emacs
  * Local Variables:
  * tab-width: 8

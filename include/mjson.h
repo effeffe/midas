@@ -83,6 +83,7 @@ class MJsonNode {
  public: // public helper and debug methods
    static const char* TypeToString(int type); /// return node type as string
    void Dump(int nest = 0) const; /// dump the subtree to standard output
+   MJsonNode* Copy() const; /// make a copy of the json tree
 
  protected:
    MJsonNode(int type); // protected constructor for subclassing
