@@ -48,8 +48,10 @@
 #include <mysqld_error.h>
 int errno;                      // under NT, "ignore libcd" is required, so errno has to be defined here
 #endif
-void create_sql_tree();
+void create_runlog_sql_tree();
 #endif
+
+void create_runlog_ascii_tree();
 
 #define STRLCPY(dst, src) strlcpy((dst), (src), sizeof(dst))
 #define STRLCAT(dst, src) strlcat((dst), (src), sizeof(dst))
@@ -287,7 +289,7 @@ int log_generate_file_name(LOG_CHN *log_chn);
 #define FREE(ptr) if (ptr) free(ptr); (ptr)=NULL;
 #define DELETE(ptr) if (ptr) delete (ptr); (ptr)=NULL;
 
-/*---- writer helper    --------------------------------------*/
+/*---- writer helper    --------------------------------------------*/
 
 std::string xpathname(const char* xpath, int level)
 {
@@ -303,7 +305,7 @@ std::string xpathname(const char* xpath, int level)
    return path;
 }
 
-/*---- writer interface --------------------------------------*/
+/*---- writer interface --------------------------------------------*/
 
 class WriterInterface
 {
@@ -332,7 +334,7 @@ WriterInterface::WriterInterface()
       printf("WriterInterface: default constructor!\n");
 }
 
-/*---- Null writer  --------------------------------------*/
+/*---- Null writer  ------------------------------------------------*/
 
 class WriterNull : public WriterInterface
 {
@@ -398,7 +400,7 @@ private:
    bool fSimulateCompression;
 };
 
-/*---- file writer --------------------------------------*/
+/*---- file writer -------------------------------------------------*/
 
 class WriterFile : public WriterInterface
 {
@@ -500,7 +502,7 @@ private:
    int fFileno;
 };
 
-/*---- gzip writer --------------------------------------*/
+/*---- gzip writer -------------------------------------------------*/
 
 #ifdef HAVE_ZLIB
 
@@ -652,7 +654,7 @@ private:
 
 #endif
 
-/*---- pipe writer --------------------------------------*/
+/*---- pipe writer -------------------------------------------------*/
 
 class WriterPopen : public WriterInterface
 {
@@ -908,7 +910,7 @@ private:
 };
 #endif
 
-/*---- CRC32C computation --------------------------------------*/
+/*---- CRC32C computation ------------------------------------------*/
 
 extern "C" {
 #include "crc32c.h"
@@ -1026,7 +1028,7 @@ private:
    uint32_t fCrc32;
 };
 
-/*---- SHA-256 computation --------------------------------------*/
+/*---- SHA-256 computation -----------------------------------------*/
 
 extern "C" {
 #include "sha256.h"
@@ -1168,7 +1170,7 @@ private:
    mbedtls_sha256_context fCtx;
 };
 
-/*---- SHA-512 computation --------------------------------------*/
+/*---- SHA-512 computation -----------------------------------------*/
 
 extern "C" {
 #include "sha512.h"
@@ -1576,8 +1578,9 @@ void logger_init()
       }
    }
 #ifdef HAVE_MYSQL
-   create_sql_tree();
+   create_runlog_sql_tree();
 #endif
+   create_runlog_ascii_tree();
 }
 
 /*---- ODB dump routine --------------------------------------------*/
@@ -1654,9 +1657,9 @@ static void xwrite(const char* filename, int fd, const void* data, int size)
    }
 }
 
-/*==== SQL routines =================================================*/
+/*==== SQL routines ================================================*/
 
-/*---- Convert ctime() type date/time to SQL 'datetime' -------------*/
+/*---- Convert ctime() type date/time to SQL 'datetime' ------------*/
 
 typedef struct {
    char column_name[NAME_LENGTH];
@@ -1722,7 +1725,7 @@ int mysql_query_debug(MYSQL * db, char *query)
    /* write query into logfile if requested */
    size = sizeof(filename);
    filename[0] = 0;
-   db_get_value(hDB, 0, "/Logger/SQL/Logfile", filename, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Logfile", filename, &size, TID_STRING, TRUE);
    if (filename[0]) {
       status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
       if (status == DB_SUCCESS) {
@@ -1965,7 +1968,7 @@ BOOL sql_create_database(MYSQL * db, char *database)
    return TRUE;
 }
 
-/*---- Insert table row from ODB tree -------------------------------*/
+/*---- Insert table row from ODB tree ------------------------------*/
 
 int sql_insert(MYSQL * db, char *database, char *table, HNDLE hKeyRoot, BOOL create_flag)
 {
@@ -2093,9 +2096,9 @@ int sql_update(MYSQL * db, char *database, char *table, HNDLE hKeyRoot, BOOL cre
    return DB_SUCCESS;
 }
 
-/*---- Create /Logger/SQL tree -------------------------------------*/
+/*---- Create /Logger/Runlog/SQL tree ------------------------------*/
 
-void create_sql_tree()
+void create_runlog_sql_tree()
 {
    char hostname[80], username[80], password[80], database[80], table[80], filename[80];
    int size, write_flag, create_flag;
@@ -2103,70 +2106,70 @@ void create_sql_tree()
 
    size = sizeof(create_flag);
    create_flag = 0;
-   db_get_value(hDB, 0, "/Logger/SQL/Create database", &create_flag, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Create database", &create_flag, &size, TID_BOOL, TRUE);
 
    size = sizeof(write_flag);
    write_flag = 0;
-   db_get_value(hDB, 0, "/Logger/SQL/Write data", &write_flag, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Write data", &write_flag, &size, TID_BOOL, TRUE);
 
    size = sizeof(hostname);
    strcpy(hostname, "localhost");
-   db_get_value(hDB, 0, "/Logger/SQL/Hostname", hostname, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Hostname", hostname, &size, TID_STRING, TRUE);
 
    size = sizeof(username);
    strcpy(username, "root");
-   db_get_value(hDB, 0, "/Logger/SQL/Username", username, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Username", username, &size, TID_STRING, TRUE);
 
    size = sizeof(password);
    password[0] = 0;
-   db_get_value(hDB, 0, "/Logger/SQL/Password", password, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Password", password, &size, TID_STRING, TRUE);
 
    /* use experiment name as default database name */
    size = sizeof(database);
    db_get_value(hDB, 0, "/Experiment/Name", database, &size, TID_STRING, TRUE);
-   db_get_value(hDB, 0, "/Logger/SQL/Database", database, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Database", database, &size, TID_STRING, TRUE);
 
    size = sizeof(table);
    strcpy(table, "Runlog");
-   db_get_value(hDB, 0, "/Logger/SQL/Table", table, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Table", table, &size, TID_STRING, TRUE);
 
    size = sizeof(filename);
    strcpy(filename, "sql.log");
-   db_get_value(hDB, 0, "/Logger/SQL/Logfile", filename, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Logfile", filename, &size, TID_STRING, TRUE);
 
-   db_find_key(hDB, 0, "/Logger/SQL/Links BOR", &hKeyRoot);
+   db_find_key(hDB, 0, "/Logger/Runlog/SQL/Links BOR", &hKeyRoot);
    if (!hKeyRoot) {
       /* create some default links */
-      db_create_key(hDB, 0, "/Logger/SQL/Links BOR", TID_KEY);
+      db_create_key(hDB, 0, "/Logger/Runlog/SQL/Links BOR", TID_KEY);
 
       if (db_find_key(hDB, 0, "/Runinfo/Run number", &hKey) == DB_SUCCESS)
-         db_create_link(hDB, 0, "/Logger/SQL/Links BOR/Run number", "/Runinfo/Run number");
+         db_create_link(hDB, 0, "/Logger/Runlog/SQL/Links BOR/Run number", "/Runinfo/Run number");
 
       if (db_find_key(hDB, 0, "/Experiment/Run parameters/Comment", &hKey) == DB_SUCCESS)
-         db_create_link(hDB, 0, "/Logger/SQL/Links BOR/Comment", "/Experiment/Run parameters/Comment");
+         db_create_link(hDB, 0, "/Logger/Runlog/SQL/Links BOR/Comment", "/Experiment/Run parameters/Comment");
 
       if (db_find_key(hDB, 0, "/Runinfo/Start time", &hKey) == DB_SUCCESS)
-         db_create_link(hDB, 0, "/Logger/SQL/Links BOR/Start time", "/Runinfo/Start time");
+         db_create_link(hDB, 0, "/Logger/Runlog/SQL/Links BOR/Start time", "/Runinfo/Start time");
    }
 
-   db_find_key(hDB, 0, "/Logger/SQL/Links EOR", &hKeyRoot);
+   db_find_key(hDB, 0, "/Logger/Runlog/SQL/Links EOR", &hKeyRoot);
    if (!hKeyRoot) {
       /* create some default links */
-      db_create_key(hDB, 0, "/Logger/SQL/Links EOR", TID_KEY);
+      db_create_key(hDB, 0, "/Logger/Runlog/SQL/Links EOR", TID_KEY);
 
       if (db_find_key(hDB, 0, "/Runinfo/Stop time", &hKey) == DB_SUCCESS)
-         db_create_link(hDB, 0, "/Logger/SQL/Links EOR/Stop time", "/Runinfo/Stop time");
+         db_create_link(hDB, 0, "/Logger/Runlog/SQL/Links EOR/Stop time", "/Runinfo/Stop time");
 
       if (db_find_key(hDB, 0, "/Equipment/Trigger/Statistics/Events sent", &hKey) == DB_SUCCESS)
-         db_create_link(hDB, 0, "/Logger/SQL/Links EOR/Number of events",
+         db_create_link(hDB, 0, "/Logger/Runlog/SQL/Links EOR/Number of events",
                         "/Equipment/Trigger/Statistics/Events sent");
 
    }
 }
 
-/*---- Write ODB tree to SQL table ----------------------------------*/
+/*---- Write ODB tree to SQL table ---------------------------------*/
 
-void write_sql(BOOL bor)
+void write_runlog_sql(BOOL bor)
 {
    MYSQL db;
    char hostname[80], username[80], password[80], database[80], table[80], query[5000], where[500];
@@ -2186,13 +2189,13 @@ void write_sql(BOOL bor)
    insert = bor;
 
    /* determine primary key */
-   db_find_key(hDB, 0, "/Logger/SQL/Links BOR", &hKeyRoot);
+   db_find_key(hDB, 0, "/Logger/Runlog/SQL/Links BOR", &hKeyRoot);
    status = db_enum_link(hDB, hKeyRoot, 0, &hKey);
 
    /* if BOR list empty, take first one from EOR list */
    if (status == DB_NO_MORE_SUBKEYS) {
       insert = TRUE;
-      db_find_key(hDB, 0, "/Logger/SQL/Links EOR", &hKeyRoot);
+      db_find_key(hDB, 0, "/Logger/Runlog/SQL/Links EOR", &hKeyRoot);
       status = db_enum_link(hDB, hKeyRoot, 0, &hKey);
       if (status == DB_NO_MORE_SUBKEYS)
          return;
@@ -2205,47 +2208,47 @@ void write_sql(BOOL bor)
 
    /* get BOR or EOR list */
    if (bor) {
-      db_find_key(hDB, 0, "/Logger/SQL/Links BOR", &hKeyRoot);
+      db_find_key(hDB, 0, "/Logger/Runlog/SQL/Links BOR", &hKeyRoot);
       if (!hKeyRoot) {
-         cm_msg(MERROR, "write_sql", "Cannot find \"/Logger/SQL/Links BOR");
+         cm_msg(MERROR, "write_runlog_sql", "Cannot find \"/Logger/Runlog/SQL/Links BOR");
          return;
       }
    } else {
-      db_find_key(hDB, 0, "/Logger/SQL/Links EOR", &hKeyRoot);
+      db_find_key(hDB, 0, "/Logger/Runlog/SQL/Links EOR", &hKeyRoot);
       if (!hKeyRoot) {
-         cm_msg(MERROR, "write_sql", "Cannot find \"/Logger/SQL/Links EOR");
+         cm_msg(MERROR, "write_runlog_sql", "Cannot find \"/Logger/Runlog/SQL/Links EOR");
          return;
       }
    }
 
    size = sizeof(create_flag);
    create_flag = 0;
-   db_get_value(hDB, 0, "/Logger/SQL/Create database", &create_flag, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Create database", &create_flag, &size, TID_BOOL, TRUE);
 
    size = sizeof(write_flag);
    write_flag = 0;
-   db_get_value(hDB, 0, "/Logger/SQL/Write data", &write_flag, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Write data", &write_flag, &size, TID_BOOL, TRUE);
 
    size = sizeof(hostname);
    strcpy(hostname, "localhost");
-   db_get_value(hDB, 0, "/Logger/SQL/Hostname", hostname, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Hostname", hostname, &size, TID_STRING, TRUE);
 
    size = sizeof(username);
    strcpy(username, "root");
-   db_get_value(hDB, 0, "/Logger/SQL/Username", username, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Username", username, &size, TID_STRING, TRUE);
 
    size = sizeof(password);
    password[0] = 0;
-   db_get_value(hDB, 0, "/Logger/SQL/Password", password, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Password", password, &size, TID_STRING, TRUE);
 
    /* use experiment name as default database name */
    size = sizeof(database);
    db_get_value(hDB, 0, "/Experiment/Name", database, &size, TID_STRING, TRUE);
-   db_get_value(hDB, 0, "/Logger/SQL/Database", database, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Database", database, &size, TID_STRING, TRUE);
 
    size = sizeof(table);
    strcpy(table, "Runlog");
-   db_get_value(hDB, 0, "/Logger/SQL/Table", table, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Table", table, &size, TID_STRING, TRUE);
 
    /* continue only if data should be written */
    if (!write_flag)
@@ -2255,7 +2258,7 @@ void write_sql(BOOL bor)
    mysql_init(&db);
 
    if (!mysql_real_connect(&db, hostname, username, password, NULL, 0, NULL, 0)) {
-      cm_msg(MERROR, "write_sql", "Failed to connect to database: Error: %s", mysql_error(&db));
+      cm_msg(MERROR, "write_runlog_sql", "Failed to connect to database: Error: %s", mysql_error(&db));
       mysql_close(&db);
       return;
    }
@@ -2270,10 +2273,10 @@ void write_sql(BOOL bor)
             mysql_close(&db);
             return;
          }
-         cm_msg(MINFO, "write_sql", "Database \"%s\" created successfully", database);
+         cm_msg(MINFO, "write_runlog_sql", "Database \"%s\" created successfully", database);
 
       } else {
-         cm_msg(MERROR, "write_sql", "Failed to select database: Error: %s", mysql_error(&db));
+         cm_msg(MERROR, "write_runlog_sql", "Failed to select database: Error: %s", mysql_error(&db));
          mysql_close(&db);
          return;
       }
@@ -2290,6 +2293,159 @@ void write_sql(BOOL bor)
 }
 
 #endif                          // HAVE_MYSQL
+
+/*---- Create /Logger/Runlog/ASCII tree ----------------------------*/
+
+void create_runlog_ascii_tree()
+{
+   char filename[80];
+   int size, write_flag;
+   HNDLE hKeyRoot, hKey;
+   
+   size = sizeof(write_flag);
+   write_flag = 0;
+   db_get_value(hDB, 0, "/Logger/Runlog/ASCII/Write data", &write_flag, &size, TID_BOOL, TRUE);
+   
+   size = sizeof(filename);
+   strcpy(filename, "runlog.log");
+   db_get_value(hDB, 0, "/Logger/Runlog/ASCII/filename", filename, &size, TID_STRING, TRUE);
+   
+   db_find_key(hDB, 0, "/Logger/Runlog/ASCII/Links BOR", &hKeyRoot);
+   if (!hKeyRoot) {
+      /* create some default links */
+      db_create_key(hDB, 0, "/Logger/Runlog/ASCII/Links BOR", TID_KEY);
+      
+      if (db_find_key(hDB, 0, "/Runinfo/Run number", &hKey) == DB_SUCCESS)
+         db_create_link(hDB, 0, "/Logger/Runlog/ASCII/Links BOR/Run number", "/Runinfo/Run number");
+      
+      if (db_find_key(hDB, 0, "/Experiment/Run parameters/Comment", &hKey) == DB_SUCCESS)
+         db_create_link(hDB, 0, "/Logger/Runlog/ASCII/Links BOR/Comment", "/Experiment/Run parameters/Comment");
+      
+      if (db_find_key(hDB, 0, "/Runinfo/Start time", &hKey) == DB_SUCCESS)
+         db_create_link(hDB, 0, "/Logger/Runlog/ASCII/Links BOR/Start time", "/Runinfo/Start time");
+   }
+   
+   db_find_key(hDB, 0, "/Logger/Runlog/ASCII/Links EOR", &hKeyRoot);
+   if (!hKeyRoot) {
+      /* create some default links */
+      db_create_key(hDB, 0, "/Logger/Runlog/ASCII/Links EOR", TID_KEY);
+      
+      if (db_find_key(hDB, 0, "/Runinfo/Stop time", &hKey) == DB_SUCCESS)
+         db_create_link(hDB, 0, "/Logger/Runlog/ASCII/Links EOR/Stop time", "/Runinfo/Stop time");
+      
+      if (db_find_key(hDB, 0, "/Equipment/Trigger/Statistics/Events sent", &hKey) == DB_SUCCESS)
+         db_create_link(hDB, 0, "/Logger/Runlog/ASCII/Links EOR/Number of events",
+                        "/Equipment/Trigger/Statistics/Events sent");
+      
+   }
+}
+
+/*---- Write ODB tree to ASCII log file ----------------------------*/
+
+void write_runlog_ascii(BOOL bor)
+{
+   char filename[256], dir[256], path[256];
+   int status, size, write_flag;
+   HNDLE hKey, hKeyRoot;
+   
+   /* do not update runlog if logger does not write data */
+   size = sizeof(BOOL);
+   write_flag = FALSE;
+   db_get_value(hDB, 0, "/Logger/Write data", &write_flag, &size, TID_BOOL, TRUE);
+   if (!write_flag)
+      return;
+   
+   /* get BOR or EOR list */
+   if (bor) {
+      db_find_key(hDB, 0, "/Logger/Runlog/ASCII/Links BOR", &hKeyRoot);
+      if (!hKeyRoot) {
+         cm_msg(MERROR, "write_runlog_sql", "Cannot find \"/Logger/Runlog/SQL/Links BOR");
+         return;
+      }
+   } else {
+      db_find_key(hDB, 0, "/Logger/Runlog/ASCII/Links EOR", &hKeyRoot);
+      if (!hKeyRoot) {
+         cm_msg(MERROR, "write_runlog_sql", "Cannot find \"/Logger/Runlog/SQL/Links EOR");
+         return;
+      }
+   }
+   
+   size = sizeof(write_flag);
+   write_flag = 0;
+   db_get_value(hDB, 0, "/Logger/Runlog/ASCII/Write data", &write_flag, &size, TID_BOOL, TRUE);
+   
+   size = sizeof(filename);
+   strcpy(filename, "runlog.log");
+   db_get_value(hDB, 0, "/Logger/Runlog/ASCII/Filename", filename, &size, TID_STRING, TRUE);
+   
+   if (strchr(filename, DIR_SEPARATOR) == NULL) {
+      size = sizeof(dir);
+      dir[0] = 0;
+      db_get_value(hDB, 0, "/Logger/Data Dir", dir, &size, TID_STRING, TRUE);
+      if (dir[0] != 0)
+         if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
+            strcat(dir, DIR_SEPARATOR_STR);
+      strcpy(path, dir);
+      strcat(path, filename);
+   } else
+      strcpy(path, filename);
+   
+   /* continue only if data should be written */
+   if (!write_flag)
+      return;
+
+   FILE *f = fopen(path, "r");
+   if (f == NULL) {
+      // create new file
+      f = fopen(path, "wt");
+
+      // write column header line with variable names
+      db_find_key(hDB, 0, "/Logger/Runlog/ASCII/Links BOR", &hKeyRoot);
+      for (int i = 0;; i++) {
+         status = db_enum_key(hDB, hKeyRoot, i, &hKey);
+         if (status == DB_NO_MORE_SUBKEYS)
+            break;
+         KEY key;
+         db_get_key(hDB, hKey, &key);
+         fprintf(f, "%s\t", key.name);
+      }
+      db_find_key(hDB, 0, "/Logger/Runlog/ASCII/Links EOR", &hKeyRoot);
+      for (int i = 0;; i++) {
+         status = db_enum_key(hDB, hKeyRoot, i, &hKey);
+         if (status == DB_NO_MORE_SUBKEYS)
+            break;
+         KEY key;
+         db_get_key(hDB, hKey, &key);
+         fprintf(f, "%s\t", key.name);
+      }
+      fprintf(f, "\n");
+      fclose(f);
+   }
+
+   // append data to logfile
+   f = fopen(path, "at");
+   
+   if (bor)
+      db_find_key(hDB, 0, "/Logger/Runlog/ASCII/Links BOR", &hKeyRoot);
+   else
+      db_find_key(hDB, 0, "/Logger/Runlog/ASCII/Links EOR", &hKeyRoot);
+   
+   for (int i = 0;; i++) {
+      status = db_enum_key(hDB, hKeyRoot, i, &hKey);
+      if (status == DB_NO_MORE_SUBKEYS)
+         break;
+      KEY key;
+      char data[1000], str[1000];
+      int size = sizeof(data);
+      db_get_key(hDB, hKey, &key);
+      db_get_data(hDB, hKey, data, &size, key.type);
+      db_sprintf(str, data, key.total_size, 0, key.type);
+      fprintf(f, "%s\t", str);
+   }
+   if (!bor)
+      fprintf(f, "\n");
+   fclose(f);
+}
 
 /*---- open FTP channel --------------------------------------------*/
 
@@ -2377,7 +2533,7 @@ INT ftp_open(char *destination, FTP_CON ** con)
    return SS_SUCCESS;
 }
 
-/*---- FTP writer --------------------------------------*/
+/*---- FTP writer --------------------------------------------------*/
 
 class WriterFtp : public WriterInterface
 {
@@ -3788,7 +3944,7 @@ INT log_close(LOG_CHN * log_chn, INT run_number)
    return SS_SUCCESS;
 }
 
-/*---- log disk levels ---------------------------------------------------*/
+/*---- log disk levels ---------------------------------------------*/
 
 int log_disk_level(LOG_CHN* log_chn, double* pdisk_size, double* pdisk_free)
 {
@@ -4734,7 +4890,7 @@ INT open_history()
       }
    } /* loop over equipments */
 
-   /*---- define linked trees ---------------------------------------*/
+   /*---- define linked trees --------------------------------------*/
 
    /* round up event id */
    max_event_id = ((int) ((max_event_id + 1) / 10) + 1) * 10;
@@ -4835,7 +4991,7 @@ INT open_history()
       }
    }
 
-   /*---- define run start/stop event -------------------------------*/
+   /*---- define run start/stop event ------------------------------*/
 
    tag = (TAG *) calloc(sizeof(TAG), 2);
 
@@ -4873,7 +5029,7 @@ INT open_history()
    return CM_SUCCESS;
 }
 
-/*---- periodically flush history buffers----------------------------*/
+/*---- periodically flush history buffers---------------------------*/
 
 DWORD last_history_flush = 0;
 
@@ -5566,8 +5722,11 @@ INT tr_start(INT run_number, char *error)
 
 #ifdef HAVE_MYSQL
    /* write to SQL database if requested */
-   write_sql(TRUE);
+   write_runlog_sql(TRUE);
 #endif
+
+   /* write to runlog file if requested */
+   write_runlog_ascii(TRUE);
 
    local_state = STATE_RUNNING;
    run_start_time = subrun_start_time = ss_time();
@@ -5651,9 +5810,12 @@ INT tr_stop(INT run_number, char *error)
    }
 #ifdef HAVE_MYSQL
    /* write to SQL database if requested */
-   write_sql(FALSE);
+   write_runlog_sql(FALSE);
 #endif
-
+   
+   /* write to ASCII file if requested */
+   write_runlog_ascii(FALSE);
+   
    in_stop_transition = FALSE;
 
    if (tape_flag & tape_message)
@@ -5898,14 +6060,14 @@ int main(int argc, char *argv[])
    {
       char sql_host[256], sql_db[256], sql_table[256];
 
-      status = db_find_key(hDB, 0, "/Logger/SQL/Hostname", &hktemp);
+      status = db_find_key(hDB, 0, "/Logger/Runlog/SQL/Hostname", &hktemp);
       if (status == DB_SUCCESS) {
          size = 256;
-         db_get_value(hDB, 0, "/Logger/SQL/Hostname", sql_host, &size, TID_STRING, FALSE);
+         db_get_value(hDB, 0, "/Logger/Runlog/SQL/Hostname", sql_host, &size, TID_STRING, FALSE);
          size = 256;
-         db_get_value(hDB, 0, "/Logger/SQL/Database", sql_db, &size, TID_STRING, FALSE);
+         db_get_value(hDB, 0, "/Logger/Runlog/SQL/Database", sql_db, &size, TID_STRING, FALSE);
          size = 256;
-         db_get_value(hDB, 0, "/Logger/SQL/Table", sql_table, &size, TID_STRING, FALSE);
+         db_get_value(hDB, 0, "/Logger/Runlog/SQL/Table", sql_table, &size, TID_STRING, FALSE);
          printf("SQL     database is %s/%s/%s", sql_host, sql_db, sql_table);
       }
    }
