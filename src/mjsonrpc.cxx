@@ -31,6 +31,11 @@
 //      for reasons unknown, the JSON standard does not specify a standard
 //      way for encoding these numeric values.
 //
+// NB - Batch requests are processed in order and the returned array of responses
+//      has the resonses in exactly same order as the requests for simpler
+//      matching of requests and responses - 1st response to 1st request,
+//      2nd response to 2nd request and so forth.
+//
 //////////////////////////////////////////////////////////////////////
 //
 // JSON-RPC error codes:
@@ -2445,7 +2450,44 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
       delete request;
       return reply;
    } else if (request->GetType() == MJSON_ARRAY) {
-      assert(!"batch request not implemented!");
+      const MJsonNodeVector* a = request->GetArray();
+
+      if (a->size() < 1) {
+         std::string reply;
+         reply += "{";
+         reply += "\"jsonrpc\": \"2.0\",";
+         reply += "\"error\":{";
+         reply += "\"code\":-32600,";
+         reply += "\"message\":\"Invalid Request\",";
+         reply += "\"data\":\"batch request array has less than 1 element\"";
+         reply += "},";
+         reply += "\"id\":null";
+         reply += "}";
+         
+         if (mjsonrpc_debug) {
+            printf("mjsonrpc: invalid json: reply:\n");
+            printf("%s\n", reply.c_str());
+            printf("\n");
+         }
+         
+         delete request;
+         return reply;
+      }
+
+      std::string reply = "";
+      reply += "[";
+
+      for (unsigned i=0; i<a->size(); i++) {
+         if (i>0) {
+            reply += ",";
+         }
+         reply += mjsonrpc_handle_request(a->at(i));
+      }
+
+      reply += "]";
+
+      delete request;
+      return reply;
    } else {
       std::string reply;
       reply += "{";
