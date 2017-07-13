@@ -172,6 +172,9 @@ tr.titleRow{
 
 table.navigationTable{
    width: 100%;
+   height: 42px;
+   margin-left: auto; /* center buttons */
+   margin-right: auto;
    color: #EEEEEE;
    border-bottom:1px solid #808080;
    border-collapse: collapse;
