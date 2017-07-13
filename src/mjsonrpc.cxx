@@ -2373,7 +2373,8 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
       return reply;
    }
 
-   const char* m = method->GetString().c_str();
+   const std::string ms = method->GetString();
+   const char* m = ms.c_str();
 
    const MJsonNode* result = NULL;
 
@@ -2400,12 +2401,12 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
       n->AddToArray(MJsonNode::MakeNumber(minusinf));
       result = mjsonrpc_make_result("test_nan_plusinf_minusinf", n);
    } else {
-      std::string mm = m;
-      mjsonrpc_handler_t *h = gHandlers[mm];
-      if (h)
-         result = (*h)(params);
-      else
-         result = mjsonrpc_make_error(-32601, "Method not found", (std::string("unknown method: ") + m).c_str());
+      MethodHandlersIterator s = gHandlers.find(ms);
+      if (s != gHandlers.end()) {
+         result = s->second(params);
+      } else {
+         result = mjsonrpc_make_error(-32601, "Method not found", (std::string("unknown method: ") + ms).c_str());
+      }
    }
 
    if (mjsonrpc_debug) {
