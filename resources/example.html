@@ -512,6 +512,12 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
           <input type=button value='test db_create array check' onClick='mjsonrpc_db_create({"this is not an array":0}).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
           <input type=button value='test db_copy array check' onClick='mjsonrpc_db_copy("this is not an array").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
         </p>
+        <p> Test batch requests:
+          <input type=button value='test empty batch request' onClick='mjsonrpc_send_request([]).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='test 1 element batch request' onClick='mjsonrpc_send_request([mjsonrpc_make_request("db_copy",{"paths":["/runinfo"]})]).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='test 2 element batch request' onClick='mjsonrpc_send_request([mjsonrpc_make_request("db_copy",{"paths":["/runinfo"]}),mjsonrpc_make_request("db_key",{"paths":["/runinfo"]})]).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+          <input type=button value='test 3 element batch request with one bad request' onClick='mjsonrpc_send_request([mjsonrpc_make_request("db_copy",{"paths":["/runinfo"]}),mjsonrpc_make_request("this_method_does_not_exist"),mjsonrpc_make_request("db_key",{"paths":["/runinfo"]})]).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        </p>
         <p> Test examples from mjsonrpc_user.cxx
           <input type=button value='user example1 with wrong arguments' onClick='mjsonrpc_call("user_example1", "[ 1 ]").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
           <input type=button value='user example1 with one argument' onClick='mjsonrpc_call("user_example1", "{ \"arg\": \"small brown fox etc\" }").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
