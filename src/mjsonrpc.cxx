@@ -105,6 +105,7 @@
 //////////////////////////////////////////////////////////////////////
 
 int mjsonrpc_debug = 0;
+int mjsonrpc_sleep = 0;
 
 MJsonNode* mjsonrpc_make_error(int code, const char* message, const char* data)
 {
@@ -1868,6 +1869,33 @@ static MJsonNode* set_debug(const MJsonNode* params)
    return mjsonrpc_make_result("debug", MJsonNode::MakeInt(mjsonrpc_debug));
 }
 
+static MJsonNode* get_sleep(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO *doc = MJSO::I();
+      doc->D("get current value of mjsonrpc_sleep");
+      doc->P(NULL, 0, "there are no input parameters");
+      doc->R(NULL, MJSON_INT, "current value of mjsonrpc_sleep");
+      return doc;
+   }
+
+   return mjsonrpc_make_result("sleep", MJsonNode::MakeInt(mjsonrpc_sleep));
+}
+
+static MJsonNode* set_sleep(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("set new value of mjsonrpc_sleep");
+      doc->P(NULL, MJSON_INT, "new value of mjsonrpc_sleep");
+      doc->R(NULL, MJSON_INT, "new value of mjsonrpc_sleep");
+      return doc;
+   }
+
+   mjsonrpc_sleep = params->GetInt();
+   return mjsonrpc_make_result("sleep", MJsonNode::MakeInt(mjsonrpc_sleep));
+}
+
 static MJsonNode* get_schema(const MJsonNode* params)
 {
    if (!params) {
@@ -1901,6 +1929,8 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("null", xnull);
    mjsonrpc_add_handler("get_debug",   get_debug);
    mjsonrpc_add_handler("set_debug",   set_debug);
+   mjsonrpc_add_handler("get_sleep",   get_sleep);
+   mjsonrpc_add_handler("set_sleep",   set_sleep);
    mjsonrpc_add_handler("get_schema",  get_schema);
    // interface to alarm functions
    mjsonrpc_add_handler("al_reset_alarm",    js_al_reset_alarm);
@@ -2425,6 +2455,15 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
       printf("\n");
    }
 
+   if (mjsonrpc_sleep) {
+      if (mjsonrpc_debug) {
+         printf("mjsonrpc: sleep %d\n", mjsonrpc_sleep);
+      }
+      for (int i=0; i<mjsonrpc_sleep; i++) {
+         sleep(1);
+      }
+   }
+
    if (request->GetType() == MJSON_ERROR) {
       std::string reply;
       reply += "{";
@@ -2509,134 +2548,6 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
       delete request;
       return reply;
    }
-   
-#if 0
-   // find required request elements
-   const MJsonNode* version = request->FindObjectNode("jsonrpc");
-   const MJsonNode* method  = request->FindObjectNode("method");
-   const MJsonNode* params  = request->FindObjectNode("params");
-   const MJsonNode* id      = request->FindObjectNode("id");
-
-   std::string bad = "";
-
-   if (!version)
-      add(&bad, "jsonrpc version is missing");
-   if (!method)
-      add(&bad, "method is missing");
-   if (!params)
-      add(&bad, "params is missing");
-   if (!id)
-      add(&bad, "id is missing");
-
-   if (version&&version->GetType() != MJSON_STRING)
-      add(&bad, "jsonrpc version is not a string");
-   if (version&&version->GetString() != "2.0")
-      add(&bad, "jsonrpc version is not 2.0");
-
-   if (method&&method->GetType() != MJSON_STRING)
-      add(&bad, "method is not a string");
-
-   if (bad.length() > 0) {
-      std::string reply;
-      reply += "{";
-      reply += "\"jsonrpc\": \"2.0\",";
-      reply += "\"error\":{";
-      reply += "\"code\":-32600,";
-      reply += "\"message\":\"Invalid request\",";
-      reply += "\"data\":\"" + MJsonNode::Encode(bad.c_str()) + "\"";
-      reply += "},";
-      if (id)
-         reply += "\"id\":" + id->Stringify();
-      else
-         reply += "\"id\":null";
-      reply += "}";
-
-      if (request)
-         delete request;
-
-      if (mjsonrpc_debug) {
-         printf("mjsonrpc: invalid request: reply:\n");
-         printf("%s\n", reply.c_str());
-         printf("\n");
-      }
-
-      return reply;
-   }
-
-   const char* m = method->GetString().c_str();
-
-   const MJsonNode* result = NULL;
-
-   // special built-in methods
-
-   if (strcmp(m, "echo") == 0) {
-      result = mjsonrpc_make_result(request);
-      request = NULL; // request object is now owned by the result object
-   } else if (strcmp(m, "error") == 0) {
-      result = mjsonrpc_make_error(1, "test error", "test error");
-   } else if (strcmp(m, "invalid_json") == 0) {
-      if (request)
-         delete request;
-      if (mjsonrpc_debug) {
-         printf("mjsonrpc: reply with invalid json\n");
-      }
-      return "this is invalid json data";
-   } else if (strcmp(m, "test_nan_inf") == 0) {
-      double one = 1;
-      double zero = 0;
-      double nan = zero/zero;
-      double plusinf = one/zero;
-      double minusinf = -one/zero;
-      MJsonNode* n = MJsonNode::MakeArray();
-      n->AddToArray(MJsonNode::MakeNumber(nan));
-      n->AddToArray(MJsonNode::MakeNumber(plusinf));
-      n->AddToArray(MJsonNode::MakeNumber(minusinf));
-      result = mjsonrpc_make_result("test_nan_plusinf_minusinf", n);
-   } else {
-      std::string mm = m;
-      mjsonrpc_handler_t *h = gHandlers[mm];
-      if (h)
-         result = (*h)(params);
-      else
-         result = mjsonrpc_make_error(-32601, "Method not found", (std::string("unknown method: ") + m).c_str());
-   }
-
-   if (mjsonrpc_debug) {
-      printf("mjsonrpc: handler reply:\n");
-      result->Dump();
-      printf("\n");
-   }
-
-   const MJsonNode *nerror  = result->FindObjectNode("error");
-   const MJsonNode *nresult = result->FindObjectNode("result");
-
-   std::string reply;
-   reply += "{";
-   reply += "\"jsonrpc\": \"2.0\",";
-   if (nerror) {
-      reply += "\"error\":" + nerror->Stringify() + ",";
-   } else if (nresult) {
-      reply += "\"result\":" + nresult->Stringify() + ",";
-   } else {
-      nerror = mjsonrpc_make_error(-32603, "Internal error", "bad dispatcher reply: no result and no error");
-      reply += "\"error\":" + nerror->Stringify() + ",";
-      delete nerror;
-      nerror = NULL;
-   }
-   if (id)
-      reply += "\"id\":" + id->Stringify();
-   else
-      reply += "\"id\":null";
-   reply += "}";
-
-   if (request)
-      delete request;
-
-   if (result)
-      delete result;
-
-   return reply;
-#endif
 }
 
 /* emacs
