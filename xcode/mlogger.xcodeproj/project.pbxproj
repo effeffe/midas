@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D525818F1F16CA0E00CE9EA0 /* midas_cxx.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D525818E1F16CA0E00CE9EA0 /* midas_cxx.cxx */; };
 		D5615BF91B7DC4B600A599E0 /* lz4.c in Sources */ = {isa = PBXBuildFile; fileRef = D5615BF61B7DC4B600A599E0 /* lz4.c */; };
 		D5615BFA1B7DC4B600A599E0 /* lz4frame.c in Sources */ = {isa = PBXBuildFile; fileRef = D5615BF71B7DC4B600A599E0 /* lz4frame.c */; };
 		D5615BFB1B7DC4B600A599E0 /* lz4hc.c in Sources */ = {isa = PBXBuildFile; fileRef = D5615BF81B7DC4B600A599E0 /* lz4hc.c */; };
@@ -44,6 +45,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		D525818E1F16CA0E00CE9EA0 /* midas_cxx.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = midas_cxx.cxx; path = /midas/src/midas_cxx.cxx; sourceTree = "<group>"; };
 		D5615BF61B7DC4B600A599E0 /* lz4.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = lz4.c; path = /midas/src/lz4.c; sourceTree = "<group>"; };
 		D5615BF71B7DC4B600A599E0 /* lz4frame.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = lz4frame.c; path = /midas/src/lz4frame.c; sourceTree = "<group>"; };
 		D5615BF81B7DC4B600A599E0 /* lz4hc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = lz4hc.c; path = /midas/src/lz4hc.c; sourceTree = "<group>"; };
@@ -119,6 +121,7 @@
 				D5A5723A139D669300B65A0A /* history.c */,
 				D5A57236139D668100B65A0A /* ftplib.c */,
 				D5A57234139D664F00B65A0A /* midas.c */,
+				D525818E1F16CA0E00CE9EA0 /* midas_cxx.cxx */,
 				D5A57232139D662F00B65A0A /* mlogger.cxx */,
 				D5A57228139D645500B65A0A /* mxml.c */,
 				D5A5722A139D645500B65A0A /* strlcpy.c */,
@@ -171,7 +174,7 @@
 		D5A57207139D63EF00B65A0A /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0640;
+				LastUpgradeCheck = 0830;
 				ORGANIZATIONNAME = PSI;
 			};
 			buildConfigurationList = D5A5720A139D63EF00B65A0A /* Build configuration list for PBXProject "mlogger" */;
@@ -208,6 +211,7 @@
 				D5A5722D139D645500B65A0A /* strlcpy.c in Sources */,
 				D5A6D1731B7DC54200DA117C /* sha256.c in Sources */,
 				D5615BFA1B7DC4B600A599E0 /* lz4frame.c in Sources */,
+				D525818F1F16CA0E00CE9EA0 /* midas_cxx.cxx in Sources */,
 				D5A57233139D662F00B65A0A /* mlogger.cxx in Sources */,
 				D5A57235139D664F00B65A0A /* midas.c in Sources */,
 				D5AEADD21A0B7E5900F18720 /* history_schema.cxx in Sources */,
@@ -231,10 +235,13 @@
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
@@ -260,12 +267,15 @@
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = "";
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
@@ -291,13 +301,19 @@
 					OS_LINUX,
 					OS_DARWIN,
 					USE_POSIX_SHM,
+					HAVE_MYSQL,
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = NO;
 				HEADER_SEARCH_PATHS = (
 					../../mxml,
 					../include,
+					/opt/local/include/mysql57/mysql/,
 				);
-				OTHER_LDFLAGS = "-lz";
+				MACOSX_DEPLOYMENT_TARGET = 10.12;
+				OTHER_LDFLAGS = (
+					"-lz",
+					/opt/local/lib/mysql57/mysql/libmysqlclient.a,
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -314,13 +330,19 @@
 					OS_LINUX,
 					OS_DARWIN,
 					USE_POSIX_SHM,
+					HAVE_MYSQL,
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = NO;
 				HEADER_SEARCH_PATHS = (
 					../../mxml,
 					../include,
+					/opt/local/include/mysql57/mysql/,
 				);
-				OTHER_LDFLAGS = "-lz";
+				MACOSX_DEPLOYMENT_TARGET = 10.12;
+				OTHER_LDFLAGS = (
+					"-lz",
+					/opt/local/lib/mysql57/mysql/libmysqlclient.a,
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
