@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html class="mcss">
+<head>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css">
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <title>Example</title>
+</head>
+
+<body class="mcss" onload="mhttpd_init(1000)">
+
+<div class="mwrapper">
+   <script>
+      mhttpd_navigation_bar("Test");
+   </script>
+
+   <div>
+      <table width="50%" class="mtable">
+         <tr>
+            <th colspan="2" class="mtableheader">Status</th>
+         </tr>
+         <tr>
+            <td style="width: 200px">
+               Run number:
+            </td>
+            <td>
+               <div name="modbvalue" data-odb-path="/Runinfo/Run number" data-odb-editable="1"></div>
+            </td>
+         </tr>
+         <tr>
+            <td>
+               Last run start:
+            </td>
+            <td>
+               <div name="modbvalue" data-odb-path="/Runinfo/Start time"></div>
+            </td>
+         </tr>
+         <tr>
+            <td>
+               Last run stop:
+            </td>
+            <td>
+               <div name="modbvalue" data-odb-path="/Runinfo/Stop time"></div>
+            </td>
+         </tr>
+         <tr>
+            <td colspan="2" style="text-align: center;">
+               <button class="mbutton" onclick=
+                       "mjsonrpc_db_paste(['/Runinfo/Run number'], ['1']);
+                        mhttpd_refresh();">Set run number to 1
+               </button>
+               <button class="mbutton" onclick=
+                       "mjsonrpc_db_paste(['/Runinfo/Run number'], ['2']);
+                        mhttpd_refresh();">Set run number to 2
+               </button>
+            </td>
+         </tr>
+      </table>
+   </div>
+
+   <div class="mpush">
+   </div>
+</div>
+
+<script>
+   mhttpd_page_footer();
+</script>
+
+<script>
+   var odb_update_interval;
+
+   function mhttpd_init(interval) {
+      odb_update_interval = interval;
+      url = mhttpd_getParameterByName("URL");
+      if (url)
+         mjsonrpc_set_url(url);
+
+      var modbvalue = document.getElementsByName("modbvalue");
+      for (var i = 0; i < modbvalue.length; i++) {
+         var o = modbvalue[i];
+         var loading = "(Loading " + modbvalue[i].dataset.odbPath + " ...)";
+         if (o.dataset.odbEditable) {
+
+            var link = document.createElement('a');
+            link.href = "#";
+            link.innerHTML = loading;
+            link.onclick = function() { ODBInlineEdit(this.parentElement,this.parentElement.dataset.odbPath);return false; };
+            link.onfocus = function() { ODBInlineEdit(this.parentElement,this.parentElement.dataset.odbPath); };
+
+            o.appendChild(link);
+         } else {
+            o.innerHTML = loading;
+         }
+      }
+
+      mhttpd_refresh();
+   }
+
+   function mhttpd_refresh() {
+      // go through all "modbvalue" fields
+      var modbvalue = document.getElementsByName("modbvalue");
+      var paths = new Array();
+      for (var i = 0; i < modbvalue.length; i++)
+         paths.push(modbvalue[i].dataset.odbPath);
+
+      mjsonrpc_db_get_values(paths).then(function (rpc) {
+         for (var i = 0; i < modbvalue.length; i++) {
+            var value = rpc.result.data[i];
+            var tid = rpc.result.tid[i];
+            var mvalue = mie_to_string(tid, value);
+            if (mvalue == "")
+               mvalue = "(empty)";
+            var html = mhttpd_escape(mvalue);
+            if (modbvalue[i].dataset.odbEditable) {
+               modbvalue[i].childNodes[0].innerHTML = html;
+            } else
+               modbvalue[i].innerHTML = html;
+         }
+         if (odb_update_interval != undefined && odb_update_interval > 0)
+            window.setTimeout(mhttpd_refresh, odb_update_interval);
+      }).catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
+
+   }
+</script>
+</body>
+</html>
