@@ -85,6 +85,11 @@ input.mnav:hover, .mbutton:hover {
    background: linear-gradient(to bottom,  #ffffff 0%,#f3f3f3 50%,#ededed 51%,#ffffff 100%);
 }
 
+input.mnavsel:hover {
+   color: #F8F8F8;
+   background: linear-gradient(to bottom,  #404040 0%, #808080 100%);
+}
+
 /* table formatting */
 
 .mtable {

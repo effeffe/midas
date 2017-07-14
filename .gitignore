@@ -22,3 +22,4 @@ catest
 ssl_cert.csr
 ssl_cert.key
 ssl_cert.pem
+resources/.idea
