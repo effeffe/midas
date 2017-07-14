@@ -1765,7 +1765,7 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
       return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "last_written", lw);
    }
 
-   int num_var = events_array->size();
+   unsigned num_var = events_array->size();
 
    if (tags_array->size() != num_var) {
       return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and tags should have the same length");
@@ -1780,7 +1780,7 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
    int* var_index = new int[num_var];
    time_t* last_written = new time_t[num_var];
 
-   for (int i=0; i<num_var; i++) {
+   for (unsigned i=0; i<num_var; i++) {
       event_name[i] = (*events_array)[i]->GetString().c_str();
       tag_name[i] = (*tags_array)[i]->GetString().c_str();
       var_index[i] = (*index_array)[i]->GetInt();
@@ -1788,7 +1788,7 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
 
    int status = mh->hs_get_last_written(time, num_var, event_name, tag_name, var_index, last_written);
 
-   for (int i=0; i<num_var; i++) {
+   for (unsigned i=0; i<num_var; i++) {
       lw->AddToArray(MJsonNode::MakeNumber(last_written[i]));
    }
 
