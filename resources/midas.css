@@ -90,6 +90,12 @@ input.mnavsel:hover {
    background: linear-gradient(to bottom,  #404040 0%, #808080 100%);
 }
 
+/* input box */
+input[type=text] {
+   font-size: 100%;
+}
+
+
 /* table formatting */
 
 .mtable {
@@ -97,8 +103,9 @@ input.mnavsel:hover {
    border-radius: 12px;
    margin-left: auto;
    margin-right: auto;
-   margin-top: 12px;
-   margin-bottom: 12px;
+   margin-top: 0.5em;
+   margin-bottom: 0.5em;
+   padding: 3px;
 }
 
 .mmessagebox {
@@ -127,7 +134,7 @@ input.mnavsel:hover {
    padding-right: 10px;
 }
 
-tr:nth-child(even).mtable {
+.mtable tr:nth-child(even) {
    background-color: #DDDDDD;
 }
 
