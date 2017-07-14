@@ -1342,6 +1342,7 @@ void show_header(const char *title, const char *method, const char *path, int re
 
    /* style sheet */
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+   rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
    rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
 
    /* auto refresh */
