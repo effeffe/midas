@@ -189,11 +189,14 @@
        return "TR_" + tr;
     }
     
-    function callback(rpc)
+    function callback(rpc_batch)
     {
        //document.getElementById('updateStatus').innerHTML = "RWP_";
 
        //console.log(JSON.stringify(rpc.result));
+
+       var rpc = rpc_batch[0];
+       var rpc_db_get_values = rpc_batch[1];
 
        if (!rpc.result.run_number && !rpc.result.status) {
           document.getElementById('mhttpd_last_updated').innerHTML = new Date;
@@ -202,11 +205,19 @@
           return;
        }
 
-       set_text("run_number", rpc.result.run_number);
+       var runinfo = rpc_db_get_values.result.data[0];
+
+       //console.log("here: " + JSON.stringify(rpc_db_get_values.result.data[0]));
+
+       set_text("run_number", rpc.result.run_number + "/" + runinfo["run number"]);
        if (rpc.result.status == 0) {
-          set_text("run_state",  tr_name(rpc.result.transition));
+          set_text("run_state", run_state_names[runinfo.state] + "/" + tr_name(rpc.result.transition));
           adjust_buttons(0);
           adjust_colors(0);
+       } else if (runinfo.state) {
+          adjust_buttons(runinfo.state);
+          adjust_colors(runinfo.state);
+          set_text("run_state",  run_state_names[runinfo.state]);
        } else {
           var fake_runstate = transition_fake_runstate[rpc.result.transition];
           adjust_buttons(fake_runstate);
@@ -327,7 +338,10 @@
     function update()
     {
        //document.getElementById('updateStatus').innerHTML = "R___";
-       mjsonrpc_call("cm_transition_status").then(function(rpc) {
+       var req = new Array;
+       req.push(mjsonrpc_make_request("cm_transition_status"));
+       req.push(mjsonrpc_make_request("db_get_values",{"paths":["/runinfo"]}));
+       mjsonrpc_send_request(req).then(function(rpc) {
           callback(rpc);
        }).catch(function(error) {
           document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);

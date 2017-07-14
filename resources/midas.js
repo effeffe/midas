@@ -130,6 +130,23 @@ function mjsonrpc_send_request(req)
                return;
             }
             
+            if (Array.isArray(rpc_response)) {
+               var batch = new Array;
+               for (var i=0; i<rpc_response.length; i++) {
+                  var rpc = new Object;
+                  rpc.request = req[i];
+                  rpc.id = rpc_response[i].id;
+                  if (rpc_response[i].hasOwnProperty("error")) {
+                     rpc.error = rpc_response[i].error;
+                  } else {
+                     rpc.result = rpc_response[i].result;
+                  }
+                  batch.push(rpc);
+               }
+               resolve(batch);
+               return;
+            }
+            
             if (rpc_response.error) {
                var error = new Object;
                error.request = req;
@@ -138,7 +155,7 @@ function mjsonrpc_send_request(req)
                reject(error);
                return;
             }
-            
+
             var rpc = new Object;
             rpc.request = req;
             rpc.id = rpc_response.id;
@@ -163,7 +180,23 @@ function mjsonrpc_debug_alert(rpc) {
    /// Debug method to show RPC response
    /// @param[in] rpc object (object), see mjsonrpc_send_request()
    /// @returns nothing
-   alert("mjsonrpc_debug_alert: method: \"" + rpc.request.method + "\", params: " + rpc.request.params + ", id: " + JSON.stringify(rpc.id) + ", response: " + JSON.stringify(rpc.result));
+   //console.log(rpc);
+   if (Array.isArray(rpc)) {
+      //console.log("here!");
+      var a = "";
+      rpc.forEach(function(r) {
+         //console.log(r);
+         if (r.error) {
+            a += "method: \"" + r.request.method + "\", params: " + r.request.params + ", id: " + JSON.stringify(r.id) + ", error: " + JSON.stringify(r.error);
+         } else {
+            a += "method: \"" + r.request.method + "\", params: " + r.request.params + ", id: " + JSON.stringify(r.id) + ", response: " + JSON.stringify(r.result);
+         }
+         a += "\n";
+      });
+      alert("mjsonrpc_debug_alert: array:\n" + a);
+   } else {
+      alert("mjsonrpc_debug_alert: method: \"" + rpc.request.method + "\", params: " + rpc.request.params + ", id: " + JSON.stringify(rpc.id) + ", response: " + JSON.stringify(rpc.result));
+   }
 }
 
 function mjsonrpc_decode_error(error) {
