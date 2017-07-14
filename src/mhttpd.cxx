@@ -1731,6 +1731,7 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
 #endif
 
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+   rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
    rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
 
    std::string exptname;
@@ -2930,6 +2931,7 @@ void show_elog_new(const char *path, BOOL bedit, const char *odb_att, const char
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+   rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
    rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
    rsprintf("<title>MIDAS ELog</title></head>\n");
    rsprintf
@@ -3177,6 +3179,7 @@ void show_elog_query()
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+   rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
    rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
    rsprintf("<title>MIDAS ELog</title></head>\n");
    rsprintf("<body><form method=\"GET\" action=\"./\">\n");
@@ -3421,6 +3424,7 @@ void show_elog_submit_query(INT last_n)
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+   rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
    rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
    rsprintf("<title>MIDAS ELog</title></head>\n");
    rsprintf("<body><form method=\"GET\" action=\"./\">\n");
@@ -3863,6 +3867,7 @@ void show_rawfile(const char *path)
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+   rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
    rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
    rsprintf("<title>MIDAS File Display %s</title></head>\n", path);
    rsprintf("<body><form method=\"GET\" action=\"./%s\">\n", path);
@@ -4003,6 +4008,7 @@ void show_form_query()
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+   rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
    rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
    rsprintf("<title>MIDAS ELog</title></head>\n");
    rsprintf("<body><form method=\"GET\" action=\"./\">\n");
@@ -4233,6 +4239,7 @@ void submit_elog()
 
       rsprintf("<html><head>\n");
       rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+      rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
       rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
       rsprintf("<title>ELog Error</title></head>\n");
       rsprintf("<i>Error: No author supplied.</i><p>\n");
@@ -4311,6 +4318,7 @@ void submit_elog()
 
             rsprintf("<html><head>\n");
             rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+            rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
             rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
             rsprintf("<title>ELog Error</title></head>\n");
             rsprintf("<i>Error: Attachment file <i>%s</i> not valid.</i><p>\n",
@@ -4457,6 +4465,7 @@ void submit_form()
 
       rsprintf("<html><head>\n");
       rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+      rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
       rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
       rsprintf("<title>ELog Error</title></head>\n");
       rsprintf("<i>Error: No author supplied.</i><p>\n");
@@ -8216,6 +8225,7 @@ void show_cnaf_page()
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+   rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
    rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
    rsprintf("<title>MIDAS CAMAC interface</title></head>\n");
    rsprintf("<body><form method=\"GET\" action=\"CNAF\">\n\n");
@@ -9228,6 +9238,7 @@ void show_password_page(const char *password, const char *experiment)
 
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+   rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
    rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
    rsprintf("<title>Enter password</title></head><body>\n\n");
 
@@ -9280,6 +9291,7 @@ BOOL check_web_password(const char *password, const char *redir, const char *exp
 
       rsprintf("<html><head>\n");
       rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+      rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
       rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
       rsprintf("<title>Enter password</title></head><body>\n\n");
 
@@ -15449,6 +15461,9 @@ bool send_resource(const std::string& name)
    FILE *fp = open_resource_file(name.c_str(), &filename);
 
    if (!fp) {
+      std::string str;
+      str = "Error: file \""+name+"\" not found";
+      show_error(str.c_str());
       return false;
    }
 
@@ -16085,6 +16100,11 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       return;
    }
 
+   if (equal_ustring(command, "messages")) {
+      send_resource("messages.html");
+      return;
+   }
+   
    /*---- java script commands --------------------------------------*/
 
    if (equal_ustring(command, "jset") ||
@@ -16595,13 +16615,15 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       return;
    }
 
+#ifdef OBSOLETE
    /*---- Messages command ------------------------------------------*/
 
    if (equal_ustring(command, "messages")) {
       show_messages_page();
       return;
    }
-
+#endif
+   
    /*---- Chat command ------------------------------------------*/
    
    if (equal_ustring(command, "chat")) {

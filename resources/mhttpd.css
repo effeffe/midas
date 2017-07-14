@@ -10,10 +10,10 @@ will adress it ASAP.
 
 
 /*
-	CSS reset for maximum browser consistency.
-	http://meyerweb.com/eric/tools/css/reset/ 
-	v2.0 | 20110126
-	License: none (public domain)
+   CSS reset for maximum browser consistency.
+   http://meyerweb.com/eric/tools/css/reset/ 
+   v2.0 | 20110126
+   License: none (public domain)
 */
 
 html, body, div, span, applet, object, iframe,
@@ -29,102 +29,102 @@ article, aside, canvas, details, embed,
 figure, figcaption, footer, header, hgroup, 
 menu, nav, output, ruby, section, summary,
 time, mark, audio, video {
-	margin: 0;
-	padding: 0;
-	border: 0;
-	font-size: 100%;
-	font: inherit;
-	vertical-align: baseline;
+   margin: 0;
+   padding: 0;
+   border: 0;
+   font-size: 100%;
+   font: inherit;
+   vertical-align: baseline;
 }
 
 /* HTML5 display-role reset for older browsers */
 article, aside, details, figcaption, figure, 
 footer, header, hgroup, menu, nav, section {
-	display: block;
+   display: block;
 }
 body {
-	line-height: 1;
+   line-height: 1;
 }
 ol, ul {
-	list-style: none;
+   list-style: none;
 }
 blockquote, q {
-	quotes: none;
+   quotes: none;
 }
 blockquote:before, blockquote:after,
 q:before, q:after {
-	content: '';
-	content: none;
+   content: '';
+   content: none;
 }
 table {
-	border-collapse: separate;
-	border-spacing: 0;
+   border-collapse: separate;
+   border-spacing: 0;
 }
 /*end CSS reset*/
 
 /*ask the box model to please behave in a sane manner*/
 * { 
-	box-sizing: border-box; 
+   box-sizing: border-box; 
 }
 
 /*generic elements////////////////////////////////////////////////////*/
 
 body {
-	font-family:verdana,tahoma,sans-serif;
-	color:#111111;
-	background-color: #EEEEEE;
-	min-width: -moz-min-content;
-	min-width: -webkit-min-content; /*currently (July 2013) only FF and Chrome support min-content, expand to other browsers as they catch up.*/
-	text-align:center;
-	height:100%;
+   font-family:verdana,tahoma,sans-serif;
+   color:#111111;
+   background-color: #EEEEEE;
+   min-width: -moz-min-content;
+   min-width: -webkit-min-content; /*currently (July 2013) only FF and Chrome support min-content, expand to other browsers as they catch up.*/
+   text-align:center;
+   height:100%;
 }
 
 form {
-	height:100%;
+   height:100%;
 }
 
 table {
-	/*center all tables*/
-	margin-left: auto;
-	margin-right: auto;
-	/*don't mash cells into each other*/
-	border-spacing: 1px;
+   /*center all tables*/
+   margin-left: auto;
+   margin-right: auto;
+   /*don't mash cells into each other*/
+   border-spacing: 1px;
 }
 
 td{
-	/*pad cells proportionally to text size:*/;
-	padding:0.25em;
-	/*center cell contents*/
-	text-align: center;
+   /*pad cells proportionally to text size:*/;
+   padding:0.25em;
+   /*center cell contents*/
+   text-align: center;
 
-	border:1px solid #EEEEEE;
+   border:1px solid #EEEEEE;
 }
 
 th, h1, h3{
-	/*pad cells proportionally to text size:*/;
-	padding:0.25em;	
-	text-align: center;
+   /*pad cells proportionally to text size:*/;
+   padding:0.25em;   
+   text-align: center;
 }
 
 p{
-	line-height: 1.5em;
+   line-height: 1.5em;
 }
 
 select{
-	font-size: 100%;
+   font-size: 100%;
 }
 
 /* define special shape for all buttons */
 button, input[type=button], input[type=submit], input[type=reset] {
-	background-color: #CCCCCC; /*#00B26B;*/
-	color: #444444;
-	font-size: 100%;
-	padding:0.25em;
-	padding-left: 0.5em;
-	padding-right: 0.5em;
-	border:1px solid #808080;
-	border-radius: 5px;
-	margin-bottom:1px;
+   background-color: #CCCCCC; /*#00B26B;*/
+   color: #444444;
+   font-size: 100%;
+   padding:0.25em;
+   padding-left: 0.5em;
+   padding-right: 0.5em;
+   border:1px solid #808080;
+   border-radius: 5px;
+   margin-bottom:1px;
 }
 
 /* special colours for enabled buttons */
@@ -156,27 +156,30 @@ button:disabled, input[type=button]:disabled, input[type=submit]:disabled, input
 }
 
 td.ODBdirectory{
-	text-align: left;
-	background-color: #EEEEEE;
-	padding-left: 2em;
+   text-align: left;
+   background-color: #EEEEEE;
+   padding-left: 2em;
 }
 
 td.titleCell{
-	font-weight: bold;
+   font-weight: bold;
 }
 
 tr.titleRow{
-	font-weight: bold;
-	background-color: #EEEEEE !important;
+   font-weight: bold;
+   background-color: #EEEEEE !important;
 }
 
 table.navigationTable{
-	width:100%;
-	color:#EEEEEE;
-	border-bottom:1px solid #808080;
-	border-collapse: collapse;
-	border-spacing: 0;
-	
+   width: 100%;
+   height: 42px;
+   margin-left: auto; /* center buttons */
+   margin-right: auto;
+   color: #EEEEEE;
+   border-bottom:1px solid #808080;
+   border-collapse: collapse;
+   border-spacing: 0;
+   
    background: #e9e9e9; /* Old browsers */
    background: -moz-linear-gradient(top,  #e9e9e9 0%, #b7b7b7 100%); /* FF3.6+ */
    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#e9e9e9), color-stop(100%,#b7b7b7)); /* Chrome,Safari4+ */
@@ -188,19 +191,19 @@ table.navigationTable{
 }
 
 table.navigationTable td{
-	border: none;
+   border: none;
 }
 
 input[type=button].navButton {
-	background-color: #CCCCCC; /*#00B26B;*/
-	color: #444444;
-	font-size: 100%;
-	padding:0.25em;
-	padding-left: 0.5em;
-	padding-right: 0.5em;
-	border:1px solid #808080;
-	border-radius: 5px;
-	margin-bottom:1px;
+   background-color: #CCCCCC; /*#00B26B;*/
+   color: #444444;
+   font-size: 100%;
+   padding:0.25em;
+   padding-left: 0.5em;
+   padding-right: 0.5em;
+   border:1px solid #808080;
+   border-radius: 5px;
+   margin-bottom:1px;
 
    background: #f5f5f5; /* Old browsers */
    background: -moz-linear-gradient(top,  #f5f5f5 0%, #c0c0c0 100%); /* FF3.6+ */
@@ -225,13 +228,13 @@ input[type=button].navButton:hover{
 
 input[type=button].navButtonSel {
    color: #F8F8F8;
-	font-size: 100%;
-	padding:0.25em;
-	padding-left: 0.5em;
-	padding-right: 0.5em;
-	border:1px solid #808080;
-	border-radius: 5px;
-	margin-bottom:1px;
+   font-size: 100%;
+   padding:0.25em;
+   padding-left: 0.5em;
+   padding-right: 0.5em;
+   border:1px solid #808080;
+   border-radius: 5px;
+   margin-bottom:1px;
 
    background: #676767; /* Old browsers */
    background: -moz-linear-gradient(top,  #676767 0%, #999999 100%); /* FF3.6+ */
@@ -258,14 +261,14 @@ input[type=button].botButton {
 }
 
 table.headerTable{
-	width:100%;
-	color:#EEEEEE;
-	background-color: #E0E0E0;
-	border-bottom:1px solid #000000;
-	border-collapse: collapse;
-	border-spacing: 0;
-	margin-bottom: 0.5em;
-	
+   width:100%;
+   color:#EEEEEE;
+   background-color: #E0E0E0;
+   border-bottom:1px solid #000000;
+   border-collapse: collapse;
+   border-spacing: 0;
+   margin-bottom: 0.5em;
+   
    background: #e9e9e9; /* Old browsers */
    background: -moz-linear-gradient(top,  #e9e9e9 0%, #b7b7b7 100%); /* FF3.6+ */
    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#e9e9e9), color-stop(100%,#b7b7b7)); /* Chrome,Safari4+ */
@@ -277,28 +280,28 @@ table.headerTable{
 }
 
 table.headerTable td{
-	border: none;
+   border: none;
 }
 
 div.footerDiv{
-	background-color: #808080;
-	text-align: center;
-	padding:1em;
-	color:#EEEEEE;
-	border-top:1px solid #000000;
-	height:3em;
+   background-color: #808080;
+   text-align: center;
+   padding:1em;
+   color:#EEEEEE;
+   border-top:1px solid #000000;
+   height:3em;
 }
 
 div.push{
-	height:3em;
+   height:3em;
 }
 
 div.footerDiv a{
-	color: #f1c40f;
+   color: #f1c40f;
 }
 
 input[type=text]{
-	font-size: 100%
+   font-size: 100%
 }
 
 div.wrapper{
@@ -309,17 +312,17 @@ div.wrapper{
 }
 
 .historyConfigTable, .dialogTable, .runlogTable, .messageBox, .chatBox, .chatInput, .genericTable, .sequencerTable {
-	border-radius: 12px;
-	border: 2px solid #00B26B;
-	background-color: #EEEEEE;
-	color:#111111;
-	padding:0.5em;
-	margin-top: 0em;
-	margin-bottom:1em;
+   border-radius: 12px;
+   border: 2px solid #00B26B;
+   background-color: #EEEEEE;
+   color:#111111;
+   padding:0.5em;
+   margin-top: 0em;
+   margin-bottom:1em;
 }
 
 .runlogTable td {
-	border: none;
+   border: none;
    text-align: left;
    font-family: monospace;
 }
@@ -329,15 +332,15 @@ div.wrapper{
 }
 
 table.sequencerTable td{
-	text-align: left;
+   text-align: left;
 }
 
 table.sequencerTable td table{
-	margin: 0px;
+   margin: 0px;
 }
 
 table.dialogTable td{
-	border:none;
+   border:none;
 }
 
 table.historyConfigTable td{
@@ -353,54 +356,54 @@ table.historyConfigTable th{
 }
 
 .historyTable td{
-	text-align: left;
+   text-align: left;
 }
 
 .ODBpath{
-	text-align: left;
-	font-size: 120%;
-	background-color: #EEEEEE;
+   text-align: left;
+   font-size: 120%;
+   background-color: #EEEEEE;
 }
 
 /*Status page objects/////////////////////////////////////////////////*/
 
 /*status page master table*/
 #statusTable{
-	padding:0.5em;
-	padding-top: 0em;
-	background-color: #EEEEEE;
+   padding:0.5em;
+   padding-top: 0em;
+   background-color: #EEEEEE;
 }
 
 /*experiment title*/
 #experimentTitle{
-	text-align: center;
-	font-size: 120%;
+   text-align: center;
+   font-size: 120%;
 }
 
 /*status page time*/
 #masterTime{
-	text-align: center;
-	font-size: 120%;
+   text-align: center;
+   font-size: 120%;
 }
 
 #runButton{
-	padding:0.25em;
-	margin-top:0.25em;
+   padding:0.25em;
+   margin-top:0.25em;
 }
 
 /*Equipment table*/
 .subStatusTable, .alarmTable{
-	border:2px solid #00B26B;
-	border-radius: 12px;	
-	padding:2px;
+   border:2px solid #00B26B;
+   border-radius: 12px; 
+   padding:2px;
 }
 
 .subStatusTitle{
-	font-size: 120%;
-	font-weight: bold;
-	border-radius:12px;
-	background-color:#3498db; 
-	color:#EEEEEE; 
+   font-size: 120%;
+   font-weight: bold;
+   border-radius:12px;
+   background-color:#3498db; 
+   color:#EEEEEE; 
 }
 
 .chatTitle{
@@ -415,113 +418,113 @@ table.historyConfigTable th{
 
 /*make sure fills in subStatusTable cells don't have sharp corners poking into the curved table corner"*/
 .subStatusTable tr:first-child td:first-child{
-	border-top-left-radius: 12px;
+   border-top-left-radius: 12px;
 }
 .subStatusTable tr:first-child td:last-child{
-	border-top-right-radius: 12px;
+   border-top-right-radius: 12px;
 }
 .subStatusTable tr:last-child td:first-child{
-	border-bottom-left-radius: 12px;
+   border-bottom-left-radius: 12px;
 }
 .subStatusTable tr:last-child td:last-child{
-	border-bottom-right-radius: 12px;
+   border-bottom-right-radius: 12px;
 }
 
 td.meterCell{
-	padding: 0px;
-	text-align: left;
-	height:26px;
+   padding: 0px;
+   text-align: left;
+   height:26px;
 }
 
 #runNumberCell{
-	font-size:120%;
-	line-height: 1.25em;
-	vertical-align: middle;
-	border-radius: 12px;
-	border:2px solid #EEEEEE;
-	width:15%;
+   font-size:120%;
+   line-height: 1.25em;
+   vertical-align: middle;
+   border-radius: 12px;
+   border:2px solid #EEEEEE;
+   width:15%;
 }
 
 .alarmTable{
-	border-spacing: 0px 1px;
+   border-spacing: 0px 1px;
 }
 
 .alarmTable td{
-	border: none;
+   border: none;
 }
 
 .greenLight{
-	background-color: #00E600;
-	border-radius: 5px;
-	border: 1px solid #000000 !important;
+   background-color: #00E600;
+   border-radius: 5px;
+   border: 1px solid #000000 !important;
 }
 
 .yellowGreenLight{
-	background: linear-gradient(45deg, #00E600 25%, #f1c40f 25%, 
+   background: linear-gradient(45deg, #00E600 25%, #f1c40f 25%, 
                                            #f1c40f 50%, #00E600 50%, 
                                            #00E600 75%, #f1c40f 75%,
                                            #f1c40f);
         background-size: 50px 50px;
-	border-radius: 5px;
-	border: 1px solid #000000 !important;
+   border-radius: 5px;
+   border: 1px solid #000000 !important;
 }
 
 .redLight{
-	background-color: #c0392b;
-	border-radius: 5px;
-	border: 1px solid #000000 !important;
-	color: #EEEEEE;
+   background-color: #c0392b;
+   border-radius: 5px;
+   border: 1px solid #000000 !important;
+   color: #EEEEEE;
 
-	animation-name: pulse;
-	-webkit-animation-name: pulse;	
+   animation-name: pulse;
+   -webkit-animation-name: pulse;   
 
-	animation-duration: 1.5s;	
-	-webkit-animation-duration: 1.5s;
+   animation-duration: 1.5s;  
+   -webkit-animation-duration: 1.5s;
 
-	animation-iteration-count: 0; /*infinite*/
-	-webkit-animation-iteration-count: 0; /*infinite*/
+   animation-iteration-count: 0; /*infinite*/
+   -webkit-animation-iteration-count: 0; /*infinite*/
 }
 
 @keyframes pulse{
-	0% {
-		background-color:#EEEEEE;
-		border-color:#EEEEEE;
-	}
-	50% {
-		background-color:#c0392b;
-		border-color:#000000;
-	}
-	100% {
-		background-color:#EEEEEE;
-		border-color:#EEEEEE;
-	}
+   0% {
+      background-color:#EEEEEE;
+      border-color:#EEEEEE;
+   }
+   50% {
+      background-color:#c0392b;
+      border-color:#000000;
+   }
+   100% {
+      background-color:#EEEEEE;
+      border-color:#EEEEEE;
+   }
 
 }
 
 @-webkit-keyframes pulse{
-	0% {
-		background-color:#EEEEEE;
-		border-color:#EEEEEE;
-	}
-	50% {
-		background-color:#c0392b;
-		border-color:#000000;
-	}
-	100% {
-		background-color:#EEEEEE;
-		border-color:#EEEEEE;
-	}
+   0% {
+      background-color:#EEEEEE;
+      border-color:#EEEEEE;
+   }
+   50% {
+      background-color:#c0392b;
+      border-color:#000000;
+   }
+   100% {
+      background-color:#EEEEEE;
+      border-color:#EEEEEE;
+   }
 
 }
 
 .yellowLight{
-	background-color: #f1c40f;
-	border-radius: 5px;
-	border: 1px solid #000000 !important;
+   background-color: #f1c40f;
+   border-radius: 5px;
+   border: 1px solid #000000 !important;
 }
 
 .whiteLight{
-	background-color: #EEEEEE;
+   background-color: #EEEEEE;
    border-radius: 5px;
    border: 1px solid #000000 !important;
 }
@@ -532,8 +535,8 @@ td.meterCell{
 }
 
 .msgService{
-	background-color: #C0C0C0;
-	border-radius: 12px;
+   background-color: #C0C0C0;
+   border-radius: 12px;
    padding: 1em;
 }
 
@@ -558,32 +561,32 @@ td.meterCell{
 
 /*---- ODB pages ----*/
 .ODBkey{
-	text-align: left;
-	padding-left: 2em;
+   text-align: left;
+   padding-left: 2em;
    border-top: 1px solid #DDDDDD;
 }
 
 .ODBvalue{
-	text-align: left;
+   text-align: left;
    border-top: 1px solid #DDDDDD;
 }
 
 .ODBtable{
-	border-radius: 25px;
-	border: 2px solid #00B26B;
-	background-color: #EEEEEE;
-	color:#111111;
-	padding:0.5em;
-	margin-top: 1em;
-	margin-bottom:1em;
+   border-radius: 25px;
+   border: 2px solid #00B26B;
+   background-color: #EEEEEE;
+   color:#111111;
+   padding:0.5em;
+   margin-top: 1em;
+   margin-bottom:1em;
 }
 
 .genericStripe{
-	border-spacing: 0px 1px;
+   border-spacing: 0px 1px;
 }
 
 .genericStripe td{
-	border:none;
+   border:none;
 }
 
 /*table striping*/
@@ -600,15 +603,15 @@ td.meterCell{
 }
 
 #stripeList tr:nth-child(even), .alarmTable tr:nth-of-type(odd), .historyTable tr:nth-child(odd), .genericStripe tr:nth-child(odd), .messageBox p:nth-child(odd){
-	background-color: #DDDDDD;
+   background-color: #DDDDDD;
 }
 
 #elogContent tr:nth-child(4n+3), #elogContent tr:nth-child(4n+4){
-	background-color: #DDDDDD;
+   background-color: #DDDDDD;
 }
 
 #elogContent{
-	border-spacing:0px;	
+   border-spacing:0px;  
 }
 
 .elogText{
@@ -620,27 +623,27 @@ td.meterCell{
 
 /*client table checkers*/
 #clientsTable tr:nth-child(odd) td:nth-child(odd){
-	background-color: #DDDDDD;
+   background-color: #DDDDDD;
 }
 #clientsTable tr:nth-child(even) td:nth-child(even){
-	background-color: #DDDDDD;
+   background-color: #DDDDDD;
 }
 
 #stripeList{
-	border-spacing: 0px 1px;
+   border-spacing: 0px 1px;
 }
 
 #stripeList td{
-	border:none;
+   border:none;
 }
 
 /*---- Messages & Chat pages ----*/
 
 .messageBox {
-	text-align: left;
-	overflow: scroll;
-	line-height: 0.75em;
-	margin: 0.25em;
+   text-align: left;
+   overflow: scroll;
+   line-height: 0.75em;
+   margin: 0.25em;
    width: 100%-0.5em;
 }
 
@@ -744,7 +747,7 @@ a:focus { color:#0000FF; text-decoration:underline }
 
 /* MSCB */
 .vars td.v1:nth-child(odd), .vars td.v2:nth-child(odd){
-	background-color: #EEEEEE !important;
+   background-color: #EEEEEE !important;
 }
 
 

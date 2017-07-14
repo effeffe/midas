@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html class="mcss">
+<head>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css">
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <script src="obsolete.js"></script>
+   <title>Messages</title>
+</head>
+
+<body class="mcss" onload="msg_load('ASCII')">
+
+<script>
+   url = mhttpd_getParameterByName("URL");
+   if (url)
+      mjsonrpc_set_url(url);
+</script>
+
+<div class="mwrapper">
+   <script>
+      mhttpd_navigation_bar("Messages");
+
+      // show navigation bar for facilities
+      document.write("<div class=\"mnav\">\n");
+      document.write("  <table>\n");
+      document.write("    <tr><td id=\"navigationFacilitiesButtons\"></td></tr>\n");
+      document.write("  </table>\n\n");
+      document.write("</div>\n");
+
+      if (localStorage.mNavigationButtons != undefined) {
+         document.getElementById("navigationFacilitiesButtons").innerHTML = localStorage.mFacilitiesButtons;
+      }
+
+      mjsonrpc_call("cm_msg_facilities").then(function (rpc) {
+         var f = rpc.result.facilities;
+         var html = "";
+         for (var i = 0; i < f.length; i++) {
+            var c = "mnav navButton";
+            if (f[i] == facility) {
+               c = "mnav mnavsel navButtonSel";
+            }
+            html += "<input type=button name=cmd value=\"" + f[i] + "\" class=\"" + c + "\" onclick=\"msg_load(\'" + f[i] + "\');return false;\">\n";
+         }
+         document.getElementById("navigationFacilitiesButtons").innerHTML = html;
+
+         // cache navigation buttons in browser local storage
+         localStorage.setItem("mFacilitiesButtons", html);
+
+      }).catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
+
+   </script>
+
+   <div>
+      <div class="mmessagebox mfont" id="messageFrame"><h1 class="mtableheader">Messages</h1></div>
+   </div>
+</div>
+
+<script>
+   mhttpd_page_footer();
+</script>
+
+<script>
+   var facility;
+   var first_tstamp;
+   var last_tstamp;
+   var n_messages;
+   var end_of_messages;
+   var timer_front;
+   var timer_tail;
+
+   function GetMsg(facility, start, n, callback) {
+      var request = XMLHttpRequestGeneric();
+      request.onreadystatechange = function () {
+         if (this.readyState == 4 && this.status == 200) {
+            if (n > 1 || n == 0) {
+               var array = request.responseText.split('\n');
+               while (array.length > 1 && array[array.length - 1] == "")
+                  array = array.slice(0, array.length - 1);
+               callback(array);
+            } else
+               callback(request.responseText);
+         }
+      }
+
+      var url = ODBUrlBase + '?cmd=jmsg&f=' + facility + '&t=' + start + '&n=' + n;
+      request.open('GET', url, true);
+      request.send();
+   }
+
+   function resize_message_box() {
+      // set message window height to fit browser window
+      var mf = document.getElementById('messageFrame');
+      var h = window.innerHeight;
+      h -= findPos(mf)[1];
+      h -= document.getElementById('footerDiv').clientHeight;
+      mf.style.maxHeight = h + "px";
+   }
+
+   function msg_load(f) {
+      facility = f;
+      first_tstamp = 0;
+      last_tstamp = 0;
+      n_messages = 0;
+      end_of_messages = false;
+
+      if (timer_front != undefined)
+         window.clearTimeout(timer_front);
+      if (timer_tail != undefined)
+         window.clearTimeout(timer_tail);
+
+      // manage selection of facility button
+      var button = document.getElementById("navigationFacilitiesButtons").children;
+      for (var i = 0; i < button.length; i++)
+         if (button[i].value == facility)
+            button[i].className = "mnav mnavsel navButtonSel";
+         else
+            button[i].className = "mnav navButton";
+
+      // remove old messages
+      var mf = document.getElementById('messageFrame');
+      for (var i = mf.childNodes.length - 1; i > 0; i--)
+         mf.removeChild(mf.childNodes[i]);
+
+      GetMsg(facility, 0, 100, function(msg) {
+         msg_append(msg);
+         // check for new messages
+         timer_front = window.setTimeout(msg_extend_front, 1000);
+         // extend messages on scrolling down
+         timer_tail = window.setTimeout(msg_extend_tail, 1000);
+      });
+      resize_message_box();
+      window.onresize = resize_message_box;
+   }
+
+   function msg_prepend(msg) {
+      var mf = document.getElementById('messageFrame');
+
+      for (var i = 0; i < msg.length; i++) {
+         var line = msg[i];
+         var t = parseInt(line);
+
+         if (line.indexOf(" ") && (t > 0 || t == -1))
+            line = line.substr(line.indexOf(" ") + 1);
+         var e = document.createElement("p");
+         e.className = "mmessageline";
+         e.appendChild(document.createTextNode(line));
+
+         if (e.innerHTML == mf.childNodes[1 + i].innerHTML)
+            break;
+         mf.insertBefore(e, mf.childNodes[1 + i]);
+         first_tstamp = t;
+         n_messages++;
+
+         if (line.search("ERROR]") > 0) {
+            e.style.backgroundColor = "red";
+            e.style.color = "white";
+         } else {
+            e.style.backgroundColor = "yellow";
+            e.age = new Date() / 1000;
+            e.style.setProperty("-webkit-transition", "background-color 3s", "");
+            e.style.setProperty("transition", "background-color 3s", "");
+         }
+
+      }
+   }
+
+   function msg_append(msg) {
+      if (msg[0] == "")
+         end_of_messages = true;
+      if (end_of_messages)
+         return;
+      var mf = document.getElementById('messageFrame');
+      for (var i = 0; i < msg.length; i++) {
+         var line;
+         line = msg[i];
+         var t = parseInt(line);
+
+         if (t != -1 && t > first_tstamp)
+            first_tstamp = t;
+         if (t != -1 && (last_tstamp == 0 || t < last_tstamp))
+            last_tstamp = t;
+         if (line.indexOf(" ") && (t > 0 || t == -1))
+            line = line.substr(line.indexOf(" ") + 1);
+         var e = document.createElement("p");
+         e.className = "mmessageline";
+         e.appendChild(document.createTextNode(line));
+         if (line.search("ERROR]") > 0) {
+            e.style.backgroundColor = "red";
+            e.style.color = "white";
+         }
+
+         mf.appendChild(e);
+         n_messages++;
+      }
+   }
+
+   function findPos(obj) {
+      var cursorleft = 0;
+      var cursortop = 0;
+      if (obj.offsetParent) {
+         do {
+            cursorleft += obj.offsetLeft;
+            cursortop += obj.offsetTop;
+         } while (obj = obj.offsetParent);
+         return [cursorleft, cursortop];
+      }
+   }
+
+   function msg_extend_tail() {
+      // if scroll bar is close to end, append messages
+      var mf = document.getElementById('messageFrame');
+      if (mf.scrollHeight - mf.scrollTop - mf.clientHeight < 2000) {
+         if (!end_of_messages) {
+            if (last_tstamp > 0) {
+               GetMsg(facility, last_tstamp - 1, 100, function(msg) {
+                  msg_append(msg);
+                  timer_tail = window.setTimeout(msg_extend_tail, 1000);
+               });
+            } else {
+               // in non-timestamped mode, simply load full message list
+               GetMsg(facility, 0, n_messages + 100, function (msg) {
+                  n_messages = 0;
+
+                  var mf = document.getElementById('messageFrame');
+                  for (var i = mf.childNodes.length - 1; i > 0; i--)
+                     mf.removeChild(mf.childNodes[i]);
+                  msg_append(msg);
+                  timer_tail = window.setTimeout(msg_extend_tail, 1000);
+               });
+            }
+         }
+      } else
+         timer_tail = window.setTimeout(msg_extend_tail, 1000);
+   }
+
+   function msg_extend_front() {
+      // remove color of new elements after a while
+      var mf = document.getElementById('messageFrame');
+      for (i = 1; i < mf.childNodes.length; i++) {
+         if (mf.childNodes[i].age != undefined) {
+            var t = new Date() / 1000;
+            if (t > mf.childNodes[i].age + 5)
+               mf.childNodes[i].style.backgroundColor = "";
+         }
+      }
+
+      // check for new message if time stamping is on
+      if (first_tstamp) {
+         GetMsg(facility, first_tstamp, 0, function (msg) {
+            msg_prepend(msg);
+            timer_front = window.setTimeout(msg_extend_front, 1000);
+         });
+      }
+   }
+
+</script>
+
+
+</body>
+</html>
