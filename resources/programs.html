@@ -22,11 +22,11 @@
       </script>
       
       <div>
-        <table class="mtablecss subStatusTable" id="stripeList">
+        <table class="mtable subStatusTable" id="stripeList">
           <tr>
-            <td colspan=5 class="mtableheadercss subStatusTitle">Programs</td>
+            <td colspan=5 class="mtableheader subStatusTitle">Programs</td>
           </tr>
-          <tr class="mtabletitlecss titleRow">
+          <tr class="mtabletitle titleRow">
             <th>Program</th>
             <th>Running on host</th>
             <th>Alarm class</th>
@@ -100,7 +100,7 @@
     {
        var tr = document.createElement("tr");
        tr.id = "program " + name;
-       tr.className = "mtablecss";
+       tr.className = "mtable";
        
        var td;
        var input;
@@ -128,7 +128,7 @@
        input = start_button;
        input.id = "start " + name;
        input.type = "button";
-       input.className = "mbuttoncss";
+       input.className = "mbutton";
        input.innerHTML = "Start " + full_name;
        mhttpd_disable_button(input);
        input.onclick = function() {
@@ -149,7 +149,7 @@
        input = stop_button;
        input.id = "stop " + name;
        input.type = "button";
-       input.className = "mbuttoncss";
+       input.className = "mbutton";
        input.innerHTML = "Stop " + full_name;
        mhttpd_disable_button(input);
        input.onclick = function() {

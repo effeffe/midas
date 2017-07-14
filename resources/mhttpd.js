@@ -269,16 +269,27 @@ function mhttpd_navigation_bar(current_page, path)
    document.write("<div id=\"customHeader\">\n");
    document.write("</div>\n");
 
-   document.write("<div class=\"mnavcss\">\n");
-   document.write("<table class=\"navigationTable\">\n");
-   document.write("<tr><td id=\"navigationTableButtons\">(navigation buttons will be loaded here)\n</td></tr>\n");
-   document.write("</table>\n\n");
+   document.write("<div class=\"mnav\">\n");
+   document.write("  <table>\n");
+   document.write("    <tr><td id=\"navigationTableButtons\"></td></tr>\n");
+   document.write("  </table>\n\n");
    document.write("</div>\n");
 
    //console.log("current_page: " + current_page + ", path: " + path);
 
    if (!path) {
       path = "";
+   }
+
+   if (localStorage.mNavigationButtons != undefined) {
+      document.getElementById("navigationTableButtons").innerHTML = localStorage.mNavigationButtons;
+      var button = document.getElementById("navigationTableButtons").children;
+      for (var i=0 ; i<button.length ; i++)
+         if (button[i].value == current_page)
+            button[i].className = "mnav mnavsel navButtonSel";
+         else
+            button[i].className = "mnav navButton";
+      return;
    }
 
    mjsonrpc_db_get_values(["/Custom/Header", "/Experiment/Menu", "/Experiment/Menu Buttons"]).then(function(rpc) {
@@ -313,13 +324,17 @@ function mhttpd_navigation_bar(current_page, path)
       
       for (var i=0; i<b.length; i++) {
          var bb = b[i].trim();
-         var cc = "mnavcss navButton";
+         var cc = "mnav navButton";
          if (bb == current_page) {
-            cc = "mnavcss mnavselcss navButtonSel";
+            cc = "mnav mnavsel navButtonSel";
          }
          html += "<input type=button name=cmd value=\""+bb+"\" class=\""+cc+"\" onclick=\"window.location.href=\'"+path+"?cmd="+bb+"\';return false;\">\n";
       }
       document.getElementById("navigationTableButtons").innerHTML = html;
+
+      // cache navigation buttons in browser local storage
+      localStorage.setItem("mNavigationButtons", html);
+
    }).catch(function(error) {
       mjsonrpc_error_alert(error);
    });
@@ -331,7 +346,7 @@ function mhttpd_page_footer()
    //document.write("<div class=\"push\"></div>\n");
 
    /*---- footer div ----*/
-   document.write("<div id=\"footerDiv\" class=\"mfootercss footerDiv\">\n");
+   document.write("<div id=\"footerDiv\" class=\"mfooter footerDiv\">\n");
    mjsonrpc_db_get_values(["/Experiment/Name"]).then(function(rpc) {
       document.getElementById("mhttpd_expt_name").innerHTML = "Experiment " + rpc.result.data[0];
    }).catch(function(error) {

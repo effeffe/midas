@@ -21,9 +21,9 @@
       mhttpd_navigation_bar("Transition");
       </script>
 
-      <table width="95%" class="mtablecss runStatusTable" id="xstripeList">
+      <table width="95%" class="mtable runStatusTable" id="xstripeList">
         <tr>
-          <th colspan="4" class="mtableheadercss subStatusTitle">Run Status</th>
+          <th colspan="4" class="mtableheader subStatusTitle">Run Status</th>
         </tr>
         <tr>
           <td colspan="1" height="100%" id="run_info" class="mredcolour redLight">
@@ -32,27 +32,27 @@
             <span id="run_state">run_state</span>
           </td>
           <td colspan="3">
-            <input class="mbuttoncss" id="startButton" type=button value=Start onClick="mhttpd_start_run();">
-            <input class="mbuttoncss" id="stopButton" type=button value=Stop onClick="mhttpd_stop_run();">
-            <input class="mbuttoncss" id="pauseButton" type=button value=Pause onClick="mhttpd_pause_run();">
-            <input class="mbuttoncss" id="resumeButton" type=button value=Resume onClick="mhttpd_resume_run();">
-            <input class="mbuttoncss" id="cancelButton" type=button value="Cancel Transition" onClick="mhttpd_cancel_transition();">
+            <input class="mbutton" id="startButton" type=button value=Start onClick="mhttpd_start_run();">
+            <input class="mbutton" id="stopButton" type=button value=Stop onClick="mhttpd_stop_run();">
+            <input class="mbutton" id="pauseButton" type=button value=Pause onClick="mhttpd_pause_run();">
+            <input class="mbutton" id="resumeButton" type=button value=Resume onClick="mhttpd_resume_run();">
+            <input class="mbutton" id="cancelButton" type=button value="Cancel Transition" onClick="mhttpd_cancel_transition();">
           </td>
         </tr>
       </table>
 
-      <span class="mfontcss" id="tr_status">tr_status</span>
+      <span class="mfont" id="tr_status">tr_status</span>
 
-      <table width="95%" class="mtablecss subStatusTable" id="stripeList">
+      <table width="95%" class="mtable subStatusTable" id="stripeList">
         <tr>
-          <th colspan="5" class="mtableheadercss subStatusTitle">Run transition</th>
+          <th colspan="5" class="mtableheader subStatusTitle">Run transition</th>
         </tr>
         <tr>
           <td colspan="5">
             Last transition: <span id="transition">transition</span>, Status: <span id="status">status</span> (<span id="errorstr">errorstr</span>), Time: <span id="time">time</span>
           </td>
         </tr>
-        <tr class="mtabletitlecss titleRow">
+        <tr class="mtabletitle titleRow">
           <th>Client</th>
           <th>Sequence</th>
           <th>Time</th>
@@ -89,7 +89,7 @@
        
        var tr = document.createElement("tr");
        tr.id = "client " + name;
-       tr.className = "mtablecss";
+       tr.className = "mtable";
        
        var td;
 

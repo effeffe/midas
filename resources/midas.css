@@ -6,115 +6,160 @@
 /* required global settings */
 
 body.mcss {
-    margin: 0;     /* navigation bar matches window edges */
-    height: 100%;  /* for the floating footer */
+   margin: 0;     /* navigation bar matches window edges */
+   height: 100%;  /* for the floating footer */
 }
 
 html.mcss {
-    height: 100%;  /* for the floating footer */
+   height: 100%;  /* for the floating footer */
 }
 
 /* common settings: fonts, colours, etc */
 
-.mfontcss, .mnavcss, .mbuttoncss, .mfootercss, .mtablecss {
-    font-family: verdana,tahoma,sans-serif;
+.mfont, .mnav, .mbutton, .mfooter, .mtable {
+   font-family: verdana,tahoma,sans-serif;
 }
 
 .mredcolour {
-    background-color: #c0392b;
-    border-radius: 5px;
-    border: 1px solid #808080;
-    color: #EEEEEE;
+   background-color: #c0392b;
+   border-radius: 5px;
+   border: 1px solid #808080;
+   color: #EEEEEE;
 }
 
 .myellowcolour {
-    background-color: #f1c40f;
-    border-radius: 5px;
-    border: 1px solid #808080;
+   background-color: #f1c40f;
+   border-radius: 5px;
+   border: 1px solid #808080;
 }
 
 .mgreencolour {
-    background-color: #00e600;
-    border-radius: 5px;
-    border: 1px solid #808080;
+   background-color: #00e600;
+   border-radius: 5px;
+   border: 1px solid #808080;
 }
 
 /* mnav*css is the navigation bar with the "status", "odb", etc buttons */
 
-.mnavcss {
-    background: linear-gradient(to bottom, #e9e9e9 0%,#b7b7b7 100%);
+.mnav {
+   background: linear-gradient(to bottom, #e9e9e9 0%,#b7b7b7 100%);
+}
+
+.mnav table{
+   margin-left: auto;
+   margin-right: auto;
+}
+
+.mnav td{
+   border: 0;
+   height: 34px;
+}
+
+.mnav input{
+   padding: 0.25em;
+   padding-left: 0.5em;
+   padding-right: 0.5em;
 }
 
 /* all navigation buttons */
 
-input.mnavcss, .mbuttoncss {
-    border: 1px solid #808080;
-    border-radius: 5px;
-    color: #444444;
-    background: linear-gradient(to bottom, #f5f5f5 0%,#c0c0c0 100%);
-    font-size: 100%;
-    margin: 2px;
+input.mnav, .mbutton {
+   border: 1px solid #808080;
+   border-radius: 5px;
+   color: #444444;
+   background: linear-gradient(to bottom, #f5f5f5 0%,#c0c0c0 100%);
+   font-size: 100%;
+   margin: 2px;
 }
 
 /* selected navigation button */
 
-input.mnavselcss {
-    color: #F8F8F8;
-    background: linear-gradient(to bottom, #676767 0%,#999999 100%);
+input.mnavsel {
+   color: #F8F8F8;
+   background: linear-gradient(to bottom, #676767 0%,#999999 100%);
 }
 
 /* colours for hovered buttons */
-input.mnavcss:hover, .mbuttoncss:hover {
+input.mnav:hover, .mbutton:hover {
+   color: #404040;
    background: linear-gradient(to bottom,  #ffffff 0%,#f3f3f3 50%,#ededed 51%,#ffffff 100%);
 }
 
 /* table formatting */
 
-.mtablecss {
-    border: 2px solid #00B26B;
-    border-radius: 12px;
-    margin-left: auto;
-    margin-right: auto;
-    margin-top: 12px;
-    margin-bottom: 12px;
+.mtable {
+   border: 2px solid #00B26B;
+   border-radius: 12px;
+   margin-left: auto;
+   margin-right: auto;
+   margin-top: 12px;
+   margin-bottom: 12px;
 }
 
-tr:nth-child(even).mtablecss {
+.mmessagebox {
+   margin: 0.25em;
+   border: 2px solid #00B26B;
+   border-radius: 12px;
+   padding: 0;
+   overflow: scroll;
+   text-align: left;
+}
+
+.mmessagebox p:nth-child(odd){
    background-color: #DDDDDD;
 }
 
-.mtableheadercss {
-    font-size: 120%;
-    font-weight: bold;
-    border-radius: 12px;
-    background-color: #3498db;
-    color: #EEEEEE;
-    text-align: center;
+.mmessagebox p:nth-child(even){
+   background-color: #FFFFFF;
 }
 
-.mtabletitlecss {
-    padding: 0.25em;
+.mmessageline {
+   font-family: Lucida Console, Fixed, Monospace;
+   white-space: pre-wrap;
+   line-height: 1.5em;
+   margin: 0;
+   padding-left: 10px;
+   padding-right: 10px;
+}
+
+tr:nth-child(even).mtable {
+   background-color: #DDDDDD;
+}
+
+.mtableheader {
+   font-size: 120%;
+   font-weight: bold;
+   border-radius: 12px;
+   background-color: #3498db;
+   color: #EEEEEE;
+   margin: 0.1em;
+   padding: 0.25em;
+   text-align: center;
+}
+
+.mtabletitle {
+   padding: 0.25em;
 }
 
 /* floating footer */
 
 div.mwrapper {
-    min-height: 100%;
-    height: auto !important;
-    height: 100%;
-    margin: 0 auto -3em;
+   min-height: 100%;
+   height: auto !important;
+   height: 100%;
+   margin: 0 auto -3em;
 }
 
 div.mpush{
-	 height: 3em;
+   height: 3em;
 }
 
-.mfootercss {
-    background-color: #808080;
-    color: #EEEEEE;
-    font-size: 100%;
-    text-align: center;
-    padding: 1em;
+.mfooter {
+   background-color: #808080;
+   color: #EEEEEE;
+   font-size: 100%;
+   text-align: center;
+   padding: 1em;
 }
 
 /* end */
