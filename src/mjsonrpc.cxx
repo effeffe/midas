@@ -388,6 +388,12 @@ static MJsonNode* xnull(const MJsonNode* params)
    return mjsonrpc_make_result(MJsonNode::MakeNull());
 }
 
+/////////////////////////////////////////////////////////////////////////////////
+//
+// Programs start/stop code goes here
+//
+/////////////////////////////////////////////////////////////////////////////////
+
 static MJsonNode* js_cm_exist(const MJsonNode* params)
 {
    if (!params) {
@@ -474,6 +480,12 @@ static MJsonNode* start_program(const MJsonNode* params)
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
+
+/////////////////////////////////////////////////////////////////////////////////
+//
+// ODB code goes here
+//
+/////////////////////////////////////////////////////////////////////////////////
 
 static int parse_array_index_list(const char* method, const char* path, std::vector<unsigned> *list)
 {
@@ -1334,6 +1346,12 @@ static MJsonNode* js_db_reorder(const MJsonNode* params)
    return mjsonrpc_make_result("status", sresult);
 }
 
+/////////////////////////////////////////////////////////////////////////////////
+//
+// cm_msg code goes here
+//
+/////////////////////////////////////////////////////////////////////////////////
+
 static MJsonNode* js_cm_msg_facilities(const MJsonNode* params)
 {
    if (!params) {
@@ -1433,6 +1451,12 @@ static MJsonNode* js_cm_retrieve(const MJsonNode* params)
    return mjsonrpc_make_result(result);
 }
 
+/////////////////////////////////////////////////////////////////////////////////
+//
+// Alarm code goes here
+//
+/////////////////////////////////////////////////////////////////////////////////
+
 static MJsonNode* js_al_reset_alarm(const MJsonNode* params)
 {
    if (!params) {
@@ -1507,6 +1531,281 @@ static MJsonNode* js_al_trigger_class(const MJsonNode* params)
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
 
+/////////////////////////////////////////////////////////////////////////////////
+//
+// History code goes here
+//
+/////////////////////////////////////////////////////////////////////////////////
+
+#include "history.h"
+
+static MJsonNode* js_hs_get_active_events(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get list of active history events using hs_read_event_list()");
+      doc->R("status", MJSON_INT, "return status of hs_read_event_list()");
+      doc->R("events[]", MJSON_STRING, "array of history event names");
+      return doc;
+   }
+
+   STRING_LIST list;
+   
+   int status = hs_read_event_list(&list);
+
+   MJsonNode* events = MJsonNode::MakeArray();
+
+   for (unsigned i=0; i<list.size(); i++) {
+      events->AddToArray(MJsonNode::MakeString(list[i].c_str()));
+   }
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "events", events);
+}
+
+typedef std::map<std::string,MidasHistoryInterface*> MhiMap;
+
+static MhiMap gHistoryChannels;
+
+static MidasHistoryInterface* GetHistory(const char* name)
+{
+   // empty name means use the default reader channel
+   printf("GetHistory [%s]\n", name);
+
+   MhiMap::iterator ci = gHistoryChannels.find(name);
+   if (ci != gHistoryChannels.end()) {
+      return ci->second;
+   };
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+   
+   int verbose = 0;
+   int status;
+   HNDLE hKey = 0;
+   status = hs_find_reader_channel(hDB, &hKey, verbose);
+   if (status != HS_SUCCESS) {
+      return NULL;
+   }
+
+   printf("name [%s] hKey %d\n", name, hKey);
+
+   MidasHistoryInterface* mh = NULL;
+
+   status = hs_get_history(hDB, hKey, HS_GET_READER|HS_GET_INACTIVE, verbose, &mh);
+   if (status != HS_SUCCESS || mh==NULL) {
+      cm_msg(MERROR, "GetHistory", "Cannot configure history, hs_get_history() status %d", status);
+      return NULL;
+   }
+
+   gHistoryChannels[name] = mh;
+   
+   cm_msg(MINFO, "GetHistory", "Reading history channel \"%s\" from channel \'%s\' type \'%s\'", name, mh->name, mh->type);
+
+   return mh;
+}
+
+static MJsonNode* js_hs_get_events(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get list of history events that existed at give time using hs_get_events()");
+      doc->P("channel?", MJSON_STRING, "midas history channel, default is the default reader channel");
+      doc->P("time?", MJSON_NUMBER, "timestamp, value 0 means current time, default is 0");
+      doc->R("status", MJSON_INT, "return status of hs_get_events()");
+      doc->R("events[]", MJSON_STRING, "array of history event names");
+      return doc;
+   }
+
+   const char* channel = mjsonrpc_get_param(params, "channel", NULL)->GetString().c_str();
+   double time = mjsonrpc_get_param(params, "time", NULL)->GetDouble();
+
+   MidasHistoryInterface* mh = GetHistory(channel);
+
+   MJsonNode* events = MJsonNode::MakeArray();
+
+   if (!mh) {
+      int status = HS_FILE_ERROR;
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "events", events);
+   }
+
+   STRING_LIST list;
+   
+   int status = mh->hs_get_events(time, &list);
+
+   for (unsigned i=0; i<list.size(); i++) {
+      events->AddToArray(MJsonNode::MakeString(list[i].c_str()));
+   }
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "events", events);
+}
+
+static MJsonNode* js_hs_reopen(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("reopen the history channel to make sure we see the latest list of events using hs_clear_cache()");
+      doc->P("channel?", MJSON_STRING, "midas history channel, default is the default reader channel");
+      doc->R("status", MJSON_INT, "return status of hs_get_events()");
+      return doc;
+   }
+
+   const char* channel = mjsonrpc_get_param(params, "channel", NULL)->GetString().c_str();
+
+   MidasHistoryInterface* mh = GetHistory(channel);
+
+   if (!mh) {
+      int status = HS_FILE_ERROR;
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+   }
+
+   int status = mh->hs_clear_cache();
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+}
+
+static MJsonNode* js_hs_get_tags(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get list of history tags for given history events that existed at give time using hs_get_tags()");
+      doc->P("channel?", MJSON_STRING, "midas history channel, default is the default reader channel");
+      doc->P("time?", MJSON_NUMBER, "timestamp, value 0 means current time, default is 0");
+      doc->P("events[]?", MJSON_STRING, "array of history event names, default is get all events using hs_get_events()");
+      doc->R("status", MJSON_INT, "return status");
+      doc->R("events[].name", MJSON_STRING, "array of history event names for each history event");
+      doc->R("events[].status", MJSON_INT, "array of status ohistory tags for each history event");
+      doc->R("events[].tags[]", MJSON_STRING, "array of history tags for each history event");
+      doc->R("events[].tags[].name", MJSON_STRING, "history tag name");
+      doc->R("events[].tags[].type", MJSON_INT, "history tag midas data type");
+      doc->R("events[].tags[].n_data?", MJSON_INT, "history tag number of array elements, omitted if 1");
+      return doc;
+   }
+
+   const char* channel = mjsonrpc_get_param(params, "channel", NULL)->GetString().c_str();
+   double time = mjsonrpc_get_param(params, "time", NULL)->GetDouble();
+   const MJsonNodeVector* events_array = mjsonrpc_get_param_array(params, "events", NULL);
+
+   MidasHistoryInterface* mh = GetHistory(channel);
+
+   MJsonNode* events = MJsonNode::MakeArray();
+
+   if (!mh) {
+      int status = HS_FILE_ERROR;
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "events", events);
+   }
+
+   std::vector<std::string> event_names;
+
+   if (events_array && events_array->size() > 0) {
+      for (unsigned i=0; i<events_array->size(); i++) {
+         event_names.push_back((*events_array)[i]->GetString());
+      }
+   }
+
+   if (event_names.size() < 1) {
+      int status = mh->hs_get_events(time, &event_names);
+      if (status != HS_SUCCESS) {
+         return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "events", events);
+      }
+   }
+
+   for (unsigned i=0; i<event_names.size(); i++) {
+      MJsonNode* o = MJsonNode::MakeObject();
+      const char* event_name = event_names[i].c_str();
+      std::vector<TAG> tags;
+      int status = mh->hs_get_tags(event_name, time, &tags);
+      o->AddToObject("name", MJsonNode::MakeString(event_name));
+      o->AddToObject("status", MJsonNode::MakeInt(status));
+      MJsonNode *ta = MJsonNode::MakeArray();
+      for (unsigned j=0; j<tags.size(); j++) {
+         MJsonNode* to = MJsonNode::MakeObject();
+         to->AddToObject("name", MJsonNode::MakeString(tags[j].name));
+         to->AddToObject("type", MJsonNode::MakeInt(tags[j].type));
+         if (tags[j].n_data != 1) {
+            to->AddToObject("n_data", MJsonNode::MakeInt(tags[j].n_data));
+         }
+         ta->AddToArray(to);
+      }
+      o->AddToObject("tags", ta);
+      events->AddToArray(o);
+   }
+
+   int status = HS_SUCCESS;
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "events", events);
+}
+
+static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get list of history tags for given history events that existed at give time using hs_get_last_written()");
+      doc->P("channel?", MJSON_STRING, "midas history channel, default is the default reader channel");
+      doc->P("time?", MJSON_NUMBER, "timestamp, value 0 means current time, default is 0");
+      doc->P("events[]", MJSON_STRING, "array of history event names");
+      doc->P("tags[]", MJSON_STRING, "array of history event tag names");
+      doc->P("index[]", MJSON_STRING, "array of history event tag array indices");
+      doc->R("status", MJSON_INT, "return status");
+      doc->R("last_written[]", MJSON_NUMBER, "array of last-written times for each history event");
+      return doc;
+   }
+
+   const char* channel = mjsonrpc_get_param(params, "channel", NULL)->GetString().c_str();
+   double time = mjsonrpc_get_param(params, "time", NULL)->GetDouble();
+
+   const MJsonNodeVector* events_array = mjsonrpc_get_param_array(params, "events", NULL);
+   const MJsonNodeVector* tags_array = mjsonrpc_get_param_array(params, "tags", NULL);
+   const MJsonNodeVector* index_array = mjsonrpc_get_param_array(params, "index", NULL);
+
+   MidasHistoryInterface* mh = GetHistory(channel);
+
+   MJsonNode* lw = MJsonNode::MakeArray();
+
+   if (!mh) {
+      int status = HS_FILE_ERROR;
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "last_written", lw);
+   }
+
+   int num_var = events_array->size();
+
+   if (tags_array->size() != num_var) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and tags should have the same length");
+   }
+
+   if (index_array->size() != num_var) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and index should have the same length");
+   }
+
+   const char** event_name = new const char*[num_var];
+   const char** tag_name = new const char*[num_var];
+   int* var_index = new int[num_var];
+   time_t* last_written = new time_t[num_var];
+
+   for (int i=0; i<num_var; i++) {
+      event_name[i] = (*events_array)[i]->GetString().c_str();
+      tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      var_index[i] = (*index_array)[i]->GetInt();
+   }
+
+   int status = mh->hs_get_last_written(time, num_var, event_name, tag_name, var_index, last_written);
+
+   for (int i=0; i<num_var; i++) {
+      lw->AddToArray(MJsonNode::MakeNumber(last_written[i]));
+   }
+
+   delete event_name;
+   delete tag_name;
+   delete var_index;
+   delete last_written;
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "last_written", lw);
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+//
+// jrpc code goes here
+//
+/////////////////////////////////////////////////////////////////////////////////
+
 static MJsonNode* jrpc(const MJsonNode* params)
 {
    if (!params) {
@@ -1561,6 +1860,12 @@ static MJsonNode* jrpc(const MJsonNode* params)
    
    return mjsonrpc_make_result("reply", reply, "status", MJsonNode::MakeInt(SUCCESS));
 }
+
+/////////////////////////////////////////////////////////////////////////////////
+//
+// Run transition code goes here
+//
+/////////////////////////////////////////////////////////////////////////////////
 
 static MJsonNode* js_cm_transition(const MJsonNode* params)
 {
@@ -1638,6 +1943,12 @@ static MJsonNode* js_cm_transition_status(const MJsonNode* params)
 
    return mjsonrpc_make_result(result);
 }
+
+/////////////////////////////////////////////////////////////////////////////////
+//
+// Alarm code goes here
+//
+/////////////////////////////////////////////////////////////////////////////////
 
 static MJsonNode* get_alarms(const MJsonNode* params)
 {
@@ -1842,6 +2153,12 @@ static MJsonNode* get_alarms(const MJsonNode* params)
                                "alarms", alarms);
 }
 
+/////////////////////////////////////////////////////////////////////////////////
+//
+// JSON-RPC management code goes here
+//
+/////////////////////////////////////////////////////////////////////////////////
+
 static MJsonNode* get_debug(const MJsonNode* params)
 {
    if (!params) {
@@ -1909,6 +2226,12 @@ static MJsonNode* get_schema(const MJsonNode* params)
    return mjsonrpc_make_result(mjsonrpc_get_schema());
 }
 
+/////////////////////////////////////////////////////////////////////////////////
+//
+// No RPC handlers beyound here
+//
+/////////////////////////////////////////////////////////////////////////////////
+
 typedef std::map<std::string, mjsonrpc_handler_t*> MethodHandlers;
 typedef MethodHandlers::iterator MethodHandlersIterator;
 
@@ -1957,6 +2280,12 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("db_link",   js_db_link);
    mjsonrpc_add_handler("db_reorder", js_db_reorder);
    mjsonrpc_add_handler("db_key",    js_db_key);
+   // interface to midas history
+   mjsonrpc_add_handler("hs_get_active_events", js_hs_get_active_events);
+   mjsonrpc_add_handler("hs_get_events", js_hs_get_events);
+   mjsonrpc_add_handler("hs_get_tags", js_hs_get_tags);
+   mjsonrpc_add_handler("hs_get_last_written", js_hs_get_last_written);
+   mjsonrpc_add_handler("hs_reopen", js_hs_reopen);
    // methods that perform computations or invoke actions
    mjsonrpc_add_handler("get_alarms",  get_alarms);
    //mjsonrpc_add_handler("get_messages",  get_messages);

@@ -408,6 +408,80 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
 
         <hr>
 
+        <h2>History functions</h2>
+
+        <h2>hs_get_active_events (hs_read_event_list)</h2>
+        
+        <p>
+          <div>
+            <input type=button value='Get list of active history events'
+              onClick='mjsonrpc_call("hs_get_active_events")
+                   .then(function(rpc) {
+                   document.getElementById("hs_get_active_events_data").innerHTML = JSON.stringify(rpc.result.events);
+                   //mjsonrpc_debug_alert(rpc);
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+          </div>
+          <div id="hs_get_active_events_data">
+            list of active history events goes here
+          </div>
+        </p>
+
+        <p>
+          <div>
+            <input type=button value='Get list of history events'
+              onClick='mjsonrpc_call("hs_get_events")
+                   .then(function(rpc) {
+                   document.getElementById("hs_get_events_data").innerHTML = JSON.stringify(rpc.result.events);
+                   //mjsonrpc_debug_alert(rpc);
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+          </div>
+          <div id="hs_get_events_data">
+            list of history events goes here
+          </div>
+        </p>
+
+        <p>
+          <div>
+            <input type=button value='Get list of history tags'
+              onClick='mjsonrpc_call("hs_get_tags",{"events":["Run transitions","nonexistant"]})
+                   .then(function(rpc) {
+                   document.getElementById("hs_get_tags_data").innerHTML = JSON.stringify(rpc.result.events);
+                   //mjsonrpc_debug_alert(rpc);
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+          </div>
+          <div id="hs_get_tags_data">
+            list of history tags goes here
+          </div>
+        </p>
+
+        <p>
+          <div>
+            <input type=button value='Get list of history last-written'
+              onClick='mjsonrpc_call("hs_get_last_written",{"events":["Run transitions"],"tags":["State"],"index":[0]})
+                   .then(function(rpc) {
+                   document.getElementById("hs_get_last_written_data").innerHTML = JSON.stringify(rpc.result.last_written);
+                   //mjsonrpc_debug_alert(rpc);
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+          </div>
+          <div id="hs_get_last_written_data">
+            list of history last-written goes here
+          </div>
+        </p>
+
+        <hr>
+
         <h2>Inline editor functions</h2>
 
         <h2>ODBEdit()</h2>
