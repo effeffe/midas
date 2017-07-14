@@ -1054,8 +1054,13 @@ void MJsonNode::Dump(int nest) const // debug
 
 MJsonNode* MJsonNode::Copy() const
 {
-   assert(!"not implemented yet!");
-   return NULL;
+   MJsonNode* n = new MJsonNode(*this);
+   assert(n->objectnames.size() == objectnames.size());
+   assert(n->subnodes.size() == subnodes.size());
+   for (unsigned i=0; i<n->subnodes.size(); i++) {
+      n->subnodes[i] = subnodes[i]->Copy();
+   }
+   return n;
 }
 
 /* emacs

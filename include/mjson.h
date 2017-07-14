@@ -87,6 +87,11 @@ class MJsonNode {
 
  protected:
    MJsonNode(int type); // protected constructor for subclassing
+
+ private:
+   //MJsonNode(); // constructor not permitted
+   //MJsonNode(const MJsonNode&); // copy by copy-constructor not permitted, use Copy() method
+   MJsonNode& operator=(const MJsonNode&); // copy by assignement not permitted, use Copy() method
 };
 
 #endif
