@@ -358,6 +358,77 @@ function mhttpd_page_footer()
    document.write("</div>\n");
 }
 
+function mhttpd_init(interval) {
+   /*
+      This funciton should be called from custom pages to initialize all ODB tags and refresh
+      them periodically every "interval" in ms
+
+      Example:
+
+      <body class="mcss" onload="mhttpd_init(1000)">
+        ...
+      <div name="modbvalue" data-odb-path="/Runinfo/Run number" data-odb-editable="1"><div>
+        ...
+
+      If the attribute data-odb-editable is set to "1", the value can be changed in-line by clicking at it
+    */
+
+   // remember update interver
+   url = mhttpd_getParameterByName("URL");
+   if (url)
+      mjsonrpc_set_url(url);
+
+   var modbvalue = document.getElementsByName("modbvalue");
+   for (var i = 0; i < modbvalue.length; i++) {
+      var o = modbvalue[i];
+      var loading = "(Loading " + modbvalue[i].dataset.odbPath + " ...)";
+      if (o.dataset.odbEditable) {
+
+         var link = document.createElement('a');
+         link.href = "#";
+         link.innerHTML = loading;
+         link.onclick = function() { ODBInlineEdit(this.parentElement,this.parentElement.dataset.odbPath);return false; };
+         link.onfocus = function() { ODBInlineEdit(this.parentElement,this.parentElement.dataset.odbPath); };
+
+         o.appendChild(link);
+      } else {
+         o.innerHTML = loading;
+      }
+   }
+
+   mhttpd_refresh(interval);
+}
+
+function mhttpd_refresh(interval) {
+   /* this fuction gets called by mhttpd_init to periodically refresh all ODB tags */
+
+   // go through all "modbvalue" fields
+   var modbvalue = document.getElementsByName("modbvalue");
+   var paths = new Array();
+   for (var i = 0; i < modbvalue.length; i++)
+      paths.push(modbvalue[i].dataset.odbPath);
+
+   // request ODB contents for all variables
+   mjsonrpc_db_get_values(paths).then(function (rpc) {
+      for (var i = 0; i < modbvalue.length; i++) {
+         var value = rpc.result.data[i];
+         var tid = rpc.result.tid[i];
+         var mvalue = mie_to_string(tid, value);
+         if (mvalue == "")
+            mvalue = "(empty)";
+         var html = mhttpd_escape(mvalue);
+         if (modbvalue[i].dataset.odbEditable) {
+            modbvalue[i].childNodes[0].innerHTML = html;
+         } else
+            modbvalue[i].innerHTML = html;
+      }
+      if (interval != undefined && interval > 0)
+         window.setTimeout(mhttpd_refresh, interval);
+   }).catch(function (error) {
+      mjsonrpc_error_alert(error);
+   });
+}
+
 function mhttpd_create_page_handle_create(mouseEvent)
 {
    var form = document.getElementsByTagName('form')[0];

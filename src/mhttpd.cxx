@@ -1342,6 +1342,7 @@ void show_header(const char *title, const char *method, const char *path, int re
 
    /* style sheet */
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+   rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
    rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
 
    /* auto refresh */
@@ -16069,6 +16070,13 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       return;
    }
 
+   /*---- send controls.js ------------------------------------------*/
+   
+   if (strstr(dec_path, "controls.js")) {
+      send_resource("controls.js");
+      return;
+   }
+
    /*---- send example web page -------------------------------------*/
 
    if (equal_ustring(command, "example")) {
@@ -16132,6 +16140,50 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    if (equal_ustring(command, "SC")) {
       redirect("SC/");
+      return;
+   }
+
+   /*---- redirect if sequencer command -----------------------------*/
+   
+   if (equal_ustring(command, "sequencer")) {
+      str[0] = 0;
+      for (p=dec_path ; *p ; p++)
+         if (*p == '/')
+            strlcat(str, "../", sizeof(str));
+      strlcat(str, "SEQ/", sizeof(str));
+      redirect(str);
+      return;
+   }
+   
+   /*---- redirect if history command -------------------------------*/
+
+   if (equal_ustring(command, "history")) {
+      str[0] = 0;
+      for (p=dec_path ; *p ; p++)
+         if (*p == '/')
+            strlcat(str, "../", sizeof(str));
+      strlcat(str, "HS/", sizeof(str));
+      redirect(str);
+      return;
+   }
+   
+   /*---- redirect if MSCB command ----------------------------------*/
+
+   if (equal_ustring(command, "MSCB")) {
+      str[0] = 0;
+      for (p=dec_path ; *p ; p++)
+         if (*p == '/')
+            strlcat(str, "../", sizeof(str));
+      strlcat(str, "MS/", sizeof(str));
+      redirect(str);
+      return;
+   }
+   
+   /*---- redirect if elog command ----------------------------------*/
+
+   if (equal_ustring(command, "elog")) {
+      get_elog_url(str, sizeof(str));
+      redirect(str);
       return;
    }
 
@@ -16236,16 +16288,6 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    /*---- history command -------------------------------------------*/
 
-   if (equal_ustring(command, "history")) {
-      str[0] = 0;
-      for (p=dec_path ; *p ; p++)
-         if (*p == '/')
-            strlcat(str, "../", sizeof(str));
-      strlcat(str, "HS/", sizeof(str));
-      redirect(str);
-      return;
-   }
-
    if (strncmp(dec_path, "HS/", 3) == 0) {
       if (equal_ustring(command, "config")) {
          sprintf(str, "%s?cmd=%s", dec_path, command);
@@ -16258,16 +16300,6 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    }
 
    /*---- MSCB command ----------------------------------------------*/
-
-   if (equal_ustring(command, "MSCB")) {
-      str[0] = 0;
-      for (p=dec_path ; *p ; p++)
-         if (*p == '/')
-            strlcat(str, "../", sizeof(str));
-      strlcat(str, "MS/", sizeof(str));
-      redirect(str);
-      return;
-   }
 
    if (strncmp(dec_path, "MS/", 3) == 0) {
       if (equal_ustring(command, "set")) {
@@ -16633,12 +16665,6 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    
    /*---- ELog command ----------------------------------------------*/
 
-   if (equal_ustring(command, "elog")) {
-      get_elog_url(str, sizeof(str));
-      redirect(str);
-      return;
-   }
-
    if (strncmp(dec_path, "EL/", 3) == 0) {
       if (equal_ustring(command, "new") || equal_ustring(command, "edit")
           || equal_ustring(command, "reply")) {
@@ -16704,16 +16730,6 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    }
 
    /*---- sequencer page --------------------------------------------*/
-
-   if (equal_ustring(command, "sequencer")) {
-      str[0] = 0;
-      for (p=dec_path ; *p ; p++)
-         if (*p == '/')
-            strlcat(str, "../", sizeof(str));
-      strlcat(str, "SEQ/", sizeof(str));
-      redirect(str);
-      return;
-   }
 
    if (strncmp(dec_path, "SEQ/", 4) == 0) {
       show_seq_page();
