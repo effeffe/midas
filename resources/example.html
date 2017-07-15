@@ -449,7 +449,7 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
         <p>
           <div>
             <input type=button value='Get list of history tags'
-              onClick='mjsonrpc_call("hs_get_tags",{"events":["Run transitions","nonexistant"]})
+              onClick='mjsonrpc_call("hs_get_tags",{"events":["fetest","slow/SLOW","nonexistant"]})
                    .then(function(rpc) {
                    document.getElementById("hs_get_tags_data").innerHTML = JSON.stringify(rpc.result.events);
                    //mjsonrpc_debug_alert(rpc);
@@ -466,7 +466,7 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
         <p>
           <div>
             <input type=button value='Get list of history last-written'
-              onClick='mjsonrpc_call("hs_get_last_written",{"events":["Run transitions"],"tags":["State"],"index":[0]})
+              onClick='mjsonrpc_call("hs_get_last_written",{"events":["Run transitions","fetest","fetest/EPS","slow/SLOW"],"tags":["State","EPS","EPS","SLOW"],"index":[0,0,0,0]})
                    .then(function(rpc) {
                    document.getElementById("hs_get_last_written_data").innerHTML = JSON.stringify(rpc.result.last_written);
                    //mjsonrpc_debug_alert(rpc);
@@ -477,6 +477,40 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
           </div>
           <div id="hs_get_last_written_data">
             list of history last-written goes here
+          </div>
+        </p>
+
+        <p>
+          <div>
+            <input type=button value='Get history data'
+              onClick='var t=Date.now()/1000;mjsonrpc_call("hs_read",{"start_time":t-10*60,"end_time":t,"events":["Run transitions","fetest","fetest/EPS","slow/SLOW"],"tags":["State","EPS","EPS","SLOW"],"index":[0,0,0,0]})
+                   .then(function(rpc) {
+                   document.getElementById("hs_read_data").innerHTML = JSON.stringify(rpc.result.data);
+                   //mjsonrpc_debug_alert(rpc);
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+          </div>
+          <div id="hs_read_data">
+            history data
+          </div>
+        </p>
+
+        <p>
+          <div>
+            <input type=button value='Get binned history data'
+              onClick='var t=Date.now()/1000;mjsonrpc_call("hs_read_binned",{"start_time":t-1*60,"end_time":t,"num_bins":10,"events":["Run transitions","fetest","fetest/EPS","slow/SLOW"],"tags":["State","EPS","EPS","SLOW"],"index":[0,0,0,0]})
+                   .then(function(rpc) {
+                   document.getElementById("hs_read_binned_data").innerHTML = JSON.stringify(rpc.result.data);
+                   //mjsonrpc_debug_alert(rpc);
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+          </div>
+          <div id="hs_read_binned_data">
+            binned history data
           </div>
         </p>
 

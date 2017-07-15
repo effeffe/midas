@@ -1628,6 +1628,10 @@ static MJsonNode* js_hs_get_events(const MJsonNode* params)
       return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "events", events);
    }
 
+   if (time == 0) {
+      time = ::time(NULL);
+   }
+
    STRING_LIST list;
    
    int status = mh->hs_get_events(time, &list);
@@ -1684,6 +1688,10 @@ static MJsonNode* js_hs_get_tags(const MJsonNode* params)
    const char* channel = mjsonrpc_get_param(params, "channel", NULL)->GetString().c_str();
    double time = mjsonrpc_get_param(params, "time", NULL)->GetDouble();
    const MJsonNodeVector* events_array = mjsonrpc_get_param_array(params, "events", NULL);
+
+   if (time == 0) {
+      time = ::time(NULL);
+   }
 
    MidasHistoryInterface* mh = GetHistory(channel);
 
@@ -1786,9 +1794,23 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
       var_index[i] = (*index_array)[i]->GetInt();
    }
 
+   if (0) {
+      printf("time %f, num_vars %d:\n", time, num_var);
+      for (unsigned i=0; i<num_var; i++) {
+         printf("%d: [%s] [%s] [%d]\n", i, event_name[i], tag_name[i], var_index[i]);
+      }
+   }
+
+   if (time == 0) {
+      time = ::time(NULL);
+   }
+
    int status = mh->hs_get_last_written(time, num_var, event_name, tag_name, var_index, last_written);
 
    for (unsigned i=0; i<num_var; i++) {
+      if (0) {
+         printf("%d: last_written %d\n", i, (int)last_written[i]);
+      }
       lw->AddToArray(MJsonNode::MakeNumber(last_written[i]));
    }
 
@@ -1798,6 +1820,298 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
    delete last_written;
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "last_written", lw);
+}
+
+class JsonHistoryBuffer: public MidasHistoryBufferInterface
+{
+public:
+   int fCount;
+   std::string fTimeJson;
+   std::string fValueJson;
+
+public:
+   JsonHistoryBuffer() // ctor
+   {
+      fCount = 0;
+      
+      fTimeJson = "[";
+      fValueJson = "[";
+   }
+
+   void Add(time_t t, double v)
+   {
+      //printf("add time %d, value %f\n", (int)t, v);
+
+      if (fCount>0) {
+         fTimeJson += ",";
+         fValueJson += ",";
+      }
+      fCount++;
+
+      fTimeJson += MJsonNode::EncodeDouble(t);
+      fValueJson += MJsonNode::EncodeDouble(v);
+   }
+
+   void Finish()
+   {
+      fTimeJson += "]";
+      fValueJson += "]";
+   }
+};
+
+static MJsonNode* js_hs_read(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get history data for given history events that existed at give time using hs_read_buffer()");
+      doc->P("channel?", MJSON_STRING, "midas history channel, default is the default reader channel");
+      doc->P("start_time", MJSON_NUMBER, "start time of the data");
+      doc->P("end_time", MJSON_NUMBER, "end time of the data");
+      doc->P("events[]", MJSON_STRING, "array of history event names");
+      doc->P("tags[]", MJSON_STRING, "array of history event tag names");
+      doc->P("index[]", MJSON_STRING, "array of history event tag array indices");
+      doc->R("status", MJSON_INT, "return status");
+      doc->R("data[]", MJSON_ARRAY, "array of history data");
+      doc->R("data[].status", MJSON_INT, "status for each event");
+      doc->R("data[].count", MJSON_INT, "number of data for each event");
+      doc->R("data[].time[]", MJSON_NUMBER, "time data");
+      doc->R("data[].value[]", MJSON_NUMBER, "value data");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const char* channel = mjsonrpc_get_param(params, "channel", NULL)->GetString().c_str();
+   double start_time = mjsonrpc_get_param(params, "start_time", &error)->GetDouble(); if (error) return error;
+   double end_time = mjsonrpc_get_param(params, "end_time", &error)->GetDouble(); if (error) return error;
+
+   const MJsonNodeVector* events_array = mjsonrpc_get_param_array(params, "events", NULL);
+   const MJsonNodeVector* tags_array = mjsonrpc_get_param_array(params, "tags", NULL);
+   const MJsonNodeVector* index_array = mjsonrpc_get_param_array(params, "index", NULL);
+
+   MidasHistoryInterface* mh = GetHistory(channel);
+
+   MJsonNode* data = MJsonNode::MakeArray();
+
+   if (!mh) {
+      int status = HS_FILE_ERROR;
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "data", data);
+   }
+
+   unsigned num_var = events_array->size();
+
+   if (tags_array->size() != num_var) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and tags should have the same length");
+   }
+
+   if (index_array->size() != num_var) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and index should have the same length");
+   }
+
+   const char** event_name = new const char*[num_var];
+   const char** tag_name = new const char*[num_var];
+   int* var_index = new int[num_var];
+   JsonHistoryBuffer** jbuf = new JsonHistoryBuffer*[num_var];
+   MidasHistoryBufferInterface** buf = new MidasHistoryBufferInterface*[num_var];
+   int* hs_status = new int[num_var];
+
+   for (unsigned i=0; i<num_var; i++) {
+      event_name[i] = (*events_array)[i]->GetString().c_str();
+      tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      var_index[i] = (*index_array)[i]->GetInt();
+      jbuf[i] = new JsonHistoryBuffer();
+      buf[i] = jbuf[i];
+      hs_status[i] = 0;
+   }
+
+   if (0) {
+      printf("time %f %f, num_vars %d:\n", start_time, end_time, num_var);
+      for (unsigned i=0; i<num_var; i++) {
+         printf("%d: [%s] [%s] [%d]\n", i, event_name[i], tag_name[i], var_index[i]);
+      }
+   }
+
+   int status = mh->hs_read_buffer(start_time, end_time, num_var, event_name, tag_name, var_index, buf, hs_status);
+
+   for (unsigned i=0; i<num_var; i++) {
+      jbuf[i]->Finish();
+
+      MJsonNode* obj = MJsonNode::MakeObject();
+      obj->AddToObject("status", MJsonNode::MakeInt(hs_status[i]));
+      obj->AddToObject("count", MJsonNode::MakeInt(jbuf[i]->fCount));
+      obj->AddToObject("time", MJsonNode::MakeJSON(jbuf[i]->fTimeJson.c_str()));
+      obj->AddToObject("value", MJsonNode::MakeJSON(jbuf[i]->fValueJson.c_str()));
+      data->AddToArray(obj);
+
+      delete jbuf[i];
+      jbuf[i] = NULL;
+      buf[i] = NULL;
+   }
+
+   delete event_name;
+   delete tag_name;
+   delete var_index;
+   delete buf;
+   delete jbuf;
+   delete hs_status;
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "data", data);
+}
+
+static MJsonNode* js_hs_read_binned(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get history data for given history events that existed at give time using hs_read_buffer()");
+      doc->P("channel?", MJSON_STRING, "midas history channel, default is the default reader channel");
+      doc->P("start_time", MJSON_NUMBER, "start time of the data");
+      doc->P("end_time", MJSON_NUMBER, "end time of the data");
+      doc->P("num_bins", MJSON_INT, "number of time bins");
+      doc->P("events[]", MJSON_STRING, "array of history event names");
+      doc->P("tags[]", MJSON_STRING, "array of history event tag names");
+      doc->P("index[]", MJSON_STRING, "array of history event tag array indices");
+      doc->R("status", MJSON_INT, "return status");
+      doc->R("data[]", MJSON_ARRAY, "array of history data");
+      doc->R("data[].status", MJSON_INT, "status for each event");
+      doc->R("data[].num_entries", MJSON_INT, "number of data points for each event");
+      doc->R("data[].count[]", MJSON_INT, "number of data points for each bin");
+      doc->R("data[].mean[]", MJSON_NUMBER, "mean for each bin");
+      doc->R("data[].rms[]", MJSON_NUMBER, "rms for each bin");
+      doc->R("data[].min[]", MJSON_NUMBER, "minimum value for each bin");
+      doc->R("data[].max[]", MJSON_NUMBER, "maximum value for each bin");
+      doc->R("data[].last_time", MJSON_NUMBER, "time of last data entry");
+      doc->R("data[].last_value", MJSON_NUMBER, "value of last data entry");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   const char* channel = mjsonrpc_get_param(params, "channel", NULL)->GetString().c_str();
+   double start_time = mjsonrpc_get_param(params, "start_time", &error)->GetDouble(); if (error) return error;
+   double end_time = mjsonrpc_get_param(params, "end_time", &error)->GetDouble(); if (error) return error;
+   int num_bins = mjsonrpc_get_param(params, "num_bins", &error)->GetInt(); if (error) return error;
+
+   if (num_bins < 1) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "Value of num_bins should be 1 or more");
+   }
+
+   const MJsonNodeVector* events_array = mjsonrpc_get_param_array(params, "events", NULL);
+   const MJsonNodeVector* tags_array = mjsonrpc_get_param_array(params, "tags", NULL);
+   const MJsonNodeVector* index_array = mjsonrpc_get_param_array(params, "index", NULL);
+
+   MidasHistoryInterface* mh = GetHistory(channel);
+
+   MJsonNode* data = MJsonNode::MakeArray();
+
+   if (!mh) {
+      int status = HS_FILE_ERROR;
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "data", data);
+   }
+
+   unsigned num_var = events_array->size();
+
+   if (num_var < 1) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "Array of events should have 1 or more elements");
+   }
+
+   if (tags_array->size() != num_var) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and tags should have the same length");
+   }
+
+   if (index_array->size() != num_var) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and index should have the same length");
+   }
+
+   const char** event_name = new const char*[num_var];
+   const char** tag_name = new const char*[num_var];
+   int* var_index = new int[num_var];
+
+   int* num_entries = new int[num_var];
+   time_t* last_time = new time_t[num_var];
+   double* last_value = new double[num_var];
+   int* hs_status = new int[num_var];
+
+   int** count_bins = new int*[num_var];
+   double** mean_bins = new double*[num_var];
+   double** rms_bins = new double*[num_var];
+   double** min_bins = new double*[num_var];
+   double** max_bins = new double*[num_var];
+
+   for (unsigned i=0; i<num_var; i++) {
+      event_name[i] = (*events_array)[i]->GetString().c_str();
+      tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      var_index[i] = (*index_array)[i]->GetInt();
+      num_entries[i] = 0;
+      last_time[i] = 0;
+      last_value[i] = 0;
+      hs_status[i] = 0;
+      count_bins[i] = new int[num_bins];
+      mean_bins[i] = new double[num_bins];
+      rms_bins[i] = new double[num_bins];
+      min_bins[i] = new double[num_bins];
+      max_bins[i] = new double[num_bins];
+   }
+
+   if (0) {
+      printf("time %f %f, num_vars %d:\n", start_time, end_time, num_var);
+      for (unsigned i=0; i<num_var; i++) {
+         printf("%d: [%s] [%s] [%d]\n", i, event_name[i], tag_name[i], var_index[i]);
+      }
+   }
+
+   int status = mh->hs_read_binned(start_time, end_time, num_bins, num_var, event_name, tag_name, var_index, num_entries, count_bins, mean_bins, rms_bins, min_bins, max_bins, last_time, last_value, hs_status);
+
+   for (unsigned i=0; i<num_var; i++) {
+      MJsonNode* obj = MJsonNode::MakeObject();
+      obj->AddToObject("status", MJsonNode::MakeInt(hs_status[i]));
+      obj->AddToObject("num_entries", MJsonNode::MakeInt(num_entries[i]));
+      
+      MJsonNode* a1 = MJsonNode::MakeArray();
+      MJsonNode* a2 = MJsonNode::MakeArray();
+      MJsonNode* a3 = MJsonNode::MakeArray();
+      MJsonNode* a4 = MJsonNode::MakeArray();
+      MJsonNode* a5 = MJsonNode::MakeArray();
+
+      for (int j=0; j<num_bins; j++) {
+         a1->AddToArray(MJsonNode::MakeInt(count_bins[i][j]));
+         a2->AddToArray(MJsonNode::MakeNumber(mean_bins[i][j]));
+         a3->AddToArray(MJsonNode::MakeNumber(rms_bins[i][j]));
+         a4->AddToArray(MJsonNode::MakeNumber(min_bins[i][j]));
+         a5->AddToArray(MJsonNode::MakeNumber(max_bins[i][j]));
+      }
+
+      obj->AddToObject("count", a1);
+      obj->AddToObject("mean", a2);
+      obj->AddToObject("rms", a3);
+      obj->AddToObject("min", a4);
+      obj->AddToObject("max", a5);
+      obj->AddToObject("last_time", MJsonNode::MakeNumber(last_time[i]));
+      obj->AddToObject("last_value", MJsonNode::MakeNumber(last_value[i]));
+      data->AddToArray(obj);
+
+      delete count_bins[i];
+      delete mean_bins[i];
+      delete rms_bins[i];
+      delete min_bins[i];
+      delete max_bins[i];
+   }
+
+   delete count_bins;
+   delete mean_bins;
+   delete rms_bins;
+   delete min_bins;
+   delete max_bins;
+
+   delete event_name;
+   delete tag_name;
+   delete var_index;
+
+   delete num_entries;
+   delete last_time;
+   delete last_value;
+   delete hs_status;
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "data", data);
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -2286,6 +2600,8 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("hs_get_tags", js_hs_get_tags);
    mjsonrpc_add_handler("hs_get_last_written", js_hs_get_last_written);
    mjsonrpc_add_handler("hs_reopen", js_hs_reopen);
+   mjsonrpc_add_handler("hs_read", js_hs_read);
+   mjsonrpc_add_handler("hs_read_binned", js_hs_read_binned);
    // methods that perform computations or invoke actions
    mjsonrpc_add_handler("get_alarms",  get_alarms);
    //mjsonrpc_add_handler("get_messages",  get_messages);
