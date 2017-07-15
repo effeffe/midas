@@ -2525,6 +2525,13 @@ public:
 
             if (fRms)
                fRms[i] = rms;
+
+            if (num == 0) {
+               if (fMin)
+                  fMin[i] = 0;
+               if (fMax)
+                  fMax[i] = 0;
+            }
          }
       }
    };
