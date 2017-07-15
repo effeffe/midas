@@ -1569,7 +1569,6 @@ static MhiMap gHistoryChannels;
 static MidasHistoryInterface* GetHistory(const char* name)
 {
    // empty name means use the default reader channel
-   printf("GetHistory [%s]\n", name);
 
    MhiMap::iterator ci = gHistoryChannels.find(name);
    if (ci != gHistoryChannels.end()) {
@@ -1586,8 +1585,6 @@ static MidasHistoryInterface* GetHistory(const char* name)
    if (status != HS_SUCCESS) {
       return NULL;
    }
-
-   printf("name [%s] hKey %d\n", name, hKey);
 
    MidasHistoryInterface* mh = NULL;
 
@@ -1612,6 +1609,7 @@ static MJsonNode* js_hs_get_events(const MJsonNode* params)
       doc->P("channel?", MJSON_STRING, "midas history channel, default is the default reader channel");
       doc->P("time?", MJSON_NUMBER, "timestamp, value 0 means current time, default is 0");
       doc->R("status", MJSON_INT, "return status of hs_get_events()");
+      doc->R("channel", MJSON_STRING, "logger history channel name");
       doc->R("events[]", MJSON_STRING, "array of history event names");
       return doc;
    }
@@ -1640,7 +1638,7 @@ static MJsonNode* js_hs_get_events(const MJsonNode* params)
       events->AddToArray(MJsonNode::MakeString(list[i].c_str()));
    }
 
-   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "events", events);
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "channel", MJsonNode::MakeString(mh->name), "events", events);
 }
 
 static MJsonNode* js_hs_reopen(const MJsonNode* params)
@@ -1650,6 +1648,7 @@ static MJsonNode* js_hs_reopen(const MJsonNode* params)
       doc->D("reopen the history channel to make sure we see the latest list of events using hs_clear_cache()");
       doc->P("channel?", MJSON_STRING, "midas history channel, default is the default reader channel");
       doc->R("status", MJSON_INT, "return status of hs_get_events()");
+      doc->R("channel", MJSON_STRING, "logger history channel name");
       return doc;
    }
 
@@ -1664,7 +1663,7 @@ static MJsonNode* js_hs_reopen(const MJsonNode* params)
 
    int status = mh->hs_clear_cache();
 
-   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "channel", MJsonNode::MakeString(mh->name));
 }
 
 static MJsonNode* js_hs_get_tags(const MJsonNode* params)
@@ -1676,6 +1675,7 @@ static MJsonNode* js_hs_get_tags(const MJsonNode* params)
       doc->P("time?", MJSON_NUMBER, "timestamp, value 0 means current time, default is 0");
       doc->P("events[]?", MJSON_STRING, "array of history event names, default is get all events using hs_get_events()");
       doc->R("status", MJSON_INT, "return status");
+      doc->R("channel", MJSON_STRING, "logger history channel name");
       doc->R("events[].name", MJSON_STRING, "array of history event names for each history event");
       doc->R("events[].status", MJSON_INT, "array of status ohistory tags for each history event");
       doc->R("events[].tags[]", MJSON_STRING, "array of history tags for each history event");
@@ -1739,7 +1739,7 @@ static MJsonNode* js_hs_get_tags(const MJsonNode* params)
    }
 
    int status = HS_SUCCESS;
-   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "events", events);
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "channel", MJsonNode::MakeString(mh->name), "events", events);
 }
 
 static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
@@ -1753,6 +1753,7 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
       doc->P("tags[]", MJSON_STRING, "array of history event tag names");
       doc->P("index[]", MJSON_STRING, "array of history event tag array indices");
       doc->R("status", MJSON_INT, "return status");
+      doc->R("channel", MJSON_STRING, "logger history channel name");
       doc->R("last_written[]", MJSON_NUMBER, "array of last-written times for each history event");
       return doc;
    }
@@ -1819,7 +1820,7 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
    delete var_index;
    delete last_written;
 
-   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "last_written", lw);
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "channel", MJsonNode::MakeString(mh->name), "last_written", lw);
 }
 
 class JsonHistoryBuffer: public MidasHistoryBufferInterface
@@ -1871,6 +1872,7 @@ static MJsonNode* js_hs_read(const MJsonNode* params)
       doc->P("tags[]", MJSON_STRING, "array of history event tag names");
       doc->P("index[]", MJSON_STRING, "array of history event tag array indices");
       doc->R("status", MJSON_INT, "return status");
+      doc->R("channel", MJSON_STRING, "logger history channel name");
       doc->R("data[]", MJSON_ARRAY, "array of history data");
       doc->R("data[].status", MJSON_INT, "status for each event");
       doc->R("data[].count", MJSON_INT, "number of data for each event");
@@ -1955,7 +1957,7 @@ static MJsonNode* js_hs_read(const MJsonNode* params)
    delete jbuf;
    delete hs_status;
 
-   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "data", data);
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "channel", MJsonNode::MakeString(mh->name), "data", data);
 }
 
 static MJsonNode* js_hs_read_binned(const MJsonNode* params)
@@ -1971,6 +1973,7 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
       doc->P("tags[]", MJSON_STRING, "array of history event tag names");
       doc->P("index[]", MJSON_STRING, "array of history event tag array indices");
       doc->R("status", MJSON_INT, "return status");
+      doc->R("channel", MJSON_STRING, "logger history channel name");
       doc->R("data[]", MJSON_ARRAY, "array of history data");
       doc->R("data[].status", MJSON_INT, "status for each event");
       doc->R("data[].num_entries", MJSON_INT, "number of data points for each event");
@@ -2111,7 +2114,7 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
    delete last_value;
    delete hs_status;
 
-   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "data", data);
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "channel", MJsonNode::MakeString(mh->name), "data", data);
 }
 
 /////////////////////////////////////////////////////////////////////////////////
