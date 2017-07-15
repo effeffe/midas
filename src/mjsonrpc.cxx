@@ -1792,10 +1792,10 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
       lw->AddToArray(MJsonNode::MakeNumber(last_written[i]));
    }
 
-   delete event_name;
-   delete tag_name;
-   delete var_index;
-   delete last_written;
+   delete[] event_name;
+   delete[] tag_name;
+   delete[] var_index;
+   delete[] last_written;
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "last_written", lw);
 }
