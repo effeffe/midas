@@ -49,6 +49,8 @@ class MJsonNode {
 
  public: // string encoder
    static std::string Encode(const char* s);
+   static std::string EncodeInt(int v);
+   static std::string EncodeDouble(double v);
    
  public: // public factory constructors
    static MJsonNode* MakeArray();
