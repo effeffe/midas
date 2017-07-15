@@ -16070,6 +16070,13 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       return;
    }
 
+   /*---- send controls.js ------------------------------------------*/
+   
+   if (strstr(dec_path, "controls.js")) {
+      send_resource("controls.js");
+      return;
+   }
+
    /*---- send example web page -------------------------------------*/
 
    if (equal_ustring(command, "example")) {
