@@ -62,9 +62,7 @@ document.write("<style>" +
    "   background-color: #D0D0D0;" +
    "   border: 1px solid #808080;" +
    "   border-radius: 6px;" +
-   "   padding: 4px;" +
-   "   padding-left: 10px;" +
-   "   padding-right: 10px;" +
+   "   padding: 4px 10px;" +
    "   margin: 3px;" +
    "}" +
    ".dlgButton:hover {" +
@@ -108,8 +106,8 @@ Controls.prototype.init = function () // scan DOM
    this.ctrlHSlider = document.getElementsByName("ctrlHSlider");
 
    // ctrlVSlider
-   for (i = 0; i < this.ctrlVSlider.length; i++) {
-      cvs = document.createElement("canvas");
+   for (var i = 0; i < this.ctrlVSlider.length; i++) {
+      var cvs = document.createElement("canvas");
       var sl = this.ctrlVSlider[i];
       cvs.width = sl.clientWidth;
       cvs.height = sl.clientHeight;
@@ -147,7 +145,7 @@ Controls.prototype.init = function () // scan DOM
 };
 
 Controls.prototype.ctrlVSliderDraw = function (b) {
-   if (b == undefined)
+   if (b === undefined)
       b = this;
    var w = b.canvas.width;
    var h = b.canvas.height;
@@ -185,15 +183,15 @@ Controls.prototype.ctrlVSliderHandler = function (e) {
    var y = undefined;
    var b = e.currentTarget;
 
-   if (b.canvas == undefined) // we can get events from parent node
+   if (b.canvas === undefined) // we can get events from parent node
       return;
 
-   if ((e.buttons == 1 && e.type == "mousemove") || e.type == "click")
+   if ((e.buttons === 1 && e.type === "mousemove") || e.type === "click")
       y = e.offsetY;
-   if (e.type == "touchmove")
+   if (e.type === "touchmove")
       y = e.changedTouches[e.changedTouches.length - 1].clientY - b.getBoundingClientRect().top;
 
-   if (e.type == "contextmenu") {
+   if (e.type === "contextmenu") {
       b.position = 0.5;
       this.ctrlVSliderDraw(b);
       var f = b.dataset.update;
@@ -201,14 +199,14 @@ Controls.prototype.ctrlVSliderHandler = function (e) {
          f = f.substr(0, f.indexOf("("));
       window[f](b.position);
    } else {
-      if (y != undefined) {
+      if (y !== undefined) {
          b.position = 1 - (y - b.sliderOfs) / (b.clientHeight - 2 * b.sliderOfs);
          if (b.position < 0)
             b.position = 0;
          if (b.position > 1)
             b.position = 1;
          this.ctrlVSliderDraw(b);
-         var f = b.dataset.update;
+         f = b.dataset.update;
          if (f.indexOf("("))
             f = f.substr(0, f.indexOf("("));
          window[f](b.position);
@@ -217,7 +215,7 @@ Controls.prototype.ctrlVSliderHandler = function (e) {
 };
 
 Controls.prototype.ctrlHSliderDraw = function (b) {
-   if (b == undefined)
+   if (b === undefined)
       b = this;
    var w = b.canvas.width;
    var h = b.canvas.height;
@@ -260,15 +258,15 @@ Controls.prototype.ctrlHSliderHandler = function (e) {
    var x = undefined;
    var b = e.currentTarget;
 
-   if (b.canvas == undefined) // we can get events from parent node
+   if (b.canvas === undefined) // we can get events from parent node
       return;
 
-   if ((e.buttons == 1 && e.type == "mousemove") || e.type == "click")
+   if ((e.buttons === 1 && e.type === "mousemove") || e.type === "click")
       x = e.offsetX;
-   if (e.type == "touchmove")
+   if (e.type === "touchmove")
       x = e.changedTouches[e.changedTouches.length - 1].clientX - b.getBoundingClientRect().left;
 
-   if (e.type == "contextmenu") {
+   if (e.type === "contextmenu") {
       b.position = 0.5;
       this.ctrlHSliderDraw(b);
       var f = b.dataset.update;
@@ -276,14 +274,14 @@ Controls.prototype.ctrlHSliderHandler = function (e) {
          f = f.substr(0, f.indexOf("("));
       window[f](b.position);
    } else {
-      if (x != undefined) {
+      if (x !== undefined) {
          b.position = (x - b.sliderOfs) / (b.clientWidth - 2 * b.sliderOfs);
          if (b.position < 0)
             b.position = 0;
          if (b.position > 1)
             b.position = 1;
          this.ctrlHSliderDraw(b);
-         var f = b.dataset.update;
+         f = b.dataset.update;
          if (f.indexOf("("))
             f = f.substr(0, f.indexOf("("));
          window[f](b.position);
@@ -295,7 +293,7 @@ Controls.prototype.ctrlHSliderHandler = function (e) {
 
 function dlgShow(dlg, modal) {
    var d;
-   if (typeof dlg == "string")
+   if (typeof dlg === "string")
       d = document.getElementById(dlg);
    else
       d = dlg;
@@ -304,7 +302,7 @@ function dlgShow(dlg, modal) {
    d.dlgAy = 0;
    d.dlgDx = 0;
    d.dlgDy = 0;
-   d.modal = (modal != undefined);
+   d.modal = (modal !== undefined);
 
    d.style.display = "block";
    d.style.left = Math.round(document.documentElement.clientWidth / 2 - d.offsetWidth / 2) + "px";
@@ -315,7 +313,7 @@ function dlgShow(dlg, modal) {
 
    if (d.modal) {
       var b = document.getElementById("dlgBlackout");
-      if (b == undefined) {
+      if (b === null) {
          b =  document.createElement("div");
          b.id = "dlgBlackout";
          b.className = "dlgBlackout";
@@ -327,8 +325,8 @@ function dlgShow(dlg, modal) {
    }
    
    d.dlgMouseDown = function (e) {
-      if ((e.target == this || e.target.parentNode == this) &&
-         e.target.className == "dlgTitlebar") {
+      if ((e.target === this || e.target.parentNode === this) &&
+         e.target.className === "dlgTitlebar") {
          e.preventDefault();
          this.Ax = e.clientX;
          this.Ay = e.clientY;
@@ -341,10 +339,10 @@ function dlgShow(dlg, modal) {
          e.preventDefault();
       } else {
          var p = e.target;
-         while (p != undefined && p != this && p != document.body)
+         while (p !== undefined && p !== this && p !== document.body)
             p = p.parentElement;
          
-         if (p == this) {
+         if (p === this) {
             var dlgs = document.getElementsByClassName("dlgFrame");
             for (var i=0 ; i<dlgs.length ; i++)
                dlgs[i].style.zIndex = 10;
@@ -378,7 +376,7 @@ function dlgShow(dlg, modal) {
    };
 
    d.dlgTouchStart = function (e) {
-      if (e.target == this || e.target.parentNode == this) {
+      if (e.target === this || e.target.parentNode === this) {
          e.preventDefault();
          this.Ax = e.targetTouches[0].clientX;
          this.Ay = e.targetTouches[0].clientY;
@@ -403,9 +401,9 @@ function dlgShow(dlg, modal) {
 
 function dlgHide(dlg) {
    var d = document.getElementById("dlgBlackout");
-   if (d != undefined)
+   if (d !== null)
       d.style.display = "none";
-   var d = document.getElementById(dlg);
+   d = document.getElementById(dlg);
    d.style.display = "none";
 }
 
@@ -414,7 +412,7 @@ function dlgMessageDestroy(b)
    var dlg = b.parentElement.parentElement;
    if (dlg.modal) {
       var d = document.getElementById("dlgBlackout");
-      if (d != undefined)
+      if (d !== null)
          d.style.display = "none";
    }
    document.body.removeChild(dlg);
@@ -435,7 +433,7 @@ function dlgMessage(title, string, modal, error)
 
    document.body.appendChild(d);
 
-   if (error != undefined) {
+   if (error !== undefined) {
       var t = document.getElementById("dlgMessageTitle");
       t.style.backgroundColor = "#9E2A2A";
       t.style.color = "white";
