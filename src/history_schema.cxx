@@ -2436,6 +2436,7 @@ public:
             fSum2[i] = 0;
          }
 
+         fCount = NULL;
          fMean = NULL;
          fRms = NULL;
          fMin = NULL;
