@@ -2705,7 +2705,7 @@ int SchemaHistoryBase::hs_flush_buffers()
 int SchemaHistoryBase::hs_clear_cache()
 {
    if (fDebug)
-      printf("hs_clear_cache!\n");
+      printf("SchemaHistoryBase::hs_clear_cache!\n");
 
    fWriterCurrentSchema.clear();
    fSchema.clear();
@@ -4751,6 +4751,7 @@ public:
 
    int hs_connect(const char* connect_string);
    int hs_disconnect();
+   int hs_clear_cache();
    int read_schema(HsSchemaVector* sv, const char* event_name, const time_t timestamp);
    HsSchema* new_event(const char* event_name, time_t timestamp, int ntags, const TAG tags[]);
 
@@ -4778,10 +4779,18 @@ int FileHistory::hs_connect(const char* connect_string)
    return HS_SUCCESS;
 }
 
+int FileHistory::hs_clear_cache()
+{
+   if (fDebug)
+      printf("FileHistory::hs_clear_cache!\n");
+   fPathLastMtime = 0;
+   return SchemaHistoryBase::hs_clear_cache();
+}
+
 int FileHistory::hs_disconnect()
 {
    if (fDebug)
-      printf("hs_disconnect!\n");
+      printf("FileHistory::hs_disconnect!\n");
 
    hs_flush_buffers();
    hs_clear_cache();
