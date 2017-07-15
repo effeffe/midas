@@ -431,6 +431,23 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
 
         <p>
           <div>
+            <input type=button value='Get list of history channels'
+              onClick='mjsonrpc_call("hs_get_channels")
+                   .then(function(rpc) {
+                   document.getElementById("hs_get_channels_data").innerHTML = JSON.stringify(rpc.result);
+                   //mjsonrpc_debug_alert(rpc);
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+          </div>
+          <div id="hs_get_channels_data">
+            list of logger history channels
+          </div>
+        </p>
+
+        <p>
+          <div>
             <input type=button value='Reopen the history database'
               onClick='mjsonrpc_call("hs_reopen")
                    .then(function(rpc) {
@@ -460,6 +477,23 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
           </div>
           <div id="hs_get_events_data">
             list of history events goes here
+          </div>
+        </p>
+
+        <p>
+          <div>
+            <input type=button value='Get list of history events from MIDAS channel'
+              onClick='mjsonrpc_call("hs_get_events",{"channel":"MIDAS"})
+                   .then(function(rpc) {
+                   document.getElementById("hs_get_events_data_midas").innerHTML = JSON.stringify(rpc.result);
+                   //mjsonrpc_debug_alert(rpc);
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+          </div>
+          <div id="hs_get_events_data_midas">
+            list of history events goes here, channel MIDAS
           </div>
         </p>
 

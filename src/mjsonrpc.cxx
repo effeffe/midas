@@ -1575,20 +1575,33 @@ static MidasHistoryInterface* GetHistory(const char* name)
       return ci->second;
    };
 
+   int verbose = 0;
+
    HNDLE hDB;
    cm_get_experiment_database(&hDB, NULL);
-   
-   int verbose = 0;
-   int status;
+
    HNDLE hKey = 0;
-   status = hs_find_reader_channel(hDB, &hKey, verbose);
-   if (status != HS_SUCCESS) {
-      return NULL;
+
+   if (strlen(name) < 1) {
+      int status = hs_find_reader_channel(hDB, &hKey, verbose);
+      if (status != HS_SUCCESS) {
+         return NULL;
+      }
+   } else {
+      HNDLE hKeyChan;
+      int status = db_find_key(hDB, 0, "/Logger/History", &hKeyChan);
+      if (status != DB_SUCCESS) {
+         return NULL;
+      }
+      status = db_find_key(hDB, hKeyChan, name, &hKey);
+      if (status != DB_SUCCESS) {
+         return NULL;
+      }
    }
 
    MidasHistoryInterface* mh = NULL;
 
-   status = hs_get_history(hDB, hKey, HS_GET_READER|HS_GET_INACTIVE, verbose, &mh);
+   int status = hs_get_history(hDB, hKey, HS_GET_READER|HS_GET_INACTIVE, verbose, &mh);
    if (status != HS_SUCCESS || mh==NULL) {
       cm_msg(MERROR, "GetHistory", "Cannot configure history, hs_get_history() status %d", status);
       return NULL;
@@ -1599,6 +1612,52 @@ static MidasHistoryInterface* GetHistory(const char* name)
    cm_msg(MINFO, "GetHistory", "Reading history channel \"%s\" from channel \'%s\' type \'%s\'", name, mh->name, mh->type);
 
    return mh;
+}
+
+static MJsonNode* js_hs_get_channels(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get list of history channels in /Logger/History");
+      doc->R("status", MJSON_INT, "return status of hs_get_events()");
+      doc->R("default_channel", MJSON_STRING, "name of the default logger history channel in /History/LoggerHistoryChannel");
+      doc->R("channels[]", MJSON_STRING, "logger history channel names");
+      return doc;
+   }
+
+   MJsonNode* channels = MJsonNode::MakeArray();
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+   
+   // get history channel name selected by user in ODB
+
+   std::string hschanname;
+
+   db_get_value_string(hDB, 0, "/History/LoggerHistoryChannel", 0, &hschanname, TRUE);
+   
+   int status;
+   HNDLE hKeyChan;
+
+   status = db_find_key(hDB, 0, "/Logger/History", &hKeyChan);
+   if (status == DB_SUCCESS) {
+      for (int ichan=0; ; ichan++) {
+         HNDLE hKey;
+         status = db_enum_key(hDB, hKeyChan, ichan, &hKey);
+         if (status != DB_SUCCESS)
+            break;
+
+         KEY key;
+
+         status = db_get_key(hDB, hKey, &key);
+
+         if (status == DB_SUCCESS) {
+            channels->AddToArray(MJsonNode::MakeString(key.name));
+         }
+      }
+   }
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "default_channel", MJsonNode::MakeString(hschanname.c_str()), "channels", channels);
 }
 
 static MJsonNode* js_hs_get_events(const MJsonNode* params)
@@ -2599,6 +2658,7 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("db_key",    js_db_key);
    // interface to midas history
    mjsonrpc_add_handler("hs_get_active_events", js_hs_get_active_events);
+   mjsonrpc_add_handler("hs_get_channels", js_hs_get_channels);
    mjsonrpc_add_handler("hs_get_events", js_hs_get_events);
    mjsonrpc_add_handler("hs_get_tags", js_hs_get_tags);
    mjsonrpc_add_handler("hs_get_last_written", js_hs_get_last_written);
