@@ -1210,6 +1210,7 @@ void show_seq_page()
    
    rsprintf("<html><head>\n");
    rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
+   rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
    rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
    
    if (!equal_ustring(getparam("cmd"), "Load Script") && !isparam("fs") &&
