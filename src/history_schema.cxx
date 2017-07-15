@@ -2470,7 +2470,7 @@ public:
          if (ibin < 0)
             ibin = 0;
          else if (ibin >= fNumBins)
-            ibin = fNumBins;
+            ibin = fNumBins-1;
 
          if (fSum0[ibin] == 0) {
             if (fMin)
@@ -2507,8 +2507,12 @@ public:
       {
          for (int i=0; i<fNumBins; i++) {
             double num = fSum0[i];
-            double mean = fSum1[i]/num;
-            double variance = fSum2[i]/num-mean*mean;
+            double mean = 0;
+            double variance = 0;
+            if (num > 0) {
+               mean = fSum1[i]/num;
+               variance = fSum2[i]/num-mean*mean;
+            }
             double rms = 0;
             if (variance > 0)
                rms = sqrt(variance);
@@ -3045,6 +3049,8 @@ int SchemaHistoryBase::hs_read_binned(time_t start_time, time_t end_time, int nu
 
    for (int i=0; i<num_var; i++) {
       buffer[i]->Finish();
+      if (num_entries)
+         num_entries[i] = buffer[i]->fNumEntries;
       delete buffer[i];
    }
 
