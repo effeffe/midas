@@ -17238,7 +17238,6 @@ int open_listening_socket(int port)
 /*------------------------------------------------------------------*/
 
 //#define HAVE_MG 1
-//#define HAVE_MG6 1
 
 #ifdef HAVE_MG
 
@@ -17298,8 +17297,6 @@ int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace
 }
 
 #endif
-
-#ifdef HAVE_MG6
 
 #include "mongoose6.h"
 
@@ -18277,8 +18274,6 @@ int loop_mg()
 
    return status;
 }
-
-#endif
 
 /*------------------------------------------------------------------*/
 
