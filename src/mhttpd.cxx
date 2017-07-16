@@ -52,13 +52,6 @@ char referer[256];
 
 #define MAX_GROUPS    32
 #define MAX_VARS     100
-#define MAX_PARAM    500
-#define PARAM_LENGTH 256
-#define TEXT_SIZE  50000
-
-char _param[MAX_PARAM][PARAM_LENGTH];
-char *_value[MAX_PARAM];
-char _text[TEXT_SIZE];
 char *_attachment_buffer[3];
 INT _attachment_size[3];
 BOOL elog_mode = FALSE;
@@ -240,7 +233,8 @@ const unsigned char favicon_ico[] = {
 
 /*------------------------------------------------------------------*/
 
-void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, int *buffer_size, int refresh);
+class Param;
+void show_hist_page(Param* p, const char *dec_path, const char* enc_path, char *buffer, int *buffer_size, int refresh);
 int vaxis(gdImagePtr im, gdFont * font, int col, int gcol, int x1, int y1, int width,
           int minor, int major, int text, int label, int grid, double ymin, double ymax,
           BOOL logaxis);
@@ -254,10 +248,12 @@ char *get_js_filename();
 #endif
 const char *get_css_filename();
 
+#ifdef HAVE_SEQUENCER
 /* functions from sequencer.cxx */
 extern void show_seq_page();
 extern void sequencer();
 extern void init_sequencer();
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -459,119 +455,142 @@ void rsprintf(const char *format, ...)
 
 /* Parameter handling functions similar to setenv/getenv */
 
-void initparam()
+#define MAX_PARAM    500
+#define PARAM_LENGTH 256
+#define TEXT_SIZE  50000
+
+class Param
 {
-   memset(_param, 0, sizeof(_param));
-   memset(_value, 0, sizeof(_value));
-   _text[0] = 0;
-}
+public:
+   char _param[MAX_PARAM][PARAM_LENGTH];
+   char *_value[MAX_PARAM];
+   char _text[TEXT_SIZE];
 
-void setparam(const char *param, const char *value)
-{
-   int i;
-
-   if (equal_ustring(param, "text")) {
-      if (strlen(value) >= TEXT_SIZE)
-         printf("Error: parameter value too big\n");
-
-      strlcpy(_text, value, TEXT_SIZE);
-      _text[TEXT_SIZE - 1] = 0;
-      return;
+public:
+   Param() // ctor
+   {
+      initparam();
    }
 
-   for (i = 0; i < MAX_PARAM; i++)
-      if (_param[i][0] == 0)
-         break;
-
-   if (i < MAX_PARAM) {
-      strlcpy(_param[i], param, PARAM_LENGTH);
-
-      int size = strlen(value)+1;
-      _value[i] = (char*)malloc(size);
-      strlcpy(_value[i], value, size);
-      _value[i][strlen(value)] = 0;
-
-   } else {
-      printf("Error: parameter array too small\n");
+   ~Param() // dtor
+   {
+      freeparam();
    }
-}
-
-void freeparam()
-{
-   int i;
-
-   for (i=0 ; i<MAX_PARAM ; i++)
-      if (_value[i] != NULL) {
-         free(_value[i]);
-         _value[i] = NULL;
+   
+   void initparam()
+   {
+      memset(_param, 0, sizeof(_param));
+      memset(_value, 0, sizeof(_value));
+      _text[0] = 0;
+   }
+   
+   void setparam(const char *param, const char *value)
+   {
+      int i;
+      
+      if (equal_ustring(param, "text")) {
+         if (strlen(value) >= TEXT_SIZE)
+            printf("Error: parameter value too big\n");
+         
+         strlcpy(_text, value, TEXT_SIZE);
+         _text[TEXT_SIZE - 1] = 0;
+         return;
       }
-}
-
-void printparam()
-{
-   int i;
-
-   for (i = 0; i < MAX_PARAM && _param[i][0]; i++) {
-      printf("param %d name [%s] value [%s]\n", i, _param[i], _value[i]);;
+      
+      for (i = 0; i < MAX_PARAM; i++)
+         if (_param[i][0] == 0)
+            break;
+      
+      if (i < MAX_PARAM) {
+         strlcpy(_param[i], param, PARAM_LENGTH);
+         
+         int size = strlen(value)+1;
+         _value[i] = (char*)malloc(size);
+         strlcpy(_value[i], value, size);
+         _value[i][strlen(value)] = 0;
+         
+      } else {
+         printf("Error: parameter array too small\n");
+      }
    }
-}
-
-const char *getparam(const char *param)
-{
-   int i;
-
-   if (equal_ustring(param, "text"))
-      return _text;
-
-   for (i = 0; i < MAX_PARAM && _param[i][0]; i++)
-      if (equal_ustring(param, _param[i]))
-         break;
-
-   if (i == MAX_PARAM)
-      return NULL;
-
-   if (_value[i] == NULL)
-      return "";
-
-   return _value[i];
-}
-
-std::string xgetparam(const char *param)
-{
-   const char* s = getparam(param);
-   if (s)
-      return s;
-   else
-      return "";
-}
-
-BOOL isparam(const char *param)
-{
-   int i;
-
-   for (i = 0; i < MAX_PARAM && _param[i][0]; i++)
-      if (equal_ustring(param, _param[i]))
-         break;
-
-   if (i < MAX_PARAM && _param[i][0])
-      return TRUE;
-
-   return FALSE;
-}
-
-void unsetparam(const char *param)
-{
-   int i;
-
-   for (i = 0; i < MAX_PARAM; i++)
-      if (equal_ustring(param, _param[i]))
-         break;
-
-   if (i < MAX_PARAM) {
-      _param[i][0] = 0;
-      _value[i][0] = 0;
+   
+   void freeparam()
+   {
+      int i;
+      
+      for (i=0 ; i<MAX_PARAM ; i++)
+         if (_value[i] != NULL) {
+            free(_value[i]);
+            _value[i] = NULL;
+         }
    }
-}
+   
+   void printparam()
+   {
+      int i;
+      
+      for (i = 0; i < MAX_PARAM && _param[i][0]; i++) {
+         printf("param %d name [%s] value [%s]\n", i, _param[i], _value[i]);;
+      }
+   }
+
+   const char *getparam(const char *param)
+   {
+      int i;
+      
+      if (equal_ustring(param, "text"))
+         return _text;
+      
+      for (i = 0; i < MAX_PARAM && _param[i][0]; i++)
+         if (equal_ustring(param, _param[i]))
+            break;
+      
+      if (i == MAX_PARAM)
+         return NULL;
+      
+      if (_value[i] == NULL)
+         return "";
+      
+      return _value[i];
+   }
+
+   std::string xgetparam(const char *param)
+   {
+      const char* s = getparam(param);
+      if (s)
+         return s;
+      else
+         return "";
+   }
+
+   BOOL isparam(const char *param)
+   {
+      int i;
+      
+      for (i = 0; i < MAX_PARAM && _param[i][0]; i++)
+         if (equal_ustring(param, _param[i]))
+            break;
+      
+      if (i < MAX_PARAM && _param[i][0])
+         return TRUE;
+      
+      return FALSE;
+   }
+   
+   void unsetparam(const char *param)
+   {
+      int i;
+      
+      for (i = 0; i < MAX_PARAM; i++)
+         if (equal_ustring(param, _param[i]))
+            break;
+      
+      if (i < MAX_PARAM) {
+         _param[i][0] = 0;
+         _value[i][0] = 0;
+      }
+   }
+};
 
 /*------------------------------------------------------------------*/
 
@@ -1637,7 +1656,7 @@ void xshow_navigation_bar(const char *cur_page)
 int requested_transition = 0;
 int requested_old_state = 0;
 
-void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment)
+void show_status_page(Param* p, int refresh, const char *cookie_wpwd, int expand_equipment)
 {
    int i, j, k, h, m, s, status, size, type, n_items, n_hidden;
    BOOL flag, first, expand;
@@ -1659,8 +1678,8 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
    cm_get_experiment_database(&hDB, NULL);
 
    expand = FALSE;
-   if (isparam("expand")) {
-      expand = (BOOL)atoi(getparam("expand"));
+   if (p->isparam("expand")) {
+      expand = (BOOL)atoi(p->getparam("expand"));
       rsprintf("HTTP/1.1 302 Found\r\n");
       rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
 
@@ -2673,7 +2692,7 @@ void show_status_page(int refresh, const char *cookie_wpwd, int expand_equipment
 
 /*------------------------------------------------------------------*/
 
-void show_messages_page()
+void show_messages_page(Param* p)
 {
    int status;
    char bclass[256], facility[256];
@@ -2694,8 +2713,8 @@ void show_messages_page()
 
    /*---- facilities button bar ----*/
 
-   if (getparam("facility") && *getparam("facility"))
-      strlcpy(facility, getparam("facility"), sizeof(facility));
+   if (p->getparam("facility") && *p->getparam("facility"))
+      strlcpy(facility, p->getparam("facility"), sizeof(facility));
    else
       strlcpy(facility, "midas", sizeof(facility));
 
@@ -3327,7 +3346,7 @@ void show_elog_query()
 
 /*------------------------------------------------------------------*/
 
-void show_elog_delete(const char *path)
+void show_elog_delete(Param* p, const char *path)
 {
    HNDLE hDB;
    int size, status;
@@ -3341,8 +3360,8 @@ void show_elog_delete(const char *path)
    db_get_value(hDB, 0, "/Elog/Allow delete", &allow_delete, &size, TID_BOOL, TRUE);
 
    /* redirect if confirm = NO */
-   if (getparam("confirm") && *getparam("confirm")
-       && strcmp(getparam("confirm"), "No") == 0) {
+   if (p->getparam("confirm") && *p->getparam("confirm")
+       && strcmp(p->getparam("confirm"), "No") == 0) {
       sprintf(str, "../EL/%s", path);
       redirect(str);
       return;
@@ -3359,8 +3378,8 @@ void show_elog_delete(const char *path)
       rsprintf
           ("<tr><td colspan=2 class=\"redLight\" align=center><h1>Message deletion disabled in ODB</h1>\n");
    } else {
-      if (getparam("confirm") && *getparam("confirm")) {
-         if (strcmp(getparam("confirm"), "Yes") == 0) {
+      if (p->getparam("confirm") && *p->getparam("confirm")) {
+         if (strcmp(p->getparam("confirm"), "Yes") == 0) {
             /* delete message */
             status = el_delete_message(path);
             rsprintf("<tr><td colspan=2 class=\"greenLight\" align=center>");
@@ -3392,7 +3411,7 @@ void show_elog_delete(const char *path)
 
 /*------------------------------------------------------------------*/
 
-void show_elog_submit_query(INT last_n)
+void show_elog_submit_query(Param* p, INT last_n)
 {
    int i, size, run, status, m1, d2, m2, y2, index, colspan;
    char date[80], author[80], type[80], system[80], subject[256], text[10000],
@@ -3425,8 +3444,8 @@ void show_elog_submit_query(INT last_n)
       full = TRUE;
       show_attachments = FALSE;
    } else {
-      full = !(*getparam("mode"));
-      show_attachments = (*getparam("attach") > 0);
+      full = !(*p->getparam("mode"));
+      show_attachments = (*p->getparam("attach") > 0);
    }
 
    /*---- title row ----*/
@@ -3464,16 +3483,16 @@ void show_elog_submit_query(INT last_n)
    m1 = m2 = d2 = y2 = 0;
 
    if (!last_n) {
-      strlcpy(str, getparam("m1"), sizeof(str));
+      strlcpy(str, p->getparam("m1"), sizeof(str));
       for (m1 = 0; m1 < 12; m1++)
          if (equal_ustring(str, mname[m1]))
             break;
       if (m1 == 12)
          m1 = 0;
 
-      if (*getparam("m2") || *getparam("y2") || *getparam("d2")) {
-         if (*getparam("m2")) {
-            strlcpy(str, getparam("m2"), sizeof(str));
+      if (*p->getparam("m2") || *p->getparam("y2") || *p->getparam("d2")) {
+         if (*p->getparam("m2")) {
+            strlcpy(str, p->getparam("m2"), sizeof(str));
             for (m2 = 0; m2 < 12; m2++)
                if (equal_ustring(str, mname[m2]))
                   break;
@@ -3482,15 +3501,15 @@ void show_elog_submit_query(INT last_n)
          } else
             m2 = m1;
 
-         if (*getparam("y2"))
-            y2 = atoi(getparam("y2"));
+         if (*p->getparam("y2"))
+            y2 = atoi(p->getparam("y2"));
          else
-            y2 = atoi(getparam("y1"));
+            y2 = atoi(p->getparam("y1"));
 
-         if (*getparam("d2"))
-            d2 = atoi(getparam("d2"));
+         if (*p->getparam("d2"))
+            d2 = atoi(p->getparam("d2"));
          else
-            d2 = atoi(getparam("d1"));
+            d2 = atoi(p->getparam("d1"));
 
          memset(&tms, 0, sizeof(struct tm));
          tms.tm_year = y2 % 100;
@@ -3525,11 +3544,11 @@ void show_elog_submit_query(INT last_n)
    rsprintf("<table id=\"elogContent\" class=\"dialogTable\">");  //main table
    rsprintf("<tr><th class=\"subStatusTitle\" colspan=6>E-Log</th><tr>");
 
-   if (*getparam("r1")) {
-      if (*getparam("r2"))
-         rsprintf("<tr><td colspan=%d class=\"yellowLight\"><b>Query result between runs %s and %s</b></tr>\n", colspan, getparam("r1"), getparam("r2"));
+   if (*p->getparam("r1")) {
+      if (*p->getparam("r2"))
+         rsprintf("<tr><td colspan=%d class=\"yellowLight\"><b>Query result between runs %s and %s</b></tr>\n", colspan, p->getparam("r1"), p->getparam("r2"));
       else
-         rsprintf("<tr><td colspan=%d class=\"yellowLight\"><b>Query result between run %s and today</b></tr>\n", colspan, getparam("r1"));
+         rsprintf("<tr><td colspan=%d class=\"yellowLight\"><b>Query result between run %s and today</b></tr>\n", colspan, p->getparam("r1"));
    } else {
       if (last_n) {
          if (last_n < 24) {
@@ -3547,10 +3566,10 @@ void show_elog_submit_query(INT last_n)
          }
       }
 
-      else if (*getparam("m2") || *getparam("y2") || *getparam("d2"))
+      else if (*p->getparam("m2") || *p->getparam("y2") || *p->getparam("d2"))
          rsprintf
              ("<tr><td colspan=%d class=\"yellowLight\"><b>Query result between %s %s %s and %s %d %d</b></tr>\n",
-              colspan, getparam("m1"), getparam("d1"), getparam("y1"), mname[m2], d2, y2);
+              colspan, p->getparam("m1"), p->getparam("d1"), p->getparam("y1"), mname[m2], d2, y2);
       else {
          time(&now);
          ptms = localtime(&now);
@@ -3558,7 +3577,7 @@ void show_elog_submit_query(INT last_n)
 
          rsprintf
              ("<tr><td colspan=%d class=\"yellowLight\"><b>Query result between %s %s %s and %s %d %d</b></tr>\n",
-              colspan, getparam("m1"), getparam("d1"), getparam("y1"),
+              colspan, p->getparam("m1"), p->getparam("d1"), p->getparam("y1"),
               mname[ptms->tm_mon], ptms->tm_mday, ptms->tm_year);
       }
    }
@@ -3567,20 +3586,20 @@ void show_elog_submit_query(INT last_n)
 
    //rsprintf("<td colspan=%d bgcolor=#FFA0A0>\n", colspan);
 
-   if (*getparam("author"))
-      rsprintf("Author: <b>%s</b>   ", getparam("author"));
+   if (*p->getparam("author"))
+      rsprintf("Author: <b>%s</b>   ", p->getparam("author"));
 
-   if (*getparam("type"))
-      rsprintf("Type: <b>%s</b>   ", getparam("type"));
+   if (*p->getparam("type"))
+      rsprintf("Type: <b>%s</b>   ", p->getparam("type"));
 
-   if (*getparam("system"))
-      rsprintf("System: <b>%s</b>   ", getparam("system"));
+   if (*p->getparam("system"))
+      rsprintf("System: <b>%s</b>   ", p->getparam("system"));
 
-   if (*getparam("subject"))
-      rsprintf("Subject: <b>%s</b>   ", getparam("subject"));
+   if (*p->getparam("subject"))
+      rsprintf("Subject: <b>%s</b>   ", p->getparam("subject"));
 
-   if (*getparam("subtext"))
-      rsprintf("Text: <b>%s</b>   ", getparam("subtext"));
+   if (*p->getparam("subtext"))
+      rsprintf("Text: <b>%s</b>   ", p->getparam("subtext"));
 
    rsprintf("</tr>\n");
 
@@ -3607,13 +3626,13 @@ void show_elog_submit_query(INT last_n)
       ptms = localtime(&ltime_start);
       sprintf(tag, "%02d%02d%02d.0", ptms->tm_year % 100, ptms->tm_mon + 1,
               ptms->tm_mday);
-   } else if (*getparam("r1")) {
+   } else if (*p->getparam("r1")) {
       /* do run query */
-      el_search_run(atoi(getparam("r1")), tag);
+      el_search_run(atoi(p->getparam("r1")), tag);
    } else {
       /* do date-date query */
-      sprintf(tag, "%02d%02d%02d.0", atoi(getparam("y1")) % 100, m1 + 1,
-              atoi(getparam("d1")));
+      sprintf(tag, "%02d%02d%02d.0", atoi(p->getparam("y1")) % 100, m1 + 1,
+              atoi(p->getparam("d1")));
    }
 
    do {
@@ -3624,7 +3643,7 @@ void show_elog_submit_query(INT last_n)
       strlcat(tag, "+1", sizeof(tag));
 
       /* check for end run */
-      if (*getparam("r2") && atoi(getparam("r2")) < run)
+      if (*p->getparam("r2") && atoi(p->getparam("r2")) < run)
          break;
 
       /* convert date to unix format */
@@ -3653,13 +3672,13 @@ void show_elog_submit_query(INT last_n)
 
       if (status == EL_SUCCESS) {
          /* do filtering */
-         if (*getparam("type") && !equal_ustring(getparam("type"), type))
+         if (*p->getparam("type") && !equal_ustring(p->getparam("type"), type))
             continue;
-         if (*getparam("system") && !equal_ustring(getparam("system"), system))
+         if (*p->getparam("system") && !equal_ustring(p->getparam("system"), system))
             continue;
 
-         if (*getparam("author")) {
-            strlcpy(str, getparam("author"), sizeof(str));
+         if (*p->getparam("author")) {
+            strlcpy(str, p->getparam("author"), sizeof(str));
             for (i = 0; i < (int) strlen(str); i++)
                str[i] = toupper(str[i]);
             str[i] = 0;
@@ -3671,8 +3690,8 @@ void show_elog_submit_query(INT last_n)
                continue;
          }
 
-         if (*getparam("subject")) {
-            strlcpy(str, getparam("subject"), sizeof(str));
+         if (*p->getparam("subject")) {
+            strlcpy(str, p->getparam("subject"), sizeof(str));
             for (i = 0; i < (int) strlen(str); i++)
                str[i] = toupper(str[i]);
             str[i] = 0;
@@ -3684,8 +3703,8 @@ void show_elog_submit_query(INT last_n)
                continue;
          }
 
-         if (*getparam("subtext")) {
-            strlcpy(str, getparam("subtext"), sizeof(str));
+         if (*p->getparam("subtext")) {
+            strlcpy(str, p->getparam("subtext"), sizeof(str));
             for (i = 0; i < (int) strlen(str); i++)
                str[i] = toupper(str[i]);
             str[i] = 0;
@@ -3823,7 +3842,7 @@ void show_elog_submit_query(INT last_n)
 
 /*------------------------------------------------------------------*/
 
-void show_rawfile(const char *path)
+void show_rawfile(Param* pp, const char *path)
 {
    int size, lines, i, buf_size, offset;
    char *p;
@@ -3834,10 +3853,10 @@ void show_rawfile(const char *path)
    cm_get_experiment_database(&hDB, NULL);
 
    lines = 10;
-   if (*getparam("lines"))
-      lines = atoi(getparam("lines"));
+   if (*pp->getparam("lines"))
+      lines = atoi(pp->getparam("lines"));
 
-   if (*getparam("cmd") && equal_ustring(getparam("cmd"), "More lines"))
+   if (*pp->getparam("cmd") && equal_ustring(pp->getparam("cmd"), "More lines"))
       lines *= 2;
 
    /* header */
@@ -3971,7 +3990,7 @@ void show_rawfile(const char *path)
 
 /*------------------------------------------------------------------*/
 
-void show_form_query()
+void show_form_query(Param* p)
 {
    int i = 0, size, run_number, status;
    char str[256];
@@ -3993,11 +4012,11 @@ void show_form_query()
    rsprintf("<title>MIDAS ELog</title></head>\n");
    rsprintf("<body><form method=\"GET\" action=\"./\">\n");
 
-   if (*getparam("form") == 0)
+   if (*p->getparam("form") == 0)
       return;
 
    /* hidden field for form */
-   rsprintf("<input type=hidden name=form value=\"%s\">\n", getparam("form"));
+   rsprintf("<input type=hidden name=form value=\"%s\">\n", p->getparam("form"));
 
    /*---- body needs wrapper div to pin footer ----*/
    rsprintf("<div class=\"wrapper\">\n");
@@ -4007,7 +4026,7 @@ void show_form_query()
    /*---- title row ----*/
    rsprintf("<tr><td></td></tr>\n");
    //rsprintf("<tr><th colspan=2>MIDAS Electronic Logbook");
-   //rsprintf("<th colspan=2>Form \"%s\"</tr>\n", getparam("form"));
+   //rsprintf("<th colspan=2>Form \"%s\"</tr>\n", p->getparam("form"));
 
    rsprintf("</table>");  //close header
    rsprintf("<table class=\"dialogTable\">");  //main table
@@ -4046,7 +4065,7 @@ void show_form_query()
    rsprintf
        ("<tr><th>Item<th>Checked<th colspan=2>Comment</tr>\n");
 
-   sprintf(str, "/Elog/Forms/%s", getparam("form"));
+   sprintf(str, "/Elog/Forms/%s", p->getparam("form"));
    db_find_key(hDB, 0, str, &hkeyroot);
    i = 0;
    if (hkeyroot)
@@ -4194,7 +4213,7 @@ void gen_odb_attachment(const char *path, char *b)
 
 /*------------------------------------------------------------------*/
 
-void submit_elog()
+void submit_elog(Param* pp)
 {
    char author[256], path[256], path1[256];
    char mail_to[256], mail_from[256], mail_text[10000], mail_list[256],
@@ -4206,12 +4225,12 @@ void submit_elog()
    char mhttpd_full_url[256];
 
    cm_get_experiment_database(&hDB, NULL);
-   strlcpy(att_file[0], getparam("attachment0"), sizeof(att_file[0]));
-   strlcpy(att_file[1], getparam("attachment1"), sizeof(att_file[1]));
-   strlcpy(att_file[2], getparam("attachment2"), sizeof(att_file[2]));
+   strlcpy(att_file[0], pp->getparam("attachment0"), sizeof(att_file[0]));
+   strlcpy(att_file[1], pp->getparam("attachment1"), sizeof(att_file[1]));
+   strlcpy(att_file[2], pp->getparam("attachment2"), sizeof(att_file[2]));
 
    /* check for author */
-   if (*getparam("author") == 0) {
+   if (*pp->getparam("author") == 0) {
       rsprintf("HTTP/1.1 200 Document follows\r\n");
       rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
       rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
@@ -4232,9 +4251,9 @@ void submit_elog()
       buffer[i] = NULL;
       char str[256];
       sprintf(str, "attachment%d", i);
-      if (getparam(str) && *getparam(str) && _attachment_size[i] == 0) {
+      if (pp->getparam(str) && *pp->getparam(str) && _attachment_size[i] == 0) {
          /* replace '\' by '/' */
-         strlcpy(path, getparam(str), sizeof(path));
+         strlcpy(path, pp->getparam(str), sizeof(path));
          strlcpy(path1, path, sizeof(path1));
          while (strchr(path, '\\'))
             *strchr(path, '\\') = '/';
@@ -4275,21 +4294,21 @@ void submit_elog()
                      urlDecode(pitem); // parameter name
                      urlDecode(p); // parameter value
 
-                     setparam(pitem, p);
+                     pp->setparam(pitem, p);
 
                      p = strtok(NULL, "&");
                   }
                }
                *strchr(str, '?') = 0;
             }
-            show_hist_page(str, str, buffer[i], &size, 0);
+            show_hist_page(pp, str, str, buffer[i], &size, 0);
             strlcpy(att_file[i], str, sizeof(att_file[0]));
             _attachment_buffer[i] = buffer[i];
             _attachment_size[i] = size;
-            unsetparam("scale");
-            unsetparam("offset");
-            unsetparam("width");
-            unsetparam("index");
+            pp->unsetparam("scale");
+            pp->unsetparam("offset");
+            pp->unsetparam("width");
+            pp->unsetparam("index");
          } else {
             rsprintf("HTTP/1.1 200 Document follows\r\n");
             rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
@@ -4301,7 +4320,7 @@ void submit_elog()
             rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
             rsprintf("<title>ELog Error</title></head>\n");
             rsprintf("<i>Error: Attachment file <i>%s</i> not valid.</i><p>\n",
-                     getparam(str));
+                     pp->getparam(str));
             rsprintf
                 ("Please go back and enter a proper filename (use the <b>Browse</b> button).\n");
             rsprintf("<body></body></html>\n");
@@ -4314,18 +4333,18 @@ void submit_elog()
       char str[256];
       // FIXME: should get author's network address from the network connection
       strlcpy(str, "somewhere", sizeof(str));
-      strlcpy(author, getparam("author"), sizeof(author));
+      strlcpy(author, pp->getparam("author"), sizeof(author));
       strlcat(author, "@", sizeof(author));
       strlcat(author, str, sizeof(author));
    }
       
    tag[0] = 0;
-   if (*getparam("edit"))
-      strlcpy(tag, getparam("orig"), sizeof(tag));
+   if (*pp->getparam("edit"))
+      strlcpy(tag, pp->getparam("orig"), sizeof(tag));
 
-   el_submit(atoi(getparam("run")), author, getparam("type"),
-             getparam("system"), getparam("subject"), getparam("text"),
-             getparam("orig"), *getparam("html") ? "HTML" : "plain",
+   el_submit(atoi(pp->getparam("run")), author, pp->getparam("type"),
+             pp->getparam("system"), pp->getparam("subject"), pp->getparam("text"),
+             pp->getparam("orig"), *pp->getparam("html") ? "HTML" : "plain",
              att_file[0], _attachment_buffer[0], _attachment_size[0],
              att_file[1], _attachment_buffer[1], _attachment_size[1],
              att_file[2], _attachment_buffer[2], _attachment_size[2], tag, sizeof(tag));
@@ -4347,9 +4366,9 @@ void submit_elog()
    for (index = 0; index <= 1; index++) {
       char str[256];
       if (index == 0)
-         sprintf(str, "/Elog/Email %s", getparam("type")); // FIXME: string overrun
+         sprintf(str, "/Elog/Email %s", pp->getparam("type")); // FIXME: string overrun
       else
-         sprintf(str, "/Elog/Email %s", getparam("system")); // FIXME: string overrun
+         sprintf(str, "/Elog/Email %s", pp->getparam("system")); // FIXME: string overrun
 
       if (db_find_key(hDB, 0, str, &hkey) == DB_SUCCESS) {
          size = sizeof(mail_list);
@@ -4373,22 +4392,22 @@ void submit_elog()
 
             sprintf(mail_text, "A new entry has been submitted by %s:\n\n", author);
             sprintf(mail_text + strlen(mail_text), "Experiment : %s\n", exptname.c_str());
-            sprintf(mail_text + strlen(mail_text), "Type       : %s\n", getparam("type"));
-            sprintf(mail_text + strlen(mail_text), "System     : %s\n", getparam("system"));
-            sprintf(mail_text + strlen(mail_text), "Subject    : %s\n", getparam("subject"));
+            sprintf(mail_text + strlen(mail_text), "Type       : %s\n", pp->getparam("type"));
+            sprintf(mail_text + strlen(mail_text), "System     : %s\n", pp->getparam("system"));
+            sprintf(mail_text + strlen(mail_text), "Subject    : %s\n", pp->getparam("subject"));
 
             sprintf(mail_text + strlen(mail_text), "Link       : %sEL/%s\n", mhttpd_full_url, tag);
 
             assert(strlen(mail_text) + 100 < sizeof(mail_text));        // bomb out on array overrun.
 
             strlcat(mail_text + strlen(mail_text), "\n", sizeof(mail_text));
-            strlcat(mail_text + strlen(mail_text), getparam("text"),
+            strlcat(mail_text + strlen(mail_text), pp->getparam("text"),
                     sizeof(mail_text) - strlen(mail_text) - 50);
             strlcat(mail_text + strlen(mail_text), "\n", sizeof(mail_text));
 
             assert(strlen(mail_text) < sizeof(mail_text));      // bomb out on array overrun.
 
-            sendmail(elog_host_name.c_str(), smtp_host, mail_from, mail_to, getparam("type"), mail_text);
+            sendmail(elog_host_name.c_str(), smtp_host, mail_from, mail_to, pp->getparam("type"), mail_text);
 
             if (mail_param[0] == 0)
                strlcpy(mail_param, "?", sizeof(mail_param));
@@ -4422,7 +4441,7 @@ void submit_elog()
 
 /*------------------------------------------------------------------*/
 
-void submit_form()
+void submit_form(Param* p)
 {
    char str[256], att_name[256];
    char text[10000];
@@ -4431,7 +4450,7 @@ void submit_form()
    KEY key;
 
    /* check for author */
-   if (*getparam("author") == 0) {
+   if (*p->getparam("author") == 0) {
       rsprintf("HTTP/1.1 200 Document follows\r\n");
       rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
       rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
@@ -4449,7 +4468,7 @@ void submit_form()
 
    /* assemble text from form */
    cm_get_experiment_database(&hDB, NULL);
-   sprintf(str, "/Elog/Forms/%s", getparam("form"));
+   sprintf(str, "/Elog/Forms/%s", p->getparam("form"));
    db_find_key(hDB, 0, str, &hkeyroot);
    text[0] = 0;
    n_att = 0;
@@ -4472,30 +4491,30 @@ void submit_form()
             sprintf(att_name, "attachment%d", n_att++);
 
             sprintf(str, "c%d", i);
-            setparam(att_name, getparam(str));
+            p->setparam(att_name, p->getparam(str));
          } else {
             sprintf(str, "x%d", i);
             sprintf(text + strlen(text), "%d %s : [%c]  ", i + 1, key.name,
-                    *getparam(str) == '1' ? 'X' : ' ');
+                    *p->getparam(str) == '1' ? 'X' : ' ');
             sprintf(str, "c%d", i);
-            sprintf(text + strlen(text), "%s\n", getparam(str));
+            sprintf(text + strlen(text), "%s\n", p->getparam(str));
          }
       }
 
    /* set parameters for submit_elog() */
-   setparam("type", getparam("form"));
-   setparam("system", "General");
-   setparam("subject", getparam("form"));
-   setparam("text", text);
-   setparam("orig", "");
-   setparam("html", "");
+   p->setparam("type", p->getparam("form"));
+   p->setparam("system", "General");
+   p->setparam("subject", p->getparam("form"));
+   p->setparam("text", text);
+   p->setparam("orig", "");
+   p->setparam("html", "");
 
-   submit_elog();
+   submit_elog(p);
 }
 
 /*------------------------------------------------------------------*/
 
-void show_elog_page(char *path, int path_size)
+void show_elog_page(Param* p, char *path, int path_size)
 {
    int size, i, run, msg_status, status, fh, length, first_message, last_message, index,
       fsize;
@@ -4521,24 +4540,24 @@ void show_elog_page(char *path, int path_size)
 
    /*---- interprete commands ---------------------------------------*/
 
-   strlcpy(command, getparam("cmd"), sizeof(command));
+   strlcpy(command, p->getparam("cmd"), sizeof(command));
 
-   if (*getparam("form")) {
-      if (*getparam("type")) {
-         sprintf(str, "EL/?form=%s", getparam("form"));
+   if (*p->getparam("form")) {
+      if (*p->getparam("type")) {
+         sprintf(str, "EL/?form=%s", p->getparam("form"));
          redirect(str);
          return;
       }
       if (equal_ustring(command, "submit"))
-         submit_form();
+         submit_form(p);
       else
-         show_form_query();
+         show_form_query(p);
       return;
    }
 
    if (equal_ustring(command, "new")) {
-      if (*getparam("file"))
-         show_elog_new(NULL, FALSE, getparam("file"), NULL);
+      if (*p->getparam("file"))
+         show_elog_new(NULL, FALSE, p->getparam("file"), NULL);
       else
          show_elog_new(NULL, FALSE, NULL, NULL);
       return;
@@ -4631,7 +4650,7 @@ void show_elog_page(char *path, int path_size)
    }
 
    if (equal_ustring(command, "submit")) {
-      submit_elog();
+      submit_elog(p);
       return;
    }
 
@@ -4641,7 +4660,7 @@ void show_elog_page(char *path, int path_size)
    }
 
    if (equal_ustring(command, "submit query")) {
-      show_elog_submit_query(0);
+      show_elog_submit_query(p, 0);
       return;
    }
 
@@ -4656,12 +4675,12 @@ void show_elog_page(char *path, int path_size)
    }
 
    if (equal_ustring(command, "delete")) {
-      show_elog_delete(path);
+      show_elog_delete(p, path);
       return;
    }
 
    if (strncmp(path, "last", 4) == 0) {
-      show_elog_submit_query(atoi(path + 4));
+      show_elog_submit_query(p, atoi(path + 4));
       return;
    }
 
@@ -4729,7 +4748,7 @@ void show_elog_page(char *path, int path_size)
   /*---- check if runlog is requested ------------------------------*/
 
    if (path[0] > '9') {
-      show_rawfile(path);
+      show_rawfile(p, path);
       return;
    }
 
@@ -4763,14 +4782,14 @@ void show_elog_page(char *path, int path_size)
 
          if (strchr(author, '@'))
             *strchr(author, '@') = 0;
-         if (*getparam("lauthor") == '1' && !equal_ustring(getparam("author"), author))
+         if (*p->getparam("lauthor") == '1' && !equal_ustring(p->getparam("author"), author))
             continue;
-         if (*getparam("ltype") == '1' && !equal_ustring(getparam("type"), type))
+         if (*p->getparam("ltype") == '1' && !equal_ustring(p->getparam("type"), type))
             continue;
-         if (*getparam("lsystem") == '1' && !equal_ustring(getparam("system"), system))
+         if (*p->getparam("lsystem") == '1' && !equal_ustring(p->getparam("system"), system))
             continue;
-         if (*getparam("lsubject") == '1') {
-            strlcpy(str, getparam("subject"), sizeof(str));
+         if (*p->getparam("lsubject") == '1') {
+            strlcpy(str, p->getparam("subject"), sizeof(str));
             for (i = 0; i < (int) strlen(str); i++)
                str[i] = toupper(str[i]);
             for (i = 0; i < (int) strlen(subject); i++)
@@ -4782,28 +4801,28 @@ void show_elog_page(char *path, int path_size)
 
          sprintf(str, "%s", path);
 
-         if (*getparam("lauthor") == '1') {
+         if (*p->getparam("lauthor") == '1') {
             if (strchr(str, '?') == NULL)
                strlcat(str, "?lauthor=1", sizeof(str));
             else
                strlcat(str, "&lauthor=1", sizeof(str));
          }
 
-         if (*getparam("ltype") == '1') {
+         if (*p->getparam("ltype") == '1') {
             if (strchr(str, '?') == NULL)
                strlcat(str, "?ltype=1", sizeof(str));
             else
                strlcat(str, "&ltype=1", sizeof(str));
          }
 
-         if (*getparam("lsystem") == '1') {
+         if (*p->getparam("lsystem") == '1') {
             if (strchr(str, '?') == NULL)
                strlcat(str, "?lsystem=1", sizeof(str));
             else
                strlcat(str, "&lsystem=1", sizeof(str));
          }
 
-         if (*getparam("lsubject") == '1') {
+         if (*p->getparam("lsubject") == '1') {
             if (strchr(str, '?') == NULL)
                strlcat(str, "?lsubject=1", sizeof(str));
             else
@@ -4936,10 +4955,10 @@ void show_elog_page(char *path, int path_size)
       /* check for mail submissions */
       for (i = 0;; i++) {
          sprintf(str, "mail%d", i);
-         if (*getparam(str)) {
+         if (*p->getparam(str)) {
             if (i == 0)
                rsprintf("<tr><td colspan=2>");
-            rsprintf("Mail sent to <b>%s</b><br>\n", getparam(str));
+            rsprintf("Mail sent to <b>%s</b><br>\n", p->getparam(str));
          } else
             break;
       }
@@ -4965,7 +4984,7 @@ void show_elog_page(char *path, int path_size)
       rsprintf("<input type=hidden name=system  value=\"%s\">\n", system);
       rsprintf("<input type=hidden name=subject value=\"%s\">\n\n", subject);
 
-      if (*getparam("lauthor") == '1')
+      if (*p->getparam("lauthor") == '1')
          rsprintf
              ("<tr><td><input type=\"checkbox\" checked name=\"lauthor\" value=\"1\">");
       else
@@ -4973,7 +4992,7 @@ void show_elog_page(char *path, int path_size)
              ("<tr><td><input type=\"checkbox\" name=\"lauthor\" value=\"1\">");
       rsprintf("  Author: <b>%s</b>\n", author);
 
-      if (*getparam("ltype") == '1')
+      if (*p->getparam("ltype") == '1')
          rsprintf
              ("<td><input type=\"checkbox\" checked name=\"ltype\" value=\"1\">");
       else
@@ -4981,7 +5000,7 @@ void show_elog_page(char *path, int path_size)
              ("<td><input type=\"checkbox\" name=\"ltype\" value=\"1\">");
       rsprintf("  Type: <b>%s</b></tr>\n", type);
 
-      if (*getparam("lsystem") == '1')
+      if (*p->getparam("lsystem") == '1')
          rsprintf
              ("<tr><td><input type=\"checkbox\" checked name=\"lsystem\" value=\"1\">");
       else
@@ -4990,7 +5009,7 @@ void show_elog_page(char *path, int path_size)
 
       rsprintf("  System: <b>%s</b>\n", system);
 
-      if (*getparam("lsubject") == '1')
+      if (*p->getparam("lsubject") == '1')
          rsprintf
              ("<td><input type=\"checkbox\" checked name=\"lsubject\" value=\"1\">");
       else
@@ -5130,7 +5149,7 @@ BOOL is_editable(char *eq_name, char *var_name)
    return FALSE;
 }
 
-void show_sc_page(const char *path, int refresh)
+void show_sc_page(Param* pp, const char *path, int refresh)
 {
    int i, j, k, colspan, size, n_var, i_edit, i_set, line;
    char str[256], eq_name[32], group[32], name[32], ref[256];
@@ -5144,13 +5163,13 @@ void show_sc_page(const char *path, int refresh)
 
    /* check if variable to edit */
    i_edit = -1;
-   if (equal_ustring(getparam("cmd"), "Edit"))
-      i_edit = atoi(getparam("index"));
+   if (equal_ustring(pp->getparam("cmd"), "Edit"))
+      i_edit = atoi(pp->getparam("index"));
 
    /* check if variable to set */
    i_set = -1;
-   if (equal_ustring(getparam("cmd"), "Set"))
-      i_set = atoi(getparam("index"));
+   if (equal_ustring(pp->getparam("cmd"), "Set"))
+      i_set = atoi(pp->getparam("index"));
 
    /* split path into equipment and group */
    strlcpy(eq_name, path, sizeof(eq_name));
@@ -5204,7 +5223,7 @@ void show_sc_page(const char *path, int refresh)
 
    rsprintf("<tr><td colspan=15>\n");
 
-   if (equal_ustring(getparam("cmd"), "Edit"))
+   if (equal_ustring(pp->getparam("cmd"), "Edit"))
       rsprintf("<input type=submit name=cmd value=Set>\n");
 
    rsprintf("</tr>\n\n");
@@ -5402,7 +5421,7 @@ void show_sc_page(const char *path, int refresh)
             if (is_editable(eq_name, varkey.name)) {
                if (n_var == i_set) {
                   /* set value */
-                  strlcpy(str, getparam("value"), sizeof(str));
+                  strlcpy(str, pp->getparam("value"), sizeof(str));
                   db_sscanf(str, data, &size, 0, varkey.type);
                   db_set_data_index(hDB, hkey, data, size, i, varkey.type);
 
@@ -5584,7 +5603,7 @@ void show_sc_page(const char *path, int refresh)
                   if (is_editable(eq_name, varkey.name)) {
                      if (n_var == i_set) {
                         /* set value */
-                        strlcpy(str, getparam("value"), sizeof(str));
+                        strlcpy(str, pp->getparam("value"), sizeof(str));
                         db_sscanf(str, data, &size, 0, varkey.type);
                         db_set_data_index(hDB, hkey, data, size, j, varkey.type);
 
@@ -5814,7 +5833,7 @@ char *find_odb_tag(char *p, char *path, char *format, int *edit, char *type, cha
 
 /*------------------------------------------------------------------*/
 
-void show_odb_tag(const char *path, const char *keypath1, const char *format, int n_var, int edit, char *type, char *pwd, char *tail)
+void show_odb_tag(Param* pp, const char *path, const char *keypath1, const char *format, int n_var, int edit, char *type, char *pwd, char *tail)
 {
    int size, index, i_edit, i_set;
    char str[TEXT_SIZE], data[TEXT_SIZE], options[1000], full_keypath[256], keypath[256], *p;
@@ -5823,13 +5842,13 @@ void show_odb_tag(const char *path, const char *keypath1, const char *format, in
 
    /* check if variable to edit */
    i_edit = -1;
-   if (equal_ustring(getparam("cmd"), "Edit"))
-      i_edit = atoi(getparam("index"));
+   if (equal_ustring(pp->getparam("cmd"), "Edit"))
+      i_edit = atoi(pp->getparam("index"));
 
    /* check if variable to set */
    i_set = -1;
-   if (equal_ustring(getparam("cmd"), "Set"))
-      i_set = atoi(getparam("index"));
+   if (equal_ustring(pp->getparam("cmd"), "Set"))
+      i_set = atoi(pp->getparam("index"));
 
    /* check if path contains index */
    strlcpy(full_keypath, keypath1, sizeof(full_keypath));
@@ -5863,8 +5882,8 @@ void show_odb_tag(const char *path, const char *keypath1, const char *format, in
 
       if (equal_ustring(type, "checkbox")) {
 
-         if (isparam("cbi"))
-            i_set = atoi(getparam("cbi"));
+         if (pp->isparam("cbi"))
+            i_set = atoi(pp->getparam("cbi"));
          if (n_var == i_set) {
             /* toggle state */
             if (key.type == TID_BOOL) {
@@ -5907,7 +5926,7 @@ void show_odb_tag(const char *path, const char *keypath1, const char *format, in
          if (edit == 1) {
             if (n_var == i_set) {
                /* set value */
-               strlcpy(str, getparam("value"), sizeof(str));
+               strlcpy(str, pp->getparam("value"), sizeof(str));
                db_sscanf(str, data, &size, 0, key.type);
                db_set_data_index(hDB, hkey, data, size, index, key.type);
 
@@ -6551,7 +6570,7 @@ void show_custom_gif(const char *name)
 
 /*------------------------------------------------------------------*/
 
-void do_jrpc_rev0()
+void do_jrpc_rev0(Param* p)
 {
    static RPC_LIST rpc_list[] = {
       { 9999, "mhttpd_jrpc_rev0", {
@@ -6571,8 +6590,8 @@ void do_jrpc_rev0()
 
    int count = 0, substring = 0, rpc;
 
-   const char *xname   = getparam("name");
-   const char *srpc    = getparam("rpc");
+   const char *xname   = p->getparam("name");
+   const char *srpc    = p->getparam("rpc");
 
    if (!srpc || !xname) {
       show_text_header();
@@ -6648,16 +6667,16 @@ void do_jrpc_rev0()
 
                if (status == RPC_SUCCESS) {
                   status = rpc_client_call(hconn, rpc,
-                                           getparam("arg0"),
-                                           getparam("arg1"),
-                                           getparam("arg2"),
-                                           getparam("arg3"),
-                                           getparam("arg4"),
-                                           getparam("arg5"),
-                                           getparam("arg6"),
-                                           getparam("arg7"),
-                                           getparam("arg8"),
-                                           getparam("arg9")
+                                           p->getparam("arg0"),
+                                           p->getparam("arg1"),
+                                           p->getparam("arg2"),
+                                           p->getparam("arg3"),
+                                           p->getparam("arg4"),
+                                           p->getparam("arg5"),
+                                           p->getparam("arg6"),
+                                           p->getparam("arg7"),
+                                           p->getparam("arg8"),
+                                           p->getparam("arg9")
                                            );
                   rsprintf(" %d", status);
 
@@ -6676,7 +6695,7 @@ void do_jrpc_rev0()
 
 /*------------------------------------------------------------------*/
 
-void do_jrpc_rev1()
+void do_jrpc_rev1(Param* p)
 {
    static RPC_LIST rpc_list[] = {
       { 9998, "mhttpd_jrpc_rev1", {
@@ -6698,8 +6717,8 @@ void do_jrpc_rev1()
 
    int status, count = 0, substring = 0, rpc;
 
-   const char *xname   = getparam("name");
-   const char *srpc    = getparam("rpc");
+   const char *xname   = p->getparam("name");
+   const char *srpc    = p->getparam("rpc");
 
    if (!srpc || !xname) {
       show_text_header();
@@ -6745,7 +6764,7 @@ void do_jrpc_rev1()
 
       int buf_length = 1024;
 
-      int max_reply_length = atoi(getparam("max_reply_length"));
+      int max_reply_length = atoi(p->getparam("max_reply_length"));
       if (max_reply_length > buf_length)
          buf_length = max_reply_length;
 
@@ -6802,16 +6821,16 @@ void do_jrpc_rev1()
                   call_status = rpc_client_call(hconn, rpc,
                                                 buf,
                                                 buf_length,
-                                                getparam("arg0"),
-                                                getparam("arg1"),
-                                                getparam("arg2"),
-                                                getparam("arg3"),
-                                                getparam("arg4"),
-                                                getparam("arg5"),
-                                                getparam("arg6"),
-                                                getparam("arg7"),
-                                                getparam("arg8"),
-                                                getparam("arg9")
+                                                p->getparam("arg0"),
+                                                p->getparam("arg1"),
+                                                p->getparam("arg2"),
+                                                p->getparam("arg3"),
+                                                p->getparam("arg4"),
+                                                p->getparam("arg5"),
+                                                p->getparam("arg6"),
+                                                p->getparam("arg7"),
+                                                p->getparam("arg8"),
+                                                p->getparam("arg9")
                                                 );
 
                   //rsprintf("    <rpc_status>%d</rpc_status>\n", status);
@@ -6857,13 +6876,13 @@ void do_jrpc_rev1()
 
 /*------------------------------------------------------------------*/
 
-void do_jrpc()
+void do_jrpc(Param* p)
 {
    int status;
 
-   const char *name   = getparam("name");
-   const char *cmd    = getparam("rcmd");
-   const char *args   = getparam("rarg");
+   const char *name   = p->getparam("name");
+   const char *cmd    = p->getparam("rcmd");
+   const char *args   = p->getparam("rarg");
 
    if (!name || !cmd || !args) {
       show_text_header();
@@ -6875,7 +6894,7 @@ void do_jrpc()
 
    int buf_length = 1024;
 
-   int max_reply_length = atoi(getparam("max_reply_length"));
+   int max_reply_length = atoi(p->getparam("max_reply_length"));
    if (max_reply_length > buf_length)
       buf_length = max_reply_length;
 
@@ -6907,7 +6926,7 @@ void do_jrpc()
 
 /*------------------------------------------------------------------*/
 
-void output_key(HNDLE hkey, int index, const char *format)
+void output_key(Param* p, HNDLE hkey, int index, const char *format)
 {
    int size, i;
    char str[TEXT_SIZE];
@@ -6923,7 +6942,7 @@ void output_key(HNDLE hkey, int index, const char *format)
          db_enum_key(hDB, hkey, i, &hsubkey);
          if (!hsubkey)
             break;
-         output_key(hsubkey, -1, format);
+         output_key(p, hsubkey, -1, format);
       }
    } else {
       if (key.item_size <= (int)sizeof(data)) {
@@ -6931,7 +6950,7 @@ void output_key(HNDLE hkey, int index, const char *format)
          db_get_data(hDB, hkey, data, &size, key.type);
          if (index == -1) {
             for (i=0 ; i<key.num_values ; i++) {
-               if (isparam("name") && atoi(getparam("name")) == 1) {
+               if (p->isparam("name") && atoi(p->getparam("name")) == 1) {
                   if (key.num_values == 1)
                      rsprintf("%s:", key.name);
                   else
@@ -6946,13 +6965,13 @@ void output_key(HNDLE hkey, int index, const char *format)
                   rsputs("\n");
             }
          } else {
-            if (isparam("name") && atoi(getparam("name")) == 1)
+            if (p->isparam("name") && atoi(p->getparam("name")) == 1)
                rsprintf("%s[%d]:", key.name, index);
             if (index >= key.num_values)
                rsputs("<DB_OUT_OF_RANGE>");
             else {
-               if (isparam("format"))
-                  db_sprintff(str, getparam("format"), data, key.item_size, index, key.type);
+               if (p->isparam("format"))
+                  db_sprintff(str, p->getparam("format"), data, key.item_size, index, key.type);
                else
                   db_sprintf(str, data, key.item_size, index, key.type);
                rsputs(str);
@@ -6974,7 +6993,7 @@ bool starts_with(const std::string& s1, const char* s2)
 
 /*------------------------------------------------------------------*/
 
-void javascript_commands(const char *cookie_cpwd)
+void javascript_commands(Param* p, const char *cookie_cpwd)
 {
    int status;
    int size, i, n, index, type;
@@ -7004,12 +7023,12 @@ void javascript_commands(const char *cookie_cpwd)
    //HNDLE hodb; // ODB handle for single odb parameter
    //std::vector<HNDLE> hodbm; // ODB handle for multiple odb parameter
 
-   if (isparam("cmd")) {
-      cmd_parameter = getparam("cmd");
+   if (p->isparam("cmd")) {
+      cmd_parameter = p->getparam("cmd");
    }
 
-   if (isparam("encoding")) {
-      encoding_parameter = getparam("encoding");
+   if (p->isparam("encoding")) {
+      encoding_parameter = p->getparam("encoding");
    }
 
    if (encoding_parameter.length() > 0) {
@@ -7022,25 +7041,25 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    if (encoding == ENCODING_JSON) {
-      if (isparam("callback")) {
+      if (p->isparam("callback")) {
          jsonp = true;
-         jsonp_callback = getparam("callback");
+         jsonp_callback = p->getparam("callback");
       }
    }
 
-   if (isparam("odb")) {
+   if (p->isparam("odb")) {
       single = true;
-      odb.push_back(getparam("odb"));
+      odb.push_back(p->getparam("odb"));
    }
 
-   if (isparam("odb0")) {
+   if (p->isparam("odb0")) {
       multiple = true;
       for (int i=0 ; ; i++) {
          char ppath[256];
          sprintf(ppath, "odb%d", i);
-         if (!isparam(ppath))
+         if (!p->isparam(ppath))
             break;
-         odb.push_back(getparam(ppath));
+         odb.push_back(p->getparam(ppath));
       }
    }
 
@@ -7049,10 +7068,10 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    /* process "jset" command */
-   if (equal_ustring(getparam("cmd"), "jset")) {
+   if (equal_ustring(p->getparam("cmd"), "jset")) {
 
-      if (*getparam("pnam")) {
-         sprintf(ppath, "/Custom/Pwd/%s", getparam("pnam"));
+      if (*p->getparam("pnam")) {
+         sprintf(ppath, "/Custom/Pwd/%s", p->getparam("pnam"));
          str[0] = 0;
          db_get_value(hDB, 0, ppath, str, &size, TID_STRING, TRUE);
          if (!equal_ustring(cookie_cpwd, str)) {
@@ -7061,7 +7080,7 @@ void javascript_commands(const char *cookie_cpwd)
             return;
          }
       }
-      strlcpy(str, getparam("odb"), sizeof(str));
+      strlcpy(str, p->getparam("odb"), sizeof(str));
       if (strchr(str, '[')) {
          if (*(strchr(str, '[')+1) == '*')
             index = -1;
@@ -7071,25 +7090,25 @@ void javascript_commands(const char *cookie_cpwd)
       } else
          index = 0;
 
-      if (db_find_key(hDB, 0, str, &hkey) == DB_SUCCESS && isparam("value")) {
+      if (db_find_key(hDB, 0, str, &hkey) == DB_SUCCESS && p->isparam("value")) {
          db_get_key(hDB, hkey, &key);
          memset(data, 0, sizeof(data));
          if (key.item_size <= (int)sizeof(data)) {
             if (index == -1) {
-               const char* p = getparam("value");
-               for (i=0 ; p != NULL ; i++) {
+               const char* ptr = p->getparam("value");
+               for (i=0 ; ptr != NULL ; i++) {
                   size = sizeof(data);
-                  db_sscanf(p, data, &size, 0, key.type);
+                  db_sscanf(ptr, data, &size, 0, key.type);
                   if (strchr(data, ','))
                      *strchr(data, ',') = 0;
                   db_set_data_index(hDB, hkey, data, key.item_size, i, key.type);
-                  p = strchr(p, ',');
-                  if (p != NULL)
-                     p++;
+                  ptr = strchr(ptr, ',');
+                  if (ptr != NULL)
+                     ptr++;
                }
             } else {
                size = sizeof(data);
-               db_sscanf(getparam("value"), data, &size, 0, key.type);
+               db_sscanf(p->getparam("value"), data, &size, 0, key.type);
 
                /* extend data size for single string if necessary */
                if ((key.type == TID_STRING || key.type == TID_LINK)
@@ -7101,8 +7120,8 @@ void javascript_commands(const char *cookie_cpwd)
             }
          }
       } else {
-         if (isparam("value") && isparam("type") && isparam("len")) {
-            int type = atoi(getparam("type"));
+         if (p->isparam("value") && p->isparam("type") && p->isparam("len")) {
+            int type = atoi(p->getparam("type"));
             if (type == 0) {
                show_text_header();
                rsprintf("Invalid type %d!", type);
@@ -7118,11 +7137,11 @@ void javascript_commands(const char *cookie_cpwd)
             db_get_key(hDB, hkey, &key);
             memset(data, 0, sizeof(data));
             size = sizeof(data);
-            db_sscanf(getparam("value"), data, &size, 0, key.type);
+            db_sscanf(p->getparam("value"), data, &size, 0, key.type);
             if (key.type == TID_STRING)
-               db_set_data(hDB, hkey, data, atoi(getparam("len")), 1, TID_STRING);
+               db_set_data(hDB, hkey, data, atoi(p->getparam("len")), 1, TID_STRING);
             else {
-               for (i=0 ; i<atoi(getparam("len")) ; i++)
+               for (i=0 ; i<atoi(p->getparam("len")) ; i++)
                   db_set_data_index(hDB, hkey, data, rpc_tid_size(key.type), i, key.type);
             }
          }
@@ -7134,10 +7153,10 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    /* process "jget" command */
-   if (equal_ustring(getparam("cmd"), "jget")) {
+   if (equal_ustring(p->getparam("cmd"), "jget")) {
 
-      if (isparam("odb")) {
-         strlcpy(str, getparam("odb"), sizeof(str));
+      if (p->isparam("odb")) {
+         strlcpy(str, p->getparam("odb"), sizeof(str));
          if (strchr(str, '[')) {
             if (*(strchr(str, '[')+1) == '*')
                index = -1;
@@ -7152,18 +7171,18 @@ void javascript_commands(const char *cookie_cpwd)
          status = db_find_key(hDB, 0, str, &hkey);
 
          if (status == DB_SUCCESS)
-            output_key(hkey, index, getparam("format"));
+            output_key(p, hkey, index, p->getparam("format"));
          else
             rsputs("<DB_NO_KEY>");
       }
 
-      if (isparam("odb0")) {
+      if (p->isparam("odb0")) {
          show_text_header();
          for (i=0 ; ; i++) {
             sprintf(ppath, "odb%d", i);
             sprintf(format, "format%d", i);
-            if (isparam(ppath)) {
-               strlcpy(str, getparam(ppath), sizeof(str));
+            if (p->isparam(ppath)) {
+               strlcpy(str, p->getparam(ppath), sizeof(str));
                if (strchr(str, '[')) {
                   if (*(strchr(str, '[')+1) == '*')
                      index = -1;
@@ -7175,7 +7194,7 @@ void javascript_commands(const char *cookie_cpwd)
                if (i > 0)
                   rsputs("$#----#$\n");
                if (db_find_key(hDB, 0, str, &hkey) == DB_SUCCESS)
-                  output_key(hkey, index, getparam(format));
+                  output_key(p, hkey, index, p->getparam(format));
                else
                   rsputs("<DB_NO_KEY>");
 
@@ -7188,7 +7207,7 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    /* process "jcopy" command */
-   if (equal_ustring(getparam("cmd"), "jcopy")) {
+   if (equal_ustring(p->getparam("cmd"), "jcopy")) {
 
       bool fmt_odb  = false;
       bool fmt_xml  = false;
@@ -7200,10 +7219,10 @@ void javascript_commands(const char *cookie_cpwd)
       const char* fmt = NULL;
       const char* jsonp_callback = "callback";
 
-      if (isparam("encoding")) {
-         fmt = getparam("encoding");
-      } else if (isparam("format")) {
-         fmt = getparam("format");
+      if (p->isparam("encoding")) {
+         fmt = p->getparam("encoding");
+      } else if (p->isparam("format")) {
+         fmt = p->getparam("format");
       }
 
       if (fmt) {
@@ -7220,8 +7239,8 @@ void javascript_commands(const char *cookie_cpwd)
 
          if (fmt_json)
             fmt_jsonp = strstr(fmt, "-p") > 0;
-         if (fmt_jsonp && isparam("callback"))
-            jsonp_callback = getparam("callback");
+         if (fmt_jsonp && p->isparam("callback"))
+            jsonp_callback = p->getparam("callback");
          if (fmt_json && strstr(fmt, "-nofollowlinks"))
             follow_links = 0;
          if (fmt_json && strstr(fmt, "-nokeys"))
@@ -7232,8 +7251,8 @@ void javascript_commands(const char *cookie_cpwd)
             recurse = 0;
       }
 
-      if (isparam("odb")) {
-         strlcpy(str, getparam("odb"), sizeof(str));
+      if (p->isparam("odb")) {
+         strlcpy(str, p->getparam("odb"), sizeof(str));
 
          show_text_header();
 
@@ -7269,7 +7288,7 @@ void javascript_commands(const char *cookie_cpwd)
             rsputs("<DB_NO_KEY>");
       }
 
-      if (isparam("odb0")) {
+      if (p->isparam("odb0")) {
          show_text_header();
          if (fmt_jsonp) {
             rsputs(jsonp_callback);
@@ -7286,9 +7305,9 @@ void javascript_commands(const char *cookie_cpwd)
          for (int i=0 ; ; i++) {
             char ppath[256];
             sprintf(ppath, "odb%d", i);
-            if (!isparam(ppath))
+            if (!p->isparam(ppath))
                break;
-            strlcpy(str, getparam(ppath), sizeof(str));
+            strlcpy(str, p->getparam(ppath), sizeof(str));
 
             if (i > 0) {
                if (fmt_xml)
@@ -7353,7 +7372,7 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    /* process "jkey" command */
-   if (equal_ustring(getparam("cmd"), "jkey")) {
+   if (equal_ustring(p->getparam("cmd"), "jkey")) {
 
       // test:
       // curl "http://localhost:8080?cmd=jkey&odb0=/runinfo/run+number&odb1=/nonexistant&odb2=/&encoding=json&callback=aaa"
@@ -7430,7 +7449,7 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    /* process "jcreate" command */
-   if (equal_ustring(getparam("cmd"), "jcreate")) {
+   if (equal_ustring(p->getparam("cmd"), "jcreate")) {
 
       // test:
       // curl "http://localhost:8080?cmd=jcreate&odb0=/test/foo&type0=7&odb1=/nonexistant&type1=100&odb2=/test/bar&type2=12&encoding=json&callback=aaa"
@@ -7464,18 +7483,18 @@ void javascript_commands(const char *cookie_cpwd)
          int strlength = 0;
 
          if (single) {
-            type = atoi(getparam("type"));
-            arraylength = atoi(getparam("arraylen"));
-            strlength = atoi(getparam("strlen"));
+            type = atoi(p->getparam("type"));
+            arraylength = atoi(p->getparam("arraylen"));
+            strlength = atoi(p->getparam("strlen"));
          }
          else if (multiple) {
-            char p[256];
-            sprintf(p, "type%d", i);
-            type = atoi(getparam(p));
-            sprintf(p, "arraylen%d", i);
-            arraylength = atoi(getparam(p));
-            sprintf(p, "strlen%d", i);
-            strlength = atoi(getparam(p));
+            char buf[256];
+            sprintf(buf, "type%d", i);
+            type = atoi(p->getparam(buf));
+            sprintf(buf, "arraylen%d", i);
+            arraylength = atoi(p->getparam(buf));
+            sprintf(buf, "strlen%d", i);
+            strlength = atoi(p->getparam(buf));
          }
 
          status = db_create_key(hDB, 0, odb[i].c_str(), type);
@@ -7521,7 +7540,7 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    /* process "jresize" command */
-   if (equal_ustring(getparam("cmd"), "jresize")) {
+   if (equal_ustring(p->getparam("cmd"), "jresize")) {
 
       // test:
 
@@ -7553,15 +7572,15 @@ void javascript_commands(const char *cookie_cpwd)
          int strlength = 0;
 
          if (single) {
-            arraylength = atoi(getparam("arraylen"));
-            strlength = atoi(getparam("strlen"));
+            arraylength = atoi(p->getparam("arraylen"));
+            strlength = atoi(p->getparam("strlen"));
          }
          else if (multiple) {
-            char p[256];
-            sprintf(p, "arraylen%d", i);
-            arraylength = atoi(getparam(p));
-            sprintf(p, "strlen%d", i);
-            strlength = atoi(getparam(p));
+            char buf[256];
+            sprintf(buf, "arraylen%d", i);
+            arraylength = atoi(p->getparam(buf));
+            sprintf(buf, "strlen%d", i);
+            strlength = atoi(p->getparam(buf));
          }
 
          status = db_find_key(hDB, 0, odb[i].c_str(), &hkey);
@@ -7621,7 +7640,7 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    /* process "jrename" command */
-   if (equal_ustring(getparam("cmd"), "jrename")) {
+   if (equal_ustring(p->getparam("cmd"), "jrename")) {
 
       // test:
       // curl "http://localhost:8080?cmd=jrename&odb0=/test/foo&type0=7&odb1=/nonexistant&type1=100&odb2=/test/bar&type2=12&encoding=json&callback=aaa"
@@ -7646,11 +7665,11 @@ void javascript_commands(const char *cookie_cpwd)
       for (unsigned i=0; i<odb.size(); i++) {
          const char* name = NULL;
          if (single)
-            name = getparam("name");
+            name = p->getparam("name");
          else if (multiple) {
-            char p[256];
-            sprintf(p, "name%d", i);
-            name = getparam(p);
+            char buf[256];
+            sprintf(buf, "name%d", i);
+            name = p->getparam(buf);
          }
          status = db_find_key(hDB, 0, odb[i].c_str(), &hkey);
          if (status == DB_SUCCESS) {
@@ -7683,7 +7702,7 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    /* process "jlink" command */
-   if (equal_ustring(getparam("cmd"), "jlink")) {
+   if (equal_ustring(p->getparam("cmd"), "jlink")) {
 
       // test:
       // curl "http://localhost:8080?cmd=jlink&odb=/test/link&dest=/test/foo"
@@ -7708,11 +7727,11 @@ void javascript_commands(const char *cookie_cpwd)
       for (unsigned i=0; i<odb.size(); i++) {
          const char* dest = NULL;
          if (single)
-            dest = getparam("dest");
+            dest = p->getparam("dest");
          else if (multiple) {
-            char p[256];
-            sprintf(p, "dest%d", i);
-            dest = getparam(p);
+            char buf[256];
+            sprintf(buf, "dest%d", i);
+            dest = p->getparam(buf);
          }
 
          status = db_create_link(hDB, 0, odb[i].c_str(), dest);
@@ -7744,7 +7763,7 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    /* process "jreorder" command */
-   if (equal_ustring(getparam("cmd"), "jreorder")) {
+   if (equal_ustring(p->getparam("cmd"), "jreorder")) {
 
       // test:
       // curl "http://localhost:8080?cmd=jreorder&odb0=/test/foo&index0=0&odb1=/test/bar&index1=1"
@@ -7769,11 +7788,11 @@ void javascript_commands(const char *cookie_cpwd)
       for (unsigned i=0; i<odb.size(); i++) {
          int index = 0;
          if (single)
-            index = atoi(getparam("index"));
+            index = atoi(p->getparam("index"));
          else if (multiple) {
-            char p[256];
-            sprintf(p, "index%d", i);
-            index = atoi(getparam(p));
+            char buf[256];
+            sprintf(buf, "index%d", i);
+            index = atoi(p->getparam(buf));
          }
 
          status = db_find_key(hDB, 0, odb[i].c_str(), &hkey);
@@ -7808,7 +7827,7 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    /* process "jdelete" command */
-   if (equal_ustring(getparam("cmd"), "jdelete")) {
+   if (equal_ustring(p->getparam("cmd"), "jdelete")) {
 
       // test:
       // curl "http://localhost:8080?cmd=jdelete&odb0=/test/foo&odb1=/nonexistant&odb2=/test/bar&encoding=json&callback=aaa"
@@ -7863,20 +7882,20 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    /* process "jmsg" command */
-   if (equal_ustring(getparam("cmd"), "jmsg")) {
+   if (equal_ustring(p->getparam("cmd"), "jmsg")) {
 
-      if (getparam("f") && *getparam("f"))
-         strlcpy(facility, getparam("f"), sizeof(facility));
+      if (p->getparam("f") && *p->getparam("f"))
+         strlcpy(facility, p->getparam("f"), sizeof(facility));
       else
          strlcpy(facility, "midas", sizeof(facility));
 
       n = 1;
-      if (getparam("n") && *getparam("n"))
-         n = atoi(getparam("n"));
+      if (p->getparam("n") && *p->getparam("n"))
+         n = atoi(p->getparam("n"));
 
       t = 0;
-      if (getparam("t") && getparam("t"))
-         t = atoi(getparam("t"));
+      if (p->getparam("t") && p->getparam("t"))
+         t = atoi(p->getparam("t"));
 
       show_text_header();
       char* messages = NULL;
@@ -7890,25 +7909,25 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    /* process "jgenmsg" command */
-   if (equal_ustring(getparam("cmd"), "jgenmsg")) {
+   if (equal_ustring(p->getparam("cmd"), "jgenmsg")) {
 
-      if (getparam("facility") && *getparam("facility"))
-         strlcpy(facility, getparam("facility"), sizeof(facility));
+      if (p->getparam("facility") && *p->getparam("facility"))
+         strlcpy(facility, p->getparam("facility"), sizeof(facility));
       else
          strlcpy(facility, "midas", sizeof(facility));
       
-      if (getparam("user") && *getparam("user"))
-         strlcpy(user, getparam("user"), sizeof(user));
+      if (p->getparam("user") && *p->getparam("user"))
+         strlcpy(user, p->getparam("user"), sizeof(user));
       else
          strlcpy(user, "javascript_commands", sizeof(user));
       
-      if (getparam("type") && *getparam("type"))
-         type = atoi(getparam("type"));
+      if (p->getparam("type") && *p->getparam("type"))
+         type = atoi(p->getparam("type"));
       else
          type = MT_INFO;
 
-      if (getparam("msg") && *getparam("msg")) {
-         cm_msg1(type, __FILE__, __LINE__, facility, user, "%s", getparam("msg"));
+      if (p->getparam("msg") && *p->getparam("msg")) {
+         cm_msg1(type, __FILE__, __LINE__, facility, user, "%s", p->getparam("msg"));
       }
 
       show_text_header();
@@ -7917,7 +7936,7 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    /* process "jalm" command */
-   if (equal_ustring(getparam("cmd"), "jalm")) {
+   if (equal_ustring(p->getparam("cmd"), "jalm")) {
 
       show_text_header();
       al_get_alarms(str, sizeof(str));
@@ -7926,27 +7945,27 @@ void javascript_commands(const char *cookie_cpwd)
    }
 
    /* process "jrpc" command */
-   if (equal_ustring(getparam("cmd"), "jrpc_rev0")) {
-      do_jrpc_rev0();
+   if (equal_ustring(p->getparam("cmd"), "jrpc_rev0")) {
+      do_jrpc_rev0(p);
       return;
    }
 
    /* process "jrpc" command */
-   if (equal_ustring(getparam("cmd"), "jrpc_rev1")) {
-      do_jrpc_rev1();
+   if (equal_ustring(p->getparam("cmd"), "jrpc_rev1")) {
+      do_jrpc_rev1(p);
       return;
    }
 
    /* process "jrpc" command */
-   if (equal_ustring(getparam("cmd"), "jrpc")) {
-      do_jrpc();
+   if (equal_ustring(p->getparam("cmd"), "jrpc")) {
+      do_jrpc(p);
       return;
    }
 }
 
 /*------------------------------------------------------------------*/
 
-void show_custom_page(const char *path, const char *cookie_cpwd)
+void show_custom_page(Param* pp, const char *path, const char *cookie_cpwd)
 {
    int size, n_var, fh, index, edit;
    char str[TEXT_SIZE], keypath[256], type[32], *p, *ps, custom_path[256],
@@ -8036,7 +8055,7 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
       }
 
       /* check for valid password */
-      if (equal_ustring(getparam("cmd"), "Edit")) {
+      if (equal_ustring(pp->getparam("cmd"), "Edit")) {
          p = ps = ctext;
          n_var = 0;
          do {
@@ -8047,13 +8066,13 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
                break;
             ps = strchr(p, '>') + 1;
 
-            if (pwd[0] && n_var == atoi(getparam("index"))) {
+            if (pwd[0] && n_var == atoi(pp->getparam("index"))) {
                size = NAME_LENGTH;
                strlcpy(str, path, sizeof(str));
                if (strlen(str)>0 && str[strlen(str)-1] == '&')
                   str[strlen(str)-1] = 0;
-               if (getparam("pnam") && *getparam("pnam"))
-                  sprintf(ppath, "/Custom/Pwd/%s", getparam("pnam"));
+               if (pp->getparam("pnam") && *pp->getparam("pnam"))
+                  sprintf(ppath, "/Custom/Pwd/%s", pp->getparam("pnam"));
                else
                   sprintf(ppath, "/Custom/Pwd/%s", str);
                str[0] = 0;
@@ -8071,10 +8090,10 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
       }
 
       /* process toggle command */
-      if (equal_ustring(getparam("cmd"), "Toggle")) {
+      if (equal_ustring(pp->getparam("cmd"), "Toggle")) {
 
-         if (getparam("pnam") && *getparam("pnam")) {
-            sprintf(ppath, "/Custom/Pwd/%s", getparam("pnam"));
+         if (pp->getparam("pnam") && *pp->getparam("pnam")) {
+            sprintf(ppath, "/Custom/Pwd/%s", pp->getparam("pnam"));
             str[0] = 0;
             db_get_value(hDB, 0, ppath, str, &size, TID_STRING, TRUE);
             if (!equal_ustring(cookie_cpwd, str)) {
@@ -8083,7 +8102,7 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
                return;
             }
          }
-         strlcpy(str, getparam("odb"), sizeof(str));
+         strlcpy(str, pp->getparam("odb"), sizeof(str));
          if (strchr(str, '[')) {
             index = atoi(strchr(str, '[')+1);
             *strchr(str, '[') = 0;
@@ -8130,12 +8149,12 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
             break;
          ps = strchr(p + 1, '>') + 1;
 
-         show_odb_tag(path, keypath, format, n_var, edit, type, pwd, tail);
+         show_odb_tag(pp, path, keypath, format, n_var, edit, type, pwd, tail);
          n_var++;
 
       } while (p != NULL);
 
-      if (equal_ustring(getparam("cmd"), "Set") || isparam("cbi")) {
+      if (equal_ustring(pp->getparam("cmd"), "Set") || pp->isparam("cbi")) {
          /* redirect (so that 'reload' does not change value) */
          strlen_retbuf = 0;
          sprintf(str, "%s", path);
@@ -8152,7 +8171,7 @@ void show_custom_page(const char *path, const char *cookie_cpwd)
 
 /*------------------------------------------------------------------*/
 
-void show_cnaf_page()
+void show_cnaf_page(Param* p)
 {
    char str[256];
    int c, n, a, f, d, q, x, r, ia, id, w;
@@ -8245,7 +8264,7 @@ void show_cnaf_page()
    /* execute commands */
    size = sizeof(d);
 
-   const char* cmd = getparam("cmd");
+   const char* cmd = p->getparam("cmd");
    if (equal_ustring(cmd, "C cycle")) {
       rpc_client_call(hconn, RPC_CNAF16, CNAF_CRATE_CLEAR, 0, 0, 0, 0, 0, &d, &size, &x,
                       &q);
@@ -8269,20 +8288,20 @@ void show_cnaf_page()
       rsprintf
           ("<tr><td colspan=6 class=\"greenLight\">Set inhibit executed sucessfully</tr>\n");
    } else if (equal_ustring(cmd, "Execute")) {
-      c = atoi(getparam("C"));
-      n = atoi(getparam("N"));
-      a = atoi(getparam("A"));
-      f = atoi(getparam("F"));
-      r = atoi(getparam("R"));
-      w = atoi(getparam("W"));
-      id = atoi(getparam("ID"));
-      ia = atoi(getparam("IA"));
+      c = atoi(p->getparam("C"));
+      n = atoi(p->getparam("N"));
+      a = atoi(p->getparam("A"));
+      f = atoi(p->getparam("F"));
+      r = atoi(p->getparam("R"));
+      w = atoi(p->getparam("W"));
+      id = atoi(p->getparam("ID"));
+      ia = atoi(p->getparam("IA"));
 
-      const char* pd = getparam("D");
+      const char* pd = p->getparam("D");
       if (strncmp(pd, "0x", 2) == 0)
          sscanf(pd + 2, "%x", &d);
       else
-         d = atoi(getparam("D"));
+         d = atoi(p->getparam("D"));
 
       /* limit repeat range */
       if (r == 0)
@@ -8670,7 +8689,7 @@ void create_mscb_tree()
 
 /*------------------------------------------------------------------*/
 
-void show_mscb_page(const char *path, int refresh)
+void show_mscb_page(Param* p, const char *path, int refresh)
 {
    int i, j, n, ind, fi, fd, status, size, n_addr, *addr, cur_node, adr, show_hidden;
    unsigned int uptime;
@@ -8693,7 +8712,7 @@ void show_mscb_page(const char *path, int refresh)
    if (strstr(path, "favicon") != NULL)
       return;
 
-   strlcpy(cur_subm_name, getparam("subm"), sizeof(cur_subm_name));
+   strlcpy(cur_subm_name, p->getparam("subm"), sizeof(cur_subm_name));
    if (cur_subm_name[0] == 0) {
       db_enum_key(hDB, hKeySubm, 0, &hKeyCurSubm);
       if (!hKeyCurSubm) {
@@ -8707,7 +8726,7 @@ void show_mscb_page(const char *path, int refresh)
       db_find_key(hDB, hKeySubm, cur_subm_name, &hKeyCurSubm);
 
    /* perform MSCB rescan */
-   if (isparam("cmd") && equal_ustring(getparam("cmd"), "Rescan") && isparam("subm")) {
+   if (p->isparam("cmd") && equal_ustring(p->getparam("cmd"), "Rescan") && p->isparam("subm")) {
       /* create Pwd and Comment if not there */
       size = 32;
       str[0] = 0;
@@ -8817,14 +8836,14 @@ void show_mscb_page(const char *path, int refresh)
       }
    }
 
-   if (isparam("subm") && isparam("node")) {
-      strlcpy(cur_subm_name, getparam("subm"), sizeof(cur_subm_name));
-      cur_node = atoi(getparam("node"));
+   if (p->isparam("subm") && p->isparam("node")) {
+      strlcpy(cur_subm_name, p->getparam("subm"), sizeof(cur_subm_name));
+      cur_node = atoi(p->getparam("node"));
 
       /* write data to node */
-      if (isparam("idx") && isparam("value")) {
-         i = atoi(getparam("idx"));
-         strlcpy(value, getparam("value"), sizeof(value));
+      if (p->isparam("idx") && p->isparam("value")) {
+         i = atoi(p->getparam("idx"));
+         strlcpy(value, p->getparam("value"), sizeof(value));
 
          fd = mscb_init(cur_subm_name, 0, "", FALSE);
          if (fd >= 0) {
@@ -8861,7 +8880,7 @@ void show_mscb_page(const char *path, int refresh)
          sprintf(str, "../%s/%d", cur_subm_name, cur_node);
       else
          sprintf(str, "%s/%d", cur_subm_name, cur_node);
-      if (isparam("hidden"))
+      if (p->isparam("hidden"))
          strlcat(str, "h", sizeof(str));
       redirect(str);
       return;
@@ -9302,7 +9321,7 @@ BOOL check_web_password(const char *password, const char *redir, const char *exp
 
 /*------------------------------------------------------------------*/
 
-void show_start_page(int script)
+void show_start_page(Param* p, int script)
 {
    int rn, i, j, n, size, status, maxlength;
    HNDLE hDB, hkey, hsubkey, hkeycomm, hkeyc;
@@ -9413,8 +9432,8 @@ void show_start_page(int script)
    rsprintf("</tr>\n");
    rsprintf("</table>\n");
 
-   if (isparam("redir"))
-      rsprintf("<input type=hidden name=\"redir\" value=\"%s\">\n", getparam("redir"));
+   if (p->isparam("redir"))
+      rsprintf("<input type=hidden name=\"redir\" value=\"%s\">\n", p->getparam("redir"));
 
    page_footer(TRUE);
 
@@ -9422,7 +9441,7 @@ void show_start_page(int script)
 
 /*------------------------------------------------------------------*/
 
-void show_odb_page(char *enc_path, int enc_path_size, char *dec_path, int write_access)
+void show_odb_page(Param* pp, char *enc_path, int enc_path_size, char *dec_path, int write_access)
 {
    int i, j, keyPresent, scan, size, status, line;
    char str[256], tmp_path[256], url_path[256],
@@ -9784,7 +9803,7 @@ void show_odb_page(char *enc_path, int enc_path_size, char *dec_path, int write_
                   rsprintf("</tr>\n");
                } else { /* display array value */
                   /* check for exceeding length */
-                  if (key.num_values > 1000 && !isparam("all"))
+                  if (key.num_values > 1000 && !pp->isparam("all"))
                      rsprintf("<tr><td class=\"ODBkey\">%s<td class=\"%s\"><span style=\"font-style: italic\"><a href=\"?all=1\">... %d values ...</a></span>\n",
                               keyname, style, key.num_values);
                   else {
@@ -9897,7 +9916,7 @@ void show_odb_page(char *enc_path, int enc_path_size, char *dec_path, int write_
 
 /*------------------------------------------------------------------*/
 
-void show_set_page(char *enc_path, int enc_path_size,
+void show_set_page(Param* pp, char *enc_path, int enc_path_size,
                    char *dec_path, const char *group,
                    int index, const char *value)
 {
@@ -9911,7 +9930,7 @@ void show_set_page(char *enc_path, int enc_path_size,
    cm_get_experiment_database(&hDB, NULL);
 
    /* show set page if no value is given */
-   if (!isparam("value") && !*getparam("text")) {
+   if (!pp->isparam("value") && !*pp->getparam("text")) {
       status = db_find_link(hDB, 0, dec_path, &hkey);
       if (status != DB_SUCCESS) {
          rsprintf("Error: cannot find key %s<P>\n", dec_path);
@@ -9998,8 +10017,8 @@ void show_set_page(char *enc_path, int enc_path_size,
 
       memset(data, 0, sizeof(data));
 
-      if (getparam("text") && *getparam("text"))
-         strlcpy(data, getparam("text"), sizeof(data));
+      if (pp->getparam("text") && *pp->getparam("text"))
+         strlcpy(data, pp->getparam("text"), sizeof(data));
       else
          db_sscanf(value, data, &size, 0, key.type);
 
@@ -10601,15 +10620,15 @@ void show_programs_page()
    cm_get_experiment_database(&hDB, NULL);
 
    /* stop command */
-   if (getparam("Stop") && *getparam("Stop")) {
-      status = cm_shutdown(getparam("Stop") + 5, FALSE);
+   if (p->getparam("Stop") && *p->getparam("Stop")) {
+      status = cm_shutdown(p->getparam("Stop") + 5, FALSE);
 
       if (status == CM_SUCCESS)
          redirect("./?cmd=programs");
       else {
          sprintf(str,
                  "Cannot shut down client \"%s\", please kill manually and do an ODB cleanup",
-                 getparam("Stop") + 5);
+                 p->getparam("Stop") + 5);
          show_error(str);
       }
 
@@ -10617,11 +10636,11 @@ void show_programs_page()
    }
 
    /* start command */
-   if (getparam("Start") && *getparam("Start")) {
+   if (p->getparam("Start") && *p->getparam("Start")) {
       /* for NT: close reply socket before starting subprocess */
       redirect2("./?cmd=programs");
 
-      strlcpy(name, getparam("Start") + 6, sizeof(name));
+      strlcpy(name, p->getparam("Start") + 6, sizeof(name));
       if (strchr(name, '?'))
          *strchr(name, '?') = 0;
       strlcpy(str, "/Programs/", sizeof(str));
@@ -12826,19 +12845,19 @@ void add_param_to_url(char* buf, int bufsize, const char* name, const char* valu
 
 /*------------------------------------------------------------------*/
 
-void show_query_page(const char *path)
+void show_query_page(Param* p, const char *path)
 {
    int i;
    HNDLE hDB;
    char str[256], redir[256];
 
-   if (getparam("m1") && *getparam("m1")) {
+   if (p->getparam("m1") && *p->getparam("m1")) {
       struct tm tms;
       memset(&tms, 0, sizeof(struct tm));
 
-      tms.tm_year = atoi(getparam("y1")) % 100;
+      tms.tm_year = atoi(p->getparam("y1")) % 100;
 
-      strlcpy(str, getparam("m1"), sizeof(str));
+      strlcpy(str, p->getparam("m1"), sizeof(str));
       for (i = 0; i < 12; i++)
          if (equal_ustring(str, mname[i]))
             break;
@@ -12846,8 +12865,8 @@ void show_query_page(const char *path)
          i = 0;
 
       tms.tm_mon = i;
-      tms.tm_mday = atoi(getparam("d1"));
-      tms.tm_hour = atoi(getparam("h1"));
+      tms.tm_mday = atoi(p->getparam("d1"));
+      tms.tm_hour = atoi(p->getparam("h1"));
 
       if (tms.tm_year < 90)
          tms.tm_year += 100;
@@ -12855,9 +12874,9 @@ void show_query_page(const char *path)
       time_t ltime_start = mktime_with_dst(&tms);
 
       memset(&tms, 0, sizeof(struct tm));
-      tms.tm_year = atoi(getparam("y2")) % 100;
+      tms.tm_year = atoi(p->getparam("y2")) % 100;
 
-      strlcpy(str, getparam("m2"), sizeof(str));
+      strlcpy(str, p->getparam("m2"), sizeof(str));
       for (i = 0; i < 12; i++)
          if (equal_ustring(str, mname[i]))
             break;
@@ -12865,8 +12884,8 @@ void show_query_page(const char *path)
          i = 0;
 
       tms.tm_mon = i;
-      tms.tm_mday = atoi(getparam("d2"));
-      tms.tm_hour = atoi(getparam("h2"));
+      tms.tm_mday = atoi(p->getparam("d2"));
+      tms.tm_hour = atoi(p->getparam("h2"));
 
       if (tms.tm_year < 90)
          tms.tm_year += 100;
@@ -12881,8 +12900,8 @@ void show_query_page(const char *path)
          strcpy(str, strrchr(str, '/')+1);
       //sprintf(redir, "%s?scale=%d&offset=%d", str, (int) (ltime_end - ltime_start), MIN((int) (ltime_end - ss_time()), 0));
       sprintf(redir, "%s?scale=%d&time=%s", str, (int) (ltime_end - ltime_start), time_to_string(ltime_end));
-      if (isparam("hindex"))
-         add_param_to_url(redir, sizeof(redir), "index", getparam("hindex"));
+      if (p->isparam("hindex"))
+         add_param_to_url(redir, sizeof(redir), "index", p->getparam("hindex"));
       redirect(redir);
       return;
    }
@@ -12904,11 +12923,11 @@ void show_query_page(const char *path)
    time_t endtime = now;
    bool full_day = true;
 
-   if (isparam("htime")) {
-      endtime = string_to_time(getparam("htime"));
+   if (p->isparam("htime")) {
+      endtime = string_to_time(p->getparam("htime"));
 
-      if (isparam("hscale")) {
-         starttime = endtime - atoi(getparam("hscale"));
+      if (p->isparam("hscale")) {
+         starttime = endtime - atoi(p->getparam("hscale"));
          full_day = false;
       } else {
          starttime = endtime - 3600 * 24;
@@ -12920,12 +12939,12 @@ void show_query_page(const char *path)
    rsprintf("<tr><td colspan=2>\n");
    rsprintf("<input type=submit name=cmd value=Query>\n");
    rsprintf("<input type=submit name=cmd value=Cancel>\n");
-   if (isparam("htime"))
-      rsprintf("<input type=hidden name=htime value=%s>\n", getparam("htime"));
-   if (isparam("hscale"))
-      rsprintf("<input type=hidden name=hscale value=%s>\n", getparam("hscale"));
-   if (isparam("hindex"))
-      rsprintf("<input type=hidden name=hindex value=%s>\n", getparam("hindex"));
+   if (p->isparam("htime"))
+      rsprintf("<input type=hidden name=htime value=%s>\n", p->getparam("htime"));
+   if (p->isparam("hscale"))
+      rsprintf("<input type=hidden name=hscale value=%s>\n", p->getparam("hscale"));
+   if (p->isparam("hindex"))
+      rsprintf("<input type=hidden name=hindex value=%s>\n", p->getparam("hindex"));
    rsprintf("</tr>\n\n");
    rsprintf("</table>");  //end header
 
@@ -13307,53 +13326,53 @@ struct hist_plot_t
       //Print();
    }
 
-   void LoadFromParam()
+   void LoadFromParam(Param* p)
    {
-      timescale        = getparam("timescale");
-      minimum = (float) strtod(getparam("minimum"),NULL);
-      maximum = (float) strtod(getparam("maximum"),NULL);
-      zero_ylow        = *getparam("zero_ylow");
-      log_axis         = *getparam("log_axis");
-      show_run_markers = *getparam("run_markers");
-      show_values      = *getparam("show_values");
+      timescale        = p->getparam("timescale");
+      minimum = (float) strtod(p->getparam("minimum"),NULL);
+      maximum = (float) strtod(p->getparam("maximum"),NULL);
+      zero_ylow        = *p->getparam("zero_ylow");
+      log_axis         = *p->getparam("log_axis");
+      show_run_markers = *p->getparam("run_markers");
+      show_values      = *p->getparam("show_values");
 
       for (unsigned index=0; ; index++) {
          char str[256];
          sprintf(str, "event%d", index);
 
-         //printf("param event %d: [%s] [%s] [%d]\n", index, str, getparam(str), *getparam(str));
+         //printf("param event %d: [%s] [%s] [%d]\n", index, str, p->getparam(str), *p->getparam(str));
 
-         if (!getparam(str) || !*getparam(str))
+         if (!p->getparam(str) || !*p->getparam(str))
             break;
 
-         if (*getparam(str) == '/') // "/empty"
+         if (*p->getparam(str) == '/') // "/empty"
             continue;
 
          hist_var_t v;
-         v.event_name = getparam(str);
+         v.event_name = p->getparam(str);
          
          sprintf(str, "var%d", index);
-         v.tag_name = getparam(str);
+         v.tag_name = p->getparam(str);
          
          sprintf(str, "fac%d", index);
-         if (getparam(str) && *getparam(str))
-            v.hist_factor = (float) atof(getparam(str));
+         if (p->getparam(str) && *p->getparam(str))
+            v.hist_factor = (float) atof(p->getparam(str));
          
          sprintf(str, "ofs%d", index);
-         if (getparam(str) && *getparam(str))
-            v.hist_offset = (float) atof(getparam(str));
+         if (p->getparam(str) && *p->getparam(str))
+            v.hist_offset = (float) atof(p->getparam(str));
          
          sprintf(str, "col%d", index);
-         if (getparam(str) && *getparam(str))
-            v.hist_col = getparam(str);
+         if (p->getparam(str) && *p->getparam(str))
+            v.hist_col = p->getparam(str);
          
          sprintf(str, "lab%d", index);
-         if (getparam(str) && *getparam(str))
-            v.hist_label = getparam(str);
+         if (p->getparam(str) && *p->getparam(str))
+            v.hist_label = p->getparam(str);
          
          sprintf(str, "ord%d", index);
-         if (getparam(str) && *getparam(str))
-            v.hist_order = atoi(getparam(str));
+         if (p->getparam(str) && *p->getparam(str))
+            v.hist_order = atoi(p->getparam(str));
          
          vars.push_back(v);
       }
@@ -13368,14 +13387,14 @@ struct hist_plot_t
       //Print();
    }
 
-   void AddSelectedParam()
+   void AddSelectedParam(Param* p)
    {
-      int seln = atoi(getparam("seln"));
+      int seln = atoi(p->getparam("seln"));
       for (int i=0; i<seln; i++) {
          char str[256];
          sprintf(str, "sel%d", i);
 
-         std::string par = getparam(str);
+         std::string par = p->getparam(str);
 	 if (par.length() < 1)
             continue;
 
@@ -13557,7 +13576,7 @@ struct hist_plot_t
    }
 };
 
-void show_hist_config_page(const char *path, const char *hgroup, const char *panel)
+void show_hist_config_page(Param* p, const char *path, const char *hgroup, const char *panel)
 {
    int status, size;
    HNDLE hDB;
@@ -13574,7 +13593,7 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
    size = sizeof(max_display_tags);
    db_get_value(hDB, 0, "/History/MaxDisplayTags", &max_display_tags, &size, TID_INT, TRUE);
 
-   strlcpy(cmd, getparam("cmd"), sizeof(cmd));
+   strlcpy(cmd, p->getparam("cmd"), sizeof(cmd));
 
    if (equal_ustring(cmd, "Clear history cache")) {
       strcpy(cmd, "Refresh");
@@ -13584,10 +13603,10 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
    }
 
    //printf("cmd [%s]\n", cmd);
-   //printf("cmdx [%s]\n", getparam("cmdx"));
+   //printf("cmdx [%s]\n", p->getparam("cmdx"));
 
    if (equal_ustring(cmd, "refresh") || equal_ustring(cmd, "save")) {
-      plot.LoadFromParam();
+      plot.LoadFromParam(p);
       plot.DeleteDeleted();
    } else {
       plot.LoadFromOdb(hDB, path);
@@ -13595,8 +13614,8 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
 
    plot.SortVars();
 
-   if (strlen(getparam("seln")) > 0)
-      plot.AddSelectedParam();
+   if (strlen(p->getparam("seln")) > 0)
+      plot.AddSelectedParam(p);
 
    //plot.Print();
 
@@ -13642,14 +13661,14 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
    rsprintf("<tr><td colspan=8>\n");
 
    /* sort_vars */
-   int sort_vars = *getparam("sort_vars");
+   int sort_vars = *p->getparam("sort_vars");
    rsprintf("<input type=checkbox %s name=sort_vars value=1 onclick=\"this.form.submit();\">Sort variable names", sort_vars?"checked":"");
 
    rsprintf("</td></tr>\n");
    rsprintf("<tr><td colspan=8>\n");
 
    /* old_vars */
-   int old_vars = *getparam("old_vars");
+   int old_vars = *p->getparam("old_vars");
    rsprintf("<input type=checkbox %s name=old_vars value=1 onclick=\"this.form.submit();\">Show deleted and renamed variables", old_vars?"checked":"");
 
    rsprintf("</td></tr>\n");
@@ -13723,11 +13742,11 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
    //std::sort(events.begin(), events.end(), cmp_events);
    std::sort(events.begin(), events.end(), cmp_events1);
 
-   if (strlen(getparam("cmdx")) > 0) {
+   if (strlen(p->getparam("cmdx")) > 0) {
       rsprintf("<tr><th colspan=8 class=\"subStatusTitle\">List of available history variables</th></tr>\n");
       rsprintf("<tr><th colspan=1>Sel<th colspan=1>Equipment<th colspan=1>Event<th colspan=1>Variable</tr>\n");
 
-      std::string cmdx = xgetparam("cmdx");
+      std::string cmdx = p->xgetparam("cmdx");
       std::string xeqname;
 
       int i=0;
@@ -13744,14 +13763,14 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
 
          std::string qcmd = "Expand " + eqname;
 
-         //printf("param [%s] is [%s]\n", qcmd.c_str(), getparam(qcmd.c_str()));
+         //printf("param [%s] is [%s]\n", qcmd.c_str(), p->getparam(qcmd.c_str()));
 
          bool collapsed = true;
 
          if (cmdx == qcmd)
             collapsed = false;
 
-         if (strlen(getparam(qcmd.c_str())) > 0)
+         if (strlen(p->getparam(qcmd.c_str())) > 0)
             collapsed = false;
 
          if (collapsed) {
@@ -13773,14 +13792,14 @@ void show_hist_config_page(const char *path, const char *hgroup, const char *pan
 
          std::string rcmd = "Expand " + events[e];
 
-         //printf("param [%s] is [%s]\n", rcmd.c_str(), getparam(rcmd.c_str()));
+         //printf("param [%s] is [%s]\n", rcmd.c_str(), p->getparam(rcmd.c_str()));
 
          collapsed = true;
 
          if (cmdx == rcmd)
             collapsed = false;
 
-         if (strlen(getparam(rcmd.c_str())) > 0)
+         if (strlen(p->getparam(rcmd.c_str())) > 0)
             collapsed = false;
 
          if (collapsed) {
@@ -14219,9 +14238,8 @@ void export_hist(const char *path, time_t endtime, int scale, int index, int lab
 
 /*------------------------------------------------------------------*/
 
-void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, int *buffer_size, int refresh)
+void show_hist_page(Param* p, const char *dec_path, const char* enc_path, char *buffer, int *buffer_size, int refresh)
 {
-   const char *p;
    HNDLE hDB, hkey, hikeyp, hkeyp, hkeybutton;
    KEY key, ikey;
    int i, j, k, scale, index, width, size, status, labels, fh, fsize;
@@ -14233,7 +14251,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
 
    //printf("show_hist_page: path [%s], enc_path [%s]\n", dec_path, enc_path);
 
-   if (equal_ustring(getparam("cmd"), "Reset")) {
+   if (equal_ustring(p->getparam("cmd"), "Reset")) {
       char str[MAX_STRING_LENGTH];
       strlcpy(str, dec_path, sizeof(str));
       if (strrchr(str, '/'))
@@ -14242,36 +14260,36 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       return;
    }
 
-   if (equal_ustring(getparam("cmd"), "Query")) {
-      show_query_page(dec_path);
+   if (equal_ustring(p->getparam("cmd"), "Query")) {
+      show_query_page(p, dec_path);
       return;
    }
 
-   if (equal_ustring(getparam("cmd"), "Cancel")) {
+   if (equal_ustring(p->getparam("cmd"), "Cancel")) {
       char str[MAX_STRING_LENGTH];
       strlcpy(str, dec_path, sizeof(str));
       if (strrchr(str, '/'))
          strlcpy(str, strrchr(str, '/')+1, sizeof(str));
-      if (isparam("hscale"))
-         add_param_to_url(str, sizeof(str), "scale", getparam("hscale"));
-      if (isparam("htime"))
-         add_param_to_url(str, sizeof(str), "time", getparam("htime"));
-      if (isparam("hindex"))
-         add_param_to_url(str, sizeof(str), "index", getparam("hindex"));
+      if (p->isparam("hscale"))
+         add_param_to_url(str, sizeof(str), "scale", p->getparam("hscale"));
+      if (p->isparam("htime"))
+         add_param_to_url(str, sizeof(str), "time", p->getparam("htime"));
+      if (p->isparam("hindex"))
+         add_param_to_url(str, sizeof(str), "index", p->getparam("hindex"));
       redirect(str);
       return;
    }
 
-   if (equal_ustring(getparam("cmd"), "Config") ||
-       equal_ustring(getparam("cmd"), "Save")
-       || equal_ustring(getparam("cmd"), "Clear history cache")
-       || equal_ustring(getparam("cmd"), "Refresh")) {
+   if (equal_ustring(p->getparam("cmd"), "Config") ||
+       equal_ustring(p->getparam("cmd"), "Save")
+       || equal_ustring(p->getparam("cmd"), "Clear history cache")
+       || equal_ustring(p->getparam("cmd"), "Refresh")) {
 
-      std::string hgroup = xgetparam("group");
-      std::string panel = xgetparam("panel");
+      std::string hgroup = p->xgetparam("group");
+      std::string panel = p->xgetparam("panel");
       
       /* get group and panel from path if not given */
-      if (!isparam("group")) {
+      if (!p->isparam("group")) {
          hgroup = dec_path;
          std::string::size_type pos = hgroup.find("/");
          if (pos != std::string::npos)
@@ -14281,18 +14299,18 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
             panel = strrchr(dec_path, '/')+1;
       }
 
-      show_hist_config_page(dec_path, hgroup.c_str(), panel.c_str());
+      show_hist_config_page(p, dec_path, hgroup.c_str(), panel.c_str());
       return;
    }
 
    /* evaluate path pointing back to /HS */
    std::string back_path;
-   for (p=enc_path ; *p ; p++)
+   for (const char* p=enc_path ; *p ; p++)
       if (*p == '/')
          back_path += "../";
 
-   if (isparam("fpanel") && isparam("fgroup") &&
-      !isparam("scale")  && !isparam("shift") && !isparam("width") && !isparam("cmd")) {
+   if (p->isparam("fpanel") && p->isparam("fgroup") &&
+      !p->isparam("scale")  && !p->isparam("shift") && !p->isparam("width") && !p->isparam("cmd")) {
 
       std::string hgroup;
       if (strchr(dec_path, '/')) {
@@ -14308,23 +14326,23 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
 
       char path[256];
       /* check if group changed */
-      if (!equal_ustring(getparam("fgroup"), hgroup.c_str()))
-         sprintf(path, "%s%s", back_path.c_str(), getparam("fgroup"));
-      else if (*getparam("fpanel"))
-         sprintf(path, "%s%s/%s", back_path.c_str(), getparam("fgroup"), getparam("fpanel"));
+      if (!equal_ustring(p->getparam("fgroup"), hgroup.c_str()))
+         sprintf(path, "%s%s", back_path.c_str(), p->getparam("fgroup"));
+      else if (*p->getparam("fpanel"))
+         sprintf(path, "%s%s/%s", back_path.c_str(), p->getparam("fgroup"), p->getparam("fpanel"));
       else
-         sprintf(path, "%s%s", back_path.c_str(), getparam("fgroup"));
+         sprintf(path, "%s%s", back_path.c_str(), p->getparam("fgroup"));
 
-      if (isparam("hscale"))
-         add_param_to_url(path, sizeof(path), "scale", getparam("hscale"));
-      if (isparam("htime"))
-         add_param_to_url(path, sizeof(path), "time", getparam("htime"));
+      if (p->isparam("hscale"))
+         add_param_to_url(path, sizeof(path), "scale", p->getparam("hscale"));
+      if (p->isparam("htime"))
+         add_param_to_url(path, sizeof(path), "time", p->getparam("htime"));
 
       redirect(path);
       return;
    }
 
-   if (equal_ustring(getparam("cmd"), "New")) {
+   if (equal_ustring(p->getparam("cmd"), "New")) {
       char str[MAX_STRING_LENGTH];
       strlcpy(str, dec_path, sizeof(str));
       if (strrchr(str, '/'))
@@ -14374,7 +14392,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       return;
    }
 
-   if (equal_ustring(getparam("cmd"), "Delete Panel")) {
+   if (equal_ustring(p->getparam("cmd"), "Delete Panel")) {
       char str[MAX_ODB_PATH];
       strlcpy(str, "/History/Display/", sizeof(str));
       strlcat(str, dec_path, sizeof(str));
@@ -14385,9 +14403,9 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       return;
    }
 
-   if (getparam("panel") && *getparam("panel")) {
+   if (p->getparam("panel") && *p->getparam("panel")) {
       char panel[256];
-      strlcpy(panel, getparam("panel"), sizeof(panel));
+      strlcpy(panel, p->getparam("panel"), sizeof(panel));
 
       /* strip leading/trailing spaces */
       while (*panel == ' ') {
@@ -14399,10 +14417,10 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
          panel[strlen(panel)-1] = 0;
 
       char hgroup[256];
-      strlcpy(hgroup, getparam("group"), sizeof(hgroup));
+      strlcpy(hgroup, p->getparam("group"), sizeof(hgroup));
       /* use new group if present */
-      if (isparam("new_group") && *getparam("new_group"))
-         strlcpy(hgroup, getparam("new_group"), sizeof(hgroup));
+      if (p->isparam("new_group") && *p->getparam("new_group"))
+         strlcpy(hgroup, p->getparam("new_group"), sizeof(hgroup));
 
       char str[MAX_ODB_PATH];
 
@@ -14426,43 +14444,43 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       db_set_value(hDB, hkey, "Log axis", &i, sizeof(BOOL), 1, TID_BOOL);
 
       /* configure that panel */
-      show_hist_config_page(dec_path, hgroup, panel);
+      show_hist_config_page(p, dec_path, hgroup, panel);
       return;
    }
 
-   const char* pscale = getparam("scale");
+   const char* pscale = p->getparam("scale");
    if (pscale == NULL || *pscale == 0)
-      pscale = getparam("hscale");
-   const char* pmag = getparam("width");
+      pscale = p->getparam("hscale");
+   const char* pmag = p->getparam("width");
    if (pmag == NULL || *pmag == 0)
-      pmag = getparam("hwidth");
-   const char* pindex = getparam("index");
+      pmag = p->getparam("hwidth");
+   const char* pindex = p->getparam("index");
    if (pindex == NULL || *pindex == 0)
-      pindex = getparam("hindex");
+      pindex = p->getparam("hindex");
 
    labels = 1;
-   if (*getparam("labels") && atoi(getparam("labels")) == 0)
+   if (*p->getparam("labels") && atoi(p->getparam("labels")) == 0)
       labels = 0;
 
    std::string bgcolor = "FFFFFF";
-   if (*getparam("bgcolor"))
-      bgcolor = xgetparam("bgcolor");
+   if (*p->getparam("bgcolor"))
+      bgcolor = p->xgetparam("bgcolor");
 
    std::string fgcolor = "000000";
-   if (*getparam("fgcolor"))
-      fgcolor = xgetparam("fgcolor");
+   if (*p->getparam("fgcolor"))
+      fgcolor = p->xgetparam("fgcolor");
 
    std::string gridcolor = "A0A0A0";
-   if (*getparam("gcolor"))
-      gridcolor = xgetparam("gcolor");
+   if (*p->getparam("gcolor"))
+      gridcolor = p->xgetparam("gcolor");
 
    /* evaluate scale and offset */
 
    time_t endtime = 0;
-   if (isparam("time"))
-      endtime = string_to_time(getparam("time"));
-   else if (isparam("htime"))
-      endtime = string_to_time(getparam("htime"));
+   if (p->isparam("time"))
+      endtime = string_to_time(p->getparam("time"));
+   else if (p->isparam("htime"))
+      endtime = string_to_time(p->getparam("htime"));
 
    if (pscale && *pscale)
       scale = time_to_sec(pscale);
@@ -14481,7 +14499,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
    if (status != DB_SUCCESS)
       hurl = back_path;
 
-   if (equal_ustring(getparam("cmd"), "Create ELog")) {
+   if (equal_ustring(p->getparam("cmd"), "Create ELog")) {
       std::string xurl;
       status = db_get_value_string(hDB, 0, "/Elog/URL", 0, &xurl, FALSE);
       if (status == DB_SUCCESS) {
@@ -14558,35 +14576,35 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
          char str[MAX_STRING_LENGTH];
          /*---- use internal ELOG ----*/
          sprintf(str, "\\HS\\%s.gif", dec_path); // FIXME: overflows str
-         if (getparam("hscale") && *getparam("hscale"))
-            sprintf(str + strlen(str), "?scale=%s", getparam("hscale"));
-         if (getparam("htime") && *getparam("htime")) {
+         if (p->getparam("hscale") && *p->getparam("hscale"))
+            sprintf(str + strlen(str), "?scale=%s", p->getparam("hscale"));
+         if (p->getparam("htime") && *p->getparam("htime")) {
             if (strchr(str, '?'))
                strlcat(str, "&", sizeof(str));
             else
                strlcat(str, "?", sizeof(str));
-            sprintf(str + strlen(str), "time=%s", getparam("htime"));
+            sprintf(str + strlen(str), "time=%s", p->getparam("htime"));
          }
-         //if (getparam("hoffset") && *getparam("hoffset")) {
+         //if (p->getparam("hoffset") && *p->getparam("hoffset")) {
          //   if (strchr(str, '?'))
          //      strlcat(str, "&", sizeof(str));
          //   else
          //      strlcat(str, "?", sizeof(str));
-         //   sprintf(str + strlen(str), "offset=%s", getparam("hoffset"));
+         //   sprintf(str + strlen(str), "offset=%s", p->getparam("hoffset"));
          //}
-         if (getparam("hwidth") && *getparam("hwidth")) {
+         if (p->getparam("hwidth") && *p->getparam("hwidth")) {
             if (strchr(str, '?'))
                strlcat(str, "&", sizeof(str));
             else
                strlcat(str, "?", sizeof(str));
-            sprintf(str + strlen(str), "width=%s", getparam("hwidth"));
+            sprintf(str + strlen(str), "width=%s", p->getparam("hwidth"));
          }
-         if (getparam("hindex") && *getparam("hindex")) {
+         if (p->getparam("hindex") && *p->getparam("hindex")) {
             if (strchr(str, '?'))
                strlcat(str, "&", sizeof(str));
             else
                strlcat(str, "?", sizeof(str));
-            sprintf(str + strlen(str), "index=%s", getparam("hindex"));
+            sprintf(str + strlen(str), "index=%s", p->getparam("hindex"));
          }
 
          show_elog_new(NULL, FALSE, str, "../../EL/");
@@ -14594,7 +14612,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       }
    }
 
-   if (equal_ustring(getparam("cmd"), "Export")) {
+   if (equal_ustring(p->getparam("cmd"), "Export")) {
       export_hist(dec_path, endtime, scale, index, labels);
       return;
    }
@@ -14626,7 +14644,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
    time_t now = time(NULL);
 
    /* evaluate offset shift */
-   if (equal_ustring(getparam("shift"), "<<<")) {
+   if (equal_ustring(p->getparam("shift"), "<<<")) {
       if (endtime == 0)
          endtime = now;
       time_t last_written = 0;
@@ -14635,7 +14653,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
          endtime = last_written + scale/2;
    }
 
-   if (equal_ustring(getparam("shift"), "<<")) {
+   if (equal_ustring(p->getparam("shift"), "<<")) {
       if (endtime == 0)
          endtime = now;
       time_t last_written = 0;
@@ -14645,14 +14663,14 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
             endtime = last_written + scale/2;
    }
 
-   if (equal_ustring(getparam("shift"), "<")) {
+   if (equal_ustring(p->getparam("shift"), "<")) {
       if (endtime == 0)
          endtime = now;
       endtime -= scale/2;
       //offset -= scale / 2;
    }
 
-   if (equal_ustring(getparam("shift"), ">")) {
+   if (equal_ustring(p->getparam("shift"), ">")) {
       if (endtime == 0)
          endtime = now;
       endtime += scale/2;
@@ -14664,12 +14682,12 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       //   offset = 0;
    }
 
-   if (equal_ustring(getparam("shift"), ">>")) {
+   if (equal_ustring(p->getparam("shift"), ">>")) {
       endtime = 0;
       //offset = 0;
    }
 
-   if (equal_ustring(getparam("shift"), " + ")) {
+   if (equal_ustring(p->getparam("shift"), " + ")) {
       if (endtime == 0)
          endtime = now;
       endtime -= scale / 4;
@@ -14677,7 +14695,7 @@ void show_hist_page(const char *dec_path, const char* enc_path, char *buffer, in
       scale /= 2;
    }
 
-   if (equal_ustring(getparam("shift"), " - ")) {
+   if (equal_ustring(p->getparam("shift"), " - ")) {
       if (endtime == 0)
          endtime = now;
       endtime += scale / 2;
@@ -15860,7 +15878,7 @@ void send_js()
 
 /*------------------------------------------------------------------*/
 
-void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, const char *dec_path, int refresh, int expand_equipment)
+void interprete(Param* p, const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, const char *dec_path, int refresh, int expand_equipment)
 /********************************************************************\
 
  Routine: interprete
@@ -15872,7 +15890,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
  char *path              ODB path "/dir/subdir/key"
 
  <implicit>
- _param/_value array accessible via getparam()
+ _param/_value array accessible via p->getparam()
 
  \********************************************************************/
 {
@@ -15880,7 +15898,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    WORD event_id;
    HNDLE hkey, hsubkey, hDB, hconn;
    KEY key;
-   const char *p;
+   //const char *p;
    char str[256];
    char enc_path[256], eq_name[NAME_LENGTH], fe_name[NAME_LENGTH];
    char data[TEXT_SIZE];
@@ -15911,13 +15929,13 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    urlEncode(enc_path, sizeof(enc_path));
    set_dec_path(dec_path);
 
-   const char* experiment = getparam("exp");
-   const char* password = getparam("pwd");
-   const char* wpassword = getparam("wpwd");
-   const char* command = getparam("cmd");
-   const char* value = getparam("value");
-   const char* group = getparam("group");
-   index = atoi(getparam("index"));
+   const char* experiment = p->getparam("exp");
+   const char* password = p->getparam("pwd");
+   const char* wpassword = p->getparam("wpwd");
+   const char* command = p->getparam("cmd");
+   const char* value = p->getparam("value");
+   const char* group = p->getparam("group");
+   index = atoi(p->getparam("index"));
 
    //printf("interprete: dec_path [%s], command [%s] value [%s]\n", dec_path, command, value);
 
@@ -15929,7 +15947,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
             return;
          }
 
-         show_hist_page(dec_path + 3, enc_path + 3, NULL, NULL, refresh);
+         show_hist_page(p, dec_path + 3, enc_path + 3, NULL, NULL, refresh);
          return;
       }
 
@@ -15975,7 +15993,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    if (wpassword[0]) {
       /* check if password correct */
-      if (!check_web_password(ss_crypt(wpassword, "mi"), getparam("redir"), experiment))
+      if (!check_web_password(ss_crypt(wpassword, "mi"), p->getparam("redir"), experiment))
          return;
 
       rsprintf("HTTP/1.1 302 Found\r\n");
@@ -15989,7 +16007,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       rsprintf("Set-Cookie: midas_wpwd=%s; path=/; expires=%s\r\n",
                ss_crypt(wpassword, "mi"), str);
 
-      sprintf(str, "./%s", getparam("redir"));
+      sprintf(str, "./%s", p->getparam("redir"));
       rsprintf("Location: %s\n\n<html>redir</html>\r\n", str);
       return;
    }
@@ -15998,7 +16016,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    if (equal_ustring(command, "ODB")) {
       str[0] = 0;
-      for (p=dec_path ; *p ; p++)
+      for (const char* p=dec_path ; *p ; p++)
          if (*p == '/')
             strlcat(str, "../", sizeof(str));
       strlcat(str, "root", sizeof(str));
@@ -16104,7 +16122,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
        equal_ustring(command, "jrpc_rev0") ||
        equal_ustring(command, "jrpc_rev1") ||
        equal_ustring(command, "jrpc")) {
-      javascript_commands(cookie_cpwd);
+      javascript_commands(p, cookie_cpwd);
       return;
    }
 
@@ -16119,7 +16137,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    
    if (equal_ustring(command, "sequencer")) {
       str[0] = 0;
-      for (p=dec_path ; *p ; p++)
+      for (const char* p=dec_path ; *p ; p++)
          if (*p == '/')
             strlcat(str, "../", sizeof(str));
       strlcat(str, "SEQ/", sizeof(str));
@@ -16131,7 +16149,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    if (equal_ustring(command, "history")) {
       str[0] = 0;
-      for (p=dec_path ; *p ; p++)
+      for (const char* p=dec_path ; *p ; p++)
          if (*p == '/')
             strlcat(str, "../", sizeof(str));
       strlcat(str, "HS/", sizeof(str));
@@ -16143,7 +16161,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    if (equal_ustring(command, "MSCB")) {
       str[0] = 0;
-      for (p=dec_path ; *p ; p++)
+      for (const char* p=dec_path ; *p ; p++)
          if (*p == '/')
             strlcat(str, "../", sizeof(str));
       strlcat(str, "MS/", sizeof(str));
@@ -16168,7 +16186,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    if (equal_ustring(command, "status")) {
       str[0] = 0;
-      for (p=dec_path ; *p ; p++)
+      for (const char* p=dec_path ; *p ; p++)
          if (*p == '/')
             strlcat(str, "../", sizeof(str));
       redirect(str);
@@ -16177,25 +16195,25 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    /*---- script command --------------------------------------------*/
 
-   if (getparam("script") && *getparam("script")) {
-      sprintf(str, "%s?script=%s", dec_path, getparam("script"));
+   if (p->getparam("script") && *p->getparam("script")) {
+      sprintf(str, "%s?script=%s", dec_path, p->getparam("script"));
       if (!check_web_password(cookie_wpwd, str, experiment))
          return;
 
-      sprintf(str, "/Script/%s", getparam("script"));
+      sprintf(str, "/Script/%s", p->getparam("script"));
 
       db_find_key(hDB, 0, str, &hkey);
 
       if (hkey) {
          /* for NT: close reply socket before starting subprocess */
-         if (isparam("redir"))
-            redirect2(getparam("redir"));
+         if (p->isparam("redir"))
+            redirect2(p->getparam("redir"));
          else
             redirect2("");
          exec_script(hkey);
       } else {
-         if (isparam("redir"))
-            redirect2(getparam("redir"));
+         if (p->isparam("redir"))
+            redirect2(p->getparam("redir"));
          else
             redirect2("");
       }
@@ -16205,25 +16223,25 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    /*---- customscript command --------------------------------------*/
 
-   if (getparam("customscript") && *getparam("customscript")) {
-      sprintf(str, "%s?customscript=%s", dec_path, getparam("customscript"));
+   if (p->getparam("customscript") && *p->getparam("customscript")) {
+      sprintf(str, "%s?customscript=%s", dec_path, p->getparam("customscript"));
       if (!check_web_password(cookie_wpwd, str, experiment))
          return;
 
-      sprintf(str, "/CustomScript/%s", getparam("customscript"));
+      sprintf(str, "/CustomScript/%s", p->getparam("customscript"));
 
       db_find_key(hDB, 0, str, &hkey);
 
       if (hkey) {
          /* for NT: close reply socket before starting subprocess */
-         if (isparam("redir"))
-            redirect2(getparam("redir"));
+         if (p->isparam("redir"))
+            redirect2(p->getparam("redir"));
          else
             redirect2("");
          exec_script(hkey);
       } else {
-         if (isparam("redir"))
-            redirect(getparam("redir"));
+         if (p->isparam("redir"))
+            redirect(p->getparam("redir"));
          else
             redirect("");
       }
@@ -16236,7 +16254,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    if (equal_ustring(command, "alarms")) {
       str[0] = 0;
-      for (p=dec_path ; *p ; p++)
+      for (const char* p=dec_path ; *p ; p++)
          if (*p == '/')
             strlcat(str, "../", sizeof(str));
       if (str[0]) {
@@ -16251,8 +16269,8 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
    /*---- alarms reset command --------------------------------------*/
 
    if (equal_ustring(command, "alrst")) {
-      if (getparam("name") && *getparam("name"))
-         al_reset_alarm(getparam("name"));
+      if (p->getparam("name") && *p->getparam("name"))
+         al_reset_alarm(p->getparam("name"));
       redirect("");
       return;
    }
@@ -16267,7 +16285,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
             return;
       }
 
-      show_hist_page(dec_path + 3, enc_path + 3, NULL, NULL, refresh);
+      show_hist_page(p, dec_path + 3, enc_path + 3, NULL, NULL, refresh);
       return;
    }
 
@@ -16281,7 +16299,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       }
 
 #ifdef HAVE_MSCB
-      show_mscb_page(dec_path + 3, refresh);
+      show_mscb_page(p, dec_path + 3, refresh);
 #else
       show_error("MSCB support not compiled into this version of mhttpd");
 #endif
@@ -16309,8 +16327,8 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       status = cm_transition(TR_PAUSE, 0, str, sizeof(str), TR_MTHREAD | TR_ASYNC, FALSE);
       if (status != CM_SUCCESS && status != CM_DEFERRED_TRANSITION)
          show_error(str);
-      else if (isparam("redir"))
-         redirect(getparam("redir"));
+      else if (p->isparam("redir"))
+         redirect(p->getparam("redir"));
       else
          redirect("");
 
@@ -16335,8 +16353,8 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       status = cm_transition(TR_RESUME, 0, str, sizeof(str), TR_MTHREAD | TR_ASYNC, FALSE);
       if (status != CM_SUCCESS && status != CM_DEFERRED_TRANSITION)
          show_error(str);
-      else if (isparam("redir"))
-         redirect(getparam("redir"));
+      else if (p->isparam("redir"))
+         redirect(p->getparam("redir"));
       else
          redirect("");
 
@@ -16358,7 +16376,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       if (value[0] == 0) {
          if (!check_web_password(cookie_wpwd, "?cmd=start", experiment))
             return;
-         show_start_page(FALSE);
+         show_start_page(p, FALSE);
       } else {
          /* set run parameters */
          db_find_key(hDB, 0, "/Experiment/Edit on start", &hkey);
@@ -16374,7 +16392,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
                for (j = 0; j < key.num_values; j++) {
                   size = key.item_size;
                   sprintf(str, "x%d", n++);
-                  db_sscanf(getparam(str), data, &size, 0, key.type);
+                  db_sscanf(p->getparam(str), data, &size, 0, key.type);
                   db_set_data_index(hDB, hsubkey, data, key.item_size, j, key.type);
                }
             }
@@ -16396,8 +16414,8 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
             requested_old_state = run_state;
             requested_transition = TR_START;
 
-            if (isparam("redir"))
-               redirect(getparam("redir"));
+            if (p->isparam("redir"))
+               redirect(p->getparam("redir"));
             else
                redirect("");
          }
@@ -16419,8 +16437,8 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       status = cm_transition(TR_STOP, 0, str, sizeof(str), TR_MTHREAD | TR_ASYNC, FALSE);
       if (status != CM_SUCCESS && status != CM_DEFERRED_TRANSITION)
          show_error(str);
-      else if (isparam("redir"))
-         redirect(getparam("redir"));
+      else if (p->isparam("redir"))
+         redirect(p->getparam("redir"));
       else
          redirect("");
 
@@ -16501,8 +16519,8 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
          sprintf(str, "SC/%s/%s", eq_name, group);
          redirect(str);
       } else {
-         if (isparam("redir"))
-            redirect(getparam("redir"));
+         if (p->isparam("redir"))
+            redirect(p->getparam("redir"));
          else
             redirect("./");
       }
@@ -16524,7 +16542,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
          return;
 
       strlcpy(str, dec_path, sizeof(str));
-      show_set_page(enc_path, sizeof(enc_path), str, group, index, value);
+      show_set_page(p, enc_path, sizeof(enc_path), str, group, index, value);
       return;
    }
 
@@ -16542,7 +16560,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       if (!check_web_password(cookie_wpwd, str, experiment))
          return;
 
-      show_create_page(enc_path, dec_path, value, index, atoi(getparam("type")));
+      show_create_page(enc_path, dec_path, value, index, atoi(p->getparam("type")));
       return;
    }
 
@@ -16552,7 +16570,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       if (!check_web_password(cookie_wpwd, "?cmd=CNAF", experiment))
          return;
 
-      show_cnaf_page();
+      show_cnaf_page(p);
       return;
    }
 
@@ -16588,7 +16606,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
 
    if (equal_ustring(command, "programs")) {
       str[0] = 0;
-      for (p=dec_path ; *p ; p++)
+      for (const char* p=dec_path ; *p ; p++)
          if (*p == '/')
             strlcat(str, "../", sizeof(str));
       if (str[0]) {
@@ -16598,10 +16616,10 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       }
 
       str[0] = 0;
-      if (getparam("Start") && *getparam("Start"))
-         sprintf(str, "?cmd=programs&Start=%s", getparam("Start"));
-      if (getparam("Stop") && *getparam("Stop"))
-         sprintf(str, "?cmd=programs&Stop=%s", getparam("Stop"));
+      if (p->getparam("Start") && *p->getparam("Start"))
+         sprintf(str, "?cmd=programs&Start=%s", p->getparam("Start"));
+      if (p->getparam("Stop") && *p->getparam("Stop"))
+         sprintf(str, "?cmd=programs&Stop=%s", p->getparam("Stop"));
 
       if (str[0])
          if (!check_web_password(cookie_wpwd, str, experiment))
@@ -16646,20 +16664,20 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       }
 
       strlcpy(str, dec_path + 3, sizeof(str));
-      show_elog_page(str, sizeof(str));
+      show_elog_page(p, str, sizeof(str));
       return;
    }
 
    if (equal_ustring(command, "Create ELog from this page")) {
       strlcpy(str, dec_path, sizeof(str));
-      show_elog_page(str, sizeof(str));
+      show_elog_page(p, str, sizeof(str));
       return;
    }
 
    /*---- accept command --------------------------------------------*/
 
    if (equal_ustring(command, "accept")) {
-      refresh = atoi(getparam("refr"));
+      refresh = atoi(p->getparam("refr"));
 
       /* redirect with cookie */
       rsprintf("HTTP/1.1 302 Found\r\n");
@@ -16697,16 +16715,18 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
             return;
       }
 
-      show_sc_page(dec_path + 3, refresh);
+      show_sc_page(p, dec_path + 3, refresh);
       return;
    }
 
    /*---- sequencer page --------------------------------------------*/
 
+#ifdef HAVE_SEQUENCER
    if (strncmp(dec_path, "SEQ/", 4) == 0) {
       show_seq_page();
       return;
    }
+#endif
 
    /*---- custom page -----------------------------------------------*/
 
@@ -16717,7 +16737,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
             return;
       }
 
-      show_custom_page(dec_path + 3, cookie_cpwd);
+      show_custom_page(p, dec_path + 3, cookie_cpwd);
       return;
    }
 
@@ -16728,7 +16748,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
             return;
       }
 
-      show_custom_page("Status", cookie_cpwd);
+      show_custom_page(p, "Status", cookie_cpwd);
       return;
    }
 
@@ -16740,7 +16760,7 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
          return;
       }
 
-      show_status_page(refresh, cookie_wpwd, expand_equipment);
+      show_status_page(p, refresh, cookie_wpwd, expand_equipment);
       return;
    }
 
@@ -16759,14 +16779,14 @@ void interprete(const char *cookie_pwd, const char *cookie_wpwd, const char *coo
       }
 
       strlcpy(str, dec_path, sizeof(str));
-      show_odb_page(enc_path, sizeof(enc_path), str, write_access);
+      show_odb_page(p, enc_path, sizeof(enc_path), str, write_access);
       return;
    }
 }
 
 /*------------------------------------------------------------------*/
 
-void decode_query(const char *query_string)
+void decode_query(Param* pp, const char *query_string)
 {
    int len = strlen(query_string);
    char *buf = (char *)malloc(len+1);
@@ -16782,7 +16802,7 @@ void decode_query(const char *query_string)
          if (!equal_ustring(pitem, "format"))
             urlDecode(p); // parameter value
 
-         setparam(pitem, p); // decoded query parameters
+         pp->setparam(pitem, p); // decoded query parameters
 
          p = strtok(NULL, "&");
       }
@@ -16796,7 +16816,10 @@ void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, c
 
    //printf("decode_get: string [%s], decode_url %d, url [%s], query_string [%s]\n", string, decode_url, url, query_string);
 
-   initparam();
+   Param* param = new Param();
+   
+   param->initparam();
+
    if (url)
       strlcpy(path, url + 1, sizeof(path));     /* strip leading '/' */
    else {
@@ -16805,10 +16828,11 @@ void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, c
       if (strchr(path, '?'))
          *strchr(path, '?') = 0;
    }
-   setparam("path", path); // undecoded path, is this used anywhere?
+
+   param->setparam("path", path); // undecoded path, is this used anywhere?
 
    if (query_string)
-      decode_query(query_string);
+      decode_query(param, query_string);
    else if (string && strchr(string, '?')) {
       char* p = strchr(string, '?') + 1;
 
@@ -16816,7 +16840,7 @@ void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, c
       if (p[strlen(p) - 1] == '/')
          p[strlen(p) - 1] = 0;
 
-      decode_query(p);
+      decode_query(param, p);
    }
 
    char dec_path[256];
@@ -16824,9 +16848,10 @@ void decode_get(char *string, const char *cookie_pwd, const char *cookie_wpwd, c
    if (decode_url)
       urlDecode(dec_path);
 
-   interprete(cookie_pwd, cookie_wpwd, cookie_cpwd, dec_path, refresh, expand_equipment);
+   interprete(param, cookie_pwd, cookie_wpwd, cookie_cpwd, dec_path, refresh, expand_equipment);
 
-   freeparam();
+   param->freeparam();
+   delete param;
 }
 
 /*------------------------------------------------------------------*/
@@ -16837,7 +16862,9 @@ void decode_post(const char *header, char *string, const char *boundary, int len
    char *pinit, *p, *pitem, *ptmp, file_name[256], str[256], path[256];
    int n;
 
-   initparam();
+   Param* param = new Param;
+   
+   param->initparam();
 
    if (url)
       strlcpy(path, url + 1, sizeof(path));     /* strip leading '/' */
@@ -16848,7 +16875,7 @@ void decode_post(const char *header, char *string, const char *boundary, int len
       if (strchr(path, ' '))
          *strchr(path, ' ') = 0;
    }
-   setparam("path", path); // undecoded path
+   param->setparam("path", path); // undecoded path
 
    _attachment_size[0] = _attachment_size[1] = _attachment_size[2] = 0;
    pinit = string;
@@ -16884,7 +16911,7 @@ void decode_post(const char *header, char *string, const char *boundary, int len
                /* set attachment filename */
                strlcpy(file_name, p, sizeof(file_name));
                sprintf(str, "attachment%d", n);
-               setparam(str, file_name); // file_name should be decoded?
+               param->setparam(str, file_name); // file_name should be decoded?
             } else
                file_name[0] = 0;
 
@@ -16932,7 +16959,7 @@ void decode_post(const char *header, char *string, const char *boundary, int len
                while (*ptmp == '-' || *ptmp == '\n' || *ptmp == '\r')
                   *ptmp-- = 0;
             }
-            setparam(pitem, p); // in decode_post()
+            param->setparam(pitem, p); // in decode_post()
          }
 
          while (*string == '-' || *string == '\n' || *string == '\r')
@@ -16946,7 +16973,9 @@ void decode_post(const char *header, char *string, const char *boundary, int len
    if (decode_url)
       urlDecode(dec_path);
 
-   interprete(cookie_pwd, cookie_wpwd, "", dec_path, refresh, expand_equipment);
+   interprete(param, cookie_pwd, cookie_wpwd, "", dec_path, refresh, expand_equipment);
+
+   delete param;
 }
 
 /*------------------------------------------------------------------*/
@@ -18228,8 +18257,10 @@ int loop_mg()
       if (status == RPC_SHUTDOWN)
          break;
 
+#ifdef HAVE_SEQUENCER
       /* call sequencer periodically */
       sequencer();
+#endif
 
       status = ss_mutex_release(request_mutex);
 
@@ -18409,8 +18440,10 @@ int main(int argc, const char *argv[])
    /* initialize menu buttons */
    init_menu_buttons();
 
+#ifdef HAVE_SEQUENCER
    /* initialize sequencer */
    init_sequencer();
+#endif
 
    /* initialize the JSON RPC handlers */
    mjsonrpc_init();
