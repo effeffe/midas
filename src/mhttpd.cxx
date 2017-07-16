@@ -61,7 +61,6 @@ char *_value[MAX_PARAM];
 char _text[TEXT_SIZE];
 char *_attachment_buffer[3];
 INT _attachment_size[3];
-struct in_addr remote_addr;
 BOOL elog_mode = FALSE;
 BOOL history_mode = FALSE;
 BOOL verbose = FALSE;
@@ -4217,7 +4216,6 @@ void submit_elog()
    HNDLE hDB, hkey;
    char att_file[3][256];
    int i, fh, size, n_mail, index;
-   struct hostent *phe;
    char mhttpd_full_url[256];
 
    cm_get_experiment_database(&hDB, NULL);
@@ -4327,14 +4325,8 @@ void submit_elog()
 
    {
       char str[256];
-      /* add remote host name to author */
-      phe = gethostbyaddr((char *) &remote_addr, 4, PF_INET);
-      if (phe == NULL) {
-         /* use IP number instead */
-         strlcpy(str, (char *) inet_ntoa(remote_addr), sizeof(str));
-      } else
-         strlcpy(str, phe->h_name, sizeof(str));
-      
+      // FIXME: should get author's network address from the network connection
+      strlcpy(str, "somewhere", sizeof(str));
       strlcpy(author, getparam("author"), sizeof(author));
       strlcat(author, "@", sizeof(author));
       strlcat(author, str, sizeof(author));
