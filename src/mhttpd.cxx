@@ -67,6 +67,7 @@ BOOL verbose = FALSE;
 char midas_hostname[256];
 char midas_expt[256];
 
+// month name from midas.c
 extern const char *mname[];
 
 char type_list[20][NAME_LENGTH] = {
@@ -3408,20 +3409,6 @@ void show_elog_submit_query(INT last_n)
    display_run_number = TRUE;
    size = sizeof(BOOL);
    db_get_value(hDB, 0, "/Elog/Display run number", &display_run_number, &size, TID_BOOL, TRUE);
-
-#if 0
-   /* header */
-   rsprintf("HTTP/1.1 200 Document follows\r\n");
-   rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-   rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
-
-   rsprintf("<html><head>\n");
-   rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
-   rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
-   rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
-   rsprintf("<title>MIDAS ELog</title></head>\n");
-   rsprintf("<body><form method=\"GET\" action=\"./\">\n");
-#endif
 
    show_header("ELog", "GET", "./", 0);
    rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
