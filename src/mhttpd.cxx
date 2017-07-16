@@ -17237,10 +17237,6 @@ int open_listening_socket(int port)
 
 /*------------------------------------------------------------------*/
 
-//#define HAVE_MG 1
-
-#ifdef HAVE_MG
-
 int try_file_mg(const char* try_dir, const char* filename, std::string& path, FILE** fpp, bool trace)
 {
    if (fpp)
@@ -17295,8 +17291,6 @@ int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace
    try_file_mg(exptdir, filename, path, NULL, false);
    return SS_FILE_ERROR;
 }
-
-#endif
 
 #include "mongoose6.h"
 
@@ -18284,7 +18278,6 @@ int main(int argc, const char *argv[])
    char str[256];
    int user_http_port = 0;
    int user_https_port = 0;
-   int use_mg = 1;
    const char *myname = "mhttpd";
    
    setbuf(stdout, NULL);
@@ -18349,8 +18342,6 @@ int main(int argc, const char *argv[])
          if (argv[i+1]) {
             user_https_port = atoi(argv[i+1]);
          }
-      } else if (strcmp(argv[i], "--nomg") == 0) {
-         use_mg = 0;
       } else if (argv[i][0] == '-') {
          if (i + 1 >= argc || argv[i + 1][0] == '-')
             goto usage;
@@ -18377,9 +18368,6 @@ int main(int argc, const char *argv[])
             printf("       -H only display history plots\n");
             printf("       --http port - bind to specified HTTP port (default is ODB \"/Experiment/midas http port\")\n");
             printf("       --https port - bind to specified HTTP port (default is ODB \"/Experiment/midas https port\")\n");
-#ifdef HAVE_MG
-            printf("       --nomg use the old mhttpd web server\n");
-#endif
             return 0;
          }
       }
@@ -18455,17 +18443,13 @@ int main(int argc, const char *argv[])
    /* initialize the JSON RPC handlers */
    mjsonrpc_init();
 
-#ifdef HAVE_MG
-   if (use_mg) {
-      status = start_mg(user_http_port, user_https_port, socket_priviledged_port, verbose);
-      if (status != SUCCESS) {
-         // At least print something!
-         printf("could not start the mongoose web server, see messages and midas.log, bye!\n");
-         cm_disconnect_experiment();
-         return 1;
-      }
+   status = start_mg(user_http_port, user_https_port, socket_priviledged_port, verbose);
+   if (status != SUCCESS) {
+      // At least print something!
+      printf("could not start the mongoose web server, see messages and midas.log, bye!\n");
+      cm_disconnect_experiment();
+      return 1;
    }
-#endif
 
    /* place a request for system messages */
    cm_msg_register(receive_message);
@@ -18473,17 +18457,9 @@ int main(int argc, const char *argv[])
    /* redirect message display, turn on message logging */
    cm_set_msg_print(MT_ALL, MT_ALL, print_message);
 
-#if defined(HAVE_MG)
-   if (use_mg)
-      loop_mg();
-#else
-#error Have neither mongoose web server nor old web server. Please define HAVE_MG or HAVE_OLDSERVER or both
-#endif
+   loop_mg();
 
-#ifdef HAVE_MG
-   if (use_mg)
-      stop_mg();
-#endif
+   stop_mg();
 
    cm_disconnect_experiment();
    return 0;
