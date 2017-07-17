@@ -16642,7 +16642,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
       if (p->isparam("fs")) {
          strlcpy(str, p->getparam("fs"), sizeof(str));
          if (str[0] == '[') {
-            strcpy(str, str+1);
+            strlcpy(str, p->getparam("fs")+1, sizeof(str));
             str[strlen(str)-1] = 0;
          }
          if (equal_ustring(str, "..")) {
@@ -16659,17 +16659,17 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
       strlcat(path, dir, sizeof(path));
       
       /*---- go over subdirectories ----*/
-      n = ss_dir_find(path, (char *)"*", &flist);     
+      n = ss_dir_find(path, (char *)"*", &flist);
       if (dir[0])
          r->rsprintf("<option onDblClick=\"document.form1.submit()\">[..]</option>\n");
-      for (i=0 ; i<n ; i++) {
+      for (int i=0 ; i<n ; i++) {
          if (flist[i*MAX_STRING_LENGTH] != '.')
             r->rsprintf("<option onDblClick=\"document.form1.submit()\">[%s]</option>\n", flist+i*MAX_STRING_LENGTH);
       }
       
       /*---- go over MSL files in sequencer directory ----*/
       n = ss_file_find(path, (char *)"*.msl", &flist);
-      for (i=0 ; i<n ; i++) {
+      for (int i=0 ; i<n ; i++) {
          strlcpy(str, path, sizeof(str));
          if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
             strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
