@@ -35,17 +35,40 @@ extern "C" {
 /* refresh times in seconds */
 #define DEFAULT_REFRESH 60
 
-/* time until mhttpd disconnects from MIDAS */
-#define CONNECT_TIME  3600*24
-
 static MUTEX_T* request_mutex = NULL;
 
-char referer[256];
+// FIXME: what does "referer" do?!?
+//char referer[256];
 
 #define MAX_GROUPS    32
 #define MAX_VARS     100
-char *_attachment_buffer[3];
-INT _attachment_size[3];
+
+class Attachment
+{
+public:
+   char *_attachment_buffer[3];
+   INT _attachment_size[3];
+public:
+   Attachment() // ctor
+   {
+      _attachment_buffer[0] = _attachment_buffer[1] = _attachment_buffer[2] = NULL;
+      _attachment_size[0] = _attachment_size[1] = _attachment_size[2] = 0;
+   }
+   ~Attachment() // dtor
+   {
+      for (int i=0; i<3; i++) {
+         clear(i);
+      }
+   }
+   void clear(int i)
+   {
+      if (_attachment_size[i]) {
+         // FIXME: this is a pointer to (probably) the request memory buffer //free(_attachment_buffer[i]);
+         _attachment_size[i] = 0;
+         _attachment_buffer[i] = NULL;
+      }
+   }
+};
 BOOL elog_mode = FALSE;
 BOOL history_mode = FALSE;
 BOOL verbose = FALSE;
@@ -4261,7 +4284,7 @@ void gen_odb_attachment(Return* r, const char *path, char *b)
 
 /*------------------------------------------------------------------*/
 
-void submit_elog(Param* pp, Return* r)
+void submit_elog(Param* pp, Return* r, Attachment* a)
 {
    char author[256], path[256], path1[256];
    char mail_to[256], mail_from[256], mail_text[10000], mail_list[256],
@@ -4299,7 +4322,7 @@ void submit_elog(Param* pp, Return* r)
       buffer[i] = NULL;
       char str[256];
       sprintf(str, "attachment%d", i);
-      if (pp->getparam(str) && *pp->getparam(str) && _attachment_size[i] == 0) {
+      if (pp->getparam(str) && *pp->getparam(str) && a->_attachment_size[i] == 0) {
          /* replace '\' by '/' */
          strlcpy(path, pp->getparam(str), sizeof(path));
          strlcpy(path1, path, sizeof(path1));
@@ -4312,8 +4335,8 @@ void submit_elog(Param* pp, Return* r)
            gen_odb_attachment(r, path, buffer[i]);
             strlcpy(att_file[i], path, sizeof(att_file[0]));
             strlcat(att_file[i], ".html", sizeof(att_file[0]));
-            _attachment_buffer[i] = buffer[i];
-            _attachment_size[i] = strlen(buffer[i]) + 1;
+            a->_attachment_buffer[i] = buffer[i];
+            a->_attachment_size[i] = strlen(buffer[i]) + 1;
          }
          /* check if local file */
          else if ((fh = open(path1, O_RDONLY | O_BINARY)) >= 0) {
@@ -4325,8 +4348,8 @@ void submit_elog(Param* pp, Return* r)
                rd = 0;
             close(fh);
             strlcpy(att_file[i], path, sizeof(att_file[0]));
-            _attachment_buffer[i] = buffer[i];
-            _attachment_size[i] = rd;
+            a->_attachment_buffer[i] = buffer[i];
+            a->_attachment_size[i] = rd;
          } else if (strncmp(path, "/HS/", 4) == 0) {
            buffer[i] = (char*)M_MALLOC(100000);
             size = 100000;
@@ -4351,8 +4374,8 @@ void submit_elog(Param* pp, Return* r)
             }
             show_hist_page(pp, r, str, str, buffer[i], &size, 0);
             strlcpy(att_file[i], str, sizeof(att_file[0]));
-            _attachment_buffer[i] = buffer[i];
-            _attachment_size[i] = size;
+            a->_attachment_buffer[i] = buffer[i];
+            a->_attachment_size[i] = size;
             pp->unsetparam("scale");
             pp->unsetparam("offset");
             pp->unsetparam("width");
@@ -4393,9 +4416,9 @@ void submit_elog(Param* pp, Return* r)
    el_submit(atoi(pp->getparam("run")), author, pp->getparam("type"),
              pp->getparam("system"), pp->getparam("subject"), pp->getparam("text"),
              pp->getparam("orig"), *pp->getparam("html") ? "HTML" : "plain",
-             att_file[0], _attachment_buffer[0], _attachment_size[0],
-             att_file[1], _attachment_buffer[1], _attachment_size[1],
-             att_file[2], _attachment_buffer[2], _attachment_size[2], tag, sizeof(tag));
+             att_file[0], a->_attachment_buffer[0], a->_attachment_size[0],
+             att_file[1], a->_attachment_buffer[1], a->_attachment_size[1],
+             att_file[2], a->_attachment_buffer[2], a->_attachment_size[2], tag, sizeof(tag));
 
    /* supersede host name with "/Elog/Host name" */
    std::string elog_host_name;
@@ -4489,7 +4512,7 @@ void submit_elog(Param* pp, Return* r)
 
 /*------------------------------------------------------------------*/
 
-void submit_form(Param* p, Return* r)
+void submit_form(Param* p, Return* r, Attachment* a)
 {
    char str[256], att_name[256];
    char text[10000];
@@ -4535,7 +4558,8 @@ void submit_form(Param* p, Return* r)
             /* generate attachments */
             size = sizeof(str);
             db_get_data(hDB, hkey, str, &size, TID_STRING);
-            _attachment_size[n_att] = 0;
+            a->clear(i);
+            a->_attachment_size[n_att] = 0;
             sprintf(att_name, "attachment%d", n_att++);
 
             sprintf(str, "c%d", i);
@@ -4557,12 +4581,12 @@ void submit_form(Param* p, Return* r)
    p->setparam("orig", "");
    p->setparam("html", "");
 
-   submit_elog(p, r);
+   submit_elog(p, r, a);
 }
 
 /*------------------------------------------------------------------*/
 
-void show_elog_page(Param* p, Return* r, char *path, int path_size)
+void show_elog_page(Param* p, Return* r, Attachment* a, char *path, int path_size)
 {
    int size, i, run, msg_status, status, fh, length, first_message, last_message, index,
       fsize;
@@ -4597,7 +4621,7 @@ void show_elog_page(Param* p, Return* r, char *path, int path_size)
          return;
       }
       if (equal_ustring(command, "submit"))
-         submit_form(p, r);
+         submit_form(p, r, a);
       else
          show_form_query(p, r);
       return;
@@ -4698,7 +4722,7 @@ void show_elog_page(Param* p, Return* r, char *path, int path_size)
    }
 
    if (equal_ustring(command, "submit")) {
-      submit_elog(p, r);
+      submit_elog(p, r, a);
       return;
    }
 
@@ -5146,14 +5170,16 @@ void show_elog_page(Param* p, Return* r, char *path, int path_size)
 void get_elog_url(char *url, int len)
 {
    HNDLE hDB;
-   char str[256], str2[256], *p;
+   char str[256];
    int size;
 
    /* redirect to external ELOG if URL present */
    cm_get_experiment_database(&hDB, NULL);
    size = sizeof(str);
    if (db_get_value(hDB, 0, "/Elog/URL", str, &size, TID_STRING, FALSE) == DB_SUCCESS) {
+#if 0
       if (str[0] == ':') {
+         char str2[256], *p;
          strcpy(str2, referer);
          while ((p = strrchr(str2, '/')) != NULL && p > str2 && *(p-1) != '/')
             *p = 0;
@@ -5163,6 +5189,7 @@ void get_elog_url(char *url, int len)
             str2[strlen(str2)-1] = 0;
          sprintf(url, "%s%s", str2, str);
       } else
+#endif
          strlcpy(url, str, len);
    } else
       strlcpy(url, "EL/", len);
@@ -15930,7 +15957,7 @@ void send_js()
 
 /*------------------------------------------------------------------*/
 
-void interprete(Param* p, Return* r, const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, const char *dec_path, int refresh, int expand_equipment)
+void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, const char *dec_path, int refresh, int expand_equipment)
 /********************************************************************\
 
  Routine: interprete
@@ -16716,13 +16743,13 @@ void interprete(Param* p, Return* r, const char *cookie_pwd, const char *cookie_
       }
 
       strlcpy(str, dec_path + 3, sizeof(str));
-      show_elog_page(p, r, str, sizeof(str));
+      show_elog_page(p, r, a, str, sizeof(str));
       return;
    }
 
    if (equal_ustring(command, "Create ELog from this page")) {
       strlcpy(str, dec_path, sizeof(str));
-      show_elog_page(p, r, str, sizeof(str));
+      show_elog_page(p, r, a, str, sizeof(str));
       return;
    }
 
@@ -16900,7 +16927,7 @@ void decode_get(Return* rr, char *string, const char *cookie_pwd, const char *co
    if (decode_url)
       urlDecode(dec_path);
 
-   interprete(param, rr, cookie_pwd, cookie_wpwd, cookie_cpwd, dec_path, refresh, expand_equipment);
+   interprete(param, rr, NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, dec_path, refresh, expand_equipment);
 
    param->freeparam();
    delete param;
@@ -16929,7 +16956,8 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
    }
    param->setparam("path", path); // undecoded path
 
-   _attachment_size[0] = _attachment_size[1] = _attachment_size[2] = 0;
+   Attachment* a = new Attachment;
+
    pinit = string;
 
    /* return if no boundary defined */
@@ -16989,8 +17017,8 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
 
             /* save pointer to file */
             if (file_name[0]) {
-               _attachment_buffer[n] = string;
-               _attachment_size[n] = (POINTER_T) p - (POINTER_T) string;
+               a->_attachment_buffer[n] = string;
+               a->_attachment_size[n] = (POINTER_T) p - (POINTER_T) string;
             }
 
             string = strstr(p, boundary) + strlen(boundary);
@@ -17025,8 +17053,9 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
    if (decode_url)
       urlDecode(dec_path);
 
-   interprete(param, rr, cookie_pwd, cookie_wpwd, "", dec_path, refresh, expand_equipment);
+   interprete(param, rr, a, cookie_pwd, cookie_wpwd, "", dec_path, refresh, expand_equipment);
 
+   delete a;
    delete param;
 }
 
