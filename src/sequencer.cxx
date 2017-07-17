@@ -28,8 +28,7 @@ extern void show_header(const char *title, const char *method, const char *path,
 extern void show_navigation_bar(const char *cur_page);
 extern void page_footer(BOOL bForm);
 
-#undef NAME_LENGTH
-#define NAME_LENGTH 256
+#define XNAME_LENGTH 256
 
 /**dox***************************************************************/
 /** @file sequencer.cxx
@@ -191,7 +190,6 @@ SEQUENCER seq;
 PMXML_NODE pnseq = NULL;
 
 
-
 /*------------------------------------------------------------------*/
 
 void seq_error(const char *str)
@@ -214,14 +212,14 @@ void seq_error(const char *str)
 
 /*------------------------------------------------------------------*/
 
-int strbreak(char *str, char list[][NAME_LENGTH], int size, const char *brk, BOOL ignore_quotes)
+int strbreak(char *str, char list[][XNAME_LENGTH], int size, const char *brk, BOOL ignore_quotes)
 /* break comma-separated list into char array, stripping leading
  and trailing blanks */
 {
    int i, j;
    char *p;
    
-   memset(list, 0, size * NAME_LENGTH);
+   memset(list, 0, size * XNAME_LENGTH);
    p = str;
    if (!p || !*p)
       return 0;
@@ -233,7 +231,7 @@ int strbreak(char *str, char list[][NAME_LENGTH], int size, const char *brk, BOO
       if (*p == '"' && !ignore_quotes) {
          p++;
          j = 0;
-         memset(list[i], 0, NAME_LENGTH);
+         memset(list[i], 0, XNAME_LENGTH);
          do {
             /* convert two '"' to one */
             if (*p == '"' && *(p + 1) == '"') {
@@ -244,7 +242,7 @@ int strbreak(char *str, char list[][NAME_LENGTH], int size, const char *brk, BOO
             } else
                list[i][j++] = *p++;
             
-         } while (j < NAME_LENGTH - 1);
+         } while (j < XNAME_LENGTH - 1);
          list[i][j] = 0;
          
          /* skip second '"' */
@@ -259,7 +257,7 @@ int strbreak(char *str, char list[][NAME_LENGTH], int size, const char *brk, BOO
             p++;
          
       } else {
-         strlcpy(list[i], p, NAME_LENGTH);
+         strlcpy(list[i], p, XNAME_LENGTH);
          
          for (j = 0; j < (int) strlen(list[i]); j++)
             if (strchr(brk, list[i][j])) {
@@ -326,7 +324,7 @@ void strsubst(char *string, int size, const char *pattern, const char *subst)
 BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
 {
    char str[256], *buf, *pl, *pe;
-   char list[100][NAME_LENGTH], list2[100][NAME_LENGTH], **lines;
+   char list[100][XNAME_LENGTH], list2[100][XNAME_LENGTH], **lines;
    int i, j, n, size, n_lines, endl, line, fhin, nest, incl, library;
    FILE *fout = NULL;
    
@@ -669,7 +667,7 @@ error:
 
 int concatenate(char *result, int size, char *value)
 {
-   char str[256], list[100][NAME_LENGTH];
+   char str[256], list[100][XNAME_LENGTH];
    int  i, n;
    
    n = strbreak(value, list, 100, ",", FALSE);
@@ -761,6 +759,169 @@ int eval_condition(const char *condition)
 
 /*------------------------------------------------------------------*/
 
+void seq_start(HNDLE hDB, HNDLE hKey)
+{
+   /* start sequencer */
+   seq.running = TRUE;
+   seq.finished = FALSE;
+   seq.paused = FALSE;
+   seq.transition_request = FALSE;
+   seq.wait_limit = 0;
+   seq.wait_value = 0;
+   seq.start_time = 0;
+   seq.wait_type[0] = 0;
+   for (int i=0 ; i<4 ; i++) {
+      seq.loop_start_line[i] = 0;
+      seq.sloop_start_line[i] = 0;
+      seq.loop_end_line[i] = 0;
+      seq.sloop_end_line[i] = 0;
+      seq.loop_counter[i] = 0;
+      seq.loop_n[i] = 0;
+   }
+   for (int i=0 ; i<4 ; i++) {
+      seq.if_else_line[i] = 0;
+      seq.if_endif_line[i] = 0;
+      seq.subroutine_end_line[i] = 0;
+      seq.subroutine_return_line[i] = 0;
+      seq.subroutine_call_line[i] = 0;
+      seq.ssubroutine_call_line[i] = 0;
+      seq.subroutine_param[i][0] = 0;
+   }
+   seq.current_line_number = 1;
+   seq.scurrent_line_number = 1;
+   seq.if_index = 0;
+   seq.stack_index = 0;
+   seq.error[0] = 0;
+   seq.error_line = 0;
+   seq.serror_line = 0;
+   seq.subdir[0] = 0;
+   seq.subdir_end_line = 0;
+   seq.subdir_not_notify = 0;
+   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+}
+
+void seq_set_paused(HNDLE hDB, HNDLE hKey, BOOL paused)
+{
+   seq.paused = paused;
+   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+}
+
+void seq_set_stop_after_run(HNDLE hDB, HNDLE hKey, BOOL stop_after_run)
+{
+   seq.stop_after_run = stop_after_run;
+   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+}
+
+void seq_stop(HNDLE hDB, HNDLE hKey)
+{
+   seq.running = FALSE;
+   seq.finished = FALSE;
+   seq.paused = FALSE;
+   seq.wait_limit = 0;
+   seq.wait_value = 0;
+   seq.wait_type[0] = 0;
+   for (int i=0 ; i<4 ; i++) {
+      seq.loop_start_line[i] = 0;
+      seq.loop_end_line[i] = 0;
+      seq.loop_counter[i] = 0;
+      seq.loop_n[i] = 0;
+   }
+   seq.stop_after_run = FALSE;
+   seq.subdir[0] = 0;
+   
+   /* stop run if not already stopped */
+   char str[256];
+   int state = 0;
+   int size = sizeof(state);
+   db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
+   if (state != STATE_STOPPED)
+      cm_transition(TR_STOP, 0, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
+   
+   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+}
+
+
+void seq_load(HNDLE hDB, HNDLE hKey, const char* filename)
+{
+   strlcpy(seq.filename, filename, sizeof(seq.filename));
+
+   char str[256];
+   strlcpy(str, seq.path, sizeof(str));
+   if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
+      strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
+   strlcat(str, seq.filename, sizeof(str));
+   seq.error[0] = 0;
+   seq.error_line = 0;
+   seq.serror_line = 0;
+   if (pnseq) {
+      mxml_free_tree(pnseq);
+      pnseq = NULL;
+   }
+   if (stristr(str, ".msl")) {
+      if (msl_parse(str, seq.error, sizeof(seq.error), &seq.serror_line)) {
+         strsubst(str, sizeof(str), ".msl", ".xml");
+         pnseq = mxml_parse_file(str, seq.error, sizeof(seq.error), &seq.error_line);
+      }
+   } else
+      pnseq = mxml_parse_file(str, seq.error, sizeof(seq.error), &seq.error_line);
+   
+   seq.finished = FALSE;
+   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+}
+
+void seq_save(HNDLE hDB, HNDLE hKey, char* str, int str_size)
+{
+   seq.error[0] = 0;
+   if (pnseq) {
+      mxml_free_tree(pnseq);
+      pnseq = NULL;
+   }
+   seq.error_line = 0;
+   seq.serror_line = 0;
+   if (stristr(str, ".msl")) {
+      if (msl_parse(str, seq.error, sizeof(seq.error), &seq.serror_line)) {
+         strsubst(str, str_size, ".msl", ".xml");
+         pnseq = mxml_parse_file(str, seq.error, sizeof(seq.error), &seq.error_line);
+      }
+   } else
+      pnseq = mxml_parse_file(str, seq.error, sizeof(seq.error), &seq.error_line);
+   
+   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+}
+
+int seq_loop_width(int i)
+{
+   int width = 0;
+   if (seq.loop_n[i] <= 0)
+      width = 0;
+   else
+      width = (int)(((double)seq.loop_counter[i]/seq.loop_n[i])*100+0.5);
+   return width;
+}
+
+int seq_wait_width()
+{
+   int width = 0;
+   if (seq.wait_value <= 0)
+      width = 0;
+   else
+      width = (int)(((double)seq.wait_value/seq.wait_limit)*100+0.5);
+   return width;
+}
+
+const char* seq_path() { return seq.path; }
+const char* seq_filename() { return seq.filename; }
+const char* seq_error() { return seq.error; }
+int seq_running() { return seq.running; }
+int seq_paused() { return seq.paused; }
+int seq_stop_after_run() { return seq.stop_after_run; }
+int seq_finished() { return seq.finished; }
+int seq_current_line_number() { return seq.current_line_number; }
+int seq_error_line() { return seq.error_line; }
+int seq_serror_line() { return seq.serror_line; }
+
+/*------------------------------------------------------------------*/
+
 void init_sequencer()
 {
    int status;
@@ -817,7 +978,7 @@ void sequencer()
 {
    PMXML_NODE pn, pr, pt, pe;
    char odbpath[256], value[256], data[256], str[256], str1[256], name[32], op[32];
-   char list[100][NAME_LENGTH], *pc;
+   char list[100][XNAME_LENGTH], *pc;
    int i, j, l, n, status, size, index, index1, index2, last_line, state, run_number, cont;
    HNDLE hDB, hKey, hKeySeq;
    KEY key;
