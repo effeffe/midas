@@ -118,6 +118,11 @@ endif
 #
 NEED_ZLIB=
 
+#
+# Enable sequencer support in mhttpd
+#
+HAVE_SEQUENCER=1
+
 #####################################################################
 # Nothing needs to be modified after this line 
 #####################################################################
@@ -534,6 +539,7 @@ MHTTPD_OBJS += $(LIB_DIR)/mhttpd.o
 MHTTPD_OBJS += $(LIB_DIR)/mgd.o
 ifdef HAVE_SEQUENCER
 MHTTPD_OBJS += $(LIB_DIR)/sequencer.o
+CFLAGS      += -DHAVE_SEQUENCER
 endif
 MHTTPD_OBJS += $(LIB_DIR)/mjsonrpc.o $(LIB_DIR)/mjsonrpc_user.o
 ifdef HAVE_MSCB
