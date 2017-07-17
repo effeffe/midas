@@ -258,7 +258,7 @@ void haxis(gdImagePtr im, gdFont * font, int col, int gcol, int x1, int y1, int 
            int minor, int major, int text, int label, int grid, double xmin, double xmax);
 void get_elog_url(char *url, int len);
 void show_header(Return* r, const char *title, const char *method, const char *path, int refresh);
-void show_navigation_bar(Return* r, const char *cur_page);
+void show_navigation_bar(Return* r, const char* dec_path, const char *cur_page);
 #ifdef OBSOLETE
 char *get_js_filename();
 #endif
@@ -654,20 +654,6 @@ public:
       }
    }
 };
-
-/*------------------------------------------------------------------*/
-
-static char _dec_path[256];
-
-void set_dec_path(const char *path)
-{
-   strlcpy(_dec_path, path, sizeof(_dec_path));
-}
-
-char *get_dec_path()
-{
-   return _dec_path;
-}
 
 /*------------------------------------------------------------------*/
 
@@ -1112,11 +1098,11 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 
 /*------------------------------------------------------------------*/
 
-void page_footer(Return* r, BOOL bForm)  // wraps up body wrapper and inserts page footer
+void page_footer(Return* r, const char* dec_path, BOOL bForm)  // wraps up body wrapper and inserts page footer
 {
    time_t now;
    HNDLE hDB;
-   char dec_path[256], path[256];
+   char path[256];
 
    /*---- spacer for footer ----*/
    r->rsprintf("<div class=\"push\"></div>\n");
@@ -1131,10 +1117,8 @@ void page_footer(Return* r, BOOL bForm)  // wraps up body wrapper and inserts pa
    r->rsprintf("<div style=\"display:inline;\">");
    
    /* add one "../" for each level */
-   strlcpy(dec_path, get_dec_path(), sizeof(dec_path));
    path[0] = 0;
-   char*p;
-   for (p = dec_path ; *p ; p++)
+   for (const char* p = dec_path ; *p ; p++)
       if (*p == '/')
          strlcat(path, "../", sizeof(path));
    if (path[strlen(path)-1] == '/')
@@ -1208,7 +1192,7 @@ void page_footer(Return* r, BOOL bForm)  // wraps up body wrapper and inserts pa
 
 FILE *open_resource_file(const char *filename, std::string* pfilename);
 
-void show_help_page(Return* r)
+void show_help_page(Return* r, const char* dec_path)
 {
    const char *s;
    char str[256];
@@ -1217,7 +1201,7 @@ void show_help_page(Return* r)
    show_header(r, "Help", "", "./", 0);
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   show_navigation_bar(r, "Help");
+   show_navigation_bar(r, dec_path, "Help");
 
    r->rsprintf("<table class=\"ODBTable\">\n");
    r->rsprintf("  <tr>\n");
@@ -1583,15 +1567,14 @@ int exec_script(HNDLE hkey)
 
 /*------------------------------------------------------------------*/
 
-void show_navigation_bar(Return* r, const char *cur_page)
+void show_navigation_bar(Return* r, const char* dec_path, const char *cur_page)
 {
-   char dec_path[256], path[256];
+   char path[256];
 
    /* add one "../" for each level */
-   strlcpy(dec_path, get_dec_path(), sizeof(dec_path));
    path[0] = 0;
 
-   for (char* p = dec_path ; *p ; p++)
+   for (const char* p = dec_path ; *p ; p++)
       if (*p == '/')
          strlcat(path, "../", sizeof(path));
    if (path[strlen(path)-1] == '/')
@@ -1727,7 +1710,7 @@ void xshow_navigation_bar(const char *cur_page)
 int requested_transition = 0;
 int requested_old_state = 0;
 
-void show_status_page(Param* p, Return* r, int refresh, const char *cookie_wpwd, int expand_equipment)
+void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, const char *cookie_wpwd, int expand_equipment)
 {
    int i, j, k, h, m, s, status, size, type, n_items, n_hidden;
    BOOL flag, first, expand;
@@ -1837,7 +1820,7 @@ void show_status_page(Param* p, Return* r, int refresh, const char *cookie_wpwd,
 
    /*---- navigation bar ----*/
 
-   show_navigation_bar(r, "Status");
+   show_navigation_bar(r, dec_path, "Status");
 
    /*---- script buttons ----*/
 
@@ -2757,13 +2740,13 @@ void show_status_page(Param* p, Return* r, int refresh, const char *cookie_wpwd,
 
    r->rsprintf("</table>\n");
 
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 
 }
 
 /*------------------------------------------------------------------*/
 
-void show_messages_page(Param* p, Return* r)
+void show_messages_page(Param* p, Return* r, const char* dec_path)
 {
    int status;
    char bclass[256], facility[256];
@@ -2780,7 +2763,7 @@ void show_messages_page(Param* p, Return* r)
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
-   show_navigation_bar(r, "Messages");
+   show_navigation_bar(r, dec_path, "Messages");
 
    /*---- facilities button bar ----*/
 
@@ -2821,13 +2804,13 @@ void show_messages_page(Param* p, Return* r)
 
 /*------------------------------------------------------------------*/
 
-void show_chat_page(Return* r)
+void show_chat_page(Return* r, const char* dec_path)
 {
    show_header(r, "Chat", "GET", "./", 0);
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
-   show_navigation_bar(r, "Chat");
+   show_navigation_bar(r, dec_path, "Chat");
    
    /*---- messages will be dynamically loaded via JS ----*/
 
@@ -2969,7 +2952,7 @@ void strencode4(Return* r, char *text)
 
 /*------------------------------------------------------------------*/
 
-void show_elog_new(Return* r, const char *path, BOOL bedit, const char *odb_att, const char *action_path)
+void show_elog_new(Return* r, const char* dec_path, const char *path, BOOL bedit, const char *odb_att, const char *action_path)
 {
    int i, j, size, run_number, wrap, status;
    char str[256], ref[256], *p;
@@ -3236,12 +3219,12 @@ void show_elog_new(Return* r, const char *path, BOOL bedit, const char *odb_att,
         att3);
 
    r->rsprintf("</table>\n");
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 
 /*------------------------------------------------------------------*/
 
-void show_elog_query(Return* r)
+void show_elog_query(Return* r, const char* dec_path)
 {
    int i, size;
    time_t now;
@@ -3412,12 +3395,12 @@ void show_elog_query(Return* r)
    r->rsprintf("<i>(case insensitive substring)</i><tr>\n");
 
    r->rsprintf("</tr></table>\n");
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 
 /*------------------------------------------------------------------*/
 
-void show_elog_delete(Param* p, Return* r, const char *path)
+void show_elog_delete(Param* p, Return* r, const char* dec_path, const char *path)
 {
    HNDLE hDB;
    int size, status;
@@ -3477,12 +3460,12 @@ void show_elog_delete(Param* p, Return* r, const char *path)
    }
 
    r->rsprintf("</table>\n");
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 
 /*------------------------------------------------------------------*/
 
-void show_elog_submit_query(Param* p, Return* r, INT last_n)
+void show_elog_submit_query(Param* p, Return* r, const char* dec_path, INT last_n)
 {
    int i, size, run, status, m1, d2, m2, y2, index, colspan;
    char date[80], author[80], type[80], system[80], subject[256], text[10000],
@@ -3503,7 +3486,7 @@ void show_elog_submit_query(Param* p, Return* r, INT last_n)
    show_header(r, "ELog", "GET", "./", 0);
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   show_navigation_bar(r, "ELog");
+   show_navigation_bar(r, dec_path, "ELog");
 
    /*---- body needs wrapper div to pin footer ----*/
    r->rsprintf("<div class=\"wrapper\">\n");
@@ -3908,12 +3891,12 @@ void show_elog_submit_query(Param* p, Return* r, INT last_n)
    } while (status == EL_SUCCESS);
 
    r->rsprintf("</table>\n");
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 
 /*------------------------------------------------------------------*/
 
-void show_rawfile(Param* pp, Return* r, const char *path)
+void show_rawfile(Param* pp, Return* r, const char* dec_path, const char *path)
 {
    int size, lines, i, buf_size, offset;
    char *p;
@@ -3990,7 +3973,7 @@ void show_rawfile(Param* pp, Return* r, const char *path)
    if (f == NULL) {
       r->rsprintf("<tr><td><h3>Cannot find file \"%s\"</h3></td></tr>\n", file_name);
       r->rsprintf("</table>\n");
-      page_footer(r, TRUE);
+      page_footer(r, dec_path, TRUE);
       return;
    }
 
@@ -4056,12 +4039,12 @@ void show_rawfile(Param* pp, Return* r, const char *path)
    r->rsprintf("</pre>\n");
 
    r->rsprintf("</td></tr></table>\r\n");
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 
 /*------------------------------------------------------------------*/
 
-void show_form_query(Param* p, Return* r)
+void show_form_query(Param* p, Return* r, const char* dec_path)
 {
    int i = 0, size, run_number, status;
    char str[256];
@@ -4180,7 +4163,7 @@ void show_form_query(Param* p, Return* r)
    }
 
    r->rsprintf("</tr></table>\n");
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 
 /*------------------------------------------------------------------*/
@@ -4586,7 +4569,7 @@ void submit_form(Param* p, Return* r, Attachment* a)
 
 /*------------------------------------------------------------------*/
 
-void show_elog_page(Param* p, Return* r, Attachment* a, char *path, int path_size)
+void show_elog_page(Param* p, Return* r, Attachment* a, const char* dec_path, char *path, int path_size)
 {
    int size, i, run, msg_status, status, fh, length, first_message, last_message, index,
       fsize;
@@ -4623,15 +4606,15 @@ void show_elog_page(Param* p, Return* r, Attachment* a, char *path, int path_siz
       if (equal_ustring(command, "submit"))
          submit_form(p, r, a);
       else
-         show_form_query(p, r);
+         show_form_query(p, r, dec_path);
       return;
    }
 
    if (equal_ustring(command, "new")) {
       if (*p->getparam("file"))
-         show_elog_new(r, NULL, FALSE, p->getparam("file"), NULL);
+         show_elog_new(r, dec_path, NULL, FALSE, p->getparam("file"), NULL);
       else
-         show_elog_new(r, NULL, FALSE, NULL, NULL);
+         show_elog_new(r, dec_path, NULL, FALSE, NULL, NULL);
       return;
    }
 
@@ -4706,18 +4689,18 @@ void show_elog_page(Param* p, Return* r, Attachment* a, char *path, int path_siz
 
          strlcat(action_path, "EL/", sizeof(action_path));
 
-         show_elog_new(r, NULL, FALSE, path, action_path);
+         show_elog_new(r, dec_path, NULL, FALSE, path, action_path);
          return;
       }
    }
 
    if (equal_ustring(command, "edit")) {
-      show_elog_new(r, path, TRUE, NULL, NULL);
+      show_elog_new(r, dec_path, path, TRUE, NULL, NULL);
       return;
    }
 
    if (equal_ustring(command, "reply")) {
-      show_elog_new(r, path, FALSE, NULL, NULL);
+      show_elog_new(r, dec_path, path, FALSE, NULL, NULL);
       return;
    }
 
@@ -4727,12 +4710,12 @@ void show_elog_page(Param* p, Return* r, Attachment* a, char *path, int path_siz
    }
 
    if (equal_ustring(command, "query")) {
-      show_elog_query(r);
+      show_elog_query(r, dec_path);
       return;
    }
 
    if (equal_ustring(command, "submit query")) {
-      show_elog_submit_query(p, r, 0);
+      show_elog_submit_query(p, r, dec_path, 0);
       return;
    }
 
@@ -4747,12 +4730,12 @@ void show_elog_page(Param* p, Return* r, Attachment* a, char *path, int path_siz
    }
 
    if (equal_ustring(command, "delete")) {
-      show_elog_delete(p, r, path);
+      show_elog_delete(p, r, dec_path, path);
       return;
    }
 
    if (strncmp(path, "last", 4) == 0) {
-      show_elog_submit_query(p, r, atoi(path + 4));
+      show_elog_submit_query(p, r, dec_path, atoi(path + 4));
       return;
    }
 
@@ -4820,7 +4803,7 @@ void show_elog_page(Param* p, Return* r, Attachment* a, char *path, int path_siz
   /*---- check if runlog is requested ------------------------------*/
 
    if (path[0] > '9') {
-      show_rawfile(p, r, path);
+      show_rawfile(p, r, dec_path, path);
       return;
    }
 
@@ -4920,7 +4903,7 @@ void show_elog_page(Param* p, Return* r, Attachment* a, char *path, int path_siz
    show_header(r, "ELog", "GET", action, 0);
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   show_navigation_bar(r, "Elog");
+   show_navigation_bar(r, dec_path, "Elog");
 
    /*---- begin page header ----*/
    r->rsprintf("<table class=\"headerTable\">\n");
@@ -5162,7 +5145,7 @@ void show_elog_page(Param* p, Return* r, Attachment* a, char *path, int path_siz
    }
 
    r->rsprintf("</table>\n");
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 
 /*------------------------------------------------------------------*/
@@ -5224,7 +5207,7 @@ BOOL is_editable(char *eq_name, char *var_name)
    return FALSE;
 }
 
-void show_sc_page(Param* pp, Return* r, const char *path, int refresh)
+void show_sc_page(Param* pp, Return* r, const char* dec_path, const char *path, int refresh)
 {
    int i, j, k, colspan, size, n_var, i_edit, i_set, line;
    char str[256], eq_name[32], group[32], name[32], ref[256];
@@ -5292,7 +5275,7 @@ void show_sc_page(Param* pp, Return* r, const char *path, int refresh)
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
-   show_navigation_bar(r, "SC");
+   show_navigation_bar(r, dec_path, "SC");
 
    /*---- menu buttons ----*/
 
@@ -5719,7 +5702,7 @@ void show_sc_page(Param* pp, Return* r, const char *path, int refresh)
    }
 
    r->rsprintf("</table>\n");
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 
 /*------------------------------------------------------------------*/
@@ -8764,7 +8747,7 @@ void create_mscb_tree()
 
 /*------------------------------------------------------------------*/
 
-void show_mscb_page(Param* p, Return* r, const char *path, int refresh)
+void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path, int refresh)
 {
    int i, j, n, ind, fi, fd, status, size, n_addr, *addr, cur_node, adr, show_hidden;
    unsigned int uptime;
@@ -8984,7 +8967,7 @@ void show_mscb_page(Param* p, Return* r, const char *path, int refresh)
    show_header(r, "MSCB", "GET", "./", refresh);
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   show_navigation_bar(r, "MSCB");
+   show_navigation_bar(r, dec_path, "MSCB");
 
    /* style sheet */
    r->rsprintf("<style type=\"text/css\">\r\n");
@@ -9066,7 +9049,7 @@ void show_mscb_page(Param* p, Return* r, const char *path, int refresh)
       r->rsprintf("</table>\r\n"); //submaster table
       r->rsprintf("</td></tr>\r\n");
       r->rsprintf("</table>\r\n");  //main table
-      page_footer(r, TRUE);
+      page_footer(r, dec_path, TRUE);
       return;
    }
 
@@ -9134,7 +9117,7 @@ void show_mscb_page(Param* p, Return* r, const char *path, int refresh)
       r->rsprintf("</table>\r\n");  //submaster table
       r->rsprintf("</td></tr>\r\n");
       r->rsprintf("</table>\r\n"); //main table
-      page_footer(r, TRUE);
+      page_footer(r, dec_path, TRUE);
       return;
    }
 
@@ -9290,14 +9273,14 @@ mscb_error:
    r->rsprintf("</td></tr></table>\r\n");
    r->rsprintf("</td></tr></table>\r\n");
    r->rsprintf("</td></tr></table>\r\n");
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 
 #endif // HAVE_MSCB
 
 /*------------------------------------------------------------------*/
 
-void show_password_page(Return* r, const char *password, const char *experiment)
+void show_password_page(Return* r, const char* dec_path, const char *password, const char *experiment)
 {
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
    r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
@@ -9330,12 +9313,12 @@ void show_password_page(Return* r, const char *password, const char *experiment)
 
    r->rsprintf("</table>\n");
 
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 
 /*------------------------------------------------------------------*/
 
-BOOL check_web_password(Return* r, const char *password, const char *redir, const char *experiment)
+BOOL check_web_password(Return* r, const char* dec_path, const char *password, const char *redir, const char *experiment)
 {
    HNDLE hDB, hkey;
    INT size;
@@ -9387,7 +9370,7 @@ BOOL check_web_password(Return* r, const char *password, const char *redir, cons
 
       r->rsprintf("</table>\n");
 
-      page_footer(r, TRUE);
+      page_footer(r, dec_path, TRUE);
 
       return FALSE;
    } else
@@ -9396,7 +9379,7 @@ BOOL check_web_password(Return* r, const char *password, const char *redir, cons
 
 /*------------------------------------------------------------------*/
 
-void show_start_page(Param* p, Return* r, int script)
+void show_start_page(Param* p, Return* r, const char* dec_path, int script)
 {
    int rn, i, j, n, size, status, maxlength;
    HNDLE hDB, hkey, hsubkey, hkeycomm, hkeyc;
@@ -9510,7 +9493,7 @@ void show_start_page(Param* p, Return* r, int script)
    if (p->isparam("redir"))
       r->rsprintf("<input type=hidden name=\"redir\" value=\"%s\">\n", p->getparam("redir"));
 
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 
 }
 
@@ -9599,7 +9582,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
       r->rsprintf("<input type=button value=ELog onclick=\"self.location=\'?cmd=Alarms\';\">\n");
       r->rsprintf("</td></tr></table>\n\n");
    } else
-      show_navigation_bar(r, "ODB");
+      show_navigation_bar(r, dec_path, "ODB");
 
    /*---- begin ODB directory table ----*/
 
@@ -9986,7 +9969,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
       }
    }
    r->rsprintf("</table>\n");
-   page_footer(r, FALSE);
+   page_footer(r, dec_path, FALSE);
 }
 
 /*------------------------------------------------------------------*/
@@ -10078,7 +10061,7 @@ void show_set_page(Param* pp, Return* r, char *enc_path, int enc_path_size,
 
       r->rsprintf("<input type=hidden name=cmd value=Set>\n");
 
-      page_footer(r, TRUE);
+      page_footer(r, dec_path, TRUE);
       return;
    } else {
       /* set value */
@@ -10151,7 +10134,7 @@ void show_set_page(Param* pp, Return* r, char *enc_path, int enc_path_size,
 
 /*------------------------------------------------------------------*/
 
-void show_find_page(Return* r, const char *enc_path, const char *value)
+void show_find_page(Return* r, const char* dec_path, const char *enc_path, const char *value)
 {
    HNDLE hDB, hkey;
    char str[256];
@@ -10186,7 +10169,7 @@ void show_find_page(Return* r, const char *enc_path, const char *value)
 
       r->rsprintf("<input type=hidden name=cmd value=Find>");
 
-      page_footer(r, TRUE);
+      page_footer(r, dec_path, TRUE);
    } else {
       strlcpy(str, enc_path, sizeof(str));
       if (strrchr(str, '/'))
@@ -10215,7 +10198,7 @@ void show_find_page(Return* r, const char *enc_path, const char *value)
       db_scan_tree(hDB, hkey, 0, search_callback, (void *)&data);
 
       r->rsprintf("</table>");
-      page_footer(r, TRUE);
+      page_footer(r, dec_path, TRUE);
    }
 }
 
@@ -10305,7 +10288,7 @@ void show_create_page(Return* r, const char *enc_path, const char *dec_path, con
       r->rsprintf("</tr>");
       r->rsprintf("</table>");
 
-      page_footer(r, TRUE);
+      page_footer(r, dec_path, TRUE);
    } else {
       if (type == TID_LINK) {
          /* check if destination exists */
@@ -10425,7 +10408,7 @@ void show_delete_page(Return* r, const char *enc_path, const char *dec_path, con
       status = db_find_key(hDB, 0, path, &hkeyroot);
       if (status != DB_SUCCESS) {
          r->rsprintf("Error: cannot find key \'%s\'<p>\n", path);
-         page_footer(r, TRUE);
+         page_footer(r, dec_path, TRUE);
          return;
       }
 
@@ -10460,7 +10443,7 @@ void show_delete_page(Return* r, const char *enc_path, const char *dec_path, con
       r->rsprintf("</tr>");
       r->rsprintf("</table>");
 
-      page_footer(r, TRUE);
+      page_footer(r, dec_path, TRUE);
    } else {
       strlcpy(str, dec_path, sizeof(str));
       if (str[strlen(str) - 1] != '/')
@@ -10507,7 +10490,7 @@ void show_alarm_page()
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
-   show_navigation_bar(r, "Alarms");
+   show_navigation_bar(r, dec_path, "Alarms");
 
    /*---- menu buttons ----*/
    r->rsprintf("<table>");   //main table
@@ -10674,7 +10657,7 @@ void show_alarm_page()
    }
 
    r->rsprintf("</table>\n"); //closes main table
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 
    //something is closing the top level form with the footer div outside of it; force it back in for now,
    //until the proper closing tag can be chased down:
@@ -10741,7 +10724,7 @@ void show_programs_page()
    }
 
    show_header(r, "Programs", "GET", "", 0);
-   show_navigation_bar(r, "Programs");
+   show_navigation_bar(r, dec_path, "Programs");
 
    /* use javascript file */
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
@@ -10875,13 +10858,13 @@ void show_programs_page()
 
    r->rsprintf("</table>\n");
 
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 #endif
 
 /*------------------------------------------------------------------*/
 
-void show_config_page(Return *r, int refresh)
+void show_config_page(Return *r, const char* dec_path, int refresh)
 {
    char str[80];
    HNDLE hDB;
@@ -10891,7 +10874,7 @@ void show_config_page(Return *r, int refresh)
    show_header(r, "Configure", "GET", "", 0);
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   show_navigation_bar(r, "Config");
+   show_navigation_bar(r, dec_path, "Config");
 
    //main table
    r->rsprintf("<table class=\"dialogTable\">");
@@ -10910,7 +10893,7 @@ void show_config_page(Return *r, int refresh)
    r->rsprintf("</tr>\n");
    r->rsprintf("</table>\n");
 
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 
 /*------------------------------------------------------------------*/
@@ -12924,7 +12907,7 @@ void add_param_to_url(char* buf, int bufsize, const char* name, const char* valu
 
 /*------------------------------------------------------------------*/
 
-void show_query_page(Param* p, Return* r, const char *path)
+void show_query_page(Param* p, Return* r, const char* dec_path, const char *path)
 {
    int i;
    HNDLE hDB;
@@ -13094,7 +13077,7 @@ void show_query_page(Param* p, Return* r, const char *path)
    r->rsprintf("</td></tr>\n");
 
    r->rsprintf("</table>\n");
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 
 /*------------------------------------------------------------------*/
@@ -13655,7 +13638,7 @@ struct hist_plot_t
    }
 };
 
-void show_hist_config_page(Param* p, Return* r, const char *path, const char *hgroup, const char *panel)
+void show_hist_config_page(Param* p, Return* r, const char* dec_path, const char *path, const char *hgroup, const char *panel)
 {
    int status, size;
    HNDLE hDB;
@@ -14086,7 +14069,7 @@ void show_hist_config_page(Param* p, Return* r, const char *path, const char *hg
 
    r->rsprintf("</table>\n");
    //r->rsprintf("</form>\n");
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 
 /*------------------------------------------------------------------*/
@@ -14340,7 +14323,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, const char* enc_p
    }
 
    if (equal_ustring(p->getparam("cmd"), "Query")) {
-      show_query_page(p, r, dec_path);
+      show_query_page(p, r, dec_path, dec_path);
       return;
    }
 
@@ -14378,7 +14361,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, const char* enc_p
             panel = strrchr(dec_path, '/')+1;
       }
 
-      show_hist_config_page(p, r, dec_path, hgroup.c_str(), panel.c_str());
+      show_hist_config_page(p, r, dec_path, dec_path, hgroup.c_str(), panel.c_str());
       return;
    }
 
@@ -14467,7 +14450,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, const char* enc_p
       r->rsprintf("</td></tr>\n");
 
       r->rsprintf("</table>\r\n");
-      page_footer(r, TRUE);
+      page_footer(r, dec_path, TRUE);
       return;
    }
 
@@ -14523,7 +14506,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, const char* enc_p
       db_set_value(hDB, hkey, "Log axis", &i, sizeof(BOOL), 1, TID_BOOL);
 
       /* configure that panel */
-      show_hist_config_page(p, r, dec_path, hgroup, panel);
+      show_hist_config_page(p, r, dec_path, dec_path, hgroup, panel);
       return;
    }
 
@@ -14686,7 +14669,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, const char* enc_p
             sprintf(str + strlen(str), "index=%s", p->getparam("hindex"));
          }
 
-         show_elog_new(r, NULL, FALSE, str, "../../EL/");
+         show_elog_new(r, dec_path, NULL, FALSE, str, "../../EL/");
          return;
       }
    }
@@ -14801,7 +14784,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, const char* enc_p
    
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   show_navigation_bar(r, "History");
+   show_navigation_bar(r, dec_path, "History");
 
    r->rsprintf("<table class=\"genericTable\">");
    r->rsprintf("<tr><th class=\"subStatusTitle\" colspan=2>History</th></tr>");
@@ -14814,7 +14797,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, const char* enc_p
       if (status != DB_SUCCESS && !equal_ustring(dec_path, "All") && !equal_ustring(dec_path,"")) {
          r->rsprintf("<h1>Error: History panel \"%s\" does not exist</h1>\n", dec_path);
          r->rsprintf("</table>\r\n");
-         page_footer(r, TRUE);
+         page_footer(r, dec_path, TRUE);
          return;
       }
    }
@@ -15304,7 +15287,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, const char* enc_p
    }                            // All
    r->rsprintf("</table>\r\n");
    //r->rsprintf("</form>\r\n");
-   page_footer(r, TRUE);
+   page_footer(r, dec_path, TRUE);
 }
 
 
@@ -16006,7 +15989,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    strlcpy(enc_path, dec_path, sizeof(enc_path));
    urlEncode(enc_path, sizeof(enc_path));
-   set_dec_path(dec_path);
 
    const char* experiment = p->getparam("exp");
    const char* password = p->getparam("pwd");
@@ -16042,7 +16024,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       /* check for excemption */
       db_find_key(hDB, 0, "/Experiment/Security/Allowed programs/mhttpd", &hkey);
       if (hkey == 0 && strcmp(cookie_pwd, str) != 0) {
-         show_password_page(r, "", experiment);
+         show_password_page(r, dec_path, "", experiment);
          return;
       }
    }
@@ -16072,7 +16054,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (wpassword[0]) {
       /* check if password correct */
-      if (!check_web_password(r, ss_crypt(wpassword, "mi"), p->getparam("redir"), experiment))
+      if (!check_web_password(r, dec_path, ss_crypt(wpassword, "mi"), p->getparam("redir"), experiment))
          return;
 
       r->rsprintf("HTTP/1.1 302 Found\r\n");
@@ -16276,7 +16258,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (p->getparam("script") && *p->getparam("script")) {
       sprintf(str, "%s?script=%s", dec_path, p->getparam("script"));
-      if (!check_web_password(r, cookie_wpwd, str, experiment))
+      if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
          return;
 
       sprintf(str, "/Script/%s", p->getparam("script"));
@@ -16304,7 +16286,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (p->getparam("customscript") && *p->getparam("customscript")) {
       sprintf(str, "%s?customscript=%s", dec_path, p->getparam("customscript"));
-      if (!check_web_password(r, cookie_wpwd, str, experiment))
+      if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
          return;
 
       sprintf(str, "/CustomScript/%s", p->getparam("customscript"));
@@ -16360,7 +16342,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    if (strncmp(dec_path, "HS/", 3) == 0) {
       if (equal_ustring(command, "config")) {
          sprintf(str, "%s?cmd=%s", dec_path, command);
-         if (!check_web_password(r, cookie_wpwd, str, experiment))
+         if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
             return;
       }
 
@@ -16373,12 +16355,12 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    if (strncmp(dec_path, "MS/", 3) == 0) {
       if (equal_ustring(command, "set")) {
          sprintf(str, "%s?cmd=%s", dec_path, command);
-         if (!check_web_password(r, cookie_wpwd, str, experiment))
+         if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
             return;
       }
 
 #ifdef HAVE_MSCB
-      show_mscb_page(p, r, dec_path + 3, refresh);
+      show_mscb_page(p, r, dec_path, dec_path + 3, refresh);
 #else
       show_error(r, "MSCB support not compiled into this version of mhttpd");
 #endif
@@ -16388,7 +16370,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- help command ----------------------------------------------*/
 
    if (equal_ustring(command, "help")) {
-      show_help_page(r);
+      show_help_page(r, dec_path);
       return;
    }
 
@@ -16400,7 +16382,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
          return;
       }
 
-      if (!check_web_password(r, cookie_wpwd, "?cmd=pause", experiment))
+      if (!check_web_password(r, dec_path, cookie_wpwd, "?cmd=pause", experiment))
          return;
 
       status = cm_transition(TR_PAUSE, 0, str, sizeof(str), TR_MTHREAD | TR_ASYNC, FALSE);
@@ -16426,7 +16408,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
          return;
       }
 
-      if (!check_web_password(r, cookie_wpwd, "?cmd=resume", experiment))
+      if (!check_web_password(r, dec_path, cookie_wpwd, "?cmd=resume", experiment))
          return;
 
       status = cm_transition(TR_RESUME, 0, str, sizeof(str), TR_MTHREAD | TR_ASYNC, FALSE);
@@ -16453,9 +16435,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       }
 
       if (value[0] == 0) {
-         if (!check_web_password(r, cookie_wpwd, "?cmd=start", experiment))
+         if (!check_web_password(r, dec_path, cookie_wpwd, "?cmd=start", experiment))
             return;
-         show_start_page(p, r, FALSE);
+         show_start_page(p, r, dec_path, FALSE);
       } else {
          /* set run parameters */
          db_find_key(hDB, 0, "/Experiment/Edit on start", &hkey);
@@ -16510,7 +16492,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
          return;
       }
 
-      if (!check_web_password(r, cookie_wpwd, "?cmd=stop", experiment))
+      if (!check_web_password(r, dec_path, cookie_wpwd, "?cmd=stop", experiment))
          return;
 
       status = cm_transition(TR_STOP, 0, str, sizeof(str), TR_MTHREAD | TR_ASYNC, FALSE);
@@ -16532,7 +16514,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (strncmp(command, "Trigger", 7) == 0) {
       sprintf(str, "?cmd=%s", command);
-      if (!check_web_password(r, cookie_wpwd, str, experiment))
+      if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
          return;
 
       /* extract equipment name */
@@ -16617,7 +16599,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       else
          strlcpy(str, enc_path, sizeof(str));
       strlcat(str, "?cmd=set", sizeof(str));
-      if (!check_web_password(r, cookie_wpwd, str, experiment))
+      if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
          return;
 
       strlcpy(str, dec_path, sizeof(str));
@@ -16628,7 +16610,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- find command ----------------------------------------------*/
 
    if (equal_ustring(command, "find")) {
-      show_find_page(r, enc_path, value);
+      show_find_page(r, dec_path, enc_path, value);
       return;
    }
 
@@ -16636,7 +16618,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (equal_ustring(command, "create")) {
       sprintf(str, "%s?cmd=create", enc_path);
-      if (!check_web_password(r, cookie_wpwd, str, experiment))
+      if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
          return;
 
       show_create_page(r, enc_path, dec_path, value, index, atoi(p->getparam("type")));
@@ -16646,7 +16628,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- CAMAC CNAF command ----------------------------------------*/
 
    if (equal_ustring(command, "CNAF") || strncmp(dec_path, "CNAF", 4) == 0) {
-      if (!check_web_password(r, cookie_wpwd, "?cmd=CNAF", experiment))
+      if (!check_web_password(r, dec_path, cookie_wpwd, "?cmd=CNAF", experiment))
          return;
 
       show_cnaf_page(p, r);
@@ -16657,7 +16639,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- alarms command --------------------------------------------*/
 
    if (equal_ustring(command, "reset all alarms")) {
-      if (!check_web_password(r, cookie_wpwd, "?cmd=reset%20all%20alarms", experiment))
+      if (!check_web_password(r, dec_path, cookie_wpwd, "?cmd=reset%20all%20alarms", experiment))
          return;
 
       al_reset_alarm(NULL);
@@ -16666,7 +16648,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    }
 
    if (equal_ustring(command, "reset")) {
-      if (!check_web_password(r, cookie_wpwd, "?cmd=reset%20all%20alarms", experiment))
+      if (!check_web_password(r, dec_path, cookie_wpwd, "?cmd=reset%20all%20alarms", experiment))
          return;
 
       al_reset_alarm(dec_path);
@@ -16701,7 +16683,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
          sprintf(str, "?cmd=programs&Stop=%s", p->getparam("Stop"));
 
       if (str[0])
-         if (!check_web_password(r, cookie_wpwd, str, experiment))
+         if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
             return;
 
       show_programs_page(r);
@@ -16712,7 +16694,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- config command --------------------------------------------*/
 
    if (equal_ustring(command, "config")) {
-      show_config_page(r, refresh);
+      show_config_page(r, dec_path, refresh);
       return;
    }
 
@@ -16728,7 +16710,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- Chat command ------------------------------------------*/
    
    if (equal_ustring(command, "chat")) {
-      show_chat_page(r);
+      show_chat_page(r, dec_path);
       return;
    }
    
@@ -16738,18 +16720,18 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       if (equal_ustring(command, "new") || equal_ustring(command, "edit")
           || equal_ustring(command, "reply")) {
          sprintf(str, "%s?cmd=%s", dec_path, command);
-         if (!check_web_password(r, cookie_wpwd, str, experiment))
+         if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
             return;
       }
 
       strlcpy(str, dec_path + 3, sizeof(str));
-      show_elog_page(p, r, a, str, sizeof(str));
+      show_elog_page(p, r, a, dec_path, str, sizeof(str));
       return;
    }
 
    if (equal_ustring(command, "Create ELog from this page")) {
       strlcpy(str, dec_path, sizeof(str));
-      show_elog_page(p, r, a, str, sizeof(str));
+      show_elog_page(p, r, a, dec_path, str, sizeof(str));
       return;
    }
 
@@ -16778,7 +16760,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (equal_ustring(command, "delete")) {
       sprintf(str, "%s?cmd=delete", enc_path);
-      if (!check_web_password(r, cookie_wpwd, str, experiment))
+      if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
          return;
 
       show_delete_page(r, enc_path, dec_path, value, index);
@@ -16790,11 +16772,11 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    if (strncmp(dec_path, "SC/", 3) == 0) {
       if (equal_ustring(command, "edit")) {
          sprintf(str, "%s?cmd=Edit&index=%d", dec_path, index);
-         if (!check_web_password(r, cookie_wpwd, str, experiment))
+         if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
             return;
       }
 
-      show_sc_page(p, r, dec_path + 3, refresh);
+      show_sc_page(p, r, dec_path, dec_path + 3, refresh);
       return;
    }
 
@@ -16812,7 +16794,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    if (strncmp(dec_path, "CS/", 3) == 0) {
       if (equal_ustring(command, "edit")) {
          sprintf(str, "%s?cmd=Edit&index=%d", dec_path+3, index);
-         if (!check_web_password(r, cookie_wpwd, str, experiment))
+         if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
             return;
       }
 
@@ -16823,7 +16805,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    if (db_find_key(hDB, 0, "/Custom/Status", &hkey) == DB_SUCCESS && dec_path[0] == 0) {
       if (equal_ustring(command, "edit")) {
          sprintf(str, "%s?cmd=Edit&index=%d", dec_path, index);
-         if (!check_web_password(r, cookie_wpwd, str, experiment))
+         if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
             return;
       }
 
@@ -16839,7 +16821,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
          return;
       }
 
-      show_status_page(p, r, refresh, cookie_wpwd, expand_equipment);
+      show_status_page(p, r, dec_path, refresh, cookie_wpwd, expand_equipment);
       return;
    }
 
