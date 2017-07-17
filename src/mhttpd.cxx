@@ -69,16 +69,16 @@ public:
       }
    }
 };
-BOOL elog_mode = FALSE;
-BOOL history_mode = FALSE;
-BOOL verbose = FALSE;
-char midas_hostname[256];
-char midas_expt[256];
+static BOOL elog_mode = FALSE;
+static BOOL history_mode = FALSE;
+static BOOL verbose = FALSE;
+static char midas_hostname[256];
+static char midas_expt[256];
 
 // month name from midas.c
 extern const char *mname[];
 
-char type_list[20][NAME_LENGTH] = {
+static const char default_type_list[20][NAME_LENGTH] = {
    "Routine",
    "Shift summary",
    "Minor error",
@@ -93,7 +93,7 @@ char type_list[20][NAME_LENGTH] = {
    "Other"
 };
 
-char system_list[20][NAME_LENGTH] = {
+static const char default_system_list[20][NAME_LENGTH] = {
    "General",
    "DAQ",
    "Detector",
@@ -101,7 +101,6 @@ char system_list[20][NAME_LENGTH] = {
    "Target",
    "Beamline"
 };
-
 
 struct Filetype {
    char ext[32];
@@ -787,9 +786,9 @@ static void urlEncode(char *ps, int ps_size)
 
 /*------------------------------------------------------------------*/
 
-LASTMSG lastMsg;
-LASTMSG lastChatMsg;
-LASTMSG lastTalkMsg;
+static LASTMSG lastMsg;
+static LASTMSG lastChatMsg;
+static LASTMSG lastTalkMsg;
 
 INT print_message(const char *message)
 {
@@ -1707,8 +1706,8 @@ void xshow_navigation_bar(const char *cur_page)
 
 /*------------------------------------------------------------------*/
 
-int requested_transition = 0;
-int requested_old_state = 0;
+static int requested_transition = 0;
+static int requested_old_state = 0;
 
 void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, const char *cookie_wpwd, int expand_equipment)
 {
@@ -1716,7 +1715,7 @@ void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, co
    BOOL flag, first, expand;
    char name[32], ref[MAX_STRING_LENGTH],
       value_str[MAX_STRING_LENGTH], status_data[MAX_STRING_LENGTH];
-   const char *trans_name[] = { "Start", "Stop", "Pause", "Resume" };
+   const char* const trans_name[] = { "Start", "Stop", "Pause", "Resume" };
    time_t now;
    DWORD difftime;
    double d, value;
@@ -3087,8 +3086,12 @@ void show_elog_new(Return* r, const char* dec_path, const char *path, BOOL bedit
    /* get type list from ODB */
    size = 20 * NAME_LENGTH;
    if (db_find_key(hDB, 0, "/Elog/Types", &hkey) != DB_SUCCESS)
-      db_set_value(hDB, 0, "/Elog/Types", type_list, NAME_LENGTH * 20, 20, TID_STRING);
+      db_set_value(hDB, 0, "/Elog/Types", default_type_list, NAME_LENGTH * 20, 20, TID_STRING);
    db_find_key(hDB, 0, "/Elog/Types", &hkey);
+
+   char type_list[20][NAME_LENGTH];
+   type_list[0][0] = 0;
+
    if (hkey)
       db_get_data(hDB, hkey, type_list, &size, TID_STRING);
 
@@ -3108,9 +3111,13 @@ void show_elog_new(Return* r, const char* dec_path, const char *path, BOOL bedit
    /* get system list from ODB */
    size = 20 * NAME_LENGTH;
    if (db_find_key(hDB, 0, "/Elog/Systems", &hkey) != DB_SUCCESS)
-      db_set_value(hDB, 0, "/Elog/Systems", system_list, NAME_LENGTH * 20, 20,
+      db_set_value(hDB, 0, "/Elog/Systems", default_system_list, NAME_LENGTH * 20, 20,
                    TID_STRING);
    db_find_key(hDB, 0, "/Elog/Systems", &hkey);
+
+   char system_list[20][NAME_LENGTH];
+   system_list[0][0] = 0;
+
    if (hkey)
       db_get_data(hDB, hkey, system_list, &size, TID_STRING);
 
@@ -3346,17 +3353,24 @@ void show_elog_query(Return* r, const char* dec_path)
    /* get type list from ODB */
    size = 20 * NAME_LENGTH;
    if (db_find_key(hDB, 0, "/Elog/Types", &hkey) != DB_SUCCESS)
-      db_set_value(hDB, 0, "/Elog/Types", type_list, NAME_LENGTH * 20, 20, TID_STRING);
+      db_set_value(hDB, 0, "/Elog/Types", default_type_list, NAME_LENGTH * 20, 20, TID_STRING);
    db_find_key(hDB, 0, "/Elog/Types", &hkey);
+
+   char type_list[20][NAME_LENGTH];
+   type_list[0][0] = 0;
+
    if (hkey)
       db_get_data(hDB, hkey, type_list, &size, TID_STRING);
 
    /* get system list from ODB */
    size = 20 * NAME_LENGTH;
    if (db_find_key(hDB, 0, "/Elog/Systems", &hkey) != DB_SUCCESS)
-      db_set_value(hDB, 0, "/Elog/Systems", system_list, NAME_LENGTH * 20, 20,
-                   TID_STRING);
+      db_set_value(hDB, 0, "/Elog/Systems", default_system_list, NAME_LENGTH * 20, 20, TID_STRING);
    db_find_key(hDB, 0, "/Elog/Systems", &hkey);
+
+   char system_list[20][NAME_LENGTH];
+   system_list[0][0] = 0;
+
    if (hkey)
       db_get_data(hDB, hkey, system_list, &size, TID_STRING);
 
@@ -4583,7 +4597,7 @@ void show_elog_page(Param* p, Return* r, Attachment* a, const char* dec_path, ch
    BOOL display_run_number, allow_delete;
    time_t now;
    struct tm *tms;
-   char def_button[][NAME_LENGTH] = { "8h", "24h", "7d" };
+   const char def_button[][NAME_LENGTH] = { "8h", "24h", "7d" };
 
    /* get flag for displaying run number and allow delete */
    cm_get_experiment_database(&hDB, NULL);
@@ -6043,7 +6057,7 @@ void show_odb_tag(Param* pp, Return* r, const char *path, const char *keypath1, 
    BGColor   Background color RRGGBB             FFFFFF
 */
 
-const char *cgif_label_str[] = {
+static const char *cgif_label_str[] = {
    "Src = STRING : [256] ",
    "Format = STRING : [32] %1.1f",
    "Font = STRING : [32] Medium",
@@ -6083,7 +6097,7 @@ typedef struct {
    BDColor   Border color RRGGBB                 808080
 */
 
-const char *cgif_bar_str[] = {
+static const char *cgif_bar_str[] = {
    "Src = STRING : [256] ",
    "X = INT : 0",
    "Y = INT : 0",
@@ -8463,7 +8477,7 @@ typedef struct {
    char name[32];
 } NAME_TABLE;
 
-NAME_TABLE prefix_table[] = {
+static const NAME_TABLE prefix_table[] = {
    {PRFX_PICO, "pico",},
    {PRFX_NANO, "nano",},
    {PRFX_MICRO, "micro",},
@@ -8476,7 +8490,7 @@ NAME_TABLE prefix_table[] = {
    {99}
 };
 
-NAME_TABLE unit_table[] = {
+static const NAME_TABLE unit_table[] = {
 
    {UNIT_METER, "meter",},
    {UNIT_GRAM, "gram",},
@@ -11061,7 +11075,7 @@ void taxis(gdImagePtr im, gdFont * font, int col, int gcol,
    int dx, x_act, label_dx, major_dx, x_screen, maxwidth;
    int tick_base, major_base, label_base, xs, xl;
    char str[80];
-   int base[] = { 1, 5, 10, 60, 300, 600, 1800, 3600, 3600 * 6, 3600 * 12, 3600 * 24, 0 };
+   const int base[] = { 1, 5, 10, 60, 300, 600, 1800, 3600, 3600 * 6, 3600 * 12, 3600 * 24, 0 };
    time_t ltime;
    int force_date, d1, d2;
    struct tm *ptms;
@@ -11184,7 +11198,7 @@ int vaxis(gdImagePtr im, gdFont * font, int col, int gcol,
    int tick_base, major_base, label_base, n_sig1, n_sig2, ys, max_width;
    int last_label_y;
    char str[80];
-   double base[] = { 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000 };
+   const double base[] = { 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000 };
 
    if (ymax <= ymin || width <= 0)
       return 0;
@@ -13608,7 +13622,7 @@ struct hist_plot_t
 
    std::string NextColour()
    {
-      const char* colour[] = {
+      const char* const colour[] = {
          "#0000FF", "#00C000", "#FF0000", "#00C0C0", "#FF00FF",
          "#C0C000", "#808080", "#80FF80", "#FF8080", "#8080FF", NULL };
 
@@ -14306,7 +14320,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, const char* enc_p
    KEY key, ikey;
    int i, j, k, scale, index, width, size, status, labels, fh, fsize;
    float factor[2];
-   char def_button[][NAME_LENGTH] = { "10m", "1h", "3h", "12h", "24h", "3d", "7d" };
+   const char def_button[][NAME_LENGTH] = { "10m", "1h", "3h", "12h", "24h", "3d", "7d" };
    struct tm *tms;
 
    cm_get_experiment_database(&hDB, NULL);
