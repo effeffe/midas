@@ -1854,7 +1854,7 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
       var_index[i] = (*index_array)[i]->GetInt();
    }
 
-   if (0) {
+   if (/* DISABLES CODE */ (0)) {
       printf("time %f, num_vars %d:\n", time, num_var);
       for (unsigned i=0; i<num_var; i++) {
          printf("%d: [%s] [%s] [%d]\n", i, event_name[i], tag_name[i], var_index[i]);
@@ -1868,7 +1868,7 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
    int status = mh->hs_get_last_written(time, num_var, event_name, tag_name, var_index, last_written);
 
    for (unsigned i=0; i<num_var; i++) {
-      if (0) {
+      if (/* DISABLES CODE */ (0)) {
          printf("%d: last_written %d\n", i, (int)last_written[i]);
       }
       lw->AddToArray(MJsonNode::MakeNumber(last_written[i]));
@@ -1985,7 +1985,7 @@ static MJsonNode* js_hs_read(const MJsonNode* params)
       hs_status[i] = 0;
    }
 
-   if (0) {
+   if (/* DISABLES CODE */ (0)) {
       printf("time %f %f, num_vars %d:\n", start_time, end_time, num_var);
       for (unsigned i=0; i<num_var; i++) {
          printf("%d: [%s] [%s] [%d]\n", i, event_name[i], tag_name[i], var_index[i]);
@@ -2009,12 +2009,12 @@ static MJsonNode* js_hs_read(const MJsonNode* params)
       buf[i] = NULL;
    }
 
-   delete event_name;
-   delete tag_name;
-   delete var_index;
-   delete buf;
-   delete jbuf;
-   delete hs_status;
+   delete[] event_name;
+   delete[] tag_name;
+   delete[] var_index;
+   delete[] buf;
+   delete[] jbuf;
+   delete[] hs_status;
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "channel", MJsonNode::MakeString(mh->name), "data", data);
 }
@@ -2114,7 +2114,7 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
       max_bins[i] = new double[num_bins];
    }
 
-   if (0) {
+   if (/* DISABLES CODE */ (0)) {
       printf("time %f %f, num_vars %d:\n", start_time, end_time, num_var);
       for (unsigned i=0; i<num_var; i++) {
          printf("%d: [%s] [%s] [%d]\n", i, event_name[i], tag_name[i], var_index[i]);
@@ -2158,20 +2158,20 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
       delete max_bins[i];
    }
 
-   delete count_bins;
-   delete mean_bins;
-   delete rms_bins;
-   delete min_bins;
-   delete max_bins;
+   delete[] count_bins;
+   delete[] mean_bins;
+   delete[] rms_bins;
+   delete[] min_bins;
+   delete[] max_bins;
 
-   delete event_name;
-   delete tag_name;
-   delete var_index;
+   delete[] event_name;
+   delete[] tag_name;
+   delete[] var_index;
 
-   delete num_entries;
-   delete last_time;
-   delete last_value;
-   delete hs_status;
+   delete[] num_entries;
+   delete[] last_time;
+   delete[] last_value;
+   delete[] hs_status;
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "channel", MJsonNode::MakeString(mh->name), "data", data);
 }
