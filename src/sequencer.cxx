@@ -15,19 +15,6 @@
 #include "mxml.h"
 #include <assert.h>
 
-/* functions defined in mhttpd.cxx */
-extern BOOL isparam(const char *param);
-extern const char *getparam(const char *param);
-extern void redirect(const char *path);
-extern void show_start_page(int script);
-extern void rsprintf(const char *format, ...);
-extern char *mhttpd_revision();
-extern void strencode(char *text);
-extern void strencode4(char *text);
-extern void show_header(const char *title, const char *method, const char *path, int refresh);
-extern void show_navigation_bar(const char *cur_page);
-extern void page_footer(BOOL bForm);
-
 #define XNAME_LENGTH 256
 
 /**dox***************************************************************/
