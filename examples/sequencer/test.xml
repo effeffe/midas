@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<RunSequence xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="">
+<Comment l="1">Sequencer Test File</Comment>
+<RunDescription l="3">Sequencer Test</RunDescription>
+<Call l="5" name="init"></Call>
+<Loop l="6" le="11" n="3">
+<Transition l="7">start</Transition>
+<Wait l="8" for="seconds">10</Wait>
+<Transition l="9">stop</Transition>
+<Wait l="10" for="seconds">3</Wait>
+</Loop>
+
+<Subroutine l="13" name="init">
+<Message l="14" wait="1">Initialization successfully completed</Message>
+</Subroutine>
+</RunSequence>
