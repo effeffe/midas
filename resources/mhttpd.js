@@ -358,19 +358,27 @@ function mhttpd_page_footer()
    document.write("</div>\n");
 }
 
+var mhttpd_refresh_id;
+var mhttpd_refresh_interval;
+
 function mhttpd_init(interval) {
    /*
       This funciton should be called from custom pages to initialize all ODB tags and refresh
       them periodically every "interval" in ms
 
-      Example:
+      ODB Tags:
 
       <body class="mcss" onload="mhttpd_init(1000)">
         ...
-      <div name="modbvalue" data-odb-path="/Runinfo/Run number" data-odb-editable="1"><div>
+      <div name="modbvalue" data-odb-path="/Runinfo/Run number" data-odb-editable="1"></div>
         ...
 
-      If the attribute data-odb-editable is set to "1", the value can be changed in-line by clicking at it
+      If the attribute data-odb-editable is set to "1", the value can be changed in-line by clicking at it.
+
+      ODB Buttons:
+      <button name="modbbutton" class="modbbutton" data-odb-path="/Runinfo/Run number" data-odb-value="1"></button>
+
+      Pressing this button sets a value in the ODB.
     */
 
    // remember update interver
@@ -378,43 +386,71 @@ function mhttpd_init(interval) {
    if (url)
       mjsonrpc_set_url(url);
 
+   // go through all name="modbvalue" tags
    var modbvalue = document.getElementsByName("modbvalue");
    for (var i = 0; i < modbvalue.length; i++) {
       var o = modbvalue[i];
       var loading = "(Loading " + modbvalue[i].dataset.odbPath + " ...)";
       if (o.dataset.odbEditable) {
 
+         // add event handler if tag is editable
          var link = document.createElement('a');
          link.href = "#";
          link.innerHTML = loading;
-         link.onclick = function() { ODBInlineEdit(this.parentElement,this.parentElement.dataset.odbPath);return false; };
+         link.onclick = function() { ODBInlineEdit(this.parentElement,this.parentElement.dataset.odbPath); };
          link.onfocus = function() { ODBInlineEdit(this.parentElement,this.parentElement.dataset.odbPath); };
 
          o.appendChild(link);
       } else {
+         // just display "loading" text, tag will be updated during mhttpd_refresh()
          o.innerHTML = loading;
       }
    }
 
-   mhttpd_refresh(interval);
+   // attach "set" function to all ODB buttons
+   var modbbutton = document.getElementsByName("modbbutton");
+   for (var i = 0; i < modbbutton.length; i++)
+      modbbutton[i].onclick = function() { mjsonrpc_db_paste([this.dataset.odbPath], [this.dataset.odbValue]); mhttpd_refresh(); };
+
+   // replace all horizontal bars with proper <div>'s
+   var mbar = document.getElementsByName("modbbar");
+   for (var i = 0; i < mbar.length; i++) {
+      mbar[i].style.display = "block";
+      mbar[i].style.position = "relative";
+      mbar[i].style.border = "1px solid #808080";
+      var color = mbar[i].dataset.color;
+      mbar[i].innerHTML = "<div style=\"background-color:"+color+"; width:0; position:relative; display:inline-block; border-right:1px solid #808080\">&nbsp;</div>";
+   }
+
+   // store refresh interval and do initial refresh
+   mhttpd_refresh_interval = interval;
+   mhttpd_refresh();
 }
 
-function mhttpd_refresh(interval) {
+function mhttpd_refresh() {
+   if (mhttpd_refresh_id != undefined)
+      window.clearTimeout(mhttpd_refresh_id);
+
    /* this fuction gets called by mhttpd_init to periodically refresh all ODB tags */
 
-   // go through all "modbvalue" fields
+   // go through all "modbvalue" tags
    var modbvalue = document.getElementsByName("modbvalue");
-   var paths = new Array();
+   var paths = [];
    for (var i = 0; i < modbvalue.length; i++)
       paths.push(modbvalue[i].dataset.odbPath);
 
+   var modbbar = document.getElementsByName("modbbar");
+   for (i = 0; i < modbbar.length; i++)
+      paths.push(modbbar[i].dataset.odbPath);
+
    // request ODB contents for all variables
    mjsonrpc_db_get_values(paths).then(function (rpc) {
+
       for (var i = 0; i < modbvalue.length; i++) {
          var value = rpc.result.data[i];
          var tid = rpc.result.tid[i];
          var mvalue = mie_to_string(tid, value);
-         if (mvalue == "")
+         if (mvalue === "")
             mvalue = "(empty)";
          var html = mhttpd_escape(mvalue);
          if (modbvalue[i].dataset.odbEditable) {
@@ -422,8 +458,25 @@ function mhttpd_refresh(interval) {
          } else
             modbvalue[i].innerHTML = html;
       }
-      if (interval != undefined && interval > 0)
-         window.setTimeout(mhttpd_refresh, interval);
+
+      for (i=0; i < modbbar.length; i++) {
+         value = rpc.result.data[modbvalue.length+i];
+         tid = rpc.result.tid[modbvalue.length+i];
+         mvalue = mie_to_string(tid, value);
+         if (mvalue === "")
+            mvalue = "(empty)";
+         html = mhttpd_escape(mvalue);
+         modbbar[i].children[0].innerHTML = html;
+         var percent = Math.round(100 * value / modbbar[i].dataset.maxValue);
+         if (percent < 0)
+            percent = 0;
+         if (percent > 100)
+            percent = 100;
+         modbbar[i].children[0].style.width = percent+"%";
+      }
+
+      if (mhttpd_refresh_interval != undefined && mhttpd_refresh_interval > 0)
+         mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
    });

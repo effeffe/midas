@@ -45,14 +45,20 @@
             </td>
          </tr>
          <tr>
+            <td>
+               Indicator:
+            </td>
+            <td>
+               <div name="modbbar" style="width: 500px" data-odb-path="/Runinfo/Run number" data-max-value="10" data-color="lightgreen"></div>
+            </td>
+         </tr>
+         <tr>
             <td colspan="2" style="text-align: center;">
-               <button class="mbutton" onclick=
-                       "mjsonrpc_db_paste(['/Runinfo/Run number'], ['1']);
-                        mhttpd_refresh();">Set run number to 1
+               <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="1">Set run number to 1</button>
                </button>
-               <button class="mbutton" onclick=
-                       "mjsonrpc_db_paste(['/Runinfo/Run number'], ['2']);
-                        mhttpd_refresh();">Set run number to 2
+               <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="5">Set run number to 5</button>
+               </button>
+               <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="10">Set run number to 10</button>
                </button>
             </td>
          </tr>
