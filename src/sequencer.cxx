@@ -943,21 +943,31 @@ void init_sequencer()
    char str[256];
    
    cm_get_experiment_database(&hDB, NULL);
+
    status = db_check_record(hDB, 0, "/Sequencer/State", strcomb(sequencer_str), TRUE);
    if (status == DB_STRUCT_MISMATCH) {
-      cm_msg(MERROR, "init_sequencer", "Aborting on mismatching /Sequencer/State structure");
-      cm_disconnect_experiment();
-      abort();
+      cm_msg(MERROR, "init_sequencer", "Sequencer error: mismatching /Sequencer/State structure, db_check_record() status %d", status);
+      return;
    }
+
    status = db_find_key(hDB, 0, "/Sequencer/State", &hKey);
-   assert(status == DB_SUCCESS);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot find /Sequencer/State, db_find_key() status %d", status);
+      return;
+   }
 
    int size = sizeof(seq);
    status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb(sequencer_str));
-   assert(status == DB_SUCCESS);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot get /Sequencer/State, db_get_record1() status %d", status);
+      return;
+   }
 
    status = db_watch(hDB, hKey, seq_watch, NULL);
-   assert(status == DB_SUCCESS);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot watch /Sequencer/State, db_watch() status %d", status);
+      return;
+   }
    
    if (seq.path[0] == 0)
       if (!getcwd(seq.path, sizeof(seq.path)))
