@@ -4333,7 +4333,7 @@ static void watch_history(HNDLE hDB, HNDLE hKey, int index, void* info)
       return;
    }
 
-   printf("watch_history: hDB %d, hKey %d, name [%s], index %d\n", hDB, hKey, key.name, index);
+   //printf("watch_history: hDB %d, hKey %d, name [%s], index %d\n", hDB, hKey, key.name, index);
 
    for (unsigned int i=0; i<hist_log.size(); i++) {
       struct hist_log_s* h = &hist_log[i];
@@ -4392,12 +4392,12 @@ static void watch_history(HNDLE hDB, HNDLE hKey, int index, void* info)
    cm_msg_flush_buffer();
 }
 
-static int add_event(time_t timestamp, const char* event_name, HNDLE hKey, int ntags, const TAG* tags, int period)
+static int add_event(const char* eq_name, const char* var_name, time_t timestamp, const char* event_name, HNDLE hKey, int ntags, const TAG* tags, int period)
 {
    int status;
    int size;
 
-#if 1
+#if 0
    {
       // print the tags
       for (int i=0; i<ntags; i++) {
@@ -4466,7 +4466,7 @@ static int add_event(time_t timestamp, const char* event_name, HNDLE hKey, int n
    history_events.push_back(event_name);
    
    if (verbose) {
-      printf("Created event \"%s\", %d tags, size %d, hKey %d\n", event_name, ntags, size, hKey);
+      printf("Equipment \"%s\" variable \"%s\": Created event \"%s\", %d tags, size %d\n", eq_name, var_name, event_name, ntags, size);
    }
 
    return SUCCESS;
@@ -4540,7 +4540,7 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
             tt.n_data = vvarkey.num_values;
 
             if (verbose)
-               printf("Defined tag \"%s\", type %d, num_values %d (subdir %s)\n", tt.name, tt.type, tt.n_data, varname.c_str());
+               printf("Equipment \"%s\" variable \"%s\": Defined tag \"%s\", type %d, num_values %d (subdir %s)\n", eq_name, varname.c_str(), tt.name, tt.type, tt.n_data, varname.c_str());
 
             std::string event_name;
             event_name += eq_name;
@@ -4549,7 +4549,7 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
             event_name += "/";
             event_name += vvarkey.name;
 
-            status = add_event(now, event_name.c_str(), hhKey, 1, &tt, period);
+            status = add_event(eq_name, varname.c_str(), now, event_name.c_str(), hhKey, 1, &tt, period);
             if (status != DB_SUCCESS)
                return status;
          }
@@ -4652,7 +4652,7 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
                t->n_data = 1;
 
                if (verbose)
-                  printf("Defined tag: name \"%s\", type %d, num_values %d (named array %s)\n", t->name, t->type, t->n_data, varname.c_str());
+                  printf("Equipment \"%s\" variable \"%s\": Defined tag: name \"%s\", type %d, num_values %d (named array %s)\n", eq_name, varname.c_str(), t->name, t->type, t->n_data, varname.c_str());
             }
 
             std::string event_name;
@@ -4660,7 +4660,7 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
             event_name += "/";
             event_name += varname;
 
-            status = add_event(now, event_name.c_str(), hKey, ntags, tags, period);
+            status = add_event(eq_name, varname.c_str(), now, event_name.c_str(), hKey, ntags, tags, period);
             if (status != DB_SUCCESS)
                return status;
 
@@ -4673,14 +4673,14 @@ static int add_equipment(HNDLE hDB, HNDLE hKeyEq, HNDLE hKeyVar, const char* eq_
             tt.n_data = varkey.num_values;
 
             if (verbose)
-               printf("Defined tag \"%s\", type %d, num_values %d (unnamed array)\n", tt.name, tt.type, tt.n_data);
+               printf("Equipment \"%s\" variable \"%s\": Defined tag \"%s\", type %d, num_values %d (unnamed array)\n", eq_name, varname.c_str(), tt.name, tt.type, tt.n_data);
 
             std::string event_name;
             event_name += eq_name;
             event_name += "/";
             event_name += varname;
 
-            status = add_event(now, event_name.c_str(), hKey, 1, &tt, period);
+            status = add_event(eq_name, varname.c_str(), now, event_name.c_str(), hKey, 1, &tt, period);
             if (status != DB_SUCCESS)
                return status;
          }
@@ -4751,7 +4751,7 @@ static int add_history_links_link(HNDLE hDB, HNDLE hLinkKey, const char* link_na
       event_name += "/";
       event_name += key.name;
 
-      status = add_event(now, event_name.c_str(), hKey, 1, &tt, period);
+      status = add_event(link_name, key.name, now, event_name.c_str(), hKey, 1, &tt, period);
    }
 
    /* setup watch only if everything is okey */
@@ -4815,7 +4815,7 @@ static int add_history_links_key(HNDLE hDB, HNDLE hLinkKey, const char* link_nam
       event_name += "/";
       event_name += key.name;
 
-      status = add_event(now, event_name.c_str(), hVarKey, 1, &tt, period);
+      status = add_event(link_name, key.name, now, event_name.c_str(), hVarKey, 1, &tt, period);
       status = db_watch(hDB, hVarKey, watch_history, NULL);
    }
    
