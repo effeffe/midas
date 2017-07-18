@@ -431,12 +431,32 @@ function mhttpd_refresh(interval) {
 
 function mhttpd_create_page_handle_create(mouseEvent)
 {
+   var path = "";
+   var type = "";
+   var name = "";
+   var arraylength = "";
+   var stringlength = "";
+
    var form = document.getElementsByTagName('form')[0];
-   var path = form.elements['odb'].value;
-   var type = form.elements['type'].value;
-   var name = form.elements['value'].value;
-   var arraylength = form.elements['index'].value;
-   var stringlength = form.elements['strlen'].value;
+
+   if (form) {
+      path = form.elements['odb'].value;
+      type = form.elements['type'].value;
+      name = form.elements['value'].value;
+      arraylength = form.elements['index'].value;
+      stringlength = form.elements['strlen'].value;
+   } else {
+      var e = document.getElementById("odbpath");
+      path = JSON.parse(e.innerHTML);
+      if (path == "/") path = "";
+
+      type = document.getElementById("create_tid").value;
+      name = document.getElementById("create_name").value;
+      arraylength = document.getElementById("create_array_length").value;
+      stringlength = document.getElementById("create_strlen").value;
+
+      alert("Path: " + path + " Name: " + name);
+   }
 
    if (path == "/") path = "";
 
@@ -445,12 +465,18 @@ function mhttpd_create_page_handle_create(mouseEvent)
       return false;
    }
 
-   if (parseInt(arraylength) < 1) {
+   var int_array_length = parseInt(arraylength);
+
+   //alert("int_array_length: " + int_array_length);
+
+   if (!int_array_length || int_array_length < 1) {
       alert("Bad array length: " + arraylength);
       return false;
    }
 
-   if (parseInt(stringlength) < 1) {
+   var int_string_length = parseInt(stringlength);
+
+   if (!int_string_length || int_string_length < 1) {
       alert("Bad string length " + stringlength);
       return false;
    }
@@ -458,10 +484,10 @@ function mhttpd_create_page_handle_create(mouseEvent)
    var param = {};
    param.path = path + "/" + name;
    param.type = parseInt(type);
-   if (arraylength>1)
-      param.array_length = parseInt(arraylength);
-   if (stringlength>0)
-      param.string_length = parseInt(stringlength);
+   if (int_array_length>1)
+      param.array_length = int_array_length;
+   if (int_string_length>0)
+      param.string_length = int_string_length;
 
    mjsonrpc_db_create([param]).then(function(rpc) {
       var status = rpc.result.status[0];

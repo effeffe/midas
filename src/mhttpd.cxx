@@ -9624,6 +9624,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
       r->rsprintf("<input type=button value=Find onclick=\"self.location=\'?cmd=Find\';\">\n");
       r->rsprintf("<input type=button value=Create onclick=\"self.location=\'?cmd=Create\';\">\n");
       r->rsprintf("<input type=button value=Delete onclick=\"self.location=\'?cmd=Delete\';\">\n");
+      r->rsprintf("<input type=button value=XCreate onclick=\"dlgShow('dlgCreate')\">\n");
       r->rsprintf("<input type=button value=XDelete onclick=\"dlgShow('dlgDelete')\">\n");
       r->rsprintf("<input type=button value=\"Create Elog from this page\" onclick=\"self.location=\'?cmd=Create Elog from this page\';\"></td></tr>\n");
    }
@@ -10035,6 +10036,8 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    }
    r->rsprintf("</table>\n");
 
+   /*---- Build the Delete dialog------------------------------------*/
+
    //dd += "<tr><td align=center colspan=2><input type=hidden id=odbpath name=odb value=\"/test_create\">\n";
    dd += "</table>\n";
    dd += "<input type=button value=Delete onClick='mhttpd_delete_page_handle_delete(event);'>\n";
@@ -10045,6 +10048,41 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    dd += "</div>\n";
 
    r->rsputs(dd.c_str());
+
+   /*---- Build the Create dialog------------------------------------*/
+
+   std::string cd = "";
+   
+   cd += "<!-- Demo dialog -->\n";
+   cd += "<div id=\"dlgCreate\" class=\"dlgFrame\">\n";
+   cd += "<div class=\"dlgTitlebar\">Create ODB entry</div>\n";
+   cd += "<div class=\"dlgPanel\">\n";
+   //cd += "<div>Dialog Contents</div>\n";
+   cd += "<br />\n";
+   cd += "<div id=odbpath>";
+   cd += "\"";
+   cd += MJsonNode::Encode(odbpath);
+   cd += "\"";
+   cd += "</div>\n";
+   cd += "<div><br></div>\n";
+
+   cd += "<table class=\"dialogTable\">\n";
+   cd += "<th colspan=2>Create ODB entry:</th>\n";
+   cd += "<tr><td>Type<td><select type=text size=1 id=create_tid name=type><option value=7>Integer (32-bit)<option value=9>Float (4 Bytes)<option value=12>String<option selected value=15>Subdirectory<option value=1>Byte<option value=2>Signed byte<option value=3>Character (8-bit)<option value=4>Word (16-bit)<option value=5>Short integer(16-bit)<option value=6>Double Word (32-bit)<option value=8>Boolean<option value=10>Double float(8 Bytes)<option value=16>Symbolic link</select></tr>\n";
+   cd += "<tr><td>Name<td><input type=text size=31 maxlength=31 id=create_name name=value></tr>\n";
+   cd += "<tr><td>Array size<td><input type=text size=31 maxlength=31 id=create_array_length name=index value=1></tr>\n";
+   cd += "<tr><td>String length<td><input type=text size=31 maxlength=31 id=create_strlen name=strlen value=32></tr>\n";
+   cd += "</table>\n";
+   cd += "<input type=button value=Create onClick='mhttpd_create_page_handle_create(event);'>\n";
+   cd += "<input type=button value=Cancel onClick='mhttpd_create_page_handle_cancel(event);'>\n";
+   //cd += "<button class=\"dlgButton\" onClick=\"dlgHide(\'dlgCreate\')\">Cancel</button>\n";
+   //cd += "<button class=\"dlgButton\" onClick=\"dlgHide(\'dlgCreate\')\">Close</button>\n";
+   cd += "</div>\n";
+   cd += "</div>\n";
+
+   r->rsputs(cd.c_str());
+
+
    page_footer(r, dec_path, FALSE);
 }
 
