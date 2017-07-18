@@ -909,6 +909,32 @@ int seq_serror_line() { return seq.serror_line; }
 
 /*------------------------------------------------------------------*/
 
+static void seq_watch(HNDLE a, HNDLE b, int c, void* d)
+{
+   int status;
+   HNDLE hDB;
+   HNDLE hKey;
+   
+   cm_get_experiment_database(&hDB, NULL);
+
+   status = db_find_key(hDB, 0, "/Sequencer/State", &hKey);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "seq_watch", "Cannot find /Sequencer/State in ODB, db_find_key() status %d", status);
+      return;
+   }
+
+   int size = sizeof(seq);
+   status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb(sequencer_str));
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "seq_watch", "Cannot get /Sequencer/State from ODB, db_get_record1() status %d", status);
+      return;
+   }
+
+   cm_msg(MINFO, "seq_watch", "Sequencer reloaded from ODB /Sequencer/State");
+}
+
+/*------------------------------------------------------------------*/
+
 void init_sequencer()
 {
    int status;
@@ -923,8 +949,14 @@ void init_sequencer()
       cm_disconnect_experiment();
       abort();
    }
-   db_find_key(hDB, 0, "/Sequencer/State", &hKey);
-   status = db_open_record(hDB, hKey, &seq, sizeof(seq), MODE_READ, NULL, NULL);
+   status = db_find_key(hDB, 0, "/Sequencer/State", &hKey);
+   assert(status == DB_SUCCESS);
+
+   int size = sizeof(seq);
+   status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb(sequencer_str));
+   assert(status == DB_SUCCESS);
+
+   status = db_watch(hDB, hKey, seq_watch, NULL);
    assert(status == DB_SUCCESS);
    
    if (seq.path[0] == 0)

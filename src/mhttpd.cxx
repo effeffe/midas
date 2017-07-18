@@ -16737,6 +16737,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    if (equal_ustring(p->getparam("cmd"), "Load Script") || p->isparam("fs")) {
       r->rsprintf("<tr><th class=\"subStatusTitle\" colspan=2>\n");
       r->rsprintf("<b>Select a sequencer file:</b><br></th></tr>\n");
+      r->rsprintf("<tr colspan=2><td>Directory: %s</td></tr>\n", seq_path());
       r->rsprintf("<tr><td><select name=\"fs\" id=\"fs\" size=20 style=\"width:300\">\n");
       
       if (p->isparam("dir"))
