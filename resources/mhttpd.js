@@ -486,21 +486,46 @@ function mhttpd_create_page_handle_cancel(mouseEvent)
    return false;
 }
 
-function mhttpd_delete_page_handle_delete(mouseEvent)
+function mhttpd_delete_page_handle_delete(mouseEvent, xpath)
 {
    var form = document.getElementsByTagName('form')[0];
-   var path = form.elements['odb'].value;
-
-   if (path == "/") path = "";
-
+   var path;
    var names = [];
-   for (var i=0; ; i++) {
-      var n = "name" + i;
-      var v = form.elements[n];
-      if (v == undefined) break;
-      if (v == undefined) break;
-      if (v.checked)
-         names.push(path + "/" + v.value);
+
+   if (form) {
+      path = form.elements['odb'].value;
+
+      if (path == "/") path = "";
+
+      for (var i=0; ; i++) {
+         var n = "name" + i;
+         var v = form.elements[n];
+         if (v == undefined) break;
+         if (v == undefined) break;
+         if (v.checked)
+            names.push(path + "/" + v.value);
+      }
+   } else {
+      var e = document.getElementById("odbpath");
+      path = JSON.parse(e.innerHTML);
+      if (path == "/") path = "";
+
+      alert("Path: " + path);
+
+      for (var i=0; ; i++) {
+         var v = document.getElementById("delete" + i);
+         if (v == undefined) break;
+         if (v == undefined) break;
+         if (v.checked) {
+            var name = JSON.parse(v.value);
+            if (name.length > 0) {
+               names.push(path + "/" + name);
+            }
+         }
+      }
+
+      alert("Names: " + names);
+      //return false;
    }
 
    if (names.length < 1) {

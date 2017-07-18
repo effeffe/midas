@@ -40,8 +40,21 @@ static MUTEX_T* request_mutex = NULL;
 // FIXME: what does "referer" do?!?
 //char referer[256];
 
+/*------------------------------------------------------------------*/
+
 #define MAX_GROUPS    32
 #define MAX_VARS     100
+
+/*------------------------------------------------------------------*/
+
+static std::string toString(int i)
+{
+   char buf[256];
+   sprintf(buf, "%d", i);
+   return buf;
+}
+
+/*------------------------------------------------------------------*/
 
 class Attachment
 {
@@ -9555,6 +9568,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
+   r->rsprintf("<script type=\"text/javascript\" src=\"controls.js\"></script>\n");
 
    /* find key via path */
    status = db_find_key(hDB, 0, dec_path, &hkeyroot);
@@ -9585,6 +9599,9 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
       }
    }
 
+   char odbpath[MAX_ODB_PATH];
+   status = db_get_path(hDB, hkeyroot, odbpath, sizeof(odbpath));
+
    /*---- navigation bar ----*/
 
    colspan = 7;
@@ -9607,8 +9624,31 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
       r->rsprintf("<input type=button value=Find onclick=\"self.location=\'?cmd=Find\';\">\n");
       r->rsprintf("<input type=button value=Create onclick=\"self.location=\'?cmd=Create\';\">\n");
       r->rsprintf("<input type=button value=Delete onclick=\"self.location=\'?cmd=Delete\';\">\n");
+      r->rsprintf("<input type=button value=XDelete onclick=\"dlgShow('dlgDelete')\">\n");
       r->rsprintf("<input type=button value=\"Create Elog from this page\" onclick=\"self.location=\'?cmd=Create Elog from this page\';\"></td></tr>\n");
    }
+
+   /*---- Build the Delete dialog------------------------------------*/
+
+   std::string dd = "";
+   
+   dd += "<!-- Demo dialog -->\n";
+   dd += "<div id=\"dlgDelete\" class=\"dlgFrame\">\n";
+   dd += "<div class=\"dlgTitlebar\">Delete ODB entry</div>\n";
+   dd += "<div class=\"dlgPanel\">\n";
+   //dd += "<div>Dialog Contents</div>\n";
+   //dd += "<br />\n";
+   dd += "<div id=odbpath>";
+   dd += "\"";
+   dd += MJsonNode::Encode(odbpath);
+   dd += "\"";
+   dd += "</div>\n";
+
+   dd += "<table class=\"dialogTable\">\n";
+   dd += "<th colspan=2>Delete ODB entries:</th>\n";
+
+   int count_delete = 0;
+   //dd += "<tr><td style=\"text-align:left;\" align=left><input align=left type=checkbox id=delete0 name=\"name0\" value=\"int\">int</input></td></tr>\n";
 
    /*---- ODB display -----------------------------------------------*/
 
@@ -9685,6 +9725,18 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
             break;
          db_get_link(hDB, hkey, &key);
 
+         if (scan == 0) {
+            dd += "<tr><td style=\"text-align:left;\" align=left><input align=left type=checkbox id=delete";
+            dd += toString(count_delete++);
+            dd += " value=\'";
+            dd += "\"";
+            dd += MJsonNode::Encode(key.name);
+            dd += "\"";
+            dd += "\'>";
+            dd += key.name;
+            dd += "</input></td></tr>\n";
+         }
+         
          if (line % 2 == 0)
             strlcpy(style, "ODBtableEven", sizeof(style));
          else
@@ -9982,6 +10034,17 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
       }
    }
    r->rsprintf("</table>\n");
+
+   //dd += "<tr><td align=center colspan=2><input type=hidden id=odbpath name=odb value=\"/test_create\">\n";
+   dd += "</table>\n";
+   dd += "<input type=button value=Delete onClick='mhttpd_delete_page_handle_delete(event);'>\n";
+   dd += "<input type=button value=Cancel onClick='mhttpd_delete_page_handle_cancel(event);'>\n";
+   //dd += "<button class=\"dlgButton\" onClick=\"dlgHide(\'dlgDelete\')\">Cancel</button>\n";
+   //dd += "<button class=\"dlgButton\" onClick=\"dlgHide(\'dlgDelete\')\">Close</button>\n";
+   dd += "</div>\n";
+   dd += "</div>\n";
+
+   r->rsputs(dd.c_str());
    page_footer(r, dec_path, FALSE);
 }
 
@@ -10291,7 +10354,7 @@ void show_create_page(Return* r, const char *enc_path, const char *dec_path, con
                str[0] = 0;
             strlcat(str, dec_path, sizeof(str));
          }
-         r->rsprintf("<input type=hidden name=odb value=\"%s\">\n", str);
+         r->rsprintf("<input type=hidden id=odbpath name=odb value=\"%s\">\n", str);
       }
 
       //r->rsprintf("<input type=submit name=cmd value=Create>\n");
@@ -10446,7 +10509,7 @@ void show_delete_page(Return* r, const char *enc_path, const char *dec_path, con
 
       r->rsprintf("<tr><td align=center colspan=2>");
 
-      r->rsprintf("<input type=hidden name=odb value=\"%s\">\n", path);
+      r->rsprintf("<input type=hidden id=odbpath name=odb value=\"%s\">\n", path);
 
       if (count != 0) {
          r->rsprintf("<input type=button value=Delete onClick=\'mhttpd_delete_page_handle_delete(event);\'>\n");
@@ -18222,15 +18285,6 @@ BOOL _abort = FALSE;
 void ctrlc_handler(int sig)
 {
    _abort = TRUE;
-}
-
-/*------------------------------------------------------------------*/
-
-static std::string toString(int i)
-{
-   char buf[256];
-   sprintf(buf, "%d", i);
-   return buf;
 }
 
 /*------------------------------------------------------------------*/
