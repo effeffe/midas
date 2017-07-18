@@ -116,7 +116,7 @@ function ODBFinishInlineEdit(p, path, bracket)
 
    //console.log("mie_write odb [" + path + "] value [" + value + "]");
 
-   mjsonrpc_db_paste([path], [value]).then(function(rpc) {
+   mjsonrpc_db_set_value(path, value).then(function(rpc) {
       //mjsonrpc_debug_alert(rpc);
       p.ODBsent = true;
       mie_back_to_link(p, path, bracket);
@@ -410,7 +410,7 @@ function mhttpd_init(interval) {
    // attach "set" function to all ODB buttons
    var modbbutton = document.getElementsByName("modbbutton");
    for (var i = 0; i < modbbutton.length; i++)
-      modbbutton[i].onclick = function() { mjsonrpc_db_paste([this.dataset.odbPath], [this.dataset.odbValue]); mhttpd_refresh(); };
+      modbbutton[i].onclick = function() { mjsonrpc_db_set_value(this.dataset.odbPath, this.dataset.odbValue); mhttpd_refresh(); };
 
    // replace all horizontal bars with proper <div>'s
    var mbar = document.getElementsByName("modbbar");

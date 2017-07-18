@@ -485,6 +485,38 @@ function mjsonrpc_db_get_values(paths, id) {
    return mjsonrpc_call("db_get_values", req, id);
 }
 
+function mjsonrpc_db_get_value(paths, id) {
+   /// \ingroup mjsonrpc_js
+   /// Get values of ODB variables
+   ///
+   /// RPC method: "db_get_value"
+   ///
+   /// \code
+   /// mjsonrpc_db_get_value("/runinfo").then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_get_value() for /runinfo
+   ///    ... result.status[1]; // status of db_get_value() for /equipment
+   ///    ... result.last_written[0]; // "last written" timestamp for /runinfo
+   ///    ... result.last_written[1]; // "last written" timestamp for /equipment
+   ///    var runinfo = result.data[0]; // javascript object representing the ODB runinfo structure
+   ///    ... runinfo["run number"];    // access the run number, note: all ODB names should be in lower-case.
+   ///    ... runinfo["run number/last_written"]; // "last_written" timestamp for the run number
+   ///    ... result.data[1].foo.variables.bar;   // access /equipment/foo/variables/bar
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = [paths];
+   return mjsonrpc_call("db_get_values", req, id);
+}
+
 function mjsonrpc_db_ls(paths, id) {
    /// \ingroup mjsonrpc_js
    /// Get list of contents of an ODB subdirectory, similar to odbedit command "ls -l". To get values of ODB variables, use db_get_values().
@@ -618,6 +650,34 @@ function mjsonrpc_db_paste(paths, values, id) {
    var req = new Object();
    req.paths = paths;
    req.values = values;
+   return mjsonrpc_call("db_paste", req, id);
+}
+
+function mjsonrpc_db_set_value(path, value, id) {
+   /// \ingroup mjsonrpc_js
+   /// Write value info ODB.
+   ///
+   /// RPC method: "db_set_value"
+   ///
+   /// \code
+   /// mjsonrpc_set_value("runinfo/run number", 123).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var result = rpc.result;  // rpc response result
+   ///    ... result.status[0]; // status of db_set_value() for /runinfo
+   ///    ... result.status[1]; // status of db_set_value() for /equipment
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] paths Array of ODB paths (array of strings)
+   /// @param[in] values Array of ODB values (array of anything)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.paths = [path];
+   req.values = [value];
    return mjsonrpc_call("db_paste", req, id);
 }
 
