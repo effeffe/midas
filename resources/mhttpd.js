@@ -455,7 +455,7 @@ function mhttpd_create_page_handle_create(mouseEvent)
       arraylength = document.getElementById("create_array_length").value;
       stringlength = document.getElementById("create_strlen").value;
 
-      alert("Path: " + path + " Name: " + name);
+      //alert("Path: " + path + " Name: " + name);
    }
 
    if (path == "/") path = "";
@@ -536,7 +536,7 @@ function mhttpd_delete_page_handle_delete(mouseEvent, xpath)
       path = JSON.parse(e.innerHTML);
       if (path == "/") path = "";
 
-      alert("Path: " + path);
+      //alert("Path: " + path);
 
       for (var i=0; ; i++) {
          var v = document.getElementById("delete" + i);
@@ -550,7 +550,7 @@ function mhttpd_delete_page_handle_delete(mouseEvent, xpath)
          }
       }
 
-      alert("Names: " + names);
+      //alert("Names: " + names);
       //return false;
    }
 

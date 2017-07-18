@@ -9622,10 +9622,12 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    if(!elog_mode){
       r->rsprintf("<tr><td colspan=%d>\n", colspan);
       r->rsprintf("<input type=button value=Find onclick=\"self.location=\'?cmd=Find\';\">\n");
+#ifdef OBSOLETE
       r->rsprintf("<input type=button value=Create onclick=\"self.location=\'?cmd=Create\';\">\n");
       r->rsprintf("<input type=button value=Delete onclick=\"self.location=\'?cmd=Delete\';\">\n");
-      r->rsprintf("<input type=button value=XCreate onclick=\"dlgShow('dlgCreate')\">\n");
-      r->rsprintf("<input type=button value=XDelete onclick=\"dlgShow('dlgDelete')\">\n");
+#endif
+      r->rsprintf("<input type=button value=Create onclick=\"dlgShow('dlgCreate')\">\n");
+      r->rsprintf("<input type=button value=Delete onclick=\"dlgShow('dlgDelete')\">\n");
       r->rsprintf("<input type=button value=\"Create Elog from this page\" onclick=\"self.location=\'?cmd=Create Elog from this page\';\"></td></tr>\n");
    }
 
@@ -9644,6 +9646,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    dd += MJsonNode::Encode(odbpath);
    dd += "\"";
    dd += "</div>\n";
+   dd += "<div><br></div>\n";
 
    dd += "<table class=\"dialogTable\">\n";
    dd += "<th colspan=2>Delete ODB entries:</th>\n";
@@ -10318,6 +10321,7 @@ void show_find_page(Return* r, const char* dec_path, const char *enc_path, const
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void show_create_page(Return* r, const char *enc_path, const char *dec_path, const char *value, int index, int type)
 {
    char str[256], link[256], error[256], *p;
@@ -10478,9 +10482,11 @@ void show_create_page(Return* r, const char *enc_path, const char *dec_path, con
       return;
    }
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void show_delete_page(Return* r, const char *enc_path, const char *dec_path, const char *value, int index)
 {
    char str[256];
@@ -10584,6 +10590,7 @@ void show_delete_page(Return* r, const char *enc_path, const char *dec_path, con
       return;
    }
 }
+#endif // OBSOLETE
 
 /*------------------------------------------------------------------*/
 
@@ -17825,6 +17832,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
+#ifdef OBSOLETE
    /*---- create command --------------------------------------------*/
 
    if (equal_ustring(command, "create")) {
@@ -17835,6 +17843,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       show_create_page(r, enc_path, dec_path, value, index, atoi(p->getparam("type")));
       return;
    }
+#endif
 
    /*---- CAMAC CNAF command ----------------------------------------*/
 
@@ -17967,6 +17976,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
+#ifdef OBSOLETE
    /*---- delete command --------------------------------------------*/
 
    if (equal_ustring(command, "delete")) {
@@ -17977,6 +17987,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       show_delete_page(r, enc_path, dec_path, value, index);
       return;
    }
+#endif
 
    /*---- slow control display --------------------------------------*/
 
