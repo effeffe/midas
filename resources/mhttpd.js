@@ -361,7 +361,7 @@ function mhttpd_page_footer()
 var mhttpd_refresh_id;
 var mhttpd_refresh_interval;
 
-function mhttpd_init(interval) {
+function mhttpd_init(current_page, interval) {
    /*
       This funciton should be called from custom pages to initialize all ODB tags and refresh
       them periodically every "interval" in ms
@@ -379,12 +379,78 @@ function mhttpd_init(interval) {
       <button name="modbbutton" class="modbbutton" data-odb-path="/Runinfo/Run number" data-odb-value="1"></button>
 
       Pressing this button sets a value in the ODB.
-    */
+   */
 
-   // remember update interver
+   // initialize URL
    url = mhttpd_getParameterByName("URL");
    if (url)
       mjsonrpc_set_url(url);
+
+
+   // update header and menu
+   if (sessionStorage.mmenu != undefined && sessionStorage.mexpname != undefined) {
+
+      // get it from session storage cache
+
+      var menu = document.getElementById("mmenu");
+      menu.innerHTML = sessionStorage.mmenu;
+      var item = menu.children;
+      for (var i=0 ; i<item.length ; i++)
+         if (item[i].innerHTML == current_page)
+            item[i].className = "mmenuitem mmenuitemsel";
+         else
+            item[i].className = "mmenuitem";
+      document.getElementById("mheader_expt_name").innerHTML = "Experiment: " + sessionStorage.mexpname;
+      document.getElementById("mheader_last_updated").innerHTML = new Date();
+   } else {
+
+      // request it from server
+      mjsonrpc_db_get_values(["/Experiment/Name", "/Experiment/Menu", "/Experiment/Menu Buttons"]).then(function (rpc) {
+         document.getElementById("mheader_expt_name").innerHTML = "Experiment: " + rpc.result.data[0];
+         sessionStorage.setItem("mexpname", "Experiment: " + rpc.result.data[0]);
+
+         document.getElementById("mheader_last_updated").innerHTML = new Date();
+
+         var menu = rpc.result.data[1];
+         var buttons = rpc.result.data[2];
+         var b = [];
+
+         if (menu) {
+            for (var k in menu) {
+               var kk = k + "/name";
+               if (kk in menu) {
+                  if (menu[k]) {
+                     b.push(menu[kk]);
+                  }
+               }
+            }
+         } else if (buttons && buttons.length > 0) {
+            b = buttons.split(",");
+         }
+
+         if (!b || b.length < 1) {
+            b = ["Status", "ODB", "Messages", "Chat", "ELog", "Alarms", "Programs", "History", "MSCB", "Sequencer", "Config", "Example", "Help"];
+         }
+
+         var html = "";
+
+         for (var i = 0; i < b.length; i++) {
+            var bb = b[i].trim();
+            var cc = "mmenuitem";
+            if (bb == current_page) {
+               cc = "mmenuitemsel";
+            }
+            html += "<div class=\"" + cc + "\" onclick=\"window.location.href=\'" + "?cmd=" + bb + "\';\">" + bb + "</div>\n";
+         }
+         document.getElementById("mmenu").innerHTML = html;
+
+         // cache navigation buttons in browser local storage
+         sessionStorage.setItem("mmenu", html);
+
+      }).catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
 
    // go through all name="modbvalue" tags
    var modbvalue = document.getElementsByName("modbvalue");
@@ -445,6 +511,9 @@ function mhttpd_refresh() {
 
    // request ODB contents for all variables
    mjsonrpc_db_get_values(paths).then(function (rpc) {
+
+      // update time in header
+      document.getElementById("mheader_last_updated").innerHTML = new Date();
 
       for (var i = 0; i < modbvalue.length; i++) {
          var value = rpc.result.data[i];

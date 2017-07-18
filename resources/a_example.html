@@ -8,12 +8,25 @@
    <title>Example</title>
 </head>
 
-<body class="mcss" onload="mhttpd_init(1000)">
+<body class="mcss" onload="mhttpd_init('Start', 1000)">
 
-<div class="mwrapper">
-   <script>
-      mhttpd_navigation_bar("Test");
-   </script>
+<div id="mheader">
+   <div style="display:inline; float:left;" id="mheader_expt_name"></div>
+   <div style="display:inline;" id="mheader_message">&nbsp;</div>
+   <div style="display:inline; float:right;">
+      <span id="mheader_last_updated"></span>
+      <span id="mheader_help">
+         <a href="?cmd=Help">Help</a>
+      </span>
+   </div>
+</div>
+
+
+<div id="mwrapper">
+
+   <div id="mmenu">
+   </div>
+
 
    <div>
       <table width="50%" class="mtable">
@@ -49,29 +62,28 @@
                Indicator:
             </td>
             <td>
-               <div name="modbbar" style="width: 500px" data-odb-path="/Runinfo/Run number" data-max-value="10" data-color="lightgreen"></div>
+               <div name="modbbar" style="width: 500px" data-odb-path="/Runinfo/Run number" data-max-value="10"
+                    data-color="lightgreen"></div>
             </td>
          </tr>
          <tr>
             <td colspan="2" style="text-align: center;">
-               <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="1">Set run number to 1</button>
+               <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="1">Set run
+                  number to 1
                </button>
-               <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="5">Set run number to 5</button>
                </button>
-               <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="10">Set run number to 10</button>
+               <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="5">Set run
+                  number to 5
+               </button>
+               </button>
+               <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="10">Set run
+                  number to 10
+               </button>
                </button>
             </td>
          </tr>
       </table>
    </div>
-
-   <div class="mpush">
-   </div>
-</div>
-
-<script>
-   mhttpd_page_footer();
-</script>
 
 </body>
 </html>
