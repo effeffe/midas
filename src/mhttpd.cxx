@@ -17241,10 +17241,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 #endif
 
    if (equal_ustring(command, "") && strlen(dec_path) == 0) {
-       send_resource("status.html");
+       send_resource(r, "status.html");
        return;
     }
-
 
    if (equal_ustring(command, "programs")) {
       send_resource(r, "programs.html");
@@ -17264,6 +17263,22 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    if (equal_ustring(command, "messages")) {
       send_resource(r, "messages.html");
       return;
+   }
+   
+   /* new custom pages */
+   if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
+      char custom_path[256];
+      custom_path[0] = 0;
+      size = sizeof(custom_path);
+      db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, FALSE);
+      if (custom_path[strlen(custom_path)-1] != DIR_SEPARATOR)
+         strlcat(custom_path, DIR_SEPARATOR_STR, sizeof(custom_path));
+      strlcat(custom_path, dec_path, sizeof(custom_path));
+      // if custom file exists, send it (like normal web server)
+      if (ss_file_exist(custom_path)) {
+         send_resource(r, custom_path);
+         return;
+      }
    }
    
    /*---- java script commands --------------------------------------*/
@@ -17895,7 +17910,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    }
 #endif
 
-   /*---- custom page -----------------------------------------------*/
+   /*---- (old) custom page -----------------------------------------*/
 
    if (strncmp(dec_path, "CS/", 3) == 0) {
       if (equal_ustring(command, "edit")) {
@@ -17917,22 +17932,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
       show_custom_page(p, r, "Status", cookie_cpwd);
       return;
-   }
-
-   /* new custom pages */
-   if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
-      
-      char custom_path[256];
-      custom_path[0] = 0;
-      size = sizeof(custom_path);
-      db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, FALSE);
-      if (custom_path[strlen(custom_path)-1] != DIR_SEPARATOR)
-         strlcat(custom_path, DIR_SEPARATOR_STR, sizeof(custom_path));
-      strlcat(custom_path, dec_path, sizeof(custom_path));
-      if (ss_file_exist(custom_path)) {
-         send_resource(r, custom_path);
-         return;
-      }
    }
 
    /*---- show status -----------------------------------------------*/
