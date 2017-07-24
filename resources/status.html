@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html class="mcss">
+<!--Created by Shuoyi Ma in June 2017-->
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="midas.css">
+  <!-- not using old css file any more <link rel="stylesheet" href="mhttpd.css">-->
+  <script src="midas.js"></script>
+  <script src="mhttpd.js"></script>
+  <title>status</title>
+</head>
+
+<body class="mcss">
+
+  <script>
+    url = mhttpd_getParameterByName("URL");
+    if (url)
+      mjsonrpc_set_url(url);
+  </script>
+
+  <div id="whole_content" style="display:none" class="mwrapper">
+
+
+    <script>
+      mhttpd_navigation_bar("Status");
+    </script>
+
+
+    <!-- Custom page will not work in the old way <table class="headerTable">
+      <tr>
+        <td colspan="6">
+          
+        </td>
+      </tr>
+    </table>-->
+
+
+    <table class="mstatusTable" id="statusTable">
+
+
+
+
+      <tr>
+        <td colspan="6">
+
+          <table class="mtablecss" id="runStatus" width="100%">
+            <tr>
+              <td colspan="6" class="mtableheadercss">Run Status</td>
+            </tr>
+
+            <tr align="center">
+              <td id="runNumberCell" align="center" rowspan="3" class="mgreencolour greenLight">
+                Run
+                <br> runNum
+                <br> status
+                <br> button
+              </td>
+              <td id="runStatusStartTime" colspan="2"> runStatusStartTime </td>
+              <td id="runStatusStopTime" colspan="2"> runStatusStopTime </td>
+            </tr>
+
+            <tr id="" align="center">
+              <td id="runStatusAlarm" class="mgreencolour greenLight"> runStatusAlarm </td>
+              <td id="runStatusSequencer" class="mgreencolour greenLight"> runStatusSequencer </td>
+              <td id="runStatusLogger" colspan="2" class=""> runStatusLogger </td>
+            </tr>
+
+            <tr id="">
+              <td id="" colspan="6">
+                <table id="runStatusExperimentItems" class="genericStripe" width="100%">
+
+                  <tr>
+                    <td style="text-align:left;" width="30%" class="titleCell"> Experiment Name: </td>
+                    <td id="runStatusExperimentName" style="text-align:left;"> runStatusExperimentName </td>
+                  </tr>
+
+
+
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td colspan="6" id="msgService" class="mmsgService">
+
+              </td>
+            </tr>
+
+          </table>
+
+        </td>
+      </tr>
+
+
+      <tr>
+        <td colspan="6">
+
+          <table class="mtablecss" id="equipmentList" width="100%">
+            <tr>
+              <th colspan="6" class="mtableheadercss">Equipment</th>
+            </tr>
+            <tr></tr>
+            <tr class="">
+              <th>Equipment<a id='hide' class='hideButton' href="javascript:unhideEquipments()">+</a></th>
+              <th>Status</th>
+              <th>Events</th>
+              <th>Events[/s]</th>
+              <th>Data[MS/s]</th>
+            </tr>
+          </table>
+
+        </td>
+      </tr>
+
+      <tr>
+        <td colspan="6">
+
+          <table class="mtablecss" id="logChannel" width="100%">
+            <tr>
+              <td colspan="6" class="mtableheadercss">Logging Channels</td>
+            </tr>
+
+
+          </table>
+
+        </td>
+      </tr>
+
+      <tr>
+        <td colspan="6">
+
+          <table class="mtablecss" id="clientsTable" width="100%">
+            <tr></tr>
+            <tr>
+              <td colspan="6" class="mtableheadercss">Clients</td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+
+    </table>
+
+
+  </div>
+  <div class="mpush">
+  </div>
+  <div id="updateStatus" align="left">
+    Loading...
+  </div>
+  <script>
+      mhttpd_page_footer();
+  </script>
+
+  <script>
+    var update_timer_id;
+
+    //pre-define some html codes for different tables/rows
+
+    const equipmentTableHtml = "<tr><th colspan=6 class=\"mtableheadercss\">Equipment</th></tr><tr></tr><tr class=\"\"><th>Equipment&nbsp;<a id='hide' class='hideButton' href=\"javascript:unhideEquipments()\">+</a></th><th>Status</th><th>Events</th><th>Events[/s]</th><th>Data[MS/s]</th></tr>";
+    const logChannelTableHtml = "<tr><td colspan=6 class=\"mtableheadercss\">Logging Channels</td></tr>";
+    const firstLogChannelHtml = "<tr id=\"logChannelFirstPart\" class=\"mtabletitlecss \"><th colspan=\"2\">Channel</th><th>Events</th><th>MiB written</th><th>Compr.</th><th>Disk Level</th></tr>";
+    const secondLogChannelHtml = "<tr id=\"logChannelSecondPart\" class=\"mtabletitlecss \"><th colspan=\"2\">Lazy Label</th><th>Progress</th><th>File Name</th><th># Files</th><th>Total</th></tr>";
+    const clientTableHtml = "<tr></tr><tr><td colspan=6 class=\"mtableheadercss\">Clients</td></tr>";
+
+
+
+    function callback(rpc, alarm, loggerBool, lastMessage, equipmentNames, equipmentStatData, equipmentCommonData) {
+
+
+      // define all json data here
+      let experimentItemsJson = rpc.data[0];
+      let logChannelJson = rpc.data[1];
+      let clientsJson = rpc.data[2];
+      let runinfoJson = rpc.data[3];
+      let sequencerJson = rpc.data[4];
+      let loggerJson = rpc.data[5];
+      let LazyJson = rpc.data[6];
+      //let equipmentJson = rpc.data[1];
+
+      let currentClientList = new Array();
+
+      function triggerAlarms() {
+        if (alarm["alarm_system_active"]) {
+          let allAlarms = alarm["alarms"]
+          for (let element in allAlarms) {
+            if (allAlarms[element]["triggered"] && allAlarms[element]["active"]) {
+              if (document.getElementById(element + "Alarm") === null) {
+                let newAlarm = document.createElement("td");
+                document.getElementById("statusTable").insertBefore(newAlarm, document.getElementById("statusTable").firstChild);
+
+                newAlarm.outerHTML = "<tr id=\"" +
+                  element +
+                  "Alarm" +
+                  "\" class=\"alarmRow\">\n<td colspan=6 style=\"background-color:" +
+                  allAlarms[element]["bgcolor"] +
+                  ";border-radius:12px;\" align=center>" +
+                  "<table width=\"100%%\"><tr>\n" +
+                  "<td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"" +
+                  allAlarms[element]["fgcolor"] +
+                  "\" size=+3>" +
+                  allAlarms[element]["class"] +
+                  ":" +
+                  allAlarms[element]["show_to_user"] +
+                  "</font></td>\n" +
+                  "<td width=\"1%%\" style=\"border:0px;\">\n" +
+                  "<button type=\"button\" onclick=\"mhttpd_reset_alarm(\'" +
+                  element +
+                  "\');\">Reset</button>\n" +
+                  "</td>\n" +
+                  "</tr></table>\n" +
+                  "</td>\n" +
+                  "</tr>\n";
+
+                mhttpd_alarm_play("/alarm.mp3");
+                mhttpd_alarm_speak(allAlarms[element]["class"] + " " + allAlarms[element]["message"]);
+
+              }
+            } else {
+
+              if (document.getElementById(element + "Alarm") != null) {
+                document.getElementById(element + "Alarm").outerHTML = "";
+                delete (document.getElementById(element + "Alarm"));
+              }
+            }
+          }
+        }
+      }
+
+      //"Run Status" -------- enter and refresh data
+      function generateRunStatus() {
+        if (runinfoJson) {
+          if (runinfoJson.hasOwnProperty("run number") && runinfoJson.hasOwnProperty("state")) {
+            let state = "";
+            let buttonText = "";
+            switch (runinfoJson["state"]) {
+              case 1:
+                state = "Stopped";
+                buttonText = "Start";
+                document.getElementById("runNumberCell").className = "mredcolour redLight";
+                //showing stop time
+                if (runinfoJson.hasOwnProperty("stop time")) {
+                  document.getElementById("runStatusStopTime").innerHTML = "Stop: " + runinfoJson["stop time"];
+                }
+                break;
+              case 2:
+                state = "Paused";
+                buttonText = "Start";
+                document.getElementById("runNumberCell").className = "myellowcolour yellowLight";
+                break;
+              case 3:
+                state = "Running";
+                buttonText = "Stop";
+                document.getElementById("runNumberCell").className = "mgreencolour greenLight";
+                //showing running time
+                if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
+                  //let time=runinfoJson["start time binary/last_written"];
+                  let difftime = Math.round(new Date().getTime() / 1000) - runinfoJson["start time binary/last_written"];
+                  let h = Math.floor(difftime / 3600);
+                  let m = Math.floor(difftime % 3600 / 60);
+                  let s = Math.floor(difftime % 60);
+                  document.getElementById("runStatusStopTime").innerHTML = "Running time: " + h + "h" + m + "m" + s + "s";
+                }
+                break;
+            }
+
+            if (state == "Paused" || state == "Stopped") {
+              document.getElementById("runNumberCell").innerHTML = "Run" +
+                "<br>" +
+                runinfoJson["run number"] +
+                "<br>" +
+                state +
+                "<br>" +
+                "<input type='button' value='" + buttonText + "' onclick='mhttpd_start_run()'>";
+            } else if (state == "Running") {
+              document.getElementById("runNumberCell").innerHTML = "Run" +
+                "<br>" +
+                runinfoJson["run number"] +
+                "<br>" +
+                state +
+                "<br>" +
+                "<input type='button' value='" + buttonText + "' onclick='mhttpd_stop_run()'>";
+            }
+          }
+
+          if (runinfoJson.hasOwnProperty("start time")) {
+            document.getElementById("runStatusStartTime").innerHTML = "Start: " + runinfoJson["start time"];
+          }
+
+          if (experimentItemsJson.hasOwnProperty("experiment name")) {
+
+
+
+
+
+            if (document.getElementById("runStatusExperimentName").innerHTML != experimentItemsJson["experiment name"]) {
+              document.getElementById("runStatusExperimentName").innerHTML = experimentItemsJson["experiment name"];
+            }
+            // check if lazy active is in the experiment items list
+
+            let experimentItemList = Object.keys(experimentItemsJson);
+            if (experimentItemList.length > 3) {
+              for (i = 3; i < experimentItemList.length; i = i + 3) {
+
+                let experimentItem = document.createElement("tr");
+                experimentItem.id = experimentItemList[i + 2] + "ExperimentItem";
+                experimentItem.innerHTML =
+                  "<tr><td style=\"text-align:left;\" width=\"30%\" class=\"titleCell\">" +
+                  experimentItemsJson[experimentItemList[i]] +
+                  ":</td>" +
+                  "<td id=\"experimentLazyBool\"; style=\"text-align:left;\">" +
+                  experimentItemsJson[experimentItemList[i + 2]] +
+                  "</td>" +
+                  "</tr>";
+                experimentItem.className = "mtablecss";
+
+                if (document.getElementById(experimentItemList[i + 2] + "ExperimentItem") != null) {
+                  if (document.getElementById(experimentItemList[i + 2] + "ExperimentItem").innerHTML != experimentItem.innerHTML) {
+                    document.getElementById(experimentItemList[i + 2] + "ExperimentItem").innerHTML = experimentItem.innerHTML;
+                  }
+                }
+                else {
+                  document.getElementById("runStatusExperimentItems").appendChild(experimentItem);
+                }
+
+              }
+            }
+
+          }
+
+        }
+
+        if (alarm["alarm_system_active"]) {
+          document.getElementById("runStatusAlarm").innerHTML = "<a href='/Alarms/Alarm system active?cmd=set'>" + "Alarms: On" + "</a>";
+          document.getElementById("runStatusAlarm").className = "mgreencolour greenLight";
+        } else {
+          document.getElementById("runStatusAlarm").innerHTML = "<a href='/Alarms/Alarm system active?cmd=set'>" + "Alarms: Off" + "</a>";
+          document.getElementById("runStatusAlarm").className = "mredcolour redLight";
+        }
+
+        if (sequencerJson) {
+          if (sequencerJson.hasOwnProperty("running")) {
+            if (sequencerJson["running"]) {
+              document.getElementById("runStatusSequencer").innerHTML = "Restart: Sequencer";
+            } else {
+              document.getElementById("runStatusSequencer").innerHTML = "Restart: No";
+            }
+          }
+        }
+
+        if (loggerBool["status"] == 1) {
+          if (loggerJson.hasOwnProperty("data dir")) {
+            document.getElementById("runStatusLogger").innerHTML = "Data dir: " + loggerJson["data dir"];
+            document.getElementById("runStatusLogger").className = "";
+          }
+        } else {
+          document.getElementById("runStatusLogger").innerHTML = "Logger not running";
+          document.getElementById("runStatusLogger").className = "mredcolour redLight";
+        }
+
+        document.getElementById("msgService").innerHTML = lastMessage.messages;
+
+
+
+      }
+
+
+      function generateEquipmentTable() {
+
+
+        if (equipmentNames.length != document.getElementsByClassName("equipmentRow").length) {
+          document.getElementById("equipmentList").innerHTML = equipmentTableHtml;
+        }
+
+
+        for (i = 0; i < equipmentNames.length; i++) {
+          let statusItem = document.createElement("td");
+          statusItem.align = "center";
+          statusItem.innerHTML = equipmentCommonData[i]["status"];
+          if (equipmentCommonData[i]["status"].length < 1) {
+            statusItem.className = "mgreencolour greenLight";
+          } else if (equipmentCommonData[i]["status color"].indexOf("Light") != -1) {
+            statusItem.className = equipmentCommonData[i]["status"];
+          } else {
+            statusItem.className = "Light";
+            statusItem.style = "background-color:" + equipmentCommonData[i]["status color"] + ";";
+          }
+
+
+          let eventsNum = equipmentStatData[i]["events sent"];
+          if (equipmentStatData[i]["events sent"] > 1E9) {
+            eventsNum = (equipmentStatData[i]["events sent"] / 1E9).toFixed(3) + "G";
+          } else if (equipmentStatData[i]["events sent"] > 1E6) {
+            eventsNum = (equipmentStatData[i]["events sent"] / 1E6).toFixed(3) + "M";
+          }
+
+          let equipmentRow = document.createElement("tr");
+          equipmentRow.id = equipmentNames[i] + "equipment";
+          equipmentRow.className = "equipmentRow mtablecss";
+          if (equipmentCommonData[i]["hidden"]) {
+            equipmentRow.style = "display:none";
+            equipmentRow.className += " hiddenEquip";
+          } else {
+            equipmentRow.style = "display:table-row";
+          }
+          equipmentRow.innerHTML = "<td align=\"center\"><a href='/SC/" +
+            equipmentNames[i] +
+            "'>" +
+            equipmentNames[i] +
+            "</a></td>" +
+            statusItem.outerHTML +
+            "<td align=\"center\">" +
+            eventsNum +
+            "</td>" +
+            "<td align=\"center\">" +
+            equipmentStatData[i]["events per sec."].toFixed(1) +
+            "</td>" +
+            "<td align=\"center\">" +
+            equipmentStatData[i]["kbytes per sec."].toFixed(3) +
+            "</td>";
+          if (document.getElementById(equipmentNames[i] + "equipment") === null) {
+            document.getElementById("equipmentList").appendChild(equipmentRow);
+          } else {
+            if (document.getElementById(equipmentNames[i] + "equipment").innerHTML != equipmentRow.innerHTML) {
+              document.getElementById(equipmentNames[i] + "equipment").innerHTML = equipmentRow.innerHTML;
+            }
+          }
+        }
+      }
+
+
+      function generateLogChannel() {
+
+
+        if ((Object.keys(logChannelJson).length / 2 != document.getElementsByClassName("logChannel").length) || (Object.keys(LazyJson).length / 2 != document.getElementsByClassName("logChannelLazy").length)) {
+          document.getElementById("logChannel").innerHTML = logChannelTableHtml;
+        }
+
+
+
+        if (document.getElementById("logChannelFirstPart") === null) {
+          document.getElementById("logChannel").innerHTML += firstLogChannelHtml;
+        }
+
+        for (let element in logChannelJson) {
+          if (logChannelJson[element].settings && logChannelJson[element].statistics) {
+            let currentChannel = logChannelJson[element];
+
+
+            let compressionRatio;
+            if (currentChannel["statistics"]["bytes written uncompressed"] > 0) {
+              compressionRatio = currentChannel["statistics"]["bytes written"] / currentChannel["statistics"]["bytes written uncompressed"];
+              compressionRatio = compressionRatio * 100;
+            } else {
+              compressionRatio = 0;
+            }
+
+
+            //Disk Level Display
+            let diskLevelHtml;
+            let diskLevelColor;
+            if (currentChannel["statistics"]["disk level"] >= 0.9) {
+              diskLevelColor = "#c0392b";
+            } else if (currentChannel["statistics"]["disk level"] >= 0.7) {
+              diskLevelColor = "#f1c40f";
+            } else {
+              diskLevelColor = "#00E600";
+            }
+            diskLevelHtml = document.createElement("td");
+            diskLevelHtml.className = "meterCell";
+            let outerDiv = document.createElement("div");
+            outerDiv.style = "display:block";
+            outerDiv.style.width = "90%";
+            outerDiv.style.height = "100%";
+            outerDiv.style.position = "relative";
+            outerDiv.style.border = "1px solid black";
+            let innerDiv = document.createElement("div");
+            innerDiv.style = "display:inline-block";
+            innerDiv.style.backgroundColor = diskLevelColor;
+            innerDiv.style.width = currentChannel["statistics"]["disk level"];
+            innerDiv.style.height = "100%";
+            innerDiv.style.position = "relative";
+            innerDiv.style.paddingTop = "2px";
+            innerDiv.innerHTML = (currentChannel["statistics"]["disk level"] * 100).toFixed(1) + "%";
+            outerDiv.appendChild(innerDiv);
+            diskLevelHtml.appendChild(outerDiv);
+
+            let logChannelRow = document.createElement("tr");
+            logChannelRow.id = element + "channel";
+            logChannelRow.className = "logChannel mtablecss";
+            logChannelRow.innerHTML = "<td colspan=\"2\" class=\"mgreencolour greenLight\">" +
+              "<a href=\"Logger/Channels/" + element + "/Settings\">" +
+              "#" + element + ": " + "</a>" +
+              currentChannel["settings"]["current filename"] +
+              "</td>" +
+
+              //Events
+              "<td align=\"center\">" +
+              currentChannel["statistics"]["events written"] +
+              "</td>" +
+
+              //Mib Written
+              "<td align=\"center\">" +
+              (currentChannel["statistics"]["bytes written"] / 1024 / 1024).toFixed(3) +
+              "</td>" +
+
+              //Compr.
+              "<td align=\"center\">" +
+              compressionRatio.toFixed(1) + "%" +
+              "</td>" +
+
+              //Disk Level
+              diskLevelHtml.outerHTML;
+
+            if (document.getElementById(element + "channel") === null) {
+              document.getElementById("logChannel").appendChild(logChannelRow);
+            } else {
+              if (document.getElementById(element + "channel").innerHTML != logChannelRow.innerHTML) {
+                document.getElementById(element + "channel").innerHTML = logChannelRow.innerHTML;
+              }
+            }
+
+
+          }
+        }
+
+
+
+
+        if (document.getElementById("logChannelSecondPart") === null) {
+          document.getElementById("logChannel").innerHTML += secondLogChannelHtml;
+        }
+
+
+        for (let element in LazyJson) {
+          if (LazyJson[element].settings && LazyJson[element].statistics) {
+            let currentLazy = LazyJson[element];
+
+            let logChannelLazy = document.createElement("tr");
+            logChannelLazy.id = element + "channelLazy";
+            logChannelLazy.className = "logChannelLazy mtablecss";
+            logChannelLazy.innerHTML = "<td colspan=\"2\" >" +
+              "<a href=\"Lazy/" + element + "/Settings\">" +
+              element + "</a>" +
+              "</td>" +
+              "<td align=\"center\">" +
+              currentLazy["statistics"]["copy progress (%)"] + "%" +
+              "</td>" +
+              "<td align=\"center\">" +
+              currentLazy["statistics"]["backup file"] +
+              "</td>" +
+              "<td align=\"center\">" +
+              currentLazy["statistics"]["number of files"] +
+              "</td>" +
+              "<td align=\"center\">" +
+              currentLazy["statistics"]["backup status (%)"].toFixed(1) + "%" +
+              "</td>";
+
+            if (document.getElementById(element + "channelLazy") === null) {
+              document.getElementById("logChannel").appendChild(logChannelLazy);
+            } else {
+              if (document.getElementById(element + "channelLazy").innerHTML != logChannelLazy.innerHTML) {
+                document.getElementById(element + "channelLazy").innerHTML = logChannelLazy.innerHTML;
+              }
+            }
+
+
+          }
+        }
+
+      }
+
+
+
+      function generateClientsTable() {
+        let clientTable = document.createElement("table");
+        clientTable.innerHTML = clientTableHtml;
+
+        let clientNames = new Array();
+        for (let key in clientsJson) {
+          if (clientsJson[key].hasOwnProperty("name"))
+            clientNames.push(clientsJson[key]);
+        }
+        clientNames.forEach(function (element) {
+          if (currentClientList.indexOf(element) != -1) {
+            clientNames.splice(clientNames.i, 1)
+          }
+        }, this);
+        let numOfClientRows = Math.ceil(clientNames.length / 3);
+
+        //loop i for number of rows
+        let currentClient = 0;
+
+
+        for (i = 0; i < numOfClientRows; i++) {
+
+          let oneClientRow = document.createElement("tr");
+          oneClientRow.className = "clientRow mtablecss";
+          oneClientRow.id = clientNames[currentClient]["name"] + "client";
+          //loop j for number of columns
+          for (j = 0; j < 3; j++) {
+            if (currentClient < clientNames.length) {
+              oneClientRow.innerHTML += "<td colspan=\"2\" align=\"center\">" +
+                clientNames[currentClient]["name"] +
+                " [" + clientNames[currentClient]["host"] + "]" +
+                "</td>";
+            }
+            currentClient++;
+          }
+
+          clientTable.appendChild(oneClientRow);
+
+        }
+        if (document.getElementById("clientsTable").innerHTML != clientTable.innerHTML) {
+          document.getElementById("clientsTable").innerHTML = clientTable.innerHTML;
+        }
+      }
+
+
+
+
+
+
+      // set title
+      if (experimentItemsJson) {
+        if (experimentItemsJson.hasOwnProperty("experiment name") && (document.title != experimentItemsJson["experiment name"] + " status")) {
+          document.title = experimentItemsJson["experiment name"] + " status";
+        }
+      }
+
+      //triggers the not running alarms
+      triggerAlarms();
+
+      //call generate functions
+      generateRunStatus();
+
+      generateEquipmentTable();
+
+      generateLogChannel();
+
+      generateClientsTable();
+
+    }
+
+
+    function hideEquipments() {
+      if (document.getElementsByClassName("hiddenEquip") != null) {
+        Array.prototype.forEach.call(document.getElementsByClassName("hiddenEquip"), function (element) {
+          element.style = "display:none";
+        });
+      }
+      let hideButton = document.getElementById("hide");
+      hideButton.href = 'javascript:unhideEquipments()';
+      hideButton.innerText = '+';
+    }
+
+    function unhideEquipments() {
+      if (document.getElementsByClassName("hiddenEquip") != null) {
+        Array.prototype.forEach.call(document.getElementsByClassName("hiddenEquip"), function (element) {
+          element.style = "display:table-row";
+        });
+      }
+      let hideButton = document.getElementById("hide");
+      hideButton.href = 'javascript:hideEquipments()';
+      hideButton.innerText = '-';
+    }
+
+
+    function update() {
+      //update time
+      document.getElementById('mhttpd_last_updated').innerHTML = new Date;
+
+
+      let paths = ["/Experiment/Status items", "/Logger/Channels", "/System/Clients", "/Runinfo", "Sequencer/State", "/Logger", "/Lazy"];
+
+
+
+      // get main ODB info
+      mjsonrpc_db_get_values(paths).then(function (rpc) {
+
+        // get alarms status
+        mjsonrpc_call("get_alarms").then(function (alarmData) {
+
+          // check if logger is running
+          mjsonrpc_call("cm_exist", "{ \"name\": \"Logger\" }").then(function (loggerData) {
+
+            // get the lastest one message
+            mjsonrpc_call("cm_msg_retrieve", { "min_messages": 1 }).then(function (lastMessageData) {
+
+              // get all equipment names using mjsonrpc_db_ls 
+              mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
+
+                //get all equipment names into an Array
+                let equipmentList = Object.keys(equipmentListData.result.data[0]);
+
+                //push all equipment names into an Array of Promises
+                let equipmentStatList = equipmentList.map(function (element) {
+                  return "/Equipment/" + element + "/statistics";
+                });
+
+                let equipmentCommonList = equipmentList.map(function (element) {
+                  return "/Equipment/" + element + "/common";
+                });
+                //Call all the Promises to get "common" and "statistics" subtrees of all equipments
+                mjsonrpc_db_get_values(equipmentStatList).then(function (equipmentStatData) {
+
+                  equipmentStatData = equipmentStatData.result.data;
+
+                  mjsonrpc_db_get_values(equipmentCommonList).then(function (equipmentCommonData) {
+
+                    equipmentCommonData = equipmentCommonData.result.data;
+
+                    if (rpc.hasOwnProperty("result") && alarmData.hasOwnProperty("result") && alarmData["result"].hasOwnProperty("alarm_system_active") && loggerData.hasOwnProperty("result") && lastMessageData.hasOwnProperty("result")) {
+                      callback(rpc["result"], alarmData["result"], loggerData["result"], lastMessageData["result"], equipmentList, equipmentStatData, equipmentCommonData);
+                    }
+
+                  }).then(function (x) {
+                    // show the page only after all contents are loaded
+                    document.getElementById('updateStatus').style = "display:none";
+                    document.getElementById('whole_content').style = "display:block";
+                  });
+                });
+              });
+            });
+          });
+        });
+      }).catch(function (error) {
+        document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
+        document.getElementById('updateStatus').style = "display:block";
+      });
+
+
+
+
+    }
+
+    function update_periodic() {
+      clearTimeout(update_timer_id);
+      let update_period = 1000;
+      update();
+      update_timer_id = setTimeout('update_periodic()', update_period);
+    }
+
+    update_periodic();
+  </script>
+</body>
+
+</html>
