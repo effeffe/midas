@@ -17240,6 +17240,12 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    }
 #endif
 
+   if (equal_ustring(command, "") && strlen(dec_path) == 0) {
+       send_resource("status.html");
+       return;
+    }
+
+
    if (equal_ustring(command, "programs")) {
       send_resource(r, "programs.html");
       return;
