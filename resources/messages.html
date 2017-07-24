@@ -84,10 +84,9 @@
       // set message window height to fit browser window
       var h = window.innerHeight;
       var mf = document.getElementById('messageFrame');
-      if (mf.offsetParent != undefined) {
-         h -= findPos(mf)[1];
-         mf.style.maxHeight = h + "px";
-      }
+      h -= findPos(mf)[1];
+      h -= 10; // top and bottom margin of .messagebox
+      mf.style.maxHeight = h + "px";
    }
 
    function msg_load(f) {
@@ -121,8 +120,8 @@
          timer_front = window.setTimeout(msg_extend_front, 1000);
          // extend messages on scrolling down
          timer_tail = window.setTimeout(msg_extend_tail, 1000);
+         resize_message_box();
       });
-      resize_message_box();
       window.onresize = resize_message_box;
    }
 
