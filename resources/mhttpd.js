@@ -531,6 +531,14 @@ function mhttpd_init(current_page, interval) {
 
          document.getElementById("msidenav").innerHTML = html;
 
+         // adjust size of mmain element
+         var m = document.getElementById("mmain");
+         if (m != undefined) {
+            m.style.marginLeft = document.getElementById("msidenav").clientWidth + "px";
+            m.style.display = "block";
+            m.style.transition = "0.3s";
+         }
+
          // cache navigation buttons in browser local storage
          sessionStorage.setItem("msidenav", html);
 

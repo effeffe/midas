@@ -270,7 +270,7 @@ void haxis(gdImagePtr im, gdFont * font, int col, int gcol, int x1, int y1, int 
            int minor, int major, int text, int label, int grid, double xmin, double xmax);
 void get_elog_url(char *url, int len);
 void show_header(Return* r, const char *title, const char *method, const char *path, int refresh);
-void show_navigation_bar(Return* r, const char* dec_path, const char *cur_page);
+void show_navigation_bar(Return* r, const char *cur_page);
 #ifdef OBSOLETE
 char *get_js_filename();
 #endif
@@ -1212,11 +1212,12 @@ void show_help_page(Return* r, const char* dec_path)
    show_header(r, "Help", "", "./", 0);
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   show_navigation_bar(r, dec_path, "Help");
+   show_navigation_bar(r, "Help");
 
-   r->rsprintf("<table class=\"ODBTable\">\n");
+   r->rsprintf("<div id=\"mmain\">\n");
+   r->rsprintf("<table class=\"mtable\" style=\"width: 95%%\">\n");
    r->rsprintf("  <tr>\n");
-   r->rsprintf("    <td class=\"subStatusTitle\">MIDAS Help Page</td>\n");
+   r->rsprintf("    <td class=\"mtableheader\">MIDAS Help Page</td>\n");
    r->rsprintf("  </tr>\n");
    r->rsprintf("  <tr>\n");
    r->rsprintf("    <td>\n");
@@ -1375,26 +1376,18 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("  </tr>\n");
    r->rsprintf("</table>\n");
 
-   r->rsprintf("<div id=\"helpPush\" class=\"push\" style=\"height:50px;\"></div>\n");
-   r->rsprintf("</div>\n");
-   r->rsprintf("<div id=\"helpFooter\" class=\"footerDiv\" style=\"font-size:10pt;height:50px;\">\n");
-   r->rsprintf("<div id=\"contribList\" style=\"display:inline;\">\n");
-   r->rsprintf("Contributions: Pierre-Andre Amaudruz - Sergio Ballestrero - Suzannah Daviel - Peter Green - Qing Gu - Greg Hackman - Gertjan Hofman - Paul Knowles - Exaos Lee - Rudi Meier - Bill Mills - Glenn Moloney - Dave Morris - John M O'Donnell - Konstantin Olchanski - Chris Pearson - Renee Poutissou - Stefan Ritt - Ryu Sawada - Tamsen Schurman - Andreas Suter - Jan M.Wouters - Piotr Adam Zolnierczuk\n");
-   r->rsprintf("</div></div>\n");
+   r->rsprintf("<table class=\"mtable\" style=\"width: 95%%\">\n");
+   r->rsprintf("  <tr>\n");
+   r->rsprintf("    <td class=\"mtableheader\">Contributions</td>\n");
+   r->rsprintf("  </tr>\n");
+   r->rsprintf("  <tr>\n");
+   r->rsprintf("    <td>\n");
+   r->rsprintf("Pierre-Andre&nbsp;Amaudruz - Sergio&nbsp;Ballestrero - Suzannah&nbsp;Daviel - Peter&nbsp;Green - Qing&nbsp;Gu - Greg&nbsp;Hackman - Gertjan&nbsp;Hofman - Paul&nbsp;Knowles - Exaos&nbsp;Lee - Thomas&nbsp;Lindner - Shuoyi&nbsp;Ma - Rudi&nbsp;Meier - Bill&nbsp;Mills - Glenn&nbsp;Moloney - Dave&nbsp;Morris - John&nbsp;M&nbsp;O'Donnell - Konstantin&nbsp;Olchanski - Chris&nbsp;Pearson - Renee&nbsp;Poutissou - Stefan&nbsp;Ritt - Ryu&nbsp;Sawada - Tamsen&nbsp;Schurman - Andreas&nbsp;Suter - Jan&nbsp;M.&nbsp;Wouters - Piotr&nbsp;Adam&nbsp;Zolnierczuk\n");
+   r->rsprintf("    </td>\n");
+   r->rsprintf("  </tr>\n");
+   r->rsprintf("</table>\n");
 
-   r->rsprintf("</form>\n");
-
-   r->rsprintf("<script type=\"text/javascript\">\n");
-   r->rsprintf("window.onresize = function(){");
-   r->rsprintf("var footerHeight = parseInt(document.getElementById(\"contribList\").offsetHeight,10)+25;");
-   r->rsprintf("console.log(footerHeight);");
-   r->rsprintf("document.getElementById(\"helpPush\").style.height = footerHeight+\"px\";");
-   r->rsprintf("document.getElementById(\"helpFooter\").style.height=footerHeight+\"px\";");
-   r->rsprintf("document.getElementById(\"wrapper\").style.margin= \"0 auto -\"+parseFloat(footerHeight)+\"px\";");
-   r->rsprintf("};");
-   r->rsprintf("window.onresize();");
-   r->rsprintf("</script>");
-
+   r->rsprintf("</div></form>\n");
    r->rsprintf("</body></html>\r\n");
 }
 
@@ -1420,8 +1413,8 @@ void show_header(Return* r, const char *title, const char *method, const char *p
 
    /* style sheet */
    r->rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
-   r->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
    r->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
+   r->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
 
    /* auto refresh */
    if (refresh > 0)
@@ -1578,25 +1571,18 @@ int exec_script(HNDLE hkey)
 
 /*------------------------------------------------------------------*/
 
-void show_navigation_bar(Return* r, const char* dec_path, const char *cur_page)
+void show_navigation_bar(Return* r, const char *cur_page)
 {
-   char path[256];
-
-   /* add one "../" for each level */
-   path[0] = 0;
-
-   for (const char* p = dec_path ; *p ; p++)
-      if (*p == '/')
-         strlcat(path, "../", sizeof(path));
-   if (path[strlen(path)-1] == '/')
-      path[strlen(path)-1] = 0;
-
-   //printf("dec_path [%s], path [%s]\n", dec_path, path);
-
    r->rsprintf("<script>\n");
-   r->rsprintf("mhttpd_navigation_bar(\"%s\", \"%s\");\n", cur_page, path);
+   r->rsprintf("window.addEventListener(\"load\", mhttpd_init.bind(null, '%s'), false);\n", cur_page);
    r->rsprintf("</script>\n");
+   
+   r->rsprintf("<!-- header and side navigation will be filled in mhttpd_init -->\n");
+   r->rsprintf("<div id=\"mheader\"></div>\n");
+   r->rsprintf("<div id=\"msidenav\"></div>\n");
 }
+
+/*------------------------------------------------------------------*/
 
 void init_menu_buttons()
 {
@@ -1725,7 +1711,7 @@ void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, co
 {
    int i, j, k, h, m, s, status, size, type, n_items, n_hidden;
    BOOL flag, first, expand;
-   char name[32], ref[MAX_STRING_LENGTH],
+   char ref[MAX_STRING_LENGTH],
       value_str[MAX_STRING_LENGTH], status_data[MAX_STRING_LENGTH];
    const char* const trans_name[] = { "Start", "Stop", "Pause", "Resume" };
    time_t now;
@@ -1736,7 +1722,6 @@ void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, co
    int  ftp_mode, previous_mode;
    char client_name[NAME_LENGTH];
    struct tm *gmt;
-   BOOL new_window;
 
    RUNINFO runinfo;
 
@@ -1825,34 +1810,18 @@ void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, co
 
    r->rsprintf("</head>\n");
 
-   r->rsprintf("<body><form method=\"GET\" action=\".\">\n");
+   r->rsprintf("<body class=\"mcss\">\n");
 
    r->rsprintf("<div id=\"wrapper\" class=\"wrapper\">\n");
 
    /*---- navigation bar ----*/
 
-   show_navigation_bar(r, dec_path, "Status");
-
-   /*---- script buttons ----*/
-
-   r->rsprintf("<table class=\"headerTable\">\n");
-
-   status = db_find_key(hDB, 0, "Script", &hkey);
-   if (status == DB_SUCCESS) {
-      r->rsprintf("<tr><td>\n");
-
-      for (i = 0;; i++) {
-         db_enum_link(hDB, hkey, i, &hsubkey);
-         if (!hsubkey)
-            break;
-         db_get_key(hDB, hsubkey, &key);
-         r->rsprintf("<input type=submit name=script value=\"%s\">\n", key.name);
-      }
-      r->rsprintf("</td></tr>\n\n");
-   }
+   show_navigation_bar(r, "Status");
 
    /*---- manual triggered equipment ----*/
 
+   r->rsprintf("<table class=\"headerTable\">\n");
+   
    if (db_find_key(hDB, 0, "/equipment", &hkey) == DB_SUCCESS) {
       first = TRUE;
       for (i = 0;; i++) {
@@ -1881,95 +1850,6 @@ void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, co
       }
       if (!first)
          r->rsprintf("</tr>\n\n");
-   }
-
-   /*---- aliases ----*/
-
-   first = TRUE;
-
-   db_find_key(hDB, 0, "/Alias", &hkey);
-   if (hkey) {
-      if (first) {
-         r->rsprintf("<tr><td colspan=6>\n");
-         first = FALSE;
-      }
-      for (i = 0;; i++) {
-         db_enum_link(hDB, hkey, i, &hsubkey);
-         if (!hsubkey)
-            break;
-
-         db_get_key(hDB, hsubkey, &key);
-
-         strlcpy(name, key.name, sizeof(name));
-         new_window = (name[strlen(name) - 1] != '&');
-         if (!new_window)
-            name[strlen(name) - 1] = 0;
-
-         if (key.type == TID_STRING) {
-            /* html link */
-            size = sizeof(ref);
-            db_get_data(hDB, hsubkey, ref, &size, TID_STRING);
-            if (new_window)
-               r->rsprintf("<button type=\"button\" onclick=\"window.open('%s');\">%s</button>\n", ref, name);
-            else
-               r->rsprintf("<button type=\"button\" onclick=\"document.location.href='%s';\">%s</button>\n", ref, name);
-         } else if (key.type == TID_LINK) {
-            /* odb link */
-            sprintf(ref, "./Alias/%s", key.name);
-
-            if (new_window)
-               r->rsprintf("<button type=\"button\" onclick=\"window.open('%s');\">%s</button>\n", ref, name);
-            else
-               r->rsprintf("<button type=\"button\" onclick=\"document.location.href='%s';\">%s</button>\n", ref, name);
-         }
-      }
-   }
-
-   /*---- custom pages ----*/
-
-   db_find_key(hDB, 0, "/Custom", &hkey);
-   if (hkey) {
-      for (i = 0;; i++) {
-         db_enum_link(hDB, hkey, i, &hsubkey);
-         if (!hsubkey)
-            break;
-
-         db_get_key(hDB, hsubkey, &key);
-
-         /* skip "Images" */
-         if (key.type != TID_STRING)
-            continue;
-
-         /* skip "Path" */
-         if (equal_ustring(key.name, "Path"))
-            continue;
-
-         /* skip "Header" */
-         if (equal_ustring(key.name, "Header"))
-            continue;
-
-         strlcpy(name, key.name, sizeof(name));
-
-         /* check if hidden page */
-         if (name[strlen(name) - 1] == '!')
-            continue;
-
-         if (first) {
-            r->rsprintf("<tr><td colspan=6>\n");
-            first = FALSE;
-         }
-
-         new_window = (name[strlen(name) - 1] != '&');
-         if (!new_window)
-            name[strlen(name) - 1] = 0;
-
-         sprintf(ref, "./CS/%s", name);
-
-         if (new_window)
-            r->rsprintf("<button type=\"button\" onclick=\"window.open('%s');\">%s</button>\n", ref, name);
-         else
-            r->rsprintf("<button type=\"button\" onclick=\"document.location.href='%s';\">%s</button>\n", ref, name);
-       }
    }
    r->rsprintf("</table>\n");
 
@@ -2750,9 +2630,7 @@ void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, co
    }
 
    r->rsprintf("</table>\n");
-
-   page_footer(r, dec_path, TRUE);
-
+   r->rsprintf("</body></html>\r\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -2774,7 +2652,7 @@ void show_messages_page(Param* p, Return* r, const char* dec_path)
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
-   show_navigation_bar(r, dec_path, "Messages");
+   show_navigation_bar(r, "Messages");
 
    /*---- facilities button bar ----*/
 
@@ -2821,7 +2699,7 @@ void show_chat_page(Return* r, const char* dec_path)
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
-   show_navigation_bar(r, dec_path, "Chat");
+   show_navigation_bar(r, "Chat");
    
    /*---- messages will be dynamically loaded via JS ----*/
 
@@ -3512,7 +3390,7 @@ void show_elog_submit_query(Param* p, Return* r, const char* dec_path, INT last_
    show_header(r, "ELog", "GET", "./", 0);
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   show_navigation_bar(r, dec_path, "ELog");
+   show_navigation_bar(r, "ELog");
 
    /*---- body needs wrapper div to pin footer ----*/
    r->rsprintf("<div class=\"wrapper\">\n");
@@ -4929,7 +4807,7 @@ void show_elog_page(Param* p, Return* r, Attachment* a, const char* dec_path, ch
    show_header(r, "ELog", "GET", action, 0);
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   show_navigation_bar(r, dec_path, "Elog");
+   show_navigation_bar(r, "Elog");
 
    /*---- begin page header ----*/
    r->rsprintf("<table class=\"headerTable\">\n");
@@ -5301,7 +5179,7 @@ void show_sc_page(Param* pp, Return* r, const char* dec_path, const char *path, 
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
-   show_navigation_bar(r, dec_path, "SC");
+   show_navigation_bar(r, "SC");
 
    /*---- menu buttons ----*/
 
@@ -8993,7 +8871,7 @@ void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path,
    show_header(r, "MSCB", "GET", "./", refresh);
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   show_navigation_bar(r, dec_path, "MSCB");
+   show_navigation_bar(r, "MSCB");
 
    /* style sheet */
    r->rsprintf("<style type=\"text/css\">\r\n");
@@ -9612,10 +9490,11 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
       r->rsprintf("<input type=button value=ELog onclick=\"self.location=\'?cmd=Alarms\';\">\n");
       r->rsprintf("</td></tr></table>\n\n");
    } else
-      show_navigation_bar(r, dec_path, "ODB");
+      show_navigation_bar(r, "ODB");
 
    /*---- begin ODB directory table ----*/
 
+   r->rsprintf("<div id=\"mmain\">\n");
    r->rsprintf("<table class=\"ODBtable\" style=\"border-spacing:0px;\">\n");
    r->rsprintf("<tr><th colspan=%d class=\"subStatusTitle\">Online Database Browser</tr>\n", colspan);
    //buttons:
@@ -10038,6 +9917,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
       }
    }
    r->rsprintf("</table>\n");
+   r->rsprintf("</div>\n"); // <div id="mmain">
 
    /*---- Build the Delete dialog------------------------------------*/
 
@@ -10084,9 +9964,6 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    cd += "</div>\n";
 
    r->rsputs(cd.c_str());
-
-
-   page_footer(r, dec_path, FALSE);
 }
 
 /*------------------------------------------------------------------*/
@@ -10611,7 +10488,7 @@ void show_alarm_page()
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
-   show_navigation_bar(r, dec_path, "Alarms");
+   show_navigation_bar(r, "Alarms");
 
    /*---- menu buttons ----*/
    r->rsprintf("<table>");   //main table
@@ -10845,7 +10722,7 @@ void show_programs_page()
    }
 
    show_header(r, "Programs", "GET", "", 0);
-   show_navigation_bar(r, dec_path, "Programs");
+   show_navigation_bar(r, "Programs");
 
    /* use javascript file */
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
@@ -10995,7 +10872,7 @@ void show_config_page(Return *r, const char* dec_path, int refresh)
    show_header(r, "Configure", "GET", "", 0);
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   show_navigation_bar(r, dec_path, "Config");
+   show_navigation_bar(r, "Config");
 
    //main table
    r->rsprintf("<table class=\"dialogTable\">");
@@ -14906,7 +14783,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, const char* enc_p
    
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   show_navigation_bar(r, dec_path, "History");
+   show_navigation_bar(r, "History");
 
    r->rsprintf("<table class=\"genericTable\">");
    r->rsprintf("<tr><th class=\"subStatusTitle\" colspan=2>History</th></tr>");
@@ -16673,7 +16550,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    // body needs wrapper div to pin footer
    r->rsprintf("<div class=\"wrapper\">\n");
    
-   show_navigation_bar(r, dec_path, "Sequencer");
+   show_navigation_bar(r, "Sequencer");
 
    r->rsprintf("<table>");  //generic table for menu row
 
@@ -18034,6 +17911,22 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
       show_custom_page(p, r, "Status", cookie_cpwd);
       return;
+   }
+
+   /* new custom pages */
+   if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
+      
+      char custom_path[256];
+      custom_path[0] = 0;
+      size = sizeof(custom_path);
+      db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, FALSE);
+      if (custom_path[strlen(custom_path)-1] != DIR_SEPARATOR)
+         strlcat(custom_path, DIR_SEPARATOR_STR, sizeof(custom_path));
+      strlcat(custom_path, dec_path, sizeof(custom_path));
+      if (ss_file_exist(custom_path)) {
+         send_resource(r, custom_path);
+         return;
+      }
    }
 
    /*---- show status -----------------------------------------------*/
