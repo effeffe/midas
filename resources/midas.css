@@ -140,9 +140,9 @@ a:focus { color:#0000FF; text-decoration:underline }
    padding: 1em;
 }
 
-.hideButton{
+a.hideButton{
     text-decoration : none; 
-    color : #696969;
+    color : #5F88A3;
 }
 
 /* all navigation buttons */
