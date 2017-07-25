@@ -153,8 +153,8 @@
 
     const equipmentTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Equipment</th></tr><tr class=\"\"><th>Equipment&nbsp;<a id='hide' class='hideButton' href=\"javascript:unhideEquipments()\">+</a></th><th>Status</th><th>Events</th><th>Events[/s]</th><th>Data[MS/s]</th></tr>";
     const logChannelTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Logging Channels</td></tr>";
-    const firstLogChannelHtml = "<tr id=\"logChannelFirstPart\" class=\"mtabletitle \"><th colspan=\"2\">Channel</th><th>Events</th><th>MiB written</th><th>Compr.</th><th>Disk Level</th></tr>";
-    const secondLogChannelHtml = "<tr id=\"logChannelSecondPart\" class=\"mtabletitle \"><th colspan=\"2\">Lazy Label</th><th>Progress</th><th>File Name</th><th># Files</th><th>Total</th></tr>";
+    const firstLogChannelHtml = "<tr id=\"logChannelFirstPart\" class=\"mtabletitle\"><th colspan=\"2\">Channel</th><th>Events</th><th>MiB written</th><th>Compr.</th><th>Disk Level</th></tr>";
+    const secondLogChannelHtml = "<tr id=\"logChannelSecondPart\" class=\"mtabletitle\"><th colspan=\"2\">Lazy Label</th><th>Progress</th><th>File Name</th><th># Files</th><th>Total</th></tr>";
     const clientTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Clients</td></tr>";
 
 
@@ -643,6 +643,9 @@
 
       generateClientsTable();
 
+      document.getElementById('mheader_last_updated').innerText = new Date;
+
+
     }
 
 
@@ -671,8 +674,6 @@
 
     function update() {
       //update time
-      //document.getElementById('mhttpd_last_updated').innerHTML = new Date;
-
 
       let paths = ["/Experiment/Status items", "/Logger/Channels", "/System/Clients", "/Runinfo", "Sequencer/State", "/Logger", "/Lazy"];
 
