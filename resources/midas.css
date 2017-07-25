@@ -263,4 +263,15 @@ div.mpush{
    padding: 1em;
 }
 
+.mmaintable {
+   background-color: #F5F5F5;
+   border: 2px solid #6bb28c;
+   border-radius: 12px;
+   margin-left: auto;
+   margin-right: auto;
+   margin-top: 0.5em;
+   margin-bottom: 0.5em;
+   padding: 3px;
+}
+
 /* end */
