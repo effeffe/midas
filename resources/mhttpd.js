@@ -485,7 +485,7 @@ function mhttpd_init(current_page, interval) {
             if (bb == current_page) {
                cc += " mmenuitemsel";
             }
-            html += "<div class=\"" + cc + "\" onclick=\"window.location.href=\'" + "?cmd=" + bb + "\';\">" + bb + "</div>\n";
+            html += "<div class=\"" + cc + "\"><a href=\"#\" class=\"mmenulink\" onclick=\"window.location.href=\'" + "?cmd=" + bb + "\';return false;\">" + bb + "</a></div>\n";
          }
 
          // custom
@@ -501,7 +501,7 @@ function mhttpd_init(current_page, interval) {
                   cc += " mmenuitemsel";
                if (b == "path")
                   continue;
-               html += "<div class=\"" + cc + "\" onclick=\"window.location.href=\'" + custom[b] + "\';\">" + custom[b + "/name"] + "</div>\n";
+               html += "<div class=\"" + cc + "\"><a href=\"#\" class=\"mmenulink\" onclick=\"window.location.href=\'" + custom[b] + "\';return false;\">" + custom[b + "/name"] + "</a></div>\n";
             }
 
          }
@@ -517,9 +517,9 @@ function mhttpd_init(current_page, interval) {
                var n = alias[b + "/name"];
                if (n.substr(n.length - 1) === "&") {
                   n = n.substr(0, n.length - 1);
-                  html += "<div class=\"mmenuitem\" onclick=\"window.open(\'" + alias[b] + "\');\">" + n + "&#8599;</div>\n";
+                  html += "<div class=\"mmenuitem\"><a href=\"#\" class=\"mmenulink\" onclick=\"window.open(\'" + alias[b] + "\');return false;\">" + n + "&#8599;</a></div>\n";
                } else {
-                  html += "<div class=\"mmenuitem\" onclick=\"window.location.href=\'" + alias[b] + "\';\">" + n + "&#8599;</div>\n";
+                  html += "<div class=\"mmenuitem\"><a href=\"#\" class=\"mmenulink\" onclick=\"window.location.href=\'" + alias[b] + "\';return false;\">" + n + "&#8599;</a></div>\n";
                }
             }
 
