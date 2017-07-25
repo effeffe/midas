@@ -1,366 +1,355 @@
 <!DOCTYPE html>
 <html class="mcss">
-  <head>
-    <meta charset="UTF-8">
-    <link rel="stylesheet" href="midas.css">
-    <script src="midas.js"></script>
-    <script src="mhttpd.js"></script>
-    <title>Alarms</title>
-  </head>
-  
-  <body class="mcss">
-    
-    <script>
-    url = mhttpd_getParameterByName("URL");
-    if (url)
-       mjsonrpc_set_url(url);
-    </script>
-    
-    <div class="mwrapper">
-      <script>
-      mhttpd_navigation_bar("Alarms");
-      </script>
-      
-      <div align="center">
-        <button class="mbutton" id='al_reset_all' onclick='reset_all_alarms()'>Reset all alarms</button>
-        <button class="mbutton" id='al_system_enable' onclick='enable_alarm_system()'>Enable the alarm system</button>
-        <button class="mbutton" id='al_system_disable' onclick='disable_alarm_system(false)'>Disable the alarm system</button>
-        <input class="mfont" type="checkbox" id="al_sound_checkbox" onclick="storage_alarmSound(this.checked);"><span class="mfont">Play sound</span></input>
-        <input class="mfont" type="checkbox" id="al_speak_checkbox" onclick="storage_alarmSpeak(this.checked);"><span class="mfont">Speak</span></input>
-      </div>
-    
-      <div id='al_system_disabled_notice' class='mfont mredcolour redLight'>
-        <p align="center"> 
-          Alarm system disabled
-        </p>
-      </div>
-      
-      <table width="95%" class="mtable alarmTable" id="evaluatedAlarms">
-        <tr><td colspan=7 class="mtableheader subStatusTitle">Evaluated alarms</td></tr>
-        <tr class="mtabletitle titleRow">
-          <th>Alarm</th>
-          <th>State</th>
-          <th>First triggered</th>
-          <th>Class</th>
-          <th>Condition</th>
-          <th>Current value</th>
-        </tr>
-      </table>
+<head>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css">
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <title>Alarms</title>
+</head>
 
-      <table width="95%" class="mtable alarmTable" id="programAlarms">
-        <tr><td colspan=7 class="mtableheader subStatusTitle">Program alarms</td></tr>
-        <tr class="titleRow">
-          <th>Alarm</th>
-          <th>State</th>
-          <th>First triggered</th>
-          <th>Class</th>
-          <th>Condition</th>
-        </tr>
-      </table>
+<body class="mcss" onload="mhttpd_init('Alarms')">
 
-      <table width="95%" class="mtable alarmTable" id="internalAlarms">
-        <tr>
-          <td colspan=7 class="mtableheader subStatusTitle">Internal alarms</td>
-        </tr>
-        <tr class="titleRow">
-          <th>Alarm</th>
-          <th>State</th>
-          <th>First triggered</th>
-          <th>Class</th>
-          <th>Condition/Message</th>
-        </tr>
-      </table>
+<!-- header and side navigation will be filled in mhttpd_start -->
+<div id="mheader"></div>
+<div id="msidenav"></div>
 
-      <table width="95%" class="mtable alarmTable" id="periodicAlarms">
-        <tr>
-          <td colspan=7 class="mtableheader subStatusTitle">Periodic alarms</td>
-        </tr>
-        <tr class="titleRow">
-          <th>Alarm</th>
-          <th>State</th>
-          <th>First triggered</th>
-          <th>Class</th>
-          <th>Time/Message</th>
-        </tr>
-      </table>
-    
-      <div id="updateStatus" align="left">
-        updateStatus
-      </div>
+<div id="mmain">
+   <div align="center">
+      <button class="mbutton" id='al_reset_all' onclick='reset_all_alarms()'>Reset all alarms</button>
+      <button class="mbutton" id='al_system_enable' onclick='enable_alarm_system()'>Enable the alarm system</button>
+      <button class="mbutton" id='al_system_disable' onclick='disable_alarm_system(false)'>Disable the alarm system
+      </button>
+      <input class="mfont" type="checkbox" id="al_sound_checkbox" onclick="storage_alarmSound(this.checked);"><span
+           class="mfont">Play sound</span></input>
+      <input class="mfont" type="checkbox" id="al_speak_checkbox" onclick="storage_alarmSpeak(this.checked);"><span
+           class="mfont">Speak</span></input>
+   </div>
 
-      <div class="mpush">
-      </div>
-    </div>
-    
-    <script>
-    mhttpd_page_footer();
-    </script>
-    
-    <script>
-    function write_alarm_system_active(value)
-    {
-       mjsonrpc_db_paste(["/alarms/alarm system active"], [value]).then(function(rpc) {
-          update();
-       }).catch(function(error) {
-          mjsonrpc_error_alert(error);
-       });
-    }
+   <div id='al_system_disabled_notice' class='mfont mredcolour redLight'>
+      <p align="center">
+         Alarm system disabled
+      </p>
+   </div>
 
-    function enable_alarm_system()
-    {
-       if (window.confirm("Please confirm: Enable the MIDAS alarm system?")) {
-          write_alarm_system_active(true);
-       }
-    }
+   <table width="95%" class="mtable alarmTable" id="evaluatedAlarms">
+      <tr>
+         <td colspan=7 class="mtableheader subStatusTitle">Evaluated alarms</td>
+      </tr>
+      <tr class="mtabletitle titleRow">
+         <th>Alarm</th>
+         <th>State</th>
+         <th>First triggered</th>
+         <th>Class</th>
+         <th>Condition</th>
+         <th>Current value</th>
+      </tr>
+   </table>
 
-    function disable_alarm_system()
-    {
-       if (window.confirm("Please confirm: Disable the MIDAS alarm system?")) {
-          write_alarm_system_active(false);
-       }
-    }
-    </script>
-    
-    <script> 
-    var update_timer_id;
-    
-    function create_alarm(name, type)
-    {
-       var table;
-       if (type == AT_INTERNAL)
-          table = document.getElementById("internalAlarms"); 
-       else if (type == AT_PROGRAM)
-          table = document.getElementById("programAlarms");
-       else if (type == AT_EVALUATED)
-          table = document.getElementById("evaluatedAlarms");
-       else if (type == AT_PERIODIC)
-          table = document.getElementById("periodicAlarms");
-       
-       if (!table)
-          return; // unknown alarm type
-       
-       //console.log("Creating: " + name + " type: " + alarm.type + " table: " + table);
-       
-       var tr = document.createElement("tr");
-       tr.id = "alarm " + name;
-       tr.className = "mtablecss";
-       
-       var td;
-       var input;
-       
-       td = document.createElement("td");
-       td.align = "center";
-       td.innerHTML = "<a href='Alarms/Alarms/" + name + "'>"+name+"</a>";
-       tr.appendChild(td);
-       
-       td = document.createElement("td");
-       td.align = "center";
-       td.innerHTML = "state";
-       tr.appendChild(td);
-       
-       td = document.createElement("td");
-       td.align = "center";
-       td.innerHTML = "first";
-       tr.appendChild(td);
-       
-       td = document.createElement("td");
-       td.align = "center";
-       td.innerHTML = "class";
-       tr.appendChild(td);
-       
-       if (type == AT_INTERNAL) {
-          td = document.createElement("td");
-          td.align = "center";
-          td.innerHTML = "message";
-          tr.appendChild(td);
-       } else if (type == AT_PROGRAM) {
-          td = document.createElement("td");
-          td.align = "center";
-          td.innerHTML = "condition";
-          tr.appendChild(td);
-       } else if (type == AT_EVALUATED) {
-          td = document.createElement("td");
-          td.align = "center";
-          td.innerHTML = "condition";
-          tr.appendChild(td);
-          
-          td = document.createElement("td");
-          td.align = "center";
-          td.innerHTML = "value";
-          tr.appendChild(td);
-       } else if (type == AT_PERIODIC) {
-          td = document.createElement("td");
-          td.align = "center";
-          td.innerHTML = "message";
-          tr.appendChild(td);
-       }
-       
-       td = document.createElement("td");
-       
-       var reset_button = document.createElement("button");
-       input = reset_button;
-       input.id = "reset alarm " + name;
-       input.type = "button";
-       input.className = "mbuttoncss";
-       input.innerHTML = "Reset";
-       mhttpd_disable_button(input);
-       input.onclick = function() {
-          mhttpd_disable_button(reset_button);
-          mjsonrpc_call("al_reset_alarm", { "alarms" : [ name ] }).then(function(rpc) {
-             update();
-          }).catch(function(error) {
-             mjsonrpc_error_alert(error);
-          });
-       };
-       
-       td.appendChild(input);
-       
-       tr.appendChild(td);
-       
-       table.appendChild(tr);
-       
-       return tr;
-    }
-    
-    function callback(rpc)
-    {
-       //document.getElementById('updateStatus').innerHTML = "RWP_";
-       
-       var alarms   = rpc.result.alarms; 
-       var alarms_system_active = rpc.result.alarm_system_active;
-       
-       if (alarms_system_active) {
-          var e = document.getElementById("al_system_disable");
-          if (e) {
-             mhttpd_enable_button(e);
-             mhttpd_unhide_button(e);
-          }
-          e = document.getElementById("al_system_enable");
-          if (e) {
-             mhttpd_disable_button(e);
-             mhttpd_hide_button(e);
-          }
-          e = document.getElementById("al_system_disabled_notice");
-          if (e) {
-             mhttpd_hide_button(e);
-          }
-       } else {
-          var e = document.getElementById("al_system_enable");
-          if (e) {
-             mhttpd_enable_button(e);
-             mhttpd_unhide_button(e);
-          }
-          e = document.getElementById("al_system_disable");
-          if (e) {
-             mhttpd_disable_button(e);
-             mhttpd_hide_button(e);
-          }
-          e = document.getElementById("al_system_disabled_notice");
-          if (e) {
-             mhttpd_unhide_button(e);
-          }
-       }
+   <table width="95%" class="mtable alarmTable" id="programAlarms">
+      <tr>
+         <td colspan=7 class="mtableheader subStatusTitle">Program alarms</td>
+      </tr>
+      <tr class="titleRow">
+         <th>Alarm</th>
+         <th>State</th>
+         <th>First triggered</th>
+         <th>Class</th>
+         <th>Condition</th>
+      </tr>
+   </table>
 
-       //console.log("alarm sound " + storage_alarmSound() + ", speak " + storage_alarmSpeak());
+   <table width="95%" class="mtable alarmTable" id="internalAlarms">
+      <tr>
+         <td colspan=7 class="mtableheader subStatusTitle">Internal alarms</td>
+      </tr>
+      <tr class="titleRow">
+         <th>Alarm</th>
+         <th>State</th>
+         <th>First triggered</th>
+         <th>Class</th>
+         <th>Condition/Message</th>
+      </tr>
+   </table>
 
-       document.getElementById("al_sound_checkbox").checked = storage_alarmSound();
-       document.getElementById("al_speak_checkbox").checked = storage_alarmSpeak();
+   <table width="95%" class="mtable alarmTable" id="periodicAlarms">
+      <tr>
+         <td colspan=7 class="mtableheader subStatusTitle">Periodic alarms</td>
+      </tr>
+      <tr class="titleRow">
+         <th>Alarm</th>
+         <th>State</th>
+         <th>First triggered</th>
+         <th>Class</th>
+         <th>Time/Message</th>
+      </tr>
+   </table>
 
-       for (var name in alarms) {
-          var alarm = alarms[name];
-          var e = document.getElementById("alarm " + name);
-          if (!e) e = create_alarm(name, alarm.type);
-          
-          if (!e) continue;
-          //console.log(name + " | " + name + " | " + e);
-          
-          if (!alarm.active) {
-             e.childNodes[1].innerHTML = "Disabled";
-             e.childNodes[1].className = "myellowcolour yellowLight";
-          } else if (alarm.triggered) { 
-             e.childNodes[1].innerHTML = "Triggered";
-             e.childNodes[1].className = "mredcolour redLight";
-          } else {
-             e.childNodes[1].innerHTML = "OK"; 
-             e.childNodes[1].className = "mgreencolour greenLight";
-          }
-          
-          if (alarm.time_triggered_first) {
-             e.childNodes[2].innerHTML = alarm.time_triggered_first;
-          } else {
-             e.childNodes[2].innerHTML = "-";
-          }
-          
-          e.childNodes[3].innerHTML = "<a href=\"" + "/Alarms/Classes/" + alarm.class + "\">" + alarm.class + "</a>";
-          
-          if (alarm.type == AT_INTERNAL) {
-             if (alarm.triggered) 
-                e.childNodes[4].innerHTML = alarm.message;
-             else
-                e.childNodes[4].innerHTML = alarm.condition;
-          } else if (alarm.type == AT_PROGRAM) {
-             e.childNodes[4].innerHTML = alarm.condition;
-          } else if (alarm.type == AT_EVALUATED) {
-             e.childNodes[4].innerHTML = alarm.condition;
-             e.childNodes[5].innerHTML = alarm.evaluated_value;
-          } else if (alarm.type == AT_PERIODIC) {
-             if (alarm.triggered) 
-                e.childNodes[4].innerHTML = alarm.message; 
-             else
-                e.childNodes[4].innerHTML = "Alarm triggers at " + alarm.periodic_next_time;
-          }
-          
-          if (alarm.triggered) {
-             var e = document.getElementById("reset alarm " + name);
-             if (e) {
-                mhttpd_enable_button(e);
-                mhttpd_unhide_button(e);
-             }
-          }
-       } // loop over all alarms
-       
-       document.getElementById('mhttpd_last_updated').innerHTML = new Date;
-       //document.getElementById('updateStatus').innerHTML = "RWPD";
-       document.getElementById('updateStatus').innerHTML = "";
-    }
-    
-    function reset_all_alarms()
-    {
-       //console.log("reset all alarms!");
-       mjsonrpc_call("get_alarms").then(function(rpc) {
-          var names = [];
-          for (var name in rpc.result.alarms) {
-             //console.log("reset alarm " + name);
-             names.push(name);
-          }
-          return names;
-       }).then(function(names) {
-          return mjsonrpc_al_reset_alarm(names);
-       }).catch(function(error) {
-          mjsonrpc_error_alert(error);
-       });
-    }
-    
-    function update()
-    {
-       //document.getElementById('updateStatus').innerHTML = "R___";
-       mjsonrpc_call("get_alarms", { "get_all":true }).then(function(rpc) {
-          callback(rpc);
-       }).catch(function(error) {
-          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
-       });
-       //document.getElementById('updateStatus').innerHTML = "RW__";
-    }
-    
-    function update_periodic()
-    {
-       clearTimeout(update_timer_id);
-       var update_period = 1000;
-       update();
-       update_timer_id = setTimeout('update_periodic()', update_period);
-    }
-    
-    update_periodic();
-    </script>
-  </body>
+   <div id="updateStatus" align="left">
+      updateStatus
+   </div>
+
+   <div class="mpush">
+   </div>
+</div>
+
+<script>
+   function write_alarm_system_active(value) {
+      mjsonrpc_db_paste(["/alarms/alarm system active"], [value]).then(function (rpc) {
+         update();
+      }).catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
+
+   function enable_alarm_system() {
+      if (window.confirm("Please confirm: Enable the MIDAS alarm system?")) {
+         write_alarm_system_active(true);
+      }
+   }
+
+   function disable_alarm_system() {
+      if (window.confirm("Please confirm: Disable the MIDAS alarm system?")) {
+         write_alarm_system_active(false);
+      }
+   }
+</script>
+
+<script>
+   var update_timer_id;
+
+   function create_alarm(name, type) {
+      var table;
+      if (type == AT_INTERNAL)
+         table = document.getElementById("internalAlarms");
+      else if (type == AT_PROGRAM)
+         table = document.getElementById("programAlarms");
+      else if (type == AT_EVALUATED)
+         table = document.getElementById("evaluatedAlarms");
+      else if (type == AT_PERIODIC)
+         table = document.getElementById("periodicAlarms");
+
+      if (!table)
+         return; // unknown alarm type
+
+      //console.log("Creating: " + name + " type: " + alarm.type + " table: " + table);
+
+      var tr = document.createElement("tr");
+      tr.id = "alarm " + name;
+      tr.className = "mtablecss";
+
+      var td;
+      var input;
+
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = "<a href='Alarms/Alarms/" + name + "'>" + name + "</a>";
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = "state";
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = "first";
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = "class";
+      tr.appendChild(td);
+
+      if (type == AT_INTERNAL) {
+         td = document.createElement("td");
+         td.align = "center";
+         td.innerHTML = "message";
+         tr.appendChild(td);
+      } else if (type == AT_PROGRAM) {
+         td = document.createElement("td");
+         td.align = "center";
+         td.innerHTML = "condition";
+         tr.appendChild(td);
+      } else if (type == AT_EVALUATED) {
+         td = document.createElement("td");
+         td.align = "center";
+         td.innerHTML = "condition";
+         tr.appendChild(td);
+
+         td = document.createElement("td");
+         td.align = "center";
+         td.innerHTML = "value";
+         tr.appendChild(td);
+      } else if (type == AT_PERIODIC) {
+         td = document.createElement("td");
+         td.align = "center";
+         td.innerHTML = "message";
+         tr.appendChild(td);
+      }
+
+      td = document.createElement("td");
+
+      var reset_button = document.createElement("button");
+      input = reset_button;
+      input.id = "reset alarm " + name;
+      input.type = "button";
+      input.className = "mbuttoncss";
+      input.innerHTML = "Reset";
+      mhttpd_disable_button(input);
+      input.onclick = function () {
+         mhttpd_disable_button(reset_button);
+         mjsonrpc_call("al_reset_alarm", {"alarms": [name]}).then(function (rpc) {
+            update();
+         }).catch(function (error) {
+            mjsonrpc_error_alert(error);
+         });
+      };
+
+      td.appendChild(input);
+
+      tr.appendChild(td);
+
+      table.appendChild(tr);
+
+      return tr;
+   }
+
+   function callback(rpc) {
+      //document.getElementById('updateStatus').innerHTML = "RWP_";
+
+      var alarms = rpc.result.alarms;
+      var alarms_system_active = rpc.result.alarm_system_active;
+
+      if (alarms_system_active) {
+         var e = document.getElementById("al_system_disable");
+         if (e) {
+            mhttpd_enable_button(e);
+            mhttpd_unhide_button(e);
+         }
+         e = document.getElementById("al_system_enable");
+         if (e) {
+            mhttpd_disable_button(e);
+            mhttpd_hide_button(e);
+         }
+         e = document.getElementById("al_system_disabled_notice");
+         if (e) {
+            mhttpd_hide_button(e);
+         }
+      } else {
+         var e = document.getElementById("al_system_enable");
+         if (e) {
+            mhttpd_enable_button(e);
+            mhttpd_unhide_button(e);
+         }
+         e = document.getElementById("al_system_disable");
+         if (e) {
+            mhttpd_disable_button(e);
+            mhttpd_hide_button(e);
+         }
+         e = document.getElementById("al_system_disabled_notice");
+         if (e) {
+            mhttpd_unhide_button(e);
+         }
+      }
+
+      //console.log("alarm sound " + storage_alarmSound() + ", speak " + storage_alarmSpeak());
+
+      document.getElementById("al_sound_checkbox").checked = storage_alarmSound();
+      document.getElementById("al_speak_checkbox").checked = storage_alarmSpeak();
+
+      for (var name in alarms) {
+         var alarm = alarms[name];
+         var e = document.getElementById("alarm " + name);
+         if (!e) e = create_alarm(name, alarm.type);
+
+         if (!e) continue;
+         //console.log(name + " | " + name + " | " + e);
+
+         if (!alarm.active) {
+            e.childNodes[1].innerHTML = "Disabled";
+            e.childNodes[1].className = "myellowcolour yellowLight";
+         } else if (alarm.triggered) {
+            e.childNodes[1].innerHTML = "Triggered";
+            e.childNodes[1].className = "mredcolour redLight";
+         } else {
+            e.childNodes[1].innerHTML = "OK";
+            e.childNodes[1].className = "mgreencolour greenLight";
+         }
+
+         if (alarm.time_triggered_first) {
+            e.childNodes[2].innerHTML = alarm.time_triggered_first;
+         } else {
+            e.childNodes[2].innerHTML = "-";
+         }
+
+         e.childNodes[3].innerHTML = "<a href=\"" + "/Alarms/Classes/" + alarm.class + "\">" + alarm.class + "</a>";
+
+         if (alarm.type == AT_INTERNAL) {
+            if (alarm.triggered)
+               e.childNodes[4].innerHTML = alarm.message;
+            else
+               e.childNodes[4].innerHTML = alarm.condition;
+         } else if (alarm.type == AT_PROGRAM) {
+            e.childNodes[4].innerHTML = alarm.condition;
+         } else if (alarm.type == AT_EVALUATED) {
+            e.childNodes[4].innerHTML = alarm.condition;
+            e.childNodes[5].innerHTML = alarm.evaluated_value;
+         } else if (alarm.type == AT_PERIODIC) {
+            if (alarm.triggered)
+               e.childNodes[4].innerHTML = alarm.message;
+            else
+               e.childNodes[4].innerHTML = "Alarm triggers at " + alarm.periodic_next_time;
+         }
+
+         if (alarm.triggered) {
+            var e = document.getElementById("reset alarm " + name);
+            if (e) {
+               mhttpd_enable_button(e);
+               mhttpd_unhide_button(e);
+            }
+         }
+      } // loop over all alarms
+
+      document.getElementById('mheader_last_updated').innerHTML = new Date;
+      //document.getElementById('updateStatus').innerHTML = "RWPD";
+      document.getElementById('updateStatus').innerHTML = "";
+   }
+
+   function reset_all_alarms() {
+      //console.log("reset all alarms!");
+      mjsonrpc_call("get_alarms").then(function (rpc) {
+         var names = [];
+         for (var name in rpc.result.alarms) {
+            //console.log("reset alarm " + name);
+            names.push(name);
+         }
+         return names;
+      }).then(function (names) {
+         return mjsonrpc_al_reset_alarm(names);
+      }).catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
+
+   function update() {
+      //document.getElementById('updateStatus').innerHTML = "R___";
+      mjsonrpc_call("get_alarms", {"get_all": true}).then(function (rpc) {
+         callback(rpc);
+      }).catch(function (error) {
+         document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
+      });
+      //document.getElementById('updateStatus').innerHTML = "RW__";
+   }
+
+   function update_periodic() {
+      clearTimeout(update_timer_id);
+      var update_period = 1000;
+      update();
+      update_timer_id = setTimeout('update_periodic()', update_period);
+   }
+
+   update_periodic();
+</script>
+</body>
 </html>
