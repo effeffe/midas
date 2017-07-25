@@ -58,7 +58,7 @@
                      <td id="runStatusStopTime" colspan="2"> runStatusStopTime </td>
                   </tr>
 
-                  <tr  align="center">
+                  <tr align="center">
                      <td id="runStatusAlarm" class="mgreencolour greenLight"> runStatusAlarm </td>
                      <td id="runStatusSequencer" class="mgreencolour greenLight"> runStatusSequencer </td>
                      <td id="runStatusLogger" colspan="2" class=""> runStatusLogger </td>
@@ -116,10 +116,10 @@
                <table class="mtable" id="logChannel" width="100%">
                   <tr>
                      <th colspan="6" class="mtableheader">Logging Channels</th>
-            </tr>
+                  </tr>
 
 
-            </table>
+               </table>
 
             </td>
          </tr>
@@ -130,9 +130,9 @@
                <table class="mtable" id="clientsTable" width="100%">
                   <tr>
                      <th colspan="6" class="mtableheader">Clients</th>
-            </tr>
+                  </tr>
 
-            </table>
+               </table>
             </td>
          </tr>
 
@@ -214,7 +214,7 @@
 
                      if (document.getElementById(element + "Alarm") != null) {
                         document.getElementById(element + "Alarm").outerHTML = "";
-                        devare (document.getElementById(element + "Alarm"));
+                        devare(document.getElementById(element + "Alarm"));
                      }
                   }
                }
@@ -680,64 +680,100 @@
 
 
 
-         // get main ODB info
-         mjsonrpc_db_get_values(paths).then(function (rpc) {
+         mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
 
-            // get alarms status
-            mjsonrpc_call("get_alarms").then(function (alarmData) {
+            //get all equipment names into an Array
+            var equipmentList = Object.keys(equipmentListData.result.data[0]);
 
-               // check if logger is running
-               mjsonrpc_call("cm_exist", "{ \"name\": \"Logger\" }").then(function (loggerData) {
+            //push all equipment names into an Array of Promises
+            var equipmentStatList = equipmentList.map(function (element) {
+               return "/Equipment/" + element + "/statistics";
+            });
 
-                  // get the lastest one message
-                  mjsonrpc_call("cm_msg_retrieve", { "min_messages": 1 }).then(function (lastMessageData) {
+            var equipmentCommonList = equipmentList.map(function (element) {
+               return "/Equipment/" + element + "/common";
+            });
 
-                     // get all equipment names using mjsonrpc_db_ls 
-                     mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
 
-                        //get all equipment names into an Array
-                        var equipmentList = Object.keys(equipmentListData.result.data[0]);
-
-                        //push all equipment names into an Array of Promises
-                        var equipmentStatList = equipmentList.map(function (element) {
-                           return "/Equipment/" + element + "/statistics";
-                        });
-
-                        var equipmentCommonList = equipmentList.map(function (element) {
-                           return "/Equipment/" + element + "/common";
-                        });
-                        //Call all the Promises to get "common" and "statistics" subtrees of all equipments
-                        mjsonrpc_db_get_values(equipmentStatList).then(function (equipmentStatData) {
-
-                           equipmentStatData = equipmentStatData.result.data;
-
-                           mjsonrpc_db_get_values(equipmentCommonList).then(function (equipmentCommonData) {
-
-                              equipmentCommonData = equipmentCommonData.result.data;
-
-                              if (rpc.hasOwnProperty("result") && alarmData.hasOwnProperty("result") && alarmData["result"].hasOwnProperty("alarm_system_active") && loggerData.hasOwnProperty("result") && lastMessageData.hasOwnProperty("result")) {
-                                 callback(rpc["result"], alarmData["result"], loggerData["result"], lastMessageData["result"], equipmentList, equipmentStatData, equipmentCommonData);
-                              }
-
-                           }).then(function (x) {
-                              // show the page only after all contents are loaded
-                              document.getElementById('updateStatus').style.display = "none";
-                              document.getElementById('statusTable').style.display = "table";
-                           });
-                        });
-                     });
-                  });
-               });
+            mjsonrpc_send_request([
+               mjsonrpc_make_request("db_get_values", { "paths": paths }),
+               mjsonrpc_make_request("get_alarms"),
+               mjsonrpc_make_request("cm_exist", "{ \"name\": \"Logger\" }"),
+               mjsonrpc_make_request("cm_msg_retrieve", { "min_messages": 1 }),
+               mjsonrpc_make_request("db_get_values", { "paths": equipmentStatList }),
+               mjsonrpc_make_request("db_get_values", { "paths": equipmentCommonList })
+            ]).then(function (rpc) {
+               callback(rpc[0]["result"], rpc[1]["result"], rpc[2]["result"], rpc[3]["result"], equipmentList, rpc[4]["result"]["data"], rpc[5]["result"]["data"]);
+            }).then(function (x) {
+               // show the page only after all contents are loaded
+               document.getElementById('updateStatus').style.display = "none";
+               document.getElementById('statusTable').style.display = "table";
             });
          }).catch(function (error) {
             document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
             document.getElementById('updateStatus').style.display = "block";
-         });
+         });;
 
 
+         // // OLD AJAX CHAIN, not being deleted to avoid future changes
 
+         // // get main ODB info
+         // mjsonrpc_db_get_values(paths).then(function (rpc) {
+
+         //    // get alarms status
+         //    mjsonrpc_call("get_alarms").then(function (alarmData) {
+
+         //       // check if logger is running
+         //       mjsonrpc_call("cm_exist", "{ \"name\": \"Logger\" }").then(function (loggerData) {
+
+         //          // get the lastest one message
+         //          mjsonrpc_call("cm_msg_retrieve", { "min_messages": 1 }).then(function (lastMessageData) {
+
+         //             // get all equipment names using mjsonrpc_db_ls 
+         //             mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
+
+         //                //get all equipment names into an Array
+         //                var equipmentList = Object.keys(equipmentListData.result.data[0]);
+
+         //                //push all equipment names into an Array of Promises
+         //                var equipmentStatList = equipmentList.map(function (element) {
+         //                   return "/Equipment/" + element + "/statistics";
+         //                });
+
+         //                var equipmentCommonList = equipmentList.map(function (element) {
+         //                   return "/Equipment/" + element + "/common";
+         //                });
+         //                //Call all the Promises to get "common" and "statistics" subtrees of all equipments
+         //                mjsonrpc_db_get_values(equipmentStatList).then(function (equipmentStatData) {
+
+         //                   equipmentStatData = equipmentStatData.result.data;
+
+         //                   mjsonrpc_db_get_values(equipmentCommonList).then(function (equipmentCommonData) {
+
+         //                      equipmentCommonData = equipmentCommonData.result.data;
+
+         //                      if (rpc.hasOwnProperty("result") && alarmData.hasOwnProperty("result") && alarmData["result"].hasOwnProperty("alarm_system_active") && loggerData.hasOwnProperty("result") && lastMessageData.hasOwnProperty("result")) {
+         //                         callback(rpc["result"], alarmData["result"], loggerData["result"], lastMessageData["result"], equipmentList, equipmentStatData, equipmentCommonData);
+         //                      }
+
+
+         //                   }).then(function (x) {
+         //                      // show the page only after all contents are loaded
+         //                      document.getElementById('updateStatus').style.display = "none";
+         //                      document.getElementById('statusTable').style.display = "table";
+         //                   });
+         //                });
+         //             });
+         //          });
+         //       });
+         //    });
+         // }).catch(function (error) {
+         //    document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
+         //    document.getElementById('updateStatus').style.display = "block";
+         // });
 
       }
+
 
       function update_periodic() {
          clearTimeout(update_timer_id);
