@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html class="mcss">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="midas.css">
+    <script src="midas.js"></script>
+    <script src="mhttpd.js"></script>
+    <title>Template</title>
+  </head>
+  
+  <body class="mcss">
+    
+    <script>
+    url = mhttpd_getParameterByName("URL");
+    if (url)
+       mjsonrpc_set_url(url);
+    </script>
+
+    <div class="mwrapper">
+      <script>
+      mhttpd_navigation_bar("Template");
+      </script>
+      
+      <div>
+        <p>page contents goes here</p>
+        <p>page contents goes here</p>
+        <p>page contents goes here</p>
+        <p>page contents goes here</p>
+        <p>page contents goes here</p>
+      </div>
+      <div id="updateStatus" align="left">
+        updateStatus
+      </div>
+      
+      <div class="mpush">
+      </div>
+    </div>
+    
+    <script>
+    mhttpd_page_footer();
+    </script>
+    
+    <script>
+    //
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    // page scripts go here
+    //
+    //update_periodic();
+    </script>
+  </body>
+</html>

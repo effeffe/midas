@@ -14,8 +14,13 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
+#include <signal.h>
 
 #include "midas.h"
+
+#ifndef HAVE_STRLCPY
+#include "strlcpy.h"
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -36,6 +41,8 @@ void usage()
    fprintf(stderr, "  -v - report activity\n");
    fprintf(stderr, "  -d debug_flag - passed through cm_transition(debug_flag): 0=normal, 1=printf, 2=cm_msg(MINFO)\n");
    fprintf(stderr, "  -f - force new state regardless of current state\n");
+   fprintf(stderr, "  -m - multithread transition\n");
+   fprintf(stderr, "  -a - async multithread transition\n");
    fprintf(stderr, "  -h Hostname - connect to mserver on remote host\n");
    fprintf(stderr, "  -e Experiment - connect to non-default experiment\n");
    fprintf(stderr, "Commands:\n");
@@ -58,7 +65,16 @@ int main(int argc, char *argv[])
    bool verbose = false;
    int debug_flag = 0;
    bool force = false;
+   bool multithread = false;
+   bool asyncmultithread = false;
    char host_name[HOST_NAME_LENGTH], exp_name[NAME_LENGTH];
+
+   setbuf(stdout, NULL);
+   setbuf(stderr, NULL);
+
+#ifndef OS_WINNT
+   signal(SIGPIPE, SIG_IGN);
+#endif
 
    /* get default from environment */
    cm_get_environment(host_name, sizeof(host_name), exp_name, sizeof(exp_name));
@@ -74,6 +90,10 @@ int main(int argc, char *argv[])
             verbose = true;
          else if (argv[i][1] == 'f')
             force = true;
+         else if (argv[i][1] == 'a')
+            asyncmultithread = true;
+         else if (argv[i][1] == 'm')
+            multithread = true;
          else if (argv[i][1] == 'd' && i < argc-1)
             debug_flag = strtoul(argv[++i], NULL, 0);
          else if (argv[i][1] == 'e' && i < argc-1)
@@ -112,10 +132,16 @@ int main(int argc, char *argv[])
    status = cm_get_experiment_database(&hDB, NULL);
    assert(status == CM_SUCCESS);
 
+   int tr_flag = TR_SYNC;
+   if (multithread)
+     tr_flag = TR_MTHREAD|TR_SYNC;
+   if (asyncmultithread)
+     tr_flag = TR_MTHREAD|TR_ASYNC;
+
    for (int i=1; i<argc; i++) {
 
       if (argv[i][0] == '-') {
-        
+
          // skip command line switches
 
          if (argv[i][1] == 'd')
@@ -166,7 +192,7 @@ int main(int argc, char *argv[])
             printf("Starting run %d\n", new_run_number);
 
          char str[256];
-         status = cm_transition(TR_START, new_run_number, str, sizeof(str), SYNC, debug_flag);
+         status = cm_transition(TR_START, new_run_number, str, sizeof(str), tr_flag, debug_flag);
          if (status != CM_SUCCESS) {
             /* in case of error, reset run number */
             status = db_set_value(hDB, 0, "/Runinfo/Run number", &old_run_number, sizeof(old_run_number), 1, TID_INT);
@@ -186,7 +212,7 @@ int main(int argc, char *argv[])
          }
 
          char str[256];
-         status = cm_transition(TR_STOP, 0, str, sizeof(str), SYNC, debug_flag);
+         status = cm_transition(TR_STOP, 0, str, sizeof(str), tr_flag, debug_flag);
 
          if (status != CM_SUCCESS)
             printf("STOP: cm_transition status %d, message \'%s\'\n", status, str);
@@ -210,7 +236,7 @@ int main(int argc, char *argv[])
          }
 
          char str[256];
-         status = cm_transition(TR_PAUSE, 0, str, sizeof(str), SYNC, debug_flag);
+         status = cm_transition(TR_PAUSE, 0, str, sizeof(str), tr_flag, debug_flag);
 
          if (status != CM_SUCCESS)
             printf("PAUSE: cm_transition status %d, message \'%s\'\n", status, str);
@@ -230,14 +256,14 @@ int main(int argc, char *argv[])
          }
 
          char str[256];
-         status = cm_transition(TR_RESUME, 0, str, sizeof(str), SYNC, debug_flag);
+         status = cm_transition(TR_RESUME, 0, str, sizeof(str), tr_flag, debug_flag);
          if (status != CM_SUCCESS)
             printf("RESUME: cm_transition status %d, message \'%s\'\n", status, str);
 
       } else if (strcmp(argv[i], "STARTABORT") == 0) {
 
          char str[256];
-         status = cm_transition(TR_STARTABORT, 0, str, sizeof(str), SYNC, debug_flag);
+         status = cm_transition(TR_STARTABORT, 0, str, sizeof(str), tr_flag, debug_flag);
          if (status != CM_SUCCESS)
             printf("STARTABORT: cm_transition status %d, message \'%s\'\n", status, str);
 
@@ -306,7 +332,7 @@ int main(int argc, char *argv[])
          }
 
       } else {
-        
+
          fprintf(stderr,"Unknown command \'%s\'\n", argv[i]);
          usage(); // does not return
 

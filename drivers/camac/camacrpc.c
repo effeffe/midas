@@ -18,13 +18,13 @@
 
 /*------------------------------------------------------------------*/
 
-HNDLE hConn = 0;
-BOOL midas_connect;
+static HNDLE hConn = 0;
+static BOOL midas_connect;
 
 /*------------------------------------------------------------------*/
 
-int cam_init_rpc(char *host_name, char *exp_name, char *fe_name,
-                 char *client_name, char *rpc_server)
+int cam_init_rpc(const char *host_name, const char *exp_name, const char *fe_name,
+                 const char *client_name, const char *rpc_server)
 {
    INT status, i, size;
    char str[256];

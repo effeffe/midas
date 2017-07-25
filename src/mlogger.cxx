@@ -14,6 +14,11 @@
 #include "hardware.h"
 #include <errno.h>              /* for mkdir() */
 #include <assert.h>
+#include <string>
+
+#ifndef HAVE_STRLCPY
+#include "strlcpy.h"
+#endif
 
 #define HAVE_LOGGING
 #include "mdsupport.h"
@@ -35,8 +40,8 @@
 
 #ifdef HAVE_MYSQL
 #ifdef OS_UNIX
-#include <mysql/mysql.h>
-#include <mysql/mysqld_error.h>
+#include <mysql.h>
+#include <mysqld_error.h>
 #endif
 #ifdef OS_WINNT
 #include <mysql.h>
@@ -46,11 +51,185 @@ int errno;                      // under NT, "ignore libcd" is required, so errn
 void create_sql_tree();
 #endif
 
+#define STRLCPY(dst, src) strlcpy((dst), (src), sizeof(dst))
+#define STRLCAT(dst, src) strlcat((dst), (src), sizeof(dst))
+
+/*---- Logging channel information ---------------------------------*/
+
+#define CHN_TREE_STR(_name) const char *_name[] = {\
+"[Settings]",\
+"Active = BOOL : 1",\
+"Type = STRING : [8] Disk",\
+"Filename = STRING : [256] run%05d.mid",\
+"Format = STRING : [8] MIDAS",\
+"Compression = INT : 0",\
+"ODB dump = BOOL : 1",\
+"Log messages = DWORD : 0",\
+"Buffer = STRING : [32] SYSTEM",\
+"Event ID = INT : -1",\
+"Trigger mask = INT : -1",\
+"Event limit = DOUBLE : 0",\
+"Byte limit = DOUBLE : 0",\
+"Subrun Byte limit = DOUBLE : 0",\
+"Tape capacity = DOUBLE : 0",\
+"Subdir format = STRING : [32]",\
+"Current filename = STRING : [256]",\
+"Data checksum = STRING : [256]",\
+"File checksum = STRING : [256]",\
+"Compress = STRING : [256]",\
+"Output = STRING : [256]",\
+"",\
+"[Statistics]",\
+"Events written = DOUBLE : 0",\
+"Bytes written = DOUBLE : 0",\
+"Bytes written uncompressed = DOUBLE : 0",\
+"Bytes written total = DOUBLE : 0",\
+"Bytes written subrun = DOUBLE : 0",\
+"Files written = DOUBLE : 0",\
+"Disk level = DOUBLE : 0",\
+"",\
+NULL}
+#define CHN_TREE_STR(_name) const char *_name[] = {\
+"[Settings]",\
+"Active = BOOL : 1",\
+"Type = STRING : [8] Disk",\
+"Filename = STRING : [256] run%05d.mid",\
+"Format = STRING : [8] MIDAS",\
+"Compression = INT : 0",\
+"ODB dump = BOOL : 1",\
+"Log messages = DWORD : 0",\
+"Buffer = STRING : [32] SYSTEM",\
+"Event ID = INT : -1",\
+"Trigger mask = INT : -1",\
+"Event limit = DOUBLE : 0",\
+"Byte limit = DOUBLE : 0",\
+"Subrun Byte limit = DOUBLE : 0",\
+"Tape capacity = DOUBLE : 0",\
+"Subdir format = STRING : [32]",\
+"Current filename = STRING : [256]",\
+"Data checksum = STRING : [256]",\
+"File checksum = STRING : [256]",\
+"Compress = STRING : [256]",\
+"Output = STRING : [256]",\
+"",\
+"[Statistics]",\
+"Events written = DOUBLE : 0",\
+"Bytes written = DOUBLE : 0",\
+"Bytes written uncompressed = DOUBLE : 0",\
+"Bytes written total = DOUBLE : 0",\
+"Bytes written subrun = DOUBLE : 0",\
+"Files written = DOUBLE : 0",\
+"Disk level = DOUBLE : 0",\
+"",\
+NULL}
+
+typedef struct {
+   BOOL active;
+   char type[8];
+   char filename[256];
+   char format[8];
+   INT compression;
+   BOOL odb_dump;
+   DWORD log_messages;
+   char buffer[32];
+   INT event_id;
+   INT trigger_mask;
+   double event_limit;
+   double byte_limit;
+   double subrun_byte_limit;
+   double tape_capacity;
+   char subdir_format[32];
+   char current_filename[256];
+   char data_checksum[256];
+   char file_checksum[256];
+   char compress[256];
+   char output[256];
+} CHN_SETTINGS;
+
+#define CHN_SETTINGS_STR(_name) const char *_name[] = {\
+"Active = BOOL : 1",\
+"Type = STRING : [8] Disk",\
+"Filename = STRING : [256] run%05d.mid",\
+"Format = STRING : [8] MIDAS",\
+"Compression = INT : 0",\
+"ODB dump = BOOL : 1",\
+"Log messages = DWORD : 0",\
+"Buffer = STRING : [32] SYSTEM",\
+"Event ID = INT : -1",\
+"Trigger mask = INT : -1",\
+"Event limit = DOUBLE : 0",\
+"Byte limit = DOUBLE : 0",\
+"Subrun Byte limit = DOUBLE : 0",\
+"Tape capacity = DOUBLE : 0",\
+"Subdir format = STRING : [32]",\
+"Current filename = STRING : [256]",\
+"Data checksum = STRING : [256]",\
+"File checksum = STRING : [256]",\
+"Compress = STRING : [256]",\
+"Output = STRING : [256]",\
+"",\
+NULL}
+
+typedef struct {
+   double events_written; /* count events, reset in tr_start() */
+   double bytes_written;  /* count bytes written out (compressed), reset in tr_start() */
+   double bytes_written_uncompressed; /* count bytes before compression, reset in tr_start() */
+   double bytes_written_total;  /* count bytes written out (compressed), reset in log_callback(RPC_LOG_REWIND) */
+   double bytes_written_subrun; /* count bytes written out (compressed), reset in tr_start() and on subrun increment */
+   double files_written;  /* incremented in log_close(), reset in log_callback(RPC_LOG_REWIND) */
+   double disk_level;
+} CHN_STATISTICS;
+
+#define CHN_STATISTICS_STR(_name) const char *_name[] = {\
+"Events written = DOUBLE : 0",\
+"Bytes written = DOUBLE : 0",\
+"Bytes written uncompressed = DOUBLE : 0",\
+"Bytes written total = DOUBLE : 0",\
+"Bytes written subrun = DOUBLE : 0",\
+"Files written = DOUBLE : 0",\
+"Disk level = DOUBLE : 0",\
+"",\
+NULL}
+
+/*---- logger channel definition---------------------------------------*/
+
+class WriterInterface;
+
+typedef struct {
+   std::string name;
+   INT handle;
+   char path[256];
+   char pipe_command[256];
+   INT type;
+   INT format;
+   INT compression;
+   INT subrun_number;
+   INT buffer_handle;
+   INT msg_buffer_handle;
+   INT request_id;
+   INT msg_request_id;
+   HNDLE stats_hkey;
+   HNDLE settings_hkey;
+   CHN_SETTINGS settings;
+   CHN_STATISTICS statistics;
+   void **format_info;
+   FTP_CON *ftp_con;
+   void *gzfile;
+   FILE *pfile;
+   WriterInterface *writer;
+   DWORD last_checked;
+   BOOL  do_disk_level;
+   int pre_checksum_module;  // CHECKSUM_xxx
+   int compression_module;   // COMPRESS_xxx
+   int post_checksum_module; // CHECKSUM_xxx
+   int output_module;        // OUTPUT_xxx
+} LOG_CHN;
+
 /*---- globals -----------------------------------------------------*/
 
-#define LOGGER_TIMEOUT 60000
+#define LOGGER_DEFAULT_TIMEOUT 60000
 
-#define DISK_CHECK_INTERVAL 3   // number of seconds between calls to ss_disk_size to save CPU
+#define DISK_CHECK_INTERVAL 10000
 
 #define MAX_CHANNELS 10
 
@@ -65,13 +244,8 @@ DWORD run_start_time, subrun_start_time;
 
 LOG_CHN log_chn[MAX_CHANNELS];
 
-//#define OLD_HISTORY 1
-
 struct hist_log_s {
    char event_name[256];
-#ifdef OLD_HISTORY
-   WORD event_id;
-#endif
    char *buffer;
    INT buffer_size;
    HNDLE hKeyVar;
@@ -84,11 +258,13 @@ static int         hist_log_size = 0;
 static int         hist_log_max = 0;
 static struct hist_log_s *hist_log = NULL;
 
-HNDLE hDB;
+static HNDLE hDB;
 
 /*---- ODB records -------------------------------------------------*/
 
-CHN_SETTINGS_STR(chn_settings_str);
+static CHN_SETTINGS_STR(chn_settings_str);
+static CHN_STATISTICS_STR(chn_statistics_str);
+static CHN_TREE_STR(chn_tree_str);
 
 /*---- data structures for MIDAS format ----------------------------*/
 
@@ -106,6 +282,1232 @@ int log_generate_file_name(LOG_CHN *log_chn);
 
 /*== common code FAL/MLOGGER start =================================*/
 
+#define MEMZERO(obj) memset(&(obj), 0, sizeof(obj))
+
+#define FREE(ptr) if (ptr) free(ptr); (ptr)=NULL;
+#define DELETE(ptr) if (ptr) delete (ptr); (ptr)=NULL;
+
+/*---- writer helper    --------------------------------------*/
+
+std::string xpathname(const char* xpath, int level)
+{
+   std::string path = xpath;
+   while (level > 0) {
+      size_t p = path.rfind(".");
+      //printf("level %d, path [%s], pos %d\n", level, path.c_str(), (int)p);
+      if (p == std::string::npos)
+         break;
+      path = path.substr(0, p);
+      level--;
+   }
+   return path;
+}
+
+/*---- writer interface --------------------------------------*/
+
+class WriterInterface
+{
+public:
+   virtual int wr_open(LOG_CHN* log_chn, int run_number) = 0;
+   virtual int wr_write(LOG_CHN* log_chn, const void* data, const int size) = 0;
+   virtual int wr_close(LOG_CHN* log_chn, int run_number) = 0;
+   WriterInterface(); // base ctor
+   virtual ~WriterInterface() {}; // dtor
+   virtual std::string wr_get_file_ext() { return ""; }
+   virtual std::string wr_get_chain() = 0;
+public:
+   bool   fTrace;    // enable tracing printout
+   double fBytesIn;  // count bytes in (before compression)
+   double fBytesOut; // count bytes out (after compression)
+};
+
+WriterInterface::WriterInterface()
+{
+   //fTrace = true; // <------ to enable (disable) tracing printout, set to "true" ("false")
+   fTrace = false; // <------ to enable (disable) tracing printout, set to "true" ("false")
+   fBytesIn = 0;
+   fBytesOut = 0;
+
+   if (fTrace)
+      printf("WriterInterface: default constructor!\n");
+}
+
+/*---- Null writer  --------------------------------------*/
+
+class WriterNull : public WriterInterface
+{
+public:
+   WriterNull(LOG_CHN* log_chn) // ctor
+   {
+      if (fTrace)
+         printf("WriterNull: path [%s]\n", log_chn->path);
+      fSimulateCompression = false;
+   }
+
+   ~WriterNull() // dtor
+   {
+      if (fTrace)
+         printf("WriterNull: destructor\n");
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      if (fTrace)
+         printf("WriterNull: open path [%s]\n", log_chn->path);
+      fBytesIn = 0;
+      fBytesOut = 0;
+      log_chn->handle = 9999;
+      if (fSimulateCompression)
+         fBytesOut += 10; // simulate compression header
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterNull: write path [%s], size %d\n", log_chn->path, size);
+      fBytesIn += size;
+      if (fSimulateCompression)
+         fBytesOut += size/3; // simulate compression
+      else
+         fBytesOut += size;
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      if (fTrace)
+         printf("WriterNull: close path [%s]\n", log_chn->path);
+      if (fSimulateCompression)
+         fBytesOut += 20; // simulate compression footer
+      log_chn->handle = 0;
+      return SUCCESS;
+   }
+
+   std::string wr_get_file_ext()
+   {
+      return ".null";
+   }
+
+   std::string wr_get_chain()
+   {
+      return "NULL";
+   }
+
+private:
+   bool fSimulateCompression;
+};
+
+/*---- file writer --------------------------------------*/
+
+class WriterFile : public WriterInterface
+{
+public:
+   WriterFile(LOG_CHN* log_chn) // ctor
+   {
+      if (fTrace)
+         printf("WriterFile: path [%s]\n", log_chn->path);
+      fFileno = -1;
+   }
+
+   ~WriterFile() // dtor
+   {
+      if (fTrace)
+         printf("WriterFile: destructor\n");
+      fFileno = -1;
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      if (fTrace)
+         printf("WriterFile: open path [%s]\n", log_chn->path);
+
+      assert(fFileno < 0);
+
+#ifdef OS_WINNT
+      fFileno = (int) CreateFile(log_chn->path, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH | FILE_FLAG_SEQUENTIAL_SCAN, 0);
+#else
+      fFileno = open(log_chn->path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_LARGEFILE, 0644);
+#endif
+      if (fFileno < 0) {
+         cm_msg(MERROR, "WriterFile::wr_open", "Cannot write to file \'%s\', open() errno %d (%s)", log_chn->path, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      log_chn->handle = fFileno;
+
+      fFilename = log_chn->path;
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterFile: write path [%s], size %d\n", log_chn->path, size);
+
+      if (size == 0)
+         return SUCCESS;
+
+      assert(fFileno >= 0);
+
+      fBytesIn += size;
+
+      int wr = write(fFileno, data, size);
+
+      if (wr > 0)
+         fBytesOut += wr;
+
+      if (wr != size) {
+         cm_msg(MERROR, "WriterFile::wr_write", "Cannot write to file \'%s\', write(%d) returned %d, errno: %d (%s)", log_chn->path, size, wr, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      int err;
+
+      if (fTrace)
+         printf("WriterFile: close path [%s]\n", log_chn->path);
+
+      assert(fFileno >= 0);
+
+      log_chn->handle = 0;
+
+      err = close(fFileno);
+      fFileno = -1;
+
+      if (err != 0) {
+         cm_msg(MERROR, "WriterFile::wr_close", "Cannot write to file \'%s\', close() errno %d (%s)", log_chn->path, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+   std::string wr_get_chain()
+   {
+      return ">" + fFilename;
+   }
+
+private:
+   std::string fFilename;
+   int fFileno;
+};
+
+/*---- gzip writer --------------------------------------*/
+
+#ifdef HAVE_ZLIB
+
+#include <zlib.h>
+
+class WriterGzip : public WriterInterface
+{
+public:
+   WriterGzip(LOG_CHN* log_chn, int compress) // ctor
+   {
+      if (fTrace)
+         printf("WriterGzip: path [%s]\n", log_chn->path);
+      fGzfp = 0;
+      fCompress = compress;
+      fLastCheckTime = time(NULL);
+   }
+
+   ~WriterGzip() // dtor
+   {
+      if (fTrace)
+         printf("WriterGzip: destructor\n");
+      assert(fGzfp == 0);
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      int zerror;
+
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      if (fTrace)
+         printf("WriterGzip: open path [%s]\n", log_chn->path);
+
+      assert(fGzfp == 0);
+
+      fGzfp = gzopen(log_chn->path, "wb");
+      if (fGzfp == 0) {
+         cm_msg(MERROR, "WriterGzip::wr_open", "Cannot write to file \'%s\', gzopen() errno %d (%s)", log_chn->path, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      if (fCompress) {
+         zerror = gzsetparams(fGzfp, fCompress, Z_DEFAULT_STRATEGY);
+         if (zerror != Z_OK) {
+            cm_msg(MERROR, "WriterGzip::wr_open", "gzsetparams() zerror %d", zerror);
+            return SS_FILE_ERROR;
+         }
+      }
+
+#if ZLIB_VERNUM > 0x1235
+      // gzbuffer() added in zlib 1.2.3.5 (8 Jan 2010)
+      zerror = gzbuffer(fGzfp, 128*1024);
+         if (zerror != Z_OK) {
+            cm_msg(MERROR, "WriterGzip::wr_open", "gzbuffer() zerror %d", zerror);
+            return SS_FILE_ERROR;
+         }
+#else
+#warning Very old zlib, no gzbuffer()!
+#endif
+         
+      log_chn->handle = 8888;
+
+      fFilename = log_chn->path;
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterGzip: write path [%s], size %d\n", log_chn->path, size);
+
+      if (size == 0)
+         return SUCCESS;
+
+      assert(fGzfp);
+
+      fBytesIn += size;
+
+      int wr = gzwrite(fGzfp, data, size);
+
+      if (wr != size) {
+         cm_msg(MERROR, "WriterGzip::wr_write", "Cannot write to file \'%s\', gzwrite(%d) returned %d, errno: %d (%s)", log_chn->path, size, wr, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+#if ZLIB_VERNUM > 0x1235
+      // gzoffset() added in zlib 1.2.3.5 (8 Jan 2010)
+      fBytesOut = gzoffset(fGzfp);
+#else
+#warning Very old zlib, no gzoffset()!
+      time_t now = time(NULL);
+      if (now - fLastCheckTime > 2) {
+         fLastCheckTime = now;
+         fBytesOut = ss_file_size(log_chn->path);
+      }
+#endif
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      int zerror;
+
+      if (fTrace)
+         printf("WriterGzip: close path [%s]\n", log_chn->path);
+
+      assert(fGzfp);
+
+      log_chn->handle = 0;
+
+      zerror = gzflush(fGzfp, Z_FINISH);
+
+      if (zerror != Z_OK) {
+         cm_msg(MERROR, "WriterGzip::wr_close", "Cannot write to file \'%s\', gzflush(Z_FINISH) zerror %d, errno: %d (%s)", log_chn->path, zerror, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      zerror = gzclose(fGzfp);
+      fGzfp = 0;
+
+      if (zerror != Z_OK) {
+         cm_msg(MERROR, "WriterGzip::wr_close", "Cannot write to file \'%s\', gzclose() zerror %d, errno: %d (%s)", log_chn->path, zerror, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      fBytesOut = ss_file_size(log_chn->path);
+
+      return SUCCESS;
+   }
+
+   std::string wr_get_file_ext()
+   {
+      return ".gz";
+   }
+
+   std::string wr_get_chain()
+   {
+      return "gzip > " + fFilename;
+   }
+
+private:
+   std::string fFilename;
+   gzFile fGzfp;
+   int    fCompress;
+   time_t fLastCheckTime;
+};
+
+#endif
+
+/*---- pipe writer --------------------------------------*/
+
+class WriterPopen : public WriterInterface
+{
+public:
+   WriterPopen(LOG_CHN* log_chn, const char* pipe_command, const char* file_ext) // ctor
+   {
+      if (fTrace)
+         printf("WriterPopen: path [%s]\n", log_chn->path);
+      fFp = NULL;
+      fPipeCommand = pipe_command;
+      fFileExt = file_ext;
+      fLastCheckTime = time(NULL);
+   }
+
+   ~WriterPopen() // dtor
+   {
+      if (fTrace)
+         printf("WriterPopen: destructor\n");
+      if (fFp)
+         pclose(fFp);
+      fFp = NULL;
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      if (fTrace)
+         printf("WriterPopen: open path [%s] pipe [%s] ext [%s]\n", log_chn->path, fPipeCommand.c_str(), fFileExt.c_str());
+
+      assert(fFp == NULL);
+
+#ifdef OS_WINNT
+      // sorry no popen?!?
+      return SS_FILE_ERROR;
+#else
+      fCommand = fPipeCommand + log_chn->path;
+
+      fFp = popen(fCommand.c_str(), "w");
+      if (fFp == NULL) {
+         cm_msg(MERROR, "WriterPopen::wr_open", "Cannot write to pipe \'%s\', popen() errno %d (%s)", fCommand.c_str(), errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      log_chn->handle = 9999;
+
+      return SUCCESS;
+#endif
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterPopen: write path [%s], size %d\n", log_chn->path, size);
+
+      if (size == 0)
+         return SUCCESS;
+
+      if (fFp == NULL) {
+         return SS_FILE_ERROR;
+      }
+
+      fBytesIn += size;
+
+      int wr = fwrite(data, 1, size, fFp);
+
+      //if (wr > 0)
+      //fBytesOut += wr;
+
+      if (wr != size) {
+         cm_msg(MERROR, "WriterPopen::wr_write", "Cannot write to pipe \'%s\', fwrite(%d) returned %d, errno %d (%s)", fCommand.c_str(), size, wr, errno, strerror(errno));
+
+         if (errno == EPIPE) {
+            cm_msg(MERROR, "WriterPopen::wr_write", "Cannot write to pipe \'%s\': broken pipe, closing the pipe", fCommand.c_str());
+            wr_close(log_chn, 0);
+         }
+
+         return SS_FILE_ERROR;
+      }
+
+      time_t now = time(NULL);
+      if (now - fLastCheckTime > 2) {
+         fLastCheckTime = now;
+         fBytesOut = ss_file_size(log_chn->path);
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      int err;
+
+      if (fTrace)
+         printf("WriterPopen: close path [%s]\n", log_chn->path);
+
+      assert(fFp != NULL);
+
+      log_chn->handle = 0;
+
+#ifdef OS_WINNT
+      // sorry no popen?!?
+      return SS_FILE_ERROR;
+#else
+      err = pclose(fFp);
+      fFp = NULL;
+
+      if (err != 0) {
+         cm_msg(MERROR, "WriterPopen::wr_close", "Cannot write to pipe \'%s\', pclose() returned %d, errno %d (%s)", fCommand.c_str(), err, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      fBytesOut = ss_file_size(log_chn->path);
+
+      return SUCCESS;
+#endif
+   }
+
+   std::string wr_get_file_ext()
+   {
+      return fFileExt;
+   }
+
+   std::string wr_get_chain()
+   {
+      return fPipeCommand;
+   }
+
+private:
+   FILE* fFp;
+   std::string fPipeCommand;
+   std::string fCommand;
+   std::string fFileExt;
+   time_t      fLastCheckTime;
+};
+
+/*---- CRC32-ZLIB computation --------------------------------------*/
+
+#ifdef HAVE_ZLIB
+#include <zlib.h>
+
+class WriterCRC32Zlib : public WriterInterface
+{
+public:
+   WriterCRC32Zlib(LOG_CHN* log_chn, int level, WriterInterface* wr) // ctor
+   {
+      if (fTrace)
+         printf("WriterCRC32Zlib: path [%s], level %d\n", log_chn->path, level);
+
+      assert(wr != NULL);
+
+      fLevel = level;
+      fWr = wr;
+      fCrc32 = 0;
+   }
+
+   ~WriterCRC32Zlib() // dtor
+   {
+      if (fTrace)
+         printf("WriterCRC32Zlib: destructor\n");
+      DELETE(fWr);
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      int status;
+
+      if (fTrace)
+         printf("WriterCRC32Zlib: open path [%s], level %d\n", log_chn->path, fLevel);
+
+      status = fWr->wr_open(log_chn, run_number);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      log_chn->handle = 9999;
+
+      fCrc32 = crc32(0, Z_NULL, 0);
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterCRC32Zlib: write path [%s], size %d\n", log_chn->path, size);
+
+      fCrc32 = crc32(fCrc32, (const Bytef*)data, size);
+
+      int status = fWr->wr_write(log_chn, data, size);
+
+      fBytesIn += size;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      std::string x = xpathname(log_chn->path, fLevel);
+      std::string f = x + ".crc32zlib";
+
+      if (fTrace)
+         printf("WriterCRC32Zlib: close path [%s], level %d, file [%s]\n", log_chn->path, fLevel, f.c_str());
+
+      log_chn->handle = 0;
+
+      cm_msg(MLOG, "CRC32Zlib", "File \'%s\' CRC32-zlib checksum: 0x%08lx, %.0f bytes", x.c_str(), (unsigned long)fCrc32, fBytesIn);
+
+      FILE *fp = fopen(f.c_str(), "w");
+      if (!fp) {
+         cm_msg(MERROR, "WriterCRC32Zlib::wr_close", "Cannot write CRC32Zlib to file \'%s\', fopen() errno %d (%s)", f.c_str(), errno, strerror(errno));
+      } else {
+         fprintf(fp, "%08lx %.0f %s\n", (unsigned long)fCrc32, fBytesIn, x.c_str());
+         fclose(fp);
+      }
+
+      /* close downstream writer */
+
+      int status = fWr->wr_close(log_chn, run_number);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      return SUCCESS;
+   }
+
+   std::string wr_get_file_ext() {
+      return fWr->wr_get_file_ext();
+   }
+
+   std::string wr_get_chain() {
+      return "CRC32ZLIB | " + fWr->wr_get_chain();
+   }
+
+private:
+   int fLevel;
+   WriterInterface *fWr;
+   uLong fCrc32;
+};
+#endif
+
+/*---- CRC32C computation --------------------------------------*/
+
+extern "C" {
+#include "crc32c.h"
+}
+
+class WriterCRC32C : public WriterInterface
+{
+public:
+   WriterCRC32C(LOG_CHN* log_chn, int level, WriterInterface* wr) // ctor
+   {
+      if (fTrace)
+         printf("WriterCRC32C: path [%s], level %d\n", log_chn->path, level);
+
+      assert(wr != NULL);
+
+      fLevel = level;
+      fWr = wr;
+      fCrc32 = 0;
+   }
+
+   ~WriterCRC32C() // dtor
+   {
+      if (fTrace)
+         printf("WriterCRC32C: destructor\n");
+      DELETE(fWr);
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      int status;
+
+      if (fTrace)
+         printf("WriterCRC32C: open path [%s], level %d\n", log_chn->path, fLevel);
+
+      status = fWr->wr_open(log_chn, run_number);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      log_chn->handle = 9999;
+
+      fCrc32 = 0;
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterCRC32C: write path [%s], size %d\n", log_chn->path, size);
+
+      fCrc32 = crc32c(fCrc32, data, size);
+
+      int status = fWr->wr_write(log_chn, data, size);
+
+      fBytesIn += size;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      std::string x = xpathname(log_chn->path, fLevel);
+      std::string f = x + ".crc32c";
+
+      if (fTrace)
+         printf("WriterCRC32C: close path [%s], level %d, file [%s]\n", log_chn->path, fLevel, f.c_str());
+
+      log_chn->handle = 0;
+
+      cm_msg(MLOG, "CRC32C", "File \'%s\' CRC32C checksum: 0x%08lx, %.0f bytes", x.c_str(), (unsigned long)fCrc32, fBytesIn);
+
+      FILE *fp = fopen(f.c_str(), "w");
+      if (!fp) {
+         cm_msg(MERROR, "WriterCRC32C::wr_close", "Cannot write CRC32C to file \'%s\', fopen() errno %d (%s)", f.c_str(), errno, strerror(errno));
+      } else {
+         fprintf(fp, "%08lx %.0f %s\n", (unsigned long)fCrc32, fBytesIn, x.c_str());
+         fclose(fp);
+      }
+
+      /* close downstream writer */
+
+      int status = fWr->wr_close(log_chn, run_number);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      return SUCCESS;
+   }
+
+   std::string wr_get_file_ext() {
+      return fWr->wr_get_file_ext();
+   }
+
+   std::string wr_get_chain() {
+      return "CRC32C | " + fWr->wr_get_chain();
+   }
+
+private:
+   int fLevel;
+   WriterInterface *fWr;
+   uint32_t fCrc32;
+};
+
+/*---- SHA-256 computation --------------------------------------*/
+
+extern "C" {
+#include "sha256.h"
+}
+
+class WriterSHA256 : public WriterInterface
+{
+public:
+   WriterSHA256(LOG_CHN* log_chn, int level, WriterInterface* wr) // ctor
+   {
+      if (fTrace)
+         printf("WriterSHA256: path [%s], level %d\n", log_chn->path, level);
+
+      assert(wr != NULL);
+
+      fLevel = level;
+      fWr = wr;
+
+      mbedtls_sha256_init(&fCtx);
+   }
+
+   ~WriterSHA256() // dtor
+   {
+      if (fTrace)
+         printf("WriterSHA256: destructor\n");
+      DELETE(fWr);
+
+      mbedtls_sha256_free(&fCtx);
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      int status;
+
+      if (fTrace)
+         printf("WriterSHA256: open path [%s], level %d\n", log_chn->path, fLevel);
+
+      status = fWr->wr_open(log_chn, run_number);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      log_chn->handle = 9999;
+
+      mbedtls_sha256_starts(&fCtx, 0); // 2nd argument selects 0=SHA-256 vs 1=SHA-224
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterSHA256: write path [%s], size %d\n", log_chn->path, size);
+
+      mbedtls_sha256_update(&fCtx, (const unsigned char*)data, size);
+
+      int status = fWr->wr_write(log_chn, data, size);
+
+      fBytesIn += size;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      return SUCCESS;
+   }
+
+   std::string toHex(unsigned char c)
+   {
+      char s[3];
+      sprintf(s, "%02x", c);
+      return s;
+   }
+
+   std::string toString(const unsigned char sha256sum[32])
+   {
+      std::string s;
+      for (int i=0; i<32; i++)
+         s += toHex(sha256sum[i]);
+      return s;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      std::string x = xpathname(log_chn->path, fLevel);
+      std::string f = x + ".sha256";
+
+      if (fTrace)
+         printf("WriterSHA256: close path [%s], level %d, file [%s]\n", log_chn->path, fLevel, f.c_str());
+
+      log_chn->handle = 0;
+
+      unsigned char sha256sum[32];
+      mbedtls_sha256_finish(&fCtx, sha256sum);
+
+      //std::string s = toString(sha256sum);
+      //printf("sha256 %s\n", s.c_str());
+
+      cm_msg(MLOG, "SHA256", "File \'%s\' SHA-256 checksum: %s, %.0f bytes", x.c_str(), toString(sha256sum).c_str(), fBytesIn);
+
+      FILE *fp = fopen(f.c_str(), "w");
+      if (!fp) {
+         cm_msg(MERROR, "WriterSHA256::wr_close", "Cannot write SHA-256 checksum to file \'%s\', fopen() errno %d (%s)", f.c_str(), errno, strerror(errno));
+      } else {
+         fprintf(fp, "%s %.0f %s\n", toString(sha256sum).c_str(), fBytesIn, x.c_str());
+         fclose(fp);
+      }
+
+      /* close downstream writer */
+
+      int status = fWr->wr_close(log_chn, run_number);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      return SUCCESS;
+   }
+
+   std::string wr_get_file_ext() {
+      return fWr->wr_get_file_ext();
+   }
+
+   std::string wr_get_chain() {
+      return "SHA256 | " + fWr->wr_get_chain();
+   }
+
+private:
+   int fLevel;
+   WriterInterface *fWr;
+   mbedtls_sha256_context fCtx;
+};
+
+/*---- SHA-512 computation --------------------------------------*/
+
+extern "C" {
+#include "sha512.h"
+}
+
+class WriterSHA512 : public WriterInterface
+{
+public:
+   WriterSHA512(LOG_CHN* log_chn, int level, WriterInterface* wr) // ctor
+   {
+      if (fTrace)
+         printf("WriterSHA512: path [%s], level %d\n", log_chn->path, level);
+
+      assert(wr != NULL);
+
+      fLevel = level;
+      fWr = wr;
+
+      mbedtls_sha512_init(&fCtx);
+   }
+
+   ~WriterSHA512() // dtor
+   {
+      if (fTrace)
+         printf("WriterSHA512: destructor\n");
+      DELETE(fWr);
+
+      mbedtls_sha512_free(&fCtx);
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      int status;
+
+      if (fTrace)
+         printf("WriterSHA512: open path [%s], level %d\n", log_chn->path, fLevel);
+
+      status = fWr->wr_open(log_chn, run_number);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      log_chn->handle = 9999;
+
+      mbedtls_sha512_starts(&fCtx, 0); // 2nd argument selects 0=SHA-512 vs 1=SHA-384
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterSHA512: write path [%s], size %d\n", log_chn->path, size);
+
+      mbedtls_sha512_update(&fCtx, (const unsigned char*)data, size);
+
+      int status = fWr->wr_write(log_chn, data, size);
+
+      fBytesIn += size;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      return SUCCESS;
+   }
+
+   std::string toHex(unsigned char c)
+   {
+      char s[3];
+      sprintf(s, "%02x", c);
+      return s;
+   }
+
+   std::string toString(const unsigned char sha512sum[64])
+   {
+      std::string s;
+      for (int i=0; i<64; i++)
+         s += toHex(sha512sum[i]);
+      return s;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      std::string x = xpathname(log_chn->path, fLevel);
+      std::string f = x + ".sha512";
+
+      if (fTrace)
+         printf("WriterSHA512: close path [%s], level %d, file [%s]\n", log_chn->path, fLevel, f.c_str());
+
+      log_chn->handle = 0;
+
+      unsigned char sha512sum[64];
+      mbedtls_sha512_finish(&fCtx, sha512sum);
+
+      //std::string s = toString(sha512sum);
+      //printf("sha512 %s\n", s.c_str());
+
+      cm_msg(MLOG, "SHA512", "File \'%s\' SHA-512 checksum: %s, %.0f bytes", x.c_str(), toString(sha512sum).c_str(), fBytesIn);
+
+      FILE *fp = fopen(f.c_str(), "w");
+      if (!fp) {
+         cm_msg(MERROR, "WriterSHA512::wr_close", "Cannot write SHA-512 checksum to file \'%s\', fopen() errno %d (%s)", f.c_str(), errno, strerror(errno));
+      } else {
+         fprintf(fp, "%s %.0f %s\n", toString(sha512sum).c_str(), fBytesIn, x.c_str());
+         fclose(fp);
+      }
+
+      /* close downstream writer */
+
+      int status = fWr->wr_close(log_chn, run_number);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      return SUCCESS;
+   }
+
+   std::string wr_get_file_ext() {
+      return fWr->wr_get_file_ext();
+   }
+
+   std::string wr_get_chain() {
+      return "SHA512 | " + fWr->wr_get_chain();
+   }
+
+private:
+   int fLevel;
+   WriterInterface *fWr;
+   mbedtls_sha512_context fCtx;
+};
+
+/*---- LZ4 compressed writer  --------------------------------------*/
+
+#include "lz4frame.h"
+
+class WriterLZ4 : public WriterInterface
+{
+public:
+   WriterLZ4(LOG_CHN* log_chn, WriterInterface* wr) // ctor
+   {
+      if (fTrace)
+         printf("WriterLZ4: path [%s]\n", log_chn->path);
+
+      assert(wr != NULL);
+
+      fBuffer = NULL;
+      fWr = wr;
+      fBufferSize = 0;
+      fBlockSize = 0;
+   }
+
+   ~WriterLZ4() // dtor
+   {
+      if (fTrace)
+         printf("WriterLZ4: destructor\n");
+
+      FREE(fBuffer);
+      DELETE(fWr);
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      int status;
+      LZ4F_errorCode_t errorCode;
+
+      if (fTrace)
+         printf("WriterLZ4: open path [%s]\n", log_chn->path);
+
+      status = fWr->wr_open(log_chn, run_number);
+      if (status != SUCCESS) {
+         return status;
+      }
+
+      errorCode = LZ4F_createCompressionContext(&fContext, LZ4F_VERSION);
+      if (LZ4F_isError(errorCode)) {
+         cm_msg(MERROR, "WriterLZ4::wr_open", "LZ4F_createCompressionContext() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
+         return SS_FILE_ERROR;
+      }
+
+      LZ4F_blockSizeID_t blockSizeId = LZ4F_max4MB;
+      fBlockSize = 4*1024*1024;
+      fBufferSize = LZ4F_compressFrameBound(fBlockSize, NULL);
+      fBufferSize *= 2; // kludge
+      fBuffer = (char*)malloc(fBufferSize);
+      if (fBuffer == NULL) {
+         cm_msg(MERROR, "WriterLZ4::wr_open", "Cannot malloc() %d bytes for an LZ4 compression buffer, block size %d, errno %d (%s)", fBufferSize, fBlockSize, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      MEMZERO(fPrefs);
+
+      fPrefs.compressionLevel = 0; // 0=fast, non-zero=???
+      fPrefs.autoFlush = 0; // ???
+      fPrefs.frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled;
+      fPrefs.frameInfo.blockSizeID = blockSizeId;
+
+      size_t headerSize = LZ4F_compressBegin(fContext, fBuffer, fBufferSize, &fPrefs);
+      
+      if (LZ4F_isError(headerSize)) {
+         errorCode = headerSize;
+         cm_msg(MERROR, "WriterLZ4::wr_open", "LZ4F_compressBegin() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
+         return SS_FILE_ERROR;
+      }
+
+      status = fWr->wr_write(log_chn, fBuffer, headerSize);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         return SS_FILE_ERROR;
+      }
+
+      log_chn->handle = 9999;
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      const char* ptr = (const char*)data;
+      int remaining = size;
+
+      if (fTrace)
+         printf("WriterLZ4: write path [%s], size %d\n", log_chn->path, size);
+
+      while (remaining > 0) {
+         int wsize = remaining;
+
+         if (wsize > fBlockSize)
+            wsize = fBlockSize;
+
+         size_t outSize = LZ4F_compressUpdate(fContext, fBuffer, fBufferSize, ptr, wsize, NULL);
+
+         if (LZ4F_isError(outSize)) {
+            int errorCode = outSize;
+            cm_msg(MERROR, "WriterLZ4::wr_write", "LZ4F_compressUpdate() with %d bytes, block size %d, buffer size %d, write size %d, remaining %d bytes, error %d (%s)", wsize, fBlockSize, fBufferSize, size, remaining, (int)errorCode, LZ4F_getErrorName(errorCode));
+            return SS_FILE_ERROR;
+         }
+
+         if (outSize > 0) {
+            int status = fWr->wr_write(log_chn, fBuffer, outSize);
+ 
+            fBytesIn += wsize;
+            fBytesOut = fWr->fBytesOut;
+            
+            if (status != SUCCESS) {
+               return SS_FILE_ERROR;
+            }
+         }
+
+         ptr += wsize;
+         remaining -= wsize;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      int xstatus = SUCCESS;
+      LZ4F_errorCode_t errorCode;
+
+      if (fTrace)
+         printf("WriterLZ4: close path [%s]\n", log_chn->path);
+
+      log_chn->handle = 0;
+
+      /* write End of Stream mark */
+      size_t headerSize = LZ4F_compressEnd(fContext, fBuffer, fBufferSize, NULL);
+
+      if (LZ4F_isError(headerSize)) {
+         errorCode = headerSize;
+         cm_msg(MERROR, "WriterLZ4::wr_close", "LZ4F_compressEnd() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
+         return SS_FILE_ERROR;
+      }
+
+      int status = fWr->wr_write(log_chn, fBuffer, headerSize);
+
+      fBytesIn += 0;
+      fBytesOut = fWr->fBytesOut;
+
+      if (status != SUCCESS) {
+         if (xstatus == SUCCESS)
+            xstatus = status;
+      }
+
+      /* close downstream writer */
+
+      status = fWr->wr_close(log_chn, run_number);
+
+      if (status != SUCCESS) {
+         if (xstatus == SUCCESS)
+            xstatus = status;
+      }
+
+      /* free resources */
+
+      free(fBuffer);
+      fBuffer = NULL;
+      fBufferSize = 0;
+
+      errorCode = LZ4F_freeCompressionContext(fContext);
+      if (LZ4F_isError(errorCode)) {
+         cm_msg(MERROR, "WriterLZ4::wr_close", "LZ4F_freeCompressionContext() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
+         if (xstatus == SUCCESS)
+            xstatus = SS_FILE_ERROR;
+      }
+
+      return xstatus;
+   }
+
+   std::string wr_get_file_ext() {
+      return ".lz4" + fWr->wr_get_file_ext();
+   }
+
+   std::string wr_get_chain() {
+      return "lz4 | " + fWr->wr_get_chain();
+   }
+
+private:
+   WriterInterface *fWr;
+   LZ4F_compressionContext_t fContext;
+   LZ4F_preferences_t fPrefs;
+   char* fBuffer;
+   int   fBufferSize;
+   int   fBlockSize;
+};
+
 /*---- Logging initialization --------------------------------------*/
 
 void logger_init()
@@ -118,7 +1520,7 @@ void logger_init()
 
    /*---- create /logger entries -----*/
 
-   cm_get_path(str);
+   cm_get_path(str, sizeof(str));
    size = sizeof(str);
    db_get_value(hDB, 0, "/Logger/Data dir", str, &size, TID_STRING, TRUE);
 
@@ -152,7 +1554,7 @@ void logger_init()
    status = db_find_key(hDB, 0, "/Logger/Channels/0", &hKey);
    if (status != DB_SUCCESS) {
       /* if no channels are defined, define at least one */
-      status = db_create_record(hDB, 0, "/Logger/Channels/0", strcomb(chn_settings_str));
+      status = db_create_record(hDB, 0, "/Logger/Channels/0", strcomb(chn_tree_str));
       if (status != DB_SUCCESS)
          cm_msg(MERROR, "logger_init", "Cannot create channel entry in database");
    } else {
@@ -165,7 +1567,7 @@ void logger_init()
                break;
 
             db_get_key(hDB, hKeyChannel, &key);
-            status = db_check_record(hDB, hKey, key.name, strcomb(chn_settings_str), TRUE);
+            status = db_check_record(hDB, hKey, key.name, strcomb(chn_tree_str), TRUE);
             if (status != DB_SUCCESS && status != DB_OPEN_RECORD) {
                cm_msg(MERROR, "logger_init", "Cannot create/check channel record");
                break;
@@ -235,12 +1637,22 @@ void odb_save(const char *filename)
 
    if (strstr(filename, ".xml") || strstr(filename, ".XML"))
       db_save_xml(hDB, 0, path);
+   else if (strstr(filename, ".js") || strstr(filename, ".JS"))
+      db_save_json(hDB, 0, path);
    else
       db_save(hDB, 0, path, FALSE);
 }
 
 
 #ifdef HAVE_MYSQL
+
+static void xwrite(const char* filename, int fd, const void* data, int size)
+{
+   int wr = write(fd, data, size);
+   if (wr != size) {
+      cm_msg(MERROR, "xwrite", "cannot write to \'%s\', write(%d) returned %d, errno %d (%s)", filename, size, wr, errno, strerror(errno));
+   }
+}
 
 /*==== SQL routines =================================================*/
 
@@ -252,7 +1664,7 @@ typedef struct {
    char data[256];
 } SQL_LIST;
 
-const char *mname[] = {
+static const char *mname[] = {
    "January",
    "February",
    "March",
@@ -319,26 +1731,26 @@ int mysql_query_debug(MYSQL * db, char *query)
          db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
          if (dir[0] != 0)
             if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-               strcat(dir, DIR_SEPARATOR_STR);
+               strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
 
-         strcpy(path, dir);
-         strcat(path, filename);
+         strlcpy(path, dir, sizeof(path));
+         strlcat(path, filename, sizeof(path));
       } else {
-         cm_get_path(dir);
+         cm_get_path(dir, sizeof(dir));
          if (dir[0] != 0)
             if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-               strcat(dir, DIR_SEPARATOR_STR);
+               strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
 
-         strcpy(path, dir);
-         strcat(path, filename);
+         strlcpy(path, dir, sizeof(path));
+         strlcat(path, filename, sizeof(path));
       }
 
       fh = open(path, O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
       if (fh < 0) {
-         printf("Cannot open message log file %s\n", path);
+         printf("Cannot open message log file \'%s\', open() returned %d, errno %d (%s)\n", path, fh, errno, strerror(errno));
       } else {
-         write(fh, query, strlen(query));
-         write(fh, ";\n", 2);
+         xwrite(path, fh, query, strlen(query));
+         xwrite(path, fh, ";\n", 2);
          close(fh);
       }
    }
@@ -620,7 +2032,7 @@ int sql_insert(MYSQL * db, char *database, char *table, HNDLE hKeyRoot, BOOL cre
 
       } else {
          status = mysql_errno(db);
-         cm_msg(MERROR, "sql_insert", "Failed to update database: Error: %s", mysql_error(db));
+         cm_msg(MERROR, "sql_insert", "Failed to update database: Errno: %d, Error: %s", status, mysql_error(db));
          return mysql_errno(db);
       }
    }
@@ -879,38 +2291,11 @@ void write_sql(BOOL bor)
 
 #endif                          // HAVE_MYSQL
 
-/*---- open tape and check for data --------------------------------*/
-
-INT tape_open(char *dev, INT * handle)
-{
-   INT status, count;
-   char buffer[16];
-
-   status = ss_tape_open(dev, O_RDWR | O_CREAT | O_TRUNC, handle);
-   if (status != SS_SUCCESS)
-      return status;
-
-   /* check if tape contains data */
-   count = sizeof(buffer);
-   status = ss_tape_read(*handle, buffer, &count);
-
-   if (count == sizeof(buffer)) {
-      /* tape contains data -> don't start */
-      ss_tape_rskip(*handle, -1);
-      cm_msg(MINFO, "tape_open", "Tape contains data, please spool tape with 'mtape seod'");
-      cm_msg(MINFO, "tape_open", "or erase it with 'mtape weof', 'mtape rewind', then try again.");
-      ss_tape_close(*handle);
-      return SS_TAPE_ERROR;
-   }
-
-   return SS_SUCCESS;
-}
-
 /*---- open FTP channel --------------------------------------------*/
 
 INT ftp_error(char *message)
 {
-   cm_msg(MERROR, "ftp_error", message);
+   cm_msg(MERROR, "ftp_error", "%s", message);
    return 1;
 }
 
@@ -918,8 +2303,14 @@ INT ftp_open(char *destination, FTP_CON ** con)
 {
    INT status;
    short port = 0;
-   char *token, host_name[HOST_NAME_LENGTH],
-       user[32], pass[32], directory[256], file_name[256], file_mode[256];
+   char *token;
+   char host_name[HOST_NAME_LENGTH];
+   char user[32], pass[32];
+   char directory[256], file_name[256], file_mode[256];
+
+   // skip leading slash
+   if (destination[0] == '/')
+      destination += 1;
 
    /*
       destination should have the form:
@@ -929,7 +2320,7 @@ INT ftp_open(char *destination, FTP_CON ** con)
    /* break destination in components */
    token = strtok(destination, ",");
    if (token)
-      strcpy(host_name, token);
+      STRLCPY(host_name, token);
 
    token = strtok(NULL, ", ");
    if (token)
@@ -937,24 +2328,24 @@ INT ftp_open(char *destination, FTP_CON ** con)
 
    token = strtok(NULL, ", ");
    if (token)
-      strcpy(user, token);
+      STRLCPY(user, token);
 
    token = strtok(NULL, ", ");
    if (token)
-      strcpy(pass, token);
+      STRLCPY(pass, token);
 
    token = strtok(NULL, ", ");
    if (token)
-      strcpy(directory, token);
+      STRLCPY(directory, token);
 
    token = strtok(NULL, ", ");
    if (token)
-      strcpy(file_name, token);
+      STRLCPY(file_name, token);
 
    token = strtok(NULL, ", ");
    file_mode[0] = 0;
    if (token)
-      strcpy(file_mode, token);
+      STRLCPY(file_mode, token);
 
 #ifdef FAL_MAIN
    ftp_debug(NULL, ftp_error);
@@ -986,13 +2377,117 @@ INT ftp_open(char *destination, FTP_CON ** con)
    return SS_SUCCESS;
 }
 
+/*---- FTP writer --------------------------------------*/
+
+class WriterFtp : public WriterInterface
+{
+public:
+   WriterFtp(LOG_CHN* log_chn) // ctor
+   {
+      if (fTrace)
+         printf("WriterFtp: path [%s]\n", log_chn->path);
+
+      fFtp = NULL;
+   }
+
+   ~WriterFtp() // dtor
+   {
+      if (fTrace)
+         printf("WriterFtp: destructor\n");
+
+      if (fFtp) {
+         ftp_bye(fFtp);
+         fFtp = NULL;
+      }
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      if (fTrace)
+         printf("WriterFtp: open path [%s]\n", log_chn->path);
+
+      assert(fFtp == NULL);
+
+      int status = ftp_open(log_chn->path, &fFtp);
+      if (status != SS_SUCCESS || fFtp == NULL) {
+         cm_msg(MERROR, "WriterFtp::wr_open", "Cannot open FTP connection \'%s\', ftp_open() status %d, errno %d (%s)", log_chn->path, status, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      log_chn->handle = 9999;
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterFtp: write path [%s], size %d\n", log_chn->path, size);
+
+      if (size == 0)
+         return SUCCESS;
+
+      if (fFtp == NULL) {
+         return SS_FILE_ERROR;
+      }
+
+      fBytesIn += size;
+
+      int wr = ftp_send(fFtp->data, (const char*)data, size);
+
+      if (wr > 0)
+         fBytesOut += wr;
+
+      if (wr != size) {
+         cm_msg(MERROR, "WriterFtp::wr_write", "Cannot write to FTP connection \'%s\', ftp_send(%d) returned %d, errno %d (%s)", log_chn->path, size, wr, errno, strerror(errno));
+         return SS_FILE_ERROR;
+      }
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      if (fTrace)
+         printf("WriterFtp: close path [%s]\n", log_chn->path);
+
+      assert(fFtp != NULL);
+
+      ftp_close(fFtp);
+      ftp_bye(fFtp);
+      fFtp = NULL;
+
+      log_chn->handle = 0;
+
+      return SUCCESS;
+   }
+
+   std::string wr_get_file_ext()
+   {
+      return "";
+   }
+
+   std::string wr_get_chain()
+   {
+      return "FTP";
+   }
+
+private:
+   FTP_CON* fFtp;
+};
+
 /*---- MIDAS format routines ---------------------------------------*/
 
 INT midas_flush_buffer(LOG_CHN * log_chn)
 {
    INT size, written;
-   off_t n;
    MIDAS_INFO *info;
+#ifdef HAVE_ZLIB
+   off_t n;
+#endif
 
    info = (MIDAS_INFO *) log_chn->format_info;
    size = (POINTER_T) info->write_pointer - (POINTER_T) info->buffer;
@@ -1001,9 +2496,7 @@ INT midas_flush_buffer(LOG_CHN * log_chn)
       return 0;
 
    /* write record to device */
-   if (log_chn->type == LOG_TYPE_TAPE)
-      written = ss_tape_write(log_chn->handle, info->buffer, size);
-   else if (log_chn->type == LOG_TYPE_FTP)
+   if (log_chn->type == LOG_TYPE_FTP)
       written =
           ftp_send(((FTP_CON *) log_chn->ftp_con)->data, info->buffer,
                    size) == size ? SS_SUCCESS : SS_FILE_ERROR;
@@ -1050,8 +2543,6 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 {
    INT i, written, size_left;
    MIDAS_INFO *info;
-   static DWORD stat_last = 0;
-   char str[256];
 
    info = (MIDAS_INFO *) log_chn->format_info;
    written = 0;
@@ -1097,13 +2588,6 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
    log_chn->statistics.bytes_written += written;
    log_chn->statistics.bytes_written_subrun += written;
    log_chn->statistics.bytes_written_total += written;
-   if (ss_time() > stat_last+DISK_CHECK_INTERVAL) {
-      strlcpy(str, log_chn->path, sizeof(str));
-      if (strrchr(str, '/'))
-         *(strrchr(str, '/')+1) = 0; // strip filename for bzip2
-      log_chn->statistics.disk_level = 1.0-ss_disk_free(str)/ss_disk_size(str);
-      stat_last = ss_time();
-   }
    return SS_SUCCESS;
 }
 
@@ -1133,23 +2617,18 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
    info->write_pointer = info->buffer;
 
    /* Create device channel */
-   if (log_chn->type == LOG_TYPE_TAPE) {
-      status = tape_open(log_chn->path, &log_chn->handle);
-      if (status != SS_SUCCESS) {
-         free(info->buffer);
-         free(info);
-         log_chn->handle = 0;
-         return status;
-      }
-   } else if (log_chn->type == LOG_TYPE_FTP) {
+   if (log_chn->type == LOG_TYPE_FTP) {
       status = ftp_open(log_chn->path, &log_chn->ftp_con);
       if (status != SS_SUCCESS) {
          free(info->buffer);
          free(info);
          log_chn->handle = 0;
          return status;
-      } else
+      } else {
          log_chn->handle = 1;
+         log_chn->do_disk_level = FALSE;
+         log_chn->statistics.disk_level = -1;
+      }
    } else {
       /* check if file exists */
       if (strstr(log_chn->path, "null") == NULL) {
@@ -1220,6 +2699,8 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
             log_chn->handle = 0;
             return SS_FILE_ERROR;
          }
+
+         log_chn->do_disk_level = TRUE;
          
          if (log_chn->compression > 0) {
 #ifdef HAVE_ZLIB
@@ -1257,7 +2738,9 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
 INT midas_log_close(LOG_CHN * log_chn, INT run_number)
 {
    int written;
+#ifdef HAVE_ZLIB
    off_t n;
+#endif
 
    /* write ODB dump */
    if (log_chn->settings.odb_dump)
@@ -1269,12 +2752,7 @@ INT midas_log_close(LOG_CHN * log_chn, INT run_number)
    log_chn->statistics.bytes_written += written;
    log_chn->statistics.bytes_written_total += written;
 
-   /* Write EOF if Tape */
-   if (log_chn->type == LOG_TYPE_TAPE) {
-      /* writing EOF mark on tape Fonly */
-      ss_tape_write_eof(log_chn->handle);
-      ss_tape_close(log_chn->handle);
-   } else if (log_chn->type == LOG_TYPE_FTP) {
+   if (log_chn->type == LOG_TYPE_FTP) {
       ftp_close(log_chn->ftp_con);
       ftp_bye(log_chn->ftp_con);
    } else {
@@ -1353,7 +2831,7 @@ EVENT_DEF *db_get_event_definition(short int event_id)
    /* check for system events */
    if (event_id < 0) {
       event_def[index].event_id = event_id;
-      event_def[index].format = FORMAT_ASCII;
+      event_def[index].format = FORMAT_MIDAS;
       event_def[index].hDefKey = 0;
       return &event_def[index];
    }
@@ -1368,8 +2846,7 @@ EVENT_DEF *db_get_event_definition(short int event_id)
       /* search for client with specific name */
       status = db_enum_key(hDB, hKeyRoot, i, &hKey);
       if (status == DB_NO_MORE_SUBKEYS) {
-         sprintf(str, "Cannot find event id %d under /equipment", event_id);
-         cm_msg(MERROR, "db_get_event_definition", str);
+         cm_msg(MERROR, "db_get_event_definition", "Cannot find event id %d under /equipment", event_id);
          return NULL;
       }
 
@@ -1388,16 +2865,10 @@ EVENT_DEF *db_get_event_definition(short int event_id)
 
          if (equal_ustring(str, "Fixed"))
             event_def[index].format = FORMAT_FIXED;
-         else if (equal_ustring(str, "ASCII"))
-            event_def[index].format = FORMAT_ASCII;
          else if (equal_ustring(str, "MIDAS"))
             event_def[index].format = FORMAT_MIDAS;
-         else if (equal_ustring(str, "YBOS"))
-            event_def[index].format = FORMAT_YBOS;
-         else if (equal_ustring(str, "DUMP"))
-            event_def[index].format = FORMAT_DUMP;
          else {
-            cm_msg(MERROR, "db_get_event_definition", "unknown data format");
+            cm_msg(MERROR, "db_get_event_definition", "unknown data format name \"%s\"", str);
             event_def[index].event_id = 0;
             return NULL;
          }
@@ -1406,485 +2877,6 @@ EVENT_DEF *db_get_event_definition(short int event_id)
          return &event_def[index];
       }
    }
-}
-
-/*---- DUMP format routines ----------------------------------------*/
-
-#define STR_INC(p,base) { p+=strlen(p); \
-                          if (p > base+sizeof(base)) \
-                            cm_msg(MERROR, "STR_INC", "ASCII buffer too small"); }
-
-
-INT dump_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
-{
-   INT status, size, i, j;
-   EVENT_DEF *event_def;
-   BANK_HEADER *pbh;
-   BANK *pbk;
-   BANK32 *pbk32;
-   void *pdata;
-   char buffer[100000], *pbuf, name[5], type_name[10];
-   HNDLE hKey;
-   KEY key;
-   DWORD bkname;
-   WORD bktype;
-   static DWORD stat_last = 0;
-
-   event_def = db_get_event_definition(pevent->event_id);
-   if (event_def == NULL)
-      return SS_SUCCESS;
-
-   /* write event header */
-   pbuf = buffer;
-   name[4] = 0;
-
-   if (pevent->event_id == EVENTID_BOR)
-      sprintf(pbuf, "%%ID BOR NR %d\n", pevent->serial_number);
-   else if (pevent->event_id == EVENTID_EOR)
-      sprintf(pbuf, "%%ID EOR NR %d\n", pevent->serial_number);
-   else
-      sprintf(pbuf, "%%ID %d TR %d NR %d\n", pevent->event_id, pevent->trigger_mask, pevent->serial_number);
-   STR_INC(pbuf, buffer);
-
-  /*---- MIDAS format ----------------------------------------------*/
-   if (event_def->format == FORMAT_MIDAS) {
-      LRS1882_DATA *lrs1882;
-      LRS1877_DATA *lrs1877;
-      LRS1877_HEADER *lrs1877_header;
-
-      pbh = (BANK_HEADER *) (pevent + 1);
-      bk_swap(pbh, FALSE);
-
-      pbk = NULL;
-      pbk32 = NULL;
-      do {
-         /* scan all banks */
-         if (bk_is32(pbh)) {
-            size = bk_iterate32(pbh, &pbk32, &pdata);
-            if (pbk32 == NULL)
-               break;
-            bkname = *((DWORD *) pbk32->name);
-            bktype = (WORD) pbk32->type;
-         } else {
-            size = bk_iterate(pbh, &pbk, &pdata);
-            if (pbk == NULL)
-               break;
-            bkname = *((DWORD *) pbk->name);
-            bktype = (WORD) pbk->type;
-         }
-
-         if (rpc_tid_size(bktype & 0xFF))
-            size /= rpc_tid_size(bktype & 0xFF);
-
-         lrs1882 = (LRS1882_DATA *) pdata;
-         lrs1877 = (LRS1877_DATA *) pdata;
-         lrs1877_header = (LRS1877_HEADER *) pdata;
-
-         /* write bank header */
-         *((DWORD *) name) = bkname;
-
-         if ((bktype & 0xFF00) == 0)
-            strcpy(type_name, rpc_tid_name(bktype & 0xFF));
-         else if ((bktype & 0xFF00) == TID_LRS1882)
-            strcpy(type_name, "LRS1882");
-         else if ((bktype & 0xFF00) == TID_LRS1877)
-            strcpy(type_name, "LRS1877");
-         else if ((bktype & 0xFF00) == TID_PCOS3)
-            strcpy(type_name, "PCOS3");
-         else
-            strcpy(type_name, "unknown");
-
-         sprintf(pbuf, "BK %s TP %s SZ %d\n", name, type_name, size);
-         STR_INC(pbuf, buffer);
-
-         /* write data */
-         for (i = 0; i < size; i++) {
-            if ((bktype & 0xFF00) == 0)
-               db_sprintf(pbuf, pdata, size, i, bktype & 0xFF);
-
-            else if ((bktype & 0xFF00) == TID_LRS1882)
-               sprintf(pbuf, "GA %d CH %02d DA %d", lrs1882[i].geo_addr, lrs1882[i].channel, lrs1882[i].data);
-
-            else if ((bktype & 0xFF00) == TID_LRS1877) {
-               if (i == 0)      /* header */
-                  sprintf(pbuf, "GA %d BF %d CN %d",
-                          lrs1877_header[i].geo_addr, lrs1877_header[i].buffer, lrs1877_header[i].count);
-               else             /* data */
-                  sprintf(pbuf, "GA %d CH %02d ED %d DA %1.1lf",
-                          lrs1877[i].geo_addr, lrs1877[i].channel, lrs1877[i].edge, lrs1877[i].data * 0.5);
-            }
-
-            else if ((bktype & 0xFF00) == TID_PCOS3)
-               *pbuf = '\0';
-            else
-               db_sprintf(pbuf, pdata, size, i, bktype & 0xFF);
-
-            strcat(pbuf, "\n");
-            STR_INC(pbuf, buffer);
-         }
-
-      } while (1);
-   }
-
-  /*---- FIXED format ----------------------------------------------*/
-   if (event_def->format == FORMAT_FIXED) {
-      if (event_def->hDefKey == 0)
-         cm_msg(MERROR, "dump_write", "cannot find event definition");
-      else {
-         pdata = (char *) (pevent + 1);
-         for (i = 0;; i++) {
-            status = db_enum_key(hDB, event_def->hDefKey, i, &hKey);
-            if (status == DB_NO_MORE_SUBKEYS)
-               break;
-
-            db_get_key(hDB, hKey, &key);
-            sprintf(pbuf, "%s\n", key.name);
-            STR_INC(pbuf, buffer);
-
-            /* adjust for alignment */
-            pdata = (void *) VALIGN(pdata, MIN(ss_get_struct_align(), key.item_size));
-
-            for (j = 0; j < key.num_values; j++) {
-               db_sprintf(pbuf, pdata, key.item_size, j, key.type);
-               strcat(pbuf, "\n");
-               STR_INC(pbuf, buffer);
-            }
-
-            /* shift data pointer to next item */
-            pdata = ((char *) pdata) + key.item_size * key.num_values;
-         }
-      }
-   }
-
-  /*---- ASCII format ----------------------------------------------*/
-   if (event_def->format == FORMAT_ASCII) {
-      /* write event header to device */
-      size = strlen(buffer);
-      if (log_chn->type == LOG_TYPE_TAPE)
-         status = ss_tape_write(log_chn->handle, buffer, size);
-      else
-         status = write(log_chn->handle, buffer, size) == size ? SS_SUCCESS : SS_FILE_ERROR;
-
-      /* write event directly to device */
-      size = strlen((char *) (pevent + 1));
-      if (log_chn->type == LOG_TYPE_TAPE)
-         status = ss_tape_write(log_chn->handle, (char *) (pevent + 1), size);
-      else if (log_chn->type == LOG_TYPE_FTP)
-         status = ftp_send((log_chn->ftp_con)->data, buffer, size) == size ?
-             SS_SUCCESS : SS_FILE_ERROR;
-      else
-         status = write(log_chn->handle, (char *) (pevent + 1), size) == size ? SS_SUCCESS : SS_FILE_ERROR;
-   } else {
-      /* non-ascii format: only write buffer */
-
-      /* insert empty line after each event */
-      strcat(pbuf, "\n");
-      size = strlen(buffer);
-
-      /* write record to device */
-      if (log_chn->type == LOG_TYPE_TAPE)
-         status = ss_tape_write(log_chn->handle, buffer, size);
-      else if (log_chn->type == LOG_TYPE_FTP)
-         status = ftp_send((log_chn->ftp_con)->data, buffer, size) == size ?
-             SS_SUCCESS : SS_FILE_ERROR;
-      else
-         status = write(log_chn->handle, buffer, size) == size ? SS_SUCCESS : SS_FILE_ERROR;
-   }
-
-   /* update statistics */
-   log_chn->statistics.events_written++;
-   log_chn->statistics.bytes_written += size;
-   log_chn->statistics.bytes_written_total += size;
-   if (ss_time() > stat_last+DISK_CHECK_INTERVAL) {
-      log_chn->statistics.disk_level = 1.0-ss_disk_free(log_chn->path)/ss_disk_size(log_chn->path);
-      stat_last = ss_time();
-   }
-
-   return status;
-}
-
-/*------------------------------------------------------------------*/
-
-INT dump_log_open(LOG_CHN * log_chn, INT run_number)
-{
-   INT status;
-
-   /* Create device channel */
-   if (log_chn->type == LOG_TYPE_TAPE) {
-      status = tape_open(log_chn->path, &log_chn->handle);
-      if (status != SS_SUCCESS) {
-         log_chn->handle = 0;
-         return status;
-      }
-   } else if (log_chn->type == LOG_TYPE_FTP) {
-      status = ftp_open(log_chn->path, &log_chn->ftp_con);
-      if (status != SS_SUCCESS) {
-         log_chn->handle = 0;
-         return status;
-      } else
-         log_chn->handle = 1;
-   } else {
-      log_chn->handle = open(log_chn->path, O_WRONLY | O_CREAT | O_TRUNC | O_LARGEFILE, 0644);
-
-      if (log_chn->handle < 0) {
-         log_chn->handle = 0;
-         return SS_FILE_ERROR;
-      }
-   }
-
-   /* write ODB dump */
-   if (log_chn->settings.odb_dump)
-      log_odb_dump(log_chn, EVENTID_BOR, run_number);
-
-   return SS_SUCCESS;
-}
-
-/*------------------------------------------------------------------*/
-
-INT dump_log_close(LOG_CHN * log_chn, INT run_number)
-{
-   /* write ODB dump */
-   if (log_chn->settings.odb_dump)
-      log_odb_dump(log_chn, EVENTID_EOR, run_number);
-
-   /* Write EOF if Tape */
-   if (log_chn->type == LOG_TYPE_TAPE) {
-      /* writing EOF mark on tape only */
-      ss_tape_write_eof(log_chn->handle);
-      ss_tape_close(log_chn->handle);
-   } else if (log_chn->type == LOG_TYPE_FTP) {
-      ftp_close(log_chn->ftp_con);
-      ftp_bye(log_chn->ftp_con);
-   } else
-      close(log_chn->handle);
-
-   return SS_SUCCESS;
-}
-
-/*---- ASCII format routines ---------------------------------------*/
-
-INT ascii_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
-{
-   INT status, size, i, j;
-   EVENT_DEF *event_def;
-   BANK_HEADER *pbh;
-   BANK *pbk;
-   BANK32 *pbk32;
-   void *pdata;
-   char buffer[10000], name[5], type_name[10];
-   char *ph, header_line[10000];
-   char *pd, data_line[10000];
-   HNDLE hKey;
-   KEY key;
-   static short int last_event_id = -1;
-   DWORD bkname;
-   WORD bktype;
-   static DWORD stat_last = 0;
-
-   if (pevent->serial_number == 0)
-      last_event_id = -1;
-
-   event_def = db_get_event_definition(pevent->event_id);
-   if (event_def == NULL)
-      return SS_SUCCESS;
-
-   name[4] = 0;
-   header_line[0] = 0;
-   data_line[0] = 0;
-   ph = header_line;
-   pd = data_line;
-
-  /*---- MIDAS format ----------------------------------------------*/
-   if (event_def->format == FORMAT_MIDAS) {
-      LRS1882_DATA *lrs1882;
-      LRS1877_DATA *lrs1877;
-      LRS1877_HEADER *lrs1877_header;
-
-      pbh = (BANK_HEADER *) (pevent + 1);
-      bk_swap(pbh, FALSE);
-
-      pbk = NULL;
-      pbk32 = NULL;
-      do {
-         /* scan all banks */
-         if (bk_is32(pbh)) {
-            size = bk_iterate32(pbh, &pbk32, &pdata);
-            if (pbk32 == NULL)
-               break;
-            bkname = *((DWORD *) pbk32->name);
-            bktype = (WORD) pbk32->type;
-         } else {
-            size = bk_iterate(pbh, &pbk, &pdata);
-            if (pbk == NULL)
-               break;
-            bkname = *((DWORD *) pbk->name);
-            bktype = (WORD) pbk->type;
-         }
-
-         if (rpc_tid_size(bktype & 0xFF))
-            size /= rpc_tid_size(bktype & 0xFF);
-
-         lrs1882 = (LRS1882_DATA *) pdata;
-         lrs1877 = (LRS1877_DATA *) pdata;
-         lrs1877_header = (LRS1877_HEADER *) pdata;
-
-         /* write bank header */
-         *((DWORD *) name) = bkname;
-
-         if ((bktype & 0xFF00) == 0)
-            strcpy(type_name, rpc_tid_name(bktype & 0xFF));
-         else if ((bktype & 0xFF00) == TID_LRS1882)
-            strcpy(type_name, "LRS1882");
-         else if ((bktype & 0xFF00) == TID_LRS1877)
-            strcpy(type_name, "LRS1877");
-         else if ((bktype & 0xFF00) == TID_PCOS3)
-            strcpy(type_name, "PCOS3");
-         else
-            strcpy(type_name, "unknown");
-
-         sprintf(ph, "%s[%d]\t", name, size);
-         STR_INC(ph, header_line);
-
-         /* write data */
-         for (i = 0; i < size; i++) {
-            db_sprintf(pd, pdata, size, i, bktype & 0xFF);
-            strcat(pd, "\t");
-            STR_INC(pd, data_line);
-         }
-
-      } while (1);
-   }
-
-  /*---- FIXED format ----------------------------------------------*/
-   if (event_def->format == FORMAT_FIXED) {
-      if (event_def->hDefKey == 0)
-         cm_msg(MERROR, "ascii_write", "cannot find event definition");
-      else {
-         pdata = (char *) (pevent + 1);
-         for (i = 0;; i++) {
-            status = db_enum_key(hDB, event_def->hDefKey, i, &hKey);
-            if (status == DB_NO_MORE_SUBKEYS)
-               break;
-
-            db_get_key(hDB, hKey, &key);
-
-            /* adjust for alignment */
-            pdata = (void *) VALIGN(pdata, MIN(ss_get_struct_align(), key.item_size));
-
-            for (j = 0; j < key.num_values; j++) {
-               if (pevent->event_id != last_event_id) {
-                  if (key.num_values == 1)
-                     sprintf(ph, "%s\t", key.name);
-                  else
-                     sprintf(ph, "%s%d\t", key.name, j);
-
-                  STR_INC(ph, header_line);
-               }
-
-               db_sprintf(pd, pdata, key.item_size, j, key.type);
-               strcat(pd, "\t");
-               STR_INC(pd, data_line);
-            }
-
-            /* shift data pointer to next item */
-            pdata = ((char *) pdata) + key.item_size * key.num_values;
-         }
-      }
-   }
-
-   if (*(pd - 1) == '\t')
-      *(pd - 1) = '\n';
-
-   if (last_event_id != pevent->event_id) {
-      if (*(ph - 1) == '\t')
-         *(ph - 1) = '\n';
-      last_event_id = pevent->event_id;
-      strcpy(buffer, header_line);
-      strcat(buffer, data_line);
-   } else
-      strcpy(buffer, data_line);
-
-   /* write buffer to device */
-   size = strlen(buffer);
-
-   if (log_chn->type == LOG_TYPE_TAPE)
-      status = ss_tape_write(log_chn->handle, buffer, size);
-   else if (log_chn->type == LOG_TYPE_FTP)
-      status = ftp_send(log_chn->ftp_con->data, buffer, size) == size ?
-          SS_SUCCESS : SS_FILE_ERROR;
-   else
-      status = write(log_chn->handle, buffer, size) == size ? SS_SUCCESS : SS_FILE_ERROR;
-
-   /* update statistics */
-   log_chn->statistics.events_written++;
-   log_chn->statistics.bytes_written += size;
-   log_chn->statistics.bytes_written_total += size;
-   if (ss_time() > stat_last+DISK_CHECK_INTERVAL) {
-      log_chn->statistics.disk_level = 1.0-ss_disk_free(log_chn->path)/ss_disk_size(log_chn->path);
-      stat_last = ss_time();
-   }
-
-   return status;
-}
-
-/*------------------------------------------------------------------*/
-
-INT ascii_log_open(LOG_CHN * log_chn, INT run_number)
-{
-   INT status;
-   EVENT_HEADER event;
-
-   /* Create device channel */
-   if (log_chn->type == LOG_TYPE_TAPE) {
-      status = tape_open(log_chn->path, &log_chn->handle);
-      if (status != SS_SUCCESS) {
-         log_chn->handle = 0;
-         return status;
-      }
-   } else if (log_chn->type == LOG_TYPE_FTP) {
-      status = ftp_open(log_chn->path, &log_chn->ftp_con);
-      if (status != SS_SUCCESS) {
-         log_chn->handle = 0;
-         return status;
-      } else
-         log_chn->handle = 1;
-   } else {
-      log_chn->handle = open(log_chn->path, O_WRONLY | O_CREAT | O_TRUNC | O_LARGEFILE, 0644);
-
-      if (log_chn->handle < 0) {
-         log_chn->handle = 0;
-         return SS_FILE_ERROR;
-      }
-   }
-
-   /* write ODB dump */
-   if (log_chn->settings.odb_dump) {
-      event.event_id = EVENTID_BOR;
-      event.data_size = 0;
-      event.serial_number = run_number;
-
-      ascii_write(log_chn, &event, sizeof(EVENT_HEADER));
-   }
-
-   return SS_SUCCESS;
-}
-
-/*------------------------------------------------------------------*/
-
-INT ascii_log_close(LOG_CHN * log_chn, INT run_number)
-{
-   /* Write EOF if Tape */
-   if (log_chn->type == LOG_TYPE_TAPE) {
-      /* writing EOF mark on tape only */
-      ss_tape_write_eof(log_chn->handle);
-      ss_tape_close(log_chn->handle);
-   } else if (log_chn->type == LOG_TYPE_FTP) {
-      ftp_close(log_chn->ftp_con);
-      ftp_bye(log_chn->ftp_con);
-   } else
-      close(log_chn->handle);
-
-   return SS_SUCCESS;
 }
 
 /*---- ROOT format routines ----------------------------------------*/
@@ -2099,14 +3091,13 @@ INT root_book_bank(EVENT_TREE * et, HNDLE hKeyDef, int event_id, char *bank_name
 
 /*------------------------------------------------------------------*/
 
-INT root_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
+INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
 {
    INT size, i;
    char bank_name[32];
    EVENT_DEF *event_def;
    BANK_HEADER *pbh;
    void *pdata;
-   static short int last_event_id = -1;
    TREE_STRUCT *ts;
    EVENT_TREE *et;
    BANK *pbk;
@@ -2115,10 +3106,6 @@ INT root_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
    DWORD bkname;
    WORD bktype;
    TBranch *branch;
-   static DWORD stat_last = 0;
-
-   if (pevent->serial_number == 0)
-      last_event_id = -1;
 
    event_def = db_get_event_definition(pevent->event_id);
    if (event_def == NULL) {
@@ -2219,10 +3206,6 @@ INT root_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
    log_chn->statistics.events_written++;
    log_chn->statistics.bytes_written += size;
    log_chn->statistics.bytes_written_total += size;
-   if (ss_time() > stat_last+DISK_CHECK_INTERVAL) {
-      log_chn->statistics.disk_level = 1.0-ss_disk_free(log_chn->path)/ss_disk_size(log_chn->path);
-      stat_last = ss_time();
-   }
 
    return SS_SUCCESS;
 }
@@ -2233,11 +3216,10 @@ INT root_log_open(LOG_CHN * log_chn, INT run_number)
 {
    INT size, level;
    char str[256], name[256];
-   EVENT_HEADER event;
    TREE_STRUCT *tree_struct;
 
    /* Create device channel */
-   if (log_chn->type == LOG_TYPE_TAPE || log_chn->type == LOG_TYPE_FTP) {
+   if (log_chn->type == LOG_TYPE_FTP) {
       cm_msg(MERROR, "root_log_open", "ROOT files can only reside on disk");
       log_chn->handle = 0;
       return -1;
@@ -2286,14 +3268,18 @@ INT root_log_open(LOG_CHN * log_chn, INT run_number)
       log_chn->format_info = (void **) tree_struct;
    }
 
+#if 0
    /* write ODB dump */
    if (log_chn->settings.odb_dump) {
+      EVENT_HEADER event;
+
       event.event_id = EVENTID_BOR;
       event.data_size = 0;
       event.serial_number = run_number;
 
       //root_write(log_chn, &event, sizeof(EVENT_HEADER));
    }
+#endif
 
    return SS_SUCCESS;
 }
@@ -2322,22 +3308,412 @@ INT root_log_close(LOG_CHN * log_chn, INT run_number)
    return SS_SUCCESS;
 }
 
+class WriterROOT : public WriterInterface
+{
+public:
+   WriterROOT(LOG_CHN* log_chn) // ctor
+   {
+      if (fTrace)
+         printf("WriterROOT: path [%s]\n", log_chn->path);
+   }
+
+   ~WriterROOT() // dtor
+   {
+      if (fTrace)
+         printf("WriterROOT: destructor\n");
+   }
+
+   int wr_open(LOG_CHN* log_chn, int run_number)
+   {
+      fBytesIn = 0;
+      fBytesOut = 0;
+
+      if (fTrace)
+         printf("WriterROOT: open path [%s]\n", log_chn->path);
+
+      int status = root_log_open(log_chn, run_number);
+      if (status != SUCCESS)
+         return status;
+
+      log_chn->handle = 9999;
+
+      return SUCCESS;
+   }
+
+   int wr_write(LOG_CHN* log_chn, const void* data, const int size)
+   {
+      if (fTrace)
+         printf("WriterROOT: write path [%s], size %d\n", log_chn->path, size);
+
+      if (size == 0)
+         return SUCCESS;
+
+      fBytesIn += size;
+
+      int status = root_write(log_chn, (const EVENT_HEADER*)data, size);
+      if (status != SUCCESS)
+         return status;
+
+      return SUCCESS;
+   }
+
+   int wr_close(LOG_CHN* log_chn, int run_number)
+   {
+      if (fTrace)
+         printf("WriterROOT: close path [%s]\n", log_chn->path);
+
+      int status = root_log_close(log_chn, run_number);
+
+      log_chn->handle = 0;
+
+      return status;
+   }
+
+   std::string wr_get_file_ext()
+   {
+      return ".root";
+   }
+
+   std::string wr_get_chain()
+   {
+      return "ROOT";
+   }
+
+private:
+};
+
 #endif                          /* HAVE_ROOT */
+
+/*------------------------------------------------------------------*/
+
+WriterInterface* NewWriterBzip2(LOG_CHN* log_chn)
+{
+   return new WriterPopen(log_chn, "bzip2 -z > ", ".bz2");
+}
+
+WriterInterface* NewWriterPbzip2(LOG_CHN* log_chn)
+{
+   return new WriterPopen(log_chn, "pbzip2 -c -z > ", ".bz2");
+}
+
+#define CHECKSUM_NONE   0
+#define CHECKSUM_ZLIB   1
+#define CHECKSUM_CRC32C 2
+#define CHECKSUM_SHA256 3
+#define CHECKSUM_SHA512 4
+
+WriterInterface* NewChecksum(LOG_CHN* log_chn, int code, int level, WriterInterface* chained)
+{
+   if (code == CHECKSUM_NONE) {
+      return chained;
+   } else if (code == CHECKSUM_ZLIB) {
+#ifdef HAVE_ZLIB
+      return new WriterCRC32Zlib(log_chn, level, chained);
+#else
+      cm_msg(MERROR, "log_create_writer", "channel %s requested CRC32ZLib checksum, but ZLIB is not available", log_chn->path);
+      return chained;
+#endif
+   } else if (code == CHECKSUM_CRC32C) {
+      return new WriterCRC32C(log_chn, level, chained);
+   } else if (code == CHECKSUM_SHA256) {
+      return new WriterSHA256(log_chn, level, chained);
+   } else if (code == CHECKSUM_SHA512) {
+      return new WriterSHA512(log_chn, level, chained);
+   } else {
+      cm_msg(MERROR, "log_create_writer", "channel %s unknown checksum code %d", log_chn->path, code);
+      return chained;
+   }
+}
+
+#define COMPRESS_NONE   0
+#define COMPRESS_ZLIB   1
+#define COMPRESS_LZ4    2
+#define COMPRESS_BZIP2  3
+#define COMPRESS_PBZIP2 4
+
+WriterInterface* NewCompression(LOG_CHN* log_chn, int code, WriterInterface* chained)
+{
+   if (code == COMPRESS_NONE) {
+      return chained;
+   } else if (code == COMPRESS_LZ4) {
+      return new WriterLZ4(log_chn, chained);
+   } else {
+      cm_msg(MERROR, "log_create_writer", "channel %s unknown compression code %d", log_chn->path, code);
+      return chained;
+   }
+}
+
+#define OUTPUT_NONE   0
+#define OUTPUT_NULL   1
+#define OUTPUT_FILE   2
+#define OUTPUT_FTP    3
+#define OUTPUT_ROOT   4
+#define OUTPUT_PIPE   5
+
+std::string get_value(HNDLE hDB, HNDLE hDir, const char* name)
+{
+   char value[MAX_STRING_LENGTH];
+   value[0] = 0;
+   int  size = sizeof(value);
+   int status = db_get_value(hDB, hDir, name, &value, &size, TID_STRING, FALSE);
+   if (status != DB_SUCCESS)
+      return "";
+   return value;
+}
+
+void set_value(HNDLE hDB, HNDLE hDir, const char* name, const std::string& set, const std::string& def)
+{
+   std::string s = set + " (one of:" + def + ")";
+   const char* value = s.c_str();
+   int  size = 256; // MUST match record definition // strlen(value);
+   db_set_value(hDB, hDir, name, value, size, 1, TID_STRING);
+}
+
+int check_add(int v, int n, const std::string& val, const char* str, bool bdef, std::string* def, std::string* sel)
+{
+   (*def) += std::string(" ") + str;
+   if (v)
+      return v; // keep returning the first selection
+   if (val.find(str) == 0) {
+      *sel = str;
+      return n; // if no selection yet, return the new selection
+   }
+   return v;
+}
+
+int select_checksum_module(HNDLE hDB, HNDLE hSet, const char* name)
+{
+   std::string val = get_value(hDB, hSet, name);
+   std::string sel;
+   std::string def;
+   int s = 0;
+   s = check_add(s, CHECKSUM_NONE,   val, "NONE",   false, &def, &sel);
+   s = check_add(s, CHECKSUM_CRC32C, val, "CRC32C", true,  &def, &sel);
+   s = check_add(s, CHECKSUM_SHA256, val, "SHA256", false, &def, &sel);
+   s = check_add(s, CHECKSUM_SHA512, val, "SHA512", false, &def, &sel);
+   s = check_add(s, CHECKSUM_ZLIB,   val, "ZLIB",   false, &def, &sel);
+   if (sel == "")
+      sel = "CRC32C";
+   set_value(hDB, hSet, name, sel, def);
+   return s;
+}
+
+int select_compression_module(HNDLE hDB, HNDLE hSet, const char* name)
+{
+   std::string val = get_value(hDB, hSet, name);
+   std::string sel;
+   std::string def;
+   int s = 0;
+   s = check_add(s, COMPRESS_NONE,   val, "none",   false, &def, &sel);
+   s = check_add(s, COMPRESS_ZLIB,   val, "gzip",   true,  &def, &sel);
+   s = check_add(s, COMPRESS_LZ4,    val, "lz4",    false, &def, &sel);
+   s = check_add(s, COMPRESS_BZIP2,  val, "bzip2",  false, &def, &sel);
+   s = check_add(s, COMPRESS_PBZIP2, val, "pbzip2", false, &def, &sel);
+   if (sel == "")
+      sel = "gzip";
+   set_value(hDB, hSet, name, sel, def);
+   return s;
+}
+
+int select_output_module(HNDLE hDB, HNDLE hSet, const char* name)
+{
+   std::string val = get_value(hDB, hSet, name);
+   std::string sel;
+   std::string def;
+   int s = 0;
+   s = check_add(s, OUTPUT_NULL, val, "NULL", false, &def, &sel);
+   s = check_add(s, OUTPUT_FILE, val, "FILE", true,  &def, &sel);
+   s = check_add(s, OUTPUT_FTP,  val, "FTP",  false, &def, &sel);
+   s = check_add(s, OUTPUT_ROOT, val, "ROOT", false, &def, &sel);
+   s = check_add(s, OUTPUT_PIPE, val, "PIPE", false, &def, &sel);
+   if (sel == "")
+      sel = "NULL";
+   set_value(hDB, hSet, name, sel, def);
+   return s;
+}
+
+int log_create_writer(LOG_CHN *log_chn)
+{
+   assert(log_chn->writer == NULL);
+   log_chn->writer = NULL;
+
+   if (log_chn->output_module > 0) {
+
+      if (log_chn->compression_module == COMPRESS_ZLIB) {
+
+#ifdef HAVE_ZLIB
+         if (log_chn->output_module != OUTPUT_FILE) {
+            cm_msg(MERROR, "log_create_writer", "channel %s requested GZIP/ZLIB compression, output module must be FILE", log_chn->path);
+            return SS_FILE_ERROR;
+         }
+
+         log_chn->writer = new WriterGzip(log_chn, 0);
+         log_chn->do_disk_level = TRUE;
+#else
+         cm_msg(MERROR, "log_create_writer", "channel %s requested GZIP/ZLIB compression, but ZLIB is not available", log_chn->path);
+         return SS_FILE_ERROR;
+#endif
+      }
+      else if (log_chn->compression_module == COMPRESS_BZIP2) {
+
+         if (log_chn->output_module != OUTPUT_FILE) {
+            cm_msg(MERROR, "log_create_writer", "channel %s requested BZIP2 compression, output module must be FILE", log_chn->path);
+            return SS_FILE_ERROR;
+         }
+         
+         log_chn->writer = NewWriterBzip2(log_chn);
+         log_chn->do_disk_level = TRUE;
+         
+      }
+      else if (log_chn->compression_module == COMPRESS_PBZIP2) {
+
+         if (log_chn->output_module != OUTPUT_FILE) {
+            cm_msg(MERROR, "log_create_writer", "channel %s requested PBZIP2 compression, output module must be FILE", log_chn->path);
+            return SS_FILE_ERROR;
+         }
+         
+         log_chn->writer = NewWriterPbzip2(log_chn);
+         log_chn->do_disk_level = TRUE;
+      }
+      else if (log_chn->output_module == OUTPUT_NULL) {
+
+         log_chn->writer = new WriterNull(log_chn);
+         log_chn->do_disk_level = TRUE;
+      }
+      else if (log_chn->output_module == OUTPUT_FILE) {
+
+         log_chn->writer = NewCompression(log_chn, log_chn->compression_module, NewChecksum(log_chn, log_chn->post_checksum_module, 0, new WriterFile(log_chn)));
+         log_chn->do_disk_level = TRUE;
+      }
+      else if (log_chn->output_module == OUTPUT_FTP) {
+
+         log_chn->writer = NewCompression(log_chn, log_chn->compression_module, NewChecksum(log_chn, log_chn->post_checksum_module, 0, new WriterFtp(log_chn)));
+         log_chn->do_disk_level = FALSE;
+         log_chn->statistics.disk_level = -1;
+      }
+      else if (log_chn->output_module == OUTPUT_ROOT) {
+
+#ifdef HAVE_ROOT
+         log_chn->writer = new WriterROOT(log_chn);
+         log_chn->do_disk_level = TRUE;
+#else
+         log_chn->writer = new WriterNull(log_chn);
+         log_chn->do_disk_level = TRUE;
+#endif
+      }
+      else if (log_chn->output_module == OUTPUT_PIPE) {
+
+         log_chn->writer = NewCompression(log_chn, log_chn->compression_module, NewChecksum(log_chn, log_chn->post_checksum_module, 0, new WriterPopen(log_chn, "xxx", "")));
+         log_chn->do_disk_level = FALSE;
+         log_chn->statistics.disk_level = -1;
+      }
+         
+      //log_chn->writer = new WriterROOT(log_chn);
+      //log_chn->do_disk_level = TRUE;
+
+      if (log_chn->pre_checksum_module) {
+         log_chn->writer = NewChecksum(log_chn, log_chn->pre_checksum_module, 1, log_chn->writer);
+      }
+
+      cm_msg(MINFO, "log_create_writer", "channel %s writer chain: %s", log_chn->path, log_chn->writer->wr_get_chain().c_str());
+
+      return SUCCESS;
+   }
+
+   int xcompress = log_chn->compression;
+   // compression format: ABNNN
+   // A - pre-compression checksum,
+   // B - post-compression (file) checksum,
+   // NNN - compression code
+   int compression = xcompress%1000;
+   int prechecksum = (xcompress/10000)%10;
+   int postchecksum = (xcompress/1000)%10;
+
+   // 0=old file output, 1-9=old gzip output
+   if (compression < 10)
+      return SUCCESS;
+
+   if (compression==80) {
+#ifdef HAVE_ROOT
+      log_chn->writer = new WriterROOT(log_chn);
+      log_chn->do_disk_level = TRUE;
+#else
+      log_chn->writer = new WriterNull(log_chn);
+      log_chn->do_disk_level = TRUE;
+#endif
+   } else if (compression==81) {
+      log_chn->writer = new WriterFtp(log_chn);
+      log_chn->do_disk_level = FALSE;
+      log_chn->statistics.disk_level = -1;
+   } else if (compression==82) {
+      log_chn->writer = new WriterLZ4(log_chn, NewChecksum(log_chn, postchecksum, 0, new WriterFtp(log_chn)));
+      log_chn->do_disk_level = FALSE;
+      log_chn->statistics.disk_level = -1;
+   } else if (compression==98) {
+      log_chn->writer = new WriterNull(log_chn);
+      log_chn->do_disk_level = TRUE;
+   } else if (compression==99) {
+      log_chn->writer = new WriterFile(log_chn);
+      log_chn->do_disk_level = TRUE;
+   } else if (compression==100) {
+      log_chn->writer = new WriterLZ4(log_chn, NewChecksum(log_chn, postchecksum, 0, new WriterFile(log_chn)));
+      log_chn->do_disk_level = TRUE;
+   } else if (compression==200) {
+      log_chn->writer = NewWriterBzip2(log_chn);
+      log_chn->do_disk_level = TRUE;
+   } else if (compression==201) {
+      log_chn->writer = NewWriterPbzip2(log_chn);
+      log_chn->do_disk_level = TRUE;
+#ifdef HAVE_ZLIB
+   } else if (compression==300) {
+      log_chn->writer = new WriterGzip(log_chn, 0);
+      log_chn->do_disk_level = TRUE;
+   } else if (compression==301) {
+      log_chn->writer = new WriterGzip(log_chn, 1);
+      log_chn->do_disk_level = TRUE;
+   } else if (compression==309) {
+      log_chn->writer = new WriterGzip(log_chn, 9);
+      log_chn->do_disk_level = TRUE;
+   } else {
+#endif
+      cm_msg(MERROR, "log_create_writer", "channel %s unknown compression mode %d", log_chn->path, log_chn->compression);
+      return SS_FILE_ERROR;
+   }
+
+   if (prechecksum) {
+      log_chn->writer = NewChecksum(log_chn, prechecksum, 1, log_chn->writer);
+   }
+
+   return SS_SUCCESS;
+}
 
 /*---- log_open ----------------------------------------------------*/
 
 INT log_open(LOG_CHN * log_chn, INT run_number)
 {
-   INT status;
+   INT status = SUCCESS;
 
-   if (equal_ustring(log_chn->settings.format, "YBOS")) {
-     assert(!"YBOS not supported anymore");
-   } else if (equal_ustring(log_chn->settings.format, "ASCII")) {
-      log_chn->format = FORMAT_ASCII;
-      status = ascii_log_open(log_chn, run_number);
-   } else if (equal_ustring(log_chn->settings.format, "DUMP")) {
-      log_chn->format = FORMAT_DUMP;
-      status = dump_log_open(log_chn, run_number);
+   log_chn->last_checked = ss_millitime();
+
+   if (log_chn->writer) {
+      WriterInterface* wr = log_chn->writer;
+      int status = wr->wr_open(log_chn, run_number);
+      if (status == SUCCESS) {
+         /* write ODB dump */
+         if (log_chn->settings.odb_dump)
+            log_odb_dump(log_chn, EVENTID_BOR, run_number);
+
+         /* update statistics */
+         double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
+         if (incr < 0)
+            incr = 0;
+
+         //printf("bytes out %f, incr %f, subrun %f, written %f, total %f (log_open)\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+
+         log_chn->statistics.bytes_written += incr;
+         log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
+         log_chn->statistics.bytes_written_total += incr;
+      }
    } else if (equal_ustring(log_chn->settings.format, "ROOT")) {
 #ifdef HAVE_ROOT
       log_chn->format = FORMAT_ROOT;
@@ -2360,22 +3736,34 @@ INT log_close(LOG_CHN * log_chn, INT run_number)
 {
    char str[256], *p;
 
-   if (log_chn->format == FORMAT_YBOS)
-     assert(!"YBOS not supported anymore");
+   if (log_chn->writer) {
+      /* write ODB dump */
+      if (log_chn->settings.odb_dump)
+         log_odb_dump(log_chn, EVENTID_EOR, run_number);
+      
+      WriterInterface* wr = log_chn->writer;
 
-   if (log_chn->format == FORMAT_ASCII)
-      ascii_log_close(log_chn, run_number);
+      int status = wr->wr_close(log_chn, run_number);
+      if (status == SUCCESS) {
+         /* update statistics */
 
-   if (log_chn->format == FORMAT_DUMP)
-      dump_log_close(log_chn, run_number);
+         double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
+         if (incr < 0)
+            incr = 0;
 
+         //printf("bytes out %f, incr %f, subrun %f, written %f, total %f (log_close)\n", wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+
+         log_chn->statistics.bytes_written += incr;
+         log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
+         log_chn->statistics.bytes_written_total += incr;
+      }
 #ifdef HAVE_ROOT
-   if (log_chn->format == FORMAT_ROOT)
+   } else if (log_chn->format == FORMAT_ROOT) {
       root_log_close(log_chn, run_number);
 #endif
-
-   if (log_chn->format == FORMAT_MIDAS)
+   } else if (log_chn->format == FORMAT_MIDAS) {
       midas_log_close(log_chn, run_number);
+   }
 
    /* if file name starts with '.', rename it */
    strlcpy(str, log_chn->path, sizeof(str));
@@ -2392,7 +3780,65 @@ INT log_close(LOG_CHN * log_chn, INT run_number)
    log_chn->handle = 0;
    log_chn->ftp_con = NULL;
 
+   if (log_chn->writer) {
+      delete log_chn->writer;
+      log_chn->writer = NULL;
+   }
+
    return SS_SUCCESS;
+}
+
+/*---- log disk levels ---------------------------------------------------*/
+
+int log_disk_level(LOG_CHN* log_chn, double* pdisk_size, double* pdisk_free)
+{
+   char str[256];
+   strlcpy(str, log_chn->path, sizeof(str));
+   if (strrchr(str, '/'))
+      *(strrchr(str, '/')+1) = 0; // strip filename for bzip2
+   
+   double MiB = 1024*1024;
+   double disk_size = ss_disk_size(str);
+   double disk_free = ss_disk_free(str);
+   double limit = 10E6;
+   double level = 1.0-disk_free/disk_size;
+
+   if (pdisk_size)
+      *pdisk_size = disk_size; // should be in statistics
+   if (pdisk_free)
+      *pdisk_free = disk_free; // should be in statistics
+
+   log_chn->statistics.disk_level = level;
+
+   if (verbose)
+      printf("log_disk_level: channel path [%s], disk_size %1.0lf MiB, disk_free %1.0lf MiB, limit %1.0f MiB, disk level %.1f%%\n", log_chn->path, disk_size/MiB, disk_free/MiB, limit/MiB, level*100.0);
+
+   return SUCCESS;
+}
+
+int maybe_check_disk_level()
+{
+   DWORD actual_time = ss_millitime();
+   static DWORD last_check_time = 0;
+
+   if (last_check_time == 0)
+      last_check_time = actual_time;
+
+   if (actual_time - last_check_time < DISK_CHECK_INTERVAL)
+      return SUCCESS;
+
+   last_check_time = actual_time;
+
+   for (int i = 0; i < MAX_CHANNELS; i++) {
+      LOG_CHN* chn = &log_chn[i];
+
+      if (!chn->do_disk_level)
+         continue;
+
+      log_disk_level(chn, NULL, NULL);
+   }
+
+   return SUCCESS;
 }
 
 /*---- log_write ---------------------------------------------------*/
@@ -2401,7 +3847,7 @@ int stop_the_run(int restart)
 {
    int status;
    char errstr[256];
-   int size, flag, trans_flag;
+   int size, flag, mflag, trans_flag;
 
    if (restart) {
       size = sizeof(BOOL);
@@ -2420,14 +3866,20 @@ int stop_the_run(int restart)
    flag = FALSE;
    db_get_value(hDB, 0, "/Logger/Async transitions", &flag, &size, TID_BOOL, TRUE);
 
+   size = sizeof(BOOL);
+   mflag = TRUE;
+   db_get_value(hDB, 0, "/Logger/Multithread transitions", &mflag, &size, TID_BOOL, TRUE);
+
    if (flag)
-      trans_flag = ASYNC;
+      trans_flag = TR_ASYNC;
+   else if (mflag)
+      trans_flag = TR_MTHREAD;
    else
-      trans_flag = DETACH;
+      trans_flag = TR_DETACH;
 
    status = cm_transition(TR_STOP, 0, errstr, sizeof(errstr), trans_flag, verbose);
    if (status != CM_SUCCESS) {
-      cm_msg(MERROR, "log_write", "cannot stop the run: %s", errstr);
+      cm_msg(MERROR, "stop_the_run", "cannot stop the run, cm_transition() status %d, error: %s", status, errstr);
       return status;
    }
 
@@ -2437,7 +3889,7 @@ int stop_the_run(int restart)
 int start_the_run()
 {
    int status, size, state, run_number;
-   int flag, trans_flag;
+   int flag, mflag, trans_flag;
    char errstr[256];
 
    start_requested = FALSE;
@@ -2449,7 +3901,7 @@ int start_the_run()
    db_get_value(hDB, 0, "/Logger/Auto restart", &flag, &size, TID_BOOL, TRUE);
 
    if (!flag) {
-      cm_msg(MINFO, "main", "Run auto restart canceled");
+      cm_msg(MINFO, "start_the_run", "Run auto restart canceled");
       return SUCCESS;
    }
 
@@ -2457,19 +3909,32 @@ int start_the_run()
    size = sizeof(state);
    status = db_get_value(hDB, 0, "Runinfo/State", &state, &size, TID_INT, TRUE);
    if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "main", "cannot get Runinfo/State in database");
+      cm_msg(MERROR, "start_the_run", "cannot get Runinfo/State in database, db_get_value() status %d", status);
       return status;
    }
   
-   if (state != STATE_STOPPED)
+   static int backoff = 1;
+
+   if (state != STATE_STOPPED) {
+      cm_msg(MINFO, "start_the_run", "Runinfo/State %d is not STATE_STOPPED, will try again in %d seconds", state, backoff);
+      auto_restart = ss_time() + backoff; /* try again later */
+      if (backoff < 1)
+         backoff = 1;
+      else if (backoff > 1*60)
+         backoff = 1*60;
+      else
+         backoff *= 2;
       return SUCCESS;
+   }
+
+   backoff = 1;
 
    size = sizeof(run_number);
    status = db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
    assert(status == SUCCESS);
     
    if (run_number <= 0) {
-      cm_msg(MERROR, "main", "aborting on attempt to use invalid run number %d", run_number);
+      cm_msg(MERROR, "start_the_run", "aborting on attempt to use invalid run number %d", run_number);
       abort();
    }
     
@@ -2477,58 +3942,71 @@ int start_the_run()
    flag = FALSE;
    db_get_value(hDB, 0, "/Logger/Async transitions", &flag, &size, TID_BOOL, TRUE);
 
-   if (flag)
-      trans_flag = ASYNC;
-   else
-      trans_flag = DETACH;
+   size = sizeof(BOOL);
+   mflag = TRUE;
+   db_get_value(hDB, 0, "/Logger/Multithread transitions", &mflag, &size, TID_BOOL, TRUE);
 
-   cm_msg(MTALK, "main", "starting new run");
+   if (flag)
+      trans_flag = TR_ASYNC;
+   else if (mflag)
+      trans_flag = TR_MTHREAD;
+   else
+      trans_flag = TR_DETACH;
+
+   cm_msg(MTALK, "start_the_run", "starting new run");
    status = cm_transition(TR_START, run_number + 1, errstr, sizeof(errstr), trans_flag, verbose);
    if (status != CM_SUCCESS)
-      cm_msg(MERROR, "main", "cannot restart run: %s", errstr);
+      cm_msg(MERROR, "start_the_run", "cannot restart run: cm_transition() status %d, error: %s", status, errstr);
 
    return status;
 }
 
 INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 {
-   INT status = 0, size, izero;
-   DWORD actual_time, start_time, watchdog_timeout, duration;
-   BOOL watchdog_flag, next_subrun;
-   static DWORD last_checked = 0;
-   HNDLE htape, stats_hkey;
-   char tape_name[256];
-   double dzero;
+   INT status = 0, size;
+   DWORD actual_time, start_time, duration;
+   BOOL next_subrun;
+
+   //printf("log_write %d\n", pevent->data_size + sizeof(EVENT_HEADER));
 
    start_time = ss_millitime();
 
-   if (log_chn->format == FORMAT_YBOS)
-     assert(!"YBOS not supported anymore");
+   if (log_chn->writer) {
+      int evt_size = pevent->data_size + sizeof(EVENT_HEADER);
 
-   if (log_chn->format == FORMAT_ASCII)
-      status = ascii_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
+      WriterInterface* wr = log_chn->writer;
+      status = wr->wr_write(log_chn, pevent, evt_size);
 
-   if (log_chn->format == FORMAT_DUMP)
-      status = dump_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
+      if (status == SUCCESS) {
+         /* update statistics */
+         log_chn->statistics.events_written++;
+         log_chn->statistics.bytes_written_uncompressed += evt_size;
+      }
 
-   if (log_chn->format == FORMAT_MIDAS)
+      double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
+      if (incr < 0)
+         incr = 0;
+
+      //printf("events %.0f, bytes out %.0f, incr %.0f, subrun %.0f, written %.0f, total %.0f\n", log_chn->statistics.events_written, wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
+      
+      log_chn->statistics.bytes_written += incr;
+      log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
+      log_chn->statistics.bytes_written_total += incr;
+   } else if (log_chn->format == FORMAT_MIDAS) {
       status = midas_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
-
 #ifdef HAVE_ROOT
-   if (log_chn->format == FORMAT_ROOT)
+   } else if (log_chn->format == FORMAT_ROOT) {
       status = root_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
 #endif
+   }
 
    actual_time = ss_millitime();
    if ((int) actual_time - (int) start_time > 3000)
-      cm_msg(MINFO, "log_write", "Write operation on %s took %d ms", log_chn->path, actual_time - start_time);
+      cm_msg(MINFO, "log_write", "Write operation on \'%s\' took %d ms", log_chn->path, actual_time - start_time);
 
    if (status != SS_SUCCESS && !stop_requested) {
-      if (status == SS_IO_ERROR)
-         cm_msg(MTALK, "log_write", "Physical IO error on %s, stopping run", log_chn->path);
-      else
-         cm_msg(MTALK, "log_write", "Error writing to %s, stopping run", log_chn->path);
-
+      cm_msg(MTALK, "log_write", "Error writing output file, stopping run");
+      cm_msg(MERROR, "log_write", "Cannot write \'%s\', error %d, stopping run", log_chn->path, status);
       stop_the_run(0);
 
       return status;
@@ -2564,6 +4042,7 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
       log_close(log_chn, run_number);
       log_chn->subrun_number++;
       log_chn->statistics.bytes_written_subrun = 0;
+      log_create_writer(log_chn);
       log_generate_file_name(log_chn);
       log_open(log_chn, run_number);
       subrun_start_time = ss_time();
@@ -2585,6 +4064,7 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
       log_close(log_chn, run_number);
       log_chn->subrun_number++;
       log_chn->statistics.bytes_written_subrun = 0;
+      log_create_writer(log_chn);
       log_generate_file_name(log_chn);
       log_open(log_chn, run_number);
       subrun_start_time = ss_time();
@@ -2608,6 +4088,7 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
       log_close(log_chn, run_number);
       log_chn->subrun_number++;
       log_chn->statistics.bytes_written_subrun = 0;
+      log_create_writer(log_chn);
       log_generate_file_name(log_chn);
       log_open(log_chn, run_number);
       subrun_start_time = ss_time();
@@ -2631,53 +4112,17 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
       return status;
    }
 
-   /* check if capacity is reached for tapes */
-   if (!stop_requested && !in_stop_transition &&
-       log_chn->type == LOG_TYPE_TAPE &&
-       log_chn->settings.tape_capacity > 0 &&
-       log_chn->statistics.bytes_written_total >= log_chn->settings.tape_capacity) {
-      stop_requested = TRUE;
-      cm_msg(MTALK, "log_write", "tape capacity reached, stopping run");
-
-      /* remember tape name */
-      strcpy(tape_name, log_chn->path);
-      stats_hkey = log_chn->stats_hkey;
-
-      status = stop_the_run(0);
-
-      /* rewind tape */
-      ss_tape_open(tape_name, O_RDONLY, &htape);
-      cm_msg(MTALK, "log_write", "rewinding tape %s, please wait", log_chn->path);
-
-      cm_get_watchdog_params(&watchdog_flag, &watchdog_timeout);
-      cm_set_watchdog_params(watchdog_flag, 300000);    /* 5 min for tape rewind */
-      ss_tape_unmount(htape);
-      ss_tape_close(htape);
-      cm_set_watchdog_params(watchdog_flag, watchdog_timeout);
-
-      /* zero statistics */
-      dzero = izero = 0;
-      db_set_value(hDB, stats_hkey, "Bytes written total", &dzero, sizeof(dzero), 1, TID_DOUBLE);
-      db_set_value(hDB, stats_hkey, "Files written", &izero, sizeof(izero), 1, TID_INT);
-
-      cm_msg(MTALK, "log_write", "Please insert new tape and start new run.");
-
-      return status;
-   }
-
    /* stop run if less than 10MB free disk space */
    actual_time = ss_millitime();
-   if (log_chn->type == LOG_TYPE_DISK && actual_time - last_checked > 10000) {
-      last_checked = actual_time;
+   if (log_chn->type == LOG_TYPE_DISK && log_chn->do_disk_level && actual_time - log_chn->last_checked > DISK_CHECK_INTERVAL) {
+      log_chn->last_checked = actual_time;
 
-      char str[256];
-      strlcpy(str, log_chn->path, sizeof(str));
-      if (strrchr(str, '/'))
-         *(strrchr(str, '/')+1) = 0; // strip filename for bzip2
-      
-      double MB = 1024*1024;
-      double disk_size = ss_disk_size(str);
-      double disk_free = ss_disk_free(str);
+      const double MiB = 1024*1024;
+      double disk_size = 0;
+      double disk_free = 0;
+
+      log_disk_level(log_chn, &disk_size, &disk_free);
+
       double limit = 10E6;
 
       if (disk_size > 100E9) {
@@ -2686,12 +4131,10 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
          limit = 100E6;
       }
 
-      // printf("disk_size %1.0lf MB, disk_free %1.0lf MB, limit %1.0f MB\n", disk_size/MB, disk_free/MB, limit/MB);
-
       if (disk_free < limit) {
          stop_requested = TRUE;
          cm_msg(MTALK, "log_write", "disk nearly full, stopping the run");
-         cm_msg(MERROR, "log_write", "Disk \'%s\' is almost full: %1.0lf MBytes free out of %1.0f MBytes, stopping the run", log_chn->path, disk_free/MB, disk_size/MB);
+         cm_msg(MERROR, "log_write", "Disk \'%s\' is almost full: %1.0lf MiBytes free out of %1.0f MiBytes, stopping the run", log_chn->path, disk_free/MiB, disk_size/MiB);
          
          status = stop_the_run(0);
       }
@@ -2707,29 +4150,26 @@ void log_history(HNDLE hDB, HNDLE hKey, void *info);
 #include "history.h"
 
 static std::vector<MidasHistoryInterface*> mh;
+static std::vector<std::string> history_events;
 
-static int add_event(int* indexp, int event_id, const char* event_name, HNDLE hKey, int ntags, const TAG* tags, int period, int hotlink)
+static int add_event(int* indexp, time_t timestamp, int event_id, const char* event_name, HNDLE hKey, int ntags, const TAG* tags, int period, int hotlink)
 {
    int status;
    int size, i;
    int index = *indexp;
 
-   if (0) {   
+#if 0
+   {
       /* print the tags */
       printf("add_event: event %d, name \"%s\", ntags %d\n", event_id, event_name, ntags);
       for (i=0; i<ntags; i++) {
          printf("tag %d: name \"%s\", type %d, n_data %d\n", i, tags[i].name, tags[i].type, tags[i].n_data);
       }
    }
+#endif
 
    /* check for duplicate event id's */
    for (i=0; i<index; i++) {
-#ifdef OLD_HISTORY
-      if (hist_log[i].event_id == event_id) {
-         cm_msg(MERROR, "add_event", "Duplicate event id %d for \'%s\'", event_id, event_name);
-         return 0;
-      }
-#endif
       if (strcmp(hist_log[i].event_name, event_name) == 0) {
          cm_msg(MERROR, "add_event", "Duplicate event name \'%s\' with event id %d", event_name, event_id);
          return 0;
@@ -2772,26 +4212,22 @@ static int add_event(int* indexp, int event_id, const char* event_name, HNDLE hK
    }
    
    for (unsigned i=0; i<mh.size(); i++) {
-      status = mh[i]->hs_define_event(event_name, ntags, tags);
+      status = mh[i]->hs_define_event(event_name, timestamp, ntags, tags);
       if (status != HS_SUCCESS) {
          cm_msg(MERROR, "add_event", "Cannot define event \"%s\", hs_define_event() status %d", event_name, status);
          return 0;
       }
    }
 
-#ifdef OLD_HISTORY
-   status = hs_define_event(event_id, (char*)event_name, (TAG*)tags, sizeof(TAG) * ntags);
-   assert(status == DB_SUCCESS);
-#endif
-
    status = db_get_record_size(hDB, hKey, 0, &size);
-   assert(status == DB_SUCCESS);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "add_event", "Cannot define event \"%s\", db_get_record_size() status %d", event_name, status);
+      return 0;
+   }
 
    /* setup hist_log structure for this event */
    strlcpy(hist_log[index].event_name, event_name, sizeof(hist_log[index].event_name));
-#ifdef OLD_HISTORY
-   hist_log[index].event_id    = event_id;
-#endif
    hist_log[index].n_var       = ntags;
    hist_log[index].hKeyVar     = hKey;
    hist_log[index].buffer_size = size;
@@ -2806,8 +4242,7 @@ static int add_event(int* indexp, int event_id, const char* event_name, HNDLE hK
    
    /* open hot link to variables */
    if (hotlink) {
-      status = db_open_record(hDB, hKey, hist_log[index].buffer,
-                              size, MODE_READ, log_history, NULL);
+      status = db_open_record(hDB, hKey, hist_log[index].buffer, size, MODE_READ, log_history, NULL);
       if (status != DB_SUCCESS) {
          cm_msg(MERROR, "add_event",
                 "Cannot hotlink event %d \"%s\" for history logging, db_open_record() status %d",
@@ -2815,6 +4250,8 @@ static int add_event(int* indexp, int event_id, const char* event_name, HNDLE hK
          return status;
       }
    }
+
+   history_events.push_back(event_name);
    
    if (verbose)
       printf("Created event %d for equipment \"%s\", %d tags, size %d\n", event_id, event_name, ntags, size);
@@ -2824,193 +4261,203 @@ static int add_event(int* indexp, int event_id, const char* event_name, HNDLE hK
    return SUCCESS;
 }
 
-#ifdef OLD_HISTORY
-static int get_event_id(int eq_id, const char* eq_name, const char* var_name)
-{
-   HNDLE hDB, hKeyRoot;
-   char name[NAME_LENGTH+NAME_LENGTH+2];
-   int status, i;
-   WORD max_id = 0;
-
-   strlcpy(name, eq_name, sizeof(name));
-   strlcat(name, ":", sizeof(name));
-   strlcat(name, var_name, sizeof(name));
-
-   //printf("Looking for event id for \'%s\'\n", name);
-
-   cm_get_experiment_database(&hDB, NULL);
-   
-   status = db_find_key(hDB, 0, "/History/Events", &hKeyRoot);
-   if (status == DB_SUCCESS) {
-      for (i = 0;; i++) {
-         HNDLE hKey;
-         KEY key;
-         WORD evid;
-         int size;
-         char tmp[NAME_LENGTH+NAME_LENGTH+2];
-         
-         status = db_enum_key(hDB, hKeyRoot, i, &hKey);
-         if (status != DB_SUCCESS)
-           break;
-         
-         status = db_get_key(hDB, hKey, &key);
-         assert(status == DB_SUCCESS);
-         
-         //printf("key \'%s\'\n", key.name);
-         
-         evid = (WORD) strtol(key.name, NULL, 0);
-         if (evid == 0)
-            continue;
-
-         size = sizeof(tmp);
-         status = db_get_data(hDB, hKey, tmp, &size, TID_STRING);
-         //printf("status %d\n", status);
-         assert(status == DB_SUCCESS);
-
-         //printf("got %d \'%s\' looking for \'%s\'\n", evid, tmp, name);
-
-         if (equal_ustring(name, tmp))
-            return evid;
-
-         if (evid/1000 == eq_id)
-            max_id = evid;
-      }
-   }
-
-   //printf("eq_id %d, max_id %d\n", eq_id, max_id);
-
-   if (max_id == 0)
-      max_id = eq_id * 1000;
-
-   if (max_id < 1000)
-      max_id = 1000;
-
-   while (1) {
-      char tmp[NAME_LENGTH+NAME_LENGTH+2];
-      HNDLE hKey;
-      WORD evid = max_id + 1;
-
-      sprintf(tmp,"/History/Events/%d", evid);
-
-      status = db_find_key(hDB, 0, tmp, &hKey);
-      if (status == DB_SUCCESS) {
-         max_id = evid;
-         assert(max_id < 65000);
-         continue;
-      }
-
-      status = db_set_value(hDB, 0, tmp, name, strlen(name)+1, 1, TID_STRING);
-      assert(status == DB_SUCCESS);
-
-      return evid;
-   }
-
-   /* not reached */
-   return 0;
-}
-#endif
-
 INT open_history()
 {
    INT size, index, i_tag, status, i, j, li, max_event_id;
    int ieq;
    INT n_var, n_tags, n_names = 0;
-   HNDLE hKeyRoot, hKeyVar, hKeyNames, hLinkKey, hVarKey, hKeyEq, hHistKey, hKey;
+   HNDLE hKeyRoot, hKeyVar, hLinkKey, hVarKey, hKeyEq, hHistKey, hKey;
+   HNDLE hKeyHist;
    DWORD history;
    TAG *tag = NULL;
    KEY key, varkey, linkkey, histkey;
    WORD eq_id;
    char str[256], eq_name[NAME_LENGTH], hist_name[NAME_LENGTH];
-   BOOL single_names;
    int count_events = 0;
    int global_per_variable_history = 0;
+
+   time_t now = time(NULL);
+
+   // delete old history channels
 
    for (unsigned i=0; i<mh.size(); i++)
       delete mh[i];
    mh.clear();
 
-   i = 1;
-   size = sizeof(i);
-   status = db_get_value(hDB, 0, "/Logger/WriteFileHistory", &i, &size, TID_BOOL, TRUE);
-   assert(status==DB_SUCCESS);
+   history_events.clear();
 
-   if (i) {
-      MidasHistoryInterface* hi = MakeMidasHistory();
-      assert(hi);
+   // create and initialize the history channels tree
 
-      //hi->hs_set_debug(debug);
-      
-      status = hi->hs_connect(NULL);
-      if (status != HS_SUCCESS) {
-         cm_msg(MERROR, "open_history", "Cannot connect to MIDAS history, status %d", status);
-         return status;
-      }
+   status = db_find_key(hDB, 0, "/Logger/History", &hKeyHist);
 
-      mh.push_back(hi);
+   if (status == DB_NO_KEY) {
+      int active;
+      std::string type;
+      int debug;
+
+      // create entry for the MIDAS history
+
+      type = "MIDAS";
+      status = db_get_value_string(hDB, 0, "/Logger/History/MIDAS/Type", 0, &type, TRUE);
+      assert(status==DB_SUCCESS);
+
+      active = 1;
+      size = sizeof(active);
+      status = db_get_value(hDB, 0, "/Logger/History/MIDAS/Active", &active, &size, TID_BOOL, TRUE);
+      assert(status==DB_SUCCESS);
+
+      debug = 0;
+      size = sizeof(debug);
+      status = db_get_value(hDB, 0, "/Logger/History/MIDAS/Debug", &debug, &size, TID_INT, TRUE);
+      assert(status==DB_SUCCESS);
+
+      // create entry for ODBC (MySQL) history
+
+      type = "ODBC";
+      status = db_get_value_string(hDB, 0, "/Logger/History/ODBC/Type", 0, &type, TRUE);
+      assert(status==DB_SUCCESS);
+
+      active = 0;
+      size = sizeof(active);
+      status = db_get_value(hDB, 0, "/Logger/History/ODBC/Active", &active, &size, TID_BOOL, TRUE);
+      assert(status==DB_SUCCESS);
+
+      debug = 0;
+      size = sizeof(debug);
+      status = db_get_value(hDB, 0, "/Logger/History/ODBC/Debug", &debug, &size, TID_INT, TRUE);
+      assert(status==DB_SUCCESS);
+
+      // create entry for SQLITE history
+
+      type = "SQLITE";
+      status = db_get_value_string(hDB, 0, "/Logger/History/SQLITE/Type", 0, &type, TRUE);
+      assert(status==DB_SUCCESS);
+
+      active = 0;
+      size = sizeof(active);
+      status = db_get_value(hDB, 0, "/Logger/History/SQLITE/Active", &active, &size, TID_BOOL, TRUE);
+      assert(status==DB_SUCCESS);
+
+      debug = 0;
+      size = sizeof(debug);
+      status = db_get_value(hDB, 0, "/Logger/History/SQLITE/Debug", &debug, &size, TID_INT, TRUE);
+      assert(status==DB_SUCCESS);
+
+      // create entry for MYSQL history writer
+
+      type = "MYSQL";
+      status = db_get_value_string(hDB, 0, "/Logger/History/MYSQL/Type", 0, &type, TRUE);
+      assert(status==DB_SUCCESS);
+
+      active = 0;
+      size = sizeof(active);
+      status = db_get_value(hDB, 0, "/Logger/History/MYSQL/Active", &active, &size, TID_BOOL, TRUE);
+      assert(status==DB_SUCCESS);
+
+      debug = 0;
+      size = sizeof(debug);
+      status = db_get_value(hDB, 0, "/Logger/History/MYSQL/Debug", &debug, &size, TID_INT, TRUE);
+      assert(status==DB_SUCCESS);
+
+      // create entry for FILE history
+
+      type = "FILE";
+      status = db_get_value_string(hDB, 0, "/Logger/History/FILE/Type", 0, &type, TRUE);
+      assert(status==DB_SUCCESS);
+
+      active = 0;
+      size = sizeof(active);
+      status = db_get_value(hDB, 0, "/Logger/History/FILE/Active", &active, &size, TID_BOOL, TRUE);
+      assert(status==DB_SUCCESS);
+
+      debug = 0;
+      size = sizeof(debug);
+      status = db_get_value(hDB, 0, "/Logger/History/FILE/Debug", &debug, &size, TID_INT, TRUE);
+      assert(status==DB_SUCCESS);
+
+      // get newly created /Logger/History
+
+      status = db_find_key(hDB, 0, "/Logger/History", &hKeyHist);
    }
 
-#ifdef HAVE_ODBC
-   int debug = 0;
-   size = sizeof(debug);
-   status = db_get_value(hDB, 0, "/Logger/ODBC_Debug", &debug, &size, TID_INT, TRUE);
-   assert(status==DB_SUCCESS);
-
-   /* check ODBC connection */
-   char dsn[256];
-   size = sizeof(dsn);
-   dsn[0] = 0;
-
-   status = db_get_value(hDB, 0, "/Logger/ODBC_DSN", dsn, &size, TID_STRING, TRUE);
-   assert(status==DB_SUCCESS);
-
-   if (debug == 2) {
-
-      MidasHistoryInterface* hi = MakeMidasHistorySqlDebug();
-      assert(hi);
-
-      hi->hs_set_debug(debug);
-      
-      status = hi->hs_connect(dsn);
-      if (status != HS_SUCCESS) {
-         cm_msg(MERROR, "open_history", "Cannot connect to SQL debug driver \'%s\', status %d", dsn, status);
-         return status;
-      }
-
-      mh.push_back(hi);
-
-   } else if (strlen(dsn)>1 && dsn[0]!='#') {
-
-      MidasHistoryInterface* hi = MakeMidasHistoryODBC();
-      assert(hi);
-
-      hi->hs_set_debug(debug);
-      
-      status = hi->hs_connect(dsn);
-      if (status != HS_SUCCESS) {
-         cm_msg(MERROR, "open_history", "Cannot connect to ODBC database with DSN \'%s\', status %d", dsn, status);
-         return status;
-      }
-
-      mh.push_back(hi);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "open_history", "Something is wrong with /Logger/History, db_find_key() status %d", status);
+      return status;
    }
-#endif
+
+   // loop over history channels
+
+   for (int ichan = 0; ; ichan++) {
+      status = db_enum_key(hDB, hKeyHist, ichan, &hKey);
+      if (status != DB_SUCCESS)
+         break;
+
+      MidasHistoryInterface* hi = NULL;
+
+      status = hs_get_history(hDB, hKey, HS_GET_WRITER, verbose, &hi);
+
+      if (status==HS_SUCCESS && hi) {
+         if (strcasecmp(hi->type, "MIDAS")==0) {
+            i = 0;
+            size = sizeof(i);
+            status = db_get_value(hDB, hKey, "PerVariableHistory", &i, &size, TID_INT, TRUE);
+            assert(status==DB_SUCCESS);
+            
+            if (i)
+               global_per_variable_history = 1;
+	 } else if (strcasecmp(hi->type, "FILE")==0) {
+            i = 0;
+            size = sizeof(i);
+            status = db_get_value(hDB, hKey, "PerVariableHistory", &i, &size, TID_INT, TRUE);
+            assert(status==DB_SUCCESS);
+            
+            if (i)
+               global_per_variable_history = 1;
+         } else if (strcasecmp(hi->type, "ODBC")==0) {
+            global_per_variable_history = 1;
+         } else if (strcasecmp(hi->type, "SQLITE")==0) {
+            global_per_variable_history = 1;
+         } else if (strcasecmp(hi->type, "MYSQL")==0) {
+            global_per_variable_history = 1;
+         }
+
+         if (verbose)
+            cm_msg(MINFO, "open_history", "Writing history to channel \'%s\' type \'%s\'", hi->name, hi->type);
+
+         mh.push_back(hi);
+      }
+   }
+
+   // prepare history channels
 
    for (unsigned i=0; i<mh.size(); i++) {
       status = mh[i]->hs_clear_cache();
       assert(status == HS_SUCCESS);
    }
 
-#ifdef OLD_HISTORY
-   /* set directory for history files */
-   size = sizeof(str);
-   str[0] = 0;
-   status = db_get_value(hDB, 0, "/Logger/History Dir", str, &size, TID_STRING, FALSE);
-   if (status != DB_SUCCESS)
-      db_get_value(hDB, 0, "/Logger/Data Dir", str, &size, TID_STRING, TRUE);
+   // check global per-variable history settings
 
-   if (str[0] != 0)
-      hs_set_path(str);
-#endif
+   i = 0;
+   size = sizeof(i);
+   status = db_get_value(hDB, 0, "/History/PerVariableHistory", &i, &size, TID_INT, FALSE);
+   if (status==DB_SUCCESS) {
+      cm_msg(MERROR, "open_history", "mlogger ODB setting /History/PerVariableHistory is obsolete, please delete it. Use /Logger/History/MIDAS/PerVariableHistory instead");
+      if (i)
+         global_per_variable_history = i;
+   }
+
+   if (global_per_variable_history) {
+      static int previous = -1;
+      if (global_per_variable_history != previous) {
+         if (global_per_variable_history)
+            cm_msg(MINFO, "open_history", "Per-variable history is enabled");
+         else
+            ;//cm_msg(MINFO, "open_history", "Per-variable history is disabled");
+      }
+      previous = global_per_variable_history;
+   }
+
+   // setup history links
 
    if (db_find_key(hDB, 0, "/History/Links", &hKeyRoot) != DB_SUCCESS ||
        db_find_key(hDB, 0, "/History/Links/System", &hKeyRoot) != DB_SUCCESS) {
@@ -3031,14 +4478,15 @@ INT open_history()
    max_event_id = 0;
 
    status = db_find_key(hDB, 0, "/Equipment", &hKeyRoot);
-   if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "open_history", "Cannot find Equipment entry in database");
-      return 0;
+   if (status == DB_NO_KEY) {
+      cm_msg(MINFO, "open_history", "Cannot find /Equipment entry in database, history system is inactive");
+      return CM_SUCCESS;
    }
 
-   size = sizeof(int);
-   status = db_get_value(hDB, 0, "/History/PerVariableHistory", &global_per_variable_history, &size, TID_INT, TRUE);
-   assert(status==DB_SUCCESS);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "open_history", "Cannot find /Equipment entry in database, db_find_key() status %d", status);
+      return status;
+   }
 
    /* loop over equipment */
    index = 0;
@@ -3109,10 +4557,10 @@ INT open_history()
          }
 
          if (n_var == 0)
-            cm_msg(MERROR, "open_history", "defined event %d with no variables in ODB", eq_id);
+            cm_msg(MINFO, "open_history", "Equipment \"%s\" history is enabled, but there are no Variables in ODB", eq_name);
 
          /* create tag array */
-         tag = (TAG *) malloc(sizeof(TAG) * n_tags);
+         tag = (TAG *) calloc(sizeof(TAG), n_tags);
  
          i_tag = 0;
          for (i=0; ; i++) {
@@ -3123,26 +4571,33 @@ INT open_history()
             /* get variable key */
             db_get_key(hDB, hKey, &varkey);
 
-            /* look for names */
-            db_find_key(hDB, hKeyEq, "Settings/Names", &hKeyNames);
-            single_names = (hKeyNames > 0);
-            if (hKeyNames) {
-               if (verbose)
-                  printf("Using \"/Equipment/%s/Settings/Names\" for variable \"%s\"\n",
-                         eq_name, varkey.name);
 
-               /* define tags from names list */
-               db_get_key(hDB, hKeyNames, &key);
-               n_names = key.num_values;
-            } else {
+            HNDLE hKeyNames = 0;
+            BOOL single_names = false;
+
+            /* look for names */
+
+            if (!hKeyNames) {
                sprintf(str, "Settings/Names %s", varkey.name);
                db_find_key(hDB, hKeyEq, str, &hKeyNames);
                if (hKeyNames) {
                   if (verbose)
-                     printf
-                         ("Using \"/Equipment/%s/Settings/Names %s\" for variable \"%s\"\n",
-                          eq_name, varkey.name, varkey.name);
+                     printf("Using \"/Equipment/%s/Settings/Names %s\" for variable \"%s\"\n", eq_name, varkey.name, varkey.name);
 
+                  /* define tags from names list */
+                  db_get_key(hDB, hKeyNames, &key);
+                  n_names = key.num_values;
+               }
+            }
+
+            if (!hKeyNames) {
+               db_find_key(hDB, hKeyEq, "Settings/Names", &hKeyNames);
+               single_names = (hKeyNames > 0);
+
+               if (hKeyNames) {
+                  if (verbose)
+                     printf("Using \"/Equipment/%s/Settings/Names\" for variable \"%s\"\n", eq_name, varkey.name);
+                  
                   /* define tags from names list */
                   db_get_key(hDB, hKeyNames, &key);
                   n_names = key.num_values;
@@ -3241,18 +4696,13 @@ INT open_history()
                WORD event_id = 0;
                char event_name[NAME_LENGTH];
 
-#ifdef OLD_HISTORY
-               event_id = get_event_id(eq_id, eq_name, varkey.name);
-               assert(event_id > 0);
-#endif
-
                strlcpy(event_name, eq_name, NAME_LENGTH);
                strlcat(event_name, "/", NAME_LENGTH);
                strlcat(event_name, varkey.name, NAME_LENGTH);
 
                assert(i_tag <= n_tags);
 
-               status = add_event(&index, event_id, event_name, hKey, i_tag, tag, history, 1);
+               status = add_event(&index, now, event_id, event_name, hKey, i_tag, tag, history, 1);
                if (status != DB_SUCCESS)
                   return status;
 
@@ -3266,7 +4716,7 @@ INT open_history()
          if (!per_variable_history && i_tag>0) {
             assert(i_tag <= n_tags);
 
-            status = add_event(&index, eq_id, eq_name, hKeyVar, i_tag, tag, history, 1);
+            status = add_event(&index, now, eq_id, eq_name, hKeyVar, i_tag, tag, history, 1);
             if (status != DB_SUCCESS)
                return status;
 
@@ -3333,7 +4783,7 @@ INT open_history()
             cm_msg(MERROR, "open_history", "History event %s has no variables in ODB", hist_name);
          else {
             /* create tag array */
-            tag = (TAG *) malloc(sizeof(TAG) * n_var);
+            tag = (TAG *) calloc(sizeof(TAG), n_var);
 
             for (i = 0, size = 0, n_var = 0;; i++) {
                status = db_enum_link(hDB, hHistKey, i, &hLinkKey);
@@ -3351,8 +4801,7 @@ INT open_history()
                if (db_get_key(hDB, hVarKey, &varkey) == DB_SUCCESS) {
                   /* hot-link individual values */
                   if (histkey.type == TID_KEY)
-                     db_open_record(hDB, hVarKey, NULL, varkey.total_size, MODE_READ,
-                                    log_system_history, (void *) (POINTER_T) index);
+                     db_open_record(hDB, hVarKey, NULL, varkey.total_size, MODE_READ, log_system_history, (void *) (POINTER_T) index);
 
                   strcpy(tag[n_var].name, linkkey.name);
                   tag[n_var].type = varkey.type;
@@ -3369,10 +4818,11 @@ INT open_history()
 
             /* hot-link whole subtree */
             if (histkey.type == TID_LINK)
-               db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history,
-                              (void *) (POINTER_T) index);
+               db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history, (void *) (POINTER_T) index);
 
-            status = add_event(&index, max_event_id, hist_name, hHistKey, n_var, tag, 10, 0);
+            int period = 10;
+
+            status = add_event(&index, now, max_event_id, hist_name, hHistKey, n_var, tag, period, 0);
             if (status != DB_SUCCESS)
                return status;
 
@@ -3387,7 +4837,7 @@ INT open_history()
 
    /*---- define run start/stop event -------------------------------*/
 
-   tag = (TAG *) malloc(sizeof(TAG) * 2);
+   tag = (TAG *) calloc(sizeof(TAG), 2);
 
    strcpy(tag[0].name, "State");
    tag[0].type = TID_DWORD;
@@ -3400,16 +4850,14 @@ INT open_history()
    const char* event_name = "Run transitions";
 
    for (unsigned i=0; i<mh.size(); i++) {
-      status = mh[i]->hs_define_event(event_name, 2, tag);
+      status = mh[i]->hs_define_event(event_name, now, 2, tag);
       if (status != HS_SUCCESS) {
          cm_msg(MERROR, "add_event", "Cannot define event \"%s\", hs_define_event() status %d", event_name, status);
          return 0;
       }
    }
 
-#ifdef OLD_HISTORY
-   hs_define_event(0, (char*)event_name, tag, sizeof(TAG) * 2);
-#endif
+   history_events.push_back(event_name);
 
    free(tag);
    tag = NULL;
@@ -3418,7 +4866,31 @@ INT open_history()
    cm_msg(MINFO, "open_history", "Configured history with %d events", count_events);
    */
 
+   status = hs_save_event_list(&history_events);
+   if (status != HS_SUCCESS)
+      return status;
+
    return CM_SUCCESS;
+}
+
+/*---- periodically flush history buffers----------------------------*/
+
+DWORD last_history_flush = 0;
+
+void maybe_flush_history(DWORD now)
+{
+   DWORD flush_period_sec = 10;
+
+   if ((last_history_flush==0) || (now > last_history_flush + flush_period_sec)) {
+
+      if (verbose)
+	 printf("flush history buffers!\n");
+
+      for (unsigned h=0; h<mh.size(); h++)
+	 mh[h]->hs_flush_buffers();
+
+      last_history_flush = now;
+   }
 }
 
 /*---- close_history -----------------------------------------------*/
@@ -3457,7 +4929,9 @@ void close_history()
 
 void log_history(HNDLE hDB, HNDLE hKey, void *info)
 {
-   INT i, size;
+   INT i, size, status;
+   int actual_time;
+   int start_time = ss_millitime();
 
    for (i = 0; i < hist_log_max; i++)
       if (hist_log[i].hKeyVar == hKey)
@@ -3466,33 +4940,42 @@ void log_history(HNDLE hDB, HNDLE hKey, void *info)
    if (i == hist_log_max)
       return;
 
+   DWORD now = ss_time();
+
    /* check if over period */
-   if (ss_time() - hist_log[i].last_log < hist_log[i].period)
+   if (now - hist_log[i].last_log < hist_log[i].period)
       return;
 
    /* check if event size has changed */
    db_get_record_size(hDB, hKey, 0, &size);
    if (size != hist_log[i].buffer_size) {
       close_history();
-      open_history();
+      status = open_history();
+      if (status != CM_SUCCESS) {
+         printf("Error in history system, aborting.\n");
+         cm_disconnect_experiment();
+         exit(1);
+      }
       return;
    }
 
-   hist_log[i].last_log = ss_time();
+   hist_log[i].last_log = now;
 
    if (verbose)
       printf("write history event: \'%s\', timestamp %d, buffer %p, size %d\n", hist_log[i].event_name, hist_log[i].last_log, hist_log[i].buffer, hist_log[i].buffer_size);
 
-#ifdef OLD_HISTORY
-   hs_write_event(hist_log[i].event_id, hist_log[i].buffer, hist_log[i].buffer_size);
-#endif
-
    for (unsigned h=0; h<mh.size(); h++) {
-      int status = mh[h]->hs_write_event(hist_log[i].event_name, hist_log[i].last_log, hist_log[i].buffer_size, hist_log[i].buffer);
+      status = mh[h]->hs_write_event(hist_log[i].event_name, hist_log[i].last_log, hist_log[i].buffer_size, hist_log[i].buffer);
       if (verbose)
          if (status != HS_SUCCESS)
-            printf("hs_write_event() status %d\n", status);
+            printf("write_history_event: \'%s\', channel \'%s\' hs_write_event() status %d\n", hist_log[i].event_name, mh[h]->name, status);
    }
+
+   maybe_flush_history(now);
+
+   actual_time = ss_millitime();
+   if (actual_time - start_time > 3000)
+      cm_msg(MINFO, "log_history", "History write operation took %d ms", actual_time - start_time);
 }
 
 /*------------------------------------------------------------------*/
@@ -3502,11 +4985,15 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
    INT size, total_size, status, index;
    DWORD i;
    KEY key;
+   int actual_time;
+   int start_time = ss_millitime();
 
    index = (INT) (POINTER_T) info;
 
+   DWORD now = ss_time();
+
    /* check if over period */
-   if (ss_time() - hist_log[index].last_log < hist_log[index].period)
+   if (now - hist_log[index].last_log < hist_log[index].period)
       return;
 
    for (i = 0, total_size = 0;; i++) {
@@ -3522,107 +5009,35 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
 
    if (i != hist_log[index].n_var) {
       close_history();
-      open_history();
-   } else {
-      hist_log[index].last_log = ss_time();
-
-#ifdef OLD_HISTORY
-      hs_write_event(hist_log[index].event_id, hist_log[index].buffer, hist_log[index].buffer_size);
-#endif
-
-      for (unsigned h=0; h<mh.size(); h++)
-         mh[h]->hs_write_event(hist_log[index].event_name, hist_log[index].last_log, hist_log[index].buffer_size, hist_log[index].buffer);
+      status = open_history();
+      if (status != CM_SUCCESS) {
+         printf("Error in history system, aborting.\n");
+         cm_disconnect_experiment();
+         exit(1);
+      }
+      return;
    }
 
+   hist_log[index].last_log = now;
+
+   if (verbose)
+      printf("write history event: \'%s\', timestamp %d, buffer %p, size %d\n", hist_log[index].event_name, hist_log[index].last_log, hist_log[index].buffer, hist_log[index].buffer_size);
+
+   for (unsigned h=0; h<mh.size(); h++)
+      mh[h]->hs_write_event(hist_log[index].event_name, hist_log[index].last_log, hist_log[index].buffer_size, hist_log[index].buffer);
 
    /* simulate odb key update for hot links connected to system history */
    if (!rpc_is_remote()) {
       db_lock_database(hDB);
-      db_notify_clients(hDB, hist_log[index].hKeyVar, FALSE);
+      db_notify_clients(hDB, hist_log[index].hKeyVar, -1, FALSE);
       db_unlock_database(hDB);
    }
 
-}
+   maybe_flush_history(now);
 
-/*------------------------------------------------------------------*/
-
-INT log_callback(INT index, void *prpc_param[])
-{
-   HNDLE hKeyRoot, hKeyChannel;
-   INT i, status, size, channel, izero, htape, online_mode;
-   DWORD watchdog_timeout;
-   BOOL watchdog_flag;
-   char str[256];
-   double dzero;
-
-   /* rewind tapes */
-   if (index == RPC_LOG_REWIND) {
-      channel = *((INT *) prpc_param[0]);
-
-      /* loop over all channels */
-      status = db_find_key(hDB, 0, "/Logger/Channels", &hKeyRoot);
-      if (status != DB_SUCCESS) {
-         cm_msg(MERROR, "log_callback", "cannot find Logger/Channels entry in database");
-         return 0;
-      }
-
-      /* check online mode */
-      online_mode = 0;
-      size = sizeof(online_mode);
-      db_get_value(hDB, 0, "/Runinfo/online mode", &online_mode, &size, TID_INT, TRUE);
-
-      for (i = 0; i < MAX_CHANNELS; i++) {
-         status = db_enum_key(hDB, hKeyRoot, i, &hKeyChannel);
-         if (status == DB_NO_MORE_SUBKEYS)
-            break;
-
-         /* skip if wrong channel, -1 means rewind all channels */
-         if (channel != i && channel != -1)
-            continue;
-
-         if (status == DB_SUCCESS) {
-            size = sizeof(str);
-            status = db_get_value(hDB, hKeyChannel, "Settings/Type", str, &size, TID_STRING, TRUE);
-            if (status != DB_SUCCESS)
-               continue;
-
-            if (equal_ustring(str, "Tape")) {
-               size = sizeof(str);
-               status = db_get_value(hDB, hKeyChannel, "Settings/Filename", str, &size, TID_STRING, TRUE);
-               if (status != DB_SUCCESS)
-                  continue;
-
-               if (ss_tape_open(str, O_RDONLY, &htape) == SS_SUCCESS) {
-                  cm_msg(MTALK, "log_callback", "rewinding tape #%d, please wait", i);
-
-                  cm_get_watchdog_params(&watchdog_flag, &watchdog_timeout);
-                  cm_set_watchdog_params(watchdog_flag, 300000);        /* 5 min for tape rewind */
-                  ss_tape_rewind(htape);
-                  if (online_mode)
-                     ss_tape_unmount(htape);
-                  cm_set_watchdog_params(watchdog_flag, watchdog_timeout);
-
-                  cm_msg(MINFO, "log_callback", "Tape %s rewound sucessfully", str);
-               } else
-                  cm_msg(MERROR, "log_callback", "Cannot rewind tape %s", str);
-
-               ss_tape_close(htape);
-
-               /* clear statistics */
-               dzero = izero = 0;
-               log_chn[i].statistics.bytes_written_total = 0;
-               log_chn[i].statistics.files_written = 0;
-               db_set_value(hDB, hKeyChannel, "Statistics/Bytes written total", &dzero,
-                            sizeof(dzero), 1, TID_DOUBLE);
-               db_set_value(hDB, hKeyChannel, "Statistics/Files written", &izero, sizeof(izero), 1, TID_INT);
-            }
-         }
-      }
-
-      cm_msg(MTALK, "log_callback", "tape rewind finished");
-   }
-
-   return RPC_SUCCESS;
+   actual_time = ss_millitime();
+   if (actual_time - start_time > 3000)
+      cm_msg(MINFO, "log_system_history", "History write operation took %d ms", actual_time - start_time);
 }
 
 /*------------------------------------------------------------------*/
@@ -3706,7 +5121,20 @@ int log_generate_file_name(LOG_CHN *log_chn)
    } else
       strcpy(path, str);
 
+   /* add required file extension */
+   if (log_chn->writer) {
+      std::string file_ext = log_chn->writer->wr_get_file_ext();
+      strlcat(path, file_ext.c_str(), sizeof(path));
+   }
+
    strcpy(log_chn->path, path);
+
+   /* write back current file name to ODB */
+   if (strncmp(path, data_dir, strlen(data_dir)) == 0)
+      strcpy(str, path + strlen(data_dir));
+   else
+      strcpy(str, path);
+   db_set_value(hDB, log_chn->settings_hkey, "Current filename", str, 256, 1, TID_STRING);
 
    /* construct full pipe command */
    if (ispipe) {
@@ -3725,13 +5153,6 @@ int log_generate_file_name(LOG_CHN *log_chn)
       strcat(log_chn->pipe_command, path);
    }
    
-   /* write back current file name to ODB */
-   if (strncmp(path, data_dir, strlen(data_dir)) == 0)
-      strcpy(str, path + strlen(data_dir));
-   else
-      strcpy(str, path);
-   db_set_value(hDB, log_chn->settings_hkey, "Current filename", str, 256, 1, TID_STRING);
-
    return CM_SUCCESS;
 }
 
@@ -3753,10 +5174,6 @@ int close_channels(int run_number, BOOL* p_tape_flag)
    for (i = 0; i < MAX_CHANNELS; i++) {
       if (log_chn[i].handle || log_chn[i].ftp_con|| log_chn[i].pfile) {
          /* generate MTALK message */
-         if (log_chn[i].type == LOG_TYPE_TAPE && tape_message) {
-            tape_flag = TRUE;
-            cm_msg(MTALK, "tr_stop", "closing tape channel #%d, please wait", i);
-         }
 #ifndef FAL_MAIN
          /* wait until buffer is empty */
          if (log_chn[i].buffer_handle) {
@@ -3784,7 +5201,7 @@ int close_channels(int run_number, BOOL* p_tape_flag)
          /* close statistics record */
          db_set_record(hDB, log_chn[i].stats_hkey, &log_chn[i].statistics, sizeof(CHN_STATISTICS), 0);
          db_close_record(hDB, log_chn[i].stats_hkey);
-         db_close_record(hDB, log_chn[i].settings_hkey);
+         db_unwatch(hDB, log_chn[i].settings_hkey);
          log_chn[i].stats_hkey = log_chn[i].settings_hkey = 0;
       }
    }
@@ -3830,16 +5247,30 @@ static int write_history(DWORD transition, DWORD run_number)
    eb[0] = transition;
    eb[1] = run_number;
 
-#ifdef OLD_HISTORY
-   hs_write_event(0, eb, sizeof(eb));
-#endif
-
    time_t now = time(NULL);
 
    for (unsigned h=0; h<mh.size(); h++)
       mh[h]->hs_write_event("Run transitions", now, sizeof(eb), (const char*)eb);
 
    return SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
+
+static void watch_settings(HNDLE hDB, HNDLE hKey, HNDLE index, void* info)
+{
+   int status;
+   assert(info != NULL);
+   LOG_CHN *log_chn = (LOG_CHN*)info;
+   int size = sizeof(CHN_SETTINGS);
+   status = db_get_record1(hDB, log_chn->settings_hkey, &log_chn->settings, &size, 0, strcomb(chn_settings_str));
+   if (status != DB_SUCCESS) {
+      cm_msg(MINFO, "watch_settings", "db_get_record(%s) status %d", log_chn->name.c_str(), status);
+      return;
+   }
+
+   if (verbose)
+      printf("Channel %s settings updated\n", log_chn->name.c_str());
 }
 
 /*------------------------------------------------------------------*/
@@ -3863,10 +5294,12 @@ INT tr_start(INT run_number, char *error)
    CHN_SETTINGS *chn_settings;
    KEY key;
    BOOL write_data, tape_flag = FALSE;
-   char str[256];
+   HNDLE hDB;
 
    if (verbose)
       printf("tr_start: run %d\n", run_number);
+
+   cm_get_experiment_database(&hDB, NULL);
 
    /* save current ODB */
    odb_save("last.xml");
@@ -3897,17 +5330,17 @@ INT tr_start(INT run_number, char *error)
    status = db_find_key(hDB, 0, "/Logger/Channels", &hKeyRoot);
    if (status != DB_SUCCESS) {
       /* if no channels are defined, define at least one */
-      status = db_create_record(hDB, 0, "/Logger/Channels/0/", strcomb(chn_settings_str));
+      status = db_create_record(hDB, 0, "/Logger/Channels/0/", strcomb(chn_tree_str));
       if (status != DB_SUCCESS) {
          strcpy(error, "Cannot create channel entry in database");
-         cm_msg(MERROR, "tr_start", error);
+         cm_msg(MERROR, "tr_start", "%s", error);
          return 0;
       }
 
       status = db_find_key(hDB, 0, "/Logger/Channels", &hKeyRoot);
       if (status != DB_SUCCESS) {
          strcpy(error, "Cannot create channel entry in database");
-         cm_msg(MERROR, "tr_start", error);
+         cm_msg(MERROR, "tr_start", "%s", error);
          return 0;
       }
    }
@@ -3919,7 +5352,7 @@ INT tr_start(INT run_number, char *error)
 
       /* correct channel record */
       db_get_key(hDB, hKeyChannel, &key);
-      status = db_check_record(hDB, hKeyRoot, key.name, strcomb(chn_settings_str), TRUE);
+      status = db_check_record(hDB, hKeyRoot, key.name, strcomb(chn_tree_str), TRUE);
       if (status != DB_SUCCESS && status != DB_OPEN_RECORD) {
          cm_msg(MERROR, "tr_start", "Cannot create/check channel record, status %d", status);
          break;
@@ -3940,11 +5373,13 @@ INT tr_start(INT run_number, char *error)
          if (log_chn[index].ftp_con)
             continue;
 
+         log_chn[index].name = key.name;
+
          /* save settings key */
          status = db_find_key(hDB, hKeyChannel, "Settings", &log_chn[index].settings_hkey);
          if (status != DB_SUCCESS) {
             strcpy(error, "Cannot find channel settings info");
-            cm_msg(MERROR, "tr_start", error);
+            cm_msg(MERROR, "tr_start", "%s", error);
             return 0;
          }
 
@@ -3952,13 +5387,13 @@ INT tr_start(INT run_number, char *error)
          status = db_find_key(hDB, hKeyChannel, "Statistics", &log_chn[index].stats_hkey);
          if (status != DB_SUCCESS) {
             strcpy(error, "Cannot find channel statistics info");
-            cm_msg(MERROR, "tr_start", error);
+            cm_msg(MERROR, "tr_start", "%s", error);
             return 0;
          }
 
          /* clear statistics */
          size = sizeof(CHN_STATISTICS);
-         db_get_record(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics, &size, 0);
+         db_get_record1(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics, &size, 0, strcomb(chn_statistics_str));
 
          log_chn[index].statistics.events_written = 0;
          log_chn[index].statistics.bytes_written = 0;
@@ -3970,30 +5405,26 @@ INT tr_start(INT run_number, char *error)
          /* get channel info structure */
          chn_settings = &log_chn[index].settings;
          size = sizeof(CHN_SETTINGS);
-         status = db_get_record(hDB, log_chn[index].settings_hkey, chn_settings, &size, 0);
+         status = db_get_record1(hDB, log_chn[index].settings_hkey, chn_settings, &size, 0, strcomb(chn_settings_str));
          if (status != DB_SUCCESS) {
             strcpy(error, "Cannot read channel info");
-            cm_msg(MERROR, "tr_start", error);
+            cm_msg(MERROR, "tr_start", "%s", error);
             return 0;
          }
 
-         /* don't start run if tape is full */
-         if (log_chn[index].type == LOG_TYPE_TAPE &&
-             chn_settings->tape_capacity > 0 &&
-             log_chn[index].statistics.bytes_written_total >= chn_settings->tape_capacity) {
-            strcpy(error, "Tape capacity reached. Please load new tape");
-            cm_msg(MERROR, "tr_start", error);
-            return 0;
-         }
+         log_chn[index].pre_checksum_module = select_checksum_module(hDB, log_chn[index].settings_hkey, "data checksum");
+         log_chn[index].post_checksum_module = select_checksum_module(hDB, log_chn[index].settings_hkey, "file checksum");
+         log_chn[index].compression_module = select_compression_module(hDB, log_chn[index].settings_hkey, "compress");
+         log_chn[index].output_module = select_output_module(hDB, log_chn[index].settings_hkey, "output");
+
+         //printf("channel settings pre [%d] compress [%d] post [%d] output [%d]\n", log_chn[index].pre_checksum_module, log_chn[index].compression_module, log_chn[index].post_checksum_module, log_chn[index].output_module);
 
          /* check if active */
          if (!chn_settings->active || !write_data)
             continue;
 
          /* check for type */
-         if (equal_ustring(chn_settings->type, "Tape"))
-            log_chn[index].type = LOG_TYPE_TAPE;
-         else if (equal_ustring(chn_settings->type, "FTP"))
+         if (equal_ustring(chn_settings->type, "FTP"))
             log_chn[index].type = LOG_TYPE_FTP;
          else if (equal_ustring(chn_settings->type, "Disk"))
             log_chn[index].type = LOG_TYPE_DISK;
@@ -4001,7 +5432,7 @@ INT tr_start(INT run_number, char *error)
             sprintf(error,
                     "Invalid channel type \"%s\", pease use \"Tape\", \"FTP\" or \"Disk\"",
                     chn_settings->type);
-            cm_msg(MERROR, "tr_start", error);
+            cm_msg(MERROR, "tr_start", "%s", error);
             return 0;
          }
 
@@ -4013,21 +5444,9 @@ INT tr_start(INT run_number, char *error)
          /* initialize subrun number */
          log_chn[index].subrun_number = 0;
 
+         log_create_writer(&log_chn[index]);
          log_generate_file_name(&log_chn[index]);
 
-         if (log_chn[index].type == LOG_TYPE_TAPE &&
-             log_chn[index].statistics.bytes_written_total == 0 && tape_message) {
-            tape_flag = TRUE;
-            cm_msg(MTALK, "tr_start", "mounting tape #%d, please wait", index);
-         }
-
-         if (log_chn[index].type == LOG_TYPE_DISK) {
-            strlcpy(str, log_chn->path, sizeof(str));
-            if (strrchr(str, '/'))
-               *(strrchr(str, '/')+1) = 0; // strip filename for bzip2
-            log_chn[index].statistics.disk_level = 1.0-ss_disk_free(str)/ss_disk_size(str);
-         }
-            
          /* open logging channel */
          status = log_open(&log_chn[index], run_number);
 
@@ -4052,7 +5471,7 @@ INT tr_start(INT run_number, char *error)
                sprintf(error,
                        "Invalid data format, please use \"MIDAS\", \"ASCII\", \"DUMP\" or \"ROOT\"");
 
-            cm_msg(MERROR, "tr_start", error);
+            cm_msg(MERROR, "tr_start", "%s", error);
             return 0;
          }
 
@@ -4063,37 +5482,31 @@ INT tr_start(INT run_number, char *error)
             db_close_record(hDB, log_chn[index].settings_hkey);
 
          /* open hot link to statistics tree */
-         status = db_open_record(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics,
-                            sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL);
+         status = db_open_record1(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics, sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL, strcomb(chn_statistics_str));
          if (status == DB_NO_ACCESS) {
             /* record is probably still in exclusive access by dead logger, so reset it */
             status = db_set_mode(hDB, log_chn[index].stats_hkey, MODE_READ | MODE_WRITE | MODE_DELETE, TRUE);
             if (status != DB_SUCCESS)
-               cm_msg(MERROR, "tr_start", 
-                      "Cannot change access mode for statistics record, error %d", status);
+               cm_msg(MERROR, "tr_start", "Cannot change access mode for statistics record, error %d", status);
             else
                cm_msg(MINFO, "tr_start", "Recovered access mode for statistics record of channel %d", index);
-            status = db_open_record(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics,
-                               sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL);
+            status = db_open_record1(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics, sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL, strcomb(chn_statistics_str));
          }
 
          if (status != DB_SUCCESS)
             cm_msg(MERROR, "tr_start", "Cannot open statistics record for channel %d, error %d", index, status);
 
          /* open hot link to settings tree */
-         status =
-             db_open_record(hDB, log_chn[index].settings_hkey, &log_chn[index].settings,
-                            sizeof(CHN_SETTINGS), MODE_READ, NULL, NULL);
+         status = db_watch(hDB, log_chn[index].settings_hkey, watch_settings, &log_chn[index]);
          if (status != DB_SUCCESS)
-            cm_msg(MERROR, "tr_start",
-                   "cannot open channel settings record, probably other logger is using it");
+            cm_msg(MERROR, "tr_start", "db_watch() status %d, cannot open channel settings record, probably other logger is using it", status);
 
 #ifndef FAL_MAIN
          /* open buffer */
-         status = bm_open_buffer(chn_settings->buffer, 2 * MAX_EVENT_SIZE, &log_chn[index].buffer_handle);
+         status = bm_open_buffer(chn_settings->buffer, DEFAULT_BUFFER_SIZE, &log_chn[index].buffer_handle);
          if (status != BM_SUCCESS && status != BM_CREATED) {
             sprintf(error, "Cannot open buffer %s", chn_settings->buffer);
-            cm_msg(MERROR, "tr_start", error);
+            cm_msg(MERROR, "tr_start", "%s", error);
             return 0;
          }
          bm_set_cache_size(log_chn[index].buffer_handle, 100000, 0);
@@ -4106,17 +5519,16 @@ INT tr_start(INT run_number, char *error)
 
          if (status != BM_SUCCESS) {
             sprintf(error, "Cannot place event request");
-            cm_msg(MERROR, "tr_start", error);
+            cm_msg(MERROR, "tr_start", "%s", error);
             return 0;
          }
 
          /* open message buffer if requested */
          if (chn_settings->log_messages) {
-            status =
-                bm_open_buffer((char*)MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &log_chn[index].msg_buffer_handle);
+            status = bm_open_buffer((char*)MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &log_chn[index].msg_buffer_handle);
             if (status != BM_SUCCESS && status != BM_CREATED) {
                sprintf(error, "Cannot open buffer %s", MESSAGE_BUFFER_NAME);
-               cm_msg(MERROR, "tr_start", error);
+               cm_msg(MERROR, "tr_start", "%s", error);
                return 0;
             }
 
@@ -4128,7 +5540,7 @@ INT tr_start(INT run_number, char *error)
 
             if (status != BM_SUCCESS) {
                sprintf(error, "Cannot place event request");
-               cm_msg(MERROR, "tr_start", error);
+               cm_msg(MERROR, "tr_start", "%s", error);
                return 0;
             }
          }
@@ -4144,7 +5556,7 @@ INT tr_start(INT run_number, char *error)
    status = open_history();
    if (status != CM_SUCCESS) {
       sprintf(error, "Error in history system, aborting run start");
-      cm_msg(MERROR, "tr_start", error);
+      cm_msg(MERROR, "tr_start", "%s", error);
       return 0;
    }
 
@@ -4342,7 +5754,7 @@ int main(int argc, char *argv[])
    rargc++;
 
    /* append argument "-b" for batch mode without graphics */
-   rargv[rargc++] = "-b";
+   rargv[rargc++] = (char *)"-b";
 
    TApplication theApp("mlogger", &rargc, rargv);
 
@@ -4352,6 +5764,11 @@ int main(int argc, char *argv[])
    free(rargv);
    rargv = NULL;
 
+#endif
+
+#ifdef SIGPIPE
+   // undo ROOT overwrites SIGPIPE
+   signal(SIGPIPE, SIG_IGN);
 #endif
 
    setbuf(stdout, NULL);
@@ -4404,12 +5821,18 @@ int main(int argc, char *argv[])
 
    cm_get_experiment_database(&hDB, NULL);
 
-   /* set default watchdog timeout */
-   cm_set_watchdog_params(TRUE, LOGGER_TIMEOUT);
-
    /* turn off watchdog if in debug mode */
    if (debug)
       cm_set_watchdog_params(TRUE, 0);
+   else {
+      DWORD timeout = LOGGER_DEFAULT_TIMEOUT;
+      int size = sizeof(timeout);
+      status = db_get_value(hDB, 0, "/Logger/Watchdog timeout", &timeout, &size, TID_DWORD, TRUE);
+      assert(status == DB_SUCCESS);
+
+      /* set default watchdog timeout */
+      cm_set_watchdog_params(TRUE, timeout);
+   }
 
    /* turn on save mode */
    if (save_mode) {
@@ -4427,9 +5850,6 @@ int main(int argc, char *argv[])
    cm_register_transition(TR_STOP, tr_stop, 800);
    cm_register_transition(TR_PAUSE, tr_pause, 800);
    cm_register_transition(TR_RESUME, tr_resume, 200);
-
-   /* register callback for rewinding tapes */
-   cm_register_function(RPC_LOG_REWIND, log_callback);
 
    /* initialize ODB */
    logger_init();
@@ -4453,7 +5873,7 @@ int main(int argc, char *argv[])
    size = sizeof(dir);
    db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
    printf("Log     directory is %s\n", dir);
-   printf("Data    directory is same as Log unless specified in channels/\n");
+   printf("Data    directory is same as Log unless specified in /Logger/channels/\n");
 
    /* Alternate History and Elog path */
    size = sizeof(dir);
@@ -4463,7 +5883,7 @@ int main(int argc, char *argv[])
       db_get_value(hDB, 0, "/Logger/History dir", dir, &size, TID_STRING, TRUE);
    else
       sprintf(dir, "same as Log");
-   printf("History directory is %s\n", dir);
+   printf("History directory is %s unless specified in /Logger/history/\n", dir);
 
    size = sizeof(dir);
    dir[0] = 0;
@@ -4499,11 +5919,25 @@ int main(int argc, char *argv[])
    do {
       msg = cm_yield(1000);
 
+      /* maybe update channel disk levels */
+      maybe_check_disk_level();
+
       /* update channel statistics once every second */
       if (ss_millitime() - last_time_stat > 1000) {
          last_time_stat = ss_millitime();
+         /*
+         printf("update statistics!\n");
+         //LOG_CHN* log_chn = log_chn[0];
+         printf("events %.0f, subrun %.0f, written %.0f, total %.0f\n", log_chn->statistics.events_written,
+                log_chn->statistics.bytes_written_subrun,
+                log_chn->statistics.bytes_written,
+                log_chn->statistics.bytes_written_total);
+         */
          db_send_changed_records();
       }
+
+      /* maybe flush history buffers */
+      maybe_flush_history(ss_time());
 
       /* check for auto restart */
       if (auto_restart && ss_time() > auto_restart) {
@@ -4552,5 +5986,6 @@ int main(int argc, char *argv[])
  * Local Variables:
  * tab-width: 8
  * c-basic-offset: 3
+ * indent-tabs-mode: nil
  * End:
  */

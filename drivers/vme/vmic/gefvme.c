@@ -57,7 +57,7 @@ static int gefvme_openWindow(MVME_INTERFACE *mvme, int am, mvme_addr_t vme_addr,
   int fd;
   struct  vmeOutWindowCfg conf;
   int status;
-  char* amode = "(unknown)";
+  const char* amode = "(unknown)";
   
   table = (VME_TABLE *) mvme->table;
 
@@ -208,7 +208,7 @@ static int gefvme_openWindow(MVME_INTERFACE *mvme, int am, mvme_addr_t vme_addr,
     *pwindow = j;
 
   if (paddr)
-    *paddr = addr;
+     *paddr = (char*)addr;
   
   return MVME_SUCCESS;
 }
@@ -256,7 +256,7 @@ static int gefvme_mapcheck(MVME_INTERFACE *mvme, mvme_addr_t vme_addr, mvme_size
   if (poffset)
     *poffset = vme_addr - table[j].low;
   if (paddr)
-    *paddr = table[j].addr;
+     *paddr = (char*)table[j].addr;
 
   return MVME_SUCCESS;
 }
@@ -292,7 +292,7 @@ char* gefvme_get_a32(MVME_INTERFACE *mvme, uint32_t vmeaddr, int size)
 
 int gefvme_dma_debug   = 0;
 
-static int makeDmaPacket(vmeDmaPacket_t *pkt, int blt_mode, int am, uint32_t vme_addr, char* dst_addr, int nbytes)
+static int makeDmaPacket(vmeDmaPacket_t *pkt, int blt_mode, int am, uint32_t vme_addr, void* dst_addr, int nbytes)
 {
 
   memset(pkt, 0, sizeof(*pkt));
@@ -377,7 +377,8 @@ static int makeDmaPacket(vmeDmaPacket_t *pkt, int blt_mode, int am, uint32_t vme
   if (sizeof(dst_addr) == sizeof(uint32_t))
      {
         /* 32-bit addresses */
-        pkt->dstAddr  = (uint32_t)dst_addr;
+        // C++ does not like this: pkt->dstAddr  = (uint32_t)dst_addr;
+        pkt->dstAddr  = (intptr_t)dst_addr;
         pkt->dstAddrU = 0;
      }
   else
@@ -389,8 +390,8 @@ static int makeDmaPacket(vmeDmaPacket_t *pkt, int blt_mode, int am, uint32_t vme
 
   //printf("dst_addr: %p, addrL: 0x%08x, addrU: 0x%08x\n", dst_addr, pkt->dstAddr, pkt->dstAddrU);
 
-  pkt->dstVmeAttr.maxDataWidth = 0;
-  pkt->dstVmeAttr.addrSpace = 0;
+  pkt->dstVmeAttr.maxDataWidth = VME_D32;
+  pkt->dstVmeAttr.addrSpace = VME_A24;
   pkt->dstVmeAttr.userAccessType = 0;
   pkt->dstVmeAttr.dataAccessType = 0;
   pkt->dstVmeAttr.xferProtocol = 0;
@@ -660,14 +661,16 @@ int gefvme_read_dma(MVME_INTERFACE *mvme, void *dst, mvme_addr_t vme_addr, int n
 
   if (vmeDma.vmeDmaStatus != 0x02000000) {
     //*((uint32_t*)dst) = 0xdeadbeef;
-    printf("mvme_read_dma: DMA error, read %6d out of %6d bytes from 0x%08x, status 0x%08x, srcAddr 0x%08x, dstAddr 0x%08x\n", bytesRead, n_bytes, vme_addr, vmeDma.vmeDmaStatus, vmeDma.srcAddr, vmeDma.dstAddr);
+    printf("mvme_read_dma: DMA error, read %6d out of %6d bytes from 0x%08x, status 0x%08x, srcAddr 0x%08x, dstAddr 0x%08x\n"
+					 , bytesRead, n_bytes, vme_addr, vmeDma.vmeDmaStatus, vmeDma.srcAddr, vmeDma.dstAddr);
     fprintf(stderr,"mvme_read_dma: ioctl(VME_IOCTL_START_DMA) returned vmeDmaStatus 0x%08x\n", vmeDma.vmeDmaStatus);
     n_bytes = bytesRead;
     //return MVME_ACCESS_ERROR;
   }
   
   if (bytesRead!=0 && bytesRead!=n_bytes) {
-    printf("mvme_read_dma: DMA %6d of %6d bytes from 0x%08x, status 0x%08x, srcAddr 0x%08x, dstAddr 0x%08x\n", n_bytes, bytesRead, vme_addr, vmeDma.vmeDmaStatus, vmeDma.srcAddr, vmeDma.dstAddr);
+    printf("mvme_read_dma: DMA %6d of %6d bytes from 0x%08x, status 0x%08x, srcAddr 0x%08x, dstAddr 0x%08x\n"
+					 , n_bytes, bytesRead, vme_addr, vmeDma.vmeDmaStatus, vmeDma.srcAddr, vmeDma.dstAddr);
     fprintf(stderr,"mvme_read_dma: ioctl(VME_IOCTL_START_DMA) returned byteCount %d while requested read of %d bytes\n", bytesRead, n_bytes);
     return MVME_ACCESS_ERROR;
   }
@@ -711,7 +714,8 @@ DMA    read access : 300ns / DMA latency 28us
 */
 int mvme_read(MVME_INTERFACE *mvme, void *dst, mvme_addr_t vme_addr, mvme_size_t n_bytes)
 {
-  int i, fd;
+  int fd;
+  unsigned i;
   int offset;
   int status;
   char* addr;
@@ -765,16 +769,16 @@ int mvme_read(MVME_INTERFACE *mvme, void *dst, mvme_addr_t vme_addr, mvme_size_t
     }
 
     if (1) {
-       char* ptr = dst;
-      for (i=0; i<n_bytes; i+=4) {
-        char tmp;
-        tmp = ptr[i+0];
-        ptr[i+0] = ptr[i+3];
-        ptr[i+3] = tmp;
-        tmp = ptr[i+1];
-        ptr[i+1] = ptr[i+2];
-        ptr[i+2] = tmp;
-      }
+       char* ptr = (char*)dst;
+       for (i=0; i<n_bytes; i+=4) {
+          char tmp;
+          tmp = ptr[i+0];
+          ptr[i+0] = ptr[i+3];
+          ptr[i+3] = tmp;
+          tmp = ptr[i+1];
+          ptr[i+1] = ptr[i+2];
+          ptr[i+2] = tmp;
+       }
     }
 
 #if 0

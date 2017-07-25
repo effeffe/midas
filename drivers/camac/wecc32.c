@@ -34,6 +34,7 @@
 \********************************************************************/
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "midas.h"
 #include "mcstd.h"
 #include <sys/mman.h>
@@ -154,20 +155,20 @@ int cc32_close(CC32_HANDLE handle)
 
 
 /*------------------------------------------------------------------*/
-INLINE void cami(const int c, const int n, const int a, const int f, WORD * d)
+void cami(const int c, const int n, const int a, const int f, WORD * d)
 {
    cam16i(c, n, a, f, d);
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16i(const int c, const int n, const int a, const int f, WORD * d)
+void cam16i(const int c, const int n, const int a, const int f, WORD * d)
 {
    if (handle[c])
       *d = *pwCC32_ADR(((CC32_DEVICE *) handle[c])->base, n, a, f);
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24i(const int c, const int n, const int a, const int f, DWORD * d)
+void cam24i(const int c, const int n, const int a, const int f, DWORD * d)
 {
    if (handle[c])
       *d = *plCC32_ADR(((CC32_DEVICE *) handle[c])->base, n, a, f);
@@ -175,7 +176,7 @@ INLINE void cam24i(const int c, const int n, const int a, const int f, DWORD * d
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16i_q(const int c, const int n, const int a, const int f,
+void cam16i_q(const int c, const int n, const int a, const int f,
                      WORD * d, int *x, int *q)
 {
    DWORD erg;
@@ -188,7 +189,7 @@ INLINE void cam16i_q(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24i_q(const int c, const int n, const int a, const int f,
+void cam24i_q(const int c, const int n, const int a, const int f,
                      DWORD * d, int *x, int *q)
 {
    if (handle[c]) {
@@ -200,7 +201,7 @@ INLINE void cam24i_q(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16i_r(const int c, const int n, const int a, const int f,
+void cam16i_r(const int c, const int n, const int a, const int f,
                      WORD ** d, const int r)
 {
    int i;
@@ -210,7 +211,7 @@ INLINE void cam16i_r(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24i_r(const int c, const int n, const int a, const int f,
+void cam24i_r(const int c, const int n, const int a, const int f,
                      DWORD ** d, const int r)
 {
    INT i;
@@ -220,7 +221,7 @@ INLINE void cam24i_r(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16i_rq(const int c, const int n, const int a, const int f,
+void cam16i_rq(const int c, const int n, const int a, const int f,
                       WORD ** d, const int r)
 {
    WORD erg;
@@ -238,7 +239,7 @@ INLINE void cam16i_rq(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24i_rq(const int c, const int n, const int a, const int f,
+void cam24i_rq(const int c, const int n, const int a, const int f,
                       DWORD ** d, const int r)
 {
    DWORD erg;
@@ -256,7 +257,7 @@ INLINE void cam24i_rq(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16i_sa(const int c, const int n, const int a, const int f,
+void cam16i_sa(const int c, const int n, const int a, const int f,
                       WORD ** d, const int r)
 {
    INT i;
@@ -267,7 +268,7 @@ INLINE void cam16i_sa(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24i_sa(const int c, const int n, const int a, const int f,
+void cam24i_sa(const int c, const int n, const int a, const int f,
                       DWORD ** d, const int r)
 {
    INT i;
@@ -278,7 +279,7 @@ INLINE void cam24i_sa(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16i_sn(const int c, const int n, const int a, const int f,
+void cam16i_sn(const int c, const int n, const int a, const int f,
                       WORD ** d, const int r)
 {
    INT i;
@@ -288,7 +289,7 @@ INLINE void cam16i_sn(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24i_sn(const int c, const int n, const int a, const int f,
+void cam24i_sn(const int c, const int n, const int a, const int f,
                       DWORD ** d, const int r)
 {
    INT i;
@@ -298,27 +299,27 @@ INLINE void cam24i_sn(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void camo(const int c, const int n, const int a, const int f, WORD d)
+void camo(const int c, const int n, const int a, const int f, WORD d)
 {
    cam16o(c, n, a, f, d);
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16o(const int c, const int n, const int a, const int f, WORD d)
+void cam16o(const int c, const int n, const int a, const int f, WORD d)
 {
    if (handle[c])
       *pwCC32_ADR(((CC32_DEVICE *) handle[c])->base, n, a, f) = d;
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24o(const int c, const int n, const int a, const int f, DWORD d)
+void cam24o(const int c, const int n, const int a, const int f, DWORD d)
 {
    if (handle[c])
       *plCC32_ADR(((CC32_DEVICE *) handle[c])->base, n, a, f) = d;
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16o_q(const int c, const int n, const int a, const int f,
+void cam16o_q(const int c, const int n, const int a, const int f,
                      WORD d, int *x, int *q)
 {
    if (handle[c]) {
@@ -329,7 +330,7 @@ INLINE void cam16o_q(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24o_q(const int c, const int n, const int a, const int f,
+void cam24o_q(const int c, const int n, const int a, const int f,
                      DWORD d, int *x, int *q)
 {
    if (handle[c]) {
@@ -340,7 +341,7 @@ INLINE void cam24o_q(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam16o_r(const int c, const int n, const int a, const int f,
+void cam16o_r(const int c, const int n, const int a, const int f,
                      WORD * d, const int r)
 {
    INT i;
@@ -350,7 +351,7 @@ INLINE void cam16o_r(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam24o_r(const int c, const int n, const int a, const int f,
+void cam24o_r(const int c, const int n, const int a, const int f,
                      DWORD * d, const int r)
 {
    INT i;
@@ -360,14 +361,14 @@ INLINE void cam24o_r(const int c, const int n, const int a, const int f,
 }
 
 /*------------------------------------------------------------------*/
-INLINE int camc_chk(const int c)
+int camc_chk(const int c)
 {
    printf("not implemented\n");
    return 0;
 }
 
 /*------------------------------------------------------------------*/
-INLINE void camc(const int c, const int n, const int a, const int f)
+void camc(const int c, const int n, const int a, const int f)
 {
    DWORD temp;
    if (handle[c])
@@ -375,7 +376,7 @@ INLINE void camc(const int c, const int n, const int a, const int f)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void camc_q(const int c, const int n, const int a, const int f, int *q)
+void camc_q(const int c, const int n, const int a, const int f, int *q)
 {
    DWORD erg;
    if (handle[c])
@@ -384,7 +385,7 @@ INLINE void camc_q(const int c, const int n, const int a, const int f, int *q)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void camc_sa(const int c, const int n, const int a, const int f, const int r)
+void camc_sa(const int c, const int n, const int a, const int f, const int r)
 {
    INT i;
 
@@ -393,7 +394,7 @@ INLINE void camc_sa(const int c, const int n, const int a, const int f, const in
 }
 
 /*------------------------------------------------------------------*/
-INLINE void camc_sn(const int c, const int n, const int a, const int f, const int r)
+void camc_sn(const int c, const int n, const int a, const int f, const int r)
 {
    INT i;
 
@@ -402,7 +403,7 @@ INLINE void camc_sn(const int c, const int n, const int a, const int f, const in
 }
 
 /*------------------------------------------------------------------*/
-INLINE int cam_init(void)
+int cam_init(void)
 {
    unsigned char status;
    unsigned int adr, error;
@@ -433,7 +434,7 @@ INLINE int cam_init(void)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_exit(void)
+void cam_exit(void)
 {
    INT i;
 
@@ -442,35 +443,35 @@ INLINE void cam_exit(void)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_inhibit_set(const int c)
+void cam_inhibit_set(const int c)
 {
    if (handle[c])
       *pwCC32_ADR(((CC32_DEVICE *) handle[c])->base, 27, 0, 16) = 0;
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_inhibit_clear(const int c)
+void cam_inhibit_clear(const int c)
 {
    if (handle[c])
       *pwCC32_ADR(((CC32_DEVICE *) handle[c])->base, 27, 1, 16) = 0;
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_crate_clear(const int c)
+void cam_crate_clear(const int c)
 {
    if (handle[c])
       *pwCC32_ADR(((CC32_DEVICE *) handle[c])->base, 0, 0, 16) = 0;
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_crate_zinit(const int c)
+void cam_crate_zinit(const int c)
 {
    if (handle[c])
       *pwCC32_ADR(((CC32_DEVICE *) handle[c])->base, 0, 1, 16) = 0;
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_lam_enable(const int c, const int n)
+void cam_lam_enable(const int c, const int n)
 {
    DWORD mask;
    if (handle[c]) {
@@ -487,7 +488,7 @@ INLINE void cam_lam_enable(const int c, const int n)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_lam_disable(const int c, const int n)
+void cam_lam_disable(const int c, const int n)
 {
    DWORD mask;
    if (handle[c]) {
@@ -498,7 +499,7 @@ INLINE void cam_lam_disable(const int c, const int n)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_lam_read(const int c, DWORD * lam)
+void cam_lam_read(const int c, DWORD * lam)
 {
    if (handle[c]) {
       *lam = *plCC32_ADR(((CC32_DEVICE *) handle[c])->base, 28, 2, 0);
@@ -507,7 +508,7 @@ INLINE void cam_lam_read(const int c, DWORD * lam)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_lam_clear(const int c, const int n)
+void cam_lam_clear(const int c, const int n)
 {
    if (handle[c]) {
       /* station F10 */
@@ -518,13 +519,13 @@ INLINE void cam_lam_clear(const int c, const int n)
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_interrupt_enable(const int c)
+void cam_interrupt_enable(const int c)
 {
    printf("not implemented\n");
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_interrupt_disable(const int c)
+void cam_interrupt_disable(const int c)
 {
    printf("not implemented\n");
 }
@@ -532,25 +533,24 @@ INLINE void cam_interrupt_disable(const int c)
 /*------------------------------------------------------------------*/
 static void (*old_handler) (void) = NULL;
 
-INLINE void cam_interrupt_attach(const int c, const int n, void (*isr) (void))
+void cam_interrupt_attach(const int c, const int n, void (*isr) (void))
 {
    printf("not implemented\n");
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_interrupt_detach(const int c, const int n)
+void cam_interrupt_detach(const int c, const int n)
 {
    printf("not implemented\n");
 }
 
 /*------------------------------------------------------------------*/
-INLINE int cam_init_rpc(char *host_name, char *exp_name, char *fe_name, char *client_name,
-                        char *rpc_server)
+int cam_init_rpc(const char *host_name, const char *exp_name, const char *fe_name, const char *client_name, const char *rpc_server)
 {
    return 1;
 }
 
 /*------------------------------------------------------------------*/
-INLINE void cam_op()
+void cam_op()
 {
 }

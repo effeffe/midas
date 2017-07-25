@@ -45,33 +45,49 @@ SYSLIB_DIR = $(PREFIX)/lib
 SYSINC_DIR = $(PREFIX)/include
 
 #
-# Option to set the shared library path on MIDAS executables
+# Configurable and optional packages:
 #
-NEED_RPATH=1
+# ROOT  - mlogger output and analyzer
+# MYSQL - mlogger begin/end of run info and history
+# ODBC  - history
+# SQLITE - history
+# MSCB  - mhttpd
+#
+# In C/C++ code, optional features are controlled by "#ifdef HAVE_xxx", i.e. "#ifdef HAVE_ROOT"
+# This is passed from the Makefile as -DHAVE_xxx, i.e. -DHAVE_ROOT
+# In the Makefile, optional features are controlled by HAVE_xxx, i.e. "ifdef HAVE_ROOT"
+# Autodetection of optional features is below, it sets HAVE_xxx if feature is present, leaves HAVE_xxx unset if feature is absent
+# To explicitely disable an optional feature, use NO_xxx, i.e. "make NO_ROOT=1" to disable ROOT.
+# (These NO_xxx Makefile variables are only used to control autodetection, they do not appear in the rest of the Makefile)
+#
 
 #
-# Option to use the static ROOT library libRoot.a
+# Optional MYSQL library for mlogger and for the history
 #
-# To link midas with the static ROOT library, say "make ... NEED_LIBROOTA=1"
-#
-NEED_LIBROOTA=
+ifndef NO_ROOT
+HAVE_ROOT := $(shell root-config --version 2> /dev/null)
+endif
 
 #
-# Optional libmysqlclient library for mlogger
+# Optional MYSQL library for mlogger and for the history
 #
-# To add mySQL support to the logger, say "make ... NEED_MYSQL=1"
-#
-# Here we try to figure out automatically if mySQL is installed
-MYSQL_CONFIG := $(shell which mysql_config 2> /dev/null)
-ifdef MYSQL_CONFIG
-  MYSQLINCDIR := $(shell mysql_config --cflags | sed -e 's,^.*-I\([^ ]*\).*$$,\1,' -e s/\'//g)
-  NEED_MYSQL := $(shell if [ -e $(MYSQLINCDIR)/mysql.h ]; then echo 1; fi)
+ifndef NO_MYSQL
+HAVE_MYSQL := $(shell mysql_config --include 2> /dev/null)
 endif
 
 #
 # Optional ODBC history support
 #
+ifndef NO_ODBC
 HAVE_ODBC := $(shell if [ -e /usr/include/sql.h ]; then echo 1; fi)
+endif
+
+#
+# Optional SQLITE history support
+#
+ifndef NO_SQLITE
+HAVE_SQLITE := $(shell if [ -e /usr/include/sqlite3.h ]; then echo 1; fi)
+endif
 
 #
 # Option to use our own implementation of strlcat, strlcpy
@@ -88,17 +104,19 @@ MXML_DIR=../mxml
 # Directory in which mscb.c/h resides. These files are necessary for
 # the optional MSCB support in mhttpd
 #
-MSCB_DIR=./mscb
+MSCB_DIR=../mscb
+
+#
+# Indicator that MSCB is available
+#
+ifndef NO_MSCB
+HAVE_MSCB := $(shell if [ -e $(MSCB_DIR) ]; then echo 1; fi)
+endif
 
 #
 # Optional zlib support for data compression in the mlogger and in the analyzer
 #
 NEED_ZLIB=
-
-#
-# Optional MSCB support for mhttpd
-#
-NEED_MSCB=1
 
 #####################################################################
 # Nothing needs to be modified after this line 
@@ -109,15 +127,7 @@ NEED_MSCB=1
 #
 CC = gcc $(USERFLAGS)
 CXX = g++ $(USERFLAGS)
-CFLAGS = -g -O2 -Wall -Wno-strict-aliasing -Wuninitialized -I$(INC_DIR) -I$(DRV_DIR) -I$(MXML_DIR) -I$(MSCB_DIR) -L$(LIB_DIR) -DHAVE_FTPLIB
-#CFLAGS = -g  -Wall -Wno-strict-aliasing -Wuninitialized -I$(INC_DIR) -I$(DRV_DIR) -I$(MXML_DIR) -I$(MSCB_DIR) -L$(LIB_DIR) -DHAVE_FTPLIB
-
-#-----------------------
-# Ovevwrite MAX_EVENT_SIZE with environment variable
-#
-ifdef MIDAS_MAX_EVENT_SIZE
-CFLAGS += -DMAX_EVENT_SIZE=$(MIDAS_MAX_EVENT_SIZE)
-endif
+CFLAGS = -g -O2 -Wall -Wno-strict-aliasing -Wuninitialized -I$(INC_DIR) -I$(DRV_DIR) -I$(MXML_DIR) -I$(MSCB_DIR)/include -DHAVE_FTPLIB
 
 #-----------------------
 # Cross-compilation, change GCC_PREFIX
@@ -125,14 +135,58 @@ endif
 ifeq ($(OSTYPE),crosscompile)
 GCC_PREFIX=$(HOME)/linuxdcc/Cross-Compiler/gcc-4.0.2/build/gcc-4.0.2-glibc-2.3.6/powerpc-405-linux-gnu
 GCC_BIN=$(GCC_PREFIX)/bin/powerpc-405-linux-gnu-
-LIBS=-L$(HOME)/linuxdcc/userland/lib -pthread -lutil -lrt
+LIBS=-L$(HOME)/linuxdcc/userland/lib -pthread -lutil -lrt -ldl
 CC  = $(GCC_BIN)gcc
 CXX = $(GCC_BIN)g++
 OSTYPE = cross-ppc405
 OS_DIR = $(OSTYPE)
 CFLAGS += -DOS_LINUX
-NEED_MYSQL=
-HAVE_ODBC=
+NO_MYSQL=1
+NO_ODBC=1
+NO_SQLITE=1
+# For cross compilation targets lacking openssl, define -DNO_SSL
+#CFLAGS += -DNO_SSL
+endif
+
+#-----------------------
+# ARM Cross-compilation, change GCC_PREFIX
+#
+ifeq ($(OSTYPE),crosslinuxarm)
+
+ifndef USE_TI_ARM
+USE_YOCTO_ARM=1
+endif
+
+ifdef USE_TI_ARM
+# settings for the TI Sitara ARM SDK
+TI_DIR=/ladd/data0/olchansk/MityARM/TI/ti-sdk-am335x-evm-06.00.00.00/linux-devkit/sysroots/i686-arago-linux/usr
+TI_EXT=arm-linux-gnueabihf
+GCC_BIN=$(TI_DIR)/bin/$(TI_EXT)-
+LIBS=-Wl,-rpath,$(TI_DIR)/$(TI_EXT)/lib -pthread -lutil -lrt -ldl
+endif
+
+ifdef USE_YOCTO_ARM
+# settings for the Yocto poky cross compilers
+POKY_DIR=/ladd/data0/olchansk/MityARM/Yocto/opt/poky/1.5/sysroots
+POKY_EXT=arm-poky-linux-gnueabi
+POKY_HOST=x86_64-pokysdk-linux
+POKY_ARM=armv7a-vfp-neon-poky-linux-gnueabi
+GCC_BIN=$(POKY_DIR)/$(POKY_HOST)/usr/bin/$(POKY_EXT)/$(POKY_EXT)-
+LIBS=--sysroot $(POKY_DIR)/$(POKY_ARM) -Wl,-rpath,$(POKY_DIR)/$(POKY_ARM)/usr/lib -pthread -lutil -lrt -ldl
+CFLAGS += --sysroot $(POKY_DIR)/$(POKY_ARM)
+endif
+
+CC  = $(GCC_BIN)gcc
+CXX = $(GCC_BIN)g++
+OSTYPE = linux-arm
+OS_DIR = $(OSTYPE)
+CFLAGS += -DOS_LINUX
+CFLAGS += -fPIC
+NO_MYSQL=1
+NO_ODBC=1
+NO_SQLITE=1
+NO_ROOT=1
+SSL_LIBS += -lssl -lcrypto
 endif
 
 #-----------------------
@@ -183,15 +237,17 @@ endif
 
 ifeq ($(OSTYPE),darwin)
 OS_DIR = darwin
-OSFLAGS = -DOS_LINUX -DOS_DARWIN -DHAVE_STRLCPY -fPIC -Wno-unused-function
+OSFLAGS = -DOS_LINUX -DOS_DARWIN -fPIC -Wno-unused-function
 LIBS = -lpthread
 SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker
 NEED_ZLIB=1
 NEED_STRLCPY=
 NEED_RANLIB=1
-NEED_RPATH=
 SHLIB+=$(LIB_DIR)/libmidas-shared.dylib
 SHLIB+=$(LIB_DIR)/libmidas-shared.so
+# use the macports version of openssl
+CFLAGS += -I/opt/local/include
+SSL_LIBS = -L/opt/local/lib -lssl -lcrypto
 endif
 
 #-----------------------
@@ -225,8 +281,12 @@ NEED_ZLIB=1
 
 OS_DIR = linux
 OSFLAGS += -DOS_LINUX -fPIC -Wno-unused-function
-LIBS = -lutil -lpthread -lrt
+LIBS = -lutil -lpthread -lrt -ldl
 SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker $(BIN_DIR)/dio
+
+# add OpenSSL
+SSL_LIBS += -lssl -lcrypto
+
 endif
 
 #-----------------------
@@ -238,6 +298,10 @@ OS_DIR = solaris
 OSFLAGS = -DOS_SOLARIS
 LIBS = -lsocket -lnsl
 SPECIFIC_OS_PRG = 
+endif
+
+ifndef OS_DIR
+OS_DIR = unknown
 endif
 
 #####################################################################
@@ -262,23 +326,40 @@ BIN_DIR  = $(OS_DIR)/bin
 #
 # targets
 #
+GIT_REVISION = $(INC_DIR)/git-revision.h
 EXAMPLES = $(BIN_DIR)/consume $(BIN_DIR)/produce \
 	$(BIN_DIR)/rpc_test $(BIN_DIR)/msgdump $(BIN_DIR)/minife \
 	$(BIN_DIR)/minirc $(BIN_DIR)/odb_test
 
-PROGS = $(BIN_DIR)/mserver $(BIN_DIR)/mhttpd \
-	$(BIN_DIR)/mlogger $(BIN_DIR)/odbedit \
-	$(BIN_DIR)/mtape $(BIN_DIR)/mhist \
-	$(BIN_DIR)/mstat $(BIN_DIR)/mdump \
+PROGS = $(BIN_DIR)/mserver \
+	$(BIN_DIR)/odbedit \
+	$(BIN_DIR)/odbinit \
+	$(BIN_DIR)/mhttpd  \
+	$(BIN_DIR)/mlogger \
+	$(BIN_DIR)/mhist \
+	$(BIN_DIR)/mstat \
+	$(BIN_DIR)/mdump \
 	$(BIN_DIR)/lazylogger \
 	$(BIN_DIR)/mtransition \
 	$(BIN_DIR)/mhdump \
-	$(BIN_DIR)/mchart $(BIN_DIR)/stripchart.tcl \
-	$(BIN_DIR)/webpaw $(BIN_DIR)/odbhist \
-	$(BIN_DIR)/melog \
-	$(BIN_DIR)/mfe_link_test \
+	$(BIN_DIR)/mchart \
+	$(BIN_DIR)/stripchart.tcl \
+	$(BIN_DIR)/odbhist \
+	$(BIN_DIR)/melog   \
+	$(BIN_DIR)/mh2sql  \
+	$(BIN_DIR)/mfe_link_test  \
+	$(BIN_DIR)/fetest  \
+	$(BIN_DIR)/feudp   \
 	$(BIN_DIR)/mana_link_test \
+	$(BIN_DIR)/mjson_test \
+	$(BIN_DIR)/mcnaf    \
+	$(BIN_DIR)/crc32c   \
 	$(SPECIFIC_OS_PRG)
+
+ifdef HAVE_ROOT
+PROGS += $(BIN_DIR)/rmlogger
+PROGS += $(BIN_DIR)/rmana_link_test
+endif
 
 ANALYZER = $(LIB_DIR)/mana.o
 
@@ -286,21 +367,31 @@ ifdef CERNLIB
 ANALYZER += $(LIB_DIR)/hmana.o
 endif
 
-ifdef ROOTSYS
+ifdef HAVE_ROOT
 ANALYZER += $(LIB_DIR)/rmana.o
 endif
 
-ifdef HAVE_ODBC
-PROGS += $(BIN_DIR)/mh2sql
-endif
-
-OBJS =  $(LIB_DIR)/midas.o $(LIB_DIR)/system.o $(LIB_DIR)/mrpc.o \
-	$(LIB_DIR)/odb.o $(LIB_DIR)/ftplib.o \
+OBJS = \
+   $(LIB_DIR)/midas.o \
+   $(LIB_DIR)/midas_cxx.o \
+   $(LIB_DIR)/system.o \
+   $(LIB_DIR)/mrpc.o \
+	$(LIB_DIR)/odb.o \
+   $(LIB_DIR)/ftplib.o \
+	$(LIB_DIR)/crc32c.o \
+	$(LIB_DIR)/sha256.o \
+	$(LIB_DIR)/sha512.o \
 	$(LIB_DIR)/mxml.o \
-	$(LIB_DIR)/dm_eb.o \
+	$(LIB_DIR)/mjson.o \
+	$(LIB_DIR)/json_paste.o \
+	$(LIB_DIR)/history_common.o \
 	$(LIB_DIR)/history_midas.o \
-	$(LIB_DIR)/history_sql.o \
-	$(LIB_DIR)/history.o $(LIB_DIR)/alarm.o $(LIB_DIR)/elog.o
+	$(LIB_DIR)/history_odbc.o \
+	$(LIB_DIR)/history_schema.o \
+	$(LIB_DIR)/lz4.o $(LIB_DIR)/lz4frame.o $(LIB_DIR)/lz4hc.o $(LIB_DIR)/xxhash.o \
+	$(LIB_DIR)/history.o \
+   $(LIB_DIR)/alarm.o \
+   $(LIB_DIR)/elog.o
 
 ifdef NEED_STRLCPY
 OBJS += $(LIB_DIR)/strlcpy.o
@@ -313,31 +404,42 @@ SHLIB   = $(LIB_DIR)/libmidas-shared.so
 VPATH = $(LIB_DIR):$(INC_DIR)
 
 all: check-mxml \
+	$(GIT_REVISION) \
 	$(OS_DIR) $(LIB_DIR) $(BIN_DIR) \
 	$(LIBNAME) $(SHLIB) \
 	$(ANALYZER) \
-	$(LIB_DIR)/cnaf_callback.o \
 	$(LIB_DIR)/mfe.o \
-	$(LIB_DIR)/fal.o $(PROGS)
+	$(PROGS)
 
 dox:
-	cd doc; make
+	doxygen
 
 linux32:
-	$(MAKE) ROOTSYS= OS_DIR=linux-m32 USERFLAGS=-m32
+	$(MAKE) NO_ROOT=1 NO_MYSQL=1 NO_ODBC=1 NO_SQLITE=1 OS_DIR=linux-m32 USERFLAGS=-m32
 
 linux64:
-	$(MAKE) ROOTSYS= OS_DIR=linux-m64 USERFLAGS=-m64
+	$(MAKE) NO_ROOT=1 OS_DIR=linux-m64 USERFLAGS=-m64
 
 clean32:
-	$(MAKE) ROOTSYS= OS_DIR=linux-m32 USERFLAGS=-m32 clean
+	$(MAKE) NO_ROOT=1 OS_DIR=linux-m32 USERFLAGS=-m32 clean
 
 clean64:
-	$(MAKE) ROOTSYS= OS_DIR=linux-m64 USERFLAGS=-m64 clean
+	$(MAKE) NO_ROOT=1 OS_DIR=linux-m64 USERFLAGS=-m64 clean
 
 crosscompile:
 	echo OSTYPE=$(OSTYPE)
-	$(MAKE) ROOTSYS= OS_DIR=$(OSTYPE)-crosscompile OSTYPE=crosscompile
+	$(MAKE) NO_ROOT=1 NO_MYSQL=1 NO_ODBC=1 NO_SQLITE=1 OS_DIR=$(OSTYPE)-crosscompile OSTYPE=crosscompile
+
+linuxarm:
+	echo OSTYPE=$(OSTYPE)
+	$(MAKE) NO_ROOT=1 NO_MYSQL=1 NO_ODBC=1 NO_SQLITE=1 OS_DIR=$(OSTYPE)-arm OSTYPE=crosslinuxarm
+
+cleanarm:
+	$(MAKE) NO_ROOT=1 OS_DIR=linux-arm clean
+
+cleandox:
+	-rm -rf html
+
 
 examples: $(EXAMPLES)
 
@@ -366,13 +468,18 @@ $(BIN_DIR):
         fi;
 
 #
+# put current GIT revision into header file to be included by programs
+#
+$(GIT_REVISION): $(SRC_DIR)/midas.c $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.c $(SRC_DIR)/system.c
+	echo \#define GIT_REVISION \"`git log -n 1 --pretty=format:"%ad - %h"`\" > $(GIT_REVISION)
+include/midas.h: $(GIT_REVISION)
+#
 # main binaries
 #
 
-ifeq ($(NEED_MYSQL),1)
+ifdef HAVE_MYSQL
 CFLAGS      += -DHAVE_MYSQL $(shell mysql_config --include)
-MYSQL_LIBS  := -L/usr/lib/mysql $(shell mysql_config --libs)
-# only for mlogger LIBS        += $(MYSQL_LIBS)
+MYSQL_LIBS  += $(shell mysql_config --libs)
 NEED_ZLIB = 1
 endif
 
@@ -384,51 +491,77 @@ ODBC_LIBS   += /System/Library/Frameworks/CoreFoundation.framework/CoreFoundatio
 endif
 endif
 
-ifdef ROOTSYS
-ROOTLIBS    := $(shell $(ROOTSYS)/bin/root-config --libs)
-ROOTGLIBS   := $(shell $(ROOTSYS)/bin/root-config --glibs)
-ROOTCFLAGS  := $(shell $(ROOTSYS)/bin/root-config --cflags)
-
-ifdef NEED_RPATH
-ROOTLIBS   += -Wl,-rpath,$(ROOTSYS)/lib
-ROOTGLIBS  += -Wl,-rpath,$(ROOTSYS)/lib
+ifdef HAVE_SQLITE
+CFLAGS      += -DHAVE_SQLITE
+SQLITE_LIBS += -lsqlite3
 endif
 
-ifdef NEED_LIBROOTA
-ROOTLIBS    := $(ROOTSYS)/lib/libRoot.a -lssl -ldl -lcrypt
-ROOTGLIBS   := $(ROOTLIBS) -lfreetype
+ifdef HAVE_ROOT
+ROOTLIBS    := $(shell root-config --libs)
+ROOTGLIBS   := $(shell root-config --glibs)
+ROOTCFLAGS  := $(shell root-config --cflags)
+ROOTCFLAGS  += -DHAVE_ROOT
 endif
-
-CFLAGS     += -DHAVE_ROOT $(ROOTCFLAGS)
-
-endif # ROOTSYS
 
 ifdef NEED_ZLIB
 CFLAGS     += -DHAVE_ZLIB
 LIBS       += -lz
 endif
 
-ifdef NEED_MSCB
+ifdef HAVE_MSCB
 CFLAGS     += -DHAVE_MSCB
 endif
 
 $(BIN_DIR)/mlogger: $(BIN_DIR)/%: $(SRC_DIR)/%.cxx
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ROOTLIBS) $(ODBC_LIBS) $(MYSQL_LIBS) $(LIBS)
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
+
+ifdef HAVE_ROOT
+$(BIN_DIR)/rmlogger: $(BIN_DIR)/%: $(SRC_DIR)/mlogger.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -o $@ $< $(LIB) $(ROOTLIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
+endif
 
 $(BIN_DIR)/%:$(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
-$(BIN_DIR)/odbedit: $(SRC_DIR)/odbedit.c $(SRC_DIR)/cmdedit.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $(SRC_DIR)/odbedit.c $(SRC_DIR)/cmdedit.c $(LIB) $(LIBS)
+$(BIN_DIR)/odbedit: $(SRC_DIR)/odbedit.cxx $(SRC_DIR)/cmdedit.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(SRC_DIR)/odbedit.cxx $(SRC_DIR)/cmdedit.cxx $(LIB) $(LIBS)
 
+$(BIN_DIR)/odbinit: $(BIN_DIR)/%: $(SRC_DIR)/%.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
-ifdef NEED_MSCB
-$(BIN_DIR)/mhttpd: $(LIB_DIR)/mhttpd.o $(LIB_DIR)/mgd.o $(LIB_DIR)/mscb.o $(LIB_DIR)/sequencer.o
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(ODBC_LIBS) $(LIBS) -lm
-else
-$(BIN_DIR)/mhttpd: $(LIB_DIR)/mhttpd.o $(LIB_DIR)/mgd.o $(LIB_DIR)/sequencer.o
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(ODBC_LIBS) $(LIBS) -lm
+MHTTPD_OBJS=
+MHTTPD_OBJS += $(LIB_DIR)/mhttpd.o
+MHTTPD_OBJS += $(LIB_DIR)/mgd.o
+MHTTPD_OBJS += $(LIB_DIR)/sequencer.o
+MHTTPD_OBJS += $(LIB_DIR)/mjsonrpc.o $(LIB_DIR)/mjsonrpc_user.o
+ifdef HAVE_MSCB
+MHTTPD_OBJS += $(LIB_DIR)/mscb.o
 endif
+
+#USE_MONGOOSE4=1
+USE_MONGOOSE6=1
+
+ifdef USE_MONGOOSE4
+CFLAGS      += -DHAVE_MG -DHAVE_MG4
+MHTTPD_OBJS += $(LIB_DIR)/mongoose4.o
+endif
+ifdef USE_MONGOOSE6
+CFLAGS      += -DHAVE_MG -DHAVE_MG6
+MHTTPD_OBJS += $(LIB_DIR)/mongoose6.o
+CFLAGS      += -DMG_ENABLE_THREADS
+CFLAGS      += -DMG_ENABLE_SSL
+endif
+
+#CFLAGS += -DNEW_START_STOP=1
+
+$(BIN_DIR)/mhttpd: $(MHTTPD_OBJS)
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
+
+$(BIN_DIR)/mh2sql: $(BIN_DIR)/%: $(UTL_DIR)/mh2sql.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
+
+$(BIN_DIR)/mhist: $(BIN_DIR)/%: $(UTL_DIR)/%.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
 
 $(PROGS): $(LIBNAME)
 
@@ -461,6 +594,12 @@ ifeq ($(OSTYPE),crosscompile)
 	$(CXX) -shared -o $@ $^ $(LIBS) -lc
 endif
 
+ifeq ($(OSTYPE),crosslinuxarm)
+%.so: $(OBJS)
+	rm -f $@
+	$(CXX) -shared -o $@ $^ $(LIBS) -lc
+endif
+
 ifeq ($(OSTYPE),linux)
 %.so: $(OBJS)
 	rm -f $@
@@ -481,20 +620,17 @@ endif
 # frontend and backend framework
 #
 
-$(LIB_DIR)/history_sql.o $(LIB_DIR)/history_midas.o $(LIB_DIR)/mhttpd.o $(LIB_DIR)/mlogger.o: history.h
+$(LIB_DIR)/history_sql.o $(LIB_DIR)/history_schema.o $(LIB_DIR)/history_midas.o $(LIB_DIR)/mhttpd.o $(LIB_DIR)/mlogger.o: history.h
 
 $(LIB_DIR)/mfe.o: msystem.h midas.h midasinc.h mrpc.h
-$(LIB_DIR)/fal.o: $(SRC_DIR)/fal.c msystem.h midas.h midasinc.h mrpc.h
 
-$(LIB_DIR)/fal.o: $(SRC_DIR)/fal.c msystem.h midas.h midasinc.h mrpc.h
-	$(CXX) -Dextname -DMANA_LITE -c $(CFLAGS) $(OSFLAGS) -o $@ $<
-$(LIB_DIR)/mana.o: $(SRC_DIR)/mana.c msystem.h midas.h midasinc.h mrpc.h
+$(LIB_DIR)/mana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
 	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
-$(LIB_DIR)/hmana.o: $(SRC_DIR)/mana.c msystem.h midas.h midasinc.h mrpc.h
+$(LIB_DIR)/hmana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
 	$(CC) -Dextname -DHAVE_HBOOK -c $(CFLAGS) $(OSFLAGS) -o $@ $<
-ifdef ROOTSYS
-$(LIB_DIR)/rmana.o: $(SRC_DIR)/mana.c msystem.h midas.h midasinc.h mrpc.h
-	$(CXX) -DUSE_ROOT -c $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -o $@ $<
+ifdef HAVE_ROOT
+$(LIB_DIR)/rmana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
+	$(CXX) -c $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -o $@ $<
 endif
 
 #
@@ -516,12 +652,14 @@ $(LIB_DIR)/mxml.o:$(MXML_DIR)/mxml.c
 $(LIB_DIR)/strlcpy.o:$(MXML_DIR)/strlcpy.c
 	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $(MXML_DIR)/strlcpy.c
 
-ifdef NEED_MSCB
-$(LIB_DIR)/mscb.o:$(MSCB_DIR)/mscb.c $(MSCB_DIR)/mscb.h
-	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $(MSCB_DIR)/mscb.c
+ifdef HAVE_MSCB
+$(LIB_DIR)/mscb.o:$(MSCB_DIR)/src/mscb.c $(MSCB_DIR)/include/mscb.h
+	$(CXX) -x c++ -c $(CFLAGS) $(OSFLAGS) -o $@ $(MSCB_DIR)/src/mscb.c
 endif
 
+$(LIB_DIR)/mhttpd.o: msystem.h midas.h midasinc.h mrpc.h mjsonrpc.h
 $(LIB_DIR)/midas.o: msystem.h midas.h midasinc.h mrpc.h
+$(LIB_DIR)/midas_cxx.o: msystem.h midas.h midasinc.h mrpc.h
 $(LIB_DIR)/system.o: msystem.h midas.h midasinc.h mrpc.h
 $(LIB_DIR)/mrpc.o: msystem.h midas.h mrpc.h
 $(LIB_DIR)/odb.o: msystem.h midas.h midasinc.h mrpc.h
@@ -529,25 +667,42 @@ $(LIB_DIR)/mdsupport.o: msystem.h midas.h midasinc.h
 $(LIB_DIR)/ftplib.o: msystem.h midas.h midasinc.h
 $(LIB_DIR)/mxml.o: msystem.h midas.h midasinc.h $(MXML_DIR)/mxml.h
 $(LIB_DIR)/alarm.o: msystem.h midas.h midasinc.h
+$(LIB_DIR)/mjsonrpc.o: midas.h mjsonrpc.h
 
 #
 # utilities
 #
-$(BIN_DIR)/%:$(UTL_DIR)/%.c
+$(BIN_DIR)/%: $(UTL_DIR)/%.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
+$(BIN_DIR)/%: $(UTL_DIR)/%.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
 $(BIN_DIR)/mcnaf: $(UTL_DIR)/mcnaf.c $(DRV_DIR)/camac/camacrpc.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $(UTL_DIR)/mcnaf.c $(DRV_DIR)/camac/camacrpc.c $(LIB) $(LIBS)
 
-$(BIN_DIR)/mdump: $(UTL_DIR)/mdump.c $(SRC_DIR)/mdsupport.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $(UTL_DIR)/mdump.c $(SRC_DIR)/mdsupport.c $(LIB) $(LIBS)
+$(BIN_DIR)/mdump: $(UTL_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(UTL_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx $(LIB) $(LIBS)
+
+$(BIN_DIR)/fetest: $(UTL_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
+
+$(BIN_DIR)/feudp: $(UTL_DIR)/feudp.cxx $(LIB_DIR)/mfe.o
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
+
+$(BIN_DIR)/crc32c: $(SRC_DIR)/crc32c.c
+	$(CC) $(CFLAGS) $(OSFLAGS) -DTEST -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/mfe_link_test: $(SRC_DIR)/mfe.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mfe.c $(LIB) $(LIBS)
 
-$(BIN_DIR)/mana_link_test: $(SRC_DIR)/mana.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mana.c $(LIB) $(LIBS)
+$(BIN_DIR)/mana_link_test: $(SRC_DIR)/mana.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mana.cxx $(LIB) $(LIBS)
+
+ifdef HAVE_ROOT
+$(BIN_DIR)/rmana_link_test: $(SRC_DIR)/mana.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mana.cxx $(ROOTLIBS) $(LIB) $(LIBS)
+endif
 
 $(BIN_DIR)/mhdump: $(UTL_DIR)/mhdump.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $<
@@ -555,11 +710,8 @@ $(BIN_DIR)/mhdump: $(UTL_DIR)/mhdump.cxx
 $(BIN_DIR)/mtransition: $(SRC_DIR)/mtransition.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
-$(BIN_DIR)/mh2sql: $(UTL_DIR)/mh2sql.cxx
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(ODBC_LIBS) $(LIBS)
-
-$(BIN_DIR)/lazylogger: $(SRC_DIR)/lazylogger.cxx $(SRC_DIR)/mdsupport.c
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $<  $(SRC_DIR)/mdsupport.c $(LIB) $(LIBS)
+$(BIN_DIR)/lazylogger: $(SRC_DIR)/lazylogger.cxx $(SRC_DIR)/mdsupport.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $<  $(SRC_DIR)/mdsupport.cxx $(LIB) $(LIBS)
 
 $(BIN_DIR)/dio: $(UTL_DIR)/dio.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $(UTL_DIR)/dio.c
@@ -587,10 +739,8 @@ install:
 	  install -v -D -m 755 $$file $(SYSBIN_DIR)/`basename $$file` ; \
 	  done
 
-	install -v -m 755 $(UTL_DIR)/mcleanup $(SYSBIN_DIR)
 	if [ -f $(SYSBIN_DIR)/dio ]; then chmod +s $(SYSBIN_DIR)/dio ; fi
 	if [ -f $(SYSBIN_DIR)/mhttpd ]; then chmod +s $(SYSBIN_DIR)/mhttpd; fi
-	if [ -f $(SYSBIN_DIR)/webpaw ]; then chmod +s $(SYSBIN_DIR)/webpaw; fi
 	ln -fs $(SYSBIN_DIR)/stripchart.tcl $(SYSBIN_DIR)/stripchart
 
 # include
@@ -608,7 +758,7 @@ install:
 	@echo "... Installing library and objects to $(SYSLIB_DIR)"
 	@echo "... "
 
-	@for i in libmidas.a mana.o mfe.o fal.o ; \
+	@for i in libmidas.a mana.o mfe.o ; \
 	  do \
 	  install -v -D -m 644 $(LIB_DIR)/$$i $(SYSLIB_DIR)/$$i ; \
 	  done
@@ -619,7 +769,7 @@ else
 	rm -fv $(SYSLIB_DIR)/hmana.o
 	chmod +s $(SYSBIN_DIR)/mhttpd
 endif
-ifdef ROOTSYS
+ifdef HAVE_ROOT
 	install -v -m 644 $(LIB_DIR)/rmana.o $(SYSLIB_DIR)/rmana.o
 else
 	rm -fv $(SYSLIB_DIR)/rmana.o
@@ -653,7 +803,6 @@ minimal_install:
 ifeq ($(OSTYPE),linux)
 	install -v -m 755 $(BIN_DIR)/dio $(SYSBIN_DIR)
 endif
-	install -v -m 755 $(UTL_DIR)/mcleanup $(SYSBIN_DIR)
 	if [ -f $(SYSBIN_DIR)/dio ]; then chmod +s $(SYSBIN_DIR)/dio; fi
 	if [ -f $(SYSBIN_DIR)/mhttpd ]; then chmod +s $(SYSBIN_DIR)/mhttpd; fi
 
@@ -676,7 +825,9 @@ indent:
 	find . -name "*.[hc]" -exec indent -kr -nut -i3 -l90 {} \;
 
 clean:
-	-rm -f $(LIB_DIR)/*.o $(LIB_DIR)/*.a $(LIB_DIR)/*.so $(LIB_DIR)/*.dylib
+	-rm -vf $(LIB_DIR)/*.o $(LIB_DIR)/*.a $(LIB_DIR)/*.so $(LIB_DIR)/*.dylib
+	-rm -rvf $(BIN_DIR)/*.dSYM
+	-rm -vf $(BIN_DIR)/*
 
 mrproper : clean
 	rm -rf $(OS_DIR)

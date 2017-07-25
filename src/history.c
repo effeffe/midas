@@ -11,7 +11,9 @@
 
 #include "midas.h"
 #include "msystem.h"
+#ifndef HAVE_STRLCPY
 #include "strlcpy.h"
+#endif
 #include <assert.h>
 
 /** @defgroup hsfunctioncode Midas History Functions (hs_xxx)
@@ -46,7 +48,7 @@ be called before any other history function is called.
 @param path             Directory where history files reside
 @return HS_SUCCESS
 */
-INT hs_set_path(char *path)
+INT hs_set_path(const char *path)
 {
    /* set path locally and remotely */
    if (rpc_is_remote())
@@ -280,7 +282,7 @@ INT hs_search_file(DWORD * ltime, INT direction)
 
 
 /********************************************************************/
-INT hs_define_event(DWORD event_id, char *name, TAG * tag, DWORD size)
+INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD size)
 /********************************************************************\
 
   Routine: hs_define_event
@@ -323,7 +325,7 @@ INT hs_define_event(DWORD event_id, char *name, TAG * tag, DWORD size)
       time_t ltime;
       char str[256], event_name[NAME_LENGTH], *buffer;
       int fh, fhi, fhd;
-      INT i, n, len, index, status, semaphore;
+      INT i, n, index, status, semaphore;
       struct tm *tmb;
 
       /* request semaphore */
@@ -370,12 +372,6 @@ INT hs_define_event(DWORD event_id, char *name, TAG * tag, DWORD size)
       rec.time = (DWORD) time(NULL);
       rec.data_size = size;
       strncpy(event_name, name, NAME_LENGTH);
-
-      /* pad tag names with zeos */
-      for (i = 0; (DWORD) i < size / sizeof(TAG); i++) {
-         len = strlen(tag[i].name);
-         memset(tag[i].name + len, 0, NAME_LENGTH - len);
-      }
 
       /* if history structure not set up, do so now */
       if (!_history[index].hist_fh) {
@@ -516,7 +512,7 @@ INT hs_define_event(DWORD event_id, char *name, TAG * tag, DWORD size)
 
 
 /********************************************************************/
-INT hs_write_event(DWORD event_id, void *data, DWORD size)
+INT hs_write_event(DWORD event_id, const void *data, DWORD size)
 /********************************************************************\
 
   Routine: hs_write_event
@@ -845,7 +841,7 @@ INT hs_count_events(DWORD ltime, DWORD * count)
 
 
 /********************************************************************/
-INT hs_get_event_id(DWORD ltime, char *name, DWORD * id)
+INT hs_get_event_id(DWORD ltime, const char *name, DWORD * id)
 /********************************************************************\
 
   Routine: hs_get_event_id
@@ -1100,7 +1096,7 @@ INT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name, DWORD * size, DWOR
 
 
 /********************************************************************/
-INT hs_get_var(DWORD ltime, DWORD event_id, char *var_name, DWORD * type, INT * n_data)
+INT hs_get_var(DWORD ltime, DWORD event_id, const char *var_name, DWORD * type, INT * n_data)
 /********************************************************************\
 
   Routine: hs_get_var
@@ -1293,7 +1289,7 @@ INT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int* 
 }
 
 
-INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, char *tag_name, DWORD var_index, DWORD * time_buffer, DWORD * tbsize, void *data_buffer, DWORD * dbsize, DWORD * type, DWORD * n)
+INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, const char *tag_name, DWORD var_index, DWORD * time_buffer, DWORD * tbsize, void *data_buffer, DWORD * dbsize, DWORD * type, DWORD * n)
 /********************************************************************\
 
   Routine: hs_read
@@ -1501,7 +1497,7 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, ch
             lseek(fh, irec.offset, SEEK_SET);
             rd = read(fh, (char *) &rec, sizeof(rec));
             if (rd != sizeof(rec)) {
-               cm_msg(MERROR, "hs_read", "corrupted history data at time %d: read() of %d bytes returned %d, errno %d (%s)", (int) irec.time, sizeof(rec), rd, errno, strerror(errno));
+               cm_msg(MERROR, "hs_read", "corrupted history data at time %d: read() of %d bytes returned %d, errno %d (%s)", (int) irec.time, (int)sizeof(rec), rd, errno, strerror(errno));
                //*tbsize = *dbsize = *n = 0;
                if (fh > 0)
                   close(fh);
@@ -1951,7 +1947,7 @@ INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BO
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-INT hs_fdump(char *file_name, DWORD id, BOOL binary_time)
+INT hs_fdump(const char *file_name, DWORD id, BOOL binary_time)
 /********************************************************************\
 
   Routine: hs_fdump

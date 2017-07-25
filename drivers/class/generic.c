@@ -11,8 +11,9 @@
 
 #include <stdio.h>
 #include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 #include "midas.h"
-#include "ybos.h"
 
 typedef struct {
 
@@ -73,9 +74,9 @@ INT gen_read(EQUIPMENT * pequipment, int channel)
    HNDLE hDB;
    gen_info = (GEN_INFO *) pequipment->cd_info;
    cm_get_experiment_database(&hDB, NULL);
-
    /* if driver is multi-threaded, read all channels at once */
    for (i=0 ; i < gen_info->num_channels ; i++) {
+    
       if (gen_info->driver[i]->flags & DF_MULTITHREAD) {
          status = device_driver(gen_info->driver[i], CMD_GET,
                                 i - gen_info->channel_offset[i],
@@ -84,17 +85,18 @@ INT gen_read(EQUIPMENT * pequipment, int channel)
    }
 
    /* else read only single channel */
-   if (!(gen_info->driver[channel]->flags & DF_MULTITHREAD))
+   if (!(gen_info->driver[channel]->flags & DF_MULTITHREAD)) {
       status = device_driver(gen_info->driver[channel], CMD_GET,
                              channel - gen_info->channel_offset[channel],
                              &gen_info->measured[channel]);
-
+   }
    /* check for update measured */
    for (i = 0; i < gen_info->num_channels; i++) {
       /* update if change is more than update_threshold */
       if ((ss_isnan(gen_info->measured[i]) && !ss_isnan(gen_info->measured_mirror[i])) ||
           (!ss_isnan(gen_info->measured[i]) && ss_isnan(gen_info->measured_mirror[i])) ||
-          (abs(gen_info->measured[i] - gen_info->measured_mirror[i]) >
+          (!ss_isnan(gen_info->measured[i]) && !ss_isnan(gen_info->measured_mirror[i]) &&
+           abs(gen_info->measured[i] - gen_info->measured_mirror[i]) >
            gen_info->update_threshold[i])) {
          for (i = 0; i < gen_info->num_channels; i++)
             gen_info->measured_mirror[i] = gen_info->measured[i];
@@ -115,7 +117,9 @@ INT gen_read(EQUIPMENT * pequipment, int channel)
                           channel - gen_info->channel_offset[channel],
                           &gen_info->demand[channel]);
 
-   if (gen_info->demand[channel] != gen_info->demand_mirror[channel]) {
+   if ((gen_info->demand[channel] != gen_info->demand_mirror[channel] && !ss_isnan(gen_info->demand[channel])) ||
+       (ss_isnan(gen_info->demand[channel]) && !ss_isnan(gen_info->demand_mirror[channel])) ||
+       (!ss_isnan(gen_info->demand[channel]) && ss_isnan(gen_info->demand_mirror[channel]))) {
       gen_info->demand_mirror[channel] = gen_info->demand[channel];
       db_set_data(hDB, gen_info->hKeyDemand, gen_info->demand,
                   sizeof(float) * gen_info->num_channels, gen_info->num_channels,
@@ -175,6 +179,7 @@ INT gen_init(EQUIPMENT * pequipment)
    char str[256];
    HNDLE hDB, hKey, hNames, hThreshold;
    GEN_INFO *gen_info;
+   BOOL partially_disabled;
 
    /* allocate private data */
    pequipment->cd_info = calloc(1, sizeof(GEN_INFO));
@@ -247,11 +252,24 @@ INT gen_init(EQUIPMENT * pequipment)
          }
       }
 
-      status = device_driver(&pequipment->driver[i], CMD_INIT, hKey);
-      if (status != FE_SUCCESS) {
-         free_mem(gen_info);
-         return status;
-      }
+                                                                                            
+      /* check enabled flag */
+      size = sizeof(pequipment->driver[i].enabled);
+      pequipment->driver[i].enabled = 1;
+      sprintf(str, "Settings/Devices/%s/Enabled", pequipment->driver[i].name);
+      status = db_get_value(hDB, gen_info->hKeyRoot, str, &pequipment->driver[i].enabled
+                            , &size, TID_BOOL, TRUE);
+      if (status != DB_SUCCESS)
+         return FE_ERR_ODB;
+      
+      if (pequipment->driver[i].enabled) {
+         status = device_driver(&pequipment->driver[i], CMD_INIT, hKey);
+         if (status != FE_SUCCESS) {
+            free_mem(gen_info);
+            return status;
+         }
+      } else
+         partially_disabled = TRUE;
    }
 
    /* compose device driver channel assignment */
@@ -442,13 +460,13 @@ INT cd_gen_read(char *pevent, int offset)
       bk_init(pevent);
 
       /* create DMND bank */
-      bk_create(pevent, "DMND", TID_FLOAT, &pdata);
+      bk_create(pevent, "DMND", TID_FLOAT, (void **)&pdata);
       memcpy(pdata, gen_info->demand, sizeof(float) * gen_info->num_channels);
       pdata += gen_info->num_channels;
       bk_close(pevent, pdata);
 
       /* create MSRD bank */
-      bk_create(pevent, "MSRD", TID_FLOAT, &pdata);
+      bk_create(pevent, "MSRD", TID_FLOAT, (void **)&pdata);
       memcpy(pdata, gen_info->measured, sizeof(float) * gen_info->num_channels);
       pdata += gen_info->num_channels;
       bk_close(pevent, pdata);

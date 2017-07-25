@@ -11,6 +11,7 @@
 \********************************************************************/
 
 #include <stdio.h>
+#include <math.h>
 #include "midas.h"
 #include "class/generic.h"
 #include "device/epics_ca.h"
@@ -77,7 +78,7 @@ DEVICE_DRIVER epics_driver[] = {
 EQUIPMENT equipment[] = {
 
    {"Beamline",                 /* equipment name */
-    3, 0,                       /* event ID, trigger mask */
+    { 3, 0,                       /* event ID, trigger mask */
     "SYSTEM",                   /* event buffer */
     EQ_SLOW,                    /* equipment type */
     0,                          /* event source */
@@ -88,7 +89,7 @@ EQUIPMENT equipment[] = {
     0,                          /* stop run after this event limit */
     0,                          /* number of sub events */
     1,                          /* log history every event */
-    "", "", "",
+    "", "", "" },
     cd_gen_read,                /* readout routine */
     cd_gen,                     /* class driver main routine */
     epics_driver,               /* device driver list */
@@ -136,35 +137,41 @@ INT frontend_loop()
   int status, size;
   static HNDLE hDB, hWatch=0, hRespond;
   static DWORD watchdog_time=0;
-  static float  dog=0.f, cat=0.f;
+  static float  dog=0.f;
   
   /* slow down frontend not to eat all CPU cycles */
   /* ss_sleep(50); */
   cm_yield(50); /* 15Feb05 */
   
-  if (ss_time() - watchdog_time > 1)
+  if (ss_time() - watchdog_time > 10)
     {
+      //const float wraparound = 100;
       watchdog_time = ss_time();
       if (!hWatch)
-	{
-	  cm_get_experiment_database(&hDB, NULL);
-	  status = db_find_key(hDB, 0, "/equipment/Beamline/variables/demand", &hWatch);
-	  status = db_find_key(hDB, 0, "/equipment/Beamline/variables/measured", &hRespond);
-	  if (status != DB_SUCCESS) {
-	    cm_msg(MERROR, "frontend_loop", "key not found");
-	    return FE_ERR_HW;
-	  }
-	}
+        {
+          cm_get_experiment_database(&hDB, NULL);
+          status = db_find_key(hDB, 0, "/equipment/Beamline/variables/demand", &hWatch);
+          status = db_find_key(hDB, 0, "/equipment/Beamline/variables/measured", &hRespond);
+          if (status != DB_SUCCESS) {
+            cm_msg(MERROR, "frontend_loop", "key not found");
+            return FE_ERR_HW;
+          }
+        }
       if (hWatch) {
-	/* Check if Epics alive */
-	size = sizeof(float);
-	db_get_data_index(hDB, hRespond, &cat, &size, 19, TID_FLOAT);
-	if (abs(cat - dog) > 10.f)
-	  cm_msg(MINFO,"feEpics","R/W Access to Epics is in jeopardy!");
-	
-	db_set_data_index(hDB, hWatch, &dog, sizeof(float), 19, TID_FLOAT);
+        /* Check if Epics alive */
+        float cat=0.f;
+        size = sizeof(float);
+        db_get_data_index(hDB, hRespond, &cat, &size, 19, TID_FLOAT);
+        if (fabs(dog - cat) > 10) {
+          cm_msg(MINFO,"feEpics","Epics R/W access watchdog failure, wrote %f, read %f!", dog, cat);
+        }
+        
+        db_set_data_index(hDB, hWatch, &dog, sizeof(float), 19, TID_FLOAT);
       }
-      if (!((INT)++dog % 100)) dog = 0.f;
+      dog += 1;
+      // watchdog mismatch check above does not know how to check for wraparound. K.O.
+      //if (dog > wraparound)
+      //  dog = 0;
     }
   return CM_SUCCESS;
 }

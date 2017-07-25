@@ -11,9 +11,9 @@
 \********************************************************************/
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include "midas.h"
+#include "msystem.h"
 
 /*------------------------------------------------------------------*/
 
@@ -25,9 +25,9 @@ int main()
 {
    INT hBuf, status, i;
    char *event, str[256];
-   INT *pdata, count;
+   INT *pdata;
    INT start, stop;
-   double rate;
+   double count, rate;
    int id, size, event_size, act_size, variable_size, rpc_mode, flush = 0;
    char host_name[256];
    BUFFER_HEADER buffer_header;
@@ -102,7 +102,7 @@ int main()
                printf("Error: act_size = %d, size = %d\n", act_size, event_size);
 
             /* now send event */
-            status = rpc_send_event(hBuf, event, act_size + sizeof(EVENT_HEADER), SYNC, rpc_mode);
+            status = rpc_send_event(hBuf, event, act_size + sizeof(EVENT_HEADER), BM_WAIT, rpc_mode);
 
             if (status != BM_SUCCESS) {
                printf("rpc_send_event returned error %d, event_size %d\n",
@@ -135,7 +135,7 @@ int main()
       /* flush buffers every 10 seconds */
       if ((flush++) % 10 == 0) {
          rpc_flush_event();
-         bm_flush_cache(hBuf, SYNC);
+         bm_flush_cache(hBuf, BM_WAIT);
          printf("flush\n");
       }
 

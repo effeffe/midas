@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html class="mcss">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="midas.css">
+    <script src="midas.js"></script>
+    <script src="mhttpd.js"></script>
+    <title>Start a new run</title>
+  </head>
+  
+  <body class="mcss">
+    
+    <script>
+    url = mhttpd_getParameterByName("URL");
+    if (url)
+       mjsonrpc_set_url(url);
+    </script>
+
+    <div class="mwrapper">
+      <script>
+      mhttpd_navigation_bar("Start");
+      </script>
+    
+      <table class="mtablecss ODBtable" id="stripeList">
+        <tbody>
+          <tr>
+            <th colspan="3" class="mtableheadercss subStatusTitle">Start a new run</th>
+          </tr>
+          <tr align="center">
+            <td colspan="3" align="center">
+              <button class="mbuttoncss" onclick='start_a_new_run()' disabled id="start_button">Start</button>
+              <button class="mbuttoncss" onclick='location.search=""'>Cancel</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <div id="updateStatus" align="left">
+        updateStatus
+      </div>
+
+      <div class="mpush">
+      </div>
+    </div>
+    
+    <script>
+    mhttpd_page_footer();
+    </script>
+    
+    <script>
+    var write_back = {};
+    
+    function start_a_new_run()
+    {
+       var runno = 0;
+
+       var paths = [];
+       var values = [];
+
+       for (var k in write_back) {
+          var v = write_back[k].value;
+          if (write_back[k].type == "checkbox") {
+             v = write_back[k].checked;
+          }
+          if (k.toLowerCase() == "run number") {
+             runno = v;
+          } else {
+             paths.push("/experiment/edit on start/" + k);
+             values.push(v);
+          }
+       }
+
+       //alert(JSON.stringify(write_back));
+       //alert(JSON.stringify(paths));
+       //alert(JSON.stringify(values));
+       //alert("runno: " + runno);
+
+       mjsonrpc_call("db_paste", { "paths":paths, "values":values }).then(function(rpc) {
+          //mjsonrpc_debug_alert(rpc);
+          for (var i=0; i<rpc.result.status.length; i++) {
+             if (rpc.result.status[i] != 1) {
+                throw new Error("Cannot write ODB \'" + paths[i] + "\', status " + rpc.result.status[i] + ", see MIDAS messages");
+             }
+          }
+          var tr_params = {};
+          tr_params.transition = "TR_START";
+          if (runno)
+             tr_params.run_number = parseInt(runno);
+          return mjsonrpc_call("cm_transition", tr_params);
+       }).then(function(rpc) {
+          //mjsonrpc_debug_alert(rpc);
+          if (rpc.result.status != 1) {
+             throw new Error("Cannot start run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
+          }
+          location.search="cmd=Transition";
+          // not reached: reloads the page
+       }).catch(function(error) {
+          mjsonrpc_error_alert(error);
+       });
+    }
+
+    function add_table_entry(table, name, value, comment, editable)
+    {
+       var tr = document.createElement("tr");
+       //tr.id = "program " + name;
+
+       var td;
+       var input;
+       
+       td = document.createElement("td");
+       td.align = "center";
+       td.innerHTML = name;
+       tr.appendChild(td);
+       
+       td = document.createElement("td");
+
+       var i = document.createElement("input");
+       if (!editable)
+          i.disabled = true;
+       if (typeof value == "boolean") {
+          i.type = "checkbox";
+          if (value)
+             i.checked = true;
+       }
+       i.value = value;
+       td.appendChild(i);
+       td.align = "center";
+       write_back[name] = i;
+
+       tr.appendChild(td);
+
+       td = document.createElement("td");
+       td.align = "center";
+       td.innerHTML = comment;
+       tr.appendChild(td);
+       
+       table.appendChild(tr);
+    }
+    
+    function callback(rpc)
+    {
+       //document.getElementById('updateStatus').innerHTML = "RWP_";
+       
+       var runinfo     = rpc.result.data[0];
+       var editonstart = rpc.result.data[1];
+       var comments    = rpc.result.data[2];
+
+       var edit_run_number = true;
+       if (editonstart) {
+          for (var k in editonstart) {
+             if (k.toLowerCase() == "edit run number") {
+                if (!editonstart[k])
+                   edit_run_number = false;
+             }
+          }
+       }
+
+       if (runinfo) {
+          var runno = 0;
+          for (var k in runinfo) {
+             if (k.toLowerCase() == "run number") {
+                runno = runinfo[k];
+             }
+          }
+          add_table_entry(document.getElementById("stripeList"), "Run number", runno+1, "", edit_run_number);
+       }
+
+       if (editonstart) {
+          for (var k in editonstart) {
+             if (k.toLowerCase() == "edit run number")
+                continue;
+             if (k.indexOf("/") > 0)
+                continue;
+             var v = editonstart[k];
+             var c = "";
+             var n = editonstart[k+"/key"].num_values;
+
+             if (comments) {
+                for (var kk in comments) {
+                   if (kk.toLowerCase() == k.toLowerCase()) {
+                      c = comments[kk];
+                   }
+                }
+             }
+
+             if (n) {
+                var cc = c;
+                for (var i=0; i<n; i++) {
+                   if (i != 0)
+                      cc = null;
+                   add_table_entry(document.getElementById("stripeList"), k + "[" + i + "]", v[i], cc, true);
+                }
+             } else {
+                if (comments) {
+                   for (var kk in comments) {
+                      if (kk.toLowerCase() == k.toLowerCase()) {
+                         c = comments[kk];
+                      }
+                   }
+                }
+
+                add_table_entry(document.getElementById("stripeList"), k, v, c, true);
+             }
+          }
+       }
+
+       mhttpd_enable_button(document.getElementById('start_button'));
+       
+       document.getElementById('mhttpd_last_updated').innerHTML = new Date;
+       //document.getElementById('updateStatus').innerHTML = "RWPD";
+       document.getElementById('updateStatus').innerHTML = "";
+    }
+    
+    function update()
+    {
+       var paths = [ "/Runinfo", "/Experiment/Edit on start", "/Experiment/Parameter comments" ];
+       //document.getElementById('updateStatus').innerHTML = "R___";
+       mjsonrpc_call("db_ls", {"paths":paths}).then(function(rpc) {
+          callback(rpc);
+       }).catch(function(error) {
+          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
+       });
+       //document.getElementById('updateStatus').innerHTML = "RW__";
+    }
+    
+    update();
+    </script>
+  </body>
+</html>

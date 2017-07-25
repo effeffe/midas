@@ -23,7 +23,7 @@ The main include file
 
 /** @defgroup midasincludecode The midas.h & midas.c
  */
-/** @defgroup mdefineh Midas Define 
+/** @defgroup mdefineh Midas Define
  */
 /** @defgroup mmacroh Midas Macros
  */
@@ -34,14 +34,17 @@ The main include file
 
 /**dox***************************************************************/
 /** @addtogroup midasincludecode
- *  
+ *
  *  @{  */
 
 /* has to be changed whenever binary ODB format changes */
-#define DATABASE_VERSION 3      
+#define DATABASE_VERSION 3
 
 /* MIDAS version number which will be incremented for every release */
-#define MIDAS_VERSION "2.0.0"
+#define MIDAS_VERSION "2.1"
+
+/* include GIT version from file automatically created by make */
+#include "git-revision.h"
 
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
@@ -83,12 +86,6 @@ The main include file
 
 /*------------------------------------------------------------------*/
 
-#ifdef USE_ROOT
-#include <TObjArray.h>
-#include <TFolder.h>
-#include <TCutG.h>
-#endif
-
 /* Define basic data types */
 
 #ifndef MIDAS_TYPE_DEFINED
@@ -123,7 +120,7 @@ typedef long int INT;
 #include <windows.h>
 #endif
 
-#undef DB_TRUNCATED 
+#undef DB_TRUNCATED
 
 #else
 typedef int INT;
@@ -203,6 +200,12 @@ typedef INT midas_thread_t;
 #pragma warning( disable: 4996)
 #endif
 
+#if defined __GNUC__
+#define MATTRPRINTF(a, b) __attribute__ ((format (printf, a, b)))
+#else
+#define MATTRPRINTF(a, b)
+#endif
+
 /* mutex definitions */
 #if defined(OS_WINNT)
 typedef HANDLE MUTEX_T;
@@ -212,6 +215,19 @@ typedef pthread_mutex_t MUTEX_T;
 typedef INT MUTEX_T;
 #endif
 
+/* OSX brings its own strlcpy/stlcat */
+#ifdef OS_DARWIN
+#ifndef HAVE_STRLCPY
+#define HAVE_STRLCPY 1
+#endif
+#endif
+
+#ifdef __cplusplus
+#include <vector>
+#include <string>
+typedef std::vector<std::string> STRING_LIST;
+#endif
+
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
@@ -219,10 +235,8 @@ typedef INT MUTEX_T;
 
 /* Definition of implementation specific constants */
 
-/* all buffer sizes must be multiples of 4 ! */
-#ifndef MAX_EVENT_SIZE                       /* value can be set via Makefile */
-#define MAX_EVENT_SIZE         0x400000      /**< maximum event size 4MB      */
-#endif
+#define DEFAULT_MAX_EVENT_SIZE (4*1024*1024) /**< default maximum event size 4MiB, actual maximum event size is set by ODB /Experiment/MAX_EVENT_SIZE */
+#define DEFAULT_BUFFER_SIZE   (32*1024*1024) /**< default event buffer size 32MiB, actual event buffer size is set by ODB /Experiment/Buffer sizes/SYSTEM */
 
 #ifdef OS_WINNT
 #define TAPE_BUFFER_SIZE       0x100000      /**< buffer size for taping data */
@@ -256,13 +270,15 @@ Timeouts [ms] */
 
 #define DEFAULT_WATCHDOG_TIMEOUT 10000    /**< Watchdog */
 
+#define USE_HIDDEN_EQ                     /**< Use hidden equipment in status page */
+
 /*------------------------------------------------------------------*/
 
 /* Enumeration definitions */
 
 /**dox***************************************************************/
 /** @addtogroup mdefineh
- *  
+ *
  *  @{  */
 
 /**
@@ -308,10 +324,16 @@ Data types Definition                         min      max    */
 #define TID_LAST     17       /**< end of TID list indicator            */
 
 /**
+Transition flags */
+#define TR_SYNC          1
+#define TR_ASYNC         2
+#define TR_DETACH        4
+#define TR_MTHREAD       8
+
+/**
 Synchronous / Asynchronous flags */
-#define SYNC          0
-#define ASYNC         1
-#define DETACH        2
+#define BM_WAIT          0
+#define BM_NO_WAIT       1
 
 /**
 Access modes */
@@ -319,7 +341,8 @@ Access modes */
 #define MODE_WRITE     (1<<1)
 #define MODE_DELETE    (1<<2)
 #define MODE_EXCLUSIVE (1<<3)
-#define MODE_ALLOC     (1<<7)
+#define MODE_ALLOC     (1<<6)
+#define MODE_WATCH     (1<<7)
 
 /**
 RPC options */
@@ -353,7 +376,7 @@ Transitions values */
 #define TR_STARTABORT (1<<4)  /**< Start aborted transition  */
 #define TR_DEFERRED   (1<<12)
 
-/** 
+/**
 Equipment types */
 #define EQ_PERIODIC    (1<<0)   /**< Periodic Event */
 #define EQ_POLLED      (1<<1)   /**< Polling Event */
@@ -363,9 +386,9 @@ Equipment types */
 #define EQ_MANUAL_TRIG (1<<5)   /**< Manual triggered Event */
 #define EQ_FRAGMENTED  (1<<6)   /**< Fragmented Event */
 #define EQ_EB          (1<<7)   /**< Event run through the event builder */
+#define EQ_USER        (1<<8)   /**< Polling handled in user part */
 
-
-/** 
+/**
 Read - On flags */
 #define RO_RUNNING    (1<<0)   /**< While running */
 #define RO_STOPPED    (1<<1)   /**< Before stopping the run */
@@ -410,19 +433,19 @@ Code the LAM crate and LAM station into a bitwise register.
 */
 #define LAM_SOURCE(c, s)         (c<<24 | ((s) & 0xFFFFFF))
 
-/** 
+/**
 Code the Station number bitwise for the LAM source.
 @param s Slot number
 */
 #define LAM_STATION(s)           (1<<(s-1))
 
-/** 
+/**
 Convert the coded LAM crate to Crate number.
 @param c coded crate
 */
 #define LAM_SOURCE_CRATE(c)      (c>>24)
 
-/** 
+/**
 Convert the coded LAM station to Station number.
 @param s Slot number
 */
@@ -441,20 +464,20 @@ CNAF commands */
 
 /**dox***************************************************************/
 /** @addtogroup mmacroh
- *  
+ *
  *  @{
  */
 
 /**
 MAX */
 #ifndef MAX
-#define MAX(a,b)            (((a) > (b)) ? (a) : (b))
+#define MAX(a,b)            (((a)>(b))?(a):(b))
 #endif
 
 /**
 MIN */
 #ifndef MIN
-#define MIN(a,b)            (((a) < (b)) ? (a) : (b))
+#define MIN(a,b)            (((a)<(b))?(a):(b))
 #endif
 
 /*------------------------------------------------------------------*/
@@ -472,7 +495,7 @@ Align macro for variable data alignment */
 
 /**dox***************************************************************/
 /** @addtogroup mdefineh
- *  
+ *
  *  @{  */
 /*
 * Bit flags */
@@ -512,7 +535,7 @@ System message types */
 
 /**dox***************************************************************/
 /** @addtogroup mdeferrorh
- *  
+ *
  *  @{
  */
 
@@ -535,6 +558,7 @@ System message types */
 #define CM_TIMEOUT                  112 /**< - */
 #define CM_INVALID_TRANSITION       113 /**< - */
 #define CM_TOO_MANY_REQUESTS        114 /**< - */
+#define CM_TRUNCATED                115 /**< - */
 /**dox***************************************************************/
           /** @} *//* end of err21 */
 
@@ -564,7 +588,7 @@ System message types */
           /** @} *//* end of group 22 */
 
 /**dox***************************************************************/
-/**  @defgroup err23 Online Database error codes 
+/**  @defgroup err23 Online Database error codes
 @{ */
 #define DB_SUCCESS                    1   /**< - */
 #define DB_CREATED                  302   /**< - */
@@ -657,8 +681,9 @@ System message types */
 #define FE_ERR_HW                   603   /**< - */
 #define FE_ERR_DISABLED             604   /**< - */
 #define FE_ERR_DRIVER               605   /**< - */
+#define FE_PARTIALLY_DISABLED       606   /**< - */
 
-/** 
+/**
 History error code */
 #define HS_SUCCESS                    1   /**< - */
 #define HS_FILE_ERROR               702   /**< - */
@@ -668,7 +693,7 @@ History error code */
 #define HS_UNDEFINED_EVENT          706   /**< - */
 #define HS_UNDEFINED_VAR            707   /**< - */
 
-/** 
+/**
 FTP error code */
 #define FTP_SUCCESS                   1   /**< - */
 #define FTP_NET_ERROR               802   /**< - */
@@ -676,7 +701,7 @@ FTP error code */
 #define FTP_RESPONSE_ERROR          804   /**< - */
 #define FTP_INVALID_ARG             805   /**< - */
 
-/** 
+/**
 ELog error code */
 #define EL_SUCCESS                    1   /**< - */
 #define EL_FILE_ERROR               902   /**< - */
@@ -685,14 +710,15 @@ ELog error code */
 #define EL_FIRST_MSG                905   /**< - */
 #define EL_LAST_MSG                 906   /**< - */
 
-/** 
+/**
 Alarm error code */
 #define AL_SUCCESS                    1   /**< - */
 #define AL_INVALID_NAME            1002   /**< - */
 #define AL_ERROR_ODB               1003   /**< - */
 #define AL_RESET                   1004   /**< - */
+#define AL_TRIGGERED               1005   /**< - */
 
-/** 
+/**
 Slow control device driver commands */
 #define CMD_INIT                      1 /* misc. commands must be below 20 !! */
 #define CMD_EXIT                      2
@@ -715,13 +741,16 @@ Slow control device driver commands */
 #define CMD_SET_RAMPUP               CMD_SET_FIRST+3
 #define CMD_SET_RAMPDOWN             CMD_SET_FIRST+4
 #define CMD_SET_TRIP_TIME            CMD_SET_FIRST+5
-#define CMD_SET_LAST                 CMD_SET_FIRST+5 /* update this if you add new commands */
+#define CMD_SET_CHSTATE              CMD_SET_FIRST+6
+#define CMD_SET_LAST                 CMD_SET_FIRST+6 /* update this if you add new commands */
 
 #define CMD_GET_FIRST                CMD_SET_LAST+1  /* multithreaded get commands */
 #define CMD_GET                      CMD_GET_FIRST   // = 19
 #define CMD_GET_CURRENT              CMD_GET_FIRST+1
 #define CMD_GET_TRIP                 CMD_GET_FIRST+2
-#define CMD_GET_LAST                 CMD_GET_FIRST+2 /* update this if you add new commands ! */
+#define CMD_GET_STATUS               CMD_GET_FIRST+3
+#define CMD_GET_TEMPERATURE          CMD_GET_FIRST+4
+#define CMD_GET_LAST                 CMD_GET_FIRST+4 /* update this if you add new commands ! */
 
 #define CMD_GET_DIRECT               CMD_GET_LAST+1  /* direct get commands */
 #define CMD_GET_DEMAND               CMD_GET_DIRECT  // = 22
@@ -729,13 +758,15 @@ Slow control device driver commands */
 #define CMD_GET_CURRENT_LIMIT        CMD_GET_DIRECT+2
 #define CMD_GET_RAMPUP               CMD_GET_DIRECT+3
 #define CMD_GET_RAMPDOWN             CMD_GET_DIRECT+4
-#define CMD_GET_TRIP_TIME            CMD_GET_DIRECT+5 
-#define CMD_GET_DIRECT_LAST          CMD_GET_DIRECT+5 /* update this if you add new commands ! */
+#define CMD_GET_TRIP_TIME            CMD_GET_DIRECT+5
+#define CMD_GET_CHSTATE              CMD_GET_DIRECT+6
+#define CMD_GET_CRATEMAP             CMD_GET_DIRECT+7
+#define CMD_GET_DIRECT_LAST          CMD_GET_DIRECT+7 /* update this if you add new commands ! */
 
 #define CMD_ENABLE_COMMAND       (1<<14)  /* these two commands can be used to enable/disable */
 #define CMD_DISABLE_COMMAND      (1<<15)  /* one of the other commands                        */
 
-/** 
+/**
 Slow control bus driver commands */
 #define CMD_WRITE                   100
 #define CMD_READ                    101
@@ -744,7 +775,7 @@ Slow control bus driver commands */
 #define CMD_DEBUG                   104
 #define CMD_NAME                    105
 
-/** 
+/**
 Commands for interrupt events */
 #define CMD_INTERRUPT_ENABLE        100
 #define CMD_INTERRUPT_DISABLE       101
@@ -754,7 +785,7 @@ Commands for interrupt events */
 /**
 macros for bus driver access */
 #define BD_GETS(s,z,p,t)   info->bd(CMD_GETS, info->bd_info, s, z, p, t)
-#define BD_READS(s,z,p,t)  info->bd(CMD_READ, info->bd_info, s, z, p, t)
+#define BD_READS(s,z,t)    info->bd(CMD_READ, info->bd_info, s, z, t)
 #define BD_PUTS(s)         info->bd(CMD_PUTS, info->bd_info, s)
 #define BD_WRITES(s)       info->bd(CMD_WRITE, info->bd_info, s)
 
@@ -773,7 +804,7 @@ macros for bus driver access */
 
 /**dox***************************************************************/
 /** @addtogroup msectionh
- *  
+ *
  *  @{  */
 
 /**dox***************************************************************/
@@ -940,12 +971,17 @@ typedef struct {
 /** @defgroup mequipment Equipment related
  *  @{  */
 
-#define DF_INPUT       (1<<0)         /**< channel is input           */
-#define DF_OUTPUT      (1<<1)         /**< channel is output          */
-#define DF_PRIO_DEVICE (1<<2)         /**< get demand values from device instead of ODB */
-#define DF_READ_ONLY   (1<<3)         /**< never write demand values to device */
-#define DF_MULTITHREAD (1<<4)         //*< access device with a dedicated thread */
-#define DF_HW_RAMP     (1<<5)         //*< high voltage device can do hardware ramping */
+#define DF_INPUT              (1<<0)  /**< channel is input           */
+#define DF_OUTPUT             (1<<1)  /**< channel is output          */
+#define DF_PRIO_DEVICE        (1<<2)  /**< get demand values from device instead of ODB */
+#define DF_READ_ONLY          (1<<3)  /**< never write demand values to device */
+#define DF_MULTITHREAD        (1<<4)  //*< access device with a dedicated thread */
+#define DF_HW_RAMP            (1<<5)  //*< high voltage device can do hardware ramping */
+#define DF_LABELS_FROM_DEVICE (1<<6)  //*< pull HV channel names from device */
+#define DF_REPORT_TEMP        (1<<7)  //*< report temperature from HV cards */
+#define DF_REPORT_STATUS      (1<<8)  //*< report status word from HV channels */
+#define DF_REPORT_CHSTATE     (1<<9)  //*< report channel state word from HV channels */
+#define DF_REPORT_CRATEMAP    (1<<10) //*< reports an integer encoding size and occupancy of HV crate */
 
 typedef struct {
    char name[NAME_LENGTH];            /**< Driver name                       */
@@ -955,7 +991,7 @@ typedef struct {
 
 typedef struct {
    float variable[CMD_GET_LAST+1];    /**< Array for various values          */
-   char  label[NAME_LENGTH];          /**< Array for channel labels          */                                
+   char  label[NAME_LENGTH];          /**< Array for channel labels          */
 } DD_MT_CHANNEL;
 
 typedef struct {
@@ -983,8 +1019,30 @@ typedef struct {
    char frontend_name[NAME_LENGTH];   /**< Frontend name                     */
    char frontend_file_name[256];      /**< Source file used for user FE      */
    char status[256];                  /**< Current status of equipment       */
-   char status_color[NAME_LENGTH];    /**< Color to be used by mhttpd for status */
+   char status_color[NAME_LENGTH];    /**< Color or class to be used by mhttpd for status */
+   BOOL hidden;                       /**< Hidden flag                       */
 } EQUIPMENT_INFO;
+
+#define EQUIPMENT_COMMON_STR "\
+Event ID = WORD : 0\n\
+Trigger mask = WORD : 0\n\
+Buffer = STRING : [32] SYSTEM\n\
+Type = INT : 0\n\
+Source = INT : 0\n\
+Format = STRING : [8] FIXED\n\
+Enabled = BOOL : 0\n\
+Read on = INT : 0\n\
+Period = INT : 0\n\
+Event limit = DOUBLE : 0\n\
+Num subevents = DWORD : 0\n\
+Log history = INT : 0\n\
+Frontend host = STRING : [32] \n\
+Frontend name = STRING : [32] \n\
+Frontend file name = STRING : [256] \n\
+Status = STRING : [256] \n\
+Status color = STRING : [32] \n\
+Hidden = BOOL : 0\n\
+"
 
 typedef struct {
    char name[NAME_LENGTH];            /**< Driver name                       */
@@ -992,6 +1050,7 @@ typedef struct {
    INT channels;                      /**< Number of channels                */
    INT(*bd) (INT cmd, ...);           /**< Bus driver entry point            */
    DWORD flags;                       /**< Combination of DF_xx              */
+   BOOL enabled;                      /**< Enable flag                       */
    void *dd_info;                     /**< Private info for device driver    */
    DD_MT_BUFFER *mt_buffer;           /**< pointer to multithread buffer     */
    INT stop_thread;                   /**< flag used to stop the thread      */
@@ -1007,6 +1066,12 @@ typedef struct {
    double events_per_sec;
    double kbytes_per_sec;
 } EQUIPMENT_STATS;
+
+#define EQUIPMENT_STATISTICS_STR "\
+Events sent = DOUBLE : 0\n\
+Events per sec. = DOUBLE : 0\n\
+kBytes per sec. = DOUBLE : 0\n\
+"
 
 typedef struct eqpmnt *PEQUIPMENT;
 
@@ -1097,7 +1162,7 @@ typedef struct {
     INT(*exit) ();                    /**< Pointer to exit routine           */
    void *parameters;                  /**< Pointer to parameter structure    */
    INT param_size;                    /**< Size of parameter structure       */
-   char **init_str;                   /**< Parameter init string             */
+   const char **init_str;             /**< Parameter init string             */
    BOOL enabled;                      /**< Enabled flag                      */
    void *histo_folder;
 } ANA_MODULE;
@@ -1273,7 +1338,7 @@ NULL }
 /*---- Alarm system ------------------------------------------------*/
 /**dox***************************************************************/
 /** @defgroup malarmh Alarm related
- * Alarm structure. 
+ * Alarm structure.
  *  @{  */
 
 /********************************************************************/
@@ -1588,12 +1653,14 @@ extern "C" {
    /*---- common routines ----*/
    INT EXPRT cm_get_error(INT code, char *string);
    char EXPRT *cm_get_version(void);
-   INT EXPRT cm_get_revision(void);
+   char EXPRT *cm_get_revision(void);
    INT EXPRT cm_get_experiment_name(char *name, int name_size);
    INT EXPRT cm_get_environment(char *host_name, int host_name_size,
                                 char *exp_name, int exp_name_size);
    INT EXPRT cm_list_experiments(const char *host_name,
                                  char exp_name[MAX_EXPERIMENT][NAME_LENGTH]);
+   INT EXPRT cm_get_exptab_filename(char* filename, int filename_size);
+   INT EXPRT cm_get_exptab(const char* exp_name, char* expdir, int expdir_size, char* expuser, int expuser_size);
    INT EXPRT cm_select_experiment(const char *host_name, char *exp_name);
    INT EXPRT cm_connect_experiment(const char *host_name, const char *exp_name,
                                    const char *client_name, void (*func) (char *));
@@ -1606,14 +1673,16 @@ extern "C" {
                                     int sequence_number);
    INT EXPRT cm_deregister_transition(INT transition);
    INT EXPRT cm_set_transition_sequence(INT transition, INT sequence_number);
+   INT EXPRT cm_set_run_state(INT state);
    INT EXPRT cm_query_transition(int *transition, int *run_number, int *trans_time);
    INT EXPRT cm_register_deferred_transition(INT transition, BOOL(*func) (INT, BOOL));
    INT EXPRT cm_check_deferred_transition(void);
    INT EXPRT cm_transition(INT transition, INT run_number, char *error,
                            INT strsize, INT async_flag, INT debug_flag);
+   INT EXPRT cm_transition_status_json(char** json_status);
    INT EXPRT cm_register_server(void);
    INT EXPRT cm_register_function(INT id, INT(*func) (INT, void **));
-   INT EXPRT cm_connect_client(char *client_name, HNDLE * hConn);
+   INT EXPRT cm_connect_client(const char *client_name, HNDLE * hConn);
    INT EXPRT cm_disconnect_client(HNDLE hConn, BOOL bShutdown);
    INT EXPRT cm_set_experiment_database(HNDLE hDB, HNDLE hKeyClient);
    INT EXPRT cm_get_experiment_database(HNDLE * hDB, HNDLE * hKeyClient);
@@ -1642,19 +1711,22 @@ extern "C" {
    void EXPRT cm_ack_ctrlc_pressed();
 
    INT EXPRT cm_set_msg_print(INT system_mask, INT user_mask, int (*func) (const char *));
-   INT EXPRT cm_msg(INT message_type, const char *filename, INT line,
-                    const char *routine, const char *format, ...);
-   INT EXPRT cm_msg1(INT message_type, const char *filename, INT line,
-                     const char *facility, const char *routine, const char *format, ...);
+   INT EXPRT cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) MATTRPRINTF(5,6);
+   INT EXPRT cm_msg1(INT message_type, const char *filename, INT line, const char *facility, const char *routine, const char *format, ...) MATTRPRINTF(6,7);
    INT EXPRT cm_msg_flush_buffer();
    INT EXPRT cm_msg_register(void (*func)
                               (HNDLE, HNDLE, EVENT_HEADER *, void *));
    INT EXPRT cm_msg_retrieve(INT n_message, char *message, INT buf_size);
+   INT EXPRT cm_msg_retrieve2(const char *facility, time_t t, int min_messages, char** messages, int* num_messages);
+#ifdef __cplusplus
+   INT EXPRT cm_msg_facilities(STRING_LIST *list);
+#endif
+   INT EXPRT cm_msg_get_logfile(const char *facility, time_t t, char *filename, int fsize, char *linkname, int lsize);
 
    BOOL EXPRT equal_ustring(const char *str1, const char *str2);
 
    /*---- buffer manager ----*/
-   INT EXPRT bm_open_buffer(char *buffer_name, INT buffer_size, INT * buffer_handle);
+   INT EXPRT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle);
    INT EXPRT bm_close_buffer(INT buffer_handle);
    INT EXPRT bm_close_all_buffers(void);
    INT EXPRT bm_init_buffer_counters(INT buffer_handle);
@@ -1677,7 +1749,7 @@ extern "C" {
                                                                    void *),
                                   INT request_id);
    INT EXPRT bm_delete_request(INT request_id);
-   INT EXPRT bm_send_event(INT buffer_handle, void *event, INT buf_size, INT async_flag);
+   INT EXPRT bm_send_event(INT buffer_handle, const void *event, INT buf_size, INT async_flag);
    INT EXPRT bm_receive_event(INT buffer_handle, void *destination,
                               INT * buf_size, INT async_flag);
    INT EXPRT bm_skip_event(INT buffer_handle);
@@ -1686,30 +1758,27 @@ extern "C" {
    INT EXPRT bm_empty_buffers(void);
 
    /*---- online database functions -----*/
-   INT EXPRT db_open_database(const char *database_name, INT database_size,
-                              HNDLE * hdb, const char *client_name);
+   INT EXPRT db_open_database(const char *database_name, INT database_size, HNDLE * hdb, const char *client_name);
    INT EXPRT db_close_database(HNDLE database_handle);
    INT EXPRT db_close_all_databases(void);
    INT EXPRT db_protect_database(HNDLE database_handle);
 
    INT EXPRT db_create_key(HNDLE hdb, HNDLE key_handle, const char *key_name, DWORD type);
-   INT EXPRT db_create_link(HNDLE hdb, HNDLE key_handle, const char *link_name,
-                            const char *destination);
-   INT EXPRT db_set_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name,
-                          const void *data, INT size, INT num_values, DWORD type);
-   INT EXPRT db_set_value_index(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *data,
-                 INT data_size, INT index, DWORD type, BOOL truncate);
-   INT EXPRT db_get_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name,
-                          void *data, INT * size, DWORD type, BOOL create);
+   INT EXPRT db_create_link(HNDLE hdb, HNDLE key_handle, const char *link_name, const char *destination);
+   INT EXPRT db_set_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, const void *data, INT size, INT num_values, DWORD type);
+   INT EXPRT db_set_value_index(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *data, INT data_size, INT index, DWORD type, BOOL truncate);
+   INT EXPRT db_get_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, void *data, INT * size, DWORD type, BOOL create);
+#ifdef __cplusplus
+   INT EXPRT db_resize_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, int num_values, int max_string_size);
+   INT EXPRT db_get_value_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int index, std::string* s, BOOL create);
+   INT EXPRT db_set_value_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const std::string* s);
+#endif
    INT EXPRT db_find_key(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
    INT EXPRT db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
    INT EXPRT db_find_key1(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
    INT EXPRT db_find_link1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
-   INT EXPRT db_scan_tree(HNDLE hDB, HNDLE hKey, int level,
-                          INT(*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
-   INT EXPRT db_scan_tree_link(HNDLE hDB, HNDLE hKey, int level,
-                               void (*callback) (HNDLE, HNDLE, KEY *, INT,
-                                                 void *), void *info);
+   INT EXPRT db_scan_tree(HNDLE hDB, HNDLE hKey, int level, INT(*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
+   INT EXPRT db_scan_tree_link(HNDLE hDB, HNDLE hKey, int level, void (*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
    INT EXPRT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size);
    INT EXPRT db_delete_key(HNDLE database_handle, HNDLE key_handle, BOOL follow_links);
    INT EXPRT db_enum_key(HNDLE hdb, HNDLE key_handle, INT index, HNDLE * subkey_handle);
@@ -1717,64 +1786,70 @@ extern "C" {
    INT EXPRT db_get_next_link(HNDLE hdb, HNDLE key_handle, HNDLE * subkey_handle);
    INT EXPRT db_get_key(HNDLE hdb, HNDLE key_handle, KEY * key);
    INT EXPRT db_get_link(HNDLE hdb, HNDLE key_handle, KEY * key);
-   INT EXPRT db_get_key_info(HNDLE hDB, HNDLE hKey, char *name,
-                             INT name_size, INT * type, INT * num_values,
-                             INT * item_size);
+   INT EXPRT db_get_key_info(HNDLE hDB, HNDLE hKey, char *name, INT name_size, INT * type, INT * num_values, INT * item_size);
    INT EXPRT db_get_key_time(HNDLE hdb, HNDLE key_handle, DWORD * delta);
    INT EXPRT db_rename_key(HNDLE hDB, HNDLE hKey, const char *name);
    INT EXPRT db_reorder_key(HNDLE hDB, HNDLE hKey, INT index);
-   INT EXPRT db_get_data(HNDLE hdb, HNDLE key_handle, void *data,
-                         INT * buf_size, DWORD type);
-   INT EXPRT db_get_link_data(HNDLE hdb, HNDLE key_handle, void *data,
-                         INT * buf_size, DWORD type);
-   INT EXPRT db_get_data1(HNDLE hDB, HNDLE hKey, void *data,
-                          INT * buf_size, DWORD type, INT * num_values);
-   INT EXPRT db_get_data_index(HNDLE hDB, HNDLE hKey, void *data,
-                               INT * buf_size, INT index, DWORD type);
-   INT EXPRT db_set_data(HNDLE hdb, HNDLE hKey, const void *data, INT buf_size,
-                         INT num_values, DWORD type);
-   INT EXPRT db_set_link_data(HNDLE hDB, HNDLE hKey,
-                              const void *data, INT buf_size, INT num_values, DWORD type);
-   INT EXPRT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT size,
-                               INT index, DWORD type);
-   INT EXPRT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT size,
-                                    INT index, DWORD type);
-   INT EXPRT db_set_data_index2(HNDLE hDB, HNDLE hKey, const void *data,
-                                INT size, INT index, DWORD type, BOOL bNotify);
+   INT EXPRT db_get_data(HNDLE hdb, HNDLE key_handle, void *data, INT * buf_size, DWORD type);
+   INT EXPRT db_get_link_data(HNDLE hdb, HNDLE key_handle, void *data, INT * buf_size, DWORD type);
+   INT EXPRT db_get_data1(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type, INT * num_values);
+   INT EXPRT db_get_data_index(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT index, DWORD type);
+   INT EXPRT db_set_data(HNDLE hdb, HNDLE hKey, const void *data, INT buf_size, INT num_values, DWORD type);
+   INT EXPRT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_values, DWORD type);
+   INT EXPRT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type);
+   INT EXPRT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type);
+   INT EXPRT db_set_data_index2(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type, BOOL bNotify);
    INT EXPRT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values);
-   INT EXPRT db_merge_data(HNDLE hDB, HNDLE hKeyRoot, const char *name,
-                           void *data, INT data_size, INT num_values, INT type);
+   INT EXPRT db_merge_data(HNDLE hDB, HNDLE hKeyRoot, const char *name, void *data, INT data_size, INT num_values, INT type);
    INT EXPRT db_set_mode(HNDLE hdb, HNDLE key_handle, WORD mode, BOOL recurse);
    INT EXPRT db_create_record(HNDLE hdb, HNDLE hkey, const char *name, const char *init_str);
-   INT EXPRT db_check_record(HNDLE hDB, HNDLE hKey, const char *key_name,
-                             const char *rec_str, BOOL correct);
-   INT EXPRT db_open_record(HNDLE hdb, HNDLE hkey, void *ptr, INT rec_size,
-                            WORD access, void (*dispatcher) (INT, INT,
-                                                             void *), void *info);
+   INT EXPRT db_check_record(HNDLE hDB, HNDLE hKey, const char *key_name, const char *rec_str, BOOL correct);
+   INT EXPRT db_open_record(HNDLE hdb, HNDLE hkey, void *ptr, INT rec_size, WORD access, void (*dispatcher) (INT, INT, void *), void *info);
+   INT EXPRT db_open_record1(HNDLE hdb, HNDLE hkey, void *ptr, INT rec_size, WORD access, void (*dispatcher) (INT, INT, void *), void *info, const char *rec_str);
    INT EXPRT db_close_record(HNDLE hdb, HNDLE hkey);
    INT EXPRT db_get_record(HNDLE hdb, HNDLE hKey, void *data, INT * buf_size, INT align);
+   INT EXPRT db_get_record1(HNDLE hdb, HNDLE hKey, void *data, INT * buf_size, INT align, const char *rec_str);
    INT EXPRT db_get_record_size(HNDLE hdb, HNDLE hKey, INT align, INT * buf_size);
    INT EXPRT db_set_record(HNDLE hdb, HNDLE hKey, void *data, INT buf_size, INT align);
    INT EXPRT db_send_changed_records(void);
-   INT EXPRT db_get_open_records(HNDLE hDB, HNDLE hKey, char *str,
-                                 INT buf_size, BOOL fix);
+   INT EXPRT db_get_open_records(HNDLE hDB, HNDLE hKey, char *str, INT buf_size, BOOL fix);
 
    INT EXPRT db_add_open_record(HNDLE hDB, HNDLE hKey, WORD access_mode);
    INT EXPRT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock);
 
+   INT EXPRT db_watch(HNDLE hDB, HNDLE hKey, void (*dispatcher) (INT, INT, INT, void *info), void *info);
+   INT EXPRT db_unwatch(HNDLE hDB, HNDLE hKey);
+   INT EXPRT db_unwatch_all();
+   
    INT EXPRT db_load(HNDLE hdb, HNDLE key_handle, const char *filename, BOOL bRemote);
    INT EXPRT db_save(HNDLE hdb, HNDLE key_handle, const char *filename, BOOL bRemote);
-   INT EXPRT db_copy(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size, char *path);
+   INT EXPRT db_copy(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size, const char *path);
    INT EXPRT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer);
    INT EXPRT db_paste_xml(HNDLE hDB, HNDLE hKeyRoot, const char *buffer);
-   INT EXPRT db_save_struct(HNDLE hDB, HNDLE hKey, const char *file_name,
-                            const char *struct_name, BOOL append);
-   INT EXPRT db_save_string(HNDLE hDB, HNDLE hKey, const char *file_name,
-                            const char *string_name, BOOL append);
+   INT EXPRT db_save_struct(HNDLE hDB, HNDLE hKey, const char *file_name, const char *struct_name, BOOL append);
+   INT EXPRT db_save_string(HNDLE hDB, HNDLE hKey, const char *file_name, const char *string_name, BOOL append);
    INT EXPRT db_save_xml(HNDLE hDB, HNDLE hKey, const char *file_name);
    INT EXPRT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size);
+
    INT EXPRT db_save_json(HNDLE hDB, HNDLE hKey, const char *file_name);
-   INT EXPRT db_copy_json(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int save_keys, int follow_links);
+   INT EXPRT db_load_json(HNDLE hdb, HNDLE key_handle, const char *filename);
+
+   /* db_copy_json() is obsolete, use db_copy_json_save, _values and _ls instead */
+   INT EXPRT db_copy_json_obsolete(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int save_keys, int follow_links, int recurse);
+
+   /* json encoder using the "ODB save" encoding, for use with "ODB load" and db_paste_json() */
+   INT EXPRT db_copy_json_save(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
+   /* json encoder using the "ls" format, for getting the contents of a single ODB subdirectory */
+   INT EXPRT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
+   /* json encoder using the "get_values" format, for resolving links and normalized ODB path names (converted to lower-case) */
+  INT EXPRT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end, int omit_names, int omit_last_written, time_t omit_old_timestamp);
+   /* json encoder for an ODB array */
+   INT EXPRT db_copy_json_array(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end);
+   /* json encoder for a single element of an ODB array */
+   INT EXPRT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int *buffer_size, int *buffer_end);
+
+   INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKey, const char *buffer);
+   INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKey, int index, const /* MJsonNode */ void *json_node);
 
    INT EXPRT db_sprintf(char *string, const void *data, INT data_size, INT index, DWORD type);
    INT EXPRT db_sprintff(char *string, const char *format, const void *data, INT data_size, INT index, DWORD type);
@@ -1785,19 +1860,18 @@ extern "C" {
    /*---- Bank routines ----*/
    void EXPRT bk_init(void *pbh);
    void EXPRT bk_init32(void *event);
-   BOOL EXPRT bk_is32(void *event);
-   INT EXPRT bk_size(void *pbh);
-   void EXPRT bk_create(void *pbh, const char *name, WORD type, void *pdata);
+   BOOL EXPRT bk_is32(const void *event);
+   INT EXPRT bk_size(const void *pbh);
+   void EXPRT bk_create(void *pbh, const char *name, WORD type, void **pdata);
    INT EXPRT bk_delete(void *event, const char *name);
    INT EXPRT bk_close(void *pbh, void *pdata);
-   INT EXPRT bk_list(void *pbh, char *bklist);
-   INT EXPRT bk_locate(void *pbh, const char *name, void *pdata);
-   INT EXPRT bk_iterate(void *pbh, BANK ** pbk, void *pdata);
-   INT EXPRT bk_iterate32(void *pbh, BANK32 ** pbk, void *pdata);
+   INT EXPRT bk_list(const void *pbh, char *bklist);
+   INT EXPRT bk_locate(const void *pbh, const char *name, void *pdata);
+   INT EXPRT bk_iterate(const void *pbh, BANK ** pbk, void *pdata);
+   INT EXPRT bk_iterate32(const void *pbh, BANK32 ** pbk, void *pdata);
    INT EXPRT bk_copy(char * pevent, char * psrce, const char * bkname);
    INT EXPRT bk_swap(void *event, BOOL force);
-   INT EXPRT bk_find(BANK_HEADER * pbkh, const char *name, DWORD * bklen,
-                     DWORD * bktype, void **pdata);
+   INT EXPRT bk_find(const BANK_HEADER * pbkh, const char *name, DWORD * bklen, DWORD * bktype, void **pdata);
 
    /*---- RPC routines ----*/
    INT EXPRT rpc_clear_allowed_hosts();
@@ -1821,7 +1895,7 @@ extern "C" {
    INT EXPRT rpc_client_call(HNDLE hConn, const INT routine_id, ...);
    INT EXPRT rpc_call(const INT routine_id, ...);
    INT EXPRT rpc_tid_size(INT id);
-   char EXPRT *rpc_tid_name(INT id);
+   const char EXPRT *rpc_tid_name(INT id);
    INT EXPRT rpc_server_connect(const char *host_name, const char *exp_name);
    INT EXPRT rpc_client_connect(const char *host_name, INT midas_port,
                                 const char *client_name, HNDLE * hConnection);
@@ -1852,7 +1926,7 @@ extern "C" {
    void EXPRT ss_printf(INT x, INT y, const char *format, ...);
    void ss_set_screen_size(int x, int y);
 
-   char EXPRT *ss_getpass(char *prompt);
+   char EXPRT *ss_getpass(const char *prompt);
    INT EXPRT ss_getchar(BOOL reset);
    char EXPRT *ss_crypt(const char *key, const char *salt);
    char EXPRT *ss_gets(char *string, int size);
@@ -1879,34 +1953,31 @@ extern "C" {
    INT EXPRT ss_tape_get_blockn(INT channel);
 
    /*---- disk routines ----*/
-   double EXPRT ss_disk_free(char *path);
-   double EXPRT ss_file_size(char *path);
-   INT EXPRT ss_file_remove(char *path);
-   INT EXPRT ss_file_find(char *path, char *pattern, char **plist);
-   INT EXPRT ss_dir_find(char *path, char *pattern, char **plist);
-   double EXPRT ss_disk_size(char *path);
+   double EXPRT ss_disk_free(const char *path);
+   double EXPRT ss_file_size(const char *path);
+   INT EXPRT ss_file_exist(const char *path);
+   INT EXPRT ss_file_remove(const char *path);
+   INT EXPRT ss_file_find(const char *path, const char *pattern, char **plist);
+   INT EXPRT ss_dir_find(const char *path, const char *pattern, char **plist);
+   double EXPRT ss_disk_size(const char *path);
 
    /*---- history routines ----*/
-   INT EXPRT hs_set_path(char *path);
-   INT EXPRT hs_define_event(DWORD event_id, char *name, TAG * tag, DWORD size);
-   INT EXPRT hs_write_event(DWORD event_id, void *data, DWORD size);
+   INT EXPRT hs_set_path(const char *path);
+   INT EXPRT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD size);
+   INT EXPRT hs_write_event(DWORD event_id, const void *data, DWORD size);
    INT EXPRT hs_count_events(DWORD ltime, DWORD * count);
-   INT EXPRT hs_enum_events(DWORD ltime, char *event_name,
-                            DWORD * name_size, INT event_id[], DWORD * id_size);
+   INT EXPRT hs_enum_events(DWORD ltime, char *event_name, DWORD * name_size, INT event_id[], DWORD * id_size);
    INT EXPRT hs_count_vars(DWORD ltime, DWORD event_id, DWORD * count);
-   INT EXPRT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name,
-                          DWORD * size, DWORD * var_n, DWORD * n_size);
-   INT EXPRT hs_get_var(DWORD ltime, DWORD event_id, char *var_name,
-                        DWORD * type, INT * n_data);
-   INT EXPRT hs_get_event_id(DWORD ltime, char *name, DWORD * id);
+   INT EXPRT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name, DWORD * size, DWORD * var_n, DWORD * n_size);
+   INT EXPRT hs_get_var(DWORD ltime, DWORD event_id, const char *var_name, DWORD * type, INT * n_data);
+   INT EXPRT hs_get_event_id(DWORD ltime, const char *name, DWORD * id);
    INT EXPRT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int *n_tags, TAG **tags);
    INT EXPRT hs_read(DWORD event_id, DWORD start_time, DWORD end_time,
-                     DWORD interval, char *tag_name, DWORD var_index,
+                     DWORD interval, const char *tag_name, DWORD var_index,
                      DWORD * time_buffer, DWORD * tbsize,
                      void *data_buffer, DWORD * dbsize, DWORD * type, DWORD * n);
-   INT EXPRT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time,
-                     DWORD interval, BOOL binary_time);
-   INT EXPRT hs_fdump(char *file_name, DWORD id, BOOL binary_time);
+   INT EXPRT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BOOL binary_time);
+   INT EXPRT hs_fdump(const char *file_name, DWORD id, BOOL binary_time);
 
    /*---- ELog functions ----*/
    INT EXPRT el_retrieve(char *tag, char *date, int *run, char *author,
@@ -1920,9 +1991,9 @@ extern "C" {
                        INT buffer_size1, const char *afilename2, char *buffer2,
                        INT buffer_size2, const char *afilename3, char *buffer3,
                        INT buffer_size3, char *tag, INT tag_size);
-   INT EXPRT el_search_message(char *tag, int *fh, BOOL walk);
+   INT EXPRT el_search_message(char *tag, int *fh, BOOL walk, char* filename, int filename_size);
    INT EXPRT el_search_run(int run, char *return_tag);
-   INT EXPRT el_delete_message(char *tag);
+   INT EXPRT el_delete_message(const char *tag);
 
    /*---- alarm functions ----*/
    INT EXPRT al_check();
@@ -1935,181 +2006,38 @@ extern "C" {
 
    /*---- frontend functions ----*/
    INT get_frontend_index();
+   void mfe_get_args(int *argc, char ***argv);
    void register_cnaf_callback(int debug);
    void mfe_error(const char *error);
    void mfe_set_error(void (*dispatcher) (const char *));
    int set_equipment_status(const char *name, const char *eq_status, const char *status_color);
-   void set_event_rb(INT rb);
-   void set_event_rb_idx(INT rb, INT idx);
+   INT create_event_rb(int i);
+   INT get_event_rbh(int i);
+   INT create_event_rb(int i);
+   void stop_readout_threads();
+   int is_readout_thread_enabled();
+   int is_readout_thread_active();
+   void signal_readout_thread_active(int index, int flag);
 
    /*---- analyzer functions ----*/
    void EXPRT test_register(ANA_TEST * t);
    void EXPRT add_data_dir(char *result, char *file);
    void EXPRT lock_histo(INT id);
 
-   void EXPRT open_subfolder(char *name);
+   void EXPRT open_subfolder(const char *name);
    void EXPRT close_subfolder();
 
-   /*---- functions in strlcpy.c ----*/
+   /* we need a duplicate of mxml/strlcpy.h or nobody can use strlcpy() from libmidas.a */
+#ifndef HAVE_STRLCPY
+#ifndef _STRLCPY_H_
+#define _STRLCPY_H_
    size_t EXPRT strlcpy(char *dst, const char *src, size_t size);
    size_t EXPRT strlcat(char *dst, const char *src, size_t size);
+#endif
+#endif
 
 #ifdef __cplusplus
 }
-#ifdef USE_ROOT
-   /* root functions really are C++ functions */ extern TFolder *gManaHistosFolder;
-extern TObjArray *gHistoFolderStack;
-
-   // book functions put a root object in a suitable folder
-   // for histos, there are a lot of types, so we use templates.
-   // for other objects we have one function per object
-template < typename TH1X >
-    TH1X EXPRT * h1_book(const char *name, const char *title,
-                         int bins, double min, double max)
-{
-   TH1X *hist;
-
-   /* check if histo already exists */
-   if (!gHistoFolderStack->Last())
-      hist = (TH1X *) gManaHistosFolder->FindObjectAny(name);
-   else
-      hist = (TH1X *) ((TFolder *) gHistoFolderStack->Last())->FindObjectAny(name);
-
-   if (hist == NULL) {
-      hist = new TH1X(name, title, bins, min, max);
-      if (!gHistoFolderStack->Last())
-         gManaHistosFolder->Add(hist);
-      else
-         ((TFolder *) gHistoFolderStack->Last())->Add(hist);
-   }
-
-   return hist;
-}
-
-template < typename TH1X >
-    TH1X EXPRT * h1_book(const char *name, const char *title, int bins, double edges[])
-{
-   TH1X *hist;
-
-   /* check if histo already exists */
-   if (!gHistoFolderStack->Last())
-      hist = (TH1X *) gManaHistosFolder->FindObjectAny(name);
-   else
-      hist = (TH1X *) ((TFolder *) gHistoFolderStack->Last())->FindObjectAny(name);
-
-   if (hist == NULL) {
-      hist = new TH1X(name, title, bins, edges);
-      if (!gHistoFolderStack->Last())
-         gManaHistosFolder->Add(hist);
-      else
-         ((TFolder *) gHistoFolderStack->Last())->Add(hist);
-   }
-
-   return hist;
-}
-
-template < typename TH2X >
-    TH2X EXPRT * h2_book(const char *name, const char *title,
-                         int xbins, double xmin, double xmax,
-                         int ybins, double ymin, double ymax)
-{
-   TH2X *hist;
-
-   /* check if histo already exists */
-   if (!gHistoFolderStack->Last())
-      hist = (TH2X *) gManaHistosFolder->FindObjectAny(name);
-   else
-      hist = (TH2X *) ((TFolder *) gHistoFolderStack->Last())->FindObjectAny(name);
-
-   if (hist == NULL) {
-      hist = new TH2X(name, title, xbins, xmin, xmax, ybins, ymin, ymax);
-      if (!gHistoFolderStack->Last())
-         gManaHistosFolder->Add(hist);
-      else
-         ((TFolder *) gHistoFolderStack->Last())->Add(hist);
-   }
-
-   return hist;
-}
-
-template < typename TH2X >
-    TH2X EXPRT * h2_book(const char *name, const char *title,
-                         int xbins, double xmin, double xmax, int ybins, double yedges[])
-{
-   TH2X *hist;
-
-   /* check if histo already exists */
-   if (!gHistoFolderStack->Last())
-      hist = (TH2X *) gManaHistosFolder->FindObjectAny(name);
-   else
-      hist = (TH2X *) ((TFolder *) gHistoFolderStack->Last())->FindObjectAny(name);
-
-   if (hist == NULL) {
-      hist = new TH2X(name, title, xbins, xmin, xmax, ybins, yedges);
-      if (!gHistoFolderStack->Last())
-         gManaHistosFolder->Add(hist);
-      else
-         ((TFolder *) gHistoFolderStack->Last())->Add(hist);
-   }
-
-   return hist;
-}
-
-template < typename TH2X >
-    TH2X EXPRT * h2_book(const char *name, const char *title,
-                         int xbins, double xedges[], int ybins, double ymin, double ymax)
-{
-   TH2X *hist;
-
-   /* check if histo already exists */
-   if (!gHistoFolderStack->Last())
-      hist = (TH2X *) gManaHistosFolder->FindObjectAny(name);
-   else
-      hist = (TH2X *) ((TFolder *) gHistoFolderStack->Last())->FindObjectAny(name);
-
-   if (hist == NULL) {
-      hist = new TH2X(name, title, xbins, xedges, ybins, ymin, ymax);
-      if (!gHistoFolderStack->Last())
-         gManaHistosFolder->Add(hist);
-      else
-         ((TFolder *) gHistoFolderStack->Last())->Add(hist);
-   }
-
-   return hist;
-}
-
-template < typename TH2X >
-    TH2X EXPRT * h2_book(const char *name, const char *title,
-                         int xbins, double xedges[], int ybins, double yedges[])
-{
-   TH2X *hist;
-
-   /* check if histo already exists */
-   if (!gHistoFolderStack->Last())
-      hist = (TH2X *) gManaHistosFolder->FindObjectAny(name);
-   else
-      hist = (TH2X *) ((TFolder *) gHistoFolderStack->Last())->FindObjectAny(name);
-
-   if (hist == NULL) {
-      hist = new TH2X(name, title, xbins, xedges, ybins, yedges);
-      if (!gHistoFolderStack->Last())
-         gManaHistosFolder->Add(hist);
-      else
-         ((TFolder *) gHistoFolderStack->Last())->Add(hist);
-   }
-
-   return hist;
-}
-
-   /*
-    * the following two macros allow for simple fortran like usage
-    * for the most common histo types
-    */
-#define H1_BOOK(n,t,b,min,max) (h1_book<TH1F>(n,t,b,min,max))
-#define H2_BOOK(n,t,xb,xmin,xmax,yb,ymin,ymax) (h2_book<TH2F>(n,t,xb,xmin,xmax,yb,ymin,ymax))
-
-TCutG *cut_book(const char *name);
-#endif                          /* USE_ROOT */
 
 #endif
 #endif                          /* _MIDAS_H */

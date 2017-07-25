@@ -26,7 +26,7 @@ The Midas System include file
 
 /**dox***************************************************************/
 /** @addtogroup msystemincludecode
- *  
+ *
  *  @{  */
 
 /**dox***************************************************************/
@@ -39,7 +39,7 @@ The Midas System include file
 
 /**dox***************************************************************/
 /** @addtogroup msdefineh
- *  
+ *
  *  @{  */
 
 /**
@@ -59,7 +59,7 @@ data representations
 
 /**dox***************************************************************/
 /** @addtogroup msmacroh
- *  
+ *
  *  @{  */
 
 /* Byte and Word swapping big endian <-> little endian */
@@ -114,8 +114,7 @@ Definition of implementation specific constants */
 #define MESSAGE_BUFFER_NAME    "SYSMSG" /**< buffer name for messages */
 #define MAX_RPC_CONNECTION     64       /**< server/client connections   */
 #define MAX_STRING_LENGTH      256      /**< max string length for odb */
-#define NET_BUFFER_SIZE        (ALIGN8(MAX_EVENT_SIZE)+sizeof(EVENT_HEADER)+\
-4*8 + sizeof(NET_COMMAND_HEADER))
+#define NET_BUFFER_SIZE        (8*1024*1024) /**< size of network receive buffers */
 
 /*------------------------------------------------------------------*/
 /* flag for conditional compilation of debug messages */
@@ -131,6 +130,9 @@ Definition of implementation specific constants */
 #define YBOS_SUPPORT
 #endif
 
+/* flag to enable mutlti-threading support for ODB access */
+#define MULTI_THREAD_ENABLE
+
 /*------------------------------------------------------------------*/
 
 /* Mapping of function names for socket operations */
@@ -143,9 +145,6 @@ Definition of implementation specific constants */
 
 #undef NET_TCP_SIZE
 #define NET_TCP_SIZE 0x7FFF
-
-#undef MAX_EVENT_SIZE
-#define MAX_EVENT_SIZE 4096
 
 #endif /* OS_MSDOS */
 
@@ -190,8 +189,6 @@ typedef struct {
 #define P_WAIT   0
 #define P_NOWAIT 1
 #define P_DETACH 4
-
-extern char **environ;
 
 #endif
 
@@ -243,6 +240,16 @@ extern char **environ;
 #define MAX_SHM_SIZE      0x20000       /* 128k */
 #endif
 
+/* missing isnan() & co under Windows */
+#ifdef OS_WINNT
+#include <float.h>
+#define isnan(x) _isnan(x)
+#define isinf(x) (!_finite(x))
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#define ftruncate(x,y) _chsize(x,y)
+#endif
+
 /*------------------------------------------------------------------*/
 
 /* Network structures */
@@ -292,6 +299,7 @@ typedef struct {
    INT port;                    /*  ip port                 */
    char exp_name[NAME_LENGTH];  /*  experiment to connect   */
    int send_sock;               /*  tcp send socket         */
+   int connected;               /*  socket is connected     */
    INT remote_hw_type;          /*  remote hardware type    */
    char client_name[NAME_LENGTH];       /* name of remote client    */
    INT transport;               /*  RPC_TCP/RPC_FTCP        */
@@ -339,7 +347,7 @@ typedef struct {
 
 /**dox***************************************************************/
 /** @addtogroup mssectionh
- *  
+ *
  *  @{  */
 
 typedef struct {
@@ -397,6 +405,8 @@ typedef struct {
    HNDLE shm_handle;            /* handle (id) to shared memory */
    INT index;                   /* connection index / tid       */
    BOOL protect;                /* read/write protection        */
+   MUTEX_T *mutex;              /* mutex for multi-thread access */
+   MUTEX_T *am;                 /* temporary access mutex       */
 
 } DATABASE;
 
@@ -413,6 +423,15 @@ typedef struct {
    void *info;                  /* addtl. info for dispatcher */
 
 } RECORD_LIST;
+
+/* Watch record descriptor */
+
+typedef struct {
+   HNDLE handle;                /* Handle of watched base key  */
+   HNDLE hDB;                   /* Handle of watched database */
+   void (*dispatcher) (INT, INT, INT, void* info); /* Pointer to dispatcher func. */
+   void* info;                  /* addtl. info for dispatcher */
+} WATCH_LIST;
 
 /* Event request descriptor */
 
@@ -431,87 +450,6 @@ typedef struct {
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /*---- Logging channel information ---------------------------------*/
-
-#define CHN_SETTINGS_STR(_name) const char *_name[] = {\
-"[Settings]",\
-"Active = BOOL : 1",\
-"Type = STRING : [8] Disk",\
-"Filename = STRING : [256] run%05d.mid",\
-"Format = STRING : [8] MIDAS",\
-"Compression = INT : 0",\
-"ODB dump = BOOL : 1",\
-"Log messages = DWORD : 0",\
-"Buffer = STRING : [32] SYSTEM",\
-"Event ID = INT : -1",\
-"Trigger mask = INT : -1",\
-"Event limit = DOUBLE : 0",\
-"Byte limit = DOUBLE : 0",\
-"Subrun Byte limit = DOUBLE : 0",\
-"Tape capacity = DOUBLE : 0",\
-"Subdir format = STRING : [32]",\
-"Current filename = STRING : [256]",\
-"",\
-"[Statistics]",\
-"Events written = DOUBLE : 0",\
-"Bytes written = DOUBLE : 0",\
-"Bytes written uncompressed = DOUBLE : 0",\
-"Bytes written total = DOUBLE : 0",\
-"Bytes written subrun = DOUBLE : 0",\
-"Files written = DOUBLE : 0",\
-"Disk level = DOUBLE : 0",\
-"",\
-NULL}
-
-typedef struct {
-   BOOL active;
-   char type[8];
-   char filename[256];
-   char format[8];
-   INT compression;
-   BOOL odb_dump;
-   DWORD log_messages;
-   char buffer[32];
-   INT event_id;
-   INT trigger_mask;
-   double event_limit;
-   double byte_limit;
-   double subrun_byte_limit;
-   double tape_capacity;
-   char subdir_format[32];
-   char current_filename[256];
-} CHN_SETTINGS;
-
-typedef struct {
-   double events_written;
-   double bytes_written;
-   double bytes_written_uncompressed;
-   double bytes_written_total;
-   double bytes_written_subrun;
-   double files_written;
-   double disk_level;
-} CHN_STATISTICS;
-
-typedef struct {
-   INT handle;
-   char path[256];
-   char pipe_command[256];
-   INT type;
-   INT format;
-   INT compression;
-   INT subrun_number;
-   INT buffer_handle;
-   INT msg_buffer_handle;
-   INT request_id;
-   INT msg_request_id;
-   HNDLE stats_hkey;
-   HNDLE settings_hkey;
-   CHN_SETTINGS settings;
-   CHN_STATISTICS statistics;
-   void **format_info;
-   FTP_CON *ftp_con;
-   void *gzfile;
-   FILE *pfile;
-} LOG_CHN;
 
 #define LOG_TYPE_DISK 1
 #define LOG_TYPE_TAPE 2
@@ -543,12 +481,13 @@ extern "C" {
 
    /*---- common function ----*/
    INT EXPRT cm_set_path(const char *path);
-   INT EXPRT cm_get_path(char *path);
-   INT EXPRT cm_get_path1(char *path, int path_size);
+   INT EXPRT cm_get_path(char *path, int path_size);
+#ifdef __cplusplus
+   INT EXPRT cm_get_path_string(std::string* path);
+#endif
    INT EXPRT cm_set_experiment_name(const char *name);
-   INT cm_dispatch_ipc(char *message, int s);
-   INT EXPRT cm_msg_log(INT message_type, const char *message);
-   INT EXPRT cm_msg_log1(INT message_type, const char *message, const char *facility);
+   INT cm_dispatch_ipc(const char *message, int s);
+   INT EXPRT cm_msg_log(INT message_type, const char *facility, const char *message);
    void EXPRT name2c(char *str);
 
    /*---- buffer manager ----*/
@@ -568,10 +507,10 @@ extern "C" {
    INT EXPRT db_lock_database(HNDLE database_handle);
    INT EXPRT db_unlock_database(HNDLE database_handle);
    INT EXPRT db_get_lock_cnt(HNDLE database_handle);
-   INT db_update_record(INT hDB, INT hKey, int s);
+   INT db_update_record(INT hDB, INT hKeyRoot, INT hKey, int index, int s);
    INT db_close_all_records(void);
    INT EXPRT db_flush_database(HNDLE hDB);
-   INT EXPRT db_notify_clients(HNDLE hDB, HNDLE hKey, BOOL bWalk);
+   INT EXPRT db_notify_clients(HNDLE hDB, HNDLE hKey, int index, BOOL bWalk);
    INT EXPRT db_set_client_name(HNDLE hDB, const char *client_name);
    INT db_delete_key1(HNDLE hDB, HNDLE hKey, INT level, BOOL follow_links);
    INT EXPRT db_show_mem(HNDLE hDB, char *result, INT buf_size, BOOL verbose);
@@ -601,14 +540,14 @@ extern "C" {
    INT ss_shm_open(const char *name, INT size, void **adr, HNDLE *handle, BOOL get_size);
    INT ss_shm_close(const char *name, void *adr, HNDLE handle, INT destroy_flag);
    INT ss_shm_flush(const char *name, const void *adr, INT size, HNDLE handle);
-   INT ss_shm_delete(const char *name);
+   INT EXPRT ss_shm_delete(const char *name);
    INT ss_shm_protect(HNDLE handle, void *adr);
    INT ss_shm_unprotect(HNDLE handle, void **adr);
-   INT ss_spawnv(INT mode, char *cmdname, char *argv[]);
+   INT ss_spawnv(INT mode, const char *cmdname, char *argv[]);
    INT ss_shell(int sock);
    INT EXPRT ss_daemon_init(BOOL keep_stdout);
-   INT EXPRT ss_system(char *command);
-   INT EXPRT ss_exec(char *cmd, INT * child_pid);
+   INT EXPRT ss_system(const char *command);
+   INT EXPRT ss_exec(const char *cmd, INT * child_pid);
    BOOL EXPRT ss_existpid(INT pid);
    INT EXPRT ss_getpid(void);
    INT EXPRT ss_gettid(void);
@@ -624,7 +563,7 @@ extern "C" {
    INT ss_alarm(INT millitime, void (*func) (int));
    INT ss_suspend_get_port(INT * port);
    INT ss_suspend_set_dispatch(INT channel, void *connection, INT(*dispatch) ());
-   INT ss_resume(INT port, char *message);
+   INT ss_resume(INT port, const char *message);
    INT ss_suspend_exit(void);
    INT ss_exception_handler(void (*func) ());
    void EXPRT ss_force_single_thread();
@@ -632,21 +571,23 @@ extern "C" {
    midas_thread_t EXPRT ss_thread_create(INT(*func) (void *), void *param);
    INT EXPRT ss_thread_kill(midas_thread_t thread_id);
    INT EXPRT ss_get_struct_align(void);
+   INT EXPRT ss_get_struct_padding(void);
    INT EXPRT ss_timezone(void);
    INT EXPRT ss_stack_get(char ***string);
    void EXPRT ss_stack_print();
    void EXPRT ss_stack_history_entry(char *tag);
    void EXPRT ss_stack_history_dump(char *filename);
+   INT ss_gethostname(char* buffer, int buffer_size);
 
    /*---- socket routines ----*/
    INT EXPRT send_tcp(int sock, char *buffer, DWORD buffer_size, INT flags);
    INT EXPRT recv_tcp(int sock, char *buffer, DWORD buffer_size, INT flags);
+   INT EXPRT recv_tcp2(int sock, char *buffer, int buffer_size, int timeout_ms);
    INT send_udp(int sock, char *buffer, DWORD buffer_size, INT flags);
    INT recv_udp(int sock, char *buffer, DWORD buffer_size, INT flags);
    INT EXPRT recv_string(int sock, char *buffer, DWORD buffer_size, INT flags);
-
-   /*---- system logging ----*/
-   INT EXPRT ss_syslog(const char *message);
+   INT EXPRT ss_socket_wait(int sock, int millisec);
+   INT EXPRT ss_recv_net_command(int sock, DWORD* routine_id, DWORD* param_size, char **param_ptr, int timeout_ms);
 
    /*---- event buffer routines ----*/
    INT EXPRT eb_create_buffer(INT size);
@@ -688,5 +629,12 @@ extern "C" {
 #endif
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
-          
+
 /**dox***************************************************************//** @} *//* end of msystemincludecode */
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */

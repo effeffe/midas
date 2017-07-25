@@ -101,6 +101,7 @@ Frontend name = STRING : [32] \n\
 Frontend file name = STRING : [256] \n\
 Status = STRING : [256] \n\
 Status color = STRING : [32] \n\
+Hidden = BOOL : 0\n\
 "
 
 #define EQUIPMENT_STATISTICS_STR "\
@@ -203,17 +204,24 @@ INT register_equipment(void)
       eq_stats->kbytes_per_sec = 0;
 
       /* open hot link to statistics tree */
-      status = db_open_record(hDB, hKey, eq_stats, sizeof(EQUIPMENT_STATS)
-                              , MODE_WRITE, NULL, NULL);
+      status = db_open_record(hDB, hKey, eq_stats, sizeof(EQUIPMENT_STATS), MODE_WRITE, NULL, NULL);
+      if (status == DB_NO_ACCESS) {
+         /* record is probably still in exclusive access by dead FE, so reset it */
+         status = db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE | MODE_DELETE, TRUE);
+         if (status != DB_SUCCESS)
+            cm_msg(MERROR, "register_equipment", "Cannot change access mode for record \'%s\', error %d", str, status);
+         else
+            cm_msg(MINFO, "register_equipment", "Recovered access mode for record \'%s\'", str);
+         status = db_open_record(hDB, hKey, eq_stats, sizeof(EQUIPMENT_STATS), MODE_WRITE, NULL, NULL);
+      }
       if (status != DB_SUCCESS) {
-         cm_msg(MERROR, "register_equipment",
-                "Cannot open statistics record, error %d. Probably other FE is using it", status);
+         cm_msg(MERROR, "register_equipment", "Cannot open statistics record, error %d. Probably other FE is using it", status);
          ss_sleep(3000);
       }
 
     /*---- open event buffer ---------------------------------------*/
       if (eq_info->buffer[0]) {
-         status = bm_open_buffer(eq_info->buffer, 2 * MAX_EVENT_SIZE, &equipment[index].buffer_handle);
+         status = bm_open_buffer(eq_info->buffer, DEFAULT_BUFFER_SIZE, &equipment[index].buffer_handle);
          if (status != BM_SUCCESS && status != BM_CREATED) {
             cm_msg(MERROR, "register_equipment",
                    "Cannot open event buffer. Try to reduce EVENT_BUFFER_SIZE in midas.h \
@@ -307,7 +315,7 @@ INT load_fragment(void)
    if (equipment[0].format == FORMAT_MIDAS)
       meb_fragment_add = eb_mfragment_add;
    else {
-      cm_msg(MERROR, "load_fragment", "Unknown data format :%d", format);
+      cm_msg(MERROR, "load_fragment", "Unknown data format :%s", format);
       return EB_ERROR;
    }
 
@@ -430,7 +438,7 @@ INT scan_fragment(void)
 	    }
 #endif
 	    for (ch=0; ch<5; ch++) {
-	       if (cm_transition(TR_STOP, 0, NULL, 0, SYNC, 0) == CM_SUCCESS)
+	       if (cm_transition(TR_STOP, 0, NULL, 0, TR_SYNC, 0) == CM_SUCCESS)
 		  break;
 	       cm_msg(MERROR, "scan_fragment", "%s: Stop Transition request failed, trying again!", frontend_name);
             }
@@ -453,7 +461,7 @@ INT scan_fragment(void)
          /* Force event to appear at the destination if Ebuilder is remote */
          rpc_flush_event();
          /* Force event ot appear at the destination if Ebuilder is local */
-         bm_flush_cache(equipment[0].buffer_handle, ASYNC);
+         bm_flush_cache(equipment[0].buffer_handle, BM_NO_WAIT);
 
          status = cm_yield(10);
 
@@ -809,7 +817,7 @@ INT handFlush()
          status = 0;
          if (ebset.preqfrag[i]) {
             size = max_event_size;
-            status = bm_receive_event(ebch[i].hBuf, ebch[i].pfragment, &size, ASYNC);
+            status = bm_receive_event(ebch[i].hBuf, ebch[i].pfragment, &size, BM_NO_WAIT);
             if (debug1) {
                sprintf(strout,
                        "booking:Hand flush bm_receive_event[%d] hndle:%d stat:%d  Last Ser:%d",
@@ -844,7 +852,7 @@ INT source_booking()
       /* Book only the requested event mask */
       if (ebset.preqfrag[i]) {
          /* Connect channel to source buffer */
-         status1 = bm_open_buffer(ebch[i].buffer, 2 * MAX_EVENT_SIZE, &(ebch[i].hBuf));
+         status1 = bm_open_buffer(ebch[i].buffer, DEFAULT_BUFFER_SIZE, &(ebch[i].hBuf));
 
          if (debug)
             printf("bm_open_buffer frag:%d buf:%s handle:%d stat:%d\n",
@@ -932,7 +940,7 @@ INT source_unbooking()
          if (debug)
             printf("unbook: bm_close_buffer[%d] hndle:%d stat:%d\n", i, ebch[i].hBuf, status);
          if (status != BM_SUCCESS) {
-            cm_msg(MERROR, "source_unbooking", "Close buffer[%d] stat:", i, status);
+            cm_msg(MERROR, "source_unbooking", "Close buffer[%d] stat: %d", i, status);
             return status;
          }
       }
@@ -954,7 +962,7 @@ INT close_buffers(void)
    eq = &equipment[0];
 
    /* Flush local destination cache */
-   bm_flush_cache(equipment[0].buffer_handle, SYNC);
+   bm_flush_cache(equipment[0].buffer_handle, BM_WAIT);
    /* Call user function */
    eb_end_of_run(run_number, error);
    /* Cleanup buffers */
@@ -997,7 +1005,6 @@ if different then SUCCESS (bm_compose, rpc_sent error)
 INT source_scan(INT fmt, EQUIPMENT_INFO * eq_info)
 {
    static DWORD serial;
-   DWORD *plrl;
    BOOL complete;
    INT i, status, size;
    INT act_size;
@@ -1012,7 +1019,7 @@ INT source_scan(INT fmt, EQUIPMENT_INFO * eq_info)
       if (ebset.preqfrag[i] && !ebset.received[i]) {
          /* Get fragment and store it in ebch[i].pfragment */
          size = max_event_size;
-         status = bm_receive_event(ebch[i].hBuf, ebch[i].pfragment, &size, ASYNC);
+         status = bm_receive_event(ebch[i].hBuf, ebch[i].pfragment, &size, BM_NO_WAIT);
 	 //printf("call bm_receive_event from %s, serial %d, status %d\n", ebch[i].buffer, serial, status);
          switch (status) {
          case BM_SUCCESS:      /* event received */
@@ -1129,7 +1136,7 @@ INT source_scan(INT fmt, EQUIPMENT_INFO * eq_info)
       act_size = ((EVENT_HEADER *) dest_event)->data_size + sizeof(EVENT_HEADER);
 
       /* Send event and wait for completion */
-      status = rpc_send_event(equipment[0].buffer_handle, dest_event, act_size, SYNC, 0);
+      status = rpc_send_event(equipment[0].buffer_handle, dest_event, act_size, BM_WAIT, 0);
       if (status != BM_SUCCESS) {
          if (debug)
             printf("rpc_send_event returned error %d, event_size %d\n", status, act_size);
@@ -1301,7 +1308,7 @@ int main(int argc, char **argv)
 
        cm_msg(MINFO, frontend_name, "Restart the run!");
 
-       cm_transition(TR_START, run_number+1, NULL, 0, SYNC, 0);
+       cm_transition(TR_START, run_number+1, NULL, 0, TR_SYNC, 0);
      }
      
    /* initialize ss_getchar */

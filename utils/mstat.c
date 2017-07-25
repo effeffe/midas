@@ -122,13 +122,9 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       strcpy(str, ctime(&full_time));
       str[24] = 0;
       if (active_flag)
-         sprintf(&(ststr[j++][0]),
-                 "*-v%d- MIDAS status -- Alarm Checker active-------%s-*",
-                 cm_get_revision(), str);
+         sprintf(&(ststr[j++][0]), "*- MIDAS revision: %s - MIDAS status -- Alarm Checker active-------%s-*", cm_get_revision(), str);
       else
-         sprintf(&(ststr[j++][0]),
-                 "*-v%d- MIDAS status page -------------------------%s-*",
-                 cm_get_revision(), str);
+         sprintf(&(ststr[j++][0]), "*- MIDAS revision: %s - MIDAS status page -------------------------%s-*", cm_get_revision(), str);
 
       sprintf(&(ststr[j][0]), "Experiment:%s", ex);
       sprintf(&(ststr[j][23]), "Run#:%d", rn);
@@ -527,7 +523,8 @@ int main(int argc, char **argv)
    INT status, last_time = 0, file_mode;
    HNDLE hDB, hKey;
    char host_name[HOST_NAME_LENGTH], expt_name[NAME_LENGTH], str[32];
-   char ch, svpath[256];
+   char svpath[256];
+   signed char ch;
    INT fHandle, i, j = 0, last_max_line = 0;
    INT msg;
    BOOL debug;
@@ -573,6 +570,9 @@ int main(int argc, char **argv)
       }
    }
 
+   if (debug) // avoid complaint about unused "debug"
+      status = SUCCESS;
+
    /* connect to experiment */
    status = cm_connect_experiment(host_name, expt_name, "MStatus", 0);
    if (status != CM_SUCCESS)
@@ -600,11 +600,14 @@ int main(int argc, char **argv)
          esc_flag = 0;
          compose_status(hDB, hKey);
          while ((j < cur_max_line) && (ststr[j][0] != '\0')) {
+            int wr;
             strncpy(svpath, ststr[j], 80);
             svpath[80] = '\0';
             printf("%s\n", svpath);
-            write(fHandle, "\n", 1);
-            write(fHandle, ststr[j], strlen(ststr[j]));
+            wr = write(fHandle, "\n", 1);
+            assert(wr == 1);
+            wr = write(fHandle, ststr[j], strlen(ststr[j]));
+            assert(wr == strlen(ststr[j]));
             j++;
          }
          close(fHandle);

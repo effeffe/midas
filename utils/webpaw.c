@@ -437,7 +437,7 @@ void urlDecode(char *p)
             str[0] = p[0];
             str[1] = p[1];
             str[2] = 0;
-            sscanf(p, "%02X", &i);
+            sscanf(str, "%02X", &i);
 
             *pD++ = (char) i;
             p += 2;
@@ -1262,7 +1262,7 @@ void server_loop(int tcp_port, int daemon)
 {
    int status, i, n_error;
    struct sockaddr_in bind_addr, acc_addr;
-   int lsock, flag, header_length, authorized;
+   int lsock, flag, authorized;
    unsigned int len;
    struct hostent *phe;
    struct linger ling;
@@ -1306,7 +1306,7 @@ void server_loop(int tcp_port, int daemon)
    bind_addr.sin_addr.s_addr = 0;
    bind_addr.sin_port = htons((short) tcp_port);
 
-   gethostname(host_name, sizeof(host_name));
+   ss_gethostname(host_name, sizeof(host_name));
 
    phe = gethostbyname(host_name);
    if (phe == NULL) {
@@ -1436,7 +1436,6 @@ void server_loop(int tcp_port, int daemon)
 
          memset(net_buffer, 0, sizeof(net_buffer));
          len = 0;
-         header_length = 0;
          n_error = 0;
          do {
             FD_ZERO(&readfds);

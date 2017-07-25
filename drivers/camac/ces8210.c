@@ -9,15 +9,6 @@
                 Modified to follow the latest mvmestd by PAA
   $Id$
 \********************************************************************/
-#ifndef INLINE
-#if defined( _MSC_VER )
-#define INLINE __inline
-#elif defined(__GNUC__)
-#define INLINE __inline__
-#else
-#define INLINE
-#endif
-#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -29,7 +20,6 @@
 #ifdef OS_VXWORKS
 #include "vxVME.h"
 #else
-#include "vmicvme.h"
 #endif
 
 MVME_INTERFACE *myvme;
@@ -52,7 +42,7 @@ MVME_INTERFACE *myvme;
 *                                                                 *
 \*****************************************************************/
 /*---------------------------------------------------------------*/
-INLINE void cam16i(const int c, const int n, const int a, const int f, WORD * d)
+void cam16i(const int c, const int n, const int a, const int f, WORD * d)
 {
   int ext;
   mvme_set_am(myvme, MVME_AM_A24_ND);
@@ -62,7 +52,7 @@ INLINE void cam16i(const int c, const int n, const int a, const int f, WORD * d)
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam24i(const int c, const int n, const int a, const int f, DWORD * d)
+void cam24i(const int c, const int n, const int a, const int f, DWORD * d)
 {
   int ext;
   WORD dh, dl;
@@ -76,7 +66,7 @@ INLINE void cam24i(const int c, const int n, const int a, const int f, DWORD * d
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam16i_q(const int c, const int n, const int a, const int f,
+void cam16i_q(const int c, const int n, const int a, const int f,
                      WORD * d, int *x, int *q)
 {
    WORD csr;
@@ -88,7 +78,7 @@ INLINE void cam16i_q(const int c, const int n, const int a, const int f,
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam24i_q(const int c, const int n, const int a, const int f,
+void cam24i_q(const int c, const int n, const int a, const int f,
                      DWORD * d, int *x, int *q)
 {
    WORD csr;
@@ -100,7 +90,7 @@ INLINE void cam24i_q(const int c, const int n, const int a, const int f,
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam16i_r(const int c, const int n, const int a, const int f,
+void cam16i_r(const int c, const int n, const int a, const int f,
                      WORD ** d, const int r)
 {
    int i;
@@ -110,7 +100,7 @@ INLINE void cam16i_r(const int c, const int n, const int a, const int f,
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam24i_r(const int c, const int n, const int a, const int f,
+void cam24i_r(const int c, const int n, const int a, const int f,
                      DWORD ** d, const int r)
 {
    int i;
@@ -120,7 +110,7 @@ INLINE void cam24i_r(const int c, const int n, const int a, const int f,
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam16i_rq(const int c, const int n, const int a, const int f,
+void cam16i_rq(const int c, const int n, const int a, const int f,
                       WORD ** d, const int r)
 {
    WORD dtemp;
@@ -137,7 +127,7 @@ INLINE void cam16i_rq(const int c, const int n, const int a, const int f,
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam24i_rq(const int c, const int n, const int a, const int f,
+void cam24i_rq(const int c, const int n, const int a, const int f,
                       DWORD ** d, const int r)
 {
    DWORD i, dtemp;
@@ -154,7 +144,7 @@ INLINE void cam24i_rq(const int c, const int n, const int a, const int f,
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam16i_sa(const int c, const int n, const int a, const int f,
+void cam16i_sa(const int c, const int n, const int a, const int f,
                       WORD ** d, const int r)
 {
    int aa;
@@ -164,7 +154,7 @@ INLINE void cam16i_sa(const int c, const int n, const int a, const int f,
 }
 
 /*--input--------------------------------------------------------*/
-INLINE void cam24i_sa(const int c, const int n, const int a, const int f,
+void cam24i_sa(const int c, const int n, const int a, const int f,
                       DWORD **d, const int r)
 {
    int aa;
@@ -174,7 +164,7 @@ INLINE void cam24i_sa(const int c, const int n, const int a, const int f,
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam16i_sn(const int c, const int n, const int a, const int f,
+void cam16i_sn(const int c, const int n, const int a, const int f,
                       WORD ** d, const int r)
 {
    int nn;
@@ -184,7 +174,7 @@ INLINE void cam16i_sn(const int c, const int n, const int a, const int f,
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam24i_sn(const int c, const int n, const int a, const int f,
+void cam24i_sn(const int c, const int n, const int a, const int f,
                       DWORD ** d, const int r)
 {
    int nn;
@@ -194,7 +184,7 @@ INLINE void cam24i_sn(const int c, const int n, const int a, const int f,
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cami(const int c, const int n, const int a, const int f, WORD * d)
+void cami(const int c, const int n, const int a, const int f, WORD * d)
 {
    cam16i(c, n, a, f, d);
 }
@@ -205,7 +195,7 @@ INLINE void cami(const int c, const int n, const int a, const int f, WORD * d)
 *                                                                 *
 \*****************************************************************/
 /*---------------------------------------------------------------*/
-INLINE void cam16o(const int c, const int n, const int a, const int f, WORD d)
+void cam16o(const int c, const int n, const int a, const int f, WORD d)
 {
   int ext;
   
@@ -217,7 +207,7 @@ INLINE void cam16o(const int c, const int n, const int a, const int f, WORD d)
 
 /*---------------------------------------------------------------*/
 
-INLINE void cam24o(const int c, const int n, const int a, const int f, DWORD d)
+void cam24o(const int c, const int n, const int a, const int f, DWORD d)
 {
   static int ext;
   static WORD dtemp;
@@ -232,7 +222,7 @@ INLINE void cam24o(const int c, const int n, const int a, const int f, DWORD d)
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam16o_q(const int c, const int n, const int a, const int f,
+void cam16o_q(const int c, const int n, const int a, const int f,
                      WORD d, int *x, int *q)
 {
    WORD csr;
@@ -244,7 +234,7 @@ INLINE void cam16o_q(const int c, const int n, const int a, const int f,
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam24o_q(const int c, const int n, const int a, const int f,
+void cam24o_q(const int c, const int n, const int a, const int f,
                      DWORD d, int *x, int *q)
 {
    static WORD csr;
@@ -272,14 +262,13 @@ void cam24o_r(const int c, const int n, const int a, const int f, DWORD * d, con
 }
 
 /*---------------------------------------------------------------*/
-INLINE void camo(const int c, const int n, const int a, const int f, WORD d)
+void camo(const int c, const int n, const int a, const int f, WORD d)
 {
    cam16o(c, n, a, f, d);
 }
 
 /*---------------------------------------------------------------*/
-int cam_init_rpc(char *host_name, char *exp_name, char *fe_name,
-                 char *client_name, char *rpc_server)
+int cam_init_rpc(const char *host_name, const char *exp_name, const char *fe_name, const char *client_name, const char *rpc_server)
 {
   /* dummy routine for compatibility */
   return 1;
@@ -291,7 +280,7 @@ int cam_init_rpc(char *host_name, char *exp_name, char *fe_name,
 *                                                                 *
 \*****************************************************************/
 /*---------------------------------------------------------------*/
-INLINE int camc_chk(const int c)
+int camc_chk(const int c)
 {
    WORD crate_status;
 
@@ -302,7 +291,7 @@ INLINE int camc_chk(const int c)
 }
 
 /*---------------------------------------------------------------*/
-INLINE void camc(const int c, const int n, const int a, const int f)
+void camc(const int c, const int n, const int a, const int f)
 {
    /* Following the CBD8210 manual */
    WORD dtmp;
@@ -316,7 +305,7 @@ INLINE void camc(const int c, const int n, const int a, const int f)
 }
 
 /*---------------------------------------------------------------*/
-INLINE void camc_q(const int c, const int n, const int a, const int f, int *q)
+void camc_q(const int c, const int n, const int a, const int f, int *q)
 {
    WORD csr;
 
@@ -326,7 +315,7 @@ INLINE void camc_q(const int c, const int n, const int a, const int f, int *q)
 }
 
 /*---------------------------------------------------------------*/
-INLINE void camc_sa(const int c, const int n, const int a, const int f, const int r)
+void camc_sa(const int c, const int n, const int a, const int f, const int r)
 {
    int aa;
 
@@ -335,7 +324,7 @@ INLINE void camc_sa(const int c, const int n, const int a, const int f, const in
 }
 
 /*---------------------------------------------------------------*/
-INLINE void camc_sn(const int c, const int n, const int a, const int f, const int r)
+void camc_sn(const int c, const int n, const int a, const int f, const int r)
 {
    int nn;
 
@@ -349,9 +338,9 @@ INLINE void camc_sn(const int c, const int n, const int a, const int f, const in
 *                                                                 *
 \*****************************************************************/
 /*---------------------------------------------------------------*/
-INLINE int cam_init(void)
+int cam_init(void)
 {
-  int crate = 0, status = 0;	
+  int status = 0;	
 
   /* VME initialization  */ 
   status = mvme_open(&myvme, 0);
@@ -367,87 +356,70 @@ INLINE int cam_init(void)
 #ifdef OS_VXWORKS
     /* vxWorks specific memory-mapping function calls */
     if (vxworks_mmap(myvme, CBD8210_BASE, 8 * 0x10000) != MVME_SUCCESS) {
-      printf("vxworks_mmap error crate:%d\n", crate);
+      printf("vxworks_mmap error\n");
     }  
 #else
-  /* VMIC specific memory-mapping function calls */
-  /*
-  for (crate = 0; crate < 8; crate++) {
-    vmecrate = (CBD8210_BASE | branch << 19 | crate << 16);
-    if (vmic_mmap(myvme, vmecrate, 0x10000) != MVME_SUCCESS) {
-      printf("vmic_mmap error crate:%d\n", crate);
-    }  
-  }
-  */
-
-  /*
-   * Single mapping for all 8 crates of the branch 0 
-   */
-
-    if (vmic_mmap(myvme, CBD8210_BASE, 8 * 0x10000) != MVME_SUCCESS) {
-      printf("vmic_mmap error crate:%d\n", crate);
-    }  
 #endif
 
   return SUCCESS;
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_exit(void)
+void cam_exit(void)
 {
    mvme_close(myvme);
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_inhibit_set(const int c)
+void cam_inhibit_set(const int c)
 {
    camc(c, 30, 9, 26);
 }
 
 /*---------------------------------------------------------------*/
-INLINE int cam_inhibit_test(const int c)
+int cam_inhibit_test(const int c)
 {
    return 1;
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_inhibit_clear(const int c)
+void cam_inhibit_clear(const int c)
 {
    camc(c, 30, 9, 24);
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_crate_clear(const int c)
+void cam_crate_clear(const int c)
 {
    camc(c, 28, 9, 26);
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_crate_zinit(const int c)
+void cam_crate_zinit(const int c)
 {
    camc(c, 28, 8, 26);
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_lam_enable(const int c, const int n)
+void cam_lam_enable(const int c, const int n)
 {
    camc(c, n, 0, 26);
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_lam_disable(const int c, const int n)
+void cam_lam_disable(const int c, const int n)
 {
    camc(c, n, 0, 24);
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_lam_read(const int c, DWORD * lam)
+void cam_lam_read(const int c, DWORD * lam)
 {
    cam24i(0, 29, 0, 10, lam);
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_lam_clear(const int c, const int n)
+void cam_lam_clear(const int c, const int n)
 {
 /* Depend on the hardware LAM implementation
 as this cmd should talk to the controller
@@ -461,50 +433,50 @@ but can include the LAM source module LAM clear
 *                                                                 *
 \*****************************************************************/
 
-INLINE void cam_interrupt_enable(const int c)
+void cam_interrupt_enable(const int c)
 {
    printf("cam_interrupt_enable - Not yet implemented\n");
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_interrupt_disable(const int c)
+void cam_interrupt_disable(const int c)
 {
    printf("cam_interrupt_disable - Not yet implemented\n");
 }
 
 /*---------------------------------------------------------------*/
-INLINE int cam_interrupt_test(const int c)
+int cam_interrupt_test(const int c)
 {
    printf("cam_interrupt_test - Not yet implemented\n");
    return 0;
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_interrupt_attach(const int c, const int n, void (*isr) (void))
+void cam_interrupt_attach(const int c, const int n, void (*isr) (void))
 {
    printf("cam_interrupt_attach - Not yet implemented\n");
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_interrupt_detach(const int c, const int n)
+void cam_interrupt_detach(const int c, const int n)
 {
    printf("cam_interrupt_detach - Not yet implemented\n");
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_glint_enable(void)
+void cam_glint_enable(void)
 {
    printf("cam_glint_enable - Not yet implemented\n");
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_glint_disable(void)
+void cam_glint_disable(void)
 {
    printf("cam_glint_disable - Not yet implemented\n");
 }
 
 /*---------------------------------------------------------------*/
-INLINE void cam_glint_attach(int lam, void (*isr) (void))
+void cam_glint_attach(int lam, void (*isr) (void))
 {
    printf("cam_glint_attach - Not yet implemented\n");
 }

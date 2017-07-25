@@ -11,19 +11,29 @@
 
 #include "midas.h"
 #include "msystem.h"
-#include "strlcpy.h"
 #include <assert.h>
 #include <signal.h>
 
-/* SVN revision number. This value will be changed by the Subversion
-   system automatically on every revision of midas.c. It will be
-   returned by cm_get_revision(), for example in the odbedit "ver"
-   command */
-char *svn_revision = "$Rev$";
+#ifndef HAVE_STRLCPY
+#include "strlcpy.h"
+#endif
 
 /**dox***************************************************************/
 /** @file midas.c
 The main core C-code for Midas.
+*/
+
+/**
+\mainpage MIDAS code documentation
+
+Welcome to the doxygen-generated documentation for the MIDAS source code.
+
+This documentation is intended to be used as reference by MIDAS developers
+and advanced users.
+
+Documentation for new users, general information on MIDAS, examples,
+user discussion, mailing lists and forums,
+can be found through the MIDAS Wiki at http://midas.triumf.ca
 */
 
 /** @defgroup cmfunctionc Midas Common Functions (cm_xxx)
@@ -51,7 +61,7 @@ The main core C-code for Midas.
 
 /********************************************************************/
 /* data type sizes */
-INT tid_size[] = {
+static const INT tid_size[] = {
    0,                           /* tid == 0 not defined                               */
    1,                           /* TID_BYTE      unsigned byte         0       255    */
    1,                           /* TID_SBYTE     signed byte         -128      127    */
@@ -72,7 +82,7 @@ INT tid_size[] = {
 };
 
 /* data type names */
-char *tid_name[] = {
+static const char *tid_name[] = {
    "NULL",
    "BYTE",
    "SBYTE",
@@ -105,6 +115,21 @@ struct {
    TR_DEFERRED, "DEFERRED",}, {
 0, "",},};
 
+const char *mname[] = {
+   "January",
+   "February",
+   "March",
+   "April",
+   "May",
+   "June",
+   "July",
+   "August",
+   "September",
+   "October",
+   "November",
+   "December"
+};
+
 /* Globals */
 #ifdef OS_MSDOS
 extern unsigned _stklen = 60000U;
@@ -131,9 +156,6 @@ static char *_net_recv_buffer;
 static INT _net_recv_buffer_size = 0;
 static INT _net_recv_buffer_size_odb = 0;
 
-static char *_net_send_buffer;
-static INT _net_send_buffer_size = 0;
-
 static char *_tcp_buffer = NULL;
 static INT _tcp_wp = 0;
 static INT _tcp_rp = 0;
@@ -146,6 +168,10 @@ static INT _debug_mode = 0;
 static INT _watchdog_last_called = 0;
 
 int _rpc_connect_timeout = 10000;
+
+// for use on a single machine it is best to restrict RPC access to localhost
+// by binding the RPC listener socket to the localhost IP address.
+static int disable_bind_rpc_to_localhost = 0;
 
 /* table for transition functions */
 
@@ -187,7 +213,6 @@ ERROR_TABLE _error_table[] = {
    {0, NULL}
 };
 
-
 typedef struct {
    void *adr;
    int size;
@@ -197,6 +222,21 @@ typedef struct {
 
 DBG_MEM_LOC *_mem_loc = NULL;
 INT _n_mem = 0;
+
+typedef struct {
+   INT  transition;
+   INT  run_number;
+   char *errstr;
+   INT  errstr_size;
+   INT  async_flag;
+   INT  debug_flag;
+   INT  status;
+   BOOL finished;
+} TR_PARAM;
+
+static TR_PARAM _trp;
+
+/*------------------------------------------------------------------*/
 
 void *dbg_malloc(unsigned int size, char *file, int line)
 {
@@ -267,22 +307,12 @@ void dbg_free(void *adr, char *file, int line)
    fclose(f);
 }
 
-/********************************************************************/
-static int resize_net_send_buffer(const char* from, int new_size)
-/********************************************************************/
+static void xwrite(const char* filename, int fd, const void* data, int size)
 {
-   if (new_size <= _net_send_buffer_size)
-      return SUCCESS;
-
-   _net_send_buffer = (char *) realloc(_net_send_buffer, new_size);
-   if (_net_send_buffer == NULL) {
-      cm_msg(MERROR, from, "Cannot allocate %d bytes for network buffer", new_size);
-      return RPC_EXCEED_BUFFER;
+   int wr = write(fd, data, size);
+   if (wr != size) {
+      printf("xwrite: cannot write to \'%s\', write(%d) returned %d, errno %d (%s)\n", filename, size, wr, errno, strerror(errno));
    }
-
-   //printf("reallocate_net_send_buffer %p size %d->%d from %s\n", _net_send_buffer, _net_send_buffer_size, new_size, from);
-   _net_send_buffer_size = new_size;
-   return SUCCESS;
 }
 
 /********************************************************************\
@@ -324,6 +354,91 @@ INT cm_get_error(INT code, char *string)
 
    sprintf(string, "Unexpected error #%d", code);
    return CM_SUCCESS;
+}
+
+/********************************************************************/
+
+int cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_size,
+                        char *linkname, int linkname_size)
+{
+   HNDLE hDB, hKey;
+   char dir[256];
+   char str[256];
+   char date_ext[256];
+   char facility[256];
+   int status, size, flag;
+   
+   cm_get_experiment_database(&hDB, NULL);
+   if (linkname)
+      linkname[0] = 0;
+   flag = 0;
+   
+   if (hDB) {
+      if (fac && fac[0])
+         strlcpy(facility, fac, sizeof(facility));
+      else
+         strlcpy(facility, "midas", sizeof(facility));
+         
+      strlcpy(str, "midas.log", sizeof(str));
+      size = sizeof(str);
+      db_get_value(hDB, 0, "/Logger/Message file", str, &size, TID_STRING, TRUE);
+
+      /* extension must be .log and will be added later */
+      if (strchr(str, '.'))
+         *strchr(str, '.') = 0;
+
+      if (strchr(str, '%')) {
+         /* replace stings such as %y%m%d with current date */
+         struct tm *tms;
+         
+         flag = 1;
+         tzset();
+         if (t == 0)
+            time(&t);
+         tms = localtime(&t);
+         
+         date_ext[0] = '_';
+         strftime(date_ext+1, sizeof(date_ext), strchr(str, '%'), tms);
+      } else
+         date_ext[0] = 0;
+      
+      if (strchr(str, DIR_SEPARATOR) == NULL) {
+         status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
+         if (status == DB_SUCCESS) {
+            size = sizeof(dir);
+            memset(dir, 0, size);
+            db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
+            if (dir[0] != 0)
+               if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
+                  strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
+         } else {
+            cm_get_path(dir, sizeof(dir));
+            if (dir[0] != 0)
+               if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
+                  strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
+         }
+      } else {
+         strlcpy(dir, str, sizeof(dir));
+         *(strrchr(dir, DIR_SEPARATOR)+1) = 0;
+      }
+   } else {
+      dir[0] = 0;
+      strlcpy(facility, "midas", sizeof(facility));
+      date_ext[0] = 0;
+   }
+
+   strlcpy(filename, dir, filename_size);
+   strlcat(filename, facility, filename_size);
+   strlcat(filename, date_ext, filename_size);
+   strlcat(filename, ".log", filename_size);
+   
+   if (date_ext[0] && linkname) {
+      strlcpy(linkname, dir, filename_size);
+      strlcat(linkname, facility, filename_size);
+      strlcat(linkname, ".log", filename_size);
+   }
+   
+   return flag;
 }
 
 /********************************************************************/
@@ -370,236 +485,82 @@ INT cm_set_msg_print(INT system_mask, INT user_mask, int (*func) (const char *))
 /**
 Write message to logging file. Called by cm_msg.
 @attention May burn your fingers
-@param message_type      Message type
-@param message          Message string
-@return CM_SUCCESS
-*/
-INT cm_msg_log(INT message_type, const char *message)
-{
-   char dir[256];
-   char filename[256];
-   char path[256];
-   char str[256];
-   INT status, size, fh, semaphore;
-   HNDLE hDB, hKey;
-
-   if (rpc_is_remote())
-      return rpc_call(RPC_CM_MSG_LOG, message_type, message);
-
-   if (message_type != MT_DEBUG) {
-      cm_get_experiment_database(&hDB, NULL);
-
-      if (hDB) {
-
-         strcpy(filename, "midas.log");
-         size = sizeof(filename);
-         db_get_value(hDB, 0, "/Logger/Message file", filename, &size, TID_STRING, TRUE);
-
-         if (strchr(filename, '%')) {
-            /* replace stings such as midas_%y%m%d.mid with current date */
-            time_t now;
-            struct tm *tms;
-
-            tzset();
-            time(&now);
-            tms = localtime(&now);
-
-            strftime(str, sizeof(str), filename, tms);
-            strlcpy(filename, str, sizeof(filename));
-         }
-
-         if (strchr(filename, DIR_SEPARATOR) == NULL) {
-            status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
-            if (status == DB_SUCCESS) {
-               size = sizeof(dir);
-               memset(dir, 0, size);
-               db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
-               if (dir[0] != 0)
-                  if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                     strcat(dir, DIR_SEPARATOR_STR);
-
-               strcpy(path, dir);
-               strcat(path, filename);
-            } else {
-               cm_get_path(dir);
-               if (dir[0] != 0)
-                  if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                     strcat(dir, DIR_SEPARATOR_STR);
-
-               strcpy(path, dir);
-               strcat(path, "midas.log");
-            }
-         } else {
-            strcpy(path, filename);
-         }
-      } else
-         strcpy(path, "midas.log");
-
-      fh = open(path, O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
-      if (fh < 0) {
-         printf("Cannot open message log file %s\n", path);
-      } else {
-
-         cm_get_experiment_semaphore(NULL, NULL, NULL, &semaphore);
-         status = ss_semaphore_wait_for(semaphore, 5 * 1000);
-
-         strcpy(str, ss_asctime());
-         write(fh, str, strlen(str));
-         write(fh, " ", 1);
-         write(fh, message, strlen(message));
-         write(fh, "\n", 1);
-         close(fh);
-
-         ss_semaphore_release(semaphore);
-      }
-   }
-
-   return CM_SUCCESS;
-}
-
-/********************************************************************/
-/**
-Write message to logging file. Called by cm_msg().
-@internal
-@param message_type      Message type
+@param message_type     Message type
 @param message          Message string
 @param facility         Message facility, filename in which messages will be written
 @return CM_SUCCESS
 */
-INT cm_msg_log1(INT message_type, const char *message, const char *facility)
-/********************************************************************\
-
-  Routine: cm_msg_log1
-
-  Purpose: Write message to logging file. Called by cm_msg.
-           Internal use only
-
-  Input:
-    INT    message_type      Message type
-    char   *message          Message string
-    char   *
-
-  Output:
-    none
-
-  Function value:
-    CM_SUCCESS
-
-\********************************************************************/
+INT cm_msg_log(INT message_type, const char *facility, const char *message)
 {
-   char dir[256];
-   char filename[256];
-   char path[256];
-   char str[256];
-   FILE *f;
-   INT status, size;
-   HNDLE hDB, hKey;
+   char filename[256], linkname[256];
+   INT status, fh, semaphore;
 
+   filename[0] = 0;
 
    if (rpc_is_remote())
-      return rpc_call(RPC_CM_MSG_LOG1, message_type, message, facility);
+      return rpc_call(RPC_CM_MSG_LOG, message_type, facility, message);
 
    if (message_type != MT_DEBUG) {
-      cm_get_experiment_database(&hDB, NULL);
+      cm_msg_get_logfile(facility, 0, filename, sizeof(filename), linkname, sizeof(linkname));
+      
+      fh = open(filename, O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
+      if (fh < 0) {
+         printf("Cannot open message log file \'%s', open() errno: %d (%s)\n", filename, errno, strerror(errno));
+      } else {
+         char str[256];
 
-      if (hDB) {
-         strcpy(filename, "midas.log");
-         size = sizeof(filename);
-         db_get_value(hDB, 0, "/Logger/Message file", filename, &size, TID_STRING, TRUE);
+         cm_get_experiment_semaphore(NULL, NULL, NULL, &semaphore);
 
-         if (strchr(filename, '%')) {
-            /* replace stings such as midas_%y%m%d.mid with current date */
-            time_t now;
-            struct tm *tms;
-
-            tzset();
-            time(&now);
-            tms = localtime(&now);
-
-            strftime(str, sizeof(str), filename, tms);
-            strlcpy(filename, str, sizeof(filename));
+         if (semaphore == -1) {
+            fprintf(stderr, "cm_msg_log: Message \"%s\" not written to midas.log because message system is not initialized yet.\n", message);
+            return CM_SUCCESS;
+         }
+         
+         status = ss_semaphore_wait_for(semaphore, 5 * 1000);
+         if (status != SS_SUCCESS) {
+            fprintf(stderr, "cm_msg_log: Something is wrong with our semaphore, ss_semaphore_wait_for() returned %d, aborting.\n", status);
+            //abort(); // DOES NOT RETURN
+            // NOT REACHED
+            fprintf(stderr, "cm_msg_log: Cannot abort - this will lock you out of odb. From this point, MIDAS will not work correctly. Please read the discussion at https://midas.triumf.ca/elog/Midas/945\n");
+            return status;
          }
 
-         if (strchr(filename, DIR_SEPARATOR) == NULL) {
+         struct timeval tv;
+         struct tm *tms;
 
-            status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
-            if (status == DB_SUCCESS) {
-               size = sizeof(dir);
-               memset(dir, 0, size);
-               db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
-               if (dir[0] != 0)
-                  if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                     strcat(dir, DIR_SEPARATOR_STR);
+         tzset();
+         gettimeofday(&tv, NULL);
+         tms = localtime(&tv.tv_sec);
+         
+         strftime(str, sizeof(str), "%H:%M:%S", tms);
+         sprintf(str+strlen(str), ".%03d ", (int)(tv.tv_usec / 1000));
+         strftime(str+strlen(str), sizeof(str), "%G/%m/%d", tms);
 
-               if (facility[0]) {
-                  strcpy(filename, facility);
-                  strcat(filename, ".log");
-               } else {
-                  strcpy(filename, "midas.log");
-                  size = sizeof(filename);
-                  db_get_value(hDB, 0, "/Logger/Message file", filename, &size, TID_STRING, TRUE);
+         xwrite(filename, fh, str, strlen(str));
+         xwrite(filename, fh, " ", 1);
+         xwrite(filename, fh, message, strlen(message));
+         xwrite(filename, fh, "\n", 1);
+         close(fh);
 
-                  if (strchr(filename, '%')) {
-                     /* replace stings such as midas_%y%m%d.mid with current date */
-                     time_t now;
-                     struct tm *tms;
-
-                     tzset();
-                     time(&now);
-                     tms = localtime(&now);
-
-                     strftime(str, sizeof(str), filename, tms);
-                     strlcpy(filename, str, sizeof(filename));
-                  }
-               }
-
-               strcpy(path, dir);
-               strcat(path, filename);
-            } else {
-               cm_get_path(dir);
-               if (dir[0] != 0)
-                  if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                     strcat(dir, DIR_SEPARATOR_STR);
-
-               strcpy(path, dir);
-               if (facility[0]) {
-                  strcat(path, facility);
-                  strcat(path, ".log");
-               } else
-                  strcat(path, "midas.log");
+#ifdef OS_LINUX
+         if (linkname[0]) {
+            unlink(linkname);
+            status = symlink(filename, linkname);
+            if (status != 0) {
+               printf("Cannot symlink message log file \'%s' to \'%s\', symlink() errno: %d (%s)\n", filename, linkname, errno, strerror(errno));
             }
-         } else {
-            strcpy(path, filename);
-            *(strrchr(path, DIR_SEPARATOR) + 1) = 0;
-            if (facility[0]) {
-               strcat(path, facility);
-               strcat(path, ".log");
-            } else
-               strcat(path, "midas.log");
          }
-      } else {
-         if (facility[0]) {
-            strcpy(path, facility);
-            strcat(path, ".log");
-         } else
-            strcpy(path, "midas.log");
-      }
+#endif
 
-      f = fopen(path, "a");
-      if (f == NULL) {
-         printf("Cannot open message log file %s\n", path);
-      } else {
-         strcpy(str, ss_asctime());
-         fprintf(f, "%s", str);
-         fprintf(f, " %s\n", message);
-         fclose(f);
+         status = ss_semaphore_release(semaphore);
       }
    }
 
    return CM_SUCCESS;
 }
 
-static INT cm_msg_format(char* local_message, int sizeof_local_message, char* send_message, int sizeof_send_message, INT message_type, const char *filename, INT line, const char *routine, const char *format, va_list* argptr)
+
+static INT cm_msg_format(char* message, int sizeof_message, INT message_type, const char *filename, INT line, const char *routine, const char *format, va_list* argptr)
 {
    char type_str[256], str[1000], format_cpy[900];
    const char *pc;
@@ -628,24 +589,21 @@ static INT cm_msg_format(char* local_message, int sizeof_local_message, char* se
 
    /* print client name into string */
    if (message_type == MT_USER)
-      sprintf(send_message, "[%s] ", routine);
+      sprintf(message, "[%s] ", routine);
    else {
       rpc_get_name(str);
       if (str[0])
-         sprintf(send_message, "[%s,%s] ", str, type_str);
+         sprintf(message, "[%s,%s] ", str, type_str);
       else
-         send_message[0] = 0;
+         message[0] = 0;
    }
-
-   local_message[0] = 0;
 
    /* preceed error messages with file and line info */
    if (message_type == MT_ERROR) {
       sprintf(str, "[%s:%d:%s,%s] ", pc, line, routine, type_str);
-      strlcat(send_message, str, sizeof_send_message);
-      strlcat(local_message, str, sizeof_send_message);
+      strlcat(message, str, sizeof_message);
    } else if (message_type == MT_USER)
-      sprintf(local_message, "[%s,%s] ", routine, type_str);
+      sprintf(message, "[%s,%s] ", routine, type_str);
 
    /* limit length of format */
    strlcpy(format_cpy, format, sizeof(format_cpy));
@@ -653,8 +611,7 @@ static INT cm_msg_format(char* local_message, int sizeof_local_message, char* se
    /* print argument list into message */
    vsprintf(str, (char *) format, *argptr);
 
-   strlcat(send_message, str, sizeof_send_message);
-   strlcat(local_message, str, sizeof_local_message);
+   strlcat(message, str, sizeof_message);
 
    return CM_SUCCESS;
 }
@@ -684,7 +641,7 @@ static INT cm_msg_send_event(INT ts, INT message_type, const char *send_message)
       /* setup the event header and send the message */
       bm_compose_event(pevent, EVENTID_MESSAGE, (WORD) message_type, strlen(event + sizeof(EVENT_HEADER)) + 1, 0);
       pevent->time_stamp = ts;
-      bm_send_event(_msg_buffer, event, pevent->data_size + sizeof(EVENT_HEADER), SYNC);
+      bm_send_event(_msg_buffer, event, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
    }
 
    return CM_SUCCESS;
@@ -715,7 +672,7 @@ static INT cm_msg_buffer(int ts, int message_type, const char *message)
 
    status = rb_get_wp(_msg_rb, &vp, 1000);
    wp = (char *)vp;
-   
+
    if (status != SUCCESS || wp == NULL) {
       // unlock
       ss_mutex_release(_msg_mutex);
@@ -767,14 +724,14 @@ INT cm_msg_flush_buffer()
       int len;
 
       status = rb_get_buffer_level(_msg_rb, &n_bytes);
-      
+
       if (status != SUCCESS || n_bytes <= 0)
 	break;
 
       // lock
       status = ss_mutex_wait_for(_msg_mutex, 0);
       assert(status == SS_SUCCESS);
-      
+
       status = rb_get_rp(_msg_rb, &vp, 0);
       rp = (char *)vp;
       if (status != SUCCESS || rp == NULL) {
@@ -800,14 +757,14 @@ INT cm_msg_flush_buffer()
       rp += sizeof(int);
 
       strlcpy(message, rp, sizeof(message));
-      
+
       rb_increment_rp(_msg_rb, 4+3*sizeof(int)+len);
 
       // unlock
       ss_mutex_release(_msg_mutex);
-      
+
       /* log message */
-      cm_msg_log(message_type, message);
+      cm_msg_log(message_type, "midas", message);
 
       /* send message to SYSMSG */
       status = cm_msg_send_event(ts, message_type, message);
@@ -843,7 +800,7 @@ formated line as it is already added by the client on the receiving side.
 INT cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...)
 {
    va_list argptr;
-   char local_message[1000], send_message[1000];
+   char message[1000];
    INT status;
    static BOOL in_routine = FALSE;
    int ts = ss_time();
@@ -856,12 +813,12 @@ INT cm_msg(INT message_type, const char *filename, INT line, const char *routine
 
    /* print argument list into message */
    va_start(argptr, format);
-   cm_msg_format(local_message, sizeof(local_message), send_message, sizeof(send_message), message_type, filename, line, routine, format, &argptr);
+   cm_msg_format(message, sizeof(message), message_type, filename, line, routine, format, &argptr);
    va_end(argptr);
 
    /* call user function if set via cm_set_msg_print */
    if (_message_print != NULL && (message_type & _message_mask_user) != 0)
-      _message_print(local_message);
+      _message_print(message);
 
    /* return if system mask is not set */
    if ((message_type & _message_mask_system) == 0) {
@@ -869,7 +826,7 @@ INT cm_msg(INT message_type, const char *filename, INT line, const char *routine
       return CM_SUCCESS;
    }
 
-   status = cm_msg_buffer(ts, message_type, send_message);
+   status = cm_msg_buffer(ts, message_type, message);
 
    in_routine = FALSE;
 
@@ -905,8 +862,7 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
             const char *facility, const char *routine, const char *format, ...)
 {
    va_list argptr;
-   char event[1000], str[256], local_message[256], send_message[256];
-   const char *pc;
+   char event[1000], message[256];
    EVENT_HEADER *pevent;
    INT status;
    static BOOL in_routine = FALSE;
@@ -917,47 +873,14 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
 
    in_routine = TRUE;
 
-   /* strip path */
-   pc = filename + strlen(filename);
-   while (*pc != '\\' && *pc != '/' && pc != filename)
-      pc--;
-   if (pc != filename)
-      pc++;
-
-   /* print client name into string */
-   if (message_type == MT_USER)
-      sprintf(send_message, "[%s] ", routine);
-   else {
-      rpc_get_name(str);
-      if (str[0])
-         sprintf(send_message, "[%s] ", str);
-      else
-         send_message[0] = 0;
-   }
-
-   local_message[0] = 0;
-
-   /* preceed error messages with file and line info */
-   if (message_type == MT_ERROR) {
-      sprintf(str, "[%s:%d:%s] ", pc, line, routine);
-      strcat(send_message, str);
-      strcat(local_message, str);
-   }
-
    /* print argument list into message */
    va_start(argptr, format);
-   vsprintf(str, (char *) format, argptr);
+   cm_msg_format(message, sizeof(message), message_type, filename, line, routine, format, &argptr);
    va_end(argptr);
-
-   if (facility)
-      sprintf(local_message + strlen(local_message), "{%s} ", facility);
-
-   strcat(send_message, str);
-   strcat(local_message, str);
 
    /* call user function if set via cm_set_msg_print */
    if (_message_print != NULL && (message_type & _message_mask_user) != 0)
-      _message_print(local_message);
+      _message_print(message);
 
    /* return if system mask is not set */
    if ((message_type & _message_mask_system) == 0) {
@@ -967,7 +890,7 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
 
    /* copy message to event */
    pevent = (EVENT_HEADER *) event;
-   strcpy(event + sizeof(EVENT_HEADER), send_message);
+   strcpy(event + sizeof(EVENT_HEADER), message);
 
    /* send event if not of type MLOG */
    if (message_type != MT_LOG) {
@@ -982,11 +905,11 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
 
       /* setup the event header and send the message */
       bm_compose_event(pevent, EVENTID_MESSAGE, (WORD) message_type, strlen(event + sizeof(EVENT_HEADER)) + 1, 0);
-      bm_send_event(_msg_buffer, event, pevent->data_size + sizeof(EVENT_HEADER), SYNC);
+      bm_send_event(_msg_buffer, event, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
    }
 
    /* log message */
-   cm_msg_log1(message_type, send_message, facility);
+   cm_msg_log(message_type, facility, message);
 
    in_routine = FALSE;
 
@@ -1050,80 +973,249 @@ INT cm_msg_register(void (*func) (HNDLE, HNDLE, EVENT_HEADER *, void *))
    return status;
 }
 
-/* Retrieve message from an individual file. Internal use only */
-INT cm_msg_retrieve1(char *filename, INT n_message, char *message, INT buf_size)
+static void add_message(char** messages, int* length, int* allocated, time_t tstamp, const char* new_message)
 {
-   FILE *f;
-   INT offset, i, j;
-   char *p;
+   int new_message_length = strlen(new_message);
+   int new_allocated = 1024 + 2*((*allocated) + new_message_length);
+   char buf[100];
+   int buf_length;
 
-   f = fopen(filename, "rb");
-   if (f == NULL) {
-      sprintf(message, "Cannot open message log file %s\n", filename);
-      return -1;
+   //printf("add_message: new message %d, length %d, new end: %d, allocated: %d, maybe reallocate size %d\n", new_message_length, *length, *length + new_message_length, *allocated, new_allocated);
+
+   if (*length + new_message_length + 100 > *allocated) {
+      *messages = realloc(*messages, new_allocated);
+      assert(*messages != NULL);
+      *allocated = new_allocated;
    }
 
-   if (buf_size <= 2)
-      return 0;
+   if (*length > 0)
+      if ((*messages)[(*length)-1] != '\n') {
+         (*messages)[*length] = '\n'; // separator between messages
+         (*length) += 1;
+      }
 
-   /* position buf_size bytes before the EOF */
-   fseek(f, -(buf_size - 1), SEEK_END);
-   offset = ftell(f);
-   if (offset != 0) {
-      /* go to end of line */
-      fgets(message, buf_size - 1, f);
-      offset = ftell(f) - offset;
-      buf_size -= offset;
+   sprintf(buf, "%ld ", tstamp);
+   buf_length = strlen(buf);
+   memcpy(&((*messages)[*length]), buf, buf_length);
+   (*length) += buf_length;
+
+   memcpy(&((*messages)[*length]), new_message, new_message_length);
+   (*length) += new_message_length;
+   (*messages)[*length] = 0; // make sure string is NUL terminated
+}
+
+/* Retrieve message from an individual file. Internal use only */
+static int cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char** messages, int* length, int* allocated, int* num_messages)
+{
+   BOOL stop;
+   int fh;
+   unsigned int size;
+   INT i, n;
+   char *p, *buffer, str[1000];
+   struct stat stat_buf;
+   struct tm tms;
+   time_t tstamp, tstamp_valid, tstamp_last;
+
+   *num_messages = 0;
+
+   fh = open(filename, O_RDONLY | O_TEXT, 0644);
+   if (fh < 0) {
+      cm_msg(MERROR, "cm_msg_retrieve1", "Cannot open log file \"%s\", errno %d (%s)", filename, errno, strerror(errno));
+      return SS_FILE_ERROR;
    }
 
-   memset(message, 0, buf_size);
-   fread(message, 1, buf_size - 1, f);
-   message[buf_size - 1] = 0;
-   fclose(f);
+   /* read whole file into memory */
+   fstat(fh, &stat_buf);
+   size = stat_buf.st_size;
+   
+   /* if file is too big, only read tail of file */
+   int maxsize = 10*1024*1024;
+   if (size > maxsize) {
+      lseek(fh, -maxsize, SEEK_END);
+      //printf("lseek status %d, errno %d (%s)\n", status, errno, strerror(errno));
+      size = maxsize;
+   }
+   
+   buffer = (char *) malloc(size + 1);
 
-   p = message + (buf_size - 2);
+   if (buffer == NULL) {
+      cm_msg(MERROR, "cm_msg_retrieve1", "Cannot malloc %d bytes to read log file \"%s\", errno %d (%s)", size, filename, errno, strerror(errno));
+      close(fh);
+      return SS_FILE_ERROR;
+   }
 
-   /* goto end of buffer */
-   while (p != message && *p == 0)
+   i = read(fh, buffer, size);
+
+   if (i != size) {
+      cm_msg(MERROR, "cm_msg_retrieve1", "Cannot read %d bytes from log file \"%s\", read() returned %d, errno %d (%s)", size, filename, i, errno, strerror(errno));
+      close(fh);
+      return SS_FILE_ERROR;
+   }
+   
+   buffer[size] = 0;
+   close(fh);
+   
+   p = buffer + size - 1;
+   tstamp_last = tstamp_valid = 0;
+   stop = FALSE;
+   
+   while (*p == '\n' || *p == '\r')
       p--;
-
-   /* strip line break */
-   j = 0;
-   while (p != message && (*p == '\n' || *p == '\r')) {
-      *(p--) = 0;
-      j = 1;
-   }
-
-   /* trim buffer so that last n_messages remain */
-   for (i = 0; i < n_message; i++) {
-      while (p != message && *p != '\n')
+   for (n=0 ; !stop && p>buffer ; ) {
+      
+      /* go to beginning of line */
+      for (i=0 ; p != buffer && (*p != '\n' && *p != '\r') ; i++)
          p--;
+      
+      /* limit line length to sizeof(str) */
+      if (i >= sizeof(str))
+         i = sizeof(str)-1;
+      
+      if (p == buffer) {
+         i++;
+         memcpy(str, p, i);
+      } else
+         memcpy(str, p+1, i);
+      str[i] = 0;
+      if (strchr(str, '\n'))
+         *strchr(str, '\n') = 0;
+      if (strchr(str, '\r'))
+         *strchr(str, '\r') = 0;
+      strlcat(str, "\n", sizeof(str));
+      
+      // extract time tag
+      time_t now;
+      time(&now);
+      memcpy(&tms, localtime(&now), sizeof(tms));
+      
+      if (str[0] >= '0' && str[0] <= '9') {
+         // new format
+         tms.tm_hour = atoi(str);
+         tms.tm_min = atoi(str+3);
+         tms.tm_sec = atoi(str+6);
+         tms.tm_year = atoi(str+13)-1900;
+         tms.tm_mon = atoi(str+18)-1;
+         tms.tm_mday = atoi(str+21);
+      } else {
+         // old format
+         tms.tm_hour = atoi(str+11);
+         tms.tm_min = atoi(str+14);
+         tms.tm_sec = atoi(str+17);
+         tms.tm_year = atoi(str+20)-1900;
+         for (i = 0; i < 12; i++)
+            if (strncmp(str + 4, mname[i], 3) == 0)
+               break;
+         tms.tm_mon = i;
+         tms.tm_mday = atoi(str+8);
+      }
+      tstamp = mktime(&tms);
+      if (tstamp != -1)
+         tstamp_valid = tstamp;
 
-      while (p != message && (*p == '\n' || *p == '\r'))
-         p--;
+      // for new messages (n=0!), stop when t reached
+      if (n_messages == 0) {
+         if (tstamp_valid < t)
+            break;
+      }
+   
+      // for old messages, stop when all messages belonging to tstamp_last are sent
+      if (n_messages != 0) {
+         if (tstamp_last > 0 && tstamp_valid < tstamp_last)
+            break;
+      }
+      
+      if (t == 0 || tstamp == -1 ||
+          (n_messages > 0 && tstamp <= t) ||
+          (n_messages == 0 && tstamp >= t)) {
+         
+         n++;
 
-      if (p == message)
-         break;
-
-      j++;
-   }
-   if (p != message) {
-      p++;
+         add_message(messages, length, allocated, tstamp, str);
+      }
+      
       while (*p == '\n' || *p == '\r')
-         p++;
+         p--;
+      
+      if (n_messages == 1)
+         stop = TRUE;
+      else if (n_messages > 1) {
+         // continue collecting messages until time stamp differs from current one
+         if (n == n_messages)
+            tstamp_last = tstamp_valid;
+         
+         // if all messages without time tags, just return after n
+         if (n == n_messages && tstamp_valid == 0)
+            break;
+      }
    }
 
-   buf_size = (buf_size - 1) - (p - message);
+   free(buffer);
 
-   memmove(message, p, buf_size);
-   message[buf_size] = 0;
+   *num_messages = n;
 
-   return j;
+   return CM_SUCCESS;
 }
 
 /********************************************************************/
 /**
 Retrieve old messages from log file
+@param  facility         Logging facility ("midas", "chat", "lazy", ...)
+@param  t                Return messages logged before and including time t, value 0 means start with newest messages
+@param  min_messages     Minimum number of messages to return
+@param  messages         messages, newest first, separated by \n characters. caller should free() this buffer at the end.
+@param  num_messages     Number of messages returned
+@return CM_SUCCESS
+*/
+INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char** messages, int* num_messages)
+{
+   char filename[256], linkname[256];
+   INT n, i, flag;
+   time_t filedate;
+   int length = 0;
+   int allocated = 0;
+
+   time(&filedate);
+   flag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), linkname, sizeof(linkname));
+
+   //printf("facility %s, filename \"%s\" \"%s\"\n", facility, filename, linkname);
+
+   // see if file exists, use linkname if not
+   if (strlen(linkname) > 0) {
+      if (!ss_file_exist(filename))
+         strlcpy(filename, linkname, sizeof(filename));
+   }
+   
+   if (ss_file_exist(filename))
+      cm_msg_retrieve1(filename, t, n_message, messages, &length, &allocated, &n);
+   else
+      n = 0;
+
+   int missing = 0;
+   while (n < n_message && flag) {
+      filedate -= 3600 * 24;         // go one day back
+
+      cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), NULL, 0);
+      
+      if (ss_file_exist(filename)) {
+         cm_msg_retrieve1(filename, t, n_message - n, messages, &length, &allocated, &i);
+         n += i;
+         missing = 0;
+      } else
+         missing++;
+      
+      // stop if ten consecutive files are not found
+      if (missing > 10)
+         break;
+   }
+
+   *num_messages = n;
+
+   return CM_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Retrieve newest messages from "midas" facility log file
 @param  n_message        Number of messages to retrieve
 @param  message          buf_size bytes of messages, separated
                          by \n characters. The returned number
@@ -1131,111 +1223,24 @@ Retrieve old messages from log file
                          initial buf_size, since only full
                          lines are returned.
 @param *buf_size         Size of message buffer to fill
-@return CM_SUCCESS
+@return CM_SUCCESS, CM_TRUNCATED
 */
 INT cm_msg_retrieve(INT n_message, char *message, INT buf_size)
 {
-   char dir[256];
-   char filename[256], filename2[256];
-   char path[256], *message2;
-   INT status, size, n, i;
-   HNDLE hDB, hKey;
-   time_t now;
-   struct tm *tms;
+   int status;
+   char* messages = NULL;
+   int num_messages = 0;
 
    if (rpc_is_remote())
       return rpc_call(RPC_CM_MSG_RETRIEVE, n_message, message, buf_size);
 
-   cm_get_experiment_database(&hDB, NULL);
-   status = 0;
+   status = cm_msg_retrieve2("midas", 0, n_message, &messages, &num_messages);
 
-   if (hDB) {
-      strcpy(filename, "midas.log");
-      size = sizeof(filename);
-      db_get_value(hDB, 0, "/Logger/Message file", filename, &size, TID_STRING, TRUE);
-
-      strlcpy(filename2, filename, sizeof(filename2));
-
-      if (strchr(filename, '%')) {
-         /* replace strings such as midas_%y%m%d.mid with current date */
-         tzset();
-         time(&now);
-         tms = localtime(&now);
-
-         strftime(filename2, sizeof(filename2), filename, tms);
-      }
-
-      if (strchr(filename2, DIR_SEPARATOR) == NULL) {
-         status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
-         if (status == DB_SUCCESS) {
-            size = sizeof(dir);
-            memset(dir, 0, size);
-            db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
-            if (dir[0] != 0)
-               if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                  strcat(dir, DIR_SEPARATOR_STR);
-
-            strcpy(path, dir);
-            strcat(path, filename2);
-         } else {
-            cm_get_path(dir);
-            if (dir[0] != 0)
-               if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                  strcat(dir, DIR_SEPARATOR_STR);
-
-            strcpy(path, dir);
-            strcat(path, filename2);
-         }
-      } else {
-         strcpy(path, filename2);
-      }
-   } else
-      strcpy(path, "midas.log");
-
-   n = cm_msg_retrieve1(path, n_message, message, buf_size);
-
-   while (n < n_message && strchr(filename, '%')) {
-      now -= 3600 * 24;         // go one day back 
-      tms = localtime(&now);
-
-      strftime(filename2, sizeof(filename2), filename, tms);
-
-      if (strchr(filename2, DIR_SEPARATOR) == NULL) {
-         status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
-         if (status == DB_SUCCESS) {
-            size = sizeof(dir);
-            memset(dir, 0, size);
-            db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
-            if (dir[0] != 0)
-               if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                  strcat(dir, DIR_SEPARATOR_STR);
-
-            strcpy(path, dir);
-            strcat(path, filename2);
-         } else {
-            cm_get_path(dir);
-            if (dir[0] != 0)
-               if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                  strcat(dir, DIR_SEPARATOR_STR);
-
-            strcpy(path, dir);
-            strcat(path, filename2);
-         }
-      } else {
-         strcpy(path, filename2);
-      }
-
-      message2 = (char *) malloc(buf_size);
-
-      i = cm_msg_retrieve1(path, n_message - n, message2, buf_size - strlen(message) - 1);
-      if (i < 0)
-         break;
-      strlcat(message2, "\r\n", buf_size);
-
-      memmove(message + strlen(message2), message, strlen(message) + 1);
-      memmove(message, message2, strlen(message2));
-      free(message2);
-      n += i;
+   if (messages) {
+      strlcpy(message, messages, buf_size);
+      if (strlen(messages) > buf_size)
+         status = CM_TRUNCATED;
+      free(messages);
    }
 
    return status;
@@ -1331,7 +1336,10 @@ static char _client_name[NAME_LENGTH];
 static char _path_name[MAX_STRING_LENGTH];
 static INT _call_watchdog = TRUE;
 static INT _watchdog_timeout = DEFAULT_WATCHDOG_TIMEOUT;
-INT _semaphore_alarm, _semaphore_elog, _semaphore_history, _semaphore_msg;
+INT _semaphore_alarm   = -1;
+INT _semaphore_elog    = -1;
+INT _semaphore_history = -1;
+INT _semaphore_msg     = -1;
 
 /**dox***************************************************************/
 /** @addtogroup cmfunctionc
@@ -1348,12 +1356,12 @@ char *cm_get_version()
 }
 
 /**
-Return svn revision number of current MIDAS library as a string
+Return git revision number of current MIDAS library as a string
 @return revision number
 */
-int cm_get_revision()
+char* cm_get_revision()
 {
-   return atoi(svn_revision + 6);
+   return GIT_REVISION;
 }
 
 /********************************************************************/
@@ -1371,7 +1379,7 @@ INT cm_set_path(const char *path)
 
    /* check for trailing directory seperator */
    if (strlen(_path_name) > 0 && _path_name[strlen(_path_name) - 1] != DIR_SEPARATOR)
-      strcat(_path_name, DIR_SEPARATOR_STR);
+      strlcat(_path_name, DIR_SEPARATOR_STR, sizeof(_path_name));
 
    return CM_SUCCESS;
 }
@@ -1382,15 +1390,13 @@ Return the path name previously set with cm_set_path.
 @param  path             Pathname
 @return CM_SUCCESS
 */
-INT cm_get_path(char *path)
+INT cm_get_path(char *path, int path_size)
 {
-   strcpy(path, _path_name);
+   // check that we were not accidentally called
+   // with the size of the pointer to a string
+   // instead of the size of the string buffer
+   assert(path_size != sizeof(char*));
 
-   return CM_SUCCESS;
-}
-
-INT cm_get_path1(char *path, int path_size)
-{
    strlcpy(path, _path_name, path_size);
 
    return CM_SUCCESS;
@@ -1439,6 +1445,7 @@ typedef struct {
    char user[NAME_LENGTH];
 } experiment_table;
 
+static char exptab_filename[MAX_STRING_LENGTH];
 static experiment_table exptab[MAX_EXPERIMENT];
 
 /**dox***************************************************************/
@@ -1462,6 +1469,7 @@ INT cm_scan_experiments(void)
 
    /* MIDAS_DIR overrides exptab */
    if (getenv("MIDAS_DIR")) {
+      strlcpy(exptab_filename, "", sizeof(exptab_filename));
       strlcpy(str, getenv("MIDAS_DIR"), sizeof(str));
 
       strcpy(exptab[0].name, "Default");
@@ -1496,6 +1504,8 @@ INT cm_scan_experiments(void)
       strlcpy(str, getenv("MIDAS_EXPTAB"), sizeof(str));
       strlcpy(alt_str, getenv("MIDAS_EXPTAB"), sizeof(alt_str));
    }
+
+   strlcpy(exptab_filename, str, sizeof(exptab_filename));
 
    /* read list of available experiments */
    f = fopen(str, "r");
@@ -1535,6 +1545,41 @@ INT cm_scan_experiments(void)
     */
 
    return CM_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Return location of exptab file
+@param s               Pointer to string buffer
+@param size            Size of string buffer
+@return CM_SUCCESS
+*/
+int cm_get_exptab_filename(char* s, int size)
+{
+   strlcpy(s, exptab_filename, size);
+   return CM_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Return exptab information for given experiment
+@param s               Pointer to string buffer
+@param size            Size of string buffer
+@return CM_SUCCESS
+*/
+int cm_get_exptab(const char* expname, char* dir, int dir_size, char* user, int user_size)
+{
+   int i;
+   for (i = 0; i < MAX_EXPERIMENT; i++) {
+      if (strcmp(exptab[i].name, expname) == 0) {
+         if (dir)
+            strlcpy(dir, exptab[i].directory, dir_size);
+         if (user)
+            strlcpy(user, exptab[i].user, user_size);
+         return CM_SUCCESS;
+      }
+   }
+   return CM_UNDEF_EXP;
 }
 
 /********************************************************************/
@@ -1736,9 +1781,6 @@ INT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient, char *host_name,
          if (!allow && strcmp(password, pwd) != 0) {
             if (password[0])
                cm_msg(MINFO, "cm_set_client_info", "Wrong password for host %s", host_name);
-            db_close_all_databases();
-            bm_close_all_buffers();
-            _msg_buffer = 0;
             return CM_WRONG_PASSWORD;
          }
       }
@@ -1943,7 +1985,7 @@ usage:
   cm_disconnect_experiment();
 }
 \endcode
-@param host_name           Contents of MIDAS_SERVER_HOST environment variable.
+@param host_name          Contents of MIDAS_SERVER_HOST environment variable.
 @param host_name_size     string length
 @param exp_name           Contents of MIDAS_EXPT_NAME environment variable.
 @param exp_name_size      string length
@@ -1951,12 +1993,15 @@ usage:
 */
 INT cm_get_environment(char *host_name, int host_name_size, char *exp_name, int exp_name_size)
 {
-   host_name[0] = exp_name[0] = 0;
+   if (host_name)
+      host_name[0] = 0;
+   if (exp_name)
+      exp_name[0] = 0;
 
-   if (getenv("MIDAS_SERVER_HOST"))
+   if (host_name && getenv("MIDAS_SERVER_HOST"))
       strlcpy(host_name, getenv("MIDAS_SERVER_HOST"), host_name_size);
 
-   if (getenv("MIDAS_EXPT_NAME"))
+   if (exp_name && getenv("MIDAS_EXPT_NAME"))
       strlcpy(exp_name, getenv("MIDAS_EXPT_NAME"), exp_name_size);
 
    return CM_SUCCESS;
@@ -2078,9 +2123,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    char local_host_name[HOST_NAME_LENGTH];
    char client_name1[NAME_LENGTH];
    char password[NAME_LENGTH], str[256], exp_name1[NAME_LENGTH];
+   char xclient_name[NAME_LENGTH];
    HNDLE hDB, hKeyClient;
    BOOL call_watchdog;
-   RUNINFO_STR(runinfo_str);
 
    if (_hKeyClient)
       cm_disconnect_experiment();
@@ -2105,7 +2150,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    if (exp_name == NULL)
       exp_name = "";
 
-   strcpy(exp_name1, exp_name);
+   strlcpy(exp_name1, exp_name, sizeof(exp_name1));
    if (exp_name1[0] == 0) {
       status = cm_select_experiment(host_name, exp_name1);
       if (status != CM_SUCCESS)
@@ -2179,8 +2224,15 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       return status;
    }
 
+   size = sizeof(disable_bind_rpc_to_localhost);
+   status = db_get_value(hDB, 0, "/Experiment/Security/Enable non-localhost RPC", &disable_bind_rpc_to_localhost, &size, TID_BOOL, TRUE);
+   assert(status == DB_SUCCESS);
+
    /* now setup client info */
-   gethostname(local_host_name, sizeof(local_host_name));
+   if (!disable_bind_rpc_to_localhost)
+      strlcpy(local_host_name, "localhost", sizeof(local_host_name));
+   else
+      ss_gethostname(local_host_name, sizeof(local_host_name));
 
    /* check watchdog timeout */
    if (watchdog_timeout == 0)
@@ -2197,13 +2249,6 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       else
          func(str);
 
-      /* re-open database */
-      status = db_open_database("ODB", odb_size, &hDB, client_name);
-      if (status != DB_SUCCESS && status != DB_CREATED) {
-         cm_msg(MERROR, "cm_connect_experiment1", "cannot open database");
-         return status;
-      }
-
       strcpy(password, ss_crypt(str, "mi"));
       status = cm_set_client_info(hDB, &hKeyClient, local_host_name,
                                   client_name1, rpc_get_option(0, RPC_OHW_TYPE), password, watchdog_timeout);
@@ -2211,6 +2256,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
          /* disconnect */
          if (rpc_is_remote())
             rpc_server_disconnect();
+         cm_disconnect_experiment();
 
          return status;
       }
@@ -2222,22 +2268,16 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    db_set_value(hDB, 0, "/Experiment/Name", exp_name1, NAME_LENGTH, 1, TID_STRING);
 
    /* set data dir in ODB */
-   cm_get_path(str);
+   cm_get_path(str, sizeof(str));
    size = sizeof(str);
    db_get_value(hDB, 0, "/Logger/Data dir", str, &size, TID_STRING, TRUE);
 
-   /* check /runinfo structure */
-   status = db_check_record(hDB, 0, "/Runinfo", strcomb(runinfo_str), TRUE);
-   if (status == DB_STRUCT_MISMATCH) {
-      cm_msg(MERROR, "cm_connect_experiment1", "Aborting on mismatching /Runinfo structure");
-      cm_disconnect_experiment();
-      abort();
-   }
-
    /* register server to be able to be called by other clients */
    status = cm_register_server();
-   if (status != CM_SUCCESS)
+   if (status != CM_SUCCESS) {
+      cm_msg(MERROR, "cm_connect_experiment", "Cannot register RPC server, cm_register_server() status %d", status);
       return status;
+   }
 
    /* set watchdog timeout */
    cm_get_watchdog_params(&call_watchdog, &watchdog_timeout);
@@ -2250,10 +2290,13 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    if (strchr(local_host_name, '.'))
       *strchr(local_host_name, '.') = 0;
 
+   /* get final client name */
+   rpc_get_name(xclient_name);
+
    /* startup message is not displayed */
    _message_print = NULL;
 
-   cm_msg(MINFO, "cm_connect_experiment", "Program %s on host %s started", client_name, local_host_name);
+   cm_msg(MINFO, "cm_connect_experiment", "Program %s on host %s started", xclient_name, local_host_name);
 
    /* enable system and user messages to stdout as default */
    cm_set_msg_print(MT_ALL, MT_ALL, puts);
@@ -2428,7 +2471,7 @@ Connect to a MIDAS client of the current experiment
 @param  hConn            Connection handle
 @return CM_SUCCESS, CM_NO_CLIENT
 */
-INT cm_connect_client(char *client_name, HNDLE * hConn)
+INT cm_connect_client(const char *client_name, HNDLE * hConn)
 {
    HNDLE hDB, hKeyRoot, hSubkey, hKey;
    INT status, i, length, port;
@@ -2513,11 +2556,24 @@ INT cm_disconnect_experiment(void)
    HNDLE hDB, hKey;
    char local_host_name[HOST_NAME_LENGTH], client_name[80];
 
+   /* wait on any transition thread */
+   if (_trp.transition && !_trp.finished) {
+      printf("Waiting for transition to finish...\n");
+      do {
+         ss_sleep(10);
+      } while (!_trp.finished);
+   }
+
    /* send shutdown notification */
    rpc_get_name(client_name);
-   gethostname(local_host_name, sizeof(local_host_name));
-   if (strchr(local_host_name, '.'))
-      *strchr(local_host_name, '.') = 0;
+
+   if (!disable_bind_rpc_to_localhost)
+      strlcpy(local_host_name, "localhost", sizeof(local_host_name));
+   else {
+      ss_gethostname(local_host_name, sizeof(local_host_name));
+      if (strchr(local_host_name, '.'))
+         *strchr(local_host_name, '.') = 0;
+   }
 
    /* disconnect message not displayed */
    _message_print = NULL;
@@ -2579,12 +2635,6 @@ INT cm_disconnect_experiment(void)
       _net_recv_buffer = NULL;
       _net_recv_buffer_size = 0;
       _net_recv_buffer_size_odb = 0;
-   }
-
-   if (_net_send_buffer_size > 0) {
-      M_FREE(_net_send_buffer);
-      _net_send_buffer = NULL;
-      _net_send_buffer_size = 0;
    }
 
    if (_tcp_buffer != NULL) {
@@ -2726,52 +2776,7 @@ INT cm_get_experiment_semaphore(INT * semaphore_alarm, INT * semaphore_elog, INT
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
-static int bm_validate_client_index(const BUFFER * buf, BOOL abort_if_invalid)
-{
-   static int prevent_recursion = 1;
-   int badindex = 0;
-   BUFFER_CLIENT *bcl = buf->buffer_header->client;
-
-   if (buf->client_index < 0)
-      badindex = 1;
-   else if (buf->client_index > buf->buffer_header->max_client_index)
-      badindex = 1;
-   else {
-      bcl = &(buf->buffer_header->client[buf->client_index]);
-      if (bcl->name[0] == 0)
-         badindex = 1;
-      else if (bcl->pid != ss_getpid())
-         badindex = 1;
-   }
-
-#if 0
-   printf
-       ("bm_validate_client_index: badindex=%d, buf=%p, client_index=%d, max_client_index=%d, client_name=\'%s\', client_pid=%d, pid=%d\n",
-        badindex, buf, buf->client_index, buf->buffer_header->max_client_index,
-        buf->buffer_header->client[buf->client_index].name, buf->buffer_header->client[buf->client_index].pid,
-        ss_getpid());
-#endif
-
-   if (badindex) {
-
-      if (!abort_if_invalid)
-         return -1;
-
-      if (prevent_recursion) {
-         prevent_recursion = 0;
-         cm_msg(MERROR, "bm_validate_client_index",
-                "My client index %d in buffer \'%s\' is invalid: client name \'%s\', pid %d should be my pid %d",
-                buf->client_index, buf->buffer_header->name, bcl->name, bcl->pid, ss_getpid());
-         cm_msg(MERROR, "bm_validate_client_index",
-                "Maybe this client was removed by a timeout. Cannot continue, aborting...");
-      }
-
-      abort();
-      exit(1);
-   }
-
-   return buf->client_index;
-}
+static int bm_validate_client_index(const BUFFER * buf, BOOL abort_if_invalid);
 
 /********************************************************************/
 /**
@@ -2843,7 +2848,7 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
          BUFFER_CLIENT *pclient;
          BUFFER_HEADER *pheader;
          INT idx;
-	 
+
          if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE
              && _buffer[i - 1].index != rpc_get_server_acception())
             continue;
@@ -2994,6 +2999,105 @@ INT cm_get_watchdog_info(HNDLE hDB, char *client_name, DWORD * timeout, DWORD * 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
+
+static void load_rpc_hosts(HNDLE hDB, HNDLE hKey, int index, void* info)
+{
+   int status;
+   int i, last;
+   KEY key;
+   int max_size;
+   char* str;
+
+   if (index != -99)
+      cm_msg(MINFO, "load_rpc_hosts", "Reloading RPC hosts access control list via hotlink callback");
+
+   status = db_get_key(hDB, hKey, &key);
+
+   if (status != DB_SUCCESS)
+      return;
+
+   //printf("clear rpc hosts!\n");
+   rpc_clear_allowed_hosts();
+
+   max_size = key.item_size;
+   str = malloc(max_size);
+
+   last = 0;
+   for (i=0; i<key.num_values; i++) {
+      int size = max_size;
+      status = db_get_data_index(hDB, hKey, str, &size, i, TID_STRING);
+      if (status != DB_SUCCESS)
+         break;
+
+      if (strlen(str) < 1) // skip emties
+         continue;
+
+      if (str[0] == '#') // skip commented-out entries
+         continue;
+
+      //printf("add rpc hosts %d [%s]\n", i, str);
+      rpc_add_allowed_host(str);
+      last = i;
+   }
+
+   if (key.num_values - last < 10) {
+      int new_size = last + 10;
+      status = db_set_num_values(hDB, hKey, new_size);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "load_rpc_hosts", "Cannot resize the RPC hosts access control list, db_set_num_values(%d) status %d", new_size, status);
+      }
+   }
+
+   free(str);
+}
+
+static void init_rpc_hosts(HNDLE hDB)
+{
+   int status;
+   char buf[256];
+   int size, i;
+   HNDLE hKey;
+
+   strcpy(buf, "localhost");
+   size = sizeof(buf);
+
+   status = db_get_value(hDB, 0, "/Experiment/Security/RPC hosts/Allowed hosts[0]", buf, &size, TID_STRING, TRUE);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_rpc_hosts", "Cannot create the RPC hosts access control list, db_get_value() status %d", status);
+      return;
+   }
+
+   size = sizeof(i);
+   i = 0;
+   status = db_get_value(hDB, 0, "/Experiment/Security/Disable RPC hosts check", &i, &size, TID_BOOL, TRUE);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_rpc_hosts", "Cannot create \"Disable RPC hosts check\", db_get_value() status %d", status);
+      return;
+   }
+
+   if (i != 0) // RPC hosts check is disabled
+      return;
+
+   status = db_find_key(hDB, 0, "/Experiment/Security/RPC hosts/Allowed hosts", &hKey);
+
+   if (status != DB_SUCCESS || hKey == 0) {
+      cm_msg(MERROR, "init_rpc_hosts", "Cannot find the RPC hosts access control list, db_find_key() status %d", status);
+      return;
+   }
+
+   load_rpc_hosts(hDB, hKey, -99, NULL);
+
+   status = db_watch(hDB, hKey, load_rpc_hosts, NULL);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_rpc_hosts", "Cannot watch the RPC hosts access control list, db_watch() status %d", status);
+      return;
+   }
+}
+
+/********************************************************************/
 INT cm_register_server(void)
 /********************************************************************\
 
@@ -3013,11 +3117,27 @@ INT cm_register_server(void)
 
 \********************************************************************/
 {
-   INT status, port;
-   HNDLE hDB, hKey;
-
    if (!_server_registered) {
-      port = 0;
+      INT status;
+      int size;
+      HNDLE hDB, hKey;
+      char name[NAME_LENGTH];
+      char str[256];
+      int port = 0;
+
+      cm_get_experiment_database(&hDB, &hKey);
+
+      size = sizeof(name);
+      status = db_get_value(hDB, hKey, "Name", &name, &size, TID_STRING, FALSE);
+      assert(status == DB_SUCCESS);
+
+      strlcpy(str, "/Experiment/Security/RPC ports/", sizeof(str));
+      strlcat(str, name, sizeof(str));
+
+      size = sizeof(port);
+      status = db_get_value(hDB, 0, str, &port, &size, TID_DWORD, TRUE);
+      assert(status == DB_SUCCESS);
+
       status = rpc_register_server(ST_REMOTE, NULL, &port, NULL);
       if (status != RPC_SUCCESS)
          return status;
@@ -3027,7 +3147,6 @@ INT cm_register_server(void)
       rpc_register_functions(rpc_get_internal_list(1), NULL);
 
       /* store port number in ODB */
-      cm_get_experiment_database(&hDB, &hKey);
 
       status = db_find_key(hDB, hKey, "Server Port", &hKey);
       if (status != DB_SUCCESS)
@@ -3043,6 +3162,8 @@ INT cm_register_server(void)
 
       /* lock database */
       db_set_mode(hDB, hKey, MODE_READ, TRUE);
+
+      init_rpc_hosts(hDB);
    }
 
    return CM_SUCCESS;
@@ -3267,6 +3388,28 @@ INT cm_set_transition_sequence(INT transition, INT sequence_number)
 
 }
 
+INT cm_set_run_state(INT state)
+{
+   INT status;
+   HNDLE hDB, hKey;
+
+   cm_get_experiment_database(&hDB, &hKey);
+
+   /* unlock database */
+   db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE, TRUE);
+
+   /* set value */
+   status = db_set_value(hDB, hKey, "Run state", &state, sizeof(INT), 1, TID_INT);
+   if (status != DB_SUCCESS)
+      return status;
+
+   /* re-lock database */
+   db_set_mode(hDB, hKey, MODE_READ, TRUE);
+
+   return CM_SUCCESS;
+
+}
+
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
@@ -3362,7 +3505,7 @@ INT cm_check_deferred_transition()
 
       if (_deferred_trans_table[i].transition == _requested_transition) {
          if (((BOOL(*)(INT, BOOL)) _deferred_trans_table[i].func) (_requested_transition, first)) {
-            status = cm_transition(_requested_transition | TR_DEFERRED, 0, str, sizeof(str), SYNC, FALSE);
+            status = cm_transition(_requested_transition | TR_DEFERRED, 0, str, sizeof(str), TR_SYNC, FALSE);
             if (status != CM_SUCCESS)
                cm_msg(MERROR, "cm_check_deferred_transition", "Cannot perform deferred transition: %s", str);
 
@@ -3387,11 +3530,29 @@ INT cm_check_deferred_transition()
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
-typedef struct {
-   int sequence_number;
-   char host_name[HOST_NAME_LENGTH];
-   char client_name[NAME_LENGTH];
-   int port;
+typedef struct tr_client *PTR_CLIENT;
+
+typedef struct tr_client {
+   int   transition;
+   int   run_number;
+   int   async_flag;
+   int   debug_flag;
+   int   sequence_number;
+   PTR_CLIENT *pred;
+   int   n_pred;
+   char  host_name[HOST_NAME_LENGTH];
+   char  client_name[NAME_LENGTH];
+   int   port;
+   char  key_name[NAME_LENGTH]; /* this client key name in /System/Clients */
+   int   status;
+   char  errorstr[256];
+   DWORD init_time;    // time when tr_client created
+   DWORD connect_timeout;
+   DWORD connect_start_time; // time when client rpc connection is started
+   DWORD connect_end_time;   // time when client rpc connection is finished
+   DWORD rpc_timeout;
+   DWORD rpc_start_time;     // time client rpc call is started
+   DWORD rpc_end_time;       // time client rpc call is finished
 } TR_CLIENT;
 
 int tr_compare(const void *arg1, const void *arg2)
@@ -3399,12 +3560,626 @@ int tr_compare(const void *arg1, const void *arg2)
    return ((TR_CLIENT *) arg1)->sequence_number - ((TR_CLIENT *) arg2)->sequence_number;
 }
 
+int tr_thread(void *param)
+{
+   return 0;
+}
+
+/*------------------------------------------------------------------*/
+
+typedef struct {
+   int   transition;
+   int   run_number;
+   int   async_flag;
+   int   debug_flag;
+   int   status;
+   char  errorstr[256];
+   DWORD start_time;
+   DWORD end_time;
+   int   num_clients;
+   TR_CLIENT* clients;
+} TR_STATE;
+
+static TR_STATE* tr_previous_transition = NULL;
+static TR_STATE* tr_current_transition = NULL;
+
+/*------------------------------------------------------------------*/
+
+int tr_finish(int status, const char* errorstr)
+{
+   if (tr_current_transition) {
+      tr_current_transition->status = status;
+      tr_current_transition->end_time = ss_millitime();
+      if (errorstr) {
+         strlcpy(tr_current_transition->errorstr, errorstr, sizeof(tr_current_transition->errorstr));
+      } else {
+         strlcpy(tr_current_transition->errorstr, "(null)", sizeof(tr_current_transition->errorstr));
+      }
+   }
+
+   return status;
+}
+
+/*------------------------------------------------------------------*/
+
+static void json_write(char **buffer, int* buffer_size, int* buffer_end, int level, const char* s, int quoted)
+{
+   int len, remain, xlevel;
+
+   len = strlen(s);
+   remain = *buffer_size - *buffer_end;
+   assert(remain >= 0);
+
+   xlevel = 2*level;
+
+   while (10 + xlevel + 3*len > remain) {
+      // reallocate the buffer
+      int new_buffer_size = 2*(*buffer_size);
+      if (new_buffer_size < 4*1024)
+         new_buffer_size = 4*1024;
+      //printf("reallocate: len %d, size %d, remain %d, allocate %d\n", len, *buffer_size, remain, new_buffer_size);
+      *buffer = (char *)realloc(*buffer, new_buffer_size);
+      assert(*buffer);
+      *buffer_size = new_buffer_size;
+      remain = *buffer_size - *buffer_end;
+      assert(remain >= 0);
+   }
+
+   if (xlevel) {
+      int i;
+      for (i=0; i<xlevel; i++)
+         (*buffer)[(*buffer_end)++] = ' ';
+   }
+
+   if (!quoted) {
+      memcpy(*buffer + *buffer_end, s, len);
+      *buffer_end += len;
+      (*buffer)[*buffer_end] = 0; // NUL-terminate the buffer
+      return;
+   }
+
+   (*buffer)[(*buffer_end)++] = '"';
+
+   while (*s) {
+      switch (*s) {
+      case '\"':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = '\"';
+         s++;
+         break;
+      case '\\':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = '\\';
+         s++;
+         break;
+#if 0
+      case '/':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = '/';
+         s++;
+         break;
+#endif
+      case '\b':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 'b';
+         s++;
+         break;
+      case '\f':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 'f';
+         s++;
+         break;
+      case '\n':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 'n';
+         s++;
+         break;
+      case '\r':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 'r';
+         s++;
+         break;
+      case '\t':
+         (*buffer)[(*buffer_end)++] = '\\';
+         (*buffer)[(*buffer_end)++] = 't';
+         s++;
+         break;
+      default:
+         (*buffer)[(*buffer_end)++] = *s++;
+      }
+   }
+
+   (*buffer)[(*buffer_end)++] = '"';
+   (*buffer)[*buffer_end] = 0; // NUL-terminate the buffer
+
+   remain = *buffer_size - *buffer_end;
+   assert(remain > 0);
+}
+
+static void json_write_kvp_s(char **buf, int* bufs, int* bufe, int level, const char* key, const char* value)
+{
+   json_write(buf, bufs, bufe, level, key, 1);
+   json_write(buf, bufs, bufe, 0, ":", 0);
+   json_write(buf, bufs, bufe, 0, value, 1);
+}
+
+static void json_write_kvp_i(char **buf, int* bufs, int* bufe, int level, const char* key, int value)
+{
+   char str[256];
+   sprintf(str, "%d", value);
+   json_write(buf, bufs, bufe, level, key, 1);
+   json_write(buf, bufs, bufe, 0, ":", 0);
+   json_write(buf, bufs, bufe, 0, str, 0);
+}
+
+static void json_write_kvp_DWORD(char **buf, int* bufs, int* bufe, int level, const char* key, DWORD value)
+{
+   char str[256];
+   sprintf(str, "%d", value);
+   json_write(buf, bufs, bufe, level, key, 1);
+   json_write(buf, bufs, bufe, 0, ":", 0);
+   json_write(buf, bufs, bufe, 0, str, 0);
+}
+
+int cm_transition_status_json(char** json_status)
+{
+   char* buf = NULL;
+   int bufs = 0;
+   int bufe = 0;
+
+   int level = 0;
+
+   const TR_STATE *s = tr_current_transition;
+
+   if (s && s->transition == TR_STARTABORT) {
+      s = tr_previous_transition;
+   }
+
+   if (!s) {
+      json_write(&buf, &bufs, &bufe, level, "{", 0);
+      json_write(&buf, &bufs, &bufe, level, "}", 0);
+   } else {
+      int n = s->num_clients;
+      const TR_CLIENT* t = s->clients;
+      int i;
+
+      json_write(&buf, &bufs, &bufe, level, "{", 0);
+
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "transition", s->transition);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "run_number", s->run_number);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "async_flag", s->async_flag);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "debug_flag", s->debug_flag);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_i(&buf, &bufs, &bufe, level, "status",     s->status);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_s(&buf, &bufs, &bufe, level, "errorstr",   s->errorstr);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "millitime", ss_millitime());
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "start_time", s->start_time);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "end_time", s->end_time);
+      json_write(&buf, &bufs, &bufe, 0, ",", 0);
+      
+      json_write(&buf, &bufs, &bufe, level, "clients", 1);
+      json_write(&buf, &bufs, &bufe, 0, ": [", 0);
+      
+      for (i=0; i<n; i++) {
+         if (i>0)
+            json_write(&buf, &bufs, &bufe, level, ",", 0);
+         
+         json_write(&buf, &bufs, &bufe, level, "{", 0);
+         
+         json_write_kvp_s(&buf, &bufs, &bufe, level, "name", t[i].client_name);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "sequence_number", t[i].sequence_number);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "transition", t[i].transition);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "run_number", t[i].run_number);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "async_flag", t[i].async_flag);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "debug_flag", t[i].debug_flag);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_s(&buf, &bufs, &bufe, level, "host_name",  t[i].host_name);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "port",       t[i].port);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_s(&buf, &bufs, &bufe, level, "key_name",   t[i].key_name);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+
+         if (t[i].n_pred > 0) {
+            int j;
+            PTR_CLIENT* p = t[i].pred;
+
+            json_write(&buf, &bufs, &bufe, level, "wait_for_clients", 1);
+            json_write(&buf, &bufs, &bufe, 0, ": [", 0);
+            
+            for (j=0; j<t[i].n_pred; j++) {
+               if (j>0)
+                  json_write(&buf, &bufs, &bufe, 0, ",", 0);
+               json_write(&buf, &bufs, &bufe, level, "{", 0);
+               json_write_kvp_s(&buf, &bufs, &bufe, level, "name", p[j]->client_name);
+               json_write(&buf, &bufs, &bufe, 0, ",", 0);
+               json_write_kvp_i(&buf, &bufs, &bufe, level, "sequence_number", p[j]->sequence_number);
+               json_write(&buf, &bufs, &bufe, 0, ",", 0);
+               json_write_kvp_i(&buf, &bufs, &bufe, level, "status", p[j]->status);
+               json_write(&buf, &bufs, &bufe, level, "}", 0);
+            }
+            json_write(&buf, &bufs, &bufe, 0, "]", 0);
+            json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         }
+         
+         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "init_time", t[i].init_time);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+
+         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "connect_timeout", t[i].connect_timeout);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "connect_start_time", t[i].connect_start_time);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "connect_end_time", t[i].connect_end_time);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+
+         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "rpc_timeout", t[i].rpc_timeout);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "rpc_start_time", t[i].rpc_start_time);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "rpc_end_time", t[i].rpc_end_time);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+
+         json_write_kvp_i(&buf, &bufs, &bufe, level, "status",     t[i].status);
+         json_write(&buf, &bufs, &bufe, 0, ",", 0);
+         json_write_kvp_s(&buf, &bufs, &bufe, level, "errorstr",   t[i].errorstr);
+         
+         json_write(&buf, &bufs, &bufe, level, "}", 0);
+      }
+      
+      json_write(&buf, &bufs, &bufe, 0, "]", 0);
+      json_write(&buf, &bufs, &bufe, 0, "}", 0);
+   }
+      
+   *json_status = buf;
+
+   return CM_SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
+
+/* Perform a detached transition through teh externam "mtransition" program */
+int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag)
+{
+   HNDLE hDB;
+   char *args[100], path[256];
+   int  size, status, iarg = 0;
+   char debug_arg[256];
+   char start_arg[256];
+   char expt_name[256];
+   extern RPC_SERVER_CONNECTION _server_connection;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   path[0] = 0;
+   if (getenv("MIDASSYS")) {
+      strlcpy(path, getenv("MIDASSYS"), sizeof(path));
+      strlcat(path, DIR_SEPARATOR_STR, sizeof(path));
+#ifdef OS_LINUX
+#ifdef OS_DARWIN
+      strlcat(path, "darwin/bin/", sizeof(path));
+#else
+      strlcat(path, "linux/bin/", sizeof(path));
+#endif
+#else
+#ifdef OS_WINNT
+      strlcat(path, "nt/bin/", sizeof(path));
+#endif
+#endif
+   }
+   strlcat(path, "mtransition", sizeof(path));
+
+   args[iarg++] = path;
+
+   if (_server_connection.send_sock) {
+      /* if connected to mserver, pass connection info to mtransition */
+      args[iarg++] = "-h";
+      args[iarg++] = _server_connection.host_name;
+      args[iarg++] = "-e";
+      args[iarg++] = _server_connection.exp_name;
+   } else {
+      /* get experiment name from ODB */
+      size = sizeof(expt_name);
+      db_get_value(hDB, 0, "/Experiment/Name", expt_name, &size, TID_STRING, FALSE);
+
+      args[iarg++] = "-e";
+      args[iarg++] = expt_name;
+   }
+
+   if (debug_flag) {
+      args[iarg++] = "-d";
+
+      sprintf(debug_arg, "%d", debug_flag);
+      args[iarg++] = debug_arg;
+   }
+
+   if (transition == TR_STOP)
+      args[iarg++] = "STOP";
+   else if (transition == TR_PAUSE)
+      args[iarg++] = "PAUSE";
+   else if (transition == TR_RESUME)
+      args[iarg++] = "RESUME";
+   else if (transition == TR_START) {
+      args[iarg++] = "START";
+
+      sprintf(start_arg, "%d", run_number);
+      args[iarg++] = start_arg;
+   }
+
+   args[iarg++] = NULL;
+#if 0
+      for (iarg = 0; args[iarg] != NULL; iarg++)
+         printf("arg[%d] [%s]\n", iarg, args[iarg]);
+#endif
+
+   status = ss_spawnv(P_DETACH, args[0], args);
+
+   if (status != SUCCESS) {
+      if (errstr != NULL)
+         sprintf(errstr, "Cannot execute mtransition, ss_spawnvp() returned %d", status);
+      return CM_SET_ERROR;
+   }
+
+   return CM_SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
+
+/* contact a client via RPC and execute the remote transition */
+int cm_transition_call(void *param)
+{
+   INT old_timeout, status, i, t1, t0, size;
+   HNDLE hDB, hConn, hKey;
+   int connect_timeout = 10000;
+   int timeout = 120000;
+   TR_CLIENT *tr_client;
+
+   cm_get_experiment_database(&hDB, NULL);
+   tr_client = (TR_CLIENT *)param;
+
+   tr_client->errorstr[0] = 0;
+   tr_client->init_time = ss_millitime();
+   tr_client->connect_timeout    = 0;
+   tr_client->connect_start_time = 0;
+   tr_client->connect_end_time   = 0;
+   tr_client->rpc_timeout    = 0;
+   tr_client->rpc_start_time = 0;
+   tr_client->rpc_end_time   = 0;
+
+   /* wait for predecessor if set */
+   if (tr_client->async_flag & TR_MTHREAD && tr_client->pred) {
+      while (1) {
+         int wait_for = -1;
+
+         for (i=0 ; i<tr_client->n_pred ; i++) {
+            if (tr_client->pred[i]->status == 0) {
+               wait_for = i;
+               break;
+            }
+
+            if (tr_client->pred[i]->status != SUCCESS && tr_client->transition != TR_STOP) {
+               cm_msg(MERROR, "cm_transition_call", "Transition %d aborted: client \"%s\" returned status %d", tr_client->transition, tr_client->pred[i]->client_name, tr_client->pred[i]->status);
+               tr_client->status = -1;
+               sprintf(tr_client->errorstr, "Aborted by failure of client \"%s\"", tr_client->pred[i]->client_name);
+               return CM_SUCCESS;
+            }
+         }
+
+         if (wait_for < 0)
+            break;
+
+         if (tr_client->debug_flag == 1)
+            printf("Client \"%s\" waits for client \"%s\"\n", tr_client->client_name, tr_client->pred[wait_for]->client_name);
+
+         i = 0;
+         size = sizeof(i);
+         status = db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT, FALSE);
+
+         if (status == DB_SUCCESS && i == 0) {
+            cm_msg(MERROR, "cm_transition_call", "Client \"%s\" transition %d aborted while waiting for client \"%s\": \"/Runinfo/Transition in progress\" was cleared", tr_client->client_name, tr_client->transition, tr_client->pred[wait_for]->client_name);
+            tr_client->status = -1;
+            sprintf(tr_client->errorstr, "Canceled");
+            return CM_SUCCESS;
+         }
+
+         ss_sleep(100);
+      };
+   }
+
+   /* contact client if transition mask set */
+   if (tr_client->debug_flag == 1)
+      printf("Connecting to client \"%s\" on host %s...\n", tr_client->client_name,
+             tr_client->host_name);
+   if (tr_client->debug_flag == 2)
+      cm_msg(MINFO, "cm_transition_call",
+             "cm_transition_call: Connecting to client \"%s\" on host %s...",
+             tr_client->client_name, tr_client->host_name);
+
+   /* get transition timeout for rpc connect */
+   size = sizeof(timeout);
+   db_get_value(hDB, 0, "/Experiment/Transition connect timeout", &connect_timeout, &size, TID_INT, TRUE);
+
+   if (connect_timeout < 1000)
+      connect_timeout = 1000;
+
+   /* get transition timeout */
+   size = sizeof(timeout);
+   db_get_value(hDB, 0, "/Experiment/Transition timeout", &timeout, &size, TID_INT, TRUE);
+
+   if (timeout < 1000)
+      timeout = 1000;
+
+   /* set our timeout for rpc_client_connect() */
+   old_timeout = rpc_get_option(-2, RPC_OTIMEOUT);
+   rpc_set_option(-2, RPC_OTIMEOUT, connect_timeout);
+
+   tr_client->connect_timeout = connect_timeout;
+   tr_client->connect_start_time = ss_millitime();
+
+   /* client found -> connect to its server port */
+   status = rpc_client_connect(tr_client->host_name, tr_client->port, tr_client->client_name, &hConn);
+
+   rpc_set_option(-2, RPC_OTIMEOUT, old_timeout);
+
+   tr_client->connect_end_time = ss_millitime();
+
+   if (status != RPC_SUCCESS) {
+      cm_msg(MERROR, "cm_transition_call",
+             "cannot connect to client \"%s\" on host %s, port %d, status %d",
+             tr_client->client_name, tr_client->host_name, tr_client->port, status);
+      strlcpy(tr_client->errorstr, "Cannot connect to client \'", sizeof(tr_client->errorstr));
+      strlcat(tr_client->errorstr, tr_client->client_name, sizeof(tr_client->errorstr));
+      strlcat(tr_client->errorstr, "\'", sizeof(tr_client->errorstr));
+
+      /* clients that do not respond to transitions are dead or defective, get rid of them. K.O. */
+      cm_shutdown(tr_client->client_name, TRUE);
+      cm_cleanup(tr_client->client_name, TRUE);
+
+      if (tr_client->transition != TR_STOP) {
+         /* indicate abort */
+         i = 1;
+         db_set_value(hDB, 0, "/Runinfo/Start abort", &i, sizeof(INT), 1, TID_INT);
+         i = 0;
+         db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
+      }
+
+      tr_client->status = status;
+      return status;
+   }
+
+   if (tr_client->debug_flag == 1)
+      printf("Connection established to client \"%s\" on host %s\n",
+             tr_client->client_name, tr_client->host_name);
+   if (tr_client->debug_flag == 2)
+      cm_msg(MINFO, "cm_transition_call",
+             "cm_transition: Connection established to client \"%s\" on host %s",
+             tr_client->client_name, tr_client->host_name);
+
+   /* call RC_TRANSITION on remote client with increased timeout */
+   old_timeout = rpc_get_option(hConn, RPC_OTIMEOUT);
+   rpc_set_option(hConn, RPC_OTIMEOUT, timeout);
+
+   tr_client->rpc_timeout = timeout;
+   tr_client->rpc_start_time = ss_millitime();
+
+   if (tr_client->debug_flag == 1)
+      printf("Executing RPC transition client \"%s\" on host %s...\n",
+             tr_client->client_name, tr_client->host_name);
+   if (tr_client->debug_flag == 2)
+      cm_msg(MINFO, "cm_transition_call",
+             "cm_transition: Executing RPC transition client \"%s\" on host %s...",
+             tr_client->client_name, tr_client->host_name);
+
+   t0 = ss_millitime();
+
+   status = rpc_client_call(hConn, RPC_RC_TRANSITION, tr_client->transition, tr_client->run_number, tr_client->errorstr, sizeof(tr_client->errorstr), tr_client->sequence_number);
+
+   t1 = ss_millitime();
+
+   tr_client->rpc_end_time = ss_millitime();
+
+   /* fix for clients returning 0 as error code */
+   if (status == 0)
+      status = FE_ERR_HW;
+
+   /* reset timeout */
+   rpc_set_option(hConn, RPC_OTIMEOUT, old_timeout);
+
+   if (tr_client->debug_flag == 1)
+      printf("RPC transition finished client \"%s\" on host \"%s\" in %d ms with status %d\n",
+             tr_client->client_name, tr_client->host_name, t1 - t0, status);
+   if (tr_client->debug_flag == 2)
+      cm_msg(MINFO, "cm_transition_call",
+             "cm_transition: RPC transition finished client \"%s\" on host \"%s\" in %d ms with status %d",
+             tr_client->client_name, tr_client->host_name, t1 - t0, status);
+
+   if (status == RPC_NET_ERROR || status == RPC_TIMEOUT) {
+      sprintf(tr_client->errorstr, "RPC network error or timeout from client \'%s\' on host \"%s\"", tr_client->client_name, tr_client->host_name);
+      /* clients that do not respond to transitions are dead or defective, get rid of them. K.O. */
+      cm_shutdown(tr_client->client_name, TRUE);
+      cm_cleanup(tr_client->client_name, TRUE);
+   } else if (status != CM_SUCCESS && strlen(tr_client->errorstr) < 2) {
+      sprintf(tr_client->errorstr, "Unknown error %d from client \'%s\' on host \"%s\"", status, tr_client->client_name, tr_client->host_name);
+   }
+
+   tr_client->status = status;
+
+   /* put error string into client entry in ODB */
+   status = db_find_key(hDB, 0, "/System/Clients", &hKey);
+   if (status == DB_SUCCESS && hKey) {
+      status = db_find_key(hDB, hKey, tr_client->key_name, &hKey);
+      if (status == DB_SUCCESS) {
+         db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE, TRUE);
+         db_set_value(hDB, hKey, "Error", tr_client->errorstr, sizeof(tr_client->errorstr), 1, TID_STRING);
+         db_set_mode(hDB, hKey, MODE_READ, TRUE);
+      }
+   }
+
+   return CM_SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
+
+int cm_transition_call_direct(TR_CLIENT *tr_client)
+{
+   int i, status;
+   int transition_status = CM_SUCCESS;
+   HNDLE hDB, hKey;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   for (i = 0; _trans_table[i].transition; i++)
+      if (_trans_table[i].transition == tr_client->transition)
+         break;
+
+   /* call registered function */
+   if (_trans_table[i].transition == tr_client->transition && _trans_table[i].func) {
+      if (tr_client->debug_flag == 1)
+         printf("Calling local transition callback\n");
+      if (tr_client->debug_flag == 2)
+         cm_msg(MINFO, "cm_transition_call_direct", "cm_transition: Calling local transition callback");
+
+      transition_status = _trans_table[i].func(tr_client->run_number, tr_client->errorstr);
+
+      if (tr_client->debug_flag == 1)
+         printf("Local transition callback finished, status %d\n", transition_status);
+      if (tr_client->debug_flag == 2)
+         cm_msg(MINFO, "cm_transition_call_direct", "cm_transition: Local transition callback finished, status %d", transition_status);
+   }
+
+   tr_client->status = transition_status;
+
+   /* put error string into client entry in ODB */
+   status = db_find_key(hDB, 0, "/System/Clients", &hKey);
+   if (status == DB_SUCCESS && hKey) {
+      status = db_find_key(hDB, hKey, tr_client->key_name, &hKey);
+      if (status == DB_SUCCESS) {
+         db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE, TRUE);
+         db_set_value(hDB, hKey, "Error", tr_client->errorstr, sizeof(tr_client->errorstr), 1, TID_STRING);
+         db_set_mode(hDB, hKey, MODE_READ, TRUE);
+      }
+   }
+
+   return transition_status;
+}
+
 /********************************************************************/
 /**
 Performs a run transition (Start/Stop/Pause/Resume).
 
 Synchronous/Asynchronous flag.
-If set to ASYNC, the transition is done
+If set to TR_ASYNC, the transition is done
 asynchronously, meaning that clients are connected and told to execute their
 callback routine, but no result is awaited. The return value is
 specified by the transition callback function on the remote clients. If all callbacks
@@ -3435,25 +4210,33 @@ tapes.
 @param run_number New run number. If zero, use current run number plus one.
 @param errstr returned error string.
 @param errstr_size Size of error string.
-@param async_flag SYNC: synchronization flag (SYNC:wait completion, ASYNC: retun immediately)
+@param async_flag TR_SYNC: synchronization flag (TR_SYNC:wait completion, TR_ASYNC: retun immediately)
 @param debug_flag If 1 output debugging information, if 2 output via cm_msg().
 @return CM_SUCCESS, \<error\> error code from remote client
 */
-INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag,
-                   INT debug_flag)
+INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag)
 {
-   INT i, j, status, idx, size, sequence_number, port, state, old_timeout, n_tr_clients;
-   HNDLE hDB, hRootKey, hSubkey, hKey, hKeylocal, hConn, hKeyTrans;
+   INT i, j, status, idx, size, sequence_number, port, state, n_tr_clients;
+   HNDLE hDB, hRootKey, hSubkey, hKey, hKeylocal, hKeyTrans;
    DWORD seconds;
-   char host_name[HOST_NAME_LENGTH], client_name[NAME_LENGTH], str[256], error[256], tr_key_name[256];
+   char host_name[HOST_NAME_LENGTH], client_name[NAME_LENGTH], str[256], tr_key_name[256];
    char *trname = "unknown";
    KEY key;
    BOOL deferred;
-   PROGRAM_INFO program_info;
    TR_CLIENT *tr_client;
-   int connect_timeout = 10000;
-   int timeout = 120000;
-   int t0, t1;
+   char xerrstr[256];
+
+   /* if needed, use internal error string */
+   if (!errstr) {
+      errstr = xerrstr;
+      errstr_size = sizeof(xerrstr);
+   }
+
+   /* erase error string */
+   errstr[0] = 0;
+   
+   /* get key of local client */
+   cm_get_experiment_database(&hDB, &hKeylocal);
 
    deferred = (transition & TR_DEFERRED) > 0;
    transition &= ~TR_DEFERRED;
@@ -3462,108 +4245,129 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
    if (transition != TR_START && transition != TR_STOP && transition != TR_PAUSE && transition != TR_RESUME
        && transition != TR_STARTABORT) {
       cm_msg(MERROR, "cm_transition", "Invalid transition request \"%d\"", transition);
-      if (errstr != NULL)
-         strlcpy(errstr, "Invalid transition request", errstr_size);
+      strlcpy(errstr, "Invalid transition request", errstr_size);
       return CM_INVALID_TRANSITION;
    }
 
-   /* get key of local client */
-   cm_get_experiment_database(&hDB, &hKeylocal);
+   /* delete previous transition state */
 
-   if (errstr != NULL)
-      strlcpy(errstr, "Unknown error", errstr_size);
+   if (tr_previous_transition) {
+      TR_STATE *s = tr_previous_transition;
+      int n = s->num_clients;
+      TR_CLIENT*t = s->clients;
+
+      for (i=0 ; i<n ; i++)
+         if (t[i].pred)
+            free(t[i].pred);
+
+      free(s->clients);
+      s->clients = NULL;
+      free(s);
+      tr_previous_transition = NULL;
+   }
+
+   if (tr_current_transition) {
+      tr_previous_transition = tr_current_transition;
+   }
+   
+   /* construct new transition state */
+
+   if (1) {
+      TR_STATE *s = calloc(1, sizeof(TR_STATE));
+
+      s->transition = transition;
+      s->run_number = run_number;
+      s->async_flag = async_flag;
+      s->debug_flag = debug_flag;
+      s->status     = 0;
+      s->errorstr[0] = 0;
+      s->start_time = ss_millitime();
+      s->end_time = 0;
+      s->num_clients = 0;
+      s->clients = NULL;
+
+      tr_current_transition = s;
+   }
+
+   /* check for alarms */
+   i = 0;
+   size = sizeof(i);
+   db_get_value(hDB, 0, "/Experiment/Prevent start on alarms", &i, &size, TID_BOOL, TRUE);
+   if (i == TRUE && transition == TR_START) {
+      al_check();
+      if (al_get_alarms(str, sizeof(str)) > 0) {
+         cm_msg(MERROR, "cm_transition", "Run start abort due to alarms: %s", str);
+         sprintf(errstr, "Cannot start run due to alarms: ");
+         strlcat(errstr, str, errstr_size);
+         return tr_finish(AL_TRIGGERED, errstr);
+      }
+   }
+
+   /* check for required programs */
+   i = 0;
+   size = sizeof(i);
+   db_get_value(hDB, 0, "/Experiment/Prevent start on required progs", &i, &size, TID_BOOL, TRUE);
+   if (i == TRUE && transition == TR_START) {
+
+      HNDLE hkeyroot, hkey;
+
+      /* check /programs alarms */
+      db_find_key(hDB, 0, "/Programs", &hkeyroot);
+      if (hkeyroot) {
+         for (i = 0;; i++) {
+            BOOL program_info_required = FALSE;
+            status = db_enum_key(hDB, hkeyroot, i, &hkey);
+            if (status == DB_NO_MORE_SUBKEYS)
+               break;
+
+            db_get_key(hDB, hkey, &key);
+
+            /* don't check "execute on xxx" */
+            if (key.type != TID_KEY)
+               continue;
+
+            size = sizeof(program_info_required);
+            status = db_get_value(hDB, hkey, "Required", &program_info_required, &size, TID_BOOL, TRUE);
+            if (status != DB_SUCCESS) {
+               cm_msg(MERROR, "cm_transition", "Cannot get program info required, status %d", status);
+               continue;
+            }
+
+            if (program_info_required) {
+               rpc_get_name(str);
+               str[strlen(key.name)] = 0;
+               if (!equal_ustring(str, key.name) && cm_exist(key.name, FALSE) == CM_NO_CLIENT) {
+                  cm_msg(MERROR, "cm_transition", "Run start abort due to program \"%s\" not running", key.name);
+                  sprintf(errstr, "Run start abort due to program \"%s\" not running", key.name);
+                  return tr_finish(AL_TRIGGERED, errstr);
+               }
+            }
+         }
+      }
+   }
+
+   /* do detached transition via mtransition tool */
+   if (async_flag & TR_DETACH) {
+      status = cm_transition_detach(transition, run_number, errstr, errstr_size, async_flag, debug_flag);
+      return tr_finish(status, errstr);
+   }
+
+   strlcpy(errstr, "Unknown error", errstr_size);
 
    if (debug_flag == 0) {
       size = sizeof(i);
       db_get_value(hDB, 0, "/Experiment/Transition debug flag", &debug_flag, &size, TID_INT, TRUE);
    }
 
-   /* do detached transition via mtransition tool */
-   if (async_flag == DETACH) {
-      char *args[100], path[256];
-      int iarg = 0;
-      char debug_arg[256];
-      char start_arg[256];
-      char expt_name[256];
-      extern RPC_SERVER_CONNECTION _server_connection;
-
-      path[0] = 0;
-      if (getenv("MIDASSYS")) {
-         strlcpy(path, getenv("MIDASSYS"), sizeof(path));
-         strlcat(path, DIR_SEPARATOR_STR, sizeof(path));
-#ifdef OS_LINUX
-#ifdef OS_DARWIN
-         strlcat(path, "darwin/bin/", sizeof(path));
-#else
-         strlcat(path, "linux/bin/", sizeof(path));
-#endif
-#else
-#ifdef OS_WINNT
-         strlcat(path, "nt/bin/", sizeof(path));
-#endif
-#endif         
-      }
-      strlcat(path, "mtransition", sizeof(path));
-              
-      args[iarg++] = path;
-
-      if (_server_connection.send_sock) {
-         /* if connected to mserver, pass connection info to mtransition */
-         args[iarg++] = "-h";
-         args[iarg++] = _server_connection.host_name;
-         args[iarg++] = "-e";
-         args[iarg++] = _server_connection.exp_name;
-      } else {
-         /* get experiment name from ODB */
-         size = sizeof(expt_name);
-         db_get_value(hDB, 0, "/Experiment/Name", expt_name, &size, TID_STRING, FALSE);
-
-         args[iarg++] = "-e";
-         args[iarg++] = expt_name;
-      }
-
-      if (debug_flag) {
-         args[iarg++] = "-d";
-
-         sprintf(debug_arg, "%d", debug_flag);
-         args[iarg++] = debug_arg;
-      }
-
-      if (transition == TR_STOP)
-         args[iarg++] = "STOP";
-      else if (transition == TR_PAUSE)
-         args[iarg++] = "PAUSE";
-      else if (transition == TR_RESUME)
-         args[iarg++] = "RESUME";
-      else if (transition == TR_START) {
-         args[iarg++] = "START";
-
-         sprintf(start_arg, "%d", run_number);
-         args[iarg++] = start_arg;
-      }
-
-      args[iarg++] = NULL;
-
-      if (0)
-         for (iarg = 0; args[iarg] != NULL; iarg++)
-            printf("arg[%d] [%s]\n", iarg, args[iarg]);
-
-      status = ss_spawnv(P_DETACH, args[0], args);
-
-      if (status != SUCCESS) {
-         if (errstr != NULL)
-            sprintf(errstr, "Cannot execute mtransition, ss_spawnvp() returned %d", status);
-         return CM_SET_ERROR;
-      }
-
-      return CM_SUCCESS;
-   }
-
-   /* if no run number is given, get it from DB */
+   /* if no run number is given, get it from ODB and increment it */
    if (run_number == 0) {
       size = sizeof(run_number);
       status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
       assert(status == SUCCESS);
+      if (transition == TR_START) {
+         run_number++;
+      }
+      tr_current_transition->run_number = run_number;
    }
 
    if (run_number <= 0) {
@@ -3579,23 +4383,9 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
       if (i == 1) {
          sprintf(errstr, "Start/Stop transition %d already in progress, please try again later\n", i);
          strlcat(errstr, "or set \"/Runinfo/Transition in progress\" manually to zero.\n", errstr_size);
-         return CM_TRANSITION_IN_PROGRESS;
+         return tr_finish(CM_TRANSITION_IN_PROGRESS, "Transition already in progress, see messages");
       }
    }
-
-   /* get transition timeout for rpc connect */
-   size = sizeof(timeout);
-   db_get_value(hDB, 0, "/Experiment/Transition connect timeout", &connect_timeout, &size, TID_INT, TRUE);
-
-   if (connect_timeout < 1000)
-      connect_timeout = 1000;
-
-   /* get transition timeout */
-   size = sizeof(timeout);
-   db_get_value(hDB, 0, "/Experiment/Transition timeout", &timeout, &size, TID_INT, TRUE);
-
-   if (timeout < 1000)
-      timeout = 1000;
 
    /* indicate transition in progress */
    i = transition;
@@ -3613,12 +4403,18 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
          cm_msg(MINFO, "cm_transition", "cm_transition: Setting run number %d in ODB", run_number);
 
       status = db_set_value(hDB, 0, "Runinfo/Run number", &run_number, sizeof(run_number), 1, TID_INT);
-      assert(status == SUCCESS);
-      if (status != DB_SUCCESS)
-         cm_msg(MERROR, "cm_transition", "cannot set Runinfo/Run number in database");
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "cm_transition", "cannot set Runinfo/Run number in database, status %d", status);
+         abort();
+      }
    }
 
    if (deferred) {
+      if (debug_flag == 1)
+         printf("Clearing /Runinfo/Requested transition\n");
+      if (debug_flag == 2)
+         cm_msg(MINFO, "cm_transition", "cm_transition: Clearing /Runinfo/Requested transition");
+      
       /* remove transition request */
       i = 0;
       db_set_value(hDB, 0, "/Runinfo/Requested transition", &i, sizeof(int), 1, TID_INT);
@@ -3626,18 +4422,17 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
       status = db_find_key(hDB, 0, "System/Clients", &hRootKey);
       if (status != DB_SUCCESS) {
          cm_msg(MERROR, "cm_transition", "cannot find System/Clients entry in database");
-         if (errstr != NULL)
-            strlcpy(errstr, "Cannot find /System/Clients in ODB", errstr_size);
-         return status;
+         strlcpy(errstr, "Cannot find /System/Clients in ODB", errstr_size);
+         return tr_finish(status, errstr);
       }
 
       /* check if deferred transition already in progress */
       size = sizeof(i);
       db_get_value(hDB, 0, "/Runinfo/Requested transition", &i, &size, TID_INT, TRUE);
       if (i) {
-         if (errstr != NULL)
-            strlcpy(errstr, "Deferred transition already in progress", errstr_size);
-         return CM_TRANSITION_IN_PROGRESS;
+         strlcpy(errstr, "Deferred transition already in progress", errstr_size);
+         strlcat(errstr, ", to cancel, set \"/Runinfo/Requested transition\" to zero", errstr_size);
+         return tr_finish(CM_TRANSITION_IN_PROGRESS, errstr);
       }
 
       for (i = 0; trans_name[i].name[0] != 0; i++)
@@ -3662,18 +4457,26 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
             if (status == DB_SUCCESS) {
                size = NAME_LENGTH;
                db_get_value(hDB, hSubkey, "Name", str, &size, TID_STRING, TRUE);
-               db_set_value(hDB, 0, "/Runinfo/Requested transition", &transition, sizeof(int), 1, TID_INT);
 
                if (debug_flag == 1)
                   printf("---- Transition %s deferred by client \"%s\" ----\n", trname, str);
                if (debug_flag == 2)
-                  cm_msg(MINFO, "cm_transition",
-                         "cm_transition: ---- Transition %s deferred by client \"%s\" ----", trname, str);
+                  cm_msg(MINFO, "cm_transition", "cm_transition: ---- Transition %s deferred by client \"%s\" ----", trname, str);
 
-               if (errstr)
-                  sprintf(errstr, "Transition %s deferred by client \"%s\"", trname, str);
+               if (debug_flag == 1)
+                  printf("Setting /Runinfo/Requested transition\n");
+               if (debug_flag == 2)
+                  cm_msg(MINFO, "cm_transition", "cm_transition: Setting /Runinfo/Requested transition");
 
-               return CM_DEFERRED_TRANSITION;
+               /* /Runinfo/Requested transition is hot-linked by mfe.c and writing to it
+                * will activate the deferred transition code in the frontend.
+                * the transition itself will be run from the frontend via cm_transition(TR_DEFERRED) */
+
+               db_set_value(hDB, 0, "/Runinfo/Requested transition", &transition, sizeof(int), 1, TID_INT);
+
+               sprintf(errstr, "Transition %s deferred by client \"%s\"", trname, str);
+
+               return tr_finish(CM_DEFERRED_TRANSITION, errstr);
             }
          }
       }
@@ -3690,6 +4493,7 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
       db_find_key(hDB, 0, "/Programs", &hRootKey);
       if (hRootKey) {
          for (i = 0;; i++) {
+            BOOL program_info_auto_start = FALSE;
             status = db_enum_key(hDB, hRootKey, i, &hKey);
             if (status == DB_NO_MORE_SUBKEYS)
                break;
@@ -3700,17 +4504,42 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
             if (key.type != TID_KEY)
                continue;
 
-            size = sizeof(program_info);
-            status = db_get_record(hDB, hKey, &program_info, &size, 0);
+            size = sizeof(program_info_auto_start);
+            status = db_get_value(hDB, hKey, "Auto start", &program_info_auto_start, &size, TID_BOOL, TRUE);
             if (status != DB_SUCCESS) {
-               cm_msg(MERROR, "cm_transition", "Cannot get program info record");
+               cm_msg(MERROR, "cm_transition", "Cannot get program info auto start, status %d", status);
                continue;
             }
 
-            if (program_info.auto_start && program_info.start_command[0])
-               ss_system(program_info.start_command);
+            if (program_info_auto_start) {
+               char start_command[MAX_STRING_LENGTH];
+               start_command[0] = 0;
+
+               size = sizeof(start_command);
+               status = db_get_value(hDB, hKey, "Start command", &start_command, &size, TID_STRING, TRUE);
+               if (status != DB_SUCCESS) {
+                  cm_msg(MERROR, "cm_transition", "Cannot get program info start command, status %d", status);
+                  continue;
+               }
+
+               if (start_command[0]) {
+                  cm_msg(MINFO, "cm_transition", "Auto Starting program \"%s\", command \"%s\"", key.name, start_command);
+                  ss_system(start_command);
+               }
+            }
          }
       }
+   }
+
+   /* make sure odb entry is always created, otherwise we only see it after the first aborted run start, maybe never */
+   str[0] = 0;
+   size = sizeof(str);
+   db_get_value(hDB, 0, "/Programs/Execute on start abort", str, &size, TID_STRING, TRUE);
+
+   /* execute programs on startabort */
+   if (transition == TR_STARTABORT) {
+      if (str[0])
+         ss_system(str);
    }
 
    /* set new start time in database */
@@ -3728,10 +4557,11 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
       db_set_value(hDB, 0, "Runinfo/Start Time binary", &seconds, sizeof(seconds), 1, TID_DWORD);
    }
 
+   size = sizeof(state);
+   status = db_get_value(hDB, 0, "Runinfo/State", &state, &size, TID_INT, TRUE);
+
    /* set stop time in database */
    if (transition == TR_STOP) {
-      size = sizeof(state);
-      status = db_get_value(hDB, 0, "Runinfo/State", &state, &size, TID_INT, TRUE);
       if (status != DB_SUCCESS)
          cm_msg(MERROR, "cm_transition", "cannot get Runinfo/State in database");
 
@@ -3753,9 +4583,8 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
    status = db_find_key(hDB, 0, "System/Clients", &hRootKey);
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "cm_transition", "cannot find System/Clients entry in database");
-      if (errstr)
-         strlcpy(errstr, "Cannot find /System/Clients in ODB", errstr_size);
-      return status;
+      strlcpy(errstr, "Cannot find /System/Clients in ODB", errstr_size);
+      return tr_finish(status, errstr);
    }
 
    for (i = 0; trans_name[i].name[0] != 0; i++)
@@ -3785,6 +4614,9 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
       i = 0;
    }
 
+   /* check for broken RPC connections */
+   rpc_client_check();
+
    if (debug_flag == 1)
       printf("---- Transition %s started ----\n", trname);
    if (debug_flag == 2)
@@ -3797,9 +4629,13 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
    tr_client = NULL;
 
    for (i = 0, status = 0;; i++) {
+      KEY subkey;
       status = db_enum_key(hDB, hRootKey, i, &hSubkey);
       if (status == DB_NO_MORE_SUBKEYS)
          break;
+
+      status = db_get_key(hDB, hSubkey, &subkey);
+      assert(status == DB_SUCCESS);
 
       if (status == DB_SUCCESS) {
          status = db_find_key(hDB, hSubkey, tr_key_name, &hKeyTrans);
@@ -3819,16 +4655,26 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
                   tr_client = (TR_CLIENT *) realloc(tr_client, sizeof(TR_CLIENT) * (n_tr_clients + 1));
                assert(tr_client);
 
+               tr_client[n_tr_clients].transition = transition;
+               tr_client[n_tr_clients].run_number = run_number;
+               tr_client[n_tr_clients].async_flag = async_flag;
+               tr_client[n_tr_clients].debug_flag = debug_flag;
                tr_client[n_tr_clients].sequence_number = sequence_number;
+               tr_client[n_tr_clients].status = 0;
+               tr_client[n_tr_clients].n_pred  = 0;
+               tr_client[n_tr_clients].pred = NULL;
+               strlcpy(tr_client[n_tr_clients].key_name, subkey.name, sizeof(tr_client[n_tr_clients].key_name));
 
-               if (hSubkey == hKeylocal) {
+               if (hSubkey == hKeylocal && ((async_flag & TR_MTHREAD) == 0)) {
                   /* remember own client */
                   tr_client[n_tr_clients].port = 0;
+                  strlcpy(tr_client[n_tr_clients].client_name, "(localclient)", sizeof(tr_client[n_tr_clients].client_name));
+                  strlcpy(tr_client[n_tr_clients].host_name, "(localhost)", sizeof(tr_client[n_tr_clients].host_name));
                } else {
                   /* get client info */
                   size = sizeof(client_name);
                   db_get_value(hDB, hSubkey, "Name", client_name, &size, TID_STRING, TRUE);
-                  strcpy(tr_client[n_tr_clients].client_name, client_name);
+                  strlcpy(tr_client[n_tr_clients].client_name, client_name, sizeof(tr_client[n_tr_clients].client_name));
 
                   size = sizeof(port);
                   db_get_value(hDB, hSubkey, "Server Port", &port, &size, TID_INT, TRUE);
@@ -3836,7 +4682,7 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
 
                   size = sizeof(host_name);
                   db_get_value(hDB, hSubkey, "Host", host_name, &size, TID_STRING, TRUE);
-                  strcpy(tr_client[n_tr_clients].host_name, host_name);
+                  strlcpy(tr_client[n_tr_clients].host_name, host_name, sizeof(tr_client[n_tr_clients].host_name));
                }
 
                n_tr_clients++;
@@ -3849,11 +4695,36 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
    if (n_tr_clients > 1)
       qsort(tr_client, n_tr_clients, sizeof(TR_CLIENT), tr_compare);
 
-   /* contact ordered clients for transition */
+   /* set predecessor for multi-threaded transitions */
    for (idx = 0; idx < n_tr_clients; idx++) {
-      /* erase error string */
-      error[0] = 0;
+      if (tr_client[idx].sequence_number == 0)
+         tr_client[idx].n_pred = 0; // sequence number 0 means "don't care"
+      else {
+         /* find clients with smaller sequence number */
+         tr_client[idx].n_pred = 0;
+         for (i = idx-1 ; i >= 0 ; i--) {
+            if (tr_client[i].sequence_number < tr_client[idx].sequence_number) {
+               if (i >= 0 && tr_client[i].sequence_number > 0) {
+                  if (tr_client[idx].n_pred == 0)
+                     tr_client[idx].pred = (PTR_CLIENT *)malloc(sizeof(PTR_CLIENT));
+                  else
+                     tr_client[idx].pred = (PTR_CLIENT *)realloc(tr_client[idx].pred, (tr_client[idx].n_pred+1)*sizeof(PTR_CLIENT));
+                  tr_client[idx].pred[tr_client[idx].n_pred] = &tr_client[i];
+                  tr_client[idx].n_pred ++;
+               }
+            }
+         }
+      }
+   }
 
+   /* construction of tr_client is complete, export it to outside watchers */
+
+   tr_current_transition->num_clients = n_tr_clients;
+   tr_current_transition->clients     = tr_client;
+
+   /* contact ordered clients for transition -----------------------*/
+   status = CM_SUCCESS;
+   for (idx = 0; idx < n_tr_clients; idx++) {
       if (debug_flag == 1)
          printf("\n==== Found client \"%s\" with sequence number %d\n",
                 tr_client[idx].client_name, tr_client[idx].sequence_number);
@@ -3862,164 +4733,86 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
                 "cm_transition: ==== Found client \"%s\" with sequence number %d",
                 tr_client[idx].client_name, tr_client[idx].sequence_number);
 
-      /* if own client call transition callback directly */
-      if (tr_client[idx].port == 0) {
-         for (i = 0; _trans_table[i].transition; i++)
-            if (_trans_table[i].transition == transition)
-               break;
-
-         /* call registered function */
-         if (_trans_table[i].transition == transition && _trans_table[i].func) {
-            if (debug_flag == 1)
-               printf("Calling local transition callback\n");
-            if (debug_flag == 2)
-               cm_msg(MINFO, "cm_transition", "cm_transition: Calling local transition callback");
-
-            status = _trans_table[i].func(run_number, error);
-
-            if (debug_flag == 1)
-               printf("Local transition callback finished\n");
-            if (debug_flag == 2)
-               cm_msg(MINFO, "cm_transition", "cm_transition: Local transition callback finished");
-         } else
-            status = CM_SUCCESS;
-
-         if (errstr != NULL)
-            memcpy(errstr, error,
-                   (INT) strlen(error) + 1 < errstr_size ? (INT) strlen(error) + 1 : errstr_size);
-
-         if (status != CM_SUCCESS) {
-            /* indicate abort */
-            i = 1;
-            db_set_value(hDB, 0, "/Runinfo/Start abort", &i, sizeof(INT), 1, TID_INT);
-            i = 0;
-            db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
-
-            free(tr_client);
-            return status;
-         }
-
+      if (async_flag & TR_MTHREAD) {
+         status = CM_SUCCESS;
+         ss_thread_create(cm_transition_call, &tr_client[idx]);
       } else {
+         if (tr_client[idx].port == 0) {
+            /* if own client call transition callback directly */
+            status = cm_transition_call_direct(&tr_client[idx]);
+         } else {
+            /* if other client call transition via RPC layer */
+            status = cm_transition_call(&tr_client[idx]);
+         }
 
-         /* contact client if transition mask set */
-         if (debug_flag == 1)
-            printf("Connecting to client \"%s\" on host %s...\n", tr_client[idx].client_name,
-                   tr_client[idx].host_name);
-         if (debug_flag == 2)
-            cm_msg(MINFO, "cm_transition",
-                   "cm_transition: Connecting to client \"%s\" on host %s...",
-                   tr_client[idx].client_name, tr_client[idx].host_name);
-
-         /* set our timeout for rpc_client_connect() */
-         old_timeout = rpc_get_option(-2, RPC_OTIMEOUT);
-         rpc_set_option(-2, RPC_OTIMEOUT, connect_timeout);
-
-         /* client found -> connect to its server port */
-         status =
-             rpc_client_connect(tr_client[idx].host_name, tr_client[idx].port, tr_client[idx].client_name,
-                                &hConn);
-
-         rpc_set_option(-2, RPC_OTIMEOUT, old_timeout);
-
-         if (status != RPC_SUCCESS) {
-            cm_msg(MERROR, "cm_transition",
-                   "cannot connect to client \"%s\" on host %s, port %d, status %d",
-                   tr_client[idx].client_name, tr_client[idx].host_name, tr_client[idx].port, status);
-            if (errstr != NULL) {
-               strlcpy(errstr, "Cannot connect to client \'", errstr_size);
-               strlcat(errstr, tr_client[idx].client_name, errstr_size);
-               strlcat(errstr, "\'", errstr_size);
+         if (status == CM_SUCCESS && transition != TR_STOP)
+            if (tr_client[idx].status != SUCCESS) {
+               cm_msg(MERROR, "cm_transition", "transition %s aborted: client \"%s\" returned status %d", trname, tr_client[idx].client_name, tr_client[idx].status);
+               break;
             }
+      }
 
-            /* clients that do not respond to transitions are dead or defective, get rid of them. K.O. */
-            cm_shutdown(tr_client[idx].client_name, TRUE);
-            cm_cleanup(tr_client[idx].client_name, TRUE);
+      if (status != CM_SUCCESS)
+         break;
+   }
 
-            if (transition != TR_STOP) {
-               /* indicate abort */
-               i = 1;
-               db_set_value(hDB, 0, "/Runinfo/Start abort", &i, sizeof(INT), 1, TID_INT);
-               i = 0;
-               db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
+   if (async_flag & TR_MTHREAD) {
+      /* wait until all threads have finished */
+      while (1) {
+         int all_done = 1;
 
-               free(tr_client);
-               return status;
+         for (idx = 0; idx < tr_current_transition->num_clients; idx++)
+            if (tr_current_transition->clients[idx].status == 0) {
+               all_done = 0;
+               break;
             }
+         
+         if (all_done)
+            break;
 
-            continue;
+         i = 0;
+         size = sizeof(i);
+         status = db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT, FALSE);
+
+         if (status == DB_SUCCESS && i == 0) {
+            cm_msg(MERROR, "cm_transition", "transition %s aborted: \"/Runinfo/Transition in progress\" was cleared", trname);
+
+            if (errstr != NULL)
+               strlcpy(errstr, "Canceled", errstr_size);
+
+            tr_current_transition->status = CM_INVALID_TRANSITION;
+            strlcpy(tr_current_transition->errorstr, "Canceled", sizeof(tr_current_transition->errorstr));
+
+            return CM_INVALID_TRANSITION;
          }
 
-         if (debug_flag == 1)
-            printf("Connection established to client \"%s\" on host %s\n",
-                   tr_client[idx].client_name, tr_client[idx].host_name);
-         if (debug_flag == 2)
-            cm_msg(MINFO, "cm_transition",
-                   "cm_transition: Connection established to client \"%s\" on host %s",
-                   tr_client[idx].client_name, tr_client[idx].host_name);
-
-         /* call RC_TRANSITION on remote client with increased timeout */
-         old_timeout = rpc_get_option(hConn, RPC_OTIMEOUT);
-         rpc_set_option(hConn, RPC_OTIMEOUT, timeout);
-
-         /* set FTPC protocol if in async mode */
-         if (async_flag == ASYNC)
-            rpc_set_option(hConn, RPC_OTRANSPORT, RPC_FTCP);
-
-         if (debug_flag == 1)
-            printf("Executing RPC transition client \"%s\" on host %s...\n",
-                   tr_client[idx].client_name, tr_client[idx].host_name);
-         if (debug_flag == 2)
-            cm_msg(MINFO, "cm_transition",
-                   "cm_transition: Executing RPC transition client \"%s\" on host %s...",
-                   tr_client[idx].client_name, tr_client[idx].host_name);
-
-         t0 = ss_millitime();
-
-         status = rpc_client_call(hConn, RPC_RC_TRANSITION, transition,
-                                  run_number, error, errstr_size, tr_client[idx].sequence_number);
-
-         t1 = ss_millitime();
-
-         /* reset timeout */
-         rpc_set_option(hConn, RPC_OTIMEOUT, old_timeout);
-
-         /* reset protocol */
-         if (async_flag == ASYNC)
-            rpc_set_option(hConn, RPC_OTRANSPORT, RPC_TCP);
-
-         if (debug_flag == 1)
-            printf("RPC transition finished client \"%s\" on host %s in %d ms with status %d\n",
-                   tr_client[idx].client_name, tr_client[idx].host_name, t1 - t0, status);
-         if (debug_flag == 2)
-            cm_msg(MINFO, "cm_transition",
-                   "cm_transition: RPC transition finished client \"%s\" on host %s in %d ms with status %d",
-                   tr_client[idx].client_name, tr_client[idx].host_name, t1 - t0, status);
-
-         if (errstr != NULL) {
-            if (strlen(error) < 2)
-               sprintf(errstr, "Unknown error %d from client \'%s\' on host %s", status,
-                       tr_client[idx].client_name, tr_client[idx].host_name);
-            else
-               memcpy(errstr, error,
-                      (INT) strlen(error) + 1 < (INT) errstr_size ? (INT) strlen(error) + 1 : errstr_size);
-         }
-
-         if (transition != TR_STOP && status != CM_SUCCESS) {
-            /* indicate abort */
-            i = 1;
-            db_set_value(hDB, 0, "/Runinfo/Start abort", &i, sizeof(INT), 1, TID_INT);
-            i = 0;
-            db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
-
-            free(tr_client);
-            return status;
-         }
+         ss_sleep(100);
       }
    }
 
-   if (tr_client) {
-      free(tr_client);
-      tr_client = NULL;
+   /* search for any error */
+   for (idx = 0 ; idx < n_tr_clients ; idx++)
+      if (tr_client[idx].status != CM_SUCCESS) {
+         status = tr_client[idx].status;
+         if (errstr)
+            strlcpy(errstr, tr_client[idx].errorstr, errstr_size);
+         strlcpy(tr_current_transition->errorstr, "Aborted by client \"", sizeof(tr_current_transition->errorstr));
+         strlcat(tr_current_transition->errorstr, tr_client[idx].client_name, sizeof(tr_current_transition->errorstr));
+         strlcat(tr_current_transition->errorstr, "\"", sizeof(tr_current_transition->errorstr));
+         break;
+      }
+
+   if (transition != TR_STOP && status != CM_SUCCESS) {
+      /* indicate abort */
+      i = 1;
+      db_set_value(hDB, 0, "/Runinfo/Start abort", &i, sizeof(INT), 1, TID_INT);
+      i = 0;
+      db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
+
+      tr_current_transition->status = status;
+      tr_current_transition->end_time = ss_millitime();
+
+      return status;
    }
 
    if (debug_flag == 1)
@@ -4043,7 +4836,7 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
    size = sizeof(state);
    status = db_set_value(hDB, 0, "Runinfo/State", &state, size, 1, TID_INT);
    if (status != DB_SUCCESS)
-      cm_msg(MERROR, "cm_transition", "cannot set Runinfo/State in database");
+      cm_msg(MERROR, "cm_transition", "cannot set Runinfo/State in database, db_set_value() status %d", status);
 
    /* send notification message */
    str[0] = 0;
@@ -4059,7 +4852,7 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
       sprintf(str, "Run #%d start aborted", run_number);
 
    if (str[0])
-      cm_msg(MINFO, "cm_transition", str);
+      cm_msg(MINFO, "cm_transition", "%s", str);
 
    /* lock/unlock ODB values if present */
    db_find_key(hDB, 0, "/Experiment/Lock when running", &hKey);
@@ -4085,6 +4878,7 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
       db_find_key(hDB, 0, "/Programs", &hRootKey);
       if (hRootKey) {
          for (i = 0;; i++) {
+            BOOL program_info_auto_stop = FALSE;
             status = db_enum_key(hDB, hRootKey, i, &hKey);
             if (status == DB_NO_MORE_SUBKEYS)
                break;
@@ -4095,15 +4889,17 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
             if (key.type != TID_KEY)
                continue;
 
-            size = sizeof(program_info);
-            status = db_get_record(hDB, hKey, &program_info, &size, 0);
+            size = sizeof(program_info_auto_stop);
+            status = db_get_value(hDB, hKey, "Auto stop", &program_info_auto_stop, &size, TID_BOOL, TRUE);
             if (status != DB_SUCCESS) {
-               cm_msg(MERROR, "cm_transition", "Cannot get program info record");
+               cm_msg(MERROR, "cm_transition", "Cannot get program info auto stop, status %d", status);
                continue;
             }
 
-            if (program_info.auto_stop)
+            if (program_info_auto_stop) {
+               cm_msg(MINFO, "cm_transition", "Auto Stopping program \"%s\"", key.name);
                cm_shutdown(key.name, FALSE);
+            }
          }
       }
    }
@@ -4116,32 +4912,96 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
    if (errstr != NULL)
       strlcpy(errstr, "Success", errstr_size);
 
+   tr_current_transition->end_time = ss_millitime();
+   tr_current_transition->status = CM_SUCCESS;
+   strlcpy(tr_current_transition->errorstr, "Success", sizeof(tr_current_transition->errorstr));
+
    return CM_SUCCESS;
 }
 
-INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag,
-                  INT debug_flag)
+/*------------------------------------------------------------------*/
+
+/* wrapper around cm_transition2() to send a TR_STARTABORT in case of failure */
+INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag)
 {
    int status;
 
-   status = cm_transition1(transition, run_number, errstr, errstr_size, async_flag, debug_flag);
+   status = cm_transition2(transition, run_number, errstr, errstr_size, async_flag, debug_flag);
 
    if (transition == TR_START && status != CM_SUCCESS) {
-      cm_msg(MERROR, "cm_transition", "Could not start a run: cm_transition() status %d, message \'%s\'",
-             status, errstr);
-      cm_transition1(TR_STARTABORT, run_number, NULL, 0, async_flag, debug_flag);
+      cm_msg(MERROR, "cm_transition", "Could not start a run: cm_transition() status %d, message \'%s\'", status, errstr);
+      cm_transition2(TR_STARTABORT, run_number, NULL, 0, async_flag, debug_flag);
    }
 
    return status;
 }
 
+/*------------------------------------------------------------------*/
 
+INT tr_main_thread(void *param)
+{
+   INT status;
+   TR_PARAM *trp;
+
+   trp = (TR_PARAM *)param;
+   status = cm_transition1(trp->transition, trp->run_number, trp->errstr, trp->errstr_size, trp->async_flag, trp->debug_flag);
+
+   trp->status = status;
+   trp->finished = TRUE;
+   return 0;
+}
+
+/* wrapper around cm_transition1() for detached multi-threaded transitions */
+INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag)
+{
+   int mflag = async_flag & TR_MTHREAD;
+   int sflag = async_flag & TR_SYNC;
+
+   if (mflag) {
+      _trp.transition = transition;
+      _trp.run_number = run_number;
+      if (sflag) {
+         /* in MTHREAD|SYNC mode, we wait until the main thread finishes and it is safe for it to write into errstr */
+         _trp.errstr = errstr;
+         _trp.errstr_size = errstr_size;
+      } else {
+         /* in normal MTHREAD mode, we return right away and
+          * if errstr is a local variable in the caller and they return too,
+          * errstr becomes a stale reference and writing into it will corrupt the stack
+          * in the mlogger, errstr is a local variable in "start_the_run", "stop_the_run"
+          * and we definitely corrupt mlogger memory with out this: */
+         _trp.errstr = NULL;
+         _trp.errstr_size = 0;
+      }
+      _trp.async_flag = async_flag;
+      _trp.debug_flag = debug_flag;
+      _trp.status = 0;
+      _trp.finished = FALSE;
+
+      if (errstr)
+         *errstr = 0; // null error string
+
+      ss_thread_create(tr_main_thread, &_trp);
+      if (sflag) {
+
+         /* wait until main thread has finished */
+         do {
+            ss_sleep(10);
+         } while (!_trp.finished);
+
+         return _trp.status;
+      }
+   } else
+      return cm_transition1(transition, run_number, errstr, errstr_size, async_flag, debug_flag);
+
+   return CM_SUCCESS;
+}
 
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-INT cm_dispatch_ipc(char *message, int s)
+INT cm_dispatch_ipc(const char *message, int s)
 /********************************************************************\
 
   Routine: cm_dispatch_ipc
@@ -4162,16 +5022,18 @@ INT cm_dispatch_ipc(char *message, int s)
 \********************************************************************/
 {
    if (message[0] == 'O') {
-      HNDLE hDB, hKey;
-      sscanf(message + 2, "%d %d", &hDB, &hKey);
-      return db_update_record(hDB, hKey, s);
+      HNDLE hDB, hKey, hKeyRoot;
+      INT index;
+      index = 0;
+      sscanf(message + 2, "%d %d %d %d", &hDB, &hKeyRoot, &hKey, &index);
+      return db_update_record(hDB, hKeyRoot, hKey, index, s);
    }
 
-   /* message == "B  " means "resume event sender" */
+   /* message == "B" means "resume event sender" */
    if (message[0] == 'B' && message[2] != ' ') {
       char str[80];
 
-      strcpy(str, message + 2);
+      strlcpy(str, message + 2, sizeof(str));
       if (strchr(str, ' '))
          *strchr(str, ' ') = 0;
 
@@ -4181,6 +5043,8 @@ INT cm_dispatch_ipc(char *message, int s)
          return bm_push_event(str);
    }
 
+   //printf("cm_dispatch_ipc: message [%s] ignored\n", message);
+
    return CM_SUCCESS;
 }
 
@@ -4189,10 +5053,6 @@ static BOOL _ctrlc_pressed = FALSE;
 
 void cm_ctrlc_handler(int sig)
 {
-   int i;
-
-   i = sig;                     /* avoid compiler warning */
-
    if (_ctrlc_pressed) {
       printf("Received 2nd break. Hard abort.\n");
       exit(0);
@@ -4295,15 +5155,41 @@ INT cm_execute(const char *command, char *result, INT bufsize)
    char str[256];
    INT n;
    int fh;
+   int status = 0;
+   static int check_cm_execute = 1;
+   static int enable_cm_execute = 0;
 
    if (rpc_is_remote())
       return rpc_call(RPC_CM_EXECUTE, command, result, bufsize);
+
+   if (check_cm_execute) {
+      int status;
+      int size;
+      HNDLE hDB;
+      check_cm_execute = 0;
+
+      status = cm_get_experiment_database(&hDB, NULL);
+      assert(status == DB_SUCCESS);
+
+      size = sizeof(enable_cm_execute);
+      status = db_get_value(hDB, 0, "/Experiment/Enable cm_execute", &enable_cm_execute, &size, TID_BOOL, TRUE);
+      assert(status == DB_SUCCESS);
+
+      //printf("enable_cm_execute %d\n", enable_cm_execute);
+   }
+
+   if (!enable_cm_execute) {
+      char buf[32];
+      strlcpy(buf, command, sizeof(buf));
+      cm_msg(MERROR, "cm_execute", "cm_execute(%s...) is disabled by ODB \"/Experiment/Enable cm_execute\"", buf);
+      return CM_WRONG_PASSWORD;
+   }
 
    if (bufsize > 0) {
       strcpy(str, command);
       sprintf(str, "%s > %d.tmp", command, ss_getpid());
 
-      system(str);
+      status = system(str);
 
       sprintf(str, "%d.tmp", ss_getpid());
       fh = open(str, O_RDONLY, 0644);
@@ -4314,8 +5200,14 @@ INT cm_execute(const char *command, char *result, INT bufsize)
          close(fh);
       }
       remove(str);
-   } else
-      system(command);
+   } else {
+      status = system(command);
+   }
+
+   if (status < 0) {
+      cm_msg(MERROR, "cm_execute", "cm_execute(%s) error %d", command, status);
+      return CM_SET_ERROR;
+   }
 
    return CM_SUCCESS;
 }
@@ -4389,6 +5281,52 @@ INT cm_register_function(INT id, INT(*func) (INT, void **))
 *                                                                    *
 \********************************************************************/
 
+static int bm_validate_client_index(const BUFFER * buf, BOOL abort_if_invalid)
+{
+   static int prevent_recursion = 1;
+   int badindex = 0;
+   BUFFER_CLIENT *bcl = buf->buffer_header->client;
+
+   if (buf->client_index < 0)
+      badindex = 1;
+   else if (buf->client_index > buf->buffer_header->max_client_index)
+      badindex = 1;
+   else {
+      bcl = &(buf->buffer_header->client[buf->client_index]);
+      if (bcl->name[0] == 0)
+         badindex = 1;
+      else if (bcl->pid != ss_getpid())
+         badindex = 1;
+   }
+
+#if 0
+   printf
+       ("bm_validate_client_index: badindex=%d, buf=%p, client_index=%d, max_client_index=%d, client_name=\'%s\', client_pid=%d, pid=%d\n",
+        badindex, buf, buf->client_index, buf->buffer_header->max_client_index,
+        buf->buffer_header->client[buf->client_index].name, buf->buffer_header->client[buf->client_index].pid,
+        ss_getpid());
+#endif
+
+   if (badindex) {
+
+      if (!abort_if_invalid)
+         return -1;
+
+      if (prevent_recursion) {
+         prevent_recursion = 0;
+         cm_msg(MERROR, "bm_validate_client_index",
+                "My client index %d in buffer \'%s\' is invalid: client name \'%s\', pid %d should be my pid %d",
+                buf->client_index, buf->buffer_header->name, bcl->name, bcl->pid, ss_getpid());
+         cm_msg(MERROR, "bm_validate_client_index",
+                "Maybe this client was removed by a timeout. Cannot continue, aborting...");
+      }
+
+      abort();
+   }
+
+   return buf->client_index;
+}
+
 /********************************************************************/
 /**
 Check if an event matches a given event request by the
@@ -4458,7 +5396,7 @@ static void bm_cleanup_buffer_locked(int i, const char *who, DWORD actual_time)
 
    /* now check other clients */
    for (j = 0; j < pheader->max_client_index; j++, pbclient++) {
-      
+
 #ifdef OS_UNIX
 #ifdef ESRCH
       if (pbclient->pid) {
@@ -4466,30 +5404,30 @@ static void bm_cleanup_buffer_locked(int i, const char *who, DWORD actual_time)
          kill(pbclient->pid, 0);
          if (errno == ESRCH) {
             cm_msg(MINFO, "bm_cleanup", "Client \'%s\' on buffer \'%s\' removed by %s because process pid %d does not exist", pbclient->name, pheader->name, who, pbclient->pid);
-            
+
             bm_remove_client_locked(pheader, j);
             continue;
          }
       }
 #endif
 #endif
-      
+
       /* If client process has no activity, clear its buffer entry. */
       if (pbclient->pid && pbclient->watchdog_timeout > 0 &&
           actual_time > pbclient->last_activity &&
           actual_time - pbclient->last_activity > pbclient->watchdog_timeout) {
-         
+
          /* now make again the check with the buffer locked */
          actual_time = ss_millitime();
          if (pbclient->pid && pbclient->watchdog_timeout > 0 &&
              actual_time > pbclient->last_activity &&
              actual_time - pbclient->last_activity > pbclient->watchdog_timeout) {
-            
+
             cm_msg(MINFO, "bm_cleanup", "Client \'%s\' on buffer \'%s\' removed by %s (idle %1.1lfs,TO %1.0lfs)",
                    pbclient->name, pheader->name, who,
                    (actual_time - pbclient->last_activity) / 1000.0,
                    pbclient->watchdog_timeout / 1000.0);
-            
+
             bm_remove_client_locked(pheader, j);
          }
       }
@@ -4556,14 +5494,13 @@ Two default buffers are created by the system.
 The "SYSTEM" buffer is used to
 exchange events and the "SYSMSG" buffer is used to exchange system messages.
 The name and size of the event buffers is defined in midas.h as
-EVENT_BUFFER_NAME and 2*MAX_EVENT_SIZE.
+EVENT_BUFFER_NAME and DEFAULT_BUFFER_SIZE.
 Following example opens the "SYSTEM" buffer, requests events with ID 1 and
 enters a main loop. Events are then received in process_event()
 \code
 #include <stdio.h>
 #include "midas.h"
-void process_event(HNDLE hbuf, HNDLE request_id,
-           EVENT_HEADER *pheader, void *pevent)
+void process_event(HNDLE hbuf, HNDLE request_id, EVENT_HEADER *pheader, void *pevent)
 {
   printf("Received event #%d\r",
   pheader->serial_number);
@@ -4575,7 +5512,7 @@ main()
   status = cm_connect_experiment("pc810", "Sample", "Simple Analyzer", NULL);
   if (status != CM_SUCCESS)
   return 1;
-  bm_open_buffer(EVENT_BUFFER_NAME, 2*MAX_EVENT_SIZE, &hbuf);
+  bm_open_buffer(EVENT_BUFFER_NAME, DEFAULT_BUFFER_SIZE, &hbuf);
   bm_request_event(hbuf, 1, TRIGGER_ALL, GET_ALL, request_id, process_event);
 
   do
@@ -4597,7 +5534,7 @@ BM_MEMSIZE_MISMATCH Buffer size conflicts with an existing buffer of
 different size <br>
 BM_INVALID_PARAM Invalid parameter
 */
-INT bm_open_buffer(char *buffer_name, INT buffer_size, INT * buffer_handle)
+INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle)
 {
    INT status;
 
@@ -4616,11 +5553,17 @@ INT bm_open_buffer(char *buffer_name, INT buffer_size, INT * buffer_handle)
       HNDLE hDB, odb_key;
       char odb_path[256];
       void *p;
+      int max_buffer_size = 2 * 1000 * 1024 * 1024;
 
       bm_cleanup("bm_open_buffer", ss_millitime(), FALSE);
 
       if (!buffer_name || !buffer_name[0]) {
          cm_msg(MERROR, "bm_open_buffer", "cannot open buffer with zero name");
+         return BM_INVALID_PARAM;
+      }
+
+      if (strlen(buffer_name) >= NAME_LENGTH) {
+         cm_msg(MERROR, "bm_open_buffer", "buffer name \"%s\" is longer than %d bytes", buffer_name, NAME_LENGTH);
          return BM_INVALID_PARAM;
       }
 
@@ -4638,8 +5581,8 @@ INT bm_open_buffer(char *buffer_name, INT buffer_size, INT * buffer_handle)
       size = sizeof(INT);
       status = db_get_value(hDB, 0, odb_path, &buffer_size, &size, TID_DWORD, TRUE);
 
-      if (buffer_size <= 0 || buffer_size > 1 * 1024 * 1024 * 1024) {
-         cm_msg(MERROR, "bm_open_buffer", "cannot open buffer \'%s\' - invalid buffer size %d", buffer_name, buffer_size);
+      if (buffer_size <= 0 || buffer_size > max_buffer_size) {
+         cm_msg(MERROR, "bm_open_buffer", "cannot open buffer \'%s\' - buffer size %d exceeds maximum size %d", buffer_name, buffer_size, max_buffer_size);
          return BM_INVALID_PARAM;
       }
 
@@ -4690,9 +5633,6 @@ INT bm_open_buffer(char *buffer_name, INT buffer_size, INT * buffer_handle)
 
       handle = i;
 
-      if (strlen(buffer_name) >= NAME_LENGTH)
-         buffer_name[NAME_LENGTH] = 0;
-
       /* reduce buffer size is larger than maximum */
 #ifdef MAX_SHM_SIZE
       if (buffer_size + sizeof(BUFFER_HEADER) > MAX_SHM_SIZE)
@@ -4724,8 +5664,8 @@ INT bm_open_buffer(char *buffer_name, INT buffer_size, INT * buffer_handle)
       } else {
          /* check if buffer size is identical */
          if (pheader->size != buffer_size) {
-            cm_msg(MERROR, "bm_open_buffer", "Requested buffer size (%d) differs from existing size (%d)",
-                   buffer_size, pheader->size);
+            cm_msg(MERROR, "bm_open_buffer", "Cannot open buffer \"%s\": requested buffer size (%d) differs from existing size (%d)",
+                   buffer_name, buffer_size, pheader->size);
             *buffer_handle = 0;
             _buffer_entries--;
             return BM_MEMSIZE_MISMATCH;
@@ -4838,6 +5778,7 @@ INT bm_close_buffer(INT buffer_handle)
       BUFFER_CLIENT *pclient;
       BUFFER_HEADER *pheader;
       INT i, j, idx, destroy_flag;
+      char xname[256];
 
       if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
          cm_msg(MERROR, "bm_close_buffer", "invalid buffer handle %d", buffer_handle);
@@ -4921,8 +5862,12 @@ INT bm_close_buffer(INT buffer_handle)
          if (pclient->pid && (pclient->write_wait || pclient->read_wait))
             ss_resume(pclient->port, "B  ");
 
+      strlcpy(xname, pheader->name, sizeof(xname));
+
+      pheader = NULL; // after ss_shm_close(), pheader points nowhere
+
       /* unmap shared memory, delete it if we are the last */
-      ss_shm_close(pheader->name, _buffer[buffer_handle - 1].buffer_header,
+      ss_shm_close(xname, _buffer[buffer_handle - 1].buffer_header,
                    _buffer[buffer_handle - 1].shm_handle, destroy_flag);
 
       /* unlock buffer */
@@ -4960,6 +5905,11 @@ INT bm_close_all_buffers(void)
 #ifdef LOCAL_ROUTINES
    {
       INT i;
+
+      if (_msg_buffer) {
+         bm_close_buffer(_msg_buffer);
+         _msg_buffer = 0;
+      }
 
       for (i = _buffer_entries; i > 0; i--)
          bm_close_buffer(i);
@@ -5012,7 +5962,7 @@ void cm_watchdog(int dummy)
       /* Schedule next watchdog call */
       if (_call_watchdog)
          ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
-      
+
       return;
    }
 #endif
@@ -5035,19 +5985,21 @@ void cm_watchdog(int dummy)
          /* Schedule next watchdog call */
          if (_call_watchdog)
             ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
-         
+
          return;
       }
    }
 
    /* extra check on watchdog interval */
-   if (0) {
+#if 0
+   if (1) {
       static time_t last = 0;
       time_t now = time(NULL);
       fprintf(stderr, "cm_watchdog interval %d\n", (int)(now - last));
       last = now;
    }
-
+#endif
+   
    /* tell system services that we are in async mode ... */
    ss_set_async_flag(TRUE);
 
@@ -5450,7 +6402,7 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout)
 
                      /* display info message after unlocking buffer */
                      if (str[0])
-                        cm_msg(MINFO, "cm_cleanup", str);
+                        cm_msg(MINFO, "cm_cleanup", "%s", str);
 
                      /* go again through whole list */
                      j = 0;
@@ -5545,6 +6497,10 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout)
 
    return CM_SUCCESS;
 }
+
+/**dox***************************************************************/
+
+/** @} *//* end of cmfunctionc */
 
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
@@ -5779,9 +6735,6 @@ INT bm_init_buffer_counters(INT buffer_handle)
 
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
-
-/**dox***************************************************************/
-                                                                                                                               /** @} *//* end of cmfunctionc */
 
 /**dox***************************************************************/
 /** @addtogroup bmfunctionc
@@ -6367,6 +7320,15 @@ static void bm_wakeup_producers(const BUFFER_HEADER * pheader, const BUFFER_CLIE
    int i;
    int size;
    const BUFFER_CLIENT *pctmp = pheader->client;
+   int have_get_all_requests = 0;
+
+   for (i = 0; i < pc->max_request_index; i++)
+      if (pc->event_request[i].valid)
+         have_get_all_requests |= (pc->event_request[i].sampling_type == GET_ALL);
+   
+   /* only GET_ALL requests actually free space in the event buffer */
+   if (!have_get_all_requests)
+      return;
 
    /*
       If read pointer has been changed, it may have freed up some space
@@ -6617,7 +7579,7 @@ static int bm_wait_for_free_space(int buffer_handle, BUFFER * pbuf, int async_fl
       bm_unlock_buffer(buffer_handle);
 
       /* return now in ASYNC mode */
-      if (async_flag)
+      if (async_flag == BM_NO_WAIT)
          return BM_ASYNC_RETURN;
 
 #ifdef DEBUG_MSG
@@ -6689,7 +7651,7 @@ main()
  status = cm_connect_experiment("", "Sample", "Producer", NULL);
  if (status != CM_SUCCESS)
  return 1;
- bm_open_buffer(EVENT_BUFFER_NAME, 2*MAX_EVENT_SIZE, &hbuf);
+ bm_open_buffer(EVENT_BUFFER_NAME, DEFAULT_BUFFER_SIZE, &hbuf);
 
  // create event with ID 1, trigger mask 0, size 100 bytes and serial number 1
  bm_compose_event((EVENT_HEADER *) event, 1, 0, 100, 1);
@@ -6698,7 +7660,7 @@ main()
  for (i=0 ; i<100 ; i++)
  *(event+sizeof(EVENT_HEADER)+i) = i;
  // send event
- bm_send_event(hbuf, event, 100+sizeof(EVENT_HEADER), SYNC);
+ bm_send_event(hbuf, event, 100+sizeof(EVENT_HEADER), BM_WAIT);
  cm_disconnect_experiment();
  return 0;
 }
@@ -6706,18 +7668,18 @@ main()
 @param buffer_handle Buffer handle obtained via bm_open_buffer()
 @param source Address of event buffer
 @param buf_size Size of event including event header in bytes
-@param async_flag Synchronous/asynchronous flag. If FALSE, the function
+@param async_flag Synchronous/asynchronous flag. If BM_WAIT, the function
 blocks if the buffer has not enough free space to receive the event.
-If TRUE, the function returns immediately with a
+If BM_NO_WAIT, the function returns immediately with a
 value of BM_ASYNC_RETURN without writing the event to the buffer
 @return BM_SUCCESS, BM_INVALID_HANDLE, BM_INVALID_PARAM<br>
-BM_ASYNC_RETURN Routine called with async_flag == TRUE and
+BM_ASYNC_RETURN Routine called with async_flag == BM_NO_WAIT and
 buffer has not enough space to receive event<br>
 BM_NO_MEMORY   Event is too large for network buffer or event buffer.
-One has to increase MAX_EVENT_SIZE in midas.h and
-recompile.
+One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
+and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
-INT bm_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag)
+INT bm_send_event(INT buffer_handle, const void *source, INT buf_size, INT async_flag)
 {
    EVENT_HEADER *pevent;
 
@@ -6897,15 +7859,15 @@ end of each run, otherwise events could be kept in the write buffer and will
 flow to the data of the next run.
 @param buffer_handle Buffer handle obtained via bm_open_buffer()
 @param async_flag Synchronous/asynchronous flag.
-If FALSE, the function blocks if the buffer has not
-enough free space to receive the full cache. If TRUE, the function returns
+If BM_WAIT, the function blocks if the buffer has not
+enough free space to receive the full cache. If BM_NO_WAIT, the function returns
 immediately with a value of BM_ASYNC_RETURN without writing the cache.
 @return BM_SUCCESS, BM_INVALID_HANDLE<br>
-BM_ASYNC_RETURN Routine called with async_flag == TRUE
+BM_ASYNC_RETURN Routine called with async_flag == BM_NO_WAIT
 and buffer has not enough space to receive cache<br>
 BM_NO_MEMORY Event is too large for network buffer or event buffer.
-One has to increase MAX_EVENT_SIZE in midas.h
-and recompile.
+One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
+and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
 INT bm_flush_cache(INT buffer_handle, INT async_flag)
 {
@@ -7075,13 +8037,13 @@ main()
   "Simple Analyzer", NULL);
   if (status != CM_SUCCESS)
    return 1;
-  bm_open_buffer(EVENT_BUFFER_NAME, 2*MAX_EVENT_SIZE, &hbuf);
+  bm_open_buffer(EVENT_BUFFER_NAME, DEFAULT_BUFFER_SIZE, &hbuf);
   bm_request_event(hbuf, 1, TRIGGER_ALL, GET_ALL, request_id, NULL);
 
   do
   {
    size = sizeof(event_buffer);
-   status = bm_receive_event(hbuf, event_buffer, &size, ASYNC);
+   status = bm_receive_event(hbuf, event_buffer, &size, BM_NO_WAIT);
   if (status == CM_SUCCESS)
    process_event((EVENT_HEADER *) event_buffer);
    <...do something else...>
@@ -7096,8 +8058,8 @@ main()
 @param destination destination address where event is written to
 @param buf_size size of destination buffer on input, size of event plus
 header on return.
-@param async_flag Synchronous/asynchronous flag. If FALSE, the function
-blocks if no event is available. If TRUE, the function returns immediately
+@param async_flag Synchronous/asynchronous flag. If BM_WAIT, the function
+blocks if no event is available. If BM_NO_WAIT, the function returns immediately
 with a value of BM_ASYNC_RETURN without receiving any event.
 @return BM_SUCCESS, BM_INVALID_HANDLE <br>
 BM_TRUNCATED   The event is larger than the destination buffer and was
@@ -7108,10 +8070,6 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
 {
    if (rpc_is_remote()) {
       int status, old_timeout = 0;
-
-      status = resize_net_send_buffer("bm_receive_event", *buf_size);
-      if (status != SUCCESS)
-         return status;  
 
       if (!async_flag) {
          old_timeout = rpc_get_option(-1, RPC_OTIMEOUT);
@@ -7130,7 +8088,7 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
    {
       BUFFER *pbuf;
       BUFFER_HEADER *pheader;
-      BUFFER_CLIENT *pclient, *pc;
+      BUFFER_CLIENT *pc;
       char *pdata;
       INT convert_flags;
       INT i, size, max_size;
@@ -7171,11 +8129,10 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
       pheader = pbuf->buffer_header;
       pdata = (char *) (pheader + 1);
       my_client_index = bm_validate_client_index(pbuf, TRUE);
-      pclient = pheader->client;
       pc = pheader->client + my_client_index;
 
       /* first do a quick check without locking the buffer */
-      if (async_flag == ASYNC && pheader->write_pointer == pc->read_pointer)
+      if (async_flag == BM_NO_WAIT && pheader->write_pointer == pc->read_pointer)
          return BM_ASYNC_RETURN;
 
       /* lock the buffer */
@@ -7186,7 +8143,7 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
          bm_unlock_buffer(buffer_handle);
 
          /* return now in ASYNC mode */
-         if (async_flag == ASYNC)
+         if (async_flag == BM_NO_WAIT)
             return BM_ASYNC_RETURN;
 
          pc->read_wait = TRUE;
@@ -7242,6 +8199,14 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
          for (i = 0; i < pc->max_request_index; i++, prequest++)
             if (prequest->valid && bm_match_event(prequest->event_id, prequest->trigger_mask, pevent)) {
 
+               /* check if this is a recent event */
+               if (prequest->sampling_type == GET_RECENT) {
+                  if (ss_time() - pevent->time_stamp > 1) {
+                     /* skip that event */
+                     continue;
+                  }
+               }
+               
                /* we found a request for this event, so copy it */
 
                if (pbuf->read_cache_size > 0 && total_size < pbuf->read_cache_size) {
@@ -7442,7 +8407,7 @@ INT bm_push_event(char *buffer_name)
    {
       BUFFER *pbuf;
       BUFFER_HEADER *pheader;
-      BUFFER_CLIENT *pclient, *pc;
+      BUFFER_CLIENT *pc;
       char *pdata;
       INT i, size, buffer_handle;
       INT my_client_index;
@@ -7485,7 +8450,6 @@ INT bm_push_event(char *buffer_name)
       pheader = pbuf->buffer_header;
       pdata = (char *) (pheader + 1);
       my_client_index = bm_validate_client_index(pbuf, TRUE);
-      pclient = pheader->client;
       pc = pheader->client + my_client_index;
 
       /* first do a quick check without locking the buffer */
@@ -7534,8 +8498,6 @@ INT bm_push_event(char *buffer_name)
                      /* skip that event */
                      continue;
                   }
-
-                  printf("now: %d, event: %d\n", ss_time(), pevent->time_stamp);
                }
 
                /* we found a request for this event, so copy it */
@@ -7707,7 +8669,7 @@ INT bm_check_buffers()
             /* one bm_push_event could cause a run stop and a buffer close, which
                would crash the next call to bm_push_event(). So check for valid
                buffer on each call */
-            if (idx < _buffer_entries && _buffer[idx].buffer_header->name != NULL)
+            if (idx < _buffer_entries && _buffer[idx].buffer_header->name[0] != 0)
                status = bm_push_event(_buffer[idx].buffer_header->name);
 
             if (status != BM_MORE_EVENTS)
@@ -7882,7 +8844,7 @@ INT bm_poll_event(INT flag)
 
    if (_event_buffer_size == 0) {
       HNDLE hDB, odb_key;
-      int max_event_size = MAX_EVENT_SIZE;
+      int max_event_size = DEFAULT_MAX_EVENT_SIZE;
 
       /* get max event size from ODB */
       status = cm_get_experiment_database(&hDB, &odb_key);
@@ -7891,7 +8853,6 @@ INT bm_poll_event(INT flag)
       status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &max_event_size, &size, TID_DWORD, TRUE);
 
       size = max_event_size + sizeof(EVENT_HEADER);
-      //printf("alloc event buffer %d\n", size);
       _event_buffer = (EVENT_HEADER *) M_MALLOC(size);
       if (!_event_buffer) {
          cm_msg(MERROR, "bm_poll_event", "not enough memory to allocate event buffer of size %d", size);
@@ -7923,8 +8884,7 @@ INT bm_poll_event(INT flag)
       do {
          /* receive event */
          size = _event_buffer_size;
-         status = bm_receive_event(_request_list[request_id].buffer_handle, _event_buffer, &size, ASYNC);
-         //printf("receive_event buf %d, event %d, status %d\n", _event_buffer_size, size, status);
+         status = bm_receive_event(_request_list[request_id].buffer_handle, _event_buffer, &size, BM_NO_WAIT);
 
          /* call user function if successful */
          if (status == BM_SUCCESS)
@@ -8086,7 +9046,6 @@ void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
 \********************************************************************/
 {
    INT i;
-   static int j = -1;
 
    if ((pevent->event_id & 0xF000) == EVENTID_FRAG1) {
       /*---- start new event ----*/
@@ -8121,8 +9080,8 @@ void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
       /* check event size */
       if (pevent->data_size != sizeof(DWORD)) {
          cm_msg(MERROR, "bm_defragment_event",
-                "Received first event fragment with %s bytes instead of %d bytes, event ignored",
-                pevent->data_size, sizeof(DWORD));
+                "Received first event fragment with %d bytes instead of %d bytes, event ignored",
+                pevent->data_size, (int)sizeof(DWORD));
          return;
       }
 
@@ -8144,8 +9103,6 @@ void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
 
       // printf("First frag[%d] (ID %d) Ser#:%d sz:%d\n", i, defrag_buffer[i].event_id,
       //       pevent->serial_number, defrag_buffer[i].data_size);
-
-      j = 0;
 
       return;
    }
@@ -8426,7 +9383,7 @@ INT rpc_tid_size(INT id)
    return 0;
 }
 
-char *rpc_tid_name(INT id)
+const char *rpc_tid_name(INT id)
 {
    if (id >= 0 && id < TID_LAST)
       return tid_name[id];
@@ -8601,7 +9558,7 @@ INT rpc_client_dispatch(int sock)
 
 \********************************************************************/
 {
-   INT hDB, hKey, n;
+   INT hDB, hKeyRoot, hKey, n, index;
    NET_COMMAND *nc;
    INT status = 0;
    char net_buffer[256];
@@ -8613,10 +9570,13 @@ INT rpc_client_dispatch(int sock)
       return SS_ABORT;
 
    if (nc->header.routine_id == MSG_ODB) {
+      assert(n == sizeof(NET_COMMAND_HEADER) + 4 * sizeof(INT));
       /* update a changed record */
       hDB = *((INT *) nc->param);
-      hKey = *((INT *) nc->param + 1);
-      status = db_update_record(hDB, hKey, 0);
+      hKeyRoot = *((INT *) nc->param + 1);
+      hKey = *((INT *) nc->param + 2);
+      index = *((INT *) nc->param + 3);
+      status = db_update_record(hDB, hKeyRoot, hKey, index, 0);
    }
 
    else if (nc->header.routine_id == MSG_WATCHDOG) {
@@ -8648,8 +9608,10 @@ INT rpc_client_dispatch(int sock)
             if (nc->header.routine_id == MSG_ODB) {
                /* update a changed record */
                hDB = *((INT *) nc->param);
-               hKey = *((INT *) nc->param + 1);
-               status = db_update_record(hDB, hKey, 0);
+               hKeyRoot = *((INT *) nc->param + 1);
+               hKey = *((INT *) nc->param + 2);
+               index = *((INT *) nc->param + 3);
+               status = db_update_record(hDB, hKeyRoot, hKey, index, 0);
             }
 
             else if (nc->header.routine_id == MSG_WATCHDOG) {
@@ -8695,7 +9657,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
 
 \********************************************************************/
 {
-   INT i, status, idx;
+   INT i, status, idx, size;
    struct sockaddr_in bind_addr;
    INT sock;
    INT remote_hw_type, hw_type;
@@ -8704,6 +9666,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    char local_prog_name[NAME_LENGTH];
    char local_host_name[HOST_NAME_LENGTH];
    struct hostent *phe;
+   static MUTEX_T *mtx = NULL;
 
 #ifdef OS_WINNT
    {
@@ -8721,15 +9684,31 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
       return RPC_NOT_REGISTERED;
    }
 
-   /* check for broken connections */
-   rpc_client_check();
+   /* make this funciton multi-thread safe */
+   if (!mtx)
+      ss_mutex_create(&mtx);
 
+   ss_mutex_wait_for(mtx, 10000);
+
+#if 0
+   for (i = 0; i < MAX_RPC_CONNECTION; i++)
+      if (_client_connection[i].send_sock != 0)
+         printf("connection %d: client \"%s\" on host \"%s\" port %d, socket %d, connected %d\n", i, _client_connection[i].client_name, _client_connection[i].host_name, _client_connection[i].port, _client_connection[i].send_sock, _client_connection[i].connected);
+#endif
+   
    /* check if connection already exists */
    for (i = 0; i < MAX_RPC_CONNECTION; i++)
       if (_client_connection[i].send_sock != 0 &&
           strcmp(_client_connection[i].host_name, host_name) == 0 && _client_connection[i].port == port) {
-         *hConnection = i + 1;
-         return RPC_SUCCESS;
+         status = ss_socket_wait(_client_connection[i].send_sock, 0);
+         if (status == SS_TIMEOUT) { // socket should be empty
+            *hConnection = i + 1;
+            ss_mutex_release(mtx);
+            return RPC_SUCCESS;
+         }
+         //cm_msg(MINFO, "rpc_client_connect", "Stale connection to \"%s\" on host %s is closed", _client_connection[i].client_name, _client_connection[i].host_name);
+         closesocket(_client_connection[i].send_sock);
+         _client_connection[i].send_sock = 0;
       }
 
    /* search for free entry */
@@ -8740,13 +9719,15 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    /* open new network connection */
    if (i == MAX_RPC_CONNECTION) {
       cm_msg(MERROR, "rpc_client_connect", "maximum number of connections exceeded");
+      ss_mutex_release(mtx);
       return RPC_NO_CONNECTION;
    }
 
    /* create a new socket for connecting to remote server */
    sock = socket(AF_INET, SOCK_STREAM, 0);
    if (sock == -1) {
-      cm_msg(MERROR, "rpc_client_connect", "cannot create socket");
+      cm_msg(MERROR, "rpc_client_connect", "cannot create socket, socket() errno %d (%s)", errno, strerror(errno));
+      ss_mutex_release(mtx);
       return RPC_NET_ERROR;
    }
 
@@ -8758,6 +9739,10 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    _client_connection[idx].transport = RPC_TCP;
    _client_connection[idx].rpc_timeout = DEFAULT_RPC_TIMEOUT;
    _client_connection[idx].rpc_timeout = DEFAULT_RPC_TIMEOUT;
+   _client_connection[idx].send_sock = sock;
+   _client_connection[idx].connected = 0;
+
+   ss_mutex_release(mtx);
 
    /* connect to remote node */
    memset(&bind_addr, 0, sizeof(bind_addr));
@@ -8776,6 +9761,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    phe = gethostbyname(host_name);
    if (phe == NULL) {
       cm_msg(MERROR, "rpc_client_connect", "cannot lookup host name \'%s\'", host_name);
+      _client_connection[idx].send_sock = 0;
       return RPC_NET_ERROR;
    }
    memcpy((char *) &(bind_addr.sin_addr), phe->h_addr, phe->h_length);
@@ -8792,10 +9778,12 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
 #endif
 
    if (status != 0) {
-      /* cm_msg(MERROR, "rpc_client_connect", "cannot connect");
-         message should be displayed by application */
+      cm_msg(MERROR, "rpc_client_connect", "cannot connect to host \"%s\", port %d: connect() returned %d, errno %d (%s)", host_name, port, status, errno, strerror(errno));
+      _client_connection[idx].send_sock = 0;
       return RPC_NET_ERROR;
    }
+
+   _client_connection[idx].connected = 1;
 
    /* set TCP_NODELAY option for better performance */
    i = 1;
@@ -8803,12 +9791,17 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
 
    /* send local computer info */
    rpc_get_name(local_prog_name);
-   gethostname(local_host_name, sizeof(local_host_name));
+   ss_gethostname(local_host_name, sizeof(local_host_name));
 
    hw_type = rpc_get_option(0, RPC_OHW_TYPE);
    sprintf(str, "%d %s %s %s", hw_type, cm_get_version(), local_prog_name, local_host_name);
 
-   send(sock, str, strlen(str) + 1, 0);
+   size = strlen(str) + 1;
+   i = send(sock, str, size, 0);
+   if (i < 0 || i != size) {
+      cm_msg(MERROR, "rpc_client_connect", "cannot send %d bytes, send() returned %d, errno %d (%s)", size, i, errno, strerror(errno));
+      return RPC_NET_ERROR;
+   }
 
    /* receive remote computer info */
    i = recv_string(sock, str, sizeof(str), _rpc_connect_timeout);
@@ -8820,7 +9813,6 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    remote_hw_type = version[0] = 0;
    sscanf(str, "%d %s", &remote_hw_type, version);
    _client_connection[idx].remote_hw_type = remote_hw_type;
-   _client_connection[idx].send_sock = sock;
 
    /* print warning if version patch level doesn't agree */
    strcpy(v1, version);
@@ -8834,8 +9826,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
          *strchr(strchr(str, '.') + 1, '.') = 0;
 
    if (strcmp(v1, str) != 0) {
-      sprintf(str, "remote MIDAS version \'%s\' differs from local version \'%s\'", version, cm_get_version());
-      cm_msg(MERROR, "rpc_client_connect", str);
+      cm_msg(MERROR, "rpc_client_connect", "remote MIDAS version \'%s\' differs from local version \'%s\'", version, cm_get_version());
    }
 
    *hConnection = idx + 1;
@@ -8851,23 +9842,24 @@ void rpc_client_check()
 
   Purpose: Check all client connections if remote client closed link
 
-  Function value:
-    RPC_SUCCESS              Successful completion
-    RPC_NET_ERROR            Error in socket call
-    RPC_NO_CONNECTION        Maximum number of connections reached
-    RPC_NOT_REGISTERED       cm_connect_experiment was not called properly
-
 \********************************************************************/
 {
    INT i, status;
 
+#if 0
+   for (i = 0; i < MAX_RPC_CONNECTION; i++)
+      if (_client_connection[i].send_sock != 0)
+         printf("slot %d, checking client %s socket %d, connected %d\n", i, _client_connection[i].client_name, _client_connection[i].send_sock, _client_connection[i].connected);
+#endif
+   
    /* check for broken connections */
    for (i = 0; i < MAX_RPC_CONNECTION; i++)
-      if (_client_connection[i].send_sock != 0) {
+      if (_client_connection[i].send_sock != 0 && _client_connection[i].connected) {
          int sock;
          fd_set readfds;
          struct timeval timeout;
          char buffer[64];
+         int ok = 0;
 
          sock = _client_connection[i].send_sock;
          FD_ZERO(&readfds);
@@ -8876,29 +9868,56 @@ void rpc_client_check()
          timeout.tv_sec = 0;
          timeout.tv_usec = 0;
 
+#ifdef OS_WINNT
+         status = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
+#else
          do {
             status = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
-         } while (status == -1);        /* dont return if an alarm signal was cought */
+         } while (status == -1 && errno == EINTR); /* dont return if an alarm signal was cought */
+#endif
 
-         if (FD_ISSET(sock, &readfds)) {
-            status = recv(sock, (char *) buffer, sizeof(buffer), 0);
+         if (!FD_ISSET(sock, &readfds))
+            continue;
 
+         status = recv(sock, (char *) buffer, sizeof(buffer), MSG_PEEK);
+         //printf("recv %d status %d, errno %d (%s)\n", sock, status, errno, strerror(errno));
+
+         if (status < 0) {
+#ifndef OS_WINNT
+            if (errno == EAGAIN) { // still connected
+               ok = 1;
+            } else
+#endif
+            {
+               // connection error
+               cm_msg(MERROR, "rpc_client_check",
+                      "Connection broken to \"%s\" on host %s, recv() errno %d (%s)",
+                      _client_connection[i].client_name, _client_connection[i].host_name, errno, strerror(errno));
+            }
+         } else if (status == 0) {
+            // connection closed by remote end
+            cm_msg(MERROR, "rpc_client_check",
+                   "Connection to \"%s\" on host %s unexpectedly closed",
+                   _client_connection[i].client_name, _client_connection[i].host_name);
+         } else {
+            // read some data
+            ok = 1;
             if (equal_ustring(buffer, "EXIT")) {
                /* normal exit */
-               closesocket(sock);
-               memset(&_client_connection[i], 0, sizeof(RPC_CLIENT_CONNECTION));
-            }
-
-            if (status <= 0) {
-               cm_msg(MERROR, "rpc_client_check",
-                      "Connection broken to \"%s\" on host %s",
-                      _client_connection[i].client_name, _client_connection[i].host_name);
-
-               /* connection broken -> reset */
-               closesocket(sock);
-               memset(&_client_connection[i], 0, sizeof(RPC_CLIENT_CONNECTION));
+               ok = 0;
             }
          }
+
+         if (ok)
+            continue;
+
+         //cm_msg(MINFO, "rpc_client_check",
+         //       "Connection to \"%s\" on host %s closed",
+         //       _client_connection[i].client_name, _client_connection[i].host_name);
+
+         // connection lost, close the socket
+         closesocket(sock);
+         _client_connection[i].send_sock = 0;
       }
 }
 
@@ -9122,8 +10141,7 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
          *strchr(strchr(str, '.') + 1, '.') = 0;
 
    if (strcmp(v1, str) != 0) {
-      sprintf(str, "remote MIDAS version \'%s\' differs from local version \'%s\'", version, cm_get_version());
-      cm_msg(MERROR, "rpc_server_connect", str);
+      cm_msg(MERROR, "rpc_server_connect", "remote MIDAS version \'%s\' differs from local version \'%s\'", version, cm_get_version());
    }
 
    /* wait for callback on send and recv socket with timeout */
@@ -9306,6 +10324,7 @@ INT rpc_server_disconnect()
    /* remove semaphore */
    if (_mutex_rpc)
       ss_mutex_delete(_mutex_rpc);
+   _mutex_rpc = NULL;
 
    rpc_server_disconnect_recursion_level = 0;
    return RPC_SUCCESS;
@@ -9708,7 +10727,7 @@ INT rpc_set_name(const char *name)
 
 \********************************************************************/
 {
-   strcpy(_client_name, name);
+   strlcpy(_client_name, name, sizeof(_client_name));
 
    return RPC_SUCCESS;
 }
@@ -9845,18 +10864,21 @@ INT rpc_client_call(HNDLE hConn, const INT routine_id, ...)
    INT i, idx, status, rpc_index;
    INT param_size, arg_size, send_size;
    INT tid, flags;
-   fd_set readfds;
-   struct timeval timeout;
-   char *param_ptr, str[80];
+   char *param_ptr;
    BOOL bpointer, bbig;
    NET_COMMAND *nc;
    int send_sock;
-   time_t start_time;
+   char* buf = NULL;
+   DWORD buf_size = 0;
+   const char* host_name = NULL;
+   const char* client_name = NULL;
+   const char* rpc_name = NULL;
+   DWORD rpc_status = 0;
 
    idx = hConn - 1;
 
    if (_client_connection[idx].send_sock == 0) {
-      cm_msg(MERROR, "rpc_client_call", "no rpc connection");
+      cm_msg(MERROR, "rpc_client_call", "no rpc connection or invalid rpc connection handle %d", hConn);
       return RPC_NO_CONNECTION;
    }
 
@@ -9864,25 +10886,37 @@ INT rpc_client_call(HNDLE hConn, const INT routine_id, ...)
    rpc_timeout = _client_connection[idx].rpc_timeout;
    transport = _client_connection[idx].transport;
 
-   status = resize_net_send_buffer("rpc_client_call", NET_BUFFER_SIZE);
-   if (status != SUCCESS)
-      return RPC_EXCEED_BUFFER;
+   host_name = _client_connection[idx].host_name;
+   client_name = _client_connection[idx].client_name;
 
-   nc = (NET_COMMAND *) _net_send_buffer;
-   nc->header.routine_id = routine_id;
-
-   if (transport == RPC_FTCP)
-      nc->header.routine_id |= TCP_FAST;
+   /* find rpc_index */
 
    for (i = 0;; i++)
       if (rpc_list[i].id == routine_id || rpc_list[i].id == 0)
          break;
    rpc_index = i;
-   if (rpc_list[i].id == 0) {
-      sprintf(str, "invalid rpc ID (%d)", routine_id);
-      cm_msg(MERROR, "rpc_client_call", str);
+
+   if (rpc_list[rpc_index].id == 0) {
+      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" with invalid RPC ID %d", client_name, host_name, routine_id);
       return RPC_INVALID_ID;
    }
+
+   rpc_name = rpc_list[rpc_index].name;
+
+   /* prepare output buffer */
+
+   buf_size = sizeof(NET_COMMAND) + 1024;
+   buf = (char *)malloc(buf_size);
+   if (buf == NULL) {
+      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\" cannot allocate %d bytes for transmit buffer", client_name, host_name, rpc_name, (int)buf_size);
+      return RPC_NO_MEMORY;
+   }
+
+   nc = (NET_COMMAND *) buf;
+   nc->header.routine_id = routine_id;
+
+   if (transport == RPC_FTCP)
+      nc->header.routine_id |= TCP_FAST;
 
    /* examine variable argument list and convert it to parameter array */
    va_start(ap, routine_id);
@@ -9952,11 +10986,21 @@ INT rpc_client_call(HNDLE hConn, const INT routine_id, ...)
          /* always align parameter size */
          param_size = ALIGN8(arg_size);
 
-         if ((POINTER_T) param_ptr - (POINTER_T) nc + param_size > _net_send_buffer_size) {
-            cm_msg(MERROR, "rpc_client_call",
-                   "parameters (%d) too large for network buffer (%d)",
-                   (POINTER_T) param_ptr - (POINTER_T) nc + param_size, _net_send_buffer_size);
-            return RPC_EXCEED_BUFFER;
+         {
+            size_t param_offset = (char*)param_ptr - (char*)nc;
+
+            if (param_offset + param_size + 16 > buf_size) {
+               size_t new_size = param_offset + param_size + 1024;
+               buf = (char *)realloc(buf, new_size);
+               if (buf == NULL) {
+                  cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\" cannot resize the data buffer from %d bytes to %d bytes", client_name, host_name, rpc_name, (int)buf_size, (int)new_size);
+                  free(nc); // "nc" still points to the old value of "buf"
+                  return RPC_NO_MEMORY;
+               }
+               buf_size = new_size;
+               nc = (NET_COMMAND*)buf;
+               param_ptr = buf + param_offset;
+            }
          }
 
          if (bpointer)
@@ -9970,7 +11014,6 @@ INT rpc_client_call(HNDLE hConn, const INT routine_id, ...)
          }
 
          param_ptr += param_size;
-
       }
    }
 
@@ -9985,72 +11028,49 @@ INT rpc_client_call(HNDLE hConn, const INT routine_id, ...)
       i = send_tcp(send_sock, (char *) nc, send_size, 0);
 
       if (i != send_size) {
-         cm_msg(MERROR, "rpc_client_call", "send_tcp() failed");
+         cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": send_tcp() failed", client_name, host_name, rpc_name);
+         free(buf);
          return RPC_NET_ERROR;
       }
 
+      free(buf);
       return RPC_SUCCESS;
    }
 
    /* in TCP mode, send and wait for reply on send socket */
    i = send_tcp(send_sock, (char *) nc, send_size, 0);
    if (i != send_size) {
-      cm_msg(MERROR, "rpc_client_call",
-             "send_tcp() failed, routine = \"%s\", host = \"%s\"",
-             rpc_list[rpc_index].name, _client_connection[idx].host_name);
+      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": send_tcp() failed", client_name, host_name, rpc_name);
       return RPC_NET_ERROR;
    }
 
-   /* make some timeout checking */
-   if (rpc_timeout > 0) {
-      start_time = ss_time();
-
-      do {
-         FD_ZERO(&readfds);
-         FD_SET(send_sock, &readfds);
-
-         timeout.tv_sec = 1;
-         timeout.tv_usec = 0;
-
-         status = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
-
-         if (status >= 0 && FD_ISSET(send_sock, &readfds))
-            break;
-
-         if (ss_time() - start_time > rpc_timeout / 1000)
-            break;
-
-      } while (status == -1 || status == 0);    /* continue again if signal was cought */
-
-      if (!FD_ISSET(send_sock, &readfds)) {
-         cm_msg(MERROR, "rpc_client_call",
-                "rpc timeout after %d sec, routine = \"%s\", host = \"%s\", connection closed",
-                (int) (ss_time() - start_time), rpc_list[rpc_index].name, _client_connection[idx].host_name);
-
-         /* disconnect to avoid that the reply to this rpc_call comes at
-            the next rpc_call */
-         rpc_client_disconnect(hConn, FALSE);
-
-         return RPC_TIMEOUT;
-      }
-   }
+   free(buf);
+   buf = NULL;
+   buf_size = 0;
+   nc = NULL;
 
    /* receive result on send socket */
-   i = recv_tcp(send_sock, _net_send_buffer, _net_send_buffer_size, 0);
+   status = ss_recv_net_command(send_sock, &rpc_status, &buf_size, &buf, rpc_timeout);
 
-   if (i <= 0) {
-      cm_msg(MERROR, "rpc_client_call",
-             "recv_tcp() failed, routine = \"%s\", host = \"%s\"",
-             rpc_list[rpc_index].name, _client_connection[idx].host_name);
+   if (status == SS_TIMEOUT) {
+      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": timeout waiting for reply", client_name, host_name, rpc_name);
+      if (buf)
+         free(buf);
+      return RPC_TIMEOUT;
+   }
+
+   if (status != SS_SUCCESS) {
+      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": error, ss_recv_net_command() status %d", client_name, host_name, rpc_name, status);
+      if (buf)
+         free(buf);
       return RPC_NET_ERROR;
    }
 
    /* extract result variables and place it to argument list */
-   status = nc->header.routine_id;
 
    va_start(ap, routine_id);
 
-   for (i = 0, param_ptr = nc->param; rpc_list[rpc_index].param[i].tid != 0; i++) {
+   for (i = 0, param_ptr = buf; rpc_list[rpc_index].param[i].tid != 0; i++) {
       tid = rpc_list[rpc_index].param[i].tid;
       flags = rpc_list[rpc_index].param[i].flags;
 
@@ -10098,7 +11118,12 @@ INT rpc_client_call(HNDLE hConn, const INT routine_id, ...)
 
    va_end(ap);
 
-   return status;
+   if (buf)
+      free(buf);
+   buf = NULL;
+   buf_size = 0;
+
+   return rpc_status;
 }
 
 /********************************************************************/
@@ -10133,24 +11158,20 @@ INT rpc_call(const INT routine_id, ...)
    INT i, idx, status;
    INT param_size, arg_size, send_size;
    INT tid, flags;
-   fd_set readfds;
-   struct timeval timeout;
-   char *param_ptr, str[80];
+   char *param_ptr;
    BOOL bpointer, bbig;
    NET_COMMAND *nc;
    int send_sock;
-   time_t start_time;
+   char* buf = NULL;
+   DWORD buf_size = 0;
+   DWORD rpc_status = 0;
+   const char* rpc_name = NULL;
 
    send_sock = _server_connection.send_sock;
    transport = _server_connection.transport;
    rpc_timeout = _server_connection.rpc_timeout;
 
-   /* init network buffer */
-   if (_net_send_buffer_size == 0) {
-      status = resize_net_send_buffer("rpc_call", NET_BUFFER_SIZE);
-      if (status != SUCCESS)
-         return RPC_EXCEED_BUFFER;
-
+   if (!_mutex_rpc) {
       /* create a local mutex for multi-threaded applications */
       ss_mutex_create(&_mutex_rpc);
    }
@@ -10161,11 +11182,7 @@ INT rpc_call(const INT routine_id, ...)
       return RPC_MUTEX_TIMEOUT;
    }
 
-   nc = (NET_COMMAND *) _net_send_buffer;
-   nc->header.routine_id = routine_id;
-
-   if (transport == RPC_FTCP)
-      nc->header.routine_id |= TCP_FAST;
+   /* find rpc definition */
 
    for (i = 0;; i++)
       if (rpc_list[i].id == routine_id || rpc_list[i].id == 0)
@@ -10173,10 +11190,27 @@ INT rpc_call(const INT routine_id, ...)
    idx = i;
    if (rpc_list[i].id == 0) {
       ss_mutex_release(_mutex_rpc);
-      sprintf(str, "invalid rpc ID (%d)", routine_id);
-      cm_msg(MERROR, "rpc_call", str);
+      cm_msg(MERROR, "rpc_call", "invalid rpc ID (%d)", routine_id);
       return RPC_INVALID_ID;
    }
+
+   rpc_name = rpc_list[idx].name;
+
+   /* prepare output buffer */
+
+   buf_size = sizeof(NET_COMMAND) + 4*1024;
+   buf = (char *)malloc(buf_size);
+   if (buf == NULL) {
+      ss_mutex_release(_mutex_rpc);
+      cm_msg(MERROR, "rpc_call", "rpc \"%s\" cannot allocate %d bytes for transmit buffer", rpc_name, (int)buf_size);
+      return RPC_NO_MEMORY;
+   }
+
+   nc = (NET_COMMAND *) buf;
+   nc->header.routine_id = routine_id;
+
+   if (transport == RPC_FTCP)
+      nc->header.routine_id |= TCP_FAST;
 
    /* examine variable argument list and convert it to parameter array */
    va_start(ap, routine_id);
@@ -10246,12 +11280,22 @@ INT rpc_call(const INT routine_id, ...)
          /* always align parameter size */
          param_size = ALIGN8(arg_size);
 
-         if ((POINTER_T) param_ptr - (POINTER_T) nc + param_size > _net_send_buffer_size) {
-            ss_mutex_release(_mutex_rpc);
-            cm_msg(MERROR, "rpc_call",
-                   "parameters (%d) too large for network buffer (%d)",
-                   (POINTER_T) param_ptr - (POINTER_T) nc + param_size, _net_send_buffer_size);
-            return RPC_EXCEED_BUFFER;
+         {
+            size_t param_offset = (char*)param_ptr - (char*)nc;
+
+            if (param_offset + param_size + 16 > buf_size) {
+               size_t new_size = param_offset + param_size + 1024;
+               buf = (char *)realloc(buf, new_size);
+               if (buf == NULL) {
+                  ss_mutex_release(_mutex_rpc);
+                  cm_msg(MERROR, "rpc_call", "rpc \"%s\" cannot resize the data buffer from %d bytes to %d bytes", rpc_name, (int)buf_size, (int)new_size);
+                  free(nc); // "nc" still points to the old value of "buf"
+                  return RPC_NO_MEMORY;
+               }
+               buf_size = new_size;
+               nc = (NET_COMMAND*)buf;
+               param_ptr = buf + param_offset;
+            }
          }
 
          if (bpointer)
@@ -10281,11 +11325,13 @@ INT rpc_call(const INT routine_id, ...)
 
       if (i != send_size) {
          ss_mutex_release(_mutex_rpc);
-         cm_msg(MERROR, "rpc_call", "send_tcp() failed");
+         cm_msg(MERROR, "rpc_call", "rpc \"%s\" error: send_tcp() failed", rpc_name);
+         free(buf);
          return RPC_NET_ERROR;
       }
 
       ss_mutex_release(_mutex_rpc);
+      free(buf);
       return RPC_SUCCESS;
    }
 
@@ -10293,54 +11339,46 @@ INT rpc_call(const INT routine_id, ...)
    i = send_tcp(send_sock, (char *) nc, send_size, 0);
    if (i != send_size) {
       ss_mutex_release(_mutex_rpc);
-      cm_msg(MERROR, "rpc_call", "send_tcp() failed");
+      cm_msg(MERROR, "rpc_call", "rpc \"%s\" error: send_tcp() failed", rpc_name);
+      free(buf);
       return RPC_NET_ERROR;
    }
 
-   /* make some timeout checking */
-   if (rpc_timeout > 0) {
-      start_time = ss_time();
+   free(buf);
+   buf = NULL;
+   buf_size = 0;
+   rpc_status = 0;
+   nc = NULL;
 
-      do {
-         FD_ZERO(&readfds);
-         FD_SET(send_sock, &readfds);
+   status = ss_recv_net_command(send_sock, &rpc_status, &buf_size, &buf, rpc_timeout);
 
-         timeout.tv_sec = 1;
-         timeout.tv_usec = 0;
+   /* drop the mutex, we are done with the socket, argument unpacking is done from our own buffer */
 
-         status = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
+   ss_mutex_release(_mutex_rpc);
 
-         if (FD_ISSET(send_sock, &readfds))
-            break;
+   /* check for reply errors */
 
-         if (ss_time() - start_time > rpc_timeout / 1000)
-            break;
-
-      } while (status == -1 || status == 0);    /* continue again if signal was cought */
-
-      if (!FD_ISSET(send_sock, &readfds)) {
-         ss_mutex_release(_mutex_rpc);
-         cm_msg(MERROR, "rpc_call", "rpc timeout after %d sec, routine = \"%s\", program abort",
-                (int) (ss_time() - start_time), rpc_list[idx].name);
-         abort();
-      }
+   if (status == SS_TIMEOUT) {
+      cm_msg(MERROR, "rpc_call", "routine \"%s\": timeout waiting for reply, program abort", rpc_list[idx].name);
+      if (buf)
+         free(buf);
+      abort(); // cannot continue - our mserver is not talking to us!
+      return RPC_TIMEOUT;
    }
 
-   /* receive result on send socket */
-   i = recv_tcp(send_sock, _net_send_buffer, _net_send_buffer_size, 0);
-
-   if (i <= 0) {
-      ss_mutex_release(_mutex_rpc);
-      cm_msg(MERROR, "rpc_call", "recv_tcp() failed, routine = \"%s\"", rpc_list[idx].name);
+   if (status != SS_SUCCESS) {
+      cm_msg(MERROR, "rpc_call", "routine \"%s\": error, ss_recv_net_command() status %d, program abort", rpc_list[idx].name, status);
+      if (buf)
+         free(buf);
+      abort(); // cannot continue - something is wrong with our mserver connection
       return RPC_NET_ERROR;
    }
 
    /* extract result variables and place it to argument list */
-   status = nc->header.routine_id;
 
    va_start(ap, routine_id);
 
-   for (i = 0, param_ptr = nc->param; rpc_list[idx].param[i].tid != 0; i++) {
+   for (i = 0, param_ptr = buf; rpc_list[idx].param[i].tid != 0; i++) {
       tid = rpc_list[idx].param[i].tid;
       flags = rpc_list[idx].param[i].flags;
 
@@ -10386,9 +11424,10 @@ INT rpc_call(const INT routine_id, ...)
 
    va_end(ap);
 
-   ss_mutex_release(_mutex_rpc);
+   if (buf)
+      free(buf);
 
-   return status;
+   return rpc_status;
 }
 
 
@@ -10419,9 +11458,9 @@ Fast send_event routine which bypasses the RPC layer and
 @param source             Address of the event to send. It must have
                           a proper event header.
 @param buf_size           Size of event in bytes with header.
-@param async_flag         SYNC / ASYNC flag. In ASYNC mode, the
+@param async_flag         BM_WAIT / BM_NO_WAIT flag. In BM_NO_WAIT mode, the
                           function returns immediately if it cannot
-                          send the event over the network. In SYNC
+                          send the event over the network. In BM_WAIT
                           mode, it waits until the packet is sent
                           (blocking).
 @param mode               Determines in which mode the event is sent.
@@ -10463,7 +11502,7 @@ INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag
    if (aligned_buf_size + 4 * 8 + sizeof(NET_COMMAND_HEADER) >= (DWORD) (_opt_tcp_size - _tcp_wp)
        && _tcp_wp != _tcp_rp) {
       /* set socket to nonblocking IO */
-      if (async_flag == ASYNC) {
+      if (async_flag == BM_NO_WAIT) {
          flag = 1;
 #ifdef OS_VXWORKS
          ioctlsocket(_rpc_sock, FIONBIO, (int) &flag);
@@ -10482,7 +11521,7 @@ INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag
 #endif
 
       /* set socket back to blocking IO */
-      if (async_flag == ASYNC) {
+      if (async_flag == BM_NO_WAIT) {
          flag = 0;
 #ifdef OS_VXWORKS
          ioctlsocket(_rpc_sock, FIONBIO, (int) &flag);
@@ -10875,8 +11914,7 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
       _server_acception[idx].misalign = 0;
    }
    if (!_server_acception[idx].net_buffer) {
-      cm_msg(MERROR, "recv_tcp_server", "Cannot allocate %d bytes for network buffer",
-             _server_acception[idx].net_buffer_size);
+      cm_msg(MERROR, "recv_tcp_server", "Cannot allocate %d bytes for network buffer", _server_acception[idx].net_buffer_size);
       return -1;
    }
 
@@ -11120,7 +12158,7 @@ INT recv_event_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT *
 
          /* check if data part fits in buffer */
          if ((INT) buffer_size < aligned_event_size + header_size) {
-            cm_msg(MERROR, "recv_event_server", "event size %d too large for network buffer size %d", aligned_event_size + header_size, buffer_size);
+            cm_msg(MERROR, "recv_event_server", "event size %d too large for buffer size %d", aligned_event_size + header_size, buffer_size);
             psa->ev_read_ptr = psa->ev_write_ptr = 0;
             return -1;
          }
@@ -11150,8 +12188,7 @@ INT recv_event_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT *
 
       /* abort if connection broken */
       if (write_ptr <= 0) {
-         cm_msg(MERROR, "recv_event_server", "recv() returned %d, errno: %d (%s)", write_ptr, errno,
-                strerror(errno));
+         cm_msg(MERROR, "recv_event_server", "recv() returned %d, errno: %d (%s)", write_ptr, errno, strerror(errno));
 
          if (remaining)
             *remaining = 0;
@@ -11266,7 +12303,6 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 {
    struct sockaddr_in bind_addr;
    INT status, flag;
-   unsigned int size;
 
 #ifdef OS_WINNT
    {
@@ -11293,8 +12329,7 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
    /* create a socket for listening */
    _lsock = socket(AF_INET, SOCK_STREAM, 0);
    if (_lsock == -1) {
-      cm_msg(MERROR, "rpc_register_server", "socket(AF_INET, SOCK_STREAM) failed, errno %d (%s)", errno,
-             strerror(errno));
+      cm_msg(MERROR, "rpc_register_server", "socket(AF_INET, SOCK_STREAM) failed, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
@@ -11302,8 +12337,7 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 #if defined(F_SETFD) && defined(FD_CLOEXEC)
    status = fcntl(_lsock, F_SETFD, fcntl(_lsock, F_GETFD) | FD_CLOEXEC);
    if (status < 0) {
-      cm_msg(MERROR, "rpc_register_server", "fcntl(F_SETFD, FD_CLOEXEC) failed, errno %d (%s)", errno,
-             strerror(errno));
+      cm_msg(MERROR, "rpc_register_server", "fcntl(F_SETFD, FD_CLOEXEC) failed, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 #endif
@@ -11312,15 +12346,19 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
    flag = 1;
    status = setsockopt(_lsock, SOL_SOCKET, SO_REUSEADDR, (char *) &flag, sizeof(INT));
    if (status < 0) {
-      cm_msg(MERROR, "rpc_register_server", "setsockopt(SO_REUSEADDR) failed, errno %d (%s)", errno,
-             strerror(errno));
+      cm_msg(MERROR, "rpc_register_server", "setsockopt(SO_REUSEADDR) failed, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
    /* bind local node name and port to socket */
    memset(&bind_addr, 0, sizeof(bind_addr));
    bind_addr.sin_family = AF_INET;
-   bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+   if (!disable_bind_rpc_to_localhost) {
+      bind_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+   } else {
+      bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+   }
 
    if (!port)
       bind_addr.sin_port = htons(MIDAS_TCP_PORT);
@@ -11329,7 +12367,7 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 
    status = bind(_lsock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
    if (status < 0) {
-      cm_msg(MERROR, "rpc_register_server", "bind() failed, errno %d (%s)", errno, strerror(errno));
+      cm_msg(MERROR, "rpc_register_server", "bind() to port %d failed, errno %d (%s)", ntohs(bind_addr.sin_port), errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
@@ -11346,11 +12384,11 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 
    /* return port wich OS has choosen */
    if (port && *port == 0) {
-      size = sizeof(bind_addr);
+      socklen_t sosize = sizeof(bind_addr);
 #ifdef OS_WINNT
-      getsockname(_lsock, (struct sockaddr *) &bind_addr, (int *) &size);
+      getsockname(_lsock, (struct sockaddr *) &bind_addr, (int *) &sosize);
 #else
-      getsockname(_lsock, (struct sockaddr *) &bind_addr, &size);
+      getsockname(_lsock, (struct sockaddr *) &bind_addr, &sosize);
 #endif
       *port = ntohs(bind_addr.sin_port);
    }
@@ -11441,6 +12479,10 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
    return_buffer_size = tls_buffer[i].buffer_size;
    return_buffer = tls_buffer[i].buffer;
    assert(return_buffer);
+
+   // make valgrind happy - the RPC parameter encoder skips the alignement padding bytes
+   // and valgrind complains that we transmit uninitialized data
+   //memset(return_buffer, 0, return_buffer_size);
 
    /* extract pointer array to parameters */
    nc_in = (NET_COMMAND *) buffer;
@@ -11565,11 +12607,12 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
             int itls;
             int new_size = (POINTER_T) out_param_ptr - (POINTER_T) nc_out + param_size + 1024;
 
-            if (0)
-               cm_msg(MINFO, "rpc_execute",
+#if 0
+            cm_msg(MINFO, "rpc_execute",
                       "rpc_execute: return parameters (%d) too large for network buffer (%d), new buffer size (%d)",
-                      (POINTER_T) out_param_ptr - (POINTER_T) nc_out + param_size, return_buffer_size, new_size);
-
+                      (int)((POINTER_T) out_param_ptr - (POINTER_T) nc_out + param_size), return_buffer_size, new_size);
+#endif
+            
             itls = return_buffer_tls;
 
             tls_buffer[itls].buffer_size = new_size;
@@ -11706,6 +12749,9 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
       rpc_convert_single(&nc_out->header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
    }
 
+   // valgrind complains about sending uninitialized data, if you care about this, uncomment
+   // the memset(return_buffer,0) call above (search for "valgrind"). K.O.
+
    status = send_tcp(sock, return_buffer, sizeof(NET_COMMAND_HEADER) + param_size, 0);
 
    if (status < 0) {
@@ -11769,9 +12815,9 @@ INT rpc_execute_ascii(INT sock, char *buffer)
 #define N_APARAM           1024
 
    INT i, j, idx, status, index_in;
-   char *in_param_ptr, *out_param_ptr, *last_param_ptr;
+   char *in_param_ptr, *out_param_ptr;
    INT routine_id, tid, flags, array_tid, n_param;
-   INT param_size, item_size, num_values;
+   INT param_size=0, item_size, num_values;
    void *prpc_param[20];
    char *arpc_param[N_APARAM], *pc;
    char str[1024], debug_line[1024];
@@ -11891,7 +12937,7 @@ INT rpc_execute_ascii(INT sock, char *buffer)
          if ((POINTER_T) out_param_ptr - (POINTER_T) buffer2 + param_size > ASCII_BUFFER_SIZE) {
             cm_msg(MERROR, "rpc_execute",
                    "return parameters (%d) too large for network buffer (%d)",
-                   (POINTER_T) out_param_ptr - (POINTER_T) buffer2 + param_size, ASCII_BUFFER_SIZE);
+                   (int)((POINTER_T) out_param_ptr - (POINTER_T) buffer2 + param_size), ASCII_BUFFER_SIZE);
             return RPC_EXCEED_BUFFER;
          }
 
@@ -11912,8 +12958,6 @@ INT rpc_execute_ascii(INT sock, char *buffer)
 
    strcat(debug_line, ")");
    rpc_debug_printf(debug_line);
-
-   last_param_ptr = out_param_ptr;
 
    /*********************************\
    *   call dispatch function        *
@@ -12103,6 +13147,8 @@ INT rpc_add_allowed_host(const char* hostname)
    if (n_allowed_hosts >= MAX_N_ALLOWED_HOSTS)
       return RPC_NO_MEMORY;
 
+   //cm_msg(MINFO, "rpc_add_allowed_host", "Adding allowed host \'%s\'", hostname); 
+
    strlcpy(allowed_host[n_allowed_hosts++], hostname, sizeof(allowed_host[0]));
    return RPC_SUCCESS;
 }
@@ -12205,7 +13251,14 @@ INT rpc_server_accept(int lsock)
       }
 
       if (!allowed) {
-         cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\'", hname);
+         static int max_report = 10; 
+         if (max_report > 0) { 
+            max_report--; 
+            if (max_report == 0) 
+               cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\', this message will no longer be reported", hname); 
+            else 
+               cm_msg(MERROR, "rpc_server_accept", "rejecting connection from unallowed host \'%s\'. Add this host to \"/Experiment/Security/RPC hosts/Allowed hosts\"", hname); 
+         } 
          closesocket(sock);
          return RPC_NET_ERROR;
       }
@@ -12296,10 +13349,10 @@ INT rpc_server_accept(int lsock)
 
          if (strcmp(v1, str) != 0) {
             sprintf(str, "client MIDAS version %s differs from local version %s", version, cm_get_version());
-            cm_msg(MERROR, "rpc_server_accept", str);
+            cm_msg(MERROR, "rpc_server_accept", "%s", str);
 
             sprintf(str, "received string: %s", net_buffer + 2);
-            cm_msg(MERROR, "rpc_server_accept", str);
+            cm_msg(MERROR, "rpc_server_accept", "%s", str);
          }
 
          callback.host_port1 = (short) port1;
@@ -12340,7 +13393,7 @@ INT rpc_server_accept(int lsock)
 
             if (idx == MAX_EXPERIMENT || exptab[idx].name[0] == 0) {
                sprintf(str, "experiment \'%s\' not defined in exptab\r", callback.experiment);
-               cm_msg(MERROR, "rpc_server_accept", str);
+               cm_msg(MERROR, "rpc_server_accept", "%s", str);
 
                send(sock, "2", 2, 0);   /* 2 means exp. not found */
                closesocket(sock);
@@ -12451,7 +13504,8 @@ INT rpc_client_accept(int lsock)
 
 \********************************************************************/
 {
-   INT idx, i, version, status;
+   INT idx, i, status;
+   //int version;
    unsigned int size;
    int sock;
    struct sockaddr_in acc_addr;
@@ -12486,6 +13540,53 @@ INT rpc_client_accept(int lsock)
   strcpy(host_name, phe->h_name);
 #endif
 */
+
+   /* check access control list */ 
+   if (n_allowed_hosts > 0) { 
+      int allowed = FALSE; 
+      struct hostent *remote_phe; 
+      char hname[256]; 
+      struct in_addr remote_addr; 
+
+      /* save remote host address */ 
+      memcpy(&remote_addr, &(acc_addr.sin_addr), sizeof(remote_addr)); 
+
+      remote_phe = gethostbyaddr((char *) &remote_addr, 4, PF_INET); 
+
+      if (remote_phe == NULL) { 
+         /* use IP number instead */ 
+         strlcpy(hname, (char *)inet_ntoa(remote_addr), sizeof(hname)); 
+      } else 
+         strlcpy(hname, remote_phe->h_name, sizeof(hname)); 
+
+      /* always permit localhost */ 
+      if (strcmp(hname, "localhost.localdomain") == 0) 
+         allowed = TRUE; 
+      if (strcmp(hname, "localhost") == 0) 
+         allowed = TRUE; 
+ 
+      if (!allowed) { 
+         for (i=0 ; i<n_allowed_hosts ; i++) 
+            if (strcmp(hname, allowed_host[i]) == 0) { 
+               allowed = TRUE; 
+               break; 
+            } 
+      } 
+
+      if (!allowed) { 
+         static int max_report = 10;
+         if (max_report > 0) {
+            max_report--;
+            if (max_report == 0)
+               cm_msg(MERROR, "rpc_client_accept", "rejecting connection from unallowed host \'%s\', this message will no longer be reported", hname);
+            else
+               cm_msg(MERROR, "rpc_client_accept", "rejecting connection from unallowed host \'%s\'. Add this host to \"/Experiment/Security/RPC hosts/Allowed hosts\"", hname);
+         }
+         closesocket(sock); 
+         return RPC_NET_ERROR; 
+      } 
+   }
+
    strcpy(host_name, "(unknown)");
 
    strcpy(client_program, "(unknown)");
@@ -12513,7 +13614,7 @@ INT rpc_client_accept(int lsock)
       p = strtok(NULL, " ");
    }
    if (p != NULL) {
-      version = atoi(p);
+      //version = atoi(p);
       p = strtok(NULL, " ");
    }
    if (p != NULL) {
@@ -12525,10 +13626,8 @@ INT rpc_client_accept(int lsock)
       p = strtok(NULL, " ");
    }
 
-   if (0)
-      printf("rpc_client_accept: client_hw_type %d, version %d, client_name \'%s\', hostname \'%s\'\n",
-             client_hw_type, version, client_program, host_name);
-
+   //printf("rpc_client_accept: client_hw_type %d, version %d, client_name \'%s\', hostname \'%s\'\n", client_hw_type, version, client_program, host_name);
+   
    /* save information in _server_acception structure */
    _server_acception[idx].recv_sock = sock;
    _server_acception[idx].send_sock = 0;
@@ -12847,7 +13946,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
    /* init network buffer */
    if (_net_recv_buffer_size == 0) {
-      int size = MAX_EVENT_SIZE + sizeof(EVENT_HEADER) + 1024;
+      int size = DEFAULT_MAX_EVENT_SIZE + sizeof(EVENT_HEADER) + 1024;
       _net_recv_buffer = (char *) M_MALLOC(size);
       if (_net_recv_buffer == NULL) {
          cm_msg(MERROR, "rpc_server_receive", "Cannot allocate %d bytes for network buffer", size);
@@ -12862,7 +13961,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
    if (_net_recv_buffer_size_odb == 0) {
       HNDLE hDB;
       int size;
-      int max_event_size = MAX_EVENT_SIZE;
+      int max_event_size = DEFAULT_MAX_EVENT_SIZE;
 
       /* get max event size from ODB */
       status = cm_get_experiment_database(&hDB, NULL);
@@ -12902,7 +14001,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
       if (n_received == -1)
          cm_msg(MERROR, "rpc_server_receive",
-                "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", sizeof(test_buffer),
+                "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", (int)sizeof(test_buffer),
                 n_received, errno, strerror(errno));
 
       if (n_received <= 0)
@@ -12967,7 +14066,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
             pbh = (INT *) _net_recv_buffer;
             pevent = (EVENT_HEADER *) (pbh + 1);
 
-            status = bm_send_event(*pbh, pevent, pevent->data_size + sizeof(EVENT_HEADER), SYNC);
+            status = bm_send_event(*pbh, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
             if (status != BM_SUCCESS)
                cm_msg(MERROR, "rpc_server_receive", "bm_send_event() returned %d", status);
 
@@ -13016,8 +14115,6 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
          if (_msg_rb)
             rb_delete(_msg_rb);
          _msg_rb = 0;
-
-         _msg_buffer = 0;
       }
    }
 
@@ -13041,8 +14138,10 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       return status;
 
    /* don't abort if other than main connection is broken */
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_REMOTE)
+   if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_REMOTE) {
+      cm_msg(MERROR, "rpc_server_receive", "rpc check ok, abort canceled");
       return SS_SUCCESS;
+   }
 
    return status;
 }
@@ -13251,7 +14350,7 @@ void bk_init(void *event)
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-BOOL bk_is32(void *event)
+BOOL bk_is32(const void *event)
 /********************************************************************\
 
   Routine: bk_is32
@@ -13296,7 +14395,7 @@ of the event header (sizeof(EVENT_HEADER)).
 @param event pointer to the area of event
 @return number of bytes contained in data area of event
 */
-INT bk_size(void *event)
+INT bk_size(const void *event)
 {
    return ((BANK_HEADER *) event)->data_size + sizeof(BANK_HEADER);
 }
@@ -13323,7 +14422,7 @@ midas.h
 @param pdata pointer to the data area of the newly created bank
 @return void
 */
-void bk_create(void *event, const char *name, WORD type, void *pdata)
+void bk_create(void *event, const char *name, WORD type, void **pdata)
 {
    if (((BANK_HEADER *) event)->flags & BANK_FORMAT_32BIT) {
       BANK32 *pbk32;
@@ -13332,7 +14431,7 @@ void bk_create(void *event, const char *name, WORD type, void *pdata)
       strncpy(pbk32->name, name, 4);
       pbk32->type = type;
       pbk32->data_size = 0;
-      *((void **) pdata) = pbk32 + 1;
+      *pdata = pbk32 + 1;
    } else {
       BANK *pbk;
 
@@ -13340,7 +14439,7 @@ void bk_create(void *event, const char *name, WORD type, void *pdata)
       strncpy(pbk->name, name, 4);
       pbk->type = type;
       pbk->data_size = 0;
-      *((void **) pdata) = pbk + 1;
+      *pdata = pbk + 1;
    }
 }
 
@@ -13549,9 +14648,9 @@ INT adc_calib(EVENT_HEADER *pheader, void *pevent)
 @param bklist returned ASCII string, has to be booked with STRING_BANKLIST_MAX.
 @return number of bank found in this event.
 */
-INT bk_list(void *event, char *bklist)
+INT bk_list(const void *event, char *bklist)
 {                               /* Full event */
-   INT nbk, size;
+   INT nbk;
    BANK *pmbk = NULL;
    BANK32 *pmbk32 = NULL;
    char *pdata;
@@ -13562,11 +14661,11 @@ INT bk_list(void *event, char *bklist)
    do {
       /* scan all banks for bank name only */
       if (bk_is32(event)) {
-         size = bk_iterate32(event, &pmbk32, &pdata);
+         bk_iterate32(event, &pmbk32, &pdata);
          if (pmbk32 == NULL)
             break;
       } else {
-         size = bk_iterate(event, &pmbk, &pdata);
+         bk_iterate(event, &pmbk, &pdata);
          if (pmbk == NULL)
             break;
       }
@@ -13593,7 +14692,7 @@ Locates a MIDAS bank of given name inside an event.
 @param pdata pointer to data area of bank, NULL if bank not found
 @return number of values inside the bank
 */
-INT bk_locate(void *event, const char *name, void *pdata)
+INT bk_locate(const void *event, const char *name, void *pdata)
 {
    BANK *pbk;
    BANK32 *pbk32;
@@ -13643,7 +14742,7 @@ Finds a MIDAS bank of given name inside an event.
 @param pdata pointer to data area of bank, NULL if bank not found
 @return 1 if bank found, 0 otherwise
 */
-INT bk_find(BANK_HEADER * pbkh, const char *name, DWORD * bklen, DWORD * bktype, void **pdata)
+INT bk_find(const BANK_HEADER * pbkh, const char *name, DWORD * bklen, DWORD * bktype, void **pdata)
 {
    BANK *pbk;
    BANK32 *pbk32;
@@ -13724,7 +14823,7 @@ this function.
 call to this function
 @return Size of bank in bytes
 */
-INT bk_iterate(void *event, BANK ** pbk, void *pdata)
+INT bk_iterate(const void *event, BANK ** pbk, void *pdata)
 {
    if (*pbk == NULL)
       *pbk = (BANK *) (((BANK_HEADER *) event) + 1);
@@ -13746,7 +14845,7 @@ INT bk_iterate(void *event, BANK ** pbk, void *pdata)
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-INT bk_iterate32(void *event, BANK32 ** pbk, void *pdata)
+INT bk_iterate32(const void *event, BANK32 ** pbk, void *pdata)
 /********************************************************************\
 
   Routine: bk_iterate
@@ -14157,7 +15256,7 @@ int rb_increment_wp(int handle, int size)
 \********************************************************************/
 {
    int h;
-   unsigned char *old_wp, *new_wp;
+   unsigned char *new_wp;
 
    if (handle < 1 || handle > MAX_RING_BUFFER || rb[handle - 1].buffer == NULL)
       return DB_INVALID_HANDLE;
@@ -14167,7 +15266,6 @@ int rb_increment_wp(int handle, int size)
    if ((DWORD) size > rb[h].max_event_size)
       return DB_INVALID_PARAM;
 
-   old_wp = rb[h].wp;
    new_wp = rb[h].wp + size;
 
    /* wrap around wp if not enough space */
@@ -14284,7 +15382,7 @@ int rb_increment_rp(int handle, int size)
 {
    int h;
 
-   unsigned char *new_rp, *old_rp;
+   unsigned char *new_rp;
 
    if (handle < 1 || handle > MAX_RING_BUFFER || rb[handle - 1].buffer == NULL)
       return DB_INVALID_HANDLE;
@@ -14294,7 +15392,6 @@ int rb_increment_rp(int handle, int size)
    if ((DWORD) size > rb[h].max_event_size)
       return DB_INVALID_PARAM;
 
-   old_rp = rb[h].rp;
    new_rp = rb[h].rp + size;
 
    /* wrap around if not enough space left */
@@ -14354,3 +15451,11 @@ int rb_get_buffer_level(int handle, int *n_bytes)
 
 /**dox***************************************************************/
                   /** @} *//* end of midasincludecode */
+
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */

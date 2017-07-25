@@ -98,7 +98,7 @@ CAMAC Prompt[2] = { {24, 0, 0, 1, 2, 0, 0, 0, 1, 0, 0, 0},
 /* Default job file name */
 char job_name[128] = "cnaf.cnf";
 
-HNDLE hDB, hKey, hConn;
+HNDLE hDB, hKey;
 FILE *pF;
 BOOL jobflag;
 char addr[128];
@@ -414,7 +414,7 @@ INT read_job_file(FILE * pF, INT action, CAMAC **job, char *name)
          while (fgets(line, 128, pF))
             n++;
          /* allocate memory for full job */
-         *job = malloc((n + 1) * sizeof(CAMAC));
+         *job = (CAMAC*)malloc((n + 1) * sizeof(CAMAC));
          pjob = *job;
          /* preset the full job with 0 */
          memset((char *) pjob, 0, (n + 1) * sizeof(CAMAC));
@@ -561,7 +561,7 @@ INT cnafsub(BOOL cmd_mode, char *cmd)
 /*--------------------------------------------------------------------*/
 INT decode_line(CAMAC * P, char *ss)
 {
-   char empty[16] = { "                " };
+   char empty[17] = { "                " };
    char *c, *cmd;
    char pp[128], *p, *s, *ps;
    DWORD tmp, i;
@@ -623,14 +623,14 @@ INT decode_line(CAMAC * P, char *ss)
       *ps = 0;
       if (P->m == D24) {
          tmp = strtoul((cmd + 1), NULL, 16);
-         if (tmp >= 0x0 && tmp <= 0xffffff) {
+         if (tmp <= 0xffffff) {
             P->d24 = tmp;
             ok = TRUE;
          } else
             printf("mcnaf-E- Data out of range 0x0:0xffffff\n");
       } else {
          tmp = strtoul((cmd + 1), NULL, 16);
-         if (tmp >= 0x0 && tmp <= 0xffff) {
+         if (tmp <= 0xffff) {
             P->d16 = (WORD) tmp;
             ok = TRUE;
          } else
@@ -644,14 +644,14 @@ INT decode_line(CAMAC * P, char *ss)
       *ps = 0;
       if (P->m == D24) {
          tmp = strtoul((cmd + 1), NULL, 8);
-         if (tmp >= 0 && tmp <= 077777777) {
+         if (tmp <= 077777777) {
             P->d24 = tmp;
             ok = TRUE;
          } else
             printf("mcnaf-E- Data out of range O0:O77777777\n");
       } else {
          tmp = strtoul((cmd + 1), NULL, 8);
-         if (tmp >= 00 && tmp <= 0177777) {
+         if (tmp <= 0177777) {
             P->d16 = (WORD) tmp;
             ok = TRUE;
          } else
@@ -665,14 +665,14 @@ INT decode_line(CAMAC * P, char *ss)
       *ps = 0;
       if (P->m == D24) {
          tmp = strtoul((cmd + 1), NULL, 10);
-         if (tmp >= 0x0 && tmp <= 0xffffff) {
+         if (tmp <= 0xffffff) {
             P->d24 = tmp;
             ok = TRUE;
          } else
             printf("mcnaf-E- Data out of range 0:16777215\n");
       } else {
          tmp = strtoul((cmd + 1), NULL, 10);
-         if (tmp >= 0x0 && tmp <= 0xffff) {
+         if (tmp <= 0xffff) {
             P->d16 = (WORD) tmp;
             ok = TRUE;
          } else
@@ -685,7 +685,7 @@ INT decode_line(CAMAC * P, char *ss)
       ps = strchr(cmd, ' ');
       *ps = 0;
       tmp = atoi((cmd + 1));
-      if (tmp < 8 && tmp >= 0) {
+      if (tmp < 8) {
          P->b = tmp;
          ok = TRUE;
       } else
@@ -696,7 +696,7 @@ INT decode_line(CAMAC * P, char *ss)
       ps = strchr(cmd, ' ');
       *ps = 0;
       tmp = atoi((cmd + 1));
-      if (tmp < 8 && tmp >= 0) {
+      if (tmp < 8) {
          P->c = tmp;
          ok = TRUE;
       } else
@@ -707,7 +707,7 @@ INT decode_line(CAMAC * P, char *ss)
       ps = strchr(cmd, ' ');
       *ps = 0;
       tmp = atoi((cmd + 1));
-      if (tmp < 32 && tmp >= 0) {
+      if (tmp < 32) {
          P->n = tmp;
          ok = TRUE;
       } else
@@ -718,7 +718,7 @@ INT decode_line(CAMAC * P, char *ss)
       ps = strchr(cmd, ' ');
       *ps = 0;
       tmp = atoi((cmd + 1));
-      if (tmp < 16 && tmp >= 0) {
+      if (tmp < 16) {
          P->a = tmp;
          ok = TRUE;
       } else
@@ -729,7 +729,7 @@ INT decode_line(CAMAC * P, char *ss)
       ps = strchr(cmd, ' ');
       *ps = 0;
       tmp = atoi((cmd + 1));
-      if (tmp < 32 && tmp >= 0) {
+      if (tmp < 32) {
          P->f = tmp;
          ok = TRUE;
       } else
@@ -740,7 +740,7 @@ INT decode_line(CAMAC * P, char *ss)
       ps = strchr(cmd, ' ');
       *ps = 0;
       tmp = atoi((cmd + 1));
-      if (tmp < 1000 && tmp >= 0) {
+      if (tmp < 1000) {
          if (tmp == 0)
             tmp = 1;
          P->r = tmp;
@@ -752,7 +752,7 @@ INT decode_line(CAMAC * P, char *ss)
       ps = strchr(cmd, ' ');
       *ps = 0;
       tmp = atoi((cmd + 1));
-      if (tmp < 10001 || tmp >= 0)
+      if (tmp < 10001)
          P->w = tmp;
       else
          printf("mcnaf-E- W out of range 0:10000\n");
@@ -779,8 +779,7 @@ INT decode_line(CAMAC * P, char *ss)
 void help_page(INT which)
 {
    if (which == MAIN) {
-      printf("\n*-v%d----------- H E L P   C N A F -------------------*\n",
-             cm_get_revision());
+      printf("\n*-v%s----------- H E L P   C N A F -------------------*\n", cm_get_revision());
       printf("          Interactive Midas CAMAC command\n");
       printf("          ===============================\n");
       printf(" Output : Data [dec/hex X=0/1 - Q=0/1 ]\n");
@@ -798,11 +797,9 @@ void help_page(INT which)
       printf("           O :  Octal       Data     [0 - max data_size]\n");
       printf("           X :  Hexadecimal Data     [0 - max data_size]\n");
       printf("\n");
-      printf
-          (">>>>>>>>>> Data has to be given LAST if needed in the command string <<<<<\n");
+      printf(">>>>>>>>>> Data has to be given LAST if needed in the command string <<<<<\n");
       printf("\n");
-      printf
-          (" The commands below are following the ESONE standard for a A2 controller\n");
+      printf(" The commands below are following the ESONE standard for a A2 controller\n");
       printf(" N30A9F24 : Crate clear inhibit    N30A9F26 : Crate set inhibit\n");
       printf(" N28A8F26 : Z crate                N28A9F26 : C crate\n");
       printf(" N30A13F17: CC Lam enable          N30A12F17: CC Lam disable\n");
@@ -813,8 +810,7 @@ void help_page(INT which)
       printf("      CNAF> [B0C1N30A00F00 [0/0x000000 Q0X0] R1W0M24] :n30a9f24\n");
       printf("      CNAF> [B0C1N06A00F24 [0/0x000000 Q1X1] R1W0M24] :n6f9a0\n");
    } else {
-      printf("\n*-v%d----------- H E L P   C N A F -------------------*\n",
-             cm_get_revision());
+      printf("\n*-v%s----------- H E L P   C N A F -------------------*\n", cm_get_revision());
       printf("          Interactive MCStd CAMAC command\n");
       printf("The action taken is dependent on the driver implementation\n");
       printf("[Q/E]            : Exit this level\n");
@@ -823,8 +819,7 @@ void help_page(INT which)
       printf("cam16/24i        : 16/24bit input\n");
       printf("cam16/24i_q      : 16/24bit input with Q response\n");
       printf("cam16/24i_r      : 16/24bit input repeat until R reached (max 100)\n");
-      printf
-          ("cam16/24i_rq     : 16/24bit input repeat until NoQ or R reached (max 100)\n");
+      printf("cam16/24i_rq     : 16/24bit input repeat until NoQ or R reached (max 100)\n");
       printf("cam16/24i_sa     : 16/24bit input scan R times over A\n");
       printf("cam16/24i_sn     : 16/24bit input scan R times over N\n");
       printf("cam16/24o        : 16/24bit output\n");
@@ -887,13 +882,15 @@ int main(int argc, char **argv)
             cmd_mode = TRUE;
          } else {
           usage:
-            printf
-                ("usage: mcnaf [-f Frontend] [-h Hostname] [-e Experiment] [-s RPC server]\n");
+            printf("usage: mcnaf [-f Frontend] [-h Hostname] [-e Experiment] [-s RPC server]\n");
             printf("             [-c Command] [-c @CommandFile] \n\n");
             return 0;
          }
       }
    }
+
+   if (debug)
+      status = SUCCESS;
 
    if (rpc_server[0])
       status = cam_init_rpc("", "", "", "mcnaf", rpc_server);

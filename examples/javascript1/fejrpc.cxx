@@ -19,8 +19,10 @@
 #include <math.h>
 #include <ctype.h>
 #include <assert.h>
+#include <string.h>
 
 #include "midas.h"
+#include "mrpc.h"
 
 #define FE_NAME "fejrpc"
 #define EQ_NAME "RpcExample"
@@ -34,10 +36,10 @@ extern "C" {
 /*-- Globals -------------------------------------------------------*/
 
 /* The frontend name (client name) as seen by other MIDAS clients   */
-char *frontend_name = FE_NAME;
+const char *frontend_name = FE_NAME;
 
 /* The frontend file name, don't change it */
-char *frontend_file_name = __FILE__;
+const char *frontend_file_name = __FILE__;
 
 /* frontend_loop is called periodically if this variable is TRUE    */
 BOOL frontend_call_loop = TRUE;
@@ -138,65 +140,20 @@ static int configure()
 
 // RPC handlers
 
-RPC_LIST rpc_list[] =
+INT rpc_callback(INT index, void *prpc_param[])
 {
-   { 101, "rpc_101", {
-         {TID_STRING, RPC_IN}, // arg0
-         {TID_STRING, RPC_IN}, // arg1
-         {TID_STRING, RPC_IN}, // arg2
-         {TID_STRING, RPC_IN}, // arg3
-         {TID_STRING, RPC_IN}, // arg4
-         {TID_STRING, RPC_IN}, // arg5
-         {TID_STRING, RPC_IN}, // arg6
-         {TID_STRING, RPC_IN}, // arg7
-         {TID_STRING, RPC_IN}, // arg8
-         {TID_STRING, RPC_IN}, // arg9
-         {0}} },
-   { 102, "rpc_102", {
-         {TID_STRING, RPC_OUT}, // return string
-         {TID_INT,    RPC_IN},  // return string max length
-         {TID_STRING, RPC_IN}, // arg0
-         {TID_STRING, RPC_IN}, // arg1
-         {TID_STRING, RPC_IN}, // arg2
-         {TID_STRING, RPC_IN}, // arg3
-         {TID_STRING, RPC_IN}, // arg4
-         {TID_STRING, RPC_IN}, // arg5
-         {TID_STRING, RPC_IN}, // arg6
-         {TID_STRING, RPC_IN}, // arg7
-         {TID_STRING, RPC_IN}, // arg8
-         {TID_STRING, RPC_IN}, // arg9
-         {0}} },
-   { 0 }
-};
+   const char* cmd  = CSTRING(0);
+   const char* args = CSTRING(1);
+   char* return_buf = CSTRING(2);
+   int   return_max_length = CINT(3);
 
-INT rpc101_callback(INT index, void *prpc_param[])
-{
-   const char* arg0 = CSTRING(0);
-   const char* arg1 = CSTRING(1);
-   const char* arg2 = CSTRING(2);
+   cm_msg(MINFO, "rpc_callback", "--------> rpc_callback: index %d, max_length %d, cmd [%s], args [%s]", index, return_max_length, cmd, args);
 
-   cm_msg(MINFO, "rpc_callback", "--------> rpc101_callback: index %d, args [%s] [%s] [%s]", index, arg0, arg1, arg2);
-
-   int example_int = strtol(arg0, NULL, 0);
+   int example_int = strtol(args, NULL, 0);
    int size = sizeof(int);
    int status = db_set_value(hDB, 0, "/Equipment/" EQ_NAME "/Settings/example_int", &example_int, size, 1, TID_INT);
-
-   return RPC_SUCCESS;
-}
-
-INT rpc102_callback(INT index, void *prpc_param[])
-{
-   char* return_buf = CSTRING(0);
-   int   return_max_length = CINT(1);
-   const char* arg0 = CSTRING(2);
-   const char* arg1 = CSTRING(3);
-   const char* arg2 = CSTRING(4);
-
-   cm_msg(MINFO, "rpc_callback", "--------> rpc102_callback: index %d, max_length %d, args [%s] [%s] [%s]", index, return_max_length, arg0, arg1, arg2);
-
-   int example_int = strtol(arg0, NULL, 0);
-   int size = sizeof(int);
-   int status = db_set_value(hDB, 0, "/Equipment/" EQ_NAME "/Settings/example_int", &example_int, size, 1, TID_INT);
+   if (status != DB_SUCCESS)
+     printf("db_set_value() status %d\n", status);
 
    char tmp[256];
    time_t now = time(NULL);
@@ -213,15 +170,11 @@ INT frontend_init()
 {
    int status;
 
+   cm_msg(MINFO, "frontend_init", "Frontend init");
+
    //cm_set_watchdog_params (FALSE, 0);
 
-   status = rpc_register_functions(rpc_list, NULL);
-   assert(status == SUCCESS);
-
-   status = cm_register_function(101, rpc101_callback);
-   assert(status == SUCCESS);
-
-   status = cm_register_function(102, rpc102_callback);
+   status = cm_register_function(RPC_JRPC, rpc_callback);
    assert(status == SUCCESS);
 
    configure();
@@ -233,46 +186,50 @@ INT frontend_init()
 
 INT frontend_exit()
 {
-  return SUCCESS;
+   cm_msg(MINFO, "frontend_exit", "Frontend exit");
+   return SUCCESS;
 }
 
 /*-- Begin of Run --------------------------------------------------*/
 
 INT begin_of_run(INT run_number, char *error)
 {
-  printf("Begin run %d\n", run_number);
-  gbl_run_number = run_number;
+   cm_msg(MINFO, "begin_of_run", "Begin run %d", run_number);
 
-  configure();
+   gbl_run_number = run_number;
 
-  count_slow = 0;
-
-  return SUCCESS;
+   configure();
+   
+   count_slow = 0;
+   
+   return SUCCESS;
 }
 
 /*-- End of Run ----------------------------------------------------*/
 
 INT end_of_run(INT run_number, char *error)
 {
-  printf("End run %d!\n", run_number);
+   cm_msg(MINFO, "end_of_run", "End run %d", run_number);
 
-  cm_msg(MINFO, frontend_name, "read %d slow events", count_slow);
+   cm_msg(MINFO, frontend_name, "read %d slow events", count_slow);
 
-  return SUCCESS;
+   return SUCCESS;
 }
 
 /*-- Pause Run -----------------------------------------------------*/
 
 INT pause_run(INT run_number, char *error)
 {
-  return SUCCESS;
+   cm_msg(MINFO, "pause_run", "Pause run %d", run_number);
+   return SUCCESS;
 }
 
 /*-- Resume Run ----------------------------------------------------*/
 
 INT resume_run(INT run_number, char *error)
 {
-  return SUCCESS;
+   cm_msg(MINFO, "resume_run", "Resume run %d", run_number);
+   return SUCCESS;
 }
 
 /*-- Frontend Loop -------------------------------------------------*/
@@ -339,12 +296,15 @@ int read_slow_event(char *pevent, int off)
   count_slow++;
 
   double* pdatad;
-  bk_create(pevent, "SLOW", TID_DOUBLE, &pdatad);
+  bk_create(pevent, "SLOW", TID_DOUBLE, (void**)&pdatad);
 
   time_t t = time(NULL);
   pdatad[0] = count_slow;
   pdatad[1] = t;
   pdatad[2] = 100.0*sin(M_PI*t/60);
+  //pdatad[0] = 0.0/0.0; // nan
+  //pdatad[1] = 1.0/0.0; // inf
+  //pdatad[2] = -1.0/0.0; // -inf
   printf("time %d, data %f\n", (int)t, pdatad[2]);
 
   bk_close(pevent, pdatad + 3);

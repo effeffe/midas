@@ -21,11 +21,12 @@ extern const char *getparam(const char *param);
 extern void redirect(const char *path);
 extern void show_start_page(int script);
 extern void rsprintf(const char *format, ...);
-extern int mhttpd_revision();
+extern char *mhttpd_revision();
 extern void strencode(char *text);
 extern void strencode4(char *text);
-extern void show_header(HNDLE hDB, const char *title, const char *method, const char *path, int colspan,
-                        int refresh);
+extern void show_header(const char *title, const char *method, const char *path, int refresh);
+extern void show_navigation_bar(const char *cur_page);
+extern void page_footer(BOOL bForm);
 
 #undef NAME_LENGTH
 #define NAME_LENGTH 256
@@ -69,6 +70,10 @@ typedef struct {
    char  subdir[256];
    int   subdir_end_line;
    int   subdir_not_notify;
+   int   if_index;
+   int   if_line[4];
+   int   if_else_line[4];
+   int   if_endif_line[4];
    int   stack_index;
    int   subroutine_end_line[4];
    int   subroutine_return_line[4];
@@ -131,6 +136,22 @@ typedef struct {
 "Subdir = STRING : [256] ",\
 "Subdir end line = INT : 0",\
 "Subdir not notify = INT : 0",\
+"If index = INT : 0",\
+"If line = INT[4] :",\
+"[0] 0",\
+"[1] 0",\
+"[2] 0",\
+"[3] 0",\
+"If else line = INT[4] :",\
+"[0] 0",\
+"[1] 0",\
+"[2] 0",\
+"[3] 0",\
+"If endif line = INT[4] :",\
+"[0] 0",\
+"[1] 0",\
+"[2] 0",\
+"[3] 0",\
 "Stack index = INT : 0",\
 "Subroutine end line = INT[4] :",\
 "[0] 0",\
@@ -168,6 +189,8 @@ NULL }
 SEQUENCER_STR(sequencer_str);
 SEQUENCER seq;
 PMXML_NODE pnseq = NULL;
+
+
 
 /*------------------------------------------------------------------*/
 
@@ -405,7 +428,14 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
             fprintf(fout, "<Goto l=\"%d\" sline=\"%s\" />\n", line+1, list[1]);
             
          } else if (equal_ustring(list[0], "if")) {
-            fprintf(fout, "<If l=\"%d\" condition=\"%s\">\n", line+1, list[1]);
+            fprintf(fout, "<If l=\"%d\" condition=\"", line+1);
+            for (i=1 ; i<100 && list[i][0] && stricmp(list[i], "THEN") != 0 ; i++)
+               fprintf(fout, "%s", list[i]);
+            fprintf(fout, "\">\n");
+
+         } else if (equal_ustring(list[0], "else")) {
+            fprintf(fout, "<Else />\n");
+            
          } else if (equal_ustring(list[0], "endif")) {
             fprintf(fout, "</If>\n");
             
@@ -427,7 +457,9 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
                endl = line+1;
             if (list[2][0] == 0)
                fprintf(fout, "<Loop l=\"%d\" le=\"%d\" n=\"%s\">\n", line+1, endl, list[1]);
-            else {
+            else if (list[3][0] == 0){
+               fprintf(fout, "<Loop l=\"%d\" le=\"%d\" var=\"%s\" n=\"%s\">\n", line+1, endl, list[1], list[2]);
+            } else {
                fprintf(fout, "<Loop l=\"%d\" le=\"%d\" var=\"%s\" values=\"", line+1, endl, list[1]);
                for (i=2 ; i < 100 && list[i][0] ; i++) {
                   if (i > 2)
@@ -444,6 +476,8 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
                     list[2][0] == '1'? " wait=\"1\"" : "", list[1]);
 
          } else if (equal_ustring(list[0], "odbinc")) {
+            if (list[2][0] == 0)
+               strlcpy(list[2], "1", 2);
             fprintf(fout, "<ODBInc l=\"%d\" path=\"%s\">%s</ODBInc>\n", line+1, list[1], list[2]);
             
          } else if (equal_ustring(list[0], "odbset")) {
@@ -452,6 +486,9 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
             else
                fprintf(fout, "<ODBSet l=\"%d\" path=\"%s\">%s</ODBSet>\n", line+1, list[1], list[2]);
             
+         } else if (equal_ustring(list[0], "odbget")) {
+               fprintf(fout, "<ODBGet l=\"%d\" path=\"%s\">%s</ODBGet>\n", line+1, list[1], list[2]);
+
          } else if (equal_ustring(list[0], "odbsubdir")) {
             if (list[2][0])
                fprintf(fout, "<ODBSubdir l=\"%d\" notify=\"%s\" path=\"%s\">\n", line+1, list[2], list[1]);
@@ -485,8 +522,8 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
                fprintf(fout, "<Script l=\"%d\">%s</Script>\n", line+1, list[1]);
             else {
                fprintf(fout, "<Script l=\"%d\" params=\"", line+1);
-               for (i=1 ; i < 100 && list[i][0] ; i++) {
-                  if (i > 1)
+               for (i=2 ; i < 100 && list[i][0] ; i++) {
+                  if (i > 2)
                      fprintf(fout, ",");
                   fprintf(fout, "%s", list[i]);
                }
@@ -658,7 +695,7 @@ int eval_condition(const char *condition)
    strcpy(str, condition);
    op[1] = op[2] = 0;
    value1 = value2 = 0;
-   
+
    /* find value and operator */
    for (i = 0; i < (int)strlen(str) ; i++)
       if (strchr("<>=!&", str[i]) != NULL)
@@ -678,10 +715,20 @@ int eval_condition(const char *condition)
    if (!eval_var(value2_str, value2_var, sizeof(value2_var)))
       return -1;
    for (i=0 ; i<(int)strlen(value1_var) ; i++)
-      if (isdigit(value1_var[i]))
+      if (!isdigit(value1_var[i]))
          break;
-   if (i == (int)strlen(value1_var))
+   if (i < (int)strlen(value1_var)) {
+      // string comparison
+      if (strcmp(op, "=") == 0)
+         if (equal_ustring(value1_var, value2_var)) return 1;
+      if (strcmp(op, "==") == 0)
+         if (equal_ustring(value1_var, value2_var)) return 1;
+      if (strcmp(op, "!=") == 0)
+         if (!equal_ustring(value1_var, value2_var)) return 1;
       return -1;
+   }
+   
+   // numberic comparison
    for (i=0 ; i<(int)strlen(value2_var) ; i++)
       if (isdigit(value2_var[i]))
          break;
@@ -716,7 +763,7 @@ int eval_condition(const char *condition)
 
 void init_sequencer()
 {
-   int status, size;
+   int status;
    HNDLE hDB;
    HNDLE hKey;
    char str[256];
@@ -729,12 +776,13 @@ void init_sequencer()
       abort();
    }
    db_find_key(hDB, 0, "/Sequencer/State", &hKey);
-   size = sizeof(seq);
    status = db_open_record(hDB, hKey, &seq, sizeof(seq), MODE_READ, NULL, NULL);
    assert(status == DB_SUCCESS);
    
    if (seq.path[0] == 0)
-      getcwd(seq.path, sizeof(seq.path)); 
+      if (!getcwd(seq.path, sizeof(seq.path)))
+         seq.path[0] = 0;
+
    if (strlen(seq.path)>0 && seq.path[strlen(seq.path)-1] != DIR_SEPARATOR) {
       strlcat(seq.path, DIR_SEPARATOR_STR, sizeof(seq.path));
    }
@@ -776,13 +824,16 @@ void seq_start_page()
    
    cm_get_experiment_database(&hDB, NULL);
    
-   show_header(hDB, "Start sequence", "GET", "", 1, 0);
-   rsprintf("<tr><th bgcolor=#A0A0FF colspan=2>Start script</th>\n");
+   show_header("Start sequence", "GET", "", 0);
+
+   rsprintf("<table class=\"dialogTable\">");  //main table
+
+   rsprintf("<tr><th colspan=2 class=\"subStatusTitle\" style=\"border:2px solid #FFFFFF\">Start script</th>\n");
   
    if (!pnseq) {
-      rsprintf("<tr><td colspan=2 align=\"center\" bgcolor=\"red\"><b>Error in XML script</b></td></tr>\n");
+      rsprintf("<tr><td colspan=2 align=\"center\" class=\"redLight\"><b>Error in XML script</b></td></tr>\n");
       rsprintf("</table>\n");
-      rsprintf("</body></html>\r\n");
+      page_footer(TRUE);
       return;
    }
    
@@ -895,7 +946,7 @@ void seq_start_page()
    if (isparam("redir"))
       rsprintf("<input type=hidden name=\"redir\" value=\"%s\">\n", getparam("redir"));
    
-   rsprintf("</body></html>\r\n");
+   page_footer(TRUE);
 }
 
 /*------------------------------------------------------------------*/
@@ -905,9 +956,9 @@ const char *call_col[] = {"#B0FFB0", "#C0FFC0", "#D0FFD0", "#E0FFE0"};
 
 void show_seq_page()
 {
-   INT i, size, n,  width, state, eob, last_line, error_line;
+   INT i, size, n,  width, state, eob, last_line, error_line, sectionEmpty;
    HNDLE hDB;
-   char str[256], path[256], dir[256], error[256], comment[256], filename[256], data[256], buffer[10000], line[256], name[32];
+   char str[256], path[256], dir[256], error[256], comment[256], data[256], buffer[10000], line[256], name[32];
    time_t now;
    char *flist = NULL, *pc, *pline, *buf;
    PMXML_NODE pn;
@@ -925,11 +976,13 @@ void show_seq_page()
       if (isparam("dir"))
          strlcpy(seq.filename, getparam("dir"), sizeof(seq.filename));
       else
-         filename[0] = 0;
+         seq.filename[0] = 0;
       if (isparam("fs"))
          strlcat(seq.filename, getparam("fs"), sizeof(seq.filename));
       
       strlcpy(str, seq.path, sizeof(str));
+      if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
+         strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
       strlcat(str, seq.filename, sizeof(str));
       seq.error[0] = 0;
       seq.error_line = 0;
@@ -992,7 +1045,10 @@ void show_seq_page()
                   sprintf(str, "x%d", n++);
                   strlcpy(buffer, getparam(str), sizeof(buffer));
                   sprintf(str, "/Sequencer/Variables/%s", name);
-                  db_set_value(hDB, 0, str, buffer, strlen(buffer)+1, 1, TID_STRING);
+                  size = strlen(buffer)+1;
+                  if (size < 32)
+                     size = 32;
+                  db_set_value(hDB, 0, str, buffer, size, 1, TID_STRING);
                }
             }
          }
@@ -1015,6 +1071,8 @@ void show_seq_page()
             seq.loop_n[i] = 0;
          }
          for (i=0 ; i<4 ; i++) {
+            seq.if_else_line[i] = 0;
+            seq.if_endif_line[i] = 0;
             seq.subroutine_end_line[i] = 0;
             seq.subroutine_return_line[i] = 0;
             seq.subroutine_call_line[i] = 0;
@@ -1023,6 +1081,7 @@ void show_seq_page()
          }
          seq.current_line_number = 1;
          seq.scurrent_line_number = 1;
+         seq.if_index = 0;
          seq.stack_index = 0;
          seq.error[0] = 0;
          seq.error_line = 0;
@@ -1045,14 +1104,25 @@ void show_seq_page()
    /*---- save script ----*/
    if (equal_ustring(getparam("cmd"), "Save")) {
       strlcpy(str, seq.path, sizeof(str));
+      if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
+         strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
       strlcat(str, seq.filename, sizeof(str));
-      fh = open(str, O_RDWR | O_TRUNC | O_TEXT, 0644);
-      if (fh > 0 && isparam("scripttext")) {
-         i = strlen(getparam("scripttext"));
-         write(fh, getparam("scripttext"), i);
+      fh = open(str, O_RDWR | O_TRUNC | O_CREAT | O_TEXT, 0644);
+      if (fh < 0) {
+         cm_msg(MERROR, "show_seq_page", "Cannot save file \'%s\', open() errno %d (%s)", str, errno, strerror(errno));
+      } else {
+         if (isparam("scripttext")) {
+            i = strlen(getparam("scripttext"));
+            int wr = write(fh, getparam("scripttext"), i);
+            if (wr != i) {
+               cm_msg(MERROR, "show_seq_page", "Cannot save file \'%s\', write() errno %d (%s)", str, errno, strerror(errno));
+            }
+         }
          close(fh);
       }
       strlcpy(str, seq.path, sizeof(str));
+      if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
+         strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
       strlcat(str, seq.filename, sizeof(str));
       seq.error[0] = 0;
       if (pnseq) {
@@ -1109,7 +1179,7 @@ void show_seq_page()
       size = sizeof(state);
       db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
       if (state != STATE_STOPPED)
-         cm_transition(TR_STOP, 0, str, sizeof(str), DETACH, FALSE);
+         cm_transition(TR_STOP, 0, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
       
       db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
       cm_msg(MTALK, "show_seq_page", "Sequencer is finished.");
@@ -1143,11 +1213,17 @@ void show_seq_page()
    rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
    
    if (!equal_ustring(getparam("cmd"), "Load Script") && !isparam("fs") &&
-       !equal_ustring(getparam("cmd"), "Edit Script"))
+       !equal_ustring(getparam("cmd"), "Edit Script") &&
+       !equal_ustring(getparam("cmd"), "New Script"))
       rsprintf("<meta http-equiv=\"Refresh\" content=\"60\">\n");
    
    /* update script */
-   rsprintf("<script type=\"text/javascript\" src=\"../mhttpd.js\"></script>\n");
+   //rsprintf("<script type=\"text/javascript\" src=\"../mhttpd.js\"></script>\n");
+
+   rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
+   rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
+
    rsprintf("<script type=\"text/javascript\">\n");
    rsprintf("<!--\n");
    rsprintf("var show_all_lines = false;\n");
@@ -1200,10 +1276,14 @@ void show_seq_page()
    rsprintf("         sline.style.display = 'none';\n");
    rsprintf("      else\n");
    rsprintf("         sline.style.display = 'inline';\n");
-   rsprintf("      if (scurrent_line > 10 || sshow_all_lines)\n");
-   rsprintf("          document.getElementById('slinedots1').style.display = 'inline';\n");
-   rsprintf("      else\n");
-   rsprintf("          document.getElementById('slinedots1').style.display = 'none';\n");
+   rsprintf("      if (scurrent_line > 10) {\n");
+   rsprintf("         document.getElementById('supperarrow').style.display = 'inline';\n");
+   rsprintf("         if (sshow_all_lines)\n");
+   rsprintf("            document.getElementById('supperarrow').style.display = '&#x25BC';\n");
+   rsprintf("         else\n");
+   rsprintf("            document.getElementById('supperarrow').style.display = '&#x25B2';\n");
+   rsprintf("      } else\n");
+   rsprintf("          document.getElementById('supperarrow').style.display = 'none';\n");
    rsprintf("      if (sl == serror_line)\n");
    rsprintf("         sline.style.backgroundColor = '#FF0000';\n");
    rsprintf("      else if (sl == scurrent_line)\n");
@@ -1237,10 +1317,14 @@ void show_seq_page()
    rsprintf("         line.style.display = 'none';\n");
    rsprintf("      else\n");
    rsprintf("         line.style.display = 'inline';\n");
-   rsprintf("      if (current_line > 10 || show_all_lines)\n");
-   rsprintf("          document.getElementById('linedots1').style.display = 'inline';\n");
-   rsprintf("      else\n");
-   rsprintf("          document.getElementById('linedots1').style.display = 'none';\n");
+   rsprintf("      if (current_line > 10) {\n");
+   rsprintf("         document.getElementById('upperarrow').style.display = 'inline';\n");
+   rsprintf("         if (show_all_lines)\n");
+   rsprintf("            document.getElementById('upperarrow').style.display = '&#x25BC';\n");
+   rsprintf("         else\n");
+   rsprintf("            document.getElementById('upperarrow').style.display = '&#x25B2';\n");
+   rsprintf("      } else\n");
+   rsprintf("          document.getElementById('upperarrow').style.display = 'none';\n");
    rsprintf("      if (l == error_line)\n");
    rsprintf("         line.style.backgroundColor = '#FF0000';\n");
    rsprintf("      else if (l == current_line)\n");
@@ -1265,17 +1349,25 @@ void show_seq_page()
    rsprintf("         line.style.backgroundColor = '#FFFFFF';\n");
    rsprintf("   }\n");
    rsprintf("   \n");
-   rsprintf("   if (document.getElementById('linedots2')) {\n");
-   rsprintf("      if (current_line < last_line-10 && !show_all_lines)\n");
-   rsprintf("         document.getElementById('linedots2').style.display = 'inline';\n");
-   rsprintf("      else\n");
-   rsprintf("         document.getElementById('linedots2').style.display = 'none';\n");
+   rsprintf("   if (document.getElementById('lowerarrow')) {\n");
+   rsprintf("      if (current_line < last_line-10) {\n");
+   rsprintf("         document.getElementById('lowerarrow').style.display = 'inline';\n");
+   rsprintf("         if (show_all_lines)\n");
+   rsprintf("            document.getElementById('lowerarrow').innerHTML = '&#x25B2';\n");
+   rsprintf("         else\n");
+   rsprintf("            document.getElementById('lowerarrow').innerHTML = '&#x25BC';\n");
+   rsprintf("      } else\n");
+   rsprintf("         document.getElementById('lowerarrow').style.display = 'none';\n");
    rsprintf("   }\n");
-   rsprintf("   if (document.getElementById('slinedots2')) {\n");
-   rsprintf("      if (scurrent_line < slast_line-10 && !show_all_lines)\n");
-   rsprintf("         document.getElementById('slinedots2').style.display = 'inline';\n");
-   rsprintf("      else\n");
-   rsprintf("         document.getElementById('slinedots2').style.display = 'none';\n");
+   rsprintf("   if (document.getElementById('slowerarrow')) {\n");
+   rsprintf("      if (scurrent_line < slast_line-10) {\n");
+   rsprintf("         document.getElementById('slowerarrow').style.display = 'inline';\n");
+   rsprintf("         if (sshow_all_lines)\n");
+   rsprintf("            document.getElementById('slowerarrow').innerHTML = '&#x25B2';\n");
+   rsprintf("         else\n");
+   rsprintf("            document.getElementById('slowerarrow').innerHTML = '&#x25BC';\n");
+   rsprintf("      } else\n");
+   rsprintf("         document.getElementById('slowerarrow').style.display = 'none';\n");
    rsprintf("   }\n");
    rsprintf("   \n");
    rsprintf("   var wl = document.getElementById('wait_label');\n");
@@ -1341,12 +1433,20 @@ void show_seq_page()
    rsprintf("function show_lines()\n");
    rsprintf("{\n");
    rsprintf("   show_all_lines = !show_all_lines;\n");
+   rsprintf("   if (show_all_lines)\n");
+   rsprintf("      document.getElementById('upperarrow').innerHTML = '&#x25BC';\n");
+   rsprintf("   else\n");
+   rsprintf("      document.getElementById('upperarrow').innerHTML = '&#x25B2';\n");
    rsprintf("   seq_refresh();\n");
    rsprintf("}\n");
    rsprintf("\n");
    rsprintf("function sshow_lines()\n");
    rsprintf("{\n");
    rsprintf("   sshow_all_lines = !sshow_all_lines;\n");
+   rsprintf("   if (sshow_all_lines)\n");
+   rsprintf("      document.getElementById('supperarrow').innerHTML = '&#x25BC';\n");
+   rsprintf("   else\n");
+   rsprintf("      document.getElementById('supperarrow').innerHTML = '&#x25B2';\n");
    rsprintf("   seq_refresh();\n");
    rsprintf("}\n");
    rsprintf("\n");
@@ -1389,15 +1489,18 @@ void show_seq_page()
    
    rsprintf("<form name=\"form1\" method=\"GET\" action=\".\">\n");
    
-   rsprintf("<table border=3 cellpadding=2>\n");
-   rsprintf("<tr><th bgcolor=#A0A0FF>MIDAS experiment \"%s\"", str);
-   rsprintf("<th bgcolor=#A0A0FF>%s</tr>\n", ctime(&now));
+   // body needs wrapper div to pin footer
+   rsprintf("<div class=\"wrapper\">\n");
    
+   show_navigation_bar("Sequencer");
+
+   rsprintf("<table>");  //generic table for menu row
+
    /*---- menu buttons ----*/
    
    if (!equal_ustring(getparam("cmd"), "Load Script") && !isparam("fs")) {
       rsprintf("<tr>\n");
-      rsprintf("<td colspan=2 bgcolor=#C0C0C0>\n");
+      rsprintf("<td colspan=2 style=\"text-align:center\">\n");
       
       if (seq.running) {
          if (seq.stop_after_run)
@@ -1439,23 +1542,29 @@ void show_seq_page()
       }
       if (seq.filename[0] && !seq.running && !equal_ustring(getparam("cmd"), "Load Script") && !isparam("fs"))
          rsprintf("<input type=submit name=cmd value=\"Edit Script\">\n");
-      rsprintf("<input type=submit name=cmd value=Status>\n");
       
       rsprintf("</td></tr>\n");
    }
+
+   rsprintf("</table>");  //end menu table
+   
+   rsprintf("<table><tr><td>"); //wrapper table to keep all sub-tables the same width
+   rsprintf("<table id=\"topTable\" class=\"sequencerTable\" width=100%%>");  //first table ends up being different things depending on context; refactor.
    
    /*---- file selector ----*/
    
    if (equal_ustring(getparam("cmd"), "Load Script") || isparam("fs")) {
-      rsprintf("<tr><td align=center colspan=2 bgcolor=#FFFFFF>\n");
-      rsprintf("<b>Select a sequence file:</b><br>\n");
-      rsprintf("<select name=\"fs\" id=\"fs\" size=20 style=\"width:300\">\n");
+      rsprintf("<tr><th class=\"subStatusTitle\" colspan=2>\n");
+      rsprintf("<b>Select a sequencer file:</b><br></th></tr>\n");
+      rsprintf("<tr><td><select name=\"fs\" id=\"fs\" size=20 style=\"width:300\">\n");
       
       if (isparam("dir"))
          strlcpy(dir, getparam("dir"), sizeof(dir));
       else
          dir[0] = 0;
       strlcpy(path, seq.path, sizeof(path));
+      if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
+         strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
 
       if (isparam("fs")) {
          strlcpy(str, getparam("fs"), sizeof(str));
@@ -1485,42 +1594,12 @@ void show_seq_page()
             rsprintf("<option onDblClick=\"document.form1.submit()\">[%s]</option>\n", flist+i*MAX_STRING_LENGTH);
       }
       
-      /*---- go over XML files in sequencer directory ----*/
-      /*
-      n = ss_file_find(path, (char *)"*.xml", &flist);
-      for (i=0 ; i<n ; i++) {
-         strlcpy(str, path, sizeof(str));
-         strlcat(str, flist+i*MAX_STRING_LENGTH, sizeof(str));
-         comment[0] = 0;
-         if (pnseq) {
-            mxml_free_tree(pnseq);
-            pnseq = NULL;
-         }
-         pnseq = mxml_parse_file(str, error, sizeof(error), &error_line);
-         if (error[0])
-            sprintf(comment, "Error in XML: %s", error);
-         else {
-            if (pnseq) {
-               pn = mxml_find_node(pnseq, "RunSequence/Comment");
-               if (pn)
-                  strlcpy(comment, mxml_get_value(pn), sizeof(comment));
-               else
-                  strcpy(comment, "<No description in XML file>");
-            }
-         }
-         if (pnseq) {
-            mxml_free_tree(pnseq);
-            pnseq = NULL;
-         }
-         
-         rsprintf("<option onClick=\"document.getElementById('cmnt').innerHTML='%s'\">%s</option>\n", comment, flist+i*MAX_STRING_LENGTH);
-      }
-      */
-      
       /*---- go over MSL files in sequencer directory ----*/
       n = ss_file_find(path, (char *)"*.msl", &flist);
       for (i=0 ; i<n ; i++) {
          strlcpy(str, path, sizeof(str));
+         if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
+            strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
          strlcat(str, flist+i*MAX_STRING_LENGTH, sizeof(str));
          
          if (msl_parse(str, error, sizeof(error), &error_line)) {
@@ -1563,53 +1642,103 @@ void show_seq_page()
       rsprintf("<input type=hidden name=dir value=\"%s\">", dir);
       rsprintf("</td></tr>\n");
       
-      rsprintf("<tr><td align=center colspan=2 id=\"cmnt\">&nbsp;</td></tr>\n");
-      rsprintf("<tr><td align=center colspan=2>\n");
+      rsprintf("<tr><td style=\"text-align:center\" colspan=2 id=\"cmnt\">&nbsp;</td></tr>\n");
+      rsprintf("<tr><td style=\"text-align:center\" colspan=2>\n");
       rsprintf("<input type=button onClick=\"load();\" value=\"Load\">\n");
       rsprintf("<input type=submit name=cmd value=\"Cancel\">\n");
       rsprintf("</td></tr>\n");
+      rsprintf("</table>");
    }
    
    /*---- show XML file ----*/
    
    else {
-      if (seq.filename[0]) {
+      if (equal_ustring(getparam("cmd"), "New Script")) {
+         rsprintf("<tr><th class=\"subStatusTitle\">Script Editor</th></tr>");
+         rsprintf("<tr><td colspan=2>");
+         rsprintf("<script type=\"text/javascript\">\n");
+         rsprintf("function queryFilename()\n");
+         rsprintf("{\n");
+         rsprintf("  var f = prompt('Please enter filename');\n");
+         rsprintf("  if (f != null && f != '') {\n");
+         rsprintf("    if (f.indexOf('.') == -1)\n");
+         rsprintf("       f = f+'.msl';\n");
+         rsprintf("    ODBSet('/Sequencer/State/Filename', f);\n");
+         rsprintf("    return true;\n");
+         rsprintf("  } else\n");
+         rsprintf("    return false;");
+         rsprintf("}\n");
+         rsprintf("</script>\n");
+         rsprintf("<input type=submit name=cmd onClick=\"return queryFilename();\" value=\"Save\">\n");
+         rsprintf("<input type=submit name=cmd value=\"Cancel\">\n");
+         rsprintf("<div align=\"right\"><a target=\"_blank\" href=\"https://midas.triumf.ca/MidasWiki/index.php/Sequencer\">Syntax Help</a></div>");
+         rsprintf("</td></tr>\n");
+         rsprintf("<tr><td colspan=2><textarea rows=30 cols=80 name=\"scripttext\" style=\"font-family:monospace;font-size:medium;\">\n");
+         rsprintf("</textarea></td></tr>\n");
+         rsprintf("<tr><td style=\"text-align:center;\" colspan=2>\n");
+         rsprintf("<input type=submit name=cmd onClick=\"return queryFilename();\" value=\"Save\">\n");
+         rsprintf("<input type=submit name=cmd value=\"Cancel\">\n");
+         rsprintf("</td></tr></table>\n");
+      } else if (seq.filename[0]) {
          if (equal_ustring(getparam("cmd"), "Edit Script")) {
-            rsprintf("<tr><td colspan=2>Filename:<b>%s</b>&nbsp;&nbsp;", seq.filename);
+            rsprintf("<tr><th class=\"subStatusTitle\">Script Editor</th></tr>");
+            rsprintf("<tr><td colspan=2>\n");
+            rsprintf("<script type=\"text/javascript\">\n");
+            rsprintf("function queryFilename()\n");
+            rsprintf("{\n");
+            rsprintf("  var f = prompt('Please enter new filename');\n");
+            rsprintf("  if (f != null && f != '') {\n");
+            rsprintf("    if (f.indexOf('.') == -1)\n");
+            rsprintf("       f = f+'.msl';\n");
+            rsprintf("    ODBSet('/Sequencer/State/Filename', f);\n");
+            rsprintf("    var o=document.createElement('input');o.type='hidden';o.name='cmd';o.value='Save';\n");
+            rsprintf("    document.form1.appendChild(o);\n");
+            rsprintf("    document.form1.submit();\n");
+            rsprintf("  }\n");
+            rsprintf("  return false;");
+            rsprintf("}\n");
+            rsprintf("</script>\n");
+            rsprintf("Filename:<a onClick=\"return queryFilename();\" href=\"#\">%s</a>&nbsp;&nbsp;", seq.filename);
             rsprintf("<input type=submit name=cmd value=\"Save\">\n");
             rsprintf("<input type=submit name=cmd value=\"Cancel\">\n");
+            rsprintf("<div align=\"right\"><a target=\"_blank\" href=\"https://midas.triumf.ca/MidasWiki/index.php/Sequencer\">Syntax Help</a></div>");
             rsprintf("</td></tr>\n");
             rsprintf("<tr><td colspan=2><textarea rows=30 cols=80 name=\"scripttext\" style=\"font-family:monospace;font-size:medium;\">\n");
             strlcpy(str, seq.path, sizeof(str));
+            if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
+               strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
             strlcat(str, seq.filename, sizeof(str));
             f = fopen(str, "rt");
             if (f) {
                for (int line=0 ; !feof(f) ; line++) {
                   str[0] = 0;
-                  fgets(str, sizeof(str), f);
-                  rsprintf(str);
+                  if (fgets(str, sizeof(str), f))
+                     rsprintf(str);
                }
                fclose(f);
             }
             rsprintf("</textarea></td></tr>\n");
-            rsprintf("<tr><td align=center colspan=2>\n");
+            rsprintf("<tr><td style=\"text-align:center;\" colspan=2>\n");
             rsprintf("<input type=submit name=cmd value=\"Save\">\n");
             rsprintf("<input type=submit name=cmd value=\"Cancel\">\n");
             rsprintf("</td></tr>\n");
          } else {
-            if (seq.stop_after_run)
+            sectionEmpty = 1;
+            rsprintf("<tr><th class=\"subStatusTitle\">Progress</th></tr>");
+            if (seq.stop_after_run){
+               sectionEmpty = 0;
                rsprintf("<tr id=\"msg\" style=\"display:table-row\"><td colspan=2><b>Sequence will be stopped after current run</b></td></tr>\n");
-            else
+            } else
                rsprintf("<tr id=\"msg\" style=\"display:none\"><td colspan=2><b>Sequence will be stopped after current run</b></td></tr>\n");
             
             for (i=0 ; i<4 ; i++) {
                rsprintf("<tr id=\"loop%d\" style=\"display:none\"><td colspan=2>\n", i);
-               rsprintf("<table width=\"100%%\"><tr><td id=\"loop_label%d\">Loop&nbsp;%d:</td>\n", i, i);
+               rsprintf("<table width=\"100%%\"><tr><td style=\"width:150px;\" id=\"loop_label%d\">Loop&nbsp;%d:</td>\n", i, i);
                if (seq.loop_n[i] <= 0)
                   width = 0;
                else
                   width = (int)(((double)seq.loop_counter[i]/seq.loop_n[i])*100+0.5);
-               rsprintf("<td width=\"100%%\"><table id=\"loopprgs%d\" width=\"%d%%\" height=\"25\">\n", i, width);
+               rsprintf("<td><table id=\"loopprgs%d\" width=\"%d%%\" height=\"25\">\n", i, width);
                rsprintf("<tr><td style=\"background-color:%s;", bar_col[i]);
                rsprintf("border:2px solid #000080;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;\">&nbsp;\n");
                rsprintf("</td></tr></table></td></tr></table></td></tr>\n");
@@ -1620,19 +1749,32 @@ void show_seq_page()
                   width = 0;
                else
                   width = (int)(((double)seq.wait_value/seq.wait_limit)*100+0.5);
-               rsprintf("<table width=\"100%%\"><tr><td id=\"wait_label\">Run:</td>\n");
-               rsprintf("<td width=\"100%%\"><table id=\"runprgs\" width=\"%d%%\" height=\"25\">\n", width);
+               rsprintf("<table width=\"100%%\"><tr><td style=\"width:150px\" id=\"wait_label\">Run:</td>\n");
+               rsprintf("<td><table id=\"runprgs\" width=\"%d%%\" height=\"25\">\n", width);
                rsprintf("<tr><td style=\"background-color:#80FF80;border:2px solid #008000;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;\">&nbsp;\n");
                rsprintf("</td></tr></table></td></tr></table></td></tr>\n");
+               sectionEmpty=0;
             }
             if (seq.paused) {
                rsprintf("<tr><td align=\"center\" colspan=2 style=\"background-color:#FFFF80;\"><b>Sequencer is paused</b>\n");
                rsprintf("</td></tr>\n");
+               sectionEmpty=0;
             }
             if (seq.finished) {
                rsprintf("<tr><td colspan=2 style=\"background-color:#80FF80;\"><b>Sequence is finished</b>\n");
                rsprintf("</td></tr>\n");
+               sectionEmpty=0;
             }
+            rsprintf("</table>"); //end progress table
+            //hide progress table if nothing in it:
+            if(sectionEmpty == 1){
+               rsprintf("<script type=\"text/JavaScript\">");
+               rsprintf("var element = document.getElementById(\"topTable\");");
+               rsprintf("element.parentNode.removeChild(element);");               
+               rsprintf("</script>");
+            }
+
+            rsprintf("<table class=\"sequencerTable\" width=\"100%%\"><tr><th class=\"subStatusTitle\">Sequencer File</th></tr>");  //start file display table
             
             rsprintf("<tr><td colspan=2><table width=100%%><tr><td>Filename:<b>%s</b></td>", seq.filename);
             if (stristr(seq.filename, ".msl"))
@@ -1640,7 +1782,7 @@ void show_seq_page()
             rsprintf("</td></tr></table></td></tr>\n");
             
             if (seq.error[0]) {
-               rsprintf("<tr><td bgcolor=red colspan=2><b>");
+               rsprintf("<tr><td class=\"redLight\" colspan=2><b>");
                strencode(seq.error);
                rsprintf("</b></td></tr>\n");
             }
@@ -1651,6 +1793,8 @@ void show_seq_page()
                
             if (stristr(seq.filename, ".msl")) {
                strlcpy(str, seq.path, sizeof(str));
+               if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
+                  strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
                strlcat(str, seq.filename, sizeof(str));
                fh = open(str, O_RDONLY | O_TEXT, 0644);
                if (fh > 0) {
@@ -1661,8 +1805,8 @@ void show_seq_page()
                   buf[size] = 0;
                   close(fh);
                   
-                  rsprintf("<tr><td colspan=2 valign=\"top\">\n");
-                  rsprintf("<div onClick=\"sshow_lines();\" id=\"slinedots1\" style=\"display:none;\">...<br></div>\n");
+                  rsprintf("<tr><td style=\"background-color:#FFFFFF\" colspan=2 valign=\"top\">\n");
+                  rsprintf("<a onClick=\"sshow_lines();return false;\" href=\"#\" id=\"supperarrow\" style=\"display:none;\">&#x25B2</a><br>\n");
                   
                   pline = buf;
                   for (int line=1 ; *pline ; line++) {
@@ -1691,7 +1835,7 @@ void show_seq_page()
                      if (*pline == '\r')
                         pline++;
                   }
-                  rsprintf("<div onClick=\"sshow_lines();\" id=\"slinedots2\" style=\"display:none;\">...<br></div>\n");
+                  rsprintf("<a onClick=\"sshow_lines();return false;\" href=\"#\" id=\"slowerarrow\" style=\"display:none;\">&#x25BC</a><br>\n");
                   rsprintf("</td>\n");
                   free(buf);
                   buf = NULL;
@@ -1706,13 +1850,15 @@ void show_seq_page()
             /*---- Right (XML) pane ----*/
             
             if (stristr(seq.filename, ".msl"))
-               rsprintf("<td id=\"xml_pane\" style=\"border-left-width:1px;border-left-style:solid;border-color:black;display:none;\">\n");
+               rsprintf("<td id=\"xml_pane\" style=\"background-color:#FFFFFF;border-left-width:1px;border-left-style:solid;border-color:black;display:none;\">\n");
             else
                rsprintf("<td colspan=2 id=\"xml_pane\">\n");
 
-            rsprintf("<div onClick=\"show_lines();\" id=\"linedots1\" style=\"display:none;\">...<br></div>\n");
+            rsprintf("<a onClick=\"show_lines();return false;\" href=\"#\" id=\"upperarrow\" style=\"display:none;\">&#x25B2</a><br>\n");
             
             strlcpy(str, seq.path, sizeof(str));
+            if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
+               strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
             strlcat(str, seq.filename, sizeof(str));
             if (strchr(str, '.')) {
                *strchr(str, '.') = 0;
@@ -1757,7 +1903,7 @@ void show_seq_page()
                   if (*pline == '\r')
                      pline++;
                }
-               rsprintf("<div onClick=\"show_lines();\" id=\"linedots2\" style=\"display:none;\">...<br></div>\n");
+               rsprintf("<a onClick=\"show_lines();return false;\" href=\"#\" id=\"lowerarrow\" style=\"display:none;\">&#x25BC</a><br>\n");
                rsprintf("</td>\n");
                free(buf);
                buf = NULL;
@@ -1766,14 +1912,17 @@ void show_seq_page()
                   rsprintf("<tr><td colspan=2><b>Cannot open file \"%s\"</td></tr>\n", str);
                }
             }
+            rsprintf("</tr></table></td></tr>\n");
          }
          
-         rsprintf("</tr></table></td></tr>\n");
+         rsprintf("</table>"); //end sequencer file table
             
+
          /*---- show messages ----*/
          if (seq.running) {
+            rsprintf("<table class=\"sequencerTable\" width=100%%><tr><th class=\"subStatusTitle\">Messages</th></tr>");
             rsprintf("<tr><td colspan=2>\n");
-            rsprintf("<font style=\"font-family:monospace\">\n");
+            rsprintf("<font id=\"sequencerMessages\" style=\"font-family:monospace\">\n");
             rsprintf("<a href=\"../?cmd=Messages\">...</a><br>\n");
             
             cm_msg_retrieve(10, buffer, sizeof(buffer));
@@ -1802,33 +1951,42 @@ void show_seq_page()
                
                /* check for error */
                if (strstr(line, ",ERROR]"))
-                  rsprintf("<span style=\"color:white;background-color:red\">%s</span>", str);
+                  rsprintf("<div style=\"color:white;background-color:red;\" width=100%%>%s</div>", str);
                else
-                  rsprintf("%s", str);
+                  rsprintf("<div>%s</div>", str);
                
                rsprintf("<br>\n");
             } while (!eob && *pline);
-            
+
+            //some JS to reverse the order of messages, so latest appears at the top:
+            rsprintf("<script type=\"text/JavaScript\">");
+            rsprintf("var messages = document.getElementById(\"sequencerMessages\");");
+            rsprintf("var i = messages.childNodes.length;");
+            rsprintf("while (i--)");
+            rsprintf("messages.appendChild(messages.childNodes[i]);");
+            rsprintf("</script>");
             
             rsprintf("</font></td></tr>\n");
          }
+         rsprintf("</table>\n");
       } else {
-         rsprintf("<tr><td colspan=2><b>No script loaded</b></td></tr>\n");
+         rsprintf("<tr><td><div class=\"subStatusTitle\" style=\"text-align:center\">&nbsp;&nbsp;No script loaded&nbsp;&nbsp;</div></td></tr>\n");
+         rsprintf("<tr><td style=\"text-align:center\"><input type=submit name=cmd value=\"New Script\"></td></tr></table>\n");
       }
    }
    
-   rsprintf("</table>\n");
-   rsprintf("</form></body></html>\r\n");
+   rsprintf("</td></tr></table>"); //end wrapper table
+   page_footer(TRUE);
 }
 
 /*------------------------------------------------------------------*/
 
 void sequencer()
 {
-   PMXML_NODE pn, pr, pt;
-   char odbpath[256], value[256], data[256], str[256], name[32], op[32];
+   PMXML_NODE pn, pr, pt, pe;
+   char odbpath[256], value[256], data[256], str[256], str1[256], name[32], op[32];
    char list[100][NAME_LENGTH], *pc;
-   int i, l, n, status, size, index, index1, index2, last_line, state, run_number, cont;
+   int i, j, l, n, status, size, index, index1, index2, last_line, state, run_number, cont;
    HNDLE hDB, hKey, hKeySeq;
    KEY key;
    double d;
@@ -1862,7 +2020,7 @@ void sequencer()
    }
 
    /* check for last line of script */
-   if (seq.current_line_number >= last_line) {
+   if (seq.current_line_number > last_line) {
       seq.running = FALSE;
       seq.finished = TRUE;
       db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
@@ -1886,14 +2044,21 @@ void sequencer()
             seq.current_line_number++;
          } else {
             pn = mxml_get_node_at_line(pnseq, seq.loop_start_line[i]);
-            if (mxml_get_attribute(pn, "var") && mxml_get_attribute(pn, "values")) {
-               strlcpy(data, mxml_get_attribute(pn, "values"), sizeof(data));
-               strbreak(data, list, 100, ",", FALSE);
+            if (mxml_get_attribute(pn, "var")) {
                strlcpy(name, mxml_get_attribute(pn, "var"), sizeof(name));
-               if (!eval_var(list[seq.loop_counter[i]], value, sizeof(value)))
-                  return;
+               if (mxml_get_attribute(pn, "values")) {
+                  strlcpy(data, mxml_get_attribute(pn, "values"), sizeof(data));
+                  strbreak(data, list, 100, ",", FALSE);
+                  if (!eval_var(list[seq.loop_counter[i]], value, sizeof(value)))
+                     return;
+               } else if (mxml_get_attribute(pn, "n")) {
+                  sprintf(value, "%d", seq.loop_counter[i]+1);
+               }
                sprintf(str, "/Sequencer/Variables/%s", name);
-               db_set_value(hDB, 0, str, value, strlen(value)+1, 1, TID_STRING);
+               size = strlen(value)+1;
+               if (size < 32)
+                  size = 32;
+               db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
             }
             seq.loop_counter[i]++;
             seq.current_line_number = seq.loop_start_line[i]+1;
@@ -1901,6 +2066,17 @@ void sequencer()
          db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
          return;
       }
+   }
+   
+   /* check for end of "if" statement */
+   if (seq.if_index > 0 && seq.current_line_number == seq.if_endif_line[seq.if_index-1]) {
+      seq.if_index --;
+      seq.if_line[seq.if_index] = 0;
+      seq.if_else_line[seq.if_index] = 0;
+      seq.if_endif_line[seq.if_index] = 0;
+      seq.current_line_number++;
+      db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
+      return;
    }
    
    /* check for ODBSubdir end */
@@ -1967,8 +2143,17 @@ void sequencer()
                   while (*pc == '.' || *pc == '-')
                      pc++;
                   index2 = atoi(pc);
-               } else
-                  index1 = atoi(strchr(odbpath, '[') + 1);
+               } else {
+                  if (*(strchr(odbpath, '[') + 1) == '$') {
+                     strlcpy(str, strchr(odbpath, '[') + 1, sizeof(str));
+                     if (strchr(str, ']'))
+                        *strchr(str, ']') = 0;
+                     if (!eval_var(str, value, sizeof(value)))
+                        return;
+                     index1 = atoi(value);
+                  } else
+                     index1 = atoi(strchr(odbpath, '[') + 1);
+               }
             }
             *strchr(odbpath, '[') = 0;
          }
@@ -2005,13 +2190,71 @@ void sequencer()
                seq_error(str);
                return;
             }
+            
             size = sizeof(seq);
-            db_get_record(hDB, hKeySeq, &seq, &size, 0); // could have changed seq tree
+            db_get_record1(hDB, hKeySeq, &seq, &size, 0, strcomb(sequencer_str)); // could have changed seq tree
             seq.current_line_number++;
          }
       }
    }
    
+   /*---- ODBGet ----*/
+   else if (equal_ustring(mxml_get_name(pn), "ODBGet")) {
+      if (!mxml_get_attribute(pn, "path")) {
+         seq_error("Missing attribute \"path\"");
+      } else {
+         strlcpy(odbpath, seq.subdir, sizeof(odbpath));
+         if (strlen(odbpath) > 0 && odbpath[strlen(odbpath)-1] != '/')
+            strlcat(odbpath, "/", sizeof(odbpath));
+         strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
+         
+         /* check if index is supplied */
+         index1 = 0;
+         if (odbpath[strlen(odbpath) - 1] == ']') {
+            if (strchr(odbpath, '[')) {
+             
+               if (*(strchr(odbpath, '[') + 1) == '$') {
+                  strlcpy(str, strchr(odbpath, '[') + 1, sizeof(str));
+                  if (strchr(str, ']'))
+                     *strchr(str, ']') = 0;
+                  if (!eval_var(str, value, sizeof(value)))
+                     return;
+                  index1 = atoi(value);
+               } else
+                  index1 = atoi(strchr(odbpath, '[') + 1);
+            }
+            *strchr(odbpath, '[') = 0;
+         }
+         
+         strlcpy(name, mxml_get_value(pn), sizeof(name));
+         status = db_find_key(hDB, 0, odbpath, &hKey);
+         if (status != DB_SUCCESS) {
+            sprintf(str, "Cannot find ODB key \"%s\"", odbpath);
+            seq_error(str);
+            return;
+         } else {
+            db_get_key(hDB, hKey, &key);
+            size = sizeof(data);
+
+            status = db_get_data_index(hDB, hKey, data, &size, index1, key.type);
+            if (key.type == TID_BOOL)
+               strlcpy(value, *((int*)data) > 0 ? "1" : "0", sizeof(value));
+            else
+               db_sprintf(value, data, size, 0, key.type);
+            
+            sprintf(str, "/Sequencer/Variables/%s", name);
+            size = strlen(value)+1;
+            if (size < 32)
+               size = 32;
+            db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
+            
+            size = sizeof(seq);
+            db_get_record1(hDB, hKeySeq, &seq, &size, 0, strcomb(sequencer_str)); // could have changed seq tree
+            seq.current_line_number = mxml_get_line_number_end(pn)+1;
+         }
+      }
+   }
+
    /*---- ODBInc ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBInc")) {
       if (!mxml_get_attribute(pn, "path")) {
@@ -2039,7 +2282,7 @@ void sequencer()
             db_sprintf(str, data, size, 0, key.type);
             d = atof(str);
             d += atof(value);
-            sprintf(str, "%lf", d);
+            sprintf(str, "%lg", d);
             size = sizeof(data);
             db_sscanf(str, data, &size, 0, key.type);
             
@@ -2049,6 +2292,8 @@ void sequencer()
             if (mxml_get_attribute(pn, "notify"))
                notify = atoi(mxml_get_attribute(pn, "notify"));
             
+            if (key.item_size < 32)
+               key.item_size = 32;
             db_set_data_index2(hDB, hKey, data, key.item_size, index, key.type, notify);
             seq.current_line_number++;
          }
@@ -2063,10 +2308,18 @@ void sequencer()
    
    /*---- Script ----*/
    else if (equal_ustring(mxml_get_name(pn), "Script")) {
-      if (mxml_get_attribute(pn, "loop_counter"))
-         sprintf(str, "%s %d %d %d %d", mxml_get_value(pn), seq.loop_counter[0], seq.loop_counter[1], seq.loop_counter[2], seq.loop_counter[3]);
-      else
-         sprintf(str, "%s", mxml_get_value(pn));
+      sprintf(str, "%s", mxml_get_value(pn));
+      
+      if (mxml_get_attribute(pn, "params")) {
+         strlcpy(data, mxml_get_attribute(pn, "params"), sizeof(data));
+         n = strbreak(data, list, 100, ",", FALSE);
+         for (i=0 ; i<n ; i++) {
+            if (!eval_var(list[i], value, sizeof(value)))
+               return;
+            strlcat(str, " ", sizeof(str));
+            strlcat(str, value, sizeof(str));
+         }
+      }
       ss_system(str);
       seq.current_line_number++;
    }
@@ -2081,7 +2334,7 @@ void sequencer()
             if (state != STATE_RUNNING) {
                size = sizeof(run_number);
                db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, &size, TID_INT, FALSE);
-               status = cm_transition(TR_START, run_number+1, str, sizeof(str), DETACH, FALSE);
+               status = cm_transition(TR_START, run_number+1, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
                if (status != CM_SUCCESS) {
                   sprintf(str, "Cannot start run: %s", str);
                   seq_error(str);
@@ -2102,8 +2355,10 @@ void sequencer()
             size = sizeof(state);
             db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
             if (state != STATE_STOPPED) {
-               status = cm_transition(TR_STOP, 0, str, sizeof(str), DETACH, FALSE);
-               if (status != CM_SUCCESS) {
+               status = cm_transition(TR_STOP, 0, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
+               if (status == CM_DEFERRED_TRANSITION) {
+                  // do nothing
+               } else if (status != CM_SUCCESS) {
                   sprintf(str, "Cannot stop run: %s", str);
                   seq_error(str);
                }
@@ -2139,22 +2394,22 @@ void sequencer()
          if (!eval_var(mxml_get_value(pn), str, sizeof(str)))
             return;
          n = atoi(str);
-         seq.wait_limit = n;
+         seq.wait_limit = (float)n;
          strcpy(seq.wait_type, "Events");
          size = sizeof(d);
          db_get_value(hDB, 0, "/Equipment/Trigger/Statistics/Events sent", &d, &size, TID_DOUBLE, FALSE);
-         seq.wait_value = d;
+         seq.wait_value = (float)d;
          if (d >= n) {
             seq.current_line_number = mxml_get_line_number_end(pn) + 1;
             seq.wait_limit = 0;
             seq.wait_value = 0;
             seq.wait_type[0] = 0;
          }
-         seq.wait_value = d;
+         seq.wait_value = (float)d;
       } else  if (equal_ustring(mxml_get_attribute(pn, "for"), "ODBValue")) {
-         if (!eval_var(mxml_get_value(pn), str, sizeof(str)))
+         if (!eval_var(mxml_get_value(pn), str1, sizeof(str1)))
             return;
-         v = atof(str);
+         v = (float)atof(str1);
          seq.wait_limit = v;
          strcpy(seq.wait_type, "ODB");
          if (!mxml_get_attribute(pn, "path")) {
@@ -2173,30 +2428,33 @@ void sequencer()
                seq_error(str);
                return;
             } else {
-               db_get_key(hDB, hKey, &key);
-               size = sizeof(data);
-               db_get_data_index(hDB, hKey, data, &size, index, key.type);
-               db_sprintf(str, data, size, 0, key.type);
-               seq.wait_value = atof(str);
                if (mxml_get_attribute(pn, "op"))
                   strlcpy(op, mxml_get_attribute(pn, "op"), sizeof(op));
                else
-                  strcpy(op, ">=");
+                  strcpy(op, "!=");
                strlcat(seq.wait_type, op, sizeof(seq.wait_type));
-               
+
+               db_get_key(hDB, hKey, &key);
+               size = sizeof(data);
+               db_get_data_index(hDB, hKey, data, &size, index, key.type);
+               if (key.type == TID_BOOL)
+                  strlcpy(str, *((int*)data) > 0 ? "1" : "0", sizeof(str));
+               else
+                  db_sprintf(str, data, size, 0, key.type);
                cont = FALSE;
+               seq.wait_value = (float)atof(str);
                if (equal_ustring(op, ">=")) {
                   cont = (seq.wait_value >= seq.wait_limit);
-               } else if (equal_ustring(op, ">")) { 
+               } else if (equal_ustring(op, ">")) {
                   cont = (seq.wait_value > seq.wait_limit);
                } else if (equal_ustring(op, "<=")) {
-                  cont = (seq.wait_value >= seq.wait_limit);
+                  cont = (seq.wait_value <= seq.wait_limit);
                } else if (equal_ustring(op, "<")) {
-                  cont = (seq.wait_value >= seq.wait_limit);
+                  cont = (seq.wait_value < seq.wait_limit);
                } else if (equal_ustring(op, "==")) {
-                  cont = (seq.wait_value >= seq.wait_limit);
+                  cont = (seq.wait_value == seq.wait_limit);
                } else if (equal_ustring(op, "!=")) {
-                  cont = (seq.wait_value >= seq.wait_limit);
+                  cont = (seq.wait_value != seq.wait_limit);
                } else {
                   sprintf(str, "Invalid comaprison \"%s\"", op);
                   seq_error(str);
@@ -2215,13 +2473,13 @@ void sequencer()
          if (!eval_var(mxml_get_value(pn), str, sizeof(str)))
             return;
          n = atoi(str);
-         seq.wait_limit = n;
+         seq.wait_limit = (float)n;
          strcpy(seq.wait_type, "Seconds");
          if (seq.start_time == 0) {
             seq.start_time = ss_time();
             seq.wait_value = 0;
          } else {
-            seq.wait_value = ss_time() - seq.start_time;
+            seq.wait_value = (float)(ss_time() - seq.start_time);
             if (seq.wait_value > seq.wait_limit)
                seq.wait_value = seq.wait_limit;
          }
@@ -2254,21 +2512,8 @@ void sequencer()
       if (mxml_get_attribute(pn, "le"))
          seq.sloop_end_line[i] = atoi(mxml_get_attribute(pn, "le"));
       seq.loop_counter[i] = 1;
-      if (mxml_get_attribute(pn, "var")) {
-         if (!mxml_get_attribute(pn, "values")) {
-            seq_error("Missing \"value\" attribute");
-            return;
-         }
-         strlcpy(data, mxml_get_attribute(pn, "values"), sizeof(data));
-         seq.loop_n[i] = strbreak(data, list, 100, ",", FALSE);
-         
-         strlcpy(name, mxml_get_attribute(pn, "var"), sizeof(name));
-         if (!eval_var(list[0], value, sizeof(value)))
-            return;
-         sprintf(str, "/Sequencer/Variables/%s", name);
-         db_set_value(hDB, 0, str, value, strlen(value)+1, 1, TID_STRING);
-         
-      } else if (mxml_get_attribute(pn, "n")) {
+
+      if (mxml_get_attribute(pn, "n")) {
          if (equal_ustring(mxml_get_attribute(pn, "n"), "infinite"))
             seq.loop_n[i] = -1;
          else {
@@ -2276,22 +2521,75 @@ void sequencer()
                return;
             seq.loop_n[i] = atoi(value);
          }
+         strlcpy(value, "1", sizeof(value));
+      } else if (mxml_get_attribute(pn, "values")) {
+         strlcpy(data, mxml_get_attribute(pn, "values"), sizeof(data));
+         seq.loop_n[i] = strbreak(data, list, 100, ",", FALSE);
+         if (!eval_var(list[0], value, sizeof(value)))
+            return;
+      } else {
+         seq_error("Missing \"var\" or \"n\" attribute");
+         return;
       }
+
+      if (mxml_get_attribute(pn, "var")) {
+         strlcpy(name, mxml_get_attribute(pn, "var"), sizeof(name));
+         sprintf(str, "/Sequencer/Variables/%s", name);
+         size = strlen(value)+1;
+         if (size < 32)
+            size = 32;
+         db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
+      }
+
       seq.current_line_number++;
    }
    
    /*---- If ----*/
    else if (equal_ustring(mxml_get_name(pn), "If")) {
+      
+      if (seq.if_index == 4) {
+         seq_error("Maximum number of nexted if..endif exceeded");
+         return;
+      }
+      
+      // store if, else and endif lines
+      seq.if_line[seq.if_index] = seq.current_line_number;
+      seq.if_endif_line[seq.if_index] = mxml_get_line_number_end(pn);
+
+      seq.if_else_line[seq.if_index] = 0;
+      for (j=seq.current_line_number+1 ; j<mxml_get_line_number_end(pn)+1 ; j++) {
+         pe = mxml_get_node_at_line(pnseq, j);
+         if (pe && equal_ustring(mxml_get_name(pe), "Else")) {
+            seq.if_else_line[seq.if_index] = j;
+            break;
+         }
+      }
+      
       strlcpy(str, mxml_get_attribute(pn, "condition"), sizeof(str));
       i = eval_condition(str);
       if (i < 0) {
          seq_error("Invalid number in comparison");
          return;
       }
+      
       if (i == 1)
          seq.current_line_number++;
+      else if (seq.if_else_line[seq.if_index])
+         seq.current_line_number = seq.if_else_line[seq.if_index]+1;
       else
-         seq.current_line_number = mxml_get_line_number_end(pn) + 1;
+         seq.current_line_number = seq.if_endif_line[seq.if_index];
+      
+      seq.if_index++;
+   }
+
+   /*---- Else ----*/
+   else if (equal_ustring(mxml_get_name(pn), "Else")) {
+      // goto next "Endif"
+      if (seq.if_index == 0) {
+         seq_error("Unexpected Else");
+         return;
+      }
+      seq.current_line_number = seq.if_endif_line[seq.if_index-1];
    }
 
    /*---- Goto ----*/
@@ -2349,7 +2647,20 @@ void sequencer()
       if (!eval_var(mxml_get_value(pn), value, sizeof(value)))
          return;
       sprintf(str, "/Sequencer/Variables/%s", name);
-      db_set_value(hDB, 0, str, value, strlen(value)+1, 1, TID_STRING);
+      size = strlen(value)+1;
+      if (size < 32)
+         size = 32;
+      db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
+      
+      // check if variable is used in loop
+      for (i=3 ; i>=0 ; i--)
+         if (seq.loop_start_line[i] > 0) {
+            pr = mxml_get_node_at_line(pnseq, seq.loop_start_line[i]);
+            if (mxml_get_attribute(pr, "var")) {
+               if (equal_ustring(mxml_get_attribute(pr, "var"), name))
+                  seq.loop_counter[i] = atoi(value);
+            }
+         }
       
       seq.current_line_number = mxml_get_line_number_end(pn)+1;
    }
@@ -2382,7 +2693,10 @@ void sequencer()
       if (!concatenate(value, sizeof(value), mxml_get_value(pn)))
          return;
       sprintf(str, "/Sequencer/Variables/%s", name);
-      db_set_value(hDB, 0, str, value, strlen(value)+1, 1, TID_STRING);
+      size = strlen(value)+1;
+      if (size < 32)
+         size = 32;
+      db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
       
       seq.current_line_number = mxml_get_line_number_end(pn)+1;
    }

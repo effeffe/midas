@@ -192,6 +192,10 @@ int main(int argc, char *argv[])
             
    } while (status != SS_ABORT && status != RPC_SHUTDOWN);
 
+#if defined(SIGPIPE) && defined(SIG_IGN)
+   signal(SIGPIPE, SIG_IGN);
+#endif
+
    /* reset terminal */
    ss_getchar(TRUE);
    

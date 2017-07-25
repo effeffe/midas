@@ -197,6 +197,8 @@ int mvme_write(MVME_INTERFACE *vme, mvme_addr_t vme_addr, void *src, mvme_size_t
          n = 0;
    } else {
 
+      n = 0;
+
       /* A32 */
       if (vme->am >= 0x08 && vme->am <= 0x0f) {
          if (vme->blt_mode == MVME_BLT_NONE)
@@ -445,6 +447,8 @@ unsigned int mvme_read_value(MVME_INTERFACE *vme, mvme_addr_t vme_addr)
       } else if (vme->dmode == MVME_DMODE_D32)
          status = vme_A32D32_read(hvme, (u_int32_t) vme_addr, (u_int32_t *) &data);
    }
+
+   if (status);
 
    return data;
 }

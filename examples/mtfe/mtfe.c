@@ -13,7 +13,6 @@
 #include <stdlib.h>
 #include "midas.h"
 #include "msystem.h"
-#include "mcstd.h"
 
 /* make frontend functions callable from the C framework */
 #ifdef __cplusplus
@@ -57,6 +56,7 @@ INT read_scaler_event(char *pevent, INT off);
 
 INT poll_event(INT source, INT count, BOOL test);
 INT interrupt_configure(INT cmd, INT source, POINTER_T adr);
+INT trigger_thread(void *param);
    
 /*-- Equipment list ------------------------------------------------*/
 
@@ -65,7 +65,7 @@ EQUIPMENT equipment[] = {
    {"Trigger",               /* equipment name */
     {1, 0,                   /* event ID, trigger mask */
      "SYSTEM",               /* event buffer */
-     EQ_INTERRUPT,           /* equipment type */
+     EQ_USER,                /* equipment type */
      0,                      /* event source (not used) */
      "MIDAS",                /* format */
      TRUE,                   /* enabled */
@@ -115,6 +115,16 @@ EQUIPMENT equipment[] = {
 
 INT frontend_init()
 {
+   /* for this demo, use two readout threads */
+   for (int i=0 ; i<2 ; i++) {
+      
+      /* create a ring buffer for each thread */
+      create_event_rb(i);
+      
+      /* create readout thread */
+      ss_thread_create(trigger_thread, (void*)(PTYPE)i);
+   }
+   
    return SUCCESS;
 }
 
@@ -178,37 +188,11 @@ INT poll_event(INT source, INT count, BOOL test)
    return 0;
 }
 
-static int _trigger_enabled = 0;
-static int _trigger_readout_active = 0;
-static int _trigger_readout_stopped = 0;
-static int _stop_all_threads = 0;
-
 /*-- Interrupt configuration ---------------------------------------*/
 
 INT interrupt_configure(INT cmd, INT source, POINTER_T adr)
+/* Interrupts are not used in this example */
 {
-   switch (cmd) {
-      case CMD_INTERRUPT_ENABLE:
-         _trigger_enabled = TRUE;
-         break;
-      case CMD_INTERRUPT_DISABLE:
-         _trigger_enabled = FALSE;
-         /* wait until current readout has been finished */
-         while (_trigger_readout_active) 
-            ss_sleep(10);
-         break;
-      case CMD_INTERRUPT_ATTACH:
-         /* create readout thread */
-         if (source == 0) // equipment[0]
-            ss_thread_create(trigger_thread, NULL);
-         break;
-      case CMD_INTERRUPT_DETACH:
-         _stop_all_threads = TRUE;
-         /* wait until readout thread has been stopped */
-         while (!_trigger_readout_stopped)
-            ss_sleep(10);
-         break;
-   }
    return SUCCESS;
 }
 
@@ -218,21 +202,26 @@ INT trigger_thread(void *param)
 {
    EVENT_HEADER *pevent;
    WORD *pdata, *padc;
-   int i, status;
-   INT rbh;   
+   int  index, i, status;
+   INT rbh;
+   
+   /* index of this thread */
+   index = (int)(PTYPE)param;
+   
+   /* tell framework that we are alive */
+   signal_readout_thread_active(index, TRUE);
    
    /* Initialize hardware here ... */
+   printf("Start readout thread %d\n", index);
    
-   /* Create ring buffer for inter-thread data exchange */
-   rb_create(event_buffer_size, max_event_size, &rbh);
+   /* Obtain ring buffer for inter-thread data exchange */
+   rbh = get_event_rbh(index);
    
-   /* Tell framework to receive events from this buffer */
-   set_event_rb(rbh);
-   
-   while (!_stop_all_threads) {
+   while (is_readout_thread_enabled()) {
+      
       /* obtain buffer space */
       status = rb_get_wp(rbh, (void **)&pevent, 0);
-      if (_stop_all_threads)
+      if (!is_readout_thread_enabled())
          break;
       if (status == DB_TIMEOUT) {
          ss_sleep(10);
@@ -240,49 +229,41 @@ INT trigger_thread(void *param)
       }
       if (status != DB_SUCCESS)
          break;
-
-      if (_trigger_enabled) {
+      
+      /* check for new event (poll) */
+      status = ss_sleep(10); // for this demo, just sleep a bit
+      
+      if (status) { // if event available, read it out
          
-         /* indicate activity to interrupt_configure() */
-         _trigger_readout_active = TRUE;
+         if (!is_readout_thread_enabled())
+            break;
          
-         /* check for new event (poll) */
-         status = ss_sleep(10); // for this demo, just sleep a bit
+         bm_compose_event(pevent, 1, 0, 0, equipment[0].serial_number++);
+         pdata = (WORD *)(pevent + 1);
          
-         if (status) { // if event available, read it out
-
-            if (_stop_all_threads)
-               break;
-            
-            bm_compose_event(pevent, 1, 0, 0, equipment[0].serial_number++);
-            //            printf("%d ", equipment[0].serial_number);
-            pdata = (WORD *)(pevent + 1);
-            
-            /* init bank structure */
-            bk_init(pdata);
-            
-            /* create ADC0 bank */
-            bk_create(pdata, "ADC0", TID_WORD, &padc);
-
-            /* just put in some random numbers */
-            for (i=0 ; i<10 ; i++)
-               *padc++ = rand() % 1024;
-            
-            bk_close(pdata, padc);
-            
-            pevent->data_size = bk_size(pdata);
-            
-            /* send event to ring buffer */
-            rb_increment_wp(rbh, sizeof(EVENT_HEADER) + pevent->data_size);
-         }
+         /* init bank structure */
+         bk_init(pdata);
          
-         _trigger_readout_active = FALSE;
+         /* create ADC0 bank */
+         bk_create(pdata, "ADC0", TID_WORD, (void **)&padc);
          
-      } else // _trigger_enabled
-         ss_sleep(10);
+         /* just put in some random numbers in this demo */
+         for (i=0 ; i<10 ; i++)
+            *padc++ = rand() % 1024;
+         
+         bk_close(pdata, padc);
+         
+         pevent->data_size = bk_size(pdata);
+         
+         /* send event to ring buffer */
+         rb_increment_wp(rbh, sizeof(EVENT_HEADER) + pevent->data_size);
+      }
    }
    
-   _trigger_readout_active = FALSE;
-   _trigger_readout_stopped = TRUE;
+   /* tell framework that we are finished */
+   signal_readout_thread_active(index, FALSE);
+   
+   printf("Stop readout thread %d\n", index);
+
    return 0;
 }

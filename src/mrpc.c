@@ -87,11 +87,6 @@ static RPC_LIST rpc_list_library[] = {
    {RPC_CM_MSG_LOG, "cm_msg_log",
     {{TID_INT, RPC_IN},
      {TID_STRING, RPC_IN},
-     {0}}},
-
-   {RPC_CM_MSG_LOG1, "cm_msg_log1",
-    {{TID_INT, RPC_IN},
-     {TID_STRING, RPC_IN},
      {TID_STRING, RPC_IN},
      {0}}},
 
@@ -1228,6 +1223,19 @@ static RPC_LIST rpc_list_library[] = {
      {0}
      }
     }
+   ,
+
+   /* manual triggered equipment */
+
+   {RPC_JRPC, "ajax_rpc",
+    {
+      {TID_STRING, RPC_IN}, // command
+      {TID_STRING, RPC_IN}, // arguments (JSON-encoded)
+      {TID_STRING, RPC_OUT}, // return string (JSON-encoded)
+      {TID_INT,    RPC_IN},  // maximum length of the return string
+      {0}
+    }
+   }
    ,
 
    {0}

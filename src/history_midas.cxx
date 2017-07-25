@@ -5,8 +5,6 @@
 
   Contents:     Interface class for traditional MIDAS history
 
-  $Id$
-
 \********************************************************************/
 
 #include <stdio.h>
@@ -19,6 +17,10 @@
 #include "midas.h"
 #include "msystem.h"
 #include "history.h"
+
+#ifndef HAVE_STRLCPY
+#include "strlcpy.h"
+#endif
 
 #define STRLCPY(dst, src) strlcpy(dst, src, sizeof(dst))
 
@@ -93,7 +95,7 @@ public:
    int hs_connect(const char* unused_connect_string)
    {
       int status;
-      char str[1024];
+      char str[MAX_STRING_LENGTH];
 
       status = cm_get_experiment_database(&fDB, NULL);
       assert(status == CM_SUCCESS);
@@ -487,7 +489,7 @@ public:
 
    /*------------------------------------------------------------------*/
 
-   int hs_define_event(const char* event_name, int ntags, const TAG tags[])
+   int hs_define_event(const char* event_name, time_t timestamp, int ntags, const TAG tags[])
    {
       int event_id = FindEventId(event_name);
       if (event_id < 0)
@@ -506,6 +508,14 @@ public:
       int event_id = fEvidCache[event_name];
       //printf("write event [%s] evid %d\n", event_name, event_id);
       return ::hs_write_event(event_id, (void*)data, data_size);
+   }
+
+   /*------------------------------------------------------------------*/
+
+   int hs_flush_buffers()
+   {
+      //printf("hs_flush_buffers!\n");
+      return HS_SUCCESS;
    }
 
    /*------------------------------------------------------------------*/
@@ -625,7 +635,7 @@ public:
       return HS_SUCCESS;
    }
 
-   int hs_get_events(std::vector<std::string> *pevents)
+   int hs_get_events(time_t t, std::vector<std::string> *pevents)
    {
       assert(pevents);
       pevents->clear();
@@ -998,7 +1008,7 @@ public:
 
    /*------------------------------------------------------------------*/
 
-   int hs_get_tags(const char* event_name, std::vector<TAG> *ptags)
+   int hs_get_tags(const char* event_name, time_t t, std::vector<TAG> *ptags)
    {
       std::vector<TAG>& ttt = fTagsCache[event_name];
 
@@ -1021,6 +1031,15 @@ public:
          ptags->push_back(ttt[i]);
 
       return HS_SUCCESS;
+   }
+
+   /*------------------------------------------------------------------*/
+
+   int hs_get_last_written(time_t start_time, int num_var, const char* const event_name[], const char* const tag_name[], const int var_index[], time_t last_written[])
+   {
+      for (int i=0; i<num_var; i++)
+         last_written[i] = 0;
+      return HS_FILE_ERROR;
    }
 
    /*------------------------------------------------------------------*/
@@ -1146,6 +1165,56 @@ public:
 
       return HS_SUCCESS;
    }
+
+   /*------------------------------------------------------------------*/
+
+   int hs_read2(time_t start_time, time_t end_time, time_t interval,
+                int num_var,
+                const char* const event_name[], const char* const tag_name[], const int var_index[],
+                int num_entries[],
+                time_t* time_buffer[],
+                double* mean_buffer[],
+                double* rms_buffer[],
+                double* min_buffer[],
+                double* max_buffer[],
+                int read_status[])
+   {
+      int status = hs_read(start_time, end_time, interval, num_var, event_name, tag_name, var_index, num_entries, time_buffer, mean_buffer, read_status);
+
+      for (int i=0; i<num_var; i++) {
+         int num = num_entries[i];
+         rms_buffer[i] = (double*)malloc(sizeof(double)*num);
+         min_buffer[i] = (double*)malloc(sizeof(double)*num);
+         max_buffer[i] = (double*)malloc(sizeof(double)*num);
+
+         for (int j=0; j<num; j++) {
+            rms_buffer[i][j] = 0;
+            min_buffer[i][j] = mean_buffer[i][j];
+            max_buffer[i][j] = mean_buffer[i][j];
+         }
+      }
+      
+      return status;
+   }
+
+   int hs_read_buffer(time_t start_time, time_t end_time,
+                      int num_var, const char* const event_name[], const char* const tag_name[], const int var_index[],
+                      MidasHistoryBufferInterface* buffer[],
+                      int status[])
+   {
+      return HS_FILE_ERROR;
+   }
+   
+   int hs_read_binned(time_t start_time, time_t end_time, int num_bins,
+                      int num_var, const char* const event_name[], const char* const tag_name[], const int var_index[],
+                      int num_entries[],
+                      int* count_bins[], double* mean_bins[], double* rms_bins[], double* min_bins[], double* max_bins[],
+                      time_t last_time[], double last_value[],
+                      int status[])
+   {
+      return HS_FILE_ERROR;
+   }
+
 }; // end class
 
 MidasHistoryInterface* MakeMidasHistory()
@@ -1160,4 +1229,10 @@ MidasHistoryInterface* MakeMidasHistory()
    return new MidasHistory();
 }
 
-// end
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */

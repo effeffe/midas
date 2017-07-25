@@ -14,6 +14,7 @@ The Event builder user file
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h> // atoi()
 #include "midas.h"
 #include "mevb.h"
 
@@ -213,7 +214,7 @@ INT eb_user(INT nfrag, BOOL mismatch, EBUILDER_CHANNEL * ebch
   //
   // Include my own bank
   bk_init(pevent);
-  bk_create(pevent, "MYOW", TID_DWORD, &pdata);
+  bk_create(pevent, "MYOW", TID_DWORD, (void**)&pdata);
   for (i = 0; i < nfrag; i++) {
     *pdata++ = ((EVENT_HEADER *) ebch[i].pfragment)->serial_number;
     *pdata++ = ((EVENT_HEADER *) ebch[i].pfragment)->time_stamp;

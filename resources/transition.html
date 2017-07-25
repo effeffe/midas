@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html class="mcss">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="midas.css">
+    <script src="midas.js"></script>
+    <script src="mhttpd.js"></script>
+    <title>Run transition</title>
+  </head>
+  
+  <body class="mcss">
+    
+    <script>
+    url = mhttpd_getParameterByName("URL");
+    if (url)
+       mjsonrpc_set_url(url);
+    </script>
+
+    <div class="mwrapper">
+      <script>
+      mhttpd_navigation_bar("Transition");
+      </script>
+
+      <table width="95%" class="mtablecss runStatusTable" id="xstripeList">
+        <tr>
+          <th colspan="4" class="mtableheadercss subStatusTitle">Run Status</th>
+        </tr>
+        <tr>
+          <td colspan="1" height="100%" id="run_info" class="mredcolour redLight">
+            Run
+            <span id="run_number">run_number</span>
+            <span id="run_state">run_state</span>
+          </td>
+          <td colspan="3">
+            <input class="mbuttoncss" id="startButton" type=button value=Start onClick="mhttpd_start_run();">
+            <input class="mbuttoncss" id="stopButton" type=button value=Stop onClick="mhttpd_stop_run();">
+            <input class="mbuttoncss" id="pauseButton" type=button value=Pause onClick="mhttpd_pause_run();">
+            <input class="mbuttoncss" id="resumeButton" type=button value=Resume onClick="mhttpd_resume_run();">
+            <input class="mbuttoncss" id="cancelButton" type=button value="Cancel Transition" onClick="mhttpd_cancel_transition();">
+          </td>
+        </tr>
+      </table>
+
+      <span class="mfontcss" id="tr_status">tr_status</span>
+
+      <table width="95%" class="mtablecss subStatusTable" id="stripeList">
+        <tr>
+          <th colspan="5" class="mtableheadercss subStatusTitle">Run transition</th>
+        </tr>
+        <tr>
+          <td colspan="5">
+            Last transition: <span id="transition">transition</span>, Status: <span id="status">status</span> (<span id="errorstr">errorstr</span>), Time: <span id="time">time</span>
+          </td>
+        </tr>
+        <tr class="mtabletitlecss titleRow">
+          <th>Client</th>
+          <th>Sequence</th>
+          <th>Time</th>
+          <th>Status</th>
+          <th style="text-align:left">Error message</th>
+        </tr>
+      </table>
+      
+      <div id="updateStatus" align="left">
+        updateStatus
+      </div>
+      
+      <div class="mpush">
+      </div>
+    </div>
+
+    <script>
+    mhttpd_page_footer();
+    </script>
+    
+    <script> 
+    var update_timer_id;
+    
+    var transition_text = { 1:"Starting run...", 2:"Stopping run...", 4:"Pausing run...", 8:"Resuming run...", 16:"Start abort", 4096:"Deferred..." };
+    var transition_final = { 1:"Running", 2:"Stopped", 4:"Paused", 8:"Running", 16:"Start aborted, stopped", 4096:"Deferred..." };
+    var transition_fake_runstate = { 1:STATE_RUNNING, 2:STATE_STOPPED, 4:STATE_PAUSED, 8:STATE_RUNNING, 16:STATE_STOPPED, 4096:"Deferred..." };
+
+    function create_client(name)
+    {
+       var table = document.getElementById("stripeList"); 
+       
+       if (!table)
+          return; // no table?!?
+       
+       var tr = document.createElement("tr");
+       tr.id = "client " + name;
+       tr.className = "mtablecss";
+       
+       var td;
+
+       td = document.createElement("td");
+       td.align = "center";
+       td.innerHTML = "name";
+       tr.appendChild(td);
+
+       td = document.createElement("td");
+       td.align = "center";
+       td.innerHTML = "seqno";
+       tr.appendChild(td);
+
+       td = document.createElement("td");
+       td.align = "center";
+       td.innerHTML = "time";
+       tr.appendChild(td);
+
+       td = document.createElement("td");
+       td.align = "center";
+       td.innerHTML = "status";
+       tr.appendChild(td);
+
+       td = document.createElement("td");
+       td.style = "text-align:left";
+       td.align = "center";
+       td.innerHTML = "errorstr";
+       tr.appendChild(td);
+       
+       table.appendChild(tr);
+       
+       return tr;
+    }
+
+    function set_text(id, text)
+    {
+       var e = document.getElementById(id);
+       if (e)
+          e.innerHTML = text;
+    }
+
+    function adjust_colors(runstate)
+    {
+       if (runstate == STATE_RUNNING) {
+          document.getElementById("run_info").className = "mgreencolour greenLight";
+       } else if (runstate == STATE_PAUSED) {
+          document.getElementById("run_info").className = "myellowcolour yellowLight";
+       } else if (runstate == STATE_STOPPED) {
+          document.getElementById("run_info").className = "mredcolour redLight";
+       } else {
+          document.getElementById("run_info").className = "mgreencolour greenLight";
+       }
+    }
+
+    function adjust_buttons(runstate)
+    {
+       if (runstate == STATE_RUNNING) {
+          document.getElementById("startButton").disabled  = true;
+          document.getElementById("stopButton").disabled   = false;
+          document.getElementById("pauseButton").disabled  = false;
+          document.getElementById("resumeButton").disabled = true;
+          //document.getElementById("cancelButton").disabled = true;
+       } else if (runstate == STATE_PAUSED) {
+          document.getElementById("startButton").disabled  = true;
+          document.getElementById("stopButton").disabled   = false;
+          document.getElementById("pauseButton").disabled  = true;
+          document.getElementById("resumeButton").disabled = false;
+          //document.getElementById("cancelButton").disabled = true;
+       } else if (runstate == STATE_STOPPED) {
+          document.getElementById("startButton").disabled  = false;
+          document.getElementById("stopButton").disabled   = true;
+          document.getElementById("pauseButton").disabled  = true;
+          document.getElementById("resumeButton").disabled = true;
+          //document.getElementById("cancelButton").disabled = true;
+       } else {
+          document.getElementById("startButton").disabled  = true;
+          document.getElementById("stopButton").disabled   = true;
+          document.getElementById("pauseButton").disabled  = true;
+          document.getElementById("resumeButton").disabled = true;
+          //document.getElementById("cancelButton").disabled = false;
+       }
+    }
+
+    function time2sec(time)
+    {
+       var v = Math.round(time/100);
+       if (v == 0)
+          return "0";
+       return v/10.0 + "s";
+    }
+
+    function tr_name(tr)
+    {
+       var v = transition_names[tr];
+       if (v)
+          return v;
+       return "TR_" + tr;
+    }
+    
+    function callback(rpc_batch)
+    {
+       //document.getElementById('updateStatus').innerHTML = "RWP_";
+
+       //console.log(JSON.stringify(rpc.result));
+
+       var rpc = rpc_batch[0];
+       var rpc_db_get_values = rpc_batch[1];
+
+       if (!rpc.result.run_number && !rpc.result.status) {
+          document.getElementById('mhttpd_last_updated').innerHTML = new Date;
+          //document.getElementById('updateStatus').innerHTML = "RWPD";
+          document.getElementById('updateStatus').innerHTML = "";
+          return;
+       }
+
+       var runinfo = rpc_db_get_values.result.data[0];
+
+       //console.log("here: " + JSON.stringify(rpc_db_get_values.result.data[0]));
+
+       set_text("run_number", rpc.result.run_number + "/" + runinfo["run number"]);
+       if (rpc.result.status == 0) {
+          set_text("run_state", run_state_names[runinfo.state] + "/" + tr_name(rpc.result.transition));
+          adjust_buttons(0);
+          adjust_colors(0);
+       } else if (runinfo.state) {
+          adjust_buttons(runinfo.state);
+          adjust_colors(runinfo.state);
+          set_text("run_state",  run_state_names[runinfo.state]);
+       } else {
+          var fake_runstate = transition_fake_runstate[rpc.result.transition];
+          adjust_buttons(fake_runstate);
+          adjust_colors(fake_runstate);
+          set_text("run_state",  run_state_names[fake_runstate]);
+       }
+       set_text("transition", tr_name(rpc.result.transition));
+       set_text("status",     rpc.result.status);
+       set_text("errorstr",   rpc.result.errorstr);
+
+       var millitime = rpc.result.millitime;
+
+       var tr_time_text = "";
+       
+       if (rpc.result.end_time == 0) {
+          var tr_time = millitime - rpc.result.start_time;
+          tr_time_text = time2sec(tr_time);
+          set_text("time", tr_time_text);
+       } else {
+          var tr_time = rpc.result.end_time - rpc.result.start_time;
+          tr_time_text = time2sec(tr_time);
+          set_text("time", tr_time_text);
+       }
+
+       if (rpc.result.status) {
+          // transition is completed
+          document.getElementById("cancelButton").disabled = true;
+          set_text("tr_status", "");
+       } else {
+          // transition still in progress
+          document.getElementById("cancelButton").disabled = false;
+          set_text("tr_status", "Transition \"" + tr_name(rpc.result.transition) + "\" in progress, elapsed time: " + tr_time_text);
+       }
+       
+       var clients = rpc.result.clients;
+       
+       for (var name in clients) {
+          var client = clients[name];
+
+          //console.log(name + " : " + JSON.stringify(client));
+          
+          var e = document.getElementById("client " + name);
+          if (!e) e = create_client(name);
+          
+          if (!e) continue;
+          //console.log(name + " | " + name + " | " + e);
+
+          var msg = "";
+          for (var xname in client.wait_for_clients) {
+             var xclient = client.wait_for_clients[xname];
+             if (xclient.status != 0)
+                continue;
+
+             if (msg.length < 1) {
+                msg = "Waiting for:";
+             }
+             msg += " ";
+             msg += xclient.name;
+          }
+
+          var time_string = "";
+
+          if (client.connect_start_time == 0) {
+             var wait_time = millitime - client.init_time;
+             time_string += time2sec(wait_time);
+          } else {
+             var wait_time = client.connect_start_time - client.init_time;
+             time_string += time2sec(wait_time);
+             
+             if (client.connect_end_time == 0) {
+                var connect_time = millitime - client.connect_start_time;
+                time_string += "/" + time2sec(connect_time) + ", timeout " + time2sec(client.connect_timeout);
+             } else {
+                var connect_time = client.connect_end_time - client.connect_start_time;
+                time_string += "/" + time2sec(connect_time);
+                
+                if (client.rpc_end_time == 0) {
+                   var rpc_time = millitime - client.rpc_start_time;
+                   time_string += "/" + time2sec(rpc_time) + ", timeout " + time2sec(client.rpc_timeout);
+                } else {
+                   var rpc_time = client.rpc_end_time - client.rpc_start_time;
+                   time_string += "/" + time2sec(rpc_time);
+                   
+                   var tr_time = client.rpc_end_time - client.connect_start_time;
+                   time_string += "=" + time2sec(tr_time);
+                }
+             }
+          }
+          
+          e.childNodes[0].innerHTML = client.name;
+          e.childNodes[1].innerHTML = client.sequence_number;
+          e.childNodes[2].innerHTML = time_string;
+          if (client.status == 0) {
+             e.childNodes[3].innerHTML = "Waiting...";
+             e.childNodes[3].className = "";
+          } else if (client.status == 1) {
+             e.childNodes[3].innerHTML = "Success";
+             e.childNodes[3].className = "mgreencolour greenLight";
+          } else {
+             e.childNodes[3].innerHTML = client.status;
+             e.childNodes[3].className = "mredcolour redLight";
+          }
+
+          if (client.errorstr.length > 0) {
+             e.childNodes[4].innerHTML = client.errorstr;
+          } else {
+             e.childNodes[4].innerHTML = msg;
+          }
+
+          
+       } // loop over all clients
+       
+       document.getElementById('mhttpd_last_updated').innerHTML = new Date;
+       //document.getElementById('updateStatus').innerHTML = "RWPD";
+       document.getElementById('updateStatus').innerHTML = "";
+    }
+    
+    function update()
+    {
+       //document.getElementById('updateStatus').innerHTML = "R___";
+       var req = new Array;
+       req.push(mjsonrpc_make_request("cm_transition_status"));
+       req.push(mjsonrpc_make_request("db_get_values",{"paths":["/runinfo"]}));
+       mjsonrpc_send_request(req).then(function(rpc) {
+          callback(rpc);
+       }).catch(function(error) {
+          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
+       });
+       //document.getElementById('updateStatus').innerHTML = "RW__";
+    }
+    
+    function update_periodic()
+    {
+       clearTimeout(update_timer_id);
+       var update_period = 1000;
+       update();
+       update_timer_id = setTimeout('update_periodic()', update_period);
+    }
+    
+    update_periodic();
+    </script>
+  </body>
+</html>

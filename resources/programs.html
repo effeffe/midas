@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html class="mcss">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="midas.css">
+    <script src="midas.js"></script>
+    <script src="mhttpd.js"></script>
+    <title>Programs</title>
+  </head>
+  
+  <body class="mcss">
+    
+    <script>
+    url = mhttpd_getParameterByName("URL");
+    if (url)
+       mjsonrpc_set_url(url);
+    </script>
+
+    <div class="mwrapper">
+      <script>
+      mhttpd_navigation_bar("Programs");
+      </script>
+      
+      <div>
+        <table class="mtablecss subStatusTable" id="stripeList">
+          <tr>
+            <td colspan=5 class="mtableheadercss subStatusTitle">Programs</td>
+          </tr>
+          <tr class="mtabletitlecss titleRow">
+            <th>Program</th>
+            <th>Running on host</th>
+            <th>Alarm class</th>
+            <th>Autorestart</th>
+            <th>Commands</th>
+          </tr>
+        </table>
+      </div>
+      <div id="updateStatus" align="left">
+        updateStatus
+      </div>
+      
+      <div class="mpush">
+      </div>
+    </div>
+    
+    <script>
+    mhttpd_page_footer();
+    </script>
+    
+    <script>
+    var update_timer_id;
+    var start_timer_id;
+    var stop_timer_id;
+    
+    var program_status = new Array();
+    
+    function start_poll(name, start_command, count)
+    {
+       program_status[name] = "Starting " + count;
+       
+       mjsonrpc_cm_exist(name, false).then(function(rpc) {
+          var done = (rpc.result.status == 1);
+          if (done) {
+             program_status[name] = "";
+             update();
+          } else if (count > 0) {
+             start_timer_id = setTimeout(function() { start_poll(name, start_command, count-1); }, 1000);
+          } else {
+             program_status[name] = "";
+             alert("Program \'" + name + "\' could not be started by MIDAS. Try to start it manually using this command: " + start_command);
+             update();
+          }
+       }).catch(function(error) {
+          mjsonrpc_error_alert(error);
+       });
+    }
+    
+    function stop_poll(name, count)
+    {
+       program_status[name] = "Stopping " + count;
+       
+       mjsonrpc_cm_exist(name, false).then(function(rpc) {
+          var done = (rpc.result.status != 1);
+          if (done) {
+             program_status[name] = "";
+             update();
+          } else if (count > 0) {
+             stop_timer_id = setTimeout(function() { stop_poll(name, count-1); }, 1000);
+          } else {
+             program_status[name] = "";
+             alert("Program \'" + name + "\' could not be stopped by MIDAS. Try to kill it with \"kill -KILL\"");
+             update();
+          }
+       }).catch(function(error) {
+          mjsonrpc_error_alert(error);
+       });
+    }
+    
+    function add_table_entry(table, name, full_name, start_command)
+    {
+       var tr = document.createElement("tr");
+       tr.id = "program " + name;
+       tr.className = "mtablecss";
+       
+       var td;
+       var input;
+       
+       td = document.createElement("td");
+       td.align = "center";
+       td.innerHTML = "<a href='Programs/" + full_name + "'>"+full_name+"</a>";
+       tr.appendChild(td);
+       
+       td = document.createElement("td");
+       td.align = "center";
+       tr.appendChild(td);
+       
+       td = document.createElement("td");
+       td.align = "center";
+       tr.appendChild(td);
+       
+       td = document.createElement("td");
+       td.align = "center";
+       tr.appendChild(td);
+       
+       td = document.createElement("td");
+       
+       var start_button = document.createElement("button");
+       input = start_button;
+       input.id = "start " + name;
+       input.type = "button";
+       input.className = "mbuttoncss";
+       input.innerHTML = "Start " + full_name;
+       mhttpd_disable_button(input);
+       input.onclick = function() {
+          mhttpd_disable_button(start_button);
+          mjsonrpc_start_program(name).then(function(rpc) {
+             start_poll(name, start_command, 10);
+          }).catch(function(error) {
+             mjsonrpc_error_alert(error);
+          });
+       };
+       
+       td.appendChild(input);
+       
+       // need spacer beteen the buttons
+       //td.appendChild("x&nbspx");
+       
+       var stop_button = document.createElement("button");
+       input = stop_button;
+       input.id = "stop " + name;
+       input.type = "button";
+       input.className = "mbuttoncss";
+       input.innerHTML = "Stop " + full_name;
+       mhttpd_disable_button(input);
+       input.onclick = function() {
+          mhttpd_disable_button(stop_button);
+          mjsonrpc_stop_program(name, false).then(function(rpc) {
+             stop_poll(name, 10);
+          }).catch(function(error) {
+             mjsonrpc_error_alert(error);
+          });
+       };
+       
+       td.appendChild(input);
+       
+       tr.appendChild(td);
+       
+       table.appendChild(tr);
+       
+       return tr;
+    }
+    
+    function callback(rpc)
+    {
+       //document.getElementById('updateStatus').innerHTML = "RWP_";
+       
+       function find_clients(clients, name)
+       {
+          var found;
+          var name_lc = name.toLowerCase(name);
+          for (var key in clients) {
+             var cname = clients[key].name;
+             if (!cname) {
+                continue;
+             }
+             var cname_lc =  cname.toLowerCase();
+             var same_name = (cname_lc == name_lc);
+             var matching_name = false;
+             
+             if (!same_name) {
+                var n = cname_lc.search(name_lc);
+                if (n==0) {
+                   matching_name = true;
+                   // FIXME: check that remaining text is all numbers: for "odbedit", match "odbedit111", but not "odbeditxxx"
+                }
+             }
+             
+             if (same_name || matching_name) {
+                if (!found)
+                   found = new Array();
+                found.push(key);
+             }
+          }
+          return found;
+       }
+       
+       //alert("Hello: " + JSON.stringify(r));
+       
+       var programs = rpc.result.data[0];
+       var clients  = rpc.result.data[1];
+       var alarms   = rpc.result.data[2];
+       
+       for (var name in programs) {
+          if (typeof programs[name] !== 'object') continue;
+          
+          var e = document.getElementById("program " + name);
+          
+          var required = programs[name].required;
+          var xclients = find_clients(clients, name);
+          
+          //alert("name " + name + " clients: " + JSON.stringify(xclients));
+          
+          if (!xclients && !required) {
+             if (e) {
+                // hide this table row
+                e.style.display = 'none';
+             }
+             continue;
+          }
+          
+          var start_command = programs[name]["start command"];
+          
+          if (!e) {
+             var full_name = programs[name + "/name"];
+             e = add_table_entry(document.getElementById("stripeList"), name, full_name, start_command);
+          }
+
+          // unhide this table row
+          e.style.display = '';
+           
+          if (xclients) {
+             var s = "";
+             for (var i=0; i<xclients.length; i++) {
+                var key = xclients[i];
+                var host = clients[key].host;
+                if (host) {
+                   if (s.length > 0)
+                      s += "<br>";
+                   s += "<a href='/System/Clients/"+key+"'>"+host+"</a>";
+                }
+             }
+             e.childNodes[1].innerHTML = s;
+             e.childNodes[1].className = "mgreencolour greenLight";
+             // enable start/stop buttons
+             var b = document.getElementById("start " + name);
+             if (b) {
+                mhttpd_disable_button(b);
+                mhttpd_hide_button(b);
+             }
+             var b = document.getElementById("stop " + name);
+             if (b) {
+                mhttpd_enable_button(b);
+                mhttpd_unhide_button(b);
+             }
+          } else if (program_status[name]) {
+             e.childNodes[1].innerHTML = program_status[name];
+             e.childNodes[1].className = "myellowcolour yellowLight";
+             var b = document.getElementById("start " + name);
+             if (b && start_command) {
+                mhttpd_disable_button(b);
+                //mhttpd_hide_button(b);
+             }
+             var b = document.getElementById("stop " + name);
+             if (b) {
+                mhttpd_disable_button(b);
+                //mhttpd_hide_button(b);
+             }
+          } else {
+             e.childNodes[1].innerHTML = "Not running";
+             e.childNodes[1].className = "mredcolour redLight";
+             // enable start/stop buttons
+             var b = document.getElementById("start " + name);
+             if (b && start_command) {
+                mhttpd_enable_button(b);
+                mhttpd_unhide_button(b);
+             }
+             var b = document.getElementById("stop " + name);
+             if (b) {
+                mhttpd_disable_button(b);
+                mhttpd_hide_button(b);
+             }
+          }
+          
+          var alarm_class = programs[name]["alarm class"];
+          if (alarm_class.length > 0) {
+             e.childNodes[2].innerHTML = "<a href='Alarms/Classes/"+ alarm_class + "'>" + alarm_class + "</a>";
+             e.childNodes[2].className = "myellowcolour yellowLight";
+          } else {
+             e.childNodes[2].innerHTML = "-";
+          }
+          
+          if (programs[name]["auto restart"])
+             e.childNodes[3].innerHTML = "Yes";
+          else
+             e.childNodes[3].innerHTML = "No";
+       }
+       
+       document.getElementById('mhttpd_last_updated').innerHTML = new Date;
+       //document.getElementById('updateStatus').innerHTML = "RWPD";
+       document.getElementById('updateStatus').innerHTML = "";
+    }
+    
+    function update()
+    {
+       var paths = [ "/Programs", "/System/Clients", "/Alarms" ];
+       //document.getElementById('updateStatus').innerHTML = "R___";
+       mjsonrpc_db_get_values(paths).then(function(rpc) {
+          callback(rpc);
+       }).catch(function(error) {
+          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
+       });
+       //document.getElementById('updateStatus').innerHTML = "RW__";
+    }
+    
+    function update_periodic()
+    {
+       clearTimeout(update_timer_id);
+       var update_period = 1000;
+       update();
+       update_timer_id = setTimeout('update_periodic()', update_period);
+    }
+    
+    update_periodic();
+    </script>
+  </body>
+</html>

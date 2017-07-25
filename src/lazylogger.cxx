@@ -9,6 +9,10 @@ $Id$
 \********************************************************************/
 #include "midas.h"
 #include "msystem.h"
+#ifndef HAVE_STRLCPY
+#include "strlcpy.h"
+#endif
+
 
 #ifdef HAVE_FTPLIB
 #include "ftplib.h"
@@ -204,8 +208,8 @@ INT blockn = 0;
 /* prototypes */
 INT moduloCheck(INT lModulo, INT lPosition, INT lrun);
 BOOL lazy_file_exists(char *dir, char *file);
-INT lazy_main(INT, LAZY_INFO *);
-INT lazy_copy(char *dev, char *file);
+INT lazy_main(INT, LAZY_INFO *, int max_event_size);
+INT lazy_copy(char *dev, char *file, int max_event_size);
 INT lazy_load_params(HNDLE hDB, HNDLE hKey);
 INT build_log_list(const char *fmt, const char *dir, DIRLOGLIST *plog);
 INT build_done_list_odb(HNDLE, INT **);
@@ -288,7 +292,6 @@ INT lazy_file_remove(const char *pufile)
 INT lazy_log_update(INT action, INT run, const char *label, const char *file, DWORD perf_time)
 {
    char str[MAX_FILE_PATH];
-   INT blocks;
 
    strcpy(str, "no action");
 
@@ -311,7 +314,6 @@ INT lazy_log_update(INT action, INT run, const char *label, const char *file, DW
                  label, lazyst.nfiles, (double) perf_time / 1000.,
                  lazy.path, lazyst.backfile, lazyst.file_size / 1024.0 / 1024.0);
       } else if (equal_ustring(lazy.type, "Tape")) {
-         blocks = (int) (lazyst.cur_dev_size / 32.0 / 1024.0) + lazyst.nfiles;
          /* June 2002, use variable blockn from the real tape position */
          sprintf(str, "%s[%i] (cp:%.1fs) %s/%s %1.3lfMB  file NEW (position at block %d)",
                  label, lazyst.nfiles, (double) perf_time / 1000.,
@@ -331,10 +333,10 @@ INT lazy_log_update(INT action, INT run, const char *label, const char *file, DW
    else if (action == REMOVE_ENTRY)
       sprintf(str, "%s run#%i entry REMOVED", label, run);
 
-   cm_msg(MINFO, "Lazy", str);
+   cm_msg(MINFO, "Lazy", "%s", str);
 
    /* Now add this info also to a special log file */
-   cm_msg1(MINFO, "lazy", "lazy_log_update", str);
+   cm_msg1(MINFO, "lazy", "lazy_log_update", "%s", str);
 
    return 0;
 }
@@ -548,7 +550,7 @@ Function value:      number of elements
 std::string list_filename(const char* lazyname, const char* listname)
 {
    char path[256];
-   cm_get_path(path);
+   cm_get_path(path, sizeof(path));
 
    std::string s;
    s += path;
@@ -670,7 +672,7 @@ Function value:      number of elements
    status = db_find_key(hDB, hLch, "List", &hKey);
 
    if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "convert_done_list", "Cannot find \'/Lazy/%s/List\' db_find_key() status %d", key.name);
+      cm_msg(MERROR, "convert_done_list", "Cannot find \'/Lazy/%s/List\' db_find_key() status %d", key.name, status);
       cm_disconnect_experiment();
       exit(1);
    }
@@ -915,20 +917,6 @@ INT lazy_select_purge(HNDLE hKey, INT channel, LAZY_INFO * pLall, const char* fm
 }
 
 /*------------------------------------------------------------------*/
-void lazy_settings_hotlink(HNDLE hDB, HNDLE hKey, void *info)
-{
-   INT size, maintain;
-
-   /* check if Maintain has been touched */
-   size = sizeof(maintain);
-   db_get_value(hDB, hKey, "Maintain free space (%)", &maintain, &size, TID_INT, TRUE);
-   if (maintain != 0)
-      maintain_touched = TRUE;
-   else
-      maintain_touched = FALSE;
-}
-
-/*------------------------------------------------------------------*/
 void lazy_maintain_check(HNDLE hKey, LAZY_INFO * pLall)
 /********************************************************************\
 Routine: lazy_maintain_check
@@ -1147,7 +1135,7 @@ BOOL :  new copy condition
 }
 
 /*------------------------------------------------------------------*/
-INT lazy_copy(char *outfile, char *infile)
+INT lazy_copy(char *outfile, char *infile, int max_event_size)
 /********************************************************************\
 Routine: lazy_copy
 Purpose: backup file to backup device
@@ -1164,7 +1152,7 @@ Function value:
    void *plazy = NULL;
    DWORD szlazy;
    INT status, no_cpy_last_time = 0;
-   INT last_time, cpy_loop_time;
+   INT cpy_loop_time;
    DWORD watchdog_timeout;
    static INT last_error = 0;
    //char *pext;
@@ -1176,7 +1164,6 @@ Function value:
 
    /* init copy variables */
    lazyst.cur_size = 0.0f;
-   last_time = 0;
 
    /* open any logging file (output) */
    strlcpy(filename, outfile, sizeof(filename));        // ftp modifies filename
@@ -1208,7 +1195,7 @@ Function value:
    last_error = 0;
 
    /* open input data file */
-   if (md_file_ropen(infile, data_fmt, DONTOPENZIP) != MD_SUCCESS)
+   if (md_file_ropen(infile, data_fmt, DONTOPENZIP, max_event_size) != MD_SUCCESS)
       return (FORCE_EXIT);
 
    /* run shell command if available */
@@ -1237,9 +1224,9 @@ Function value:
       char str[MAX_FILE_PATH];
       sprintf(str, "Starting lazy job on %s at block %d", lazyst.backfile, blockn);
       if (msg_flag)
-         cm_msg(MTALK, "Lazy", str);
-      cm_msg(MINFO, "Lazy", str);
-      cm_msg1(MINFO, "lazy_log_update", "lazy", str);
+         cm_msg(MTALK, "Lazy", "%s", str);
+      cm_msg(MINFO, "Lazy", "%s", str);
+      cm_msg1(MINFO, "lazy_log_update", "lazy", "%s", str);
    }
 
    /* infinite loop while copying */
@@ -1330,7 +1317,7 @@ int lazy_disk_copy_loop(const char *outfile, const char *infile, FILE* fpout, FI
    /* infinite loop while copying */
    while (1) {
       if (copy_continue) {
-         const int kBufSize = 10*1024*1024;
+         const int kBufSize = 1*1024*1024;
          char buf[kBufSize];
          int rd = fread(buf, 1, kBufSize, fpin);
          if (rd > 0) {
@@ -1452,9 +1439,9 @@ Function value:
       char str[MAX_FILE_PATH];
       sprintf(str, "Starting lazy_disk_copy \'%s\' to \'%s\'", infile, outfile);
       if (msg_flag)
-         cm_msg(MTALK, "Lazy", str);
-      cm_msg(MINFO, "lazy_disk_copy", str);
-      cm_msg1(MINFO, "lazy_log_update", "lazy", str);
+         cm_msg(MTALK, "Lazy", "%s", str);
+      cm_msg(MINFO, "lazy_disk_copy", "%s", str);
+      cm_msg1(MINFO, "lazy_log_update", "lazy", "%s", str);
    }
 
    double cpy_start_time = ss_millitime();
@@ -1532,9 +1519,9 @@ Function value:
       char str[MAX_FILE_PATH];
       sprintf(str, "Starting lazy job \'%s\'", cmd);
       if (msg_flag)
-         cm_msg(MTALK, "Lazy", str);
-      cm_msg(MINFO, "lazy_script_copy", str);
-      cm_msg1(MINFO, "lazy_log_update", "lazy", str);
+         cm_msg(MTALK, "Lazy", "%s", str);
+      cm_msg(MINFO, "lazy_script_copy", "%s", str);
+      cm_msg1(MINFO, "lazy_log_update", "lazy", "%s", str);
    }
 
    /* start the backup script */
@@ -1586,7 +1573,7 @@ Function value:
                if (q[0] == 0)   // check for end of line
                   q = NULL;
             }
-            cm_msg(MINFO, "lazy_script_copy", p);
+            cm_msg(MINFO, "lazy_script_copy", "%s", p);
             p = q;
          }
       }
@@ -1740,7 +1727,7 @@ INT lazy_maintain_free_space(LAZY_INFO *pLch, LAZY_INFO *pLall)
 
 
 /*------------------------------------------------------------------*/
-INT lazy_main(INT channel, LAZY_INFO * pLall)
+INT lazy_main(INT channel, LAZY_INFO * pLall, int max_event_size)
 /********************************************************************\
 Routine: lazy_main
 Purpose: check if backup is necessary...
@@ -2024,7 +2011,7 @@ Function value:
             char str[128];
 
             sprintf(str, "Tape %s is full with %d files", pre_label, lazyst.nfiles);
-            cm_msg(MINFO, "Lazy", str);
+            cm_msg(MINFO, "Lazy", "%s", str);
 
             /* Setup alarm */
             lazy.alarm[0] = 0;
@@ -2076,7 +2063,7 @@ Function value:
       } else if (dev_type == LOG_TYPE_DISK) {
          status = lazy_disk_copy(outffile, inffile);
       } else {
-         status = lazy_copy(outffile, inffile);
+        status = lazy_copy(outffile, inffile, max_event_size);
       }
 
       if ((status != 0) && (status != EXIT_REQUEST)) {
@@ -2134,6 +2121,30 @@ Function value:
    if (exit_request)
       return (FORCE_EXIT);
    return NOTHING_TODO;
+}
+
+/*------------------------------------------------------------------*/
+
+static void watch_settings(HNDLE hDB, HNDLE hKey, HNDLE index, void* info)
+{
+   int status;
+   assert(info != NULL);
+   HNDLE hSet = *(HNDLE*)info;
+   int size = sizeof(lazy);
+   status = db_get_record1(hDB, hSet, &lazy, &size, 0, LAZY_SETTINGS_STRING);
+   if (status != DB_SUCCESS) {
+      cm_msg(MINFO, "watch_settings", "db_get_record(settings) status %d", status);
+      return;
+   }
+
+   printf("Settings updated\n");
+
+   if (lazy.pupercent != 0)
+      maintain_touched = TRUE;
+   else
+      maintain_touched = FALSE;
+
+   //printf("pup %d, touched %d\n", lazy.pupercent, maintain_touched);
 }
 
 /*------------------------------------------------------------------*/
@@ -2404,7 +2415,12 @@ int main(int argc, char **argv)
    }
 
    cm_get_experiment_database(&hDB, &hKey);
+
+   int max_event_size = DEFAULT_MAX_EVENT_SIZE;
    
+   size = sizeof(max_event_size);
+   status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &max_event_size, &size, TID_DWORD, TRUE);
+  
    /* Remove temporary Lazy entry */
    {
      HNDLE hPkey;
@@ -2444,37 +2460,42 @@ int main(int argc, char **argv)
    db_find_key(hDB, 0, "/runinfo/state", &hKey);
    size = sizeof(run_state);
    db_get_data(hDB, hKey, &run_state, &size, TID_INT);
-   status = db_open_record(hDB, hKey, &run_state, sizeof(run_state), MODE_READ, NULL, NULL);
+   status = db_open_record(hDB, hKey, &run_state, sizeof(run_state), MODE_READ, NULL, NULL); // watch a TID_INT
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "Lazy", "cannot open /runinfo/state record");
    }
    /* hot link for statistics in write mode */
    size = sizeof(lazyst);
-   if (db_find_key(hDB, lazyinfo[channel].hKey, "Statistics", &hKey) == DB_SUCCESS)
-      db_get_record(hDB, hKey, &lazyst, &size, 0);
-   status = db_open_record(hDB, hKey, &lazyst, sizeof(lazyst), MODE_WRITE, NULL, NULL);
+   if (db_find_key(hDB, lazyinfo[channel].hKey, "Statistics", &hKey) == DB_SUCCESS) {
+      db_get_record1(hDB, hKey, &lazyst, &size, 0, LAZY_STATISTICS_STRING);
+   }
+   status = db_open_record1(hDB, hKey, &lazyst, sizeof(lazyst), MODE_WRITE, NULL, NULL, LAZY_STATISTICS_STRING);
    if (status == DB_NO_ACCESS) {
       /* record is probably still in exclusive access by dead FE, so reset it */
       status = db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE | MODE_DELETE, TRUE);
       if (status != DB_SUCCESS)
-         cm_msg(MERROR, "Lazy", 
-                "Cannot change access mode for %s/Statistics record, error %d", lazyinfo[channel].name, status);
+         cm_msg(MERROR, "Lazy", "Cannot change access mode for %s/Statistics record, error %d", lazyinfo[channel].name, status);
       else
          cm_msg(MINFO, "Lazy", "Recovered access mode for %s/Statistics record", lazyinfo[channel].name);
-      status = db_open_record(hDB, hKey, &lazyst, sizeof(lazyst), MODE_WRITE, NULL, NULL);
+      status = db_open_record1(hDB, hKey, &lazyst, sizeof(lazyst), MODE_WRITE, NULL, NULL, LAZY_STATISTICS_STRING);
    }
    if (status != DB_SUCCESS) {      
       cm_msg(MERROR, "Lazy", "cannot open %s/Statistics record", lazyinfo[channel].name);
    }
    /* get /settings once & hot link settings in read mode */
    db_find_key(hDB, lazyinfo[channel].hKey, "Settings", &hKey);
+
    size = sizeof(lazy);
-   status = db_open_record(hDB, hKey, &lazy, sizeof(lazy)
-                           , MODE_READ, lazy_settings_hotlink, NULL);
+   status = db_get_record1(hDB, hKey, &lazy, &size, 0, LAZY_SETTINGS_STRING);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "Lazy", "cannot get %s/Settings record, db_get_record() status %d", lazyinfo[channel].name, status);
+   }
+
+   status = db_watch(hDB, hKey, watch_settings, &hKey);
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "Lazy", "cannot open %s/Settings record", lazyinfo[channel].name);
    }
-
+   
    /* set global key for that channel */
    pcurrent_hKey = lazyinfo[channel].hKey;
 
@@ -2497,7 +2518,7 @@ int main(int argc, char **argv)
       if (period < 1)
          period = 1;
       if ((ss_millitime() - mainlast_time) > period) {
-         status = lazy_main(channel, &lazyinfo[0]);
+        status = lazy_main(channel, &lazyinfo[0], max_event_size);
          if (status == FORCE_EXIT) {
             cm_msg(MERROR, "lazy", "Exit requested by program");
             break;
@@ -2526,3 +2547,11 @@ int main(int argc, char **argv)
    cm_disconnect_experiment();
    return 1;
 }
+
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */
