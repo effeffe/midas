@@ -134,6 +134,17 @@ a:focus { color:#0000FF; text-decoration:underline }
    padding-right: 0.5em;
 }
 
+.mmsgService{
+	background-color: #C0C0C0;
+	border-radius: 12px;
+   padding: 1em;
+}
+
+.hideButton{
+    text-decoration : none; 
+    color : #696969;
+}
+
 /* all navigation buttons */
 
 input.mnav, .mbutton {
