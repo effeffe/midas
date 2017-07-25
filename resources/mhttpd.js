@@ -424,12 +424,8 @@ function mhttpd_init(current_page, interval) {
          "<div style=\"display:inline;\" id=\"mheader_message\">&nbsp;</div>" +
 
          "<div style=\"display:inline; float:right;\">" +
-         "<span style=\"display:inline; font-size: 75%;\" id=\"mheader_last_updated\"></span>" +
-         "<span style=\"display:inline;\" id=\"mheader_help\">" +
-         "<a href=\"?cmd=Help\">Help</a>" +
-         "</span>" +
+         "<span style=\"display:inline; font-size: 75%; margin-right: 10px\" id=\"mheader_last_updated\"></span>" +
          "</div>";
-
 
    // update header and menu
    if (document.getElementById("msidenav") != undefined) {

@@ -62,19 +62,6 @@ a:focus { color:#0000FF; text-decoration:underline }
    line-height: 1;
 }
 
-#mheader_help {
-   margin-left: 1em;
-   margin-right: 20px; /* compensate for padding above */
-}
-
-#mheader_help a:link {
-   color: #e3a213;
-}
-
-#mheader_help a:visited {
-   color: #e3a213;
-}
-
 #msidenav {
    height:100%;
    position:fixed;
