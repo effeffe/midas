@@ -84,8 +84,17 @@ a:focus { color:#0000FF; text-decoration:underline }
 
 .mmenuitem:hover, .mmenuitem:focus {
    background-color: #808080;
-   color: #E0E0E0;
+   color: #404040;
    cursor: pointer;
+}
+
+.mmenulink:hover, .mmenulink:focus {
+   text-decoration: none;
+}
+
+.mmenulink:link, .mmenulink:visited {
+   text-decoration: none;
+   color: #404040;
 }
 
 .mmenuitemsel {
