@@ -6908,8 +6908,13 @@ void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path,
    r->rsprintf("}\r\n");
    r->rsprintf("</script>\r\n\r\n");
 
-   r->rsprintf("<table class=\"dialogTable\">");  //main table
-   r->rsprintf("<tr><th class=\"subStatusTitle\" colspan=2>MSCB</th><tr>");
+   /*---- main content ----*/
+
+   r->rsprintf("<div id=\"mmain\">\n");
+
+   r->rsprintf("<table class=\"mtable\">");  //main table
+   r->rsprintf("<tr><th class=\"mtableheader\" colspan=2>MSCB</th><tr>");
+   
    /*---- menu buttons ----*/
 
    r->rsprintf("<tr><td colspan=2>\n");
@@ -7149,7 +7154,7 @@ mscb_error:
    r->rsprintf("</td></tr></table>\r\n");
    r->rsprintf("</td></tr></table>\r\n");
    r->rsprintf("</td></tr></table>\r\n");
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div></body></html>\r\n");
 }
 
 #endif // HAVE_MSCB
