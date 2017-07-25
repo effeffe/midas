@@ -13,18 +13,16 @@
 
 <body class="mcss">
 
-  <script>
-    url = mhttpd_getParameterByName("URL");
-    if (url)
-      mjsonrpc_set_url(url);
-  </script>
-
-  <div id="whole_content" class="mwrapper">
+  <div id="whole_content" class="mwrapper mmain">
 
 
     <script>
-      mhttpd_navigation_bar("Status");
+    window.addEventListener("load", mhttpd_init.bind(null, 'Status'), false);
     </script>
+
+    <div id="mheader"></div>
+    <div id="msidenav"></div>
+    
 
 
     <!-- Custom page will not work in the old way <table class="headerTable">
@@ -36,7 +34,7 @@
     </table>-->
 
 
-    <table class="mstatusTable" id="statusTable">
+    <table class="mtable" id="statusTable">
 
 
 
@@ -149,9 +147,6 @@
   <div id="updateStatus" align="left">
     Loading...
   </div>
-  <script>
-      mhttpd_page_footer();
-  </script>
 
   <script>
     var update_timer_id;
@@ -678,7 +673,7 @@
 
     function update() {
       //update time
-      document.getElementById('mhttpd_last_updated').innerHTML = new Date;
+      //document.getElementById('mhttpd_last_updated').innerHTML = new Date;
 
 
       let paths = ["/Experiment/Status items", "/Logger/Channels", "/System/Clients", "/Runinfo", "Sequencer/State", "/Logger", "/Lazy"];
