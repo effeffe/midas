@@ -17264,7 +17264,12 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       send_resource(r, "messages.html");
       return;
    }
-   
+
+   if (equal_ustring(command, "chat")) {
+      send_resource(r, "chat.html");
+      return;
+   }
+
    /* new custom pages */
    if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
       char custom_path[256];
