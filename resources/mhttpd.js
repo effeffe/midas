@@ -493,7 +493,7 @@ function mhttpd_init(current_page, interval) {
          }
 
          // custom
-         if (Object.keys(custom).length > 0) {
+         if (custom !== null && Object.keys(custom).length > 0) {
             // add separator
             html += "<div class=\"mseparator\"></div>\n";
 
@@ -511,7 +511,7 @@ function mhttpd_init(current_page, interval) {
          }
 
          // alias
-         if (Object.keys(alias).length > 0) {
+         if (alias !== null && Object.keys(alias).length > 0) {
             // add separator
             html += "<div class=\"mseparator\"></div>\n";
 
