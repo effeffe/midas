@@ -4,7 +4,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <link rel="stylesheet" href="midas.css">
+  <link rel="stylesheet" href="midas.css" type="text/css">
   <!-- not using old css file any more <link rel="stylesheet" href="mhttpd.css">-->
   <script src="midas.js"></script>
   <script src="mhttpd.js"></script>
@@ -19,7 +19,7 @@
       mjsonrpc_set_url(url);
   </script>
 
-  <div id="whole_content" style="display:none" class="mwrapper">
+  <div id="whole_content" class="mwrapper">
 
 
     <script>
@@ -44,9 +44,9 @@
       <tr>
         <td colspan="6">
 
-          <table class="mtablecss" id="runStatus" width="100%">
+          <table class="mtable" id="runStatus" width="100%">
             <tr>
-              <td colspan="6" class="mtableheadercss">Run Status</td>
+              <td colspan="6" class="mtableheader">Run Status</td>
             </tr>
 
             <tr align="center">
@@ -96,9 +96,9 @@
       <tr>
         <td colspan="6">
 
-          <table class="mtablecss" id="equipmentList" width="100%">
+          <table class="mtable" id="equipmentList" width="100%">
             <tr>
-              <th colspan="6" class="mtableheadercss">Equipment</th>
+              <th colspan="6" class="mtableheader">Equipment</th>
             </tr>
             <tr></tr>
             <tr class="">
@@ -116,9 +116,9 @@
       <tr>
         <td colspan="6">
 
-          <table class="mtablecss" id="logChannel" width="100%">
+          <table class="mtable" id="logChannel" width="100%">
             <tr>
-              <td colspan="6" class="mtableheadercss">Logging Channels</td>
+              <th colspan="6" class="mtableheader">Logging Channels</td>
             </tr>
 
 
@@ -130,10 +130,10 @@
       <tr>
         <td colspan="6">
 
-          <table class="mtablecss" id="clientsTable" width="100%">
+          <table class="mtable" id="clientsTable" width="100%">
             <tr></tr>
             <tr>
-              <td colspan="6" class="mtableheadercss">Clients</td>
+              <th colspan="6" class="mtableheader">Clients</td>
             </tr>
 
           </table>
@@ -158,11 +158,11 @@
 
     //pre-define some html codes for different tables/rows
 
-    const equipmentTableHtml = "<tr><th colspan=6 class=\"mtableheadercss\">Equipment</th></tr><tr></tr><tr class=\"\"><th>Equipment&nbsp;<a id='hide' class='hideButton' href=\"javascript:unhideEquipments()\">+</a></th><th>Status</th><th>Events</th><th>Events[/s]</th><th>Data[MS/s]</th></tr>";
-    const logChannelTableHtml = "<tr><td colspan=6 class=\"mtableheadercss\">Logging Channels</td></tr>";
+    const equipmentTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Equipment</th></tr><tr></tr><tr class=\"\"><th>Equipment&nbsp;<a id='hide' class='hideButton' href=\"javascript:unhideEquipments()\">+</a></th><th>Status</th><th>Events</th><th>Events[/s]</th><th>Data[MS/s]</th></tr>";
+    const logChannelTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Logging Channels</td></tr>";
     const firstLogChannelHtml = "<tr id=\"logChannelFirstPart\" class=\"mtabletitlecss \"><th colspan=\"2\">Channel</th><th>Events</th><th>MiB written</th><th>Compr.</th><th>Disk Level</th></tr>";
     const secondLogChannelHtml = "<tr id=\"logChannelSecondPart\" class=\"mtabletitlecss \"><th colspan=\"2\">Lazy Label</th><th>Progress</th><th>File Name</th><th># Files</th><th>Total</th></tr>";
-    const clientTableHtml = "<tr></tr><tr><td colspan=6 class=\"mtableheadercss\">Clients</td></tr>";
+    const clientTableHtml = "<tr></tr><tr><th colspan=6 class=\"mtableheader\">Clients</td></tr>";
 
 
 
@@ -238,7 +238,7 @@
               case 1:
                 state = "Stopped";
                 buttonText = "Start";
-                document.getElementById("runNumberCell").className = "mredcolour redLight";
+                document.getElementById("runNumberCell").className = "mredcolour";
                 //showing stop time
                 if (runinfoJson.hasOwnProperty("stop time")) {
                   document.getElementById("runStatusStopTime").innerHTML = "Stop: " + runinfoJson["stop time"];
@@ -247,12 +247,12 @@
               case 2:
                 state = "Paused";
                 buttonText = "Start";
-                document.getElementById("runNumberCell").className = "myellowcolour yellowLight";
+                document.getElementById("runNumberCell").className = "myellowcolour";
                 break;
               case 3:
                 state = "Running";
                 buttonText = "Stop";
-                document.getElementById("runNumberCell").className = "mgreencolour greenLight";
+                document.getElementById("runNumberCell").className = "mgreencolour";
                 //showing running time
                 if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
                   //let time=runinfoJson["start time binary/last_written"];
@@ -313,7 +313,7 @@
                   experimentItemsJson[experimentItemList[i + 2]] +
                   "</td>" +
                   "</tr>";
-                experimentItem.className = "mtablecss";
+                experimentItem.className = "";
 
                 if (document.getElementById(experimentItemList[i + 2] + "ExperimentItem") != null) {
                   if (document.getElementById(experimentItemList[i + 2] + "ExperimentItem").innerHTML != experimentItem.innerHTML) {
@@ -397,7 +397,7 @@
 
           let equipmentRow = document.createElement("tr");
           equipmentRow.id = equipmentNames[i] + "equipment";
-          equipmentRow.className = "equipmentRow mtablecss";
+          equipmentRow.className = "equipmentRow";
           if (equipmentCommonData[i]["hidden"]) {
             equipmentRow.style = "display:none";
             equipmentRow.className += " hiddenEquip";
@@ -488,7 +488,7 @@
 
             let logChannelRow = document.createElement("tr");
             logChannelRow.id = element + "channel";
-            logChannelRow.className = "logChannel mtablecss";
+            logChannelRow.className = "logChannel";
             logChannelRow.innerHTML = "<td colspan=\"2\" class=\"mgreencolour greenLight\">" +
               "<a href=\"Logger/Channels/" + element + "/Settings\">" +
               "#" + element + ": " + "</a>" +
@@ -539,7 +539,7 @@
 
             let logChannelLazy = document.createElement("tr");
             logChannelLazy.id = element + "channelLazy";
-            logChannelLazy.className = "logChannelLazy mtablecss";
+            logChannelLazy.className = "logChannelLazy";
             logChannelLazy.innerHTML = "<td colspan=\"2\" >" +
               "<a href=\"Lazy/" + element + "/Settings\">" +
               element + "</a>" +
@@ -574,8 +574,17 @@
 
 
       function generateClientsTable() {
-        let clientTable = document.createElement("table");
-        clientTable.innerHTML = clientTableHtml;
+
+        let clientTable = document.createElement("tr");
+        let row=document.createElement("tr");
+        clientTable.appendChild(row);
+        row=document.createElement("tr");
+        let header=document.createElement("th");
+        header.colSpan=6;
+        header.className="mtableheader";
+        header.innerText="Clients";
+        row.appendChild(header);
+        clientTable.appendChild(row);
 
         let clientNames = new Array();
         for (let key in clientsJson) {
@@ -596,7 +605,7 @@
         for (i = 0; i < numOfClientRows; i++) {
 
           let oneClientRow = document.createElement("tr");
-          oneClientRow.className = "clientRow mtablecss";
+          oneClientRow.className = "clientRow mtable";
           oneClientRow.id = clientNames[currentClient]["name"] + "client";
           //loop j for number of columns
           for (j = 0; j < 3; j++) {
@@ -612,7 +621,7 @@
           clientTable.appendChild(oneClientRow);
 
         }
-        if (document.getElementById("clientsTable").innerHTML != clientTable.innerHTML) {
+        if (document.getElementById("clientsTable").firstChild.innerHTML != clientTable.innerHTML) {
           document.getElementById("clientsTable").innerHTML = clientTable.innerHTML;
         }
       }
