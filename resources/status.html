@@ -631,12 +631,13 @@
          //call generate functions
          generateRunStatus();
 
-         if(equipmentNames!=null){
+         if(equipmentNames!=null)
          generateEquipmentTable();
-         }
 
+         if(logChannelJson!=null)
          generateLogChannel();
 
+         if(clientsJson!=null)
          generateClientsTable();
 
          document.getElementById('mheader_last_updated').innerText = new Date;
