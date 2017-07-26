@@ -638,7 +638,9 @@
          //call generate functions
          generateRunStatus();
 
+         if(equipmentNames!=null){
          generateEquipmentTable();
+         }
 
          generateLogChannel();
 
@@ -681,10 +683,9 @@
 
 
          mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
-
             //get all equipment names into an Array
+            if(equipmentListData.result.data[0]!=null){
             var equipmentList = Object.keys(equipmentListData.result.data[0]);
-
             //push all equipment names into an Array of Promises
             var equipmentStatList = equipmentList.map(function (element) {
                return "/Equipment/" + element + "/statistics";
@@ -693,7 +694,11 @@
             var equipmentCommonList = equipmentList.map(function (element) {
                return "/Equipment/" + element + "/common";
             });
-
+            }else{
+                   var equipmentList=null;
+                   var equipmentStatList=[];
+                   var equipmentCommonList=[];
+            }
 
             mjsonrpc_send_request([
                mjsonrpc_make_request("db_get_values", { "paths": paths }),
