@@ -595,6 +595,16 @@ function mhttpd_init(current_page, interval) {
       mbar[i].innerHTML = "<div style=\"background-color:" + color + "; width:0; position:relative; display:inline-block; border-right:1px solid #808080\">&nbsp;</div>";
    }
 
+
+
+   document.getElementById("mheader").style.position="fixed";
+   document.getElementById("mheader").style.top="0";
+   document.getElementById("msidenav").style.top=document.getElementById("mheader").clientHeight.toString()+"px";
+   document.getElementById("mmain").style.position="relative";
+   document.getElementById("mmain").style.zIndex=-1;
+   document.getElementById("mmain").style.top=document.getElementById("mheader").clientHeight.toString()+"px";
+
+
    // store refresh interval and do initial refresh
    mhttpd_refresh_interval = interval;
    mhttpd_refresh();
