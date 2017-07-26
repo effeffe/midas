@@ -1603,10 +1603,9 @@ void init_menu_buttons()
    db_get_value(hDB, 0, "/Experiment/Menu/History", &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/MSCB", &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Sequencer", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Config", &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Example", &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Help", &value, &size, TID_BOOL, TRUE);
-   //strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Example, Help", sizeof(str));
+   //strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Example, Help", sizeof(str));
 
    std::string buf;
    status = db_get_value_string(hDB, 0, "/Experiment/Menu buttons", 0, &buf, FALSE);
@@ -1659,9 +1658,9 @@ void xshow_navigation_bar(const char *cur_page)
    /*---- menu buttons ----*/
 
 #ifdef HAVE_MSCB
-   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Example, Help", sizeof(str));
+   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Example, Help", sizeof(str));
 #else
-   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, Sequencer, Config, Example, Help", sizeof(str));
+   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, Sequencer, Example, Help", sizeof(str));
 #endif
    size = sizeof(str);
    db_get_value(hDB, 0, "/Experiment/Menu Buttons", str, &size, TID_STRING, TRUE);
@@ -10867,40 +10866,6 @@ void show_programs_page()
 
 /*------------------------------------------------------------------*/
 
-void show_config_page(Return *r, const char* dec_path, int refresh)
-{
-   char str[80];
-   HNDLE hDB;
-
-   cm_get_experiment_database(&hDB, NULL);
-
-   show_header(r, "Configure", "GET", "", 0);
-   r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
-   r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
-   show_navigation_bar(r, "Config");
-
-   //main table
-   r->rsprintf("<table class=\"dialogTable\">");
-   r->rsprintf("<tr><th colspan=2 class=\"subStatusTitle\">Configure</tr>\n");
-
-   r->rsprintf("<tr><td>Update period\n");
-
-   sprintf(str, "5");
-   r->rsprintf("<td><input type=text size=5 maxlength=5 name=refr value=%d>\n", refresh);
-   r->rsprintf("</tr>\n");
-
-   r->rsprintf("<tr><td align=center colspan=2>\n");
-   r->rsprintf("<input type=submit name=cmd value=Accept>\n");
-   r->rsprintf("<input type=submit name=cmd value=Cancel>\n");
-   r->rsprintf("<input type=hidden name=cmd value=Accept>\n");
-   r->rsprintf("</tr>\n");
-   r->rsprintf("</table>\n");
-
-   page_footer(r, dec_path, TRUE);
-}
-
-/*------------------------------------------------------------------*/
-
 #define LN10 2.302585094
 #define LOG2 0.301029996
 #define LOG5 0.698970005
@@ -17819,13 +17784,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 #endif
-
-   /*---- config command --------------------------------------------*/
-
-   if (equal_ustring(command, "config")) {
-      show_config_page(r, dec_path, refresh);
-      return;
-   }
 
 #ifdef OBSOLETE
    /*---- Messages command ------------------------------------------*/
