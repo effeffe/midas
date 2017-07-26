@@ -68,13 +68,6 @@
                      <td colspan="6">
                         <table id="runStatusExperimentItems" class="genericStripe" width="100%">
 
-                           <tr>
-                              <td style="text-align:left;" width="30%" class="titleCell"> Experiment Name: </td>
-                              <td id="runStatusExperimentName" style="text-align:left;"> runStatusExperimentName </td>
-                           </tr>
-
-
-
                         </table>
                      </td>
                   </tr>
@@ -170,7 +163,7 @@
          var sequencerJson = rpc.data[4];
          var loggerJson = rpc.data[5];
          var LazyJson = rpc.data[6];
-         //var equipmentJson = rpc.data[1];
+         var experimentName=rpc.data[7];
 
          var currentClientList = new Array();
 
@@ -287,14 +280,14 @@
 
 
 
-                  if (document.getElementById("runStatusExperimentName").innerHTML != experimentItemsJson["experiment name"]) {
-                     document.getElementById("runStatusExperimentName").innerHTML = experimentItemsJson["experiment name"];
-                  }
+                  //if (document.getElementById("runStatusExperimentName").innerHTML != experimentName) {
+                  //   document.getElementById("runStatusExperimentName").innerHTML = experimentName;
+                  //}
                   // check if lazy active is in the experiment items list
 
                   var experimentItemList = Object.keys(experimentItemsJson);
                   if (experimentItemList.length > 3) {
-                     for (var i = 3; i < experimentItemList.length; i = i + 3) {
+                     for (var i = 0; i < experimentItemList.length; i = i + 3) {
 
                         var experimentItem = document.createElement("tr");
                         experimentItem.id = experimentItemList[i + 2] + "ExperimentItem";
@@ -627,8 +620,8 @@
 
          // set title
          if (experimentItemsJson) {
-            if (experimentItemsJson.hasOwnProperty("experiment name") && (document.title != experimentItemsJson["experiment name"] + " status")) {
-               document.title = experimentItemsJson["experiment name"] + " status";
+            if (document.title != experimentName + " status") {
+               document.title = experimentName + " status";
             }
          }
 
@@ -678,7 +671,7 @@
       function update() {
          //update time
 
-         var paths = ["/Experiment/Status items", "/Logger/Channels", "/System/Clients", "/Runinfo", "Sequencer/State", "/Logger", "/Lazy"];
+         var paths = ["/Experiment/Status items", "/Logger/Channels", "/System/Clients", "/Runinfo", "Sequencer/State", "/Logger", "/Lazy","/Experiment/Name"];
 
 
 
@@ -708,6 +701,7 @@
                mjsonrpc_make_request("db_get_values", { "paths": equipmentStatList }),
                mjsonrpc_make_request("db_get_values", { "paths": equipmentCommonList })
             ]).then(function (rpc) {
+
                callback(rpc[0]["result"], rpc[1]["result"], rpc[2]["result"], rpc[3]["result"], equipmentList, rpc[4]["result"]["data"], rpc[5]["result"]["data"]);
             }).then(function (x) {
                // show the page only after all contents are loaded
