@@ -448,18 +448,27 @@ function mhttpd_init(current_page, interval) {
       }
 
       // request it from server, since it might have changed
-      mjsonrpc_db_get_values(["/Experiment/Name", "/Experiment/Menu", "/Experiment/Menu Buttons",
+      mjsonrpc_db_get_values(["/Experiment/Base URL", "/Experiment/Name", "/Experiment/Menu", "/Experiment/Menu Buttons",
          "/Custom", "/Scripts", "/Alias"]).then(function (rpc) {
-         document.getElementById("mheader_expt_name").innerHTML = rpc.result.data[0];
-         sessionStorage.setItem("mexpname", rpc.result.data[0]);
+         document.getElementById("mheader_expt_name").innerHTML = rpc.result.data[1];
+         sessionStorage.setItem("mexpname", rpc.result.data[1]);
 
          document.getElementById("mheader_last_updated").innerHTML = new Date();
 
-         var menu = rpc.result.data[1];
-         var buttons = rpc.result.data[2];
-         var custom = rpc.result.data[3];
-         var scripts = rpc.result.data[4];
-         var alias = rpc.result.data[5];
+         var base_url = rpc.result.data[0];
+         var menu = rpc.result.data[2];
+         var buttons = rpc.result.data[3];
+         var custom = rpc.result.data[4];
+         var scripts = rpc.result.data[5];
+         var alias = rpc.result.data[6];
+
+         // check for base URL
+         if (base_url === null) {
+            base_url = "http://localhost:8080";
+            alert("\"/Experiment/Base URL\" is missing in ODB, please define it.")
+         }
+         if (base_url.slice(-1) !== "/")
+            base_url += "/";
 
          // menu buttons
          var b = [];
@@ -485,7 +494,7 @@ function mhttpd_init(current_page, interval) {
             if (bb == current_page) {
                cc += " mmenuitemsel";
             }
-            html += "<div class=\"" + cc + "\"><a href=\"#\" class=\"mmenulink\" onclick=\"window.location.href=\'" + "?cmd=" + bb + "\';return false;\">" + bb + "</a></div>\n";
+            html += "<div class=\"" + cc + "\"><a href=\"#\" class=\"mmenulink\" onclick=\"window.location.href=\'" + base_url + "?cmd=" + bb + "\';return false;\">" + bb + "</a></div>\n";
          }
 
          // custom
@@ -501,7 +510,7 @@ function mhttpd_init(current_page, interval) {
                   cc += " mmenuitemsel";
                if (b == "path")
                   continue;
-               html += "<div class=\"" + cc + "\"><a href=\"#\" class=\"mmenulink\" onclick=\"window.location.href=\'" + custom[b] + "\';return false;\">" + custom[b + "/name"] + "</a></div>\n";
+               html += "<div class=\"" + cc + "\"><a href=\"#\" class=\"mmenulink\" onclick=\"window.location.href=\'" + base_url + custom[b] + "\';return false;\">" + custom[b + "/name"] + "</a></div>\n";
             }
 
          }
