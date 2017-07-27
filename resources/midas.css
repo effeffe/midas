@@ -270,4 +270,21 @@ div.mpush{
    padding: 3px;
 }
 
+.clientsTable tr:nth-child(odd) td:nth-child(odd) {
+    background-color: #DDDDDD;
+}
+
+.clientsTable tr:nth-child(odd) td:nth-child(even) {
+    background-color: #FFFFFF;
+}
+
+.clientsTable tr:nth-child(even) td:nth-child(even) {
+    background-color: #DDDDDD;
+}
+
+.clientsTable tr:nth-child(even) td:nth-child(odd) {
+    background-color: #FFFFFF;
+}
+
+
 /* end */
