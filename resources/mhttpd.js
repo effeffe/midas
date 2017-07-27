@@ -501,7 +501,7 @@ function mhttpd_init(current_page, interval) {
             if (bb == current_page) {
                cc += " mmenuitemsel";
             }
-            html += "<div class=\"" + cc + "\"><a href=\"#\" class=\"mmenulink\" onclick=\"window.location.href=\'" + base_url + "?cmd=" + bb + "\';return false;\">" + bb + "</a></div>\n";
+            html += "<div class=\"" + cc + "\"><a href=\""+ bb + "\" class=\"mmenulink\" onclick=\"window.location.href=\'" + base_url + "?cmd=" + bb + "\';return false;\">" + bb + "</a></div>\n";
          }
 
          // custom
@@ -517,7 +517,7 @@ function mhttpd_init(current_page, interval) {
                   cc += " mmenuitemsel";
                if (b == "path")
                   continue;
-               html += "<div class=\"" + cc + "\"><a href=\"#\" class=\"mmenulink\" onclick=\"window.location.href=\'" + base_url + custom[b] + "\';return false;\">" + custom[b + "/name"] + "</a></div>\n";
+               html += "<div class=\"" + cc + "\"><a href=\""+ custom[b] + "\" class=\"mmenulink\" onclick=\"window.location.href=\'" + base_url + custom[b] + "\';return false;\">" + custom[b + "/name"] + "</a></div>\n";
             }
 
          }
@@ -533,9 +533,9 @@ function mhttpd_init(current_page, interval) {
                var n = alias[b + "/name"];
                if (n.substr(n.length - 1) === "&") {
                   n = n.substr(0, n.length - 1);
-                  html += "<div class=\"mmenuitem\"><a href=\"#\" class=\"mmenulink\" onclick=\"window.open(\'" + alias[b] + "\');return false;\">" + n + "&#8599;</a></div>\n";
+                  html += "<div class=\"mmenuitem\"><a href=\""+ alias[b] + "\" class=\"mmenulink\" onclick=\"window.open(\'" + alias[b] + "\');return false;\">" + n + "&#8599;</a></div>\n";
                } else {
-                  html += "<div class=\"mmenuitem\"><a href=\"#\" class=\"mmenulink\" onclick=\"window.location.href=\'" + alias[b] + "\';return false;\">" + n + "&#8599;</a></div>\n";
+                  html += "<div class=\"mmenuitem\"><a href=\""+ alias[b] + "\" class=\"mmenulink\" onclick=\"window.location.href=\'" + alias[b] + "\';return false;\">" + n + "&#8599;</a></div>\n";
                }
             }
 

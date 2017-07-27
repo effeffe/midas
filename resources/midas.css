@@ -95,11 +95,15 @@ a:focus { color:#0000FF; text-decoration:underline }
 
 .mmenulink:hover, .mmenulink:focus {
    text-decoration: none;
+   width: 100%;
+   display: inline-block;
 }
 
 .mmenulink:link, .mmenulink:visited {
    text-decoration: none;
    color: #404040;
+   width: 100%;
+   display: inline-block;
 }
 
 .mmenuitemsel {
