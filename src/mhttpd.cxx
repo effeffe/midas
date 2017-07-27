@@ -17229,6 +17229,11 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
        return;
     }
 
+   if (equal_ustring(command, "newODB")) {
+      send_resource(r, "odb.html");
+      return;
+   }
+
    if (equal_ustring(command, "programs")) {
       send_resource(r, "programs.html");
       return;

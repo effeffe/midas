@@ -11,14 +11,9 @@
    <title>status</title>
 </head>
 
-<body class="mcss">
+<body class="mcss" onload="mhttpd_init('Status')">
 
 
-
-
-   <script>
-      window.addEventListener("load", function() { mhttpd_init('Status', 0); });
-   </script>
 
    <div id="mheader"></div>
    <div id="msidenav"></div>
@@ -34,7 +29,7 @@
     </table>-->
 
    <div id="mmain">
-      <table class="mmaintable" id="statusTable" style="display:none">
+      <table class="mmaintable" id="statusTable">
 
 
 
@@ -121,7 +116,7 @@
             <td colspan="6">
 
                <table class="mtable clientsTable" id="clientsTable" width="100%">
-                  
+
                   <tr>
                      <th colspan="6" class="mtableheader">Clients</th>
                   </tr>
@@ -164,7 +159,7 @@
          var sequencerJson = rpc.data[4];
          var loggerJson = rpc.data[5];
          var LazyJson = rpc.data[6];
-         var experimentName=rpc.data[7];
+         var experimentName = rpc.data[7];
 
          var currentClientList = new Array();
 
@@ -632,14 +627,14 @@
          //call generate functions
          generateRunStatus();
 
-         if(equipmentNames!=null)
-         generateEquipmentTable();
+         if (equipmentNames != null)
+            generateEquipmentTable();
 
-         if(logChannelJson!=null)
-         generateLogChannel();
+         if (logChannelJson != null)
+            generateLogChannel();
 
-         if(clientsJson!=null)
-         generateClientsTable();
+         if (clientsJson != null)
+            generateClientsTable();
 
          document.getElementById('mheader_last_updated').innerText = new Date;
 
@@ -673,26 +668,26 @@
       function update() {
          //update time
 
-         var paths = ["/Experiment/Status items", "/Logger/Channels", "/System/Clients", "/Runinfo", "Sequencer/State", "/Logger", "/Lazy","/Experiment/Name"];
+         var paths = ["/Experiment/Status items", "/Logger/Channels", "/System/Clients", "/Runinfo", "Sequencer/State", "/Logger", "/Lazy", "/Experiment/Name"];
 
 
 
          mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
             //get all equipment names into an Array
-            if(equipmentListData.result.data[0]!=null){
-            var equipmentList = Object.keys(equipmentListData.result.data[0]);
-            //push all equipment names into an Array of Promises
-            var equipmentStatList = equipmentList.map(function (element) {
-               return "/Equipment/" + element + "/statistics";
-            });
+            if (equipmentListData.result.data[0] != null) {
+               var equipmentList = Object.keys(equipmentListData.result.data[0]);
+               //push all equipment names into an Array of Promises
+               var equipmentStatList = equipmentList.map(function (element) {
+                  return "/Equipment/" + element + "/statistics";
+               });
 
-            var equipmentCommonList = equipmentList.map(function (element) {
-               return "/Equipment/" + element + "/common";
-            });
-            }else{
-                   var equipmentList=null;
-                   var equipmentStatList=[];
-                   var equipmentCommonList=[];
+               var equipmentCommonList = equipmentList.map(function (element) {
+                  return "/Equipment/" + element + "/common";
+               });
+            } else {
+               var equipmentList = null;
+               var equipmentStatList = [];
+               var equipmentCommonList = [];
             }
 
             mjsonrpc_send_request([
@@ -708,7 +703,6 @@
             }).then(function (x) {
                // show the page only after all contents are loaded
                document.getElementById('updateStatus').style.display = "none";
-               document.getElementById('statusTable').style.display = "table";
             });
          }).catch(function (error) {
             document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
