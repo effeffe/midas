@@ -20,6 +20,8 @@ var transition_names = {
    4096: "Deferred"
 };
 
+var global_base_url="";
+
 //
 // convert json dom values to text for display and editing
 // this is similar to db_sprintf()
@@ -476,6 +478,8 @@ function mhttpd_init(current_page, interval) {
          }
          if (base_url.slice(-1) !== "/")
             base_url += "/";
+
+         global_base_url=base_url;
 
          // menu buttons
          var b = [];
