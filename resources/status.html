@@ -17,7 +17,7 @@
 
 
    <script>
-      window.addEventListener("load", mhttpd_init.bind(null, 'Status'), false);
+      window.addEventListener("load", function() { mhttpd_init('Status', 0); });
    </script>
 
    <div id="mheader"></div>
@@ -33,7 +33,7 @@
       </tr>
     </table>-->
 
-   <div id="mmain" class="mmain">
+   <div id="mmain">
       <table class="mmaintable" id="statusTable" style="display:none">
 
 
@@ -259,7 +259,7 @@
                         "<br>" +
                         state +
                         "<br>" +
-                        "<input type='button' value='" + buttonText + "' onclick='mhttpd_start_run()'>";
+                        "<input type='button' class='mbutton' value='" + buttonText + "' onclick='mhttpd_start_run()'>";
                   } else if (state == "Running") {
                      document.getElementById("runNumberCell").innerHTML = "Run" +
                         "<br>" +
@@ -267,7 +267,7 @@
                         "<br>" +
                         state +
                         "<br>" +
-                        "<input type='button' value='" + buttonText + "' onclick='mhttpd_stop_run()'>";
+                        "<input type='button' class='mbutton' value='" + buttonText + "' onclick='mhttpd_stop_run()'>";
                   }
                }
 

@@ -414,7 +414,7 @@ function mhttpd_init(current_page, interval) {
 
    // create header
    var h = document.getElementById("mheader");
-   if (h != undefined)
+   if (h !== undefined)
       h.innerHTML =
          "<div style=\"display:inline-block; float:left\";>" +
          "<span class=\"mmenuitem\" style=\"padding-right: 10px;margin-right: 20px;\" onclick=\"mhttpd_toggle_menu()\">&#9776;</span>" +
@@ -428,16 +428,16 @@ function mhttpd_init(current_page, interval) {
          "</div>";
 
    // update header and menu
-   if (document.getElementById("msidenav") != undefined) {
+   if (document.getElementById("msidenav") !== undefined) {
 
       // get it from session storage cache if present
-      if (sessionStorage.msidenav != undefined && sessionStorage.mexpname != undefined) {
+      if (sessionStorage.msidenav !== undefined && sessionStorage.mexpname !== undefined) {
          var menu = document.getElementById("msidenav");
          menu.innerHTML = sessionStorage.msidenav;
          var item = menu.children;
          for (var i = 0; i < item.length; i++) {
             if (item[i].className !== "mseparator") {
-               if (item[i].innerHTML == current_page)
+               if (item[i].innerHTML === current_page)
                   item[i].className = "mmenuitem mmenuitemsel";
                else
                   item[i].className = "mmenuitem";
@@ -445,6 +445,13 @@ function mhttpd_init(current_page, interval) {
          }
          document.getElementById("mheader_expt_name").innerHTML = sessionStorage.mexpname;
          document.getElementById("mheader_last_updated").innerHTML = new Date();
+
+         // now the side navigation has its full width, ajust the main body and make it visible
+         var m = document.getElementById("mmain");
+         if (m !== undefined) {
+            m.style.marginLeft = document.getElementById("msidenav").clientWidth + "px";
+            m.style.display = "block";
+         }
       }
 
       // request it from server, since it might have changed
@@ -536,12 +543,11 @@ function mhttpd_init(current_page, interval) {
 
          document.getElementById("msidenav").innerHTML = html;
 
-         // adjust size of mmain element
+         // re-adjust size of mmain element if menu has changed
          var m = document.getElementById("mmain");
-         if (m != undefined) {
+         if (m !== undefined) {
             m.style.marginLeft = document.getElementById("msidenav").clientWidth + "px";
             m.style.display = "block";
-            m.style.transition = "0.3s";
          }
 
          // cache navigation buttons in browser local storage
@@ -595,19 +601,9 @@ function mhttpd_init(current_page, interval) {
       mbar[i].innerHTML = "<div style=\"background-color:" + color + "; width:0; position:relative; display:inline-block; border-right:1px solid #808080\">&nbsp;</div>";
    }
 
-
-
-   document.getElementById("mheader").style.position="fixed";
-   document.getElementById("mheader").style.top="0";
-   document.getElementById("mheader").style.zIndex=1;
-   document.getElementById("msidenav").style.zIndex=1;
-   document.getElementById("msidenav").style.top=document.getElementById("mheader").clientHeight.toString()+"px";
-   document.getElementById("mmain").style.position="relative";
-   document.getElementById("mmain").style.zIndex=0;
-   document.getElementById("mmain").style.paddingTop=document.getElementById("mheader").clientHeight.toString()+"px";
-
-
    // store refresh interval and do initial refresh
+   if (interval === undefined)
+      interval = 1000;
    mhttpd_refresh_interval = interval;
    mhttpd_refresh();
 }

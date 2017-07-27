@@ -1112,28 +1112,7 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 void page_footer(Return* r, const char* dec_path, BOOL bForm)  // wraps up body wrapper and inserts page footer
 {
    time_t now;
-   HNDLE hDB;
    char path[256];
-
-   /*---- spacer for footer ----*/
-   r->rsprintf("<div class=\"push\"></div>\n");
-   r->rsprintf("</div>\n"); //ends body wrapper
-
-   /*---- footer div ----*/
-   r->rsprintf("<div id=\"footerDiv\" class=\"footerDiv\">\n");
-   cm_get_experiment_database(&hDB, NULL);
-   std::string exptname;
-   db_get_value_string(hDB, 0, "/Experiment/Name", 0, &exptname, TRUE);
-   r->rsprintf("<div style=\"display:inline; float:left;\">Experiment %s</div>", exptname.c_str());
-   r->rsprintf("<div style=\"display:inline;\">");
-   
-   /* add one "../" for each level */
-   path[0] = 0;
-   for (const char* p = dec_path ; *p ; p++)
-      if (*p == '/')
-         strlcat(path, "../", sizeof(path));
-   if (path[strlen(path)-1] == '/')
-      path[strlen(path)-1] = 0;
 
    // add speak JS code for chat messages
    time(&now);
@@ -1163,6 +1142,7 @@ void page_footer(Return* r, const char* dec_path, BOOL bForm)  // wraps up body 
    }
 
    // add speak JS code for talk messages
+   /* ##
    time(&now);
    if (now < lastTalkMsg.last_time + 60) {
       char usr[256];
@@ -1188,12 +1168,9 @@ void page_footer(Return* r, const char* dec_path, BOOL bForm)  // wraps up body 
          }
       }
    }
+    */
 
-   r->rsprintf("<a href=\"./%s?cmd=Help\">Help</a>", path);
-   
-   r->rsprintf("</div>");
-   r->rsprintf("<div style=\"display:inline; float:right;\">%s</div>", ctime(&now));
-   r->rsprintf("</div>\n");
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
    
    /*---- top level form ----*/
    if (bForm)
@@ -1214,7 +1191,6 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    show_navigation_bar(r, "Help");
 
-   r->rsprintf("<div id=\"mmain\">\n");
    r->rsprintf("<table class=\"mtable\" style=\"width: 95%%\">\n");
    r->rsprintf("  <tr>\n");
    r->rsprintf("    <td class=\"mtableheader\">MIDAS Help Page</td>\n");
@@ -1434,15 +1410,12 @@ void show_header(Return* r, const char *title, const char *method, const char *p
            str);
    else if (equal_ustring(method, "GET"))
       r->rsprintf("<body><form name=\"form1\" method=\"GET\" action=\"%s\">\n\n", str);
-
+   
    /* title row */
 
    std::string exptname;
    db_get_value_string(hDB, 0, "/Experiment/Name", 0, &exptname, TRUE);
    time(&now);
-
-   /*---- body needs wrapper div to pin footer ----*/
-   r->rsprintf("<div id=\"wrapper\" class=\"wrapper\">\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -1574,12 +1547,13 @@ int exec_script(HNDLE hkey)
 void show_navigation_bar(Return* r, const char *cur_page)
 {
    r->rsprintf("<script>\n");
-   r->rsprintf("window.addEventListener(\"load\", mhttpd_init.bind(null, '%s'), false);\n", cur_page);
+   r->rsprintf("window.addEventListener(\"load\", function(e) { mhttpd_init('%s', 0); });\n", cur_page);
    r->rsprintf("</script>\n");
    
    r->rsprintf("<!-- header and side navigation will be filled in mhttpd_init -->\n");
    r->rsprintf("<div id=\"mheader\"></div>\n");
    r->rsprintf("<div id=\"msidenav\"></div>\n");
+   r->rsprintf("<div id=\"mmain\">\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -1810,8 +1784,6 @@ void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, co
    r->rsprintf("</head>\n");
 
    r->rsprintf("<body class=\"mcss\">\n");
-
-   r->rsprintf("<div id=\"wrapper\" class=\"wrapper\">\n");
 
    /*---- navigation bar ----*/
 
@@ -2892,8 +2864,6 @@ void show_elog_new(Return* r, const char* dec_path, const char *path, BOOL bedit
    r->rsprintf
        ("<body><form method=\"POST\" action=\"%s\" enctype=\"multipart/form-data\">\n", action_path);
 
-   /*---- body needs wrapper div to pin footer ----*/
-   r->rsprintf("<div class=\"wrapper\">\n");
    /*---- begin page header ----*/
    r->rsprintf("<table class=\"headerTable\">\n");
 
@@ -3115,7 +3085,10 @@ void show_elog_new(Return* r, const char* dec_path, const char *path, BOOL bedit
         att3);
 
    r->rsprintf("</table>\n");
-   page_footer(r, dec_path, TRUE);
+   
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -3147,8 +3120,6 @@ void show_elog_query(Return* r, const char* dec_path)
    r->rsprintf("<title>MIDAS ELog</title></head>\n");
    r->rsprintf("<body><form method=\"GET\" action=\"./\">\n");
 
-   /*---- body needs wrapper div to pin footer ----*/
-   r->rsprintf("<div class=\"wrapper\">\n");
    /*---- begin page header ----*/
    r->rsprintf("<table class=\"headerTable\">\n");
 
@@ -3298,7 +3269,9 @@ void show_elog_query(Return* r, const char* dec_path)
    r->rsprintf("<i>(case insensitive substring)</i><tr>\n");
 
    r->rsprintf("</tr></table>\n");
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -3363,7 +3336,9 @@ void show_elog_delete(Param* p, Return* r, const char* dec_path, const char *pat
    }
 
    r->rsprintf("</table>\n");
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -3391,8 +3366,6 @@ void show_elog_submit_query(Param* p, Return* r, const char* dec_path, INT last_
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    show_navigation_bar(r, "ELog");
 
-   /*---- body needs wrapper div to pin footer ----*/
-   r->rsprintf("<div class=\"wrapper\">\n");
    /*---- begin page header ----*/
    r->rsprintf("<table class=\"headerTable\">\n");
 
@@ -3794,7 +3767,9 @@ void show_elog_submit_query(Param* p, Return* r, const char* dec_path, INT last_
    } while (status == EL_SUCCESS);
 
    r->rsprintf("</table>\n");
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -3830,8 +3805,6 @@ void show_rawfile(Param* pp, Return* r, const char* dec_path, const char *path)
 
    r->rsprintf("<input type=hidden name=lines value=%d>\n", lines);
 
-   /*---- body needs wrapper div to pin footer ----*/
-   r->rsprintf("<div class=\"wrapper\">\n");
    /*---- begin page header ----*/
    r->rsprintf("<table class=\"headerTable\">\n");
 
@@ -3876,7 +3849,9 @@ void show_rawfile(Param* pp, Return* r, const char* dec_path, const char *path)
    if (f == NULL) {
       r->rsprintf("<tr><td><h3>Cannot find file \"%s\"</h3></td></tr>\n", file_name);
       r->rsprintf("</table>\n");
-      page_footer(r, dec_path, TRUE);
+      r->rsprintf("</div>\n"); // closing for <div id="mmain">
+      r->rsprintf("</form>\n");
+      r->rsprintf("</body></html>\r\n");
       return;
    }
 
@@ -3942,7 +3917,9 @@ void show_rawfile(Param* pp, Return* r, const char* dec_path, const char *path)
    r->rsprintf("</pre>\n");
 
    r->rsprintf("</td></tr></table>\r\n");
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -3975,8 +3952,6 @@ void show_form_query(Param* p, Return* r, const char* dec_path)
    /* hidden field for form */
    r->rsprintf("<input type=hidden name=form value=\"%s\">\n", p->getparam("form"));
 
-   /*---- body needs wrapper div to pin footer ----*/
-   r->rsprintf("<div class=\"wrapper\">\n");
    /*---- begin page header ----*/
    r->rsprintf("<table class=\"headerTable\">\n");
 
@@ -4066,7 +4041,9 @@ void show_form_query(Param* p, Return* r, const char* dec_path)
    }
 
    r->rsprintf("</tr></table>\n");
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -5048,7 +5025,9 @@ void show_elog_page(Param* p, Return* r, Attachment* a, const char* dec_path, ch
    }
 
    r->rsprintf("</table>\n");
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -5605,7 +5584,9 @@ void show_sc_page(Param* pp, Return* r, const char* dec_path, const char *path, 
    }
 
    r->rsprintf("</table>\n");
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -8957,7 +8938,9 @@ void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path,
       r->rsprintf("</table>\r\n"); //submaster table
       r->rsprintf("</td></tr>\r\n");
       r->rsprintf("</table>\r\n");  //main table
-      page_footer(r, dec_path, TRUE);
+      r->rsprintf("</div>\n"); // closing for <div id="mmain">
+      r->rsprintf("</form>\n");
+      r->rsprintf("</body></html>\r\n");
       return;
    }
 
@@ -9025,7 +9008,9 @@ void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path,
       r->rsprintf("</table>\r\n");  //submaster table
       r->rsprintf("</td></tr>\r\n");
       r->rsprintf("</table>\r\n"); //main table
-      page_footer(r, dec_path, TRUE);
+      r->rsprintf("</div>\n"); // closing for <div id="mmain">
+      r->rsprintf("</form>\n");
+      r->rsprintf("</body></html>\r\n");
       return;
    }
 
@@ -9206,8 +9191,6 @@ void show_password_page(Return* r, const char* dec_path, const char *password, c
    if (experiment[0])
       r->rsprintf("<input type=hidden name=exp value=\"%s\">\n", experiment);
 
-   /*---- body needs wrapper div to pin footer ----*/
-   r->rsprintf("<div class=\"wrapper\">\n");
    /*---- page header ----*/
    r->rsprintf("<table class=\"headerTable\"><tr><td></td><tr></table>\n");
 
@@ -9221,7 +9204,9 @@ void show_password_page(Return* r, const char* dec_path, const char *password, c
 
    r->rsprintf("</table>\n");
 
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -9261,8 +9246,6 @@ BOOL check_web_password(Return* r, const char* dec_path, const char *password, c
       if (redir[0])
          r->rsprintf("<input type=hidden name=redir value=\"%s\">\n", redir);
 
-      /*---- body needs wrapper div to pin footer ----*/
-      r->rsprintf("<div class=\"wrapper\">\n");
       /*---- page header ----*/
       r->rsprintf("<table class=\"headerTable\"><tr><td></td><tr></table>\n");
 
@@ -9278,7 +9261,9 @@ BOOL check_web_password(Return* r, const char* dec_path, const char *password, c
 
       r->rsprintf("</table>\n");
 
-      page_footer(r, dec_path, TRUE);
+      r->rsprintf("</div>\n"); // closing for <div id="mmain">
+      r->rsprintf("</form>\n");
+      r->rsprintf("</body></html>\r\n");
 
       return FALSE;
    } else
@@ -9401,8 +9386,9 @@ void show_start_page(Param* p, Return* r, const char* dec_path, int script)
    if (p->isparam("redir"))
       r->rsprintf("<input type=hidden name=\"redir\" value=\"%s\">\n", p->getparam("redir"));
 
-   page_footer(r, dec_path, TRUE);
-
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -9498,7 +9484,6 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
 
    /*---- begin ODB directory table ----*/
 
-   r->rsprintf("<div id=\"mmain\">\n");
    r->rsprintf("<table class=\"ODBtable\" style=\"border-spacing:0px;\">\n");
    r->rsprintf("<tr><th colspan=%d class=\"subStatusTitle\">Online Database Browser</tr>\n", colspan);
    //buttons:
@@ -10059,7 +10044,9 @@ void show_set_page(Param* pp, Return* r, char *enc_path, int enc_path_size,
 
       r->rsprintf("<input type=hidden name=cmd value=Set>\n");
 
-      page_footer(r, dec_path, TRUE);
+      r->rsprintf("</div>\n"); // closing for <div id="mmain">
+      r->rsprintf("</form>\n");
+      r->rsprintf("</body></html>\r\n");
       return;
    } else {
       /* set value */
@@ -10167,7 +10154,9 @@ void show_find_page(Return* r, const char* dec_path, const char *enc_path, const
 
       r->rsprintf("<input type=hidden name=cmd value=Find>");
 
-      page_footer(r, dec_path, TRUE);
+      r->rsprintf("</div>\n"); // closing for <div id="mmain">
+      r->rsprintf("</form>\n");
+      r->rsprintf("</body></html>\r\n");
    } else {
       strlcpy(str, enc_path, sizeof(str));
       if (strrchr(str, '/'))
@@ -10196,7 +10185,9 @@ void show_find_page(Return* r, const char* dec_path, const char *enc_path, const
       db_scan_tree(hDB, hkey, 0, search_callback, (void *)&data);
 
       r->rsprintf("</table>");
-      page_footer(r, dec_path, TRUE);
+      r->rsprintf("</div>\n"); // closing for <div id="mmain">
+      r->rsprintf("</form>\n");
+      r->rsprintf("</body></html>\r\n");
    }
 }
 
@@ -10287,7 +10278,9 @@ void show_create_page(Return* r, const char *enc_path, const char *dec_path, con
       r->rsprintf("</tr>");
       r->rsprintf("</table>");
 
-      page_footer(r, dec_path, TRUE);
+      r->rsprintf("</div>\n"); // closing for <div id="mmain">
+      r->rsprintf("</form>\n");
+      r->rsprintf("</body></html>\r\n");
    } else {
       if (type == TID_LINK) {
          /* check if destination exists */
@@ -10409,7 +10402,9 @@ void show_delete_page(Return* r, const char *enc_path, const char *dec_path, con
       status = db_find_key(hDB, 0, path, &hkeyroot);
       if (status != DB_SUCCESS) {
          r->rsprintf("Error: cannot find key \'%s\'<p>\n", path);
-         page_footer(r, dec_path, TRUE);
+         r->rsprintf("</div>\n"); // closing for <div id="mmain">
+         r->rsprintf("</form>\n");
+         r->rsprintf("</body></html>\r\n");
          return;
       }
 
@@ -10444,7 +10439,9 @@ void show_delete_page(Return* r, const char *enc_path, const char *dec_path, con
       r->rsprintf("</tr>");
       r->rsprintf("</table>");
 
-      page_footer(r, dec_path, TRUE);
+      r->rsprintf("</div>\n"); // closing for <div id="mmain">
+      r->rsprintf("</form>\n");
+      r->rsprintf("</body></html>\r\n");
    } else {
       strlcpy(str, dec_path, sizeof(str));
       if (str[strlen(str) - 1] != '/')
@@ -10659,7 +10656,9 @@ void show_alarm_page()
    }
 
    r->rsprintf("</table>\n"); //closes main table
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 
    //something is closing the top level form with the footer div outside of it; force it back in for now,
    //until the proper closing tag can be chased down:
@@ -10860,7 +10859,9 @@ void show_programs_page()
 
    r->rsprintf("</table>\n");
 
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 #endif
 
@@ -13045,7 +13046,9 @@ void show_query_page(Param* p, Return* r, const char* dec_path, const char *path
    r->rsprintf("</td></tr>\n");
 
    r->rsprintf("</table>\n");
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -14037,7 +14040,9 @@ void show_hist_config_page(Param* p, Return* r, const char* dec_path, const char
 
    r->rsprintf("</table>\n");
    //r->rsprintf("</form>\n");
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -14419,7 +14424,9 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, const char* enc_p
       r->rsprintf("</td></tr>\n");
 
       r->rsprintf("</table>\r\n");
-      page_footer(r, dec_path, TRUE);
+      r->rsprintf("</div>\n"); // closing for <div id="mmain">
+      r->rsprintf("</form>\n");
+      r->rsprintf("</body></html>\r\n");
       return;
    }
 
@@ -14766,7 +14773,9 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, const char* enc_p
       if (status != DB_SUCCESS && !equal_ustring(dec_path, "All") && !equal_ustring(dec_path,"")) {
          r->rsprintf("<h1>Error: History panel \"%s\" does not exist</h1>\n", dec_path);
          r->rsprintf("</table>\r\n");
-         page_footer(r, dec_path, TRUE);
+         r->rsprintf("</div>\n"); // closing for <div id="mmain">
+         r->rsprintf("</form>\n");
+         r->rsprintf("</body></html>\r\n");
          return;
       }
    }
@@ -15255,8 +15264,9 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, const char* enc_p
          }                      // Groups loop
    }                            // All
    r->rsprintf("</table>\r\n");
-   //r->rsprintf("</form>\r\n");
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 
@@ -15938,7 +15948,9 @@ void seq_start_page(Param* p, Return* r, const char* dec_path)
    if (!pnseq) {
       r->rsprintf("<tr><td colspan=2 align=\"center\" class=\"redLight\"><b>Error in XML script</b></td></tr>\n");
       r->rsprintf("</table>\n");
-      page_footer(r, dec_path, TRUE);
+      r->rsprintf("</div>\n"); // closing for <div id="mmain">
+      r->rsprintf("</form>\n");
+      r->rsprintf("</body></html>\r\n");
       return;
    }
    
@@ -16051,7 +16063,9 @@ void seq_start_page(Param* p, Return* r, const char* dec_path)
    if (p->isparam("redir"))
       r->rsprintf("<input type=hidden name=\"redir\" value=\"%s\">\n", p->getparam("redir"));
    
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 static const char* const bar_col[] = {"#B0B0FF", "#C0C0FF", "#D0D0FF", "#E0E0FF"};
@@ -16518,8 +16532,6 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    r->rsprintf("<form name=\"form1\" method=\"GET\" action=\".\">\n");
    
    // body needs wrapper div to pin footer
-   r->rsprintf("<div class=\"wrapper\">\n");
-   
    show_navigation_bar(r, "Sequencer");
 
    r->rsprintf("<table>");  //generic table for menu row
@@ -16999,7 +17011,9 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    }
    
    r->rsprintf("</td></tr></table>"); //end wrapper table
-   page_footer(r, dec_path, TRUE);
+   r->rsprintf("</div>\n"); // closing for <div id="mmain">
+   r->rsprintf("</form>\n");
+   r->rsprintf("</body></html>\r\n");
 }
 
 #endif // HAVE_SEQUENCER
