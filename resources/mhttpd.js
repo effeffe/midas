@@ -599,9 +599,11 @@ function mhttpd_init(current_page, interval) {
 
    document.getElementById("mheader").style.position="fixed";
    document.getElementById("mheader").style.top="0";
+   document.getElementById("mheader").style.zIndex=1;
+   document.getElementById("msidenav").style.zIndex=1;
    document.getElementById("msidenav").style.top=document.getElementById("mheader").clientHeight.toString()+"px";
    document.getElementById("mmain").style.position="relative";
-   document.getElementById("mmain").style.zIndex=-1;
+   document.getElementById("mmain").style.zIndex=0;
    document.getElementById("mmain").style.paddingTop=document.getElementById("mheader").clientHeight.toString()+"px";
 
 
