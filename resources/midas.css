@@ -202,7 +202,7 @@ input[type=text] {
 }
 
 .mmessagebox {
-   margin: 5px;
+   margin: 0;
    border: 2px solid #00B26B;
    border-radius: 12px;
    padding: 0;

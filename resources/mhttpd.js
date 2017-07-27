@@ -177,13 +177,13 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val) {
    if (odb_path.indexOf('[') > 0) {
       index = odb_path.substr(odb_path.indexOf('['));
       if (bracket == 0) {
-         p.innerHTML = "<input type=\"text\" size=\"" + size + "\" value=\"" + str + "\" onKeydown=\"return ODBInlineEditKeydown(event, this.parentNode,\'" + odb_path + "\'," + bracket + ");\" onBlur=\"ODBFinishInlineEdit(this.parentNode,\'" + odb_path + "\'," + bracket + ");\" >";
+         p.innerHTML = "<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,\'" + odb_path + "\'," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,\'" + odb_path + "\'," + bracket + ");' >";
          setTimeout(function () {
             p.childNodes[0].focus();
             p.childNodes[0].select();
          }, 10); // needed for Firefox
       } else {
-         p.innerHTML = index + "&nbsp;<input type=\"text\" size=\"" + size + "\" value=\"" + str + "\" onKeydown=\"return ODBInlineEditKeydown(event, this.parentNode,\'" + odb_path + "\'," + bracket + ");\" onBlur=\"ODBFinishInlineEdit(this.parentNode,\'" + odb_path + "\'," + bracket + ");\" >";
+         p.innerHTML = index + "&nbsp;<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,\'" + odb_path + "\'," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,\'" + odb_path + "\'," + bracket + ");' >";
 
          // what is this for?
          setTimeout(function () {
@@ -193,7 +193,7 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val) {
       }
    } else {
 
-      p.innerHTML = "<input type=\"text\" size=\"" + size + "\" value=\"" + str + "\" onKeydown=\"return ODBInlineEditKeydown(event, this.parentNode,\'" + odb_path + "\'," + bracket + ");\" onBlur=\"ODBFinishInlineEdit(this.parentNode,\'" + odb_path + "\'," + bracket + ");\" >";
+      p.innerHTML = "<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,\'" + odb_path + "\'," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,\'" + odb_path + "\'," + bracket + ");' >";
 
       // what is this for?
       setTimeout(function () {
@@ -278,12 +278,12 @@ function mhttpd_goto_page(page) {
 }
 
 function mhttpd_navigation_bar(current_page, path) {
-   document.write("<div id=\"customHeader\">\n");
+   document.write("<div id='customHeader'>\n");
    document.write("</div>\n");
 
-   document.write("<div class=\"mnav\">\n");
+   document.write("<div class='mnav'>\n");
    document.write("  <table>\n");
-   document.write("    <tr><td id=\"navigationTableButtons\"></td></tr>\n");
+   document.write("    <tr><td id='navigationTableButtons'></td></tr>\n");
    document.write("  </table>\n\n");
    document.write("</div>\n");
 
@@ -340,7 +340,7 @@ function mhttpd_navigation_bar(current_page, path) {
          if (bb == current_page) {
             cc = "mnav mnavsel navButtonSel";
          }
-         html += "<input type=button name=cmd value=\"" + bb + "\" class=\"" + cc + "\" onclick=\"window.location.href=\'" + path + "?cmd=" + bb + "\';return false;\">\n";
+         html += "<input type=button name=cmd value='" + bb + "' class='" + cc + "' onclick='window.location.href=\'" + path + "?cmd=" + bb + "\';return false;'>\n";
       }
       document.getElementById("navigationTableButtons").innerHTML = html;
 
@@ -369,18 +369,18 @@ function mhttpd_toggle_menu() {
 
 function mhttpd_page_footer() {
    /*---- spacer for footer ----*/
-   //document.write("<div class=\"push\"></div>\n");
+   //document.write("<div class='push'></div>\n");
 
    /*---- footer div ----*/
-   document.write("<div id=\"footerDiv\" class=\"mfooter footerDiv\">\n");
+   document.write("<div id='footerDiv' class='mfooter footerDiv'>\n");
    mjsonrpc_db_get_values(["/Experiment/Name"]).then(function (rpc) {
       document.getElementById("mhttpd_expt_name").innerHTML = "Experiment " + rpc.result.data[0];
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
    });
-   document.write("<div style=\"display:inline; float:left;\" id=\"mhttpd_expt_name\">Experiment %s</div>");
-   document.write("<div style=\"display:inline;\"><a href=\"?cmd=Help\">Help</a></div>");
-   document.write("<div style=\"display:inline; float:right; \" id=\"mhttpd_last_updated\">" + new Date + "</div>");
+   document.write("<div style='display:inline; float:left;' id='mhttpd_expt_name'>Experiment %s</div>");
+   document.write("<div style='display:inline;'><a href='?cmd=Help'>Help</a></div>");
+   document.write("<div style='display:inline; float:right; ' id='mhttpd_last_updated'>" + new Date + "</div>");
    document.write("</div>\n");
 }
 
@@ -416,15 +416,15 @@ function mhttpd_init(current_page, interval) {
    var h = document.getElementById("mheader");
    if (h !== undefined)
       h.innerHTML =
-         "<div style=\"display:inline-block; float:left\";>" +
-         "<span class=\"mmenuitem\" style=\"padding-right: 10px;margin-right: 20px;\" onclick=\"mhttpd_toggle_menu()\">&#9776;</span>" +
-         "<span id=\"mheader_expt_name\"></span>" +
+         "<div style='display:inline-block; float:left';>" +
+         "<span class='mmenuitem' style='padding-right: 10px;margin-right: 20px;' onclick='mhttpd_toggle_menu()'>&#9776;</span>" +
+         "<span id='mheader_expt_name'></span>" +
          "</div>" +
 
-         "<div style=\"display:inline;\" id=\"mheader_message\">&nbsp;</div>" +
+         "<div style='display:inline;' id='mheader_message'>&nbsp;</div>" +
 
-         "<div style=\"display:inline; float:right;\">" +
-         "<span style=\"display:inline; font-size: 75%; margin-right: 10px\" id=\"mheader_last_updated\"></span>" +
+         "<div style='display:inline; float:right;'>" +
+         "<span style='display:inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></span>" +
          "</div>";
 
    // update header and menu
@@ -472,7 +472,7 @@ function mhttpd_init(current_page, interval) {
          // check for base URL
          if (base_url === null) {
             base_url = "http://localhost:8080";
-            alert("\"/Experiment/Base URL\" is missing in ODB, please define it.")
+            alert("'/Experiment/Base URL' is missing in ODB, please define it.")
          }
          if (base_url.slice(-1) !== "/")
             base_url += "/";
@@ -498,26 +498,26 @@ function mhttpd_init(current_page, interval) {
          for (var i = 0; i < b.length; i++) {
             var bb = b[i].trim();
             var cc = "mmenuitem";
-            if (bb == current_page) {
+            if (bb === current_page) {
                cc += " mmenuitemsel";
             }
-            html += "<div class=\"" + cc + "\"><a href=\""+ bb + "\" class=\"mmenulink\" onclick=\"window.location.href=\'" + base_url + "?cmd=" + bb + "\';return false;\">" + bb + "</a></div>\n";
+            html += "<div class='" + cc + "'><a href='" + base_url + "?cmd=" + bb + "' class='mmenulink'>" + bb + "</a></div>\n";
          }
 
          // custom
          if (custom !== null && Object.keys(custom).length > 0) {
             // add separator
-            html += "<div class=\"mseparator\"></div>\n";
+            html += "<div class='mseparator'></div>\n";
 
             for (var b in custom) {
                if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
                   continue;
                cc = "mmenuitem";
-               if (custom[b + "/name"] == current_page)
+               if (custom[b + "/name"] === current_page)
                   cc += " mmenuitemsel";
-               if (b == "path")
+               if (b === "path")
                   continue;
-               html += "<div class=\"" + cc + "\"><a href=\""+ custom[b] + "\" class=\"mmenulink\" onclick=\"window.location.href=\'" + base_url + custom[b] + "\';return false;\">" + custom[b + "/name"] + "</a></div>\n";
+               html += "<div class='" + cc + "'><a href='" + base_url + custom[b] + "' class='mmenulink'>" + custom[b + "/name"] + "</a></div>\n";
             }
 
          }
@@ -525,7 +525,7 @@ function mhttpd_init(current_page, interval) {
          // alias
          if (alias !== null && Object.keys(alias).length > 0) {
             // add separator
-            html += "<div class=\"mseparator\"></div>\n";
+            html += "<div class='mseparator'></div>\n";
 
             for (var b in alias) {
                if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
@@ -533,9 +533,9 @@ function mhttpd_init(current_page, interval) {
                var n = alias[b + "/name"];
                if (n.substr(n.length - 1) === "&") {
                   n = n.substr(0, n.length - 1);
-                  html += "<div class=\"mmenuitem\"><a href=\""+ alias[b] + "\" class=\"mmenulink\" onclick=\"window.open(\'" + alias[b] + "\');return false;\">" + n + "&#8599;</a></div>\n";
+                  html += "<div class='mmenuitem'><a href='" + alias[b] + "' class='mmenulink' target='_blank'>" + n + "&#8599;</a></div>\n";
                } else {
-                  html += "<div class=\"mmenuitem\"><a href=\""+ alias[b] + "\" class=\"mmenulink\" onclick=\"window.location.href=\'" + alias[b] + "\';return false;\">" + n + "&#8599;</a></div>\n";
+                  html += "<div class='mmenuitem'><a href='" + alias[b] + "' class='mmenulink'>" + n + "</a></div>\n";
                }
             }
 
@@ -598,7 +598,7 @@ function mhttpd_init(current_page, interval) {
       mbar[i].style.position = "relative";
       mbar[i].style.border = "1px solid #808080";
       var color = mbar[i].dataset.color;
-      mbar[i].innerHTML = "<div style=\"background-color:" + color + "; width:0; position:relative; display:inline-block; border-right:1px solid #808080\">&nbsp;</div>";
+      mbar[i].innerHTML = "<div style='background-color:" + color + "; width:0; position:relative; display:inline-block; border-right:1px solid #808080'>&nbsp;</div>";
    }
 
    // store refresh interval and do initial refresh
