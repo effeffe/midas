@@ -28,7 +28,7 @@ a:focus { color:#0000FF; text-decoration:underline }
 }
 
 .mredcolour {
-   background-color: #c0392b;
+   background-color: #a53529;
    border-radius: 5px;
    border: 1px solid #808080;
    color: #EEEEEE;
@@ -41,7 +41,7 @@ a:focus { color:#0000FF; text-decoration:underline }
 }
 
 .mgreencolour {
-   background-color: #00e600;
+   background-color: #00c000;
    border-radius: 5px;
    border: 1px solid #808080;
 }
@@ -239,7 +239,7 @@ input[type=text] {
    font-size: 120%;
    font-weight: bold;
    border-radius: 12px;
-   background-color: #77AAcc;
+   background-color: #649dc3;
    color: #EEEEEE;
    margin: 0.1em;
    padding: 0.25em;
