@@ -34,6 +34,7 @@ static void usage()
    printf("options:\n");
    printf("  [-e Experiment] --- specify experiment name\n");
    printf("  [-s size] --- specify new size of ODB in bytes, default is %d\n", DEFAULT_ODB_SIZE);
+   printf("  [--exptab] --- create new exptab file in the current directory\n");
    printf("  [--cleanup] --- cleanup (preserve) old (existing) ODB files\n");
    printf("  [-n] --- dry run, report everything that will be done, but do not actually do anything\n");
    //printf("  [-g] --- debug\n");
@@ -65,6 +66,7 @@ int main(int argc, char *argv[])
 
    bool cleanup = false;
    bool dry_run = false;
+   bool create_exptab = false;
 
    /* parse command line parameters */
    for (int i = 1; i < argc; i++) {
@@ -72,6 +74,8 @@ int main(int argc, char *argv[])
          //debug = TRUE;
       } else if (strcmp(argv[i], "-n") == 0) {
          dry_run = true;
+      } else if (strcmp(argv[i], "--exptab") == 0) {
+         create_exptab = true;
       } else if (strcmp(argv[i], "--cleanup") == 0) {
          cleanup = true;
       } else if (strcmp(argv[i], "-e") == 0) {
@@ -85,11 +89,78 @@ int main(int argc, char *argv[])
       }
    }
 
-   printf("Checking command line... experiment \"%s\", cleanup %d, dry_run %d\n", exp_name, cleanup, dry_run);
+   printf("Checking command line... experiment \"%s\", cleanup %d, dry_run %d, create_exptab %d\n", exp_name, cleanup, dry_run, create_exptab);
+
+   if (create_exptab) {
+      printf("Creating a new exptab file in the current directory...\n");
+
+      FILE *fpr = fopen("exptab", "r");
+      if (fpr) {
+         fclose(fpr);
+         printf("Error: exptab already exists in the current directory. Sorry...\n");
+         exit(1);
+      }
+
+      if (strlen(exp_name) < 1) {
+         strlcpy(exp_name, "Default", sizeof(exp_name));
+      }
+      if (strchr(exp_name, ' ')) {
+         printf("Error: experiment name \"%s\" should not contain a space character. Sorry...\n", exp_name);
+         exit(1);
+      }
+      const char* pwd = getenv("PWD");
+      if (!pwd || strlen(pwd)<1) {
+         printf("Error: env.variable PWD is not defined or is empty. Sorry...\n");
+         exit(1);
+      }
+      if (strchr(pwd, ' ')) {
+         printf("Error: env.variable PWD value \"%s\" should not contain a space character. Sorry...\n", pwd);
+         exit(1);
+      }
+      const char* user = getenv("USER");
+      if (!user || strlen(user)<1) {
+         printf("Error: env.variable USER is not defined or is empty. Sorry...\n");
+         exit(1);
+      }
+      if (strchr(user, ' ')) {
+         printf("Error: env.variable USER value \"%s\" should not contain a space character. Sorry...\n", user);
+         exit(1);
+      }
+      printf("Experiment name [%s], experiment directory [%s], username [%s]\n", exp_name, pwd, user);
+
+      FILE* fp = fopen("exptab", "w");
+      fprintf(fp, "%s %s %s\n", exp_name, pwd, user);
+      fclose(fp);
+
+      printf("\n");
+      printf("Please define env.variable MIDAS_EXPTAB=%s/%s\n", pwd, "exptab");
+      printf("\n");
+      printf("Done\n");
+      exit(0);
+   }
 
    status = cm_list_experiments(host_name, exp_names);
 
+   if (status != CM_SUCCESS) {
+      printf("Error: cm_list_experiments() status %d\n", status);
+      printf("\n");
+      printf("Cannot get the list of experiments, maybe the exptab file is missing.\n");
+      printf("\n");
+      printf("To create a new exptab file in the current directory, run odbinit --exptab -e new_experiment_name\n");
+      printf("\n");
+      printf("Bye...\n");
+      exit(1);
+   }
+
    status = cm_get_exptab_filename(exptab_filename, sizeof(exptab_filename));
+
+   if (status != CM_SUCCESS) {
+      printf("Error: cm_get_exptab_filename() status %d\n", status);
+      printf("\n");
+      printf("Cannot get the name of the exptab file. Sorry...\n");
+      exit(1);
+   }
+
 
    printf("Checking exptab... experiments defined in exptab file \"%s\":\n", exptab_filename);
 
