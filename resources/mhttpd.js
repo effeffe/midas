@@ -20,7 +20,7 @@ var transition_names = {
    4096: "Deferred"
 };
 
-var global_base_url="";
+var global_base_url = "";
 
 //
 // convert json dom values to text for display and editing
@@ -389,14 +389,14 @@ function mhttpd_page_footer() {
 var mhttpd_refresh_id;
 var mhttpd_refresh_interval;
 
-function mhttpd_init(current_page, interval) {
+function mhttpd_init(current_page, interval, callback) {
    /*
     This funciton should be called from custom pages to initialize all ODB tags and refresh
     them periodically every "interval" in ms
 
     ODB Tags:
 
-    <body class="mcss" onload="mhttpd_init(1000)">
+    <body class="mcss" onload="mhttpd_init('Test', 1000)">
     ...
     <div name="modbvalue" data-odb-path="/Runinfo/Run number" data-odb-editable="1"></div>
     ...
@@ -479,7 +479,7 @@ function mhttpd_init(current_page, interval) {
          if (base_url.slice(-1) !== "/")
             base_url += "/";
 
-         global_base_url=base_url;
+         global_base_url = base_url;
 
          // menu buttons
          var b = [];
@@ -556,6 +556,9 @@ function mhttpd_init(current_page, interval) {
 
          // cache navigation buttons in browser local storage
          sessionStorage.setItem("msidenav", html);
+
+         if (callback !== undefined)
+            callback();
 
       }).catch(function (error) {
          mjsonrpc_error_alert(error);
