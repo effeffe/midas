@@ -18764,8 +18764,50 @@ static bool handle_decode_get(struct mg_connection *nc, const http_message* msg,
    rr->zero();
 
    // call midas
-   
-   decode_get(rr, NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, expand, false, uri, query_string);
+
+   static const char* const allowed_files[] = {
+      "alarm.mp3",
+      "alarms.html",
+      "chat.html",
+      "controls.js",
+      "dialog.html",
+      "example.html",
+      "messages.html",
+      "mhttpd.css",
+      "mhttpd.js",
+      "midas.css",
+      "midas.js",
+      "obsolete.js",
+      "odb.html",
+      "programs.html",
+      "start.html",
+      "status.html",
+      "transition.html",
+      NULL
+   };
+
+   bool call_decode_get = true;
+
+   // remove leading slash
+   const char* xuri = uri;
+   while (xuri[0] == '/') {
+      xuri++;
+   }
+
+   for (const char* const* s = allowed_files; *s != NULL; s++) {
+      if (strcmp(xuri, *s) == 0) {
+         if (trace_mg||verbose_mg) {
+            printf("handle_decode_get: uri [%s], query [%s], sending resource [%s]\n", uri, query_string, *s);
+         }
+         send_resource(rr, *s);
+         call_decode_get = false;
+         break;
+      }
+   }
+
+   if (call_decode_get) {
+      decode_get(rr, NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, expand, false, uri, query_string);
+   }
 
    if (trace_mg)
       printf("handle_decode_get: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
