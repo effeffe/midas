@@ -20,7 +20,9 @@
     <div id="mmain">
 
         <table class="mmaintable" id="ODBTable">
-            <tr><th colspan="7" class="mtableheader">Online Database Browser</th></tr>
+            <tr>
+                <th colspan="7" class="mtableheader">Online Database Browser</th>
+            </tr>
             <tr id="actionBar">
             </tr>
             <tr id="currentDir">
@@ -45,21 +47,63 @@
         const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr id=\"actionBar\"></tr><tr id=\"currentDir\"></tr>";
 
 
+
         function callback(rpc, currentDir) {
 
             var ODBTable = document.getElementById("ODBTable");
 
 
             function generateSub_Dir() {
+
+
                 if (sub_dir.length > 0) {
                     sub_dir.forEach(function (element) {
+
+
+                        function expand() {
+                            sub_dir_expand_link.innerHTML = "&#9660;";
+                            sub_dir_expand_link.removeEventListener('click', expand);
+                            sub_dir_expand_link.addEventListener('click', fold);
+                        }
+
+                        function fold() {
+                            sub_dir_expand_link.innerHTML = "&#9654;";
+                            sub_dir_expand_link.removeEventListener('click', fold);
+                            sub_dir_expand_link.addEventListener('click', expand);
+                        }
+
+                        function highlight() {
+                            sub_dir_expand_link.style.color = "#00CC00";
+                        }
+
+                        function unhighlight() {
+                            sub_dir_expand_link.style.color = "#000000";
+                        }
+
+
+
                         var sub_dir_row = document.createElement("tr");
                         var sub_dir_col = document.createElement("td");
+                        var sub_dir_expand_link = document.createElement("a");
                         var sub_dir_link = document.createElement("a");
+
                         sub_dir_link.href = global_dir_data + "/" + element;
-                        sub_dir_link.innerHTML = "&#9654; " + element
+                        sub_dir_link.innerHTML = " " + element;
+                        sub_dir_link.className = "modblink";
+
+                        sub_dir_expand_link.innerHTML = "&#9654;";
+                        sub_dir_expand_link.className = "modbarrow";
+                        sub_dir_expand_link.href = "#";
+                        sub_dir_expand_link.addEventListener('click', expand);
+                        sub_dir_expand_link.addEventListener('mouseover', highlight);
+                        sub_dir_expand_link.addEventListener('mouseout', unhighlight);
+
+                        sub_dir_col.appendChild(sub_dir_expand_link);
                         sub_dir_col.appendChild(sub_dir_link);
+                        sub_dir_col.colSpan = "2";
+
                         sub_dir_row.appendChild(sub_dir_col);
+
                         ODBTable.appendChild(sub_dir_row);
                     });
                 }
@@ -67,8 +111,98 @@
 
             function generateODB_Keys() {
 
+
+                function expandproperty() {
+                    type_title.style.display = "table-cell";
+                    val_title.style.display = "table-cell";
+                    size_title.style.display = "table-cell";
+                    written_title.style.display = "table-cell";
+                    mode_title.style.display = "table-cell";
+                    exp.removeEventListener('click', expandproperty);
+                    exp.addEventListener('click', foldproperty);
+                    exp.innerHTML = "-";
+                }
+
+                function foldproperty() {
+                    type_title.style.display = "none";
+                    val_title.style.display = "none";
+                    size_title.style.display = "none";
+                    written_title.style.display = "none";
+                    mode_title.style.display = "none";
+                    exp.removeEventListener('click', foldproperty);
+                    exp.addEventListener('click', expandproperty)
+                    exp.innerHTML = "+";
+
+                }
+
+                if (odb_keys.length > 0) {
+                    var key_row = document.createElement("tr");
+
+                    var key_title = document.createElement("th");
+                    key_title.innerHTML = "Key";
+
+                    var value_title = document.createElement("th");
+                    value_title.innerHTML = "Value";
+
+                    var type_title = document.createElement("th");
+                    type_title.innerHTML = "Type";
+                    type_title.style.display = "none";
+
+                    var val_title = document.createElement("th");
+                    val_title.innerHTML = "#Val";
+                    val_title.style.display = "none";
+
+                    var size_title = document.createElement("th");
+                    size_title.innerHTML = "Size";
+                    size_title.style.display = "none";
+
+                    var written_title = document.createElement("th");
+                    written_title.innerHTML = "Written";
+                    written_title.style.display = "none";
+
+                    var mode_title = document.createElement("th");
+                    mode_title.innerHTML = "Mode";
+                    mode_title.style.display = "none";
+
+                    var expandkey = document.createElement("div");
+                    expandkey.style.display = "inline";
+                    expandkey.style.cssFloat = "right";
+
+                    value_title.appendChild(expandkey);
+
+                    var exp = document.createElement("a");
+                    exp.className="modbarrow";
+                    exp.id = "exp";
+                    exp.href = "#";
+                    exp.innerHTML = "+";
+                    exp.addEventListener('click', expandproperty);
+
+                    expandkey.appendChild(exp);
+
+                    key_row.appendChild(key_title);
+                    key_row.appendChild(value_title);
+                    key_row.appendChild(type_title);
+                    key_row.appendChild(val_title);
+                    key_row.appendChild(size_title);
+                    key_row.appendChild(written_title);
+                    key_row.appendChild(mode_title);
+
+                    ODBTable.appendChild(key_row);
+
+                    odb_keys.forEach(function(element){
+
+                    });
+
+
+                }
             }
 
+
+
+            if (global_dir_data != currentDir || JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data)) {
+                ODBTable.innerHTML = ODBTableinnerHTML;
+
+            }
 
             // odb directory very rarely changes
             if (global_dir_data != currentDir) {
@@ -80,9 +214,7 @@
                 document.getElementById("currentDir").appendChild(currentDirLink);
             }
 
-
             // since odb data rarely changes while browsing, if any change dynamically happens, refresh the whole page
-
             if (JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data)) {
                 global_rpc_data = rpc.result.data;
 
@@ -112,14 +244,17 @@
 
                 }
             }
+
+
+
+
+
         }
 
 
         function update() {
-            //alert(global_base_url);
             var sub_directory = (window.location.host + window.location.pathname).replace(global_base_url, "");
             sub_directory = sub_directory.replace("%20", " ");
-            //alert("/"+sub_directory);
 
 
             var paths = ["/Alarms"];
