@@ -3,6 +3,7 @@
 <!--Created by Shuoyi Ma in 27st July 2017-->
 
 <head>
+   <script></script>
    <meta charset="UTF-8">
    <link rel="stylesheet" href="midas.css" type="text/css">
    <!-- not using old css file any more <link rel="stylesheet" href="mhttpd.css">-->
@@ -11,7 +12,7 @@
    <title>MIDAS online database</title>
 </head>
 
-<body class="mcss" onload="mhttpd_init('ODB')">
+<body class="mcss" onload="mhttpd_init('ODB',1000,update_periodic)">
 
    <div id="mheader"></div>
    <div id="msidenav"></div>
@@ -20,10 +21,32 @@
 
 
 
-      
+
    </div>
 
 
+   <script>
+      var update_timer_id;
+
+
+      function update() {
+         //alert(global_base_url);
+         var sub_directory= (window.location.host+window.location.pathname).replace(global_base_url,"");
+         sub_directory=sub_directory.replace("%20"," ");
+         //alert("/"+sub_directory);
+         alert(global_base_url);
+      }
+
+
+      function update_periodic() {
+         clearTimeout(update_timer_id);
+         var update_period = 1000;
+         update();
+         update_timer_id = setTimeout('update_periodic()', update_period);
+      }
+
+      
+   </script>
 
 </body>
 

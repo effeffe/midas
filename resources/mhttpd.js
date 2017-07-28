@@ -557,9 +557,11 @@ function mhttpd_init(current_page, interval, callback) {
          // cache navigation buttons in browser local storage
          sessionStorage.setItem("msidenav", html);
 
-         if (callback !== undefined)
-            callback();
+         
 
+      }).then(function(){
+            if (callback !== undefined)
+            callback();
       }).catch(function (error) {
          mjsonrpc_error_alert(error);
       });
