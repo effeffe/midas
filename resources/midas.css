@@ -153,6 +153,15 @@ a.hideButton{
     color : #5F88A3;
 }
 
+a.modbarrow{
+    text-decoration : none; 
+    color : #000000;
+}
+
+a.modblink{
+    color : #0000FF;
+}
+
 /* all navigation buttons */
 
 input.mnav, .mbutton {
