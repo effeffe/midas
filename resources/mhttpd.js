@@ -179,13 +179,13 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val) {
    if (odb_path.indexOf('[') > 0) {
       index = odb_path.substr(odb_path.indexOf('['));
       if (bracket == 0) {
-         p.innerHTML = "<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,\'" + odb_path + "\'," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,\'" + odb_path + "\'," + bracket + ");' >";
+         p.innerHTML = "<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' >";
          setTimeout(function () {
             p.childNodes[0].focus();
             p.childNodes[0].select();
          }, 10); // needed for Firefox
       } else {
-         p.innerHTML = index + "&nbsp;<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,\'" + odb_path + "\'," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,\'" + odb_path + "\'," + bracket + ");' >";
+         p.innerHTML = index + "&nbsp;<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' >";
 
          // what is this for?
          setTimeout(function () {
@@ -195,7 +195,7 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val) {
       }
    } else {
 
-      p.innerHTML = "<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,\'" + odb_path + "\'," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,\'" + odb_path + "\'," + bracket + ");' >";
+      p.innerHTML = "<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' >";
 
       // what is this for?
       setTimeout(function () {

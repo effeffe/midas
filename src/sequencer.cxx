@@ -909,10 +909,9 @@ int seq_serror_line() { return seq.serror_line; }
 
 /*------------------------------------------------------------------*/
 
-static void seq_watch(HNDLE a, HNDLE b, int c, void* d)
+static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
 {
    int status;
-   HNDLE hDB;
    HNDLE hKey;
    
    cm_get_experiment_database(&hDB, NULL);
@@ -929,8 +928,6 @@ static void seq_watch(HNDLE a, HNDLE b, int c, void* d)
       cm_msg(MERROR, "seq_watch", "Cannot get /Sequencer/State from ODB, db_get_record1() status %d", status);
       return;
    }
-
-   cm_msg(MINFO, "seq_watch", "Sequencer reloaded from ODB /Sequencer/State");
 }
 
 /*------------------------------------------------------------------*/
@@ -963,12 +960,6 @@ void init_sequencer()
       return;
    }
 
-   status = db_watch(hDB, hKey, seq_watch, NULL);
-   if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot watch /Sequencer/State, db_watch() status %d", status);
-      return;
-   }
-   
    if (seq.path[0] == 0)
       if (!getcwd(seq.path, sizeof(seq.path)))
          seq.path[0] = 0;
@@ -999,6 +990,12 @@ void init_sequencer()
    seq.transition_request = FALSE;
    
    db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+   
+   status = db_watch(hDB, hKey, seq_watch, NULL);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot watch /Sequencer/State, db_watch() status %d", status);
+      return;
+   }
 }
 
 /*------------------------------------------------------------------*/
