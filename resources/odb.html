@@ -3,274 +3,357 @@
 <!--Created by Shuoyi Ma in 27st July 2017-->
 
 <head>
-    <script></script>
-    <meta charset="UTF-8">
-    <link rel="stylesheet" href="midas.css" type="text/css">
-    <!-- not using old css file any more <link rel="stylesheet" href="mhttpd.css">-->
-    <script src="midas.js"></script>
-    <script src="mhttpd.js"></script>
-    <title>MIDAS online database</title>
+   <script></script>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css" type="text/css">
+   <!-- not using old css file any more <link rel="stylesheet" href="mhttpd.css">-->
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <title>MIDAS online database</title>
 </head>
 
 <body class="mcss" onload="mhttpd_init('ODB',1000,update_periodic)">
 
-    <div id="mheader"></div>
-    <div id="msidenav"></div>
+   <div id="mheader"></div>
+   <div id="msidenav"></div>
 
-    <div id="mmain">
+   <div id="mmain">
 
-        <table class="mmaintable" id="ODBTable">
-            <tr>
-                <th colspan="7" class="mtableheader">Online Database Browser</th>
-            </tr>
-            <tr id="actionBar">
-            </tr>
-            <tr id="currentDir">
-            </tr>
-
-
-        </table>
+      <table class="mmaintable" id="ODBTable">
+         <tr>
+            <th colspan="7" class="mtableheader">Online Database Browser</th>
+         </tr>
+         <tr id="actionBar">
+         </tr>
+         <tr id="currentDir">
+         </tr>
 
 
-    </div>
+      </table>
 
 
-    <script>
-        var update_timer_id;
-
-        var global_rpc_data = null;
-
-        var global_dir_data = null;
-
-        var currentEditing = null;
-
-        const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr id=\"actionBar\"></tr><tr id=\"currentDir\"></tr>";
+   </div>
 
 
+   <script>
+      var update_timer_id;
 
-        function callback(rpc, currentDir) {
+      var global_rpc_data = null;
 
-            var ODBTable = document.getElementById("ODBTable");
+      var global_dir_data = null;
 
+      var currentEditing = null;
 
-            function generateSub_Dir() {
-
-
-                if (sub_dir.length > 0) {
-                    sub_dir.forEach(function (element) {
-
-
-                        function expand() {
-                            sub_dir_expand_link.innerHTML = "&#9660;";
-                            sub_dir_expand_link.removeEventListener('click', expand);
-                            sub_dir_expand_link.addEventListener('click', fold);
-                        }
-
-                        function fold() {
-                            sub_dir_expand_link.innerHTML = "&#9654;";
-                            sub_dir_expand_link.removeEventListener('click', fold);
-                            sub_dir_expand_link.addEventListener('click', expand);
-                        }
-
-                        function highlight() {
-                            sub_dir_expand_link.style.color = "#00CC00";
-                        }
-
-                        function unhighlight() {
-                            sub_dir_expand_link.style.color = "#000000";
-                        }
+      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr id=\"actionBar\"></tr><tr id=\"currentDir\"></tr>";
 
 
 
-                        var sub_dir_row = document.createElement("tr");
-                        var sub_dir_col = document.createElement("td");
-                        var sub_dir_expand_link = document.createElement("a");
-                        var sub_dir_link = document.createElement("a");
+      function callback(rpc, currentDir) {
 
-                        sub_dir_link.href = global_dir_data + "/" + element;
-                        sub_dir_link.innerHTML = " " + element;
-                        sub_dir_link.className = "modblink";
+         var ODBTable = document.getElementById("ODBTable");
 
-                        sub_dir_expand_link.innerHTML = "&#9654;";
-                        sub_dir_expand_link.className = "modbarrow";
-                        sub_dir_expand_link.href = "#";
-                        sub_dir_expand_link.addEventListener('click', expand);
-                        sub_dir_expand_link.addEventListener('mouseover', highlight);
-                        sub_dir_expand_link.addEventListener('mouseout', unhighlight);
 
-                        sub_dir_col.appendChild(sub_dir_expand_link);
-                        sub_dir_col.appendChild(sub_dir_link);
-                        sub_dir_col.colSpan = "2";
+         function generateSub_Dir() {
 
-                        sub_dir_row.appendChild(sub_dir_col);
 
-                        ODBTable.appendChild(sub_dir_row);
-                    });
-                }
+            if (sub_dir.length > 0) {
+               sub_dir.forEach(function (element) {
+
+
+                  function expand() {
+                     sub_dir_expand_link.innerHTML = "&#9660;";
+                     sub_dir_expand_link.removeEventListener('click', expand);
+                     sub_dir_expand_link.addEventListener('click', fold);
+                  }
+
+                  function fold() {
+                     sub_dir_expand_link.innerHTML = "&#9654;";
+                     sub_dir_expand_link.removeEventListener('click', fold);
+                     sub_dir_expand_link.addEventListener('click', expand);
+                  }
+
+                  function highlight() {
+                     sub_dir_expand_link.style.color = "#00CC00";
+                  }
+
+                  function unhighlight() {
+                     sub_dir_expand_link.style.color = "#000000";
+                  }
+
+
+
+                  var sub_dir_row = document.createElement("tr");
+                  var sub_dir_col = document.createElement("td");
+                  var sub_dir_expand_link = document.createElement("a");
+                  var sub_dir_link = document.createElement("a");
+
+                  sub_dir_link.href = global_dir_data + "/" + element;
+                  sub_dir_link.innerHTML = " " + element;
+                  sub_dir_link.className = "modblink";
+
+                  sub_dir_expand_link.innerHTML = "&#9654;";
+                  sub_dir_expand_link.className = "modbarrow";
+                  sub_dir_expand_link.href = "#";
+                  sub_dir_expand_link.addEventListener('click', expand);
+                  sub_dir_expand_link.addEventListener('mouseover', highlight);
+                  sub_dir_expand_link.addEventListener('mouseout', unhighlight);
+
+                  sub_dir_col.appendChild(sub_dir_expand_link);
+                  sub_dir_col.appendChild(sub_dir_link);
+                  sub_dir_col.colSpan = "2";
+
+                  sub_dir_row.appendChild(sub_dir_col);
+
+                  ODBTable.appendChild(sub_dir_row);
+               });
+            }
+         }
+
+         function generateODB_Keys() {
+
+
+            function expandproperty() {
+               var hidecells = document.getElementsByClassName("expandCell");
+
+               Array.prototype.forEach.call(hidecells, function (element) {
+                  element.style.display = "table-cell";
+               });
+               exp.removeEventListener('click', expandproperty);
+               exp.addEventListener('click', foldproperty);
+               exp.innerHTML = "-";
             }
 
-            function generateODB_Keys() {
+            function foldproperty() {
+               var hidecells = document.getElementsByClassName("expandCell");
 
+               Array.prototype.forEach.call(hidecells, function (element) {
+                  element.style.display = "none";
+               });
+               exp.removeEventListener('click', foldproperty);
+               exp.addEventListener('click', expandproperty)
+               exp.innerHTML = "+";
 
-                function expandproperty() {
-                    type_title.style.display = "table-cell";
-                    val_title.style.display = "table-cell";
-                    size_title.style.display = "table-cell";
-                    written_title.style.display = "table-cell";
-                    mode_title.style.display = "table-cell";
-                    exp.removeEventListener('click', expandproperty);
-                    exp.addEventListener('click', foldproperty);
-                    exp.innerHTML = "-";
-                }
-
-                function foldproperty() {
-                    type_title.style.display = "none";
-                    val_title.style.display = "none";
-                    size_title.style.display = "none";
-                    written_title.style.display = "none";
-                    mode_title.style.display = "none";
-                    exp.removeEventListener('click', foldproperty);
-                    exp.addEventListener('click', expandproperty)
-                    exp.innerHTML = "+";
-
-                }
-
-                if (odb_keys.length > 0) {
-                    var key_row = document.createElement("tr");
-
-                    var key_title = document.createElement("th");
-                    key_title.innerHTML = "Key";
-
-                    var value_title = document.createElement("th");
-                    value_title.innerHTML = "Value";
-
-                    var type_title = document.createElement("th");
-                    type_title.innerHTML = "Type";
-                    type_title.style.display = "none";
-
-                    var val_title = document.createElement("th");
-                    val_title.innerHTML = "#Val";
-                    val_title.style.display = "none";
-
-                    var size_title = document.createElement("th");
-                    size_title.innerHTML = "Size";
-                    size_title.style.display = "none";
-
-                    var written_title = document.createElement("th");
-                    written_title.innerHTML = "Written";
-                    written_title.style.display = "none";
-
-                    var mode_title = document.createElement("th");
-                    mode_title.innerHTML = "Mode";
-                    mode_title.style.display = "none";
-
-                    var expandkey = document.createElement("div");
-                    expandkey.style.display = "inline";
-                    expandkey.style.cssFloat = "right";
-
-                    value_title.appendChild(expandkey);
-
-                    var exp = document.createElement("a");
-                    exp.className="modbarrow";
-                    exp.id = "exp";
-                    exp.href = "#";
-                    exp.innerHTML = "+";
-                    exp.addEventListener('click', expandproperty);
-
-                    expandkey.appendChild(exp);
-
-                    key_row.appendChild(key_title);
-                    key_row.appendChild(value_title);
-                    key_row.appendChild(type_title);
-                    key_row.appendChild(val_title);
-                    key_row.appendChild(size_title);
-                    key_row.appendChild(written_title);
-                    key_row.appendChild(mode_title);
-
-                    ODBTable.appendChild(key_row);
-
-                    odb_keys.forEach(function(element){
-
-                    });
-
-
-                }
             }
 
 
+            function sizeOfObject(object) {
 
-            if (global_dir_data != currentDir || JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data)) {
-                ODBTable.innerHTML = ODBTableinnerHTML;
+               var objectList = [];
+               var stack = [object];
+               var bytes = 0;
 
+               while (stack.length) {
+                  var value = stack.pop();
+
+                  if (typeof value === 'boolean') {
+                     bytes += 4;
+                  }
+                  else if (typeof value === 'string') {
+                     bytes += value.length * 2;
+                  }
+                  else if (typeof value === 'number') {
+                     bytes += 8;
+                  }
+                  else if
+        (
+                     typeof value === 'object'
+                     && objectList.indexOf(value) === -1
+                  ) {
+                     objectList.push(value);
+
+                     for (var i in value) {
+                        stack.push(value[i]);
+                     }
+                  }
+               }
+               return bytes;
             }
 
-            // odb directory very rarely changes
-            if (global_dir_data != currentDir) {
-                global_dir_data = currentDir;
-                document.getElementById("currentDir").innerHTML = "";
-                var currentDirLink = document.createElement("a");
-                currentDirLink.href = currentDir;
-                currentDirLink.innerText = currentDir;
-                document.getElementById("currentDir").appendChild(currentDirLink);
+            if (odb_keys.length > 0) {
+               var key_title_row = document.createElement("tr");
+
+               var key_title = document.createElement("th");
+               key_title.innerHTML = "Key";
+
+               var value_title = document.createElement("th");
+               value_title.innerHTML = "Value";
+
+               var type_title = document.createElement("th");
+               type_title.innerHTML = "Type";
+               type_title.className = "expandCell";
+
+               var val_title = document.createElement("th");
+               val_title.innerHTML = "#Val";
+               val_title.className = "expandCell";
+
+               var size_title = document.createElement("th");
+               size_title.innerHTML = "Size";
+               size_title.className = "expandCell";
+
+               var written_title = document.createElement("th");
+               written_title.innerHTML = "Written";
+               written_title.className = "expandCell";
+
+               var mode_title = document.createElement("th");
+               mode_title.innerHTML = "Mode";
+               mode_title.className = "expandCell";
+
+               var expandkey = document.createElement("div");
+               expandkey.style.display = "inline";
+               expandkey.style.cssFloat = "right";
+
+               value_title.appendChild(expandkey);
+
+               var exp = document.createElement("a");
+               exp.className = "modblink";
+               exp.id = "exp";
+               exp.href = "#";
+               exp.innerHTML = "+";
+               exp.addEventListener('click', expandproperty);
+
+               expandkey.appendChild(exp);
+
+               key_title_row.appendChild(key_title);
+               key_title_row.appendChild(value_title);
+               key_title_row.appendChild(type_title);
+               key_title_row.appendChild(val_title);
+               key_title_row.appendChild(size_title);
+               key_title_row.appendChild(written_title);
+               key_title_row.appendChild(mode_title);
+
+               ODBTable.appendChild(key_title_row);
+
+               odb_keys.forEach(function (element) {
+                  var key_row = document.createElement("tr");
+
+                  var key_row_key = document.createElement("td");
+                  key_row_key.innerHTML = element;
+
+                  var key_row_value = document.createElement("td");
+                  key_row_value.innerHTML = obj[element];
+
+                  var key_row_type = document.createElement("td");
+                  key_row_type.innerHTML = obj[element + "/key"]["type"];
+                  key_row_type.className = "expandCell";
+
+                  var key_row_val = document.createElement("td");
+                  key_row_val.innerHTML = obj[element];
+                  key_row_val.className = "expandCell";
+
+                  var key_row_size = document.createElement("td");
+                  key_row_size.innerHTML = sizeOfObject(obj[element]);
+                  key_row_size.className = "expandCell";
+
+                  var key_row_written = document.createElement("td");
+                  var last_written= Math.round(new Date().getTime() / 1000) - obj[element + "/key"]["last_written"];
+                  if(last_written<60){
+                     key_row_written.innerHTML=Math.floor(last_written)+"s";
+                  }else if(last_written<3600){
+                     key_row_written.innerHTML=Math.floor(last_written/60)+"m";
+                  }else if(last_written<86400){
+                     key_row_written.innerHTML=Math.floor(last_written/3600)+"h";
+                  }else if(last_written<86400*99){
+                     key_row_written.innerHTML=Math.floor(last_written/86400)+"d";
+                  }else{
+                     key_row_written.innerHTML=">99d";
+                  }
+                  key_row_written.className = "expandCell";
+
+
+                  key_row.appendChild(key_row_key);
+                  key_row.appendChild(key_row_value);
+                  key_row.appendChild(key_row_type);
+                  key_row.appendChild(key_row_val);
+                  key_row.appendChild(key_row_size);
+                  key_row.appendChild(key_row_written);
+
+                  ODBTable.appendChild(key_row);
+               });
+
+               var hidecells = document.getElementsByClassName("expandCell");
+
+               Array.prototype.forEach.call(hidecells, function (element) {
+                  element.style.display = "none";
+               });
+
+
             }
+         }
 
-            // since odb data rarely changes while browsing, if any change dynamically happens, refresh the whole page
-            if (JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data)) {
-                global_rpc_data = rpc.result.data;
 
-                if (rpc.result.data != null && rpc.result.data != undefined) {
 
-                    var obj = rpc.result.data[0];
-                    var sub_dir = new Array();
-                    var odb_keys = new Array();
+         if (global_dir_data != currentDir || JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data)) {
+            ODBTable.innerHTML = ODBTableinnerHTML;
 
-                    //get all keys of the data object
-                    var keys = Object.keys(rpc.result.data[0])
+         }
 
-                    // for each key...
-                    keys.forEach(function (key) {
-                        // if the value of the key is not an object, then it must be a key with value
-                        if (typeof obj[key] !== 'object') {
-                            odb_keys.push(key);
-                            // if the value of the key is an object and length is 0, then it must be a sub directory
-                        } else if (Object.keys(obj[key]).length === 0) {
-                            sub_dir.push(key);
-                        }
-                        // rest of them are key properties
-                    });
+         // odb directory very rarely changes
+         if (global_dir_data != currentDir) {
+            global_dir_data = currentDir;
+            document.getElementById("currentDir").innerHTML = "";
+            var currentDirLink = document.createElement("a");
+            currentDirLink.href = currentDir;
+            currentDirLink.innerText = currentDir;
+            document.getElementById("currentDir").appendChild(currentDirLink);
+         }
 
-                    generateSub_Dir();
-                    generateODB_Keys();
+         // since odb data rarely changes while browsing, if any change dynamically happens, refresh the whole page
+         if (JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data)) {
+            global_rpc_data = rpc.result.data;
 
-                }
+            if (rpc.result.data != null && rpc.result.data != undefined) {
+
+               var obj = rpc.result.data[0];
+               var sub_dir = new Array();
+               var odb_keys = new Array();
+
+               //get all keys of the data object
+               var keys = Object.keys(rpc.result.data[0])
+
+               // for each key...
+               keys.forEach(function (key) {
+                  // if the value of the key is not an object, then it must be a key with value
+                  if (typeof obj[key] !== 'object') {
+                     odb_keys.push(key);
+                     // if the value of the key is an object and length is 0, then it must be a sub directory
+                  } else if (Object.keys(obj[key]).length === 0) {
+                     sub_dir.push(key);
+                  }
+                  // rest of them are key properties
+               });
+
+               generateSub_Dir();
+               generateODB_Keys();
+
             }
+         }
 
 
 
 
 
-        }
+      }
 
 
-        function update() {
-            var sub_directory = (window.location.host + window.location.pathname).replace(global_base_url, "");
-            sub_directory = sub_directory.replace("%20", " ");
+      function update() {
+         var sub_directory = (window.location.host + window.location.pathname).replace(global_base_url, "");
+         sub_directory = sub_directory.replace("%20", " ");
 
 
-            var paths = ["/Alarms"];
-            mjsonrpc_db_ls(paths).then(function (rpc) {
-                callback(rpc, paths[0]);
-            });
-        }
+         var paths = ["/System"];
+         mjsonrpc_db_ls(paths).then(function (rpc) {
+            callback(rpc, paths[0]);
+         });
+      }
 
 
-        function update_periodic() {
-            clearTimeout(update_timer_id);
-            var update_period = 1000;
-            update();
-            update_timer_id = setTimeout('update_periodic()', update_period);
-        }
-    </script>
+      function update_periodic() {
+         clearTimeout(update_timer_id);
+         var update_period = 1000;
+         update();
+         update_timer_id = setTimeout('update_periodic()', update_period);
+      }
+   </script>
 
 </body>
 
