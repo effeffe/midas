@@ -66,6 +66,16 @@ a:focus { color:#0000FF; text-decoration:underline }
    line-height: 1;
 }
 
+#mheader_message{
+   color: white;
+   background-color: #a53529;
+   border: 1px solid #a50000;
+   border-radius: 10px;
+   padding: 1px;
+   padding-left: 10px;
+   padding-right: 10px;
+}
+
 #msidenav {
    height:100%;
    position:fixed;
