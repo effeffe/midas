@@ -1892,7 +1892,7 @@ void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, co
 
                r->rsprintf("<td colspan=6 style=\"background-color:%s;border-radius:12px;\" align=center>", bgcol.c_str());
                r->rsprintf("<table width=\"100%%\"><tr>\n");
-               r->rsprintf("<td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"%s\" size=+3>%s: %s</font></td>\n", fgcol.c_str(), alarm_class.c_str(), text.c_str());
+               r->rsprintf("<td align=center width=\"99%%\" style=\"border:0px;\"><div style=\"color:%s; font-size:+3\">%s: %s</div></td>\n", fgcol.c_str(), alarm_class.c_str(), text.c_str());
                r->rsprintf("<td width=\"1%%\" style=\"border:0px;\">\n");
                r->rsprintf("<button type=\"button\" onclick=\"mhttpd_reset_alarm(\'%s\');\">Reset</button>\n", key.name);
                r->rsprintf("</td>\n");
@@ -9658,7 +9658,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
          if (status != DB_SUCCESS) {
             if (scan == 1) {
                r->rsprintf("<tr><td class=\"yellowLight\">");
-               r->rsprintf("%s <i>-> <a href=\"%s\">%s</a></i><td><b><font color=\"red\">&lt;cannot resolve link&gt;</font></b></tr>\n", keyname, link_ref, link_name[0]?link_name:"(empty)");
+               r->rsprintf("%s <i>-> <a href=\"%s\">%s</a></i><td><b><div style=\"color:red\">&lt;cannot resolve link&gt;</div></b></tr>\n", keyname, link_ref, link_name[0]?link_name:"(empty)");
             }
          } else {
 
@@ -16257,9 +16257,6 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
        !equal_ustring(p->getparam("cmd"), "New Script"))
       r->rsprintf("<meta http-equiv=\"Refresh\" content=\"60\">\n");
    
-   /* update script */
-   //r->rsprintf("<script type=\"text/javascript\" src=\"../mhttpd.js\"></script>\n");
-
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
@@ -16268,7 +16265,6 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    r->rsprintf("<!--\n");
    r->rsprintf("var show_all_lines = false;\n");
    r->rsprintf("var sshow_all_lines = false;\n");
-   r->rsprintf("var show_xml = false;\n");
    r->rsprintf("var last_msg = null;\n");
    r->rsprintf("var last_paused = null;\n");
    r->rsprintf("\n");
@@ -16502,17 +16498,6 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    r->rsprintf("   }\n");
    r->rsprintf("}\n");
    r->rsprintf("\n");
-   r->rsprintf("function toggle_xml()\n");
-   r->rsprintf("{\n");
-   r->rsprintf("   show_xml = !show_xml;\n");
-   r->rsprintf("   if (show_xml) {\n");
-   r->rsprintf("      document.getElementById('xml_pane').style.display = 'inline';\n");
-   r->rsprintf("      document.getElementById('txml').innerHTML = 'Hide XML';\n");
-   r->rsprintf("   } else {\n");
-   r->rsprintf("      document.getElementById('xml_pane').style.display = 'none';\n");
-   r->rsprintf("      document.getElementById('txml').innerHTML = 'Show XML';\n");
-   r->rsprintf("   }\n");
-   r->rsprintf("}\n");
    
    r->rsprintf("//-->\n");
    r->rsprintf("</script>\n");
@@ -16810,8 +16795,6 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
             r->rsprintf("<table class=\"mtable\" width=\"100%%\"><tr><th class=\"mtableheader\">Sequencer File</th></tr>");  //start file display table
             
             r->rsprintf("<tr><td colspan=2><table width=100%%><tr><td>Filename:<b>%s</b></td>", seq_filename());
-            if (stristr(seq_filename(), ".msl"))
-               r->rsprintf("<td align=\"right\"><a onClick=\"toggle_xml();\" id=\"txml\" href=\"#\">Show XML</a></td>");
             r->rsprintf("</td></tr></table></td></tr>\n");
             
             if (seq_error()[0]) {
@@ -16838,7 +16821,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
                   buf[size] = 0;
                   close(fh);
                   
-                  r->rsprintf("<tr><td style=\"background-color:#FFFFFF\" colspan=2 valign=\"top\">\n");
+                  r->rsprintf("<tr><td style=\"background-color:#FFFFFF; text-align:left;\" colspan=2 valign=\"top\">\n");
                   r->rsprintf("<a onClick=\"sshow_lines();return false;\" href=\"#\" id=\"supperarrow\" style=\"display:none;\">&#x25B2</a><br>\n");
                   
                   pline = buf;
@@ -16848,18 +16831,18 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
                         *(strchr(str, '\n')+1) = 0;
                      if (str[0]) {
                         if (line == seq_serror_line())
-                           r->rsprintf("<font id=\"sline%d\" style=\"font-family:monospace;background-color:red;\">", line);
+                           r->rsprintf("<div id=\"sline%d\" style=\"font-family:monospace;background-color:red;\">", line);
                         else if (seq_running() && line == seq_current_line_number())
-                           r->rsprintf("<font id=\"sline%d\" style=\"font-family:monospace;background-color:#80FF00\">", line);
+                           r->rsprintf("<div id=\"sline%d\" style=\"font-family:monospace;background-color:#80FF00\">", line);
                         else
-                           r->rsprintf("<font id=\"sline%d\" style=\"font-family:monospace\">", line);
+                           r->rsprintf("<div id=\"sline%d\" style=\"font-family:monospace\">", line);
                         if (line < 10)
                            r->rsprintf("&nbsp;");
                         if (line < 100)
                            r->rsprintf("&nbsp;");
                         r->rsprintf("%d&nbsp;", line);
                         strencode4(r, str);
-                        r->rsprintf("</font>");
+                        r->rsprintf("</div>");
                      }
                      if (strchr(pline, '\n'))
                         pline = strchr(pline, '\n')+1;
@@ -16879,83 +16862,14 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
                   }
                }
             }
-            
-            /*---- Right (XML) pane ----*/
-            
-            if (stristr(seq_filename(), ".msl"))
-               r->rsprintf("<td id=\"xml_pane\" style=\"background-color:#FFFFFF;border-left-width:1px;border-left-style:solid;border-color:black;display:none;\">\n");
-            else
-               r->rsprintf("<td colspan=2 id=\"xml_pane\">\n");
-
-            r->rsprintf("<a onClick=\"show_lines();return false;\" href=\"#\" id=\"upperarrow\" style=\"display:none;\">&#x25B2</a><br>\n");
-            
-            strlcpy(str, seq_path(), sizeof(str));
-            if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
-               strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
-            strlcat(str, seq_filename(), sizeof(str));
-            if (strchr(str, '.')) {
-               *strchr(str, '.') = 0;
-               strlcat(str, ".xml", sizeof(str));
-            }
-            fh = open(str, O_RDONLY | O_TEXT, 0644);
-            if (fh > 0) {
-               size = (int)lseek(fh, 0, SEEK_END);
-               lseek(fh, 0, SEEK_SET);
-               buf = (char *)malloc(size+1);
-               size = (int)read(fh, buf, size);
-               buf[size] = 0;
-               close(fh);
-               if (mxml_parse_entity(&buf, str, NULL, 0, NULL) != 0) {
-                  /* show error */
-               }
-               
-               pline = buf;
-               for (int line=1 ; *pline ; line++) {
-                  strlcpy(str, pline, sizeof(str));
-                  if (strchr(str, '\n'))
-                     *(strchr(str, '\n')+1) = 0;
-                  if (str[0]) {
-                     if (line == seq_error_line())
-                        r->rsprintf("<font id=\"line%d\" style=\"font-family:monospace;background-color:red;\">", line);
-                     else if (seq_running() && line == seq_current_line_number())
-                        r->rsprintf("<font id=\"line%d\" style=\"font-family:monospace;background-color:#80FF00\">", line);
-                     else
-                        r->rsprintf("<font id=\"line%d\" style=\"font-family:monospace\">", line);
-                     if (line < 10)
-                        r->rsprintf("&nbsp;");
-                     if (line < 100)
-                        r->rsprintf("&nbsp;");
-                     r->rsprintf("%d&nbsp;", line);
-                     strencode4(r, str);
-                     r->rsprintf("</font>");
-                  }
-                  if (strchr(pline, '\n'))
-                     pline = strchr(pline, '\n')+1;
-                  else
-                     pline += strlen(pline);
-                  if (*pline == '\r')
-                     pline++;
-               }
-               r->rsprintf("<a onClick=\"show_lines();return false;\" href=\"#\" id=\"lowerarrow\" style=\"display:none;\">&#x25BC</a><br>\n");
-               r->rsprintf("</td>\n");
-               free(buf);
-               buf = NULL;
-            } else {
-               if (str[0]) {
-                  r->rsprintf("<tr><td colspan=2><b>Cannot open file \"%s\"</td></tr>\n", str);
-               }
-            }
-            r->rsprintf("</tr></table></td></tr>\n");
          }
-         
          r->rsprintf("</table>"); //end sequencer file table
-            
-
+         
          /*---- show messages ----*/
          if (seq_running()) {
             r->rsprintf("<table class=\"mtable\" width=100%%><tr><th class=\"mtableheader\">Messages</th></tr>");
             r->rsprintf("<tr><td colspan=2>\n");
-            r->rsprintf("<font id=\"sequencerMessages\" style=\"font-family:monospace\">\n");
+            r->rsprintf("<div id=\"sequencerMessages\" style=\"font-family:monospace\">\n");
             r->rsprintf("<a href=\"../?cmd=Messages\">...</a><br>\n");
             
             cm_msg_retrieve(10, buffer, sizeof(buffer));
@@ -16999,7 +16913,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
             r->rsprintf("messages.appendChild(messages.childNodes[i]);");
             r->rsprintf("</script>");
             
-            r->rsprintf("</font></td></tr>\n");
+            r->rsprintf("</div></td></tr>\n");
          }
          r->rsprintf("</table>\n");
       } else {
