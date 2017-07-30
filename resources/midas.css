@@ -66,12 +66,30 @@ a:focus { color:#0000FF; text-decoration:underline }
    line-height: 1;
 }
 
-#mheader_message{
+#mheader_error {
+   position: fixed;
+   top: 0;
+   left: 0;
+   z-index: 0;
+   width: 100%;
+   background-color: red;
    color: white;
-   background-color: #a53529;
-   border: 1px solid #a50000;
+   font-family: verdana,tahoma,sans-serif;
+   font-size: 100%;
+   text-align: center;
+   padding: 4px;
+   padding-left: 0;
+   display: block;
+   line-height: 1;
+}
+
+#mheader_message{
+   display: none;
+   color: white;
+   background-color: #f89034;
+   border: 1px solid #b26810;
    border-radius: 10px;
-   padding: 1px;
+   padding-bottom: 1px;
    padding-left: 10px;
    padding-right: 10px;
 }

@@ -423,11 +423,16 @@ function mhttpd_init(current_page, interval, callback) {
          "<span id='mheader_expt_name'></span>" +
          "</div>" +
 
-         "<div style='display:inline;' id='mheader_message'>&nbsp;</div>" +
+         "<div id='mheader_message'></div>" +
 
          "<div style='display:inline; float:right;'>" +
          "<span style='display:inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></span>" +
          "</div>";
+
+   // put error header in front of header
+   var d = document.createElement('div');
+   d.id = 'mheader_error';
+   h.parentNode.insertBefore(d, h);
 
    // update header and menu
    if (document.getElementById("msidenav") !== undefined) {
@@ -613,6 +618,11 @@ function mhttpd_init(current_page, interval, callback) {
       interval = 1000;
    mhttpd_refresh_interval = interval;
    mhttpd_refresh();
+
+   /* test error and message display
+   mhttpd_message('This is a test message');
+   mhttpd_error('This is a test message');
+   */
 }
 
 function mhttpd_refresh() {
@@ -674,10 +684,20 @@ function mhttpd_refresh() {
    });
 }
 
-function mhttpd_error(error) {
+function mhttpd_message(error) {
    var d = document.getElementById("mheader_message");
    if (d !== undefined) {
+      d.style.display = "inline";
       d.innerHTML = error + "&nbsp;<span style='cursor: pointer;' onclick='document.getElementById(&quot;mheader_message&quot;).style.display = &quot;none&quot;'>&#10683;</span>";
+   }
+}
+
+function mhttpd_error(error) {
+   var d = document.getElementById("mheader_error");
+   if (d !== undefined) {
+      error += "<div style='display: inline; float: right; padding-right: 10px; cursor: pointer;' onclick='document.getElementById(&quot;mheader_error&quot;).style.zIndex = 0;'>&#10683;</div>";
+      d.innerHTML = error;
+      d.style.zIndex = 2;
    }
 }
 
