@@ -27,8 +27,6 @@
          </tr>
          <tr id="currentDir">
          </tr>
-
-
       </table>
 
 
@@ -47,13 +45,11 @@
       const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr id=\"actionBar\"></tr><tr id=\"currentDir\"></tr>";
 
 
-
       function callback(rpc, currentDir) {
 
          var ODBTable = document.getElementById("ODBTable");
 
 
-         
 
 
          function generateSub_Dir() {
@@ -90,13 +86,19 @@
                   var sub_dir_expand_link = document.createElement("a");
                   var sub_dir_link = document.createElement("a");
 
-                  sub_dir_link.href = global_dir_data + "/" + element;
+
                   sub_dir_link.innerHTML = " " + element;
+                  if (element.charAt(0) != "/") {
+                     sub_dir_link.href = odb_hostname + "/" + element;
+                  } else {
+                     sub_dir_link.href = odb_hostname + element;
+                  }
                   sub_dir_link.className = "modblink";
 
                   sub_dir_expand_link.innerHTML = "&#9654;";
                   sub_dir_expand_link.className = "modbarrow";
                   sub_dir_expand_link.href = "#";
+                  sub_dir_expand_link.onclick = "return false;";
                   sub_dir_expand_link.addEventListener('click', expand);
                   sub_dir_expand_link.addEventListener('mouseover', highlight);
                   sub_dir_expand_link.addEventListener('mouseout', unhighlight);
@@ -174,6 +176,7 @@
 
             if (odb_keys.length > 0) {
                var key_title_row = document.createElement("tr");
+               key_title_row.className="mODBtr";
 
                var key_title = document.createElement("th");
                key_title.innerHTML = "Key";
@@ -211,6 +214,7 @@
                exp.className = "modblink";
                exp.id = "exp";
                exp.href = "#";
+               exp.onclick = "return false;";
                exp.innerHTML = "+";
                exp.addEventListener('click', expandproperty);
 
@@ -228,6 +232,7 @@
 
                odb_keys.forEach(function (element) {
                   var key_row = document.createElement("tr");
+                  key_row.className="mODBtr";
 
                   var key_row_key = document.createElement("td");
                   key_row_key.innerHTML = element;
@@ -294,10 +299,32 @@
          if (global_dir_data != currentDir) {
             global_dir_data = currentDir;
             document.getElementById("currentDir").innerHTML = "";
-            var currentDirLink = document.createElement("a");
-            currentDirLink.href = currentDir;
-            currentDirLink.innerText = currentDir;
-            document.getElementById("currentDir").appendChild(currentDirLink);
+
+            dirArray = currentDir.split("/");
+            for (var i = 0; i < dirArray.length; i++) {
+               if (i == 0) {
+                  var currentDirLink = document.createElement("a");
+                  currentDirLink.innerHTML = "&#127968;";
+                  currentDirLink.href = global_base_url + "odb.html?odbpath=";//TODO: change to correct one
+               } else if (dirArray[i] != "") {
+                  var currentDirLink = document.createElement("a");
+                  currentDirLink.href = global_base_url + "odb.html?odbpath=";
+
+                  for (var j = 1; j <= i; j++) {
+                     if (dirArray[j].charAt(0) != "/") {
+                        currentDirLink.href += "/" + dirArray[j];
+                     } else {
+                        currentDirLink.href += dirArray[j];
+                     }
+                  }
+                  currentDirLink.innerText = dirArray[i];
+                  var dir_arrow = document.createElement("span");
+                  dir_arrow.innerHTML = " &#8680; "
+                  document.getElementById("currentDir").appendChild(dir_arrow);
+               }
+               document.getElementById("currentDir").appendChild(currentDirLink);
+            }
+
          }
 
          // since odb data rarely changes while browsing, if any change dynamically happens, refresh the whole page
@@ -339,11 +366,21 @@
 
 
       function update() {
-         var href = decodeURIComponent(window.href);
+         var href = decodeURIComponent(window.location.href);
+         if (href.slice(-1) === "#")
+            href = href.substring(0, href.length - 1);
+         if (href.slice(-1) === "/")
+            href = href.substring(0, href.length - 1);
          var directory = "/";
-         if (href.indexOf("status.html?odbpath=") != -1) {
-            var directoryPosition = href.indexOf("status.html?odbpath=");
-            directory = href.substring(directoryPosition + "status.html?odbpath=".length, href.length);
+         if (href.indexOf("odb.html?odbpath=") != -1) {
+            var directoryPosition = href.indexOf("odb.html?odbpath=");
+            directory = href.substring(directoryPosition + "odb.html?odbpath=".length, href.length);
+            odb_hostname = href;
+         } else {
+            if (global_base_url.slice(-1) != "/")
+               global_base_url += "/";
+
+            odb_hostname = global_base_url + "odb.html?odbpath=";
          }
          var paths = [directory];
          mjsonrpc_db_ls(paths).then(function (rpc) {

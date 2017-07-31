@@ -307,5 +307,10 @@ div.mpush{
     background-color: #FFFFFF;
 }
 
+.mODBtr:nth-child(odd) {
+    background-color: #DDDDDD;
+}
+
+
 
 /* end */
