@@ -44,6 +44,12 @@
 
       const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr id=\"actionBar\"></tr><tr id=\"currentDir\"></tr>";
 
+      const MODE_READ = (1 << 0)
+      const MODE_WRITE = (1 << 1)
+      const MODE_DELETE = (1 << 2)
+      const MODE_EXCLUSIVE = (1 << 3)
+
+      var isExpand = false;
 
       function callback(rpc, currentDir) {
 
@@ -117,7 +123,46 @@
          function generateODB_Keys() {
 
 
+
+            function editKey(element) {
+               resetEditKey();
+               currentEditing = element;
+               element.style.display = "none";
+               var editableKey = document.createElement("td");
+               var input = document.createElement("input");
+               input.value = element.innerText;
+               editableKey.appendChild(input);
+               if (element.className.indexOf("expandCell") != -1) {
+                  editableKey.className = "editableKey expandCell";
+               } else {
+                  editableKey.className = "editableKey";
+               }
+               var parent = element.parentNode;
+               parent.insertBefore(editableKey, element);
+            }
+
+            function resetEditKey() {
+               var editingKeyCells = document.getElementsByClassName("editableKey");
+
+               Array.prototype.forEach.call(editingKeyCells, function (ele) {
+                  ele.outerHTML = "";
+                  delete ele;
+               });
+
+               var keyCells = document.getElementsByClassName("keyCell");
+
+               if (currentEditing != null) {
+                  if (isExpand || currentEditing.className.indexOf("expandCell") == -1)
+                     currentEditing.style.display = "table-cell";
+               }
+
+            }
+
+
+
             function expandproperty() {
+               isExpand = true;
+
                var hidecells = document.getElementsByClassName("expandCell");
 
                Array.prototype.forEach.call(hidecells, function (element) {
@@ -125,10 +170,12 @@
                });
                exp.removeEventListener('click', expandproperty);
                exp.addEventListener('click', foldproperty);
-               exp.innerHTML = "-";
+               exp.innerHTML = "&#8722;";
             }
 
             function foldproperty() {
+               isExpand = false;
+
                var hidecells = document.getElementsByClassName("expandCell");
 
                Array.prototype.forEach.call(hidecells, function (element) {
@@ -136,7 +183,7 @@
                });
                exp.removeEventListener('click', foldproperty);
                exp.addEventListener('click', expandproperty)
-               exp.innerHTML = "+";
+               exp.innerHTML = "&#43;";
 
             }
 
@@ -176,7 +223,7 @@
 
             if (odb_keys.length > 0) {
                var key_title_row = document.createElement("tr");
-               key_title_row.className="mODBtr";
+               key_title_row.className = "mODBtr";
 
                var key_title = document.createElement("th");
                key_title.innerHTML = "Key";
@@ -210,12 +257,12 @@
 
                value_title.appendChild(expandkey);
 
-               var exp = document.createElement("a");
+               var exp = document.createElement("button");
                exp.className = "modblink";
                exp.id = "exp";
                exp.href = "#";
                exp.onclick = "return false;";
-               exp.innerHTML = "+";
+               exp.innerHTML = "&#43;";
                exp.addEventListener('click', expandproperty);
 
                expandkey.appendChild(exp);
@@ -232,25 +279,47 @@
 
                odb_keys.forEach(function (element) {
                   var key_row = document.createElement("tr");
-                  key_row.className="mODBtr";
+                  key_row.className = "mODBtr";
 
                   var key_row_key = document.createElement("td");
                   key_row_key.innerHTML = element;
+                  key_row_key.className = "keyCell";
 
                   var key_row_value = document.createElement("td");
                   key_row_value.innerHTML = obj[element];
+                  key_row_value.className = "keyCell";
 
                   var key_row_type = document.createElement("td");
                   key_row_type.innerHTML = obj[element + "/key"]["type"];
-                  key_row_type.className = "expandCell";
+                  key_row_type.className = "expandCell keyCell";
+
+                  switch (obj[element + "/key"]["type"]) {
+                     case 1: key_row_type.innerHTML = "BYTE"; break;
+                     case 2: key_row_type.innerHTML = "SBYTE"; break;
+                     case 3: key_row_type.innerHTML = "CHAR"; break;
+                     case 4: key_row_type.innerHTML = "WORD"; break;
+                     case 5: key_row_type.innerHTML = "SHORT"; break;
+                     case 6: key_row_type.innerHTML = "DWORD"; break;
+                     case 7: key_row_type.innerHTML = "INT"; break;
+                     case 8: key_row_type.innerHTML = "BOOL"; break;
+                     case 9: key_row_type.innerHTML = "FLOAT"; break;
+                     case 10: key_row_type.innerHTML = "DOUBLE"; break;
+                     case 11: key_row_type.innerHTML = "BITFIELD"; break;
+                     case 12: key_row_type.innerHTML = "STRING"; break;
+                     case 13: key_row_type.innerHTML = "ARRAY"; break;
+                     case 14: key_row_type.innerHTML = "STRUCT"; break;
+                     case 15: key_row_type.innerHTML = "KEY"; break;
+                     case 16: key_row_type.innerHTML = "LINK"; break;
+                     case 17: key_row_type.innerHTML = "LAST"; break;
+                  }
 
                   var key_row_val = document.createElement("td");
                   key_row_val.innerHTML = obj[element];
-                  key_row_val.className = "expandCell";
+                  key_row_val.className = "expandCell keyCell";
 
                   var key_row_size = document.createElement("td");
                   key_row_size.innerHTML = sizeOfObject(obj[element]);
-                  key_row_size.className = "expandCell";
+                  key_row_size.className = "expandCell keyCell";
 
                   var key_row_written = document.createElement("td");
                   var last_written = Math.round(new Date().getTime() / 1000) - obj[element + "/key"]["last_written"];
@@ -265,8 +334,25 @@
                   } else {
                      key_row_written.innerHTML = ">99d";
                   }
-                  key_row_written.className = "expandCell";
+                  key_row_written.className = "expandCell keyCell";
 
+
+                  var key_row_mode = document.createElement("td");
+                  var access_mode = "";
+                  if (obj[element + "/key"]["access_mode"] & MODE_READ) {
+                     access_mode += "R";
+                  }
+                  if (obj[element + "/key"]["access_mode"] & MODE_WRITE) {
+                     access_mode += "W";
+                  }
+                  if (obj[element + "/key"]["access_mode"] & MODE_DELETE) {
+                     access_mode += "D";
+                  }
+                  if (obj[element + "/key"]["access_mode"] & MODE_EXCLUSIVE) {
+                     access_mode += "E";
+                  }
+                  key_row_mode.innerHTML = access_mode;
+                  key_row_mode.className = "expandCell keyCell";
 
                   key_row.appendChild(key_row_key);
                   key_row.appendChild(key_row_value);
@@ -274,6 +360,7 @@
                   key_row.appendChild(key_row_val);
                   key_row.appendChild(key_row_size);
                   key_row.appendChild(key_row_written);
+                  key_row.appendChild(key_row_mode);
 
                   ODBTable.appendChild(key_row);
                });
@@ -283,6 +370,14 @@
                Array.prototype.forEach.call(hidecells, function (element) {
                   element.style.display = "none";
                });
+
+               var keycells = document.getElementsByClassName("keyCell");
+
+               Array.prototype.forEach.call(keycells, function (element) {
+                  element.addEventListener('dblclick', function () { editKey(element); });
+                  element.addEventListener('click', function () { resetEditKey() });
+               });
+
 
 
             }
@@ -395,6 +490,13 @@
          update();
          update_timer_id = setTimeout('update_periodic()', update_period);
       }
+
+      // document.getElementById("chatBox").onload = function () {
+      //    var chatBox = document.getElementById("chatBox");
+      //    chatBox.style.position="relative";
+      //    chatBox.contentWindow.document.getElementById("mheader").style.display = "none";
+      //    chatBox.contentWindow.document.getElementById("msidenav").style.display = "none";
+      // }
    </script>
 
 </body>
