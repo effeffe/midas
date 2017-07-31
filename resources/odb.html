@@ -53,6 +53,9 @@
          var ODBTable = document.getElementById("ODBTable");
 
 
+         
+
+
          function generateSub_Dir() {
 
 
@@ -245,17 +248,17 @@
                   key_row_size.className = "expandCell";
 
                   var key_row_written = document.createElement("td");
-                  var last_written= Math.round(new Date().getTime() / 1000) - obj[element + "/key"]["last_written"];
-                  if(last_written<60){
-                     key_row_written.innerHTML=Math.floor(last_written)+"s";
-                  }else if(last_written<3600){
-                     key_row_written.innerHTML=Math.floor(last_written/60)+"m";
-                  }else if(last_written<86400){
-                     key_row_written.innerHTML=Math.floor(last_written/3600)+"h";
-                  }else if(last_written<86400*99){
-                     key_row_written.innerHTML=Math.floor(last_written/86400)+"d";
-                  }else{
-                     key_row_written.innerHTML=">99d";
+                  var last_written = Math.round(new Date().getTime() / 1000) - obj[element + "/key"]["last_written"];
+                  if (last_written < 60) {
+                     key_row_written.innerHTML = Math.floor(last_written) + "s";
+                  } else if (last_written < 3600) {
+                     key_row_written.innerHTML = Math.floor(last_written / 60) + "m";
+                  } else if (last_written < 86400) {
+                     key_row_written.innerHTML = Math.floor(last_written / 3600) + "h";
+                  } else if (last_written < 86400 * 99) {
+                     key_row_written.innerHTML = Math.floor(last_written / 86400) + "d";
+                  } else {
+                     key_row_written.innerHTML = ">99d";
                   }
                   key_row_written.className = "expandCell";
 
@@ -336,11 +339,13 @@
 
 
       function update() {
-         var sub_directory = (window.location.host + window.location.pathname).replace(global_base_url, "");
-         sub_directory = sub_directory.replace("%20", " ");
-
-
-         var paths = ["/System"];
+         var href = decodeURIComponent(window.href);
+         var directory = "/";
+         if (href.indexOf("status.html?odbpath=") != -1) {
+            var directoryPosition = href.indexOf("status.html?odbpath=");
+            directory = href.substring(directoryPosition + "status.html?odbpath=".length, href.length);
+         }
+         var paths = [directory];
          mjsonrpc_db_ls(paths).then(function (rpc) {
             callback(rpc, paths[0]);
          });
