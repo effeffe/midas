@@ -58,14 +58,28 @@
       var isExpand = false;
 
       function updatepath(element) {
-         custompath = element.className;
+         custompath = element.id;
          update();
       }
+
+      function updatekey(element) {
+         document.getElementById('loader').style.display = "block";
+         var path = custompath + "/" + element.id;
+         mjsonrpc_db_paste([path], [element.value]).then(function (rpc) {
+            update();
+         }).catch(function (error) {
+            mjsonrpc_error_alert(error);
+         });
+      }
+
+
+
 
 
       function callback(rpc, currentDir) {
 
          var ODBTable = document.getElementById("ODBTable");
+         var obj = rpc.result.data[0];
 
 
 
@@ -102,7 +116,7 @@
                   var sub_dir_row = document.createElement("tr");
                   var sub_dir_col = document.createElement("td");
                   var sub_dir_expand_link = document.createElement("a");
-                  var sub_dir_link = document.createElement("a");
+                  var sub_dir_link = document.createElement("span");
 
 
                   sub_dir_link.innerHTML = " " + element;
@@ -137,14 +151,18 @@
          function generateODB_Keys() {
 
 
-
             function editKey(element) {
                resetEditKey();
                currentEditing = element;
                element.style.display = "none";
                var editableKey = document.createElement("td");
                var input = document.createElement("input");
+               input.id = element.id;
                input.value = element.innerText;
+               input.addEventListener('keydown', function (event) {
+                  if (event.keyCode == 27) resetEditKey();
+                  if (event.keyCode == 13) updatekey(input);
+               });
                editableKey.appendChild(input);
                if (element.className.indexOf("expandCell") != -1) {
                   editableKey.className = "editableKey expandCell";
@@ -271,7 +289,7 @@
 
                value_title.appendChild(expandkey);
 
-               var exp = document.createElement("button");
+               var exp = document.createElement("span");
                exp.className = "modblink";
                exp.id = "exp";
                exp.href = "#";
@@ -301,6 +319,7 @@
 
                   var key_row_value = document.createElement("td");
                   key_row_value.innerHTML = obj[element];
+                  key_row_value.id = element;
                   key_row_value.className = "keyCell mkeyCellEditable";
 
                   var key_row_type = document.createElement("td");
@@ -336,19 +355,9 @@
                   key_row_size.className = "expandCell keyCell";
 
                   var key_row_written = document.createElement("td");
-                  var last_written = Math.round(new Date().getTime() / 1000) - obj[element + "/key"]["last_written"];
-                  if (last_written < 60) {
-                     key_row_written.innerHTML = Math.floor(last_written) + "s";
-                  } else if (last_written < 3600) {
-                     key_row_written.innerHTML = Math.floor(last_written / 60) + "m";
-                  } else if (last_written < 86400) {
-                     key_row_written.innerHTML = Math.floor(last_written / 3600) + "h";
-                  } else if (last_written < 86400 * 99) {
-                     key_row_written.innerHTML = Math.floor(last_written / 86400) + "d";
-                  } else {
-                     key_row_written.innerHTML = ">99d";
-                  }
-                  key_row_written.className = "expandCell keyCell";
+                  key_row_written.innerHTML = getLastWritten(element);
+                  key_row_written.id = element;
+                  key_row_written.className = "expandCell keyCell lastWritten";
 
 
                   var key_row_mode = document.createElement("td");
@@ -402,11 +411,40 @@
             }
          }
 
+         function getLastWritten(element) {
+            var last_written = Math.round(new Date().getTime() / 1000) - obj[element + "/key"]["last_written"];
+            if (last_written < 60) {
+               return Math.floor(last_written) + "s";
+            } else if (last_written < 3600) {
+               return Math.floor(last_written / 60) + "m";
+            } else if (last_written < 86400) {
+               return Math.floor(last_written / 3600) + "h";
+            } else if (last_written < 86400 * 99) {
+               return Math.floor(last_written / 86400) + "d";
+            } else {
+               return ">99d";
+            }
+         }
+
+         function updateLastWritten() {
+            var lastWrittenCells = document.getElementsByClassName("lastWritten");
+
+            Array.prototype.forEach.call(lastWrittenCells, function (element) {
+               var a = getLastWritten(element.id);
+               if(element.innerHTML != getLastWritten(element.id)){
+                  element.innerHTML = getLastWritten(element.id);
+               }
+            });
+         }
+
+
+
 
 
          if (global_dir_data != currentDir || JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data)) {
             ODBTable.innerHTML = ODBTableinnerHTML;
-
+            global_dir_data = "";
+            global_rpc_data = "";
          }
 
          // odb directory very rarely changes
@@ -417,14 +455,16 @@
             dirArray = currentDir.split("/");
             for (var i = 0; i < dirArray.length; i++) {
                if (i == 0) {
-                  var currentDirLink = document.createElement("a");
+                  var currentDirLink = document.createElement("span");
+                  currentDirLink.className = "modblink";
                   currentDirLink.innerHTML = "&#127968;";
                   currentDirLink.href = "#";
                   currentDirLink.onclick = "return false;"
                   currentDirLink.addEventListener('click', function () { custompath = "/"; update(); });
                   //                  currentDirLink.href = global_base_url + "odb.html?odbpath=";//TODO: change to correct one
                } else if (dirArray[i] != "") {
-                  var currentDirLink = document.createElement("a");
+                  var currentDirLink = document.createElement("span");
+                  currentDirLink.className = "modblink";
                   currentDirLink.href = "#";
                   currentDirLink.onclick = function () { updatepath(this); };
 
@@ -436,7 +476,7 @@
                         link += dirArray[j];
                      }
                   }
-                  currentDirLink.className = link
+                  currentDirLink.id = link
                   currentDirLink.innerText = dirArray[i];
 
                   var dir_arrow = document.createElement("span");
@@ -455,7 +495,6 @@
 
             if (rpc.result.data != null && rpc.result.data != undefined) {
 
-               var obj = rpc.result.data[0];
                var sub_dir = new Array();
                var odb_keys = new Array();
 
@@ -476,11 +515,13 @@
 
                generateSub_Dir();
                generateODB_Keys();
+
                custompathcache = custompath;
 
             }
          }
 
+         updateLastWritten();
 
 
 
@@ -519,8 +560,7 @@
          }).then(function () {
             document.getElementById('loader').style.display = "none";
          }).catch(function (error) {
-            document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
-            document.getElementById('updateStatus').style.display = "block";
+            mjsonrpc_error_alert(error);
          });
       }
 
