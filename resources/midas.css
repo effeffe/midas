@@ -153,9 +153,10 @@ a.hideButton{
     color : #5F88A3;
 }
 
-a.modbarrow{
+span.modbarrow{
     text-decoration : none; 
     color : #000000;
+    cursor: pointer;
 }
 
 span.modblink{
@@ -210,7 +211,7 @@ input[type=text] {
   opacity: 0.8;
   border: 16px solid #f3f3f3;
   border-radius: 50%;
-  border-top: 16px solid #0000FF;
+  border-top: 16px solid #00B26B;
   width: 120px;
   height: 120px;
   -webkit-animation: mspin 1s linear infinite;

@@ -90,10 +90,18 @@
             if (sub_dir.length > 0) {
                sub_dir.forEach(function (element) {
 
+                  function showCheckbox() {
+                     sub_dir_checkbox.style.opacity = 1;
+                  }
+
+                  function hideCheckbox() {
+                     if (!sub_dir_checkbox.checked)
+                        sub_dir_checkbox.style.opacity = 0.2;
+                  }
 
                   function expand() {
                      sub_dir_expand_link.innerHTML = "&#9660;";
-                     sub_dir_expand_link.removeEventListener('click', expand);
+                     sub_dir_expand_link.removeEventListeners('click', expand);
                      sub_dir_expand_link.addEventListener('click', fold);
                   }
 
@@ -114,9 +122,20 @@
 
 
                   var sub_dir_row = document.createElement("tr");
+
+                  var sub_dir_checkbox = document.createElement("input");
                   var sub_dir_col = document.createElement("td");
-                  var sub_dir_expand_link = document.createElement("a");
+                  var sub_dir_expand_link = document.createElement("span");
                   var sub_dir_link = document.createElement("span");
+
+
+
+                  sub_dir_checkbox.type = "checkbox";
+                  sub_dir_checkbox.id = element;
+                  sub_dir_checkbox.className = "sub_dir_checkbox";
+                  sub_dir_checkbox.style.opacity = 0.2;
+                  sub_dir_checkbox.addEventListener('mouseover', showCheckbox);
+                  sub_dir_checkbox.addEventListener('mouseout', hideCheckbox);
 
 
                   sub_dir_link.innerHTML = " " + element;
@@ -137,9 +156,11 @@
                   sub_dir_expand_link.addEventListener('mouseover', highlight);
                   sub_dir_expand_link.addEventListener('mouseout', unhighlight);
 
+                  sub_dir_col.appendChild(sub_dir_checkbox);
                   sub_dir_col.appendChild(sub_dir_expand_link);
                   sub_dir_col.appendChild(sub_dir_link);
-                  sub_dir_col.colSpan = "2";
+
+                  sub_dir_col.colSpan = "3";
 
                   sub_dir_row.appendChild(sub_dir_col);
 
@@ -149,6 +170,15 @@
          }
 
          function generateODB_Keys() {
+
+            function showCheckbox(element) {
+               element.style.opacity = 1;
+            }
+
+            function hideCheckbox(element) {
+               if (!element.checked)
+                  element.style.opacity = 0.2;
+            }
 
 
             function editKey(element) {
@@ -238,8 +268,7 @@
                   else if (typeof value === 'number') {
                      bytes += 8;
                   }
-                  else if
-        (
+                  else if (
                      typeof value === 'object'
                      && objectList.indexOf(value) === -1
                   ) {
@@ -256,6 +285,15 @@
             if (odb_keys.length > 0) {
                var key_title_row = document.createElement("tr");
                key_title_row.className = "mODBtr";
+
+
+               var key_title_checkbox = document.createElement("button");
+               key_title_checkbox.id = "allElements";
+               key_title_checkbox.innerHTML="check all"
+               key_title_checkbox.className = "key_selectall";
+               var key_title_checkall = document.createElement("th");
+               key_title_checkall.appendChild(key_title_checkbox);
+
 
                var key_title = document.createElement("th");
                key_title.innerHTML = "Key";
@@ -299,6 +337,7 @@
 
                expandkey.appendChild(exp);
 
+               key_title_row.appendChild(key_title_checkall);
                key_title_row.appendChild(key_title);
                key_title_row.appendChild(value_title);
                key_title_row.appendChild(type_title);
@@ -313,9 +352,20 @@
                   var key_row = document.createElement("tr");
                   key_row.className = "mODBtr";
 
+
+                  var key_row_checkbox = document.createElement("input");
+                  key_row_checkbox.type = "checkbox";
+                  key_row_checkbox.id = element;
+                  key_row_checkbox.className = "key_row_checkbox";
+                  key_row_checkbox.style.opacity = 0.2;
+                  key_row_checkbox.addEventListener('mouseover', function () { showCheckbox(key_row_checkbox) });
+                  key_row_checkbox.addEventListener('mouseout', function () { hideCheckbox(key_row_checkbox) });
+
+
                   var key_row_key = document.createElement("td");
                   key_row_key.innerHTML = element;
                   key_row_key.className = "keyCell";
+
 
                   var key_row_value = document.createElement("td");
                   key_row_value.innerHTML = obj[element];
@@ -377,6 +427,7 @@
                   key_row_mode.innerHTML = access_mode;
                   key_row_mode.className = "expandCell keyCell";
 
+                  key_row.appendChild(key_row_checkbox);
                   key_row.appendChild(key_row_key);
                   key_row.appendChild(key_row_value);
                   key_row.appendChild(key_row_type);
@@ -404,6 +455,7 @@
 
                Array.prototype.forEach.call(keycells, function (element) {
                   element.addEventListener('dblclick', function () { editKey(element); });
+                  element.addEventListener('touchstart', function () { editKey(element); });
                });
 
 
@@ -431,7 +483,7 @@
 
             Array.prototype.forEach.call(lastWrittenCells, function (element) {
                var a = getLastWritten(element.id);
-               if(element.innerHTML != getLastWritten(element.id)){
+               if (element.innerHTML != getLastWritten(element.id)) {
                   element.innerHTML = getLastWritten(element.id);
                }
             });
