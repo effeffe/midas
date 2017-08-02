@@ -20,19 +20,24 @@
    <div id="mmain">
 
       <table class="mmaintable" id="ODBTable">
-         <div id="loader" class="mloader"></div>
+          <!-- <div id="loader" class="mloader"></div> 
          <tr>
             <th colspan="7" class="mtableheader">Online Database Browser</th>
          </tr>
-         <tr id="actionBar">
+         <tr>
+            <td id="actionBar" colspan="7">
+               <button id="create">create</button>
+               <button id="delete">delete</button>
+               <input id="searchbox" type="text" placeholder="press s to search" title="case insensitive"></input>
+            </td>
          </tr>
-         <tr id="currentDir">
-         </tr>
+         <tr>
+            <td id="currentDir" colspan="7">
+            </td>
+         </tr> -->
       </table>
 
-
    </div>
-
 
    <script>
       var update_timer_id;
@@ -47,8 +52,7 @@
 
       var custompathcache = "";
 
-
-      const ODBTableinnerHTML = "<div id=\"loader\" class=\"mloader\"></div><tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr id=\"actionBar\"></tr><tr id=\"currentDir\"></tr>";
+      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr><td id=\"actionBar\" colspan=\"7\"><button id=\"create\">create</button><button id=\"delete\">delete</button><input id=\"searchbox\" type=\"text\" placeholder=\"press s to search\" title=\"case insensitive\"></input></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr>";
 
       const MODE_READ = (1 << 0)
       const MODE_WRITE = (1 << 1)
@@ -63,7 +67,7 @@
       }
 
       function updatekey(element) {
-         document.getElementById('loader').style.display = "block";
+         //document.getElementById('loader').style.display = "block";
          var path = custompath + "/" + element.id;
          mjsonrpc_db_paste([path], [element.value]).then(function (rpc) {
             update();
@@ -74,13 +78,20 @@
 
 
 
-
-
       function callback(rpc, currentDir) {
 
          var ODBTable = document.getElementById("ODBTable");
          var obj = rpc.result.data[0];
 
+         function generateActionbar() {
+            function pressKeySearch(event) {
+               if (event.keyCode == 83) {
+                  document.getElementById('searchbox').focus();
+               }
+            }
+            document.addEventListener("keyup", pressKeySearch);
+
+         }
 
 
 
@@ -90,13 +101,33 @@
             if (sub_dir.length > 0) {
                sub_dir.forEach(function (element) {
 
+                  function checkAllCheckbox() {
+                     var allCheckboxs = document.getElementsByClassName("sub_dir_checkbox");
+                     Array.prototype.forEach.call(allCheckboxs, function (element) {
+                        element.checked = true;
+                        element.style.opacity = 1;
+                        element.removeEventListener("dblclick", checkAllCheckbox);
+                        element.addEventListener("dblclick", uncheckAllCheckbox);
+                     });
+                  }
+
+                  function uncheckAllCheckbox() {
+                     var allCheckboxs = document.getElementsByClassName("sub_dir_checkbox");
+                     Array.prototype.forEach.call(allCheckboxs, function (element) {
+                        element.checked = false;
+                        element.style.opacity = 0.3;
+                        element.removeEventListener("dblclick", uncheckAllCheckbox);
+                        element.addEventListener("dblclick", checkAllCheckbox);
+                     });
+                  }
+
                   function showCheckbox() {
                      sub_dir_checkbox.style.opacity = 1;
                   }
 
                   function hideCheckbox() {
                      if (!sub_dir_checkbox.checked)
-                        sub_dir_checkbox.style.opacity = 0.2;
+                        sub_dir_checkbox.style.opacity = 0.3;
                   }
 
                   function expand() {
@@ -131,9 +162,11 @@
 
 
                   sub_dir_checkbox.type = "checkbox";
+                  sub_dir_checkbox.title = "double click to select all";
                   sub_dir_checkbox.id = element;
                   sub_dir_checkbox.className = "sub_dir_checkbox";
-                  sub_dir_checkbox.style.opacity = 0.2;
+                  sub_dir_checkbox.style.opacity = 0.3;
+                  sub_dir_checkbox.addEventListener('dblclick', checkAllCheckbox);
                   sub_dir_checkbox.addEventListener('mouseover', showCheckbox);
                   sub_dir_checkbox.addEventListener('mouseout', hideCheckbox);
 
@@ -171,13 +204,33 @@
 
          function generateODB_Keys() {
 
+            function checkAllCheckbox() {
+               var allCheckboxs = document.getElementsByClassName("key_row_checkbox");
+               Array.prototype.forEach.call(allCheckboxs, function (element) {
+                  element.checked = true;
+                  element.style.opacity = 1;
+                  element.removeEventListener("dblclick", checkAllCheckbox);
+                  element.addEventListener("dblclick", uncheckAllCheckbox);
+               });
+            }
+
+            function uncheckAllCheckbox() {
+               var allCheckboxs = document.getElementsByClassName("key_row_checkbox");
+               Array.prototype.forEach.call(allCheckboxs, function (element) {
+                  element.checked = false;
+                  element.style.opacity = 0.4;
+                  element.removeEventListener("dblclick", uncheckAllCheckbox);
+                  element.addEventListener("dblclick", checkAllCheckbox);
+               });
+            }
+
             function showCheckbox(element) {
                element.style.opacity = 1;
             }
 
             function hideCheckbox(element) {
                if (!element.checked)
-                  element.style.opacity = 0.2;
+                  element.style.opacity = 0.4;
             }
 
 
@@ -189,7 +242,7 @@
                var input = document.createElement("input");
                input.id = element.id;
                input.value = element.innerText;
-               input.addEventListener('keydown', function (event) {
+               input.addEventListener("keydown", function (event) {
                   if (event.keyCode == 27) resetEditKey();
                   if (event.keyCode == 13) updatekey(input);
                });
@@ -289,7 +342,7 @@
 
                var key_title_checkbox = document.createElement("button");
                key_title_checkbox.id = "allElements";
-               key_title_checkbox.innerHTML="check all"
+               key_title_checkbox.innerText = "ALL";
                key_title_checkbox.className = "key_selectall";
                var key_title_checkall = document.createElement("th");
                key_title_checkall.appendChild(key_title_checkbox);
@@ -352,15 +405,18 @@
                   var key_row = document.createElement("tr");
                   key_row.className = "mODBtr";
 
-
+                  var key_row_checkbox_cell = document.createElement("td");
+                  key_row_checkbox_cell.className = "keyCell";
                   var key_row_checkbox = document.createElement("input");
                   key_row_checkbox.type = "checkbox";
                   key_row_checkbox.id = element;
                   key_row_checkbox.className = "key_row_checkbox";
-                  key_row_checkbox.style.opacity = 0.2;
+                  key_row_checkbox.title = "double click to select all";
+                  key_row_checkbox.addEventListener('dblclick', checkAllCheckbox);
+                  key_row_checkbox.style.opacity = 0.4;
                   key_row_checkbox.addEventListener('mouseover', function () { showCheckbox(key_row_checkbox) });
                   key_row_checkbox.addEventListener('mouseout', function () { hideCheckbox(key_row_checkbox) });
-
+                  key_row_checkbox_cell.appendChild(key_row_checkbox);
 
                   var key_row_key = document.createElement("td");
                   key_row_key.innerHTML = element;
@@ -427,7 +483,7 @@
                   key_row_mode.innerHTML = access_mode;
                   key_row_mode.className = "expandCell keyCell";
 
-                  key_row.appendChild(key_row_checkbox);
+                  key_row.appendChild(key_row_checkbox_cell);
                   key_row.appendChild(key_row_key);
                   key_row.appendChild(key_row_value);
                   key_row.appendChild(key_row_type);
@@ -494,6 +550,7 @@
 
 
          if (global_dir_data != currentDir || JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data)) {
+            if(ODBTable.innerHTML != ODBTableinnerHTML)
             ODBTable.innerHTML = ODBTableinnerHTML;
             global_dir_data = "";
             global_rpc_data = "";
@@ -565,6 +622,7 @@
                   // rest of them are key properties
                });
 
+               generateActionbar();
                generateSub_Dir();
                generateODB_Keys();
 
@@ -583,7 +641,9 @@
 
       function update() {
          if (custompath != custompathcache) {
-            document.getElementById('loader').style.display = "block";
+           // document.getElementById('loader').style.display = "block";
+             //window.location.replace(global_base_url + "odb.html?odbpath=" + custompath);
+             window.location.href = global_base_url + "odb.html?odbpath=" + custompath;
          }
          if (custompath == "") {
             var href = decodeURIComponent(window.location.href);
@@ -610,9 +670,9 @@
          mjsonrpc_db_ls(paths).then(function (rpc) {
             callback(rpc, paths[0]);
          }).then(function () {
-            document.getElementById('loader').style.display = "none";
+           // document.getElementById('loader').style.display = "none";
          }).catch(function (error) {
-            mjsonrpc_error_alert(error);
+           // mjsonrpc_error_alert(error);
          });
       }
 
