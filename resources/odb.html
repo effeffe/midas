@@ -101,7 +101,7 @@
 
                   function expand() {
                      sub_dir_expand_link.innerHTML = "&#9660;";
-                     sub_dir_expand_link.removeEventListeners('click', expand);
+                     sub_dir_expand_link.removeEventListener('click', expand);
                      sub_dir_expand_link.addEventListener('click', fold);
                   }
 
