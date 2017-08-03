@@ -17,7 +17,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "midas.h"
-#include "mcstd.h"
 #include "experim.h"
 
 /* make frontend functions callable from the C framework */
@@ -47,18 +46,6 @@ INT max_event_size_frag = 5 * 1024 * 1024;
 /* buffer size to hold events */
 INT event_buffer_size = 100 * 10000;
 
-/* number of channels */
-#define N_ADC  4
-#define N_TDC  4
-#define N_SCLR 4
-
-/* CAMAC crate and slots */
-#define CRATE      0
-#define SLOT_IO   23
-#define SLOT_ADC   1
-#define SLOT_TDC   2
-#define SLOT_SCLR  3
-
 /*-- Function declarations -----------------------------------------*/
 
 INT frontend_init();
@@ -83,7 +70,7 @@ EQUIPMENT equipment[] = {
     {1, 0,                   /* event ID, trigger mask */
      "SYSTEM",               /* event buffer */
      EQ_POLLED,              /* equipment type */
-     LAM_SOURCE(0, 0xFFFFFF),        /* event source crate 0, all stations */
+     0,                      /* event source */
      "MIDAS",                /* format */
      TRUE,                   /* enabled */
      RO_RUNNING |            /* read only when running */
@@ -149,24 +136,8 @@ EQUIPMENT equipment[] = {
 
 INT frontend_init()
 {
-   /* hardware initialization */
+   /* put any hardware initialization here */
 
-   cam_init();
-   cam_crate_clear(CRATE);
-   cam_crate_zinit(CRATE);
-
-   /* enable LAM in IO unit */
-   camc(CRATE, SLOT_IO, 0, 26);
-
-   /* enable LAM in crate controller */
-   cam_lam_enable(CRATE, SLOT_IO);
-
-   /* reset external LAM Flip-Flop */
-   camo(CRATE, SLOT_IO, 1, 16, 0xFF);
-   camo(CRATE, SLOT_IO, 1, 16, 0);
-
-   /* register CNAF functionality from cnaf_callback.c with debug output */
-   register_cnaf_callback(1);
 
    /* print message and return FE_ERR_HW if frontend should not be started */
 
@@ -235,14 +206,15 @@ INT poll_event(INT source, INT count, BOOL test)
    flag is used to time the polling */
 {
    int i;
-   DWORD lam;
+   DWORD flag;
 
    for (i = 0; i < count; i++) {
-      cam_lam_read(LAM_SOURCE_CRATE(source), &lam);
+      /* poll hardware and set flag to TRUE if new event is available */
+      flag = TRUE;
 
-      if (lam & LAM_SOURCE_STATION(source))
+      if (flag)
          if (!test)
-            return lam;
+            return TRUE;
    }
 
    return 0;
@@ -270,7 +242,6 @@ INT interrupt_configure(INT cmd, INT source, POINTER_T adr)
 INT read_trigger_event(char *pevent, INT off)
 {
    WORD *pdata, a;
-   INT q, timeout;
 
    /* init bank structure */
    bk_init(pevent);
@@ -278,58 +249,22 @@ INT read_trigger_event(char *pevent, INT off)
    /* create structured ADC0 bank */
    bk_create(pevent, "ADC0", TID_WORD, (void **)&pdata);
 
-   /* wait for ADC conversion */
-   for (timeout = 100; timeout > 0; timeout--) {
-      camc_q(CRATE, SLOT_ADC, 0, 8, &q);
-      if (q)
-         break;
-   }
-   if (timeout == 0)
-      ss_printf(0, 10, "No ADC gate!");
-
-   /* use following code to read out real CAMAC ADC */
-   /*
-      for (a=0 ; a<N_ADC ; a++)
-      cami(CRATE, SLOT_ADC, a, 0, pdata++);
-    */
-
-   /* Use following code to "simulate" data */
-   for (a = 0; a < N_ADC; a++)
+   /* following code to "simulates" some ADC data */
+   for (a = 0; a < 4; a++)
       *pdata++ = rand() % 1024;
-
-   /* clear ADC */
-   camc(CRATE, SLOT_ADC, 0, 9);
 
    bk_close(pevent, pdata);
 
    /* create variable length TDC bank */
    bk_create(pevent, "TDC0", TID_WORD, (void **)&pdata);
 
-   /* use following code to read out real CAMAC TDC */
-   /*
-      for (a=0 ; a<N_TDC ; a++)
-      cami(CRATE, SLOT_TDC, a, 0, pdata++);
-    */
-
-   /* Use following code to "simulate" data */
-   for (a = 0; a < N_TDC; a++)
+   /* following code to "simulates" some TDC data */
+   for (a = 0; a < 4; a++)
       *pdata++ = rand() % 1024;
-
-   /* clear TDC */
-   camc(CRATE, SLOT_TDC, 0, 9);
 
    bk_close(pevent, pdata);
 
-   /* clear IO unit LAM */
-   camc(CRATE, SLOT_IO, 0, 10);
-
-   /* clear LAM in crate controller */
-   cam_lam_clear(CRATE, SLOT_IO);
-
-   /* reset external LAM Flip-Flop */
-   camo(CRATE, SLOT_IO, 1, 16, 0xFF);
-   camo(CRATE, SLOT_IO, 1, 16, 0);
-
+   /* limit event rate to 100 Hz. In a real experiment remove this line */
    ss_sleep(10);
 
    return bk_size(pevent);
@@ -347,9 +282,9 @@ INT read_scaler_event(char *pevent, INT off)
    /* create SCLR bank */
    bk_create(pevent, "SCLR", TID_DWORD, (void **)&pdata);
 
-   /* read scaler bank */
-   for (a = 0; a < N_SCLR; a++)
-      cam24i(CRATE, SLOT_SCLR, a, 0, pdata++);
+   /* following code "simulates" some sacler values */
+   for (a = 0; a < 4; a++)
+      *pdata++ = rand();
 
    bk_close(pevent, pdata);
 

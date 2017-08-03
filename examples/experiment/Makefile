@@ -51,9 +51,8 @@ endif
 ifeq ($(OSTYPE),darwin)
 OS_DIR = darwin
 FF = cc
-OSFLAGS = -DOS_LINUX -DOS_DARWIN -DHAVE_STRLCPY -DAbsoftUNIXFortran -fPIC -Wno-unused-function
+OSFLAGS = -DOS_LINUX -DOS_DARWIN -DHAVE_STRLCPY -fPIC -Wno-unused-function
 LIBS = -lpthread -lz
-SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker
 NEED_STRLCPY=
 NEED_RANLIB=1
 NEED_SHLIB=
@@ -89,11 +88,6 @@ SRC_DIR   = $(MIDASSYS)/src
 MODULES   = adccalib.o adcsum.o scaler.o
 
 #-------------------------------------------------------------------
-# Hardware driver can be (camacnul, kcs2926, kcs2927, hyt1331)
-#
-DRIVER = camacnul
-
-#-------------------------------------------------------------------
 # Frontend code name defaulted to frontend in this example.
 # comment out the line and run your own frontend as follow:
 # gmake UFE=my_frontend
@@ -115,13 +109,10 @@ LDFLAGS +=
 
 all: $(UFE) analyzer
 
-$(UFE): $(LIB) $(LIB_DIR)/mfe.o $(DRIVER).o $(UFE).c $(SRC_DIR)/cnaf_callback.c
+$(UFE): $(LIB) $(LIB_DIR)/mfe.o $(UFE).c
 	$(CC) $(CFLAGS) $(OSFLAGS) -o $(UFE) $(UFE).c \
-	$(SRC_DIR)/cnaf_callback.c $(DRIVER).o  $(LIB_DIR)/mfe.o $(LIB) \
+	$(LIB_DIR)/mfe.o $(LIB) \
 	$(LDFEFLAGS) $(LIBS)
-
-$(DRIVER).o: $(DRV_DIR)/$(DRIVER).c
-	$(CC) $(CFLAGS) $(OSFLAGS) -c -o $(DRIVER).o $(DRV_DIR)/$(DRIVER).c
 
 analyzer: $(LIB) $(LIB_DIR)/rmana.o analyzer.o $(MODULES)
 	$(CXX) $(CFLAGS) -o $@ $(LIB_DIR)/rmana.o analyzer.o $(MODULES) \
