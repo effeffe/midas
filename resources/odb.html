@@ -20,7 +20,7 @@
    <div id="mmain">
 
       <table class="mmaintable" id="ODBTable">
-          <!-- <div id="loader" class="mloader"></div> 
+         <!-- <div id="loader" class="mloader"></div> 
          <tr>
             <th colspan="7" class="mtableheader">Online Database Browser</th>
          </tr>
@@ -52,7 +52,9 @@
 
       var custompathcache = "";
 
-      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr><td id=\"actionBar\" colspan=\"7\"><button id=\"create\">create</button><button id=\"delete\">delete</button><input id=\"searchbox\" type=\"text\" placeholder=\"press s to search\" title=\"case insensitive\"></input></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr>";
+      var subDirArray=new Array();
+
+      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr><td id=\"actionBar\" colspan=\"7\"><button id=\"create\">create</button><button id=\"delete\">delete</button><input id=\"searchbox\" type=\"text\" placeholder=\"press s to search\" title=\"case insensitive\"></input></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr><tr><td><button id=\"allSubDirs\">ALL</button></td></tr>";
 
       const MODE_READ = (1 << 0)
       const MODE_WRITE = (1 << 1)
@@ -74,22 +76,75 @@
          }).catch(function (error) {
             mjsonrpc_error_alert(error);
          });
+
       }
 
 
 
       function callback(rpc, currentDir) {
 
+         function deleteDirsAndKeys() {
+            var allDirCheckboxs = document.getElementsByClassName("sub_dir_checkbox");
+            var allKeyCheckboxs = document.getElementsByClassName("key_row_checkbox");
+            var allDeleteDirs = new Array();
+            var allDeleteKeys = new Array();
+            Array.prototype.forEach.call(allDirCheckboxs, function (element) {
+               if (element.checked)
+                  allDeleteDirs.push(element.id);
+            });
+            Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
+               if (element.checked)
+                  allDeleteKeys.push(element.id);
+            });
+            if (allDeleteDirs.length == 0 && allDeleteKeys.length == 0) {
+               alert("please select at least one directory or key to delete");
+               return;
+            }
+            var allDeleteDirsStr = allDeleteDirs.map(function (ele) { return ele + "\n" });
+            var allDeleteKeysStr = allDeleteKeys.map(function (ele) { return ele + "\n" });
+            allDeleteDirsStr = allDeleteDirsStr.join("");
+            allDeleteKeysStr = allDeleteKeysStr.join("");
+
+
+            if (allDeleteDirsStr.length > 0 && allDeleteKeysStr.length > 0) {
+               var confirmStr = "You are trying to delete\n\n(DIRECTORIES)\n" + allDeleteDirsStr + "\n(KEYS)\n" + allDeleteKeysStr + "\nAre you sure?";
+            } else if (allDeleteDirsStr.length > 0) {
+               var confirmStr = "You are trying to delete\n\n(DIRECTORIES)\n" + allDeleteDirsStr + "\nAre you sure?";
+            } else if (allDeleteKeysStr.length > 0) {
+               var confirmStr = "You are trying to delete\n\n(KEYS)\n" + allDeleteKeysStr + "\nAre you sure?";
+            }
+            if (confirm(confirmStr)) {
+               var path = new Array();
+               Array.prototype.forEach.call(allDirCheckboxs, function (element) {
+                  if (element.checked)
+                     path.push(custompath + "/" + element.id);
+               });
+               Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
+                  if (element.checked)
+                     path.push(custompath + "/" + element.id);
+               });
+               mjsonrpc_db_delete(path).then(function (rpc) {
+                  update();
+               }).catch(function (error) {
+                  mjsonrpc_error_alert(error);
+               });
+            }
+         }
+
          var ODBTable = document.getElementById("ODBTable");
          var obj = rpc.result.data[0];
 
          function generateActionbar() {
             function pressKeySearch(event) {
-               if (event.keyCode == 83) {
+               if (currentEditing == null && event.keyCode == 83) {
                   document.getElementById('searchbox').focus();
                }
             }
+
             document.addEventListener("keyup", pressKeySearch);
+
+
+            document.getElementById("delete").onclick = function () { deleteDirsAndKeys(); };
 
          }
 
@@ -97,29 +152,23 @@
 
          function generateSub_Dir() {
 
+            function checkAllCheckbox() {
+               var allCheckboxs = document.getElementsByClassName("sub_dir_checkbox");
+               Array.prototype.forEach.call(allCheckboxs, function (element) {
+                  if (element.checked) {
+                     element.checked = false;
+                     element.style.opacity = 0.4;
+                  } else {
+                     element.checked = true;
+                     element.style.opacity = 1;
+                  }
+               });
+            }
+
 
             if (sub_dir.length > 0) {
                sub_dir.forEach(function (element) {
 
-                  function checkAllCheckbox() {
-                     var allCheckboxs = document.getElementsByClassName("sub_dir_checkbox");
-                     Array.prototype.forEach.call(allCheckboxs, function (element) {
-                        element.checked = true;
-                        element.style.opacity = 1;
-                        element.removeEventListener("dblclick", checkAllCheckbox);
-                        element.addEventListener("dblclick", uncheckAllCheckbox);
-                     });
-                  }
-
-                  function uncheckAllCheckbox() {
-                     var allCheckboxs = document.getElementsByClassName("sub_dir_checkbox");
-                     Array.prototype.forEach.call(allCheckboxs, function (element) {
-                        element.checked = false;
-                        element.style.opacity = 0.3;
-                        element.removeEventListener("dblclick", uncheckAllCheckbox);
-                        element.addEventListener("dblclick", checkAllCheckbox);
-                     });
-                  }
 
                   function showCheckbox() {
                      sub_dir_checkbox.style.opacity = 1;
@@ -166,7 +215,6 @@
                   sub_dir_checkbox.id = element;
                   sub_dir_checkbox.className = "sub_dir_checkbox";
                   sub_dir_checkbox.style.opacity = 0.3;
-                  sub_dir_checkbox.addEventListener('dblclick', checkAllCheckbox);
                   sub_dir_checkbox.addEventListener('mouseover', showCheckbox);
                   sub_dir_checkbox.addEventListener('mouseout', hideCheckbox);
 
@@ -198,7 +246,12 @@
                   sub_dir_row.appendChild(sub_dir_col);
 
                   ODBTable.appendChild(sub_dir_row);
+
                });
+               document.getElementById("allSubDirs").style.display="block";
+               document.getElementById("allSubDirs").addEventListener("click", checkAllCheckbox);
+            } else {
+               document.getElementById("allSubDirs").style.display="none";
             }
          }
 
@@ -207,22 +260,16 @@
             function checkAllCheckbox() {
                var allCheckboxs = document.getElementsByClassName("key_row_checkbox");
                Array.prototype.forEach.call(allCheckboxs, function (element) {
-                  element.checked = true;
-                  element.style.opacity = 1;
-                  element.removeEventListener("dblclick", checkAllCheckbox);
-                  element.addEventListener("dblclick", uncheckAllCheckbox);
+                  if (element.checked) {
+                     element.checked = false;
+                     element.style.opacity = 0.4;
+                  } else {
+                     element.checked = true;
+                     element.style.opacity = 1;
+                  }
                });
             }
 
-            function uncheckAllCheckbox() {
-               var allCheckboxs = document.getElementsByClassName("key_row_checkbox");
-               Array.prototype.forEach.call(allCheckboxs, function (element) {
-                  element.checked = false;
-                  element.style.opacity = 0.4;
-                  element.removeEventListener("dblclick", uncheckAllCheckbox);
-                  element.addEventListener("dblclick", checkAllCheckbox);
-               });
-            }
 
             function showCheckbox(element) {
                element.style.opacity = 1;
@@ -241,10 +288,16 @@
                var editableKey = document.createElement("td");
                var input = document.createElement("input");
                input.id = element.id;
+               input.lastvalue = element.innerText;
                input.value = element.innerText;
-               input.addEventListener("keydown", function (event) {
+               document.addEventListener("keydown", function (event) {
                   if (event.keyCode == 27) resetEditKey();
-                  if (event.keyCode == 13) updatekey(input);
+                  if (event.keyCode == 13)
+                     if (input.value != input.lastvalue) {
+                        updatekey(input);
+                     } else {
+                        resetEditKey();
+                     }
                });
                editableKey.appendChild(input);
                if (element.className.indexOf("expandCell") != -1) {
@@ -269,6 +322,7 @@
                if (currentEditing != null) {
                   if (isExpand || currentEditing.className.indexOf("expandCell") == -1)
                      currentEditing.style.display = "table-cell";
+                  currentEditing = null;
                }
 
             }
@@ -412,7 +466,6 @@
                   key_row_checkbox.id = element;
                   key_row_checkbox.className = "key_row_checkbox";
                   key_row_checkbox.title = "double click to select all";
-                  key_row_checkbox.addEventListener('dblclick', checkAllCheckbox);
                   key_row_checkbox.style.opacity = 0.4;
                   key_row_checkbox.addEventListener('mouseover', function () { showCheckbox(key_row_checkbox) });
                   key_row_checkbox.addEventListener('mouseout', function () { hideCheckbox(key_row_checkbox) });
@@ -510,11 +563,11 @@
                var keycells = document.getElementsByClassName("mkeyCellEditable");
 
                Array.prototype.forEach.call(keycells, function (element) {
-                  element.addEventListener('dblclick', function () { editKey(element); });
+                  element.addEventListener('click', function () { editKey(element); });
                   element.addEventListener('touchstart', function () { editKey(element); });
                });
 
-
+               document.getElementById("allElements").addEventListener("click", checkAllCheckbox);
 
             }
          }
@@ -546,12 +599,12 @@
          }
 
 
-
+         // CALLBACK STARTS HERE
 
 
          if (global_dir_data != currentDir || JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data)) {
-            if(ODBTable.innerHTML != ODBTableinnerHTML)
-            ODBTable.innerHTML = ODBTableinnerHTML;
+            if (ODBTable.innerHTML != ODBTableinnerHTML)
+               ODBTable.innerHTML = ODBTableinnerHTML;
             global_dir_data = "";
             global_rpc_data = "";
          }
@@ -595,6 +648,8 @@
                }
                document.getElementById("currentDir").appendChild(currentDirLink);
             }
+
+
 
          }
 
@@ -641,9 +696,9 @@
 
       function update() {
          if (custompath != custompathcache) {
-           // document.getElementById('loader').style.display = "block";
-             //window.location.replace(global_base_url + "odb.html?odbpath=" + custompath);
-             window.location.href = global_base_url + "odb.html?odbpath=" + custompath;
+            // document.getElementById('loader').style.display = "block";
+            //window.location.replace(global_base_url + "odb.html?odbpath=" + custompath);
+            window.location.href = global_base_url + "odb.html?odbpath=" + custompath;
          }
          if (custompath == "") {
             var href = decodeURIComponent(window.location.href);
@@ -670,9 +725,9 @@
          mjsonrpc_db_ls(paths).then(function (rpc) {
             callback(rpc, paths[0]);
          }).then(function () {
-           // document.getElementById('loader').style.display = "none";
+            // document.getElementById('loader').style.display = "none";
          }).catch(function (error) {
-           // mjsonrpc_error_alert(error);
+            // mjsonrpc_error_alert(error);
          });
       }
 
