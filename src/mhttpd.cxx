@@ -17171,6 +17171,11 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
+   if (equal_ustring(dec_path, "spinning-wheel.gif")) {
+      send_resource(r, "spinning-wheel.gif");
+      return;
+   }
+
    /* new custom pages */
    if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
       char custom_path[256];

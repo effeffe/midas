@@ -388,6 +388,7 @@ function mhttpd_page_footer() {
 
 var mhttpd_refresh_id;
 var mhttpd_refresh_interval;
+var mhttpd_spinning_wheel;
 
 function mhttpd_init(current_page, interval, callback) {
    /*
@@ -613,6 +614,11 @@ function mhttpd_init(current_page, interval, callback) {
       mbar[i].innerHTML = "<div style='background-color:" + color + "; width:0; position:relative; display:inline-block; border-right:1px solid #808080'>&nbsp;</div>";
    }
 
+
+   // preload spinning wheel for later use
+   mhttpd_spinning_wheel = new Image();
+   mhttpd_spinning_wheel.src = "spinning-wheel.gif";
+
    // store refresh interval and do initial refresh
    if (interval === undefined)
       interval = 1000;
@@ -680,9 +686,24 @@ function mhttpd_refresh() {
       if (mhttpd_refresh_interval != undefined && mhttpd_refresh_interval > 0)
          mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
    }).catch(function (error) {
-      mjsonrpc_error_alert(error);
+      if (error.xhr.readyState == 4 && error.xhr.status == 0) {
+         mhttpd_error('Connection to server broken. Trying to reconnect&nbsp;&nbsp;');
+         document.getElementById("mheader_error").appendChild(mhttpd_spinning_wheel);
+         mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
+      } else {
+         mjsonrpc_error_alert(error);
+      }
    });
 }
+
+function mhttpd_reconnect() {
+   mjsonrpc_db_ls(["/"]).then( function (rpc) {
+      window.location = "."; // reload current page on successful connection
+   }).catch(function(error) {
+      mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
+   });
+}
+
 
 function mhttpd_message(error) {
    var d = document.getElementById("mheader_message");

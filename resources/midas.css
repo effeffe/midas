@@ -60,7 +60,7 @@ a:focus { color:#0000FF; text-decoration:underline }
    font-family: verdana,tahoma,sans-serif;
    font-size: 100%;
    text-align: center;
-   padding: 4px;
+   padding: 5px;
    padding-left: 0;
    display: block;
    line-height: 1;
@@ -97,7 +97,7 @@ a:focus { color:#0000FF; text-decoration:underline }
 #msidenav {
    height:100%;
    position:fixed;
-   top: 25px; /* nomal header height */
+   top: 27px; /* nomal header height */
    z-index: 1;
    left: 0;
    overflow-x: hidden;
@@ -147,7 +147,7 @@ a:focus { color:#0000FF; text-decoration:underline }
    display: none;
    position: relative;
    z-index: 0;
-   padding-top: 25px; /* normal header height */
+   padding-top: 27px; /* normal header height */
 }
 
 .mnav {
