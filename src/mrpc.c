@@ -670,7 +670,7 @@ static RPC_LIST rpc_list_library[] = {
     }
    ,
 
-   {RPC_DB_SET_DATA_INDEX2, "db_set_data_index2",
+   {RPC_DB_SET_DATA_INDEX1, "db_set_data_index1",
     {{TID_INT, RPC_IN}
      ,
      {TID_INT, RPC_IN}

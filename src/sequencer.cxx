@@ -1197,12 +1197,12 @@ void sequencer()
 
             if (key.num_values > 1 && index1 == -1) {
                for (i=0 ; i<key.num_values ; i++)
-                  status = db_set_data_index2(hDB, hKey, data, key.item_size, i, key.type, notify);
+                  status = db_set_data_index1(hDB, hKey, data, key.item_size, i, key.type, notify);
             } else if (key.num_values > 1 && index2 > index1) {
                for (i=index1; i<key.num_values && i<=index2; i++)
-                  status = db_set_data_index2(hDB, hKey, data, key.item_size, i, key.type, notify);
+                  status = db_set_data_index1(hDB, hKey, data, key.item_size, i, key.type, notify);
             } else
-               status = db_set_data_index2(hDB, hKey, data, key.item_size, index1, key.type, notify);
+               status = db_set_data_index1(hDB, hKey, data, key.item_size, index1, key.type, notify);
             
             if (status != DB_SUCCESS) {
                sprintf(str, "Cannot set ODB key \"%s\"", odbpath);
@@ -1313,7 +1313,7 @@ void sequencer()
             
             if (key.item_size < 32)
                key.item_size = 32;
-            db_set_data_index2(hDB, hKey, data, key.item_size, index, key.type, notify);
+            db_set_data_index1(hDB, hKey, data, key.item_size, index, key.type, notify);
             seq.current_line_number++;
          }
       }

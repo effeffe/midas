@@ -1059,7 +1059,7 @@ int set_equipment_status(const char *name, const char *equipment_status, const c
 
 void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
 {
-   INT size, i, status, n_data;
+   INT size, n, i, status, n_data;
    char *pdata, *pdata0;
    char name[5];
    BANK_HEADER *pbh;
@@ -1067,7 +1067,7 @@ void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
    BANK32 *pbk32;
    DWORD bkname;
    WORD bktype;
-   HNDLE hKeyRoot, hKeyl;
+   HNDLE hKeyRoot, hKeyl, *hKeys;
    KEY key;
 
 
@@ -1082,6 +1082,26 @@ void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
       pbh = (BANK_HEADER *) (pevent + 1);
       pbk = NULL;
       pbk32 = NULL;
+      
+      /* count number of banks */
+      for (n=0 ; ; n++) {
+         if (bk_is32(pbh)) {
+            bk_iterate32(pbh, &pbk32, &pdata);
+            if (pbk32 == NULL)
+               break;
+         } else {
+            bk_iterate(pbh, &pbk, &pdata);
+            if (pbk == NULL)
+               break;
+         }
+      }
+      
+      /* build array of keys */
+      hKeys = (HNDLE *)malloc(sizeof(HNDLE) * n);
+      
+      pbk = NULL;
+      pbk32 = NULL;
+      n = 0;
       do {
          /* scan all banks */
          if (bk_is32(pbh)) {
@@ -1128,23 +1148,37 @@ void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
                   pdata =
                     (void *) (pdata0 + VALIGN(pdata-pdata0, MIN(ss_get_struct_align(), key.item_size)));
 
-               status = db_set_data(hDB, hKeyl, pdata, key.item_size * key.num_values,
+               status = db_set_data1(hDB, hKeyl, pdata, key.item_size * key.num_values,
                                     key.num_values, key.type);
                if (status != DB_SUCCESS) {
                   cm_msg(MERROR, "update_odb", "cannot write %s to ODB", name);
                   continue;
                }
+               hKeys[n++] = hKeyl;
 
                /* shift data pointer to next item */
                pdata += key.item_size * key.num_values;
             }
          } else {
             /* write variable length bank  */
-            if (n_data > 0)
-               db_set_value(hDB, hKey, name, pdata, size, n_data, bktype & 0xFF);
+            status = db_find_key(hDB, hKey, name, &hKeyRoot);
+            if (status != DB_SUCCESS) {
+               cm_msg(MERROR, "update_odb",
+                      "please define bank %s in BANK_LIST in frontend", name);
+               continue;
+            }
+            if (n_data > 0) {
+               db_set_data1(hDB, hKeyRoot, pdata, size, n_data, bktype & 0xFF);
+               hKeys[n++] = hKeyRoot;
+            }
          }
-
       } while (1);
+      
+      /* notify all hot-lined clients in one go */
+      db_notify_clients_array(hDB, hKeys, n);
+      
+      free(hKeys);
+      
    } else if (format == FORMAT_YBOS) {
      assert(!"YBOS not supported anymore");
    }

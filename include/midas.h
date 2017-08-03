@@ -1795,10 +1795,12 @@ extern "C" {
    INT EXPRT db_get_data1(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type, INT * num_values);
    INT EXPRT db_get_data_index(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT index, DWORD type);
    INT EXPRT db_set_data(HNDLE hdb, HNDLE hKey, const void *data, INT buf_size, INT num_values, DWORD type);
+   INT EXPRT db_set_data1(HNDLE hdb, HNDLE hKey, const void *data, INT buf_size, INT num_values, DWORD type);
+   INT EXPRT db_notify_clients_array(HNDLE hdb, HNDLE hKey[], INT n);
    INT EXPRT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_values, DWORD type);
    INT EXPRT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type);
    INT EXPRT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type);
-   INT EXPRT db_set_data_index2(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type, BOOL bNotify);
+   INT EXPRT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type, BOOL bNotify);
    INT EXPRT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values);
    INT EXPRT db_merge_data(HNDLE hDB, HNDLE hKeyRoot, const char *name, void *data, INT data_size, INT num_values, INT type);
    INT EXPRT db_set_mode(HNDLE hdb, HNDLE key_handle, WORD mode, BOOL recurse);
