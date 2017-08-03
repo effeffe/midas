@@ -887,6 +887,12 @@ INT initialize_equipment(void)
                count = (INT) ((double) count * eq_info->period / delta_time);
             else
                count *= 100;
+            
+            /* avoid overflow */
+            if (count < 0) {
+               count = 0x7FFFFFFF;
+               break;
+            }
 
          } while (delta_time > eq_info->period * 1.2 || delta_time < eq_info->period * 0.8);
 
