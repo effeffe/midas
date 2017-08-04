@@ -1110,7 +1110,8 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 
 /*------------------------------------------------------------------*/
 
-void page_footer(Return* r, const char* dec_path, BOOL bForm)  // wraps up body wrapper and inserts page footer
+#ifdef OBSOLETE
+static void page_footer(Return* r, const char* dec_path, BOOL bForm)  // wraps up body wrapper and inserts page footer
 {
    time_t now;
    char path[256];
@@ -1178,6 +1179,7 @@ void page_footer(Return* r, const char* dec_path, BOOL bForm)  // wraps up body 
       r->rsprintf("</form>\n");
    r->rsprintf("</body></html>\r\n");
 }
+#endif
 
 FILE *open_resource_file(const char *filename, std::string* pfilename);
 
