@@ -807,7 +807,8 @@ INT register_equipment(void)
 
 INT initialize_equipment(void)
 {
-   INT idx, i, j, k, n, count;
+   INT idx, i, j, k, n;
+   double count;
    char str[256];
    DWORD start_time, delta_time;
    EQUIPMENT_INFO *eq_info;
@@ -873,7 +874,7 @@ INT initialize_equipment(void)
 
             start_time = ss_millitime();
 
-            poll_event(equipment[idx].info.source, count, TRUE);
+            poll_event(equipment[idx].info.source, (INT)count, TRUE);
 
             delta_time = ss_millitime() - start_time;
 
@@ -884,19 +885,19 @@ INT initialize_equipment(void)
             }
 
             if (delta_time > 0)
-               count = (INT) ((double) count * eq_info->period / delta_time);
+               count = count * eq_info->period / delta_time;
             else
                count *= 100;
             
-            /* avoid overflow */
-            if (count < 0) {
-               count = 0x7FFFFFFF;
+            // avoid overflows
+            if (count > 2147483647.0) {
+               count = 2147483647.0;
                break;
             }
-
+            
          } while (delta_time > eq_info->period * 1.2 || delta_time < eq_info->period * 0.8);
 
-         equipment[idx].poll_count = count;
+         equipment[idx].poll_count = (INT)count;
       }
 
       /*---- initialize multithread events -------------------------*/
