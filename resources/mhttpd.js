@@ -698,7 +698,7 @@ function mhttpd_refresh() {
 
 function mhttpd_reconnect() {
    mjsonrpc_db_ls(["/"]).then( function (rpc) {
-      window.location = "."; // reload current page on successful connection
+      location.reload(); // reload current page on successful connection
    }).catch(function(error) {
       mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
    });
