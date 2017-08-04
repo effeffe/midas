@@ -1163,9 +1163,13 @@ void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
             /* write variable length bank  */
             status = db_find_key(hDB, hKey, name, &hKeyRoot);
             if (status != DB_SUCCESS) {
-               cm_msg(MERROR, "update_odb",
-                      "please define bank %s in BANK_LIST in frontend", name);
-               continue;
+               db_create_key(hDB, hKey, name, bktype);
+               status = db_find_key(hDB, hKey, name, &hKeyRoot);
+               if (status != DB_SUCCESS) {
+                  cm_msg(MERROR, "update_odb",
+                         "Cannot create key for bank %s in ODB", name);
+                  continue;
+               }
             }
             if (n_data > 0) {
                db_set_data1(hDB, hKeyRoot, pdata, size, n_data, bktype & 0xFF);
