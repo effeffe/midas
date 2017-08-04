@@ -9691,7 +9691,7 @@ INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
 #endif                          /* LOCAL_ROUTINES */
 /*------------------------------------------------------------------*/
 
-INT db_notify_clients_array(HNDLE hDB, HNDLE hKeys[], INT n)
+INT db_notify_clients_array(HNDLE hDB, HNDLE hKeys[], INT size)
 /********************************************************************\
  
  Routine: db_notify_clients_array
@@ -9705,13 +9705,13 @@ INT db_notify_clients_array(HNDLE hDB, HNDLE hKeys[], INT n)
  \********************************************************************/
 {
    if (rpc_is_remote())
-      return rpc_call(RPC_DB_NOTIFY_CLIENTS_ARRAY, hDB, hKeys, n);
+      return rpc_call(RPC_DB_NOTIFY_CLIENTS_ARRAY, hDB, hKeys, size);
    
 #ifdef LOCAL_ROUTINES
    {
       int i;
       db_lock_database(hDB);
-      for (i=0 ; i<n; i++)
+      for (i=0 ; i<size/sizeof(INT); i++)
          db_notify_clients(hDB, hKeys[i], -1, TRUE);
       db_unlock_database(hDB);
    }

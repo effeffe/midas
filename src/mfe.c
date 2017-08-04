@@ -1176,7 +1176,7 @@ void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
       } while (1);
       
       /* notify all hot-lined clients in one go */
-      db_notify_clients_array(hDB, hKeys, n);
+      db_notify_clients_array(hDB, hKeys, n*sizeof(INT));
       
       free(hKeys);
       
