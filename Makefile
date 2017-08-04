@@ -134,6 +134,13 @@ CC = gcc $(USERFLAGS)
 CXX = g++ $(USERFLAGS)
 CFLAGS = -g -O2 -Wall -Wno-strict-aliasing -Wuninitialized -I$(INC_DIR) -I$(DRV_DIR) -I$(MXML_DIR) -I$(MSCB_DIR)/include -DHAVE_FTPLIB
 
+#
+# to build all of MIDAS as C++, uncomment following lines:
+#
+
+#CC = g++ $(USERFLAGS)
+#CFLAGS += -DNEED_NO_EXTERN_C
+
 #-----------------------
 # Cross-compilation, change GCC_PREFIX
 #
