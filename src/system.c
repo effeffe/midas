@@ -1460,7 +1460,7 @@ void catch_sigchld(int signo)
 }
 #endif
 
-INT ss_spawnv(INT mode, const char *cmdname, char *argv[])
+INT ss_spawnv(INT mode, const char *cmdname, const char* const argv[])
 /********************************************************************\
 
   Routine: ss_spawnv
@@ -1558,7 +1558,7 @@ INT ss_spawnv(INT mode, const char *cmdname, char *argv[])
 
    if (child_pid == 0) {
       /* now we are in the child process ... */
-      child_pid = execvp(cmdname, argv);
+      child_pid = execvp(cmdname, (char*const*)argv);
       return SS_SUCCESS;
    } else {
       /* still in parent process */
@@ -1772,7 +1772,7 @@ INT ss_shell(int sock)
          FD_SET(sock, &readfds);
          FD_SET(p, &readfds);
 
-         select(FD_SETSIZE, (void *) &readfds, NULL, NULL, NULL);
+         select(FD_SETSIZE, &readfds, NULL, NULL, NULL);
 
          if (FD_ISSET(sock, &readfds)) {
             memset(buffer, 0, sizeof(buffer));
@@ -2088,7 +2088,7 @@ midas_thread_t ss_thread_create(INT(*thread_func) (void *), void *param)
    INT status;
    pthread_t thread_id;
 
-   status = pthread_create(&thread_id, NULL, (void *) thread_func, param);
+   status = pthread_create(&thread_id, NULL, (void* (*)(void*))thread_func, param);
 
    return status != 0 ? 0 : thread_id;
 
@@ -2672,7 +2672,7 @@ INT ss_mutex_create(MUTEX_T ** mutex)
       int status;
       pthread_mutexattr_t *attr;
 
-      attr = malloc(sizeof(*attr));
+      attr = (pthread_mutexattr_t*)malloc(sizeof(*attr));
       assert(attr);
 
       status = pthread_mutexattr_init(attr);
@@ -2687,7 +2687,7 @@ INT ss_mutex_create(MUTEX_T ** mutex)
       }
 #endif
 
-      *mutex = malloc(sizeof(pthread_mutex_t));
+      *mutex = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
       assert(*mutex);
 
       status = pthread_mutex_init(*mutex, attr);
@@ -3089,7 +3089,8 @@ DWORD ss_settime(DWORD seconds)
 
 #elif defined(OS_UNIX)
 
-   stime((void *) &seconds);
+   time_t t = seconds;
+   stime(&t);
 
 #elif defined(OS_VXWORKS)
 
@@ -3172,7 +3173,7 @@ INT ss_timezone()
 
 #ifdef OS_UNIX
 /* dummy function for signal() call */
-void ss_cont()
+void ss_cont(int signum)
 {
 }
 #endif

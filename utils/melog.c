@@ -42,7 +42,7 @@ int verbose;
 
 /*------------------------------------------------------------------*/
 
-char *map = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const char *map = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 void base64_encode(char *s, char *d)
 {
@@ -176,7 +176,7 @@ INT submit_elog(char *host, int port, char *experiment, char *passwd,
    memcpy((char *) &(bind_addr.sin_addr), phe->h_addr, phe->h_length);
 
    /* connect to server */
-   status = connect(sock, (void *) &bind_addr, sizeof(bind_addr));
+   status = connect(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
    if (status != 0) {
       printf("Cannot connect to host %s, port %d\n", host, port);
       return -1;
@@ -435,7 +435,7 @@ int main(int argc, char *argv[])
       att_size[i] = lseek(fh, 0, SEEK_END);
       lseek(fh, 0, SEEK_SET);
 
-      buffer[i] = malloc(att_size[i] + 1);
+      buffer[i] = (char*)malloc(att_size[i] + 1);
       if (buffer[i] == NULL || att_size[i] > 500 * 1024) {
          printf("Attachment file \"%s\" is too long (500k max).\n", attachment[i]);
          return 0;

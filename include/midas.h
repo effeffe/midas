@@ -1652,8 +1652,8 @@ extern "C" {
 
    /*---- common routines ----*/
    INT EXPRT cm_get_error(INT code, char *string);
-   char EXPRT *cm_get_version(void);
-   char EXPRT *cm_get_revision(void);
+   const char* EXPRT cm_get_version(void);
+   const char* EXPRT cm_get_revision(void);
    INT EXPRT cm_get_experiment_name(char *name, int name_size);
    INT EXPRT cm_get_environment(char *host_name, int host_name_size,
                                 char *exp_name, int exp_name_size);
@@ -1886,7 +1886,7 @@ extern "C" {
    INT EXPRT rpc_set_name(const char *name);
    INT EXPRT rpc_get_name(char *name);
    INT EXPRT rpc_is_remote(void);
-   INT EXPRT rpc_set_debug(void (*func) (char *), INT mode);
+   INT EXPRT rpc_set_debug(void (*func) (const char *), INT mode);
    void EXPRT rpc_debug_printf(const char *format, ...);
 
    INT EXPRT rpc_register_server(INT server_type, const char *name, INT * port,

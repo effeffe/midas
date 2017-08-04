@@ -669,7 +669,7 @@ public:
 
 /*------------------------------------------------------------------*/
 
-char *mhttpd_revision(void)
+const char *mhttpd_revision(void)
 {
    return cm_get_revision();
 }

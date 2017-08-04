@@ -8151,7 +8151,7 @@ INT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int* buf
       return status;
 
    int size = key.item_size;
-   char* data = malloc(size + 1); // extra byte for string NUL termination
+   char* data = (char*)malloc(size + 1); // extra byte for string NUL termination
    assert(data != NULL);
 
    status = db_get_data_index(hDB, hKey, data, &size, index, key.type);
@@ -10492,7 +10492,7 @@ INT db_open_record1(HNDLE hDB, HNDLE hKey, void *ptr, INT rec_size,
       if (rec_size) {
          char* pbuf;
          int size = rec_size;
-         pbuf = malloc(size);
+         pbuf = (char*)malloc(size);
          assert(pbuf != NULL);
          status = db_get_record1(hDB, hKey, pbuf, &size, 0, rec_str);
          free(pbuf);

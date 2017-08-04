@@ -403,7 +403,7 @@ int extract(char *mid_file, char *odb_file)
       return 0;
    }
 
-   buffer = malloc(header.data_size);
+   buffer = (char*)malloc(header.data_size);
 
    n = read(fhm, buffer, header.data_size);
    if (n < header.data_size) {

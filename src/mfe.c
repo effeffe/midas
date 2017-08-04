@@ -288,7 +288,7 @@ INT manual_trigger(INT idx, void *prpc_param[])
 
 int sc_thread(void *info)
 {
-   DEVICE_DRIVER *device_drv = info;
+   DEVICE_DRIVER *device_drv = (DEVICE_DRIVER*)info;
    int i, status, cmd;
    int current_channel = 0;
    int current_priority_channel = 0;
@@ -297,7 +297,7 @@ int sc_thread(void *info)
    unsigned int current_time;
    DWORD last_time;
 
-   last_update = calloc(device_drv->channels, sizeof(int));
+   last_update = (int*)calloc(device_drv->channels, sizeof(int));
    last_time = ss_millitime();
 
    // call CMD_START of device driver
@@ -798,7 +798,7 @@ INT register_equipment(void)
          equipment[idx].buffer_handle = 0;
    }
 
-   n_events = calloc(sizeof(int), idx);
+   n_events = (int*)calloc(sizeof(int), idx);
 
    return SUCCESS;
 }
@@ -1146,8 +1146,7 @@ void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
 
                /* adjust for alignment */
                if (key.type != TID_STRING && key.type != TID_LINK)
-                  pdata =
-                    (void *) (pdata0 + VALIGN(pdata-pdata0, MIN(ss_get_struct_align(), key.item_size)));
+                  pdata = (pdata0 + VALIGN(pdata-pdata0, MIN(ss_get_struct_align(), key.item_size)));
 
                status = db_set_data1(hDB, hKeyl, pdata, key.item_size * key.num_values,
                                     key.num_values, key.type);
@@ -1202,7 +1201,7 @@ int send_event(INT idx, BOOL manual_trig)
 
    /* check for fragmented event */
    if (eq_info->eq_type & EQ_FRAGMENTED)
-      pevent = frag_buffer;
+      pevent = (EVENT_HEADER *)frag_buffer;
    else
       pevent = (EVENT_HEADER *)event_buffer;
 
@@ -1232,7 +1231,7 @@ int send_event(INT idx, BOOL manual_trig)
          }
 
          /* compose fragments */
-         pfragment = event_buffer;
+         pfragment = (EVENT_HEADER*) event_buffer;
 
          /* compose MIDAS event header */
          memcpy(pfragment, pevent, sizeof(EVENT_HEADER));
@@ -1252,7 +1251,7 @@ int send_event(INT idx, BOOL manual_trig)
 
          for (i = 0, sent = 0; sent < pevent->data_size; i++) {
             if (i > 0) {
-               pfragment = event_buffer;
+               pfragment = (EVENT_HEADER*)event_buffer;
 
                /* compose MIDAS event header */
                memcpy(pfragment, pevent, sizeof(EVENT_HEADER));
@@ -1802,7 +1801,7 @@ INT check_polled_events(void)
       while ((source = poll_event(eq_info->source, eq->poll_count, FALSE)) > 0) {
          
          if (eq_info->eq_type & EQ_FRAGMENTED)
-            pevent = frag_buffer;
+            pevent = (EVENT_HEADER *)frag_buffer;
          else
             pevent = (EVENT_HEADER *)event_buffer;
 
@@ -1890,7 +1889,7 @@ INT check_polled_events(void)
             /* check for fragmented event */
             if (eq_info->eq_type & EQ_FRAGMENTED) {
                /* compose fragments */
-               pfragment = event_buffer;
+               pfragment = (EVENT_HEADER*)event_buffer;
 
                /* compose MIDAS event header */
                memcpy(pfragment, pevent, sizeof(EVENT_HEADER));
@@ -1910,7 +1909,7 @@ INT check_polled_events(void)
 
                for (i = 0, sent = 0; sent < pevent->data_size; i++) {
                   if (i > 0) {
-                     pfragment = event_buffer;
+                     pfragment = (EVENT_HEADER*)event_buffer;
 
                      /* compose MIDAS event header */
                      memcpy(pfragment, pevent, sizeof(EVENT_HEADER));
@@ -2091,7 +2090,7 @@ INT scheduler(void)
             while ((source = poll_event(eq_info->source, eq->poll_count, FALSE)) > 0) {
                
                if (eq_info->eq_type & EQ_FRAGMENTED)
-                  pevent = frag_buffer;
+                  pevent = (EVENT_HEADER *)frag_buffer;
                else
                   pevent = (EVENT_HEADER *)event_buffer;
 
@@ -2179,7 +2178,7 @@ INT scheduler(void)
                   /* check for fragmented event */
                   if (eq_info->eq_type & EQ_FRAGMENTED) {
                      /* compose fragments */
-                     pfragment = event_buffer;
+                     pfragment = (EVENT_HEADER*)event_buffer;
 
                      /* compose MIDAS event header */
                      memcpy(pfragment, pevent, sizeof(EVENT_HEADER));
@@ -2199,7 +2198,7 @@ INT scheduler(void)
 
                      for (i = 0, sent = 0; sent < pevent->data_size; i++) {
                         if (i > 0) {
-                           pfragment = event_buffer;
+                           pfragment = (EVENT_HEADER*)event_buffer;
 
                            /* compose MIDAS event header */
                            memcpy(pfragment, pevent, sizeof(EVENT_HEADER));

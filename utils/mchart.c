@@ -177,7 +177,7 @@ INT mchart_get_names(HNDLE hDB, char *eqpstr, char *element, char **pname, INT *
                      continue;
                   *esize = key.item_size;
                   size = *esize * key.num_values;
-                  *pname = malloc(size);
+                  *pname = (char*)malloc(size);
                   db_get_data(hDB, hSubKey, *pname, &size, key.type);
                   return key.num_values;
                }
@@ -192,7 +192,7 @@ INT mchart_get_names(HNDLE hDB, char *eqpstr, char *element, char **pname, INT *
                if (strncmp(key.name, "Names", 5) == 0) {        /* fmt Names (only) */
                   *esize = key.item_size;
                   size = *esize * key.num_values;
-                  *pname = malloc(size);
+                  *pname = (char*)malloc(size);
                   db_get_data(hDB, hSubKey, *pname, &size, key.type);
                   return key.num_values;
                }
@@ -213,7 +213,7 @@ INT mchart_get_array(FILE * f, char *eqpstr, HNDLE hDB, HNDLE hSubkey, KEY key,
    float value;
 
    size = key.num_values * key.item_size;
-   pdata = malloc(size);
+   pdata = (char*)malloc(size);
    status = db_get_data(hDB, hSubkey, pdata, &size, key.type);
    if (status != DB_SUCCESS) {
       free(pdata);
