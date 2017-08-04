@@ -16528,6 +16528,7 @@ void seq_load(SEQUENCER &seq, HNDLE hDB, HNDLE hKey, const char* filename)
    if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
       strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
    strlcat(str, seq.filename, sizeof(str));
+   seq.new_file = TRUE;
    seq.error[0] = 0;
    seq.error_line = 0;
    seq.serror_line = 0;
@@ -16554,6 +16555,7 @@ void seq_save(SEQUENCER &seq, HNDLE hDB, HNDLE hKey, char* str, int str_size)
       mxml_free_tree(pnseq);
       pnseq = NULL;
    }
+   seq.new_file = TRUE; // make sequencer load new file
    seq.error_line = 0;
    seq.serror_line = 0;
    if (stristr(str, ".msl")) {
@@ -16567,8 +16569,13 @@ void seq_save(SEQUENCER &seq, HNDLE hDB, HNDLE hKey, char* str, int str_size)
    db_set_record(hDB, hKey, &seq, sizeof(SEQUENCER), 0);
 }
 
-void seq_start(SEQUENCER &seq, HNDLE hDB, HNDLE hKey)
+void seq_start(SEQUENCER &seq)
 {
+   HNDLE hDB, hKey;
+   
+   cm_get_experiment_database(&hDB, NULL);
+   db_find_key(hDB, 0, "/Sequencer/State", &hKey);
+
    /* start sequencer */
    seq.running = TRUE;
    seq.finished = FALSE;
@@ -16762,7 +16769,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
             }
          }
          
-         seq_start(seq, hDB, hKey);
+         seq_start(seq);
          cm_msg(MTALK, "show_seq_page", "Sequencer has been started.");
          redirect(r, "");
          return;

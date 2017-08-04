@@ -1,6 +1,7 @@
 // Definition of sequencer structure in ODB
 
 typedef struct {
+   BOOL  new_file;
    char  path[256];
    char  filename[256];
    char  error[256];
@@ -43,6 +44,7 @@ typedef struct {
 
 #define SEQUENCER_STR(_name) const char *_name[] = {\
 "[.]",\
+"New File = BOOL : n",\
 "Path = STRING : [256] ",\
 "Filename = STRING : [256] ",\
 "Error = STRING : [256] ",\

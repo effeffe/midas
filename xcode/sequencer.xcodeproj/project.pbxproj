@@ -8,9 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		D525818F1F16CA0E00CE9EA0 /* midas_cxx.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D525818E1F16CA0E00CE9EA0 /* midas_cxx.cxx */; };
-		D5615BF91B7DC4B600A599E0 /* lz4.c in Sources */ = {isa = PBXBuildFile; fileRef = D5615BF61B7DC4B600A599E0 /* lz4.c */; };
-		D5615BFA1B7DC4B600A599E0 /* lz4frame.c in Sources */ = {isa = PBXBuildFile; fileRef = D5615BF71B7DC4B600A599E0 /* lz4frame.c */; };
-		D5615BFB1B7DC4B600A599E0 /* lz4hc.c in Sources */ = {isa = PBXBuildFile; fileRef = D5615BF81B7DC4B600A599E0 /* lz4hc.c */; };
 		D5A57222139D642A00B65A0A /* alarm.c in Sources */ = {isa = PBXBuildFile; fileRef = D5A5721C139D642A00B65A0A /* alarm.c */; };
 		D5A57223139D642A00B65A0A /* elog.c in Sources */ = {isa = PBXBuildFile; fileRef = D5A5721D139D642A00B65A0A /* elog.c */; };
 		D5A57225139D642A00B65A0A /* mrpc.c in Sources */ = {isa = PBXBuildFile; fileRef = D5A5721F139D642A00B65A0A /* mrpc.c */; };
@@ -20,16 +17,6 @@
 		D5A5722D139D645500B65A0A /* strlcpy.c in Sources */ = {isa = PBXBuildFile; fileRef = D5A5722A139D645500B65A0A /* strlcpy.c */; };
 		D5A57233139D662F00B65A0A /* sequencer.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D5A57232139D662F00B65A0A /* sequencer.cxx */; };
 		D5A57235139D664F00B65A0A /* midas.c in Sources */ = {isa = PBXBuildFile; fileRef = D5A57234139D664F00B65A0A /* midas.c */; };
-		D5A57237139D668100B65A0A /* ftplib.c in Sources */ = {isa = PBXBuildFile; fileRef = D5A57236139D668100B65A0A /* ftplib.c */; };
-		D5A5723B139D669300B65A0A /* history_midas.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D5A57238139D669300B65A0A /* history_midas.cxx */; };
-		D5A5723D139D669300B65A0A /* history.c in Sources */ = {isa = PBXBuildFile; fileRef = D5A5723A139D669300B65A0A /* history.c */; };
-		D5A6D16E1B7DC51D00DA117C /* xxhash.c in Sources */ = {isa = PBXBuildFile; fileRef = D5A6D16D1B7DC51D00DA117C /* xxhash.c */; };
-		D5A6D1701B7DC53200DA117C /* crc32c.c in Sources */ = {isa = PBXBuildFile; fileRef = D5A6D16F1B7DC53200DA117C /* crc32c.c */; };
-		D5A6D1731B7DC54200DA117C /* sha256.c in Sources */ = {isa = PBXBuildFile; fileRef = D5A6D1711B7DC54200DA117C /* sha256.c */; };
-		D5A6D1741B7DC54200DA117C /* sha512.c in Sources */ = {isa = PBXBuildFile; fileRef = D5A6D1721B7DC54200DA117C /* sha512.c */; };
-		D5AEADCE1A0B7E4500F18720 /* history_common.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D5AEADCD1A0B7E4500F18720 /* history_common.cxx */; };
-		D5AEADD11A0B7E5900F18720 /* history_odbc.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D5AEADCF1A0B7E5900F18720 /* history_odbc.cxx */; };
-		D5AEADD21A0B7E5900F18720 /* history_schema.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D5AEADD01A0B7E5900F18720 /* history_schema.cxx */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -46,9 +33,6 @@
 
 /* Begin PBXFileReference section */
 		D525818E1F16CA0E00CE9EA0 /* midas_cxx.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = midas_cxx.cxx; path = /midas/src/midas_cxx.cxx; sourceTree = "<group>"; };
-		D5615BF61B7DC4B600A599E0 /* lz4.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = lz4.c; path = /midas/src/lz4.c; sourceTree = "<group>"; };
-		D5615BF71B7DC4B600A599E0 /* lz4frame.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = lz4frame.c; path = /midas/src/lz4frame.c; sourceTree = "<group>"; };
-		D5615BF81B7DC4B600A599E0 /* lz4hc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = lz4hc.c; path = /midas/src/lz4hc.c; sourceTree = "<group>"; };
 		D5A57210139D63EF00B65A0A /* sequencer */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = sequencer; sourceTree = BUILT_PRODUCTS_DIR; };
 		D5A5721C139D642A00B65A0A /* alarm.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = alarm.c; path = /midas/src/alarm.c; sourceTree = "<absolute>"; };
 		D5A5721D139D642A00B65A0A /* elog.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = elog.c; path = /midas/src/elog.c; sourceTree = "<absolute>"; };
@@ -64,16 +48,6 @@
 		D5A57231139D648900B65A0A /* msystem.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = msystem.h; path = /midas/include/msystem.h; sourceTree = "<absolute>"; };
 		D5A57232139D662F00B65A0A /* sequencer.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = sequencer.cxx; path = /midas/src/sequencer.cxx; sourceTree = "<absolute>"; };
 		D5A57234139D664F00B65A0A /* midas.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = midas.c; path = /midas/src/midas.c; sourceTree = "<absolute>"; };
-		D5A57236139D668100B65A0A /* ftplib.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = ftplib.c; path = /midas/src/ftplib.c; sourceTree = "<absolute>"; };
-		D5A57238139D669300B65A0A /* history_midas.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = history_midas.cxx; path = /midas/src/history_midas.cxx; sourceTree = "<absolute>"; };
-		D5A5723A139D669300B65A0A /* history.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = history.c; path = /midas/src/history.c; sourceTree = "<absolute>"; };
-		D5A6D16D1B7DC51D00DA117C /* xxhash.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = xxhash.c; path = /midas/src/xxhash.c; sourceTree = "<group>"; };
-		D5A6D16F1B7DC53200DA117C /* crc32c.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = crc32c.c; path = /midas/src/crc32c.c; sourceTree = "<group>"; };
-		D5A6D1711B7DC54200DA117C /* sha256.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = sha256.c; path = /midas/src/sha256.c; sourceTree = "<group>"; };
-		D5A6D1721B7DC54200DA117C /* sha512.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = sha512.c; path = /midas/src/sha512.c; sourceTree = "<group>"; };
-		D5AEADCD1A0B7E4500F18720 /* history_common.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = history_common.cxx; path = /midas/src/history_common.cxx; sourceTree = "<absolute>"; };
-		D5AEADCF1A0B7E5900F18720 /* history_odbc.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = history_odbc.cxx; path = /midas/src/history_odbc.cxx; sourceTree = "<absolute>"; };
-		D5AEADD01A0B7E5900F18720 /* history_schema.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = history_schema.cxx; path = /midas/src/history_schema.cxx; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -107,19 +81,6 @@
 		D5A57213139D63EF00B65A0A /* Source Files */ = {
 			isa = PBXGroup;
 			children = (
-				D5A6D1711B7DC54200DA117C /* sha256.c */,
-				D5A6D1721B7DC54200DA117C /* sha512.c */,
-				D5A6D16F1B7DC53200DA117C /* crc32c.c */,
-				D5A6D16D1B7DC51D00DA117C /* xxhash.c */,
-				D5615BF61B7DC4B600A599E0 /* lz4.c */,
-				D5615BF71B7DC4B600A599E0 /* lz4frame.c */,
-				D5615BF81B7DC4B600A599E0 /* lz4hc.c */,
-				D5AEADCF1A0B7E5900F18720 /* history_odbc.cxx */,
-				D5AEADD01A0B7E5900F18720 /* history_schema.cxx */,
-				D5AEADCD1A0B7E4500F18720 /* history_common.cxx */,
-				D5A57238139D669300B65A0A /* history_midas.cxx */,
-				D5A5723A139D669300B65A0A /* history.c */,
-				D5A57236139D668100B65A0A /* ftplib.c */,
 				D5A57234139D664F00B65A0A /* midas.c */,
 				D525818E1F16CA0E00CE9EA0 /* midas_cxx.cxx */,
 				D5A57232139D662F00B65A0A /* sequencer.cxx */,
@@ -199,29 +160,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D5615BF91B7DC4B600A599E0 /* lz4.c in Sources */,
 				D5A57222139D642A00B65A0A /* alarm.c in Sources */,
 				D5A57223139D642A00B65A0A /* elog.c in Sources */,
 				D5A57225139D642A00B65A0A /* mrpc.c in Sources */,
 				D5A57226139D642A00B65A0A /* odb.c in Sources */,
-				D5AEADCE1A0B7E4500F18720 /* history_common.cxx in Sources */,
 				D5A57227139D642A00B65A0A /* system.c in Sources */,
 				D5A5722C139D645500B65A0A /* mxml.c in Sources */,
-				D5A6D16E1B7DC51D00DA117C /* xxhash.c in Sources */,
 				D5A5722D139D645500B65A0A /* strlcpy.c in Sources */,
-				D5A6D1731B7DC54200DA117C /* sha256.c in Sources */,
-				D5615BFA1B7DC4B600A599E0 /* lz4frame.c in Sources */,
 				D525818F1F16CA0E00CE9EA0 /* midas_cxx.cxx in Sources */,
 				D5A57233139D662F00B65A0A /* sequencer.cxx in Sources */,
 				D5A57235139D664F00B65A0A /* midas.c in Sources */,
-				D5AEADD21A0B7E5900F18720 /* history_schema.cxx in Sources */,
-				D5A6D1741B7DC54200DA117C /* sha512.c in Sources */,
-				D5AEADD11A0B7E5900F18720 /* history_odbc.cxx in Sources */,
-				D5A57237139D668100B65A0A /* ftplib.c in Sources */,
-				D5615BFB1B7DC4B600A599E0 /* lz4hc.c in Sources */,
-				D5A6D1701B7DC53200DA117C /* crc32c.c in Sources */,
-				D5A5723B139D669300B65A0A /* history_midas.cxx in Sources */,
-				D5A5723D139D669300B65A0A /* history.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

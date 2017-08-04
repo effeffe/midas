@@ -343,6 +343,7 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/odbinit \
 	$(BIN_DIR)/mhttpd  \
 	$(BIN_DIR)/mlogger \
+	$(BIN_DIR)/sequencer \
 	$(BIN_DIR)/mhist \
 	$(BIN_DIR)/mstat \
 	$(BIN_DIR)/mdump \
@@ -556,6 +557,9 @@ CFLAGS      += -DMG_ENABLE_SSL
 
 $(BIN_DIR)/mhttpd: $(MHTTPD_OBJS)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
+
+$(BIN_DIR)/sequencer: $(BIN_DIR)/%: $(SRC_DIR)/%.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/mh2sql: $(BIN_DIR)/%: $(UTL_DIR)/mh2sql.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
