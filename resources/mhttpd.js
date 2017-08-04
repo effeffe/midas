@@ -479,8 +479,7 @@ function mhttpd_init(current_page, interval, callback) {
 
          // check for base URL
          if (base_url === null) {
-            base_url = "http://localhost:8080";
-            alert("'/Experiment/Base URL' is missing in ODB, please define it.")
+            base_url = "/";
          }
          if (base_url.slice(-1) !== "/")
             base_url += "/";
