@@ -9709,8 +9709,9 @@ INT db_notify_clients_array(HNDLE hDB, HNDLE hKeys[], INT n)
    
 #ifdef LOCAL_ROUTINES
    {
+      int i;
       db_lock_database(hDB);
-      for (int i=0 ; i<n; i++)
+      for (i=0 ; i<n; i++)
          db_notify_clients(hDB, hKeys[i], -1, TRUE);
       db_unlock_database(hDB);
    }
