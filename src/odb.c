@@ -5329,7 +5329,6 @@ INT db_set_data1(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_
    /* update time */
    pkey->last_written = ss_time();
    
-   db_notify_clients(hDB, hKey, -1, TRUE);
    db_unlock_database(hDB);
    
    }
