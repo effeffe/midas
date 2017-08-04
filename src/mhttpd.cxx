@@ -16615,8 +16615,13 @@ void seq_start(SEQUENCER &seq)
    db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
 }
 
-void seq_stop(SEQUENCER &seq, HNDLE hDB, HNDLE hKey)
+void seq_stop(SEQUENCER &seq)
 {
+   HNDLE hDB, hKey;
+   
+   cm_get_experiment_database(&hDB, NULL);
+   db_find_key(hDB, 0, "/Sequencer/State", &hKey);
+
    seq.running = FALSE;
    seq.finished = FALSE;
    seq.paused = FALSE;
@@ -16632,6 +16637,8 @@ void seq_stop(SEQUENCER &seq, HNDLE hDB, HNDLE hKey)
    seq.stop_after_run = FALSE;
    seq.subdir[0] = 0;
    
+   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+   
    /* stop run if not already stopped */
    char str[256];
    int state = 0;
@@ -16639,8 +16646,6 @@ void seq_stop(SEQUENCER &seq, HNDLE hDB, HNDLE hKey)
    db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
    if (state != STATE_STOPPED)
       cm_transition(TR_STOP, 0, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
-   
-   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
 }
 
 int seq_loop_width(SEQUENCER &seq, int i)
@@ -16663,14 +16668,24 @@ int seq_wait_width(SEQUENCER &seq)
    return width;
 }
 
-void seq_set_paused(SEQUENCER &seq, HNDLE hDB, HNDLE hKey, BOOL paused)
+void seq_set_paused(SEQUENCER &seq, BOOL paused)
 {
+   HNDLE hDB, hKey;
+   
+   cm_get_experiment_database(&hDB, NULL);
+   db_find_key(hDB, 0, "/Sequencer/State", &hKey);
+
    seq.paused = paused;
    db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
 }
 
-void seq_set_stop_after_run(SEQUENCER &seq, HNDLE hDB, HNDLE hKey, BOOL stop_after_run)
+void seq_set_stop_after_run(SEQUENCER &seq, BOOL stop_after_run)
 {
+   HNDLE hDB, hKey;
+   
+   cm_get_experiment_database(&hDB, NULL);
+   db_find_key(hDB, 0, "/Sequencer/State", &hKey);
+
    seq.stop_after_run = stop_after_run;
    db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
 }
@@ -16812,19 +16827,19 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    
    /*---- stop after current run ----*/
    if (equal_ustring(p->getparam("cmd"), "Stop after current run")) {
-      seq_set_stop_after_run(seq, hDB, hKey, TRUE);
+      seq_set_stop_after_run(seq, TRUE);
       redirect(r, "");
       return;
    }
    if (equal_ustring(p->getparam("cmd"), "Cancel 'Stop after current run'")) {
-      seq_set_stop_after_run(seq, hDB, hKey, FALSE);
+      seq_set_stop_after_run(seq, FALSE);
       redirect(r, "");
       return;
    }
    
    /*---- stop immediately ----*/
    if (equal_ustring(p->getparam("cmd"), "Stop immediately")) {
-      seq_stop(seq, hDB, hKey);
+      seq_stop(seq);
       cm_msg(MTALK, "show_seq_page", "Sequencer is finished.");
       redirect(r, "");
       return;
@@ -16832,14 +16847,14 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    
    /*---- pause script ----*/
    if (equal_ustring(p->getparam("cmd"), "SPause")) {
-      seq_set_paused(seq, hDB, hKey, TRUE);
+      seq_set_paused(seq, TRUE);
       redirect(r, "");
       return;
    }
    
    /*---- resume script ----*/
    if (equal_ustring(p->getparam("cmd"), "SResume")) {
-      seq_set_paused(seq, hDB, hKey, FALSE);
+      seq_set_paused(seq, FALSE);
       redirect(r, "");
       return;
    }
@@ -17471,7 +17486,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
          if (seq.running) {
             r->rsprintf("<table class=\"mtable\" width=100%%><tr><th class=\"mtableheader\">Messages</th></tr>");
             r->rsprintf("<tr><td colspan=2>\n");
-            r->rsprintf("<div id=\"sequencerMessages\" style=\"font-family:monospace\">\n");
+            r->rsprintf("<div id=\"sequencerMessages\" style=\"font-family:monospace; text-align:left;\">\n");
             r->rsprintf("<a href=\"../?cmd=Messages\">...</a><br>\n");
             
             cm_msg_retrieve(10, buffer, sizeof(buffer));

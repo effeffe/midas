@@ -784,6 +784,8 @@ void sequencer()
 
    /* check for last line of script */
    if (seq.current_line_number > last_line) {
+      size = sizeof(seq);
+      db_get_record(hDB, hKeySeq, &seq, &size, 0);
       seq.running = FALSE;
       seq.finished = TRUE;
       db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
@@ -797,6 +799,9 @@ void sequencer()
          break;
    if (i >= 0) {
       if (seq.current_line_number == seq.loop_end_line[i]) {
+         size = sizeof(seq);
+         db_get_record(hDB, hKeySeq, &seq, &size, 0);
+
          if (seq.loop_counter[i] == seq.loop_n[i]) {
             seq.loop_counter[i] = 0;
             seq.loop_start_line[i] = 0;
@@ -833,6 +838,8 @@ void sequencer()
    
    /* check for end of "if" statement */
    if (seq.if_index > 0 && seq.current_line_number == seq.if_endif_line[seq.if_index-1]) {
+      size = sizeof(seq);
+      db_get_record(hDB, hKeySeq, &seq, &size, 0);
       seq.if_index --;
       seq.if_line[seq.if_index] = 0;
       seq.if_else_line[seq.if_index] = 0;
@@ -852,6 +859,8 @@ void sequencer()
    /* find node belonging to current line */
    pn = mxml_get_node_at_line(pnseq, seq.current_line_number);
    if (!pn) {
+      size = sizeof(seq);
+      db_get_record(hDB, hKeySeq, &seq, &size, 0);
       seq.current_line_number++;
       db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
       return;
@@ -1131,6 +1140,9 @@ void sequencer()
             size = sizeof(state);
             db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
             if (state == STATE_STOPPED) {
+               size = sizeof(seq);
+               db_get_record(hDB, hKeySeq, &seq, &size, 0);
+
                seq.transition_request = FALSE;
                
                if (seq.stop_after_run) {
@@ -1527,6 +1539,14 @@ void sequencer()
          seq.scurrent_line_number = atoi(mxml_get_attribute(pn, "l"));
    }
 
+   /* get steering parameters, since they might have been changed in between */
+   SEQUENCER seq1;
+   size = sizeof(seq1);
+   db_get_record(hDB, hKeySeq, &seq1, &size, 0);
+   seq.running = seq1.running;
+   seq.finished = seq1.finished;
+   seq.paused = seq1.paused;
+   
    /* update current line number */
    db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
 }
