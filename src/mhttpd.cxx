@@ -281,12 +281,6 @@ char *get_js_filename();
 #endif
 const char *get_css_filename();
 
-#ifdef HAVE_SEQUENCER
-/* functions from sequencer.cxx */
-extern void sequencer();
-extern void init_sequencer();
-#endif
-
 /*------------------------------------------------------------------*/
 
 char *stristr(const char *str, const char *pattern)
@@ -15924,8 +15918,6 @@ void send_js()
 
 /*------------------------------------------------------------------*/
 
-#ifdef HAVE_SEQUENCER
-
 #define XNAME_LENGTH 256
 
 PMXML_NODE pnseq;
@@ -17531,8 +17523,6 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    r->rsprintf("</body></html>\r\n");
 }
 
-#endif // HAVE_SEQUENCER
-
 /*------------------------------------------------------------------*/
 
 void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, const char *dec_path, int refresh, int expand_equipment)
@@ -18410,12 +18400,10 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    /*---- sequencer page --------------------------------------------*/
 
-#ifdef HAVE_SEQUENCER
    if (strncmp(dec_path, "SEQ/", 4) == 0) {
       show_seq_page(p, r, dec_path);
       return;
    }
-#endif
 
    /*---- (old) custom page -----------------------------------------*/
 
@@ -20115,10 +20103,8 @@ int main(int argc, const char *argv[])
    /* initialize menu buttons */
    init_menu_buttons();
 
-#ifdef HAVE_SEQUENCER
    /* initialize sequencer */
    init_sequencer();
-#endif
 
    /* initialize the JSON RPC handlers */
    mjsonrpc_init();
