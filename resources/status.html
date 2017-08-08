@@ -286,7 +286,7 @@
                         var experimentItem = document.createElement("tr");
                         experimentItem.id = experimentItemList[i + 2] + "ExperimentItem";
                         experimentItem.innerHTML =
-                           "<tr><td style=\"text-align:left;\" width=\"30%\" class=\"titleCell\">" +
+                           "<tr><td style=\"text-align:left;\" width=\"30%\" class=\"mtitleCell\">" +
                            experimentItemsJson[experimentItemList[i]] +
                            ":</td>" +
                            "<td id=\"experimentLazyBool\"; style=\"text-align:left;\">" +
@@ -325,6 +325,7 @@
                      document.getElementById("runStatusSequencer").innerHTML = "Restart: Sequencer";
                   } else {
                      document.getElementById("runStatusSequencer").innerHTML = "Restart: No";
+                     document.getElementById("runStatusSequencer").className="myellowcolour";
                   }
                }
             }

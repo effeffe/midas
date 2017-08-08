@@ -292,6 +292,11 @@ input[type=text] {
    padding: 0.25em;
 }
 
+
+.mtitleCell{
+    font-weight: bold;
+}
+
 /* floating footer */
 
 div.mwrapper {
