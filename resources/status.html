@@ -56,7 +56,7 @@
                   <tr align="center">
                      <td id="runStatusAlarm" class="mgreencolour greenLight"> runStatusAlarm </td>
                      <td id="runStatusSequencer" class="mgreencolour greenLight"> runStatusSequencer </td>
-                     <td id="runStatusLogger" colspan="2" class=""> runStatusLogger </td>
+                     <td id="runStatusLogger" colspan="2"> runStatusLogger </td>
                   </tr>
 
                   <tr>
@@ -86,7 +86,7 @@
                   <tr>
                      <th colspan="6" class="mtableheader">Equipment</th>
                   </tr>
-                  <tr class="">
+                  <tr>
                      <th>Equipment<a id='hide' class='hideButton' href="javascript:unhideEquipments()">+</a></th>
                      <th>Status</th>
                      <th>Events</th>
@@ -140,7 +140,7 @@
 
       //pre-define some html codes for different tables/rows
 
-      const equipmentTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Equipment</th></tr><tr class=\"\"><th>Equipment&nbsp;<a id='hide' class='hideButton' href=\"javascript:unhideEquipments()\">+</a></th><th>Status</th><th>Events</th><th>Events[/s]</th><th>Data[MS/s]</th></tr>";
+      const equipmentTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Equipment</th></tr><tr><th>Equipment&nbsp;<a id='hide' class='hideButton' href=\"javascript:unhideEquipments()\">+</a></th><th>Status</th><th>Events</th><th>Events[/s]</th><th>Data[MS/s]</th></tr>";
       const logChannelTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Logging Channels</th></tr>";
       const firstLogChannelHtml = "<tr id=\"logChannelFirstPart\" class=\"mtabvaritle\"><th colspan=\"2\">Channel</th><th>Events</th><th>MiB written</th><th>Compr.</th><th>Disk Level</th></tr>";
       const secondLogChannelHtml = "<tr id=\"logChannelSecondPart\" class=\"mtabvaritle\"><th colspan=\"2\">Lazy Label</th><th>Progress</th><th>File Name</th><th># Files</th><th>Total</th></tr>";
@@ -362,7 +362,7 @@
                if (equipmentCommonData[i]["status"].length < 1) {
                   statusItem.className = "mgreencolour greenLight";
                } else if (equipmentCommonData[i]["status color"].indexOf("Light") != -1) {
-                  statusItem.className = equipmentCommonData[i]["status"];
+                  statusItem.className = "status" + equipmentCommonData[i]["status"];
                } else {
                   statusItem.className = "Light";
                   statusItem.style = "background-color:" + equipmentCommonData[i]["status color"] + ";";
