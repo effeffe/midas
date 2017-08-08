@@ -254,7 +254,7 @@
 
                function generateSub_Dir_Keys() {
                   if (sub_dir_odb_keys.length > 0) {
-                     key_row_div.id="keyItems";
+                     key_row_div.id = "keyItems";
 
                      var key_title_row = document.createElement("tr");
                      key_title_row.className = "mODBtr";
@@ -336,7 +336,7 @@
 
                subDirTable.className = "mnobordertable";
                if (sub_dir_sub_dir.length > 0 || sub_dir_odb_keys.length > 0) {
-                  var key_row_div=document.createElement("div");
+                  var key_row_div = document.createElement("div");
                   generateSub_Dir_Sub_Dir();
                   generateSub_Dir_Keys();
                } else {
@@ -351,9 +351,11 @@
                if (rowElement != null && rowElement != undefined)
                   rowElement.parentNode.insertBefore(subDirRow, rowElement.nextSibling);
 
-               if (replaceTable != null && replaceTable != undefined){
-                   replaceTable.removeChild(replaceTable.lastChild);
-                   replaceTable.appendChild(key_row_div);
+               if (replaceTable != null && replaceTable != undefined) {
+                  if (replaceTable.lastChild.id == "keyItems") {
+                     replaceTable.removeChild(replaceTable.lastChild);
+                     replaceTable.appendChild(key_row_div);
+                  }
                }
             })
 
