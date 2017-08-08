@@ -46,15 +46,17 @@
 
       var global_dir_data = null;
 
+      var global_rpc_subDir = null;
+
       var currentEditing = null;
 
       var custompath = "";
 
       var custompathcache = "";
 
-      var subDirArray=new Array();
+      var subDirArray = new Array();
 
-      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr><td id=\"actionBar\" colspan=\"7\"><button id=\"create\">create</button><button id=\"delete\">delete</button><input id=\"searchbox\" type=\"text\" placeholder=\"press s to search\" title=\"case insensitive\"></input></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr><tr><td><button id=\"allSubDirs\">ALL</button></td></tr>";
+      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr><td id=\"actionBar\" colspan=\"7\"><button id=\"create\">create</button><button id=\"delete\">delete</button><input id=\"searchbox\" type=\"text\" placeholder=\"search\" title=\"case insensitive, shortcut: s\"></input></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr><tr><td><button id=\"allSubDirs\">ALL</button></td></tr>";
 
       const MODE_READ = (1 << 0)
       const MODE_WRITE = (1 << 1)
@@ -80,8 +82,278 @@
       }
 
 
+      function sizeOfObject(object) {
+
+         var objectList = [];
+         var stack = [object];
+         var bytes = 0;
+
+         while (stack.length) {
+            var value = stack.pop();
+
+            if (typeof value === 'boolean') {
+               bytes += 4;
+            }
+            else if (typeof value === 'string') {
+               bytes += value.length * 2;
+            }
+            else if (typeof value === 'number') {
+               bytes += 8;
+            }
+            else if (
+               typeof value === 'object'
+               && objectList.indexOf(value) === -1
+            ) {
+               objectList.push(value);
+
+               for (var i in value) {
+                  stack.push(value[i]);
+               }
+            }
+         }
+         return bytes;
+      }
+
+
+      function getKeyType(ele) {
+         switch (ele) {
+            case 1: return "BYTE"; break;
+            case 2: return "SBYTE"; break;
+            case 3: return "CHAR"; break;
+            case 4: return "WORD"; break;
+            case 5: return "SHORT"; break;
+            case 6: return "DWORD"; break;
+            case 7: return "INT"; break;
+            case 8: return "BOOL"; break;
+            case 9: return "FLOAT"; break;
+            case 10: return "DOUBLE"; break;
+            case 11: return "BITFIELD"; break;
+            case 12: return "STRING"; break;
+            case 13: return "ARRAY"; break;
+            case 14: return "STRUCT"; break;
+            case 15: return "KEY"; break;
+            case 16: return "LINK"; break;
+            case 17: return "LAST"; break;
+         }
+      }
+
 
       function callback(rpc, currentDir) {
+
+
+         var ODBTable = document.getElementById("ODBTable");
+         var obj = rpc.result.data[0];
+         if (rpc.result.data.length > 1) {
+            var subDirObj = rpc.result.data.slice(1);
+            //alert(JSON.stringify(subDirObj));
+         } else {
+            var subDirObj = null;
+         }
+
+
+         function updateSubDir() {
+            if (subDirArray.length > 0) {
+               if (global_rpc_subDir != null && JSON.stringify(global_rpc_subDir) != JSON.stringify(subDirObj)) {
+                  subDirArray.forEach(function (ele) {
+                     var tables = document.getElementsByTagName("table");
+                     Array.prototype.forEach.call(tables, function (table) {
+                        if (table.id == ele)
+                           if (table != null || table != undefined) {
+                              generateSubDir(ele, null, table);
+                           }
+                     });
+
+                  });
+               }
+            }
+            global_rpc_subDir = subDirObj;
+         }
+
+         function generateSubDir(path, rowElement, replaceTable) {
+
+            var result;
+
+            mjsonrpc_db_ls([path]).then(function (rpc) {
+
+               function generateSub_Dir_Sub_Dir() {
+
+                  if (sub_dir_sub_dir.length > 0) {
+                     sub_dir_sub_dir.forEach(function (element) {
+
+                        function expand() {
+                           subDirArray.push(sub_dir_expand_link.id);
+                           sub_dir_expand_link.innerHTML = "&#9660;";
+                           sub_dir_expand_link.removeEventListener('click', expand);
+                           sub_dir_expand_link.addEventListener('click', fold);
+                           if (document.getElementById(sub_dir_expand_link.id + "sub_dir") == undefined) {
+                              generateSubDir(sub_dir_expand_link.id, sub_dir_row);
+                           } else {
+                              document.getElementById(sub_dir_expand_link.id + "sub_dir").style.display = "table-row";
+                           }
+                        }
+
+                        function fold() {
+                           var index = subDirArray.indexOf(sub_dir_expand_link.id);
+                           if (index >= 0) {
+                              subDirArray.splice(index, 1);
+                           }
+                           sub_dir_expand_link.innerHTML = "&#9654;";
+                           sub_dir_expand_link.removeEventListener('click', fold);
+                           sub_dir_expand_link.addEventListener('click', expand);
+                           document.getElementById(sub_dir_expand_link.id + "sub_dir").style.display = "none";
+                        }
+
+                        function highlight() {
+                           sub_dir_expand_link.style.color = "#00CC00";
+                        }
+
+                        function unhighlight() {
+                           sub_dir_expand_link.style.color = "#000000";
+                        }
+
+
+                        var sub_dir_row = document.createElement("tr");
+                        sub_dir_row.id = subDirTable.id + "/" + element + "sub_dir_row";
+                        var sub_dir_col = document.createElement("td");
+                        var sub_dir_expand_link = document.createElement("span");
+                        var sub_dir_link = document.createElement("span");
+
+
+                        sub_dir_link.innerHTML = " " + element;
+                        sub_dir_link.href = "#";
+                        sub_dir_link.onclick = "return false;";
+                        if (element.charAt(0) != "/" && custompath.slice(-1) != "/") {
+                           sub_dir_link.addEventListener('click', function () { custompath = subDirTable.id + "/" + element; update(); });
+                        } else {
+                           sub_dir_link.addEventListener('click', function () { custompath = subDirTable.id + element; update(); });
+                        }
+                        sub_dir_link.className = "modblink";
+
+                        sub_dir_expand_link.innerHTML = "&#9654;";
+                        sub_dir_expand_link.className = "modbarrow";
+                        sub_dir_expand_link.href = "#";
+                        sub_dir_expand_link.onclick = "return false;";
+                        sub_dir_expand_link.id = subDirTable.id + "/" + element;
+                        sub_dir_expand_link.addEventListener('click', expand);
+                        sub_dir_expand_link.addEventListener('mouseover', highlight);
+                        sub_dir_expand_link.addEventListener('mouseout', unhighlight);
+
+                        sub_dir_col.appendChild(sub_dir_expand_link);
+                        sub_dir_col.appendChild(sub_dir_link);
+
+                        sub_dir_col.colSpan = "3";
+
+                        sub_dir_row.appendChild(sub_dir_col);
+
+                        subDirTable.appendChild(sub_dir_row);
+
+
+                     });
+                  }
+               }
+
+               function generateSub_Dir_Keys() {
+                  if (sub_dir_odb_keys.length > 0) {
+                     var key_title_row = document.createElement("tr");
+                     key_title_row.className = "mODBtr";
+
+
+                     var key_title = document.createElement("th");
+                     key_title.innerHTML = "Key";
+
+                     var value_title = document.createElement("th");
+                     value_title.innerHTML = "Value";
+
+                     key_title_row.appendChild(key_title);
+                     key_title_row.appendChild(value_title);
+
+                     subDirTable.appendChild(key_title_row);
+
+                     sub_dir_odb_keys.forEach(function (element) {
+                        var key_row = document.createElement("tr");
+                        key_row.className = "mODBtr";
+
+                        var key_row_key = document.createElement("td");
+                        key_row_key.innerHTML = element;
+                        key_row_key.className = "keyCell";
+
+
+                        var key_row_value = document.createElement("td");
+                        key_row_value.innerHTML = subDirObj[element];
+                        key_row_value.id = element;
+                        key_row_value.className = "keyCell mkeyCellEditable";
+
+
+                        key_row.appendChild(key_row_key);
+                        key_row.appendChild(key_row_value);
+
+
+                        subDirTable.appendChild(key_row);
+                     });
+
+                  }
+               }
+
+
+               var subDirObj = rpc.result.data[0];
+
+               var sub_dir_sub_dir = new Array();
+               var sub_dir_odb_keys = new Array();
+
+
+               //get all keys of the data object
+               var keys = Object.keys(subDirObj);
+
+               // for each key...
+               keys.forEach(function (key) {
+                  // if the value of the key is not an object, then it must be a key with value
+                  if (typeof subDirObj[key] !== 'object') {
+                     sub_dir_odb_keys.push(key);
+                     // if the value of the key is an object and length is 0, then it must be a sub directory
+                  } else if (Object.keys(subDirObj[key]).length === 0) {
+                     sub_dir_sub_dir.push(key);
+                  }
+                  // rest of them are key properties
+               });
+
+
+
+               var spaceNum = path.replace(custompath, "").split("/").length - 1;
+
+
+               var subDirRow = document.createElement("tr")
+               subDirRow.id = path + "sub_dir";
+               var subDirSpace = document.createElement("td");
+               subDirSpace.colSpan = 1;
+               var subDirTd = document.createElement("td");
+
+               var subDirTable = document.createElement("table");
+               subDirTable.id = path;
+               subDirTable.tagName = path + "sub_dir_table";
+
+               subDirTable.className = "mnobordertable";
+               if (sub_dir_sub_dir.length > 0 || sub_dir_odb_keys.length > 0) {
+                  generateSub_Dir_Sub_Dir();
+                  generateSub_Dir_Keys();
+               } else {
+                  subDirTable.innerHTML = "(empty)";
+               }
+
+
+               subDirTd.appendChild(subDirTable);
+
+               subDirRow.appendChild(subDirSpace);
+               subDirRow.appendChild(subDirTd);
+               if (rowElement != null && rowElement != undefined)
+                  rowElement.parentNode.insertBefore(subDirRow, rowElement.nextSibling);
+
+               if (replaceTable != null && replaceTable != undefined)
+                  replaceTable.innerHTML = subDirTable.innerHTML;
+
+            })
+
+         }
+
 
          function deleteDirsAndKeys() {
             var allDirCheckboxs = document.getElementsByClassName("sub_dir_checkbox");
@@ -131,8 +403,6 @@
             }
          }
 
-         var ODBTable = document.getElementById("ODBTable");
-         var obj = rpc.result.data[0];
 
          function generateActionbar() {
             function pressKeySearch(event) {
@@ -180,15 +450,26 @@
                   }
 
                   function expand() {
+                     subDirArray.push(sub_dir_expand_link.id);
                      sub_dir_expand_link.innerHTML = "&#9660;";
                      sub_dir_expand_link.removeEventListener('click', expand);
                      sub_dir_expand_link.addEventListener('click', fold);
+                     if (document.getElementById(sub_dir_expand_link.id + "sub_dir") == undefined) {
+                        generateSubDir(sub_dir_expand_link.id, sub_dir_row);
+                     } else {
+                        document.getElementById(sub_dir_expand_link.id + "sub_dir").style.display = "table-row";
+                     }
                   }
 
                   function fold() {
+                     var index = subDirArray.indexOf(sub_dir_expand_link.id);
+                     if (index >= 0) {
+                        subDirArray.splice(index, 1);
+                     }
                      sub_dir_expand_link.innerHTML = "&#9654;";
                      sub_dir_expand_link.removeEventListener('click', fold);
                      sub_dir_expand_link.addEventListener('click', expand);
+                     document.getElementById(sub_dir_expand_link.id + "sub_dir").style.display = "none";
                   }
 
                   function highlight() {
@@ -202,6 +483,7 @@
 
 
                   var sub_dir_row = document.createElement("tr");
+                  sub_dir_row.id = "/" + element + "sub_dir_row";
 
                   var sub_dir_checkbox = document.createElement("input");
                   var sub_dir_col = document.createElement("td");
@@ -233,6 +515,7 @@
                   sub_dir_expand_link.className = "modbarrow";
                   sub_dir_expand_link.href = "#";
                   sub_dir_expand_link.onclick = "return false;";
+                  sub_dir_expand_link.id = custompath + "/" + element;
                   sub_dir_expand_link.addEventListener('click', expand);
                   sub_dir_expand_link.addEventListener('mouseover', highlight);
                   sub_dir_expand_link.addEventListener('mouseout', unhighlight);
@@ -248,10 +531,10 @@
                   ODBTable.appendChild(sub_dir_row);
 
                });
-               document.getElementById("allSubDirs").style.display="block";
+               document.getElementById("allSubDirs").style.display = "block";
                document.getElementById("allSubDirs").addEventListener("click", checkAllCheckbox);
             } else {
-               document.getElementById("allSubDirs").style.display="none";
+               document.getElementById("allSubDirs").style.display = "none";
             }
          }
 
@@ -357,38 +640,6 @@
             }
 
 
-            function sizeOfObject(object) {
-
-               var objectList = [];
-               var stack = [object];
-               var bytes = 0;
-
-               while (stack.length) {
-                  var value = stack.pop();
-
-                  if (typeof value === 'boolean') {
-                     bytes += 4;
-                  }
-                  else if (typeof value === 'string') {
-                     bytes += value.length * 2;
-                  }
-                  else if (typeof value === 'number') {
-                     bytes += 8;
-                  }
-                  else if (
-                     typeof value === 'object'
-                     && objectList.indexOf(value) === -1
-                  ) {
-                     objectList.push(value);
-
-                     for (var i in value) {
-                        stack.push(value[i]);
-                     }
-                  }
-               }
-               return bytes;
-            }
-
             if (odb_keys.length > 0) {
                var key_title_row = document.createElement("tr");
                key_title_row.className = "mODBtr";
@@ -485,25 +736,9 @@
                   key_row_type.innerHTML = obj[element + "/key"]["type"];
                   key_row_type.className = "expandCell keyCell";
 
-                  switch (obj[element + "/key"]["type"]) {
-                     case 1: key_row_type.innerHTML = "BYTE"; break;
-                     case 2: key_row_type.innerHTML = "SBYTE"; break;
-                     case 3: key_row_type.innerHTML = "CHAR"; break;
-                     case 4: key_row_type.innerHTML = "WORD"; break;
-                     case 5: key_row_type.innerHTML = "SHORT"; break;
-                     case 6: key_row_type.innerHTML = "DWORD"; break;
-                     case 7: key_row_type.innerHTML = "INT"; break;
-                     case 8: key_row_type.innerHTML = "BOOL"; break;
-                     case 9: key_row_type.innerHTML = "FLOAT"; break;
-                     case 10: key_row_type.innerHTML = "DOUBLE"; break;
-                     case 11: key_row_type.innerHTML = "BITFIELD"; break;
-                     case 12: key_row_type.innerHTML = "STRING"; break;
-                     case 13: key_row_type.innerHTML = "ARRAY"; break;
-                     case 14: key_row_type.innerHTML = "STRUCT"; break;
-                     case 15: key_row_type.innerHTML = "KEY"; break;
-                     case 16: key_row_type.innerHTML = "LINK"; break;
-                     case 17: key_row_type.innerHTML = "LAST"; break;
-                  }
+
+                  key_row_type.innerHTML = getKeyType(obj[element + "/key"]["type"]);
+
 
                   var key_row_val = document.createElement("td");
                   key_row_val.innerHTML = obj[element];
@@ -602,11 +837,12 @@
          // CALLBACK STARTS HERE
 
 
-         if (global_dir_data != currentDir || JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data)) {
+         if (global_dir_data != currentDir || JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data[0])) {
             if (ODBTable.innerHTML != ODBTableinnerHTML)
                ODBTable.innerHTML = ODBTableinnerHTML;
             global_dir_data = "";
             global_rpc_data = "";
+            subDirArray = new Array();
          }
 
          // odb directory very rarely changes
@@ -654,8 +890,8 @@
          }
 
          // since odb data rarely changes while browsing, if any change dynamically happens, refresh the whole page
-         if (JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data)) {
-            global_rpc_data = rpc.result.data;
+         if (JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data[0])) {
+            global_rpc_data = rpc.result.data[0];
 
             if (rpc.result.data != null && rpc.result.data != undefined) {
 
@@ -687,7 +923,7 @@
          }
 
          updateLastWritten();
-
+         updateSubDir();
 
 
 
@@ -706,7 +942,7 @@
                href = href.substring(0, href.length - 1);
             if (href.slice(-1) === "/")
                href = href.substring(0, href.length - 1);
-            var directory = "/";
+            var directory = "";
             if (href.indexOf("odb.html?odbpath=") != -1) {
                var directoryPosition = href.indexOf("odb.html?odbpath=");
                directory = href.substring(directoryPosition + "odb.html?odbpath=".length, href.length);
@@ -722,13 +958,10 @@
          } else {
             var paths = [custompath];
          }
+         paths = paths.concat(subDirArray);
          mjsonrpc_db_ls(paths).then(function (rpc) {
             callback(rpc, paths[0]);
-         }).then(function () {
-            // document.getElementById('loader').style.display = "none";
-         }).catch(function (error) {
-            // mjsonrpc_error_alert(error);
-         });
+         })
       }
 
 
