@@ -19,7 +19,7 @@
 
    <div id="mmain">
 
-      <table class="mmaintable" id="ODBTable">
+      <table class="mtable" id="ODBTable">
          <!-- <div id="loader" class="mloader"></div> 
          <tr>
             <th colspan="7" class="mtableheader">Online Database Browser</th>
@@ -56,7 +56,7 @@
 
       var subDirArray = new Array();
 
-      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr><td id=\"actionBar\" colspan=\"7\"><button id=\"create\">create</button><button id=\"delete\">delete</button><input id=\"searchbox\" type=\"text\" placeholder=\"search\" title=\"case insensitive, shortcut: s\"></input></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr><tr><td><button id=\"allSubDirs\">ALL</button></td></tr>";
+      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr><td id=\"actionBar\" colspan=\"7\"><button id=\"create\">create</button><button id=\"delete\">delete</button><input id=\"searchbox\" type=\"text\" placeholder=\"search\" title=\"case insensitive, shortcut: s\"></input></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr><tr><td><input type=\"checkbox\" id=\"allSubDirs\"></input></td></tr>";
 
       const MODE_READ = (1 << 0)
       const MODE_WRITE = (1 << 1)
@@ -652,9 +652,9 @@
                key_title_row.className = "mODBtr";
 
 
-               var key_title_checkbox = document.createElement("button");
+               var key_title_checkbox = document.createElement("input");
+               key_title_checkbox.type = "checkbox";
                key_title_checkbox.id = "allElements";
-               key_title_checkbox.innerText = "ALL";
                key_title_checkbox.className = "key_selectall";
                var key_title_checkall = document.createElement("th");
                key_title_checkall.appendChild(key_title_checkbox);
@@ -862,7 +862,7 @@
                if (i == 0) {
                   var currentDirLink = document.createElement("span");
                   currentDirLink.className = "modblink";
-                  currentDirLink.innerHTML = "&#127968;";
+                  currentDirLink.innerHTML = "&#9634;";
                   currentDirLink.href = "#";
                   currentDirLink.onclick = "return false;"
                   currentDirLink.addEventListener('click', function () { custompath = "/"; update(); });
@@ -885,7 +885,7 @@
                   currentDirLink.innerText = dirArray[i];
 
                   var dir_arrow = document.createElement("span");
-                  dir_arrow.innerHTML = " &#8680; "
+                  dir_arrow.innerHTML = "&nbsp;&#8680;&nbsp;"
 
                   document.getElementById("currentDir").appendChild(dir_arrow);
                }
