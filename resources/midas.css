@@ -23,7 +23,7 @@ a:focus { color:#0000FF; text-decoration:underline }
 
 /* common settings: fonts, colours, etc */
 
-.mfont, .mnav, .mbutton, .mfooter, .mtable {
+.mfont, .mnav, .mbutton, .mtable {
    font-family: verdana,tahoma,sans-serif;
 }
 
@@ -297,27 +297,6 @@ input[type=text] {
     font-weight: bold;
 }
 
-/* floating footer */
-
-div.mwrapper {
-   min-height: 100%;
-   height: auto !important;
-   height: 100%;
-   margin: 0 auto -3em;
-}
-
-div.mpush{
-   height: 3em;
-}
-
-.mfooter {
-   background-color: #808080;
-   color: #EEEEEE;
-   font-size: 100%;
-   text-align: center;
-   padding: 1em;
-}
-
 .mmaintable {
    background-color: #F5F5F5;
    border: 2px solid #6bb28c;
@@ -344,6 +323,8 @@ div.mpush{
 .clientsTable tr:nth-child(even) td:nth-child(odd) {
     background-color: #FFFFFF;
 }
+
+/* ODB page */
 
 .mODBtr:nth-child(odd) {
     background-color: #DDDDDD;

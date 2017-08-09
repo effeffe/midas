@@ -369,23 +369,6 @@ function mhttpd_toggle_menu() {
    }
 }
 
-function mhttpd_page_footer() {
-   /*---- spacer for footer ----*/
-   //document.write("<div class='push'></div>\n");
-
-   /*---- footer div ----*/
-   document.write("<div id='footerDiv' class='mfooter footerDiv'>\n");
-   mjsonrpc_db_get_values(["/Experiment/Name"]).then(function (rpc) {
-      document.getElementById("mhttpd_expt_name").innerHTML = "Experiment " + rpc.result.data[0];
-   }).catch(function (error) {
-      mjsonrpc_error_alert(error);
-   });
-   document.write("<div style='display:inline; float:left;' id='mhttpd_expt_name'>Experiment %s</div>");
-   document.write("<div style='display:inline;'><a href='?cmd=Help'>Help</a></div>");
-   document.write("<div style='display:inline; float:right; ' id='mhttpd_last_updated'>" + new Date + "</div>");
-   document.write("</div>\n");
-}
-
 var mhttpd_refresh_id;
 var mhttpd_refresh_interval;
 
