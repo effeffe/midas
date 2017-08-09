@@ -324,6 +324,17 @@ input[type=text] {
     background-color: #FFFFFF;
 }
 
+/* status page */
+
+.statusDisabled {
+   background-color: #B0B0B0;
+}
+
+.statusPartiallyDisabled {
+   background: linear-gradient(45deg, #CCCCCC 25%, #B0B0B0 25%, #B0B0B0 50%, #CCCCCC 50%, #CCCCCC 75%, #B0B0B0 75%, #B0B0B0);
+   background-size: 30px 30px;
+}
+
 /* ODB page */
 
 .mODBtr:nth-child(odd) {
