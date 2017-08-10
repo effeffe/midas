@@ -250,6 +250,10 @@ typedef std::vector<std::string> STRING_LIST;
 #define EVENT_BUFFER_NAME      "SYSTEM"      /**< buffer name for commands    */
 #define DEFAULT_ODB_SIZE       0x100000      /**< online database 1M          */
 
+/* note that if you change any of the following items, the ODB and the event shared memory buffers 
+   become binary incopatible and one has to recompile ALL programs which are locally connected to the 
+   ODB and to event buffers */
+
 #define NAME_LENGTH            32            /**< length of names, mult.of 8! */
 #define HOST_NAME_LENGTH       256           /**< length of TCP/IP names      */
 #define MAX_CLIENTS            64            /**< client processes per buf/db */
