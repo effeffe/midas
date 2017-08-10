@@ -27,7 +27,7 @@
  </table>-->
 
 <div id="mmain">
-   <table class="mtable" id="statusTable">
+   <table class="mtable" id="statusTable" style="display:none">
 
 
       <tr>
@@ -688,6 +688,7 @@
             callback(rpc[0]["result"], rpc[1]["result"], rpc[2]["result"], rpc[3]["result"], equipmentList, rpc[4]["result"]["data"], rpc[5]["result"]["data"]);
          }).then(function (x) {
             // show the page only after all contents are loaded
+            document.getElementById('statusTable').style.display = "table";
             document.getElementById('updateStatus').style.display = "none";
          });
       }).catch(function (error) {
@@ -695,63 +696,6 @@
          document.getElementById('updateStatus').style.display = "block";
       });
 
-
-      // // OLD AJAX CHAIN, not being deleted to avoid future changes
-
-      // // get main ODB info
-      // mjsonrpc_db_get_values(paths).then(function (rpc) {
-
-      //    // get alarms status
-      //    mjsonrpc_call("get_alarms").then(function (alarmData) {
-
-      //       // check if logger is running
-      //       mjsonrpc_call("cm_exist", "{ \"name\": \"Logger\" }").then(function (loggerData) {
-
-      //          // get the lastest one message
-      //          mjsonrpc_call("cm_msg_retrieve", { "min_messages": 1 }).then(function (lastMessageData) {
-
-      //             // get all equipment names using mjsonrpc_db_ls
-      //             mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
-
-      //                //get all equipment names into an Array
-      //                var equipmentList = Object.keys(equipmentListData.result.data[0]);
-
-      //                //push all equipment names into an Array of Promises
-      //                var equipmentStatList = equipmentList.map(function (element) {
-      //                   return "/Equipment/" + element + "/statistics";
-      //                });
-
-      //                var equipmentCommonList = equipmentList.map(function (element) {
-      //                   return "/Equipment/" + element + "/common";
-      //                });
-      //                //Call all the Promises to get "common" and "statistics" subtrees of all equipments
-      //                mjsonrpc_db_get_values(equipmentStatList).then(function (equipmentStatData) {
-
-      //                   equipmentStatData = equipmentStatData.result.data;
-
-      //                   mjsonrpc_db_get_values(equipmentCommonList).then(function (equipmentCommonData) {
-
-      //                      equipmentCommonData = equipmentCommonData.result.data;
-
-      //                      if (rpc.hasOwnProperty("result") && alarmData.hasOwnProperty("result") && alarmData["result"].hasOwnProperty("alarm_system_active") && loggerData.hasOwnProperty("result") && lastMessageData.hasOwnProperty("result")) {
-      //                         callback(rpc["result"], alarmData["result"], loggerData["result"], lastMessageData["result"], equipmentList, equipmentStatData, equipmentCommonData);
-      //                      }
-
-
-      //                   }).then(function (x) {
-      //                      // show the page only after all contents are loaded
-      //                      document.getElementById('updateStatus').style.display = "none";
-      //                      document.getElementById('statusTable').style.display = "table";
-      //                   });
-      //                });
-      //             });
-      //          });
-      //       });
-      //    });
-      // }).catch(function (error) {
-      //    document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
-      //    document.getElementById('updateStatus').style.display = "block";
-      // });
 
    }
 

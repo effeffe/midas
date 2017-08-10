@@ -19,9 +19,9 @@
    <div id="msidenav"></div>
 
    <div id="mmain">
-
-      <table class="mmaintable" id="ODBTable">
-         <!-- <div id="loader" class="mloader"></div> 
+      <div id="mload" style="display:none">
+         <table class="mmaintable" id="ODBTable">
+            <!-- <div id="loader" class="mloader"></div> 
          <tr>
             <th colspan="7" class="mtableheader">Online Database Browser</th>
          </tr>
@@ -36,8 +36,8 @@
             <td id="currentDir" colspan="7">
             </td>
          </tr> -->
-      </table>
-
+         </table>
+      </div>
    </div>
 
    <script>
@@ -67,8 +67,7 @@
       var isExpand = false;
 
       function updatepath(element) {
-         custompath = element.id;
-         update();
+         window.location.href = global_base_url + "odb.html?odbpath=" + element.id;
       }
 
       function updatekey(element) {
@@ -140,42 +139,123 @@
 
 
 
+      function create_page_handle_create(mouseEvent) {
+         var path = "";
+         var type = "";
+         var name = "";
+         var arraylength = "";
+         var stringlength = "";
+
+         var form = document.getElementsByTagName('form')[0];
+
+         if (form) {
+            path = form.elements['odb'].value;
+            type = form.elements['type'].value;
+            name = form.elements['value'].value;
+            arraylength = form.elements['index'].value;
+            stringlength = form.elements['strlen'].value;
+         } else {
+            var e = document.getElementById("odbpath");
+            path = JSON.parse(e.innerHTML);
+            if (path == "/") path = "";
+
+            type = document.getElementById("create_tid").value;
+            name = document.getElementById("create_name").value;
+            arraylength = document.getElementById("create_array_length").value;
+            stringlength = document.getElementById("create_strlen").value;
+
+            //alert("Path: " + path + " Name: " + name);
+         }
+
+         if (path == "/") path = "";
+
+         if (name.length < 1) {
+            alert("Name is too short");
+            return false;
+         }
+
+         var int_array_length = parseInt(arraylength);
+
+         //alert("int_array_length: " + int_array_length);
+
+         if (!int_array_length || int_array_length < 1) {
+            alert("Bad array length: " + arraylength);
+            return false;
+         }
+
+         var int_string_length = parseInt(stringlength);
+
+         if (!int_string_length || int_string_length < 1) {
+            alert("Bad string length " + stringlength);
+            return false;
+         }
+
+         var param = {};
+         param.path = path + "/" + name;
+         param.type = parseInt(type);
+         if (int_array_length > 1)
+            param.array_length = int_array_length;
+         if (int_string_length > 0)
+            param.string_length = int_string_length;
+
+         mjsonrpc_db_create([param]).then(function (rpc) {
+            var status = rpc.result.status[0];
+            if (status == 311) {
+               alert("ODB entry with this name already exists.");
+            } else if (status != 1) {
+               alert("db_create_key() error " + status + ", see MIDAS messages.");
+            } else {
+               update();
+            }
+         }).catch(function (error) {
+            mjsonrpc_error_alert(error);
+            update();
+         });
+
+         return false;
+      }
+
+
+
       function generateCreateDlg() {
          if (document.getElementsByClassName("dlgPanel").length == 0) {
             var dlgPanel = document.createElement("div");
             dlgPanel.className = "dlgPanel";
 
             var odbPath = document.createElement("div");
-
+            odbPath.id = "odbpath";
             if (custompath == "") {
-               odbPath.innerText = "/";
+               odbPath.innerText = "\"/\"";
             } else {
-               odbPath.innerText = custompath;
+               odbPath.innerText = "\"" + custompath + "\"";
             }
 
 
             var dlgTable = document.createElement("table");
             dlgTable.className = "mmaintable";
+            dlgTable.innerHTML = "<tr><th colspan=\"2\">Create ODB entry:</th>\n</tr><tr><td>Type</td><td><select type=\"text\" size=\"1\" id=\"create_tid\" name=\"type\"><option value=\"7\">Integer (32-bit)</option><option value=\"9\">Float (4 Bytes)</option><option value=\"12\">String</option><option selected=\"\" value=\"15\">Subdirectory</option><option value=\"1\">Byte</option><option value=\"2\">Signed byte</option><option value=\"3\">Character (8-bit)</option><option value=\"4\">Word (16-bit)</option><option value=\"5\">Short integer(16-bit)</option><option value=\"6\">Double Word (32-bit)</option><option value=\"8\">Boolean</option><option value=\"10\">Double float(8 Bytes)</option><option value=\"16\">Symbolic link</option></select></td></tr>\n<tr><td>Name</td><td><input type=\"text\" size=\"31\" maxlength=\"31\" id=\"create_name\" name=\"value\"></td></tr>\n<tr><td>Array size</td><td><input type=\"text\" size=\"31\" maxlength=\"31\" id=\"create_array_length\" name=\"index\" value=\"1\"></td></tr>\n<tr><td>String length</td><td><input type=\"text\" size=\"31\" maxlength=\"31\" id=\"create_strlen\" name=\"strlen\" value=\"32\"></td></tr>"
+
+
 
 
             var createButton = document.createElement("input");
-            createButton.type="button";
+            createButton.type = "button";
             createButton.value = "Create";
-            createButton.onclick = function () { mhttpd_create_page_handle_create(event) };
+            createButton.onclick = function () { create_page_handle_create(event) };
 
             var cancelButton = document.createElement("input");
-            cancelButton.type="button";
+            cancelButton.type = "button";
             cancelButton.value = "Cancel";
-            cancelButton.onclick = function () { dlgCreate.style.display="none"; };
+            cancelButton.onclick = function () { dlgCreate.style.display = "none"; };
 
 
 
             dlgPanel.appendChild(odbPath);
-            var dlgCreate = document.getElementById("dlgCreate");
-            dlgCreate.appendChild(dlgPanel);
-            dlgCreate.appendChild(dlgTable);
-            dlgCreate.appendChild(createButton);
-            dlgCreate.appendChild(cancelButton);
+            dlgPanel.appendChild(dlgTable);
+            dlgPanel.appendChild(createButton);
+            dlgPanel.appendChild(cancelButton);
+
+            document.getElementById("dlgCreate").appendChild(dlgPanel);
 
 
          }
@@ -269,12 +349,11 @@
                         sub_dir_link.href = "#";
                         sub_dir_link.onclick = "return false;";
                         if (element.charAt(0) != "/" && custompath.slice(-1) != "/") {
-                           sub_dir_link.addEventListener('click', function () { custompath = subDirTable.id + "/" + element; update(); });
+                           sub_dir_link.addEventListener('click', function () { window.location.href = global_base_url + "odb.html?odbpath=" + subDirTable.id + "/" + element; });
                         } else {
-                           sub_dir_link.addEventListener('click', function () { custompath = subDirTable.id + element; update(); });
+                           sub_dir_link.addEventListener('click', function () { window.location.href = global_base_url + "odb.html?odbpath=" + subDirTable.id + element; });
                         }
                         sub_dir_link.className = "modblink";
-
                         sub_dir_expand_link.innerHTML = "&#9654;";
                         sub_dir_expand_link.className = "modbarrow";
                         sub_dir_expand_link.href = "#";
@@ -558,9 +637,9 @@
                   sub_dir_link.href = "#";
                   sub_dir_link.onclick = "return false;";
                   if (element.charAt(0) != "/" && custompath.slice(-1) != "/") {
-                     sub_dir_link.addEventListener('click', function () { custompath += "/" + element; update(); });
+                     sub_dir_link.addEventListener('click', function () { window.location.href = global_base_url + "odb.html?odbpath=" + custompath + "/" + element; });
                   } else {
-                     sub_dir_link.addEventListener('click', function () { custompath += element; update(); });
+                     sub_dir_link.addEventListener('click', function () { window.location.href = global_base_url + "odb.html?odbpath=" + custompath + element; });
                   }
                   sub_dir_link.className = "modblink";
 
@@ -911,13 +990,15 @@
                   currentDirLink.innerHTML = "ODB";
                   currentDirLink.href = "#";
                   currentDirLink.onclick = "return false;"
-                  currentDirLink.addEventListener('click', function () { custompath = "/"; update(); });
+                  currentDirLink.addEventListener('click', function () { window.location.href = global_base_url + "odb.html?odbpath=" + "/" });
                   //                  currentDirLink.href = global_base_url + "odb.html?odbpath=";//TODO: change to correct one
                } else if (dirArray[i] != "") {
                   var currentDirLink = document.createElement("span");
                   currentDirLink.className = "modblink";
                   currentDirLink.href = "#";
-                  currentDirLink.onclick = function () { updatepath(this); };
+                  currentDirLink.onclick = function () {
+                     updatepath(this);
+                  };
 
                   var link = "";
                   for (var j = 1; j <= i; j++) {
@@ -985,11 +1066,11 @@
 
 
       function update() {
-         if (custompath != custompathcache) {
-            // document.getElementById('loader').style.display = "block";
-            //window.location.replace(global_base_url + "odb.html?odbpath=" + custompath);
-            window.location.href = global_base_url + "odb.html?odbpath=" + custompath;
-         }
+         // if (custompath != custompathcache) {
+         //    // document.getElementById('loader').style.display = "block";
+         //    //window.location.replace(global_base_url + "odb.html?odbpath=" + custompath);
+         //    window.location.href = global_base_url + "odb.html?odbpath=" + custompath;
+         // }
          if (custompath == "") {
             var href = decodeURIComponent(window.location.href);
             if (href.slice(-1) === "#")
@@ -1015,7 +1096,9 @@
          paths = paths.concat(subDirArray);
          mjsonrpc_db_ls(paths).then(function (rpc) {
             callback(rpc, paths[0]);
-         })
+         }).then(function () {
+            document.getElementById("mload").style.display = "block";
+         });
       }
 
 
@@ -1026,12 +1109,6 @@
          update_timer_id = setTimeout('update_periodic()', update_period);
       }
 
-      // document.getElementById("chatBox").onload = function () {
-      //    var chatBox = document.getElementById("chatBox");
-      //    chatBox.style.position="relative";
-      //    chatBox.contentWindow.document.getElementById("mheader").style.display = "none";
-      //    chatBox.contentWindow.document.getElementById("msidenav").style.display = "none";
-      // }
    </script>
 
 </body>
