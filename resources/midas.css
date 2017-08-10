@@ -23,7 +23,7 @@ a:focus { color:#0000FF; text-decoration:underline }
 
 /* common settings: fonts, colours, etc */
 
-.mfont, .mnav, .mbutton, .mtable .mmaintable {
+.mfont, .mnav, .mbutton, .mtable, .mmaintable {
    font-family: verdana,tahoma,sans-serif;
 }
 
