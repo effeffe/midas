@@ -509,7 +509,12 @@ function mhttpd_init(current_page, interval, callback) {
                   cc += " mmenuitemsel";
                if (b === "path")
                   continue;
-               html += "<div class='" + cc + "'><a href='" + base_url + custom[b] + "' class='mmenulink'>" + custom[b + "/name"] + "</a></div>\n";
+               var l = custom[b + "/name"];
+               if (l.substr(-1) == '!')
+                  continue;
+               if (l.substr(-1) == '&')
+                  l = l.slice(0, -1);
+               html += "<div class='" + cc + "'><a href='" + base_url + custom[b] + "' class='mmenulink'>" + l + "</a></div>\n";
             }
 
          }
