@@ -76,8 +76,6 @@ void compose_status(HNDLE hDB, HNDLE hKey)
    KEY key;
    HNDLE hSubkey;
    char strtmp[256];
-   time_t full_time;
-   DWORD difftime;
 
    /* Clear string page */
    memset(ststr, ' ', sizeof(ststr));
@@ -118,9 +116,12 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       db_get_value(hDB, 0, "/experiment/name", ex, &size, TID_STRING, TRUE);
 
       j = 0;
-      time(&full_time);
-      strcpy(str, ctime(&full_time));
-      str[24] = 0;
+      {
+         time_t full_time;
+         time(&full_time);
+         strcpy(str, ctime(&full_time));
+         str[24] = 0;
+      }
       if (active_flag)
          sprintf(&(ststr[j++][0]), "*- MIDAS revision: %s - MIDAS status -- Alarm Checker active-------%s-*", cm_get_revision(), str);
       else
@@ -149,8 +150,9 @@ void compose_status(HNDLE hDB, HNDLE hKey)
 
       /* time */
       if (rs != STATE_STOPPED) {
-         cm_time((void *) (&full_time));
-         difftime = (DWORD) full_time - tb;
+         DWORD full_time;
+         cm_time(&full_time);
+         DWORD difftime = (DWORD) full_time - tb;
          if (esc_flag)
             sprintf(&(ststr[j++][66]), "Run time :%02d:%02d:%02d",
                     difftime / 3600, difftime % 3600 / 60, difftime % 60);
@@ -158,6 +160,7 @@ void compose_status(HNDLE hDB, HNDLE hKey)
             sprintf(&(ststr[j++][54]), "     Run time :%02d:%02d:%02d",
                     difftime / 3600, difftime % 3600 / 60, difftime % 60);
       } else if (rs == STATE_STOPPED) {
+         DWORD difftime;
          if (tsb < tb)
             difftime = 0;
          else

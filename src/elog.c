@@ -37,7 +37,7 @@
 static void el_decode(const char *message, const char *key, char *result, int size)
 {
    int i;
-   char *pc;
+   const char *pc;
 
    if (result == NULL)
       return;
@@ -296,7 +296,7 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
             return EL_FILE_ERROR;
          }
 
-         message = malloc(size);
+         message = (char*)malloc(size);
 
          if (!message) {
             cm_msg(MERROR, "el_submit", "cannot read from \'%s\', corrupted file: bad size %d in \"%s\", cannot malloc(%d): errno %d (%s)", file_name, size, str, size, errno, strerror(errno));
@@ -376,7 +376,7 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
 
       //printf("message_size %d, text %d\n", (int)message_size, (int)strlen(text));
 
-      message = malloc(message_size);
+      message = (char*)malloc(message_size);
 
       if (!message) {
          cm_msg(MERROR, "el_submit", "cannot malloc() %d bytes: errno %d (%s)", size, errno, strerror(errno));
@@ -843,7 +843,7 @@ INT el_retrieve(char *tag, char *date, int *run, char *author, char *type,
    }
 
    message_size = size + 1;
-   message = malloc(message_size);
+   message = (char*)malloc(message_size);
 
    if (!message) {
       cm_msg(MERROR, "el_retrieve", "cannot read from \'%s\', cannot malloc() %d bytes, errno %d (%s)", filename, (int)message_size, errno, strerror(errno));

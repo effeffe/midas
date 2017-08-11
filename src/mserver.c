@@ -33,7 +33,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[]);
 
 /*---- debug_print -------------------------------------------------*/
 
-void debug_print(char *msg)
+void debug_print(const char *msg)
 {
    FILE *f;
    char file_name[256], str[1000];
@@ -166,7 +166,8 @@ int main(int argc, char **argv)
 
 \********************************************************************/
 {
-   int i, flag, size, server_type;
+   int i, flag, server_type;
+   socklen_t size;
    char name[256], str[1000];
    BOOL inetd, daemon, debug;
    int port = 0;
@@ -212,7 +213,7 @@ int main(int argc, char **argv)
 
    /* find out if we were started by inetd */
    size = sizeof(int);
-   inetd = (getsockopt(0, SOL_SOCKET, SO_TYPE, (void *) &flag, (void *) &size) == 0);
+   inetd = (getsockopt(0, SOL_SOCKET, SO_TYPE, (void *) &flag, &size) == 0);
 
    /* check for debug flag */
    debug = FALSE;
@@ -292,7 +293,7 @@ int main(int argc, char **argv)
          if (daemon || inetd)
             rpc_set_debug(debug_print, 1);
          else
-            rpc_set_debug((void (*)(char *)) puts, 1);
+            rpc_set_debug((void (*)(const char *)) puts, 1);
 
          sprintf(str, "Arguments: ");
          for (i = 0; i < argc; i++)
@@ -574,7 +575,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       break;
 
    case RPC_BM_GET_BUFFER_INFO:
-      status = bm_get_buffer_info(CINT(0), CARRAY(1));
+      status = bm_get_buffer_info(CINT(0), (BUFFER_HEADER*)CARRAY(1));
       if (convert_flags) {
          BUFFER_HEADER *pb;
 
@@ -757,7 +758,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       break;
 
    case RPC_DB_GET_KEY:
-      status = db_get_key(CHNDLE(0), CHNDLE(1), CARRAY(2));
+      status = db_get_key(CHNDLE(0), CHNDLE(1), (KEY*)CARRAY(2));
       if (convert_flags) {
          KEY *pkey;
 
@@ -776,7 +777,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       break;
 
    case RPC_DB_GET_LINK:
-      status = db_get_link(CHNDLE(0), CHNDLE(1), CARRAY(2));
+      status = db_get_link(CHNDLE(0), CHNDLE(1), (KEY*)CARRAY(2));
       if (convert_flags) {
          KEY *pkey;
 
@@ -835,6 +836,16 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       status = db_set_data(CHNDLE(0), CHNDLE(1), CARRAY(2), CINT(3), CINT(4), CDWORD(5));
       break;
 
+   case RPC_DB_SET_DATA1:
+         rpc_convert_data(CARRAY(2), CDWORD(5), RPC_FIXARRAY, CINT(3), convert_flags);
+         status = db_set_data1(CHNDLE(0), CHNDLE(1), CARRAY(2), CINT(3), CINT(4), CDWORD(5));
+         break;
+
+   case RPC_DB_NOTIFY_CLIENTS_ARRAY:
+         rpc_convert_data(CARRAY(1), CINT(2), RPC_FIXARRAY, TID_DWORD, convert_flags);
+         status = db_notify_clients_array(CHNDLE(0), (HNDLE*)CARRAY(1), CINT(2));
+         break;
+
    case RPC_DB_SET_LINK_DATA:
       rpc_convert_data(CARRAY(2), CDWORD(5), RPC_FIXARRAY, CINT(3), convert_flags);
       status = db_set_link_data(CHNDLE(0), CHNDLE(1), CARRAY(2), CINT(3), CINT(4), CDWORD(5));
@@ -850,9 +861,9 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       status = db_set_link_data_index(CHNDLE(0), CHNDLE(1), CARRAY(2), CINT(3), CINT(4), CDWORD(5));
       break;
 
-   case RPC_DB_SET_DATA_INDEX2:
+   case RPC_DB_SET_DATA_INDEX1:
       rpc_convert_single(CARRAY(2), CDWORD(5), 0, convert_flags);
-      status = db_set_data_index2(CHNDLE(0), CHNDLE(1), CARRAY(2), CINT(3), CINT(4), CDWORD(5), CBOOL(6));
+      status = db_set_data_index1(CHNDLE(0), CHNDLE(1), CARRAY(2), CINT(3), CINT(4), CDWORD(5), CBOOL(6));
       break;
 
    case RPC_DB_SET_NUM_VALUES:
@@ -926,7 +937,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
          }
       }
 
-      status = hs_define_event(CDWORD(0), CSTRING(1), CARRAY(2), CDWORD(3));
+      status = hs_define_event(CDWORD(0), CSTRING(1), (const TAG*)CARRAY(2), CDWORD(3));
       break;
 
    case RPC_HS_WRITE_EVENT:
@@ -959,7 +970,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
 
    case RPC_HS_READ:
       status = hs_read(CDWORD(0), CDWORD(1), CDWORD(2), CDWORD(3), CSTRING(4),
-                       CDWORD(5), CARRAY(6), CPDWORD(7), CARRAY(8), CPDWORD(9), CPDWORD(10), CPDWORD(11));
+                       CDWORD(5), (DWORD*)CARRAY(6), CPDWORD(7), CARRAY(8), CPDWORD(9), CPDWORD(10), CPDWORD(11));
       if (convert_flags && rpc_tid_size(CDWORD(10)) > 0) {
          rpc_convert_data(CARRAY(6), TID_DWORD, RPC_FIXARRAY | RPC_OUTGOING,
                           CDWORD(7) / sizeof(DWORD), convert_flags);
@@ -971,9 +982,9 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
    case RPC_EL_SUBMIT:
       status = el_submit(CINT(0), CSTRING(1), CSTRING(2), CSTRING(3), CSTRING(4),
                          CSTRING(5), CSTRING(6), CSTRING(7),
-                         CSTRING(8), CARRAY(9), CINT(10),
-                         CSTRING(11), CARRAY(12), CINT(13),
-                         CSTRING(14), CARRAY(15), CINT(16), CSTRING(17), CINT(18));
+                         CSTRING(8), (char*)CARRAY(9), CINT(10),
+                         CSTRING(11), (char*)CARRAY(12), CINT(13),
+                         CSTRING(14), (char*)CARRAY(15), CINT(16), CSTRING(17), CINT(18));
       break;
 
    case RPC_AL_CHECK:

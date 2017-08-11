@@ -5217,6 +5217,126 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
    return DB_SUCCESS;
 }
 
+INT db_set_data1(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_values, DWORD type)
+/*
+ 
+ Same as db_set_data(), but do not notify hot-linked clients
+ 
+ */
+{
+   if (rpc_is_remote())
+      return rpc_call(RPC_DB_SET_DATA1, hDB, hKey, data, buf_size, num_values, type);
+   
+#ifdef LOCAL_ROUTINES
+   {
+   DATABASE_HEADER *pheader;
+   KEY *pkey;
+   HNDLE hkeylink;
+   int link_idx;
+   char link_name[256];
+   
+   if (hDB > _database_entries || hDB <= 0) {
+      cm_msg(MERROR, "db_set_data1", "invalid database handle");
+      return DB_INVALID_HANDLE;
+   }
+   
+   if (!_database[hDB - 1].attached) {
+      cm_msg(MERROR, "db_set_data1", "invalid database handle");
+      return DB_INVALID_HANDLE;
+   }
+   
+   if (hKey < (int) sizeof(DATABASE_HEADER)) {
+      cm_msg(MERROR, "db_set_data1", "invalid key handle");
+      return DB_INVALID_HANDLE;
+   }
+   
+   if (num_values == 0)
+      return DB_INVALID_PARAM;
+   
+   db_lock_database(hDB);
+   
+   pheader = _database[hDB - 1].database_header;
+   pkey = (KEY *) ((char *) pheader + hKey);
+   
+   /* check if hKey argument is correct */
+   if (!db_validate_hkey(pheader, hKey)) {
+      db_unlock_database(hDB);
+      return DB_INVALID_HANDLE;
+   }
+   
+   /* check for write access */
+   if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
+      db_unlock_database(hDB);
+      return DB_NO_ACCESS;
+   }
+   
+   /* check for link to array index */
+   if (pkey->type == TID_LINK) {
+      strlcpy(link_name, (char *) pheader + pkey->data, sizeof(link_name));
+      if (strlen(link_name) > 0 && link_name[strlen(link_name) - 1] == ']') {
+         db_unlock_database(hDB);
+         if (strchr(link_name, '[') == NULL)
+            return DB_INVALID_LINK;
+         link_idx = atoi(strchr(link_name, '[') + 1);
+         *strchr(link_name, '[') = 0;
+         if (db_find_key(hDB, 0, link_name, &hkeylink) != DB_SUCCESS)
+            return DB_INVALID_LINK;
+         return db_set_data_index1(hDB, hkeylink, data, buf_size, link_idx, type, FALSE);
+      }
+   }
+   
+   if (pkey->type != type) {
+      db_unlock_database(hDB);
+      cm_msg(MERROR, "db_set_data1", "\"%s\" is of type %s, not %s",
+             pkey->name, rpc_tid_name(pkey->type), rpc_tid_name(type));
+      return DB_TYPE_MISMATCH;
+   }
+   
+   /* keys cannot contain data */
+   if (pkey->type == TID_KEY) {
+      db_unlock_database(hDB);
+      cm_msg(MERROR, "db_set_data1", "Key cannot contain data");
+      return DB_TYPE_MISMATCH;
+   }
+   
+   /* if no buf_size given (Java!), calculate it */
+   if (buf_size == 0)
+      buf_size = pkey->item_size * num_values;
+   
+   /* resize data size if necessary */
+   if (pkey->total_size != buf_size) {
+      pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size);
+      
+      if (pkey->data == 0) {
+         pkey->total_size = 0;
+         db_unlock_database(hDB);
+         cm_msg(MERROR, "db_set_data1", "online database full");
+         return DB_FULL;
+      }
+      
+      pkey->data -= (POINTER_T) pheader;
+      pkey->total_size = buf_size;
+   }
+   
+   /* set number of values */
+   pkey->num_values = num_values;
+   if (num_values)
+      pkey->item_size = buf_size / num_values;
+   
+   /* copy data */
+   memcpy((char *) pheader + pkey->data, data, buf_size);
+   
+   /* update time */
+   pkey->last_written = ss_time();
+   
+   db_unlock_database(hDB);
+   
+   }
+#endif                          /* LOCAL_ROUTINES */
+   
+   return DB_SUCCESS;
+}
+
 /********************************************************************/
 /**
 Same as db_set_data, but it does not follow a link to an array index
@@ -5716,10 +5836,10 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /*------------------------------------------------------------------*/
-INT db_set_data_index2(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, INT idx, DWORD type, BOOL bNotify)
+INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, INT idx, DWORD type, BOOL bNotify)
 /********************************************************************\
 
-  Routine: db_set_data_index2
+  Routine: db_set_data_index1
 
   Purpose: Set key data for a key which contains an array of values.
            Optionally notify clients which have key open.
@@ -5745,7 +5865,7 @@ INT db_set_data_index2(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
 \********************************************************************/
 {
    if (rpc_is_remote())
-      return rpc_call(RPC_DB_SET_DATA_INDEX2, hDB, hKey, data, data_size, idx, type, bNotify);
+      return rpc_call(RPC_DB_SET_DATA_INDEX1, hDB, hKey, data, data_size, idx, type, bNotify);
 
 #ifdef LOCAL_ROUTINES
    {
@@ -8031,7 +8151,7 @@ INT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int* buf
       return status;
 
    int size = key.item_size;
-   char* data = malloc(size + 1); // extra byte for string NUL termination
+   char* data = (char*)malloc(size + 1); // extra byte for string NUL termination
    assert(data != NULL);
 
    status = db_get_data_index(hDB, hKey, data, &size, index, key.type);
@@ -9441,6 +9561,7 @@ INT db_add_open_record(HNDLE hDB, HNDLE hKey, WORD access_mode)
 }
 
 /*------------------------------------------------------------------*/
+
 INT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock)
 /********************************************************************\
 
@@ -9568,6 +9689,35 @@ INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
 }
 
 #endif                          /* LOCAL_ROUTINES */
+/*------------------------------------------------------------------*/
+
+INT db_notify_clients_array(HNDLE hDB, HNDLE hKeys[], INT size)
+/********************************************************************\
+ 
+ Routine: db_notify_clients_array
+ 
+ Purpose: This function is typically called after a set of calls
+          to db_set_data1 which omits hot-link notification to 
+          programs. After several ODB values are modified in a set,
+          this function has to be called to trigger the hot-links
+          of the whole set.
+ 
+ \********************************************************************/
+{
+   if (rpc_is_remote())
+      return rpc_call(RPC_DB_NOTIFY_CLIENTS_ARRAY, hDB, hKeys, size);
+   
+#ifdef LOCAL_ROUTINES
+   {
+      int i;
+      db_lock_database(hDB);
+      for (i=0 ; i<size/sizeof(INT); i++)
+         db_notify_clients(hDB, hKeys[i], -1, TRUE);
+      db_unlock_database(hDB);
+   }
+#endif
+   return DB_SUCCESS;
+}
 
 /*------------------------------------------------------------------*/
 void merge_records(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
@@ -10342,7 +10492,7 @@ INT db_open_record1(HNDLE hDB, HNDLE hKey, void *ptr, INT rec_size,
       if (rec_size) {
          char* pbuf;
          int size = rec_size;
-         pbuf = malloc(size);
+         pbuf = (char*)malloc(size);
          assert(pbuf != NULL);
          status = db_get_record1(hDB, hKey, pbuf, &size, 0, rec_str);
          free(pbuf);

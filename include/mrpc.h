@@ -99,7 +99,7 @@ routine IDs for RPC calls
 #define RPC_DB_GET_KEY_TIME             11232 /**< - */
 #define RPC_DB_GET_OPEN_RECORDS         11233 /**< - */
 #define RPC_DB_FLUSH_DATABASE           11235 /**< - */
-#define RPC_DB_SET_DATA_INDEX2          11236 /**< - */
+#define RPC_DB_SET_DATA_INDEX1          11236 /**< - */
 #define RPC_DB_GET_KEY_INFO             11237 /**< - */
 #define RPC_DB_GET_DATA1                11238 /**< - */
 #define RPC_DB_SET_NUM_VALUES           11239 /**< - */
@@ -109,6 +109,8 @@ routine IDs for RPC calls
 #define RPC_DB_GET_LINK_DATA            11243 /**< - */
 #define RPC_DB_SET_LINK_DATA            11244 /**< - */
 #define RPC_DB_SET_LINK_DATA_INDEX      11245 /**< - */
+#define RPC_DB_SET_DATA1                11246 /**< - */
+#define RPC_DB_NOTIFY_CLIENTS_ARRAY     11247 /**< - */
 
 #define RPC_HS_SET_PATH                 11300 /**< - */
 #define RPC_HS_DEFINE_EVENT             11301 /**< - */

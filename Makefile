@@ -118,11 +118,6 @@ endif
 #
 NEED_ZLIB=
 
-#
-# Enable sequencer support in mhttpd
-#
-HAVE_SEQUENCER=1
-
 #####################################################################
 # Nothing needs to be modified after this line 
 #####################################################################
@@ -133,6 +128,13 @@ HAVE_SEQUENCER=1
 CC = gcc $(USERFLAGS)
 CXX = g++ $(USERFLAGS)
 CFLAGS = -g -O2 -Wall -Wno-strict-aliasing -Wuninitialized -I$(INC_DIR) -I$(DRV_DIR) -I$(MXML_DIR) -I$(MSCB_DIR)/include -DHAVE_FTPLIB
+
+#
+# to build all of MIDAS as C++, uncomment following lines:
+#
+
+#CC = g++ $(USERFLAGS)
+#CFLAGS += -DNEED_NO_EXTERN_C
 
 #-----------------------
 # Cross-compilation, change GCC_PREFIX
@@ -341,6 +343,7 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/odbinit \
 	$(BIN_DIR)/mhttpd  \
 	$(BIN_DIR)/mlogger \
+	$(BIN_DIR)/sequencer \
 	$(BIN_DIR)/mhist \
 	$(BIN_DIR)/mstat \
 	$(BIN_DIR)/mdump \
@@ -537,10 +540,6 @@ $(BIN_DIR)/odbinit: $(BIN_DIR)/%: $(SRC_DIR)/%.cxx
 MHTTPD_OBJS=
 MHTTPD_OBJS += $(LIB_DIR)/mhttpd.o
 MHTTPD_OBJS += $(LIB_DIR)/mgd.o
-ifdef HAVE_SEQUENCER
-MHTTPD_OBJS += $(LIB_DIR)/sequencer.o
-CFLAGS      += -DHAVE_SEQUENCER
-endif
 MHTTPD_OBJS += $(LIB_DIR)/mjsonrpc.o $(LIB_DIR)/mjsonrpc_user.o
 ifdef HAVE_MSCB
 MHTTPD_OBJS += $(LIB_DIR)/mscb.o
@@ -558,6 +557,9 @@ CFLAGS      += -DMG_ENABLE_SSL
 
 $(BIN_DIR)/mhttpd: $(MHTTPD_OBJS)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
+
+$(BIN_DIR)/sequencer: $(BIN_DIR)/%: $(SRC_DIR)/%.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/mh2sql: $(BIN_DIR)/%: $(UTL_DIR)/mh2sql.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)

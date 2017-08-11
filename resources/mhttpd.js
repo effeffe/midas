@@ -179,13 +179,13 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val) {
    if (odb_path.indexOf('[') > 0) {
       index = odb_path.substr(odb_path.indexOf('['));
       if (bracket == 0) {
-         p.innerHTML = "<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,\'" + odb_path + "\'," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,\'" + odb_path + "\'," + bracket + ");' >";
+         p.innerHTML = "<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' >";
          setTimeout(function () {
             p.childNodes[0].focus();
             p.childNodes[0].select();
          }, 10); // needed for Firefox
       } else {
-         p.innerHTML = index + "&nbsp;<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,\'" + odb_path + "\'," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,\'" + odb_path + "\'," + bracket + ");' >";
+         p.innerHTML = index + "&nbsp;<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' >";
 
          // what is this for?
          setTimeout(function () {
@@ -195,7 +195,7 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val) {
       }
    } else {
 
-      p.innerHTML = "<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,\'" + odb_path + "\'," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,\'" + odb_path + "\'," + bracket + ");' >";
+      p.innerHTML = "<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' >";
 
       // what is this for?
       setTimeout(function () {
@@ -371,6 +371,7 @@ function mhttpd_toggle_menu() {
 
 var mhttpd_refresh_id;
 var mhttpd_refresh_interval;
+var mhttpd_spinning_wheel;
 
 function mhttpd_init(current_page, interval, callback) {
    /*
@@ -406,11 +407,16 @@ function mhttpd_init(current_page, interval, callback) {
          "<span id='mheader_expt_name'></span>" +
          "</div>" +
 
-         "<div style='display:inline;' id='mheader_message'>&nbsp;</div>" +
+         "<div id='mheader_message'></div>" +
 
          "<div style='display:inline; float:right;'>" +
          "<span style='display:inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></span>" +
          "</div>";
+
+   // put error header in front of header
+   var d = document.createElement('div');
+   d.id = 'mheader_error';
+   h.parentNode.insertBefore(d, h);
 
    // update header and menu
    if (document.getElementById("msidenav") !== undefined) {
@@ -456,8 +462,7 @@ function mhttpd_init(current_page, interval, callback) {
 
          // check for base URL
          if (base_url === null) {
-            base_url = "http://localhost:8080";
-            alert("'/Experiment/Base URL' is missing in ODB, please define it.")
+            base_url = "/";
          }
          if (base_url.slice(-1) !== "/")
             base_url += "/";
@@ -593,11 +598,21 @@ function mhttpd_init(current_page, interval, callback) {
       mbar[i].innerHTML = "<div style='background-color:" + color + "; width:0; position:relative; display:inline-block; border-right:1px solid #808080'>&nbsp;</div>";
    }
 
+
+   // preload spinning wheel for later use
+   mhttpd_spinning_wheel = new Image();
+   mhttpd_spinning_wheel.src = "spinning-wheel.gif";
+
    // store refresh interval and do initial refresh
    if (interval === undefined)
       interval = 1000;
    mhttpd_refresh_interval = interval;
    mhttpd_refresh();
+
+   /* test error and message display
+   mhttpd_message('This is a test message');
+   mhttpd_error('This is a test message');
+   */
 }
 
 function mhttpd_refresh() {
@@ -655,8 +670,40 @@ function mhttpd_refresh() {
       if (mhttpd_refresh_interval != undefined && mhttpd_refresh_interval > 0)
          mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
    }).catch(function (error) {
-      mjsonrpc_error_alert(error);
+      if (error.xhr.readyState == 4 && error.xhr.status == 0) {
+         mhttpd_error('Connection to server broken. Trying to reconnect&nbsp;&nbsp;');
+         document.getElementById("mheader_error").appendChild(mhttpd_spinning_wheel);
+         mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
+      } else {
+         mjsonrpc_error_alert(error);
+      }
    });
+}
+
+function mhttpd_reconnect() {
+   mjsonrpc_db_ls(["/"]).then( function (rpc) {
+      location.reload(); // reload current page on successful connection
+   }).catch(function(error) {
+      mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
+   });
+}
+
+
+function mhttpd_message(error) {
+   var d = document.getElementById("mheader_message");
+   if (d !== undefined) {
+      d.style.display = "inline";
+      d.innerHTML = error + "&nbsp;<span style='cursor: pointer;' onclick='document.getElementById(&quot;mheader_message&quot;).style.display = &quot;none&quot;'>&#10683;</span>";
+   }
+}
+
+function mhttpd_error(error) {
+   var d = document.getElementById("mheader_error");
+   if (d !== undefined) {
+      error += "<div style='display: inline; float: right; padding-right: 10px; cursor: pointer;' onclick='document.getElementById(&quot;mheader_error&quot;).style.zIndex = 0;'>&#10683;</div>";
+      d.innerHTML = error;
+      d.style.zIndex = 2;
+   }
 }
 
 function mhttpd_create_page_handle_create(mouseEvent) {

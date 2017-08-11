@@ -23,8 +23,7 @@
 #include "midas.h"
 #include "strlcpy.h"
 
-/* make frontend functions callable from the C framework */
-#ifdef __cplusplus
+#ifndef NEED_NO_EXTERN_C
 extern "C" {
 #endif
 
@@ -62,9 +61,10 @@ INT frontend_loop();
 int create_event_rb(int i);
 int get_event_rb(int i);
 extern int stop_all_threads;
+INT poll_event(INT source, INT count, BOOL test);
+INT interrupt_configure(INT cmd, INT source, PTYPE adr);
 
-
-HNDLE hDB;
+extern HNDLE hDB;
 
 int read_test_event(char *pevent, int off);
 int read_slow_event(char *pevent, int off);
@@ -132,7 +132,7 @@ EQUIPMENT equipment[] = {
   { "" }
 };
 
-#ifdef __cplusplus
+#ifndef NEED_NO_EXTERN_C
 }
 #endif
 
@@ -481,7 +481,7 @@ INT frontend_loop()
 
 \********************************************************************/
 
-extern "C" INT poll_event(INT source, INT count, BOOL test)
+INT poll_event(INT source, INT count, BOOL test)
 /* Polling routine for events. Returns TRUE if event
    is available. If test equals TRUE, don't return. The test
    flag is used to time the polling */
@@ -494,7 +494,7 @@ extern "C" INT poll_event(INT source, INT count, BOOL test)
 
 /*-- Interrupt configuration ---------------------------------------*/
 
-extern "C" INT interrupt_configure(INT cmd, INT source, PTYPE adr)
+INT interrupt_configure(INT cmd, INT source, PTYPE adr)
 {
    printf("interrupt_configure!\n");
 
