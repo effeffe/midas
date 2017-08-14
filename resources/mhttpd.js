@@ -436,7 +436,6 @@ function mhttpd_init(current_page, interval, callback) {
             }
          }
          document.getElementById("mheader_expt_name").innerHTML = sessionStorage.mexpname;
-         document.getElementById("mheader_last_updated").innerHTML = new Date();
 
          // now the side navigation has its full width, adjust the main body and make it visible
          var m = document.getElementById("mmain");
@@ -451,8 +450,6 @@ function mhttpd_init(current_page, interval, callback) {
          "/Custom", "/Scripts", "/Alias"]).then(function (rpc) {
          document.getElementById("mheader_expt_name").innerHTML = rpc.result.data[1];
          sessionStorage.setItem("mexpname", rpc.result.data[1]);
-
-         document.getElementById("mheader_last_updated").innerHTML = new Date();
 
          var base_url = rpc.result.data[0];
          var menu = rpc.result.data[2];
@@ -646,8 +643,10 @@ function mhttpd_refresh() {
    mjsonrpc_send_request([req1, req2]).then(function (rpc) {
 
       // update time in header
+      var da = new Date().toISOString();
+
       if (document.getElementById("mheader_last_updated") != undefined)
-         document.getElementById("mheader_last_updated").innerHTML = new Date();
+         document.getElementById("mheader_last_updated").innerHTML = da.substr(0, 10) + " " + da.substr(11, 8);
 
       for (var i = 0; i < modbvalue.length; i++) {
          var value = rpc[0].result.data[i];
@@ -684,21 +683,27 @@ function mhttpd_refresh() {
          e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: Off</a>";
          e.className = "mgraycolor";
       } else {
-         if (rpc[1].result.alarms == null) {
+         if (Object.keys(rpc[1].result.alarms) == 0) {
             e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: None</a>";
             e.className = "mgreencolor";
          } else {
             var s = "";
-            for (var a in rpc[1].result.alarms)
+            var n = 0;
+            for (var a in rpc[1].result.alarms) {
                s += a + ", ";
+               n++;
+            }
             s = s.slice(0, -2);
-            e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: " + s + "</a>";
+            if (n > 1)
+               e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: " + s + "</a>";
+            else
+               e.innerHTML = "<a href=\"?cmd=Alarms\">Alarm: " + s + "</a>";
             e.className = "mredcolor";
          }
       }
 
-      //if (mhttpd_refresh_interval != undefined && mhttpd_refresh_interval > 0)
-      //   mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
+      if (mhttpd_refresh_interval != undefined && mhttpd_refresh_interval > 0)
+         mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
 
    }).catch(function (error) {
 
