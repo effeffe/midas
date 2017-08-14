@@ -407,10 +407,11 @@ function mhttpd_init(current_page, interval, callback) {
          "<span id='mheader_expt_name'></span>" +
          "</div>" +
 
-         "<div id='mheader_message'></div>" +
+         "<div id='mheader_message'>Test Message</div>" +
 
          "<div style='display:inline; float:right;'>" +
-         "<span style='display:inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></span>" +
+         "<div id='mheader_alarm'>&nbsp;</div>" +
+         "<div style='display:inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></div>" +
          "</div>";
 
    // put error header in front of header
@@ -550,10 +551,9 @@ function mhttpd_init(current_page, interval, callback) {
          // cache navigation buttons in browser local storage
          sessionStorage.setItem("msidenav", html);
 
-         
 
-      }).then(function(){
-            if (callback !== undefined)
+      }).then(function () {
+         if (callback !== undefined)
             callback();
       }).catch(function (error) {
          mjsonrpc_error_alert(error);
@@ -615,16 +615,16 @@ function mhttpd_init(current_page, interval, callback) {
    mhttpd_refresh();
 
    /* test error and message display
-   mhttpd_message('This is a test message');
-   mhttpd_error('This is a test message');
-   */
+    mhttpd_message('This is a test message');
+    mhttpd_error('This is a test message');
+    */
 }
 
 function mhttpd_refresh() {
    if (mhttpd_refresh_id != undefined)
       window.clearTimeout(mhttpd_refresh_id);
 
-   /* this fuction gets called by mhttpd_init to periodically refresh all ODB tags */
+   /* this fuction gets called by mhttpd_init to periodically refresh all ODB tags plus alarms and messages */
 
    // go through all "modbvalue" tags
    var modbvalue = document.getElementsByName("modbvalue");
@@ -636,16 +636,22 @@ function mhttpd_refresh() {
    for (i = 0; i < modbbar.length; i++)
       paths.push(modbbar[i].dataset.odbPath);
 
+
    // request ODB contents for all variables
-   mjsonrpc_db_get_values(paths).then(function (rpc) {
+   var req1 = mjsonrpc_make_request("db_get_values", {"paths": paths});
+
+   // request current alarms
+   var req2 = mjsonrpc_make_request("get_alarms");
+
+   mjsonrpc_send_request([req1, req2]).then(function (rpc) {
 
       // update time in header
       if (document.getElementById("mheader_last_updated") != undefined)
          document.getElementById("mheader_last_updated").innerHTML = new Date();
 
       for (var i = 0; i < modbvalue.length; i++) {
-         var value = rpc.result.data[i];
-         var tid = rpc.result.tid[i];
+         var value = rpc[0].result.data[i];
+         var tid = rpc[0].result.tid[i];
          var mvalue = mie_to_string(tid, value);
          if (mvalue === "")
             mvalue = "(empty)";
@@ -657,8 +663,8 @@ function mhttpd_refresh() {
       }
 
       for (i = 0; i < modbbar.length; i++) {
-         value = rpc.result.data[modbvalue.length + i];
-         tid = rpc.result.tid[modbvalue.length + i];
+         value = rpc[0].result.data[modbvalue.length + i];
+         tid = rpc[0].result.tid[modbvalue.length + i];
          mvalue = mie_to_string(tid, value);
          if (mvalue === "")
             mvalue = "(empty)";
@@ -672,9 +678,30 @@ function mhttpd_refresh() {
          modbbar[i].children[0].style.width = percent + "%";
       }
 
-      if (mhttpd_refresh_interval != undefined && mhttpd_refresh_interval > 0)
-         mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
+      // update alarm display
+      var e = document.getElementById('mheader_alarm');
+      if (!rpc[1].result.alarm_system_active) {
+         e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: Off</a>";
+         e.className = "mgraycolor";
+      } else {
+         if (rpc[1].result.alarms == null) {
+            e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: None</a>";
+            e.className = "mgreencolor";
+         } else {
+            var s = "";
+            for (var a in rpc[1].result.alarms)
+               s += a + ", ";
+            s = s.slice(0, -2);
+            e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: " + s + "</a>";
+            e.className = "mredcolor";
+         }
+      }
+
+      //if (mhttpd_refresh_interval != undefined && mhttpd_refresh_interval > 0)
+      //   mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
+
    }).catch(function (error) {
+
       if (error.xhr.readyState == 4 && error.xhr.status == 0) {
          mhttpd_error('Connection to server broken. Trying to reconnect&nbsp;&nbsp;');
          document.getElementById("mheader_error").appendChild(mhttpd_spinning_wheel);
@@ -686,9 +713,9 @@ function mhttpd_refresh() {
 }
 
 function mhttpd_reconnect() {
-   mjsonrpc_db_ls(["/"]).then( function (rpc) {
+   mjsonrpc_db_ls(["/"]).then(function (rpc) {
       location.reload(); // reload current page on successful connection
-   }).catch(function(error) {
+   }).catch(function (error) {
       mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
    });
 }

@@ -11960,7 +11960,7 @@ void generate_hist_graph(Return* rr, const char *path, char *buffer, int *buffer
          goto error;
       }
 
-      db_find_key(hDB, hkeypanel, "Colour", &hkey);
+      db_find_key(hDB, hkeypanel, "Color", &hkey);
       if (hkey) {
          size = sizeof(str);
          status = db_get_data_index(hDB, hkey, str, &size, i, TID_STRING);
@@ -13341,7 +13341,7 @@ struct hist_plot_t
          
          char buf[256];
          
-         sprintf(str, "/History/Display/%s/Colour", path);
+         sprintf(str, "/History/Display/%s/Color", path);
          xdb_get_data_index(hDB, str, buf, sizeof(buf), index, TID_STRING);
          v.hist_col = buf;
          
@@ -13503,7 +13503,7 @@ struct hist_plot_t
       status = db_set_num_values(hDB, hKey, index);
       assert(status == DB_SUCCESS);
 
-      xdb_find_key(hDB, hDir, "Colour", &hKey, TID_STRING, NAME_LENGTH);
+      xdb_find_key(hDB, hDir, "Color", &hKey, TID_STRING, NAME_LENGTH);
       status = db_set_num_values(hDB, hKey, index);
       assert(status == DB_SUCCESS);
 
@@ -13530,7 +13530,7 @@ struct hist_plot_t
          xdb_find_key(hDB, hDir, "Offset", &hKey, TID_FLOAT, 0);
          db_set_data_index(hDB, hKey, &vars[index].hist_offset, sizeof(float), index, TID_FLOAT);
 
-         xdb_find_key(hDB, hDir, "Colour", &hKey, TID_STRING, NAME_LENGTH);
+         xdb_find_key(hDB, hDir, "Color", &hKey, TID_STRING, NAME_LENGTH);
          db_set_data_index(hDB, hKey, vars[index].hist_col.c_str(), NAME_LENGTH, index, TID_STRING);
 
          xdb_find_key(hDB, hDir, "Label", &hKey, TID_STRING, NAME_LENGTH);
@@ -13576,23 +13576,23 @@ struct hist_plot_t
       }
    }
 
-   std::string NextColour()
+   std::string NextColor()
    {
-      const char* const colour[] = {
+      const char* const color[] = {
          "#0000FF", "#00C000", "#FF0000", "#00C0C0", "#FF00FF",
          "#C0C000", "#808080", "#80FF80", "#FF8080", "#8080FF", NULL };
 
-      for (int i=0; colour[i]; i++) {
+      for (int i=0; color[i]; i++) {
          bool in_use = false;
 
          for (unsigned j=0; j<vars.size(); j++)
-            if (vars[j].hist_col == colour[i]) {
+            if (vars[j].hist_col == color[i]) {
                in_use = true;
                break;
             }
 
          if (!in_use)
-            return colour[i];
+            return color[i];
       }
 
       return "#808080";
@@ -13897,7 +13897,7 @@ void show_hist_config_page(Param* p, Return* r, const char* dec_path, const char
       r->rsprintf("</tr>\n");
    }
 
-   r->rsprintf("<tr><th>Col<th>Event<th>Variable<th>Factor<th>Offset<th>Colour<th>Label<th>Order</tr>\n");
+   r->rsprintf("<tr><th>Col<th>Event<th>Variable<th>Factor<th>Offset<th>Color<th>Label<th>Order</tr>\n");
 
    //print_vars(vars);
 
@@ -13908,7 +13908,7 @@ void show_hist_config_page(Param* p, Return* r, const char* dec_path, const char
 
       if (index < nvars) {
          if (plot.vars[index].hist_col.length() < 1)
-            plot.vars[index].hist_col = plot.NextColour();
+            plot.vars[index].hist_col = plot.NextColor();
          r->rsprintf("<td style=\"background-color:%s\">&nbsp;<td>\n", plot.vars[index].hist_col.c_str());
       } else {
          r->rsprintf("<td>&nbsp;<td>\n");
