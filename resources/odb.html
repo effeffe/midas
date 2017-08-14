@@ -137,6 +137,258 @@
          }
       }
 
+      function create_page_handle_rename(mouseEvent, allKeys) {
+
+         var allKeys = allKeys.map(function (ele) { return custompath + "/" + ele; })
+         var size = "";
+
+         var e = document.getElementById("odbpath");
+         path = JSON.parse(e.innerHTML);
+         if (path == "/") path = "";
+
+         var size = document.getElementById("resize_name").value;
+         sizeArray = new Array();
+         for (var i = 0; i < allKeys.length; i++) {
+            sizeArray.push(size);
+         }
+
+         if (path == "/") path = "";
+
+         if (size.length < 1 || size == 0) {
+            alert("Size must be larger than 0");
+            return false;
+         }
+         mjsonrpc_db_resize(allKeys, sizeArray).then(function (rpc) {
+            var status = rpc.result.status[0];
+            if (status != 1) {
+               alert(JSON.stringify(rpc));
+               alert("db_resize() error " + status + ", see MIDAS messages.");
+            } else {
+               update();
+            }
+         }).catch(function (error) {
+            mjsonrpc_error_alert(error);
+            update();
+         });
+
+         return false;
+      }
+
+
+
+      function generateRenameDlg() {
+         if (document.getElementById("resizeTitle") == null) {
+
+            var allKeyCheckboxs = document.getElementsByClassName("key_row_checkbox");
+
+            var allKeys = new Array();
+
+            Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
+               if (element.checked)
+                  allKeys.push(element.id);
+            });
+
+            if (allKeys.length == 0) {
+               alert("please select at least one key to resize");
+               return;
+            }
+
+            var allKeysStr = allKeys.map(function (ele) { return ele + "\n" });
+
+
+            document.getElementById("dlgCreate").innerHTML = "";
+            var dlgTitlebar = document.createElement("div");
+            dlgTitlebar.id = "resizeTitle";
+            dlgTitlebar.className = "dlgTitlebar";
+            dlgTitlebar.innerText = "Resize ODB entry";
+
+            var dlgPanel = document.createElement("div");
+            dlgPanel.className = "dlgPanel";
+
+            var odbPath = document.createElement("div");
+            odbPath.id = "odbpath";
+            if (custompath == "") {
+               odbPath.innerText = "\"/\"";
+            } else {
+               odbPath.innerText = "\"" + custompath + "\"";
+            }
+
+
+            var dlgTable = document.createElement("table");
+            dlgTable.className = "mmaintable";
+
+            var resizeTitleRow = document.createElement("tr");
+            dlgTable.innerHTML = "<tr><th>key name</th><th>size</th></tr>"
+
+            for (var str in allKeysStr) {
+               var key_row = document.getElementById(allKeys[str] + "key_row");
+               if (key_row != null) {
+                  var oneKeyRow = document.createElement("tr");
+                  var keyNameCol = document.createElement("td");
+                  var keySizeCol = document.createElement("td");
+                  keyNameCol.innerHTML = allKeysStr[str];
+                  keySizeCol.innerHTML = key_row.childNodes[5].innerHTML;
+                  oneKeyRow.appendChild(keyNameCol);
+                  oneKeyRow.appendChild(keySizeCol);
+                  dlgTable.appendChild(oneKeyRow);
+               }
+
+            }
+            dlgTable.innerHTML += "<tr><td>Change Size To</td><td><input type=\"number\" size=\"31\" maxlength=\"31\" id=\"resize_name\" name=\"value\"></td></tr>";
+
+
+            var createButton = document.createElement("input");
+            createButton.type = "button";
+            createButton.value = "Resize";
+            createButton.onclick = function () { create_page_handle_resize(event, allKeys) };
+
+            var cancelButton = document.createElement("input");
+            cancelButton.type = "button";
+            cancelButton.value = "Cancel";
+            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; };
+
+
+
+            dlgPanel.appendChild(odbPath);
+            dlgPanel.appendChild(dlgTable);
+            dlgPanel.appendChild(createButton);
+            dlgPanel.appendChild(cancelButton);
+
+            document.getElementById("dlgCreate").appendChild(dlgTitlebar);
+            document.getElementById("dlgCreate").appendChild(dlgPanel);
+
+
+         }
+         dlgShow('dlgCreate');
+      }
+
+
+      function create_page_handle_resize(mouseEvent, allKeys) {
+
+         var allKeys = allKeys.map(function (ele) { return custompath + "/" + ele; })
+         var size = "";
+
+         var e = document.getElementById("odbpath");
+         path = JSON.parse(e.innerHTML);
+         if (path == "/") path = "";
+
+         var size = document.getElementById("resize_name").value;
+         sizeArray = new Array();
+         for (var i = 0; i < allKeys.length; i++) {
+            sizeArray.push(size);
+         }
+
+         if (path == "/") path = "";
+
+         if (size.length < 1 || size == 0) {
+            alert("Size must be larger than 0");
+            return false;
+         }
+         mjsonrpc_db_resize(allKeys, sizeArray).then(function (rpc) {
+            var status = rpc.result.status[0];
+            if (status != 1) {
+               alert(JSON.stringify(rpc));
+               alert("db_resize() error " + status + ", see MIDAS messages.");
+            } else {
+               update();
+            }
+         }).catch(function (error) {
+            mjsonrpc_error_alert(error);
+            update();
+         });
+
+         return false;
+      }
+
+
+
+      function generateResizeDlg() {
+         if (document.getElementById("resizeTitle") == null) {
+
+            var allKeyCheckboxs = document.getElementsByClassName("key_row_checkbox");
+
+            var allKeys = new Array();
+
+            Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
+               if (element.checked)
+                  allKeys.push(element.id);
+            });
+
+            if (allKeys.length == 0) {
+               alert("please select at least one key to resize");
+               return;
+            }
+
+            var allKeysStr = allKeys.map(function (ele) { return ele + "\n" });
+
+
+            document.getElementById("dlgCreate").innerHTML = "";
+            var dlgTitlebar = document.createElement("div");
+            dlgTitlebar.id = "resizeTitle";
+            dlgTitlebar.className = "dlgTitlebar";
+            dlgTitlebar.innerText = "Resize ODB entry";
+
+            var dlgPanel = document.createElement("div");
+            dlgPanel.className = "dlgPanel";
+
+            var odbPath = document.createElement("div");
+            odbPath.id = "odbpath";
+            if (custompath == "") {
+               odbPath.innerText = "\"/\"";
+            } else {
+               odbPath.innerText = "\"" + custompath + "\"";
+            }
+
+
+            var dlgTable = document.createElement("table");
+            dlgTable.className = "mmaintable";
+
+            var resizeTitleRow = document.createElement("tr");
+            dlgTable.innerHTML = "<tr><th>key name</th><th>size</th></tr>"
+
+            for (var str in allKeysStr) {
+               var key_row = document.getElementById(allKeys[str] + "key_row");
+               if (key_row != null) {
+                  var oneKeyRow = document.createElement("tr");
+                  var keyNameCol = document.createElement("td");
+                  var keySizeCol = document.createElement("td");
+                  keyNameCol.innerHTML = allKeysStr[str];
+                  keySizeCol.innerHTML = key_row.childNodes[5].innerHTML;
+                  oneKeyRow.appendChild(keyNameCol);
+                  oneKeyRow.appendChild(keySizeCol);
+                  dlgTable.appendChild(oneKeyRow);
+               }
+
+            }
+            dlgTable.innerHTML += "<tr><td>Change Size To</td><td><input type=\"number\" size=\"31\" maxlength=\"31\" id=\"resize_name\" name=\"value\"></td></tr>";
+
+
+            var createButton = document.createElement("input");
+            createButton.type = "button";
+            createButton.value = "Resize";
+            createButton.onclick = function () { create_page_handle_resize(event, allKeys) };
+
+            var cancelButton = document.createElement("input");
+            cancelButton.type = "button";
+            cancelButton.value = "Cancel";
+            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; };
+
+
+
+            dlgPanel.appendChild(odbPath);
+            dlgPanel.appendChild(dlgTable);
+            dlgPanel.appendChild(createButton);
+            dlgPanel.appendChild(cancelButton);
+
+            document.getElementById("dlgCreate").appendChild(dlgTitlebar);
+            document.getElementById("dlgCreate").appendChild(dlgPanel);
+
+
+         }
+         dlgShow('dlgCreate');
+      }
+
+
 
 
       function create_page_handle_create(mouseEvent) {
@@ -216,62 +468,11 @@
       }
 
 
-
-      function generateResizeDlg() {
-         if (document.getElementById("resizeTitle")==null) {
-            document.getElementById("dlgCreate").innerHTML = "";
-            var dlgTitlebar = document.createElement("div");
-            dlgTitlebar.id="resizeTitle";
-            dlgTitlebar.className = "dlgTitlebar";
-            dlgTitlebar.innerText = "Resize ODB entry";
-
-            var dlgPanel = document.createElement("div");
-            dlgPanel.className = "dlgPanel";
-
-            var odbPath = document.createElement("div");
-            odbPath.id = "odbpath";
-            if (custompath == "") {
-               odbPath.innerText = "\"/\"";
-            } else {
-               odbPath.innerText = "\"" + custompath + "\"";
-            }
-
-
-            var dlgTable = document.createElement("table");
-            dlgTable.className = "mmaintable";
-
-
-            var createButton = document.createElement("input");
-            createButton.type = "button";
-            createButton.value = "Create";
-            createButton.onclick = function () { create_page_handle_create(event) };
-
-            var cancelButton = document.createElement("input");
-            cancelButton.type = "button";
-            cancelButton.value = "Cancel";
-            cancelButton.onclick = function () { dlgCreate.style.display = "none"; };
-
-
-
-            dlgPanel.appendChild(odbPath);
-            dlgPanel.appendChild(dlgTable);
-            dlgPanel.appendChild(createButton);
-            dlgPanel.appendChild(cancelButton);
-
-            document.getElementById("dlgCreate").appendChild(dlgTitlebar);
-            document.getElementById("dlgCreate").appendChild(dlgPanel);
-
-
-         }
-         dlgShow('dlgCreate');
-      }
-
-
       function generateCreateDlg() {
-         if (document.getElementById("createTitle")==null) {
+         if (document.getElementById("createTitle") == null) {
             document.getElementById("dlgCreate").innerHTML = "";
             var dlgTitlebar = document.createElement("div");
-            dlgTitlebar.id="createTitle";
+            dlgTitlebar.id = "createTitle";
             dlgTitlebar.className = "dlgTitlebar";
             dlgTitlebar.innerText = "Create ODB entry";
 
@@ -898,6 +1099,7 @@
 
                odb_keys.forEach(function (element) {
                   var key_row = document.createElement("tr");
+                  key_row.id = element + "key_row";
                   key_row.className = "mODBtr";
 
                   var key_row_checkbox_cell = document.createElement("td");
