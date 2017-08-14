@@ -239,7 +239,7 @@
                }
             }
             e.childNodes[1].innerHTML = s;
-            e.childNodes[1].className = "mgreencolour greenLight";
+            e.childNodes[1].className = "mgreencolor greenLight";
             // enable start/stop buttons
             var b = document.getElementById("start " + name);
             if (b) {
@@ -253,7 +253,7 @@
             }
          } else if (program_status[name]) {
             e.childNodes[1].innerHTML = program_status[name];
-            e.childNodes[1].className = "myellowcolour yellowLight";
+            e.childNodes[1].className = "myellowcolor yellowLight";
             var b = document.getElementById("start " + name);
             if (b && start_command) {
                mhttpd_disable_button(b);
@@ -266,7 +266,7 @@
             }
          } else {
             e.childNodes[1].innerHTML = "Not running";
-            e.childNodes[1].className = "mredcolour redLight";
+            e.childNodes[1].className = "mredcolor redLight";
             // enable start/stop buttons
             var b = document.getElementById("start " + name);
             if (b && start_command) {
@@ -283,7 +283,7 @@
          var alarm_class = programs[name]["alarm class"];
          if (alarm_class.length > 0) {
             e.childNodes[2].innerHTML = "<a href='Alarms/Classes/" + alarm_class + "'>" + alarm_class + "</a>";
-            e.childNodes[2].className = "myellowcolour yellowLight";
+            e.childNodes[2].className = "myellowcolor yellowLight";
          } else {
             e.childNodes[2].innerHTML = "-";
          }

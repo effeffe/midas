@@ -21,7 +21,7 @@
          <th colspan="4" class="mtableheader subStatusTitle">Run Status</th>
       </tr>
       <tr>
-         <td colspan="1" height="100%" id="run_info" class="mredcolour redLight">
+         <td colspan="1" height="100%" id="run_info" class="mredcolor redLight">
             Run
             <span id="run_number">run_number</span>
             <span id="run_state">run_state</span>
@@ -138,13 +138,13 @@
 
    function adjust_colors(runstate) {
       if (runstate == STATE_RUNNING) {
-         document.getElementById("run_info").className = "mgreencolour greenLight";
+         document.getElementById("run_info").className = "mgreencolor greenLight";
       } else if (runstate == STATE_PAUSED) {
-         document.getElementById("run_info").className = "myellowcolour yellowLight";
+         document.getElementById("run_info").className = "myellowcolor yellowLight";
       } else if (runstate == STATE_STOPPED) {
-         document.getElementById("run_info").className = "mredcolour redLight";
+         document.getElementById("run_info").className = "mredcolor redLight";
       } else {
-         document.getElementById("run_info").className = "mgreencolour greenLight";
+         document.getElementById("run_info").className = "mgreencolor greenLight";
       }
    }
 
@@ -311,10 +311,10 @@
             e.childNodes[3].className = "";
          } else if (client.status == 1) {
             e.childNodes[3].innerHTML = "Success";
-            e.childNodes[3].className = "mgreencolour greenLight";
+            e.childNodes[3].className = "mgreencolor greenLight";
          } else {
             e.childNodes[3].innerHTML = client.status;
-            e.childNodes[3].className = "mredcolour redLight";
+            e.childNodes[3].className = "mredcolor redLight";
          }
 
          if (client.errorstr.length > 0) {

@@ -21,26 +21,43 @@ a:hover { color:#0000FF; text-decoration:underline }
 a:active { color:#0000FF; text-decoration:underline }
 a:focus { color:#0000FF; text-decoration:underline }
 
-/* common settings: fonts, colours, etc */
+/* common settings: fonts, colors, etc */
 
 .mfont, .mnav, .mbutton, .mfooter, .mtable {
    font-family: verdana,tahoma,sans-serif;
 }
 
-.mredcolour {
+.mgraycolor {
+   background-color: #A0A0A0;
+   border-radius: 5px;
+   border: 1px solid #808080;
+   color: #404040;
+}
+
+.mgraycolor a:link,a:visited {
+   color: #404040;
+   text-decoration: none;
+}
+
+.mredcolor {
    background-color: #a53529;
    border-radius: 5px;
    border: 1px solid #808080;
    color: #EEEEEE;
 }
 
-.myellowcolour {
+.mredcolor a:link,a:visited {
+   color: #EEEEEE;
+   text-decoration: none;
+}
+
+.myellowcolor {
    background-color: #f1c40f;
    border-radius: 5px;
    border: 1px solid #808080;
 }
 
-.mgreencolour {
+.mgreencolor {
    background-color: #00c000;
    border-radius: 5px;
    border: 1px solid #808080;
@@ -85,11 +102,20 @@ a:focus { color:#0000FF; text-decoration:underline }
    line-height: 1;
 }
 
-#mheader_message{
-   display: none;
-   color: white;
-   background-color: #f89034;
-   border: 1px solid #b26810;
+#mheader_message {
+   display: inline-block;
+   color: black;
+   background-color: lightgreen;
+   border: 1px solid green;
+   border-radius: 10px;
+   padding-bottom: 1px;
+   padding-left: 10px;
+   padding-right: 10px;
+}
+
+#mheader_alarm {
+   display: inline-block;
+   margin-right: 20px;
    border-radius: 10px;
    padding-bottom: 1px;
    padding-left: 10px;
@@ -202,7 +228,7 @@ input.mnavsel {
    background: linear-gradient(to bottom, #676767 0%,#999999 100%);
 }
 
-/* colours for hovered buttons */
+/* colors for hovered buttons */
 input.mnav:hover, .mbutton:hover {
    color: #404040;
    background: linear-gradient(to bottom,  #ffffff 0%,#f3f3f3 50%,#ededed 51%,#ffffff 100%);

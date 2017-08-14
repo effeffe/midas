@@ -39,7 +39,7 @@
                </tr>
 
                <tr align="center">
-                  <td id="runNumberCell" align="center" rowspan="3" class="mgreencolour greenLight">
+                  <td id="runNumberCell" align="center" rowspan="3" class="mgreencolor greenLight">
                      Run
                      <br> runNum
                      <br> status
@@ -50,8 +50,8 @@
                </tr>
 
                <tr align="center">
-                  <td id="runStatusAlarm" class="mgreencolour greenLight"> runStatusAlarm</td>
-                  <td id="runStatusSequencer" class="mgreencolour greenLight"> runStatusSequencer</td>
+                  <td id="runStatusAlarm" class="mgreencolor greenLight"> runStatusAlarm</td>
+                  <td id="runStatusSequencer" class="mgreencolor greenLight"> runStatusSequencer</td>
                   <td id="runStatusLogger" colspan="2"> runStatusLogger</td>
                </tr>
 
@@ -215,7 +215,7 @@
                   case 1:
                      state = "Stopped";
                      buttonText = "Start";
-                     document.getElementById("runNumberCell").className = "mredcolour";
+                     document.getElementById("runNumberCell").className = "mredcolor";
                      //showing stop time
                      if (runinfoJson.hasOwnProperty("stop time")) {
                         document.getElementById("runStatusStopTime").innerHTML = "Stop: " + runinfoJson["stop time"];
@@ -224,12 +224,12 @@
                   case 2:
                      state = "Paused";
                      buttonText = "Start";
-                     document.getElementById("runNumberCell").className = "myellowcolour";
+                     document.getElementById("runNumberCell").className = "myellowcolor";
                      break;
                   case 3:
                      state = "Running";
                      buttonText = "Stop";
-                     document.getElementById("runNumberCell").className = "mgreencolour";
+                     document.getElementById("runNumberCell").className = "mgreencolor";
                      //showing running time
                      if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
                         //var time=runinfoJson["start time binary/last_written"];
@@ -308,10 +308,10 @@
 
          if (alarm["alarm_system_active"]) {
             document.getElementById("runStatusAlarm").innerHTML = "<a href='/Alarms/Alarm system active?cmd=set'>" + "Alarms: On" + "</a>";
-            document.getElementById("runStatusAlarm").className = "mgreencolour greenLight";
+            document.getElementById("runStatusAlarm").className = "mgreencolor greenLight";
          } else {
             document.getElementById("runStatusAlarm").innerHTML = "<a href='/Alarms/Alarm system active?cmd=set'>" + "Alarms: Off" + "</a>";
-            document.getElementById("runStatusAlarm").className = "mredcolour redLight";
+            document.getElementById("runStatusAlarm").className = "mredcolor redLight";
          }
 
          if (sequencerJson) {
@@ -320,7 +320,7 @@
                   document.getElementById("runStatusSequencer").innerHTML = "Restart: Sequencer";
                } else {
                   document.getElementById("runStatusSequencer").innerHTML = "Restart: No";
-                  document.getElementById("runStatusSequencer").className = "myellowcolour";
+                  document.getElementById("runStatusSequencer").className = "myellowcolor";
                }
             }
          }
@@ -332,7 +332,7 @@
             }
          } else {
             document.getElementById("runStatusLogger").innerHTML = "Logger not running";
-            document.getElementById("runStatusLogger").className = "mredcolour redLight";
+            document.getElementById("runStatusLogger").className = "mredcolor redLight";
          }
 
          document.getElementById("msgService").innerHTML = lastMessage.messages;
@@ -354,7 +354,7 @@
             statusItem.align = "center";
             statusItem.innerHTML = equipmentCommonData[i]["status"];
             if (equipmentCommonData[i]["status"].length < 1) {
-               statusItem.className = "mgreencolour greenLight";
+               statusItem.className = "mgreencolor greenLight";
             } else if (equipmentCommonData[i]["status color"].indexOf("Light") != -1) {
                if (equipmentCommonData[i]["status"] === "Partially disabled")
                   statusItem.className = "statusPartiallyDisabled";
@@ -466,7 +466,7 @@
                var logChannelRow = document.createElement("tr");
                logChannelRow.id = element + "channel";
                logChannelRow.className = "logChannel";
-               logChannelRow.innerHTML = "<td colspan=\"2\" class=\"mgreencolour greenLight\">" +
+               logChannelRow.innerHTML = "<td colspan=\"2\" class=\"mgreencolor greenLight\">" +
                        "<a href=\"Logger/Channels/" + element + "/Settings\">" +
                        "#" + element + ": " + "</a>" +
                        currentChannel["settings"]["current filename"] +

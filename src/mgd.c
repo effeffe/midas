@@ -1314,7 +1314,7 @@ GIFEncode(gdGifBuffer * buffer, int GWidth, int GHeight, int GInterlace, int Bac
    Putword(RHeight, buffer);
 
    /*
-    * Indicate that there is a global colour map
+    * Indicate that there is a global color map
     */
    B = 0x80;                    /* Yes, there is a color map */
 
@@ -1334,7 +1334,7 @@ GIFEncode(gdGifBuffer * buffer, int GWidth, int GHeight, int GInterlace, int Bac
    bputc(B, buffer);
 
    /*
-    * Write out the Background colour
+    * Write out the Background color
     */
    bputc(Background, buffer);
 
@@ -1344,7 +1344,7 @@ GIFEncode(gdGifBuffer * buffer, int GWidth, int GHeight, int GInterlace, int Bac
    bputc(0, buffer);
 
    /*
-    * Write out the Global Colour Map
+    * Write out the Global Color Map
     */
    for (i = 0; i < ColorMapSize; ++i) {
       bputc(Red[i], buffer);
@@ -1353,7 +1353,7 @@ GIFEncode(gdGifBuffer * buffer, int GWidth, int GHeight, int GInterlace, int Bac
    }
 
    /*
-    * Write out extension for transparent colour index, if necessary.
+    * Write out extension for transparent color index, if necessary.
     */
    if (Transparent >= 0) {
       bputc('!', buffer);

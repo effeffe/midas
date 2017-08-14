@@ -26,7 +26,7 @@
            class="mfont">Speak</span></input>
    </div>
 
-   <div id='al_system_disabled_notice' class='mfont mredcolour redLight'>
+   <div id='al_system_disabled_notice' class='mfont mredcolor redLight'>
       <p align="center">
          Alarm system disabled
       </p>
@@ -268,13 +268,13 @@
 
          if (!alarm.active) {
             e.childNodes[1].innerHTML = "Disabled";
-            e.childNodes[1].className = "myellowcolour yellowLight";
+            e.childNodes[1].className = "myellowcolor yellowLight";
          } else if (alarm.triggered) {
             e.childNodes[1].innerHTML = "Triggered";
-            e.childNodes[1].className = "mredcolour redLight";
+            e.childNodes[1].className = "mredcolor redLight";
          } else {
             e.childNodes[1].innerHTML = "OK";
-            e.childNodes[1].className = "mgreencolour greenLight";
+            e.childNodes[1].className = "mgreencolor greenLight";
          }
 
          if (alarm.time_triggered_first) {
