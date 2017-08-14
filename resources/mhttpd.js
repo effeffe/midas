@@ -437,7 +437,7 @@ function mhttpd_init(current_page, interval, callback) {
          document.getElementById("mheader_expt_name").innerHTML = sessionStorage.mexpname;
          document.getElementById("mheader_last_updated").innerHTML = new Date();
 
-         // now the side navigation has its full width, ajust the main body and make it visible
+         // now the side navigation has its full width, adjust the main body and make it visible
          var m = document.getElementById("mmain");
          if (m !== undefined) {
             m.style.marginLeft = document.getElementById("msidenav").clientWidth + "px";
