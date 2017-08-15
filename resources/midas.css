@@ -34,7 +34,7 @@ a:focus { color:#0000FF; text-decoration:underline }
    color: #404040;
 }
 
-.mgraycolor a:link,a:visited {
+.mgraycolor a:link, .mgraycolor a:visited {
    color: #404040;
    text-decoration: none;
 }
@@ -46,7 +46,7 @@ a:focus { color:#0000FF; text-decoration:underline }
    color: #EEEEEE;
 }
 
-.mredcolor a:link,a:visited {
+.mredcolor a:link, .mredcolor a:visited {
    color: #EEEEEE;
    text-decoration: none;
 }
@@ -63,7 +63,7 @@ a:focus { color:#0000FF; text-decoration:underline }
    border: 1px solid #808080;
 }
 
-.mgreencolor a:link,a:visited {
+.mgreencolor a:link, .mgreencolor a:visited {
    color: #EEEEEE;
    text-decoration: none;
 }
