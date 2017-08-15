@@ -22,7 +22,7 @@
                    onkeypress="return chat_kp(event)">
          </td>
          <td nowrap width="10%">&nbsp;<button class="mbutton" name="send" onClick="chat_send()">Send</button>&nbsp;&nbsp;Your
-            name: <input type="text" id="name" size="10" onkeypress="return chat_kp(event)">
+            name: <input type="text" id="chatName" size="10" onkeypress="return chat_kp(event)">
             <input type="checkbox" name="speak" id="speak" onClick="return speak_click(this);"><span id="speakLabel">Audio</span>
          </td>
       </tr>
@@ -179,28 +179,17 @@
    }
 
    function rb() {
-      n = document.getElementById('name');
+      n = document.getElementById('chatName');
       n.style.backgroundColor = "";
    }
 
    function speak_click(t) {
-      storage_chatSpeak(t.checked);
-   }
-
-   function chat_maybeSpeak(tim, msg) {
-      try {
-         if (storage_chatSpeak() && storage_get("lastChatSpeak", "") != tim) {
-            var u = new SpeechSynthesisUtterance(msg);
-            window.speechSynthesis.speak(u);
-            storage_set("lastChatSpeak", tim);
-         }
-      } catch (err) {
-      }
+      mhttpdConfigSet("speakChat", t.checked);
    }
 
    function chat_send() {
       // check for name
-      n = document.getElementById('name');
+      n = document.getElementById('chatName');
       if (n.value == "") {
          n.style.backgroundColor = "#FF8080";
          n.style.setProperty("-webkit-transition", "background-color 400ms");
@@ -210,7 +199,7 @@
 
       } else {
          // store name to local storage
-         storage_set("chatName", n.value);
+         mhttpdConfigSet("chatName", n.value);
 
          m = document.getElementById('text');
 
@@ -253,10 +242,10 @@
       }
 
       // get options from local storage
-      var stored_name = storage_get("chatName", false);
+      var stored_name = mhttpdConfig().chatName;
       if (stored_name)
-         document.getElementById('name').value = stored_name;
-      document.getElementById('speak').checked = storage_get("chatSpeak", false);
+         document.getElementById('chatName').value = stored_name;
+      document.getElementById('speak').checked = mhttpdConfig().speakChat;
    }
 
    function chat_format(line) {
@@ -271,14 +260,14 @@
       var date = line.substr(13, 10);
       var e = document.createElement("div");
 
-      if (name == document.getElementById('name').value)
+      if (name == document.getElementById('chatName').value)
          e.className = "chatBubbleMine";
       else
          e.className = "chatBubbleTheirs";
 
       var d1 = document.createElement("div");
       var d2 = document.createElement("div");
-      if (name == document.getElementById('name').value)
+      if (name == document.getElementById('chatName').value)
          d1.className = "chatNameMine";
       else
          d1.className = "chatNameTheirs";
@@ -319,12 +308,6 @@
          var d = document.createElement("div");
          d.style.clear = "both";
          mf.insertBefore(d, mf.childNodes[4+i*2]);
-
-         // speak message if checkbox on
-         if (document.getElementById('speak').checked && e.className !== "chatBubbleMine") {
-            u = new SpeechSynthesisUtterance(line.substr(line.indexOf("]") + 2));
-            window.speechSynthesis.speak(u);
-         }
 
          first_tstamp = t;
          n_messages++;
@@ -380,7 +363,7 @@
          if (n.indexOf('&'))
             n = n.substr(0, n.indexOf('&'));
 
-         if (n == document.getElementById('name').value) {
+         if (n == document.getElementById('chatName').value) {
             b.className = "chatBubbleMine";
             b.childNodes[0].className = "chatNameMine";
          } else {

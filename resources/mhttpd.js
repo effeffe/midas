@@ -179,13 +179,19 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val) {
    if (odb_path.indexOf('[') > 0) {
       index = odb_path.substr(odb_path.indexOf('['));
       if (bracket == 0) {
-         p.innerHTML = "<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' >";
+         p.innerHTML = "<input type='text' size='" + size + "' value='" + str +
+            "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" +
+            odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
+            odb_path + "&quot;," + bracket + ");' >";
          setTimeout(function () {
             p.childNodes[0].focus();
             p.childNodes[0].select();
          }, 10); // needed for Firefox
       } else {
-         p.innerHTML = index + "&nbsp;<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' >";
+         p.innerHTML = index + "&nbsp;<input type='text' size='" + size + "' value='" + str +
+            "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" +
+            odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
+            odb_path + "&quot;," + bracket + ");' >";
 
          // what is this for?
          setTimeout(function () {
@@ -195,7 +201,10 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val) {
       }
    } else {
 
-      p.innerHTML = "<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' >";
+      p.innerHTML = "<input type='text' size='" + size + "' value='" + str +
+         "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" +
+         odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
+         odb_path + "&quot;," + bracket + ");' >";
 
       // what is this for?
       setTimeout(function () {
@@ -609,11 +618,6 @@ function mhttpd_init(current_page, interval, callback) {
       interval = 1000;
    mhttpd_refresh_interval = interval;
    mhttpd_refresh();
-
-   /* test error and message display
-    mhttpd_message('This is a test message');
-    mhttpd_error('This is a test message');
-    */
 }
 
 var mhttpd_last_message = 1;
@@ -648,7 +652,14 @@ function mhttpd_refresh() {
       "min_messages": 100
    });
 
-   mjsonrpc_send_request([req1, req2, req3]).then(function (rpc) {
+   // request new char messages
+   var req4 = mjsonrpc_make_request("cm_msg_retrieve", {
+      "facility": "chat",
+      "time": mhttpd_last_message - 1,
+      "min_messages": 100
+   });
+
+   mjsonrpc_send_request([req1, req2, req3, req4]).then(function (rpc) {
 
       // update time in header
       var da = new Date().toISOString();
@@ -711,10 +722,22 @@ function mhttpd_refresh() {
       }
 
       // update messages
-      var msg = rpc[2].result.messages.split("\n");
-      if (msg[msg.legnth - 1] == "")
-         msg = msg.slice(msg.length - 1, 1);
-      mhttpd_message(msg[0].substr(msg[0].indexOf(" ")+1));
+      if (rpc[2].result.messages !== undefined) {
+         var msg = rpc[2].result.messages.split("\n");
+         if (msg[msg.length - 1] === "")
+            msg = msg.slice(0, -1);
+      } else
+         msg = undefined;
+
+      // update chat messages
+      if (rpc[3].result.messages !== undefined) {
+         var chat = rpc[3].result.messages.split("\n");
+         if (chat[chat.length - 1] === "")
+            chat = chat.slice(0, -1);
+      } else
+         chat = undefined;
+
+      mhttpd_message(msg, chat);
 
       if (mhttpd_refresh_interval != undefined && mhttpd_refresh_interval > 0)
          mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
@@ -740,36 +763,88 @@ function mhttpd_reconnect() {
 }
 
 
-function mhttpd_message(msg) {
-   var d = document.getElementById("mheader_message");
-   var s = msg + "&nbsp;<span style='cursor: pointer;' onclick='document.getElementById(&quot;mheader_message&quot;).style.display = &quot;none&quot;'>&#9587;</span>";
-   var first = (d.innerHTML === "");
-   if (d !== undefined && d.innerHTML.substr(0, d.innerHTML.search("&nbsp;<span")) != msg) {
-      d.innerHTML = s;
-      d.style.display = "inline-block";
+function mhttpd_message(msg, chat) {
 
-      if (msg.search("ERROR]") > 0) {
-         d.style.backgroundColor = "red";
-         d.style.color = "white";
-      } else {
-         if (first) {
-            d.style.backgroundColor = "#A0A0A0";
-            d.age = new Date() / 1000;
-         } else {
+   var mTalk = "";
+   var mType = "";
+   var chatName = "";
+
+   if (msg != undefined) {
+      var lastMsg = msg[0].substr(msg[0].indexOf(" ") + 1);
+      var lastMsgT = parseInt(msg[0]);
+   } else {
+      lastMsg = "";
+      lastMsgT = 0;
+   }
+   if (chat != undefined) {
+      var lastChat = chat[0].substr(chat[0].indexOf(" ") + 1);
+      var lastChatT = parseInt(chat[0]);
+      if (chat[0].length > 0)
+         mTalk = chat[0].substr(chat[0].indexOf("]") + 2);
+
+      chatName = lastChat.substring(lastChat.indexOf("[") + 1, lastChat.indexOf(","));
+      lastChat = lastChat.substr(0, lastChat.indexOf("[")) +
+         "<b>" + chatName + ":</b>" +
+         lastChat.substr(lastChat.indexOf("]") + 1);
+   } else {
+      lastChat = "";
+      lastChatT = 0;
+   }
+
+   if (lastChatT > lastMsgT) {
+      var m = lastChat;
+      var c = "#DCF8C6";
+      mType = "USER";
+   } else {
+      m = lastMsg;
+      c = "yellow";
+      if (lastMsg.indexOf("TALK]") > 0)
+         mTalk = lastMsg.substr(lastMsg.indexOf("]") + 1);
+      else
+         mTalk = "";
+      mType = m.substring(m.indexOf(",") + 1, m.indexOf("]"));
+   }
+
+   if (m !== "") {
+      var d = document.getElementById("mheader_message");
+      var s = m + "&nbsp;&nbsp;&nbsp;<span style='cursor: pointer;' onclick='document.getElementById(&quot;mheader_message&quot;).style.display = &quot;none&quot;'>&#9587;</span>";
+      var first = (d.innerHTML === "");
+      if (d !== undefined && d.innerHTML.substr(0, d.innerHTML.search("&nbsp;&nbsp;&nbsp;<span")) != m) {
+         d.innerHTML = s;
+         d.style.display = "inline-block";
+
+         if (m.search("ERROR]") > 0) {
             d.style.removeProperty("-webkit-transition");
             d.style.removeProperty("transition");
-            d.style.backgroundColor = "yellow";
-            d.age = new Date() / 1000;
-            setTimeout(function () {
-               d.style.setProperty("-webkit-transition", "background-color 3s", "");
-               d.style.setProperty("transition", "background-color 3s", "");
-            }, 10);
+            d.style.backgroundColor = "red";
+            d.style.color = "white";
+         } else {
+            if (first) {
+               d.style.backgroundColor = "#A0A0A0";
+               d.age = new Date() / 1000;
+            } else {
+               d.style.removeProperty("-webkit-transition");
+               d.style.removeProperty("transition");
+               d.style.backgroundColor = c;
+               d.style.color = "black";
+               d.age = new Date() / 1000;
+               setTimeout(function () {
+                  d.style.setProperty("-webkit-transition", "background-color 3s", "");
+                  d.style.setProperty("transition", "background-color 3s", "");
+               }, 10);
+
+               if (mTalk !== "") {
+                  // do not speak own message
+                  if (document.getElementById("chatName") == undefined || document.getElementById("chatName").value != chatName)
+                     mhttpd_chat_speak(mTalk);
+               }
+            }
          }
       }
+      var t = new Date() / 1000;
+      if (t > d.age + 5 && d.style.backgroundColor === "yellow")
+         d.style.backgroundColor = "#A0A0A0";
    }
-   var t = new Date() / 1000;
-   if (t > d.age + 5)
-      d.style.backgroundColor = "#A0A0A0";
 }
 
 function mhttpd_error(error) {
@@ -1155,88 +1230,87 @@ function msg_extend() {
 
 /*---- site and session storage ----------------------------*/
 
-function storage_get(name, default_value) {
-   //console.log("storage_get: name [" + name + "], default value [" + default_value + "]");
+/*
+ Usage:
+
+ flag = mhttpdConfig().speakChat;     // read
+
+ mhttpdConfigSet('speakChat', false); // write individual config
+
+ var c = mhttpdConfig();              // write whole config
+ c.speakChat = false;
+ c.... = ...;
+ mhttpdConfigSetAll(c);
+
+
+ Saves settings are kept in local storage, which gets
+ cleared when the browser session ends. Then the default
+ values are returned.
+ */
+
+var mhttpd_config_default = {
+   'chatName': "",
+
+   'speakChat': true,
+   'speakError': false,
+   'speakInfo': false,
+
+   'alarmSound': true,
+   'alarmSpeak': true,
+   'alarmSoundFile': 'alarm.mp3',
+
+   'param': {
+      'lastSpeak': 0
+   }
+};
+
+function mhttpdConfig() {
+   var c = mhttpd_config_default;
    try {
-      var x = name in localStorage;
-      var v = localStorage[name];
-      //console.log("storage_get: in: " + x + ", value [" + v + "]");
-      if (!x) {
-         //console.log("storage_get: name [" + name + "], undefined, default value [" + default_value + "]");
-         return default_value;
-      } else {
-         return localStorage.getItem(name);
-      }
-   } catch (err) {
-      return default_value;
+      if (localStorage.mhttpd)
+         c = JSON.parse(localStorage.mhttpd);
+   } catch (e) {
    }
+
+   return c;
 }
 
-function storage_set(name, value) {
-   //console.log("storage_set: name [" + name + "], value [" + value + "]");
+function mhttpdConfigSet(item, value) {
    try {
-      localStorage.setItem(name, value);
-   } catch (err) {
+      var c = mhttpdConfig();
+      c[item] = value;
+      localStorage.setItem('mhttpd', JSON.stringify(c));
+   } catch (e) {
    }
 }
 
-function storage_chatSpeak(v) {
-   if (v == true) {
-      storage_set("chatSpeak", "1");
-   } else if (v == false) {
-      storage_set("chatSpeak", "0");
-   } else {
-      return storage_get("chatSpeak", "0") == "1";
+function mhttpdConfigSetAll(new_config) {
+   try {
+      localStorage.setItem('mhttpd', JSON.stringify(new_config));
+   } catch (e) {
    }
 }
 
-function storage_alarmSound(v) {
-   if (v == true) {
-      storage_set("alarmSound", "1");
-   } else if (v == false) {
-      storage_set("alarmSound", "0");
-   } else {
-      return storage_get("alarmSound", "1") == "1";
-   }
-}
+/*---- sound and speak functions --------------------------*/
 
-function storage_alarmSpeak(v) {
-   if (v == true) {
-      storage_set("alarmSpeak", "1");
-   } else if (v == false) {
-      storage_set("alarmSpeak", "0");
-   } else {
-      return storage_get("alarmSpeak", "1") == "1";
-   }
-}
-
-/*---- alarm functions -------------------------------------*/
-
-function mhttpd_alarm_play(url) {
-   //console.log("maybePlay: [" + url + "]");
-   if (storage_alarmSound()) {
-      var audio = new Audio(url);
+function mhttpd_alarm_play() {
+   if (mhttpdConfig().alarmSound && mhttpdConfig().alarmSoundFile) {
+      var audio = new Audio(mhttpdConfig().alarmSoundFile);
       audio.play();
    }
 }
 
 function mhttpd_alarm_speak(t) {
-   if (storage_alarmSpeak()) {
+   if (mhttpdConfig().alarmSpeak) {
       var u = new SpeechSynthesisUtterance(t);
       window.speechSynthesis.speak(u);
    }
 }
 
-/*---- MTALK messages -------------------------------------*/
-
-function talk_maybeSpeak(tim, msg) {
-   try {
-      if (storage_alarmSpeak() && storage_get("lastTalkSpeak", "") != tim) {
-         var u = new SpeechSynthesisUtterance(msg);
-         window.speechSynthesis.speak(u);
-         storage_set("lastTalkSpeak", tim);
-      }
-   } catch (err) {
+function mhttpd_chat_speak(t) {
+   if (mhttpdConfig().speakChat) {
+      var u = new SpeechSynthesisUtterance(t);
+      window.speechSynthesis.speak(u);
    }
 }
 
