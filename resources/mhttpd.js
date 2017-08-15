@@ -407,7 +407,7 @@ function mhttpd_init(current_page, interval, callback) {
          "<span id='mheader_expt_name'></span>" +
          "</div>" +
 
-         "<div id='mheader_message'>Test Message</div>" +
+         "<div id='mheader_message'></div>" +
 
          "<div style='display:inline; float:right;'>" +
          "<div id='mheader_alarm'>&nbsp;</div>" +
@@ -600,7 +600,6 @@ function mhttpd_init(current_page, interval, callback) {
       mbar[i].innerHTML = "<div style='background-color:" + color + "; width:0; position:relative; display:inline-block; border-right:1px solid #808080'>&nbsp;</div>";
    }
 
-
    // preload spinning wheel for later use
    mhttpd_spinning_wheel = new Image();
    mhttpd_spinning_wheel.src = "spinning-wheel.gif";
@@ -616,6 +615,8 @@ function mhttpd_init(current_page, interval, callback) {
     mhttpd_error('This is a test message');
     */
 }
+
+var mhttpd_last_message = 1;
 
 function mhttpd_refresh() {
    if (mhttpd_refresh_id != undefined)
@@ -640,7 +641,14 @@ function mhttpd_refresh() {
    // request current alarms
    var req2 = mjsonrpc_make_request("get_alarms");
 
-   mjsonrpc_send_request([req1, req2]).then(function (rpc) {
+   // request new messages
+   var req3 = mjsonrpc_make_request("cm_msg_retrieve", {
+      "facility": "midas",
+      "time": mhttpd_last_message - 1,
+      "min_messages": 100
+   });
+
+   mjsonrpc_send_request([req1, req2, req3]).then(function (rpc) {
 
       // update time in header
       var da = new Date().toISOString();
@@ -702,6 +710,12 @@ function mhttpd_refresh() {
          }
       }
 
+      // update messages
+      var msg = rpc[2].result.messages.split("\n");
+      if (msg[msg.legnth - 1] == "")
+         msg = msg.slice(msg.length - 1, 1);
+      mhttpd_message(msg[0].substr(msg[0].indexOf(" ")+1));
+
       if (mhttpd_refresh_interval != undefined && mhttpd_refresh_interval > 0)
          mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
 
@@ -726,12 +740,36 @@ function mhttpd_reconnect() {
 }
 
 
-function mhttpd_message(error) {
+function mhttpd_message(msg) {
    var d = document.getElementById("mheader_message");
-   if (d !== undefined) {
-      d.style.display = "inline";
-      d.innerHTML = error + "&nbsp;<span style='cursor: pointer;' onclick='document.getElementById(&quot;mheader_message&quot;).style.display = &quot;none&quot;'>&#9587;</span>";
+   var s = msg + "&nbsp;<span style='cursor: pointer;' onclick='document.getElementById(&quot;mheader_message&quot;).style.display = &quot;none&quot;'>&#9587;</span>";
+   var first = (d.innerHTML === "");
+   if (d !== undefined && d.innerHTML.substr(0, d.innerHTML.search("&nbsp;<span")) != msg) {
+      d.innerHTML = s;
+      d.style.display = "inline-block";
+
+      if (msg.search("ERROR]") > 0) {
+         d.style.backgroundColor = "red";
+         d.style.color = "white";
+      } else {
+         if (first) {
+            d.style.backgroundColor = "#A0A0A0";
+            d.age = new Date() / 1000;
+         } else {
+            d.style.removeProperty("-webkit-transition");
+            d.style.removeProperty("transition");
+            d.style.backgroundColor = "yellow";
+            d.age = new Date() / 1000;
+            setTimeout(function () {
+               d.style.setProperty("-webkit-transition", "background-color 3s", "");
+               d.style.setProperty("transition", "background-color 3s", "");
+            }, 10);
+         }
+      }
    }
+   var t = new Date() / 1000;
+   if (t > d.age + 5)
+      d.style.backgroundColor = "#A0A0A0";
 }
 
 function mhttpd_error(error) {
