@@ -240,9 +240,6 @@
       // check for new message if time stamping is on
       if (first_tstamp) {
          GetMsg(facility, first_tstamp, 0, function (msg) {
-            if (document.getElementById("mheader_last_updated") != undefined)
-               document.getElementById("mheader_last_updated").innerHTML = new Date();
-
             msg_prepend(msg);
             timer_front = window.setTimeout(msg_extend_front, 1000);
          });
