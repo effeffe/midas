@@ -730,14 +730,14 @@ function mhttpd_message(error) {
    var d = document.getElementById("mheader_message");
    if (d !== undefined) {
       d.style.display = "inline";
-      d.innerHTML = error + "&nbsp;<span style='cursor: pointer;' onclick='document.getElementById(&quot;mheader_message&quot;).style.display = &quot;none&quot;'>&#10683;</span>";
+      d.innerHTML = error + "&nbsp;<span style='cursor: pointer;' onclick='document.getElementById(&quot;mheader_message&quot;).style.display = &quot;none&quot;'>&#9587;</span>";
    }
 }
 
 function mhttpd_error(error) {
    var d = document.getElementById("mheader_error");
    if (d !== undefined) {
-      error += "<div style='display: inline; float: right; padding-right: 10px; cursor: pointer;' onclick='document.getElementById(&quot;mheader_error&quot;).style.zIndex = 0;'>&#10683;</div>";
+      error += "<div style='display: inline; float: right; padding-right: 10px; cursor: pointer;' onclick='document.getElementById(&quot;mheader_error&quot;).style.zIndex = 0;'>&#9587;</div>";
       d.innerHTML = error;
       d.style.zIndex = 2;
    }
