@@ -1429,9 +1429,6 @@ static MJsonNode* js_cm_retrieve(const MJsonNode* params)
    if (strlen(facility) < 1)
       facility = "midas";
 
-   if (min_messages < 1)
-      min_messages = 1;
-
    int num_messages = 0;
    char* messages = NULL;
 
