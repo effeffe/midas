@@ -768,6 +768,7 @@ function mhttpd_message(msg, chat) {
    var mTalk = "";
    var mType = "";
    var chatName = "";
+   var talkTime = 0;
 
    if (msg != undefined) {
       var lastMsg = msg[0].substr(msg[0].indexOf(" ") + 1);
@@ -795,6 +796,7 @@ function mhttpd_message(msg, chat) {
       var m = lastChat;
       var c = "#DCF8C6";
       mType = "USER";
+      talkTime = lastChatT;
    } else {
       m = lastMsg;
       c = "yellow";
@@ -803,6 +805,7 @@ function mhttpd_message(msg, chat) {
       else
          mTalk = "";
       mType = m.substring(m.indexOf(",") + 1, m.indexOf("]"));
+      talkTime = lastMsgT;
    }
 
    if (m !== "") {
@@ -836,7 +839,7 @@ function mhttpd_message(msg, chat) {
                if (mTalk !== "") {
                   // do not speak own message
                   if (document.getElementById("chatName") == undefined || document.getElementById("chatName").value != chatName)
-                     mhttpd_chat_speak(mTalk);
+                     mhttpd_chat_speak(talkTime, mTalk);
                }
             }
          }
@@ -1278,7 +1281,12 @@ function mhttpdConfig() {
 function mhttpdConfigSet(item, value) {
    try {
       var c = mhttpdConfig();
-      c[item] = value;
+      if (item.indexOf('.')) {
+         var c1 = item.substring(0, item.indexOf('.'));
+         var c2 = item.substring(item.indexOf('.')+1);
+         c[c1][c2] = value;
+      } else
+         c[item] = value;
       localStorage.setItem('mhttpd', JSON.stringify(c));
    } catch (e) {
    }
@@ -1307,10 +1315,13 @@ function mhttpd_alarm_speak(t) {
    }
 }
 
-function mhttpd_chat_speak(t) {
+function mhttpd_chat_speak(time, text) {
    if (mhttpdConfig().speakChat) {
-      var u = new SpeechSynthesisUtterance(t);
-      window.speechSynthesis.speak(u);
+      if (time > mhttpdConfig().param.lastSpeak) {
+         mhttpdConfigSet("param.lastSpeak", time);
+         var u = new SpeechSynthesisUtterance(text);
+         window.speechSynthesis.speak(u);
+      }
    }
 }
 
