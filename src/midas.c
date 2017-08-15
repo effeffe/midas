@@ -408,9 +408,16 @@ int cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_s
             size = sizeof(dir);
             memset(dir, 0, size);
             db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
-            if (dir[0] != 0)
+            if (dir[0] != 0) {
                if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
                   strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
+            } else {
+               cm_get_path(dir, sizeof(dir));
+               if (dir[0] == 0)
+                  getcwd(dir, sizeof(dir));
+               if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
+                  strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
+            }
          } else {
             cm_get_path(dir, sizeof(dir));
             if (dir[0] != 0)
