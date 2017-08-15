@@ -57,7 +57,7 @@
 
       var subDirArray = new Array();
 
-      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr><td id=\"actionBar\" colspan=\"7\"><button id=\"create\" onclick=\"generateCreateDlg()\">create</button><button id=\"resize\" onclick=\"generateResizeDlg()\">resize</button><button id=\"delete\">delete</button><input id=\"searchbox\" type=\"text\" placeholder=\"search\" title=\"case insensitive, shortcut: s\"></input></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr><tr><td><input type=\"checkbox\" id=\"allSubDirs\"></input></td><div id=\"dlgCreate\" class=\"dlgFrame\"></div></tr>";
+      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr align=\"center\"><td id=\"actionBar\" colspan=\"7\"><button id=\"create\" class=\"mbutton\" onclick=\"generateCreateDlg()\">create</button><input id=\"searchbox\" type=\"text\" placeholder=\"search\" title=\"case insensitive\"></input></td></tr><tr align=\"center\"><td id=\"actionBar\" colspan=\"7\"><button id=\"rename\" class=\"mbutton\" onclick=\"generateRenameDlg()\">rename</button><button id=\"resize\" class=\"mbutton\" onclick=\"generateResizeDlg()\">resize</button><button id=\"mode\" class=\"mbutton\" onclick=\"generateAccessModeDlg()\">mode</button><button id=\"delete\" class=\"mbutton\" onclick=\"deleteDirsAndKeys()\">delete</button></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr><tr><td><input type=\"checkbox\" id=\"allSubDirs\"></input></td><div id=\"dlgCreate\" class=\"dlgFrame\" style=\"display:none\"></div></tr>";
 
       const MODE_READ = (1 << 0)
       const MODE_WRITE = (1 << 1)
@@ -137,7 +137,133 @@
          }
       }
 
-      function create_page_handle_rename(mouseEvent, allKeys) {
+
+      function create_page_handle_rename(theKey) {
+         var odbpath = document.getElementById("odbpath");
+         odbpath = JSON.parse(odbpath.innerHTML);
+         if (odbpath == "/") odbpath = "";
+
+         var path = odbpath + "/" + theKey;
+         var name = "";
+
+         if (path == "/") path = "";
+
+         var name = document.getElementById("rename_name").value;
+
+         if (name.length < 1) {
+            alert("Name is too short");
+            return false;
+         }
+         mjsonrpc_call("db_rename", { "paths": [path], "new_names": [name] }).then(function (rpc) {
+            var status = rpc.result.status[0];
+            if (status != 1) {
+               alert(JSON.stringify(rpc));
+               alert("db_resize() error " + status + ", see MIDAS messages.");
+            } else {
+               update();
+            }
+         }).catch(function (error) {
+            mjsonrpc_error_alert(error);
+            update();
+         });
+
+         return false;
+      }
+
+      function generateRenameDlg() {
+         if (document.getElementById("renameTitle") == null) {
+            document.getElementById("dlgCreate").innerHTML = "";
+            var isKey = true;
+            var allDirCheckboxs = document.getElementsByClassName("sub_dir_checkbox");
+            var allKeyCheckboxs = document.getElementsByClassName("key_row_checkbox");
+
+            var allKeys = new Array();
+
+            Array.prototype.forEach.call(allDirCheckboxs, function (element) {
+               if (element.checked) {
+                  allKeys.push(element.id);
+                  isKey = false;
+               }
+            });
+
+            Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
+               if (element.checked) {
+                  allKeys.push(element.id);
+                  isKey = true;
+               }
+            });
+
+            if (allKeys.length != 1) {
+               alert("please select one key or directory to rename");
+               return;
+            }
+
+            var theKey = allKeys[0];
+
+            document.getElementById("dlgCreate").innerHTML = "";
+            var dlgTitlebar = document.createElement("div");
+            dlgTitlebar.id = "renameTitle";
+            dlgTitlebar.className = "dlgTitlebar";
+            dlgTitlebar.innerText = "Rename ODB entry";
+
+            var dlgPanel = document.createElement("div");
+            dlgPanel.className = "dlgPanel";
+
+            var odbPath = document.createElement("div");
+            odbPath.id = "odbpath";
+            if (custompath == "") {
+               odbPath.innerText = "\"/\"";
+            } else {
+               odbPath.innerText = "\"" + custompath + "\"";
+            }
+
+
+            var dlgTable = document.createElement("table");
+            dlgTable.className = "mmaintable";
+
+            var oneKeyRow = document.createElement("tr");
+            var keyType = document.createElement("td");
+            var keyName = document.createElement("td");
+            if (isKey) {
+               keyType.innerHTML = "Key:";
+            } else {
+               keyType.innerHTML = "Directory:";
+            }
+            keyName.innerHTML = theKey;
+            oneKeyRow.appendChild(keyType);
+            oneKeyRow.appendChild(keyName);
+            dlgTable.appendChild(oneKeyRow);
+
+
+            dlgTable.innerHTML += "<tr><td>Rename To</td><td><input type=\"text\" size=\"20\" id=\"rename_name\" name=\"value\"></td></tr>";
+
+
+            var createButton = document.createElement("input");
+            createButton.type = "button";
+            createButton.value = "Rename";
+            createButton.onclick = function () { create_page_handle_rename(theKey) };
+
+            var cancelButton = document.createElement("input");
+            cancelButton.type = "button";
+            cancelButton.value = "Cancel";
+            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display="none";};
+
+
+
+            dlgPanel.appendChild(odbPath);
+            dlgPanel.appendChild(dlgTable);
+            dlgPanel.appendChild(createButton);
+            dlgPanel.appendChild(cancelButton);
+
+            document.getElementById("dlgCreate").appendChild(dlgTitlebar);
+            document.getElementById("dlgCreate").appendChild(dlgPanel);
+
+
+         }
+         dlgShow('dlgCreate');
+      }
+
+      function create_page_handle_access_mode(allKeys) {
 
          var allKeys = allKeys.map(function (ele) { return custompath + "/" + ele; })
          var size = "";
@@ -176,9 +302,9 @@
 
 
 
-      function generateRenameDlg() {
-         if (document.getElementById("resizeTitle") == null) {
-
+      function generateAccessModeDlg() {
+         if (document.getElementById("modeTitle") == null) {
+            document.getElementById("dlgCreate").innerHTML = "";
             var allKeyCheckboxs = document.getElementsByClassName("key_row_checkbox");
 
             var allKeys = new Array();
@@ -189,7 +315,7 @@
             });
 
             if (allKeys.length == 0) {
-               alert("please select at least one key to resize");
+               alert("please select at least one key to change access mode");
                return;
             }
 
@@ -198,9 +324,9 @@
 
             document.getElementById("dlgCreate").innerHTML = "";
             var dlgTitlebar = document.createElement("div");
-            dlgTitlebar.id = "resizeTitle";
+            dlgTitlebar.id = "modeTitle";
             dlgTitlebar.className = "dlgTitlebar";
-            dlgTitlebar.innerText = "Resize ODB entry";
+            dlgTitlebar.innerText = "Change ODB entry access mode";
 
             var dlgPanel = document.createElement("div");
             dlgPanel.className = "dlgPanel";
@@ -217,35 +343,34 @@
             var dlgTable = document.createElement("table");
             dlgTable.className = "mmaintable";
 
-            var resizeTitleRow = document.createElement("tr");
-            dlgTable.innerHTML = "<tr><th>key name</th><th>size</th></tr>"
+            dlgTable.innerHTML = "<tr><th>key name</th><th>mode</th></tr>"
 
             for (var str in allKeysStr) {
                var key_row = document.getElementById(allKeys[str] + "key_row");
                if (key_row != null) {
                   var oneKeyRow = document.createElement("tr");
-                  var keyNameCol = document.createElement("td");
-                  var keySizeCol = document.createElement("td");
-                  keyNameCol.innerHTML = allKeysStr[str];
-                  keySizeCol.innerHTML = key_row.childNodes[5].innerHTML;
-                  oneKeyRow.appendChild(keyNameCol);
-                  oneKeyRow.appendChild(keySizeCol);
+                  var keyType = document.createElement("td");
+                  var keyName = document.createElement("td");
+                  keyType.innerHTML = allKeysStr[str];
+                  keyName.innerHTML = key_row.childNodes[7].innerHTML;
+                  oneKeyRow.appendChild(keyType);
+                  oneKeyRow.appendChild(keyName);
                   dlgTable.appendChild(oneKeyRow);
                }
 
             }
-            dlgTable.innerHTML += "<tr><td>Change Size To</td><td><input type=\"number\" size=\"31\" maxlength=\"31\" id=\"resize_name\" name=\"value\"></td></tr>";
+            dlgTable.innerHTML += "<tr><td>Change Mode To</td><td><input type=\"number\" size=\"31\" maxlength=\"31\" id=\"resize_name\" name=\"value\"></td></tr>";
 
 
             var createButton = document.createElement("input");
             createButton.type = "button";
-            createButton.value = "Resize";
-            createButton.onclick = function () { create_page_handle_resize(event, allKeys) };
+            createButton.value = "Change Mode";
+            createButton.onclick = function () { create_page_handle_access_mode(allKeys) };
 
             var cancelButton = document.createElement("input");
             cancelButton.type = "button";
             cancelButton.value = "Cancel";
-            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; };
+            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display="none";};
 
 
 
@@ -263,7 +388,7 @@
       }
 
 
-      function create_page_handle_resize(mouseEvent, allKeys) {
+      function create_page_handle_resize(allKeys) {
 
          var allKeys = allKeys.map(function (ele) { return custompath + "/" + ele; })
          var size = "";
@@ -304,7 +429,7 @@
 
       function generateResizeDlg() {
          if (document.getElementById("resizeTitle") == null) {
-
+            document.getElementById("dlgCreate").innerHTML = "";
             var allKeyCheckboxs = document.getElementsByClassName("key_row_checkbox");
 
             var allKeys = new Array();
@@ -343,19 +468,18 @@
             var dlgTable = document.createElement("table");
             dlgTable.className = "mmaintable";
 
-            var resizeTitleRow = document.createElement("tr");
             dlgTable.innerHTML = "<tr><th>key name</th><th>size</th></tr>"
 
             for (var str in allKeysStr) {
                var key_row = document.getElementById(allKeys[str] + "key_row");
                if (key_row != null) {
                   var oneKeyRow = document.createElement("tr");
-                  var keyNameCol = document.createElement("td");
-                  var keySizeCol = document.createElement("td");
-                  keyNameCol.innerHTML = allKeysStr[str];
-                  keySizeCol.innerHTML = key_row.childNodes[5].innerHTML;
-                  oneKeyRow.appendChild(keyNameCol);
-                  oneKeyRow.appendChild(keySizeCol);
+                  var keyType = document.createElement("td");
+                  var keyName = document.createElement("td");
+                  keyType.innerHTML = allKeysStr[str];
+                  keyName.innerHTML = key_row.childNodes[5].innerHTML;
+                  oneKeyRow.appendChild(keyType);
+                  oneKeyRow.appendChild(keyName);
                   dlgTable.appendChild(oneKeyRow);
                }
 
@@ -366,12 +490,12 @@
             var createButton = document.createElement("input");
             createButton.type = "button";
             createButton.value = "Resize";
-            createButton.onclick = function () { create_page_handle_resize(event, allKeys) };
+            createButton.onclick = function () { create_page_handle_resize(allKeys) };
 
             var cancelButton = document.createElement("input");
             cancelButton.type = "button";
             cancelButton.value = "Cancel";
-            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; };
+            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display="none";};
 
 
 
@@ -391,7 +515,7 @@
 
 
 
-      function create_page_handle_create(mouseEvent) {
+      function create_page_handle_create() {
          var path = "";
          var type = "";
          var name = "";
@@ -498,12 +622,12 @@
             var createButton = document.createElement("input");
             createButton.type = "button";
             createButton.value = "Create";
-            createButton.onclick = function () { create_page_handle_create(event) };
+            createButton.onclick = function () { create_page_handle_create() };
 
             var cancelButton = document.createElement("input");
             cancelButton.type = "button";
             cancelButton.value = "Cancel";
-            cancelButton.onclick = function () { dlgCreate.style.display = "none"; };
+            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display="none";};
 
 
 
@@ -520,6 +644,55 @@
          dlgShow('dlgCreate');
       }
 
+
+
+      function deleteDirsAndKeys() {
+         var allDirCheckboxs = document.getElementsByClassName("sub_dir_checkbox");
+         var allKeyCheckboxs = document.getElementsByClassName("key_row_checkbox");
+         var allDeleteDirs = new Array();
+         var allDeleteKeys = new Array();
+         Array.prototype.forEach.call(allDirCheckboxs, function (element) {
+            if (element.checked)
+               allDeleteDirs.push(element.id);
+         });
+         Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
+            if (element.checked)
+               allDeleteKeys.push(element.id);
+         });
+         if (allDeleteDirs.length == 0 && allDeleteKeys.length == 0) {
+            alert("please select at least one directory or key to delete");
+            return;
+         }
+         var allDeleteDirsStr = allDeleteDirs.map(function (ele) { return ele + "\n" });
+         var allDeleteKeysStr = allDeleteKeys.map(function (ele) { return ele + "\n" });
+         allDeleteDirsStr = allDeleteDirsStr.join("");
+         allDeleteKeysStr = allDeleteKeysStr.join("");
+
+
+         if (allDeleteDirsStr.length > 0 && allDeleteKeysStr.length > 0) {
+            var confirmStr = "You are trying to delete\n\n(DIRECTORIES)\n" + allDeleteDirsStr + "\n(KEYS)\n" + allDeleteKeysStr + "\nAre you sure?";
+         } else if (allDeleteDirsStr.length > 0) {
+            var confirmStr = "You are trying to delete\n\n(DIRECTORIES)\n" + allDeleteDirsStr + "\nAre you sure?";
+         } else if (allDeleteKeysStr.length > 0) {
+            var confirmStr = "You are trying to delete\n\n(KEYS)\n" + allDeleteKeysStr + "\nAre you sure?";
+         }
+         if (confirm(confirmStr)) {
+            var path = new Array();
+            Array.prototype.forEach.call(allDirCheckboxs, function (element) {
+               if (element.checked)
+                  path.push(custompath + "/" + element.id);
+            });
+            Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
+               if (element.checked)
+                  path.push(custompath + "/" + element.id);
+            });
+            mjsonrpc_db_delete(path).then(function (rpc) {
+               update();
+            }).catch(function (error) {
+               mjsonrpc_error_alert(error);
+            });
+         }
+      }
 
 
 
@@ -744,71 +917,6 @@
             })
 
          }
-
-
-         function deleteDirsAndKeys() {
-            var allDirCheckboxs = document.getElementsByClassName("sub_dir_checkbox");
-            var allKeyCheckboxs = document.getElementsByClassName("key_row_checkbox");
-            var allDeleteDirs = new Array();
-            var allDeleteKeys = new Array();
-            Array.prototype.forEach.call(allDirCheckboxs, function (element) {
-               if (element.checked)
-                  allDeleteDirs.push(element.id);
-            });
-            Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
-               if (element.checked)
-                  allDeleteKeys.push(element.id);
-            });
-            if (allDeleteDirs.length == 0 && allDeleteKeys.length == 0) {
-               alert("please select at least one directory or key to delete");
-               return;
-            }
-            var allDeleteDirsStr = allDeleteDirs.map(function (ele) { return ele + "\n" });
-            var allDeleteKeysStr = allDeleteKeys.map(function (ele) { return ele + "\n" });
-            allDeleteDirsStr = allDeleteDirsStr.join("");
-            allDeleteKeysStr = allDeleteKeysStr.join("");
-
-
-            if (allDeleteDirsStr.length > 0 && allDeleteKeysStr.length > 0) {
-               var confirmStr = "You are trying to delete\n\n(DIRECTORIES)\n" + allDeleteDirsStr + "\n(KEYS)\n" + allDeleteKeysStr + "\nAre you sure?";
-            } else if (allDeleteDirsStr.length > 0) {
-               var confirmStr = "You are trying to delete\n\n(DIRECTORIES)\n" + allDeleteDirsStr + "\nAre you sure?";
-            } else if (allDeleteKeysStr.length > 0) {
-               var confirmStr = "You are trying to delete\n\n(KEYS)\n" + allDeleteKeysStr + "\nAre you sure?";
-            }
-            if (confirm(confirmStr)) {
-               var path = new Array();
-               Array.prototype.forEach.call(allDirCheckboxs, function (element) {
-                  if (element.checked)
-                     path.push(custompath + "/" + element.id);
-               });
-               Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
-                  if (element.checked)
-                     path.push(custompath + "/" + element.id);
-               });
-               mjsonrpc_db_delete(path).then(function (rpc) {
-                  update();
-               }).catch(function (error) {
-                  mjsonrpc_error_alert(error);
-               });
-            }
-         }
-
-
-         function generateActionbar() {
-            function pressKeySearch(event) {
-               if (currentEditing == null && event.keyCode == 83) {
-                  document.getElementById('searchbox').focus();
-               }
-            }
-
-            document.addEventListener("keyup", pressKeySearch);
-
-
-            document.getElementById("delete").onclick = function () { deleteDirsAndKeys(); };
-
-         }
-
 
 
          function generateSub_Dir() {
@@ -1307,7 +1415,6 @@
                   // rest of them are key properties
                });
 
-               generateActionbar();
                generateSub_Dir();
                generateODB_Keys();
 
