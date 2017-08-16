@@ -108,9 +108,9 @@ a:focus { color:#0000FF; text-decoration:underline }
 
 #mheader_message {
    display: none;
-   color: black;
-   background-color: lightgreen;
-   border: 1px solid green;
+   color: #404040;
+   background-color: #A0A0A0;
+   border: 1px solid #808080;
    border-radius: 10px;
    padding: 1px;
    padding-left: 10px;
