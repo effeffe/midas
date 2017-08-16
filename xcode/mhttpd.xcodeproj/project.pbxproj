@@ -80,6 +80,7 @@
 		D582A1A61F17D13F0028A0F5 /* start.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; name = start.html; path = /midas/resources/start.html; sourceTree = "<group>"; };
 		D582A1A71F17D13F0028A0F5 /* transition.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; name = transition.html; path = /midas/resources/transition.html; sourceTree = "<group>"; };
 		D582A1A81F17E2290028A0F5 /* midas.css */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.css; name = midas.css; path = /midas/resources/midas.css; sourceTree = "<group>"; };
+		D5941E891F44662100D5E8BD /* config.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; name = config.html; path = /midas/resources/config.html; sourceTree = "<group>"; };
 		D59C71AF1F16EDD900D7B04B /* midas.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; name = midas.js; path = /midas/resources/midas.js; sourceTree = "<group>"; };
 		D59C71B01F16EDFC00D7B04B /* obsolete.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; name = obsolete.js; path = /midas/resources/obsolete.js; sourceTree = "<group>"; };
 		D5A00FB71BB3FCFF00549585 /* json_paste.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = json_paste.cxx; path = /midas/src/json_paste.cxx; sourceTree = "<group>"; };
@@ -180,6 +181,7 @@
 		D5BE377D17BCE29C004233D8 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				D5941E891F44662100D5E8BD /* config.html */,
 				D51C4E8B1F41D95F00B8E49F /* odb.html */,
 				D51C4E8C1F41D95F00B8E49F /* status.html */,
 				D582A1A31F17D13F0028A0F5 /* alarms.html */,

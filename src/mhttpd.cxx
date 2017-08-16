@@ -17781,6 +17781,11 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
+   if (equal_ustring(command, "config")) {
+      send_resource(r, "config.html");
+      return;
+   }
+
    if (equal_ustring(command, "chat")) {
       send_resource(r, "chat.html");
       return;

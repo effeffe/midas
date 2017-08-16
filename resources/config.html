@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html class="mcss">
+<head>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css">
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <title>Config</title>
+</head>
+<style>
+   td {
+      padding: 10px;
+   }
+</style>
+<script>
+   function config_init() {
+      var config = mhttpdConfig();
+      var input = document.getElementsByTagName('input');
+      for (var i = 0; i < input.length; i++) {
+         if (input[i].type === 'checkbox') {
+            input[i].checked = config[input[i].name];
+            input[i].addEventListener('change', function (e) {
+               mhttpdConfigSet(this.name, this.checked);
+            });
+         }
+         if (input[i].type === 'text') {
+            input[i].value = config[input[i].name];
+            input[i].addEventListener('change', function (e) {
+               if (this.dataset.minValue != undefined)
+                  if (parseFloat(this.value) < parseFloat(this.dataset.minValue))
+                     this.value = this.dataset.minValue;
+               if (this.dataset.maxValue != undefined)
+                  if (parseFloat(this.value) > parseFloat(this.dataset.maxValue))
+                     this.value = this.dataset.maxValue;
+               mhttpdConfigSet(this.name, this.value);
+            });
+         }
+      }
+
+      var s = document.getElementsByName("alarmSoundFile")[0];
+      s.value = config.alarmSoundFile.slice(0, -4);
+      s.addEventListener('change', function(e) {
+         mhttpdConfigSet('alarmSoundFile', this.value+".mp3");
+         var audio = new Audio(this.value+".mp3");
+         audio.play();
+      });
+   }
+</script>
+
+<body class="mcss" onload="mhttpd_init('Config'); config_init();">
+
+<!-- header and side navigation will be filled in mhttpd_start -->
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+   <table class="mtable">
+      <tr>
+         <th colspan="2" class="mtableheader">Config</th>
+      </tr>
+      <tr>
+         <td>
+            Speak "CHAT" messages:
+         </td>
+         <td>
+            <input type="checkbox" name="speakChat">
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Speak "TALK" messages:
+         </td>
+         <td>
+            <input type="checkbox" name="speakTalk">
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Speak "ERROR" messages:
+         </td>
+         <td>
+            <input type="checkbox" name="speakError">
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Speak "INFO" messages:
+         </td>
+         <td>
+            <input type="checkbox" name="speakInfo">
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Voice:
+         </td>
+         <td>
+            <select name="speakVoice">
+               <option>Alex</option>
+            </select>
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Volume (0...1):
+         </td>
+         <td>
+            <input type="text" size="5" name="speakVolume" data-min-value="0" data-max-value="1">
+         </td>
+      </tr>
+
+      <tr>
+         <td colspan="2" style="background-color: #A0A0A0; height:2px; padding: 0;"></td>
+      </tr>
+      <tr>
+         <td colspan="2" style="background-color: #A0A0A0; height:0; padding: 0;"></td>
+      </tr>
+
+      <tr>
+         <td>
+            Play alarm sound:
+         </td>
+         <td>
+            <input type="checkbox" name="alarmSound">
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Alarm repetition rate [s]:
+         </td>
+         <td>
+            <input type="text" size="5" name="alarmRepeat" data-min-value="10" data-max-value="3600">
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Alarm sound:
+         </td>
+         <td>
+            <select name="alarmSoundFile">
+               <option>beep</option>
+               <option>bell</option>
+               <option>bleep</option>
+               <option>chime</option>
+               <option>temple</option>
+               <option>watch</option>
+               <option>woop</option>
+            </select>
+         </td>
+      </tr>
+
+      <tr>
+         <td colspan="2" style="background-color: #A0A0A0; height:2px; padding: 0;"></td>
+      </tr>
+      <tr>
+         <td colspan="2" style="background-color: #A0A0A0; height:0; padding: 0;"></td>
+      </tr>
+
+      <tr>
+         <td colspan="2" style="text-align: center;">
+            <button class="mbutton" onclick="mhttpdConfigSetAll(mhttpd_config_defaults);config_init();">Reset defaults</button>
+         </td>
+      </tr>
+
+   </table>
+</div>
+
+</body>
+</html>
+
+<!--
+
+var mhttpd_config_default = {
+   'saveSession': false,
+
+   'chatName': "",
+
+   'speakChat': true,
+   'speakTalk': true,
+   'speakError': false,
+   'speakInfo': false,
+   'speakVoice': 'male',
+
+   'alarmSound': true,
+   'alarmSoundFile': 'alarm.mp3',
+   'alarmRepeat': 60,
+
+   'var': {
+      'lastSpeak': 0,
+      'lastAlarm': 0
+   }
+};
+
+-->
