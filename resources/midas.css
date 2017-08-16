@@ -88,7 +88,7 @@ a:focus { color:#0000FF; text-decoration:underline }
    padding-left: 0;
    display: block;
    line-height: 1;
-   /* total height = 19+1+2*5 = 30 */
+   /* total height = 19+1+2*6 = 32 */
 }
 
 #mheader_error {
@@ -131,7 +131,7 @@ a:focus { color:#0000FF; text-decoration:underline }
 #msidenav {
    height:100%;
    position:fixed;
-   top: 30px; /* nomal header height */
+   top: 32px; /* nomal header height */
    z-index: 1;
    left: 0;
    overflow-x: hidden;
@@ -182,7 +182,7 @@ a:focus { color:#0000FF; text-decoration:underline }
    opacity: 0; /* pre-hidden */
    position: relative;
    z-index: 0;
-   padding-top: 30px; /* normal header height */
+   padding-top: 32px; /* normal header height */
 }
 
 .mnav {

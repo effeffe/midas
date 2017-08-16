@@ -418,9 +418,9 @@ function mhttpd_init(current_page, interval, callback) {
 
          "<div id='mheader_message'></div>" +
 
-         "<div style='display:inline; float:right;'>" +
+         "<div style='display: inline; float:right;'>" +
          "<div id='mheader_alarm'>&nbsp;</div>" +
-         "<div style='display:inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></div>" +
+         "<div style='display: inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></div>" +
          "</div>";
 
    // put error header in front of header
@@ -1258,9 +1258,7 @@ function msg_extend() {
  values are returned.
  */
 
-var mhttpd_config_default = {
-   'savePersistent': false,
-
+var mhttpd_config_defaults = {
    'chatName': "",
 
    'speakChat': true,
@@ -1268,9 +1266,10 @@ var mhttpd_config_default = {
    'speakError': false,
    'speakInfo': false,
    'speakVoice': 'male',
+   'speakVolume': 1,
 
    'alarmSound': true,
-   'alarmSoundFile': 'alarm.mp3',
+   'alarmSoundFile': 'beep.mp3',
    'alarmRepeat': 60,
 
    'var': {
@@ -1280,10 +1279,13 @@ var mhttpd_config_default = {
 };
 
 function mhttpdConfig() {
-   var c = mhttpd_config_default;
+   var c = mhttpd_config_defaults;
    try {
       if (localStorage.mhttpd)
          c = JSON.parse(localStorage.mhttpd);
+      // count number of elements
+      if (Object.keys(c).length != Object.keys(mhttpd_config_defaults).length)
+         c = mhttpd_config_defaults;
    } catch (e) {
    }
 
@@ -1293,7 +1295,7 @@ function mhttpdConfig() {
 function mhttpdConfigSet(item, value) {
    try {
       var c = mhttpdConfig();
-      if (item.indexOf('.')) {
+      if (item.indexOf('.') > 0) {
          var c1 = item.substring(0, item.indexOf('.'));
          var c2 = item.substring(item.indexOf('.')+1);
          c[c1][c2] = value;
@@ -1316,12 +1318,11 @@ function mhttpdConfigSetAll(new_config) {
 function mhttpd_alarm_play() {
    if (mhttpdConfig().alarmSound && mhttpdConfig().alarmSoundFile) {
       var now = new Date() / 1000;
-      if (now > mhttpdConfig().var.lastAlarm + mhttpdConfig().alarmRepeat) {
+      if (now > mhttpdConfig().var.lastAlarm + parseFloat(mhttpdConfig().alarmRepeat)) {
+         mhttpdConfigSet("var.lastAlarm", now);
          var audio = new Audio(mhttpdConfig().alarmSoundFile);
          audio.play();
-         mhttpdConfigSet("var.lastAlarm", now);
       }
-
    }
 }
 
