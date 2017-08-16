@@ -718,6 +718,8 @@ function mhttpd_refresh() {
             else
                e.innerHTML = "<a href=\"?cmd=Alarms\">Alarm: " + s + "</a>";
             e.className = "mredcolor";
+
+            mhttpd_alarm_play();
          }
       }
 
@@ -800,10 +802,7 @@ function mhttpd_message(msg, chat) {
    } else {
       m = lastMsg;
       c = "yellow";
-      if (lastMsg.indexOf("TALK]") > 0)
-         mTalk = lastMsg.substr(lastMsg.indexOf("]") + 1);
-      else
-         mTalk = "";
+      mTalk = lastMsg.substr(lastMsg.indexOf("]") + 1);
       mType = m.substring(m.indexOf(",") + 1, m.indexOf("]"));
       talkTime = lastMsgT;
    }
@@ -837,9 +836,17 @@ function mhttpd_message(msg, chat) {
                }, 10);
 
                if (mTalk !== "") {
-                  // do not speak own message
-                  if (document.getElementById("chatName") == undefined || document.getElementById("chatName").value != chatName)
-                     mhttpd_chat_speak(talkTime, mTalk);
+                  if (mType === "USER" && mhttpdConfig().speakChat) {
+                     // do not speak own message
+                     if (document.getElementById("chatName") == undefined || document.getElementById("chatName").value != chatName)
+                        mhttpd_speak(talkTime, mTalk);
+                  } else if (mType === "TALK" && mhttpdConfig().speakTalk) {
+                     mhttpd_speak(talkTime, mTalk);
+                  } else if (mType === "ERROR" && mhttpdConfig().speakError) {
+                     mhttpd_speak(talkTime, mTalk);
+                  } else if (mType === "INFO" && mhttpdConfig().speakInfo) {
+                     mhttpd_speak(talkTime, mTalk);
+                  }
                }
             }
          }
@@ -1252,18 +1259,23 @@ function msg_extend() {
  */
 
 var mhttpd_config_default = {
+   'savePersistent': false,
+
    'chatName': "",
 
    'speakChat': true,
+   'speakTalk': true,
    'speakError': false,
    'speakInfo': false,
+   'speakVoice': 'male',
 
    'alarmSound': true,
-   'alarmSpeak': true,
    'alarmSoundFile': 'alarm.mp3',
+   'alarmRepeat': 60,
 
-   'param': {
-      'lastSpeak': 0
+   'var': {
+      'lastSpeak': 0,
+      'lastAlarm': 0
    }
 };
 
@@ -1303,24 +1315,27 @@ function mhttpdConfigSetAll(new_config) {
 
 function mhttpd_alarm_play() {
    if (mhttpdConfig().alarmSound && mhttpdConfig().alarmSoundFile) {
-      var audio = new Audio(mhttpdConfig().alarmSoundFile);
-      audio.play();
+      var now = new Date() / 1000;
+      if (now > mhttpdConfig().var.lastAlarm + mhttpdConfig().alarmRepeat) {
+         var audio = new Audio(mhttpdConfig().alarmSoundFile);
+         audio.play();
+         mhttpdConfigSet("var.lastAlarm", now);
+      }
+
    }
 }
 
-function mhttpd_alarm_speak(t) {
-   if (mhttpdConfig().alarmSpeak) {
-      var u = new SpeechSynthesisUtterance(t);
-      window.speechSynthesis.speak(u);
-   }
-}
+function mhttpd_speak(time, text) {
 
-function mhttpd_chat_speak(time, text) {
+   if (!('speechSynthesis' in window))
+      return;
+
    if (mhttpdConfig().speakChat) {
-      if (time > mhttpdConfig().param.lastSpeak) {
-         mhttpdConfigSet("param.lastSpeak", time);
+      if (time > mhttpdConfig().var.lastSpeak) {
+         mhttpdConfigSet("var.lastSpeak", time);
          var u = new SpeechSynthesisUtterance(text);
-         window.speechSynthesis.speak(u);
+         u.voice = speechSynthesis.getVoices().filter(function(voice) { return voice.name == "Fred"; })[0];
+         speechSynthesis.speak(u);
       }
    }
 }
