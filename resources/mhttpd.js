@@ -340,7 +340,7 @@ function mhttpd_navigation_bar(current_page, path) {
       }
 
       if (!b || b.length < 1) {
-         b = ["Status", "ODB", "Messages", "Chat", "ELog", "Alarms", "Programs", "History", "MSCB", "Sequencer", "Config", "Example", "Help"];
+         b = ["Status", "ODB", "Messages", "Chat", "ELog", "Alarms", "Programs", "History", "MSCB", "Sequencer", "Config", "Help"];
       }
 
       var html = "";
@@ -489,7 +489,7 @@ function mhttpd_init(current_page, interval, callback) {
          }
 
          if (!b || b.length < 1) {
-            b = ["Status", "ODB", "Messages", "Chat", "ELog", "Alarms", "Programs", "History", "MSCB", "Sequencer", "Config", "Example", "Help"];
+            b = ["Status", "ODB", "Messages", "Chat", "ELog", "Alarms", "Programs", "History", "MSCB", "Sequencer", "Config", "Help"];
          }
 
          var html = "";

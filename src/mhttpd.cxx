@@ -1578,7 +1578,7 @@ void init_menu_buttons()
    db_get_value(hDB, 0, "/Experiment/Menu/History", &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/MSCB", &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Sequencer", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Example", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Config", &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Help", &value, &size, TID_BOOL, TRUE);
    //strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Example, Help", sizeof(str));
 
@@ -1633,9 +1633,9 @@ void xshow_navigation_bar(const char *cur_page)
    /*---- menu buttons ----*/
 
 #ifdef HAVE_MSCB
-   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Example, Help", sizeof(str));
+   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Config, Help", sizeof(str));
 #else
-   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, Sequencer, Example, Help", sizeof(str));
+   strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, Sequencer, Config, Help", sizeof(str));
 #endif
    size = sizeof(str);
    db_get_value(hDB, 0, "/Experiment/Menu Buttons", str, &size, TID_STRING, TRUE);
