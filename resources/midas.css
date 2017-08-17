@@ -74,7 +74,7 @@ a:focus { color:#0000FF; text-decoration:underline }
    position: fixed;
    top: 0;
    left: 0;
-   z-index: 1;
+   z-index: 2; /* above side navigation */
    width: 100%;
    box-sizing: border-box;
    height: 32px;
@@ -140,7 +140,6 @@ a:focus { color:#0000FF; text-decoration:underline }
    font-family: verdana,tahoma,sans-serif;
    font-size: 100%;
    padding: 0;
-   transition: 0.2s;
 }
 
 .mmenuitem {

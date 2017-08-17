@@ -13,6 +13,41 @@
    }
 </style>
 <script>
+
+   function load_voices() {
+      var s = document.getElementsByName("speakVoice")[0];
+      if (s.length > 0)
+         return; // new loaded voice can re-trigger this function
+
+      var voices = speechSynthesis.getVoices();
+      voices = voices.filter(function (v) {
+         return v.lang == "en-US"
+      });
+      for (var i = 0; i < voices.length; i++) {
+         var o = document.createElement('option');
+         o.text = voices[i].name;
+         s.add(o);
+      }
+
+      s.value = mhttpdConfig().speakVoice;
+
+      // if configured voice not available, use first one
+      if (s.value == "") {
+         s.value = voices[0].name;
+         mhttpdConfigSet('speakVoice', s.value);
+      }
+
+      s.addEventListener('change', function (e) {
+         mhttpdConfigSet('speakVoice', this.value);
+         var u = new SpeechSynthesisUtterance('The speed synthesis has been changed to voice ' + this.value);
+         u.voice = speechSynthesis.getVoices().filter(function (v) {
+            return v.name === this.value;
+         }, this)[0];
+         u.volume = parseFloat(mhttpdConfig().speakVolume);
+         speechSynthesis.speak(u);
+      });
+   }
+
    function config_init() {
       var config = mhttpdConfig();
       var input = document.getElementsByTagName('input');
@@ -39,35 +74,16 @@
 
       var s = document.getElementsByName("alarmSoundFile")[0];
       s.value = config.alarmSoundFile.slice(0, -4);
-      s.addEventListener('change', function(e) {
-         mhttpdConfigSet('alarmSoundFile', this.value+".mp3");
-         var audio = new Audio(this.value+".mp3");
+      s.addEventListener('change', function (e) {
+         mhttpdConfigSet('alarmSoundFile', this.value + ".mp3");
+         var audio = new Audio(this.value + ".mp3");
          audio.play();
       });
 
-
-      window.speechSynthesis.onvoiceschanged = function () {
-         var s = document.getElementsByName("speakVoice")[0];
-         if (s.length > 0)
-            return; // new loaded voice can re-trigger this function
-
-         var voices = speechSynthesis.getVoices();
-         voices = voices.filter(function(v) { return v.lang == "en-US"});
-         for (var i=0 ; i<voices.length ; i++) {
-            var o = document.createElement('option');
-            o.text = voices[i].name;
-            s.add(o);
-         }
-
-         s.value = config.speakVoice;
-         s.addEventListener('change', function(e) {
-            mhttpdConfigSet('speakVoice', this.value);
-            var u = new SpeechSynthesisUtterance('The quick brow fox jumps over the lazy dog');
-            u.voice = speechSynthesis.getVoices().filter(function(v) {return v.name === this.value;}, this)[0];
-            u.volume = parseFloat(mhttpdConfig().speakVolume);
-            speechSynthesis.speak(u);
-         });
-      }
+      if (speechSynthesis.getVoices().length > 0)
+         load_voices();
+      else
+         window.speechSynthesis.onvoiceschanged = load_voices;
    }
 </script>
 
@@ -181,7 +197,8 @@
 
       <tr>
          <td colspan="2" style="text-align: center;">
-            <button class="mbutton" onclick="mhttpdConfigSetAll(mhttpd_config_defaults);config_init();">Reset defaults</button>
+            <button class="mbutton" onclick="mhttpdConfigSetAll(mhttpd_config_defaults);config_init();">Reset defaults
+            </button>
          </td>
       </tr>
 
