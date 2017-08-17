@@ -1335,7 +1335,7 @@ function mhttpd_speak(time, text) {
       if (time > mhttpdConfig().var.lastSpeak) {
          mhttpdConfigSet("var.lastSpeak", time);
          var u = new SpeechSynthesisUtterance(text);
-         u.voice = speechSynthesis.getVoices().filter(function(voice) { return voice.name == "Fred"; })[0];
+         u.voice = speechSynthesis.getVoices().filter(function(voice) { return voice.name == mhttpdConfig().speakVoice; })[0];
          speechSynthesis.speak(u);
       }
    }

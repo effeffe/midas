@@ -44,6 +44,30 @@
          var audio = new Audio(this.value+".mp3");
          audio.play();
       });
+
+
+      window.speechSynthesis.onvoiceschanged = function () {
+         var s = document.getElementsByName("speakVoice")[0];
+         if (s.length > 0)
+            return; // new loaded voice can re-trigger this function
+
+         var voices = speechSynthesis.getVoices();
+         voices = voices.filter(function(v) { return v.lang == "en-US"});
+         for (var i=0 ; i<voices.length ; i++) {
+            var o = document.createElement('option');
+            o.text = voices[i].name;
+            s.add(o);
+         }
+
+         s.value = config.speakVoice;
+         s.addEventListener('change', function(e) {
+            mhttpdConfigSet('speakVoice', this.value);
+            var u = new SpeechSynthesisUtterance('The quick brow fox jumps over the lazy dog');
+            u.voice = speechSynthesis.getVoices().filter(function(v) {return v.name === this.value;}, this)[0];
+            u.volume = parseFloat(mhttpdConfig().speakVolume);
+            speechSynthesis.speak(u);
+         });
+      }
    }
 </script>
 
@@ -96,7 +120,6 @@
          </td>
          <td>
             <select name="speakVoice">
-               <option>Alex</option>
             </select>
          </td>
       </tr>
