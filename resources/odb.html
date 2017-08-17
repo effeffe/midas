@@ -57,7 +57,7 @@
 
       var subDirArray = new Array();
 
-      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr align=\"center\"><td id=\"actionBar\" colspan=\"7\"><button id=\"create\" class=\"mbutton\" onclick=\"generateCreateDlg()\">create</button><input id=\"searchbox\" type=\"text\" placeholder=\"search\" title=\"case insensitive\"></input></td></tr><tr align=\"center\"><td id=\"actionBar\" colspan=\"7\"><button id=\"rename\" class=\"mbutton\" onclick=\"generateRenameDlg()\">rename</button><button id=\"resize\" class=\"mbutton\" onclick=\"generateResizeDlg()\">resize</button><button id=\"mode\" class=\"mbutton\" onclick=\"generateAccessModeDlg()\">mode</button><button id=\"delete\" class=\"mbutton\" onclick=\"deleteDirsAndKeys()\">delete</button></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr><tr><td><input type=\"checkbox\" id=\"allSubDirs\"></input></td><div id=\"dlgCreate\" class=\"dlgFrame\" style=\"display:none\"></div></tr>";
+      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr align=\"center\"><td id=\"mgeneralBar\" colspan=\"7\"><button id=\"create\" class=\"mbutton\" onclick=\"generateCreateDlg()\">create</button><input id=\"searchbox\" type=\"text\" placeholder=\"search\" title=\"case insensitive\"></input></td></tr><tr align=\"center\" id=\"mactionBar\" class=\"mactionBar\"><td  colspan=\"7\"><button id=\"rename\" class=\"mbutton\" onclick=\"generateRenameDlg()\">rename</button><button id=\"resize\" class=\"mbutton\" onclick=\"generateResizeDlg()\">resize</button><button id=\"mode\" class=\"mbutton\" onclick=\"generateAccessModeDlg()\">mode</button><button id=\"delete\" class=\"mbutton\" onclick=\"deleteDirsAndKeys()\">delete</button></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr><tr><td><input type=\"checkbox\" id=\"allSubDirs\"></input></td><div id=\"dlgCreate\" class=\"dlgFrame\" style=\"display:none\"></div></tr>";
 
       const MODE_READ = (1 << 0)
       const MODE_WRITE = (1 << 1)
@@ -136,6 +136,63 @@
             case 17: return "LAST"; break;
          }
       }
+
+      function generateActionBar() {
+         var allDirCheckboxs = document.getElementsByClassName("sub_dir_checkbox");
+         var allKeyCheckboxs = document.getElementsByClassName("key_row_checkbox");
+
+         var allKeys = new Array();
+         var keys = new Array();
+         var dirs = new Array();
+
+         Array.prototype.forEach.call(allDirCheckboxs, function (element) {
+            if (element.checked) {
+               allKeys.push(element.id);
+               dirs.push(element.id);
+               isKey = false;
+            }
+         });
+
+         Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
+            if (element.checked) {
+               allKeys.push(element.id);
+               keys.push(element.id);
+               isKey = true;
+            }
+         });
+         if (allKeys.length == 0) {
+            document.getElementById("mactionBar").style.visibility = "hidden";
+            document.getElementById("rename").style.visibility = "hidden";
+            document.getElementById("resize").style.visibility = "hidden";
+            document.getElementById("mode").style.visibility = "hidden";
+            document.getElementById("delete").style.visibility = "hidden";
+         } else if (keys.length > 1 && dirs.length == 0) {
+            document.getElementById("mactionBar").style.visibility = "visible";
+            document.getElementById("rename").style.visibility = "hidden";
+            document.getElementById("resize").style.visibility = "visible";
+            document.getElementById("mode").style.visibility = "visible";
+            document.getElementById("delete").style.visibility = "visible";
+         } else if ((allKeys.length == 1 && keys.length == 1) || (allKeys.length >= 1 && dirs.length == 0)) {
+            document.getElementById("mactionBar").style.visibility = "visible";
+            document.getElementById("rename").style.visibility = "visible";
+            document.getElementById("resize").style.visibility = "visible";
+            document.getElementById("mode").style.visibility = "visible";
+            document.getElementById("delete").style.visibility = "visible";
+         } else if (keys.length == 0 && dirs.length == 1) {
+            document.getElementById("mactionBar").style.visibility = "visible";
+            document.getElementById("rename").style.visibility = "visible";
+            document.getElementById("resize").style.visibility = "hidden";
+            document.getElementById("mode").style.visibility = "hidden";
+            document.getElementById("delete").style.visibility = "visible";
+         } else {
+            document.getElementById("mactionBar").style.visibility = "visible";
+            document.getElementById("rename").style.visibility = "hidden";
+            document.getElementById("resize").style.visibility = "hidden";
+            document.getElementById("mode").style.visibility = "hidden";
+            document.getElementById("delete").style.visibility = "visible";
+         }
+      }
+
 
 
       function create_page_handle_rename(theKey) {
@@ -225,7 +282,7 @@
             var keyType = document.createElement("td");
             var keyName = document.createElement("td");
             if (isKey) {
-               keyType.innerHTML = "Key:";
+               keyType.innerHTML = "Old name:";
             } else {
                keyType.innerHTML = "Directory:";
             }
@@ -246,7 +303,7 @@
             var cancelButton = document.createElement("input");
             cancelButton.type = "button";
             cancelButton.value = "Cancel";
-            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display="none";};
+            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display = "none"; };
 
 
 
@@ -370,7 +427,7 @@
             var cancelButton = document.createElement("input");
             cancelButton.type = "button";
             cancelButton.value = "Cancel";
-            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display="none";};
+            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display = "none"; };
 
 
 
@@ -495,7 +552,7 @@
             var cancelButton = document.createElement("input");
             cancelButton.type = "button";
             cancelButton.value = "Cancel";
-            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display="none";};
+            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display = "none"; };
 
 
 
@@ -627,7 +684,7 @@
             var cancelButton = document.createElement("input");
             cancelButton.type = "button";
             cancelButton.value = "Cancel";
-            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display="none";};
+            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display = "none"; };
 
 
 
@@ -1418,6 +1475,8 @@
                generateSub_Dir();
                generateODB_Keys();
 
+               document.addEventListener("click", generateActionBar);
+
                custompathcache = custompath;
 
             }
@@ -1425,7 +1484,6 @@
 
          updateLastWritten();
          updateSubDir();
-
 
 
       }
