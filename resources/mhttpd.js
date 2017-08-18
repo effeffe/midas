@@ -179,13 +179,19 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val) {
    if (odb_path.indexOf('[') > 0) {
       index = odb_path.substr(odb_path.indexOf('['));
       if (bracket == 0) {
-         p.innerHTML = "<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' >";
+         p.innerHTML = "<input type='text' size='" + size + "' value='" + str +
+            "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" +
+            odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
+            odb_path + "&quot;," + bracket + ");' >";
          setTimeout(function () {
             p.childNodes[0].focus();
             p.childNodes[0].select();
          }, 10); // needed for Firefox
       } else {
-         p.innerHTML = index + "&nbsp;<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' >";
+         p.innerHTML = index + "&nbsp;<input type='text' size='" + size + "' value='" + str +
+            "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" +
+            odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
+            odb_path + "&quot;," + bracket + ");' >";
 
          // what is this for?
          setTimeout(function () {
@@ -195,7 +201,10 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val) {
       }
    } else {
 
-      p.innerHTML = "<input type='text' size='" + size + "' value='" + str + "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" + odb_path + "&quot;," + bracket + ");' >";
+      p.innerHTML = "<input type='text' size='" + size + "' value='" + str +
+         "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" +
+         odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
+         odb_path + "&quot;," + bracket + ");' >";
 
       // what is this for?
       setTimeout(function () {
@@ -331,7 +340,7 @@ function mhttpd_navigation_bar(current_page, path) {
       }
 
       if (!b || b.length < 1) {
-         b = ["Status", "ODB", "Messages", "Chat", "ELog", "Alarms", "Programs", "History", "MSCB", "Sequencer", "Config", "Example", "Help"];
+         b = ["Status", "ODB", "Messages", "Chat", "ELog", "Alarms", "Programs", "History", "MSCB", "Sequencer", "Config", "Help"];
       }
 
       var html = "";
@@ -369,23 +378,6 @@ function mhttpd_toggle_menu() {
    }
 }
 
-function mhttpd_page_footer() {
-   /*---- spacer for footer ----*/
-   //document.write("<div class='push'></div>\n");
-
-   /*---- footer div ----*/
-   document.write("<div id='footerDiv' class='mfooter footerDiv'>\n");
-   mjsonrpc_db_get_values(["/Experiment/Name"]).then(function (rpc) {
-      document.getElementById("mhttpd_expt_name").innerHTML = "Experiment " + rpc.result.data[0];
-   }).catch(function (error) {
-      mjsonrpc_error_alert(error);
-   });
-   document.write("<div style='display:inline; float:left;' id='mhttpd_expt_name'>Experiment %s</div>");
-   document.write("<div style='display:inline;'><a href='?cmd=Help'>Help</a></div>");
-   document.write("<div style='display:inline; float:right; ' id='mhttpd_last_updated'>" + new Date + "</div>");
-   document.write("</div>\n");
-}
-
 var mhttpd_refresh_id;
 var mhttpd_refresh_interval;
 var mhttpd_spinning_wheel;
@@ -417,7 +409,7 @@ function mhttpd_init(current_page, interval, callback) {
 
    // create header
    var h = document.getElementById("mheader");
-   if (h !== undefined)
+   if (h !== undefined) {
       h.innerHTML =
          "<div style='display:inline-block; float:left';>" +
          "<span class='mmenuitem' style='padding-right: 10px;margin-right: 20px;' onclick='mhttpd_toggle_menu()'>&#9776;</span>" +
@@ -426,9 +418,14 @@ function mhttpd_init(current_page, interval, callback) {
 
          "<div id='mheader_message'></div>" +
 
-         "<div style='display:inline; float:right;'>" +
-         "<span style='display:inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></span>" +
+         "<div style='display: inline; float:right;'>" +
+         "<div id='mheader_alarm'>&nbsp;</div>" +
+         "<div style='display: inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></div>" +
          "</div>";
+   }
+
+   mhttpd_resize_sidenav();
+   window.addEventListener('resize', mhttpd_resize_sidenav);
 
    // put error header in front of header
    var d = document.createElement('div');
@@ -452,29 +449,26 @@ function mhttpd_init(current_page, interval, callback) {
             }
          }
          document.getElementById("mheader_expt_name").innerHTML = sessionStorage.mexpname;
-         document.getElementById("mheader_last_updated").innerHTML = new Date();
 
-         // now the side navigation has its full width, ajust the main body and make it visible
+         // now the side navigation has its full width, adjust the main body and make it visible
          var m = document.getElementById("mmain");
          if (m !== undefined) {
             m.style.marginLeft = document.getElementById("msidenav").clientWidth + "px";
-            m.style.display = "block";
+            m.style.opacity = 1;
          }
       }
 
       // request it from server, since it might have changed
       mjsonrpc_db_get_values(["/Experiment/Base URL", "/Experiment/Name", "/Experiment/Menu", "/Experiment/Menu Buttons",
-         "/Custom", "/Script", "/Alias"]).then(function (rpc) {
+         "/Custom", "/Scripts", "/Alias"]).then(function (rpc) {
          document.getElementById("mheader_expt_name").innerHTML = rpc.result.data[1];
          sessionStorage.setItem("mexpname", rpc.result.data[1]);
-
-         document.getElementById("mheader_last_updated").innerHTML = new Date();
 
          var base_url = rpc.result.data[0];
          var menu = rpc.result.data[2];
          var buttons = rpc.result.data[3];
          var custom = rpc.result.data[4];
-         var script = rpc.result.data[5];
+         var scripts = rpc.result.data[5];
          var alias = rpc.result.data[6];
 
          // check for base URL
@@ -492,15 +486,14 @@ function mhttpd_init(current_page, interval, callback) {
             for (var k in menu) {
                if (k.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
                   continue;
-               if (menu[k] == true)
-                  b.push(menu[k + "/name"]);
+               b.push(menu[k + "/name"]);
             }
          } else if (buttons && buttons.length > 0) {
             b = buttons.split(",");
          }
 
          if (!b || b.length < 1) {
-            b = ["Status", "ODB", "Messages", "Chat", "ELog", "Alarms", "Programs", "History", "MSCB", "Sequencer", "Config", "Example", "Help"];
+            b = ["Status", "ODB", "Messages", "Chat", "ELog", "Alarms", "Programs", "History", "MSCB", "Sequencer", "Config", "Help"];
          }
 
          var html = "";
@@ -527,21 +520,12 @@ function mhttpd_init(current_page, interval, callback) {
                   cc += " mmenuitemsel";
                if (b === "path")
                   continue;
-               html += "<div class='" + cc + "'><a href='" + base_url + custom[b] + "' class='mmenulink'>" + custom[b + "/name"] + "</a></div>\n";
-            }
-
-         }
-
-         // script
-         if (script !== null && Object.keys(script).length > 0) {
-            // add separator
-            html += "<div class='mseparator'></div>\n";
-
-            for (var b in script) {
-               if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
+               var l = custom[b + "/name"];
+               if (l.substr(-1) == '!')
                   continue;
-               var n = script[b + "/name"];
-               html += "<div class='mmenuitem'><a href='?script=" + b + "' class='mmenulink'>" + n + "</a></div>\n";
+               if (l.substr(-1) == '&')
+                  l = l.slice(0, -1);
+               html += "<div class='" + cc + "'><a href='" + base_url + custom[b] + "' class='mmenulink'>" + l + "</a></div>\n";
             }
 
          }
@@ -571,15 +555,16 @@ function mhttpd_init(current_page, interval, callback) {
          var m = document.getElementById("mmain");
          if (m !== undefined) {
             m.style.marginLeft = document.getElementById("msidenav").clientWidth + "px";
-            m.style.display = "block";
+            m.style.opacity = 1;
          }
 
          // cache navigation buttons in browser local storage
          sessionStorage.setItem("msidenav", html);
 
+
+      }).then(function () {
          if (callback !== undefined)
             callback();
-
       }).catch(function (error) {
          mjsonrpc_error_alert(error);
       });
@@ -628,7 +613,6 @@ function mhttpd_init(current_page, interval, callback) {
       mbar[i].innerHTML = "<div style='background-color:" + color + "; width:0; position:relative; display:inline-block; border-right:1px solid #808080'>&nbsp;</div>";
    }
 
-
    // preload spinning wheel for later use
    mhttpd_spinning_wheel = new Image();
    mhttpd_spinning_wheel.src = "spinning-wheel.gif";
@@ -638,18 +622,23 @@ function mhttpd_init(current_page, interval, callback) {
       interval = 1000;
    mhttpd_refresh_interval = interval;
    mhttpd_refresh();
-
-   /* test error and message display
-   mhttpd_message('This is a test message');
-   mhttpd_error('This is a test message');
-   */
 }
+
+function mhttpd_resize_sidenav() {
+   var h = document.getElementById('mheader');
+   var s = document.getElementById('msidenav');
+   s.style.top = h.clientHeight + 1 + "px";
+   var m = document.getElementById('mmain');
+   m.style.paddingTop = h.clientHeight + 1 + "px";
+}
+
+var mhttpd_last_message = 1;
 
 function mhttpd_refresh() {
    if (mhttpd_refresh_id != undefined)
       window.clearTimeout(mhttpd_refresh_id);
 
-   /* this fuction gets called by mhttpd_init to periodically refresh all ODB tags */
+   /* this fuction gets called by mhttpd_init to periodically refresh all ODB tags plus alarms and messages */
 
    // go through all "modbvalue" tags
    var modbvalue = document.getElementsByName("modbvalue");
@@ -661,16 +650,38 @@ function mhttpd_refresh() {
    for (i = 0; i < modbbar.length; i++)
       paths.push(modbbar[i].dataset.odbPath);
 
+
    // request ODB contents for all variables
-   mjsonrpc_db_get_values(paths).then(function (rpc) {
+   var req1 = mjsonrpc_make_request("db_get_values", {"paths": paths});
+
+   // request current alarms
+   var req2 = mjsonrpc_make_request("get_alarms");
+
+   // request new messages
+   var req3 = mjsonrpc_make_request("cm_msg_retrieve", {
+      "facility": "midas",
+      "time": mhttpd_last_message - 1,
+      "min_messages": 100
+   });
+
+   // request new char messages
+   var req4 = mjsonrpc_make_request("cm_msg_retrieve", {
+      "facility": "chat",
+      "time": mhttpd_last_message - 1,
+      "min_messages": 100
+   });
+
+   mjsonrpc_send_request([req1, req2, req3, req4]).then(function (rpc) {
 
       // update time in header
+      var da = new Date().toISOString();
+
       if (document.getElementById("mheader_last_updated") != undefined)
-         document.getElementById("mheader_last_updated").innerHTML = new Date();
+         document.getElementById("mheader_last_updated").innerHTML = da.substr(0, 10) + " " + da.substr(11, 8);
 
       for (var i = 0; i < modbvalue.length; i++) {
-         var value = rpc.result.data[i];
-         var tid = rpc.result.tid[i];
+         var value = rpc[0].result.data[i];
+         var tid = rpc[0].result.tid[i];
          var mvalue = mie_to_string(tid, value);
          if (mvalue === "")
             mvalue = "(empty)";
@@ -682,8 +693,8 @@ function mhttpd_refresh() {
       }
 
       for (i = 0; i < modbbar.length; i++) {
-         value = rpc.result.data[modbvalue.length + i];
-         tid = rpc.result.tid[modbvalue.length + i];
+         value = rpc[0].result.data[modbvalue.length + i];
+         tid = rpc[0].result.tid[modbvalue.length + i];
          mvalue = mie_to_string(tid, value);
          if (mvalue === "")
             mvalue = "(empty)";
@@ -697,9 +708,57 @@ function mhttpd_refresh() {
          modbbar[i].children[0].style.width = percent + "%";
       }
 
+      // update alarm display
+      var e = document.getElementById('mheader_alarm');
+      if (!rpc[1].result.alarm_system_active) {
+         e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: Off</a>";
+         e.className = "mgraycolor";
+      } else {
+         if (Object.keys(rpc[1].result.alarms) == 0) {
+            e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: None</a>";
+            e.className = "mgreencolor";
+         } else {
+            var s = "";
+            var n = 0;
+            for (var a in rpc[1].result.alarms) {
+               s += a + ", ";
+               n++;
+            }
+            s = s.slice(0, -2);
+            if (n > 1)
+               e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: " + s + "</a>";
+            else
+               e.innerHTML = "<a href=\"?cmd=Alarms\">Alarm: " + s + "</a>";
+            e.className = "mredcolor";
+
+            mhttpd_alarm_play();
+         }
+      }
+
+      // update messages
+      if (rpc[2].result.messages !== undefined) {
+         var msg = rpc[2].result.messages.split("\n");
+         if (msg[msg.length - 1] === "")
+            msg = msg.slice(0, -1);
+      } else
+         msg = undefined;
+
+      // update chat messages
+      if (rpc[3].result.messages !== undefined) {
+         var chat = rpc[3].result.messages.split("\n");
+         if (chat[chat.length - 1] === "")
+            chat = chat.slice(0, -1);
+      } else
+         chat = undefined;
+
+      mhttpd_message(msg, chat);
+      mhttpd_resize_sidenav();
+
       if (mhttpd_refresh_interval != undefined && mhttpd_refresh_interval > 0)
          mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
+
    }).catch(function (error) {
+
       if (error.xhr.readyState == 4 && error.xhr.status == 0) {
          mhttpd_error('Connection to server broken. Trying to reconnect&nbsp;&nbsp;');
          document.getElementById("mheader_error").appendChild(mhttpd_spinning_wheel);
@@ -711,26 +770,110 @@ function mhttpd_refresh() {
 }
 
 function mhttpd_reconnect() {
-   mjsonrpc_db_ls(["/"]).then( function (rpc) {
+   mjsonrpc_db_ls(["/"]).then(function (rpc) {
       location.reload(); // reload current page on successful connection
-   }).catch(function(error) {
+   }).catch(function (error) {
       mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
    });
 }
 
 
-function mhttpd_message(error) {
-   var d = document.getElementById("mheader_message");
-   if (d !== undefined) {
-      d.style.display = "inline";
-      d.innerHTML = error + "&nbsp;<span style='cursor: pointer;' onclick='document.getElementById(&quot;mheader_message&quot;).style.display = &quot;none&quot;'>&#10683;</span>";
+function mhttpd_message(msg, chat) {
+
+   var mTalk = "";
+   var mType = "";
+   var chatName = "";
+   var talkTime = 0;
+
+   if (msg != undefined) {
+      var lastMsg = msg[0].substr(msg[0].indexOf(" ") + 1);
+      var lastMsgT = parseInt(msg[0]);
+   } else {
+      lastMsg = "";
+      lastMsgT = 0;
+   }
+   if (chat != undefined) {
+      var lastChat = chat[0].substr(chat[0].indexOf(" ") + 1);
+      var lastChatT = parseInt(chat[0]);
+      if (chat[0].length > 0)
+         mTalk = chat[0].substr(chat[0].indexOf("]") + 2);
+
+      chatName = lastChat.substring(lastChat.indexOf("[") + 1, lastChat.indexOf(","));
+      lastChat = lastChat.substr(0, lastChat.indexOf("[")) +
+         "<b>" + chatName + ":</b>" +
+         lastChat.substr(lastChat.indexOf("]") + 1);
+   } else {
+      lastChat = "";
+      lastChatT = 0;
+   }
+
+   if (lastChatT > lastMsgT) {
+      var m = lastChat;
+      var c = "#DCF8C6";
+      mType = "USER";
+      talkTime = lastChatT;
+   } else {
+      m = lastMsg;
+      c = "yellow";
+      mTalk = lastMsg.substr(lastMsg.indexOf("]") + 1);
+      mType = m.substring(m.indexOf(",") + 1, m.indexOf("]"));
+      talkTime = lastMsgT;
+   }
+
+   if (m !== "") {
+      var d = document.getElementById("mheader_message");
+      var s = m + "&nbsp;&nbsp;&nbsp;<span style='cursor: pointer;' onclick='document.getElementById(&quot;mheader_message&quot;).style.display = &quot;none&quot;;mhttpd_resize_sidenav();'>&#9587;</span>";
+      var first = (d.innerHTML === "");
+      if (d !== undefined && d.innerHTML.substr(0, d.innerHTML.search("&nbsp;&nbsp;&nbsp;<span")) != m) {
+         d.innerHTML = s;
+         d.style.display = "inline-block";
+
+         if (m.search("ERROR]") > 0) {
+            d.style.removeProperty("-webkit-transition");
+            d.style.removeProperty("transition");
+            d.style.backgroundColor = "red";
+            d.style.color = "white";
+         } else {
+            if (first) {
+               d.style.backgroundColor = "#A0A0A0";
+               d.age = new Date() / 1000;
+            } else {
+               d.style.removeProperty("-webkit-transition");
+               d.style.removeProperty("transition");
+               d.style.backgroundColor = c;
+               d.style.color = "black";
+               d.age = new Date() / 1000;
+               setTimeout(function () {
+                  d.style.setProperty("-webkit-transition", "background-color 3s", "");
+                  d.style.setProperty("transition", "background-color 3s", "");
+               }, 10);
+
+               if (mTalk !== "") {
+                  if (mType === "USER" && mhttpdConfig().speakChat) {
+                     // do not speak own message
+                     if (document.getElementById("chatName") == undefined || document.getElementById("chatName").value != chatName)
+                        mhttpd_speak(talkTime, mTalk);
+                  } else if (mType === "TALK" && mhttpdConfig().speakTalk) {
+                     mhttpd_speak(talkTime, mTalk);
+                  } else if (mType === "ERROR" && mhttpdConfig().speakError) {
+                     mhttpd_speak(talkTime, mTalk);
+                  } else if (mType === "INFO" && mhttpdConfig().speakInfo) {
+                     mhttpd_speak(talkTime, mTalk);
+                  }
+               }
+            }
+         }
+      }
+      var t = new Date() / 1000;
+      if (t > d.age + 5 && d.style.backgroundColor === "yellow")
+         d.style.backgroundColor = "#A0A0A0";
    }
 }
 
 function mhttpd_error(error) {
    var d = document.getElementById("mheader_error");
    if (d !== undefined) {
-      error += "<div style='display: inline; float: right; padding-right: 10px; cursor: pointer;' onclick='document.getElementById(&quot;mheader_error&quot;).style.zIndex = 0;'>&#10683;</div>";
+      error += "<div style='display: inline; float: right; padding-right: 10px; cursor: pointer;' onclick='document.getElementById(&quot;mheader_error&quot;).style.zIndex = 0;'>&#9587;</div>";
       d.innerHTML = error;
       d.style.zIndex = 2;
    }
@@ -1110,88 +1253,107 @@ function msg_extend() {
 
 /*---- site and session storage ----------------------------*/
 
-function storage_get(name, default_value) {
-   //console.log("storage_get: name [" + name + "], default value [" + default_value + "]");
+/*
+ Usage:
+
+ flag = mhttpdConfig().speakChat;     // read
+
+ mhttpdConfigSet('speakChat', false); // write individual config
+
+ var c = mhttpdConfig();              // write whole config
+ c.speakChat = false;
+ c.... = ...;
+ mhttpdConfigSetAll(c);
+
+
+ Saves settings are kept in local storage, which gets
+ cleared when the browser session ends. Then the default
+ values are returned.
+ */
+
+var mhttpd_config_defaults = {
+   'chatName': "",
+
+   'speakChat': true,
+   'speakTalk': true,
+   'speakError': false,
+   'speakInfo': false,
+   'speakVoice': 'Alex',
+   'speakVolume': 1,
+
+   'alarmSound': true,
+   'alarmSoundFile': 'beep.mp3',
+   'alarmRepeat': 60,
+   'alarmVolume': 1,
+
+   'var': {
+      'lastSpeak': 0,
+      'lastAlarm': 0
+   }
+};
+
+function mhttpdConfig() {
+   var c = mhttpd_config_defaults;
    try {
-      var x = name in localStorage;
-      var v = localStorage[name];
-      //console.log("storage_get: in: " + x + ", value [" + v + "]");
-      if (!x) {
-         //console.log("storage_get: name [" + name + "], undefined, default value [" + default_value + "]");
-         return default_value;
-      } else {
-         return localStorage.getItem(name);
+      if (localStorage.mhttpd)
+         c = JSON.parse(localStorage.mhttpd);
+      // count number of elements
+      if (Object.keys(c).length != Object.keys(mhttpd_config_defaults).length)
+         c = mhttpd_config_defaults;
+   } catch (e) {
+   }
+
+   return c;
+}
+
+function mhttpdConfigSet(item, value) {
+   try {
+      var c = mhttpdConfig();
+      if (item.indexOf('.') > 0) {
+         var c1 = item.substring(0, item.indexOf('.'));
+         var c2 = item.substring(item.indexOf('.')+1);
+         c[c1][c2] = value;
+      } else
+         c[item] = value;
+      localStorage.setItem('mhttpd', JSON.stringify(c));
+   } catch (e) {
+   }
+}
+
+function mhttpdConfigSetAll(new_config) {
+   try {
+      localStorage.setItem('mhttpd', JSON.stringify(new_config));
+   } catch (e) {
+   }
+}
+
+/*---- sound and speak functions --------------------------*/
+
+function mhttpd_alarm_play() {
+   if (mhttpdConfig().alarmSound && mhttpdConfig().alarmSoundFile) {
+      var now = new Date() / 1000;
+      if (now > mhttpdConfig().var.lastAlarm + parseFloat(mhttpdConfig().alarmRepeat)) {
+         mhttpdConfigSet("var.lastAlarm", now);
+         var audio = new Audio(mhttpdConfig().alarmSoundFile);
+         audo.volume = mhttpdConfig().alarmVolume;
+         audio.play();
       }
-   } catch (err) {
-      return default_value;
    }
 }
 
-function storage_set(name, value) {
-   //console.log("storage_set: name [" + name + "], value [" + value + "]");
-   try {
-      localStorage.setItem(name, value);
-   } catch (err) {
-   }
-}
+function mhttpd_speak(time, text) {
 
-function storage_chatSpeak(v) {
-   if (v == true) {
-      storage_set("chatSpeak", "1");
-   } else if (v == false) {
-      storage_set("chatSpeak", "0");
-   } else {
-      return storage_get("chatSpeak", "0") == "1";
-   }
-}
+   if (!('speechSynthesis' in window))
+      return;
 
-function storage_alarmSound(v) {
-   if (v == true) {
-      storage_set("alarmSound", "1");
-   } else if (v == false) {
-      storage_set("alarmSound", "0");
-   } else {
-      return storage_get("alarmSound", "1") == "1";
-   }
-}
-
-function storage_alarmSpeak(v) {
-   if (v == true) {
-      storage_set("alarmSpeak", "1");
-   } else if (v == false) {
-      storage_set("alarmSpeak", "0");
-   } else {
-      return storage_get("alarmSpeak", "1") == "1";
-   }
-}
-
-/*---- alarm functions -------------------------------------*/
-
-function mhttpd_alarm_play(url) {
-   //console.log("maybePlay: [" + url + "]");
-   if (storage_alarmSound()) {
-      var audio = new Audio(url);
-      audio.play();
-   }
-}
-
-function mhttpd_alarm_speak(t) {
-   if (storage_alarmSpeak()) {
-      var u = new SpeechSynthesisUtterance(t);
-      window.speechSynthesis.speak(u);
-   }
-}
-
-/*---- MTALK messages -------------------------------------*/
-
-function talk_maybeSpeak(tim, msg) {
-   try {
-      if (storage_alarmSpeak() && storage_get("lastTalkSpeak", "") != tim) {
-         var u = new SpeechSynthesisUtterance(msg);
-         window.speechSynthesis.speak(u);
-         storage_set("lastTalkSpeak", tim);
+   if (mhttpdConfig().speakChat) {
+      if (time > mhttpdConfig().var.lastSpeak) {
+         mhttpdConfigSet("var.lastSpeak", time);
+         var u = new SpeechSynthesisUtterance(text);
+         u.voice = speechSynthesis.getVoices().filter(function(voice) { return voice.name == mhttpdConfig().speakVoice; })[0];
+         u.volume = mhttpdConfig().speakVolume;
+            speechSynthesis.speak(u);
       }
-   } catch (err) {
    }
 }
 

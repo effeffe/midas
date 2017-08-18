@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html class="mcss">
+<head>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css">
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <script src="controls.js"></script>
+   <title>Config</title>
+</head>
+<style>
+   td {
+      padding: 10px;
+   }
+</style>
+<script>
+
+   function load_voices() {
+      var s = document.getElementById("speakVoice");
+      if (s.length > 0)
+         return; // new loaded voice can re-trigger this function
+
+      var voices = speechSynthesis.getVoices();
+      voices = voices.filter(function (v) { return v.lang == "en-US"; });
+      for (var i = 0; i < voices.length; i++) {
+         var o = document.createElement('option');
+         o.text = voices[i].name;
+         s.add(o);
+      }
+
+      s.value = mhttpdConfig().speakVoice;
+
+      // if configured voice not available, use first one
+      if (s.value == "") {
+         s.value = voices[0].name;
+         mhttpdConfigSet('speakVoice', s.value);
+      }
+
+      s.addEventListener('change', function (e) {
+         mhttpdConfigSet('speakVoice', this.value);
+         var u = new SpeechSynthesisUtterance('The speed synthesis has been changed to voice ' + this.value);
+         u.voice = speechSynthesis.getVoices().filter(function (v) {
+            return v.name === this.value;
+         }, this)[0];
+         u.volume = parseFloat(mhttpdConfig().speakVolume);
+         speechSynthesis.speak(u);
+      });
+   }
+
+   function config_init() {
+      var config = mhttpdConfig();
+      var input = document.getElementsByTagName('input');
+      for (var i = 0; i < input.length; i++) {
+         if (input[i].type === 'checkbox') {
+            input[i].checked = config[input[i].id];
+            input[i].addEventListener('change', function (e) {
+               mhttpdConfigSet(this.id, this.checked);
+            });
+         }
+         if (input[i].type === 'text') {
+            input[i].value = config[input[i].id];
+            input[i].addEventListener('change', function (e) {
+               if (this.dataset.minValue != undefined)
+                  if (parseFloat(this.value) < parseFloat(this.dataset.minValue))
+                     this.value = this.dataset.minValue;
+               if (this.dataset.maxValue != undefined)
+                  if (parseFloat(this.value) > parseFloat(this.dataset.maxValue))
+                     this.value = this.dataset.maxValue;
+               mhttpdConfigSet(this.id, this.value);
+            });
+         }
+      }
+      var sliders = document.getElementsByName('ctrlHSlider');
+      for (var i = 0; i < sliders.length; i++) {
+         sliders[i].set(parseFloat(config[sliders[i].id]).toFixed(2));
+      }
+
+      var s = document.getElementById("alarmSoundFile");
+      s.value = config.alarmSoundFile.slice(0, -4);
+      s.addEventListener('change', function (e) {
+         mhttpdConfigSet('alarmSoundFile', this.value + ".mp3");
+         var audio = new Audio(this.value + ".mp3");
+         audio.volume = parseFloat(mhttpdConfig().alarmVolume);
+         audio.play();
+      });
+
+      if (speechSynthesis.getVoices().length > 0)
+         load_voices();
+      else
+         window.speechSynthesis.onvoiceschanged = load_voices;
+   }
+
+   function speakVolumeUpdate(value, final) {
+      if (final) {
+         mhttpdConfigSet('speakVolume', value);
+
+         var u = new SpeechSynthesisUtterance('The voice volume has been changed');
+         u.voice = speechSynthesis.getVoices().filter(function (v) { return v.name === mhttpdConfig().speakVoice; }, this)[0];
+         u.volume = value;
+         speechSynthesis.speak(u);
+
+      }
+   }
+
+   function alarmVolumeUpdate(value, final) {
+      if (final) {
+         mhttpdConfigSet('alarmVolume', value.toFixed(2));
+         var audio = new Audio(mhttpdConfig().alarmSoundFile);
+         audio.volume = mhttpdConfig().alarmVolume;
+         audio.play();
+      }
+   }
+
+</script>
+
+<body class="mcss" onload="mhttpd_init('Config'); config_init();">
+
+<!-- header and side navigation will be filled in mhttpd_start -->
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+   <table class="mtable">
+      <tr>
+         <th colspan="2" class="mtableheader">Config</th>
+      </tr>
+      <tr>
+         <td>
+            Speak "CHAT" messages:
+         </td>
+         <td>
+            <input type="checkbox" id="speakChat">
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Speak "TALK" messages:
+         </td>
+         <td>
+            <input type="checkbox" id="speakTalk">
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Speak "ERROR" messages:
+         </td>
+         <td>
+            <input type="checkbox" id="speakError">
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Speak "INFO" messages:
+         </td>
+         <td>
+            <input type="checkbox" id="speakInfo">
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Voice:
+         </td>
+         <td>
+            <select id="speakVoice">
+            </select>
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Speak volume:
+         </td>
+         <td>
+            <table>
+               <tr>
+                  <td style="padding: 0;">0&nbsp;</td>
+                  <td style="padding: 0;"><button name="ctrlHSlider" type="button" id="speakVolume" class="ctrlHSlider" style="display: inline-block;" data-update="speakVolumeUpdate()"></button></td>
+                  <td style="padding: 0;">&nbsp;MAX</td>
+               </tr>
+            </table>
+         </td>
+      </tr>
+
+      <tr>
+         <td colspan="2" style="background-color: #A0A0A0; height:2px; padding: 0;"></td>
+      </tr>
+      <tr>
+         <td colspan="2" style="background-color: #A0A0A0; height:0; padding: 0;"></td>
+      </tr>
+
+      <tr>
+         <td>
+            Play alarm sound:
+         </td>
+         <td>
+            <input type="checkbox" id="alarmSound">
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Alarm repetition rate [s]:
+         </td>
+         <td>
+            <input type="text" size="5" id="alarmRepeat" data-min-value="10" data-max-value="3600">
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Alarm sound:
+         </td>
+         <td>
+            <select id="alarmSoundFile">
+               <option>beep</option>
+               <option>bell</option>
+               <option>bleep</option>
+               <option>chime</option>
+               <option>temple</option>
+               <option>watch</option>
+               <option>woop</option>
+            </select>
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Alarm volume:
+         </td>
+         <td>
+            <table>
+               <tr>
+                  <td style="padding: 0;">0&nbsp;</td>
+                  <td style="padding: 0;"><button name="ctrlHSlider" type="button" id="alarmVolume" class="ctrlHSlider" style="display: inline-block;" data-update="alarmVolumeUpdate()"></button></td>
+                  <td style="padding: 0;">&nbsp;MAX</td>
+               </tr>
+            </table>
+         </td>
+      </tr>
+
+      <tr>
+         <td colspan="2" style="background-color: #A0A0A0; height:2px; padding: 0;"></td>
+      </tr>
+      <tr>
+         <td colspan="2" style="background-color: #A0A0A0; height:0; padding: 0;"></td>
+      </tr>
+
+      <tr>
+         <td colspan="2" style="text-align: center;">
+            <button class="mbutton" onclick="mhttpdConfigSetAll(mhttpd_config_defaults);config_init();">Reset defaults
+            </button>
+         </td>
+      </tr>
+
+   </table>
+</div>
+
+</body>
+</html>
+
+<!--
+
+var mhttpd_config_default = {
+   'saveSession': false,
+
+   'chatName': "",
+
+   'speakChat': true,
+   'speakTalk': true,
+   'speakError': false,
+   'speakInfo': false,
+   'speakVoice': 'male',
+
+   'alarmSound': true,
+   'alarmSoundFile': 'alarm.mp3',
+   'alarmRepeat': 60,
+
+   'var': {
+      'lastSpeak': 0,
+      'lastAlarm': 0
+   }
+};
+
+-->

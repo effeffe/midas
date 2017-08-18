@@ -27,9 +27,20 @@
  Sliders
  -------
 
- <button name="ctrlHSlider" type="button" data-update="xxx()"></button>
+ <button name="ctrlHSlider" type="button" id="someId" class="ctrlHSlider" data-update="xxx()"></button>
 
- <button name="ctrlVSlider" type="button" data-update="xxx()"></button>
+ <button name="ctrlVSlider" type="button" id="otherId" class="ctrlVSlider" data-update="xxx()"></button>
+
+ On each change of the slider, the function xxx(value, final) is called with
+ value ranging from 0 to 1. Dragging the slider will cause many updates with
+ final = false, and once the mouse button got released, the funciton is called
+ once with final = true.
+
+ To set the slider programmatically call
+
+    document.getElementById('someId').set(0.5;
+
+ Valid range is again 0 to 1.
 
  */
 
@@ -84,7 +95,19 @@ document.write("<style>" +
    "   right: 0;" +
    "   z-index: 20;" +
    "}" +
-   "</style>");
+   ".ctrlHSlider {" +
+   "   width: 200px;" +
+   "   height: 30px;" +
+   "   border-radius: 5px;" +
+   "   padding: 0;" +
+   "}" +
+   ".ctrlVSlider {" +
+   "   width: 20px;" +
+   "   height: 200px;" +
+   "   border-radius: 5px;" +
+   "   padding: 0;" +
+   "}" +
+"</style>");
 
 (function (window) { // anonymous global function
    window.addEventListener("load", ctlInit, false);
@@ -117,7 +140,10 @@ Controls.prototype.init = function () // scan DOM
       sl.position = 0.5; // slider position 0...1
       sl.addEventListener("click", this.ctrlVSliderHandler.bind(this));
       sl.addEventListener("contextmenu", this.ctrlVSliderHandler.bind(this));
+      sl.addEventListener("mousedown", this.ctrlVSliderHandler.bind(this));
       sl.addEventListener("mousemove", this.ctrlVSliderHandler.bind(this));
+      sl.addEventListener("mouseup", this.ctrlVSliderHandler.bind(this));
+      sl.addEventListener("mouseleave", this.ctrlVSliderHandler.bind(this));
       sl.addEventListener("touchmove", this.ctrlVSliderHandler.bind(this));
       sl.draw = this.ctrlVSliderDraw;
       sl.draw(sl);
@@ -135,7 +161,10 @@ Controls.prototype.init = function () // scan DOM
       sl.position = 0.5; // slider position 0...1
       sl.addEventListener("click", this.ctrlHSliderHandler.bind(this));
       sl.addEventListener("contextmenu", this.ctrlHSliderHandler.bind(this));
+      sl.addEventListener("mousedown", this.ctrlHSliderHandler.bind(this));
       sl.addEventListener("mousemove", this.ctrlHSliderHandler.bind(this));
+      sl.addEventListener("mouseup", this.ctrlHSliderHandler.bind(this));
+      sl.addEventListener("mouseleave", this.ctrlHSliderHandler.bind(this));
       sl.addEventListener("touchmove", this.ctrlHSliderHandler.bind(this));
       sl.draw = this.ctrlHSliderDraw;
       sl.draw(sl);
@@ -186,6 +215,13 @@ Controls.prototype.ctrlVSliderHandler = function (e) {
    if (b.canvas === undefined) // we can get events from parent node
       return;
 
+   f = b.dataset.update;
+   if (f.indexOf("("))
+      f = f.substr(0, f.indexOf("("));
+
+   if (e.type === "mousedown")
+      b.dragging = true;
+
    if ((e.buttons === 1 && e.type === "mousemove") || e.type === "click")
       y = e.offsetY;
    if (e.type === "touchmove")
@@ -206,12 +242,14 @@ Controls.prototype.ctrlVSliderHandler = function (e) {
          if (b.position > 1)
             b.position = 1;
          this.ctrlVSliderDraw(b);
-         f = b.dataset.update;
-         if (f.indexOf("("))
-            f = f.substr(0, f.indexOf("("));
-         window[f](b.position);
+         window[f](b.position, e.type === "click");
+      } else if (e.type === "mouseleave" && b.dragging) {
+         window[f](b.position, true);
       }
    }
+
+   if (e.type === "mouseup" || e.type === "click" || e.type === "mouseleave")
+      b.dragging = false;
 };
 
 Controls.prototype.ctrlHSliderDraw = function (b) {
@@ -261,6 +299,13 @@ Controls.prototype.ctrlHSliderHandler = function (e) {
    if (b.canvas === undefined) // we can get events from parent node
       return;
 
+   f = b.dataset.update;
+   if (f.indexOf("("))
+      f = f.substr(0, f.indexOf("("));
+
+   if (e.type === "mousedown")
+      b.dragging = true;
+
    if ((e.buttons === 1 && e.type === "mousemove") || e.type === "click")
       x = e.offsetX;
    if (e.type === "touchmove")
@@ -281,12 +326,14 @@ Controls.prototype.ctrlHSliderHandler = function (e) {
          if (b.position > 1)
             b.position = 1;
          this.ctrlHSliderDraw(b);
-         f = b.dataset.update;
-         if (f.indexOf("("))
-            f = f.substr(0, f.indexOf("("));
-         window[f](b.position);
+         window[f](b.position, e.type === "click");
+      } else if (e.type === "mouseleave" && b.dragging) {
+         window[f](b.position, true);
       }
    }
+
+   if (e.type === "mouseup" || e.type === "click" || e.type === "mouseleave")
+      b.dragging = false;
 };
 
 //-------------------------------------------------------------------------------------------------
