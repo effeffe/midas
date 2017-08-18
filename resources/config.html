@@ -5,6 +5,7 @@
    <link rel="stylesheet" href="midas.css">
    <script src="midas.js"></script>
    <script src="mhttpd.js"></script>
+   <script src="controls.js"></script>
    <title>Config</title>
 </head>
 <style>
@@ -15,14 +16,12 @@
 <script>
 
    function load_voices() {
-      var s = document.getElementsByName("speakVoice")[0];
+      var s = document.getElementById("speakVoice");
       if (s.length > 0)
          return; // new loaded voice can re-trigger this function
 
       var voices = speechSynthesis.getVoices();
-      voices = voices.filter(function (v) {
-         return v.lang == "en-US"
-      });
+      voices = voices.filter(function (v) { return v.lang == "en-US"; });
       for (var i = 0; i < voices.length; i++) {
          var o = document.createElement('option');
          o.text = voices[i].name;
@@ -53,13 +52,13 @@
       var input = document.getElementsByTagName('input');
       for (var i = 0; i < input.length; i++) {
          if (input[i].type === 'checkbox') {
-            input[i].checked = config[input[i].name];
+            input[i].checked = config[input[i].id];
             input[i].addEventListener('change', function (e) {
-               mhttpdConfigSet(this.name, this.checked);
+               mhttpdConfigSet(this.id, this.checked);
             });
          }
          if (input[i].type === 'text') {
-            input[i].value = config[input[i].name];
+            input[i].value = config[input[i].id];
             input[i].addEventListener('change', function (e) {
                if (this.dataset.minValue != undefined)
                   if (parseFloat(this.value) < parseFloat(this.dataset.minValue))
@@ -67,16 +66,21 @@
                if (this.dataset.maxValue != undefined)
                   if (parseFloat(this.value) > parseFloat(this.dataset.maxValue))
                      this.value = this.dataset.maxValue;
-               mhttpdConfigSet(this.name, this.value);
+               mhttpdConfigSet(this.id, this.value);
             });
          }
       }
+      var sliders = document.getElementsByName('ctrlHSlider');
+      for (var i = 0; i < sliders.length; i++) {
+         sliders[i].set(parseFloat(config[sliders[i].id]).toFixed(2));
+      }
 
-      var s = document.getElementsByName("alarmSoundFile")[0];
+      var s = document.getElementById("alarmSoundFile");
       s.value = config.alarmSoundFile.slice(0, -4);
       s.addEventListener('change', function (e) {
          mhttpdConfigSet('alarmSoundFile', this.value + ".mp3");
          var audio = new Audio(this.value + ".mp3");
+         audio.volume = parseFloat(mhttpdConfig().alarmVolume);
          audio.play();
       });
 
@@ -85,6 +89,28 @@
       else
          window.speechSynthesis.onvoiceschanged = load_voices;
    }
+
+   function speakVolumeUpdate(value, final) {
+      if (final) {
+         mhttpdConfigSet('speakVolume', value);
+
+         var u = new SpeechSynthesisUtterance('The voice volume has been changed');
+         u.voice = speechSynthesis.getVoices().filter(function (v) { return v.name === mhttpdConfig().speakVoice; }, this)[0];
+         u.volume = value;
+         speechSynthesis.speak(u);
+
+      }
+   }
+
+   function alarmVolumeUpdate(value, final) {
+      if (final) {
+         mhttpdConfigSet('alarmVolume', value.toFixed(2));
+         var audio = new Audio(mhttpdConfig().alarmSoundFile);
+         audio.volume = mhttpdConfig().alarmVolume;
+         audio.play();
+      }
+   }
+
 </script>
 
 <body class="mcss" onload="mhttpd_init('Config'); config_init();">
@@ -103,7 +129,7 @@
             Speak "CHAT" messages:
          </td>
          <td>
-            <input type="checkbox" name="speakChat">
+            <input type="checkbox" id="speakChat">
          </td>
       </tr>
       <tr>
@@ -111,7 +137,7 @@
             Speak "TALK" messages:
          </td>
          <td>
-            <input type="checkbox" name="speakTalk">
+            <input type="checkbox" id="speakTalk">
          </td>
       </tr>
       <tr>
@@ -119,7 +145,7 @@
             Speak "ERROR" messages:
          </td>
          <td>
-            <input type="checkbox" name="speakError">
+            <input type="checkbox" id="speakError">
          </td>
       </tr>
       <tr>
@@ -127,7 +153,7 @@
             Speak "INFO" messages:
          </td>
          <td>
-            <input type="checkbox" name="speakInfo">
+            <input type="checkbox" id="speakInfo">
          </td>
       </tr>
       <tr>
@@ -135,16 +161,22 @@
             Voice:
          </td>
          <td>
-            <select name="speakVoice">
+            <select id="speakVoice">
             </select>
          </td>
       </tr>
       <tr>
          <td>
-            Volume (0...1):
+            Speak volume:
          </td>
          <td>
-            <input type="text" size="5" name="speakVolume" data-min-value="0" data-max-value="1">
+            <table>
+               <tr>
+                  <td style="padding: 0;">0&nbsp;</td>
+                  <td style="padding: 0;"><button name="ctrlHSlider" type="button" id="speakVolume" class="ctrlHSlider" style="display: inline-block;" data-update="speakVolumeUpdate()"></button></td>
+                  <td style="padding: 0;">&nbsp;MAX</td>
+               </tr>
+            </table>
          </td>
       </tr>
 
@@ -160,7 +192,7 @@
             Play alarm sound:
          </td>
          <td>
-            <input type="checkbox" name="alarmSound">
+            <input type="checkbox" id="alarmSound">
          </td>
       </tr>
       <tr>
@@ -168,7 +200,7 @@
             Alarm repetition rate [s]:
          </td>
          <td>
-            <input type="text" size="5" name="alarmRepeat" data-min-value="10" data-max-value="3600">
+            <input type="text" size="5" id="alarmRepeat" data-min-value="10" data-max-value="3600">
          </td>
       </tr>
       <tr>
@@ -176,7 +208,7 @@
             Alarm sound:
          </td>
          <td>
-            <select name="alarmSoundFile">
+            <select id="alarmSoundFile">
                <option>beep</option>
                <option>bell</option>
                <option>bleep</option>
@@ -185,6 +217,20 @@
                <option>watch</option>
                <option>woop</option>
             </select>
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Alarm volume:
+         </td>
+         <td>
+            <table>
+               <tr>
+                  <td style="padding: 0;">0&nbsp;</td>
+                  <td style="padding: 0;"><button name="ctrlHSlider" type="button" id="alarmVolume" class="ctrlHSlider" style="display: inline-block;" data-update="alarmVolumeUpdate()"></button></td>
+                  <td style="padding: 0;">&nbsp;MAX</td>
+               </tr>
+            </table>
          </td>
       </tr>
 
