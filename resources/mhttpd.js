@@ -454,7 +454,7 @@ function mhttpd_init(current_page, interval, callback) {
          var m = document.getElementById("mmain");
          if (m !== undefined) {
             m.style.marginLeft = document.getElementById("msidenav").clientWidth + "px";
-            m.style.display = "block";
+            m.style.opacity = 1;
          }
       }
 
@@ -555,7 +555,7 @@ function mhttpd_init(current_page, interval, callback) {
          var m = document.getElementById("mmain");
          if (m !== undefined) {
             m.style.marginLeft = document.getElementById("msidenav").clientWidth + "px";
-            m.style.display = "block";
+            m.style.opacity = 1;
          }
 
          // cache navigation buttons in browser local storage
@@ -1284,6 +1284,7 @@ var mhttpd_config_defaults = {
    'alarmSound': true,
    'alarmSoundFile': 'beep.mp3',
    'alarmRepeat': 60,
+   'alarmVolume': 1,
 
    'var': {
       'lastSpeak': 0,
@@ -1334,6 +1335,7 @@ function mhttpd_alarm_play() {
       if (now > mhttpdConfig().var.lastAlarm + parseFloat(mhttpdConfig().alarmRepeat)) {
          mhttpdConfigSet("var.lastAlarm", now);
          var audio = new Audio(mhttpdConfig().alarmSoundFile);
+         audo.volume = mhttpdConfig().alarmVolume;
          audio.play();
       }
    }
@@ -1349,7 +1351,8 @@ function mhttpd_speak(time, text) {
          mhttpdConfigSet("var.lastSpeak", time);
          var u = new SpeechSynthesisUtterance(text);
          u.voice = speechSynthesis.getVoices().filter(function(voice) { return voice.name == mhttpdConfig().speakVoice; })[0];
-         speechSynthesis.speak(u);
+         u.volume = mhttpdConfig().speakVolume;
+            speechSynthesis.speak(u);
       }
    }
 }
