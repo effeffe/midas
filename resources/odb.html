@@ -57,7 +57,7 @@
 
       var subDirArray = new Array();
 
-      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr align=\"center\"><td id=\"mgeneralBar\" colspan=\"7\"><button id=\"create\" class=\"mbutton\" onclick=\"generateCreateDlg()\">create</button><input id=\"searchbox\" type=\"text\" placeholder=\"search\" title=\"case insensitive\"></input></td></tr><tr align=\"center\" id=\"mactionBar\" class=\"mactionBar\"><td  colspan=\"7\"><button id=\"rename\" class=\"mbutton\" onclick=\"generateRenameDlg()\">rename</button><button id=\"resize\" class=\"mbutton\" onclick=\"generateResizeDlg()\">resize</button><button id=\"mode\" class=\"mbutton\" onclick=\"generateAccessModeDlg()\">mode</button><button id=\"delete\" class=\"mbutton\" onclick=\"deleteDirsAndKeys()\">delete</button></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr><tr><td><input type=\"checkbox\" id=\"allSubDirs\"></input></td><div id=\"dlgCreate\" class=\"dlgFrame\" style=\"display:none\"></div></tr>";
+      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr align=\"center\"><td id=\"mgeneralBar\" colspan=\"7\"><button id=\"create\" class=\"mbutton\" onclick=\"generateCreateDlg()\">create</button><button id=\"reorder\" class=\"mbutton\" onclick=\"startReorder()\">reorder</button><button id=\"cancelReorder\" class=\"mbutton\" onclick=\"cancelReorder()\" style=\"display:none\">cancel</button><input id=\"searchbox\" type=\"text\" placeholder=\"search\" title=\"case insensitive\"></input></td></tr><tr align=\"center\" id=\"mactionBar\" class=\"mactionBar\"><td  colspan=\"7\"><button id=\"copy\" class=\"mbutton\" onclick=\"generateRenameDlg()\">copy/move</button><button id=\"rename\" class=\"mbutton\" onclick=\"generateRenameDlg()\">rename</button><button id=\"resize\" class=\"mbutton\" onclick=\"generateResizeDlg()\">resize</button><button id=\"mode\" class=\"mbutton\" onclick=\"generateAccessModeDlg()\">mode</button><button id=\"delete\" class=\"mbutton\" onclick=\"deleteDirsAndKeys()\">delete</button></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr><tr><td><input type=\"checkbox\" id=\"allSubDirs\"></input></td><div id=\"dlgCreate\" class=\"dlgFrame\" style=\"display:none\"></div></tr>";
 
       const MODE_READ = (1 << 0)
       const MODE_WRITE = (1 << 1)
@@ -137,6 +137,159 @@
          }
       }
 
+      function cancelReorder() {
+         global_rpc_data = "";
+         update();
+      }
+
+      function startReorder() {
+         var moved = false;
+         document.getElementById("cancelReorder").style.display = "inline";
+
+         //close all the sub directories
+         subDirArray = new Array();
+         var allSubDirTables = document.getElementsByClassName("mnobordertable");
+
+         Array.prototype.forEach.call(allSubDirTables, function (element) {
+            element.style.display = "none";
+         });
+
+         var dragSrc = null;
+         var dragPreview = null;
+
+         var allDirCheckboxs = document.getElementsByClassName("sub_dir_checkbox");
+         var allKeyCheckboxs = document.getElementsByClassName("key_row_checkbox");
+
+         var movingDirs = new Array();
+         var movingDirsIndices = new Array();
+
+         var movingKeys = new Array();
+         var movingKeysIndices = new Array();
+
+         var reorderButton = document.getElementById("reorder");
+
+         reorderButton.innerText = "done";
+
+         function addListeners(ele) {
+
+
+            function handleDragStart(e) {
+               dragSrc = this;
+               e.dataTransfer.effectAllowed = 'move';
+               e.dataTransfer.setData('text/html', this.innerHTML);
+            }
+
+            function handleDragOver(e) {
+               if (e.preventDefault) {
+                  e.preventDefault();
+               }
+
+               e.dataTransfer.dropEffect = 'move';
+
+               return false;
+            }
+
+            function handleDragEnter(e) {
+               ele.classList.add('mover');
+            }
+
+            function handleDragLeave(e) {
+               ele.classList.remove('mover');
+            }
+
+            function handleDrop(e) {
+
+               if (e.stopPropagation) {
+                  e.stopPropagation();
+               }
+
+               Array.prototype.forEach.call(allDirCheckboxs, function (element) {
+                  element.parentNode.parentNode.classList.remove('mover');
+               });
+
+               Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
+                  element.parentNode.parentNode.classList.remove('mover');
+               });
+
+
+
+               if (dragSrc != this && dragSrc.className == this.className) {
+                  moved = true;
+                  dragSrc.innerHTML = this.innerHTML;
+                  ele.innerHTML = e.dataTransfer.getData('text/html');
+               }
+
+               return false;
+            }
+
+            function handleDragEnd(e) {
+               ele.style.opacity = 1;
+               e.dataTransfer.clearData();
+            }
+
+            ele.addEventListener('dragstart', handleDragStart, false);
+            ele.addEventListener('dragenter', handleDragEnter, false);
+            ele.addEventListener('dragover', handleDragOver, false);
+            ele.addEventListener('dragleave', handleDragLeave, false);
+            ele.addEventListener('drop', handleDrop, false);
+            ele.addEventListener('dragend', handleDragEnd, false);
+
+         }
+
+
+         Array.prototype.forEach.call(allDirCheckboxs, function (element) {
+
+            element.parentNode.parentNode.draggable = true;
+            addListeners(element.parentNode.parentNode);
+
+         });
+
+
+         Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
+
+            element.parentNode.parentNode.draggable = true;
+            addListeners(element.parentNode.parentNode);
+
+         });
+
+         reorderButton.onclick = function () {
+            if (moved) {
+
+               var indexTemp1 = 0;
+               Array.prototype.forEach.call(allDirCheckboxs, function (element) {
+                  movingDirs.push(custompath + "/" + element.id);
+                  movingDirsIndices.push(indexTemp1);
+                  indexTemp1++;
+               });
+
+               var indexTemp2 = 0;
+               Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
+                  movingKeys.push(custompath + "/" + element.id);
+                  movingKeysIndices.push(indexTemp2);
+                  indexTemp2++;
+               });
+
+
+               //               mjsonrpc_call("db_reorder", { "paths":movingDirs, "indices":movingDirsIndices})
+
+               mjsonrpc_send_request([mjsonrpc_make_request("db_reorder", { "paths": movingDirs, "indices": movingDirsIndices }),
+               mjsonrpc_make_request("db_reorder", { "paths": movingKeys, "indices": movingKeysIndices })]).then(function (rpc) {
+                  console.log(rpc);
+                  global_rpc_data = "";
+                  update();
+               }).catch(function (error) {
+                  mjsonrpc_error_alert(error);
+               });
+
+            } else {
+               global_rpc_data = "";
+               update();
+            }
+
+
+         }
+      }
+
       function generateActionBar() {
          var allDirCheckboxs = document.getElementsByClassName("sub_dir_checkbox");
          var allKeyCheckboxs = document.getElementsByClassName("key_row_checkbox");
@@ -162,30 +315,35 @@
          });
          if (allKeys.length == 0) {
             document.getElementById("mactionBar").style.visibility = "hidden";
+            document.getElementById("copy").style.visibility = "hidden";
             document.getElementById("rename").style.visibility = "hidden";
             document.getElementById("resize").style.visibility = "hidden";
             document.getElementById("mode").style.visibility = "hidden";
             document.getElementById("delete").style.visibility = "hidden";
          } else if (keys.length > 1 && dirs.length == 0) {
             document.getElementById("mactionBar").style.visibility = "visible";
+            document.getElementById("copy").style.visibility = "visible";
             document.getElementById("rename").style.visibility = "hidden";
             document.getElementById("resize").style.visibility = "visible";
             document.getElementById("mode").style.visibility = "visible";
             document.getElementById("delete").style.visibility = "visible";
          } else if ((allKeys.length == 1 && keys.length == 1) || (allKeys.length >= 1 && dirs.length == 0)) {
             document.getElementById("mactionBar").style.visibility = "visible";
+            document.getElementById("copy").style.visibility = "visible";
             document.getElementById("rename").style.visibility = "visible";
             document.getElementById("resize").style.visibility = "visible";
             document.getElementById("mode").style.visibility = "visible";
             document.getElementById("delete").style.visibility = "visible";
          } else if (keys.length == 0 && dirs.length == 1) {
             document.getElementById("mactionBar").style.visibility = "visible";
+            document.getElementById("copy").style.visibility = "visible";
             document.getElementById("rename").style.visibility = "visible";
             document.getElementById("resize").style.visibility = "hidden";
             document.getElementById("mode").style.visibility = "hidden";
             document.getElementById("delete").style.visibility = "visible";
          } else {
             document.getElementById("mactionBar").style.visibility = "visible";
+            document.getElementById("copy").style.visibility = "visible";
             document.getElementById("rename").style.visibility = "hidden";
             document.getElementById("resize").style.visibility = "hidden";
             document.getElementById("mode").style.visibility = "hidden";
@@ -1049,7 +1207,6 @@
 
 
                   sub_dir_checkbox.type = "checkbox";
-                  sub_dir_checkbox.title = "double click to select all";
                   sub_dir_checkbox.id = element;
                   sub_dir_checkbox.className = "sub_dir_checkbox";
                   sub_dir_checkbox.style.opacity = 0.3;
@@ -1273,7 +1430,6 @@
                   key_row_checkbox.type = "checkbox";
                   key_row_checkbox.id = element;
                   key_row_checkbox.className = "key_row_checkbox";
-                  key_row_checkbox.title = "double click to select all";
                   key_row_checkbox.style.opacity = 0.4;
                   key_row_checkbox.addEventListener('mouseover', function () { showCheckbox(key_row_checkbox) });
                   key_row_checkbox.addEventListener('mouseout', function () { hideCheckbox(key_row_checkbox) });
