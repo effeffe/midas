@@ -57,7 +57,7 @@
 
       var subDirArray = new Array();
 
-      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr align=\"center\"><td id=\"mgeneralBar\" colspan=\"7\"><button id=\"create\" class=\"mbutton\" onclick=\"generateCreateDlg()\">create</button><button id=\"reorder\" class=\"mbutton\" onclick=\"startReorder()\">reorder</button><button id=\"cancelReorder\" class=\"mbutton\" onclick=\"cancelReorder()\" style=\"display:none\">cancel</button><input id=\"searchbox\" type=\"text\" placeholder=\"search\" title=\"case insensitive\"></input></td></tr><tr align=\"center\" id=\"mactionBar\" class=\"mactionBar\"><td  colspan=\"7\"><button id=\"copy\" class=\"mbutton\" onclick=\"generateRenameDlg()\">copy/move</button><button id=\"rename\" class=\"mbutton\" onclick=\"generateRenameDlg()\">rename</button><button id=\"resize\" class=\"mbutton\" onclick=\"generateResizeDlg()\">resize</button><button id=\"mode\" class=\"mbutton\" onclick=\"generateAccessModeDlg()\">mode</button><button id=\"delete\" class=\"mbutton\" onclick=\"deleteDirsAndKeys()\">delete</button></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr><tr><td><input type=\"checkbox\" id=\"allSubDirs\"></input></td><div id=\"dlgCreate\" class=\"dlgFrame\" style=\"display:none\"></div></tr>";
+      const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr align=\"center\"><td id=\"mgeneralBar\" colspan=\"7\"><button id=\"create\" class=\"mbutton\" onclick=\"generateCreateDlg()\">create</button><button id=\"reorder\" class=\"mbutton\" onclick=\"startReorder()\">reorder</button><button id=\"cancelReorder\" class=\"mbutton\" onclick=\"cancelReorder()\" style=\"display:none\">cancel</button><input id=\"searchbox\" type=\"text\" placeholder=\"search\" title=\"case insensitive\"></input></td></tr><tr align=\"center\" id=\"mactionBar\" class=\"mactionBar\"><td  colspan=\"7\"><button id=\"copy\" class=\"mbutton\" onclick=\"generateCopyDlg()\">copy/move</button><button id=\"rename\" class=\"mbutton\" onclick=\"generateRenameDlg()\">rename</button><button id=\"resize\" class=\"mbutton\" onclick=\"generateResizeDlg()\">resize</button><button id=\"mode\" class=\"mbutton\" onclick=\"generateAccessModeDlg()\">mode</button><button id=\"delete\" class=\"mbutton\" onclick=\"deleteDirsAndKeys()\">delete</button></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr><tr><td><input type=\"checkbox\" id=\"allSubDirs\"></input></td><div id=\"dlgCreate\" class=\"dlgFrame\" style=\"display:none\"></div></tr>";
 
       const MODE_READ = (1 << 0)
       const MODE_WRITE = (1 << 1)
@@ -174,6 +174,7 @@
 
 
             function handleDragStart(e) {
+               this.style.opacity=0.4;
                dragSrc = this;
                e.dataTransfer.effectAllowed = 'move';
                e.dataTransfer.setData('text/html', this.innerHTML);
@@ -190,11 +191,11 @@
             }
 
             function handleDragEnter(e) {
-               ele.classList.add('mover');
+               this.classList.add('mmoveitem');
             }
 
             function handleDragLeave(e) {
-               ele.classList.remove('mover');
+               this.classList.remove('mmoveitem');
             }
 
             function handleDrop(e) {
@@ -204,19 +205,34 @@
                }
 
                Array.prototype.forEach.call(allDirCheckboxs, function (element) {
-                  element.parentNode.parentNode.classList.remove('mover');
+                  element.parentNode.parentNode.classList.remove('mmoveitem');
+                  element.parentNode.parentNode.style.opacity=1;
                });
 
                Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
-                  element.parentNode.parentNode.classList.remove('mover');
+                  element.parentNode.parentNode.classList.remove('mmoveitem');
+                  element.parentNode.parentNode.style.opacity=1;
                });
 
+               if(allDirCheckboxs.length>0)
+               document.getElementById("emptyDir").classList.remove('mmoveitem');
 
+               if(allKeyCheckboxs.length>0)
+               document.getElementById("emptyKey").classList.remove('mmoveitem');
 
                if (dragSrc != this && dragSrc.className == this.className) {
                   moved = true;
-                  dragSrc.innerHTML = this.innerHTML;
-                  ele.innerHTML = e.dataTransfer.getData('text/html');
+                  var htmlData = e.dataTransfer.getData('text/html');
+                  var newrow = document.createElement("tr");
+
+                  this.parentNode.insertBefore(newrow, this)
+                  newrow.innerHTML = htmlData;
+                  newrow.id = dragSrc.id;
+                  newrow.draggable = dragSrc.draggable;
+                  newrow.className = dragSrc.className;
+                  this.parentNode.removeChild(dragSrc);
+
+                  addEventListeners(newrow);
                }
 
                return false;
@@ -227,30 +243,64 @@
                e.dataTransfer.clearData();
             }
 
-            ele.addEventListener('dragstart', handleDragStart, false);
-            ele.addEventListener('dragenter', handleDragEnter, false);
-            ele.addEventListener('dragover', handleDragOver, false);
-            ele.addEventListener('dragleave', handleDragLeave, false);
-            ele.addEventListener('drop', handleDrop, false);
-            ele.addEventListener('dragend', handleDragEnd, false);
+            function addEventListeners(ele) {
+               ele.addEventListener('dragstart', handleDragStart, false);
+               ele.addEventListener('dragenter', handleDragEnter, false);
+               ele.addEventListener('dragover', handleDragOver, false);
+               ele.addEventListener('dragleave', handleDragLeave, false);
+               ele.addEventListener('drop', handleDrop, false);
+               ele.addEventListener('dragend', handleDragEnd, false);
+            }
+
+            addEventListeners(ele);
 
          }
 
 
          Array.prototype.forEach.call(allDirCheckboxs, function (element) {
-
+            var dragSymbol = document.createElement("span");
+            dragSymbol.className = "mdragsymbol";
+            element.parentNode.insertBefore(dragSymbol, element);
             element.parentNode.parentNode.draggable = true;
             addListeners(element.parentNode.parentNode);
-
          });
 
+         if (allDirCheckboxs.length > 0) {
+            var lastDir = allDirCheckboxs[allDirCheckboxs.length - 1];
+            lastDir = lastDir.parentNode.parentNode;
+            var emptyDir = document.createElement("tr");
+            emptyDir.id = "emptyDir";
+
+            var emptyTd = document.createElement("td");
+            emptyTd.colSpan = "3";
+            emptyTd.innerHTML = "&#8203;"
+            emptyDir.appendChild(emptyTd);
+            lastDir.parentNode.insertBefore(emptyDir, lastDir.nextSibling);
+            addListeners(emptyDir);
+         }
 
          Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
-
+            var dragSymbol = document.createElement("span");
+            dragSymbol.className = "mdragsymbol";
+            element.parentNode.insertBefore(dragSymbol, element);
             element.parentNode.parentNode.draggable = true;
             addListeners(element.parentNode.parentNode);
-
          });
+
+         if (allKeyCheckboxs.length > 0) {
+            var lastKey = allKeyCheckboxs[allKeyCheckboxs.length - 1];
+            lastKey = lastKey.parentNode.parentNode;
+            var emptyKey = document.createElement("tr");
+            emptyKey.id = "emptyKey";
+            emptyKey.className = "mODBtr";
+
+            var emptyTd = document.createElement("td");
+            emptyTd.colSpan = "3";
+            emptyTd.innerHTML = "&#8203;"
+            emptyKey.appendChild(emptyTd);
+            lastKey.parentNode.insertBefore(emptyKey, lastKey.nextSibling);
+            addListeners(emptyKey);
+         }
 
          reorderButton.onclick = function () {
             if (moved) {
@@ -322,7 +372,7 @@
             document.getElementById("delete").style.visibility = "hidden";
          } else if (keys.length > 1 && dirs.length == 0) {
             document.getElementById("mactionBar").style.visibility = "visible";
-            document.getElementById("copy").style.visibility = "visible";
+            document.getElementById("copy").style.visibility = "hidden";
             document.getElementById("rename").style.visibility = "hidden";
             document.getElementById("resize").style.visibility = "visible";
             document.getElementById("mode").style.visibility = "visible";
@@ -343,12 +393,159 @@
             document.getElementById("delete").style.visibility = "visible";
          } else {
             document.getElementById("mactionBar").style.visibility = "visible";
-            document.getElementById("copy").style.visibility = "visible";
+            document.getElementById("copy").style.visibility = "hidden";
             document.getElementById("rename").style.visibility = "hidden";
             document.getElementById("resize").style.visibility = "hidden";
             document.getElementById("mode").style.visibility = "hidden";
             document.getElementById("delete").style.visibility = "visible";
          }
+         if (keys.length > 0) {
+            document.getElementById("copy").style.visibility = "hidden";
+         }
+      }
+
+      function create_page_handle_copy(allDirs, isCopy) {
+
+         var allDirs = allDirs.map(function (ele) { return custompath + "/" + ele; })
+         var size = "";
+
+         var e = document.getElementById("odbpath");
+         path = JSON.parse(e.innerHTML);
+         if (path == "/") path = "";
+
+         var targetODB = document.getElementById("copy_name").value;
+
+         mjsonrpc_db_copy(allDirs).then(function (rpc) {
+            var status = rpc.result.status[0];
+            if (status != 1) {
+               alert(JSON.stringify(rpc));
+               alert("db_copy() error " + status + ", see MIDAS messages.");
+            } else {
+               mjsonrpc_db_paste([targetODB], rpc.result.data).then(function (rpc2) {
+                  var status2 = rpc2.result.status[0];
+                  if (status2 != 1) {
+                     alert(JSON.stringify(rpc2));
+                     alert("db_paste() error " + status + ", see MIDAS messages.");
+                  } else {
+                     if (!isCopy) {
+                        mjsonrpc_db_delete(allDirs).then(function (rpc3) {
+                           var status3 = rpc3.result.status[0];
+                           if (status3 != 1) {
+                              alert(JSON.stringify(rpc3));
+                              alert("db_delete() error " + status + ", see MIDAS messages.");
+                           } else {
+                              alert("Move success!");
+                              dlgCreate.innerHTML = ""; dlgCreate.style.display = "none";
+                              update();
+                           }
+                        });
+                     } else {
+                        alert("Copy success!");
+                        dlgCreate.innerHTML = ""; dlgCreate.style.display = "none";
+                        update();
+                     }
+                  }
+               })
+            }
+         }).catch(function (error) {
+            mjsonrpc_error_alert(error);
+            update();
+         });
+
+         return false;
+      }
+
+
+
+      function generateCopyDlg() {
+         if (document.getElementById("copyTitle") == null) {
+            document.getElementById("dlgCreate").innerHTML = "";
+            var allSubDirCheckboxs = document.getElementsByClassName("sub_dir_checkbox");
+
+            var allDirs = new Array();
+
+
+            Array.prototype.forEach.call(allSubDirCheckboxs, function (element) {
+               if (element.checked)
+                  allDirs.push(element.id);
+            });
+
+            if (allDirs.length == 0 || allDirs.length > 1) {
+               alert("please select one directory to copy/move");
+               return;
+            }
+
+            var allDirsStr = allDirs.map(function (ele) { return ele + "\n" });
+
+            document.getElementById("dlgCreate").innerHTML = "";
+            var dlgTitlebar = document.createElement("div");
+            dlgTitlebar.id = "copyTitle";
+            dlgTitlebar.className = "dlgTitlebar";
+            dlgTitlebar.innerText = "Copy/Move ODB tree";
+
+            var dlgPanel = document.createElement("div");
+            dlgPanel.className = "dlgPanel";
+
+            var odbPath = document.createElement("div");
+            odbPath.id = "odbpath";
+            if (custompath == "") {
+               odbPath.innerText = "\"/\"";
+            } else {
+               odbPath.innerText = "\"" + custompath + "\"";
+            }
+
+
+            var dlgTable = document.createElement("table");
+            dlgTable.className = "mmaintable";
+
+            for (var str in allDirsStr) {
+
+               var oneKeyRow = document.createElement("tr");
+               var dirTitle = document.createElement("td");
+               var dirName = document.createElement("td");
+               dirTitle.innerHTML = "Directory:"
+               dirName.innerHTML = allDirsStr[str];
+               oneKeyRow.appendChild(dirTitle);
+               oneKeyRow.appendChild(dirName);
+               dlgTable.appendChild(oneKeyRow);
+
+
+            }
+            dlgTable.innerHTML += "<tr><td>Copy/Move to:</td><td><input type=\"text\" size=\"31\" id=\"copy_name\" name=\"value\" placeholder=\"Target Directory\"></td></tr>";
+
+
+            var createButton = document.createElement("input");
+            createButton.type = "button";
+            createButton.className = "mbutton";
+            createButton.value = "Copy";
+            createButton.onclick = function () { create_page_handle_copy(allDirs, true) };
+
+            var createButton2 = document.createElement("input");
+            createButton2.type = "button";
+            createButton2.className = "mbutton";
+            createButton2.value = "Move";
+            createButton2.onclick = function () { create_page_handle_copy(allDirs, false) };
+
+            var cancelButton = document.createElement("input");
+            cancelButton.type = "button";
+            cancelButton.className = "mbutton";
+            cancelButton.value = "Cancel";
+            cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display = "none"; };
+
+
+
+            dlgPanel.appendChild(odbPath);
+            dlgPanel.appendChild(dlgTable);
+            dlgPanel.appendChild(createButton);
+            dlgPanel.appendChild(createButton2);
+            dlgPanel.appendChild(cancelButton);
+
+            document.getElementById("dlgCreate").appendChild(dlgTitlebar);
+            document.getElementById("dlgCreate").appendChild(dlgPanel);
+
+
+         }
+         dlgShow('dlgCreate');
       }
 
 
@@ -455,11 +652,13 @@
 
             var createButton = document.createElement("input");
             createButton.type = "button";
+            createButton.className = "mbutton";
             createButton.value = "Rename";
             createButton.onclick = function () { create_page_handle_rename(theKey) };
 
             var cancelButton = document.createElement("input");
             cancelButton.type = "button";
+            cancelButton.className = "mbutton";
             cancelButton.value = "Cancel";
             cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display = "none"; };
 
@@ -579,11 +778,13 @@
 
             var createButton = document.createElement("input");
             createButton.type = "button";
+            createButton.className = "mbutton";
             createButton.value = "Change Mode";
             createButton.onclick = function () { create_page_handle_access_mode(allKeys) };
 
             var cancelButton = document.createElement("input");
             cancelButton.type = "button";
+            cancelButton.className = "mbutton";
             cancelButton.value = "Cancel";
             cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display = "none"; };
 
@@ -704,11 +905,13 @@
 
             var createButton = document.createElement("input");
             createButton.type = "button";
+            createButton.className = "mbutton";
             createButton.value = "Resize";
             createButton.onclick = function () { create_page_handle_resize(allKeys) };
 
             var cancelButton = document.createElement("input");
             cancelButton.type = "button";
+            cancelButton.className = "mbutton";
             cancelButton.value = "Cancel";
             cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display = "none"; };
 
@@ -836,11 +1039,13 @@
 
             var createButton = document.createElement("input");
             createButton.type = "button";
+            createButton.className = "mbutton";
             createButton.value = "Create";
             createButton.onclick = function () { create_page_handle_create() };
 
             var cancelButton = document.createElement("input");
             cancelButton.type = "button";
+            cancelButton.className = "mbutton";
             cancelButton.value = "Cancel";
             cancelButton.onclick = function () { dlgCreate.innerHTML = ""; dlgCreate.style.display = "none"; };
 

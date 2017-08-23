@@ -434,9 +434,30 @@ input[type=text] {
     visibility: hidden;
 }
 
-.mover td{
-    border: 2px solid #f1c40f;
-    border-radius: 12px;
+.mmoveitem td{
+    border-top: 2px solid #f1c40f;
+}
+
+span.mdragsymbol {
+  content: '....';
+  width: 10px;
+  height: 20px;
+  display: inline-block;
+  overflow: hidden;
+  line-height: 5px;
+  padding: 3px 4px;
+  cursor: move;
+  vertical-align: middle;
+  margin-top: -.7em;
+  margin-right: .3em;
+  font-size: 12px;
+  font-family: sans-serif;
+  letter-spacing: 2px;
+  color: #CCCCCC;
+  text-shadow: 1px 0 1px black;
+}
+span.mdragsymbol::after {
+  content: '.. .. ..';
 }
 
 /* end */
