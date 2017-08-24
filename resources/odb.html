@@ -21,21 +21,7 @@
    <div id="mmain">
       <div id="mload" style="display:none">
          <table class="mmaintable" id="ODBTable">
-            <!-- <div id="loader" class="mloader"></div> 
-         <tr>
-            <th colspan="7" class="mtableheader">Online Database Browser</th>
-         </tr>
-         <tr>
-            <td id="actionBar" colspan="7">
-               <button id="create">create</button>
-               <button id="delete">delete</button>
-               <input id="searchbox" type="text" placeholder="press s to search" title="case insensitive"></input>
-            </td>
-         </tr>
-         <tr>
-            <td id="currentDir" colspan="7">
-            </td>
-         </tr> -->
+
          </table>
       </div>
    </div>
@@ -174,7 +160,7 @@
 
 
             function handleDragStart(e) {
-               this.style.opacity=0.4;
+               this.style.opacity = 0.4;
                dragSrc = this;
                e.dataTransfer.effectAllowed = 'move';
                e.dataTransfer.setData('text/html', this.innerHTML);
@@ -206,19 +192,19 @@
 
                Array.prototype.forEach.call(allDirCheckboxs, function (element) {
                   element.parentNode.parentNode.classList.remove('mmoveitem');
-                  element.parentNode.parentNode.style.opacity=1;
+                  element.parentNode.parentNode.style.opacity = 1;
                });
 
                Array.prototype.forEach.call(allKeyCheckboxs, function (element) {
                   element.parentNode.parentNode.classList.remove('mmoveitem');
-                  element.parentNode.parentNode.style.opacity=1;
+                  element.parentNode.parentNode.style.opacity = 1;
                });
 
-               if(allDirCheckboxs.length>0)
-               document.getElementById("emptyDir").classList.remove('mmoveitem');
+               if (allDirCheckboxs.length > 0)
+                  document.getElementById("emptyDir").classList.remove('mmoveitem');
 
-               if(allKeyCheckboxs.length>0)
-               document.getElementById("emptyKey").classList.remove('mmoveitem');
+               if (allKeyCheckboxs.length > 0)
+                  document.getElementById("emptyKey").classList.remove('mmoveitem');
 
                if (dragSrc != this && dragSrc.className == this.className) {
                   moved = true;
@@ -363,6 +349,7 @@
                isKey = true;
             }
          });
+
          if (allKeys.length == 0) {
             document.getElementById("mactionBar").style.visibility = "hidden";
             document.getElementById("copy").style.visibility = "hidden";
@@ -1832,6 +1819,12 @@
                   }
                   // rest of them are key properties
                });
+
+
+               //TODO
+               document.getElementById("resize").style.display = "none";
+               document.getElementById("mode").style.display = "none";
+               document.getElementById("searchbox").style.display = "none";
 
                generateSub_Dir();
                generateODB_Keys();

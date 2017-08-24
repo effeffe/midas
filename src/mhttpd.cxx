@@ -17682,15 +17682,15 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    /*---- redirect if ODB command -----------------------------------*/
 
-   if (equal_ustring(command, "ODB")) {
-      str[0] = 0;
-      for (const char* p=dec_path ; *p ; p++)
-         if (*p == '/')
-            strlcat(str, "../", sizeof(str));
-      strlcat(str, "root", sizeof(str));
-      redirect(r, str);
-      return;
-   }
+    if (equal_ustring(command, "ODB")) {
+       str[0] = 0;
+       for (const char* p=dec_path ; *p ; p++)
+          if (*p == '/')
+             strlcat(str, "../", sizeof(str));
+       strlcat(str, "odb.html", sizeof(str));
+       redirect(r, str);
+       return;
+    }
 
    /*---- send sound file -------------------------------------------*/
 
@@ -17756,7 +17756,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
        return;
     }
 
-   if (equal_ustring(command, "newODB")) {
+   if (equal_ustring(command, "ODB")) {
       send_resource(r, "odb.html");
       return;
    }
