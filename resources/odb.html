@@ -29,20 +29,27 @@
    <script>
       var update_timer_id;
 
+      // RPC data cache, used for compare with the new RPC data and decide if the page should be updated or not
       var global_rpc_data = null;
 
+      // RPC directory data cache
       var global_dir_data = null;
 
+      // expanded sub directories data, used for compare with the new sub_dir RPC data
       var global_rpc_subDir = null;
 
       var currentEditing = null;
 
+      // stores the current path, used for redirect a new page.
       var custompath = "";
 
+      // current path cache, not used for now
       var custompathcache = "";
 
+      // expanded sub directories list, used for update the data of expanded sub directories
       var subDirArray = new Array();
 
+      // HTML data for the default ODB page table, please modify with care
       const ODBTableinnerHTML = "<tr><th colspan=\"7\" class=\"mtableheader\">Online Database Browser</th></tr><tr align=\"center\"><td id=\"mgeneralBar\" colspan=\"7\"><button id=\"create\" class=\"mbutton\" onclick=\"generateCreateDlg()\">create</button><button id=\"reorder\" class=\"mbutton\" onclick=\"startReorder()\">reorder</button><button id=\"cancelReorder\" class=\"mbutton\" onclick=\"cancelReorder()\" style=\"display:none\">cancel</button><input id=\"searchbox\" type=\"text\" placeholder=\"search\" title=\"case insensitive\"></input></td></tr><tr align=\"center\" id=\"mactionBar\" class=\"mactionBar\"><td  colspan=\"7\"><button id=\"copy\" class=\"mbutton\" onclick=\"generateCopyDlg()\">copy/move</button><button id=\"rename\" class=\"mbutton\" onclick=\"generateRenameDlg()\">rename</button><button id=\"resize\" class=\"mbutton\" onclick=\"generateResizeDlg()\">resize</button><button id=\"mode\" class=\"mbutton\" onclick=\"generateAccessModeDlg()\">mode</button><button id=\"delete\" class=\"mbutton\" onclick=\"deleteDirsAndKeys()\">delete</button></td><tr><td id=\"currentDir\" colspan=\"7\"></td></tr><tr><td><input type=\"checkbox\" id=\"allSubDirs\"></input></td><div id=\"dlgCreate\" class=\"dlgFrame\" style=\"display:none\"></div></tr>";
 
       const MODE_READ = (1 << 0)
@@ -56,8 +63,8 @@
          window.location.href = global_base_url + "odb.html?odbpath=" + element.id;
       }
 
+      // update a key's value 
       function updatekey(element) {
-         //document.getElementById('loader').style.display = "block";
          var path = custompath + "/" + element.id;
          mjsonrpc_db_paste([path], [element.value]).then(function (rpc) {
             update();
@@ -67,7 +74,7 @@
 
       }
 
-
+      // TODO: inaccurate estimate of the size of an object, needs an extra ajax function to get size from server directly.
       function sizeOfObject(object) {
 
          var objectList = [];
@@ -1742,16 +1749,17 @@
          // CALLBACK STARTS HERE
 
 
+         // if any RPC data has been changed, the whole content of this page will be reloaded
          if (global_dir_data != currentDir || JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data[0])) {
             if (ODBTable.innerHTML != ODBTableinnerHTML)
                ODBTable.innerHTML = ODBTableinnerHTML;
             global_dir_data = "";
             global_rpc_data = "";
             subDirArray = new Array();
-         }
 
-         // odb directory very rarely changes
-         if (global_dir_data != currentDir) {
+
+
+            // odb directories display generates here
             global_dir_data = currentDir;
             document.getElementById("currentDir").innerHTML = "";
 
@@ -1793,11 +1801,7 @@
             }
 
 
-
-         }
-
-         // since odb data rarely changes while browsing, if any change dynamically happens, refresh the whole page
-         if (JSON.stringify(global_rpc_data) != JSON.stringify(rpc.result.data[0])) {
+            // odb keys and sub directories display generates here
             global_rpc_data = rpc.result.data[0];
 
             if (rpc.result.data != null && rpc.result.data != undefined) {
@@ -1826,6 +1830,7 @@
                document.getElementById("mode").style.display = "none";
                document.getElementById("searchbox").style.display = "none";
 
+               // these functions will be called if and only if the RPC data has been changed
                generateSub_Dir();
                generateODB_Keys();
 
@@ -1836,6 +1841,8 @@
             }
          }
 
+
+         // these functions will be called every second
          updateLastWritten();
          updateSubDir();
 
