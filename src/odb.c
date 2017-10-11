@@ -9383,6 +9383,273 @@ INT db_get_record1(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align,
    return status;
 }
 
+static int parse_rec_str(const char* rec_str, const char** out_rec_str, char* title, int title_size, char* key_name, int key_name_size, int* tid, int* n_data, int* string_length)
+{
+   title[0] = 0;
+   key_name[0] = 0;
+   *tid = 0;
+   *n_data = 0;
+   *string_length = 0;
+   *out_rec_str = NULL;
+
+   //printf("parse_rec_str: [%s]\n", rec_str);
+
+   while (*rec_str == '\n')
+      rec_str++;
+   
+   /* check if it is a section title */
+   if (rec_str[0] == '[') {
+      rec_str++;
+
+      title[0] = 0;
+      
+      /* extract title and append '/' */
+      strlcpy(title, rec_str, title_size);
+      char* p = strchr(title, ']');
+      if (p)
+         *p = 0;
+
+      int len = strlen(title);
+      if (len > 0) {
+         if (title[len - 1] != '/')
+            strlcat(title, "/", title_size);
+      }
+
+      // skip to the next end-of-line
+      const char* pend = strchr(rec_str, '\n');
+      if (pend)
+         rec_str = pend;
+      else
+         rec_str = rec_str+strlen(rec_str);
+
+      while (*rec_str == '\n')
+         rec_str++;
+
+      *out_rec_str = rec_str;
+      return DB_SUCCESS;
+   }
+
+   if (rec_str[0] == ';') {
+      // skip to the next end-of-line
+      const char* pend = strchr(rec_str, '\n');
+      if (pend)
+         rec_str = pend;
+      else
+         rec_str = rec_str+strlen(rec_str);
+
+      while (*rec_str == '\n')
+         rec_str++;
+
+      *out_rec_str = rec_str;
+      return DB_SUCCESS;
+   }
+
+   const char* peq = strchr(rec_str, '=');
+   if (!peq) {
+      // FIXME: cm_msg(MERROR, "db_check_record", "line too long");
+      return DB_INVALID_PARAM;
+   }
+
+   int key_name_len = peq - rec_str;
+
+   // remove trailing equals sign and trailing spaces
+   while (key_name_len > 1) {
+      if (rec_str[key_name_len-1] == '=') {
+         key_name_len--;
+         continue;
+      }
+      if (rec_str[key_name_len-1] == ' ') {
+         key_name_len--;
+         continue;
+      }
+      break;
+   }
+
+   memcpy(key_name, rec_str, key_name_len);
+   key_name[key_name_len] = 0;
+
+   rec_str = peq + 1; // consume the "=" sign
+
+   while (*rec_str == ' ') // consume spaces
+      rec_str++;
+
+   // extract type id
+   char stid[256];
+   int i;
+   for (i=0; i<sizeof(stid)-1; i++) {
+      char s = *rec_str;
+      if (s == 0)    break;
+      if (s == ' ')  break;
+      if (s == '\n') break;
+      if (s == '[')  break;
+      stid[i] = s;
+      rec_str++;
+   }
+   stid[i] = 0;
+
+   int xtid = 0;
+   for (xtid = 0; xtid < TID_LAST; xtid++) {
+      if (strcmp(rpc_tid_name(xtid), stid) == 0) {
+         *tid = xtid;
+         break;
+      }
+   }
+
+   //printf("tid [%s], tid %d\n", stid, *tid);
+
+   if (xtid == TID_LAST) {
+      // FIXME: cm_msg(MERROR, "db_check_record", "found unknown data type \"%s\" in ODB file", line);
+      return DB_INVALID_PARAM;
+   }
+      
+   while (*rec_str == ' ') // consume spaces
+      rec_str++;
+
+   // FIXME: do not know how to evaluate n_data
+   *n_data = 1;
+
+   *string_length = 0;
+   if (xtid == TID_LINK || xtid == TID_STRING) {
+      // extract string length
+      const char* pbr = strchr(rec_str, '[');
+      if (pbr) {
+         *string_length = atoi(pbr+1);
+      }
+   }
+
+   // skip to the next end-of-line
+   const char* pend = strchr(rec_str, '\n');
+   if (pend)
+      rec_str = pend;
+   else
+      rec_str = rec_str+strlen(rec_str);
+   
+   while (*rec_str == '\n')
+      rec_str++;
+   
+   *out_rec_str = rec_str;
+   return DB_SUCCESS;
+}
+
+static int db_get_record2_read_element(HNDLE hDB, HNDLE hKey, const char* key_name, int tid, int n_data, int string_length, char* buf_start, char** buf_ptr, int* buf_remain, BOOL correct)
+{
+   int tsize = rpc_tid_size(tid);
+   int offset = *buf_ptr - buf_start;
+   printf("read element [%s] tid %d, n_data %d, string_length %d, tid_size %d, offset %d, buf_remain %d\n", key_name, tid, n_data, string_length, tsize, offset, *buf_remain);
+   if (tsize > 0) {
+      int xsize = tsize;
+      // FIXME: should report an error
+      assert(xsize <= *buf_remain);
+      int status = db_get_value(hDB, hKey, key_name, *buf_ptr, &xsize, tid, FALSE);
+      printf("status %d, xsize %d\n", status, xsize);
+      *buf_ptr += tsize;
+      *buf_remain -= tsize;
+   } else if (tid == TID_STRING) {
+      int xsize = string_length;
+      // FIXME: should report an error
+      assert(xsize <= *buf_remain);
+      int status = db_get_value(hDB, hKey, key_name, *buf_ptr, &xsize, tid, FALSE);
+      printf("status %d, string length %d, xsize %d, actual len %d\n", status, string_length, xsize, (int)strlen(*buf_ptr));
+      *buf_ptr += string_length;
+      *buf_remain -= string_length;
+   }
+   return DB_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Same as db_get_record() but does not rely on the order of elements in odb
+
+@param hDB          ODB handle obtained via cm_get_experiment_database().
+@param hKey         Handle for key where search starts, zero for root.
+@param data         Pointer to the retrieved data.
+@param buf_size     Size of data structure, must be obtained via sizeof(RECORD-NAME).
+@param align        Byte alignment calculated by the stub and
+                    passed to the rpc side to align data
+                    according to local machine. Must be zero
+                    when called from user level.
+@param rec_str      ASCII representation of ODB record in the format
+@return DB_SUCCESS, DB_INVALID_HANDLE, DB_STRUCT_SIZE_MISMATCH
+*/
+INT db_get_record2(HNDLE hDB, HNDLE hKey, void *data, INT * xbuf_size, INT align, const char *rec_str, BOOL correct)
+{
+   int status = DB_SUCCESS;
+
+   printf("db_get_record2!\n");
+
+   assert(data != NULL);
+   assert(xbuf_size != NULL);
+   assert(*xbuf_size > 0);
+
+#if 1
+   char* r1 = NULL;
+   int rs = *xbuf_size;
+   if (1) {
+      r1 = malloc(rs);
+      memset(data, 0xFF, *xbuf_size);
+      memset(r1, 0xFF, rs);
+      status = db_get_record1(hDB, hKey, r1, &rs, 0, rec_str);
+      printf("db_get_record1 status %d\n", status);
+   }
+#endif
+      
+   char* buf_start = (char*)data;
+   int buf_size = *xbuf_size;
+
+   char* buf_ptr = buf_start;
+   int buf_remain = buf_size;
+
+   while (rec_str && *rec_str != 0) {
+      char title[256];
+      char key_name[MAX_ODB_PATH];
+      int tid = 0;
+      int n_data = 0;
+      int string_length = 0;
+      const char* rec_str_next = NULL;
+      
+      status = parse_rec_str(rec_str, &rec_str_next, title, sizeof(title), key_name, sizeof(key_name), &tid, &n_data, &string_length);
+
+      //printf("parse [%s], status %d, title [%s], key_name [%s], tid %d, n_data %d, string_length %d, next [%s]\n", rec_str, status, title, key_name, tid, n_data, string_length, rec_str_next);
+
+      rec_str = rec_str_next;
+
+      if (status != DB_SUCCESS) {
+         return status;
+      }
+
+      if (key_name[0] == 0) {
+         // skip title strings, comments, etc
+         continue;
+      }
+      
+      status = db_get_record2_read_element(hDB, hKey, key_name, tid, n_data, string_length, buf_start, &buf_ptr, &buf_remain, correct);
+      if (status != DB_SUCCESS) {
+         return status;
+      }
+
+      rec_str = rec_str_next;
+   }
+
+   if (r1) {
+      int ok = -1;
+      int i;
+      for (i=0; i<rs; i++) {
+         if (r1[i] != buf_start[i]) {
+            ok = i;
+            break;
+         }
+      }
+      printf("miscompare at %d out of %d, buf_remain %d\n", ok, rs, buf_remain);
+   }
+   
+   if (buf_remain > 0) {
+      // FIXME: we finished processing the data definition string, but unused space remains in the buffer
+      return DB_TRUNCATED;
+   }
+
+   return status;
+}
+
 /********************************************************************/
 /**
 Copy a set of keys from local memory to the database.
