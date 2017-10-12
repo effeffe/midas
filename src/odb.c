@@ -74,6 +74,17 @@ INT db_save_xml_key(HNDLE hDB, HNDLE hKey, INT level, MXML_WRITER * writer);
 *                                                                    *
 \********************************************************************/
 
+static int validate_free_key(DATABASE_HEADER * pheader, int free_key)
+{
+   if (free_key <= 0)
+      return 0;
+
+   if (free_key > pheader->key_size)
+      return 0;
+
+   return 1;
+}
+
 /*------------------------------------------------------------------*/
 static void *malloc_key(DATABASE_HEADER * pheader, INT size, const char* caller)
 {
@@ -85,10 +96,17 @@ static void *malloc_key(DATABASE_HEADER * pheader, INT size, const char* caller)
    /* quadword alignment for alpha CPU */
    size = ALIGN8(size);
 
+   if (!validate_free_key(pheader, pheader->first_free_key)) {
+      return NULL;
+   }
+
    /* search for free block */
    pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_key);
 
    while (pfree->size < size && pfree->next_free) {
+      if (!validate_free_key(pheader, pfree->next_free)) {
+         return NULL;
+      }
       pprev = pfree;
       pfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
    }
@@ -128,6 +146,7 @@ static void *malloc_key(DATABASE_HEADER * pheader, INT size, const char* caller)
       }
    }
 
+   assert((void*)pfound != (void*)pheader);
 
    memset(pfound, 0, size);
 
@@ -164,8 +183,7 @@ static void free_key(DATABASE_HEADER * pheader, void *address, INT size)
 
       while (pprev->next_free < (POINTER_T) address - (POINTER_T) pheader) {
          if (pprev->next_free <= 0) {
-            cm_msg(MERROR, "free_key",
-                   "database is corrupted: pprev=%p, pprev->next_free=%d", pprev, pprev->next_free);
+            cm_msg(MERROR, "free_key", "database is corrupted: pprev=%p, pprev->next_free=%d", pprev, pprev->next_free);
             return;
          }
          pprev = (FREE_DESCRIP *) ((char *) pheader + pprev->next_free);
@@ -195,6 +213,20 @@ static void free_key(DATABASE_HEADER * pheader, void *address, INT size)
    }
 }
 
+static int validate_free_data(DATABASE_HEADER * pheader, int free_data)
+{
+   if (free_data <= 0)
+      return 0;
+
+   if (free_data < pheader->key_size)
+      return 0;
+
+   if (free_data > pheader->key_size + pheader->data_size)
+      return 0;
+
+   return 1;
+}
+
 /*------------------------------------------------------------------*/
 static void *malloc_data(DATABASE_HEADER * pheader, INT size)
 {
@@ -206,10 +238,17 @@ static void *malloc_data(DATABASE_HEADER * pheader, INT size)
    /* quadword alignment for alpha CPU */
    size = ALIGN8(size);
 
+   if (!validate_free_data(pheader, pheader->first_free_data)) {
+      return NULL;
+   }
+
    /* search for free block */
    pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_data);
 
    while (pfree->size < size && pfree->next_free) {
+      if (!validate_free_data(pheader, pfree->next_free)) {
+         return NULL;
+      }
       pprev = pfree;
       pfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
    }
@@ -248,6 +287,8 @@ static void *malloc_data(DATABASE_HEADER * pheader, INT size)
          pprev->next_free = (POINTER_T) pfree - (POINTER_T) pheader;
       }
    }
+
+   assert((void*)pfound != (void*)pheader);
 
    /* zero memeory */
    memset(pfound, 0, size);
