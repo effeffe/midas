@@ -255,12 +255,12 @@ static void *malloc_data(DATABASE_HEADER * pheader, INT size)
 }
 
 /*------------------------------------------------------------------*/
-static void free_data(DATABASE_HEADER * pheader, void *address, INT size, const char* caller)
+static int free_data(DATABASE_HEADER * pheader, void *address, INT size, const char* caller)
 {
    FREE_DESCRIP *pfree, *pprev, *pnext;
 
    if (size == 0)
-      return;
+      return DB_SUCCESS;
 
    assert(address != pheader);
 
@@ -284,8 +284,8 @@ static void free_data(DATABASE_HEADER * pheader, void *address, INT size, const 
 
       while (pprev->next_free < (POINTER_T) address - (POINTER_T) pheader) {
          if (pprev->next_free <= 0) {
-            cm_msg(MERROR, "free_data", "database is corrupted: pprev=%p, pprev->next_free=%d in free_data(0x%p,0x%p,%d) from %s", pprev, pprev->next_free, pheader, address, size, caller);
-            return;
+            cm_msg(MERROR, "free_data", "database is corrupted: pprev=%p, pprev->next_free=%d in free_data(%p,%p,%d) from %s", pprev, pprev->next_free, pheader, address, size, caller);
+            return DB_CORRUPTED;
          }
 
          pprev = (FREE_DESCRIP *) ((char *) pheader + pprev->next_free);
@@ -313,6 +313,8 @@ static void free_data(DATABASE_HEADER * pheader, void *address, INT size, const 
 
       memset(pfree, 0, pfree->size);
    }
+
+   return DB_SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
@@ -321,12 +323,18 @@ static void *realloc_data(DATABASE_HEADER * pheader, void *address, INT old_size
    void *tmp = NULL, *pnew;
 
    if (old_size) {
+      int status;
       tmp = malloc(old_size);
       if (tmp == NULL)
          return NULL;
 
       memcpy(tmp, address, old_size);
-      free_data(pheader, address, old_size, caller);
+
+      status = free_data(pheader, address, old_size, caller);
+      if (status != DB_SUCCESS) {
+         free(tmp);
+         return NULL;
+      }
    }
 
    pnew = malloc_data(pheader, new_size);
