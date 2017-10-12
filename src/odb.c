@@ -54,6 +54,7 @@ The Online Database file
 
 /* Globals */
 
+// _database & co are exported to cm_delete_client_info(), cm_set_watchdog_params(), cm_watchdog(), cm_get_watchdog_info() and cm_cleanup()
 DATABASE *_database;
 INT _database_entries = 0;
 
@@ -74,7 +75,7 @@ INT db_save_xml_key(HNDLE hDB, HNDLE hKey, INT level, MXML_WRITER * writer);
 \********************************************************************/
 
 /*------------------------------------------------------------------*/
-void *malloc_key(DATABASE_HEADER * pheader, INT size)
+static void *malloc_key(DATABASE_HEADER * pheader, INT size, const char* caller)
 {
    FREE_DESCRIP *pfree, *pfound, *pprev = NULL;
 
@@ -1235,7 +1236,8 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
       pfree->next_free = 0;
 
       /* create root key */
-      pkey = (KEY *) malloc_key(pheader, sizeof(KEY));
+      pkey = (KEY *) malloc_key(pheader, sizeof(KEY), "db_open_database_A");
+      assert(pkey);
 
       /* set key properties */
       pkey->type = TID_KEY;
@@ -1245,7 +1247,8 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
       pkey->parent_keylist = 0;
 
       /* create keylist */
-      pkeylist = (KEYLIST *) malloc_key(pheader, sizeof(KEYLIST));
+      pkeylist = (KEYLIST *) malloc_key(pheader, sizeof(KEYLIST), "db_open_database_B");
+      assert(pkeylist);
 
       /* store keylist in data field */
       pkey->data = (POINTER_T) pkeylist - (POINTER_T) pheader;
@@ -2084,11 +2087,13 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
 
             if (*pkey_name == '/' || type == TID_KEY) {
                /* create new key with keylist */
-               pkey = (KEY *) malloc_key(pheader, sizeof(KEY));
+               pkey = (KEY *) malloc_key(pheader, sizeof(KEY), "db_create_key_A");
 
                if (pkey == NULL) {
                   db_unlock_database(hDB);
-                  cm_msg(MERROR, "db_create_key", "online database full");
+                  char str[MAX_ODB_PATH];
+                  db_get_path(hDB, hKey, str, sizeof(str));
+                  cm_msg(MERROR, "db_create_key", "online database full while creating \'%s\'", str);
                   return DB_FULL;
                }
 
@@ -2106,7 +2111,7 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
                pkey->parent_keylist = (POINTER_T) pkeylist - (POINTER_T) pheader;
 
                /* find space for new keylist */
-               pkeylist = (KEYLIST *) malloc_key(pheader, sizeof(KEYLIST));
+               pkeylist = (KEYLIST *) malloc_key(pheader, sizeof(KEYLIST), "db_create_key_B");
 
                if (pkeylist == NULL) {
                   db_unlock_database(hDB);
@@ -2126,11 +2131,13 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
                pkeylist->first_key = 0;
             } else {
                /* create new key with data */
-               pkey = (KEY *) malloc_key(pheader, sizeof(KEY));
+               pkey = (KEY *) malloc_key(pheader, sizeof(KEY), "db_create_key_C");
 
                if (pkey == NULL) {
                   db_unlock_database(hDB);
-                  cm_msg(MERROR, "db_create_key", "online database full");
+                  char str[MAX_ODB_PATH];
+                  db_get_path(hDB, hKey, str, sizeof(str));
+                  cm_msg(MERROR, "db_create_key", "online database full while creating \'%s\'", str);
                   return DB_FULL;
                }
 
