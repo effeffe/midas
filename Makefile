@@ -104,6 +104,13 @@ endif
 #
 
 #
+# Optional fork() support
+#
+#
+#NO_NOFORK=1
+#
+
+#
 # Optional shared library libmidas-shared.so
 #
 #
@@ -244,10 +251,14 @@ NO_ODBC=1
 NO_SQLITE=1
 NO_SSL=1
 NO_EXECINFO=1
+NO_FORK=1
 # For cross compilation targets lacking openssl, define -DNO_SSL
 CFLAGS += -DNO_SSL
 ifdef NO_EXECINFO
 CFLAGS += -DNO_EXECINFO
+endif
+ifdef NO_FORK
+CFLAGS += -DNO_FORK
 endif
 endif
 
@@ -505,7 +516,7 @@ cleanarm:
 
 linuxemcraft:
 	echo OSTYPE=$(OSTYPE)
-	$(MAKE) NO_ROOT=1 NO_MYSQL=1 NO_ODBC=1 NO_SQLITE=1 NO_SSL=1 NO_EXECINFO=1 NO_SHLIB=1 OS_DIR=$(OSTYPE)-emcraft OSTYPE=crosslinuxemcraft
+	$(MAKE) NO_ROOT=1 NO_MYSQL=1 NO_ODBC=1 NO_SQLITE=1 NO_SSL=1 NO_EXECINFO=1 NO_SHLIB=1 NO_FORK=1 OS_DIR=$(OSTYPE)-emcraft OSTYPE=crosslinuxemcraft
 
 cleanemcraft:
 	$(MAKE) NO_ROOT=1 OS_DIR=linux-emcraft clean

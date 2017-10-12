@@ -1553,8 +1553,12 @@ INT ss_spawnv(INT mode, const char *cmdname, const char* const argv[])
    int status;
 #endif
 
+#ifdef NO_FORK
+   assert(!"support for fork() disabled by NO_FORK");
+#else
    if ((child_pid = fork()) < 0)
       return (-1);
+#endif
 
    if (child_pid == 0) {
       /* now we are in the child process ... */
@@ -1762,7 +1766,12 @@ INT ss_shell(int sock)
    char line[32], buffer[1024], shell[32];
    fd_set readfds;
 
-   if ((pid = forkpty(&p, line, NULL, NULL)) < 0)
+#ifdef NO_FORK
+   assert(!"support for forkpty() disabled by NO_FORK");
+#else
+   pid = forkpty(&p, line, NULL, NULL);
+#endif
+   if (pid < 0)
       return 0;
    else if (pid > 0) {
       /* parent process */
@@ -1837,10 +1846,14 @@ INT ss_daemon_init(BOOL keep_stdout)
    /* only implemented for UNIX */
    int i, fd, pid;
 
+#ifdef NO_FORK
+   assert(!"support for fork() disabled by NO_FORK");
+#else
    if ((pid = fork()) < 0)
       return SS_ABORT;
    else if (pid != 0)
       exit(0);                  /* parent finished */
+#endif
 
    /* child continues here */
 
@@ -1962,7 +1975,12 @@ INT ss_exec(const char *command, INT * pid)
    /* only implemented for UNIX */
    int i, fd;
 
-   if ((*pid = fork()) < 0)
+#ifdef NO_FORK
+   assert(!"support for fork() disabled by NO_FORK");
+#else
+   *pid = fork();
+#endif
+   if (*pid < 0)
       return SS_ABORT;
    else if (*pid != 0) {
       /* avoid <defunc> parent processes */
