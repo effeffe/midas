@@ -3129,14 +3129,22 @@ INT cm_register_server(void)
 
       size = sizeof(name);
       status = db_get_value(hDB, hKey, "Name", &name, &size, TID_STRING, FALSE);
-      assert(status == DB_SUCCESS);
+
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "cm_register_server", "cannot get client name, db_get_value() status %d", status);
+         return status;
+      }
 
       strlcpy(str, "/Experiment/Security/RPC ports/", sizeof(str));
       strlcat(str, name, sizeof(str));
 
       size = sizeof(port);
       status = db_get_value(hDB, 0, str, &port, &size, TID_DWORD, TRUE);
-      assert(status == DB_SUCCESS);
+
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "cm_register_server", "cannot get RPC port number, db_get_value(%s) status %d", str, status);
+         return status;
+      }
 
       status = rpc_register_server(ST_REMOTE, NULL, &port, NULL);
       if (status != RPC_SUCCESS)
@@ -3157,8 +3165,9 @@ INT cm_register_server(void)
 
       /* set value */
       status = db_set_data(hDB, hKey, &port, sizeof(INT), 1, TID_INT);
-      if (status != DB_SUCCESS)
+      if (status != DB_SUCCESS) {
          return status;
+      }
 
       /* lock database */
       db_set_mode(hDB, hKey, MODE_READ, TRUE);
