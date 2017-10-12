@@ -6933,6 +6933,8 @@ int ss_isfin(double x)
 *                                                                    *
 \********************************************************************/
 
+#ifndef NO_EXECINFO
+
 #ifdef OS_LINUX
 #include <execinfo.h>
 #endif
@@ -7009,6 +7011,8 @@ void ss_stack_history_dump(char *filename)
    } else
       printf("Cannot open %s: errno=%d\n", filename, errno);
 }
+
+#endif
 
          /** @} *//* end of msfunctionc */
          /** @} *//* end of msystemincludecode */
