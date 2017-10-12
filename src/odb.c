@@ -10202,7 +10202,7 @@ INT db_notify_clients_array(HNDLE hDB, HNDLE hKeys[], INT size)
 /*------------------------------------------------------------------*/
 static void merge_records(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
 {
-   char full_name[256];
+   char full_name[MAX_ODB_PATH];
    INT status, size;
    HNDLE hKeyInit;
    KEY initkey, key;
@@ -10218,9 +10218,15 @@ static void merge_records(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *in
    status = db_find_key(hDB, 0, full_name, &hKeyInit);
    if (status == DB_SUCCESS) {
       status = db_get_key(hDB, hKeyInit, &initkey);
-      assert(status == DB_SUCCESS);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "merge_records", "merge_record error at \'%s\', db_get_key() status %d", full_name, status);
+         return;
+      }
       status = db_get_key(hDB, hKey, &key);
-      assert(status == DB_SUCCESS);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "merge_records", "merge_record error at \'%s\', second db_get_key() status %d", full_name, status);
+         return;
+      }
 
       if (initkey.type != TID_KEY && initkey.type == key.type) {
          char* allocbuffer = NULL;
@@ -10232,7 +10238,10 @@ static void merge_records(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *in
             status = db_get_data(hDB, hKey, buffer, &size, initkey.type);
             if (status == DB_SUCCESS) {
                status = db_set_data(hDB, hKeyInit, buffer, initkey.total_size, initkey.num_values, initkey.type);
-               assert(status == DB_SUCCESS);
+               if (status != DB_SUCCESS) {
+                  cm_msg(MERROR, "merge_records", "merge_record error at \'%s\', db_set_data() status %d", full_name, status);
+                  return;
+               }
                break;
             }
             if (status == DB_TRUNCATED) {
