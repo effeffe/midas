@@ -1186,8 +1186,7 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    handle = (HNDLE) i;
 
    /* open shared memory region */
-   status = ss_shm_open(database_name,
-                        sizeof(DATABASE_HEADER) + 2 * ALIGN8(database_size / 2), &p, &shm_handle, TRUE);
+   status = ss_shm_open(database_name, sizeof(DATABASE_HEADER) + 2 * ALIGN8(database_size / 2), &p, &shm_handle, TRUE);
 
    _database[(INT) handle].database_header = (DATABASE_HEADER *) p;
    if (status == SS_NO_MEMORY || status == SS_FILE_ERROR) {
@@ -1527,6 +1526,7 @@ INT db_close_database(HNDLE hDB)
       ss_shm_close(xname, pheader, _database[hDB - 1].shm_handle, destroy_flag);
 
       pheader = NULL; // after ss_shm_close(), pheader points nowhere
+      _database[hDB - 1].database_header = NULL; // ditto
 
       /* unlock database */
       db_unlock_database(hDB);
@@ -1742,11 +1742,6 @@ INT db_lock_database(HNDLE hDB)
       return DB_INVALID_HANDLE;
    }
 
-   if (_database[hDB - 1].protect && _database[hDB - 1].database_header != NULL) {
-      cm_msg(MERROR, "db_lock_database", "internal error: DB already locked, aborting...");
-      abort();
-   }
-
 #ifdef MULTI_THREAD_ENABLE
    /* obtain access mutex in multi-thread applications */
    if (ss_mutex_wait_for(_database[hDB - 1].am, 1000) != SS_SUCCESS) {
@@ -1797,13 +1792,27 @@ INT db_lock_database(HNDLE hDB)
 
    if (_database[hDB - 1].protect) {
       if (_database[hDB - 1].database_header == NULL) {
-         ss_shm_unprotect(_database[hDB - 1].shm_handle, &p);
+         ss_shm_unprotect(_database[hDB - 1].shm_handle, &p, TRUE, FALSE, "db_lock_database");
          _database[hDB - 1].database_header = (DATABASE_HEADER *) p;
       }
    }
 #endif                          /* LOCAL_ROUTINES */
    return DB_SUCCESS;
 }
+
+#ifdef LOCAL_ROUTINES
+INT db_allow_write_locked(DATABASE* p, const char* caller_name)
+{
+   assert(p);
+   if (p->protect) {
+      assert(p->lock_cnt > 0);
+      assert(p->database_header != NULL);
+      void*tmp;
+      ss_shm_unprotect(p->shm_handle, &tmp, TRUE, TRUE, caller_name);
+   }
+   return DB_SUCCESS;
+}
+#endif                          /* LOCAL_ROUTINES */
 
 /********************************************************************/
 /**
@@ -1836,12 +1845,14 @@ INT db_unlock_database(HNDLE hDB)
    }
 #endif
 
-   if (_database[hDB - 1].lock_cnt == 1)
+   if (_database[hDB - 1].lock_cnt == 1) {
       ss_semaphore_release(_database[hDB - 1].semaphore);
 
-   if (_database[hDB - 1].protect) {
-      ss_shm_protect(_database[hDB - 1].shm_handle, _database[hDB - 1].database_header);
-      _database[hDB - 1].database_header = NULL;
+      if (_database[hDB - 1].protect && _database[hDB - 1].database_header) {
+         DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
+         _database[hDB - 1].database_header = NULL;
+         ss_shm_protect(_database[hDB - 1].shm_handle, pheader);
+      }
    }
 
    assert(_database[hDB - 1].lock_cnt > 0);
@@ -1992,6 +2003,8 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
       if (!hKey)
          hKey = pheader->root_key;
       pkey = (KEY *) ((char *) pheader + hKey);
+
+      db_allow_write_locked(&_database[hDB-1], "db_create_key");
 
       /* check if hKey argument is correct */
       if (!db_validate_hkey(pheader, hKey)) {
@@ -2169,9 +2182,11 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
             }
 
             if (!(*pkey_name == '/')) {
+               int xtype = pkey->type;
+
                db_unlock_database(hDB);
 
-               if ((WORD) pkey->type != type)
+               if (xtype != type)
                   cm_msg(MERROR, "db_create_key", "redefinition of key type mismatch");
 
                return DB_KEY_EXIST;
@@ -3493,6 +3508,8 @@ INT db_set_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *da
          cm_msg(MERROR, "db_set_value", "data_size (%d) does not match num_values (%d)", data_size, num_values);
          return DB_TYPE_MISMATCH;
       }
+
+      db_allow_write_locked(&_database[hDB-1], "db_set_value");
 
       /* resize data size if necessary */
       if (pkey->total_size != data_size) {
@@ -5178,6 +5195,8 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
          return DB_TYPE_MISMATCH;
       }
 
+      db_allow_write_locked(&_database[hDB-1], "db_set_data");
+
       /* if no buf_size given (Java!), calculate it */
       if (buf_size == 0)
          buf_size = pkey->item_size * num_values;
@@ -5299,6 +5318,8 @@ INT db_set_data1(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_
       return DB_TYPE_MISMATCH;
    }
    
+   db_allow_write_locked(&_database[hDB - 1], "db_set_data1");
+
    /* if no buf_size given (Java!), calculate it */
    if (buf_size == 0)
       buf_size = pkey->item_size * num_values;
@@ -5677,6 +5698,8 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
          cm_msg(MERROR, "db_set_data_index", "invalid element data size %d, expected %d", data_size, pkey->item_size);
          return DB_TYPE_MISMATCH;
       }
+
+      db_allow_write_locked(&_database[hDB-1], "db_set_data_index");
 
       /* increase data size if necessary */
       if (idx >= pkey->num_values || pkey->item_size == 0) {
@@ -6078,6 +6101,8 @@ INT db_set_mode(HNDLE hDB, HNDLE hKey, WORD mode, BOOL recurse)
             db_unlock_database(hDB);
          return DB_INVALID_HANDLE;
       }
+
+      db_allow_write_locked(&_database[hDB-1], "db_set_mode");
 
       pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
 
@@ -9862,6 +9887,7 @@ INT db_set_record(HNDLE hDB, HNDLE hKey, void *data, INT buf_size, INT align)
       total_size = 0;
 
       db_lock_database(hDB);
+      db_allow_write_locked(&_database[hDB-1], "db_set_record");
       db_recurse_record_tree(hDB, hKey, &pdata, &total_size, align, NULL, TRUE, convert_flags);
       db_unlock_database(hDB);
    }
@@ -9924,6 +9950,8 @@ INT db_add_open_record(HNDLE hDB, HNDLE hKey, WORD access_mode)
          db_unlock_database(hDB);
          return DB_NO_MEMORY;
       }
+
+      db_allow_write_locked(&_database[hDB-1], "db_add_open_record");
 
       if (i == pclient->max_index)
          pclient->max_index++;
@@ -9998,6 +10026,8 @@ INT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock)
 
          return DB_INVALID_HANDLE;
       }
+
+      db_allow_write_locked(&_database[hDB-1], "db_remove_open_record");
 
       /* decrement notify_count */
       pkey = (KEY *) ((char *) pheader + hKey);

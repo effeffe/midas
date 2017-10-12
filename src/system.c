@@ -1046,6 +1046,7 @@ INT ss_shm_protect(HNDLE handle, void *adr)
 
 \********************************************************************/
 {
+   printf("ss_shm_protect handle %d, addr 0x%p\n", handle, adr);
 #ifdef OS_WINNT
 
    if (!UnmapViewOfFile(adr))
@@ -1083,7 +1084,7 @@ INT ss_shm_protect(HNDLE handle, void *adr)
 }
 
 /*------------------------------------------------------------------*/
-INT ss_shm_unprotect(HNDLE handle, void **adr)
+INT ss_shm_unprotect(HNDLE handle, void **adr, BOOL read, BOOL write, const char* caller_name)
 /********************************************************************\
 
   Routine: ss_shm_unprotect
@@ -1104,6 +1105,8 @@ INT ss_shm_unprotect(HNDLE handle, void **adr)
 
 \********************************************************************/
 {
+   printf("ss_shm_unprotect handle %d, read %d, write %d, caller %s\n", handle, read, write, caller_name);
+   
 #ifdef OS_WINNT
 
    *adr = MapViewOfFile((HANDLE) handle, FILE_MAP_ALL_ACCESS, 0, 0, 0);
@@ -1128,14 +1131,21 @@ INT ss_shm_unprotect(HNDLE handle, void **adr)
    if (use_mmap_shm || use_posix_shm) {
       int ret;
 
-      assert(adr == mmap_addr[handle]);
+      *adr = NULL;
 
-      ret = mprotect(mmap_addr[handle], mmap_size[handle], PROT_READ | PROT_WRITE);
+      int mode = 0;
+      if (read)
+         mode |= PROT_READ;
+      if (write)
+         mode |= PROT_READ | PROT_WRITE;
+      ret = mprotect(mmap_addr[handle], mmap_size[handle], mode);
       if (ret != 0) {
          cm_msg(MERROR, "ss_shm_unprotect",
                 "Cannot mprotect(): return value %d, errno %d (%s)", ret, errno, strerror(errno));
          return SS_INVALID_ADDRESS;
       }
+
+      *adr = mmap_addr[handle];
    }
 
 #endif // OS_UNIX

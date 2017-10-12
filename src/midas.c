@@ -2224,6 +2224,15 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       return status;
    }
 
+   BOOL protect_odb = FALSE;
+   size = sizeof(protect_odb);
+   status = db_get_value(hDB, 0, "/Experiment/Protect ODB", &protect_odb, &size, TID_BOOL, TRUE);
+   assert(status == DB_SUCCESS);
+
+   if (protect_odb) {
+      db_protect_database(hDB);
+   }
+
    size = sizeof(disable_bind_rpc_to_localhost);
    status = db_get_value(hDB, 0, "/Experiment/Security/Enable non-localhost RPC", &disable_bind_rpc_to_localhost, &size, TID_BOOL, TRUE);
    assert(status == DB_SUCCESS);
@@ -2240,8 +2249,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
    strcpy(client_name1, client_name);
    password[0] = 0;
-   status = cm_set_client_info(hDB, &hKeyClient, local_host_name,
-                               client_name1, rpc_get_option(0, RPC_OHW_TYPE), password, watchdog_timeout);
+   status = cm_set_client_info(hDB, &hKeyClient, local_host_name, client_name1, rpc_get_option(0, RPC_OHW_TYPE), password, watchdog_timeout);
 
    if (status == CM_WRONG_PASSWORD) {
       if (func == NULL)
@@ -2250,8 +2258,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
          func(str);
 
       strcpy(password, ss_crypt(str, "mi"));
-      status = cm_set_client_info(hDB, &hKeyClient, local_host_name,
-                                  client_name1, rpc_get_option(0, RPC_OHW_TYPE), password, watchdog_timeout);
+      status = cm_set_client_info(hDB, &hKeyClient, local_host_name, client_name1, rpc_get_option(0, RPC_OHW_TYPE), password, watchdog_timeout);
       if (status != CM_SUCCESS) {
          /* disconnect */
          if (rpc_is_remote())
@@ -2897,6 +2904,8 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
             db_unlock_database(i);
             continue;
          }
+
+         db_allow_write_locked(&_database[i-1], "cm_set_watchdog_params");
 
          /* clear entry from client structure in buffer header */
          pclient->watchdog_timeout = timeout;
@@ -5453,7 +5462,7 @@ static void cm_update_last_activity(DWORD actual_time)
 
    /* check online databases */
    for (i = 0; i < _database_entries; i++)
-      if (_database[i].attached) {
+      if (_database[i].attached && _database[i].database_header) {
          /* update the last_activity entry to show that we are alive */
          _database[i].database_header->client[_database[i].client_index].last_activity = actual_time;
       }
@@ -5868,8 +5877,7 @@ INT bm_close_buffer(INT buffer_handle)
       pheader = NULL; // after ss_shm_close(), pheader points nowhere
 
       /* unmap shared memory, delete it if we are the last */
-      ss_shm_close(xname, _buffer[buffer_handle - 1].buffer_header,
-                   _buffer[buffer_handle - 1].shm_handle, destroy_flag);
+      ss_shm_close(xname, _buffer[buffer_handle - 1].buffer_header, _buffer[buffer_handle - 1].shm_handle, destroy_flag);
 
       /* unlock buffer */
       bm_unlock_buffer(buffer_handle);
@@ -6024,7 +6032,7 @@ void cm_watchdog(int dummy)
 
    /* check online databases */
    for (i = 0; i < _database_entries; i++)
-      if (_database[i].attached) {
+      if (_database[i].attached && _database[i].database_header) {
          /* update the last_activity entry to show that we are alive */
          pdbheader = _database[i].database_header;
          pdbclient = pdbheader->client;
@@ -6417,6 +6425,8 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout)
             /* update the last_activity entry to show that we are alive */
 
             db_lock_database(i + 1);
+
+            db_allow_write_locked(&_database[i], "cm_cleanup");
 
             pdbheader = _database[i].database_header;
             pdbclient = pdbheader->client;
