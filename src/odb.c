@@ -2205,6 +2205,7 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
                   pkey->total_size = pkey->item_size;
 
                   if (pkey->data == 0) {
+                     pkey->total_size = 0;
                      db_unlock_database(hDB);
                      char str[MAX_ODB_PATH];
                      db_get_path(hDB, hKey, str, sizeof(str));
