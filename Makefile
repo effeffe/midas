@@ -62,7 +62,7 @@ SYSINC_DIR = $(PREFIX)/include
 #
 
 #
-# Optional MYSQL library for mlogger and for the history
+# Optional ROOT support for rmlogger
 #
 ifndef NO_ROOT
 HAVE_ROOT := $(shell root-config --version 2> /dev/null)
@@ -94,6 +94,20 @@ endif
 #
 #
 #NO_SSL=1
+#
+
+#
+# Optional stack trace support
+#
+#
+#NO_EXECINFO=1
+#
+
+#
+# Optional shared library libmidas-shared.so
+#
+#
+#NO_SHLIB=1
 #
 
 #
@@ -201,6 +215,40 @@ NO_ODBC=1
 NO_SQLITE=1
 NO_ROOT=1
 SSL_LIBS += -lssl -lcrypto
+endif
+
+#-----------------------
+# ucLinux cross-compilation using emcraft tools
+#
+# To use, before running this Makefile,
+# cd /home/agdaq/online/firmware/cdm/emcraft
+# source ACTIVATE.sh
+#
+ifeq ($(OSTYPE),crosslinuxemcraft)
+#GCC_PREFIX=$(HOME)/linuxdcc/Cross-Compiler/gcc-4.0.2/build/gcc-4.0.2-glibc-2.3.6/powerpc-405-linux-gnu
+#GCC_BIN=$(GCC_PREFIX)/bin/powerpc-405-linux-gnu-
+#LIBS=-L$(HOME)/linuxdcc/userland/lib -pthread -lutil -lrt -ldl
+LIBS= -L$(INSTALL_ROOT)/A2F/root/usr/lib -pthread -lutil -lrt
+GCC_BIN := arm-uclinuxeabi-
+CC  = $(GCC_BIN)gcc
+CXX = $(GCC_BIN)g++
+#OSTYPE = cross-ppc405
+OS_DIR = linux-emcraft
+CFLAGS += -mcpu=cortex-m3 -mthumb
+CFLAGS += -DOS_LINUX
+NEED_STRLCPY=
+CFLAGS += -DHAVE_STRLCPY
+NO_SHLIB=1
+NO_MYSQL=1
+NO_ODBC=1
+NO_SQLITE=1
+NO_SSL=1
+NO_EXECINFO=1
+# For cross compilation targets lacking openssl, define -DNO_SSL
+CFLAGS += -DNO_SSL
+ifdef NO_EXECINFO
+CFLAGS += -DNO_EXECINFO
+endif
 endif
 
 #-----------------------
@@ -415,7 +463,9 @@ endif
 
 LIBNAME = $(LIB_DIR)/libmidas.a
 LIB     = $(LIBNAME)
+ifndef NO_SHLIB
 SHLIB   = $(LIB_DIR)/libmidas-shared.so
+endif
 
 VPATH = $(LIB_DIR):$(INC_DIR)
 
@@ -453,9 +503,15 @@ linuxarm:
 cleanarm:
 	$(MAKE) NO_ROOT=1 OS_DIR=linux-arm clean
 
+linuxemcraft:
+	echo OSTYPE=$(OSTYPE)
+	$(MAKE) NO_ROOT=1 NO_MYSQL=1 NO_ODBC=1 NO_SQLITE=1 NO_SSL=1 NO_EXECINFO=1 NO_SHLIB=1 OS_DIR=$(OSTYPE)-emcraft OSTYPE=crosslinuxemcraft
+
+cleanemcraft:
+	$(MAKE) NO_ROOT=1 OS_DIR=linux-emcraft clean
+
 cleandox:
 	-rm -rf html
-
 
 examples: $(EXAMPLES)
 
