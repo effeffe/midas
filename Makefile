@@ -90,6 +90,13 @@ HAVE_SQLITE := $(shell if [ -e /usr/include/sqlite3.h ]; then echo 1; fi)
 endif
 
 #
+# Optional SSL support
+#
+#
+#NO_SSL=1
+#
+
+#
 # Option to use our own implementation of strlcat, strlcpy
 #
 NEED_STRLCPY=1
@@ -546,15 +553,12 @@ ifdef HAVE_MSCB
 MHTTPD_OBJS += $(LIB_DIR)/mscb.o
 endif
 
-#USE_MONGOOSE6=1
-#ifdef USE_MONGOOSE6
-CFLAGS      += # -DHAVE_MG -DHAVE_MG6
 MHTTPD_OBJS += $(LIB_DIR)/mongoose6.o
 CFLAGS      += -DMG_ENABLE_THREADS
+CFLAGS      += -DMG_DISABLE_CGI
+ifndef NO_SSL
 CFLAGS      += -DMG_ENABLE_SSL
-#endif
-
-#CFLAGS += -DNEW_START_STOP=1
+endif
 
 $(BIN_DIR)/mhttpd: $(MHTTPD_OBJS)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
