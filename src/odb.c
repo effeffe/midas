@@ -1981,7 +1981,9 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
 
       /* check type */
       if (type <= 0 || type >= TID_LAST) {
-         cm_msg(MERROR, "db_create_key", "invalid key type %d for \'%s\'", type, key_name);
+         char str[MAX_ODB_PATH];
+         db_get_path(hDB, hKey, str, sizeof(str));
+         cm_msg(MERROR, "db_create_key", "invalid key type %d to create \'%s\' in \'%s\'", type, key_name, str);
          return DB_INVALID_PARAM;
       }
 
@@ -2000,8 +2002,11 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
       }
 
       if (pkey->type != TID_KEY) {
+         int xtid = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_create_key", "key has no subkeys");
+         char str[MAX_ODB_PATH];
+         db_get_path(hDB, hKey, str, sizeof(str));
+         cm_msg(MERROR, "db_create_key", "cannot create \'%s\' in \'%s\' tid is %d, not a directory", key_name, str, xtid);
          return DB_NO_KEY;
       }
       pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
@@ -2045,7 +2050,9 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
          for (i = 0; i < pkeylist->num_keys; i++) {
             if (!db_validate_key_offset(pheader, pkey->next_key)) {
                db_unlock_database(hDB);
-               cm_msg(MERROR, "db_create_key", "Warning: database corruption, key \"%s\", next_key 0x%08X", key_name, pkey->next_key - (int)sizeof(DATABASE_HEADER));
+               char str[MAX_ODB_PATH];
+               db_get_path(hDB, hKey, str, sizeof(str));
+               cm_msg(MERROR, "db_create_key", "Error: database corruption, key \"%s\", next_key 0x%08X, while creating \'%s\' in \'%s\'", key_name, pkey->next_key - (int)sizeof(DATABASE_HEADER), key_name, str);
                return DB_CORRUPTED;
             }
 
@@ -2096,7 +2103,9 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
 
                if (pkeylist == NULL) {
                   db_unlock_database(hDB);
-                  cm_msg(MERROR, "db_create_key", "online database full");
+                  char str[MAX_ODB_PATH];
+                  db_get_path(hDB, hKey, str, sizeof(str));
+                  cm_msg(MERROR, "db_create_key", "online database full while creating \'%s\' in \'%s'", key_name, str);
                   return DB_FULL;
                }
 
@@ -2138,7 +2147,9 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
 
                   if (pkey->data == 0) {
                      db_unlock_database(hDB);
-                     cm_msg(MERROR, "db_create_key", "online database full");
+                     char str[MAX_ODB_PATH];
+                     db_get_path(hDB, hKey, str, sizeof(str));
+                     cm_msg(MERROR, "db_create_key", "online database full while creating \'%s\' in \'%s\'", key_name, str);
                      return DB_FULL;
                   }
 
@@ -2169,17 +2180,23 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
             }
 
             if (!(*pkey_name == '/')) {
+               int xtid = pkey->type;
                db_unlock_database(hDB);
 
-               if ((WORD) pkey->type != type)
-                  cm_msg(MERROR, "db_create_key", "redefinition of key type mismatch");
+               if (xtid != type) {
+                  char path[MAX_ODB_PATH];
+                  db_get_path(hDB, hKey, path, sizeof(path));
+                  cm_msg(MERROR, "db_create_key", "object of type %d already exists while creating \'%s\' of type %d in \'%s\'", xtid, key_name, type, path);
+               }
 
                return DB_KEY_EXIST;
             }
 
             if (pkey->type != TID_KEY) {
                db_unlock_database(hDB);
-               cm_msg(MERROR, "db_create_key", "path element \"%s\" in \"%s\" is not a subdirectory", str, key_name);
+               char path[MAX_ODB_PATH];
+               db_get_path(hDB, hKey, path, sizeof(path));
+               cm_msg(MERROR, "db_create_key", "path element \"%s\" in \"%s\" is not a subdirectory while creating \'%s\' in \'%s\'", str, key_name, key_name, path);
                return DB_KEY_EXIST;
             }
 
