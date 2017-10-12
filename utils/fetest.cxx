@@ -19,9 +19,9 @@
 #include <math.h>
 #include <ctype.h>
 #include <assert.h>
+#include <string.h>
 
 #include "midas.h"
-#include "strlcpy.h"
 
 #ifndef NEED_NO_EXTERN_C
 extern "C" {
