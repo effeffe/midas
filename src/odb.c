@@ -2377,6 +2377,8 @@ INT db_delete_key1(HNDLE hDB, HNDLE hKey, INT level, BOOL follow_links)
             return DB_OPEN_RECORD;
          }
 #endif
+         db_allow_write_locked(&_database[hDB - 1], "db_delete_key1");
+
          /* delete key data */
          if (pkey->type == TID_KEY)
             free_key(pheader, (char *) pheader + pkey->data, pkey->total_size);
@@ -3356,6 +3358,7 @@ void db_fix_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *resu
    if (key->notify_count) {
       db_lock_database(hDB);
       pheader = _database[hDB - 1].database_header;
+      db_allow_write_locked(&_database[hDB - 1], "db_fix_open_records");
 
       for (i = 0; i < pheader->max_client_index; i++) {
          pclient = &pheader->client[i];
@@ -4468,6 +4471,8 @@ INT db_rename_key(HNDLE hDB, HNDLE hKey, const char *name)
          return DB_INVALID_HANDLE;
       }
 
+      db_allow_write_locked(&_database[hDB - 1], "db_rename_key");
+
       strlcpy(pkey->name, name, NAME_LENGTH);
 
       db_unlock_database(hDB);
@@ -4564,7 +4569,9 @@ INT db_reorder_key(HNDLE hDB, HNDLE hKey, INT idx)
          pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
          pkey = (KEY *) ((char *) pheader + pkeylist->parent);
       } while (TRUE);
-
+      
+      db_allow_write_locked(&_database[hDB - 1], "db_reorder_key");
+      
       pkey = (KEY *) ((char *) pheader + hKey);
       pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
 
@@ -5432,6 +5439,8 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
       if (buf_size == 0)
          buf_size = pkey->item_size * num_values;
 
+      db_allow_write_locked(&_database[hDB - 1], "db_set_link_data");
+
       /* resize data size if necessary */
       if (pkey->total_size != buf_size) {
          pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size);
@@ -5559,6 +5568,8 @@ INT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values)
          cm_msg(MERROR, "db_set_num_values", "Cannot resize array with item_size equal to zero");
          return DB_INVALID_PARAM;
       }
+
+      db_allow_write_locked(&_database[hDB - 1], "db_set_num_values");
 
       /* resize data size if necessary */
       if (pkey->num_values != num_values) {
@@ -5763,17 +5774,17 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
       char str[256];
 
       if (hDB > _database_entries || hDB <= 0) {
-         cm_msg(MERROR, "db_set_data_index", "invalid database handle");
+         cm_msg(MERROR, "db_set_link_data_index", "invalid database handle");
          return DB_INVALID_HANDLE;
       }
 
       if (!_database[hDB - 1].attached) {
-         cm_msg(MERROR, "db_set_data_index", "invalid database handle");
+         cm_msg(MERROR, "db_set_link_data_index", "invalid database handle");
          return DB_INVALID_HANDLE;
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_set_data_index", "invalid key handle");
+         cm_msg(MERROR, "db_set_link_data_index", "invalid key handle");
          return DB_INVALID_HANDLE;
       }
 
@@ -5797,15 +5808,14 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
       if (pkey->type != type) {
          db_unlock_database(hDB);
          db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_set_data_index",
-                "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_set_link_data_index", "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey->type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
       /* keys cannot contain data */
       if (pkey->type == TID_KEY) {
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index", "key cannot contain data");
+         cm_msg(MERROR, "db_set_link_data_index", "key cannot contain data");
          return DB_TYPE_MISMATCH;
       }
 
@@ -5813,9 +5823,11 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
          is different from existing size, ODB becomes corrupted */
       if (pkey->item_size != 0 && data_size != pkey->item_size) {
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index", "invalid element data size %d, expected %d", data_size, pkey->item_size);
+         cm_msg(MERROR, "db_set_link_data_index", "invalid element data size %d, expected %d", data_size, pkey->item_size);
          return DB_TYPE_MISMATCH;
       }
+
+      db_allow_write_locked(&_database[hDB - 1], "db_set_link_data_index");
 
       /* increase data size if necessary */
       if (idx >= pkey->num_values || pkey->item_size == 0) {
@@ -5825,7 +5837,7 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
             pkey->total_size = 0;
             pkey->num_values = 0;
             db_unlock_database(hDB);
-            cm_msg(MERROR, "db_set_data_index", "online database full");
+            cm_msg(MERROR, "db_set_link_data_index", "online database full");
             return DB_FULL;
          }
 
@@ -5896,17 +5908,17 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
       KEY *pkey;
 
       if (hDB > _database_entries || hDB <= 0) {
-         cm_msg(MERROR, "db_set_data_index2", "invalid database handle");
+         cm_msg(MERROR, "db_set_data_index1", "invalid database handle");
          return DB_INVALID_HANDLE;
       }
 
       if (!_database[hDB - 1].attached) {
-         cm_msg(MERROR, "db_set_data_index2", "invalid database handle");
+         cm_msg(MERROR, "db_set_data_index1", "invalid database handle");
          return DB_INVALID_HANDLE;
       }
 
       if (hKey < (int) sizeof(DATABASE_HEADER)) {
-         cm_msg(MERROR, "db_set_data_index2", "invalid key handle");
+         cm_msg(MERROR, "db_set_data_index1", "invalid key handle");
          return DB_INVALID_HANDLE;
       }
 
@@ -5929,24 +5941,25 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
 
       if (pkey->type != type) {
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index2",
-                "\"%s\" is of type %s, not %s", pkey->name, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_set_data_index1", "\"%s\" is of type %s, not %s", pkey->name, rpc_tid_name(pkey->type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
       /* keys cannot contain data */
       if (pkey->type == TID_KEY) {
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index2", "key cannot contain data");
+         cm_msg(MERROR, "db_set_data_index1", "key cannot contain data");
          return DB_TYPE_MISMATCH;
       }
 
       /* check for valid index */
       if (idx < 0) {
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index2", "invalid index");
+         cm_msg(MERROR, "db_set_data_index1", "invalid index");
          return DB_FULL;
       }
+
+      db_allow_write_locked(&_database[hDB - 1], "db_set_data_index1");
 
       /* increase key size if necessary */
       if (idx >= pkey->num_values) {
@@ -5956,7 +5969,7 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
             pkey->total_size = 0;
             pkey->num_values = 0;
             db_unlock_database(hDB);
-            cm_msg(MERROR, "db_set_data_index2", "online database full");
+            cm_msg(MERROR, "db_set_data_index1", "online database full");
             return DB_FULL;
          }
 

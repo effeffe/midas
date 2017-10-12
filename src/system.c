@@ -1046,7 +1046,7 @@ INT ss_shm_protect(HNDLE handle, void *adr)
 
 \********************************************************************/
 {
-   printf("ss_shm_protect handle %d, addr 0x%p\n", handle, adr);
+   //printf("ss_shm_protect handle %d, addr 0x%p\n", handle, adr);
 #ifdef OS_WINNT
 
    if (!UnmapViewOfFile(adr))
@@ -1105,7 +1105,9 @@ INT ss_shm_unprotect(HNDLE handle, void **adr, BOOL read, BOOL write, const char
 
 \********************************************************************/
 {
-   printf("ss_shm_unprotect handle %d, read %d, write %d, caller %s\n", handle, read, write, caller_name);
+   if (write) {
+      printf("ss_shm_unprotect handle %d, read %d, write %d, caller %s\n", handle, read, write, caller_name);
+   }
    
 #ifdef OS_WINNT
 
