@@ -325,6 +325,10 @@ static int free_data(DATABASE_HEADER * pheader, void *address, INT size, const c
       pprev = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_data);
 
       while (pprev->next_free < (POINTER_T) address - (POINTER_T) pheader) {
+         if (pprev->next_free == 0) {
+            cm_msg(MERROR, "free_data", "cannot free data, database is full");
+            return DB_FULL;
+         }
          if (pprev->next_free <= 0) {
             cm_msg(MERROR, "free_data", "database is corrupted: pprev=%p, pprev->next_free=%d in free_data(%p,%p,%d) from %s", pprev, pprev->next_free, pheader, address, size, caller);
             return DB_CORRUPTED;
