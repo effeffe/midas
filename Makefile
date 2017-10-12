@@ -362,6 +362,7 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/mjson_test \
 	$(BIN_DIR)/mcnaf    \
 	$(BIN_DIR)/crc32c   \
+	$(BIN_DIR)/get_record_test \
 	$(SPECIFIC_OS_PRG)
 
 ifdef HAVE_ROOT

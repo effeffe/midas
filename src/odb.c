@@ -3696,7 +3696,7 @@ INT db_get_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, void *data, IN
          memcpy(data, (char *) pheader + pkey->data, *buf_size);
          db_unlock_database(hDB);
          db_get_path(hDB, hkey, path, sizeof(path));
-         cm_msg(MERROR, "db_get_value", "buffer too small, data truncated for key \"%s\"", path);
+         cm_msg(MERROR, "db_get_value", "buffer size %d too small, data size %dx%d, truncated for key \"%s\"", *buf_size, pkey->num_values, pkey->item_size, path);
          return DB_TRUNCATED;
       }
 
@@ -9383,7 +9383,7 @@ INT db_get_record1(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align,
    return status;
 }
 
-static int parse_rec_str(const char* rec_str, const char** out_rec_str, char* title, int title_size, char* key_name, int key_name_size, int* tid, int* n_data, int* string_length)
+static int db_parse_record(const char* rec_str, const char** out_rec_str, char* title, int title_size, char* key_name, int key_name_size, int* tid, int* n_data, int* string_length)
 {
    title[0] = 0;
    key_name[0] = 0;
@@ -9391,6 +9391,16 @@ static int parse_rec_str(const char* rec_str, const char** out_rec_str, char* ti
    *n_data = 0;
    *string_length = 0;
    *out_rec_str = NULL;
+
+   //
+   // expected format of rec_str:
+   //
+   // title: "[.]",
+   // numeric value: "example_int = INT : 3",
+   // string value: "example_string = STRING : [20] /Runinfo/Run number",
+   // array: "aaa = INT[10] : ...",
+   // string array: "sarr = STRING[10] : [32] ",
+   //
 
    //printf("parse_rec_str: [%s]\n", rec_str);
 
@@ -9446,7 +9456,7 @@ static int parse_rec_str(const char* rec_str, const char** out_rec_str, char* ti
 
    const char* peq = strchr(rec_str, '=');
    if (!peq) {
-      // FIXME: cm_msg(MERROR, "db_check_record", "line too long");
+      cm_msg(MERROR, "db_parse_record", "do not see \'=\'");
       return DB_INVALID_PARAM;
    }
 
@@ -9498,15 +9508,40 @@ static int parse_rec_str(const char* rec_str, const char** out_rec_str, char* ti
    //printf("tid [%s], tid %d\n", stid, *tid);
 
    if (xtid == TID_LAST) {
-      // FIXME: cm_msg(MERROR, "db_check_record", "found unknown data type \"%s\" in ODB file", line);
+      cm_msg(MERROR, "db_parse_record", "do not see \':\'");
       return DB_INVALID_PARAM;
    }
       
    while (*rec_str == ' ') // consume spaces
       rec_str++;
 
-   // FIXME: do not know how to evaluate n_data
    *n_data = 1;
+
+   if (*rec_str == '[') {
+      // decode array size
+      rec_str++; // cosume the '['
+      *n_data = atoi(rec_str);
+      const char *pbr = strchr(rec_str, ']');
+      if (!pbr) {
+         cm_msg(MERROR, "db_parse_record", "do not see closing bracket \']\'");
+         return DB_INVALID_PARAM;
+      }
+      rec_str = pbr + 1; // skip the closing bracket
+   }
+   
+   while (*rec_str == ' ') // consume spaces
+      rec_str++;
+
+   const char* pcol = strchr(rec_str, ':');
+   if (!pcol) {
+      cm_msg(MERROR, "db_parse_record", "do not see \':\'");
+      return DB_INVALID_PARAM;
+   }
+
+   rec_str = pcol + 1; // skip the ":"
+
+   while (*rec_str == ' ') // consume spaces
+      rec_str++;
 
    *string_length = 0;
    if (xtid == TID_LINK || xtid == TID_STRING) {
@@ -9533,42 +9568,122 @@ static int parse_rec_str(const char* rec_str, const char** out_rec_str, char* ti
 
 static int db_get_record2_read_element(HNDLE hDB, HNDLE hKey, const char* key_name, int tid, int n_data, int string_length, char* buf_start, char** buf_ptr, int* buf_remain, BOOL correct)
 {
+   assert(tid > 0);
+   assert(n_data > 0);
    int tsize = rpc_tid_size(tid);
    int offset = *buf_ptr - buf_start;
-   printf("read element [%s] tid %d, n_data %d, string_length %d, tid_size %d, offset %d, buf_remain %d\n", key_name, tid, n_data, string_length, tsize, offset, *buf_remain);
+   int align = 0;
+   if (tsize && (offset%tsize != 0)) {
+      while (offset%tsize != 0) {
+         align++;
+         *(*buf_ptr) = 0xFF; // pad bytes for correct data alignement
+         (*buf_ptr)++;
+         (*buf_remain)--;
+         offset++;
+      }
+   }
+   printf("read element [%s] tid %d, n_data %d, string_length %d, tid_size %d, align %d, offset %d, buf_remain %d\n", key_name, tid, n_data, string_length, tsize, align, offset, *buf_remain);
    if (tsize > 0) {
-      int xsize = tsize;
-      // FIXME: should report an error
-      assert(xsize <= *buf_remain);
-      int status = db_get_value(hDB, hKey, key_name, *buf_ptr, &xsize, tid, FALSE);
-      printf("status %d, xsize %d\n", status, xsize);
-      *buf_ptr += tsize;
-      *buf_remain -= tsize;
+      int xsize = tsize*n_data;
+      if (xsize > *buf_remain) {
+         cm_msg(MERROR, "db_get_record2", "buffer overrun at key \"%s\", size %d, buffer remaining %d", key_name, xsize, *buf_remain);
+         return DB_INVALID_PARAM;
+      }
+      int ysize = xsize;
+      int status = db_get_value(hDB, hKey, key_name, *buf_ptr, &ysize, tid, FALSE);
+      //printf("status %d, xsize %d\n", status, xsize);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "db_get_record2", "cannot read \"%s\", db_get_value() status %d", key_name, status);
+         memset(*buf_ptr, 0, xsize);
+         *buf_ptr += xsize;
+         *buf_remain -= xsize;
+         return status;
+      }
+      *buf_ptr += xsize;
+      *buf_remain -= xsize;
    } else if (tid == TID_STRING) {
-      int xsize = string_length;
-      // FIXME: should report an error
-      assert(xsize <= *buf_remain);
-      int status = db_get_value(hDB, hKey, key_name, *buf_ptr, &xsize, tid, FALSE);
-      printf("status %d, string length %d, xsize %d, actual len %d\n", status, string_length, xsize, (int)strlen(*buf_ptr));
-      *buf_ptr += string_length;
-      *buf_remain -= string_length;
+      int xstatus = 0;
+      int i;
+      for (i=0; i<n_data; i++) {
+         int xsize = string_length;
+         if (xsize > *buf_remain) {
+            cm_msg(MERROR, "db_get_record2", "string buffer overrun at key \"%s\" index %d, size %d, buffer remaining %d", key_name, i, xsize, *buf_remain);
+            return DB_INVALID_PARAM;
+         }
+         char xkey_name[NAME_LENGTH+100];
+         sprintf(xkey_name, "%s[%d]", key_name, i);
+         int status = db_get_value(hDB, hKey, xkey_name, *buf_ptr, &xsize, tid, FALSE);
+         //printf("status %d, string length %d, xsize %d, actual len %d\n", status, string_length, xsize, (int)strlen(*buf_ptr));
+         if (status == DB_TRUNCATED) {
+            // make sure string is NUL terminated
+            (*buf_ptr)[string_length-1] = 0;
+            cm_msg(MERROR, "db_get_record2", "string key \"%s\" index %d, string value was truncated", key_name, i);
+         } else if (status != DB_SUCCESS) {
+            cm_msg(MERROR, "db_get_record2", "cannot read string \"%s\"[%d], db_get_value() status %d", key_name, i, status);
+            memset(*buf_ptr, 0, string_length);
+            xstatus = status;
+         }
+         *buf_ptr += string_length;
+         *buf_remain -= string_length;
+      }
+      if (xstatus != 0) {
+         return xstatus;
+      }
+   } else {
+      cm_msg(MERROR, "db_get_record2", "cannot read key \"%s\" of unsupported type %d", key_name, tid);
+      return DB_INVALID_PARAM;
    }
    return DB_SUCCESS;
 }
 
 /********************************************************************/
 /**
-Same as db_get_record() but does not rely on the order of elements in odb
+Copy a set of keys to local memory.
 
+An ODB sub-tree can be mapped to a C structure automatically via a
+hot-link using the function db_open_record1() or manually with this function.
+For correct operation, the description string *must* match the C data
+structure. If the contents of ODB sub-tree does not exactly match
+the description string, db_get_record2() will try to read as much as it can
+and return DB_TRUNCATED to inform the user that there was a mismatch somewhere.
+To ensure that the ODB sub-tree matches the desciption string, call db_create_record()
+or db_check_record() before calling db_get_record2(). Unlike db_get_record()
+and db_get_record1(), this function will not complain about data strucure mismatches.
+It will ignore all extra entries in the ODB sub-tree and it will set to zero the C-structure
+data fields that do not have corresponding ODB entries.
+\code
+struct {
+  INT level1;
+  INT level2;
+} trigger_settings;
+const char *trigger_settings_str =
+"[Settings]\n\
+level1 = INT : 0\n\
+level2 = INT : 0";
+
+main()
+{
+  HNDLE hDB, hkey;
+  INT   size;
+  ...
+  cm_get_experiment_database(&hDB, NULL);
+  db_create_record(hDB, 0, "/Equipment/Trigger", trigger_settings_str);
+  db_find_key(hDB, 0, "/Equipment/Trigger/Settings", &hkey);
+  size = sizeof(trigger_settings);
+  db_get_record2(hDB, hkey, &trigger_settings, &size, 0, trigger_settings_str);
+  ...
+}
+\endcode
 @param hDB          ODB handle obtained via cm_get_experiment_database().
 @param hKey         Handle for key where search starts, zero for root.
 @param data         Pointer to the retrieved data.
-@param buf_size     Size of data structure, must be obtained via sizeof(RECORD-NAME).
+@param buf_size     Size of data structure, must be obtained via sizeof(data).
 @param align        Byte alignment calculated by the stub and
                     passed to the rpc side to align data
                     according to local machine. Must be zero
                     when called from user level.
-@param rec_str      ASCII representation of ODB record in the format
+@param rec_str      Description of the data structure, see db_create_record()
+@param correct      Must be set to zero
 @return DB_SUCCESS, DB_INVALID_HANDLE, DB_STRUCT_SIZE_MISMATCH
 */
 INT db_get_record2(HNDLE hDB, HNDLE hKey, void *data, INT * xbuf_size, INT align, const char *rec_str, BOOL correct)
@@ -9580,7 +9695,9 @@ INT db_get_record2(HNDLE hDB, HNDLE hKey, void *data, INT * xbuf_size, INT align
    assert(data != NULL);
    assert(xbuf_size != NULL);
    assert(*xbuf_size > 0);
+   assert(correct == 0);
 
+   int truncated = 0;
 #if 1
    char* r1 = NULL;
    int rs = *xbuf_size;
@@ -9588,8 +9705,9 @@ INT db_get_record2(HNDLE hDB, HNDLE hKey, void *data, INT * xbuf_size, INT align
       r1 = malloc(rs);
       memset(data, 0xFF, *xbuf_size);
       memset(r1, 0xFF, rs);
-      status = db_get_record1(hDB, hKey, r1, &rs, 0, rec_str);
-      printf("db_get_record1 status %d\n", status);
+      //status = db_get_record1(hDB, hKey, r1, &rs, 0, rec_str);
+      status = db_get_record(hDB, hKey, r1, &rs, 0);
+      printf("db_get_record status %d\n", status);
    }
 #endif
       
@@ -9607,7 +9725,7 @@ INT db_get_record2(HNDLE hDB, HNDLE hKey, void *data, INT * xbuf_size, INT align
       int string_length = 0;
       const char* rec_str_next = NULL;
       
-      status = parse_rec_str(rec_str, &rec_str_next, title, sizeof(title), key_name, sizeof(key_name), &tid, &n_data, &string_length);
+      status = db_parse_record(rec_str, &rec_str_next, title, sizeof(title), key_name, sizeof(key_name), &tid, &n_data, &string_length);
 
       //printf("parse [%s], status %d, title [%s], key_name [%s], tid %d, n_data %d, string_length %d, next [%s]\n", rec_str, status, title, key_name, tid, n_data, string_length, rec_str_next);
 
@@ -9623,8 +9741,11 @@ INT db_get_record2(HNDLE hDB, HNDLE hKey, void *data, INT * xbuf_size, INT align
       }
       
       status = db_get_record2_read_element(hDB, hKey, key_name, tid, n_data, string_length, buf_start, &buf_ptr, &buf_remain, correct);
-      if (status != DB_SUCCESS) {
-         return status;
+      if (status == DB_INVALID_PARAM) {
+         cm_msg(MERROR, "db_get_record2", "error: cannot continue reading odb record because of previous fatal error, status %d", status);
+         return DB_INVALID_PARAM;
+      } if (status != DB_SUCCESS) {
+         truncated = 1;
       }
 
       rec_str = rec_str_next;
@@ -9639,7 +9760,11 @@ INT db_get_record2(HNDLE hDB, HNDLE hKey, void *data, INT * xbuf_size, INT align
             break;
          }
       }
-      printf("miscompare at %d out of %d, buf_remain %d\n", ok, rs, buf_remain);
+      if (ok>=0 || buf_remain>0) {
+         printf("db_get_record2: miscompare at %d out of %d, buf_remain %d\n", ok, rs, buf_remain);
+      } else {
+         printf("db_get_record2: check ok\n");
+      }
    }
    
    if (buf_remain > 0) {
@@ -9647,7 +9772,10 @@ INT db_get_record2(HNDLE hDB, HNDLE hKey, void *data, INT * xbuf_size, INT align
       return DB_TRUNCATED;
    }
 
-   return status;
+   if (truncated)
+      return DB_TRUNCATED;
+   else
+      return DB_SUCCESS;
 }
 
 /********************************************************************/
