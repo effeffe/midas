@@ -134,7 +134,7 @@ void *malloc_key(DATABASE_HEADER * pheader, INT size)
 }
 
 /*------------------------------------------------------------------*/
-void free_key(DATABASE_HEADER * pheader, void *address, INT size)
+static void free_key(DATABASE_HEADER * pheader, void *address, INT size)
 {
    FREE_DESCRIP *pfree, *pprev, *pnext;
 
@@ -195,7 +195,7 @@ void free_key(DATABASE_HEADER * pheader, void *address, INT size)
 }
 
 /*------------------------------------------------------------------*/
-void *malloc_data(DATABASE_HEADER * pheader, INT size)
+static void *malloc_data(DATABASE_HEADER * pheader, INT size)
 {
    FREE_DESCRIP *pfree, *pfound, *pprev = NULL;
 
@@ -255,7 +255,7 @@ void *malloc_data(DATABASE_HEADER * pheader, INT size)
 }
 
 /*------------------------------------------------------------------*/
-void free_data(DATABASE_HEADER * pheader, void *address, INT size)
+static void free_data(DATABASE_HEADER * pheader, void *address, INT size, const char* caller)
 {
    FREE_DESCRIP *pfree, *pprev, *pnext;
 
@@ -284,8 +284,7 @@ void free_data(DATABASE_HEADER * pheader, void *address, INT size)
 
       while (pprev->next_free < (POINTER_T) address - (POINTER_T) pheader) {
          if (pprev->next_free <= 0) {
-            cm_msg(MERROR, "free_data",
-                   "database is corrupted: pprev=%p, pprev->next_free=%d", pprev, pprev->next_free);
+            cm_msg(MERROR, "free_data", "database is corrupted: pprev=%p, pprev->next_free=%d in free_data(0x%p,0x%p,%d) from %s", pprev, pprev->next_free, pheader, address, size, caller);
             return;
          }
 
@@ -317,7 +316,7 @@ void free_data(DATABASE_HEADER * pheader, void *address, INT size)
 }
 
 /*------------------------------------------------------------------*/
-void *realloc_data(DATABASE_HEADER * pheader, void *address, INT old_size, INT new_size)
+static void *realloc_data(DATABASE_HEADER * pheader, void *address, INT old_size, INT new_size, const char* caller)
 {
    void *tmp = NULL, *pnew;
 
@@ -327,7 +326,7 @@ void *realloc_data(DATABASE_HEADER * pheader, void *address, INT old_size, INT n
          return NULL;
 
       memcpy(tmp, address, old_size);
-      free_data(pheader, address, old_size);
+      free_data(pheader, address, old_size, caller);
    }
 
    pnew = malloc_data(pheader, new_size);
@@ -460,7 +459,7 @@ INT db_show_mem(HNDLE hDB, char *result, INT buf_size, BOOL verbose)
 // Method to check if a given string is valid UTF-8.  Returns 1 if it is.
 // This method was taken from stackoverflow user Christoph, specifically
 // http://stackoverflow.com/questions/1031645/how-to-detect-utf-8-in-plain-c
-BOOL is_utf8(const char * string)
+static BOOL is_utf8(const char * string)
 {
     if(!string)
         return 0;
@@ -2383,7 +2382,7 @@ INT db_delete_key1(HNDLE hDB, HNDLE hKey, INT level, BOOL follow_links)
          if (pkey->type == TID_KEY)
             free_key(pheader, (char *) pheader + pkey->data, pkey->total_size);
          else
-            free_data(pheader, (char *) pheader + pkey->data, pkey->total_size);
+            free_data(pheader, (char *) pheader + pkey->data, pkey->total_size, "db_delete_key1");
 
          /* unlink key from list */
          pnext_key = (KEY *) (POINTER_T) pkey->next_key;
@@ -3522,7 +3521,7 @@ INT db_set_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *da
 
       /* resize data size if necessary */
       if (pkey->total_size != data_size) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size);
+         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size, "db_set_value");
 
          if (pkey->data == 0) {
             pkey->total_size = 0;
@@ -5210,7 +5209,7 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
 
       /* resize data size if necessary */
       if (pkey->total_size != buf_size) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size);
+         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size, "db_set_data");
 
          if (pkey->data == 0) {
             pkey->total_size = 0;
@@ -5331,7 +5330,7 @@ INT db_set_data1(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_
    
    /* resize data size if necessary */
    if (pkey->total_size != buf_size) {
-      pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size);
+      pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size, "db_set_data1");
       
       if (pkey->data == 0) {
          pkey->total_size = 0;
@@ -5439,7 +5438,7 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
 
       /* resize data size if necessary */
       if (pkey->total_size != buf_size) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size);
+         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size, "db_set_link_data");
 
          if (pkey->data == 0) {
             pkey->total_size = 0;
@@ -5569,7 +5568,7 @@ INT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values)
       if (pkey->num_values != num_values) {
          new_size = pkey->item_size * num_values;
 
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, new_size);
+         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, new_size, "db_set_num_values");
 
          if (pkey->data == 0) {
             pkey->total_size = 0;
@@ -5677,8 +5676,7 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
       if (pkey->type != type) {
          db_unlock_database(hDB);
          db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_set_data_index",
-                "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_set_data_index", "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey->type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
@@ -5706,7 +5704,7 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
 
       /* increase data size if necessary */
       if (idx >= pkey->num_values || pkey->item_size == 0) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1));
+         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1), "db_set_data_index_A");
 
          if (pkey->data == 0) {
             pkey->total_size = 0;
@@ -5822,7 +5820,7 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
 
       /* increase data size if necessary */
       if (idx >= pkey->num_values || pkey->item_size == 0) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1));
+         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1), "db_set_data_index_B");
 
          if (pkey->data == 0) {
             pkey->total_size = 0;
@@ -5953,7 +5951,7 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
 
       /* increase key size if necessary */
       if (idx >= pkey->num_values) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1));
+         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1), "db_set_data_index1");
 
          if (pkey->data == 0) {
             pkey->total_size = 0;
@@ -10141,7 +10139,7 @@ INT db_notify_clients_array(HNDLE hDB, HNDLE hKeys[], INT size)
 }
 
 /*------------------------------------------------------------------*/
-void merge_records(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
+static void merge_records(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
 {
    char full_name[256];
    INT status, size;
