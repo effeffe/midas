@@ -2513,17 +2513,26 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
 
       if (pkey->type < 1 || pkey->type >= TID_LAST) {
          *subhKey = 0;
+         int xtid = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_find_key", "hkey %d invalid key type %d", hKey, pkey->type);
+         if (hKey == 0) {
+            cm_msg(MERROR, "db_find_key", "hkey %d invalid key type %d, database root directory is corrupted", hKey, xtid);
+            return DB_CORRUPTED;
+         } else {
+            char str[MAX_ODB_PATH];
+            db_get_path(hDB, hKey, str, sizeof(str));
+            cm_msg(MERROR, "db_find_key", "hkey %d path \'%s\' invalid key type %d", hKey, str, xtid);
+         }
          return DB_NO_KEY;
       }
 
       if (pkey->type != TID_KEY) {
+         int xtid = pkey->type;
          db_unlock_database(hDB);
          char str[MAX_ODB_PATH];
          db_get_path(hDB, hKey, str, sizeof(str));
          *subhKey = 0;
-         cm_msg(MERROR, "db_find_key", "key \"%s\" has no subkeys", str);
+         cm_msg(MERROR, "db_find_key", "hkey %d path \"%s\" tid %d is not a directory", hKey, str, xtid);
          return DB_NO_KEY;
       }
       pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
@@ -2569,7 +2578,7 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
          for (i = 0; i < pkeylist->num_keys; i++) {
             if (pkey->name[0] == 0 || !db_validate_key_offset(pheader, pkey->next_key)) {
                db_unlock_database(hDB);
-               cm_msg(MERROR, "db_find_key", "Warning: database corruption, key \"%s\", next_key 0x%08X is invalid", key_name, pkey->next_key - (int)sizeof(DATABASE_HEADER));
+               cm_msg(MERROR, "db_find_key", "Error: database corruption, key \"%s\", next_key 0x%08X is invalid", key_name, pkey->next_key - (int)sizeof(DATABASE_HEADER));
                *subhKey = 0;
                return DB_CORRUPTED;
             }
