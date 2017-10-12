@@ -143,7 +143,7 @@ Change size of string arrays.
 This function can change the number of elements and the string element length of an array of strings.
 @param hDB  ODB handle obtained via cm_get_experiment_database().
 @param hKey Handle for key where search starts, zero for root.
-@param key_name Odb key name
+@param key_name Odb key name, if NULL, will resize ODB entry pointed to by hKey
 @param num_values New number of array elements, if 0, remains unchanged
 @param max_string_length New max string length for array elements, if 0, remains unchanged
 @return DB_SUCCESS, or error from db_find_key, db_create_key, db_get_data(), db_set_data()
@@ -160,7 +160,12 @@ INT EXPRT db_resize_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int 
    int old_size = 0;
    char* old_data = NULL;
 
-   status = db_find_key(hdb, hKeyRoot, key_name, &hkey);
+   if (key_name) {
+      status = db_find_key(hdb, hKeyRoot, key_name, &hkey);
+   } else {
+      hkey = hKeyRoot;
+      status = DB_SUCCESS;
+   }
    if (status == DB_SUCCESS) {
       KEY key;
       status = db_get_key(hdb, hkey, &key);
