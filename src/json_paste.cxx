@@ -134,7 +134,10 @@ static int paste_array(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode*
    if (slength == 0)
       slength = NAME_LENGTH;
 
-   for (unsigned i=0; i<a->size(); i++) {
+   for (unsigned i=a->size(); ;) {
+      if (i==0)
+         break;
+      i--;
       MJsonNode* n = (*a)[i];
       if (!n)
          continue;
