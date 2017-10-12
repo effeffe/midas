@@ -21,7 +21,6 @@
 #include <assert.h>
 
 #include "midas.h"
-#include "strlcpy.h"
 
 #ifndef NEED_NO_EXTERN_C
 extern "C" {
