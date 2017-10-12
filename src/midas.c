@@ -1836,7 +1836,7 @@ INT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient, char *host_name,
       status = db_set_value(hDB, 0, str, name, NAME_LENGTH, 1, TID_STRING);
       if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
-         cm_msg(MERROR, "cm_set_client_info", "cannot set client name");
+         cm_msg(MERROR, "cm_set_client_info", "cannot set client name, db_set_value(%s) status %d", str, status);
          return status;
       }
 
@@ -2098,9 +2098,7 @@ INT cm_connect_experiment(const char *host_name, const char *exp_name, const cha
    INT status;
    char str[256];
 
-   status =
-       cm_connect_experiment1(host_name, exp_name, client_name, func, DEFAULT_ODB_SIZE,
-                              DEFAULT_WATCHDOG_TIMEOUT);
+   status = cm_connect_experiment1(host_name, exp_name, client_name, func, DEFAULT_ODB_SIZE, DEFAULT_WATCHDOG_TIMEOUT);
    cm_msg_flush_buffer();
    if (status != CM_SUCCESS) {
       cm_get_error(status, str);
@@ -2276,7 +2274,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    status = cm_register_server();
    if (status != CM_SUCCESS) {
       cm_msg(MERROR, "cm_connect_experiment", "Cannot register RPC server, cm_register_server() status %d", status);
-      return status;
+      if (!equal_ustring(client_name, "odbedit")) {
+         return status;
+      }
    }
 
    /* set watchdog timeout */
