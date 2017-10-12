@@ -480,7 +480,8 @@ $(BIN_DIR):
 # put current GIT revision into header file to be included by programs
 #
 $(GIT_REVISION): $(SRC_DIR)/midas.c $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.c $(SRC_DIR)/system.c
-	echo \#define GIT_REVISION \"`git log -n 1 --pretty=format:"%ad - %h"`\" > $(GIT_REVISION)
+	/bin/rm -f $(GIT_REVISION)
+	echo \#define GIT_REVISION \"`git log -n 1 --pretty=format:"%ad - commit %h"` on branch `git rev-parse --abbrev-ref HEAD` - `git describe --abbrev=4 --dirty`\" > $(GIT_REVISION)
 include/midas.h: $(GIT_REVISION)
 #
 # main binaries
@@ -831,6 +832,7 @@ indent:
 
 clean:
 	-rm -vf $(LIB_DIR)/*.o $(LIB_DIR)/*.a $(LIB_DIR)/*.so $(LIB_DIR)/*.dylib
+	-rm -vf $(GIT_REVISION)
 	-rm -rvf $(BIN_DIR)/*.dSYM
 	-rm -vf $(BIN_DIR)/*
 

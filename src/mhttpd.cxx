@@ -1220,8 +1220,10 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">Revision:</td>\n");
    strlcpy(str, "https://bitbucket.org/tmidas/midas/commits/all?search=", sizeof(str));
-   if (strrchr(cm_get_revision(), '-'))
-      strlcat(str, strrchr(cm_get_revision(), '-')+2, sizeof(str));
+   const char* p = strstr(cm_get_revision(), "commit");
+   if (p) {
+      memcpy(str+strlen(str), p + 7, 7);
+   }
    r->rsprintf("          <td style=\"text-align:left;\"><a href=\"%s\">%s</a></td>\n", str, cm_get_revision());
    r->rsprintf("        </tr>\n");
 
