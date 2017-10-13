@@ -2807,16 +2807,22 @@ INT ss_mutex_wait_for(MUTEX_T *mutex, INT timeout)
    if (timeout > 0) {
       // emulate pthread_mutex_timedlock under OS_DARWIN
       DWORD wait = 0;
-      do {
+      while (1) {
          status = pthread_mutex_trylock(mutex);
-         if (status == EBUSY) {
+         if (status == 0) {
+            return SS_SUCCESS;
+         } else if (status == EBUSY) {
             ss_sleep(10);
             wait += 10;
-         } else
-            break;
-
-      } while (timeout == 0 || wait < timeout);
-
+         } else {
+            fprintf(stderr, "ss_mutex_wait_for: fatal error: pthread_mutex_trylock() returned errno %d (%s), aborting...\n", status, strerror(status));
+            abort(); // does not return
+         }
+         if (wait > timeout) {
+            fprintf(stderr, "ss_mutex_wait_for: fatal error: timeout waiting for mutex, timeout was %d millisec, aborting...\n", timeout);
+            abort(); // does not return
+         }
+      }
    } else {
       status = pthread_mutex_lock(mutex);
    }
