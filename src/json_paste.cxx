@@ -155,6 +155,10 @@ static int paste_array(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode*
 
 static int paste_object(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode* objnode)
 {
+   if (equal_ustring(path, "/system/clients")) {
+      // do not reload ODB /system/clients
+      return DB_SUCCESS;
+   }
    int status;
    const MJsonStringVector* names = objnode->GetObjectNames();
    const MJsonNodeVector* nodes = objnode->GetObjectNodes();
@@ -220,7 +224,9 @@ static int paste_object(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode
       }
 
       std::string node_name;
-      node_name += path;
+      if (strcmp(path, "/") != 0) {
+         node_name += path;
+      }
       node_name += "/";
       node_name += name;
 
