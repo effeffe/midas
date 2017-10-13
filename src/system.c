@@ -2841,8 +2841,13 @@ INT ss_mutex_wait_for(MUTEX_T *mutex, INT timeout)
 
       clock_gettime(CLOCK_REALTIME, &st);
       st.tv_sec += timeout / 1000;
-      st.tv_nsec += (timeout % 1000) * 1E6;
+      st.tv_nsec += (timeout % 1000) * 1000000;
       status = pthread_mutex_timedlock(mutex, &st);
+
+      if (status == ETIMEDOUT) {
+         fprintf(stderr, "ss_mutex_wait_for: fatal error: timeout waiting for mutex, timeout was %d millisec, aborting...\n", timeout);
+         abort();
+      }
 
       // Make linux timeout do same as MacOS timeout: abort() the program
       //if (status == ETIMEDOUT)
