@@ -54,6 +54,7 @@ The Online Database file
 
 /* Globals */
 
+// _database & co are exported to cm_delete_client_info(), cm_set_watchdog_params(), cm_watchdog(), cm_get_watchdog_info() and cm_cleanup()
 DATABASE *_database;
 INT _database_entries = 0;
 
@@ -73,8 +74,19 @@ INT db_save_xml_key(HNDLE hDB, HNDLE hKey, INT level, MXML_WRITER * writer);
 *                                                                    *
 \********************************************************************/
 
+static int validate_free_key(DATABASE_HEADER * pheader, int free_key)
+{
+   if (free_key <= 0)
+      return 0;
+
+   if (free_key > pheader->key_size)
+      return 0;
+
+   return 1;
+}
+
 /*------------------------------------------------------------------*/
-void *malloc_key(DATABASE_HEADER * pheader, INT size)
+static void *malloc_key(DATABASE_HEADER * pheader, INT size, const char* caller)
 {
    FREE_DESCRIP *pfree, *pfound, *pprev = NULL;
 
@@ -84,10 +96,17 @@ void *malloc_key(DATABASE_HEADER * pheader, INT size)
    /* quadword alignment for alpha CPU */
    size = ALIGN8(size);
 
+   if (!validate_free_key(pheader, pheader->first_free_key)) {
+      return NULL;
+   }
+
    /* search for free block */
    pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_key);
 
    while (pfree->size < size && pfree->next_free) {
+      if (!validate_free_key(pheader, pfree->next_free)) {
+         return NULL;
+      }
       pprev = pfree;
       pfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
    }
@@ -127,6 +146,7 @@ void *malloc_key(DATABASE_HEADER * pheader, INT size)
       }
    }
 
+   assert((void*)pfound != (void*)pheader);
 
    memset(pfound, 0, size);
 
@@ -134,7 +154,7 @@ void *malloc_key(DATABASE_HEADER * pheader, INT size)
 }
 
 /*------------------------------------------------------------------*/
-void free_key(DATABASE_HEADER * pheader, void *address, INT size)
+static void free_key(DATABASE_HEADER * pheader, void *address, INT size)
 {
    FREE_DESCRIP *pfree, *pprev, *pnext;
 
@@ -163,8 +183,7 @@ void free_key(DATABASE_HEADER * pheader, void *address, INT size)
 
       while (pprev->next_free < (POINTER_T) address - (POINTER_T) pheader) {
          if (pprev->next_free <= 0) {
-            cm_msg(MERROR, "free_key",
-                   "database is corrupted: pprev=%p, pprev->next_free=%d", pprev, pprev->next_free);
+            cm_msg(MERROR, "free_key", "database is corrupted: pprev=%p, pprev->next_free=%d", pprev, pprev->next_free);
             return;
          }
          pprev = (FREE_DESCRIP *) ((char *) pheader + pprev->next_free);
@@ -194,8 +213,22 @@ void free_key(DATABASE_HEADER * pheader, void *address, INT size)
    }
 }
 
+static int validate_free_data(DATABASE_HEADER * pheader, int free_data)
+{
+   if (free_data <= 0)
+      return 0;
+
+   if (free_data < pheader->key_size)
+      return 0;
+
+   if (free_data > pheader->key_size + pheader->data_size)
+      return 0;
+
+   return 1;
+}
+
 /*------------------------------------------------------------------*/
-void *malloc_data(DATABASE_HEADER * pheader, INT size)
+static void *malloc_data(DATABASE_HEADER * pheader, INT size)
 {
    FREE_DESCRIP *pfree, *pfound, *pprev = NULL;
 
@@ -205,10 +238,17 @@ void *malloc_data(DATABASE_HEADER * pheader, INT size)
    /* quadword alignment for alpha CPU */
    size = ALIGN8(size);
 
+   if (!validate_free_data(pheader, pheader->first_free_data)) {
+      return NULL;
+   }
+
    /* search for free block */
    pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_data);
 
    while (pfree->size < size && pfree->next_free) {
+      if (!validate_free_data(pheader, pfree->next_free)) {
+         return NULL;
+      }
       pprev = pfree;
       pfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
    }
@@ -248,6 +288,8 @@ void *malloc_data(DATABASE_HEADER * pheader, INT size)
       }
    }
 
+   assert((void*)pfound != (void*)pheader);
+
    /* zero memeory */
    memset(pfound, 0, size);
 
@@ -255,12 +297,12 @@ void *malloc_data(DATABASE_HEADER * pheader, INT size)
 }
 
 /*------------------------------------------------------------------*/
-void free_data(DATABASE_HEADER * pheader, void *address, INT size)
+static int free_data(DATABASE_HEADER * pheader, void *address, INT size, const char* caller)
 {
    FREE_DESCRIP *pfree, *pprev, *pnext;
 
    if (size == 0)
-      return;
+      return DB_SUCCESS;
 
    assert(address != pheader);
 
@@ -283,10 +325,13 @@ void free_data(DATABASE_HEADER * pheader, void *address, INT size)
       pprev = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_data);
 
       while (pprev->next_free < (POINTER_T) address - (POINTER_T) pheader) {
+         if (pprev->next_free == 0) {
+            cm_msg(MERROR, "free_data", "cannot free data, database is full");
+            return DB_FULL;
+         }
          if (pprev->next_free <= 0) {
-            cm_msg(MERROR, "free_data",
-                   "database is corrupted: pprev=%p, pprev->next_free=%d", pprev, pprev->next_free);
-            return;
+            cm_msg(MERROR, "free_data", "database is corrupted: pprev=%p, pprev->next_free=%d in free_data(%p,%p,%d) from %s", pprev, pprev->next_free, pheader, address, size, caller);
+            return DB_CORRUPTED;
          }
 
          pprev = (FREE_DESCRIP *) ((char *) pheader + pprev->next_free);
@@ -314,20 +359,28 @@ void free_data(DATABASE_HEADER * pheader, void *address, INT size)
 
       memset(pfree, 0, pfree->size);
    }
+
+   return DB_SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
-void *realloc_data(DATABASE_HEADER * pheader, void *address, INT old_size, INT new_size)
+static void *realloc_data(DATABASE_HEADER * pheader, void *address, INT old_size, INT new_size, const char* caller)
 {
    void *tmp = NULL, *pnew;
 
    if (old_size) {
+      int status;
       tmp = malloc(old_size);
       if (tmp == NULL)
          return NULL;
 
       memcpy(tmp, address, old_size);
-      free_data(pheader, address, old_size);
+
+      status = free_data(pheader, address, old_size, caller);
+      if (status != DB_SUCCESS) {
+         free(tmp);
+         return NULL;
+      }
    }
 
    pnew = malloc_data(pheader, new_size);
@@ -460,7 +513,7 @@ INT db_show_mem(HNDLE hDB, char *result, INT buf_size, BOOL verbose)
 // Method to check if a given string is valid UTF-8.  Returns 1 if it is.
 // This method was taken from stackoverflow user Christoph, specifically
 // http://stackoverflow.com/questions/1031645/how-to-detect-utf-8-in-plain-c
-BOOL is_utf8(const char * string)
+static BOOL is_utf8(const char * string)
 {
     if(!string)
         return 0;
@@ -1227,7 +1280,8 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
       pfree->next_free = 0;
 
       /* create root key */
-      pkey = (KEY *) malloc_key(pheader, sizeof(KEY));
+      pkey = (KEY *) malloc_key(pheader, sizeof(KEY), "db_open_database_A");
+      assert(pkey);
 
       /* set key properties */
       pkey->type = TID_KEY;
@@ -1237,7 +1291,8 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
       pkey->parent_keylist = 0;
 
       /* create keylist */
-      pkeylist = (KEYLIST *) malloc_key(pheader, sizeof(KEYLIST));
+      pkeylist = (KEYLIST *) malloc_key(pheader, sizeof(KEYLIST), "db_open_database_B");
+      assert(pkeylist);
 
       /* store keylist in data field */
       pkey->data = (POINTER_T) pkeylist - (POINTER_T) pheader;
@@ -1992,7 +2047,9 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
 
       /* check type */
       if (type <= 0 || type >= TID_LAST) {
-         cm_msg(MERROR, "db_create_key", "invalid key type %d for \'%s\'", type, key_name);
+         char str[MAX_ODB_PATH];
+         db_get_path(hDB, hKey, str, sizeof(str));
+         cm_msg(MERROR, "db_create_key", "invalid key type %d to create \'%s\' in \'%s\'", type, key_name, str);
          return DB_INVALID_PARAM;
       }
 
@@ -2013,8 +2070,11 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
       }
 
       if (pkey->type != TID_KEY) {
+         int xtid = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_create_key", "key has no subkeys");
+         char str[MAX_ODB_PATH];
+         db_get_path(hDB, hKey, str, sizeof(str));
+         cm_msg(MERROR, "db_create_key", "cannot create \'%s\' in \'%s\' tid is %d, not a directory", key_name, str, xtid);
          return DB_NO_KEY;
       }
       pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
@@ -2058,7 +2118,9 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
          for (i = 0; i < pkeylist->num_keys; i++) {
             if (!db_validate_key_offset(pheader, pkey->next_key)) {
                db_unlock_database(hDB);
-               cm_msg(MERROR, "db_create_key", "Warning: database corruption, key \"%s\", next_key 0x%08X", key_name, pkey->next_key - (int)sizeof(DATABASE_HEADER));
+               char str[MAX_ODB_PATH];
+               db_get_path(hDB, hKey, str, sizeof(str));
+               cm_msg(MERROR, "db_create_key", "Error: database corruption, key \"%s\", next_key 0x%08X, while creating \'%s\' in \'%s\'", key_name, pkey->next_key - (int)sizeof(DATABASE_HEADER), key_name, str);
                return DB_CORRUPTED;
             }
 
@@ -2083,11 +2145,13 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
 
             if (*pkey_name == '/' || type == TID_KEY) {
                /* create new key with keylist */
-               pkey = (KEY *) malloc_key(pheader, sizeof(KEY));
+               pkey = (KEY *) malloc_key(pheader, sizeof(KEY), "db_create_key_A");
 
                if (pkey == NULL) {
                   db_unlock_database(hDB);
-                  cm_msg(MERROR, "db_create_key", "online database full");
+                  char str[MAX_ODB_PATH];
+                  db_get_path(hDB, hKey, str, sizeof(str));
+                  cm_msg(MERROR, "db_create_key", "online database full while creating \'%s\'", str);
                   return DB_FULL;
                }
 
@@ -2105,11 +2169,13 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
                pkey->parent_keylist = (POINTER_T) pkeylist - (POINTER_T) pheader;
 
                /* find space for new keylist */
-               pkeylist = (KEYLIST *) malloc_key(pheader, sizeof(KEYLIST));
+               pkeylist = (KEYLIST *) malloc_key(pheader, sizeof(KEYLIST), "db_create_key_B");
 
                if (pkeylist == NULL) {
                   db_unlock_database(hDB);
-                  cm_msg(MERROR, "db_create_key", "online database full");
+                  char str[MAX_ODB_PATH];
+                  db_get_path(hDB, hKey, str, sizeof(str));
+                  cm_msg(MERROR, "db_create_key", "online database full while creating \'%s\' in \'%s'", key_name, str);
                   return DB_FULL;
                }
 
@@ -2123,11 +2189,13 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
                pkeylist->first_key = 0;
             } else {
                /* create new key with data */
-               pkey = (KEY *) malloc_key(pheader, sizeof(KEY));
+               pkey = (KEY *) malloc_key(pheader, sizeof(KEY), "db_create_key_C");
 
                if (pkey == NULL) {
                   db_unlock_database(hDB);
-                  cm_msg(MERROR, "db_create_key", "online database full");
+                  char str[MAX_ODB_PATH];
+                  db_get_path(hDB, hKey, str, sizeof(str));
+                  cm_msg(MERROR, "db_create_key", "online database full while creating \'%s\'", str);
                   return DB_FULL;
                }
 
@@ -2150,8 +2218,11 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
                   pkey->total_size = pkey->item_size;
 
                   if (pkey->data == 0) {
+                     pkey->total_size = 0;
                      db_unlock_database(hDB);
-                     cm_msg(MERROR, "db_create_key", "online database full");
+                     char str[MAX_ODB_PATH];
+                     db_get_path(hDB, hKey, str, sizeof(str));
+                     cm_msg(MERROR, "db_create_key", "online database full while creating \'%s\' in \'%s\'", key_name, str);
                      return DB_FULL;
                   }
 
@@ -2182,19 +2253,23 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
             }
 
             if (!(*pkey_name == '/')) {
-               int xtype = pkey->type;
-
+               int xtid = pkey->type;
                db_unlock_database(hDB);
 
-               if (xtype != type)
-                  cm_msg(MERROR, "db_create_key", "redefinition of key type mismatch");
+               if (xtid != type) {
+                  char path[MAX_ODB_PATH];
+                  db_get_path(hDB, hKey, path, sizeof(path));
+                  cm_msg(MERROR, "db_create_key", "object of type %d already exists while creating \'%s\' of type %d in \'%s\'", xtid, key_name, type, path);
+               }
 
                return DB_KEY_EXIST;
             }
 
             if (pkey->type != TID_KEY) {
                db_unlock_database(hDB);
-               cm_msg(MERROR, "db_create_key", "path element \"%s\" in \"%s\" is not a subdirectory", str, key_name);
+               char path[MAX_ODB_PATH];
+               db_get_path(hDB, hKey, path, sizeof(path));
+               cm_msg(MERROR, "db_create_key", "path element \"%s\" in \"%s\" is not a subdirectory while creating \'%s\' in \'%s\'", str, key_name, key_name, path);
                return DB_KEY_EXIST;
             }
 
@@ -2383,7 +2458,7 @@ INT db_delete_key1(HNDLE hDB, HNDLE hKey, INT level, BOOL follow_links)
          if (pkey->type == TID_KEY)
             free_key(pheader, (char *) pheader + pkey->data, pkey->total_size);
          else
-            free_data(pheader, (char *) pheader + pkey->data, pkey->total_size);
+            free_data(pheader, (char *) pheader + pkey->data, pkey->total_size, "db_delete_key1");
 
          /* unlink key from list */
          pnext_key = (KEY *) (POINTER_T) pkey->next_key;
@@ -2513,17 +2588,26 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
 
       if (pkey->type < 1 || pkey->type >= TID_LAST) {
          *subhKey = 0;
+         int xtid = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_find_key", "hkey %d invalid key type %d", hKey, pkey->type);
+         if (hKey == 0) {
+            cm_msg(MERROR, "db_find_key", "hkey %d invalid key type %d, database root directory is corrupted", hKey, xtid);
+            return DB_CORRUPTED;
+         } else {
+            char str[MAX_ODB_PATH];
+            db_get_path(hDB, hKey, str, sizeof(str));
+            cm_msg(MERROR, "db_find_key", "hkey %d path \'%s\' invalid key type %d", hKey, str, xtid);
+         }
          return DB_NO_KEY;
       }
 
       if (pkey->type != TID_KEY) {
+         int xtid = pkey->type;
          db_unlock_database(hDB);
          char str[MAX_ODB_PATH];
          db_get_path(hDB, hKey, str, sizeof(str));
          *subhKey = 0;
-         cm_msg(MERROR, "db_find_key", "key \"%s\" has no subkeys", str);
+         cm_msg(MERROR, "db_find_key", "hkey %d path \"%s\" tid %d is not a directory", hKey, str, xtid);
          return DB_NO_KEY;
       }
       pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
@@ -2569,7 +2653,7 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
          for (i = 0; i < pkeylist->num_keys; i++) {
             if (pkey->name[0] == 0 || !db_validate_key_offset(pheader, pkey->next_key)) {
                db_unlock_database(hDB);
-               cm_msg(MERROR, "db_find_key", "Warning: database corruption, key \"%s\", next_key 0x%08X is invalid", key_name, pkey->next_key - (int)sizeof(DATABASE_HEADER));
+               cm_msg(MERROR, "db_find_key", "Error: database corruption, key \"%s\", next_key 0x%08X is invalid", key_name, pkey->next_key - (int)sizeof(DATABASE_HEADER));
                *subhKey = 0;
                return DB_CORRUPTED;
             }
@@ -3516,7 +3600,7 @@ INT db_set_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *da
 
       /* resize data size if necessary */
       if (pkey->total_size != data_size) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size);
+         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size, "db_set_value");
 
          if (pkey->data == 0) {
             pkey->total_size = 0;
@@ -5210,7 +5294,7 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
 
       /* resize data size if necessary */
       if (pkey->total_size != buf_size) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size);
+         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size, "db_set_data");
 
          if (pkey->data == 0) {
             pkey->total_size = 0;
@@ -5333,7 +5417,7 @@ INT db_set_data1(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_
    
    /* resize data size if necessary */
    if (pkey->total_size != buf_size) {
-      pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size);
+      pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size, "db_set_data1");
       
       if (pkey->data == 0) {
          pkey->total_size = 0;
@@ -5443,7 +5527,7 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
 
       /* resize data size if necessary */
       if (pkey->total_size != buf_size) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size);
+         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size, "db_set_link_data");
 
          if (pkey->data == 0) {
             pkey->total_size = 0;
@@ -5575,7 +5659,7 @@ INT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values)
       if (pkey->num_values != num_values) {
          new_size = pkey->item_size * num_values;
 
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, new_size);
+         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, new_size, "db_set_num_values");
 
          if (pkey->data == 0) {
             pkey->total_size = 0;
@@ -5683,8 +5767,7 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
       if (pkey->type != type) {
          db_unlock_database(hDB);
          db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_set_data_index",
-                "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_set_data_index", "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey->type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
@@ -5714,7 +5797,7 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
 
       /* increase data size if necessary */
       if (idx >= pkey->num_values || pkey->item_size == 0) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1));
+         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1), "db_set_data_index_A");
 
          if (pkey->data == 0) {
             pkey->total_size = 0;
@@ -5831,7 +5914,7 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
 
       /* increase data size if necessary */
       if (idx >= pkey->num_values || pkey->item_size == 0) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1));
+         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1), "db_set_data_index_B");
 
          if (pkey->data == 0) {
             pkey->total_size = 0;
@@ -5963,7 +6046,7 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
 
       /* increase key size if necessary */
       if (idx >= pkey->num_values) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1));
+         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1), "db_set_data_index1");
 
          if (pkey->data == 0) {
             pkey->total_size = 0;
@@ -10158,9 +10241,9 @@ INT db_notify_clients_array(HNDLE hDB, HNDLE hKeys[], INT size)
 }
 
 /*------------------------------------------------------------------*/
-void merge_records(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
+static void merge_records(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
 {
-   char full_name[256];
+   char full_name[MAX_ODB_PATH];
    INT status, size;
    HNDLE hKeyInit;
    KEY initkey, key;
@@ -10176,9 +10259,15 @@ void merge_records(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
    status = db_find_key(hDB, 0, full_name, &hKeyInit);
    if (status == DB_SUCCESS) {
       status = db_get_key(hDB, hKeyInit, &initkey);
-      assert(status == DB_SUCCESS);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "merge_records", "merge_record error at \'%s\', db_get_key() status %d", full_name, status);
+         return;
+      }
       status = db_get_key(hDB, hKey, &key);
-      assert(status == DB_SUCCESS);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "merge_records", "merge_record error at \'%s\', second db_get_key() status %d", full_name, status);
+         return;
+      }
 
       if (initkey.type != TID_KEY && initkey.type == key.type) {
          char* allocbuffer = NULL;
@@ -10190,7 +10279,10 @@ void merge_records(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
             status = db_get_data(hDB, hKey, buffer, &size, initkey.type);
             if (status == DB_SUCCESS) {
                status = db_set_data(hDB, hKeyInit, buffer, initkey.total_size, initkey.num_values, initkey.type);
-               assert(status == DB_SUCCESS);
+               if (status != DB_SUCCESS) {
+                  cm_msg(MERROR, "merge_records", "merge_record error at \'%s\', db_set_data() status %d", full_name, status);
+                  return;
+               }
                break;
             }
             if (status == DB_TRUNCATED) {
