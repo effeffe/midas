@@ -2222,6 +2222,15 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       return status;
    }
 
+   int odb_timeout = db_set_lock_timeout(hDB, 0);
+   size = sizeof(odb_timeout);
+   status = db_get_value(hDB, 0, "/Experiment/ODB timeout", &odb_timeout, &size, TID_INT, TRUE);
+   assert(status == DB_SUCCESS);
+
+   if (odb_timeout > 0) {
+      db_set_lock_timeout(hDB, odb_timeout);
+   }
+
    BOOL protect_odb = FALSE;
    size = sizeof(protect_odb);
    status = db_get_value(hDB, 0, "/Experiment/Protect ODB", &protect_odb, &size, TID_BOOL, TRUE);

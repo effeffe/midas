@@ -429,6 +429,7 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/mcnaf    \
 	$(BIN_DIR)/crc32c   \
 	$(BIN_DIR)/get_record_test \
+	$(BIN_DIR)/odb_lock_test \
 	$(SPECIFIC_OS_PRG)
 
 ifdef HAVE_ROOT

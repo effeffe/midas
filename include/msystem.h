@@ -130,9 +130,6 @@ Definition of implementation specific constants */
 #define YBOS_SUPPORT
 #endif
 
-/* flag to enable mutlti-threading support for ODB access */
-#define MULTI_THREAD_ENABLE
-
 /*------------------------------------------------------------------*/
 
 /* Mapping of function names for socket operations */
@@ -406,7 +403,7 @@ typedef struct {
    INT index;                   /* connection index / tid       */
    BOOL protect;                /* read/write protection        */
    MUTEX_T *mutex;              /* mutex for multi-thread access */
-   MUTEX_T *am;                 /* temporary access mutex       */
+   INT timeout;                 /* timeout for mutex and semaphore */
 
 } DATABASE;
 
@@ -507,6 +504,7 @@ extern "C" {
    INT EXPRT db_lock_database(HNDLE database_handle);
    INT EXPRT db_unlock_database(HNDLE database_handle);
    INT EXPRT db_get_lock_cnt(HNDLE database_handle);
+   INT EXPRT db_set_lock_timeout(HNDLE database_handle, int timeout_millisec);
    INT db_update_record(INT hDB, INT hKeyRoot, INT hKey, int index, int s);
    INT db_close_all_records(void);
    INT EXPRT db_flush_database(HNDLE hDB);

@@ -1334,13 +1334,11 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
       }
    }
 
+   /* set default mutex and semaphore timeout */
+   _database[handle].timeout = 10000;
+
    /* create mutexes for the database */
    status = ss_mutex_create(&_database[handle].mutex, TRUE);
-   if (status != SS_SUCCESS && status != SS_CREATED) {
-      *hDB = 0;
-      return DB_NO_SEMAPHORE;
-   }
-   status = ss_mutex_create(&_database[handle].am, TRUE);
    if (status != SS_SUCCESS && status != SS_CREATED) {
       *hDB = 0;
       return DB_NO_SEMAPHORE;
@@ -1797,13 +1795,12 @@ INT db_lock_database(HNDLE hDB)
       return DB_INVALID_HANDLE;
    }
 
-#ifdef MULTI_THREAD_ENABLE
    /* obtain access mutex in multi-thread applications */
-   if (ss_mutex_wait_for(_database[hDB - 1].am, 1000) != SS_SUCCESS) {
+   status = ss_mutex_wait_for(_database[hDB - 1].mutex, _database[hDB - 1].timeout);
+   if (status != SS_SUCCESS) {
       cm_msg(MERROR, "db_lock_database", "internal error: cannot obtain access mutex, aborting...");
       abort();
    }
-#endif
 
 #if 0
    // test recursive locking
@@ -1818,19 +1815,8 @@ INT db_lock_database(HNDLE hDB)
    if (_database[hDB - 1].lock_cnt == 0) {
       _database[hDB - 1].lock_cnt = 1;
 
-#ifdef MULTI_THREAD_ENABLE
-      ss_mutex_release(_database[hDB - 1].am);
-
-      /* obtain mutex in multi-thread applications */
-      if (ss_mutex_wait_for(_database[hDB - 1].mutex, 10000) != SS_SUCCESS) {
-         cm_msg(MERROR, "db_lock_database", "internal error: cannot obtain mutex, aborting...");
-         abort();
-      }
-#endif
-
-
       /* wait max. 5 minutes for semaphore (required if locking process is being debugged) */
-      status = ss_semaphore_wait_for(_database[hDB - 1].semaphore, 5 * 60 * 1000);
+      status = ss_semaphore_wait_for(_database[hDB - 1].semaphore, _database[hDB - 1].timeout);
       if (status == SS_TIMEOUT) {
          cm_msg(MERROR, "db_lock_database", "timeout obtaining lock for database, exiting...");
          abort();
@@ -1841,9 +1827,6 @@ INT db_lock_database(HNDLE hDB)
       }
    } else {
       _database[hDB - 1].lock_cnt++; // we have already the lock (recursive call), so just increase counter
-#ifdef MULTI_THREAD_ENABLE
-      ss_mutex_release(_database[hDB - 1].am);
-#endif
    }
 
 #ifdef CHECK_LOCK_COUNT
@@ -1902,14 +1885,6 @@ INT db_unlock_database(HNDLE hDB)
    }
 #endif
 
-#ifdef MULTI_THREAD_ENABLE
-   /* obtain access mutex in multi-thread applications */
-   if (ss_mutex_wait_for(_database[hDB - 1].am, 1000) != SS_SUCCESS) {
-      cm_msg(MERROR, "db_lock_database", "internal error: cannot obtain access mutex, aborting...");
-      abort();
-   }
-#endif
-
    if (_database[hDB - 1].lock_cnt == 1) {
       ss_semaphore_release(_database[hDB - 1].semaphore);
 
@@ -1924,12 +1899,7 @@ INT db_unlock_database(HNDLE hDB)
    _database[hDB - 1].lock_cnt--;
 
    /* release mutex for multi-thread applications */
-#ifdef MULTI_THREAD_ENABLE
-   if (_database[hDB - 1].lock_cnt == 0)
-      ss_mutex_release(_database[hDB - 1].mutex);
-
-   ss_mutex_release(_database[hDB - 1].am);
-#endif
+   ss_mutex_release(_database[hDB - 1].mutex);
 
 #endif                          /* LOCAL_ROUTINES */
    return DB_SUCCESS;
@@ -1952,6 +1922,30 @@ INT db_get_lock_cnt(HNDLE hDB)
    }
 
    return _database[hDB - 1].lock_cnt;
+#else
+   return 0;
+#endif
+}
+
+INT db_set_lock_timeout(HNDLE hDB, int timeout_millisec)
+{
+#ifdef LOCAL_ROUTINES
+
+   /* return zero if no ODB is open or we run remotely */
+   if (_database_entries == 0)
+      return 0;
+
+   if (hDB > _database_entries || hDB <= 0) {
+      cm_msg(MERROR, "db_lock_database", "invalid database handle, aborting...");
+      abort();
+      return DB_INVALID_HANDLE;
+   }
+
+   if (timeout_millisec > 0) {
+      _database[hDB - 1].timeout = timeout_millisec;
+   }
+
+   return _database[hDB - 1].timeout;
 #else
    return 0;
 #endif
