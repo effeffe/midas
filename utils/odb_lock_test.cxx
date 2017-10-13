@@ -35,7 +35,7 @@ BOOL xThread1done = false;
 int thread1(void*)
 {
    HNDLE hDB = xhDB;
-   printf("thread1\n");
+   printf("t1: thread started\n");
    printf("t1: lock1\n");
    db_lock_database(hDB);
    printf("t1: lock1 done\n");
@@ -43,7 +43,8 @@ int thread1(void*)
    sleep(5);
    printf("t1: unlock1\n");
    db_unlock_database(hDB);
-   printf("t1: done\n");
+   printf("t1: unlock1 done\n");
+   printf("t1: thread done\n");
    xThread1done = TRUE;
    return 0;
 }
@@ -53,24 +54,27 @@ void test2(HNDLE hDB)
    //int timeout = db_set_lock_timeout(hDB, 0);
    //db_set_lock_timeout(hDB, 10000);
    printf("test2: test multithread locking\n");
-   printf("lock1\n");
+   printf("t0: lock1\n");
    db_lock_database(hDB);
+   printf("t0: lock1 done\n");
    xhDB = hDB;
    ss_thread_create(thread1, NULL);
-   printf("sleep\n");
+   printf("t0: sleep\n");
    sleep(5);
-   printf("unlock1\n");
+   printf("t0: unlock1\n");
    db_unlock_database(hDB);
-   printf("lock2\n");
+   printf("t0: lock2\n");
    db_lock_database(hDB);
-   printf("unlock2\n");
+   printf("t0: lock2 done\n");
+   printf("t0: unlock2\n");
    db_unlock_database(hDB);
-   printf("waiting for thread1...\n");
+   printf("t0: unlock2 done\n");
+   printf("t0: waiting for thread1...\n");
    while (!xThread1done) {
-      printf("waiting\n");
+      printf("t0: waiting\n");
       sleep(1);
    }
-   printf("done.\n");
+   printf("t0: done.\n");
    //db_set_lock_timeout(hDB, timeout);
 }
 
