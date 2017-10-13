@@ -1335,12 +1335,12 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    }
 
    /* create mutexes for the database */
-   status = ss_mutex_create(&_database[handle].mutex);
+   status = ss_mutex_create(&_database[handle].mutex, TRUE);
    if (status != SS_SUCCESS && status != SS_CREATED) {
       *hDB = 0;
       return DB_NO_SEMAPHORE;
    }
-   status = ss_mutex_create(&_database[handle].am);
+   status = ss_mutex_create(&_database[handle].am, TRUE);
    if (status != SS_SUCCESS && status != SS_CREATED) {
       *hDB = 0;
       return DB_NO_SEMAPHORE;
@@ -1803,6 +1803,16 @@ INT db_lock_database(HNDLE hDB)
       cm_msg(MERROR, "db_lock_database", "internal error: cannot obtain access mutex, aborting...");
       abort();
    }
+#endif
+
+#if 0
+   // test recursive locking
+   static int out=0;
+   out++;
+   printf("HERE %d!\n", out);
+   if (out>10) abort();
+   db_lock_database(hDB);
+   printf("OUT %d!\n", out);
 #endif
 
    if (_database[hDB - 1].lock_cnt == 0) {

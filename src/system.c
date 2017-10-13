@@ -2659,7 +2659,7 @@ INT ss_semaphore_delete(HNDLE semaphore_handle, INT destroy_flag)
 
 /*------------------------------------------------------------------*/
 
-INT ss_mutex_create(MUTEX_T ** mutex)
+INT ss_mutex_create(MUTEX_T ** mutex, BOOL recursive)
 /********************************************************************\
 
   Routine: ss_mutex_create
@@ -2710,12 +2710,12 @@ INT ss_mutex_create(MUTEX_T ** mutex)
          fprintf(stderr, "ss_mutex_create: pthread_mutexattr_init() returned errno %d (%s)\n", status, strerror(status));
       }
       
-#if 0
-      status = pthread_mutexattr_settype(attr, PTHREAD_MUTEX_RECURSIVE);
-      if (status != 0) {
-         fprintf(stderr, "ss_mutex_create: pthread_mutexattr_settype() returned errno %d (%s)\n", status, strerror(status));
+      if (recursive) {
+         status = pthread_mutexattr_settype(attr, PTHREAD_MUTEX_RECURSIVE);
+         if (status != 0) {
+            fprintf(stderr, "ss_mutex_create: pthread_mutexattr_settype() returned errno %d (%s)\n", status, strerror(status));
+         }
       }
-#endif
 
       *mutex = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
       assert(*mutex);
@@ -2727,21 +2727,21 @@ INT ss_mutex_create(MUTEX_T ** mutex)
          return SS_NO_MUTEX;
       }
 
-#if 0
-      // test recursive locks
-
-      status = pthread_mutex_trylock(*mutex);
-      assert(status == 0);
-
-      status = pthread_mutex_trylock(*mutex);
-      assert(status == 0); // EBUSY if PTHREAD_MUTEX_RECURSIVE does not work
-
-      status = pthread_mutex_unlock(*mutex);
-      assert(status == 0);
-
-      status = pthread_mutex_unlock(*mutex);
-      assert(status == 0);
-#endif
+      if (recursive) {
+         // test recursive locks
+         
+         status = pthread_mutex_trylock(*mutex);
+         assert(status == 0);
+         
+         status = pthread_mutex_trylock(*mutex);
+         assert(status == 0); // EBUSY if PTHREAD_MUTEX_RECURSIVE does not work
+         
+         status = pthread_mutex_unlock(*mutex);
+         assert(status == 0);
+         
+         status = pthread_mutex_unlock(*mutex);
+         assert(status == 0);
+      }
 
       return SS_SUCCESS;
    }

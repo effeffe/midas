@@ -660,7 +660,7 @@ static INT cm_msg_buffer(int ts, int message_type, const char *message)
       status = rb_create(100*1024, 1024, &_msg_rb);
       assert(status==SUCCESS);
 
-      status = ss_mutex_create(&_msg_mutex);
+      status = ss_mutex_create(&_msg_mutex, FALSE);
       assert(status==SS_SUCCESS || status==SS_CREATED);
    }
 
@@ -9705,8 +9705,9 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    }
 
    /* make this funciton multi-thread safe */
-   if (!mtx)
-      ss_mutex_create(&mtx);
+   if (!mtx) {
+      ss_mutex_create(&mtx, FALSE);
+   }
 
    ss_mutex_wait_for(mtx, 10000);
 
@@ -11193,7 +11194,7 @@ INT rpc_call(const INT routine_id, ...)
 
    if (!_mutex_rpc) {
       /* create a local mutex for multi-threaded applications */
-      ss_mutex_create(&_mutex_rpc);
+      ss_mutex_create(&_mutex_rpc, FALSE);
    }
 
    status = ss_mutex_wait_for(_mutex_rpc, 10000 + rpc_timeout);
