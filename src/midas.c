@@ -5563,7 +5563,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       HNDLE hDB, odb_key;
       char odb_path[256];
       void *p;
-      int max_buffer_size = 2 * 1000 * 1024 * 1024;
+      const int max_buffer_size = 2 * 1000 * 1024 * 1024; // limited by 32-bit integers in the buffer header
 
       bm_cleanup("bm_open_buffer", ss_millitime(), FALSE);
 
@@ -5592,7 +5592,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       status = db_get_value(hDB, 0, odb_path, &buffer_size, &size, TID_DWORD, TRUE);
 
       if (buffer_size <= 0 || buffer_size > max_buffer_size) {
-         cm_msg(MERROR, "bm_open_buffer", "cannot open buffer \'%s\' - buffer size %d exceeds maximum size %d", buffer_name, buffer_size, max_buffer_size);
+         cm_msg(MERROR, "bm_open_buffer", "Cannot open buffer \"%s\", invalid buffer size %d in ODB \"%s\", maximum buffer size is %d", buffer_name, buffer_size, odb_path, max_buffer_size);
          return BM_INVALID_PARAM;
       }
 
