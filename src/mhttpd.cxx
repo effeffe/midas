@@ -16718,7 +16718,8 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    size = sizeof(seq);
    status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb(sequencer_str));
    if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "seq_watch", "Cannot get /Sequencer/State from ODB, db_get_record1() status %d", status);
+      sprintf(str, "Cannot get /Sequencer/State from ODB, db_get_record1() status %d", status);
+      show_error(r, str);
       return;
    }
    
