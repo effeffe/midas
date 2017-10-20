@@ -1162,8 +1162,8 @@ typedef struct {
                                            /**< Pointer to user analyzer routine  */
     INT(*bor) (INT run_number);       /**< Pointer to begin-of-run routine   */
     INT(*eor) (INT run_number);       /**< Pointer to end-of-run routine     */
-    INT(*init) ();                    /**< Pointer to init routine           */
-    INT(*exit) ();                    /**< Pointer to exit routine           */
+    INT(*init) (void);                /**< Pointer to init routine           */
+    INT(*exit) (void);                /**< Pointer to exit routine           */
    void *parameters;                  /**< Pointer to parameter structure    */
    INT param_size;                    /**< Size of parameter structure       */
    const char **init_str;             /**< Parameter init string             */
@@ -1711,13 +1711,13 @@ extern "C" {
    INT EXPRT cm_synchronize(DWORD * sec);
    INT EXPRT cm_asctime(char *str, INT buf_size);
    INT EXPRT cm_time(DWORD * t);
-   BOOL EXPRT cm_is_ctrlc_pressed();
-   void EXPRT cm_ack_ctrlc_pressed();
+   BOOL EXPRT cm_is_ctrlc_pressed(void);
+   void EXPRT cm_ack_ctrlc_pressed(void);
 
    INT EXPRT cm_set_msg_print(INT system_mask, INT user_mask, int (*func) (const char *));
    INT EXPRT cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) MATTRPRINTF(5,6);
    INT EXPRT cm_msg1(INT message_type, const char *filename, INT line, const char *facility, const char *routine, const char *format, ...) MATTRPRINTF(6,7);
-   INT EXPRT cm_msg_flush_buffer();
+   INT EXPRT cm_msg_flush_buffer(void);
    INT EXPRT cm_msg_register(void (*func)
                               (HNDLE, HNDLE, EVENT_HEADER *, void *));
    INT EXPRT cm_msg_retrieve(INT n_message, char *message, INT buf_size);
@@ -1825,7 +1825,7 @@ extern "C" {
 
    INT EXPRT db_watch(HNDLE hDB, HNDLE hKey, void (*dispatcher) (INT, INT, INT, void *info), void *info);
    INT EXPRT db_unwatch(HNDLE hDB, HNDLE hKey);
-   INT EXPRT db_unwatch_all();
+   INT EXPRT db_unwatch_all(void);
    
    INT EXPRT db_load(HNDLE hdb, HNDLE key_handle, const char *filename, BOOL bRemote);
    INT EXPRT db_save(HNDLE hdb, HNDLE key_handle, const char *filename, BOOL bRemote);
@@ -1880,7 +1880,7 @@ extern "C" {
    INT EXPRT bk_find(const BANK_HEADER * pbkh, const char *name, DWORD * bklen, DWORD * bktype, void **pdata);
 
    /*---- RPC routines ----*/
-   INT EXPRT rpc_clear_allowed_hosts();
+   INT EXPRT rpc_clear_allowed_hosts(void);
    INT EXPRT rpc_add_allowed_host(const char* hostname);
 
    INT EXPRT rpc_register_functions(const RPC_LIST * new_list, INT(*func) (INT, void **));
@@ -2002,7 +2002,7 @@ extern "C" {
    INT EXPRT el_delete_message(const char *tag);
 
    /*---- alarm functions ----*/
-   INT EXPRT al_check();
+   INT EXPRT al_check(void);
    INT EXPRT al_trigger_alarm(const char *alarm_name, const char *alarm_message,
                               const char *default_class, const char *cond_str, INT type);
    INT EXPRT al_trigger_class(const char *alarm_class, const char *alarm_message, BOOL first);
@@ -2011,7 +2011,7 @@ extern "C" {
    INT al_get_alarms(char *result, int result_size);
 
    /*---- frontend functions ----*/
-   INT get_frontend_index();
+   INT get_frontend_index(void);
    void mfe_get_args(int *argc, char ***argv);
    void register_cnaf_callback(int debug);
    void mfe_error(const char *error);
@@ -2020,9 +2020,9 @@ extern "C" {
    INT create_event_rb(int i);
    INT get_event_rbh(int i);
    INT create_event_rb(int i);
-   void stop_readout_threads();
-   int is_readout_thread_enabled();
-   int is_readout_thread_active();
+   void stop_readout_threads(void);
+   int is_readout_thread_enabled(void);
+   int is_readout_thread_active(void);
    void signal_readout_thread_active(int index, int flag);
 
    /*---- analyzer functions ----*/
@@ -2031,7 +2031,7 @@ extern "C" {
    void EXPRT lock_histo(INT id);
 
    void EXPRT open_subfolder(const char *name);
-   void EXPRT close_subfolder();
+   void EXPRT close_subfolder(void);
 
    /* we need a duplicate of mxml/strlcpy.h or nobody can use strlcpy() from libmidas.a */
 #ifndef HAVE_STRLCPY
