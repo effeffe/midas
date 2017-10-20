@@ -3369,7 +3369,7 @@ INT ss_alarm(INT millitime, void (*func) (int))
 }
 
 /*------------------------------------------------------------------*/
-void (*MidasExceptionHandler) ();
+void (*MidasExceptionHandler) (void);
 
 #ifdef OS_WINNT
 
@@ -3424,7 +3424,7 @@ void MidasExceptionSignal(INT sig)
 #endif                          /* OS_VMS */
 
 /*------------------------------------------------------------------*/
-INT ss_exception_handler(void (*func) ())
+INT ss_exception_handler(void (*func) (void))
 /********************************************************************\
 
   Routine: ss_exception_handler
@@ -3830,7 +3830,7 @@ INT ss_suspend_exit()
 }
 
 /*------------------------------------------------------------------*/
-INT ss_suspend_set_dispatch(INT channel, void *connection, INT(*dispatch) ())
+INT ss_suspend_set_dispatch(INT channel, void *connection, INT(*dispatch) (void))
 /********************************************************************\
 
   Routine: ss_suspend_set_dispatch
