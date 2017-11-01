@@ -7171,9 +7171,9 @@ void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
       }
 
       if (fmt) {
-         fmt_odb = equal_ustring(fmt, "odb") > 0;
-         fmt_xml = equal_ustring(fmt, "xml") > 0;
-         fmt_json = strstr(fmt, "json") > 0;
+         fmt_odb  = (equal_ustring(fmt, "odb") > 0);
+         fmt_xml  = (equal_ustring(fmt, "xml") > 0);
+         fmt_json = (equal_ustring(fmt, "json") > 0);
 
          if (fmt_odb)
             fmt_xml = fmt_json = false;
@@ -7183,7 +7183,7 @@ void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
             fmt_odb = fmt_xml = false;
 
          if (fmt_json)
-            fmt_jsonp = strstr(fmt, "-p") > 0;
+            fmt_jsonp = (strstr(fmt, "-p") != NULL);
          if (fmt_jsonp && p->isparam("callback"))
             jsonp_callback = p->getparam("callback");
          if (fmt_json && strstr(fmt, "-nofollowlinks"))
@@ -16720,7 +16720,8 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    size = sizeof(seq);
    status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb(sequencer_str));
    if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "seq_watch", "Cannot get /Sequencer/State from ODB, db_get_record1() status %d", status);
+      sprintf(str, "Cannot get /Sequencer/State from ODB, db_get_record1() status %d", status);
+      show_error(r, str);
       return;
    }
    

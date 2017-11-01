@@ -528,7 +528,7 @@ extern "C" {
    INT recv_event_check(int sock);
    INT rpc_deregister_functions(void);
    INT rpc_check_channels(void);
-   void EXPRT rpc_client_check();
+   void EXPRT rpc_client_check(void);
    INT rpc_server_disconnect(void);
    int EXPRT rpc_get_send_sock(void);
    int EXPRT rpc_get_event_sock(void);
@@ -561,11 +561,11 @@ extern "C" {
    INT EXPRT ss_mutex_delete(MUTEX_T *mutex);
    INT ss_alarm(INT millitime, void (*func) (int));
    INT ss_suspend_get_port(INT * port);
-   INT ss_suspend_set_dispatch(INT channel, void *connection, INT(*dispatch) ());
+   INT ss_suspend_set_dispatch(INT channel, void *connection, INT(*dispatch) (void));
    INT ss_resume(INT port, const char *message);
    INT ss_suspend_exit(void);
-   INT ss_exception_handler(void (*func) ());
-   void EXPRT ss_force_single_thread();
+   INT ss_exception_handler(void (*func) (void));
+   void EXPRT ss_force_single_thread(void);
    INT EXPRT ss_suspend(INT millisec, INT msg);
    midas_thread_t EXPRT ss_thread_create(INT(*func) (void *), void *param);
    INT EXPRT ss_thread_kill(midas_thread_t thread_id);
@@ -573,7 +573,7 @@ extern "C" {
    INT EXPRT ss_get_struct_padding(void);
    INT EXPRT ss_timezone(void);
    INT EXPRT ss_stack_get(char ***string);
-   void EXPRT ss_stack_print();
+   void EXPRT ss_stack_print(void);
    void EXPRT ss_stack_history_entry(char *tag);
    void EXPRT ss_stack_history_dump(char *filename);
    INT ss_gethostname(char* buffer, int buffer_size);
@@ -610,7 +610,7 @@ extern "C" {
    INT EXPRT dm_async_area_send(void *pointer);
 
    /*---- ring buffer routines ----*/
-   int EXPRT rb_set_nonblocking();
+   int EXPRT rb_set_nonblocking(void);
    int EXPRT rb_create(int size, int max_event_size, int *ring_buffer_handle);
    int EXPRT rb_delete(int ring_buffer_handle);
    int EXPRT rb_get_wp(int handle, void **p, int millisec);

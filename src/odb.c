@@ -3801,10 +3801,13 @@ INT db_get_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, void *data, IN
 
       /* check if buffer is too small */
       if ((idx == -1 && pkey->num_values * pkey->item_size > *buf_size) || (idx != -1 && pkey->item_size > *buf_size)) {
+         int pkey_num_values = pkey->num_values;
+         int pkey_item_size = pkey->item_size;
          memcpy(data, (char *) pheader + pkey->data, *buf_size);
          db_unlock_database(hDB);
+         char path[MAX_ODB_PATH];
          db_get_path(hDB, hkey, path, sizeof(path));
-         cm_msg(MERROR, "db_get_value", "buffer size %d too small, data size %dx%d, truncated for key \"%s\"", *buf_size, pkey->num_values, pkey->item_size, path);
+         cm_msg(MERROR, "db_get_value", "buffer size %d too small, data size %dx%d, truncated for key \"%s\"", *buf_size, pkey_num_values, pkey_item_size, path);
          return DB_TRUNCATED;
       }
 
@@ -4836,10 +4839,12 @@ INT db_get_data(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type)
 
       /* check if buffer is too small */
       if (pkey->num_values * pkey->item_size > *buf_size) {
+         int pkey_size = pkey->num_values * pkey->item_size;
          memcpy(data, (char *) pheader + pkey->data, *buf_size);
          db_unlock_database(hDB);
+         char str[MAX_ODB_PATH];
          db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_get_data", "data for key \"%s\" truncated", str);
+         cm_msg(MERROR, "db_get_data", "data for key \"%s\" truncated from %d to %d bytes", str, pkey_size, *buf_size);
          return DB_TRUNCATED;
       }
 
@@ -4938,9 +4943,12 @@ INT db_get_link_data(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD ty
 
       /* check if buffer is too small */
       if (pkey->num_values * pkey->item_size > *buf_size) {
+         int pkey_size = pkey->num_values * pkey->item_size;
          memcpy(data, (char *) pheader + pkey->data, *buf_size);
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data", "data for key \"%s\" truncated", pkey->name);
+         char str[MAX_ODB_PATH];
+         db_get_path(hDB, hKey, str, sizeof(str));
+         cm_msg(MERROR, "db_get_data", "data for key \"%s\" truncated from %d to %d bytes", str, pkey_size, *buf_size);
          return DB_TRUNCATED;
       }
 
@@ -5056,9 +5064,12 @@ INT db_get_data1(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type, 
 
       /* check if buffer is too small */
       if (pkey->num_values * pkey->item_size > *buf_size) {
+         int pkey_size = pkey->num_values * pkey->item_size;
          memcpy(data, (char *) pheader + pkey->data, *buf_size);
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data", "data for key \"%s\" truncated", pkey->name);
+         char str[MAX_ODB_PATH];
+         db_get_path(hDB, hKey, str, sizeof(str));
+         cm_msg(MERROR, "db_get_data", "data for key \"%s\" truncated from %d to %d bytes", str, pkey_size, *buf_size);
          return DB_TRUNCATED;
       }
 
@@ -5174,10 +5185,13 @@ INT db_get_data_index(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT idx
 
       /* check if buffer is too small */
       if (pkey->item_size > *buf_size) {
+         int pkey_size = pkey->item_size;
          /* copy data */
          memcpy(data, (char *) pheader + pkey->data + idx * pkey->item_size, *buf_size);
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data_index", "data for key \"%s\" truncated", pkey->name);
+         char str[MAX_ODB_PATH];
+         db_get_path(hDB, hKey, str, sizeof(str));
+         cm_msg(MERROR, "db_get_data_index", "data for key \"%s\" truncated from %d to %d bytes", str, pkey_size, *buf_size);
          return DB_TRUNCATED;
       }
 
