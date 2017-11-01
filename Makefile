@@ -399,7 +399,9 @@ BIN_DIR  = $(OS_DIR)/bin
 #
 # targets
 #
-GIT_REVISION = $(INC_DIR)/git-revision.h
+
+GIT_REVISION := $(INC_DIR)/git-revision.h
+
 EXAMPLES = $(BIN_DIR)/consume $(BIN_DIR)/produce \
 	$(BIN_DIR)/rpc_test $(BIN_DIR)/msgdump $(BIN_DIR)/minife \
 	$(BIN_DIR)/minirc $(BIN_DIR)/odb_test
@@ -481,13 +483,19 @@ endif
 
 VPATH = $(LIB_DIR):$(INC_DIR)
 
-all: check-mxml \
-	$(GIT_REVISION) \
-	$(OS_DIR) $(LIB_DIR) $(BIN_DIR) \
-	$(LIBNAME) $(SHLIB) \
-	$(ANALYZER) \
-	$(LIB_DIR)/mfe.o \
-	$(PROGS)
+ALL:=
+ALL+= $(OS_DIR) $(LIB_DIR) $(BIN_DIR)
+ALL+= $(LIBNAME) $(SHLIB)
+ALL+= $(ANALYZER)
+ALL+= $(LIB_DIR)/mfe.o
+ALL+= $(PROGS)
+
+all: check-mxml $(GIT_REVISION) $(ALL)
+
+
+$(ALL): $(GIT_REVISION)
+$(OBJS): $(GIT_REVISION)
+$(MHTTPD_OBJS): $(GIT_REVISION)
 
 dox:
 	doxygen
@@ -699,6 +707,8 @@ endif
 #
 
 $(LIB_DIR)/history_sql.o $(LIB_DIR)/history_schema.o $(LIB_DIR)/history_midas.o $(LIB_DIR)/mhttpd.o $(LIB_DIR)/mlogger.o: history.h
+
+$(LIB_DIR)/mgd.o: midas.h
 
 $(LIB_DIR)/mfe.o: msystem.h midas.h midasinc.h mrpc.h
 
