@@ -233,8 +233,6 @@ typedef struct {
 
 #define DISK_CHECK_INTERVAL 10000
 
-#define MAX_CHANNELS 10
-
 INT  local_state;
 BOOL in_stop_transition = FALSE;
 BOOL tape_message = TRUE;
@@ -244,7 +242,7 @@ BOOL start_requested = FALSE;
 DWORD auto_restart = 0;
 DWORD run_start_time, subrun_start_time;
 
-LOG_CHN log_chn[MAX_CHANNELS];
+std::vector<LOG_CHN*> log_chn;
 
 struct hist_log_s {
    char event_name[256];
@@ -1518,7 +1516,7 @@ private:
 
 void logger_init()
 {
-   INT size, status, delay, index;
+   INT size, status, delay;
    BOOL flag;
    HNDLE hKey, hKeyChannel;
    KEY key;
@@ -1567,7 +1565,7 @@ void logger_init()
       /* check format of other channels */
       status = db_find_key(hDB, 0, "/Logger/Channels", &hKey);
       if (status == DB_SUCCESS) {
-         for (index = 0; index < MAX_CHANNELS; index++) {
+         for (int index = 0; ; index++) {
             status = db_enum_key(hDB, hKey, index, &hKeyChannel);
             if (status == DB_NO_MORE_SUBKEYS)
                break;
@@ -1575,7 +1573,7 @@ void logger_init()
             db_get_key(hDB, hKeyChannel, &key);
             status = db_check_record(hDB, hKey, key.name, strcomb(chn_tree_str), TRUE);
             if (status != DB_SUCCESS && status != DB_OPEN_RECORD) {
-               cm_msg(MERROR, "logger_init", "Cannot create/check channel record");
+               cm_msg(MERROR, "logger_init", "Cannot create/check channel record %s, db_check_record() status %d", key.name, status);
                break;
             }
          }
@@ -3989,8 +3987,8 @@ int maybe_check_disk_level()
 
    last_check_time = actual_time;
 
-   for (int i = 0; i < MAX_CHANNELS; i++) {
-      LOG_CHN* chn = &log_chn[i];
+   for (unsigned i = 0; i < log_chn.size(); i++) {
+      LOG_CHN* chn = log_chn[i];
 
       if (!chn->do_disk_level)
          continue;
@@ -5328,15 +5326,14 @@ int log_generate_file_name(LOG_CHN *log_chn)
 
 int close_channels(int run_number, BOOL* p_tape_flag)
 {
-   int i;
    BOOL tape_flag = FALSE;
 
-   for (i = 0; i < MAX_CHANNELS; i++) {
-      if (log_chn[i].handle || log_chn[i].ftp_con|| log_chn[i].pfile) {
+   for (unsigned i = 0; i < log_chn.size(); i++) {
+      if (log_chn[i]->handle || log_chn[i]->ftp_con|| log_chn[i]->pfile) {
          /* generate MTALK message */
 #ifndef FAL_MAIN
          /* wait until buffer is empty */
-         if (log_chn[i].buffer_handle) {
+         if (log_chn[i]->buffer_handle) {
 #ifdef DELAYED_STOP
             DWORD start_time;
 
@@ -5347,7 +5344,7 @@ int close_channels(int run_number, BOOL* p_tape_flag)
 #else
             INT n_bytes;
             do {
-               bm_get_buffer_level(log_chn[i].buffer_handle, &n_bytes);
+               bm_get_buffer_level(log_chn[i]->buffer_handle, &n_bytes);
                if (n_bytes > 0)
                   cm_yield(100);
             } while (n_bytes > 0);
@@ -5356,13 +5353,14 @@ int close_channels(int run_number, BOOL* p_tape_flag)
 #endif                          /* FAL_MAIN */
 
          /* close logging channel */
-         log_close(&log_chn[i], run_number);
+         log_close(log_chn[i], run_number);
 
          /* close statistics record */
-         db_set_record(hDB, log_chn[i].stats_hkey, &log_chn[i].statistics, sizeof(CHN_STATISTICS), 0);
-         db_close_record(hDB, log_chn[i].stats_hkey);
-         db_unwatch(hDB, log_chn[i].settings_hkey);
-         log_chn[i].stats_hkey = log_chn[i].settings_hkey = 0;
+         db_set_record(hDB, log_chn[i]->stats_hkey, &log_chn[i]->statistics, sizeof(CHN_STATISTICS), 0);
+         db_close_record(hDB, log_chn[i]->stats_hkey);
+         db_unwatch(hDB, log_chn[i]->settings_hkey);
+         log_chn[i]->stats_hkey = 0;
+         log_chn[i]->settings_hkey = 0;
       }
    }
 
@@ -5374,27 +5372,25 @@ int close_channels(int run_number, BOOL* p_tape_flag)
 
 int close_buffers()
 {
-   int i;
-
    /* close buffers */
-   for (i = 0; i < MAX_CHANNELS; i++) {
+   for (unsigned i = 0; i < log_chn.size(); i++) {
 #ifndef FAL_MAIN
-      if (log_chn[i].buffer_handle) {
-         INT j;
-
-         bm_close_buffer(log_chn[i].buffer_handle);
-         for (j = i + 1; j < MAX_CHANNELS; j++)
-            if (log_chn[j].buffer_handle == log_chn[i].buffer_handle)
-               log_chn[j].buffer_handle = 0;
+      if (log_chn[i]->buffer_handle) {
+         bm_close_buffer(log_chn[i]->buffer_handle);
+         for (unsigned j = i + 1; j < log_chn.size(); j++)
+            if (log_chn[j]->buffer_handle == log_chn[i]->buffer_handle)
+               log_chn[j]->buffer_handle = 0;
       }
 
-      if (log_chn[i].msg_request_id)
-         bm_delete_request(log_chn[i].msg_request_id);
+      if (log_chn[i]->msg_request_id)
+         bm_delete_request(log_chn[i]->msg_request_id);
 #endif
 
-      /* clear channel info */
-      memset(&log_chn[i].handle, 0, sizeof(LOG_CHN));
+      delete log_chn[i];
+      log_chn[i] = NULL;
    }
+
+   log_chn.clear();
 
    return SUCCESS;
 }
@@ -5449,7 +5445,7 @@ INT tr_start(INT run_number, char *error)
 
 \********************************************************************/
 {
-   INT size, index, status;
+   INT size, status;
    HNDLE hKeyRoot, hKeyChannel;
    CHN_SETTINGS *chn_settings;
    KEY key;
@@ -5505,10 +5501,18 @@ INT tr_start(INT run_number, char *error)
       }
    }
 
-   for (index = 0; index < MAX_CHANNELS; index++) {
+   for (unsigned index = 0; ; index++) {
       status = db_enum_key(hDB, hKeyRoot, index, &hKeyChannel);
       if (status == DB_NO_MORE_SUBKEYS)
          break;
+
+      while (index >= log_chn.size()) {
+         log_chn.push_back(NULL);
+      }
+
+      if (log_chn[index] == NULL) {
+         log_chn[index] = new LOG_CHN;
+      }
 
       /* correct channel record */
       db_get_key(hDB, hKeyChannel, &key);
@@ -5521,22 +5525,22 @@ INT tr_start(INT run_number, char *error)
       if (status == DB_SUCCESS || status == DB_OPEN_RECORD) {
          /* if file already open, we had an abort on the previous start. So
             close and delete file in order to create a new one */
-         if (log_chn[index].handle) {
-            log_close(&log_chn[index], run_number);
-            if (log_chn[index].type == LOG_TYPE_DISK) {
-               cm_msg(MINFO, "tr_start", "Deleting previous file \"%s\"", log_chn[index].path);
-               unlink(log_chn[index].path);
+         if (log_chn[index]->handle) {
+            log_close(log_chn[index], run_number);
+            if (log_chn[index]->type == LOG_TYPE_DISK) {
+               cm_msg(MINFO, "tr_start", "Deleting previous file \"%s\"", log_chn[index]->path);
+               unlink(log_chn[index]->path);
             }
          }
 
          /* if FTP channel already open, don't re-open it again */
-         if (log_chn[index].ftp_con)
+         if (log_chn[index]->ftp_con)
             continue;
 
-         log_chn[index].name = key.name;
+         log_chn[index]->name = key.name;
 
          /* save settings key */
-         status = db_find_key(hDB, hKeyChannel, "Settings", &log_chn[index].settings_hkey);
+         status = db_find_key(hDB, hKeyChannel, "Settings", &log_chn[index]->settings_hkey);
          if (status != DB_SUCCESS) {
             strcpy(error, "Cannot find channel settings info");
             cm_msg(MERROR, "tr_start", "%s", error);
@@ -5544,7 +5548,7 @@ INT tr_start(INT run_number, char *error)
          }
 
          /* save statistics key */
-         status = db_find_key(hDB, hKeyChannel, "Statistics", &log_chn[index].stats_hkey);
+         status = db_find_key(hDB, hKeyChannel, "Statistics", &log_chn[index]->stats_hkey);
          if (status != DB_SUCCESS) {
             strcpy(error, "Cannot find channel statistics info");
             cm_msg(MERROR, "tr_start", "%s", error);
@@ -5553,29 +5557,29 @@ INT tr_start(INT run_number, char *error)
 
          /* clear statistics */
          size = sizeof(CHN_STATISTICS);
-         db_get_record1(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics, &size, 0, strcomb(chn_statistics_str));
+         db_get_record1(hDB, log_chn[index]->stats_hkey, &log_chn[index]->statistics, &size, 0, strcomb(chn_statistics_str));
 
-         log_chn[index].statistics.events_written = 0;
-         log_chn[index].statistics.bytes_written = 0;
-         log_chn[index].statistics.bytes_written_uncompressed = 0;
-         log_chn[index].statistics.bytes_written_subrun = 0;
+         log_chn[index]->statistics.events_written = 0;
+         log_chn[index]->statistics.bytes_written = 0;
+         log_chn[index]->statistics.bytes_written_uncompressed = 0;
+         log_chn[index]->statistics.bytes_written_subrun = 0;
 
-         db_set_record(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics, size, 0);
+         db_set_record(hDB, log_chn[index]->stats_hkey, &log_chn[index]->statistics, size, 0);
 
          /* get channel info structure */
-         chn_settings = &log_chn[index].settings;
+         chn_settings = &log_chn[index]->settings;
          size = sizeof(CHN_SETTINGS);
-         status = db_get_record1(hDB, log_chn[index].settings_hkey, chn_settings, &size, 0, strcomb(chn_settings_str));
+         status = db_get_record1(hDB, log_chn[index]->settings_hkey, chn_settings, &size, 0, strcomb(chn_settings_str));
          if (status != DB_SUCCESS) {
             strcpy(error, "Cannot read channel info");
             cm_msg(MERROR, "tr_start", "%s", error);
             return 0;
          }
 
-         log_chn[index].pre_checksum_module = select_checksum_module(hDB, log_chn[index].settings_hkey, "data checksum");
-         log_chn[index].post_checksum_module = select_checksum_module(hDB, log_chn[index].settings_hkey, "file checksum");
-         log_chn[index].compression_module = select_compression_module(hDB, log_chn[index].settings_hkey, "compress");
-         log_chn[index].output_module = select_output_module(hDB, log_chn[index].settings_hkey, "output");
+         log_chn[index]->pre_checksum_module = select_checksum_module(hDB, log_chn[index]->settings_hkey, "data checksum");
+         log_chn[index]->post_checksum_module = select_checksum_module(hDB, log_chn[index]->settings_hkey, "file checksum");
+         log_chn[index]->compression_module = select_compression_module(hDB, log_chn[index]->settings_hkey, "compress");
+         log_chn[index]->output_module = select_output_module(hDB, log_chn[index]->settings_hkey, "output");
 
          //printf("channel settings pre [%d] compress [%d] post [%d] output [%d]\n", log_chn[index].pre_checksum_module, log_chn[index].compression_module, log_chn[index].post_checksum_module, log_chn[index].output_module);
 
@@ -5585,45 +5589,43 @@ INT tr_start(INT run_number, char *error)
 
          /* check for type */
          if (equal_ustring(chn_settings->type, "FTP"))
-            log_chn[index].type = LOG_TYPE_FTP;
+            log_chn[index]->type = LOG_TYPE_FTP;
          else if (equal_ustring(chn_settings->type, "Disk"))
-            log_chn[index].type = LOG_TYPE_DISK;
+            log_chn[index]->type = LOG_TYPE_DISK;
          else {
-            sprintf(error,
-                    "Invalid channel type \"%s\", pease use \"Tape\", \"FTP\" or \"Disk\"",
-                    chn_settings->type);
+            sprintf(error, "Invalid channel type \"%s\", pease use \"Tape\", \"FTP\" or \"Disk\"", chn_settings->type);
             cm_msg(MERROR, "tr_start", "%s", error);
             return 0;
          }
 
          /* set compression level */
-         log_chn[index].compression = 0;
-         size = sizeof(log_chn[index].compression);
-         status = db_get_value(hDB, log_chn[index].settings_hkey, "Compression", &log_chn[index].compression, &size, TID_INT, FALSE);
+         log_chn[index]->compression = 0;
+         size = sizeof(log_chn[index]->compression);
+         status = db_get_value(hDB, log_chn[index]->settings_hkey, "Compression", &log_chn[index]->compression, &size, TID_INT, FALSE);
          
          /* initialize subrun number */
-         log_chn[index].subrun_number = 0;
+         log_chn[index]->subrun_number = 0;
 
-         log_create_writer(&log_chn[index]);
-         log_generate_file_name(&log_chn[index]);
+         log_create_writer(log_chn[index]);
+         log_generate_file_name(log_chn[index]);
 
          /* open logging channel */
-         status = log_open(&log_chn[index], run_number);
+         status = log_open(log_chn[index], run_number);
 
          /* return if logging channel couldn't be opened */
          if (status != SS_SUCCESS) {
             if (status == SS_FILE_ERROR)
-               sprintf(error, "Cannot open file \'%s\' (See messages)", log_chn[index].path);
+               sprintf(error, "Cannot open file \'%s\' (See messages)", log_chn[index]->path);
             if (status == SS_FILE_EXISTS)
-               sprintf(error, "File \'%s\' exists already, run start aborted", log_chn[index].path);
+               sprintf(error, "File \'%s\' exists already, run start aborted", log_chn[index]->path);
             if (status == SS_NO_TAPE)
-               sprintf(error, "No tape in device \'%s\'", log_chn[index].path);
+               sprintf(error, "No tape in device \'%s\'", log_chn[index]->path);
             if (status == SS_TAPE_ERROR)
                sprintf(error, "Tape error, cannot start run");
             if (status == SS_DEV_BUSY)
-               sprintf(error, "Device \'%s\' used by someone else", log_chn[index].path);
+               sprintf(error, "Device \'%s\' used by someone else", log_chn[index]->path);
             if (status == FTP_NET_ERROR || status == FTP_RESPONSE_ERROR)
-               sprintf(error, "Cannot open FTP channel to \'%s\'", log_chn[index].path);
+               sprintf(error, "Cannot open FTP channel to \'%s\'", log_chn[index]->path);
             if (status == SS_NO_ROOT)
                sprintf(error, "No ROOT support compiled into mlogger, please compile with -DHAVE_ROOT flag");
 
@@ -5636,46 +5638,46 @@ INT tr_start(INT run_number, char *error)
          }
 
          /* close records if open from previous run start with abort */
-         if (log_chn[index].stats_hkey)
-            db_close_record(hDB, log_chn[index].stats_hkey);
-         if (log_chn[index].settings_hkey)
-            db_close_record(hDB, log_chn[index].settings_hkey);
+         if (log_chn[index]->stats_hkey)
+            db_close_record(hDB, log_chn[index]->stats_hkey);
+         if (log_chn[index]->settings_hkey)
+            db_close_record(hDB, log_chn[index]->settings_hkey);
 
          /* open hot link to statistics tree */
-         status = db_open_record1(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics, sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL, strcomb(chn_statistics_str));
+         status = db_open_record1(hDB, log_chn[index]->stats_hkey, &log_chn[index]->statistics, sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL, strcomb(chn_statistics_str));
          if (status == DB_NO_ACCESS) {
             /* record is probably still in exclusive access by dead logger, so reset it */
-            status = db_set_mode(hDB, log_chn[index].stats_hkey, MODE_READ | MODE_WRITE | MODE_DELETE, TRUE);
+            status = db_set_mode(hDB, log_chn[index]->stats_hkey, MODE_READ | MODE_WRITE | MODE_DELETE, TRUE);
             if (status != DB_SUCCESS)
                cm_msg(MERROR, "tr_start", "Cannot change access mode for statistics record, error %d", status);
             else
                cm_msg(MINFO, "tr_start", "Recovered access mode for statistics record of channel %d", index);
-            status = db_open_record1(hDB, log_chn[index].stats_hkey, &log_chn[index].statistics, sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL, strcomb(chn_statistics_str));
+            status = db_open_record1(hDB, log_chn[index]->stats_hkey, &log_chn[index]->statistics, sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL, strcomb(chn_statistics_str));
          }
 
          if (status != DB_SUCCESS)
             cm_msg(MERROR, "tr_start", "Cannot open statistics record for channel %d, error %d", index, status);
 
          /* open hot link to settings tree */
-         status = db_watch(hDB, log_chn[index].settings_hkey, watch_settings, &log_chn[index]);
+         status = db_watch(hDB, log_chn[index]->settings_hkey, watch_settings, &log_chn[index]);
          if (status != DB_SUCCESS)
             cm_msg(MERROR, "tr_start", "db_watch() status %d, cannot open channel settings record, probably other logger is using it", status);
 
 #ifndef FAL_MAIN
          /* open buffer */
-         status = bm_open_buffer(chn_settings->buffer, DEFAULT_BUFFER_SIZE, &log_chn[index].buffer_handle);
+         status = bm_open_buffer(chn_settings->buffer, DEFAULT_BUFFER_SIZE, &log_chn[index]->buffer_handle);
          if (status != BM_SUCCESS && status != BM_CREATED) {
             sprintf(error, "Cannot open buffer %s", chn_settings->buffer);
             cm_msg(MERROR, "tr_start", "%s", error);
             return 0;
          }
-         bm_set_cache_size(log_chn[index].buffer_handle, 100000, 0);
+         bm_set_cache_size(log_chn[index]->buffer_handle, 100000, 0);
 
          /* place event request */
-         status = bm_request_event(log_chn[index].buffer_handle,
+         status = bm_request_event(log_chn[index]->buffer_handle,
                                    (short) chn_settings->event_id,
                                    (short) chn_settings->trigger_mask,
-                                   GET_ALL, &log_chn[index].request_id, receive_event);
+                                   GET_ALL, &log_chn[index]->request_id, receive_event);
 
          if (status != BM_SUCCESS) {
             sprintf(error, "Cannot place event request");
@@ -5685,7 +5687,7 @@ INT tr_start(INT run_number, char *error)
 
          /* open message buffer if requested */
          if (chn_settings->log_messages) {
-            status = bm_open_buffer((char*)MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &log_chn[index].msg_buffer_handle);
+            status = bm_open_buffer((char*)MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &log_chn[index]->msg_buffer_handle);
             if (status != BM_SUCCESS && status != BM_CREATED) {
                sprintf(error, "Cannot open buffer %s", MESSAGE_BUFFER_NAME);
                cm_msg(MERROR, "tr_start", "%s", error);
@@ -5693,10 +5695,10 @@ INT tr_start(INT run_number, char *error)
             }
 
             /* place event request */
-            status = bm_request_event(log_chn[index].msg_buffer_handle,
+            status = bm_request_event(log_chn[index]->msg_buffer_handle,
                                       (short) EVENTID_MESSAGE,
                                       (short) chn_settings->log_messages,
-                                      GET_ALL, &log_chn[index].msg_request_id, receive_event);
+                                      GET_ALL, &log_chn[index]->msg_request_id, receive_event);
 
             if (status != BM_SUCCESS) {
                sprintf(error, "Cannot place event request");
@@ -5742,17 +5744,15 @@ INT tr_start(INT run_number, char *error)
 
 INT tr_start_abort(INT run_number, char *error)
 {
-   int i;
-
    if (verbose)
       printf("tr_start_abort: run %d\n", run_number);
 
    in_stop_transition = TRUE;
 
-   for (i = 0; i < MAX_CHANNELS; i++)
-      if (log_chn[i].handle && log_chn[i].type == LOG_TYPE_DISK) {
-         cm_msg(MINFO, "tr_start_abort", "Deleting previous file \"%s\"", log_chn[i].path);
-         unlink(log_chn[i].path);
+   for (unsigned i = 0; i < log_chn.size(); i++)
+      if (log_chn[i]->handle && log_chn[i]->type == LOG_TYPE_DISK) {
+         cm_msg(MINFO, "tr_start_abort", "Deleting previous file \"%s\"", log_chn[i]->path);
+         unlink(log_chn[i]->path);
       }
 
    close_channels(run_number, NULL);
@@ -5872,25 +5872,23 @@ INT tr_resume(INT run_number, char *error)
 
 void receive_event(HNDLE hBuf, HNDLE request_id, EVENT_HEADER * pheader, void *pevent)
 {
-   INT i;
-
    if (verbose)
       printf("write data event: req %d, evid %d, timestamp %d, size %d\n", request_id, pheader->event_id, pheader->time_stamp, pheader->data_size);
 
    /* find logging channel for this request id */
-   for (i = 0; i < MAX_CHANNELS; i++) {
-      if (log_chn[i].handle == 0 && log_chn[i].ftp_con == NULL)
+   for (unsigned i = 0; i < log_chn.size(); i++) {
+      if (log_chn[i]->handle == 0 && log_chn[i]->ftp_con == NULL)
          continue;
 
       /* write normal events */
-      if (log_chn[i].request_id == request_id) {
-         log_write(&log_chn[i], pheader);
+      if (log_chn[i]->request_id == request_id) {
+         log_write(log_chn[i], pheader);
          break;
       }
 
       /* write messages */
-      if (log_chn[i].msg_request_id == request_id) {
-         log_write(&log_chn[i], pheader);
+      if (log_chn[i]->msg_request_id == request_id) {
+         log_write(log_chn[i], pheader);
          break;
       }
    }
