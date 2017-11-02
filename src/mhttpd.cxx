@@ -17743,6 +17743,62 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
+   /*---- script command --------------------------------------------*/
+   
+   if (p->getparam("script") && *p->getparam("script")) {
+      sprintf(str, "%s?script=%s", dec_path, p->getparam("script"));
+      if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
+         return;
+      
+      sprintf(str, "/Script/%s", p->getparam("script"));
+      
+      db_find_key(hDB, 0, str, &hkey);
+      
+      if (hkey) {
+         /* for NT: close reply socket before starting subprocess */
+         if (p->isparam("redir"))
+            redirect2(r, p->getparam("redir"));
+         else
+            redirect2(r, "");
+         exec_script(hkey);
+      } else {
+         if (p->isparam("redir"))
+            redirect2(r, p->getparam("redir"));
+         else
+            redirect2(r, "");
+      }
+      
+      return;
+   }
+   
+   /*---- customscript command --------------------------------------*/
+   
+   if (p->getparam("customscript") && *p->getparam("customscript")) {
+      sprintf(str, "%s?customscript=%s", dec_path, p->getparam("customscript"));
+      if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
+         return;
+      
+      sprintf(str, "/CustomScript/%s", p->getparam("customscript"));
+      
+      db_find_key(hDB, 0, str, &hkey);
+      
+      if (hkey) {
+         /* for NT: close reply socket before starting subprocess */
+         if (p->isparam("redir"))
+            redirect2(r, p->getparam("redir"));
+         else
+            redirect2(r, "");
+         exec_script(hkey);
+      } else {
+         if (p->isparam("redir"))
+            redirect(r, p->getparam("redir"));
+         else
+            redirect(r, "");
+      }
+      
+      return;
+   }
+
    /*---- send the new html pages -----------------------------------*/
 
 #ifdef NEW_START_STOP
@@ -17903,61 +17959,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   /*---- script command --------------------------------------------*/
-
-   if (p->getparam("script") && *p->getparam("script")) {
-      sprintf(str, "%s?script=%s", dec_path, p->getparam("script"));
-      if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
-         return;
-
-      sprintf(str, "/Script/%s", p->getparam("script"));
-
-      db_find_key(hDB, 0, str, &hkey);
-
-      if (hkey) {
-         /* for NT: close reply socket before starting subprocess */
-         if (p->isparam("redir"))
-            redirect2(r, p->getparam("redir"));
-         else
-            redirect2(r, "");
-         exec_script(hkey);
-      } else {
-         if (p->isparam("redir"))
-            redirect2(r, p->getparam("redir"));
-         else
-            redirect2(r, "");
-      }
-
-      return;
-   }
-
-   /*---- customscript command --------------------------------------*/
-
-   if (p->getparam("customscript") && *p->getparam("customscript")) {
-      sprintf(str, "%s?customscript=%s", dec_path, p->getparam("customscript"));
-      if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
-         return;
-
-      sprintf(str, "/CustomScript/%s", p->getparam("customscript"));
-
-      db_find_key(hDB, 0, str, &hkey);
-
-      if (hkey) {
-         /* for NT: close reply socket before starting subprocess */
-         if (p->isparam("redir"))
-            redirect2(r, p->getparam("redir"));
-         else
-            redirect2(r, "");
-         exec_script(hkey);
-      } else {
-         if (p->isparam("redir"))
-            redirect(r, p->getparam("redir"));
-         else
-            redirect(r, "");
-      }
-
-      return;
-   }
 
 #ifdef OBSOLETE
    /*---- alarms command --------------------------------------------*/

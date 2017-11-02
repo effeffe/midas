@@ -460,7 +460,7 @@ function mhttpd_init(current_page, interval, callback) {
 
       // request it from server, since it might have changed
       mjsonrpc_db_get_values(["/Experiment/Base URL", "/Experiment/Name", "/Experiment/Menu", "/Experiment/Menu Buttons",
-         "/Custom", "/Scripts", "/Alias"]).then(function (rpc) {
+         "/Custom", "/Script", "/Alias"]).then(function (rpc) {
          document.getElementById("mheader_expt_name").innerHTML = rpc.result.data[1];
          sessionStorage.setItem("mexpname", rpc.result.data[1]);
 
@@ -468,7 +468,7 @@ function mhttpd_init(current_page, interval, callback) {
          var menu = rpc.result.data[2];
          var buttons = rpc.result.data[3];
          var custom = rpc.result.data[4];
-         var scripts = rpc.result.data[5];
+         var script = rpc.result.data[5];
          var alias = rpc.result.data[6];
 
          // check for base URL
@@ -527,6 +527,20 @@ function mhttpd_init(current_page, interval, callback) {
                if (l.substr(-1) == '&')
                   l = l.slice(0, -1);
                html += "<div class='" + cc + "'><a href='" + base_url + custom[b] + "' class='mmenulink'>" + l + "</a></div>\n";
+            }
+
+         }
+
+         // script
+         if (script !== null && Object.keys(script).length > 0) {
+            // add separator
+            html += "<div class='mseparator'></div>\n";
+
+            for (var b in script) {
+               if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
+                  continue;
+               var n = script[b + "/name"];
+               html += "<div class='mmenuitem'><a href='?script=" + b + "' class='mmenulink'>" + n + "</a></div>\n";
             }
 
          }
