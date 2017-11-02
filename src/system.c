@@ -1105,9 +1105,11 @@ INT ss_shm_unprotect(HNDLE handle, void **adr, BOOL read, BOOL write, const char
 
 \********************************************************************/
 {
+#if 0
    if (write) {
       printf("ss_shm_unprotect handle %d, read %d, write %d, caller %s\n", handle, read, write, caller_name);
    }
+#endif
    
 #ifdef OS_WINNT
 
