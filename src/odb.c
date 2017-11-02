@@ -1547,6 +1547,8 @@ INT db_close_database(HNDLE hDB)
          return DB_INVALID_HANDLE;
       }
 
+      db_allow_write_locked(&_database[hDB-1], "db_close_database");
+
       /* close all open records */
       for (i = 0; i < pclient->max_index; i++)
          if (pclient->open_record[i].handle)
