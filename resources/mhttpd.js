@@ -528,7 +528,7 @@ function mhttpd_init(current_page, interval, callback) {
                   cc += " mmenuitemsel";
                if (b === "path")
                   continue;
-               html += "<div class='" + cc + "'><a href='" + base_url + custom[b] + "' class='mmenulink'>" + custom[b + "/name"] + "</a></div>\n";
+               html += "<div class='" + cc + "'><a href='" + base_url + "CS/" + custom[b + "/name"] + "' class='mmenulink'>" + custom[b + "/name"] + "</a></div>\n";
             }
 
          }
