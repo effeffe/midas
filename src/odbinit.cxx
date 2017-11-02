@@ -26,6 +26,53 @@ static std::string to_string(int v)
    return buf;
 }
 
+static std::vector<std::string> split(const char* sep, const std::string& s)
+{
+   unsigned sep_len = strlen(sep);
+   std::vector<std::string> v;
+   std::string::size_type pos = 0;
+   while (1) {
+      std::string::size_type next = s.find(sep, pos);
+      //printf("pos %d, next %d\n", (int)pos, (int)next);
+      if (next == std::string::npos) {
+         v.push_back(s.substr(pos));
+         break;
+      }
+      v.push_back(s.substr(pos, next-pos));
+      pos = next+sep_len;
+   }
+   return v;
+}
+
+static std::string join(const char* sep, const std::vector<std::string>& v)
+{
+   std::string s;
+
+   for (unsigned i=0; i<v.size(); i++) {
+      if (i>0) {
+         s += sep;
+      }
+      s += v[i];
+   }
+
+   return s;
+}
+
+static std::vector<std::string> remove_dot_dot(const std::vector<std::string>& v)
+{
+   std::vector<std::string> out;
+   for (unsigned i=0; i<v.size(); i++) {
+      if (v[i] == "..") {
+         if (out.size() > 0) {
+            out.pop_back();
+         }
+      } else {
+         out.push_back(v[i]);
+      }
+   }
+   return out;
+}
+
 /*------------------------------------------------------------------*/
 
 static void usage()
@@ -34,6 +81,8 @@ static void usage()
    printf("options:\n");
    printf("  [-e Experiment] --- specify experiment name\n");
    printf("  [-s size] --- specify new size of ODB in bytes, default is %d\n", DEFAULT_ODB_SIZE);
+   printf("  [--env] --- create new env.sh and env.csh files in the current directory\n");
+   printf("  [--exptab] --- create new exptab file in the current directory\n");
    printf("  [--cleanup] --- cleanup (preserve) old (existing) ODB files\n");
    printf("  [-n] --- dry run, report everything that will be done, but do not actually do anything\n");
    //printf("  [-g] --- debug\n");
@@ -44,6 +93,10 @@ static void usage()
 
 int main(int argc, char *argv[])
 {
+   // set unbuffered output
+   setbuf(stdout, NULL);
+   setbuf(stderr, NULL);
+
    INT status;
    char host_name[HOST_NAME_LENGTH];
    char exp_name[NAME_LENGTH];
@@ -65,6 +118,8 @@ int main(int argc, char *argv[])
 
    bool cleanup = false;
    bool dry_run = false;
+   bool create_exptab = false;
+   bool create_env = false;
 
    /* parse command line parameters */
    for (int i = 1; i < argc; i++) {
@@ -72,6 +127,10 @@ int main(int argc, char *argv[])
          //debug = TRUE;
       } else if (strcmp(argv[i], "-n") == 0) {
          dry_run = true;
+      } else if (strcmp(argv[i], "--exptab") == 0) {
+         create_exptab = true;
+      } else if (strcmp(argv[i], "--env") == 0) {
+         create_env = true;
       } else if (strcmp(argv[i], "--cleanup") == 0) {
          cleanup = true;
       } else if (strcmp(argv[i], "-e") == 0) {
@@ -85,11 +144,253 @@ int main(int argc, char *argv[])
       }
    }
 
-   printf("Checking command line... experiment \"%s\", cleanup %d, dry_run %d\n", exp_name, cleanup, dry_run);
+   printf("Checking command line... experiment \"%s\", cleanup %d, dry_run %d, create_exptab %d, create_env %d\n", exp_name, cleanup, dry_run, create_exptab, create_env);
+
+   if (create_exptab) {
+      printf("Creating a new exptab file in the current directory...\n");
+
+      FILE *fpr = fopen("exptab", "r");
+      if (fpr) {
+         fclose(fpr);
+         printf("Error: exptab already exists in the current directory. Sorry...\n");
+         exit(1);
+      }
+
+      if (strlen(exp_name) < 1) {
+         strlcpy(exp_name, "Default", sizeof(exp_name));
+      }
+      if (strchr(exp_name, ' ')) {
+         printf("Error: experiment name \"%s\" should not contain a space character. Sorry...\n", exp_name);
+         exit(1);
+      }
+      const char* pwd = getenv("PWD");
+      if (!pwd || strlen(pwd)<1) {
+         printf("Error: env.variable PWD is not defined or is empty. Sorry...\n");
+         exit(1);
+      }
+      if (strchr(pwd, ' ')) {
+         printf("Error: env.variable PWD value \"%s\" should not contain a space character. Sorry...\n", pwd);
+         exit(1);
+      }
+      const char* user = getenv("USER");
+      if (!user || strlen(user)<1) {
+         printf("Error: env.variable USER is not defined or is empty. Sorry...\n");
+         exit(1);
+      }
+      if (strchr(user, ' ')) {
+         printf("Error: env.variable USER value \"%s\" should not contain a space character. Sorry...\n", user);
+         exit(1);
+      }
+      printf("Experiment name [%s], experiment directory [%s], username [%s]\n", exp_name, pwd, user);
+
+      FILE* fp = fopen("exptab", "w");
+      if (!fp) {
+         printf("Error: Cannot write exptab file, fopen() errno %d (%s). Sorry...\n", errno, strerror(errno));
+         exit(1);
+      }
+
+      fprintf(fp, "%s %s %s\n", exp_name, pwd, user);
+      fclose(fp);
+
+      printf("\n");
+      printf("Please define env.variable MIDAS_EXPTAB=%s/%s\n", pwd, "exptab");
+      printf("\n");
+      printf("Done\n");
+      exit(0);
+   }
+
+   if (create_env) {
+      printf("Creating a new environment settings file in the current directory...\n");
+
+      // check if files already exist
+
+      FILE *fpr = fopen("env.sh", "r");
+      if (fpr) {
+         fclose(fpr);
+         printf("Error: env.sh already exists in the current directory. Sorry...\n");
+         exit(1);
+      }
+
+      fpr = fopen("env.csh", "r");
+      if (fpr) {
+         fclose(fpr);
+         printf("Error: env.csh already exists in the current directory. Sorry...\n");
+         exit(1);
+      }
+
+      // construct MIDAS_EXPTAB
+
+      const char* pwd = getenv("PWD");
+      if (!pwd || strlen(pwd)<1) {
+         printf("Error: env.variable PWD is not defined or is empty. Sorry...\n");
+         exit(1);
+      }
+
+      std::string midas_exptab;
+      midas_exptab += pwd;
+      midas_exptab += DIR_SEPARATOR;
+      midas_exptab += "exptab";
+
+      // try to extract midas location from argv[0]
+
+      std::string argv0 = argv[0];
+
+      if (argv0[0] != '/') {
+         printf("\n");
+         printf("Please run odbinit using the full path, i.e. run $HOME/packages/midas/linux/bin/odbinit\n");
+         printf("\n");
+         printf("Bye\n");
+         exit(1);
+      }
+
+      // construct MIDASSYS
+
+      std::string midassys;
+
+      if (argv0[0] == '/') { // absolute path
+         midassys += argv0;
+      } else {
+         midassys += pwd;
+         midassys += "/";
+         midassys += argv0;
+      }
+
+      std::vector<std::string> aa = split("/", midassys);
+      if (aa.size() > 0) { // remove "odbinit"
+         aa.pop_back();
+      }
+      if (aa.size() > 0) { // remove "bin"
+         aa.pop_back();
+      }
+      if (aa.size() > 0) { // remove "darwin" or "linux"
+         aa.pop_back();
+      }
+
+      midassys = join("/", remove_dot_dot(aa));
+
+      // construct MIDAS path
+
+      std::string path;
+
+      {
+         if (argv0[0] == '/') { // absolute path
+            path += argv0;
+         } else {
+            path += pwd;
+            path += "/";
+            path += argv0;
+         }
+
+         std::vector<std::string> aa = split("/", path);
+         if (aa.size() > 0) { // remove "odbinit"
+            aa.pop_back();
+         }
+
+         path = join("/", remove_dot_dot(aa));
+      }
+
+      std::string hostname;
+
+      {
+         char s[256];
+         gethostname(s, sizeof(s));
+         hostname = s;
+      }
+
+      // start writing
+
+      FILE *fpb = fopen("env.sh", "w");
+      if (!fpb) {
+         printf("Error: Cannot write env.sh file, fopen() errno %d (%s). Sorry...\n", errno, strerror(errno));
+         exit(1);
+      }
+
+      FILE *fpc = fopen("env.csh", "w");
+      if (!fpc) {
+         printf("Error: Cannot write env.csh file, fopen() errno %d (%s). Sorry...\n", errno, strerror(errno));
+         exit(1);
+      }
+
+      fprintf(fpb, "#!echo You must source\n");
+      fprintf(fpc, "#!echo You must source\n");
+
+      fprintf(fpb, "export MIDASSYS=\"%s\"\n", midassys.c_str());
+      fprintf(fpc, "setenv MIDASSYS \"%s\"\n", midassys.c_str());
+
+      fprintf(fpb, "export MIDAS_EXPTAB=\"%s\"\n", midas_exptab.c_str());
+      fprintf(fpc, "setenv MIDAS_EXPTAB \"%s\"\n", midas_exptab.c_str());
+
+      fprintf(fpb, "export PATH=$PATH:\"%s\"\n", path.c_str());
+      fprintf(fpc, "setenv PATH $PATH\\:\"%s\"\n", path.c_str());
+
+      fprintf(fpb, "# define mserver connection\n");
+      fprintf(fpb, "case `hostname` in\n");
+      fprintf(fpb, "%s) unset MIDAS_SERVER_HOST ;;\n", hostname.c_str());
+      fprintf(fpb, "*) export MIDAS_SERVER_HOST=%s ;;\n", hostname.c_str());
+      fprintf(fpb, "esac\n");
+
+      fprintf(fpc, "# define mserver connection\n");
+      fprintf(fpc, "switch (`hostname`)\n");
+      fprintf(fpc, "case %s:\n", hostname.c_str());
+      fprintf(fpc, "unsetenv MIDAS_SERVER_HOST\n");
+      fprintf(fpc, "breaksw\n");
+      fprintf(fpc, "default:\n");
+      fprintf(fpc, "setenv MIDAS_SERVER_HOST %s\n", hostname.c_str());
+      fprintf(fpc, "endsw\n");
+
+      fprintf(fpb, "#end\n");
+      fprintf(fpc, "#end\n");
+
+      fclose(fpb);
+      fclose(fpc);
+
+      printf("\n");
+      printf("Please source env.sh or env.csh\n");
+      printf("\n");
+      printf("Done\n");
+      exit(0);
+   }
+
+   // check MIDASSYS
+
+   printf("Checking MIDASSYS...");
+   const char* midassys = getenv("MIDASSYS");
+
+   if (!midassys) {
+      printf("\n");
+      printf("Error: Env.variable MIDASSYS is not defined.\n");
+      printf("odbinit path [%s]\n", argv[0]);
+      printf("\n");
+      printf("Please run odbinit --env\n");
+      printf("\n");
+      printf("Bye.\n");
+      exit(1);
+   }
+
+   printf("...%s\n", midassys);
 
    status = cm_list_experiments(host_name, exp_names);
 
+   if (status != CM_SUCCESS) {
+      printf("Error: cm_list_experiments() status %d\n", status);
+      printf("\n");
+      printf("Cannot get the list of experiments, maybe the exptab file is missing.\n");
+      printf("\n");
+      printf("To create a new exptab file in the current directory, run odbinit --exptab -e new_experiment_name\n");
+      printf("\n");
+      printf("Bye...\n");
+      exit(1);
+   }
+
    status = cm_get_exptab_filename(exptab_filename, sizeof(exptab_filename));
+
+   if (status != CM_SUCCESS) {
+      printf("Error: cm_get_exptab_filename() status %d\n", status);
+      printf("\n");
+      printf("Cannot get the name of the exptab file. Sorry...\n");
+      exit(1);
+   }
+
 
    printf("Checking exptab... experiments defined in exptab file \"%s\":\n", exptab_filename);
 

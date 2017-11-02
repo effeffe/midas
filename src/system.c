@@ -1460,7 +1460,7 @@ void catch_sigchld(int signo)
 }
 #endif
 
-INT ss_spawnv(INT mode, const char *cmdname, char *argv[])
+INT ss_spawnv(INT mode, const char *cmdname, const char* const argv[])
 /********************************************************************\
 
   Routine: ss_spawnv
@@ -1553,12 +1553,16 @@ INT ss_spawnv(INT mode, const char *cmdname, char *argv[])
    int status;
 #endif
 
+#ifdef NO_FORK
+   assert(!"support for fork() disabled by NO_FORK");
+#else
    if ((child_pid = fork()) < 0)
       return (-1);
+#endif
 
    if (child_pid == 0) {
       /* now we are in the child process ... */
-      child_pid = execvp(cmdname, argv);
+      child_pid = execvp(cmdname, (char*const*)argv);
       return SS_SUCCESS;
    } else {
       /* still in parent process */
@@ -1762,7 +1766,12 @@ INT ss_shell(int sock)
    char line[32], buffer[1024], shell[32];
    fd_set readfds;
 
-   if ((pid = forkpty(&p, line, NULL, NULL)) < 0)
+#ifdef NO_FORK
+   assert(!"support for forkpty() disabled by NO_FORK");
+#else
+   pid = forkpty(&p, line, NULL, NULL);
+#endif
+   if (pid < 0)
       return 0;
    else if (pid > 0) {
       /* parent process */
@@ -1772,7 +1781,7 @@ INT ss_shell(int sock)
          FD_SET(sock, &readfds);
          FD_SET(p, &readfds);
 
-         select(FD_SETSIZE, (void *) &readfds, NULL, NULL, NULL);
+         select(FD_SETSIZE, &readfds, NULL, NULL, NULL);
 
          if (FD_ISSET(sock, &readfds)) {
             memset(buffer, 0, sizeof(buffer));
@@ -1837,10 +1846,14 @@ INT ss_daemon_init(BOOL keep_stdout)
    /* only implemented for UNIX */
    int i, fd, pid;
 
+#ifdef NO_FORK
+   assert(!"support for fork() disabled by NO_FORK");
+#else
    if ((pid = fork()) < 0)
       return SS_ABORT;
    else if (pid != 0)
       exit(0);                  /* parent finished */
+#endif
 
    /* child continues here */
 
@@ -1962,7 +1975,12 @@ INT ss_exec(const char *command, INT * pid)
    /* only implemented for UNIX */
    int i, fd;
 
-   if ((*pid = fork()) < 0)
+#ifdef NO_FORK
+   assert(!"support for fork() disabled by NO_FORK");
+#else
+   *pid = fork();
+#endif
+   if (*pid < 0)
       return SS_ABORT;
    else if (*pid != 0) {
       /* avoid <defunc> parent processes */
@@ -2088,7 +2106,7 @@ midas_thread_t ss_thread_create(INT(*thread_func) (void *), void *param)
    INT status;
    pthread_t thread_id;
 
-   status = pthread_create(&thread_id, NULL, (void *) thread_func, param);
+   status = pthread_create(&thread_id, NULL, (void* (*)(void*))thread_func, param);
 
    return status != 0 ? 0 : thread_id;
 
@@ -2672,7 +2690,7 @@ INT ss_mutex_create(MUTEX_T ** mutex)
       int status;
       pthread_mutexattr_t *attr;
 
-      attr = malloc(sizeof(*attr));
+      attr = (pthread_mutexattr_t*)malloc(sizeof(*attr));
       assert(attr);
 
       status = pthread_mutexattr_init(attr);
@@ -2687,7 +2705,7 @@ INT ss_mutex_create(MUTEX_T ** mutex)
       }
 #endif
 
-      *mutex = malloc(sizeof(pthread_mutex_t));
+      *mutex = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
       assert(*mutex);
 
       status = pthread_mutex_init(*mutex, attr);
@@ -3089,7 +3107,8 @@ DWORD ss_settime(DWORD seconds)
 
 #elif defined(OS_UNIX)
 
-   stime((void *) &seconds);
+   time_t t = seconds;
+   stime(&t);
 
 #elif defined(OS_VXWORKS)
 
@@ -3172,7 +3191,7 @@ INT ss_timezone()
 
 #ifdef OS_UNIX
 /* dummy function for signal() call */
-void ss_cont()
+void ss_cont(int signum)
 {
 }
 #endif
@@ -3350,7 +3369,7 @@ INT ss_alarm(INT millitime, void (*func) (int))
 }
 
 /*------------------------------------------------------------------*/
-void (*MidasExceptionHandler) ();
+void (*MidasExceptionHandler) (void);
 
 #ifdef OS_WINNT
 
@@ -3405,7 +3424,7 @@ void MidasExceptionSignal(INT sig)
 #endif                          /* OS_VMS */
 
 /*------------------------------------------------------------------*/
-INT ss_exception_handler(void (*func) ())
+INT ss_exception_handler(void (*func) (void))
 /********************************************************************\
 
   Routine: ss_exception_handler
@@ -3811,7 +3830,7 @@ INT ss_suspend_exit()
 }
 
 /*------------------------------------------------------------------*/
-INT ss_suspend_set_dispatch(INT channel, void *connection, INT(*dispatch) ())
+INT ss_suspend_set_dispatch(INT channel, void *connection, INT(*dispatch) (void))
 /********************************************************************\
 
   Routine: ss_suspend_set_dispatch
@@ -6932,6 +6951,8 @@ int ss_isfin(double x)
 *                                                                    *
 \********************************************************************/
 
+#ifndef NO_EXECINFO
+
 #ifdef OS_LINUX
 #include <execinfo.h>
 #endif
@@ -7008,6 +7029,8 @@ void ss_stack_history_dump(char *filename)
    } else
       printf("Cannot open %s: errno=%d\n", filename, errno);
 }
+
+#endif
 
          /** @} *//* end of msfunctionc */
          /** @} *//* end of msystemincludecode */

@@ -162,7 +162,7 @@ static INT _tcp_rp = 0;
 static INT _rpc_sock = 0;
 static MUTEX_T *_mutex_rpc = NULL;
 
-static void (*_debug_print) (char *) = NULL;
+static void (*_debug_print) (const char *) = NULL;
 static INT _debug_mode = 0;
 
 static INT _watchdog_last_called = 0;
@@ -201,10 +201,10 @@ void cm_ctrlc_handler(int sig);
 
 typedef struct {
    INT code;
-   char *string;
+   const char *string;
 } ERROR_TABLE;
 
-ERROR_TABLE _error_table[] = {
+const ERROR_TABLE _error_table[] = {
    {CM_WRONG_PASSWORD, "Wrong password"},
    {CM_UNDEF_EXP, "Experiment not defined"},
    {CM_UNDEF_ENVIRON,
@@ -983,7 +983,7 @@ static void add_message(char** messages, int* length, int* allocated, time_t tst
    //printf("add_message: new message %d, length %d, new end: %d, allocated: %d, maybe reallocate size %d\n", new_message_length, *length, *length + new_message_length, *allocated, new_allocated);
 
    if (*length + new_message_length + 100 > *allocated) {
-      *messages = realloc(*messages, new_allocated);
+      *messages = (char*)realloc(*messages, new_allocated);
       assert(*messages != NULL);
       *allocated = new_allocated;
    }
@@ -1350,7 +1350,7 @@ INT _semaphore_msg     = -1;
 Return version number of current MIDAS library as a string
 @return version number
 */
-char *cm_get_version()
+const char *cm_get_version()
 {
    return MIDAS_VERSION;
 }
@@ -1359,7 +1359,7 @@ char *cm_get_version()
 Return git revision number of current MIDAS library as a string
 @return revision number
 */
-char* cm_get_revision()
+const char* cm_get_revision()
 {
    return GIT_REVISION;
 }
@@ -1836,7 +1836,7 @@ INT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient, char *host_name,
       status = db_set_value(hDB, 0, str, name, NAME_LENGTH, 1, TID_STRING);
       if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
-         cm_msg(MERROR, "cm_set_client_info", "cannot set client name");
+         cm_msg(MERROR, "cm_set_client_info", "cannot set client name, db_set_value(%s) status %d", str, status);
          return status;
       }
 
@@ -2098,9 +2098,7 @@ INT cm_connect_experiment(const char *host_name, const char *exp_name, const cha
    INT status;
    char str[256];
 
-   status =
-       cm_connect_experiment1(host_name, exp_name, client_name, func, DEFAULT_ODB_SIZE,
-                              DEFAULT_WATCHDOG_TIMEOUT);
+   status = cm_connect_experiment1(host_name, exp_name, client_name, func, DEFAULT_ODB_SIZE, DEFAULT_WATCHDOG_TIMEOUT);
    cm_msg_flush_buffer();
    if (status != CM_SUCCESS) {
       cm_get_error(status, str);
@@ -2276,7 +2274,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    status = cm_register_server();
    if (status != CM_SUCCESS) {
       cm_msg(MERROR, "cm_connect_experiment", "Cannot register RPC server, cm_register_server() status %d", status);
-      return status;
+      if (!equal_ustring(client_name, "odbedit")) {
+         return status;
+      }
    }
 
    /* set watchdog timeout */
@@ -2388,7 +2388,7 @@ INT cm_list_experiments(const char *host_name, char exp_name[MAX_EXPERIMENT][NAM
 
 #ifdef OS_UNIX
    do {
-      status = connect(sock, (void *) &bind_addr, sizeof(bind_addr));
+      status = connect(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
 
       /* don't return if an alarm signal was cought */
    } while (status == -1 && errno == EINTR);
@@ -3020,7 +3020,7 @@ static void load_rpc_hosts(HNDLE hDB, HNDLE hKey, int index, void* info)
    rpc_clear_allowed_hosts();
 
    max_size = key.item_size;
-   str = malloc(max_size);
+   str = (char*)malloc(max_size);
 
    last = 0;
    for (i=0; i<key.num_values; i++) {
@@ -3129,14 +3129,22 @@ INT cm_register_server(void)
 
       size = sizeof(name);
       status = db_get_value(hDB, hKey, "Name", &name, &size, TID_STRING, FALSE);
-      assert(status == DB_SUCCESS);
+
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "cm_register_server", "cannot get client name, db_get_value() status %d", status);
+         return status;
+      }
 
       strlcpy(str, "/Experiment/Security/RPC ports/", sizeof(str));
       strlcat(str, name, sizeof(str));
 
       size = sizeof(port);
       status = db_get_value(hDB, 0, str, &port, &size, TID_DWORD, TRUE);
-      assert(status == DB_SUCCESS);
+
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "cm_register_server", "cannot get RPC port number, db_get_value(%s) status %d", str, status);
+         return status;
+      }
 
       status = rpc_register_server(ST_REMOTE, NULL, &port, NULL);
       if (status != RPC_SUCCESS)
@@ -3157,8 +3165,9 @@ INT cm_register_server(void)
 
       /* set value */
       status = db_set_data(hDB, hKey, &port, sizeof(INT), 1, TID_INT);
-      if (status != DB_SUCCESS)
+      if (status != DB_SUCCESS) {
          return status;
+      }
 
       /* lock database */
       db_set_mode(hDB, hKey, MODE_READ, TRUE);
@@ -3853,7 +3862,8 @@ int cm_transition_status_json(char** json_status)
 int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag)
 {
    HNDLE hDB;
-   char *args[100], path[256];
+   const char *args[100];
+   char path[256];
    int  size, status, iarg = 0;
    char debug_arg[256];
    char start_arg[256];
@@ -4220,7 +4230,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    HNDLE hDB, hRootKey, hSubkey, hKey, hKeylocal, hKeyTrans;
    DWORD seconds;
    char host_name[HOST_NAME_LENGTH], client_name[NAME_LENGTH], str[256], tr_key_name[256];
-   char *trname = "unknown";
+   const char *trname = "unknown";
    KEY key;
    BOOL deferred;
    TR_CLIENT *tr_client;
@@ -4273,7 +4283,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    /* construct new transition state */
 
    if (1) {
-      TR_STATE *s = calloc(1, sizeof(TR_STATE));
+      TR_STATE *s = (TR_STATE*)calloc(1, sizeof(TR_STATE));
 
       s->transition = transition;
       s->run_number = run_number;
@@ -5553,7 +5563,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       HNDLE hDB, odb_key;
       char odb_path[256];
       void *p;
-      int max_buffer_size = 2 * 1000 * 1024 * 1024;
+      const int max_buffer_size = 2 * 1000 * 1024 * 1024; // limited by 32-bit integers in the buffer header
 
       bm_cleanup("bm_open_buffer", ss_millitime(), FALSE);
 
@@ -5582,7 +5592,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       status = db_get_value(hDB, 0, odb_path, &buffer_size, &size, TID_DWORD, TRUE);
 
       if (buffer_size <= 0 || buffer_size > max_buffer_size) {
-         cm_msg(MERROR, "bm_open_buffer", "cannot open buffer \'%s\' - buffer size %d exceeds maximum size %d", buffer_name, buffer_size, max_buffer_size);
+         cm_msg(MERROR, "bm_open_buffer", "Cannot open buffer \"%s\", invalid buffer size %d in ODB \"%s\", maximum buffer size is %d", buffer_name, buffer_size, odb_path, max_buffer_size);
          return BM_INVALID_PARAM;
       }
 
@@ -9769,7 +9779,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
 
 #ifdef OS_UNIX
    do {
-      status = connect(sock, (void *) &bind_addr, sizeof(bind_addr));
+      status = connect(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
 
       /* don't return if an alarm signal was cought */
    } while (status == -1 && errno == EINTR);
@@ -10734,7 +10744,7 @@ INT rpc_set_name(const char *name)
 
 
 /********************************************************************/
-INT rpc_set_debug(void (*func) (char *), INT mode)
+INT rpc_set_debug(void (*func) (const char *), INT mode)
 /********************************************************************\
 
   Routine: rpc_set_debug
@@ -13190,7 +13200,7 @@ INT rpc_server_accept(int lsock)
    char str[100];
    char host_port1_str[30], host_port2_str[30], host_port3_str[30];
    char debug_str[30];
-   char *argv[10];
+   const char *argv[10];
    char net_buffer[256];
    struct linger ling;
 
@@ -13725,7 +13735,7 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    /* connect receive socket */
 #ifdef OS_UNIX
    do {
-      status = connect(recv_sock, (void *) &bind_addr, sizeof(bind_addr));
+      status = connect(recv_sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
 
       /* don't return if an alarm signal was cought */
    } while (status == -1 && errno == EINTR);

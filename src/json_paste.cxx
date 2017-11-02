@@ -118,7 +118,7 @@ static int guess_tid(const MJsonNode* node)
    }
 }
 
-static int paste_node(HNDLE hDB, HNDLE hKey, const char* path, int index, const MJsonNode* node, int tid, int string_length, const MJsonNode* key);
+static int paste_node(HNDLE hDB, HNDLE hKey, const char* path, bool is_array, int index, const MJsonNode* node, int tid, int string_length, const MJsonNode* key);
 
 static int paste_array(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode* node, int tid, const MJsonNode* key)
 {
@@ -134,11 +134,15 @@ static int paste_array(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode*
    if (slength == 0)
       slength = NAME_LENGTH;
 
-   for (unsigned i=0; i<a->size(); i++) {
+   bool is_array = (a->size() > 1);
+   for (unsigned i=a->size(); ;) {
+      if (i==0)
+         break;
+      i--;
       MJsonNode* n = (*a)[i];
       if (!n)
          continue;
-      status = paste_node(hDB, hKey, path, i, n, tid, slength, key);
+      status = paste_node(hDB, hKey, path, is_array, i, n, tid, slength, key);
       if (status == DB_NO_ACCESS) {
          cm_msg(MERROR, "db_paste_json", "skipping write-protected array \"%s\"", path);
          return DB_SUCCESS;
@@ -151,6 +155,10 @@ static int paste_array(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode*
 
 static int paste_object(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode* objnode)
 {
+   if (equal_ustring(path, "/system/clients")) {
+      // do not reload ODB /system/clients
+      return DB_SUCCESS;
+   }
    int status;
    const MJsonStringVector* names = objnode->GetObjectNames();
    const MJsonNodeVector* nodes = objnode->GetObjectNodes();
@@ -216,11 +224,13 @@ static int paste_object(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode
       }
 
       std::string node_name;
-      node_name += path;
+      if (strcmp(path, "/") != 0) {
+         node_name += path;
+      }
       node_name += "/";
       node_name += name;
 
-      status = paste_node(hDB, hSubkey, node_name.c_str(), 0, node, tid, 0, key);
+      status = paste_node(hDB, hSubkey, node_name.c_str(), false, 0, node, tid, 0, key);
       if (status == DB_NO_ACCESS) {
          cm_msg(MERROR, "db_paste_json", "skipping write-protected node \"%s\"", node_name.c_str());
       } else if (status != DB_SUCCESS) {
@@ -316,7 +326,7 @@ static int GetDOUBLE(const MJsonNode* node, const char* path, double* dw)
    // NOT REACHED
 }
 
-static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const MJsonNode* node, int tid, int string_length, const MJsonNode* key)
+static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, bool is_array, int index, const MJsonNode* node, int tid, int string_length, const MJsonNode* key)
 {
    int status;
    //printf("paste_value: path [%s], index %d, tid %d, slength %d, key %p\n", path, index, tid, string_length, key);
@@ -498,10 +508,31 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const
          size = strlen(ptr) + 1;
       }
 
+      if (is_array) {
+         KEY key;
+         status = db_get_key(hDB, hKey, &key);
+         if (status != DB_SUCCESS) {
+            cm_msg(MERROR, "db_paste_json", "cannot get key of string array for \"%s\", db_get_key() status %d", path, status);
+            return status;
+         }
+         
+         if (key.item_size < size) {
+            status = db_resize_string(hDB, hKey, NULL, key.num_values, size);
+            if (status != DB_SUCCESS) {
+               cm_msg(MERROR, "db_paste_json", "cannot change array string length from %d to %d for \"%s\", db_resize_string() status %d", key.item_size, size, path, status);
+               return status;
+            }
+         }
+      }
+
       //printf("set_data_index index %d, size %d\n", index, size);
 
       if (string_length > 0) {
-         status = db_set_data_index(hDB, hKey, ptr, size, index, TID_STRING);
+         if (is_array) {
+            status = db_set_data_index(hDB, hKey, ptr, size, index, TID_STRING);
+         } else {
+            status = db_set_data(hDB, hKey, ptr, size, 1, TID_STRING);
+         }
       } else if (index != 0) {
          cm_msg(MERROR, "db_paste_json", "cannot set TID_STRING value for \"%s\" index %d, it is not an array", path, index);
          status = DB_OUT_OF_RANGE;
@@ -536,15 +567,15 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, int index, const
    // NOT REACHED
 }
 
-static int paste_node(HNDLE hDB, HNDLE hKey, const char* path, int index, const MJsonNode* node, int tid, int string_length, const MJsonNode* key)
+static int paste_node(HNDLE hDB, HNDLE hKey, const char* path, bool is_array, int index, const MJsonNode* node, int tid, int string_length, const MJsonNode* key)
 {
    //node->Dump();
    switch (node->GetType()) {
    case MJSON_ARRAY:  return paste_array(hDB, hKey, path, node, tid, key);
    case MJSON_OBJECT: return paste_object(hDB, hKey, path, node);
-   case MJSON_STRING: return paste_value(hDB, hKey, path, index, node, tid, string_length, key);
-   case MJSON_INT:    return paste_value(hDB, hKey, path, index, node, tid, 0, key);
-   case MJSON_NUMBER: return paste_value(hDB, hKey, path, index, node, tid, 0, key);
+   case MJSON_STRING: return paste_value(hDB, hKey, path, is_array, index, node, tid, string_length, key);
+   case MJSON_INT:    return paste_value(hDB, hKey, path, is_array, index, node, tid, 0, key);
+   case MJSON_NUMBER: return paste_value(hDB, hKey, path, is_array, index, node, tid, 0, key);
    case MJSON_BOOL:   return paste_bool(hDB, hKey, path, index, node);
    case MJSON_ERROR:
       cm_msg(MERROR, "db_paste_json", "JSON parse error: \"%s\" at \"%s\"", node->GetError().c_str(), path);
@@ -569,7 +600,7 @@ INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
    //printf("db_paste_json: handle %d, path [%s]\n", hKeyRoot, path);
 
    MJsonNode* node = MJsonNode::Parse(buffer);
-   status = paste_node(hDB, hKeyRoot, path, 0, node, 0, 0, NULL);
+   status = paste_node(hDB, hKeyRoot, path, false, 0, node, 0, 0, NULL);
    delete node;
 
    return status;
@@ -593,10 +624,12 @@ INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKeyRoot, int index, const void *j
 
    int tid = key.type;
    int string_length = 0;
-   if (tid == TID_STRING && key.num_values > 1)
+   bool is_array = (key.num_values > 1);
+   if (tid == TID_STRING && is_array) {
       string_length = key.item_size;
+   }
 
-   status = paste_node(hDB, hKeyRoot, path, index, node, tid, string_length, NULL);
+   status = paste_node(hDB, hKeyRoot, path, is_array, index, node, tid, string_length, NULL);
 
    return status;
 }

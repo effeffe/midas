@@ -24,7 +24,6 @@
 		D5705998179871EA00DA5416 /* midas.c in Sources */ = {isa = PBXBuildFile; fileRef = D570598D179871EA00DA5416 /* midas.c */; };
 		D5705999179871EA00DA5416 /* mrpc.c in Sources */ = {isa = PBXBuildFile; fileRef = D570598E179871EA00DA5416 /* mrpc.c */; };
 		D570599A179871EA00DA5416 /* odb.c in Sources */ = {isa = PBXBuildFile; fileRef = D570598F179871EA00DA5416 /* odb.c */; };
-		D570599B179871EA00DA5416 /* sequencer.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D5705990179871EA00DA5416 /* sequencer.cxx */; };
 		D570599C179871EA00DA5416 /* system.c in Sources */ = {isa = PBXBuildFile; fileRef = D5705991179871EA00DA5416 /* system.c */; };
 		D5A00FB81BB3FCFF00549585 /* json_paste.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D5A00FB71BB3FCFF00549585 /* json_paste.cxx */; };
 		D5C8CD7D1ACC0797008B1201 /* mscb.c in Sources */ = {isa = PBXBuildFile; fileRef = D5C8CD7B1ACC0797008B1201 /* mscb.c */; };
@@ -57,6 +56,7 @@
 		D530FC751BB3FC1900098C9B /* mjsonrpc.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mjsonrpc.cxx; path = /midas/src/mjsonrpc.cxx; sourceTree = "<group>"; };
 		D530FC771BB3FC4800098C9B /* mjsonrpc_user.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mjsonrpc_user.cxx; path = /midas/src/mjsonrpc_user.cxx; sourceTree = "<group>"; };
 		D534757D183A1979004316B0 /* mongoose6.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mongoose6.c; path = /midas/src/mongoose6.c; sourceTree = "<absolute>"; };
+		D53D34D21F33E2E200E5AD19 /* sequencer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = sequencer.h; path = /midas/include/sequencer.h; sourceTree = "<group>"; };
 		D551953D1D10159A005B66A7 /* mongoose6.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mongoose6.h; path = /midas/include/mongoose6.h; sourceTree = "<group>"; };
 		D570596317986E2F00DA5416 /* mhttpd */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mhttpd; sourceTree = BUILT_PRODUCTS_DIR; };
 		D5705987179871EA00DA5416 /* alarm.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = alarm.c; path = /midas/src/alarm.c; sourceTree = "<absolute>"; };
@@ -67,7 +67,6 @@
 		D570598D179871EA00DA5416 /* midas.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = midas.c; path = /midas/src/midas.c; sourceTree = "<absolute>"; };
 		D570598E179871EA00DA5416 /* mrpc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mrpc.c; path = /midas/src/mrpc.c; sourceTree = "<absolute>"; };
 		D570598F179871EA00DA5416 /* odb.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = odb.c; path = /midas/src/odb.c; sourceTree = "<absolute>"; };
-		D5705990179871EA00DA5416 /* sequencer.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = sequencer.cxx; path = /midas/src/sequencer.cxx; sourceTree = "<abolute>"; };
 		D5705991179871EA00DA5416 /* system.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = system.c; path = /midas/src/system.c; sourceTree = "<absolute>"; };
 		D570599D1798722600DA5416 /* midas.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = midas.h; path = "/midas//include/midas.h"; sourceTree = "<absolute>"; };
 		D570599E1798722600DA5416 /* midasinc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = midasinc.h; path = /midas/include/midasinc.h; sourceTree = "<absolute>"; };
@@ -136,6 +135,7 @@
 		D570598517986EF300DA5416 /* Includes */ = {
 			isa = PBXGroup;
 			children = (
+				D53D34D21F33E2E200E5AD19 /* sequencer.h */,
 				D551953D1D10159A005B66A7 /* mongoose6.h */,
 				D5C8CD7F1ACC07AF008B1201 /* mscb.h */,
 				D570599D1798722600DA5416 /* midas.h */,
@@ -170,7 +170,6 @@
 				D570598D179871EA00DA5416 /* midas.c */,
 				D570598E179871EA00DA5416 /* mrpc.c */,
 				D570598F179871EA00DA5416 /* odb.c */,
-				D5705990179871EA00DA5416 /* sequencer.cxx */,
 				D5705991179871EA00DA5416 /* system.c */,
 			);
 			name = Sources;
@@ -230,7 +229,7 @@
 		D570595B17986E2F00DA5416 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0800;
+				LastUpgradeCheck = 0900;
 				ORGANIZATIONNAME = "Stefan Ritt";
 			};
 			buildConfigurationList = D570595E17986E2F00DA5416 /* Build configuration list for PBXProject "mhttpd" */;
@@ -271,7 +270,6 @@
 				D570599A179871EA00DA5416 /* odb.c in Sources */,
 				D51868561C8880DD0061AEEE /* midas_cxx.cxx in Sources */,
 				D5A00FB81BB3FCFF00549585 /* json_paste.cxx in Sources */,
-				D570599B179871EA00DA5416 /* sequencer.cxx in Sources */,
 				D534757E183A1979004316B0 /* mongoose6.c in Sources */,
 				D570599C179871EA00DA5416 /* system.c in Sources */,
 				D5F40E0A179876ED004CBF77 /* mgd.c in Sources */,
@@ -292,12 +290,18 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
@@ -337,12 +341,18 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
@@ -381,6 +391,7 @@
 					HAVE_MG,
 					MG_ENABLE_SSL,
 					MG_ENABLE_THREADS,
+					HAVE_SEQUENCER,
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = NO;
 				HEADER_SEARCH_PATHS = (
@@ -406,6 +417,7 @@
 					USE_POSIX_SHM,
 					HAVE_MSCB,
 					HAVE_STRLCPY,
+					HAVE_SEQUENCER,
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = NO;
 				HEADER_SEARCH_PATHS = (

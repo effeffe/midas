@@ -28,7 +28,7 @@ a:focus { color:#0000FF; text-decoration:underline }
 }
 
 .mredcolour {
-   background-color: #c0392b;
+   background-color: #a53529;
    border-radius: 5px;
    border: 1px solid #808080;
    color: #EEEEEE;
@@ -41,70 +41,113 @@ a:focus { color:#0000FF; text-decoration:underline }
 }
 
 .mgreencolour {
-   background-color: #00e600;
+   background-color: #00c000;
    border-radius: 5px;
    border: 1px solid #808080;
 }
 
 /* mnav*css is the navigation bar with the "status", "odb", etc buttons */
 
-#mwrappper {
-   display: table;
-   height: 100%;
-}
-
-#mwrapper > div {
-   display:table-cell;
-}
-
-#mwrapper > div:nth-child(2)  {
-   width: 100%; /* main page body */
-}
-
 #mheader {
+   position: fixed;
+   top: 0;
+   left: 0;
+   z-index: 1;
+   width: 100%;
    background-color: #D0D0D0;
-   border-bottom: 1px solid #C0C0C0;
-   color: #FFFFFF;
+   border-bottom: 1px solid #A0A0A0;
+   color: #404040;
    font-family: verdana,tahoma,sans-serif;
    font-size: 100%;
    text-align: center;
-   padding: 4px;
+   padding: 5px;
+   padding-left: 0;
+   display: block;
+   line-height: 1;
 }
 
-#mheader_help {
-   margin-left: 1em;
-}
-
-#mheader_help a:link {
-   color: #e3a213;
-}
-
-#mheader_help a:visited {
-   color: #e3a213;
-}
-
-#mmenu {
-   height: 1000px;
-   background-color: #D0D0D0;
+#mheader_error {
+   position: fixed;
+   top: 0;
+   left: 0;
+   z-index: 0;
+   width: 100%;
+   background-color: red;
    color: white;
    font-family: verdana,tahoma,sans-serif;
    font-size: 100%;
    text-align: center;
+   padding: 4px;
+   padding-left: 0;
+   display: block;
+   line-height: 1;
+}
+
+#mheader_message{
+   display: none;
+   color: white;
+   background-color: #f89034;
+   border: 1px solid #b26810;
+   border-radius: 10px;
+   padding-bottom: 1px;
+   padding-left: 10px;
+   padding-right: 10px;
+}
+
+#msidenav {
+   height:100%;
+   position:fixed;
+   top: 27px; /* nomal header height */
+   z-index: 1;
+   left: 0;
+   overflow-x: hidden;
+   background-color: #D0D0D0;
+   color: #404040;
+   font-family: verdana,tahoma,sans-serif;
+   font-size: 100%;
    padding: 0;
+   transition: 0.2s;
 }
 
 .mmenuitem {
    padding: 5px;
    text-align:left;
+   line-height: 1;
 }
 
-.mmenuitem:hover {
+.mmenuitem:hover, .mmenuitem:focus {
    background-color: #808080;
+   color: #404040;
    cursor: pointer;
+}
+
+.mmenulink:hover, .mmenulink:focus {
+   text-decoration: none;
+   width: 100%;
+   display: inline-block;
+}
+
+.mmenulink:link, .mmenulink:visited {
+   text-decoration: none;
+   color: #404040;
+   width: 100%;
+   display: inline-block;
 }
 
 .mmenuitemsel {
    background-color: #A0A0A0;
+}
+
+.mseparator {
+   height: 2px;
+   background-color: #A0A0A0;
+}
+
+#mmain {
+   display: none;
+   position: relative;
+   z-index: 0;
+   padding-top: 27px; /* normal header height */
 }
 
 .mnav {
@@ -125,6 +168,17 @@ a:focus { color:#0000FF; text-decoration:underline }
    padding: 0.25em;
    padding-left: 0.5em;
    padding-right: 0.5em;
+}
+
+.mmsgService{
+	background-color: #C0C0C0;
+	border-radius: 12px;
+   padding: 1em;
+}
+
+a.hideButton{
+    text-decoration : none; 
+    color : #5F88A3;
 }
 
 /* all navigation buttons */
@@ -165,7 +219,8 @@ input[type=text] {
 /* table formatting */
 
 .mtable {
-   border: 2px solid #00B26B;
+   background-color: #DDDDDD;
+   border: 2px solid #6bb28c;
    border-radius: 12px;
    margin-left: auto;
    margin-right: auto;
@@ -175,7 +230,7 @@ input[type=text] {
 }
 
 .mmessagebox {
-   margin: 0.25em;
+   margin: 0;
    border: 2px solid #00B26B;
    border-radius: 12px;
    padding: 0;
@@ -200,15 +255,19 @@ input[type=text] {
    padding-right: 10px;
 }
 
-.mtable tr:nth-child(even) {
+.mtable tr:nth-child(odd) {
    background-color: #DDDDDD;
+}
+
+.mtable tr:nth-child(even) {
+   background-color: #EEEEEE;
 }
 
 .mtableheader {
    font-size: 120%;
    font-weight: bold;
    border-radius: 12px;
-   background-color: #3498db;
+   background-color: #649dc3;
    color: #EEEEEE;
    margin: 0.1em;
    padding: 0.25em;
@@ -239,5 +298,33 @@ div.mpush{
    text-align: center;
    padding: 1em;
 }
+
+.mmaintable {
+   background-color: #F5F5F5;
+   border: 2px solid #6bb28c;
+   border-radius: 12px;
+   margin-left: auto;
+   margin-right: auto;
+   margin-top: 0.5em;
+   margin-bottom: 0.5em;
+   padding: 3px;
+}
+
+.clientsTable tr:nth-child(odd) td:nth-child(odd) {
+    background-color: #DDDDDD;
+}
+
+.clientsTable tr:nth-child(odd) td:nth-child(even) {
+    background-color: #FFFFFF;
+}
+
+.clientsTable tr:nth-child(even) td:nth-child(even) {
+    background-color: #DDDDDD;
+}
+
+.clientsTable tr:nth-child(even) td:nth-child(odd) {
+    background-color: #FFFFFF;
+}
+
 
 /* end */

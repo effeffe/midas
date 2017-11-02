@@ -540,7 +540,6 @@ INT al_check()
    INT i, status, size, semaphore;
    HNDLE hDB, hkeyroot, hkey;
    KEY key;
-   ALARM a;
    char str[256], value[256];
    time_t now;
    PROGRAM_INFO_STR(program_info_str);
@@ -611,6 +610,8 @@ INT al_check()
    }
    
    for (i = 0;; i++) {
+      ALARM a;
+
       status = db_enum_key(hDB, hkeyroot, i, &hkey);
       if (status == DB_NO_MORE_SUBKEYS)
          break;

@@ -9,25 +9,34 @@
    <title>Messages</title>
 </head>
 
-<body class="mcss" onload="msg_load('midas')">
+<body class="mcss" onload="mhttpd_init('Messages'); show_facilities(); msg_load('midas');">
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+   <div class="mnav">
+      <table>
+         <tr>
+            <td id="navigationFacilitiesButtons"></td>
+         </tr>
+      </table>
+   </div>
+
+   <div>
+      <div class="mmessagebox mfont" id="messageFrame"><h1 class="mtableheader">Messages</h1></div>
+   </div>
+</div>
 
 <script>
-   url = mhttpd_getParameterByName("URL");
-   if (url)
-      mjsonrpc_set_url(url);
-</script>
+   var facility;
+   var first_tstamp;
+   var last_tstamp;
+   var n_messages;
+   var end_of_messages;
+   var timer_front;
+   var timer_tail;
 
-<div class="mwrapper">
-   <script>
-      mhttpd_navigation_bar("Messages");
-
-      // show navigation bar for facilities
-      document.write("<div class=\"mnav\">\n");
-      document.write("  <table>\n");
-      document.write("    <tr><td id=\"navigationFacilitiesButtons\"></td></tr>\n");
-      document.write("  </table>\n\n");
-      document.write("</div>\n");
-
+   function show_facilities() {
       if (localStorage.mNavigationButtons != undefined) {
          document.getElementById("navigationFacilitiesButtons").innerHTML = localStorage.mFacilitiesButtons;
       }
@@ -50,26 +59,7 @@
       }).catch(function (error) {
          mjsonrpc_error_alert(error);
       });
-
-   </script>
-
-   <div>
-      <div class="mmessagebox mfont" id="messageFrame"><h1 class="mtableheader">Messages</h1></div>
-   </div>
-</div>
-
-<script>
-   mhttpd_page_footer();
-</script>
-
-<script>
-   var facility;
-   var first_tstamp;
-   var last_tstamp;
-   var n_messages;
-   var end_of_messages;
-   var timer_front;
-   var timer_tail;
+   }
 
    function GetMsg(facility, start, n, callback) {
       var request = XMLHttpRequestGeneric();
@@ -92,10 +82,10 @@
 
    function resize_message_box() {
       // set message window height to fit browser window
-      var mf = document.getElementById('messageFrame');
       var h = window.innerHeight;
+      var mf = document.getElementById('messageFrame');
       h -= findPos(mf)[1];
-      h -= document.getElementById('footerDiv').clientHeight;
+      h -= 10; // top and bottom margin of .messagebox
       mf.style.maxHeight = h + "px";
    }
 
@@ -124,14 +114,14 @@
       for (var i = mf.childNodes.length - 1; i > 0; i--)
          mf.removeChild(mf.childNodes[i]);
 
-      GetMsg(facility, 0, 100, function(msg) {
+      GetMsg(facility, 0, 100, function (msg) {
          msg_append(msg);
          // check for new messages
          timer_front = window.setTimeout(msg_extend_front, 1000);
          // extend messages on scrolling down
          timer_tail = window.setTimeout(msg_extend_tail, 1000);
+         resize_message_box();
       });
-      resize_message_box();
       window.onresize = resize_message_box;
    }
 
@@ -215,7 +205,7 @@
       if (mf.scrollHeight - mf.scrollTop - mf.clientHeight < 2000) {
          if (!end_of_messages) {
             if (last_tstamp > 0) {
-               GetMsg(facility, last_tstamp - 1, 100, function(msg) {
+               GetMsg(facility, last_tstamp - 1, 100, function (msg) {
                   msg_append(msg);
                   timer_tail = window.setTimeout(msg_extend_tail, 1000);
                });
@@ -250,6 +240,9 @@
       // check for new message if time stamping is on
       if (first_tstamp) {
          GetMsg(facility, first_tstamp, 0, function (msg) {
+            if (document.getElementById("mheader_last_updated") != undefined)
+               document.getElementById("mheader_last_updated").innerHTML = new Date();
+
             msg_prepend(msg);
             timer_front = window.setTimeout(msg_extend_front, 1000);
          });
