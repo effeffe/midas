@@ -464,18 +464,20 @@ function mhttpd_init(current_page, interval, callback) {
 
       // request it from server, since it might have changed
       mjsonrpc_db_get_values(["/Experiment/Base URL", "/Experiment/Name", "/Experiment/Menu", "/Experiment/Menu Buttons",
-         "/Custom", "/Scripts", "/Alias"]).then(function (rpc) {
-         document.getElementById("mheader_expt_name").innerHTML = rpc.result.data[1];
-         sessionStorage.setItem("mexpname", rpc.result.data[1]);
+         "/Custom", "/Script", "/Alias"]).then(function (rpc) {
 
          document.getElementById("mheader_last_updated").innerHTML = new Date();
 
          var base_url = rpc.result.data[0];
+         var expt_name = rpc.result.data[1];
          var menu = rpc.result.data[2];
          var buttons = rpc.result.data[3];
          var custom = rpc.result.data[4];
-         var scripts = rpc.result.data[5];
+         var script = rpc.result.data[5];
          var alias = rpc.result.data[6];
+
+         document.getElementById("mheader_expt_name").innerHTML = expt_name;
+         sessionStorage.setItem("mexpname", expt_name);
 
          // check for base URL
          if (base_url === null) {
@@ -529,6 +531,23 @@ function mhttpd_init(current_page, interval, callback) {
                html += "<div class='" + cc + "'><a href='" + base_url + custom[b] + "' class='mmenulink'>" + custom[b + "/name"] + "</a></div>\n";
             }
 
+         }
+
+         // script
+         if (script !== null && Object.keys(script).length > 0) {
+            // add separator
+            html += "<div class='mseparator'></div>\n";
+
+            for (var b in script) {
+               if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
+                  continue;
+               cc = "mmenuitem";
+               if (script[b + "/name"] === current_page)
+                  cc += " mmenuitemsel";
+               if (b === "path")
+                  continue;
+               html += "<div class='" + cc + "'><a href='" + base_url + script[b] + "' class='mmenulink'>" + script[b + "/name"] + "</a></div>\n";
+            }
          }
 
          // alias
