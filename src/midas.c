@@ -11,6 +11,8 @@
 
 #include "midas.h"
 #include "msystem.h"
+#include "git-revision.h"
+
 #include <assert.h>
 #include <signal.h>
 #include <sys/resource.h>

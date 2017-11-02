@@ -492,11 +492,6 @@ ALL+= $(PROGS)
 
 all: check-mxml $(GIT_REVISION) $(ALL)
 
-
-$(ALL): $(GIT_REVISION)
-$(OBJS): $(GIT_REVISION)
-$(MHTTPD_OBJS): $(GIT_REVISION)
-
 dox:
 	doxygen
 
@@ -562,10 +557,10 @@ $(BIN_DIR):
 #
 # put current GIT revision into header file to be included by programs
 #
-$(GIT_REVISION): $(SRC_DIR)/midas.c $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.c $(SRC_DIR)/system.c
-	/bin/rm -f $(GIT_REVISION)
-	echo \#define GIT_REVISION \"`git log -n 1 --pretty=format:"%ad - commit %h"` on branch `git rev-parse --abbrev-ref HEAD` - `git describe --abbrev=4 --dirty`\" > $(GIT_REVISION)
-include/midas.h: $(GIT_REVISION)
+$(GIT_REVISION): $(SRC_DIR)/midas.c $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.c $(SRC_DIR)/system.c $(INC_DIR)/midas.h
+	echo \#define GIT_REVISION \"`git log -n 1 --pretty=format:"%ad - commit %h"` on branch `git rev-parse --abbrev-ref HEAD` - `git describe --abbrev=4 --dirty`\" > $(GIT_REVISION)-new
+	#rsync --checksum $(GIT_REVISION)-new $(GIT_REVISION) # only update git-revision.h and update it's timestamp if it's contents have changed
+	/bin/cp -f -v $(GIT_REVISION)-new $(GIT_REVISION)
 #
 # main binaries
 #
@@ -638,10 +633,10 @@ CFLAGS      += -DMG_ENABLE_SSL
 endif
 
 $(BIN_DIR)/mhttpd: $(MHTTPD_OBJS)
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(MHTTPD_OBJS) $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
 
 $(BIN_DIR)/sequencer: $(BIN_DIR)/%: $(SRC_DIR)/%.cxx
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
 $(BIN_DIR)/mh2sql: $(BIN_DIR)/%: $(UTL_DIR)/mh2sql.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
@@ -699,7 +694,7 @@ ifeq ($(OSTYPE),darwin)
 
 %.so: $(OBJS)
 	rm -f $@
-	g++ -bundle -flat_namespace -undefined suppress -o $@ $^ $(LIBS) -lc
+	g++ -bundle -flat_namespace -undefined suppress -o $@ $(OBJS) $(LIBS) -lc
 endif
 
 #
@@ -746,11 +741,11 @@ $(LIB_DIR)/mscb.o:$(MSCB_DIR)/src/mscb.c $(MSCB_DIR)/include/mscb.h
 endif
 
 $(LIB_DIR)/mhttpd.o: msystem.h midas.h midasinc.h mrpc.h mjsonrpc.h
-$(LIB_DIR)/midas.o: msystem.h midas.h midasinc.h mrpc.h
+$(LIB_DIR)/midas.o: msystem.h midas.h midasinc.h mrpc.h git-revision.h
 $(LIB_DIR)/midas_cxx.o: msystem.h midas.h midasinc.h mrpc.h
 $(LIB_DIR)/system.o: msystem.h midas.h midasinc.h mrpc.h
 $(LIB_DIR)/mrpc.o: msystem.h midas.h mrpc.h
-$(LIB_DIR)/odb.o: msystem.h midas.h midasinc.h mrpc.h
+$(LIB_DIR)/odb.o: msystem.h midas.h midasinc.h mrpc.h git-revision.h
 $(LIB_DIR)/mdsupport.o: msystem.h midas.h midasinc.h
 $(LIB_DIR)/ftplib.o: msystem.h midas.h midasinc.h
 $(LIB_DIR)/mxml.o: msystem.h midas.h midasinc.h $(MXML_DIR)/mxml.h

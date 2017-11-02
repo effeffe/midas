@@ -35,6 +35,8 @@ The Online Database file
 #include "midas.h"
 #include "msystem.h"
 #include "mxml.h"
+#include "git-revision.h"
+
 #ifndef HAVE_STRLCPY
 #include "strlcpy.h"
 #endif
