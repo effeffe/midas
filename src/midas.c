@@ -13,6 +13,7 @@
 #include "msystem.h"
 #include <assert.h>
 #include <signal.h>
+#include <sys/resource.h>
 
 #ifndef HAVE_STRLCPY
 #include "strlcpy.h"
@@ -2238,6 +2239,25 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
    if (protect_odb) {
       db_protect_database(hDB);
+   }
+
+   BOOL enable_core_dumps = FALSE;
+   size = sizeof(enable_core_dumps);
+   status = db_get_value(hDB, 0, "/Experiment/Enable core dumps", &enable_core_dumps, &size, TID_BOOL, TRUE);
+   assert(status == DB_SUCCESS);
+
+   if (enable_core_dumps) {
+#ifdef RLIMIT_CORE
+      struct rlimit limit;
+      limit.rlim_cur = RLIM_INFINITY;
+      limit.rlim_max = RLIM_INFINITY;
+      status = setrlimit(RLIMIT_CORE, &limit);
+      if (status != 0) {
+         cm_msg(MERROR, "cm_connect_experiment", "Cannot setrlimit(RLIMIT_CORE, RLIM_INFINITY), errno %d (%s)", errno, strerror(errno));
+      }
+#else
+#warning setrlimit(RLIMIT_CORE) is not available
+#endif
    }
 
    size = sizeof(disable_bind_rpc_to_localhost);
