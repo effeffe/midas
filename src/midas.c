@@ -6071,19 +6071,30 @@ void cm_watchdog(int dummy)
    bm_cleanup("cm_watchdog", actual_time, wrong_interval);
 
    /* check online databases */
-   for (i = 0; i < _database_entries; i++)
-      if (_database[i].attached && _database[i].database_header) {
+   for (i = 0; i < _database_entries; i++) {
+      if (_database[i].attached) {
+         int must_unlock = 0;
+         if (_database[i].protect && !_database[i].database_header) {
+            must_unlock = 1;
+            db_lock_database(i + 1);
+            db_allow_write_locked(&_database[i], "cm_watchdog");
+         }
+         assert(_database[i].database_header);
          /* update the last_activity entry to show that we are alive */
          pdbheader = _database[i].database_header;
          pdbclient = pdbheader->client;
          pdbclient[_database[i].client_index].last_activity = actual_time;
 
          /* don't check other clients if interval is stange */
-         if (wrong_interval)
+         if (wrong_interval) {
+            if (must_unlock) {
+               db_unlock_database(i + 1);
+            }
             continue;
+         }
 
          /* now check other clients */
-         for (j = 0; j < pdbheader->max_client_index; j++, pdbclient++)
+         for (j = 0; j < pdbheader->max_client_index; j++, pdbclient++) {
             /* If client process has no activity, clear its buffer entry. */
             if (pdbclient->pid && pdbclient->watchdog_timeout > 0 &&
                 actual_time - pdbclient->last_activity > pdbclient->watchdog_timeout) {
@@ -6135,7 +6146,12 @@ void cm_watchdog(int dummy)
 
                db_unlock_database(i + 1);
             }
+         }
+         if (must_unlock) {
+            db_unlock_database(i + 1);
+         }
       }
+   }
 
    _watchdog_last_called = actual_time;
 
