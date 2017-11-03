@@ -5504,7 +5504,7 @@ static void cm_update_last_activity(DWORD actual_time)
    for (i = 0; i < _database_entries; i++) {
       if (_database[i].attached) {
          int must_unlock = 0;
-         if (_database[i].protect && !_database[i].database_header) {
+         if (_database[i].protect) {
             must_unlock = 1;
             db_lock_database(i + 1);
             db_allow_write_locked(&_database[i], "cm_update_last_activity from cm_watchdog");
