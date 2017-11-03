@@ -5501,11 +5501,22 @@ static void cm_update_last_activity(DWORD actual_time)
       }
 
    /* check online databases */
-   for (i = 0; i < _database_entries; i++)
-      if (_database[i].attached && _database[i].database_header) {
+   for (i = 0; i < _database_entries; i++) {
+      if (_database[i].attached) {
+         int must_unlock = 0;
+         if (_database[i].protect && !_database[i].database_header) {
+            must_unlock = 1;
+            db_lock_database(i + 1);
+            db_allow_write_locked(&_database[i], "cm_update_last_activity from cm_watchdog");
+         }
+         assert(_database[i].database_header);
          /* update the last_activity entry to show that we are alive */
          _database[i].database_header->client[_database[i].client_index].last_activity = actual_time;
+         if (must_unlock) {
+            db_unlock_database(i + 1);
+         }
       }
+   }
 }
 
 /**
