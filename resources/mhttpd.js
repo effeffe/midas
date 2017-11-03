@@ -875,7 +875,7 @@ function mhttpd_error(error) {
    if (d !== undefined) {
       error += "<div style='display: inline; float: right; padding-right: 10px; cursor: pointer;' onclick='document.getElementById(&quot;mheader_error&quot;).style.zIndex = 0;'>&#9587;</div>";
       d.innerHTML = error;
-      d.style.zIndex = 2;
+      d.style.zIndex = 3; // above header
    }
 }
 
