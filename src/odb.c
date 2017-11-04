@@ -2125,10 +2125,11 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
 
          for (i = 0; i < pkeylist->num_keys; i++) {
             if (!db_validate_key_offset(pheader, pkey->next_key)) {
+               int pkey_next_key = pkey->next_key;
                db_unlock_database(hDB);
                char str[MAX_ODB_PATH];
                db_get_path(hDB, hKey, str, sizeof(str));
-               cm_msg(MERROR, "db_create_key", "Error: database corruption, key \"%s\", next_key 0x%08X, while creating \'%s\' in \'%s\'", key_name, pkey->next_key - (int)sizeof(DATABASE_HEADER), key_name, str);
+               cm_msg(MERROR, "db_create_key", "Error: database corruption, key \"%s\", next_key 0x%08X, while creating \'%s\' in \'%s\'", key_name, pkey_next_key - (int)sizeof(DATABASE_HEADER), key_name, str);
                return DB_CORRUPTED;
             }
 
@@ -2660,8 +2661,9 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
 
          for (i = 0; i < pkeylist->num_keys; i++) {
             if (pkey->name[0] == 0 || !db_validate_key_offset(pheader, pkey->next_key)) {
+               int pkey_next_key = pkey->next_key;
                db_unlock_database(hDB);
-               cm_msg(MERROR, "db_find_key", "Error: database corruption, key \"%s\", next_key 0x%08X is invalid", key_name, pkey->next_key - (int)sizeof(DATABASE_HEADER));
+               cm_msg(MERROR, "db_find_key", "Error: database corruption, key \"%s\", next_key 0x%08X is invalid", key_name, pkey_next_key - (int)sizeof(DATABASE_HEADER));
                *subhKey = 0;
                return DB_CORRUPTED;
             }
@@ -2982,8 +2984,9 @@ INT db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
 
          for (i = 0; i < pkeylist->num_keys; i++) {
             if (!db_validate_key_offset(pheader, pkey->next_key)) {
+               int pkey_next_key = pkey->next_key;
                db_unlock_database(hDB);
-               cm_msg(MERROR, "db_find_link", "Warning: database corruption, key \"%s\", next_key 0x%08X is invalid", key_name, pkey->next_key - (int)sizeof(DATABASE_HEADER));
+               cm_msg(MERROR, "db_find_link", "Warning: database corruption, key \"%s\", next_key 0x%08X is invalid", key_name, pkey_next_key - (int)sizeof(DATABASE_HEADER));
                *subhKey = 0;
                return DB_CORRUPTED;
             }
@@ -3579,9 +3582,9 @@ INT db_set_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *da
       }
 
       if (pkey->type != type) {
+         int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_value", "\"%s\" is of type %s, not %s",
-                key_name, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_set_value", "\"%s\" is of type %s, not %s", key_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
@@ -3790,9 +3793,9 @@ INT db_get_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, void *data, IN
 
       /* check for correct type */
       if (pkey->type != (type)) {
+         int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_value", "hkey %d entry \"%s\" is of type %s, not %s",
-                hKeyRoot, keyname, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_get_value", "hkey %d entry \"%s\" is of type %s, not %s", hKeyRoot, keyname, rpc_tid_name(pkey_type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
@@ -4255,8 +4258,9 @@ INT db_get_key(HNDLE hDB, HNDLE hKey, KEY * key)
       }
 
       if (pkey->type < 1 || pkey->type >= TID_LAST) {
+         int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_key", "invalid key type %d", pkey->type);
+         cm_msg(MERROR, "db_get_key", "invalid key type %d", pkey_type);
          return DB_INVALID_HANDLE;
       }
 
@@ -4334,8 +4338,9 @@ INT db_get_link(HNDLE hDB, HNDLE hKey, KEY * key)
       }
 
       if (pkey->type < 1 || pkey->type >= TID_LAST) {
+         int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_link", "hkey %d invalid key type %d", hKey, pkey->type);
+         cm_msg(MERROR, "db_get_link", "hkey %d invalid key type %d", hKey, pkey_type);
          return DB_INVALID_HANDLE;
       }
 
@@ -4561,8 +4566,9 @@ INT db_rename_key(HNDLE hDB, HNDLE hKey, const char *name)
       }
 
       if (!pkey->type) {
+         int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_rename_key", "invalid key type %d", pkey->type);
+         cm_msg(MERROR, "db_rename_key", "invalid key type %d", pkey_type);
          return DB_INVALID_HANDLE;
       }
 
@@ -4640,8 +4646,9 @@ INT db_reorder_key(HNDLE hDB, HNDLE hKey, INT idx)
       }
 
       if (!pkey->type) {
+         int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_reorder_key", "invalid key type %d", pkey->type);
+         cm_msg(MERROR, "db_reorder_key", "invalid key type %d", pkey_type);
          return DB_INVALID_HANDLE;
       }
 
@@ -4791,8 +4798,9 @@ INT db_get_data(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type)
       }
 
       if (!pkey->type) {
+         int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data", "invalid key type %d", pkey->type);
+         cm_msg(MERROR, "db_get_data", "invalid key type %d", pkey_type);
          return DB_INVALID_HANDLE;
       }
 
@@ -4818,10 +4826,10 @@ INT db_get_data(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type)
       }
 
       if (pkey->type != type) {
+         int pkey_type = pkey->type;
          db_unlock_database(hDB);
          db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_get_data", "\"%s\" is of type %s, not %s",
-                str, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_get_data", "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey_type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
@@ -4918,15 +4926,18 @@ INT db_get_link_data(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD ty
       }
 
       if (!pkey->type) {
+         int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data", "invalid key type %d", pkey->type);
+         cm_msg(MERROR, "db_get_data", "invalid key type %d", pkey_type);
          return DB_INVALID_HANDLE;
       }
 
       if (pkey->type != type) {
+         int pkey_type = pkey->type;
+         char pkey_name[NAME_LENGTH];
+         strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data", "\"%s\" is of type %s, not %s",
-                pkey->name, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_get_data", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
@@ -5039,15 +5050,18 @@ INT db_get_data1(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type, 
       }
 
       if (!pkey->type) {
+         int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data", "invalid key type %d", pkey->type);
+         cm_msg(MERROR, "db_get_data", "invalid key type %d", pkey_type);
          return DB_INVALID_HANDLE;
       }
 
       if (pkey->type != type) {
+         int pkey_type = pkey->type;
+         char pkey_name[NAME_LENGTH];
+         strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data", "\"%s\" is of type %s, not %s",
-                pkey->name, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_get_data", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
@@ -5150,15 +5164,18 @@ INT db_get_data_index(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT idx
       }
 
       if (!pkey->type) {
+         int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data_index", "invalid key type %d", pkey->type);
+         cm_msg(MERROR, "db_get_data_index", "invalid key type %d", pkey_type);
          return DB_INVALID_HANDLE;
       }
 
       if (pkey->type != type) {
+         int pkey_type = pkey->type;
+         char pkey_name[NAME_LENGTH];
+         strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data_index",
-                "\"%s\" is of type %s, not %s", pkey->name, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_get_data_index", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
@@ -5179,11 +5196,12 @@ INT db_get_data_index(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT idx
 
       /* check if index in range */
       if (idx < 0 || idx >= pkey->num_values) {
+         int pkey_num_values = pkey->num_values;
          memset(data, 0, *buf_size);
          db_unlock_database(hDB);
 
          db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_get_data_index", "index (%d) exceeds array length (%d) for key \"%s\"", idx, pkey->num_values, str);
+         cm_msg(MERROR, "db_get_data_index", "index (%d) exceeds array length (%d) for key \"%s\"", idx, pkey_num_values, str);
          return DB_OUT_OF_RANGE;
       }
 
@@ -5295,9 +5313,11 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
       }
 
       if (pkey->type != type) {
+         int pkey_type = pkey->type;
+         char pkey_name[NAME_LENGTH];
+         strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data", "\"%s\" is of type %s, not %s",
-                pkey->name, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_set_data", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
@@ -5418,9 +5438,11 @@ INT db_set_data1(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_
    }
    
    if (pkey->type != type) {
+      int pkey_type = pkey->type;
+      char pkey_name[NAME_LENGTH];
+      strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
       db_unlock_database(hDB);
-      cm_msg(MERROR, "db_set_data1", "\"%s\" is of type %s, not %s",
-             pkey->name, rpc_tid_name(pkey->type), rpc_tid_name(type));
+      cm_msg(MERROR, "db_set_data1", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
       return DB_TYPE_MISMATCH;
    }
    
@@ -5528,9 +5550,11 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
       }
 
       if (pkey->type != type) {
+         int pkey_type = pkey->type;
+         char pkey_name[NAME_LENGTH];
+         strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_link_data", "\"%s\" is of type %s, not %s",
-                pkey->name, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_set_link_data", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
@@ -5787,9 +5811,10 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
       }
 
       if (pkey->type != type) {
+         int pkey_type = pkey->type;
          db_unlock_database(hDB);
          db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_set_data_index", "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_set_data_index", "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey_type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
@@ -5810,8 +5835,9 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
       /* check for valid array element size: if new element size
          is different from existing size, ODB becomes corrupted */
       if (pkey->item_size != 0 && data_size != pkey->item_size) {
+         int pkey_item_size = pkey->item_size;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index", "invalid element data size %d, expected %d", data_size, pkey->item_size);
+         cm_msg(MERROR, "db_set_data_index", "invalid element data size %d, expected %d", data_size, pkey_item_size);
          return DB_TYPE_MISMATCH;
       }
 
@@ -5911,9 +5937,10 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
       }
 
       if (pkey->type != type) {
+         int pkey_type = pkey->type;
          db_unlock_database(hDB);
          db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_set_link_data_index", "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_set_link_data_index", "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey_type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
@@ -5927,8 +5954,9 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
       /* check for valid array element size: if new element size
          is different from existing size, ODB becomes corrupted */
       if (pkey->item_size != 0 && data_size != pkey->item_size) {
+         int pkey_item_size = pkey->item_size;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_link_data_index", "invalid element data size %d, expected %d", data_size, pkey->item_size);
+         cm_msg(MERROR, "db_set_link_data_index", "invalid element data size %d, expected %d", data_size, pkey_item_size);
          return DB_TYPE_MISMATCH;
       }
 
@@ -6045,8 +6073,11 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
       }
 
       if (pkey->type != type) {
+         int pkey_type = pkey->type;
+         char pkey_name[NAME_LENGTH];
+         strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index1", "\"%s\" is of type %s, not %s", pkey->name, rpc_tid_name(pkey->type), rpc_tid_name(type));
+         cm_msg(MERROR, "db_set_data_index1", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
          return DB_TYPE_MISMATCH;
       }
 
