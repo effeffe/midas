@@ -6085,7 +6085,7 @@ void cm_watchdog(int dummy)
    for (i = 0; i < _database_entries; i++) {
       if (_database[i].attached) {
          int must_unlock = 0;
-         if (_database[i].protect && !_database[i].database_header) {
+         if (_database[i].protect) {
             must_unlock = 1;
             db_lock_database(i + 1);
             db_allow_write_locked(&_database[i], "cm_watchdog");
@@ -6118,6 +6118,8 @@ void cm_watchdog(int dummy)
                if (pdbclient->pid && pdbclient->watchdog_timeout &&
                    actual_time > pdbclient->last_activity &&
                    actual_time - pdbclient->last_activity > pdbclient->watchdog_timeout) {
+
+                  db_allow_write_locked(&_database[i], "cm_watchdog");
 
                   cm_msg(MINFO, "cm_watchdog", "Client \'%s\' (PID %d) on database \'%s\' removed by cm_watchdog (idle %1.1lfs,TO %1.0lfs)",
                          pdbclient->name, client_pid, pdbheader->name,
