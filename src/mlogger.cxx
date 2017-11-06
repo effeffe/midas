@@ -2812,7 +2812,7 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
          
       /* check that compression level and file name match each other */
       if (1) {
-         char *sufp = strstr(log_chn->path.c_str(), ".gz");
+         const char *sufp = strstr(log_chn->path.c_str(), ".gz");
          int isgz = sufp && sufp[3]==0;
          
          if (log_chn->compression>0 && !isgz) {
