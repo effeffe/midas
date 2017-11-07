@@ -227,6 +227,38 @@ typedef struct {
    int output_module;        // OUTPUT_xxx
 } LOG_CHN;
 
+LOG_CHN* new_LOG_CHN(const char* name)
+{
+   LOG_CHN* chn = new LOG_CHN;
+
+   chn->name = name;
+   chn->handle = 0;
+   chn->type = 0;
+   chn->format = 0;
+   chn->compression = 0;
+   chn->subrun_number = 0;
+   chn->buffer_handle = 0;
+   chn->msg_buffer_handle = 0;
+   chn->request_id = 0;
+   chn->msg_request_id = 0;
+   chn->stats_hkey = 0;
+   chn->settings_hkey = 0;
+   // chn->settings clear settings
+   // chn->statistics clear statistics
+   chn->format_info = NULL;
+   chn->ftp_con = NULL;
+   chn->gzfile = NULL;
+   chn->pfile = NULL;
+   chn->writer = NULL;
+   chn->last_checked = 0;
+   chn->do_disk_level = 0;
+   chn->pre_checksum_module = 0;
+   chn->compression_module = 0;
+   chn->post_checksum_module = 0;
+   chn->output_module = 0;
+   return chn;
+};
+
 /*---- globals -----------------------------------------------------*/
 
 #define LOGGER_DEFAULT_TIMEOUT 60000
@@ -3776,7 +3808,7 @@ int log_create_writer(LOG_CHN *log_chn)
          log_chn->writer = NewChecksum(log_chn, log_chn->pre_checksum_module, 1, log_chn->writer);
       }
 
-      cm_msg(MINFO, "log_create_writer", "channel %s writer chain: %s", log_chn->path.c_str(), log_chn->writer->wr_get_chain().c_str());
+      cm_msg(MINFO, "log_create_writer", "channel \"%s\" writer chain: %s", log_chn->path.c_str(), log_chn->writer->wr_get_chain().c_str());
 
       return SUCCESS;
    }
@@ -5514,6 +5546,9 @@ INT tr_start(INT run_number, char *error)
       }
    }
 
+   // after close_buffers() all log channels are closed and deleted
+   assert(log_channels.size() == 0);
+
    for (unsigned index = 0; ; index++) {
       status = db_enum_key(hDB, hKeyRoot, index, &hKeyChannel);
       if (status == DB_NO_MORE_SUBKEYS)
@@ -5528,33 +5563,7 @@ INT tr_start(INT run_number, char *error)
       }
 
       if (status == DB_SUCCESS || status == DB_OPEN_RECORD) {
-         LOG_CHN* chn = new LOG_CHN;
-
-         chn->name = key.name;
-         chn->handle = 0;
-         chn->type = 0;
-         chn->format = 0;
-         chn->compression = 0;
-         chn->subrun_number = 0;
-         chn->buffer_handle = 0;
-         chn->msg_buffer_handle = 0;
-         chn->request_id = 0;
-         chn->msg_request_id = 0;
-         chn->stats_hkey = 0;
-         chn->settings_hkey = 0;
-         // chn->settings clear settings
-         // chn->statistics clear statistics
-         chn->format_info = NULL;
-         chn->ftp_con = NULL;
-         chn->gzfile = NULL;
-         chn->pfile = NULL;
-         chn->writer = NULL;
-         chn->last_checked = 0;
-         chn->do_disk_level = 0;
-         chn->pre_checksum_module = 0;
-         chn->compression_module = 0;
-         chn->post_checksum_module = 0;
-         chn->output_module = 0;
+         LOG_CHN* chn = new_LOG_CHN(key.name);
 
          log_channels.push_back(chn);
 
