@@ -102,7 +102,7 @@ void readout_enable(BOOL flag);
 int readout_enabled(void);
 void display(BOOL bInit);
 void rotate_wheel(void);
-BOOL logger_root();
+BOOL logger_root(void);
 INT check_polled_events(void);
 
 /*------------------------------------------------------------------*/
