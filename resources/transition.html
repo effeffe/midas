@@ -196,10 +196,8 @@
       var rpc = rpc_batch[0];
       var rpc_db_get_values = rpc_batch[1];
 
-      if (!rpc.result.run_number && !rpc.result.status) {
-         document.getElementById('mheader_last_updated').innerHTML = new Date;
+      if (!rpc.result.run_number && !rpc.result.status)
          return;
-      }
 
       var runinfo = rpc_db_get_values.result.data[0];
 
