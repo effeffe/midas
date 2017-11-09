@@ -54,7 +54,7 @@ function mie_to_string(tid, jvalue, format) {
       return "" + jvalue;
    }
 
-   if (tid == TID_DWORD) {
+   if (tid == TID_DWORD || tid == TID_INT || tid == TID_WORD || tid == TID_SHORT || tid == TID_BYTE) {
       if (format == undefined)
          format = "d";
       var str  = "";
@@ -642,13 +642,23 @@ function mhttpd_init(current_page, interval, callback) {
       };
 
    // replace all horizontal bars with proper <div>'s
-   var mbar = document.getElementsByName("modbbar");
+   var mbar = document.getElementsByName("modbhbar");
    for (var i = 0; i < mbar.length; i++) {
-      mbar[i].style.display = "block";
+      mbar[i].style.display = "inline-block";
       mbar[i].style.position = "relative";
       mbar[i].style.border = "1px solid #808080";
       var color = mbar[i].dataset.color;
       mbar[i].innerHTML = "<div style='background-color:" + color + "; width:0; position:relative; display:inline-block; border-right:1px solid #808080'>&nbsp;</div>";
+   }
+
+   // replace all vertical bars with proper <div>'s
+   var mbar = document.getElementsByName("modbvbar");
+   for (var i = 0; i < mbar.length; i++) {
+      mbar[i].style.display = "inline-block";
+      mbar[i].style.position = "relative";
+      mbar[i].style.border = "1px solid #808080";
+      var color = mbar[i].dataset.color;
+      mbar[i].innerHTML = "<div style='background-color:" + color + "; height:0; width:100%; position:absolute; bottom:0; display:inline-block; border-top:1px solid #808080'>&nbsp;</div>";
    }
 
    // preload spinning wheel for later use
@@ -684,10 +694,13 @@ function mhttpd_refresh() {
    for (var i = 0; i < modbvalue.length; i++)
       paths.push(modbvalue[i].dataset.odbPath);
 
-   var modbbar = document.getElementsByName("modbbar");
-   for (i = 0; i < modbbar.length; i++)
-      paths.push(modbbar[i].dataset.odbPath);
+   var modbhbar = document.getElementsByName("modbhbar");
+   for (i = 0; i < modbhbar.length; i++)
+      paths.push(modbhbar[i].dataset.odbPath);
 
+   var modbvbar = document.getElementsByName("modbvbar");
+   for (i = 0; i < modbvbar.length; i++)
+      paths.push(modbvbar[i].dataset.odbPath);
 
    // request ODB contents for all variables
    var req1 = mjsonrpc_make_request("db_get_values", {"paths": paths});
@@ -734,20 +747,38 @@ function mhttpd_refresh() {
          }
       }
 
-      for (i = 0; i < modbbar.length; i++) {
+      for (i = 0; i < modbhbar.length; i++) {
          value = rpc[0].result.data[modbvalue.length + i];
          tid = rpc[0].result.tid[modbvalue.length + i];
          mvalue = mie_to_string(tid, value);
          if (mvalue === "")
             mvalue = "(empty)";
-         html = mhttpd_escape(mvalue);
-         modbbar[i].children[0].innerHTML = html;
-         var percent = Math.round(100 * value / modbbar[i].dataset.maxValue);
+         html = mhttpd_escape(""+mvalue);
+         if (modbhbar[i].dataset.value === "1")
+            modbhbar[i].children[0].innerHTML = html;
+         var percent = Math.round(100 * value / modbhbar[i].dataset.maxValue);
          if (percent < 0)
             percent = 0;
          if (percent > 100)
             percent = 100;
-         modbbar[i].children[0].style.width = percent + "%";
+         modbhbar[i].children[0].style.width = percent + "%";
+      }
+
+      for (i = 0; i < modbvbar.length; i++) {
+         value = rpc[0].result.data[modbvalue.length + modbhbar.length + i];
+         tid = rpc[0].result.tid[modbvalue.length + modbhbar.length + i];
+         mvalue = mie_to_string(tid, value);
+         if (mvalue === "")
+            mvalue = "(empty)";
+         html = mhttpd_escape(""+mvalue);
+         if (modbvbar[i].dataset.value === "1")
+            modbvbar[i].children[0].innerHTML = html;
+         var percent = Math.round(100 * value / modbvbar[i].dataset.maxValue);
+         if (percent < 0)
+            percent = 0;
+         if (percent > 100)
+            percent = 100;
+         modbvbar[i].children[0].style.height = percent + "%";
       }
 
       // update alarm display
