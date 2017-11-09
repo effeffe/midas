@@ -27,12 +27,25 @@ var global_base_url = "";
 // this is similar to db_sprintf()
 //
 
-function mie_to_string(tid, jvalue) {
+function mie_to_string(tid, jvalue, format) {
    if (tid == TID_BOOL) {
       if (jvalue)
          return "y";
       else
          return "n";
+   }
+
+   if (tid == TID_FLOAT || tid == TID_DOUBLE) {
+      if (format == undefined)
+         format = "f3";
+      if (format.indexOf("p") != -1) {
+         var p = parseInt(format.substr(format.indexOf("p")+1));
+         return jvalue.toPrecision(p);
+      }
+      if (format.indexOf("f") != -1) {
+         var p = parseInt(format.substr(format.indexOf("f")+1));
+         return jvalue.toFixed(p);
+      }
    }
 
    var t = typeof jvalue;
@@ -42,7 +55,32 @@ function mie_to_string(tid, jvalue) {
    }
 
    if (tid == TID_DWORD) {
-      return parseInt(jvalue) + " (" + jvalue + ")";
+      if (format == undefined)
+         format = "d";
+      var str  = "";
+      for (i = 0 ; i<format.length ; i++) {
+         if (format[i] == "d") {
+            if (str.length > 0)
+               str += " / " + parseInt(jvalue);
+            else
+               str = parseInt(jvalue);
+         }
+         if (format[i] == "x") {
+            if (str.length > 0)
+               str += " / " + jvalue;
+            else
+               str = jvalue;
+         }
+         if (format[i] == "b") {
+            var bin = parseInt(jvalue).toString(2);
+            if (str.length > 0)
+               str += " / " + bin + "b";
+            else
+               str = bin + "b";
+         }
+      }
+
+      return str;
    }
 
    if (t == 'string') {
@@ -680,16 +718,20 @@ function mhttpd_refresh() {
          document.getElementById("mheader_last_updated").innerHTML = da.substr(0, 10) + " " + da.substr(11, 8);
 
       for (var i = 0; i < modbvalue.length; i++) {
-         var value = rpc[0].result.data[i];
-         var tid = rpc[0].result.tid[i];
-         var mvalue = mie_to_string(tid, value);
-         if (mvalue === "")
-            mvalue = "(empty)";
-         var html = mhttpd_escape(mvalue);
-         if (modbvalue[i].dataset.odbEditable) {
-            modbvalue[i].childNodes[0].innerHTML = html;
-         } else
-            modbvalue[i].innerHTML = html;
+         if (rpc[0].result.status[i] == 312) {
+            modbvalue[i].innerHTML = "ODB key \""+modbvalue[i].dataset.odbPath+"\" not found";
+         } else {
+            var value = rpc[0].result.data[i];
+            var tid = rpc[0].result.tid[i];
+            var mvalue = mie_to_string(tid, value, modbvalue[i].dataset.format);
+            if (mvalue === "")
+               mvalue = "(empty)";
+            var html = mhttpd_escape(mvalue);
+            if (modbvalue[i].dataset.odbEditable) {
+               modbvalue[i].childNodes[0].innerHTML = html;
+            } else
+               modbvalue[i].innerHTML = html;
+         }
       }
 
       for (i = 0; i < modbbar.length; i++) {
