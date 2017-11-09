@@ -87,7 +87,7 @@
                   <th>Status</th>
                   <th>Events</th>
                   <th>Events[/s]</th>
-                  <th>Data[MS/s]</th>
+                  <th>Data[MB/s]</th>
                </tr>
             </table>
 
@@ -136,9 +136,9 @@
 
    //pre-define some html codes for different tables/rows
 
-   const equipmentTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Equipment</th></tr><tr><th>Equipment&nbsp;<a id='hide' class='hideButton' href=\"javascript:unhideEquipments()\">+</a></th><th>Status</th><th>Events</th><th>Events[/s]</th><th>Data[MS/s]</th></tr>";
+   const equipmentTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Equipment</th></tr><tr><th>Equipment&nbsp;<a id='hide' class='hideButton' href=\"javascript:unhideEquipments()\">+</a></th><th>Status</th><th>Events</th><th>Events[/s]</th><th>Data[MB/s]</th></tr>";
    const logChannelTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Logging Channels</th></tr>";
-   const firstLogChannelHtml = "<tr id=\"logChannelFirstPart\" class=\"mtabvaritle\"><th colspan=\"2\">Channel</th><th>Events</th><th>MiB written</th><th>Compr.</th><th>Disk Level</th></tr>";
+   const firstLogChannelHtml = "<tr id=\"logChannelFirstPart\" class=\"mtabvaritle\"><th colspan=\"2\">Channel</th><th>Events</th><th>MB written</th><th>Compr.</th><th>Disk Level</th></tr>";
    const secondLogChannelHtml = "<tr id=\"logChannelSecondPart\" class=\"mtabvaritle\"><th colspan=\"2\">Lazy Label</th><th>Progress</th><th>File Name</th><th># Files</th><th>Total</th></tr>";
    const clientTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Clients</th></tr>";
 
@@ -377,6 +377,7 @@
             } else {
                equipmentRow.style.display = "table-row";
             }
+            var mb = equipmentStatData[i]["kbytes per sec."] / 1024;
             equipmentRow.innerHTML = "<td align=\"center\"><a href='/SC/" +
                     equipmentNames[i] +
                     "'>" +
@@ -390,7 +391,7 @@
                     equipmentStatData[i]["events per sec."].toFixed(1) +
                     "</td>" +
                     "<td align=\"center\">" +
-                    equipmentStatData[i]["kbytes per sec."].toFixed(3) +
+                    mb.toFixed(3) +
                     "</td>";
             if (document.getElementById(equipmentNames[i] + "equipment") === null) {
                document.getElementById("equipmentList").appendChild(equipmentRow);
@@ -473,7 +474,7 @@
                        currentChannel["statistics"]["events written"] +
                        "</td>" +
 
-                          //Mib Written
+                          //Mega Bytes (=1024*1024 Bytes) Written
                        "<td align=\"center\">" +
                        (currentChannel["statistics"]["bytes written"] / 1024 / 1024).toFixed(3) +
                        "</td>" +
