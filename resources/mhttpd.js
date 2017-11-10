@@ -1427,7 +1427,7 @@ function mhttpd_alarm_play() {
       if (now > mhttpdConfig().var.lastAlarm + parseFloat(mhttpdConfig().alarmRepeat)) {
          mhttpdConfigSet("var.lastAlarm", now);
          var audio = new Audio(mhttpdConfig().alarmSoundFile);
-         audo.volume = mhttpdConfig().alarmVolume;
+         audio.volume = mhttpdConfig().alarmVolume;
          audio.play();
       }
    }
