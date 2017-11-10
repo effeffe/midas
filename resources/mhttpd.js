@@ -578,13 +578,10 @@ function mhttpd_init(current_page, interval, callback) {
             for (var b in script) {
                if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
                   continue;
-               cc = "mmenuitem";
-               if (script[b + "/name"] === current_page)
-                  cc += " mmenuitemsel";
-               if (b === "path")
-                  continue;
-               html += "<div class='" + cc + "'><a href='" + base_url + script[b] + "' class='mmenulink'>" + script[b + "/name"] + "</a></div>\n";
+               var n = script[b + "/name"];
+               html += "<div class='mmenuitem'><a href='?script=" + b + "' class='mmenulink'>" + n + "</a></div>\n";
             }
+
          }
 
          // alias

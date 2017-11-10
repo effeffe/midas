@@ -1539,8 +1539,10 @@ int exec_script(HNDLE hkey)
 
    // printf("exec_script: %s\n", command.c_str());
 
-   if (command.length() > 0)
+   if (command.length() > 0) {
+      cm_msg(MINFO, "exec_script", "Executing script \"%s\"", command.c_str());
       ss_system(command.c_str());
+   }
 
    return SUCCESS;
 }
