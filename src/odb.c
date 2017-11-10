@@ -1465,6 +1465,8 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    _database[handle].attached = TRUE;
    _database[handle].shm_handle = shm_handle;
    _database[handle].protect = FALSE;
+   _database[handle].protect_read = FALSE;
+   _database[handle].protect_write = FALSE;
 
    /* remember to which connection acutal buffer belongs */
    if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
@@ -1844,8 +1846,18 @@ INT db_lock_database(HNDLE hDB)
 
    if (_database[hDB - 1].protect) {
       if (_database[hDB - 1].database_header == NULL) {
-         ss_shm_unprotect(_database[hDB - 1].shm_handle, &p, TRUE, FALSE, "db_lock_database");
+         int status;
+         assert(!_database[hDB - 1].protect_read);
+         assert(!_database[hDB - 1].protect_write);
+         status = ss_shm_unprotect(_database[hDB - 1].shm_handle, &p, TRUE, FALSE, "db_lock_database");
+         if (status != SS_SUCCESS) {
+            cm_msg(MERROR, "db_lock_database", "ss_shm_unprotect(TRUE,FALSE) failed with status %d, aborting...", status);
+            cm_msg_flush_buffer();
+            abort();
+         }
          _database[hDB - 1].database_header = (DATABASE_HEADER *) p;
+         _database[hDB - 1].protect_read = TRUE;
+         _database[hDB - 1].protect_write = FALSE;
       }
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -1856,11 +1868,20 @@ INT db_lock_database(HNDLE hDB)
 INT db_allow_write_locked(DATABASE* p, const char* caller_name)
 {
    assert(p);
-   if (p->protect) {
+   if (p->protect && !p->protect_write) {
+      int status;
       assert(p->lock_cnt > 0);
       assert(p->database_header != NULL);
+      assert(p->protect_read);
       void*tmp;
-      ss_shm_unprotect(p->shm_handle, &tmp, TRUE, TRUE, caller_name);
+      status = ss_shm_unprotect(p->shm_handle, &tmp, TRUE, TRUE, caller_name);
+      if (status != SS_SUCCESS) {
+         cm_msg(MERROR, "db_allow_write_locked", "ss_shm_unprotect(TRUE,TRUE) failed with status %d, aborting...", status);
+         cm_msg_flush_buffer();
+         abort();
+      }
+      p->protect_read = TRUE;
+      p->protect_write = TRUE;
    }
    return DB_SUCCESS;
 }
@@ -1893,9 +1914,19 @@ INT db_unlock_database(HNDLE hDB)
       ss_semaphore_release(_database[hDB - 1].semaphore);
 
       if (_database[hDB - 1].protect && _database[hDB - 1].database_header) {
+         int status;
+         assert(_database[hDB - 1].protect_read);
+         assert(_database[hDB - 1].database_header);
          DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
          _database[hDB - 1].database_header = NULL;
-         ss_shm_protect(_database[hDB - 1].shm_handle, pheader);
+         status = ss_shm_protect(_database[hDB - 1].shm_handle, pheader);
+         if (status != SS_SUCCESS) {
+            cm_msg(MERROR, "db_unlock_database", "ss_shm_protect() failed with status %d, aborting...", status);
+            cm_msg_flush_buffer();
+            abort();
+         }
+         _database[hDB - 1].protect_read = FALSE;
+         _database[hDB - 1].protect_write = FALSE;
       }
    }
 

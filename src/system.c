@@ -1072,8 +1072,7 @@ INT ss_shm_protect(HNDLE handle, void *adr)
 
       ret = mprotect(mmap_addr[handle], mmap_size[handle], PROT_NONE);
       if (ret != 0) {
-         cm_msg(MERROR, "ss_shm_protect",
-                "Cannot mprotect(): return value %d, errno %d (%s)", ret, errno, strerror(errno));
+         cm_msg(MERROR, "ss_shm_protect", "Cannot mprotect(PROT_NONE): return value %d, errno %d (%s)", ret, errno, strerror(errno));
          return SS_INVALID_ADDRESS;
       }
    }
@@ -1144,8 +1143,7 @@ INT ss_shm_unprotect(HNDLE handle, void **adr, BOOL read, BOOL write, const char
          mode |= PROT_READ | PROT_WRITE;
       ret = mprotect(mmap_addr[handle], mmap_size[handle], mode);
       if (ret != 0) {
-         cm_msg(MERROR, "ss_shm_unprotect",
-                "Cannot mprotect(): return value %d, errno %d (%s)", ret, errno, strerror(errno));
+         cm_msg(MERROR, "ss_shm_unprotect", "Cannot mprotect(%d): return value %d, errno %d (%s)", mode, ret, errno, strerror(errno));
          return SS_INVALID_ADDRESS;
       }
 

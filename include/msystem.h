@@ -402,6 +402,8 @@ typedef struct {
    HNDLE shm_handle;            /* handle (id) to shared memory */
    INT index;                   /* connection index / tid       */
    BOOL protect;                /* read/write protection        */
+   BOOL protect_read;           /* read is permitted            */
+   BOOL protect_write;          /* write is permitted           */
    MUTEX_T *mutex;              /* mutex for multi-thread access */
    INT timeout;                 /* timeout for mutex and semaphore */
 
