@@ -1046,6 +1046,7 @@ INT ss_shm_protect(HNDLE handle, void *adr)
 
 \********************************************************************/
 {
+   //printf("ss_shm_protect handle %d, addr 0x%p\n", handle, adr);
 #ifdef OS_WINNT
 
    if (!UnmapViewOfFile(adr))
@@ -1083,7 +1084,7 @@ INT ss_shm_protect(HNDLE handle, void *adr)
 }
 
 /*------------------------------------------------------------------*/
-INT ss_shm_unprotect(HNDLE handle, void **adr)
+INT ss_shm_unprotect(HNDLE handle, void **adr, BOOL read, BOOL write, const char* caller_name)
 /********************************************************************\
 
   Routine: ss_shm_unprotect
@@ -1104,6 +1105,12 @@ INT ss_shm_unprotect(HNDLE handle, void **adr)
 
 \********************************************************************/
 {
+#if 0
+   if (write) {
+      printf("ss_shm_unprotect handle %d, read %d, write %d, caller %s\n", handle, read, write, caller_name);
+   }
+#endif
+   
 #ifdef OS_WINNT
 
    *adr = MapViewOfFile((HANDLE) handle, FILE_MAP_ALL_ACCESS, 0, 0, 0);
@@ -1128,14 +1135,21 @@ INT ss_shm_unprotect(HNDLE handle, void **adr)
    if (use_mmap_shm || use_posix_shm) {
       int ret;
 
-      assert(adr == mmap_addr[handle]);
+      *adr = NULL;
 
-      ret = mprotect(mmap_addr[handle], mmap_size[handle], PROT_READ | PROT_WRITE);
+      int mode = 0;
+      if (read)
+         mode |= PROT_READ;
+      if (write)
+         mode |= PROT_READ | PROT_WRITE;
+      ret = mprotect(mmap_addr[handle], mmap_size[handle], mode);
       if (ret != 0) {
          cm_msg(MERROR, "ss_shm_unprotect",
                 "Cannot mprotect(): return value %d, errno %d (%s)", ret, errno, strerror(errno));
          return SS_INVALID_ADDRESS;
       }
+
+      *adr = mmap_addr[handle];
    }
 
 #endif // OS_UNIX
@@ -2647,7 +2661,7 @@ INT ss_semaphore_delete(HNDLE semaphore_handle, INT destroy_flag)
 
 /*------------------------------------------------------------------*/
 
-INT ss_mutex_create(MUTEX_T ** mutex)
+INT ss_mutex_create(MUTEX_T ** mutex, BOOL recursive)
 /********************************************************************\
 
   Routine: ss_mutex_create
@@ -2698,12 +2712,12 @@ INT ss_mutex_create(MUTEX_T ** mutex)
          fprintf(stderr, "ss_mutex_create: pthread_mutexattr_init() returned errno %d (%s)\n", status, strerror(status));
       }
       
-#if 0
-      status = pthread_mutexattr_settype(attr, PTHREAD_MUTEX_RECURSIVE);
-      if (status != 0) {
-         fprintf(stderr, "ss_mutex_create: pthread_mutexattr_settype() returned errno %d (%s)\n", status, strerror(status));
+      if (recursive) {
+         status = pthread_mutexattr_settype(attr, PTHREAD_MUTEX_RECURSIVE);
+         if (status != 0) {
+            fprintf(stderr, "ss_mutex_create: pthread_mutexattr_settype() returned errno %d (%s)\n", status, strerror(status));
+         }
       }
-#endif
 
       *mutex = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
       assert(*mutex);
@@ -2715,21 +2729,21 @@ INT ss_mutex_create(MUTEX_T ** mutex)
          return SS_NO_MUTEX;
       }
 
-#if 0
-      // test recursive locks
-
-      status = pthread_mutex_trylock(*mutex);
-      assert(status == 0);
-
-      status = pthread_mutex_trylock(*mutex);
-      assert(status == 0); // EBUSY if PTHREAD_MUTEX_RECURSIVE does not work
-
-      status = pthread_mutex_unlock(*mutex);
-      assert(status == 0);
-
-      status = pthread_mutex_unlock(*mutex);
-      assert(status == 0);
-#endif
+      if (recursive) {
+         // test recursive locks
+         
+         status = pthread_mutex_trylock(*mutex);
+         assert(status == 0);
+         
+         status = pthread_mutex_trylock(*mutex);
+         assert(status == 0); // EBUSY if PTHREAD_MUTEX_RECURSIVE does not work
+         
+         status = pthread_mutex_unlock(*mutex);
+         assert(status == 0);
+         
+         status = pthread_mutex_unlock(*mutex);
+         assert(status == 0);
+      }
 
       return SS_SUCCESS;
    }
@@ -2795,16 +2809,22 @@ INT ss_mutex_wait_for(MUTEX_T *mutex, INT timeout)
    if (timeout > 0) {
       // emulate pthread_mutex_timedlock under OS_DARWIN
       DWORD wait = 0;
-      do {
+      while (1) {
          status = pthread_mutex_trylock(mutex);
-         if (status == EBUSY) {
+         if (status == 0) {
+            return SS_SUCCESS;
+         } else if (status == EBUSY) {
             ss_sleep(10);
             wait += 10;
-         } else
-            break;
-
-      } while (timeout == 0 || wait < timeout);
-
+         } else {
+            fprintf(stderr, "ss_mutex_wait_for: fatal error: pthread_mutex_trylock() returned errno %d (%s), aborting...\n", status, strerror(status));
+            abort(); // does not return
+         }
+         if (wait > timeout) {
+            fprintf(stderr, "ss_mutex_wait_for: fatal error: timeout waiting for mutex, timeout was %d millisec, aborting...\n", timeout);
+            abort(); // does not return
+         }
+      }
    } else {
       status = pthread_mutex_lock(mutex);
    }
@@ -2823,8 +2843,13 @@ INT ss_mutex_wait_for(MUTEX_T *mutex, INT timeout)
 
       clock_gettime(CLOCK_REALTIME, &st);
       st.tv_sec += timeout / 1000;
-      st.tv_nsec += (timeout % 1000) * 1E6;
+      st.tv_nsec += (timeout % 1000) * 1000000;
       status = pthread_mutex_timedlock(mutex, &st);
+
+      if (status == ETIMEDOUT) {
+         fprintf(stderr, "ss_mutex_wait_for: fatal error: timeout waiting for mutex, timeout was %d millisec, aborting...\n", timeout);
+         abort();
+      }
 
       // Make linux timeout do same as MacOS timeout: abort() the program
       //if (status == ETIMEDOUT)

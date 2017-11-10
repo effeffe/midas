@@ -43,9 +43,6 @@ The main include file
 /* MIDAS version number which will be incremented for every release */
 #define MIDAS_VERSION "2.1"
 
-/* include GIT version from file automatically created by make */
-#include "git-revision.h"
-
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 

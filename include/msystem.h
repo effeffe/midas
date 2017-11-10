@@ -130,9 +130,6 @@ Definition of implementation specific constants */
 #define YBOS_SUPPORT
 #endif
 
-/* flag to enable mutlti-threading support for ODB access */
-#define MULTI_THREAD_ENABLE
-
 /*------------------------------------------------------------------*/
 
 /* Mapping of function names for socket operations */
@@ -406,7 +403,7 @@ typedef struct {
    INT index;                   /* connection index / tid       */
    BOOL protect;                /* read/write protection        */
    MUTEX_T *mutex;              /* mutex for multi-thread access */
-   MUTEX_T *am;                 /* temporary access mutex       */
+   INT timeout;                 /* timeout for mutex and semaphore */
 
 } DATABASE;
 
@@ -507,6 +504,7 @@ extern "C" {
    INT EXPRT db_lock_database(HNDLE database_handle);
    INT EXPRT db_unlock_database(HNDLE database_handle);
    INT EXPRT db_get_lock_cnt(HNDLE database_handle);
+   INT EXPRT db_set_lock_timeout(HNDLE database_handle, int timeout_millisec);
    INT db_update_record(INT hDB, INT hKeyRoot, INT hKey, int index, int s);
    INT db_close_all_records(void);
    INT EXPRT db_flush_database(HNDLE hDB);
@@ -514,6 +512,7 @@ extern "C" {
    INT EXPRT db_set_client_name(HNDLE hDB, const char *client_name);
    INT db_delete_key1(HNDLE hDB, HNDLE hKey, INT level, BOOL follow_links);
    INT EXPRT db_show_mem(HNDLE hDB, char *result, INT buf_size, BOOL verbose);
+   INT db_allow_write_locked(DATABASE* p, const char* caller_name);
 
    /*---- rpc functions -----*/
    RPC_LIST EXPRT *rpc_get_internal_list(INT flag);
@@ -542,7 +541,7 @@ extern "C" {
    INT ss_shm_flush(const char *name, const void *adr, INT size, HNDLE handle);
    INT EXPRT ss_shm_delete(const char *name);
    INT ss_shm_protect(HNDLE handle, void *adr);
-   INT ss_shm_unprotect(HNDLE handle, void **adr);
+   INT ss_shm_unprotect(HNDLE handle, void **adr, BOOL read, BOOL write, const char* caller_name);
    INT ss_spawnv(INT mode, const char *cmdname, const char* const argv[]);
    INT ss_shell(int sock);
    INT EXPRT ss_daemon_init(BOOL keep_stdout);
@@ -556,7 +555,7 @@ extern "C" {
    INT EXPRT ss_semaphore_wait_for(HNDLE semaphore_handle, INT timeout);
    INT EXPRT ss_semaphore_release(HNDLE semaphore_handle);
    INT EXPRT ss_semaphore_delete(HNDLE semaphore_handle, INT destroy_flag);
-   INT EXPRT ss_mutex_create(MUTEX_T **mutex);
+   INT EXPRT ss_mutex_create(MUTEX_T **mutex, BOOL recursive);
    INT EXPRT ss_mutex_wait_for(MUTEX_T *mutex, INT timeout);
    INT EXPRT ss_mutex_release(MUTEX_T *mutex);
    INT EXPRT ss_mutex_delete(MUTEX_T *mutex);

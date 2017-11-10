@@ -11,8 +11,11 @@
 
 #include "midas.h"
 #include "msystem.h"
+#include "git-revision.h"
+
 #include <assert.h>
 #include <signal.h>
+#include <sys/resource.h>
 
 #ifndef HAVE_STRLCPY
 #include "strlcpy.h"
@@ -667,7 +670,7 @@ static INT cm_msg_buffer(int ts, int message_type, const char *message)
       status = rb_create(100*1024, 1024, &_msg_rb);
       assert(status==SUCCESS);
 
-      status = ss_mutex_create(&_msg_mutex);
+      status = ss_mutex_create(&_msg_mutex, FALSE);
       assert(status==SS_SUCCESS || status==SS_CREATED);
    }
 
@@ -2229,6 +2232,43 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       return status;
    }
 
+   int odb_timeout = db_set_lock_timeout(hDB, 0);
+   size = sizeof(odb_timeout);
+   status = db_get_value(hDB, 0, "/Experiment/ODB timeout", &odb_timeout, &size, TID_INT, TRUE);
+   assert(status == DB_SUCCESS);
+
+   if (odb_timeout > 0) {
+      db_set_lock_timeout(hDB, odb_timeout);
+   }
+
+   BOOL protect_odb = FALSE;
+   size = sizeof(protect_odb);
+   status = db_get_value(hDB, 0, "/Experiment/Protect ODB", &protect_odb, &size, TID_BOOL, TRUE);
+   assert(status == DB_SUCCESS);
+
+   if (protect_odb) {
+      db_protect_database(hDB);
+   }
+
+   BOOL enable_core_dumps = FALSE;
+   size = sizeof(enable_core_dumps);
+   status = db_get_value(hDB, 0, "/Experiment/Enable core dumps", &enable_core_dumps, &size, TID_BOOL, TRUE);
+   assert(status == DB_SUCCESS);
+
+   if (enable_core_dumps) {
+#ifdef RLIMIT_CORE
+      struct rlimit limit;
+      limit.rlim_cur = RLIM_INFINITY;
+      limit.rlim_max = RLIM_INFINITY;
+      status = setrlimit(RLIMIT_CORE, &limit);
+      if (status != 0) {
+         cm_msg(MERROR, "cm_connect_experiment", "Cannot setrlimit(RLIMIT_CORE, RLIM_INFINITY), errno %d (%s)", errno, strerror(errno));
+      }
+#else
+#warning setrlimit(RLIMIT_CORE) is not available
+#endif
+   }
+
    size = sizeof(disable_bind_rpc_to_localhost);
    status = db_get_value(hDB, 0, "/Experiment/Security/Enable non-localhost RPC", &disable_bind_rpc_to_localhost, &size, TID_BOOL, TRUE);
    assert(status == DB_SUCCESS);
@@ -2245,8 +2285,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
    strcpy(client_name1, client_name);
    password[0] = 0;
-   status = cm_set_client_info(hDB, &hKeyClient, local_host_name,
-                               client_name1, rpc_get_option(0, RPC_OHW_TYPE), password, watchdog_timeout);
+   status = cm_set_client_info(hDB, &hKeyClient, local_host_name, client_name1, rpc_get_option(0, RPC_OHW_TYPE), password, watchdog_timeout);
 
    if (status == CM_WRONG_PASSWORD) {
       if (func == NULL)
@@ -2255,8 +2294,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
          func(str);
 
       strcpy(password, ss_crypt(str, "mi"));
-      status = cm_set_client_info(hDB, &hKeyClient, local_host_name,
-                                  client_name1, rpc_get_option(0, RPC_OHW_TYPE), password, watchdog_timeout);
+      status = cm_set_client_info(hDB, &hKeyClient, local_host_name, client_name1, rpc_get_option(0, RPC_OHW_TYPE), password, watchdog_timeout);
       if (status != CM_SUCCESS) {
          /* disconnect */
          if (rpc_is_remote())
@@ -2904,6 +2942,8 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
             db_unlock_database(i);
             continue;
          }
+
+         db_allow_write_locked(&_database[i-1], "cm_set_watchdog_params");
 
          /* clear entry from client structure in buffer header */
          pclient->watchdog_timeout = timeout;
@@ -5468,11 +5508,22 @@ static void cm_update_last_activity(DWORD actual_time)
       }
 
    /* check online databases */
-   for (i = 0; i < _database_entries; i++)
+   for (i = 0; i < _database_entries; i++) {
       if (_database[i].attached) {
+         int must_unlock = 0;
+         if (_database[i].protect) {
+            must_unlock = 1;
+            db_lock_database(i + 1);
+            db_allow_write_locked(&_database[i], "cm_update_last_activity from cm_watchdog");
+         }
+         assert(_database[i].database_header);
          /* update the last_activity entry to show that we are alive */
          _database[i].database_header->client[_database[i].client_index].last_activity = actual_time;
+         if (must_unlock) {
+            db_unlock_database(i + 1);
+         }
       }
+   }
 }
 
 /**
@@ -5884,8 +5935,7 @@ INT bm_close_buffer(INT buffer_handle)
       pheader = NULL; // after ss_shm_close(), pheader points nowhere
 
       /* unmap shared memory, delete it if we are the last */
-      ss_shm_close(xname, _buffer[buffer_handle - 1].buffer_header,
-                   _buffer[buffer_handle - 1].shm_handle, destroy_flag);
+      ss_shm_close(xname, _buffer[buffer_handle - 1].buffer_header, _buffer[buffer_handle - 1].shm_handle, destroy_flag);
 
       /* unlock buffer */
       bm_unlock_buffer(buffer_handle);
@@ -6039,19 +6089,30 @@ void cm_watchdog(int dummy)
    bm_cleanup("cm_watchdog", actual_time, wrong_interval);
 
    /* check online databases */
-   for (i = 0; i < _database_entries; i++)
+   for (i = 0; i < _database_entries; i++) {
       if (_database[i].attached) {
+         int must_unlock = 0;
+         if (_database[i].protect) {
+            must_unlock = 1;
+            db_lock_database(i + 1);
+            db_allow_write_locked(&_database[i], "cm_watchdog");
+         }
+         assert(_database[i].database_header);
          /* update the last_activity entry to show that we are alive */
          pdbheader = _database[i].database_header;
          pdbclient = pdbheader->client;
          pdbclient[_database[i].client_index].last_activity = actual_time;
 
          /* don't check other clients if interval is stange */
-         if (wrong_interval)
+         if (wrong_interval) {
+            if (must_unlock) {
+               db_unlock_database(i + 1);
+            }
             continue;
+         }
 
          /* now check other clients */
-         for (j = 0; j < pdbheader->max_client_index; j++, pdbclient++)
+         for (j = 0; j < pdbheader->max_client_index; j++, pdbclient++) {
             /* If client process has no activity, clear its buffer entry. */
             if (pdbclient->pid && pdbclient->watchdog_timeout > 0 &&
                 actual_time - pdbclient->last_activity > pdbclient->watchdog_timeout) {
@@ -6064,6 +6125,8 @@ void cm_watchdog(int dummy)
                if (pdbclient->pid && pdbclient->watchdog_timeout &&
                    actual_time > pdbclient->last_activity &&
                    actual_time - pdbclient->last_activity > pdbclient->watchdog_timeout) {
+
+                  db_allow_write_locked(&_database[i], "cm_watchdog");
 
                   cm_msg(MINFO, "cm_watchdog", "Client \'%s\' (PID %d) on database \'%s\' removed by cm_watchdog (idle %1.1lfs,TO %1.0lfs)",
                          pdbclient->name, client_pid, pdbheader->name,
@@ -6103,7 +6166,12 @@ void cm_watchdog(int dummy)
 
                db_unlock_database(i + 1);
             }
+         }
+         if (must_unlock) {
+            db_unlock_database(i + 1);
+         }
       }
+   }
 
    _watchdog_last_called = actual_time;
 
@@ -6433,6 +6501,8 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout)
             /* update the last_activity entry to show that we are alive */
 
             db_lock_database(i + 1);
+
+            db_allow_write_locked(&_database[i], "cm_cleanup");
 
             pdbheader = _database[i].database_header;
             pdbclient = pdbheader->client;
@@ -9702,8 +9772,9 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    }
 
    /* make this funciton multi-thread safe */
-   if (!mtx)
-      ss_mutex_create(&mtx);
+   if (!mtx) {
+      ss_mutex_create(&mtx, FALSE);
+   }
 
    ss_mutex_wait_for(mtx, 10000);
 
@@ -11190,7 +11261,7 @@ INT rpc_call(const INT routine_id, ...)
 
    if (!_mutex_rpc) {
       /* create a local mutex for multi-threaded applications */
-      ss_mutex_create(&_mutex_rpc);
+      ss_mutex_create(&_mutex_rpc, FALSE);
    }
 
    status = ss_mutex_wait_for(_mutex_rpc, 10000 + rpc_timeout);

@@ -2603,7 +2603,7 @@ void mfe_set_error(void (*dispatcher) (const char *))
    memset(mfe_error_str, 0, sizeof(mfe_error_str));
 
    if (mfe_mutex == NULL) {
-      status = ss_mutex_create(&mfe_mutex);
+      status = ss_mutex_create(&mfe_mutex, FALSE);
       if (status != SS_SUCCESS && status != SS_CREATED)
          cm_msg(MERROR, "mfe_set_error", "Cannot create mutex\n");
    }
