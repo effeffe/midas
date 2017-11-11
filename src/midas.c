@@ -6019,6 +6019,18 @@ void cm_watchdog(int dummy)
    if (!_call_watchdog)
       return;
 
+   extern int _db_kludge_protect_odb_locking_against_cm_watchdog;
+
+   if (_db_kludge_protect_odb_locking_against_cm_watchdog) {
+      // this is a very bad time to run watchdog functions
+      //fprintf(stderr, "cm_watchdog here!\n");
+      //abort();
+      /* Schedule next watchdog call */
+      if (_call_watchdog)
+         ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
+      return;
+   }
+
 #if 0
    actual_time = ss_millitime();
 
