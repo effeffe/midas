@@ -1612,10 +1612,6 @@ INT cm_delete_client_info(HNDLE hDB, INT pid)
       if (!pid)
          pid = ss_getpid();
 
-      /* don't delete info from a closed database */
-      if (_database_entries == 0)
-         return CM_SUCCESS;
-
       /* make operation atomic by locking database */
       db_lock_database(hDB);
 
@@ -1662,81 +1658,8 @@ INT cm_check_client(HNDLE hDB, HNDLE hKeyClient)
       return rpc_call(RPC_CM_CHECK_CLIENT, hDB, hKeyClient);
 
 #ifdef LOCAL_ROUTINES
-   {
-      KEY key;
-      DATABASE_HEADER *pheader;
-      DATABASE_CLIENT *pclient;
-      INT i, client_pid, status, dead = 0, found = 0;
-      char name[NAME_LENGTH];
-
-      db_lock_database(hDB);
-
-      status = db_get_key(hDB, hKeyClient, &key);
-      if (status != DB_SUCCESS)
-         return CM_NO_CLIENT;
-
-      client_pid = atoi(key.name);
-
-      name[0] = 0;
-      i = sizeof(name);
-      status = db_get_value(hDB, hKeyClient, "Name", name, &i, TID_STRING, FALSE);
-
-      //fprintf(stderr, "cm_check_client: hkey %d, status %d, pid %d, name \'%s\', my name %s\n", hKeyClient, status, client_pid, name, _client_name);
-
-      if (status != DB_SUCCESS) {
-         db_unlock_database(hDB);
-         return CM_NO_CLIENT;
-      }
-
-      if (_database[hDB - 1].attached) {
-         pheader = _database[hDB - 1].database_header;
-         pclient = pheader->client;
-
-         /* loop through clients */
-         for (i = 0; i < pheader->max_client_index; i++, pclient++)
-            if (pclient->pid == client_pid) {
-               found = 1;
-               break;
-            }
-
-#ifdef OS_UNIX
-#ifdef ESRCH
-         if (found) {           /* check that the client is still running: PID still exists */
-            /* Only enable this for systems that define ESRCH and hope that they also support kill(pid,0) */
-            errno = 0;
-            kill(client_pid, 0);
-            if (errno == ESRCH) {
-               dead = 1;
-            }
-         }
-#endif
-#endif
-
-         if (!found || dead) {
-            /* client not found : delete ODB stucture */
-
-            status = cm_delete_client_info(hDB, client_pid);
-
-            if (status != CM_SUCCESS)
-               cm_msg(MERROR, "cm_check_client",
-                      "Cannot delete client info for client \'%s\', pid %d, cm_delete_client_info() status %d", name, client_pid, status);
-            else if (!found)
-               cm_msg(MINFO, "cm_check_client",
-                      "Deleted entry \'/System/Clients/%d\' for client \'%s\' because it is not connected to ODB", client_pid, name);
-            else if (dead)
-               cm_msg(MINFO, "cm_check_client",
-                      "Deleted entry \'/System/Clients/%d\' for client \'%s\' because process pid %d does not exists", client_pid, name, client_pid);
-
-            db_unlock_database(hDB);
-
-            return CM_NO_CLIENT;
-         }
-      }
-
-      db_unlock_database(hDB);
-   }
+   return db_check_client(hDB, hKeyClient);
 #endif                          /*LOCAL_ROUTINES */
-
    return CM_SUCCESS;
 }
 
@@ -2915,44 +2838,7 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
          pclient->last_activity = ss_millitime();
       }
 
-      /* set watchdog flag of all open databases */
-      for (i = _database_entries; i > 0; i--) {
-         DATABASE_HEADER *pheader;
-         DATABASE_CLIENT *pclient;
-         INT idx;
-
-         db_lock_database(i);
-
-         idx = _database[i - 1].client_index;
-         pheader = _database[i - 1].database_header;
-         pclient = &pheader->client[idx];
-
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-             _database[i - 1].index != rpc_get_server_acception()) {
-            db_unlock_database(i);
-            continue;
-         }
-
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[i - 1].index != ss_gettid()) {
-            db_unlock_database(i);
-            continue;
-         }
-
-         if (!_database[i - 1].attached) {
-            db_unlock_database(i);
-            continue;
-         }
-
-         db_allow_write_locked(&_database[i-1], "cm_set_watchdog_params");
-
-         /* clear entry from client structure in buffer header */
-         pclient->watchdog_timeout = timeout;
-
-         /* show activity */
-         pclient->last_activity = ss_millitime();
-
-         db_unlock_database(i);
-      }
+      db_set_watchdog_params(timeout);
 
       if (call_watchdog)
          /* restart watchdog */
@@ -3000,42 +2886,7 @@ INT cm_get_watchdog_info(HNDLE hDB, char *client_name, DWORD * timeout, DWORD * 
       return rpc_call(RPC_CM_GET_WATCHDOG_INFO, hDB, client_name, timeout, last);
 
 #ifdef LOCAL_ROUTINES
-   {
-      DATABASE_HEADER *pheader;
-      DATABASE_CLIENT *pclient;
-      INT i;
-
-      if (hDB > _database_entries || hDB <= 0) {
-         cm_msg(MERROR, "cm_get_watchdog_info", "invalid database handle");
-         return DB_INVALID_HANDLE;
-      }
-
-      if (!_database[hDB - 1].attached) {
-         cm_msg(MERROR, "cm_get_watchdog_info", "invalid database handle");
-         return DB_INVALID_HANDLE;
-      }
-
-      /* lock database */
-      db_lock_database(hDB);
-
-      pheader = _database[hDB - 1].database_header;
-      pclient = pheader->client;
-
-      /* find client */
-      for (i = 0; i < pheader->max_client_index; i++, pclient++)
-         if (pclient->pid && equal_ustring(pclient->name, client_name)) {
-            *timeout = pclient->watchdog_timeout;
-            *last = ss_millitime() - pclient->last_activity;
-            db_unlock_database(hDB);
-            return CM_SUCCESS;
-         }
-
-      *timeout = *last = 0;
-
-      db_unlock_database(hDB);
-
-      return CM_NO_CLIENT;
-   }
+   return db_get_watchdog_info(hDB, client_name, timeout, last);
 #else                           /* LOCAL_ROUTINES */
    return CM_SUCCESS;
 #endif                          /* LOCAL_ROUTINES */
@@ -5494,33 +5345,14 @@ static void bm_cleanup_buffer_locked(int i, const char *who, DWORD actual_time)
 /**
 Update last activity time
 */
-static void cm_update_last_activity(DWORD actual_time)
+static void bm_update_last_activity(DWORD actual_time)
 {
-   int i, idx;
-
-   /* check buffers */
-   for (i = 0; i < _buffer_entries; i++)
+   int i;
+   for (i = 0; i < _buffer_entries; i++) {
       if (_buffer[i].attached) {
-         idx = bm_validate_client_index(&_buffer[i], FALSE);
+         int idx = bm_validate_client_index(&_buffer[i], FALSE);
          if (idx >= 0) {
             _buffer[i].buffer_header->client[idx].last_activity = actual_time;
-         }
-      }
-
-   /* check online databases */
-   for (i = 0; i < _database_entries; i++) {
-      if (_database[i].attached) {
-         int must_unlock = 0;
-         if (_database[i].protect) {
-            must_unlock = 1;
-            db_lock_database(i + 1);
-            db_allow_write_locked(&_database[i], "cm_update_last_activity from cm_watchdog");
-         }
-         assert(_database[i].database_header);
-         /* update the last_activity entry to show that we are alive */
-         _database[i].database_header->client[_database[i].client_index].last_activity = actual_time;
-         if (must_unlock) {
-            db_unlock_database(i + 1);
          }
       }
    }
@@ -6005,15 +5837,8 @@ alive. If one process died, its client entries are cleaned up.
 */
 void cm_watchdog(int dummy)
 {
-   DATABASE_HEADER *pdbheader;
-   DATABASE_CLIENT *pdbclient;
-   KEY *pkey;
    DWORD actual_time, interval;
-   INT client_pid;
-   INT i, j, k, nc, status;
    BOOL time_changed, wrong_interval;
-
-   i = dummy;                   /* avoid compiler warning */
 
    /* return immediately if watchdog has been disabled in meantime */
    if (!_call_watchdog)
@@ -6031,21 +5856,6 @@ void cm_watchdog(int dummy)
       return;
    }
 
-#if 0
-   actual_time = ss_millitime();
-
-   cm_update_last_activity(actual_time);
-
-   if ((actual_time > _watchdog_last_called) && (actual_time - _watchdog_last_called < 10000)) {
-
-      /* Schedule next watchdog call */
-      if (_call_watchdog)
-         ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
-
-      return;
-   }
-#endif
-
    /* prevent deadlock between ODB and SYSMSG by skipping watchdog tests if odb is locked by us */
    if (1) {
       int count = -1;
@@ -6059,7 +5869,9 @@ void cm_watchdog(int dummy)
       if (count) {
          //cm_msg(MINFO, "cm_watchdog", "Called with ODB lock count %d!", count);
 
-         cm_update_last_activity(ss_millitime());
+         DWORD now = ss_millitime();
+         bm_update_last_activity(now);
+         db_update_last_activity(now);
 
          /* Schedule next watchdog call */
          if (_call_watchdog)
@@ -6093,97 +5905,13 @@ void cm_watchdog(int dummy)
    time_changed = interval > 600000;
    wrong_interval = interval < 0.8 * WATCHDOG_INTERVAL || interval > 1.2 * WATCHDOG_INTERVAL;
 
-   if (time_changed)
-      cm_msg(MINFO, "cm_watchdog",
-             "System time has been changed! last:%dms  now:%dms  delta:%dms",
-             _watchdog_last_called, actual_time, interval);
+   if (time_changed) {
+      cm_msg(MINFO, "cm_watchdog", "System time has been changed! last:%dms  now:%dms  delta:%dms", _watchdog_last_called, actual_time, interval);
+   }
 
    bm_cleanup("cm_watchdog", actual_time, wrong_interval);
 
-   /* check online databases */
-   for (i = 0; i < _database_entries; i++) {
-      if (_database[i].attached) {
-         int must_unlock = 0;
-         if (_database[i].protect) {
-            must_unlock = 1;
-            db_lock_database(i + 1);
-            db_allow_write_locked(&_database[i], "cm_watchdog");
-         }
-         assert(_database[i].database_header);
-         /* update the last_activity entry to show that we are alive */
-         pdbheader = _database[i].database_header;
-         pdbclient = pdbheader->client;
-         pdbclient[_database[i].client_index].last_activity = actual_time;
-
-         /* don't check other clients if interval is stange */
-         if (wrong_interval) {
-            if (must_unlock) {
-               db_unlock_database(i + 1);
-            }
-            continue;
-         }
-
-         /* now check other clients */
-         for (j = 0; j < pdbheader->max_client_index; j++, pdbclient++) {
-            /* If client process has no activity, clear its buffer entry. */
-            if (pdbclient->pid && pdbclient->watchdog_timeout > 0 &&
-                actual_time - pdbclient->last_activity > pdbclient->watchdog_timeout) {
-               client_pid = pdbclient->pid;
-
-               db_lock_database(i + 1);
-
-               /* now make again the check with the buffer locked */
-               actual_time = ss_millitime();
-               if (pdbclient->pid && pdbclient->watchdog_timeout &&
-                   actual_time > pdbclient->last_activity &&
-                   actual_time - pdbclient->last_activity > pdbclient->watchdog_timeout) {
-
-                  db_allow_write_locked(&_database[i], "cm_watchdog");
-
-                  cm_msg(MINFO, "cm_watchdog", "Client \'%s\' (PID %d) on database \'%s\' removed by cm_watchdog (idle %1.1lfs,TO %1.0lfs)",
-                         pdbclient->name, client_pid, pdbheader->name,
-                         (actual_time - pdbclient->last_activity) / 1000.0,
-                         pdbclient->watchdog_timeout / 1000.0);
-
-                  /* decrement notify_count for open records and clear exclusive mode */
-                  for (k = 0; k < pdbclient->max_index; k++)
-                     if (pdbclient->open_record[k].handle) {
-                        pkey = (KEY *) ((char *) pdbheader + pdbclient->open_record[k].handle);
-                        if (pkey->notify_count > 0)
-                           pkey->notify_count--;
-
-                        if (pdbclient->open_record[k].access_mode & MODE_WRITE)
-                           db_set_mode(i + 1, pdbclient->open_record[k].handle, (WORD) (pkey->access_mode & ~MODE_EXCLUSIVE), 2);
-                     }
-
-                  status = cm_delete_client_info(i + 1, client_pid);
-                  if (status != CM_SUCCESS)
-                     cm_msg(MERROR, "cm_watchdog", "Cannot delete client info for client \'%s\', pid %d from database \'%s\', status %d", pdbclient->name, client_pid, pdbheader->name, status);
-
-                  /* clear entry from client structure in buffer header */
-                  memset(&(pdbheader->client[j]), 0, sizeof(DATABASE_CLIENT));
-
-                  /* calculate new max_client_index entry */
-                  for (k = MAX_CLIENTS - 1; k >= 0; k--)
-                     if (pdbheader->client[k].pid != 0)
-                        break;
-                  pdbheader->max_client_index = k + 1;
-
-                  /* count new number of clients */
-                  for (k = MAX_CLIENTS - 1, nc = 0; k >= 0; k--)
-                     if (pdbheader->client[k].pid != 0)
-                        nc++;
-                  pdbheader->num_clients = nc;
-               }
-
-               db_unlock_database(i + 1);
-            }
-         }
-         if (must_unlock) {
-            db_unlock_database(i + 1);
-         }
-      }
-   }
+   db_cleanup("cm_watchdog", actual_time, wrong_interval);
 
    _watchdog_last_called = actual_time;
 
@@ -6445,12 +6173,7 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout)
    {
       BUFFER_HEADER *pheader = NULL;
       BUFFER_CLIENT *pbclient;
-      DATABASE_HEADER *pdbheader;
-      DATABASE_CLIENT *pdbclient;
-      KEY *pkey;
-      INT client_pid;
-      INT i, j, k, status, nc;
-      BOOL bDeleted;
+      INT i, j;
       char str[256];
       DWORD interval;
       DWORD now = ss_millitime();
@@ -6507,90 +6230,7 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout)
                }
          }
 
-      /* check online databases */
-      for (i = 0; i < _database_entries; i++)
-         if (_database[i].attached) {
-            /* update the last_activity entry to show that we are alive */
-
-            db_lock_database(i + 1);
-
-            db_allow_write_locked(&_database[i], "cm_cleanup");
-
-            pdbheader = _database[i].database_header;
-            pdbclient = pdbheader->client;
-            pdbclient[_database[i].client_index].last_activity = ss_millitime();
-
-            /* now check other clients */
-            for (j = 0; j < pdbheader->max_client_index; j++, pdbclient++)
-               if (j != _database[i].client_index && pdbclient->pid &&
-                   (client_name == NULL || client_name[0] == 0
-                    || strncmp(pdbclient->name, client_name, strlen(client_name)) == 0)) {
-                  client_pid = pdbclient->pid;
-                  if (ignore_timeout)
-                     interval = 2 * WATCHDOG_INTERVAL;
-                  else
-                     interval = pdbclient->watchdog_timeout;
-
-                  /* If client process has no activity, clear its buffer entry. */
-
-                  if (interval > 0 && ss_millitime() - pdbclient->last_activity > interval) {
-                     bDeleted = FALSE;
-
-                     /* now make again the check with the buffer locked */
-                     if (interval > 0 && ss_millitime() - pdbclient->last_activity > interval) {
-                        cm_msg(MINFO, "cm_cleanup", "Client \'%s\' on \'%s\' removed by cm_cleanup (idle %1.1lfs,TO %1.0lfs)",
-                               pdbclient->name, pdbheader->name,
-                               (ss_millitime() - pdbclient->last_activity) / 1000.0, interval / 1000.0);
-
-                        /* decrement notify_count for open records and clear exclusive mode */
-                        for (k = 0; k < pdbclient->max_index; k++)
-                           if (pdbclient->open_record[k].handle) {
-                              pkey = (KEY *) ((char *) pdbheader + pdbclient->open_record[k].handle);
-                              if (pkey->notify_count > 0)
-                                 pkey->notify_count--;
-
-                              if (pdbclient->open_record[k].access_mode & MODE_WRITE)
-                                 db_set_mode(i + 1, pdbclient->open_record[k].handle, (WORD) (pkey->access_mode & ~MODE_EXCLUSIVE), 2);
-                           }
-
-                        /* clear entry from client structure in buffer header */
-                        memset(&(pdbheader->client[j]), 0, sizeof(DATABASE_CLIENT));
-
-                        /* calculate new max_client_index entry */
-                        for (k = MAX_CLIENTS - 1; k >= 0; k--)
-                           if (pdbheader->client[k].pid != 0)
-                              break;
-                        pdbheader->max_client_index = k + 1;
-
-                        /* count new number of clients */
-                        for (k = MAX_CLIENTS - 1, nc = 0; k >= 0; k--)
-                           if (pheader->client[k].pid != 0)
-                              nc++;
-                        pdbheader->num_clients = nc;
-
-                        bDeleted = TRUE;
-                     }
-
-
-                     /* delete client entry after unlocking db */
-                     if (bDeleted) {
-
-                        status = cm_delete_client_info(i + 1, client_pid);
-                        if (status != CM_SUCCESS)
-                           cm_msg(MERROR, "cm_cleanup", "cannot delete client info, status %d", status);
-
-                        pdbheader = _database[i].database_header;
-                        pdbclient = pdbheader->client;
-
-                        /* go again though whole list */
-                        j = 0;
-                     }
-                  }
-               }
-
-            db_unlock_database(i + 1);
-         }
-
+      db_cleanup2(client_name, ignore_timeout, now, "cm_cleanup");
    }
 #endif                          /* LOCAL_ROUTINES */
 

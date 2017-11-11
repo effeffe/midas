@@ -488,6 +488,7 @@ extern "C" {
    INT cm_dispatch_ipc(const char *message, int s);
    INT EXPRT cm_msg_log(INT message_type, const char *facility, const char *message);
    void EXPRT name2c(char *str);
+   INT cm_delete_client_info(HNDLE hDB, INT pid);
 
    /*---- buffer manager ----*/
    INT bm_lock_buffer(INT buffer_handle);
@@ -515,6 +516,11 @@ extern "C" {
    INT db_delete_key1(HNDLE hDB, HNDLE hKey, INT level, BOOL follow_links);
    INT EXPRT db_show_mem(HNDLE hDB, char *result, INT buf_size, BOOL verbose);
    INT db_allow_write_locked(DATABASE* p, const char* caller_name);
+   void db_update_last_activity(DWORD actual_time);
+   void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval);
+   void db_cleanup2(const char* client_name, int ignore_timeout, DWORD actual_time,  const char *who);
+   void db_set_watchdog_params(DWORD timeout);
+   INT db_check_client(HNDLE hDB, HNDLE hKeyClient);
 
    /*---- rpc functions -----*/
    RPC_LIST EXPRT *rpc_get_internal_list(INT flag);

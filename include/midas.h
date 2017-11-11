@@ -1857,6 +1857,7 @@ extern "C" {
    INT EXPRT db_sprintfh(char *string, const void *data, INT data_size, INT index, DWORD type);
    INT EXPRT db_sscanf(const char *string, void *data, INT * data_size, INT index, DWORD type);
    char EXPRT *strcomb(const char **list);
+   INT db_get_watchdog_info(HNDLE hDB, const char *client_name, DWORD * timeout, DWORD * last);
 
    /*---- Bank routines ----*/
    void EXPRT bk_init(void *pbh);
