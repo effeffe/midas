@@ -100,6 +100,9 @@ function mie_to_string(tid, jvalue, format) {
 function mhttpd_escape(s) {
    var ss = s;
 
+   if (typeof s !== 'string')
+      return ss;
+
    while (ss.indexOf('"') >= 0)
       ss = ss.replace('"', '&quot;');
 
@@ -740,10 +743,12 @@ function mhttpd_refresh() {
    mjsonrpc_send_request([req1, req2, req3, req4]).then(function (rpc) {
 
       // update time in header
-      var da = new Date().toISOString();
+      var d = new Date();
+      var dstr = d.toLocaleString("en-gb", { hour12: false, day: 'numeric', month: 'short', year: 'numeric',
+         hour: 'numeric', minute: 'numeric', second: 'numeric', timeZoneName: 'short' });
 
       if (document.getElementById("mheader_last_updated") != undefined)
-         document.getElementById("mheader_last_updated").innerHTML = da.substr(0, 10) + " " + da.substr(11, 8);
+         document.getElementById("mheader_last_updated").innerHTML = dstr;
 
       for (var i = 0; i < modbvalue.length; i++) {
          if (rpc[0].result.status[i] == 312) {

@@ -118,7 +118,7 @@ void print_help(char *command)
       printf("mkdir <subdir>          - make new <subdir>\n");
       printf("move <key> [top/bottom/[n]] - move key to position in keylist\n");
       printf("msg [user] <msg>        - send chat message (from interactive odbedit)\n");
-      printf("msg [type] [name] <msg> - send message to midas log (from command line via -c \"msg ...\")\n");
+      printf("msg <facility> <type> <name> <msg> - send message to [facility] log\n");
       printf("old [n]                 - display old n messages\n");
       printf("passwd                  - change MIDAS password\n");
       printf("pause                   - pause current run\n");
@@ -1345,7 +1345,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
    char user_name[80] = "";
    FILE *cmd_file = NULL;
    DWORD last_msg_time = 0;
-   char message[2000], facility[256], client_name[256], *p;
+   char message[2000], client_name[256], *p;
    INT n1, n2;
    PRINT_INFO print_info;
 
@@ -2458,47 +2458,37 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
       /* msg */
       else if (param[0][0] == 'm' && param[0][1] == 's') {
-         message[0] = 0;
-         strcpy(facility, "midas"); // default
-         int type = MT_USER; // type=8 default ([script,USER])
-         if (cmd_mode) {         // param[1]  type   param[2] name  param[3] message
-	   strcpy(user_name, "script");  // default
-            if (param[3][0]) {
-               strlcpy(message, param[3], sizeof(message));
-               type = atoi(param[1]);
-               strlcpy(user_name, param[2], sizeof(user_name));
-            } else if (param[2][0]) {
-               strlcpy(message, param[2], sizeof(message));
-	       type = atoi(param[1]);
-            } else if (param[1][0]) {
-               strlcpy(message, param[1], sizeof(message));
-            }
-            if(type==0) type= MT_USER; // default
-          
-         } else { // !cmd_mode
-              strcpy(facility, "chat");
-            if (param[2][0]) {
+         // param[1]: facility, param[2]: type, param[3]: name  param[4]: message
+         if (!param[4][0]) {
+            printf("Error: Not enough parameters. Please use\n\n");
+            printf("   msg <facility> <type> <name> <message>\n\n");
+            printf("where <facility> can be \"midas\", \"chat\", ...\n");
+            printf("and <type> must be \"error\", \"info\", \"debug\", \"user\", \"log\", \"talk\" or \"call\".\n");
+         } else {
+            int type = 0;
+            if (equal_ustring(param[2], MT_ERROR_STR))
+               type = MT_ERROR;
+            if (equal_ustring(param[2], MT_INFO_STR))
+               type = MT_INFO;
+            if (equal_ustring(param[2], MT_DEBUG_STR))
+               type = MT_DEBUG;
+            if (equal_ustring(param[2], MT_USER_STR))
+               type = MT_USER;
+            if (equal_ustring(param[2], MT_LOG_STR))
+               type = MT_LOG;
+            if (equal_ustring(param[2], MT_TALK_STR))
+               type = MT_TALK;
+            if (equal_ustring(param[2], MT_CALL_STR))
+               type = MT_CALL;
+            if (type == 0) {
+               printf("Error: inavlid type \"%s\".\n", param[2]);
+               printf("<type> must be one of \"error\", \"info\", \"debug\", \"user\", \"log\", \"talk\", \"call\".\n");
+            } else {
+               
+               cm_msg1(type, __FILE__, __LINE__, param[1], param[3], "%s", param[4]);
                last_msg_time = ss_time();
-               strcpy(user_name, param[1]);
-               strcpy(message, param[2]);
-            } else if (param[1][0])
-               strlcpy(message, param[1], sizeof(message));
-
-            if (ss_time() - last_msg_time > 300) {
-               printf("Your name> ");
-               ss_gets(user_name, 80);
-            }
-
-            if (param[1][0] == 0) {
-               printf("Msg> ");
-               ss_gets(message, 256);
             }
          }
-
-         if (message[0])
-	   cm_msg1(type, __FILE__, __LINE__, facility, user_name, "%s", message);
-
-         last_msg_time = ss_time();
       }
 
       /* chat */

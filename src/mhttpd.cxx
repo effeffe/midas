@@ -11964,7 +11964,7 @@ void generate_hist_graph(Return* rr, const char *path, char *buffer, int *buffer
          goto error;
       }
 
-      db_find_key(hDB, hkeypanel, "Color", &hkey);
+      db_find_key(hDB, hkeypanel, "Colour", &hkey);
       if (hkey) {
          size = sizeof(str);
          status = db_get_data_index(hDB, hkey, str, &size, i, TID_STRING);
@@ -13345,7 +13345,7 @@ struct hist_plot_t
          
          char buf[256];
          
-         sprintf(str, "/History/Display/%s/Color", path);
+         sprintf(str, "/History/Display/%s/Colour", path);
          xdb_get_data_index(hDB, str, buf, sizeof(buf), index, TID_STRING);
          v.hist_col = buf;
          
@@ -13507,7 +13507,7 @@ struct hist_plot_t
       status = db_set_num_values(hDB, hKey, index);
       assert(status == DB_SUCCESS);
 
-      xdb_find_key(hDB, hDir, "Color", &hKey, TID_STRING, NAME_LENGTH);
+      xdb_find_key(hDB, hDir, "Colour", &hKey, TID_STRING, NAME_LENGTH);
       status = db_set_num_values(hDB, hKey, index);
       assert(status == DB_SUCCESS);
 
@@ -13534,7 +13534,7 @@ struct hist_plot_t
          xdb_find_key(hDB, hDir, "Offset", &hKey, TID_FLOAT, 0);
          db_set_data_index(hDB, hKey, &vars[index].hist_offset, sizeof(float), index, TID_FLOAT);
 
-         xdb_find_key(hDB, hDir, "Color", &hKey, TID_STRING, NAME_LENGTH);
+         xdb_find_key(hDB, hDir, "Colour", &hKey, TID_STRING, NAME_LENGTH);
          db_set_data_index(hDB, hKey, vars[index].hist_col.c_str(), NAME_LENGTH, index, TID_STRING);
 
          xdb_find_key(hDB, hDir, "Label", &hKey, TID_STRING, NAME_LENGTH);

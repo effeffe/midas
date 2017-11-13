@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D51BB6261FB9C5DB0094F924 /* midas_cxx.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D51BB6251FB9C5DB0094F924 /* midas_cxx.cxx */; };
 		D5310FBF185702FD00004A4D /* json_paste.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D5310FBE185702FD00004A4D /* json_paste.cxx */; };
 		D5EAE015185703CC000FD8F3 /* mjson.cxx in Sources */ = {isa = PBXBuildFile; fileRef = D5EAE014185703CC000FD8F3 /* mjson.cxx */; };
 		D5EF354C1399A32500BD0BDE /* alarm.c in Sources */ = {isa = PBXBuildFile; fileRef = D5EF35471399A32500BD0BDE /* alarm.c */; };
@@ -35,6 +36,7 @@
 
 /* Begin PBXFileReference section */
 		D5168C4617985ACA0094813D /* git-revision.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "git-revision.h"; path = "/midas/include/git-revision.h"; sourceTree = "<absolute>"; };
+		D51BB6251FB9C5DB0094F924 /* midas_cxx.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = midas_cxx.cxx; path = /midas/src/midas_cxx.cxx; sourceTree = "<group>"; };
 		D5310FBE185702FD00004A4D /* json_paste.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = json_paste.cxx; path = /midas/src/json_paste.cxx; sourceTree = "<absolute>"; };
 		D54515A11399A2CA0037D7FB /* odbedit */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = odbedit; sourceTree = BUILT_PRODUCTS_DIR; };
 		D5EAE014185703CC000FD8F3 /* mjson.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mjson.cxx; path = /midas/src/mjson.cxx; sourceTree = "<absolute>"; };
@@ -86,6 +88,7 @@
 		D54515A41399A2CA0037D7FB /* Source Files */ = {
 			isa = PBXGroup;
 			children = (
+				D51BB6251FB9C5DB0094F924 /* midas_cxx.cxx */,
 				D5EAE014185703CC000FD8F3 /* mjson.cxx */,
 				D5310FBE185702FD00004A4D /* json_paste.cxx */,
 				D5EF355B1399A65100BD0BDE /* cmdedit.cxx */,
@@ -143,7 +146,7 @@
 		D54515981399A2CA0037D7FB /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0830;
+				LastUpgradeCheck = 0910;
 				ORGANIZATIONNAME = PSI;
 			};
 			buildConfigurationList = D545159B1399A2CA0037D7FB /* Build configuration list for PBXProject "odbedit" */;
@@ -178,6 +181,7 @@
 				D5EF35521399A61400BD0BDE /* elog.c in Sources */,
 				D5EF35571399A62100BD0BDE /* mxml.c in Sources */,
 				D5EF35581399A62100BD0BDE /* strlcpy.c in Sources */,
+				D51BB6261FB9C5DB0094F924 /* midas_cxx.cxx in Sources */,
 				D5EF355A1399A63B00BD0BDE /* mrpc.c in Sources */,
 				D5EF355C1399A65100BD0BDE /* cmdedit.cxx in Sources */,
 			);
@@ -191,12 +195,18 @@
 			buildSettings = {
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
@@ -231,12 +241,18 @@
 			buildSettings = {
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
