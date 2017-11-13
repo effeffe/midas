@@ -5845,14 +5845,17 @@ void cm_watchdog(int dummy)
       return;
 
    extern int _db_kludge_protect_odb_locking_against_cm_watchdog;
+   extern int _db_kludge_cm_watchdog_wants_to_run;
 
    if (_db_kludge_protect_odb_locking_against_cm_watchdog) {
       // this is a very bad time to run watchdog functions
-      //fprintf(stderr, "cm_watchdog here!\n");
+      //fprintf(stderr, "cm_watchdog(%d) here!\n", dummy);
       //abort();
       /* Schedule next watchdog call */
-      if (_call_watchdog)
+      if (_call_watchdog) {
+         _db_kludge_cm_watchdog_wants_to_run = 1;
          ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
+      }
       return;
    }
 
@@ -5886,7 +5889,7 @@ void cm_watchdog(int dummy)
    if (1) {
       static time_t last = 0;
       time_t now = time(NULL);
-      fprintf(stderr, "cm_watchdog interval %d\n", (int)(now - last));
+      fprintf(stderr, "cm_watchdog(%d) interval %d\n", dummy, (int)(now - last));
       last = now;
    }
 #endif

@@ -1789,6 +1789,7 @@ Lock a database for exclusive access via system semaphore calls.
 */
 
 int _db_kludge_protect_odb_locking_against_cm_watchdog = 0;
+int _db_kludge_cm_watchdog_wants_to_run = 0;
 
 INT db_lock_database(HNDLE hDB)
 {
@@ -1954,6 +1955,11 @@ INT db_unlock_database(HNDLE hDB)
    ss_mutex_release(_database[hDB - 1].mutex);
    
    _db_kludge_protect_odb_locking_against_cm_watchdog = 0;
+
+   if (_db_kludge_cm_watchdog_wants_to_run) {
+      _db_kludge_cm_watchdog_wants_to_run = 0;
+      cm_watchdog(-1);
+   }
 
 #endif                          /* LOCAL_ROUTINES */
    return DB_SUCCESS;
