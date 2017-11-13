@@ -529,7 +529,8 @@ function mhttpd_init(current_page, interval, callback) {
             for (var k in menu) {
                if (k.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
                   continue;
-               b.push(menu[k + "/name"]);
+               if (menu[k]) // show button if not disabled
+                  b.push(menu[k + "/name"]);
             }
          } else if (buttons && buttons.length > 0) {
             b = buttons.split(",");
