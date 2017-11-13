@@ -100,6 +100,9 @@ function mie_to_string(tid, jvalue, format) {
 function mhttpd_escape(s) {
    var ss = s;
 
+   if (typeof s !== 'string')
+      return ss;
+
    while (ss.indexOf('"') >= 0)
       ss = ss.replace('"', '&quot;');
 
