@@ -1552,7 +1552,7 @@ int exec_script(HNDLE hkey)
 void show_navigation_bar(Return* r, const char *cur_page)
 {
    r->rsprintf("<script>\n");
-   r->rsprintf("window.addEventListener(\"load\", function(e) { mhttpd_init('%s', 0); });\n", cur_page);
+   r->rsprintf("window.addEventListener(\"load\", function(e) { mhttpd_init('%s', 1000); });\n", cur_page);
    r->rsprintf("</script>\n");
    
    r->rsprintf("<!-- header and side navigation will be filled in mhttpd_init -->\n");
