@@ -955,7 +955,7 @@ function mhttpd_message(msg, chat) {
 
          mhttpd_fit_message(m);
          d.age = new Date() / 1000;
-         
+
          if (first) {
             if (m.search("ERROR]") > 0) {
                d.style.backgroundColor = "red";

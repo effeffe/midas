@@ -17703,7 +17703,10 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
        dec_path[strlen(dec_path)-3] == 'm' &&
        dec_path[strlen(dec_path)-2] == 'p' &&
        dec_path[strlen(dec_path)-1] == '3') {
-      send_resource(r, dec_path);
+      if (strrchr(dec_path, '/'))
+         send_resource(r, strrchr(dec_path, '/')+1);
+      else
+         send_resource(r, dec_path);
       return;
    }
 
