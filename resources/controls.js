@@ -480,12 +480,39 @@ function dlgMessage(title, string, modal, error)
 
    document.body.appendChild(d);
 
-   if (error !== undefined) {
+   if (error === true) {
       var t = document.getElementById("dlgMessageTitle");
       t.style.backgroundColor = "#9E2A2A";
       t.style.color = "white";
    }
          
    dlgShow(d, modal);
+   return d;
+}
+
+// replacement for alert() function
+function dlgAlert(s)
+{
+   dlgMessage('MIDAS message', s, true, false);
+}
+
+// replacement for confirm() function
+function dlgConfirm(string, confirmCallback)
+{
+   d = document.createElement("div");
+   d.className = "dlgFrame";
+   d.style.zIndex = 21;
+   d.callback = confirmCallback;
+
+   d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Please confirm</div>"+
+      "<div class=\"dlgPanel\" style=\"padding: 30px;\">"+
+      "<div id=\"dlgMessageString\">"+string+"</div>"+
+      "<br /><br /><button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" "+
+      " onClick=\"this.parentElement.parentElement.callback(true);dlgMessageDestroy(this);\">OK</button>"+
+      "</div>";
+
+   document.body.appendChild(d);
+
+   dlgShow(d, true);
    return d;
 }
