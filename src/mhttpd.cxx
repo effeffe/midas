@@ -17842,7 +17842,8 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   if (equal_ustring(command, "config")) {
+   if (equal_ustring(command, "config") &&
+       !(dec_path[0] == 'H' && dec_path[1] == 'S' && dec_path[2] == '/')) {
       send_resource(r, "config.html");
       return;
    }
