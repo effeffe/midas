@@ -507,7 +507,10 @@ function dlgConfirm(string, confirmCallback)
    d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Please confirm</div>"+
       "<div class=\"dlgPanel\" style=\"padding: 30px;\">"+
       "<div id=\"dlgMessageString\">"+string+"</div>"+
-      "<br /><br /><button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" "+
+      "<br /><br />" +
+      "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" "+
+      " onClick=\"this.parentElement.parentElement.callback(false);dlgMessageDestroy(this);\">Cancel</button>"+
+      "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" "+
       " onClick=\"this.parentElement.parentElement.callback(true);dlgMessageDestroy(this);\">OK</button>"+
       "</div>";
 
