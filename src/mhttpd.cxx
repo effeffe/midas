@@ -342,7 +342,7 @@ public:
 
 /*------------------------------------------------------------------*/
 
-double GetTimeSec()
+static double GetTimeSec()
 {
    struct timeval tv;
    gettimeofday(&tv, NULL);
