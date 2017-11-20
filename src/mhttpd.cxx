@@ -401,6 +401,8 @@ public:
    };
 };
 
+static int http_trace = 0;
+
 class RequestTraceBuf
 {
 public:
@@ -430,7 +432,9 @@ public:
    void AddTraceMTS(RequestTrace* t)
    {
       ss_mutex_wait_for(fMutex, 0);
-      t->PrintTrace0();
+      if (http_trace) {
+         t->PrintTrace0();
+      }
       delete t;
       //AddTrace(t);
       ss_mutex_release(fMutex);
@@ -20153,6 +20157,39 @@ int loop_mg()
    return status;
 }
 
+static MJsonNode* get_http_trace(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO *doc = MJSO::I();
+      doc->D("get current value of mhttpd http_trace");
+      doc->P(NULL, 0, "there are no input parameters");
+      doc->R(NULL, MJSON_INT, "current value of http_trace");
+      return doc;
+   }
+
+   return mjsonrpc_make_result("http_trace", MJsonNode::MakeInt(http_trace));
+}
+
+static MJsonNode* set_http_trace(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("set new value of mhttpd http_trace");
+      doc->P(NULL, MJSON_INT, "new value of http_trace");
+      doc->R(NULL, MJSON_INT, "new value of http_trace");
+      return doc;
+   }
+
+   http_trace = params->GetInt();
+   return mjsonrpc_make_result("http_trace", MJsonNode::MakeInt(http_trace));
+}
+
+static void add_rpc_functions()
+{
+   mjsonrpc_add_handler("set_http_trace", set_http_trace);
+   mjsonrpc_add_handler("get_http_trace", get_http_trace);
+}
+
 /*------------------------------------------------------------------*/
 
 int main(int argc, const char *argv[])
@@ -20326,6 +20363,8 @@ int main(int argc, const char *argv[])
 
    /* initialize the JSON RPC handlers */
    mjsonrpc_init();
+
+   add_rpc_functions();
 
    status = start_mg(user_http_port, user_https_port, socket_priviledged_port, verbose);
    if (status != SUCCESS) {
