@@ -7698,59 +7698,64 @@ static void json_write(char **buffer, int* buffer_size, int* buffer_end, int lev
       return;
    }
 
-   (*buffer)[(*buffer_end)++] = '"';
+   char *bufptr = *buffer;
+   int bufend = *buffer_end;
+   
+   bufptr[bufend++] = '"';
 
    while (*s) {
       switch (*s) {
       case '\"':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = '\"';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = '\"';
          s++;
          break;
       case '\\':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = '\\';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = '\\';
          s++;
          break;
 #if 0
       case '/':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = '/';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = '/';
          s++;
          break;
 #endif
       case '\b':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 'b';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = 'b';
          s++;
          break;
       case '\f':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 'f';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = 'f';
          s++;
          break;
       case '\n':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 'n';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = 'n';
          s++;
          break;
       case '\r':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 'r';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = 'r';
          s++;
          break;
       case '\t':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 't';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = 't';
          s++;
          break;
       default:
-         (*buffer)[(*buffer_end)++] = *s++;
+         bufptr[bufend++] = *s++;
       }
    }
 
-   (*buffer)[(*buffer_end)++] = '"';
-   (*buffer)[*buffer_end] = 0; // NUL-terminate the buffer
+   bufptr[bufend++] = '"';
+   bufptr[bufend] = 0; // NUL-terminate the buffer
+
+   *buffer_end = bufend;
 
    remain = *buffer_size - *buffer_end;
    assert(remain > 0);
