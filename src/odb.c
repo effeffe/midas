@@ -8506,11 +8506,19 @@ static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer
 
 INT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
 {
-   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, JS_MUST_BE_SUBDIR, JSFLAG_SAVE_KEYS|JSFLAG_FOLLOW_LINKS, 0);
+   int status;
+   status = db_lock_database(hDB);
+   if (status != DB_SUCCESS) {
+      return status;
+   }
+   status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, JS_MUST_BE_SUBDIR, JSFLAG_SAVE_KEYS|JSFLAG_FOLLOW_LINKS, 0);
+   db_unlock_database(hDB);
+   return status;
 }
 
 INT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end, int omit_names, int omit_last_written, time_t omit_old_timestamp)
 {
+   int status;
    int flags = JSFLAG_FOLLOW_LINKS|JSFLAG_RECURSE|JSFLAG_LOWERCASE;
    if (omit_names)
       flags |= JSFLAG_OMIT_NAMES;
@@ -8518,12 +8526,25 @@ INT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, 
       flags |= JSFLAG_OMIT_LAST_WRITTEN;
    if (omit_old_timestamp)
       flags |= JSFLAG_OMIT_OLD;
-   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, 0, flags, omit_old_timestamp);
+   status = db_lock_database(hDB);
+   if (status != DB_SUCCESS) {
+      return status;
+   }
+   status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, 0, flags, omit_old_timestamp);
+   db_unlock_database(hDB);
+   return status;
 }
 
 INT db_copy_json_save(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
 {
-   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, JS_MUST_BE_SUBDIR, JSFLAG_SAVE_KEYS|JSFLAG_RECURSE, 0);
+   int status;
+   status = db_lock_database(hDB);
+   if (status != DB_SUCCESS) {
+      return status;
+   }
+   status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, JS_MUST_BE_SUBDIR, JSFLAG_SAVE_KEYS|JSFLAG_RECURSE, 0);
+   db_unlock_database(hDB);
+   return status;
 }
 
 /********************************************************************/
