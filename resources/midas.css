@@ -30,7 +30,6 @@ a:focus { color:#0000FF; text-decoration:underline }
 .mgraycolor {
    background-color: #A0A0A0;
    border-radius: 5px;
-   border: 1px solid #808080;
    color: #404040;
 }
 
@@ -42,7 +41,6 @@ a:focus { color:#0000FF; text-decoration:underline }
 .mredcolor {
    background-color: #a53529;
    border-radius: 5px;
-   border: 1px solid #808080;
    color: #EEEEEE;
 }
 
@@ -54,13 +52,11 @@ a:focus { color:#0000FF; text-decoration:underline }
 .myellowcolor {
    background-color: #f1c40f;
    border-radius: 5px;
-   border: 1px solid #808080;
 }
 
 .mgreencolor {
    background-color: #00c000;
    border-radius: 5px;
-   border: 1px solid #808080;
 }
 
 .mgreencolor a:link, .mgreencolor a:visited {
@@ -110,20 +106,21 @@ a:focus { color:#0000FF; text-decoration:underline }
 
 #mheader_message {
    display: none;
+   height: 16px;
    color: #404040;
    background-color: #A0A0A0;
-   border: 1px solid #808080;
    border-radius: 10px;
-   padding: 1px;
+   padding: 2px;
    padding-left: 10px;
    padding-right: 10px;
 }
 
 #mheader_alarm {
    display: inline-block;
+   height: 16px;
    margin-right: 20px;
    border-radius: 10px;
-   padding: 1px;
+   padding: 2px;
    padding-left: 10px;
    padding-right: 10px;
 }

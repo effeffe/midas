@@ -8140,59 +8140,64 @@ static void json_write(char **buffer, int* buffer_size, int* buffer_end, int lev
       return;
    }
 
-   (*buffer)[(*buffer_end)++] = '"';
+   char *bufptr = *buffer;
+   int bufend = *buffer_end;
+   
+   bufptr[bufend++] = '"';
 
    while (*s) {
       switch (*s) {
       case '\"':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = '\"';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = '\"';
          s++;
          break;
       case '\\':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = '\\';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = '\\';
          s++;
          break;
 #if 0
       case '/':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = '/';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = '/';
          s++;
          break;
 #endif
       case '\b':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 'b';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = 'b';
          s++;
          break;
       case '\f':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 'f';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = 'f';
          s++;
          break;
       case '\n':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 'n';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = 'n';
          s++;
          break;
       case '\r':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 'r';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = 'r';
          s++;
          break;
       case '\t':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 't';
+         bufptr[bufend++] = '\\';
+         bufptr[bufend++] = 't';
          s++;
          break;
       default:
-         (*buffer)[(*buffer_end)++] = *s++;
+         bufptr[bufend++] = *s++;
       }
    }
 
-   (*buffer)[(*buffer_end)++] = '"';
-   (*buffer)[*buffer_end] = 0; // NUL-terminate the buffer
+   bufptr[bufend++] = '"';
+   bufptr[bufend] = 0; // NUL-terminate the buffer
+
+   *buffer_end = bufend;
 
    remain = *buffer_size - *buffer_end;
    assert(remain > 0);
@@ -8943,11 +8948,19 @@ static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer
 
 INT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
 {
-   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, JS_MUST_BE_SUBDIR, JSFLAG_SAVE_KEYS|JSFLAG_FOLLOW_LINKS, 0);
+   int status;
+   status = db_lock_database(hDB);
+   if (status != DB_SUCCESS) {
+      return status;
+   }
+   status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, JS_MUST_BE_SUBDIR, JSFLAG_SAVE_KEYS|JSFLAG_FOLLOW_LINKS, 0);
+   db_unlock_database(hDB);
+   return status;
 }
 
 INT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end, int omit_names, int omit_last_written, time_t omit_old_timestamp)
 {
+   int status;
    int flags = JSFLAG_FOLLOW_LINKS|JSFLAG_RECURSE|JSFLAG_LOWERCASE;
    if (omit_names)
       flags |= JSFLAG_OMIT_NAMES;
@@ -8955,12 +8968,25 @@ INT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, 
       flags |= JSFLAG_OMIT_LAST_WRITTEN;
    if (omit_old_timestamp)
       flags |= JSFLAG_OMIT_OLD;
-   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, 0, flags, omit_old_timestamp);
+   status = db_lock_database(hDB);
+   if (status != DB_SUCCESS) {
+      return status;
+   }
+   status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, 0, flags, omit_old_timestamp);
+   db_unlock_database(hDB);
+   return status;
 }
 
 INT db_copy_json_save(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
 {
-   return json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, JS_MUST_BE_SUBDIR, JSFLAG_SAVE_KEYS|JSFLAG_RECURSE, 0);
+   int status;
+   status = db_lock_database(hDB);
+   if (status != DB_SUCCESS) {
+      return status;
+   }
+   status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, JS_MUST_BE_SUBDIR, JSFLAG_SAVE_KEYS|JSFLAG_RECURSE, 0);
+   db_unlock_database(hDB);
+   return status;
 }
 
 /********************************************************************/

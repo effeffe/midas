@@ -106,6 +106,14 @@
 
 int mjsonrpc_debug = 0;
 int mjsonrpc_sleep = 0;
+int mjsonrpc_time = 0;
+
+static double GetTimeSec()
+{
+   struct timeval tv;
+   gettimeofday(&tv, NULL);
+   return tv.tv_sec*1.0 + tv.tv_usec/1000000.0;
+}
 
 MJsonNode* mjsonrpc_make_error(int code, const char* message, const char* data)
 {
@@ -2586,6 +2594,33 @@ static MJsonNode* set_sleep(const MJsonNode* params)
    return mjsonrpc_make_result("sleep", MJsonNode::MakeInt(mjsonrpc_sleep));
 }
 
+static MJsonNode* get_time(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO *doc = MJSO::I();
+      doc->D("get current value of mjsonrpc_time");
+      doc->P(NULL, 0, "there are no input parameters");
+      doc->R(NULL, MJSON_INT, "current value of mjsonrpc_time");
+      return doc;
+   }
+
+   return mjsonrpc_make_result("time", MJsonNode::MakeInt(mjsonrpc_time));
+}
+
+static MJsonNode* set_time(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("set new value of mjsonrpc_time");
+      doc->P(NULL, MJSON_INT, "new value of mjsonrpc_time");
+      doc->R(NULL, MJSON_INT, "new value of mjsonrpc_time");
+      return doc;
+   }
+
+   mjsonrpc_time = params->GetInt();
+   return mjsonrpc_make_result("time", MJsonNode::MakeInt(mjsonrpc_time));
+}
+
 static MJsonNode* get_schema(const MJsonNode* params)
 {
    if (!params) {
@@ -2627,6 +2662,8 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("set_debug",   set_debug);
    mjsonrpc_add_handler("get_sleep",   get_sleep);
    mjsonrpc_add_handler("set_sleep",   set_sleep);
+   mjsonrpc_add_handler("get_time",    get_time);
+   mjsonrpc_add_handler("set_time",    set_time);
    mjsonrpc_add_handler("get_schema",  get_schema);
    // interface to alarm functions
    mjsonrpc_add_handler("al_reset_alarm",    js_al_reset_alarm);
@@ -3078,6 +3115,12 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
       return reply;
    }
 
+   double start_time = 0;
+
+   if (mjsonrpc_time) {
+      start_time = GetTimeSec();
+   }
+
    const std::string ms = method->GetString();
    const char* m = ms.c_str();
 
@@ -3120,6 +3163,16 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
       printf("\n");
    }
 
+   double end_time = 0;
+   double elapsed_time = 0;
+   if (mjsonrpc_time) {
+      end_time = GetTimeSec();
+      elapsed_time = end_time - start_time;
+      if (mjsonrpc_time > 1) {
+         printf("request took %.3f seconds, method [%s]\n", elapsed_time, m);
+      }
+   }
+   
    const MJsonNode *nerror  = result->FindObjectNode("error");
    const MJsonNode *nresult = result->FindObjectNode("result");
 
@@ -3140,6 +3193,11 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
       reply += "\"id\":" + id->Stringify();
    else
       reply += "\"id\":null";
+   if (mjsonrpc_time) {
+      reply += ",";
+      reply += "\"elapsed_time\":" + MJsonNode::EncodeDouble(elapsed_time);
+   }
+
    reply += "}";
 
    if (result)

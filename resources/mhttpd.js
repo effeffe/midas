@@ -451,17 +451,20 @@ function mhttpd_init(current_page, interval, callback) {
    // create header
    var h = document.getElementById("mheader");
    if (h !== undefined) {
+      h.style.display = "flex";
       h.innerHTML =
-         "<div style='display:inline-block; float:left';>" +
+         "<div style='display:inline-block; flex:none;'>" +
          "<span class='mmenuitem' style='padding-right: 10px;margin-right: 20px;' onclick='mhttpd_toggle_menu()'>&#9776;</span>" +
          "<span id='mheader_expt_name'></span>" +
          "</div>" +
 
-         "<div id='mheader_message'></div>" +
+         "<div style='flex:auto;'>" +
+         "  <div id='mheader_message'></div>" +
+         "</div>" +
 
-         "<div style='display: inline; float:right;'>" +
-         "<div id='mheader_alarm'>&nbsp;</div>" +
-         "<div style='display: inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></div>" +
+         "<div style='display: inline; flex:none;'>" +
+         "  <div id='mheader_alarm'>&nbsp;</div>" +
+         "  <div style='display: inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></div>" +
          "</div>";
    }
 
@@ -529,7 +532,8 @@ function mhttpd_init(current_page, interval, callback) {
             for (var k in menu) {
                if (k.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
                   continue;
-               b.push(menu[k + "/name"]);
+               if (menu[k]) // show button if not disabled
+                  b.push(menu[k + "/name"]);
             }
          } else if (buttons && buttons.length > 0) {
             b = buttons.split(",");
@@ -696,6 +700,10 @@ function mhttpd_resize_sidenav() {
    s.style.top = h.clientHeight + 1 + "px";
    var m = document.getElementById('mmain');
    m.style.paddingTop = h.clientHeight + 1 + "px";
+}
+
+function mhttpd_resize_header() {
+
 }
 
 var mhttpd_last_message = 1;
@@ -870,6 +878,31 @@ function mhttpd_reconnect() {
    });
 }
 
+window.addEventListener('resize', mhttpd_resize_message);
+
+function mhttpd_resize_message() {
+   var d = document.getElementById("mheader_message");
+   if (d.currentMessage !== undefined && d.style.display !== 'none')
+      mhttpd_fit_message(d.currentMessage);
+}
+
+function mhttpd_fit_message(m)
+{
+   var d = document.getElementById("mheader_message");
+   var cross = "&nbsp;&nbsp;&nbsp;<span style='cursor: pointer;' onclick='document.getElementById(&quot;mheader_message&quot;).style.display = &quot;none&quot;;mhttpd_resize_sidenav();'>&#9587;</span>";
+   d.style.display = "inline-block";
+
+   // limit message to fit parent element
+   var parentWidth = d.parentNode.offsetWidth;
+   for (var i = 0; i < m.length+1; i++) {
+      var s = m.substr(0, i);
+      if (i < m.length - 1)
+         s += "...";
+      d.innerHTML = s + cross;
+      if (d.offsetWidth > parentWidth - 30)
+         break;
+   }
+}
 
 function mhttpd_message(msg, chat) {
 
@@ -915,45 +948,59 @@ function mhttpd_message(msg, chat) {
 
    if (m !== "") {
       var d = document.getElementById("mheader_message");
-      var s = m + "&nbsp;&nbsp;&nbsp;<span style='cursor: pointer;' onclick='document.getElementById(&quot;mheader_message&quot;).style.display = &quot;none&quot;;mhttpd_resize_sidenav();'>&#9587;</span>";
-      var first = (d.innerHTML === "");
-      if (d !== undefined && d.innerHTML.substr(0, d.innerHTML.search("&nbsp;&nbsp;&nbsp;<span")) != m) {
-         d.innerHTML = s;
-         d.style.display = "inline-block";
+      if (d !== undefined && d.currentMessage !== m) {
 
-         if (m.search("ERROR]") > 0) {
-            d.style.removeProperty("-webkit-transition");
-            d.style.removeProperty("transition");
-            d.style.backgroundColor = "red";
-            d.style.color = "white";
-         } else {
+         if (mType === "USER" && mhttpdConfig().displayChat  ||
+             mType === "TALK" && mhttpdConfig().displayTalk  ||
+             mType === "ERROR" && mhttpdConfig().displayError ||
+             mType === "INFO" && mhttpdConfig().displayInfo) {
+
+            var first = (d.currentMessage === undefined);
+            d.currentMessage = m; // store full message in user-defined attribute
+
+            mhttpd_fit_message(m);
+            d.age = new Date() / 1000;
+
             if (first) {
-               d.style.backgroundColor = "#A0A0A0";
-               d.age = new Date() / 1000;
-            } else {
-               d.style.removeProperty("-webkit-transition");
-               d.style.removeProperty("transition");
-               d.style.backgroundColor = c;
-               d.style.color = "black";
-               d.age = new Date() / 1000;
-               setTimeout(function () {
-                  d.style.setProperty("-webkit-transition", "background-color 3s", "");
-                  d.style.setProperty("transition", "background-color 3s", "");
-               }, 10);
-
-               if (mTalk !== "") {
-                  if (mType === "USER" && mhttpdConfig().speakChat) {
-                     // do not speak own message
-                     if (document.getElementById("chatName") == undefined || document.getElementById("chatName").value != chatName)
-                        mhttpd_speak(talkTime, mTalk);
-                  } else if (mType === "TALK" && mhttpdConfig().speakTalk) {
-                     mhttpd_speak(talkTime, mTalk);
-                  } else if (mType === "ERROR" && mhttpdConfig().speakError) {
-                     mhttpd_speak(talkTime, mTalk);
-                  } else if (mType === "INFO" && mhttpdConfig().speakInfo) {
-                     mhttpd_speak(talkTime, mTalk);
-                  }
+               if (m.search("ERROR]") > 0) {
+                  d.style.backgroundColor = "red";
+                  d.style.color = "white";
+               } else {
+                  d.style.backgroundColor = "#A0A0A0";
                }
+            } else {
+
+               // manage backgroud color (red for errors, fading yellow for others)
+               if (m.search("ERROR]") > 0) {
+                  d.style.removeProperty("-webkit-transition");
+                  d.style.removeProperty("transition");
+                  d.style.backgroundColor = "red";
+                  d.style.color = "white";
+               } else {
+                  d.age = new Date() / 1000;
+                  d.style.removeProperty("-webkit-transition");
+                  d.style.removeProperty("transition");
+                  d.style.backgroundColor = c;
+                  d.style.color = "black";
+                  setTimeout(function () {
+                     d.style.setProperty("-webkit-transition", "background-color 3s", "");
+                     d.style.setProperty("transition", "background-color 3s", "");
+                  }, 10);
+               }
+            }
+         }
+
+         if (mTalk !== "") {
+            if (mType === "USER" && mhttpdConfig().speakChat) {
+               // do not speak own message
+               if (document.getElementById("chatName") == undefined || document.getElementById("chatName").value != chatName)
+                  mhttpd_speak(talkTime, mTalk);
+            } else if (mType === "TALK" && mhttpdConfig().speakTalk) {
+               mhttpd_speak(talkTime, mTalk);
+            } else if (mType === "ERROR" && mhttpdConfig().speakError) {
+               mhttpd_speak(talkTime, mTalk);
+            } else if (mType === "INFO" && mhttpdConfig().speakInfo) {
+               mhttpd_speak(talkTime, mTalk);
             }
          }
       }
@@ -1366,6 +1413,11 @@ function msg_extend() {
 
 var mhttpd_config_defaults = {
    'chatName': "",
+
+   'displayChat': true,
+   'displayTalk': true,
+   'displayError': true,
+   'displayInfo': false,
 
    'speakChat': true,
    'speakTalk': true,

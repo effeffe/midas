@@ -10,7 +10,7 @@
 </head>
 <style>
    td {
-      padding: 10px;
+      padding: 5px;
    }
 </style>
 <script>
@@ -122,11 +122,26 @@
 <div id="mmain">
    <table class="mtable">
       <tr>
-         <th colspan="2" class="mtableheader">Config</th>
+         <th colspan="3" class="mtableheader">Config</th>
       </tr>
+
       <tr>
          <td>
-            Speak "CHAT" messages:
+         </td>
+         <td width="100px" align="center">
+            Display in header
+         </td>
+         <td width="100px" align="center">
+            Speak
+         </td>
+      </tr>
+
+      <tr>
+         <td>
+            "CHAT" messages:
+         </td>
+         <td>
+            <input type="checkbox" id="displayChat">
          </td>
          <td>
             <input type="checkbox" id="speakChat">
@@ -134,7 +149,10 @@
       </tr>
       <tr>
          <td>
-            Speak "TALK" messages:
+            "TALK" messages:
+         </td>
+         <td>
+            <input type="checkbox" id="displayTalk">
          </td>
          <td>
             <input type="checkbox" id="speakTalk">
@@ -142,7 +160,10 @@
       </tr>
       <tr>
          <td>
-            Speak "ERROR" messages:
+            "ERROR" messages:
+         </td>
+         <td>
+            <input type="checkbox" id="displayError">
          </td>
          <td>
             <input type="checkbox" id="speakError">
@@ -150,7 +171,10 @@
       </tr>
       <tr>
          <td>
-            Speak "INFO" messages:
+            "INFO" messages:
+         </td>
+         <td>
+            <input type="checkbox" id="displayInfo">
          </td>
          <td>
             <input type="checkbox" id="speakInfo">
@@ -160,7 +184,7 @@
          <td>
             Voice:
          </td>
-         <td>
+         <td colspan="2">
             <select id="speakVoice">
             </select>
          </td>
@@ -169,29 +193,29 @@
          <td>
             Speak volume:
          </td>
-         <td>
+         <td colspan="2">
             <table>
                <tr>
-                  <td style="padding: 0;">0&nbsp;</td>
+                  <td style="padding: 5px;">0</td>
                   <td style="padding: 0;"><button name="ctrlHSlider" type="button" id="speakVolume" class="ctrlHSlider" style="display: inline-block;" data-update="speakVolumeUpdate()"></button></td>
-                  <td style="padding: 0;">&nbsp;MAX</td>
+                  <td style="padding: 5px;">MAX</td>
                </tr>
             </table>
          </td>
       </tr>
 
       <tr>
-         <td colspan="2" style="background-color: #A0A0A0; height:2px; padding: 0;"></td>
+         <td colspan="3" style="background-color: #A0A0A0; height:2px; padding: 0;"></td>
       </tr>
       <tr>
-         <td colspan="2" style="background-color: #A0A0A0; height:0; padding: 0;"></td>
+         <td colspan="3" style="background-color: #A0A0A0; height:0; padding: 0;"></td>
       </tr>
 
       <tr>
          <td>
             Play alarm sound:
          </td>
-         <td>
+         <td colspan="2">
             <input type="checkbox" id="alarmSound">
          </td>
       </tr>
@@ -199,7 +223,7 @@
          <td>
             Alarm repetition rate [s]:
          </td>
-         <td>
+         <td colspan="2">
             <input type="text" size="5" id="alarmRepeat" data-min-value="10" data-max-value="3600">
          </td>
       </tr>
@@ -207,7 +231,7 @@
          <td>
             Alarm sound:
          </td>
-         <td>
+         <td colspan="2">
             <select id="alarmSoundFile">
                <option>beep</option>
                <option>bell</option>
@@ -223,26 +247,26 @@
          <td>
             Alarm volume:
          </td>
-         <td>
+         <td colspan="2">
             <table>
                <tr>
-                  <td style="padding: 0;">0&nbsp;</td>
+                  <td style="padding: 5px;">0</td>
                   <td style="padding: 0;"><button name="ctrlHSlider" type="button" id="alarmVolume" class="ctrlHSlider" style="display: inline-block;" data-update="alarmVolumeUpdate()"></button></td>
-                  <td style="padding: 0;">&nbsp;MAX</td>
+                  <td style="padding: 5px;">MAX</td>
                </tr>
             </table>
          </td>
       </tr>
 
       <tr>
-         <td colspan="2" style="background-color: #A0A0A0; height:2px; padding: 0;"></td>
+         <td colspan="3" style="background-color: #A0A0A0; height:2px; padding: 0;"></td>
       </tr>
       <tr>
-         <td colspan="2" style="background-color: #A0A0A0; height:0; padding: 0;"></td>
+         <td colspan="3" style="background-color: #A0A0A0; height:0; padding: 0;"></td>
       </tr>
 
       <tr>
-         <td colspan="2" style="text-align: center;">
+         <td colspan="3" style="text-align: center;">
             <button class="mbutton" onclick="mhttpdConfigSetAll(mhttpd_config_defaults);config_init();">Reset defaults
             </button>
          </td>

@@ -318,6 +318,7 @@ static MJsonNode* parse_string(const char* sin, const char* s, const char** sout
 static std::string parse_digits(const char* s, const char** sout)
 {
    std::string v;
+   v.reserve(32); // allocate space for a longish number
 
    while (*s) {
       if (*s < '0')

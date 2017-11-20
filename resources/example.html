@@ -660,19 +660,38 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
 
       <hr>
 
+      <h2>mhttpd special functions</h2>
+
+      <p> Enable tracing of http requests:
+        <input type=button value='set http_trace 0'
+          onClick='mjsonrpc_call("set_http_trace", "0").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        <input type=button value='set http_trace 1'
+          onClick='mjsonrpc_call("set_http_trace", "1").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        <input type=button value='get http_trace'
+          onClick='mjsonrpc_call("get_http_trace", "{}").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+      </p>
+
       <h2>MIDAS JSON RPC special functions and test cases</h2>
 
       <p> Test built-in functions:
-         <input type=button value='set debug 0'
-                onClick='mjsonrpc_call("set_debug", "0").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
-         <input type=button value='set debug 1'
-                onClick='mjsonrpc_call("set_debug", "1").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
-         <input type=button value='get debug'
-                onClick='mjsonrpc_call("get_debug", "{}").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        <input type=button value='set debug 0'
+          onClick='mjsonrpc_call("set_debug", "0").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        <input type=button value='set debug 1'
+          onClick='mjsonrpc_call("set_debug", "1").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+        <input type=button value='get debug'
+          onClick='mjsonrpc_call("get_debug", "{}").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+         <input type=button value='set time 0'
+           onClick='mjsonrpc_call("set_time", "0").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+         <input type=button value='set time 1'
+           onClick='mjsonrpc_call("set_time", "1").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+         <input type=button value='set time 2'
+           onClick='mjsonrpc_call("set_time", "2").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+         <input type=button value='get time'
+           onClick='mjsonrpc_call("get_time", "{}").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
          <input type=button value='set sleep 0'
-                onClick='mjsonrpc_call("set_sleep", "0").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+           onClick='mjsonrpc_call("set_sleep", "0").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
          <input type=button value='set sleep 1'
-                onClick='mjsonrpc_call("set_sleep", "1").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+           onClick='mjsonrpc_call("set_sleep", "1").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
          <input type=button value='set sleep 2'
                 onClick='mjsonrpc_call("set_sleep", "2").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
          <input type=button value='set sleep 5'
