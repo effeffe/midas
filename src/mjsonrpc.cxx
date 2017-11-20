@@ -3168,7 +3168,7 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
    if (mjsonrpc_time) {
       end_time = GetTimeSec();
       elapsed_time = end_time - start_time;
-      if (mjsonrpc_debug) {
+      if (mjsonrpc_time > 1) {
          printf("request took %.3f seconds, method [%s]\n", elapsed_time, m);
       }
    }
