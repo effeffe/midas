@@ -342,6 +342,140 @@ public:
 
 /*------------------------------------------------------------------*/
 
+static double GetTimeSec()
+{
+   struct timeval tv;
+   gettimeofday(&tv, NULL);
+   return tv.tv_sec*1.0 + tv.tv_usec/1000000.0;
+}
+
+/*------------------------------------------------------------------*/
+
+class RequestTrace
+{
+public:
+   double fTimeReceived; // time request received
+   double fTimeLocked; // time lock is taken
+   double fTimeUnlocked; // time lock is released
+   double fTimeProcessed; // time processing of request is done
+   double fTimeSent; // time sending the request is done
+   bool fCompleted; // flag the request completed, it's RequestTrace is safe to delete
+   std::string fMethod; // request HTTP method
+   std::string fUri; // request URL/URI
+   std::string fQuery; // request query string
+   std::string fRPC; // request RPC
+   std::string fResource; // request file resource, with full path
+   bool fAuthOk; // password check passed
+
+public:
+   RequestTrace() // ctor
+   {
+      fTimeReceived = 0;
+      fTimeLocked = 0;
+      fTimeUnlocked = 0;
+      fTimeProcessed = 0;
+      fTimeSent = 0;
+      fCompleted = false;
+      fAuthOk = false;
+   }
+
+   void PrintTrace0() const
+   {
+      printf("%.3f ", fTimeReceived);
+      printf("%.3f ", fTimeLocked-fTimeReceived);
+      printf("%.3f ", fTimeUnlocked-fTimeLocked);
+      printf("%.3f ", fTimeProcessed-fTimeUnlocked);
+      printf("%.3f ", fTimeSent-fTimeProcessed);
+      printf("A ");
+      printf("%d ", fAuthOk);
+      printf("T ");
+      printf("%.3f ", fTimeSent-fTimeReceived);
+      printf("%.3f ", fTimeLocked-fTimeReceived);
+      printf("%.3f ", fTimeProcessed-fTimeLocked);
+      printf("M %s ", fMethod.c_str());
+      printf("URL %s ", fUri.c_str());
+      if (fRPC.length() > 0) {
+         printf("RPC %s ", fRPC.c_str());
+      }
+      printf("\n");
+   };
+};
+
+static int http_trace = 0;
+
+class RequestTraceBuf
+{
+public:
+   MUTEX_T* fMutex;
+   std::vector<RequestTrace*> fBuf;
+
+public:
+   RequestTraceBuf() // ctor
+   {
+      int status;
+      status = ss_mutex_create(&fMutex, FALSE);
+      assert(status==SS_SUCCESS || status==SS_CREATED);
+   }
+
+   //RequestTrace* NewTrace() // RequestTrace factory
+     //{
+     // RequestTrace* t = new RequestTrace;
+     // fBuf.push_back(t);
+     // return t;
+   //}
+
+   void AddTrace(RequestTrace* t)
+   {
+      fBuf.push_back(t);
+   }
+
+   void AddTraceMTS(RequestTrace* t)
+   {
+      ss_mutex_wait_for(fMutex, 0);
+      if (http_trace) {
+         t->PrintTrace0();
+      }
+      delete t;
+      //AddTrace(t);
+      ss_mutex_release(fMutex);
+   }
+
+   void Clear() // clear all completed requests
+   {
+      // delete all completed requests
+      for (unsigned i=0; i<fBuf.size(); i++) {
+         if (fBuf[i] && fBuf[i]->fCompleted) {
+            delete fBuf[i];
+            fBuf[i] = NULL;
+         }
+      }
+
+      // compact all non-completed requests
+      unsigned k = 0;
+      for (unsigned i=0; i<fBuf.size(); i++) {
+         if (fBuf[i]) {
+            if (fBuf[k] != NULL) {
+               for (; k<i; k++) {
+                  if (fBuf[k] == NULL) {
+                     break;
+                  }
+               }
+            }
+            // if we found an empty spot between "k" and "i" move "i" there
+            // if there is no empty spot, then "i" does not need to be moved
+            if (fBuf[k] == NULL) {
+               fBuf[k] = fBuf[i];
+               fBuf[i] = NULL;
+            }
+         }
+      }
+   }
+};
+
+static RequestTraceBuf* gTraceBuf = NULL;
+
+/*------------------------------------------------------------------*/
+
 /* size of buffer for incoming data, must fit sum of all attachments */
 #define WEB_BUFFER_SIZE (6*1024*1024)
 
@@ -19259,7 +19393,7 @@ static void handle_event_mg(struct mg_connection *nc, int ev, void *ev_data)
    }
 }
 
-static bool handle_decode_get(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string)
+static bool handle_decode_get(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
 {
    int status;
    
@@ -19308,6 +19442,8 @@ static bool handle_decode_get(struct mg_connection *nc, const http_message* msg,
    status = ss_mutex_wait_for(request_mutex, 0);
    assert(status == SS_SUCCESS);
 
+   t->fTimeLocked = GetTimeSec();
+
    // prepare return buffer
 
    Return *rr = new Return();
@@ -19321,8 +19457,11 @@ static bool handle_decode_get(struct mg_connection *nc, const http_message* msg,
    if (trace_mg)
       printf("handle_decode_get: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
 
+   t->fTimeProcessed = GetTimeSec();
+
    if (rr->return_length == -1) {
       delete rr;
+      t->fTimeUnlocked = GetTimeSec();
       ss_mutex_release(request_mutex);
       return false;
    }
@@ -19330,6 +19469,8 @@ static bool handle_decode_get(struct mg_connection *nc, const http_message* msg,
    if (rr->return_length == 0)
       rr->return_length = strlen(rr->return_buffer);
    
+   t->fTimeUnlocked = GetTimeSec();
+
    ss_mutex_release(request_mutex);
    
    mg_send(nc, rr->return_buffer, rr->return_length);
@@ -19341,6 +19482,8 @@ static bool handle_decode_get(struct mg_connection *nc, const http_message* msg,
       nc->flags |= MG_F_SEND_AND_CLOSE;
    }
    
+   t->fTimeSent = GetTimeSec();
+
    delete rr;
    
    return true;
@@ -19446,7 +19589,7 @@ static bool handle_decode_post(struct mg_connection *nc, const http_message* msg
    return true;
 }
 
-static bool handle_http_get(struct mg_connection *nc, const http_message* msg, const char* uri)
+static bool handle_http_get(struct mg_connection *nc, const http_message* msg, const char* uri, RequestTrace* t)
 {
    std::string query_string = mgstr(&msg->query_string);
 
@@ -19477,8 +19620,12 @@ static bool handle_http_get(struct mg_connection *nc, const http_message* msg, c
       //printf("sending reply: %s\n", reply.c_str());
       
       std::string send = headers + "\n" + reply;
+
+      t->fTimeProcessed = GetTimeSec();
       
       mg_send(nc, send.c_str(), send.length());
+
+      t->fTimeSent = GetTimeSec();
       
       return true;
    }
@@ -19508,15 +19655,19 @@ static bool handle_http_get(struct mg_connection *nc, const http_message* msg, c
       
       std::string send = headers + "\n" + reply;
       
+      t->fTimeProcessed = GetTimeSec();
+
       mg_send(nc, send.c_str(), send.length());
       
+      t->fTimeSent = GetTimeSec();
+
       return true;
    }
    
-   return handle_decode_get(nc, msg, uri, query_string.c_str());
+   return handle_decode_get(nc, msg, uri, query_string.c_str(), t);
 }
 
-static bool handle_http_post(struct mg_connection *nc, const http_message* msg, const char* uri)
+static bool handle_http_post(struct mg_connection *nc, const http_message* msg, const char* uri, RequestTrace* t)
 {
    std::string query_string = mgstr(&msg->query_string);
    std::string post_data = mgstr(&msg->body);
@@ -19537,18 +19688,28 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg, 
          
          std::string send = headers + "\n";
          
+         t->fTimeProcessed = GetTimeSec();
+
          mg_send(nc, send.c_str(), send.length());
          
+         t->fTimeSent = GetTimeSec();
+
          return true;
       }
 
       //printf("post body: %s\n", post_data.c_str());
+
+      t->fRPC = post_data;
       
       int status = ss_mutex_wait_for(request_mutex, 0);
       assert(status == SS_SUCCESS);
          
+      t->fTimeLocked = GetTimeSec();
+
       std::string reply = mjsonrpc_decode_post_data(post_data.c_str());
          
+      t->fTimeUnlocked = GetTimeSec();
+
       ss_mutex_release(request_mutex);
          
       int reply_length = reply.length();
@@ -19571,15 +19732,19 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg, 
       
       std::string send = headers + "\n" + reply;
       
+      t->fTimeProcessed = GetTimeSec();
+
       mg_send(nc, send.c_str(), send.length());
       
+      t->fTimeSent = GetTimeSec();
+
       return true;
    }
 
    return handle_decode_post(nc, msg, uri, query_string.c_str());
 }
 
-static bool handle_http_options_cors(struct mg_connection *nc, const http_message* msg)
+static bool handle_http_options_cors(struct mg_connection *nc, const http_message* msg, RequestTrace* t)
 {
    //
    // JSON-RPC CORS pre-flight request, see
@@ -19634,7 +19799,11 @@ static bool handle_http_options_cors(struct mg_connection *nc, const http_messag
    
    std::string send = headers + "\n";
    
+   t->fTimeProcessed = GetTimeSec();
+
    mg_send(nc, send.c_str(), send.length());
+
+   t->fTimeSent = GetTimeSec();
    
    return true;
 }
@@ -19651,12 +19820,20 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
    if (trace_mg)
       printf("handle_http_message: method [%s] uri [%s] proto [%s]\n", method.c_str(), uri.c_str(), mgstr(&msg->proto).c_str());
 
+   RequestTrace* t = new RequestTrace;
+   t->fTimeReceived = GetTimeSec();
+   t->fMethod = method;
+   t->fUri = uri;
+   t->fQuery = query_string;
+
    bool response_sent = false;
 
    // process OPTIONS for Cross-origin (CORS) preflight request
    // see https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS
    if (method == "OPTIONS" && query_string == "mjsonrpc" && mg_get_http_header(msg, "Access-Control-Request-Method") != NULL) {
-      handle_http_options_cors(nc, msg);
+      handle_http_options_cors(nc, msg, t);
+      t->fCompleted = true;
+      gTraceBuf->AddTraceMTS(t);
       return;
    }
 
@@ -19678,14 +19855,19 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
             printf("handle_http_message: method [%s] uri [%s] query [%s] proto [%s], sending auth request for realm \"%s\"\n", method.c_str(), uri.c_str(), query_string.c_str(), mgstr(&msg->proto).c_str(), auth_mg.realm.c_str());
 
          xmg_http_send_digest_auth_request(nc, auth_mg.realm.c_str());
+         t->fCompleted = true;
+         gTraceBuf->AddTraceMTS(t);
          return;
       }
+      t->fAuthOk = true;
+   } else {
+      t->fAuthOk = true;
    }
 
    if (method == "GET")
-      response_sent = handle_http_get(nc, msg, uri.c_str());
+      response_sent = handle_http_get(nc, msg, uri.c_str(), t);
    else if (method == "POST")
-      response_sent = handle_http_post(nc, msg, uri.c_str());
+      response_sent = handle_http_post(nc, msg, uri.c_str(), t);
 
    if (!response_sent) {
       if (trace_mg||verbose_mg)
@@ -19695,6 +19877,9 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       mg_send_head(nc, 501, response.length(), NULL); // 501 Not Implemented
       mg_send(nc, response.c_str(), response.length());
    }
+
+   t->fCompleted = true;
+   gTraceBuf->AddTraceMTS(t);
 }
 
 static void handle_http_event_mg(struct mg_connection *nc, int ev, void *ev_data)
@@ -19841,6 +20026,10 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
    signal(SIGPIPE, SIG_IGN);
 #endif
 
+   if (!gTraceBuf) {
+      gTraceBuf = new RequestTraceBuf;
+   }
+
    if (!request_mutex) {
       status = ss_mutex_create(&request_mutex, FALSE);
       assert(status==SS_SUCCESS || status==SS_CREATED);
@@ -19970,6 +20159,39 @@ int loop_mg()
    }
 
    return status;
+}
+
+static MJsonNode* get_http_trace(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO *doc = MJSO::I();
+      doc->D("get current value of mhttpd http_trace");
+      doc->P(NULL, 0, "there are no input parameters");
+      doc->R(NULL, MJSON_INT, "current value of http_trace");
+      return doc;
+   }
+
+   return mjsonrpc_make_result("http_trace", MJsonNode::MakeInt(http_trace));
+}
+
+static MJsonNode* set_http_trace(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("set new value of mhttpd http_trace");
+      doc->P(NULL, MJSON_INT, "new value of http_trace");
+      doc->R(NULL, MJSON_INT, "new value of http_trace");
+      return doc;
+   }
+
+   http_trace = params->GetInt();
+   return mjsonrpc_make_result("http_trace", MJsonNode::MakeInt(http_trace));
+}
+
+static void add_rpc_functions()
+{
+   mjsonrpc_add_handler("set_http_trace", set_http_trace);
+   mjsonrpc_add_handler("get_http_trace", get_http_trace);
 }
 
 /*------------------------------------------------------------------*/
@@ -20145,6 +20367,8 @@ int main(int argc, const char *argv[])
 
    /* initialize the JSON RPC handlers */
    mjsonrpc_init();
+
+   add_rpc_functions();
 
    status = start_mg(user_http_port, user_https_port, socket_priviledged_port, verbose);
    if (status != SUCCESS) {
