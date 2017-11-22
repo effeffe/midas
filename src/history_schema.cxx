@@ -2152,7 +2152,11 @@ int HsFileSchema::read_data(const time_t start_time,
 
          time_t t = *(DWORD*)buf;
 
-         assert(t >= start_time);
+         if (t < start_time) {
+            cm_msg(MERROR, "FileHistory::read_data", "Bad timestamp in history file \'%s\', time 0x%08x less then start_time 0x%08x, irec %d, nrec %d, fpos %d", s->file_name.c_str(), (DWORD)t, (DWORD)start_time, irec, nrec, fpos);
+            break;
+         }
+
          if (t > end_time)
             break;
 
