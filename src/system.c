@@ -1939,7 +1939,7 @@ invoke ss_exec() and ignore pid.
   char cmd[256];
   sprintf(cmd,"%s %s %i %s/%s %1.3lf %d",lazy.commandAfter,
      lazy.backlabel, lazyst.nfiles, lazy.path, lazyst.backfile,
-     lazyst.file_size/1024.0/1024.0, blockn);
+     lazyst.file_size/1000.0/1000.0, blockn);
   cm_msg(MINFO,"Lazy","Exec post file write script:%s",cmd);
   ss_system(cmd);
 }
@@ -5298,7 +5298,7 @@ INT ss_tape_status(char *path)
 
    if (d.FeaturesLow & TAPE_DRIVE_TAPE_REMAINING) {
       x = ((double) m.Remaining.LowPart + (double) m.Remaining.HighPart * 4.294967295E9)
-          / 1024.0 / 1000.0;
+          / 1000.0 / 1000.0;
       printf("Tape capacity remaining is %d MB\n", (int) x);
    } else
       printf("Tape capacity is not reported by tape\n");
