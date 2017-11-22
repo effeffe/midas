@@ -386,8 +386,10 @@
                      statusItem.innerHTML = equipmentCommonData[i]["status"];
                      if (equipmentCommonData[i]["status color"].indexOf("Light") != -1)
                         statusItem.className = equipmentCommonData[i]["status color"];
-                     else
-                        statusItem.className = "greenLight";
+                     else {
+                        statusItem.className = "Light";
+                        statusItem.style.backgroundColor = equipmentCommonData[i]["status color"];
+                     }
                   }
                }
             } else {
