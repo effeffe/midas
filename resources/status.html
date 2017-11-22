@@ -213,28 +213,42 @@
                      state = "Stopped";
                      buttonText = "Start";
                      document.getElementById("runNumberCell").className = "mredcolor";
-                     //showing stop time
-                     if (runinfoJson.hasOwnProperty("stop time")) {
+                     // show stop time
+                     if (runinfoJson.hasOwnProperty("stop time"))
                         document.getElementById("runStatusStopTime").innerHTML = "Stop: " + runinfoJson["stop time"];
-                     }
                      break;
                   case 2:
                      state = "Paused";
                      buttonText = "Start";
                      document.getElementById("runNumberCell").className = "myellowcolor";
-                     break;
-                  case 3:
-                     state = "Running";
-                     buttonText = "Stop";
-                     document.getElementById("runNumberCell").className = "mgreencolor";
-                     //showing running time
+                     // show running time
                      if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
                         //var time=runinfoJson["start time binary/last_written"];
                         var difftime = Math.round(new Date().getTime() / 1000) - runinfoJson["start time binary/last_written"];
                         var h = Math.floor(difftime / 3600);
                         var m = Math.floor(difftime % 3600 / 60);
                         var s = Math.floor(difftime % 60);
-                        document.getElementById("runStatusStopTime").innerHTML = "Running time: " + h + "h" + m + "m" + s + "s";
+                        document.getElementById("runStatusStopTime").innerHTML = "Running time: " +
+                                + h + "h"
+                                + ((m<10)?"0"+m:m) + "m"
+                                + ((s<10)?"0"+s:s) + "s";
+                     }
+                     break;
+                  case 3:
+                     state = "Running";
+                     buttonText = "Stop";
+                     document.getElementById("runNumberCell").className = "mgreencolor";
+                     // show running time
+                     if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
+                        //var time=runinfoJson["start time binary/last_written"];
+                        var difftime = Math.round(new Date().getTime() / 1000) - runinfoJson["start time binary/last_written"];
+                        var h = Math.floor(difftime / 3600);
+                        var m = Math.floor(difftime % 3600 / 60);
+                        var s = Math.floor(difftime % 60);
+                        document.getElementById("runStatusStopTime").innerHTML = "Running time: " +
+                                + h + "h"
+                                + ((m<10)?"0"+m:m) + "m"
+                                + ((s<10)?"0"+s:s) + "s";
                      }
                      break;
                }
@@ -264,13 +278,7 @@
 
             if (experimentItemsJson != null && experimentItemsJson.hasOwnProperty("experiment name")) {
 
-
-
-               //if (document.getElementById("runStatusExperimentName").innerHTML != experimentName) {
-               //   document.getElementById("runStatusExperimentName").innerHTML = experimentName;
-               //}
                // check if lazy active is in the experiment items list
-
                var experimentItemList = Object.keys(experimentItemsJson);
                if (experimentItemList.length > 3) {
                   for (var i = 0; i < experimentItemList.length; i = i + 3) {
