@@ -503,7 +503,13 @@
                var logChannelRow = document.createElement("tr");
                logChannelRow.id = element + "channel";
                logChannelRow.className = "logChannel";
-               logChannelRow.innerHTML = "<td colspan=\"2\" class=\"mgreencolor\">" +
+
+               var cl = "myellowcolor";
+               if (loggerJson["write data"] == true &&
+                   currentChannel["settings"]["active"] == true)
+                  cl = "mgreencolor";
+
+               logChannelRow.innerHTML = "<td colspan=\"2\" class=\""+cl+"\">" +
                        "<a href=\"Logger/Channels/" + element + "/Settings\">" +
                        "#" + element + ": " + "</a>" +
                        currentChannel["settings"]["current filename"] +
