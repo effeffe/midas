@@ -40,7 +40,7 @@
                </tr>
 
                <tr align="center">
-                  <td id="runNumberCell" align="center" rowspan="3" class="mgreencolor greenLight">
+                  <td id="runNumberCell" align="center" rowspan="3" class="mgreencolor">
                      Run
                      <br> runNum
                      <br> status
@@ -51,8 +51,8 @@
                </tr>
 
                <tr align="center">
-                  <td id="runStatusAlarm" class="mgreencolor greenLight"> runStatusAlarm</td>
-                  <td id="runStatusSequencer" class="mgreencolor greenLight"> runStatusSequencer</td>
+                  <td id="runStatusAlarm" class="mgreencolor"> runStatusAlarm</td>
+                  <td id="runStatusSequencer" class="mgreencolor"> runStatusSequencer</td>
                   <td id="runStatusLogger" colspan="2"> runStatusLogger</td>
                </tr>
 
@@ -88,7 +88,7 @@
                   <th>Status</th>
                   <th>Events</th>
                   <th>Events[/s]</th>
-                  <th>Data[MB/s]</th>
+                  <th>Data[MiB/s]</th>
                </tr>
             </table>
 
@@ -137,7 +137,7 @@
 
    //pre-define some html codes for different tables/rows
 
-   const equipmentTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Equipment</th></tr><tr><th>Equipment&nbsp;<a id='hide' class='hideButton' href=\"javascript:unhideEquipments()\">+</a></th><th>Status</th><th>Events</th><th>Events[/s]</th><th>Data[MB/s]</th></tr>";
+   const equipmentTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Equipment</th></tr><tr><th>Equipment&nbsp;<a id='hide' class='hideButton' href=\"javascript:unhideEquipments()\">+</a></th><th>Status</th><th>Events</th><th>Events[/s]</th><th>Data[MiB/s]</th></tr>";
    const logChannelTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Logging Channels</th></tr>";
    const firstLogChannelHtml = "<tr id=\"logChannelFirstPart\" class=\"mtabvaritle\"><th colspan=\"2\">Channel</th><th>Events</th><th>MB written</th><th>Compr.</th><th>Disk Level</th></tr>";
    const secondLogChannelHtml = "<tr id=\"logChannelSecondPart\" class=\"mtabvaritle\"><th colspan=\"2\">Lazy Label</th><th>Progress</th><th>File Name</th><th># Files</th><th>Total</th></tr>";
@@ -213,28 +213,42 @@
                      state = "Stopped";
                      buttonText = "Start";
                      document.getElementById("runNumberCell").className = "mredcolor";
-                     //showing stop time
-                     if (runinfoJson.hasOwnProperty("stop time")) {
+                     // show stop time
+                     if (runinfoJson.hasOwnProperty("stop time"))
                         document.getElementById("runStatusStopTime").innerHTML = "Stop: " + runinfoJson["stop time"];
-                     }
                      break;
                   case 2:
                      state = "Paused";
                      buttonText = "Start";
                      document.getElementById("runNumberCell").className = "myellowcolor";
-                     break;
-                  case 3:
-                     state = "Running";
-                     buttonText = "Stop";
-                     document.getElementById("runNumberCell").className = "mgreencolor";
-                     //showing running time
+                     // show running time
                      if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
                         //var time=runinfoJson["start time binary/last_written"];
                         var difftime = Math.round(new Date().getTime() / 1000) - runinfoJson["start time binary/last_written"];
                         var h = Math.floor(difftime / 3600);
                         var m = Math.floor(difftime % 3600 / 60);
                         var s = Math.floor(difftime % 60);
-                        document.getElementById("runStatusStopTime").innerHTML = "Running time: " + h + "h" + m + "m" + s + "s";
+                        document.getElementById("runStatusStopTime").innerHTML = "Running time: " +
+                                + h + "h"
+                                + ((m<10)?"0"+m:m) + "m"
+                                + ((s<10)?"0"+s:s) + "s";
+                     }
+                     break;
+                  case 3:
+                     state = "Running";
+                     buttonText = "Stop";
+                     document.getElementById("runNumberCell").className = "mgreencolor";
+                     // show running time
+                     if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
+                        //var time=runinfoJson["start time binary/last_written"];
+                        var difftime = Math.round(new Date().getTime() / 1000) - runinfoJson["start time binary/last_written"];
+                        var h = Math.floor(difftime / 3600);
+                        var m = Math.floor(difftime % 3600 / 60);
+                        var s = Math.floor(difftime % 60);
+                        document.getElementById("runStatusStopTime").innerHTML = "Running time: " +
+                                + h + "h"
+                                + ((m<10)?"0"+m:m) + "m"
+                                + ((s<10)?"0"+s:s) + "s";
                      }
                      break;
                }
@@ -264,13 +278,7 @@
 
             if (experimentItemsJson != null && experimentItemsJson.hasOwnProperty("experiment name")) {
 
-
-
-               //if (document.getElementById("runStatusExperimentName").innerHTML != experimentName) {
-               //   document.getElementById("runStatusExperimentName").innerHTML = experimentName;
-               //}
                // check if lazy active is in the experiment items list
-
                var experimentItemList = Object.keys(experimentItemsJson);
                if (experimentItemList.length > 3) {
                   for (var i = 0; i < experimentItemList.length; i = i + 3) {
@@ -305,10 +313,10 @@
 
          if (alarm["alarm_system_active"]) {
             document.getElementById("runStatusAlarm").innerHTML = "<a href='/Alarms/Alarm system active?cmd=set'>" + "Alarms: On" + "</a>";
-            document.getElementById("runStatusAlarm").className = "mgreencolor greenLight";
+            document.getElementById("runStatusAlarm").className = "mgreencolor";
          } else {
             document.getElementById("runStatusAlarm").innerHTML = "<a href='/Alarms/Alarm system active?cmd=set'>" + "Alarms: Off" + "</a>";
-            document.getElementById("runStatusAlarm").className = "mredcolor redLight";
+            document.getElementById("runStatusAlarm").className = "mredcolor";
          }
 
          if (sequencerJson) {
@@ -325,11 +333,14 @@
          if (loggerBool["status"] == 1) {
             if (loggerJson.hasOwnProperty("data dir")) {
                document.getElementById("runStatusLogger").innerHTML = "Data dir: " + loggerJson["data dir"];
-               document.getElementById("runStatusLogger").className = "";
+               if (loggerJson["write data"] == true)
+                  document.getElementById("runStatusLogger").className = "";
+               else
+                  document.getElementById("runStatusLogger").className = "myellowcolor";
             }
          } else {
             document.getElementById("runStatusLogger").innerHTML = "Logger not running";
-            document.getElementById("runStatusLogger").className = "mredcolor redLight";
+            document.getElementById("runStatusLogger").className = "mredcolor";
          }
 
          document.getElementById("msgService").innerHTML = lastMessage.messages;
@@ -338,7 +349,17 @@
       }
 
 
-      function generateEquipmentTable() {
+      function clientExists(clients, name) {
+         for (var key in clients) {
+            if (clients[key].hasOwnProperty("name")) {
+               if (clients[key].name === name)
+                  return true;
+            }
+         }
+         return false;
+      }
+
+      function generateEquipmentTable(clients) {
 
 
          if (equipmentNames.length != document.getElementsByClassName("equipmentRow").length) {
@@ -350,17 +371,29 @@
             var statusItem = document.createElement("td");
             statusItem.align = "center";
             statusItem.innerHTML = equipmentCommonData[i]["status"];
-            if (equipmentCommonData[i]["status"].length < 1) {
-               statusItem.className = "mgreencolor greenLight";
-            } else if (equipmentCommonData[i]["status color"].indexOf("Light") != -1) {
-               if (equipmentCommonData[i]["status"] === "Partially disabled")
-                  statusItem.className = "statusPartiallyDisabled";
-               else
-                  statusItem.className = "status" + equipmentCommonData[i]["status"];
-            } else {
-               statusItem.style = "background-color:" + equipmentCommonData[i]["status color"] + ";";
-            }
 
+            if (equipmentCommonData[i]["enabled"]) {
+
+               if (equipmentCommonData[i]["frontend name"].length > 0 &&
+                       !clientExists(clients, equipmentCommonData[i]["frontend name"])) {
+                  statusItem.innerHTML = "Frontend stopped";
+                  statusItem.className = "redLight";
+               } else {
+                  if (equipmentCommonData[i]["status"].length < 1) {
+                     statusItem.innerHTML = equipmentCommonData[i]["frontend name"] + "@" + equipmentCommonData[i]["frontend host"];
+                     statusItem.className = "greenLight";
+                  } else {
+                     statusItem.innerHTML = equipmentCommonData[i]["status"];
+                     if (equipmentCommonData[i]["status color"].indexOf("Light") != -1)
+                        statusItem.className = equipmentCommonData[i]["status color"];
+                     else
+                        statusItem.className = "greenLight";
+                  }
+               }
+            } else {
+               statusItem.innerHTML = "Disabled";
+               statusItem.className = "yellowLight";
+            }
 
             var eventsNum = equipmentStatData[i]["events sent"];
             if (equipmentStatData[i]["events sent"] > 1E9) {
@@ -372,13 +405,16 @@
             var equipmentRow = document.createElement("tr");
             equipmentRow.id = equipmentNames[i] + "equipment";
             equipmentRow.className = "equipmentRow";
-            if (equipmentCommonData[i]["hidden"]) {
-               equipmentRow.style.display = "none";
+            var unhidden = document.getElementById("hide").innerText === "-";
+            if (equipmentCommonData[i]["hidden"])
                equipmentRow.className += " hiddenEquip";
-            } else {
+
+            if (equipmentCommonData[i]["hidden"] && !unhidden)
+               equipmentRow.style.display = "none";
+            else
                equipmentRow.style.display = "table-row";
-            }
-            var mb = equipmentStatData[i]["kbytes per sec."] / 1024;
+
+            var mib = equipmentStatData[i]["kbytes per sec."] / 1024.0;
             equipmentRow.innerHTML = "<td align=\"center\"><a href='/SC/" +
                     equipmentNames[i] +
                     "'>" +
@@ -392,14 +428,17 @@
                     equipmentStatData[i]["events per sec."].toFixed(1) +
                     "</td>" +
                     "<td align=\"center\">" +
-                    mb.toFixed(3) +
+                    mib.toFixed(3) +
                     "</td>";
             if (document.getElementById(equipmentNames[i] + "equipment") === null) {
                document.getElementById("equipmentList").appendChild(equipmentRow);
             } else {
-               if (document.getElementById(equipmentNames[i] + "equipment").innerHTML != equipmentRow.innerHTML) {
+               if (document.getElementById(equipmentNames[i] + "equipment").innerHTML !== equipmentRow.innerHTML)
                   document.getElementById(equipmentNames[i] + "equipment").innerHTML = equipmentRow.innerHTML;
-               }
+               if (document.getElementById(equipmentNames[i] + "equipment").style.display !== equipmentRow.style.display)
+                  document.getElementById(equipmentNames[i] + "equipment").style.display = equipmentRow.style.display;
+               if (document.getElementById(equipmentNames[i] + "equipment").className !== equipmentRow.className)
+                     document.getElementById(equipmentNames[i] + "equipment").className = equipmentRow.className;
             }
          }
       }
@@ -464,7 +503,13 @@
                var logChannelRow = document.createElement("tr");
                logChannelRow.id = element + "channel";
                logChannelRow.className = "logChannel";
-               logChannelRow.innerHTML = "<td colspan=\"2\" class=\"mgreencolor greenLight\">" +
+
+               var cl = "myellowcolor";
+               if (loggerJson["write data"] == true &&
+                   currentChannel["settings"]["active"] == true)
+                  cl = "mgreencolor";
+
+               logChannelRow.innerHTML = "<td colspan=\"2\" class=\""+cl+"\">" +
                        "<a href=\"Logger/Channels/" + element + "/Settings\">" +
                        "#" + element + ": " + "</a>" +
                        currentChannel["settings"]["current filename"] +
@@ -613,7 +658,7 @@
       generateRunStatus();
 
       if (equipmentNames != null)
-         generateEquipmentTable();
+         generateEquipmentTable(clientsJson);
 
       if (logChannelJson != null)
          generateLogChannel();
@@ -625,27 +670,26 @@
 
 
    function hideEquipments() {
+      var hideButton = document.getElementById("hide");
+      hideButton.href = 'javascript:unhideEquipments()';
+      hideButton.innerText = '+';
       if (document.getElementsByClassName("hiddenEquip") != null) {
          Array.prototype.forEach.call(document.getElementsByClassName("hiddenEquip"), function (element) {
             element.style.display = "none";
          });
       }
-      var hideButton = document.getElementById("hide");
-      hideButton.href = 'javascript:unhideEquipments()';
-      hideButton.innerText = '+';
    }
 
    function unhideEquipments() {
+      var hideButton = document.getElementById("hide");
+      hideButton.href = 'javascript:hideEquipments()';
+      hideButton.innerText = '-';
       if (document.getElementsByClassName("hiddenEquip") != null) {
          Array.prototype.forEach.call(document.getElementsByClassName("hiddenEquip"), function (element) {
             element.style.display = "table-row";
          });
       }
-      var hideButton = document.getElementById("hide");
-      hideButton.href = 'javascript:hideEquipments()';
-      hideButton.innerText = '-';
    }
-
 
    function update() {
       //update time
