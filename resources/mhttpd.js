@@ -1194,64 +1194,69 @@ function mhttpd_start_run() {
 }
 
 function mhttpd_stop_run() {
-   var flag = confirm('Are you sure to stop the run?');
-   if (flag == true) {
-      mjsonrpc_call("cm_transition", {"transition": "TR_STOP"}).then(function (rpc) {
-         //mjsonrpc_debug_alert(rpc);
-         if (rpc.result.status != 1) {
-            throw new Error("Cannot stop run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
-         }
-         mhttpd_goto_page("Transition"); // DOES NOT RETURN
-      }).catch(function (error) {
-         mjsonrpc_error_alert(error);
-      });
-   }
+   dlgConfirm('Are you sure to stop the run?', function(flag) {
+      if (flag == true) {
+         mjsonrpc_call("cm_transition", {"transition": "TR_STOP"}).then(function (rpc) {
+            //mjsonrpc_debug_alert(rpc);
+            if (rpc.result.status != 1) {
+               throw new Error("Cannot stop run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
+            }
+            mhttpd_goto_page("Transition"); // DOES NOT RETURN
+         }).catch(function (error) {
+            mjsonrpc_error_alert(error);
+         });
+      }
+
+   });
 }
 
 function mhttpd_pause_run() {
-   var flag = confirm('Are you sure to pause the run?');
-   if (flag == true) {
-      mjsonrpc_call("cm_transition", {"transition": "TR_PAUSE"}).then(function (rpc) {
-         //mjsonrpc_debug_alert(rpc);
-         if (rpc.result.status != 1) {
-            throw new Error("Cannot pause run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
-         }
-         mhttpd_goto_page("Transition"); // DOES NOT RETURN
-      }).catch(function (error) {
-         mjsonrpc_error_alert(error);
-      });
-   }
+   dlgConfirm('Are you sure to pause the run?', function(flag) {
+      if (flag == true) {
+         mjsonrpc_call("cm_transition", {"transition": "TR_PAUSE"}).then(function (rpc) {
+            //mjsonrpc_debug_alert(rpc);
+            if (rpc.result.status != 1) {
+               throw new Error("Cannot pause run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
+            }
+            mhttpd_goto_page("Transition"); // DOES NOT RETURN
+         }).catch(function (error) {
+            mjsonrpc_error_alert(error);
+         });
+      }
+   });
 }
 
 
 function mhttpd_resume_run() {
-   var flag = confirm('Are you sure to resume the run?');
-   if (flag == true) {
-      mjsonrpc_call("cm_transition", {"transition": "TR_RESUME"}).then(function (rpc) {
-         //mjsonrpc_debug_alert(rpc);
-         if (rpc.result.status != 1) {
-            throw new Error("Cannot resume run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
-         }
-         mhttpd_goto_page("Transition"); // DOES NOT RETURN
-      }).catch(function (error) {
-         mjsonrpc_error_alert(error);
-      });
-   }
+   dlgConfirm('Are you sure to resume the run?', function(flag) {
+      if (flag == true) {
+         mjsonrpc_call("cm_transition", {"transition": "TR_RESUME"}).then(function (rpc) {
+            //mjsonrpc_debug_alert(rpc);
+            if (rpc.result.status != 1) {
+               throw new Error("Cannot resume run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
+            }
+            mhttpd_goto_page("Transition"); // DOES NOT RETURN
+         }).catch(function (error) {
+            mjsonrpc_error_alert(error);
+         });
+      }
+   });
 }
 
 function mhttpd_cancel_transition() {
-   var flag = confirm('Are you sure to cancel the currently active run transition?');
-   if (flag == true) {
-      mjsonrpc_call("db_paste", {"paths": ["/Runinfo/Transition in progress"], "values": [0]}).then(function (rpc) {
-         //mjsonrpc_debug_alert(rpc);
-         if (rpc.result.status != 1) {
-            throw new Error("Cannot cancel transition, db_paste() status " + rpc.result.status + ", see MIDAS messages");
-         }
-         mhttpd_goto_page("Transition"); // DOES NOT RETURN
-      }).catch(function (error) {
-         mjsonrpc_error_alert(error);
-      });
-   }
+   dlgConfirm('Are you sure to cancel the currently active run transition?', function(flag) {
+      if (flag == true) {
+         mjsonrpc_call("db_paste", {"paths": ["/Runinfo/Transition in progress"], "values": [0]}).then(function (rpc) {
+            //mjsonrpc_debug_alert(rpc);
+            if (rpc.result.status != 1) {
+               throw new Error("Cannot cancel transition, db_paste() status " + rpc.result.status + ", see MIDAS messages");
+            }
+            mhttpd_goto_page("Transition"); // DOES NOT RETURN
+         }).catch(function (error) {
+            mjsonrpc_error_alert(error);
+         });
+      }
+   });
 }
 
 function mhttpd_reset_alarm(alarm_name) {

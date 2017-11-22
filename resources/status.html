@@ -40,7 +40,7 @@
                </tr>
 
                <tr align="center">
-                  <td id="runNumberCell" align="center" rowspan="3" class="mgreencolor greenLight">
+                  <td id="runNumberCell" align="center" rowspan="3" class="mgreencolor">
                      Run
                      <br> runNum
                      <br> status
@@ -51,8 +51,8 @@
                </tr>
 
                <tr align="center">
-                  <td id="runStatusAlarm" class="mgreencolor greenLight"> runStatusAlarm</td>
-                  <td id="runStatusSequencer" class="mgreencolor greenLight"> runStatusSequencer</td>
+                  <td id="runStatusAlarm" class="mgreencolor"> runStatusAlarm</td>
+                  <td id="runStatusSequencer" class="mgreencolor"> runStatusSequencer</td>
                   <td id="runStatusLogger" colspan="2"> runStatusLogger</td>
                </tr>
 
@@ -305,10 +305,10 @@
 
          if (alarm["alarm_system_active"]) {
             document.getElementById("runStatusAlarm").innerHTML = "<a href='/Alarms/Alarm system active?cmd=set'>" + "Alarms: On" + "</a>";
-            document.getElementById("runStatusAlarm").className = "mgreencolor greenLight";
+            document.getElementById("runStatusAlarm").className = "mgreencolor";
          } else {
             document.getElementById("runStatusAlarm").innerHTML = "<a href='/Alarms/Alarm system active?cmd=set'>" + "Alarms: Off" + "</a>";
-            document.getElementById("runStatusAlarm").className = "mredcolor redLight";
+            document.getElementById("runStatusAlarm").className = "mredcolor";
          }
 
          if (sequencerJson) {
@@ -329,7 +329,7 @@
             }
          } else {
             document.getElementById("runStatusLogger").innerHTML = "Logger not running";
-            document.getElementById("runStatusLogger").className = "mredcolor redLight";
+            document.getElementById("runStatusLogger").className = "mredcolor";
          }
 
          document.getElementById("msgService").innerHTML = lastMessage.messages;
@@ -492,7 +492,7 @@
                var logChannelRow = document.createElement("tr");
                logChannelRow.id = element + "channel";
                logChannelRow.className = "logChannel";
-               logChannelRow.innerHTML = "<td colspan=\"2\" class=\"mgreencolor greenLight\">" +
+               logChannelRow.innerHTML = "<td colspan=\"2\" class=\"mgreencolor\">" +
                        "<a href=\"Logger/Channels/" + element + "/Settings\">" +
                        "#" + element + ": " + "</a>" +
                        currentChannel["settings"]["current filename"] +
