@@ -201,7 +201,7 @@
 
       for (var name in programs) {
          if (typeof programs[name] !== 'object') continue;
-
+         
          var e = document.getElementById("program " + name);
 
          var required = programs[name].required;
@@ -248,8 +248,13 @@
             }
             var b = document.getElementById("stop " + name);
             if (b) {
-               mhttpd_enable_button(b);
-               mhttpd_unhide_button(b);
+               if (name == 'mhttpd'){ // Always disable the stop button for mhttpd; doesn't work to press it
+                  mhttpd_disable_button(b);
+                  mhttpd_hide_button(b);
+               }else{
+                  mhttpd_enable_button(b);
+                  mhttpd_unhide_button(b);
+               }
             }
          } else if (program_status[name]) {
             e.childNodes[1].innerHTML = program_status[name];
