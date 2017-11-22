@@ -333,7 +333,10 @@
          if (loggerBool["status"] == 1) {
             if (loggerJson.hasOwnProperty("data dir")) {
                document.getElementById("runStatusLogger").innerHTML = "Data dir: " + loggerJson["data dir"];
-               document.getElementById("runStatusLogger").className = "";
+               if (loggerJson["write data"] == true)
+                  document.getElementById("runStatusLogger").className = "";
+               else
+                  document.getElementById("runStatusLogger").className = "myellowcolor";
             }
          } else {
             document.getElementById("runStatusLogger").innerHTML = "Logger not running";
