@@ -338,7 +338,17 @@
       }
 
 
-      function generateEquipmentTable() {
+      function clientExists(clients, name) {
+         for (var key in clients) {
+            if (clients[key].hasOwnProperty("name")) {
+               if (clients[key].name === name)
+                  return true;
+            }
+         }
+         return false;
+      }
+
+      function generateEquipmentTable(clients) {
 
 
          if (equipmentNames.length != document.getElementsByClassName("equipmentRow").length) {
@@ -350,17 +360,29 @@
             var statusItem = document.createElement("td");
             statusItem.align = "center";
             statusItem.innerHTML = equipmentCommonData[i]["status"];
-            if (equipmentCommonData[i]["status"].length < 1) {
-               statusItem.className = "mgreencolor greenLight";
-            } else if (equipmentCommonData[i]["status color"].indexOf("Light") != -1) {
-               if (equipmentCommonData[i]["status"] === "Partially disabled")
-                  statusItem.className = "statusPartiallyDisabled";
-               else
-                  statusItem.className = "status" + equipmentCommonData[i]["status"];
-            } else {
-               statusItem.style = "background-color:" + equipmentCommonData[i]["status color"] + ";";
-            }
 
+            if (equipmentCommonData[i]["enabled"]) {
+
+               if (equipmentCommonData[i]["frontend name"].length > 0 &&
+                       !clientExists(clients, equipmentCommonData[i]["frontend name"])) {
+                  statusItem.innerHTML = "Frontend stopped";
+                  statusItem.className = "redLight";
+               } else {
+                  if (equipmentCommonData[i]["status"].length < 1) {
+                     statusItem.innerHTML = equipmentCommonData[i]["frontend name"] + "@" + equipmentCommonData[i]["frontend host"];
+                     statusItem.className = "greenLight";
+                  } else {
+                     statusItem.innerHTML = equipmentCommonData[i]["status"];
+                     if (equipmentCommonData[i]["status color"].indexOf("Light") != -1)
+                        statusItem.className = equipmentCommonData[i]["status color"];
+                     else
+                        statusItem.className = "greenLight";
+                  }
+               }
+            } else {
+               statusItem.innerHTML = "Disabled";
+               statusItem.className = "yellowLight";
+            }
 
             var eventsNum = equipmentStatData[i]["events sent"];
             if (equipmentStatData[i]["events sent"] > 1E9) {
@@ -372,12 +394,15 @@
             var equipmentRow = document.createElement("tr");
             equipmentRow.id = equipmentNames[i] + "equipment";
             equipmentRow.className = "equipmentRow";
-            if (equipmentCommonData[i]["hidden"]) {
-               equipmentRow.style.display = "none";
+            var unhidden = document.getElementById("hide").innerText === "-";
+            if (equipmentCommonData[i]["hidden"])
                equipmentRow.className += " hiddenEquip";
-            } else {
+
+            if (equipmentCommonData[i]["hidden"] && !unhidden)
+               equipmentRow.style.display = "none";
+            else
                equipmentRow.style.display = "table-row";
-            }
+
             var mib = equipmentStatData[i]["kbytes per sec."] / 1024.0;
             equipmentRow.innerHTML = "<td align=\"center\"><a href='/SC/" +
                     equipmentNames[i] +
@@ -397,9 +422,12 @@
             if (document.getElementById(equipmentNames[i] + "equipment") === null) {
                document.getElementById("equipmentList").appendChild(equipmentRow);
             } else {
-               if (document.getElementById(equipmentNames[i] + "equipment").innerHTML != equipmentRow.innerHTML) {
+               if (document.getElementById(equipmentNames[i] + "equipment").innerHTML !== equipmentRow.innerHTML)
                   document.getElementById(equipmentNames[i] + "equipment").innerHTML = equipmentRow.innerHTML;
-               }
+               if (document.getElementById(equipmentNames[i] + "equipment").style.display !== equipmentRow.style.display)
+                  document.getElementById(equipmentNames[i] + "equipment").style.display = equipmentRow.style.display;
+               if (document.getElementById(equipmentNames[i] + "equipment").className !== equipmentRow.className)
+                     document.getElementById(equipmentNames[i] + "equipment").className = equipmentRow.className;
             }
          }
       }
@@ -613,7 +641,7 @@
       generateRunStatus();
 
       if (equipmentNames != null)
-         generateEquipmentTable();
+         generateEquipmentTable(clientsJson);
 
       if (logChannelJson != null)
          generateLogChannel();
@@ -625,27 +653,26 @@
 
 
    function hideEquipments() {
+      var hideButton = document.getElementById("hide");
+      hideButton.href = 'javascript:unhideEquipments()';
+      hideButton.innerText = '+';
       if (document.getElementsByClassName("hiddenEquip") != null) {
          Array.prototype.forEach.call(document.getElementsByClassName("hiddenEquip"), function (element) {
             element.style.display = "none";
          });
       }
-      var hideButton = document.getElementById("hide");
-      hideButton.href = 'javascript:unhideEquipments()';
-      hideButton.innerText = '+';
    }
 
    function unhideEquipments() {
+      var hideButton = document.getElementById("hide");
+      hideButton.href = 'javascript:hideEquipments()';
+      hideButton.innerText = '-';
       if (document.getElementsByClassName("hiddenEquip") != null) {
          Array.prototype.forEach.call(document.getElementsByClassName("hiddenEquip"), function (element) {
             element.style.display = "table-row";
          });
       }
-      var hideButton = document.getElementById("hide");
-      hideButton.href = 'javascript:hideEquipments()';
-      hideButton.innerText = '-';
    }
-
 
    function update() {
       //update time

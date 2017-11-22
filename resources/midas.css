@@ -309,6 +309,29 @@ input[type=text] {
    padding: 0.25em;
 }
 
+/* equipment status */
+
+.greenLight{
+   background-color: #00E600;
+}
+
+.yellowLight{
+   background-color: #f1c40f;
+}
+
+.yellowGreenLight{
+   background: linear-gradient(45deg, #00E600 25%, #f1c40f 25%,
+   #f1c40f 50%, #00E600 50%,
+   #00E600 75%, #f1c40f 75%,
+   #f1c40f);
+   background-size: 50px 50px;
+}
+
+.redLight{
+   background-color: #c0392b;
+   color: #EEEEEE;
+}
+
 /* floating footer */
 
 div.mwrapper {
