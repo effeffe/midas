@@ -868,7 +868,20 @@ function mhttpd_refresh() {
 
 function mhttpd_reconnect() {
    mjsonrpc_db_ls(["/"]).then(function (rpc) {
-      location.reload(); // reload current page on successful connection
+      // on successful connection remove error and schedule refresh if input is active
+      var inputs = document.getElementsByTagName('input');
+      for (var i=0 ; i<inputs.length ; i++)
+         if (inputs[i] === document.activeElement) {
+            document.getElementById("mheader_error").innerHTML = "";
+            document.getElementById("mheader_error").style.zIndex = 0; // below header
+            if (mhttpd_refresh_id != undefined)
+               window.clearTimeout(mhttpd_refresh_id);
+            mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
+            return;
+         }
+
+      // otherwise simply reload page
+      location.reload();
    }).catch(function (error) {
       mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
    });
