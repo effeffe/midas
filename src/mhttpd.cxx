@@ -18879,11 +18879,9 @@ INT check_odb_records(void)
                cm_msg(MINFO, "check_odb_records", "ODB subtree /Equipment/%s/Common corrected successfully", key.name);
             } else {
                cm_msg(MERROR, "check_odb_records", "Cannot correct ODB subtree /Equipment/%s/Common, db_check_record() status %d", key.name, status);
-               return 0;
             }
          } else if (status != DB_SUCCESS) {
             cm_msg(MERROR, "check_odb_records", "Cannot correct ODB subtree /Equipment/%s/Common, db_check_record() status %d", key.name, status);
-            return 0;
          }
       }
    }
