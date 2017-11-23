@@ -324,8 +324,13 @@
                if (sequencerJson["running"]) {
                   document.getElementById("runStatusSequencer").innerHTML = "Restart: Sequencer";
                } else {
-                  document.getElementById("runStatusSequencer").innerHTML = "Restart: No";
-                  document.getElementById("runStatusSequencer").className = "myellowcolor";
+                  if (loggerJson["auto restart"] === true) {
+                     document.getElementById("runStatusSequencer").innerHTML = "<a href='/Logger/Auto restart?cmd=set'>" + "Restart: On" + "</a>";
+                     document.getElementById("runStatusSequencer").className = "mgreencolor";
+                  } else {
+                     document.getElementById("runStatusSequencer").innerHTML = "<a href='/Logger/Auto restart?cmd=set'>" + "Restart: Off" + "</a>";
+                     document.getElementById("runStatusSequencer").className = "myellowcolor";
+                  }
                }
             }
          }
