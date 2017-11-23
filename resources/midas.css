@@ -212,15 +212,29 @@ a.hideButton{
     color : #5F88A3;
 }
 
+/* generic midas button */
+
+.mbutton {
+   border: 1px solid #808080;
+   border-radius: 5px;
+   font-size: 100%;
+   margin: 2px;
+}
+
 /* all navigation buttons */
 
-input.mnav, .mbutton {
+input.mnav {
    border: 1px solid #808080;
    border-radius: 5px;
    color: #444444;
    background: linear-gradient(to bottom, #f5f5f5 0%,#c0c0c0 100%);
    font-size: 100%;
    margin: 2px;
+}
+
+.mbutton:enabled {
+   color: #444444;
+   background: linear-gradient(to bottom, #f5f5f5 0%,#c0c0c0 100%);
 }
 
 /* selected navigation button */
@@ -231,7 +245,14 @@ input.mnavsel {
 }
 
 /* colors for hovered buttons */
-input.mnav:hover, .mbutton:hover {
+
+.mbutton:disabled {
+   //color: #444444;
+   //background: linear-gradient(to bottom, #f5f5f5 0%,#c0c0c0 100%);
+}
+
+/* colors for hovered buttons */
+input.mnav:hover, .mbutton:hover:enabled {
    color: #404040;
    background: linear-gradient(to bottom,  #ffffff 0%,#f3f3f3 50%,#ededed 51%,#ffffff 100%);
 }
