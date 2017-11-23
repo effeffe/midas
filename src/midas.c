@@ -7532,7 +7532,7 @@ static int bm_read_cache_has_events(const BUFFER * pbuf)
    return 1;
 }
 
-static int bm_wait_for_free_space(int buffer_handle, BUFFER * pbuf, int async_flag, int requested_space)
+static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int async_flag, int requested_space)
 {
    int status;
    BUFFER_HEADER *pheader = pbuf->buffer_header;
@@ -7621,17 +7621,24 @@ static int bm_wait_for_free_space(int buffer_handle, BUFFER * pbuf, int async_fl
                      -> shift its read pointer.
                    */
 
-                  int new_read_pointer;
-                  int increment =
-                      sizeof(EVENT_HEADER) + ((EVENT_HEADER *) (pdata + pc->read_pointer))->data_size;
+                  EVENT_HEADER* e = (EVENT_HEADER*)(pdata + pc->read_pointer);
+                  int increment = sizeof(EVENT_HEADER) + e->data_size;
 
                   /* correct increment for DWORD boundary */
                   increment = ALIGN8(increment);
 
+                  if (increment <= 0 || increment > pheader->size) {
+                     cm_msg(MERROR, "bm_wait_for_free_space",
+                            "BUG: bad read pointer increment %d for client \"%s\", read_pointer %d, event size %d, while waiting for %d bytes, bytes available: %d, buffer size: %d",
+                            increment, pc->name, pc->read_pointer, e->data_size,
+                            requested_space, size, pheader->size);
+                     return BM_NO_MEMORY;
+                  }
+                  
                   assert(increment > 0);
                   assert(increment <= pheader->size);
 
-                  new_read_pointer = (pc->read_pointer + increment) % pheader->size;
+                  int new_read_pointer = (pc->read_pointer + increment) % pheader->size;
 
                   if (new_read_pointer > pheader->size - (int) sizeof(EVENT_HEADER))
                      new_read_pointer = 0;
@@ -7854,7 +7861,7 @@ INT bm_send_event(INT buffer_handle, const void *source, INT buf_size, INT async
          return BM_NO_MEMORY;
       }
 
-      status = bm_wait_for_free_space(buffer_handle, pbuf, async_flag, total_size);
+      status = bm_wait_for_free_space_locked(buffer_handle, pbuf, async_flag, total_size);
       if (status != BM_SUCCESS) {
          bm_unlock_buffer(buffer_handle);
          return status;
@@ -8005,7 +8012,7 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
       cm_msg(MDEBUG, "bm_flush_cache initial: rp=%d, wp=%d", pheader->read_pointer, pheader->write_pointer);
 #endif
 
-      status = bm_wait_for_free_space(buffer_handle, pbuf, async_flag, pbuf->write_cache_wp);
+      status = bm_wait_for_free_space_locked(buffer_handle, pbuf, async_flag, pbuf->write_cache_wp);
       if (status != BM_SUCCESS) {
          bm_unlock_buffer(buffer_handle);
          return status;
@@ -8559,19 +8566,25 @@ INT bm_push_event(char *buffer_name)
       do {
          int new_read_pointer;
          int total_size;        /* size of the event */
-         EVENT_REQUEST *prequest;
-         EVENT_HEADER *pevent = (EVENT_HEADER *) (pdata + pc->read_pointer);
 
          assert(pc->read_pointer >= 0);
          assert(pc->read_pointer <= pheader->size);
 
+         EVENT_HEADER *pevent = (EVENT_HEADER *) (pdata + pc->read_pointer);
+
          total_size = pevent->data_size + sizeof(EVENT_HEADER);
          total_size = ALIGN8(total_size);
+
+         if (total_size <= 0 || total_size > pheader->size) {
+            cm_msg(MERROR, "bm_push_event", "BUG: bad total_size %d for client \"%s\", read_pointer %d, event data size %d", total_size, pc->name, pc->read_pointer, pevent->data_size);
+            bm_unlock_buffer(buffer_handle);
+            return BM_NO_MEMORY;
+         }
 
          assert(total_size > 0);
          assert(total_size <= pheader->size);
 
-         prequest = pc->event_request;
+         EVENT_REQUEST* prequest = pc->event_request;
 
          /* loop over all requests: if this event matches a request,
           * copy it to the read cache */
