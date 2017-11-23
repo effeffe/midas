@@ -58,6 +58,10 @@
          <th style="text-align:left">Error message</th>
       </tr>
    </table>
+
+   <div id="updateStatus" align="left">
+     updateStatus
+   </div>
 </div>
 
 <script>
@@ -192,15 +196,28 @@
    }
 
    function callback(rpc_batch) {
+      //document.getElementById('updateStatus').innerHTML = "RWP_";
+
       //console.log(JSON.stringify(rpc.result));
 
       var rpc = rpc_batch[0];
       var rpc_db_get_values = rpc_batch[1];
-
-      if (!rpc.result.run_number && !rpc.result.status)
-         return;
-
       var runinfo = rpc_db_get_values.result.data[0];
+
+      if (!rpc.result.run_number && !rpc.result.status) {
+         adjust_buttons(runinfo.state);
+         adjust_colors(runinfo.state);
+         set_text("run_number", runinfo["run number"]);
+         set_text("run_state", run_state_names[runinfo.state]);
+         set_text("tr_status", "(transition status not available)");
+         set_text("transition", "(transition not available)");
+         set_text("status", "(status not available)");
+         set_text("errorstr", "(error string not available)");
+         set_text("time", "(time not available)");
+
+         document.getElementById('updateStatus').innerHTML = "RWE: no transition data available from mhttpd";
+         return;
+      }
 
       //console.log("here: " + JSON.stringify(rpc_db_get_values.result.data[0]));
 
@@ -324,17 +341,22 @@
 
 
       } // loop over all clients
+
+      //document.getElementById('updateStatus').innerHTML = "RWPD";
+      document.getElementById('updateStatus').innerHTML = "";
    }
 
    function update() {
       var req = new Array;
       req.push(mjsonrpc_make_request("cm_transition_status"));
       req.push(mjsonrpc_make_request("db_get_values", {"paths": ["/runinfo"]}));
+      //document.getElementById('updateStatus').innerHTML = "R___";
       mjsonrpc_send_request(req).then(function (rpc) {
          callback(rpc);
       }).catch(function (error) {
-         alert("RWE: RPC or JS error: " + mjsonrpc_decode_error(error));
+         document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
       });
+      //document.getElementById('updateStatus').innerHTML = "RW__";
    }
 
    function update_periodic() {
