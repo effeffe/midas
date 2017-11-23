@@ -522,6 +522,12 @@ function mhttpd_init(current_page, interval, callback) {
 
          global_base_url = base_url;
 
+         // preload spinning wheel for later use
+         if (mhttpd_spinning_wheel == undefined) {
+            mhttpd_spinning_wheel = new Image();
+            mhttpd_spinning_wheel.src = global_base_url + "spinning-wheel.gif";
+         }
+
          // menu buttons
          var b = [];
          if (menu) {
@@ -678,10 +684,6 @@ function mhttpd_init(current_page, interval, callback) {
       var color = mbar[i].dataset.color;
       mbar[i].innerHTML = "<div style='background-color:" + color + "; height:0; width:100%; position:absolute; bottom:0; display:inline-block; border-top:1px solid #808080'>&nbsp;</div>";
    }
-
-   // preload spinning wheel for later use
-   mhttpd_spinning_wheel = new Image();
-   mhttpd_spinning_wheel.src = "spinning-wheel.gif";
 
    // store refresh interval and do initial refresh
    if (interval === undefined)
