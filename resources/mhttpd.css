@@ -62,11 +62,6 @@ table {
 }
 /*end CSS reset*/
 
-/*ask the box model to please behave in a sane manner*/
-* { 
-   box-sizing: border-box; 
-}
-
 /*generic elements////////////////////////////////////////////////////*/
 
 body {

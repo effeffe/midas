@@ -2589,7 +2589,7 @@ void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, co
          /* statistics */
 
          r->rsprintf("<td align=center>%1.0lf</td>\n", chn_events_written);
-         r->rsprintf("<td align=center>%1.3lf</td>\n", chn_bytes_written / 1024 / 1024);
+         r->rsprintf("<td align=center>%1.3lf</td>\n", chn_bytes_written / 1000 / 1000);
          
          if (chn_compression > 0) {
             double compression_ratio;
@@ -2685,7 +2685,7 @@ void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, co
                   if (ftp_mode) {
                      size = sizeof(value);
                      db_get_value(hDB, hLKey, "Statistics/Copy Rate (Bytes per s)", &value, &size, TID_DOUBLE, TRUE);
-                     r->rsprintf("<td align=center>%1.1f", value / 1024.0 / 1024.0);
+                     r->rsprintf("<td align=center>%1.1f", value / 1000.0 / 1000.0);
                   } else {
                      size = sizeof(i);
                      db_get_value(hDB, hLKey, "/Statistics/Number of files", &i, &size, TID_INT, TRUE);
@@ -18879,11 +18879,9 @@ INT check_odb_records(void)
                cm_msg(MINFO, "check_odb_records", "ODB subtree /Equipment/%s/Common corrected successfully", key.name);
             } else {
                cm_msg(MERROR, "check_odb_records", "Cannot correct ODB subtree /Equipment/%s/Common, db_check_record() status %d", key.name, status);
-               return 0;
             }
          } else if (status != DB_SUCCESS) {
             cm_msg(MERROR, "check_odb_records", "Cannot correct ODB subtree /Equipment/%s/Common, db_check_record() status %d", key.name, status);
-            return 0;
          }
       }
    }

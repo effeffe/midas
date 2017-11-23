@@ -522,6 +522,12 @@ function mhttpd_init(current_page, interval, callback) {
 
          global_base_url = base_url;
 
+         // preload spinning wheel for later use
+         if (mhttpd_spinning_wheel == undefined) {
+            mhttpd_spinning_wheel = new Image();
+            mhttpd_spinning_wheel.src = global_base_url + "spinning-wheel.gif";
+         }
+
          // menu buttons
          var b = [];
          if (menu) {
@@ -678,10 +684,6 @@ function mhttpd_init(current_page, interval, callback) {
       var color = mbar[i].dataset.color;
       mbar[i].innerHTML = "<div style='background-color:" + color + "; height:0; width:100%; position:absolute; bottom:0; display:inline-block; border-top:1px solid #808080'>&nbsp;</div>";
    }
-
-   // preload spinning wheel for later use
-   mhttpd_spinning_wheel = new Image();
-   mhttpd_spinning_wheel.src = "spinning-wheel.gif";
 
    // store refresh interval and do initial refresh
    if (interval === undefined)
@@ -856,7 +858,7 @@ function mhttpd_refresh() {
 
    }).catch(function (error) {
 
-      if (error.xhr.readyState == 4 && error.xhr.status == 0) {
+      if (error.xhr && error.xhr.readyState == 4 && error.xhr.status == 0) {
          mhttpd_error('Connection to server broken. Trying to reconnect&nbsp;&nbsp;');
          document.getElementById("mheader_error").appendChild(mhttpd_spinning_wheel);
          mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
@@ -868,7 +870,20 @@ function mhttpd_refresh() {
 
 function mhttpd_reconnect() {
    mjsonrpc_db_ls(["/"]).then(function (rpc) {
-      location.reload(); // reload current page on successful connection
+      // on successful connection remove error and schedule refresh if input is active
+      var inputs = document.getElementsByTagName('input');
+      for (var i=0 ; i<inputs.length ; i++)
+         if (inputs[i] === document.activeElement) {
+            document.getElementById("mheader_error").innerHTML = "";
+            document.getElementById("mheader_error").style.zIndex = 0; // below header
+            if (mhttpd_refresh_id != undefined)
+               window.clearTimeout(mhttpd_refresh_id);
+            mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
+            return;
+         }
+
+      // otherwise simply reload page
+      location.reload();
    }).catch(function (error) {
       mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
    });

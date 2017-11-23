@@ -2413,7 +2413,7 @@ INT scheduler(void)
                eq->stats.events_per_sec =
                    n_events[i] / ((actual_millitime - last_time_rate) / 1000.0);
                eq->stats.kbytes_per_sec =
-                   eq->bytes_sent / 1024.0 / ((actual_millitime - last_time_rate) /
+                   eq->bytes_sent / 1000.0 / ((actual_millitime - last_time_rate) /
                                               1000.0);
 
                //printf("events %d, bytes %d, dt %d\n", n_events[i], eq->bytes_sent, actual_millitime - last_time_rate);
@@ -2436,7 +2436,7 @@ INT scheduler(void)
          if (optimize) {
             opt_max = MAX(opt_max, (INT) max_bytes_per_sec);
             ss_printf(0, opt_index, "%6d : %5.1lf %5.1lf", opt_tcp_size,
-                      opt_max / 1024.0, max_bytes_per_sec / 1024.0);
+                      opt_max / 1000.0, max_bytes_per_sec / 1000.0);
             if (++opt_cnt == 10) {
                opt_cnt = 0;
                opt_max = 0;
