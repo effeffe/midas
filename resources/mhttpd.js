@@ -856,7 +856,7 @@ function mhttpd_refresh() {
 
    }).catch(function (error) {
 
-      if (error.xhr.readyState == 4 && error.xhr.status == 0) {
+      if (error.xhr && error.xhr.readyState == 4 && error.xhr.status == 0) {
          mhttpd_error('Connection to server broken. Trying to reconnect&nbsp;&nbsp;');
          document.getElementById("mheader_error").appendChild(mhttpd_spinning_wheel);
          mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
