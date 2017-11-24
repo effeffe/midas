@@ -9,17 +9,7 @@
    <title>Example</title>
 </head>
 
-<body class="mcss" onload="mhttpd_init('Test'); /* test(); */">
-
-<script>
-   function test() {
-      mjsonrpc_db_get_values(["/runinfo/run number"]).then(function(rpc) {
-         alert(rpc.result.data[0]);
-      }).catch(function(error) {
-         mjsonrpc_error_alert(error);
-      })
-   }
-</script>
+<body class="mcss" onload="mhttpd_init('Test');">
 
 <!-- header and side navigation will be filled in mhttpd_start -->
 <div id="mheader"></div>

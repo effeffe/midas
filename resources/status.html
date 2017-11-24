@@ -112,7 +112,26 @@
       <tr>
          <td colspan="6">
 
-            <table class="mtable clientsTable" id="clientsTable" width="100%">
+           <style type="text/css">
+            /* "Clients" checker board table at the bottom of the status page */
+
+            .clientsTable tr:nth-child(odd) td:nth-child(odd) {
+              background-color: #DDDDDD;
+            }
+
+            .clientsTable tr:nth-child(odd) td:nth-child(even) {
+              background-color: #FFFFFF;
+            }
+
+            .clientsTable tr:nth-child(even) td:nth-child(even) {
+              background-color: #DDDDDD;
+            }
+
+            .clientsTable tr:nth-child(even) td:nth-child(odd) {
+              background-color: #FFFFFF;
+            }
+           </style>
+           <table class="mtable clientsTable" id="clientsTable" width="100%">
 
                <tr>
                   <th colspan="6" class="mtableheader">Clients</th>
@@ -125,8 +144,6 @@
    </table>
 
 
-</div>
-<div class="mpush">
 </div>
 <div id="updateStatus" align="left">
    Loading...
@@ -185,7 +202,7 @@
                              "<td width=\"1%%\" style=\"border:0px;\">\n" +
                              "<button class=\"mbutton\" type=\"button\" onclick=\"mhttpd_reset_alarm(\'" +
                              element +
-                             "\');\">Reset</button>\n" +
+                             "\');update_periodic();\">Reset</button>\n" +
                              "</td>\n" +
                              "</tr></table>\n" +
                              "</td>\n" +
@@ -481,29 +498,31 @@
                //Disk Level Display
                var diskLevelHtml;
                var diskLevelColor;
-               if (currentChannel["statistics"]["disk level"] >= 0.9) {
-                  diskLevelColor = "#c0392b";
-               } else if (currentChannel["statistics"]["disk level"] >= 0.7) {
-                  diskLevelColor = "#f1c40f";
+               var level = currentChannel["statistics"]["disk level"];
+               if (level >= 0.9) {
+                  diskLevelColor = "red";
+               } else if (level >= 0.7) {
+                  diskLevelColor = "yellow";
                } else {
-                  diskLevelColor = "#00E600";
+                  diskLevelColor = "green";
                }
                diskLevelHtml = document.createElement("td");
-               diskLevelHtml.className = "meterCell";
+               //diskLevelHtml.className = class_name;
                var outerDiv = document.createElement("div");
+               outerDiv.style.textAlign = "left";
                outerDiv.style.display = "block";
-               outerDiv.style.width = "90%";
+               outerDiv.style.width = "100%";
                outerDiv.style.height = "100%";
                outerDiv.style.position = "relative";
                outerDiv.style.border = "1px solid black";
                var innerDiv = document.createElement("div");
                innerDiv.style.display = "inline-block";
                innerDiv.style.backgroundColor = diskLevelColor;
-               innerDiv.style.width = currentChannel["statistics"]["disk level"];
+               innerDiv.style.width = (100*level).toFixed(0) + "%";
                innerDiv.style.height = "100%";
                innerDiv.style.position = "relative";
                innerDiv.style.paddingTop = "2px";
-               innerDiv.innerHTML = (currentChannel["statistics"]["disk level"] * 100).toFixed(1) + "%";
+               innerDiv.innerHTML = "&nbsp" + (level * 100).toFixed(1) + "%";
                outerDiv.appendChild(innerDiv);
                diskLevelHtml.appendChild(outerDiv);
 
@@ -724,7 +743,7 @@
 
          mjsonrpc_send_request([
             mjsonrpc_make_request("db_get_values", {"paths": paths}),
-            mjsonrpc_make_request("get_alarms"),
+            mjsonrpc_make_request("get_alarms", {"get_all": true}),
             mjsonrpc_make_request("cm_exist", "{ \"name\": \"Logger\" }"),
             mjsonrpc_make_request("cm_msg_retrieve", {"min_messages": 1}),
             mjsonrpc_make_request("db_get_values", {"paths": equipmentStatList}),

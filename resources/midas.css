@@ -7,23 +7,11 @@
 
 body.mcss {
    margin: 0;     /* navigation bar matches window edges */
-   height: 100%;  /* for the floating footer */
 }
-
-html.mcss {
-   height: 100%;  /* for the floating footer */
-}
-
-/* standard link colors and decorations */
-a:link { color:#0000FF; text-decoration:none }
-a:visited { color:#800080; text-decoration:none }
-a:hover { color:#0000FF; text-decoration:underline }
-a:active { color:#0000FF; text-decoration:underline }
-a:focus { color:#0000FF; text-decoration:underline }
 
 /* common settings: fonts, colors, etc */
 
-.mfont, .mnav, .mbutton, .mfooter, .mtable {
+.mfont, .mnav, .mbutton, .mtable {
    font-family: verdana,tahoma,sans-serif;
 }
 
@@ -33,20 +21,10 @@ a:focus { color:#0000FF; text-decoration:underline }
    color: #404040;
 }
 
-.mgraycolor a:link, .mgraycolor a:visited {
-   color: #404040;
-   text-decoration: none;
-}
-
 .mredcolor {
    background-color: #a53529;
    border-radius: 5px;
    color: #EEEEEE;
-}
-
-.mredcolor a:link, .mredcolor a:visited {
-   color: #EEEEEE;
-   text-decoration: none;
 }
 
 .myellowcolor {
@@ -57,11 +35,6 @@ a:focus { color:#0000FF; text-decoration:underline }
 .mgreencolor {
    background-color: #00c000;
    border-radius: 5px;
-}
-
-.mgreencolor a:link, .mgreencolor a:visited {
-   color: #EEEEEE;
-   text-decoration: none;
 }
 
 /* mnav*css is the navigation bar with the "status", "odb", etc buttons */
@@ -143,25 +116,6 @@ a:focus { color:#0000FF; text-decoration:underline }
    padding: 5px;
    text-align:left;
    line-height: 1;
-}
-
-.mmenuitem:hover, .mmenuitem:focus {
-   background-color: #808080;
-   color: #404040;
-   cursor: pointer;
-}
-
-.mmenulink:hover, .mmenulink:focus {
-   text-decoration: none;
-   width: 100%;
-   display: inline-block;
-}
-
-.mmenulink:link, .mmenulink:visited {
-   text-decoration: none;
-   color: #404040;
-   width: 100%;
-   display: inline-block;
 }
 
 .mmenuitemsel {
@@ -353,26 +307,7 @@ input[type=text] {
    color: #EEEEEE;
 }
 
-/* floating footer */
-
-div.mwrapper {
-   min-height: 100%;
-   height: auto !important;
-   height: 100%;
-   margin: 0 auto -3em;
-}
-
-div.mpush{
-   height: 3em;
-}
-
-.mfooter {
-   background-color: #808080;
-   color: #EEEEEE;
-   font-size: 100%;
-   text-align: center;
-   padding: 1em;
-}
+/* "Example" page */
 
 .mmaintable {
    background-color: #F5F5F5;
@@ -385,21 +320,47 @@ div.mpush{
    padding: 3px;
 }
 
-.clientsTable tr:nth-child(odd) td:nth-child(odd) {
-    background-color: #DDDDDD;
+/* link colors inside "mcss" class */
+
+.mcss a:link { color:#0000FF; text-decoration:none }
+.mcss a:visited { color:#0000FF; text-decoration:none }
+.mcss a:hover { color:#0000FF; text-decoration:underline }
+.mcss a:active { color:#0000FF; text-decoration:underline }
+.mcss a:focus { color:#0000FF; text-decoration:none }
+
+/* link colors for left side navigation bar */
+
+.mmenuitem:hover, .mmenuitem:focus {
+   background-color: #808080;
+   color: #404040;
+   cursor: pointer;
 }
 
-.clientsTable tr:nth-child(odd) td:nth-child(even) {
-    background-color: #FFFFFF;
+a.mmenulink:hover, a.mmenulink:focus {
+   text-decoration: none;
+   width: 100%;
+   display: inline-block;
 }
 
-.clientsTable tr:nth-child(even) td:nth-child(even) {
-    background-color: #DDDDDD;
+a.mmenulink:link, a.mmenulink:visited {
+   text-decoration: none;
+   color: #404040;
+   width: 100%;
+   display: inline-block;
 }
 
-.clientsTable tr:nth-child(even) td:nth-child(odd) {
-    background-color: #FFFFFF;
+/* link colors inside colored boxes for better readability */
+
+.mgraycolor a:link, .mgraycolor a:visited {
+   color: #404040;
 }
 
+.mredcolor a:link, .mredcolor a:visited {
+   color: #FFFFFF;
+}
+
+.mgreencolor a:link, .mgreencolor a:visited {
+   color: #FFFFFF;
+}
 
 /* end */

@@ -81,7 +81,7 @@
       });
    }
 
-   function add_table_entry(table, name, value, comment, editable) {
+   function add_table_entry(table, name, value, comment, editable, type, size, isarray) {
       var tr = document.createElement("tr");
       //tr.id = "program " + name;
 
@@ -103,6 +103,17 @@
          if (value)
             i.checked = true;
       }
+      if (type && type == TID_STRING) {
+         if (isarray) {
+            i.size = size + 1;
+            i.maxLength = size - 1;
+         } else {
+            i.size = 32;
+            if (value.length + 5 > i.size) {
+               i.size = value.length + 10;
+            }
+         }
+      }
       i.value = value;
       td.appendChild(i);
       td.align = "center";
@@ -114,6 +125,11 @@
       td.align = "center";
       td.innerHTML = comment;
       tr.appendChild(td);
+
+      //td = document.createElement("td");
+      //td.align = "center";
+      //td.innerHTML = "type: " + type + ", size: " + size + ", array: " + isarray;
+      //tr.appendChild(td);
 
       table.appendChild(tr);
    }
@@ -140,7 +156,7 @@
                runno = runinfo[k];
             }
          }
-         add_table_entry(document.getElementById("stripeList"), "Run number", runno + 1, "", edit_run_number);
+         add_table_entry(document.getElementById("stripeList"), "Run number", runno + 1, "", edit_run_number, TID_INT, 0, false);
       }
 
       if (editonstart) {
@@ -152,6 +168,8 @@
             var v = editonstart[k];
             var c = "";
             var n = editonstart[k + "/key"].num_values;
+            var t = editonstart[k + "/key"].type;
+            var s = editonstart[k + "/key"].item_size;
 
             if (comments) {
                for (var kk in comments) {
@@ -166,7 +184,7 @@
                for (var i = 0; i < n; i++) {
                   if (i != 0)
                      cc = null;
-                  add_table_entry(document.getElementById("stripeList"), k + "[" + i + "]", v[i], cc, true);
+                  add_table_entry(document.getElementById("stripeList"), k + "[" + i + "]", v[i], cc, true, t, s, true);
                }
             } else {
                if (comments) {
@@ -177,7 +195,7 @@
                   }
                }
 
-               add_table_entry(document.getElementById("stripeList"), k, v, c, true);
+               add_table_entry(document.getElementById("stripeList"), k, v, c, true, t, s, false);
             }
          }
       }

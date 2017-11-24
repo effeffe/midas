@@ -36,16 +36,15 @@ function mie_to_string(tid, jvalue, format) {
    }
 
    if (tid == TID_FLOAT || tid == TID_DOUBLE) {
-      if (format == undefined)
-         format = "f3";
-      if (format.indexOf("p") != -1) {
+      if (format && format.indexOf("p") != -1) {
          var p = parseInt(format.substr(format.indexOf("p")+1));
          return jvalue.toPrecision(p);
       }
-      if (format.indexOf("f") != -1) {
+      if (format && format.indexOf("f") != -1) {
          var p = parseInt(format.substr(format.indexOf("f")+1));
          return jvalue.toFixed(p);
       }
+      return jvalue;
    }
 
    var t = typeof jvalue;
@@ -870,20 +869,14 @@ function mhttpd_refresh() {
 
 function mhttpd_reconnect() {
    mjsonrpc_db_ls(["/"]).then(function (rpc) {
-      // on successful connection remove error and schedule refresh if input is active
-      var inputs = document.getElementsByTagName('input');
-      for (var i=0 ; i<inputs.length ; i++)
-         if (inputs[i] === document.activeElement) {
-            document.getElementById("mheader_error").innerHTML = "";
-            document.getElementById("mheader_error").style.zIndex = 0; // below header
-            if (mhttpd_refresh_id != undefined)
-               window.clearTimeout(mhttpd_refresh_id);
-            mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
-            return;
-         }
-
-      // otherwise simply reload page
-      location.reload();
+      // on successful connection remove error and schedule refresh
+      if (document.getElementById("mheader_error")) {
+         document.getElementById("mheader_error").innerHTML = "";
+         document.getElementById("mheader_error").style.zIndex = 0; // below header
+      }
+      if (mhttpd_refresh_id != undefined)
+         window.clearTimeout(mhttpd_refresh_id);
+      mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
    }).catch(function (error) {
       mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
    });
@@ -1280,7 +1273,6 @@ function mhttpd_reset_alarm(alarm_name) {
       if (rpc.result.status != 1 && rpc.result.status != 1004) {
          throw new Error("Cannot reset alarm, status " + rpc.result.status + ", see MIDAS messages");
       }
-      location.search = ""; // reloads the document
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
    });
