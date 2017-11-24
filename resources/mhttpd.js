@@ -1273,7 +1273,6 @@ function mhttpd_reset_alarm(alarm_name) {
       if (rpc.result.status != 1 && rpc.result.status != 1004) {
          throw new Error("Cannot reset alarm, status " + rpc.result.status + ", see MIDAS messages");
       }
-      location.search = ""; // reloads the document
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
    });
