@@ -36,16 +36,15 @@ function mie_to_string(tid, jvalue, format) {
    }
 
    if (tid == TID_FLOAT || tid == TID_DOUBLE) {
-      if (format == undefined)
-         format = "f3";
-      if (format.indexOf("p") != -1) {
+      if (format && format.indexOf("p") != -1) {
          var p = parseInt(format.substr(format.indexOf("p")+1));
          return jvalue.toPrecision(p);
       }
-      if (format.indexOf("f") != -1) {
+      if (format && format.indexOf("f") != -1) {
          var p = parseInt(format.substr(format.indexOf("f")+1));
          return jvalue.toFixed(p);
       }
+      return jvalue;
    }
 
    var t = typeof jvalue;
