@@ -498,29 +498,31 @@
                //Disk Level Display
                var diskLevelHtml;
                var diskLevelColor;
-               if (currentChannel["statistics"]["disk level"] >= 0.9) {
-                  diskLevelColor = "#c0392b";
-               } else if (currentChannel["statistics"]["disk level"] >= 0.7) {
-                  diskLevelColor = "#f1c40f";
+               var level = currentChannel["statistics"]["disk level"];
+               if (level >= 0.9) {
+                  diskLevelColor = "red";
+               } else if (level >= 0.7) {
+                  diskLevelColor = "yellow";
                } else {
-                  diskLevelColor = "#00E600";
+                  diskLevelColor = "green";
                }
                diskLevelHtml = document.createElement("td");
-               diskLevelHtml.className = "meterCell";
+               //diskLevelHtml.className = class_name;
                var outerDiv = document.createElement("div");
+               outerDiv.style.textAlign = "left";
                outerDiv.style.display = "block";
-               outerDiv.style.width = "90%";
+               outerDiv.style.width = "100%";
                outerDiv.style.height = "100%";
                outerDiv.style.position = "relative";
                outerDiv.style.border = "1px solid black";
                var innerDiv = document.createElement("div");
                innerDiv.style.display = "inline-block";
                innerDiv.style.backgroundColor = diskLevelColor;
-               innerDiv.style.width = currentChannel["statistics"]["disk level"];
+               innerDiv.style.width = (100*level).toFixed(0) + "%";
                innerDiv.style.height = "100%";
                innerDiv.style.position = "relative";
                innerDiv.style.paddingTop = "2px";
-               innerDiv.innerHTML = (currentChannel["statistics"]["disk level"] * 100).toFixed(1) + "%";
+               innerDiv.innerHTML = "&nbsp" + (level * 100).toFixed(1) + "%";
                outerDiv.appendChild(innerDiv);
                diskLevelHtml.appendChild(outerDiv);
 
