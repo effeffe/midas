@@ -1346,6 +1346,10 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("          <td style=\"text-align:right;\">Code:</td>\n");
    r->rsprintf("          <td style=\"text-align:left;\"><a href=\"https://bitbucket.org/tmidas/midas/\">https://bitbucket.org/tmidas/midas/</a></td>\n");
    r->rsprintf("        </tr>\n");
+   r->rsprintf("        <tr>\n");
+   r->rsprintf("          <td style=\"text-align:right;\">Report a bug:</td>\n");
+   r->rsprintf("          <td style=\"text-align:left;\"><a href=\"https://bitbucket.org/tmidas/midas/issues/\">https://bitbucket.org/tmidas/midas/issues/</a></td>\n");
+   r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">Version:</td>\n");
@@ -1353,12 +1357,29 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("        </tr>\n");
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">Revision:</td>\n");
-   strlcpy(str, "https://bitbucket.org/tmidas/midas/commits/all?search=", sizeof(str));
-   const char* p = strstr(cm_get_revision(), "commit");
-   if (p) {
-      memcpy(str+strlen(str), p + 7, 7);
+   std::string rev = cm_get_revision();
+   std::string url = "https://bitbucket.org/tmidas/midas/commits/";
+   // rev format looks like this:
+   // Fri Nov 24 10:15:54 2017 -0800 - midas-2017-07-c-171-gb8928d5c-dirty on branch develop
+   // -gXXX is the commit hash
+   // -dirty should be removed from the hash url, if present
+   // " " before "on branch" should be removed from the hash url
+   std::string::size_type pos = rev.find("-g");
+   if (pos != std::string::npos) {
+      std::string hash = rev.substr(pos+2);
+      pos = hash.find("-dirty");
+      if (pos != std::string::npos) {
+         hash = hash.substr(0, pos);
+      }
+      pos = hash.find(" ");
+      if (pos != std::string::npos) {
+         hash = hash.substr(0, pos);
+      }
+      url += hash;
+      r->rsprintf("          <td style=\"text-align:left;\"><a href=\"%s\">%s</a></td>\n", url.c_str(), rev.c_str());
+   } else {
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", rev.c_str());
    }
-   r->rsprintf("          <td style=\"text-align:left;\"><a href=\"%s\">%s</a></td>\n", str, cm_get_revision());
    r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");

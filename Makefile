@@ -557,10 +557,11 @@ $(BIN_DIR):
 #
 # put current GIT revision into header file to be included by programs
 #
-$(GIT_REVISION): $(SRC_DIR)/midas.c $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.c $(SRC_DIR)/system.c $(INC_DIR)/midas.h
-	echo \#define GIT_REVISION \"`git log -n 1 --pretty=format:"%ad - commit %h"` on branch `git rev-parse --abbrev-ref HEAD` - `git describe --abbrev=4 --dirty`\" > $(GIT_REVISION)-new
-	#rsync --checksum $(GIT_REVISION)-new $(GIT_REVISION) # only update git-revision.h and update it's timestamp if it's contents have changed
-	/bin/cp -f -v $(GIT_REVISION)-new $(GIT_REVISION)
+$(GIT_REVISION): $(SRC_DIR)/midas.c $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.c $(SRC_DIR)/system.c $(SRC_DIR)/mhttpd.cxx $(INC_DIR)/midas.h
+	echo \#define GIT_REVISION \"`git log -1 --format="%ad"` - `git describe --abbrev=8 --tags --dirty` on branch `git rev-parse --abbrev-ref HEAD`\" > $(GIT_REVISION)-new
+	rsync --checksum $(GIT_REVISION)-new $(GIT_REVISION) # only update git-revision.h and update it's timestamp if it's contents have changed
+	-/bin/rm -f $(GIT_REVISION)-new
+
 #
 # main binaries
 #
