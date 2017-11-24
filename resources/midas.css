@@ -320,24 +320,6 @@ input[type=text] {
    padding: 3px;
 }
 
-/* "Clients" checker board table at the bottom of the status page */
-
-.clientsTable tr:nth-child(odd) td:nth-child(odd) {
-    background-color: #DDDDDD;
-}
-
-.clientsTable tr:nth-child(odd) td:nth-child(even) {
-    background-color: #FFFFFF;
-}
-
-.clientsTable tr:nth-child(even) td:nth-child(even) {
-    background-color: #DDDDDD;
-}
-
-.clientsTable tr:nth-child(even) td:nth-child(odd) {
-    background-color: #FFFFFF;
-}
-
 /* link colors inside "mcss" class */
 
 .mcss a:link { color:#0000FF; text-decoration:none }
