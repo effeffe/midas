@@ -724,7 +724,7 @@
 
          mjsonrpc_send_request([
             mjsonrpc_make_request("db_get_values", {"paths": paths}),
-            mjsonrpc_make_request("get_alarms"),
+            mjsonrpc_make_request("get_alarms", {"get_all": true}),
             mjsonrpc_make_request("cm_exist", "{ \"name\": \"Logger\" }"),
             mjsonrpc_make_request("cm_msg_retrieve", {"min_messages": 1}),
             mjsonrpc_make_request("db_get_values", {"paths": equipmentStatList}),
