@@ -86,9 +86,6 @@
    <div id="updateStatus" align="left">
       updateStatus
    </div>
-
-   <div class="mpush">
-   </div>
 </div>
 
 <script>
@@ -134,7 +131,7 @@
 
       var tr = document.createElement("tr");
       tr.id = "alarm " + name;
-      tr.className = "mtablecss";
+      tr.className = "mtable";
 
       var td;
       var input;
@@ -192,7 +189,7 @@
       input = reset_button;
       input.id = "reset alarm " + name;
       input.type = "button";
-      input.className = "mbuttoncss";
+      input.className = "mbutton";
       input.innerHTML = "Reset";
       mhttpd_disable_button(input);
       input.onclick = function () {
