@@ -5,6 +5,7 @@
    <link rel="stylesheet" href="midas.css">
    <script src="midas.js"></script>
    <script src="mhttpd.js"></script>
+   <script src="controls.js"></script>
    <title>Alarms</title>
 </head>
 
@@ -87,13 +88,23 @@
       updateStatus
    </div>
 </div>
+<div id="dlgError" class="dlgFrame">
+  <div class="dlgTitlebar">Error message</div>
+  <div class="dlgPanel">
+    <div id="dlgErrorText">Dialog Contents</div>
+    <br />
+    <button class="dlgButton" onClick="dlgHide('dlgError')">Close</button>
+  </div>
+</div>
 
 <script>
    function write_alarm_system_active(value) {
       mjsonrpc_db_paste(["/alarms/alarm system active"], [value]).then(function (rpc) {
          update();
       }).catch(function (error) {
-         mjsonrpc_error_alert(error);
+         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+         dlgShow('dlgError');
+         //mjsonrpc_error_alert(error);
       });
    }
 
@@ -197,7 +208,9 @@
          mjsonrpc_call("al_reset_alarm", {"alarms": [name]}).then(function (rpc) {
             update();
          }).catch(function (error) {
-            mjsonrpc_error_alert(error);
+            document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+            dlgShow('dlgError');
+            //mjsonrpc_error_alert(error);
          });
       };
 
@@ -319,7 +332,9 @@
       }).then(function (names) {
          return mjsonrpc_al_reset_alarm(names);
       }).catch(function (error) {
-         mjsonrpc_error_alert(error);
+         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+         dlgShow('dlgError');
+         //mjsonrpc_error_alert(error);
       });
    }
 
