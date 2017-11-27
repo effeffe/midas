@@ -5,6 +5,7 @@
    <link rel="stylesheet" href="midas.css">
    <script src="midas.js"></script>
    <script src="mhttpd.js"></script>
+   <script src="controls.js"></script>
    <title>Programs</title>
 </head>
 
@@ -33,6 +34,14 @@
       updateStatus
    </div>
 </div>
+<div id="dlgError" class="dlgFrame">
+  <div class="dlgTitlebar">Error message</div>
+  <div class="dlgPanel">
+    <div id="dlgErrorText">Dialog Contents</div>
+    <br />
+    <button class="dlgButton" onClick="dlgHide('dlgError')">Close</button>
+  </div>
+</div>
 
 <script>
    var update_timer_id;
@@ -55,11 +64,15 @@
             }, 1000);
          } else {
             program_status[name] = "";
-            alert("Program \'" + name + "\' could not be started by MIDAS. Try to start it manually using this command: " + start_command);
+            document.getElementById("dlgErrorText").innerHTML = "Program \'" + name + "\' could not be started by MIDAS. Try to start it manually using this command: " + start_command;
+            dlgShow('dlgError');
+            //alert("Program \'" + name + "\' could not be started by MIDAS. Try to start it manually using this command: " + start_command);
             update();
          }
       }).catch(function (error) {
-         mjsonrpc_error_alert(error);
+         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+         dlgShow('dlgError');
+         //mjsonrpc_error_alert(error);
       });
    }
 
@@ -77,11 +90,15 @@
             }, 1000);
          } else {
             program_status[name] = "";
-            alert("Program \'" + name + "\' could not be stopped by MIDAS. Try to kill it with \"kill -KILL\"");
+            document.getElementById("dlgErrorText").innerHTML = "Program \'" + name + "\' could not be stopped by MIDAS. Try to kill it with \"kill -KILL\"";
+            dlgShow('dlgError');
+            //alert("Program \'" + name + "\' could not be stopped by MIDAS. Try to kill it with \"kill -KILL\"");
             update();
          }
       }).catch(function (error) {
-         mjsonrpc_error_alert(error);
+         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+         dlgShow('dlgError');
+         //mjsonrpc_error_alert(error);
       });
    }
 
@@ -124,7 +141,9 @@
          mjsonrpc_start_program(name).then(function (rpc) {
             start_poll(name, start_command, 10);
          }).catch(function (error) {
-            mjsonrpc_error_alert(error);
+            document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+            dlgShow('dlgError');
+            //mjsonrpc_error_alert(error);
          });
       };
 
@@ -145,7 +164,9 @@
          mjsonrpc_stop_program(name, false).then(function (rpc) {
             stop_poll(name, 10);
          }).catch(function (error) {
-            mjsonrpc_error_alert(error);
+            document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+            dlgShow('dlgError');
+            //mjsonrpc_error_alert(error);
          });
       };
 

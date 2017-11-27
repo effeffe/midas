@@ -229,7 +229,7 @@ function mjsonrpc_decode_error(error) {
    } else if (error.request && error.xhr) {
       return "unknown error, request: " + print_request(error.request) + ", xhr: " + print_xhr(error.xhr);
    } else {
-      return error;
+      return "javascript exception: " + error;
    }
 }
 
@@ -242,7 +242,7 @@ function mjsonrpc_error_alert(error) {
       var s = mjsonrpc_decode_error(error);
       alert("mjsonrpc_error_alert: " + s);
    } else {
-      alert("mjsonroc_error_alert: " + error);
+      alert("mjsonrpc_error_alert: " + error);
    }
 }
 
