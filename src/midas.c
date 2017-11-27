@@ -8233,6 +8233,8 @@ INT bm_push_event(char *buffer_name)
          if (total_size <= 0 || total_size > pheader->size) {
             cm_msg(MERROR, "bm_push_event", "BUG: bad total_size %d for client \"%s\", read_pointer %d, event data size %d", total_size, pc->name, pc->read_pointer, pevent->data_size);
             bm_unlock_buffer(buffer_handle);
+            cm_msg_flush_buffer();
+            abort();
             return BM_NO_MEMORY;
          }
 
