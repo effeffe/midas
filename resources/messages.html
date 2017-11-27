@@ -5,7 +5,7 @@
    <link rel="stylesheet" href="midas.css">
    <script src="midas.js"></script>
    <script src="mhttpd.js"></script>
-   <script src="obsolete.js"></script>
+   <script src="controls.js"></script>
    <title>Messages</title>
 </head>
 
@@ -25,6 +25,14 @@
    <div>
       <div class="mmessagebox mfont" id="messageFrame"><h1 class="mtableheader">Messages</h1></div>
    </div>
+</div>
+<div id="dlgError" class="dlgFrame">
+  <div class="dlgTitlebar">Error message</div>
+  <div class="dlgPanel">
+    <div id="dlgErrorText">Dialog Contents</div>
+    <br />
+    <button class="dlgButton" onClick="dlgHide('dlgError')">Close</button>
+  </div>
 </div>
 
 <script>
@@ -57,28 +65,30 @@
          localStorage.setItem("mFacilitiesButtons", html);
 
       }).catch(function (error) {
-         mjsonrpc_error_alert(error);
+         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+         dlgShow('dlgError');
+         //mjsonrpc_error_alert(error);
       });
    }
 
-   function GetMsg(facility, start, n, callback) {
-      var request = XMLHttpRequestGeneric();
-      request.onreadystatechange = function () {
-         if (this.readyState == 4 && this.status == 200) {
-            if (n > 1 || n == 0) {
-               var array = request.responseText.split('\n');
-               while (array.length > 1 && array[array.length - 1] == "")
-                  array = array.slice(0, array.length - 1);
-               callback(array);
-            } else
-               callback(request.responseText);
-         }
-      }
-
-      var url = ODBUrlBase + '?cmd=jmsg&f=' + facility + '&t=' + start + '&n=' + n;
-      request.open('GET', url, true);
-      request.send();
-   }
+   //function GetMsg(facility, start, n, callback) {
+   //   var request = XMLHttpRequestGeneric();
+   //   request.onreadystatechange = function () {
+   //      if (this.readyState == 4 && this.status == 200) {
+   //         if (n > 1 || n == 0) {
+   //            var array = request.responseText.split('\n');
+   //            while (array.length > 1 && array[array.length - 1] == "")
+   //               array = array.slice(0, array.length - 1);
+   //            callback(array);
+   //         } else
+   //            callback(request.responseText);
+   //      }
+   //   }
+   //
+   //   var url = ODBUrlBase + '?cmd=jmsg&f=' + facility + '&t=' + start + '&n=' + n;
+   //   request.open('GET', url, true);
+   //   request.send();
+   //}
 
    function resize_message_box() {
       // set message window height to fit browser window
@@ -123,6 +133,8 @@
          timer_tail = window.setTimeout(msg_extend_tail, 1000);
          resize_message_box();
       }).catch(function(error) {
+         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+         dlgShow('dlgError');
       });
       window.onresize = resize_message_box;
    }
@@ -212,6 +224,8 @@
                   msg_append(msg);
                   timer_tail = window.setTimeout(msg_extend_tail, 1000);
                }).catch(function(error) {
+                  document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+                  dlgShow('dlgError');
                });
             } else {
                // in non-timestamped mode, simply load full message list
@@ -225,35 +239,39 @@
                   msg_append(msg);
                   timer_tail = window.setTimeout(msg_extend_tail, 1000);
                }).catch(function(error) {
+                  document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+                  dlgShow('dlgError');
                });
             }
          }
       } else
-         timer_tail = window.setTimeout(msg_extend_tail, 1000);
+      timer_tail = window.setTimeout(msg_extend_tail, 1000);
    }
 
-   function msg_extend_front() {
-      // remove color of new elements after a while
-      var mf = document.getElementById('messageFrame');
-      for (i = 1; i < mf.childNodes.length; i++) {
-         if (mf.childNodes[i].age != undefined) {
-            var t = new Date() / 1000;
-            if (t > mf.childNodes[i].age + 5)
-               mf.childNodes[i].style.backgroundColor = "";
-         }
-      }
-
-      // check for new message if time stamping is on
-      if (first_tstamp) {
-
-         mjsonrpc_call("cm_msg_retrieve", { "facility": facility, "time" : first_tstamp, "min_messages" : 0 }).then(function(rpc) {
-            var msg = rpc.result.messages.split("\n");
-            msg_prepend(msg);
-            timer_front = window.setTimeout(msg_extend_front, 1000);
-         }).catch(function(error) {
-         });
+function msg_extend_front() {
+   // remove color of new elements after a while
+   var mf = document.getElementById('messageFrame');
+   for (i = 1; i < mf.childNodes.length; i++) {
+      if (mf.childNodes[i].age != undefined) {
+         var t = new Date() / 1000;
+         if (t > mf.childNodes[i].age + 5)
+            mf.childNodes[i].style.backgroundColor = "";
       }
    }
+
+   // check for new message if time stamping is on
+   if (first_tstamp) {
+
+      mjsonrpc_call("cm_msg_retrieve", { "facility": facility, "time" : first_tstamp, "min_messages" : 0 }).then(function(rpc) {
+         var msg = rpc.result.messages.split("\n");
+         msg_prepend(msg);
+         timer_front = window.setTimeout(msg_extend_front, 1000);
+      }).catch(function(error) {
+         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+         dlgShow('dlgError');
+      });
+   }
+}
 
 </script>
 
