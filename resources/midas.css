@@ -320,13 +320,13 @@ input[type=text] {
    padding: 3px;
 }
 
-/* link colors inside "mcss" class */
+/* link colors */
 
-.mcss a:link { color:#0000FF; text-decoration:none }
-.mcss a:visited { color:#0000FF; text-decoration:none }
-.mcss a:hover { color:#0000FF; text-decoration:underline }
-.mcss a:active { color:#0000FF; text-decoration:underline }
-.mcss a:focus { color:#0000FF; text-decoration:none }
+.mlink a:link { color:#0000FF; text-decoration:none }
+.mlink a:visited { color:#0000FF; text-decoration:none }
+.mlink a:hover { color:#0000FF; text-decoration:underline }
+.mlink a:active { color:#0000FF; text-decoration:underline }
+.mlink a:focus { color:#0000FF; text-decoration:none }
 
 /* link colors for left side navigation bar */
 
@@ -351,15 +351,15 @@ a.mmenulink:link, a.mmenulink:visited {
 
 /* link colors inside colored boxes for better readability */
 
-.mgraycolor a:link, .mgraycolor a:visited {
+.mgraycolorlink a:link, .mgraycolorlink a:visited {
    color: #404040;
 }
 
-.mredcolor a:link, .mredcolor a:visited {
+.mredcolorlink a:link, .mredcolorlink a:visited {
    color: #FFFFFF;
 }
 
-.mgreencolor a:link, .mgreencolor a:visited {
+.mgreencolorlink a:link, .mgreencolorlink a:visited {
    color: #FFFFFF;
 }
 
