@@ -5,6 +5,7 @@
    <link rel="stylesheet" href="midas.css">
    <script src="midas.js"></script>
    <script src="mhttpd.js"></script>
+   <script src="controls.js"></script>
    <title>Start a new run</title>
 </head>
 
@@ -28,6 +29,14 @@
       </tr>
       </tbody>
    </table>
+</div>
+<div id="dlgError" class="dlgFrame">
+  <div class="dlgTitlebar">Error message</div>
+  <div class="dlgPanel">
+    <div id="dlgErrorText">Dialog Contents</div>
+    <br />
+    <button class="dlgButton" onClick="dlgHide('dlgError')">Close</button>
+  </div>
 </div>
 
 <script>
@@ -77,7 +86,9 @@
          location.search = "cmd=Transition";
          // not reached: reloads the page
       }).catch(function (error) {
-         mjsonrpc_error_alert(error);
+         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+         dlgShow('dlgError');
+         //mjsonrpc_error_alert(error);
       });
    }
 
@@ -208,7 +219,9 @@
       mjsonrpc_call("db_ls", {"paths": paths}).then(function (rpc) {
          callback(rpc);
       }).catch(function (error) {
-         alert("RWE: RPC or JS error: " + mjsonrpc_decode_error(error));
+         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+         dlgShow('dlgError');
+         //alert("RWE: RPC or JS error: " + mjsonrpc_decode_error(error));
       });
    }
 
