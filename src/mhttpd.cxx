@@ -142,6 +142,7 @@ const Filetype filetype[] = {
    ".TXT", "text/plain",}, {
    ".ASC", "text/plain",}, {
    ".ZIP", "application/zip",}, {
+   ".MP3", "audio/mpeg",}, {
    ".CSS", "text/css",}, {
    ".JS",  "application/javascript"}, {
 ""},};
@@ -15677,14 +15678,17 @@ bool send_resource(Return* r, const std::string& name)
 
    const char* type = "text/plain";
 
-   if (name.rfind(".css") != std::string::npos)
-      type = "text/css";
-   else if (name.rfind(".html") != std::string::npos)
-      type = "text/html";
-   else if (name.rfind(".js") != std::string::npos)
-      type = "application/javascript";
-   else if (name.rfind(".mp3") != std::string::npos)
-      type = "audio/mpeg";
+   /* return proper header for file type */
+   int i;
+   for (i = 0; i < (int) strlen(name.c_str()); i++)
+      str[i] = toupper(name[i]);
+   str[i] = 0;
+
+   for (i = 0; filetype[i].ext[0]; i++)
+      if (strstr(str, filetype[i].ext)){
+         type = filetype[i].type;
+         break;
+      }
 
    r->rsprintf("Content-Type: %s\r\n", type);
 
