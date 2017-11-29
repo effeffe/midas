@@ -890,10 +890,21 @@ function mhttpd_resize_message() {
       mhttpd_fit_message(d.currentMessage);
 }
 
+function mhttpd_close_message()
+{
+   var d = document.getElementById("mheader_message");
+
+   // remember time of messages to suppress
+   mhttpdConfigSet('suppressMessageBefore', d.currentMessageT);
+
+   d.style.display = "none";
+   mhttpd_resize_sidenav();
+}
+
 function mhttpd_fit_message(m)
 {
    var d = document.getElementById("mheader_message");
-   var cross = "&nbsp;&nbsp;&nbsp;<span style='cursor: pointer;' onclick='document.getElementById(&quot;mheader_message&quot;).style.display = &quot;none&quot;;mhttpd_resize_sidenav();'>&#9587;</span>";
+   var cross = "&nbsp;&nbsp;&nbsp;<span style='cursor: pointer;' onclick='mhttpd_close_message();'>&#9587;</span>";
    var link1 = "<span style='cursor: pointer;' onclick='window.location.href=&quot;"+global_base_url+"?cmd=Messages&quot;'>";
    var link2 = "</span>";
    d.style.display = "inline-block";
@@ -931,17 +942,20 @@ function mhttpd_message(msg, chat) {
    var mType = "";
    var chatName = "";
    var talkTime = 0;
+   var lastMsg = "";
+   var lastMsgT = 0;
+   var lastChat = "";
+   var lastChatT = 0;
+   var lastT = 0;
 
    if (msg != undefined) {
-      var lastMsg = msg[0].substr(msg[0].indexOf(" ") + 1);
-      var lastMsgT = parseInt(msg[0]);
-   } else {
-      lastMsg = "";
-      lastMsgT = 0;
+      lastMsg = msg[0].substr(msg[0].indexOf(" ") + 1);
+      lastMsgT = parseInt(msg[0]);
    }
+
    if (chat != undefined) {
-      var lastChat = chat[0].substr(chat[0].indexOf(" ") + 1);
-      var lastChatT = parseInt(chat[0]);
+      lastChat = chat[0].substr(chat[0].indexOf(" ") + 1);
+      lastChatT = parseInt(chat[0]);
       if (chat[0].length > 0)
          mTalk = chat[0].substr(chat[0].indexOf("]") + 2);
 
@@ -949,9 +963,6 @@ function mhttpd_message(msg, chat) {
       lastChat = lastChat.substr(0, lastChat.indexOf("[")) +
          "<b>" + chatName + ":</b>" +
          lastChat.substr(lastChat.indexOf("]") + 1);
-   } else {
-      lastChat = "";
-      lastChatT = 0;
    }
 
    if (lastChatT > lastMsgT) {
@@ -959,17 +970,20 @@ function mhttpd_message(msg, chat) {
       var c = "#DCF8C6";
       mType = "USER";
       talkTime = lastChatT;
+      lastT = lastChatT;
    } else {
       m = lastMsg;
       c = "yellow";
       mTalk = lastMsg.substr(lastMsg.indexOf("]") + 1);
       mType = m.substring(m.indexOf(",") + 1, m.indexOf("]"));
       talkTime = lastMsgT;
+      lastT = lastMsgT;
    }
 
    if (m !== "") {
       var d = document.getElementById("mheader_message");
-      if (d !== undefined && d.currentMessage !== m) {
+      if (d !== undefined && d.currentMessage !== m &&
+         (mhttpdConfig().suppressMessageBefore == undefined || lastT > mhttpdConfig().suppressMessageBefore)) {
 
          if (mType === "USER" && mhttpdConfig().displayChat  ||
              mType === "TALK" && mhttpdConfig().displayTalk  ||
@@ -978,6 +992,7 @@ function mhttpd_message(msg, chat) {
 
             var first = (d.currentMessage === undefined);
             d.currentMessage = m; // store full message in user-defined attribute
+            d.currentMessageT = lastMsgT; // store message time in user-defined attribute
 
             mhttpd_fit_message(m);
             d.age = new Date() / 1000;
@@ -1459,7 +1474,9 @@ var mhttpd_config_defaults = {
    'var': {
       'lastSpeak': 0,
       'lastAlarm': 0
-   }
+   },
+
+   'suppressMessageBefore': 0,
 };
 
 function mhttpdConfig() {
