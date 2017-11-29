@@ -71,25 +71,6 @@
       });
    }
 
-   //function GetMsg(facility, start, n, callback) {
-   //   var request = XMLHttpRequestGeneric();
-   //   request.onreadystatechange = function () {
-   //      if (this.readyState == 4 && this.status == 200) {
-   //         if (n > 1 || n == 0) {
-   //            var array = request.responseText.split('\n');
-   //            while (array.length > 1 && array[array.length - 1] == "")
-   //               array = array.slice(0, array.length - 1);
-   //            callback(array);
-   //         } else
-   //            callback(request.responseText);
-   //      }
-   //   }
-   //
-   //   var url = ODBUrlBase + '?cmd=jmsg&f=' + facility + '&t=' + start + '&n=' + n;
-   //   request.open('GET', url, true);
-   //   request.send();
-   //}
-
    function resize_message_box() {
       // set message window height to fit browser window
       var h = window.innerHeight;
@@ -249,6 +230,10 @@
    }
 
 function msg_extend_front() {
+
+   if (timer_front != undefined)
+      window.clearTimeout(timer_front);
+
    // remove color of new elements after a while
    var mf = document.getElementById('messageFrame');
    for (i = 1; i < mf.childNodes.length; i++) {
@@ -267,8 +252,16 @@ function msg_extend_front() {
          msg_prepend(msg);
          timer_front = window.setTimeout(msg_extend_front, 1000);
       }).catch(function(error) {
-         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
-         dlgShow('dlgError');
+
+         if (error.xhr && error.xhr.readyState == 4 && error.xhr.status == 0) {
+            // don't display error, since this one is shown on the header automatically
+
+            // retry communication
+            timer_front = window.setTimeout(msg_extend_front, 1000);
+         } else {
+            document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+            dlgShow('dlgError');
+         }
       });
    }
 }
