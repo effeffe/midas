@@ -113,13 +113,16 @@ body.mcss {
 }
 
 .mmenuitem {
-   padding: 5px;
    text-align:left;
    line-height: 1;
 }
 
 .mmenuitemsel {
    background-color: #A0A0A0;
+}
+
+.mmenulink {
+   padding: 5px;
 }
 
 .mseparator {
