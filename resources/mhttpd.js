@@ -1476,7 +1476,7 @@ var mhttpd_config_defaults = {
       'lastAlarm': 0
    },
 
-   'suppressMessageBefore': 0,
+   'suppressMessageBefore': 0
 };
 
 function mhttpdConfig() {
@@ -1484,9 +1484,13 @@ function mhttpdConfig() {
    try {
       if (localStorage.mhttpd)
          c = JSON.parse(localStorage.mhttpd);
-      // count number of elements
-      if (Object.keys(c).length != Object.keys(mhttpd_config_defaults).length)
-         c = mhttpd_config_defaults;
+
+      // if element has been added to mhttpd_config_defaults, merge it
+      if (Object.keys(c).length != Object.keys(mhttpd_config_defaults).length) {
+         for (var o in mhttpd_config_defaults)
+            if (!(o in c))
+               c[o] = mhttpd_config_defaults[o];
+      }
    } catch (e) {
    }
 
