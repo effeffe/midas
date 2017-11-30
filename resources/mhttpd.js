@@ -668,7 +668,8 @@ function mhttpd_init(current_page, interval, callback) {
    var mbar = document.getElementsByName("modbhbar");
    for (var i = 0; i < mbar.length; i++) {
       mbar[i].style.display = "inline-block";
-      mbar[i].style.position = "relative";
+      if (mbar[i].style.position === "")
+         mbar[i].style.position = "relative";
       mbar[i].style.border = "1px solid #808080";
       var color = mbar[i].dataset.color;
       mbar[i].innerHTML = "<div style='background-color:" + color + "; width:0; position:relative; display:inline-block; border-right:1px solid #808080'>&nbsp;</div>";
@@ -678,10 +679,11 @@ function mhttpd_init(current_page, interval, callback) {
    var mbar = document.getElementsByName("modbvbar");
    for (var i = 0; i < mbar.length; i++) {
       mbar[i].style.display = "inline-block";
-      mbar[i].style.position = "relative";
+      if (mbar[i].style.position === "")
+         mbar[i].style.position = "relative";
       mbar[i].style.border = "1px solid #808080";
       var color = mbar[i].dataset.color;
-      mbar[i].innerHTML = "<div style='background-color:" + color + "; height:0; width:100%; position:absolute; bottom:0; display:inline-block; border-top:1px solid #808080'>&nbsp;</div>";
+      mbar[i].innerHTML = "<div style='background-color:" + color + "; height:0; width:100%; position:absolute; bottom:0; left:0; display:inline-block; border-top:1px solid #808080'>&nbsp;</div>";
    }
 
    // store refresh interval and do initial refresh
@@ -779,6 +781,7 @@ function mhttpd_refresh() {
          if (mvalue === "")
             mvalue = "(empty)";
          html = mhttpd_escape(""+mvalue);
+         modbhbar.value = value;
          if (modbhbar[i].dataset.value === "1")
             modbhbar[i].children[0].innerHTML = html;
          var percent = Math.round(100 * value / modbhbar[i].dataset.maxValue);
@@ -787,6 +790,8 @@ function mhttpd_refresh() {
          if (percent > 100)
             percent = 100;
          modbhbar[i].children[0].style.width = percent + "%";
+         if (modbhbar[i].onchange !== null)
+            modbhbar[i].onchange();
       }
 
       for (i = 0; i < modbvbar.length; i++) {
@@ -796,6 +801,7 @@ function mhttpd_refresh() {
          if (mvalue === "")
             mvalue = "(empty)";
          html = mhttpd_escape(""+mvalue);
+         modbvbar[i].value = value;
          if (modbvbar[i].dataset.value === "1")
             modbvbar[i].children[0].innerHTML = html;
          var percent = Math.round(100 * value / modbvbar[i].dataset.maxValue);
@@ -804,6 +810,8 @@ function mhttpd_refresh() {
          if (percent > 100)
             percent = 100;
          modbvbar[i].children[0].style.height = percent + "%";
+         if (modbvbar[i].onchange !== null)
+            modbvbar[i].onchange();
       }
 
       // update alarm display

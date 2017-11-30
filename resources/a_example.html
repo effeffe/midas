@@ -68,6 +68,27 @@
                  data-color="lightgreen"></div>
          </td>
       </tr>
+
+      <tr>
+         <td colspan="2" style="text-align: center;">
+            <!-- div around image with "relative" position as anchor for labels and bars -->
+            <div style="position:relative;width:300px;margin:auto">
+
+               <img src="tank.gif"> <!-- background image of tank -->
+
+               <!-- label next to valve -->
+               <div name="modbvalue" data-odb-path="/Runinfo/Run number" data-odb-editable="1"
+                    style="position:absolute;top:157px;left:288px;"></div>
+
+               <!-- vertical bar inside tank, render red if value > 9 -->
+               <div name="modbvbar" style="position:absolute;top:80px;left:10px;width:104px;height:170px;"
+                    data-odb-path="/Runinfo/Run number" data-max-value="11" data-color="green"
+                    onchange="this.children[0].style.backgroundColor=(this.value > 9)?'red':'green';"></div>
+
+            </div>
+         </td>
+      </tr>
+
       <tr>
          <td colspan="2" style="text-align: center;">
             <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="1">Set run
