@@ -449,7 +449,7 @@ function mhttpd_init(current_page, interval, callback) {
       h.style.display = "flex";
       h.innerHTML =
          "<div style='display:inline-block; flex:none;'>" +
-         "<span class='mmenuitem' style='padding-right: 10px;margin-right: 20px;' onclick='mhttpd_toggle_menu()'>&#9776;</span>" +
+         "<span class='mmenuitem' style='padding: 10px;margin-right: 20px;' onclick='mhttpd_toggle_menu()'>&#9776;</span>" +
          "<span id='mheader_expt_name'></span>" +
          "</div>" +
 
