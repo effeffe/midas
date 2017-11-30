@@ -810,11 +810,11 @@ function mhttpd_refresh() {
       var e = document.getElementById('mheader_alarm');
       if (!rpc[1].result.alarm_system_active) {
          e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: Off</a>";
-         e.className = "mgraycolor mgraycolorlink";
+         e.className = "mgraycolor";
       } else {
          if (Object.keys(rpc[1].result.alarms) == 0) {
             e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: None</a>";
-            e.className = "mgreencolor mgreencolorlink";
+            e.className = "mgreencolor";
          } else {
             var s = "";
             var n = 0;
@@ -827,7 +827,7 @@ function mhttpd_refresh() {
                e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: " + s + "</a>";
             else
                e.innerHTML = "<a href=\"?cmd=Alarms\">Alarm: " + s + "</a>";
-            e.className = "mredcolor mredcolorlink";
+            e.className = "mredcolor";
 
             mhttpd_alarm_play();
          }

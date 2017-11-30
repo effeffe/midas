@@ -325,11 +325,11 @@ input[type=text] {
 
 /* link colors */
 
-.mlink a:link { color:#0000FF; text-decoration:none }
-.mlink a:visited { color:#0000FF; text-decoration:none }
-.mlink a:hover { color:#0000FF; text-decoration:underline }
-.mlink a:active { color:#0000FF; text-decoration:underline }
-.mlink a:focus { color:#0000FF; text-decoration:none }
+.mcss a:link { color:#0645AD; text-decoration:none }
+.mcss a:visited { color:#0645AD; text-decoration:none }
+.mcss a:hover { color:#0645AD; text-decoration:underline }
+.mcss a:active { color:#0645AD; text-decoration:underline }
+.mcss a:focus { color:#0645AD; text-decoration:none }
 
 /* link colors for left side navigation bar */
 
@@ -350,20 +350,6 @@ a.mmenulink:link, a.mmenulink:visited {
    color: #404040;
    width: 100%;
    display: inline-block;
-}
-
-/* link colors inside colored boxes for better readability */
-
-.mgraycolorlink a:link, .mgraycolorlink a:visited {
-   color: #404040;
-}
-
-.mredcolorlink a:link, .mredcolorlink a:visited {
-   color: #FFFFFF;
-}
-
-.mgreencolorlink a:link, .mgreencolorlink a:visited {
-   color: #FFFFFF;
 }
 
 /* end */
