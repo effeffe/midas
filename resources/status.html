@@ -183,13 +183,15 @@
                if (allAlarms[element]["triggered"] && allAlarms[element]["active"]) {
                   if (document.getElementById(element + "Alarm") === null) {
                      var newAlarm = document.createElement("td");
+                     var bgcol = allAlarms[element]["bgcolor"];
+                     if (bgcol === "red")
+                        bgcol = "var(--mred)";
                      document.getElementById("statusTable").insertBefore(newAlarm, document.getElementById("statusTable").firstChild);
 
                      newAlarm.outerHTML = "<tr id=\"" +
                              element +
                              "Alarm" +
-                             "\" class=\"alarmRow\">\n<td colspan=6 style=\"background-color:" +
-                             allAlarms[element]["bgcolor"] +
+                             "\" class=\"alarmRow\">\n<td colspan=6 style=\"background-color:" + bgcol +
                              ";border-radius:12px;\" align=center>" +
                              "<table width=\"100%%\"><tr" + " style=\"background-color:"+ allAlarms[element]["bgcolor"] +  "\">\n" +
                              "<td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"" +
@@ -229,7 +231,7 @@
                   case 1:
                      state = "Stopped";
                      buttonText = "Start";
-                     document.getElementById("runNumberCell").className = "mredcolor";
+                     document.getElementById("runNumberCell").className = "mred mbox";
                      // show stop time
                      if (runinfoJson.hasOwnProperty("stop time"))
                         document.getElementById("runStatusStopTime").innerHTML = "Stop: " + runinfoJson["stop time"];
@@ -237,7 +239,7 @@
                   case 2:
                      state = "Paused";
                      buttonText = "Start";
-                     document.getElementById("runNumberCell").className = "myellowcolor";
+                     document.getElementById("runNumberCell").className = "myellow mbox";
                      // show running time
                      if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
                         //var time=runinfoJson["start time binary/last_written"];
@@ -254,7 +256,7 @@
                   case 3:
                      state = "Running";
                      buttonText = "Stop";
-                     document.getElementById("runNumberCell").className = "mgreencolor";
+                     document.getElementById("runNumberCell").className = "mgreen mbox";
                      // show running time
                      if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
                         //var time=runinfoJson["start time binary/last_written"];
@@ -330,10 +332,10 @@
 
          if (alarm["alarm_system_active"]) {
             document.getElementById("runStatusAlarm").innerHTML = "<a href='/Alarms/Alarm system active?cmd=set'>" + "Alarms: On" + "</a>";
-            document.getElementById("runStatusAlarm").className = "mgreencolor";
+            document.getElementById("runStatusAlarm").className = "mgreen mbox";
          } else {
             document.getElementById("runStatusAlarm").innerHTML = "<a href='/Alarms/Alarm system active?cmd=set'>" + "Alarms: Off" + "</a>";
-            document.getElementById("runStatusAlarm").className = "mredcolor";
+            document.getElementById("runStatusAlarm").className = "mred mbox";
          }
 
          if (sequencerJson) {
@@ -343,10 +345,10 @@
                } else {
                   if (loggerJson["auto restart"] === true) {
                      document.getElementById("runStatusSequencer").innerHTML = "<a href='/Logger/Auto restart?cmd=set'>" + "Restart: On" + "</a>";
-                     document.getElementById("runStatusSequencer").className = "mgreencolor";
+                     document.getElementById("runStatusSequencer").className = "mgreen mbox";
                   } else {
                      document.getElementById("runStatusSequencer").innerHTML = "<a href='/Logger/Auto restart?cmd=set'>" + "Restart: Off" + "</a>";
-                     document.getElementById("runStatusSequencer").className = "myellowcolor";
+                     document.getElementById("runStatusSequencer").className = "myellow mbox";
                   }
                }
             }
@@ -358,11 +360,11 @@
                if (loggerJson["write data"] == true)
                   document.getElementById("runStatusLogger").className = "";
                else
-                  document.getElementById("runStatusLogger").className = "myellowcolor";
+                  document.getElementById("runStatusLogger").className = "myellow mbox";
             }
          } else {
             document.getElementById("runStatusLogger").innerHTML = "Logger not running";
-            document.getElementById("runStatusLogger").className = "mredcolor";
+            document.getElementById("runStatusLogger").className = "mred mbox";
          }
 
          document.getElementById("msgService").innerHTML = lastMessage.messages;
@@ -500,11 +502,11 @@
                var diskLevelColor;
                var level = currentChannel["statistics"]["disk level"];
                if (level >= 0.9) {
-                  diskLevelColor = "red";
+                  diskLevelColor = "var(--red)";
                } else if (level >= 0.7) {
-                  diskLevelColor = "yellow";
+                  diskLevelColor = "var(--myellow)";
                } else {
-                  diskLevelColor = "green";
+                  diskLevelColor = "var(--mgreen)";
                }
                diskLevelHtml = document.createElement("td");
                //diskLevelHtml.className = class_name;
@@ -518,6 +520,7 @@
                var innerDiv = document.createElement("div");
                innerDiv.style.display = "inline-block";
                innerDiv.style.backgroundColor = diskLevelColor;
+               innerDiv.style.borderRight = "1px solid black";
                innerDiv.style.width = (100*level).toFixed(0) + "%";
                innerDiv.style.height = "100%";
                innerDiv.style.position = "relative";
@@ -530,7 +533,7 @@
                logChannelRow.id = element + "channel";
                logChannelRow.className = "logChannel";
 
-               var cl = "myellowcolor";
+               var cl = "myellow mbox";
                if (loggerJson["write data"] == true &&
                    currentChannel["settings"]["active"] == true)
                   cl = "mgreencolor";

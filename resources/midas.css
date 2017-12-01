@@ -15,29 +15,64 @@ body.mcss {
    font-family: verdana,tahoma,sans-serif;
 }
 
-.mgraycolor {
-   background-color: #A0A0A0;
-   border-radius: 5px;
-   color: #404040;
+:root {
+   --mgray: #B0B0B0;
+   --mred: #ff8c95;
+   --myellow: #fff58b;
+   --mgreen: #89ff9e;
+   --mblue: #91d6ff;
+   --morange: #ffc585;
 }
 
-.mredcolor {
-   background-color: #a53529;
-   border-radius: 5px;
-   color: #EEEEEE;
+.mgray {
+   background-color: var(--mred);
 }
 
-.myellowcolor {
-   background-color: #f1c40f;
+.mred {
+   background-color: var(--mred);
+}
+
+.myellow {
+   background-color: var(--myellow);
+}
+
+.mgreen {
+   background-color: var(--mgreen);
+}
+
+.mblue {
+   background-color: var(--mblue);
+}
+
+.morange {
+   background-color: var(--morange);
+}
+
+.mbox {
    border-radius: 5px;
 }
 
-.mgreencolor {
-   background-color: #00c000;
-   border-radius: 5px;
+/* equipment status, set by frontends */
+
+.greenLight{
+   background-color: var(--mgreen);
 }
 
-/* mnav*css is the navigation bar with the "status", "odb", etc buttons */
+.yellowLight{
+   background-color: var(--myellow);
+}
+
+.yellowGreenLight{
+   background: linear-gradient(45deg, var(--mgreen) 25%, var(--myellow) 25%,
+   var(--myellow) 50%, var(--mgreen) 50%,
+   var(--mgreen) 75%, var(--myellow) 75%,
+   var(--myellow));
+   background-size: 50px 50px;
+}
+
+.redLight{
+   background-color: var(--mred);
+}
 
 #mheader {
    position: fixed;
@@ -202,13 +237,6 @@ input.mnavsel {
 }
 
 /* colors for hovered buttons */
-
-.mbutton:disabled {
-   //color: #444444;
-   //background: linear-gradient(to bottom, #f5f5f5 0%,#c0c0c0 100%);
-}
-
-/* colors for hovered buttons */
 input.mnav:hover, .mbutton:hover:enabled {
    color: #404040;
    background: linear-gradient(to bottom,  #ffffff 0%,#f3f3f3 50%,#ededed 51%,#ffffff 100%);
@@ -276,8 +304,8 @@ input[type=text] {
    font-size: 120%;
    font-weight: bold;
    border-radius: 12px;
-   background-color: #649dc3;
-   color: #EEEEEE;
+   background-color: #5e8dc3;
+   color: #f0f0ff;
    margin: 0.1em;
    padding: 0.25em;
    text-align: center;
@@ -285,29 +313,6 @@ input[type=text] {
 
 .mtabletitle {
    padding: 0.25em;
-}
-
-/* equipment status */
-
-.greenLight{
-   background-color: #00E600;
-}
-
-.yellowLight{
-   background-color: #f1c40f;
-}
-
-.yellowGreenLight{
-   background: linear-gradient(45deg, #00E600 25%, #f1c40f 25%,
-   #f1c40f 50%, #00E600 50%,
-   #00E600 75%, #f1c40f 75%,
-   #f1c40f);
-   background-size: 50px 50px;
-}
-
-.redLight{
-   background-color: #c0392b;
-   color: #EEEEEE;
 }
 
 /* "Example" page */

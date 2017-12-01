@@ -140,10 +140,9 @@
          n_messages++;
 
          if (line.search("ERROR]") > 0) {
-            e.style.backgroundColor = "red";
-            e.style.color = "white";
+            e.style.backgroundColor = "var(--mred)";
          } else {
-            e.style.backgroundColor = "yellow";
+            e.style.backgroundColor = "var(--myellow)";
             e.age = new Date() / 1000;
             e.style.setProperty("-webkit-transition", "background-color 3s", "");
             e.style.setProperty("transition", "background-color 3s", "");
@@ -173,8 +172,7 @@
          e.className = "mmessageline";
          e.appendChild(document.createTextNode(line));
          if (line.search("ERROR]") > 0) {
-            e.style.backgroundColor = "red";
-            e.style.color = "white";
+            e.style.backgroundColor = "var(--mred)";
          }
 
          mf.appendChild(e);

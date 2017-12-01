@@ -257,7 +257,7 @@
                }
             }
             e.childNodes[1].innerHTML = s;
-            e.childNodes[1].className = "mgreencolor";
+            e.childNodes[1].className = "mgreen";
             // enable start/stop buttons
             var b = document.getElementById("start " + name);
             if (b) {
@@ -276,20 +276,18 @@
             }
          } else if (program_status[name]) {
             e.childNodes[1].innerHTML = program_status[name];
-            e.childNodes[1].className = "myellowcolor";
+            e.childNodes[1].className = "myellow";
             var b = document.getElementById("start " + name);
             if (b && start_command) {
                mhttpd_disable_button(b);
-               //mhttpd_hide_button(b);
             }
             var b = document.getElementById("stop " + name);
             if (b) {
                mhttpd_disable_button(b);
-               //mhttpd_hide_button(b);
             }
          } else {
             e.childNodes[1].innerHTML = "Not running";
-            e.childNodes[1].className = "mredcolor";
+            e.childNodes[1].className = "mred";
             // enable start/stop buttons
             var b = document.getElementById("start " + name);
             if (b && start_command) {
@@ -306,7 +304,7 @@
          var alarm_class = programs[name]["alarm class"];
          if (alarm_class.length > 0) {
             e.childNodes[2].innerHTML = "<a href='Alarms/Classes/" + alarm_class + "'>" + alarm_class + "</a>";
-            e.childNodes[2].className = "myellowcolor";
+            e.childNodes[2].className = "myellow";
          } else {
             e.childNodes[2].innerHTML = "-";
          }

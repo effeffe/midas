@@ -822,7 +822,7 @@ function mhttpd_refresh() {
       } else {
          if (Object.keys(rpc[1].result.alarms) == 0) {
             e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: None</a>";
-            e.className = "mgreencolor";
+            e.className = "mgreen mbox";
          } else {
             var s = "";
             var n = 0;
@@ -835,7 +835,7 @@ function mhttpd_refresh() {
                e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: " + s + "</a>";
             else
                e.innerHTML = "<a href=\"?cmd=Alarms\">Alarm: " + s + "</a>";
-            e.className = "mredcolor";
+            e.className = "mred mbox";
 
             mhttpd_alarm_play();
          }
@@ -975,13 +975,13 @@ function mhttpd_message(msg, chat) {
 
    if (lastChatT > lastMsgT) {
       var m = lastChat;
-      var c = "#DCF8C6";
+      var c = "var(--mblue)";
       mType = "USER";
       talkTime = lastChatT;
       lastT = lastChatT;
    } else {
       m = lastMsg;
-      c = "yellow";
+      c = "var(--myellow)";
       mTalk = lastMsg.substr(lastMsg.indexOf("]") + 1);
       mType = m.substring(m.indexOf(",") + 1, m.indexOf("]"));
       talkTime = lastMsgT;
@@ -1007,10 +1007,10 @@ function mhttpd_message(msg, chat) {
 
             if (first) {
                if (m.search("ERROR]") > 0) {
-                  d.style.backgroundColor = "red";
+                  d.style.backgroundColor = "var(--mred)";
                   d.style.color = "white";
                } else {
-                  d.style.backgroundColor = "#A0A0A0";
+                  d.style.backgroundColor = "var(--mgray)";
                }
             } else {
 
@@ -1018,14 +1018,12 @@ function mhttpd_message(msg, chat) {
                if (m.search("ERROR]") > 0) {
                   d.style.removeProperty("-webkit-transition");
                   d.style.removeProperty("transition");
-                  d.style.backgroundColor = "red";
-                  d.style.color = "white";
+                  d.style.backgroundColor = "var(--mred)";
                } else {
                   d.age = new Date() / 1000;
                   d.style.removeProperty("-webkit-transition");
                   d.style.removeProperty("transition");
                   d.style.backgroundColor = c;
-                  d.style.color = "black";
                   setTimeout(function () {
                      d.style.setProperty("-webkit-transition", "background-color 3s", "");
                      d.style.setProperty("transition", "background-color 3s", "");
@@ -1049,8 +1047,8 @@ function mhttpd_message(msg, chat) {
          }
       }
       var t = new Date() / 1000;
-      if (t > d.age + 5 && d.style.backgroundColor === "yellow")
-         d.style.backgroundColor = "#A0A0A0";
+      if (t > d.age + 5 && d.style.backgroundColor === "var(--myellow)")
+         d.style.backgroundColor = "var(--mgray)";
    }
 }
 

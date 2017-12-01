@@ -9,7 +9,7 @@
    <title>Run transition</title>
 </head>
 
-<body class="mcss" onload="mhttpd_init('Test')">
+<body class="mcss" onload="mhttpd_init('Transition')">
 
 <!-- header and side navigation will be filled in mhttpd_start -->
 <div id="mheader"></div>
@@ -22,7 +22,7 @@
          <th colspan="4" class="mtableheader subStatusTitle">Run Status</th>
       </tr>
       <tr>
-         <td colspan="1" height="100%" id="run_info" class="mredcolor redLight">
+         <td colspan="1" height="100%" id="run_info" class="mred mbox">
             Run
             <span id="run_number">run_number</span>
             <span id="run_state">run_state</span>
@@ -143,13 +143,13 @@
 
    function adjust_colors(runstate) {
       if (runstate == STATE_RUNNING) {
-         document.getElementById("run_info").className = "mgreencolor greenLight";
+         document.getElementById("run_info").className = "mgreen mbox";
       } else if (runstate == STATE_PAUSED) {
-         document.getElementById("run_info").className = "myellowcolor yellowLight";
+         document.getElementById("run_info").className = "myellow mbox";
       } else if (runstate == STATE_STOPPED) {
-         document.getElementById("run_info").className = "mredcolor redLight";
+         document.getElementById("run_info").className = "mred mbox";
       } else {
-         document.getElementById("run_info").className = "mgreencolor greenLight";
+         document.getElementById("run_info").className = "mgreen mbox";
       }
    }
 
@@ -327,10 +327,10 @@
             e.childNodes[3].className = "";
          } else if (client.status == 1) {
             e.childNodes[3].innerHTML = "Success";
-            e.childNodes[3].className = "mgreencolor greenLight";
+            e.childNodes[3].className = "mgreen mbox";
          } else {
             e.childNodes[3].innerHTML = client.status;
-            e.childNodes[3].className = "mredcolor redLight";
+            e.childNodes[3].className = "mred mbox";
          }
 
          if (client.errorstr.length > 0) {
