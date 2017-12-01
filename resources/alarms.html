@@ -16,19 +16,17 @@
 <div id="msidenav"></div>
 
 <div id="mmain">
-   <div align="center">
+   <div id='al_system_disabled_notice' class='mfont mred' style='text-align:center;font-size:1.5em;padding:10px;'>
+         Alarm system disabled
+   </div>
+
+   <div align="center" style="margin-top:10px;">
       <button class="mbutton" id='al_reset_all' onclick='reset_all_alarms()'>Reset all alarms</button>
       <button class="mbutton" id='al_system_enable' onclick='enable_alarm_system()'>Enable the alarm system</button>
       <button class="mbutton" id='al_system_disable' onclick='disable_alarm_system(false)'>Disable the alarm system
       </button>
       <input class="mfont" type="checkbox" id="al_sound_checkbox" onclick="mhttpdConfigSet('alarmSound', this.checked);"><span
            class="mfont">Play sound</span></input>
-   </div>
-
-   <div id='al_system_disabled_notice' class='mfont mred'>
-      <p align="center">
-         Alarm system disabled
-      </p>
    </div>
 
    <table width="95%" class="mtable alarmTable" id="evaluatedAlarms">

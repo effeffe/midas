@@ -25,7 +25,7 @@ body.mcss {
 }
 
 .mgray {
-   background-color: var(--mred);
+   background-color: var(--mgray);
 }
 
 .mred {

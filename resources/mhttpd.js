@@ -818,7 +818,7 @@ function mhttpd_refresh() {
       var e = document.getElementById('mheader_alarm');
       if (!rpc[1].result.alarm_system_active) {
          e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: Off</a>";
-         e.className = "mgraycolor";
+         e.className = "mgray mbox";
       } else {
          if (Object.keys(rpc[1].result.alarms) == 0) {
             e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: None</a>";
