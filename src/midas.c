@@ -7284,9 +7284,9 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
 
                   if (increment <= 0 || increment > pheader->size) {
                      cm_msg(MERROR, "bm_wait_for_free_space",
-                            "BUG: bad read pointer increment %d for client \"%s\", read_pointer %d, event size %d, while waiting for %d bytes, bytes available: %d, buffer size: %d",
+                            "BUG: bad read pointer increment %d for client \"%s\", read_pointer %d, event size %d, while waiting for %d bytes, bytes available: %d, buffer size: %d, rp %d, wp %d",
                             increment, pc->name, pc->read_pointer, e->data_size,
-                            requested_space, size, pheader->size);
+                            requested_space, size, pheader->size, pheader->read_pointer, pheader->write_pointer);
                      return BM_NO_MEMORY;
                   }
                   
@@ -8231,7 +8231,7 @@ INT bm_push_event(char *buffer_name)
          total_size = ALIGN8(total_size);
 
          if (total_size <= 0 || total_size > pheader->size) {
-            cm_msg(MERROR, "bm_push_event", "BUG: bad total_size %d for client \"%s\", read_pointer %d, event data size %d", total_size, pc->name, pc->read_pointer, pevent->data_size);
+            cm_msg(MERROR, "bm_push_event", "BUG: bad total_size %d for client \"%s\", read_pointer %d, event data size %d, buffer size: %d, rp: %d, wp: %d", total_size, pc->name, pc->read_pointer, pevent->data_size, pheader->size, pheader->read_pointer, pheader->write_pointer);
             bm_unlock_buffer(buffer_handle);
             cm_msg_flush_buffer();
             abort();
