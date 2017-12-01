@@ -17040,6 +17040,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
+   r->rsprintf("<script type=\"text/javascript\" src=\"controls.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
 
    r->rsprintf("<script type=\"text/javascript\">\n");
@@ -17048,6 +17049,20 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    r->rsprintf("var sshow_all_lines = false;\n");
    r->rsprintf("var last_msg = null;\n");
    r->rsprintf("var last_paused = null;\n");
+   r->rsprintf("\n");
+   r->rsprintf("function start_script()\n");
+   r->rsprintf("{\n");
+   r->rsprintf("  mjsonrpc_call('cm_exist', '{\"name\": \"sequencer\" }').then(function(rpc){;\n");
+   r->rsprintf("    if (rpc.result.status === 1) {;\n");
+   r->rsprintf("       window.location.href = '?cmd=Start+Script';\n");
+   r->rsprintf("    } else {\n");
+   r->rsprintf("       dlgAlert('Please start sequencer program before starting script');\n");
+   r->rsprintf("    }\n");
+   r->rsprintf("  }).catch(function(error) {\n");
+   r->rsprintf("    mjsonrpc_error_alert(error); });\n");
+   r->rsprintf("\n");
+   r->rsprintf("  return false;\n");
+   r->rsprintf("}\n");
    r->rsprintf("\n");
    r->rsprintf("function seq_refresh()\n");
    r->rsprintf("{\n");
@@ -17342,7 +17357,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
          
       } else {
          r->rsprintf("<input type=submit name=cmd value=\"Load Script\">\n");
-         r->rsprintf("<input type=submit name=cmd value=\"Start Script\">\n");
+         r->rsprintf("<input type=submit onclick=\"return start_script();\" value=\"Start Script\">\n");
       }
       if (seq.filename[0] && !seq.running && !equal_ustring(p->getparam("cmd"), "Load Script") && !p->isparam("fs"))
          r->rsprintf("<input type=submit name=cmd value=\"Edit Script\">\n");
