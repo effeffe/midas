@@ -128,7 +128,7 @@ function mie_back_to_link(p, path, bracket) {
       var value = rpc.result.data[0];
       var tid = rpc.result.tid[0];
       var mvalue = mie_to_string(tid, value);
-      if (mvalue == "")
+      if (mvalue === "")
          mvalue = "(empty)";
       link.innerHTML = mhttpd_escape(mvalue);
       link.onclick = function () {
