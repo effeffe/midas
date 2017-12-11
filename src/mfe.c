@@ -991,7 +991,7 @@ INT initialize_equipment(void)
                set_equipment_status(equipment[idx].name, str, "greenLight");
             else if (equipment[idx].status == FE_PARTIALLY_DISABLED) {
                set_equipment_status(equipment[idx].name, str, "yellowGreenLight");
-               cm_msg(MERROR, "initialize_equipment", "Equipment %s partially disabled", equipment[idx].name);
+               cm_msg(MINFO, "initialize_equipment", "Equipment %s partially disabled", equipment[idx].name);
             } else {
                set_equipment_status(equipment[idx].name, str, "redLight");
                cm_msg(MERROR, "initialize_equipment", "Equipment %s disabled because of %s", equipment[idx].name, str);
