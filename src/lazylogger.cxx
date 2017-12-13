@@ -129,6 +129,7 @@ List label= STRING : [128] \n\
 Execute before writing file = STRING : [64]\n\
 Execute after writing file = STRING : [64]\n\
 Modulo.Position = STRING : [8]\n\
+Copy Delay = INT : 0\n\
 Tape Data Append = BOOL : y\n\
 "
 #define LAZY_STATISTICS_STRING "\
@@ -161,6 +162,7 @@ typedef struct {
    char commandBefore[64];      /* command to run Before writing a file */
    char commandAfter[64];       /* command to run After writing a file */
    char modulo[8];              /* Modulo for multiple lazy client */
+   INT  copy_delay;             /* Delay copy after STOP transition in seconds */ 
    BOOL tapeAppend;             /* Flag for appending data to the Tape */
 } LAZY_SETTING;
 LAZY_SETTING lazy;
@@ -202,6 +204,9 @@ INT data_fmt, dev_type;
 char lazylog[MAX_STRING_LENGTH];
 BOOL full_bck_flag = FALSE, maintain_touched = FALSE;
 INT blockn = 0;
+BOOL  stop_transition = FALSE;
+BOOL  delay_start = FALSE;	
+DWORD lazy_time = 0;
 
 #define WATCHDOG_TIMEOUT 60000  /* 60 sec for tape access */
 
@@ -225,6 +230,13 @@ void print_dirlog(const DIRLOGLIST* dirlog)
              (*dirlog)[i].runno,
              (*dirlog)[i].size);
 };
+
+// STOP Transition callback
+INT lazy_trstop(INT rn, char *error) {
+	printf("lazy has detected a STOP transition\n");
+	stop_transition = TRUE;
+	return CM_SUCCESS;
+}
 
 /*------------------------------------------------------------------*/
 INT lazy_run_extract(const char *name)
@@ -2049,8 +2061,30 @@ Function value:
             return NOTHING_TODO;
          }                      // 1
       }                         // LOG_TYPE_TAPE 
-
+	  
+	  // Postpone copy by "copy_delay" if the copy check happens right after the 
+	  // stop transition. This permit EOR external scripts to complete there operations
+	  // prior to the lazycopy.
+	  // Delay the copy in case:
+	  // 0) all previous condition for copy is satisfied
+	  // 1) Stopped transition has been detected, 
+      
+      if (stop_transition) {
+         printf("in loop stop detected\n");
+         stop_transition = FALSE;  // reset transition (trfunction())
+         delay_start = TRUE;  // take notice of transition 
+         lazy_time = ss_time();  // mark time for delay
+      }
+      // check if its time after a stop transition
+      if (delay_start && (ss_time() - lazy_time) < (DWORD)lazy.copy_delay) {
+         printf("During delay %d... (%d)\n", ss_time()-lazy_time, lazy.copy_delay);
+         return NOTHING_TODO;
+      } else {
+         delay_start = FALSE;  
+      }
+      
       /* Finally do the copy */
+      printf("Starting copy\n");
       cp_time = ss_millitime();
       status = 0;
       if (dev_type == LOG_TYPE_SCRIPT) {
@@ -2506,6 +2540,16 @@ int main(int argc, char **argv)
       db_set_value(hDB, lazyinfo[channel].hKey, "Settings/Data dir", lazy.dir, size, 1, TID_STRING);
    }
 
+   // Register for STOP transition
+   if (cm_register_transition(TR_STOP, lazy_trstop, 810) != CM_SUCCESS) {
+     printf("Failed to start local RPC server");
+     cm_disconnect_experiment();
+
+     /* let user read message before window might close */
+     ss_sleep(5000);
+     return 1;
+   }
+   
    mainlast_time = 0;
 
    /* initialize ss_getchar() */
