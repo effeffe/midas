@@ -686,11 +686,122 @@ function mhttpd_init(current_page, interval, callback) {
       mbar[i].innerHTML = "<div style='background-color:" + color + "; height:0; width:100%; position:absolute; bottom:0; left:0; display:inline-block; border-top:1px solid #808080'>&nbsp;</div>";
    }
 
+   // replace all thermometers with canvas
+   var mth = document.getElementsByName("modbthermo");
+   for (var i = 0; i < mth.length; i++) {
+      mth[i].style.display = "inline-block";
+      if (mth[i].style.position === "")
+         mth[i].style.position = "relative";
+
+      var cvs = document.createElement("canvas");
+      var w = mth[i].clientWidth;
+      var h = mth[i].clientHeight;
+      w = Math.floor(w/4)*4; // 2 must be devidable by 4
+      cvs.width = w + 1;
+      cvs.height = h;
+      mth[i].appendChild(cvs);
+      mth[i].draw = mhttpd_thermo_draw;
+      mth[i].draw();
+   }
+
    // store refresh interval and do initial refresh
    if (interval === undefined)
       interval = 1000;
    mhttpd_refresh_interval = interval;
    mhttpd_refresh();
+}
+
+function mhttpd_thermo_draw()
+{
+   var ctx = this.firstChild.getContext("2d");
+   ctx.save();
+   var w = this.firstChild.width;
+   var h = this.firstChild.height;
+   ctx.clearRect(0, 0, w, h);
+   w = w-1; // space for full circles
+   h = h-1;
+
+   if (this.dataset.scale === "1") {
+      w = w / 2;
+      w = Math.floor(w/4)*4;
+   }
+
+   if (this.dataset.value === "1") {
+      h = h - 14;
+   }
+
+   var x0 = Math.round(w/4*0);
+   var x1 = Math.round(w/4*1);
+   var x2 = Math.round(w/4*2);
+   var x3 = Math.round(w/4*3);
+
+   var v = this.value;
+   if (v < this.dataset.minValue)
+      v = this.dataset.minValue;
+   if (v > this.dataset.maxValue)
+      v = this.dataset.maxValue;
+   var yt = (h-4*x1) - (h-5*x1)*(v-this.dataset.minValue)/(this.dataset.maxValue-this.dataset.minValue);
+
+   ctx.translate(0.5, 0.5);
+   ctx.strokeStyle = "#000000";
+   ctx.lineWidth = 1;
+
+   // outer "glass"
+   ctx.beginPath();
+   ctx.arc(x2, x1, x1, Math.PI, 0);
+   ctx.lineTo(x3, h-x1*4);
+   ctx.lineTo(x3, h-x1*2*(1+Math.sin(60/360*2*Math.PI)));
+   ctx.arc(x2, h-x2, x2, 300/360*2*Math.PI, 240/360*2*Math.PI);
+   ctx.lineTo(x1, h-x1*2*(1+Math.sin(60/360*2*Math.PI)));
+   ctx.lineTo(x1, x1);
+   ctx.stroke();
+
+   // inner "fluid"
+   ctx.strokeStyle = this.dataset.color;
+   ctx.fillStyle = this.dataset.color;
+
+   ctx.beginPath();
+   ctx.moveTo(x1+3, yt);
+   ctx.lineTo(x3-3, yt);
+   ctx.lineTo(x3-3, h-x2);
+   ctx.lineTo(x1+3, h-x2);
+   ctx.lineTo(x1+3, yt);
+   ctx.stroke();
+   ctx.fill();
+
+   ctx.beginPath();
+   ctx.arc(x2, h-x2, x2-4, 0, 2*Math.PI);
+   ctx.stroke();
+   ctx.fill();
+
+   // optional scale
+   if (this.dataset.scale === "1") {
+      ctx.beginPath();
+      ctx.moveTo(x3+x1/2, x1);
+      ctx.lineTo(x3+x1, x1);
+      ctx.moveTo(x3+x1/2, h-4*x1);
+      ctx.lineTo(x3+x1, h-4*x1);
+      ctx.stroke();
+
+      ctx.font = "12px sans-serif";
+      ctx.fillStyle = "#000000";
+      ctx.strokeStyle = "#000000";
+      ctx.textBaseline = "middle";
+      ctx.fillText(this.dataset.minValue, 4.5*x1, h-4*x1, 3.5*x1);
+      ctx.fillText(this.dataset.maxValue, 4.5*x1, x1, 3.5*x1);
+   }
+
+   // optional value display
+   if (this.dataset.value === "1") {
+      ctx.font = "12px sans-serif";
+      ctx.fillStyle = "#000000";
+      ctx.strokeStyle = "#000000";
+      ctx.textBaseline = "bottom";
+      ctx.textAlign = "center";
+      ctx.fillText(this.value, x2, this.firstChild.height, 4*x1);
+   }
+
+   ctx.restore();
 }
 
 function mhttpd_resize_sidenav() {
@@ -727,6 +838,10 @@ function mhttpd_refresh() {
    for (i = 0; i < modbvbar.length; i++)
       paths.push(modbvbar[i].dataset.odbPath);
 
+   var modbthermo = document.getElementsByName("modbthermo");
+   for (i = 0; i < modbthermo.length; i++)
+      paths.push(modbthermo[i].dataset.odbPath);
+
    // request ODB contents for all variables
    var req1 = mjsonrpc_make_request("db_get_values", {"paths": paths});
 
@@ -757,12 +872,13 @@ function mhttpd_refresh() {
       if (document.getElementById("mheader_last_updated") != undefined)
          document.getElementById("mheader_last_updated").innerHTML = dstr;
 
-      for (var i = 0; i < modbvalue.length; i++) {
+      var idata = 0;
+      for (var i = 0; i < modbvalue.length; i++,idata++) {
          if (rpc[0].result.status[i] == 312) {
             modbvalue[i].innerHTML = "ODB key \""+modbvalue[i].dataset.odbPath+"\" not found";
          } else {
-            var value = rpc[0].result.data[i];
-            var tid = rpc[0].result.tid[i];
+            var value = rpc[0].result.data[idata];
+            var tid = rpc[0].result.tid[idata];
             var mvalue = mie_to_string(tid, value, modbvalue[i].dataset.format);
             if (mvalue === "")
                mvalue = "(empty)";
@@ -774,9 +890,9 @@ function mhttpd_refresh() {
          }
       }
 
-      for (i = 0; i < modbhbar.length; i++) {
-         value = rpc[0].result.data[modbvalue.length + i];
-         tid = rpc[0].result.tid[modbvalue.length + i];
+      for (i = 0; i < modbhbar.length; i++,idata++) {
+         value = rpc[0].result.data[idata];
+         tid = rpc[0].result.tid[idata];
          mvalue = mie_to_string(tid, value);
          if (mvalue === "")
             mvalue = "(empty)";
@@ -794,9 +910,9 @@ function mhttpd_refresh() {
             modbhbar[i].onchange();
       }
 
-      for (i = 0; i < modbvbar.length; i++) {
-         value = rpc[0].result.data[modbvalue.length + modbhbar.length + i];
-         tid = rpc[0].result.tid[modbvalue.length + modbhbar.length + i];
+      for (i = 0; i < modbvbar.length; i++,idata++) {
+         value = rpc[0].result.data[idata];
+         tid = rpc[0].result.tid[idata];
          mvalue = mie_to_string(tid, value);
          if (mvalue === "")
             mvalue = "(empty)";
@@ -812,6 +928,21 @@ function mhttpd_refresh() {
          modbvbar[i].children[0].style.height = percent + "%";
          if (modbvbar[i].onchange !== null)
             modbvbar[i].onchange();
+      }
+
+      for (i = 0; i < modbthermo.length; i++,idata++) {
+         value = rpc[0].result.data[idata];
+         tid = rpc[0].result.tid[idata];
+         mvalue = mie_to_string(tid, value);
+         if (mvalue === "")
+            mvalue = "(empty)";
+         html = mhttpd_escape(""+mvalue);
+         modbthermo[i].value = value;
+
+         if (modbthermo[i].onchange !== null)
+            modbthermo[i].onchange();
+
+         modbthermo[i].draw();
       }
 
       // update alarm display

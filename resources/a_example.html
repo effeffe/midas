@@ -46,7 +46,7 @@
       </tr>
       <tr>
          <td>
-            Indicator:
+            Horizontal bars:
          </td>
          <td>
             <div name="modbhbar" style="width: 500px" data-odb-path="/Runinfo/Run number" data-max-value="10"
@@ -55,17 +55,28 @@
       </tr>
       <tr>
          <td>
-            Vertical Bars:
+            Vertical bars:
          </td>
          <td>
-            <div name="modbvbar" style="width:20px;height:100px;display:inline;" data-odb-path="/Runinfo/Run number" data-max-value="10"
+            <div name="modbvbar" style="width:20px;height:100px;" data-odb-path="/Runinfo/Run number" data-max-value="10"
                  data-color="lightgreen"></div>
-            <div name="modbvbar" style="width:20px;height:100px;display:inline;" data-odb-path="/Runinfo/Run number" data-max-value="10"
-                 data-color="lightgreen"></div>
-            <div name="modbvbar" style="width:20px;height:100px;display:inline;" data-odb-path="/Runinfo/Run number" data-max-value="10"
-                 data-color="lightgreen"></div>
-            <div name="modbvbar" style="width:20px;height:100px;display:inline;" data-odb-path="/Runinfo/Run number" data-max-value="10"
-                 data-color="lightgreen"></div>
+            <div name="modbvbar" style="width:10px;height:100px;" data-odb-path="/Runinfo/Run number" data-max-value="10"
+                 data-color="red"></div>
+         </td>
+      </tr>
+
+      <tr>
+         <td>
+            Thermometer:
+         </td>
+         <td>
+            <div name="modbthermo" style="width:30px;height:100px;" data-odb-path="/Runinfo/Run number" data-min-value="-10" data-max-value="30"
+                 data-color="darkgreen"></div>
+            <div name="modbthermo" style="width:60px;height:100px;" data-odb-path="/Runinfo/Run number" data-min-value="-10" data-max-value="30"
+                 data-color="blue" data-scale="1"
+                 onchange="this.dataset.color=this.value > 9?'red':'blue';"></div>
+            <div name="modbthermo" style="width:30px;height:100px;" data-odb-path="/Runinfo/Run number" data-min-value="-10" data-max-value="30"
+                 data-color="blue" data-value="1"></div>
          </td>
       </tr>
 
@@ -83,7 +94,12 @@
                <!-- vertical bar inside tank, render red if value > 9 -->
                <div name="modbvbar" style="position:absolute;top:80px;left:10px;width:104px;height:170px;"
                     data-odb-path="/Runinfo/Run number" data-max-value="11" data-color="green"
-                    onchange="this.children[0].style.backgroundColor=(this.value > 9)?'red':'green';"></div>
+                    onchange="this.firstChild.style.backgroundColor=(this.value > 9)?'red':'green';"></div>
+
+               <!-- thermometer inside tank -->
+               <div name="modbthermo" style="position:absolute;top:140px;left:20px;width:20px;height:100px;"
+                    data-odb-path="/Runinfo/Run number" data-min-value="-10" data-max-value="30"
+                    data-color="blue" data-value="1"></div>
 
             </div>
          </td>
