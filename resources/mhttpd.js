@@ -672,7 +672,9 @@ function mhttpd_init(current_page, interval, callback) {
          mbar[i].style.position = "relative";
       mbar[i].style.border = "1px solid #808080";
       var color = mbar[i].dataset.color;
-      mbar[i].innerHTML = "<div style='background-color:" + color + "; width:0; position:relative; display:inline-block; border-right:1px solid #808080'>&nbsp;</div>";
+      mbar[i].innerHTML = "<div style='background-color:" + color + ";" +
+         "width:0;height:"+ mbar[i].clientHeight+"px;"+
+         "position:relative; display:inline-block;border-right:1px solid #808080'>&nbsp;</div>";
    }
 
    // replace all vertical bars with proper <div>'s
@@ -900,7 +902,12 @@ function mhttpd_refresh() {
          modbhbar.value = value;
          if (modbhbar[i].dataset.value === "1")
             modbhbar[i].children[0].innerHTML = html;
-         var percent = Math.round(100 * value / modbhbar[i].dataset.maxValue);
+         if (modbhbar[i].dataset.minValue === undefined)
+            if (modbhbar[i].dataset.minValue = 0);
+         if (modbhbar[i].dataset.maxValue === undefined)
+            if (modbhbar[i].dataset.maxValue = 0);
+         var percent = Math.round(100 * (value - modbhbar[i].dataset.minValue) /
+            (modbhbar[i].dataset.maxValue - modbhbar[i].dataset.minValue));
          if (percent < 0)
             percent = 0;
          if (percent > 100)
@@ -920,7 +927,12 @@ function mhttpd_refresh() {
          modbvbar[i].value = value;
          if (modbvbar[i].dataset.value === "1")
             modbvbar[i].children[0].innerHTML = html;
-         var percent = Math.round(100 * value / modbvbar[i].dataset.maxValue);
+         if (modbvbar[i].dataset.minValue === undefined)
+            if (modbvbar[i].dataset.minValue = 0);
+         if (modbvbar[i].dataset.maxValue === undefined)
+            if (modbvbar[i].dataset.maxValue = 0);
+         var percent = Math.round(100 * (value - modbvbar[i].dataset.minValue) /
+            (modbvbar[i].dataset.maxValue - modbvbar[i].dataset.minValue));
          if (percent < 0)
             percent = 0;
          if (percent > 100)
