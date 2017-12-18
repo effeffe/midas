@@ -746,6 +746,7 @@ function mhttpd_thermo_draw()
 
    ctx.translate(0.5, 0.5);
    ctx.strokeStyle = "#000000";
+   ctx.fillStyle = "#FFFFFF";
    ctx.lineWidth = 1;
 
    // outer "glass"
@@ -757,6 +758,10 @@ function mhttpd_thermo_draw()
    ctx.lineTo(x1, h-x1*2*(1+Math.sin(60/360*2*Math.PI)));
    ctx.lineTo(x1, x1);
    ctx.stroke();
+   if (this.dataset.backgroundColor !== undefined) {
+      ctx.fillStyle = this.dataset.backgroundColor;
+      ctx.fill();
+   }
 
    // inner "fluid"
    ctx.strokeStyle = this.dataset.color;
