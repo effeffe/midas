@@ -764,8 +764,13 @@ function mhttpd_thermo_draw()
    }
 
    // inner "fluid"
-   ctx.strokeStyle = this.dataset.color;
-   ctx.fillStyle = this.dataset.color;
+   if (this.dataset.color === undefined) {
+      ctx.strokeStyle = "#000000";
+      ctx.fillStyle = "#000000";
+   } else {
+      ctx.strokeStyle = this.dataset.color;
+      ctx.fillStyle = this.dataset.color;
+   }
 
    ctx.beginPath();
    ctx.moveTo(x1+3, yt);
