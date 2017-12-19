@@ -816,6 +816,19 @@ function mhttpd_thermo_draw()
    ctx.stroke();
    ctx.fill();
 
+   // re-draw outer "glass"
+   ctx.strokeStyle = "#000000";
+   ctx.fillStyle = "#FFFFFF";
+   ctx.lineWidth = 1;
+   ctx.beginPath();
+   ctx.arc(x2, x1, x1, Math.PI, 0);
+   ctx.lineTo(x3, h-x1*4);
+   ctx.lineTo(x3, h-x1*2*(1+Math.sin(60/360*2*Math.PI)));
+   ctx.arc(x2, h-x2, x2, 300/360*2*Math.PI, 240/360*2*Math.PI);
+   ctx.lineTo(x1, h-x1*2*(1+Math.sin(60/360*2*Math.PI)));
+   ctx.lineTo(x1, x1);
+   ctx.stroke();
+
    // optional scale
    if (this.dataset.scale === "1") {
       ctx.beginPath();
@@ -1023,6 +1036,8 @@ function mhttpd_refresh() {
             } else
                modbvalue[i].innerHTML = html;
          }
+         if (modbvalue[i].onchange !== null)
+            modbvalue[i].onchange();
       }
 
       for (var i = 0; i < modbcheckbox.length; i++,idata++) {
@@ -1042,6 +1057,8 @@ function mhttpd_refresh() {
             else
                modbbox[i].style.backgroundColor = "";
          }
+         if (modbbox[i].onchange !== null)
+            modbbox[i].onchange();
       }
 
       for (i = 0; i < modbhbar.length; i++,idata++) {
