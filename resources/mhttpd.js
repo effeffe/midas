@@ -656,6 +656,21 @@ function mhttpd_init(current_page, interval, callback) {
       }
    }
 
+   // go through all name="modbcheckbox" tags
+   var modbcheckbox = document.getElementsByName("modbcheckbox");
+   for (var i = 0; i < modbcheckbox.length; i++) {
+      modbcheckbox[i].onclick = function () {
+         mjsonrpc_db_set_value(this.dataset.odbPath, this.checked ? 1 : 0);
+         mhttpd_refresh();
+      };
+   }
+
+   // go through all name="modbbox" tags
+   var modbbox = document.getElementsByName("modbbox");
+   for (var i = 0; i < modbbox.length; i++) {
+      modbbox[i].style.border = "1px solid #808080";
+   }
+
    // attach "set" function to all ODB buttons
    var modbbutton = document.getElementsByName("modbbutton");
    for (var i = 0; i < modbbutton.length; i++)
@@ -704,6 +719,21 @@ function mhttpd_init(current_page, interval, callback) {
       mth[i].appendChild(cvs);
       mth[i].draw = mhttpd_thermo_draw;
       mth[i].draw();
+   }
+
+   // replace all gauges with canvas
+   var mg = document.getElementsByName("modbgauge");
+   for (var i = 0; i < mg.length; i++) {
+      mg[i].style.display = "inline-block";
+      if (mg[i].style.position === "")
+         mg[i].style.position = "relative";
+
+      var cvs = document.createElement("canvas");
+      cvs.width = mg[i].clientWidth;
+      cvs.height = mg[i].clientHeight;
+      mg[i].appendChild(cvs);
+      mg[i].draw = mhttpd_gauge_draw;
+      mg[i].draw();
    }
 
    // store refresh interval and do initial refresh
@@ -816,6 +846,87 @@ function mhttpd_thermo_draw()
    ctx.restore();
 }
 
+function mhttpd_gauge_draw()
+{
+   var ctx = this.firstChild.getContext("2d");
+   ctx.save();
+   var w = this.firstChild.width;
+   var h = this.firstChild.height;
+   var y = h;
+   if (this.dataset.scale === "1")
+      y -= 15;
+   else
+      y -= 1;
+   ctx.clearRect(0, 0, w, h);
+
+   var v = this.value;
+   if (v < this.dataset.minValue)
+      v = this.dataset.minValue;
+   if (v > this.dataset.maxValue)
+      v = this.dataset.maxValue;
+   v = (v - this.dataset.minValue) / (this.dataset.maxValue - this.dataset.minValue);
+
+   ctx.translate(0.5, 0.5);
+   ctx.strokeStyle = "#000000";
+   ctx.fillStyle = "#FFFFFF";
+   ctx.lineWidth = 1;
+
+   ctx.beginPath();
+   ctx.arc(w/2, y, w/2-1, Math.PI, 0);
+   ctx.lineTo(w-w/5, y);
+   ctx.arc(w/2, y, w/2-w/5, 0, Math.PI, true);
+   ctx.lineTo(1, y);
+   if (this.dataset.backgroundColor !== undefined) {
+      ctx.fillStyle = this.dataset.backgroundColor;
+      ctx.fill();
+   }
+   ctx.stroke();
+
+   // inner bar
+   ctx.beginPath();
+   ctx.fillStyle = this.dataset.color;
+   ctx.strokeStyle = this.dataset.color;
+   ctx.arc(w/2, y, w/2-1, Math.PI, (1+v)*Math.PI);
+   ctx.arc(w/2, y, w/2-w/5, (1+v)*Math.PI, Math.PI, true);
+   ctx.lineTo(1, y);
+   ctx.stroke();
+   ctx.fill();
+
+   // redraw outer frame
+   ctx.strokeStyle = "#000000";
+   ctx.fillStyle = "#FFFFFF";
+   ctx.lineWidth = 1;
+   ctx.beginPath();
+   ctx.arc(w/2, y, w/2-1, Math.PI, 0);
+   ctx.lineTo(w-w/5, y);
+   ctx.arc(w/2, y, w/2-w/5, 0, Math.PI, true);
+   ctx.lineTo(1, y);
+   ctx.stroke();
+
+   // optional value display
+   if (this.dataset.value === "1") {
+      ctx.font = "12px sans-serif";
+      ctx.fillStyle = "#000000";
+      ctx.strokeStyle = "#000000";
+      ctx.textBaseline = "bottom";
+      ctx.textAlign = "center";
+      ctx.fillText(this.value, w/2, y, w);
+   }
+
+   // optional scale display
+   if (this.dataset.scale === "1") {
+      ctx.font = "12px sans-serif";
+      ctx.fillStyle = "#000000";
+      ctx.strokeStyle = "#000000";
+      ctx.textBaseline = "bottom";
+      ctx.textAlign = "center";
+      ctx.fillText(this.dataset.minValue, 0.1*w, h, 0.2*w);
+      ctx.fillText(this.dataset.maxValue, 0.9*w, h, 0.2*w);
+   }
+
+   ctx.restore();
+}
+
 function mhttpd_resize_sidenav() {
    var h = document.getElementById('mheader');
    var s = document.getElementById('msidenav');
@@ -842,6 +953,14 @@ function mhttpd_refresh() {
    for (var i = 0; i < modbvalue.length; i++)
       paths.push(modbvalue[i].dataset.odbPath);
 
+   var modbcheckbox = document.getElementsByName("modbcheckbox");
+   for (i = 0; i < modbcheckbox.length; i++)
+      paths.push(modbcheckbox[i].dataset.odbPath);
+
+   var modbbox = document.getElementsByName("modbbox");
+   for (i = 0; i < modbbox.length; i++)
+      paths.push(modbbox[i].dataset.odbPath);
+
    var modbhbar = document.getElementsByName("modbhbar");
    for (i = 0; i < modbhbar.length; i++)
       paths.push(modbhbar[i].dataset.odbPath);
@@ -853,6 +972,10 @@ function mhttpd_refresh() {
    var modbthermo = document.getElementsByName("modbthermo");
    for (i = 0; i < modbthermo.length; i++)
       paths.push(modbthermo[i].dataset.odbPath);
+
+   var modbgauge = document.getElementsByName("modbgauge");
+   for (i = 0; i < modbgauge.length; i++)
+      paths.push(modbgauge[i].dataset.odbPath);
 
    // request ODB contents for all variables
    var req1 = mjsonrpc_make_request("db_get_values", {"paths": paths});
@@ -899,6 +1022,25 @@ function mhttpd_refresh() {
                modbvalue[i].childNodes[0].innerHTML = html;
             } else
                modbvalue[i].innerHTML = html;
+         }
+      }
+
+      for (var i = 0; i < modbcheckbox.length; i++,idata++) {
+         value = rpc[0].result.data[idata];
+         modbcheckbox[i].checked = (value === 1 || value === true);
+         if (modbcheckbox[i].onchange !== null)
+            modbcheckbox[i].onchange();
+      }
+
+      for (var i = 0; i < modbbox.length; i++,idata++) {
+         value = rpc[0].result.data[idata];
+         if (value === 1 || value === true) {
+            modbbox[i].style.backgroundColor = modbbox[i].dataset.color;
+         } else {
+            if (modbbox[i].dataset.backgroundColor !== undefined)
+               modbbox[i].style.backgroundColor = modbbox[i].dataset.backgroundColor;
+            else
+               modbbox[i].style.backgroundColor = "";
          }
       }
 
@@ -965,6 +1107,21 @@ function mhttpd_refresh() {
             modbthermo[i].onchange();
 
          modbthermo[i].draw();
+      }
+
+      for (i = 0; i < modbgauge.length; i++,idata++) {
+         value = rpc[0].result.data[idata];
+         tid = rpc[0].result.tid[idata];
+         mvalue = mie_to_string(tid, value);
+         if (mvalue === "")
+            mvalue = "(empty)";
+         html = mhttpd_escape(""+mvalue);
+         modbgauge[i].value = value;
+
+         if (modbgauge[i].onchange !== null)
+            modbgauge[i].onchange();
+
+         modbgauge[i].draw();
       }
 
       // update alarm display

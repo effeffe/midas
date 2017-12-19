@@ -46,11 +46,30 @@
       </tr>
       <tr>
          <td>
+            Check box:
+         </td>
+         <td>
+            <input type="checkbox" name="modbcheckbox" data-odb-path="/Logger/Write data"></input>
+         </td>
+      </tr>
+      <tr>
+         <td>
+            Color box:
+         </td>
+         <td>
+            <div name="modbbox" style="width: 30px; height: 30px;" data-odb-path="/Logger/Write data"
+                 data-color="lightgreen" data-background-color="red"></div>
+         </td>
+      </tr>
+      <tr>
+         <td>
             Horizontal bars:
          </td>
          <td>
             <div name="modbhbar" style="width: 500px; height: 18px;" data-odb-path="/Runinfo/Run number" data-max-value="10"
-                 data-color="lightgreen" data-value="0"></div>
+                 data-color="lightgreen" data-value="0"></div><br /><br />
+            <div name="modbhbar" style="width: 200px; height: 10px;" data-odb-path="/Runinfo/Run number" data-max-value="10"
+                 data-color="green" data-value="0"></div>
          </td>
       </tr>
       <tr>
@@ -77,6 +96,18 @@
                  onchange="this.dataset.color=this.value > 9?'red':'blue';"></div>
             <div name="modbthermo" style="width:30px;height:100px;" data-odb-path="/Runinfo/Run number" data-min-value="-10" data-max-value="30"
                  data-color="blue" data-background-color="white" data-value="1"></div>
+         </td>
+      </tr>
+
+      <tr>
+         <td>
+            Gauges:
+         </td>
+         <td>
+            <div name="modbgauge" style="width:100px;height:50px;" data-odb-path="/Runinfo/Run number" data-min-value="0" data-max-value="10"
+                 data-color="darkgreen" data-background-color="lightgrey" ></div>
+            <div name="modbgauge" style="width:100px;height:65px;" data-odb-path="/Runinfo/Run number" data-min-value="0" data-max-value="10"
+                 data-color="red" data-value="1" data-scale="1"></div>
          </td>
       </tr>
 
