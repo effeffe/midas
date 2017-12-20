@@ -610,6 +610,9 @@ function mhttpd_init(current_page, interval, callback) {
 
          }
 
+         // dummy spacer to fix scrolling to the bottom, must be at least header height
+         html += "<div style='height: 64px;'></div>\n";
+
          document.getElementById("msidenav").innerHTML = html;
 
          // re-adjust size of mmain element if menu has changed
