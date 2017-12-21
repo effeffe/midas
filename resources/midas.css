@@ -134,9 +134,8 @@ body.mcss {
 }
 
 #msidenav {
-   height:100%;
-   position:fixed;
-   top: 32px; /* nomal header height */
+   height: 100%;
+   position: fixed;
    z-index: 1;
    left: 0;
    overflow-x: hidden;
