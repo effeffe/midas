@@ -631,6 +631,12 @@ function mhttpd_init(current_page, interval, callback) {
       });
    }
 
+   // go through all name="modb" tags
+   var modb = document.getElementsByName("modb");
+   for (var i = 0; i < modb.length; i++) {
+      // nothing needs to be done here
+   }
+
    // go through all name="modbvalue" tags
    var modbvalue = document.getElementsByName("modbvalue");
    for (var i = 0; i < modbvalue.length; i++) {
@@ -955,15 +961,21 @@ function mhttpd_resize_header() {
 var mhttpd_last_message = 1;
 
 function mhttpd_refresh() {
-   if (mhttpd_refresh_id != undefined)
+   if (mhttpd_refresh_id !== undefined)
       window.clearTimeout(mhttpd_refresh_id);
 
    /* this fuction gets called by mhttpd_init to periodically refresh all ODB tags plus alarms and messages */
 
+   var paths = [];
+
+   // go through all "modb" tags
+   var modb = document.getElementsByName("modb");
+   for (var i = 0; i < modb.length; i++)
+      paths.push(modb[i].dataset.odbPath);
+
    // go through all "modbvalue" tags
    var modbvalue = document.getElementsByName("modbvalue");
-   var paths = [];
-   for (var i = 0; i < modbvalue.length; i++)
+   for (i = 0; i < modbvalue.length; i++)
       paths.push(modbvalue[i].dataset.odbPath);
 
    var modbcheckbox = document.getElementsByName("modbcheckbox");
@@ -1017,12 +1029,22 @@ function mhttpd_refresh() {
       var dstr = d.toLocaleString("en-gb", { hour12: false, day: 'numeric', month: 'short', year: 'numeric',
          hour: 'numeric', minute: 'numeric', second: 'numeric', timeZoneName: 'short' });
 
-      if (document.getElementById("mheader_last_updated") != undefined)
+      if (document.getElementById("mheader_last_updated") !== undefined)
          document.getElementById("mheader_last_updated").innerHTML = dstr;
 
       var idata = 0;
-      for (var i = 0; i < modbvalue.length; i++,idata++) {
-         if (rpc[0].result.status[i] == 312) {
+
+      for (var i = 0; i < modb.length; i++,idata++) {
+         value = rpc[0].result.data[idata];
+         if (modb[i].value === undefined)
+            modb[i].value = value;
+         if (modb[i].onchange !== null && value !== modb[i].value)
+            modb[i].onchange();
+         modb[i].value = value;
+      }
+
+      for (i = 0; i < modbvalue.length; i++,idata++) {
+         if (rpc[0].result.status[i] === 312) {
             modbvalue[i].innerHTML = "ODB key \""+modbvalue[i].dataset.odbPath+"\" not found";
          } else {
             var value = rpc[0].result.data[idata];
@@ -1040,14 +1062,14 @@ function mhttpd_refresh() {
             modbvalue[i].onchange();
       }
 
-      for (var i = 0; i < modbcheckbox.length; i++,idata++) {
+      for (i = 0; i < modbcheckbox.length; i++,idata++) {
          value = rpc[0].result.data[idata];
          modbcheckbox[i].checked = (value === 1 || value === true);
          if (modbcheckbox[i].onchange !== null)
             modbcheckbox[i].onchange();
       }
 
-      for (var i = 0; i < modbbox.length; i++,idata++) {
+      for (i = 0; i < modbbox.length; i++,idata++) {
          value = rpc[0].result.data[idata];
          if (value === 1 || value === true) {
             modbbox[i].style.backgroundColor = modbbox[i].dataset.color;
@@ -1072,9 +1094,9 @@ function mhttpd_refresh() {
          if (modbhbar[i].dataset.value === "1")
             modbhbar[i].children[0].innerHTML = html;
          if (modbhbar[i].dataset.minValue === undefined)
-            if (modbhbar[i].dataset.minValue = 0);
+            modbhbar[i].dataset.minValue = 0
          if (modbhbar[i].dataset.maxValue === undefined)
-            if (modbhbar[i].dataset.maxValue = 0);
+            modbhbar[i].dataset.maxValue = 1;
          var percent = Math.round(100 * (value - modbhbar[i].dataset.minValue) /
             (modbhbar[i].dataset.maxValue - modbhbar[i].dataset.minValue));
          if (percent < 0)
@@ -1097,10 +1119,10 @@ function mhttpd_refresh() {
          if (modbvbar[i].dataset.value === "1")
             modbvbar[i].children[0].innerHTML = html;
          if (modbvbar[i].dataset.minValue === undefined)
-            if (modbvbar[i].dataset.minValue = 0);
+            modbvbar[i].dataset.minValue = 0;
          if (modbvbar[i].dataset.maxValue === undefined)
-            if (modbvbar[i].dataset.maxValue = 0);
-         var percent = Math.round(100 * (value - modbvbar[i].dataset.minValue) /
+            modbvbar[i].dataset.maxValue = 1;
+         percent = Math.round(100 * (value - modbvbar[i].dataset.minValue) /
             (modbvbar[i].dataset.maxValue - modbvbar[i].dataset.minValue));
          if (percent < 0)
             percent = 0;
