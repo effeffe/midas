@@ -17,9 +17,9 @@ body.mcss {
 
 :root {
    --mgray: #B0B0B0;
-   --mred: #ff8c95;
+   --mred: #ff9ca6;
    --myellow: #fff58b;
-   --mgreen: #89ff9e;
+   --mgreen: #a0ffb8;
    --mblue: #91d6ff;
    --morange: #ffc585;
 }
@@ -82,8 +82,8 @@ body.mcss {
    width: 100%;
    box-sizing: border-box;
    height: 32px;
-   background-color: #D0D0D0;
-   border-bottom: 1px solid #A0A0A0;
+   background-color: #f2f2f2;
+   border-bottom: 1px solid #D0D0D0;
    color: #404040;
    font-family: verdana,tahoma,sans-serif;
    font-size: 100%;
@@ -116,7 +116,7 @@ body.mcss {
    display: none;
    height: 16px;
    color: #404040;
-   background-color: #A0A0A0;
+   background-color: #D0D0D0;
    border-radius: 10px;
    padding: 2px;
    padding-left: 10px;
@@ -139,7 +139,7 @@ body.mcss {
    z-index: 1;
    left: 0;
    overflow-x: hidden;
-   background-color: #D0D0D0;
+   background-color: #f2f2f2;
    color: #404040;
    font-family: verdana,tahoma,sans-serif;
    font-size: 100%;
@@ -152,7 +152,7 @@ body.mcss {
 }
 
 .mmenuitemsel {
-   background-color: #A0A0A0;
+   background-color: #d0e0e0;
 }
 
 .mmenulink {
@@ -303,8 +303,8 @@ input[type=text] {
    font-size: 120%;
    font-weight: bold;
    border-radius: 12px;
-   background-color: #5e8dc3;
-   color: #f0f0ff;
+   background-color: #8cbdff;
+   color: #f8f8f8;
    margin: 0.1em;
    padding: 0.25em;
    text-align: center;
@@ -338,7 +338,7 @@ input[type=text] {
 /* link colors for left side navigation bar */
 
 .mmenuitem:hover, .mmenuitem:focus {
-   background-color: #808080;
+   background-color: #C0D0D0;
    color: #404040;
    cursor: pointer;
 }

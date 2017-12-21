@@ -1361,8 +1361,6 @@ function mhttpd_message(msg, chat) {
                if (m.search("ERROR]") > 0) {
                   d.style.backgroundColor = "var(--mred)";
                   d.style.color = "white";
-               } else {
-                  d.style.backgroundColor = "var(--mgray)";
                }
             } else {
 
