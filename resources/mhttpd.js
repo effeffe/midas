@@ -1041,9 +1041,14 @@ function mhttpd_refresh() {
          value = rpc[0].result.data[idata];
          if (modb[i].value === undefined)
             modb[i].value = value;
-         if (modb[i].onchange !== null && value !== modb[i].value)
+         if (typeof value === 'object') // subdircectory
             modb[i].onchange();
-         modb[i].value = value;
+         else {                         // individual value
+            if (modb[i].onchange !== null && value !== modb[i].value) {
+               modb[i].value = value;
+               modb[i].onchange();
+            }
+         }
       }
 
       for (i = 0; i < modbvalue.length; i++,idata++) {
