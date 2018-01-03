@@ -1041,9 +1041,12 @@ function mhttpd_refresh() {
          value = rpc[0].result.data[idata];
          if (modb[i].value === undefined)
             modb[i].value = value;
-         if (typeof value === 'object') // subdircectory
-            modb[i].onchange();
-         else {                         // individual value
+         if (typeof value === 'object') { // subdircectory
+            if (modb[i].onchange !== null) {
+               modb[i].value = value;
+               modb[i].onchange();
+            }
+         } else {                         // individual value
             if (modb[i].onchange !== null && value !== modb[i].value) {
                modb[i].value = value;
                modb[i].onchange();
