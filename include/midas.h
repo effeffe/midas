@@ -73,6 +73,13 @@ The main include file
 #endif
 #endif
 
+#if !defined(OS_DARWIN)
+#if defined ( __APPLE__ )
+#define OS_LINUX
+#define OS_DARWIN
+#endif
+#endif
+
 #if defined(OS_LINUX) || defined(OS_OSF1) || defined(OS_ULTRIX) || defined(OS_FREEBSD) || defined(OS_SOLARIS) || defined(OS_IRIX) || defined(OS_DARWIN)
 #define OS_UNIX
 #endif
