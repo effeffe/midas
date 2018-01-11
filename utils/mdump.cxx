@@ -777,16 +777,13 @@ int main(int argc, char **argv)
 	
 	/* get information about filling level of the buffer */
 	bm_get_buffer_info(hBufEvent, &buffer_header);
-	size = buffer_header.read_pointer - buffer_header.write_pointer;
-	if (size <= 0)
-	  size += buffer_header.size;
-	printf("Level: %4.3f %%, ", 100 - 100.0 * size / buffer_header.size);
-	printf("Rate: %1.3f MiB/sec\n", rate);
+	int filled = buffer_header.read_pointer - buffer_header.write_pointer;
+	if (filled <= 0)
+	  filled += buffer_header.size;
 	
 	if (debug) {
-	  int i, j;
 	  int now = ss_millitime();
-	  
+
 	  printf("buffer name [%s], clients: %d, max: %d, size: %d, rp: %d, wp: %d, ine: %d, oute: %d\n", 
 		 buffer_header.name,
 		 buffer_header.num_clients,
@@ -797,15 +794,30 @@ int main(int argc, char **argv)
 		 buffer_header.num_in_events,
 		 buffer_header.num_out_events
 		 );
+
+	  int max_used = 0;
+	  int max_used_client = 0;
 	  
-	  for (i=0; i<buffer_header.max_client_index; i++)
+	  for (int i=0; i<buffer_header.max_client_index; i++) {
 	    if (buffer_header.client[i].pid) {
-	      printf("  client %d: name [%s], pid: %d, port: %d, rp: %d, max_req: %d, read_wait: %d, write_wait: %d, wake_up: %d, get_all: %d, active: %d, timeout: %d\n",
+	      int used = buffer_header.write_pointer - buffer_header.client[i].read_pointer;
+	      if (used < 0)
+		used += buffer_header.size;
+
+	      if (buffer_header.client[i].all_flag) {
+		if (used > max_used) {
+		  max_used = used;
+		  max_used_client = i;
+		}
+	      }
+
+	      printf("  client %d: name [%s], pid: %d, port: %d, rp: %d, used: %d, max_req: %d, read_wait: %d, write_wait: %d, wake_up: %d, get_all: %d, active: %d, timeout: %d\n",
 		     i,
 		     buffer_header.client[i].name,
 		     buffer_header.client[i].pid,
 		     buffer_header.client[i].port,
 		     buffer_header.client[i].read_pointer,
+		     used,
 		     buffer_header.client[i].max_request_index,
 		     buffer_header.client[i].read_wait,
 		     buffer_header.client[i].write_wait,
@@ -814,7 +826,7 @@ int main(int argc, char **argv)
 		     now - buffer_header.client[i].last_activity,
 		     buffer_header.client[i].watchdog_timeout);
 	      
-	      for (j=0; j<buffer_header.client[i].max_request_index; j++)
+	      for (int j=0; j<buffer_header.client[i].max_request_index; j++)
 		if (buffer_header.client[i].event_request[j].valid)
 		  printf("    request %d: id: %d, valid: %d, event_id: %d, trigger_mask: 0x%x, type: %d\n",
 			 j,
@@ -824,6 +836,12 @@ int main(int argc, char **argv)
 			 buffer_header.client[i].event_request[j].trigger_mask,
 			 buffer_header.client[i].event_request[j].sampling_type);
 	    }
+	  }
+
+	  printf("buffer name [%s], ", buffer_header.name);
+	  printf("filled: %4.1f%%, ", 100 - 100.0 * filled / buffer_header.size);
+	  printf("used: %4.1f%% by [%s], ", 100.0 * max_used / buffer_header.size, buffer_header.client[max_used_client].name);
+	  printf("rate: %1.3f MiB/sec\n", rate);
 	}
 	
 	start_time = stop_time;
