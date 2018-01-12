@@ -1206,7 +1206,7 @@ INT book_ttree()
       /* create tree */
       sprintf(str, "Event \"%s\", ID %d", analyze_request[index].event_name,
               et->event_id);
-      et->tree = new TTree(analyze_request[index].event_name, str);
+      et->tree = new TTree((const char *)analyze_request[index].event_name, (const char *)str);
 #if (ROOT_VERSION_CODE >= 262401)
       et->tree->SetCircular(analyze_request[index].rwnt_buffer_size);
 #endif

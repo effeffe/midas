@@ -27,7 +27,7 @@ typedef struct {
    char comment[80];
 } EXP_PARAM;
 
-#define EXP_PARAM_STR(_name) char *_name[] = {\
+#define EXP_PARAM_STR(_name) const char *_name[] = {\
 "[.]",\
 "Comment = STRING : [80] Test",\
 "",\
@@ -43,7 +43,7 @@ typedef struct {
    double histo_threshold;
 } ADC_CALIBRATION_PARAM;
 
-#define ADC_CALIBRATION_PARAM_STR(_name) char *_name[] = {\
+#define ADC_CALIBRATION_PARAM_STR(_name) const char *_name[] = {\
 "[.]",\
 "Pedestal = INT[8] :",\
 "[0] 174",\
@@ -77,7 +77,7 @@ typedef struct {
    float adc_threshold;
 } ADC_SUMMING_PARAM;
 
-#define ADC_SUMMING_PARAM_STR(_name) char *_name[] = {\
+#define ADC_SUMMING_PARAM_STR(_name) const char *_name[] = {\
 "[.]",\
 "ADC threshold = FLOAT : 5",\
 "",\
@@ -93,7 +93,7 @@ typedef struct {
    float adc_threshold;
 } GLOBAL_PARAM;
 
-#define GLOBAL_PARAM_STR(_name) char *_name[] = {\
+#define GLOBAL_PARAM_STR(_name) const char *_name[] = {\
 "[.]",\
 "ADC Threshold = FLOAT : 5",\
 "",\
@@ -110,7 +110,7 @@ typedef struct {
    float average;
 } ASUM_BANK;
 
-#define ASUM_BANK_STR(_name) char *_name[] = {\
+#define ASUM_BANK_STR(_name) const char *_name[] = {\
 "[.]",\
 "Sum = FLOAT : 0",\
 "Average = FLOAT : 0",\
@@ -137,7 +137,7 @@ typedef struct {
    char frontend_file_name[256];
 } TRIGGER_COMMON;
 
-#define TRIGGER_COMMON_STR(_name) char *_name[] = {\
+#define TRIGGER_COMMON_STR(_name) const char *_name[] = {\
 "[.]",\
 "Event ID = WORD : 1",\
 "Trigger mask = WORD : 0",\
@@ -163,7 +163,7 @@ typedef struct {
    BYTE io506;
 } TRIGGER_SETTINGS;
 
-#define TRIGGER_SETTINGS_STR(_name) char *_name[] = {\
+#define TRIGGER_SETTINGS_STR(_name) const char *_name[] = {\
 "[.]",\
 "IO506 = BYTE : 7",\
 "",\
@@ -193,7 +193,7 @@ typedef struct {
    char frontend_file_name[256];
 } SCALER_COMMON;
 
-#define SCALER_COMMON_STR(_name) char *_name[] = {\
+#define SCALER_COMMON_STR(_name) const char *_name[] = {\
 "[.]",\
 "Event ID = WORD : 2",\
 "Trigger mask = WORD : 0",\

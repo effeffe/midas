@@ -37,7 +37,7 @@ PAWC_DEFINE(1000000);
 /*-- Globals -------------------------------------------------------*/
 
 /* The analyzer name (client name) as seen by other MIDAS clients   */
-char *analyzer_name = "Analyzer";
+const char *analyzer_name = "Analyzer";
 
 /* analyzer_loop is called with this interval in ms (0 to disable)  */
 INT analyzer_loop_period = 0;
@@ -80,7 +80,7 @@ BANK_LIST ana_trigger_bank_list[] = {
 
    /* calculated banks */
    {"CADC", TID_FLOAT, N_ADC, NULL},
-   {"ASUM", TID_STRUCT, sizeof(ASUM_BANK), asum_bank_str},
+   {"ASUM", TID_STRUCT, sizeof(ASUM_BANK), (char **)asum_bank_str},
 
    {""},
 };
