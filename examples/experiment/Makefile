@@ -77,8 +77,8 @@ endif
 #-------------------------------------------------------------------
 # The following lines define directories. Adjust if necessary
 #                 
-DRV_DIR   = $(MIDASSYS)/drivers/camac
 INC_DIR   = $(MIDASSYS)/include
+DRV_DIR   = $(MIDASSYS)/drivers
 LIB_DIR   = $(MIDASSYS)/$(OS_DIR)/lib
 SRC_DIR   = $(MIDASSYS)/src
 

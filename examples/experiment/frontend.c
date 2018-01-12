@@ -5,17 +5,23 @@
 
   Contents:     Experiment specific readout code (user part) of
                 Midas frontend. This example simulates a "trigger
-                event" and a "scaler event" which are filled with
-                CAMAC or random data. The trigger event is filled
-                with two banks (ADC0 and TDC0), the scaler event
-                with one bank (SCLR).
-
-  $Id$
+                event" and a "periodic event" which are filled with
+                random data.
+ 
+                The trigger event is filled with two banks (ADC0 and TDC0),
+                both with values with a gaussian distribution between
+                0 and 4096. About 100 event are produced per second.
+ 
+                The periodic event contains one bank (PRDC) with four
+                sine-wave values with a period of one minute. The
+                periodic event is produced once per second and can
+                be viewed in the history system.
 
 \********************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include "midas.h"
 #include "experim.h"
 
@@ -48,16 +54,16 @@ INT event_buffer_size = 100 * 10000;
 
 /*-- Function declarations -----------------------------------------*/
 
-INT frontend_init();
-INT frontend_exit();
+INT frontend_init(void);
+INT frontend_exit(void);
 INT begin_of_run(INT run_number, char *error);
 INT end_of_run(INT run_number, char *error);
 INT pause_run(INT run_number, char *error);
 INT resume_run(INT run_number, char *error);
-INT frontend_loop();
+INT frontend_loop(void);
 
 INT read_trigger_event(char *pevent, INT off);
-INT read_scaler_event(char *pevent, INT off);
+INT read_periodic_event(char *pevent, INT off);
 
 INT poll_event(INT source, INT count, BOOL test);
 INT interrupt_configure(INT cmd, INT source, POINTER_T adr);
@@ -67,38 +73,38 @@ INT interrupt_configure(INT cmd, INT source, POINTER_T adr);
 EQUIPMENT equipment[] = {
 
    {"Trigger",               /* equipment name */
-    {1, 0,                   /* event ID, trigger mask */
-     "SYSTEM",               /* event buffer */
-     EQ_POLLED,              /* equipment type */
-     0,                      /* event source */
-     "MIDAS",                /* format */
-     TRUE,                   /* enabled */
-     RO_RUNNING |            /* read only when running */
-     RO_ODB,                 /* and update ODB */
-     100,                    /* poll for 100ms */
-     0,                      /* stop run after this event limit */
-     0,                      /* number of sub events */
-     0,                      /* don't log history */
-     "", "", "",},
-    read_trigger_event,      /* readout routine */
-    },
+      {1, 0,                 /* event ID, trigger mask */
+         "SYSTEM",           /* event buffer */
+         EQ_POLLED,          /* equipment type */
+         0,                  /* event source */
+         "MIDAS",            /* format */
+         TRUE,               /* enabled */
+         RO_RUNNING |        /* read only when running */
+         RO_ODB,             /* and update ODB */
+         100,                /* poll for 100ms */
+         0,                  /* stop run after this event limit */
+         0,                  /* number of sub events */
+         0,                  /* don't log history */
+         "", "", "",},
+      read_trigger_event,    /* readout routine */
+   },
 
-   {"Scaler",                /* equipment name */
-    {2, 0,                   /* event ID, trigger mask */
-     "SYSTEM",               /* event buffer */
-     EQ_PERIODIC,            /* equipment type */
-     0,                      /* event source */
-     "MIDAS",                /* format */
-     TRUE,                   /* enabled */
-     RO_RUNNING | RO_TRANSITIONS |   /* read when running and on transitions */
-     RO_ODB,                 /* and update ODB */
-     10000,                  /* read every 10 sec */
-     0,                      /* stop run after this event limit */
-     0,                      /* number of sub events */
-     0,                      /* log history */
-     "", "", "",},
-    read_scaler_event,       /* readout routine */
-    },
+   {"Periodic",              /* equipment name */
+      {2, 0,                 /* event ID, trigger mask */
+         "SYSTEM",           /* event buffer */
+         EQ_PERIODIC,        /* equipment type */
+         0,                  /* event source */
+         "MIDAS",            /* format */
+         TRUE,               /* enabled */
+         RO_RUNNING | RO_TRANSITIONS |   /* read when running and on transitions */
+         RO_ODB,             /* and update ODB */
+         1000,               /* read every sec */
+         0,                  /* stop run after this event limit */
+         0,                  /* number of sub events */
+         TRUE,               /* log history */
+         "", "", "",},
+      read_periodic_event,   /* readout routine */
+   },
 
    {""}
 };
@@ -251,7 +257,7 @@ INT read_trigger_event(char *pevent, INT off)
 
    /* following code to "simulates" some ADC data */
    for (a = 0; a < 4; a++)
-      *pdata++ = rand() % 1024;
+      *pdata++ = rand()%1024 + rand()%1024 + rand()%1024 + rand()%1024;
 
    bk_close(pevent, pdata);
 
@@ -260,7 +266,7 @@ INT read_trigger_event(char *pevent, INT off)
 
    /* following code to "simulates" some TDC data */
    for (a = 0; a < 4; a++)
-      *pdata++ = rand() % 1024;
+      *pdata++ = rand()%1024 + rand()%1024 + rand()%1024 + rand()%1024;
 
    bk_close(pevent, pdata);
 
@@ -270,21 +276,21 @@ INT read_trigger_event(char *pevent, INT off)
    return bk_size(pevent);
 }
 
-/*-- Scaler event --------------------------------------------------*/
+/*-- Periodic event ------------------------------------------------*/
 
-INT read_scaler_event(char *pevent, INT off)
+INT read_periodic_event(char *pevent, INT off)
 {
-   DWORD *pdata, a;
+   float *pdata;
 
    /* init bank structure */
    bk_init(pevent);
 
    /* create SCLR bank */
-   bk_create(pevent, "SCLR", TID_DWORD, (void **)&pdata);
+   bk_create(pevent, "PRDC", TID_FLOAT, (void **)&pdata);
 
-   /* following code "simulates" some sacler values */
-   for (a = 0; a < 4; a++)
-      *pdata++ = rand();
+   /* following code "simulates" some values */
+   for (int a = 0; a < 4; a++)
+      *pdata++ = 100*sin(M_PI*time(NULL)/60+a/2.0);
 
    bk_close(pevent, pdata);
 
