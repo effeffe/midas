@@ -2,6 +2,10 @@
   Name:         feccusb.cxx
   Created by:   Pierre-Andre Amaudruz
 
+  Modified by:  Thomas Lindner, Jan 2018
+                Added deferred transition so that the last, unfilled 
+                CAMAC buffer gets fully read out.
+
   Contents:     Experiment specific readout code (user part) of
                 Midas frontend. This example provide a template 
                 for data acquisition using the CC-USB from Wiener
@@ -10,10 +14,12 @@
    function. But as multiple trigger(lam) can be collected in the buffer. 
    Test shows that with a buffer of 4KD16 (mode:0) acquisition up to
    350KB/s for 8.3Kevt/s -> about 6us per D16 camac transfer average.
+
+
   
 \********************************************************************/
 
-#include <libxxusb.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -21,6 +27,10 @@
 
 #include <string.h>
 #include "midas.h"
+extern "C"{
+#include <libxxusb.h>
+}
+
 #include "ccusb.h"
 #include "OdbCCusb.h"
 
@@ -50,17 +60,21 @@ INT max_event_size_frag = 5 * 1024 * 1024;
 
 /* buffer size to hold events */
 INT event_buffer_size = 100 * 10000;
+  //End of MIDAS specific globals , following lines are experiment specific global values
 
 /* number of channels */
-#define N_ADC  4
-#define N_TDC  4
-#define N_SCLR 4
+#define N_ADC8  12
+// #define N_ADCD  12
+// #define N_TDC  4
+// #define N_SCLR 4
 
 /* CAMAC crate and slots */
-#define SLOT_IO   23
-#define SLOT_ADC  10
-#define SLOT_TDC   6
-#define SLOT_SCLR  3
+//#define SLOT_IO   23
+//#define SLOT_ADC8  4
+#define SLOT_ADC8  10
+//#define SLOT_ADCD  13
+//#define SLOT_TDC   6
+//define SLOT_SCLR  3
 
 xxusb_device_type devices[10];
 struct usb_device *dev;
@@ -88,9 +102,9 @@ INT interrupt_configure(INT cmd, INT source, POINTER_T adr);
 /*-- Equipment list ------------------------------------------------*/
 EQUIPMENT equipment[] = {
 
-   {"Trigger",               /* equipment name */
+   {"CCUSB",               /* equipment name */
     {1, 0,                   /* event ID, trigger mask */
-     "SYSTEM",               /* event buffer */
+     "BUF8",               /* event buffer */
      EQ_PERIODIC,            /* equipment type */
      LAM_SOURCE(0, 0xFFFFFF),/* event source crate 0, all stations */
      "MIDAS",                /* format */
@@ -156,13 +170,56 @@ int ccUsbFlush(void) {
   while(ret>0) {
     ret = xxusb_bulk_read(udev, IntArray, 8192, 100);
     if(ret>0) {
-      // printf("drain loops: %i (result %i)\n ",k,ret);                                     
+      printf("drain loops: %i (result %i)\n ",k,ret);                                     
       k++;
       if (k>100) ret=0;
+
+      // Last event dump
+      for(int i =0; i < ret/2; i++){
+	printf("%x ",IntArray[i] & 0xffff);
+	if(i%8==7) printf("\n");
+      }
     }
   }
-  return (IntArray[0] & 0x8000) ? 0 : IntArray[0];
+  printf("\n");
+  printf("First bin %x\n",IntArray[0]);
+  return (IntArray[0] & 0xfff);
+
 }
+
+BOOL in_deferred_transition = FALSE;
+BOOL finished_clearing_buffer = FALSE;
+int number_extra_reads = 0;
+
+// This function used to setup deferred transition, where we read the USB buffer 
+// a couple extra times at the end of the run to clear out the events.
+BOOL clear_buffer_events(int transition, BOOL first){
+
+  if(first){
+
+    //  Stop DAQ mode
+    int ret = xxusb_register_write(udev, 1, 0x0);
+    printf("stopping CAMAC xxusb_register_write=%d\n", ret);
+
+    finished_clearing_buffer = FALSE;
+    in_deferred_transition = TRUE;
+    number_extra_reads = 0;
+    printf("Starting deferred to clear USB buffer\n");
+  }
+
+  if(finished_clearing_buffer){
+    printf("Finished deferred transition after %i extra reads.\n",number_extra_reads);
+    return TRUE;
+  }
+
+  if(number_extra_reads > 10){
+    cm_msg(MERROR, "clear_buffer_events", "Didn't manage to clear CCUSB buffer after 10 extra reads.\n");
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
 
 /*-- Frontend Init -------------------------------------------------*/
 // Executed once at the start of the applicatoin
@@ -175,7 +232,7 @@ INT frontend_init() {
   cm_get_experiment_database(&hDB, &status);
   
   // Map /equipment/<eq_name>/settings 
-  sprintf(set_str, "/Equipment/Trigger/Settings");
+  sprintf(set_str, "/Equipment/CCUSB/Settings");
   
   // create the ODB Settings if not existing under Equipment/<eqname>/
   // If already existing, don't change anything 
@@ -196,10 +253,16 @@ INT frontend_init() {
     cm_msg(MERROR, "ccusb", "cannot open record (%s)", set_str);
     return CM_DB_ERROR;
   }
-  
+
+  // Setup a deferred transition so that we can read out any events that remain in
+  // buffer at the end of the run.
+  cm_register_deferred_transition(TR_STOP,clear_buffer_events);
+
   // hardware initialization   
   //Find XX_USB devices and open the first one found
-  xxusb_devices_find(devices);
+  printf("Initializing USB device\n");
+  int ret = xxusb_devices_find(devices);
+  printf("Testing first USB device; ret=%i\n",ret);
   dev = devices[0].usbdev;
   udev = xxusb_device_open(dev);
 
@@ -210,7 +273,13 @@ INT frontend_init() {
   } 
 
   //  Stop DAQ mode in case it was left running (after crash)
-  xxusb_register_write(udev, 1, 0x0);
+  ret = xxusb_register_write(udev, 1, 0x0);
+
+  if(ret < 0){
+    cm_msg(MERROR, "ccusb", "Error writing to CCUSB; error message = %i",ret);
+    return FE_ERR_HW;
+  }
+
   //  printf("stop DAQ return:%d\n", ret);
 
   // Flush old data first
@@ -237,6 +306,9 @@ INT frontend_exit()
   return SUCCESS;
 }
 
+// Keep track of number of events in the run
+int EventsInRun = 0;
+
 /*-- Begin of Run --------------------------------------------------*/
 // Done on every begin of run 
 INT begin_of_run(INT run_number, char *error) {
@@ -255,15 +327,17 @@ INT begin_of_run(INT run_number, char *error) {
   // StackXxx(), MRAD16, WMARKER, etc and macros are defined in 
   // in ccusb.h
   //                   n       a   f  data  
-  StackFill(MRAD16 , SLOT_ADC, 0 , 0, 12, stack);// read 12 ADC  
-  StackFill(MRAD16 , SLOT_TDC, 0 , 0, 7, stack); // read  8 TDC
+  StackFill(MRAD16 , SLOT_ADC8, 0 , 0, 12, stack);// read 12 ADC8 
+  // StackFill(MRAD16 , SLOT_ADCD, 0 , 0, 12, stack);// read 12 ADCD 
+  //  StackFill(MRAD16 , SLOT_TDC, 0 , 0, 7, stack); // read  8 TDC
   // Use of F2 can prevent the F9 if last readout is last A  
-  StackFill(CD16   , SLOT_TDC, 0 , 9, 0, stack); // clear TDC, data is ignored (command)  
-  StackFill(CD16   , SLOT_ADC, 0 , 9, 0, stack); // clear ADC
+  //StackFill(CD16   , SLOT_TDC, 0 , 9, 0, stack); // clear TDC, data is ignored (command)  
+  StackFill(CD16   , SLOT_ADC8, 0 , 9, 0, stack); // clear ADC8
+  // StackFill(CD16   , SLOT_ADCD, 0 , 9, 0, stack); // clear ADCD
   StackFill(WMARKER, 0, 0, 0, 0xFEED, stack);    // Our marker 0xfeed
   StackClose(stack);
 
-  #if 0
+  #if 1
   // Debugging Check stack before writing
   printf("stack[0]:%ld\n", stack[0]);
   for (i = 0; i < stack[0]+1; i++) {
@@ -278,7 +352,7 @@ INT begin_of_run(INT run_number, char *error) {
   } else {
     printf("Nbytes(ret) from stack_write:%d\n", ret);
     for (i = 0; i < (ret/2); i++) {
-      printf("Wstack[%i]=0x%lx\n", i, stack[i]);
+      if(0) printf("Wstack[%i]=0x%lx\n", i, stack[i]);
     }
   }
   #endif
@@ -290,7 +364,7 @@ INT begin_of_run(INT run_number, char *error) {
   } else {
     printf("Nbytes(ret) from stack_read:%d\n", ret);
     for (i = 0; i < (ret/2); i++) {
-      printf("Rstack[%i]=0x%lx\n", i, stack[i]);
+      if(0) printf("Rstack[%i]=0x%lx\n", i, stack[i]);
     }
   }
   
@@ -306,8 +380,9 @@ INT begin_of_run(INT run_number, char *error) {
   ret = CAMAC_write(udev, 25, 2, 16, d16, &q, &x);
 
   //  Enable LAM
-  ret = CAMAC_read(udev, SLOT_TDC, 0, 26, &d24, &q, &x);
-  ret = CAMAC_read(udev, SLOT_ADC, 0, 26, &d24, &q, &x);
+  // ret = CAMAC_read(udev, SLOT_TDC, 0, 26, &d24, &q, &x);
+  ret = CAMAC_read(udev, SLOT_ADC8, 0, 26, &d24, &q, &x);
+  //ret = CAMAC_read(udev, SLOT_ADCD, 0, 26, &d24, &q, &x);
   // printf("ret:%d q:%d x:%d\n", ret, q, x);
 
   // Opt in Global Mode register N(25) A(1) F(16)    
@@ -324,8 +399,9 @@ INT begin_of_run(INT run_number, char *error) {
   ret = CAMAC_DGG(udev, 0,     7,    1, tscc.delay/10, tscc.width/10,     0,    0); 
 
   //  First clear before first LAM/readout
-  ret = CAMAC_read(udev, SLOT_ADC, 0, 9, &d24, &q, &x);
-  ret = CAMAC_read(udev, SLOT_TDC, 0, 9, &d24, &q, &x);
+  ret = CAMAC_read(udev, SLOT_ADC8, 0, 9, &d24, &q, &x);
+  // ret = CAMAC_read(udev, SLOT_ADCD, 0, 9, &d24, &q, &x);
+  // ret = CAMAC_read(udev, SLOT_TDC, 0, 9, &d24, &q, &x);
 
   //  Start DAQ mode
   ret = xxusb_register_write(udev, 1, 0x1);
@@ -333,6 +409,12 @@ INT begin_of_run(INT run_number, char *error) {
   // NO CAMAC calls ALLOWED beyond this point!!!!!!!!
   //  as the Module is in acquisition mode now
   //
+
+  // Count total events in run.
+  EventsInRun = 0;
+  // Set value for deferred transition (to readout last events).
+  in_deferred_transition = FALSE;
+  finished_clearing_buffer = FALSE;
 
   return SUCCESS;
 }
@@ -347,11 +429,12 @@ INT end_of_run(INT run_number, char *error)
   // Set Inhibit
   //  CAMAC_I(udev, TRUE);
 
-  // -PAA-
-  // flush data, these data are lost as the run is already closed.
-  // will implement deferred transition later to fix this issue
+  // Flush data.
+  // This shouldn't do anything, since we flushed all the events with deferred transition.
   ret = ccUsbFlush();
-  cm_msg(MINFO, "ccusb", "Flushed %d events", ret);
+  if(ret > 0) cm_msg(MINFO, "ccusb", "Flushed %d events; surprising", ret);
+  EventsInRun += ret;
+  cm_msg(MINFO, "ccusb", "Total number of events read in this run: %i \n",EventsInRun);
   return SUCCESS;
 }
 
@@ -378,8 +461,9 @@ INT resume_run(INT run_number, char *error)
   long d24;
 
   //  Clear module
-  CAMAC_read(udev, SLOT_ADC, 0, 9, &d24, &q, &x);
-  CAMAC_read(udev, SLOT_TDC, 0, 9, &d24, &q, &x);
+  CAMAC_read(udev, SLOT_ADC8, 0, 9, &d24, &q, &x);
+  //CAMAC_read(udev, SLOT_ADCD, 0, 9, &d24, &q, &x);
+  // CAMAC_read(udev, SLOT_TDC, 0, 9, &d24, &q, &x);
 
   // Remove Inhibit
   CAMAC_I(udev, FALSE);
@@ -447,23 +531,36 @@ INT read_trigger_event(char *pevent, INT off)
   WORD *pdata;
   int ret, nd16=0;
   
+  if(in_deferred_transition){
+    number_extra_reads++;
+  }
+
   /* init bank structure */
   bk_init(pevent);
   
-  /* create Midas bank named ADTD */
-  bk_create(pevent, "ADTD", TID_WORD, (void **)&pdata);
-  
+    /* create Midas bank named ADC8 for ADC card in slot 8*/
+  bk_create(pevent, "ADC8", TID_WORD, (void **)&pdata);
+
+ /* create Midas bank named ADCD D=13 for ADC card in slot 13*/
+  //bk_create(pevent, "ADCD", TID_WORD, (void **)&pdata);
+
+ /* create Midas bank named ADTD */
+//  bk_create(pevent, "ADTD", TID_WORD, (void **)&pdata);
+
   // Read CC-USB buffer, returns nbytes, use for 32-bit data
   ret = xxusb_bulk_read(udev, pdata, 8192, 500);  
   if (ret > 0) {
     nd16 = ret / 2;                 // # of d16
-    int nevents = (pdata[0]& 0xffff);   // # of LAM in the buffer
+    int nevents = (pdata[0]& 0xfff);   // # of LAM in the buffer
+    EventsInRun += nevents;
  #if 0
     int evtsize = (pdata[1] & 0xffff);  // # of words per event
     printf("Read data: ret:%d  nd16:%d nevent:%d, evtsize:%d\n", ret, nd16, nevents, evtsize);
 #endif
 
-    if (nevents & 0x8000) return 0;  // Skip event
+    //    if (nevents & 0x8000) return 0;  // Skip event
+    if(pdata[0] & 0x8000)cm_msg(MINFO, "read_trigger_event", "Readout last CAMAC event in run.");
+      
     
     if (nd16 > 0) {
       // Adjust pointer (include nevents, evtsize)
@@ -473,11 +570,18 @@ INT read_trigger_event(char *pevent, INT off)
     // Close bank
     bk_close(pevent, pdata);
 
+    printf("readout non-zero bytes from CAMAC usb\n");
     // Done with a valid event
     return bk_size(pevent); 
 
  } else {
-    printf("no read ret:%d\n", ret);
+    //    printf("no read ret:%d\n", ret);
+
+    // we finished the deferred transition when we do a read of USB buffer 
+    // and don't get any extra data.
+    if(in_deferred_transition){      
+      finished_clearing_buffer = TRUE; 
+    }
     return 0;
   }
 }
