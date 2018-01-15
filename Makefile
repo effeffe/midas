@@ -358,7 +358,9 @@ LIBS = -lutil -lpthread -lrt -ldl
 SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker $(BIN_DIR)/dio
 
 # add OpenSSL
+ifndef NO_SSL
 SSL_LIBS += -lssl -lcrypto
+endif
 
 endif
 
