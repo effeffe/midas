@@ -33,9 +33,9 @@ extern "C" {
 /*-- Globals -------------------------------------------------------*/
 
 /* The frontend name (client name) as seen by other MIDAS clients   */
-char *frontend_name = "Sample Frontend";
+const char *frontend_name = "Sample Frontend";
 /* The frontend file name, don't change it */
-char *frontend_file_name = __FILE__;
+const char *frontend_file_name = __FILE__;
 
 /* frontend_loop is called periodically if this variable is TRUE    */
 BOOL frontend_call_loop = FALSE;
@@ -281,6 +281,7 @@ INT read_trigger_event(char *pevent, INT off)
 INT read_periodic_event(char *pevent, INT off)
 {
    float *pdata;
+   int a;
 
    /* init bank structure */
    bk_init(pevent);
@@ -289,7 +290,7 @@ INT read_periodic_event(char *pevent, INT off)
    bk_create(pevent, "PRDC", TID_FLOAT, (void **)&pdata);
 
    /* following code "simulates" some values */
-   for (int a = 0; a < 4; a++)
+   for (a = 0; a < 4; a++)
       *pdata++ = 100*sin(M_PI*time(NULL)/60+a/2.0);
 
    bk_close(pevent, pdata);
