@@ -91,39 +91,6 @@ void create_runlog_ascii_tree();
 "Disk level = DOUBLE : 0",\
 "",\
 NULL}
-#define CHN_TREE_STR(_name) const char *_name[] = {\
-"[Settings]",\
-"Active = BOOL : 1",\
-"Type = STRING : [8] Disk",\
-"Filename = STRING : [256] run%05d.mid",\
-"Format = STRING : [8] MIDAS",\
-"Compression = INT : 0",\
-"ODB dump = BOOL : 1",\
-"Log messages = DWORD : 0",\
-"Buffer = STRING : [32] SYSTEM",\
-"Event ID = INT : -1",\
-"Trigger mask = INT : -1",\
-"Event limit = DOUBLE : 0",\
-"Byte limit = DOUBLE : 0",\
-"Subrun Byte limit = DOUBLE : 0",\
-"Tape capacity = DOUBLE : 0",\
-"Subdir format = STRING : [32]",\
-"Current filename = STRING : [256]",\
-"Data checksum = STRING : [256]",\
-"File checksum = STRING : [256]",\
-"Compress = STRING : [256]",\
-"Output = STRING : [256]",\
-"",\
-"[Statistics]",\
-"Events written = DOUBLE : 0",\
-"Bytes written = DOUBLE : 0",\
-"Bytes written uncompressed = DOUBLE : 0",\
-"Bytes written total = DOUBLE : 0",\
-"Bytes written subrun = DOUBLE : 0",\
-"Files written = DOUBLE : 0",\
-"Disk level = DOUBLE : 0",\
-"",\
-NULL}
 
 typedef struct {
    BOOL active;
@@ -3686,7 +3653,7 @@ int select_checksum_module(HNDLE hDB, HNDLE hSet, const char* name)
    s = check_add(s, CHECKSUM_SHA512, val, "SHA512", false, &def, &sel);
    s = check_add(s, CHECKSUM_ZLIB,   val, "ZLIB",   false, &def, &sel);
    if (sel == "")
-      sel = "CRC32C";
+      sel = "NONE";
    set_value(hDB, hSet, name, sel, def);
    return s;
 }
@@ -3703,7 +3670,7 @@ int select_compression_module(HNDLE hDB, HNDLE hSet, const char* name)
    s = check_add(s, COMPRESS_BZIP2,  val, "bzip2",  false, &def, &sel);
    s = check_add(s, COMPRESS_PBZIP2, val, "pbzip2", false, &def, &sel);
    if (sel == "")
-      sel = "gzip";
+      sel = "none";
    set_value(hDB, hSet, name, sel, def);
    return s;
 }
@@ -3720,7 +3687,7 @@ int select_output_module(HNDLE hDB, HNDLE hSet, const char* name)
    s = check_add(s, OUTPUT_ROOT, val, "ROOT", false, &def, &sel);
    s = check_add(s, OUTPUT_PIPE, val, "PIPE", false, &def, &sel);
    if (sel == "")
-      sel = "NULL";
+      sel = "FILE";
    set_value(hDB, hSet, name, sel, def);
    return s;
 }
@@ -3808,7 +3775,7 @@ int log_create_writer(LOG_CHN *log_chn)
          log_chn->writer = NewChecksum(log_chn, log_chn->pre_checksum_module, 1, log_chn->writer);
       }
 
-      cm_msg(MINFO, "log_create_writer", "channel \"%s\" writer chain: %s", log_chn->path.c_str(), log_chn->writer->wr_get_chain().c_str());
+      //cm_msg(MINFO, "log_create_writer", "channel \"%s\" writer chain: %s", log_chn->path.c_str(), log_chn->writer->wr_get_chain().c_str());
 
       return SUCCESS;
    }
