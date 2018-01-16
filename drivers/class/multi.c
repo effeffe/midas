@@ -176,14 +176,11 @@ void multi_read_output(EQUIPMENT * pequipment, int channel)
 void multi_output(INT hDB, INT hKey, void *info)
 {
    INT i;
-   DWORD act_time;
    MULTI_INFO *m_info;
    EQUIPMENT *pequipment;
 
    pequipment = (EQUIPMENT *) info;
    m_info = (MULTI_INFO *) pequipment->cd_info;
-
-   act_time = ss_millitime();
 
    for (i = 0; i < m_info->num_channels_output; i++) {
       /* only set channel if demand value differs */
@@ -204,7 +201,7 @@ void multi_output(INT hDB, INT hKey, void *info)
 
 void multi_update_label(INT hDB, INT hKey, void *info)
 {
-   INT i, status;
+   INT i;
    MULTI_INFO *m_info;
    EQUIPMENT *pequipment;
 
@@ -213,14 +210,14 @@ void multi_update_label(INT hDB, INT hKey, void *info)
 
    /* update channel labels based on the midas channel names */
    for (i = 0; i < m_info->num_channels_input; i++)
-      status = device_driver(m_info->driver_input[i], CMD_SET_LABEL,
-                             i - m_info->channel_offset_input[i],
-                             m_info->names_input + NAME_LENGTH * i);
+      device_driver(m_info->driver_input[i], CMD_SET_LABEL,
+                    i - m_info->channel_offset_input[i],
+                    m_info->names_input + NAME_LENGTH * i);
 
    for (i = 0; i < m_info->num_channels_output; i++)
-      status = device_driver(m_info->driver_output[i], CMD_SET_LABEL,
-                             i - m_info->channel_offset_output[i],
-                             m_info->names_output + NAME_LENGTH * i);
+      device_driver(m_info->driver_output[i], CMD_SET_LABEL,
+                    i - m_info->channel_offset_output[i],
+                    m_info->names_output + NAME_LENGTH * i);
 }
 
 /*----------------------------------------------------------------------------*/
