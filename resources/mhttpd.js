@@ -1147,11 +1147,10 @@ function mhttpd_refresh() {
       for (i = 0; i < modbthermo.length; i++,idata++) {
          value = rpc[0].result.data[idata];
          tid = rpc[0].result.tid[idata];
-         mvalue = mie_to_string(tid, value);
+         mvalue = mie_to_string(tid, value, modbthermo[i].dataset.format);
          if (mvalue === "")
             mvalue = "(empty)";
-         html = mhttpd_escape(""+mvalue);
-         modbthermo[i].value = value;
+         modbthermo[i].value = mvalue;
 
          if (modbthermo[i].onchange !== null)
             modbthermo[i].onchange();
@@ -1162,11 +1161,10 @@ function mhttpd_refresh() {
       for (i = 0; i < modbgauge.length; i++,idata++) {
          value = rpc[0].result.data[idata];
          tid = rpc[0].result.tid[idata];
-         mvalue = mie_to_string(tid, value);
+         mvalue = mie_to_string(tid, value, modbgauge[i].dataset.format);
          if (mvalue === "")
             mvalue = "(empty)";
-         html = mhttpd_escape(""+mvalue);
-         modbgauge[i].value = value;
+         modbgauge[i].value = mvalue;
 
          if (modbgauge[i].onchange !== null)
             modbgauge[i].onchange();
