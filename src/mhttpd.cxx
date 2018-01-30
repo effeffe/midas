@@ -18845,6 +18845,9 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
                ptmp = p + (strlen(p) - 1);
                while (*ptmp == '-' || *ptmp == '\n' || *ptmp == '\r')
                   *ptmp-- = 0;
+            } else {
+               show_error(rr, "Invalid POST request");
+               return;
             }
             param->setparam(pitem, p); // in decode_post()
          }
@@ -19900,11 +19903,16 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       t->fAuthOk = true;
    }
 
-   if (method == "GET")
-      response_sent = handle_http_get(nc, msg, uri.c_str(), t);
-   else if (method == "POST")
-      response_sent = handle_http_post(nc, msg, uri.c_str(), t);
-
+   if (msg->body.p && strlen(msg->body.p) < msg->body.len) {
+      if (trace_mg||verbose_mg)
+         printf("handle_http_message: Bad body length\n");
+   } else {
+      if (method == "GET")
+         response_sent = handle_http_get(nc, msg, uri.c_str(), t);
+      else if (method == "POST")
+         response_sent = handle_http_post(nc, msg, uri.c_str(), t);
+   }
+   
    if (!response_sent) {
       if (trace_mg||verbose_mg)
          printf("handle_http_message: sending 501 Not Implemented error\n");
