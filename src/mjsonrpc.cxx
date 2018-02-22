@@ -468,7 +468,7 @@ static MJsonNode* start_program(const MJsonNode* params)
 
    MJsonNode* error = NULL;
 
-   const char* name = mjsonrpc_get_param(params, "name", &error)->GetString().c_str(); if (error) return error;
+   std::string name = mjsonrpc_get_param(params, "name", &error)->GetString(); if (error) return error;
 
    std::string path = "";
    path += "/Programs/";
