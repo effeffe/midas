@@ -1848,21 +1848,25 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
       return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and index should have the same length");
    }
 
-   const char** event_name = new const char*[num_var];
-   const char** tag_name = new const char*[num_var];
+   std::vector<std::string> event_names(num_var);
+   std::vector<std::string> tag_names(num_var);
+   // const char** event_name = new const char*[num_var];
+   // const char** tag_name = new const char*[num_var];
    int* var_index = new int[num_var];
    time_t* last_written = new time_t[num_var];
 
    for (unsigned i=0; i<num_var; i++) {
-      event_name[i] = (*events_array)[i]->GetString().c_str();
-      tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      //event_name[i] = (*events_array)[i]->GetString().c_str();
+      //tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      event_names[i] = (*events_array)[i]->GetString();
+      tag_names[i] = (*tags_array)[i]->GetString();
       var_index[i] = (*index_array)[i]->GetInt();
    }
 
    if (/* DISABLES CODE */ (0)) {
       printf("time %f, num_vars %d:\n", time, num_var);
       for (unsigned i=0; i<num_var; i++) {
-         printf("%d: [%s] [%s] [%d]\n", i, event_name[i], tag_name[i], var_index[i]);
+         printf("%d: [%s] [%s] [%d]\n", i, event_names[i].c_str(), tag_names[i].c_str(), var_index[i]);
       }
    }
 
@@ -1870,6 +1874,13 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
       time = ::time(NULL);
    }
 
+   
+   const char** event_name = new const char*[num_var];
+   const char** tag_name = new const char*[num_var];
+   for (unsigned i=0; i<num_var; i++) {
+      event_name[i] = event_names[i].c_str();
+      tag_name[i] = tag_names[i].c_str();
+   }
    int status = mh->hs_get_last_written(time, num_var, event_name, tag_name, var_index, last_written);
 
    for (unsigned i=0; i<num_var; i++) {
@@ -1974,16 +1985,18 @@ static MJsonNode* js_hs_read(const MJsonNode* params)
       return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and index should have the same length");
    }
 
-   const char** event_name = new const char*[num_var];
-   const char** tag_name = new const char*[num_var];
+   std::vector<std::string> event_names(num_var);
+   std::vector<std::string> tag_names(num_var);
    int* var_index = new int[num_var];
    JsonHistoryBuffer** jbuf = new JsonHistoryBuffer*[num_var];
    MidasHistoryBufferInterface** buf = new MidasHistoryBufferInterface*[num_var];
    int* hs_status = new int[num_var];
 
    for (unsigned i=0; i<num_var; i++) {
-      event_name[i] = (*events_array)[i]->GetString().c_str();
-      tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      //event_name[i] = (*events_array)[i]->GetString().c_str();
+      //tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      event_names[i] = (*events_array)[i]->GetString();
+      tag_names[i] = (*tags_array)[i]->GetString();
       var_index[i] = (*index_array)[i]->GetInt();
       jbuf[i] = new JsonHistoryBuffer();
       buf[i] = jbuf[i];
@@ -1993,8 +2006,15 @@ static MJsonNode* js_hs_read(const MJsonNode* params)
    if (/* DISABLES CODE */ (0)) {
       printf("time %f %f, num_vars %d:\n", start_time, end_time, num_var);
       for (unsigned i=0; i<num_var; i++) {
-         printf("%d: [%s] [%s] [%d]\n", i, event_name[i], tag_name[i], var_index[i]);
+         printf("%d: [%s] [%s] [%d]\n", i, event_names[i].c_str(), tag_names[i].c_str(), var_index[i]);
       }
+   }
+
+   const char** event_name = new const char*[num_var];
+   const char** tag_name = new const char*[num_var];
+   for (unsigned i=0; i<num_var; i++) {
+      event_name[i] = event_names[i].c_str();
+      tag_name[i] = tag_names[i].c_str();
    }
 
    int status = mh->hs_read_buffer(start_time, end_time, num_var, event_name, tag_name, var_index, buf, hs_status);
@@ -2088,9 +2108,11 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
    if (index_array->size() != num_var) {
       return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and index should have the same length");
    }
-
-   const char** event_name = new const char*[num_var];
-   const char** tag_name = new const char*[num_var];
+   
+   std::vector<std::string> event_names(num_var);
+   std::vector<std::string> tag_names(num_var);
+   //const char** event_name = new const char*[num_var];
+   //const char** tag_name = new const char*[num_var];
    int* var_index = new int[num_var];
 
    int* num_entries = new int[num_var];
@@ -2105,8 +2127,10 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
    double** max_bins = new double*[num_var];
 
    for (unsigned i=0; i<num_var; i++) {
-      event_name[i] = (*events_array)[i]->GetString().c_str();
-      tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      //event_name[i] = (*events_array)[i]->GetString().c_str();
+      //tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      event_names[i] = (*events_array)[i]->GetString();
+      tag_names[i] = (*tags_array)[i]->GetString();
       var_index[i] = (*index_array)[i]->GetInt();
       num_entries[i] = 0;
       last_time[i] = 0;
@@ -2122,8 +2146,15 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
    if (/* DISABLES CODE */ (0)) {
       printf("time %f %f, num_vars %d:\n", start_time, end_time, num_var);
       for (unsigned i=0; i<num_var; i++) {
-         printf("%d: [%s] [%s] [%d]\n", i, event_name[i], tag_name[i], var_index[i]);
+         printf("%d: [%s] [%s] [%d]\n", i, event_names[i].c_str(), tag_names[i].c_str(), var_index[i]);
       }
+   }
+
+   const char** event_name = new const char*[num_var];
+   const char** tag_name = new const char*[num_var];
+   for (unsigned i=0; i<num_var; i++) {
+      event_name[i] = event_names[i].c_str();
+      tag_name[i] = tag_names[i].c_str();
    }
 
    int status = mh->hs_read_binned(start_time, end_time, num_bins, num_var, event_name, tag_name, var_index, num_entries, count_bins, mean_bins, rms_bins, min_bins, max_bins, last_time, last_value, hs_status);
