@@ -585,6 +585,7 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
       doc->P("omit_last_written?", MJSON_BOOL, "omit the /last_written entries and the last_written[] result");
       doc->P("omit_tid?", MJSON_BOOL, "omit the tid[] result");
       doc->P("omit_old_timestamp?", MJSON_NUMBER, "omit data older than given ODB timestamp");
+      doc->P("preserve_case?", MJSON_BOOL, "preserve the capitalization of ODB key names (WARNING: ODB is not case sensitive); note that this will also have side effect of setting the omit_names option");
       doc->R("data[]", 0, "values of ODB data for each path, all key names are in lower case, all symlinks are followed");
       doc->R("status[]", MJSON_INT, "return status of db_copy_json_values() or db_copy_json_index() for each path");
       doc->R("tid?[]", MJSON_INT, "odb type id for each path, absent if omit_tid is true");
@@ -601,7 +602,8 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
    bool omit_tid = mjsonrpc_get_param(params, "omit_tid", NULL)->GetBool();
    double xomit_old_timestamp = mjsonrpc_get_param(params, "omit_old_timestamp", NULL)->GetDouble();
    time_t omit_old_timestamp = (time_t)xomit_old_timestamp;
-
+   bool preserve_case = mjsonrpc_get_param(params, "preserve_case", NULL)->GetBool();
+   
    MJsonNode* dresult = MJsonNode::MakeArray();
    MJsonNode* sresult = MJsonNode::MakeArray();
    MJsonNode* tresult = MJsonNode::MakeArray();
@@ -699,7 +701,8 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
          int bufsize = 0;
          int end = 0;
 
-         status = db_copy_json_values(hDB, hkey, &buf, &bufsize, &end, omit_names, omit_last_written, omit_old_timestamp);
+         status = db_copy_json_values(hDB, hkey, &buf, &bufsize, &end, omit_names,
+                                      omit_last_written, omit_old_timestamp, preserve_case);
 
          if (status == DB_SUCCESS) {
             dresult->AddToArray(MJsonNode::MakeJSON(buf));

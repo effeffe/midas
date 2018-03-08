@@ -8958,16 +8958,18 @@ INT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int*
    return status;
 }
 
-INT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end, int omit_names, int omit_last_written, time_t omit_old_timestamp)
+INT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end, int omit_names, int omit_last_written, time_t omit_old_timestamp, int preserve_case)
 {
    int status;
-   int flags = JSFLAG_FOLLOW_LINKS|JSFLAG_RECURSE|JSFLAG_LOWERCASE;
+   int flags = JSFLAG_FOLLOW_LINKS|JSFLAG_RECURSE;
    if (omit_names)
       flags |= JSFLAG_OMIT_NAMES;
    if (omit_last_written)
       flags |= JSFLAG_OMIT_LAST_WRITTEN;
    if (omit_old_timestamp)
       flags |= JSFLAG_OMIT_OLD;
+   if (!preserve_case)
+      flags |= JSFLAG_LOWERCASE;
    status = db_lock_database(hDB);
    if (status != DB_SUCCESS) {
       return status;

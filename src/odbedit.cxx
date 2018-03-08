@@ -1936,8 +1936,9 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 	 int omit_names = 0;
 	 int omit_last_written = 0;
 	 time_t omit_old_timestamp = 0;
+	 int preserve_case = 0;
 
-	 status = db_copy_json_values(hDB, hKey, &buffer, &buffer_size, &buffer_end, omit_names, omit_last_written, omit_old_timestamp);
+	 status = db_copy_json_values(hDB, hKey, &buffer, &buffer_size, &buffer_end, omit_names, omit_last_written, omit_old_timestamp,preserve_case);
 
 	 printf("status: %d, json: %s\n", status, buffer);
 
