@@ -575,6 +575,8 @@ function mhttpd_init(current_page, interval, callback) {
             for (var b in custom) {
                if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
                   continue;
+               if (typeof custom[b] != "string") // skip any items that don't have type of string, since can't be valid links
+                  continue;
                cc = "mmenuitem";
                if (custom[b + "/name"] === current_page)
                   cc += " mmenuitemsel";
