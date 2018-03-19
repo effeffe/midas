@@ -510,6 +510,37 @@ INT db_show_mem(HNDLE hDB, char *result, INT buf_size, BOOL verbose)
    return DB_SUCCESS;
 }
 
+INT db_get_free_mem(HNDLE hDB, INT *key_size, INT *data_size)
+{
+   DATABASE_HEADER *pheader;
+   FREE_DESCRIP *pfree;
+   
+   *data_size = 0;
+   *key_size = 0;
+
+   db_lock_database(hDB);
+   
+   pheader = _database[hDB - 1].database_header;
+   
+   pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_key);
+   
+   while ((POINTER_T) pfree != (POINTER_T) pheader) {
+      *key_size += pfree->size;
+      pfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
+   }
+   
+   *data_size = 0;
+   pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_data);
+   
+   while ((POINTER_T) pfree != (POINTER_T) pheader) {
+      *data_size += pfree->size;
+      pfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
+   }
+
+   db_unlock_database(hDB);
+   return DB_SUCCESS;
+}
+
 
 // Method to check if a given string is valid UTF-8.  Returns 1 if it is.
 // This method was taken from stackoverflow user Christoph, specifically
