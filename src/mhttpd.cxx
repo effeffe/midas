@@ -7329,7 +7329,7 @@ void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
       if (fmt) {
          fmt_odb  = (equal_ustring(fmt, "odb") > 0);
          fmt_xml  = (equal_ustring(fmt, "xml") > 0);
-         fmt_json = (equal_ustring(fmt, "json") > 0);
+         fmt_json = (strstr(fmt, "json") != NULL);
 
          if (fmt_odb)
             fmt_xml = fmt_json = false;
