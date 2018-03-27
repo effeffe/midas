@@ -457,23 +457,31 @@ function mhttpd_init(current_page, interval, callback) {
 
    // create header
    var h = document.getElementById("mheader");
-   if (h !== undefined) {
-      h.style.display = "flex";
-      h.innerHTML =
-         "<div style='display:inline-block; flex:none;'>" +
-         "<span class='mmenuitem' style='padding: 10px;margin-right: 20px;' onclick='mhttpd_toggle_menu()'>&#9776;</span>" +
-         "<span id='mheader_expt_name'></span>" +
-         "</div>" +
-
-         "<div style='flex:auto;'>" +
-         "  <div id='mheader_message'></div>" +
-         "</div>" +
-
-         "<div style='display: inline; flex:none;'>" +
-         "  <div id='mheader_alarm'>&nbsp;</div>" +
-         "  <div style='display: inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></div>" +
-         "</div>";
+   if (h == null) {
+      alert('Web page does not contain "mheader" element');
+      return;
    }
+   var s = document.getElementById("msidenav");
+   if (s == null) {
+      alert('Web page does not contain "msidenav" element');
+      return;
+   }
+
+   h.style.display = "flex";
+   h.innerHTML =
+      "<div style='display:inline-block; flex:none;'>" +
+      "<span class='mmenuitem' style='padding: 10px;margin-right: 20px;' onclick='mhttpd_toggle_menu()'>&#9776;</span>" +
+      "<span id='mheader_expt_name'></span>" +
+      "</div>" +
+
+      "<div style='flex:auto;'>" +
+      "  <div id='mheader_message'></div>" +
+      "</div>" +
+
+      "<div style='display: inline; flex:none;'>" +
+      "  <div id='mheader_alarm'>&nbsp;</div>" +
+      "  <div style='display: inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></div>" +
+      "</div>";
 
    mhttpd_resize_sidenav();
    window.addEventListener('resize', mhttpd_resize_sidenav);
