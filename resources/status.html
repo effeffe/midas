@@ -402,6 +402,10 @@
             document.getElementById("equipmentList").innerHTML = equipmentTableHtml;
          }
 
+         // Check that every one of the array entry has valid data; otherwise abort.
+         // This is a necessary check for case when equipment has been deleted since last equipment cache
+         for(var i = 0; i < equipmentCommonData.length; i++)
+            if(equipmentCommonData[i] == null) return;
 
          for (var i = 0; i < equipmentNames.length; i++) {
             var statusItem = document.createElement("td");
@@ -732,62 +736,98 @@
       }
    }
 
-   function update() {
-      //update time
+   // Global variables for caching the current list of MIDAS equipments
+   var statusGlobalSpace = {
+      equipmentList:null
+   }
+
+   // perform the main XHR and cache the list of MIDAS equipment for next XHR
+   function updateXHR(){
 
       var paths = ["/Experiment/Status items", "/Logger/Channels", "/System/Clients", "/Runinfo", "Sequencer/State", "/Logger", "/Lazy", "/Experiment/Name"];
 
+      //push all equipment names into an Array of Promises
+      if(statusGlobalSpace.equipmentList != null){
+         var equipmentStatList = statusGlobalSpace.equipmentList.map(function (element) {
+            return "/Equipment/" + element + "/statistics";
+         });
+         
+         var equipmentCommonList = statusGlobalSpace.equipmentList.map(function (element) {
+            return "/Equipment/" + element + "/common";
+         });
+      }else{
+         var equipmentStatList = [];
+         var equipmentCommonList = [];
+      }
 
-      mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
-         //get all equipment names into an Array
-         if (equipmentListData.result.data[0] != null) {
-            var equipmentList = Object.keys(equipmentListData.result.data[0]);
-            //push all equipment names into an Array of Promises
-            var equipmentStatList = equipmentList.map(function (element) {
-               return "/Equipment/" + element + "/statistics";
-            });
+      // Make the main JSON-RPC request
+      mjsonrpc_send_request([
+         mjsonrpc_make_request("db_get_values", {"paths": paths}),
+         mjsonrpc_make_request("get_alarms", {"get_all": true}),
+         mjsonrpc_make_request("cm_exist", "{ \"name\": \"Logger\" }"),
+         mjsonrpc_make_request("cm_msg_retrieve", {"min_messages": 1}),
+         mjsonrpc_make_request("db_get_values", {"paths": equipmentStatList}),
+         mjsonrpc_make_request("db_get_values", {"paths": equipmentCommonList}),
+         mjsonrpc_make_request("db_ls", {"paths": ["equipment"]})
+      ]).then(function (rpc) {
 
-            var equipmentCommonList = equipmentList.map(function (element) {
-               return "/Equipment/" + element + "/common";
-            });
-         } else {
-            var equipmentList = null;
-            var equipmentStatList = [];
-            var equipmentCommonList = [];
+         // update the webpage
+         callback(rpc[0]["result"], rpc[1]["result"], rpc[2]["result"], rpc[3]["result"], statusGlobalSpace.equipmentList, 
+                  rpc[4]["result"]["data"], rpc[5]["result"]["data"]);
+
+         // cache the results of the "db_ls /Equipment" RPC for the next RPC
+         if(rpc[6]["result"]["data"][0] != null){
+            statusGlobalSpace.equipmentList = Object.keys(rpc[6]["result"]["data"][0]);
+         }else{
+            statusGlobalSpace.equipmentList = null;
          }
 
-         mjsonrpc_send_request([
-            mjsonrpc_make_request("db_get_values", {"paths": paths}),
-            mjsonrpc_make_request("get_alarms", {"get_all": true}),
-            mjsonrpc_make_request("cm_exist", "{ \"name\": \"Logger\" }"),
-            mjsonrpc_make_request("cm_msg_retrieve", {"min_messages": 1}),
-            mjsonrpc_make_request("db_get_values", {"paths": equipmentStatList}),
-            mjsonrpc_make_request("db_get_values", {"paths": equipmentCommonList})
-         ]).then(function (rpc) {
-
-            callback(rpc[0]["result"], rpc[1]["result"], rpc[2]["result"], rpc[3]["result"], equipmentList, rpc[4]["result"]["data"], rpc[5]["result"]["data"]);
-         }).then(function (x) {
-            // show the page only after all contents are loaded
-            document.getElementById('statusTable').style.display = "table";
-            document.getElementById('updateStatus').style.display = "none";
-         });
+      }).then(function (x) {
+         // show the page only after all contents are loaded
+         document.getElementById('statusTable').style.display = "table";
+         document.getElementById('updateStatus').style.display = "none";
       }).catch(function (error) {
          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
          document.getElementById('updateStatus').style.display = "block";
       });
-
-
    }
 
 
-   function update_periodic() {
+   // Main function called on each update
+   function update(firstTimeCalled) {
+
+      // For first call we chain JSON-RPC requests; first get equipment list: then do main JSON-RPC for rest of information.
+      if(firstTimeCalled == true){
+         
+         mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
+            if (equipmentListData.result.data[0] != null) {
+               statusGlobalSpace.equipmentList = Object.keys(equipmentListData.result.data[0]);
+            } else {
+               statusGlobalSpace.equipmentList = null;
+            }
+            
+            updateXHR();
+            
+         }).catch(function (error) {
+            document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
+            document.getElementById('updateStatus').style.display = "block";
+         });
+      }else{ // subsequent requests we just use the cached equipment list from last time to make main request
+
+         updateXHR();
+
+      }
+   }
+
+   // Slightly different set of JSON-RPC requests on initial load.
+   function update_periodic(firstTimeCalled = false) {
       clearTimeout(update_timer_id);
       var update_period = 1000;
-      update();
+      update(firstTimeCalled);
       update_timer_id = setTimeout('update_periodic()', update_period);
    }
 
-   update_periodic();
+   update_periodic(true);
 </script>
 </body>
 
