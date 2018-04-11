@@ -397,6 +397,12 @@
 
       function generateEquipmentTable(clients) {
 
+         // If equipmentNames is not valid, create empty table and return.
+         if (equipmentNames == null){
+            document.getElementById("equipmentList").innerHTML = equipmentTableHtml;
+            return;
+         }
+
 
          if (equipmentNames.length != document.getElementsByClassName("equipmentRow").length) {
             document.getElementById("equipmentList").innerHTML = equipmentTableHtml;
@@ -702,8 +708,7 @@
       //call generate functions
       generateRunStatus();
 
-      if (equipmentNames != null)
-         generateEquipmentTable(clientsJson);
+      generateEquipmentTable(clientsJson);
 
       if (logChannelJson != null)
          generateLogChannel();
@@ -738,7 +743,7 @@
 
    // Global variables for caching the current list of MIDAS equipments
    var statusGlobalSpace = {
-      equipmentList:null
+      cachedEquipmentList:null
    }
 
    // perform the main XHR and cache the list of MIDAS equipment for next XHR
@@ -747,12 +752,12 @@
       var paths = ["/Experiment/Status items", "/Logger/Channels", "/System/Clients", "/Runinfo", "Sequencer/State", "/Logger", "/Lazy", "/Experiment/Name"];
 
       //push all equipment names into an Array of Promises
-      if(statusGlobalSpace.equipmentList != null){
-         var equipmentStatList = statusGlobalSpace.equipmentList.map(function (element) {
+      if(statusGlobalSpace.cachedEquipmentList != null){
+         var equipmentStatList = statusGlobalSpace.cachedEquipmentList.map(function (element) {
             return "/Equipment/" + element + "/statistics";
          });
          
-         var equipmentCommonList = statusGlobalSpace.equipmentList.map(function (element) {
+         var equipmentCommonList = statusGlobalSpace.cachedEquipmentList.map(function (element) {
             return "/Equipment/" + element + "/common";
          });
       }else{
@@ -772,14 +777,14 @@
       ]).then(function (rpc) {
 
          // update the webpage
-         callback(rpc[0]["result"], rpc[1]["result"], rpc[2]["result"], rpc[3]["result"], statusGlobalSpace.equipmentList, 
+         callback(rpc[0]["result"], rpc[1]["result"], rpc[2]["result"], rpc[3]["result"], statusGlobalSpace.cachedEquipmentList, 
                   rpc[4]["result"]["data"], rpc[5]["result"]["data"]);
 
          // cache the results of the "db_ls /Equipment" RPC for the next RPC
          if(rpc[6]["result"]["data"][0] != null){
-            statusGlobalSpace.equipmentList = Object.keys(rpc[6]["result"]["data"][0]);
+            statusGlobalSpace.cachedEquipmentList = Object.keys(rpc[6]["result"]["data"][0]);
          }else{
-            statusGlobalSpace.equipmentList = null;
+            statusGlobalSpace.cachedEquipmentList = null;
          }
 
       }).then(function (x) {
@@ -801,9 +806,9 @@
          
          mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
             if (equipmentListData.result.data[0] != null) {
-               statusGlobalSpace.equipmentList = Object.keys(equipmentListData.result.data[0]);
+               statusGlobalSpace.cachedEquipmentList = Object.keys(equipmentListData.result.data[0]);
             } else {
-               statusGlobalSpace.equipmentList = null;
+               statusGlobalSpace.cachedEquipmentList = null;
             }
             
             updateXHR();
