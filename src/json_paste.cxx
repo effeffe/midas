@@ -625,8 +625,13 @@ INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKeyRoot, int index, const void *j
    int tid = key.type;
    int string_length = 0;
    bool is_array = (key.num_values > 1);
-   if (tid == TID_STRING) // do not truncate strings
-      string_length = key.item_size;
+   if (tid == TID_STRING) {
+      // do not truncate strings, only extend if necessary
+      if (node->GetString().length()+1 > key.item_size)
+         string_length = node->GetString().length()+1;
+      else
+         string_length = key.item_size;
+   }
 
    status = paste_node(hDB, hKeyRoot, path, is_array, index, node, tid, string_length, NULL);
 
