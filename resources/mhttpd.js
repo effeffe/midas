@@ -655,7 +655,18 @@ function mhttpd_init(current_page, interval, callback) {
          mjsonrpc_error_alert(error);
       });
    }
+   
+   // store refresh interval and do initial refresh
+   if (interval === undefined)
+      interval = 1000;
+   mhttpd_refresh_interval = interval;
 
+   // scan custom page to find all mxxx elements and install proper handlers etc.
+   mhttpd_scan();
+}
+
+function mhttpd_scan()
+{
    // go through all name="modb" tags
    var modb = document.getElementsByName("modb");
    for (var i = 0; i < modb.length; i++) {
@@ -680,7 +691,10 @@ function mhttpd_init(current_page, interval, callback) {
             ODBInlineEdit(this.parentElement, this.parentElement.dataset.odbPath);
          };
 
-         o.appendChild(link);
+         if (o.childNodes[0] === undefined)
+            o.appendChild(link);
+         else
+            o.childNodes[0] = link;
       } else {
          // just display "loading" text, tag will be updated during mhttpd_refresh()
          o.innerHTML = loading;
@@ -767,10 +781,6 @@ function mhttpd_init(current_page, interval, callback) {
       mg[i].draw();
    }
 
-   // store refresh interval and do initial refresh
-   if (interval === undefined)
-      interval = 1000;
-   mhttpd_refresh_interval = interval;
    mhttpd_refresh();
 }
 
@@ -1087,6 +1097,12 @@ function mhttpd_refresh() {
                mvalue = "(empty)";
             var html = mhttpd_escape(mvalue);
             if (modbvalue[i].dataset.odbEditable) {
+               if (modbvalue[i].childNodes[0] === undefined) {
+                  // element has not been scanned yet
+                  mhttpd_scan();
+                  mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, 100);
+                  return;
+               }
                modbvalue[i].childNodes[0].innerHTML = html;
             } else
                modbvalue[i].innerHTML = html;
