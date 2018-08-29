@@ -140,7 +140,7 @@ function mie_back_to_link(p, path, bracket) {
       };
 
       // what is this for?!?
-      if (p.childNodes.length == 2)
+      if (p.childNodes.length == 2)//two values means it was editing an array
          setTimeout(function () {
             p.appendChild(link);
             p.removeChild(p.childNodes[1])
@@ -685,10 +685,10 @@ function mhttpd_scan()
          link.href = "#";
          link.innerHTML = loading;
          link.onclick = function () {
-            ODBInlineEdit(this.parentElement, this.parentElement.dataset.odbPath);
+            ODBInlineEdit(this.parentElement, this.parentElement.dataset.odbPath, 0);
          };
          link.onfocus = function () {
-            ODBInlineEdit(this.parentElement, this.parentElement.dataset.odbPath);
+            ODBInlineEdit(this.parentElement, this.parentElement.dataset.odbPath, 0);
          };
 
          if (o.childNodes[0] === undefined)
@@ -1103,7 +1103,11 @@ function mhttpd_refresh() {
                   mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, 100);
                   return;
                }
-               modbvalue[i].childNodes[0].innerHTML = html;
+               if (modbvalue[i].childNodes.length == 2){
+                  modbvalue[i].childNodes[1].innerHTML = html;
+               } else {
+                  modbvalue[i].childNodes[0].innerHTML = html;
+               }
             } else
                modbvalue[i].innerHTML = html;
          }
