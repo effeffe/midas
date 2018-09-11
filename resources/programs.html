@@ -309,10 +309,13 @@
             e.childNodes[2].innerHTML = "-";
          }
 
-         if (programs[name]["auto restart"])
+         if (programs[name]["auto restart"]){
             e.childNodes[3].innerHTML = "Yes";
-         else
+            e.childNodes[3].className = "mgreen";
+         }else{
             e.childNodes[3].innerHTML = "No";
+            e.childNodes[3].className = "mgrey";
+         }
       }
 
       //document.getElementById('updateStatus').innerHTML = "RWPD";
