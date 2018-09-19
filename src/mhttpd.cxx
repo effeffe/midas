@@ -19915,15 +19915,10 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       t->fAuthOk = true;
    }
 
-   if (msg->body.p && strlen(msg->body.p) < msg->body.len) {
-      if (trace_mg||verbose_mg)
-         printf("handle_http_message: Bad body length\n");
-   } else {
-      if (method == "GET")
-         response_sent = handle_http_get(nc, msg, uri.c_str(), t);
-      else if (method == "POST")
-         response_sent = handle_http_post(nc, msg, uri.c_str(), t);
-   }
+   if (method == "GET")
+      response_sent = handle_http_get(nc, msg, uri.c_str(), t);
+   else if (method == "POST")
+      response_sent = handle_http_post(nc, msg, uri.c_str(), t);
    
    if (!response_sent) {
       if (trace_mg||verbose_mg)
