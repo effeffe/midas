@@ -408,12 +408,8 @@
             document.getElementById("equipmentList").innerHTML = equipmentTableHtml;
          }
 
-         // Check that every one of the array entry has valid data; otherwise abort.
-         // This is a necessary check for case when equipment has been deleted since last equipment cache
-         for(var i = 0; i < equipmentCommonData.length; i++)
-            if(equipmentCommonData[i] == null) return;
-
          for (var i = 0; i < equipmentNames.length; i++) {
+
             if (equipmentCommonData[i] === null)
                continue;
             if (equipmentStatData[i] === null)
