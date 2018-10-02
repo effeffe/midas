@@ -409,10 +409,13 @@
          }
 
          for (var i = 0; i < equipmentNames.length; i++) {
-
+            // check existance of common and statistics data
             if (equipmentCommonData[i] === null)
                continue;
-            if (equipmentStatData[i] === null)
+            if (equipmentStatData[i] === null ||
+                equipmentStatData[i]["events sent"] === undefined ||
+                equipmentStatData[i]["events per sec."] === undefined ||
+                equipmentStatData[i]["kbytes per sec."] === undefined)
                continue;
 
             var statusItem = document.createElement("td");
