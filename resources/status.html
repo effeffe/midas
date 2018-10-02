@@ -403,94 +403,90 @@
             return;
          }
 
-
          if (equipmentNames.length != document.getElementsByClassName("equipmentRow").length) {
             document.getElementById("equipmentList").innerHTML = equipmentTableHtml;
          }
 
          for (var i = 0; i < equipmentNames.length; i++) {
-            // check existance of common and statistics data
-            if (equipmentCommonData[i] === null)
-               continue;
-            if (equipmentStatData[i] === null ||
-                equipmentStatData[i]["events sent"] === undefined ||
-                equipmentStatData[i]["events per sec."] === undefined ||
-                equipmentStatData[i]["kbytes per sec."] === undefined)
-               continue;
 
-            var statusItem = document.createElement("td");
-            statusItem.align = "center";
-            statusItem.innerHTML = equipmentCommonData[i]["status"];
+            try {
+               var statusItem = document.createElement("td");
+               statusItem.align = "center";
+               statusItem.innerHTML = equipmentCommonData[i]["status"];
 
-            if (equipmentCommonData[i]["enabled"]) {
+               if (equipmentCommonData[i]["enabled"]) {
 
-               if (equipmentCommonData[i]["frontend name"].length > 0 &&
-                       !clientExists(clients, equipmentCommonData[i]["frontend name"])) {
-                  statusItem.innerHTML = "Frontend stopped";
-                  statusItem.className = "redLight";
-               } else {
-                  if (equipmentCommonData[i]["status"].length < 1) {
-                     statusItem.innerHTML = equipmentCommonData[i]["frontend name"] + "@" + equipmentCommonData[i]["frontend host"];
-                     statusItem.className = "greenLight";
+                  if (equipmentCommonData[i]["frontend name"].length > 0 &&
+                     !clientExists(clients, equipmentCommonData[i]["frontend name"])) {
+                     statusItem.innerHTML = "Frontend stopped";
+                     statusItem.className = "redLight";
                   } else {
-                     statusItem.innerHTML = equipmentCommonData[i]["status"];
-                     if (equipmentCommonData[i]["status color"].indexOf("Light") != -1)
-                        statusItem.className = equipmentCommonData[i]["status color"];
-                     else {
-                        statusItem.className = "Light";
-                        statusItem.style.backgroundColor = equipmentCommonData[i]["status color"];
+                     if (equipmentCommonData[i]["status"].length < 1) {
+                        statusItem.innerHTML = equipmentCommonData[i]["frontend name"] + "@" + equipmentCommonData[i]["frontend host"];
+                        statusItem.className = "greenLight";
+                     } else {
+                        statusItem.innerHTML = equipmentCommonData[i]["status"];
+                        if (equipmentCommonData[i]["status color"].indexOf("Light") != -1)
+                           statusItem.className = equipmentCommonData[i]["status color"];
+                        else {
+                           statusItem.className = "Light";
+                           statusItem.style.backgroundColor = equipmentCommonData[i]["status color"];
+                        }
                      }
                   }
+               } else {
+                  statusItem.innerHTML = "Disabled";
+                  statusItem.className = "yellowLight";
                }
-            } else {
-               statusItem.innerHTML = "Disabled";
-               statusItem.className = "yellowLight";
-            }
 
-            var eventsNum = equipmentStatData[i]["events sent"];
-            if (equipmentStatData[i]["events sent"] > 1E9) {
-               eventsNum = (equipmentStatData[i]["events sent"] / 1E9).toFixed(3) + "G";
-            } else if (equipmentStatData[i]["events sent"] > 1E6) {
-               eventsNum = (equipmentStatData[i]["events sent"] / 1E6).toFixed(3) + "M";
-            }
+               var eventsNum = equipmentStatData[i]["events sent"];
+               if (equipmentStatData[i]["events sent"] > 1E9) {
+                  eventsNum = (equipmentStatData[i]["events sent"] / 1E9).toFixed(3) + "G";
+               } else if (equipmentStatData[i]["events sent"] > 1E6) {
+                  eventsNum = (equipmentStatData[i]["events sent"] / 1E6).toFixed(3) + "M";
+               }
 
-            var equipmentRow = document.createElement("tr");
-            equipmentRow.id = equipmentNames[i] + "equipment";
-            equipmentRow.className = "equipmentRow";
-            var unhidden = document.getElementById("hide").innerText === "-";
-            if (equipmentCommonData[i]["hidden"])
-               equipmentRow.className += " hiddenEquip";
+               var equipmentRow = document.createElement("tr");
+               equipmentRow.id = equipmentNames[i] + "equipment";
+               equipmentRow.className = "equipmentRow";
+               var unhidden = document.getElementById("hide").innerText === "-";
+               if (equipmentCommonData[i]["hidden"])
+                  equipmentRow.className += " hiddenEquip";
 
-            if (equipmentCommonData[i]["hidden"] && !unhidden)
-               equipmentRow.style.display = "none";
-            else
-               equipmentRow.style.display = "table-row";
+               if (equipmentCommonData[i]["hidden"] && !unhidden)
+                  equipmentRow.style.display = "none";
+               else
+                  equipmentRow.style.display = "table-row";
 
-            var mb = equipmentStatData[i]["kbytes per sec."] / 1000.0;
-            equipmentRow.innerHTML = "<td align=\"center\"><a href='/SC/" +
-                    equipmentNames[i] +
-                    "'>" +
-                    equipmentNames[i] +
-                    "</a></td>" +
-                    statusItem.outerHTML +
-                    "<td align=\"center\">" +
-                    eventsNum +
-                    "</td>" +
-                    "<td align=\"center\">" +
-                    equipmentStatData[i]["events per sec."].toFixed(1) +
-                    "</td>" +
-                    "<td align=\"center\">" +
-                    mb.toFixed(3) +
-                    "</td>";
-            if (document.getElementById(equipmentNames[i] + "equipment") === null) {
-               document.getElementById("equipmentList").appendChild(equipmentRow);
-            } else {
-               if (document.getElementById(equipmentNames[i] + "equipment").innerHTML !== equipmentRow.innerHTML)
-                  document.getElementById(equipmentNames[i] + "equipment").innerHTML = equipmentRow.innerHTML;
-               if (document.getElementById(equipmentNames[i] + "equipment").style.display !== equipmentRow.style.display)
-                  document.getElementById(equipmentNames[i] + "equipment").style.display = equipmentRow.style.display;
-               if (document.getElementById(equipmentNames[i] + "equipment").className !== equipmentRow.className)
+               var mb = equipmentStatData[i]["kbytes per sec."] / 1000.0;
+               equipmentRow.innerHTML = "<td align=\"center\"><a href='/SC/" +
+                  equipmentNames[i] +
+                  "'>" +
+                  equipmentNames[i] +
+                  "</a></td>" +
+                  statusItem.outerHTML +
+                  "<td align=\"center\">" +
+                  eventsNum +
+                  "</td>" +
+                  "<td align=\"center\">" +
+                  equipmentStatData[i]["events per sec."].toFixed(1) +
+                  "</td>" +
+                  "<td align=\"center\">" +
+                  mb.toFixed(3) +
+                  "</td>";
+               if (document.getElementById(equipmentNames[i] + "equipment") === null) {
+                  document.getElementById("equipmentList").appendChild(equipmentRow);
+               } else {
+                  if (document.getElementById(equipmentNames[i] + "equipment").innerHTML !== equipmentRow.innerHTML)
+                     document.getElementById(equipmentNames[i] + "equipment").innerHTML = equipmentRow.innerHTML;
+                  if (document.getElementById(equipmentNames[i] + "equipment").style.display !== equipmentRow.style.display)
+                     document.getElementById(equipmentNames[i] + "equipment").style.display = equipmentRow.style.display;
+                  if (document.getElementById(equipmentNames[i] + "equipment").className !== equipmentRow.className)
                      document.getElementById(equipmentNames[i] + "equipment").className = equipmentRow.className;
+               }
+            } catch(err) {
+               // invalid ODB equipment entry: just skip equipment
+               console.log("Error: Equipment \""+equipmentNames[i]+"\" has invalid ODB structure");
             }
          }
       }
