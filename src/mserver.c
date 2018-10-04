@@ -462,6 +462,9 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
 
    convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
 
+   char * fb;
+   char** fbp;
+
    switch (index) {
       /* common functions */
 
@@ -728,6 +731,31 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       status = db_get_value(CHNDLE(0), CHNDLE(1), CSTRING(2), CARRAY(3), CPINT(4), CDWORD(5), CBOOL(6));
       rpc_convert_data(CARRAY(3), CDWORD(5), RPC_FIXARRAY | RPC_OUTGOING, CINT(4), convert_flags);
       break;
+
+
+   case RPC_DB_COPY_JSON_LS:
+      rpc_convert_data(CARRAY(2), TID_CHAR, RPC_VARARRAY, CINT(3), convert_flags);
+      fb = (char*)prpc_param[2];
+      fbp = &fb;
+      status = db_copy_json_ls(CHNDLE(0), CHNDLE(1), fbp, CPINT(3), CPINT(4));
+      rpc_convert_data(CARRAY(2), TID_CHAR, RPC_FIXARRAY | RPC_OUTGOING, CINT(4), convert_flags);
+      break;      
+
+   case RPC_DB_COPY_JSON_VALUES:
+      rpc_convert_data(CARRAY(2), TID_CHAR, RPC_VARARRAY, CINT(3), convert_flags);
+      fb = (char*)prpc_param[2];
+      fbp = &fb;
+      status = db_copy_json_values(CHNDLE(0), CHNDLE(1), fbp, CPINT(3), CPINT(4), CINT(5), CINT(6), CINT(7), CINT(8));
+      rpc_convert_data(CARRAY(2), TID_CHAR, RPC_FIXARRAY | RPC_OUTGOING, CINT(4), convert_flags);
+      break;
+
+   case RPC_DB_COPY_JSON_SAVE:
+      rpc_convert_data(CARRAY(2), TID_CHAR, RPC_VARARRAY, CINT(3), convert_flags);
+      fb = (char*)prpc_param[2];
+      fbp = &fb;
+      status = db_copy_json_save(CHNDLE(0), CHNDLE(1), fbp, CPINT(3), CPINT(4));
+      rpc_convert_data(CARRAY(2), TID_CHAR, RPC_FIXARRAY | RPC_OUTGOING, CINT(4), convert_flags);
+      break;      
 
    case RPC_DB_FIND_KEY:
       status = db_find_key(CHNDLE(0), CHNDLE(1), CSTRING(2), CPHNDLE(3));

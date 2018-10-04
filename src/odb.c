@@ -8979,6 +8979,12 @@ static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer
 
 INT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
 {
+   if (rpc_is_remote()){
+      char* data = *buffer;
+      return rpc_call(RPC_DB_COPY_JSON_LS, hDB, hKey, (void*)data, buffer_size, buffer_end);
+   }
+
+#ifdef LOCAL_ROUTINES
    int status;
    status = db_lock_database(hDB);
    if (status != DB_SUCCESS) {
@@ -8987,10 +8993,18 @@ INT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int*
    status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, JS_MUST_BE_SUBDIR, JSFLAG_SAVE_KEYS|JSFLAG_FOLLOW_LINKS, 0);
    db_unlock_database(hDB);
    return status;
+#endif
+   return DB_SUCCESS;
 }
 
 INT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end, int omit_names, int omit_last_written, time_t omit_old_timestamp, int preserve_case)
 {
+   if (rpc_is_remote()){
+      char* data = *buffer;
+      return rpc_call(RPC_DB_COPY_JSON_VALUES, hDB, hKey, (void*)data, buffer_size, buffer_end, omit_names, omit_last_written, omit_old_timestamp, preserve_case);
+   }
+
+#ifdef LOCAL_ROUTINES
    int status;
    int flags = JSFLAG_FOLLOW_LINKS|JSFLAG_RECURSE;
    if (omit_names)
@@ -9008,10 +9022,19 @@ INT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, 
    status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, 0, flags, omit_old_timestamp);
    db_unlock_database(hDB);
    return status;
+#endif
+   return DB_SUCCESS;
 }
+
 
 INT db_copy_json_save(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
 {
+   if (rpc_is_remote()){
+      char* data = *buffer;
+      return rpc_call(RPC_DB_COPY_JSON_SAVE, hDB, hKey, (void*)data, buffer_size, buffer_end);
+   }
+
+#ifdef LOCAL_ROUTINES
    int status;
    status = db_lock_database(hDB);
    if (status != DB_SUCCESS) {
@@ -9020,6 +9043,8 @@ INT db_copy_json_save(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, in
    status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, JS_MUST_BE_SUBDIR, JSFLAG_SAVE_KEYS|JSFLAG_RECURSE, 0);
    db_unlock_database(hDB);
    return status;
+#endif
+   return DB_SUCCESS;
 }
 
 /********************************************************************/
