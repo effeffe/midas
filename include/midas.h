@@ -1358,6 +1358,8 @@ typedef struct {
    BOOL auto_restart;
    char alarm_class[32];
    DWORD first_failed;
+   INT delay_start;
+   INT delay_stop;
 } PROGRAM_INFO;
 
 #define AT_INTERNAL   1 /**< - */
@@ -1377,6 +1379,8 @@ typedef struct {
 "Auto restart = BOOL : n",\
 "Alarm class = STRING : [32] ",\
 "First failed = DWORD : 0",\
+"Delay Start = INT : 10",\
+"Delay Stop  = INT : 10",\
 "",\
 NULL }
 

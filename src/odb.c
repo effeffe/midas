@@ -914,7 +914,7 @@ static void db_validate_sizes()
    assert(sizeof(BANK) == 8);
    assert(sizeof(BANK32) == 12);
    assert(sizeof(ANA_OUTPUT_INFO) == 792);
-   assert(sizeof(PROGRAM_INFO) == 316);
+   assert(sizeof(PROGRAM_INFO) == 324);
    assert(sizeof(ALARM_CLASS) == 348);
    assert(sizeof(ALARM) == 452);
    //assert(sizeof(CHN_SETTINGS) == 648); // ODB v3

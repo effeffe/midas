@@ -102,7 +102,7 @@
       });
    }
 
-   function add_table_entry(table, name, full_name, start_command) {
+   function add_table_entry(table, name, full_name, start_command, delay_start, delay_stop) {
       var tr = document.createElement("tr");
       tr.id = "program " + name;
       tr.className = "mtable";
@@ -139,7 +139,7 @@
       input.onclick = function () {
          mhttpd_disable_button(start_button);
          mjsonrpc_start_program(name).then(function (rpc) {
-            start_poll(name, start_command, 10);
+            start_poll(name, start_command, delay_start);
          }).catch(function (error) {
             document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
             dlgShow('dlgError');
@@ -162,7 +162,7 @@
       input.onclick = function () {
          mhttpd_disable_button(stop_button);
          mjsonrpc_stop_program(name, false).then(function (rpc) {
-            stop_poll(name, 10);
+            stop_poll(name, delay_stop);
          }).catch(function (error) {
             document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
             dlgShow('dlgError');
@@ -236,10 +236,12 @@
          }
 
          var start_command = programs[name]["start command"];
+         var delay_start   = programs[name]["delay start"];
+         var delay_stop    = programs[name]["delay stop"];
 
          if (!e) {
             var full_name = programs[name + "/name"];
-            e = add_table_entry(document.getElementById("stripeList"), name, full_name, start_command);
+	    e = add_table_entry(document.getElementById("stripeList"), name, full_name, start_command, delay_start, delay_stop);
          }
 
          // unhide this table row
