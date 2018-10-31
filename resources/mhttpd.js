@@ -399,19 +399,28 @@ function mhttpd_navigation_bar(current_page, path) {
    });
 }
 
-function mhttpd_toggle_menu() {
+function mhttpd_show_menu(flag) {
    var m = document.getElementById("msidenav");
 
    if (m.initialWidth == undefined)
       m.initialWidth = m.clientWidth;
 
-   if (m.style.width == "0px") {
+   if (flag) {
       m.style.width = m.initialWidth + "px";
       document.getElementById("mmain").style.marginLeft = m.initialWidth + "px";
+      mhttpdConfigSet('hideMenu', false);
    } else {
       m.style.width = "0";
       document.getElementById("mmain").style.marginLeft = "0";
    }
+
+   mhttpdConfigSet('showMenu', flag);
+}
+
+function mhttpd_toggle_menu() {
+   var flag = mhttpdConfig().showMenu;
+   flag = !flag;
+   mhttpd_show_menu(flag);
 }
 
 var mhttpd_refresh_id;
@@ -647,6 +656,8 @@ function mhttpd_init(current_page, interval, callback) {
          // cache navigation buttons in browser local storage
          sessionStorage.setItem("msidenav", html);
 
+         // show/hide sidenav according to local storage settings
+         mhttpd_show_menu(mhttpdConfig().showMenu);
 
       }).then(function () {
          if (callback !== undefined)
@@ -1880,7 +1891,9 @@ var mhttpd_config_defaults = {
       'lastAlarm': 0
    },
 
-   'suppressMessageBefore': 0
+   'suppressMessageBefore': 0,
+   'showMenu': true
+   
 };
 
 function mhttpdConfig() {
