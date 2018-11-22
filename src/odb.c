@@ -2007,7 +2007,8 @@ INT db_get_lock_cnt(HNDLE hDB)
       return 0;
 
    if (hDB > _database_entries || hDB <= 0) {
-      cm_msg(MERROR, "db_lock_database", "invalid database handle, aborting...");
+      cm_msg(MERROR, "db_get_lock_cnt", "invalid database handle %d, aborting...", hDB);
+      fprintf(stderr, "db_get_lock_cnt: invalid database handle %d, aborting...\n", hDB);
       abort();
       return DB_INVALID_HANDLE;
    }
@@ -2027,7 +2028,8 @@ INT db_set_lock_timeout(HNDLE hDB, int timeout_millisec)
       return 0;
 
    if (hDB > _database_entries || hDB <= 0) {
-      cm_msg(MERROR, "db_lock_database", "invalid database handle, aborting...");
+      cm_msg(MERROR, "db_set_lock_timeout", "invalid database handle %d, aborting...", hDB);
+      fprintf(stderr, "db_set_lock_timeout: invalid database handle %d, aborting...\n", hDB);
       abort();
       return DB_INVALID_HANDLE;
    }
@@ -3057,10 +3059,12 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
 
       pheader = _database[hDB - 1].database_header;
 
-      if (!hKey)
-         hKey = pheader->root_key;
+      BOOL hKey_is_root_key = FALSE;
 
-      pkey = (KEY *) ((char *) pheader + hKey);
+      if (!hKey) {
+         hKey_is_root_key = TRUE;
+         hKey = pheader->root_key;
+      }
 
       /* check if hKey argument is correct */
       if (!db_validate_hkey(pheader, hKey)) {
@@ -3068,12 +3072,14 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
          return DB_INVALID_HANDLE;
       }
 
+      pkey = (KEY *) ((char *) pheader + hKey);
+
       if (pkey->type < 1 || pkey->type >= TID_LAST) {
          *subhKey = 0;
          int xtid = pkey->type;
          db_unlock_database(hDB);
-         if (hKey == 0) {
-            cm_msg(MERROR, "db_find_key", "hkey %d invalid key type %d, database root directory is corrupted", hKey, xtid);
+         if (hKey_is_root_key) {
+            cm_msg(MERROR, "db_find_key", "root_key hkey %d invalid key type %d, database root directory is corrupted", hKey, xtid);
             return DB_CORRUPTED;
          } else {
             char str[MAX_ODB_PATH];
