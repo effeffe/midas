@@ -5,7 +5,7 @@
 typedef void* HSNMP;   // SNMP handle (like FILE)
 
 void  syslog(int priority,const char* format,...);
-int  SnmpInit(void);
+int  SnmpInit(int channels);
 void  SnmpCleanup(void);
 HSNMP  SnmpOpen(const char* ipAddress);
 void  SnmpClose(HSNMP m_sessp);
