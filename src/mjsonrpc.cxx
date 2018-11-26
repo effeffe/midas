@@ -1038,7 +1038,7 @@ static MJsonNode* js_db_delete(const MJsonNode* params)
       HNDLE hkey;
       std::string path = (*paths)[i]->GetString();
 
-      status = db_find_key(hDB, 0, path.c_str(), &hkey);
+      status = db_find_link(hDB, 0, path.c_str(), &hkey);
       if (status != DB_SUCCESS) {
          sresult->AddToArray(MJsonNode::MakeInt(status));
          continue;

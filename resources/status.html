@@ -397,91 +397,96 @@
 
       function generateEquipmentTable(clients) {
 
+         // If equipmentNames is not valid, create empty table and return.
+         if (equipmentNames == null){
+            document.getElementById("equipmentList").innerHTML = equipmentTableHtml;
+            return;
+         }
 
          if (equipmentNames.length != document.getElementsByClassName("equipmentRow").length) {
             document.getElementById("equipmentList").innerHTML = equipmentTableHtml;
          }
 
-
          for (var i = 0; i < equipmentNames.length; i++) {
-            if (equipmentCommonData[i] === null)
-               continue;
-            if (equipmentStatData[i] === null)
-               continue;
 
-            var statusItem = document.createElement("td");
-            statusItem.align = "center";
-            statusItem.innerHTML = equipmentCommonData[i]["status"];
+            try {
+               var statusItem = document.createElement("td");
+               statusItem.align = "center";
+               statusItem.innerHTML = equipmentCommonData[i]["status"];
 
-            if (equipmentCommonData[i]["enabled"]) {
+               if (equipmentCommonData[i]["enabled"]) {
 
-               if (equipmentCommonData[i]["frontend name"].length > 0 &&
-                       !clientExists(clients, equipmentCommonData[i]["frontend name"])) {
-                  statusItem.innerHTML = "Frontend stopped";
-                  statusItem.className = "redLight";
-               } else {
-                  if (equipmentCommonData[i]["status"].length < 1) {
-                     statusItem.innerHTML = equipmentCommonData[i]["frontend name"] + "@" + equipmentCommonData[i]["frontend host"];
-                     statusItem.className = "greenLight";
+                  if (equipmentCommonData[i]["frontend name"].length > 0 &&
+                     !clientExists(clients, equipmentCommonData[i]["frontend name"])) {
+                     statusItem.innerHTML = "Frontend stopped";
+                     statusItem.className = "redLight";
                   } else {
-                     statusItem.innerHTML = equipmentCommonData[i]["status"];
-                     if (equipmentCommonData[i]["status color"].indexOf("Light") != -1)
-                        statusItem.className = equipmentCommonData[i]["status color"];
-                     else {
-                        statusItem.className = "Light";
-                        statusItem.style.backgroundColor = equipmentCommonData[i]["status color"];
+                     if (equipmentCommonData[i]["status"].length < 1) {
+                        statusItem.innerHTML = equipmentCommonData[i]["frontend name"] + "@" + equipmentCommonData[i]["frontend host"];
+                        statusItem.className = "greenLight";
+                     } else {
+                        statusItem.innerHTML = equipmentCommonData[i]["status"];
+                        if (equipmentCommonData[i]["status color"].indexOf("Light") != -1)
+                           statusItem.className = equipmentCommonData[i]["status color"];
+                        else {
+                           statusItem.className = "Light";
+                           statusItem.style.backgroundColor = equipmentCommonData[i]["status color"];
+                        }
                      }
                   }
+               } else {
+                  statusItem.innerHTML = "Disabled";
+                  statusItem.className = "yellowLight";
                }
-            } else {
-               statusItem.innerHTML = "Disabled";
-               statusItem.className = "yellowLight";
-            }
 
-            var eventsNum = equipmentStatData[i]["events sent"];
-            if (equipmentStatData[i]["events sent"] > 1E9) {
-               eventsNum = (equipmentStatData[i]["events sent"] / 1E9).toFixed(3) + "G";
-            } else if (equipmentStatData[i]["events sent"] > 1E6) {
-               eventsNum = (equipmentStatData[i]["events sent"] / 1E6).toFixed(3) + "M";
-            }
+               var eventsNum = equipmentStatData[i]["events sent"];
+               if (equipmentStatData[i]["events sent"] > 1E9) {
+                  eventsNum = (equipmentStatData[i]["events sent"] / 1E9).toFixed(3) + "G";
+               } else if (equipmentStatData[i]["events sent"] > 1E6) {
+                  eventsNum = (equipmentStatData[i]["events sent"] / 1E6).toFixed(3) + "M";
+               }
 
-            var equipmentRow = document.createElement("tr");
-            equipmentRow.id = equipmentNames[i] + "equipment";
-            equipmentRow.className = "equipmentRow";
-            var unhidden = document.getElementById("hide").innerText === "-";
-            if (equipmentCommonData[i]["hidden"])
-               equipmentRow.className += " hiddenEquip";
+               var equipmentRow = document.createElement("tr");
+               equipmentRow.id = equipmentNames[i] + "equipment";
+               equipmentRow.className = "equipmentRow";
+               var unhidden = document.getElementById("hide").innerText === "-";
+               if (equipmentCommonData[i]["hidden"])
+                  equipmentRow.className += " hiddenEquip";
 
-            if (equipmentCommonData[i]["hidden"] && !unhidden)
-               equipmentRow.style.display = "none";
-            else
-               equipmentRow.style.display = "table-row";
+               if (equipmentCommonData[i]["hidden"] && !unhidden)
+                  equipmentRow.style.display = "none";
+               else
+                  equipmentRow.style.display = "table-row";
 
-            var mb = equipmentStatData[i]["kbytes per sec."] / 1000.0;
-            equipmentRow.innerHTML = "<td align=\"center\"><a href='/SC/" +
-                    equipmentNames[i] +
-                    "'>" +
-                    equipmentNames[i] +
-                    "</a></td>" +
-                    statusItem.outerHTML +
-                    "<td align=\"center\">" +
-                    eventsNum +
-                    "</td>" +
-                    "<td align=\"center\">" +
-                    equipmentStatData[i]["events per sec."].toFixed(1) +
-                    "</td>" +
-                    "<td align=\"center\">" +
-                    mb.toFixed(3) +
-                    "</td>";
-            if (document.getElementById(equipmentNames[i] + "equipment") === null) {
-               document.getElementById("equipmentList").appendChild(equipmentRow);
-            } else {
-               if (document.getElementById(equipmentNames[i] + "equipment").innerHTML !== equipmentRow.innerHTML)
-                  document.getElementById(equipmentNames[i] + "equipment").innerHTML = equipmentRow.innerHTML;
-               if (document.getElementById(equipmentNames[i] + "equipment").style.display !== equipmentRow.style.display)
-                  document.getElementById(equipmentNames[i] + "equipment").style.display = equipmentRow.style.display;
-               if (document.getElementById(equipmentNames[i] + "equipment").className !== equipmentRow.className)
+               var mb = equipmentStatData[i]["kbytes per sec."] / 1000.0;
+               equipmentRow.innerHTML = "<td align=\"center\"><a href='/SC/" +
+                  equipmentNames[i] +
+                  "'>" +
+                  equipmentNames[i] +
+                  "</a></td>" +
+                  statusItem.outerHTML +
+                  "<td align=\"center\">" +
+                  eventsNum +
+                  "</td>" +
+                  "<td align=\"center\">" +
+                  equipmentStatData[i]["events per sec."].toFixed(1) +
+                  "</td>" +
+                  "<td align=\"center\">" +
+                  mb.toFixed(3) +
+                  "</td>";
+               if (document.getElementById(equipmentNames[i] + "equipment") === null) {
+                  document.getElementById("equipmentList").appendChild(equipmentRow);
+               } else {
+                  if (document.getElementById(equipmentNames[i] + "equipment").innerHTML !== equipmentRow.innerHTML)
+                     document.getElementById(equipmentNames[i] + "equipment").innerHTML = equipmentRow.innerHTML;
+                  if (document.getElementById(equipmentNames[i] + "equipment").style.display !== equipmentRow.style.display)
+                     document.getElementById(equipmentNames[i] + "equipment").style.display = equipmentRow.style.display;
+                  if (document.getElementById(equipmentNames[i] + "equipment").className !== equipmentRow.className)
                      document.getElementById(equipmentNames[i] + "equipment").className = equipmentRow.className;
+               }
+            } catch(err) {
+               // invalid ODB equipment entry: just skip equipment
+               console.log("Error: Equipment \""+equipmentNames[i]+"\" has invalid ODB structure");
             }
          }
       }
@@ -703,8 +708,7 @@
       //call generate functions
       generateRunStatus();
 
-      if (equipmentNames != null)
-         generateEquipmentTable(clientsJson);
+      generateEquipmentTable(clientsJson);
 
       if (logChannelJson != null)
          generateLogChannel();
@@ -737,62 +741,98 @@
       }
    }
 
-   function update() {
-      //update time
+   // Global variables for caching the current list of MIDAS equipments
+   var statusGlobalSpace = {
+      cachedEquipmentList:null
+   }
+
+   // perform the main XHR and cache the list of MIDAS equipment for next XHR
+   function updateXHR(){
 
       var paths = ["/Experiment/Status items", "/Logger/Channels", "/System/Clients", "/Runinfo", "Sequencer/State", "/Logger", "/Lazy", "/Experiment/Name"];
 
+      //push all equipment names into an Array of Promises
+      if(statusGlobalSpace.cachedEquipmentList != null){
+         var equipmentStatList = statusGlobalSpace.cachedEquipmentList.map(function (element) {
+            return "/Equipment/" + element + "/statistics";
+         });
+         
+         var equipmentCommonList = statusGlobalSpace.cachedEquipmentList.map(function (element) {
+            return "/Equipment/" + element + "/common";
+         });
+      }else{
+         var equipmentStatList = [];
+         var equipmentCommonList = [];
+      }
 
-      mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
-         //get all equipment names into an Array
-         if (equipmentListData.result.data[0] != null) {
-            var equipmentList = Object.keys(equipmentListData.result.data[0]);
-            //push all equipment names into an Array of Promises
-            var equipmentStatList = equipmentList.map(function (element) {
-               return "/Equipment/" + element + "/statistics";
-            });
+      // Make the main JSON-RPC request
+      mjsonrpc_send_request([
+         mjsonrpc_make_request("db_get_values", {"paths": paths}),
+         mjsonrpc_make_request("get_alarms", {"get_all": true}),
+         mjsonrpc_make_request("cm_exist", "{ \"name\": \"Logger\" }"),
+         mjsonrpc_make_request("cm_msg_retrieve", {"min_messages": 1}),
+         mjsonrpc_make_request("db_get_values", {"paths": equipmentStatList}),
+         mjsonrpc_make_request("db_get_values", {"paths": equipmentCommonList}),
+         mjsonrpc_make_request("db_ls", {"paths": ["equipment"]})
+      ]).then(function (rpc) {
 
-            var equipmentCommonList = equipmentList.map(function (element) {
-               return "/Equipment/" + element + "/common";
-            });
-         } else {
-            var equipmentList = null;
-            var equipmentStatList = [];
-            var equipmentCommonList = [];
+         // update the webpage
+         callback(rpc[0]["result"], rpc[1]["result"], rpc[2]["result"], rpc[3]["result"], statusGlobalSpace.cachedEquipmentList, 
+                  rpc[4]["result"]["data"], rpc[5]["result"]["data"]);
+
+         // cache the results of the "db_ls /Equipment" RPC for the next RPC
+         if(rpc[6]["result"]["data"][0] != null){
+            statusGlobalSpace.cachedEquipmentList = Object.keys(rpc[6]["result"]["data"][0]);
+         }else{
+            statusGlobalSpace.cachedEquipmentList = null;
          }
 
-         mjsonrpc_send_request([
-            mjsonrpc_make_request("db_get_values", {"paths": paths}),
-            mjsonrpc_make_request("get_alarms", {"get_all": true}),
-            mjsonrpc_make_request("cm_exist", "{ \"name\": \"Logger\" }"),
-            mjsonrpc_make_request("cm_msg_retrieve", {"min_messages": 1}),
-            mjsonrpc_make_request("db_get_values", {"paths": equipmentStatList}),
-            mjsonrpc_make_request("db_get_values", {"paths": equipmentCommonList})
-         ]).then(function (rpc) {
-
-            callback(rpc[0]["result"], rpc[1]["result"], rpc[2]["result"], rpc[3]["result"], equipmentList, rpc[4]["result"]["data"], rpc[5]["result"]["data"]);
-         }).then(function (x) {
-            // show the page only after all contents are loaded
-            document.getElementById('statusTable').style.display = "table";
-            document.getElementById('updateStatus').style.display = "none";
-         });
+      }).then(function (x) {
+         // show the page only after all contents are loaded
+         document.getElementById('statusTable').style.display = "table";
+         document.getElementById('updateStatus').style.display = "none";
       }).catch(function (error) {
          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
          document.getElementById('updateStatus').style.display = "block";
       });
-
-
    }
 
 
-   function update_periodic() {
+   // Main function called on each update
+   function update(firstTimeCalled) {
+
+      // For first call we chain JSON-RPC requests; first get equipment list: then do main JSON-RPC for rest of information.
+      if(firstTimeCalled == true){
+         
+         mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
+            if (equipmentListData.result.data[0] != null) {
+               statusGlobalSpace.cachedEquipmentList = Object.keys(equipmentListData.result.data[0]);
+            } else {
+               statusGlobalSpace.cachedEquipmentList = null;
+            }
+            
+            updateXHR();
+            
+         }).catch(function (error) {
+            document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
+            document.getElementById('updateStatus').style.display = "block";
+         });
+      }else{ // subsequent requests we just use the cached equipment list from last time to make main request
+
+         updateXHR();
+
+      }
+   }
+
+   // Slightly different set of JSON-RPC requests on initial load.
+   function update_periodic(firstTimeCalled = false) {
       clearTimeout(update_timer_id);
       var update_period = 1000;
-      update();
+      update(firstTimeCalled);
       update_timer_id = setTimeout('update_periodic()', update_period);
    }
 
-   update_periodic();
+   update_periodic(true);
 </script>
 </body>
 
