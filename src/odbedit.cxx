@@ -2603,8 +2603,9 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
             db_get_key(hDB, hKey, &key);
             printf("Waiting for key \"%s\" to be modified, abort with any key\n", key.name);
             db_get_record_size(hDB, hKey, 0, &size);
-            db_open_record(hDB, hKey, data, size, MODE_READ, key_update, NULL);
+            printf("size %d, sizeof(data) %d\n", size, (int)sizeof(data));
             key_modified = FALSE;
+            db_open_record(hDB, hKey, data, size, MODE_READ, key_update, NULL);
 
             do {
                cm_yield(1000);
@@ -2637,7 +2638,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
             
             do {
                cm_yield(1000);
-            } while (!key_modified && !ss_kbhit());
+            } while (!ss_kbhit());
             
             while (ss_kbhit())
                ss_getchar(0);

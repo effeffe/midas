@@ -967,6 +967,11 @@ static void db_update_open_record(HNDLE hDB, HNDLE hKey, KEY* xkey, INT level, v
    if (status != DB_SUCCESS)
       return;
 
+   if (!db_validate_hkey(uorp->pheader, hKey)) {
+      cm_msg(MINFO, "db_update_open_record", "Invalid hKey %d", hKey);
+      return;
+   }
+
    pkey = (KEY *) ((char *) uorp->pheader + hKey);
 
    // extra check: are we looking at the same key?
@@ -2596,6 +2601,7 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
          if (strcmp(str, "..") == 0) {
             if (pkey->parent_keylist) {
                pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+               // FIXME: validate pkeylist->parent
                pkey = (KEY *) ((char *) pheader + pkeylist->parent);
             }
             continue;
@@ -2604,6 +2610,7 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
             continue;
 
          /* check if key is in keylist */
+         // FIXME: validate pkeylist->first_key
          pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
          pprev_key = NULL;
 
@@ -2621,13 +2628,14 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
                break;
 
             pprev_key = pkey;
-            pkey = (KEY *) ((char *) pheader + pkey->next_key);
+            pkey = (KEY *) ((char *) pheader + pkey->next_key); // FIXME: pkey->next_key could be zero
          }
 
          if (i == pkeylist->num_keys) {
             /* not found: create new key */
 
             /* check parent for write access */
+            // FIXME: validate pkeylist->parent
             pkeyparent = (KEY *) ((char *) pheader + pkeylist->parent);
             if (!(pkeyparent->access_mode & MODE_WRITE) || (pkeyparent->access_mode & MODE_EXCLUSIVE)) {
                db_unlock_database(hDB);
@@ -2887,6 +2895,7 @@ INT db_delete_key1(HNDLE hDB, HNDLE hKey, INT level, BOOL follow_links)
                break;
 
             pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+            // FIXME: validate pkeylist->parent
             pkey = (KEY *) ((char *) pheader + pkeylist->parent);
          } while (TRUE);
 
@@ -2900,15 +2909,17 @@ INT db_delete_key1(HNDLE hDB, HNDLE hKey, INT level, BOOL follow_links)
          pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
 
          do {
-            pnext_key = (KEY *) (POINTER_T) pkey->next_key;
+            pnext_key = (KEY *) (POINTER_T) pkey->next_key; // FIXME: what is this casting of hKey to pointer?
 
             status = db_delete_key1(hDB, (POINTER_T) pkey - (POINTER_T) pheader, level + 1, follow_links);
 
             if (status == DB_NO_ACCESS)
                deny_delete = TRUE;
 
-            if (pnext_key)
+            if (pnext_key) {
+               // FIXME: validate pnext_key
                pkey = (KEY *) ((char *) pheader + (POINTER_T) pnext_key);
+            }
          } while (pnext_key);
       }
 
@@ -2920,6 +2931,13 @@ INT db_delete_key1(HNDLE hDB, HNDLE hKey, INT level, BOOL follow_links)
 
          if (follow_links == 100)
             cm_msg(MERROR, "db_delete_key1", "try to delete cyclic link");
+      }
+
+      /* check if hKey argument is correct */
+      if (!db_validate_hkey(pheader, hKey)) {
+         if (locked)
+            db_unlock_database(hDB);
+         return DB_INVALID_HANDLE;
       }
 
       pkey = (KEY *) ((char *) pheader + hKey);
@@ -3137,6 +3155,7 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
          if (strcmp(str, "..") == 0) {
             if (pkey->parent_keylist) {
                pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+               // FIXME: validate pkeylist->parent
                pkey = (KEY *) ((char *) pheader + pkeylist->parent);
             }
             continue;
@@ -3145,6 +3164,7 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
             continue;
 
          /* check if key is in keylist */
+         // FIXME: validate pkeylist->first_key
          pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
 
          for (i = 0; i < pkeylist->num_keys; i++) {
@@ -3159,7 +3179,7 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
             if (equal_ustring(str, pkey->name))
                break;
 
-            pkey = (KEY *) ((char *) pheader + pkey->next_key);
+            pkey = (KEY *) ((char *) pheader + pkey->next_key); // FIXME: pkey->next_key could be zero
          }
 
          if (i == pkeylist->num_keys) {
@@ -3307,6 +3327,7 @@ INT db_find_key1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
          if (strcmp(str, "..") == 0) {
             if (pkey->parent_keylist) {
                pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+               // FIXME: validate pkeylist->parent
                pkey = (KEY *) ((char *) pheader + pkeylist->parent);
             }
             continue;
@@ -3315,12 +3336,14 @@ INT db_find_key1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
             continue;
 
          /* check if key is in keylist */
+         // FIXME: validate pkeylist->first_key
          pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
 
          for (i = 0; i < pkeylist->num_keys; i++) {
             if (equal_ustring(str, pkey->name))
                break;
 
+            // FIXME: validate pkey->next_key
             pkey = (KEY *) ((char *) pheader + pkey->next_key);
          }
 
@@ -3462,6 +3485,7 @@ INT db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
          if (strcmp(str, "..") == 0) {
             if (pkey->parent_keylist) {
                pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+               // FIXME: validate pkeylist->parent
                pkey = (KEY *) ((char *) pheader + pkeylist->parent);
             }
             continue;
@@ -3470,6 +3494,7 @@ INT db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
             continue;
 
          /* check if key is in keylist */
+         // FIXME: validate pkeylist->first_key
          pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
 
          for (i = 0; i < pkeylist->num_keys; i++) {
@@ -3484,7 +3509,7 @@ INT db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
             if (equal_ustring(str, pkey->name))
                break;
 
-            pkey = (KEY *) ((char *) pheader + pkey->next_key);
+            pkey = (KEY *) ((char *) pheader + pkey->next_key); // FIXME: pkey->next_key could be zero
          }
 
          if (i == pkeylist->num_keys) {
@@ -3614,6 +3639,7 @@ INT db_find_link1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
          if (strcmp(str, "..") == 0) {
             if (pkey->parent_keylist) {
                pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+               // FIXME: validate pkeylist->parent
                pkey = (KEY *) ((char *) pheader + pkeylist->parent);
             }
             continue;
@@ -3622,6 +3648,7 @@ INT db_find_link1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
             continue;
 
          /* check if key is in keylist */
+         // FIXME: validate pkeylist->first_key
          pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
 
          for (i = 0; i < pkeylist->num_keys; i++) {
@@ -3634,7 +3661,7 @@ INT db_find_link1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
             if (equal_ustring(str, pkey->name))
                break;
 
-            pkey = (KEY *) ((char *) pheader + pkey->next_key);
+            pkey = (KEY *) ((char *) pheader + pkey->next_key); // FIXME: pkey->next_key could be zero
          }
 
          if (i == pkeylist->num_keys) {
@@ -3880,6 +3907,7 @@ INT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size)
             return DB_INVALID_HANDLE;
          }
 
+         // FIXME: validate pkeylist->parent
          pkey = (KEY *) ((char *) pheader + pkeylist->parent);
       } while (pkey->parent_keylist);
 
@@ -3956,13 +3984,19 @@ void db_fix_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *resu
             break;
       }
       if (i == pheader->max_client_index) {
-         db_get_path(hDB, hKey, str, sizeof(str));
-         strcat(str, " fixed\n");
-         strcat((char *) result, str);
+         /* check if hKey argument is correct */
+         if (!db_validate_hkey(pheader, hKey)) {
+            db_unlock_database(hDB);
+            return;
+         }
 
          /* reset notify count */
          pkey = (KEY *) ((char *) pheader + hKey);
          pkey->notify_count = 0;
+
+         db_get_path(hDB, hKey, str, sizeof(str));
+         strcat(str, " fixed\n");
+         strcat((char *) result, str);
       }
 
       db_unlock_database(hDB);
@@ -4065,7 +4099,7 @@ INT db_set_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *da
       pheader = _database[hDB - 1].database_header;
 
       /* get address from handle */
-      pkey = (KEY *) ((char *) pheader + hKey);
+      pkey = (KEY *) ((char *) pheader + hKey); // NB: hKey comes from db_find_key(), assumed to be valid
 
       /* check for write access */
       if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
@@ -4281,7 +4315,7 @@ INT db_get_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, void *data, IN
       pheader = _database[hDB - 1].database_header;
 
       /* get address from handle */
-      pkey = (KEY *) ((char *) pheader + hkey);
+      pkey = (KEY *) ((char *) pheader + hkey); // NB: hkey comes from db_find_key(), assumed to be valid
 
       /* check for correct type */
       if (pkey->type != (type)) {
@@ -4420,9 +4454,12 @@ INT db_enum_key(HNDLE hDB, HNDLE hKey, INT idx, HNDLE * subkey_handle)
          return DB_NO_MORE_SUBKEYS;
       }
 
+      // FIXME: validate pkeylist->first_key
       pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
-      for (i = 0; i < idx; i++)
+      for (i = 0; i < idx; i++) {
+         // FIXME: validate pkey->next_key
          pkey = (KEY *) ((char *) pheader + pkey->next_key);
+      }
 
       /* resolve links */
       if (pkey->type == TID_LINK) {
@@ -4541,9 +4578,12 @@ INT db_enum_link(HNDLE hDB, HNDLE hKey, INT idx, HNDLE * subkey_handle)
          return DB_NO_MORE_SUBKEYS;
       }
 
+      // FIXME: validate pkeylist->first_key
       pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
-      for (i = 0; i < idx; i++)
+      for (i = 0; i < idx; i++) {
+         // FIXME: validate pkey->next_key
          pkey = (KEY *) ((char *) pheader + pkey->next_key);
+      }
 
       *subkey_handle = (POINTER_T) pkey - (POINTER_T) pheader;
       db_unlock_database(hDB);
@@ -4619,6 +4659,7 @@ INT db_get_next_link(HNDLE hDB, HNDLE hKey, HNDLE * subkey_handle)
          if (pkey->type != TID_KEY || !descent) {
             if (pkey->next_key) {
                /* key has next key, return it */
+               // FIXME: validate pkey->next_key
                pkey = (KEY *) ((char *) pheader + pkey->next_key);
 
                if (pkey->type != TID_KEY) {
@@ -4639,6 +4680,7 @@ INT db_get_next_link(HNDLE hDB, HNDLE hKey, HNDLE * subkey_handle)
                /* key is last in list, traverse up */
                pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
 
+               // FIXME: validate pkeylist->parent
                pkey = (KEY *) ((char *) pheader + pkeylist->parent);
                descent = FALSE;
             }
@@ -4652,6 +4694,7 @@ INT db_get_next_link(HNDLE hDB, HNDLE hKey, HNDLE * subkey_handle)
                   descent = FALSE;
                } else {
                   /* get first subkey */
+                  // FIXME: validate pkeylist->first_key
                   pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
 
                   if (pkey->type != TID_KEY) {
@@ -5168,35 +5211,41 @@ INT db_reorder_key(HNDLE hDB, HNDLE hKey, INT idx)
             break;
 
          pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+         // FIXME: validate pkeylist->parent
          pkey = (KEY *) ((char *) pheader + pkeylist->parent);
       } while (TRUE);
       
       db_allow_write_locked(&_database[hDB - 1], "db_reorder_key");
       
-      pkey = (KEY *) ((char *) pheader + hKey);
+      pkey = (KEY *) ((char *) pheader + hKey); // NB: hKey is already validated
       pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
 
       /* first remove key from list */
-      pnext_key = (KEY *) (POINTER_T) pkey->next_key;
+      pnext_key = (KEY *) (POINTER_T) pkey->next_key; // FIXME: what is this pointer cast?
 
       if ((KEY *) ((char *) pheader + pkeylist->first_key) == pkey) {
          /* key is first in list */
          pkeylist->first_key = (POINTER_T) pnext_key;
       } else {
          /* find predecessor */
+         // FIXME: validate pkeylist->first_key
          pkey_tmp = (KEY *) ((char *) pheader + pkeylist->first_key);
-         while ((KEY *) ((char *) pheader + pkey_tmp->next_key) != pkey)
+         while ((KEY *) ((char *) pheader + pkey_tmp->next_key) != pkey) {
+            // FIXME: validate pkey_tmp->next_key
             pkey_tmp = (KEY *) ((char *) pheader + pkey_tmp->next_key);
+         }
          pkey_tmp->next_key = (POINTER_T) pnext_key;
       }
 
       /* add key to list at proper index */
+      // FIXME: validate pkeylist->first_key
       pkey_tmp = (KEY *) ((char *) pheader + pkeylist->first_key);
       if (idx < 0 || idx >= pkeylist->num_keys - 1) {
          /* add at bottom */
 
          /* find last key */
          for (i = 0; i < pkeylist->num_keys - 2; i++) {
+            // FIXME: validate pkey_tmp->next_key
             pkey_tmp = (KEY *) ((char *) pheader + pkey_tmp->next_key);
          }
 
@@ -5209,8 +5258,10 @@ INT db_reorder_key(HNDLE hDB, HNDLE hKey, INT idx)
             pkeylist->first_key = (POINTER_T) pkey - (POINTER_T) pheader;
          } else {
             /* add at position index */
-            for (i = 0; i < idx - 1; i++)
+            for (i = 0; i < idx - 1; i++) {
+               // FIXME: validate pkey_tmp->next_key
                pkey_tmp = (KEY *) ((char *) pheader + pkey_tmp->next_key);
+            }
 
             pkey->next_key = pkey_tmp->next_key;
             pkey_tmp->next_key = (POINTER_T) pkey - (POINTER_T) pheader;
@@ -6768,19 +6819,22 @@ INT db_set_mode(HNDLE hDB, HNDLE hKey, WORD mode, BOOL recurse)
 
       if (pkey->type == TID_KEY && pkeylist->first_key && recurse) {
          /* first recurse subtree */
+         // FIXME: validate pkeylist->first_key
          pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
 
          do {
-            pnext_key = (KEY *) (POINTER_T) pkey->next_key;
+            pnext_key = (KEY *) (POINTER_T) pkey->next_key; // FIXME: what is this pointer cast?
 
             db_set_mode(hDB, (POINTER_T) pkey - (POINTER_T) pheader, mode, recurse + 1);
 
-            if (pnext_key)
+            if (pnext_key) {
+               // FIXME: validate pnext_key
                pkey = (KEY *) ((char *) pheader + (POINTER_T) pnext_key);
+            }
          } while (pnext_key);
       }
 
-      pkey = (KEY *) ((char *) pheader + hKey);
+      pkey = (KEY *) ((char *) pheader + hKey); // NB: hKey is already validated
 
       /* resolve links */
       if (pkey->type == TID_LINK) {
@@ -6791,7 +6845,7 @@ INT db_set_mode(HNDLE hDB, HNDLE hKey, WORD mode, BOOL recurse)
          if (hKeyLink)
             db_set_mode(hDB, hKeyLink, mode, recurse > 0);
          pheader = _database[hDB - 1].database_header;
-         pkey = (KEY *) ((char *) pheader + hKey);
+         pkey = (KEY *) ((char *) pheader + hKey); // NB: hKey is already validated
       }
 
       /* now set mode */
@@ -9729,6 +9783,7 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
    KEYLIST *pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
    if (!pkeylist->first_key)
       return;
+   // FIXME: validate pkeylist->first_key
    pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
 
    /* first browse through this level */
@@ -9850,6 +9905,7 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
       if (!pkey->next_key)
          break;
 
+      // FIXME: validate pkey->next_key
       pkey = (KEY *) ((char *) pheader + pkey->next_key);
    } while (TRUE);
 }
@@ -10794,6 +10850,11 @@ INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
 
    pheader = _database[hDB - 1].database_header;
    hKey = hKeyMod;
+
+   /* check if hKey argument is correct */
+   if (!db_validate_hkey(pheader, hKey)) {
+      return DB_INVALID_HANDLE;
+   }
    
    /* check if key or parent has notify_flag set */
    pkey = (KEY *) ((char *) pheader + hKey);
@@ -10816,6 +10877,7 @@ INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
          return DB_SUCCESS;
 
       pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+      // FIXME: validate pkeylist->parent
       pkey = (KEY *) ((char *) pheader + pkeylist->parent);
       hKey = (POINTER_T) pkey - (POINTER_T) pheader;
    } while (TRUE);
