@@ -2595,7 +2595,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
          if (equal_ustring(str, "/")) {
             status = DB_SUCCESS;
-            hKey = 0;
+            status = db_find_link(hDB, 0, "/", &hKey);
          } else
             status = db_find_link(hDB, 0, str, &hKey);
 
@@ -2603,9 +2603,9 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
             db_get_key(hDB, hKey, &key);
             printf("Waiting for key \"%s\" to be modified, abort with any key\n", key.name);
             db_get_record_size(hDB, hKey, 0, &size);
-            printf("size %d, sizeof(data) %d\n", size, (int)sizeof(data));
+            char* buf = (char*)malloc(size);
             key_modified = FALSE;
-            db_open_record(hDB, hKey, data, size, MODE_READ, key_update, NULL);
+            db_open_record(hDB, hKey, buf, size, MODE_READ, key_update, NULL);
 
             do {
                cm_yield(1000);
@@ -2615,6 +2615,10 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                ss_getchar(0);
             
             db_close_record(hDB, hKey);
+            if (buf) {
+               free(buf);
+               buf = NULL;
+            }
             if (i == '!')
                printf("Wait aborted.\n");
             else
