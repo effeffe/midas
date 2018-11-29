@@ -105,7 +105,7 @@ INT iseg_hv_mpod_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd,
    db_open_record(hDB, hsubkey, info->settings.chn_address, size, MODE_READ, NULL, info);
 
    // open device on SNMP
-   if (!SnmpInit()) {
+   if (!SnmpInit(channels)) {
       cm_msg(MERROR, "iseg_hv_mpod_init", "Cannot initialize SNMP");
       return FE_ERR_HW;
    }
@@ -498,6 +498,14 @@ INT iseg_hv_mpod(INT cmd, ...)
 
    case CMD_START:
    case CMD_STOP:
+   case CMD_GET_TEMPERATURE:
+      break;
+
+   case CMD_GET_STATUS:
+      info = va_arg(argptr, ISEG_HV_MPOD_INFO *);
+      channel = va_arg(argptr, INT);
+      pivalue = va_arg(argptr, INT *);
+      status = iseg_hv_mpod_get_trip(info, channel, pivalue);
       break;
 
    default:
