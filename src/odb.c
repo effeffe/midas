@@ -422,90 +422,138 @@ char *strcomb(const char **list)
 }
 
 /*------------------------------------------------------------------*/
-INT print_key_info(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
+
+struct print_key_info_buf
 {
+   int alloc_size;
+   int used;
+   char* buf;
+};
+
+static void add_to_buf(struct print_key_info_buf* buf, const char* s)
+{
+   int len = strlen(s);
+   if (buf->used + len + 10 > buf->alloc_size) {
+      int new_size = 1024 + 2*buf->alloc_size + len;
+      //printf("realloc %d->%d, used %d, adding %d\n", buf->alloc_size, new_size, buf->used, len);
+      buf->buf = realloc(buf->buf, new_size);
+      assert(buf->buf != NULL);
+      buf->alloc_size = new_size;
+   }
+
+   memcpy(buf->buf + buf->used, s, len);
+   buf->used += len;
+   buf->buf[buf->used] = 0; // zero-terminate the string
+}
+
+static INT print_key_info(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
+{
+   struct print_key_info_buf* buf = info;
    int i;
-   char *p;
 
-   i = hDB;
-   p = (char *) info;
+   char str[256];
 
-   sprintf(p + strlen(p), "%08X  %08X  %04X    ",
+   sprintf(str, "%08X  %08X  %04X    ",
            (int) (hKey - sizeof(DATABASE_HEADER)),
            (int) (pkey->data - sizeof(DATABASE_HEADER)), (int) pkey->total_size);
 
-   for (i = 0; i < level; i++)
-      sprintf(p + strlen(p), "  ");
+   assert(strlen(str)+10 < sizeof(str));
 
-   sprintf(p + strlen(p), "%s\n", pkey->name);
+   for (i = 0; i < level; i++)
+      strcat(str, "  ");
+
+   assert(strlen(str)+10 < sizeof(str));
+
+   strcat(str, pkey->name);
+   strcat(str, "\n");
+
+   assert(strlen(str)+10 < sizeof(str));
+
+   //printf("str [%s]\n", str);
+
+   add_to_buf(buf, str);
 
    return SUCCESS;
 }
 
-INT db_show_mem(HNDLE hDB, char *result, INT buf_size, BOOL verbose)
+INT db_show_mem(HNDLE hDB, char **result, BOOL verbose)
 {
    DATABASE_HEADER *pheader;
    INT total_size_key, total_size_data;
    FREE_DESCRIP *pfree;
 
-   /* avoid compiler warning */
-   total_size_data = buf_size;
+   struct print_key_info_buf buf;
+   buf.buf = NULL;
+   buf.used = 0;
+   buf.alloc_size = 0;
 
    db_lock_database(hDB);
 
    pheader = _database[hDB - 1].database_header;
 
-   result[0] = 0;
-   sprintf(result + strlen(result), "Database header size is 0x%04X, all following values are offset by this!\n", (int)sizeof(DATABASE_HEADER));
-   sprintf(result + strlen(result), "Key area  0x00000000 - 0x%08X, size %d bytes\n",  pheader->key_size - 1, pheader->key_size);
-   sprintf(result + strlen(result), "Data area 0x%08X - 0x%08X, size %d bytes\n\n",    pheader->key_size, pheader->key_size + pheader->data_size, pheader->data_size);
+   char str[256];
 
-   strcat(result, "Keylist:\n");
-   strcat(result, "--------\n");
+   sprintf(str, "Database header size is 0x%04X, all following values are offset by this!\n", (int)sizeof(DATABASE_HEADER));
+   add_to_buf(&buf, str);
+   sprintf(str, "Key area  0x00000000 - 0x%08X, size %d bytes\n",  pheader->key_size - 1, pheader->key_size);
+   add_to_buf(&buf, str);
+   sprintf(str, "Data area 0x%08X - 0x%08X, size %d bytes\n\n",    pheader->key_size, pheader->key_size + pheader->data_size, pheader->data_size);
+   add_to_buf(&buf, str);
+
+   add_to_buf(&buf, "Keylist:\n");
+   add_to_buf(&buf, "--------\n");
    total_size_key = 0;
    pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_key);
 
    while ((POINTER_T) pfree != (POINTER_T) pheader) {
       total_size_key += pfree->size;
-      sprintf(result + strlen(result),
-              "Free block at 0x%08X, size 0x%08X, next 0x%08X\n",
+      sprintf(str, "Free block at 0x%08X, size 0x%08X, next 0x%08X\n",
               (int) ((POINTER_T) pfree - (POINTER_T) pheader - sizeof(DATABASE_HEADER)),
               pfree->size, pfree->next_free ? (int) (pfree->next_free - sizeof(DATABASE_HEADER)) : 0);
+      add_to_buf(&buf, str);
       pfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
    }
 
-   sprintf(result + strlen(result), "\nFree Key area: %d bytes out of %d bytes\n", total_size_key, pheader->key_size);
-
-   strcat(result, "\nData:\n");
-   strcat(result, "-----\n");
+   sprintf(str, "\nFree Key area: %d bytes out of %d bytes\n", total_size_key, pheader->key_size);
+   add_to_buf(&buf, str);
+   
+   add_to_buf(&buf, "\nData:\n");
+   add_to_buf(&buf, "-----\n");
    total_size_data = 0;
    pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_data);
 
    while ((POINTER_T) pfree != (POINTER_T) pheader) {
       total_size_data += pfree->size;
-      sprintf(result + strlen(result),
-              "Free block at 0x%08X, size 0x%08X, next 0x%08X\n",
+      sprintf(str, "Free block at 0x%08X, size 0x%08X, next 0x%08X\n",
               (int) ((POINTER_T) pfree - (POINTER_T) pheader - sizeof(DATABASE_HEADER)),
               pfree->size, pfree->next_free ? (int) (pfree->next_free - sizeof(DATABASE_HEADER)) : 0);
+      add_to_buf(&buf, str);
       pfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
    }
 
-   sprintf(result + strlen(result), "\nFree Data area: %d bytes out of %d bytes\n", total_size_data, pheader->data_size);
+   sprintf(str, "\nFree Data area: %d bytes out of %d bytes\n", total_size_data, pheader->data_size);
+   add_to_buf(&buf, str);
 
-   sprintf(result + strlen(result),
-           "\nFree: %1d (%1.1lf%%) keylist, %1d (%1.1lf%%) data\n",
+   sprintf(str, "\nFree: %1d (%1.1lf%%) keylist, %1d (%1.1lf%%) data\n",
            total_size_key,
            100 * (double) total_size_key / pheader->key_size,
            total_size_data, 100 * (double) total_size_data / pheader->data_size);
+   add_to_buf(&buf, str);
 
    if (verbose) {
-      sprintf(result + strlen(result), "\n\n");
-      sprintf(result + strlen(result), "Key       Data      Size\n");
-      sprintf(result + strlen(result), "------------------------\n");
-      db_scan_tree(hDB, pheader->root_key, 0, print_key_info, result);
+      add_to_buf(&buf, "\n\n");
+      add_to_buf(&buf, "Key       Data      Size\n");
+      add_to_buf(&buf, "------------------------\n");
+      db_scan_tree(hDB, pheader->root_key, 0, print_key_info, &buf);
    }
 
    db_unlock_database(hDB);
+
+   if (result) {
+      *result = buf.buf;
+   } else {
+      free(buf.buf);
+   }
 
    return DB_SUCCESS;
 }

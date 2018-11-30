@@ -2207,8 +2207,12 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          if (rpc_is_remote())
             printf("This function works only locally\n");
          else {
-            db_show_mem(hDB, data, sizeof(data), param[1][0]);
-            puts(data);
+            char* buf = NULL;
+            db_show_mem(hDB, &buf, param[1][0]);
+            if (buf) {
+               puts(buf);
+               free(buf);
+            }
          }
       }
 
