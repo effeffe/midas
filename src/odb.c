@@ -69,6 +69,109 @@ INT db_save_xml_key(HNDLE hDB, HNDLE hKey, INT level, MXML_WRITER * writer);
 
 /*------------------------------------------------------------------*/
 
+#ifdef LOCAL_ROUTINES
+typedef struct db_err_msg_struct db_err_msg;
+static void db_msg(db_err_msg** msg, INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) MATTRPRINTF(6,7);
+static void db_print_msg(const db_err_msg* msg);
+static void db_flush_msg(db_err_msg** msg);
+static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const char *key_name, HNDLE * subhKey, db_err_msg** msg);
+static INT db_get_path_locked(const DATABASE_HEADER* pheader, HNDLE hKey, char *path, INT buf_size);
+#endif // LOCAL_ROUTINES
+
+/*------------------------------------------------------------------*/
+
+/********************************************************************\
+*                                                                    *
+*            db_msg_xxx error message handling                       *
+*                                                                    *
+\********************************************************************/
+
+struct db_err_msg_struct
+{
+   db_err_msg *next;
+   int message_type;
+   char filename[256];
+   int line;
+   char routine[256];
+   char text[1];
+};
+
+static db_err_msg* _last_error_message = NULL; // for debuging core dumps
+
+void db_print_msg(const db_err_msg* msg)
+{
+   while (msg != NULL) {
+      printf("db_err_msg: %p, next %p, type %d, file \'%s:%d\', function \'%s\': %s\n", msg, msg->next, msg->message_type, msg->filename, msg->line, msg->routine, msg->text);
+      msg = msg->next;
+   }
+}
+
+void db_msg(db_err_msg** msgp, INT message_type, const char *filename, INT line, const char *routine, const char *format, ...)
+{
+   va_list argptr;
+   char message[1000];
+
+   /* print argument list into message */
+   va_start(argptr, format);
+   vsnprintf(message, sizeof(message)-1, format, argptr);
+   va_end(argptr);
+   message[sizeof(message)-1] = 0; // ensure string is NUL-terminated
+
+   int len = strlen(message)+1;
+   int size = sizeof(db_err_msg) + len;
+
+   db_err_msg* msg = (db_err_msg*)malloc(size);
+
+   msg->next = NULL;
+   msg->message_type = message_type;
+   strlcpy(msg->filename, filename, sizeof(msg->filename));
+   msg->line = line;
+   strlcpy(msg->routine, routine, sizeof(msg->routine));
+   memcpy(&msg->text[0], message, len);
+
+   _last_error_message = msg;
+
+   //printf("new message:\n");
+   //db_print_msg(msg);
+
+   if (*msgp == NULL) {
+      *msgp = msg;
+      return;
+   }
+
+   // append new message to the end of the list
+   db_err_msg *m = (*msgp);
+   while (m->next != NULL) {
+      m = m->next;
+   }
+   assert(m->next == NULL);
+   m->next = msg;
+
+   //printf("Message list with added new message:\n");
+   //db_print_msg(*msgp);
+   return;
+}
+
+void db_flush_msg(db_err_msg** msgp)
+{
+   db_err_msg *msg = *msgp;
+   *msgp = NULL;
+
+   if (0) {
+      printf("db_flush_msg: %p\n", msg);
+      db_print_msg(msg);
+   }
+
+   while (msg != NULL) {
+      cm_msg(msg->message_type, msg->filename, msg->line, msg->routine, "%s", msg->text);
+      db_err_msg* next = msg->next;
+      free(msg);
+      msg = next;
+   }
+}
+
+/*------------------------------------------------------------------*/
+
 /********************************************************************\
 *                                                                    *
 *            Shared Memory Allocation                                *
@@ -727,7 +830,7 @@ static int db_validate_name(const char* name, int maybe_path, const char* caller
 }
 
 /*------------------------------------------------------------------*/
-static int db_validate_key_offset(DATABASE_HEADER * pheader, int offset)
+static int db_validate_key_offset(const DATABASE_HEADER * pheader, int offset)
 /* check if key offset lies in valid range */
 {
    if (offset != 0 && offset < (int) sizeof(DATABASE_HEADER))
@@ -739,7 +842,7 @@ static int db_validate_key_offset(DATABASE_HEADER * pheader, int offset)
    return 1;
 }
 
-static int db_validate_data_offset(DATABASE_HEADER * pheader, int offset)
+static int db_validate_data_offset(const DATABASE_HEADER * pheader, int offset)
 /* check if data offset lies in valid range */
 {
    if (offset != 0 && offset < (int) sizeof(DATABASE_HEADER))
@@ -751,7 +854,7 @@ static int db_validate_data_offset(DATABASE_HEADER * pheader, int offset)
    return 1;
 }
 
-static int db_validate_hkey(DATABASE_HEADER * pheader, HNDLE hKey)
+static int db_validate_hkey(const DATABASE_HEADER * pheader, HNDLE hKey)
 {
    if (hKey == 0) {
       cm_msg(MERROR, "db_validate_hkey", "Error: invalid zero hkey %d", hKey);
@@ -764,7 +867,7 @@ static int db_validate_hkey(DATABASE_HEADER * pheader, HNDLE hKey)
    return 1;
 }
 
-static int db_validate_pkey(DATABASE_HEADER * pheader, KEY* pkey)
+static int db_validate_pkey(const DATABASE_HEADER * pheader, const KEY* pkey)
 {
    /* check key type */
    if (pkey->type <= 0 || pkey->type >= TID_LAST) {
@@ -3080,6 +3183,153 @@ INT db_delete_key(HNDLE hDB, HNDLE hKey, BOOL follow_links)
    return db_delete_key1(hDB, hKey, 0, follow_links);
 }
 
+#ifdef LOCAL_ROUTINES
+static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const char *key_name, HNDLE * subhKey, db_err_msg **msg)
+{
+   BOOL hKey_is_root_key = FALSE;
+
+   //db_msg(msg, MINFO, "db_find_key", "db_find_key(%d, \'%s\')", hKey, key_name);
+
+   if (!hKey) {
+      hKey_is_root_key = TRUE;
+      hKey = pheader->root_key;
+   }
+
+   /* check if hKey argument is correct */
+   if (!db_validate_hkey(pheader, hKey)) {
+      *subhKey = 0;
+      return DB_INVALID_HANDLE;
+   }
+
+   const KEY* pkey = (const KEY *) ((char *) pheader + hKey);
+
+   if (pkey->type < 1 || pkey->type >= TID_LAST) {
+      *subhKey = 0;
+      int xtid = pkey->type;
+      if (hKey_is_root_key) {
+         db_msg(msg, MERROR, "db_find_key", "root_key hkey %d invalid key type %d, database root directory is corrupted", hKey, xtid);
+         return DB_CORRUPTED;
+      } else {
+         char str[MAX_ODB_PATH];
+         db_get_path_locked(pheader, hKey, str, sizeof(str));
+         db_msg(msg, MERROR, "db_find_key", "hkey %d path \'%s\' invalid key type %d", hKey, str, xtid);
+      }
+      *subhKey = 0;
+      return DB_NO_KEY;
+   }
+
+   if (pkey->type != TID_KEY) {
+      int xtid = pkey->type;
+      char str[MAX_ODB_PATH];
+      db_get_path_locked(pheader, hKey, str, sizeof(str));
+      *subhKey = 0;
+      db_msg(msg, MERROR, "db_find_key", "hkey %d path \"%s\" tid %d is not a directory", hKey, str, xtid);
+      return DB_NO_KEY;
+   }
+   
+   const KEYLIST *pkeylist = (const KEYLIST *) ((char *) pheader + pkey->data);
+
+   if (key_name[0] == 0 || strcmp(key_name, "/") == 0) {
+      if (!(pkey->access_mode & MODE_READ)) {
+         *subhKey = 0;
+         return DB_NO_ACCESS;
+      }
+
+      *subhKey = (POINTER_T) pkey - (POINTER_T) pheader;
+
+      return DB_SUCCESS;
+   }
+
+   const char *pkey_name = key_name;
+   do {
+      char str[MAX_ODB_PATH];
+         
+      /* extract single subkey from key_name */
+      pkey_name = extract_key(pkey_name, str, sizeof(str));
+
+      /* strip trailing '[n]' */
+      if (strchr(str, '[') && str[strlen(str) - 1] == ']')
+         *strchr(str, '[') = 0;
+
+      /* check if parent or current directory */
+      if (strcmp(str, "..") == 0) {
+         if (pkey->parent_keylist) {
+            pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+            // FIXME: validate pkeylist->parent
+            pkey = (KEY *) ((char *) pheader + pkeylist->parent);
+         }
+         continue;
+      }
+      if (strcmp(str, ".") == 0)
+         continue;
+
+      /* check if key is in keylist */
+      // FIXME: validate pkeylist->first_key
+      pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
+
+      int i;
+      for (i = 0; i < pkeylist->num_keys; i++) {
+         if (pkey->name[0] == 0 || !db_validate_key_offset(pheader, pkey->next_key)) {
+            int pkey_next_key = pkey->next_key;
+            db_msg(msg, MERROR, "db_find_key", "Error: database corruption, key \"%s\", next_key 0x%08X is invalid", key_name, pkey_next_key - (int)sizeof(DATABASE_HEADER));
+            *subhKey = 0;
+            return DB_CORRUPTED;
+         }
+
+         if (equal_ustring(str, pkey->name))
+            break;
+
+         pkey = (KEY *) ((char *) pheader + pkey->next_key); // FIXME: pkey->next_key could be zero
+      }
+
+      if (i == pkeylist->num_keys) {
+         *subhKey = 0;
+         return DB_NO_KEY;
+      }
+
+      /* resolve links */
+      if (pkey->type == TID_LINK) {
+         /* copy destination, strip '/' */
+         strlcpy(str, (char *) pheader + pkey->data, sizeof(str));
+         if (str[strlen(str) - 1] == '/')
+            str[strlen(str) - 1] = 0;
+
+         /* if link is pointer to array index, return link instead of destination */
+         if (str[strlen(str) - 1] == ']')
+            break;
+
+         /* append rest of key name if existing */
+         if (pkey_name[0]) {
+            strlcat(str, pkey_name, sizeof(str));
+            return db_find_key_locked(pheader, 0, str, subhKey, msg);
+         } else {
+            /* if last key in chain is a link, return its destination */
+            int status = db_find_key_locked(pheader, 0, str, subhKey, msg);
+            if (status == DB_NO_KEY)
+               return DB_INVALID_LINK;
+            return status;
+         }
+      }
+
+      /* key found: check if last in chain */
+      if (*pkey_name == '/') {
+         if (pkey->type != TID_KEY) {
+            *subhKey = 0;
+            return DB_NO_KEY;
+         }
+      }
+
+      /* descend one level */
+      pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
+
+   } while (*pkey_name == '/' && *(pkey_name + 1));
+
+   *subhKey = (POINTER_T) pkey - (POINTER_T) pheader;
+
+   return DB_SUCCESS;
+}
+#endif /* LOCAL_ROUTINES */
+
 /********************************************************************/
 /**
 Returns key handle for a key with a specific name.
@@ -3113,10 +3363,7 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
 #ifdef LOCAL_ROUTINES
    {
       DATABASE_HEADER *pheader;
-      KEYLIST *pkeylist;
-      KEY *pkey;
-      const char *pkey_name;
-      INT i, status;
+      INT status;
 
       *subhKey = 0;
 
@@ -3130,157 +3377,22 @@ INT db_find_key(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
          return DB_INVALID_HANDLE;
       }
 
+      db_err_msg *msg = NULL;
+
       db_lock_database(hDB);
 
       pheader = _database[hDB - 1].database_header;
-
-      BOOL hKey_is_root_key = FALSE;
-
-      if (!hKey) {
-         hKey_is_root_key = TRUE;
-         hKey = pheader->root_key;
-      }
-
-      /* check if hKey argument is correct */
-      if (!db_validate_hkey(pheader, hKey)) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
-
-      pkey = (KEY *) ((char *) pheader + hKey);
-
-      if (pkey->type < 1 || pkey->type >= TID_LAST) {
-         *subhKey = 0;
-         int xtid = pkey->type;
-         db_unlock_database(hDB);
-         if (hKey_is_root_key) {
-            cm_msg(MERROR, "db_find_key", "root_key hkey %d invalid key type %d, database root directory is corrupted", hKey, xtid);
-            return DB_CORRUPTED;
-         } else {
-            char str[MAX_ODB_PATH];
-            db_get_path(hDB, hKey, str, sizeof(str));
-            cm_msg(MERROR, "db_find_key", "hkey %d path \'%s\' invalid key type %d", hKey, str, xtid);
-         }
-         return DB_NO_KEY;
-      }
-
-      if (pkey->type != TID_KEY) {
-         int xtid = pkey->type;
-         db_unlock_database(hDB);
-         char str[MAX_ODB_PATH];
-         db_get_path(hDB, hKey, str, sizeof(str));
-         *subhKey = 0;
-         cm_msg(MERROR, "db_find_key", "hkey %d path \"%s\" tid %d is not a directory", hKey, str, xtid);
-         return DB_NO_KEY;
-      }
-      pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
-
-      if (key_name[0] == 0 || strcmp(key_name, "/") == 0) {
-         if (!(pkey->access_mode & MODE_READ)) {
-            *subhKey = 0;
-            db_unlock_database(hDB);
-            return DB_NO_ACCESS;
-         }
-
-         *subhKey = (POINTER_T) pkey - (POINTER_T) pheader;
-
-         db_unlock_database(hDB);
-         return DB_SUCCESS;
-      }
-
-      pkey_name = key_name;
-      do {
-         char str[MAX_ODB_PATH];
-         
-         /* extract single subkey from key_name */
-         pkey_name = extract_key(pkey_name, str, sizeof(str));
-
-         /* strip trailing '[n]' */
-         if (strchr(str, '[') && str[strlen(str) - 1] == ']')
-            *strchr(str, '[') = 0;
-
-         /* check if parent or current directory */
-         if (strcmp(str, "..") == 0) {
-            if (pkey->parent_keylist) {
-               pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
-               // FIXME: validate pkeylist->parent
-               pkey = (KEY *) ((char *) pheader + pkeylist->parent);
-            }
-            continue;
-         }
-         if (strcmp(str, ".") == 0)
-            continue;
-
-         /* check if key is in keylist */
-         // FIXME: validate pkeylist->first_key
-         pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
-
-         for (i = 0; i < pkeylist->num_keys; i++) {
-            if (pkey->name[0] == 0 || !db_validate_key_offset(pheader, pkey->next_key)) {
-               int pkey_next_key = pkey->next_key;
-               db_unlock_database(hDB);
-               cm_msg(MERROR, "db_find_key", "Error: database corruption, key \"%s\", next_key 0x%08X is invalid", key_name, pkey_next_key - (int)sizeof(DATABASE_HEADER));
-               *subhKey = 0;
-               return DB_CORRUPTED;
-            }
-
-            if (equal_ustring(str, pkey->name))
-               break;
-
-            pkey = (KEY *) ((char *) pheader + pkey->next_key); // FIXME: pkey->next_key could be zero
-         }
-
-         if (i == pkeylist->num_keys) {
-            *subhKey = 0;
-            db_unlock_database(hDB);
-            return DB_NO_KEY;
-         }
-
-         /* resolve links */
-         if (pkey->type == TID_LINK) {
-            /* copy destination, strip '/' */
-            strlcpy(str, (char *) pheader + pkey->data, sizeof(str));
-            if (str[strlen(str) - 1] == '/')
-               str[strlen(str) - 1] = 0;
-
-            /* if link is pointer to array index, return link instead of destination */
-            if (str[strlen(str) - 1] == ']')
-               break;
-
-            /* append rest of key name if existing */
-            if (pkey_name[0]) {
-               strlcat(str, pkey_name, sizeof(str));
-               db_unlock_database(hDB);
-               return db_find_key(hDB, 0, str, subhKey);
-            } else {
-               /* if last key in chain is a link, return its destination */
-               db_unlock_database(hDB);
-               status = db_find_key(hDB, 0, str, subhKey);
-               if (status == DB_NO_KEY)
-                  return DB_INVALID_LINK;
-               return status;
-            }
-         }
-
-         /* key found: check if last in chain */
-         if (*pkey_name == '/') {
-            if (pkey->type != TID_KEY) {
-               *subhKey = 0;
-               db_unlock_database(hDB);
-               return DB_NO_KEY;
-            }
-         }
-
-         /* descend one level */
-         pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
-
-      } while (*pkey_name == '/' && *(pkey_name + 1));
-
-      *subhKey = (POINTER_T) pkey - (POINTER_T) pheader;
-
+      
+      status = db_find_key_locked(pheader, hKey, key_name, subhKey, &msg);
+   
       db_unlock_database(hDB);
+
+      if (msg)
+         db_flush_msg(&msg);
+
+      return status;
    }
-#endif                          /* LOCAL_ROUTINES */
+#endif /* LOCAL_ROUTINES */
 
    return DB_SUCCESS;
 }
@@ -3858,6 +3970,63 @@ INT db_scan_tree_link(HNDLE hDB, HNDLE hKey, INT level, void (*callback) (HNDLE,
    return DB_SUCCESS;
 }
 
+#ifdef LOCAL_ROUTINES
+/*------------------------------------------------------------------*/
+static INT db_get_path_locked(const DATABASE_HEADER* pheader, HNDLE hKey, char *path, INT buf_size)
+{
+   if (!hKey)
+      hKey = pheader->root_key;
+
+   /* check if hKey argument is correct */
+   if (!db_validate_hkey(pheader, hKey)) {
+      return DB_INVALID_HANDLE;
+   }
+
+   const KEY* pkey = (const KEY *) ((char *) pheader + hKey);
+
+   if (hKey == pheader->root_key) {
+      strcpy(path, "/");
+      return DB_SUCCESS;
+   }
+
+   *path = 0;
+   do {
+      if (!db_validate_pkey(pheader, pkey)) {
+         return DB_INVALID_HANDLE;
+      }
+
+      char str[MAX_ODB_PATH];
+
+      /* add key name in front of path */
+      strcpy(str, path);
+      strcpy(path, "/");
+      strcat(path, pkey->name);
+
+      if (strlen(path) + strlen(str) + 1 > (DWORD) buf_size) {
+         *path = 0;
+         return DB_NO_MEMORY;
+      }
+      strcat(path, str);
+
+      if (!db_validate_hkey(pheader, pkey->parent_keylist)) {
+         return DB_INVALID_HANDLE;
+      }
+
+      /* find parent key */
+      const KEYLIST* pkeylist = (const KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+
+      if (!db_validate_hkey(pheader, pkeylist->parent)) {
+         return DB_INVALID_HANDLE;
+      }
+
+      // FIXME: validate pkeylist->parent
+      pkey = (const KEY *) ((char *) pheader + pkeylist->parent);
+   } while (pkey->parent_keylist);
+
+   return DB_SUCCESS;
+}
+#endif /* LOCAL_ROUTINES */
+
 /*------------------------------------------------------------------*/
 INT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size)
 /********************************************************************\
@@ -3889,9 +4058,7 @@ INT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size)
 #ifdef LOCAL_ROUTINES
    {
       DATABASE_HEADER *pheader;
-      KEYLIST *pkeylist;
-      KEY *pkey;
-      char str[MAX_ODB_PATH];
+      INT status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_get_path", "invalid database handle");
@@ -3906,62 +4073,14 @@ INT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size)
       db_lock_database(hDB);
 
       pheader = _database[hDB - 1].database_header;
-      if (!hKey)
-         hKey = pheader->root_key;
 
-      /* check if hKey argument is correct */
-      if (!db_validate_hkey(pheader, hKey)) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
-
-      pkey = (KEY *) ((char *) pheader + hKey);
-
-      if (hKey == pheader->root_key) {
-         strcpy(path, "/");
-         db_unlock_database(hDB);
-         return DB_SUCCESS;
-      }
-
-      *path = 0;
-      do {
-         if (!db_validate_pkey(pheader, pkey)) {
-            db_unlock_database(hDB);
-            return DB_INVALID_HANDLE;
-         }
-
-         /* add key name in front of path */
-         strcpy(str, path);
-         strcpy(path, "/");
-         strcat(path, pkey->name);
-
-         if (strlen(path) + strlen(str) + 1 > (DWORD) buf_size) {
-            *path = 0;
-            db_unlock_database(hDB);
-            return DB_NO_MEMORY;
-         }
-         strcat(path, str);
-
-         if (!db_validate_hkey(pheader, pkey->parent_keylist)) {
-            db_unlock_database(hDB);
-            return DB_INVALID_HANDLE;
-         }
-
-         /* find parent key */
-         pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
-
-         if (!db_validate_hkey(pheader, pkeylist->parent)) {
-            db_unlock_database(hDB);
-            return DB_INVALID_HANDLE;
-         }
-
-         // FIXME: validate pkeylist->parent
-         pkey = (KEY *) ((char *) pheader + pkeylist->parent);
-      } while (pkey->parent_keylist);
+      status = db_get_path_locked(pheader, hKey, path, buf_size);
 
       db_unlock_database(hDB);
+
+      return status;
    }
-#endif                          /* LOCAL_ROUTINES */
+#endif /* LOCAL_ROUTINES */
 
    return DB_SUCCESS;
 }
@@ -4765,6 +4884,51 @@ INT db_get_next_link(HNDLE hDB, HNDLE hKey, HNDLE * subkey_handle)
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
 /********************************************************************/
+
+#ifdef LOCAL_ROUTINES
+
+static INT db_get_key_locked(const DATABASE_HEADER* pheader, HNDLE hKey, KEY * key, db_err_msg** msg)
+{
+   if (!hKey)
+      hKey = pheader->root_key;
+
+   /* check if hKey argument is correct */
+   if (!db_validate_hkey(pheader, hKey)) {
+      return DB_INVALID_HANDLE;
+   }
+   
+   const KEY* pkey = (const KEY *) ((char *) pheader + hKey);
+   
+   if (pkey->type < 1 || pkey->type >= TID_LAST) {
+      int pkey_type = pkey->type;
+      db_msg(msg, MERROR, "db_get_key", "invalid key type %d", pkey_type);
+      return DB_INVALID_HANDLE;
+   }
+   
+   /* check for link to array index */
+   if (pkey->type == TID_LINK) {
+      char link_name[256];
+      strlcpy(link_name, (char *) pheader + pkey->data, sizeof(link_name));
+      if (strlen(link_name) > 0 && link_name[strlen(link_name) - 1] == ']') {
+         if (strchr(link_name, '[') == NULL)
+            return DB_INVALID_LINK;
+
+         HNDLE hkeylink;
+         if (db_find_key_locked(pheader, 0, link_name, &hkeylink, msg) != DB_SUCCESS)
+            return DB_INVALID_LINK;
+         int status = db_get_key_locked(pheader, hkeylink, key, msg);
+         key->num_values = 1;        // fake number of values
+         return status;
+      }
+   }
+   
+   memcpy(key, pkey, sizeof(KEY));
+
+   return DB_SUCCESS;
+}
+#endif /* LOCAL_ROUTINES */
+
+/********************************************************************/
 /**
 Get key structure from a handle.
 
@@ -4809,9 +4973,7 @@ INT db_get_key(HNDLE hDB, HNDLE hKey, KEY * key)
 #ifdef LOCAL_ROUTINES
    {
       DATABASE_HEADER *pheader;
-      KEY *pkey;
-      HNDLE hkeylink;
-      char link_name[256];
+      int status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_get_key", "invalid database handle");
@@ -4828,47 +4990,20 @@ INT db_get_key(HNDLE hDB, HNDLE hKey, KEY * key)
          return DB_INVALID_HANDLE;
       }
 
+      db_err_msg *msg = NULL;
+
       db_lock_database(hDB);
 
       pheader = _database[hDB - 1].database_header;
 
-      if (!hKey)
-         hKey = pheader->root_key;
-
-      /* check if hKey argument is correct */
-      if (!db_validate_hkey(pheader, hKey)) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
-
-      pkey = (KEY *) ((char *) pheader + hKey);
-
-      if (pkey->type < 1 || pkey->type >= TID_LAST) {
-         int pkey_type = pkey->type;
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_key", "invalid key type %d", pkey_type);
-         return DB_INVALID_HANDLE;
-      }
-
-      /* check for link to array index */
-      if (pkey->type == TID_LINK) {
-         strlcpy(link_name, (char *) pheader + pkey->data, sizeof(link_name));
-         if (strlen(link_name) > 0 && link_name[strlen(link_name) - 1] == ']') {
-            db_unlock_database(hDB);
-            if (strchr(link_name, '[') == NULL)
-               return DB_INVALID_LINK;
-            if (db_find_key(hDB, 0, link_name, &hkeylink) != DB_SUCCESS)
-               return DB_INVALID_LINK;
-            db_get_key(hDB, hkeylink, key);
-            key->num_values = 1;        // fake number of values
-            return DB_SUCCESS;
-         }
-      }
-
-      memcpy(key, pkey, sizeof(KEY));
+      status = db_get_key_locked(pheader, hKey, key, &msg);
 
       db_unlock_database(hDB);
 
+      if (msg)
+         db_flush_msg(&msg);
+
+      return status;
    }
 #endif                          /* LOCAL_ROUTINES */
 
