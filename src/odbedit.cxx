@@ -27,13 +27,6 @@ BOOL in_cmd_edit;
 char pwd[256];
 BOOL cmd_mode;
 
-/* Data record global to save memory for MS-DOS */
-#ifdef OS_MSDOS
-static char data[5000];
-#else
-static char data[50000];
-#endif
-
 typedef struct {
    int flags;
    char pattern[32];
@@ -261,7 +254,7 @@ BOOL check_abort(int flags, int l)
 
 INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
 {
-   INT i, size, status;
+   INT i, status;
    static char data_str[50000], line[256];
    DWORD delta;
    PRINT_INFO *pi;
@@ -277,25 +270,29 @@ INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
    if (pi->pattern[0] && !match(pi->pattern, pkey->name))
       return SUCCESS;
 
-   size = sizeof(data);
    if (pi->flags & PI_VALUE) {
       /* only print value */
       if (key.type != TID_KEY) {
-         status = db_get_link_data(hDB, hKey, data, &size, key.type);
+         assert(key.total_size > 0);
+         char* buf = (char*)malloc(key.total_size);
+         int size = key.total_size;
+         status = db_get_link_data(hDB, hKey, buf, &size, key.type);
          data_str[0] = 0;
 
          /* resolve links */
          if (key.type == TID_LINK) {
-            if (strlen(data) > 0 && data[strlen(data)-1] == ']')
+            if (strlen(buf) > 0 && buf[strlen(buf)-1] == ']')
                status = DB_SUCCESS;
             else
-               status = db_find_key(hDB, 0, data, &hKey);
+               status = db_find_key(hDB, 0, buf, &hKey);
             if (status == DB_SUCCESS) {
                status = db_get_key(hDB, hKey, &key);
                if (status == DB_SUCCESS) {
-                  size = sizeof(data);
+                  assert(key.total_size > 0);
+                  buf = (char*)realloc(buf, key.total_size);
+                  size = key.total_size;
                   if (key.type != TID_KEY)
-                     status = db_get_data(hDB, hKey, data, &size, key.type);
+                     status = db_get_data(hDB, hKey, buf, &size, key.type);
                   else
                      status = DB_TYPE_MISMATCH;
                }
@@ -309,15 +306,16 @@ INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
          else
             for (i = 0; i < key.num_values; i++) {
                if (pi->flags & PI_HEX)
-                  db_sprintfh(data_str, data, key.item_size, i, key.type);
+                  db_sprintfh(data_str, buf, key.item_size, i, key.type);
                else
-                  db_sprintf(data_str, data, key.item_size, i, key.type);
+                  db_sprintf(data_str, buf, key.item_size, i, key.type);
 
                if ((pi->index != -1 && i == pi->index) || pi->index == -1)
                   printf("%s\n", data_str);
                if (check_abort(pi->flags, ls_line++))
                   return 0;
             }
+         free(buf);
       }
    } else {
       /* print key name with value */
@@ -325,16 +323,21 @@ INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
       line[sizeof(line)-1] = 0;
       sprintf(line + level * 4, "%s", key.name);
       if (key.type == TID_LINK) {
-         db_get_link_data(hDB, hKey, data, &size, key.type);
-         sprintf(line + strlen(line), " -> %s", data);
+         assert(key.total_size > 0);
+         char* buf = (char*)malloc(key.total_size);
+         int size = key.total_size;
+         db_get_link_data(hDB, hKey, buf, &size, key.type);
+         sprintf(line + strlen(line), " -> %s", buf);
          if (pi->index != -1)
             sprintf(line + strlen(line), "[%d]", pi->index);
          if (strlen(line) >= 32) {
             printf("%s\n", line);
             memset(line, ' ', sizeof(line));
             line[80] = 0;
-         } else
+         } else {
             line[strlen(line)] = ' ';
+         }
+         free(buf);
       } else {
          if (pi->index != -1)
             sprintf(line + strlen(line), "[%d]", pi->index);
@@ -350,22 +353,27 @@ INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
          if (check_abort(pi->flags, ls_line++))
             return 0;
       } else {
+         assert(key.total_size > 0);
+         char* buf = (char*)malloc(key.total_size);
+         int size = key.total_size;
 
-         status = db_get_link_data(hDB, hKey, data, &size, key.type);
+         status = db_get_link_data(hDB, hKey, buf, &size, key.type);
          data_str[0] = 0;
 
          /* resolve links */
          if (key.type == TID_LINK) {
-            if (strlen(data) > 0 && data[strlen(data)-1] == ']')
+            if (strlen(buf) > 0 && buf[strlen(buf)-1] == ']')
                status = DB_SUCCESS;
             else
-               status = db_find_key(hDB, 0, data, &hKey);
+               status = db_find_key(hDB, 0, buf, &hKey);
             if (status == DB_SUCCESS) {
                status = db_get_key(hDB, hKey, &key);
                if (status == DB_SUCCESS) {
-                  size = sizeof(data);
+                  assert(key.total_size > 0);
+                  buf = (char*)realloc(buf, key.total_size);
+                  size = key.total_size;
                   if (key.type != TID_KEY)
-                     status = db_get_data(hDB, hKey, data, &size, key.type);
+                     status = db_get_data(hDB, hKey, buf, &size, key.type);
                   else
                      status = DB_TYPE_MISMATCH;
                }
@@ -380,9 +388,9 @@ INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
             strcat(data_str, "<no read access>");
          else {
             if (pi->flags & PI_HEX)
-               db_sprintfh(data_str+strlen(data_str), data, key.item_size, 0, key.type);
+               db_sprintfh(data_str+strlen(data_str), buf, key.item_size, 0, key.type);
             else
-               db_sprintf(data_str+strlen(data_str), data, key.item_size, 0, key.type);
+               db_sprintf(data_str+strlen(data_str), buf, key.item_size, 0, key.type);
          }
 
          if (pi->flags & PI_LONG) {
@@ -424,14 +432,15 @@ INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
                strcpy(line + 66, data_str);
             else
                line[66] = 0;
-         } else if (key.num_values == 1)
+         } else if (key.num_values == 1) {
             if (key.type == TID_STRING && strchr(data_str, '\n'))
                strcpy(line + 32, "<multi-line>");
             else
                strcpy(line + 32, data_str);
-         else
+         } else {
             while (line[strlen(line)-1] == ' ')
                line[strlen(line)-1] = 0;
+         }
 
          if (line[0])
             printf("%s\n", line);
@@ -445,9 +454,9 @@ INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
          if (key.num_values > 1) {
             for (i = 0; i < key.num_values; i++) {
                if (pi->flags & PI_HEX)
-                  db_sprintfh(data_str, data, key.item_size, i, key.type);
+                  db_sprintfh(data_str, buf, key.item_size, i, key.type);
                else
-                  db_sprintf(data_str, data, key.item_size, i, key.type);
+                  db_sprintf(data_str, buf, key.item_size, i, key.type);
 
                memset(line, ' ', 80);
                line[80] = 0;
@@ -467,6 +476,7 @@ INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
                   return 0;
             }
          }
+         free(buf);
       }
    }
 
@@ -514,7 +524,9 @@ void set_key(HNDLE hDB, HNDLE hKey, int index1, int index2, char *value)
 void scan_tree(HNDLE hDB, HNDLE hKey, INT * total_size_key, INT * total_size_data,
                INT level, INT flags)
 {
-   INT i, j, size, status;
+   INT i, j;
+   //INT size;
+   INT status;
    KEY key;
    HNDLE hSubkey;
    static char data_str[256], line[256];
@@ -527,7 +539,6 @@ void scan_tree(HNDLE hDB, HNDLE hKey, INT * total_size_key, INT * total_size_dat
    }
 
    db_get_key(hDB, hKey, &key);
-   size = sizeof(data);
 
    *total_size_key += ALIGN8(sizeof(KEY));
    if (key.type == TID_KEY)
@@ -538,17 +549,21 @@ void scan_tree(HNDLE hDB, HNDLE hKey, INT * total_size_key, INT * total_size_dat
    if (flags & 0x4) {
       /* only print value */
       if (key.type != TID_KEY) {
-         status = db_get_data(hDB, hKey, data, &size, key.type);
+         assert(key.total_size > 0);
+         char* buf = (char*)malloc(key.total_size);
+         int size = key.total_size;
+         status = db_get_data(hDB, hKey, buf, &size, key.type);
          if (status == DB_NO_ACCESS)
             strcpy(data_str, "<no read access>");
          else
             for (j = 0; j < key.num_values; j++) {
                if (flags & 0x8)
-                  db_sprintfh(data_str, data, key.item_size, j, key.type);
+                  db_sprintfh(data_str, buf, key.item_size, j, key.type);
                else
-                  db_sprintf(data_str, data, key.item_size, j, key.type);
+                  db_sprintf(data_str, buf, key.item_size, j, key.type);
                printf("%s\n", data_str);
             }
+         free(buf);
       }
    } else {
       /* print key name with value */
@@ -561,14 +576,17 @@ void scan_tree(HNDLE hDB, HNDLE hKey, INT * total_size_key, INT * total_size_dat
          line[32] = 0;
          printf("%s\n", line);
       } else {
-         status = db_get_data(hDB, hKey, data, &size, key.type);
+         assert(key.total_size > 0);
+         char* buf = (char*)malloc(key.total_size);
+         int size = key.total_size;
+         status = db_get_data(hDB, hKey, buf, &size, key.type);
          if (status == DB_NO_ACCESS)
             strcpy(data_str, "<no read access>");
          else {
             if (flags & 0x8)
-               db_sprintfh(data_str, data, key.item_size, 0, key.type);
+               db_sprintfh(data_str, buf, key.item_size, 0, key.type);
             else
-               db_sprintf(data_str, data, key.item_size, 0, key.type);
+               db_sprintf(data_str, buf, key.item_size, 0, key.type);
          }
 
          if (flags & 0x1) {
@@ -618,9 +636,9 @@ void scan_tree(HNDLE hDB, HNDLE hKey, INT * total_size_key, INT * total_size_dat
          if (key.num_values > 1) {
             for (j = 0; j < key.num_values; j++) {
                if (flags & 0x8)
-                  db_sprintfh(data_str, data, key.item_size, j, key.type);
+                  db_sprintfh(data_str, buf, key.item_size, j, key.type);
                else
-                  db_sprintf(data_str, data, key.item_size, j, key.type);
+                  db_sprintf(data_str, buf, key.item_size, j, key.type);
 
                memset(line, ' ', 80);
                line[80] = 0;
@@ -636,6 +654,8 @@ void scan_tree(HNDLE hDB, HNDLE hKey, INT * total_size_key, INT * total_size_dat
                printf("%s\n", line);
             }
          }
+
+         free(buf);
       }
    }
 
@@ -666,8 +686,8 @@ INT cmd_dir(char *line, INT * cursor)
    KEY key;
    HNDLE hDB, hKey, hSubkey;
    INT i, j, match, size;
-   char str[256], *pc, partial[256], last_match[256], head[256], tail[256], key_name[256],
-       c;
+   char str[256], *pc, partial[256], last_match[256];
+   char head[256], tail[256], key_name[256], c;
    char test_key[256];
    BOOL blanks, mismatch;
 
@@ -701,35 +721,44 @@ INT cmd_dir(char *line, INT * cursor)
          strcpy(str, key_name);
       if (key_name[0] != '/') {
          strcpy(test_key, pwd);
-         if (str[strlen(test_key) - 1] != '/')
+         if (test_key[strlen(test_key) - 1] != '/')
             strcat(test_key, "/");
          strcat(test_key, str);
-      } else
+      } else {
          strcpy(test_key, str);
+      }
 
       pc = test_key + strlen(test_key) - 1;
       while (pc > test_key && (*pc == ' ' || *pc == '"'))
          *pc-- = 0;
-      if (db_find_key(hDB, 0, test_key, &hSubkey) == DB_SUCCESS) {
-         if (strlen(key_name) > 0 && key_name[strlen(key_name)-1] != ' ')
-            strcat(key_name, " ");
-
+      int status = db_find_key(hDB, 0, test_key, &hSubkey);
+      if (status == DB_SUCCESS) {
          /* retrieve key data */
          db_get_link(hDB, hSubkey, &key);
-         size = sizeof(data);
-         db_get_link_data(hDB, hSubkey, data, &size, key.type);
 
-         if (key.type == TID_STRING || key.type == TID_LINK)
-            sprintf(str, "\"%s\"", data);
-         else
-            db_sprintf(str, data, size, 0, key.type);
+         if (key.type != TID_KEY) {
+            if (strlen(key_name) > 0 && key_name[strlen(key_name)-1] != ' ')
+               strcat(key_name, " ");
 
-         strcpy(line, head);
-         strcat(line, key_name);
-         strcat(line, str);
-         *cursor = strlen(line);
-         strcat(line, tail);
-         return TRUE;
+            assert(key.total_size > 0);
+            char * buf = (char*)malloc(key.total_size);
+            size = key.total_size;
+            status = db_get_link_data(hDB, hSubkey, buf, &size, key.type);
+            
+            if (key.type == TID_STRING || key.type == TID_LINK)
+               sprintf(str, "\"%s\"", buf);
+            else
+               db_sprintf(str, buf, size, 0, key.type);
+
+            free(buf);
+            
+            strcpy(line, head);
+            strcat(line, key_name);
+            strcat(line, str);
+            *cursor = strlen(line);
+            strcat(line, tail);
+            return TRUE;
+         }
       }
    }
 
@@ -915,7 +944,9 @@ INT search_key(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
       strcat(line, " : ");
 
       if (key->type != TID_KEY) {
-         size = sizeof(data);
+         assert(key->total_size > 0);
+         char* data = (char*)malloc(key->total_size);
+         size = key->total_size;
          status = db_get_data(hDB, hKey, data, &size, key->type);
 
          if (status == DB_NO_ACCESS)
@@ -934,8 +965,10 @@ INT search_key(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 
                printf("  [%d] : %s\n", i, data_str);
             }
-      } else
+         free(data);
+      } else {
          printf("%s\n", line);
+      }
    }
 
    return SUCCESS;
@@ -1591,8 +1624,6 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
             if (i == TID_STRING) {
                if (!cmd_mode && k == -1) {
-                  memset(data, 0, sizeof(data));
-
                   printf("String length [%d]: ", NAME_LENGTH);
                   ss_gets(str, 256);
                   if (str[0])
@@ -1604,15 +1635,19 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                else
                   key.item_size = k;
 
-               db_set_link_data(hDB, hKey, data, key.item_size, 1, key.type);
+               char *buf = (char*)malloc(key.item_size);
+               memset(buf, 0, sizeof(key.item_size));
+               db_set_link_data(hDB, hKey, buf, key.item_size, 1, key.type);
+               free(buf);
             }
 
             if (j > 1) {
-               memset(data, 0, sizeof(data));
-
                if (key.type == TID_LINK)
                   key.item_size = NAME_LENGTH;
-               db_set_link_data_index(hDB, hKey, data, key.item_size, j - 1, key.type);
+               char *buf = (char*)malloc(key.item_size);
+               memset(buf, 0, sizeof(key.item_size));
+               db_set_link_data_index(hDB, hKey, buf, key.item_size, j - 1, key.type);
+               free(buf);
             }
          }
       }
@@ -1656,18 +1691,29 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                db_create_key(hDB, 0, str, key.type);
 
                if (key.type != TID_KEY) {
-                  size = sizeof(data);
-                  db_get_data(hDB, hKey, data, &size, key.type);
+                  assert(key.total_size > 0);
+                  char *buf = (char*)malloc(key.total_size);
+                  size = key.total_size;
+                  db_get_data(hDB, hKey, buf, &size, key.type);
                   db_find_key(hDB, 0, str, &hKey);
-                  db_set_link_data(hDB, hKey, data, size, key.num_values, key.type);
+                  db_set_link_data(hDB, hKey, buf, size, key.num_values, key.type);
+                  free(buf);
                } else {
+                  char data[50000];
                   size = sizeof(data);
-                  db_copy(hDB, hKey, data, &size, "");
-                  db_find_key(hDB, 0, str, &hKey);
-                  db_paste(hDB, hKey, data);
+                  status = db_copy(hDB, hKey, data, &size, "");
+                  if (status == DB_TRUNCATED) {
+                     printf("error: db_copy() status %d, odbedit internal buffer is too small, size %d\n", status, size);
+                  } else if (status != DB_SUCCESS) {
+                     printf("error: db_copy() status %d\n", status);
+                  } else {
+                     db_find_key(hDB, 0, str, &hKey);
+                     db_paste(hDB, hKey, data);
+                  }
                }
-            } else
+            } else {
                printf("key not found\n");
+            }
          }
       }
 
@@ -2125,9 +2171,17 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          else {
             size = lseek(fh, 0, SEEK_END);
             lseek(fh, 0, SEEK_SET);
-            size = read(fh, data, size);
-            data[size++] = 0;
+            assert(size >= 0);
+            char* buf = (char*)malloc(size+1);
+            size = read(fh, buf, size);
             close(fh);
+            if (size == 0 ) {
+               buf[size] = 0;
+               size++;
+            } else if (buf[size-1] != 0) {
+               buf[size] = 0;
+               size++;
+            }
 
             if (param[2][0] == 0) {
                printf("Key name: ");
@@ -2139,7 +2193,8 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
             db_create_key(hDB, 0, str, TID_STRING);
             db_find_key(hDB, 0, str, &hKey);
-            db_set_data(hDB, hKey, data, size, 1, TID_STRING);
+            db_set_data(hDB, hKey, buf, size, 1, TID_STRING);
+            free(buf);
          }
 
       }
@@ -2171,12 +2226,13 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                   if (key.type != TID_STRING)
                      printf("Only export of STRING key possible\n");
                   else {
-                     size = sizeof(data);
-                     memset(data, 0, size);
-                     db_get_data(hDB, hKey, data, &size, key.type);
-
-                     fprintf(f, "%s", data);
+                     char* buf = (char*) malloc(key.total_size);
+                     size = key.total_size;
+                     memset(buf, 0, size);
+                     db_get_data(hDB, hKey, buf, &size, key.type);
+                     fprintf(f, "%s", buf);
                      fclose(f);
+                     free(buf);
                   }
                }
             }
@@ -2219,6 +2275,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
       /* sor (show open records) */
       else if (param[0][0] == 's' && param[0][1] == 'o') {
          db_find_key(hDB, 0, pwd, &hKey);
+         char data[50000];
          db_get_open_records(hDB, hKey, data, sizeof(data), FALSE);
          printf("%s", data);
       }
@@ -2318,13 +2375,18 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                         db_enum_key(hDB, hKey, i, &hSubkey);
                         db_get_key(hDB, hSubkey, &key);
 
-                        size = sizeof(data);
-                        status = db_get_data(hDB, hSubkey, data, &size, key.type);
-                        if (status != DB_SUCCESS)
+                        assert(key.total_size > 0);
+                        char *buf = (char*)malloc(key.total_size);
+
+                        size = key.total_size;
+                        status = db_get_data(hDB, hSubkey, buf, &size, key.type);
+                        if (status != DB_SUCCESS) {
+                           free(buf);
                            continue;
+                        }
 
                         for (int j = 0; j < key.num_values; j++) {
-                           db_sprintf(data_str, data, key.item_size, j, key.type);
+                           db_sprintf(data_str, buf, key.item_size, j, key.type);
                            sprintf(prompt, "%s : ", str);
 
                            strcpy(line, data_str);
@@ -2333,11 +2395,12 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                            in_cmd_edit = FALSE;
 
                            if (line[0]) {
-                              db_sscanf(line, data, &size, j, key.type);
-                              db_set_data_index(hDB, hSubkey, data, key.item_size, j,
-                                                key.type);
+                              db_sscanf(line, buf, &size, j, key.type);
+                              db_set_data_index(hDB, hSubkey, buf, key.item_size, j, key.type);
                            }
                         }
+
+                        free(buf);
                      }
                   }
 
@@ -2526,6 +2589,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          if (param[1][0])
             i = atoi(param[1]);
 
+         char data[50000];
          cm_msg_retrieve(i, data, sizeof(data));
          printf("%s\n\n", data);
       }
@@ -2575,7 +2639,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
       /* exec */
       else if (param[0][0] == 'e' && param[0][1] == 'x' && param[0][2] == 'e') {
          compose_name(pwd, param[1], str);
-
+         char data[50000];
          status = db_find_key(hDB, 0, str, &hKey);
          if (status == DB_SUCCESS) {
             db_get_key(hDB, hKey, &key);
