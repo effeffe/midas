@@ -627,7 +627,7 @@ INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKeyRoot, int index, const void *j
    bool is_array = (key.num_values > 1);
    if (tid == TID_STRING) {
       // do not truncate strings, only extend if necessary
-      if (node->GetString().length()+1 > key.item_size)
+      if ((int)node->GetString().length()+1 > key.item_size)
          string_length = node->GetString().length()+1;
       else
          string_length = key.item_size;
