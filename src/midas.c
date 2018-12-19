@@ -8306,7 +8306,7 @@ INT bm_push_event(char *buffer_name)
          total_size = ALIGN8(total_size);
 
          if (total_size <= 0 || total_size > pheader->size) {
-            cm_msg(MERROR, "bm_push_event", "BUG: bad total_size %d for client \"%s\", read_pointer %d, event data size %d", total_size, pc->name, pc->read_pointer, pevent->data_size);
+            cm_msg(MERROR, "bm_push_event", "BUG: bad total_size %d for client \"%s\", read_pointer %d, event data size %d, buffer size: %d, rp: %d, wp: %d", total_size, pc->name, pc->read_pointer, pevent->data_size, pheader->size, pheader->read_pointer, pheader->write_pointer);
             bm_unlock_buffer(buffer_handle);
             cm_msg_flush_buffer();
             abort();
@@ -8372,6 +8372,13 @@ INT bm_push_event(char *buffer_name)
                   if (total_size > _event_buffer_size) {
                      //printf("realloc event buffer %d -> %d\n", _event_buffer_size, total_size);
                      _event_buffer = (EVENT_HEADER *) realloc(_event_buffer, total_size);
+                     if (_event_buffer == NULL) {
+                        cm_msg(MERROR, "bm_push_event", "BUG: cannot realloc() _event_buffer from %d to %d bytes", _event_buffer_size, total_size);
+                        bm_unlock_buffer(buffer_handle);
+                        cm_msg_flush_buffer();
+                        abort();
+                        return BM_NO_MEMORY;
+                     }
                      _event_buffer_size = total_size;
                   }
 
@@ -8648,6 +8655,33 @@ INT bm_notify_client(char *buffer_name, int s)
 }
 
 /********************************************************************/
+
+static int allocate_event_buffer()
+{
+   if (_event_buffer_size == 0) {
+      int status;
+      int size;
+      HNDLE hDB, odb_key;
+      int max_event_size = DEFAULT_MAX_EVENT_SIZE;
+
+      /* get max event size from ODB */
+      status = cm_get_experiment_database(&hDB, &odb_key);
+      assert(status == SUCCESS);
+      size = sizeof(INT);
+      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &max_event_size, &size, TID_DWORD, TRUE);
+
+      size = max_event_size + sizeof(EVENT_HEADER);
+      _event_buffer = (EVENT_HEADER *) M_MALLOC(size);
+      if (!_event_buffer) {
+         cm_msg(MERROR, "bm_poll_event", "not enough memory to allocate event buffer of size %d", size);
+         return SS_ABORT;
+      }
+      _event_buffer_size = size;
+   }
+   return BM_SUCCESS;
+}
+
+/********************************************************************/
 INT bm_poll_event(INT flag)
 /********************************************************************\
 
@@ -8674,25 +8708,6 @@ INT bm_poll_event(INT flag)
    BOOL bMore;
    static BOOL bMoreLast = FALSE;
 
-   if (_event_buffer_size == 0) {
-      HNDLE hDB, odb_key;
-      int max_event_size = DEFAULT_MAX_EVENT_SIZE;
-
-      /* get max event size from ODB */
-      status = cm_get_experiment_database(&hDB, &odb_key);
-      assert(status == SUCCESS);
-      size = sizeof(INT);
-      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &max_event_size, &size, TID_DWORD, TRUE);
-
-      size = max_event_size + sizeof(EVENT_HEADER);
-      _event_buffer = (EVENT_HEADER *) M_MALLOC(size);
-      if (!_event_buffer) {
-         cm_msg(MERROR, "bm_poll_event", "not enough memory to allocate event buffer of size %d", size);
-         return SS_ABORT;
-      }
-      _event_buffer_size = size;
-   }
-
    start_time = ss_millitime();
 
    /* if we got event notification, turn off read_wait */
@@ -8714,6 +8729,12 @@ INT bm_poll_event(INT flag)
          continue;
 
       do {
+         if (_event_buffer_size == 0) {
+            status = allocate_event_buffer();
+            if (status != BM_SUCCESS) {
+               return status;
+            }
+         }
          /* receive event */
          size = _event_buffer_size;
          status = bm_receive_event(_request_list[request_id].buffer_handle, _event_buffer, &size, BM_NO_WAIT);
