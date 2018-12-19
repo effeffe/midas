@@ -157,7 +157,7 @@ void db_flush_msg(db_err_msg** msgp)
    db_err_msg *msg = *msgp;
    *msgp = NULL;
 
-   if (0) {
+   if (/* DISABLES CODE */ (0)) {
       printf("db_flush_msg: %p\n", msg);
       db_print_msg(msg);
    }
