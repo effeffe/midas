@@ -160,7 +160,6 @@
    const secondLogChannelHtml = "<tr id=\"logChannelSecondPart\" class=\"mtabvaritle\"><th colspan=\"2\">Lazy Label</th><th>Progress</th><th>File Name</th><th># Files</th><th>Total</th></tr>";
    const clientTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Clients</th></tr>";
 
-
    function callback(rpc, alarm, loggerBool, lastMessage, equipmentNames, equipmentStatData, equipmentCommonData) {
 
 
@@ -183,13 +182,15 @@
                if (allAlarms[element]["triggered"] && allAlarms[element]["active"]) {
                   if (document.getElementById(element + "Alarm") === null) {
                      var newAlarm = document.createElement("td");
+                     var bgcol = allAlarms[element]["bgcolor"];
+                     if (bgcol === "red")
+                        bgcol = "var(--mred)";
                      document.getElementById("statusTable").insertBefore(newAlarm, document.getElementById("statusTable").firstChild);
 
                      newAlarm.outerHTML = "<tr id=\"" +
                              element +
                              "Alarm" +
-                             "\" class=\"alarmRow\">\n<td colspan=6 style=\"background-color:" +
-                             allAlarms[element]["bgcolor"] +
+                             "\" class=\"alarmRow\">\n<td colspan=6 style=\"background-color:" + bgcol +
                              ";border-radius:12px;\" align=center>" +
                              "<table width=\"100%%\"><tr" + " style=\"background-color:"+ allAlarms[element]["bgcolor"] +  "\">\n" +
                              "<td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"" +
@@ -226,18 +227,18 @@
                var state = "";
                var buttonText = "";
                switch (runinfoJson["state"]) {
-                  case 1:
+                  case STATE_STOPPED:
                      state = "Stopped";
                      buttonText = "Start";
-                     document.getElementById("runNumberCell").className = "mredcolor";
+                     document.getElementById("runNumberCell").className = "mred mbox";
                      // show stop time
                      if (runinfoJson.hasOwnProperty("stop time"))
                         document.getElementById("runStatusStopTime").innerHTML = "Stop: " + runinfoJson["stop time"];
                      break;
-                  case 2:
+                  case STATE_PAUSED:
                      state = "Paused";
                      buttonText = "Start";
-                     document.getElementById("runNumberCell").className = "myellowcolor";
+                     document.getElementById("runNumberCell").className = "myellow mbox";
                      // show running time
                      if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
                         //var time=runinfoJson["start time binary/last_written"];
@@ -251,10 +252,10 @@
                                 + ((s<10)?"0"+s:s) + "s";
                      }
                      break;
-                  case 3:
+                  case STATE_RUNNING:
                      state = "Running";
                      buttonText = "Stop";
-                     document.getElementById("runNumberCell").className = "mgreencolor";
+                     document.getElementById("runNumberCell").className = "mgreen mbox";
                      // show running time
                      if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
                         //var time=runinfoJson["start time binary/last_written"];
@@ -270,23 +271,36 @@
                      break;
                }
 
-               if (state == "Paused" || state == "Stopped") {
-                  document.getElementById("runNumberCell").innerHTML = "Run" +
-                          "<br>" +
-                          runinfoJson["run number"] +
-                          "<br>" +
-                          state +
-                          "<br>" +
-                          "<input type='button' class='mbutton' value='" + buttonText + "' onclick='mhttpd_start_run()'>";
-               } else if (state == "Running") {
-                  document.getElementById("runNumberCell").innerHTML = "Run" +
-                          "<br>" +
-                          runinfoJson["run number"] +
-                          "<br>" +
-                          state +
-                          "<br>" +
-                          "<input type='button' class='mbutton' value='" + buttonText + "' onclick='mhttpd_stop_run()'>";
-               }
+               var buttonFunc = "";
+               if (state == "Paused" || state == "Stopped")
+                  buttonFunc = "mhttpd_start_run()";
+               if (state == "Running")
+                  buttonFunc = "mhttpd_stop_run()";
+
+               // don't display button if transition is in progress
+               if (runinfoJson["transition in progress"] !== 0)
+                  buttonFunc = "";
+
+               if (runinfoJson["transition in progress"] === TR_STOP)
+                  state = "Stopping run";
+               else if (runinfoJson["transition in progress"] === TR_START)
+                  state = "Starting run";
+               else if (runinfoJson["transition in progress"] === TR_PAUSE)
+                  state = "Pausing run";
+               else if (runinfoJson["transition in progress"] === TR_RESUME)
+                  state = "Resuming run";
+
+               var panelText = "Run" +
+                  "<br>" +
+                  runinfoJson["run number"] +
+                  "<br>" +
+                  state;
+
+               if (buttonFunc !== "")
+                  panelText += "<br>" +
+                     "<input type='button' class='mbutton' value='" + buttonText + "' onclick='" + buttonFunc + "'>";
+
+               document.getElementById("runNumberCell").innerHTML = panelText;
             }
 
             if (runinfoJson.hasOwnProperty("start time")) {
@@ -330,10 +344,10 @@
 
          if (alarm["alarm_system_active"]) {
             document.getElementById("runStatusAlarm").innerHTML = "<a href='/Alarms/Alarm system active?cmd=set'>" + "Alarms: On" + "</a>";
-            document.getElementById("runStatusAlarm").className = "mgreencolor";
+            document.getElementById("runStatusAlarm").className = "mgreen mbox";
          } else {
             document.getElementById("runStatusAlarm").innerHTML = "<a href='/Alarms/Alarm system active?cmd=set'>" + "Alarms: Off" + "</a>";
-            document.getElementById("runStatusAlarm").className = "mredcolor";
+            document.getElementById("runStatusAlarm").className = "mred mbox";
          }
 
          if (sequencerJson) {
@@ -343,10 +357,10 @@
                } else {
                   if (loggerJson["auto restart"] === true) {
                      document.getElementById("runStatusSequencer").innerHTML = "<a href='/Logger/Auto restart?cmd=set'>" + "Restart: On" + "</a>";
-                     document.getElementById("runStatusSequencer").className = "mgreencolor";
+                     document.getElementById("runStatusSequencer").className = "mgreen mbox";
                   } else {
                      document.getElementById("runStatusSequencer").innerHTML = "<a href='/Logger/Auto restart?cmd=set'>" + "Restart: Off" + "</a>";
-                     document.getElementById("runStatusSequencer").className = "myellowcolor";
+                     document.getElementById("runStatusSequencer").className = "myellow mbox";
                   }
                }
             }
@@ -358,11 +372,11 @@
                if (loggerJson["write data"] == true)
                   document.getElementById("runStatusLogger").className = "";
                else
-                  document.getElementById("runStatusLogger").className = "myellowcolor";
+                  document.getElementById("runStatusLogger").className = "myellow mbox";
             }
          } else {
             document.getElementById("runStatusLogger").innerHTML = "Logger not running";
-            document.getElementById("runStatusLogger").className = "mredcolor";
+            document.getElementById("runStatusLogger").className = "mred mbox";
          }
 
          document.getElementById("msgService").innerHTML = lastMessage.messages;
@@ -383,86 +397,96 @@
 
       function generateEquipmentTable(clients) {
 
+         // If equipmentNames is not valid, create empty table and return.
+         if (equipmentNames == null){
+            document.getElementById("equipmentList").innerHTML = equipmentTableHtml;
+            return;
+         }
 
          if (equipmentNames.length != document.getElementsByClassName("equipmentRow").length) {
             document.getElementById("equipmentList").innerHTML = equipmentTableHtml;
          }
 
-
          for (var i = 0; i < equipmentNames.length; i++) {
-            var statusItem = document.createElement("td");
-            statusItem.align = "center";
-            statusItem.innerHTML = equipmentCommonData[i]["status"];
 
-            if (equipmentCommonData[i]["enabled"]) {
+            try {
+               var statusItem = document.createElement("td");
+               statusItem.align = "center";
+               statusItem.innerHTML = equipmentCommonData[i]["status"];
 
-               if (equipmentCommonData[i]["frontend name"].length > 0 &&
-                       !clientExists(clients, equipmentCommonData[i]["frontend name"])) {
-                  statusItem.innerHTML = "Frontend stopped";
-                  statusItem.className = "redLight";
-               } else {
-                  if (equipmentCommonData[i]["status"].length < 1) {
-                     statusItem.innerHTML = equipmentCommonData[i]["frontend name"] + "@" + equipmentCommonData[i]["frontend host"];
-                     statusItem.className = "greenLight";
+               if (equipmentCommonData[i]["enabled"]) {
+
+                  if (equipmentCommonData[i]["frontend name"].length > 0 &&
+                     !clientExists(clients, equipmentCommonData[i]["frontend name"])) {
+                     statusItem.innerHTML = "Frontend stopped";
+                     statusItem.className = "redLight";
                   } else {
-                     statusItem.innerHTML = equipmentCommonData[i]["status"];
-                     if (equipmentCommonData[i]["status color"].indexOf("Light") != -1)
-                        statusItem.className = equipmentCommonData[i]["status color"];
-                     else {
-                        statusItem.className = "Light";
-                        statusItem.style.backgroundColor = equipmentCommonData[i]["status color"];
+                     if (equipmentCommonData[i]["status"].length < 1) {
+                        statusItem.innerHTML = equipmentCommonData[i]["frontend name"] + "@" + equipmentCommonData[i]["frontend host"];
+                        statusItem.className = "greenLight";
+                     } else {
+                        statusItem.innerHTML = equipmentCommonData[i]["status"];
+                        if (equipmentCommonData[i]["status color"].indexOf("Light") != -1)
+                           statusItem.className = equipmentCommonData[i]["status color"];
+                        else {
+                           statusItem.className = "Light";
+                           statusItem.style.backgroundColor = equipmentCommonData[i]["status color"];
+                        }
                      }
                   }
+               } else {
+                  statusItem.innerHTML = "Disabled";
+                  statusItem.className = "yellowLight";
                }
-            } else {
-               statusItem.innerHTML = "Disabled";
-               statusItem.className = "yellowLight";
-            }
 
-            var eventsNum = equipmentStatData[i]["events sent"];
-            if (equipmentStatData[i]["events sent"] > 1E9) {
-               eventsNum = (equipmentStatData[i]["events sent"] / 1E9).toFixed(3) + "G";
-            } else if (equipmentStatData[i]["events sent"] > 1E6) {
-               eventsNum = (equipmentStatData[i]["events sent"] / 1E6).toFixed(3) + "M";
-            }
+               var eventsNum = equipmentStatData[i]["events sent"];
+               if (equipmentStatData[i]["events sent"] > 1E9) {
+                  eventsNum = (equipmentStatData[i]["events sent"] / 1E9).toFixed(3) + "G";
+               } else if (equipmentStatData[i]["events sent"] > 1E6) {
+                  eventsNum = (equipmentStatData[i]["events sent"] / 1E6).toFixed(3) + "M";
+               }
 
-            var equipmentRow = document.createElement("tr");
-            equipmentRow.id = equipmentNames[i] + "equipment";
-            equipmentRow.className = "equipmentRow";
-            var unhidden = document.getElementById("hide").innerText === "-";
-            if (equipmentCommonData[i]["hidden"])
-               equipmentRow.className += " hiddenEquip";
+               var equipmentRow = document.createElement("tr");
+               equipmentRow.id = equipmentNames[i] + "equipment";
+               equipmentRow.className = "equipmentRow";
+               var unhidden = document.getElementById("hide").innerText === "-";
+               if (equipmentCommonData[i]["hidden"])
+                  equipmentRow.className += " hiddenEquip";
 
-            if (equipmentCommonData[i]["hidden"] && !unhidden)
-               equipmentRow.style.display = "none";
-            else
-               equipmentRow.style.display = "table-row";
+               if (equipmentCommonData[i]["hidden"] && !unhidden)
+                  equipmentRow.style.display = "none";
+               else
+                  equipmentRow.style.display = "table-row";
 
-            var mb = equipmentStatData[i]["kbytes per sec."] / 1000.0;
-            equipmentRow.innerHTML = "<td align=\"center\"><a href='/SC/" +
-                    equipmentNames[i] +
-                    "'>" +
-                    equipmentNames[i] +
-                    "</a></td>" +
-                    statusItem.outerHTML +
-                    "<td align=\"center\">" +
-                    eventsNum +
-                    "</td>" +
-                    "<td align=\"center\">" +
-                    equipmentStatData[i]["events per sec."].toFixed(1) +
-                    "</td>" +
-                    "<td align=\"center\">" +
-                    mb.toFixed(3) +
-                    "</td>";
-            if (document.getElementById(equipmentNames[i] + "equipment") === null) {
-               document.getElementById("equipmentList").appendChild(equipmentRow);
-            } else {
-               if (document.getElementById(equipmentNames[i] + "equipment").innerHTML !== equipmentRow.innerHTML)
-                  document.getElementById(equipmentNames[i] + "equipment").innerHTML = equipmentRow.innerHTML;
-               if (document.getElementById(equipmentNames[i] + "equipment").style.display !== equipmentRow.style.display)
-                  document.getElementById(equipmentNames[i] + "equipment").style.display = equipmentRow.style.display;
-               if (document.getElementById(equipmentNames[i] + "equipment").className !== equipmentRow.className)
+               var mb = equipmentStatData[i]["kbytes per sec."] / 1000.0;
+               equipmentRow.innerHTML = "<td align=\"center\"><a href='/SC/" +
+                  equipmentNames[i] +
+                  "'>" +
+                  equipmentNames[i] +
+                  "</a></td>" +
+                  statusItem.outerHTML +
+                  "<td align=\"center\">" +
+                  eventsNum +
+                  "</td>" +
+                  "<td align=\"center\">" +
+                  equipmentStatData[i]["events per sec."].toFixed(1) +
+                  "</td>" +
+                  "<td align=\"center\">" +
+                  mb.toFixed(3) +
+                  "</td>";
+               if (document.getElementById(equipmentNames[i] + "equipment") === null) {
+                  document.getElementById("equipmentList").appendChild(equipmentRow);
+               } else {
+                  if (document.getElementById(equipmentNames[i] + "equipment").innerHTML !== equipmentRow.innerHTML)
+                     document.getElementById(equipmentNames[i] + "equipment").innerHTML = equipmentRow.innerHTML;
+                  if (document.getElementById(equipmentNames[i] + "equipment").style.display !== equipmentRow.style.display)
+                     document.getElementById(equipmentNames[i] + "equipment").style.display = equipmentRow.style.display;
+                  if (document.getElementById(equipmentNames[i] + "equipment").className !== equipmentRow.className)
                      document.getElementById(equipmentNames[i] + "equipment").className = equipmentRow.className;
+               }
+            } catch(err) {
+               // invalid ODB equipment entry: just skip equipment
+               console.log("Error: Equipment \""+equipmentNames[i]+"\" has invalid ODB structure");
             }
          }
       }
@@ -500,11 +524,11 @@
                var diskLevelColor;
                var level = currentChannel["statistics"]["disk level"];
                if (level >= 0.9) {
-                  diskLevelColor = "red";
+                  diskLevelColor = "var(--red)";
                } else if (level >= 0.7) {
-                  diskLevelColor = "yellow";
+                  diskLevelColor = "var(--myellow)";
                } else {
-                  diskLevelColor = "green";
+                  diskLevelColor = "var(--mgreen)";
                }
                diskLevelHtml = document.createElement("td");
                //diskLevelHtml.className = class_name;
@@ -518,6 +542,7 @@
                var innerDiv = document.createElement("div");
                innerDiv.style.display = "inline-block";
                innerDiv.style.backgroundColor = diskLevelColor;
+               innerDiv.style.borderRight = "1px solid black";
                innerDiv.style.width = (100*level).toFixed(0) + "%";
                innerDiv.style.height = "100%";
                innerDiv.style.position = "relative";
@@ -530,10 +555,10 @@
                logChannelRow.id = element + "channel";
                logChannelRow.className = "logChannel";
 
-               var cl = "myellowcolor";
+               var cl = "myellow mbox";
                if (loggerJson["write data"] == true &&
                    currentChannel["settings"]["active"] == true)
-                  cl = "mgreencolor";
+                  cl = "mgreen mbox";
 
                logChannelRow.innerHTML = "<td colspan=\"2\" class=\""+cl+"\">" +
                        "<a href=\"Logger/Channels/" + element + "/Settings\">" +
@@ -683,8 +708,7 @@
       //call generate functions
       generateRunStatus();
 
-      if (equipmentNames != null)
-         generateEquipmentTable(clientsJson);
+      generateEquipmentTable(clientsJson);
 
       if (logChannelJson != null)
          generateLogChannel();
@@ -717,62 +741,98 @@
       }
    }
 
-   function update() {
-      //update time
+   // Global variables for caching the current list of MIDAS equipments
+   var statusGlobalSpace = {
+      cachedEquipmentList:null
+   }
+
+   // perform the main XHR and cache the list of MIDAS equipment for next XHR
+   function updateXHR(){
 
       var paths = ["/Experiment/Status items", "/Logger/Channels", "/System/Clients", "/Runinfo", "Sequencer/State", "/Logger", "/Lazy", "/Experiment/Name"];
 
+      //push all equipment names into an Array of Promises
+      if(statusGlobalSpace.cachedEquipmentList != null){
+         var equipmentStatList = statusGlobalSpace.cachedEquipmentList.map(function (element) {
+            return "/Equipment/" + element + "/statistics";
+         });
+         
+         var equipmentCommonList = statusGlobalSpace.cachedEquipmentList.map(function (element) {
+            return "/Equipment/" + element + "/common";
+         });
+      }else{
+         var equipmentStatList = [];
+         var equipmentCommonList = [];
+      }
 
-      mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
-         //get all equipment names into an Array
-         if (equipmentListData.result.data[0] != null) {
-            var equipmentList = Object.keys(equipmentListData.result.data[0]);
-            //push all equipment names into an Array of Promises
-            var equipmentStatList = equipmentList.map(function (element) {
-               return "/Equipment/" + element + "/statistics";
-            });
+      // Make the main JSON-RPC request
+      mjsonrpc_send_request([
+         mjsonrpc_make_request("db_get_values", {"paths": paths}),
+         mjsonrpc_make_request("get_alarms", {"get_all": true}),
+         mjsonrpc_make_request("cm_exist", "{ \"name\": \"Logger\" }"),
+         mjsonrpc_make_request("cm_msg_retrieve", {"min_messages": 1}),
+         mjsonrpc_make_request("db_get_values", {"paths": equipmentStatList}),
+         mjsonrpc_make_request("db_get_values", {"paths": equipmentCommonList}),
+         mjsonrpc_make_request("db_ls", {"paths": ["equipment"]})
+      ]).then(function (rpc) {
 
-            var equipmentCommonList = equipmentList.map(function (element) {
-               return "/Equipment/" + element + "/common";
-            });
-         } else {
-            var equipmentList = null;
-            var equipmentStatList = [];
-            var equipmentCommonList = [];
+         // update the webpage
+         callback(rpc[0]["result"], rpc[1]["result"], rpc[2]["result"], rpc[3]["result"], statusGlobalSpace.cachedEquipmentList, 
+                  rpc[4]["result"]["data"], rpc[5]["result"]["data"]);
+
+         // cache the results of the "db_ls /Equipment" RPC for the next RPC
+         if(rpc[6]["result"]["data"][0] != null){
+            statusGlobalSpace.cachedEquipmentList = Object.keys(rpc[6]["result"]["data"][0]);
+         }else{
+            statusGlobalSpace.cachedEquipmentList = null;
          }
 
-         mjsonrpc_send_request([
-            mjsonrpc_make_request("db_get_values", {"paths": paths}),
-            mjsonrpc_make_request("get_alarms", {"get_all": true}),
-            mjsonrpc_make_request("cm_exist", "{ \"name\": \"Logger\" }"),
-            mjsonrpc_make_request("cm_msg_retrieve", {"min_messages": 1}),
-            mjsonrpc_make_request("db_get_values", {"paths": equipmentStatList}),
-            mjsonrpc_make_request("db_get_values", {"paths": equipmentCommonList})
-         ]).then(function (rpc) {
-
-            callback(rpc[0]["result"], rpc[1]["result"], rpc[2]["result"], rpc[3]["result"], equipmentList, rpc[4]["result"]["data"], rpc[5]["result"]["data"]);
-         }).then(function (x) {
-            // show the page only after all contents are loaded
-            document.getElementById('statusTable').style.display = "table";
-            document.getElementById('updateStatus').style.display = "none";
-         });
+      }).then(function (x) {
+         // show the page only after all contents are loaded
+         document.getElementById('statusTable').style.display = "table";
+         document.getElementById('updateStatus').style.display = "none";
       }).catch(function (error) {
          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
          document.getElementById('updateStatus').style.display = "block";
       });
-
-
    }
 
 
-   function update_periodic() {
+   // Main function called on each update
+   function update(firstTimeCalled) {
+
+      // For first call we chain JSON-RPC requests; first get equipment list: then do main JSON-RPC for rest of information.
+      if(firstTimeCalled == true){
+         
+         mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
+            if (equipmentListData.result.data[0] != null) {
+               statusGlobalSpace.cachedEquipmentList = Object.keys(equipmentListData.result.data[0]);
+            } else {
+               statusGlobalSpace.cachedEquipmentList = null;
+            }
+            
+            updateXHR();
+            
+         }).catch(function (error) {
+            document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
+            document.getElementById('updateStatus').style.display = "block";
+         });
+      }else{ // subsequent requests we just use the cached equipment list from last time to make main request
+
+         updateXHR();
+
+      }
+   }
+
+   // Slightly different set of JSON-RPC requests on initial load.
+   function update_periodic(firstTimeCalled = false) {
       clearTimeout(update_timer_id);
       var update_period = 1000;
-      update();
+      update(firstTimeCalled);
       update_timer_id = setTimeout('update_periodic()', update_period);
    }
 
-   update_periodic();
+   update_periodic(true);
 </script>
 </body>
 

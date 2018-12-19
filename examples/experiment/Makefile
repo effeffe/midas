@@ -77,8 +77,8 @@ endif
 #-------------------------------------------------------------------
 # The following lines define directories. Adjust if necessary
 #                 
-DRV_DIR   = $(MIDASSYS)/drivers/camac
 INC_DIR   = $(MIDASSYS)/include
+DRV_DIR   = $(MIDASSYS)/drivers
 LIB_DIR   = $(MIDASSYS)/$(OS_DIR)/lib
 SRC_DIR   = $(MIDASSYS)/src
 
@@ -118,7 +118,7 @@ analyzer: $(LIB) $(LIB_DIR)/rmana.o analyzer.o $(MODULES)
 	$(CXX) $(CFLAGS) -o $@ $(LIB_DIR)/rmana.o analyzer.o $(MODULES) \
 	$(LIB) $(LDFLAGS) $(ROOTLIBS) $(LIBS)
 
-%.o: %.c experim.h
+%.o: %.cxx experim.h
 	$(CXX) $(USERFLAGS) $(ROOTCFLAGS) $(CFLAGS) $(OSFLAGS) -o $@ -c $<
 
 clean::

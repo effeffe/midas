@@ -128,7 +128,7 @@ function mie_back_to_link(p, path, bracket) {
       var value = rpc.result.data[0];
       var tid = rpc.result.tid[0];
       var mvalue = mie_to_string(tid, value);
-      if (mvalue == "")
+      if (mvalue === "")
          mvalue = "(empty)";
       link.innerHTML = mhttpd_escape(mvalue);
       link.onclick = function () {
@@ -140,7 +140,7 @@ function mie_back_to_link(p, path, bracket) {
       };
 
       // what is this for?!?
-      if (p.childNodes.length == 2)
+      if (p.childNodes.length == 2)//two values means it was editing an array
          setTimeout(function () {
             p.appendChild(link);
             p.removeChild(p.childNodes[1])
@@ -399,24 +399,45 @@ function mhttpd_navigation_bar(current_page, path) {
    });
 }
 
-function mhttpd_toggle_menu() {
+function mhttpd_show_menu(flag) {
    var m = document.getElementById("msidenav");
 
    if (m.initialWidth == undefined)
       m.initialWidth = m.clientWidth;
 
-   if (m.style.width == "0px") {
+   if (flag) {
       m.style.width = m.initialWidth + "px";
       document.getElementById("mmain").style.marginLeft = m.initialWidth + "px";
+      mhttpdConfigSet('hideMenu', false);
    } else {
       m.style.width = "0";
       document.getElementById("mmain").style.marginLeft = "0";
    }
+
+   mhttpdConfigSet('showMenu', flag);
+}
+
+function mhttpd_toggle_menu() {
+   var flag = mhttpdConfig().showMenu;
+   flag = !flag;
+   mhttpd_show_menu(flag);
 }
 
 var mhttpd_refresh_id;
 var mhttpd_refresh_interval;
 var mhttpd_spinning_wheel;
+
+function modbset(path, value)
+/* shortcut for mjsonrpc_db_paste() with standard error handling */
+{
+   if (Array.isArray(path))
+      mjsonrpc_db_paste(path,value).then(function(rpc) {}).catch(function(error) {
+                                                                 mjsonrpc_error_alert(error); });
+   else
+      mjsonrpc_db_paste([path],[value]).then(function(rpc) {}).catch(function(error) {
+                                                                     mjsonrpc_error_alert(error); });
+   
+}
 
 function mhttpd_init(current_page, interval, callback) {
    /*
@@ -445,23 +466,31 @@ function mhttpd_init(current_page, interval, callback) {
 
    // create header
    var h = document.getElementById("mheader");
-   if (h !== undefined) {
-      h.style.display = "flex";
-      h.innerHTML =
-         "<div style='display:inline-block; flex:none;'>" +
-         "<span class='mmenuitem' style='padding-right: 10px;margin-right: 20px;' onclick='mhttpd_toggle_menu()'>&#9776;</span>" +
-         "<span id='mheader_expt_name'></span>" +
-         "</div>" +
-
-         "<div style='flex:auto;'>" +
-         "  <div id='mheader_message'></div>" +
-         "</div>" +
-
-         "<div style='display: inline; flex:none;'>" +
-         "  <div id='mheader_alarm'>&nbsp;</div>" +
-         "  <div style='display: inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></div>" +
-         "</div>";
+   if (h == null) {
+      alert('Web page does not contain "mheader" element');
+      return;
    }
+   var s = document.getElementById("msidenav");
+   if (s == null) {
+      alert('Web page does not contain "msidenav" element');
+      return;
+   }
+
+   h.style.display = "flex";
+   h.innerHTML =
+      "<div style='display:inline-block; flex:none;'>" +
+      "<span class='mmenuitem' style='padding: 10px;margin-right: 20px;' onclick='mhttpd_toggle_menu()'>&#9776;</span>" +
+      "<span id='mheader_expt_name'></span>" +
+      "</div>" +
+
+      "<div style='flex:auto;'>" +
+      "  <div id='mheader_message'></div>" +
+      "</div>" +
+
+      "<div style='display: inline; flex:none;'>" +
+      "  <div id='mheader_alarm'>&nbsp;</div>" +
+      "  <div style='display: inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></div>" +
+      "</div>";
 
    mhttpd_resize_sidenav();
    window.addEventListener('resize', mhttpd_resize_sidenav);
@@ -563,6 +592,8 @@ function mhttpd_init(current_page, interval, callback) {
             for (var b in custom) {
                if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
                   continue;
+               if (typeof custom[b] != "string") // skip any items that don't have type of string, since can't be valid links
+                  continue;
                cc = "mmenuitem";
                if (custom[b + "/name"] === current_page)
                   cc += " mmenuitemsel";
@@ -610,6 +641,9 @@ function mhttpd_init(current_page, interval, callback) {
 
          }
 
+         // dummy spacer to fix scrolling to the bottom, must be at least header height
+         html += "<div style='height: 64px;'></div>\n";
+
          document.getElementById("msidenav").innerHTML = html;
 
          // re-adjust size of mmain element if menu has changed
@@ -622,6 +656,8 @@ function mhttpd_init(current_page, interval, callback) {
          // cache navigation buttons in browser local storage
          sessionStorage.setItem("msidenav", html);
 
+         // show/hide sidenav according to local storage settings
+         mhttpd_show_menu(mhttpdConfig().showMenu);
 
       }).then(function () {
          if (callback !== undefined)
@@ -629,6 +665,23 @@ function mhttpd_init(current_page, interval, callback) {
       }).catch(function (error) {
          mjsonrpc_error_alert(error);
       });
+   }
+   
+   // store refresh interval and do initial refresh
+   if (interval === undefined)
+      interval = 1000;
+   mhttpd_refresh_interval = interval;
+
+   // scan custom page to find all mxxx elements and install proper handlers etc.
+   mhttpd_scan();
+}
+
+function mhttpd_scan()
+{
+   // go through all name="modb" tags
+   var modb = document.getElementsByName("modb");
+   for (var i = 0; i < modb.length; i++) {
+      // nothing needs to be done here
    }
 
    // go through all name="modbvalue" tags
@@ -643,17 +696,35 @@ function mhttpd_init(current_page, interval, callback) {
          link.href = "#";
          link.innerHTML = loading;
          link.onclick = function () {
-            ODBInlineEdit(this.parentElement, this.parentElement.dataset.odbPath);
+            ODBInlineEdit(this.parentElement, this.parentElement.dataset.odbPath, 0);
          };
          link.onfocus = function () {
-            ODBInlineEdit(this.parentElement, this.parentElement.dataset.odbPath);
+            ODBInlineEdit(this.parentElement, this.parentElement.dataset.odbPath, 0);
          };
 
-         o.appendChild(link);
+         if (o.childNodes[0] === undefined)
+            o.appendChild(link);
+         else
+            o.childNodes[0] = link;
       } else {
          // just display "loading" text, tag will be updated during mhttpd_refresh()
          o.innerHTML = loading;
       }
+   }
+
+   // go through all name="modbcheckbox" tags
+   var modbcheckbox = document.getElementsByName("modbcheckbox");
+   for (var i = 0; i < modbcheckbox.length; i++) {
+      modbcheckbox[i].onclick = function () {
+         mjsonrpc_db_set_value(this.dataset.odbPath, this.checked ? 1 : 0);
+         mhttpd_refresh();
+      };
+   }
+
+   // go through all name="modbbox" tags
+   var modbbox = document.getElementsByName("modbbox");
+   for (var i = 0; i < modbbox.length; i++) {
+      modbbox[i].style.border = "1px solid #808080";
    }
 
    // attach "set" function to all ODB buttons
@@ -668,27 +739,257 @@ function mhttpd_init(current_page, interval, callback) {
    var mbar = document.getElementsByName("modbhbar");
    for (var i = 0; i < mbar.length; i++) {
       mbar[i].style.display = "inline-block";
-      mbar[i].style.position = "relative";
+      if (mbar[i].style.position === "")
+         mbar[i].style.position = "relative";
       mbar[i].style.border = "1px solid #808080";
       var color = mbar[i].dataset.color;
-      mbar[i].innerHTML = "<div style='background-color:" + color + "; width:0; position:relative; display:inline-block; border-right:1px solid #808080'>&nbsp;</div>";
+      mbar[i].innerHTML = "<div style='background-color:" + color + ";" +
+         "width:0;height:"+ mbar[i].clientHeight+"px;"+
+         "position:relative; display:inline-block;border-right:1px solid #808080'>&nbsp;</div>";
    }
 
    // replace all vertical bars with proper <div>'s
    var mbar = document.getElementsByName("modbvbar");
    for (var i = 0; i < mbar.length; i++) {
       mbar[i].style.display = "inline-block";
-      mbar[i].style.position = "relative";
+      if (mbar[i].style.position === "")
+         mbar[i].style.position = "relative";
       mbar[i].style.border = "1px solid #808080";
       var color = mbar[i].dataset.color;
-      mbar[i].innerHTML = "<div style='background-color:" + color + "; height:0; width:100%; position:absolute; bottom:0; display:inline-block; border-top:1px solid #808080'>&nbsp;</div>";
+      mbar[i].innerHTML = "<div style='background-color:" + color + "; height:0; width:100%; position:absolute; bottom:0; left:0; display:inline-block; border-top:1px solid #808080'>&nbsp;</div>";
    }
 
-   // store refresh interval and do initial refresh
-   if (interval === undefined)
-      interval = 1000;
-   mhttpd_refresh_interval = interval;
+   // replace all thermometers with canvas
+   var mth = document.getElementsByName("modbthermo");
+   for (var i = 0; i < mth.length; i++) {
+      mth[i].style.display = "inline-block";
+      if (mth[i].style.position === "")
+         mth[i].style.position = "relative";
+
+      var cvs = document.createElement("canvas");
+      var w = mth[i].clientWidth;
+      var h = mth[i].clientHeight;
+      w = Math.floor(w/4)*4; // 2 must be devidable by 4
+      cvs.width = w + 1;
+      cvs.height = h;
+      mth[i].appendChild(cvs);
+      mth[i].draw = mhttpd_thermo_draw;
+      mth[i].draw();
+   }
+
+   // replace all gauges with canvas
+   var mg = document.getElementsByName("modbgauge");
+   for (var i = 0; i < mg.length; i++) {
+      mg[i].style.display = "inline-block";
+      if (mg[i].style.position === "")
+         mg[i].style.position = "relative";
+
+      var cvs = document.createElement("canvas");
+      cvs.width = mg[i].clientWidth;
+      cvs.height = mg[i].clientHeight;
+      mg[i].appendChild(cvs);
+      mg[i].draw = mhttpd_gauge_draw;
+      mg[i].draw();
+   }
+
    mhttpd_refresh();
+}
+
+function mhttpd_thermo_draw()
+{
+   var ctx = this.firstChild.getContext("2d");
+   ctx.save();
+   var w = this.firstChild.width;
+   var h = this.firstChild.height;
+   ctx.clearRect(0, 0, w, h);
+   w = w-1; // space for full circles
+   h = h-1;
+
+   if (this.dataset.scale === "1") {
+      w = w / 2;
+      w = Math.floor(w/4)*4;
+   }
+
+   if (this.dataset.value === "1") {
+      h = h - 14;
+   }
+
+   var x0 = Math.round(w/4*0);
+   var x1 = Math.round(w/4*1);
+   var x2 = Math.round(w/4*2);
+   var x3 = Math.round(w/4*3);
+
+   var v = this.value;
+   if (v < this.dataset.minValue)
+      v = this.dataset.minValue;
+   if (v > this.dataset.maxValue)
+      v = this.dataset.maxValue;
+   var yt = (h-4*x1) - (h-5*x1)*(v-this.dataset.minValue)/(this.dataset.maxValue-this.dataset.minValue);
+
+   ctx.translate(0.5, 0.5);
+   ctx.strokeStyle = "#000000";
+   ctx.fillStyle = "#FFFFFF";
+   ctx.lineWidth = 1;
+
+   // outer "glass"
+   ctx.beginPath();
+   ctx.arc(x2, x1, x1, Math.PI, 0);
+   ctx.lineTo(x3, h-x1*4);
+   ctx.lineTo(x3, h-x1*2*(1+Math.sin(60/360*2*Math.PI)));
+   ctx.arc(x2, h-x2, x2, 300/360*2*Math.PI, 240/360*2*Math.PI);
+   ctx.lineTo(x1, h-x1*2*(1+Math.sin(60/360*2*Math.PI)));
+   ctx.lineTo(x1, x1);
+   ctx.stroke();
+   if (this.dataset.backgroundColor !== undefined) {
+      ctx.fillStyle = this.dataset.backgroundColor;
+      ctx.fill();
+   }
+
+   // inner "fluid"
+   if (this.dataset.color === undefined) {
+      ctx.strokeStyle = "#000000";
+      ctx.fillStyle = "#000000";
+   } else {
+      ctx.strokeStyle = this.dataset.color;
+      ctx.fillStyle = this.dataset.color;
+   }
+
+   ctx.beginPath();
+   ctx.moveTo(x1+3, yt);
+   ctx.lineTo(x3-3, yt);
+   ctx.lineTo(x3-3, h-x2);
+   ctx.lineTo(x1+3, h-x2);
+   ctx.lineTo(x1+3, yt);
+   ctx.stroke();
+   ctx.fill();
+
+   ctx.beginPath();
+   ctx.arc(x2, h-x2, x2-4, 0, 2*Math.PI);
+   ctx.stroke();
+   ctx.fill();
+
+   // re-draw outer "glass"
+   ctx.strokeStyle = "#000000";
+   ctx.fillStyle = "#FFFFFF";
+   ctx.lineWidth = 1;
+   ctx.beginPath();
+   ctx.arc(x2, x1, x1, Math.PI, 0);
+   ctx.lineTo(x3, h-x1*4);
+   ctx.lineTo(x3, h-x1*2*(1+Math.sin(60/360*2*Math.PI)));
+   ctx.arc(x2, h-x2, x2, 300/360*2*Math.PI, 240/360*2*Math.PI);
+   ctx.lineTo(x1, h-x1*2*(1+Math.sin(60/360*2*Math.PI)));
+   ctx.lineTo(x1, x1);
+   ctx.stroke();
+
+   // optional scale
+   if (this.dataset.scale === "1") {
+      ctx.beginPath();
+      ctx.moveTo(x3+x1/2, x1);
+      ctx.lineTo(x3+x1, x1);
+      ctx.moveTo(x3+x1/2, h-4*x1);
+      ctx.lineTo(x3+x1, h-4*x1);
+      ctx.stroke();
+
+      ctx.font = "12px sans-serif";
+      ctx.fillStyle = "#000000";
+      ctx.strokeStyle = "#000000";
+      ctx.textBaseline = "middle";
+      ctx.fillText(this.dataset.minValue, 4.5*x1, h-4*x1, 3.5*x1);
+      ctx.fillText(this.dataset.maxValue, 4.5*x1, x1, 3.5*x1);
+   }
+
+   // optional value display
+   if (this.dataset.value === "1") {
+      ctx.font = "12px sans-serif";
+      ctx.fillStyle = "#000000";
+      ctx.strokeStyle = "#000000";
+      ctx.textBaseline = "bottom";
+      ctx.textAlign = "center";
+      ctx.fillText(this.value, x2, this.firstChild.height, 4*x1);
+   }
+
+   ctx.restore();
+}
+
+function mhttpd_gauge_draw()
+{
+   var ctx = this.firstChild.getContext("2d");
+   ctx.save();
+   var w = this.firstChild.width;
+   var h = this.firstChild.height;
+   var y = h;
+   if (this.dataset.scale === "1")
+      y -= 15;
+   else
+      y -= 1;
+   ctx.clearRect(0, 0, w, h);
+
+   var v = this.value;
+   if (v < this.dataset.minValue)
+      v = this.dataset.minValue;
+   if (v > this.dataset.maxValue)
+      v = this.dataset.maxValue;
+   v = (v - this.dataset.minValue) / (this.dataset.maxValue - this.dataset.minValue);
+
+   ctx.translate(0.5, 0.5);
+   ctx.strokeStyle = "#000000";
+   ctx.fillStyle = "#FFFFFF";
+   ctx.lineWidth = 1;
+
+   ctx.beginPath();
+   ctx.arc(w/2, y, w/2-1, Math.PI, 0);
+   ctx.lineTo(w-w/5, y);
+   ctx.arc(w/2, y, w/2-w/5, 0, Math.PI, true);
+   ctx.lineTo(1, y);
+   if (this.dataset.backgroundColor !== undefined) {
+      ctx.fillStyle = this.dataset.backgroundColor;
+      ctx.fill();
+   }
+   ctx.stroke();
+
+   // inner bar
+   ctx.beginPath();
+   ctx.fillStyle = this.dataset.color;
+   ctx.strokeStyle = this.dataset.color;
+   ctx.arc(w/2, y, w/2-1, Math.PI, (1+v)*Math.PI);
+   ctx.arc(w/2, y, w/2-w/5, (1+v)*Math.PI, Math.PI, true);
+   ctx.lineTo(1, y);
+   ctx.stroke();
+   ctx.fill();
+
+   // redraw outer frame
+   ctx.strokeStyle = "#000000";
+   ctx.fillStyle = "#FFFFFF";
+   ctx.lineWidth = 1;
+   ctx.beginPath();
+   ctx.arc(w/2, y, w/2-1, Math.PI, 0);
+   ctx.lineTo(w-w/5, y);
+   ctx.arc(w/2, y, w/2-w/5, 0, Math.PI, true);
+   ctx.lineTo(1, y);
+   ctx.stroke();
+
+   // optional value display
+   if (this.dataset.value === "1") {
+      ctx.font = "12px sans-serif";
+      ctx.fillStyle = "#000000";
+      ctx.strokeStyle = "#000000";
+      ctx.textBaseline = "bottom";
+      ctx.textAlign = "center";
+      ctx.fillText(this.value, w/2, y, w);
+   }
+
+   // optional scale display
+   if (this.dataset.scale === "1") {
+      ctx.font = "12px sans-serif";
+      ctx.fillStyle = "#000000";
+      ctx.strokeStyle = "#000000";
+      ctx.textBaseline = "bottom";
+      ctx.textAlign = "center";
+      ctx.fillText(this.dataset.minValue, 0.1*w, h, 0.2*w);
+      ctx.fillText(this.dataset.maxValue, 0.9*w, h, 0.2*w);
+   }
+
+   ctx.restore();
 }
 
 function mhttpd_resize_sidenav() {
@@ -706,16 +1007,30 @@ function mhttpd_resize_header() {
 var mhttpd_last_message = 1;
 
 function mhttpd_refresh() {
-   if (mhttpd_refresh_id != undefined)
+   if (mhttpd_refresh_id !== undefined)
       window.clearTimeout(mhttpd_refresh_id);
 
    /* this fuction gets called by mhttpd_init to periodically refresh all ODB tags plus alarms and messages */
 
+   var paths = [];
+
+   // go through all "modb" tags
+   var modb = document.getElementsByName("modb");
+   for (var i = 0; i < modb.length; i++)
+      paths.push(modb[i].dataset.odbPath);
+
    // go through all "modbvalue" tags
    var modbvalue = document.getElementsByName("modbvalue");
-   var paths = [];
-   for (var i = 0; i < modbvalue.length; i++)
+   for (i = 0; i < modbvalue.length; i++)
       paths.push(modbvalue[i].dataset.odbPath);
+
+   var modbcheckbox = document.getElementsByName("modbcheckbox");
+   for (i = 0; i < modbcheckbox.length; i++)
+      paths.push(modbcheckbox[i].dataset.odbPath);
+
+   var modbbox = document.getElementsByName("modbbox");
+   for (i = 0; i < modbbox.length; i++)
+      paths.push(modbbox[i].dataset.odbPath);
 
    var modbhbar = document.getElementsByName("modbhbar");
    for (i = 0; i < modbhbar.length; i++)
@@ -724,6 +1039,14 @@ function mhttpd_refresh() {
    var modbvbar = document.getElementsByName("modbvbar");
    for (i = 0; i < modbvbar.length; i++)
       paths.push(modbvbar[i].dataset.odbPath);
+
+   var modbthermo = document.getElementsByName("modbthermo");
+   for (i = 0; i < modbthermo.length; i++)
+      paths.push(modbthermo[i].dataset.odbPath);
+
+   var modbgauge = document.getElementsByName("modbgauge");
+   for (i = 0; i < modbgauge.length; i++)
+      paths.push(modbgauge[i].dataset.odbPath);
 
    // request ODB contents for all variables
    var req1 = mjsonrpc_make_request("db_get_values", {"paths": paths});
@@ -752,69 +1075,165 @@ function mhttpd_refresh() {
       var dstr = d.toLocaleString("en-gb", { hour12: false, day: 'numeric', month: 'short', year: 'numeric',
          hour: 'numeric', minute: 'numeric', second: 'numeric', timeZoneName: 'short' });
 
-      if (document.getElementById("mheader_last_updated") != undefined)
+      if (document.getElementById("mheader_last_updated") !== undefined)
          document.getElementById("mheader_last_updated").innerHTML = dstr;
 
-      for (var i = 0; i < modbvalue.length; i++) {
-         if (rpc[0].result.status[i] == 312) {
+      var idata = 0;
+
+      for (var i = 0; i < modb.length; i++,idata++) {
+         value = rpc[0].result.data[idata];
+         if (modb[i].value === undefined)
+            modb[i].value = value;
+         if (typeof value === 'object') { // subdircectory
+            if (modb[i].onchange !== null) {
+               modb[i].value = value;
+               modb[i].onchange();
+            }
+         } else {                         // individual value
+            if (modb[i].onchange !== null && value !== modb[i].value) {
+               modb[i].value = value;
+               modb[i].onchange();
+            }
+         }
+      }
+
+      for (i = 0; i < modbvalue.length; i++,idata++) {
+         if (rpc[0].result.status[i] === 312) {
             modbvalue[i].innerHTML = "ODB key \""+modbvalue[i].dataset.odbPath+"\" not found";
          } else {
-            var value = rpc[0].result.data[i];
-            var tid = rpc[0].result.tid[i];
+            var value = rpc[0].result.data[idata];
+            var tid = rpc[0].result.tid[idata];
             var mvalue = mie_to_string(tid, value, modbvalue[i].dataset.format);
             if (mvalue === "")
                mvalue = "(empty)";
             var html = mhttpd_escape(mvalue);
             if (modbvalue[i].dataset.odbEditable) {
-               modbvalue[i].childNodes[0].innerHTML = html;
+               if (modbvalue[i].childNodes[0] === undefined) {
+                  // element has not been scanned yet
+                  mhttpd_scan();
+                  mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, 100);
+                  return;
+               }
+               if (modbvalue[i].childNodes.length == 2){
+                  modbvalue[i].childNodes[1].innerHTML = html;
+               } else {
+                  modbvalue[i].childNodes[0].innerHTML = html;
+               }
             } else
                modbvalue[i].innerHTML = html;
          }
+         if (modbvalue[i].onchange !== null)
+            modbvalue[i].onchange();
       }
 
-      for (i = 0; i < modbhbar.length; i++) {
-         value = rpc[0].result.data[modbvalue.length + i];
-         tid = rpc[0].result.tid[modbvalue.length + i];
+      for (i = 0; i < modbcheckbox.length; i++,idata++) {
+         value = rpc[0].result.data[idata];
+         modbcheckbox[i].checked = (value === 1 || value === true);
+         if (modbcheckbox[i].onchange !== null)
+            modbcheckbox[i].onchange();
+      }
+
+      for (i = 0; i < modbbox.length; i++,idata++) {
+         value = rpc[0].result.data[idata];
+         if (value === 1 || value === true) {
+            modbbox[i].style.backgroundColor = modbbox[i].dataset.color;
+         } else {
+            if (modbbox[i].dataset.backgroundColor !== undefined)
+               modbbox[i].style.backgroundColor = modbbox[i].dataset.backgroundColor;
+            else
+               modbbox[i].style.backgroundColor = "";
+         }
+         if (modbbox[i].onchange !== null)
+            modbbox[i].onchange();
+      }
+
+      for (i = 0; i < modbhbar.length; i++,idata++) {
+         value = rpc[0].result.data[idata];
+         tid = rpc[0].result.tid[idata];
          mvalue = mie_to_string(tid, value);
          if (mvalue === "")
             mvalue = "(empty)";
          html = mhttpd_escape(""+mvalue);
+         modbhbar.value = value;
          if (modbhbar[i].dataset.value === "1")
             modbhbar[i].children[0].innerHTML = html;
-         var percent = Math.round(100 * value / modbhbar[i].dataset.maxValue);
+         if (modbhbar[i].dataset.minValue === undefined)
+            modbhbar[i].dataset.minValue = 0
+         if (modbhbar[i].dataset.maxValue === undefined)
+            modbhbar[i].dataset.maxValue = 1;
+         var percent = Math.round(100 * (value - modbhbar[i].dataset.minValue) /
+            (modbhbar[i].dataset.maxValue - modbhbar[i].dataset.minValue));
          if (percent < 0)
             percent = 0;
          if (percent > 100)
             percent = 100;
          modbhbar[i].children[0].style.width = percent + "%";
+         if (modbhbar[i].onchange !== null)
+            modbhbar[i].onchange();
       }
 
-      for (i = 0; i < modbvbar.length; i++) {
-         value = rpc[0].result.data[modbvalue.length + modbhbar.length + i];
-         tid = rpc[0].result.tid[modbvalue.length + modbhbar.length + i];
+      for (i = 0; i < modbvbar.length; i++,idata++) {
+         value = rpc[0].result.data[idata];
+         tid = rpc[0].result.tid[idata];
          mvalue = mie_to_string(tid, value);
          if (mvalue === "")
             mvalue = "(empty)";
          html = mhttpd_escape(""+mvalue);
+         modbvbar[i].value = value;
          if (modbvbar[i].dataset.value === "1")
             modbvbar[i].children[0].innerHTML = html;
-         var percent = Math.round(100 * value / modbvbar[i].dataset.maxValue);
+         if (modbvbar[i].dataset.minValue === undefined)
+            modbvbar[i].dataset.minValue = 0;
+         if (modbvbar[i].dataset.maxValue === undefined)
+            modbvbar[i].dataset.maxValue = 1;
+         percent = Math.round(100 * (value - modbvbar[i].dataset.minValue) /
+            (modbvbar[i].dataset.maxValue - modbvbar[i].dataset.minValue));
          if (percent < 0)
             percent = 0;
          if (percent > 100)
             percent = 100;
          modbvbar[i].children[0].style.height = percent + "%";
+         if (modbvbar[i].onchange !== null)
+            modbvbar[i].onchange();
+      }
+
+      for (i = 0; i < modbthermo.length; i++,idata++) {
+         value = rpc[0].result.data[idata];
+         tid = rpc[0].result.tid[idata];
+         mvalue = mie_to_string(tid, value, modbthermo[i].dataset.format);
+         if (mvalue === "")
+            mvalue = "(empty)";
+         modbthermo[i].value = mvalue;
+
+         if (modbthermo[i].onchange !== null)
+            modbthermo[i].onchange();
+
+         modbthermo[i].draw();
+      }
+
+      for (i = 0; i < modbgauge.length; i++,idata++) {
+         value = rpc[0].result.data[idata];
+         tid = rpc[0].result.tid[idata];
+         mvalue = mie_to_string(tid, value, modbgauge[i].dataset.format);
+         if (mvalue === "")
+            mvalue = "(empty)";
+         modbgauge[i].value = mvalue;
+
+         if (modbgauge[i].onchange !== null)
+            modbgauge[i].onchange();
+
+         modbgauge[i].draw();
       }
 
       // update alarm display
       var e = document.getElementById('mheader_alarm');
       if (!rpc[1].result.alarm_system_active) {
          e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: Off</a>";
-         e.className = "mgraycolor mgraycolorlink";
+         e.className = "mgray mbox";
       } else {
          if (Object.keys(rpc[1].result.alarms) == 0) {
             e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: None</a>";
-            e.className = "mgreencolor mgreencolorlink";
+            e.className = "mgreen mbox";
          } else {
             var s = "";
             var n = 0;
@@ -827,7 +1246,7 @@ function mhttpd_refresh() {
                e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: " + s + "</a>";
             else
                e.innerHTML = "<a href=\"?cmd=Alarms\">Alarm: " + s + "</a>";
-            e.className = "mredcolor mredcolorlink";
+            e.className = "mred mbox";
 
             mhttpd_alarm_play();
          }
@@ -967,13 +1386,13 @@ function mhttpd_message(msg, chat) {
 
    if (lastChatT > lastMsgT) {
       var m = lastChat;
-      var c = "#DCF8C6";
+      var c = "var(--mblue)";
       mType = "USER";
       talkTime = lastChatT;
       lastT = lastChatT;
    } else {
       m = lastMsg;
-      c = "yellow";
+      c = "var(--myellow)";
       mTalk = lastMsg.substr(lastMsg.indexOf("]") + 1);
       mType = m.substring(m.indexOf(",") + 1, m.indexOf("]"));
       talkTime = lastMsgT;
@@ -999,10 +1418,8 @@ function mhttpd_message(msg, chat) {
 
             if (first) {
                if (m.search("ERROR]") > 0) {
-                  d.style.backgroundColor = "red";
+                  d.style.backgroundColor = "var(--mred)";
                   d.style.color = "white";
-               } else {
-                  d.style.backgroundColor = "#A0A0A0";
                }
             } else {
 
@@ -1010,14 +1427,12 @@ function mhttpd_message(msg, chat) {
                if (m.search("ERROR]") > 0) {
                   d.style.removeProperty("-webkit-transition");
                   d.style.removeProperty("transition");
-                  d.style.backgroundColor = "red";
-                  d.style.color = "white";
+                  d.style.backgroundColor = "var(--mred)";
                } else {
                   d.age = new Date() / 1000;
                   d.style.removeProperty("-webkit-transition");
                   d.style.removeProperty("transition");
                   d.style.backgroundColor = c;
-                  d.style.color = "black";
                   setTimeout(function () {
                      d.style.setProperty("-webkit-transition", "background-color 3s", "");
                      d.style.setProperty("transition", "background-color 3s", "");
@@ -1041,8 +1456,8 @@ function mhttpd_message(msg, chat) {
          }
       }
       var t = new Date() / 1000;
-      if (t > d.age + 5 && d.style.backgroundColor === "yellow")
-         d.style.backgroundColor = "#A0A0A0";
+      if (t > d.age + 5 && d.style.backgroundColor === "var(--myellow)")
+         d.style.backgroundColor = "var(--mgray)";
    }
 }
 
@@ -1477,6 +1892,8 @@ var mhttpd_config_defaults = {
    },
 
    'suppressMessageBefore': 0,
+   'showMenu': true
+   
 };
 
 function mhttpdConfig() {
@@ -1484,9 +1901,13 @@ function mhttpdConfig() {
    try {
       if (localStorage.mhttpd)
          c = JSON.parse(localStorage.mhttpd);
-      // count number of elements
-      if (Object.keys(c).length != Object.keys(mhttpd_config_defaults).length)
-         c = mhttpd_config_defaults;
+
+      // if element has been added to mhttpd_config_defaults, merge it
+      if (Object.keys(c).length != Object.keys(mhttpd_config_defaults).length) {
+         for (var o in mhttpd_config_defaults)
+            if (!(o in c))
+               c[o] = mhttpd_config_defaults[o];
+      }
    } catch (e) {
    }
 

@@ -1936,8 +1936,9 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 	 int omit_names = 0;
 	 int omit_last_written = 0;
 	 time_t omit_old_timestamp = 0;
+	 int preserve_case = 0;
 
-	 status = db_copy_json_values(hDB, hKey, &buffer, &buffer_size, &buffer_end, omit_names, omit_last_written, omit_old_timestamp);
+	 status = db_copy_json_values(hDB, hKey, &buffer, &buffer_size, &buffer_end, omit_names, omit_last_written, omit_old_timestamp,preserve_case);
 
 	 printf("status: %d, json: %s\n", status, buffer);
 
@@ -2594,7 +2595,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
          if (equal_ustring(str, "/")) {
             status = DB_SUCCESS;
-            hKey = 0;
+            status = db_find_link(hDB, 0, "/", &hKey);
          } else
             status = db_find_link(hDB, 0, str, &hKey);
 
@@ -2602,8 +2603,9 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
             db_get_key(hDB, hKey, &key);
             printf("Waiting for key \"%s\" to be modified, abort with any key\n", key.name);
             db_get_record_size(hDB, hKey, 0, &size);
-            db_open_record(hDB, hKey, data, size, MODE_READ, key_update, NULL);
+            char* buf = (char*)malloc(size);
             key_modified = FALSE;
+            db_open_record(hDB, hKey, buf, size, MODE_READ, key_update, NULL);
 
             do {
                cm_yield(1000);
@@ -2613,6 +2615,10 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                ss_getchar(0);
             
             db_close_record(hDB, hKey);
+            if (buf) {
+               free(buf);
+               buf = NULL;
+            }
             if (i == '!')
                printf("Wait aborted.\n");
             else
@@ -2636,7 +2642,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
             
             do {
                cm_yield(1000);
-            } while (!key_modified && !ss_kbhit());
+            } while (!ss_kbhit());
             
             while (ss_kbhit())
                ss_getchar(0);

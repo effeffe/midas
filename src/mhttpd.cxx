@@ -1726,21 +1726,19 @@ void init_menu_buttons()
    BOOL value = TRUE;
    int size = sizeof(value);
    cm_get_experiment_database(&hDB, NULL);
-   db_get_value(hDB, 0, "/Experiment/Menu/Status", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Start", &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Status",     &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Transition", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/ODB", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Messages", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Chat", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Elog", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Alarms", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Programs", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/History", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/MSCB", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Sequencer", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Config", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Help", &value, &size, TID_BOOL, TRUE);
-   //strlcpy(str, "Status, ODB, Messages, Chat, ELog, Alarms, Programs, History, MSCB, Sequencer, Example, Help", sizeof(str));
+   db_get_value(hDB, 0, "/Experiment/Menu/ODB",        &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Messages",   &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Chat",       &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Elog",       &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Alarms",     &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Programs",   &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/History",    &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/MSCB",       &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Sequencer",  &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Config",     &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Help",       &value, &size, TID_BOOL, TRUE);
 
    std::string buf;
    status = db_get_value_string(hDB, 0, "/Experiment/Menu buttons", 0, &buf, FALSE);
@@ -7331,7 +7329,7 @@ void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
       if (fmt) {
          fmt_odb  = (equal_ustring(fmt, "odb") > 0);
          fmt_xml  = (equal_ustring(fmt, "xml") > 0);
-         fmt_json = (equal_ustring(fmt, "json") > 0);
+         fmt_json = (strstr(fmt, "json") != NULL);
 
          if (fmt_odb)
             fmt_xml = fmt_json = false;
@@ -9554,7 +9552,7 @@ void show_start_page(Param* p, Return* r, const char* dec_path, int script)
 
 void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char *dec_path, int write_access)
 {
-   int i, j, keyPresent, scan, size, status, line;
+   int i, j, keyPresent, scan, size, status, line, link_index;
    char str[256], tmp_path[256], url_path[256],
       hex_str[256], ref[256], keyname[32], link_name[256], link_ref[256],
       full_path[256], root_path[256], odb_path[256], colspan, style[32];
@@ -9819,7 +9817,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
          if (status != DB_SUCCESS) {
             if (scan == 1) {
                r->rsprintf("<tr><td class=\"yellowLight\">");
-               r->rsprintf("%s <i>-> <a href=\"%s\">%s</a></i><td><b><div style=\"color:red\">&lt;cannot resolve link&gt;</div></b></tr>\n", keyname, link_ref, link_name[0]?link_name:"(empty)");
+               r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td><b><div style=\"color:red\">&lt;cannot resolve link&gt;</div></b></tr>\n", keyname, link_ref, link_name[0]?link_name:"(empty)");
             }
          } else {
 
@@ -9827,16 +9825,25 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                /* for keys, don't display data value */
                r->rsprintf("<tr><td colspan=%d class=\"ODBdirectory\"><a href=\"%s\">&#x25B6 %s</a>\n", colspan, full_path, keyname);
                if (link_name[0])
-                  r->rsprintf("<i>-> <a href=\"%s\">%s</a></i>", link_ref, link_name);
+                  r->rsprintf("<i>&rarr; <a href=\"%s\">%s</a></i>", link_ref, link_name);
                r->rsprintf("</tr>\n");
             } else if(key.type != TID_KEY && scan == 1) {
+               
+               if (strchr(link_name, '['))
+                  link_index = atoi(strchr(link_name, '[')+1);
+               else
+                  link_index = -1;
+               
                /* display single value */
-               if (key.num_values == 1) {
+               if (key.num_values == 1 || link_index != -1) {
                   char data[TEXT_SIZE];
                   char data_str[TEXT_SIZE];
                   size = sizeof(data);
                   db_get_data(hDB, hkey, data, &size, key.type);
-                  db_sprintf(data_str, data, key.item_size, 0, key.type);
+                  if (link_index != -1)
+                     db_sprintf(data_str, data, key.item_size, link_index, key.type);
+                  else
+                     db_sprintf(data_str, data, key.item_size, 0, key.type);
 
                   if (key.type == TID_STRING) {
                      if (strlen(data_str) >= MAX_STRING_LENGTH-1) {
@@ -9844,9 +9851,12 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                      }
                   }
 
-                  if (key.type != TID_STRING)
-                     db_sprintfh(hex_str, data, key.item_size, 0, key.type);
-                  else
+                  if (key.type != TID_STRING) {
+                     if (link_index != -1)
+                        db_sprintfh(hex_str, data, key.item_size, link_index, key.type);
+                     else
+                        db_sprintfh(hex_str, data, key.item_size, 0, key.type);
+                  } else
                      hex_str[0] = 0;
 
                   if (data_str[0] == 0 || equal_ustring(data_str, "<NULL>")) {
@@ -9858,7 +9868,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                   if (strcmp(data_str, hex_str) != 0 && hex_str[0]) {
                      if (link_name[0]) {
                         r->rsprintf("<td class=\"ODBkey\">\n");
-                        r->rsprintf("%s <i>-> ", keyname);
+                        r->rsprintf("%s <i>&rarr; ", keyname);
                         r->rsprintf("<a href=\"%s\">%s</a></i>\n", link_ref, link_name);
                         r->rsprintf("<td class=\"%s\">\n", style);
                         if (!write_access)
@@ -9881,7 +9891,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                      if (strchr(data_str, '\n')) {
                         if (link_name[0]) {
                            r->rsprintf("<td class=\"ODBkey\">");
-                           r->rsprintf("%s <i>-> <a href=\"%s\">%s</a></i><td class=\"ODBvalue\">", keyname, link_ref, link_name);
+                           r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"ODBvalue\">", keyname, link_ref, link_name);
                         } else
                            r->rsprintf("<td class=\"ODBkey\">%s<td class=\"%s\">", keyname, style);
                         r->rsprintf("\n<pre>");
@@ -9894,7 +9904,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                      } else {
                         if (link_name[0]) {
                            r->rsprintf("<td class=\"ODBkey\">\n");
-                           r->rsprintf("%s <i>-> <a href=\"%s\">%s</a></i><td class=\"%s\">", keyname, link_ref, link_name, style);
+                           r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"%s\">", keyname, link_ref, link_name, style);
                            if (!write_access)
                               r->rsprintf("<a href=\"%s\">", ref);
                            else {
@@ -9963,8 +9973,8 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                   else {
                      /* display first value */
                      if (link_name[0])
-                        r->rsprintf("<tr><td class=\"ODBkey\" rowspan=%d>%s<br><i>-> %s</i>\n",
-                                 key.num_values, keyname, link_name);
+                        r->rsprintf("<tr><td class=\"ODBkey\" rowspan=%d>%s<br><i>&rarr; <a href=\"%s\">%s</a></i>\n",
+                                 key.num_values, keyname, link_ref, link_name);
                      else
                         r->rsprintf("<tr><td class=\"ODBkey\" rowspan=%d>%s\n",
                                  key.num_values, keyname);
@@ -10136,7 +10146,7 @@ void show_set_page(Param* pp, Return* r, char *enc_path, int enc_path_size,
          r->rsprintf("Error: cannot find key %s<P>\n", dec_path);
          return;
       }
-      db_get_key(hDB, hkey, &key);
+      db_get_link(hDB, hkey, &key);
 
       strlcpy(str, dec_path, sizeof(str));
       if (strrchr(str, '/'))
@@ -10171,7 +10181,7 @@ void show_set_page(Param* pp, Return* r, char *enc_path, int enc_path_size,
 
       /* set current value as default */
       size = sizeof(data);
-      db_get_data(hDB, hkey, data, &size, key.type);
+      db_get_link_data(hDB, hkey, data, &size, key.type);
       db_sprintf(data_str, data, key.item_size, index, key.type);
 
       if (equal_ustring(data_str, "<NULL>"))
@@ -10215,7 +10225,7 @@ void show_set_page(Param* pp, Return* r, char *enc_path, int enc_path_size,
          r->rsprintf("Error: cannot find key %s<P>\n", dec_path);
          return;
       }
-      db_get_key(hDB, hkey, &key);
+      db_get_link(hDB, hkey, &key);
 
       memset(data, 0, sizeof(data));
 
@@ -17040,6 +17050,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
+   r->rsprintf("<script type=\"text/javascript\" src=\"controls.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
 
    r->rsprintf("<script type=\"text/javascript\">\n");
@@ -17048,6 +17059,20 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    r->rsprintf("var sshow_all_lines = false;\n");
    r->rsprintf("var last_msg = null;\n");
    r->rsprintf("var last_paused = null;\n");
+   r->rsprintf("\n");
+   r->rsprintf("function start_script()\n");
+   r->rsprintf("{\n");
+   r->rsprintf("  mjsonrpc_call('cm_exist', '{\"name\": \"sequencer\" }').then(function(rpc){;\n");
+   r->rsprintf("    if (rpc.result.status === 1) {;\n");
+   r->rsprintf("       window.location.href = '?cmd=Start+Script';\n");
+   r->rsprintf("    } else {\n");
+   r->rsprintf("       dlgAlert('Please start sequencer program before starting script');\n");
+   r->rsprintf("    }\n");
+   r->rsprintf("  }).catch(function(error) {\n");
+   r->rsprintf("    mjsonrpc_error_alert(error); });\n");
+   r->rsprintf("\n");
+   r->rsprintf("  return false;\n");
+   r->rsprintf("}\n");
    r->rsprintf("\n");
    r->rsprintf("function seq_refresh()\n");
    r->rsprintf("{\n");
@@ -17342,7 +17367,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
          
       } else {
          r->rsprintf("<input type=submit name=cmd value=\"Load Script\">\n");
-         r->rsprintf("<input type=submit name=cmd value=\"Start Script\">\n");
+         r->rsprintf("<input type=submit onclick=\"return start_script();\" value=\"Start Script\">\n");
       }
       if (seq.filename[0] && !seq.running && !equal_ustring(p->getparam("cmd"), "Load Script") && !p->isparam("fs"))
          r->rsprintf("<input type=submit name=cmd value=\"Edit Script\">\n");
@@ -18832,6 +18857,9 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
                ptmp = p + (strlen(p) - 1);
                while (*ptmp == '-' || *ptmp == '\n' || *ptmp == '\r')
                   *ptmp-- = 0;
+            } else {
+               show_error(rr, "Invalid POST request");
+               return;
             }
             param->setparam(pitem, p); // in decode_post()
          }
@@ -19891,7 +19919,7 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       response_sent = handle_http_get(nc, msg, uri.c_str(), t);
    else if (method == "POST")
       response_sent = handle_http_post(nc, msg, uri.c_str(), t);
-
+   
    if (!response_sent) {
       if (trace_mg||verbose_mg)
          printf("handle_http_message: sending 501 Not Implemented error\n");
@@ -20011,7 +20039,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
 
       if (status != SUCCESS) {
          cm_msg(MERROR, "mongoose", "cannot find SSL certificate file \"%s\"", cert_file.c_str());
-         cm_msg(MERROR, "mongoose", "please create SSL certificate file: cd $MIDASSYS; openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
+         cm_msg(MERROR, "mongoose", "please create SSL certificate file: cd $MIDASSYS; openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key -subj \"/C=/ST=/L=/O=midas/OU=mhttpd/CN=localhost\"; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
          return SS_FILE_ERROR;
       }
 

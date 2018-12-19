@@ -415,16 +415,16 @@ static MJsonNode* js_cm_exist(const MJsonNode* params)
 
    MJsonNode* error = NULL;
 
-   const char* name = mjsonrpc_get_param(params, "name", &error)->GetString().c_str();
+   std::string name = mjsonrpc_get_param(params, "name", &error)->GetString();
    if (error)
       return error;
 
    int unique = mjsonrpc_get_param(params, "unique", NULL)->GetBool();
 
-   int status = cm_exist(name, unique);
+   int status = cm_exist(name.c_str(), unique);
 
    if (mjsonrpc_debug)
-      printf("cm_exist(%s,%d) -> %d\n", name, unique, status);
+      printf("cm_exist(%s,%d) -> %d\n", name.c_str(), unique, status);
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
@@ -442,16 +442,16 @@ static MJsonNode* js_cm_shutdown(const MJsonNode* params)
 
    MJsonNode* error = NULL;
 
-   const char* name = mjsonrpc_get_param(params, "name", &error)->GetString().c_str();
+   std::string name = mjsonrpc_get_param(params, "name", &error)->GetString();
    if (error)
       return error;
 
    int unique = mjsonrpc_get_param(params, "unique", NULL)->GetBool();
 
-   int status = cm_shutdown(name, unique);
+   int status = cm_shutdown(name.c_str(), unique);
 
    if (mjsonrpc_debug)
-      printf("cm_shutdown(%s,%d) -> %d\n", name, unique, status);
+      printf("cm_shutdown(%s,%d) -> %d\n", name.c_str(), unique, status);
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
@@ -468,7 +468,7 @@ static MJsonNode* start_program(const MJsonNode* params)
 
    MJsonNode* error = NULL;
 
-   const char* name = mjsonrpc_get_param(params, "name", &error)->GetString().c_str(); if (error) return error;
+   std::string name = mjsonrpc_get_param(params, "name", &error)->GetString(); if (error) return error;
 
    std::string path = "";
    path += "/Programs/";
@@ -585,6 +585,7 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
       doc->P("omit_last_written?", MJSON_BOOL, "omit the /last_written entries and the last_written[] result");
       doc->P("omit_tid?", MJSON_BOOL, "omit the tid[] result");
       doc->P("omit_old_timestamp?", MJSON_NUMBER, "omit data older than given ODB timestamp");
+      doc->P("preserve_case?", MJSON_BOOL, "preserve the capitalization of ODB key names (WARNING: ODB is not case sensitive); note that this will also have side effect of setting the omit_names option");
       doc->R("data[]", 0, "values of ODB data for each path, all key names are in lower case, all symlinks are followed");
       doc->R("status[]", MJSON_INT, "return status of db_copy_json_values() or db_copy_json_index() for each path");
       doc->R("tid?[]", MJSON_INT, "odb type id for each path, absent if omit_tid is true");
@@ -601,7 +602,8 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
    bool omit_tid = mjsonrpc_get_param(params, "omit_tid", NULL)->GetBool();
    double xomit_old_timestamp = mjsonrpc_get_param(params, "omit_old_timestamp", NULL)->GetDouble();
    time_t omit_old_timestamp = (time_t)xomit_old_timestamp;
-
+   bool preserve_case = mjsonrpc_get_param(params, "preserve_case", NULL)->GetBool();
+   
    MJsonNode* dresult = MJsonNode::MakeArray();
    MJsonNode* sresult = MJsonNode::MakeArray();
    MJsonNode* tresult = MJsonNode::MakeArray();
@@ -699,7 +701,8 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
          int bufsize = 0;
          int end = 0;
 
-         status = db_copy_json_values(hDB, hkey, &buf, &bufsize, &end, omit_names, omit_last_written, omit_old_timestamp);
+         status = db_copy_json_values(hDB, hkey, &buf, &bufsize, &end, omit_names,
+                                      omit_last_written, omit_old_timestamp, preserve_case);
 
          if (status == DB_SUCCESS) {
             dresult->AddToArray(MJsonNode::MakeJSON(buf));
@@ -1035,7 +1038,7 @@ static MJsonNode* js_db_delete(const MJsonNode* params)
       HNDLE hkey;
       std::string path = (*paths)[i]->GetString();
 
-      status = db_find_key(hDB, 0, path.c_str(), &hkey);
+      status = db_find_link(hDB, 0, path.c_str(), &hkey);
       if (status != DB_SUCCESS) {
          sresult->AddToArray(MJsonNode::MakeInt(status));
          continue;
@@ -1399,19 +1402,19 @@ static MJsonNode* js_cm_msg1(const MJsonNode* params)
 
    MJsonNode* error = NULL;
 
-   const char* facility = mjsonrpc_get_param(params, "facility", &error)->GetString().c_str();
-   const char* user = mjsonrpc_get_param(params, "user", &error)->GetString().c_str();
+   std::string facility = mjsonrpc_get_param(params, "facility", &error)->GetString();
+   std::string user = mjsonrpc_get_param(params, "user", &error)->GetString();
    int type = mjsonrpc_get_param(params, "type", &error)->GetInt();
-   const char* message = mjsonrpc_get_param(params, "message", &error)->GetString().c_str(); if (error) return error;
+   std::string message = mjsonrpc_get_param(params, "message", &error)->GetString(); if (error) return error;
 
-   if (strlen(facility)<1)
+   if (facility.size() <1)
       facility = "midas";
-   if (strlen(user)<1)
+   if (user.size()<1)
       user = "javascript_commands";
    if (type == 0)
       type = MT_INFO;
 
-   int status = cm_msg1(type, __FILE__, __LINE__, facility, user, "%s", message);
+   int status = cm_msg1(type, __FILE__, __LINE__, facility.c_str(), user.c_str(), "%s", message.c_str());
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
@@ -1430,17 +1433,17 @@ static MJsonNode* js_cm_retrieve(const MJsonNode* params)
       return doc;
    }
 
-   const char* facility = mjsonrpc_get_param(params, "facility", NULL)->GetString().c_str();
+   std::string facility = mjsonrpc_get_param(params, "facility", NULL)->GetString();
    int min_messages = mjsonrpc_get_param(params, "min_messages", NULL)->GetInt();
    double time = mjsonrpc_get_param(params, "time", NULL)->GetDouble();
 
-   if (strlen(facility) < 1)
+   if (facility.size() < 1)
       facility = "midas";
 
    int num_messages = 0;
    char* messages = NULL;
 
-   int status = cm_msg_retrieve2(facility, (time_t)time, min_messages, &messages, &num_messages);
+   int status = cm_msg_retrieve2(facility.c_str(), (time_t)time, min_messages, &messages, &num_messages);
 
    MJsonNode* result = MJsonNode::MakeObject();
 
@@ -1502,13 +1505,13 @@ static MJsonNode* js_al_trigger_alarm(const MJsonNode* params)
 
    MJsonNode* error = NULL;
 
-   const char* name = mjsonrpc_get_param(params, "name", &error)->GetString().c_str(); if (error) return error;
-   const char* message = mjsonrpc_get_param(params, "message", &error)->GetString().c_str(); if (error) return error;
-   const char* xclass = mjsonrpc_get_param(params, "class", &error)->GetString().c_str(); if (error) return error;
-   const char* condition = mjsonrpc_get_param(params, "condition", &error)->GetString().c_str(); if (error) return error;
+   std::string name = mjsonrpc_get_param(params, "name", &error)->GetString(); if (error) return error;
+   std::string message = mjsonrpc_get_param(params, "message", &error)->GetString(); if (error) return error;
+   std::string xclass = mjsonrpc_get_param(params, "class", &error)->GetString(); if (error) return error;
+   std::string condition = mjsonrpc_get_param(params, "condition", &error)->GetString(); if (error) return error;
    int type = mjsonrpc_get_param(params, "type", &error)->GetInt(); if (error) return error;
 
-   int status = al_trigger_alarm(name, message, xclass, condition, type);
+   int status = al_trigger_alarm(name.c_str(), message.c_str(), xclass.c_str(), condition.c_str(), type);
    
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
@@ -1527,11 +1530,11 @@ static MJsonNode* js_al_trigger_class(const MJsonNode* params)
 
    MJsonNode* error = NULL;
 
-   const char* xclass = mjsonrpc_get_param(params, "class", &error)->GetString().c_str(); if (error) return error;
-   const char* message = mjsonrpc_get_param(params, "message", &error)->GetString().c_str(); if (error) return error;
+   std::string xclass = mjsonrpc_get_param(params, "class", &error)->GetString(); if (error) return error;
+   std::string message = mjsonrpc_get_param(params, "message", &error)->GetString(); if (error) return error;
    bool first = mjsonrpc_get_param(params, "first", NULL)->GetBool();
 
-   int status = al_trigger_class(xclass, message, first);
+   int status = al_trigger_class(xclass.c_str(), message.c_str(), first);
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
@@ -1678,10 +1681,10 @@ static MJsonNode* js_hs_get_events(const MJsonNode* params)
       return doc;
    }
 
-   const char* channel = mjsonrpc_get_param(params, "channel", NULL)->GetString().c_str();
+   std::string channel = mjsonrpc_get_param(params, "channel", NULL)->GetString();
    double time = mjsonrpc_get_param(params, "time", NULL)->GetDouble();
 
-   MidasHistoryInterface* mh = GetHistory(channel);
+   MidasHistoryInterface* mh = GetHistory(channel.c_str());
 
    MJsonNode* events = MJsonNode::MakeArray();
 
@@ -1716,9 +1719,9 @@ static MJsonNode* js_hs_reopen(const MJsonNode* params)
       return doc;
    }
 
-   const char* channel = mjsonrpc_get_param(params, "channel", NULL)->GetString().c_str();
+   std::string channel = mjsonrpc_get_param(params, "channel", NULL)->GetString();
 
-   MidasHistoryInterface* mh = GetHistory(channel);
+   MidasHistoryInterface* mh = GetHistory(channel.c_str());
 
    if (!mh) {
       int status = HS_FILE_ERROR;
@@ -1749,7 +1752,7 @@ static MJsonNode* js_hs_get_tags(const MJsonNode* params)
       return doc;
    }
 
-   const char* channel = mjsonrpc_get_param(params, "channel", NULL)->GetString().c_str();
+   std::string channel = mjsonrpc_get_param(params, "channel", NULL)->GetString();
    double time = mjsonrpc_get_param(params, "time", NULL)->GetDouble();
    const MJsonNodeVector* events_array = mjsonrpc_get_param_array(params, "events", NULL);
 
@@ -1757,7 +1760,7 @@ static MJsonNode* js_hs_get_tags(const MJsonNode* params)
       time = ::time(NULL);
    }
 
-   MidasHistoryInterface* mh = GetHistory(channel);
+   MidasHistoryInterface* mh = GetHistory(channel.c_str());
 
    MJsonNode* events = MJsonNode::MakeArray();
 
@@ -1822,14 +1825,14 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
       return doc;
    }
 
-   const char* channel = mjsonrpc_get_param(params, "channel", NULL)->GetString().c_str();
+   std::string channel = mjsonrpc_get_param(params, "channel", NULL)->GetString();
    double time = mjsonrpc_get_param(params, "time", NULL)->GetDouble();
 
    const MJsonNodeVector* events_array = mjsonrpc_get_param_array(params, "events", NULL);
    const MJsonNodeVector* tags_array = mjsonrpc_get_param_array(params, "tags", NULL);
    const MJsonNodeVector* index_array = mjsonrpc_get_param_array(params, "index", NULL);
 
-   MidasHistoryInterface* mh = GetHistory(channel);
+   MidasHistoryInterface* mh = GetHistory(channel.c_str());
 
    MJsonNode* lw = MJsonNode::MakeArray();
 
@@ -1848,21 +1851,25 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
       return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and index should have the same length");
    }
 
-   const char** event_name = new const char*[num_var];
-   const char** tag_name = new const char*[num_var];
+   std::vector<std::string> event_names(num_var);
+   std::vector<std::string> tag_names(num_var);
+   // const char** event_name = new const char*[num_var];
+   // const char** tag_name = new const char*[num_var];
    int* var_index = new int[num_var];
    time_t* last_written = new time_t[num_var];
 
    for (unsigned i=0; i<num_var; i++) {
-      event_name[i] = (*events_array)[i]->GetString().c_str();
-      tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      //event_name[i] = (*events_array)[i]->GetString().c_str();
+      //tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      event_names[i] = (*events_array)[i]->GetString();
+      tag_names[i] = (*tags_array)[i]->GetString();
       var_index[i] = (*index_array)[i]->GetInt();
    }
 
    if (/* DISABLES CODE */ (0)) {
       printf("time %f, num_vars %d:\n", time, num_var);
       for (unsigned i=0; i<num_var; i++) {
-         printf("%d: [%s] [%s] [%d]\n", i, event_name[i], tag_name[i], var_index[i]);
+         printf("%d: [%s] [%s] [%d]\n", i, event_names[i].c_str(), tag_names[i].c_str(), var_index[i]);
       }
    }
 
@@ -1870,6 +1877,13 @@ static MJsonNode* js_hs_get_last_written(const MJsonNode* params)
       time = ::time(NULL);
    }
 
+   
+   const char** event_name = new const char*[num_var];
+   const char** tag_name = new const char*[num_var];
+   for (unsigned i=0; i<num_var; i++) {
+      event_name[i] = event_names[i].c_str();
+      tag_name[i] = tag_names[i].c_str();
+   }
    int status = mh->hs_get_last_written(time, num_var, event_name, tag_name, var_index, last_written);
 
    for (unsigned i=0; i<num_var; i++) {
@@ -1947,7 +1961,7 @@ static MJsonNode* js_hs_read(const MJsonNode* params)
 
    MJsonNode* error = NULL;
 
-   const char* channel = mjsonrpc_get_param(params, "channel", NULL)->GetString().c_str();
+   std::string channel = mjsonrpc_get_param(params, "channel", NULL)->GetString();
    double start_time = mjsonrpc_get_param(params, "start_time", &error)->GetDouble(); if (error) return error;
    double end_time = mjsonrpc_get_param(params, "end_time", &error)->GetDouble(); if (error) return error;
 
@@ -1955,7 +1969,7 @@ static MJsonNode* js_hs_read(const MJsonNode* params)
    const MJsonNodeVector* tags_array = mjsonrpc_get_param_array(params, "tags", NULL);
    const MJsonNodeVector* index_array = mjsonrpc_get_param_array(params, "index", NULL);
 
-   MidasHistoryInterface* mh = GetHistory(channel);
+   MidasHistoryInterface* mh = GetHistory(channel.c_str());
 
    MJsonNode* data = MJsonNode::MakeArray();
 
@@ -1974,16 +1988,18 @@ static MJsonNode* js_hs_read(const MJsonNode* params)
       return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and index should have the same length");
    }
 
-   const char** event_name = new const char*[num_var];
-   const char** tag_name = new const char*[num_var];
+   std::vector<std::string> event_names(num_var);
+   std::vector<std::string> tag_names(num_var);
    int* var_index = new int[num_var];
    JsonHistoryBuffer** jbuf = new JsonHistoryBuffer*[num_var];
    MidasHistoryBufferInterface** buf = new MidasHistoryBufferInterface*[num_var];
    int* hs_status = new int[num_var];
 
    for (unsigned i=0; i<num_var; i++) {
-      event_name[i] = (*events_array)[i]->GetString().c_str();
-      tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      //event_name[i] = (*events_array)[i]->GetString().c_str();
+      //tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      event_names[i] = (*events_array)[i]->GetString();
+      tag_names[i] = (*tags_array)[i]->GetString();
       var_index[i] = (*index_array)[i]->GetInt();
       jbuf[i] = new JsonHistoryBuffer();
       buf[i] = jbuf[i];
@@ -1993,8 +2009,15 @@ static MJsonNode* js_hs_read(const MJsonNode* params)
    if (/* DISABLES CODE */ (0)) {
       printf("time %f %f, num_vars %d:\n", start_time, end_time, num_var);
       for (unsigned i=0; i<num_var; i++) {
-         printf("%d: [%s] [%s] [%d]\n", i, event_name[i], tag_name[i], var_index[i]);
+         printf("%d: [%s] [%s] [%d]\n", i, event_names[i].c_str(), tag_names[i].c_str(), var_index[i]);
       }
+   }
+
+   const char** event_name = new const char*[num_var];
+   const char** tag_name = new const char*[num_var];
+   for (unsigned i=0; i<num_var; i++) {
+      event_name[i] = event_names[i].c_str();
+      tag_name[i] = tag_names[i].c_str();
    }
 
    int status = mh->hs_read_buffer(start_time, end_time, num_var, event_name, tag_name, var_index, buf, hs_status);
@@ -2053,7 +2076,7 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
 
    MJsonNode* error = NULL;
 
-   const char* channel = mjsonrpc_get_param(params, "channel", NULL)->GetString().c_str();
+   std::string channel = mjsonrpc_get_param(params, "channel", NULL)->GetString();
    double start_time = mjsonrpc_get_param(params, "start_time", &error)->GetDouble(); if (error) return error;
    double end_time = mjsonrpc_get_param(params, "end_time", &error)->GetDouble(); if (error) return error;
    int num_bins = mjsonrpc_get_param(params, "num_bins", &error)->GetInt(); if (error) return error;
@@ -2066,7 +2089,7 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
    const MJsonNodeVector* tags_array = mjsonrpc_get_param_array(params, "tags", NULL);
    const MJsonNodeVector* index_array = mjsonrpc_get_param_array(params, "index", NULL);
 
-   MidasHistoryInterface* mh = GetHistory(channel);
+   MidasHistoryInterface* mh = GetHistory(channel.c_str());
 
    MJsonNode* data = MJsonNode::MakeArray();
 
@@ -2088,9 +2111,11 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
    if (index_array->size() != num_var) {
       return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and index should have the same length");
    }
-
-   const char** event_name = new const char*[num_var];
-   const char** tag_name = new const char*[num_var];
+   
+   std::vector<std::string> event_names(num_var);
+   std::vector<std::string> tag_names(num_var);
+   //const char** event_name = new const char*[num_var];
+   //const char** tag_name = new const char*[num_var];
    int* var_index = new int[num_var];
 
    int* num_entries = new int[num_var];
@@ -2105,8 +2130,10 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
    double** max_bins = new double*[num_var];
 
    for (unsigned i=0; i<num_var; i++) {
-      event_name[i] = (*events_array)[i]->GetString().c_str();
-      tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      //event_name[i] = (*events_array)[i]->GetString().c_str();
+      //tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      event_names[i] = (*events_array)[i]->GetString();
+      tag_names[i] = (*tags_array)[i]->GetString();
       var_index[i] = (*index_array)[i]->GetInt();
       num_entries[i] = 0;
       last_time[i] = 0;
@@ -2122,8 +2149,15 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
    if (/* DISABLES CODE */ (0)) {
       printf("time %f %f, num_vars %d:\n", start_time, end_time, num_var);
       for (unsigned i=0; i<num_var; i++) {
-         printf("%d: [%s] [%s] [%d]\n", i, event_name[i], tag_name[i], var_index[i]);
+         printf("%d: [%s] [%s] [%d]\n", i, event_names[i].c_str(), tag_names[i].c_str(), var_index[i]);
       }
+   }
+
+   const char** event_name = new const char*[num_var];
+   const char** tag_name = new const char*[num_var];
+   for (unsigned i=0; i<num_var; i++) {
+      event_name[i] = event_names[i].c_str();
+      tag_name[i] = tag_names[i].c_str();
    }
 
    int status = mh->hs_read_binned(start_time, end_time, num_bins, num_var, event_name, tag_name, var_index, num_entries, count_bins, mean_bins, rms_bins, min_bins, max_bins, last_time, last_value, hs_status);

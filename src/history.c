@@ -1232,7 +1232,7 @@ INT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int* 
    /* search latest history file */
    status = hs_search_file(&ltime, -1);
    if (status != HS_SUCCESS) {
-      cm_msg(MERROR, "hs_get_tags", "cannot find recent history file");
+      cm_msg(MERROR, "hs_get_tags", "cannot find recent history file, hs_search_file() status %d", status);
       return HS_FILE_ERROR;
    }
 
@@ -1240,7 +1240,7 @@ INT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int* 
    hs_open_file(ltime, "hst", O_RDONLY, &fh);
    hs_open_file(ltime, "idf", O_RDONLY, &fhd);
    if (fh < 0 || fhd < 0) {
-      cm_msg(MERROR, "hs_get_tags", "cannot open index files");
+      cm_msg(MERROR, "hs_get_tags", "cannot open index files for time %d", ltime);
       if (fh>0)
          close(fh);
       if (fhd>0)
@@ -1255,6 +1255,7 @@ INT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int* 
    for (i = n - 1; i >= 0; i--) {
       lseek(fhd, i * sizeof(def_rec), SEEK_SET);
       read(fhd, (char *) &def_rec, sizeof(def_rec));
+      //printf("reading index file found event_id %d, looking for %d\n", def_rec.event_id, event_id);
       if (def_rec.event_id == event_id)
          break;
    }

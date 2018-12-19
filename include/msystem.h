@@ -515,6 +515,7 @@ extern "C" {
    INT EXPRT db_set_client_name(HNDLE hDB, const char *client_name);
    INT db_delete_key1(HNDLE hDB, HNDLE hKey, INT level, BOOL follow_links);
    INT EXPRT db_show_mem(HNDLE hDB, char *result, INT buf_size, BOOL verbose);
+   INT EXPRT db_get_free_mem(HNDLE hDB, INT *key_size, INT *data_size);
    INT db_allow_write_locked(DATABASE* p, const char* caller_name);
    void db_update_last_activity(DWORD actual_time);
    void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval);

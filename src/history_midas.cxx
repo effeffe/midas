@@ -1072,7 +1072,7 @@ public:
             continue;
          }
          
-         int status = GetEventId(start_time, event_name[i], tag_name[i], &event_id);
+         int status = GetEventId(end_time, event_name[i], tag_name[i], &event_id);
          
          if (status != HS_SUCCESS) {
             st[i] = status;

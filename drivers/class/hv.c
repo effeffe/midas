@@ -197,7 +197,7 @@ INT hv_read(EQUIPMENT * pequipment, int channel)
 
       /* indicate change if variation more than the threshold */
       if (ABS(hv_info->measured[i] - hv_info->measured_mirror[i]) >
-          hv_info->update_threshold[i] && hv_info->measured[i] > hv_info->zero_threshold[i])
+          hv_info->update_threshold[i] && (ABS(hv_info->measured[i]) > hv_info->zero_threshold[i]))
          changed = TRUE;
 
       if (act_time - hv_info->last_change[i] < min_time)

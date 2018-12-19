@@ -482,6 +482,7 @@ void display_all_hist(MidasHistoryInterface* mh, const char* event_name, time_t 
    int nread = n[0];
 
    bool ok = true;
+   bool no_data = true;
       
    for (int i=0; i<nvars; i++) {
       if (n[i] == 0) {
@@ -493,7 +494,15 @@ void display_all_hist(MidasHistoryInterface* mh, const char* event_name, time_t 
       } else if (n[i] != nread) {
          printf("Number of entries for event \"%s\" variable \"%s\" index %d is %d instead of %d\n", en[i], vn[i], in[i], n[i], nread);
          ok = false;
+         no_data = false;
+      } else {
+         no_data = false;
       }
+   }
+
+   if (no_data) {
+      printf("No data, nothing to print\n");
+      return;
    }
 
    if (!ok) {

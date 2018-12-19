@@ -251,7 +251,7 @@ void syslog(int priority,const char* format,...) {
 */
 
 
-int SnmpInit(void) {
+int SnmpInit(int channels) {//added number of channel to init MF
    init_snmp("CrateTest");									  // I never saw this name used !?!
    init_mib();													  // init MIB processing
    if(!read_module("WIENER-CRATE-MIB")) {		        // read specific mibs
@@ -293,7 +293,7 @@ int SnmpInit(void) {
   int indexBase=0;
   int j=0;
 
-  for( int i = 0; i < 3; i++) {
+  for( int i = 0; i < channels/16; i++) {//modified to have a programmable number of slot MF
 	//base = 32*i;  // original value
    base = 16*i;    // modified value SR
 	indexBase = 100*i;

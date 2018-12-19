@@ -106,8 +106,10 @@
          mf.removeChild(mf.childNodes[i]);
 
       mjsonrpc_call("cm_msg_retrieve", { "facility": facility, "time" : 0, "min_messages" : 100 }).then(function(rpc) {
-         var msg = rpc.result.messages.split("\n");
-         msg_append(msg);
+         if(rpc.result.messages){
+            var msg = rpc.result.messages.split("\n");
+            msg_append(msg);
+         }
          // check for new messages
          timer_front = window.setTimeout(msg_extend_front, 1000);
          // extend messages on scrolling down
@@ -140,10 +142,9 @@
          n_messages++;
 
          if (line.search("ERROR]") > 0) {
-            e.style.backgroundColor = "red";
-            e.style.color = "white";
+            e.style.backgroundColor = "var(--mred)";
          } else {
-            e.style.backgroundColor = "yellow";
+            e.style.backgroundColor = "var(--myellow)";
             e.age = new Date() / 1000;
             e.style.setProperty("-webkit-transition", "background-color 3s", "");
             e.style.setProperty("transition", "background-color 3s", "");
@@ -173,8 +174,7 @@
          e.className = "mmessageline";
          e.appendChild(document.createTextNode(line));
          if (line.search("ERROR]") > 0) {
-            e.style.backgroundColor = "red";
-            e.style.color = "white";
+            e.style.backgroundColor = "var(--mred)";
          }
 
          mf.appendChild(e);
@@ -200,8 +200,11 @@
       if (mf.scrollHeight - mf.scrollTop - mf.clientHeight < 2000) {
          if (!end_of_messages) {
             if (last_tstamp > 0) {
-               mjsonrpc_call("cm_msg_retrieve", { "facility": facility, "time" : last_tstamp-1, "min_messages" : 100 }).then(function(rpc) {
-                  var msg = rpc.result.messages.split("\n");
+               mjsonrpc_call("cm_msg_retrieve", { "facility": facility, "time" : last_tstamp-1, "min_messages" : 100 }).then(function(rpc) {                
+                  var msg = [""]; // empty first element; will indicate last lines if call failed.
+                  if(rpc.result.messages){
+                     msg = rpc.result.messages.split("\n");
+                  }
                   msg_append(msg);
                   timer_tail = window.setTimeout(msg_extend_tail, 1000);
                }).catch(function(error) {
@@ -211,9 +214,11 @@
             } else {
                // in non-timestamped mode, simply load full message list
                mjsonrpc_call("cm_msg_retrieve", { "facility": facility, "time" : 0, "min_messages" : n_messages+100 }).then(function(rpc) {
-                  var msg = rpc.result.messages.split("\n");
+                  var msg = []; // empty first element; will indicate last lines if call failed.
+                  if(rpc.result.messages){
+                     msg = rpc.result.messages.split("\n");
+                  }
                   n_messages = 0;
-
                   var mf = document.getElementById('messageFrame');
                   for (var i = mf.childNodes.length - 1; i > 0; i--)
                      mf.removeChild(mf.childNodes[i]);
@@ -263,6 +268,8 @@ function msg_extend_front() {
             dlgShow('dlgError');
          }
       });
+   }else{
+      timer_front = window.setTimeout(msg_extend_front, 1000);
    }
 }
 

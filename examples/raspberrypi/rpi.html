@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<!-- 
+     MIDAS custom page for Raspberry Pi sense hat temperature sensor and LED array. Works
+     together with midas/examples/raspberrypi/scfe slow control front-end. 
+
+     S. Ritt Feb. 2018 
+-->
+<html class="mcss">
+<head>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css">
+   <script src="controls.js"></script>
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <title>RPi Example</title>
+</head>
+
+<body class="mcss" onload="mhttpd_init('RPi');led_init();">
+
+<!-- header and side navigation will be filled in mhttpd_start -->
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+   <table class="mtable">
+      <tr>
+         <th colspan="2" class="mtableheader">Status</th>
+      </tr>
+      <tr>
+         <td style="width: 200px;">
+            Temperature:
+         </td>
+         <td>
+            <div name="modbthermo" style="width:60px;height:100px;" data-odb-path="/Equipment/RaspberryPi/Variables/Input" data-min-value="30" data-max-value="40"
+                 data-color="blue" data-scale="1" data-value="1" data-format="f1"></div>
+         </td>
+      </tr>
+      <tr>
+         <td colspan="2">
+            <div name="modb" data-odb-path="/Equipment/RaspberryPi/Variables/Output" onchange="ledUpdate(this)"></div>
+            <table id="colorTable"></table>
+            <table id="ledTable"></table>
+         </td>
+      </tr>
+   </table>
+</div>
+
+<script>
+
+// currently selected color
+var rgbSel = "000000";
+
+// list of six possible colors
+var colorList = [ "000000", "FF0000", "00FF00", "0000FF", "FFFF00", "FFFFFF" ];
+
+function led_init()
+{
+   // create box which shows selected color
+   var colorTable = document.getElementById("colorTable");
+   var row = colorTable.insertRow(-1);
+   var cell = row.insertCell(-1);
+   cell.id = "selcol";
+   cell.style.width = "40px";
+   cell.style.height = "40px";
+   cell.style.border = "solid 2px #808080";
+   cell.style.backgroundColor = "#"+colorList[0];
+
+   // crate spacer between selector box and color array
+   var cell = row.insertCell(-1);
+   cell.style.border = "none";
+   cell.style.width = "44px";
+
+   // create six color boxes
+   for (var r = 0; r < colorList.length; r++) {
+      var cell = row.insertCell(-1);
+      cell.style.width = "40px";
+      cell.style.height = "40px";
+      cell.style.border = "solid 2px #808080";
+      cell.style.backgroundColor = "#"+colorList[r];
+      cell.onclick = selectColor;
+   }
+
+   // create 8x8 LED boxes
+   var ledTable = document.getElementById("ledTable");
+   for (var r = 0; r < 8; r++) {
+      var row = ledTable.insertRow(-1);
+      for (var c = 0; c < 8; c++) {
+         var cell = row.insertCell(-1);
+         cell.row = r;
+         cell.col = c;
+         cell.style.width = "40px";
+         cell.style.height = "40px";
+         cell.style.border = "solid 2px #808080";
+         cell.style.backgroundColor = "#808080";
+         cell.onclick = ledSet;
+      }
+   }
+}
+
+function selectColor()
+{
+   // set selected color and change color of box
+   var rgbSet = this.style.backgroundColor.match(/\d+/g);
+   var rgb = (rgbSet[0] << 16) | (rgbSet[1] << 8) | rgbSet[2];
+   var str = rgb.toString(16);
+   rgbSel = "0".repeat(6 - str.length) + str;
+   document.getElementById("selcol").style.backgroundColor = this.style.backgroundColor;
+}
+
+function ledSet()
+{
+   // set LED box to currently selected color
+   this.style.backgroundColor = "#"+rgbSel;
+
+
+   // change corresponding value in ODB  
+   var index = this.row * 8 + this.col;
+   mjsonrpc_db_paste(["/Equipment/RaspberryPi/Variables/Output["+index+"]"], ["0x"+rgbSel]).
+     then(function(rpc) {}).
+     catch(function(error) {mjsonrpc_error_alert(error);});
+}
+
+function ledUpdate(led)
+{
+   // Read ODB array and set 64 boxes accordingly. Gets called by framework through
+   // <div name="modb" ... onchange="ledUpdate(this)"> tag
+   
+   var t = document.getElementById("ledTable");
+   for (var r = 0; r < 8; r++) {
+      for (var c = 0; c < 8; c++) {
+         var rgb = Math.floor(led.value[r*8+c]);
+         var cr = (rgb >> 16) & 0xFF;
+         var cg = (rgb >>  8) & 0xFF;
+         var cb = (rgb >>  0) & 0xFF;
+         var cell = t.rows[r].cells[c];
+         cell.style.backgroundColor = "rgb(" + cr + "," + cg + "," + cb + ")";
+      }
+   }
+}
+
+
+
+</script>
+
+</body>
+</html>

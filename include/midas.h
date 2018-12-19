@@ -73,6 +73,13 @@ The main include file
 #endif
 #endif
 
+#if !defined(OS_DARWIN)
+#if defined ( __APPLE__ )
+#define OS_LINUX
+#define OS_DARWIN
+#endif
+#endif
+
 #if defined(OS_LINUX) || defined(OS_OSF1) || defined(OS_ULTRIX) || defined(OS_FREEBSD) || defined(OS_SOLARIS) || defined(OS_IRIX) || defined(OS_DARWIN)
 #define OS_UNIX
 #endif
@@ -1843,7 +1850,7 @@ extern "C" {
    /* json encoder using the "ls" format, for getting the contents of a single ODB subdirectory */
    INT EXPRT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
    /* json encoder using the "get_values" format, for resolving links and normalized ODB path names (converted to lower-case) */
-  INT EXPRT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end, int omit_names, int omit_last_written, time_t omit_old_timestamp);
+  INT EXPRT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end, int omit_names, int omit_last_written, time_t omit_old_timestamp, int preserve_case);
    /* json encoder for an ODB array */
    INT EXPRT db_copy_json_array(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end);
    /* json encoder for a single element of an ODB array */
