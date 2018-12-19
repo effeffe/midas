@@ -941,7 +941,7 @@ typedef struct {
    INT write_cache_wp;              /**< cache write pointer          */
    HNDLE semaphore;                 /**< semaphore handle             */
    INT shm_handle;                  /**< handle to shared memory      */
-   INT index;                       /**< connection index / tid       */
+   //INT index;                       /**< connection index / tid       */
    BOOL callback;                   /**< callback defined for this buffer */
 
 } BUFFER;
@@ -1506,8 +1506,8 @@ flags */
 /**
 Server types */
 #define ST_NONE            0
-#define ST_SINGLE          1
-#define ST_MTHREAD         2
+//#define ST_SINGLE          1
+//#define ST_MTHREAD         2
 #define ST_MPROCESS        3
 #define ST_SUBPROCESS      4
 #define ST_REMOTE          5

@@ -400,7 +400,7 @@ typedef struct {
    HNDLE semaphore;             /* semaphore handle             */
    INT lock_cnt;                /* flag to avoid multiple locks */
    HNDLE shm_handle;            /* handle (id) to shared memory */
-   INT index;                   /* connection index / tid       */
+   //INT index;                   /* connection index / tid       */
    BOOL protect;                /* read/write protection        */
    BOOL protect_read;           /* read is permitted            */
    BOOL protect_write;          /* write is permitted           */
@@ -529,8 +529,8 @@ extern "C" {
    INT rpc_server_callback(struct callback_addr *callback);
    INT EXPRT rpc_server_accept(int sock);
    INT rpc_client_accept(int sock);
-   INT rpc_get_server_acception(void);
-   INT rpc_set_server_acception(INT idx);
+   //INT rpc_get_server_acception(void);
+   //INT rpc_set_server_acception(INT idx);
    INT EXPRT rpc_set_server_option(INT item, POINTER_T value);
    POINTER_T EXPRT rpc_get_server_option(INT item);
    INT recv_tcp_check(int sock);

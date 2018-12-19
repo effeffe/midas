@@ -1402,15 +1402,15 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
       for (i = 0; i < _database_entries; i++)
          if (_database[i].attached && equal_ustring(_database[i].name, database_name)) {
             /* check if database belongs to this thread */
-            if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MTHREAD) {
-               if (_database[i].index == ss_gettid()) {
-                  *hDB = i + 1;
-                  return DB_SUCCESS;
-               }
-            } else {
+            //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MTHREAD) {
+            //   if (_database[i].index == ss_gettid()) {
+            //      *hDB = i + 1;
+            //      return DB_SUCCESS;
+            //   }
+            //} else {
                *hDB = i + 1;
                return DB_SUCCESS;
-            }
+            //}
          }
 
       /* check for a deleted entry */
@@ -1662,11 +1662,11 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    _database[handle].protect_read = FALSE;
    _database[handle].protect_write = FALSE;
 
-   /* remember to which connection acutal buffer belongs */
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
-      _database[handle].index = rpc_get_server_acception();
-   else
-      _database[handle].index = ss_gettid();
+   ///* remember to which connection acutal buffer belongs */
+   //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
+   //   _database[handle].index = rpc_get_server_acception();
+   //else
+   //   _database[handle].index = ss_gettid();
 
    *hDB = (handle + 1);
 
@@ -1726,16 +1726,16 @@ INT db_close_database(HNDLE hDB)
       pheader = _database[hDB - 1].database_header;
       pclient = &pheader->client[idx];
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-          _database[hDB - 1].index != rpc_get_server_acception()) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
+      //    _database[hDB - 1].index != rpc_get_server_acception()) {
+      //   db_unlock_database(hDB);
+      //   return DB_INVALID_HANDLE;
+      //}
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[hDB - 1].index != ss_gettid()) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[hDB - 1].index != ss_gettid()) {
+      //   db_unlock_database(hDB);
+      //   return DB_INVALID_HANDLE;
+      //}
 
       if (!_database[hDB - 1].attached) {
          db_unlock_database(hDB);
@@ -1864,16 +1864,16 @@ INT db_flush_database(HNDLE hDB)
       db_lock_database(hDB);
       pheader = _database[hDB - 1].database_header;
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-          _database[hDB - 1].index != rpc_get_server_acception()) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
+      //    _database[hDB - 1].index != rpc_get_server_acception()) {
+      //   db_unlock_database(hDB);
+      //   return DB_INVALID_HANDLE;
+      //}
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[hDB - 1].index != ss_gettid()) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[hDB - 1].index != ss_gettid()) {
+      //   db_unlock_database(hDB);
+      //   return DB_INVALID_HANDLE;
+      //}
 
       if (!_database[hDB - 1].attached) {
          db_unlock_database(hDB);
@@ -2435,16 +2435,16 @@ void db_set_watchdog_params(DWORD timeout)
       pheader = _database[i - 1].database_header;
       pclient = &pheader->client[idx];
       
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-          _database[i - 1].index != rpc_get_server_acception()) {
-         db_unlock_database(i);
-         continue;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
+      //    _database[i - 1].index != rpc_get_server_acception()) {
+      //   db_unlock_database(i);
+      //   continue;
+      //}
       
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[i - 1].index != ss_gettid()) {
-         db_unlock_database(i);
-         continue;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[i - 1].index != ss_gettid()) {
+      //   db_unlock_database(i);
+      //   continue;
+      //}
       
       if (!_database[i - 1].attached) {
          db_unlock_database(i);

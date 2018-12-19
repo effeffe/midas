@@ -2817,12 +2817,12 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
          BUFFER_HEADER *pheader;
          INT idx;
 
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE
-             && _buffer[i - 1].index != rpc_get_server_acception())
-            continue;
+         //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE
+         //    && _buffer[i - 1].index != rpc_get_server_acception())
+         //   continue;
 
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _buffer[i - 1].index != ss_gettid())
-            continue;
+         //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _buffer[i - 1].index != ss_gettid())
+         //   continue;
 
          if (!_buffer[i - 1].attached)
             continue;
@@ -5501,12 +5501,12 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
          /* check if buffer alreay is open */
          for (i = 0; i < _buffer_entries; i++)
             if (_buffer[i].attached && equal_ustring(_buffer[i].buffer_header->name, buffer_name)) {
-               if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-                   _buffer[i].index != rpc_get_server_acception())
-                  continue;
+               //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
+               //    _buffer[i].index != rpc_get_server_acception())
+               //   continue;
 
-               if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _buffer[i].index != ss_gettid())
-                  continue;
+               //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _buffer[i].index != ss_gettid())
+               //   continue;
 
                *buffer_handle = i + 1;
                return BM_SUCCESS;
@@ -5639,10 +5639,10 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       _buffer[handle].callback = FALSE;
 
       /* remember to which connection acutal buffer belongs */
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
-         _buffer[handle].index = rpc_get_server_acception();
-      else
-         _buffer[handle].index = ss_gettid();
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
+      //   _buffer[handle].index = rpc_get_server_acception();
+      //else
+      //   _buffer[handle].index = ss_gettid();
 
       *buffer_handle = (handle + 1);
 
@@ -5699,15 +5699,15 @@ INT bm_close_buffer(INT buffer_handle)
       idx = bm_validate_client_index(&_buffer[buffer_handle - 1], FALSE);
       pheader = _buffer[buffer_handle - 1].buffer_header;
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-          _buffer[buffer_handle - 1].index != rpc_get_server_acception()) {
-         return BM_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
+      //    _buffer[buffer_handle - 1].index != rpc_get_server_acception()) {
+      //   return BM_INVALID_HANDLE;
+      //}
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE
-          && _buffer[buffer_handle - 1].index != ss_gettid()) {
-         return BM_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE
+      //    && _buffer[buffer_handle - 1].index != ss_gettid()) {
+      //   return BM_INVALID_HANDLE;
+      //}
 
       if (!_buffer[buffer_handle - 1].attached) {
          /* don't produce error, since bm_close_all_buffers() might want to close an
@@ -8401,17 +8401,17 @@ INT bm_check_buffers()
 #ifdef LOCAL_ROUTINES
    {
       INT idx, status = 0;
-      INT server_type, server_conn, tid;
+      //INT server_type, server_conn, tid;
       BOOL bMore;
       DWORD start_time;
 
-      server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
-      server_conn = rpc_get_server_acception();
-      tid = ss_gettid();
+      //server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
+      //server_conn = rpc_get_server_acception();
+      //tid = ss_gettid();
 
       /* if running as a server, buffer checking is done by client
          via ASYNC bm_receive_event */
-      if (server_type == ST_SUBPROCESS || server_type == ST_MTHREAD)
+      if (server_type == ST_SUBPROCESS || 0/*server_type == ST_MTHREAD*/)
          return FALSE;
 
       bMore = FALSE;
@@ -8419,11 +8419,11 @@ INT bm_check_buffers()
 
       /* go through all buffers */
       for (idx = 0; idx < _buffer_entries; idx++) {
-         if (server_type == ST_SINGLE && _buffer[idx].index != server_conn)
-            continue;
+         //if (server_type == ST_SINGLE && _buffer[idx].index != server_conn)
+         //   continue;
 
-         if (server_type != ST_SINGLE && _buffer[idx].index != tid)
-            continue;
+         //if (server_type != ST_SINGLE && _buffer[idx].index != tid)
+         //   continue;
 
          if (!_buffer[idx].attached)
             continue;
@@ -8493,12 +8493,12 @@ INT bm_mark_read_waiting(BOOL flag)
 
       /* Mark all buffer for read waiting */
       for (i = 0; i < _buffer_entries; i++) {
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE
-             && _buffer[i].index != rpc_get_server_acception())
-            continue;
+         //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE
+         //    && _buffer[i].index != rpc_get_server_acception())
+         //   continue;
 
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _buffer[i].index != ss_gettid())
-            continue;
+         //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _buffer[i].index != ss_gettid())
+         //   continue;
 
          if (!_buffer[i].attached)
             continue;
@@ -8742,21 +8742,21 @@ INT bm_empty_buffers()
 
 #ifdef LOCAL_ROUTINES
    {
-      INT idx, server_type, server_conn, tid;
+      INT idx/*, server_type, server_conn, tid*/;
       BUFFER *pbuf;
       BUFFER_CLIENT *pclient;
 
-      server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
-      server_conn = rpc_get_server_acception();
-      tid = ss_gettid();
+      //server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
+      //server_conn = rpc_get_server_acception();
+      //tid = ss_gettid();
 
       /* go through all buffers */
       for (idx = 0; idx < _buffer_entries; idx++) {
-         if (server_type == ST_SINGLE && _buffer[idx].index != server_conn)
-            continue;
+         //if (server_type == ST_SINGLE && _buffer[idx].index != server_conn)
+         //   continue;
 
-         if (server_type != ST_SINGLE && _buffer[idx].index != tid)
-            continue;
+         //if (server_type != ST_SINGLE && _buffer[idx].index != tid)
+         //   continue;
 
          if (!_buffer[idx].attached)
             continue;
@@ -8953,7 +8953,7 @@ RPC_SERVER_CONNECTION _server_connection;
 
 static int _lsock;
 RPC_SERVER_ACCEPTION _server_acception[MAX_RPC_CONNECTION];
-static INT _server_acception_index = 0;
+//static INT _server_acception_index = 0;
 static INT _server_type;
 static char _server_name[256];
 
@@ -10134,7 +10134,7 @@ INT rpc_is_remote(void)
 
 
 /********************************************************************/
-INT rpc_get_server_acception(void)
+//INT rpc_get_server_acception(void)
 /********************************************************************\
 
   Routine: rpc_get_server_acception
@@ -10151,13 +10151,13 @@ INT rpc_get_server_acception(void)
     INT    RPC server connection index
 
 \********************************************************************/
-{
-   return _server_acception_index;
-}
+//{
+//   return _server_acception_index;
+//}
 
 
 /********************************************************************/
-INT rpc_set_server_acception(INT idx)
+//INT rpc_set_server_acception(INT idx)
 /********************************************************************\
 
   Routine: rpc_set_server_acception
@@ -10174,10 +10174,10 @@ INT rpc_set_server_acception(INT idx)
     RPC_SUCCESS             Successful completion
 
 \********************************************************************/
-{
-   _server_acception_index = idx;
-   return RPC_SUCCESS;
-}
+//{
+//   _server_acception_index = idx;
+//   return RPC_SUCCESS;
+//}
 
 
 /********************************************************************/
@@ -10374,12 +10374,12 @@ POINTER_T rpc_get_server_option(INT item)
       return 0;
 
    /* check which connections belongs to caller */
-   if (_server_type == ST_MTHREAD) {
+   if (0 /*_server_type == ST_MTHREAD*/) {
       for (i = 0; i < MAX_RPC_CONNECTION; i++)
          if (_server_acception[i].tid == ss_gettid())
             break;
-   } else if (_server_type == ST_SINGLE || _server_type == ST_REMOTE)
-      i = MAX(0, _server_acception_index - 1);
+   } else if (0/*_server_type == ST_SINGLE*/ || _server_type == ST_REMOTE)
+      i = 0; /*MAX(0, _server_acception_index - 1);*/
    else
       i = 0;
 
@@ -10432,12 +10432,12 @@ INT rpc_set_server_option(INT item, POINTER_T value)
    }
 
    /* check which connections belongs to caller */
-   if (_server_type == ST_MTHREAD) {
+   if (0 /*_server_type == ST_MTHREAD*/) {
       for (i = 0; i < MAX_RPC_CONNECTION; i++)
          if (_server_acception[i].tid == ss_gettid())
             break;
-   } else if (_server_type == ST_SINGLE || _server_type == ST_REMOTE)
-      i = MAX(0, _server_acception_index - 1);
+   } else if (0/*_server_type == ST_SINGLE*/ || _server_type == ST_REMOTE)
+      i = 0; /*MAX(0, _server_acception_index - 1);*/
    else
       i = 0;
 
@@ -12054,9 +12054,9 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 
   Input:
     INT   server_type       One of the following constants:
-                            ST_SINGLE: register a single process server
-                            ST_MTHREAD: for each connection, start
-                                        a new thread to serve it
+                            //ST_SINGLE: register a single process server
+                            //ST_MTHREAD: for each connection, start
+                            //            a new thread to serve it
                             ST_MPROCESS: for each connection, start
                                          a new process to server it
                             ST_SUBPROCESS: the routine was called from
@@ -13232,11 +13232,11 @@ INT rpc_server_accept(int lsock)
          callback.index = idx;
 
         /*----- multi thread server ------------------------*/
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MTHREAD)
-            ss_thread_create(rpc_server_thread, (void *) (&callback));
+         //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MTHREAD)
+         //   ss_thread_create(rpc_server_thread, (void *) (&callback));
 
         /*----- single thread server -----------------------*/
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE ||
+         if (0/*rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE*/ ||
              rpc_get_server_option(RPC_OSERVER_TYPE) == ST_REMOTE)
             rpc_server_callback(&callback);
 
@@ -13425,7 +13425,7 @@ INT rpc_client_accept(int lsock)
    if (status != (INT) strlen(str) + 1)
       return RPC_NET_ERROR;
 
-   rpc_set_server_acception(idx + 1);
+   //rpc_set_server_acception(idx + 1);
    rpc_calc_convert_flags(hw_type, client_hw_type, &convert_flags);
    rpc_set_server_option(RPC_CONVERT_FLAGS, convert_flags);
 
@@ -13606,7 +13606,7 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    sprintf(str, "%d", hw_type);
    send(recv_sock, str, strlen(str) + 1, 0);
 
-   rpc_set_server_acception(idx + 1);
+   //rpc_set_server_acception(idx + 1);
    rpc_calc_convert_flags(hw_type, client_hw_type, &convert_flags);
    rpc_set_server_option(RPC_CONVERT_FLAGS, convert_flags);
 
@@ -13806,7 +13806,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
             goto error;
          }
 
-         rpc_set_server_acception(idx + 1);
+         //rpc_set_server_acception(idx + 1);
 
          if (_server_acception[idx].remote_hw_type == DR_ASCII)
             status = rpc_execute_ascii(_server_acception[idx].recv_sock, _net_recv_buffer);

@@ -258,10 +258,10 @@ int main(int argc, char **argv)
             debug = TRUE;
          else if (argv[i][0] == '-' && argv[i][1] == 'D')
             daemon = TRUE;
-         else if (argv[i][0] == '-' && argv[i][1] == 's')
-            server_type = ST_SINGLE;
-         else if (argv[i][0] == '-' && argv[i][1] == 't')
-            server_type = ST_MTHREAD;
+         //else if (argv[i][0] == '-' && argv[i][1] == 's')
+         //   server_type = ST_SINGLE;
+         //else if (argv[i][0] == '-' && argv[i][1] == 't')
+         //   server_type = ST_MTHREAD;
          else if (argv[i][0] == '-' && argv[i][1] == 'm')
             server_type = ST_MPROCESS;
          else if (argv[i][0] == '-' && argv[i][1] == 'p')
@@ -273,8 +273,8 @@ int main(int argc, char **argv)
              usage:
                printf("usage: mserver [-e Experiment] [-s][-t][-m][-d][-p port]\n");
                printf("               -e    experiment to connect to\n");
-               printf("               -s    Single process server (DO NOT USE!)\n");
-               printf("               -t    Multi threaded server (DO NOT USE!)\n");
+               //printf("               -s    Single process server (DO NOT USE!)\n");
+               //printf("               -t    Multi threaded server (DO NOT USE!)\n");
                printf("               -m    Multi process server (default)\n");
                printf("               -p port Listen for connections on specifed tcp port. Default value is taken from ODB \"/Experiment/midas server port\"\n");
 #ifdef OS_LINUX
@@ -317,15 +317,15 @@ int main(int argc, char **argv)
       printf("mserver will listen on TCP port %d\n", port);
 
       /* if command line parameter given, start according server type */
-      if (server_type == ST_MTHREAD) {
-         if (ss_thread_create(NULL, NULL) == 0) {
-            printf("MIDAS doesn't support threads on this OS.\n");
-            return 1;
-         }
-
-         printf("NOTE: THE MULTI THREADED SERVER IS BUGGY, ONLY USE IT FOR TEST PURPOSES\n");
-         printf("Multi thread server started\n");
-      }
+      //if (server_type == ST_MTHREAD) {
+      //   if (ss_thread_create(NULL, NULL) == 0) {
+      //      printf("MIDAS doesn't support threads on this OS.\n");
+      //      return 1;
+      //   }
+      //
+      //   printf("NOTE: THE MULTI THREADED SERVER IS BUGGY, ONLY USE IT FOR TEST PURPOSES\n");
+      //   printf("Multi thread server started\n");
+      //}
 
       /* register server */
       status =  rpc_register_server(server_type, argv[0], &port, rpc_server_dispatch);
