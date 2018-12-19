@@ -232,11 +232,6 @@ typedef struct {
 #define TRUNCATE(fh) ftruncate(fh, TELL(fh))
 #endif
 
-/* reduced shared memory size */
-#ifdef OS_SOLARIS
-#define MAX_SHM_SIZE      0x20000       /* 128k */
-#endif
-
 /* missing isnan() & co under Windows */
 #ifdef OS_WINNT
 #include <float.h>

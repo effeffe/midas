@@ -5530,12 +5530,6 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
 
       handle = i;
 
-      /* reduce buffer size is larger than maximum */
-#ifdef MAX_SHM_SIZE
-      if (buffer_size + sizeof(BUFFER_HEADER) > MAX_SHM_SIZE)
-         buffer_size = MAX_SHM_SIZE - sizeof(BUFFER_HEADER);
-#endif
-
       /* open shared memory region */
       //status = ss_shm_open(buffer_name, sizeof(BUFFER_HEADER) + buffer_size,
       //               (void **) &(_buffer[handle].buffer_header), &shm_handle, FALSE);
@@ -5561,8 +5555,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       } else {
          /* check if buffer size is identical */
          if (pheader->size != buffer_size) {
-            cm_msg(MERROR, "bm_open_buffer", "Cannot open buffer \"%s\": requested buffer size (%d) differs from existing size (%d)",
-                   buffer_name, buffer_size, pheader->size);
+            cm_msg(MERROR, "bm_open_buffer", "Cannot open buffer \"%s\": requested buffer size (%d) differs from existing size (%d)", buffer_name, buffer_size, pheader->size);
             *buffer_handle = 0;
             _buffer_entries--;
             return BM_MEMSIZE_MISMATCH;
@@ -5576,6 +5569,9 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
          _buffer_entries--;
          return BM_NO_SEMAPHORE;
       }
+
+      /* create mutex for the buffer */
+      ss_mutex_create(&_buffer[handle].buffer_mutex, FALSE);
 
       /* first lock buffer */
       bm_lock_buffer(handle + 1);
@@ -5634,7 +5630,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       _buffer[handle].attached = TRUE;
       _buffer[handle].shm_handle = shm_handle;
       _buffer[handle].callback = FALSE;
-
+      ss_mutex_create(&_buffer[handle].write_cache_mutex, FALSE);
       /* remember to which connection acutal buffer belongs */
       if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
          _buffer[handle].index = rpc_get_server_acception();
@@ -5750,6 +5746,10 @@ INT bm_close_buffer(INT buffer_handle)
       if (_buffer[buffer_handle - 1].write_cache_size > 0) {
          M_FREE(_buffer[buffer_handle - 1].write_cache);
          _buffer[buffer_handle - 1].write_cache = NULL;
+         _buffer[buffer_handle - 1].write_cache_size = 0;
+         _buffer[buffer_handle - 1].write_cache_wp = 0;
+         ss_mutex_delete(_buffer[buffer_handle - 1].write_cache_mutex);
+         _buffer[buffer_handle - 1].write_cache_mutex = NULL;
       }
 
       /* check if anyone is waiting and wake him up */
@@ -6386,11 +6386,12 @@ INT bm_lock_buffer(INT buffer_handle)
       return BM_INVALID_HANDLE;
    }
 
+   ss_mutex_wait_for(_buffer[buffer_handle - 1].buffer_mutex, 10000);
+
    status = ss_semaphore_wait_for(_buffer[buffer_handle - 1].semaphore, 5 * 60 * 1000);
 
    if (status != SS_SUCCESS) {
-      cm_msg(MERROR, "bm_lock_buffer",
-             "Cannot lock buffer handle %d, ss_semaphore_wait_for() status %d, aborting...", buffer_handle, status);
+      cm_msg(MERROR, "bm_lock_buffer", "Cannot lock buffer handle %d, ss_semaphore_wait_for() status %d, aborting...", buffer_handle, status);
       abort();
       return BM_INVALID_HANDLE;
    }
@@ -6423,6 +6424,9 @@ INT bm_unlock_buffer(INT buffer_handle)
    }
 
    ss_semaphore_release(_buffer[buffer_handle - 1].semaphore);
+
+   ss_mutex_release(_buffer[buffer_handle - 1].buffer_mutex);
+
    return BM_SUCCESS;
 }
 
@@ -6525,12 +6529,12 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       }
 
       if (read_size < 0 || read_size > 1E6) {
-         cm_msg(MERROR, "bm_set_cache_size", "invalid read chache size");
+         cm_msg(MERROR, "bm_set_cache_size", "invalid read chache size %d", read_size);
          return BM_INVALID_PARAM;
       }
 
       if (write_size < 0 || write_size > 1E6) {
-         cm_msg(MERROR, "bm_set_cache_size", "invalid write chache size");
+         cm_msg(MERROR, "bm_set_cache_size", "invalid write chache size %d", write_size);
          return BM_INVALID_PARAM;
       }
 
@@ -6545,13 +6549,20 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       if (read_size > 0) {
          pbuf->read_cache = (char *) M_MALLOC(read_size);
          if (pbuf->read_cache == NULL) {
-            cm_msg(MERROR, "bm_set_cache_size", "not enough memory to allocate cache buffer");
+            cm_msg(MERROR, "bm_set_cache_size", "not enough memory to allocate cache buffer, malloc(%d) failed", read_size);
             return BM_NO_MEMORY;
          }
       }
 
       pbuf->read_cache_size = read_size;
       pbuf->read_cache_rp = pbuf->read_cache_wp = 0;
+
+      ss_mutex_wait_for(pbuf->write_cache_mutex, 10000);
+
+      // FIXME: should flush the write cache!
+      if (pbuf->write_cache_size && pbuf->write_cache_wp > 0) {
+         cm_msg(MERROR, "bm_set_cache_size", "buffer \"%s\" lost %d bytes from the write cache", pbuf->buffer_header->name, pbuf->write_cache_wp);
+      }
 
       /* manage write cache */
       if (pbuf->write_cache_size > 0) {
@@ -6562,13 +6573,15 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       if (write_size > 0) {
          pbuf->write_cache = (char *) M_MALLOC(write_size);
          if (pbuf->write_cache == NULL) {
-            cm_msg(MERROR, "bm_set_cache_size", "not enough memory to allocate cache buffer");
+            cm_msg(MERROR, "bm_set_cache_size", "not enough memory to allocate cache buffer, malloc(%d) failed", write_size);
             return BM_NO_MEMORY;
          }
       }
 
       pbuf->write_cache_size = write_size;
       pbuf->write_cache_wp = 0;
+
+      ss_mutex_release(pbuf->write_cache_mutex);
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -7601,25 +7614,36 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER* pevent, INT unused, INT
 
       /* look if there is space in the cache */
       if (pbuf->write_cache_size) {
-         int status = BM_SUCCESS;
+         ss_mutex_wait_for(pbuf->write_cache_mutex, 10000);
 
-         /* if this event does not fit into the write cache, flush the write cache */
-         if (pbuf->write_cache_wp + total_size > pbuf->write_cache_size) {
-            status = bm_flush_cache(buffer_handle, async_flag);
+         if (pbuf->write_cache_size) {
+            int status = BM_SUCCESS;
+
+            /* if this event does not fit into the write cache, flush the write cache */
+            if (pbuf->write_cache_wp + total_size > pbuf->write_cache_size) {
+               ss_mutex_release(pbuf->write_cache_mutex);
+               status = bm_flush_cache(buffer_handle, async_flag);
+               if (status != BM_SUCCESS) {
+                  return status;
+               }
+               ss_mutex_wait_for(pbuf->write_cache_mutex, 10000);
+            }
+            
+            /* write this event into the write cache, if it fits */
+            if (pbuf->write_cache_wp + total_size <= pbuf->write_cache_size) {
+               //printf("bm_send_event: write %d/%d to cache size %d, wp %d\n", event_size, total_size, pbuf->write_cache_size, pbuf->write_cache_wp);
+               
+               memcpy(pbuf->write_cache + pbuf->write_cache_wp, pevent, event_size);
+               
+               pbuf->write_cache_wp += total_size;
+
+               ss_mutex_release(pbuf->write_cache_mutex);
+               return BM_SUCCESS;
+            }
          }
 
-         if (status != BM_SUCCESS)
-            return status;
-
-         /* write this event into the write cache, if it fits */
-         if (pbuf->write_cache_wp + total_size <= pbuf->write_cache_size) {
-            //printf("bm_send_event: write %d/%d to cache size %d, wp %d\n", event_size, total_size, pbuf->write_cache_size, pbuf->write_cache_wp);
-
-            memcpy(pbuf->write_cache + pbuf->write_cache_wp, pevent, event_size);
-
-            pbuf->write_cache_wp += total_size;
-            return BM_SUCCESS;
-         }
+         /* event did not fit into the write cache, send it directly to shared memory */
+         ss_mutex_release(pbuf->write_cache_mutex);
       }
 
       /* we come here only for events that are too big to fit into the cache */
@@ -7744,6 +7768,14 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
          return status;
       }
 
+      ss_mutex_wait_for(pbuf->write_cache_mutex, 10000);
+
+      if (pbuf->write_cache_wp == 0) {
+         /* somebody emptied the cache while we were inside bm_wait_for_free_space */
+         ss_mutex_release(pbuf->write_cache_mutex);
+         return BM_SUCCESS;
+      }
+
       /* we have space, so let's copy the event */
       int old_write_pointer = pheader->write_pointer;
 
@@ -7805,6 +7837,8 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
 
       /* the write cache is now empty */
       pbuf->write_cache_wp = 0;
+
+      ss_mutex_release(pbuf->write_cache_mutex);
 
       /* check which clients are waiting */
       for (i = 0; i < pheader->max_client_index; i++) {

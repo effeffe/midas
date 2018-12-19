@@ -932,6 +932,7 @@ typedef struct {
    INT client_index;                /**< index to CLIENT str. in buf. */
    BUFFER_HEADER *buffer_header;    /**< pointer to buffer header     */
    void *buffer_data;               /**< pointer to buffer data       */
+   MUTEX_T* buffer_mutex;           /**< buffer mutex                 */
    char *read_cache;                /**< cache for burst read         */
    INT read_cache_size;             /**< cache size in bytes          */
    INT read_cache_rp;               /**< cache read pointer           */
@@ -939,6 +940,7 @@ typedef struct {
    char *write_cache;               /**< cache for burst read         */
    INT write_cache_size;            /**< cache size in bytes          */
    INT write_cache_wp;              /**< cache write pointer          */
+   MUTEX_T* write_cache_mutex;      /**< cache write mutex            */
    HNDLE semaphore;                 /**< semaphore handle             */
    INT shm_handle;                  /**< handle to shared memory      */
    INT index;                       /**< connection index / tid       */
