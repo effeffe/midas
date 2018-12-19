@@ -8401,11 +8401,11 @@ INT bm_check_buffers()
 #ifdef LOCAL_ROUTINES
    {
       INT idx, status = 0;
-      //INT server_type, server_conn, tid;
+      INT server_type/*, server_conn, tid*/;
       BOOL bMore;
       DWORD start_time;
 
-      //server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
+      server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
       //server_conn = rpc_get_server_acception();
       //tid = ss_gettid();
 
