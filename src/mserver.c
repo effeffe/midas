@@ -20,11 +20,6 @@
 #include <sys/types.h>
 #endif
 
-#ifdef OS_WINNT
-/* critical section object for open/close buffer */
-CRITICAL_SECTION buffer_critial_section;
-#endif
-
 struct callback_addr callback;
 
 BOOL use_callback_addr = TRUE;
@@ -171,11 +166,6 @@ int main(int argc, char **argv)
    char name[256], str[1000];
    BOOL inetd, daemon, debug;
    int port = 0;
-
-#ifdef OS_WINNT
-   /* init critical section object for open/close buffer */
-   InitializeCriticalSection(&buffer_critial_section);
-#endif
 
 #if defined(SIGPIPE) && defined(SIG_IGN)
    signal(SIGPIPE, SIG_IGN);
@@ -521,57 +511,15 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       /* buffer manager functions */
 
    case RPC_BM_OPEN_BUFFER:
-
-#ifdef OS_WINNT
-      /*
-         bm_open_buffer may only be called from one thread at a time,
-         so use critical section object for synchronization.
-       */
-      EnterCriticalSection(&buffer_critial_section);
-#endif
-
       status = bm_open_buffer(CSTRING(0), CINT(1), CPINT(2));
-
-#ifdef OS_WINNT
-      LeaveCriticalSection(&buffer_critial_section);
-#endif
-
       break;
 
    case RPC_BM_CLOSE_BUFFER:
-
-#ifdef OS_WINNT
-      /*
-         bm_close_buffer may only be called from one thread at a time,
-         so use critical section object for synchronization.
-       */
-      EnterCriticalSection(&buffer_critial_section);
-#endif
-
       status = bm_close_buffer(CINT(0));
-
-#ifdef OS_WINNT
-      LeaveCriticalSection(&buffer_critial_section);
-#endif
-
       break;
 
    case RPC_BM_CLOSE_ALL_BUFFERS:
-
-#ifdef OS_WINNT
-      /*
-         bm_close_all_buffers may only be called from one thread at a time,
-         so use critical section object for synchronization.
-       */
-      EnterCriticalSection(&buffer_critial_section);
-#endif
-
       status = bm_close_all_buffers();
-
-#ifdef OS_WINNT
-      LeaveCriticalSection(&buffer_critial_section);
-#endif
-
       break;
 
    case RPC_BM_GET_BUFFER_INFO:
@@ -653,39 +601,11 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       /* database functions */
 
    case RPC_DB_OPEN_DATABASE:
-
-#ifdef OS_WINNT
-      /*
-         db_open_database may only be called from one thread at a time,
-         so use critical section object for synchronization.
-       */
-      EnterCriticalSection(&buffer_critial_section);
-#endif
-
       status = db_open_database(CSTRING(0), CINT(1), CPHNDLE(2), CSTRING(3));
-
-#ifdef OS_WINNT
-      LeaveCriticalSection(&buffer_critial_section);
-#endif
-
       break;
 
    case RPC_DB_CLOSE_DATABASE:
-
-#ifdef OS_WINNT
-      /*
-         db_close_database may only be called from one thread at a time,
-         so use critical section object for synchronization.
-       */
-      EnterCriticalSection(&buffer_critial_section);
-#endif
-
       status = db_close_database(CINT(0));
-
-#ifdef OS_WINNT
-      LeaveCriticalSection(&buffer_critial_section);
-#endif
-
       break;
 
    case RPC_DB_FLUSH_DATABASE:
@@ -693,21 +613,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       break;
 
    case RPC_DB_CLOSE_ALL_DATABASES:
-
-#ifdef OS_WINNT
-      /*
-         db_close_allo_databases may only be called from one thread at a time,
-         so use critical section object for synchronization.
-       */
-      EnterCriticalSection(&buffer_critial_section);
-#endif
-
       status = db_close_all_databases();
-
-#ifdef OS_WINNT
-      LeaveCriticalSection(&buffer_critial_section);
-#endif
-
       break;
 
    case RPC_DB_CREATE_KEY:
