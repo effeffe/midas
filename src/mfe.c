@@ -2617,7 +2617,7 @@ void mfe_error(const char *error)
    if (mfe_mutex == NULL) {
       int status = ss_mutex_create(&mfe_mutex, FALSE);
       if (status != SS_SUCCESS && status != SS_CREATED) {
-         cm_msg(MERROR, "mfe_set_error", "Cannot create mutex\n");
+         cm_msg(MERROR, "mfe_error", "Cannot create mutex\n");
          return;
       }
    }
