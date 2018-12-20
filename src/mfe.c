@@ -2614,6 +2614,14 @@ void mfe_error(const char *error)
 /* central error dispatcher routine which can be called by any device
    or class driver */
 {
+   if (mfe_mutex == NULL) {
+      int status = ss_mutex_create(&mfe_mutex, FALSE);
+      if (status != SS_SUCCESS && status != SS_CREATED) {
+         cm_msg(MERROR, "mfe_set_error", "Cannot create mutex\n");
+         return;
+      }
+   }
+
    /* put error into FIFO */
    ss_mutex_wait_for(mfe_mutex, 1000);
    strlcpy(mfe_error_str[mfe_error_w], error, 256);
