@@ -1993,7 +1993,7 @@ INT db_lock_database(HNDLE hDB)
    void *p;
 
    if (hDB > _database_entries || hDB <= 0) {
-      cm_msg(MERROR, "db_lock_database", "invalid database handle, aborting...");
+      cm_msg(MERROR, "db_lock_database", "invalid database handle %d, aborting...", hDB);
       abort();
       return DB_INVALID_HANDLE;
    }
@@ -2105,7 +2105,7 @@ INT db_unlock_database(HNDLE hDB)
 #ifdef LOCAL_ROUTINES
 
    if (hDB > _database_entries || hDB <= 0) {
-      cm_msg(MERROR, "db_unlock_database", "invalid database handle");
+      cm_msg(MERROR, "db_unlock_database", "invalid database handle %d", hDB);
       return DB_INVALID_HANDLE;
    }
 #ifdef CHECK_LOCK_COUNT
@@ -2602,9 +2602,12 @@ Protect a database for read/write access outside of the \b db_xxx functions
 */
 INT db_protect_database(HNDLE hDB)
 {
+   if (rpc_is_remote())
+      return DB_SUCCESS;
+
 #ifdef LOCAL_ROUTINES
    if (hDB > _database_entries || hDB <= 0) {
-      cm_msg(MERROR, "db_unlock_database", "invalid database handle");
+      cm_msg(MERROR, "db_protect_database", "invalid database handle %d", hDB);
       return DB_INVALID_HANDLE;
    }
 
@@ -10215,10 +10218,12 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
 
       if (!align)
          align = ss_get_struct_align();
-      else
+      else {
          /* only convert data if called remotely, as indicated by align != 0 */
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
-         convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+         if (rpc_is_mserver()) {
+            convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+         }
+      }
 
       /* check if key has subkeys */
       status = db_get_key(hDB, hKey, &key);
@@ -10786,10 +10791,12 @@ INT db_set_record(HNDLE hDB, HNDLE hKey, void *data, INT buf_size, INT align)
 
       if (!align)
          align = ss_get_struct_align();
-      else
+      else {
          /* only convert data if called remotely, as indicated by align != 0 */
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
-         convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+         if (rpc_is_mserver()) {
+            convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+         }
+      }
 
       /* check if key has subkeys */
       db_get_key(hDB, hKey, &key);

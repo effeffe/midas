@@ -2574,7 +2574,7 @@ INT cm_disconnect_experiment(void)
       db_close_all_databases();
    }
 
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_REMOTE)
+   if (!rpc_is_mserver())
       rpc_server_shutdown();
 
    /* free RPC list */
@@ -2794,7 +2794,7 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
 
 #ifdef LOCAL_ROUTINES
 
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE) {
+   if (rpc_is_mserver()) {
       HNDLE hDB, hKey;
 
       rpc_set_server_option(RPC_WATCHDOG_TIMEOUT, timeout);
@@ -7862,7 +7862,7 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
       max_size = *buf_size;
       *buf_size = 0;
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+      if (rpc_is_mserver())
          convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
       else
          convert_flags = 0;
@@ -8401,18 +8401,21 @@ INT bm_check_buffers()
 #ifdef LOCAL_ROUTINES
    {
       INT idx, status = 0;
-      INT server_type/*, server_conn, tid*/;
+      //INT server_type/*, server_conn, tid*/;
       BOOL bMore;
       DWORD start_time;
 
-      server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
+      //server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
       //server_conn = rpc_get_server_acception();
       //tid = ss_gettid();
 
       /* if running as a server, buffer checking is done by client
          via ASYNC bm_receive_event */
-      if (server_type == ST_SUBPROCESS || 0/*server_type == ST_MTHREAD*/)
+      //if (server_type == ST_SUBPROCESS || 0/*server_type == ST_MTHREAD*/)
+      //   return FALSE;
+      if (rpc_is_mserver()) {
          return FALSE;
+      }
 
       bMore = FALSE;
       start_time = ss_millitime();
@@ -10132,6 +10135,28 @@ INT rpc_is_remote(void)
    return _server_connection.send_sock != 0;
 }
 
+/********************************************************************/
+INT rpc_is_mserver(void)
+/********************************************************************\
+
+  Routine: rpc_is_mserver
+
+  Purpose: Return true if we are the mserver
+
+  Input:
+   none
+
+  Output:
+    none
+
+  Function value:
+    INT    RPC connection index
+
+\********************************************************************/
+{
+   return (_server_type == ST_SUBPROCESS);
+}
+
 
 /********************************************************************/
 //INT rpc_get_server_acception(void)
@@ -10363,8 +10388,10 @@ POINTER_T rpc_get_server_option(INT item)
 {
    INT i;
 
-   if (item == RPC_OSERVER_TYPE)
+   if (item == RPC_OSERVER_TYPE) {
+      printf("rpc_get_server_type %d (pid %d)\n", _server_type, getpid());
       return _server_type;
+   }
 
    if (item == RPC_OSERVER_NAME)
       return (POINTER_T) _server_name;
@@ -10375,9 +10402,9 @@ POINTER_T rpc_get_server_option(INT item)
 
    /* check which connections belongs to caller */
    if (0 /*_server_type == ST_MTHREAD*/) {
-      for (i = 0; i < MAX_RPC_CONNECTION; i++)
-         if (_server_acception[i].tid == ss_gettid())
-            break;
+      //for (i = 0; i < MAX_RPC_CONNECTION; i++)
+      //   if (_server_acception[i].tid == ss_gettid())
+      //   break;
    } else if (0/*_server_type == ST_SINGLE*/ || _server_type == ST_REMOTE)
       i = 0; /*MAX(0, _server_acception_index - 1);*/
    else
@@ -10433,9 +10460,9 @@ INT rpc_set_server_option(INT item, POINTER_T value)
 
    /* check which connections belongs to caller */
    if (0 /*_server_type == ST_MTHREAD*/) {
-      for (i = 0; i < MAX_RPC_CONNECTION; i++)
-         if (_server_acception[i].tid == ss_gettid())
-            break;
+      //for (i = 0; i < MAX_RPC_CONNECTION; i++)
+      //if (_server_acception[i].tid == ss_gettid())
+      //break;
    } else if (0/*_server_type == ST_SINGLE*/ || _server_type == ST_REMOTE)
       i = 0; /*MAX(0, _server_acception_index - 1);*/
    else
@@ -11676,13 +11703,12 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
    if (flags & MSG_PEEK) {
       status = recv(sock, buffer, buffer_size, flags);
       if (status == -1)
-         cm_msg(MERROR, "recv_tcp_server",
-                "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", buffer_size, status, errno, strerror(errno));
+         cm_msg(MERROR, "recv_tcp_server", "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", buffer_size, status, errno, strerror(errno));
       return status;
    }
 
    if (!_server_acception[idx].net_buffer) {
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+      if (rpc_is_mserver())
          _server_acception[idx].net_buffer_size = NET_TCP_SIZE;
       else
          _server_acception[idx].net_buffer_size = NET_BUFFER_SIZE;
@@ -11882,7 +11908,7 @@ INT recv_event_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT *
    }
 
    if (!psa->ev_net_buffer) {
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+      if (rpc_is_mserver())
          psa->net_buffer_size = NET_TCP_SIZE;
       else
          psa->net_buffer_size = NET_BUFFER_SIZE;
@@ -12057,12 +12083,10 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
                             //ST_SINGLE: register a single process server
                             //ST_MTHREAD: for each connection, start
                             //            a new thread to serve it
-                            ST_MPROCESS: for each connection, start
-                                         a new process to server it
-                            ST_SUBPROCESS: the routine was called from
-                                           a multi process server
-                            ST_REMOTE: register a client program server
-                                       connected to the ODB
+                            ST_MPROCESS: mserver main program, for each connection,
+                                         start a new process to service it
+                            ST_SUBPROCESS: mserver process servicing a single connection
+                            ST_REMOTE: rpc server inside a normal midas program
     char  *name             Name of .EXE file to start in MPROCESS mode
     INT   *port             TCP port for listen. NULL if listen as main
                             server (MIDAS_TCP_PORT is then used). If *port=0,
@@ -13158,7 +13182,7 @@ INT rpc_server_accept(int lsock)
             strlcpy(callback.host_name, phe->h_name, HOST_NAME_LENGTH);
 #endif
 
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MPROCESS) {
+         //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MPROCESS) {
             /* update experiment definition */
             cm_scan_experiments();
 
@@ -13217,28 +13241,28 @@ INT rpc_server_accept(int lsock)
             sprintf(str, "1 %s", cm_get_version());     /* 1 means ok */
             send(sock, str, strlen(str) + 1, 0);
             closesocket(sock);
-         } else {
-            sprintf(str, "1 %s", cm_get_version());     /* 1 means ok */
-            send(sock, str, strlen(str) + 1, 0);
-            closesocket(sock);
-         }
+            //} else {
+            //sprintf(str, "1 %s", cm_get_version());     /* 1 means ok */
+            //send(sock, str, strlen(str) + 1, 0);
+            //closesocket(sock);
+            //}
 
-         /* look for next free entry */
-         for (idx = 0; idx < MAX_RPC_CONNECTION; idx++)
-            if (_server_acception[idx].recv_sock == 0)
-               break;
-         if (idx == MAX_RPC_CONNECTION)
-            return RPC_NET_ERROR;
-         callback.index = idx;
+         ///* look for next free entry */
+         //for (idx = 0; idx < MAX_RPC_CONNECTION; idx++)
+         //   if (_server_acception[idx].recv_sock == 0)
+         //      break;
+         //if (idx == MAX_RPC_CONNECTION)
+         //   return RPC_NET_ERROR;
+         //callback.index = idx;
 
         /*----- multi thread server ------------------------*/
          //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MTHREAD)
          //   ss_thread_create(rpc_server_thread, (void *) (&callback));
 
         /*----- single thread server -----------------------*/
-         if (0/*rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE*/ ||
-             rpc_get_server_option(RPC_OSERVER_TYPE) == ST_REMOTE)
-            rpc_server_callback(&callback);
+            //if (0/*rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE*/ ||
+            // rpc_get_server_option(RPC_OSERVER_TYPE) == ST_REMOTE)
+            //rpc_server_callback(&callback);
 
          break;
 
@@ -13613,7 +13637,7 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    /* set callback function for ss_suspend */
    ss_suspend_set_dispatch(CH_SERVER, _server_acception, (int (*)(void)) rpc_server_receive);
 
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+   if (rpc_is_mserver())
       rpc_debug_printf("Connection to %s:%s established\n",
                        _server_acception[idx].host_name, _server_acception[idx].prog_name);
 
@@ -13635,7 +13659,7 @@ INT rpc_server_thread(void *pointer)
 
   Routine: rpc_server_thread
 
-  Purpose: New thread for a multi-threaded server. Callback to the
+  Purpose: RPC server and mserver main event loop. Callback to the
            client and process RPC requests.
 
   Input:
@@ -13688,7 +13712,6 @@ INT rpc_server_thread(void *pointer)
 
    return RPC_SUCCESS;
 }
-
 
 /********************************************************************/
 INT rpc_server_receive(INT idx, int sock, BOOL check)
@@ -13820,9 +13843,8 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
          }
 
          if (status == SS_EXIT || status == RPC_SHUTDOWN) {
-            if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
-               rpc_debug_printf("Connection to %s:%s closed\n",
-                                _server_acception[idx].host_name, _server_acception[idx].prog_name);
+            if (rpc_is_mserver())
+               rpc_debug_printf("Connection to %s:%s closed\n", _server_acception[idx].host_name, _server_acception[idx].prog_name);
             goto exit;
          }
 
@@ -13861,13 +13883,12 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
    strlcpy(str, _server_acception[idx].host_name, sizeof(str));
    if (strchr(str, '.'))
       *strchr(str, '.') = 0;
-   cm_msg(MTALK, "rpc_server_receive", "Program \'%s\' on host \'%s\' aborted",
-          _server_acception[idx].prog_name, str);
+   cm_msg(MTALK, "rpc_server_receive", "Program \'%s\' on host \'%s\' aborted", _server_acception[idx].prog_name, str);
 
  exit:
 
    /* disconnect from experiment as MIDAS server */
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE) {
+   if (rpc_is_mserver()) {
       HNDLE hDB, hKey;
 
       cm_get_experiment_database(&hDB, &hKey);
@@ -13916,8 +13937,12 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
    if (status == RPC_SHUTDOWN)
       return status;
 
+   if (rpc_is_mserver()) {
+      return status;
+   }
+
    /* don't abort if other than main connection is broken */
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_REMOTE) {
+   if (!rpc_is_mserver()) {
       cm_msg(MERROR, "rpc_server_receive", "rpc check ok, abort canceled");
       return SS_SUCCESS;
    }
@@ -14070,12 +14095,13 @@ INT rpc_check_channels(void)
 
  exit:
 
-   cm_msg(MINFO, "rpc_check_channels", "client [%s]%s failed watchdog test after %d sec",
+   cm_msg(MINFO, "rpc_check_channels", "client \"%s\" on host \"%s\" failed watchdog test after %d sec",
+          _server_acception[idx].prog_name,
           _server_acception[idx].host_name,
-          _server_acception[idx].prog_name, _server_acception[idx].watchdog_timeout / 1000);
+          _server_acception[idx].watchdog_timeout / 1000);
 
    /* disconnect from experiment */
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+   if (rpc_is_mserver())
       cm_disconnect_experiment();
 
    /* close server connection */

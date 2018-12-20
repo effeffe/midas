@@ -1893,11 +1893,11 @@ extern "C" {
    INT EXPRT rpc_set_name(const char *name);
    INT EXPRT rpc_get_name(char *name);
    INT EXPRT rpc_is_remote(void);
+   INT EXPRT rpc_is_mserver(void);
    INT EXPRT rpc_set_debug(void (*func) (const char *), INT mode);
    void EXPRT rpc_debug_printf(const char *format, ...);
 
-   INT EXPRT rpc_register_server(INT server_type, const char *name, INT * port,
-                                 INT(*func) (INT, void **));
+   INT EXPRT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func) (INT, void **));
    INT EXPRT rpc_register_client(const char *name, RPC_LIST * list);
    INT EXPRT rpc_server_thread(void *pointer);
    INT EXPRT rpc_server_shutdown(void);
@@ -1906,18 +1906,15 @@ extern "C" {
    INT EXPRT rpc_tid_size(INT id);
    const char EXPRT *rpc_tid_name(INT id);
    INT EXPRT rpc_server_connect(const char *host_name, const char *exp_name);
-   INT EXPRT rpc_client_connect(const char *host_name, INT midas_port,
-                                const char *client_name, HNDLE * hConnection);
+   INT EXPRT rpc_client_connect(const char *host_name, INT midas_port, const char *client_name, HNDLE * hConnection);
    INT EXPRT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown);
 
-   INT EXPRT rpc_send_event(INT buffer_handle, void *source, INT buf_size,
-                            INT async_flag, INT mode);
+   INT EXPRT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag, INT mode);
    INT EXPRT rpc_flush_event(void);
 
    void EXPRT rpc_get_convert_flags(INT * convert_flags);
    void EXPRT rpc_convert_single(void *data, INT tid, INT flags, INT convert_flags);
-   void EXPRT rpc_convert_data(void *data, INT tid, INT flags, INT size,
-                               INT convert_flags);
+   void EXPRT rpc_convert_data(void *data, INT tid, INT flags, INT size, INT convert_flags);
 
    /*---- system services ----*/
    DWORD EXPRT ss_millitime(void);
