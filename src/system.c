@@ -6274,6 +6274,14 @@ int ss_file_exist(const char *path)
  
  \********************************************************************/
 {
+#ifdef OS_UNIX
+   struct stat buf;
+   
+   stat(path, &buf);
+   if (S_ISDIR(buf.st_mode))
+      return 0;
+#endif
+   
    int fd = open(path, O_RDONLY, 0);
    if (fd < 0)
       return 0;
