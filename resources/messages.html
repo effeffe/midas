@@ -129,6 +129,10 @@
 
    function msg_prepend(msg) {
       var mf = document.getElementById('messageFrame');
+      if (mf.childNodes.length < 2) {
+         msg_append(msg);
+         return;
+      }
 
       for (var i = 0; i < msg.length; i++) {
          var line = msg[i];
