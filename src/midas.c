@@ -3044,7 +3044,7 @@ INT cm_register_server(void)
          return status;
       }
 
-      status = rpc_register_server(ST_REMOTE, NULL, &port, NULL);
+      status = rpc_register_server(/*ST_REMOTE, NULL,*/ &port, rpc_client_accept, NULL);
       if (status != RPC_SUCCESS)
          return status;
       _server_registered = TRUE;
@@ -8957,8 +8957,8 @@ RPC_SERVER_CONNECTION _server_connection;
 static int _lsock;
 RPC_SERVER_ACCEPTION _server_acception[MAX_RPC_CONNECTION];
 //static INT _server_acception_index = 0;
-static INT _server_type;
-static char _server_name[256];
+//static INT _server_type;
+//static char _server_name[256];
 
 static RPC_LIST *rpc_list = NULL;
 
@@ -10135,6 +10135,25 @@ INT rpc_is_remote(void)
    return _server_connection.send_sock != 0;
 }
 
+static BOOL _mserver_mode = FALSE;
+
+/********************************************************************/
+INT rpc_set_mserver_mode(void)
+/********************************************************************\
+
+  Routine: rpc_set_mserver_mode
+
+  Purpose: Set the RPC layer to mserver mode
+
+  Function value:
+    INT    RPC_SUCCESS
+
+\********************************************************************/
+{
+   _mserver_mode = TRUE;
+   return RPC_SUCCESS;
+}
+
 /********************************************************************/
 INT rpc_is_mserver(void)
 /********************************************************************\
@@ -10154,7 +10173,8 @@ INT rpc_is_mserver(void)
 
 \********************************************************************/
 {
-   return (_server_type == ST_SUBPROCESS);
+   return _mserver_mode;
+   //return (_server_type == ST_SUBPROCESS);
 }
 
 
@@ -10368,7 +10388,7 @@ INT rpc_set_option(HNDLE hConn, INT item, INT value)
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-POINTER_T rpc_get_server_option(INT item)
+INT rpc_get_server_option(INT item)
 /********************************************************************\
 
   Routine: rpc_get_server_option
@@ -10386,29 +10406,29 @@ POINTER_T rpc_get_server_option(INT item)
 
 \********************************************************************/
 {
-   INT i;
+   INT i = 0;
 
-   if (item == RPC_OSERVER_TYPE) {
-      printf("rpc_get_server_type %d (pid %d)\n", _server_type, getpid());
-      return _server_type;
-   }
+   //if (item == RPC_OSERVER_TYPE) {
+   //   printf("rpc_get_server_type %d (pid %d)\n", _server_type, getpid());
+   //   return _server_type;
+   //}
 
-   if (item == RPC_OSERVER_NAME)
-      return (POINTER_T) _server_name;
+   //if (item == RPC_OSERVER_NAME)
+   //   return (POINTER_T) _server_name;
 
    /* return 0 for local calls */
-   if (_server_type == ST_NONE)
-      return 0;
+   //if (_server_type == ST_NONE)
+   //   return 0;
 
-   /* check which connections belongs to caller */
-   if (0 /*_server_type == ST_MTHREAD*/) {
-      //for (i = 0; i < MAX_RPC_CONNECTION; i++)
-      //   if (_server_acception[i].tid == ss_gettid())
-      //   break;
-   } else if (0/*_server_type == ST_SINGLE*/ || _server_type == ST_REMOTE)
-      i = 0; /*MAX(0, _server_acception_index - 1);*/
-   else
-      i = 0;
+   ///* check which connections belongs to caller */
+   //if (0 /*_server_type == ST_MTHREAD*/) {
+   //   //for (i = 0; i < MAX_RPC_CONNECTION; i++)
+   //   //   if (_server_acception[i].tid == ss_gettid())
+   //   //   break;
+   //} else if (0/*_server_type == ST_SINGLE*/ || _server_type == ST_REMOTE)
+   //   i = 0; /*MAX(0, _server_acception_index - 1);*/
+   //else
+   //   i = 0;
 
    switch (item) {
    case RPC_CONVERT_FLAGS:
@@ -10428,7 +10448,7 @@ POINTER_T rpc_get_server_option(INT item)
 
 
 /********************************************************************/
-INT rpc_set_server_option(INT item, POINTER_T value)
+INT rpc_set_server_option(INT item, INT value)
 /********************************************************************\
 
   Routine: rpc_set_server_option
@@ -10447,26 +10467,26 @@ INT rpc_set_server_option(INT item, POINTER_T value)
 
 \********************************************************************/
 {
-   INT i;
+   INT i = 0;
 
-   if (item == RPC_OSERVER_TYPE) {
-      _server_type = value;
-      return RPC_SUCCESS;
-   }
-   if (item == RPC_OSERVER_NAME) {
-      strcpy(_server_name, (char *) value);
-      return RPC_SUCCESS;
-   }
+   //if (item == RPC_OSERVER_TYPE) {
+   //   _server_type = value;
+   //   return RPC_SUCCESS;
+   //}
+   //if (item == RPC_OSERVER_NAME) {
+   //   strcpy(_server_name, (char *) value);
+   //   return RPC_SUCCESS;
+   //}
 
-   /* check which connections belongs to caller */
-   if (0 /*_server_type == ST_MTHREAD*/) {
-      //for (i = 0; i < MAX_RPC_CONNECTION; i++)
-      //if (_server_acception[i].tid == ss_gettid())
-      //break;
-   } else if (0/*_server_type == ST_SINGLE*/ || _server_type == ST_REMOTE)
-      i = 0; /*MAX(0, _server_acception_index - 1);*/
-   else
-      i = 0;
+   ///* check which connections belongs to caller */
+   //if (0 /*_server_type == ST_MTHREAD*/) {
+   //   //for (i = 0; i < MAX_RPC_CONNECTION; i++)
+   //   //if (_server_acception[i].tid == ss_gettid())
+   //   //break;
+   //} else if (0/*_server_type == ST_SINGLE*/ || _server_type == ST_REMOTE)
+   //   i = 0; /*MAX(0, _server_acception_index - 1);*/
+   //else
+   //   i = 0;
 
    switch (item) {
    case RPC_CONVERT_FLAGS:
@@ -10486,6 +10506,44 @@ INT rpc_set_server_option(INT item, POINTER_T value)
    return RPC_SUCCESS;
 }
 
+static char* _mserver_path = NULL;
+
+/********************************************************************/
+const char* rpc_get_mserver_path()
+/********************************************************************\
+
+  Routine: rpc_get_mserver_path()
+
+  Purpose: Get path of the mserver executable
+
+\********************************************************************/
+{
+   return _mserver_path;
+}
+
+/********************************************************************/
+INT rpc_set_mserver_path(const char *path)
+/********************************************************************\
+
+  Routine: rpc_set_mserver_path
+
+  Purpose: Remember the path of the mserver executable
+
+  Input:
+   char *path               Full path of the mserver executable
+
+  Function value:
+    RPC_SUCCESS             Successful completion
+
+\********************************************************************/
+{
+   if (_mserver_path)
+      free(_mserver_path);
+   int len = strlen(path);
+   _mserver_path = malloc(len+1);
+   memcpy(_mserver_path, path, len+1);
+   return RPC_SUCCESS;
+}
 
 /********************************************************************/
 INT rpc_get_name(char *name)
@@ -12069,7 +12127,7 @@ INT recv_event_check(int sock)
 
 
 /********************************************************************/
-INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func) (INT, void **))
+INT rpc_register_server(/*INT server_type, const char *name,*/ INT * port, int accept_func(int), INT(*func) (INT, void **))
 /********************************************************************\
 
   Routine: rpc_register_server
@@ -12117,17 +12175,17 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
    }
 #endif
 
-   rpc_set_server_option(RPC_OSERVER_TYPE, server_type);
+   //rpc_set_server_option(RPC_OSERVER_TYPE, server_type);
 
    /* register system functions */
    rpc_register_functions(rpc_get_internal_list(0), func);
 
-   if (name != NULL)
-      rpc_set_server_option(RPC_OSERVER_NAME, (POINTER_T) name);
+   //if (name != NULL)
+   //   rpc_set_server_option(RPC_OSERVER_NAME, (POINTER_T) name);
 
-   /* in subprocess mode, don't start listener */
-   if (server_type == ST_SUBPROCESS)
-      return RPC_SUCCESS;
+   ///* in subprocess mode, don't start listener */
+   //if (server_type == ST_SUBPROCESS)
+   //   return RPC_SUCCESS;
 
    /* create a socket for listening */
    _lsock = socket(AF_INET, SOCK_STREAM, 0);
@@ -12197,10 +12255,13 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
    }
 
    /* define callbacks for ss_suspend */
-   if (server_type == ST_REMOTE)
-      ss_suspend_set_dispatch(CH_LISTEN, &_lsock, (int (*)(void)) rpc_client_accept);
-   else
-      ss_suspend_set_dispatch(CH_LISTEN, &_lsock, (int (*)(void)) rpc_server_accept);
+   ss_suspend_set_dispatch(CH_LISTEN, &_lsock, accept_func);
+
+   ///* define callbacks for ss_suspend */
+   //if (server_type == ST_REMOTE)
+   //   ss_suspend_set_dispatch(CH_LISTEN, &_lsock, (int (*)(void)) rpc_client_accept);
+   //else
+   //   ss_suspend_set_dispatch(CH_LISTEN, &_lsock, (int (*)(void)) rpc_server_accept);
 
    return RPC_SUCCESS;
 }
@@ -13212,7 +13273,9 @@ INT rpc_server_accept(int lsock)
             sprintf(host_port3_str, "%d", callback.host_port3);
             sprintf(debug_str, "%d", callback.debug);
 
-            argv[0] = (char *) rpc_get_server_option(RPC_OSERVER_NAME);
+            const char* mserver_path = rpc_get_mserver_path();
+
+            argv[0] = mserver_path;
             argv[1] = callback.host_name;
             argv[2] = host_port1_str;
             argv[3] = host_port2_str;
@@ -13227,7 +13290,7 @@ INT rpc_server_accept(int lsock)
                              argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8],
                              argv[9]);
 
-            status = ss_spawnv(P_NOWAIT, (char *) rpc_get_server_option(RPC_OSERVER_NAME), argv);
+            status = ss_spawnv(P_NOWAIT, mserver_path, argv);
 
             if (status != SS_SUCCESS) {
                rpc_debug_printf("Cannot spawn subprocess: %s\n", strerror(errno));

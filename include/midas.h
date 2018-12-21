@@ -354,8 +354,8 @@ RPC options */
 #define RPC_OTRANSPORT     2
 #define RPC_OCONVERT_FLAG  3
 #define RPC_OHW_TYPE       4
-#define RPC_OSERVER_TYPE   5
-#define RPC_OSERVER_NAME   6
+//#define RPC_OSERVER_TYPE   5
+//#define RPC_OSERVER_NAME   6
 #define RPC_CONVERT_FLAGS  7
 #define RPC_ODB_HANDLE     8
 #define RPC_CLIENT_HANDLE  9
@@ -1505,12 +1505,12 @@ flags */
 
 /**
 Server types */
-#define ST_NONE            0
+//#define ST_NONE            0
 //#define ST_SINGLE          1
 //#define ST_MTHREAD         2
-#define ST_MPROCESS        3
-#define ST_SUBPROCESS      4
-#define ST_REMOTE          5
+//#define ST_MPROCESS        3
+//#define ST_SUBPROCESS      4
+//#define ST_REMOTE          5
 
 /**
 function list */
@@ -1897,7 +1897,7 @@ extern "C" {
    INT EXPRT rpc_set_debug(void (*func) (const char *), INT mode);
    void EXPRT rpc_debug_printf(const char *format, ...);
 
-   INT EXPRT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func) (INT, void **));
+   INT EXPRT rpc_register_server(/*INT server_type, const char *name,*/ INT * port, int accept_func(int), INT(*func) (INT, void **));
    INT EXPRT rpc_register_client(const char *name, RPC_LIST * list);
    INT EXPRT rpc_server_thread(void *pointer);
    INT EXPRT rpc_server_shutdown(void);
