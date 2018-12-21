@@ -10112,6 +10112,7 @@ INT rpc_server_disconnect()
    return RPC_SUCCESS;
 }
 
+static BOOL _rpc_is_remote = FALSE;
 
 /********************************************************************/
 INT rpc_is_remote(void)
@@ -10132,7 +10133,9 @@ INT rpc_is_remote(void)
 
 \********************************************************************/
 {
-   return _server_connection.send_sock != 0;
+   if (_server_connection.send_sock != 0)
+      _rpc_is_remote = TRUE;
+   return _rpc_is_remote;
 }
 
 static BOOL _mserver_mode = FALSE;

@@ -4431,12 +4431,12 @@ INT db_get_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, void *data, IN
       char *p, path[256], keyname[256];
 
       if (hDB > _database_entries || hDB <= 0) {
-         cm_msg(MERROR, "db_get_value", "invalid database handle");
+         cm_msg(MERROR, "db_get_value", "invalid database handle %d", hDB);
          return DB_INVALID_HANDLE;
       }
 
       if (!_database[hDB - 1].attached) {
-         cm_msg(MERROR, "db_get_value", "invalid database handle");
+         cm_msg(MERROR, "db_get_value", "invalid database handle %d", hDB);
          return DB_INVALID_HANDLE;
       }
 
