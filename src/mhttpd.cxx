@@ -19993,7 +19993,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
    int http_port = 8080;
    int https_port = 8443;
    int http_redirect_to_https = 1;
-   char base_url[32];
+   char base_url[256];
 
    size = sizeof(http_port);
    db_get_value(hDB, 0, "/Experiment/midas http port", &http_port, &size, TID_INT, TRUE);
