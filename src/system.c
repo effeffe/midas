@@ -4145,14 +4145,14 @@ INT ss_suspend(INT millisec, INT msg)
             }
 
             if (status == SS_ABORT) {
-               cm_msg(MINFO, "ss_suspend", "Server connection broken to \'%s\'", _suspend_struct[idx].server_connection->host_name);
+               cm_msg(MINFO, "ss_suspend", "Server connection to \'%s\' was broken", _suspend_struct[idx].server_connection->host_name);
 
                /* close client connection if link broken */
                closesocket(_suspend_struct[idx].server_connection->send_sock);
                closesocket(_suspend_struct[idx].server_connection->recv_sock);
                closesocket(_suspend_struct[idx].server_connection->event_sock);
 
-               memset(_suspend_struct[idx].server_connection, 0, sizeof(RPC_CLIENT_CONNECTION));
+               memset(_suspend_struct[idx].server_connection, 0, sizeof(RPC_SERVER_CONNECTION));
 
                /* exit program after broken connection to MIDAS server */
                return SS_ABORT;
