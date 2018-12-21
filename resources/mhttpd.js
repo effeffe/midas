@@ -1899,8 +1899,9 @@ var mhttpd_config_defaults = {
    },
 
    'suppressMessageBefore': 0,
-   'showMenu': true
-   
+   'showMenu': true,
+
+   'facility': 'midas'
 };
 
 function mhttpdConfig() {
