@@ -18048,9 +18048,15 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /* new custom pages */
    if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
       char custom_path[256];
-      custom_path[0] = 0;
+      if (getenv("MIDAS_DIR"))
+        strlcpy(custom_path, getenv("MIDAS_DIR"), sizeof(custom_path));
+      else if (getenv("MIDASSYS"))
+         strlcpy(custom_path, getenv("MIDASSYS"), sizeof(custom_path));
+      else
+         strlcpy(custom_path, "/home/custom", sizeof(custom_path));
+
       size = sizeof(custom_path);
-      db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, FALSE);
+      db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, TRUE);
       if (custom_path[strlen(custom_path)-1] != DIR_SEPARATOR)
          strlcat(custom_path, DIR_SEPARATOR_STR, sizeof(custom_path));
       strlcat(custom_path, dec_path, sizeof(custom_path));
