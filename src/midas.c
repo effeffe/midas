@@ -14000,13 +14000,8 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
    if (status == RPC_SHUTDOWN)
       return status;
 
-   if (rpc_is_mserver()) {
-      return status;
-   }
-
-   /* don't abort if other than main connection is broken */
+   /* only the mserver should stop on server connection closure */
    if (!rpc_is_mserver()) {
-      cm_msg(MERROR, "rpc_server_receive", "rpc check ok, abort canceled");
       return SS_SUCCESS;
    }
 
