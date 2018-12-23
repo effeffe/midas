@@ -1402,15 +1402,15 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
       for (i = 0; i < _database_entries; i++)
          if (_database[i].attached && equal_ustring(_database[i].name, database_name)) {
             /* check if database belongs to this thread */
-            if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MTHREAD) {
-               if (_database[i].index == ss_gettid()) {
-                  *hDB = i + 1;
-                  return DB_SUCCESS;
-               }
-            } else {
+            //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MTHREAD) {
+            //   if (_database[i].index == ss_gettid()) {
+            //      *hDB = i + 1;
+            //      return DB_SUCCESS;
+            //   }
+            //} else {
                *hDB = i + 1;
                return DB_SUCCESS;
-            }
+            //}
          }
 
       /* check for a deleted entry */
@@ -1662,11 +1662,11 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    _database[handle].protect_read = FALSE;
    _database[handle].protect_write = FALSE;
 
-   /* remember to which connection acutal buffer belongs */
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
-      _database[handle].index = rpc_get_server_acception();
-   else
-      _database[handle].index = ss_gettid();
+   ///* remember to which connection acutal buffer belongs */
+   //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
+   //   _database[handle].index = rpc_get_server_acception();
+   //else
+   //   _database[handle].index = ss_gettid();
 
    *hDB = (handle + 1);
 
@@ -1726,16 +1726,16 @@ INT db_close_database(HNDLE hDB)
       pheader = _database[hDB - 1].database_header;
       pclient = &pheader->client[idx];
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-          _database[hDB - 1].index != rpc_get_server_acception()) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
+      //    _database[hDB - 1].index != rpc_get_server_acception()) {
+      //   db_unlock_database(hDB);
+      //   return DB_INVALID_HANDLE;
+      //}
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[hDB - 1].index != ss_gettid()) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[hDB - 1].index != ss_gettid()) {
+      //   db_unlock_database(hDB);
+      //   return DB_INVALID_HANDLE;
+      //}
 
       if (!_database[hDB - 1].attached) {
          db_unlock_database(hDB);
@@ -1864,16 +1864,16 @@ INT db_flush_database(HNDLE hDB)
       db_lock_database(hDB);
       pheader = _database[hDB - 1].database_header;
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-          _database[hDB - 1].index != rpc_get_server_acception()) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
+      //    _database[hDB - 1].index != rpc_get_server_acception()) {
+      //   db_unlock_database(hDB);
+      //   return DB_INVALID_HANDLE;
+      //}
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[hDB - 1].index != ss_gettid()) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[hDB - 1].index != ss_gettid()) {
+      //   db_unlock_database(hDB);
+      //   return DB_INVALID_HANDLE;
+      //}
 
       if (!_database[hDB - 1].attached) {
          db_unlock_database(hDB);
@@ -1993,7 +1993,7 @@ INT db_lock_database(HNDLE hDB)
    void *p;
 
    if (hDB > _database_entries || hDB <= 0) {
-      cm_msg(MERROR, "db_lock_database", "invalid database handle, aborting...");
+      cm_msg(MERROR, "db_lock_database", "invalid database handle %d, aborting...", hDB);
       abort();
       return DB_INVALID_HANDLE;
    }
@@ -2105,7 +2105,7 @@ INT db_unlock_database(HNDLE hDB)
 #ifdef LOCAL_ROUTINES
 
    if (hDB > _database_entries || hDB <= 0) {
-      cm_msg(MERROR, "db_unlock_database", "invalid database handle");
+      cm_msg(MERROR, "db_unlock_database", "invalid database handle %d", hDB);
       return DB_INVALID_HANDLE;
    }
 #ifdef CHECK_LOCK_COUNT
@@ -2435,16 +2435,16 @@ void db_set_watchdog_params(DWORD timeout)
       pheader = _database[i - 1].database_header;
       pclient = &pheader->client[idx];
       
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-          _database[i - 1].index != rpc_get_server_acception()) {
-         db_unlock_database(i);
-         continue;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
+      //    _database[i - 1].index != rpc_get_server_acception()) {
+      //   db_unlock_database(i);
+      //   continue;
+      //}
       
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[i - 1].index != ss_gettid()) {
-         db_unlock_database(i);
-         continue;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[i - 1].index != ss_gettid()) {
+      //   db_unlock_database(i);
+      //   continue;
+      //}
       
       if (!_database[i - 1].attached) {
          db_unlock_database(i);
@@ -2602,9 +2602,12 @@ Protect a database for read/write access outside of the \b db_xxx functions
 */
 INT db_protect_database(HNDLE hDB)
 {
+   if (rpc_is_remote())
+      return DB_SUCCESS;
+
 #ifdef LOCAL_ROUTINES
    if (hDB > _database_entries || hDB <= 0) {
-      cm_msg(MERROR, "db_unlock_database", "invalid database handle");
+      cm_msg(MERROR, "db_protect_database", "invalid database handle %d", hDB);
       return DB_INVALID_HANDLE;
    }
 
@@ -4428,12 +4431,12 @@ INT db_get_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, void *data, IN
       char *p, path[256], keyname[256];
 
       if (hDB > _database_entries || hDB <= 0) {
-         cm_msg(MERROR, "db_get_value", "invalid database handle");
+         cm_msg(MERROR, "db_get_value", "invalid database handle %d", hDB);
          return DB_INVALID_HANDLE;
       }
 
       if (!_database[hDB - 1].attached) {
-         cm_msg(MERROR, "db_get_value", "invalid database handle");
+         cm_msg(MERROR, "db_get_value", "invalid database handle %d", hDB);
          return DB_INVALID_HANDLE;
       }
 
@@ -10215,10 +10218,12 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
 
       if (!align)
          align = ss_get_struct_align();
-      else
+      else {
          /* only convert data if called remotely, as indicated by align != 0 */
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
-         convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+         if (rpc_is_mserver()) {
+            convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+         }
+      }
 
       /* check if key has subkeys */
       status = db_get_key(hDB, hKey, &key);
@@ -10786,10 +10791,12 @@ INT db_set_record(HNDLE hDB, HNDLE hKey, void *data, INT buf_size, INT align)
 
       if (!align)
          align = ss_get_struct_align();
-      else
+      else {
          /* only convert data if called remotely, as indicated by align != 0 */
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
-         convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+         if (rpc_is_mserver()) {
+            convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+         }
+      }
 
       /* check if key has subkeys */
       db_get_key(hDB, hKey, &key);

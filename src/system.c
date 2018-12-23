@@ -4145,14 +4145,14 @@ INT ss_suspend(INT millisec, INT msg)
             }
 
             if (status == SS_ABORT) {
-               cm_msg(MINFO, "ss_suspend", "Server connection broken to \'%s\'", _suspend_struct[idx].server_connection->host_name);
+               cm_msg(MINFO, "ss_suspend", "Server connection to \'%s\' was broken", _suspend_struct[idx].server_connection->host_name);
 
                /* close client connection if link broken */
                closesocket(_suspend_struct[idx].server_connection->send_sock);
                closesocket(_suspend_struct[idx].server_connection->recv_sock);
                closesocket(_suspend_struct[idx].server_connection->event_sock);
 
-               memset(_suspend_struct[idx].server_connection, 0, sizeof(RPC_CLIENT_CONNECTION));
+               memset(_suspend_struct[idx].server_connection, 0, sizeof(RPC_SERVER_CONNECTION));
 
                /* exit program after broken connection to MIDAS server */
                return SS_ABORT;
@@ -4176,7 +4176,7 @@ INT ss_suspend(INT millisec, INT msg)
 
          /* find out if this thread is connected as a server */
          server_socket = 0;
-         if (_suspend_struct[idx].server_acception && rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+         if (_suspend_struct[idx].server_acception && rpc_is_mserver())
             for (i = 0; i < MAX_RPC_CONNECTION; i++) {
                sock = _suspend_struct[idx].server_acception[i].send_sock;
                if (sock && _suspend_struct[idx].server_acception[i].tid == ss_gettid())
@@ -4538,14 +4538,12 @@ INT recv_tcp(int sock, char *net_buffer, DWORD buffer_size, INT flags)
 #endif
 
       if (n == 0) {
-         cm_msg(MERROR, "recv_tcp",
-                "header: recv returned %d, n_received = %d, unexpected connection closure", n, n_received);
+         cm_msg(MERROR, "recv_tcp", "header: recv(%d) returned %d, n_received = %d, unexpected connection closure", (int)sizeof(NET_COMMAND_HEADER), n, n_received);
          return n;
       }
 
       if (n < 0) {
-         cm_msg(MERROR, "recv_tcp",
-                "header: recv returned %d, n_received = %d, errno: %d (%s)", n, n_received, errno, strerror(errno));
+         cm_msg(MERROR, "recv_tcp", "header: recv(%d) returned %d, n_received = %d, errno: %d (%s)", (int)sizeof(NET_COMMAND_HEADER), n, n_received, errno, strerror(errno));
          return n;
       }
 
@@ -4579,14 +4577,12 @@ INT recv_tcp(int sock, char *net_buffer, DWORD buffer_size, INT flags)
 #endif
 
       if (n == 0) {
-         cm_msg(MERROR, "recv_tcp",
-                "param: recv returned %d, n_received = %d, unexpected connection closure", n, n_received);
+         cm_msg(MERROR, "recv_tcp", "param: recv() returned %d, n_received = %d, unexpected connection closure", n, n_received);
          return n;
       }
 
       if (n < 0) {
-         cm_msg(MERROR, "recv_tcp",
-                "param: recv returned %d, n_received = %d, errno: %d (%s)", n, n_received, errno, strerror(errno));
+         cm_msg(MERROR, "recv_tcp", "param: recv() returned %d, n_received = %d, errno: %d (%s)", n, n_received, errno, strerror(errno));
          return n;
       }
 

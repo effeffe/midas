@@ -20,11 +20,6 @@
 #include <sys/types.h>
 #endif
 
-#ifdef OS_WINNT
-/* critical section object for open/close buffer */
-CRITICAL_SECTION buffer_critial_section;
-#endif
-
 struct callback_addr callback;
 
 BOOL use_callback_addr = TRUE;
@@ -166,16 +161,13 @@ int main(int argc, char **argv)
 
 \********************************************************************/
 {
-   int i, flag, server_type;
+   int i, flag;
+   //int server_type;
    socklen_t size;
-   char name[256], str[1000];
+   //char name[256];
+   char str[1000];
    BOOL inetd, daemon, debug;
    int port = 0;
-
-#ifdef OS_WINNT
-   /* init critical section object for open/close buffer */
-   InitializeCriticalSection(&buffer_critial_section);
-#endif
 
 #if defined(SIGPIPE) && defined(SIG_IGN)
    signal(SIGPIPE, SIG_IGN);
@@ -184,19 +176,19 @@ int main(int argc, char **argv)
    setbuf(stdout, NULL);
    setbuf(stderr, NULL);
 
-   /* save executable file name */
-   if (argv[0] == NULL || argv[0][0] == 0)
-     strlcpy(name, "mserver", sizeof(name));
-   else
-     strlcpy(name, argv[0], sizeof(name));
+   ///* save executable file name */
+   //if (argv[0] == NULL || argv[0][0] == 0)
+   //  strlcpy(name, "mserver", sizeof(name));
+   //else
+   //  strlcpy(name, argv[0], sizeof(name));
 
 #ifdef OS_UNIX
-   /* if no full path given, assume /usr/local/bin */
-   if (strchr(name, '/') == 0) {
-      strlcpy(str, "/usr/local/bin/", sizeof(str));
-      strlcat(str, name, sizeof(str));
-      strlcpy(name, str, sizeof(name));
-   }
+   ///* if no full path given, assume /usr/local/bin */
+   //if (strchr(name, '/') == 0) {
+   //   strlcpy(str, "/usr/local/bin/", sizeof(str));
+   //   strlcat(str, name, sizeof(str));
+   //   strlcpy(name, str, sizeof(name));
+   //}
 #endif
 
 #if 0
@@ -209,7 +201,7 @@ int main(int argc, char **argv)
    if (getenv("MIDAS_MSERVER_DO_NOT_USE_CALLBACK_ADDR"))
       use_callback_addr = FALSE;
 
-   rpc_set_server_option(RPC_OSERVER_NAME, (POINTER_T) name);
+   //rpc_set_mserver_path(name);
 
    /* find out if we were started by inetd */
    size = sizeof(int);
@@ -230,9 +222,8 @@ int main(int argc, char **argv)
 
    if (argc < 7 && inetd) {
       /* accept connection from stdin */
-      rpc_set_server_option(RPC_OSERVER_TYPE, ST_MPROCESS);
+      //rpc_set_server_option(RPC_OSERVER_TYPE, ST_MPROCESS);
       rpc_server_accept(0);
-
       return 0;
    }
 
@@ -240,7 +231,7 @@ int main(int argc, char **argv)
       printf("%s started interactively\n", argv[0]);
 
    debug = daemon = FALSE;
-   server_type = ST_MPROCESS;
+   //server_type = ST_MPROCESS;
 
    if (argc < 7 || argv[1][0] == '-') {
       int status;
@@ -258,12 +249,12 @@ int main(int argc, char **argv)
             debug = TRUE;
          else if (argv[i][0] == '-' && argv[i][1] == 'D')
             daemon = TRUE;
-         else if (argv[i][0] == '-' && argv[i][1] == 's')
-            server_type = ST_SINGLE;
-         else if (argv[i][0] == '-' && argv[i][1] == 't')
-            server_type = ST_MTHREAD;
-         else if (argv[i][0] == '-' && argv[i][1] == 'm')
-            server_type = ST_MPROCESS;
+         //else if (argv[i][0] == '-' && argv[i][1] == 's')
+         //   server_type = ST_SINGLE;
+         //else if (argv[i][0] == '-' && argv[i][1] == 't')
+         //   server_type = ST_MTHREAD;
+         //else if (argv[i][0] == '-' && argv[i][1] == 'm')
+         //   server_type = ST_MPROCESS;
          else if (argv[i][0] == '-' && argv[i][1] == 'p')
             port = strtoul(argv[++i], NULL, 0);
          else if (argv[i][0] == '-') {
@@ -273,8 +264,8 @@ int main(int argc, char **argv)
              usage:
                printf("usage: mserver [-e Experiment] [-s][-t][-m][-d][-p port]\n");
                printf("               -e    experiment to connect to\n");
-               printf("               -s    Single process server (DO NOT USE!)\n");
-               printf("               -t    Multi threaded server (DO NOT USE!)\n");
+               //printf("               -s    Single process server (DO NOT USE!)\n");
+               //printf("               -t    Multi threaded server (DO NOT USE!)\n");
                printf("               -m    Multi process server (default)\n");
                printf("               -p port Listen for connections on specifed tcp port. Default value is taken from ODB \"/Experiment/midas server port\"\n");
 #ifdef OS_LINUX
@@ -317,22 +308,25 @@ int main(int argc, char **argv)
       printf("mserver will listen on TCP port %d\n", port);
 
       /* if command line parameter given, start according server type */
-      if (server_type == ST_MTHREAD) {
-         if (ss_thread_create(NULL, NULL) == 0) {
-            printf("MIDAS doesn't support threads on this OS.\n");
-            return 1;
-         }
-
-         printf("NOTE: THE MULTI THREADED SERVER IS BUGGY, ONLY USE IT FOR TEST PURPOSES\n");
-         printf("Multi thread server started\n");
-      }
+      //if (server_type == ST_MTHREAD) {
+      //   if (ss_thread_create(NULL, NULL) == 0) {
+      //      printf("MIDAS doesn't support threads on this OS.\n");
+      //      return 1;
+      //   }
+      //
+      //   printf("NOTE: THE MULTI THREADED SERVER IS BUGGY, ONLY USE IT FOR TEST PURPOSES\n");
+      //   printf("Multi thread server started\n");
+      //}
 
       /* register server */
-      status =  rpc_register_server(server_type, argv[0], &port, rpc_server_dispatch);
+      status =  rpc_register_server(&port, rpc_server_accept, rpc_server_dispatch);
       if (status != RPC_SUCCESS) {
          printf("Cannot start server, rpc_register_server() status %d\n", status);
          return 1;
       }
+
+      /* register path of mserver executable */
+      rpc_set_mserver_path(argv[0]);
 
       /* register MIDAS library functions */
       rpc_register_functions(rpc_get_internal_list(1), rpc_server_dispatch);
@@ -405,7 +399,14 @@ int main(int argc, char **argv)
       if (callback.experiment[0])
          cm_set_experiment_name(callback.experiment);
 
-      rpc_register_server(ST_SUBPROCESS, NULL, NULL, rpc_server_dispatch);
+      //rpc_register_server(ST_SUBPROCESS, NULL, NULL, rpc_server_dispatch);
+      //rpc_set_server_option(RPC_OSERVER_TYPE, ST_SUBPROCESS);
+
+      /* switch rpc to mserver mode */
+      rpc_set_mserver_mode();
+
+      /* register system functions */
+      rpc_register_functions(rpc_get_internal_list(0), rpc_server_dispatch);
 
       /* register MIDAS library functions */
       rpc_register_functions(rpc_get_internal_list(1), rpc_server_dispatch);
@@ -521,57 +522,15 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       /* buffer manager functions */
 
    case RPC_BM_OPEN_BUFFER:
-
-#ifdef OS_WINNT
-      /*
-         bm_open_buffer may only be called from one thread at a time,
-         so use critical section object for synchronization.
-       */
-      EnterCriticalSection(&buffer_critial_section);
-#endif
-
       status = bm_open_buffer(CSTRING(0), CINT(1), CPINT(2));
-
-#ifdef OS_WINNT
-      LeaveCriticalSection(&buffer_critial_section);
-#endif
-
       break;
 
    case RPC_BM_CLOSE_BUFFER:
-
-#ifdef OS_WINNT
-      /*
-         bm_close_buffer may only be called from one thread at a time,
-         so use critical section object for synchronization.
-       */
-      EnterCriticalSection(&buffer_critial_section);
-#endif
-
       status = bm_close_buffer(CINT(0));
-
-#ifdef OS_WINNT
-      LeaveCriticalSection(&buffer_critial_section);
-#endif
-
       break;
 
    case RPC_BM_CLOSE_ALL_BUFFERS:
-
-#ifdef OS_WINNT
-      /*
-         bm_close_all_buffers may only be called from one thread at a time,
-         so use critical section object for synchronization.
-       */
-      EnterCriticalSection(&buffer_critial_section);
-#endif
-
       status = bm_close_all_buffers();
-
-#ifdef OS_WINNT
-      LeaveCriticalSection(&buffer_critial_section);
-#endif
-
       break;
 
    case RPC_BM_GET_BUFFER_INFO:
@@ -653,39 +612,11 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       /* database functions */
 
    case RPC_DB_OPEN_DATABASE:
-
-#ifdef OS_WINNT
-      /*
-         db_open_database may only be called from one thread at a time,
-         so use critical section object for synchronization.
-       */
-      EnterCriticalSection(&buffer_critial_section);
-#endif
-
       status = db_open_database(CSTRING(0), CINT(1), CPHNDLE(2), CSTRING(3));
-
-#ifdef OS_WINNT
-      LeaveCriticalSection(&buffer_critial_section);
-#endif
-
       break;
 
    case RPC_DB_CLOSE_DATABASE:
-
-#ifdef OS_WINNT
-      /*
-         db_close_database may only be called from one thread at a time,
-         so use critical section object for synchronization.
-       */
-      EnterCriticalSection(&buffer_critial_section);
-#endif
-
       status = db_close_database(CINT(0));
-
-#ifdef OS_WINNT
-      LeaveCriticalSection(&buffer_critial_section);
-#endif
-
       break;
 
    case RPC_DB_FLUSH_DATABASE:
@@ -693,21 +624,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       break;
 
    case RPC_DB_CLOSE_ALL_DATABASES:
-
-#ifdef OS_WINNT
-      /*
-         db_close_allo_databases may only be called from one thread at a time,
-         so use critical section object for synchronization.
-       */
-      EnterCriticalSection(&buffer_critial_section);
-#endif
-
       status = db_close_all_databases();
-
-#ifdef OS_WINNT
-      LeaveCriticalSection(&buffer_critial_section);
-#endif
-
       break;
 
    case RPC_DB_CREATE_KEY:
