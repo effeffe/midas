@@ -588,6 +588,7 @@ System message types */
 #define BM_MORE_EVENTS              216   /**< - */
 #define BM_INVALID_MIXING           217   /**< - */
 #define BM_NO_SHM                   218   /**< - */
+#define BM_CORRUPTED                219   /**< - */
 /**dox***************************************************************/
           /** @} *//* end of group 22 */
 
@@ -897,7 +898,7 @@ typedef struct {
    INT max_request_index;             /**< index of last request      */
    INT num_received_events;           /**< no of received events      */
    INT num_sent_events;               /**< no of sent events          */
-   INT num_waiting_events;            /**< no of waiting events       */
+   INT unused1;                       /**< was num_waiting_events     */
    float data_rate;                   /**< data rate in kB/sec        */
    BOOL read_wait;                    /**< wait for read - flag       */
    INT write_wait;                    /**< wait for write # bytes     */
@@ -931,14 +932,15 @@ typedef struct {
    INT client_index;                /**< index to CLIENT str. in buf. */
    BUFFER_HEADER *buffer_header;    /**< pointer to buffer header     */
    void *buffer_data;               /**< pointer to buffer data       */
+   MUTEX_T* buffer_mutex;           /**< buffer mutex                 */
    char *read_cache;                /**< cache for burst read         */
    INT read_cache_size;             /**< cache size in bytes          */
    INT read_cache_rp;               /**< cache read pointer           */
    INT read_cache_wp;               /**< cache write pointer          */
    char *write_cache;               /**< cache for burst read         */
    INT write_cache_size;            /**< cache size in bytes          */
-   INT write_cache_rp;              /**< cache read pointer           */
    INT write_cache_wp;              /**< cache write pointer          */
+   MUTEX_T* write_cache_mutex;      /**< cache write mutex            */
    HNDLE semaphore;                 /**< semaphore handle             */
    INT shm_handle;                  /**< handle to shared memory      */
    INT index;                       /**< connection index / tid       */
@@ -1740,22 +1742,28 @@ extern "C" {
    INT EXPRT bm_compose_event(EVENT_HEADER * event_header,
                               short int event_id, short int trigger_mask,
                               DWORD size, DWORD serial);
-   INT EXPRT bm_request_event(INT buffer_handle, short int event_id,
-                              short int trigger_mask, INT sampling_type,
-                              INT * request_id, void (*func) (HNDLE, HNDLE,
-                                                              EVENT_HEADER *, void *));
-   INT EXPRT bm_add_event_request(INT buffer_handle, short int event_id,
+   INT EXPRT bm_request_event(INT buffer_handle,
+                              short int event_id,
+                              short int trigger_mask,
+                              INT sampling_type,
+                              INT * request_id,
+                              void (*func) (HNDLE,
+                                            HNDLE,
+                                            EVENT_HEADER*,
+                                            void*)
+                              );
+   INT EXPRT bm_add_event_request(INT buffer_handle,
+                                  short int event_id,
                                   short int trigger_mask,
-                                  INT sampling_type, void (*func) (HNDLE,
-                                                                   HNDLE,
-                                                                   EVENT_HEADER
-                                                                   *,
-                                                                   void *),
+                                  INT sampling_type,
+                                  void (*func) (HNDLE,
+                                                HNDLE,
+                                                EVENT_HEADER*,
+                                                void*),
                                   INT request_id);
    INT EXPRT bm_delete_request(INT request_id);
-   INT EXPRT bm_send_event(INT buffer_handle, const void *event, INT buf_size, INT async_flag);
-   INT EXPRT bm_receive_event(INT buffer_handle, void *destination,
-                              INT * buf_size, INT async_flag);
+   INT EXPRT bm_send_event(INT buffer_handle, const EVENT_HEADER* event, INT buf_size, INT async_flag);
+   INT EXPRT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT async_flag);
    INT EXPRT bm_skip_event(INT buffer_handle);
    INT EXPRT bm_flush_cache(INT buffer_handle, INT async_flag);
    INT EXPRT bm_poll_event(INT flag);

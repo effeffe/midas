@@ -651,7 +651,7 @@ static INT cm_msg_send_event(INT ts, INT message_type, const char *send_message)
       /* setup the event header and send the message */
       bm_compose_event(pevent, EVENTID_MESSAGE, (WORD) message_type, strlen(event + sizeof(EVENT_HEADER)) + 1, 0);
       pevent->time_stamp = ts;
-      bm_send_event(_msg_buffer, event, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
+      bm_send_event(_msg_buffer, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
    }
 
    return CM_SUCCESS;
@@ -915,7 +915,7 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
 
       /* setup the event header and send the message */
       bm_compose_event(pevent, EVENTID_MESSAGE, (WORD) message_type, strlen(event + sizeof(EVENT_HEADER)) + 1, 0);
-      bm_send_event(_msg_buffer, event, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
+      bm_send_event(_msg_buffer, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
    }
 
    /* log message */
@@ -5208,8 +5208,7 @@ static int bm_validate_client_index(const BUFFER * buf, BOOL abort_if_invalid)
    }
 
 #if 0
-   printf
-       ("bm_validate_client_index: badindex=%d, buf=%p, client_index=%d, max_client_index=%d, client_name=\'%s\', client_pid=%d, pid=%d\n",
+   printf("bm_validate_client_index: badindex=%d, buf=%p, client_index=%d, max_client_index=%d, client_name=\'%s\', client_pid=%d, pid=%d\n",
         badindex, buf, buf->client_index, buf->buffer_header->max_client_index,
         buf->buffer_header->client[buf->client_index].name, buf->buffer_header->client[buf->client_index].pid,
         ss_getpid());
@@ -5244,17 +5243,15 @@ event id and trigger mask
 @param pevent    Pointer to event to check
 @return TRUE      if event matches request
 */
-INT bm_match_event(short int event_id, short int trigger_mask, EVENT_HEADER * pevent)
+INT bm_match_event(short int event_id, short int trigger_mask, const EVENT_HEADER * pevent)
 {
    if ((pevent->event_id & 0xF000) == EVENTID_FRAG1 || (pevent->event_id & 0xF000) == EVENTID_FRAG)
       /* fragmented event */
-      return ((event_id == EVENTID_ALL ||
-               event_id == (pevent->event_id & 0x0FFF)) &&
-              (trigger_mask == TRIGGER_ALL || (trigger_mask & pevent->trigger_mask)));
+      return ((event_id == EVENTID_ALL || event_id == (pevent->event_id & 0x0FFF))
+              && (trigger_mask == TRIGGER_ALL || (trigger_mask & pevent->trigger_mask)));
 
-   return ((event_id == EVENTID_ALL ||
-            event_id == pevent->event_id) && (trigger_mask == TRIGGER_ALL
-                                              || (trigger_mask & pevent->trigger_mask)));
+   return ((event_id == EVENTID_ALL || event_id == pevent->event_id)
+           && (trigger_mask == TRIGGER_ALL || (trigger_mask & pevent->trigger_mask)));
 }
 
 /********************************************************************/
@@ -5533,12 +5530,6 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
 
       handle = i;
 
-      /* reduce buffer size is larger than maximum */
-#ifdef MAX_SHM_SIZE
-      if (buffer_size + sizeof(BUFFER_HEADER) > MAX_SHM_SIZE)
-         buffer_size = MAX_SHM_SIZE - sizeof(BUFFER_HEADER);
-#endif
-
       /* open shared memory region */
       //status = ss_shm_open(buffer_name, sizeof(BUFFER_HEADER) + buffer_size,
       //               (void **) &(_buffer[handle].buffer_header), &shm_handle, FALSE);
@@ -5564,8 +5555,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       } else {
          /* check if buffer size is identical */
          if (pheader->size != buffer_size) {
-            cm_msg(MERROR, "bm_open_buffer", "Cannot open buffer \"%s\": requested buffer size (%d) differs from existing size (%d)",
-                   buffer_name, buffer_size, pheader->size);
+            cm_msg(MERROR, "bm_open_buffer", "Cannot open buffer \"%s\": requested buffer size (%d) differs from existing size (%d)", buffer_name, buffer_size, pheader->size);
             *buffer_handle = 0;
             _buffer_entries--;
             return BM_MEMSIZE_MISMATCH;
@@ -5579,6 +5569,9 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
          _buffer_entries--;
          return BM_NO_SEMAPHORE;
       }
+
+      /* create mutex for the buffer */
+      ss_mutex_create(&_buffer[handle].buffer_mutex, FALSE);
 
       /* first lock buffer */
       bm_lock_buffer(handle + 1);
@@ -5637,7 +5630,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       _buffer[handle].attached = TRUE;
       _buffer[handle].shm_handle = shm_handle;
       _buffer[handle].callback = FALSE;
-
+      ss_mutex_create(&_buffer[handle].write_cache_mutex, FALSE);
       /* remember to which connection acutal buffer belongs */
       if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
          _buffer[handle].index = rpc_get_server_acception();
@@ -5753,6 +5746,10 @@ INT bm_close_buffer(INT buffer_handle)
       if (_buffer[buffer_handle - 1].write_cache_size > 0) {
          M_FREE(_buffer[buffer_handle - 1].write_cache);
          _buffer[buffer_handle - 1].write_cache = NULL;
+         _buffer[buffer_handle - 1].write_cache_size = 0;
+         _buffer[buffer_handle - 1].write_cache_wp = 0;
+         ss_mutex_delete(_buffer[buffer_handle - 1].write_cache_mutex);
+         _buffer[buffer_handle - 1].write_cache_mutex = NULL;
       }
 
       /* check if anyone is waiting and wake him up */
@@ -6389,11 +6386,12 @@ INT bm_lock_buffer(INT buffer_handle)
       return BM_INVALID_HANDLE;
    }
 
+   ss_mutex_wait_for(_buffer[buffer_handle - 1].buffer_mutex, 10000);
+
    status = ss_semaphore_wait_for(_buffer[buffer_handle - 1].semaphore, 5 * 60 * 1000);
 
    if (status != SS_SUCCESS) {
-      cm_msg(MERROR, "bm_lock_buffer",
-             "Cannot lock buffer handle %d, ss_semaphore_wait_for() status %d, aborting...", buffer_handle, status);
+      cm_msg(MERROR, "bm_lock_buffer", "Cannot lock buffer handle %d, ss_semaphore_wait_for() status %d, aborting...", buffer_handle, status);
       abort();
       return BM_INVALID_HANDLE;
    }
@@ -6426,6 +6424,9 @@ INT bm_unlock_buffer(INT buffer_handle)
    }
 
    ss_semaphore_release(_buffer[buffer_handle - 1].semaphore);
+
+   ss_mutex_release(_buffer[buffer_handle - 1].buffer_mutex);
+
    return BM_SUCCESS;
 }
 
@@ -6528,12 +6529,12 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       }
 
       if (read_size < 0 || read_size > 1E6) {
-         cm_msg(MERROR, "bm_set_cache_size", "invalid read chache size");
+         cm_msg(MERROR, "bm_set_cache_size", "invalid read chache size %d", read_size);
          return BM_INVALID_PARAM;
       }
 
       if (write_size < 0 || write_size > 1E6) {
-         cm_msg(MERROR, "bm_set_cache_size", "invalid write chache size");
+         cm_msg(MERROR, "bm_set_cache_size", "invalid write chache size %d", write_size);
          return BM_INVALID_PARAM;
       }
 
@@ -6548,13 +6549,20 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       if (read_size > 0) {
          pbuf->read_cache = (char *) M_MALLOC(read_size);
          if (pbuf->read_cache == NULL) {
-            cm_msg(MERROR, "bm_set_cache_size", "not enough memory to allocate cache buffer");
+            cm_msg(MERROR, "bm_set_cache_size", "not enough memory to allocate cache buffer, malloc(%d) failed", read_size);
             return BM_NO_MEMORY;
          }
       }
 
       pbuf->read_cache_size = read_size;
       pbuf->read_cache_rp = pbuf->read_cache_wp = 0;
+
+      ss_mutex_wait_for(pbuf->write_cache_mutex, 10000);
+
+      // FIXME: should flush the write cache!
+      if (pbuf->write_cache_size && pbuf->write_cache_wp > 0) {
+         cm_msg(MERROR, "bm_set_cache_size", "buffer \"%s\" lost %d bytes from the write cache", pbuf->buffer_header->name, pbuf->write_cache_wp);
+      }
 
       /* manage write cache */
       if (pbuf->write_cache_size > 0) {
@@ -6565,14 +6573,15 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       if (write_size > 0) {
          pbuf->write_cache = (char *) M_MALLOC(write_size);
          if (pbuf->write_cache == NULL) {
-            cm_msg(MERROR, "bm_set_cache_size", "not enough memory to allocate cache buffer");
+            cm_msg(MERROR, "bm_set_cache_size", "not enough memory to allocate cache buffer, malloc(%d) failed", write_size);
             return BM_NO_MEMORY;
          }
       }
 
       pbuf->write_cache_size = write_size;
-      pbuf->write_cache_rp = pbuf->write_cache_wp = 0;
+      pbuf->write_cache_wp = 0;
 
+      ss_mutex_release(pbuf->write_cache_mutex);
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -6937,7 +6946,7 @@ static void bm_show_pointers(const BUFFER_HEADER * pheader)
 }
 #endif
 
-static void bm_validate_client_pointers(BUFFER_HEADER * pheader, BUFFER_CLIENT * pclient)
+static void bm_validate_client_pointers_locked(const BUFFER_HEADER * pheader, BUFFER_CLIENT * pclient)
 {
    assert(pheader->read_pointer >= 0 && pheader->read_pointer <= pheader->size);
    assert(pclient->read_pointer >= 0 && pclient->read_pointer <= pheader->size);
@@ -6946,16 +6955,16 @@ static void bm_validate_client_pointers(BUFFER_HEADER * pheader, BUFFER_CLIENT *
 
       if (pclient->read_pointer < pheader->read_pointer) {
          cm_msg(MINFO, "bm_validate_client_pointers",
-                "Corrected read pointer for client \'%s\' on buffer \'%s\' from %d to %d", pclient->name,
-                pheader->name, pclient->read_pointer, pheader->read_pointer);
+                "Corrected read pointer for client \'%s\' on buffer \'%s\' from %d to %d, write pointer %d, size %d", pclient->name,
+                pheader->name, pclient->read_pointer, pheader->read_pointer, pheader->write_pointer, pheader->size);
 
          pclient->read_pointer = pheader->read_pointer;
       }
 
       if (pclient->read_pointer > pheader->write_pointer) {
          cm_msg(MINFO, "bm_validate_client_pointers",
-                "Corrected read pointer for client \'%s\' on buffer \'%s\' from %d to %d", pclient->name,
-                pheader->name, pclient->read_pointer, pheader->write_pointer);
+                "Corrected read pointer for client \'%s\' on buffer \'%s\' from %d to %d, read pointer %d, size %d", pclient->name,
+                pheader->name, pclient->read_pointer, pheader->write_pointer, pheader->read_pointer, pheader->size);
 
          pclient->read_pointer = pheader->write_pointer;
       }
@@ -6964,24 +6973,24 @@ static void bm_validate_client_pointers(BUFFER_HEADER * pheader, BUFFER_CLIENT *
 
       if (pclient->read_pointer < 0) {
          cm_msg(MINFO, "bm_validate_client_pointers",
-                "Corrected read pointer for client \'%s\' on buffer \'%s\' from %d to %d", pclient->name,
-                pheader->name, pclient->read_pointer, pheader->read_pointer);
+                "Corrected read pointer for client \'%s\' on buffer \'%s\' from %d to %d, write pointer %d, size %d", pclient->name,
+                pheader->name, pclient->read_pointer, pheader->read_pointer, pheader->write_pointer, pheader->size);
 
          pclient->read_pointer = pheader->read_pointer;
       }
 
       if (pclient->read_pointer >= pheader->size) {
          cm_msg(MINFO, "bm_validate_client_pointers",
-                "Corrected read pointer for client \'%s\' on buffer \'%s\' from %d to %d", pclient->name,
-                pheader->name, pclient->read_pointer, pheader->read_pointer);
+                "Corrected read pointer for client \'%s\' on buffer \'%s\' from %d to %d, write pointer %d, size %d", pclient->name,
+                pheader->name, pclient->read_pointer, pheader->read_pointer, pheader->write_pointer, pheader->size);
 
          pclient->read_pointer = pheader->read_pointer;
       }
 
       if (pclient->read_pointer > pheader->write_pointer && pclient->read_pointer < pheader->read_pointer) {
          cm_msg(MINFO, "bm_validate_client_pointers",
-                "Corrected read pointer for client \'%s\' on buffer \'%s\' from %d to %d", pclient->name,
-                pheader->name, pclient->read_pointer, pheader->read_pointer);
+                "Corrected read pointer for client \'%s\' on buffer \'%s\' from %d to %d, write pointer %d, size %d", pclient->name,
+                pheader->name, pclient->read_pointer, pheader->read_pointer, pheader->write_pointer, pheader->size);
 
          pclient->read_pointer = pheader->read_pointer;
       }
@@ -7001,40 +7010,79 @@ static void bm_validate_pointers(BUFFER_HEADER * pheader)
 }
 #endif
 
-static BOOL bm_update_read_pointer(const char *caller_name, BUFFER_HEADER * pheader)
-{
-   BOOL did_move;
-   int i;
-   int min_rp;
-   BUFFER_CLIENT *pclient;
+//
+// Buffer pointers
+//
+// normal:
+//
+// zero -->
+// ... free space
+// read_pointer -->
+// client1 rp -->
+// client2 rp -->
+// ... buffered data
+// write_pointer -->
+// ... free space
+// pheader->size -->
+//
+// inverted:
+//
+// zero -->
+// client3 rp -->
+// ... buffered data
+// client4 rp -->
+// write_pointer -->
+// ... free space
+// read_pointer -->
+// client1 rp -->
+// client2 rp -->
+// ... buffered data
+// pheader->size -->
+//
 
+static BOOL bm_update_read_pointer_locked(const char *caller_name, BUFFER_HEADER * pheader)
+{
    assert(caller_name);
-   pclient = pheader->client;
 
    /* calculate global read pointer as "minimum" of client read pointers */
-   min_rp = pheader->write_pointer;
+   int min_rp = pheader->write_pointer;
 
-   for (i = 0; i < pheader->max_client_index; i++)
-      if (pclient[i].pid) {
-#ifdef DEBUG_MSG
-         cm_msg(MDEBUG, caller_name, "bm_update_read_pointer: client %d rp=%d", i, pclient[i].read_pointer);
+   int i;
+   for (i = 0; i < pheader->max_client_index; i++) {
+      BUFFER_CLIENT *pc = pheader->client + i;
+      if (pc->pid) {
+         bm_validate_client_pointers_locked(pheader, pc);
+
+#if 0
+         printf("bm_update_read_pointer: [%s] rp %d, wp %d, size %d, min_rp %d, client [%s] rp %d\n",
+                pheader->name,
+                pheader->read_pointer,
+                pheader->write_pointer,
+                pheader->size,
+                min_rp,
+                pc->name,
+                pc->read_pointer);
 #endif
-         bm_validate_client_pointers(pheader, &pclient[i]);
 
          if (pheader->read_pointer <= pheader->write_pointer) {
-            if (pclient[i].read_pointer < min_rp)
-               min_rp = pclient[i].read_pointer;
+            // normal pointers
+            if (pc->read_pointer < min_rp)
+               min_rp = pc->read_pointer;
          } else {
-            if (pclient[i].read_pointer <= pheader->write_pointer) {
-               if (pclient[i].read_pointer < min_rp)
-                  min_rp = pclient[i].read_pointer;
+            // inverted pointers
+            if (pc->read_pointer <= pheader->write_pointer) {
+               // clients 3 and 4
+               if (pc->read_pointer < min_rp)
+                  min_rp = pc->read_pointer;
             } else {
-               int xptr = pclient[i].read_pointer - pheader->size;
+               // clients 1 and 2
+               int xptr = pc->read_pointer - pheader->size;
                if (xptr < min_rp)
                   min_rp = xptr;
             }
          }
       }
+   }
 
    if (min_rp < 0)
       min_rp += pheader->size;
@@ -7042,19 +7090,22 @@ static BOOL bm_update_read_pointer(const char *caller_name, BUFFER_HEADER * phea
    assert(min_rp >= 0);
    assert(min_rp < pheader->size);
 
-#ifdef DEBUG_MSG
-   if (min_rp == pheader->read_pointer)
-      cm_msg(MDEBUG, caller_name, "bm_update_read_pointer -> wp=%d", pheader->write_pointer);
-   else
-      cm_msg(MDEBUG, caller_name, "bm_update_read_pointer -> wp=%d, rp %d -> %d, size=%d",
-             pheader->write_pointer, pheader->read_pointer, min_rp, pheader->size);
+   if (min_rp == pheader->read_pointer) {
+      return FALSE;
+   }
+
+#if 0
+   printf("bm_update_read_pointer: [%s] rp %d, wp %d, size %d, new_rp %d, moved\n",
+          pheader->name,
+          pheader->read_pointer,
+          pheader->write_pointer,
+          pheader->size,
+          min_rp);
 #endif
-
-   did_move = (pheader->read_pointer != min_rp);
-
+   
    pheader->read_pointer = min_rp;
 
-   return did_move;
+   return TRUE;
 }
 
 static void bm_wakeup_producers(const BUFFER_HEADER * pheader, const BUFFER_CLIENT * pc)
@@ -7187,6 +7238,21 @@ static int bm_read_cache_has_events(const BUFFER * pbuf)
    return 1;
 }
 
+static void bm_increment_read_pointer_locked(BUFFER_HEADER* pheader, BUFFER_CLIENT* pc, int total_size)
+{
+   int new_read_pointer = pc->read_pointer + total_size;
+
+   if (new_read_pointer >= pheader->size)
+      new_read_pointer -= pheader->size;
+   else if (new_read_pointer + sizeof(EVENT_HEADER) >= pheader->size)
+      new_read_pointer = 0;
+
+   assert(new_read_pointer >= 0);
+   assert(new_read_pointer < pheader->size);
+   
+   pc->read_pointer = new_read_pointer;
+}
+                  
 static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int async_flag, int requested_space)
 {
    int status;
@@ -7203,125 +7269,134 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
    if (requested_space >= pheader->size)
       return BM_NO_MEMORY;
 
+   DWORD blocking_time = 0;
+   int blocking_loops = 0;
+   char blocking_client_name[NAME_LENGTH];
+   blocking_client_name[0] = 0;
+   
    while (1) {
+      while (1) {
+         /* check if enough space in buffer */
 
-      BUFFER_CLIENT *pc;
-      int n_blocking;
-      int i;
-      int size;
-      int idx;
-
-      /* check if enough space in buffer */
-
-      size = pheader->read_pointer - pheader->write_pointer;
-      if (size <= 0)
-         size += pheader->size;
-
+         int free = pheader->read_pointer - pheader->write_pointer;
+         if (free <= 0)
+            free += pheader->size;
+         
 #if 0
-      printf
-          ("bm_send_event: buffer pointers: read: %d, write: %d, free space: %d, bufsize: %d, event size: %d\n",
-           pheader->read_pointer, pheader->write_pointer, size, pheader->size, requested_space);
+         printf("bm_wait_for_free_space: buffer pointers: read: %d, write: %d, free space: %d, bufsize: %d, event size: %d\n", pheader->read_pointer, pheader->write_pointer, free, pheader->size, requested_space);
 #endif
+         
+         if (requested_space < free) { /* note the '<' to avoid 100% filling */
+            if (blocking_loops) {
+               DWORD wait_time = ss_millitime() - blocking_time;
+               printf("blocking client \"%s\", time %d ms, loops %d\n", blocking_client_name, wait_time, blocking_loops);
+            }
+            return BM_SUCCESS;
+         }
+         
+         const EVENT_HEADER *pevent = (const EVENT_HEADER *) (pdata + pheader->read_pointer);
+         int event_size = pevent->data_size + sizeof(EVENT_HEADER);
+         int total_size = ALIGN8(event_size);
+         
+#if 0
+         printf("bm_wait_for_free_space: buffer pointers: read: %d, write: %d, free space: %d, bufsize: %d, event size: %d, blocking event size %d/%d\n", pheader->read_pointer, pheader->write_pointer, free, pheader->size, requested_space, event_size, total_size);
+#endif
+         
+         if (pevent->data_size <= 0 || total_size <= 0 || total_size > pheader->size) {
+            cm_msg(MERROR, "bm_wait_for_free_space",
+                   "error: buffer \"%s\" is corrupted: read_pointer %d, write_pointer %d, size %d, free %d, waiting for %d bytes: read pointer points to an invalid event: data_size %d, event size %d, total_size %d",
+                   pheader->name,
+                   pheader->read_pointer,
+                   pheader->write_pointer,
+                   pheader->size,
+                   free,
+                   requested_space,
+                   pevent->data_size,
+                   event_size,
+                   total_size);
+            return BM_CORRUPTED;
+         }
+         
+         int blocking_client = -1;
 
-      if (requested_space < size)       /* note the '<' to avoid 100% filling */
-         return BM_SUCCESS;
-
-      /* if not enough space, find out who's blocking */
-      n_blocking = 0;
-
-      for (i = 0, pc = pheader->client; i < pheader->max_client_index; i++, pc++)
-         if (pc->pid) {
-            if (pc->read_pointer == pheader->read_pointer) {
-               /*
-                  First assume that the client with the "minimum" read pointer
-                  is not really blocking due to a GET_ALL request.
-                */
-               BOOL blocking = FALSE;
-               int blocking_request_id = 0;
-               int j;
-
-               /* check if this request blocks */
-
-               EVENT_REQUEST *prequest = pc->event_request;
-               EVENT_HEADER *pevent_test = (EVENT_HEADER *) (pdata + pc->read_pointer);
-
-               assert(pc->read_pointer >= 0);
-               assert(pc->read_pointer <= pheader->size);
-
-               for (j = 0; j < pc->max_request_index; j++, prequest++)
-                  if (prequest->valid
-                      && bm_match_event(prequest->event_id, prequest->trigger_mask, pevent_test)) {
-                     if (prequest->sampling_type & GET_ALL) {
-                        blocking = TRUE;
-                        blocking_request_id = prequest->id;
-                        break;
+         int i;
+         for (i = 0; i < pheader->max_client_index; i++) {
+            BUFFER_CLIENT *pc = pheader->client + i;
+            if (pc->pid) {
+               if (pc->read_pointer == pheader->read_pointer) {
+                  /*
+                    First assume that the client with the "minimum" read pointer
+                    is not really blocking due to a GET_ALL request.
+                  */
+                  BOOL blocking = FALSE;
+                  int blocking_request_id = -1;
+                  
+                  int j;
+                  for (j = 0; j < pc->max_request_index; j++) {
+                     const EVENT_REQUEST *prequest = pc->event_request + j;
+                     if (prequest->valid
+                         && bm_match_event(prequest->event_id, prequest->trigger_mask, pevent)) {
+                        if (prequest->sampling_type & GET_ALL) {
+                           blocking = TRUE;
+                           blocking_request_id = prequest->id;
+                           break;
+                        }
                      }
                   }
-
-               if (blocking) {
-                  n_blocking++;
-
-                  if (pc->read_wait) {
-                     char str[80];
-#ifdef DEBUG_MSG
-                     cm_msg(MDEBUG, "Send wake: rp=%d, wp=%d", pheader->read_pointer, pheader->write_pointer);
-#endif
-                     sprintf(str, "B %s %d", pheader->name, blocking_request_id);
-                     ss_resume(pc->port, str);
-                  }
-
-               } else {
-                  /*
-                     The blocking guy has no GET_ALL request for this event
-                     -> shift its read pointer.
-                   */
-
-                  EVENT_HEADER* e = (EVENT_HEADER*)(pdata + pc->read_pointer);
-                  int increment = sizeof(EVENT_HEADER) + e->data_size;
-
-                  /* correct increment for DWORD boundary */
-                  increment = ALIGN8(increment);
-
-                  if (increment <= 0 || increment > pheader->size) {
-                     cm_msg(MERROR, "bm_wait_for_free_space",
-                            "BUG: bad read pointer increment %d for client \"%s\", read_pointer %d, event size %d, while waiting for %d bytes, bytes available: %d, buffer size: %d, rp %d, wp %d",
-                            increment, pc->name, pc->read_pointer, e->data_size,
-                            requested_space, size, pheader->size, pheader->read_pointer, pheader->write_pointer);
-                     return BM_NO_MEMORY;
-                  }
                   
-                  assert(increment > 0);
-                  assert(increment <= pheader->size);
+                  //printf("client [%s] blocking %d, request %d\n", pc->name, blocking, blocking_request_id);
+                  
+                  if (blocking) {
+                     // FIXME: do we really need to send a wakeup from here?
+                     // if they are blocking move of read pointer, surely
+                     // they are processing GET_ALL events as fast as they can already,
+                     // nothing we can do to speed them up?
+                     if (pc->read_wait) {
+                        char str[80];
+#ifdef DEBUG_MSG
+                        cm_msg(MDEBUG, "Send wake: rp=%d, wp=%d", pheader->read_pointer, pheader->write_pointer);
+#endif
+                        sprintf(str, "B %s %d", pheader->name, blocking_request_id);
+                        ss_resume(pc->port, str);
+                     }
 
-                  int new_read_pointer = (pc->read_pointer + increment) % pheader->size;
+                     blocking_client = i;
+                     break;
+                  }
 
-                  if (new_read_pointer > pheader->size - (int) sizeof(EVENT_HEADER))
-                     new_read_pointer = 0;
-
-                  pc->read_pointer = new_read_pointer;
+                  bm_increment_read_pointer_locked(pheader, pc, total_size);
                }
             }
+         } /* client loop */
+
+         if (blocking_client >= 0) {
+            strlcpy(blocking_client_name, pheader->client[blocking_client].name, sizeof(blocking_client_name));
+            if (!blocking_time) {
+               blocking_time = ss_millitime();
+            }
+            break;
          }
-      /* client loop */
-      if (n_blocking == 0) {
 
-         BOOL moved;
-         /*
-            calculate new global read pointer as "minimum" of
-            client read pointers
-          */
-
-         moved = bm_update_read_pointer("bm_send_event", pheader);
-
+         /* no blocking clients. move the read pointer and again check for free space */
+         
+         BOOL moved = bm_update_read_pointer_locked("bm_wait_for_free_space", pheader);
+            
          if (!moved) {
             cm_msg(MERROR, "bm_wait_for_free_space",
-                   "BUG: read pointer did not move while waiting for %d bytes, bytes available: %d, buffer size: %d",
-                   requested_space, size, pheader->size);
-            return BM_NO_MEMORY;
+                   "error: buffer \"%s\" is corrupted: read_pointer %d, write_pointer %d, size %d, free %d, waiting for %d bytes: read pointer did not move as expected",
+                   pheader->name,
+                   pheader->read_pointer,
+                   pheader->write_pointer,
+                   pheader->size,
+                   free,
+                   requested_space);
+            return BM_CORRUPTED;
          }
 
-         continue;
+         /* we freed one event, loop back to the check for free space */
       }
+
+      blocking_loops++;
 
       /* at least one client is blocking */
 
@@ -7331,13 +7406,15 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
       if (async_flag == BM_NO_WAIT)
          return BM_ASYNC_RETURN;
 
+      //printf("bm_wait_for_free_space: blocking client \"%s\"\n", blocking_client_name);
+
 #ifdef DEBUG_MSG
       cm_msg(MDEBUG, "Send sleep: rp=%d, wp=%d, level=%1.1lf",
              pheader->read_pointer, pheader->write_pointer, 100 - 100.0 * size / pheader->size);
 #endif
 
       /* signal other clients wait mode */
-      idx = bm_validate_client_index(pbuf, FALSE);
+      int idx = bm_validate_client_index(pbuf, FALSE);
       if (idx >= 0)
          pheader->client[idx].write_wait = requested_space;
 
@@ -7376,6 +7453,83 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
       bm_lock_buffer(buffer_handle);
    }
 }
+
+static void bm_write_to_buffer_locked(BUFFER_HEADER* pheader, const void* pevent, int event_size, int total_size)
+{
+   char* pdata = (char *) (pheader + 1);
+
+   //int old_write_pointer = pheader->write_pointer;
+   
+   /* new event fits into the remaining space? */
+   if (pheader->write_pointer + total_size <= pheader->size) {
+      memcpy(pdata + pheader->write_pointer, pevent, event_size);
+      pheader->write_pointer = pheader->write_pointer + total_size;
+      assert(pheader->write_pointer <= pheader->size);
+      /* remaining space is smaller than size of an event header? */
+      if (pheader->write_pointer + sizeof(EVENT_HEADER) > pheader->size) {
+         pheader->write_pointer = 0;
+      }
+   } else {
+      /* split event */
+      int size = pheader->size - pheader->write_pointer;
+      
+      memcpy(pdata + pheader->write_pointer, pevent, size);
+      memcpy(pdata, ((const char *) pevent) + size, event_size - size);
+      
+      pheader->write_pointer = total_size - size;
+   }
+   
+   //printf("bm_write_to_buffer_locked: buf [%s] size %d, wrote %d/%d, wp %d -> %d\n", pheader->name, pheader->size, event_size, total_size, old_write_pointer, pheader->write_pointer);
+}
+
+static int bm_find_first_request_locked(BUFFER_CLIENT* pc, const EVENT_HEADER* pevent)
+{
+   if (pc->pid) {
+      int j;
+      for (j = 0; j < pc->max_request_index; j++) {
+         const EVENT_REQUEST* prequest = pc->event_request + j;
+         if (prequest->valid && bm_match_event(prequest->event_id, prequest->trigger_mask, pevent)) {
+            return prequest->id;
+         }
+      }
+   }
+
+   return -1;
+}
+
+static void bm_wake_up_client_locked(BUFFER_HEADER* pheader, BUFFER_CLIENT* pc, int old_write_pointer, int request_id)
+{
+   if (request_id >= 0) {
+      /* if that client has a request and is suspended, wake it up */
+      if (pc->read_wait) {
+         char str[80];
+         sprintf(str, "B %s %d", pheader->name, request_id);
+         ss_resume(pc->port, str);
+         //printf("bm_wake_up_client_locked: buffer [%s] client [%s] request_id %d, port %d, message [%s]\n", pheader->name, pc->name, request_id, pc->port, str);
+      }
+   }
+#if 0
+   else {         
+      /* if that client has no request, shift its read pointer */
+      if (pc->read_pointer == old_write_pointer) {
+         //printf("bm_wake_up_client_locked: buffer [%s] client [%s] shift read pointer %d -> %d\n", pheader->name, pc->name, pc->read_pointer, pheader->write_pointer);
+         pc->read_pointer = pheader->write_pointer;
+      }
+   }
+#endif
+}
+
+#if 0
+static void bm_update_my_read_pointer_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, int old_write_pointer)
+{
+   int my_client_index = bm_validate_client_index(pbuf, TRUE);
+
+   // FIXME: is this needed at all?
+   /* shift read pointer of own client */
+   if (pheader->client[my_client_index].read_pointer == old_write_pointer)
+      pheader->client[my_client_index].read_pointer = pheader->write_pointer;
+}
+#endif
 
 /********************************************************************/
 /**
@@ -7428,73 +7582,68 @@ BM_NO_MEMORY   Event is too large for network buffer or event buffer.
 One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
 and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
-INT bm_send_event(INT buffer_handle, const void *source, INT buf_size, INT async_flag)
+INT bm_send_event(INT buffer_handle, const EVENT_HEADER* pevent, INT unused, INT async_flag)
 {
-   EVENT_HEADER *pevent;
+   const int event_size = sizeof(EVENT_HEADER) + pevent->data_size;
 
-   /* check if event size is invalid */
-   if (buf_size < sizeof(EVENT_HEADER)) {
-      cm_msg(MERROR, "bm_send_event", "event size (%d) it too small", buf_size);
-      return BM_INVALID_PARAM;
-   }
-
-   /* check if event size defined in header matches buf_size */
-   if (ALIGN8(buf_size) != (INT) ALIGN8(((EVENT_HEADER *) source)->data_size + sizeof(EVENT_HEADER))) {
-      cm_msg(MERROR, "bm_send_event", "event size (%d) mismatch in header (%d)",
-             ALIGN8(buf_size), (INT) ALIGN8(((EVENT_HEADER *) source)->data_size + sizeof(EVENT_HEADER)));
-      return BM_INVALID_PARAM;
-   }
+   //printf("bm_send_event: pevent %p, data_size %d, event_size %d, buf_size %d\n", pevent, pevent->data_size, event_size, xbuf_size);
 
    if (rpc_is_remote())
-      return rpc_call(RPC_BM_SEND_EVENT, buffer_handle, source, buf_size, async_flag);
+      return rpc_call(RPC_BM_SEND_EVENT, buffer_handle, pevent, event_size, async_flag);
 
 #ifdef LOCAL_ROUTINES
    {
-      BUFFER *pbuf;
-      BUFFER_HEADER *pheader;
-      BUFFER_CLIENT *pclient;
-      EVENT_REQUEST *prequest;
-      INT i, j, size, total_size, status;
-      INT my_client_index;
-      INT old_write_pointer;
-      INT num_requests_client;
-      char *pdata;
-      INT request_id;
-
-      pbuf = &_buffer[buffer_handle - 1];
-
+      int status;
+      
       if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
          cm_msg(MERROR, "bm_send_event", "invalid buffer handle %d", buffer_handle);
          return BM_INVALID_HANDLE;
       }
+
+      BUFFER* pbuf = &_buffer[buffer_handle - 1];
 
       if (!pbuf->attached) {
          cm_msg(MERROR, "bm_send_event", "invalid buffer handle %d", buffer_handle);
          return BM_INVALID_HANDLE;
       }
 
-      pevent = (EVENT_HEADER *) source;
-      total_size = buf_size;
-
       /* round up total_size to next DWORD boundary */
-      total_size = ALIGN8(total_size);
+      int total_size = ALIGN8(event_size);
+
+      /* NB: !!!the write cache is not thread-safe!!! */
 
       /* look if there is space in the cache */
       if (pbuf->write_cache_size) {
-         status = BM_SUCCESS;
+         ss_mutex_wait_for(pbuf->write_cache_mutex, 10000);
 
-         if (pbuf->write_cache_size - pbuf->write_cache_wp < total_size)
-            status = bm_flush_cache(buffer_handle, async_flag);
+         if (pbuf->write_cache_size) {
+            int status = BM_SUCCESS;
 
-         if (status != BM_SUCCESS)
-            return status;
+            /* if this event does not fit into the write cache, flush the write cache */
+            if (pbuf->write_cache_wp + total_size > pbuf->write_cache_size) {
+               ss_mutex_release(pbuf->write_cache_mutex);
+               status = bm_flush_cache(buffer_handle, async_flag);
+               if (status != BM_SUCCESS) {
+                  return status;
+               }
+               ss_mutex_wait_for(pbuf->write_cache_mutex, 10000);
+            }
+            
+            /* write this event into the write cache, if it fits */
+            if (pbuf->write_cache_wp + total_size <= pbuf->write_cache_size) {
+               //printf("bm_send_event: write %d/%d to cache size %d, wp %d\n", event_size, total_size, pbuf->write_cache_size, pbuf->write_cache_wp);
+               
+               memcpy(pbuf->write_cache + pbuf->write_cache_wp, pevent, event_size);
+               
+               pbuf->write_cache_wp += total_size;
 
-         if (total_size < pbuf->write_cache_size) {
-            memcpy(pbuf->write_cache + pbuf->write_cache_wp, source, total_size);
-
-            pbuf->write_cache_wp += total_size;
-            return BM_SUCCESS;
+               ss_mutex_release(pbuf->write_cache_mutex);
+               return BM_SUCCESS;
+            }
          }
+
+         /* event did not fit into the write cache, send it directly to shared memory */
+         ss_mutex_release(pbuf->write_cache_mutex);
       }
 
       /* we come here only for events that are too big to fit into the cache */
@@ -7503,16 +7652,12 @@ INT bm_send_event(INT buffer_handle, const void *source, INT buf_size, INT async
       bm_lock_buffer(buffer_handle);
 
       /* calculate some shorthands */
-      pheader = pbuf->buffer_header;
-      pdata = (char *) (pheader + 1);
-      my_client_index = bm_validate_client_index(pbuf, TRUE);
-      pclient = pheader->client;
+      BUFFER_HEADER *pheader = pbuf->buffer_header;
 
       /* check if buffer is large enough */
       if (total_size >= pheader->size) {
          bm_unlock_buffer(buffer_handle);
-         cm_msg(MERROR, "bm_send_event",
-                "total event size (%d) larger than size (%d) of buffer \'%s\'", total_size, pheader->size, pheader->name);
+         cm_msg(MERROR, "bm_send_event", "total event size (%d) larger than size (%d) of buffer \'%s\'", total_size, pheader->size, pheader->name);
          return BM_NO_MEMORY;
       }
 
@@ -7522,23 +7667,9 @@ INT bm_send_event(INT buffer_handle, const void *source, INT buf_size, INT async
          return status;
       }
 
-      /* we have space, so let's copy the event */
-      old_write_pointer = pheader->write_pointer;
+      int old_write_pointer = pheader->write_pointer;
 
-      if (pheader->write_pointer + total_size <= pheader->size) {
-         memcpy(pdata + pheader->write_pointer, pevent, total_size);
-         pheader->write_pointer = (pheader->write_pointer + total_size) % pheader->size;
-         if (pheader->write_pointer > pheader->size - (int) sizeof(EVENT_HEADER))
-            pheader->write_pointer = 0;
-      } else {
-         /* split event */
-         size = pheader->size - pheader->write_pointer;
-
-         memcpy(pdata + pheader->write_pointer, pevent, size);
-         memcpy(pdata, (char *) pevent + size, total_size - size);
-
-         pheader->write_pointer = total_size - size;
-      }
+      bm_write_to_buffer_locked(pheader, pevent, event_size, total_size);
 
       /* write pointer was incremented, but there should
        * always be some free space in the buffer and the
@@ -7549,44 +7680,19 @@ INT bm_send_event(INT buffer_handle, const void *source, INT buf_size, INT async
        * the buffer to 100% */
       assert(pheader->write_pointer != pheader->read_pointer);
 
-      /* check which clients have a request for this event */
-      for (i = 0; i < pheader->max_client_index; i++)
-         if (pclient[i].pid) {
-            prequest = pclient[i].event_request;
-            num_requests_client = 0;
-            request_id = -1;
-
-            for (j = 0; j < pclient[i].max_request_index; j++, prequest++)
-               if (prequest->valid && bm_match_event(prequest->event_id, prequest->trigger_mask, pevent)) {
-                  if (prequest->sampling_type & GET_ALL)
-                     pclient[i].num_waiting_events++;
-
-                  num_requests_client++;
-                  request_id = prequest->id;
-               }
-
-            /* if that client has a request and is suspended, wake it up */
-            if (num_requests_client && pclient[i].read_wait) {
-               char str[80];
-#ifdef DEBUG_MSG
-               cm_msg(MDEBUG, "Send wake: rp=%d, wp=%d", pheader->read_pointer, pheader->write_pointer);
-#endif
-               sprintf(str, "B %s %d", pheader->name, request_id);
-               ss_resume(pclient[i].port, str);
-            }
-
-            /* if that client has no request, shift its read pointer */
-            if (num_requests_client == 0 && pclient[i].read_pointer == old_write_pointer)
-               pclient[i].read_pointer = pheader->write_pointer;
-         }
+      /* send wake up messages to all clients that want this event */
+      int i;
+      for (i = 0; i < pheader->max_client_index; i++) {
+         BUFFER_CLIENT* pc = pheader->client + i;
+         int request_id = bm_find_first_request_locked(pc, pevent);
+         bm_wake_up_client_locked(pheader, pc, old_write_pointer, request_id);
+      }
 
       /* shift read pointer of own client */
-      if (pclient[my_client_index].read_pointer == old_write_pointer)
-         pclient[my_client_index].read_pointer = pheader->write_pointer;
+      //bm_update_my_read_pointer_locked(pbuf, pheader, old_write_pointer);
 
       /* calculate global read pointer as "minimum" of client read pointers */
-
-      bm_update_read_pointer("bm_send_event", pheader);
+      //bm_update_read_pointer_locked("bm_send_event", pheader);
 
       /* update statistics */
       pheader->num_in_events++;
@@ -7625,21 +7731,14 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
 
 #ifdef LOCAL_ROUTINES
    {
-      BUFFER *pbuf;
-      BUFFER_HEADER *pheader;
-      BUFFER_CLIENT *pclient;
-      EVENT_HEADER *pevent;
-      INT i, size, total_size, status;
-      INT my_client_index;
-      INT old_write_pointer;
-      char *pdata;
-
-      pbuf = &_buffer[buffer_handle - 1];
+      INT status;
 
       if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
          cm_msg(MERROR, "bm_flush_cache", "invalid buffer handle %d", buffer_handle);
          return BM_INVALID_HANDLE;
       }
+
+      BUFFER* pbuf = &_buffer[buffer_handle - 1];
 
       if (!pbuf->attached) {
          cm_msg(MERROR, "bm_flush_cache", "invalid buffer handle %d", buffer_handle);
@@ -7650,18 +7749,14 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
          return BM_SUCCESS;
 
       /* check if anything needs to be flushed */
-      if (pbuf->write_cache_rp == pbuf->write_cache_wp)
+      if (pbuf->write_cache_wp == 0)
          return BM_SUCCESS;
 
       /* lock the buffer */
       bm_lock_buffer(buffer_handle);
 
       /* calculate some shorthands */
-      pheader = _buffer[buffer_handle - 1].buffer_header;
-      pdata = (char *) (pheader + 1);
-      my_client_index = bm_validate_client_index(pbuf, TRUE);
-      pclient = pheader->client;
-      pevent = (EVENT_HEADER *) (pbuf->write_cache + pbuf->write_cache_rp);
+      BUFFER_HEADER* pheader = _buffer[buffer_handle - 1].buffer_header;
 
 #ifdef DEBUG_MSG
       cm_msg(MDEBUG, "bm_flush_cache initial: rp=%d, wp=%d", pheader->read_pointer, pheader->write_pointer);
@@ -7673,75 +7768,89 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
          return status;
       }
 
+      ss_mutex_wait_for(pbuf->write_cache_mutex, 10000);
+
+      if (pbuf->write_cache_wp == 0) {
+         /* somebody emptied the cache while we were inside bm_wait_for_free_space */
+         ss_mutex_release(pbuf->write_cache_mutex);
+         return BM_SUCCESS;
+      }
+
       /* we have space, so let's copy the event */
-      old_write_pointer = pheader->write_pointer;
+      int old_write_pointer = pheader->write_pointer;
 
 #ifdef DEBUG_MSG
-      cm_msg(MDEBUG, "bm_flush_cache: found space rp=%d, wp=%d", pheader->read_pointer,
-             pheader->write_pointer);
+      cm_msg(MDEBUG, "bm_flush_cache: found space rp=%d, wp=%d", pheader->read_pointer, pheader->write_pointer);
 #endif
 
-      while (pbuf->write_cache_rp < pbuf->write_cache_wp) {
+      int request_id[MAX_CLIENTS];
+      int i;
+      for (i = 0; i < pheader->max_client_index; i++) {
+         request_id[i] = -1;
+      }
+
+      int rp = 0;
+      while (rp < pbuf->write_cache_wp) {
          /* loop over all events in cache */
 
-         assert(pbuf->write_cache_rp >= 0);
-         assert(pbuf->write_cache_rp < pbuf->write_cache_size);
+         const EVENT_HEADER* pevent = (const EVENT_HEADER *) (pbuf->write_cache + rp);
+         int event_size = (pevent->data_size + sizeof(EVENT_HEADER));
+         int total_size = ALIGN8(event_size);
 
-         pevent = (EVENT_HEADER *) (pbuf->write_cache + pbuf->write_cache_rp);
-         total_size = pevent->data_size + sizeof(EVENT_HEADER);
+#if 0
+         printf("bm_flush_cache: cache size %d, wp %d, rp %d, event data_size %d, event_size %d, total_size %d\n",
+                pbuf->write_cache_size,
+                pbuf->write_cache_wp,
+                rp,
+                pevent->data_size,
+                event_size,
+                total_size);
+#endif
 
-         assert(total_size > 0);
+         assert(total_size >= sizeof(EVENT_HEADER));
          assert(total_size <= pheader->size);
 
-         /* correct size for DWORD boundary */
-         total_size = ALIGN8(total_size);
-
-         if (pheader->write_pointer + total_size <= pheader->size) {
-            memcpy(pdata + pheader->write_pointer, pevent, total_size);
-            pheader->write_pointer = (pheader->write_pointer + total_size) % pheader->size;
-            if (pheader->write_pointer > pheader->size - (int) sizeof(EVENT_HEADER))
-               pheader->write_pointer = 0;
-         } else {
-            /* split event */
-            size = pheader->size - pheader->write_pointer;
-
-            memcpy(pdata + pheader->write_pointer, pevent, size);
-            memcpy(pdata, (char *) pevent + size, total_size - size);
-
-            pheader->write_pointer = total_size - size;
-         }
+         bm_write_to_buffer_locked(pheader, pevent, event_size, total_size);
 
          /* see comment for the same code in bm_send_event().
           * We make sure the buffer is nevere 100% full */
          assert(pheader->write_pointer != pheader->read_pointer);
 
-         /* this loop does not loop forever because write_cache_rp
+         /* check if anybody has a request for this event */
+         for (i = 0; i < pheader->max_client_index; i++) {
+            BUFFER_CLIENT* pc = pheader->client + i;
+            int r = bm_find_first_request_locked(pc, pevent);
+            if (r >= 0) {
+               request_id[i] = r;
+            }
+         }
+
+         /* this loop does not loop forever because rp
           * is monotonously incremented here. write_cache_wp does
           * not change */
 
-         pbuf->write_cache_rp += total_size;
+         rp += total_size;
+
+         assert(rp > 0);
+         assert(rp <= pbuf->write_cache_size);
       }
 
-      pbuf->write_cache_rp = pbuf->write_cache_wp = 0;
+      /* the write cache is now empty */
+      pbuf->write_cache_wp = 0;
+
+      ss_mutex_release(pbuf->write_cache_mutex);
 
       /* check which clients are waiting */
-      for (i = 0; i < pheader->max_client_index; i++)
-         if (pclient[i].pid && pclient[i].read_wait) {
-            char str[80];
-#ifdef DEBUG_MSG
-            cm_msg(MDEBUG, "Send wake: rp=%d, wp=%d", pheader->read_pointer, pheader->write_pointer);
-#endif
-            sprintf(str, "B %s %d", pheader->name, -1);
-            ss_resume(pclient[i].port, str);
-         }
-
+      for (i = 0; i < pheader->max_client_index; i++) {
+         BUFFER_CLIENT* pc = pheader->client + i;
+         bm_wake_up_client_locked(pheader, pc, old_write_pointer, request_id[i]);
+      }
+      
       /* shift read pointer of own client */
-      if (pclient[my_client_index].read_pointer == old_write_pointer)
-         pclient[my_client_index].read_pointer = pheader->write_pointer;
+      //bm_update_my_read_pointer_locked(pbuf, pheader, old_write_pointer);
 
       /* calculate global read pointer as "minimum" of client read pointers */
-
-      bm_update_read_pointer("bm_flush_cache", pheader);
+      //bm_update_read_pointer_locked("bm_flush_cache", pheader);
 
       /* update statistics */
       pheader->num_in_events++;
@@ -8065,7 +8174,7 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
 
       /* calculate global read pointer as "minimum" of client read pointers */
 
-      bm_update_read_pointer("bm_receive_event", pheader);
+      bm_update_read_pointer_locked("bm_receive_event", pheader);
 
       /*
          If read pointer has been changed, it may have freed up some space
@@ -8359,7 +8468,7 @@ INT bm_push_event(char *buffer_name)
 
       /* calculate global read pointer as "minimum" of client read pointers */
 
-      bm_update_read_pointer("bm_push_event", pheader);
+      bm_update_read_pointer_locked("bm_push_event", pheader);
 
       /*
          If read pointer has been changed, it may have freed up some space

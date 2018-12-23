@@ -2969,6 +2969,10 @@ int main(int argc, char *argv[])
    /* register Ctrl-C handler */
    ss_ctrlc_handler(ctrlc_odbedit);
 
+   /* for use with the mac os profiler */
+   //cmd_mode = TRUE;
+   //status = command_loop(host_name, exp_name, "save xxx3.json", dir);
+
    /* command loop */
    status = command_loop(host_name, exp_name, cmd, dir);
 
