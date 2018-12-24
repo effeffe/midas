@@ -5108,11 +5108,11 @@ INT ss_tape_open(char *path, INT oflag, INT * channel)
 \********************************************************************/
 {
 #ifdef OS_UNIX
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
 
    *channel = open(path, oflag, 0644);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (*channel < 0)
       cm_msg(MERROR, "ss_tape_open", "open() returned %d, errno %d (%s)", *channel, errno, strerror(errno));

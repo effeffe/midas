@@ -168,7 +168,7 @@ static MUTEX_T *_mutex_rpc = NULL;
 static void (*_debug_print) (const char *) = NULL;
 static INT _debug_mode = 0;
 
-static INT _watchdog_last_called = 0;
+//static INT _watchdog_last_called = 0;
 
 int _rpc_connect_timeout = 10000;
 
@@ -1825,8 +1825,8 @@ INT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient, char *host_name,
       /* save watchdog timeout */
       cm_get_watchdog_params(&call_watchdog, NULL);
       cm_set_watchdog_params(call_watchdog, watchdog_timeout);
-      if (call_watchdog)
-         ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
+      //if (call_watchdog)
+      //ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
 
       /* end of atomic operations */
       db_unlock_database(hDB);
@@ -2559,10 +2559,10 @@ INT cm_disconnect_experiment(void)
    } else {
       rpc_client_disconnect(-1, FALSE);
 
-#ifdef LOCAL_ROUTINES
-      ss_alarm(0, cm_watchdog);
-      _watchdog_last_called = 0;
-#endif                          /* LOCAL_ROUTINES */
+      //#ifdef LOCAL_ROUTINES
+      //ss_alarm(0, cm_watchdog);
+      //_watchdog_last_called = 0;
+      //#endif                          /* LOCAL_ROUTINES */
 
       /* delete client info */
       cm_get_experiment_database(&hDB, &hKey);
@@ -2840,12 +2840,12 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
 
       db_set_watchdog_params(timeout);
 
-      if (call_watchdog)
-         /* restart watchdog */
-         ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
-      else
-         /* kill current timer */
-         ss_alarm(0, cm_watchdog);
+      //if (call_watchdog)
+      //   /* restart watchdog */
+      //   ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
+      //else
+      //   /* kill current timer */
+      //   ss_alarm(0, cm_watchdog);
    }
 
 #endif                          /* LOCAL_ROUTINES */
@@ -4985,6 +4985,8 @@ void cm_ack_ctrlc_pressed()
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
+static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval);
+
 /********************************************************************/
 /**
 Central yield functions for clients. This routine should
@@ -5003,7 +5005,9 @@ INT cm_yield(INT millisec)
 {
    INT status;
    BOOL bMore;
-   static DWORD last_checked = 0;
+   static DWORD alarm_last_checked = 0;
+   static DWORD bm_last_checked = 0;
+   static DWORD db_last_checked = 0;
 
    /* check for ctrl-c */
    if (_ctrlc_pressed)
@@ -5023,10 +5027,34 @@ INT cm_yield(INT millisec)
       return status;
    }
 
+   DWORD now = ss_time();
+
    /* check alarms once every 10 seconds */
-   if (!rpc_is_remote() && ss_time() - last_checked > 10) {
+   if (now - alarm_last_checked > 10) {
       al_check();
-      last_checked = ss_time();
+      alarm_last_checked = now;
+   }
+
+   /* check buffer clients */
+   if (now - bm_last_checked > 1) {
+      BOOL wrong_interval = FALSE;
+      if (now > bm_last_checked + 10)
+         wrong_interval = TRUE;
+      else if (now < bm_last_checked - 10)
+         wrong_interval = TRUE;
+      bm_cleanup("cm_yield", ss_millitime(), wrong_interval);
+      bm_last_checked = now;
+   }
+
+   /* check odb clients */
+   if (now - db_last_checked > 1) {
+      BOOL wrong_interval = FALSE;
+      if (now > db_last_checked + 10)
+         wrong_interval = TRUE;
+      else if (now < db_last_checked - 10)
+         wrong_interval = TRUE;
+      db_cleanup("cm_yield", ss_millitime(), wrong_interval);
+      db_last_checked = now;
    }
 
    bMore = bm_check_buffers();
@@ -5339,21 +5367,21 @@ static void bm_cleanup_buffer_locked(int i, const char *who, DWORD actual_time)
    }
 }
 
-/**
-Update last activity time
-*/
-static void bm_update_last_activity(DWORD actual_time)
-{
-   int i;
-   for (i = 0; i < _buffer_entries; i++) {
-      if (_buffer[i].attached) {
-         int idx = bm_validate_client_index(&_buffer[i], FALSE);
-         if (idx >= 0) {
-            _buffer[i].buffer_header->client[idx].last_activity = actual_time;
-         }
-      }
-   }
-}
+///**
+//Update last activity time
+//*/
+//static void bm_update_last_activity(DWORD actual_time)
+//{
+//   int i;
+//   for (i = 0; i < _buffer_entries; i++) {
+//      if (_buffer[i].attached) {
+//         int idx = bm_validate_client_index(&_buffer[i], FALSE);
+//         if (idx >= 0) {
+//            _buffer[i].buffer_header->client[idx].last_activity = actual_time;
+//         }
+//      }
+//   }
+//}
 
 /**
 Check all clients on all buffers, remove invalid clients
@@ -5363,6 +5391,8 @@ static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
    BUFFER_HEADER *pheader;
    BUFFER_CLIENT *pbclient;
    int i, idx;
+
+   //printf("bm_cleanup: called by %s, actual_time %d, wrong_interval %d\n", who, actual_time, wrong_interval);
 
    /* check buffers */
    for (i = 0; i < _buffer_entries; i++)
@@ -5826,6 +5856,7 @@ INT bm_close_all_buffers(void)
 /*-- Watchdog routines ---------------------------------------------*/
 #ifdef LOCAL_ROUTINES
 
+#if 0
 /********************************************************************/
 /**
 Called at periodic intervals, checks if all clients are
@@ -5870,8 +5901,8 @@ void cm_watchdog(int dummy)
          //cm_msg(MINFO, "cm_watchdog", "Called with ODB lock count %d!", count);
 
          DWORD now = ss_millitime();
-         bm_update_last_activity(now);
-         db_update_last_activity(now);
+         //bm_update_last_activity(now);
+         //db_update_last_activity(now);
 
          /* Schedule next watchdog call */
          if (_call_watchdog)
@@ -5909,9 +5940,9 @@ void cm_watchdog(int dummy)
       cm_msg(MINFO, "cm_watchdog", "System time has been changed! last:%dms  now:%dms  delta:%dms", _watchdog_last_called, actual_time, interval);
    }
 
-   bm_cleanup("cm_watchdog", actual_time, wrong_interval);
+   //bm_cleanup("cm_watchdog", actual_time, wrong_interval);
 
-   db_cleanup("cm_watchdog", actual_time, wrong_interval);
+   //db_cleanup("cm_watchdog", actual_time, wrong_interval);
 
    _watchdog_last_called = actual_time;
 
@@ -5921,7 +5952,9 @@ void cm_watchdog(int dummy)
    if (_call_watchdog)
       ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
 }
+#endif
 
+#if 0
 /********************************************************************/
 /**
 Temporarily disable watchdog calling. Used for tape IO
@@ -5946,6 +5979,7 @@ INT cm_enable_watchdog(BOOL flag)
 
    return CM_SUCCESS;
 }
+#endif
 
 #endif                          /* local routines */
 
@@ -9782,13 +9816,16 @@ void rpc_client_check()
             {
                // connection error
                cm_msg(MERROR, "rpc_client_check",
-                      "Connection broken to \"%s\" on host %s, recv() errno %d (%s)",
+                      "Connection to \"%s\" on host \"%s\" is broken, recv() errno %d (%s)",
                       _client_connection[i].client_name, _client_connection[i].host_name, errno, strerror(errno));
             }
          } else if (status == 0) {
-            // connection closed by remote end
-            cm_msg(MERROR, "rpc_client_check",
-                   "Connection to \"%s\" on host %s unexpectedly closed",
+            // connection closed by remote end without sending an EXIT message
+            // this can happen if the remote end has crashed, so this message
+            // is still necessary as a useful diagnostic for unexpected crashes
+            // of midas programs. K.O.
+            cm_msg(MINFO, "rpc_client_check",
+                   "Connection to \"%s\" on host \"%s\" unexpectedly closed",
                    _client_connection[i].client_name, _client_connection[i].host_name);
          } else {
             // read some data
@@ -9801,10 +9838,6 @@ void rpc_client_check()
 
          if (ok)
             continue;
-
-         //cm_msg(MINFO, "rpc_client_check",
-         //       "Connection to \"%s\" on host %s closed",
-         //       _client_connection[i].client_name, _client_connection[i].host_name);
 
          // connection lost, close the socket
          closesocket(sock);
@@ -14071,9 +14104,9 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       /* only disconnect from experiment if previously connected.
          Necessary for pure RPC servers (RPC_SRVR) */
       if (hDB) {
-#ifdef LOCAL_ROUTINES
-         ss_alarm(0, cm_watchdog);
-#endif
+         //#ifdef LOCAL_ROUTINES
+         //ss_alarm(0, cm_watchdog);
+         //#endif
 
          bm_close_all_buffers();
          cm_delete_client_info(hDB, 0);

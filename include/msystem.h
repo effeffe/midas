@@ -501,7 +501,7 @@ extern "C" {
    /*---- online database ----*/
    INT EXPRT db_lock_database(HNDLE database_handle);
    INT EXPRT db_unlock_database(HNDLE database_handle);
-   INT EXPRT db_get_lock_cnt(HNDLE database_handle);
+   //INT EXPRT db_get_lock_cnt(HNDLE database_handle);
    INT EXPRT db_set_lock_timeout(HNDLE database_handle, int timeout_millisec);
    INT db_update_record(INT hDB, INT hKeyRoot, INT hKey, int index, int s);
    INT db_close_all_records(void);
@@ -512,7 +512,7 @@ extern "C" {
    INT EXPRT db_show_mem(HNDLE hDB, char **result, BOOL verbose);
    INT EXPRT db_get_free_mem(HNDLE hDB, INT *key_size, INT *data_size);
    INT db_allow_write_locked(DATABASE* p, const char* caller_name);
-   void db_update_last_activity(DWORD actual_time);
+   //void db_update_last_activity(DWORD actual_time);
    void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval);
    void db_cleanup2(const char* client_name, int ignore_timeout, DWORD actual_time,  const char *who);
    void db_set_watchdog_params(DWORD timeout);
