@@ -5469,11 +5469,11 @@ INT ss_tape_write_eof(INT channel)
    arg.mt_op = MTWEOF;
    arg.mt_count = 1;
 
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
 
    status = ioctl(channel, MTIOCTOP, &arg);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (status < 0) {
       cm_msg(MERROR, "ss_tape_write_eof", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
@@ -5539,11 +5539,11 @@ INT ss_tape_fskip(INT channel, INT count)
       arg.mt_op = MTBSF;
    arg.mt_count = abs(count);
 
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
 
    status = ioctl(channel, MTIOCTOP, &arg);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (status < 0) {
       cm_msg(MERROR, "ss_tape_fskip", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
@@ -5599,11 +5599,11 @@ INT ss_tape_rskip(INT channel, INT count)
       arg.mt_op = MTBSR;
    arg.mt_count = abs(count);
 
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
 
    status = ioctl(channel, MTIOCTOP, &arg);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (status < 0) {
       cm_msg(MERROR, "ss_tape_rskip", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
@@ -5651,11 +5651,11 @@ INT ss_tape_rewind(INT channel)
    arg.mt_op = MTREW;
    arg.mt_count = 0;
 
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
 
    status = ioctl(channel, MTIOCTOP, &arg);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (status < 0) {
       cm_msg(MERROR, "ss_tape_rewind", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
@@ -5707,11 +5707,11 @@ INT ss_tape_spool(INT channel)
 #endif
    arg.mt_count = 0;
 
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
 
    status = ioctl(channel, MTIOCTOP, &arg);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (status < 0) {
       cm_msg(MERROR, "ss_tape_rewind", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
@@ -5762,12 +5762,12 @@ INT ss_tape_mount(INT channel)
    arg.mt_op = MTNOP;
 #endif
    arg.mt_count = 0;
-
-   cm_enable_watchdog(FALSE);
+   
+   //cm_enable_watchdog(FALSE);
 
    status = ioctl(channel, MTIOCTOP, &arg);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (status < 0) {
       cm_msg(MERROR, "ss_tape_mount", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
@@ -5819,11 +5819,11 @@ INT ss_tape_unmount(INT channel)
 #endif
    arg.mt_count = 0;
 
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
 
    status = ioctl(channel, MTIOCTOP, &arg);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (status < 0) {
       cm_msg(MERROR, "ss_tape_unmount", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
@@ -5864,9 +5864,9 @@ blockn:  >0 = block number, =0 option not available, <0 errno
    INT status;
    struct mtpos arg;
 
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
    status = ioctl(channel, MTIOCPOS, &arg);
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
    if (status < 0) {
       if (errno == EIO)
          return 0;
