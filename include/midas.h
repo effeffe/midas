@@ -1699,10 +1699,9 @@ extern "C" {
    INT EXPRT cm_check_client(HNDLE hDB, HNDLE hKeyClient);
    INT EXPRT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout);
    INT EXPRT cm_get_watchdog_params(BOOL * call_watchdog, DWORD * timeout);
-   INT EXPRT cm_get_watchdog_info(HNDLE hDB, char *client_name,
-                                  DWORD * timeout, DWORD * last);
-   INT EXPRT cm_enable_watchdog(BOOL flag);
-   void EXPRT cm_watchdog(int);
+   INT EXPRT cm_get_watchdog_info(HNDLE hDB, char *client_name, DWORD * timeout, DWORD * last);
+   //INT EXPRT cm_enable_watchdog(BOOL flag);
+   //void EXPRT cm_watchdog(int);
    INT EXPRT cm_shutdown(const char *name, BOOL bUnique);
    INT EXPRT cm_exist(const char *name, BOOL bUnique);
    INT EXPRT cm_cleanup(const char *client_name, BOOL ignore_timeout);

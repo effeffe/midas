@@ -1983,8 +1983,8 @@ Lock a database for exclusive access via system semaphore calls.
 @return DB_SUCCESS, DB_INVALID_HANDLE, DB_TIMEOUT
 */
 
-int _db_kludge_protect_odb_locking_against_cm_watchdog = 0;
-int _db_kludge_cm_watchdog_wants_to_run = 0;
+//int _db_kludge_protect_odb_locking_against_cm_watchdog = 0;
+//int _db_kludge_cm_watchdog_wants_to_run = 0;
 
 INT db_lock_database(HNDLE hDB)
 {
@@ -1998,7 +1998,7 @@ INT db_lock_database(HNDLE hDB)
       return DB_INVALID_HANDLE;
    }
 
-   _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+   //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
 
 /* obtain access mutex in multi-thread applications */
    status = ss_mutex_wait_for(_database[hDB - 1].mutex, _database[hDB - 1].timeout);
@@ -2020,7 +2020,7 @@ INT db_lock_database(HNDLE hDB)
    if (_database[hDB - 1].lock_cnt == 0) {
       _database[hDB - 1].lock_cnt = 1;
 
-      _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+      //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
 
       /* wait max. 5 minutes for semaphore (required if locking process is being debugged) */
       status = ss_semaphore_wait_for(_database[hDB - 1].semaphore, _database[hDB - 1].timeout);
@@ -2048,7 +2048,7 @@ INT db_lock_database(HNDLE hDB)
    if (_database[hDB - 1].protect) {
       if (_database[hDB - 1].database_header == NULL) {
          int status;
-         _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+         //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
          assert(!_database[hDB - 1].protect_read);
          assert(!_database[hDB - 1].protect_write);
          status = ss_shm_unprotect(_database[hDB - 1].shm_handle, &p, TRUE, FALSE, "db_lock_database");
@@ -2063,7 +2063,7 @@ INT db_lock_database(HNDLE hDB)
       }
    }
 
-   _db_kludge_protect_odb_locking_against_cm_watchdog = 0;
+   //_db_kludge_protect_odb_locking_against_cm_watchdog = 0;
 
 #endif                          /* LOCAL_ROUTINES */
    return DB_SUCCESS;
@@ -2075,7 +2075,7 @@ INT db_allow_write_locked(DATABASE* p, const char* caller_name)
    assert(p);
    if (p->protect && !p->protect_write) {
       int status;
-      _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+      //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
       assert(p->lock_cnt > 0);
       assert(p->database_header != NULL);
       assert(p->protect_read);
@@ -2088,7 +2088,7 @@ INT db_allow_write_locked(DATABASE* p, const char* caller_name)
       }
       p->protect_read = TRUE;
       p->protect_write = TRUE;
-      _db_kludge_protect_odb_locking_against_cm_watchdog = 0;
+      //_db_kludge_protect_odb_locking_against_cm_watchdog = 0;
    }
    return DB_SUCCESS;
 }
@@ -2117,15 +2117,15 @@ INT db_unlock_database(HNDLE hDB)
    }
 #endif
 
-   _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+   //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
 
    if (_database[hDB - 1].lock_cnt == 1) {
-      _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+      //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
       ss_semaphore_release(_database[hDB - 1].semaphore);
 
       if (_database[hDB - 1].protect && _database[hDB - 1].database_header) {
          int status;
-         _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+         //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
          assert(_database[hDB - 1].protect_read);
          assert(_database[hDB - 1].database_header);
          DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
@@ -2144,24 +2144,24 @@ INT db_unlock_database(HNDLE hDB)
    assert(_database[hDB - 1].lock_cnt > 0);
    _database[hDB - 1].lock_cnt--;
 
-   _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+   //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
 
    /* release mutex for multi-thread applications */
    ss_mutex_release(_database[hDB - 1].mutex);
    
-   _db_kludge_protect_odb_locking_against_cm_watchdog = 0;
-
-   if (_db_kludge_cm_watchdog_wants_to_run) {
-      _db_kludge_cm_watchdog_wants_to_run = 0;
-      cm_watchdog(-1);
-   }
+   //_db_kludge_protect_odb_locking_against_cm_watchdog = 0;
+   
+   //if (_db_kludge_cm_watchdog_wants_to_run) {
+   //   _db_kludge_cm_watchdog_wants_to_run = 0;
+   //   cm_watchdog(-1);
+   //}
 
 #endif                          /* LOCAL_ROUTINES */
    return DB_SUCCESS;
 }
 
 /********************************************************************/
-
+#if 0
 INT db_get_lock_cnt(HNDLE hDB)
 {
 #ifdef LOCAL_ROUTINES
@@ -2182,6 +2182,7 @@ INT db_get_lock_cnt(HNDLE hDB)
    return 0;
 #endif
 }
+#endif
 
 INT db_set_lock_timeout(HNDLE hDB, int timeout_millisec)
 {
@@ -2208,29 +2209,29 @@ INT db_set_lock_timeout(HNDLE hDB, int timeout_millisec)
 #endif
 }
 
-/**
-Update last activity time
-*/
-void db_update_last_activity(DWORD actual_time)
-{
-   int i;
-   for (i = 0; i < _database_entries; i++) {
-      if (_database[i].attached) {
-         int must_unlock = 0;
-         if (_database[i].protect) {
-            must_unlock = 1;
-            db_lock_database(i + 1);
-            db_allow_write_locked(&_database[i], "db_update_last_activity");
-         }
-         assert(_database[i].database_header);
-         /* update the last_activity entry to show that we are alive */
-         _database[i].database_header->client[_database[i].client_index].last_activity = actual_time;
-         if (must_unlock) {
-            db_unlock_database(i + 1);
-         }
-      }
-   }
-}
+///**
+//Update last activity time
+//*/
+//void db_update_last_activity(DWORD actual_time)
+//{
+//   int i;
+//   for (i = 0; i < _database_entries; i++) {
+//      if (_database[i].attached) {
+//         int must_unlock = 0;
+//         if (_database[i].protect) {
+//            must_unlock = 1;
+//            db_lock_database(i + 1);
+//            db_allow_write_locked(&_database[i], "db_update_last_activity");
+//         }
+//         assert(_database[i].database_header);
+//         /* update the last_activity entry to show that we are alive */
+//         _database[i].database_header->client[_database[i].client_index].last_activity = actual_time;
+//         if (must_unlock) {
+//            db_unlock_database(i + 1);
+//         }
+//      }
+//   }
+//}
 
 void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
 {
