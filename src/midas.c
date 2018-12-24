@@ -9670,13 +9670,16 @@ void rpc_client_check()
             {
                // connection error
                cm_msg(MERROR, "rpc_client_check",
-                      "Connection broken to \"%s\" on host %s, recv() errno %d (%s)",
+                      "Connection to \"%s\" on host \"%s\" is broken, recv() errno %d (%s)",
                       _client_connection[i].client_name, _client_connection[i].host_name, errno, strerror(errno));
             }
          } else if (status == 0) {
-            // connection closed by remote end
-            cm_msg(MERROR, "rpc_client_check",
-                   "Connection to \"%s\" on host %s unexpectedly closed",
+            // connection closed by remote end without sending an EXIT message
+            // this can happen if the remote end has crashed, so this message
+            // is still necessary as a useful diagnostic for unexpected crashes
+            // of midas programs. K.O.
+            cm_msg(MINFO, "rpc_client_check",
+                   "Connection to \"%s\" on host \"%s\" unexpectedly closed",
                    _client_connection[i].client_name, _client_connection[i].host_name);
          } else {
             // read some data
@@ -9689,10 +9692,6 @@ void rpc_client_check()
 
          if (ok)
             continue;
-
-         //cm_msg(MINFO, "rpc_client_check",
-         //       "Connection to \"%s\" on host %s closed",
-         //       _client_connection[i].client_name, _client_connection[i].host_name);
 
          // connection lost, close the socket
          closesocket(sock);
