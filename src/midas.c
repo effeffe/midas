@@ -5390,6 +5390,36 @@ static void bm_print_event(const char* pdata, int rp)
    printf("rp %d: event: id 0x%04x, trigger_mask 0x%04x, serial %d, time_stamp %d, data_size %d\n", rp, e->event_id, e->trigger_mask, e->serial_number, e->time_stamp, e->data_size);
 }
 
+static BOOL bm_validate_rp(const char* who, const BUFFER_HEADER* pheader, int rp)
+{
+   if (rp < 0 || rp > pheader->size) {
+      cm_msg(MERROR, "bm_validate_rp",
+             "error: buffer \"%s\" is corrupted: rp %d is invalid. buffer read_pointer %d, write_pointer %d, size %d, called from %s",
+             pheader->name,
+             rp,
+             pheader->read_pointer,
+             pheader->write_pointer,
+             pheader->size,
+             who);
+      return FALSE;
+   }
+
+   if (rp + sizeof(EVENT_HEADER) >= pheader->size) {
+      cm_msg(MERROR, "bm_validate_rp",
+             "error: buffer \"%s\" is corrupted: rp %d plus event header point beyond the end of buffer by %d bytes. buffer read_pointer %d, write_pointer %d, size %d, called from %s",
+             pheader->name,
+             rp,
+             (int)(rp + sizeof(EVENT_HEADER) - pheader->size),
+             pheader->read_pointer,
+             pheader->write_pointer,
+             pheader->size,
+             who);
+      return FALSE;
+   }
+
+   return TRUE;
+}
+
 static int bm_next_rp(const char* who, const BUFFER_HEADER* pheader, const char* pdata, int rp)
 {
    const EVENT_HEADER *pevent = (const EVENT_HEADER *) (pdata + rp);
@@ -5414,9 +5444,11 @@ static int bm_next_rp(const char* who, const BUFFER_HEADER* pheader, const char*
    rp += total_size;
    if (rp >= pheader->size) {
       rp -= pheader->size;
-   } else if (rp + sizeof(EVENT_HEADER) > pheader->size) {
-      // FIXME: should this be ">" or ">=" ?!? needs to be consistent
-      // with the increment of the write pointer!
+   } else if (rp + sizeof(EVENT_HEADER) >= pheader->size) {
+      // note: ">=" here to match bm_write_to_buffer_locked()
+      // if at the end of the buffer, the remaining free space is exactly
+      // equal to the size of an event header, the write pointer is wrapped around
+      // and the next event header is written to the beginning of the buffer.
       rp = 0;
    }
 
@@ -5435,12 +5467,17 @@ static int bm_validate_buffer_locked(const BUFFER* pbuf)
    printf("clients: max: %d, num: %d, MAX_CLIENTS: %d\n", pheader->max_client_index, pheader->num_clients, MAX_CLIENTS);
 
    if (pheader->read_pointer < 0 || pheader->read_pointer >= pheader->size) {
-      cm_msg(MERROR, "bm_open_buffer", "buffer \"%s\" is corrupted: invalid read pointer %d. Size %d, write pointer %d", pheader->name, pheader->read_pointer, pheader->size, pheader->write_pointer);
+      cm_msg(MERROR, "bm_validate_buffer", "buffer \"%s\" is corrupted: invalid read pointer %d. Size %d, write pointer %d", pheader->name, pheader->read_pointer, pheader->size, pheader->write_pointer);
       return BM_CORRUPTED;
    }
 
    if (pheader->write_pointer < 0 || pheader->write_pointer >= pheader->size) {
-      cm_msg(MERROR, "bm_open_buffer", "buffer \"%s\" is corrupted: invalid write pointer %d. Size %d, read pointer %d", pheader->name, pheader->write_pointer, pheader->size, pheader->read_pointer);
+      cm_msg(MERROR, "bm_validate_buffer", "buffer \"%s\" is corrupted: invalid write pointer %d. Size %d, read pointer %d", pheader->name, pheader->write_pointer, pheader->size, pheader->read_pointer);
+      return BM_CORRUPTED;
+   }
+
+   if (!bm_validate_rp("bm_validate_buffer_locked", pheader, pheader->read_pointer)) {
+      cm_msg(MERROR, "bm_validate_buffer", "buffer \"%s\" is corrupted: read pointer %d is invalid", pheader->name, pheader->read_pointer);
       return BM_CORRUPTED;
    }
 
@@ -5448,10 +5485,14 @@ static int bm_validate_buffer_locked(const BUFFER* pbuf)
    int rp = pheader->read_pointer;
    int rp0 = -1;
    while (rp != pheader->write_pointer) {
+      if (!bm_validate_rp("bm_validate_buffer_locked", pheader, rp)) {
+         cm_msg(MERROR, "bm_validate_buffer", "buffer \"%s\" is corrupted: invalid rp %d, last good event at rp %d", pheader->name, rp, rp0);
+         return BM_CORRUPTED;
+      }
       //bm_print_event(pdata, rp);
       int rp1 = bm_next_rp("bm_validate_buffer_locked", pheader, pdata, rp);
       if (rp1 < 0) {
-         cm_msg(MERROR, "bm_open_buffer", "buffer \"%s\" is corrupted: invalid event at rp %d, last good event at rp %d", pheader->name, rp, rp0);
+         cm_msg(MERROR, "bm_validate_buffer", "buffer \"%s\" is corrupted: invalid event at rp %d, last good event at rp %d", pheader->name, rp, rp0);
          return BM_CORRUPTED;
       }
       event_count++;
@@ -7414,6 +7455,18 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
             }
             return BM_SUCCESS;
          }
+
+         if (!bm_validate_rp("bm_wait_for_free_space_locked", pheader, pheader->read_pointer)) {
+            cm_msg(MERROR, "bm_wait_for_free_space",
+                   "error: buffer \"%s\" is corrupted: read_pointer %d, write_pointer %d, size %d, free %d, waiting for %d bytes: read pointer is invalid",
+                   pheader->name,
+                   pheader->read_pointer,
+                   pheader->write_pointer,
+                   pheader->size,
+                   free,
+                   requested_space);
+            return BM_CORRUPTED;
+         }
          
          const EVENT_HEADER *pevent = (const EVENT_HEADER *) (pdata + pheader->read_pointer);
          int event_size = pevent->data_size + sizeof(EVENT_HEADER);
@@ -7587,7 +7640,11 @@ static void bm_write_to_buffer_locked(BUFFER_HEADER* pheader, const void* pevent
       pheader->write_pointer = pheader->write_pointer + total_size;
       assert(pheader->write_pointer <= pheader->size);
       /* remaining space is smaller than size of an event header? */
-      if (pheader->write_pointer + sizeof(EVENT_HEADER) > pheader->size) {
+      if (pheader->write_pointer + sizeof(EVENT_HEADER) >= pheader->size) {
+         // note: ">=" here to match "bm_next_rp". If remaining space is exactly
+         // equal to the event header size, we wrap the pointer so the next
+         // event header is written at the beginning of the buffer.
+         // printf("bm_write_to_buffer_locked: truncate wp %d. buffer size %d, remaining %d, event header size %d, event size %d, total size %d\n", pheader->write_pointer, pheader->size, pheader->size-pheader->write_pointer, (int)sizeof(EVENT_HEADER), event_size, total_size);
          pheader->write_pointer = 0;
       }
    } else {
@@ -7596,7 +7653,9 @@ static void bm_write_to_buffer_locked(BUFFER_HEADER* pheader, const void* pevent
       
       memcpy(pdata + pheader->write_pointer, pevent, size);
       memcpy(pdata, ((const char *) pevent) + size, event_size - size);
-      
+
+      //printf("bm_write_to_buffer_locked: wrap wp %d -> %d. buffer size %d, available %d, wrote %d, remaining %d, event size %d, total size %d\n", pheader->write_pointer, total_size-size, pheader->size, pheader->size-pheader->write_pointer, size, pheader->size - (pheader->write_pointer+size), event_size, total_size);
+
       pheader->write_pointer = total_size - size;
    }
    
