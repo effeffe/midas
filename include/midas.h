@@ -931,7 +931,6 @@ typedef struct {
    BOOL attached;                   /**< TRUE if buffer is attached   */
    INT client_index;                /**< index to CLIENT str. in buf. */
    BUFFER_HEADER *buffer_header;    /**< pointer to buffer header     */
-   void *buffer_data;               /**< pointer to buffer data       */
    MUTEX_T* buffer_mutex;           /**< buffer mutex                 */
    char *read_cache;                /**< cache for burst read         */
    INT read_cache_size;             /**< cache size in bytes          */

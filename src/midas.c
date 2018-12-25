@@ -5384,6 +5384,120 @@ static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
       }
 }
 
+static void bm_print_event(const char* pdata, int rp)
+{
+   const EVENT_HEADER* e = (const EVENT_HEADER*)(pdata + rp);
+   printf("rp %d: event: id 0x%04x, trigger_mask 0x%04x, serial %d, time_stamp %d, data_size %d\n", rp, e->event_id, e->trigger_mask, e->serial_number, e->time_stamp, e->data_size);
+}
+
+static int bm_next_rp(const char* who, const BUFFER_HEADER* pheader, const char* pdata, int rp)
+{
+   const EVENT_HEADER *pevent = (const EVENT_HEADER *) (pdata + rp);
+   int event_size = pevent->data_size + sizeof(EVENT_HEADER);
+   int total_size = ALIGN8(event_size);
+         
+   if (pevent->data_size <= 0 || total_size <= 0 || total_size > pheader->size) {
+      cm_msg(MERROR, "bm_next_rp",
+             "error: buffer \"%s\" is corrupted: rp %d points to an invalid event: data_size %d, event size %d, total_size %d, buffer read_pointer %d, write_pointer %d, size %d, called from %s",
+             pheader->name,
+             rp,
+             pevent->data_size,
+             event_size,
+             total_size,
+             pheader->read_pointer,
+             pheader->write_pointer,
+             pheader->size,
+             who);
+      return -1;
+   }
+
+   rp += total_size;
+   if (rp >= pheader->size) {
+      rp -= pheader->size;
+   } else if (rp + sizeof(EVENT_HEADER) > pheader->size) {
+      // FIXME: should this be ">" or ">=" ?!? needs to be consistent
+      // with the increment of the write pointer!
+      rp = 0;
+   }
+
+   return rp;
+}
+
+static int bm_validate_buffer_locked(const BUFFER* pbuf)
+{
+   const BUFFER_HEADER* pheader = pbuf->buffer_header;
+   const char* pdata = (const char*)(pheader+1);
+
+   printf("bm_validate_buffer: buffer \"%s\"\n", pheader->name);
+
+   printf("size: %d, rp: %d, wp: %d\n", pheader->size, pheader->read_pointer, pheader->write_pointer);
+
+   printf("clients: max: %d, num: %d, MAX_CLIENTS: %d\n", pheader->max_client_index, pheader->num_clients, MAX_CLIENTS);
+
+   if (pheader->read_pointer < 0 || pheader->read_pointer >= pheader->size) {
+      cm_msg(MERROR, "bm_open_buffer", "buffer \"%s\" is corrupted: invalid read pointer %d. Size %d, write pointer %d", pheader->name, pheader->read_pointer, pheader->size, pheader->write_pointer);
+      return BM_CORRUPTED;
+   }
+
+   if (pheader->write_pointer < 0 || pheader->write_pointer >= pheader->size) {
+      cm_msg(MERROR, "bm_open_buffer", "buffer \"%s\" is corrupted: invalid write pointer %d. Size %d, read pointer %d", pheader->name, pheader->write_pointer, pheader->size, pheader->read_pointer);
+      return BM_CORRUPTED;
+   }
+
+   int event_count = 0;
+   int rp = pheader->read_pointer;
+   int rp0 = -1;
+   while (rp != pheader->write_pointer) {
+      //bm_print_event(pdata, rp);
+      int rp1 = bm_next_rp("bm_validate_buffer_locked", pheader, pdata, rp);
+      if (rp1 < 0) {
+         cm_msg(MERROR, "bm_open_buffer", "buffer \"%s\" is corrupted: invalid event at rp %d, last good event at rp %d", pheader->name, rp, rp0);
+         return BM_CORRUPTED;
+      }
+      event_count++;
+      rp0 = rp;
+      rp = rp1;
+   }
+
+   printf("buffered events: %d\n", event_count);
+
+   int i;
+   for (i=0; i<MAX_CLIENTS; i++) {
+      const BUFFER_CLIENT* c = &pheader->client[i];
+      if (c->pid == 0)
+         continue;
+      BOOL get_all = FALSE;
+      int j;
+      for (j=0; j<MAX_EVENT_REQUESTS; j++) {
+         const EVENT_REQUEST *r = &c->event_request[j];
+         if (!r->valid)
+            continue;
+         BOOL xget_all = r->sampling_type == GET_ALL;
+         get_all |= xget_all;
+         printf("client slot %d: pid %d, name \"%s\", request %d: id %d, valid %d, sampling_type %d, get_all %d\n", i, c->pid, c->name, j, r->id, r->valid, r->sampling_type, xget_all);
+      }
+
+      int event_count = 0;
+      int rp = c->read_pointer;
+      int rp0 = -1;
+      while (rp != pheader->write_pointer) {
+         //bm_print_event(pdata, rp);
+         int rp1 = bm_next_rp("bm_validate_buffer_locked", pheader, pdata, rp);
+         if (rp1 < 0) {
+            cm_msg(MERROR, "bm_open_buffer", "buffer \"%s\" is corrupted for client \"%s\" rp %d: invalid event at rp %d, last good event at rp %d", pheader->name, c->name, c->read_pointer, rp, rp0);
+            return BM_CORRUPTED;
+         }
+         event_count++;
+         rp0 = rp;
+         rp = rp1;
+      }
+
+      printf("client slot %d: pid %d, name \"%s\", port %d, rp: %d, get_all %d, %d events\n", i, c->pid, c->name, c->port, c->read_pointer, get_all, event_count);
+   }
+
+   return BM_SUCCESS;
+}
+
 /********************************************************************/
 /**
 Open an event buffer.
@@ -5578,6 +5692,14 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
 
       bm_cleanup_buffer_locked(handle, "bm_open_buffer", ss_millitime());
 
+      status = bm_validate_buffer_locked(&_buffer[handle]);
+      if (status != BM_SUCCESS) {
+         bm_unlock_buffer(handle + 1);
+         *buffer_handle = 0;
+         cm_msg(MERROR, "bm_open_buffer", "buffer \'%s\' is corrupted, bm_validate_buffer() status %d", buffer_name, status);
+         return status;
+      }
+
       /*
          Now we have a BUFFER_HEADER, so let's setup a CLIENT
          structure in that buffer. The information there can also
@@ -5626,7 +5748,6 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       bm_unlock_buffer(handle + 1);
 
       /* setup _buffer entry */
-      _buffer[handle].buffer_data = _buffer[handle].buffer_header + 1;
       _buffer[handle].attached = TRUE;
       _buffer[handle].shm_handle = shm_handle;
       _buffer[handle].callback = FALSE;
