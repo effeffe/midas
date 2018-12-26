@@ -1165,10 +1165,9 @@ Function value:
    DWORD szlazy;
    INT status, no_cpy_last_time = 0;
    INT cpy_loop_time;
-   DWORD watchdog_timeout;
    static INT last_error = 0;
    //char *pext;
-   BOOL watchdog_flag, exit_request = FALSE;
+   BOOL exit_request = FALSE;
    char filename[256];
 
    if (debug)
@@ -1187,22 +1186,6 @@ Function value:
       return (FORCE_EXIT);
    }
 
-   /* New lazy copy if TAPE & append required force a mv to EOD */
-   if ((dev_type == LOG_TYPE_TAPE) && lazy.tapeAppend) {
-      /* Position Tape to end of Data */
-      cm_msg(MINFO, "Lazy", "Positioning Tape to EOD");
-
-      cm_get_watchdog_params(&watchdog_flag, &watchdog_timeout);
-      cm_set_watchdog_params(watchdog_flag, 300000);    /* 5 min for tape rewind */
-      status = ss_tape_spool(hDev);
-      cm_set_watchdog_params(watchdog_flag, watchdog_timeout);
-      if (status != SS_SUCCESS) {
-         cm_msg(MINFO, "Lazy", "Error while Positioning Tape to EOD (%d)", status);
-         ss_tape_close(hDev);
-         return (FORCE_EXIT);
-      }
-   }
-
    /* reset error message */
    last_error = 0;
 
@@ -1210,36 +1193,8 @@ Function value:
    if (md_file_ropen(infile, data_fmt, DONTOPENZIP, max_event_size) != MD_SUCCESS)
       return (FORCE_EXIT);
 
-   /* run shell command if available */
-   if (equal_ustring(lazy.type, "Tape")) {
-      /* get the block number. If -1 it probably means that the tape
-         is not ready. Wait for a while  */
-      blockn = -1;
-      while (blockn < 0) {
-         blockn = ss_tape_get_blockn(hDev);
-         if (blockn >= 0)
-            break;
-         cm_msg(MINFO, "Lazy", "Tape is not ready");
-         cm_yield(3000);
-      }
-      if (lazy.commandBefore[0]) {
-         char cmd[256];
-         sprintf(cmd, "%s %s %s %d %s %i", lazy.commandBefore, infile, outfile, blockn, lazy.backlabel, lazyst.nfiles);
-         cm_msg(MINFO, "Lazy", "Exec pre file write script:%s", cmd);
-         ss_system(cmd);
-      }
-   }
-
    /* force a statistics update on the first loop */
    cpy_loop_time = -2000;
-   if (dev_type == LOG_TYPE_TAPE) {
-      char str[MAX_FILE_PATH];
-      sprintf(str, "Starting lazy job on %s at block %d", lazyst.backfile, blockn);
-      if (msg_flag)
-         cm_msg(MTALK, "Lazy", "%s", str);
-      cm_msg(MINFO, "Lazy", "%s", str);
-      cm_msg1(MINFO, "lazy_log_update", "lazy", "%s", str);
-   }
 
    /* infinite loop while copying */
    while (1) {
@@ -1300,9 +1255,6 @@ Function value:
    md_file_rclose(dev_type);
 
    /* close output data file */
-   if (equal_ustring(lazy.type, "Tape")) {
-      blockn = ss_tape_get_blockn(hDev);
-   }
    status = md_file_wclose(hDev, dev_type, data_fmt, outfile);
    if (status != SS_SUCCESS) {
       if (status == SS_NO_SPACE)
@@ -1753,8 +1705,7 @@ Function value:
    DWORD cp_time;
    INT size, status;
    char str[MAX_FILE_PATH], inffile[MAX_FILE_PATH], outffile[MAX_FILE_PATH];
-   BOOL watchdog_flag, exit_request = FALSE;
-   DWORD watchdog_timeout;
+   BOOL exit_request = FALSE;
    LAZY_INFO *pLch;
    static BOOL eot_reached = FALSE;
    BOOL haveTape;
@@ -1778,8 +1729,6 @@ Function value:
    /* extract Device type from the struct */
    if (equal_ustring(lazy.type, "DISK"))
       dev_type = LOG_TYPE_DISK;
-   else if (equal_ustring(lazy.type, "TAPE"))
-      dev_type = LOG_TYPE_TAPE;
    else if (equal_ustring(lazy.type, "FTP"))
       dev_type = LOG_TYPE_FTP;
    else if (equal_ustring(lazy.type, "SCRIPT"))
@@ -1825,9 +1774,6 @@ Function value:
             }
          } else
             cm_msg(MERROR, "lazy_main", "did not find /Lazy/Lazy_%s/Statistics for zapping", pLch->name);
-         // INT al_reset_alarm(char *alarm_name)
-         if (dev_type == LOG_TYPE_TAPE)
-            al_reset_alarm("Tape");
       }
    }
    /* check if data dir is none empty */
@@ -1970,9 +1916,7 @@ Function value:
                strcat(lazy.path, DIR_SEPARATOR_STR);
          strcpy(outffile, lazy.path);
          strcat(outffile, lazyst.backfile);
-      } else if (dev_type == LOG_TYPE_TAPE)
-         strcpy(outffile, lazy.path);
-      else if (dev_type == LOG_TYPE_FTP) {
+      } else if (dev_type == LOG_TYPE_FTP) {
          /* Format for FTP
             lazy.path=host,port,user,password,directory,filename[,umask]
             expect filename in format such as "bck%08d.mid" */
@@ -1998,69 +1942,6 @@ Function value:
             sprintf(outffile, str, lazyst.cur_run / 1000);
          }
       }
-
-      /* check if space on backup device ONLY in the TAPE case */
-      if (((dev_type == LOG_TYPE_TAPE)
-           && (lazy.capacity < (lazyst.cur_dev_size + lazyst.file_size)))
-          || eot_reached) {
-         char pre_label[32];
-         /* save the last label for shell script */
-         strcpy(pre_label, lazy.backlabel);
-
-         /* Reset EOT reached */
-         eot_reached = FALSE;
-
-         /* not enough space => reset list label */
-         lazy.backlabel[0] = '\0';
-         size = sizeof(lazy.backlabel);
-         db_set_value(hDB, pLch->hKey, "Settings/List label", lazy.backlabel, size, 1, TID_STRING);
-         full_bck_flag = TRUE;
-         cm_msg(MINFO, "Lazy", "Not enough space for next copy on backup device!");
-
-         /* rewind device if TAPE type */
-         if (dev_type == LOG_TYPE_TAPE) {
-            INT status, channel;
-            char str[128];
-
-            sprintf(str, "Tape %s is full with %d files", pre_label, lazyst.nfiles);
-            cm_msg(MINFO, "Lazy", "%s", str);
-
-            /* Setup alarm */
-            lazy.alarm[0] = 0;
-            size = sizeof(lazy.alarm);
-            db_get_value(hDB, pLch->hKey, "Settings/Alarm Class", lazy.alarm, &size, TID_STRING, TRUE);
-
-            /* trigger alarm if defined */
-            if (lazy.alarm[0])
-               al_trigger_alarm("Tape",
-                                "Tape full, Please remove current tape and load new one!",
-                                lazy.alarm, "Tape full", AT_INTERNAL);
-
-            /* run shell command if available */
-            if (lazy.command[0]) {
-               char cmd[256];
-               sprintf(cmd, "%s %s %s %s", lazy.command, lazy.path, pLch->name, pre_label);
-               cm_msg(MINFO, "Lazy", "Exec post-rewind script:%s", cmd);
-               ss_system(cmd);
-            }
-
-            cm_msg(MINFO, "Lazy", "backup device rewinding...");
-            cm_get_watchdog_params(&watchdog_flag, &watchdog_timeout);
-            cm_set_watchdog_params(watchdog_flag, 300000);      /* 5 min for tape rewind */
-            status = ss_tape_open(outffile, O_RDONLY, &channel);
-            if (channel < 0) {
-               cm_msg(MERROR, "Lazy", "Cannot rewind tape %s - %d - %d", outffile, channel, status);
-               return NOTHING_TODO;
-            }
-            //else
-            //    cm_msg(MINFO,"Lazy", "After call ss_tape_open used to rewind tape %s - %d - %d", outffile, channel, status);
-            cm_msg(MINFO, "Lazy", "Calling ss_tape_unmount");
-            ss_tape_unmount(channel);
-            ss_tape_close(channel);
-            cm_set_watchdog_params(watchdog_flag, watchdog_timeout);
-            return NOTHING_TODO;
-         }                      // 1
-      }                         // LOG_TYPE_TAPE 
 	  
 	  // Postpone copy by "copy_delay" if the copy check happens right after the 
 	  // stop transition. This permit EOR external scripts to complete there operations

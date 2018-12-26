@@ -190,34 +190,25 @@ status : from lower function
 
    /* find out what dev it is ? : check on /dev */
    my.zipfile = FALSE;
-   if ((strncmp(my.name, "/dev", 4) == 0) || (strncmp(my.name, "\\\\.\\", 4) == 0)) {
-      /* tape device */
-      my.type = LOG_TYPE_TAPE;
-   } else {
+   {
       /* disk device */
       my.type = LOG_TYPE_DISK;
       if (strncmp(infile + strlen(infile) - 3, ".gz", 3) == 0) {
         // FALSE will for now prevent the mdump to see inside the .gz
-	// But lazylogger will NOT unzip during copy!
-	if (openzip == 0) my.zipfile = FALSE; // ignore zip, copy blindly blocks
-	else my.zipfile = TRUE; // Open Zip file
+        // But lazylogger will NOT unzip during copy!
+        if (openzip == 0) my.zipfile = FALSE; // ignore zip, copy blindly blocks
+        else my.zipfile = TRUE; // Open Zip file
       }
    }
 
    /* open file */
    if (!my.zipfile) {
-      if (my.type == LOG_TYPE_TAPE) {
-         ss_tape_open(my.name, O_RDONLY | O_BINARY, &my.handle);
-      } else if ((my.handle = open(my.name, O_RDONLY | O_BINARY | O_LARGEFILE, 0644)) == -1) {
+      if ((my.handle = open(my.name, O_RDONLY | O_BINARY | O_LARGEFILE, 0644)) == -1) {
          printf("dev name :%s Handle:%d \n", my.name, my.handle);
          return (SS_FILE_ERROR);
       }
    } else {
 #ifdef HAVE_ZLIB
-      if (my.type == LOG_TYPE_TAPE) {
-         printf(" Zip on tape not yet supported \n");
-         return (SS_FILE_ERROR);
-      }
       filegz = gzopen(my.name, "rb");
       my.handle = 0;
       if (filegz == NULL) {
@@ -271,7 +262,6 @@ status : from lower function
 *******************************************************************/
 {
    switch (my.type) {
-   case LOG_TYPE_TAPE:
    case LOG_TYPE_DISK:
       /* close file */
       if (my.zipfile) {
@@ -328,11 +318,6 @@ status : from lower function
 #endif
          status = *hDev < 0 ? SS_FILE_ERROR : SS_SUCCESS;
       }
-   } else if (type == LOG_TYPE_TAPE) {
-     if (data_fmt == FORMAT_YBOS) {
-	 assert(!"YBOS not supported anymore");
-      } else if (data_fmt == FORMAT_MIDAS)
-         status = ss_tape_open(filename, O_WRONLY | O_CREAT | O_TRUNC, hDev);
    } else if (type == LOG_TYPE_FTP) {
 #ifdef HAVE_FTPLIB
       status = mftp_open(filename, (FTP_CON **) & ftp_con);
@@ -367,11 +352,6 @@ status : from lower function
 
    status = SS_SUCCESS;
    switch (type) {
-   case LOG_TYPE_TAPE:
-      /* writing EOF mark on tape Fonly */
-      status = ss_tape_write_eof(handle);
-      ss_tape_close(handle);
-      break;
    case LOG_TYPE_DISK:
       /* close file */
       if (handle != 0)
@@ -448,17 +428,6 @@ MD_SUCCESS         Ok
          status = SS_SUCCESS;
       return status;
    }
-   /* --------- TAPE ---------- */
-#ifdef OS_UNIX
-   else if (type == LOG_TYPE_TAPE) {
-      *readn = read(handle, prec, nbytes);
-      if (*readn <= 0)
-         status = SS_FILE_ERROR;
-      else
-         status = SS_SUCCESS;
-      return status;
-   }
-#endif
 
 #ifdef OS_WINNT
    else if (type == LOG_TYPE_TAPE) {
@@ -495,58 +464,25 @@ SS_SUCCESS         Ok
 \********************************************************************/
 {
    INT status;
-   if (type == LOG_TYPE_DISK)
+   if (type == LOG_TYPE_DISK) {
+     /* --------- DISK ---------- */
 #ifdef OS_WINNT
-   {                            /* --------- DISK ---------- */
-      WriteFile((HANDLE) handle, (char *) prec, nbytes, written, NULL);
-      status = *written == nbytes ? SS_SUCCESS : SS_FILE_ERROR;
-      return status;            /* return for DISK */
-   }
+     WriteFile((HANDLE) handle, (char *) prec, nbytes, written, NULL);
+     status = *written == nbytes ? SS_SUCCESS : SS_FILE_ERROR;
+     return status;            /* return for DISK */
 #else
-   {                            /* --------- DISK ---------- */
      status = *written = write(handle, (char *) prec, nbytes) == (INT) nbytes ? SS_SUCCESS : SS_FILE_ERROR;
-      return status;            /* return for DISK */
-   }
+     return status;            /* return for DISK */
 #endif
-   else if (type == LOG_TYPE_TAPE) {    /* --------- TAPE ---------- */
-#ifdef OS_UNIX
-      do {
-         status = write(handle, (char *) prec, nbytes);
-      } while (status == -1 && errno == EINTR);
-      *written = status;
-      if (*written != nbytes) {
-         cm_msg(MERROR, "any_dev_os_write", "write() status %d, errno %d (%s)", status, errno, strerror(errno));
-         if (errno == EIO)
-            return SS_IO_ERROR;
-         if (errno == ENOSPC)
-            return SS_NO_SPACE;
-         else
-            return SS_TAPE_ERROR;
-      }
-#endif                          /* OS_UNIX */
-
-#ifdef OS_WINNT
-      WriteFile((HANDLE) handle, (char *) prec, nbytes, written, NULL);
-      if (*written != nbytes) {
-         status = GetLastError();
-         cm_msg(MERROR, "any_dev_os_write", "error %d", status);
-         return SS_IO_ERROR;
-      }
-      return SS_SUCCESS;        /* return for TAPE */
-#endif                          /* OS_WINNT */
-   } else if (type == LOG_TYPE_FTP)
+   } else if (type == LOG_TYPE_FTP) {
 #ifdef HAVE_FTPLIB
-   {
-      *written = status = ftp_send(ftp_con->data, (char *) prec,
-                                   (int) nbytes) == (int) nbytes ? SS_SUCCESS : SS_FILE_ERROR;
-      return status;
-   }
+     *written = status = ftp_send(ftp_con->data, (char *) prec, (int) nbytes) == (int) nbytes ? SS_SUCCESS : SS_FILE_ERROR;
+     return status;
 #else
-   {
-      cm_msg(MERROR, "mdsupport", "FTP support not included");
-      return SS_IO_ERROR;
-   }
+     cm_msg(MERROR, "mdsupport", "FTP support not included");
+     return SS_IO_ERROR;
 #endif
+   }
    return SS_SUCCESS;
 }
 

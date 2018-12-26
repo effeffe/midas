@@ -1946,21 +1946,6 @@ extern "C" {
    INT EXPRT ss_directio_give_port(INT start, INT end);
    INT EXPRT ss_directio_lock_port(INT start, INT end);
 
-   /*---- tape routines ----*/
-   INT EXPRT ss_tape_open(char *path, INT oflag, INT * channel);
-   INT EXPRT ss_tape_close(INT channel);
-   INT EXPRT ss_tape_status(char *path);
-   INT EXPRT ss_tape_read(INT channel, void *pdata, INT * count);
-   INT EXPRT ss_tape_write(INT channel, void *pdata, INT count);
-   INT EXPRT ss_tape_write_eof(INT channel);
-   INT EXPRT ss_tape_fskip(INT channel, INT count);
-   INT EXPRT ss_tape_rskip(INT channel, INT count);
-   INT EXPRT ss_tape_rewind(INT channel);
-   INT EXPRT ss_tape_spool(INT channel);
-   INT EXPRT ss_tape_mount(INT channel);
-   INT EXPRT ss_tape_unmount(INT channel);
-   INT EXPRT ss_tape_get_blockn(INT channel);
-
    /*---- disk routines ----*/
    double EXPRT ss_disk_free(const char *path);
    double EXPRT ss_file_size(const char *path);

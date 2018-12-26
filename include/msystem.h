@@ -451,7 +451,7 @@ typedef struct {
 /*---- Logging channel information ---------------------------------*/
 
 #define LOG_TYPE_DISK 1
-#define LOG_TYPE_TAPE 2
+//#define LOG_TYPE_TAPE 2
 #define LOG_TYPE_FTP  3
 
 /*---- VxWorks specific taskSpawn arguments ----------------------*/
