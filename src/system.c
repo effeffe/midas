@@ -3034,7 +3034,9 @@ DWORD ss_millitime()
 
       gettimeofday(&tv, NULL);
 
-      return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+      DWORD m = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+      //m += 0x137e0000; // adjust milltime for testing 32-bit wrap-around
+      return m;
    }
 
 #endif                          /* OS_UNIX */

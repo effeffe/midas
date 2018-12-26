@@ -5006,8 +5006,6 @@ INT cm_yield(INT millisec)
    INT status;
    BOOL bMore;
    static DWORD alarm_last_checked = 0;
-   static DWORD bm_last_checked = 0;
-   static DWORD db_last_checked = 0;
 
    /* check for ctrl-c */
    if (_ctrlc_pressed)
@@ -5029,32 +5027,36 @@ INT cm_yield(INT millisec)
 
    DWORD now = ss_time();
 
+   DWORD now_millitime = ss_millitime();
+   static DWORD last_millitime = 0;
+   DWORD tdiff_millitime = now_millitime - last_millitime;
+   if (last_millitime == 0) {
+      last_millitime = now_millitime;
+      tdiff_millitime = 0;
+   }
+
+   //if (now_millitime < last_millitime) {
+   //   printf("millitime wraparound 0x%08x -> 0x%08x\n", last_millitime, now_millitime);
+   //}
+
    /* check alarms once every 10 seconds */
    if (now - alarm_last_checked > 10) {
       al_check();
       alarm_last_checked = now;
    }
 
-   /* check buffer clients */
-   if (now - bm_last_checked > 1) {
-      BOOL wrong_interval = FALSE;
-      if (now > bm_last_checked + 10)
-         wrong_interval = TRUE;
-      else if (now < bm_last_checked - 10)
-         wrong_interval = TRUE;
-      bm_cleanup("cm_yield", ss_millitime(), wrong_interval);
-      bm_last_checked = now;
-   }
+   /* run periodic checks previously done by cm_watchdog */
 
-   /* check odb clients */
-   if (now - db_last_checked > 1) {
+   if (tdiff_millitime > 1000) {
       BOOL wrong_interval = FALSE;
-      if (now > db_last_checked + 10)
+      if (tdiff_millitime > 60000)
          wrong_interval = TRUE;
-      else if (now < db_last_checked - 10)
-         wrong_interval = TRUE;
-      db_cleanup("cm_yield", ss_millitime(), wrong_interval);
-      db_last_checked = now;
+      //printf("millitime %d, diff %d, wrong_interval %d\n", now_millitime, last_millitime, wrong_interval);
+      
+      bm_cleanup("cm_yield", now_millitime, wrong_interval);
+      db_cleanup("cm_yield", now_millitime, wrong_interval);
+
+      last_millitime = now_millitime;
    }
 
    bMore = bm_check_buffers();
@@ -5254,7 +5256,7 @@ static int bm_validate_client_index(const BUFFER * buf, BOOL abort_if_invalid)
                 "My client index %d in buffer \'%s\' is invalid: client name \'%s\', pid %d should be my pid %d",
                 buf->client_index, buf->buffer_header->name, bcl->name, bcl->pid, ss_getpid());
          cm_msg(MERROR, "bm_validate_client_index",
-                "Maybe this client was removed by a timeout. Cannot continue, aborting...");
+                "Maybe this client was removed by a timeout. See midas.log. Cannot continue, aborting...");
       }
 
       abort();
@@ -5349,21 +5351,26 @@ static void bm_cleanup_buffer_locked(int i, const char *who, DWORD actual_time)
 #endif
 
       /* If client process has no activity, clear its buffer entry. */
-      if (pbclient->pid && pbclient->watchdog_timeout > 0 &&
-          actual_time > pbclient->last_activity &&
-          actual_time - pbclient->last_activity > pbclient->watchdog_timeout) {
-
-         /* now make again the check with the buffer locked */
-         actual_time = ss_millitime();
-         if (pbclient->pid && pbclient->watchdog_timeout > 0 &&
-             actual_time > pbclient->last_activity &&
-             actual_time - pbclient->last_activity > pbclient->watchdog_timeout) {
-
-            cm_msg(MINFO, "bm_cleanup", "Client \'%s\' on buffer \'%s\' removed by %s (idle %1.1lfs,TO %1.0lfs)",
+      if (pbclient->pid && pbclient->watchdog_timeout > 0) {
+         DWORD tdiff = actual_time - pbclient->last_activity;
+#if 0
+         printf("buffer [%s] client [%-32s] times 0x%08x 0x%08x, diff 0x%08x %5d, timeout %d\n",
+                pheader->name,
+                pbclient->name,
+                pbclient->last_activity,
+                actual_time,
+                tdiff,
+                tdiff,
+                pbclient->watchdog_timeout);
+#endif
+         if (actual_time > pbclient->last_activity &&
+             tdiff > pbclient->watchdog_timeout) {
+            
+            cm_msg(MINFO, "bm_cleanup", "Client \'%s\' on buffer \'%s\' removed by %s (idle %1.1lfs, timeout %1.0lfs)",
                    pbclient->name, pheader->name, who,
-                   (actual_time - pbclient->last_activity) / 1000.0,
+                   tdiff / 1000.0,
                    pbclient->watchdog_timeout / 1000.0);
-
+            
             bm_remove_client_locked(pheader, j);
          }
       }
@@ -6248,9 +6255,10 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout)
                      if (interval > 0
                          && now > pbclient->last_activity && now - pbclient->last_activity > interval) {
                         sprintf(str,
-                                "Client \'%s\' on \'%s\' removed by cm_cleanup (idle %1.1lfs,TO %1.0lfs)",
+                                "Client \'%s\' on \'%s\' removed by cm_cleanup (idle %1.1lfs, timeout %1.0lfs)",
                                 pbclient->name, pheader->name,
-                                (ss_millitime() - pbclient->last_activity) / 1000.0, interval / 1000.0);
+                                (ss_millitime() - pbclient->last_activity) / 1000.0,
+                                interval / 1000.0);
 
                         bm_remove_client_locked(pheader, j);
                      }
