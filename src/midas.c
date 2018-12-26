@@ -5404,7 +5404,8 @@ static BOOL bm_validate_rp(const char* who, const BUFFER_HEADER* pheader, int rp
       return FALSE;
    }
 
-   if (rp + sizeof(EVENT_HEADER) >= pheader->size) {
+   if (rp + sizeof(EVENT_HEADER) > pheader->size) {
+      // note ">" here, has to match bm_incr_rp() and bm_write_to_buffer()
       cm_msg(MERROR, "bm_validate_rp",
              "error: buffer \"%s\" is corrupted: rp %d plus event header point beyond the end of buffer by %d bytes. buffer read_pointer %d, write_pointer %d, size %d, called from %s",
              pheader->name,
@@ -5418,6 +5419,22 @@ static BOOL bm_validate_rp(const char* who, const BUFFER_HEADER* pheader, int rp
    }
 
    return TRUE;
+}
+
+static int bm_incr_rp_no_check(const BUFFER_HEADER* pheader, int rp, int total_size)
+{
+   rp += total_size;
+   if (rp >= pheader->size) {
+      rp -= pheader->size;
+   } else if (rp + sizeof(EVENT_HEADER) > pheader->size) {
+      // note: ">" here to match bm_write_to_buffer_locked() and bm_validate_rp().
+      // if at the end of the buffer, the remaining free space is exactly
+      // equal to the size of an event header, the event header
+      // is written there, the pointer is wrapped and the event data
+      // is written to the beginning of the buffer.
+      rp = 0;
+   }
+   return rp;
 }
 
 static int bm_next_rp(const char* who, const BUFFER_HEADER* pheader, const char* pdata, int rp)
@@ -5441,16 +5458,7 @@ static int bm_next_rp(const char* who, const BUFFER_HEADER* pheader, const char*
       return -1;
    }
 
-   rp += total_size;
-   if (rp >= pheader->size) {
-      rp -= pheader->size;
-   } else if (rp + sizeof(EVENT_HEADER) >= pheader->size) {
-      // note: ">=" here to match bm_write_to_buffer_locked()
-      // if at the end of the buffer, the remaining free space is exactly
-      // equal to the size of an event header, the write pointer is wrapped around
-      // and the next event header is written to the beginning of the buffer.
-      rp = 0;
-   }
+   rp = bm_incr_rp_no_check(pheader, rp, total_size);
 
    return rp;
 }
@@ -7400,21 +7408,6 @@ static int bm_read_cache_has_events(const BUFFER * pbuf)
    return 1;
 }
 
-static void bm_increment_read_pointer_locked(BUFFER_HEADER* pheader, BUFFER_CLIENT* pc, int total_size)
-{
-   int new_read_pointer = pc->read_pointer + total_size;
-
-   if (new_read_pointer >= pheader->size)
-      new_read_pointer -= pheader->size;
-   else if (new_read_pointer + sizeof(EVENT_HEADER) >= pheader->size)
-      new_read_pointer = 0;
-
-   assert(new_read_pointer >= 0);
-   assert(new_read_pointer < pheader->size);
-   
-   pc->read_pointer = new_read_pointer;
-}
-                  
 static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int async_flag, int requested_space)
 {
    int status;
@@ -7538,7 +7531,7 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
                      break;
                   }
 
-                  bm_increment_read_pointer_locked(pheader, pc, total_size);
+                  pc->read_pointer = bm_incr_rp_no_check(pheader, pc->read_pointer, total_size);
                }
             }
          } /* client loop */
@@ -7640,11 +7633,11 @@ static void bm_write_to_buffer_locked(BUFFER_HEADER* pheader, const void* pevent
       pheader->write_pointer = pheader->write_pointer + total_size;
       assert(pheader->write_pointer <= pheader->size);
       /* remaining space is smaller than size of an event header? */
-      if (pheader->write_pointer + sizeof(EVENT_HEADER) >= pheader->size) {
-         // note: ">=" here to match "bm_next_rp". If remaining space is exactly
-         // equal to the event header size, we wrap the pointer so the next
-         // event header is written at the beginning of the buffer.
-         // printf("bm_write_to_buffer_locked: truncate wp %d. buffer size %d, remaining %d, event header size %d, event size %d, total size %d\n", pheader->write_pointer, pheader->size, pheader->size-pheader->write_pointer, (int)sizeof(EVENT_HEADER), event_size, total_size);
+      if (pheader->write_pointer + sizeof(EVENT_HEADER) > pheader->size) {
+         // note: ">" here to match "bm_incr_rp". If remaining space is exactly
+         // equal to the event header size, we will write the next event header here,
+         // then wrap the pointer and write the event data at the beginning of the buffer.
+         //printf("bm_write_to_buffer_locked: truncate wp %d. buffer size %d, remaining %d, event header size %d, event size %d, total size %d\n", pheader->write_pointer, pheader->size, pheader->size-pheader->write_pointer, (int)sizeof(EVENT_HEADER), event_size, total_size);
          pheader->write_pointer = 0;
       }
    } else {
