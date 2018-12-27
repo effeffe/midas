@@ -433,7 +433,7 @@ typedef struct {
    INT buffer_handle;           /* Buffer handle */
    short int event_id;          /* same as in EVENT_HEADER */
    short int trigger_mask;
-   void (*dispatcher) (HNDLE, HNDLE, EVENT_HEADER *, void *);   /* Dispatcher func. */
+   EVENT_HANDLER* dispatcher;   /* Dispatcher func. */
 
 } REQUEST_LIST;
 
@@ -486,17 +486,14 @@ extern "C" {
    INT cm_delete_client_info(HNDLE hDB, INT pid);
 
    /*---- buffer manager ----*/
-   INT bm_lock_buffer(INT buffer_handle);
-   INT bm_unlock_buffer(INT buffer_handle);
-   INT bm_notify_client(char *buffer_name, int s);
+   INT bm_notify_client(const char *buffer_name, int s);
    INT EXPRT bm_mark_read_waiting(BOOL flag);
-   INT bm_push_event(char *buffer_name);
+   INT bm_push_event(const char *buffer_name);
    INT bm_check_buffers(void);
    INT EXPRT bm_remove_event_request(INT buffer_handle, INT request_id);
    void EXPRT bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
-                                  EVENT_HEADER * pevent, void *pdata,
-                                  void (*dispatcher) (HNDLE, HNDLE,
-                                                      EVENT_HEADER *, void *));
+                                  EVENT_HEADER* pevent, void *pdata,
+                                  EVENT_HANDLER* dispatcher);
 
    /*---- online database ----*/
    INT EXPRT db_lock_database(HNDLE database_handle);

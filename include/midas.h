@@ -877,6 +877,9 @@ fragmented events */
 magic number used in trigger_mask for BOR event */
 #define MIDAS_MAGIC      0x494d            /**< 'MI' */
 
+/**
+   Handler for event requests */
+typedef void (EVENT_HANDLER)(HNDLE buffer_handler, HNDLE request_id, EVENT_HEADER* event_header, void* event_data);
 
 /**
 Buffer structure */
@@ -1718,8 +1721,7 @@ extern "C" {
    INT EXPRT cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) MATTRPRINTF(5,6);
    INT EXPRT cm_msg1(INT message_type, const char *filename, INT line, const char *facility, const char *routine, const char *format, ...) MATTRPRINTF(6,7);
    INT EXPRT cm_msg_flush_buffer(void);
-   INT EXPRT cm_msg_register(void (*func)
-                              (HNDLE, HNDLE, EVENT_HEADER *, void *));
+   INT EXPRT cm_msg_register(EVENT_HANDLER* func);
    INT EXPRT cm_msg_retrieve(INT n_message, char *message, INT buf_size);
    INT EXPRT cm_msg_retrieve2(const char *facility, time_t t, int min_messages, char** messages, int* num_messages);
 #ifdef __cplusplus
@@ -1745,19 +1747,13 @@ extern "C" {
                               short int trigger_mask,
                               INT sampling_type,
                               INT * request_id,
-                              void (*func) (HNDLE,
-                                            HNDLE,
-                                            EVENT_HEADER*,
-                                            void*)
+                              EVENT_HANDLER *func
                               );
    INT EXPRT bm_add_event_request(INT buffer_handle,
                                   short int event_id,
                                   short int trigger_mask,
                                   INT sampling_type,
-                                  void (*func) (HNDLE,
-                                                HNDLE,
-                                                EVENT_HEADER*,
-                                                void*),
+                                  EVENT_HANDLER *func,
                                   INT request_id);
    INT EXPRT bm_delete_request(INT request_id);
    INT EXPRT bm_send_event(INT buffer_handle, const EVENT_HEADER* event, INT buf_size, INT async_flag);
