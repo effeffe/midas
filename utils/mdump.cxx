@@ -647,8 +647,7 @@ int main(int argc, char **argv)
   bm_set_cache_size(hBufEvent, 100000, 0);
   
   /* place a request for a specific event id */
-  bm_request_event(hBufEvent, (WORD) event_id, (WORD) event_msk,
-		   get_flag, &request_id, process_event);
+  bm_request_event(hBufEvent, (WORD) event_id, (WORD) event_msk, get_flag, &request_id, process_event);
   
   start_time = 0;
   if (speed == 1)

@@ -146,8 +146,8 @@ static INT _buffer_entries = 0;
 
 static INT _msg_buffer = 0;
 static INT _msg_rb = 0;
-static MUTEX_T *_msg_mutex = NULL;
-static void (*_msg_dispatch) (HNDLE, HNDLE, EVENT_HEADER *, void *);
+static MUTEX_T*       _msg_mutex = NULL;
+static EVENT_HANDLER* _msg_dispatch = NULL;
 
 static REQUEST_LIST *_request_list;
 static INT _request_list_entries = 0;
@@ -965,7 +965,7 @@ int main(int argc, char *argv[])
 @param func Dispatch function.
 @return CM_SUCCESS or bm_open_buffer and bm_request_event return status
 */
-INT cm_msg_register(void (*func) (HNDLE, HNDLE, EVENT_HEADER *, void *))
+INT cm_msg_register(EVENT_HANDLER* func)
 {
    INT status, id;
 
@@ -6686,8 +6686,6 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
 
 #ifdef LOCAL_ROUTINES
    {
-      BUFFER *pbuf;
-
       if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
          cm_msg(MERROR, "bm_set_cache_size", "invalid buffer handle %d", buffer_handle);
          return BM_INVALID_HANDLE;
@@ -6709,7 +6707,7 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       }
 
       /* manage read cache */
-      pbuf = &_buffer[buffer_handle - 1];
+      BUFFER* pbuf = &_buffer[buffer_handle - 1];
 
       if (pbuf->read_cache_size > 0) {
          M_FREE(pbuf->read_cache);
@@ -6785,8 +6783,7 @@ char event[1000];
 @param serial serial number
 @return BM_SUCCESS
 */
-INT bm_compose_event(EVENT_HEADER * event_header, short int event_id, short int trigger_mask, DWORD size,
-                     DWORD serial)
+INT bm_compose_event(EVENT_HEADER * event_header, short int event_id, short int trigger_mask, DWORD size, DWORD serial)
 {
    event_header->event_id = event_id;
    event_header->trigger_mask = trigger_mask;
@@ -6804,7 +6801,8 @@ INT bm_compose_event(EVENT_HEADER * event_header, short int event_id, short int 
 /********************************************************************/
 INT bm_add_event_request(INT buffer_handle, short int event_id,
                          short int trigger_mask,
-                         INT sampling_type, void (*func) (HNDLE, HNDLE, EVENT_HEADER *, void *),
+                         INT sampling_type,
+                         EVENT_HANDLER* func,
                          INT request_id)
 /********************************************************************\
 
@@ -6853,7 +6851,6 @@ INT bm_add_event_request(INT buffer_handle, short int event_id,
 #ifdef LOCAL_ROUTINES
    {
       INT i;
-      BUFFER_CLIENT *pclient;
 
       if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
          cm_msg(MERROR, "bm_add_event_request", "invalid buffer handle %d", buffer_handle);
@@ -6879,8 +6876,9 @@ INT bm_add_event_request(INT buffer_handle, short int event_id,
       bm_lock_buffer(buffer_handle);
 
       /* get a pointer to the proper client structure */
-      pclient = &(_buffer[buffer_handle - 1].buffer_header->
-                  client[bm_validate_client_index(&_buffer[buffer_handle - 1], TRUE)]);
+      BUFFER_HEADER* pheader = _buffer[buffer_handle - 1].buffer_header;
+      int my_client_index = bm_validate_client_index(&_buffer[buffer_handle - 1], TRUE);
+      BUFFER_CLIENT* pclient = pheader->client+my_client_index;
 
       /* look for a empty request entry */
       for (i = 0; i < MAX_EVENT_REQUESTS; i++)
@@ -6953,8 +6951,8 @@ should be increased.
 */
 INT bm_request_event(HNDLE buffer_handle, short int event_id,
                      short int trigger_mask,
-                     INT sampling_type, HNDLE * request_id, void (*func) (HNDLE, HNDLE, EVENT_HEADER *,
-                                                                          void *))
+                     INT sampling_type, HNDLE * request_id,
+                     EVENT_HANDLER* func)
 {
    INT idx, status;
 
@@ -8118,13 +8116,9 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
 #ifdef LOCAL_ROUTINES
    {
       BUFFER *pbuf;
-      BUFFER_HEADER *pheader;
-      BUFFER_CLIENT *pc;
-      char *pdata;
       INT convert_flags;
       INT i, size, max_size;
       INT status = 0;
-      INT my_client_index;
       BOOL cache_is_full = FALSE;
       BOOL use_event_buffer = FALSE;
       int cycle = 0;
@@ -8153,14 +8147,15 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
       if (bm_read_cache_has_events(pbuf))
          return bm_copy_from_cache(pbuf, destination, max_size, buf_size, convert_flags);
 
-    LOOP:
+      /* calculate some shorthands */
+      BUFFER_HEADER* pheader = pbuf->buffer_header;
+      char* pdata = (char *) (pheader + 1);
+      int my_client_index = bm_validate_client_index(pbuf, TRUE);
+      BUFFER_CLIENT* pc = pheader->client + my_client_index;
+
+   LOOP:
       /* make sure we do bm_validate_client_index() after sleeping */
 
-      /* calculate some shorthands */
-      pheader = pbuf->buffer_header;
-      pdata = (char *) (pheader + 1);
-      my_client_index = bm_validate_client_index(pbuf, TRUE);
-      pc = pheader->client + my_client_index;
 
       /* first do a quick check without locking the buffer */
       if (async_flag == BM_NO_WAIT && pheader->write_pointer == pc->read_pointer)
@@ -8208,21 +8203,18 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
       /* check if event at current read pointer matches a request */
 
       do {
-         int new_read_pointer;
-         int total_size;        /* size of the event */
-         EVENT_REQUEST *prequest;
-         EVENT_HEADER *pevent = (EVENT_HEADER *) (pdata + pc->read_pointer);
-
          assert(pc->read_pointer >= 0);
          assert(pc->read_pointer <= pheader->size);
 
-         total_size = pevent->data_size + sizeof(EVENT_HEADER);
-         total_size = ALIGN8(total_size);
+         EVENT_HEADER *pevent = (EVENT_HEADER *) (pdata + pc->read_pointer);
+
+         int event_size = pevent->data_size + sizeof(EVENT_HEADER);
+         int total_size = ALIGN8(event_size);
 
          assert(total_size > 0);
          assert(total_size <= pheader->size);
 
-         prequest = pc->event_request;
+         const EVENT_REQUEST* prequest = pc->event_request;
 
          /* loop over all requests: if this event matches a request,
           * copy it to the read cache */
@@ -8278,8 +8270,7 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
                   status = BM_SUCCESS;
                   if (copy_size > max_size) {
                      copy_size = max_size;
-                     cm_msg(MERROR, "bm_receive_event",
-                            "event size %d larger than buffer size %d", total_size, max_size);
+                     cm_msg(MERROR, "bm_receive_event", "buffer \"%s\" read error: event size %d larger than buffer size %d", pheader->name, total_size, max_size);
                      status = BM_TRUNCATED;
                   }
 
@@ -8320,7 +8311,7 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
          assert(total_size > 0);
          assert(total_size <= pheader->size);
 
-         new_read_pointer = pc->read_pointer + total_size;
+         int new_read_pointer = pc->read_pointer + total_size;
          if (new_read_pointer >= pheader->size) {
             new_read_pointer = new_read_pointer % pheader->size;
 
@@ -8432,16 +8423,11 @@ Check a buffer if an event is available and call the dispatch function if found.
 @return BM_SUCCESS, BM_INVALID_HANDLE, BM_TRUNCATED, BM_ASYNC_RETURN,
                     RPC_NET_ERROR
 */
-INT bm_push_event(char *buffer_name)
+INT bm_push_event(const char *buffer_name)
 {
 #ifdef LOCAL_ROUTINES
    {
-      BUFFER *pbuf;
-      BUFFER_HEADER *pheader;
-      BUFFER_CLIENT *pc;
-      char *pdata;
       INT i, size, buffer_handle;
-      INT my_client_index;
       BOOL use_event_buffer = 0;
       BOOL cache_is_full = 0;
       int cycle = 0;
@@ -8453,7 +8439,7 @@ INT bm_push_event(char *buffer_name)
          return BM_INVALID_HANDLE;
 
       buffer_handle = i + 1;
-      pbuf = &_buffer[buffer_handle - 1];
+      BUFFER* pbuf = &_buffer[buffer_handle - 1];
 
       if (!pbuf->attached)
          return BM_INVALID_HANDLE;
@@ -8478,10 +8464,10 @@ INT bm_push_event(char *buffer_name)
       }
 
       /* calculate some shorthands */
-      pheader = pbuf->buffer_header;
-      pdata = (char *) (pheader + 1);
-      my_client_index = bm_validate_client_index(pbuf, TRUE);
-      pc = pheader->client + my_client_index;
+      BUFFER_HEADER* pheader = pbuf->buffer_header;
+      char* pdata = (char *) (pheader + 1);
+      int my_client_index = bm_validate_client_index(pbuf, TRUE);
+      BUFFER_CLIENT* pc = pheader->client + my_client_index;
 
       /* first do a quick check without locking the buffer */
       if (pheader->write_pointer == pc->read_pointer)
@@ -8501,16 +8487,13 @@ INT bm_push_event(char *buffer_name)
       /* loop over all events in the buffer */
 
       do {
-         int new_read_pointer;
-         int total_size;        /* size of the event */
-
          assert(pc->read_pointer >= 0);
          assert(pc->read_pointer <= pheader->size);
 
          EVENT_HEADER *pevent = (EVENT_HEADER *) (pdata + pc->read_pointer);
 
-         total_size = pevent->data_size + sizeof(EVENT_HEADER);
-         total_size = ALIGN8(total_size);
+         int event_size = pevent->data_size + sizeof(EVENT_HEADER);
+         int total_size = ALIGN8(event_size);
 
          if (total_size <= 0 || total_size > pheader->size) {
             cm_msg(MERROR, "bm_push_event", "BUG: bad total_size %d for client \"%s\", read_pointer %d, event data size %d, buffer size: %d, rp: %d, wp: %d", total_size, pc->name, pc->read_pointer, pevent->data_size, pheader->size, pheader->read_pointer, pheader->write_pointer);
@@ -8614,7 +8597,7 @@ INT bm_push_event(char *buffer_name)
          assert(total_size > 0);
          assert(total_size <= pheader->size);
 
-         new_read_pointer = pc->read_pointer + total_size;
+         int new_read_pointer = pc->read_pointer + total_size;
          if (new_read_pointer >= pheader->size) {
             new_read_pointer = new_read_pointer % pheader->size;
 
@@ -8796,7 +8779,7 @@ INT bm_mark_read_waiting(BOOL flag)
 }
 
 /********************************************************************/
-INT bm_notify_client(char *buffer_name, int s)
+INT bm_notify_client(const char *buffer_name, int s)
 /********************************************************************\
 
   Routine: bm_notify_client
@@ -9079,8 +9062,8 @@ EVENT_DEFRAG_BUFFER defrag_buffer[MAX_DEFRAG_EVENTS];
 
 /********************************************************************/
 void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
-                         EVENT_HEADER * pevent, void *pdata, void (*dispatcher) (HNDLE, HNDLE, EVENT_HEADER *,
-                                                                                 void *))
+                         EVENT_HEADER * pevent, void *pdata,
+                         EVENT_HANDLER *dispatcher)
 /********************************************************************\
 
   Routine: bm_defragment_event
