@@ -486,8 +486,6 @@ extern "C" {
    INT cm_delete_client_info(HNDLE hDB, INT pid);
 
    /*---- buffer manager ----*/
-   INT bm_lock_buffer(INT buffer_handle);
-   INT bm_unlock_buffer(INT buffer_handle);
    INT bm_notify_client(const char *buffer_name, int s);
    INT EXPRT bm_mark_read_waiting(BOOL flag);
    INT bm_push_event(const char *buffer_name);

@@ -2746,6 +2746,9 @@ INT cm_get_experiment_semaphore(INT * semaphore_alarm, INT * semaphore_elog, INT
 
 static int bm_validate_client_index(const BUFFER * buf, BOOL abort_if_invalid);
 static BUFFER_CLIENT* bm_get_my_client(BUFFER* pbuf, BUFFER_HEADER* pheader);
+static INT bm_get_buffer(const char* who, INT buffer_handle, BUFFER** pbuf);
+static void bm_lock_buffer(BUFFER* pbuf);
+static void bm_unlock_buffer(BUFFER* pbuf);
 
 /********************************************************************/
 /**
@@ -5372,9 +5375,12 @@ static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
       if (_buffer[i].attached) {
          /* update the last_activity entry to show that we are alive */
 
-         bm_lock_buffer(i+1);
+         BUFFER* pbuf;
 
-         BUFFER* pbuf = _buffer + i;
+         bm_get_buffer("bm_cleanup", i+1, &pbuf);
+
+         bm_lock_buffer(pbuf);
+
          BUFFER_HEADER* pheader = pbuf->buffer_header;
          BUFFER_CLIENT* pclient = bm_get_my_client(pbuf, pheader);
          pclient->last_activity = actual_time;
@@ -5383,7 +5389,7 @@ static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
          if (!wrong_interval)
 	   bm_cleanup_buffer_locked(i, who, actual_time);
 
-         bm_unlock_buffer(i+1);
+         bm_unlock_buffer(pbuf);
       }
 }
 
@@ -5536,7 +5542,7 @@ static int bm_validate_buffer_locked(const BUFFER* pbuf)
          //bm_print_event(pdata, rp);
          int rp1 = bm_next_rp("bm_validate_buffer_locked", pheader, pdata, rp);
          if (rp1 < 0) {
-            cm_msg(MERROR, "bm_open_buffer", "buffer \"%s\" is corrupted for client \"%s\" rp %d: invalid event at rp %d, last good event at rp %d", pheader->name, c->name, c->read_pointer, rp, rp0);
+            cm_msg(MERROR, "bm_validate_buffer", "buffer \"%s\" is corrupted for client \"%s\" rp %d: invalid event at rp %d, last good event at rp %d", pheader->name, c->name, c->read_pointer, rp, rp0);
             return BM_CORRUPTED;
          }
          event_count++;
@@ -5740,13 +5746,15 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       ss_mutex_create(&_buffer[handle].buffer_mutex, FALSE);
 
       /* first lock buffer */
-      bm_lock_buffer(handle + 1);
+      BUFFER* pbuf = &_buffer[handle];
+
+      bm_lock_buffer(pbuf);
 
       bm_cleanup_buffer_locked(handle, "bm_open_buffer", ss_millitime());
 
-      status = bm_validate_buffer_locked(&_buffer[handle]);
+      status = bm_validate_buffer_locked(pbuf);
       if (status != BM_SUCCESS) {
-         bm_unlock_buffer(handle + 1);
+         bm_unlock_buffer(pbuf);
          *buffer_handle = 0;
          cm_msg(MERROR, "bm_open_buffer", "buffer \'%s\' is corrupted, bm_validate_buffer() status %d", buffer_name, status);
          return status;
@@ -5763,14 +5771,14 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
             break;
 
       if (i == MAX_CLIENTS) {
-         bm_unlock_buffer(handle + 1);
+         bm_unlock_buffer(pbuf);
          *buffer_handle = 0;
          cm_msg(MERROR, "bm_open_buffer", "buffer \'%s\' maximum number of clients exceeded", buffer_name);
          return BM_NO_SLOT;
       }
 
       /* store slot index in _buffer structure */
-      _buffer[handle].client_index = i;
+      pbuf->client_index = i;
 
       /*
          Save the index of the last client of that buffer so that later only
@@ -5797,13 +5805,13 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
 
       cm_get_watchdog_params(NULL, &pclient->watchdog_timeout);
 
-      bm_unlock_buffer(handle + 1);
+      bm_unlock_buffer(pbuf);
 
       /* setup _buffer entry */
-      _buffer[handle].attached = TRUE;
-      _buffer[handle].shm_handle = shm_handle;
-      _buffer[handle].callback = FALSE;
-      ss_mutex_create(&_buffer[handle].write_cache_mutex, FALSE);
+      pbuf->attached = TRUE;
+      pbuf->shm_handle = shm_handle;
+      pbuf->callback = FALSE;
+      ss_mutex_create(&pbuf->write_cache_mutex, FALSE);
       /* remember to which connection acutal buffer belongs */
       if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
          _buffer[handle].index = rpc_get_server_acception();
@@ -5841,20 +5849,16 @@ INT bm_close_buffer(INT buffer_handle)
 
 #ifdef LOCAL_ROUTINES
    {
+      BUFFER* pbuf;
+
+      int status = bm_get_buffer("bm_close_buffer", buffer_handle, &pbuf);
+
+      if (status != BM_SUCCESS)
+         return status;
+      
       BUFFER_CLIENT *pclient;
-      BUFFER_HEADER *pheader;
       INT i, j, destroy_flag;
       char xname[256];
-
-      if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
-         cm_msg(MERROR, "bm_close_buffer", "invalid buffer handle %d", buffer_handle);
-         return BM_INVALID_HANDLE;
-      }
-
-      /* check if buffer got already closed */
-      if (!_buffer[buffer_handle - 1].attached) {
-         return BM_SUCCESS;
-      }
 
       /*
          Check if buffer was opened by current thread. This is necessary
@@ -5862,7 +5866,7 @@ INT bm_close_buffer(INT buffer_handle)
          of other threads.
        */
 
-      pheader = _buffer[buffer_handle - 1].buffer_header;
+      BUFFER_HEADER* pheader = pbuf->buffer_header;
 
       if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
           _buffer[buffer_handle - 1].index != rpc_get_server_acception()) {
@@ -5886,7 +5890,7 @@ INT bm_close_buffer(INT buffer_handle)
             bm_delete_request(i);
 
       /* first lock buffer */
-      bm_lock_buffer(buffer_handle);
+      bm_lock_buffer(pbuf);
 
       /* mark entry in _buffer as empty */
       _buffer[buffer_handle - 1].attached = FALSE;
@@ -5941,7 +5945,7 @@ INT bm_close_buffer(INT buffer_handle)
       ss_shm_close(xname, _buffer[buffer_handle - 1].buffer_header, _buffer[buffer_handle - 1].shm_handle, destroy_flag);
 
       /* unlock buffer */
-      bm_unlock_buffer(buffer_handle);
+      bm_unlock_buffer(pbuf);
 
       /* delete semaphore */
       ss_semaphore_delete(_buffer[buffer_handle - 1].semaphore, destroy_flag);
@@ -6345,7 +6349,6 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout)
 
 #ifdef LOCAL_ROUTINES
    {
-      BUFFER_CLIENT *pbclient;
       INT i, j;
       char str[256];
       DWORD interval;
@@ -6355,8 +6358,9 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout)
       for (i = 0; i < _buffer_entries; i++)
          if (_buffer[i].attached) {
             /* update the last_activity entry to show that we are alive */
-            BUFFER_HEADER* pheader = _buffer[i].buffer_header;
-            pbclient = pheader->client;
+            BUFFER* pbuf = &_buffer[i];
+            BUFFER_HEADER* pheader = pbuf->buffer_header;
+            BUFFER_CLIENT* pbclient = pheader->client;
             int idx = bm_validate_client_index(&_buffer[i], FALSE);
             if (idx >= 0)
                pbclient[idx].last_activity = ss_millitime();
@@ -6374,8 +6378,8 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout)
                   /* If client process has no activity, clear its buffer entry. */
                   if (interval > 0
                       && now > pbclient->last_activity && now - pbclient->last_activity > interval) {
-
-                     bm_lock_buffer(i + 1);
+                     
+                     bm_lock_buffer(pbuf);
 
                      str[0] = 0;
 
@@ -6390,7 +6394,7 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout)
                         bm_remove_client_locked(pheader, j);
                      }
 
-                     bm_unlock_buffer(i + 1);
+                     bm_unlock_buffer(pbuf);
 
                      /* display info message after unlocking buffer */
                      if (str[0])
@@ -6445,21 +6449,18 @@ INT bm_get_buffer_info(INT buffer_handle, BUFFER_HEADER * buffer_header)
 
 #ifdef LOCAL_ROUTINES
 
-   if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
-      cm_msg(MERROR, "bm_get_buffer_info", "invalid buffer handle %d", buffer_handle);
-      return BM_INVALID_HANDLE;
-   }
+   BUFFER* pbuf;
 
-   if (!_buffer[buffer_handle - 1].attached) {
-      cm_msg(MERROR, "bm_get_buffer_info", "invalid buffer handle %d", buffer_handle);
-      return BM_INVALID_HANDLE;
-   }
+   int status = bm_get_buffer("bm_get_buffer_info", buffer_handle, &pbuf);
 
-   bm_lock_buffer(buffer_handle);
+   if (status != BM_SUCCESS)
+      return status;
 
-   memcpy(buffer_header, _buffer[buffer_handle - 1].buffer_header, sizeof(BUFFER_HEADER));
+   bm_lock_buffer(pbuf);
 
-   bm_unlock_buffer(buffer_handle);
+   memcpy(buffer_header, pbuf->buffer_header, sizeof(BUFFER_HEADER));
+
+   bm_unlock_buffer(pbuf);
 
 #endif                          /* LOCAL_ROUTINES */
 
@@ -6492,20 +6493,16 @@ INT bm_get_buffer_level(INT buffer_handle, INT * n_bytes)
 
 #ifdef LOCAL_ROUTINES
    {
-      if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
-         cm_msg(MERROR, "bm_get_buffer_level", "invalid buffer handle %d", buffer_handle);
-         return BM_INVALID_HANDLE;
-      }
+      BUFFER* pbuf;
 
-      BUFFER* pbuf = &_buffer[buffer_handle - 1];
+      int status = bm_get_buffer("bm_get_buffer_level", buffer_handle, &pbuf);
+
+      if (status != BM_SUCCESS)
+         return status;
+
       BUFFER_HEADER* pheader = pbuf->buffer_header;
 
-      if (!pbuf->attached) {
-         cm_msg(MERROR, "bm_get_buffer_level", "invalid buffer handle %d", buffer_handle);
-         return BM_INVALID_HANDLE;
-      }
-
-      bm_lock_buffer(buffer_handle);
+      bm_lock_buffer(pbuf);
 
       BUFFER_CLIENT* pclient = bm_get_my_client(pbuf, pheader);
 
@@ -6513,7 +6510,7 @@ INT bm_get_buffer_level(INT buffer_handle, INT * n_bytes)
       if (*n_bytes < 0)
          *n_bytes += pheader->size;
 
-      bm_unlock_buffer(buffer_handle);
+      bm_unlock_buffer(pbuf);
 
       /* add bytes in cache */
       if (pbuf->read_cache_wp > pbuf->read_cache_rp)
@@ -6529,73 +6526,46 @@ INT bm_get_buffer_level(INT buffer_handle, INT * n_bytes)
 #ifdef LOCAL_ROUTINES
 
 /********************************************************************/
-INT bm_lock_buffer(INT buffer_handle)
-/********************************************************************\
-
-  Routine: bm_lock_buffer
-
-  Purpose: Lock a buffer for exclusive access via system semaphore calls.
-
-  Input:
-    INT    bufer_handle     Handle to the buffer to lock
-  Output:
-    none
-
-  Function value:
-    BM_SUCCESS              Successful completion
-    BM_INVALID_HANDLE       Buffer handle is invalid
-
-\********************************************************************/
+static INT bm_get_buffer(const char* who, int buffer_handle, BUFFER** pbuf)
 {
-   int status;
+   assert(pbuf);
+   *pbuf = NULL;
 
    if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
-      cm_msg(MERROR, "bm_lock_buffer", "invalid buffer handle %d", buffer_handle);
+      cm_msg(MERROR, who, "invalid buffer handle %d: out of range, _buffer_entries is %d", buffer_handle, _buffer_entries);
       return BM_INVALID_HANDLE;
    }
 
-   ss_mutex_wait_for(_buffer[buffer_handle - 1].buffer_mutex, 10000);
-
-   status = ss_semaphore_wait_for(_buffer[buffer_handle - 1].semaphore, 5 * 60 * 1000);
-
-   if (status != SS_SUCCESS) {
-      cm_msg(MERROR, "bm_lock_buffer", "Cannot lock buffer handle %d, ss_semaphore_wait_for() status %d, aborting...", buffer_handle, status);
-      abort();
+   if (!_buffer[buffer_handle - 1].attached) {
+      cm_msg(MERROR, who, "invalid buffer handle %d: not attached", buffer_handle);
       return BM_INVALID_HANDLE;
    }
+
+   (*pbuf) = &_buffer[buffer_handle - 1];
 
    return BM_SUCCESS;
 }
 
 /********************************************************************/
-INT bm_unlock_buffer(INT buffer_handle)
-/********************************************************************\
-
-  Routine: bm_unlock_buffer
-
-  Purpose: Unlock a buffer via system semaphore calls.
-
-  Input:
-    INT    bufer_handle     Handle to the buffer to lock
-  Output:
-    none
-
-  Function value:
-    BM_SUCCESS              Successful completion
-    BM_INVALID_HANDLE       Buffer handle is invalid
-
-\********************************************************************/
+static void bm_lock_buffer(BUFFER* pbuf)
 {
-   if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
-      cm_msg(MERROR, "bm_unlock_buffer", "invalid buffer handle %d", buffer_handle);
-      return BM_INVALID_HANDLE;
+   ss_mutex_wait_for(pbuf->buffer_mutex, 10000);
+
+   int status = ss_semaphore_wait_for(pbuf->semaphore, 5 * 60 * 1000);
+
+   if (status != SS_SUCCESS) {
+      cm_msg(MERROR, "bm_lock_buffer", "Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...", pbuf->buffer_header->name, status);
+      fprintf(stderr, "bm_lock_buffer: Error: Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...\n", pbuf->buffer_header->name, status);
+      abort();
+      /* DOES NOT RETURN */
    }
+}
 
-   ss_semaphore_release(_buffer[buffer_handle - 1].semaphore);
-
-   ss_mutex_release(_buffer[buffer_handle - 1].buffer_mutex);
-
-   return BM_SUCCESS;
+/********************************************************************/
+static void bm_unlock_buffer(BUFFER* pbuf)
+{
+   ss_semaphore_release(pbuf->semaphore);
+   ss_mutex_release(pbuf->buffer_mutex);
 }
 
 #endif                          /* LOCAL_ROUTINES */
@@ -6848,18 +6818,13 @@ INT bm_add_event_request(INT buffer_handle, short int event_id,
 
 #ifdef LOCAL_ROUTINES
    {
-      INT i;
+      BUFFER* pbuf;
 
-      if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
-         cm_msg(MERROR, "bm_add_event_request", "invalid buffer handle %d", buffer_handle);
-         return BM_INVALID_HANDLE;
-      }
+      int status = bm_get_buffer("bm_add_event_request", buffer_handle, &pbuf);
 
-      if (!_buffer[buffer_handle - 1].attached) {
-         cm_msg(MERROR, "bm_add_event_request", "invalid buffer handle %d", buffer_handle);
-         return BM_INVALID_HANDLE;
-      }
-
+      if (status != BM_SUCCESS)
+         return status;
+      
       /* avoid callback/non callback requests */
       if (func == NULL && _buffer[buffer_handle - 1].callback) {
          cm_msg(MERROR, "bm_add_event_request", "mixing callback/non callback requests not possible");
@@ -6871,20 +6836,20 @@ INT bm_add_event_request(INT buffer_handle, short int event_id,
          return BM_INVALID_PARAM;
 
       /* lock buffer */
-      bm_lock_buffer(buffer_handle);
+      bm_lock_buffer(pbuf);
 
       /* get a pointer to the proper client structure */
-      BUFFER* pbuf = &_buffer[buffer_handle - 1];
       BUFFER_HEADER* pheader = pbuf->buffer_header;
       BUFFER_CLIENT* pclient = bm_get_my_client(pbuf, pheader);
 
       /* look for a empty request entry */
+      int i;
       for (i = 0; i < MAX_EVENT_REQUESTS; i++)
          if (!pclient->event_request[i].valid)
             break;
 
       if (i == MAX_EVENT_REQUESTS) {
-         bm_unlock_buffer(buffer_handle);
+         bm_unlock_buffer(pbuf);
          return BM_NO_MEMORY;
       }
 
@@ -6909,7 +6874,7 @@ INT bm_add_event_request(INT buffer_handle, short int event_id,
       if (i + 1 > pclient->max_request_index)
          pclient->max_request_index = i + 1;
 
-      bm_unlock_buffer(buffer_handle);
+      bm_unlock_buffer(pbuf);
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -7018,23 +6983,19 @@ INT bm_remove_event_request(INT buffer_handle, INT request_id)
 
 #ifdef LOCAL_ROUTINES
    {
+      BUFFER* pbuf;
+      
+      int status = bm_get_buffer("bm_remove_event_request", buffer_handle, &pbuf);
+
+      if (status != BM_SUCCESS)
+         return status;
+      
       INT i, deleted;
 
-      if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
-         cm_msg(MERROR, "bm_remove_event_request", "invalid buffer handle %d", buffer_handle);
-         return BM_INVALID_HANDLE;
-      }
-
-      if (!_buffer[buffer_handle - 1].attached) {
-         cm_msg(MERROR, "bm_remove_event_request", "invalid buffer handle %d", buffer_handle);
-         return BM_INVALID_HANDLE;
-      }
-
       /* lock buffer */
-      bm_lock_buffer(buffer_handle);
+      bm_lock_buffer(pbuf);
 
       /* get a pointer to the proper client structure */
-      BUFFER* pbuf = &(_buffer[buffer_handle - 1]);
       BUFFER_HEADER* pheader = pbuf->buffer_header;
       BUFFER_CLIENT* pclient = bm_get_my_client(pbuf, pheader);
 
@@ -7061,7 +7022,7 @@ INT bm_remove_event_request(INT buffer_handle, INT request_id)
             break;
          }
 
-      bm_unlock_buffer(buffer_handle);
+      bm_unlock_buffer(pbuf);
 
       if (!deleted)
          return BM_NOT_FOUND;
@@ -7563,7 +7524,7 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
 
       /* at least one client is blocking */
 
-      bm_unlock_buffer(buffer_handle);
+      bm_unlock_buffer(pbuf);
 
       /* return now in ASYNC mode */
       if (async_flag == BM_NO_WAIT)
@@ -7613,7 +7574,7 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
              pheader->read_pointer, pheader->write_pointer, 100 - 100.0 * size / pheader->size);
 #endif
 
-      bm_lock_buffer(buffer_handle);
+      bm_lock_buffer(pbuf);
    }
 }
 
@@ -7818,21 +7779,21 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER* pevent, INT unused, INT
       /* we come here only for events that are too big to fit into the cache */
 
       /* lock the buffer */
-      bm_lock_buffer(buffer_handle);
+      bm_lock_buffer(pbuf);
 
       /* calculate some shorthands */
       BUFFER_HEADER *pheader = pbuf->buffer_header;
 
       /* check if buffer is large enough */
       if (total_size >= pheader->size) {
-         bm_unlock_buffer(buffer_handle);
+         bm_unlock_buffer(pbuf);
          cm_msg(MERROR, "bm_send_event", "total event size (%d) larger than size (%d) of buffer \'%s\'", total_size, pheader->size, pheader->name);
          return BM_NO_MEMORY;
       }
 
       status = bm_wait_for_free_space_locked(buffer_handle, pbuf, async_flag, total_size);
       if (status != BM_SUCCESS) {
-         bm_unlock_buffer(buffer_handle);
+         bm_unlock_buffer(pbuf);
          return status;
       }
 
@@ -7867,7 +7828,7 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER* pevent, INT unused, INT
       pheader->num_in_events++;
 
       /* unlock the buffer */
-      bm_unlock_buffer(buffer_handle);
+      bm_unlock_buffer(pbuf);
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -7922,7 +7883,7 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
          return BM_SUCCESS;
 
       /* lock the buffer */
-      bm_lock_buffer(buffer_handle);
+      bm_lock_buffer(pbuf);
 
       /* calculate some shorthands */
       BUFFER_HEADER* pheader = _buffer[buffer_handle - 1].buffer_header;
@@ -7933,7 +7894,7 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
 
       status = bm_wait_for_free_space_locked(buffer_handle, pbuf, async_flag, pbuf->write_cache_wp);
       if (status != BM_SUCCESS) {
-         bm_unlock_buffer(buffer_handle);
+         bm_unlock_buffer(pbuf);
          return status;
       }
 
@@ -8025,7 +7986,7 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
       pheader->num_in_events++;
 
       /* unlock the buffer */
-      bm_unlock_buffer(buffer_handle);
+      bm_unlock_buffer(pbuf);
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -8164,11 +8125,11 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
          return BM_ASYNC_RETURN;
 
       /* lock the buffer */
-      bm_lock_buffer(buffer_handle);
+      bm_lock_buffer(pbuf);
 
       while (pheader->write_pointer == pc->read_pointer) {
 
-         bm_unlock_buffer(buffer_handle);
+         bm_unlock_buffer(pbuf);
 
          /* return now in ASYNC mode */
          if (async_flag == BM_NO_WAIT)
@@ -8200,7 +8161,7 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
          //bm_validate_client_index(pbuf, TRUE);
          pc = bm_get_my_client(pbuf, pheader);
 
-         bm_lock_buffer(buffer_handle);
+         bm_lock_buffer(pbuf);
       }
 
       /* from here we are locked. make sure "pc" is valid */
@@ -8354,7 +8315,7 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
 
       bm_wakeup_producers(pheader, pc);
 
-      bm_unlock_buffer(buffer_handle);
+      bm_unlock_buffer(pbuf);
 
       if (bm_read_cache_has_events(pbuf)) {
          assert(!use_event_buffer);     /* events only go into the _event_buffer when read cache is empty */
@@ -8407,13 +8368,13 @@ INT bm_skip_event(INT buffer_handle)
          pbuf->read_cache_wp = 0;
       }
 
-      bm_lock_buffer(buffer_handle);
+      bm_lock_buffer(pbuf);
 
       /* forward read pointer to global write pointer */
       BUFFER_CLIENT* pclient = bm_get_my_client(pbuf, pheader);
       pclient->read_pointer = pheader->write_pointer;
 
-      bm_unlock_buffer(buffer_handle);
+      bm_unlock_buffer(pbuf);
    }
 #endif
 
@@ -8477,11 +8438,11 @@ INT bm_push_event(const char *buffer_name)
          return BM_SUCCESS;
 
       /* lock the buffer */
-      bm_lock_buffer(buffer_handle);
+      bm_lock_buffer(pbuf);
 
       if (pheader->write_pointer == pc->read_pointer) {
 
-         bm_unlock_buffer(buffer_handle);
+         bm_unlock_buffer(pbuf);
 
          /* return if no event available */
          return BM_SUCCESS;
@@ -8500,7 +8461,7 @@ INT bm_push_event(const char *buffer_name)
 
          if (total_size <= 0 || total_size > pheader->size) {
             cm_msg(MERROR, "bm_push_event", "BUG: bad total_size %d for client \"%s\", read_pointer %d, event data size %d, buffer size: %d, rp: %d, wp: %d", total_size, pc->name, pc->read_pointer, pevent->data_size, pheader->size, pheader->read_pointer, pheader->write_pointer);
-            bm_unlock_buffer(buffer_handle);
+            bm_unlock_buffer(pbuf);
             cm_msg_flush_buffer();
             abort();
             return BM_NO_MEMORY;
@@ -8567,7 +8528,7 @@ INT bm_push_event(const char *buffer_name)
                      _event_buffer = (EVENT_HEADER *) realloc(_event_buffer, total_size);
                      if (_event_buffer == NULL) {
                         cm_msg(MERROR, "bm_push_event", "BUG: cannot realloc() _event_buffer from %d to %d bytes", _event_buffer_size, total_size);
-                        bm_unlock_buffer(buffer_handle);
+                        bm_unlock_buffer(pbuf);
                         cm_msg_flush_buffer();
                         abort();
                         return BM_NO_MEMORY;
@@ -8637,7 +8598,7 @@ INT bm_push_event(const char *buffer_name)
 
       bm_wakeup_producers(pheader, pc);
 
-      bm_unlock_buffer(buffer_handle);
+      bm_unlock_buffer(pbuf);
 
       if (bm_read_cache_has_events(pbuf)) {
          assert(!use_event_buffer);     /* events only go into the _event_buffer when read cache is empty */
