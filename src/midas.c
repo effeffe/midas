@@ -7295,20 +7295,19 @@ static void bm_dispatch_event(int buffer_handle, EVENT_HEADER * pevent)
 
 static void bm_dispatch_from_cache(BUFFER * pbuf, int buffer_handle)
 {
-   EVENT_HEADER *pevent;
-   int size;
-
-   pevent = (EVENT_HEADER *) (pbuf->read_cache + pbuf->read_cache_rp);
-   size = pevent->data_size + sizeof(EVENT_HEADER);
+   EVENT_HEADER* pevent = (EVENT_HEADER *) (pbuf->read_cache + pbuf->read_cache_rp);
+   int event_size = pevent->data_size + sizeof(EVENT_HEADER);
 
    /* correct size for DWORD boundary */
-   size = ALIGN8(size);
+   int total_size = ALIGN8(event_size);
 
    /* increment read pointer */
-   pbuf->read_cache_rp += size;
+   pbuf->read_cache_rp += total_size;
 
-   if (pbuf->read_cache_rp == pbuf->read_cache_wp)
-      pbuf->read_cache_rp = pbuf->read_cache_wp = 0;
+   if (pbuf->read_cache_rp == pbuf->read_cache_wp) {
+      pbuf->read_cache_rp = 0;
+      pbuf->read_cache_wp = 0;
+   }
 
    bm_dispatch_event(buffer_handle, pevent);
 }
@@ -7325,36 +7324,35 @@ static void bm_convert_event_header(EVENT_HEADER * pevent, int convert_flags)
    }
 }
 
-static int bm_copy_from_cache(BUFFER * pbuf, void *destination, int max_size, int *buf_size,
-                              int convert_flags)
+static int bm_copy_from_cache(BUFFER * pbuf, void *destination, int max_size, int *buf_size, int convert_flags)
 {
    int status;
-   EVENT_HEADER *pevent;
-   int size;
 
-   pevent = (EVENT_HEADER *) (pbuf->read_cache + pbuf->read_cache_rp);
-   size = pevent->data_size + sizeof(EVENT_HEADER);
+   EVENT_HEADER* pevent = (EVENT_HEADER *) (pbuf->read_cache + pbuf->read_cache_rp);
+   int event_size = pevent->data_size + sizeof(EVENT_HEADER);
 
-   if (size > max_size) {
+   if (event_size > max_size) {
       memcpy(destination, pevent, max_size);
-      cm_msg(MERROR, "bm_receive_event", "event size %d larger than buffer size %d", size, max_size);
+      cm_msg(MERROR, "bm_receive_event", "event size %d larger than buffer size %d", event_size, max_size);
       *buf_size = max_size;
       status = BM_TRUNCATED;
    } else {
-      memcpy(destination, pevent, size);
-      *buf_size = size;
+      memcpy(destination, pevent, event_size);
+      *buf_size = event_size;
       status = BM_SUCCESS;
    }
 
    bm_convert_event_header((EVENT_HEADER *) destination, convert_flags);
 
    /* correct size for DWORD boundary */
-   size = ALIGN8(size);
+   int total_size = ALIGN8(event_size);
 
-   pbuf->read_cache_rp += size;
+   pbuf->read_cache_rp += total_size;
 
-   if (pbuf->read_cache_rp == pbuf->read_cache_wp)
-      pbuf->read_cache_rp = pbuf->read_cache_wp = 0;
+   if (pbuf->read_cache_rp == pbuf->read_cache_wp) {
+      pbuf->read_cache_rp = 0;
+      pbuf->read_cache_wp = 0;
+   }
 
    return status;
 }
@@ -8079,27 +8077,21 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
    }
 #ifdef LOCAL_ROUTINES
    {
-      BUFFER *pbuf;
       INT convert_flags;
-      INT i, size, max_size;
+      INT i, size;
       INT status = 0;
       BOOL cache_is_full = FALSE;
       BOOL use_event_buffer = FALSE;
       int cycle = 0;
 
-      pbuf = &_buffer[buffer_handle - 1];
+      BUFFER* pbuf;
 
-      if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
-         cm_msg(MERROR, "bm_receive_event", "invalid buffer handle %d", buffer_handle);
-         return BM_INVALID_HANDLE;
-      }
+      status = bm_get_buffer("bm_receive_event", buffer_handle, &pbuf);
 
-      if (!pbuf->attached) {
-         cm_msg(MERROR, "bm_receive_event", "invalid buffer handle %d", buffer_handle);
-         return BM_INVALID_HANDLE;
-      }
+      if (status != BM_SUCCESS)
+         return status;
 
-      max_size = *buf_size;
+      int max_size = *buf_size;
       *buf_size = 0;
 
       if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
@@ -8397,7 +8389,7 @@ static INT bm_push_event(const char *buffer_name)
 {
 #ifdef LOCAL_ROUTINES
    {
-      INT i, size, buffer_handle;
+      INT i, buffer_handle;
       BOOL use_event_buffer = 0;
       BOOL cache_is_full = 0;
       int cycle = 0;
@@ -8507,9 +8499,9 @@ static INT bm_push_event(const char *buffer_name)
                      memcpy(pbuf->read_cache + pbuf->read_cache_wp, pevent, total_size);
                   } else {
                      /* event is splitted */
-                     size = pheader->size - pc->read_pointer;
+                     int size = pheader->size - pc->read_pointer;
                      memcpy(pbuf->read_cache + pbuf->read_cache_wp, pevent, size);
-                     memcpy((char *) pbuf->read_cache + pbuf->read_cache_wp + size, pdata, total_size - size);
+                     memcpy(pbuf->read_cache + pbuf->read_cache_wp + size, pdata, total_size - size);
                   }
 
                   pbuf->read_cache_wp += total_size;
@@ -8519,7 +8511,7 @@ static INT bm_push_event(const char *buffer_name)
 
                   /* if there are events in the read cache,
                    * we should dispatch them before we
-                   * despatch this oversize event */
+                   * dispatch this oversize event */
 
                   if (bm_read_cache_has_events(pbuf)) {
                      cache_is_full = TRUE;
@@ -8545,10 +8537,10 @@ static INT bm_push_event(const char *buffer_name)
                      memcpy(_event_buffer, pevent, total_size);
                   } else {
                      /* event is splitted */
-                     size = pheader->size - pc->read_pointer;
+                     int size = pheader->size - pc->read_pointer;
 
-                     memcpy(_event_buffer, pevent, size);
-                     memcpy((char *) _event_buffer + size, pdata, total_size - size);
+                     memcpy((char*)_event_buffer, pevent, size);
+                     memcpy((char*)_event_buffer + size, pdata, total_size - size);
                   }
                }
 
