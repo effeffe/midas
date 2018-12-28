@@ -1756,6 +1756,7 @@ extern "C" {
                                   INT sampling_type,
                                   EVENT_HANDLER *func,
                                   INT request_id);
+   INT EXPRT bm_remove_event_request(INT buffer_handle, INT request_id);
    INT EXPRT bm_delete_request(INT request_id);
    INT EXPRT bm_send_event(INT buffer_handle, const EVENT_HEADER* event, INT buf_size, INT async_flag);
    INT EXPRT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT async_flag);
@@ -1763,6 +1764,7 @@ extern "C" {
    INT EXPRT bm_flush_cache(INT buffer_handle, INT async_flag);
    INT EXPRT bm_poll_event(INT flag);
    INT EXPRT bm_empty_buffers(void);
+   INT EXPRT bm_check_buffers(void);
 
    /*---- online database functions -----*/
    INT EXPRT db_open_database(const char *database_name, INT database_size, HNDLE * hdb, const char *client_name);

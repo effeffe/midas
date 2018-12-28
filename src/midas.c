@@ -2749,6 +2749,11 @@ static BUFFER_CLIENT* bm_get_my_client(BUFFER* pbuf, BUFFER_HEADER* pheader);
 static INT bm_get_buffer(const char* who, INT buffer_handle, BUFFER** pbuf);
 static void bm_lock_buffer(BUFFER* pbuf);
 static void bm_unlock_buffer(BUFFER* pbuf);
+static INT bm_notify_client(const char *buffer_name, int s);
+static INT bm_push_event(const char *buffer_name);
+static void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
+                                EVENT_HEADER * pevent, void *pdata,
+                                EVENT_HANDLER *dispatcher);
 
 /********************************************************************/
 /**
@@ -7047,11 +7052,11 @@ INT bm_delete_request(INT request_id)
       return BM_INVALID_HANDLE;
 
    /* remove request entry from buffer */
-   bm_remove_event_request(_request_list[request_id].buffer_handle, request_id);
+   int status = bm_remove_event_request(_request_list[request_id].buffer_handle, request_id);
 
    memset(&_request_list[request_id], 0, sizeof(REQUEST_LIST));
 
-   return BM_SUCCESS;
+   return status;
 }
 
 #if 0                           // currently not used
@@ -8388,7 +8393,7 @@ Check a buffer if an event is available and call the dispatch function if found.
 @return BM_SUCCESS, BM_INVALID_HANDLE, BM_TRUNCATED, BM_ASYNC_RETURN,
                     RPC_NET_ERROR
 */
-INT bm_push_event(const char *buffer_name)
+static INT bm_push_event(const char *buffer_name)
 {
 #ifdef LOCAL_ROUTINES
    {
@@ -8742,7 +8747,7 @@ INT bm_mark_read_waiting(BOOL flag)
 }
 
 /********************************************************************/
-INT bm_notify_client(const char *buffer_name, int s)
+static INT bm_notify_client(const char *buffer_name, int s)
 /********************************************************************\
 
   Routine: bm_notify_client
@@ -9008,12 +9013,12 @@ typedef struct {
    EVENT_HEADER *pevent;
 } EVENT_DEFRAG_BUFFER;
 
-EVENT_DEFRAG_BUFFER defrag_buffer[MAX_DEFRAG_EVENTS];
+static EVENT_DEFRAG_BUFFER defrag_buffer[MAX_DEFRAG_EVENTS];
 
 /********************************************************************/
-void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
-                         EVENT_HEADER * pevent, void *pdata,
-                         EVENT_HANDLER *dispatcher)
+static void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
+                                EVENT_HEADER * pevent, void *pdata,
+                                EVENT_HANDLER *dispatcher)
 /********************************************************************\
 
   Routine: bm_defragment_event
