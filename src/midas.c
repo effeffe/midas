@@ -7331,7 +7331,7 @@ static BOOL bm_peek_buffer(BUFFER* pbuf, BUFFER_HEADER* pheader, BUFFER_CLIENT* 
    }
 
    assert(pc->read_pointer >= 0);
-   assert(pc->read_pointer <= pheader->size);
+   assert(pc->read_pointer < pheader->size);
 
    char* pdata = (char *) (pheader + 1);
       
@@ -7340,9 +7340,7 @@ static BOOL bm_peek_buffer(BUFFER* pbuf, BUFFER_HEADER* pheader, BUFFER_CLIENT* 
    int total_size = ALIGN8(event_size);
    
    if (total_size <= 0 || total_size > pheader->size) {
-      cm_msg(MERROR, "bm_peek_buffer", "BUG: bad total_size %d for client \"%s\", read_pointer %d, event data size %d, buffer size: %d, rp: %d, wp: %d", total_size, pc->name, pc->read_pointer, pevent->data_size, pheader->size, pheader->read_pointer, pheader->write_pointer);
-      bm_unlock_buffer(pbuf);
-      cm_msg_flush_buffer();
+      fprintf(stderr, "bm_peek_buffer: Error: event buffer \"%s\" at read pointer %d of client \"%s\" is corrupted, bad data_size %d, event_size %d, total_size %d. buffer size: %d, rp: %d, wp: %d", pheader->name, pc->read_pointer, pc->name, pevent->data_size, event_size, total_size, pheader->size, pheader->read_pointer, pheader->write_pointer);
       abort();
       /* DOES NOT RETURN */
    }
