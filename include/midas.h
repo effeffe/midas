@@ -1760,6 +1760,7 @@ extern "C" {
    INT EXPRT bm_delete_request(INT request_id);
    INT EXPRT bm_send_event(INT buffer_handle, const EVENT_HEADER* event, INT buf_size, INT async_flag);
    INT EXPRT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT async_flag);
+   INT EXPRT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER** ppevent, INT async_flag);
    INT EXPRT bm_skip_event(INT buffer_handle);
    INT EXPRT bm_flush_cache(INT buffer_handle, INT async_flag);
    INT EXPRT bm_poll_event(INT flag);

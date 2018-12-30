@@ -8107,6 +8107,201 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
    return BM_SUCCESS;
 }
 
+#ifdef LOCAL_ROUTINES
+
+static INT bm_process_event(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *buf, INT* buf_size, INT async_flag, int convert_flags, BOOL dispatch)
+{
+   INT status = BM_SUCCESS;
+
+   int max_size = 0;
+   if (buf_size) {
+      max_size = *buf_size;
+      *buf_size = 0;
+   }
+
+   BUFFER_HEADER* pheader = pbuf->buffer_header;
+
+   BOOL locked = FALSE;
+   
+   /* look if there is anything in the cache */
+   if (pbuf->read_cache_size > 0) {
+      // FIXME lock
+      if (pbuf->read_cache_wp == 0) {
+         bm_lock_buffer(pbuf);
+         locked = TRUE;
+         bm_fill_read_cache_locked(pbuf, pheader);
+      }
+      EVENT_HEADER* pevent;
+      int event_size;
+      int total_size;
+      if (bm_peek_read_cache(pbuf, &pevent, &event_size, &total_size)) {
+         if (locked) {
+            // do not need to keep the event buffer locked
+            // when reading from the read cache
+            bm_unlock_buffer(pbuf);
+         }
+         status = BM_SUCCESS;
+         if (buf) {
+            if (event_size > max_size) {
+               cm_msg(MERROR, "bm_receive_event", "buffer \"%s\" event truncated, buffer size %d is smaller than event size %d", pheader->name, max_size, event_size);
+               event_size = max_size;
+               status = BM_TRUNCATED;
+            }
+            
+            memcpy(buf, pevent, event_size);
+
+            if (buf_size) {
+               *buf_size = event_size;
+            }
+            if (convert_flags) {
+               bm_convert_event_header((EVENT_HEADER *)buf, convert_flags);
+            }
+         }
+         if (bufptr) {
+            *bufptr = malloc(event_size);
+            memcpy(*bufptr, pevent, event_size);
+            status = BM_SUCCESS;
+         }
+         bm_incr_read_cache(pbuf, total_size);
+         // FIXME unlock
+         if (dispatch) {
+            // FIXME need to protect currently dispatched event against
+            // another thread overwriting it by refilling the read cache
+            bm_dispatch_event(buffer_handle, pevent);
+            return BM_MORE_EVENTS;
+         }
+         return status;
+      }
+      // FIXME unlock
+   }
+   
+   /* we come here if the read cache is disabled */
+   /* we come here if the next event is too big to fit into the read cache */
+   /* we come here if the event buffer is empty */
+   
+   if (!locked)
+      bm_lock_buffer(pbuf);
+   
+   BUFFER_CLIENT* pc = bm_get_my_client(pbuf, pheader);
+   
+   EVENT_HEADER* event_buffer = NULL;
+
+   while (1) {
+      /* loop over events in the event buffer */
+      
+      if ((async_flag == BM_NO_WAIT) && (pc->read_pointer == pheader->write_pointer)) {
+         /* event buffer is empty and we are told to not wait */
+         bm_unlock_buffer(pbuf);
+         return BM_ASYNC_RETURN;
+      }
+      
+      while (pc->read_pointer == pheader->write_pointer) {
+         /* wait until there is data in the buffer */
+         pc->read_wait = TRUE;
+         bm_unlock_buffer(pbuf);
+         
+         status = ss_suspend(1000, MSG_BM);
+         
+         /* return if TCP connection broken */
+         if (status == SS_ABORT)
+            return SS_ABORT;
+         
+         bm_lock_buffer(pbuf);
+         pc = bm_get_my_client(pbuf, pheader);
+      }
+      
+      pc->read_wait = FALSE;
+      
+      /* check if event at current read pointer matches a request */
+      
+      EVENT_HEADER *pevent;
+      int event_size;
+      int total_size;
+      
+      if (!bm_peek_buffer(pbuf, pheader, pc, &pevent, &event_size, &total_size)) {
+         /* event buffer is empty */
+         break;
+      }
+      
+      BOOL is_requested = bm_check_requests(pc, pevent);
+      
+      if (is_requested) {
+         status = BM_SUCCESS;
+
+         if (buf) {
+            if (event_size > max_size) {
+               event_size = max_size;
+               cm_msg(MERROR, "bm_receive_event", "buffer \"%s\" event truncated, buffer size %d is smaller than event size %d", pheader->name, max_size, event_size);
+               status = BM_TRUNCATED;
+            }
+            
+            bm_read_from_buffer_locked(pheader, pc->read_pointer, buf, event_size);
+
+            if (buf_size) {
+               *buf_size = event_size;
+            }
+
+            if (convert_flags) {
+               bm_convert_event_header((EVENT_HEADER *)buf, convert_flags);
+            }
+         }
+
+         if (dispatch || bufptr) {
+            assert(event_buffer == NULL); // make sure we only come here once
+            event_buffer = (EVENT_HEADER*)malloc(event_size);
+         
+            bm_read_from_buffer_locked(pheader, pc->read_pointer, (char*)event_buffer, event_size);
+         }
+         
+         int new_read_pointer = bm_incr_rp_no_check(pheader, pc->read_pointer, total_size);
+         pc->read_pointer = new_read_pointer;
+         
+         pheader->num_out_events++;
+         /* exit loop over events */
+         break;
+      }
+      
+      int new_read_pointer = bm_incr_rp_no_check(pheader, pc->read_pointer, total_size);
+      pc->read_pointer = new_read_pointer;
+      pheader->num_out_events++;
+   }
+   
+   /* calculate global read pointer as "minimum" of client read pointers */
+   // this is moved to bm_wait_for_free_space()
+   // bm_update_read_pointer_locked("bm_receive_event", pheader);
+   
+   /*
+     If read pointer has been changed, it may have freed up some space
+     for waiting producers. So check if free space is now more than 50%
+     of the buffer size and wake waiting producers.
+   */
+   
+   bm_wakeup_producers(pheader, pc);
+   
+   bm_unlock_buffer(pbuf);
+
+   if (dispatch && event_buffer) {
+      bm_dispatch_event(buffer_handle, event_buffer);
+      free(event_buffer);
+      event_buffer = NULL;
+      return BM_MORE_EVENTS;
+   }
+
+   if (bufptr && event_buffer) {
+      *bufptr = event_buffer;
+      event_buffer = NULL;
+      status = BM_SUCCESS;
+   }
+
+   if (event_buffer) {
+      free(event_buffer);
+      event_buffer = NULL;
+   }
+   
+   return status;
+}
+#endif
+
 /********************************************************************/
 /**
 Receives events directly.
@@ -8198,140 +8393,115 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
       if (status != BM_SUCCESS)
          return status;
 
-      int max_size = *buf_size;
-      *buf_size = 0;
+      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+         convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+      else
+         convert_flags = 0;
+
+      return bm_process_event(pbuf, buffer_handle, NULL, destination, buf_size, async_flag, convert_flags, FALSE);
+   }
+#else                           /* LOCAL_ROUTINES */
+
+   return BM_SUCCESS;
+#endif
+}
+
+/********************************************************************/
+/**
+Receives events directly.
+This function is an alternative way to receive events without
+a main loop.
+
+It can be used in analysis systems which actively receive events,
+rather than using callbacks. A analysis package could for example contain its own
+command line interface. A command
+like "receive 1000 events" could make it necessary to call bm_receive_event()
+1000 times in a row to receive these events and then return back to the
+command line prompt.
+The according bm_request_event() call contains NULL as the
+callback routine to indicate that bm_receive_event() is called to receive
+events.
+\code
+#include <stdio.h>
+#include "midas.h"
+void process_event(EVENT_HEADER *pheader)
+{
+ printf("Received event #%d\r",
+ pheader->serial_number);
+}
+main()
+{
+  INT status, request_id;
+  HNDLE hbuf;
+  char event_buffer[1000];
+  status = cm_connect_experiment("", "Sample",
+  "Simple Analyzer", NULL);
+  if (status != CM_SUCCESS)
+   return 1;
+  bm_open_buffer(EVENT_BUFFER_NAME, DEFAULT_BUFFER_SIZE, &hbuf);
+  bm_request_event(hbuf, 1, TRIGGER_ALL, GET_ALL, request_id, NULL);
+
+  do
+  {
+   size = sizeof(event_buffer);
+   status = bm_receive_event(hbuf, event_buffer, &size, BM_NO_WAIT);
+  if (status == CM_SUCCESS)
+   process_event((EVENT_HEADER *) event_buffer);
+   <...do something else...>
+   status = cm_yield(0);
+  } while (status != RPC_SHUTDOWN &&
+  status != SS_ABORT);
+  cm_disconnect_experiment();
+  return 0;
+}
+\endcode
+@param buffer_handle buffer handle
+@param ppevent pointer to the received event pointer, event pointer should be free()ed to avoid memory leak
+@param async_flag Synchronous/asynchronous flag. If BM_WAIT, the function
+blocks if no event is available. If BM_NO_WAIT, the function returns immediately
+with a value of BM_ASYNC_RETURN without receiving any event.
+@return BM_SUCCESS, BM_INVALID_HANDLE <br>
+BM_ASYNC_RETURN No event available
+*/
+INT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER**ppevent, INT async_flag)
+{
+   if (rpc_is_remote()) {
+      // nice try!
+      abort();
+#if 0
+      int status, old_timeout = 0;
+
+      if (!async_flag) {
+         old_timeout = rpc_get_option(-1, RPC_OTIMEOUT);
+         rpc_set_option(-1, RPC_OTIMEOUT, 0);
+      }
+
+      status = rpc_call(RPC_BM_RECEIVE_EVENT, buffer_handle, destination, buf_size, async_flag);
+
+      if (!async_flag) {
+         rpc_set_option(-1, RPC_OTIMEOUT, old_timeout);
+      }
+      return status;
+#endif
+   }
+#ifdef LOCAL_ROUTINES
+   {
+      INT convert_flags = 0;
+      INT status = BM_SUCCESS;
+
+      BUFFER* pbuf;
+
+      status = bm_get_buffer("bm_receive_event_alloc", buffer_handle, &pbuf);
+
+      if (status != BM_SUCCESS)
+         return status;
 
       if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
          convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
       else
          convert_flags = 0;
 
-      BUFFER_HEADER* pheader = pbuf->buffer_header;
-
-      BOOL locked = FALSE;
-
-      /* look if there is anything in the cache */
-      if (pbuf->read_cache_size > 0) {
-         // FIXME lock
-         if (pbuf->read_cache_wp == 0) {
-            bm_lock_buffer(pbuf);
-            locked = TRUE;
-            bm_fill_read_cache_locked(pbuf, pheader);
-         }
-         EVENT_HEADER* pevent;
-         int event_size;
-         int total_size;
-         if (bm_peek_read_cache(pbuf, &pevent, &event_size, &total_size)) {
-            if (locked) {
-               // do not need to keep the event buffer locked
-               // when reading from the read cache
-               bm_unlock_buffer(pbuf);
-            }
-            status = BM_SUCCESS;
-            if (event_size > max_size) {
-               cm_msg(MERROR, "bm_receive_event", "buffer \"%s\" event truncated, buffer size %d is smaller than event size %d", pheader->name, max_size, event_size);
-               event_size = max_size;
-               status = BM_TRUNCATED;
-            }
-            memcpy(destination, pevent, event_size);
-            *buf_size = event_size;
-            bm_convert_event_header((EVENT_HEADER *) destination, convert_flags);
-            bm_incr_read_cache(pbuf, total_size);
-            // FIXME unlock
-            return status;
-         }
-         // FIXME unlock
-      }
-
-      /* we come here if the read cache is disabled */
-      /* we come here if the next event is too big to fit into the read cache */
-      /* we come here if the event buffer is empty */
-
-      if (!locked)
-         bm_lock_buffer(pbuf);
-
-      BUFFER_CLIENT* pc = bm_get_my_client(pbuf, pheader);
-
-      while (1) {
-         /* loop over events in the event buffer */
-
-         if ((async_flag == BM_NO_WAIT) && (pc->read_pointer == pheader->write_pointer)) {
-            /* event buffer is empty and we are told to not wait */
-            bm_unlock_buffer(pbuf);
-            return BM_ASYNC_RETURN;
-         }
-
-         while (pc->read_pointer == pheader->write_pointer) {
-            /* wait until there is data in the buffer */
-            pc->read_wait = TRUE;
-            bm_unlock_buffer(pbuf);
-            
-            status = ss_suspend(1000, MSG_BM);
-            
-            /* return if TCP connection broken */
-            if (status == SS_ABORT)
-               return SS_ABORT;
-            
-            bm_lock_buffer(pbuf);
-            pc = bm_get_my_client(pbuf, pheader);
-         }
-
-         pc->read_wait = FALSE;
-
-         /* check if event at current read pointer matches a request */
-         
-         EVENT_HEADER *pevent;
-         int event_size;
-         int total_size;
-         
-         if (!bm_peek_buffer(pbuf, pheader, pc, &pevent, &event_size, &total_size)) {
-            /* event buffer is empty */
-            break;
-         }
-
-         BOOL is_requested = bm_check_requests(pc, pevent);
-
-         if (is_requested) {
-            status = BM_SUCCESS;
-            if (event_size > max_size) {
-               event_size = max_size;
-               cm_msg(MERROR, "bm_receive_event", "buffer \"%s\" event truncated, buffer size %d is smaller than event size %d", pheader->name, max_size, event_size);
-               status = BM_TRUNCATED;
-            }
-
-            bm_read_from_buffer_locked(pheader, pc->read_pointer, destination, event_size);
-
-            *buf_size = event_size;
-
-            bm_convert_event_header((EVENT_HEADER *) destination, convert_flags);
-
-            int new_read_pointer = bm_incr_rp_no_check(pheader, pc->read_pointer, total_size);
-            pc->read_pointer = new_read_pointer;
-
-            pheader->num_out_events++;
-            /* exit loop over events */
-            break;
-         }
-
-         int new_read_pointer = bm_incr_rp_no_check(pheader, pc->read_pointer, total_size);
-         pc->read_pointer = new_read_pointer;
-         pheader->num_out_events++;
-      }
-
-      /* calculate global read pointer as "minimum" of client read pointers */
-      bm_update_read_pointer_locked("bm_receive_event", pheader);
-
-      /*
-         If read pointer has been changed, it may have freed up some space
-         for waiting producers. So check if free space is now more than 50%
-         of the buffer size and wake waiting producers.
-       */
-
-      bm_wakeup_producers(pheader, pc);
-
-      bm_unlock_buffer(pbuf);
-
-      return status;
+      return bm_process_event(pbuf, buffer_handle, (void**)ppevent, NULL, NULL, async_flag, convert_flags, FALSE);
    }
 #else                           /* LOCAL_ROUTINES */
 
@@ -8401,112 +8571,7 @@ static INT bm_push_buffer(BUFFER *pbuf, int buffer_handle)
    if (!pbuf->callback)
       return BM_SUCCESS;
    
-   if (_event_buffer_size == 0) {
-      _event_buffer = (EVENT_HEADER *) M_MALLOC(1000);
-      if (_event_buffer == NULL) {
-         cm_msg(MERROR, "bm_push_event", "not enough memory to allocate cache buffer");
-         return BM_NO_MEMORY;
-      }
-      _event_buffer_size = 1000;
-   }
-
-   BUFFER_HEADER* pheader = pbuf->buffer_header;
-
-   BOOL locked = FALSE;
-
-   /* look if there is anything in the cache */
-   if (pbuf->read_cache_size > 0) {
-      // FIXME lock
-      if (pbuf->read_cache_wp == 0) {
-         bm_lock_buffer(pbuf);
-         locked = TRUE;
-         bm_fill_read_cache_locked(pbuf, pheader);
-      }
-      EVENT_HEADER* pevent;
-      int event_size;
-      int total_size;
-      if (bm_peek_read_cache(pbuf, &pevent, &event_size, &total_size)) {
-         if (locked) {
-            // do not need to keep the event buffer locked
-            // when reading from the read cache
-            bm_unlock_buffer(pbuf);
-         }
-         bm_incr_read_cache(pbuf, total_size);
-         // FIXME unlock
-         // FIXME need to protect currently dispatched event against
-         // another thread overwriting it by refilling the read cache
-         bm_dispatch_event(buffer_handle, pevent);
-         return BM_MORE_EVENTS;
-      }
-      // FIXME unlock
-   }
-
-
-   /* we come here if the read cache is disabled */
-   /* we come here if the next event is too big to fit into the read cache */
-   /* we come here if the event buffer is empty */
-
-   if (!locked)
-      bm_lock_buffer(pbuf);
-
-   BUFFER_CLIENT* pc = bm_get_my_client(pbuf, pheader);
-
-   EVENT_HEADER* event_buffer = NULL;
-
-   while (1) {
-      /* loop over all events in the buffer */
-   
-      EVENT_HEADER *pevent;
-      int event_size;
-      int total_size;
-         
-      if (!bm_peek_buffer(pbuf, pheader, pc, &pevent, &event_size, &total_size)) {
-         /* event buffer is empty */
-         break;
-      }
-      
-      BOOL is_requested = bm_check_requests(pc, pevent);
-
-      if (is_requested) {
-         assert(event_buffer == NULL); // make sure we only come here once
-         event_buffer = (EVENT_HEADER*)malloc(event_size);
-         
-         bm_read_from_buffer_locked(pheader, pc->read_pointer, (char*)event_buffer, event_size);
-         
-         int new_read_pointer = bm_incr_rp_no_check(pheader, pc->read_pointer, total_size);
-         pc->read_pointer = new_read_pointer;
-         
-         pheader->num_out_events++;
-         /* exit loop over events */
-         break;
-      }
-
-      int new_read_pointer = bm_incr_rp_no_check(pheader, pc->read_pointer, total_size);
-      pc->read_pointer = new_read_pointer;
-      pheader->num_out_events++;
-   }
-
-   /* calculate global read pointer as "minimum" of client read pointers */
-   
-   bm_update_read_pointer_locked("bm_push_event", pheader);
-   
-   /*
-     If read pointer has been changed, it may have freed up some space
-     for waiting producers. So check if free space is now more than 50%
-     of the buffer size and wake waiting producers.
-   */
-   
-   bm_wakeup_producers(pheader, pc);
-   
-   bm_unlock_buffer(pbuf);
-   
-   if (event_buffer) {
-      bm_dispatch_event(buffer_handle, event_buffer);
-      free(event_buffer);
-      return BM_MORE_EVENTS;
-   }
-   
-   return BM_SUCCESS;
+   return bm_process_event(pbuf, buffer_handle, NULL, NULL, NULL, BM_NO_WAIT, 0, TRUE);
 }
 
 /********************************************************************/
