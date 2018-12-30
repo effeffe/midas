@@ -7323,7 +7323,7 @@ static BOOL bm_peek_read_cache(BUFFER* pbuf, EVENT_HEADER** ppevent, int* pevent
    return TRUE;
 }
 
-static BOOL bm_peek_buffer(BUFFER* pbuf, BUFFER_HEADER* pheader, BUFFER_CLIENT* pc, EVENT_HEADER** ppevent, int* pevent_size, int* ptotal_size)
+static BOOL bm_peek_buffer_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, BUFFER_CLIENT* pc, EVENT_HEADER** ppevent, int* pevent_size, int* ptotal_size)
 {
    if (pc->read_pointer == pheader->write_pointer) {
       /* no more events buffered for this client */
@@ -7398,7 +7398,9 @@ static BOOL bm_check_requests(const BUFFER_CLIENT* pc, const EVENT_HEADER* peven
    return is_requested;
 }
 
-static void bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader)
+static int bm_wait_for_more_events_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, BUFFER_CLIENT* pc, int async_flag);
+
+static int bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, int async_flag)
 {
    BUFFER_CLIENT* pc = bm_get_my_client(pbuf, pheader);
 
@@ -7409,9 +7411,19 @@ static void bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader)
       int event_size;
       int total_size;
 
-      if (!bm_peek_buffer(pbuf, pheader, pc, &pevent, &event_size, &total_size)) {
+      if (!bm_peek_buffer_locked(pbuf, pheader, pc, &pevent, &event_size, &total_size)) {
          /* event buffer is empty */
-         return;
+         if (async_flag == BM_NO_WAIT)
+            return BM_ASYNC_RETURN;
+         // FIXME unlock read cache
+         int status = bm_wait_for_more_events_locked(pbuf, pheader, pc, async_flag);
+         // FIXME lock read cache */
+         if (status != BM_SUCCESS) {
+            // we only come here with SS_ABORT & co
+            return status;
+         }
+         // make sure we wait for new event only once
+         async_flag = BM_NO_WAIT;
       }
 
       /* loop over all requests: if this event matches a request,
@@ -7422,7 +7434,7 @@ static void bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader)
       if (is_requested) {
          if (pbuf->read_cache_wp + total_size >= pbuf->read_cache_size) {
             /* read cache is full */
-            return;
+            return BM_SUCCESS;
          }
 
          bm_read_from_buffer_locked(pheader, pc->read_pointer, pbuf->read_cache + pbuf->read_cache_wp, event_size);
@@ -7690,6 +7702,44 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
 
       bm_lock_buffer(pbuf);
    }
+}
+
+static int bm_wait_for_more_events_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, BUFFER_CLIENT* pc, int async_flag)
+{
+   if (pc->read_pointer != pheader->write_pointer) {
+      // buffer has data
+      return BM_SUCCESS;
+   }
+   
+   if (async_flag == BM_NO_WAIT) {
+      /* event buffer is empty and we are told to not wait */
+      return BM_ASYNC_RETURN;
+   }
+   
+   while (pc->read_pointer == pheader->write_pointer) {
+      /* wait until there is data in the buffer (write pointer moves) */
+
+      pc->read_wait = TRUE;
+
+      bm_unlock_buffer(pbuf);
+      
+      int status = ss_suspend(1000, MSG_BM);
+      
+      bm_lock_buffer(pbuf);
+
+      /* need to revalidate our BUFFER_CLIENT after releasing the buffer lock
+       * because we may have been removed from the buffer by bm_cleanup() & co
+       * due to a timeout or whatever. */
+      pc = bm_get_my_client(pbuf, pheader);
+
+      /* return if TCP connection broken */
+      if (status == SS_ABORT)
+         return SS_ABORT;
+   }
+   
+   pc->read_wait = FALSE;
+
+   return BM_SUCCESS;
 }
 
 static void bm_write_to_buffer_locked(BUFFER_HEADER* pheader, const void* pevent, int event_size, int total_size)
@@ -8129,7 +8179,12 @@ static INT bm_process_event(BUFFER *pbuf, INT buffer_handle, void** bufptr, void
       if (pbuf->read_cache_wp == 0) {
          bm_lock_buffer(pbuf);
          locked = TRUE;
-         bm_fill_read_cache_locked(pbuf, pheader);
+         status = bm_fill_read_cache_locked(pbuf, pheader, async_flag);
+         if (status != BM_SUCCESS) {
+            bm_unlock_buffer(pbuf);
+            // FIXME unlock
+            return status;
+         }
       }
       EVENT_HEADER* pevent;
       int event_size;
@@ -8177,48 +8232,31 @@ static INT bm_process_event(BUFFER *pbuf, INT buffer_handle, void** bufptr, void
    
    /* we come here if the read cache is disabled */
    /* we come here if the next event is too big to fit into the read cache */
-   /* we come here if the event buffer is empty */
    
    if (!locked)
       bm_lock_buffer(pbuf);
    
-   BUFFER_CLIENT* pc = bm_get_my_client(pbuf, pheader);
-   
    EVENT_HEADER* event_buffer = NULL;
 
+   BUFFER_CLIENT* pc = bm_get_my_client(pbuf, pheader);
+   
    while (1) {
       /* loop over events in the event buffer */
       
-      if ((async_flag == BM_NO_WAIT) && (pc->read_pointer == pheader->write_pointer)) {
-         /* event buffer is empty and we are told to not wait */
+      status = bm_wait_for_more_events_locked(pbuf, pheader, pc, async_flag);
+
+      if (status != BM_SUCCESS) {
          bm_unlock_buffer(pbuf);
-         return BM_ASYNC_RETURN;
+         return status;
       }
-      
-      while (pc->read_pointer == pheader->write_pointer) {
-         /* wait until there is data in the buffer */
-         pc->read_wait = TRUE;
-         bm_unlock_buffer(pbuf);
-         
-         status = ss_suspend(1000, MSG_BM);
-         
-         /* return if TCP connection broken */
-         if (status == SS_ABORT)
-            return SS_ABORT;
-         
-         bm_lock_buffer(pbuf);
-         pc = bm_get_my_client(pbuf, pheader);
-      }
-      
-      pc->read_wait = FALSE;
-      
+
       /* check if event at current read pointer matches a request */
       
       EVENT_HEADER *pevent;
       int event_size;
       int total_size;
       
-      if (!bm_peek_buffer(pbuf, pheader, pc, &pevent, &event_size, &total_size)) {
+      if (!bm_peek_buffer_locked(pbuf, pheader, pc, &pevent, &event_size, &total_size)) {
          /* event buffer is empty */
          break;
       }
