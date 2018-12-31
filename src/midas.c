@@ -5751,7 +5751,11 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       }
 
       /* create mutex for the buffer */
+#ifndef HAVE_CM_WATCHDOG
       ss_mutex_create(&_buffer[handle].buffer_mutex, FALSE);
+#else
+      _buffer[handle].buffer_mutex = NULL;
+#endif
 
       /* first lock buffer */
       BUFFER* pbuf = &_buffer[handle];
@@ -5976,7 +5980,13 @@ INT bm_close_buffer(INT buffer_handle)
       bm_unlock_buffer(pbuf);
 
       /* delete semaphore */
-      ss_semaphore_delete(_buffer[buffer_handle - 1].semaphore, destroy_flag);
+      ss_semaphore_delete(pbuf->semaphore, destroy_flag);
+
+      /* delete mutex */
+      if (pbuf->buffer_mutex) {
+         ss_mutex_delete(pbuf->buffer_mutex);
+         pbuf->buffer_mutex = NULL;
+      }
 
       /* update _buffer_entries */
       if (buffer_handle == _buffer_entries)
@@ -6578,8 +6588,9 @@ static INT bm_get_buffer(const char* who, int buffer_handle, BUFFER** pbuf)
 static void bm_lock_buffer(BUFFER* pbuf)
 {
    // NB: locking order: 1st buffer mutex, 2nd buffer semaphore. Unlock in reverse order.
-   
-   ss_mutex_wait_for(pbuf->buffer_mutex, _bm_mutex_timeout);
+
+   if (pbuf->buffer_mutex)
+      ss_mutex_wait_for(pbuf->buffer_mutex, _bm_mutex_timeout);
 
    int status = ss_semaphore_wait_for(pbuf->semaphore, _bm_lock_timeout);
 
@@ -6596,7 +6607,8 @@ static void bm_unlock_buffer(BUFFER* pbuf)
 {
    // NB: locking order: 1st buffer mutex, 2nd buffer semaphore. Unlock in reverse order.
    ss_semaphore_release(pbuf->semaphore);
-   ss_mutex_release(pbuf->buffer_mutex);
+   if (pbuf->buffer_mutex)
+      ss_mutex_release(pbuf->buffer_mutex);
 }
 
 #endif                          /* LOCAL_ROUTINES */
@@ -7268,7 +7280,7 @@ static BOOL bm_update_read_pointer_locked(const char *caller_name, BUFFER_HEADER
    return TRUE;
 }
 
-static void bm_wakeup_producers(const BUFFER_HEADER * pheader, const BUFFER_CLIENT * pc)
+static void bm_wakeup_producers_locked(const BUFFER_HEADER * pheader, const BUFFER_CLIENT * pc)
 {
    int i;
    int size;
@@ -7431,6 +7443,7 @@ static int bm_wait_for_more_events_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, 
 static int bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, int async_flag)
 {
    BUFFER_CLIENT* pc = bm_get_my_client(pbuf, pheader);
+   BOOL need_wakeup = FALSE;
 
    /* loop over all events in the buffer */
 
@@ -7441,8 +7454,11 @@ static int bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, int a
 
       if (!bm_peek_buffer_locked(pbuf, pheader, pc, &pevent, &event_size, &total_size)) {
          /* event buffer is empty */
-         if (async_flag == BM_NO_WAIT)
+         if (async_flag == BM_NO_WAIT) {
+            if (need_wakeup)
+               bm_wakeup_producers_locked(pheader, pc);
             return BM_ASYNC_RETURN;
+         }
          int status = bm_wait_for_more_events_locked(pbuf, pheader, pc, async_flag, TRUE);
          if (status != BM_SUCCESS) {
             // we only come here with SS_ABORT & co
@@ -7460,6 +7476,8 @@ static int bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, int a
       if (is_requested) {
          if (pbuf->read_cache_wp + total_size >= pbuf->read_cache_size) {
             /* read cache is full */
+            if (need_wakeup)
+               bm_wakeup_producers_locked(pheader, pc);
             return BM_SUCCESS;
          }
 
@@ -7475,6 +7493,8 @@ static int bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, int a
       
       int new_read_pointer = bm_incr_rp_no_check(pheader, pc->read_pointer, total_size);
       pc->read_pointer = new_read_pointer;
+
+      need_wakeup = TRUE;
    }
    /* NOT REACHED */
 }
@@ -8366,7 +8386,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
      of the buffer size and wake waiting producers.
    */
    
-   bm_wakeup_producers(pheader, pc);
+   bm_wakeup_producers_locked(pheader, pc);
    
    bm_unlock_buffer(pbuf);
 
