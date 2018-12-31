@@ -939,6 +939,7 @@ typedef struct {
    INT read_cache_size;             /**< cache size in bytes          */
    INT read_cache_rp;               /**< cache read pointer           */
    INT read_cache_wp;               /**< cache write pointer          */
+   MUTEX_T* read_cache_mutex;       /**< cache read mutex             */
    char *write_cache;               /**< cache for burst read         */
    INT write_cache_size;            /**< cache size in bytes          */
    INT write_cache_wp;              /**< cache write pointer          */
@@ -1706,6 +1707,7 @@ extern "C" {
    INT EXPRT cm_get_watchdog_info(HNDLE hDB, char *client_name,
                                   DWORD * timeout, DWORD * last);
    INT EXPRT cm_enable_watchdog(BOOL flag);
+#define HAVE_CM_WATCHDOG 1
    void EXPRT cm_watchdog(int);
    INT EXPRT cm_shutdown(const char *name, BOOL bUnique);
    INT EXPRT cm_exist(const char *name, BOOL bUnique);
@@ -1760,6 +1762,7 @@ extern "C" {
    INT EXPRT bm_delete_request(INT request_id);
    INT EXPRT bm_send_event(INT buffer_handle, const EVENT_HEADER* event, INT buf_size, INT async_flag);
    INT EXPRT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT async_flag);
+#define HAVE_BM_RECEIVE_EVENT_ALLOC 1
    INT EXPRT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER** ppevent, INT async_flag);
    INT EXPRT bm_skip_event(INT buffer_handle);
    INT EXPRT bm_flush_cache(INT buffer_handle, INT async_flag);
