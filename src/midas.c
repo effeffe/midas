@@ -8648,7 +8648,7 @@ INT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER**ppevent, INT async_f
       if (status != BM_SUCCESS)
          return status;
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+      if (rpc_is_mserver())
          convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
       else
          convert_flags = 0;
