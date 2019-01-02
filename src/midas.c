@@ -7444,6 +7444,9 @@ static int bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, int a
 {
    BUFFER_CLIENT* pc = bm_get_my_client(pbuf, pheader);
    BOOL need_wakeup = FALSE;
+   int count_events = 0;
+
+   //printf("bm_fill_read_cache: [%s] async %d, size %d, rp %d, wp %d\n", pheader->name, async_flag, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp);
 
    /* loop over all events in the buffer */
 
@@ -7457,11 +7460,13 @@ static int bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, int a
          if (async_flag == BM_NO_WAIT) {
             if (need_wakeup)
                bm_wakeup_producers_locked(pheader, pc);
+            //printf("bm_fill_read_cache: [%s] async %d, size %d, rp %d, wp %d, events %d, buffer is empty\n", pheader->name, async_flag, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp, count_events);
             return BM_ASYNC_RETURN;
          }
          int status = bm_wait_for_more_events_locked(pbuf, pheader, pc, async_flag, TRUE);
          if (status != BM_SUCCESS) {
             // we only come here with SS_ABORT & co
+            //printf("bm_fill_read_cache: [%s] async %d, size %d, rp %d, wp %d, events %d, bm_wait_for_more_events() status %d\n", pheader->name, async_flag, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp, count_events, status);
             return status;
          }
          // make sure we wait for new event only once
@@ -7474,16 +7479,18 @@ static int bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, int a
       BOOL is_requested = bm_check_requests(pc, pevent);
 
       if (is_requested) {
-         if (pbuf->read_cache_wp + total_size >= pbuf->read_cache_size) {
+         if (pbuf->read_cache_wp + total_size > pbuf->read_cache_size) {
             /* read cache is full */
             if (need_wakeup)
                bm_wakeup_producers_locked(pheader, pc);
+            //printf("bm_fill_read_cache: [%s] async %d, size %d, rp %d, wp %d, events %d, event total_size %d, cache full\n", pheader->name, async_flag, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp, count_events, total_size);
             return BM_SUCCESS;
          }
 
          bm_read_from_buffer_locked(pheader, pc->read_pointer, pbuf->read_cache + pbuf->read_cache_wp, event_size);
 
          pbuf->read_cache_wp += total_size;
+         count_events++;
 
          /* update statistics */
          pheader->num_out_events++;
@@ -8237,6 +8244,8 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
 
    BUFFER_HEADER* pheader = pbuf->buffer_header;
 
+   //printf("bm_read_buffer: [%s] async %d, conv %d, ptr %p, buf %p, disp %d\n", pheader->name, async_flag, convert_flags, bufptr, buf, dispatch);
+          
    BOOL locked = FALSE;
 
    // NB: locking order is: 1st read cache lock, 2nd buffer lock, unlock in reverse order
@@ -8265,6 +8274,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
             // when reading from the read cache
             bm_unlock_buffer(pbuf);
          }
+         //printf("bm_read_buffer: [%s] async %d, conv %d, ptr %p, buf %p, disp %d, total_size %d, read from cache %d %d %d\n", pheader->name, async_flag, convert_flags, bufptr, buf, dispatch, total_size, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp);
          status = BM_SUCCESS;
          if (buf) {
             if (event_size > max_size) {
@@ -8336,6 +8346,8 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
       BOOL is_requested = bm_check_requests(pc, pevent);
       
       if (is_requested) {
+         //printf("bm_read_buffer: [%s] async %d, conv %d, ptr %p, buf %p, disp %d, total_size %d, read from buffer, cache %d %d %d\n", pheader->name, async_flag, convert_flags, bufptr, buf, dispatch, total_size, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp);
+
          status = BM_SUCCESS;
 
          if (buf) {
