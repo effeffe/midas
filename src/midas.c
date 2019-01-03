@@ -5013,6 +5013,9 @@ INT cm_yield(INT millisec)
    INT status;
    BOOL bMore;
    static DWORD alarm_last_checked = 0;
+   //static DWORD last_yield = 0;
+   //static DWORD last_yield_time = 0;
+   //DWORD start_yield = ss_millitime();
 
    /* check for ctrl-c */
    if (_ctrlc_pressed)
@@ -5066,7 +5069,13 @@ INT cm_yield(INT millisec)
       last_millitime = now_millitime;
    }
 
+   //DWORD start_check = ss_millitime();
+
    bMore = bm_check_buffers();
+
+   //DWORD end_check = ss_millitime();
+   //printf("cm_yield: timeout %4d, yield period %4d, last yield time %4d, bm_check_buffers() elapsed %4d, returned %d\n", millisec, start_yield - last_yield, last_yield_time, end_check - start_check, bMore);
+   //fflush(stdout);
 
    if (bMore) {
       /* if events available, quickly check other IPC channels */
@@ -5083,6 +5092,10 @@ INT cm_yield(INT millisec)
 
    /* flush the cm_msg buffer */
    cm_msg_flush_buffer();
+
+   //DWORD end_yield = ss_millitime();
+   //last_yield_time = end_yield - start_yield;
+   //last_yield = start_yield;
 
    return status;
 }
@@ -6913,14 +6926,16 @@ INT bm_add_event_request(INT buffer_handle, short int event_id,
          return status;
       
       /* avoid callback/non callback requests */
-      if (func == NULL && _buffer[buffer_handle - 1].callback) {
+      if (func == NULL && pbuf->callback) {
          cm_msg(MERROR, "bm_add_event_request", "mixing callback/non callback requests not possible");
          return BM_INVALID_MIXING;
       }
 
       /* do not allow GET_RECENT with nonzero cache size */
-      if (sampling_type == GET_RECENT && _buffer[buffer_handle - 1].read_cache_size > 0)
+      if (sampling_type == GET_RECENT && pbuf->read_cache_size > 0) {
+         cm_msg(MERROR, "bm_add_event_request", "GET_RECENT request not possible if read cache is enabled");
          return BM_INVALID_PARAM;
+      }
 
       /* lock buffer */
       bm_lock_buffer(pbuf);
@@ -6951,7 +6966,7 @@ INT bm_add_event_request(INT buffer_handle, short int event_id,
 
       /* set callback flag in buffer structure */
       if (func != NULL)
-         _buffer[buffer_handle - 1].callback = TRUE;
+         pbuf->callback = TRUE;
 
       /*
          Save the index of the last request in the list so that later only the
@@ -7325,8 +7340,6 @@ static BOOL bm_update_read_pointer_locked(const char *caller_name, BUFFER_HEADER
 static void bm_wakeup_producers_locked(const BUFFER_HEADER * pheader, const BUFFER_CLIENT * pc)
 {
    int i;
-   int size;
-   const BUFFER_CLIENT *pctmp = pheader->client;
    int have_get_all_requests = 0;
 
    for (i = 0; i < pc->max_request_index; i++)
@@ -7343,20 +7356,22 @@ static void bm_wakeup_producers_locked(const BUFFER_HEADER * pheader, const BUFF
       of the buffer size and wake waiting producers.
     */
 
-   size = pc->read_pointer - pheader->write_pointer;
-   if (size <= 0)
-      size += pheader->size;
+   int free_space = pc->read_pointer - pheader->write_pointer;
+   if (free_space <= 0)
+      free_space += pheader->size;
 
-   if (size >= pheader->size * 0.5)
-      for (i = 0; i < pheader->max_client_index; i++, pctmp++)
-	if (pctmp->pid)
-           if (pctmp->write_wait < size) {
-#ifdef DEBUG_MSG
-            cm_msg(MDEBUG, "Receive wake: rp=%d, wp=%d, level=%1.1lf",
-                   pheader->read_pointer, pheader->write_pointer, 100 - 100.0 * size / pheader->size);
-#endif
-            ss_resume(pctmp->port, "B  ");
+   if (free_space >= pheader->size * 0.5) {
+      for (i = 0; i < pheader->max_client_index; i++) {
+         const BUFFER_CLIENT *pc = pheader->client + i;
+         if (pc->pid && pc->write_wait) {
+            BOOL send_wakeup = (pc->write_wait < free_space);
+            //printf("bm_wakeup_producers: buffer [%s] client [%s] write_wait %d, free_space %d, sending wakeup message %d\n", pheader->name, pc->name, pc->write_wait, free_space, send_wakeup);
+            if (send_wakeup) {
+               ss_resume(pc->port, "B  ");
             }
+         }
+      }
+   }
 }
 
 static void bm_dispatch_event(int buffer_handle, EVENT_HEADER * pevent)
@@ -7486,6 +7501,9 @@ static int bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, int a
 {
    BUFFER_CLIENT* pc = bm_get_my_client(pbuf, pheader);
    BOOL need_wakeup = FALSE;
+   int count_events = 0;
+
+   //printf("bm_fill_read_cache: [%s] async %d, size %d, rp %d, wp %d\n", pheader->name, async_flag, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp);
 
    /* loop over all events in the buffer */
 
@@ -7499,11 +7517,13 @@ static int bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, int a
          if (async_flag == BM_NO_WAIT) {
             if (need_wakeup)
                bm_wakeup_producers_locked(pheader, pc);
+            //printf("bm_fill_read_cache: [%s] async %d, size %d, rp %d, wp %d, events %d, buffer is empty\n", pheader->name, async_flag, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp, count_events);
             return BM_ASYNC_RETURN;
          }
          int status = bm_wait_for_more_events_locked(pbuf, pheader, pc, async_flag, TRUE);
          if (status != BM_SUCCESS) {
             // we only come here with SS_ABORT & co
+            //printf("bm_fill_read_cache: [%s] async %d, size %d, rp %d, wp %d, events %d, bm_wait_for_more_events() status %d\n", pheader->name, async_flag, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp, count_events, status);
             return status;
          }
          // make sure we wait for new event only once
@@ -7516,16 +7536,18 @@ static int bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, int a
       BOOL is_requested = bm_check_requests(pc, pevent);
 
       if (is_requested) {
-         if (pbuf->read_cache_wp + total_size >= pbuf->read_cache_size) {
+         if (pbuf->read_cache_wp + total_size > pbuf->read_cache_size) {
             /* read cache is full */
             if (need_wakeup)
                bm_wakeup_producers_locked(pheader, pc);
+            //printf("bm_fill_read_cache: [%s] async %d, size %d, rp %d, wp %d, events %d, event total_size %d, cache full\n", pheader->name, async_flag, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp, count_events, total_size);
             return BM_SUCCESS;
          }
 
          bm_read_from_buffer_locked(pheader, pc->read_pointer, pbuf->read_cache + pbuf->read_cache_wp, event_size);
 
          pbuf->read_cache_wp += total_size;
+         count_events++;
 
          /* update statistics */
          pheader->num_out_events++;
@@ -7738,6 +7760,9 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
 
       /* at least one client is blocking */
 
+      BUFFER_CLIENT *pc = bm_get_my_client(pbuf, pheader);
+      pc->write_wait = requested_space;
+
       bm_unlock_buffer(pbuf);
 
       /* return now in ASYNC mode */
@@ -7751,10 +7776,10 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
              pheader->read_pointer, pheader->write_pointer, 100 - 100.0 * size / pheader->size);
 #endif
 
-      /* signal other clients wait mode */
-      int idx = bm_validate_client_index(pbuf, FALSE);
-      if (idx >= 0)
-         pheader->client[idx].write_wait = requested_space;
+      ///* signal other clients wait mode */
+      //int idx = bm_validate_client_index(pbuf, FALSE);
+      //if (idx >= 0)
+      //   pheader->client[idx].write_wait = requested_space;
 
       bm_cleanup("bm_wait_for_free_space", ss_millitime(), FALSE);
 
@@ -7770,25 +7795,33 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
       if (status != SS_TIMEOUT)
          ss_sleep(10);
 
-      /* validate client index: we could have been removed from the buffer */
-      idx = bm_validate_client_index(pbuf, FALSE);
-      if (idx >= 0)
-         pheader->client[idx].write_wait = 0;
-      else {
-         cm_msg(MERROR, "bm_wait_for_free_space", "our client index is no longer valid, exiting...");
-         status = SS_ABORT;
-      }
+      bm_lock_buffer(pbuf);
+
+      /* revalidate the client index: we could have been removed from the buffer while sleeping */
+      pc = bm_get_my_client(pbuf, pheader);
+
+      pc->write_wait = 0;
+
+      ///* validate client index: we could have been removed from the buffer */
+      //idx = bm_validate_client_index(pbuf, FALSE);
+      //if (idx >= 0)
+      //   pheader->client[idx].write_wait = 0;
+      //else {
+      //   cm_msg(MERROR, "bm_wait_for_free_space", "our client index is no longer valid, exiting...");
+      //   status = SS_ABORT;
+      //}
 
       /* return if TCP connection broken */
-      if (status == SS_ABORT)
+      if (status == SS_ABORT) {
+         // NB: buffer is locked!
          return SS_ABORT;
+      }
 
 #ifdef DEBUG_MSG
       cm_msg(MDEBUG, "Send woke up: rp=%d, wp=%d, level=%1.1lf",
              pheader->read_pointer, pheader->write_pointer, 100 - 100.0 * size / pheader->size);
 #endif
 
-      bm_lock_buffer(pbuf);
    }
 }
 
@@ -8279,6 +8312,8 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
 
    BUFFER_HEADER* pheader = pbuf->buffer_header;
 
+   //printf("bm_read_buffer: [%s] async %d, conv %d, ptr %p, buf %p, disp %d\n", pheader->name, async_flag, convert_flags, bufptr, buf, dispatch);
+          
    BOOL locked = FALSE;
 
    // NB: locking order is: 1st read cache lock, 2nd buffer lock, unlock in reverse order
@@ -8307,6 +8342,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
             // when reading from the read cache
             bm_unlock_buffer(pbuf);
          }
+         //printf("bm_read_buffer: [%s] async %d, conv %d, ptr %p, buf %p, disp %d, total_size %d, read from cache %d %d %d\n", pheader->name, async_flag, convert_flags, bufptr, buf, dispatch, total_size, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp);
          status = BM_SUCCESS;
          if (buf) {
             if (event_size > max_size) {
@@ -8378,6 +8414,8 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
       BOOL is_requested = bm_check_requests(pc, pevent);
       
       if (is_requested) {
+         //printf("bm_read_buffer: [%s] async %d, conv %d, ptr %p, buf %p, disp %d, total_size %d, read from buffer, cache %d %d %d\n", pheader->name, async_flag, convert_flags, bufptr, buf, dispatch, total_size, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp);
+
          status = BM_SUCCESS;
 
          if (buf) {
@@ -8517,6 +8555,8 @@ BM_ASYNC_RETURN No event available
 */
 INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT async_flag)
 {
+   //printf("bm_receive_event: handle %d, async %d\n", buffer_handle, async_flag);
+ 
    if (rpc_is_remote()) {
       int status, old_timeout = 0;
 
@@ -8764,6 +8804,7 @@ INT bm_check_buffers()
       //INT server_type/*, server_conn, tid*/;
       BOOL bMore;
       DWORD start_time;
+      static DWORD last_time = 0;
 
       //server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
       //server_conn = rpc_get_server_acception();
@@ -8791,6 +8832,7 @@ INT bm_check_buffers()
          if (!_buffer[idx].attached)
             continue;
 
+         int count_loops = 0;
          while(1) {
             if (idx < _buffer_entries
                 && _buffer[idx].attached
@@ -8800,18 +8842,38 @@ INT bm_check_buffers()
                 * buffer on each call */
                
                status = bm_push_buffer(_buffer+idx, idx+1);
+               
+               //printf("bm_check_buffers: bm_push_buffer() returned %d, loop %d, time %d\n", status, count_loops, ss_millitime() - start_time);
 
-               if (status != BM_MORE_EVENTS)
+               if (status != BM_MORE_EVENTS) {
+                  //DWORD t = ss_millitime() - start_time;
+                  //printf("bm_check_buffers: index %d, period %d, elapsed %d, loop %d, no more events\n", idx, start_time - last_time, t, count_loops);
                   break;
+               }
+
+               count_loops++;
             }
 
+            // NB: this code has a logic error: if 2 buffers always have data,
+            // this timeout will cause us to exit reading the 1st buffer
+            // after 1000 msec, then we read the 2nd buffer exactly once,
+            // and exit the loop because the timeout is still active -
+            // we did not reset "start_time" when we started reading
+            // from the 2nd buffer. Result is that we always read all
+            // the data in a loop from the 1st buffer, but read just
+            // one event from the 2nd buffer, resulting in severe unfairness.
+
             /* stop after one second */
-            if (ss_millitime() - start_time > 1000) {
+            DWORD t = ss_millitime() - start_time;
+            if (t > 1000) {
+               //printf("bm_check_buffers: index %d, period %d, elapsed %d, loop %d, timeout.\n", idx, start_time - last_time, t, count_loops);
                bMore = TRUE;
                break;
             }
          }
       }
+
+      last_time = start_time;
 
       return bMore;
 
@@ -8903,6 +8965,8 @@ static INT bm_notify_client(const char *buffer_name, int s)
    INT i, convert_flags;
    static DWORD last_time = 0;
 
+   //printf("bm_notify_client: buffer [%s], socket %d\n", buffer_name, s);
+
    for (i = 0; i < _buffer_entries; i++)
       if (strcmp(buffer_name, _buffer[i].buffer_header->name) == 0)
          break;
@@ -8935,6 +8999,8 @@ static INT bm_notify_client(const char *buffer_name, int s)
          rpc_convert_single(&nc->header.routine_id, TID_DWORD, RPC_OUTGOING, convert_flags);
          rpc_convert_single(&nc->header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
       }
+
+      //printf("bm_notify_client: Sending MSG_BM! buffer [%s]\n", buffer_name);
 
       /* send the update notification to the client */
       send_tcp(s, (char *) buffer, sizeof(NET_COMMAND_HEADER), 0);
@@ -8977,7 +9043,7 @@ INT bm_poll_event(INT flag)
   Routine: bm_poll_event
 
   Purpose: Poll an event from a remote server. Gets called by
-           rpc_client_dispatch
+           rpc_client_dispatch() and by cm_yield()
 
   Input:
     INT flag         TRUE if called from cm_yield
@@ -8992,7 +9058,7 @@ INT bm_poll_event(INT flag)
 
 \********************************************************************/
 {
-   INT status, size, i, request_id;
+   INT status, size, request_id;
    DWORD start_time;
    BOOL bMore;
    static BOOL bMoreLast = FALSE;
@@ -9029,22 +9095,9 @@ INT bm_poll_event(INT flag)
          status = bm_receive_event(_request_list[request_id].buffer_handle, _event_buffer, &size, BM_NO_WAIT);
 
          /* call user function if successful */
-         if (status == BM_SUCCESS)
-            /* search proper request for this event */
-            for (i = 0; i < _request_list_entries; i++)
-               if ((_request_list[i].buffer_handle ==
-                    _request_list[request_id].buffer_handle) &&
-                   bm_match_event(_request_list[i].event_id, _request_list[i].trigger_mask, _event_buffer)) {
-                  if ((_event_buffer->event_id & 0xF000) == EVENTID_FRAG1 ||
-                      (_event_buffer->event_id & 0xF000) == EVENTID_FRAG)
-                     bm_defragment_event(_request_list[i].buffer_handle, i, _event_buffer,
-                                         (void *) (((EVENT_HEADER *) _event_buffer) + 1),
-                                         _request_list[i].dispatcher);
-                  else
-                     _request_list[i].dispatcher(_request_list[i].buffer_handle, i,
-                                                 _event_buffer,
-                                                 (void *) (((EVENT_HEADER *) _event_buffer) + 1));
-               }
+         if (status == BM_SUCCESS) {
+            bm_dispatch_event(_request_list[request_id].buffer_handle, _event_buffer);
+         }
 
          /* break if no more events */
          if (status == BM_ASYNC_RETURN)
@@ -9717,6 +9770,8 @@ INT rpc_client_dispatch(int sock)
    else if (nc->header.routine_id == MSG_BM) {
       fd_set readfds;
       struct timeval timeout;
+
+      //printf("rpc_client_dispatch: received MSG_BM!\n");
 
       /* receive further messages to empty TCP queue */
       do {
