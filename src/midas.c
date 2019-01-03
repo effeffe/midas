@@ -6871,14 +6871,16 @@ INT bm_add_event_request(INT buffer_handle, short int event_id,
          return status;
       
       /* avoid callback/non callback requests */
-      if (func == NULL && _buffer[buffer_handle - 1].callback) {
+      if (func == NULL && pbuf->callback) {
          cm_msg(MERROR, "bm_add_event_request", "mixing callback/non callback requests not possible");
          return BM_INVALID_MIXING;
       }
 
       /* do not allow GET_RECENT with nonzero cache size */
-      if (sampling_type == GET_RECENT && _buffer[buffer_handle - 1].read_cache_size > 0)
+      if (sampling_type == GET_RECENT && pbuf->read_cache_size > 0) {
+         cm_msg(MERROR, "bm_add_event_request", "GET_RECENT request not possible if read cache is enabled");
          return BM_INVALID_PARAM;
+      }
 
       /* lock buffer */
       bm_lock_buffer(pbuf);
@@ -6909,7 +6911,7 @@ INT bm_add_event_request(INT buffer_handle, short int event_id,
 
       /* set callback flag in buffer structure */
       if (func != NULL)
-         _buffer[buffer_handle - 1].callback = TRUE;
+         pbuf->callback = TRUE;
 
       /*
          Save the index of the last request in the list so that later only the
@@ -8487,6 +8489,8 @@ BM_ASYNC_RETURN No event available
 */
 INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT async_flag)
 {
+   //printf("bm_receive_event: handle %d, async %d\n", buffer_handle, async_flag);
+ 
    if (rpc_is_remote()) {
       int status, old_timeout = 0;
 
@@ -8870,6 +8874,8 @@ static INT bm_notify_client(const char *buffer_name, int s)
    INT i, convert_flags;
    static DWORD last_time = 0;
 
+   //printf("bm_notify_client: buffer [%s], socket %d\n", buffer_name, s);
+
    for (i = 0; i < _buffer_entries; i++)
       if (strcmp(buffer_name, _buffer[i].buffer_header->name) == 0)
          break;
@@ -8902,6 +8908,8 @@ static INT bm_notify_client(const char *buffer_name, int s)
          rpc_convert_single(&nc->header.routine_id, TID_DWORD, RPC_OUTGOING, convert_flags);
          rpc_convert_single(&nc->header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
       }
+
+      //printf("bm_notify_client: Sending MSG_BM! buffer [%s]\n", buffer_name);
 
       /* send the update notification to the client */
       send_tcp(s, (char *) buffer, sizeof(NET_COMMAND_HEADER), 0);
@@ -8944,7 +8952,7 @@ INT bm_poll_event(INT flag)
   Routine: bm_poll_event
 
   Purpose: Poll an event from a remote server. Gets called by
-           rpc_client_dispatch
+           rpc_client_dispatch() and by cm_yield()
 
   Input:
     INT flag         TRUE if called from cm_yield
@@ -8959,7 +8967,7 @@ INT bm_poll_event(INT flag)
 
 \********************************************************************/
 {
-   INT status, size, i, request_id;
+   INT status, size, request_id;
    DWORD start_time;
    BOOL bMore;
    static BOOL bMoreLast = FALSE;
@@ -8996,22 +9004,9 @@ INT bm_poll_event(INT flag)
          status = bm_receive_event(_request_list[request_id].buffer_handle, _event_buffer, &size, BM_NO_WAIT);
 
          /* call user function if successful */
-         if (status == BM_SUCCESS)
-            /* search proper request for this event */
-            for (i = 0; i < _request_list_entries; i++)
-               if ((_request_list[i].buffer_handle ==
-                    _request_list[request_id].buffer_handle) &&
-                   bm_match_event(_request_list[i].event_id, _request_list[i].trigger_mask, _event_buffer)) {
-                  if ((_event_buffer->event_id & 0xF000) == EVENTID_FRAG1 ||
-                      (_event_buffer->event_id & 0xF000) == EVENTID_FRAG)
-                     bm_defragment_event(_request_list[i].buffer_handle, i, _event_buffer,
-                                         (void *) (((EVENT_HEADER *) _event_buffer) + 1),
-                                         _request_list[i].dispatcher);
-                  else
-                     _request_list[i].dispatcher(_request_list[i].buffer_handle, i,
-                                                 _event_buffer,
-                                                 (void *) (((EVENT_HEADER *) _event_buffer) + 1));
-               }
+         if (status == BM_SUCCESS) {
+            bm_dispatch_event(_request_list[request_id].buffer_handle, _event_buffer);
+         }
 
          /* break if no more events */
          if (status == BM_ASYNC_RETURN)
@@ -9685,6 +9680,8 @@ INT rpc_client_dispatch(int sock)
    else if (nc->header.routine_id == MSG_BM) {
       fd_set readfds;
       struct timeval timeout;
+
+      //printf("rpc_client_dispatch: received MSG_BM!\n");
 
       /* receive further messages to empty TCP queue */
       do {
