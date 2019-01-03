@@ -5011,6 +5011,9 @@ INT cm_yield(INT millisec)
    INT status;
    BOOL bMore;
    static DWORD last_checked = 0;
+   //static DWORD last_yield = 0;
+   //static DWORD last_yield_time = 0;
+   //DWORD start_yield = ss_millitime();
 
    /* check for ctrl-c */
    if (_ctrlc_pressed)
@@ -5036,7 +5039,13 @@ INT cm_yield(INT millisec)
       last_checked = ss_time();
    }
 
+   //DWORD start_check = ss_millitime();
+
    bMore = bm_check_buffers();
+
+   //DWORD end_check = ss_millitime();
+   //printf("cm_yield: timeout %4d, yield period %4d, last yield time %4d, bm_check_buffers() elapsed %4d, returned %d\n", millisec, start_yield - last_yield, last_yield_time, end_check - start_check, bMore);
+   //fflush(stdout);
 
    if (bMore) {
       /* if events available, quickly check other IPC channels */
@@ -5053,6 +5062,10 @@ INT cm_yield(INT millisec)
 
    /* flush the cm_msg buffer */
    cm_msg_flush_buffer();
+
+   //DWORD end_yield = ss_millitime();
+   //last_yield_time = end_yield - start_yield;
+   //last_yield = start_yield;
 
    return status;
 }
@@ -7285,8 +7298,6 @@ static BOOL bm_update_read_pointer_locked(const char *caller_name, BUFFER_HEADER
 static void bm_wakeup_producers_locked(const BUFFER_HEADER * pheader, const BUFFER_CLIENT * pc)
 {
    int i;
-   int size;
-   const BUFFER_CLIENT *pctmp = pheader->client;
    int have_get_all_requests = 0;
 
    for (i = 0; i < pc->max_request_index; i++)
@@ -7303,20 +7314,22 @@ static void bm_wakeup_producers_locked(const BUFFER_HEADER * pheader, const BUFF
       of the buffer size and wake waiting producers.
     */
 
-   size = pc->read_pointer - pheader->write_pointer;
-   if (size <= 0)
-      size += pheader->size;
+   int free_space = pc->read_pointer - pheader->write_pointer;
+   if (free_space <= 0)
+      free_space += pheader->size;
 
-   if (size >= pheader->size * 0.5)
-      for (i = 0; i < pheader->max_client_index; i++, pctmp++)
-	if (pctmp->pid)
-           if (pctmp->write_wait < size) {
-#ifdef DEBUG_MSG
-            cm_msg(MDEBUG, "Receive wake: rp=%d, wp=%d, level=%1.1lf",
-                   pheader->read_pointer, pheader->write_pointer, 100 - 100.0 * size / pheader->size);
-#endif
-            ss_resume(pctmp->port, "B  ");
+   if (free_space >= pheader->size * 0.5) {
+      for (i = 0; i < pheader->max_client_index; i++) {
+         const BUFFER_CLIENT *pc = pheader->client + i;
+         if (pc->pid && pc->write_wait) {
+            BOOL send_wakeup = (pc->write_wait < free_space);
+            //printf("bm_wakeup_producers: buffer [%s] client [%s] write_wait %d, free_space %d, sending wakeup message %d\n", pheader->name, pc->name, pc->write_wait, free_space, send_wakeup);
+            if (send_wakeup) {
+               ss_resume(pc->port, "B  ");
             }
+         }
+      }
+   }
 }
 
 static void bm_dispatch_event(int buffer_handle, EVENT_HEADER * pevent)
@@ -7705,6 +7718,9 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
 
       /* at least one client is blocking */
 
+      BUFFER_CLIENT *pc = bm_get_my_client(pbuf, pheader);
+      pc->write_wait = requested_space;
+
       bm_unlock_buffer(pbuf);
 
       /* return now in ASYNC mode */
@@ -7718,10 +7734,10 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
              pheader->read_pointer, pheader->write_pointer, 100 - 100.0 * size / pheader->size);
 #endif
 
-      /* signal other clients wait mode */
-      int idx = bm_validate_client_index(pbuf, FALSE);
-      if (idx >= 0)
-         pheader->client[idx].write_wait = requested_space;
+      ///* signal other clients wait mode */
+      //int idx = bm_validate_client_index(pbuf, FALSE);
+      //if (idx >= 0)
+      //   pheader->client[idx].write_wait = requested_space;
 
       bm_cleanup("bm_wait_for_free_space", ss_millitime(), FALSE);
 
@@ -7737,25 +7753,33 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
       if (status != SS_TIMEOUT)
          ss_sleep(10);
 
-      /* validate client index: we could have been removed from the buffer */
-      idx = bm_validate_client_index(pbuf, FALSE);
-      if (idx >= 0)
-         pheader->client[idx].write_wait = 0;
-      else {
-         cm_msg(MERROR, "bm_wait_for_free_space", "our client index is no longer valid, exiting...");
-         status = SS_ABORT;
-      }
+      bm_lock_buffer(pbuf);
+
+      /* revalidate the client index: we could have been removed from the buffer while sleeping */
+      pc = bm_get_my_client(pbuf, pheader);
+
+      pc->write_wait = 0;
+
+      ///* validate client index: we could have been removed from the buffer */
+      //idx = bm_validate_client_index(pbuf, FALSE);
+      //if (idx >= 0)
+      //   pheader->client[idx].write_wait = 0;
+      //else {
+      //   cm_msg(MERROR, "bm_wait_for_free_space", "our client index is no longer valid, exiting...");
+      //   status = SS_ABORT;
+      //}
 
       /* return if TCP connection broken */
-      if (status == SS_ABORT)
+      if (status == SS_ABORT) {
+         // NB: buffer is locked!
          return SS_ABORT;
+      }
 
 #ifdef DEBUG_MSG
       cm_msg(MDEBUG, "Send woke up: rp=%d, wp=%d, level=%1.1lf",
              pheader->read_pointer, pheader->write_pointer, 100 - 100.0 * size / pheader->size);
 #endif
 
-      bm_lock_buffer(pbuf);
    }
 }
 
@@ -8738,6 +8762,7 @@ INT bm_check_buffers()
       INT server_type, server_conn, tid;
       BOOL bMore;
       DWORD start_time;
+      static DWORD last_time = 0;
 
       server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
       server_conn = rpc_get_server_acception();
@@ -8762,6 +8787,7 @@ INT bm_check_buffers()
          if (!_buffer[idx].attached)
             continue;
 
+         int count_loops = 0;
          while(1) {
             if (idx < _buffer_entries
                 && _buffer[idx].attached
@@ -8771,18 +8797,38 @@ INT bm_check_buffers()
                 * buffer on each call */
                
                status = bm_push_buffer(_buffer+idx, idx+1);
+               
+               //printf("bm_check_buffers: bm_push_buffer() returned %d, loop %d, time %d\n", status, count_loops, ss_millitime() - start_time);
 
-               if (status != BM_MORE_EVENTS)
+               if (status != BM_MORE_EVENTS) {
+                  //DWORD t = ss_millitime() - start_time;
+                  //printf("bm_check_buffers: index %d, period %d, elapsed %d, loop %d, no more events\n", idx, start_time - last_time, t, count_loops);
                   break;
+               }
+
+               count_loops++;
             }
 
+            // NB: this code has a logic error: if 2 buffers always have data,
+            // this timeout will cause us to exit reading the 1st buffer
+            // after 1000 msec, then we read the 2nd buffer exactly once,
+            // and exit the loop because the timeout is still active -
+            // we did not reset "start_time" when we started reading
+            // from the 2nd buffer. Result is that we always read all
+            // the data in a loop from the 1st buffer, but read just
+            // one event from the 2nd buffer, resulting in severe unfairness.
+
             /* stop after one second */
-            if (ss_millitime() - start_time > 1000) {
+            DWORD t = ss_millitime() - start_time;
+            if (t > 1000) {
+               //printf("bm_check_buffers: index %d, period %d, elapsed %d, loop %d, timeout.\n", idx, start_time - last_time, t, count_loops);
                bMore = TRUE;
                break;
             }
          }
       }
+
+      last_time = start_time;
 
       return bMore;
 
