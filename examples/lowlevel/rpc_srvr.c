@@ -90,7 +90,7 @@ int main()
 
    /* register RPC server under port 1750 */
    port = 1750;
-   status = rpc_register_server(ST_REMOTE, "", &port, NULL);
+   status = rpc_register_server(&port, NULL, NULL);
    if (status != RPC_SUCCESS) {
       printf("Cannot start server");
       return 0;
@@ -100,7 +100,7 @@ int main()
    rpc_register_functions(rpc_list, rpc_dispatch);
 
    /* Print debugging messages */
-   rpc_set_debug((void (*)(char *)) puts, 0);
+   rpc_set_debug((void (*)(const char *)) puts, 0);
 
    /* Server loop */
    while (cm_yield(1000) != RPC_SHUTDOWN);

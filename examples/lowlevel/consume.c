@@ -14,6 +14,8 @@
 #include <stdlib.h>
 #include "midas.h"
 
+#define MAX_EVENT_SIZE (10*1024*1024)
+
 INT all_flag;
 INT hBufEvent;
 INT event_byte_count;

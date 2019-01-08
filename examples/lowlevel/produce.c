@@ -15,6 +15,8 @@
 #include "midas.h"
 #include "msystem.h"
 
+#define MAX_EVENT_SIZE (10*1024*1024)
+
 /*------------------------------------------------------------------*/
 
 #ifdef OS_VXWORKS
