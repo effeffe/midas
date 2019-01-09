@@ -20,6 +20,9 @@
 #ifndef CS_MONGOOSE_SRC_COMMON_H_
 #define CS_MONGOOSE_SRC_COMMON_H_
 
+/** @addtogroup mongoose64 mongoose v6.4 web server library
+ *  @{  */
+
 #define MG_VERSION "6.4"
 
 /* Local tweaks, applied before any of Mongoose's own headers. */

@@ -14,15 +14,8 @@
 The Online Database file
 */
 
-/** @defgroup odbcode The odb.c
+/** @defgroup odbfunctionc ODB Functions (db_xxx)
  */
-/** @defgroup odbfunctionc Midas ODB Functions (db_xxx)
- */
-
-/**dox***************************************************************/
-/** @addtogroup odbcode
-*
- *  @{  */
 
 /**dox***************************************************************/
 /** @addtogroup odbfunctionc
@@ -1671,7 +1664,7 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    *hDB = (handle + 1);
 
    /* setup dispatcher for updated records */
-   ss_suspend_set_dispatch(CH_IPC, 0, (int (*)(void)) cm_dispatch_ipc);
+   ss_suspend_set_dispatch_ipc(cm_dispatch_ipc);
 
    status = db_validate_open_records(handle + 1);
    if (status != DB_SUCCESS) {
@@ -12369,12 +12362,8 @@ INT db_unwatch_all()
 
 /*------------------------------------------------------------------*/
 
+/** @} *//* end of odbfunctionc */
 
-/**dox***************************************************************/
-                                                       /** @} *//* end of odbfunctionc */
-
-/**dox***************************************************************/
-                                                       /** @} *//* end of odbcode */
 /* emacs
  * Local Variables:
  * tab-width: 8

@@ -39,25 +39,18 @@ user discussion, mailing lists and forums,
 can be found through the MIDAS Wiki at http://midas.triumf.ca
 */
 
-/** @defgroup cmfunctionc Midas Common Functions (cm_xxx)
+/** @defgroup cmfunctionc Common Functions (cm_xxx)
  */
-/** @defgroup bmfunctionc Midas Buffer Manager Functions (bm_xxx)
+/** @defgroup bmfunctionc Event Buffer Functions (bm_xxx)
  */
-/** @defgroup msgfunctionc Midas Message Functions (msg_xxx)
+/** @defgroup msgfunctionc Message Functions (msg_xxx)
  */
-/** @defgroup bkfunctionc Midas Bank Functions (bk_xxx)
+/** @defgroup bkfunctionc Data Bank Functions (bk_xxx)
  */
-/** @defgroup rpcfunctionc Midas RPC Functions (rpc_xxx)
+/** @defgroup rpc_xxx RPC Functions (rpc_xxx)
  */
-/** @defgroup dmfunctionc Midas Dual Buffer Memory Functions (dm_xxx)
+/** @defgroup rbfunctionc Ring Buffer Functions (rb_xxx)
  */
-/** @defgroup rbfunctionc Midas Ring Buffer Functions (rb_xxx)
- */
-
-/**dox***************************************************************/
-/** @addtogroup midasincludecode
- *
- *  @{  */
 
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
@@ -4996,45 +4989,15 @@ static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval);
 
 /********************************************************************/
 /**
-Central yield functions for clients. This routine should
-be called in an infinite loop by a client in order to
-give the MIDAS system the opportunity to receive commands
-over RPC channels, update database records and receive
-events.
-@param millisec         Timeout in millisec. If no message is
-                        received during the specified timeout,
-                        the routine returns. If millisec=-1,
-                        it only returns when receiving an
-                        RPC_SHUTDOWN message.
-@return CM_SUCCESS, RPC_SHUTDOWN
+Perform midas periodic tasks - check alarms, update and check
+timeouts on odb and on event buffers, etc. Normally called by cm_yield().
+Programs that do not use cm_yield(), i.e. the mserver,
+should call this function periodically, every 1 or 2 seconds.
+@return CM_SUCCESS
 */
-INT cm_yield(INT millisec)
+INT cm_periodic_tasks()
 {
-   INT status;
-   BOOL bMore;
    static DWORD alarm_last_checked = 0;
-   //static DWORD last_yield = 0;
-   //static DWORD last_yield_time = 0;
-   //DWORD start_yield = ss_millitime();
-
-   /* check for ctrl-c */
-   if (_ctrlc_pressed)
-      return RPC_SHUTDOWN;
-
-   /* flush the cm_msg buffer */
-   cm_msg_flush_buffer();
-
-   /* check for available events */
-   if (rpc_is_remote()) {
-      bMore = bm_poll_event(TRUE);
-      if (bMore)
-         status = ss_suspend(0, 0);
-      else
-         status = ss_suspend(millisec, 0);
-
-      return status;
-   }
-
    DWORD now = ss_time();
 
    DWORD now_millitime = ss_millitime();
@@ -5068,6 +5031,54 @@ INT cm_yield(INT millisec)
 
       last_millitime = now_millitime;
    }
+
+   return CM_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Central yield functions for clients. This routine should
+be called in an infinite loop by a client in order to
+give the MIDAS system the opportunity to receive commands
+over RPC channels, update database records and receive
+events.
+@param millisec         Timeout in millisec. If no message is
+                        received during the specified timeout,
+                        the routine returns. If millisec=-1,
+                        it only returns when receiving an
+                        RPC_SHUTDOWN message.
+@return CM_SUCCESS, RPC_SHUTDOWN
+*/
+INT cm_yield(INT millisec)
+{
+   INT status;
+   BOOL bMore;
+   //static DWORD last_yield = 0;
+   //static DWORD last_yield_time = 0;
+   //DWORD start_yield = ss_millitime();
+
+   /* check for ctrl-c */
+   if (_ctrlc_pressed)
+      return RPC_SHUTDOWN;
+
+   /* flush the cm_msg buffer */
+   cm_msg_flush_buffer();
+
+   /* check for available events */
+   if (rpc_is_remote()) {
+      bMore = bm_poll_event(TRUE);
+      if (bMore)
+         status = ss_suspend(0, 0);
+      else
+         status = ss_suspend(millisec, 0);
+
+      return status;
+   }
+
+   status = cm_periodic_tasks();
+
+   if (status != CM_SUCCESS)
+      return status;
 
    //DWORD start_check = ss_millitime();
 
@@ -5242,7 +5253,9 @@ INT cm_register_function(INT id, INT(*func) (INT, void **))
 static int _bm_mutex_timeout = 10000;
 static int _bm_lock_timeout = 5*60*1000;
 
-static int bm_validate_client_index(const BUFFER* buf, BOOL abort_if_invalid)
+static DWORD _bm_max_event_size = 0;
+
+static int bm_validate_client_index(const BUFFER * buf, BOOL abort_if_invalid)
 {
    static int prevent_recursion = 1;
    int badindex = 0;
@@ -5668,6 +5681,24 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
    if (rpc_is_remote()) {
       status = rpc_call(RPC_BM_OPEN_BUFFER, buffer_name, buffer_size, buffer_handle);
       bm_mark_read_waiting(TRUE);
+
+      HNDLE hDB;
+      status = cm_get_experiment_database(&hDB, NULL);
+      if (status != SUCCESS || hDB == 0) {
+         cm_msg(MERROR, "bm_open_buffer", "cannot open buffer \'%s\' - not connected to ODB", buffer_name);
+         return BM_NO_SHM;
+      }
+
+      _bm_max_event_size = DEFAULT_MAX_EVENT_SIZE;
+
+      int size = sizeof(INT);
+      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &_bm_max_event_size, &size, TID_DWORD, TRUE);
+
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "bm_open_buffer", "Cannot get ODB /Experiment/MAX_EVENT_SIZE, db_get_value() status %d", status);
+         return status;
+      }
+
       return status;
    }
 #ifdef LOCAL_ROUTINES
@@ -5711,6 +5742,16 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       if (buffer_size <= 0 || buffer_size > max_buffer_size) {
          cm_msg(MERROR, "bm_open_buffer", "Cannot open buffer \"%s\", invalid buffer size %d in ODB \"%s\", maximum buffer size is %d", buffer_name, buffer_size, odb_path, max_buffer_size);
          return BM_INVALID_PARAM;
+      }
+
+      _bm_max_event_size = DEFAULT_MAX_EVENT_SIZE;
+
+      size = sizeof(INT);
+      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &_bm_max_event_size, &size, TID_DWORD, TRUE);
+
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "bm_open_buffer", "Cannot get ODB /Experiment/MAX_EVENT_SIZE, db_get_value() status %d", status);
+         return status;
       }
 
       /* allocate new space for the new buffer descriptor */
@@ -5894,7 +5935,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       bm_init_buffer_counters(handle + 1);
 
       /* setup dispatcher for receive events */
-      ss_suspend_set_dispatch(CH_IPC, 0, (int (*)(void)) cm_dispatch_ipc);
+      ss_suspend_set_dispatch_ipc(cm_dispatch_ipc);
 
       bm_cleanup("bm_open_buffer", ss_millitime(), FALSE);
 
@@ -9010,33 +9051,6 @@ static INT bm_notify_client(const char *buffer_name, int s)
 }
 
 /********************************************************************/
-
-static int allocate_event_buffer()
-{
-   if (_event_buffer_size == 0) {
-      int status;
-      int size;
-      HNDLE hDB, odb_key;
-      int max_event_size = DEFAULT_MAX_EVENT_SIZE;
-
-      /* get max event size from ODB */
-      status = cm_get_experiment_database(&hDB, &odb_key);
-      assert(status == SUCCESS);
-      size = sizeof(INT);
-      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &max_event_size, &size, TID_DWORD, TRUE);
-
-      size = max_event_size + sizeof(EVENT_HEADER);
-      _event_buffer = (EVENT_HEADER *) M_MALLOC(size);
-      if (!_event_buffer) {
-         cm_msg(MERROR, "bm_poll_event", "not enough memory to allocate event buffer of size %d", size);
-         return SS_ABORT;
-      }
-      _event_buffer_size = size;
-   }
-   return BM_SUCCESS;
-}
-
-/********************************************************************/
 INT bm_poll_event(INT flag)
 /********************************************************************\
 
@@ -9085,10 +9099,14 @@ INT bm_poll_event(INT flag)
 
       do {
          if (_event_buffer_size == 0) {
-            status = allocate_event_buffer();
-            if (status != BM_SUCCESS) {
-               return status;
+            int size = _bm_max_event_size + sizeof(EVENT_HEADER);
+            _event_buffer = (EVENT_HEADER *) M_MALLOC(size);
+            if (!_event_buffer) {
+               cm_msg(MERROR, "bm_poll_event", "not enough memory to allocate event buffer of size %d", size);
+               return SS_ABORT;
             }
+            _event_buffer_size = size;
+            //printf("bm_poll: allocated event buffer size %d, max_event_size %d\n", size, _bm_max_event_size);
          }
          /* receive event */
          size = _event_buffer_size;
@@ -9336,7 +9354,7 @@ static void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
                                                                                                                                /** @} *//* end of bmfunctionc */
 
 /**dox***************************************************************/
-/** @addtogroup rpcfunctionc
+/** @addtogroup rpc_xxx
  *
  *  @{  */
 
@@ -10405,7 +10423,7 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    _server_connection.remote_hw_type = remote_hw_type;
 
    /* set dispatcher which receives database updates */
-   ss_suspend_set_dispatch(CH_CLIENT, &_server_connection, (int (*)(void)) rpc_client_dispatch);
+   ss_suspend_set_dispatch_client(&_server_connection, rpc_client_dispatch);
 
    return RPC_SUCCESS;
 }
@@ -11978,9 +11996,6 @@ INT rpc_flush_event()
    return RPC_SUCCESS;
 }
 
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
-
 /********************************************************************/
 
 typedef struct {
@@ -12659,7 +12674,7 @@ INT rpc_register_server(/*INT server_type, const char *name,*/ INT * port, int a
    }
 
    /* define callbacks for ss_suspend */
-   ss_suspend_set_dispatch(CH_LISTEN, &_lsock, accept_func);
+   ss_suspend_set_dispatch_listen(_lsock, accept_func);
 
    ///* define callbacks for ss_suspend */
    //if (server_type == ST_REMOTE)
@@ -13921,7 +13936,7 @@ INT rpc_client_accept(int lsock)
    rpc_set_server_option(RPC_CONVERT_FLAGS, convert_flags);
 
    /* set callback function for ss_suspend */
-   ss_suspend_set_dispatch(CH_SERVER, _server_acception, (int (*)(void)) rpc_server_receive);
+   ss_suspend_set_dispatch_server(_server_acception, rpc_server_receive);
 
    return RPC_SUCCESS;
 }
@@ -14102,7 +14117,7 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    rpc_set_server_option(RPC_CONVERT_FLAGS, convert_flags);
 
    /* set callback function for ss_suspend */
-   ss_suspend_set_dispatch(CH_SERVER, _server_acception, (int (*)(void)) rpc_server_receive);
+   ss_suspend_set_dispatch_server(_server_acception, rpc_server_receive);
 
    if (rpc_is_mserver())
       rpc_debug_printf("Connection to %s:%s established\n",
@@ -14142,7 +14157,6 @@ INT rpc_server_thread(void *pointer)
 {
    struct callback_addr callback;
    int status, semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg;
-   static DWORD last_checked = 0;
 
    memcpy(&callback, pointer, sizeof(callback));
 
@@ -14158,21 +14172,20 @@ INT rpc_server_thread(void *pointer)
    ss_semaphore_create("MSG", &semaphore_msg);
    cm_set_experiment_semaphore(semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg);
 
-   do {
-      status = ss_suspend(5000, 0);
+   while (1) {
+      status = ss_suspend(1000, 0);
 
+      if (status == SS_ABORT || status == SS_EXIT)
+         break;
+ 
       if (rpc_check_channels() == RPC_NET_ERROR)
          break;
 
-      /* check alarms every 10 seconds */
-      if (!rpc_is_remote() && ss_time() - last_checked > 10) {
-         al_check();
-         last_checked = ss_time();
-      }
+      /* check alarms, etc */
+      status = cm_periodic_tasks();
 
       cm_msg_flush_buffer();
-
-   } while (status != SS_ABORT && status != SS_EXIT);
+   }
 
    /* delete entry in suspend table for this thread */
    ss_suspend_exit();
@@ -14223,36 +14236,23 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       }
       _net_recv_buffer_size = size;
       _net_recv_buffer_size_odb = 0;
-      //printf("allocated _net_recv_buffer size %d\n", _net_recv_buffer_size);
+      //printf("rpc_server_receive: allocated _net_recv_buffer size %d, max_event_size %d\n", _net_recv_buffer_size, _bm_max_event_size);
    }
 
    /* init network buffer */
-   if (_net_recv_buffer_size_odb == 0) {
-      HNDLE hDB;
-      int size;
-      int max_event_size = DEFAULT_MAX_EVENT_SIZE;
+   if (_net_recv_buffer_size_odb == 0 && _bm_max_event_size > 0) {
+      int size = _bm_max_event_size + sizeof(EVENT_HEADER) + 2*1024;
 
-      /* get max event size from ODB */
-      status = cm_get_experiment_database(&hDB, NULL);
-      assert(status == CM_SUCCESS);
+      _net_recv_buffer_size_odb = size;
 
-      if (hDB) {
-         size = sizeof(INT);
-         status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &max_event_size, &size, TID_DWORD, TRUE);
-
-         size = max_event_size + sizeof(EVENT_HEADER) + 1024;
-
-         _net_recv_buffer_size_odb = size;
-
-         if (size > _net_recv_buffer_size) {
-            _net_recv_buffer = (char *) realloc(_net_recv_buffer, size);
-            if (_net_recv_buffer == NULL) {
-               cm_msg(MERROR, "rpc_server_receive", "Cannot allocate %d bytes for network buffer", size);
-               return RPC_EXCEED_BUFFER;
-            }
-            _net_recv_buffer_size = size;
-            //printf("allocated _net_recv_buffer size %d\n", _net_recv_buffer_size);
+      if (size > _net_recv_buffer_size) {
+         _net_recv_buffer = (char *) realloc(_net_recv_buffer, size);
+         if (_net_recv_buffer == NULL) {
+            cm_msg(MERROR, "rpc_server_receive", "Cannot allocate %d bytes for network buffer", size);
+            return RPC_EXCEED_BUFFER;
          }
+         _net_recv_buffer_size = size;
+         //printf("rpc_server_receive: reallocated _net_recv_buffer size %d, max_event_size %d\n", _net_recv_buffer_size, _bm_max_event_size);
       }
    }
 
@@ -14285,8 +14285,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
    if (sock == _server_acception[idx].recv_sock) {
       do {
          if (_server_acception[idx].remote_hw_type == DR_ASCII)
-            n_received =
-                recv_string(_server_acception[idx].recv_sock, _net_recv_buffer, _net_recv_buffer_size, 10000);
+            n_received = recv_string(_server_acception[idx].recv_sock, _net_recv_buffer, _net_recv_buffer_size, 10000);
          else
             n_received = recv_tcp_server(idx, _net_recv_buffer, _net_recv_buffer_size, 0, &remaining);
 
@@ -14301,8 +14300,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
          if (_server_acception[idx].remote_hw_type == DR_ASCII)
             status = rpc_execute_ascii(_server_acception[idx].recv_sock, _net_recv_buffer);
          else
-            status = rpc_execute(_server_acception[idx].recv_sock,
-                                 _net_recv_buffer, _server_acception[idx].convert_flags);
+            status = rpc_execute(_server_acception[idx].recv_sock, _net_recv_buffer, _server_acception[idx].convert_flags);
 
          if (status == SS_ABORT) {
             cm_msg(MERROR, "rpc_server_receive", "rpc_execute() returned %d, abort", status);
@@ -14584,11 +14582,7 @@ INT rpc_check_channels(void)
    return RPC_NET_ERROR;
 }
 
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
-
-/**dox***************************************************************/
-                                                                                                                               /** @} *//* end of rpcfunctionc */
+/** @} */
 
 /**dox***************************************************************/
 /** @addtogroup bkfunctionc
@@ -15713,11 +15707,7 @@ int rb_get_buffer_level(int handle, int *n_bytes)
    return DB_SUCCESS;
 }
 
-/**dox***************************************************************/
-                  /** @} *//* end of rbfunctionc */
-
-/**dox***************************************************************/
-                  /** @} *//* end of midasincludecode */
+/** @} *//* end of rbfunctionc */
 
 /* emacs
  * Local Variables:

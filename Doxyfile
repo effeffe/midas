@@ -746,7 +746,6 @@ WARN_LOGFILE           =
 INPUT                  = src \
                          include \
                          utils \
-                         mscb \
                          resources \
                          examples
 

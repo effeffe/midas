@@ -23,7 +23,7 @@
 The Midas Sequencer file
 */
 
-/** @defgroup alfunctioncode Midas Sequencer Functions
+/** @defgroup seqfunctioncode Sequencer Functions
  */
 
 /**dox***************************************************************/
