@@ -5237,6 +5237,8 @@ INT cm_register_function(INT id, INT(*func) (INT, void **))
 *                                                                    *
 \********************************************************************/
 
+static DWORD _bm_max_event_size = 0;
+
 static int bm_validate_client_index(const BUFFER * buf, BOOL abort_if_invalid)
 {
    static int prevent_recursion = 1;
@@ -5496,6 +5498,24 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
    if (rpc_is_remote()) {
       status = rpc_call(RPC_BM_OPEN_BUFFER, buffer_name, buffer_size, buffer_handle);
       bm_mark_read_waiting(TRUE);
+
+      HNDLE hDB;
+      status = cm_get_experiment_database(&hDB, NULL);
+      if (status != SUCCESS || hDB == 0) {
+         cm_msg(MERROR, "bm_open_buffer", "cannot open buffer \'%s\' - not connected to ODB", buffer_name);
+         return BM_NO_SHM;
+      }
+
+      _bm_max_event_size = DEFAULT_MAX_EVENT_SIZE;
+
+      int size = sizeof(INT);
+      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &_bm_max_event_size, &size, TID_DWORD, TRUE);
+
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "bm_open_buffer", "Cannot get ODB /Experiment/MAX_EVENT_SIZE, db_get_value() status %d", status);
+         return status;
+      }
+
       return status;
    }
 #ifdef LOCAL_ROUTINES
@@ -5539,6 +5559,16 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       if (buffer_size <= 0 || buffer_size > max_buffer_size) {
          cm_msg(MERROR, "bm_open_buffer", "Cannot open buffer \"%s\", invalid buffer size %d in ODB \"%s\", maximum buffer size is %d", buffer_name, buffer_size, odb_path, max_buffer_size);
          return BM_INVALID_PARAM;
+      }
+
+      _bm_max_event_size = DEFAULT_MAX_EVENT_SIZE;
+
+      size = sizeof(INT);
+      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &_bm_max_event_size, &size, TID_DWORD, TRUE);
+
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "bm_open_buffer", "Cannot get ODB /Experiment/MAX_EVENT_SIZE, db_get_value() status %d", status);
+         return status;
       }
 
       /* allocate new space for the new buffer descriptor */
@@ -8643,33 +8673,6 @@ INT bm_notify_client(char *buffer_name, int s)
 }
 
 /********************************************************************/
-
-static int allocate_event_buffer()
-{
-   if (_event_buffer_size == 0) {
-      int status;
-      int size;
-      HNDLE hDB, odb_key;
-      int max_event_size = DEFAULT_MAX_EVENT_SIZE;
-
-      /* get max event size from ODB */
-      status = cm_get_experiment_database(&hDB, &odb_key);
-      assert(status == SUCCESS);
-      size = sizeof(INT);
-      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &max_event_size, &size, TID_DWORD, TRUE);
-
-      size = max_event_size + sizeof(EVENT_HEADER);
-      _event_buffer = (EVENT_HEADER *) M_MALLOC(size);
-      if (!_event_buffer) {
-         cm_msg(MERROR, "bm_poll_event", "not enough memory to allocate event buffer of size %d", size);
-         return SS_ABORT;
-      }
-      _event_buffer_size = size;
-   }
-   return BM_SUCCESS;
-}
-
-/********************************************************************/
 INT bm_poll_event(INT flag)
 /********************************************************************\
 
@@ -8718,10 +8721,14 @@ INT bm_poll_event(INT flag)
 
       do {
          if (_event_buffer_size == 0) {
-            status = allocate_event_buffer();
-            if (status != BM_SUCCESS) {
-               return status;
+            int size = _bm_max_event_size + sizeof(EVENT_HEADER);
+            _event_buffer = (EVENT_HEADER *) M_MALLOC(size);
+            if (!_event_buffer) {
+               cm_msg(MERROR, "bm_poll_event", "not enough memory to allocate event buffer of size %d", size);
+               return SS_ABORT;
             }
+            _event_buffer_size = size;
+            //printf("bm_poll: allocated event buffer size %d, max_event_size %d\n", size, _bm_max_event_size);
          }
          /* receive event */
          size = _event_buffer_size;
@@ -13879,36 +13886,23 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       }
       _net_recv_buffer_size = size;
       _net_recv_buffer_size_odb = 0;
-      //printf("allocated _net_recv_buffer size %d\n", _net_recv_buffer_size);
+      //printf("rpc_server_receive: allocated _net_recv_buffer size %d, max_event_size %d\n", _net_recv_buffer_size, _bm_max_event_size);
    }
 
    /* init network buffer */
-   if (_net_recv_buffer_size_odb == 0) {
-      HNDLE hDB;
-      int size;
-      int max_event_size = DEFAULT_MAX_EVENT_SIZE;
+   if (_net_recv_buffer_size_odb == 0 && _bm_max_event_size > 0) {
+      int size = _bm_max_event_size + sizeof(EVENT_HEADER) + 2*1024;
 
-      /* get max event size from ODB */
-      status = cm_get_experiment_database(&hDB, NULL);
-      assert(status == CM_SUCCESS);
+      _net_recv_buffer_size_odb = size;
 
-      if (hDB) {
-         size = sizeof(INT);
-         status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &max_event_size, &size, TID_DWORD, TRUE);
-
-         size = max_event_size + sizeof(EVENT_HEADER) + 1024;
-
-         _net_recv_buffer_size_odb = size;
-
-         if (size > _net_recv_buffer_size) {
-            _net_recv_buffer = (char *) realloc(_net_recv_buffer, size);
-            if (_net_recv_buffer == NULL) {
-               cm_msg(MERROR, "rpc_server_receive", "Cannot allocate %d bytes for network buffer", size);
-               return RPC_EXCEED_BUFFER;
-            }
-            _net_recv_buffer_size = size;
-            //printf("allocated _net_recv_buffer size %d\n", _net_recv_buffer_size);
+      if (size > _net_recv_buffer_size) {
+         _net_recv_buffer = (char *) realloc(_net_recv_buffer, size);
+         if (_net_recv_buffer == NULL) {
+            cm_msg(MERROR, "rpc_server_receive", "Cannot allocate %d bytes for network buffer", size);
+            return RPC_EXCEED_BUFFER;
          }
+         _net_recv_buffer_size = size;
+         //printf("rpc_server_receive: reallocated _net_recv_buffer size %d, max_event_size %d\n", _net_recv_buffer_size, _bm_max_event_size);
       }
    }
 
@@ -13941,8 +13935,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
    if (sock == _server_acception[idx].recv_sock) {
       do {
          if (_server_acception[idx].remote_hw_type == DR_ASCII)
-            n_received =
-                recv_string(_server_acception[idx].recv_sock, _net_recv_buffer, _net_recv_buffer_size, 10000);
+            n_received = recv_string(_server_acception[idx].recv_sock, _net_recv_buffer, _net_recv_buffer_size, 10000);
          else
             n_received = recv_tcp_server(idx, _net_recv_buffer, _net_recv_buffer_size, 0, &remaining);
 
@@ -13957,8 +13950,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
          if (_server_acception[idx].remote_hw_type == DR_ASCII)
             status = rpc_execute_ascii(_server_acception[idx].recv_sock, _net_recv_buffer);
          else
-            status = rpc_execute(_server_acception[idx].recv_sock,
-                                 _net_recv_buffer, _server_acception[idx].convert_flags);
+            status = rpc_execute(_server_acception[idx].recv_sock, _net_recv_buffer, _server_acception[idx].convert_flags);
 
          if (status == SS_ABORT) {
             cm_msg(MERROR, "rpc_server_receive", "rpc_execute() returned %d, abort", status);
