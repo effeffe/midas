@@ -15,19 +15,12 @@
 The Midas System include file
 */
 
-/** @defgroup msystemincludecode The msystem.h & system.c
- */
-/** @defgroup msdefineh System Define
+/** @defgroup msdefineh System Defines
  */
 /** @defgroup msmacroh System Macros
  */
-/** @defgroup mssectionh System Structure Declaration
+/** @defgroup mssectionh System Structure Declarations
  */
-
-/**dox***************************************************************/
-/** @addtogroup msystemincludecode
- *
- *  @{  */
 
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
@@ -39,7 +32,6 @@ The Midas System include file
 
 /**dox***************************************************************/
 /** @addtogroup msdefineh
- *
  *  @{  */
 
 /**
@@ -55,11 +47,10 @@ data representations
 #define DR_ASCII            (1<<7)  /**< - */
 
 /**dox***************************************************************/
-          /** @} *//* end of msdefineh */
+/** @} *//* end of msdefineh */
 
 /**dox***************************************************************/
 /** @addtogroup msmacroh
- *
  *  @{  */
 
 /* Byte and Word swapping big endian <-> little endian */
@@ -103,10 +94,11 @@ SWAP QWORD macro */
 #endif
 
 /**dox***************************************************************/
-          /** @} *//* end of msmacroh */
+/** @} *//* end of msmacroh */
 
 /**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
+/** @addtogroup msdefineh
+ *  @{  */
 
 /**
 Definition of implementation specific constants */
@@ -129,6 +121,8 @@ Definition of implementation specific constants */
 #if !defined ( OS_MSDOS )
 #define YBOS_SUPPORT
 #endif
+
+/** @} */
 
 /*------------------------------------------------------------------*/
 
@@ -189,9 +183,14 @@ typedef struct {
 
 #endif
 
+/** @addtogroup msdefineh
+ *  @{  */
+
 #ifndef FD_SETSIZE
 #define FD_SETSIZE 32
 #endif
+
+/** @} */
 
 /* and VXWORKS */
 
@@ -203,11 +202,20 @@ typedef struct {
 
 #endif
 
+/** @addtogroup msdefineh
+ *  @{  */
+
 /* missing O_BINARY for non-PC */
 #ifndef O_BINARY
 #define O_BINARY 0
 #define O_TEXT   0
 #endif
+
+/** @} */
+
+/**dox***************************************************************/
+/** @addtogroup msmacroh
+ *  @{  */
 
 /* min/max/abs macros */
 #ifndef MAX
@@ -232,7 +240,9 @@ typedef struct {
 #define TRUNCATE(fh) ftruncate(fh, TELL(fh))
 #endif
 
-/* missing isnan() & co under Windows */
+/** @} */
+
+  /* missing isnan() & co under Windows */
 #ifdef OS_WINNT
 #include <float.h>
 #define isnan(x) _isnan(x)
@@ -243,6 +253,10 @@ typedef struct {
 #endif
 
 /*------------------------------------------------------------------*/
+
+/**dox***************************************************************/
+/** @addtogroup mssectionh
+ *  @{  */
 
 /* Network structures */
 
@@ -262,6 +276,11 @@ typedef struct {
    DWORD sequence_number;
 } UDP_HEADER;
 
+/** @} *//* end of mssectionh */
+
+/** @addtogroup msdefineh
+ *  @{  */
+
 #define UDP_FIRST 0x80000000l
 #define TCP_FAST  0x80000000l
 
@@ -271,6 +290,12 @@ typedef struct {
 #define MSG_SERVER   4
 #define MSG_LISTEN   5
 #define MSG_WATCHDOG 6
+
+/** @} */
+
+/**dox***************************************************************/
+/** @addtogroup mssectionh
+ *  @{  */
 
 /* RPC structures */
 
@@ -334,14 +359,6 @@ typedef struct {
 
 } RPC_SERVER_ACCEPTION;
 
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
-
-/**dox***************************************************************/
-/** @addtogroup mssectionh
- *
- *  @{  */
-
 typedef struct {
    INT size;                          /**< size in bytes              */
    INT next_free;                     /**< Address of next free block */
@@ -395,7 +412,7 @@ typedef struct {
    HNDLE semaphore;             /* semaphore handle             */
    INT lock_cnt;                /* flag to avoid multiple locks */
    HNDLE shm_handle;            /* handle (id) to shared memory */
-   INT index;                   /* connection index / tid       */
+   //INT index;                   /* connection index / tid       */
    BOOL protect;                /* read/write protection        */
    BOOL protect_read;           /* read is permitted            */
    BOOL protect_write;          /* write is permitted           */
@@ -438,16 +455,20 @@ typedef struct {
 } REQUEST_LIST;
 
 /**dox***************************************************************/
-          /** @} *//* end of mssectionh */
+/** @} *//* end of mssectionh */
 
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
+/** @addtogroup msdefineh
+ *  @{  */
 
 /*---- Logging channel information ---------------------------------*/
 
 #define LOG_TYPE_DISK 1
 #define LOG_TYPE_TAPE 2
 #define LOG_TYPE_FTP  3
+
+/** @} */
+
+#if defined(OS_VXWORKS)
 
 /*---- VxWorks specific taskSpawn arguments ----------------------*/
 
@@ -459,12 +480,7 @@ typedef struct {
    int arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10;
 } VX_TASK_SPAWN;
 
-/*---- Channels for ss_suspend_set_dispatch() ----------------------*/
-
-#define CH_IPC        1
-#define CH_CLIENT     2
-#define CH_SERVER     3
-#define CH_LISTEN     4
+#endif
 
 /*---- Function declarations ---------------------------------------*/
 
@@ -491,7 +507,7 @@ extern "C" {
    /*---- online database ----*/
    INT EXPRT db_lock_database(HNDLE database_handle);
    INT EXPRT db_unlock_database(HNDLE database_handle);
-   INT EXPRT db_get_lock_cnt(HNDLE database_handle);
+   //INT EXPRT db_get_lock_cnt(HNDLE database_handle);
    INT EXPRT db_set_lock_timeout(HNDLE database_handle, int timeout_millisec);
    INT db_update_record(INT hDB, INT hKeyRoot, INT hKey, int index, int s);
    INT db_close_all_records(void);
@@ -502,7 +518,7 @@ extern "C" {
    INT EXPRT db_show_mem(HNDLE hDB, char **result, BOOL verbose);
    INT EXPRT db_get_free_mem(HNDLE hDB, INT *key_size, INT *data_size);
    INT db_allow_write_locked(DATABASE* p, const char* caller_name);
-   void db_update_last_activity(DWORD actual_time);
+   //void db_update_last_activity(DWORD actual_time);
    void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval);
    void db_cleanup2(const char* client_name, int ignore_timeout, DWORD actual_time,  const char *who);
    void db_set_watchdog_params(DWORD timeout);
@@ -514,10 +530,11 @@ extern "C" {
    INT rpc_server_callback(struct callback_addr *callback);
    INT EXPRT rpc_server_accept(int sock);
    INT rpc_client_accept(int sock);
-   INT rpc_get_server_acception(void);
-   INT rpc_set_server_acception(INT idx);
-   INT EXPRT rpc_set_server_option(INT item, POINTER_T value);
-   POINTER_T EXPRT rpc_get_server_option(INT item);
+   //INT rpc_get_server_acception(void);
+   //INT rpc_set_server_acception(INT idx);
+   INT rpc_set_mserver_mode();
+   INT EXPRT rpc_set_server_option(INT item, INT value);
+   INT EXPRT rpc_get_server_option(INT item);
    INT recv_tcp_check(int sock);
    INT recv_event_check(int sock);
    INT rpc_deregister_functions(void);
@@ -528,6 +545,11 @@ extern "C" {
    int EXPRT rpc_get_event_sock(void);
    INT EXPRT rpc_set_opt_tcp_size(INT tcp_size);
    INT EXPRT rpc_get_opt_tcp_size(void);
+   INT EXPRT rpc_set_mserver_path(const char *mserver_path);
+   const char* EXPRT rpc_get_mserver_path();
+
+   /** @addtogroup msfunctionc */
+   /** @{ */
 
    /*---- system services ----*/
    INT ss_shm_open(const char *name, INT size, void **adr, HNDLE *handle, BOOL get_size);
@@ -555,7 +577,10 @@ extern "C" {
    INT EXPRT ss_mutex_delete(MUTEX_T *mutex);
    INT ss_alarm(INT millitime, void (*func) (int));
    INT ss_suspend_get_port(INT * port);
-   INT ss_suspend_set_dispatch(INT channel, void *connection, INT(*dispatch) (void));
+   INT ss_suspend_set_dispatch_listen(int listen_socket, INT(*dispatch)(INT));
+   INT ss_suspend_set_dispatch_server(RPC_SERVER_ACCEPTION* connection, INT(*dispatch)(INT,int,BOOL));
+   INT ss_suspend_set_dispatch_client(RPC_SERVER_CONNECTION* connection, INT(*dispatch)(INT));
+   INT ss_suspend_set_dispatch_ipc(INT(*dispatch)(const char*,INT));
    INT ss_resume(INT port, const char *message);
    INT ss_suspend_exit(void);
    INT ss_exception_handler(void (*func) (void));
@@ -581,6 +606,8 @@ extern "C" {
    INT EXPRT recv_string(int sock, char *buffer, DWORD buffer_size, INT flags);
    INT EXPRT ss_socket_wait(int sock, int millisec);
    INT EXPRT ss_recv_net_command(int sock, DWORD* routine_id, DWORD* param_size, char **param_ptr, int timeout_ms);
+
+   /** @} */
 
    /*---- event buffer routines ----*/
    INT EXPRT eb_create_buffer(INT size);
@@ -620,10 +647,7 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
-/**dox***************************************************************//** @} *//* end of msystemincludecode */
 /* emacs
  * Local Variables:
  * tab-width: 8

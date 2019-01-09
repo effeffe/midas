@@ -165,6 +165,10 @@ function ODBFinishInlineEdit(p, path, bracket) {
    if (p.ODBsent == true)
       return;
 
+   if (!p.inEdit)
+      return;
+   p.inEdit = false;
+
    if (p.childNodes.length == 2)
       value = p.childNodes[1].value;
    else
@@ -233,11 +237,11 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val) {
             odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
             odb_path + "&quot;," + bracket + ");' >";
 
-         // what is this for?
+         // needed for Firefox
          setTimeout(function () {
             p.childNodes[1].focus();
             p.childNodes[1].select();
-         }, 10); // needed for Firefox
+         }, 10);
       }
    } else {
 
@@ -246,11 +250,11 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val) {
          odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
          odb_path + "&quot;," + bracket + ");' >";
 
-      // what is this for?
+      // needed for Firefox
       setTimeout(function () {
          p.childNodes[0].focus();
          p.childNodes[0].select();
-      }, 10); // needed for Firefox
+      }, 10);
    }
 
    p.style.width = width + "px";
@@ -261,6 +265,9 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val) {
 //
 
 function ODBInlineEdit(p, odb_path, bracket) {
+   if (p.inEdit)
+      return;
+   p.inEdit = true;
    mjsonrpc_db_get_values([odb_path]).then(function (rpc) {
       var value = rpc.result.data[0];
       var tid = rpc.result.tid[0];
@@ -1892,8 +1899,9 @@ var mhttpd_config_defaults = {
    },
 
    'suppressMessageBefore': 0,
-   'showMenu': true
-   
+   'showMenu': true,
+
+   'facility': 'midas'
 };
 
 function mhttpdConfig() {

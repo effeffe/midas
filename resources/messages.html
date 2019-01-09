@@ -9,7 +9,7 @@
    <title>Messages</title>
 </head>
 
-<body class="mcss" onload="mhttpd_init('Messages'); show_facilities(); msg_load('midas');">
+<body class="mcss" onload="mhttpd_init('Messages'); show_facilities(); msg_load();">
 <div id="mheader"></div>
 <div id="msidenav"></div>
 
@@ -81,7 +81,12 @@
    }
 
    function msg_load(f) {
+      if (f === undefined)
+         f = mhttpdConfig().mFacility;
+      if (f === undefined)
+         f = 'midas';
       facility = f;
+      mhttpdConfigSet("mFacility", f);
       first_tstamp = 0;
       last_tstamp = 0;
       n_messages = 0;
@@ -124,6 +129,10 @@
 
    function msg_prepend(msg) {
       var mf = document.getElementById('messageFrame');
+      if (mf.childNodes.length < 2) {
+         msg_append(msg);
+         return;
+      }
 
       for (var i = 0; i < msg.length; i++) {
          var line = msg[i];

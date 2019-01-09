@@ -21,6 +21,9 @@
 #include <stdio.h>
 #include <stddef.h>
 
+/** @addtogroup mongoose4 mongoose v4 web server library
+ *  @{  */
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus

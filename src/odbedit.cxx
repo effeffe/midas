@@ -1812,99 +1812,115 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
       /* set mode */
       else if (param[0][0] == 'c' && param[0][1] == 'h' && param[0][2] == 'm') {
-         compose_name(pwd, param[2], str);
-
-         mode = atoi(param[1]);
-
-         if (strcmp(str, "/") != 0)
-            status = db_find_key(hDB, 0, str, &hKey);
-         else
-            hKey = 0;
-
-         if (status == DB_SUCCESS || !hKey) {
-            if (cmd_mode)
-               str[0] = 'y';
-            else {
-               printf
-                   ("Are you sure to change the mode of key\n  %s\nand all its subkeys\n",
-                    str);
-               printf("to mode [%c%c%c%c]? (y/[n]) ", mode & MODE_READ ? 'R' : 0,
-                      mode & MODE_WRITE ? 'W' : 0, mode & MODE_DELETE ? 'D' : 0,
-                      mode & MODE_EXCLUSIVE ? 'E' : 0);
-               ss_gets(str, 256);
-            }
-            if (str[0] == 'y')
-               db_set_mode(hDB, hKey, mode, TRUE);
+         if (param[1][0] == 0 && param[2][0] == 0) {
+            printf("Please specify mode and key\n");
          } else {
-            printf("Error: Key \"%s\" not found\n", str);
-            if (cmd_mode)
-               return -1;
+            compose_name(pwd, param[2], str);
+            
+            mode = atoi(param[1]);
+            
+            if (strcmp(str, "/") != 0)
+               status = db_find_key(hDB, 0, str, &hKey);
+            else
+               hKey = 0;
+            
+            if (status == DB_SUCCESS || !hKey) {
+               if (cmd_mode)
+                  str[0] = 'y';
+               else {
+                  printf
+                  ("Are you sure to change the mode of key\n  %s\nand all its subkeys\n",
+                   str);
+                  printf("to mode [%c%c%c%c]? (y/[n]) ", mode & MODE_READ ? 'R' : 0,
+                         mode & MODE_WRITE ? 'W' : 0, mode & MODE_DELETE ? 'D' : 0,
+                         mode & MODE_EXCLUSIVE ? 'E' : 0);
+                  ss_gets(str, 256);
+               }
+               if (str[0] == 'y')
+                  db_set_mode(hDB, hKey, mode, TRUE);
+            } else {
+               printf("Error: Key \"%s\" not found\n", str);
+               if (cmd_mode)
+                  return -1;
+            }
          }
       }
 
       /* truncate */
       else if (param[0][0] == 't' && param[0][1] == 'r') {
-         compose_name(pwd, param[1], str);
-
-         status = db_find_key(hDB, 0, str, &hKey);
-
-         i = atoi(param[2]);
-         if (i == 0)
-            i = 1;
-
-         if (status == DB_SUCCESS)
-            db_set_num_values(hDB, hKey, i);
-         else {
-            printf("Error: Key \"%s\" not found\n", str);
-            if (cmd_mode)
-               return -1;
+         if (param[1][0] == 0) {
+            printf("Please specify key\n");
+         } else {
+            compose_name(pwd, param[1], str);
+            
+            status = db_find_key(hDB, 0, str, &hKey);
+            
+            i = atoi(param[2]);
+            if (i == 0)
+               i = 1;
+            
+            if (status == DB_SUCCESS)
+               db_set_num_values(hDB, hKey, i);
+            else {
+               printf("Error: Key \"%s\" not found\n", str);
+               if (cmd_mode)
+                  return -1;
+            }
          }
       }
 
       /* rename */
       else if (param[0][0] == 'r' && param[0][1] == 'e' && param[0][2] == 'n') {
-         compose_name(pwd, param[1], str);
-
-         if (strcmp(str, "/") != 0)
-            status = db_find_link(hDB, 0, str, &hKey);
-         else
-            hKey = 0;
-
-         if (status == DB_SUCCESS || !hKey)
-            db_rename_key(hDB, hKey, param[2]);
-         else {
-            printf("Error: Key \"%s\" not found\n", str);
-            if (cmd_mode)
-               return -1;
+         if (param[1][0] == 0) {
+            printf("Please specify key\n");
+         } else {
+            compose_name(pwd, param[1], str);
+            
+            if (strcmp(str, "/") != 0)
+               status = db_find_link(hDB, 0, str, &hKey);
+            else
+               hKey = 0;
+            
+            if (status == DB_SUCCESS || !hKey)
+               db_rename_key(hDB, hKey, param[2]);
+            else {
+               printf("Error: Key \"%s\" not found\n", str);
+               if (cmd_mode)
+                  return -1;
+            }
          }
       }
 
       /* move */
       else if (param[0][0] == 'm' && param[0][1] == 'o') {
-         compose_name(pwd, param[1], str);
-
-         if (strcmp(str, "/") != 0)
-            status = db_find_link(hDB, 0, str, &hKey);
-         else
-            hKey = 0;
-
-         if (status == DB_SUCCESS || !hKey) {
-            if (param[2][0] == 't')
-               i = 0;
-            else if (param[2][0] == 'b')
-               i = -1;
-            else
-               i = atoi(param[2]);
-
-            status = db_reorder_key(hDB, hKey, i);
-            if (status == DB_NO_ACCESS)
-               printf("no write access to key\n");
-            if (status == DB_OPEN_RECORD)
-               printf("key is open by other client\n");
+         if (param[1][0] == 0) {
+            printf("Please specify key\n");
          } else {
-            printf("Error: Key \"%s\" not found\n", str);
-            if (cmd_mode)
-               return -1;
+            compose_name(pwd, param[1], str);
+            
+            if (strcmp(str, "/") != 0)
+               status = db_find_link(hDB, 0, str, &hKey);
+            else
+               hKey = 0;
+            
+            if (status == DB_SUCCESS || !hKey) {
+               if (param[2][0] == 't')
+                  i = 0;
+               else if (param[2][0] == 'b')
+                  i = -1;
+               else
+                  i = atoi(param[2]);
+               
+               status = db_reorder_key(hDB, hKey, i);
+               if (status == DB_NO_ACCESS)
+                  printf("no write access to key\n");
+               if (status == DB_OPEN_RECORD)
+                  printf("key is open by other client\n");
+            } else {
+               printf("Error: Key \"%s\" not found\n", str);
+               if (cmd_mode)
+                  return -1;
+            }
          }
       }
 
@@ -2659,65 +2675,73 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
       /* wait */
       else if (param[0][0] == 'w' && param[0][1] == 'a' && param[0][2] == 'i') {
-         compose_name(pwd, param[1], str);
-
-         if (equal_ustring(str, "/")) {
-            status = DB_SUCCESS;
-            status = db_find_link(hDB, 0, "/", &hKey);
-         } else
-            status = db_find_link(hDB, 0, str, &hKey);
-
-         if (status == DB_SUCCESS) {
-            db_get_key(hDB, hKey, &key);
-            printf("Waiting for key \"%s\" to be modified, abort with any key\n", key.name);
-            db_get_record_size(hDB, hKey, 0, &size);
-            char* buf = (char*)malloc(size);
-            key_modified = FALSE;
-            db_open_record(hDB, hKey, buf, size, MODE_READ, key_update, NULL);
-
-            do {
-               cm_yield(1000);
-            } while (!key_modified && !ss_kbhit());
-
-            while (ss_kbhit())
-               ss_getchar(0);
+         if (param[1][0] == 0) {
+            printf("Please specify key\n");
+         } else {
+            compose_name(pwd, param[1], str);
             
-            db_close_record(hDB, hKey);
-            if (buf) {
-               free(buf);
-               buf = NULL;
-            }
-            if (i == '!')
-               printf("Wait aborted.\n");
-            else
-               printf("Key has been modified.\n");
-         } else
-            printf("key \"%s\" not found\n", str);
+            if (equal_ustring(str, "/")) {
+               status = DB_SUCCESS;
+               status = db_find_link(hDB, 0, "/", &hKey);
+            } else
+               status = db_find_link(hDB, 0, str, &hKey);
+            
+            if (status == DB_SUCCESS) {
+               db_get_key(hDB, hKey, &key);
+               printf("Waiting for key \"%s\" to be modified, abort with any key\n", key.name);
+               db_get_record_size(hDB, hKey, 0, &size);
+               char* buf = (char*)malloc(size);
+               key_modified = FALSE;
+               db_open_record(hDB, hKey, buf, size, MODE_READ, key_update, NULL);
+               
+               do {
+                  cm_yield(1000);
+               } while (!key_modified && !ss_kbhit());
+               
+               while (ss_kbhit())
+                  ss_getchar(0);
+               
+               db_close_record(hDB, hKey);
+               if (buf) {
+                  free(buf);
+                  buf = NULL;
+               }
+               if (i == '!')
+                  printf("Wait aborted.\n");
+               else
+                  printf("Key has been modified.\n");
+            } else
+               printf("key \"%s\" not found\n", str);
+         }
       }
       
       /* watch */
       else if (param[0][0] == 'w' && param[0][1] == 'a' && param[0][2] == 't') {
-         compose_name(pwd, param[1], str);
-         
-         status = db_find_link(hDB, 0, str, &hKey);
-         if (status == DB_SUCCESS) {
-            db_get_key(hDB, hKey, &key);
-            if (key.type != TID_KEY)
-               printf("Watch key \"%s\" to be modified, abort with any key\n", str);
-            else
-               printf("Watch ODB tree \"%s\" to be modified, abort with any key\n", str);
-            db_watch(hDB, hKey, watch_callback, NULL);
+         if (param[1][0] == 0) {
+            printf("Please specify key\n");
+         } else {
+            compose_name(pwd, param[1], str);
             
-            do {
-               cm_yield(1000);
-            } while (!ss_kbhit());
-            
-            while (ss_kbhit())
-               ss_getchar(0);
-
-            db_unwatch(hDB, hKey);
-         } else
-            printf("key \"%s\" not found\n", str);
+            status = db_find_link(hDB, 0, str, &hKey);
+            if (status == DB_SUCCESS) {
+               db_get_key(hDB, hKey, &key);
+               if (key.type != TID_KEY)
+                  printf("Watch key \"%s\" to be modified, abort with any key\n", str);
+               else
+                  printf("Watch ODB tree \"%s\" to be modified, abort with any key\n", str);
+               db_watch(hDB, hKey, watch_callback, NULL);
+               
+               do {
+                  cm_yield(1000);
+               } while (!ss_kbhit());
+               
+               while (ss_kbhit())
+                  ss_getchar(0);
+               
+               db_unwatch(hDB, hKey);
+            } else
+               printf("key \"%s\" not found\n", str);
+         }
       }
 
       /* test 1  */

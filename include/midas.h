@@ -21,30 +21,20 @@
 The main include file
 */
 
-/** @defgroup midasincludecode The midas.h & midas.c
+/** @defgroup mdefineh Public Defines
  */
-/** @defgroup mdefineh Midas Define
+/** @defgroup mmacroh Public Macros
  */
-/** @defgroup mmacroh Midas Macros
+/** @defgroup mdeferrorh Public Error definitions
  */
-/** @defgroup mdeferrorh Midas Error definition
+/** @defgroup msectionh Public Structure Declarations
  */
-/** @defgroup msectionh Midas Structure Declaration
- */
-
-/**dox***************************************************************/
-/** @addtogroup midasincludecode
- *
- *  @{  */
 
 /* has to be changed whenever binary ODB format changes */
 #define DATABASE_VERSION 3
 
 /* MIDAS version number which will be incremented for every release */
 #define MIDAS_VERSION "2.1"
-
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /*------------------------------------------------------------------*/
 
@@ -232,9 +222,6 @@ typedef INT MUTEX_T;
 typedef std::vector<std::string> STRING_LIST;
 #endif
 
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
-
 /*------------------------------------------------------------------*/
 
 /* Definition of implementation specific constants */
@@ -354,8 +341,8 @@ RPC options */
 #define RPC_OTRANSPORT     2
 #define RPC_OCONVERT_FLAG  3
 #define RPC_OHW_TYPE       4
-#define RPC_OSERVER_TYPE   5
-#define RPC_OSERVER_NAME   6
+//#define RPC_OSERVER_TYPE   5
+//#define RPC_OSERVER_NAME   6
 #define RPC_CONVERT_FLAGS  7
 #define RPC_ODB_HANDLE     8
 #define RPC_CLIENT_HANDLE  9
@@ -809,12 +796,8 @@ macros for bus driver access */
 
 /**dox***************************************************************/
 /** @addtogroup msectionh
- *
  *  @{  */
 
-/**dox***************************************************************/
-/** @defgroup mbufferh Buffer Section
- *  @{  */
 /**
 Event header */
 typedef struct {
@@ -824,6 +807,8 @@ typedef struct {
    DWORD time_stamp;             /**< time of production of event     */
    DWORD data_size;              /**< size of event in bytes w/o header */
 } EVENT_HEADER;
+
+/** @} */
 
 /**
 TRIGGER_MASK
@@ -876,6 +861,9 @@ fragmented events */
 /**
 magic number used in trigger_mask for BOR event */
 #define MIDAS_MAGIC      0x494d            /**< 'MI' */
+
+/** @addtogroup msectionh
+ *  @{  */
 
 /**
    Handler for event requests */
@@ -946,7 +934,7 @@ typedef struct {
    MUTEX_T* write_cache_mutex;      /**< cache write mutex            */
    HNDLE semaphore;                 /**< semaphore handle             */
    INT shm_handle;                  /**< handle to shared memory      */
-   INT index;                       /**< connection index / tid       */
+   //INT index;                       /**< connection index / tid       */
    BOOL callback;                   /**< callback defined for this buffer */
 
 } BUFFER;
@@ -971,14 +959,9 @@ typedef struct {
    INT first_key;                     /**< Address of first key       */
 } KEYLIST;
 
-/**dox***************************************************************/
-          /** @} *//* end of mbufferh */
+/** @} */
 
 /*---- Equipment ---------------------------------------------------*/
-
-/**dox***************************************************************/
-/** @defgroup mequipment Equipment related
- *  @{  */
 
 #define DF_INPUT              (1<<0)  /**< channel is input           */
 #define DF_OUTPUT             (1<<1)  /**< channel is output          */
@@ -991,6 +974,9 @@ typedef struct {
 #define DF_REPORT_STATUS      (1<<8)  //*< report status word from HV channels */
 #define DF_REPORT_CHSTATE     (1<<9)  //*< report channel state word from HV channels */
 #define DF_REPORT_CRATEMAP    (1<<10) //*< reports an integer encoding size and occupancy of HV crate */
+
+/** @addtogroup msectionh
+ *  @{  */
 
 typedef struct {
    char name[NAME_LENGTH];            /**< Driver name                       */
@@ -1032,6 +1018,8 @@ typedef struct {
    BOOL hidden;                       /**< Hidden flag                       */
 } EQUIPMENT_INFO;
 
+/** @} */
+
 #define EQUIPMENT_COMMON_STR "\
 Event ID = WORD : 0\n\
 Trigger mask = WORD : 0\n\
@@ -1053,6 +1041,28 @@ Status color = STRING : [32] \n\
 Hidden = BOOL : 0\n\
 "
 
+/** @addtogroup msectionh
+ *  @{  */
+
+typedef struct {
+   double events_sent;
+   double events_per_sec;
+   double kbytes_per_sec;
+} EQUIPMENT_STATS;
+
+/** @} */
+
+#define EQUIPMENT_STATISTICS_STR "\
+Events sent = DOUBLE : 0\n\
+Events per sec. = DOUBLE : 0\n\
+kBytes per sec. = DOUBLE : 0\n\
+"
+
+typedef struct eqpmnt *PEQUIPMENT;
+
+/** @addtogroup msectionh
+ *  @{  */
+
 typedef struct {
    char name[NAME_LENGTH];            /**< Driver name                       */
    INT(*dd) (INT cmd, ...);           /**< Device driver entry point         */
@@ -1067,22 +1077,6 @@ typedef struct {
    INT semaphore;                     /**< semaphore for device access       */
    EQUIPMENT_INFO *pequipment;        /**< pointer to equipment              */
 } DEVICE_DRIVER;
-
-INT device_driver(DEVICE_DRIVER *device_driver, INT cmd, ...);
-
-typedef struct {
-   double events_sent;
-   double events_per_sec;
-   double kbytes_per_sec;
-} EQUIPMENT_STATS;
-
-#define EQUIPMENT_STATISTICS_STR "\
-Events sent = DOUBLE : 0\n\
-Events per sec. = DOUBLE : 0\n\
-kBytes per sec. = DOUBLE : 0\n\
-"
-
-typedef struct eqpmnt *PEQUIPMENT;
 
 typedef struct eqpmnt {
    char name[NAME_LENGTH];              /**< Equipment name                            */
@@ -1107,17 +1101,18 @@ typedef struct eqpmnt {
    DWORD events_sent;                   /**< number of events sent                     */
    EQUIPMENT_STATS stats;
 } EQUIPMENT;
-/**dox***************************************************************/
-          /** @} *//* end of mequipmenth */
+
+/** @} */
+
+INT device_driver(DEVICE_DRIVER *device_driver, INT cmd, ...);
 
 /*---- Banks -------------------------------------------------------*/
 
-/**dox***************************************************************/
-/** @defgroup mbank Bank related
- *  @{  */
-
 #define BANK_FORMAT_VERSION     1      /**< - */
 #define BANK_FORMAT_32BIT   (1<<4)     /**< - */
+
+/** @addtogroup msectionh
+ *  @{  */
 
 typedef struct {
    DWORD data_size;                    /**< Size in bytes */
@@ -1152,13 +1147,10 @@ typedef struct {
    DWORD n_data;                       /**< - */
    HNDLE def_key;                      /**< - */
 } BANK_LIST;
-/**dox***************************************************************/
-          /** @} *//* end of mbank */
+
+/** @} */
 
 /*---- Analyzer request --------------------------------------------*/
-/**dox***************************************************************/
-/** @defgroup manalyzer Analyzer related
- *  @{  */
 
 typedef struct {
    char name[NAME_LENGTH];            /**< Module name                       */
@@ -1259,14 +1251,8 @@ typedef struct {
 #else
 #define DEF_TEST(t) extern ANA_TEST t;
 #endif
-/**dox***************************************************************/
-          /** @} *//* end of manalyzer */
 
 /*---- History structures ------------------------------------------*/
-
-/**dox***************************************************************/
-/** @defgroup mhistoryh History related
- *  @{  */
 
 #define RT_DATA (*((DWORD *) "HSDA"))
 #define RT_DEF  (*((DWORD *) "HSDF"))
@@ -1302,18 +1288,9 @@ typedef struct {
    DWORD base_time;
    DWORD def_offset;
 } HISTORY;
-/**dox***************************************************************/
-          /** @} *//* end of mhistoryh */
 
 /*---- ODB runinfo -------------------------------------------------*/
 
-/**dox***************************************************************/
-/** @defgroup modbh ODB runinfo related
- *  @{  */
-/** Contains the main parameters regarding the run status.
-    The containt reflects the current system ONLY if Midas clients
-    are connected. Otherwise the status is erroneous.
-*/
 typedef struct {
    INT state;                         /**< Current run condition  */
    INT online_mode;                   /**< Mode of operation online/offline */
@@ -1341,14 +1318,8 @@ typedef struct {
 "Stop time binary = DWORD : 0",\
 "",\
 NULL }
-/**dox***************************************************************/
-          /** @} *//* end of modbh */
 
 /*---- Alarm system ------------------------------------------------*/
-/**dox***************************************************************/
-/** @defgroup malarmh Alarm related
- * Alarm structure.
- *  @{  */
 
 /********************************************************************/
 /**
@@ -1460,12 +1431,6 @@ NULL }
 "",\
 NULL }
 
-/**dox***************************************************************/
-          /** @} *//* end of malarmh */
-
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
-
 /*---- malloc/free routines for debugging --------------------------*/
 
 #ifdef _MEM_DBG
@@ -1510,12 +1475,12 @@ flags */
 
 /**
 Server types */
-#define ST_NONE            0
-#define ST_SINGLE          1
-#define ST_MTHREAD         2
-#define ST_MPROCESS        3
-#define ST_SUBPROCESS      4
-#define ST_REMOTE          5
+//#define ST_NONE            0
+//#define ST_SINGLE          1
+//#define ST_MTHREAD         2
+//#define ST_MPROCESS        3
+//#define ST_SUBPROCESS      4
+//#define ST_REMOTE          5
 
 /**
 function list */
@@ -1704,15 +1669,14 @@ extern "C" {
    INT EXPRT cm_check_client(HNDLE hDB, HNDLE hKeyClient);
    INT EXPRT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout);
    INT EXPRT cm_get_watchdog_params(BOOL * call_watchdog, DWORD * timeout);
-   INT EXPRT cm_get_watchdog_info(HNDLE hDB, char *client_name,
-                                  DWORD * timeout, DWORD * last);
-   INT EXPRT cm_enable_watchdog(BOOL flag);
-#define HAVE_CM_WATCHDOG 1
-   void EXPRT cm_watchdog(int);
+   INT EXPRT cm_get_watchdog_info(HNDLE hDB, char *client_name, DWORD * timeout, DWORD * last);
+   //INT EXPRT cm_enable_watchdog(BOOL flag);
+   //void EXPRT cm_watchdog(int);
    INT EXPRT cm_shutdown(const char *name, BOOL bUnique);
    INT EXPRT cm_exist(const char *name, BOOL bUnique);
    INT EXPRT cm_cleanup(const char *client_name, BOOL ignore_timeout);
    INT EXPRT cm_yield(INT millisec);
+   INT EXPRT cm_periodic_tasks();
    INT EXPRT cm_execute(const char *command, char *result, INT buf_size);
    INT EXPRT cm_synchronize(DWORD * sec);
    INT EXPRT cm_asctime(char *str, INT buf_size);
@@ -1769,6 +1733,9 @@ extern "C" {
    INT EXPRT bm_poll_event(INT flag);
    INT EXPRT bm_empty_buffers(void);
    INT EXPRT bm_check_buffers(void);
+
+   /** @addtogroup odbfunctionc */
+   /** @{ */
 
    /*---- online database functions -----*/
    INT EXPRT db_open_database(const char *database_name, INT database_size, HNDLE * hdb, const char *client_name);
@@ -1875,6 +1842,8 @@ extern "C" {
    char EXPRT *strcomb(const char **list);
    INT db_get_watchdog_info(HNDLE hDB, const char *client_name, DWORD * timeout, DWORD * last);
 
+   /** @} */
+
    /*---- Bank routines ----*/
    void EXPRT bk_init(void *pbh);
    void EXPRT bk_init32(void *event);
@@ -1902,11 +1871,11 @@ extern "C" {
    INT EXPRT rpc_set_name(const char *name);
    INT EXPRT rpc_get_name(char *name);
    INT EXPRT rpc_is_remote(void);
+   INT EXPRT rpc_is_mserver(void);
    INT EXPRT rpc_set_debug(void (*func) (const char *), INT mode);
    void EXPRT rpc_debug_printf(const char *format, ...);
 
-   INT EXPRT rpc_register_server(INT server_type, const char *name, INT * port,
-                                 INT(*func) (INT, void **));
+   INT EXPRT rpc_register_server(/*INT server_type, const char *name,*/ INT * port, int accept_func(int), INT(*func) (INT, void **));
    INT EXPRT rpc_register_client(const char *name, RPC_LIST * list);
    INT EXPRT rpc_server_thread(void *pointer);
    INT EXPRT rpc_server_shutdown(void);
@@ -1915,18 +1884,18 @@ extern "C" {
    INT EXPRT rpc_tid_size(INT id);
    const char EXPRT *rpc_tid_name(INT id);
    INT EXPRT rpc_server_connect(const char *host_name, const char *exp_name);
-   INT EXPRT rpc_client_connect(const char *host_name, INT midas_port,
-                                const char *client_name, HNDLE * hConnection);
+   INT EXPRT rpc_client_connect(const char *host_name, INT midas_port, const char *client_name, HNDLE * hConnection);
    INT EXPRT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown);
 
-   INT EXPRT rpc_send_event(INT buffer_handle, void *source, INT buf_size,
-                            INT async_flag, INT mode);
+   INT EXPRT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag, INT mode);
    INT EXPRT rpc_flush_event(void);
 
    void EXPRT rpc_get_convert_flags(INT * convert_flags);
    void EXPRT rpc_convert_single(void *data, INT tid, INT flags, INT convert_flags);
-   void EXPRT rpc_convert_data(void *data, INT tid, INT flags, INT size,
-                               INT convert_flags);
+   void EXPRT rpc_convert_data(void *data, INT tid, INT flags, INT size, INT convert_flags);
+
+   /** @addtogroup msfunctionc */
+   /** @{ */
 
    /*---- system services ----*/
    DWORD EXPRT ss_millitime(void);
@@ -1978,6 +1947,8 @@ extern "C" {
    INT EXPRT ss_file_find(const char *path, const char *pattern, char **plist);
    INT EXPRT ss_dir_find(const char *path, const char *pattern, char **plist);
    double EXPRT ss_disk_size(const char *path);
+
+   /** @} */
 
    /*---- history routines ----*/
    INT EXPRT hs_set_path(const char *path);
@@ -2059,11 +2030,13 @@ extern "C" {
 
 #endif
 #endif                          /* _MIDAS_H */
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
 /**dox***************************************************************/
-          /** @} *//* end of msectionh */
-
-/**dox***************************************************************/
-          /** @} *//* end of midasincludecode */
+/** @} *//* end of msectionh */
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */
