@@ -242,7 +242,7 @@ typedef struct {
 
 /** @} */
 
-  /* missing isnan() & co under Windows */
+/* missing isnan() & co under Windows */
 #ifdef OS_WINNT
 #include <float.h>
 #define isnan(x) _isnan(x)

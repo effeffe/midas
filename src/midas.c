@@ -8626,7 +8626,7 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
       if (status != BM_SUCCESS)
          return status;
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+      if (rpc_is_mserver())
          convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
       else
          convert_flags = 0;
