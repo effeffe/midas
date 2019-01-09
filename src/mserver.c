@@ -333,7 +333,7 @@ int main(int argc, char **argv)
 
       /* run forever */
       while (1) {
-         status = cm_yield(5000);
+         status = cm_yield(1000);
          //printf("status %d\n", status);
          if (status == RPC_SHUTDOWN)
             break;

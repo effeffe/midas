@@ -4989,42 +4989,15 @@ static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval);
 
 /********************************************************************/
 /**
-Central yield functions for clients. This routine should
-be called in an infinite loop by a client in order to
-give the MIDAS system the opportunity to receive commands
-over RPC channels, update database records and receive
-events.
-@param millisec         Timeout in millisec. If no message is
-                        received during the specified timeout,
-                        the routine returns. If millisec=-1,
-                        it only returns when receiving an
-                        RPC_SHUTDOWN message.
-@return CM_SUCCESS, RPC_SHUTDOWN
+Perform midas periodic tasks - check alarms, update and check
+timeouts on odb and on event buffers, etc. Normally called by cm_yield().
+Programs that do not use cm_yield(), i.e. the mserver,
+should call this function periodically, every 1 or 2 seconds.
+@return CM_SUCCESS
 */
-INT cm_yield(INT millisec)
+INT cm_periodic_tasks()
 {
-   INT status;
-   BOOL bMore;
    static DWORD alarm_last_checked = 0;
-
-   /* check for ctrl-c */
-   if (_ctrlc_pressed)
-      return RPC_SHUTDOWN;
-
-   /* flush the cm_msg buffer */
-   cm_msg_flush_buffer();
-
-   /* check for available events */
-   if (rpc_is_remote()) {
-      bMore = bm_poll_event(TRUE);
-      if (bMore)
-         status = ss_suspend(0, 0);
-      else
-         status = ss_suspend(millisec, 0);
-
-      return status;
-   }
-
    DWORD now = ss_time();
 
    DWORD now_millitime = ss_millitime();
@@ -5058,6 +5031,51 @@ INT cm_yield(INT millisec)
 
       last_millitime = now_millitime;
    }
+
+   return CM_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Central yield functions for clients. This routine should
+be called in an infinite loop by a client in order to
+give the MIDAS system the opportunity to receive commands
+over RPC channels, update database records and receive
+events.
+@param millisec         Timeout in millisec. If no message is
+                        received during the specified timeout,
+                        the routine returns. If millisec=-1,
+                        it only returns when receiving an
+                        RPC_SHUTDOWN message.
+@return CM_SUCCESS, RPC_SHUTDOWN
+*/
+INT cm_yield(INT millisec)
+{
+   INT status;
+   BOOL bMore;
+
+   /* check for ctrl-c */
+   if (_ctrlc_pressed)
+      return RPC_SHUTDOWN;
+
+   /* flush the cm_msg buffer */
+   cm_msg_flush_buffer();
+
+   /* check for available events */
+   if (rpc_is_remote()) {
+      bMore = bm_poll_event(TRUE);
+      if (bMore)
+         status = ss_suspend(0, 0);
+      else
+         status = ss_suspend(millisec, 0);
+
+      return status;
+   }
+
+   status = cm_periodic_tasks();
+
+   if (status != CM_SUCCESS)
+      return status;
 
    bMore = bm_check_buffers();
 
@@ -13782,7 +13800,6 @@ INT rpc_server_thread(void *pointer)
 {
    struct callback_addr callback;
    int status, semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg;
-   static DWORD last_checked = 0;
 
    memcpy(&callback, pointer, sizeof(callback));
 
@@ -13798,21 +13815,20 @@ INT rpc_server_thread(void *pointer)
    ss_semaphore_create("MSG", &semaphore_msg);
    cm_set_experiment_semaphore(semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg);
 
-   do {
-      status = ss_suspend(5000, 0);
+   while (1) {
+      status = ss_suspend(1000, 0);
 
+      if (status == SS_ABORT || status == SS_EXIT)
+         break;
+ 
       if (rpc_check_channels() == RPC_NET_ERROR)
          break;
 
-      /* check alarms every 10 seconds */
-      if (!rpc_is_remote() && ss_time() - last_checked > 10) {
-         al_check();
-         last_checked = ss_time();
-      }
+      /* check alarms, etc */
+      status = cm_periodic_tasks();
 
       cm_msg_flush_buffer();
-
-   } while (status != SS_ABORT && status != SS_EXIT);
+   }
 
    /* delete entry in suspend table for this thread */
    ss_suspend_exit();
