@@ -14,15 +14,8 @@
 The Online Database file
 */
 
-/** @defgroup odbcode The odb.c
+/** @defgroup odbfunctionc ODB Functions (db_xxx)
  */
-/** @defgroup odbfunctionc Midas ODB Functions (db_xxx)
- */
-
-/**dox***************************************************************/
-/** @addtogroup odbcode
-*
- *  @{  */
 
 /**dox***************************************************************/
 /** @addtogroup odbfunctionc
@@ -12369,12 +12362,8 @@ INT db_unwatch_all()
 
 /*------------------------------------------------------------------*/
 
+/** @} *//* end of odbfunctionc */
 
-/**dox***************************************************************/
-                                                       /** @} *//* end of odbfunctionc */
-
-/**dox***************************************************************/
-                                                       /** @} *//* end of odbcode */
 /* emacs
  * Local Variables:
  * tab-width: 8

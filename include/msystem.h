@@ -15,19 +15,12 @@
 The Midas System include file
 */
 
-/** @defgroup msystemincludecode The msystem.h & system.c
- */
-/** @defgroup msdefineh System Define
+/** @defgroup msdefineh System Defines
  */
 /** @defgroup msmacroh System Macros
  */
-/** @defgroup mssectionh System Structure Declaration
+/** @defgroup mssectionh System Structure Declarations
  */
-
-/**dox***************************************************************/
-/** @addtogroup msystemincludecode
- *
- *  @{  */
 
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
@@ -39,7 +32,6 @@ The Midas System include file
 
 /**dox***************************************************************/
 /** @addtogroup msdefineh
- *
  *  @{  */
 
 /**
@@ -55,11 +47,10 @@ data representations
 #define DR_ASCII            (1<<7)  /**< - */
 
 /**dox***************************************************************/
-          /** @} *//* end of msdefineh */
+/** @} *//* end of msdefineh */
 
 /**dox***************************************************************/
 /** @addtogroup msmacroh
- *
  *  @{  */
 
 /* Byte and Word swapping big endian <-> little endian */
@@ -103,10 +94,11 @@ SWAP QWORD macro */
 #endif
 
 /**dox***************************************************************/
-          /** @} *//* end of msmacroh */
+/** @} *//* end of msmacroh */
 
 /**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
+/** @addtogroup msdefineh
+ *  @{  */
 
 /**
 Definition of implementation specific constants */
@@ -129,6 +121,8 @@ Definition of implementation specific constants */
 #if !defined ( OS_MSDOS )
 #define YBOS_SUPPORT
 #endif
+
+/** @} */
 
 /*------------------------------------------------------------------*/
 
@@ -189,9 +183,14 @@ typedef struct {
 
 #endif
 
+/** @addtogroup msdefineh
+ *  @{  */
+
 #ifndef FD_SETSIZE
 #define FD_SETSIZE 32
 #endif
+
+/** @} */
 
 /* and VXWORKS */
 
@@ -203,11 +202,20 @@ typedef struct {
 
 #endif
 
+/** @addtogroup msdefineh
+ *  @{  */
+
 /* missing O_BINARY for non-PC */
 #ifndef O_BINARY
 #define O_BINARY 0
 #define O_TEXT   0
 #endif
+
+/** @} */
+
+/**dox***************************************************************/
+/** @addtogroup msmacroh
+ *  @{  */
 
 /* min/max/abs macros */
 #ifndef MAX
@@ -232,6 +240,8 @@ typedef struct {
 #define TRUNCATE(fh) ftruncate(fh, TELL(fh))
 #endif
 
+/** @} */
+
 /* reduced shared memory size */
 #ifdef OS_SOLARIS
 #define MAX_SHM_SIZE      0x20000       /* 128k */
@@ -248,6 +258,10 @@ typedef struct {
 #endif
 
 /*------------------------------------------------------------------*/
+
+/**dox***************************************************************/
+/** @addtogroup mssectionh
+ *  @{  */
 
 /* Network structures */
 
@@ -267,6 +281,11 @@ typedef struct {
    DWORD sequence_number;
 } UDP_HEADER;
 
+/** @} *//* end of mssectionh */
+
+/** @addtogroup msdefineh
+ *  @{  */
+
 #define UDP_FIRST 0x80000000l
 #define TCP_FAST  0x80000000l
 
@@ -276,6 +295,12 @@ typedef struct {
 #define MSG_SERVER   4
 #define MSG_LISTEN   5
 #define MSG_WATCHDOG 6
+
+/** @} */
+
+/**dox***************************************************************/
+/** @addtogroup mssectionh
+ *  @{  */
 
 /* RPC structures */
 
@@ -338,14 +363,6 @@ typedef struct {
    HNDLE client_handle;         /*  client key handle .     */
 
 } RPC_SERVER_ACCEPTION;
-
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
-
-/**dox***************************************************************/
-/** @addtogroup mssectionh
- *
- *  @{  */
 
 typedef struct {
    INT size;                          /**< size in bytes              */
@@ -443,16 +460,20 @@ typedef struct {
 } REQUEST_LIST;
 
 /**dox***************************************************************/
-          /** @} *//* end of mssectionh */
+/** @} *//* end of mssectionh */
 
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
+/** @addtogroup msdefineh
+ *  @{  */
 
 /*---- Logging channel information ---------------------------------*/
 
 #define LOG_TYPE_DISK 1
 #define LOG_TYPE_TAPE 2
 #define LOG_TYPE_FTP  3
+
+/** @} */
+
+#if defined(OS_VXWORKS)
 
 /*---- VxWorks specific taskSpawn arguments ----------------------*/
 
@@ -463,6 +484,8 @@ typedef struct {
    int stackSize;
    int arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10;
 } VX_TASK_SPAWN;
+
+#endif
 
 /*---- Function declarations ---------------------------------------*/
 
@@ -540,6 +563,9 @@ extern "C" {
    INT EXPRT rpc_set_mserver_path(const char *mserver_path);
    const char* EXPRT rpc_get_mserver_path();
 
+   /** @addtogroup msfunctionc */
+   /** @{ */
+
    /*---- system services ----*/
    INT ss_shm_open(const char *name, INT size, void **adr, HNDLE *handle, BOOL get_size);
    INT ss_shm_close(const char *name, void *adr, HNDLE handle, INT destroy_flag);
@@ -596,6 +622,8 @@ extern "C" {
    INT EXPRT ss_socket_wait(int sock, int millisec);
    INT EXPRT ss_recv_net_command(int sock, DWORD* routine_id, DWORD* param_size, char **param_ptr, int timeout_ms);
 
+   /** @} */
+
    /*---- event buffer routines ----*/
    INT EXPRT eb_create_buffer(INT size);
    INT EXPRT eb_free_buffer(void);
@@ -634,10 +662,7 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
-/**dox***************************************************************//** @} *//* end of msystemincludecode */
 /* emacs
  * Local Variables:
  * tab-width: 8

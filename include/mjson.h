@@ -13,6 +13,9 @@
 #include <string>
 #include <vector>
 
+/** @addtogroup mjson JSON Functions
+ *  @{  */
+
 #define MJSON_ERROR -1
 #define MJSON_NONE   0
 #define MJSON_ARRAY  1

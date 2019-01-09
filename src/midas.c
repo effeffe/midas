@@ -39,25 +39,18 @@ user discussion, mailing lists and forums,
 can be found through the MIDAS Wiki at http://midas.triumf.ca
 */
 
-/** @defgroup cmfunctionc Midas Common Functions (cm_xxx)
+/** @defgroup cmfunctionc Common Functions (cm_xxx)
  */
-/** @defgroup bmfunctionc Midas Buffer Manager Functions (bm_xxx)
+/** @defgroup bmfunctionc Event Buffer Functions (bm_xxx)
  */
-/** @defgroup msgfunctionc Midas Message Functions (msg_xxx)
+/** @defgroup msgfunctionc Message Functions (msg_xxx)
  */
-/** @defgroup bkfunctionc Midas Bank Functions (bk_xxx)
+/** @defgroup bkfunctionc Data Bank Functions (bk_xxx)
  */
-/** @defgroup rpcfunctionc Midas RPC Functions (rpc_xxx)
+/** @defgroup rpc_xxx RPC Functions (rpc_xxx)
  */
-/** @defgroup dmfunctionc Midas Dual Buffer Memory Functions (dm_xxx)
+/** @defgroup rbfunctionc Ring Buffer Functions (rb_xxx)
  */
-/** @defgroup rbfunctionc Midas Ring Buffer Functions (rb_xxx)
- */
-
-/**dox***************************************************************/
-/** @addtogroup midasincludecode
- *
- *  @{  */
 
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
@@ -9003,7 +8996,7 @@ void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
                                                                                                                                /** @} *//* end of bmfunctionc */
 
 /**dox***************************************************************/
-/** @addtogroup rpcfunctionc
+/** @addtogroup rpc_xxx
  *
  *  @{  */
 
@@ -11643,9 +11636,6 @@ INT rpc_flush_event()
    return RPC_SUCCESS;
 }
 
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
-
 /********************************************************************/
 
 typedef struct {
@@ -14232,11 +14222,7 @@ INT rpc_check_channels(void)
    return RPC_NET_ERROR;
 }
 
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
-
-/**dox***************************************************************/
-                                                                                                                               /** @} *//* end of rpcfunctionc */
+/** @} */
 
 /**dox***************************************************************/
 /** @addtogroup bkfunctionc
@@ -15361,11 +15347,7 @@ int rb_get_buffer_level(int handle, int *n_bytes)
    return DB_SUCCESS;
 }
 
-/**dox***************************************************************/
-                  /** @} *//* end of rbfunctionc */
-
-/**dox***************************************************************/
-                  /** @} *//* end of midasincludecode */
+/** @} *//* end of rbfunctionc */
 
 /* emacs
  * Local Variables:

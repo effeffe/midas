@@ -12,6 +12,9 @@
 
 #include "mjson.h"
 
+/** @addtogroup mjsonrpc JSON-RPC Functions
+ *  @{  */
+
 typedef MJsonNode* (mjsonrpc_handler_t)(const MJsonNode* params);
 
 extern int mjsonrpc_debug;

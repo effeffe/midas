@@ -26,11 +26,6 @@ The Midas System file
  */
 
 /**dox***************************************************************/
-/** @addtogroup msystemincludecode
- *
- *  @{  */
-
-/**dox***************************************************************/
 /** @addtogroup msfunctionc
  *
  *  @{  */
@@ -7057,8 +7052,7 @@ void ss_stack_history_dump(char *filename)
 
 #endif
 
-         /** @} *//* end of msfunctionc */
-         /** @} *//* end of msystemincludecode */
+/** @} *//* end of msfunctionc */
 /* emacs
  * Local Variables:
  * tab-width: 8

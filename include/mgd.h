@@ -1,6 +1,9 @@
 #ifndef GD_H
 #define GD_H 1
 
+/** @addtogroup mgd GD Graphics Library
+ *  @{  */
+
 /* gd.h: declarations file for the gifdraw module.
 
 	Written by Tom Boutell, 5/94.
