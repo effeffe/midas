@@ -464,13 +464,6 @@ typedef struct {
    int arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10;
 } VX_TASK_SPAWN;
 
-/*---- Channels for ss_suspend_set_dispatch() ----------------------*/
-
-#define CH_IPC        1
-#define CH_CLIENT     2
-#define CH_SERVER     3
-#define CH_LISTEN     4
-
 /*---- Function declarations ---------------------------------------*/
 
 /* make functions callable from a C++ program */
@@ -573,7 +566,10 @@ extern "C" {
    INT EXPRT ss_mutex_delete(MUTEX_T *mutex);
    INT ss_alarm(INT millitime, void (*func) (int));
    INT ss_suspend_get_port(INT * port);
-   INT ss_suspend_set_dispatch(INT channel, void *connection, INT(*dispatch) (void));
+   INT ss_suspend_set_dispatch_listen(int listen_socket, INT(*dispatch)(INT));
+   INT ss_suspend_set_dispatch_server(RPC_SERVER_ACCEPTION* connection, INT(*dispatch)(INT,int,BOOL));
+   INT ss_suspend_set_dispatch_client(RPC_SERVER_CONNECTION* connection, INT(*dispatch)(INT));
+   INT ss_suspend_set_dispatch_ipc(INT(*dispatch)(const char*,INT));
    INT ss_resume(INT port, const char *message);
    INT ss_suspend_exit(void);
    INT ss_exception_handler(void (*func) (void));

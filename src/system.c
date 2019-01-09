@@ -3580,13 +3580,13 @@ typedef struct {
    INT ipc_port;
    INT ipc_recv_socket;
    INT ipc_send_socket;
-    INT(*ipc_dispatch) (char *, INT);
+   INT(*ipc_dispatch) (const char *, INT);
    INT listen_socket;
-    INT(*listen_dispatch) (INT);
+   INT(*listen_dispatch) (INT);
    RPC_SERVER_CONNECTION *server_connection;
-    INT(*client_dispatch) (INT);
+   INT(*client_dispatch) (INT);
    RPC_SERVER_ACCEPTION *server_acception;
-    INT(*server_dispatch) (INT, int, BOOL);
+   INT(*server_dispatch) (INT, int, BOOL);
    struct sockaddr_in bind_addr;
 } SUSPEND_STRUCT;
 
@@ -3855,64 +3855,60 @@ INT ss_suspend_exit()
 }
 
 /*------------------------------------------------------------------*/
-INT ss_suspend_set_dispatch(INT channel, void *connection, INT(*dispatch) (void))
-/********************************************************************\
-
-  Routine: ss_suspend_set_dispatch
-
-  Purpose: Set dispatch functions which get called whenever new data
-     on various sockets arrive inside the ss_suspend function.
-
-     Beside the Inter Process Communication socket several other
-     sockets can simultanously watched: A "listen" socket for
-     a server main thread, server sockets which receive new
-     RPC requests from remote clients (given by the
-     server_acception array) and client sockets which may
-     get notification data from remote servers (such as
-     database updates).
-
-  Input:
-    INT    channel               One of CH_IPC, CH_CLIENT,
-         CH_SERVER, CH_MSERVER
-
-    INT    (*dispatch())         Function being called
-
-  Output:
-    none
-
-  Function value:
-    SS_SUCCESS              Successful completion
-
-\********************************************************************/
+INT ss_suspend_set_dispatch_ipc(INT(*dispatch)(const char*,INT))
 {
-   INT i, status;
-
-   status = ss_suspend_get_index(&i);
+   int i;
+   int status = ss_suspend_get_index(&i);
 
    if (status != SS_SUCCESS)
       return status;
 
-   if (channel == CH_IPC) {
-      _suspend_struct[i].ipc_dispatch = (INT(*)(char *, INT)) dispatch;
+   _suspend_struct[i].ipc_dispatch = dispatch;
 
-      if (!_suspend_struct[i].ipc_recv_socket)
-         ss_suspend_init_ipc(i);
-   }
+   if (!_suspend_struct[i].ipc_recv_socket)
+      ss_suspend_init_ipc(i);
 
-   if (channel == CH_LISTEN) {
-      _suspend_struct[i].listen_socket = *((INT *) connection);
-      _suspend_struct[i].listen_dispatch = (INT(*)(INT)) dispatch;
-   }
+   return SS_SUCCESS;
+}
 
-   if (channel == CH_CLIENT) {
-      _suspend_struct[i].server_connection = (RPC_SERVER_CONNECTION *) connection;
-      _suspend_struct[i].client_dispatch = (INT(*)(INT)) dispatch;
-   }
+INT ss_suspend_set_dispatch_client(RPC_SERVER_CONNECTION* connection, INT(*dispatch)(INT))
+{
+   int i;
+   int status = ss_suspend_get_index(&i);
 
-   if (channel == CH_SERVER) {
-      _suspend_struct[i].server_acception = (RPC_SERVER_ACCEPTION *) connection;
-      _suspend_struct[i].server_dispatch = (INT(*)(INT, int, BOOL)) dispatch;
-   }
+   if (status != SS_SUCCESS)
+      return status;
+
+   _suspend_struct[i].server_connection = connection;
+   _suspend_struct[i].client_dispatch = dispatch;
+
+   return SS_SUCCESS;
+}
+
+INT ss_suspend_set_dispatch_server(RPC_SERVER_ACCEPTION* connection, INT(*dispatch)(INT,int,BOOL))
+{
+   int i;
+   int status = ss_suspend_get_index(&i);
+
+   if (status != SS_SUCCESS)
+      return status;
+
+   _suspend_struct[i].server_acception = connection;
+   _suspend_struct[i].server_dispatch = (INT(*)(INT, int, BOOL)) dispatch;
+
+   return SS_SUCCESS;
+}
+
+INT ss_suspend_set_dispatch_listen(int listen_socket, INT(*dispatch)(INT))
+{
+   int i;
+   int status = ss_suspend_get_index(&i);
+
+   if (status != SS_SUCCESS)
+      return status;
+
+   _suspend_struct[i].listen_socket = listen_socket;
+   _suspend_struct[i].listen_dispatch = dispatch;
 
    return SS_SUCCESS;
 }
