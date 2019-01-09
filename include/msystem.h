@@ -400,7 +400,7 @@ typedef struct {
    HNDLE semaphore;             /* semaphore handle             */
    INT lock_cnt;                /* flag to avoid multiple locks */
    HNDLE shm_handle;            /* handle (id) to shared memory */
-   INT index;                   /* connection index / tid       */
+   //INT index;                   /* connection index / tid       */
    BOOL protect;                /* read/write protection        */
    BOOL protect_read;           /* read is permitted            */
    BOOL protect_write;          /* write is permitted           */
@@ -529,10 +529,11 @@ extern "C" {
    INT rpc_server_callback(struct callback_addr *callback);
    INT EXPRT rpc_server_accept(int sock);
    INT rpc_client_accept(int sock);
-   INT rpc_get_server_acception(void);
-   INT rpc_set_server_acception(INT idx);
-   INT EXPRT rpc_set_server_option(INT item, POINTER_T value);
-   POINTER_T EXPRT rpc_get_server_option(INT item);
+   //INT rpc_get_server_acception(void);
+   //INT rpc_set_server_acception(INT idx);
+   INT rpc_set_mserver_mode();
+   INT EXPRT rpc_set_server_option(INT item, INT value);
+   INT EXPRT rpc_get_server_option(INT item);
    INT recv_tcp_check(int sock);
    INT recv_event_check(int sock);
    INT rpc_deregister_functions(void);
@@ -543,6 +544,8 @@ extern "C" {
    int EXPRT rpc_get_event_sock(void);
    INT EXPRT rpc_set_opt_tcp_size(INT tcp_size);
    INT EXPRT rpc_get_opt_tcp_size(void);
+   INT EXPRT rpc_set_mserver_path(const char *mserver_path);
+   const char* EXPRT rpc_get_mserver_path();
 
    /*---- system services ----*/
    INT ss_shm_open(const char *name, INT size, void **adr, HNDLE *handle, BOOL get_size);
