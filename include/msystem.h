@@ -501,9 +501,6 @@ extern "C" {
    void EXPRT name2c(char *str);
    INT cm_delete_client_info(HNDLE hDB, INT pid);
 
-   /*---- buffer manager ----*/
-   INT EXPRT bm_mark_read_waiting(BOOL flag);
-
    /*---- online database ----*/
    INT EXPRT db_lock_database(HNDLE database_handle);
    INT EXPRT db_unlock_database(HNDLE database_handle);
