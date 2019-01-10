@@ -2050,7 +2050,7 @@ INT tr_stop(INT rn, char *error)
    /* wait until all events in buffers are analyzed */
 
    if (rpc_is_remote())
-      while (bm_poll_event(TRUE));
+      while (bm_poll_event());
    else
       for (i = 0; analyze_request[i].event_name[0]; i++) {
          do {
