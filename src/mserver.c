@@ -602,7 +602,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       break;
 
    case RPC_BM_MARK_READ_WAITING:
-      status = bm_mark_read_waiting(CBOOL(0));
+      status = BM_SUCCESS;
       break;
 
    case RPC_BM_EMPTY_BUFFERS:

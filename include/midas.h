@@ -1731,7 +1731,7 @@ extern "C" {
    INT EXPRT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER** ppevent, INT async_flag);
    INT EXPRT bm_skip_event(INT buffer_handle);
    INT EXPRT bm_flush_cache(INT buffer_handle, INT async_flag);
-   INT EXPRT bm_poll_event(INT flag);
+   INT EXPRT bm_poll_event();
    INT EXPRT bm_empty_buffers(void);
    INT EXPRT bm_check_buffers(void);
 
