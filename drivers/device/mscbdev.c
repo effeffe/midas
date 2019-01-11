@@ -311,7 +311,6 @@ INT mscbdev(INT cmd, ...)
    va_list argptr;
    HNDLE hKey;
    INT channel, status;
-   DWORD flags;
    float value, *pvalue;
    void *info, *bd;
    char *name;
@@ -324,7 +323,7 @@ INT mscbdev(INT cmd, ...)
       hKey = va_arg(argptr, HNDLE);
       info = va_arg(argptr, void *);
       channel = va_arg(argptr, INT);
-      flags = va_arg(argptr, DWORD);
+      va_arg(argptr, DWORD);
       bd = va_arg(argptr, void *);
       status = mscbdev_init(hKey, info, channel, bd);
       break;
