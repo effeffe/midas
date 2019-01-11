@@ -14,15 +14,8 @@
 The Online Database file
 */
 
-/** @defgroup odbcode The odb.c
+/** @defgroup odbfunctionc ODB Functions (db_xxx)
  */
-/** @defgroup odbfunctionc Midas ODB Functions (db_xxx)
- */
-
-/**dox***************************************************************/
-/** @addtogroup odbcode
-*
- *  @{  */
 
 /**dox***************************************************************/
 /** @addtogroup odbfunctionc
@@ -1402,15 +1395,15 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
       for (i = 0; i < _database_entries; i++)
          if (_database[i].attached && equal_ustring(_database[i].name, database_name)) {
             /* check if database belongs to this thread */
-            if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MTHREAD) {
-               if (_database[i].index == ss_gettid()) {
-                  *hDB = i + 1;
-                  return DB_SUCCESS;
-               }
-            } else {
+            //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MTHREAD) {
+            //   if (_database[i].index == ss_gettid()) {
+            //      *hDB = i + 1;
+            //      return DB_SUCCESS;
+            //   }
+            //} else {
                *hDB = i + 1;
                return DB_SUCCESS;
-            }
+            //}
          }
 
       /* check for a deleted entry */
@@ -1662,16 +1655,16 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    _database[handle].protect_read = FALSE;
    _database[handle].protect_write = FALSE;
 
-   /* remember to which connection acutal buffer belongs */
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
-      _database[handle].index = rpc_get_server_acception();
-   else
-      _database[handle].index = ss_gettid();
+   ///* remember to which connection acutal buffer belongs */
+   //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
+   //   _database[handle].index = rpc_get_server_acception();
+   //else
+   //   _database[handle].index = ss_gettid();
 
    *hDB = (handle + 1);
 
    /* setup dispatcher for updated records */
-   ss_suspend_set_dispatch(CH_IPC, 0, (int (*)(void)) cm_dispatch_ipc);
+   ss_suspend_set_dispatch_ipc(cm_dispatch_ipc);
 
    status = db_validate_open_records(handle + 1);
    if (status != DB_SUCCESS) {
@@ -1726,16 +1719,16 @@ INT db_close_database(HNDLE hDB)
       pheader = _database[hDB - 1].database_header;
       pclient = &pheader->client[idx];
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-          _database[hDB - 1].index != rpc_get_server_acception()) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
+      //    _database[hDB - 1].index != rpc_get_server_acception()) {
+      //   db_unlock_database(hDB);
+      //   return DB_INVALID_HANDLE;
+      //}
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[hDB - 1].index != ss_gettid()) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[hDB - 1].index != ss_gettid()) {
+      //   db_unlock_database(hDB);
+      //   return DB_INVALID_HANDLE;
+      //}
 
       if (!_database[hDB - 1].attached) {
          db_unlock_database(hDB);
@@ -1864,16 +1857,16 @@ INT db_flush_database(HNDLE hDB)
       db_lock_database(hDB);
       pheader = _database[hDB - 1].database_header;
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-          _database[hDB - 1].index != rpc_get_server_acception()) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
+      //    _database[hDB - 1].index != rpc_get_server_acception()) {
+      //   db_unlock_database(hDB);
+      //   return DB_INVALID_HANDLE;
+      //}
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[hDB - 1].index != ss_gettid()) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[hDB - 1].index != ss_gettid()) {
+      //   db_unlock_database(hDB);
+      //   return DB_INVALID_HANDLE;
+      //}
 
       if (!_database[hDB - 1].attached) {
          db_unlock_database(hDB);
@@ -1983,8 +1976,8 @@ Lock a database for exclusive access via system semaphore calls.
 @return DB_SUCCESS, DB_INVALID_HANDLE, DB_TIMEOUT
 */
 
-int _db_kludge_protect_odb_locking_against_cm_watchdog = 0;
-int _db_kludge_cm_watchdog_wants_to_run = 0;
+//int _db_kludge_protect_odb_locking_against_cm_watchdog = 0;
+//int _db_kludge_cm_watchdog_wants_to_run = 0;
 
 INT db_lock_database(HNDLE hDB)
 {
@@ -1993,12 +1986,12 @@ INT db_lock_database(HNDLE hDB)
    void *p;
 
    if (hDB > _database_entries || hDB <= 0) {
-      cm_msg(MERROR, "db_lock_database", "invalid database handle, aborting...");
+      cm_msg(MERROR, "db_lock_database", "invalid database handle %d, aborting...", hDB);
       abort();
       return DB_INVALID_HANDLE;
    }
 
-   _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+   //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
 
 /* obtain access mutex in multi-thread applications */
    status = ss_mutex_wait_for(_database[hDB - 1].mutex, _database[hDB - 1].timeout);
@@ -2020,7 +2013,7 @@ INT db_lock_database(HNDLE hDB)
    if (_database[hDB - 1].lock_cnt == 0) {
       _database[hDB - 1].lock_cnt = 1;
 
-      _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+      //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
 
       /* wait max. 5 minutes for semaphore (required if locking process is being debugged) */
       status = ss_semaphore_wait_for(_database[hDB - 1].semaphore, _database[hDB - 1].timeout);
@@ -2048,7 +2041,7 @@ INT db_lock_database(HNDLE hDB)
    if (_database[hDB - 1].protect) {
       if (_database[hDB - 1].database_header == NULL) {
          int status;
-         _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+         //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
          assert(!_database[hDB - 1].protect_read);
          assert(!_database[hDB - 1].protect_write);
          status = ss_shm_unprotect(_database[hDB - 1].shm_handle, &p, TRUE, FALSE, "db_lock_database");
@@ -2063,7 +2056,7 @@ INT db_lock_database(HNDLE hDB)
       }
    }
 
-   _db_kludge_protect_odb_locking_against_cm_watchdog = 0;
+   //_db_kludge_protect_odb_locking_against_cm_watchdog = 0;
 
 #endif                          /* LOCAL_ROUTINES */
    return DB_SUCCESS;
@@ -2075,7 +2068,7 @@ INT db_allow_write_locked(DATABASE* p, const char* caller_name)
    assert(p);
    if (p->protect && !p->protect_write) {
       int status;
-      _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+      //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
       assert(p->lock_cnt > 0);
       assert(p->database_header != NULL);
       assert(p->protect_read);
@@ -2088,7 +2081,7 @@ INT db_allow_write_locked(DATABASE* p, const char* caller_name)
       }
       p->protect_read = TRUE;
       p->protect_write = TRUE;
-      _db_kludge_protect_odb_locking_against_cm_watchdog = 0;
+      //_db_kludge_protect_odb_locking_against_cm_watchdog = 0;
    }
    return DB_SUCCESS;
 }
@@ -2105,7 +2098,7 @@ INT db_unlock_database(HNDLE hDB)
 #ifdef LOCAL_ROUTINES
 
    if (hDB > _database_entries || hDB <= 0) {
-      cm_msg(MERROR, "db_unlock_database", "invalid database handle");
+      cm_msg(MERROR, "db_unlock_database", "invalid database handle %d", hDB);
       return DB_INVALID_HANDLE;
    }
 #ifdef CHECK_LOCK_COUNT
@@ -2117,15 +2110,15 @@ INT db_unlock_database(HNDLE hDB)
    }
 #endif
 
-   _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+   //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
 
    if (_database[hDB - 1].lock_cnt == 1) {
-      _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+      //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
       ss_semaphore_release(_database[hDB - 1].semaphore);
 
       if (_database[hDB - 1].protect && _database[hDB - 1].database_header) {
          int status;
-         _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+         //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
          assert(_database[hDB - 1].protect_read);
          assert(_database[hDB - 1].database_header);
          DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
@@ -2144,24 +2137,24 @@ INT db_unlock_database(HNDLE hDB)
    assert(_database[hDB - 1].lock_cnt > 0);
    _database[hDB - 1].lock_cnt--;
 
-   _db_kludge_protect_odb_locking_against_cm_watchdog = 1;
+   //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
 
    /* release mutex for multi-thread applications */
    ss_mutex_release(_database[hDB - 1].mutex);
    
-   _db_kludge_protect_odb_locking_against_cm_watchdog = 0;
-
-   if (_db_kludge_cm_watchdog_wants_to_run) {
-      _db_kludge_cm_watchdog_wants_to_run = 0;
-      cm_watchdog(-1);
-   }
+   //_db_kludge_protect_odb_locking_against_cm_watchdog = 0;
+   
+   //if (_db_kludge_cm_watchdog_wants_to_run) {
+   //   _db_kludge_cm_watchdog_wants_to_run = 0;
+   //   cm_watchdog(-1);
+   //}
 
 #endif                          /* LOCAL_ROUTINES */
    return DB_SUCCESS;
 }
 
 /********************************************************************/
-
+#if 0
 INT db_get_lock_cnt(HNDLE hDB)
 {
 #ifdef LOCAL_ROUTINES
@@ -2182,6 +2175,7 @@ INT db_get_lock_cnt(HNDLE hDB)
    return 0;
 #endif
 }
+#endif
 
 INT db_set_lock_timeout(HNDLE hDB, int timeout_millisec)
 {
@@ -2208,29 +2202,29 @@ INT db_set_lock_timeout(HNDLE hDB, int timeout_millisec)
 #endif
 }
 
-/**
-Update last activity time
-*/
-void db_update_last_activity(DWORD actual_time)
-{
-   int i;
-   for (i = 0; i < _database_entries; i++) {
-      if (_database[i].attached) {
-         int must_unlock = 0;
-         if (_database[i].protect) {
-            must_unlock = 1;
-            db_lock_database(i + 1);
-            db_allow_write_locked(&_database[i], "db_update_last_activity");
-         }
-         assert(_database[i].database_header);
-         /* update the last_activity entry to show that we are alive */
-         _database[i].database_header->client[_database[i].client_index].last_activity = actual_time;
-         if (must_unlock) {
-            db_unlock_database(i + 1);
-         }
-      }
-   }
-}
+///**
+//Update last activity time
+//*/
+//void db_update_last_activity(DWORD actual_time)
+//{
+//   int i;
+//   for (i = 0; i < _database_entries; i++) {
+//      if (_database[i].attached) {
+//         int must_unlock = 0;
+//         if (_database[i].protect) {
+//            must_unlock = 1;
+//            db_lock_database(i + 1);
+//            db_allow_write_locked(&_database[i], "db_update_last_activity");
+//         }
+//         assert(_database[i].database_header);
+//         /* update the last_activity entry to show that we are alive */
+//         _database[i].database_header->client[_database[i].client_index].last_activity = actual_time;
+//         if (must_unlock) {
+//            db_unlock_database(i + 1);
+//         }
+//      }
+//   }
+//}
 
 void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
 {
@@ -2435,16 +2429,16 @@ void db_set_watchdog_params(DWORD timeout)
       pheader = _database[i - 1].database_header;
       pclient = &pheader->client[idx];
       
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-          _database[i - 1].index != rpc_get_server_acception()) {
-         db_unlock_database(i);
-         continue;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
+      //    _database[i - 1].index != rpc_get_server_acception()) {
+      //   db_unlock_database(i);
+      //   continue;
+      //}
       
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[i - 1].index != ss_gettid()) {
-         db_unlock_database(i);
-         continue;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _database[i - 1].index != ss_gettid()) {
+      //   db_unlock_database(i);
+      //   continue;
+      //}
       
       if (!_database[i - 1].attached) {
          db_unlock_database(i);
@@ -2602,9 +2596,12 @@ Protect a database for read/write access outside of the \b db_xxx functions
 */
 INT db_protect_database(HNDLE hDB)
 {
+   if (rpc_is_remote())
+      return DB_SUCCESS;
+
 #ifdef LOCAL_ROUTINES
    if (hDB > _database_entries || hDB <= 0) {
-      cm_msg(MERROR, "db_unlock_database", "invalid database handle");
+      cm_msg(MERROR, "db_protect_database", "invalid database handle %d", hDB);
       return DB_INVALID_HANDLE;
    }
 
@@ -4428,12 +4425,12 @@ INT db_get_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, void *data, IN
       char *p, path[256], keyname[256];
 
       if (hDB > _database_entries || hDB <= 0) {
-         cm_msg(MERROR, "db_get_value", "invalid database handle");
+         cm_msg(MERROR, "db_get_value", "invalid database handle %d", hDB);
          return DB_INVALID_HANDLE;
       }
 
       if (!_database[hDB - 1].attached) {
-         cm_msg(MERROR, "db_get_value", "invalid database handle");
+         cm_msg(MERROR, "db_get_value", "invalid database handle %d", hDB);
          return DB_INVALID_HANDLE;
       }
 
@@ -10215,10 +10212,12 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
 
       if (!align)
          align = ss_get_struct_align();
-      else
+      else {
          /* only convert data if called remotely, as indicated by align != 0 */
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
-         convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+         if (rpc_is_mserver()) {
+            convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+         }
+      }
 
       /* check if key has subkeys */
       status = db_get_key(hDB, hKey, &key);
@@ -10786,10 +10785,12 @@ INT db_set_record(HNDLE hDB, HNDLE hKey, void *data, INT buf_size, INT align)
 
       if (!align)
          align = ss_get_struct_align();
-      else
+      else {
          /* only convert data if called remotely, as indicated by align != 0 */
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
-         convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+         if (rpc_is_mserver()) {
+            convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+         }
+      }
 
       /* check if key has subkeys */
       db_get_key(hDB, hKey, &key);
@@ -12361,12 +12362,8 @@ INT db_unwatch_all()
 
 /*------------------------------------------------------------------*/
 
+/** @} *//* end of odbfunctionc */
 
-/**dox***************************************************************/
-                                                       /** @} *//* end of odbfunctionc */
-
-/**dox***************************************************************/
-                                                       /** @} *//* end of odbcode */
 /* emacs
  * Local Variables:
  * tab-width: 8

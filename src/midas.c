@@ -39,25 +39,18 @@ user discussion, mailing lists and forums,
 can be found through the MIDAS Wiki at http://midas.triumf.ca
 */
 
-/** @defgroup cmfunctionc Midas Common Functions (cm_xxx)
+/** @defgroup cmfunctionc Common Functions (cm_xxx)
  */
-/** @defgroup bmfunctionc Midas Buffer Manager Functions (bm_xxx)
+/** @defgroup bmfunctionc Event Buffer Functions (bm_xxx)
  */
-/** @defgroup msgfunctionc Midas Message Functions (msg_xxx)
+/** @defgroup msgfunctionc Message Functions (msg_xxx)
  */
-/** @defgroup bkfunctionc Midas Bank Functions (bk_xxx)
+/** @defgroup bkfunctionc Data Bank Functions (bk_xxx)
  */
-/** @defgroup rpcfunctionc Midas RPC Functions (rpc_xxx)
+/** @defgroup rpc_xxx RPC Functions (rpc_xxx)
  */
-/** @defgroup dmfunctionc Midas Dual Buffer Memory Functions (dm_xxx)
+/** @defgroup rbfunctionc Ring Buffer Functions (rb_xxx)
  */
-/** @defgroup rbfunctionc Midas Ring Buffer Functions (rb_xxx)
- */
-
-/**dox***************************************************************/
-/** @addtogroup midasincludecode
- *
- *  @{  */
 
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
@@ -168,7 +161,7 @@ static MUTEX_T *_mutex_rpc = NULL;
 static void (*_debug_print) (const char *) = NULL;
 static INT _debug_mode = 0;
 
-static INT _watchdog_last_called = 0;
+//static INT _watchdog_last_called = 0;
 
 int _rpc_connect_timeout = 10000;
 
@@ -1825,8 +1818,8 @@ INT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient, char *host_name,
       /* save watchdog timeout */
       cm_get_watchdog_params(&call_watchdog, NULL);
       cm_set_watchdog_params(call_watchdog, watchdog_timeout);
-      if (call_watchdog)
-         ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
+      //if (call_watchdog)
+      //ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
 
       /* end of atomic operations */
       db_unlock_database(hDB);
@@ -2559,10 +2552,10 @@ INT cm_disconnect_experiment(void)
    } else {
       rpc_client_disconnect(-1, FALSE);
 
-#ifdef LOCAL_ROUTINES
-      ss_alarm(0, cm_watchdog);
-      _watchdog_last_called = 0;
-#endif                          /* LOCAL_ROUTINES */
+      //#ifdef LOCAL_ROUTINES
+      //ss_alarm(0, cm_watchdog);
+      //_watchdog_last_called = 0;
+      //#endif                          /* LOCAL_ROUTINES */
 
       /* delete client info */
       cm_get_experiment_database(&hDB, &hKey);
@@ -2574,7 +2567,7 @@ INT cm_disconnect_experiment(void)
       db_close_all_databases();
    }
 
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_REMOTE)
+   if (!rpc_is_mserver())
       rpc_server_shutdown();
 
    /* free RPC list */
@@ -2794,7 +2787,7 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
 
 #ifdef LOCAL_ROUTINES
 
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE) {
+   if (rpc_is_mserver()) {
       HNDLE hDB, hKey;
 
       rpc_set_server_option(RPC_WATCHDOG_TIMEOUT, timeout);
@@ -2817,12 +2810,12 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
          BUFFER_HEADER *pheader;
          INT idx;
 
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE
-             && _buffer[i - 1].index != rpc_get_server_acception())
-            continue;
+         //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE
+         //    && _buffer[i - 1].index != rpc_get_server_acception())
+         //   continue;
 
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _buffer[i - 1].index != ss_gettid())
-            continue;
+         //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _buffer[i - 1].index != ss_gettid())
+         //   continue;
 
          if (!_buffer[i - 1].attached)
             continue;
@@ -2840,12 +2833,12 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
 
       db_set_watchdog_params(timeout);
 
-      if (call_watchdog)
-         /* restart watchdog */
-         ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
-      else
-         /* kill current timer */
-         ss_alarm(0, cm_watchdog);
+      //if (call_watchdog)
+      //   /* restart watchdog */
+      //   ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
+      //else
+      //   /* kill current timer */
+      //   ss_alarm(0, cm_watchdog);
    }
 
 #endif                          /* LOCAL_ROUTINES */
@@ -3044,7 +3037,7 @@ INT cm_register_server(void)
          return status;
       }
 
-      status = rpc_register_server(ST_REMOTE, NULL, &port, NULL);
+      status = rpc_register_server(/*ST_REMOTE, NULL,*/ &port, rpc_client_accept, NULL);
       if (status != RPC_SUCCESS)
          return status;
       _server_registered = TRUE;
@@ -4985,6 +4978,56 @@ void cm_ack_ctrlc_pressed()
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
+static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval);
+
+/********************************************************************/
+/**
+Perform midas periodic tasks - check alarms, update and check
+timeouts on odb and on event buffers, etc. Normally called by cm_yield().
+Programs that do not use cm_yield(), i.e. the mserver,
+should call this function periodically, every 1 or 2 seconds.
+@return CM_SUCCESS
+*/
+INT cm_periodic_tasks()
+{
+   static DWORD alarm_last_checked = 0;
+   DWORD now = ss_time();
+
+   DWORD now_millitime = ss_millitime();
+   static DWORD last_millitime = 0;
+   DWORD tdiff_millitime = now_millitime - last_millitime;
+   if (last_millitime == 0) {
+      last_millitime = now_millitime;
+      tdiff_millitime = 0;
+   }
+
+   //if (now_millitime < last_millitime) {
+   //   printf("millitime wraparound 0x%08x -> 0x%08x\n", last_millitime, now_millitime);
+   //}
+
+   /* check alarms once every 10 seconds */
+   if (now - alarm_last_checked > 10) {
+      al_check();
+      alarm_last_checked = now;
+   }
+
+   /* run periodic checks previously done by cm_watchdog */
+
+   if (tdiff_millitime > 1000) {
+      BOOL wrong_interval = FALSE;
+      if (tdiff_millitime > 60000)
+         wrong_interval = TRUE;
+      //printf("millitime %d, diff %d, wrong_interval %d\n", now_millitime, last_millitime, wrong_interval);
+      
+      bm_cleanup("cm_yield", now_millitime, wrong_interval);
+      db_cleanup("cm_yield", now_millitime, wrong_interval);
+
+      last_millitime = now_millitime;
+   }
+
+   return CM_SUCCESS;
+}
+
 /********************************************************************/
 /**
 Central yield functions for clients. This routine should
@@ -5003,7 +5046,6 @@ INT cm_yield(INT millisec)
 {
    INT status;
    BOOL bMore;
-   static DWORD last_checked = 0;
 
    /* check for ctrl-c */
    if (_ctrlc_pressed)
@@ -5023,11 +5065,10 @@ INT cm_yield(INT millisec)
       return status;
    }
 
-   /* check alarms once every 10 seconds */
-   if (!rpc_is_remote() && ss_time() - last_checked > 10) {
-      al_check();
-      last_checked = ss_time();
-   }
+   status = cm_periodic_tasks();
+
+   if (status != CM_SUCCESS)
+      return status;
 
    bMore = bm_check_buffers();
 
@@ -5189,6 +5230,8 @@ INT cm_register_function(INT id, INT(*func) (INT, void **))
 *                                                                    *
 \********************************************************************/
 
+static DWORD _bm_max_event_size = 0;
+
 static int bm_validate_client_index(const BUFFER * buf, BOOL abort_if_invalid)
 {
    static int prevent_recursion = 1;
@@ -5226,7 +5269,7 @@ static int bm_validate_client_index(const BUFFER * buf, BOOL abort_if_invalid)
                 "My client index %d in buffer \'%s\' is invalid: client name \'%s\', pid %d should be my pid %d",
                 buf->client_index, buf->buffer_header->name, bcl->name, bcl->pid, ss_getpid());
          cm_msg(MERROR, "bm_validate_client_index",
-                "Maybe this client was removed by a timeout. Cannot continue, aborting...");
+                "Maybe this client was removed by a timeout. See midas.log. Cannot continue, aborting...");
       }
 
       abort();
@@ -5321,42 +5364,47 @@ static void bm_cleanup_buffer_locked(int i, const char *who, DWORD actual_time)
 #endif
 
       /* If client process has no activity, clear its buffer entry. */
-      if (pbclient->pid && pbclient->watchdog_timeout > 0 &&
-          actual_time > pbclient->last_activity &&
-          actual_time - pbclient->last_activity > pbclient->watchdog_timeout) {
-
-         /* now make again the check with the buffer locked */
-         actual_time = ss_millitime();
-         if (pbclient->pid && pbclient->watchdog_timeout > 0 &&
-             actual_time > pbclient->last_activity &&
-             actual_time - pbclient->last_activity > pbclient->watchdog_timeout) {
-
-            cm_msg(MINFO, "bm_cleanup", "Client \'%s\' on buffer \'%s\' removed by %s (idle %1.1lfs,TO %1.0lfs)",
+      if (pbclient->pid && pbclient->watchdog_timeout > 0) {
+         DWORD tdiff = actual_time - pbclient->last_activity;
+#if 0
+         printf("buffer [%s] client [%-32s] times 0x%08x 0x%08x, diff 0x%08x %5d, timeout %d\n",
+                pheader->name,
+                pbclient->name,
+                pbclient->last_activity,
+                actual_time,
+                tdiff,
+                tdiff,
+                pbclient->watchdog_timeout);
+#endif
+         if (actual_time > pbclient->last_activity &&
+             tdiff > pbclient->watchdog_timeout) {
+            
+            cm_msg(MINFO, "bm_cleanup", "Client \'%s\' on buffer \'%s\' removed by %s (idle %1.1lfs, timeout %1.0lfs)",
                    pbclient->name, pheader->name, who,
-                   (actual_time - pbclient->last_activity) / 1000.0,
+                   tdiff / 1000.0,
                    pbclient->watchdog_timeout / 1000.0);
-
+            
             bm_remove_client_locked(pheader, j);
          }
       }
    }
 }
 
-/**
-Update last activity time
-*/
-static void bm_update_last_activity(DWORD actual_time)
-{
-   int i;
-   for (i = 0; i < _buffer_entries; i++) {
-      if (_buffer[i].attached) {
-         int idx = bm_validate_client_index(&_buffer[i], FALSE);
-         if (idx >= 0) {
-            _buffer[i].buffer_header->client[idx].last_activity = actual_time;
-         }
-      }
-   }
-}
+///**
+//Update last activity time
+//*/
+//static void bm_update_last_activity(DWORD actual_time)
+//{
+//   int i;
+//   for (i = 0; i < _buffer_entries; i++) {
+//      if (_buffer[i].attached) {
+//         int idx = bm_validate_client_index(&_buffer[i], FALSE);
+//         if (idx >= 0) {
+//            _buffer[i].buffer_header->client[idx].last_activity = actual_time;
+//         }
+//      }
+//   }
+//}
 
 /**
 Check all clients on all buffers, remove invalid clients
@@ -5366,6 +5414,8 @@ static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
    BUFFER_HEADER *pheader;
    BUFFER_CLIENT *pbclient;
    int i, idx;
+
+   //printf("bm_cleanup: called by %s, actual_time %d, wrong_interval %d\n", who, actual_time, wrong_interval);
 
    /* check buffers */
    for (i = 0; i < _buffer_entries; i++)
@@ -5441,6 +5491,24 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
    if (rpc_is_remote()) {
       status = rpc_call(RPC_BM_OPEN_BUFFER, buffer_name, buffer_size, buffer_handle);
       bm_mark_read_waiting(TRUE);
+
+      HNDLE hDB;
+      status = cm_get_experiment_database(&hDB, NULL);
+      if (status != SUCCESS || hDB == 0) {
+         cm_msg(MERROR, "bm_open_buffer", "cannot open buffer \'%s\' - not connected to ODB", buffer_name);
+         return BM_NO_SHM;
+      }
+
+      _bm_max_event_size = DEFAULT_MAX_EVENT_SIZE;
+
+      int size = sizeof(INT);
+      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &_bm_max_event_size, &size, TID_DWORD, TRUE);
+
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "bm_open_buffer", "Cannot get ODB /Experiment/MAX_EVENT_SIZE, db_get_value() status %d", status);
+         return status;
+      }
+
       return status;
    }
 #ifdef LOCAL_ROUTINES
@@ -5486,6 +5554,16 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
          return BM_INVALID_PARAM;
       }
 
+      _bm_max_event_size = DEFAULT_MAX_EVENT_SIZE;
+
+      size = sizeof(INT);
+      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &_bm_max_event_size, &size, TID_DWORD, TRUE);
+
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "bm_open_buffer", "Cannot get ODB /Experiment/MAX_EVENT_SIZE, db_get_value() status %d", status);
+         return status;
+      }
+
       /* allocate new space for the new buffer descriptor */
       if (_buffer_entries == 0) {
          _buffer = (BUFFER *) M_MALLOC(sizeof(BUFFER));
@@ -5501,12 +5579,12 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
          /* check if buffer alreay is open */
          for (i = 0; i < _buffer_entries; i++)
             if (_buffer[i].attached && equal_ustring(_buffer[i].buffer_header->name, buffer_name)) {
-               if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-                   _buffer[i].index != rpc_get_server_acception())
-                  continue;
+               //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
+               //    _buffer[i].index != rpc_get_server_acception())
+               //   continue;
 
-               if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _buffer[i].index != ss_gettid())
-                  continue;
+               //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _buffer[i].index != ss_gettid())
+               //   continue;
 
                *buffer_handle = i + 1;
                return BM_SUCCESS;
@@ -5639,10 +5717,10 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       _buffer[handle].callback = FALSE;
 
       /* remember to which connection acutal buffer belongs */
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
-         _buffer[handle].index = rpc_get_server_acception();
-      else
-         _buffer[handle].index = ss_gettid();
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
+      //   _buffer[handle].index = rpc_get_server_acception();
+      //else
+      //   _buffer[handle].index = ss_gettid();
 
       *buffer_handle = (handle + 1);
 
@@ -5650,7 +5728,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       bm_init_buffer_counters(handle + 1);
 
       /* setup dispatcher for receive events */
-      ss_suspend_set_dispatch(CH_IPC, 0, (int (*)(void)) cm_dispatch_ipc);
+      ss_suspend_set_dispatch_ipc(cm_dispatch_ipc);
 
       bm_cleanup("bm_open_buffer", ss_millitime(), FALSE);
 
@@ -5699,15 +5777,15 @@ INT bm_close_buffer(INT buffer_handle)
       idx = bm_validate_client_index(&_buffer[buffer_handle - 1], FALSE);
       pheader = _buffer[buffer_handle - 1].buffer_header;
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-          _buffer[buffer_handle - 1].index != rpc_get_server_acception()) {
-         return BM_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
+      //    _buffer[buffer_handle - 1].index != rpc_get_server_acception()) {
+      //   return BM_INVALID_HANDLE;
+      //}
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE
-          && _buffer[buffer_handle - 1].index != ss_gettid()) {
-         return BM_INVALID_HANDLE;
-      }
+      //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE
+      //    && _buffer[buffer_handle - 1].index != ss_gettid()) {
+      //   return BM_INVALID_HANDLE;
+      //}
 
       if (!_buffer[buffer_handle - 1].attached) {
          /* don't produce error, since bm_close_all_buffers() might want to close an
@@ -5829,6 +5907,7 @@ INT bm_close_all_buffers(void)
 /*-- Watchdog routines ---------------------------------------------*/
 #ifdef LOCAL_ROUTINES
 
+#if 0
 /********************************************************************/
 /**
 Called at periodic intervals, checks if all clients are
@@ -5873,8 +5952,8 @@ void cm_watchdog(int dummy)
          //cm_msg(MINFO, "cm_watchdog", "Called with ODB lock count %d!", count);
 
          DWORD now = ss_millitime();
-         bm_update_last_activity(now);
-         db_update_last_activity(now);
+         //bm_update_last_activity(now);
+         //db_update_last_activity(now);
 
          /* Schedule next watchdog call */
          if (_call_watchdog)
@@ -5912,9 +5991,9 @@ void cm_watchdog(int dummy)
       cm_msg(MINFO, "cm_watchdog", "System time has been changed! last:%dms  now:%dms  delta:%dms", _watchdog_last_called, actual_time, interval);
    }
 
-   bm_cleanup("cm_watchdog", actual_time, wrong_interval);
+   //bm_cleanup("cm_watchdog", actual_time, wrong_interval);
 
-   db_cleanup("cm_watchdog", actual_time, wrong_interval);
+   //db_cleanup("cm_watchdog", actual_time, wrong_interval);
 
    _watchdog_last_called = actual_time;
 
@@ -5924,7 +6003,9 @@ void cm_watchdog(int dummy)
    if (_call_watchdog)
       ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
 }
+#endif
 
+#if 0
 /********************************************************************/
 /**
 Temporarily disable watchdog calling. Used for tape IO
@@ -5949,6 +6030,7 @@ INT cm_enable_watchdog(BOOL flag)
 
    return CM_SUCCESS;
 }
+#endif
 
 #endif                          /* local routines */
 
@@ -6214,9 +6296,10 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout)
                      if (interval > 0
                          && now > pbclient->last_activity && now - pbclient->last_activity > interval) {
                         sprintf(str,
-                                "Client \'%s\' on \'%s\' removed by cm_cleanup (idle %1.1lfs,TO %1.0lfs)",
+                                "Client \'%s\' on \'%s\' removed by cm_cleanup (idle %1.1lfs, timeout %1.0lfs)",
                                 pbclient->name, pheader->name,
-                                (ss_millitime() - pbclient->last_activity) / 1000.0, interval / 1000.0);
+                                (ss_millitime() - pbclient->last_activity) / 1000.0,
+                                interval / 1000.0);
 
                         bm_remove_client_locked(pheader, j);
                      }
@@ -7862,7 +7945,7 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT a
       max_size = *buf_size;
       *buf_size = 0;
 
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+      if (rpc_is_mserver())
          convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
       else
          convert_flags = 0;
@@ -8401,29 +8484,32 @@ INT bm_check_buffers()
 #ifdef LOCAL_ROUTINES
    {
       INT idx, status = 0;
-      INT server_type, server_conn, tid;
+      //INT server_type/*, server_conn, tid*/;
       BOOL bMore;
       DWORD start_time;
 
-      server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
-      server_conn = rpc_get_server_acception();
-      tid = ss_gettid();
+      //server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
+      //server_conn = rpc_get_server_acception();
+      //tid = ss_gettid();
 
       /* if running as a server, buffer checking is done by client
          via ASYNC bm_receive_event */
-      if (server_type == ST_SUBPROCESS || server_type == ST_MTHREAD)
+      //if (server_type == ST_SUBPROCESS || 0/*server_type == ST_MTHREAD*/)
+      //   return FALSE;
+      if (rpc_is_mserver()) {
          return FALSE;
+      }
 
       bMore = FALSE;
       start_time = ss_millitime();
 
       /* go through all buffers */
       for (idx = 0; idx < _buffer_entries; idx++) {
-         if (server_type == ST_SINGLE && _buffer[idx].index != server_conn)
-            continue;
+         //if (server_type == ST_SINGLE && _buffer[idx].index != server_conn)
+         //   continue;
 
-         if (server_type != ST_SINGLE && _buffer[idx].index != tid)
-            continue;
+         //if (server_type != ST_SINGLE && _buffer[idx].index != tid)
+         //   continue;
 
          if (!_buffer[idx].attached)
             continue;
@@ -8493,12 +8579,12 @@ INT bm_mark_read_waiting(BOOL flag)
 
       /* Mark all buffer for read waiting */
       for (i = 0; i < _buffer_entries; i++) {
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE
-             && _buffer[i].index != rpc_get_server_acception())
-            continue;
+         //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE
+         //    && _buffer[i].index != rpc_get_server_acception())
+         //   continue;
 
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _buffer[i].index != ss_gettid())
-            continue;
+         //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _buffer[i].index != ss_gettid())
+         //   continue;
 
          if (!_buffer[i].attached)
             continue;
@@ -8580,33 +8666,6 @@ INT bm_notify_client(char *buffer_name, int s)
 }
 
 /********************************************************************/
-
-static int allocate_event_buffer()
-{
-   if (_event_buffer_size == 0) {
-      int status;
-      int size;
-      HNDLE hDB, odb_key;
-      int max_event_size = DEFAULT_MAX_EVENT_SIZE;
-
-      /* get max event size from ODB */
-      status = cm_get_experiment_database(&hDB, &odb_key);
-      assert(status == SUCCESS);
-      size = sizeof(INT);
-      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &max_event_size, &size, TID_DWORD, TRUE);
-
-      size = max_event_size + sizeof(EVENT_HEADER);
-      _event_buffer = (EVENT_HEADER *) M_MALLOC(size);
-      if (!_event_buffer) {
-         cm_msg(MERROR, "bm_poll_event", "not enough memory to allocate event buffer of size %d", size);
-         return SS_ABORT;
-      }
-      _event_buffer_size = size;
-   }
-   return BM_SUCCESS;
-}
-
-/********************************************************************/
 INT bm_poll_event(INT flag)
 /********************************************************************\
 
@@ -8655,10 +8714,14 @@ INT bm_poll_event(INT flag)
 
       do {
          if (_event_buffer_size == 0) {
-            status = allocate_event_buffer();
-            if (status != BM_SUCCESS) {
-               return status;
+            int size = _bm_max_event_size + sizeof(EVENT_HEADER);
+            _event_buffer = (EVENT_HEADER *) M_MALLOC(size);
+            if (!_event_buffer) {
+               cm_msg(MERROR, "bm_poll_event", "not enough memory to allocate event buffer of size %d", size);
+               return SS_ABORT;
             }
+            _event_buffer_size = size;
+            //printf("bm_poll: allocated event buffer size %d, max_event_size %d\n", size, _bm_max_event_size);
          }
          /* receive event */
          size = _event_buffer_size;
@@ -8742,21 +8805,21 @@ INT bm_empty_buffers()
 
 #ifdef LOCAL_ROUTINES
    {
-      INT idx, server_type, server_conn, tid;
+      INT idx/*, server_type, server_conn, tid*/;
       BUFFER *pbuf;
       BUFFER_CLIENT *pclient;
 
-      server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
-      server_conn = rpc_get_server_acception();
-      tid = ss_gettid();
+      //server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
+      //server_conn = rpc_get_server_acception();
+      //tid = ss_gettid();
 
       /* go through all buffers */
       for (idx = 0; idx < _buffer_entries; idx++) {
-         if (server_type == ST_SINGLE && _buffer[idx].index != server_conn)
-            continue;
+         //if (server_type == ST_SINGLE && _buffer[idx].index != server_conn)
+         //   continue;
 
-         if (server_type != ST_SINGLE && _buffer[idx].index != tid)
-            continue;
+         //if (server_type != ST_SINGLE && _buffer[idx].index != tid)
+         //   continue;
 
          if (!_buffer[idx].attached)
             continue;
@@ -8933,7 +8996,7 @@ void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
                                                                                                                                /** @} *//* end of bmfunctionc */
 
 /**dox***************************************************************/
-/** @addtogroup rpcfunctionc
+/** @addtogroup rpc_xxx
  *
  *  @{  */
 
@@ -8953,9 +9016,9 @@ RPC_SERVER_CONNECTION _server_connection;
 
 static int _lsock;
 RPC_SERVER_ACCEPTION _server_acception[MAX_RPC_CONNECTION];
-static INT _server_acception_index = 0;
-static INT _server_type;
-static char _server_name[256];
+//static INT _server_acception_index = 0;
+//static INT _server_type;
+//static char _server_name[256];
 
 static RPC_LIST *rpc_list = NULL;
 
@@ -10000,7 +10063,7 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    _server_connection.remote_hw_type = remote_hw_type;
 
    /* set dispatcher which receives database updates */
-   ss_suspend_set_dispatch(CH_CLIENT, &_server_connection, (int (*)(void)) rpc_client_dispatch);
+   ss_suspend_set_dispatch_client(&_server_connection, rpc_client_dispatch);
 
    return RPC_SUCCESS;
 }
@@ -10108,6 +10171,7 @@ INT rpc_server_disconnect()
    return RPC_SUCCESS;
 }
 
+static BOOL _rpc_is_remote = FALSE;
 
 /********************************************************************/
 INT rpc_is_remote(void)
@@ -10128,12 +10192,56 @@ INT rpc_is_remote(void)
 
 \********************************************************************/
 {
-   return _server_connection.send_sock != 0;
+   if (_server_connection.send_sock != 0)
+      _rpc_is_remote = TRUE;
+   return _rpc_is_remote;
+}
+
+static BOOL _mserver_mode = FALSE;
+
+/********************************************************************/
+INT rpc_set_mserver_mode(void)
+/********************************************************************\
+
+  Routine: rpc_set_mserver_mode
+
+  Purpose: Set the RPC layer to mserver mode
+
+  Function value:
+    INT    RPC_SUCCESS
+
+\********************************************************************/
+{
+   _mserver_mode = TRUE;
+   return RPC_SUCCESS;
+}
+
+/********************************************************************/
+INT rpc_is_mserver(void)
+/********************************************************************\
+
+  Routine: rpc_is_mserver
+
+  Purpose: Return true if we are the mserver
+
+  Input:
+   none
+
+  Output:
+    none
+
+  Function value:
+    INT    RPC connection index
+
+\********************************************************************/
+{
+   return _mserver_mode;
+   //return (_server_type == ST_SUBPROCESS);
 }
 
 
 /********************************************************************/
-INT rpc_get_server_acception(void)
+//INT rpc_get_server_acception(void)
 /********************************************************************\
 
   Routine: rpc_get_server_acception
@@ -10150,13 +10258,13 @@ INT rpc_get_server_acception(void)
     INT    RPC server connection index
 
 \********************************************************************/
-{
-   return _server_acception_index;
-}
+//{
+//   return _server_acception_index;
+//}
 
 
 /********************************************************************/
-INT rpc_set_server_acception(INT idx)
+//INT rpc_set_server_acception(INT idx)
 /********************************************************************\
 
   Routine: rpc_set_server_acception
@@ -10173,10 +10281,10 @@ INT rpc_set_server_acception(INT idx)
     RPC_SUCCESS             Successful completion
 
 \********************************************************************/
-{
-   _server_acception_index = idx;
-   return RPC_SUCCESS;
-}
+//{
+//   _server_acception_index = idx;
+//   return RPC_SUCCESS;
+//}
 
 
 /********************************************************************/
@@ -10342,7 +10450,7 @@ INT rpc_set_option(HNDLE hConn, INT item, INT value)
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-POINTER_T rpc_get_server_option(INT item)
+INT rpc_get_server_option(INT item)
 /********************************************************************\
 
   Routine: rpc_get_server_option
@@ -10360,27 +10468,29 @@ POINTER_T rpc_get_server_option(INT item)
 
 \********************************************************************/
 {
-   INT i;
+   INT i = 0;
 
-   if (item == RPC_OSERVER_TYPE)
-      return _server_type;
+   //if (item == RPC_OSERVER_TYPE) {
+   //   printf("rpc_get_server_type %d (pid %d)\n", _server_type, getpid());
+   //   return _server_type;
+   //}
 
-   if (item == RPC_OSERVER_NAME)
-      return (POINTER_T) _server_name;
+   //if (item == RPC_OSERVER_NAME)
+   //   return (POINTER_T) _server_name;
 
    /* return 0 for local calls */
-   if (_server_type == ST_NONE)
-      return 0;
+   //if (_server_type == ST_NONE)
+   //   return 0;
 
-   /* check which connections belongs to caller */
-   if (_server_type == ST_MTHREAD) {
-      for (i = 0; i < MAX_RPC_CONNECTION; i++)
-         if (_server_acception[i].tid == ss_gettid())
-            break;
-   } else if (_server_type == ST_SINGLE || _server_type == ST_REMOTE)
-      i = MAX(0, _server_acception_index - 1);
-   else
-      i = 0;
+   ///* check which connections belongs to caller */
+   //if (0 /*_server_type == ST_MTHREAD*/) {
+   //   //for (i = 0; i < MAX_RPC_CONNECTION; i++)
+   //   //   if (_server_acception[i].tid == ss_gettid())
+   //   //   break;
+   //} else if (0/*_server_type == ST_SINGLE*/ || _server_type == ST_REMOTE)
+   //   i = 0; /*MAX(0, _server_acception_index - 1);*/
+   //else
+   //   i = 0;
 
    switch (item) {
    case RPC_CONVERT_FLAGS:
@@ -10400,7 +10510,7 @@ POINTER_T rpc_get_server_option(INT item)
 
 
 /********************************************************************/
-INT rpc_set_server_option(INT item, POINTER_T value)
+INT rpc_set_server_option(INT item, INT value)
 /********************************************************************\
 
   Routine: rpc_set_server_option
@@ -10419,26 +10529,26 @@ INT rpc_set_server_option(INT item, POINTER_T value)
 
 \********************************************************************/
 {
-   INT i;
+   INT i = 0;
 
-   if (item == RPC_OSERVER_TYPE) {
-      _server_type = value;
-      return RPC_SUCCESS;
-   }
-   if (item == RPC_OSERVER_NAME) {
-      strcpy(_server_name, (char *) value);
-      return RPC_SUCCESS;
-   }
+   //if (item == RPC_OSERVER_TYPE) {
+   //   _server_type = value;
+   //   return RPC_SUCCESS;
+   //}
+   //if (item == RPC_OSERVER_NAME) {
+   //   strcpy(_server_name, (char *) value);
+   //   return RPC_SUCCESS;
+   //}
 
-   /* check which connections belongs to caller */
-   if (_server_type == ST_MTHREAD) {
-      for (i = 0; i < MAX_RPC_CONNECTION; i++)
-         if (_server_acception[i].tid == ss_gettid())
-            break;
-   } else if (_server_type == ST_SINGLE || _server_type == ST_REMOTE)
-      i = MAX(0, _server_acception_index - 1);
-   else
-      i = 0;
+   ///* check which connections belongs to caller */
+   //if (0 /*_server_type == ST_MTHREAD*/) {
+   //   //for (i = 0; i < MAX_RPC_CONNECTION; i++)
+   //   //if (_server_acception[i].tid == ss_gettid())
+   //   //break;
+   //} else if (0/*_server_type == ST_SINGLE*/ || _server_type == ST_REMOTE)
+   //   i = 0; /*MAX(0, _server_acception_index - 1);*/
+   //else
+   //   i = 0;
 
    switch (item) {
    case RPC_CONVERT_FLAGS:
@@ -10458,6 +10568,44 @@ INT rpc_set_server_option(INT item, POINTER_T value)
    return RPC_SUCCESS;
 }
 
+static char* _mserver_path = NULL;
+
+/********************************************************************/
+const char* rpc_get_mserver_path()
+/********************************************************************\
+
+  Routine: rpc_get_mserver_path()
+
+  Purpose: Get path of the mserver executable
+
+\********************************************************************/
+{
+   return _mserver_path;
+}
+
+/********************************************************************/
+INT rpc_set_mserver_path(const char *path)
+/********************************************************************\
+
+  Routine: rpc_set_mserver_path
+
+  Purpose: Remember the path of the mserver executable
+
+  Input:
+   char *path               Full path of the mserver executable
+
+  Function value:
+    RPC_SUCCESS             Successful completion
+
+\********************************************************************/
+{
+   if (_mserver_path)
+      free(_mserver_path);
+   int len = strlen(path);
+   _mserver_path = malloc(len+1);
+   memcpy(_mserver_path, path, len+1);
+   return RPC_SUCCESS;
+}
 
 /********************************************************************/
 INT rpc_get_name(char *name)
@@ -11488,9 +11636,6 @@ INT rpc_flush_event()
    return RPC_SUCCESS;
 }
 
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
-
 /********************************************************************/
 
 typedef struct {
@@ -11675,13 +11820,12 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
    if (flags & MSG_PEEK) {
       status = recv(sock, buffer, buffer_size, flags);
       if (status == -1)
-         cm_msg(MERROR, "recv_tcp_server",
-                "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", buffer_size, status, errno, strerror(errno));
+         cm_msg(MERROR, "recv_tcp_server", "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", buffer_size, status, errno, strerror(errno));
       return status;
    }
 
    if (!_server_acception[idx].net_buffer) {
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+      if (rpc_is_mserver())
          _server_acception[idx].net_buffer_size = NET_TCP_SIZE;
       else
          _server_acception[idx].net_buffer_size = NET_BUFFER_SIZE;
@@ -11881,7 +12025,7 @@ INT recv_event_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT *
    }
 
    if (!psa->ev_net_buffer) {
-      if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+      if (rpc_is_mserver())
          psa->net_buffer_size = NET_TCP_SIZE;
       else
          psa->net_buffer_size = NET_BUFFER_SIZE;
@@ -12042,7 +12186,7 @@ INT recv_event_check(int sock)
 
 
 /********************************************************************/
-INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func) (INT, void **))
+INT rpc_register_server(/*INT server_type, const char *name,*/ INT * port, int accept_func(int), INT(*func) (INT, void **))
 /********************************************************************\
 
   Routine: rpc_register_server
@@ -12053,15 +12197,13 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
 
   Input:
     INT   server_type       One of the following constants:
-                            ST_SINGLE: register a single process server
-                            ST_MTHREAD: for each connection, start
-                                        a new thread to serve it
-                            ST_MPROCESS: for each connection, start
-                                         a new process to server it
-                            ST_SUBPROCESS: the routine was called from
-                                           a multi process server
-                            ST_REMOTE: register a client program server
-                                       connected to the ODB
+                            //ST_SINGLE: register a single process server
+                            //ST_MTHREAD: for each connection, start
+                            //            a new thread to serve it
+                            ST_MPROCESS: mserver main program, for each connection,
+                                         start a new process to service it
+                            ST_SUBPROCESS: mserver process servicing a single connection
+                            ST_REMOTE: rpc server inside a normal midas program
     char  *name             Name of .EXE file to start in MPROCESS mode
     INT   *port             TCP port for listen. NULL if listen as main
                             server (MIDAS_TCP_PORT is then used). If *port=0,
@@ -12092,17 +12234,17 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
    }
 #endif
 
-   rpc_set_server_option(RPC_OSERVER_TYPE, server_type);
+   //rpc_set_server_option(RPC_OSERVER_TYPE, server_type);
 
    /* register system functions */
    rpc_register_functions(rpc_get_internal_list(0), func);
 
-   if (name != NULL)
-      rpc_set_server_option(RPC_OSERVER_NAME, (POINTER_T) name);
+   //if (name != NULL)
+   //   rpc_set_server_option(RPC_OSERVER_NAME, (POINTER_T) name);
 
-   /* in subprocess mode, don't start listener */
-   if (server_type == ST_SUBPROCESS)
-      return RPC_SUCCESS;
+   ///* in subprocess mode, don't start listener */
+   //if (server_type == ST_SUBPROCESS)
+   //   return RPC_SUCCESS;
 
    /* create a socket for listening */
    _lsock = socket(AF_INET, SOCK_STREAM, 0);
@@ -12172,10 +12314,13 @@ INT rpc_register_server(INT server_type, const char *name, INT * port, INT(*func
    }
 
    /* define callbacks for ss_suspend */
-   if (server_type == ST_REMOTE)
-      ss_suspend_set_dispatch(CH_LISTEN, &_lsock, (int (*)(void)) rpc_client_accept);
-   else
-      ss_suspend_set_dispatch(CH_LISTEN, &_lsock, (int (*)(void)) rpc_server_accept);
+   ss_suspend_set_dispatch_listen(_lsock, accept_func);
+
+   ///* define callbacks for ss_suspend */
+   //if (server_type == ST_REMOTE)
+   //   ss_suspend_set_dispatch(CH_LISTEN, &_lsock, (int (*)(void)) rpc_client_accept);
+   //else
+   //   ss_suspend_set_dispatch(CH_LISTEN, &_lsock, (int (*)(void)) rpc_server_accept);
 
    return RPC_SUCCESS;
 }
@@ -13157,7 +13302,7 @@ INT rpc_server_accept(int lsock)
             strlcpy(callback.host_name, phe->h_name, HOST_NAME_LENGTH);
 #endif
 
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MPROCESS) {
+         //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MPROCESS) {
             /* update experiment definition */
             cm_scan_experiments();
 
@@ -13187,7 +13332,9 @@ INT rpc_server_accept(int lsock)
             sprintf(host_port3_str, "%d", callback.host_port3);
             sprintf(debug_str, "%d", callback.debug);
 
-            argv[0] = (char *) rpc_get_server_option(RPC_OSERVER_NAME);
+            const char* mserver_path = rpc_get_mserver_path();
+
+            argv[0] = mserver_path;
             argv[1] = callback.host_name;
             argv[2] = host_port1_str;
             argv[3] = host_port2_str;
@@ -13202,7 +13349,7 @@ INT rpc_server_accept(int lsock)
                              argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8],
                              argv[9]);
 
-            status = ss_spawnv(P_NOWAIT, (char *) rpc_get_server_option(RPC_OSERVER_NAME), argv);
+            status = ss_spawnv(P_NOWAIT, mserver_path, argv);
 
             if (status != SS_SUCCESS) {
                rpc_debug_printf("Cannot spawn subprocess: %s\n", strerror(errno));
@@ -13216,28 +13363,28 @@ INT rpc_server_accept(int lsock)
             sprintf(str, "1 %s", cm_get_version());     /* 1 means ok */
             send(sock, str, strlen(str) + 1, 0);
             closesocket(sock);
-         } else {
-            sprintf(str, "1 %s", cm_get_version());     /* 1 means ok */
-            send(sock, str, strlen(str) + 1, 0);
-            closesocket(sock);
-         }
+            //} else {
+            //sprintf(str, "1 %s", cm_get_version());     /* 1 means ok */
+            //send(sock, str, strlen(str) + 1, 0);
+            //closesocket(sock);
+            //}
 
-         /* look for next free entry */
-         for (idx = 0; idx < MAX_RPC_CONNECTION; idx++)
-            if (_server_acception[idx].recv_sock == 0)
-               break;
-         if (idx == MAX_RPC_CONNECTION)
-            return RPC_NET_ERROR;
-         callback.index = idx;
+         ///* look for next free entry */
+         //for (idx = 0; idx < MAX_RPC_CONNECTION; idx++)
+         //   if (_server_acception[idx].recv_sock == 0)
+         //      break;
+         //if (idx == MAX_RPC_CONNECTION)
+         //   return RPC_NET_ERROR;
+         //callback.index = idx;
 
         /*----- multi thread server ------------------------*/
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MTHREAD)
-            ss_thread_create(rpc_server_thread, (void *) (&callback));
+         //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MTHREAD)
+         //   ss_thread_create(rpc_server_thread, (void *) (&callback));
 
         /*----- single thread server -----------------------*/
-         if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE ||
-             rpc_get_server_option(RPC_OSERVER_TYPE) == ST_REMOTE)
-            rpc_server_callback(&callback);
+            //if (0/*rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE*/ ||
+            // rpc_get_server_option(RPC_OSERVER_TYPE) == ST_REMOTE)
+            //rpc_server_callback(&callback);
 
          break;
 
@@ -13424,12 +13571,12 @@ INT rpc_client_accept(int lsock)
    if (status != (INT) strlen(str) + 1)
       return RPC_NET_ERROR;
 
-   rpc_set_server_acception(idx + 1);
+   //rpc_set_server_acception(idx + 1);
    rpc_calc_convert_flags(hw_type, client_hw_type, &convert_flags);
    rpc_set_server_option(RPC_CONVERT_FLAGS, convert_flags);
 
    /* set callback function for ss_suspend */
-   ss_suspend_set_dispatch(CH_SERVER, _server_acception, (int (*)(void)) rpc_server_receive);
+   ss_suspend_set_dispatch_server(_server_acception, rpc_server_receive);
 
    return RPC_SUCCESS;
 }
@@ -13605,14 +13752,14 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    sprintf(str, "%d", hw_type);
    send(recv_sock, str, strlen(str) + 1, 0);
 
-   rpc_set_server_acception(idx + 1);
+   //rpc_set_server_acception(idx + 1);
    rpc_calc_convert_flags(hw_type, client_hw_type, &convert_flags);
    rpc_set_server_option(RPC_CONVERT_FLAGS, convert_flags);
 
    /* set callback function for ss_suspend */
-   ss_suspend_set_dispatch(CH_SERVER, _server_acception, (int (*)(void)) rpc_server_receive);
+   ss_suspend_set_dispatch_server(_server_acception, rpc_server_receive);
 
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+   if (rpc_is_mserver())
       rpc_debug_printf("Connection to %s:%s established\n",
                        _server_acception[idx].host_name, _server_acception[idx].prog_name);
 
@@ -13634,7 +13781,7 @@ INT rpc_server_thread(void *pointer)
 
   Routine: rpc_server_thread
 
-  Purpose: New thread for a multi-threaded server. Callback to the
+  Purpose: RPC server and mserver main event loop. Callback to the
            client and process RPC requests.
 
   Input:
@@ -13650,7 +13797,6 @@ INT rpc_server_thread(void *pointer)
 {
    struct callback_addr callback;
    int status, semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg;
-   static DWORD last_checked = 0;
 
    memcpy(&callback, pointer, sizeof(callback));
 
@@ -13666,28 +13812,26 @@ INT rpc_server_thread(void *pointer)
    ss_semaphore_create("MSG", &semaphore_msg);
    cm_set_experiment_semaphore(semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg);
 
-   do {
-      status = ss_suspend(5000, 0);
+   while (1) {
+      status = ss_suspend(1000, 0);
 
+      if (status == SS_ABORT || status == SS_EXIT)
+         break;
+ 
       if (rpc_check_channels() == RPC_NET_ERROR)
          break;
 
-      /* check alarms every 10 seconds */
-      if (!rpc_is_remote() && ss_time() - last_checked > 10) {
-         al_check();
-         last_checked = ss_time();
-      }
+      /* check alarms, etc */
+      status = cm_periodic_tasks();
 
       cm_msg_flush_buffer();
-
-   } while (status != SS_ABORT && status != SS_EXIT);
+   }
 
    /* delete entry in suspend table for this thread */
    ss_suspend_exit();
 
    return RPC_SUCCESS;
 }
-
 
 /********************************************************************/
 INT rpc_server_receive(INT idx, int sock, BOOL check)
@@ -13732,36 +13876,23 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       }
       _net_recv_buffer_size = size;
       _net_recv_buffer_size_odb = 0;
-      //printf("allocated _net_recv_buffer size %d\n", _net_recv_buffer_size);
+      //printf("rpc_server_receive: allocated _net_recv_buffer size %d, max_event_size %d\n", _net_recv_buffer_size, _bm_max_event_size);
    }
 
    /* init network buffer */
-   if (_net_recv_buffer_size_odb == 0) {
-      HNDLE hDB;
-      int size;
-      int max_event_size = DEFAULT_MAX_EVENT_SIZE;
+   if (_net_recv_buffer_size_odb == 0 && _bm_max_event_size > 0) {
+      int size = _bm_max_event_size + sizeof(EVENT_HEADER) + 2*1024;
 
-      /* get max event size from ODB */
-      status = cm_get_experiment_database(&hDB, NULL);
-      assert(status == CM_SUCCESS);
+      _net_recv_buffer_size_odb = size;
 
-      if (hDB) {
-         size = sizeof(INT);
-         status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &max_event_size, &size, TID_DWORD, TRUE);
-
-         size = max_event_size + sizeof(EVENT_HEADER) + 1024;
-
-         _net_recv_buffer_size_odb = size;
-
-         if (size > _net_recv_buffer_size) {
-            _net_recv_buffer = (char *) realloc(_net_recv_buffer, size);
-            if (_net_recv_buffer == NULL) {
-               cm_msg(MERROR, "rpc_server_receive", "Cannot allocate %d bytes for network buffer", size);
-               return RPC_EXCEED_BUFFER;
-            }
-            _net_recv_buffer_size = size;
-            //printf("allocated _net_recv_buffer size %d\n", _net_recv_buffer_size);
+      if (size > _net_recv_buffer_size) {
+         _net_recv_buffer = (char *) realloc(_net_recv_buffer, size);
+         if (_net_recv_buffer == NULL) {
+            cm_msg(MERROR, "rpc_server_receive", "Cannot allocate %d bytes for network buffer", size);
+            return RPC_EXCEED_BUFFER;
          }
+         _net_recv_buffer_size = size;
+         //printf("rpc_server_receive: reallocated _net_recv_buffer size %d, max_event_size %d\n", _net_recv_buffer_size, _bm_max_event_size);
       }
    }
 
@@ -13794,8 +13925,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
    if (sock == _server_acception[idx].recv_sock) {
       do {
          if (_server_acception[idx].remote_hw_type == DR_ASCII)
-            n_received =
-                recv_string(_server_acception[idx].recv_sock, _net_recv_buffer, _net_recv_buffer_size, 10000);
+            n_received = recv_string(_server_acception[idx].recv_sock, _net_recv_buffer, _net_recv_buffer_size, 10000);
          else
             n_received = recv_tcp_server(idx, _net_recv_buffer, _net_recv_buffer_size, 0, &remaining);
 
@@ -13805,13 +13935,12 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
             goto error;
          }
 
-         rpc_set_server_acception(idx + 1);
+         //rpc_set_server_acception(idx + 1);
 
          if (_server_acception[idx].remote_hw_type == DR_ASCII)
             status = rpc_execute_ascii(_server_acception[idx].recv_sock, _net_recv_buffer);
          else
-            status = rpc_execute(_server_acception[idx].recv_sock,
-                                 _net_recv_buffer, _server_acception[idx].convert_flags);
+            status = rpc_execute(_server_acception[idx].recv_sock, _net_recv_buffer, _server_acception[idx].convert_flags);
 
          if (status == SS_ABORT) {
             cm_msg(MERROR, "rpc_server_receive", "rpc_execute() returned %d, abort", status);
@@ -13819,9 +13948,8 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
          }
 
          if (status == SS_EXIT || status == RPC_SHUTDOWN) {
-            if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
-               rpc_debug_printf("Connection to %s:%s closed\n",
-                                _server_acception[idx].host_name, _server_acception[idx].prog_name);
+            if (rpc_is_mserver())
+               rpc_debug_printf("Connection to %s:%s closed\n", _server_acception[idx].host_name, _server_acception[idx].prog_name);
             goto exit;
          }
 
@@ -13860,13 +13988,12 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
    strlcpy(str, _server_acception[idx].host_name, sizeof(str));
    if (strchr(str, '.'))
       *strchr(str, '.') = 0;
-   cm_msg(MTALK, "rpc_server_receive", "Program \'%s\' on host \'%s\' aborted",
-          _server_acception[idx].prog_name, str);
+   cm_msg(MTALK, "rpc_server_receive", "Program \'%s\' on host \'%s\' aborted", _server_acception[idx].prog_name, str);
 
  exit:
 
    /* disconnect from experiment as MIDAS server */
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE) {
+   if (rpc_is_mserver()) {
       HNDLE hDB, hKey;
 
       cm_get_experiment_database(&hDB, &hKey);
@@ -13874,9 +14001,9 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       /* only disconnect from experiment if previously connected.
          Necessary for pure RPC servers (RPC_SRVR) */
       if (hDB) {
-#ifdef LOCAL_ROUTINES
-         ss_alarm(0, cm_watchdog);
-#endif
+         //#ifdef LOCAL_ROUTINES
+         //ss_alarm(0, cm_watchdog);
+         //#endif
 
          bm_close_all_buffers();
          cm_delete_client_info(hDB, 0);
@@ -13915,9 +14042,8 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
    if (status == RPC_SHUTDOWN)
       return status;
 
-   /* don't abort if other than main connection is broken */
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_REMOTE) {
-      cm_msg(MERROR, "rpc_server_receive", "rpc check ok, abort canceled");
+   /* only the mserver should stop on server connection closure */
+   if (!rpc_is_mserver()) {
       return SS_SUCCESS;
    }
 
@@ -14069,12 +14195,13 @@ INT rpc_check_channels(void)
 
  exit:
 
-   cm_msg(MINFO, "rpc_check_channels", "client [%s]%s failed watchdog test after %d sec",
+   cm_msg(MINFO, "rpc_check_channels", "client \"%s\" on host \"%s\" failed watchdog test after %d sec",
+          _server_acception[idx].prog_name,
           _server_acception[idx].host_name,
-          _server_acception[idx].prog_name, _server_acception[idx].watchdog_timeout / 1000);
+          _server_acception[idx].watchdog_timeout / 1000);
 
    /* disconnect from experiment */
-   if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+   if (rpc_is_mserver())
       cm_disconnect_experiment();
 
    /* close server connection */
@@ -14095,11 +14222,7 @@ INT rpc_check_channels(void)
    return RPC_NET_ERROR;
 }
 
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
-
-/**dox***************************************************************/
-                                                                                                                               /** @} *//* end of rpcfunctionc */
+/** @} */
 
 /**dox***************************************************************/
 /** @addtogroup bkfunctionc
@@ -15224,11 +15347,7 @@ int rb_get_buffer_level(int handle, int *n_bytes)
    return DB_SUCCESS;
 }
 
-/**dox***************************************************************/
-                  /** @} *//* end of rbfunctionc */
-
-/**dox***************************************************************/
-                  /** @} *//* end of midasincludecode */
+/** @} *//* end of rbfunctionc */
 
 /* emacs
  * Local Variables:

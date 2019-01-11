@@ -26,11 +26,6 @@ The Midas System file
  */
 
 /**dox***************************************************************/
-/** @addtogroup msystemincludecode
- *
- *  @{  */
-
-/**dox***************************************************************/
 /** @addtogroup msfunctionc
  *
  *  @{  */
@@ -3034,7 +3029,9 @@ DWORD ss_millitime()
 
       gettimeofday(&tv, NULL);
 
-      return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+      DWORD m = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+      //m += 0x137e0000; // adjust milltime for testing 32-bit wrap-around
+      return m;
    }
 
 #endif                          /* OS_UNIX */
@@ -3578,13 +3575,13 @@ typedef struct {
    INT ipc_port;
    INT ipc_recv_socket;
    INT ipc_send_socket;
-    INT(*ipc_dispatch) (char *, INT);
+   INT(*ipc_dispatch) (const char *, INT);
    INT listen_socket;
-    INT(*listen_dispatch) (INT);
+   INT(*listen_dispatch) (INT);
    RPC_SERVER_CONNECTION *server_connection;
-    INT(*client_dispatch) (INT);
+   INT(*client_dispatch) (INT);
    RPC_SERVER_ACCEPTION *server_acception;
-    INT(*server_dispatch) (INT, int, BOOL);
+   INT(*server_dispatch) (INT, int, BOOL);
    struct sockaddr_in bind_addr;
 } SUSPEND_STRUCT;
 
@@ -3853,64 +3850,60 @@ INT ss_suspend_exit()
 }
 
 /*------------------------------------------------------------------*/
-INT ss_suspend_set_dispatch(INT channel, void *connection, INT(*dispatch) (void))
-/********************************************************************\
-
-  Routine: ss_suspend_set_dispatch
-
-  Purpose: Set dispatch functions which get called whenever new data
-     on various sockets arrive inside the ss_suspend function.
-
-     Beside the Inter Process Communication socket several other
-     sockets can simultanously watched: A "listen" socket for
-     a server main thread, server sockets which receive new
-     RPC requests from remote clients (given by the
-     server_acception array) and client sockets which may
-     get notification data from remote servers (such as
-     database updates).
-
-  Input:
-    INT    channel               One of CH_IPC, CH_CLIENT,
-         CH_SERVER, CH_MSERVER
-
-    INT    (*dispatch())         Function being called
-
-  Output:
-    none
-
-  Function value:
-    SS_SUCCESS              Successful completion
-
-\********************************************************************/
+INT ss_suspend_set_dispatch_ipc(INT(*dispatch)(const char*,INT))
 {
-   INT i, status;
-
-   status = ss_suspend_get_index(&i);
+   int i;
+   int status = ss_suspend_get_index(&i);
 
    if (status != SS_SUCCESS)
       return status;
 
-   if (channel == CH_IPC) {
-      _suspend_struct[i].ipc_dispatch = (INT(*)(char *, INT)) dispatch;
+   _suspend_struct[i].ipc_dispatch = dispatch;
 
-      if (!_suspend_struct[i].ipc_recv_socket)
-         ss_suspend_init_ipc(i);
-   }
+   if (!_suspend_struct[i].ipc_recv_socket)
+      ss_suspend_init_ipc(i);
 
-   if (channel == CH_LISTEN) {
-      _suspend_struct[i].listen_socket = *((INT *) connection);
-      _suspend_struct[i].listen_dispatch = (INT(*)(INT)) dispatch;
-   }
+   return SS_SUCCESS;
+}
 
-   if (channel == CH_CLIENT) {
-      _suspend_struct[i].server_connection = (RPC_SERVER_CONNECTION *) connection;
-      _suspend_struct[i].client_dispatch = (INT(*)(INT)) dispatch;
-   }
+INT ss_suspend_set_dispatch_client(RPC_SERVER_CONNECTION* connection, INT(*dispatch)(INT))
+{
+   int i;
+   int status = ss_suspend_get_index(&i);
 
-   if (channel == CH_SERVER) {
-      _suspend_struct[i].server_acception = (RPC_SERVER_ACCEPTION *) connection;
-      _suspend_struct[i].server_dispatch = (INT(*)(INT, int, BOOL)) dispatch;
-   }
+   if (status != SS_SUCCESS)
+      return status;
+
+   _suspend_struct[i].server_connection = connection;
+   _suspend_struct[i].client_dispatch = dispatch;
+
+   return SS_SUCCESS;
+}
+
+INT ss_suspend_set_dispatch_server(RPC_SERVER_ACCEPTION* connection, INT(*dispatch)(INT,int,BOOL))
+{
+   int i;
+   int status = ss_suspend_get_index(&i);
+
+   if (status != SS_SUCCESS)
+      return status;
+
+   _suspend_struct[i].server_acception = connection;
+   _suspend_struct[i].server_dispatch = (INT(*)(INT, int, BOOL)) dispatch;
+
+   return SS_SUCCESS;
+}
+
+INT ss_suspend_set_dispatch_listen(int listen_socket, INT(*dispatch)(INT))
+{
+   int i;
+   int status = ss_suspend_get_index(&i);
+
+   if (status != SS_SUCCESS)
+      return status;
+
+   _suspend_struct[i].listen_socket = listen_socket;
+   _suspend_struct[i].listen_dispatch = dispatch;
 
    return SS_SUCCESS;
 }
@@ -4145,14 +4138,14 @@ INT ss_suspend(INT millisec, INT msg)
             }
 
             if (status == SS_ABORT) {
-               cm_msg(MINFO, "ss_suspend", "Server connection broken to \'%s\'", _suspend_struct[idx].server_connection->host_name);
+               cm_msg(MINFO, "ss_suspend", "Server connection to \'%s\' was broken", _suspend_struct[idx].server_connection->host_name);
 
                /* close client connection if link broken */
                closesocket(_suspend_struct[idx].server_connection->send_sock);
                closesocket(_suspend_struct[idx].server_connection->recv_sock);
                closesocket(_suspend_struct[idx].server_connection->event_sock);
 
-               memset(_suspend_struct[idx].server_connection, 0, sizeof(RPC_CLIENT_CONNECTION));
+               memset(_suspend_struct[idx].server_connection, 0, sizeof(RPC_SERVER_CONNECTION));
 
                /* exit program after broken connection to MIDAS server */
                return SS_ABORT;
@@ -4176,7 +4169,7 @@ INT ss_suspend(INT millisec, INT msg)
 
          /* find out if this thread is connected as a server */
          server_socket = 0;
-         if (_suspend_struct[idx].server_acception && rpc_get_server_option(RPC_OSERVER_TYPE) != ST_REMOTE)
+         if (_suspend_struct[idx].server_acception && rpc_is_mserver())
             for (i = 0; i < MAX_RPC_CONNECTION; i++) {
                sock = _suspend_struct[idx].server_acception[i].send_sock;
                if (sock && _suspend_struct[idx].server_acception[i].tid == ss_gettid())
@@ -4538,14 +4531,12 @@ INT recv_tcp(int sock, char *net_buffer, DWORD buffer_size, INT flags)
 #endif
 
       if (n == 0) {
-         cm_msg(MERROR, "recv_tcp",
-                "header: recv returned %d, n_received = %d, unexpected connection closure", n, n_received);
+         cm_msg(MERROR, "recv_tcp", "header: recv(%d) returned %d, n_received = %d, unexpected connection closure", (int)sizeof(NET_COMMAND_HEADER), n, n_received);
          return n;
       }
 
       if (n < 0) {
-         cm_msg(MERROR, "recv_tcp",
-                "header: recv returned %d, n_received = %d, errno: %d (%s)", n, n_received, errno, strerror(errno));
+         cm_msg(MERROR, "recv_tcp", "header: recv(%d) returned %d, n_received = %d, errno: %d (%s)", (int)sizeof(NET_COMMAND_HEADER), n, n_received, errno, strerror(errno));
          return n;
       }
 
@@ -4579,14 +4570,12 @@ INT recv_tcp(int sock, char *net_buffer, DWORD buffer_size, INT flags)
 #endif
 
       if (n == 0) {
-         cm_msg(MERROR, "recv_tcp",
-                "param: recv returned %d, n_received = %d, unexpected connection closure", n, n_received);
+         cm_msg(MERROR, "recv_tcp", "param: recv() returned %d, n_received = %d, unexpected connection closure", n, n_received);
          return n;
       }
 
       if (n < 0) {
-         cm_msg(MERROR, "recv_tcp",
-                "param: recv returned %d, n_received = %d, errno: %d (%s)", n, n_received, errno, strerror(errno));
+         cm_msg(MERROR, "recv_tcp", "param: recv() returned %d, n_received = %d, errno: %d (%s)", n, n_received, errno, strerror(errno));
          return n;
       }
 
@@ -5112,11 +5101,11 @@ INT ss_tape_open(char *path, INT oflag, INT * channel)
 \********************************************************************/
 {
 #ifdef OS_UNIX
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
 
    *channel = open(path, oflag, 0644);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (*channel < 0)
       cm_msg(MERROR, "ss_tape_open", "open() returned %d, errno %d (%s)", *channel, errno, strerror(errno));
@@ -5469,11 +5458,11 @@ INT ss_tape_write_eof(INT channel)
    arg.mt_op = MTWEOF;
    arg.mt_count = 1;
 
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
 
    status = ioctl(channel, MTIOCTOP, &arg);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (status < 0) {
       cm_msg(MERROR, "ss_tape_write_eof", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
@@ -5539,11 +5528,11 @@ INT ss_tape_fskip(INT channel, INT count)
       arg.mt_op = MTBSF;
    arg.mt_count = abs(count);
 
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
 
    status = ioctl(channel, MTIOCTOP, &arg);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (status < 0) {
       cm_msg(MERROR, "ss_tape_fskip", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
@@ -5599,11 +5588,11 @@ INT ss_tape_rskip(INT channel, INT count)
       arg.mt_op = MTBSR;
    arg.mt_count = abs(count);
 
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
 
    status = ioctl(channel, MTIOCTOP, &arg);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (status < 0) {
       cm_msg(MERROR, "ss_tape_rskip", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
@@ -5651,11 +5640,11 @@ INT ss_tape_rewind(INT channel)
    arg.mt_op = MTREW;
    arg.mt_count = 0;
 
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
 
    status = ioctl(channel, MTIOCTOP, &arg);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (status < 0) {
       cm_msg(MERROR, "ss_tape_rewind", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
@@ -5707,11 +5696,11 @@ INT ss_tape_spool(INT channel)
 #endif
    arg.mt_count = 0;
 
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
 
    status = ioctl(channel, MTIOCTOP, &arg);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (status < 0) {
       cm_msg(MERROR, "ss_tape_rewind", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
@@ -5762,12 +5751,12 @@ INT ss_tape_mount(INT channel)
    arg.mt_op = MTNOP;
 #endif
    arg.mt_count = 0;
-
-   cm_enable_watchdog(FALSE);
+   
+   //cm_enable_watchdog(FALSE);
 
    status = ioctl(channel, MTIOCTOP, &arg);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (status < 0) {
       cm_msg(MERROR, "ss_tape_mount", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
@@ -5819,11 +5808,11 @@ INT ss_tape_unmount(INT channel)
 #endif
    arg.mt_count = 0;
 
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
 
    status = ioctl(channel, MTIOCTOP, &arg);
 
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
 
    if (status < 0) {
       cm_msg(MERROR, "ss_tape_unmount", "ioctl() failed, errno %d (%s)", errno, strerror(errno));
@@ -5864,9 +5853,9 @@ blockn:  >0 = block number, =0 option not available, <0 errno
    INT status;
    struct mtpos arg;
 
-   cm_enable_watchdog(FALSE);
+   //cm_enable_watchdog(FALSE);
    status = ioctl(channel, MTIOCPOS, &arg);
-   cm_enable_watchdog(TRUE);
+   //cm_enable_watchdog(TRUE);
    if (status < 0) {
       if (errno == EIO)
          return 0;
@@ -7063,8 +7052,7 @@ void ss_stack_history_dump(char *filename)
 
 #endif
 
-         /** @} *//* end of msfunctionc */
-         /** @} *//* end of msystemincludecode */
+/** @} *//* end of msfunctionc */
 /* emacs
  * Local Variables:
  * tab-width: 8

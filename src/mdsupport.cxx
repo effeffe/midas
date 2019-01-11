@@ -13,7 +13,7 @@
  */
 
 /**dox***************************************************************/
-/** @file mdsupport.c
+/** @file mdsupport.cxx
 The Midas Dump support file
 */
 
