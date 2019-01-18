@@ -129,6 +129,9 @@ INT mscbdev_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
    db_set_data(hDB, hsubkey, info->mscbdev_settings.mscb_index, size, channels, TID_BYTE);
    db_open_record(hDB, hsubkey, info->mscbdev_settings.mscb_index, size, MODE_READ, (void (*)(INT,INT,void*))addr_changed, info);
 
+   // execute periodic tasks since mscb_init can take a while
+   cm_periodic_tasks();
+   
    /* initialize info structure */
    info->num_channels = channels;
 
