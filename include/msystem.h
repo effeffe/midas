@@ -547,7 +547,7 @@ extern "C" {
    INT rpc_client_accept(int sock);
    //INT rpc_get_server_acception(void);
    //INT rpc_set_server_acception(INT idx);
-   INT rpc_set_mserver_mode();
+   INT rpc_set_mserver_mode(void);
    INT EXPRT rpc_set_server_option(INT item, INT value);
    INT EXPRT rpc_get_server_option(INT item);
    INT recv_tcp_check(int sock);
@@ -561,7 +561,7 @@ extern "C" {
    INT EXPRT rpc_set_opt_tcp_size(INT tcp_size);
    INT EXPRT rpc_get_opt_tcp_size(void);
    INT EXPRT rpc_set_mserver_path(const char *mserver_path);
-   const char* EXPRT rpc_get_mserver_path();
+   const char* EXPRT rpc_get_mserver_path(void);
 
    /** @addtogroup msfunctionc */
    /** @{ */
