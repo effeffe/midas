@@ -5610,6 +5610,24 @@ static int bm_validate_buffer_locked(const BUFFER* pbuf)
    return BM_SUCCESS;
 }
 
+static void bm_reset_buffer_locked(BUFFER* pbuf)
+{
+   BUFFER_HEADER* pheader = pbuf->buffer_header;
+
+   printf("bm_reset_buffer: buffer \"%s\"\n", pheader->name);
+
+   pheader->read_pointer = 0;
+   pheader->write_pointer = 0;
+
+   int i;
+   for (i=0; i<pheader->max_client_index; i++) {
+      BUFFER_CLIENT* pc = pheader->client + i;
+      if (pc->pid) {
+         pc->read_pointer = 0;
+      }
+   }
+}
+
 /********************************************************************/
 /**
 Open an event buffer.
@@ -5839,10 +5857,9 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
 
       status = bm_validate_buffer_locked(pbuf);
       if (status != BM_SUCCESS) {
-         bm_unlock_buffer(pbuf);
-         *buffer_handle = 0;
-         cm_msg(MERROR, "bm_open_buffer", "buffer \'%s\' is corrupted, bm_validate_buffer() status %d", buffer_name, status);
-         return status;
+         cm_msg(MERROR, "bm_open_buffer", "buffer \'%s\' is corrupted, bm_validate_buffer() status %d, calling bm_reset_buffer()...", buffer_name, status);
+         bm_reset_buffer_locked(pbuf);
+         cm_msg(MINFO, "bm_open_buffer", "buffer \'%s\' was reset, all buffered events were lost", buffer_name);
       }
 
       /*
