@@ -5819,10 +5819,10 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
          if (pheader->size != buffer_size) {
             cm_msg(MINFO, "bm_open_buffer", "Buffer \"%s\" requested size %d differs from existing size %d", buffer_name, buffer_size, pheader->size);
 
-            ss_shm_close(buffer_name, p, shm_handle, FALSE);
-      
             buffer_size = pheader->size;
 
+            ss_shm_close(buffer_name, p, shm_handle, FALSE);
+      
             status = ss_shm_open(buffer_name, sizeof(BUFFER_HEADER) + buffer_size, &p, &shm_handle, FALSE);
             _buffer[handle].buffer_header = (BUFFER_HEADER *) p;
 
