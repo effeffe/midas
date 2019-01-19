@@ -159,7 +159,6 @@ INT psi_cobra(INT cmd, ...)
    va_list argptr;
    HNDLE hKey;
    INT channel, status;
-   DWORD flags;
    float *pvalue;
    void *info, *bd;
    char *name;
@@ -172,7 +171,7 @@ INT psi_cobra(INT cmd, ...)
       hKey = va_arg(argptr, HNDLE);
       info = va_arg(argptr, void *);
       channel = va_arg(argptr, INT);
-      flags = va_arg(argptr, DWORD);
+      va_arg(argptr, DWORD);
       bd = va_arg(argptr, void *);
       status = psi_cobra_init(hKey, info, channel, bd);
       break;

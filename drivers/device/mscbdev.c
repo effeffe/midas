@@ -129,6 +129,9 @@ INT mscbdev_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
    db_set_data(hDB, hsubkey, info->mscbdev_settings.mscb_index, size, channels, TID_BYTE);
    db_open_record(hDB, hsubkey, info->mscbdev_settings.mscb_index, size, MODE_READ, (void (*)(INT,INT,void*))addr_changed, info);
 
+   // execute periodic tasks since mscb_init can take a while
+   cm_periodic_tasks();
+   
    /* initialize info structure */
    info->num_channels = channels;
 
@@ -311,7 +314,6 @@ INT mscbdev(INT cmd, ...)
    va_list argptr;
    HNDLE hKey;
    INT channel, status;
-   DWORD flags;
    float value, *pvalue;
    void *info, *bd;
    char *name;
@@ -324,7 +326,7 @@ INT mscbdev(INT cmd, ...)
       hKey = va_arg(argptr, HNDLE);
       info = va_arg(argptr, void *);
       channel = va_arg(argptr, INT);
-      flags = va_arg(argptr, DWORD);
+      va_arg(argptr, DWORD);
       bd = va_arg(argptr, void *);
       status = mscbdev_init(hKey, info, channel, bd);
       break;

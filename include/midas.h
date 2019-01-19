@@ -1677,7 +1677,7 @@ extern "C" {
    INT EXPRT cm_exist(const char *name, BOOL bUnique);
    INT EXPRT cm_cleanup(const char *client_name, BOOL ignore_timeout);
    INT EXPRT cm_yield(INT millisec);
-   INT EXPRT cm_periodic_tasks();
+   INT EXPRT cm_periodic_tasks(void);
    INT EXPRT cm_execute(const char *command, char *result, INT buf_size);
    INT EXPRT cm_synchronize(DWORD * sec);
    INT EXPRT cm_asctime(char *str, INT buf_size);

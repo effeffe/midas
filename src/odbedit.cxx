@@ -1939,7 +1939,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          db_find_key(hDB, 0, pwd, &hKey);
 
          std::string filename = param[1];
-         if (filename.compare(filename.size()-3, 3, ".js")==0 || filename.compare(filename.size()-5, 5, ".json")==0) {
+         if ((filename.size() > 3 && filename.compare(filename.size()-3, 3, ".js")==0) ||     (filename.size() > 5 && filename.compare(filename.size()-5, 5, ".json")==0)) {
             db_load_json(hDB, hKey, filename.c_str());
          } else {
             db_load(hDB, hKey, param[1], FALSE);
