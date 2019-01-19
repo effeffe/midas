@@ -5531,11 +5531,11 @@ static int bm_validate_buffer_locked(const BUFFER* pbuf)
    const BUFFER_HEADER* pheader = pbuf->buffer_header;
    const char* pdata = (const char*)(pheader+1);
 
-   printf("bm_validate_buffer: buffer \"%s\"\n", pheader->name);
+   //printf("bm_validate_buffer: buffer \"%s\"\n", pheader->name);
 
-   printf("size: %d, rp: %d, wp: %d\n", pheader->size, pheader->read_pointer, pheader->write_pointer);
+   //printf("size: %d, rp: %d, wp: %d\n", pheader->size, pheader->read_pointer, pheader->write_pointer);
 
-   printf("clients: max: %d, num: %d, MAX_CLIENTS: %d\n", pheader->max_client_index, pheader->num_clients, MAX_CLIENTS);
+   //printf("clients: max: %d, num: %d, MAX_CLIENTS: %d\n", pheader->max_client_index, pheader->num_clients, MAX_CLIENTS);
 
    if (pheader->read_pointer < 0 || pheader->read_pointer >= pheader->size) {
       cm_msg(MERROR, "bm_validate_buffer", "buffer \"%s\" is corrupted: invalid read pointer %d. Size %d, write pointer %d", pheader->name, pheader->read_pointer, pheader->size, pheader->write_pointer);
@@ -5571,7 +5571,7 @@ static int bm_validate_buffer_locked(const BUFFER* pbuf)
       rp = rp1;
    }
 
-   printf("buffered events: %d\n", event_count);
+   //printf("buffered events: %d\n", event_count);
 
    int i;
    for (i=0; i<MAX_CLIENTS; i++) {
@@ -5586,7 +5586,7 @@ static int bm_validate_buffer_locked(const BUFFER* pbuf)
             continue;
          BOOL xget_all = r->sampling_type == GET_ALL;
          get_all |= xget_all;
-         printf("client slot %d: pid %d, name \"%s\", request %d: id %d, valid %d, sampling_type %d, get_all %d\n", i, c->pid, c->name, j, r->id, r->valid, r->sampling_type, xget_all);
+         //printf("client slot %d: pid %d, name \"%s\", request %d: id %d, valid %d, sampling_type %d, get_all %d\n", i, c->pid, c->name, j, r->id, r->valid, r->sampling_type, xget_all);
       }
 
       int event_count = 0;
@@ -5604,7 +5604,7 @@ static int bm_validate_buffer_locked(const BUFFER* pbuf)
          rp = rp1;
       }
 
-      printf("client slot %d: pid %d, name \"%s\", port %d, rp: %d, get_all %d, %d events\n", i, c->pid, c->name, c->port, c->read_pointer, get_all, event_count);
+      //printf("client slot %d: pid %d, name \"%s\", port %d, rp: %d, get_all %d, %d events\n", i, c->pid, c->name, c->port, c->read_pointer, get_all, event_count);
    }
 
    return BM_SUCCESS;
@@ -5614,7 +5614,7 @@ static void bm_reset_buffer_locked(BUFFER* pbuf)
 {
    BUFFER_HEADER* pheader = pbuf->buffer_header;
 
-   printf("bm_reset_buffer: buffer \"%s\"\n", pheader->name);
+   //printf("bm_reset_buffer: buffer \"%s\"\n", pheader->name);
 
    pheader->read_pointer = 0;
    pheader->write_pointer = 0;
