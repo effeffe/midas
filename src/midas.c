@@ -5769,13 +5769,6 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
          /* check if buffer alreay is open */
          for (i = 0; i < _buffer_entries; i++)
             if (_buffer[i].attached && equal_ustring(_buffer[i].buffer_header->name, buffer_name)) {
-               //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-               //    _buffer[i].index != rpc_get_server_acception())
-               //   continue;
-
-               //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _buffer[i].index != ss_gettid())
-               //   continue;
-
                *buffer_handle = i + 1;
                return BM_SUCCESS;
             }
@@ -5802,8 +5795,6 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       handle = i;
 
       /* open shared memory region */
-      //status = ss_shm_open(buffer_name, sizeof(BUFFER_HEADER) + buffer_size,
-      //               (void **) &(_buffer[handle].buffer_header), &shm_handle, FALSE);
       status = ss_shm_open(buffer_name, sizeof(BUFFER_HEADER) + buffer_size, &p, &shm_handle, FALSE);
       _buffer[handle].buffer_header = (BUFFER_HEADER *) p;
 
@@ -5826,10 +5817,19 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       } else {
          /* check if buffer size is identical */
          if (pheader->size != buffer_size) {
-            cm_msg(MERROR, "bm_open_buffer", "Cannot open buffer \"%s\": requested buffer size (%d) differs from existing size (%d)", buffer_name, buffer_size, pheader->size);
-            *buffer_handle = 0;
-            _buffer_entries--;
-            return BM_MEMSIZE_MISMATCH;
+            cm_msg(MINFO, "bm_open_buffer", "Buffer \"%s\" requested size %d differs from existing size %d", buffer_name, buffer_size, pheader->size);
+
+            ss_shm_close(buffer_name, p, shm_handle, FALSE);
+      
+            buffer_size = pheader->size;
+
+            status = ss_shm_open(buffer_name, sizeof(BUFFER_HEADER) + buffer_size, &p, &shm_handle, FALSE);
+            _buffer[handle].buffer_header = (BUFFER_HEADER *) p;
+
+            if (status != SS_SUCCESS) {
+               *buffer_handle = 0;
+               return BM_NO_SHM;
+            }
          }
       }
 
