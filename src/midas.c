@@ -5830,6 +5830,8 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
                *buffer_handle = 0;
                return BM_NO_SHM;
             }
+
+            pheader = _buffer[handle].buffer_header;
          }
       }
 
