@@ -7443,16 +7443,16 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
    }
 
    do {
-      char line[2*MAX_STRING_LENGTH]; // FIXME: no overflow, not sure if trailing \0 is ok. Max line length should match max line length in db_copy(). K.O.
+      char line[10*MAX_STRING_LENGTH];
 
       if (*buffer == 0)
          break;
 
-      for (i = 0; *buffer != '\n' && *buffer && i < 2*MAX_STRING_LENGTH; i++)
+      for (i = 0; *buffer != '\n' && *buffer && i < 10*MAX_STRING_LENGTH; i++)
          line[i] = *buffer++;
 
-      if (i == 2*MAX_STRING_LENGTH) {
-         line[MAX_STRING_LENGTH/4] = 0;
+      if (i == 10*MAX_STRING_LENGTH) {
+         line[10*MAX_STRING_LENGTH-1] = 0;
          cm_msg(MERROR, "db_paste", "line too long: %s...", line);
          free(data);
          return DB_TRUNCATED;
@@ -7562,6 +7562,10 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
                         if (string_length > MAX_STRING_LENGTH) {
                            string_length = MAX_STRING_LENGTH;
                            cm_msg(MERROR, "db_paste", "found string exceeding MAX_STRING_LENGTH, odb path \"%s\"", key_name);
+                        }
+                        if (string_length == 0) {
+                           string_length = 32;
+                           cm_msg(MERROR, "db_paste", "found string length of zero, set to 32, odb path \"%s\"", key_name);
                         }
                      }
 

@@ -343,10 +343,10 @@
          }
 
          if (alarm["alarm_system_active"]) {
-            document.getElementById("runStatusAlarm").innerHTML = "<a href='/Alarms/Alarm system active?cmd=set'>" + "Alarms: On" + "</a>";
+            document.getElementById("runStatusAlarm").innerHTML = "<a href='Alarms/Alarm system active?cmd=set'>" + "Alarms: On" + "</a>";
             document.getElementById("runStatusAlarm").className = "mgreen mbox";
          } else {
-            document.getElementById("runStatusAlarm").innerHTML = "<a href='/Alarms/Alarm system active?cmd=set'>" + "Alarms: Off" + "</a>";
+            document.getElementById("runStatusAlarm").innerHTML = "<a href='Alarms/Alarm system active?cmd=set'>" + "Alarms: Off" + "</a>";
             document.getElementById("runStatusAlarm").className = "mred mbox";
          }
 
@@ -356,10 +356,10 @@
                   document.getElementById("runStatusSequencer").innerHTML = "Restart: Sequencer";
                } else {
                   if (loggerJson["auto restart"] === true) {
-                     document.getElementById("runStatusSequencer").innerHTML = "<a href='/Logger/Auto restart?cmd=set'>" + "Restart: On" + "</a>";
+                     document.getElementById("runStatusSequencer").innerHTML = "<a href='Logger/Auto restart?cmd=set'>" + "Restart: On" + "</a>";
                      document.getElementById("runStatusSequencer").className = "mgreen mbox";
                   } else {
-                     document.getElementById("runStatusSequencer").innerHTML = "<a href='/Logger/Auto restart?cmd=set'>" + "Restart: Off" + "</a>";
+                     document.getElementById("runStatusSequencer").innerHTML = "<a href='Logger/Auto restart?cmd=set'>" + "Restart: Off" + "</a>";
                      document.getElementById("runStatusSequencer").className = "myellow mbox";
                   }
                }
@@ -459,7 +459,7 @@
                   equipmentRow.style.display = "table-row";
 
                var mb = equipmentStatData[i]["kbytes per sec."] / 1000.0;
-               equipmentRow.innerHTML = "<td align=\"center\"><a href='/SC/" +
+               equipmentRow.innerHTML = "<td align=\"center\"><a href='SC/" +
                   equipmentNames[i] +
                   "'>" +
                   equipmentNames[i] +

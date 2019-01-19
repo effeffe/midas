@@ -173,6 +173,8 @@ INT mscbhvr_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
       status = mscbhvr_read_all(info, i);
       if (status != FE_SUCCESS)
          return status;
+      
+      cm_periodic_tasks();
    }
    printf("%s: %d\n", key.name, i);
 
@@ -270,6 +272,8 @@ INT mscbhvr_get(MSCBHVR_INFO * info, INT channel, float *pvalue)
    int size, status;
    unsigned char buffer[256], *pbuf;
    char str[256];
+
+   cm_periodic_tasks();
 
    /* check if value was previously read by mscbhvr_read_all() */
    if (info->node_vars[channel].cached) {

@@ -133,7 +133,7 @@ INT gen_read(EQUIPMENT * pequipment, int channel)
 
 void gen_demand(INT hDB, INT hKey, void *info)
 {
-   INT i, status;
+   INT i;
    GEN_INFO *gen_info;
    EQUIPMENT *pequipment;
 
@@ -144,8 +144,8 @@ void gen_demand(INT hDB, INT hKey, void *info)
    for (i = 0; i < gen_info->num_channels; i++)
       if (gen_info->demand[i] != gen_info->demand_mirror[i]) {
          if ((gen_info->driver[i]->flags & DF_READ_ONLY) == 0) {
-            status = device_driver(gen_info->driver[i], CMD_SET,
-                                   i - gen_info->channel_offset[i], gen_info->demand[i]);
+            device_driver(gen_info->driver[i], CMD_SET,
+                          i - gen_info->channel_offset[i], gen_info->demand[i]);
          }
          gen_info->demand_mirror[i] = gen_info->demand[i];
       }
@@ -157,7 +157,7 @@ void gen_demand(INT hDB, INT hKey, void *info)
 
 void gen_update_label(INT hDB, INT hKey, void *info)
 {
-   INT i, status;
+   INT i;
    GEN_INFO *gen_info;
    EQUIPMENT *pequipment;
 
@@ -166,9 +166,9 @@ void gen_update_label(INT hDB, INT hKey, void *info)
 
    /* update channel labels based on the midas channel names */
    for (i = 0; i < gen_info->num_channels; i++)
-      status = device_driver(gen_info->driver[i], CMD_SET_LABEL,
-                             i - gen_info->channel_offset[i],
-                             gen_info->names + NAME_LENGTH * i);
+      device_driver(gen_info->driver[i], CMD_SET_LABEL,
+                    i - gen_info->channel_offset[i],
+                    gen_info->names + NAME_LENGTH * i);
 }
 
 /*------------------------------------------------------------------*/
@@ -179,7 +179,6 @@ INT gen_init(EQUIPMENT * pequipment)
    char str[256];
    HNDLE hDB, hKey, hNames, hThreshold;
    GEN_INFO *gen_info;
-   BOOL partially_disabled;
 
    /* allocate private data */
    pequipment->cd_info = calloc(1, sizeof(GEN_INFO));
@@ -268,8 +267,7 @@ INT gen_init(EQUIPMENT * pequipment)
             free_mem(gen_info);
             return status;
          }
-      } else
-         partially_disabled = TRUE;
+      }
    }
 
    /* compose device driver channel assignment */
