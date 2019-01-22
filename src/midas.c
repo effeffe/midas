@@ -5054,7 +5054,7 @@ events.
 INT cm_yield(INT millisec)
 {
    INT status;
-   BOOL bMore;
+   INT bMore;
    //static DWORD last_yield = 0;
    //static DWORD last_yield_time = 0;
    //DWORD start_yield = ss_millitime();
@@ -5070,6 +5070,11 @@ INT cm_yield(INT millisec)
    if (rpc_is_remote()) {
       //printf("cm_yield() calling bm_poll_event()\n");
       status = bm_poll_event();
+
+      if (status == SS_ABORT) {
+         return status;
+      }
+      
       if (status == BM_SUCCESS) {
          /* one or more events received by bm_poll_event() */
          status = ss_suspend(0, 0);
@@ -5093,7 +5098,9 @@ INT cm_yield(INT millisec)
    //printf("cm_yield: timeout %4d, yield period %4d, last yield time %4d, bm_check_buffers() elapsed %4d, returned %d\n", millisec, start_yield - last_yield, last_yield_time, end_check - start_check, bMore);
    //fflush(stdout);
 
-   if (bMore) {
+   if (bMore == BM_CORRUPTED) {
+      status = SS_ABORT;
+   } else if (bMore) {
       /* if events available, quickly check other IPC channels */
       status = ss_suspend(0, 0);
    } else {
@@ -8834,8 +8841,7 @@ static INT bm_push_buffer(BUFFER *pbuf, int buffer_handle)
 /**
 Check a buffer if an event is available and call the dispatch function if found.
 @param buffer_name       Name of buffer
-@return BM_SUCCESS, BM_INVALID_HANDLE, BM_TRUNCATED, BM_ASYNC_RETURN,
-                    RPC_NET_ERROR
+@return BM_SUCCESS, BM_INVALID_HANDLE, BM_TRUNCATED, BM_ASYNC_RETURN, BM_CORRUPTED, RPC_NET_ERROR
 */
 static INT bm_push_event(const char *buffer_name)
 {
@@ -8906,6 +8912,10 @@ INT bm_check_buffers()
                 * buffer on each call */
                
                status = bm_push_buffer(_buffer+idx, idx+1);
+
+               if (status == BM_CORRUPTED) {
+                  return status;
+               }
                
                //printf("bm_check_buffers: bm_push_buffer() returned %d, loop %d, time %d\n", status, count_loops, ss_millitime() - start_time);
 
@@ -9075,6 +9085,10 @@ INT bm_poll_event()
          /* break if no more events */
          if (status == BM_ASYNC_RETURN)
             break;
+
+         /* break if corrupted event buffer */
+         if (status == BM_CORRUPTED)
+            return SS_ABORT;
 
          /* break if server died */
          if (status == RPC_NET_ERROR)
