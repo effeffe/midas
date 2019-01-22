@@ -155,8 +155,9 @@ static INT _net_recv_buffer_size_odb = 0;
 static char *_tcp_buffer = NULL;
 static INT _tcp_wp = 0;
 static INT _tcp_rp = 0;
-static INT _rpc_sock = 0;
-static MUTEX_T *_mutex_rpc = NULL;
+static INT _tcp_sock = 0;
+
+static MUTEX_T *_mutex_rpc = NULL; // mutex to protect RPC calls
 
 static void (*_debug_print) (const char *) = NULL;
 static INT _debug_mode = 0;
@@ -11727,10 +11728,17 @@ INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag
    NET_COMMAND *nc;
    unsigned long flag;
    BOOL would_block = 0;
-   DWORD aligned_buf_size;
 
-   aligned_buf_size = ALIGN8(buf_size);
-   _rpc_sock = mode == 0 ? _server_connection.send_sock : _server_connection.event_sock;
+   DWORD aligned_buf_size = ALIGN8(buf_size);
+
+   int sock = -1;
+
+   if (mode == 0)
+      sock = _server_connection.send_sock;
+   else
+      sock = _server_connection.event_sock;
+
+   _tcp_sock = sock; // remember socket for rpc_flush_event()
 
    if ((INT) aligned_buf_size != (INT) (ALIGN8(((EVENT_HEADER *) source)->data_size + sizeof(EVENT_HEADER)))) {
       cm_msg(MERROR, "rpc_send_event", "event size mismatch");
@@ -11755,13 +11763,13 @@ INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag
       if (async_flag == BM_NO_WAIT) {
          flag = 1;
 #ifdef OS_VXWORKS
-         ioctlsocket(_rpc_sock, FIONBIO, (int) &flag);
+         ioctlsocket(sock, FIONBIO, (int) &flag);
 #else
-         ioctlsocket(_rpc_sock, FIONBIO, &flag);
+         ioctlsocket(sock, FIONBIO, &flag);
 #endif
       }
 
-      i = send_tcp(_rpc_sock, _tcp_buffer + _tcp_rp, _tcp_wp - _tcp_rp, 0);
+      i = send_tcp(sock, _tcp_buffer + _tcp_rp, _tcp_wp - _tcp_rp, 0);
 
       if (i < 0)
 #ifdef OS_WINNT
@@ -11774,9 +11782,9 @@ INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag
       if (async_flag == BM_NO_WAIT) {
          flag = 0;
 #ifdef OS_VXWORKS
-         ioctlsocket(_rpc_sock, FIONBIO, (int) &flag);
+         ioctlsocket(sock, FIONBIO, (int) &flag);
 #else
-         ioctlsocket(_rpc_sock, FIONBIO, &flag);
+         ioctlsocket(sock, FIONBIO, &flag);
 #endif
       }
 
@@ -11810,14 +11818,14 @@ INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag
       /* send events larger than optimal buffer size directly */
       if (aligned_buf_size + 4 * 8 + sizeof(NET_COMMAND_HEADER) >= (DWORD) _opt_tcp_size) {
          /* send header */
-         i = send_tcp(_rpc_sock, _tcp_buffer + _tcp_wp, sizeof(NET_COMMAND_HEADER) + 16, 0);
+         i = send_tcp(sock, _tcp_buffer + _tcp_wp, sizeof(NET_COMMAND_HEADER) + 16, 0);
          if (i <= 0) {
             cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
             return RPC_NET_ERROR;
          }
 
          /* send data */
-         i = send_tcp(_rpc_sock, (char *) source, aligned_buf_size, 0);
+         i = send_tcp(sock, (char *) source, aligned_buf_size, 0);
          if (i <= 0) {
             cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
             return RPC_NET_ERROR;
@@ -11826,7 +11834,7 @@ INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag
          /* send last two parameters */
          *((INT *) (&nc->param[0])) = buf_size;
          *((INT *) (&nc->param[8])) = 0;
-         i = send_tcp(_rpc_sock, &nc->param[0], 16, 0);
+         i = send_tcp(sock, &nc->param[0], 16, 0);
          if (i <= 0) {
             cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
             return RPC_NET_ERROR;
@@ -11847,14 +11855,14 @@ INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag
       /* send events larger than optimal buffer size directly */
       if (aligned_buf_size + 4 * 8 + sizeof(INT) >= (DWORD) _opt_tcp_size) {
          /* send buffer */
-         i = send_tcp(_rpc_sock, (char *) &buffer_handle, sizeof(INT), 0);
+         i = send_tcp(sock, (char *) &buffer_handle, sizeof(INT), 0);
          if (i <= 0) {
             cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
             return RPC_NET_ERROR;
          }
 
          /* send data */
-         i = send_tcp(_rpc_sock, (char *) source, aligned_buf_size, 0);
+         i = send_tcp(sock, (char *) source, aligned_buf_size, 0);
          if (i <= 0) {
             cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
             return RPC_NET_ERROR;
@@ -11936,8 +11944,6 @@ Send event residing in the TCP cache buffer filled by
 */
 INT rpc_flush_event()
 {
-   INT i;
-
    if (!rpc_is_remote())
       return RPC_SUCCESS;
 
@@ -11947,10 +11953,11 @@ INT rpc_flush_event()
 
    /* empty TCP buffer */
    if (_tcp_wp > 0) {
-      i = send_tcp(_rpc_sock, _tcp_buffer + _tcp_rp, _tcp_wp - _tcp_rp, 0);
+      int to_send = _tcp_wp - _tcp_rp;
+      int i = send_tcp(_tcp_sock, _tcp_buffer + _tcp_rp, to_send, 0);
 
-      if (i != _tcp_wp - _tcp_rp) {
-         cm_msg(MERROR, "rpc_flush_event", "send_tcp() failed");
+      if (i != to_send) {
+         cm_msg(MERROR, "rpc_flush_event", "send_tcp(%d) returned %d, errno %d (%s)", to_send, i, errno, strerror(errno));
          return RPC_NET_ERROR;
       }
    }
@@ -12327,24 +12334,18 @@ INT recv_event_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT *
 
 \********************************************************************/
 {
-   INT size, event_size, aligned_event_size = 0, *pbh, header_size;
-   EVENT_HEADER *pevent;
-   INT write_ptr, read_ptr, misalign;
-   char *net_buffer;
-   INT copied, status;
-   INT sock;
-   RPC_SERVER_ACCEPTION *psa;
+   INT size, aligned_event_size = 0;
+   INT status;
 
-   psa = &_server_acception[idx];
-   sock = psa->event_sock;
+   RPC_SERVER_ACCEPTION *psa = &_server_acception[idx];
+   int sock = psa->event_sock;
 
    //printf("recv_event_server: idx %d, buffer %p, buffer_size %d\n", idx, buffer, buffer_size);
 
    if (flags & MSG_PEEK) {
       status = recv(sock, buffer, buffer_size, flags);
       if (status == -1)
-         cm_msg(MERROR, "recv_event_server",
-                "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", buffer_size, status, errno, strerror(errno));
+         cm_msg(MERROR, "recv_event_server", "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", buffer_size, status, errno, strerror(errno));
       return status;
    }
 
@@ -12363,29 +12364,29 @@ INT recv_event_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT *
       psa->ev_misalign = 0;
    }
    if (!psa->ev_net_buffer) {
-      cm_msg(MERROR, "recv_event_server", "Cannot allocate %d bytes for network buffer",
-             psa->net_buffer_size);
+      cm_msg(MERROR, "recv_event_server", "Cannot allocate %d bytes for network buffer", psa->net_buffer_size);
       return -1;
    }
 
-   header_size = (INT) (sizeof(EVENT_HEADER) + sizeof(INT));
+   DWORD header_size = (sizeof(EVENT_HEADER) + sizeof(INT));
 
-   if ((INT) buffer_size < header_size) {
-      cm_msg(MERROR, "recv_event_server", "parameters too large for network buffer");
+   if (buffer_size < header_size) {
+      cm_msg(MERROR, "recv_event_server", "buffer size %d is smaller than event header size %d", buffer_size, header_size);
       return -1;
    }
 
-   copied = 0;
-   event_size = -1;
+   int copied = 0;
+   int event_size = -1;
 
-   write_ptr = psa->ev_write_ptr;
-   read_ptr = psa->ev_read_ptr;
-   misalign = psa->ev_misalign;
-   net_buffer = psa->ev_net_buffer;
+   int write_ptr = psa->ev_write_ptr;
+   int read_ptr  = psa->ev_read_ptr;
+   int misalign  = psa->ev_misalign;
+   char* net_buffer = psa->ev_net_buffer;
 
    do {
       if (write_ptr - read_ptr >= header_size - copied) {
          if (event_size == -1) {
+            INT *pbh;
             if (copied > 0) {
                /* assemble split header */
                memcpy(buffer + copied, net_buffer + read_ptr, header_size - copied);
@@ -12393,13 +12394,17 @@ INT recv_event_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT *
             } else
                pbh = (INT *) (net_buffer + read_ptr);
 
-            pevent = (EVENT_HEADER *) (pbh + 1);
+            EVENT_HEADER* pevent = (EVENT_HEADER *) (pbh + 1);
 
-            event_size = pevent->data_size;
+            DWORD data_size = pevent->data_size;
             if (psa->convert_flags)
-               rpc_convert_single(&event_size, TID_DWORD, 0, psa->convert_flags);
+               rpc_convert_single(&data_size, TID_DWORD, 0, psa->convert_flags);
+
+            event_size = data_size;
 
             aligned_event_size = ALIGN8(event_size);
+
+            //printf("recv_event_server: idx %d, buffer_size %d, *pbh %d, event header: id %d, mask %d, serial %d, data_size %d, event_size %d, total_size %d, return %d\n", idx, buffer_size, *pbh, pevent->event_id, pevent->trigger_mask, pevent->serial_number, pevent->data_size, event_size, aligned_event_size, header_size + event_size);
          }
 
          /* check if data part fits in buffer */
@@ -12464,7 +12469,7 @@ INT recv_event_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT *
 
    /* convert header little endian/big endian */
    if (psa->convert_flags) {
-      pevent = (EVENT_HEADER *) (((INT *) buffer) + 1);
+      EVENT_HEADER* pevent = (EVENT_HEADER *) (((INT *) buffer) + 1);
 
       rpc_convert_single(buffer, TID_INT, 0, psa->convert_flags);
       rpc_convert_single(&pevent->event_id, TID_SHORT, 0, psa->convert_flags);
