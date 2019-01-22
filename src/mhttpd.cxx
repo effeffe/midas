@@ -1164,7 +1164,7 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
    INT i, size, status;
    char *p;
    static char data_str[MAX_ODB_PATH];
-   static char str1[MAX_ODB_PATH], str2[MAX_ODB_PATH], ref[MAX_ODB_PATH];
+   static char str1[MAX_ODB_PATH], str2[MAX_ODB_PATH];
    char path[MAX_ODB_PATH], data[10000];
    
    Return* r = sinfo->r;
@@ -1186,7 +1186,7 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 
       if (key->type == TID_KEY || key->type == TID_LINK) {
          /* for keys, don't display data value */
-         r->rsprintf("<tr><td><a href=\"%s\">%s</a></tr>\n", str1, path);
+         r->rsprintf("<tr><td class=\"ODBkey\"><a href=\"?cmd=odb&odb_path=/%s\">/%s</a></tr>\n", path, path);
       } else {
          /* strip variable name from path */
          p = path + strlen(path) - 1;
@@ -1204,28 +1204,23 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
             else
                db_sprintf(data_str, data, key->item_size, 0, key->type);
 
-            sprintf(ref, "%s?cmd=Set", str1);
-
-            r->rsprintf("<tr><td class=\"yellowLight\">");
-
-            r->rsprintf("<a href=\"%s\">%s</a>/%s", path, path, key->name);
-
-            r->rsprintf("<td><a href=\"%s\">%s</a></tr>\n", ref, data_str);
+            r->rsprintf("<tr><td class=\"ODBkey\">");
+            r->rsprintf("<a href=\"?cmd=odb&odb_path=/%s\">/%s/%s</a></td>", path, path, key->name);
+            r->rsprintf("<td class=\"ODBvalue\">%s</td></tr>\n", data_str);
          } else {
             /* display first value */
-            r->rsprintf("<tr><td rowspan=%d class=\"yellowLight\">%s\n", key->num_values, path);
+            r->rsprintf("<tr><td rowspan=%d class=\"ODBkey\">", key->num_values);
+            r->rsprintf("<a href=\"?cmd=odb&odb_path=/%s\">/%s/%s\n", path, path, key->name);
 
             for (i = 0; i < key->num_values; i++) {
                size = sizeof(data);
                db_get_data(hDB, hKey, data, &size, key->type);
                db_sprintf(data_str, data, key->item_size, i, key->type);
 
-               sprintf(ref, "%s?cmd=Set&index=%d", str1, i);
-
                if (i > 0)
                   r->rsprintf("<tr>");
 
-               r->rsprintf("<td><a href=\"%s\">[%d] %s</a></tr>\n", ref, i, data_str);
+               r->rsprintf("<td class=\"ODBvalue\">[%d] %s</td></tr>\n", i, data_str);
             }
          }
       }
@@ -10314,9 +10309,10 @@ void show_find_page(Return* r, const char* dec_path, const char *enc_path, const
       r->rsprintf("<input type=submit name=cmd value=Help>\n");
       r->rsprintf("</tr>\n\n");
 
-      r->rsprintf("<tr><th colspan=2>");
+      r->rsprintf("<table class=\"mtable\">\n");
+      r->rsprintf("<tr><th colspan=2 class=\"mtableheader\">");
       r->rsprintf("Results of search for substring \"%s\"</tr>\n", value);
-      r->rsprintf("<tr><th>Key<th>Value</tr>\n");
+      r->rsprintf("<tr><th class=\"titlerow\">Key<th>Value</tr>\n");
 
       /* start from root */
       db_find_key(hDB, 0, "", &hkey);
