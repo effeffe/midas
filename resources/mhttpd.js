@@ -534,28 +534,23 @@ function mhttpd_init(current_page, interval, callback) {
       }
 
       // request it from server, since it might have changed
-      mjsonrpc_db_get_values(["/Experiment/Base URL", "/Experiment/Name", "/Experiment/Menu", "/Experiment/Menu Buttons",
+      mjsonrpc_db_get_values(["/Experiment/Name", "/Experiment/Menu", "/Experiment/Menu Buttons",
          "/Custom", "/Script", "/Alias"]).then(function (rpc) {
 
-         var base_url = rpc.result.data[0];
-         var expt_name = rpc.result.data[1];
-         var menu = rpc.result.data[2];
-         var buttons = rpc.result.data[3];
-         var custom = rpc.result.data[4];
-         var script = rpc.result.data[5];
-         var alias = rpc.result.data[6];
+         var expt_name = rpc.result.data[0];
+         var menu = rpc.result.data[1];
+         var buttons = rpc.result.data[2];
+         var custom = rpc.result.data[3];
+         var script = rpc.result.data[4];
+         var alias = rpc.result.data[5];
 
          document.getElementById("mheader_expt_name").innerHTML = expt_name;
          sessionStorage.setItem("mexpname", expt_name);
 
          // check for base URL
-         if (base_url === null) {
-            base_url = "/";
-         }
-         if (base_url.slice(-1) !== "/")
-            base_url += "/";
-
-         global_base_url = base_url;
+         global_base_url = window.location.pathname;
+         if (global_base_url.slice(-1) !== "/")
+            global_base_url += "/";
 
          // preload spinning wheel for later use
          if (mhttpd_spinning_wheel == undefined) {
@@ -588,7 +583,7 @@ function mhttpd_init(current_page, interval, callback) {
             if (bb === current_page) {
                cc += " mmenuitemsel";
             }
-            html += "<div class='" + cc + "'><a href='" + base_url + "?cmd=" + bb + "' class='mmenulink'>" + bb + "</a></div>\n";
+            html += "<div class='" + cc + "'><a href='" + global_base_url + "?cmd=" + bb + "' class='mmenulink'>" + bb + "</a></div>\n";
          }
 
          // custom
@@ -611,7 +606,7 @@ function mhttpd_init(current_page, interval, callback) {
                   continue;
                if (l.substr(-1) == '&')
                   l = l.slice(0, -1);
-               html += "<div class='" + cc + "'><a href='" + base_url + "CS/" + custom[b + "/name"] + "' class='mmenulink'>" + l + "</a></div>\n";
+               html += "<div class='" + cc + "'><a href='" + global_base_url + "CS/" + custom[b + "/name"] + "' class='mmenulink'>" + l + "</a></div>\n";
             }
          }
 
@@ -1543,18 +1538,18 @@ function mhttpd_create_page_handle_create(mouseEvent) {
       } else if (status != 1) {
          alert("db_create_key() error " + status + ", see MIDAS messages.");
       } else {
-         location.search = ""; // reloads the document
+         location.search = "?cmd=odb&odb_path="+path; // reloads the document
       }
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
-      location.search = ""; // reloads the document
+      location.search = "?cmd=odb&odb_path="+path; // reloads the document
    });
 
    return false;
 }
 
 function mhttpd_create_page_handle_cancel(mouseEvent) {
-   location.search = ""; // reloads the document
+   dlgHide('dlgCreate');
    return false;
 }
 
@@ -1619,18 +1614,17 @@ function mhttpd_delete_page_handle_delete(mouseEvent, xpath) {
       }
       if (message.length > 0)
          alert(message);
-      location.search = ""; // reloads the document
+      location.search = "?cmd=odb&odb_path="+path; // reloads the document
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
-      location.search = ""; // reloads the document
+      location.search = "?cmd=odb&odb_path="+path; // reloads the document
    });
 
-   //location.search = ""; // reloads the document
    return false;
 }
 
 function mhttpd_delete_page_handle_cancel(mouseEvent) {
-   location.search = ""; // reloads the document
+   dlgHide('dlgDelete');
    return false;
 }
 

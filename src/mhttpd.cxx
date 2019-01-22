@@ -888,13 +888,10 @@ static void urlDecode(char *p)
 }
 
 static void urlEncode(char *ps, int ps_size)
-/********************************************************************\
-   Encode mhttpd ODB path for embedding into HTML <a href="xxx"> elements.
+/*
+   Encode mhttpd ODB path for embedding into HTML <a href="?cmd=odb&odb_path=xxx"> elements.
    Encoding is intended to be compatible with RFC 3986 section 2 (adding of %XX escapes)
-   Note 0: it is genarally safe to percent-escape everything
-   Note 1: RFC 3986 specifies that '/' should be percent-escaped in path elements. But ODB path elements never contain '/' and the input if this function is '/'-separated paths, therefore this function does not escape '/'
-   Note 2: do not use this function to encode query URLs that already contain the query separators '?' and '&'. The URL path and the individual query elements should be encoded separately, then concatenated.
-\********************************************************************/
+*/
 {
    char *pd, *p;
    int len = strlen(ps);
@@ -903,11 +900,7 @@ static void urlEncode(char *ps, int ps_size)
    pd = str;
    p = ps;
    while (*p) {
-      if (*p == '/') {
-         *pd++ = *p++;
-      } else if (*p == '.') {
-         *pd++ = *p++;
-      } else if (isalnum(*p)) {
+      if (isalnum(*p)) {
          *pd++ = *p++;
       } else {
          sprintf(pd, "%%%02X", (*p)&0xFF);
@@ -9664,8 +9657,6 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    dd += "<div id=\"dlgDelete\" class=\"dlgFrame\">\n";
    dd += "<div class=\"dlgTitlebar\">Delete ODB entry</div>\n";
    dd += "<div class=\"dlgPanel\">\n";
-   //dd += "<div>Dialog Contents</div>\n";
-   //dd += "<br />\n";
    dd += "<div id=odbpath>";
    dd += "\"";
    dd += MJsonNode::Encode(odbpath);
@@ -9677,42 +9668,34 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    dd += "<th colspan=2>Delete ODB entries:</th>\n";
 
    int count_delete = 0;
-   //dd += "<tr><td style=\"text-align:left;\" align=left><input align=left type=checkbox id=delete0 name=\"name0\" value=\"int\">int</input></td></tr>\n";
 
    /*---- ODB display -----------------------------------------------*/
 
-   /* add one "../" for each level */
-   tmp_path[0] = 0;
-   for (p = dec_path ; *p ; p++)
-      if (*p == '/')
-         strlcat(tmp_path, "../", sizeof(tmp_path));
-
-   p = dec_path;
-   if (*p == '/')
-      p++;
-
    /* display root key */
    r->rsprintf("<tr><td colspan=%d class='ODBpath'><b>", colspan);
-   r->rsprintf("<a href=\"%sroot\">/</a> \n", tmp_path);
-   strlcpy(root_path, tmp_path, sizeof(root_path));
+   r->rsprintf("<a href=\"?cmd=odb\">/</a> \n");
 
    /*---- display path ----*/
+   p = dec_path;
+   url_path[0] = 0;
    while (*p) {
       pd = str;
       while (*p && *p != '/')
          *pd++ = *p++;
       *pd = 0;
 
-      strlcat(tmp_path, str, sizeof(tmp_path));
-      strlcpy(url_path, tmp_path, sizeof(url_path));
-      urlEncode(url_path, sizeof(url_path));
+      strlcpy(tmp_path, str, sizeof(tmp_path));
+      urlEncode(tmp_path, sizeof(tmp_path));
+      strlcat(url_path, tmp_path, sizeof(url_path));
 
-      r->rsprintf("<a href=\"%s\">%s</a>\n / ", url_path, str);
+      if (str[0])
+         r->rsprintf("<a href=\"?cmd=odb&odb_path=%s\">%s</a>\n / ", url_path, str);
 
-      strlcat(tmp_path, "/", sizeof(tmp_path));
+      strlcat(url_path, "/", sizeof(url_path));
       if (*p == '/')
          p++;
    }
+   strlcpy(root_path, url_path, sizeof(root_path));
    r->rsprintf("</b></tr>\n");
 
    /* enumerate subkeys */
@@ -9732,13 +9715,16 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
          r->rsprintf("    else\n");
          r->rsprintf("       n[i].style.display = 'none';\n");
          r->rsprintf("  }\n");
-         r->rsprintf("  if (document.getElementById('expp').innerHTML == '-')\n");
-         r->rsprintf("    document.getElementById('expp').innerHTML = '+';\n");
-         r->rsprintf("  else\n");
-         r->rsprintf("    document.getElementById('expp').innerHTML = '-';\n");
+         r->rsprintf("  if (document.getElementById('expp').expflag === true) {\n");
+         r->rsprintf("    document.getElementById('expp').expflag = false;\n");
+         r->rsprintf("    document.getElementById('expp').innerHTML = '&#x21E5;';\n");
+         r->rsprintf("  } else {\n");
+         r->rsprintf("    document.getElementById('expp').expflag = true;\n");
+         r->rsprintf("    document.getElementById('expp').innerHTML = '&#x21E4;';\n");
+         r->rsprintf("  }\n");
          r->rsprintf("}\n");
          r->rsprintf("</script>");
-         r->rsprintf("<div style=\"display:inline;float:right\"><a id=\"expp\"href=\"#\" onClick=\"expand();return false;\">+</div>");
+         r->rsprintf("<div style=\"display:inline;float:right\"><a id=\"expp\"href=\"#\" onClick=\"expand();return false;\">&#x21E5;</div>");
          r->rsprintf("</th>\n");
          r->rsprintf("<th class=\"ODBvalue\" name=\"ext\" style=\"display:none\">Type</th>\n");
          r->rsprintf("<th class=\"ODBvalue\" name=\"ext\" style=\"display:none\">#Val</th>\n");
@@ -9771,14 +9757,8 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
          else
             strlcpy(style, "ODBtableOdd", sizeof(style));
 
-         if (strrchr(dec_path, '/'))
-            strlcpy(str, strrchr(dec_path, '/')+1, sizeof(str));
-         else
-            strlcpy(str, dec_path, sizeof(str));
-         if (str[0] && str[strlen(str) - 1] != '/')
-            strlcat(str, "/", sizeof(str));
-         strlcat(str, key.name, sizeof(str));
-         strlcpy(full_path, str, sizeof(full_path));
+         strlcpy(full_path, root_path, sizeof(full_path));
+         strlcat(full_path, key.name, sizeof(full_path));
          urlEncode(full_path, sizeof(full_path));
          strlcpy(keyname, key.name, sizeof(keyname));
          strlcpy(odb_path, dec_path, sizeof(odb_path));
@@ -9798,7 +9778,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
             if (status == DB_SUCCESS)
                db_get_key(hDB, hkey, &key);
 
-            sprintf(link_ref, "%s?cmd=Set", full_path);
+            sprintf(link_ref, "?cmd=Set&odb_path=%s", full_path);
 
             if (status == DB_SUCCESS && link_name[0] == 0) {
                // fake the case when an empty link somehow resolves
@@ -9808,11 +9788,11 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
 
          if (link_name[0]) {
             if (root_path[strlen(root_path)-1] == '/' && link_name[0] == '/')
-               sprintf(ref, "%s%s?cmd=Set", root_path, link_name+1);
+               sprintf(ref, "?cmd=Set&odb_path=%s%s", root_path, link_name+1);
             else
-               sprintf(ref, "%s%s?cmd=Set", root_path, link_name);
+               sprintf(ref, "?cmd=Set&odb_path=%s%s", root_path, link_name);
          } else
-            sprintf(ref, "%s?cmd=Set", full_path);
+            sprintf(ref, "?cmd=Set&odb_path=%s", full_path);
 
          if (status != DB_SUCCESS) {
             if (scan == 1) {
@@ -9823,9 +9803,9 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
 
             if (key.type == TID_KEY && scan == 0) {
                /* for keys, don't display data value */
-               r->rsprintf("<tr><td colspan=%d class=\"ODBdirectory\"><a href=\"%s\">&#x25B6 %s</a>\n", colspan, full_path, keyname);
+               r->rsprintf("<tr><td colspan=%d class=\"ODBdirectory\"><a href=\"?cmd=odb&odb_path=%s\">&#x25B6 %s</a>\n", colspan, full_path, keyname);
                if (link_name[0])
-                  r->rsprintf("<i>&rarr; <a href=\"%s\">%s</a></i>", link_ref, link_name);
+                  r->rsprintf("<i>&rarr; <a href=\"?cmd=odb&odb_path=%s\">%s</a></i>", link_ref, link_name);
                r->rsprintf("</tr>\n");
             } else if(key.type != TID_KEY && scan == 1) {
                
@@ -9872,7 +9852,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                         r->rsprintf("<a href=\"%s\">%s</a></i>\n", link_ref, link_name);
                         r->rsprintf("<td class=\"%s\">\n", style);
                         if (!write_access)
-                           r->rsprintf("<a href=\"%s\" ", ref, odb_path);
+                           r->rsprintf("%s (%s)", data_str, hex_str);
                         else {
                            r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref, odb_path);
                            r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">%s (%s)</a>\n", odb_path, data_str, hex_str);
@@ -9881,7 +9861,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                         r->rsprintf("<td class=\"ODBkey\">\n");
                         r->rsprintf("%s<td class=\"%s\">", keyname, style);
                         if (!write_access)
-                           r->rsprintf("<a href=\"%s\">%s (%s)</a> ", ref, data_str, hex_str);
+                           r->rsprintf("%s (%s)", data_str, hex_str);
                         else {
                            r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref, odb_path);
                            r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">%s (%s)</a>\n", odb_path, data_str, hex_str);
@@ -9906,22 +9886,24 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                            r->rsprintf("<td class=\"ODBkey\">\n");
                            r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"%s\">", keyname, link_ref, link_name, style);
                            if (!write_access)
-                              r->rsprintf("<a href=\"%s\">", ref);
+                              strencode(r, data_str);
                            else {
                               r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref, odb_path);
                               r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">", odb_path);
+                              strencode(r, data_str);
+                              r->rsprintf("</a>\n");
                            }
                         } else {
                            r->rsprintf("<td class=\"ODBkey\">%s<td class=\"%s\">", keyname, style);
-                           if (!write_access)
-                              r->rsprintf("<a href=\"%s\">", ref);
-                           else {
+                           if (!write_access) {
+                              strencode(r, data_str);
+                           } else {
                               r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref, odb_path);
                               r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">", odb_path);
+                              strencode(r, data_str);
+                              r->rsprintf("</a>\n");
                            }
                         }
-                        strencode(r, data_str);
-                        r->rsprintf("</a>\n");
                      }
                   }
 
@@ -9968,8 +9950,8 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                } else { /* display array value */
                   /* check for exceeding length */
                   if (key.num_values > 1000 && !pp->isparam("all"))
-                     r->rsprintf("<tr><td class=\"ODBkey\">%s<td class=\"%s\"><span style=\"font-style: italic\"><a href=\"?all=1\">... %d values ...</a></span>\n",
-                              keyname, style, key.num_values);
+                     r->rsprintf("<tr><td class=\"ODBkey\">%s<td class=\"%s\"><span style=\"font-style: italic\"><a href=\"?cmd=odb&odb_path=%s&all=1\">... %d values ...</a></span>\n",
+                              keyname, style, full_path, key.num_values);
                   else {
                      /* display first value */
                      if (link_name[0])
@@ -10079,12 +10061,9 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
 
    /*---- Build the Delete dialog------------------------------------*/
 
-   //dd += "<tr><td align=center colspan=2><input type=hidden id=odbpath name=odb value=\"/test_create\">\n";
    dd += "</table>\n";
    dd += "<input type=button value=Delete onClick='mhttpd_delete_page_handle_delete(event);'>\n";
    dd += "<input type=button value=Cancel onClick='mhttpd_delete_page_handle_cancel(event);'>\n";
-   //dd += "<button class=\"dlgButton\" onClick=\"dlgHide(\'dlgDelete\')\">Cancel</button>\n";
-   //dd += "<button class=\"dlgButton\" onClick=\"dlgHide(\'dlgDelete\')\">Close</button>\n";
    dd += "</div>\n";
    dd += "</div>\n";
 
@@ -10098,7 +10077,6 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    cd += "<div id=\"dlgCreate\" class=\"dlgFrame\">\n";
    cd += "<div class=\"dlgTitlebar\">Create ODB entry</div>\n";
    cd += "<div class=\"dlgPanel\">\n";
-   //cd += "<div>Dialog Contents</div>\n";
    cd += "<br />\n";
    cd += "<div id=odbpath>";
    cd += "\"";
@@ -10116,8 +10094,6 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    cd += "</table>\n";
    cd += "<input type=button value=Create onClick='mhttpd_create_page_handle_create(event);'>\n";
    cd += "<input type=button value=Cancel onClick='mhttpd_create_page_handle_cancel(event);'>\n";
-   //cd += "<button class=\"dlgButton\" onClick=\"dlgHide(\'dlgCreate\')\">Cancel</button>\n";
-   //cd += "<button class=\"dlgButton\" onClick=\"dlgHide(\'dlgCreate\')\">Close</button>\n";
    cd += "</div>\n";
    cd += "</div>\n";
 
@@ -17869,18 +17845,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   /*---- redirect if ODB command -----------------------------------*/
-
-   if (equal_ustring(command, "ODB")) {
-      str[0] = 0;
-      for (const char* p=dec_path ; *p ; p++)
-         if (*p == '/')
-            strlcat(str, "../", sizeof(str));
-      strlcat(str, "root", sizeof(str));
-      redirect(r, str);
-      return;
-   }
-
    /*---- send sound file -------------------------------------------*/
 
    if (strlen(dec_path) > 3 &&
@@ -18656,21 +18620,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   /*---- show status -----------------------------------------------*/
-
-   if (dec_path[0] == 0) {
-      if (elog_mode) {
-         redirect(r, "EL/");
-         return;
-      }
-
-      show_status_page(p, r, dec_path, refresh, cookie_wpwd, expand_equipment);
-      return;
-   }
-
    /*---- show ODB --------------------------------------------------*/
 
-   if (dec_path[0]) {
+   if (equal_ustring(command, "odb")) {
       write_access = TRUE;
       db_find_key(hDB, 0, "/Experiment/Security/Web Password", &hkey);
       if (hkey) {
@@ -18682,10 +18634,26 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
             write_access = FALSE;
       }
 
-      strlcpy(str, dec_path, sizeof(str));
-      show_odb_page(p, r, enc_path, sizeof(enc_path), str, write_access);
+      char odb_enc_path[256], odb_dec_path[256];
+      if (p->getparam("odb_path") && *p->getparam("odb_path"))
+         strlcpy(odb_enc_path, p->getparam("odb_path"), sizeof(odb_enc_path));
+      else
+         strlcpy(odb_enc_path, "/", sizeof(odb_enc_path));
+      strlcpy(odb_dec_path, odb_enc_path, sizeof(odb_dec_path));
+      urlDecode(odb_dec_path);
+
+      show_odb_page(p, r, odb_enc_path, sizeof(odb_enc_path), odb_dec_path, write_access);
       return;
    }
+   
+   /*---- show status -----------------------------------------------*/
+   
+      if (elog_mode) {
+         redirect(r, "EL/");
+         return;
+      }
+      
+   show_status_page(p, r, dec_path, refresh, cookie_wpwd, expand_equipment);
 }
 
 /*------------------------------------------------------------------*/
@@ -19993,7 +19961,6 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
    int http_port = 8080;
    int https_port = 8443;
    int http_redirect_to_https = 1;
-   char base_url[256];
 
    size = sizeof(http_port);
    db_get_value(hDB, 0, "/Experiment/midas http port", &http_port, &size, TID_INT, TRUE);
@@ -20003,9 +19970,6 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
 
    size = sizeof(http_redirect_to_https);
    db_get_value(hDB, 0, "/Experiment/http redirect to https", &http_redirect_to_https, &size, TID_BOOL, TRUE);
-   size = sizeof(base_url);
-   strlcpy(base_url, "/", sizeof(base_url));
-   db_get_value(hDB, 0, "/Experiment/Base URL", base_url, &size, TID_STRING, TRUE);
    
    bool need_cert_file = false;
    bool need_password_file = false;
