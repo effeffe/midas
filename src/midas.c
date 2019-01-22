@@ -8164,6 +8164,14 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER* pevent, INT unused, INT
       /* calculate some shorthands */
       BUFFER_HEADER *pheader = pbuf->buffer_header;
 
+#if 1
+      status = bm_validate_buffer_locked(pbuf);
+      if (status != BM_SUCCESS) {
+         printf("bm_send_event: corrupted 111!\n");
+         abort();
+      }
+#endif
+
       /* check if buffer is large enough */
       if (total_size >= pheader->size) {
          bm_unlock_buffer(pbuf);
@@ -8176,6 +8184,14 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER* pevent, INT unused, INT
          bm_unlock_buffer(pbuf);
          return status;
       }
+
+#if 1
+      status = bm_validate_buffer_locked(pbuf);
+      if (status != BM_SUCCESS) {
+         printf("bm_send_event: corrupted 222!\n");
+         abort();
+      }
+#endif
 
       int old_write_pointer = pheader->write_pointer;
 
@@ -8197,6 +8213,14 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER* pevent, INT unused, INT
          int request_id = bm_find_first_request_locked(pc, pevent);
          bm_notify_reader_locked(pheader, pc, old_write_pointer, request_id);
       }
+
+#if 1
+      status = bm_validate_buffer_locked(pbuf);
+      if (status != BM_SUCCESS) {
+         printf("bm_send_event: corrupted 333!\n");
+         abort();
+      }
+#endif
 
       /* update statistics */
       pheader->num_in_events++;
@@ -8260,7 +8284,15 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
       bm_lock_buffer(pbuf);
 
       /* calculate some shorthands */
-      BUFFER_HEADER* pheader = _buffer[buffer_handle - 1].buffer_header;
+      BUFFER_HEADER* pheader = pbuf->buffer_header;
+
+#if 1
+      status = bm_validate_buffer_locked(pbuf);
+      if (status != BM_SUCCESS) {
+         printf("bm_flush_cache: corrupted 111!\n");
+         abort();
+      }
+#endif
 
 #ifdef DEBUG_MSG
       cm_msg(MDEBUG, "bm_flush_cache initial: rp=%d, wp=%d", pheader->read_pointer, pheader->write_pointer);
@@ -8271,6 +8303,14 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
          bm_unlock_buffer(pbuf);
          return status;
       }
+
+#if 1
+      status = bm_validate_buffer_locked(pbuf);
+      if (status != BM_SUCCESS) {
+         printf("bm_flush_cache: corrupted 222!\n");
+         abort();
+      }
+#endif
 
       if (pbuf->write_cache_mutex)
          ss_mutex_wait_for(pbuf->write_cache_mutex, _bm_mutex_timeout);
@@ -8353,6 +8393,14 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
          bm_notify_reader_locked(pheader, pc, old_write_pointer, request_id[i]);
       }
       
+#if 1
+      status = bm_validate_buffer_locked(pbuf);
+      if (status != BM_SUCCESS) {
+         printf("bm_flush_cache: corrupted 333!\n");
+         abort();
+      }
+#endif
+
       /* update statistics */
       pheader->num_in_events++;
 
