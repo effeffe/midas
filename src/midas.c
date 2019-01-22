@@ -5521,6 +5521,32 @@ static int bm_next_rp(const char* who, const BUFFER_HEADER* pheader, const char*
       return -1;
    }
 
+   int remaining = 0;
+   if (rp < pheader->write_pointer) {
+      remaining = pheader->write_pointer - rp;
+   } else {
+      remaining = pheader->size - rp;
+      remaining += pheader->write_pointer;
+   }
+
+   //printf("bm_next_rp: total_size %d, remaining %d, rp %d, wp %d, size %d\n", total_size, remaining, rp, pheader->write_pointer, pheader->size);
+
+   if (total_size > remaining) {
+      cm_msg(MERROR, "bm_next_rp",
+             "error: buffer \"%s\" is corrupted: rp %d points to an invalid event: data_size %d, event size %d, total_size %d, buffer read_pointer %d, write_pointer %d, size %d, remaining %d, called from %s",
+             pheader->name,
+             rp,
+             pevent->data_size,
+             event_size,
+             total_size,
+             pheader->read_pointer,
+             pheader->write_pointer,
+             pheader->size,
+             remaining,
+             who);
+      return -1;
+   }
+
    rp = bm_incr_rp_no_check(pheader, rp, total_size);
 
    return rp;
