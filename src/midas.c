@@ -7488,7 +7488,14 @@ static BOOL bm_peek_read_cache(BUFFER* pbuf, EVENT_HEADER** ppevent, int* pevent
    return TRUE;
 }
 
-static BOOL bm_peek_buffer_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, BUFFER_CLIENT* pc, EVENT_HEADER** ppevent, int* pevent_size, int* ptotal_size)
+//
+// return values:
+// BM_SUCCESS - have an event, fill ppevent, ppevent_size & co
+// BM_ASYNC_RETURN - buffer is empty
+// BM_CORRUPTED - buffer is corrupted
+//
+
+static int bm_peek_buffer_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, BUFFER_CLIENT* pc, EVENT_HEADER** ppevent, int* pevent_size, int* ptotal_size)
 {
    if (pc->read_pointer == pheader->write_pointer) {
       /* no more events buffered for this client */
@@ -7496,7 +7503,7 @@ static BOOL bm_peek_buffer_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, BUFFER_C
          //printf("bm_peek_buffer: buffer [%s] client [%s], set read_wait!\n", pheader->name, pc->name);
          pc->read_wait = TRUE;
       }
-      return FALSE;
+      return BM_ASYNC_RETURN;
    }
 
    if (pc->read_wait) {
@@ -7504,8 +7511,10 @@ static BOOL bm_peek_buffer_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, BUFFER_C
       pc->read_wait = FALSE;
    }
 
-   assert(pc->read_pointer >= 0);
-   assert(pc->read_pointer < pheader->size);
+   if ((pc->read_pointer < 0) || (pc->read_pointer >= pheader->size)) {
+      cm_msg(MERROR, "bm_peek_buffer", "event buffer \"%s\" is corrupted: client \"%s\" read pointer %d is invalid. buffer read pointer %d, write pointer %d, size %d", pheader->name, pc->name, pc->read_pointer, pheader->read_pointer, pheader->write_pointer, pheader->size);
+      return BM_CORRUPTED;
+   }
 
    char* pdata = (char *) (pheader + 1);
       
@@ -7513,10 +7522,9 @@ static BOOL bm_peek_buffer_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, BUFFER_C
    int event_size = pevent->data_size + sizeof(EVENT_HEADER);
    int total_size = ALIGN8(event_size);
    
-   if (total_size <= 0 || total_size > pheader->size) {
-      fprintf(stderr, "bm_peek_buffer: Error: event buffer \"%s\" at read pointer %d of client \"%s\" is corrupted, bad data_size %d, event_size %d, total_size %d. buffer size: %d, rp: %d, wp: %d\n", pheader->name, pc->read_pointer, pc->name, pevent->data_size, event_size, total_size, pheader->size, pheader->read_pointer, pheader->write_pointer);
-      abort();
-      /* DOES NOT RETURN */
+   if ((total_size <= 0) || (total_size > pheader->size)) {
+      cm_msg(MERROR, "bm_peek_buffer", "event buffer \"%s\" is corrupted: client \"%s\" read pointer %d points to invalid event: data_size %d, event_size %d, total_size %d. buffer size: %d, read_pointer: %d, write_pointer: %d", pheader->name, pc->name, pc->read_pointer, pevent->data_size, event_size, total_size, pheader->size, pheader->read_pointer, pheader->write_pointer);
+      return BM_CORRUPTED;
    }
    
    assert(total_size > 0);
@@ -7529,7 +7537,7 @@ static BOOL bm_peek_buffer_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, BUFFER_C
    if (ptotal_size)
       *ptotal_size = total_size;
 
-   return TRUE;
+   return BM_SUCCESS;
 }
 
 static void bm_read_from_buffer_locked(BUFFER_HEADER* pheader, int rp, char* buf, int event_size)
@@ -7589,7 +7597,10 @@ static int bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, int a
       int event_size;
       int total_size;
 
-      if (!bm_peek_buffer_locked(pbuf, pheader, pc, &pevent, &event_size, &total_size)) {
+      int status = bm_peek_buffer_locked(pbuf, pheader, pc, &pevent, &event_size, &total_size);
+      if (status == BM_CORRUPTED) {
+         return status;
+      } else if (status != BM_SUCCESS) {
          /* event buffer is empty */
          if (async_flag == BM_NO_WAIT) {
             if (need_wakeup)
@@ -8453,7 +8464,11 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
       int event_size;
       int total_size;
       
-      if (!bm_peek_buffer_locked(pbuf, pheader, pc, &pevent, &event_size, &total_size)) {
+      status = bm_peek_buffer_locked(pbuf, pheader, pc, &pevent, &event_size, &total_size);
+      if (status == BM_CORRUPTED) {
+         bm_unlock_buffer(pbuf);
+         return status;
+      } else if (status != BM_SUCCESS) {
          /* event buffer is empty */
          break;
       }
