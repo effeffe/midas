@@ -785,8 +785,7 @@ INT register_equipment(void)
       }
 
       if (eq_info->buffer[0]) {
-         status =
-             bm_open_buffer(eq_info->buffer, DEFAULT_BUFFER_SIZE, &equipment[idx].buffer_handle);
+         status = bm_open_buffer(eq_info->buffer, DEFAULT_BUFFER_SIZE, &equipment[idx].buffer_handle);
          if (status != BM_SUCCESS && status != BM_CREATED) {
             cm_msg(MERROR, "register_equipment", "Cannot open event buffer \"%s\" size %d, bm_open_buffer() status %d", eq_info->buffer, DEFAULT_BUFFER_SIZE, status);
             return 0;
@@ -800,6 +799,20 @@ INT register_equipment(void)
          equipment[idx].buffer_handle = 0;
    }
 
+   // check for inconsistent write cache size
+   for (idx = 0; equipment[idx].name[0]; idx++) {
+      if (equipment[idx].info.buffer[0]) {
+         int j;
+         for (j = 0; j < idx; j++) {
+            if (equipment[idx].buffer_handle == equipment[j].buffer_handle) {
+               if (equipment[idx].info.write_cache_size != equipment[j].info.write_cache_size) {
+                  cm_msg(MERROR, "register_equipment", "Write cache size mismatch for buffer \"%s\": equipment \"%s\" asked for %d, while eqiupment \"%s\" asked for %d", equipment[idx].info.buffer, equipment[idx].name, equipment[idx].info.write_cache_size, equipment[j].name, equipment[j].info.write_cache_size);
+               }
+            }
+         }
+      }
+   }
+   
    n_events = (int*)calloc(sizeof(int), idx);
 
    return SUCCESS;
