@@ -46,8 +46,6 @@ extern INT interrupt_configure(INT cmd, INT source, POINTER_T adr);
 
 INT rpc_mode = 1; // 0 for RPC socket, 1 for event socket
 
-#define SERVER_CACHE_SIZE  100000       /* event cache before buffer */
-
 #define ODB_UPDATE_TIME      1000       /* 1 seconds for ODB update */
 
 #define DEFAULT_FE_TIMEOUT  60000       /* 60 seconds for watchdog timeout */
@@ -59,6 +57,8 @@ INT run_number;
 DWORD actual_time;              /* current time in seconds since 1970 */
 DWORD actual_millitime;         /* current time in milliseconds */
 DWORD rate_period;              /* period in ms for rate calculations */
+
+int gWriteCacheSize = 0;        /* remember max write cache size to use in periodic flush buffer */
 
 char host_name[HOST_NAME_LENGTH];
 char exp_name[NAME_LENGTH];
@@ -793,7 +793,9 @@ INT register_equipment(void)
          }
 
          /* set the default buffer cache size */
-         bm_set_cache_size(equipment[idx].buffer_handle, 0, SERVER_CACHE_SIZE);
+         bm_set_cache_size(equipment[idx].buffer_handle, 0, eq_info->write_cache_size);
+         if (gWriteCacheSize < eq_info->write_cache_size)
+            gWriteCacheSize = eq_info->write_cache_size;
       } else
          equipment[idx].buffer_handle = 0;
    }
@@ -2004,7 +2006,7 @@ INT scheduler(void)
    INT i, j, idx, status = 0, ch, source, state, old_flag;
    char str[80], *pdata;
    unsigned char *pd;
-   BOOL buffer_done, flag, force_update = FALSE;
+   BOOL flag, force_update = FALSE;
 
    INT opt_max = 0, opt_index = 0, opt_tcp_size = 128, opt_cnt = 0;
    INT err;
@@ -2487,28 +2489,31 @@ INT scheduler(void)
          /* if cache on server is not filled in one second at current
             data rate, flush it now to make events available to consumers */
 
-         if (max_bytes_per_sec < SERVER_CACHE_SIZE) {
+         //printf("mfe: max_bytes_per_sec %d, gWriteCacheSize %d\n", max_bytes_per_sec, gWriteCacheSize);
+
+         if (max_bytes_per_sec < gWriteCacheSize) {
             old_flag = readout_enabled();
             if (old_flag && lockout_readout_thread)
                readout_enable(FALSE);
 
             for (i = 0; equipment[i].name[0]; i++) {
                if (equipment[i].buffer_handle) {
-                  /* check if buffer already flushed */
-                  buffer_done = FALSE;
+                  /* if the same buffer is open multiple times, only flush it once */
+                  BOOL buffer_done = FALSE;
                   for (j = 0; j < i; j++)
                      if (equipment[i].buffer_handle == equipment[j].buffer_handle) {
                         buffer_done = TRUE;
                         break;
                      }
 
+                  //printf("mfe: eq %d, buffer %d, done %d\n", i, equipment[i].buffer_handle, buffer_done);
+
                   if (!buffer_done) {
                      rpc_set_option(-1, RPC_OTRANSPORT, RPC_FTCP);
                      rpc_flush_event();
                      err = bm_flush_cache(equipment[i].buffer_handle, BM_NO_WAIT);
                      if ((err != BM_SUCCESS) && (err != BM_ASYNC_RETURN)) {
-                        cm_msg(MERROR, "scheduler", "bm_flush_cache(BM_NO_WAIT) error %d",
-                               err);
+                        cm_msg(MERROR, "scheduler", "bm_flush_cache(BM_NO_WAIT) returned status %d", err);
                         return err;
                      }
                      rpc_set_option(-1, RPC_OTRANSPORT, RPC_TCP);

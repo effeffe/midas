@@ -1016,6 +1016,7 @@ typedef struct {
    char status[256];                  /**< Current status of equipment       */
    char status_color[NAME_LENGTH];    /**< Color or class to be used by mhttpd for status */
    BOOL hidden;                       /**< Hidden flag                       */
+   INT  write_cache_size;             /**< Event buffer write cache size     */
 } EQUIPMENT_INFO;
 
 /** @} */
@@ -1039,6 +1040,7 @@ Frontend file name = STRING : [256] \n\
 Status = STRING : [256] \n\
 Status color = STRING : [32] \n\
 Hidden = BOOL : 0\n\
+Write cache size = INT : 100000\n\
 "
 
 /** @addtogroup msectionh
