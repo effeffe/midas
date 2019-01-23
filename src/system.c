@@ -4597,12 +4597,6 @@ INT recv_tcp2(int sock, char *net_buffer, int buffer_size, int timeout_ms)
      at the receiver side if the full data is received. If not,
      one has to issue several recv() commands.
 
-     The length of the data is determined by the data header,
-     which consists of two DWORDs. The first is the command code
-     (or function id), the second is the size of the following
-     parameters in bytes. From that size recv_tcp() determines
-     how much data to receive.
-
   Input:
     INT   sock               Socket which was previosly opened
     char* net_buffer         Buffer to store data
@@ -4613,8 +4607,8 @@ INT recv_tcp2(int sock, char *net_buffer, int buffer_size, int timeout_ms)
     char* net_buffer         Network receive buffer
 
   Function value:
-    number of bytes received, or
-     0 : timeout
+    number of bytes received (less than buffer_size if there was a timeout), or
+     0 : timeout and nothing was received
     -1 : socket error
 
 \********************************************************************/
@@ -4630,7 +4624,7 @@ INT recv_tcp2(int sock, char *net_buffer, int buffer_size, int timeout_ms)
       if (timeout_ms > 0) {
          int status = ss_socket_wait(sock, timeout_ms);
          if (status == SS_TIMEOUT)
-            return 0;
+            return n_received;
          if (status != SS_SUCCESS)
             return -1;
       }
