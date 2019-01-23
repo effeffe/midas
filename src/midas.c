@@ -6731,12 +6731,31 @@ static void bm_lock_buffer(BUFFER* pbuf)
       abort();
       /* DOES NOT RETURN */
    }
+
+   assert(!pbuf->locked);
+   pbuf->locked = TRUE;
+   int x = MAX_CLIENTS - 1;
+   if (pbuf->buffer_header->client[x].unused1 != 0) {
+      printf("lllock [%s] unused1 %d pid %d\n", pbuf->buffer_header->name, pbuf->buffer_header->client[x].unused1, getpid());
+   }
+   //assert(pbuf->buffer_header->client[x].unused1 == 0);
+   pbuf->buffer_header->client[x].unused1 = getpid();
 }
 
 /********************************************************************/
 static void bm_unlock_buffer(BUFFER* pbuf)
 {
    // NB: locking order: 1st buffer mutex, 2nd buffer semaphore. Unlock in reverse order.
+
+   int x = MAX_CLIENTS-1;
+   if (pbuf->buffer_header->client[x].unused1 != getpid()) {
+      printf("unlock [%s] unused1 %d pid %d\n", pbuf->buffer_header->name, pbuf->buffer_header->client[x].unused1, getpid());
+   }
+   pbuf->buffer_header->client[x].unused1 = 0;
+   
+   assert(pbuf->locked);
+   pbuf->locked = FALSE;
+
    ss_semaphore_release(pbuf->semaphore);
    if (pbuf->buffer_mutex)
       ss_mutex_release(pbuf->buffer_mutex);
