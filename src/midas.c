@@ -8335,9 +8335,14 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
          request_id[i] = -1;
       }
 
+      int first_wp = pheader->write_pointer;
+      int first_rp = pheader->read_pointer;
+
       int rp = 0;
       while (rp < pbuf->write_cache_wp) {
          /* loop over all events in cache */
+
+         int old_wp = pheader->write_pointer;
 
          const EVENT_HEADER* pevent = (const EVENT_HEADER *) (pbuf->write_cache + rp);
          int event_size = (pevent->data_size + sizeof(EVENT_HEADER));
@@ -8357,6 +8362,27 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
          assert(total_size <= pheader->size);
 
          bm_write_to_buffer_locked(pheader, pevent, event_size, total_size);
+
+#if 1
+         status = bm_validate_buffer_locked(pbuf);
+         if (status != BM_SUCCESS) {
+            char* pdata = (char *) (pheader + 1);
+            printf("bm_flush_cache: corrupted WWW! buffer: first wp %d, old wp %d, new wp %d, first rp %d, rp %d, cache size %d, wp %d, rp %d, event %d %d %d, ts 0x%08x, ds 0x%08x, at old_wp 0x%08x 0x%08x 0x%08x 0x%08x\n",
+                   first_wp, old_wp, pheader->write_pointer,
+                   first_rp, pheader->read_pointer,
+                   pbuf->write_cache_size, pbuf->write_cache_wp, rp,
+                   pevent->data_size,
+                   event_size,
+                   total_size,
+                   pevent->time_stamp,
+                   pevent->data_size,
+                   ((uint32_t*)(pdata + old_wp))[0],
+                   ((uint32_t*)(pdata + old_wp))[1],
+                   ((uint32_t*)(pdata + old_wp))[2],
+                   ((uint32_t*)(pdata + old_wp))[3]);
+            abort();
+      }
+#endif
 
          /* see comment for the same code in bm_send_event().
           * We make sure the buffer is nevere 100% full */
