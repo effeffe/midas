@@ -6732,14 +6732,18 @@ static void bm_lock_buffer(BUFFER* pbuf)
       /* DOES NOT RETURN */
    }
 
+   // protect against double lock
    assert(!pbuf->locked);
    pbuf->locked = TRUE;
+
+#if 0
    int x = MAX_CLIENTS - 1;
    if (pbuf->buffer_header->client[x].unused1 != 0) {
       printf("lllock [%s] unused1 %d pid %d\n", pbuf->buffer_header->name, pbuf->buffer_header->client[x].unused1, getpid());
    }
    //assert(pbuf->buffer_header->client[x].unused1 == 0);
    pbuf->buffer_header->client[x].unused1 = getpid();
+#endif
 }
 
 /********************************************************************/
@@ -6747,6 +6751,7 @@ static void bm_unlock_buffer(BUFFER* pbuf)
 {
    // NB: locking order: 1st buffer mutex, 2nd buffer semaphore. Unlock in reverse order.
 
+#if 0
    int x = MAX_CLIENTS-1;
    if (pbuf->attached) {
       if (pbuf->buffer_header->client[x].unused1 != getpid()) {
@@ -6756,7 +6761,9 @@ static void bm_unlock_buffer(BUFFER* pbuf)
    } else {
       printf("unlock [??????] unused1 ????? pid %d\n", getpid());
    }
-   
+#endif
+
+   // protect against double unlock
    assert(pbuf->locked);
    pbuf->locked = FALSE;
 
@@ -8187,7 +8194,7 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER* pevent, INT unused, INT
       /* calculate some shorthands */
       BUFFER_HEADER *pheader = pbuf->buffer_header;
 
-#if 1
+#if 0
       status = bm_validate_buffer_locked(pbuf);
       if (status != BM_SUCCESS) {
          printf("bm_send_event: corrupted 111!\n");
@@ -8208,7 +8215,7 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER* pevent, INT unused, INT
          return status;
       }
 
-#if 1
+#if 0
       status = bm_validate_buffer_locked(pbuf);
       if (status != BM_SUCCESS) {
          printf("bm_send_event: corrupted 222!\n");
@@ -8237,7 +8244,7 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER* pevent, INT unused, INT
          bm_notify_reader_locked(pheader, pc, old_write_pointer, request_id);
       }
 
-#if 1
+#if 0
       status = bm_validate_buffer_locked(pbuf);
       if (status != BM_SUCCESS) {
          printf("bm_send_event: corrupted 333!\n");
@@ -8309,16 +8316,12 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
       /* calculate some shorthands */
       BUFFER_HEADER* pheader = pbuf->buffer_header;
 
-#if 1
+#if 0
       status = bm_validate_buffer_locked(pbuf);
       if (status != BM_SUCCESS) {
          printf("bm_flush_cache: corrupted 111!\n");
          abort();
       }
-#endif
-
-#ifdef DEBUG_MSG
-      cm_msg(MDEBUG, "bm_flush_cache initial: rp=%d, wp=%d", pheader->read_pointer, pheader->write_pointer);
 #endif
 
       status = bm_wait_for_free_space_locked(buffer_handle, pbuf, async_flag, pbuf->write_cache_wp);
@@ -8327,7 +8330,7 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
          return status;
       }
 
-#if 1
+#if 0
       status = bm_validate_buffer_locked(pbuf);
       if (status != BM_SUCCESS) {
          printf("bm_flush_cache: corrupted 222!\n");
@@ -8348,24 +8351,24 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
       /* we have space, so let's copy the event */
       int old_write_pointer = pheader->write_pointer;
 
-#ifdef DEBUG_MSG
-      cm_msg(MDEBUG, "bm_flush_cache: found space rp=%d, wp=%d", pheader->read_pointer, pheader->write_pointer);
-#endif
-
       int request_id[MAX_CLIENTS];
       int i;
       for (i = 0; i < pheader->max_client_index; i++) {
          request_id[i] = -1;
       }
 
+#if 0
       int first_wp = pheader->write_pointer;
       int first_rp = pheader->read_pointer;
+#endif
 
       int rp = 0;
       while (rp < pbuf->write_cache_wp) {
          /* loop over all events in cache */
 
+#if 0
          int old_wp = pheader->write_pointer;
+#endif
 
          const EVENT_HEADER* pevent = (const EVENT_HEADER *) (pbuf->write_cache + rp);
          int event_size = (pevent->data_size + sizeof(EVENT_HEADER));
@@ -8386,7 +8389,7 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
 
          bm_write_to_buffer_locked(pheader, pevent, event_size, total_size);
 
-#if 1
+#if 0
          status = bm_validate_buffer_locked(pbuf);
          if (status != BM_SUCCESS) {
             char* pdata = (char *) (pheader + 1);
@@ -8404,7 +8407,7 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
                    ((uint32_t*)(pdata + old_wp))[2],
                    ((uint32_t*)(pdata + old_wp))[3]);
             abort();
-      }
+         }
 #endif
 
          /* see comment for the same code in bm_send_event().
@@ -8442,7 +8445,7 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
          bm_notify_reader_locked(pheader, pc, old_write_pointer, request_id[i]);
       }
       
-#if 1
+#if 0
       status = bm_validate_buffer_locked(pbuf);
       if (status != BM_SUCCESS) {
          printf("bm_flush_cache: corrupted 333!\n");
