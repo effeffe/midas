@@ -11696,13 +11696,18 @@ struct HistoryData
 #define READ_HISTORY_RUNMARKER    0x2
 #define READ_HISTORY_LAST_WRITTEN 0x4
 
-int read_history(HNDLE hDB, const char *path, int index, int flags, time_t tstart, time_t tend, time_t scale, HistoryData *data)
+int read_history(HNDLE hDB, const char *group, const char *panel, int index, int flags, time_t tstart, time_t tend, time_t scale, HistoryData *data)
 {
    HNDLE hkeypanel, hkeydvar, hkey;
    KEY key;
+   char path[256];
    int n_vars, status;
    int debug = 0;
 
+   strlcpy(path, group, sizeof(path));
+   strlcat(path, "/", sizeof(path));
+   strlcat(path, panel, sizeof(path));
+   
    //printf("read_history, path %s, index %d, flags 0x%x, start %d, end %d, scale %d, data %p\n", path, index, flags, (int)tstart, (int)tend, (int)scale, data);
 
    /* connect to history */
@@ -11854,7 +11859,7 @@ int read_history(HNDLE hDB, const char *path, int index, int flags, time_t tstar
    return SUCCESS;
 }
 
-int get_hist_last_written(const char *path, time_t endtime, int index, int want_all, time_t *plastwritten)
+int get_hist_last_written(const char *group, const char *panel, time_t endtime, int index, int want_all, time_t *plastwritten)
 {
    HNDLE hDB;
    int status;
@@ -11869,16 +11874,11 @@ int get_hist_last_written(const char *path, time_t endtime, int index, int want_
 
    cm_get_experiment_database(&hDB, NULL);
 
-   char panel[256];
-   strlcpy(panel, path, sizeof(panel));
-   if (strstr(panel, ".gif"))
-      *strstr(panel, ".gif") = 0;
-
    double tstart = ss_millitime();
 
    int flags = READ_HISTORY_LAST_WRITTEN;
 
-   status = read_history(hDB, panel, index, flags, endtime, endtime, 0, hsdata);
+   status = read_history(hDB, group, panel, index, flags, endtime, endtime, 0, hsdata);
 
    if (status != HS_SUCCESS) {
       //sprintf(str, "Complete history failure, read_history() status %d, see messages", status);
@@ -12344,7 +12344,7 @@ void generate_hist_graph(Return* rr, const char *hgroup, const char *hpanel, cha
    if (runmarker)
       flags |= READ_HISTORY_RUNMARKER;
 
-   status = read_history(hDB, hpanel, index, flags, starttime, endtime, scale/1000+1, hsdata);
+   status = read_history(hDB, hgroup, hpanel, index, flags, starttime, endtime, scale/1000+1, hsdata);
 
    if (status != HS_SUCCESS) {
       sprintf(str, "Complete history failure, read_history() status %d, see messages", status);
@@ -13747,16 +13747,17 @@ struct hist_plot_t
    }
 };
 
-void show_hist_config_page(Param* p, Return* r, const char* dec_path, const char *path, const char *hgroup, const char *panel)
+void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *hpanel)
 {
    int status, size;
    HNDLE hDB;
    unsigned max_display_events = 20;
    unsigned max_display_tags = 200;
-   char str[256], hcmd[256];
+   char str[256], hcmd[256], path[256];
    hist_plot_t plot;
 
    cm_get_experiment_database(&hDB, NULL);
+   sprintf(path, "%s/%s", hgroup, hpanel);
 
    size = sizeof(max_display_events);
    db_get_value(hDB, 0, "/History/MaxDisplayEvents", &max_display_events, &size, TID_INT, TRUE);
@@ -13793,40 +13794,30 @@ void show_hist_config_page(Param* p, Return* r, const char* dec_path, const char
    if (hcmd[0] && equal_ustring(hcmd, "save")) {
       plot.SaveToOdb(hDB, path);
 
-      strlcpy(str, path, sizeof(str));
-      if (strrchr(str, '/'))
-         strlcpy(str, strrchr(str, '/')+1, sizeof(str));
+      sprintf(str, "?cmd=history&group=%s&panel=%s", hgroup, hpanel);
       redirect(r, str);
       return;
    }
 
-   if (panel[0]) {
-      str[0] = 0;
-      for (const char* p=path ; *p ; p++)
-         if (*p == '/')
-            strlcat(str, "../", sizeof(str));
-      strlcat(str, hgroup, sizeof(str));
-      strlcat(str, "/", sizeof(str));
-      strlcat(str, panel, sizeof(str));
-   } else {
-      strlcpy(str, path, sizeof(str));
-      if (strrchr(str, '/'))
-         strlcpy(str, strrchr(str, '/')+1, sizeof(str));
-   }
-   show_header(r, "History Config", "GET", str, 0);
+   show_header(r, "History Config", "GET", "", 0);
    r->rsprintf("</table>");  //close header table
 
    r->rsprintf("<table class=\"mtable\">"); //open main table
 
-   r->rsprintf("<tr><th colspan=8 class=\"subStatusTitle\">History Panel \"%s / %s\"</th></tr>\n", hgroup, panel);
+   r->rsprintf("<tr><th colspan=8 class=\"subStatusTitle\">History Panel \"%s / %s\"</th></tr>\n", hgroup, hpanel);
 
    /* menu buttons */
    r->rsprintf("<tr><td colspan=8>\n");
-   r->rsprintf("<input type=submit name=cmd value=Refresh>\n");
-   r->rsprintf("<input type=submit name=cmd value=Save>\n");
-   r->rsprintf("<input type=submit name=cmd value=Cancel>\n");
-   r->rsprintf("<input type=submit name=cmd value=\"Clear history cache\">\n");
-   r->rsprintf("<input type=submit name=cmd value=\"Delete Panel\">\n");
+   r->rsprintf("<input type=button value=Refresh ");
+   r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=Refresh'\">\n", hgroup, hpanel);
+   r->rsprintf("<input type=button value=Save ");
+   r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=Save'\">\n", hgroup, hpanel);
+   r->rsprintf("<input type=button value=Cancel ");
+   r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=Cancel'\">\n", hgroup, hpanel);
+   r->rsprintf("<input type=button value=\"Clear history cache\"");
+   r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=\"Clear history Cache\"'>\n", hgroup, hpanel);
+   r->rsprintf("<input type=button value=\"Delete panel\"");
+   r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=\"Delete panel\"'>\n", hgroup, hpanel);
    r->rsprintf("</td></tr>\n");
 
    r->rsprintf("<tr><td colspan=8>\n");
@@ -13847,7 +13838,7 @@ void show_hist_config_page(Param* p, Return* r, const char* dec_path, const char
    r->rsprintf("<tr><td colspan=8>\n");
    /* hidden command for refresh */
    r->rsprintf("<input type=hidden name=cmd value=Refresh>\n");
-   r->rsprintf("<input type=hidden name=panel value=\"%s\">\n", panel);
+   r->rsprintf("<input type=hidden name=panel value=\"%s\">\n", hpanel);
    r->rsprintf("<input type=hidden name=group value=\"%s\">\n", hgroup);
    r->rsprintf("</td></tr>\n");
 
@@ -14185,7 +14176,7 @@ void show_hist_config_page(Param* p, Return* r, const char* dec_path, const char
 
 /*------------------------------------------------------------------*/
 
-void export_hist(Return* r, const char *path, time_t endtime, int scale, int index, int labels)
+void export_hist(Return* r, const char *group, const char *panel, time_t endtime, int scale, int index, int labels)
 {
    HNDLE hDB, hkey, hkeypanel;
    int size, status;
@@ -14196,10 +14187,10 @@ void export_hist(Return* r, const char *path, time_t endtime, int scale, int ind
    cm_get_experiment_database(&hDB, NULL);
 
    /* check panel name in ODB */
-   sprintf(str, "/History/Display/%s", path);
+   sprintf(str, "/History/Display/%s/%s", group, panel);
    db_find_key(hDB, 0, str, &hkeypanel);
    if (!hkeypanel) {
-      sprintf(str, "Cannot find /History/Display/%s in ODB\n", path);
+      sprintf(str, "Cannot find /History/Display/%s/%s in ODB\n", group, panel);
       show_error(r, str);
       return;
    }
@@ -14238,7 +14229,7 @@ void export_hist(Return* r, const char *path, time_t endtime, int scale, int ind
 
    //printf("start %.0f, end %.0f, scale %.0f\n", (double)starttime, (double)endtime, (double)scale);
 
-   status = read_history(hDB, path, index, runmarker, starttime, endtime, 0, hsdata);
+   status = read_history(hDB, group, panel, index, runmarker, starttime, endtime, 0, hsdata);
    if (status != HS_SUCCESS) {
       sprintf(str, "History error, status %d\n", status);
       show_error(r, str);
@@ -14434,9 +14425,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
    if (equal_ustring(hcmd, "Reset")) {
       char str[MAX_STRING_LENGTH];
-      strlcpy(str, dec_path, sizeof(str));
-      if (strrchr(str, '/'))
-         strlcpy(str, strrchr(str, '/')+1, sizeof(str));
+      sprintf(str, "?cmd=history&group=%s&panel=%s", hgroup, hpanel);
       redirect(r, str);
       return;
    }
@@ -14448,15 +14437,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
    if (equal_ustring(hcmd, "Cancel")) {
       char str[MAX_STRING_LENGTH];
-      strlcpy(str, dec_path, sizeof(str));
-      if (strrchr(str, '/'))
-         strlcpy(str, strrchr(str, '/')+1, sizeof(str));
-      if (p->isparam("hscale"))
-         add_param_to_url(str, sizeof(str), "scale", p->getparam("hscale"));
-      if (p->isparam("htime"))
-         add_param_to_url(str, sizeof(str), "time", p->getparam("htime"));
-      if (p->isparam("hindex"))
-         add_param_to_url(str, sizeof(str), "index", p->getparam("hindex"));
+      sprintf(str, "?cmd=history&group=%s&panel=%s", hgroup, hpanel);
       redirect(r, str);
       return;
    }
@@ -14466,16 +14447,12 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
        || equal_ustring(hcmd, "Clear history cache")
        || equal_ustring(hcmd, "Refresh")) {
 
-      show_hist_config_page(p, r, dec_path, dec_path, hgroup, hpanel);
+      show_hist_config_page(p, r, hgroup, hpanel);
       return;
    }
 
    if (equal_ustring(hcmd, "New")) {
-      char str[MAX_STRING_LENGTH];
-      strlcpy(str, dec_path, sizeof(str));
-      if (strrchr(str, '/'))
-         strlcpy(str, strrchr(str, '/')+1, sizeof(str));
-      show_header(r, "History", "GET", str, 0);
+      show_header(r, "History", "GET", "", 0);
 
       r->rsprintf("<table class=\"dialogTable\">");
       r->rsprintf("<tr><th class=\"subStatusTitle\" colspan=2>New History Item</th><tr>");
@@ -14570,7 +14547,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       db_set_value(hDB, hkey, "Log axis", &i, sizeof(BOOL), 1, TID_BOOL);
 
       /* configure that panel */
-      show_hist_config_page(p, r, dec_path, dec_path, hgroup, hpanel);
+      show_hist_config_page(p, r, hgroup, hpanel);
       return;
    }
 
@@ -14731,7 +14708,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
    }
 
    if (equal_ustring(hcmd, "Export")) {
-      export_hist(r, dec_path, endtime, scale, index, labels);
+      export_hist(r, hgroup, hpanel, endtime, scale, index, labels);
       return;
    }
 
@@ -14762,33 +14739,33 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
    time_t now = time(NULL);
 
    /* evaluate offset shift */
-   if (equal_ustring(p->getparam("shift"), "<<<")) {
+   if (equal_ustring(p->getparam("shift"), "leftmaxall")) {
       if (endtime == 0)
          endtime = now;
       time_t last_written = 0;
-      status = get_hist_last_written(dec_path, endtime, index, 1, &last_written);
+      status = get_hist_last_written(hgroup, hpanel, endtime, index, 1, &last_written);
       if (status == HS_SUCCESS)
          endtime = last_written + scale/2;
    }
 
-   if (equal_ustring(p->getparam("shift"), "<<")) {
+   if (equal_ustring(p->getparam("shift"), "leftmax")) {
       if (endtime == 0)
          endtime = now;
       time_t last_written = 0;
-      status = get_hist_last_written(dec_path, endtime, index, 0, &last_written);
+      status = get_hist_last_written(hgroup, hpanel, endtime, index, 0, &last_written);
       if (status == HS_SUCCESS)
          if (last_written != endtime)
             endtime = last_written + scale/2;
    }
 
-   if (equal_ustring(p->getparam("shift"), "<")) {
+   if (equal_ustring(p->getparam("shift"), "left")) {
       if (endtime == 0)
          endtime = now;
       endtime -= scale/2;
       //offset -= scale / 2;
    }
 
-   if (equal_ustring(p->getparam("shift"), ">")) {
+   if (equal_ustring(p->getparam("shift"), "right")) {
       if (endtime == 0)
          endtime = now;
       endtime += scale/2;
@@ -14796,18 +14773,18 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
          endtime = now;
    }
 
-   if (equal_ustring(p->getparam("shift"), ">>")) {
+   if (equal_ustring(p->getparam("shift"), "rightmax")) {
       endtime = 0;
    }
 
-   if (equal_ustring(p->getparam("shift"), " + ")) {
+   if (equal_ustring(p->getparam("shift"), "zoomin")) {
       if (endtime == 0)
          endtime = now;
       endtime -= scale / 4;
       scale /= 2;
    }
 
-   if (equal_ustring(p->getparam("shift"), " - ")) {
+   if (equal_ustring(p->getparam("shift"), "zoomout")) {
       if (endtime == 0)
          endtime = now;
       endtime += scale / 2;
@@ -14816,16 +14793,10 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       scale *= 2;
    }
 
-   {
-      char str[256];
-      strlcpy(str, dec_path, sizeof(str));
-      if (strrchr(str, '/'))
-         strlcpy(str, strrchr(str, '/')+1, sizeof(str));
-      int xrefresh = refresh;
-      if (endtime != 0)
-         xrefresh = 0;
-      show_header(r, str, "GET", str, xrefresh);
-   }
+   int xrefresh = refresh;
+   if (endtime != 0)
+      xrefresh = 0;
+   show_header(r, hpanel, "GET", "", xrefresh);
    
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
@@ -14851,7 +14822,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
    /* define hidden field for parameters */
    if (pscale && *pscale)
-      r->rsprintf("<input type=hidden name=hscale value=%d>\n", scale);
+      r->rsprintf("<input type=hidden name=hscale id=hscale value=%d>\n", scale);
    else {
       /* if no scale and offset given, get it from default */
       if (hpanel[0] && !equal_ustring(hpanel, "All") && hgroup[0]) {
@@ -14870,17 +14841,17 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
             db_get_value_string(hDB, 0, str, 0, &scalestr, TRUE);
          }
 
-         r->rsprintf("<input type=hidden name=hscale value=%s>\n", scalestr.c_str());
+         r->rsprintf("<input type=hidden name=hscale id=hscale value=%s>\n", scalestr.c_str());
          scale = time_to_sec(scalestr.c_str());
       }
    }
 
    if (endtime != 0)
-      r->rsprintf("<input type=hidden name=htime value=%s>\n", time_to_string(endtime));
+      r->rsprintf("<input type=hidden name=htime id=htime value=%s>\n", time_to_string(endtime));
    if (pmag && *pmag)
-      r->rsprintf("<input type=hidden name=hwidth value=%s>\n", pmag);
+      r->rsprintf("<input type=hidden name=hwidth id=hwidth value=%s>\n", pmag);
    if (pindex && *pindex)
-      r->rsprintf("<input type=hidden name=hindex value=%s>\n", pindex);
+      r->rsprintf("<input type=hidden name=hindex id=hindex value=%s>\n", pindex);
 
    r->rsprintf("</td></tr>\n");
 
@@ -15014,7 +14985,9 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
          r->rsprintf("</select>\n");
          r->rsprintf("&nbsp;&nbsp;Panel:\n");
-         r->rsprintf("<select title=\"Select panel\" id=\"fpanel\" onChange=\"window.location.search='?cmd=history&panel='+document.getElementById('fpanel').value;\">\n");
+         r->rsprintf("<select title=\"Select panel\" id=\"fpanel\" ");
+         r->rsprintf("onChange=\"window.location.search='?cmd=history&group='+document.getElementById('fgroup').value+");
+         r->rsprintf("'&panel='+document.getElementById('fpanel').value;\">\n");
 
          found = 0;
          if (hkeyp) {
@@ -15066,7 +15039,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       db_get_value_string(hDB, 0, "/History/Display Settings/Width Group", 0, &strwidth, TRUE);
 
       char str[MAX_ODB_PATH];
-      sprintf(str, "/History/Display/%s", hpanel); // FIXME: overflows str
+      sprintf(str, "/History/Display/%s", hgroup); // FIXME: overflows str
       db_find_key(hDB, 0, str, &hkey);
       if (hkey) {
          for (i = 0 ;; i++) {     // scan group
@@ -15082,15 +15055,17 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
             urlEncode(enc_name, sizeof(enc_name));
 
             std::string ref;
-            ref += dec_path;
-            ref += "/";
-            ref += enc_name;
-            ref += ".gif?width=";
+            ref += "graph.gif?width=";
             ref += strwidth;
+            ref += "&cmd=history&group=";
+            ref += hgroup;
+            ref += "&panel=";
+            ref += enc_name;
 
             std::string ref2;
-            ref2 += dec_path;
-            ref2 += "/";
+            ref2 += "?cmd=history&group=";
+            ref2 += hgroup;
+            ref2 += "&panel=";
             ref2 += enc_name;
 
             if (endtime != 0) {
@@ -15132,31 +15107,48 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
          db_set_data(hDB, hkeybutton, def_button, sizeof(def_button), 7, TID_STRING);
       }
 
+      r->rsprintf("<script>\n");
+      r->rsprintf("function histDisp(p) {\n");
+      r->rsprintf("  var params = '?cmd=history&group=%s&panel=%s';\n", hgroup, hpanel);
+      r->rsprintf("  params += '&'+p;\n");
+      r->rsprintf("  if (document.getElementById(\'hscale\') !== null)\n");
+      r->rsprintf("    params += '&hscale='+document.getElementById(\'hscale\').value;\n");
+      r->rsprintf("  if (document.getElementById(\'htime\') !== null)\n");
+      r->rsprintf("    params += '&htime='+document.getElementById(\'htime\').value;\n");
+      r->rsprintf("  if (document.getElementById(\'hwdith\') !== null)\n");
+      r->rsprintf("    params += '&hwidth='+document.getElementById(\'hwidth\').value;\n");
+      r->rsprintf("  if (document.getElementById(\'hindex\') !== null)\n");
+      r->rsprintf("    params += '&hindex='+document.getElementById(\'hindex\').value;\n");
+      r->rsprintf("  window.location.search = params;\n");
+      r->rsprintf("}\n\n");
+      r->rsprintf("</script>\n");
+      
       db_get_key(hDB, hkeybutton, &key);
 
       for (i = 0; i < key.num_values; i++) {
          size = sizeof(str);
          db_get_data_index(hDB, hkeybutton, str, &size, i, TID_STRING);
-         r->rsprintf("<input type=submit name=scale value=%s>\n", str);
+         r->rsprintf("<input type=\"button\" title=\"display last %s\" value=%s onclick=\"histDisp('scale=%s')\">\n", str, str);
       }
 
-      r->rsprintf("<input type=submit name=shift value=\"<<<\" title=\"go back in time to last available data for all variables on the plot\">\n");
-      r->rsprintf("<input type=submit name=shift value=\"<<\"  title=\"go back in time to last available data\">\n");
-      r->rsprintf("<input type=submit name=shift value=\"<\"   title=\"go back in time\">\n");
-      r->rsprintf("<input type=submit name=shift value=\" + \" title=\"zoom in\">\n");
-      r->rsprintf("<input type=submit name=shift value=\" - \" title=\"zoom out\">\n");
+      r->rsprintf("<input type=\"button\" value=\"<<<\" title=\"go back in time to last available data for all variables on the plot\" onclick=\"histDisp('shift=leftmaxall')\">");
+      r->rsprintf("<input type=\"button\" value=\"<<\" title=\"go back in time to last available data\" onclick=\"histDisp('shift=leftmax')\">");
+      r->rsprintf("<input type=\"button\" value=\"<\" title=\"go back in time\" onclick=\"histDisp('shift=left')\">");
+
+      r->rsprintf("<input type=\"button\" value=\" + \" title=\"zoom in\" onclick=\"histDisp('shift=zoomin')\">");
+      r->rsprintf("<input type=\"button\" value=\" - \" title=\"zoom out\" onclick=\"histDisp('shift=zoomout')\">");
+
       if (endtime != 0) {
-         r->rsprintf("<input type=submit name=shift value=\">\" title=\"go forward in time\">\n");
-         r->rsprintf("<input type=submit name=shift value=\">>\" title=\"go to currently updated fresh data\">\n");
+         r->rsprintf("<input type=\"button\" value=\">\" title=\"go forward in time\" onclick=\"histDisp('shift=right')\">");
+         r->rsprintf("<input type=\"button\" value=\">>\" title=\"go to currently updated fresh data\" onclick=\"histDisp('shift=rightmax')\">");
       }
 
       r->rsprintf("<td>\n");
-      r->rsprintf("<input type=submit name=width value=Large>\n");
-      r->rsprintf("<input type=submit name=width value=Small>\n");
-      r->rsprintf("<input type=submit name=cmd value=\"Create ELog\">\n");
-      r->rsprintf("<input type=submit name=cmd value=Config>\n");
-      r->rsprintf("<input type=submit name=cmd value=Export>\n");
-
+      r->rsprintf("<input type=\"button\" value=\"Large\" title=\"large display\" onclick=\"histDisp('width=Large')\">\n");
+      r->rsprintf("<input type=\"button\" value=\"Small\" title=\"large display\" onclick=\"histDisp('width=Small')\">\n");
+      r->rsprintf("<input type=\"button\" value=\"Create Elog\" title=\"large display\" onclick=\"histDisp('hcmd=Create Elog')\">\n");
+      r->rsprintf("<input type=\"button\" value=\"Config\" title=\"large display\" onclick=\"histDisp('hcmd=Config')\">\n");
+      r->rsprintf("<input type=\"button\" value=\"Export\" title=\"large display\" onclick=\"histDisp('hcmd=Export')\">\n");
       r->rsprintf("</tr>\n");
 
       char paramstr[256];
