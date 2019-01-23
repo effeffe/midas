@@ -6748,10 +6748,14 @@ static void bm_unlock_buffer(BUFFER* pbuf)
    // NB: locking order: 1st buffer mutex, 2nd buffer semaphore. Unlock in reverse order.
 
    int x = MAX_CLIENTS-1;
-   if (pbuf->buffer_header->client[x].unused1 != getpid()) {
-      printf("unlock [%s] unused1 %d pid %d\n", pbuf->buffer_header->name, pbuf->buffer_header->client[x].unused1, getpid());
+   if (pbuf->attached) {
+      if (pbuf->buffer_header->client[x].unused1 != getpid()) {
+         printf("unlock [%s] unused1 %d pid %d\n", pbuf->buffer_header->name, pbuf->buffer_header->client[x].unused1, getpid());
+      }
+      pbuf->buffer_header->client[x].unused1 = 0;
+   } else {
+      printf("unlock [%s] unused1 ????? pid %d\n", pbuf->buffer_header->name, getpid());
    }
-   pbuf->buffer_header->client[x].unused1 = 0;
    
    assert(pbuf->locked);
    pbuf->locked = FALSE;
@@ -7869,11 +7873,11 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
       BUFFER_CLIENT *pc = bm_get_my_client(pbuf, pheader);
       pc->write_wait = requested_space;
 
-      bm_unlock_buffer(pbuf);
-
       /* return now in ASYNC mode */
       if (async_flag == BM_NO_WAIT)
          return BM_ASYNC_RETURN;
+
+      bm_unlock_buffer(pbuf);
 
       //printf("bm_wait_for_free_space: blocking client \"%s\"\n", blocking_client_name);
 
