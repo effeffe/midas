@@ -6754,7 +6754,7 @@ static void bm_unlock_buffer(BUFFER* pbuf)
       }
       pbuf->buffer_header->client[x].unused1 = 0;
    } else {
-      printf("unlock [%s] unused1 ????? pid %d\n", pbuf->buffer_header->name, getpid());
+      printf("unlock [??????] unused1 ????? pid %d\n", getpid());
    }
    
    assert(pbuf->locked);
