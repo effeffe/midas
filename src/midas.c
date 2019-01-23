@@ -14400,6 +14400,8 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
  exit:
 
+   cm_msg_flush_buffer();
+
    /* disconnect from experiment as MIDAS server */
    if (rpc_is_mserver()) {
       HNDLE hDB, hKey;
