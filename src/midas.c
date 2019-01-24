@@ -5347,21 +5347,14 @@ static void bm_cleanup_buffer_locked(int i, const char *who, DWORD actual_time)
 
    /* now check other clients */
    for (j = 0; j < pheader->max_client_index; j++, pbclient++) {
-
-#ifdef OS_UNIX
-#ifdef ESRCH
       if (pbclient->pid) {
-         errno = 0;
-         kill(pbclient->pid, 0);
-         if (errno == ESRCH) {
+         if (!ss_pid_exists(pbclient->pid)) {
             cm_msg(MINFO, "bm_cleanup", "Client \'%s\' on buffer \'%s\' removed by %s because process pid %d does not exist", pbclient->name, pheader->name, who, pbclient->pid);
 
             bm_remove_client_locked(pheader, j);
             continue;
          }
       }
-#endif
-#endif
 
       /* If client process has no activity, clear its buffer entry. */
       if (pbclient->pid && pbclient->watchdog_timeout > 0) {

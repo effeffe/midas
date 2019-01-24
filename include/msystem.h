@@ -611,6 +611,8 @@ extern "C" {
    void EXPRT ss_stack_history_entry(char *tag);
    void EXPRT ss_stack_history_dump(char *filename);
    INT ss_gethostname(char* buffer, int buffer_size);
+   BOOL ss_pid_exists(int pid);
+   void ss_kill(int pid);
 
    /*---- socket routines ----*/
    INT EXPRT send_tcp(int sock, char *buffer, DWORD buffer_size, INT flags);

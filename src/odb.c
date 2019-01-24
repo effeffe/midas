@@ -1568,14 +1568,12 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
 
    /* remove dead clients */
 
-#ifdef OS_UNIX
-#ifdef ESRCH
    /* Only enable this for systems that define ESRCH and hope that
     they also support kill(pid,0) */
    for (i = 0; i < MAX_CLIENTS; i++) {
-      errno = 0;
-      kill(pheader->client[i].pid, 0);
-      if (errno == ESRCH) {
+      if (pheader->client[i].pid == 0)
+         continue;
+      if (!ss_pid_exists(pheader->client[i].pid)) {
          char client_name_tmp[NAME_LENGTH];
          int client_pid;
 
@@ -1591,8 +1589,6 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
          cm_msg(MERROR, "db_open_database", "Removed ODB client \'%s\', index %d because process pid %d does not exists", client_name_tmp, i, client_pid);
       }
    }
-#endif
-#endif
 
    /*
     Look for empty client slot
@@ -2256,26 +2252,37 @@ void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
          /* now check other clients */
          int j;
          for (j = 0; j < pdbheader->max_client_index; j++, pdbclient++) {
+            int client_pid = pdbclient->pid;
+            if (client_pid == 0)
+               continue;
+            BOOL dead = !ss_pid_exists(client_pid);
             /* If client process has no activity, clear its buffer entry. */
-            if (pdbclient->pid && pdbclient->watchdog_timeout > 0 &&
-                actual_time - pdbclient->last_activity > pdbclient->watchdog_timeout) {
-               int client_pid = pdbclient->pid;
-
+            if (dead ||
+                (pdbclient->watchdog_timeout > 0 &&
+                 actual_time - pdbclient->last_activity > pdbclient->watchdog_timeout)
+                ) {
+               
                db_lock_database(i + 1);
 
                /* now make again the check with the buffer locked */
                actual_time = ss_millitime();
-               if (pdbclient->pid && pdbclient->watchdog_timeout &&
-                   actual_time > pdbclient->last_activity &&
-                   actual_time - pdbclient->last_activity > pdbclient->watchdog_timeout) {
+               if (dead ||
+                   (pdbclient->watchdog_timeout &&
+                    actual_time > pdbclient->last_activity &&
+                    actual_time - pdbclient->last_activity > pdbclient->watchdog_timeout)
+                   ) {
 
                   db_allow_write_locked(&_database[i], "db_cleanup");
-
-                  cm_msg(MINFO, "db_cleanup", "Client \'%s\' (PID %d) on database \'%s\' removed by db_cleanup called by %s (idle %1.1lfs,TO %1.0lfs)",
-                         pdbclient->name, client_pid, pdbheader->name,
-                         who,
-                         (actual_time - pdbclient->last_activity) / 1000.0,
-                         pdbclient->watchdog_timeout / 1000.0);
+                  
+                  if (dead) {
+                     cm_msg(MINFO, "db_cleanup", "Client \'%s\' on database \'%s\' removed by db_cleanup called by %s because pid %d does not exist", pdbclient->name, pdbheader->name, who, client_pid);
+                  } else {
+                     cm_msg(MINFO, "db_cleanup", "Client \'%s\' (PID %d) on database \'%s\' removed by db_cleanup called by %s (idle %1.1lfs,TO %1.0lfs)",
+                            pdbclient->name, client_pid, pdbheader->name,
+                            who,
+                            (actual_time - pdbclient->last_activity) / 1000.0,
+                            pdbclient->watchdog_timeout / 1000.0);
+                  }
 
                   /* decrement notify_count for open records and clear exclusive mode */
                   int k;
@@ -2343,6 +2350,7 @@ void db_cleanup2(const char* client_name, int ignore_timeout, DWORD actual_time,
                 (client_name == NULL || client_name[0] == 0
                  || strncmp(pdbclient->name, client_name, strlen(client_name)) == 0)) {
                int client_pid = pdbclient->pid;
+               BOOL dead = !ss_pid_exists(client_pid);
                DWORD interval;
                if (ignore_timeout)
                   interval = 2 * WATCHDOG_INTERVAL;
@@ -2351,15 +2359,22 @@ void db_cleanup2(const char* client_name, int ignore_timeout, DWORD actual_time,
                
                /* If client process has no activity, clear its buffer entry. */
                
-               if (interval > 0 && ss_millitime() - pdbclient->last_activity > interval) {
+               if (dead || (interval > 0 && ss_millitime() - pdbclient->last_activity > interval)) {
                   int bDeleted = FALSE;
                   
                   /* now make again the check with the buffer locked */
-                  if (interval > 0 && ss_millitime() - pdbclient->last_activity > interval) {
-                     cm_msg(MINFO, "db_cleanup2", "Client \'%s\' on \'%s\' removed by db_cleanup2 called by %s (idle %1.1lfs,TO %1.0lfs)",
-                            pdbclient->name, pdbheader->name,
-                            who,
-                            (ss_millitime() - pdbclient->last_activity) / 1000.0, interval / 1000.0);
+                  if (dead || (interval > 0 && ss_millitime() - pdbclient->last_activity > interval)) {
+                     if (dead) {
+                        cm_msg(MINFO, "db_cleanup2", "Client \'%s\' on \'%s\' removed by db_cleanup2 called by %s because pid %d does not exist",
+                               pdbclient->name, pdbheader->name,
+                               who,
+                               client_pid);
+                     } else {
+                        cm_msg(MINFO, "db_cleanup2", "Client \'%s\' on \'%s\' removed by db_cleanup2 called by %s (idle %1.1lfs,TO %1.0lfs)",
+                               pdbclient->name, pdbheader->name,
+                               who,
+                               (ss_millitime() - pdbclient->last_activity) / 1000.0, interval / 1000.0);
+                     }
                      
                      /* decrement notify_count for open records and clear exclusive mode */
                      int k;
@@ -2552,18 +2567,12 @@ INT db_check_client(HNDLE hDB, HNDLE hKeyClient)
             break;
          }
       
-#ifdef OS_UNIX
-#ifdef ESRCH
-      if (found) {           /* check that the client is still running: PID still exists */
-         /* Only enable this for systems that define ESRCH and hope that they also support kill(pid,0) */
-         errno = 0;
-         kill(client_pid, 0);
-         if (errno == ESRCH) {
+      if (found) {
+         /* check that the client is still running: PID still exists */
+         if (!ss_pid_exists(client_pid)) {
             dead = 1;
          }
       }
-#endif
-#endif
       
       if (!found || dead) {
          /* client not found : delete ODB stucture */
