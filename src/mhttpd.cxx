@@ -17973,18 +17973,23 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       
       db_find_key(hDB, 0, str, &hkey);
       
+      if (strrchr(dec_path, '/'))
+         strlcpy(str, strrchr(dec_path, '/')+1, sizeof(str));
+      else
+         strlcpy(str, dec_path, sizeof(str));
+
       if (hkey) {
          /* for NT: close reply socket before starting subprocess */
          if (p->isparam("redir"))
             redirect2(r, p->getparam("redir"));
          else
-            redirect2(r, "");
+            redirect2(r, str);
          exec_script(hkey);
       } else {
          if (p->isparam("redir"))
             redirect(r, p->getparam("redir"));
          else
-            redirect(r, "");
+            redirect(r, str);
       }
       
       return;

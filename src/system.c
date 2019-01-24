@@ -2384,6 +2384,9 @@ INT ss_semaphore_create(const char *name, HNDLE * semaphore_handle)
 
       if (*semaphore_handle < 0) {
          cm_msg(MERROR, "ss_semaphore_create", "Cannot create semaphore \'%s\', semget(0x%x) failed, errno %d (%s)", name, key, errno, strerror(errno));
+         
+         fprintf(stderr, "ss_semaphore_create: Cannot create semaphore \'%s\', semget(0x%x) failed, errno %d (%s)", name, key, errno, strerror(errno));
+         abort(); // does not return
          return SS_NO_SEMAPHORE;
       }
 
