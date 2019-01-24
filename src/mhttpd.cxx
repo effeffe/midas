@@ -20391,6 +20391,12 @@ int main(int argc, const char *argv[])
       return 1;
    }
 
+   /* mhttpd needs the watchdog thread until we are sure
+    * we do not have any long sleeps anywhere in the mhttpd code.
+    * this includes reads from the history files or databases,
+    * that can take arbitrary long time */
+   cm_start_watchdog_thread();
+
    /* do ODB record checking */
    if (!check_odb_records()) {
       // check_odb_records() fails with nothing printed to the terminal

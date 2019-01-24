@@ -2854,6 +2854,8 @@ int main(int argc, char *argv[])
    if (debug)
       cm_set_watchdog_params(FALSE, 0);
 
+   cm_start_watchdog_thread();
+
    /* increase RPC timeout to 2min for logger with exabyte or blocked disk */
    rpc_set_option(-1, RPC_OTIMEOUT, 120000);
 

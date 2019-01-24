@@ -2525,6 +2525,9 @@ INT cm_disconnect_experiment(void)
       } while (!_trp.finished);
    }
 
+   /* stop the watchdog thread */
+   cm_stop_watchdog_thread();
+
    /* send shutdown notification */
    rpc_get_name(client_name);
 
@@ -5898,6 +5901,72 @@ INT bm_close_all_buffers(void)
  *  @{  */
 
 /*-- Watchdog routines ---------------------------------------------*/
+#ifdef LOCAL_ROUTINES
+
+static BOOL _watchdog_thread_run = FALSE; // set by main process
+static int  _watchdog_thread_pid = 0; // set by watchdog thread
+
+/********************************************************************/
+/**
+Watchdog thread to maintain the watchdog timeout timestamps for this client
+*/
+INT cm_watchdog_thread(void* unused)
+{
+   _watchdog_thread_pid = ss_getpid();
+   printf("cm_watchdog_thread started, pid %d!\n", _watchdog_thread_pid);
+   while (_watchdog_thread_run) {
+      printf("cm_watchdog_thread runs!\n");
+      DWORD now = ss_millitime();
+      //bm_update_last_activity(now);
+      //db_update_last_activity(now);
+      int i;
+      for (i=0; i<20; i++) {
+         ss_sleep(100);
+         if (!_watchdog_thread_run)
+            break;
+      }
+   }
+   printf("cm_watchdog_thread stopped!\n");
+   _watchdog_thread_pid = 0;
+   return 0;
+}
+
+#endif
+
+INT cm_start_watchdog_thread()
+{
+   /* watchdog does not run inside remote clients.
+    * watchdog timeout timers are maintained by the mserver */
+   if (rpc_is_remote())
+      return CM_SUCCESS;
+#ifdef LOCAL_ROUTINES
+   /* only start once */
+   if (_watchdog_thread_run)
+      return CM_SUCCESS;
+   if (_watchdog_thread_pid)
+      return CM_SUCCESS;
+   _watchdog_thread_run = TRUE;
+   ss_thread_create(cm_watchdog_thread, NULL);
+#endif
+   return CM_SUCCESS;
+}
+
+INT cm_stop_watchdog_thread()
+{
+   /* watchdog does not run inside remote clients.
+    * watchdog timeout timers are maintained by the mserver */
+   if (rpc_is_remote())
+      return CM_SUCCESS;
+#ifdef LOCAL_ROUTINES
+   _watchdog_thread_run = FALSE;
+   while (_watchdog_thread_pid) {
+      //printf("waiting for pid %d\n", _watchdog_thread_pid);
+      ss_sleep(10);
+   }
+#endif
+   return CM_SUCCESS;
+}
+
 #ifdef LOCAL_ROUTINES
 
 #if 0
