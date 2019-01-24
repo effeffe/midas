@@ -1567,9 +1567,6 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    /*fprintf(stderr,"num_clients: %d, max_client: %d\n",pheader->num_clients,pheader->max_client_index); */
 
    /* remove dead clients */
-
-   /* Only enable this for systems that define ESRCH and hope that
-    they also support kill(pid,0) */
    for (i = 0; i < MAX_CLIENTS; i++) {
       if (pheader->client[i].pid == 0)
          continue;
