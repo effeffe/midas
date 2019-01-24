@@ -2526,6 +2526,9 @@ INT cm_disconnect_experiment(void)
       } while (!_trp.finished);
    }
 
+   /* stop the watchdog thread */
+   cm_stop_watchdog_thread();
+
    /* send shutdown notification */
    rpc_get_name(client_name);
 
@@ -5380,21 +5383,14 @@ static void bm_cleanup_buffer_locked(int i, const char *who, DWORD actual_time)
 
    /* now check other clients */
    for (j = 0; j < pheader->max_client_index; j++, pbclient++) {
-
-#ifdef OS_UNIX
-#ifdef ESRCH
       if (pbclient->pid) {
-         errno = 0;
-         kill(pbclient->pid, 0);
-         if (errno == ESRCH) {
+         if (!ss_pid_exists(pbclient->pid)) {
             cm_msg(MINFO, "bm_cleanup", "Client \'%s\' on buffer \'%s\' removed by %s because process pid %d does not exist", pbclient->name, pheader->name, who, pbclient->pid);
 
             bm_remove_client_locked(pheader, j);
             continue;
          }
       }
-#endif
-#endif
 
       /* If client process has no activity, clear its buffer entry. */
       if (pbclient->pid && pbclient->watchdog_timeout > 0) {
@@ -5418,6 +5414,27 @@ static void bm_cleanup_buffer_locked(int i, const char *who, DWORD actual_time)
                    pbclient->watchdog_timeout / 1000.0);
             
             bm_remove_client_locked(pheader, j);
+         }
+      }
+   }
+}
+
+/**
+Update last activity time
+*/
+static void bm_update_last_activity(DWORD millitime)
+{
+   int pid = ss_getpid();
+   int i;
+   for (i = 0; i < _buffer_entries; i++) {
+      if (_buffer[i].attached) {
+         BUFFER_HEADER *pheader = _buffer[i].buffer_header;
+         int j;
+         for (j=0; j<pheader->max_client_index; j++) {
+            BUFFER_CLIENT* pclient = pheader->client + j;
+            if (pclient->pid == pid) {
+               pclient->last_activity = millitime;
+            }
          }
       }
    }
@@ -6166,6 +6183,72 @@ INT bm_close_all_buffers(void)
  *  @{  */
 
 /*-- Watchdog routines ---------------------------------------------*/
+#ifdef LOCAL_ROUTINES
+
+static BOOL _watchdog_thread_run = FALSE; // set by main process
+static int  _watchdog_thread_pid = 0; // set by watchdog thread
+
+/********************************************************************/
+/**
+Watchdog thread to maintain the watchdog timeout timestamps for this client
+*/
+INT cm_watchdog_thread(void* unused)
+{
+   _watchdog_thread_pid = ss_getpid();
+   //printf("cm_watchdog_thread started, pid %d!\n", _watchdog_thread_pid);
+   while (_watchdog_thread_run) {
+      //printf("cm_watchdog_thread runs!\n");
+      DWORD now = ss_millitime();
+      bm_update_last_activity(now);
+      db_update_last_activity(now);
+      int i;
+      for (i=0; i<20; i++) {
+         ss_sleep(100);
+         if (!_watchdog_thread_run)
+            break;
+      }
+   }
+   //printf("cm_watchdog_thread stopped!\n");
+   _watchdog_thread_pid = 0;
+   return 0;
+}
+
+#endif
+
+INT cm_start_watchdog_thread()
+{
+   /* watchdog does not run inside remote clients.
+    * watchdog timeout timers are maintained by the mserver */
+   if (rpc_is_remote())
+      return CM_SUCCESS;
+#ifdef LOCAL_ROUTINES
+   /* only start once */
+   if (_watchdog_thread_run)
+      return CM_SUCCESS;
+   if (_watchdog_thread_pid)
+      return CM_SUCCESS;
+   _watchdog_thread_run = TRUE;
+   ss_thread_create(cm_watchdog_thread, NULL);
+#endif
+   return CM_SUCCESS;
+}
+
+INT cm_stop_watchdog_thread()
+{
+   /* watchdog does not run inside remote clients.
+    * watchdog timeout timers are maintained by the mserver */
+   if (rpc_is_remote())
+      return CM_SUCCESS;
+#ifdef LOCAL_ROUTINES
+   _watchdog_thread_run = FALSE;
+   while (_watchdog_thread_pid) {
+      //printf("waiting for pid %d\n", _watchdog_thread_pid);
+      ss_sleep(10);
+   }
+#endif
+   return CM_SUCCESS;
+}
+
 #ifdef LOCAL_ROUTINES
 
 #if 0

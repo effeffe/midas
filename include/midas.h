@@ -1675,6 +1675,9 @@ extern "C" {
    //INT EXPRT cm_enable_watchdog(BOOL flag);
    //#define HAVE_CM_WATCHDOG 1
    //void EXPRT cm_watchdog(int);
+   INT EXPRT cm_watchdog_thread(void*unused);
+   INT EXPRT cm_start_watchdog_thread(void);
+   INT EXPRT cm_stop_watchdog_thread(void);
    INT EXPRT cm_shutdown(const char *name, BOOL bUnique);
    INT EXPRT cm_exist(const char *name, BOOL bUnique);
    INT EXPRT cm_cleanup(const char *client_name, BOOL ignore_timeout);
@@ -1844,6 +1847,7 @@ extern "C" {
    INT EXPRT db_sscanf(const char *string, void *data, INT * data_size, INT index, DWORD type);
    char EXPRT *strcomb(const char **list);
    INT db_get_watchdog_info(HNDLE hDB, const char *client_name, DWORD * timeout, DWORD * last);
+   INT EXPRT db_update_last_activity(DWORD millitime);
 
    /** @} */
 
