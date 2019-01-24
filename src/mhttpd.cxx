@@ -1546,9 +1546,6 @@ void show_header(Return* r, const char *title, const char *method, const char *p
    r->rsprintf("<title>%s</title></head>\n", title);
 
    strlcpy(str, path, sizeof(str));
-   if (str[0] == 0)
-      strcpy(str, "./");
-
    urlEncode(str, sizeof(str));
 
    if (equal_ustring(method, "POST"))
@@ -13810,14 +13807,16 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    r->rsprintf("<tr><td colspan=8>\n");
    r->rsprintf("<input type=button value=Refresh ");
    r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=Refresh'\">\n", hgroup, hpanel);
+   
    r->rsprintf("<input type=button value=Save ");
-   r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=Save'\">\n", hgroup, hpanel);
+   r->rsprintf("onclick=\"document.form1.hcmd.value='Save';document.form1.submit()\">\n");
+   
    r->rsprintf("<input type=button value=Cancel ");
    r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=Cancel'\">\n", hgroup, hpanel);
    r->rsprintf("<input type=button value=\"Clear history cache\"");
-   r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=\"Clear history Cache\"'>\n", hgroup, hpanel);
+   r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=Clear%%20history Cache'\">\n", hgroup, hpanel);
    r->rsprintf("<input type=button value=\"Delete panel\"");
-   r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=\"Delete panel\"'>\n", hgroup, hpanel);
+   r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=Delete%%20panel'\">\n", hgroup, hpanel);
    r->rsprintf("</td></tr>\n");
 
    r->rsprintf("<tr><td colspan=8>\n");
@@ -13837,7 +13836,8 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
 
    r->rsprintf("<tr><td colspan=8>\n");
    /* hidden command for refresh */
-   r->rsprintf("<input type=hidden name=cmd value=Refresh>\n");
+   r->rsprintf("<input type=hidden name=cmd value=History>\n");
+   r->rsprintf("<input type=hidden name=hcmd value=Refresh>\n");
    r->rsprintf("<input type=hidden name=panel value=\"%s\">\n", hpanel);
    r->rsprintf("<input type=hidden name=group value=\"%s\">\n", hgroup);
    r->rsprintf("</td></tr>\n");
@@ -14458,7 +14458,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       r->rsprintf("<tr><th class=\"subStatusTitle\" colspan=2>New History Item</th><tr>");
       r->rsprintf("<tr><td align=center colspan=2>\n");
       r->rsprintf("Select group: &nbsp;&nbsp;");
-      r->rsprintf("<select name=\"group\">\n");
+      r->rsprintf("<select id=\"group\" name=\"group\">\n");
 
       /* list existing groups */
       db_find_key(hDB, 0, "/History/Display", &hkey);
@@ -14481,15 +14481,19 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       r->rsprintf("</select><p>\n");
 
       r->rsprintf("Or enter new group name: &nbsp;&nbsp;");
-      r->rsprintf("<input type=text size=15 maxlength=31 name=new_group>\n");
+      r->rsprintf("<input type=text size=15 maxlength=31 id=new_group name=new_group>\n");
 
       r->rsprintf("<tr><td align=center colspan=2>\n");
       r->rsprintf("<br>Panel name: &nbsp;&nbsp;");
-      r->rsprintf("<input type=text size=15 maxlength=31 name=panel><br><br>\n");
+      r->rsprintf("<input type=text size=15 maxlength=31 id=panel name=panel><br><br>\n");
       r->rsprintf("</td></tr>\n");
 
       r->rsprintf("<tr><td align=center colspan=2>");
-      r->rsprintf("<input type=submit value=Submit>\n");
+      std::string str = "?cmd=history&hcmd=createnew";
+      str += "&new_group='+document.getElementById('new_group').value+'";
+      str += "&group='+document.getElementById('group').value+'";
+      str += "&panel='+document.getElementById('panel').value+'";
+      r->rsprintf("<input type=button value=Submit onclick=\"window.location.search='%s'\">\n", str.c_str());
       r->rsprintf("</td></tr>\n");
 
       r->rsprintf("</table>\r\n");
@@ -14501,16 +14505,15 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
    if (equal_ustring(hcmd, "Delete Panel")) {
       char str[MAX_ODB_PATH];
-      strlcpy(str, "/History/Display/", sizeof(str));
-      strlcat(str, dec_path, sizeof(str));
+      sprintf(str, "/History/Display/%s/%s", hgroup, hpanel);
       if (db_find_key(hDB, 0, str, &hkey)==DB_SUCCESS)
          db_delete_key(hDB, hkey, FALSE);
 
-      redirect(r, "../");
+      redirect(r, "?cmd=History");
       return;
    }
 
-   if (equal_ustring(hcmd, "New")) {
+   if (equal_ustring(hcmd, "createnew")) {
 
       /* strip leading/trailing spaces */
       while (hpanel[0] == ' ') {
@@ -14857,7 +14860,8 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
    if (hgroup[0] == 0) {
       /* "New" button */
-      r->rsprintf("<tr><td colspan=2><input type=submit name=cmd value=New></td></tr>\n");
+      r->rsprintf("<tr><td colspan=2><input type=\"button\" name=\"New\" value=\"New\" ");
+      r->rsprintf("onClick=\"window.location.href='?cmd=history&hcmd=New'\"></td></tr>\n");
 
       /* links for history panels */
       r->rsprintf("<tr><td colspan=2 style=\"text-align:left;\">\n");
@@ -15022,7 +15026,6 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       r->rsprintf("</noscript>\n");
 
       r->rsprintf("&nbsp;&nbsp;<input type=\"button\" name=\"New\" value=\"New\" ");
-
       r->rsprintf("onClick=\"window.location.href='?cmd=history&hcmd=New'\">\n");
 
       r->rsprintf("<input type=\"button\" name=\"Cmd\" value=\"Reset\" onClick=\"window.location.href='?cmd=history&hcmd=Reset'\">\n");
