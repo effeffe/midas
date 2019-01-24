@@ -1835,6 +1835,7 @@ extern "C" {
    INT EXPRT db_sscanf(const char *string, void *data, INT * data_size, INT index, DWORD type);
    char EXPRT *strcomb(const char **list);
    INT db_get_watchdog_info(HNDLE hDB, const char *client_name, DWORD * timeout, DWORD * last);
+   INT EXPRT db_update_last_activity(DWORD millitime);
 
    /** @} */
 

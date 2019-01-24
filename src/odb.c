@@ -2195,29 +2195,38 @@ INT db_set_lock_timeout(HNDLE hDB, int timeout_millisec)
 #endif
 }
 
-///**
-//Update last activity time
-//*/
-//void db_update_last_activity(DWORD actual_time)
-//{
-//   int i;
-//   for (i = 0; i < _database_entries; i++) {
-//      if (_database[i].attached) {
-//         int must_unlock = 0;
-//         if (_database[i].protect) {
-//            must_unlock = 1;
-//            db_lock_database(i + 1);
-//            db_allow_write_locked(&_database[i], "db_update_last_activity");
-//         }
-//         assert(_database[i].database_header);
-//         /* update the last_activity entry to show that we are alive */
-//         _database[i].database_header->client[_database[i].client_index].last_activity = actual_time;
-//         if (must_unlock) {
-//            db_unlock_database(i + 1);
-//         }
-//      }
-//   }
-//}
+/**
+Update last activity time
+*/
+INT db_update_last_activity(DWORD millitime)
+{
+   int pid = ss_getpid();
+   int i;
+   for (i = 0; i < _database_entries; i++) {
+      if (_database[i].attached) {
+         int must_unlock = 0;
+         if (_database[i].protect) {
+            must_unlock = 1;
+            db_lock_database(i + 1);
+            db_allow_write_locked(&_database[i], "db_update_last_activity");
+         }
+         assert(_database[i].database_header);
+         /* update the last_activity entry to show that we are alive */
+         int j;
+         for (j=0; j<_database[i].database_header->max_client_index; j++) {
+            DATABASE_CLIENT* pdbclient = _database[i].database_header->client + j;
+            //printf("client %d pid %d vs our pid %d\n", j, pdbclient->pid, pid);
+            if (pdbclient->pid == pid) {
+               pdbclient->last_activity = millitime;
+            }
+         }
+         if (must_unlock) {
+            db_unlock_database(i + 1);
+         }
+      }
+   }
+   return DB_SUCCESS;
+}
 
 void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
 {

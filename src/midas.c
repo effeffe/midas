@@ -5386,21 +5386,26 @@ static void bm_cleanup_buffer_locked(int i, const char *who, DWORD actual_time)
    }
 }
 
-///**
-//Update last activity time
-//*/
-//static void bm_update_last_activity(DWORD actual_time)
-//{
-//   int i;
-//   for (i = 0; i < _buffer_entries; i++) {
-//      if (_buffer[i].attached) {
-//         int idx = bm_validate_client_index(&_buffer[i], FALSE);
-//         if (idx >= 0) {
-//            _buffer[i].buffer_header->client[idx].last_activity = actual_time;
-//         }
-//      }
-//   }
-//}
+/**
+Update last activity time
+*/
+static void bm_update_last_activity(DWORD millitime)
+{
+   int pid = ss_getpid();
+   int i;
+   for (i = 0; i < _buffer_entries; i++) {
+      if (_buffer[i].attached) {
+         BUFFER_HEADER *pheader = _buffer[i].buffer_header;
+         int j;
+         for (j=0; j<pheader->max_client_index; j++) {
+            BUFFER_CLIENT* pclient = pheader->client + j;
+            if (pclient->pid == pid) {
+               pclient->last_activity = millitime;
+            }
+         }
+      }
+   }
+}
 
 /**
 Check all clients on all buffers, remove invalid clients
@@ -5913,12 +5918,12 @@ Watchdog thread to maintain the watchdog timeout timestamps for this client
 INT cm_watchdog_thread(void* unused)
 {
    _watchdog_thread_pid = ss_getpid();
-   printf("cm_watchdog_thread started, pid %d!\n", _watchdog_thread_pid);
+   //printf("cm_watchdog_thread started, pid %d!\n", _watchdog_thread_pid);
    while (_watchdog_thread_run) {
-      printf("cm_watchdog_thread runs!\n");
+      //printf("cm_watchdog_thread runs!\n");
       DWORD now = ss_millitime();
-      //bm_update_last_activity(now);
-      //db_update_last_activity(now);
+      bm_update_last_activity(now);
+      db_update_last_activity(now);
       int i;
       for (i=0; i<20; i++) {
          ss_sleep(100);
@@ -5926,7 +5931,7 @@ INT cm_watchdog_thread(void* unused)
             break;
       }
    }
-   printf("cm_watchdog_thread stopped!\n");
+   //printf("cm_watchdog_thread stopped!\n");
    _watchdog_thread_pid = 0;
    return 0;
 }
