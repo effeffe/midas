@@ -1344,6 +1344,12 @@ INT ss_get_struct_padding()
    return (INT) sizeof(test_padding) - 8;
 }
 
+/********************************************************************\
+*                                                                    *
+*                  Process functions                                 *
+*                                                                    *
+\********************************************************************/
+
 /*------------------------------------------------------------------*/
 INT ss_getpid(void)
 /********************************************************************\
@@ -1388,6 +1394,62 @@ INT ss_getpid(void)
    return 0;
 
 #endif                          /* OS_MSDOS */
+}
+
+/********************************************************************\
+
+  Routine: ss_pid_exists
+
+  Purpose: Check if given pid still exists
+
+  Input:
+    pid - process id returned by ss_getpid()
+
+  Output:
+    none
+
+  Function value:
+    BOOL              TRUE or FALSE
+
+\********************************************************************/
+BOOL ss_pid_exists(int pid)
+{
+#ifdef ESRCH
+   /* Only enable this for systems that define ESRCH and hope that they also support kill(pid,0) */
+   int status = kill(pid, 0);
+   //printf("kill(%d,0) returned %d, errno %d\n", pid, status, errno);
+   if ((status != 0) && (errno == ESRCH)) {
+      return FALSE;
+   }
+#else
+#warning Missing ESRCH for ss_pid_exists()
+#endif
+   return TRUE;
+}
+
+/********************************************************************\
+
+  Routine: ss_kill
+
+  Purpose: Kill given process, ensure it is not running anymore
+
+  Input:
+    pid - process id returned by ss_getpid()
+
+  Output:
+    none
+
+  Function value:
+    void - none
+
+\********************************************************************/
+void ss_kill(int pid)
+{
+#ifdef SIGKILL
+   kill(pid, SIGKILL);
+#else
+#warning Missing SIGKILL for ss_kill()
+#endif
 }
 
 /*------------------------------------------------------------------*/
@@ -2322,6 +2384,9 @@ INT ss_semaphore_create(const char *name, HNDLE * semaphore_handle)
 
       if (*semaphore_handle < 0) {
          cm_msg(MERROR, "ss_semaphore_create", "Cannot create semaphore \'%s\', semget(0x%x) failed, errno %d (%s)", name, key, errno, strerror(errno));
+         
+         fprintf(stderr, "ss_semaphore_create: Cannot create semaphore \'%s\', semget(0x%x) failed, errno %d (%s)", name, key, errno, strerror(errno));
+         abort(); // does not return
          return SS_NO_SEMAPHORE;
       }
 
