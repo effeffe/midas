@@ -5472,12 +5472,6 @@ static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
       }
 }
 
-static void bm_print_event(const char* pdata, int rp)
-{
-   const EVENT_HEADER* e = (const EVENT_HEADER*)(pdata + rp);
-   printf("rp %d: event: id 0x%04x, trigger_mask 0x%04x, serial %d, time_stamp %d, data_size %d\n", rp, e->event_id, e->trigger_mask, e->serial_number, e->time_stamp, e->data_size);
-}
-
 static BOOL bm_validate_rp(const char* who, const BUFFER_HEADER* pheader, int rp)
 {
    if (rp < 0 || rp > pheader->size) {
@@ -7786,32 +7780,6 @@ static void bm_convert_event_header(EVENT_HEADER * pevent, int convert_flags)
       rpc_convert_single(&pevent->time_stamp, TID_DWORD, RPC_OUTGOING, convert_flags);
       rpc_convert_single(&pevent->data_size, TID_DWORD, RPC_OUTGOING, convert_flags);
    }
-}
-
-static int bm_copy_from_cache(BUFFER * pbuf, void *destination, int max_size, int *buf_size, int convert_flags)
-{
-   int status;
-
-   EVENT_HEADER* pevent = (EVENT_HEADER *) (pbuf->read_cache + pbuf->read_cache_rp);
-   int event_size = pevent->data_size + sizeof(EVENT_HEADER);
-   int total_size = ALIGN8(event_size);
-
-   if (event_size > max_size) {
-      memcpy(destination, pevent, max_size);
-      cm_msg(MERROR, "bm_copy_from_cache", "event size %d larger than buffer size %d", event_size, max_size);
-      *buf_size = max_size;
-      status = BM_TRUNCATED;
-   } else {
-      memcpy(destination, pevent, event_size);
-      *buf_size = event_size;
-      status = BM_SUCCESS;
-   }
-
-   bm_convert_event_header((EVENT_HEADER *) destination, convert_flags);
-
-   bm_incr_read_cache(pbuf, total_size);
-
-   return status;
 }
 
 static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int async_flag, int requested_space)
