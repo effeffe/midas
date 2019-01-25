@@ -5233,12 +5233,11 @@ BOOL is_editable(char *eq_name, char *var_name)
    return FALSE;
 }
 
-void show_sc_page(Param* pp, Return* r, const char* dec_path, const char *path, int refresh)
+void show_eqtable_page(Param* pp, Return* r, int refresh)
 {
    int i, j, k, colspan, size, n_var, i_edit, i_set, line;
-   char str[256], eq_name[32], group[32], name[32], ref[256];
-   char group_name[MAX_GROUPS][32], data[256], back_path[256], style[80];
-   const char *p;
+   char str[256], eq_name[32], group[32], name[32];
+   char group_name[MAX_GROUPS][32], data[256], style[80];
    HNDLE hDB, hkey, hkeyeq, hkeyset, hkeynames, hkeyvar, hkeyroot;
    KEY eqkey, key, varkey;
    char data_str[256], hex_str[256], odb_path[256];
@@ -5255,18 +5254,12 @@ void show_sc_page(Param* pp, Return* r, const char* dec_path, const char *path, 
    if (equal_ustring(pp->getparam("cmd"), "Set"))
       i_set = atoi(pp->getparam("index"));
 
-   /* split path into equipment and group */
-   strlcpy(eq_name, path, sizeof(eq_name));
+   /* get equipment and group */
+   if (pp->getparam("eq"))
+      strlcpy(eq_name, pp->getparam("eq"), sizeof(eq_name));
    strlcpy(group, "All", sizeof(group));
-   if (strchr(eq_name, '/')) {
-      strlcpy(group, strchr(eq_name, '/') + 1, sizeof(group));
-      *strchr(eq_name, '/') = 0;
-   }
-
-   back_path[0] = 0;
-   for (p=path ; *p ; p++)
-      if (*p == '/')
-         strlcat(back_path, "../", sizeof(back_path));
+   if (pp->getparam("group") && *pp->getparam("group"))
+      strlcpy(group, pp->getparam("group"), sizeof(group));
 
    /* check for "names" in settings */
    if (eq_name[0]) {
@@ -5290,7 +5283,7 @@ void show_sc_page(Param* pp, Return* r, const char* dec_path, const char *path, 
       /* redirect if no names found */
       if (!hkeyset || !hkeynames) {
          /* redirect */
-         sprintf(str, "../Equipment/%s/Variables", eq_name);
+         sprintf(str, "?cmd=odb&odb_path=/Equipment/%s/Variables", eq_name);
          redirect(r, str);
          return;
       }
@@ -5313,7 +5306,7 @@ void show_sc_page(Param* pp, Return* r, const char* dec_path, const char *path, 
    r->rsprintf("</tr>\n\n");
    r->rsprintf("</table>");  //end header table
 
-   r->rsprintf("<table class=\"ODBtable\">");  //body table
+   r->rsprintf("<table class=\"ODBtable\" style=\"max-width:700px;\">");  //body table
 
    /*---- enumerate SC equipment ----*/
 
@@ -5343,8 +5336,8 @@ void show_sc_page(Param* pp, Return* r, const char* dec_path, const char *path, 
                   if (equal_ustring(eq_name, eqkey.name))
                      r->rsprintf("<b>%s</b> &nbsp;&nbsp;", eqkey.name);
                   else {
-                     r->rsprintf("<a href=\"%s%s\">%s</a> &nbsp;&nbsp;",
-                                 back_path, eqkey.name, eqkey.name);
+                     r->rsprintf("<a href=\"?cmd=eqtable&eq=%s\">%s</a> &nbsp;&nbsp;",
+                                 eqkey.name, eqkey.name);
                   }
                   break;
                }
@@ -5373,7 +5366,7 @@ void show_sc_page(Param* pp, Return* r, const char* dec_path, const char *path, 
       if (equal_ustring(group, "All"))
          r->rsprintf("<b>All</b> &nbsp;&nbsp;");
       else
-         r->rsprintf("<a href=\"%s%s/All\">All</a> &nbsp;&nbsp;", back_path, eq_name);
+         r->rsprintf("<a href=\"?cmd=eqtable&eq=%s\">All</a> &nbsp;&nbsp;", eq_name);
 
       /* collect groups */
 
@@ -5417,8 +5410,7 @@ void show_sc_page(Param* pp, Return* r, const char* dec_path, const char *path, 
             char s[256];
             strlcpy(s, group_name[i], sizeof(s));
             urlEncode(s, sizeof(s));
-            r->rsprintf("<a href=\"%s%s/%s\">%s</a> &nbsp;&nbsp;", back_path, eq_name,
-                        s, group_name[i]);
+            r->rsprintf("<a href=\"?cmd=eqtable&eq=%s&group=%s\">%s</a> &nbsp;&nbsp;", eq_name, s, group_name[i]);
          }
       }
       r->rsprintf("</tr>\n");
@@ -5522,11 +5514,9 @@ void show_sc_page(Param* pp, Return* r, const char* dec_path, const char *path, 
                   r->rsprintf("<input type=hidden name=index value=%d>\n", i_edit);
                   n_var++;
                } else {
-                  sprintf(ref, "%s%s/%s?cmd=Edit&index=%d", back_path, eq_name, group, n_var);
                   sprintf(odb_path, "Equipment/%s/Variables/%s[%d]", eq_name, varkey.name, i);
-
                   r->rsprintf("<td align=center>");
-                  r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\', 0);return false;\" >%s</a>", ref, odb_path, str);
+                  r->rsprintf("<a href=\"#\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\', 0);return false;\" >%s</a>", odb_path, str);
                   n_var++;
                }
             } else
@@ -5543,7 +5533,7 @@ void show_sc_page(Param* pp, Return* r, const char* dec_path, const char *path, 
       if (equal_ustring(group, "All"))
          r->rsprintf("<b>All</b> &nbsp;&nbsp;");
       else
-         r->rsprintf("<a href=\"%s%s\">All</a> &nbsp;&nbsp;\n", back_path, eq_name);
+         r->rsprintf("<a href=\"?cmd=eqtable&eq=%s\">All</a> &nbsp;&nbsp;", eq_name);
 
       /* groups from Variables tree */
 
@@ -5562,8 +5552,7 @@ void show_sc_page(Param* pp, Return* r, const char* dec_path, const char *path, 
          if (equal_ustring(key.name, group))
             r->rsprintf("<b>%s</b> &nbsp;&nbsp;", key.name);
          else
-            r->rsprintf("<a href=\"%s%s/%s\">%s</a> &nbsp;&nbsp;\n", back_path,
-                        eq_name, key.name, key.name);
+            r->rsprintf("<a href=\"?cmd=odb&odb_path=/%s/Variables/%s\">%s</a> &nbsp;&nbsp;\n", eq_name, key.name, key.name);
       }
 
       r->rsprintf("</tr>\n");
@@ -5706,12 +5695,10 @@ void show_sc_page(Param* pp, Return* r, const char* dec_path, const char *path, 
                         r->rsprintf("<input type=hidden name=cmd value=Set>\n");
                         n_var++;
                      } else {
-                        sprintf(ref, "%s%s/%s?cmd=Edit&index=%d", back_path,
-                                eq_name, group, n_var);
                         sprintf(odb_path, "Equipment/%s/Variables/%s[%d]", eq_name, varkey.name, j);
 
                         r->rsprintf("<td align=cernter>");
-                        r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\', 0);return false;\" >%s</a>", ref, odb_path, str);
+                        r->rsprintf("<a href=\"#\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\', 0);return false;\" >%s</a>", odb_path, str);
                         n_var++;
                      }
 
@@ -17931,13 +17918,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   /*---- redirect if SC command ------------------------------------*/
-
-   if (equal_ustring(command, "SC")) {
-      redirect(r, "SC/");
-      return;
-   }
-
    /*---- redirect if sequencer command -----------------------------*/
    
    if (equal_ustring(command, "sequencer")) {
@@ -18443,14 +18423,8 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    /*---- slow control display --------------------------------------*/
 
-   if (strncmp(dec_path, "SC/", 3) == 0) {
-      if (equal_ustring(command, "edit")) {
-         sprintf(str, "%s?cmd=Edit&index=%d", dec_path, index);
-         if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
-            return;
-      }
-
-      show_sc_page(p, r, dec_path, dec_path + 3, refresh);
+   if (equal_ustring(command, "eqtable")) {
+      show_eqtable_page(p, r, refresh);
       return;
    }
 
@@ -18517,8 +18491,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
          redirect(r, "EL/");
          return;
       }
-      
-   show_status_page(p, r, dec_path, refresh, cookie_wpwd, expand_equipment);
+   
+   sprintf(str, "Invalid URL: %s%s", p->getparam("path"), p->getparam("query"));
+   show_error(r, str);
 }
 
 /*------------------------------------------------------------------*/
@@ -18566,11 +18541,12 @@ void decode_get(Return* rr, char *string, const char *cookie_pwd, const char *co
          *strchr(path, '?') = 0;
    }
 
-   param->setparam("path", path); // undecoded path, is this used anywhere?
+   param->setparam("path", path);
 
-   if (query_string)
+   if (query_string) {
       decode_query(param, query_string);
-   else if (string && strchr(string, '?')) {
+      param->setparam("query", query_string);
+   } else if (string && strchr(string, '?')) {
       char* p = strchr(string, '?') + 1;
 
       /* cut trailing "/" from netscape */
