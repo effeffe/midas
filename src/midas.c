@@ -5030,10 +5030,10 @@ INT cm_periodic_tasks()
       BOOL wrong_interval = FALSE;
       if (tdiff_millitime > 60000)
          wrong_interval = TRUE;
-      //printf("millitime %d, diff %d, wrong_interval %d\n", now_millitime, last_millitime, wrong_interval);
+      // printf("millitime %u, diff %u, wrong_interval %d\n", now_millitime, tdiff_millitime, wrong_interval);
       
-      bm_cleanup("cm_yield", now_millitime, wrong_interval);
-      db_cleanup("cm_yield", now_millitime, wrong_interval);
+      bm_cleanup("cm_periodic_tasks", now_millitime, wrong_interval);
+      db_cleanup("cm_periodic_tasks", now_millitime, wrong_interval);
 
       last_millitime = now_millitime;
    }
@@ -5466,7 +5466,7 @@ static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
 
          /* don't check other clients if interval is strange */
          if (!wrong_interval)
-	   bm_cleanup_buffer_locked(i, who, actual_time);
+            bm_cleanup_buffer_locked(i, who, actual_time);
 
          bm_unlock_buffer(pbuf);
       }
