@@ -7870,7 +7870,7 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
                     is not really blocking due to a GET_ALL request.
                   */
                   BOOL blocking = FALSE;
-                  int blocking_request_id = -1;
+                  //int blocking_request_id = -1;
                   
                   int j;
                   for (j = 0; j < pc->max_request_index; j++) {
@@ -7879,7 +7879,7 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
                          && bm_match_event(prequest->event_id, prequest->trigger_mask, pevent)) {
                         if (prequest->sampling_type & GET_ALL) {
                            blocking = TRUE;
-                           blocking_request_id = prequest->id;
+                           //blocking_request_id = prequest->id;
                            break;
                         }
                      }
@@ -9026,7 +9026,7 @@ INT bm_check_buffers()
       //INT server_type/*, server_conn, tid*/;
       BOOL bMore;
       DWORD start_time;
-      static DWORD last_time = 0;
+      //static DWORD last_time = 0;
 
       //server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
       //server_conn = rpc_get_server_acception();
@@ -9099,7 +9099,7 @@ INT bm_check_buffers()
          }
       }
 
-      last_time = start_time;
+      //last_time = start_time;
 
       return bMore;
 
