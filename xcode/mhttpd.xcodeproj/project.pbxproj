@@ -55,6 +55,7 @@
 		D51B325D1BB3FCAA0015F608 /* mjson.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mjson.cxx; path = /midas/src/mjson.cxx; sourceTree = "<group>"; };
 		D51C4E8B1F41D95F00B8E49F /* odb.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; name = odb.html; path = /midas/resources/odb.html; sourceTree = "<group>"; };
 		D51C4E8C1F41D95F00B8E49F /* status.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; name = status.html; path = /midas/resources/status.html; sourceTree = "<group>"; };
+		D52AD0B921F71D670091090A /* controls.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; name = controls.js; path = /midas/resources/controls.js; sourceTree = "<group>"; };
 		D530FC751BB3FC1900098C9B /* mjsonrpc.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mjsonrpc.cxx; path = /midas/src/mjsonrpc.cxx; sourceTree = "<group>"; };
 		D530FC771BB3FC4800098C9B /* mjsonrpc_user.cxx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mjsonrpc_user.cxx; path = /midas/src/mjsonrpc_user.cxx; sourceTree = "<group>"; };
 		D534757D183A1979004316B0 /* mongoose6.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mongoose6.c; path = /midas/src/mongoose6.c; sourceTree = "<absolute>"; };
@@ -182,6 +183,7 @@
 		D5BE377D17BCE29C004233D8 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				D52AD0B921F71D670091090A /* controls.js */,
 				D5FBD8D8206A459A00DE4394 /* a_example.html */,
 				D5941E891F44662100D5E8BD /* config.html */,
 				D51C4E8B1F41D95F00B8E49F /* odb.html */,
