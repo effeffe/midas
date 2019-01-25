@@ -10694,7 +10694,7 @@ void show_alarm_page()
             r->rsprintf("<form method=\"GET\" action=\"%s\">\n", ref);
 
             /* alarm name */
-            sprintf(ref, "Alarms/Alarms/%s", key.name);
+            sprintf(ref, "?cmd=odb&odb_path=/Alarms/Alarms/%s", key.name);
             r->rsprintf("<tr><td><a href=\"%s\"><b>%s</b></a>", ref,
                      key.name);
 

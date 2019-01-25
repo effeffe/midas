@@ -147,7 +147,7 @@
 
       td = document.createElement("td");
       td.align = "center";
-      td.innerHTML = "<a href='Alarms/Alarms/" + name + "'>" + name + "</a>";
+      td.innerHTML = "<a href='?cmd=odb&odb_path=Alarms/Alarms/" + name + "'>" + name + "</a>";
       tr.appendChild(td);
 
       td = document.createElement("td");
@@ -286,7 +286,7 @@
             e.childNodes[2].innerHTML = "-";
          }
 
-         e.childNodes[3].innerHTML = "<a href=\"" + "/Alarms/Classes/" + alarm.class + "\">" + alarm.class + "</a>";
+         e.childNodes[3].innerHTML = "<a href=\"?cmd=odb&odb_path=/Alarms/Classes/" + alarm.class + "\">" + alarm.class + "</a>";
 
          if (alarm.type == AT_INTERNAL) {
             if (alarm.triggered)
