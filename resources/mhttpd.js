@@ -606,7 +606,7 @@ function mhttpd_init(current_page, interval, callback) {
                   continue;
                if (l.substr(-1) == '&')
                   l = l.slice(0, -1);
-               html += "<div class='" + cc + "'><a href='" + global_base_url + "CS/" + custom[b + "/name"] + "' class='mmenulink'>" + l + "</a></div>\n";
+               html += "<div class='" + cc + "'><a href='" + global_base_url + "?cmd=custom&page=" + custom[b + "/name"] + "' class='mmenulink'>" + l + "</a></div>\n";
             }
          }
 

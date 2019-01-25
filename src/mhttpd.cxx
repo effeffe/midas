@@ -8038,27 +8038,28 @@ void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
 
 /*------------------------------------------------------------------*/
 
-void show_custom_page(Param* pp, Return* r, const char *path, const char *cookie_cpwd)
+void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_cpwd)
 {
    int size, n_var, fh, index, edit;
    char str[TEXT_SIZE], keypath[256], type[32], *p, *ps, custom_path[256],
-      filename[256], pwd[256], ppath[256], tail[256];
+      filename[256], pwd[256], path[256], ppath[256], tail[256];
    HNDLE hDB, hkey;
    KEY key;
    char data[TEXT_SIZE];
 
-   if (strstr(path, ".gif")) {
-      show_custom_gif(r, path);
+   if (strstr(url, ".gif")) {
+      show_custom_gif(r, url);
       return;
    }
 
-   if (strchr(path, '.')) {
-      show_custom_file(r, path);
+   if (strchr(url, '.')) {
+      show_custom_file(r, url);
       return;
    }
 
    cm_get_experiment_database(&hDB, NULL);
 
+   strlcpy(path, pp->getparam("page"), sizeof(path));
    if (path[0] == 0) {
       show_error(r, "Invalid custom page: NULL path");
       return;
@@ -18429,25 +18430,8 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    /*---- (old) custom page -----------------------------------------*/
 
-   if (strncmp(dec_path, "CS/", 3) == 0) {
-      if (equal_ustring(command, "edit")) {
-         sprintf(str, "%s?cmd=Edit&index=%d", dec_path+3, index);
-         if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
-            return;
-      }
-
-      show_custom_page(p, r, dec_path + 3, cookie_cpwd);
-      return;
-   }
-
-   if (db_find_key(hDB, 0, "/Custom/Status", &hkey) == DB_SUCCESS && dec_path[0] == 0) {
-      if (equal_ustring(command, "edit")) {
-         sprintf(str, "%s?cmd=Edit&index=%d", dec_path, index);
-         if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
-            return;
-      }
-
-      show_custom_page(p, r, "Status", cookie_cpwd);
+   if (equal_ustring(command, "custom")) {
+      show_custom_page(p, r, dec_path, cookie_cpwd);
       return;
    }
 
