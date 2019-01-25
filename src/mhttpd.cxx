@@ -8763,7 +8763,7 @@ void create_mscb_tree()
 
 /*------------------------------------------------------------------*/
 
-void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path, int refresh)
+void show_mscb_page(Param* p, Return* r, int refresh)
 {
    int i, j, n, ind, fi, fd, status, size, n_addr, *addr, cur_node, adr, show_hidden;
    unsigned int uptime;
@@ -8783,9 +8783,6 @@ void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path,
    if (!hKeySubm)
       create_mscb_tree();
 
-   if (strstr(path, "favicon") != NULL)
-      return;
-
    strlcpy(cur_subm_name, p->getparam("subm"), sizeof(cur_subm_name));
    if (cur_subm_name[0] == 0) {
       db_enum_key(hDB, hKeySubm, 0, &hKeyCurSubm);
@@ -8799,8 +8796,13 @@ void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path,
    } else
       db_find_key(hDB, hKeySubm, cur_subm_name, &hKeyCurSubm);
 
+   if (p->isparam("node"))
+      cur_node = atoi(p->getparam("node"));
+   else
+      cur_node = -1;
+
    /* perform MSCB rescan */
-   if (p->isparam("cmd") && equal_ustring(p->getparam("cmd"), "Rescan") && p->isparam("subm")) {
+   if (p->isparam("mcmd") && equal_ustring(p->getparam("mcmd"), "Rescan") && p->isparam("subm")) {
       /* create Pwd and Comment if not there */
       size = 32;
       str[0] = 0;
@@ -8896,10 +8898,7 @@ void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path,
          db_set_data(hDB, hKeyComm, node_comment, n_addr*32, n_addr, TID_STRING);
          free(node_comment);
 
-         if (path[0])
-            sprintf(str, "../%s", cur_subm_name);
-         else
-            sprintf(str, "%s", cur_subm_name);
+         sprintf(str, "?cmd=mscb&subm=%s", cur_subm_name);
          redirect(r, str);
          return;
 
@@ -8910,76 +8909,51 @@ void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path,
       }
    }
 
-   if (p->isparam("subm") && p->isparam("node")) {
-      strlcpy(cur_subm_name, p->getparam("subm"), sizeof(cur_subm_name));
-      cur_node = atoi(p->getparam("node"));
-
-      /* write data to node */
-      if (p->isparam("idx") && p->isparam("value")) {
-         i = atoi(p->getparam("idx"));
-         strlcpy(value, p->getparam("value"), sizeof(value));
-
-         fd = mscb_init(cur_subm_name, 0, "", FALSE);
-         if (fd >= 0) {
-            status = mscb_info_variable(fd,
-                       (unsigned short) cur_node, (unsigned char) i, &info_var);
-            if (status == MSCB_SUCCESS) {
-               if (info_var.unit == UNIT_STRING) {
-                  memset(str, 0, sizeof(str));
-                  strncpy(str, value, info_var.width);
-                  if (strlen(str) > 0 && str[strlen(str) - 1] == '\n')
-                     str[strlen(str) - 1] = 0;
-
-                  status = mscb_write(fd, (unsigned short) cur_node,
-                                    (unsigned char) i, str, strlen(str) + 1);
+   /* write data to node */
+   if (p->isparam("subm") && p->isparam("node") &&
+       p->isparam("idx") && p->isparam("value")) {
+      i = atoi(p->getparam("idx"));
+      strlcpy(value, p->getparam("value"), sizeof(value));
+      
+      fd = mscb_init(cur_subm_name, 0, "", FALSE);
+      if (fd >= 0) {
+         status = mscb_info_variable(fd,
+                                     (unsigned short) cur_node, (unsigned char) i, &info_var);
+         if (status == MSCB_SUCCESS) {
+            if (info_var.unit == UNIT_STRING) {
+               memset(str, 0, sizeof(str));
+               strncpy(str, value, info_var.width);
+               if (strlen(str) > 0 && str[strlen(str) - 1] == '\n')
+                  str[strlen(str) - 1] = 0;
+               
+               status = mscb_write(fd, (unsigned short) cur_node,
+                                   (unsigned char) i, str, strlen(str) + 1);
+            } else {
+               if (info_var.flags & MSCBF_FLOAT) {
+                  fvalue = (float) atof(value);
+                  memcpy(&dbuf, &fvalue, sizeof(float));
                } else {
-                  if (info_var.flags & MSCBF_FLOAT) {
-                     fvalue = (float) atof(value);
-                     memcpy(&dbuf, &fvalue, sizeof(float));
-                  } else {
-                     if (value[1] == 'x')
-                        sscanf(value + 2, "%x", (int *)&dbuf);
-                     else
-                        *((int *)dbuf) = atoi(value);
-                  }
-
-                  status = mscb_write(fd, (unsigned short) cur_node,
-                                    (unsigned char) i, dbuf, info_var.width);
+                  if (value[1] == 'x')
+                     sscanf(value + 2, "%x", (int *)&dbuf);
+                  else
+                     *((int *)dbuf) = atoi(value);
                }
+               
+               status = mscb_write(fd, (unsigned short) cur_node,
+                                   (unsigned char) i, dbuf, info_var.width);
             }
          }
       }
-
-      if (path[0])
-         sprintf(str, "../%s/%d", cur_subm_name, cur_node);
-      else
-         sprintf(str, "%s/%d", cur_subm_name, cur_node);
-      if (p->isparam("hidden"))
-         strlcat(str, "h", sizeof(str));
+      sprintf(str, "?cmd=mscb&subm=%s&node=%d", cur_subm_name, cur_node);
       redirect(r, str);
       return;
    }
 
-   if (path[0]) {
-      strlcpy(cur_subm_name, path, sizeof(cur_subm_name));
-      if (strchr(cur_subm_name, '/'))
-         *strchr(cur_subm_name, '/') = 0;
-      if (strchr(cur_subm_name, '?'))
-         *strchr(cur_subm_name, '?') = 0;
-      if (strchr(path, '/'))
-         cur_node = atoi(strchr(path, '/')+1);
-      else
-         cur_node = -1;
-   } else {
-      cur_subm_name[0] = 0;
-      cur_node = -1;
-   }
-
-   if (path[0] && path[strlen(path)-1] == 'h')
-      show_hidden = TRUE;
+   if (p->isparam("hidden"))
+      show_hidden = atoi(p->getparam("hidden"));
    else
       show_hidden = FALSE;
-
+   
    show_header(r, "MSCB", "GET", "./", refresh);
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
@@ -9033,17 +9007,7 @@ void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path,
    r->rsprintf("{\r\n");
    r->rsprintf("   var new_value = prompt('Please enter new value', value);\r\n");
    r->rsprintf("   if (new_value != undefined) {\r\n");
-   r->rsprintf("     o = document.createElement('input');\r\n");
-   r->rsprintf("     o.type = 'hidden';\r\n");
-   r->rsprintf("     o.name = 'idx';\r\n");
-   r->rsprintf("     o.value = index;\r\n");
-   r->rsprintf("     document.form1.appendChild(o);\r\n");
-   r->rsprintf("     o = document.createElement('input');\r\n");
-   r->rsprintf("     o.type = 'hidden';\r\n");
-   r->rsprintf("     o.name = 'value';\r\n");
-   r->rsprintf("     o.value = new_value;\r\n");
-   r->rsprintf("     document.form1.appendChild(o);\r\n");
-   r->rsprintf("     document.form1.submit()\r\n");
+   r->rsprintf("     window.location.search = '?cmd=mscb&subm=%s&node=%d&idx='+index+'&value='+new_value;\n", cur_subm_name, cur_node);
    r->rsprintf("   }\n");
    r->rsprintf("}\r\n");
    r->rsprintf("</script>\r\n\r\n");
@@ -9057,7 +9021,7 @@ void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path,
 
    r->rsprintf("<tr><td colspan=2>\n");
    r->rsprintf("<table width=100%%><tr>\n");
-   r->rsprintf("<td><input type=submit name=cmd value=Reload></td>\n");
+   r->rsprintf("<td><input type=button value=Reload onclick=\"window.location.search='?cmd=mscb&subm=%s&node=%d&rnd=%d'\"></td>\n", cur_subm_name, cur_node, rand());
 
    r->rsprintf("<tr><td colspan=\"2\" cellpadding=\"0\" cellspacing=\"0\">\r\n");
 
@@ -9089,7 +9053,8 @@ void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path,
    if (i<2)
       i = 2;
 
-   r->rsprintf("<select name=\"subm\" size=%d onChange=\"document.form1.submit();\">\r\n", i);
+   r->rsprintf("<select name=\"subm\" id=\"subm\" size=%d ", i);
+   r->rsprintf("onChange=\"window.location.search='?cmd=mscb&subm='+document.getElementById('subm').value;\">\r\n");
    hKeyCurSubm = 0;
    for (i = 0;;i++) {
       db_enum_key(hDB, hKeySubm, i, &hKey);
@@ -9122,7 +9087,7 @@ void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path,
    r->rsprintf("{\n");
    r->rsprintf("   flag = confirm('Rescan can take up to one minute.');\n");
    r->rsprintf("   if (flag == true)\n");
-   r->rsprintf("      window.location.href = '?cmd=Rescan&subm=%s';\n", cur_subm_name);
+   r->rsprintf("      window.location.href = '?cmd=mscb&mcmd=Rescan&subm=%s';\n", cur_subm_name);
    r->rsprintf("}\n");
    r->rsprintf("//-->\n");
    r->rsprintf("</script>\n");
@@ -9154,7 +9119,9 @@ void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path,
    }
    if (i < 2)
       i = 2;
-   r->rsprintf("<select name=\"node\" size=%d onChange=\"document.form1.submit();\">\r\n", i);
+   
+   r->rsprintf("<select name=\"node\" id=\"node\" size=%d ", i);
+   r->rsprintf("onChange=\"window.location.search='?cmd=mscb&subm=%s&node='+document.getElementById('node').value;\">\r\n", cur_subm_name);
 
    if (hKeyAddr) {
       db_get_key(hDB, hKeyAddr, &key);
@@ -9254,7 +9221,7 @@ void show_mscb_page(Param* p, Return* r, const char* dec_path, const char *path,
    if (i < info.n_variables) {
       strcpy(str, show_hidden ? " checked" : "");
       r->rsprintf("<tr><td colspan=3><input type=checkbox%s name=\"hidden\" value=\"1\"", str);
-      r->rsprintf("onChange=\"document.form1.submit();\">Display hidden variables<hr></td></tr>\r\n");
+      r->rsprintf("onChange=\"window.location.search=?cmd=mscb&subm=%s&node=%d&hidden=1\">Display hidden variables<hr></td></tr>\r\n", cur_subm_name, cur_node);
    }
 
    /* read variables in blocks of 100 bytes */
@@ -17923,18 +17890,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
    
-   /*---- redirect if MSCB command ----------------------------------*/
-
-   if (equal_ustring(command, "MSCB")) {
-      str[0] = 0;
-      for (const char* p=dec_path ; *p ; p++)
-         if (*p == '/')
-            strlcat(str, "../", sizeof(str));
-      strlcat(str, "MS/", sizeof(str));
-      redirect(r, str);
-      return;
-   }
-   
    /*---- redirect if elog command ----------------------------------*/
 
    if (equal_ustring(command, "elog")) {
@@ -18002,7 +17957,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    /*---- MSCB command ----------------------------------------------*/
 
-   if (strncmp(dec_path, "MS/", 3) == 0) {
+   if (equal_ustring(command, "MSCB")) {
       if (equal_ustring(command, "set")) {
          sprintf(str, "%s?cmd=%s", dec_path, command);
          if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
@@ -18010,7 +17965,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       }
 
 #ifdef HAVE_MSCB
-      show_mscb_page(p, r, dec_path, dec_path + 3, refresh);
+      show_mscb_page(p, r, refresh);
 #else
       show_error(r, "MSCB support not compiled into this version of mhttpd");
 #endif
