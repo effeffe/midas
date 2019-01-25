@@ -11579,7 +11579,7 @@ static MidasHistoryInterface* get_history(bool reset = false)
 
    mhkey = hKey;
 
-   cm_msg(MINFO, "get_history", "Reading history from channel \'%s\' type \'%s\'", mh->name, mh->type);
+   // cm_msg(MINFO, "get_history", "Reading history from channel \'%s\' type \'%s\'", mh->name, mh->type);
 
    return mh;
 }
@@ -12998,7 +12998,7 @@ void add_param_to_url(char* buf, int bufsize, const char* name, const char* valu
 
 /*------------------------------------------------------------------*/
 
-void show_query_page(Param* p, Return* r, const char* dec_path, const char *path)
+void show_query_page(Param* p, Return* r)
 {
    int i;
    HNDLE hDB;
@@ -13048,11 +13048,9 @@ void show_query_page(Param* p, Return* r, const char* dec_path, const char *path
       if (ltime_end == ltime_start)
          ltime_end += 3600 * 24;
 
-      strcpy(str, path);
-      if (strrchr(str, '/'))
-         strcpy(str, strrchr(str, '/')+1);
-      //sprintf(redir, "%s?scale=%d&offset=%d", str, (int) (ltime_end - ltime_start), MIN((int) (ltime_end - ss_time()), 0));
-      sprintf(redir, "%s?scale=%d&time=%s", str, (int) (ltime_end - ltime_start), time_to_string(ltime_end));
+      sprintf(redir, "?cmd=history&group=%s&panel=%s&scale=%d&time=%s",
+              p->getparam("group"), p->getparam("panel"),
+              (int) (ltime_end - ltime_start), time_to_string(ltime_end));
       if (p->isparam("hindex"))
          add_param_to_url(redir, sizeof(redir), "index", p->getparam("hindex"));
       redirect(r, redir);
@@ -13060,11 +13058,7 @@ void show_query_page(Param* p, Return* r, const char* dec_path, const char *path
    }
 
    cm_get_experiment_database(&hDB, NULL);
-
-   strcpy(str, path);
-   if (strrchr(str, '/'))
-      strcpy(str, strrchr(str, '/')+1);
-   show_header(r, "History", "GET", str, 0);
+   show_header(r, "History", "GET", "", 0);
 
    /* set the times */
 
@@ -13090,14 +13084,19 @@ void show_query_page(Param* p, Return* r, const char* dec_path, const char *path
 
    /* menu buttons */
    r->rsprintf("<tr><td colspan=2>\n");
-   r->rsprintf("<input type=submit name=cmd value=Query>\n");
-   r->rsprintf("<input type=submit name=cmd value=Cancel>\n");
+   r->rsprintf("<input type=hidden name=cmd value=History>\n");
+   r->rsprintf("<input type=submit name=hcmd value=Query>\n");
+   r->rsprintf("<input type=submit name=hcmd value=Cancel>\n");
+   if (p->isparam("group"))
+      r->rsprintf("<input type=hidden name=group value=\"%s\">\n", p->getparam("group"));
+   if (p->isparam("panel"))
+      r->rsprintf("<input type=hidden name=panel value=\"%s\">\n", p->getparam("panel"));
    if (p->isparam("htime"))
-      r->rsprintf("<input type=hidden name=htime value=%s>\n", p->getparam("htime"));
+      r->rsprintf("<input type=hidden name=htime value=\"%s\">\n", p->getparam("htime"));
    if (p->isparam("hscale"))
-      r->rsprintf("<input type=hidden name=hscale value=%s>\n", p->getparam("hscale"));
+      r->rsprintf("<input type=hidden name=hscale value=\"%s\">\n", p->getparam("hscale"));
    if (p->isparam("hindex"))
-      r->rsprintf("<input type=hidden name=hindex value=%s>\n", p->getparam("hindex"));
+      r->rsprintf("<input type=hidden name=hindex value=\"%s\">\n", p->getparam("hindex"));
    r->rsprintf("</tr>\n\n");
    r->rsprintf("</table>");  //end header
 
@@ -14418,7 +14417,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
    }
 
    if (equal_ustring(hcmd, "Query")) {
-      show_query_page(p, r, dec_path, dec_path);
+      show_query_page(p, r);
       return;
    }
 
@@ -14457,7 +14456,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
                break;
 
             db_get_key(hDB, hkeyp, &key);
-            if (equal_ustring(dec_path, key.name))
+            if (equal_ustring(hgroup, key.name))
                r->rsprintf("<option selected>%s</option>\n", key.name);
             else
                r->rsprintf("<option>%s</option>\n", key.name);
@@ -14622,17 +14621,10 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
          time_t now = time(NULL);
          tms = localtime(&now);
 
-         char str[MAX_STRING_LENGTH];
-
-         if (strchr(dec_path, '/'))
-            strlcpy(str, strchr(dec_path, '/') + 1, sizeof(str));
-         else
-            strlcpy(str, dec_path, sizeof(str));
-
          char file_name[256];
          sprintf(file_name, "%02d%02d%02d_%02d%02d%02d_%s.gif",
                   tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday,
-                  tms->tm_hour, tms->tm_min, tms->tm_sec, str); // FIXME: overflows file_name
+                  tms->tm_hour, tms->tm_min, tms->tm_sec, hpanel); // FIXME: overflows file_name
          std::string fname = dir + file_name;
 
          /* save attachment */
@@ -14660,7 +14652,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       } else {
          char str[MAX_STRING_LENGTH];
          /*---- use internal ELOG ----*/
-         sprintf(str, "\\HS\\%s.gif", dec_path); // FIXME: overflows str
+         sprintf(str, "\\HS\\%s.gif", hpanel); // FIXME: overflows str
          if (p->getparam("hscale") && *p->getparam("hscale"))
             sprintf(str + strlen(str), "?scale=%s", p->getparam("hscale"));
          if (p->getparam("htime") && *p->getparam("htime")) {
@@ -14692,7 +14684,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
             sprintf(str + strlen(str), "index=%s", p->getparam("hindex"));
          }
 
-         show_elog_new(r, dec_path, NULL, FALSE, str, "../../EL/");
+         show_elog_new(r, hpanel, NULL, FALSE, str, "../../EL/");
          return;
       }
    }
@@ -15013,11 +15005,11 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       r->rsprintf("</noscript>\n");
 
       r->rsprintf("&nbsp;&nbsp;<input type=\"button\" name=\"New\" value=\"New\" ");
-      r->rsprintf("onClick=\"window.location.href='?cmd=history&hcmd=New'\">\n");
+      r->rsprintf("onClick=\"window.location.href='?cmd=history&hcmd=New&group=%s'\">\n", hgroup);
 
-      r->rsprintf("<input type=\"button\" name=\"Cmd\" value=\"Reset\" onClick=\"window.location.href='?cmd=history&hcmd=Reset'\">\n");
+      r->rsprintf("<input type=\"button\" name=\"Cmd\" value=\"Reset\" onClick=\"window.location.href='?cmd=history&hcmd=Reset&group=%s&panel=%s'\">\n", hgroup, hpanel);
 
-      r->rsprintf("<input type=\"button\" name=\"Cmd\" value=\"Query\" onClick=\"window.location.href='?cmd=history&hcmd=Query'\">\n");
+      r->rsprintf("<input type=\"button\" name=\"Cmd\" value=\"Query\" onClick=\"window.location.href='?cmd=history&hcmd=Query&group=%s&panel=%s'\">\n", hgroup, hpanel);
 
       r->rsprintf("</td></tr>\n");
    }
@@ -15156,7 +15148,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       }
 
       /* define image map */
-      r->rsprintf("<map name=\"%s\">\r\n", dec_path);
+      r->rsprintf("<map name=\"%s\">\r\n", hpanel);
 
       if (!(pindex && *pindex)) {
          char str[MAX_ODB_PATH];
@@ -15168,23 +15160,23 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
             for (i = 0; i < key.num_values; i++) {
                char ref[256];
                if (paramstr[0])
-                  sprintf(ref, "%s?%s&index=%d", dec_path, paramstr, i);
+                  sprintf(ref, "?cmd=history&group=%s&panel=%s&%s&index=%d", hgroup, hpanel, paramstr, i);
                else
-                  sprintf(ref, "%s?index=%d", dec_path, i);
+                  sprintf(ref, "?cmd=history&group=%s&panel=%s&index=%d", hgroup, hpanel, i);
 
                r->rsprintf("  <area shape=rect coords=\"%d,%d,%d,%d\" href=\"%s\">\r\n",
                         30, 31 + 23 * i, 150, 30 + 23 * i + 17, ref);
             }
          }
       } else {
-         std::string ref;
+         std::string ref = "?cmd=history&group=";
+         ref += hgroup;
+         ref += "&panel=";
+         ref += hpanel;
          
          if (paramstr[0]) {
-            ref += dec_path;
-            ref += "?";
+            ref += "&";
             ref += paramstr;
-         } else {
-            ref = dec_path;
          }
 
          if (equal_ustring(pmag, "Large"))
@@ -15209,7 +15201,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       sprintf(ref, "graph.gif?cmd=history&group=%s&panel=%s%s", hgroup, hpanel, paramstr);
 
       /* put reference to graph */
-      r->rsprintf("<tr><td colspan=2><img src=\"%s\" alt=\"%s.gif\" usemap=\"#%s\"></tr>\n", ref, hpanel, dec_path);
+      r->rsprintf("<tr><td colspan=2><img src=\"%s\" alt=\"%s.gif\" usemap=\"#%s\"></tr>\n", ref, hpanel, hpanel);
    }
 
    else if (equal_ustring(hpanel, "All")) {
