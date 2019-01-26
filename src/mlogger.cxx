@@ -1588,20 +1588,19 @@ void logger_init()
 
 void log_odb_dump(LOG_CHN * log_chn, short int event_id, INT run_number)
 {
-   INT status, buffer_size, size;
-   EVENT_HEADER *pevent;
-
    /* write ODB dump */
-   buffer_size = 100000;
+
+   static int buffer_size = 100000;
+
    do {
-      pevent = (EVENT_HEADER *) malloc(buffer_size);
+      EVENT_HEADER* pevent = (EVENT_HEADER *) malloc(buffer_size);
       if (pevent == NULL) {
          cm_msg(MERROR, "log_odb_dump", "Cannot allocate ODB dump buffer");
          break;
       }
 
-      size = buffer_size - sizeof(EVENT_HEADER);
-      status = db_copy_xml(hDB, 0, (char *) (pevent + 1), &size);
+      int size = buffer_size - sizeof(EVENT_HEADER);
+      int status = db_copy_xml(hDB, 0, (char *) (pevent + 1), &size);
 
       /* following line would dump ODB in old ASCII format instead of XML */
       //status = db_copy(hDB, 0, (char *) (pevent + 1), &size, "");
