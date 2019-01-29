@@ -1893,22 +1893,8 @@ void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, co
 
    r->rsprintf("\r\n<html>\n");
 
-#define NEW_START_STOP 1
-
-#ifndef NEW_START_STOP
-   /* auto refresh */
-   i = 0;
-   size = sizeof(i);
-   db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT, FALSE);
-   if (i > 0)
-      r->rsprintf("<head><meta http-equiv=\"Refresh\" content=\"1\">\n");
-   else {
-#endif
-      if (refresh > 0)
-         r->rsprintf("<head><meta http-equiv=\"Refresh\" content=\"%02d\">\n", refresh);
-#ifndef NEW_START_STOP
-   }
-#endif
+   if (refresh > 0)
+      r->rsprintf("<head><meta http-equiv=\"Refresh\" content=\"%02d\">\n", refresh);
 
    r->rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
    r->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
@@ -2118,7 +2104,7 @@ void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, co
    flag = TRUE;
    size = sizeof(flag);
    db_get_value(hDB, 0, "/Experiment/Start-Stop Buttons", &flag, &size, TID_BOOL, TRUE);
-#ifdef NEW_START_STOP
+
    if (flag && !runinfo.transition_in_progress) {
       if (runinfo.state == STATE_STOPPED)
          r->rsprintf("<input type=button %s value=Start onClick=\"mhttpd_start_run();\">\n", runinfo.transition_in_progress?"disabled":"");
@@ -2127,29 +2113,11 @@ void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, co
             r->rsprintf("<input type=button %s value=Stop onClick=\"mhttpd_stop_run();\">\n", runinfo.transition_in_progress?"disabled":"");
       }
    }
-#else
-   if (flag) {
-      if (runinfo.state == STATE_STOPPED)
-         r->rsprintf("<input type=submit name=cmd %s value=Start>\n", runinfo.transition_in_progress?"disabled":"");
-      else {
-         r->rsprintf("<script type=\"text/javascript\">\n");
-         r->rsprintf("function stop()\n");
-         r->rsprintf("{\n");
-         r->rsprintf("   flag = confirm('Are you sure to stop the run?');\n");
-         r->rsprintf("   if (flag == true)\n");
-         r->rsprintf("      window.location.href = '?cmd=Stop';\n");
-         r->rsprintf("}\n");
-         if (runinfo.state == STATE_PAUSED || runinfo.state == STATE_RUNNING)
-            r->rsprintf("document.write('<input type=button %s value=Stop onClick=\"stop();\">\\n');\n", runinfo.transition_in_progress?"disabled":"");
-         r->rsprintf("</script>\n");
-      }
-   }
-#endif
 
    flag = FALSE;
    size = sizeof(flag);
    db_get_value(hDB, 0, "/Experiment/Pause-Resume Buttons", &flag, &size, TID_BOOL, TRUE);
-#ifdef NEW_START_STOP
+
    if (flag && !runinfo.transition_in_progress) {
       if (runinfo.state != STATE_STOPPED) {
          if (runinfo.state == STATE_RUNNING)
@@ -2158,30 +2126,6 @@ void show_status_page(Param* p, Return* r, const char* dec_path, int refresh, co
             r->rsprintf("<input type=button %s value=Resume onClick=\"mhttpd_resume_run();\">\n", runinfo.transition_in_progress?"disabled":"");
       }
    }
-#else
-   if (flag) {
-      if (runinfo.state != STATE_STOPPED) {
-         r->rsprintf("<script type=\"text/javascript\">\n");
-         r->rsprintf("function pause()\n");
-         r->rsprintf("{\n");
-         r->rsprintf("   flag = confirm('Are you sure to pause the run?');\n");
-         r->rsprintf("   if (flag == true)\n");
-         r->rsprintf("      window.location.href = '?cmd=Pause';\n");
-         r->rsprintf("}\n");
-         r->rsprintf("function resume()\n");
-         r->rsprintf("{\n");
-         r->rsprintf("   flag = confirm('Are you sure to resume the run?');\n");
-         r->rsprintf("   if (flag == true)\n");
-         r->rsprintf("      window.location.href = '?cmd=Resume';\n");
-         r->rsprintf("}\n");
-         if (runinfo.state == STATE_RUNNING)
-            r->rsprintf("document.write('<input type=button %s value=Pause onClick=\"pause();\"\\n>');\n", runinfo.transition_in_progress?"disabled":"");
-         if (runinfo.state == STATE_PAUSED)
-            r->rsprintf("document.write('<input type=button %s value=Resume onClick=\"resume();\"\\n>');\n", runinfo.transition_in_progress?"disabled":"");
-         r->rsprintf("</script>\n");
-      }
-   }
-#endif
 
    if (runinfo.transition_in_progress) {
       r->rsprintf("<input type=button value=Cancel onClick=\"mhttpd_cancel_transition();\">\n");
@@ -17780,12 +17724,10 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    /*---- send the new html pages -----------------------------------*/
 
-#ifdef NEW_START_STOP
    if (equal_ustring(command, "start")) {
       send_resource(r, "start.html");
       return;
    }
-#endif
 
    if (equal_ustring(command, "") && strlen(dec_path) == 0) {
        send_resource(r, "status.html");
