@@ -11741,6 +11741,7 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    strlcpy(hcmd, p->getparam("hcmd"), sizeof(hcmd));
 
    if (equal_ustring(hcmd, "Clear history cache")) {
+      //printf("clear history cache!\n");
       strcpy(hcmd, "Refresh");
       MidasHistoryInterface* mh = get_history();
       if (mh)
@@ -11782,7 +11783,7 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    /* menu buttons */
    r->rsprintf("<tr><td colspan=8>\n");
    r->rsprintf("<input type=button value=Refresh ");
-   r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=Refresh'\">\n", hgroup, hpanel);
+   r->rsprintf("onclick=\"document.form1.hcmd.value='Refresh';document.form1.submit()\">\n", hgroup, hpanel);
    
    r->rsprintf("<input type=button value=Save ");
    r->rsprintf("onclick=\"document.form1.hcmd.value='Save';document.form1.submit()\">\n");
@@ -11790,7 +11791,7 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    r->rsprintf("<input type=button value=Cancel ");
    r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=Cancel'\">\n", hgroup, hpanel);
    r->rsprintf("<input type=button value=\"Clear history cache\"");
-   r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=Clear%%20history Cache'\">\n", hgroup, hpanel);
+   r->rsprintf("onclick=\"document.form1.hcmd.value='Clear history cache';document.form1.submit()\">\n");
    r->rsprintf("<input type=button value=\"Delete panel\"");
    r->rsprintf("onclick=\"window.location.search='?cmd=history&group=%s&panel=%s&hcmd=Delete%%20panel'\">\n", hgroup, hpanel);
    r->rsprintf("</td></tr>\n");
@@ -12783,7 +12784,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       sprintf(str, "/History/Display/%s/%s", hgroup, hpanel);
       status = db_find_key(hDB, 0, str, &hkey);
       if (status != DB_SUCCESS && !equal_ustring(hpanel, "All") && !equal_ustring(hpanel,"")) {
-         r->rsprintf("<h1>Error: History panel \"%s\" does not exist</h1>\n", hpanel);
+         r->rsprintf("<h1>Error: History panel \"%s\" in group \"%s\" does not exist</h1>\n", hpanel, hgroup);
          r->rsprintf("</table>\r\n");
          r->rsprintf("</div>\n"); // closing for <div id="mmain">
          r->rsprintf("</form>\n");
@@ -13004,9 +13005,10 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       r->rsprintf("</td></tr>\n");
    }
 
+   //printf("hgroup [%s] hpanel [%s]\n", hgroup, hpanel);
 
    /* check if whole group should be displayed */
-   if (hgroup[0] && !equal_ustring(hpanel, "ALL") && hpanel[0] == 0) {
+   if (hgroup[0] && !equal_ustring(hgroup, "ALL") && hpanel[0] == 0) {
       std::string strwidth = "Small";
       db_get_value_string(hDB, 0, "/History/Display Settings/Width Group", 0, &strwidth, TRUE);
 
@@ -13050,9 +13052,9 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
             }
 
             if (i % 2 == 0)
-               r->rsprintf("<tr><td><a href=\"%s\"><img src=\"%s\" alt=\"%s.gif\"></a>\n", ref2.c_str(), ref.c_str(), key.name);
+               r->rsprintf("<tr><td><a href=\"%s\"><img src=\"%s\"></a>\n", ref2.c_str(), ref.c_str());
             else
-               r->rsprintf("<td><a href=\"%s\"><img src=\"%s\" alt=\"%s.gif\"></a></tr>\n", ref2.c_str(), ref.c_str(), key.name);
+               r->rsprintf("<td><a href=\"%s\"><img src=\"%s\"></a></tr>\n", ref2.c_str(), ref.c_str());
          }
 
       } else {
@@ -13191,10 +13193,10 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       sprintf(ref, "graph.gif?cmd=history&group=%s&panel=%s%s", hgroup, hpanel, paramstr);
 
       /* put reference to graph */
-      r->rsprintf("<tr><td colspan=2><img src=\"%s\" alt=\"%s.gif\" usemap=\"#%s\"></tr>\n", ref, hpanel, hpanel);
+      r->rsprintf("<tr><td colspan=2><img src=\"%s\" usemap=\"#%s\"></tr>\n", ref, hpanel);
    }
 
-   else if (equal_ustring(hpanel, "All")) {
+   else if (equal_ustring(hgroup, "All")) {
       /* Display all panels */
       db_find_key(hDB, 0, "/History/Display", &hkey);
       if (hkey)
@@ -13206,9 +13208,9 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
             db_get_key(hDB, hkeyp, &key);
 
-            char enc_name[256];
-            strlcpy(enc_name, key.name, sizeof(enc_name));
-            urlEncode(enc_name, sizeof(enc_name));
+            char enc_group_name[256];
+            strlcpy(enc_group_name, key.name, sizeof(enc_group_name));
+            urlEncode(enc_group_name, sizeof(enc_group_name));
 
             for (j = 0;; j++, k++) {
                // scan items
@@ -13219,34 +13221,36 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
                db_get_key(hDB, hikeyp, &ikey);
 
-               char enc_iname[256];
-               strlcpy(enc_iname, ikey.name, sizeof(enc_iname));
-               urlEncode(enc_iname, sizeof(enc_iname));
+               char enc_panel_name[256];
+               strlcpy(enc_panel_name, ikey.name, sizeof(enc_panel_name));
+               urlEncode(enc_panel_name, sizeof(enc_panel_name));
 
                std::string ref;
-               ref += enc_name;
-               ref += "/";
-               ref += enc_iname;
-               ref += ".gif?width=Small";
-
+               ref += "graph.gif?width=Small";
+               ref += "&cmd=history&group=";
+               ref += enc_group_name;
+               ref += "&panel=";
+               ref += enc_panel_name;
+               
                std::string ref2;
-               ref2 += enc_name;
-               ref2 += "/";
-               ref2 += enc_iname;
+               ref2 += "?cmd=history&group=";
+               ref2 += enc_group_name;
+               ref2 += "&panel=";
+               ref2 += enc_panel_name;
 
                if (endtime != 0) {
                   char tmp[256];
                   sprintf(tmp, "time=%s&scale=%d", time_to_string(endtime), scale);
                   ref += "&";
                   ref += tmp;
-                  ref2 += "?";
+                  ref2 += "&";
                   ref2 += tmp;
                }
 
                if (k % 2 == 0)
-                  r->rsprintf("<tr><td><a href=\"%s\"><img src=\"%s\" alt=\"%s.gif\"></a>\n", ref2.c_str(), ref.c_str(), ikey.name);
+                  r->rsprintf("<tr><td><a href=\"%s\"><img src=\"%s\"></a>\n", ref2.c_str(), ref.c_str());
                else
-                  r->rsprintf("<td><a href=\"%s\"><img src=\"%s\" alt=\"%s.gif\"></a></tr>\n", ref2.c_str(), ref.c_str(), ikey.name);
+                  r->rsprintf("<td><a href=\"%s\"><img src=\"%s\"></a></tr>\n", ref2.c_str(), ref.c_str());
             }                   // items loop
          }                      // Groups loop
    }                            // All
