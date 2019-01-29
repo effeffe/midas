@@ -14014,7 +14014,7 @@ void seq_start_page(Param* p, Return* r, const char* dec_path)
    r->rsprintf("<tr><td align=center colspan=2>\n");
    r->rsprintf("<input type=submit name=cmd value=\"Start Script\">\n");
    r->rsprintf("<input type=hidden name=params value=1>\n");
-   r->rsprintf("<input type=submit name=cmd value=Cancel>\n");
+   r->rsprintf("<input type=submit name=cmd value=\"Cancel Script\">\n");
    r->rsprintf("</tr>\n");
    r->rsprintf("</table>\n");
    
@@ -14327,7 +14327,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    }
    
    /*---- load XML file ----*/
-   if (equal_ustring(p->getparam("cmd"), "Load")) {
+   if (equal_ustring(p->getparam("xcmd"), "Load script file")) {
       if (p->isparam("dir"))
          strlcpy(str, p->getparam("dir"), sizeof(str));
       else
@@ -14336,7 +14336,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
          strlcat(str, p->getparam("fs"), sizeof(str));
       
       seq_load(seq, hDB, hKey, str);
-      redirect(r, "");
+      redirect(r, "?cmd=sequencer");
       return;
    }
    
@@ -14390,7 +14390,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
          
          seq_start(seq);
          cm_msg(MTALK, "show_seq_page", "Sequencer has been started.");
-         redirect(r, "");
+         redirect(r, "?cmd=sequencer");
          return;
          
       } else {
@@ -14401,7 +14401,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    }
    
    /*---- save script ----*/
-   if (equal_ustring(p->getparam("cmd"), "Save")) {
+   if (equal_ustring(p->getparam("cmd"), "Save script")) {
       strlcpy(str, seq.path, sizeof(str));
       if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
          strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
@@ -14425,19 +14425,19 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
       strlcat(str, seq.filename, sizeof(str));
 
       seq_save(seq, hDB, hKey, str, sizeof(str));
-      redirect(r, "");
+      redirect(r, "?cmd=sequencer");
       return;
    }
    
    /*---- stop after current run ----*/
    if (equal_ustring(p->getparam("cmd"), "Stop after current run")) {
       seq_set_stop_after_run(seq, TRUE);
-      redirect(r, "");
+      redirect(r, "?cmd=sequencer");
       return;
    }
    if (equal_ustring(p->getparam("cmd"), "Cancel 'Stop after current run'")) {
       seq_set_stop_after_run(seq, FALSE);
-      redirect(r, "");
+      redirect(r, "?cmd=sequencer");
       return;
    }
    
@@ -14445,21 +14445,21 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    if (equal_ustring(p->getparam("cmd"), "Stop immediately")) {
       seq_stop(seq);
       cm_msg(MTALK, "show_seq_page", "Sequencer is finished.");
-      redirect(r, "");
+      redirect(r, "?cmd=sequencer");
       return;
    }
    
    /*---- pause script ----*/
    if (equal_ustring(p->getparam("cmd"), "SPause")) {
       seq_set_paused(seq, TRUE);
-      redirect(r, "");
+      redirect(r, "?cmd=sequencer");
       return;
    }
    
    /*---- resume script ----*/
    if (equal_ustring(p->getparam("cmd"), "SResume")) {
       seq_set_paused(seq, FALSE);
-      redirect(r, "");
+      redirect(r, "?cmd=sequencer");
       return;
    }
 
@@ -14496,7 +14496,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    r->rsprintf("    if (rpc.result.status === 1) {;\n");
    r->rsprintf("       window.location.href = '?cmd=Start+Script';\n");
    r->rsprintf("    } else {\n");
-   r->rsprintf("       dlgAlert('Please start sequencer program before starting script');\n");
+   r->rsprintf("       dlgAlert('Sequencer is not running, please start it');\n");
    r->rsprintf("    }\n");
    r->rsprintf("  }).catch(function(error) {\n");
    r->rsprintf("    mjsonrpc_error_alert(error); });\n");
@@ -14531,12 +14531,12 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    r->rsprintf("   if (last_msg == null)\n");
    r->rsprintf("      last_msg = msg;\n");
    r->rsprintf("   else if (last_msg != msg)\n");
-   r->rsprintf("      window.location.href = '.';\n");
+   r->rsprintf("      window.location.reload();\n");
    r->rsprintf("   \n");
    r->rsprintf("   if (last_paused == null)\n");
    r->rsprintf("      last_paused = paused;\n");
    r->rsprintf("   else if (last_paused != paused)\n");
-   r->rsprintf("      window.location.href = '.';\n");
+   r->rsprintf("      window.location.reload();\n");
    r->rsprintf("   \n");
    r->rsprintf("   for (var sl=1 ; ; sl++) {\n");
    r->rsprintf("      sline = document.getElementById('sline'+sl);\n");
@@ -14691,12 +14691,13 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    r->rsprintf("   \n");
    r->rsprintf("   if (message != '') {\n");
    r->rsprintf("      alert(message);\n");
+   r->rsprintf("      message = '';\n");
    r->rsprintf("      ODBSet('/Sequencer/State/Message', '');\n");
-   r->rsprintf("      window.location.href = '.';\n");
+   r->rsprintf("      window.location.reload();\n");
    r->rsprintf("   }\n");
    r->rsprintf("   \n");
    r->rsprintf("   if (finished == 'y' || error_line > 0) {\n");
-   r->rsprintf("      window.location.href = '.';\n");
+   r->rsprintf("      window.location.reload();\n");
    r->rsprintf("   }\n");
    r->rsprintf("\n");
    r->rsprintf("   refreshID = setTimeout('seq_refresh()', 1000);\n");
@@ -14728,7 +14729,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
    r->rsprintf("      alert('Please select a file to load');\n");
    r->rsprintf("   else {\n");
    r->rsprintf("      var o = document.createElement('input');\n");
-   r->rsprintf("      o.type = 'hidden'; o.name='cmd'; o.value='Load';\n");
+   r->rsprintf("      o.type = 'hidden'; o.name='xcmd'; o.value='Load script file';\n");
    r->rsprintf("      document.form1.appendChild(o);\n");
    r->rsprintf("      document.form1.submit();\n");
    r->rsprintf("   }\n");
@@ -14900,12 +14901,13 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
       flist = NULL;
       r->rsprintf("</select>\n");
       r->rsprintf("<input type=hidden name=dir value=\"%s\">", dir);
+      r->rsprintf("<input type=hidden name=cmd value=\"Load Script\">");
       r->rsprintf("</td></tr>\n");
       
       r->rsprintf("<tr><td style=\"text-align:center\" colspan=2 id=\"cmnt\">&nbsp;</td></tr>\n");
       r->rsprintf("<tr><td style=\"text-align:center\" colspan=2>\n");
-      r->rsprintf("<input type=button onClick=\"load();\" value=\"Load\">\n");
-      r->rsprintf("<input type=submit name=cmd value=\"Cancel\">\n");
+      r->rsprintf("<input type=button onClick=\"load();\" value=\"Load Script\">\n");
+      r->rsprintf("<input type=submit name=cmd value=\"Cancel Script\">\n");
       r->rsprintf("</td></tr>\n");
       r->rsprintf("</table>");
    }
@@ -14929,15 +14931,15 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
          r->rsprintf("    return false;");
          r->rsprintf("}\n");
          r->rsprintf("</script>\n");
-         r->rsprintf("<input type=submit name=cmd onClick=\"return queryFilename();\" value=\"Save\">\n");
-         r->rsprintf("<input type=submit name=cmd value=\"Cancel\">\n");
+         r->rsprintf("<input type=submit name=cmd onClick=\"return queryFilename();\" value=\"Save Script\">\n");
+         r->rsprintf("<input type=submit name=cmd value=\"Cancel Script\">\n");
          r->rsprintf("<div align=\"right\"><a target=\"_blank\" href=\"https://midas.triumf.ca/MidasWiki/index.php/Sequencer\">Syntax Help</a></div>");
          r->rsprintf("</td></tr>\n");
          r->rsprintf("<tr><td colspan=2><textarea rows=30 cols=80 name=\"scripttext\" style=\"font-family:monospace;font-size:medium;\">\n");
          r->rsprintf("</textarea></td></tr>\n");
          r->rsprintf("<tr><td style=\"text-align:center;\" colspan=2>\n");
-         r->rsprintf("<input type=submit name=cmd onClick=\"return queryFilename();\" value=\"Save\">\n");
-         r->rsprintf("<input type=submit name=cmd value=\"Cancel\">\n");
+         r->rsprintf("<input type=submit name=cmd onClick=\"return queryFilename();\" value=\"Save Script\">\n");
+         r->rsprintf("<input type=submit name=cmd value=\"Cancel Script\">\n");
          r->rsprintf("</td></tr></table>\n");
       } else if (seq.filename[0]) {
          if (equal_ustring(p->getparam("cmd"), "Edit Script")) {
@@ -14951,7 +14953,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
             r->rsprintf("    if (f.indexOf('.') == -1)\n");
             r->rsprintf("       f = f+'.msl';\n");
             r->rsprintf("    ODBSet('/Sequencer/State/Filename', f);\n");
-            r->rsprintf("    var o=document.createElement('input');o.type='hidden';o.name='cmd';o.value='Save';\n");
+            r->rsprintf("    var o=document.createElement('input');o.type='hidden';o.name='cmd';o.value='Save script';\n");
             r->rsprintf("    document.form1.appendChild(o);\n");
             r->rsprintf("    document.form1.submit();\n");
             r->rsprintf("  }\n");
@@ -14959,8 +14961,8 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
             r->rsprintf("}\n");
             r->rsprintf("</script>\n");
             r->rsprintf("Filename:<a onClick=\"return queryFilename();\" href=\"#\">%s</a>&nbsp;&nbsp;", seq.filename);
-            r->rsprintf("<input type=submit name=cmd value=\"Save\">\n");
-            r->rsprintf("<input type=submit name=cmd value=\"Cancel\">\n");
+            r->rsprintf("<input type=submit name=cmd value=\"Save Script\">\n");
+            r->rsprintf("<input type=submit name=cmd value=\"Cancel Script\">\n");
             r->rsprintf("<div align=\"right\"><a target=\"_blank\" href=\"https://midas.triumf.ca/MidasWiki/index.php/Sequencer\">Syntax Help</a></div>");
             r->rsprintf("</td></tr>\n");
             r->rsprintf("<tr><td colspan=2><textarea rows=30 cols=80 name=\"scripttext\" style=\"font-family:monospace;font-size:medium;\">\n");
@@ -14979,8 +14981,8 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
             }
             r->rsprintf("</textarea></td></tr>\n");
             r->rsprintf("<tr><td style=\"text-align:center;\" colspan=2>\n");
-            r->rsprintf("<input type=submit name=cmd value=\"Save\">\n");
-            r->rsprintf("<input type=submit name=cmd value=\"Cancel\">\n");
+            r->rsprintf("<input type=submit name=cmd value=\"Save Script\">\n");
+            r->rsprintf("<input type=submit name=cmd value=\"Cancel Script\">\n");
             r->rsprintf("</td></tr>\n");
          } else {
             sectionEmpty = 1;
@@ -15500,8 +15502,8 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
+#ifdef OBSOLETE   
    /*---- redirect if sequencer command -----------------------------*/
-   
    if (equal_ustring(command, "sequencer")) {
       str[0] = 0;
       for (const char* p=dec_path ; *p ; p++)
@@ -15511,7 +15513,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       redirect(r, str);
       return;
    }
-   
+#endif   
    /*---- redirect if elog command ----------------------------------*/
 
    if (equal_ustring(command, "elog")) {
@@ -15727,10 +15729,72 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    /*---- sequencer page --------------------------------------------*/
 
+   if (equal_ustring(command, "Sequencer")) {
+      show_seq_page(p, r, dec_path);
+      return;
+   }
+
+   if (equal_ustring(command, "Start script")) {
+      show_seq_page(p, r, dec_path);
+      return;
+   }
+
+   if (equal_ustring(command, "Cancel script")) {
+      show_seq_page(p, r, dec_path);
+      return;
+   }
+
+   if (equal_ustring(command, "Load script")) {
+      show_seq_page(p, r, dec_path);
+      return;
+   }
+   
+   if (equal_ustring(command, "New script")) {
+      show_seq_page(p, r, dec_path);
+      return;
+   }
+
+   if (equal_ustring(command, "Save script")) {
+      show_seq_page(p, r, dec_path);
+      return;
+   }
+
+   if (equal_ustring(command, "Edit script")) {
+      show_seq_page(p, r, dec_path);
+      return;
+   }
+
+   if (equal_ustring(command, "SPause")) {
+      show_seq_page(p, r, dec_path);
+      return;
+   }
+
+   if (equal_ustring(command, "SResume")) {
+      show_seq_page(p, r, dec_path);
+      return;
+   }
+
+   if (equal_ustring(command, "Stop immediately")) {
+      show_seq_page(p, r, dec_path);
+      return;
+   }
+
+   if (equal_ustring(command, "Stop after current run")) {
+      show_seq_page(p, r, dec_path);
+      return;
+   }
+
+   if (equal_ustring(command, "Cancel \'Stop after current run\'")) {
+      show_seq_page(p, r, dec_path);
+      return;
+   }
+
+#ifdef OBSOLETE
    if (strncmp(dec_path, "SEQ/", 4) == 0) {
       show_seq_page(p, r, dec_path);
       return;
    }
+#endif
 
    /*---- (old) custom page -----------------------------------------*/
 
