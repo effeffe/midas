@@ -356,10 +356,10 @@
                   document.getElementById("runStatusSequencer").innerHTML = "Restart: Sequencer";
                } else {
                   if (loggerJson["auto restart"] === true) {
-                     document.getElementById("runStatusSequencer").innerHTML = "<a href='?cmd=odb&odb_path=Logger/Auto restart?cmd=set'>" + "Restart: On" + "</a>";
+                     document.getElementById("runStatusSequencer").innerHTML = "<a href='?cmd=Set&odb_path=Logger/Auto restart'>" + "Restart: On" + "</a>";
                      document.getElementById("runStatusSequencer").className = "mgreen mbox";
                   } else {
-                     document.getElementById("runStatusSequencer").innerHTML = "<a href='?cmd=odb&odb_path=Logger/Auto restart?cmd=set'>" + "Restart: Off" + "</a>";
+                     document.getElementById("runStatusSequencer").innerHTML = "<a href='?cmd=Set&odb_path=Logger/Auto restart'>" + "Restart: Off" + "</a>";
                      document.getElementById("runStatusSequencer").className = "myellow mbox";
                   }
                }
@@ -561,7 +561,7 @@
                   cl = "mgreen mbox";
 
                logChannelRow.innerHTML = "<td colspan=\"2\" class=\""+cl+"\">" +
-                       "<a href=\"?cmd=odb&odb_path=/Logger/Channels/" + element + "/Settings\">" +
+                       "<a href=\"?cmd=odb&odb_path=Logger/Channels/" + element + "/Settings\">" +
                        "#" + element + ": " + "</a>" +
                        currentChannel["settings"]["current filename"] +
                        "</td>" +
