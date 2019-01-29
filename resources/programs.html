@@ -112,7 +112,7 @@
 
       td = document.createElement("td");
       td.align = "center";
-      td.innerHTML = "<a href='Programs/" + full_name + "'>" + full_name + "</a>";
+      td.innerHTML = "<a href='?cmd=odb&odb_path=Programs/" + full_name + "'>" + full_name + "</a>";
       tr.appendChild(td);
 
       td = document.createElement("td");
@@ -253,7 +253,7 @@
                if (host) {
                   if (s.length > 0)
                      s += "<br>";
-                  s += "<a href='/System/Clients/" + key + "'>" + host + "</a>";
+                  s += "<a href='?cmd=odb&odb_path=System/Clients/" + key + "'>" + host + "</a>";
                }
             }
             e.childNodes[1].innerHTML = s;
@@ -303,7 +303,7 @@
 
          var alarm_class = programs[name]["alarm class"];
          if (alarm_class.length > 0) {
-            e.childNodes[2].innerHTML = "<a href='Alarms/Classes/" + alarm_class + "'>" + alarm_class + "</a>";
+            e.childNodes[2].innerHTML = "<a href='?cmd=odb&odb_path=Alarms/Classes/" + alarm_class + "'>" + alarm_class + "</a>";
             e.childNodes[2].className = "myellow";
          } else {
             e.childNodes[2].innerHTML = "-";
