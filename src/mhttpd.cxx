@@ -5552,7 +5552,7 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
          if (equal_ustring(key.name, group))
             r->rsprintf("<b>%s</b> &nbsp;&nbsp;", key.name);
          else
-            r->rsprintf("<a href=\"?cmd=odb&odb_path=/%s/Variables/%s\">%s</a> &nbsp;&nbsp;\n", eq_name, key.name, key.name);
+            r->rsprintf("<a href=\"?cmd=odb&odb_path=%s/Variables/%s\">%s</a> &nbsp;&nbsp;\n", eq_name, key.name, key.name);
       }
 
       r->rsprintf("</tr>\n");
@@ -9934,7 +9934,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                            hex_str[0] = 0;
                         }
 
-                        sprintf(ref, "%s?cmd=Set&index=%d", full_path, j);
+                        sprintf(ref, "?cmd=Set&odb_path=%s&index=%d", full_path, j);
                         sprintf(str, "%s[%d]", odb_path, j);
 
                         if (j > 0)
@@ -18408,7 +18408,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       if (p->getparam("odb_path") && *p->getparam("odb_path"))
          strlcpy(odb_enc_path, p->getparam("odb_path"), sizeof(odb_enc_path));
       else
-         strlcpy(odb_enc_path, "/", sizeof(odb_enc_path));
+         strlcpy(odb_enc_path, "", sizeof(odb_enc_path));
       strlcpy(odb_dec_path, odb_enc_path, sizeof(odb_dec_path));
       urlDecode(odb_dec_path);
 
