@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html class="mcss">
+<head>
+   <link rel="stylesheet" href="midas.css">
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <title>Elog message</title>
+</head>
+
+<body class="mcss" onload="mhttpd_init('Elog')">
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+  <div class="mmaintable">
+    <table width="95%" class="mtable"">
+      <tr>
+        <td class="mtableheader" id="table_name">elog_show</td>
+      </tr>
+      <tr>
+        <td align="center">
+          <form method="GET">
+            <div id="buttons_block">
+              <input type=submit name=cmd value="elog_new">
+              <input type=submit name=cmd value="elog_reply">
+              <input type=submit name=cmd value=elog_edit id="elog_edit_button">
+              <input type=submit name=cmd value=elog_delete id="elog_delete_button">
+              <input type=submit name=cmd value=elog_query>
+              <input type=submit name=cmd value=Query>
+              <input type=submit name=cmd value=Next>
+              <input type=submit name=cmd value=Previous>
+              <input type=submit name=cmd value=Last>
+              <input type=hidden name=tag  value="(tag)" id="tag_input">
+            </div>
+          </form>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Entry date: <span id="entry_date">(entry_date)</span>
+        </td>
+      </tr>
+      <tr>
+        <td id="run_number">
+          Run number: <input readonly type="text" size=10 maxlength=10 name="run" value="(run number)" id="run_number_input">
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Author: <input readonly type="text" size="15" maxlength="80" name="Author" value="" id="author_input">
+        </td>
+      </tr>
+      
+      <tr>
+        <td>
+          Type: <input readonly type="text" size="15" maxlength="80" name="Type" value="" id="type_input">
+        </td>
+      </tr>
+      
+      <tr>
+        <td>
+          System: <input readonly type="text" size="15" maxlength="80" name="System" value="" id="system_input">
+        </td>
+      </tr>
+      
+      <tr>
+        <td>
+          Subject: <input readonly type=text size=20 maxlength="80" name=Subject value="(subject)" id="subject_input">
+        </td>
+      </tr>
+      
+      <tr>
+        <td>Text:<br>
+          <div id="text_input_block"><textarea readonly cols="80" rows="10" name=Text id="text_input">(plain text)</textarea></div>
+          <div id="html_input_block"><p id="html_input">(html text)</p></div>
+        </td>
+      </tr>
+      
+      <tr>
+        <td>
+          Attachment 1: <a href="" id="att1_link"></a>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Attachment 2: <a href="" id="att2_link"></a>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Attachment 3: <a href="" id="att3_link"></a>
+        </td>
+      </tr>
+    </table>
+    
+    <script type="text/javascript">
+    
+    function set_text(id, text) {
+       var e = document.getElementById(id);
+       if (e) {
+          e.innerHTML = text;
+       }
+    }
+    
+    function set_value(id, text) {
+       var e = document.getElementById(id);
+       if (e) {
+          e.value = text;
+       }
+    }
+    
+    function set_checked(id, checked) {
+       var e = document.getElementById(id);
+       if (e) {
+          e.checked = checked;
+       }
+    }
+    
+    function add_option(id, text, selected) {
+       var e = document.getElementById(id);
+       //console.log("add_option: [" + id + "] " + e + " text[" + text + "] selected " + selected);
+       if (e) {
+          var o = document.createElement("option");
+          o.value = text;
+          o.innerHTML = text;
+          o.selected = selected;
+          e.appendChild(o);
+       }
+    }
+    
+    function add_button(id, text) {
+       var e = document.getElementById(id);
+       //console.log("add_option: [" + id + "] " + e + " text[" + text + "] selected " + selected);
+       if (e) {
+          var o = document.createElement("input");
+          o.type = "submit";
+          o.name = "cmd";
+          o.value = text;
+          e.appendChild(o);
+       }
+    }
+    
+    function hide(id) {
+       var e = document.getElementById(id);
+       if (e) {
+          e.style.visibility = "hidden";
+          e.style.display = "none";
+       }
+    }
+    
+    function disable(id) {
+       var e = document.getElementById(id);
+       if (e) {
+          e.disabled = true;
+       }
+    }
+    
+    function set_att_link(id, text) {
+       var e = document.getElementById(id);
+       if (e) {
+          e.innerHTML = text;
+          //e.download  = text;
+          e.href = text + "?cmd=elog_att";
+       }
+    }
+    
+    function load() {
+       var cmd = mhttpd_getParameterByName("cmd");
+       var tag    = mhttpd_getParameterByName("tag");
+       
+       set_text("table_name", "Elog message " + tag);
+       
+	    var req = new Object();
+	    req.tag = tag;
+       mjsonrpc_call("el_retrieve", req).then(function (rpc) {
+          var status = rpc.result.status;
+          var msg = rpc.result.msg;
+          
+          var type   = msg.type; //mhttpd_getParameterByName("type");
+          var system = msg.system; //mhttpd_getParameterByName("system");
+          
+          var encoding = msg.encoding;
+          
+          var html = false;
+          if (encoding == "HTML")
+             html = true;
+          
+          //console.log("msg encoding: " + encoding);
+          
+          set_text("entry_date", msg.date);
+          set_value("tag_input", msg.tag);
+          set_value("run_number_input", msg.run);
+          set_value("author_input", msg.author);
+          set_value("subject_input", msg.subject);
+          set_value("type_input", msg.type);
+          set_value("system_input", msg.system);
+
+          if (html) {
+             set_text("html_input", msg.text);
+             hide("text_input_block");
+          } else {
+             set_value("text_input", msg.text);
+             hide("html_input_block");
+          }
+
+          //console.log("msg att0: " + msg.attachment0);
+          //console.log("msg: " + JSON.stringify(msg));
+
+          //set_value("attfile1_input", msg.attachment0);
+          //set_value("attfile2_input", msg.attachment1);
+          //set_value("attfile3_input", msg.attachment2);
+
+          set_att_link("att1_link", msg.attachment0);
+          set_att_link("att2_link", msg.attachment1);
+          set_att_link("att3_link", msg.attachment2);
+          
+          var odb_list = [
+             "/Elog",
+          ];
+          
+          mjsonrpc_db_get_values(odb_list).then(function (rpc) {
+             var elog = rpc.result.data[0];
+             
+             if (!elog["display run number"]) {
+                hide("run_number");
+             }
+
+             if (!elog["allow delete"]) {
+                disable("elog_delete_button");
+             }
+
+             if (!elog["allow edit"]) {
+                disable("elog_edit_button");
+             }
+
+             if ("buttons" in elog) {
+                for (var i=0; i<elog.buttons.length; i++) {
+                   if (elog.buttons[i].length > 0) {
+                      add_button("buttons_block", "Last " + elog.buttons[i]);
+                   }
+                }
+             }
+             
+          }).catch(function (error) {
+             mjsonrpc_error_alert(error);
+          });
+       }).catch(function (error) {
+          mjsonrpc_error_alert(error);
+       });
+    }
+    
+    </script>
+  </div>
+</div>
+
+<script>
+load();
+</script>
+</body>
+</html>

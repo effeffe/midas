@@ -2217,6 +2217,63 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
 
 /////////////////////////////////////////////////////////////////////////////////
 //
+// elog code goes here
+//
+/////////////////////////////////////////////////////////////////////////////////
+
+static MJsonNode* js_el_retrieve(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("Get an elog message");
+      doc->P("tag", MJSON_STRING, "elog message tag");
+      doc->R("status", MJSON_INT, "return status of el_retrieve");
+      doc->R("msg.tag", MJSON_STRING, "message tag");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   std::string tag = mjsonrpc_get_param(params, "tag", &error)->GetString(); if (error) return error;
+
+   int run = 0;
+   char date[80], author[80], type[80], system[80], subject[256], text[10000];
+   char orig_tag[80], reply_tag[80], attachment[3][256], encoding[80];
+
+   char xtag[80];
+   strlcpy(xtag, tag.c_str(), sizeof(xtag));
+
+   int size = sizeof(text);
+
+   int status = el_retrieve(xtag,
+                            date, &run, author, type, system, subject,
+                            text, &size, orig_tag, reply_tag,
+                            attachment[0], attachment[1], attachment[2], encoding);
+
+   printf("el_retrieve: size %d, status %d\n", size, status);
+
+   MJsonNode* msg = MJsonNode::MakeObject();
+
+   msg->AddToObject("tag", MJsonNode::MakeString(xtag));
+   msg->AddToObject("date", MJsonNode::MakeString(date));
+   msg->AddToObject("run", MJsonNode::MakeInt(run));
+   msg->AddToObject("author", MJsonNode::MakeString(author));
+   msg->AddToObject("type", MJsonNode::MakeString(type));
+   msg->AddToObject("system", MJsonNode::MakeString(system));
+   msg->AddToObject("subject", MJsonNode::MakeString(subject));
+   msg->AddToObject("text", MJsonNode::MakeString(text));
+   msg->AddToObject("orig_tag", MJsonNode::MakeString(orig_tag));
+   msg->AddToObject("reply_tag", MJsonNode::MakeString(reply_tag));
+   msg->AddToObject("attachment0", MJsonNode::MakeString(attachment[0]));
+   msg->AddToObject("attachment1", MJsonNode::MakeString(attachment[1]));
+   msg->AddToObject("attachment2", MJsonNode::MakeString(attachment[2]));
+   msg->AddToObject("encoding", MJsonNode::MakeString(encoding));
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "msg", msg);
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+//
 // jrpc code goes here
 //
 /////////////////////////////////////////////////////////////////////////////////
@@ -2724,6 +2781,8 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("db_link",   js_db_link);
    mjsonrpc_add_handler("db_reorder", js_db_reorder);
    mjsonrpc_add_handler("db_key",    js_db_key);
+   // interface to elog functions
+   mjsonrpc_add_handler("el_retrieve", js_el_retrieve);
    // interface to midas history
    mjsonrpc_add_handler("hs_get_active_events", js_hs_get_active_events);
    mjsonrpc_add_handler("hs_get_channels", js_hs_get_channels);

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html class="mcss">
+<head>
+   <link rel="stylesheet" href="midas.css">
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <title>Elog edit</title>
+</head>
+
+<body class="mcss" onload="mhttpd_init('Elog')">
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+  <div class="mmaintable">
+    <form method="POST" enctype="multipart/form-data">
+      <table width="95%" class="mtable"">
+        <tr>
+          <td class="mtableheader" id="table_name">elog_edit</td>
+        </tr>
+        <tr>
+          <td align="center"><input type=submit name=cmd value="Submit Elog"></td>
+        </tr>
+        <tr>
+          <td>
+            Entry date: <span id="entry_date">(entry_date)</span>
+          </td>
+        </tr>
+        <tr id="revision_date_block">
+          <td>
+            Revision date: <span id="revision_date">(revision_date)</span>
+          </td>
+        </tr>
+        <tr>
+          <td id="run_number">
+            Run number: <input type="text" size=10 maxlength=10 name="run" value="(run number)" id="run_number_input">
+          </td>
+        </tr>
+        <tr>
+          <td>
+            Author: <input type="text" size="15" maxlength="80" name="Author" value="" id="author_input">
+          </td>
+        </tr>
+
+        <tr>
+          <td>Type:
+            <select name="type" id="type_select">
+            </select>
+          </td>
+        </tr>
+
+        <tr>
+          <td>System:
+            <select name="system" id="system_select">
+            </select>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Subject: <input type=text size=20 maxlength="80" name=Subject value="(subject)" id="subject_input">
+          </td>
+        </tr>
+
+        <input type=hidden name=edit value=0 id="edit_input">
+        <input type=hidden name=tag  value="(tag)" id="tag_input">
+
+        <tr>
+          <td>Text:<br>
+            <textarea cols="80" rows="10" name=Text id="text_input"></textarea>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <input type=checkbox name=html value=0 id="html_input">Submit as HTML text
+          </td>
+        </tr>
+
+        <tr>
+          <td>If no attachment are resubmitted, the original ones are kept</td>
+        </tr>
+
+        <tr>
+          <td>Enter attachment filename(s) or ODB tree(s), use \"\\\" as an ODB directory separator:</td>
+        </tr>
+
+        <tr>
+          <td colspan=2>Attachment 1: <input type="file" size="60" maxlength="256" name="attfile1" value="" accept="filetype/*"></td>
+        </tr>
+        <tr>
+          <td colspan=2>Attachment 2: <input type="file" size="60" maxlength="256" name="attfile2" value="" accept="filetype/*"></td>
+        </tr>
+        <tr>
+          <td colspan=2>Attachment 3: <input type="file" size="60" maxlength="256" name="attfile3" value="" accept="filetype/*"></td>
+        </tr>
+        <tr>
+          <td align="center"><input type=submit name=cmd value="Submit Elog"></td>
+        </tr>
+      </table>
+     
+      <script type="text/javascript">
+      
+      function set_text(id, text) {
+         var e = document.getElementById(id);
+         if (e) {
+            e.innerHTML = text;
+         }
+      }
+
+      function set_value(id, text) {
+         var e = document.getElementById(id);
+         if (e) {
+            e.value = text;
+         }
+      }
+
+      function set_checked(id, checked) {
+         var e = document.getElementById(id);
+         if (e) {
+            e.checked = checked;
+         }
+      }
+
+      function add_option(id, text, selected) {
+         var e = document.getElementById(id);
+         //console.log("add_option: [" + id + "] " + e + " text[" + text + "] selected " + selected);
+         if (e) {
+            var o = document.createElement("option");
+            o.value = text;
+            o.innerHTML = text;
+            o.selected = selected;
+            e.appendChild(o);
+         }
+      }
+
+      function hide(id) {
+         var e = document.getElementById(id);
+         if (e) {
+            e.style.visibility = "hidden";
+            e.style.display = "none";
+         }
+      }
+
+      function load() {
+         var cmd = mhttpd_getParameterByName("cmd");
+         var edit   = mhttpd_getParameterByName("edit");
+         var tag    = mhttpd_getParameterByName("tag");
+         var edit   = (cmd == "elog_edit");
+         var reply  = (cmd == "elog_reply");
+         var new_msg = !(edit||reply);
+         var html = false;
+
+         if (new_msg)
+            set_text("table_name", "Create new Elog message");
+
+         if (edit)
+            set_text("table_name", "Edit Elog message " + tag);
+
+         if (reply)
+            set_text("table_name", "Reply to Elog message " + tag);
+
+	      var req = new Object();
+	      req.tag = tag;
+         mjsonrpc_call("el_retrieve", req).then(function (rpc) {
+
+            var msg_run_number;
+
+            if (reply || edit) {
+               var status = rpc.result.status;
+               var msg = rpc.result.msg;
+
+               var author = msg.author; //mhttpd_getParameterByName("author");
+               var type   = msg.type; //mhttpd_getParameterByName("type");
+               var system = msg.system; //mhttpd_getParameterByName("system");
+               var subject = msg.subject; //mhttpd_getParameterByName("subject");
+               var date = msg.date;
+               var text = msg.text;
+               var encoding = msg.encoding;
+               msg_run_number = msg.run;
+
+               if (encoding == "HTML")
+                  html = true;
+
+               //console.log("msg encoding: " + encoding);
+            
+               set_value("author_input", author);
+               if (reply && !subject.startsWith("Re: "))
+                  set_value("subject_input", "Re: " + subject);
+               else
+                  set_value("subject_input", subject);
+               set_value("edit_input", edit);
+               set_value("tag_input", tag);
+
+               if (reply) {
+                  var text_array = text.split("\n");
+                  var ttt = "";
+                  for (var i=0; i<text_array.length; i++) {
+                     ttt += "> " + text_array[i] + "\n";
+                  }
+                  ttt += "\n";
+                  set_value("text_input", ttt);
+               } else {
+                  set_value("text_input", text);
+               }
+
+               if (edit) {
+                  set_text("entry_date", date);
+                  set_text("revision_date", new Date);
+               }
+
+               if (reply || edit) {
+                  set_checked("html_input", html);
+               }
+            }
+
+            if (reply || new_msg ) {
+               set_text("entry_date", new Date());
+               hide("revision_date_block");
+            }
+            
+            var odb_list = [
+               "/Runinfo/Run number",
+               "/Elog",
+            ];
+            
+            mjsonrpc_db_get_values(odb_list).then(function (rpc) {
+               var run_number = rpc.result.data[0];
+               var elog = rpc.result.data[1];
+               
+               if (new_msg) {
+                  set_value("run_number_input", run_number);
+               } else {
+                  set_value("run_number_input", msg_run_number);
+               }
+
+               if (!elog["display run number"]) {
+                  hide("run_number");
+               }
+               
+               //console.log("elog.types: " + elog.types);
+               
+               if ("types" in elog) {
+                  for (var i=0; i<elog.types.length; i++) {
+                     if (elog.types[i].length > 0) {
+                        var select = (elog.types[i] == type);
+                        if (reply)
+                           select = (elog.types[i] == "Reply");
+                        add_option("type_select", elog.types[i], select);
+                     }
+                  }
+               }
+               
+               if ("systems" in elog) {
+                  for (var i=0; i<elog.systems.length; i++) {
+                     if (elog.systems[i].length > 0) {
+                        var select = (elog.systems[i] == system);
+                        add_option("system_select", elog.systems[i], select);
+                     }
+                  }
+               }
+               
+            }).catch(function (error) {
+               mjsonrpc_error_alert(error);
+            });
+         }).catch(function (error) {
+            mjsonrpc_error_alert(error);
+         });
+      }
+
+      </script>
+   </div>
+</div>
+
+<script>
+load();
+</script>
+</body>
+</html>

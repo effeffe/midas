@@ -3150,6 +3150,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
       buffer[i] = NULL;
       char str[256];
       sprintf(str, "attachment%d", i);
+      //printf("submit_elog: att %d, [%s] param [%s], size %d\n", i, str, pp->getparam(str), a->_attachment_size[i]);
       if (pp->getparam(str) && *pp->getparam(str) && a->_attachment_size[i] == 0) {
          /* replace '\' by '/' */
          strlcpy(path, pp->getparam(str), sizeof(path));
@@ -3241,12 +3242,14 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
    if (*pp->getparam("edit"))
       strlcpy(tag, pp->getparam("orig"), sizeof(tag));
 
-   el_submit(atoi(pp->getparam("run")), author, pp->getparam("type"),
+   int status = el_submit(atoi(pp->getparam("run")), author, pp->getparam("type"),
              pp->getparam("system"), pp->getparam("subject"), pp->getparam("text"),
              pp->getparam("orig"), *pp->getparam("html") ? "HTML" : "plain",
              att_file[0], a->_attachment_buffer[0], a->_attachment_size[0],
              att_file[1], a->_attachment_buffer[1], a->_attachment_size[1],
              att_file[2], a->_attachment_buffer[2], a->_attachment_size[2], tag, sizeof(tag));
+
+   printf("el_submit status %d, tag [%s]\n", status, tag);
 
    /* supersede host name with "/Elog/Host name" */
    std::string elog_host_name;
@@ -3332,10 +3335,15 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
    r->rsprintf("HTTP/1.1 302 Found\r\n");
    r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
 
+   //if (mail_param[0])
+   //   r->rsprintf("Location: ../EL/%s?%s\n\n<html>redir</html>\r\n", tag, mail_param + 1);
+   //else
+   //   r->rsprintf("Location: ../EL/%s\n\n<html>redir</html>\r\n", tag);
+
    if (mail_param[0])
-      r->rsprintf("Location: ../EL/%s?%s\n\n<html>redir</html>\r\n", tag, mail_param + 1);
+      r->rsprintf("Location: ?cmd=elog_show&tag=%s&%s\n\n<html>redir</html>\r\n", tag, mail_param + 1);
    else
-      r->rsprintf("Location: ../EL/%s\n\n<html>redir</html>\r\n", tag);
+      r->rsprintf("Location: ?cmd=elog_show&tag=%s\n\n<html>redir</html>\r\n", tag);
 }
 
 /*------------------------------------------------------------------*/
@@ -3414,9 +3422,73 @@ void submit_form(Param* p, Return* r, Attachment* a)
 
 /*------------------------------------------------------------------*/
 
+void show_elog_attachment(Param* p, Return* r, const char* path)
+{
+   HNDLE hDB;
+   int size;
+   int status;
+   char file_name[256];
+
+   cm_get_experiment_database(&hDB, NULL);
+   file_name[0] = 0;
+   if (hDB > 0) {
+      size = sizeof(file_name);
+      memset(file_name, 0, size);
+      
+      status = db_get_value(hDB, 0, "/Logger/Elog dir", file_name, &size, TID_STRING, FALSE);
+      if (status != DB_SUCCESS)
+         db_get_value(hDB, 0, "/Logger/Data dir", file_name, &size, TID_STRING, TRUE);
+      
+      if (file_name[0] != 0)
+         if (file_name[strlen(file_name) - 1] != DIR_SEPARATOR)
+            strlcat(file_name, DIR_SEPARATOR_STR, sizeof(file_name));
+   }
+   strlcat(file_name, path, sizeof(file_name));
+   
+   int fh = open(file_name, O_RDONLY | O_BINARY);
+   if (fh > 0) {
+      lseek(fh, 0, SEEK_END);
+      int length = TELL(fh);
+      lseek(fh, 0, SEEK_SET);
+      
+      r->rsprintf("HTTP/1.1 200 Document follows\r\n");
+      r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+      r->rsprintf("Accept-Ranges: bytes\r\n");
+      //r->rsprintf("Content-disposition: attachment; filename=%s\r\n", path);
+      
+      /* return proper header for file type */
+      char str[256];
+      int i;
+      for (i = 0; i < (int) strlen(path); i++)
+         str[i] = toupper(path[i]);
+      str[i] = 0;
+      
+      for (i = 0; filetype[i].ext[0]; i++)
+         if (strstr(str, filetype[i].ext))
+            break;
+      
+      if (filetype[i].ext[0])
+         r->rsprintf("Content-Type: %s\r\n", filetype[i].type);
+      else if (strchr(str, '.') == NULL)
+         r->rsprintf("Content-Type: text/plain\r\n");
+      else
+         r->rsprintf("Content-Type: application/octet-stream\r\n");
+      
+      r->rsprintf("Content-Length: %d\r\n\r\n", length);
+      
+      r->rread(file_name, fh, length);
+      
+      close(fh);
+   }
+   
+   return;
+}
+
+/*------------------------------------------------------------------*/
+
 void show_elog_page(Param* p, Return* r, Attachment* a, const char* dec_path, char *path, int path_size)
 {
-   int size, i, run, msg_status, status, fh, length, first_message, last_message, index,
+   int size, i, run, msg_status, status, fh, first_message, last_message, index,
       fsize;
    char str[256], orig_path[256], command[80], ref[256], file_name[256], dir[256], *fbuffer;
    char date[80], author[80], type[80], system[80], subject[256], text[10000],
@@ -3425,7 +3497,7 @@ void show_elog_page(Param* p, Return* r, Attachment* a, const char* dec_path, ch
    HNDLE hDB, hkey, hkeyroot, hkeybutton;
    KEY key;
    FILE *f;
-   BOOL display_run_number, allow_delete;
+   BOOL display_run_number, allow_delete, allow_edit;
    time_t now;
    struct tm *tms;
    const char def_button[][NAME_LENGTH] = { "8h", "24h", "7d" };
@@ -3434,9 +3506,11 @@ void show_elog_page(Param* p, Return* r, Attachment* a, const char* dec_path, ch
    cm_get_experiment_database(&hDB, NULL);
    display_run_number = TRUE;
    allow_delete = FALSE;
+   allow_edit = FALSE;
    size = sizeof(BOOL);
    db_get_value(hDB, 0, "/Elog/Display run number", &display_run_number, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Elog/Allow delete", &allow_delete, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Elog/Allow edit", &allow_edit, &size, TID_BOOL, TRUE);
 
    /*---- interprete commands ---------------------------------------*/
 
@@ -3593,55 +3667,7 @@ void show_elog_page(Param* p, Return* r, Attachment* a, const char* dec_path, ch
   /*---- check if file requested -----------------------------------*/
 
    if (strlen(path) > 13 && path[6] == '_' && path[13] == '_') {
-      cm_get_experiment_database(&hDB, NULL);
-      file_name[0] = 0;
-      if (hDB > 0) {
-         size = sizeof(file_name);
-         memset(file_name, 0, size);
-
-         status = db_get_value(hDB, 0, "/Logger/Elog dir", file_name, &size, TID_STRING, FALSE);
-         if (status != DB_SUCCESS)
-            db_get_value(hDB, 0, "/Logger/Data dir", file_name, &size, TID_STRING, TRUE);
-
-         if (file_name[0] != 0)
-            if (file_name[strlen(file_name) - 1] != DIR_SEPARATOR)
-               strlcat(file_name, DIR_SEPARATOR_STR, sizeof(file_name));
-      }
-      strlcat(file_name, path, sizeof(file_name));
-
-      fh = open(file_name, O_RDONLY | O_BINARY);
-      if (fh > 0) {
-         lseek(fh, 0, SEEK_END);
-         length = TELL(fh);
-         lseek(fh, 0, SEEK_SET);
-
-         r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-         r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-         r->rsprintf("Accept-Ranges: bytes\r\n");
-
-         /* return proper header for file type */
-         for (i = 0; i < (int) strlen(path); i++)
-            str[i] = toupper(path[i]);
-         str[i] = 0;
-
-         for (i = 0; filetype[i].ext[0]; i++)
-            if (strstr(str, filetype[i].ext))
-               break;
-
-         if (filetype[i].ext[0])
-            r->rsprintf("Content-Type: %s\r\n", filetype[i].type);
-         else if (strchr(str, '.') == NULL)
-            r->rsprintf("Content-Type: text/plain\r\n");
-         else
-            r->rsprintf("Content-Type: application/octet-stream\r\n");
-
-         r->rsprintf("Content-Length: %d\r\n\r\n", length);
-
-         r->rread(file_name, fh, length);
-
-         close(fh);
-      }
-
+      show_elog_attachment(p, r, path);
       return;
    }
 
@@ -3744,6 +3770,10 @@ void show_elog_page(Param* p, Return* r, Attachment* a, const char* dec_path, ch
                             text, &size, orig_tag, reply_tag,
                             attachment[0], attachment[1], attachment[2], encoding);
 
+   std::string current_tag = str;
+
+   printf("el_retrieve: status %d, [%s] [%s] [%s]\n", msg_status, str, orig_tag, reply_tag);
+
    sprintf(action, "../EL/%s", str);
    show_header(r, "ELog", "GET", action, 0);
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
@@ -3804,12 +3834,19 @@ void show_elog_page(Param* p, Return* r, Attachment* a, const char* dec_path, ch
 
    //local buttons
    r->rsprintf("<tr><td colspan=2>\n");
+   r->rsprintf("<input type=button name=elog_show_show value=aaa onclick=\"mhttpd_goto_page(\'elog_show&tag=%s\');\">\n", current_tag.c_str());
+   r->rsprintf("<input type=submit name=cmd value=elog_show>\n");
    r->rsprintf("<input type=submit name=cmd value=New>\n");
+   r->rsprintf("<input type=submit name=cmd value=elog_new>\n");
    r->rsprintf("<input type=submit name=cmd value=Edit>\n");
+   r->rsprintf("<input type=submit name=cmd value=elog_edit>\n");
    if (allow_delete)
       r->rsprintf("<input type=submit name=cmd value=Delete>\n");
    r->rsprintf("<input type=submit name=cmd value=Reply>\n");
+   r->rsprintf("<input type=submit name=cmd value=elog_reply>\n");
    r->rsprintf("<input type=submit name=cmd value=Query></td></tr>\n");
+
+   r->rsprintf("<input type=hidden name=tag value=\"%s\">\n", current_tag.c_str());
 
    //period buttons
    r->rsprintf("<tr><td colspan=2>");
@@ -15452,6 +15489,26 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
+   if (equal_ustring(command, "elog_show")) {
+      send_resource(r, "elog_show.html");
+      return;
+   }
+
+   if (equal_ustring(command, "elog_new")) {
+      send_resource(r, "elog_edit.html");
+      return;
+   }
+
+   if (equal_ustring(command, "elog_edit")) {
+      send_resource(r, "elog_edit.html");
+      return;
+   }
+
+   if (equal_ustring(command, "elog_reply")) {
+      send_resource(r, "elog_edit.html");
+      return;
+   }
+
    if (equal_ustring(dec_path, "spinning-wheel.gif")) {
       send_resource(r, "spinning-wheel.gif");
       return;
@@ -15680,6 +15737,23 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    
    /*---- ELog command ----------------------------------------------*/
 
+   if (equal_ustring(command, "Create ELog from this page")) {
+      strlcpy(str, dec_path, sizeof(str));
+      show_elog_page(p, r, a, dec_path, str, sizeof(str));
+      return;
+   }
+
+   if (equal_ustring(command, "Submit elog")) {
+      strlcpy(str, dec_path, sizeof(str));
+      submit_elog(p, r, a);
+      return;
+   }
+
+   if (equal_ustring(command, "elog_att")) {
+      show_elog_attachment(p, r, dec_path);
+      return;
+   }
+
    if (strncmp(dec_path, "EL/", 3) == 0) {
       if (equal_ustring(command, "new") || equal_ustring(command, "edit")
           || equal_ustring(command, "reply")) {
@@ -15689,12 +15763,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       }
 
       strlcpy(str, dec_path + 3, sizeof(str));
-      show_elog_page(p, r, a, dec_path, str, sizeof(str));
-      return;
-   }
-
-   if (equal_ustring(command, "Create ELog from this page")) {
-      strlcpy(str, dec_path, sizeof(str));
       show_elog_page(p, r, a, dec_path, str, sizeof(str));
       return;
    }
@@ -15836,7 +15904,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
          return;
       }
    
-   sprintf(str, "Invalid URL: %s%s", p->getparam("path"), p->getparam("query"));
+      sprintf(str, "Invalid URL: [%s%s] or command: [%s]", p->getparam("path"), p->getparam("query"), command);
    show_error(r, str);
 }
 
@@ -15946,10 +16014,13 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
       string = strstr(string, boundary) + strlen(boundary);
 
    do {
+      //printf("decode_post: [%s]\n", string);
       if (strstr(string, "name=")) {
          pitem = strstr(string, "name=") + 5;
          if (*pitem == '\"')
             pitem++;
+
+         //printf("decode_post: pitem [%s]\n", pitem);
 
          if (strncmp(pitem, "attfile", 7) == 0) {
             n = pitem[7] - '1';
