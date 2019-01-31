@@ -21,11 +21,11 @@
         <tr>
           <td colspan="4" align="center">
             <div id="buttons_block">
-              <input type=submit name=cmd value="Submit Query">
-              <input type=submit name=cmd value="elog_list">
-              <input type=reset value="Reset Query Form">
-              <input type=submit name=cmd value="New Elog">
-              <input type=submit name=cmd value="Last Elog">
+              <input class="mbutton" type=submit name=cmd value="Submit Query">
+              <input class="mbutton" type=reset value="Reset Query Form">
+              <input class="mbutton" type=submit name=cmd value="New Elog">
+              <br>
+              <input class="mbutton" type=submit name=cmd value="Last Elog">
             </div>
           </td>
         </tr>
@@ -42,10 +42,10 @@
         <tr>
           <td>Start date:</td>
           <td colspan=3>
-            <select name="m1" id="m1_select">
-            </select>
-            
             <select name="d1" id="d1_select">
+            </select>
+
+            <select name="m1" id="m1_select">
             </select>
             
             <input type="text" size=5 maxlength=5 name="y1" id="y1_input">
@@ -55,12 +55,12 @@
         <tr>
           <td>End date:</td>
           <td colspan=3>
-            <select name="m2" id="m2_select">
-              <option value=""></option>
-            </select>
-            
             <select name="d2" id="d2_select">
               <option selected value=""></option>
+            </select>
+            
+            <select name="m2" id="m2_select">
+              <option value=""></option>
             </select>
             
             <input type="text" size=5 maxlength=5 name="y2">
@@ -75,30 +75,30 @@
         </tr>
 
         <tr>
-          <td colspan=2>Author:
-            <input type="test" size="15" maxlength="80" name="author" id="author_input">
-          </td>
           <td colspan=2>Type:
             <select name="type" id="type_select">
               <option value=""></option>
             </select>
           </td>
-        </tr>
-
-        <tr>
           <td colspan=2>System:
             <select name="system" id="system_select">
               <option value=""></option>
             </select>
           </td>
+        </tr>
+
+        <tr>
+          <td colspan=2>Author:
+            <input type="text" size="32" maxlength="80" name="author" id="author_input">
+          </td>
           <td colspan=2>Subject:
-            <input type="text" size="15" maxlength="80" name="subject">
+            <input type="text" size="32" maxlength="80" name="subject">
           </td>
         </tr>
 
         <tr>
           <td colspan=4>Text:
-            <input type="text" size="15" maxlength="80" name="subtext">
+            <input type="text" size="32" maxlength="80" name="subtext">
             <i>(case insensitive substring)</i>
           </td>
         </tr>
@@ -148,6 +148,7 @@
           o.type = "submit";
           o.name = "cmd";
           o.value = text;
+          o.className = "mbutton";
           e.appendChild(o);
        }
     }
@@ -186,7 +187,7 @@
           var elog = rpc.result.data[0];
 
           var xnow = new Date();
-          var now = new Date(xnow.getTime() - 1*24*60*60*1000);
+          var now = new Date(xnow.getTime() - 31*24*60*60*1000);
           
           //if (!elog["display run number"]) {
           //   hide("run_number");

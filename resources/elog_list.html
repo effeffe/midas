@@ -30,14 +30,14 @@
           </td>
         </tr>
         
-        <tr id="query_runs_block">
+        <tr hidden id="query_runs">
           <td colspan=6>
-          <b>Query result between runs <span id="r1">(r1)</span> and <span id="r2">(r2)</span></b>
+            Query: elog entries between runs <span id="r1">(r1)</span> and <span id="r2">(r2)</span>
           </td>
         </tr>
-        <tr id="query_runs_today_block">
+        <tr hidden id="query_run_now">
           <td colspan=6>
-          <b>Query result between run <span id="xr1">(r1)</span> and today</b>
+            Query: elog entries between run <span id="r1_now">(r1_now)</span> and now
           </td>
         </tr>
         <tr hidden id="query_last_n_hours">
@@ -50,25 +50,25 @@
             Query: Last <span id="last_n_days">(last_n_days)</span> days
           </td>
         </tr>
-        <tr>
+        <tr hidden id="query_dates">
           <td colspan=6>
-            <b>Query result between (m1) (d1) (y1) and (m2) (d2) (y2)</b>
+            Query: between <span id="d1">(d1)</span> <span id="m1">(m1)</span> <span id="y1">(y1)</span> and <span id="d2">(d2)</span> <span id="m2">(m2)</span> <span id="y2">(y2)</span>
           </td>
         </tr>
-        <tr>
+        <tr hidden id="query_date_now">
           <td colspan=6>
-            <b>Query result between (m1) (d1) (y1) and now</b>
+            Query: between <span id="d1_now">(d1_now)</span> <span id="m1_now">(m1_now)</span> <span id="y1_now">(y1_now)</span> and now
           </td>
         </tr>
         
-        <tr>
+        <tr hidden id="query_block">
           <td colspan="6">
             Query:
-            Author: <b>(author)</b>
-            Type: <b>(type)</b>
-            System: <b>(system)</b>
-            Subject: <b>(subject)</b>
-            Text: <b>(subtext)</b>
+            <span hidden id="query_author">Author: <b><span id="author">(author)</span></b></span>
+            <span hidden id="query_type">Type: <b><span id="type">(type)</span></b></span>
+            <span hidden id="query_system">System: <b><span id="system">(system)</span></b></span>
+            <span hidden id="query_subject">Subject: <b><span id="subject">(subject)</span></b></span>
+            <span hidden id="query_subtext">Text: <b><span id="subtext">(subtext)</span></b></span>
           </td>
         </tr>
         
@@ -191,11 +191,17 @@
        var d2 = mhttpd_getParameterByName("d2");
        var r2 = mhttpd_getParameterByName("r2");
 
-       var last_n_hours = 0;
+       var author  = mhttpd_getParameterByName("author");
+       var type    = mhttpd_getParameterByName("type");
+       var system  = mhttpd_getParameterByName("system");
+       var subject = mhttpd_getParameterByName("subject");
+       var subtext = mhttpd_getParameterByName("subtext");
+
+	    var req = new Object();
 
        if (cmd.toLowerCase().startsWith("elog last")) {
           var last = cmd.substring(10);
-          last_n_hours = parseInt(last);
+          var last_n_hours = parseInt(last);
 
           if (last.endsWith("h")) {
              set_text("last_n_hours", last_n_hours);
@@ -207,27 +213,86 @@
              last_n_hours *= 24;
           }
           
-          console.log("cmd: " + cmd + ", last: [" + last + "], last_n_hours: " + last_n_hours);
+          //console.log("cmd: " + cmd + ", last: [" + last + "], last_n_hours: " + last_n_hours);
+
+          req.last_n_hours = last_n_hours;
        }
 
-       set_text("r1", r1);
-       set_text("r2", r2);
+       if (r1>0 && r2>0) {
+          set_text("r1", r1);
+          set_text("r2", r2);
+          unhide("query_runs");
+	       req.r1 = r1;
+	       req.r2 = r2;
+       } else if (r1 > 0) {
+          set_text("r1_now", r1);
+          unhide("query_run_now");
+	       req.r1 = r1;
+       }
 
-       set_text("xr1", r1);
-       
-	    var req = new Object();
+       var have_start_date = y1 && (y1.length>0);
+       var have_end_date = y2 && m2 && d2 && (y2.length>0) && (m2.length>0) && (d2.length>0);
 
-	    req.y1 = y1;
-	    req.m1 = m1;
-	    req.d1 = d1;
-	    req.r1 = r1;
+       if (have_start_date && have_end_date) {
+          set_text("y1", y1);
+          set_text("m1", m1);
+          set_text("d1", d1);
+          set_text("y2", y2);
+          set_text("m2", m2);
+          set_text("d2", d2);
+          unhide("query_dates");
+          
+	       req.y1 = y1;
+	       req.m1 = m1;
+	       req.d1 = d1;
 
-	    req.y2 = y2;
-	    req.m2 = m2;
-	    req.d2 = d2;
-	    req.r2 = r2;
+	       req.y2 = y2;
+	       req.m2 = m2;
+	       req.d2 = d2;
+       } else if (have_start_date) {
+          set_text("y1_now", y1);
+          set_text("m1_now", m1);
+          set_text("d1_now", d1);
+          unhide("query_date_now");
+	       req.y1 = y1;
+	       req.m1 = m1;
+	       req.d1 = d1;
+       }
 
-       req.last_n_hours = last_n_hours;
+       if (author && author.length > 0) {
+          set_text("author", author);
+          unhide("query_author");
+          unhide("query_block");
+          req.author = author;
+       }
+
+       if (type && type.length > 0) {
+          set_text("type", type);
+          unhide("query_type");
+          unhide("query_block");
+          req.type = type;
+       }
+
+       if (system && system.length > 0) {
+          set_text("system", system);
+          unhide("query_system");
+          unhide("query_block");
+          req.system = system;
+       }
+
+       if (subject && subject.length > 0) {
+          set_text("subject", subject);
+          unhide("query_subject");
+          unhide("query_block");
+          req.subject = subject;
+       }
+
+       if (subtext && subtext.length > 0) {
+          set_text("subtext", subtext);
+          unhide("query_subtext");
+          unhide("query_block");
+          req.subtext = subtext;
+       }
 
        var show_text = false;
 
@@ -235,14 +300,14 @@
           var status = rpc.result.status;
           var msg_array = rpc.result.msg;
 
-          console.log("el_query returned messages: " + msg_array.length);
+          //console.log("el_query returned messages: " + msg_array.length);
 
           var e = document.getElementById("elog_table");
           
           for (var i=0; i<msg_array.length; i++) {
              var msg = msg_array[i];
           
-             console.log("el_query message " + i + " tag " + msg.tag + " run " + msg.run);
+             //console.log("el_query message " + i + " tag " + msg.tag + " run " + msg.run);
              
              var encoding = msg.encoding;
              

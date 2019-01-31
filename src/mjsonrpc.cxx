@@ -2311,25 +2311,16 @@ static MJsonNode* js_el_query(const MJsonNode* params)
    char date[80], author[80], type[80], system[80], subject[256], text[10000],
        orig_tag[80], reply_tag[80], attachment[3][256], encoding[80];
    char str[256], str2[10000], tag[256];
-   time_t ltime_start, ltime_end, ltime_current, now;
-   struct tm tms, *ptms;
+   struct tm tms;
 
    // month name from midas.c
    extern const char *mname[];
 
    /*---- convert end date to ltime ----*/
 
-   ltime_end = ltime_start = 0;
-
    int y1 = -1;
    int m1 = -1;
    int d1 = -1;
-
-   if (py1.length() > 0)
-      y1 = atoi(py1.c_str());
-
-   if (pd1.length() > 0)
-      d1 = atoi(pd1.c_str());
 
    int y2 = -1;
    int m2 = -1;
@@ -2344,7 +2335,18 @@ static MJsonNode* js_el_query(const MJsonNode* params)
    if (pr2.length()>0)
       r2 = atoi(pr2.c_str());
    
+   time_t ltime_start = 0;
+   time_t ltime_end = 0;
+
    if (!last_n) {
+      // decode starting date year, day and month
+      
+      if (py1.length() > 0)
+         y1 = atoi(py1.c_str());
+
+      if (pd1.length() > 0)
+         d1 = atoi(pd1.c_str());
+
       strlcpy(str, pm1.c_str(), sizeof(str));
       for (m1 = 0; m1 < 12; m1++)
          if (equal_ustring(str, mname[m1]))
@@ -2352,58 +2354,64 @@ static MJsonNode* js_el_query(const MJsonNode* params)
       if (m1 == 12)
          m1 = 0;
 
-      if (pm2.length() > 0) {
+      if (pd2.length() > 0) {
+         d2 = atoi(pd2.c_str());
+      }
+         
+      if (py2.length() > 0) {
+         // decode ending date year, day and month
+
          strlcpy(str, pm2.c_str(), sizeof(str));
          for (m2 = 0; m2 < 12; m2++)
             if (equal_ustring(str, mname[m2]))
                break;
-         if (m2 == 12)
+         if (m2 == 12) {
             m2 = 0;
-      } else {
-         m2 = m1;
+         }
       }
 
-      if (py2.length() > 0)
+      if (py2.length() > 0) {
          y2 = atoi(py2.c_str());
-      else
-         y2 = y1;
+      }
 
-      if (pd2.length() > 0)
-         d2 = atoi(pd2.c_str());
-      else
-         d2 = atoi(pd1.c_str());
-
-      memset(&tms, 0, sizeof(struct tm));
-      tms.tm_year = y2 % 100;
-      tms.tm_mon = m2;
-      tms.tm_mday = d2;
-      tms.tm_hour = 24;
-      
-      if (tms.tm_year < 90)
-         tms.tm_year += 100;
-      ltime_end = mktime(&tms);
+      if (y2>=0 && m2>=0 && d2>=0) {
+         memset(&tms, 0, sizeof(struct tm));
+         tms.tm_year = y2 % 100;
+         tms.tm_mon = m2;
+         tms.tm_mday = d2;
+         tms.tm_hour = 24;
+         
+         if (tms.tm_year < 90)
+            tms.tm_year += 100;
+         ltime_end = mktime(&tms);
+      }
    }
 
    /*---- do query ----*/
 
+   tag[0] = 0;
+
    if (last_n) {
-      time(&now);
+      time_t now = time(NULL);
       ltime_start = now - 3600 * last_n;
-      ptms = localtime(&ltime_start);
+      struct tm* ptms = localtime(&ltime_start);
       sprintf(tag, "%02d%02d%02d.0", ptms->tm_year % 100, ptms->tm_mon + 1, ptms->tm_mday);
    } else if (r1 > 0) {
       /* do run query */
       el_search_run(r1, tag);
-   } else {
+   } else if (y1>=0 && m1>=0 && d1>=0) {
       /* do date-date query */
       sprintf(tag, "%02d%02d%02d.0", y1 % 100, m1 + 1, d1);
    }
 
-   printf("js_el_query: y1 %d, m1 %d, d1 %d, y2 %d, m2 %d, d2 %d, r1 %d, r2 %d, last_n_hours %d\n",
+   printf("js_el_query: y1 %d, m1 %d, d1 %d, y2 %d, m2 %d, d2 %d, r1 %d, r2 %d, last_n_hours %d, start time %lu, end time %lu, tag [%s]\n",
           y1, m1, d1,
           y2, m2, d2,
           r1, r2,
-          last_n);
+          last_n,
+          ltime_start,
+          ltime_end,
+          tag);
 
    do {
       size = sizeof(text);
@@ -2433,7 +2441,8 @@ static MJsonNode* js_el_query(const MJsonNode* params)
 
       if (tms.tm_year < 90)
          tms.tm_year += 100;
-      ltime_current = mktime(&tms);
+
+      time_t ltime_current = mktime(&tms);
 
       //printf("js_el_query: ltime: start %ld, end %ld, current %ld\n", ltime_start, ltime_end, ltime_current);
 

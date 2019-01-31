@@ -3233,7 +3233,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
       //printf("adding @somewhere to author [%s]\n", author);
       char str[256];
       // FIXME: should get author's network address from the network connection
-      strlcpy(str, "somewhere", sizeof(str));
+      strlcpy(str, "", sizeof(str));
       strlcat(author, "@", sizeof(author));
       strlcat(author, str, sizeof(author));
    }
@@ -4068,8 +4068,9 @@ void get_elog_url(char *url, int len)
       } else
 #endif
          strlcpy(url, str, len);
-   } else
+   } else {
       strlcpy(url, "EL/", len);
+   }
 }
 
 /*------------------------------------------------------------------*/
@@ -15524,16 +15525,12 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   if (equal_ustring(command, "elog_list")) {
-      send_resource(r, "elog_list.html");
+   if (equal_ustring(command, "Last elog")) {
+      send_resource(r, "elog_show.html");
       return;
    }
 
-   char cmdx[32];
-   strlcpy(cmdx, command, sizeof(cmdx));
-   cmdx[9] = 0;
-
-   if (equal_ustring(cmdx, "Elog last")) {
+   if (equal_ustring(command, "Submit Query")) {
       send_resource(r, "elog_list.html");
       return;
    }
@@ -15602,12 +15599,14 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 #endif   
    /*---- redirect if elog command ----------------------------------*/
 
+#ifdef OBSOLETE
    if (equal_ustring(command, "elog")) {
       get_elog_url(str, sizeof(str));
       redirect(r, str);
       return;
    }
-
+#endif
+   
    /*---- redirect if web page --------------------------------------*/
 
    //if (send_resource(std::string(command) + ".html"))
@@ -15766,12 +15765,39 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    
    /*---- ELog command ----------------------------------------------*/
 
+   if (equal_ustring(command, "elog")) {
+      /* redirect to external ELOG if URL present */
+      cm_get_experiment_database(&hDB, NULL);
+      BOOL external_elog = FALSE;
+      std::string external_elog_url;
+      size = sizeof(external_elog);
+      status = db_get_value(hDB, 0, "/Elog/External Elog", &external_elog, &size, TID_BOOL, TRUE);
+      status = db_get_value_string(hDB, 0, "/Elog/URL", 0, &external_elog_url, TRUE);
+      if (external_elog && (external_elog_url.length() > 0)) {
+         redirect(r, external_elog_url.c_str());
+         return;
+      }
+      send_resource(r, "elog_show.html");
+      return;
+   }
+
+   // special processing for "Elog last 7d", etc
+   
+   char cmdx[32];
+   strlcpy(cmdx, command, sizeof(cmdx));
+   cmdx[9] = 0;
+
+   if (equal_ustring(cmdx, "Elog last")) {
+      send_resource(r, "elog_list.html");
+      return;
+   }
+
    if (equal_ustring(command, "Create ELog from this page")) {
       strlcpy(str, dec_path, sizeof(str));
       show_elog_page(p, r, a, dec_path, str, sizeof(str));
       return;
    }
-
+   
    if (equal_ustring(command, "Submit elog")) {
       strlcpy(str, dec_path, sizeof(str));
       submit_elog(p, r, a);

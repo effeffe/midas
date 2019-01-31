@@ -24,12 +24,12 @@
               <input class="mbutton" type=submit name=cmd value="New elog">
               <input class="mbutton" type=submit name=cmd value="Reply elog">
               <input class="mbutton" type=submit name=cmd value="Edit elog" id="elog_edit_button">
-              <input class="mbutton" type=submit name=cmd value=elog_delete id="elog_delete_button">
-              <input class="mbutton" type=submit name=cmd value="Query elog">
-              <br>
+              <input class="mbutton" type=submit name=cmd value="Delete elog" id="elog_delete_button">
               <input class="mbutton" type=submit name=cmd value=Next>
               <input class="mbutton" type=submit name=cmd value=Previous>
-              <input class="mbutton" type=submit name=cmd value=Last>
+              <input class="mbutton" type=submit name=cmd value="Last elog">
+              <br>
+              <input class="mbutton" type=submit name=cmd value="Query elog">
               <input class="mbutton" type=hidden name=tag  value="(tag)" id="tag_input">
             </div>
           </form>
@@ -187,6 +187,8 @@
              html = true;
           
           //console.log("msg encoding: " + encoding);
+
+          set_text("table_name", "Elog message " + msg.tag);
           
           set_text("entry_date", msg.date);
           set_value("tag_input", msg.tag);
