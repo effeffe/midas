@@ -15506,7 +15506,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    }
 
    if (equal_ustring(command, "Query elog")) {
-      send_resource(r, "elog_query.html");
+      send_resource(r, "elog_query_form.html");
       return;
    }
 
@@ -15531,7 +15531,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    }
 
    if (equal_ustring(command, "Submit Query")) {
-      send_resource(r, "elog_list.html");
+      send_resource(r, "elog_query.html");
       return;
    }
 
@@ -15788,7 +15788,8 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    cmdx[9] = 0;
 
    if (equal_ustring(cmdx, "Elog last")) {
-      send_resource(r, "elog_list.html");
+      // "Elog last 7d", etc
+      send_resource(r, "elog_query.html");
       return;
    }
 
