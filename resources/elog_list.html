@@ -12,73 +12,75 @@
 <div id="msidenav"></div>
 
 <div id="mmain">
-  <div class="mmaintable">
-    <table width="95%" class="mtable" id="elog_table">
-      <tr>
-        <td colspan="6 "class="mtableheader" id="table_name">Elog Query Results</td>
-      </tr>
-      <tr>
-        <td colspan="6" align="center">
-          <form method="GET">
-            <div id="buttons_block">
-              <input class="mbutton" type=submit name=cmd value="New elog">
-              <input class="mbutton" type=submit name=cmd value="Query elog">
-              <input class="mbutton" type=submit name=cmd value="Last elog">
-            </div>
-          </form>
-        </td>
-      </tr>
-
-      <tr id="query_runs_block">
-        <td colspan=6>
+  <div>
+    <table class="mtable">
+      <tbody id="elog_table">
+        <tr>
+          <td colspan="6 "class="mtableheader" id="table_name">Elog Query Results</td>
+        </tr>
+        <tr>
+          <td colspan="6" align="center">
+            <form method="GET">
+              <div id="buttons_block">
+                <input class="mbutton" type=submit name=cmd value="New elog">
+                <input class="mbutton" type=submit name=cmd value="Query elog">
+                <input class="mbutton" type=submit name=cmd value="Last elog">
+              </div>
+            </form>
+          </td>
+        </tr>
+        
+        <tr id="query_runs_block">
+          <td colspan=6>
           <b>Query result between runs <span id="r1">(r1)</span> and <span id="r2">(r2)</span></b>
-        </td>
-      </tr>
-      <tr id="query_runs_today_block">
-        <td colspan=6>
+          </td>
+        </tr>
+        <tr id="query_runs_today_block">
+          <td colspan=6>
           <b>Query result between run <span id="xr1">(r1)</span> and today</b>
-        </td>
-      </tr>
-      <tr>
-        <td colspan=6>
-          <a href="last%d">Last <span id="last_n_hours">(last_n_hours)</span> hours</a>
-        </td>
-      </tr>
-      <tr>
-        <td colspan=6>
-          <a href=\"last%d\">Last <span id="last_n_days">(last_n_days)</span> days</a>
-        </td>
-      </tr>
-      <tr>
-        <td colspan=6>
-          <b>Query result between (m1) (d1) (y1) and (m2) (d2) (y2)</b>
-        </td>
-      </tr>
-      <tr>
-        <td colspan=6>
-          <b>Query result between (m1) (d1) (y1) and now</b>
-        </td>
-      </tr>
-
-      <tr>
-        <td colspan="6">
-          Author: <b>(author)</b>
-          Type: <b>(type)</b>
-          System: <b>(system)</b>
-          Subject: <b>(subject)</b>
-          Text: <b>(subtext)</b>
-        </td>
-      </tr>
-
-      <tr>
-        <th>Date</th>
-        <th>Run</th>
-        <th>Author</th>
-        <th>Type</th>
-        <th>System</th>
-        <th>Subject</th>
-      </tr>
-
+          </td>
+        </tr>
+        <tr hidden id="query_last_n_hours">
+          <td colspan=6>
+            Query: Last <span id="last_n_hours">(last_n_hours)</span> hours
+          </td>
+        </tr>
+        <tr hidden id="query_last_n_days">
+          <td colspan=6>
+            Query: Last <span id="last_n_days">(last_n_days)</span> days
+          </td>
+        </tr>
+        <tr>
+          <td colspan=6>
+            <b>Query result between (m1) (d1) (y1) and (m2) (d2) (y2)</b>
+          </td>
+        </tr>
+        <tr>
+          <td colspan=6>
+            <b>Query result between (m1) (d1) (y1) and now</b>
+          </td>
+        </tr>
+        
+        <tr>
+          <td colspan="6">
+            Query:
+            Author: <b>(author)</b>
+            Type: <b>(type)</b>
+            System: <b>(system)</b>
+            Subject: <b>(subject)</b>
+            Text: <b>(subtext)</b>
+          </td>
+        </tr>
+        
+        <tr>
+          <th>Date</th>
+          <th>Run</th>
+          <th>Author</th>
+          <th>Type</th>
+          <th>System</th>
+          <th>Subject</th>
+        </tr>
+      </tbody>
     </table>
     
     <script type="text/javascript">
@@ -137,6 +139,15 @@
        }
     }
     
+    function unhide(id) {
+       var e = document.getElementById(id);
+       if (e) {
+          e.style.visibility = "";
+          e.style.display = "";
+          e.hidden = 0;
+       }
+    }
+    
     function disable(id) {
        var e = document.getElementById(id);
        if (e) {
@@ -158,8 +169,8 @@
        var td;
        
        td = document.createElement("td");
-       td.colspan = 6;
-       td.innerHTML = text;
+       td.colSpan = 6;
+       td.innerHTML = "Attachment: <a href=\"" + text + "?cmd=elog_att\">" + text + "</a>";
        tr.appendChild(td);
 
        e.appendChild(tr);
@@ -188,12 +199,13 @@
 
           if (last.endsWith("h")) {
              set_text("last_n_hours", last_n_hours);
+             unhide("query_last_n_hours");
              last_n_hours *= 1;
           } else if (last.endsWith("d")) {
              set_text("last_n_days", last_n_hours);
+             unhide("query_last_n_days");
              last_n_hours *= 24;
           }
-
           
           console.log("cmd: " + cmd + ", last: [" + last + "], last_n_hours: " + last_n_hours);
        }
@@ -216,6 +228,8 @@
 	    req.r2 = r2;
 
        req.last_n_hours = last_n_hours;
+
+       var show_text = false;
 
        mjsonrpc_call("el_query", req).then(function (rpc) {
           var status = rpc.result.status;
@@ -272,13 +286,18 @@
              tr = document.createElement("tr");
 
              td = document.createElement("td");
-             td.colspan = 6;
-             if (html) {
-                td.innerHTML = msg.text;
-             } else {
-                td.innerHTML = "<pre>" + msg.text + "</pre>";
-             }
              tr.appendChild(td);
+
+             if (show_text) {
+                td = document.createElement("td");
+                td.colSpan = 5;
+                if (html) {
+                   td.innerHTML = msg.text;
+                } else {
+                   td.innerHTML = "<pre>" + msg.text + "</pre>";
+                }
+                tr.appendChild(td);
+             }
 
              e.appendChild(tr);
 
