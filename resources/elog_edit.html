@@ -19,7 +19,9 @@
           <td class="mtableheader" id="table_name">elog_edit</td>
         </tr>
         <tr>
-          <td align="center"><input type=submit name=cmd value="Submit Elog"></td>
+          <td align="center">
+            <input class="mbutton" type=submit name=cmd value="Submit Elog">
+          </td>
         </tr>
         <tr>
           <td>
@@ -38,7 +40,7 @@
         </tr>
         <tr>
           <td>
-            Author: <input type="text" size="15" maxlength="80" name="Author" value="" id="author_input">
+            Author: <input type="text" size="32" maxlength="80" name="Author" value="" id="author_input">
           </td>
         </tr>
 
@@ -58,12 +60,13 @@
 
         <tr>
           <td>
-            Subject: <input type=text size=20 maxlength="80" name=Subject value="(subject)" id="subject_input">
+            Subject: <input type=text size=80 maxlength="80" name=Subject value="(subject)" id="subject_input">
           </td>
         </tr>
 
         <input type=hidden name=edit value=0 id="edit_input">
         <input type=hidden name=tag  value="(tag)" id="tag_input">
+        <input type=hidden name=orig value="(orig)" id="orig_input">
 
         <tr>
           <td>Text:<br>
@@ -95,7 +98,9 @@
           <td colspan=2>Attachment 3: <input type="file" size="60" maxlength="256" name="attfile3" value="" accept="filetype/*"></td>
         </tr>
         <tr>
-          <td align="center"><input type=submit name=cmd value="Submit Elog"></td>
+          <td align="center">
+            <input class="mbutton" type=submit name=cmd value="Submit Elog">
+          </td>
         </tr>
       </table>
      
@@ -146,8 +151,8 @@
          var cmd = mhttpd_getParameterByName("cmd");
          var edit   = mhttpd_getParameterByName("edit");
          var tag    = mhttpd_getParameterByName("tag");
-         var edit   = (cmd == "elog_edit");
-         var reply  = (cmd == "elog_reply");
+         var edit   = (cmd.toLowerCase() == "edit elog");
+         var reply  = (cmd.toLowerCase() == "reply elog");
          var new_msg = !(edit||reply);
          var html = false;
 
@@ -170,10 +175,10 @@
                var status = rpc.result.status;
                var msg = rpc.result.msg;
 
-               var author = msg.author; //mhttpd_getParameterByName("author");
-               var type   = msg.type; //mhttpd_getParameterByName("type");
-               var system = msg.system; //mhttpd_getParameterByName("system");
-               var subject = msg.subject; //mhttpd_getParameterByName("subject");
+               var author = msg.author;
+               var type   = msg.type;
+               var system = msg.system;
+               var subject = msg.subject;
                var date = msg.date;
                var text = msg.text;
                var encoding = msg.encoding;
@@ -183,13 +188,23 @@
                   html = true;
 
                //console.log("msg encoding: " + encoding);
-            
-               set_value("author_input", author);
+
+               if (reply) {
+                  set_value("author_input", "");
+               } else {
+                  set_value("author_input", author);
+               }
+
                if (reply && !subject.startsWith("Re: "))
                   set_value("subject_input", "Re: " + subject);
                else
                   set_value("subject_input", subject);
-               set_value("edit_input", edit);
+               if (edit) {
+                  set_value("edit_input", 1);
+                  set_value("orig_input", tag);
+               } else {
+                  set_value("edit_input", 0);
+               }
                set_value("tag_input", tag);
 
                if (reply) {
@@ -217,6 +232,10 @@
             if (reply || new_msg ) {
                set_text("entry_date", new Date());
                hide("revision_date_block");
+            }
+            
+            if (new_msg) {
+               set_value("subject_input", "");
             }
             
             var odb_list = [

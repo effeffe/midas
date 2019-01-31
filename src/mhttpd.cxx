@@ -3219,28 +3219,32 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
             r->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
             r->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
             r->rsprintf("<title>ELog Error</title></head>\n");
-            r->rsprintf("<i>Error: Attachment file <i>%s</i> not valid.</i><p>\n",
-                     pp->getparam(str));
-            r->rsprintf
-                ("Please go back and enter a proper filename (use the <b>Browse</b> button).\n");
+            r->rsprintf("<i>Error: Attachment file <i>%s</i> not valid.</i><p>\n", pp->getparam(str));
+            r->rsprintf("Please go back and enter a proper filename (use the <b>Browse</b> button).\n");
             r->rsprintf("<body></body></html>\n");
             return;
          }
       }
    }
 
-   {
+   strlcpy(author, pp->getparam("author"), sizeof(author));
+
+   if (!strchr(author, '@')) {
+      //printf("adding @somewhere to author [%s]\n", author);
       char str[256];
       // FIXME: should get author's network address from the network connection
       strlcpy(str, "somewhere", sizeof(str));
-      strlcpy(author, pp->getparam("author"), sizeof(author));
       strlcat(author, "@", sizeof(author));
       strlcat(author, str, sizeof(author));
    }
+
+   int edit = atoi(pp->getparam("edit"));
+   //printf("submit_elog: edit [%s] %d, orig [%s]\n", pp->getparam("edit"), edit, pp->getparam("orig"));
       
    tag[0] = 0;
-   if (*pp->getparam("edit"))
+   if (edit) {
       strlcpy(tag, pp->getparam("orig"), sizeof(tag));
+   }
 
    int status = el_submit(atoi(pp->getparam("run")), author, pp->getparam("type"),
              pp->getparam("system"), pp->getparam("subject"), pp->getparam("text"),
@@ -3250,6 +3254,10 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
              att_file[2], a->_attachment_buffer[2], a->_attachment_size[2], tag, sizeof(tag));
 
    //printf("el_submit status %d, tag [%s]\n", status, tag);
+
+   if (status != EL_SUCCESS) {
+      cm_msg(MERROR, "submit_elog", "el_submit() returned status %d", status);
+   }
 
    /* supersede host name with "/Elog/Host name" */
    std::string elog_host_name;
@@ -3341,9 +3349,9 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
    //   r->rsprintf("Location: ../EL/%s\n\n<html>redir</html>\r\n", tag);
 
    if (mail_param[0])
-      r->rsprintf("Location: ?cmd=elog_show&tag=%s&%s\n\n<html>redir</html>\r\n", tag, mail_param + 1);
+      r->rsprintf("Location: ?cmd=Show+elog&tag=%s&%s\n\n<html>redir</html>\r\n", tag, mail_param + 1);
    else
-      r->rsprintf("Location: ?cmd=elog_show&tag=%s\n\n<html>redir</html>\r\n", tag);
+      r->rsprintf("Location: ?cmd=Show+elog&tag=%s\n\n<html>redir</html>\r\n", tag);
 }
 
 /*------------------------------------------------------------------*/
@@ -3772,7 +3780,7 @@ void show_elog_page(Param* p, Return* r, Attachment* a, const char* dec_path, ch
 
    std::string current_tag = str;
 
-   printf("el_retrieve: status %d, [%s] [%s] [%s]\n", msg_status, str, orig_tag, reply_tag);
+   //printf("el_retrieve: status %d, [%s] [%s] [%s]\n", msg_status, str, orig_tag, reply_tag);
 
    sprintf(action, "../EL/%s", str);
    show_header(r, "ELog", "GET", action, 0);
@@ -15513,6 +15521,20 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (equal_ustring(command, "Reply Elog")) {
       send_resource(r, "elog_edit.html");
+      return;
+   }
+
+   if (equal_ustring(command, "elog_list")) {
+      send_resource(r, "elog_list.html");
+      return;
+   }
+
+   char cmdx[32];
+   strlcpy(cmdx, command, sizeof(cmdx));
+   cmdx[9] = 0;
+
+   if (equal_ustring(cmdx, "Elog last")) {
+      send_resource(r, "elog_list.html");
       return;
    }
 

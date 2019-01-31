@@ -22,6 +22,7 @@
           <td colspan="4" align="center">
             <div id="buttons_block">
               <input type=submit name=cmd value="Submit Query">
+              <input type=submit name=cmd value="elog_list">
               <input type=reset value="Reset Query Form">
               <input type=submit name=cmd value="New Elog">
               <input type=submit name=cmd value="Last Elog">
@@ -31,7 +32,7 @@
 
         <tr>
           <td colspan=2>
-            <input type=checkbox name=mode value=\"summary\">Summary only
+            <input type=checkbox name=mode value="summary">Summary only
           </td>
           <td colspan=2>
             <input type=checkbox name=attach value=1>Show attachments
@@ -68,9 +69,9 @@
 
         <tr>
           <td>Start run:</td>
-          <td><input type=\"text\" size=\"10\" maxlength=\"10\" name=\"r1\"></td>
+          <td><input type="text" size="10" maxlength="10" name="r1"></td>
           <td>End run:</td>
-          <td><input type=\"text\" size=\"10\" maxlength=\"10\" name=\"r2\"></td>
+          <td><input type="text" size="10" maxlength="10" name="r2"></td>
         </tr>
 
         <tr>
@@ -216,7 +217,7 @@
           if ("buttons" in elog) {
              for (var i=0; i<elog.buttons.length; i++) {
                 if (elog.buttons[i].length > 0) {
-                   add_button("buttons_block", "Last " + elog.buttons[i]);
+                   add_button("buttons_block", "Elog Last " + elog.buttons[i]);
                 }
              }
           }

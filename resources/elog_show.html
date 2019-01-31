@@ -21,16 +21,16 @@
         <td align="center">
           <form method="GET">
             <div id="buttons_block">
-              <input type=submit name=cmd value="elog_new">
-              <input type=submit name=cmd value="elog_reply">
-              <input type=submit name=cmd value=elog_edit id="elog_edit_button">
-              <input type=submit name=cmd value=elog_delete id="elog_delete_button">
-              <input type=submit name=cmd value=elog_query>
-              <input type=submit name=cmd value=Query>
-              <input type=submit name=cmd value=Next>
-              <input type=submit name=cmd value=Previous>
-              <input type=submit name=cmd value=Last>
-              <input type=hidden name=tag  value="(tag)" id="tag_input">
+              <input class="mbutton" type=submit name=cmd value="New elog">
+              <input class="mbutton" type=submit name=cmd value="Reply elog">
+              <input class="mbutton" type=submit name=cmd value="Edit elog" id="elog_edit_button">
+              <input class="mbutton" type=submit name=cmd value=elog_delete id="elog_delete_button">
+              <input class="mbutton" type=submit name=cmd value="Query elog">
+              <br>
+              <input class="mbutton" type=submit name=cmd value=Next>
+              <input class="mbutton" type=submit name=cmd value=Previous>
+              <input class="mbutton" type=submit name=cmd value=Last>
+              <input class="mbutton" type=hidden name=tag  value="(tag)" id="tag_input">
             </div>
           </form>
         </td>
@@ -47,25 +47,25 @@
       </tr>
       <tr>
         <td>
-          Author: <input readonly type="text" size="15" maxlength="80" name="Author" value="" id="author_input">
+          Author: <input readonly type="text" size="32" maxlength="80" name="Author" value="" id="author_input">
         </td>
       </tr>
       
       <tr>
         <td>
-          Type: <input readonly type="text" size="15" maxlength="80" name="Type" value="" id="type_input">
+          Type: <input readonly type="text" size="32" maxlength="80" name="Type" value="" id="type_input">
         </td>
       </tr>
       
       <tr>
         <td>
-          System: <input readonly type="text" size="15" maxlength="80" name="System" value="" id="system_input">
+          System: <input readonly type="text" size="32" maxlength="80" name="System" value="" id="system_input">
         </td>
       </tr>
       
       <tr>
         <td>
-          Subject: <input readonly type=text size=20 maxlength="80" name=Subject value="(subject)" id="subject_input">
+          Subject: <input readonly type=text size=80 maxlength="80" name=Subject value="(subject)" id="subject_input">
         </td>
       </tr>
       
@@ -136,6 +136,7 @@
           o.type = "submit";
           o.name = "cmd";
           o.value = text;
+          o.className = "mbutton";
           e.appendChild(o);
        }
     }
@@ -236,7 +237,7 @@
              if ("buttons" in elog) {
                 for (var i=0; i<elog.buttons.length; i++) {
                    if (elog.buttons[i].length > 0) {
-                      add_button("buttons_block", "Last " + elog.buttons[i]);
+                      add_button("buttons_block", "Elog Last " + elog.buttons[i]);
                    }
                 }
              }

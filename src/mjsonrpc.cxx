@@ -2250,7 +2250,7 @@ static MJsonNode* js_el_retrieve(const MJsonNode* params)
                             text, &size, orig_tag, reply_tag,
                             attachment[0], attachment[1], attachment[2], encoding);
 
-   printf("el_retrieve: size %d, status %d\n", size, status);
+   //printf("el_retrieve: size %d, status %d\n", size, status);
 
    MJsonNode* msg = MJsonNode::MakeObject();
 
@@ -2272,6 +2272,255 @@ static MJsonNode* js_el_retrieve(const MJsonNode* params)
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "msg", msg);
 }
 
+static MJsonNode* js_el_query(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("Query elog messages");
+      doc->P("last_n_hours?", MJSON_INT, "return messages from the last N hours");
+      doc->R("status", MJSON_INT, "return status of el_retrieve");
+      doc->R("msg[].tag", MJSON_STRING, "message tag");
+      return doc;
+   }
+
+   //MJsonNode* error = NULL;
+
+   //int last_n = mjsonrpc_get_param(params, "last_n_hours", &error)->GetInt(); if (error) return error;
+   int last_n = mjsonrpc_get_param(params, "last_n_hours", NULL)->GetInt();
+
+   std::string pd1 = mjsonrpc_get_param(params, "d1", NULL)->GetString();
+   std::string pm1 = mjsonrpc_get_param(params, "m1", NULL)->GetString();
+   std::string py1 = mjsonrpc_get_param(params, "y1", NULL)->GetString();
+
+   std::string pd2 = mjsonrpc_get_param(params, "d2", NULL)->GetString();
+   std::string pm2 = mjsonrpc_get_param(params, "m2", NULL)->GetString();
+   std::string py2 = mjsonrpc_get_param(params, "y2", NULL)->GetString();
+
+   std::string pr1 = mjsonrpc_get_param(params, "r1", NULL)->GetString();
+   std::string pr2 = mjsonrpc_get_param(params, "r2", NULL)->GetString();
+
+   std::string ptype = mjsonrpc_get_param(params, "type", NULL)->GetString();
+   std::string psystem = mjsonrpc_get_param(params, "system", NULL)->GetString();
+   std::string pauthor = mjsonrpc_get_param(params, "author", NULL)->GetString();
+   std::string psubject = mjsonrpc_get_param(params, "subject", NULL)->GetString();
+   std::string psubtext = mjsonrpc_get_param(params, "subtext", NULL)->GetString();
+
+   MJsonNode* msg_array = MJsonNode::MakeArray();
+
+   int i, size, run, status;
+   char date[80], author[80], type[80], system[80], subject[256], text[10000],
+       orig_tag[80], reply_tag[80], attachment[3][256], encoding[80];
+   char str[256], str2[10000], tag[256];
+   time_t ltime_start, ltime_end, ltime_current, now;
+   struct tm tms, *ptms;
+
+   // month name from midas.c
+   extern const char *mname[];
+
+   /*---- convert end date to ltime ----*/
+
+   ltime_end = ltime_start = 0;
+
+   int y1 = -1;
+   int m1 = -1;
+   int d1 = -1;
+
+   if (py1.length() > 0)
+      y1 = atoi(py1.c_str());
+
+   if (pd1.length() > 0)
+      d1 = atoi(pd1.c_str());
+
+   int y2 = -1;
+   int m2 = -1;
+   int d2 = -1;
+
+   int r1 = -1;
+   int r2 = -1;
+
+   if (pr1.length()>0)
+      r1 = atoi(pr1.c_str());
+
+   if (pr2.length()>0)
+      r2 = atoi(pr2.c_str());
+   
+   if (!last_n) {
+      strlcpy(str, pm1.c_str(), sizeof(str));
+      for (m1 = 0; m1 < 12; m1++)
+         if (equal_ustring(str, mname[m1]))
+            break;
+      if (m1 == 12)
+         m1 = 0;
+
+      if (pm2.length() > 0) {
+         strlcpy(str, pm2.c_str(), sizeof(str));
+         for (m2 = 0; m2 < 12; m2++)
+            if (equal_ustring(str, mname[m2]))
+               break;
+         if (m2 == 12)
+            m2 = 0;
+      } else {
+         m2 = m1;
+      }
+
+      if (py2.length() > 0)
+         y2 = atoi(py2.c_str());
+      else
+         y2 = y1;
+
+      if (pd2.length() > 0)
+         d2 = atoi(pd2.c_str());
+      else
+         d2 = atoi(pd1.c_str());
+
+      memset(&tms, 0, sizeof(struct tm));
+      tms.tm_year = y2 % 100;
+      tms.tm_mon = m2;
+      tms.tm_mday = d2;
+      tms.tm_hour = 24;
+      
+      if (tms.tm_year < 90)
+         tms.tm_year += 100;
+      ltime_end = mktime(&tms);
+   }
+
+   /*---- do query ----*/
+
+   if (last_n) {
+      time(&now);
+      ltime_start = now - 3600 * last_n;
+      ptms = localtime(&ltime_start);
+      sprintf(tag, "%02d%02d%02d.0", ptms->tm_year % 100, ptms->tm_mon + 1, ptms->tm_mday);
+   } else if (r1 > 0) {
+      /* do run query */
+      el_search_run(r1, tag);
+   } else {
+      /* do date-date query */
+      sprintf(tag, "%02d%02d%02d.0", y1 % 100, m1 + 1, d1);
+   }
+
+   printf("js_el_query: y1 %d, m1 %d, d1 %d, y2 %d, m2 %d, d2 %d, r1 %d, r2 %d, last_n_hours %d\n",
+          y1, m1, d1,
+          y2, m2, d2,
+          r1, r2,
+          last_n);
+
+   do {
+      size = sizeof(text);
+      status = el_retrieve(tag, date, &run, author, type, system, subject,
+                           text, &size, orig_tag, reply_tag,
+                           attachment[0], attachment[1], attachment[2], encoding);
+
+      std::string this_tag = tag;
+
+      printf("js_el_query: el_retrieve: size %d, status %d, tag [%s], run %d, tags [%s] [%s]\n", size, status, tag, run, orig_tag, reply_tag);
+      
+      strlcat(tag, "+1", sizeof(tag));
+
+      /* check for end run */
+      if ((r2 > 0) && (r2 < run)) {
+         break;
+      }
+
+      /* convert date to unix format */
+      memset(&tms, 0, sizeof(struct tm));
+      tms.tm_year = (tag[0] - '0') * 10 + (tag[1] - '0');
+      tms.tm_mon = (tag[2] - '0') * 10 + (tag[3] - '0') - 1;
+      tms.tm_mday = (tag[4] - '0') * 10 + (tag[5] - '0');
+      tms.tm_hour = (date[11] - '0') * 10 + (date[12] - '0');
+      tms.tm_min = (date[14] - '0') * 10 + (date[15] - '0');
+      tms.tm_sec = (date[17] - '0') * 10 + (date[18] - '0');
+
+      if (tms.tm_year < 90)
+         tms.tm_year += 100;
+      ltime_current = mktime(&tms);
+
+      //printf("js_el_query: ltime: start %ld, end %ld, current %ld\n", ltime_start, ltime_end, ltime_current);
+
+      /* check for start date */
+      if (ltime_start > 0)
+         if (ltime_current < ltime_start)
+            continue;
+
+      /* check for end date */
+      if (ltime_end > 0) {
+         if (ltime_current > ltime_end)
+            break;
+      }
+
+      if (status == EL_SUCCESS) {
+         /* do filtering */
+         if ((ptype.length()>0) && !equal_ustring(ptype.c_str(), type))
+            continue;
+         if ((psystem.length()>0) && !equal_ustring(psystem.c_str(), system))
+            continue;
+
+         if (pauthor.length()>0) {
+            strlcpy(str, pauthor.c_str(), sizeof(str));
+            for (i = 0; i < (int) strlen(str); i++)
+               str[i] = toupper(str[i]);
+            str[i] = 0;
+            for (i = 0; i < (int) strlen(author) && author[i] != '@'; i++)
+               str2[i] = toupper(author[i]);
+            str2[i] = 0;
+
+            if (strstr(str2, str) == NULL)
+               continue;
+         }
+
+         if (psubject.length()>0) {
+            strlcpy(str, psubject.c_str(), sizeof(str));
+            for (i = 0; i < (int) strlen(str); i++)
+               str[i] = toupper(str[i]);
+            str[i] = 0;
+            for (i = 0; i < (int) strlen(subject); i++)
+               str2[i] = toupper(subject[i]);
+            str2[i] = 0;
+
+            if (strstr(str2, str) == NULL)
+               continue;
+         }
+
+         if (psubtext.length()>0) {
+            strlcpy(str, psubtext.c_str(), sizeof(str));
+            for (i = 0; i < (int) strlen(str); i++)
+               str[i] = toupper(str[i]);
+            str[i] = 0;
+            for (i = 0; i < (int) strlen(text); i++)
+               str2[i] = toupper(text[i]);
+            str2[i] = 0;
+
+            if (strstr(str2, str) == NULL)
+               continue;
+         }
+
+         /* filter passed: display line */
+
+         MJsonNode* msg = MJsonNode::MakeObject();
+         
+         msg->AddToObject("tag", MJsonNode::MakeString(this_tag.c_str()));
+         msg->AddToObject("date", MJsonNode::MakeString(date));
+         msg->AddToObject("run", MJsonNode::MakeInt(run));
+         msg->AddToObject("author", MJsonNode::MakeString(author));
+         msg->AddToObject("type", MJsonNode::MakeString(type));
+         msg->AddToObject("system", MJsonNode::MakeString(system));
+         msg->AddToObject("subject", MJsonNode::MakeString(subject));
+         msg->AddToObject("text", MJsonNode::MakeString(text));
+         msg->AddToObject("orig_tag", MJsonNode::MakeString(orig_tag));
+         msg->AddToObject("reply_tag", MJsonNode::MakeString(reply_tag));
+         msg->AddToObject("attachment0", MJsonNode::MakeString(attachment[0]));
+         msg->AddToObject("attachment1", MJsonNode::MakeString(attachment[1]));
+         msg->AddToObject("attachment2", MJsonNode::MakeString(attachment[2]));
+         msg->AddToObject("encoding", MJsonNode::MakeString(encoding));
+
+         msg_array->AddToArray(msg);
+      }
+
+   } while (status == EL_SUCCESS);
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "msg", msg_array);
+}
+   
 /////////////////////////////////////////////////////////////////////////////////
 //
 // jrpc code goes here
@@ -2783,6 +3032,7 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("db_key",    js_db_key);
    // interface to elog functions
    mjsonrpc_add_handler("el_retrieve", js_el_retrieve);
+   mjsonrpc_add_handler("el_query",    js_el_query);
    // interface to midas history
    mjsonrpc_add_handler("hs_get_active_events", js_hs_get_active_events);
    mjsonrpc_add_handler("hs_get_channels", js_hs_get_channels);
