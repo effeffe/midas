@@ -2404,6 +2404,7 @@ static MJsonNode* js_el_query(const MJsonNode* params)
       sprintf(tag, "%02d%02d%02d.0", y1 % 100, m1 + 1, d1);
    }
 
+#if 0
    printf("js_el_query: y1 %d, m1 %d, d1 %d, y2 %d, m2 %d, d2 %d, r1 %d, r2 %d, last_n_hours %d, start time %lu, end time %lu, tag [%s]\n",
           y1, m1, d1,
           y2, m2, d2,
@@ -2412,6 +2413,7 @@ static MJsonNode* js_el_query(const MJsonNode* params)
           ltime_start,
           ltime_end,
           tag);
+#endif
 
    do {
       size = sizeof(text);
@@ -2421,7 +2423,7 @@ static MJsonNode* js_el_query(const MJsonNode* params)
 
       std::string this_tag = tag;
 
-      printf("js_el_query: el_retrieve: size %d, status %d, tag [%s], run %d, tags [%s] [%s]\n", size, status, tag, run, orig_tag, reply_tag);
+      //printf("js_el_query: el_retrieve: size %d, status %d, tag [%s], run %d, tags [%s] [%s]\n", size, status, tag, run, orig_tag, reply_tag);
       
       strlcat(tag, "+1", sizeof(tag));
 
@@ -2529,6 +2531,23 @@ static MJsonNode* js_el_query(const MJsonNode* params)
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "msg", msg_array);
 }
+
+static MJsonNode* js_el_delete(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("Delete elog message");
+      doc->P("tag", MJSON_STRING, "tag of message to delete");
+      doc->R("status", MJSON_INT, "return status of el_delete");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+   std::string tag = mjsonrpc_get_param(params, "tag", &error)->GetString(); if (error) return error;
+   int status = el_delete_message(tag.c_str());
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+}
+
    
 /////////////////////////////////////////////////////////////////////////////////
 //
@@ -3042,6 +3061,7 @@ void mjsonrpc_init()
    // interface to elog functions
    mjsonrpc_add_handler("el_retrieve", js_el_retrieve);
    mjsonrpc_add_handler("el_query",    js_el_query);
+   mjsonrpc_add_handler("el_delete",   js_el_delete);
    // interface to midas history
    mjsonrpc_add_handler("hs_get_active_events", js_hs_get_active_events);
    mjsonrpc_add_handler("hs_get_channels", js_hs_get_channels);

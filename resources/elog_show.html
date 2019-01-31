@@ -4,6 +4,7 @@
    <link rel="stylesheet" href="midas.css">
    <script src="midas.js"></script>
    <script src="mhttpd.js"></script>
+   <script src="controls.js"></script>
    <title>Elog message</title>
 </head>
 
@@ -24,7 +25,7 @@
               <input class="mbutton" type=submit name=cmd value="New elog">
               <input class="mbutton" type=submit name=cmd value="Reply elog">
               <input class="mbutton" type=submit name=cmd value="Edit elog" id="elog_edit_button">
-              <input class="mbutton" type=submit name=cmd value="Delete elog" id="elog_delete_button">
+              <input class="mbutton" type=button onclick="delete_message()" value="Delete elog" id="elog_delete_button">
               <input class="mbutton" type=submit name=cmd value=Next>
               <input class="mbutton" type=submit name=cmd value=Previous>
               <input class="mbutton" type=submit name=cmd value="Last elog">
@@ -162,6 +163,30 @@
           e.innerHTML = text;
           //e.download  = text;
           e.href = text + "?cmd=elog_att";
+       }
+    }
+
+    function delete_message()
+    {
+       var e = document.getElementById("tag_input");
+       if (e) {
+          var tag = e.value;
+
+          dlgConfirm('Are you sure to delete elog message ' + tag + '?', function(flag) {
+             if (flag == true) {
+                //console.log("delete message: " + tag);
+	             var req = new Object();
+	             req.tag = tag;
+                mjsonrpc_call("el_delete", req).then(function (rpc) {
+                   var status = rpc.result.status;
+                   console.log("delete message " + tag + " status: " + status);
+                   mhttpd_goto_page("elog");
+                   // does not return
+                }).catch(function (error) {
+                   mjsonrpc_error_alert(error);
+                });
+             }
+          });
        }
     }
     
