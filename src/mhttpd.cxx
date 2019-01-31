@@ -1660,6 +1660,48 @@ void init_menu_buttons()
 
 /*------------------------------------------------------------------*/
 
+void init_elog_odb()
+{
+   int status;
+   HNDLE hDB;
+   int size;
+   HNDLE hkey;
+   cm_get_experiment_database(&hDB, NULL);
+
+   BOOL external_elog = FALSE;
+   std::string external_elog_url;
+
+   size = sizeof(external_elog);
+   status = db_get_value(hDB, 0, "/Elog/External Elog", &external_elog, &size, TID_BOOL, TRUE);
+   status = db_get_value_string(hDB, 0, "/Elog/URL", 0, &external_elog_url, TRUE);
+
+   BOOL allow_delete = FALSE;
+   BOOL allow_edit = FALSE;
+   size = sizeof(BOOL);
+   db_get_value(hDB, 0, "/Elog/Allow delete", &allow_delete, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Elog/Allow edit", &allow_edit, &size, TID_BOOL, TRUE);
+   //db_get_value(hDB, 0, "/Elog/Display run number", &display_run_number, &size, TID_BOOL, TRUE);
+
+   if (db_find_key(hDB, 0, "/Elog/Buttons", &hkey) != DB_SUCCESS) {
+      const char def_button[][NAME_LENGTH] = { "8h", "24h", "7d" };
+      db_set_value(hDB, 0, "/Elog/Buttons", def_button, NAME_LENGTH*3, 3, TID_STRING);
+   }
+
+
+   /* get type list from ODB */
+   size = 20 * NAME_LENGTH;
+   if (db_find_key(hDB, 0, "/Elog/Types", &hkey) != DB_SUCCESS) {
+      db_set_value(hDB, 0, "/Elog/Types", default_type_list, NAME_LENGTH * 20, 20, TID_STRING);
+   }
+
+   /* get system list from ODB */
+   size = 20 * NAME_LENGTH;
+   if (db_find_key(hDB, 0, "/Elog/Systems", &hkey) != DB_SUCCESS)
+      db_set_value(hDB, 0, "/Elog/Systems", default_system_list, NAME_LENGTH * 20, 20, TID_STRING);
+}
+
+/*------------------------------------------------------------------*/
+
 void strencode(Return* r, const char *text)
 {
    int i;
@@ -1777,6 +1819,7 @@ void strencode4(Return* r, char *text)
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void show_elog_new(Return* r, const char* dec_path, const char *path, BOOL bedit, const char *odb_att, const char *action_path)
 {
    int i, j, size, run_number, wrap, status;
@@ -2055,9 +2098,11 @@ void show_elog_new(Return* r, const char* dec_path, const char *path, BOOL bedit
    r->rsprintf("</form>\n");
    r->rsprintf("</body></html>\r\n");
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void show_elog_query(Return* r, const char* dec_path)
 {
    int i, size;
@@ -2238,9 +2283,11 @@ void show_elog_query(Return* r, const char* dec_path)
    r->rsprintf("</form>\n");
    r->rsprintf("</body></html>\r\n");
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void show_elog_delete(Param* p, Return* r, const char* dec_path, const char *path)
 {
    HNDLE hDB;
@@ -2305,9 +2352,11 @@ void show_elog_delete(Param* p, Return* r, const char* dec_path, const char *pat
    r->rsprintf("</form>\n");
    r->rsprintf("</body></html>\r\n");
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void show_elog_submit_query(Param* p, Return* r, const char* dec_path, INT last_n)
 {
    int i, size, run, status, m1, d2, m2, y2, index, colspan;
@@ -2736,9 +2785,11 @@ void show_elog_submit_query(Param* p, Return* r, const char* dec_path, INT last_
    r->rsprintf("</form>\n");
    r->rsprintf("</body></html>\r\n");
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void show_rawfile(Param* pp, Return* r, const char* dec_path, const char *path)
 {
    int size, lines, i, buf_size, offset;
@@ -2886,9 +2937,11 @@ void show_rawfile(Param* pp, Return* r, const char* dec_path, const char *path)
    r->rsprintf("</form>\n");
    r->rsprintf("</body></html>\r\n");
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void show_form_query(Param* p, Return* r, const char* dec_path)
 {
    int i = 0, size, run_number, status;
@@ -3010,6 +3063,7 @@ void show_form_query(Param* p, Return* r, const char* dec_path)
    r->rsprintf("</form>\n");
    r->rsprintf("</body></html>\r\n");
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -3356,6 +3410,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void submit_form(Param* p, Return* r, Attachment* a)
 {
    char str[256], att_name[256];
@@ -3427,6 +3482,7 @@ void submit_form(Param* p, Return* r, Attachment* a)
 
    submit_elog(p, r, a);
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -3494,6 +3550,7 @@ void show_elog_attachment(Param* p, Return* r, const char* path)
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void show_elog_page(Param* p, Return* r, Attachment* a, const char* dec_path, char *path, int path_size)
 {
    int size, i, run, msg_status, status, fh, first_message, last_message, index,
@@ -4041,9 +4098,11 @@ void show_elog_page(Param* p, Return* r, Attachment* a, const char* dec_path, ch
    r->rsprintf("</form>\n");
    r->rsprintf("</body></html>\r\n");
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void get_elog_url(char *url, int len)
 {
    HNDLE hDB;
@@ -4072,6 +4131,7 @@ void get_elog_url(char *url, int len)
       strlcpy(url, "EL/", len);
    }
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -12431,11 +12491,12 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 {
    HNDLE hDB, hkey, hikeyp, hkeyp, hkeybutton;
    KEY key, ikey;
-   int i, j, k, scale, index, width, size, status, labels, fh, fsize;
+   int i, j, k, scale, index, width, size, status, labels;
+   //int fh, fsize;
    float factor[2];
    char hgroup[256], hpanel[256], hcmd[256];
    const char def_button[][NAME_LENGTH] = { "10m", "1h", "3h", "12h", "24h", "3d", "7d" };
-   struct tm *tms;
+   //struct tm *tms;
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -12622,6 +12683,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
    if (pindex && *pindex)
       index = atoi(pindex);
 
+#ifdef BROKEN   
    if (equal_ustring(hcmd, "Create ELog")) {
       std::string xurl;
       status = db_get_value_string(hDB, 0, "/Elog/URL", 0, &xurl, FALSE);
@@ -12727,6 +12789,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
          return;
       }
    }
+#endif
 
    if (equal_ustring(hcmd, "Export")) {
       export_hist(r, hgroup, hpanel, endtime, scale, index, labels);
@@ -15793,11 +15856,13 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
+#ifdef OBSOLETE
    if (equal_ustring(command, "Create ELog from this page")) {
       strlcpy(str, dec_path, sizeof(str));
       show_elog_page(p, r, a, dec_path, str, sizeof(str));
       return;
    }
+#endif
    
    if (equal_ustring(command, "Submit elog")) {
       strlcpy(str, dec_path, sizeof(str));
@@ -15805,16 +15870,19 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
+#ifdef OBSOLETE
    if (equal_ustring(command, "Submit query")) {
       show_elog_submit_query(p, r, dec_path, 0);
       return;
    }
+#endif
 
    if (equal_ustring(command, "elog_att")) {
       show_elog_attachment(p, r, dec_path);
       return;
    }
 
+#ifdef OBSOLETE
    if (strncmp(dec_path, "EL/", 3) == 0) {
       if (equal_ustring(command, "new") || equal_ustring(command, "edit")
           || equal_ustring(command, "reply")) {
@@ -15827,6 +15895,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       show_elog_page(p, r, a, dec_path, str, sizeof(str));
       return;
    }
+#endif
 
    /*---- accept command --------------------------------------------*/
 
@@ -17708,6 +17777,9 @@ int main(int argc, const char *argv[])
 
    /* initialize sequencer */
    init_sequencer();
+
+   /* initialize elog odb entries */
+   init_elog_odb();
 
    /* initialize the JSON RPC handlers */
    mjsonrpc_init();

@@ -249,9 +249,9 @@
           mjsonrpc_db_get_values(odb_list).then(function (rpc) {
              var elog = rpc.result.data[0];
              
-             if (!elog["display run number"]) {
-                hide("run_number");
-             }
+             //if (!elog["display run number"]) {
+             //   hide("run_number");
+             //}
 
              if (!elog["allow delete"]) {
                 disable("elog_delete_button");
