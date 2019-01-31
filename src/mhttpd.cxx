@@ -3249,7 +3249,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
              att_file[1], a->_attachment_buffer[1], a->_attachment_size[1],
              att_file[2], a->_attachment_buffer[2], a->_attachment_size[2], tag, sizeof(tag));
 
-   printf("el_submit status %d, tag [%s]\n", status, tag);
+   //printf("el_submit status %d, tag [%s]\n", status, tag);
 
    /* supersede host name with "/Elog/Host name" */
    std::string elog_host_name;
@@ -3834,17 +3834,19 @@ void show_elog_page(Param* p, Return* r, Attachment* a, const char* dec_path, ch
 
    //local buttons
    r->rsprintf("<tr><td colspan=2>\n");
-   r->rsprintf("<input type=button name=elog_show_show value=aaa onclick=\"mhttpd_goto_page(\'elog_show&tag=%s\');\">\n", current_tag.c_str());
-   r->rsprintf("<input type=submit name=cmd value=elog_show>\n");
+   r->rsprintf("<input type=button name=\"Show elog\" value=\"Show elog\" onclick=\"mhttpd_goto_page(\'show+elog&tag=%s\');\">\n", current_tag.c_str());
+   r->rsprintf("<input type=submit name=cmd value=\"Show elog\">\n");
    r->rsprintf("<input type=submit name=cmd value=New>\n");
-   r->rsprintf("<input type=submit name=cmd value=elog_new>\n");
+   r->rsprintf("<input type=submit name=cmd value=\"New elog\">\n");
    r->rsprintf("<input type=submit name=cmd value=Edit>\n");
-   r->rsprintf("<input type=submit name=cmd value=elog_edit>\n");
+   r->rsprintf("<input type=submit name=cmd value=\"Edit elog\">\n");
    if (allow_delete)
       r->rsprintf("<input type=submit name=cmd value=Delete>\n");
    r->rsprintf("<input type=submit name=cmd value=Reply>\n");
-   r->rsprintf("<input type=submit name=cmd value=elog_reply>\n");
-   r->rsprintf("<input type=submit name=cmd value=Query></td></tr>\n");
+   r->rsprintf("<input type=submit name=cmd value=\"Reply elog\">\n");
+   r->rsprintf("<input type=submit name=cmd value=Query>\n");
+   r->rsprintf("<input type=submit name=cmd value=\"Query elog\">\n");
+   r->rsprintf("</td></tr>\n");
 
    r->rsprintf("<input type=hidden name=tag value=\"%s\">\n", current_tag.c_str());
 
@@ -15489,22 +15491,27 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   if (equal_ustring(command, "elog_show")) {
+   if (equal_ustring(command, "Show elog")) {
       send_resource(r, "elog_show.html");
       return;
    }
 
-   if (equal_ustring(command, "elog_new")) {
+   if (equal_ustring(command, "Query elog")) {
+      send_resource(r, "elog_query.html");
+      return;
+   }
+
+   if (equal_ustring(command, "New elog")) {
       send_resource(r, "elog_edit.html");
       return;
    }
 
-   if (equal_ustring(command, "elog_edit")) {
+   if (equal_ustring(command, "Edit elog")) {
       send_resource(r, "elog_edit.html");
       return;
    }
 
-   if (equal_ustring(command, "elog_reply")) {
+   if (equal_ustring(command, "Reply Elog")) {
       send_resource(r, "elog_edit.html");
       return;
    }
@@ -15746,6 +15753,11 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    if (equal_ustring(command, "Submit elog")) {
       strlcpy(str, dec_path, sizeof(str));
       submit_elog(p, r, a);
+      return;
+   }
+
+   if (equal_ustring(command, "Submit query")) {
+      show_elog_submit_query(p, r, dec_path, 0);
       return;
    }
 

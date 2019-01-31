@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html class="mcss">
+<head>
+   <link rel="stylesheet" href="midas.css">
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <title>Elog query</title>
+</head>
+
+<body class="mcss" onload="mhttpd_init('Elog')">
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+  <div class="mmaintable">
+    <form method="GET">
+      <table width="95%" class="mtable"">
+        <tr>
+          <td colspan="4" class="mtableheader" id="table_name">Elog Query and Search</td>
+        </tr>
+        <tr>
+          <td colspan="4" align="center">
+            <div id="buttons_block">
+              <input type=submit name=cmd value="Submit Query">
+              <input type=reset value="Reset Query Form">
+              <input type=submit name=cmd value="New Elog">
+              <input type=submit name=cmd value="Last Elog">
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td colspan=2>
+            <input type=checkbox name=mode value=\"summary\">Summary only
+          </td>
+          <td colspan=2>
+            <input type=checkbox name=attach value=1>Show attachments
+          </td>
+        </tr>
+
+        <tr>
+          <td>Start date:</td>
+          <td colspan=3>
+            <select name="m1" id="m1_select">
+            </select>
+            
+            <select name="d1" id="d1_select">
+            </select>
+            
+            <input type="text" size=5 maxlength=5 name="y1" id="y1_input">
+          </td>
+        </tr>
+
+        <tr>
+          <td>End date:</td>
+          <td colspan=3>
+            <select name="m2" id="m2_select">
+              <option value=""></option>
+            </select>
+            
+            <select name="d2" id="d2_select">
+              <option selected value=""></option>
+            </select>
+            
+            <input type="text" size=5 maxlength=5 name="y2">
+          </td>
+        </tr>
+
+        <tr>
+          <td>Start run:</td>
+          <td><input type=\"text\" size=\"10\" maxlength=\"10\" name=\"r1\"></td>
+          <td>End run:</td>
+          <td><input type=\"text\" size=\"10\" maxlength=\"10\" name=\"r2\"></td>
+        </tr>
+
+        <tr>
+          <td colspan=2>Author:
+            <input type="test" size="15" maxlength="80" name="author" id="author_input">
+          </td>
+          <td colspan=2>Type:
+            <select name="type" id="type_select">
+              <option value=""></option>
+            </select>
+          </td>
+        </tr>
+
+        <tr>
+          <td colspan=2>System:
+            <select name="system" id="system_select">
+              <option value=""></option>
+            </select>
+          </td>
+          <td colspan=2>Subject:
+            <input type="text" size="15" maxlength="80" name="subject">
+          </td>
+        </tr>
+
+        <tr>
+          <td colspan=4>Text:
+            <input type="text" size="15" maxlength="80" name="subtext">
+            <i>(case insensitive substring)</i>
+          </td>
+        </tr>
+      </table>
+    </form>
+    
+    <script type="text/javascript">
+    
+    function set_text(id, text) {
+       var e = document.getElementById(id);
+       if (e) {
+          e.innerHTML = text;
+       }
+    }
+    
+    function set_value(id, text) {
+       var e = document.getElementById(id);
+       if (e) {
+          e.value = text;
+       }
+    }
+    
+    function set_checked(id, checked) {
+       var e = document.getElementById(id);
+       if (e) {
+          e.checked = checked;
+       }
+    }
+    
+    function add_option(id, text, selected) {
+       var e = document.getElementById(id);
+       //console.log("add_option: [" + id + "] " + e + " text[" + text + "] selected " + selected);
+       if (e) {
+          var o = document.createElement("option");
+          o.value = text;
+          o.innerHTML = text;
+          o.selected = selected;
+          e.appendChild(o);
+       }
+    }
+    
+    function add_button(id, text) {
+       var e = document.getElementById(id);
+       //console.log("add_option: [" + id + "] " + e + " text[" + text + "] selected " + selected);
+       if (e) {
+          var o = document.createElement("input");
+          o.type = "submit";
+          o.name = "cmd";
+          o.value = text;
+          e.appendChild(o);
+       }
+    }
+    
+    function hide(id) {
+       var e = document.getElementById(id);
+       if (e) {
+          e.style.visibility = "hidden";
+          e.style.display = "none";
+       }
+    }
+    
+    function disable(id) {
+       var e = document.getElementById(id);
+       if (e) {
+          e.disabled = true;
+       }
+    }
+    
+    function set_att_link(id, text) {
+       var e = document.getElementById(id);
+       if (e) {
+          e.innerHTML = text;
+          //e.download  = text;
+          e.href = text + "?cmd=elog_att";
+       }
+    }
+    
+    function load() {
+       
+       var odb_list = [
+          "/Elog",
+       ];
+          
+       mjsonrpc_db_get_values(odb_list).then(function (rpc) {
+          var elog = rpc.result.data[0];
+
+          var xnow = new Date();
+          var now = new Date(xnow.getTime() - 1*24*60*60*1000);
+          
+          //if (!elog["display run number"]) {
+          //   hide("run_number");
+          //}
+
+          console.log("now: day " + now.getDate() + " month " + now.getMonth() + " year " + now.getFullYear());
+
+          const monthNames = ["January", "February", "March", "April", "May", "June",
+                              "July", "August", "September", "October", "November", "December"
+          ];
+
+          if ("types" in elog) {
+             for (var i=0; i<elog.types.length; i++) {
+                if (elog.types[i].length > 0) {
+                   add_option("type_select", elog.types[i], false);
+                }
+             }
+          }
+          
+          if ("systems" in elog) {
+             for (var i=0; i<elog.systems.length; i++) {
+                if (elog.systems[i].length > 0) {
+                   add_option("system_select", elog.systems[i], false);
+                }
+             }
+          }
+
+          if ("buttons" in elog) {
+             for (var i=0; i<elog.buttons.length; i++) {
+                if (elog.buttons[i].length > 0) {
+                   add_button("buttons_block", "Last " + elog.buttons[i]);
+                }
+             }
+          }
+
+          set_value("y1_input", now.getFullYear());
+
+          for (var i = 0; i < 12; i++) {
+             var select = (i == now.getMonth());
+             add_option("m1_select", monthNames[i], select);
+          }
+
+          for (var i = 0; i < 12; i++) {
+             add_option("m2_select", monthNames[i], false);
+          }
+
+          for (var i = 1; i <= 31; i++) {
+             var select = (i == now.getDate());
+             add_option("d1_select", i, select);
+          }
+
+          for (var i = 1; i <= 31; i++) {
+             add_option("d2_select", i, false);
+          }
+
+       }).catch(function (error) {
+          mjsonrpc_error_alert(error);
+       });
+    }
+    
+    </script>
+  </div>
+</div>
+
+<script>
+load();
+</script>
+</body>
+</html>
