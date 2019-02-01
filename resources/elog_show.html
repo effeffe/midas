@@ -32,6 +32,8 @@
               <br>
               <input class="mbutton" type=submit name=cmd value="Query elog">
               <input class="mbutton" type=hidden name=tag  value="(tag)" id="tag_input">
+              <input type="hidden" name="show_text" id="show_text_input">
+              <input type="hidden" name="show_attachments" id="show_attachments_input">
             </div>
           </form>
         </td>
@@ -222,6 +224,16 @@
        
        set_text("table_name", "Elog message " + tag);
        
+       var show_text = (mhttpd_getParameterByName("show_text") == "true");
+       var show_attachments = (mhttpd_getParameterByName("show_attachments") == "true");
+
+       //console.log("show text: " + show_text + " show_attachments: " + show_attachments);
+       //set_checked("show_text", show_text);
+       //set_checked("show_attachments", show_attachments);
+
+       set_value("show_text_input", show_text);
+       set_value("show_attachments_input", show_attachments);
+
 	    var req = new Object();
 	    req.tag = tag;
        mjsonrpc_call("el_retrieve", req).then(function (rpc) {

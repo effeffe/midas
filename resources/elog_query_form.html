@@ -26,10 +26,19 @@
               <input class="mbutton" type=submit name=cmd value="New Elog">
               <br>
               <input class="mbutton" type=submit name=cmd value="Last Elog">
+              <input type="hidden" name="show_text" id="show_text_input">
+              <input type="hidden" name="show_attachments" id="show_attachments_input">
             </div>
           </td>
         </tr>
 
+        <tr>
+          <td colspan="6" align="left">
+            <div><input class="mbutton" type="checkbox" id="show_text" onclick="update_show();"> show message text</div>
+            <div><input class="mbutton" type="checkbox" id="show_attachments" onclick="update_show();"> show message attachments</div>
+          </td>
+        </tr>
+        
         <tr>
           <td colspan=2>
             <input type=checkbox name=mode value="summary">Summary only
@@ -177,8 +186,40 @@
        }
     }
     
+    function get_show_text() {
+       var e = document.getElementById("show_text");
+       if (e) {
+          return e.checked;
+       }
+    }
+    
+    function get_show_attachments() {
+       var e = document.getElementById("show_attachments");
+       if (e) {
+          return e.checked;
+       }
+    }
+    
+    function update_show() {
+       console.log("update_show!");
+       set_value("show_text_input", get_show_text());
+       set_value("show_attachments_input", get_show_attachments());
+       //document.getElementById("main_form").submit();
+    }
+    
     function load() {
        
+       var show_text = (mhttpd_getParameterByName("show_text") == "true");
+       var show_attachments = (mhttpd_getParameterByName("show_attachments") == "true");
+
+       console.log("show text: " + show_text + " show_attachments: " + show_attachments);
+
+       set_checked("show_text", show_text);
+       set_checked("show_attachments", show_attachments);
+
+       set_value("show_text_input", show_text);
+       set_value("show_attachments_input", show_attachments);
+
        var odb_list = [
           "/Elog",
        ];

@@ -4,7 +4,7 @@
    <link rel="stylesheet" href="midas.css">
    <script src="midas.js"></script>
    <script src="mhttpd.js"></script>
-   <title>Elog message</title>
+   <title>Elog query</title>
 </head>
 
 <body class="mcss" onload="mhttpd_init('Elog')">
@@ -20,13 +20,22 @@
         </tr>
         <tr>
           <td colspan="6" align="center">
-            <form method="GET">
+            <form method="GET" id="main_form">
               <div id="buttons_block">
                 <input class="mbutton" type=submit name=cmd value="New elog">
                 <input class="mbutton" type=submit name=cmd value="Query elog">
                 <input class="mbutton" type=submit name=cmd value="Last elog">
+                <input type="hidden" name="show_text" id="show_text_input">
+                <input type="hidden" name="show_attachments" id="show_attachments_input">
               </div>
             </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td colspan="6" align="left">
+            <div><input class="mbutton" type="checkbox" id="show_text" onclick="update_show();"> show message text</div>
+            <div><input class="mbutton" type="checkbox" id="show_attachments" onclick="update_show();"> show message attachments</div>
           </td>
         </tr>
         
@@ -102,6 +111,7 @@
     function set_checked(id, checked) {
        var e = document.getElementById(id);
        if (e) {
+          console.log("set_checked: [" + id + "] " + e + " checked " + checked);
           e.checked = checked;
        }
     }
@@ -176,10 +186,40 @@
        e.appendChild(tr);
     }
 
+    function get_show_text() {
+       var e = document.getElementById("show_text");
+       if (e) {
+          return e.checked;
+       }
+    }
+    
+    function get_show_attachments() {
+       var e = document.getElementById("show_attachments");
+       if (e) {
+          return e.checked;
+       }
+    }
+    
+    function update_show() {
+       console.log("update_show!");
+       set_value("show_text_input", get_show_text());
+       set_value("show_attachments_input", get_show_attachments());
+       //document.getElementById("main_form").submit();
+    }
     
     function load() {
        var cmd = mhttpd_getParameterByName("cmd");
-       //set_text("table_name", "Elog message " + tag);
+
+       var show_text = (mhttpd_getParameterByName("show_text") == "true");
+       var show_attachments = (mhttpd_getParameterByName("show_attachments") == "true");
+
+       console.log("show text: " + show_text + " show_attachments: " + show_attachments);
+
+       set_checked("show_text", show_text);
+       set_checked("show_attachments", show_attachments);
+
+       set_value("show_text_input", show_text);
+       set_value("show_attachments_input", show_attachments);
 
        var y1 = mhttpd_getParameterByName("y1");
        var m1 = mhttpd_getParameterByName("m1");
@@ -294,9 +334,6 @@
           req.subtext = subtext;
        }
 
-       var show_text = true;
-       var show_attachments = true;
-
        mjsonrpc_call("el_query", req).then(function (rpc) {
           var status = rpc.result.status;
           var msg_array = rpc.result.msg;
@@ -324,7 +361,7 @@
              
              td = document.createElement("td");
 
-             td.innerHTML = "<a href=\"?cmd=Show+Elog&tag=" + msg.tag + "\">" + msg.date + "</a>";
+             td.innerHTML = "<a href=\"?cmd=Show+Elog&tag=" + msg.tag + "&show_text="+show_text+"&show_attachments="+show_attachments+"\">" + msg.date + "</a>";
              tr.appendChild(td);
 
              td = document.createElement("td");
