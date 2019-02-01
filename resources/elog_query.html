@@ -294,8 +294,8 @@
           req.subtext = subtext;
        }
 
-       var show_text = false;
-       var show_attachments = false;
+       var show_text = true;
+       var show_attachments = true;
 
        mjsonrpc_call("el_query", req).then(function (rpc) {
           var status = rpc.result.status;
@@ -353,11 +353,12 @@
                 tr = document.createElement("tr");
 
                 td = document.createElement("td");
-                td.colSpan = 5;
+                td.className = "mfont mtext";
+                td.colSpan = 6;
                 if (html) {
-                   td.innerHTML = msg.text;
+                   td.innerHTML = "<br><div class='mfont mtext'>" + msg.text + "</div><br>";
                 } else {
-                   td.innerHTML = "<pre>" + msg.text + "</pre>";
+                   td.innerHTML = "<pre class='mfont mtext'>" + msg.text + "</pre>";
                 }
                 tr.appendChild(td);
 

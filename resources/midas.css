@@ -15,6 +15,13 @@ body.mcss {
    font-family: verdana,tahoma,sans-serif;
 }
 
+/* use for high-contrast display of text */
+
+.mtext {
+   background-color: white;
+   foreground-color: black;
+}
+
 :root {
    --mgray: #B0B0B0;
    --mred: #ff9ca6;
@@ -198,6 +205,8 @@ body.mcss {
    padding: 1em;
 }
 
+/* does this overwrite generic html formatting? K.O. */
+
 a.hideButton{
     text-decoration : none; 
     color : #5F88A3;
@@ -247,6 +256,7 @@ input.mnavsel:hover {
 }
 
 /* input box */
+/* does this overwrite generic html formatting? K.O. */
 input[type=text] {
    font-size: 100%;
 }

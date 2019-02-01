@@ -71,9 +71,9 @@
       </tr>
       
       <tr>
-        <td>Text:<br>
-          <div id="text_input_block"><textarea readonly cols="80" rows="10" name=Text id="text_input">(plain text)</textarea></div>
-          <div id="html_input_block"><p id="html_input">(html text)</p></div>
+        <td class="mfont mtext">
+          <div id="text_input_block" class="mfont mtext"><pre id="text_input" class="mfont mtext">(plain text)</pre></div>
+          <div id="html_input_block"><p id="html_input" class="mfont mtext">(html text)</p></div>
         </td>
       </tr>
       
@@ -270,7 +270,7 @@
                 set_text("html_input", msg.text);
                 hide("text_input_block");
              } else {
-                set_value("text_input", msg.text);
+                set_text("text_input", msg.text);
                 hide("html_input_block");
              }
              
