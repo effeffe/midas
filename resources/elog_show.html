@@ -25,10 +25,10 @@
               <input class="mbutton" type=submit name=cmd value="New elog">
               <input class="mbutton" type=submit name=cmd value="Reply elog">
               <input class="mbutton" type=submit name=cmd value="Edit elog" id="elog_edit_button">
-              <input class="mbutton" type=button onclick="delete_message()" value="Delete elog" id="elog_delete_button">
-              <input class="mbutton" type=submit name=cmd value=Next>
-              <input class="mbutton" type=submit name=cmd value=Previous>
-              <input class="mbutton" type=submit name=cmd value="Last elog">
+              <input class="mbutton" type=button onclick="delete_message()" value="Delete" id="elog_delete_button">
+              <input class="mbutton" type=button onclick="next_message()" value="Next">
+              <input class="mbutton" type=button onclick="previous_message()" value="Previous">
+              <input class="mbutton" type=button onclick="last_message()" value="Last">
               <br>
               <input class="mbutton" type=submit name=cmd value="Query elog">
               <input class="mbutton" type=hidden name=tag  value="(tag)" id="tag_input">
@@ -190,6 +190,32 @@
        }
     }
     
+    function next_message()
+    {
+       var e = document.getElementById("tag_input");
+       if (e) {
+          var tag = e.value;
+          mhttpd_goto_page("show+elog&tag=" + tag + encodeURIComponent("+1"));
+          // does not return
+       }
+    }
+    
+    function previous_message()
+    {
+       var e = document.getElementById("tag_input");
+       if (e) {
+          var tag = e.value;
+          mhttpd_goto_page("show+elog&tag=" + tag + encodeURIComponent("-1"));
+          // does not return
+       }
+    }
+    
+    function last_message()
+    {
+       mhttpd_goto_page("show+elog");
+       // does not return
+    }
+    
     function load() {
        var cmd = mhttpd_getParameterByName("cmd");
        var tag    = mhttpd_getParameterByName("tag");
@@ -200,47 +226,65 @@
 	    req.tag = tag;
        mjsonrpc_call("el_retrieve", req).then(function (rpc) {
           var status = rpc.result.status;
-          var msg = rpc.result.msg;
-          
-          var type   = msg.type; //mhttpd_getParameterByName("type");
-          var system = msg.system; //mhttpd_getParameterByName("system");
-          
-          var encoding = msg.encoding;
-          
-          var html = false;
-          if (encoding == "HTML")
-             html = true;
-          
-          //console.log("msg encoding: " + encoding);
 
-          set_text("table_name", "Elog message " + msg.tag);
-          
-          set_text("entry_date", msg.date);
-          set_value("tag_input", msg.tag);
-          set_value("run_number_input", msg.run);
-          set_value("author_input", msg.author);
-          set_value("subject_input", msg.subject);
-          set_value("type_input", msg.type);
-          set_value("system_input", msg.system);
-
-          if (html) {
-             set_text("html_input", msg.text);
-             hide("text_input_block");
+          if (status == 906) {
+             dlgConfirm("There are not more messages, return to last message?",
+                        function modal1(flag) {
+                           last_message();
+                           // does not return
+                        }
+             );
+          } else if (status != 1) {
+             dlgConfirm("Cannot load elog message with tag " + tag + ", el_retrieve() error " + status + ", return to last message?",
+                        function modal2(flag) {
+                           last_message();
+                           // does not return
+                        }
+             );
           } else {
-             set_value("text_input", msg.text);
-             hide("html_input_block");
+
+             var msg = rpc.result.msg;
+             
+             var type   = msg.type; //mhttpd_getParameterByName("type");
+             var system = msg.system; //mhttpd_getParameterByName("system");
+             
+             var encoding = msg.encoding;
+             
+             var html = false;
+             if (encoding == "HTML")
+                html = true;
+             
+             //console.log("msg encoding: " + encoding);
+             
+             set_text("table_name", "Elog message " + msg.tag);
+             
+             set_text("entry_date", msg.date);
+             set_value("tag_input", msg.tag);
+             set_value("run_number_input", msg.run);
+             set_value("author_input", msg.author);
+             set_value("subject_input", msg.subject);
+             set_value("type_input", msg.type);
+             set_value("system_input", msg.system);
+             
+             if (html) {
+                set_text("html_input", msg.text);
+                hide("text_input_block");
+             } else {
+                set_value("text_input", msg.text);
+                hide("html_input_block");
+             }
+             
+             //console.log("msg att0: " + msg.attachment0);
+             //console.log("msg: " + JSON.stringify(msg));
+             
+             //set_value("attfile1_input", msg.attachment0);
+             //set_value("attfile2_input", msg.attachment1);
+             //set_value("attfile3_input", msg.attachment2);
+             
+             set_att_link("att1_link", msg.attachment0);
+             set_att_link("att2_link", msg.attachment1);
+             set_att_link("att3_link", msg.attachment2);
           }
-
-          //console.log("msg att0: " + msg.attachment0);
-          //console.log("msg: " + JSON.stringify(msg));
-
-          //set_value("attfile1_input", msg.attachment0);
-          //set_value("attfile2_input", msg.attachment1);
-          //set_value("attfile3_input", msg.attachment2);
-
-          set_att_link("att1_link", msg.attachment0);
-          set_att_link("att2_link", msg.attachment1);
-          set_att_link("att3_link", msg.attachment2);
           
           var odb_list = [
              "/Elog",

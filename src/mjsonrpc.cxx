@@ -2250,24 +2250,26 @@ static MJsonNode* js_el_retrieve(const MJsonNode* params)
                             text, &size, orig_tag, reply_tag,
                             attachment[0], attachment[1], attachment[2], encoding);
 
-   //printf("el_retrieve: size %d, status %d\n", size, status);
+   //printf("js_el_retrieve: size %d, status %d, tag [%s]\n", size, status, xtag);
 
    MJsonNode* msg = MJsonNode::MakeObject();
 
-   msg->AddToObject("tag", MJsonNode::MakeString(xtag));
-   msg->AddToObject("date", MJsonNode::MakeString(date));
-   msg->AddToObject("run", MJsonNode::MakeInt(run));
-   msg->AddToObject("author", MJsonNode::MakeString(author));
-   msg->AddToObject("type", MJsonNode::MakeString(type));
-   msg->AddToObject("system", MJsonNode::MakeString(system));
-   msg->AddToObject("subject", MJsonNode::MakeString(subject));
-   msg->AddToObject("text", MJsonNode::MakeString(text));
-   msg->AddToObject("orig_tag", MJsonNode::MakeString(orig_tag));
-   msg->AddToObject("reply_tag", MJsonNode::MakeString(reply_tag));
-   msg->AddToObject("attachment0", MJsonNode::MakeString(attachment[0]));
-   msg->AddToObject("attachment1", MJsonNode::MakeString(attachment[1]));
-   msg->AddToObject("attachment2", MJsonNode::MakeString(attachment[2]));
-   msg->AddToObject("encoding", MJsonNode::MakeString(encoding));
+   if (status == EL_SUCCESS) {
+      msg->AddToObject("tag", MJsonNode::MakeString(xtag));
+      msg->AddToObject("date", MJsonNode::MakeString(date));
+      msg->AddToObject("run", MJsonNode::MakeInt(run));
+      msg->AddToObject("author", MJsonNode::MakeString(author));
+      msg->AddToObject("type", MJsonNode::MakeString(type));
+      msg->AddToObject("system", MJsonNode::MakeString(system));
+      msg->AddToObject("subject", MJsonNode::MakeString(subject));
+      msg->AddToObject("text", MJsonNode::MakeString(text));
+      msg->AddToObject("orig_tag", MJsonNode::MakeString(orig_tag));
+      msg->AddToObject("reply_tag", MJsonNode::MakeString(reply_tag));
+      msg->AddToObject("attachment0", MJsonNode::MakeString(attachment[0]));
+      msg->AddToObject("attachment1", MJsonNode::MakeString(attachment[1]));
+      msg->AddToObject("attachment2", MJsonNode::MakeString(attachment[2]));
+      msg->AddToObject("encoding", MJsonNode::MakeString(encoding));
+   }
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "msg", msg);
 }
