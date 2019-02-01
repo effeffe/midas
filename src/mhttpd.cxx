@@ -1731,29 +1731,36 @@ void strencode(Return* r, const char *text)
 
 /*------------------------------------------------------------------*/
 
-void strencode2(Return* r, char *b, char *text)
+void strencode2(char *b, char *text)
 {
    int i;
 
-   for (i = 0; i < (int) strlen(text); b++, i++) {
+   for (i = 0; i < (int) strlen(text); i++) {
       switch (text[i]) {
       case '\n':
          sprintf(b, "<br>\n");
+         b += 6;
          break;
       case '<':
          sprintf(b, "&lt;");
+         b += 4;
          break;
       case '>':
          sprintf(b, "&gt;");
+         b += 4;
          break;
       case '&':
          sprintf(b, "&amp;");
+         b += 5;
          break;
       case '\"':
          sprintf(b, "&quot;");
+         b += 6;
          break;
       default:
          sprintf(b, "%c", text[i]);
+         b += 1;
+         break;
       }
    }
    *b = 0;
@@ -3067,14 +3074,15 @@ void show_form_query(Param* p, Return* r, const char* dec_path)
 
 /*------------------------------------------------------------------*/
 
-void gen_odb_attachment(Return* r, const char *path, char *b)
+void gen_odb_attachment(Return* r, const char *path, std::string& bout)
 {
    HNDLE hDB, hkeyroot, hkey;
    KEY key;
    INT i, j, size;
-   char data_str[256], hex_str[256];
-   char data[10000];
+   char data_str[25600], hex_str[25600];
+   char data[1024];
    time_t now;
+   char b[1024];
 
    cm_get_experiment_database(&hDB, NULL);
    db_find_key(hDB, 0, path, &hkeyroot);
@@ -3087,8 +3095,11 @@ void gen_odb_attachment(Return* r, const char *path, char *b)
    time(&now);
 
    sprintf(b, "<table border=3 cellpadding=1 class=\"dialogTable\">\n");
-   sprintf(b + strlen(b), "<tr><th colspan=2>%s</tr>\n", ctime(&now));
-   sprintf(b + strlen(b), "<tr><th colspan=2>%s</tr>\n", path);
+   bout += b;
+   sprintf(b, "<tr><th colspan=2>%s</tr>\n", ctime(&now));
+   bout += b;
+   sprintf(b, "<tr><th colspan=2>%s</tr>\n", path);
+   bout += b;
 
    /* enumerate subkeys */
    for (i = 0;; i++) {
@@ -3105,63 +3116,72 @@ void gen_odb_attachment(Return* r, const char *path, char *b)
 
       if (key.type == TID_KEY) {
          /* for keys, don't display data value */
-         sprintf(b + strlen(b), "<tr><td colspan=2>%s</td></tr>\n",
-                 key.name);
+         sprintf(b, "<tr><td colspan=2>%s</td></tr>\n", key.name);
+         bout += b;
       } else {
          /* display single value */
          if (key.num_values == 1) {
             size = sizeof(data);
             db_get_data(hDB, hkey, data, &size, key.type);
+            //printf("data size %d [%s]\n", size, data);
             db_sprintf(data_str, data, key.item_size, 0, key.type);
+            assert(strlen(data_str) < sizeof(data_str));
             db_sprintfh(hex_str, data, key.item_size, 0, key.type);
+            assert(strlen(hex_str) < sizeof(hex_str));
 
             if (data_str[0] == 0 || equal_ustring(data_str, "<NULL>")) {
                strcpy(data_str, "(empty)");
                hex_str[0] = 0;
             }
 
-            if (strcmp(data_str, hex_str) != 0 && hex_str[0])
-               sprintf(b + strlen(b),
-                       "<tr><td>%s</td><td>%s (%s)</td></tr>\n",
-                       key.name, data_str, hex_str);
-            else {
-               sprintf(b + strlen(b),
-                       "<tr><td>%s</td><td>", key.name);
-               strencode2(r, b + strlen(b), data_str);
-               sprintf(b + strlen(b), "</td></tr>\n");
+            if (strcmp(data_str, hex_str) != 0 && hex_str[0]) {
+               sprintf(b, "<tr><td>%s</td><td>%s (%s)</td></tr>\n", key.name, data_str, hex_str);
+               bout += b;
+            } else {
+               sprintf(b, "<tr><td>%s</td><td>", key.name);
+               bout += b;
+               strencode2(b, data_str);
+               bout += b;
+               sprintf(b, "</td></tr>\n");
+               bout += b;
             }
          } else {
             /* display first value */
-            sprintf(b + strlen(b), "<tr><td rowspan=%d>%s</td>\n",
-                    key.num_values, key.name);
+            sprintf(b, "<tr><td rowspan=%d>%s</td>\n", key.num_values, key.name);
+            bout += b;
 
             for (j = 0; j < key.num_values; j++) {
                size = sizeof(data);
                db_get_data_index(hDB, hkey, data, &size, j, key.type);
                db_sprintf(data_str, data, key.item_size, 0, key.type);
+               assert(strlen(data_str) < sizeof(data_str));
                db_sprintfh(hex_str, data, key.item_size, 0, key.type);
+               assert(strlen(hex_str) < sizeof(hex_str));
 
                if (data_str[0] == 0 || equal_ustring(data_str, "<NULL>")) {
                   strcpy(data_str, "(empty)");
                   hex_str[0] = 0;
                }
 
-               if (j > 0)
-                  sprintf(b + strlen(b), "<tr>");
+               if (j > 0) {
+                  sprintf(b, "<tr>");
+                  bout += b;
+               }
 
-               if (strcmp(data_str, hex_str) != 0 && hex_str[0])
-                  sprintf(b + strlen(b),
-                          "<td>[%d] %s (%s)<br></td></tr>\n", j, data_str,
-                          hex_str);
-               else
-                  sprintf(b + strlen(b), "<td>[%d] %s<br></td></tr>\n", j,
-                          data_str);
+               if (strcmp(data_str, hex_str) != 0 && hex_str[0]) {
+                  sprintf(b, "<td>[%d] %s (%s)<br></td></tr>\n", j, data_str, hex_str);
+                  bout += b;
+               } else {
+                  sprintf(b, "<td>[%d] %s<br></td></tr>\n", j, data_str);
+                  bout += b;
+               }
             }
          }
       }
    }
 
-   sprintf(b + strlen(b), "</table>\n");
+   sprintf(b, "</table>\n");
+   bout += b;
 }
 
 /*------------------------------------------------------------------*/
@@ -3182,6 +3202,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
    strlcpy(att_file[1], pp->getparam("attachment1"), sizeof(att_file[1]));
    strlcpy(att_file[2], pp->getparam("attachment2"), sizeof(att_file[2]));
 
+#if 0
    /* check for author */
    if (*pp->getparam("author") == 0) {
       r->rsprintf("HTTP/1.1 200 Document follows\r\n");
@@ -3198,6 +3219,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
       r->rsprintf("<body></body></html>\n");
       return;
    }
+#endif
 
    /* check for valid attachment files */
    for (i = 0; i < 3; i++) {
@@ -3214,12 +3236,15 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
 
          /* check if valid ODB tree */
          if (db_find_key(hDB, 0, path, &hkey) == DB_SUCCESS) {
-           buffer[i] = (char*)M_MALLOC(100000);
-           gen_odb_attachment(r, path, buffer[i]);
+            std::string bout;
+            gen_odb_attachment(r, path, bout);
+            int bufsize = bout.length()+1;
+            buffer[i] = (char*)M_MALLOC(bufsize);
+            memcpy(buffer[i], bout.c_str(), bufsize);
             strlcpy(att_file[i], path, sizeof(att_file[0]));
             strlcat(att_file[i], ".html", sizeof(att_file[0]));
             a->_attachment_buffer[i] = buffer[i];
-            a->_attachment_size[i] = strlen(buffer[i]) + 1;
+            a->_attachment_size[i] = bufsize;
          }
          /* check if local file */
          else if ((fh = open(path1, O_RDONLY | O_BINARY)) >= 0) {
@@ -8397,7 +8422,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
       r->rsprintf("<input type=button value=Find onclick=\"self.location=\'?cmd=Find\';\">\n");
       r->rsprintf("<input type=button value=Create onclick=\"dlgShow('dlgCreate')\">\n");
       r->rsprintf("<input type=button value=Delete onclick=\"dlgShow('dlgDelete')\">\n");
-      r->rsprintf("<input type=button value=\"Create Elog from this page\" onclick=\"self.location=\'?cmd=Create Elog from this page\';\"></td></tr>\n");
+      r->rsprintf("<input type=button value=\"Create Elog from this page\" onclick=\"self.location=\'?cmd=Create Elog from this page&odb_path=%s\';\"></td></tr>\n", odbpath);
    }
 
    /*---- Build the Delete dialog------------------------------------*/
@@ -15863,6 +15888,15 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 #endif
+   
+   if (equal_ustring(command, "Create ELog from this page")) {
+      std::string redir;
+      redir += "?cmd=New+elog";
+      redir += "&odb_path=";
+      redir += p->getparam("odb_path");
+      redirect(r, redir.c_str());
+      return;
+   }
    
    if (equal_ustring(command, "Submit elog")) {
       strlcpy(str, dec_path, sizeof(str));

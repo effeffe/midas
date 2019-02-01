@@ -80,22 +80,17 @@
           </td>
         </tr>
 
-        <tr>
-          <td>If no attachment are resubmitted, the original ones are kept</td>
+        <tr hidden id="att0_block">
+          <td colspan=2>ODB Attachment: <input name=attachment0 value="" id="att0_input"></td>
         </tr>
-
-        <tr>
-          <td>Enter attachment filename(s) or ODB tree(s), use \"\\\" as an ODB directory separator:</td>
+        <tr id="att1_block">
+          <td colspan=2>Attachment 1: <input type="file" size="60" maxlength="256" name="attfile1" value="" accept="filetype/*" id="att1_input"></td>
+          </tr>
+        <tr id="att2_block">
+          <td colspan=2>Attachment 2: <input type="file" size="60" maxlength="256" name="attfile2" value="" accept="filetype/*" id="att2_input"></td>
         </tr>
-
-        <tr>
-          <td colspan=2>Attachment 1: <input type="file" size="60" maxlength="256" name="attfile1" value="" accept="filetype/*"></td>
-        </tr>
-        <tr>
-          <td colspan=2>Attachment 2: <input type="file" size="60" maxlength="256" name="attfile2" value="" accept="filetype/*"></td>
-        </tr>
-        <tr>
-          <td colspan=2>Attachment 3: <input type="file" size="60" maxlength="256" name="attfile3" value="" accept="filetype/*"></td>
+        <tr id="att3_block">
+          <td colspan=2>Attachment 3: <input type="file" size="60" maxlength="256" name="attfile3" value="" accept="filetype/*" id="att3_input"></td>
         </tr>
         <tr>
           <td align="center">
@@ -147,8 +142,18 @@
          }
       }
 
+      function unhide(id) {
+         var e = document.getElementById(id);
+         if (e) {
+            e.style.visibility = "";
+            e.style.display = "";
+            e.hidden = 0;
+         }
+      }
+
       function load() {
          var cmd = mhttpd_getParameterByName("cmd");
+         var odb_path = mhttpd_getParameterByName("odb_path");
          var edit   = mhttpd_getParameterByName("edit");
          var tag    = mhttpd_getParameterByName("tag");
          var edit   = (cmd.toLowerCase() == "edit elog");
@@ -156,8 +161,12 @@
          var new_msg = !(edit||reply);
          var html = false;
 
-         if (new_msg)
-            set_text("table_name", "Create new Elog message");
+         if (new_msg) {
+            if (odb_path)
+               set_text("table_name", "Create new Elog message from ODB");
+            else
+               set_text("table_name", "Create new Elog message");
+         }
 
          if (edit)
             set_text("table_name", "Edit Elog message " + tag);
@@ -236,6 +245,20 @@
             
             if (new_msg) {
                set_value("subject_input", "");
+            }
+
+            if (new_msg && odb_path) {
+               set_value("text_input", odb_path);
+               set_value("att0_input", odb_path);
+               unhide("att0_block");
+               hide("att1_block");
+               hide("att2_block");
+               hide("att3_block");
+            }
+
+            if (!odb_path) {
+               var e = document.getElementById("att0_input");
+               e.name = "attODB";
             }
             
             var odb_list = [
