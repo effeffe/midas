@@ -295,6 +295,7 @@
        }
 
        var show_text = false;
+       var show_attachments = false;
 
        mjsonrpc_call("el_query", req).then(function (rpc) {
           var status = rpc.result.status;
@@ -348,12 +349,9 @@
 
              e.appendChild(tr);
 
-             tr = document.createElement("tr");
-
-             td = document.createElement("td");
-             tr.appendChild(td);
-
              if (show_text) {
+                tr = document.createElement("tr");
+
                 td = document.createElement("td");
                 td.colSpan = 5;
                 if (html) {
@@ -362,20 +360,22 @@
                    td.innerHTML = "<pre>" + msg.text + "</pre>";
                 }
                 tr.appendChild(td);
+
+                e.appendChild(tr);
              }
 
-             e.appendChild(tr);
-
-             if (msg.attachment0.length > 0) {
-                add_attachment(e, msg.attachment0);
-             }
-             
-             if (msg.attachment1.length > 0) {
-                add_attachment(e, msg.attachment1);
-             }
-             
-             if (msg.attachment2.length > 0) {
-                add_attachment(e, msg.attachment2);
+             if (show_attachments) {
+                if (msg.attachment0.length > 0) {
+                   add_attachment(e, msg.attachment0);
+                }
+                
+                if (msg.attachment1.length > 0) {
+                   add_attachment(e, msg.attachment1);
+                }
+                
+                if (msg.attachment2.length > 0) {
+                   add_attachment(e, msg.attachment2);
+                }
              }
           }
 
