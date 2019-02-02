@@ -1660,6 +1660,22 @@ void init_menu_buttons()
 
 /*------------------------------------------------------------------*/
 
+void init_mhttpd_odb()
+{
+   HNDLE hDB;
+   HNDLE hKey;
+   int status;
+   std::string s;
+   cm_get_experiment_database(&hDB, NULL);
+
+   status = db_find_key(hDB, 0, "/Experiment/Base URL", &hKey);
+   if (status == DB_SUCCESS) {
+      cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/Base URL\" is obsolete, please delete it.");
+   }
+}
+
+/*------------------------------------------------------------------*/
+
 void init_elog_odb()
 {
    int status;
@@ -17805,6 +17821,9 @@ int main(int argc, const char *argv[])
          printf("mhttpd allowed hosts list is empty\n");
       }
    }
+
+   /* initialize odb entries needed for mhttpd and midas web pages */
+   init_mhttpd_odb();
 
    /* initialize menu buttons */
    init_menu_buttons();
