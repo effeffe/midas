@@ -8459,6 +8459,8 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    dd += "<table class=\"dialogTable\">\n";
    dd += "<th colspan=2>Delete ODB entries:</th>\n";
 
+   std::vector<std::string> delete_list;
+
    int count_delete = 0;
 
    /*---- ODB display -----------------------------------------------*/
@@ -8533,15 +8535,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
          db_get_link(hDB, hkey, &key);
 
          if (scan == 0) {
-            dd += "<tr><td style=\"text-align:left;\" align=left><input align=left type=checkbox id=delete";
-            dd += toString(count_delete++);
-            dd += " value=\'";
-            dd += "\"";
-            dd += MJsonNode::Encode(key.name);
-            dd += "\"";
-            dd += "\'>";
-            dd += key.name;
-            dd += "</input></td></tr>\n";
+            delete_list.push_back(key.name);
          }
          
          if (line % 2 == 0)
@@ -8852,6 +8846,22 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    r->rsprintf("</div>\n"); // <div id="mmain">
 
    /*---- Build the Delete dialog------------------------------------*/
+
+   std::sort(delete_list.begin(), delete_list.end());
+
+   for (unsigned i=0; i<delete_list.size(); i++) {
+      std::string name = delete_list[i];
+
+      dd += "<tr><td style=\"text-align:left;\" align=left><input align=left type=checkbox id=delete";
+      dd += toString(count_delete++);
+      dd += " value=\'";
+      dd += "\"";
+      dd += MJsonNode::Encode(name.c_str());
+      dd += "\"";
+      dd += "\'>";
+      dd += name;
+      dd += "</input></td></tr>\n";
+   }
 
    dd += "</table>\n";
    dd += "<input type=button value=Delete onClick='mhttpd_delete_page_handle_delete(event);'>\n";
