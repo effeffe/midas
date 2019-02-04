@@ -8240,7 +8240,7 @@ mscb_error:
 
 /*------------------------------------------------------------------*/
 
-void show_password_page(Return* r, const char* dec_path, const char *password, const char *experiment)
+void show_password_page(Return* r, const char* dec_path, const char *password)
 {
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
    r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
@@ -8253,10 +8253,6 @@ void show_password_page(Return* r, const char* dec_path, const char *password, c
    r->rsprintf("<title>Enter password</title></head><body>\n\n");
 
    r->rsprintf("<form method=\"GET\" action=\".\">\n\n");
-
-   /* define hidden fields for current experiment */
-   if (experiment[0])
-      r->rsprintf("<input type=hidden name=exp value=\"%s\">\n", experiment);
 
    /*---- page header ----*/
    r->rsprintf("<table class=\"headerTable\"><tr><td></td><tr></table>\n");
@@ -8278,7 +8274,7 @@ void show_password_page(Return* r, const char* dec_path, const char *password, c
 
 /*------------------------------------------------------------------*/
 
-BOOL check_web_password(Return* r, const char* dec_path, const char *password, const char *redir, const char *experiment)
+BOOL check_web_password(Return* r, const char* dec_path, const char *password, const char *redir)
 {
    HNDLE hDB, hkey;
    INT size;
@@ -8308,8 +8304,6 @@ BOOL check_web_password(Return* r, const char* dec_path, const char *password, c
       r->rsprintf("<form method=\"GET\" action=\".\">\n\n");
 
       /* define hidden fields for current experiment and destination */
-      if (experiment[0])
-         r->rsprintf("<input type=hidden name=exp value=\"%s\">\n", experiment);
       if (redir[0])
          r->rsprintf("<input type=hidden name=redir value=\"%s\">\n", redir);
 
@@ -8904,7 +8898,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
 
 /*------------------------------------------------------------------*/
 
-void show_set_page(Param* pp, Return* r, char *enc_path, int enc_path_size,
+void show_set_page(Param* pp, Return* r,
                    char *dec_path, const char *group,
                    int index, const char *value)
 {
@@ -8912,7 +8906,7 @@ void show_set_page(Param* pp, Return* r, char *enc_path, int enc_path_size,
    HNDLE hDB, hkey;
    KEY key;
    char* p;
-   char data_str[TEXT_SIZE], str[256], eq_name[NAME_LENGTH];
+   char data_str[TEXT_SIZE], str[256];
    char data[TEXT_SIZE];
 
    cm_get_experiment_database(&hDB, NULL);
@@ -9038,26 +9032,7 @@ void show_set_page(Param* pp, Return* r, char *enc_path, int enc_path_size,
       if (*p == '/')
          *p = 0;
 
-      //strlcpy(enc_path, dec_path, enc_path_size);
-      //urlEncode(enc_path, enc_path_size);
-      enc_path[0] = 0;
-
-      /* redirect */
-
-      if (group[0]) {
-         /* extract equipment name */
-         eq_name[0] = 0;
-         if (strncmp(enc_path, "Equipment/", 10) == 0) {
-            strlcpy(eq_name, enc_path + 10, sizeof(eq_name));
-            if (strchr(eq_name, '/'))
-               *strchr(eq_name, '/') = 0;
-         }
-
-         /* back to SC display */
-         sprintf(str, "SC/%s/%s", eq_name, group);
-         redirect(r, str);
-      } else
-         redirect(r, enc_path);
+      redirect(r, "");
 
       return;
    }
@@ -9066,20 +9041,15 @@ void show_set_page(Param* pp, Return* r, char *enc_path, int enc_path_size,
 
 /*------------------------------------------------------------------*/
 
-void show_find_page(Return* r, const char* dec_path, const char *enc_path, const char *value)
+void show_find_page(Return* r, const char *value)
 {
    HNDLE hDB, hkey;
-   char str[256];
 
    cm_get_experiment_database(&hDB, NULL);
 
    if (value[0] == 0) {
       /* without value, show find dialog */
-      str[0] = 0;
-      for (const char* p=enc_path ; *p ; p++)
-         if (*p == '/')
-            strlcat(str, "../", sizeof(str));
-      show_header(r, "Find value", "GET", str, 0);
+      show_header(r, "Find value", "GET", "", 0);
 
       //end header:
       r->rsprintf("</table>");
@@ -9105,16 +9075,7 @@ void show_find_page(Return* r, const char* dec_path, const char *enc_path, const
       r->rsprintf("</form>\n");
       r->rsprintf("</body></html>\r\n");
    } else {
-      strlcpy(str, enc_path, sizeof(str));
-      if (strrchr(str, '/'))
-         strlcpy(str, strrchr(str, '/')+1, sizeof(str));
-      show_header(r, "Search results", "GET", str, 0);
-
-      r->rsprintf("<tr><td colspan=2>\n");
-      r->rsprintf("<input type=submit name=cmd value=Find>\n");
-      r->rsprintf("<input type=submit name=cmd value=ODB>\n");
-      r->rsprintf("<input type=submit name=cmd value=Help>\n");
-      r->rsprintf("</tr>\n\n");
+      show_header(r, "Search results", "GET", "", 0);
 
       r->rsprintf("<table class=\"mtable\">\n");
       r->rsprintf("<tr><th colspan=2 class=\"mtableheader\">");
@@ -14048,7 +14009,7 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
    return TRUE;
 }
 
-void seq_start_page(Param* p, Return* r, const char* dec_path)
+void seq_start_page(Param* p, Return* r)
 {
    int line, i, n, no, size, last_line, status, maxlength;
    HNDLE hDB, hkey, hsubkey, hkeycomm, hkeyc;
@@ -14457,7 +14418,7 @@ void seq_set_stop_after_run(SEQUENCER &seq, BOOL stop_after_run)
 
 /*------------------------------------------------------------------*/
 
-void show_seq_page(Param* p, Return* r, const char* dec_path)
+void show_seq_page(Param* p, Return* r)
 {
    INT i, size, status, n,  width, eob, last_line, error_line, sectionEmpty;
    HNDLE hDB;
@@ -14557,7 +14518,7 @@ void show_seq_page(Param* p, Return* r, const char* dec_path)
          
       } else {
 
-         seq_start_page(p, r, dec_path);
+         seq_start_page(p, r);
          return;
       }
    }
@@ -15335,24 +15296,12 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
  Routine: interprete
 
- Purpose: Interprete parametersand generate HTML output from odb.
-
- Input:
- char *cookie_pwd        Cookie containing encrypted password
- char *path              ODB path "/dir/subdir/key"
-
- <implicit>
- _param/_value array accessible via p->getparam()
+ Purpose: Main interpreter of web commands
 
  \********************************************************************/
 {
-   int i, status, size, index, write_access;
-   WORD event_id;
-   HNDLE hkey, hDB, hconn;
-   char str[256];
-   char enc_path[256], eq_name[NAME_LENGTH], fe_name[NAME_LENGTH];
-   time_t now;
-   struct tm *gmt;
+   int status;
+   HNDLE hkey, hDB;
 
    //printf("dec_path [%s]\n", dec_path);
 
@@ -15367,18 +15316,11 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   strlcpy(enc_path, dec_path, sizeof(enc_path));
-   urlEncode(enc_path, sizeof(enc_path));
-
-   const char* experiment = p->getparam("exp");
    const char* password = p->getparam("pwd");
    const char* wpassword = p->getparam("wpwd");
    const char* command = p->getparam("cmd");
-   const char* value = p->getparam("value");
-   const char* group = p->getparam("group");
-   index = atoi(p->getparam("index"));
 
-   //printf("interprete: dec_path [%s], command [%s] value [%s]\n", dec_path, command, value);
+   //printf("interprete: dec_path [%s], command [%s]\n", dec_path, command);
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -15397,13 +15339,14 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /* check for password */
    db_find_key(hDB, 0, "/Experiment/Security/Password", &hkey);
    if (!password[0] && hkey) {
-      size = sizeof(str);
+      char str[256];
+      int size = sizeof(str);
       db_get_data(hDB, hkey, str, &size, TID_STRING);
 
       /* check for excemption */
       db_find_key(hDB, 0, "/Experiment/Security/Allowed programs/mhttpd", &hkey);
       if (hkey == 0 && strcmp(cookie_pwd, str) != 0) {
-         show_password_page(r, dec_path, "", experiment);
+         show_password_page(r, dec_path, "");
          return;
       }
    }
@@ -15414,9 +15357,14 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       r->rsprintf("HTTP/1.1 302 Found\r\n");
       r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
 
+      time_t now;
+      struct tm *gmt;
+
       time(&now);
       now += 3600 * 24;
       gmt = gmtime(&now);
+
+      char str[256];
       strftime(str, sizeof(str), "%A, %d-%b-%Y %H:00:00 GMT", gmt);
 
       r->rsprintf("Set-Cookie: midas_pwd=%s; path=/; expires=%s\r\n",
@@ -15428,19 +15376,23 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (wpassword[0]) {
       /* check if password correct */
-      if (!check_web_password(r, dec_path, ss_crypt(wpassword, "mi"), p->getparam("redir"), experiment))
+      if (!check_web_password(r, dec_path, ss_crypt(wpassword, "mi"), p->getparam("redir")))
          return;
 
       r->rsprintf("HTTP/1.1 302 Found\r\n");
       r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
 
+      time_t now;
+      struct tm *gmt;
+
       time(&now);
       now += 3600 * 24;
       gmt = gmtime(&now);
+
+      char str[256];
       strftime(str, sizeof(str), "%A, %d-%b-%Y %H:%M:%S GMT", gmt);
 
-      r->rsprintf("Set-Cookie: midas_wpwd=%s; path=/; expires=%s\r\n",
-               ss_crypt(wpassword, "mi"), str);
+      r->rsprintf("Set-Cookie: midas_wpwd=%s; path=/; expires=%s\r\n", ss_crypt(wpassword, "mi"), str);
 
       sprintf(str, "./%s", p->getparam("redir"));
       r->rsprintf("Location: %s\n\n<html>redir</html>\r\n", str);
@@ -15503,11 +15455,13 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- script command --------------------------------------------*/
    
    if (p->getparam("script") && *p->getparam("script")) {
-      sprintf(str, "%s?script=%s", dec_path, p->getparam("script"));
-      if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
+      char str[256];
+
+      sprintf(str, "%s?script=%s", dec_path, p->getparam("script")); // FIXME: overflows str[]
+      if (!check_web_password(r, dec_path, cookie_wpwd, str))
          return;
       
-      sprintf(str, "/Script/%s", p->getparam("script"));
+      sprintf(str, "/Script/%s", p->getparam("script")); // FIXME: overflows str[]
       
       db_find_key(hDB, 0, str, &hkey);
       
@@ -15531,11 +15485,13 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- customscript command --------------------------------------*/
    
    if (p->getparam("customscript") && *p->getparam("customscript")) {
-      sprintf(str, "%s?customscript=%s", dec_path, p->getparam("customscript"));
-      if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
+      char str[256];
+
+      sprintf(str, "%s?customscript=%s", dec_path, p->getparam("customscript")); // FIXME: overflows str[]
+      if (!check_web_password(r, dec_path, cookie_wpwd, str))
          return;
       
-      sprintf(str, "/CustomScript/%s", p->getparam("customscript"));
+      sprintf(str, "/CustomScript/%s", p->getparam("customscript")); // FIXME: overflows str[]
       
       db_find_key(hDB, 0, str, &hkey);
       
@@ -15664,7 +15620,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       else
          strlcpy(custom_path, "/home/custom", sizeof(custom_path));
 
-      size = sizeof(custom_path);
+      int size = sizeof(custom_path);
       db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, TRUE);
       if (custom_path[strlen(custom_path)-1] != DIR_SEPARATOR)
          strlcat(custom_path, DIR_SEPARATOR_STR, sizeof(custom_path));
@@ -15730,8 +15686,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (equal_ustring(command, "history")) {
       if (equal_ustring(command, "config")) {
+         char str[256];
          sprintf(str, "%s?cmd=%s", dec_path, command);
-         if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
+         if (!check_web_password(r, dec_path, cookie_wpwd, str))
             return;
       }
 
@@ -15743,8 +15700,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (equal_ustring(command, "MSCB")) {
       if (equal_ustring(command, "set")) {
+         char str[256];
          sprintf(str, "%s?cmd=%s", dec_path, command);
-         if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
+         if (!check_web_password(r, dec_path, cookie_wpwd, str))
             return;
       }
 
@@ -15766,22 +15724,27 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- trigger equipment readout ---------------------------*/
 
    if (strncmp(command, "Trigger", 7) == 0) {
+      char str[256];
       sprintf(str, "?cmd=%s", command);
-      if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
+      if (!check_web_password(r, dec_path, cookie_wpwd, str))
          return;
 
       /* extract equipment name */
+      char eq_name[NAME_LENGTH];
+
       strlcpy(eq_name, command + 8, sizeof(eq_name));
       if (strchr(eq_name, ' '))
          *strchr(eq_name, ' ') = 0;
 
       /* get frontend name */
       sprintf(str, "/Equipment/%s/Common/Frontend name", eq_name);
-      size = NAME_LENGTH;
+      char fe_name[NAME_LENGTH];
+      int size = NAME_LENGTH;
       db_get_value(hDB, 0, str, fe_name, &size, TID_STRING, TRUE);
 
       /* and ID */
       sprintf(str, "/Equipment/%s/Common/Event ID", eq_name);
+      WORD event_id = 0;
       size = sizeof(event_id);
       db_get_value(hDB, 0, str, &event_id, &size, TID_WORD, TRUE);
 
@@ -15789,6 +15752,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
          sprintf(str, "Frontend \"%s\" not running!", fe_name);
          show_error(r, str);
       } else {
+         HNDLE hconn;
          status = cm_connect_client(fe_name, &hconn);
          if (status != RPC_SUCCESS) {
             sprintf(str, "Cannot connect to frontend \"%s\" !", fe_name);
@@ -15810,7 +15774,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- switch to next subrun -------------------------------------*/
 
    if (strncmp(command, "Next Subrun", 11) == 0) {
-      i = TRUE;
+      int i = TRUE;
       db_set_value(hDB, 0, "/Logger/Next subrun", &i, sizeof(i), 1, TID_BOOL);
       redirect(r, "");
       return;
@@ -15819,58 +15783,42 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- cancel command --------------------------------------------*/
 
    if (equal_ustring(command, "cancel")) {
-
-      if (group[0]) {
-         /* extract equipment name */
-         eq_name[0] = 0;
-         if (strncmp(enc_path, "Equipment/", 10) == 0) {
-            strlcpy(eq_name, enc_path + 10, sizeof(eq_name));
-            if (strchr(eq_name, '/'))
-               *strchr(eq_name, '/') = 0;
-         }
-
-         /* back to SC display */
-         sprintf(str, "SC/%s/%s", eq_name, group);
-         redirect(r, str);
-      } else {
-         if (p->isparam("redir"))
-            redirect(r, p->getparam("redir"));
-         else
-            redirect(r, "./");
-      }
-
+      if (p->isparam("redir"))
+         redirect(r, p->getparam("redir"));
+      else
+         redirect(r, "");
       return;
    }
 
    /*---- set command -----------------------------------------------*/
 
-   if (equal_ustring(command, "set") && strncmp(dec_path, "SC/", 3) != 0
-       && strncmp(dec_path, "CS/", 3) != 0) {
-
-      if (strchr(enc_path, '/'))
-         strlcpy(str, strrchr(enc_path, '/') + 1, sizeof(str));
-      else
-         strlcpy(str, enc_path, sizeof(str));
-      strlcat(str, "?cmd=set", sizeof(str));
-      if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
+   if (equal_ustring(command, "set")) {
+      char str[256];
+      strlcpy(str, "?cmd=set", sizeof(str));
+      if (!check_web_password(r, dec_path, cookie_wpwd, str))
          return;
 
+      const char* value = p->getparam("value");
+      const char* group = p->getparam("group");
+      int index = atoi(p->getparam("index"));
+
       strlcpy(str, dec_path, sizeof(str));
-      show_set_page(p, r, enc_path, sizeof(enc_path), str, group, index, value);
+      show_set_page(p, r, str, group, index, value);
       return;
    }
 
    /*---- find command ----------------------------------------------*/
 
    if (equal_ustring(command, "find")) {
-      show_find_page(r, dec_path, enc_path, value);
+      const char* value = p->getparam("value");
+      show_find_page(r, value);
       return;
    }
 
    /*---- CAMAC CNAF command ----------------------------------------*/
 
    if (equal_ustring(command, "CNAF") || strncmp(dec_path, "CNAF", 4) == 0) {
-      if (!check_web_password(r, dec_path, cookie_wpwd, "?cmd=CNAF", experiment))
+      if (!check_web_password(r, dec_path, cookie_wpwd, "?cmd=CNAF"))
          return;
 
       show_cnaf_page(p, r);
@@ -15884,7 +15832,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       cm_get_experiment_database(&hDB, NULL);
       BOOL external_elog = FALSE;
       std::string external_elog_url;
-      size = sizeof(external_elog);
+      int size = sizeof(external_elog);
       status = db_get_value(hDB, 0, "/Elog/External Elog", &external_elog, &size, TID_BOOL, TRUE);
       status = db_get_value_string(hDB, 0, "/Elog/URL", 0, &external_elog_url, TRUE);
       if (external_elog && (external_elog_url.length() > 0)) {
@@ -15925,7 +15873,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    }
    
    if (equal_ustring(command, "Submit elog")) {
-      strlcpy(str, dec_path, sizeof(str));
       submit_elog(p, r, a);
       return;
    }
@@ -15947,7 +15894,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       if (equal_ustring(command, "new") || equal_ustring(command, "edit")
           || equal_ustring(command, "reply")) {
          sprintf(str, "%s?cmd=%s", dec_path, command);
-         if (!check_web_password(r, dec_path, cookie_wpwd, str, experiment))
+         if (!check_web_password(r, dec_path, cookie_wpwd, str))
             return;
       }
 
@@ -15967,9 +15914,14 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
       r->rsprintf("Content-Type: text/html; charset=%s\r\n", HTTP_ENCODING);
 
+      time_t now;
+      struct tm *gmt;
+
       time(&now);
       now += 3600 * 24 * 365;
       gmt = gmtime(&now);
+
+      char str[256];
       strftime(str, sizeof(str), "%A, %d-%b-%Y %H:00:00 GMT", gmt);
 
       r->rsprintf("Set-Cookie: midas_refr=%d; path=/; expires=%s\r\n", refresh, str);
@@ -15988,68 +15940,68 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- sequencer page --------------------------------------------*/
 
    if (equal_ustring(command, "Sequencer")) {
-      show_seq_page(p, r, dec_path);
+      show_seq_page(p, r);
       return;
    }
 
    if (equal_ustring(command, "Start script")) {
-      show_seq_page(p, r, dec_path);
+      show_seq_page(p, r);
       return;
    }
 
    if (equal_ustring(command, "Cancel script")) {
-      show_seq_page(p, r, dec_path);
+      show_seq_page(p, r);
       return;
    }
 
    if (equal_ustring(command, "Load script")) {
-      show_seq_page(p, r, dec_path);
+      show_seq_page(p, r);
       return;
    }
    
    if (equal_ustring(command, "New script")) {
-      show_seq_page(p, r, dec_path);
+      show_seq_page(p, r);
       return;
    }
 
    if (equal_ustring(command, "Save script")) {
-      show_seq_page(p, r, dec_path);
+      show_seq_page(p, r);
       return;
    }
 
    if (equal_ustring(command, "Edit script")) {
-      show_seq_page(p, r, dec_path);
+      show_seq_page(p, r);
       return;
    }
 
    if (equal_ustring(command, "SPause")) {
-      show_seq_page(p, r, dec_path);
+      show_seq_page(p, r);
       return;
    }
 
    if (equal_ustring(command, "SResume")) {
-      show_seq_page(p, r, dec_path);
+      show_seq_page(p, r);
       return;
    }
 
    if (equal_ustring(command, "Stop immediately")) {
-      show_seq_page(p, r, dec_path);
+      show_seq_page(p, r);
       return;
    }
 
    if (equal_ustring(command, "Stop after current run")) {
-      show_seq_page(p, r, dec_path);
+      show_seq_page(p, r);
       return;
    }
 
    if (equal_ustring(command, "Cancel \'Stop after current run\'")) {
-      show_seq_page(p, r, dec_path);
+      show_seq_page(p, r);
       return;
    }
 
 #ifdef OBSOLETE
    if (strncmp(dec_path, "SEQ/", 4) == 0) {
-      show_seq_page(p, r, dec_path);
+      show_seq_page(p, r);
       return;
    }
 #endif
@@ -16064,10 +16016,11 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- show ODB --------------------------------------------------*/
 
    if (equal_ustring(command, "odb")) {
-      write_access = TRUE;
+      int write_access = TRUE;
       db_find_key(hDB, 0, "/Experiment/Security/Web Password", &hkey);
       if (hkey) {
-         size = sizeof(str);
+         char str[256];
+         int size = sizeof(str);
          db_get_data(hDB, hkey, str, &size, TID_STRING);
          if (strcmp(cookie_wpwd, str) == 0)
             write_access = TRUE;
@@ -16089,13 +16042,16 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    
    /*---- show status -----------------------------------------------*/
    
-      if (elog_mode) {
-         redirect(r, "EL/");
-         return;
-      }
-   
-      sprintf(str, "Invalid URL: [%s%s] or command: [%s]", p->getparam("path"), p->getparam("query"), command);
-   show_error(r, str);
+   if (elog_mode) {
+      redirect(r, "EL/");
+      return;
+   }
+
+   {
+      char str[256];
+      sprintf(str, "Invalid URL: [%s%s] or command: [%s]", p->getparam("path"), p->getparam("query"), command); // FIXME: overflows str[]
+      show_error(r, str);
+   }
 }
 
 /*------------------------------------------------------------------*/
