@@ -8899,31 +8899,31 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
 /*------------------------------------------------------------------*/
 
 void show_set_page(Param* pp, Return* r,
-                   char *dec_path, const char *group,
+                   const char *group,
                    int index, const char *value)
 {
    int status, size;
    HNDLE hDB, hkey;
    KEY key;
-   char* p;
    char data_str[TEXT_SIZE], str[256];
    char data[TEXT_SIZE];
+
+   std::string odb_path = pp->getparam("odb_path");
+
+   //printf("show_set_page: odb_path [%s] group [%s] index %d value [%s]\n", odb_path.c_str(), group, index, value);
 
    cm_get_experiment_database(&hDB, NULL);
 
    /* show set page if no value is given */
    if (!pp->isparam("value") && !*pp->getparam("text")) {
-      status = db_find_link(hDB, 0, dec_path, &hkey);
+      status = db_find_link(hDB, 0, odb_path.c_str(), &hkey);
       if (status != DB_SUCCESS) {
-         r->rsprintf("Error: cannot find key %s<P>\n", dec_path);
+         r->rsprintf("Error: cannot find key %s<P>\n", odb_path.c_str());
          return;
       }
       db_get_link(hDB, hkey, &key);
 
-      strlcpy(str, dec_path, sizeof(str));
-      if (strrchr(str, '/'))
-         strlcpy(str, strrchr(str, '/')+1, sizeof(str));
-      show_header(r, "Set value", "POST", str, 0);
+      show_header(r, "Set value", "POST", "", 0);
       //close header:
       r->rsprintf("</table>");
 
@@ -8938,17 +8938,18 @@ void show_set_page(Param* pp, Return* r,
       if (group[0])
          r->rsprintf("<input type=hidden name=group value=\"%s\">\n", group);
 
+      r->rsprintf("<input type=hidden name=odb_path value=\"%s\">\n", odb_path.c_str());
+
       strlcpy(data_str, rpc_tid_name(key.type), sizeof(data_str));
       if (key.num_values > 1) {
          sprintf(str, "[%d]", key.num_values);
          strlcat(data_str, str, sizeof(data_str));
 
-         sprintf(str, "%s[%d]", dec_path, index);
+         sprintf(str, "%s[%d]", odb_path.c_str(), index);
       } else
-         strlcpy(str, dec_path, sizeof(str));
+         strlcpy(str, odb_path.c_str(), sizeof(str));
 
-      r->rsprintf("<tr><th colspan=2>Set new value - type = %s</tr>\n",
-               data_str);
+      r->rsprintf("<tr><th colspan=2>Set new value - type = %s</tr>\n", data_str);
       r->rsprintf("<tr><td>%s<td>\n", str);
 
       /* set current value as default */
@@ -8992,9 +8993,9 @@ void show_set_page(Param* pp, Return* r,
    } else {
       /* set value */
 
-      status = db_find_link(hDB, 0, dec_path, &hkey);
+      status = db_find_link(hDB, 0, odb_path.c_str(), &hkey);
       if (status != DB_SUCCESS) {
-         r->rsprintf("Error: cannot find key %s<P>\n", dec_path);
+         r->rsprintf("Error: cannot find key %s<P>\n", odb_path.c_str());
          return;
       }
       db_get_link(hDB, hkey, &key);
@@ -9025,18 +9026,10 @@ void show_set_page(Param* pp, Return* r,
       if (status == DB_NO_ACCESS)
          r->rsprintf("<h2>Write access not allowed</h2>\n");
 
-      /* strip variable name from path */
-      p = dec_path + strlen(dec_path) - 1;
-      while (*p && *p != '/')
-         *p-- = 0;
-      if (*p == '/')
-         *p = 0;
-
       redirect(r, "");
 
       return;
    }
-
 }
 
 /*------------------------------------------------------------------*/
@@ -15798,12 +15791,11 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       if (!check_web_password(r, dec_path, cookie_wpwd, str))
          return;
 
-      const char* value = p->getparam("value");
       const char* group = p->getparam("group");
       int index = atoi(p->getparam("index"));
+      const char* value = p->getparam("value");
 
-      strlcpy(str, dec_path, sizeof(str));
-      show_set_page(p, r, str, group, index, value);
+      show_set_page(p, r, group, index, value);
       return;
    }
 
