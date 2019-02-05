@@ -480,7 +480,7 @@ function dlgShow(dlg, modal) {
    }
    
    d.dlgMouseDown = function (e) {
-      console.log(e.target);
+      //console.log(e.target);
       if ((e.target === this || e.target.parentNode === this) &&
          e.target.className === "dlgTitlebar") {
          e.preventDefault();
