@@ -240,9 +240,9 @@ function mjsonrpc_error_alert(error) {
    /// @returns nothing
    if (error.request) {
       var s = mjsonrpc_decode_error(error);
-      alert("mjsonrpc_error_alert: " + s);
+      dlgAlert("mjsonrpc_error_alert: " + s);
    } else {
-      alert("mjsonrpc_error_alert: " + error);
+      dlgAlert("mjsonrpc_error_alert: " + error);
    }
 }
 
