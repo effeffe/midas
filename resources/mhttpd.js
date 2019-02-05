@@ -512,13 +512,13 @@ var mhttpd_spinning_wheel;
 function modbset(path, value)
 /* shortcut for mjsonrpc_db_paste() with standard error handling */
 {
-   if (Array.isArray(path))
+   if (Array.isArray(path)) {
       mjsonrpc_db_paste(path,value).then(function(rpc) {}).catch(function(error) {
-                                                                 mjsonrpc_error_alert(error); });
-   else
+         mjsonrpc_error_alert(error); });
+   } else {
       mjsonrpc_db_paste([path],[value]).then(function(rpc) {}).catch(function(error) {
-                                                                     mjsonrpc_error_alert(error); });
-   
+         mjsonrpc_error_alert(error); });
+   }
 }
 
 function mhttpd_init(current_page, interval, callback) {
@@ -549,12 +549,12 @@ function mhttpd_init(current_page, interval, callback) {
    // create header
    var h = document.getElementById("mheader");
    if (h == null) {
-      alert('Web page does not contain "mheader" element');
+      dlgAlert('Web page does not contain "mheader" element');
       return;
    }
    var s = document.getElementById("msidenav");
    if (s == null) {
-      alert('Web page does not contain "msidenav" element');
+      dlgAlert('Web page does not contain "msidenav" element');
       return;
    }
 
@@ -1578,7 +1578,7 @@ function mhttpd_create_page_handle_create(mouseEvent) {
    if (path == "/") path = "";
 
    if (name.length < 1) {
-      alert("Name is too short");
+      dlgAlert("Name is too short");
       return false;
    }
 
@@ -1587,14 +1587,14 @@ function mhttpd_create_page_handle_create(mouseEvent) {
    //alert("int_array_length: " + int_array_length);
 
    if (!int_array_length || int_array_length < 1) {
-      alert("Bad array length: " + arraylength);
+      dlgAlert("Bad array length: " + arraylength);
       return false;
    }
 
    var int_string_length = parseInt(stringlength);
 
    if (!int_string_length || int_string_length < 1) {
-      alert("Bad string length " + stringlength);
+      dlgAlert("Bad string length " + stringlength);
       return false;
    }
 
@@ -1609,15 +1609,15 @@ function mhttpd_create_page_handle_create(mouseEvent) {
    mjsonrpc_db_create([param]).then(function (rpc) {
       var status = rpc.result.status[0];
       if (status == 311) {
-         alert("ODB entry with this name already exists.");
+         dlgAlert("ODB entry with this name already exists.");
       } else if (status != 1) {
-         alert("db_create_key() error " + status + ", see MIDAS messages.");
+         dlgAlert("db_create_key() error " + status + ", see MIDAS messages.");
       } else {
          location.search = "?cmd=odb&odb_path="+path; // reloads the document
       }
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
-      location.search = "?cmd=odb&odb_path="+path; // reloads the document
+      //location.search = "?cmd=odb&odb_path="+path; // reloads the document
    });
 
    return false;
@@ -1670,7 +1670,7 @@ function mhttpd_delete_page_handle_delete(mouseEvent, xpath) {
    }
 
    if (names.length < 1) {
-      alert("Please select at least one ODB entry to delete.");
+      dlgAlert("Please select at least one ODB entry to delete.");
       return false;
    }
 
@@ -1687,12 +1687,14 @@ function mhttpd_delete_page_handle_delete(mouseEvent, xpath) {
             message += "Cannot delete \"" + rpc.request.params.paths[i] + "\", db_delete_key() status " + status[i] + "\n";
          }
       }
-      if (message.length > 0)
-         alert(message);
-      location.search = "?cmd=odb&odb_path="+path; // reloads the document
+      if (message.length > 0) {
+         dlgAlert(message);
+      } else {
+         location.search = "?cmd=odb&odb_path="+path; // reloads the document
+      }
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
-      location.search = "?cmd=odb&odb_path="+path; // reloads the document
+      //location.search = "?cmd=odb&odb_path="+path; // reloads the document
    });
 
    return false;
