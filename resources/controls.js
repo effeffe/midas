@@ -489,19 +489,15 @@ function dlgShow(dlg, modal) {
          this.Dy = parseInt(this.style.top);
       }
 
-      if (d.modal) {
-         // catch all mouse events
+      if (d.modal && e.target !== d && !d.contains(e.target)) {
+         // catch all mouse events outside the dialog
          e.preventDefault();
       } else {
-         var p = e.target;
-         while (p !== undefined && p !== this && p !== document.body)
-            p = p.parentElement;
-         
-         if (p === this) {
+         if (e.target === this || d.contains(e.target)) {
             var dlgs = document.getElementsByClassName("dlgFrame");
             for (var i=0 ; i<dlgs.length ; i++)
                dlgs[i].style.zIndex = 10;
-            d.style.zIndex = 11;
+            d.style.zIndex = d.modal ? 21 : 11;
          }
       }
    };
