@@ -1609,9 +1609,13 @@ function mhttpd_create_page_handle_create(mouseEvent) {
    mjsonrpc_db_create([param]).then(function (rpc) {
       var status = rpc.result.status[0];
       if (status == 311) {
-         dlgAlert("ODB entry with this name already exists.");
+         dlgMessage("Error", "ODB entry with this name already exists.", true, true, function() {
+            location.search = "?cmd=odb&odb_path="+path; // reloads the document
+         });
       } else if (status != 1) {
-         dlgAlert("db_create_key() error " + status + ", see MIDAS messages.");
+         dlgMessage("Error", "db_create_key() error " + status + ", see MIDAS messages.", true, true, function() {
+            location.search = "?cmd=odb&odb_path="+path; // reloads the document
+         });
       } else {
          location.search = "?cmd=odb&odb_path="+path; // reloads the document
       }
