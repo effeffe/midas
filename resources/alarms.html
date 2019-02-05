@@ -96,26 +96,26 @@
 </div>
 
 <script>
-   function write_alarm_system_active(value) {
-      mjsonrpc_db_paste(["/alarms/alarm system active"], [value]).then(function (rpc) {
-         update();
-      }).catch(function (error) {
-         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
-         dlgShow('dlgError');
-         //mjsonrpc_error_alert(error);
-      });
+   function write_alarm_system_active(flag, value) {
+      if (flag) {
+         mjsonrpc_db_paste(["/alarms/alarm system active"], [value]).then(function (rpc) {
+            update();
+         }).catch(function (error) {
+            document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+            dlgShow('dlgError');
+            //mjsonrpc_error_alert(error);
+         });
+      }
    }
 
    function enable_alarm_system() {
-      if (window.confirm("Please confirm: Enable the MIDAS alarm system?")) {
-         write_alarm_system_active(true);
-      }
+      dlgConfirm("Please confirm: Enable the MIDAS alarm system?",
+         write_alarm_system_active, true);
    }
 
    function disable_alarm_system() {
-      if (window.confirm("Please confirm: Disable the MIDAS alarm system?")) {
-         write_alarm_system_active(false);
-      }
+      dlgConfirm("Please confirm: Disable the MIDAS alarm system?",
+         write_alarm_system_active, false);
    }
 </script>
 
@@ -328,7 +328,8 @@
          }
          return names;
       }).then(function (names) {
-         return mjsonrpc_al_reset_alarm(names);
+         mjsonrpc_al_reset_alarm(names);
+         dlgAlert('All alarms reset');
       }).catch(function (error) {
          document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
          dlgShow('dlgError');

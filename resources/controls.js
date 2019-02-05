@@ -10,45 +10,108 @@
  Usage
  =====
 
- Dialogs
- -------
+ Dialog boxes
+ ------------
 
+ Dialog boxes consists of normal HTML code defined on the current web page. By
+ using the class "dlgFrame" they are automatically hidden until the
+ dlgShow() function is called. The dialog has a title bar and can be moved
+ around by dragging the title bar. The dlgHide() function should be called
+ to close (hide) the dialog.
+ 
+ Following button shows the dialog dlgXXX:
+ 
  <button type="button" onClick="dlgShow('dlgXXX')">XXX</button>
 
+ Following HTML code defines the dialog dlgXXX:
+ 
  <div id="dlgXXX" class="dlgFrame">
-   <div class="dlgTitlebar">Title</div>
-   <div class="dlgPanel">
-   <div>Dialog Contents</div>
-     <button class="dlgButton" onClick="dlgHide('dlgDemo')">Close</button>
-   </div>
+    <div class="dlgTitlebar">Title</div>
+    <div class="dlgPanel">
+       <div>Dialog Contents</div>
+       <button class="dlgButton" onClick="dlgHide('dlgXXX')">Close</button>
+    </div>
  </div>
 
 
+ Standard dialog boxes
+ ---------------------
+
+ dlgAlert(message)
+    Replacement for alert() function showing a standard notification
+ 
+ dlgConfirm(message, callback, param)
+    Replacement of confirm() dialog. Shows a message dialog with a 'Cancel'
+    and 'Ok' button. The callback is called with the first parameter either
+    true (if Ok has been clicked) or false (if Cancel has been clicked) and
+    the second parameter a copy of 'param' passed to dlgConfirm().
+ 
+ dlgMessage(title, message, modal, error, callback, param)
+    Similar to dlgAlert, but with the option to set a custom title which
+    gets a red background if error is true. After the 'Ok' button is pressed,
+    the callback function is called with an optional parameter passed to
+    dlgMessage. If modal equals true, the whole screen is greyed out and all
+    mouse events are captured until the 'Ok' button is pressed.
+ 
  Sliders
  -------
 
- <button name="ctrlHSlider" type="button" id="someId" class="ctrlHSlider" data-update="xxx()"></button>
+ <button name="ctrlHSlider" type="button" class="ctrlHSlider" data-update="xxx()" id="yyy"></button>
 
- <button name="ctrlVSlider" type="button" id="otherId" class="ctrlVSlider" data-update="xxx()"></button>
+ <button name="ctrlVSlider" type="button" class="ctrlVSlider" data-update="xxx()" id="yyy"></button>
 
  On each change of the slider, the function xxx(value, final) is called with
  value ranging from 0 to 1. Dragging the slider will cause many updates with
  final = false, and once the mouse button got released, the funciton is called
  once with final = true.
-
+ 
  To set the slider programmatically call
-
-    document.getElementById('someId').set(0.5;
-
+ 
+ document.getElementById('yyy').set(0.5);
+ 
  Valid range is again 0 to 1.
 
- */
 
+ Progress bars
+ -------------
+
+ <div name="ctrlProgress" style="width:xxxpx;color:yyy;" id="zzz"></div>
+
+ document.getElementById('yyy').set(v); // v = 0...1
+
+
+
+ Icon buttons
+ ------------
+
+ <button name="ctrlButton" data-draw="xxx" type="button" id="yyy" onClick="zzz()"></button>
+
+ function xxx(cvs)
+ {
+   // example for an up-arrow with 36x36 pixels
+   cvs.width = 36;
+   cvs.height = 36;
+   var ctx = cvs.getContext("2d");
+   ctx.fillStyle = "#E0E0E0";
+   ctx.fillRect(0, 0, 36, 36);
+   ctx.beginPath();
+   ctx.moveTo(18, 7);
+   ctx.lineTo(31, 27);
+   ctx.lineTo(5, 27);
+   ctx.lineTo(18, 7);
+   ctx.closePath();
+   ctx.fillStyle = "#808080";
+   ctx.fill();
+ }
+
+*/
+
+// default styles for dialog boxes
 document.write("<style>" +
    ".dlgFrame {" +
    "   font-family: verdana,tahoma,sans-serif;" +
    "   border: 1px solid black;" +
-   "   box-shadow: 4px 4px 10px 4px rgba(0,0,0,0.2);" +
+   "   box-shadow: 6px 6px 10px 4px rgba(0,0,0,0.2);" +
    "   border-radius: 6px;" +
    "   position: absolute;" +
    "   top: 0;" +
@@ -63,7 +126,7 @@ document.write("<style>" +
    "   border-top-left-radius: 6px;" +
    "   border-top-right-radius: 6px;" +
    "   font-size: 12pt;" +
-   "   padding: 3px;" +
+   "   padding: 10px;" +
    "}" +
    ".dlgTitlebar:hover {" +
    "   cursor: pointer;" +
@@ -106,6 +169,21 @@ document.write("<style>" +
    "   height: 200px;" +
    "   border-radius: 5px;" +
    "   padding: 0;" +
+   ".ctrlProgress {" +
+   "   border: 1px solid #A0A0A0;" +
+   "   border-radius: 5px;" +
+   "   width: 500px;" +
+   "   height: 5px;" +
+   "   background-color: #E0E0E0;" +
+   "   margin-left: 6px;" +
+   "   margin-top: 5px;" +
+   "}" +
+   ".ctrlProgressInd {" +
+   "   border-radius: 5px;" +
+   "   width: 0;" +
+   "   height: 5px;" +
+   "   background-color: #419bf9;" +
+   "   margin: 0;" +
    "}" +
 "</style>");
 
@@ -125,12 +203,23 @@ function Controls() // constructor
 Controls.prototype.init = function () // scan DOM
 {
    // scan DOM for controls
+   this.ctrlButton = document.getElementsByName("ctrlButton");
    this.ctrlVSlider = document.getElementsByName("ctrlVSlider");
    this.ctrlHSlider = document.getElementsByName("ctrlHSlider");
+   this.ctrlProgress = document.getElementsByName("ctrlProgress");
+
+   // ctrlButton
+   for (var i = 0; i < this.ctrlButton.length; i++) {
+      var cvs = document.createElement("canvas");
+      this.ctrlButton[i].appendChild(cvs);
+
+      if (this.ctrlButton[i].dataset.draw != undefined)
+         eval(this.ctrlButton[i].dataset.draw+"(cvs)");
+   }
 
    // ctrlVSlider
-   for (var i = 0; i < this.ctrlVSlider.length; i++) {
-      var cvs = document.createElement("canvas");
+   for (i = 0; i < this.ctrlVSlider.length; i++) {
+      cvs = document.createElement("canvas");
       var sl = this.ctrlVSlider[i];
       cvs.width = sl.clientWidth;
       cvs.height = sl.clientHeight;
@@ -140,13 +229,11 @@ Controls.prototype.init = function () // scan DOM
       sl.position = 0.5; // slider position 0...1
       sl.addEventListener("click", this.ctrlVSliderHandler.bind(this));
       sl.addEventListener("contextmenu", this.ctrlVSliderHandler.bind(this));
-      sl.addEventListener("mousedown", this.ctrlVSliderHandler.bind(this));
       sl.addEventListener("mousemove", this.ctrlVSliderHandler.bind(this));
-      sl.addEventListener("mouseup", this.ctrlVSliderHandler.bind(this));
-      sl.addEventListener("mouseleave", this.ctrlVSliderHandler.bind(this));
       sl.addEventListener("touchmove", this.ctrlVSliderHandler.bind(this));
       sl.draw = this.ctrlVSliderDraw;
       sl.draw(sl);
+      sl.set = this.ctrlVSliderSet;
    }
 
    // ctrlHSlider
@@ -161,14 +248,23 @@ Controls.prototype.init = function () // scan DOM
       sl.position = 0.5; // slider position 0...1
       sl.addEventListener("click", this.ctrlHSliderHandler.bind(this));
       sl.addEventListener("contextmenu", this.ctrlHSliderHandler.bind(this));
-      sl.addEventListener("mousedown", this.ctrlHSliderHandler.bind(this));
       sl.addEventListener("mousemove", this.ctrlHSliderHandler.bind(this));
-      sl.addEventListener("mouseup", this.ctrlHSliderHandler.bind(this));
-      sl.addEventListener("mouseleave", this.ctrlHSliderHandler.bind(this));
       sl.addEventListener("touchmove", this.ctrlHSliderHandler.bind(this));
       sl.draw = this.ctrlHSliderDraw;
       sl.draw(sl);
       sl.set = this.ctrlHSliderSet;
+   }
+
+   // ctrlProgress
+   for (i = 0; i < this.ctrlProgress.length; i++) {
+      var p = this.ctrlProgress[i];
+      p.className = "ctrlProgress";
+      var ind = document.createElement("div");
+      ind.className = "ctrlProgressInd";
+      ind.style.height = p.style.height;
+      ind.style.backgroundColor = p.style.color;
+      p.appendChild(ind);
+      p.set = this.ctrlProgressSet;
    }
 
 };
@@ -207,6 +303,15 @@ Controls.prototype.ctrlVSliderDraw = function (b) {
    ctx.fill();
 };
 
+Controls.prototype.ctrlVSliderSet = function (pos) {
+   if (pos < 0)
+      pos = 0;
+   if (pos > 1)
+      pos = 1;
+   this.position = pos;
+   this.draw();
+};
+
 Controls.prototype.ctrlVSliderHandler = function (e) {
    e.preventDefault();
    var y = undefined;
@@ -214,13 +319,6 @@ Controls.prototype.ctrlVSliderHandler = function (e) {
 
    if (b.canvas === undefined) // we can get events from parent node
       return;
-
-   f = b.dataset.update;
-   if (f.indexOf("("))
-      f = f.substr(0, f.indexOf("("));
-
-   if (e.type === "mousedown")
-      b.dragging = true;
 
    if ((e.buttons === 1 && e.type === "mousemove") || e.type === "click")
       y = e.offsetY;
@@ -242,14 +340,12 @@ Controls.prototype.ctrlVSliderHandler = function (e) {
          if (b.position > 1)
             b.position = 1;
          this.ctrlVSliderDraw(b);
-         window[f](b.position, e.type === "click");
-      } else if (e.type === "mouseleave" && b.dragging) {
-         window[f](b.position, true);
+         var f = b.dataset.update;
+         if (f.indexOf("("))
+            f = f.substr(0, f.indexOf("("));
+         window[f](b.position);
       }
    }
-
-   if (e.type === "mouseup" || e.type === "click" || e.type === "mouseleave")
-      b.dragging = false;
 };
 
 Controls.prototype.ctrlHSliderDraw = function (b) {
@@ -287,6 +383,10 @@ Controls.prototype.ctrlHSliderDraw = function (b) {
 };
 
 Controls.prototype.ctrlHSliderSet = function (pos) {
+   if (pos < 0)
+      pos = 0;
+   if (pos > 1)
+      pos = 1;
    this.position = pos;
    this.draw();
 };
@@ -298,13 +398,6 @@ Controls.prototype.ctrlHSliderHandler = function (e) {
 
    if (b.canvas === undefined) // we can get events from parent node
       return;
-
-   f = b.dataset.update;
-   if (f.indexOf("("))
-      f = f.substr(0, f.indexOf("("));
-
-   if (e.type === "mousedown")
-      b.dragging = true;
 
    if ((e.buttons === 1 && e.type === "mousemove") || e.type === "click")
       x = e.offsetX;
@@ -326,14 +419,20 @@ Controls.prototype.ctrlHSliderHandler = function (e) {
          if (b.position > 1)
             b.position = 1;
          this.ctrlHSliderDraw(b);
-         window[f](b.position, e.type === "click");
-      } else if (e.type === "mouseleave" && b.dragging) {
-         window[f](b.position, true);
+         var f = b.dataset.update;
+         if (f.indexOf("("))
+            f = f.substr(0, f.indexOf("("));
+         window[f](b.position);
       }
    }
+};
 
-   if (e.type === "mouseup" || e.type === "click" || e.type === "mouseleave")
-      b.dragging = false;
+Controls.prototype.ctrlProgressSet = function (value) {
+   if (value < 0)
+      value = 0;
+   if (value > 1)
+      value = 1;
+   this.firstChild.style.width = Math.round(parseInt(this.style.width) * value) + "px";
 };
 
 //-------------------------------------------------------------------------------------------------
@@ -358,9 +457,15 @@ function dlgShow(dlg, modal) {
    else
       d.style.top = Math.round(document.documentElement.clientHeight / 2 - d.offsetHeight / 2) + "px";
 
+   // put dialog on top of all other dialogs
+   var dlgs = document.getElementsByClassName("dlgFrame");
+   for (var i=0 ; i<dlgs.length ; i++)
+      dlgs[i].style.zIndex = 10;
+   d.style.zIndex = 11;
+
    if (d.modal) {
       var b = document.getElementById("dlgBlackout");
-      if (b === null) {
+      if (b === undefined || b === null) {
          b =  document.createElement("div");
          b.id = "dlgBlackout";
          b.className = "dlgBlackout";
@@ -423,20 +528,56 @@ function dlgShow(dlg, modal) {
    };
 
    d.dlgTouchStart = function (e) {
-      if (e.target === this || e.target.parentNode === this) {
+      if ((e.target === this || e.target.parentNode === this) &&
+         e.target.className === "dlgTitlebar") {
          e.preventDefault();
          this.Ax = e.targetTouches[0].clientX;
          this.Ay = e.targetTouches[0].clientY;
          this.Dx = parseInt(this.style.left);
          this.Dy = parseInt(this.style.top);
       }
+
+      if (d.modal) {
+         // catch all mouse events
+         e.preventDefault();
+      } else {
+         var p = e.target;
+         while (p != undefined && p != this && p != document.body)
+            p = p.parentElement;
+
+         if (p == this) {
+            var dlgs = document.getElementsByClassName("dlgFrame");
+            for (var i=0 ; i<dlgs.length ; i++)
+               dlgs[i].style.zIndex = 10;
+            d.style.zIndex = 11;
+         }
+      }
    };
 
    d.dlgTouchMove = function (e) {
-      var x = e.changedTouches[e.changedTouches.length - 1].clientX;
-      var y = e.changedTouches[e.changedTouches.length - 1].clientY;
-      this.style.left = (this.Dx + (x - this.Ax)) + "px";
-      this.style.top = (this.Dy + (y - this.Ay)) + "px";
+      if (this.Ax > 0 && this.Ay > 0) {
+         e.preventDefault();
+         var x = e.changedTouches[e.changedTouches.length - 1].clientX;
+         var y = e.changedTouches[e.changedTouches.length - 1].clientY;
+         this.style.left = (this.Dx + (x - this.Ax)) + "px";
+         this.style.top = (this.Dy + (y - this.Ay)) + "px";
+      }
+   };
+
+   d.dlgTouchEnd = function (e) {
+      if (this.Ax > 0 && this.Ay > 0) {
+         e.preventDefault();
+         this.Ax = 0;
+         this.Ay = 0;
+      }
+   };
+
+   d.dlgTouchCancel = function (e) {
+      if (this.Ax > 0 && this.Ay > 0) {
+         e.preventDefault();
+         this.Ax = 0;
+         this.Ay = 0;
+      }
    };
 
    window.addEventListener("mousedown", d.dlgMouseDown.bind(d), true);
@@ -444,11 +585,13 @@ function dlgShow(dlg, modal) {
    window.addEventListener("mouseup", d.dlgMouseUp.bind(d), true);
    window.addEventListener("touchstart", d.dlgTouchStart.bind(d), true);
    window.addEventListener("touchmove", d.dlgTouchMove.bind(d), true);
+   window.addEventListener("touchend", d.dlgTouchEnd.bind(d), true);
+   window.addEventListener("touchcancel", d.dlgTouchCancel.bind(d), true);
 }
 
 function dlgHide(dlg) {
    var d = document.getElementById("dlgBlackout");
-   if (d !== null)
+   if (d !== undefined)
       d.style.display = "none";
    d = document.getElementById(dlg);
    d.style.display = "none";
@@ -459,23 +602,25 @@ function dlgMessageDestroy(b)
    var dlg = b.parentElement.parentElement;
    if (dlg.modal) {
       var d = document.getElementById("dlgBlackout");
-      if (d !== null)
+      if (d !== undefined && d !== null)
          d.style.display = "none";
    }
    document.body.removeChild(dlg);
 }
 
-function dlgMessage(title, string, modal, error)
+function dlgMessage(title, string, modal, error, callback, param)
 {
    d =  document.createElement("div");
    d.className = "dlgFrame";
    d.style.zIndex = modal? 21 : 20;
+   d.callback = callback;
+   d.callbackParam = param;
 
    d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">"+title+"</div>"+
    "<div class=\"dlgPanel\" style=\"padding: 30px;\">"+
    "<div id=\"dlgMessageString\">"+string+"</div>"+
-   "<br /><br /><button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" "+
-   " onClick=\"dlgMessageDestroy(this)\">Close</button>"+
+   "<br /><br /><button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" "+
+   " onClick=\"var d=this.parentElement.parentElement;if(d.callback!==undefined)d.callback(d.callbackParam);dlgMessageDestroy(this)\">Close</button>"+
    "</div>";
 
    document.body.appendChild(d);
@@ -490,28 +635,27 @@ function dlgMessage(title, string, modal, error)
    return d;
 }
 
-// replacement for alert() function
 function dlgAlert(s)
 {
-   dlgMessage('MIDAS message', s, true, false);
+   dlgMessage('Message', s, true, false);
 }
 
-// replacement for confirm() function
-function dlgConfirm(string, confirmCallback)
+function dlgConfirm(string, confirmCallback, param)
 {
    d = document.createElement("div");
    d.className = "dlgFrame";
    d.style.zIndex = 21;
    d.callback = confirmCallback;
+   d.callbackParam = param;
 
    d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Please confirm</div>"+
       "<div class=\"dlgPanel\" style=\"padding: 30px;\">"+
       "<div id=\"dlgMessageString\">"+string+"</div>"+
       "<br /><br />" +
       "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" "+
-      " onClick=\"this.parentElement.parentElement.callback(false);dlgMessageDestroy(this);\">Cancel</button>"+
+      " onClick=\"var d=this.parentElement.parentElement;d.callback(true,d.callbackParam);dlgMessageDestroy(this);\">OK</button>"+
       "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" "+
-      " onClick=\"this.parentElement.parentElement.callback(true);dlgMessageDestroy(this);\">OK</button>"+
+      " onClick=\"var d=this.parentElement.parentElement;d.callback(false,d.callbackParam);dlgMessageDestroy(this);\">Cancel</button>"+
       "</div>";
 
    document.body.appendChild(d);
