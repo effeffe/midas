@@ -591,7 +591,7 @@ function dlgShow(dlg, modal) {
 
 function dlgHide(dlg) {
    var d = document.getElementById("dlgBlackout");
-   if (d !== undefined)
+   if (d !== undefined && d !== null)
       d.style.display = "none";
    d = document.getElementById(dlg);
    d.style.display = "none";
