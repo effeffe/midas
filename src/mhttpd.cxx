@@ -14842,7 +14842,7 @@ void show_seq_page(Param* p, Return* r)
    r->rsprintf("function load()\n");
    r->rsprintf("{\n");
    r->rsprintf("   if (document.getElementById('fs').selectedIndex == -1)\n");
-   r->rsprintf("      alert('Please select a file to load');\n");
+   r->rsprintf("      dlgAlert('Please select a file to load');\n");
    r->rsprintf("   else {\n");
    r->rsprintf("      var o = document.createElement('input');\n");
    r->rsprintf("      o.type = 'hidden'; o.name='xcmd'; o.value='Load script file';\n");

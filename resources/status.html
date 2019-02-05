@@ -356,10 +356,10 @@
                   document.getElementById("runStatusSequencer").innerHTML = "Restart: Sequencer";
                } else {
                   if (loggerJson["auto restart"] === true) {
-                     document.getElementById("runStatusSequencer").innerHTML = "<a href='?cmd=Set&odb_path=Logger/Auto restart'>" + "Restart: On" + "</a>";
+                     document.getElementById("runStatusSequencer").innerHTML = "<a href='#' onClick='dlgOdbEdit(\"/Logger/Auto restart\")'>Restart: On</a>";
                      document.getElementById("runStatusSequencer").className = "mgreen mbox";
                   } else {
-                     document.getElementById("runStatusSequencer").innerHTML = "<a href='?cmd=Set&odb_path=Logger/Auto restart'>" + "Restart: Off" + "</a>";
+                     document.getElementById("runStatusSequencer").innerHTML = "<a href='#' onClick='dlgOdbEdit(\"/Logger/Auto restart\")'>Restart: Off</a>";
                      document.getElementById("runStatusSequencer").className = "myellow mbox";
                   }
                }

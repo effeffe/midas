@@ -278,6 +278,81 @@ function ODBInlineEdit(p, odb_path, bracket) {
    });
 }
 
+function dlgOdbEditKeydown(event, input) {
+   var keyCode = ('which' in event) ? event.which : event.keyCode;
+
+   if (keyCode == 27) {
+      // cancel editing
+      dlgMessageDestroy(input.parentElement.parentElement);
+      return false;
+   }
+
+   if (keyCode == 13) {
+      dlgOdbEditSend(input.parentElement);
+      dlgMessageDestroy(input.parentElement.parentElement);
+      return false;
+   }
+
+   return true;
+}
+
+function dlgOdbEditSend(b) {
+   var path = b.parentElement.parentElement.parentElement.odbPath;
+   var value = b.parentElement.parentElement.elements[0].value;
+
+   mjsonrpc_db_set_value(path, value).then(function (rpc) {
+      //mjsonrpc_debug_alert(rpc);
+   }).catch(function (error) {
+      mjsonrpc_error_alert(error);
+   });
+}
+
+//
+// odb edit single value dialog box
+//
+function dlgOdbEdit(path) {
+
+   mjsonrpc_db_get_value(path).then(function (rpc) {
+      var value = rpc.result.data[0];
+      var tid = rpc.result.tid[0];
+      var value = mie_to_string(tid, value);
+
+      d =  document.createElement("div");
+      d.className = "dlgFrame";
+      d.style.zIndex = 20;
+      d.odbPath = path;
+
+      d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Change ODB value</div>"+
+         "<form>"+
+         "<div class=\"dlgPanel\" style=\"padding: 30px;\">"+
+         "<div id=\"dlgMessageString\">"+
+         path+"&nbsp;:&nbsp;&nbsp;"+
+         "<input type='text' size='16' value='"+value+"' onkeydown='return dlgOdbEditKeydown(event, this);'>"+
+         "</div>"+
+         "<br /><br />"+
+         "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" "+
+         " onClick=\"dlgOdbEditSend(this);dlgMessageDestroy(this.parentElement);\">Ok</button>"+
+         "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" "+
+         " onClick=\"dlgMessageDestroy(this.parentElement)\">Cancel</button>"+
+         "</div>"+
+         "</form>";
+
+      document.body.appendChild(d);
+
+      dlgShow(d, false);
+
+      // needed for Firefox
+      setTimeout(function () {
+         d.childNodes[1].elements[0].focus();
+         d.childNodes[1].elements[0].select();
+      }, 10);
+
+
+   }).catch(function (error) {
+      mjsonrpc_error_alert(error);
+   });
+}
+
 /*---- mhttpd functions -------------------------------------*/
 
 function mhttpd_disable_button(button) {

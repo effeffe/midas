@@ -448,7 +448,7 @@ function dlgShow(dlg, modal) {
    d.dlgAy = 0;
    d.dlgDx = 0;
    d.dlgDy = 0;
-   d.modal = (modal !== undefined);
+   d.modal = (modal === true);
 
    d.style.display = "block";
    d.style.left = Math.round(document.documentElement.clientWidth / 2 - d.offsetWidth / 2) + "px";
