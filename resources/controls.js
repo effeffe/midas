@@ -451,6 +451,7 @@ function dlgShow(dlg, modal) {
    d.modal = (modal === true);
 
    d.style.display = "block";
+   d.style.position = "fixed";
    d.style.left = Math.round(document.documentElement.clientWidth / 2 - d.offsetWidth / 2) + "px";
    if (document.documentElement.clientHeight / 2 - d.offsetHeight / 2 < 0)
       d.style.top = "0px";
