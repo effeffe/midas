@@ -300,9 +300,10 @@
 
                if (buttonFunc !== "")
                   panelText += "<br>" +
-                     "<input type='button' class='mbutton' value='" + buttonText + "' onclick='" + buttonFunc + "'>";
+                     "<input type=\"button\" class=\"mbutton\" value=\"" + buttonText + "\" onclick=\"" + buttonFunc + "\">";
 
-               document.getElementById("runNumberCell").innerHTML = panelText;
+               if (document.getElementById("runNumberCell").innerHTML !== panelText)
+                  document.getElementById("runNumberCell").innerHTML = panelText;
             }
 
             if (runinfoJson.hasOwnProperty("start time")) {
@@ -358,11 +359,17 @@
                   document.getElementById("runStatusSequencer").innerHTML = "Restart: Sequencer";
                } else {
                   if (loggerJson["auto restart"] === true) {
-                     document.getElementById("runStatusSequencer").innerHTML = "<a href='#' onClick='dlgOdbEdit(\"/Logger/Auto restart\")'>Restart: On</a>";
-                     document.getElementById("runStatusSequencer").className = "mgreen mbox";
+                     var text = "<a href=\"#\" onclick=\"dlgOdbEdit('/Logger/Auto restart')\">Restart: On</a>";
+                     if (document.getElementById("runStatusSequencer").innerHTML !== text) {
+                        document.getElementById("runStatusSequencer").innerHTML = text;
+                        document.getElementById("runStatusSequencer").className = "mgreen mbox";
+                     }
                   } else {
-                     document.getElementById("runStatusSequencer").innerHTML = "<a href='#' onClick='dlgOdbEdit(\"/Logger/Auto restart\")'>Restart: Off</a>";
-                     document.getElementById("runStatusSequencer").className = "myellow mbox";
+                     var text = "<a href=\"#\" onclick=\"dlgOdbEdit('/Logger/Auto restart')\">Restart: Off</a>";
+                     if (document.getElementById("runStatusSequencer").innerHTML !== text) {
+                        document.getElementById("runStatusSequencer").innerHTML = text;
+                        document.getElementById("runStatusSequencer").className = "myellow mbox";
+                     }
                   }
                }
             }
