@@ -1635,9 +1635,11 @@ void init_menu_buttons()
    int status;
    HNDLE hDB;
    BOOL value = TRUE;
+   BOOL false_value = FALSE;
    int size = sizeof(value);
    cm_get_experiment_database(&hDB, NULL);
    db_get_value(hDB, 0, "/Experiment/Menu/Status",     &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Start",      &false_value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Transition", &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/ODB",        &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Messages",   &value, &size, TID_BOOL, TRUE);
@@ -1649,6 +1651,7 @@ void init_menu_buttons()
    db_get_value(hDB, 0, "/Experiment/Menu/MSCB",       &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Sequencer",  &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Config",     &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Example",    &false_value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Help",       &value, &size, TID_BOOL, TRUE);
 
    std::string buf;

@@ -787,6 +787,16 @@ static int db_validate_name(const char* name, int maybe_path, const char* caller
       return DB_INVALID_NAME;
    }
 
+   if (strchr(name, '[')) {
+      cm_msg(MERROR, "db_validate_name", "Invalid name \"%s\" passed to %s: should not contain \"[\"", name, caller_name);
+      return DB_INVALID_NAME;
+   }
+   
+   if (strchr(name, ']')) {
+      cm_msg(MERROR, "db_validate_name", "Invalid name \"%s\" passed to %s: should not contain \"[\"", name, caller_name);
+      return DB_INVALID_NAME;
+   }
+   
    // Disabled check for UTF-8 compatible names. 
    // Check can be disabled by having an environment variable called "MIDAS_INVALID_STRING_IS_OK"
    // Check the environment variable only first time
