@@ -278,8 +278,10 @@
                   buttonFunc = "mhttpd_stop_run()";
 
                // don't display button if transition is in progress
-               if (runinfoJson["transition in progress"] !== 0)
-                  buttonFunc = "";
+               if (runinfoJson["transition in progress"] !== 0) {
+                  buttonText = "Cancel";
+                  buttonFunc = "mhttpd_cancel_transition()";
+               }
 
                if (runinfoJson["transition in progress"] === TR_STOP)
                   state = "Stopping run";
