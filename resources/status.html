@@ -300,9 +300,10 @@
 
                if (buttonFunc !== "")
                   panelText += "<br>" +
-                     "<input type='button' class='mbutton' value='" + buttonText + "' onclick='" + buttonFunc + "'>";
+                     "<input type=\"button\" class=\"mbutton\" value=\"" + buttonText + "\" onclick=\"" + buttonFunc + "\">";
 
-               document.getElementById("runNumberCell").innerHTML = panelText;
+               if (document.getElementById("runNumberCell").innerHTML !== panelText)
+                  document.getElementById("runNumberCell").innerHTML = panelText;
             }
 
             if (runinfoJson.hasOwnProperty("start time")) {
