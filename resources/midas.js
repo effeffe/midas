@@ -205,6 +205,14 @@ function mjsonrpc_decode_error(error) {
    /// @param[in] error rejected promise error object (object)
    /// @returns decoded error report (string)
 
+   //console.log("mjsonrpc_decode_error: " + JSON.stringify(error));
+   //console.log("mjsonrpc_decode_error xhr: " + JSON.stringify(error.xhr));
+   //for (var x in error.xhr) {
+   //   if (x == "responseText") continue;
+   //   if (x == "responseXML") continue;
+   //   console.log("xhr[" + x + "] = [" + error.xhr[x] + "]");
+   //}
+
    function is_network_error(xhr) {
       return xhr.readyState==4 && xhr.status==0;
    }
@@ -215,6 +223,15 @@ function mjsonrpc_decode_error(error) {
       return "readyState: " + xhr.readyState + ", HTTP status: " + xhr.status + " (" + xhr.statusText + ")";
    }
    function print_request(request) {
+      //console.log("print_request: " + request + ", JSON: " + JSON.stringify(request));
+      if (Array.isArray(request)) {
+         var s = "batch request: ";
+         request.forEach(function(item, index) {
+            s += print_request(item);
+            s += " ";
+         });
+         return s;
+      }
       return "method: \"" + request.method + "\", params: " + request.params + ", id: " + request.id;
    }
 
@@ -233,16 +250,18 @@ function mjsonrpc_decode_error(error) {
    }
 }
 
-function mjsonrpc_error_alert(error) {
+//dlgMessage(title, message, modal, error, callback, param)
+
+function mjsonrpc_error_alert(error, callback, param) {
    /// \ingroup mjsonrpc_js
    /// Handle all errors
    /// @param[in] error rejected promise error object (object)
    /// @returns nothing
    if (error.request) {
       var s = mjsonrpc_decode_error(error);
-      dlgAlert("mjsonrpc_error_alert: " + s);
+      dlgMessage("RPC Error", s, true, true, callback, param);
    } else {
-      dlgAlert("mjsonrpc_error_alert: " + error);
+      dlgMessage("RPC Handler error or exception", error, true, true, callback, param);
    }
 }
 

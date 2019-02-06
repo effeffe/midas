@@ -391,19 +391,22 @@
       req.push(mjsonrpc_make_request("ss_millitime"));
       mjsonrpc_send_request(req).then(function (rpc) {
          callback(rpc);
+         start_update_timer();
       }).catch(function (error) {
-         dlgAlert("RWE: RPC or JS error: " + mjsonrpc_decode_error(error));
+         mjsonrpc_error_alert(error, function() {
+            start_update_timer();
+         });
       });
    }
 
-   function update_periodic() {
+   function start_update_timer() {
       clearTimeout(update_timer_id);
       var update_period = 1000;
-      update();
-      update_timer_id = setTimeout('update_periodic()', update_period);
+      //console.log("start update timer!");
+      update_timer_id = setTimeout('update()', update_period);
    }
 
-   update_periodic();
+   update();
 </script>
 </body>
 </html>
