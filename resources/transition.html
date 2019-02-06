@@ -17,12 +17,12 @@
 
 <div id="mmain">
 
-   <table width="95%" class="mtable runStatusTable" id="xstripeList">
+   <table class="mtable" id="xstripeList">
       <tr>
-         <th colspan="4" class="mtableheader subStatusTitle">Run Status</th>
+         <th colspan="4" class="mtableheader">Run Status</th>
       </tr>
       <tr>
-         <td colspan="1" height="100%" id="run_info" class="mred mbox">
+         <td colspan="1" height="100%" id="run_info" class="mred mbox" style="padding:7px">
             Run
             <span id="run_number">run_number</span>
             <span id="run_state">run_state</span>
@@ -36,13 +36,17 @@
                    onClick="mhttpd_cancel_transition();">
          </td>
       </tr>
+      <tr>
+         <td colspan="4" align="center" height="30px">
+            <span class="mfont" id="tr_status">tr_status</span>
+         </td>
+      </tr>
    </table>
 
-   <span class="mfont" id="tr_status">tr_status</span>
 
-   <table width="95%" class="mtable subStatusTable" id="stripeList">
+   <table class="mtable" id="stripeList">
       <tr>
-         <th colspan="5" class="mtableheader subStatusTitle">Run transition</th>
+         <th colspan="5" class="mtableheader">Run transition</th>
       </tr>
       <tr>
          <td colspan="5">
@@ -51,18 +55,14 @@
            Time: <span class="mtext" id="time">time</span>
          </td>
       </tr>
-      <tr class="mtabletitle titleRow">
-         <th>Client</th>
-         <th>Sequence</th>
-         <th>Time<br>(Wait/Connect+Process=Total)</th>
-         <th>Status</th>
-         <th style="text-align:left">Error message</th>
+      <tr class="mtabletitle">
+         <th style="padding:7px">Client</th>
+         <th style="padding:7px">Sequence</th>
+         <th style="padding:7px">Time<br>(Wait/Connect+Process=Total)</th>
+         <th style="padding:7px">Status</th>
+         <th style="text-align:left;padding:7px">Error message</th>
       </tr>
    </table>
-
-   <div id="updateStatus" align="left">
-     updateStatus
-   </div>
 </div>
 
 <script>
@@ -161,8 +161,11 @@
 
    function set_text(id, text) {
       var e = document.getElementById(id);
-      if (e)
+      if (e) {
          e.innerHTML = text;
+         if (id === "tr_status")
+            e.parentElement.style.display = text === "" ? "none" : "";
+      }
    }
 
    function adjust_colors(runstate) {
@@ -291,8 +294,6 @@
    }
 
    function callback(rpc_batch) {
-      //document.getElementById('updateStatus').innerHTML = "RWP_";
-
       //console.log(JSON.stringify(rpc.result));
 
       var rpc_db_get_values = rpc_batch[0];
@@ -315,8 +316,6 @@
          set_text("status", "(status not available)");
          set_text("errorstr", "(error string not available)");
          set_text("time", "(time not available)");
-
-         document.getElementById('updateStatus').innerHTML = "RWE: no transition data available from mhttpd";
          return;
       }
 
@@ -384,22 +383,17 @@
             show_client("STARTABORT " + name, client, millitime);
          }
       }
-
-      //document.getElementById('updateStatus').innerHTML = "RWPD";
-      document.getElementById('updateStatus').innerHTML = "";
    }
 
    function update() {
       var req = new Array;
       req.push(mjsonrpc_make_request("db_get_values", {"paths": ["/runinfo","/System/transition"]}));
       req.push(mjsonrpc_make_request("ss_millitime"));
-      //document.getElementById('updateStatus').innerHTML = "R___";
       mjsonrpc_send_request(req).then(function (rpc) {
          callback(rpc);
       }).catch(function (error) {
-         document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
+         dlgAlert("RWE: RPC or JS error: " + mjsonrpc_decode_error(error));
       });
-      //document.getElementById('updateStatus').innerHTML = "RW__";
    }
 
    function update_periodic() {
