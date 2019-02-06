@@ -2671,28 +2671,23 @@ static MJsonNode* js_cm_transition(const MJsonNode* params)
    return mjsonrpc_make_result(result);
 }
 
-static MJsonNode* js_cm_transition_status(const MJsonNode* params)
+/////////////////////////////////////////////////////////////////////////////////
+//
+// ss_system code goes here
+//
+/////////////////////////////////////////////////////////////////////////////////
+
+static MJsonNode* js_ss_millitime(const MJsonNode* params)
 {
    if (!params) {
-      MJSO* doc = MJSO::I();
-      doc->D("start and stop runs");
-      doc->P("transition", MJSON_STRING, "requested transition: TR_START, TR_STOP, TR_PAUSE, TR_RESUME");
-      doc->P("run_number?", MJSON_INT, "New run number, value 0 means /runinfo/run_number + 1, default is 0");
-      doc->P("async_flag?", MJSON_INT, "Transition type. Default is multithreaded transition TR_MTHREAD");
-      doc->P("debug_flag?", MJSON_INT, "See cm_transition(), value 1: trace to stdout, value 2: trace to midas.log");
-      doc->R("status", MJSON_INT, "return status of cm_transition()");
-      doc->R("error_string?", MJSON_STRING, "return error string from cm_transition()");
+      MJSO *doc = MJSO::I();
+      doc->D("get current MIDAS time using ss_millitime()");
+      doc->P(NULL, 0, "there are no input parameters");
+      doc->R(NULL, MJSON_INT, "current value of ss_millitime()");
       return doc;
    }
 
-   char* data = NULL;
-   cm_transition_status_json(&data);
-
-   MJsonNode* result = MJsonNode::MakeJSON(data);
-
-   free(data);
-
-   return mjsonrpc_make_result(result);
+   return mjsonrpc_make_result(MJsonNode::MakeNumber(ss_millitime()));
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -3046,7 +3041,6 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("cm_msg1",     js_cm_msg1);
    mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
    mjsonrpc_add_handler("cm_transition", js_cm_transition);
-   mjsonrpc_add_handler("cm_transition_status", js_cm_transition_status);
    // interface to odb functions
    mjsonrpc_add_handler("db_copy",     js_db_copy);
    mjsonrpc_add_handler("db_paste",    js_db_paste);
@@ -3073,6 +3067,8 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("hs_reopen", js_hs_reopen);
    mjsonrpc_add_handler("hs_read", js_hs_read);
    mjsonrpc_add_handler("hs_read_binned", js_hs_read_binned);
+   // interface to ss_system functions
+   mjsonrpc_add_handler("ss_millitime", js_ss_millitime);
    // methods that perform computations or invoke actions
    mjsonrpc_add_handler("get_alarms",  get_alarms);
    //mjsonrpc_add_handler("get_messages",  get_messages);

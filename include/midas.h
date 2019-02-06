@@ -550,6 +550,7 @@ System message types */
 #define CM_INVALID_TRANSITION       113 /**< - */
 #define CM_TOO_MANY_REQUESTS        114 /**< - */
 #define CM_TRUNCATED                115 /**< - */
+#define CM_TRANSITION_CANCELED      116 /**< - */
 /**dox***************************************************************/
           /** @} *//* end of err21 */
 
@@ -1653,9 +1654,7 @@ extern "C" {
    INT EXPRT cm_query_transition(int *transition, int *run_number, int *trans_time);
    INT EXPRT cm_register_deferred_transition(INT transition, BOOL(*func) (INT, BOOL));
    INT EXPRT cm_check_deferred_transition(void);
-   INT EXPRT cm_transition(INT transition, INT run_number, char *error,
-                           INT strsize, INT async_flag, INT debug_flag);
-   INT EXPRT cm_transition_status_json(char** json_status);
+   INT EXPRT cm_transition(INT transition, INT run_number, char *error, INT strsize, INT async_flag, INT debug_flag);
    INT EXPRT cm_register_server(void);
    INT EXPRT cm_register_function(INT id, INT(*func) (INT, void **));
    INT EXPRT cm_connect_client(const char *client_name, HNDLE * hConn);

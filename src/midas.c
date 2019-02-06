@@ -3458,22 +3458,19 @@ typedef struct tr_client {
    int   status;
    char  errorstr[256];
    DWORD init_time;    // time when tr_client created
+   char  waiting_for_client[NAME_LENGTH]; // name of client we are waiting for
    DWORD connect_timeout;
    DWORD connect_start_time; // time when client rpc connection is started
    DWORD connect_end_time;   // time when client rpc connection is finished
    DWORD rpc_timeout;
    DWORD rpc_start_time;     // time client rpc call is started
    DWORD rpc_end_time;       // time client rpc call is finished
+   DWORD end_time;           // time client thread is finished
 } TR_CLIENT;
 
-int tr_compare(const void *arg1, const void *arg2)
+static int tr_compare(const void *arg1, const void *arg2)
 {
    return ((TR_CLIENT *) arg1)->sequence_number - ((TR_CLIENT *) arg2)->sequence_number;
-}
-
-int tr_thread(void *param)
-{
-   return 0;
 }
 
 /*------------------------------------------------------------------*/
@@ -3496,11 +3493,29 @@ static TR_STATE* tr_current_transition = NULL;
 
 /*------------------------------------------------------------------*/
 
-int tr_finish(int status, const char* errorstr)
+static int tr_finish(HNDLE hDB, int transition, int status, const char* errorstr)
 {
+   DWORD end_time = ss_millitime();
+
+   if (transition != TR_STARTABORT) {
+      db_set_value(hDB, 0, "/System/Transition/end_time",   &end_time,   sizeof(DWORD), 1, TID_DWORD);
+      db_set_value(hDB, 0, "/System/Transition/status",     &status,     sizeof(INT),   1, TID_INT);
+      
+      if (errorstr) {
+         db_set_value(hDB, 0, "/System/Transition/error",   errorstr,    strlen(errorstr)+1, 1, TID_STRING);
+      } else if (status == CM_SUCCESS) {
+         const char* buf = "Success";
+         db_set_value(hDB, 0, "/System/Transition/error",   buf,         strlen(buf)+1, 1, TID_STRING);
+      } else {
+         char buf[256];
+         sprintf(buf, "status %d", status);
+         db_set_value(hDB, 0, "/System/Transition/error",   buf,         strlen(buf)+1, 1, TID_STRING);
+      }
+   }
+
    if (tr_current_transition) {
       tr_current_transition->status = status;
-      tr_current_transition->end_time = ss_millitime();
+      tr_current_transition->end_time = end_time;
       if (errorstr) {
          strlcpy(tr_current_transition->errorstr, errorstr, sizeof(tr_current_transition->errorstr));
       } else {
@@ -3513,249 +3528,49 @@ int tr_finish(int status, const char* errorstr)
 
 /*------------------------------------------------------------------*/
 
-static void json_write(char **buffer, int* buffer_size, int* buffer_end, int level, const char* s, int quoted)
+static void write_tr_client_to_odb(HNDLE hDB, const TR_CLIENT* tr_client)
 {
-   int len, remain, xlevel;
+   //printf("Writing client [%s] to ODB\n", tr_client->client_name);
 
-   len = strlen(s);
-   remain = *buffer_size - *buffer_end;
-   assert(remain >= 0);
+   int status;
+   HNDLE hKey;
 
-   xlevel = 2*level;
-
-   while (10 + xlevel + 3*len > remain) {
-      // reallocate the buffer
-      int new_buffer_size = 2*(*buffer_size);
-      if (new_buffer_size < 4*1024)
-         new_buffer_size = 4*1024;
-      //printf("reallocate: len %d, size %d, remain %d, allocate %d\n", len, *buffer_size, remain, new_buffer_size);
-      *buffer = (char *)realloc(*buffer, new_buffer_size);
-      assert(*buffer);
-      *buffer_size = new_buffer_size;
-      remain = *buffer_size - *buffer_end;
-      assert(remain >= 0);
-   }
-
-   if (xlevel) {
-      int i;
-      for (i=0; i<xlevel; i++)
-         (*buffer)[(*buffer_end)++] = ' ';
-   }
-
-   if (!quoted) {
-      memcpy(*buffer + *buffer_end, s, len);
-      *buffer_end += len;
-      (*buffer)[*buffer_end] = 0; // NUL-terminate the buffer
-      return;
-   }
-
-   (*buffer)[(*buffer_end)++] = '"';
-
-   while (*s) {
-      switch (*s) {
-      case '\"':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = '\"';
-         s++;
-         break;
-      case '\\':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = '\\';
-         s++;
-         break;
-#if 0
-      case '/':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = '/';
-         s++;
-         break;
-#endif
-      case '\b':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 'b';
-         s++;
-         break;
-      case '\f':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 'f';
-         s++;
-         break;
-      case '\n':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 'n';
-         s++;
-         break;
-      case '\r':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 'r';
-         s++;
-         break;
-      case '\t':
-         (*buffer)[(*buffer_end)++] = '\\';
-         (*buffer)[(*buffer_end)++] = 't';
-         s++;
-         break;
-      default:
-         (*buffer)[(*buffer_end)++] = *s++;
-      }
-   }
-
-   (*buffer)[(*buffer_end)++] = '"';
-   (*buffer)[*buffer_end] = 0; // NUL-terminate the buffer
-
-   remain = *buffer_size - *buffer_end;
-   assert(remain > 0);
-}
-
-static void json_write_kvp_s(char **buf, int* bufs, int* bufe, int level, const char* key, const char* value)
-{
-   json_write(buf, bufs, bufe, level, key, 1);
-   json_write(buf, bufs, bufe, 0, ":", 0);
-   json_write(buf, bufs, bufe, 0, value, 1);
-}
-
-static void json_write_kvp_i(char **buf, int* bufs, int* bufe, int level, const char* key, int value)
-{
-   char str[256];
-   sprintf(str, "%d", value);
-   json_write(buf, bufs, bufe, level, key, 1);
-   json_write(buf, bufs, bufe, 0, ":", 0);
-   json_write(buf, bufs, bufe, 0, str, 0);
-}
-
-static void json_write_kvp_DWORD(char **buf, int* bufs, int* bufe, int level, const char* key, DWORD value)
-{
-   char str[256];
-   sprintf(str, "%d", value);
-   json_write(buf, bufs, bufe, level, key, 1);
-   json_write(buf, bufs, bufe, 0, ":", 0);
-   json_write(buf, bufs, bufe, 0, str, 0);
-}
-
-int cm_transition_status_json(char** json_status)
-{
-   char* buf = NULL;
-   int bufs = 0;
-   int bufe = 0;
-
-   int level = 0;
-
-   const TR_STATE *s = tr_current_transition;
-
-   if (s && s->transition == TR_STARTABORT) {
-      s = tr_previous_transition;
-   }
-
-   if (!s) {
-      json_write(&buf, &bufs, &bufe, level, "{", 0);
-      json_write(&buf, &bufs, &bufe, level, "}", 0);
+   if (tr_client->transition == TR_STARTABORT) {
+      status = db_create_key(hDB, 0, "/System/Transition/TR_STARTABORT", TID_KEY);
+      status = db_find_key(hDB, 0, "/System/Transition/TR_STARTABORT", &hKey);
+      assert(status == DB_SUCCESS);
    } else {
-      int n = s->num_clients;
-      const TR_CLIENT* t = s->clients;
-      int i;
-
-      json_write(&buf, &bufs, &bufe, level, "{", 0);
-
-      json_write_kvp_i(&buf, &bufs, &bufe, level, "transition", s->transition);
-      json_write(&buf, &bufs, &bufe, 0, ",", 0);
-      json_write_kvp_i(&buf, &bufs, &bufe, level, "run_number", s->run_number);
-      json_write(&buf, &bufs, &bufe, 0, ",", 0);
-      json_write_kvp_i(&buf, &bufs, &bufe, level, "async_flag", s->async_flag);
-      json_write(&buf, &bufs, &bufe, 0, ",", 0);
-      json_write_kvp_i(&buf, &bufs, &bufe, level, "debug_flag", s->debug_flag);
-      json_write(&buf, &bufs, &bufe, 0, ",", 0);
-      json_write_kvp_i(&buf, &bufs, &bufe, level, "status",     s->status);
-      json_write(&buf, &bufs, &bufe, 0, ",", 0);
-      json_write_kvp_s(&buf, &bufs, &bufe, level, "errorstr",   s->errorstr);
-      json_write(&buf, &bufs, &bufe, 0, ",", 0);
-      json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "millitime", ss_millitime());
-      json_write(&buf, &bufs, &bufe, 0, ",", 0);
-      json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "start_time", s->start_time);
-      json_write(&buf, &bufs, &bufe, 0, ",", 0);
-      json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "end_time", s->end_time);
-      json_write(&buf, &bufs, &bufe, 0, ",", 0);
-      
-      json_write(&buf, &bufs, &bufe, level, "clients", 1);
-      json_write(&buf, &bufs, &bufe, 0, ": [", 0);
-      
-      for (i=0; i<n; i++) {
-         if (i>0)
-            json_write(&buf, &bufs, &bufe, level, ",", 0);
-         
-         json_write(&buf, &bufs, &bufe, level, "{", 0);
-         
-         json_write_kvp_s(&buf, &bufs, &bufe, level, "name", t[i].client_name);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-         json_write_kvp_i(&buf, &bufs, &bufe, level, "sequence_number", t[i].sequence_number);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-         json_write_kvp_i(&buf, &bufs, &bufe, level, "transition", t[i].transition);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-         json_write_kvp_i(&buf, &bufs, &bufe, level, "run_number", t[i].run_number);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-         json_write_kvp_i(&buf, &bufs, &bufe, level, "async_flag", t[i].async_flag);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-         json_write_kvp_i(&buf, &bufs, &bufe, level, "debug_flag", t[i].debug_flag);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-         json_write_kvp_s(&buf, &bufs, &bufe, level, "host_name",  t[i].host_name);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-         json_write_kvp_i(&buf, &bufs, &bufe, level, "port",       t[i].port);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-         json_write_kvp_s(&buf, &bufs, &bufe, level, "key_name",   t[i].key_name);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-
-         if (t[i].n_pred > 0) {
-            int j;
-            PTR_CLIENT* p = t[i].pred;
-
-            json_write(&buf, &bufs, &bufe, level, "wait_for_clients", 1);
-            json_write(&buf, &bufs, &bufe, 0, ": [", 0);
-            
-            for (j=0; j<t[i].n_pred; j++) {
-               if (j>0)
-                  json_write(&buf, &bufs, &bufe, 0, ",", 0);
-               json_write(&buf, &bufs, &bufe, level, "{", 0);
-               json_write_kvp_s(&buf, &bufs, &bufe, level, "name", p[j]->client_name);
-               json_write(&buf, &bufs, &bufe, 0, ",", 0);
-               json_write_kvp_i(&buf, &bufs, &bufe, level, "sequence_number", p[j]->sequence_number);
-               json_write(&buf, &bufs, &bufe, 0, ",", 0);
-               json_write_kvp_i(&buf, &bufs, &bufe, level, "status", p[j]->status);
-               json_write(&buf, &bufs, &bufe, level, "}", 0);
-            }
-            json_write(&buf, &bufs, &bufe, 0, "]", 0);
-            json_write(&buf, &bufs, &bufe, 0, ",", 0);
-         }
-         
-         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "init_time", t[i].init_time);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-
-         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "connect_timeout", t[i].connect_timeout);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "connect_start_time", t[i].connect_start_time);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "connect_end_time", t[i].connect_end_time);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-
-         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "rpc_timeout", t[i].rpc_timeout);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "rpc_start_time", t[i].rpc_start_time);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-         json_write_kvp_DWORD(&buf, &bufs, &bufe, level, "rpc_end_time", t[i].rpc_end_time);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-
-         json_write_kvp_i(&buf, &bufs, &bufe, level, "status",     t[i].status);
-         json_write(&buf, &bufs, &bufe, 0, ",", 0);
-         json_write_kvp_s(&buf, &bufs, &bufe, level, "errorstr",   t[i].errorstr);
-         
-         json_write(&buf, &bufs, &bufe, level, "}", 0);
-      }
-      
-      json_write(&buf, &bufs, &bufe, 0, "]", 0);
-      json_write(&buf, &bufs, &bufe, 0, "}", 0);
+      status = db_create_key(hDB, 0, "/System/Transition/Clients", TID_KEY);
+      status = db_find_key(hDB, 0, "/System/Transition/Clients", &hKey);
+      assert(status == DB_SUCCESS);
    }
-      
-   *json_status = buf;
 
-   return CM_SUCCESS;
+   status = db_create_key(hDB, hKey, tr_client->client_name, TID_KEY);
+   status = db_find_key(hDB, hKey, tr_client->client_name, &hKey);
+   assert(status == DB_SUCCESS);
+
+   DWORD now = ss_millitime();
+
+   //int   transition;
+   //int   run_number;
+   //int   async_flag;
+   //int   debug_flag;
+   status = db_set_value(hDB, hKey, "sequence_number",    &tr_client->sequence_number,    sizeof(INT),   1, TID_INT);
+   status = db_set_value(hDB, hKey, "client_name",        &tr_client->client_name,        strlen(tr_client->client_name) + 1, 1, TID_STRING);
+   status = db_set_value(hDB, hKey, "host_name",          &tr_client->host_name,          strlen(tr_client->host_name) + 1, 1, TID_STRING);
+   status = db_set_value(hDB, hKey, "port",               &tr_client->port,               sizeof(INT),   1, TID_INT);
+   status = db_set_value(hDB, hKey, "init_time",          &tr_client->init_time,          sizeof(DWORD), 1, TID_DWORD);
+   status = db_set_value(hDB, hKey, "waiting_for_client", &tr_client->waiting_for_client, strlen(tr_client->waiting_for_client) + 1, 1, TID_STRING);
+   status = db_set_value(hDB, hKey, "connect_timeout",    &tr_client->connect_timeout,    sizeof(DWORD), 1, TID_DWORD);
+   status = db_set_value(hDB, hKey, "connect_start_time", &tr_client->connect_start_time, sizeof(DWORD), 1, TID_DWORD);
+   status = db_set_value(hDB, hKey, "connect_end_time",   &tr_client->connect_end_time,   sizeof(DWORD), 1, TID_DWORD);
+   status = db_set_value(hDB, hKey, "rpc_timeout",        &tr_client->rpc_timeout,        sizeof(DWORD), 1, TID_DWORD);
+   status = db_set_value(hDB, hKey, "rpc_start_time",     &tr_client->rpc_start_time,     sizeof(DWORD), 1, TID_DWORD);
+   status = db_set_value(hDB, hKey, "rpc_end_time",       &tr_client->rpc_end_time,       sizeof(DWORD), 1, TID_DWORD);
+   status = db_set_value(hDB, hKey, "end_time",           &tr_client->end_time,           sizeof(DWORD), 1, TID_DWORD);
+   status = db_set_value(hDB, hKey, "status", &tr_client->status, sizeof(INT), 1, TID_INT);
+   status = db_set_value(hDB, hKey, "error", &tr_client->errorstr, strlen(tr_client->errorstr) + 1, 1, TID_STRING);
+   status = db_set_value(hDB, hKey, "last_updated",       &now,                           sizeof(DWORD), 1, TID_DWORD);
 }
 
 /*------------------------------------------------------------------*/
@@ -3858,16 +3673,22 @@ int cm_transition_call(void *param)
    TR_CLIENT *tr_client;
 
    cm_get_experiment_database(&hDB, NULL);
+   assert(hDB);
+   
    tr_client = (TR_CLIENT *)param;
 
    tr_client->errorstr[0] = 0;
    tr_client->init_time = ss_millitime();
+   tr_client->waiting_for_client[0] = 0;
    tr_client->connect_timeout    = 0;
    tr_client->connect_start_time = 0;
    tr_client->connect_end_time   = 0;
    tr_client->rpc_timeout    = 0;
    tr_client->rpc_start_time = 0;
    tr_client->rpc_end_time   = 0;
+   tr_client->end_time = 0;
+
+   write_tr_client_to_odb(hDB, tr_client);
 
    /* wait for predecessor if set */
    if (tr_client->async_flag & TR_MTHREAD && tr_client->pred) {
@@ -3884,12 +3705,17 @@ int cm_transition_call(void *param)
                cm_msg(MERROR, "cm_transition_call", "Transition %d aborted: client \"%s\" returned status %d", tr_client->transition, tr_client->pred[i]->client_name, tr_client->pred[i]->status);
                tr_client->status = -1;
                sprintf(tr_client->errorstr, "Aborted by failure of client \"%s\"", tr_client->pred[i]->client_name);
+               tr_client->end_time = ss_millitime();
+               write_tr_client_to_odb(hDB, tr_client);
                return CM_SUCCESS;
             }
          }
 
          if (wait_for < 0)
             break;
+
+         strlcpy(tr_client->waiting_for_client, tr_client->pred[wait_for]->client_name, sizeof(tr_client->waiting_for_client));
+         write_tr_client_to_odb(hDB, tr_client);
 
          if (tr_client->debug_flag == 1)
             printf("Client \"%s\" waits for client \"%s\"\n", tr_client->client_name, tr_client->pred[wait_for]->client_name);
@@ -3902,12 +3728,16 @@ int cm_transition_call(void *param)
             cm_msg(MERROR, "cm_transition_call", "Client \"%s\" transition %d aborted while waiting for client \"%s\": \"/Runinfo/Transition in progress\" was cleared", tr_client->client_name, tr_client->transition, tr_client->pred[wait_for]->client_name);
             tr_client->status = -1;
             sprintf(tr_client->errorstr, "Canceled");
+            tr_client->end_time = ss_millitime();
+            write_tr_client_to_odb(hDB, tr_client);
             return CM_SUCCESS;
          }
 
          ss_sleep(100);
       };
    }
+
+   tr_client->waiting_for_client[0] = 0;
 
    /* contact client if transition mask set */
    if (tr_client->debug_flag == 1)
@@ -3938,6 +3768,8 @@ int cm_transition_call(void *param)
 
    tr_client->connect_timeout = connect_timeout;
    tr_client->connect_start_time = ss_millitime();
+   
+   write_tr_client_to_odb(hDB, tr_client);
 
    /* client found -> connect to its server port */
    status = rpc_client_connect(tr_client->host_name, tr_client->port, tr_client->client_name, &hConn);
@@ -3945,6 +3777,7 @@ int cm_transition_call(void *param)
    rpc_set_option(-2, RPC_OTIMEOUT, old_timeout);
 
    tr_client->connect_end_time = ss_millitime();
+   write_tr_client_to_odb(hDB, tr_client);
 
    if (status != RPC_SUCCESS) {
       cm_msg(MERROR, "cm_transition_call",
@@ -3967,6 +3800,9 @@ int cm_transition_call(void *param)
       }
 
       tr_client->status = status;
+      tr_client->end_time = ss_millitime();
+      
+      write_tr_client_to_odb(hDB, tr_client);
       return status;
    }
 
@@ -3984,6 +3820,7 @@ int cm_transition_call(void *param)
 
    tr_client->rpc_timeout = timeout;
    tr_client->rpc_start_time = ss_millitime();
+   write_tr_client_to_odb(hDB, tr_client);
 
    if (tr_client->debug_flag == 1)
       printf("Executing RPC transition client \"%s\" on host %s...\n",
@@ -4000,6 +3837,8 @@ int cm_transition_call(void *param)
    t1 = ss_millitime();
 
    tr_client->rpc_end_time = ss_millitime();
+   
+   write_tr_client_to_odb(hDB, tr_client);
 
    /* fix for clients returning 0 as error code */
    if (status == 0)
@@ -4026,6 +3865,9 @@ int cm_transition_call(void *param)
    }
 
    tr_client->status = status;
+   tr_client->end_time = ss_millitime();
+   
+   write_tr_client_to_odb(hDB, tr_client);
 
    /* put error string into client entry in ODB */
    status = db_find_key(hDB, 0, "/System/Clients", &hKey);
@@ -4181,7 +4023,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    if (tr_current_transition) {
       tr_previous_transition = tr_current_transition;
    }
-   
+
    /* construct new transition state */
 
    if (1) {
@@ -4201,6 +4043,33 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       tr_current_transition = s;
    }
 
+   /* construct the ODB tree /System/Transition */
+   
+   status = db_find_key(hDB, 0, "/System/Transition/TR_STARTABORT", &hKey);
+   if (status == DB_SUCCESS) {
+      db_delete_key(hDB, hKey, FALSE);
+   }
+
+   if (transition != TR_STARTABORT) {
+      status = db_find_key(hDB, 0, "/System/Transition/Clients", &hKey);
+      if (status == DB_SUCCESS) {
+         db_delete_key(hDB, hKey, FALSE);
+      }
+   }
+
+   DWORD start_time = ss_millitime();
+   DWORD end_time = 0;
+
+   if (transition != TR_STARTABORT) {
+      db_set_value(hDB, 0, "/System/Transition/transition", &transition, sizeof(INT), 1, TID_INT);
+      db_set_value(hDB, 0, "/System/Transition/run_number", &run_number, sizeof(INT), 1, TID_INT);
+      db_set_value(hDB, 0, "/System/Transition/start_time", &start_time, sizeof(DWORD), 1, TID_DWORD);
+      db_set_value(hDB, 0, "/System/Transition/end_time",   &end_time,   sizeof(DWORD), 1, TID_DWORD);
+      status = 0;
+      db_set_value(hDB, 0, "/System/Transition/status",     &status,     sizeof(INT),   1, TID_INT);
+      db_set_value(hDB, 0, "/System/Transition/error",      "",     1,   1, TID_STRING);
+   }
+   
    /* check for alarms */
    i = 0;
    size = sizeof(i);
@@ -4211,7 +4080,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
          cm_msg(MERROR, "cm_transition", "Run start abort due to alarms: %s", str);
          sprintf(errstr, "Cannot start run due to alarms: ");
          strlcat(errstr, str, errstr_size);
-         return tr_finish(AL_TRIGGERED, errstr);
+         return tr_finish(hDB, transition, AL_TRIGGERED, errstr);
       }
    }
 
@@ -4251,7 +4120,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
                if (!equal_ustring(str, key.name) && cm_exist(key.name, FALSE) == CM_NO_CLIENT) {
                   cm_msg(MERROR, "cm_transition", "Run start abort due to program \"%s\" not running", key.name);
                   sprintf(errstr, "Run start abort due to program \"%s\" not running", key.name);
-                  return tr_finish(AL_TRIGGERED, errstr);
+                  return tr_finish(hDB, transition, AL_TRIGGERED, errstr);
                }
             }
          }
@@ -4261,7 +4130,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    /* do detached transition via mtransition tool */
    if (async_flag & TR_DETACH) {
       status = cm_transition_detach(transition, run_number, errstr, errstr_size, async_flag, debug_flag);
-      return tr_finish(status, errstr);
+      return tr_finish(hDB, transition, status, errstr);
    }
 
    strlcpy(errstr, "Unknown error", errstr_size);
@@ -4280,6 +4149,10 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
          run_number++;
       }
       tr_current_transition->run_number = run_number;
+
+      if (transition != TR_STARTABORT) {
+         db_set_value(hDB, 0, "/System/Transition/run_number", &run_number, sizeof(INT), 1, TID_INT);
+      }
    }
 
    if (run_number <= 0) {
@@ -4293,9 +4166,11 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       size = sizeof(i);
       db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT, TRUE);
       if (i == 1) {
-         sprintf(errstr, "Start/Stop transition %d already in progress, please try again later\n", i);
-         strlcat(errstr, "or set \"/Runinfo/Transition in progress\" manually to zero.\n", errstr_size);
-         return tr_finish(CM_TRANSITION_IN_PROGRESS, "Transition already in progress, see messages");
+         if (errstr) {
+            sprintf(errstr, "Start/Stop transition %d already in progress, please try again later\n", i);
+            strlcat(errstr, "or set \"/Runinfo/Transition in progress\" manually to zero.\n", errstr_size);
+         }
+         return tr_finish(hDB, transition, CM_TRANSITION_IN_PROGRESS, "Transition already in progress, see messages");
       }
    }
 
@@ -4334,17 +4209,20 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       status = db_find_key(hDB, 0, "System/Clients", &hRootKey);
       if (status != DB_SUCCESS) {
          cm_msg(MERROR, "cm_transition", "cannot find System/Clients entry in database");
-         strlcpy(errstr, "Cannot find /System/Clients in ODB", errstr_size);
-         return tr_finish(status, errstr);
+         if (errstr)
+            strlcpy(errstr, "Cannot find /System/Clients in ODB", errstr_size);
+         return tr_finish(hDB, transition, status, errstr);
       }
 
       /* check if deferred transition already in progress */
       size = sizeof(i);
       db_get_value(hDB, 0, "/Runinfo/Requested transition", &i, &size, TID_INT, TRUE);
       if (i) {
-         strlcpy(errstr, "Deferred transition already in progress", errstr_size);
-         strlcat(errstr, ", to cancel, set \"/Runinfo/Requested transition\" to zero", errstr_size);
-         return tr_finish(CM_TRANSITION_IN_PROGRESS, errstr);
+         if (errstr) {
+            strlcpy(errstr, "Deferred transition already in progress", errstr_size);
+            strlcat(errstr, ", to cancel, set \"/Runinfo/Requested transition\" to zero", errstr_size);
+         }
+         return tr_finish(hDB, transition, CM_TRANSITION_IN_PROGRESS, errstr);
       }
 
       for (i = 0; trans_name[i].name[0] != 0; i++)
@@ -4386,9 +4264,10 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
                db_set_value(hDB, 0, "/Runinfo/Requested transition", &transition, sizeof(int), 1, TID_INT);
 
-               sprintf(errstr, "Transition %s deferred by client \"%s\"", trname, str);
+               if (errstr)
+                  sprintf(errstr, "Transition %s deferred by client \"%s\"", trname, str);
 
-               return tr_finish(CM_DEFERRED_TRANSITION, errstr);
+               return tr_finish(hDB, transition, CM_DEFERRED_TRANSITION, errstr);
             }
          }
       }
@@ -4495,8 +4374,9 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    status = db_find_key(hDB, 0, "System/Clients", &hRootKey);
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "cm_transition", "cannot find System/Clients entry in database");
-      strlcpy(errstr, "Cannot find /System/Clients in ODB", errstr_size);
-      return tr_finish(status, errstr);
+      if (errstr)
+         strlcpy(errstr, "Cannot find /System/Clients in ODB", errstr_size);
+      return tr_finish(hDB, transition, status, errstr);
    }
 
    for (i = 0; trans_name[i].name[0] != 0; i++)
@@ -4634,6 +4514,10 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    tr_current_transition->num_clients = n_tr_clients;
    tr_current_transition->clients     = tr_client;
 
+   for (idx = 0; idx < n_tr_clients; idx++) {
+      write_tr_client_to_odb(hDB, &tr_client[idx]);
+   }
+
    /* contact ordered clients for transition -----------------------*/
    status = CM_SUCCESS;
    for (idx = 0; idx < n_tr_clients; idx++) {
@@ -4692,10 +4576,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
             if (errstr != NULL)
                strlcpy(errstr, "Canceled", errstr_size);
 
-            tr_current_transition->status = CM_INVALID_TRANSITION;
-            strlcpy(tr_current_transition->errorstr, "Canceled", sizeof(tr_current_transition->errorstr));
-
-            return CM_INVALID_TRANSITION;
+            return tr_finish(hDB, transition, CM_TRANSITION_CANCELED, "Canceled");
          }
 
          ss_sleep(100);
@@ -4721,10 +4602,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       i = 0;
       db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
 
-      tr_current_transition->status = status;
-      tr_current_transition->end_time = ss_millitime();
-
-      return status;
+      return tr_finish(hDB, transition, status, errstr);
    }
 
    if (debug_flag == 1)
@@ -4824,11 +4702,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    if (errstr != NULL)
       strlcpy(errstr, "Success", errstr_size);
 
-   tr_current_transition->end_time = ss_millitime();
-   tr_current_transition->status = CM_SUCCESS;
-   strlcpy(tr_current_transition->errorstr, "Success", sizeof(tr_current_transition->errorstr));
-
-   return CM_SUCCESS;
+   return tr_finish(hDB, transition, CM_SUCCESS, "Success");
 }
 
 /*------------------------------------------------------------------*/
