@@ -239,15 +239,17 @@
        mjsonrpc_call("el_retrieve", req).then(function (rpc) {
           var status = rpc.result.status;
 
+          //dlgMessage(title, message, modal, error, callback, param)
+
           if (status == 906) {
-             dlgConfirm("There are not more messages, return to last message?",
+             dlgMessage("No more messages", "There are not more messages, returning to the last message", true, false,
                         function modal1(flag) {
                            last_message();
                            // does not return
                         }
              );
           } else if (status != 1) {
-             dlgConfirm("Cannot load elog message with tag " + tag + ", el_retrieve() error " + status + ", return to last message?",
+             dlgMessage("Error", "Cannot load elog message with tag " + tag + ", el_retrieve() error " + status + ", returning to the last message", true, true,
                         function modal2(flag) {
                            last_message();
                            // does not return
