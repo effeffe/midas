@@ -3207,13 +3207,13 @@ void gen_odb_attachment(Return* r, const char *path, std::string& bout)
 
 void submit_elog(Param* pp, Return* r, Attachment* a)
 {
-   char author[256], path[256], path1[256];
+   char path[256], path1[256];
    char mail_to[256], mail_from[256], mail_text[10000], mail_list[256],
        smtp_host[256], tag[80], mail_param[1000];
    char *buffer[3], *p, *pitem;
    HNDLE hDB, hkey;
    char att_file[3][256];
-   int i, fh, size, n_mail, index;
+   int fh, size, n_mail;
    char mhttpd_full_url[256];
 
    cm_get_experiment_database(&hDB, NULL);
@@ -3221,27 +3221,8 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
    strlcpy(att_file[1], pp->getparam("attachment1"), sizeof(att_file[1]));
    strlcpy(att_file[2], pp->getparam("attachment2"), sizeof(att_file[2]));
 
-#if 0
-   /* check for author */
-   if (*pp->getparam("author") == 0) {
-      r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-      r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
-      r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
-
-      r->rsprintf("<html><head>\n");
-      r->rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
-      r->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
-      r->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
-      r->rsprintf("<title>ELog Error</title></head>\n");
-      r->rsprintf("<i>Error: No author supplied.</i><p>\n");
-      r->rsprintf("Please go back and enter your name in the <i>author</i> field.\n");
-      r->rsprintf("<body></body></html>\n");
-      return;
-   }
-#endif
-
    /* check for valid attachment files */
-   for (i = 0; i < 3; i++) {
+   for (int i = 0; i < 3; i++) {
       buffer[i] = NULL;
       char str[256];
       sprintf(str, "attachment%d", i);
@@ -3325,17 +3306,6 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
       }
    }
 
-   strlcpy(author, pp->getparam("author"), sizeof(author));
-
-   if (!strchr(author, '@')) {
-      //printf("adding @somewhere to author [%s]\n", author);
-      char str[256];
-      // FIXME: should get author's network address from the network connection
-      strlcpy(str, "", sizeof(str));
-      strlcat(author, "@", sizeof(author));
-      strlcat(author, str, sizeof(author));
-   }
-
    int edit = atoi(pp->getparam("edit"));
    //printf("submit_elog: edit [%s] %d, orig [%s]\n", pp->getparam("edit"), edit, pp->getparam("orig"));
       
@@ -3344,12 +3314,18 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
       strlcpy(tag, pp->getparam("orig"), sizeof(tag));
    }
 
-   int status = el_submit(atoi(pp->getparam("run")), author, pp->getparam("type"),
-             pp->getparam("system"), pp->getparam("subject"), pp->getparam("text"),
-             pp->getparam("orig"), *pp->getparam("html") ? "HTML" : "plain",
-             att_file[0], a->_attachment_buffer[0], a->_attachment_size[0],
-             att_file[1], a->_attachment_buffer[1], a->_attachment_size[1],
-             att_file[2], a->_attachment_buffer[2], a->_attachment_size[2], tag, sizeof(tag));
+   int status = el_submit(atoi(pp->getparam("run")),
+                          pp->getparam("author"),
+                          pp->getparam("type"),
+                          pp->getparam("system"),
+                          pp->getparam("subject"),
+                          pp->getparam("text"),
+                          pp->getparam("orig"),
+                          *pp->getparam("html") ? "HTML" : "plain",
+                          att_file[0], a->_attachment_buffer[0], a->_attachment_size[0],
+                          att_file[1], a->_attachment_buffer[1], a->_attachment_size[1],
+                          att_file[2], a->_attachment_buffer[2], a->_attachment_size[2],
+                          tag, sizeof(tag));
 
    //printf("el_submit status %d, tag [%s]\n", status, tag);
 
@@ -3371,7 +3347,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
    mail_param[0] = 0;
    n_mail = 0;
 
-   for (index = 0; index <= 1; index++) {
+   for (int index = 0; index <= 1; index++) {
       char str[256];
       if (index == 0)
          sprintf(str, "/Elog/Email %s", pp->getparam("type")); // FIXME: string overrun
@@ -3390,7 +3366,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
          db_get_data(hDB, hkey, smtp_host, &size, TID_STRING);
 
          p = strtok(mail_list, ",");
-         for (i = 0; p; i++) {
+         for (int i = 0; p; i++) {
             strlcpy(mail_to, p, sizeof(mail_to));
 
             std::string exptname;
@@ -3398,7 +3374,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
 
             sprintf(mail_from, "MIDAS %s <MIDAS@%s>", exptname.c_str(), elog_host_name.c_str());
 
-            sprintf(mail_text, "A new entry has been submitted by %s:\n\n", author);
+            sprintf(mail_text, "A new entry has been submitted by %s:\n\n", pp->getparam("author"));
             sprintf(mail_text + strlen(mail_text), "Experiment : %s\n", exptname.c_str());
             sprintf(mail_text + strlen(mail_text), "Type       : %s\n", pp->getparam("type"));
             sprintf(mail_text + strlen(mail_text), "System     : %s\n", pp->getparam("system"));
@@ -3432,7 +3408,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
       }
    }
 
-   for (i = 0; i < 3; i++)
+   for (int i = 0; i < 3; i++)
       if (buffer[i]) {
          M_FREE(buffer[i]);
          buffer[i] = NULL;
