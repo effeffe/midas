@@ -468,7 +468,7 @@ function mhttpd_navigation_bar(current_page, path) {
       for (var i = 0; i < b.length; i++) {
          var bb = b[i].trim();
          var cc = "mnav navButton";
-         if (bb == current_page) {
+         if (bb === current_page) {
             cc = "mnav mnavsel navButtonSel";
          }
          html += "<input type=button name=cmd value='" + bb + "' class='" + cc + "' onclick='window.location.href=\'" + path + "?cmd=" + bb + "\';return false;'>\n";
@@ -486,7 +486,7 @@ function mhttpd_navigation_bar(current_page, path) {
 function mhttpd_show_menu(flag) {
    var m = document.getElementById("msidenav");
 
-   if (m.initialWidth == undefined)
+   if (m.initialWidth === undefined)
       m.initialWidth = m.clientWidth;
 
    if (flag) {
@@ -508,7 +508,9 @@ function mhttpd_toggle_menu() {
 }
 
 var mhttpd_refresh_id;
+var mhttpd_refresh_history_id;
 var mhttpd_refresh_interval;
+var mhttpd_refresh_history_interval;
 var mhttpd_spinning_wheel;
 
 function modbset(path, value)
@@ -528,19 +530,9 @@ function mhttpd_init(current_page, interval, callback) {
     This funciton should be called from custom pages to initialize all ODB tags and refresh
     them periodically every "interval" in ms
 
-    ODB Tags:
+    For possible ODB tags please refer to
 
-    <body class="mcss" onload="mhttpd_init('Test', 1000)">
-    ...
-    <div name="modbvalue" data-odb-path="/Runinfo/Run number" data-odb-editable="1"></div>
-    ...
-
-    If the attribute data-odb-editable is set to "1", the value can be changed in-line by clicking at it.
-
-    ODB Buttons:
-    <button name="modbbutton" class="modbbutton" data-odb-path="/Runinfo/Run number" data-odb-value="1"></button>
-
-    Pressing this button sets a value in the ODB.
+    https://midas.triumf.ca/MidasWiki/index.php/New_Custom_Pages_(2017)
     */
 
    // initialize URL
@@ -630,7 +622,7 @@ function mhttpd_init(current_page, interval, callback) {
             global_base_url += "/";
 
          // preload spinning wheel for later use
-         if (mhttpd_spinning_wheel == undefined) {
+         if (mhttpd_spinning_wheel === undefined) {
             mhttpd_spinning_wheel = new Image();
             mhttpd_spinning_wheel.src = global_base_url + "spinning-wheel.gif";
          }
@@ -671,7 +663,7 @@ function mhttpd_init(current_page, interval, callback) {
             for (var b in custom) {
                if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
                   continue;
-               if (typeof custom[b] != "string") // skip any items that don't have type of string, since can't be valid links
+               if (typeof custom[b] !== "string") // skip any items that don't have type of string, since can't be valid links
                   continue;
                cc = "mmenuitem";
                if (custom[b + "/name"] === current_page)
@@ -679,9 +671,9 @@ function mhttpd_init(current_page, interval, callback) {
                if (b === "path")
                   continue;
                var l = custom[b + "/name"];
-               if (l.substr(-1) == '!')
+               if (l.substr(-1) === '!')
                   continue;
-               if (l.substr(-1) == '&')
+               if (l.substr(-1) === '&')
                   l = l.slice(0, -1);
                html += "<div class='" + cc + "'><a href='" + global_base_url + "?cmd=custom&page=" + custom[b + "/name"] + "' class='mmenulink'>" + l + "</a></div>\n";
             }
@@ -706,10 +698,10 @@ function mhttpd_init(current_page, interval, callback) {
             // add separator
             html += "<div class='mseparator'></div>\n";
 
-            for (var b in alias) {
+            for (b in alias) {
                if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
                   continue;
-               var n = alias[b + "/name"];
+               n = alias[b + "/name"];
                if (n.substr(n.length - 1) === "&") {
                   n = n.substr(0, n.length - 1);
                   html += "<div class='mmenuitem'><a href='" + alias[b] + "' class='mmenulink' target='_blank'>" + n + "&#8599;</a></div>\n";
@@ -751,6 +743,9 @@ function mhttpd_init(current_page, interval, callback) {
       interval = 1000;
    mhttpd_refresh_interval = interval;
 
+   // history interval is static for now
+   mhttpd_refresh_history_interval = 3000;
+
    // scan custom page to find all mxxx elements and install proper handlers etc.
    mhttpd_scan();
 }
@@ -765,7 +760,7 @@ function mhttpd_scan()
 
    // go through all name="modbvalue" tags
    var modbvalue = document.getElementsByName("modbvalue");
-   for (var i = 0; i < modbvalue.length; i++) {
+   for (i = 0; i < modbvalue.length; i++) {
       var o = modbvalue[i];
       var loading = "(Loading " + modbvalue[i].dataset.odbPath + " ...)";
       if (o.dataset.odbEditable) {
@@ -793,7 +788,7 @@ function mhttpd_scan()
 
    // go through all name="modbcheckbox" tags
    var modbcheckbox = document.getElementsByName("modbcheckbox");
-   for (var i = 0; i < modbcheckbox.length; i++) {
+   for (i = 0; i < modbcheckbox.length; i++) {
       modbcheckbox[i].onclick = function () {
          mjsonrpc_db_set_value(this.dataset.odbPath, this.checked ? 1 : 0);
          mhttpd_refresh();
@@ -802,13 +797,13 @@ function mhttpd_scan()
 
    // go through all name="modbbox" tags
    var modbbox = document.getElementsByName("modbbox");
-   for (var i = 0; i < modbbox.length; i++) {
+   for (i = 0; i < modbbox.length; i++) {
       modbbox[i].style.border = "1px solid #808080";
    }
 
    // attach "set" function to all ODB buttons
    var modbbutton = document.getElementsByName("modbbutton");
-   for (var i = 0; i < modbbutton.length; i++)
+   for (i = 0; i < modbbutton.length; i++)
       modbbutton[i].onclick = function () {
          mjsonrpc_db_set_value(this.dataset.odbPath, this.dataset.odbValue);
          mhttpd_refresh();
@@ -816,7 +811,7 @@ function mhttpd_scan()
 
    // replace all horizontal bars with proper <div>'s
    var mbar = document.getElementsByName("modbhbar");
-   for (var i = 0; i < mbar.length; i++) {
+   for (i = 0; i < mbar.length; i++) {
       mbar[i].style.display = "inline-block";
       if (mbar[i].style.position === "")
          mbar[i].style.position = "relative";
@@ -828,24 +823,24 @@ function mhttpd_scan()
    }
 
    // replace all vertical bars with proper <div>'s
-   var mbar = document.getElementsByName("modbvbar");
-   for (var i = 0; i < mbar.length; i++) {
+   mbar = document.getElementsByName("modbvbar");
+   for (i = 0; i < mbar.length; i++) {
       mbar[i].style.display = "inline-block";
       if (mbar[i].style.position === "")
          mbar[i].style.position = "relative";
       mbar[i].style.border = "1px solid #808080";
-      var color = mbar[i].dataset.color;
+      color = mbar[i].dataset.color;
       mbar[i].innerHTML = "<div style='background-color:" + color + "; height:0; width:100%; position:absolute; bottom:0; left:0; display:inline-block; border-top:1px solid #808080'>&nbsp;</div>";
    }
 
    // replace all thermometers with canvas
    var mth = document.getElementsByName("modbthermo");
-   for (var i = 0; i < mth.length; i++) {
+   for (i = 0; i < mth.length; i++) {
       mth[i].style.display = "inline-block";
       if (mth[i].style.position === "")
          mth[i].style.position = "relative";
 
-      var cvs = document.createElement("canvas");
+      cvs = document.createElement("canvas");
       var w = mth[i].clientWidth;
       var h = mth[i].clientHeight;
       w = Math.floor(w/4)*4; // 2 must be devidable by 4
@@ -858,7 +853,7 @@ function mhttpd_scan()
 
    // replace all gauges with canvas
    var mg = document.getElementsByName("modbgauge");
-   for (var i = 0; i < mg.length; i++) {
+   for (i = 0; i < mg.length; i++) {
       mg[i].style.display = "inline-block";
       if (mg[i].style.position === "")
          mg[i].style.position = "relative";
@@ -871,7 +866,31 @@ function mhttpd_scan()
       mg[i].draw();
    }
 
+   // replace all mhistory tags with history plots
+   var mhist = document.getElementsByName("mhistory");
+   for (i = 0; i < mhist.length; i++) {
+      w = mhist[i].style.width;
+      if (w === "")
+         w = 320;
+      else
+         w = parseInt(w);
+      h = mhist[i].style.height;
+      if (h === "")
+         h = 200;
+      else
+         h = parseInt(h);
+      mhist[i].innerHTML = "<img src=\"graph.gif?cmd=history&group="+
+         mhist[i].dataset.group+
+         "&panel="+mhist[i].dataset.panel+
+         "&scale="+mhist[i].dataset.scale+
+         "&width="+w+
+         "&height="+h+
+         "&rnd="+(new Date().getTime())+
+         "\">";
+   }
+
    mhttpd_refresh();
+   mhttpd_refresh_history();
 }
 
 function mhttpd_thermo_draw()
@@ -1193,7 +1212,7 @@ function mhttpd_refresh() {
                   mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, 100);
                   return;
                }
-               if (modbvalue[i].childNodes.length == 2){
+               if (modbvalue[i].childNodes.length === 2){
                   modbvalue[i].childNodes[1].innerHTML = html;
                } else {
                   modbvalue[i].childNodes[0].innerHTML = html;
@@ -1310,7 +1329,7 @@ function mhttpd_refresh() {
          e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: Off</a>";
          e.className = "mgray mbox";
       } else {
-         if (Object.keys(rpc[1].result.alarms) == 0) {
+         if (Object.keys(rpc[1].result.alarms) === 0) {
             e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: None</a>";
             e.className = "mgreen mbox";
          } else {
@@ -1350,12 +1369,12 @@ function mhttpd_refresh() {
       mhttpd_message(msg, chat);
       mhttpd_resize_sidenav();
 
-      if (mhttpd_refresh_interval != undefined && mhttpd_refresh_interval > 0)
+      if (mhttpd_refresh_interval !== undefined && mhttpd_refresh_interval > 0)
          mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
 
    }).catch(function (error) {
 
-      if (error.xhr && error.xhr.readyState == 4 && error.xhr.status == 0) {
+      if (error.xhr && error.xhr.readyState === 4 && error.xhr.status === 0) {
          mhttpd_error('Connection to server broken. Trying to reconnect&nbsp;&nbsp;');
          document.getElementById("mheader_error").appendChild(mhttpd_spinning_wheel);
          mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
@@ -1365,6 +1384,27 @@ function mhttpd_refresh() {
    });
 }
 
+function mhttpd_refresh_history() {
+   if (mhttpd_refresh_history_id !== undefined)
+      window.clearTimeout(mhttpd_refresh_history_id);
+
+   /* this fuction gets called by mhttpd_init to periodically refresh all history panels */
+
+   var mhist = document.getElementsByName("mhistory");
+   for (var i = 0; i < mhist.length; i++) {
+      var s = mhist[i].childNodes[0].src;
+
+      if (s.lastIndexOf("&rnd=") !== -1) {
+         s = s.substr(0, s.lastIndexOf('&rnd='));
+         s += "&rnd=" + new Date().getTime();
+      }
+      mhist[i].childNodes[0].src = s;
+   }
+
+   if (mhttpd_refresh_history_interval !== undefined && mhttpd_refresh_history_interval > 0)
+      mhttpd_refresh_history_id = window.setTimeout(mhttpd_refresh_history, mhttpd_refresh_history_interval);
+}
+
 function mhttpd_reconnect() {
    mjsonrpc_db_ls(["/"]).then(function (rpc) {
       // on successful connection remove error and schedule refresh
@@ -1372,9 +1412,12 @@ function mhttpd_reconnect() {
          document.getElementById("mheader_error").innerHTML = "";
          document.getElementById("mheader_error").style.zIndex = 0; // below header
       }
-      if (mhttpd_refresh_id != undefined)
+      if (mhttpd_refresh_id !== undefined)
          window.clearTimeout(mhttpd_refresh_id);
+      if (mhttpd_refresh_history_id !== undefined)
+         window.clearTimeout(mhttpd_refresh_history_id);
       mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
+      mhttpd_refresh_history_id = window.setTimeout(mhttpd_refresh_history, mhttpd_refresh_history_interval);
    }).catch(function (error) {
       mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
    });
@@ -1402,8 +1445,8 @@ function mhttpd_close_message()
 function mhttpd_fit_message(m)
 {
    var d = document.getElementById("mheader_message");
-   var cross = "&nbsp;&nbsp;&nbsp;<span style='cursor: pointer;' onclick='mhttpd_close_message();'>&#9587;</span>";
-   var link1 = "<span style='cursor: pointer;' onclick='window.location.href=&quot;"+global_base_url+"?cmd=Messages&quot;'>";
+   var cross = "&nbsp;&nbsp;&nbsp;<span style=\"cursor: pointer;\" onclick=\"mhttpd_close_message();\">&#9587;</span>";
+   var link1 = "<span style=\"cursor: pointer;\" onclick=\"window.location.href='&quot;'"+global_base_url+"?cmd=Messages&quot;\">";
    var link2 = "</span>";
    d.style.display = "inline-block";
 
@@ -1423,7 +1466,7 @@ function mhttpd_fit_message(m)
       // if message got truncated, remove timestamp and type
       m = m.substr(m.indexOf(']')+1);
 
-      for (var i = 0; i < m.length+1; i++) {
+      for (i = 0; i < m.length+1; i++) {
          s = m.substr(0, i);
          if (i < m.length - 1)
             s += "...";
