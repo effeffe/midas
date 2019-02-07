@@ -13763,7 +13763,7 @@ void strsubst(char *string, int size, const char *pattern, const char *subst)
 
 /*------------------------------------------------------------------*/
 
-BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
+BOOL msl_parse(const char *filename, char *error, int error_size, int *error_line)
 {
    char str[256], *buf, *pl, *pe;
    char list[100][XNAME_LENGTH], list2[100][XNAME_LENGTH], **lines;
@@ -13771,12 +13771,24 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
    FILE *fout = NULL;
    
    fhin = open(filename, O_RDONLY | O_TEXT);
+
+   if (fhin < 0) {
+      sprintf(error, "Cannot read sequencer file \"%s\", errno %d (%s)", filename, errno, strerror(errno)); // FIXME: overflows "error"
+      return FALSE;
+   }
+   
    if (strchr(filename, '.')) {
       strlcpy(str, filename, sizeof(str));
       *strchr(str, '.') = 0;
       strlcat(str, ".xml", sizeof(str));
       fout = fopen(str, "wt");
+
+      if (fout == NULL) {
+         sprintf(error, "Cannot write to sequencer XML file \"%s\", errno %d (%s)", str, errno, strerror(errno)); // FIXME: overflows "error"
+         return FALSE;
+      }
    }
+
    if (fhin > 0 && fout) {
       size = (int)lseek(fhin, 0, SEEK_END);
       lseek(fhin, 0, SEEK_SET);
@@ -14008,7 +14020,9 @@ BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
          fprintf(fout, "</RunSequence>\n");
       fclose(fout);
    } else {
-      sprintf(error, "File error on \"%s\"", filename);
+      // WE NEVER COME HERE
+      abort();
+      sprintf(error, "File error on \"%s\"", filename); // FIXME: overflows "error"
       return FALSE;
    }
    
@@ -14243,7 +14257,7 @@ void init_sequencer()
    seq.transition_request = FALSE;
    
    db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
-   
+
    status = db_watch(hDB, hKey, seq_watch, NULL);
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot watch /Sequencer/State, db_watch() status %d", status);
