@@ -8452,6 +8452,7 @@ static void json_write(char **buffer, int* buffer_size, int* buffer_end, int lev
       if (new_buffer_size < 4*1024)
          new_buffer_size = 4*1024;
       //printf("reallocate: len %d, size %d, remain %d, allocate %d\n", len, *buffer_size, remain, new_buffer_size);
+      assert(new_buffer_size > *buffer_size);
       *buffer = (char *)realloc(*buffer, new_buffer_size);
       assert(*buffer);
       *buffer_size = new_buffer_size;
