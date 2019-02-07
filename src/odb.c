@@ -4167,7 +4167,7 @@ int db_find_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *resu
       db_get_path(hDB, hKey, path, sizeof(path));
       sprintf(line, "%s open %d times by ", path, key->notify_count);
 
-      printf("path [%s] key.name [%s]\n", path, key->name);
+      //printf("path [%s] key.name [%s]\n", path, key->name);
 
       db_lock_database(hDB);
       pheader = _database[hDB - 1].database_header;
