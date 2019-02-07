@@ -12651,9 +12651,12 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
    const char* pscale = p->getparam("scale");
    if (pscale == NULL || *pscale == 0)
       pscale = p->getparam("hscale");
-   const char* pmag = p->getparam("width");
-   if (pmag == NULL || *pmag == 0)
-      pmag = p->getparam("hwidth");
+   const char* pwidth = p->getparam("width");
+   if (pwidth == NULL || *pwidth == 0)
+      pwidth = p->getparam("hwidth");
+   const char* pheight = p->getparam("height");
+   if (pheight == NULL || *pheight == 0)
+      pheight = p->getparam("hheight");
    const char* pindex = p->getparam("index");
    if (pindex == NULL || *pindex == 0)
       pindex = p->getparam("hindex");
@@ -12807,15 +12810,18 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
    if (strstr(dec_path, ".gif")) {
       int width =  640;
       int height = 400;
-      if (equal_ustring(pmag, "Large")) {
+      if (equal_ustring(pwidth, "Large")) {
          width = 1024;
          height = 768;
-      } else if (equal_ustring(pmag, "Small")) {
+      } else if (equal_ustring(pwidth, "Small")) {
          width = 320;
          height = 200;
-      } else if (atoi(pmag) > 0) {
-         width = atoi(pmag);
-         height = (int)(0.625 * width);
+      } else if (atoi(pwidth) > 0) {
+         width = atoi(pwidth);
+         if (atoi(pheight) > 0)
+            height = atoi(pheight);
+         else
+            height = (int)(0.625 * width);
       }
 
       //printf("dec_path [%s], buf %p, %p, width %d, height %d, endtime %ld, scale %d, index %d, labels %d\n", dec_path, buffer, buffer_size, width, height, endtime, scale, index, labels);
@@ -12940,8 +12946,10 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
    if (endtime != 0)
       r->rsprintf("<input type=hidden name=htime id=htime value=%s>\n", time_to_string(endtime));
-   if (pmag && *pmag)
-      r->rsprintf("<input type=hidden name=hwidth id=hwidth value=%s>\n", pmag);
+   if (pwidth && *pwidth)
+      r->rsprintf("<input type=hidden name=hwidth id=hwidth value=%s>\n", pwidth);
+   if (pheight && *pheight)
+      r->rsprintf("<input type=hidden name=hheight id=hheight value=%s>\n", pheight);
    if (pindex && *pindex)
       r->rsprintf("<input type=hidden name=hindex id=hindex value=%s>\n", pindex);
 
@@ -13250,13 +13258,15 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       sprintf(paramstr + strlen(paramstr), "&scale=%d", scale);
       if (endtime != 0)
          sprintf(paramstr + strlen(paramstr), "&time=%s", time_to_string(endtime));
-      if (pmag && *pmag)
-         sprintf(paramstr + strlen(paramstr), "&width=%s", pmag);
+      if (pwidth && *pwidth)
+         sprintf(paramstr + strlen(paramstr), "&width=%s", pwidth);
       else {
          std::string wi = "640";
          db_get_value_string(hDB, 0, "/History/Display Settings/Width Individual", 0, &wi, TRUE);
          sprintf(paramstr + strlen(paramstr), "&width=%s", wi.c_str());
       }
+      if (pheight && *pheight)
+         sprintf(paramstr + strlen(paramstr), "&height=%s", pheight);
 
       /* define image map */
       r->rsprintf("<map name=\"%s\">\r\n", hpanel);
@@ -13290,12 +13300,12 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
             ref += paramstr;
          }
 
-         if (equal_ustring(pmag, "Large"))
+         if (equal_ustring(pwidth, "Large"))
             width = 1024;
-         else if (equal_ustring(pmag, "Small"))
+         else if (equal_ustring(pwidth, "Small"))
             width = 320;
-         else if (atoi(pmag) > 0)
-            width = atoi(pmag);
+         else if (atoi(pwidth) > 0)
+            width = atoi(pwidth);
          else
             width = 640;
 
