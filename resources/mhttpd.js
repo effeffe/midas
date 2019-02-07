@@ -744,7 +744,7 @@ function mhttpd_init(current_page, interval, callback) {
    mhttpd_refresh_interval = interval;
 
    // history interval is static for now
-   mhttpd_refresh_history_interval = 3000;
+   mhttpd_refresh_history_interval = 30000;
 
    // scan custom page to find all mxxx elements and install proper handlers etc.
    mhttpd_scan();
