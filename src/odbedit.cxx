@@ -323,11 +323,15 @@ INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
       line[sizeof(line)-1] = 0;
       sprintf(line + level * 4, "%s", key.name);
       if (key.type == TID_LINK) {
-         assert(key.total_size > 0);
-         char* buf = (char*)malloc(key.total_size);
-         int size = key.total_size;
-         db_get_link_data(hDB, hKey, buf, &size, key.type);
-         sprintf(line + strlen(line), " -> %s", buf);
+         if (key.total_size > 0) {
+            char* buf = (char*)malloc(key.total_size);
+            int size = key.total_size;
+            db_get_link_data(hDB, hKey, buf, &size, key.type);
+            sprintf(line + strlen(line), " -> %s", buf);
+            free(buf);
+         } else {
+            sprintf(line + strlen(line), " -> (empty)");
+         }
          if (pi->index != -1)
             sprintf(line + strlen(line), "[%d]", pi->index);
          if (strlen(line) >= 32) {
@@ -337,7 +341,6 @@ INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
          } else {
             line[strlen(line)] = ' ';
          }
-         free(buf);
       } else {
          if (pi->index != -1)
             sprintf(line + strlen(line), "[%d]", pi->index);
@@ -353,29 +356,39 @@ INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
          if (check_abort(pi->flags, ls_line++))
             return 0;
       } else {
-         assert(key.total_size > 0);
-         char* buf = (char*)malloc(key.total_size);
-         int size = key.total_size;
+         char* data_buf = NULL;
 
-         status = db_get_link_data(hDB, hKey, buf, &size, key.type);
+         if (key.total_size > 0) {
+            data_buf = (char*)malloc(key.total_size);
+            int size = key.total_size;
+            status = db_get_link_data(hDB, hKey, data_buf, &size, key.type);
+         } else {
+            status = DB_SUCCESS;
+         }
+         
          data_str[0] = 0;
 
          /* resolve links */
-         if (key.type == TID_LINK) {
-            if (strlen(buf) > 0 && buf[strlen(buf)-1] == ']')
+         if (key.type == TID_LINK && data_buf) {
+            if (strlen(data_buf) > 0 && data_buf[strlen(data_buf)-1] == ']')
                status = DB_SUCCESS;
             else
-               status = db_find_key(hDB, 0, buf, &hKey);
+               status = db_find_key(hDB, 0, data_buf, &hKey);
             if (status == DB_SUCCESS) {
                status = db_get_key(hDB, hKey, &key);
                if (status == DB_SUCCESS) {
-                  assert(key.total_size > 0);
-                  buf = (char*)realloc(buf, key.total_size);
-                  size = key.total_size;
-                  if (key.type != TID_KEY)
-                     status = db_get_data(hDB, hKey, buf, &size, key.type);
-                  else
-                     status = DB_TYPE_MISMATCH;
+                  if (key.total_size > 0) {
+                     data_buf = (char*)realloc(data_buf, key.total_size);
+                     int size = key.total_size;
+                     if (key.type != TID_KEY)
+                        status = db_get_data(hDB, hKey, data_buf, &size, key.type);
+                     else
+                        status = DB_TYPE_MISMATCH;
+                  } else {
+                     if (data_buf)
+                        free(data_buf);
+                     data_buf = NULL;
+                  }
                }
             }
          }
@@ -386,11 +399,13 @@ INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
             strcat(data_str, "<cannot resolve link>");
          else if (status == DB_NO_ACCESS)
             strcat(data_str, "<no read access>");
+         else if (!data_buf)
+            strcat(data_str, "<empty>");
          else {
             if (pi->flags & PI_HEX)
-               db_sprintfh(data_str+strlen(data_str), buf, key.item_size, 0, key.type);
+               db_sprintfh(data_str+strlen(data_str), data_buf, key.item_size, 0, key.type);
             else
-               db_sprintf(data_str+strlen(data_str), buf, key.item_size, 0, key.type);
+               db_sprintf(data_str+strlen(data_str), data_buf, key.item_size, 0, key.type);
          }
 
          if (pi->flags & PI_LONG) {
@@ -453,10 +468,14 @@ INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
 
          if (key.num_values > 1) {
             for (i = 0; i < key.num_values; i++) {
-               if (pi->flags & PI_HEX)
-                  db_sprintfh(data_str, buf, key.item_size, i, key.type);
-               else
-                  db_sprintf(data_str, buf, key.item_size, i, key.type);
+               if (data_buf) {
+                  if (pi->flags & PI_HEX)
+                     db_sprintfh(data_str, data_buf, key.item_size, i, key.type);
+                  else
+                     db_sprintf(data_str, data_buf, key.item_size, i, key.type);
+               } else {
+                  strcpy(data_str, "<empty>");
+               }
 
                memset(line, ' ', 80);
                line[80] = 0;
@@ -476,7 +495,8 @@ INT print_key(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
                   return 0;
             }
          }
-         free(buf);
+         if (data_buf)
+            free(data_buf);
       }
    }
 
