@@ -9143,6 +9143,13 @@ static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buf
    int status;
    int i;
 
+   if (level > MAX_ODB_PATH/2) {
+      // max nesting level is limited by max odb path, where each subdirectory takes
+      // at least 2 bytes - 1 byte directory name and 1 byte for "/"
+      cm_msg(MERROR, "json_write_bare_subdir", "Max ODB subdirectory nesting level exceeded %d", level);
+      return DB_TRUNCATED;
+   }
+
    for (i=0; ; i++) {
       HNDLE hLink, hLinkTarget;
       KEY link, link_target;
