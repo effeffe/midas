@@ -944,6 +944,42 @@ static int db_validate_key(DATABASE_HEADER * pheader, int recurse, const char *p
       pkey->total_size = 0;
    }
 
+   /* check for empty link */
+   if (pkey->type == TID_LINK) {
+      // minimum symlink length is 3 bytes:
+      // one byte "/"
+      // one byte odb entry name
+      // one byte "\0"
+      if (pkey->total_size <= 2) {
+         cm_msg(MERROR, "db_validate_key", "Warning: Link \"%s\" is an empty link", path);
+      }
+      //return 0;
+   }
+
+   /* check for too long link */
+   if (pkey->type == TID_LINK) {
+      if (pkey->total_size >= MAX_ODB_PATH) {
+         cm_msg(MERROR, "db_validate_key", "Warning: Link \"%s\" length %d exceeds MAX_ODB_PATH %d", path, pkey->total_size, MAX_ODB_PATH);
+      }
+      //return 0;
+   }
+
+   /* check for link loop */
+   if (pkey->type == TID_LINK) {
+      const char* link = (char*)pheader + pkey->data;
+      int link_len = strlen(link);
+      int path_len = strlen(path);
+      if (link_len <= path_len) {
+         char tmp[MAX_ODB_PATH];
+         memcpy(tmp, path, link_len);
+         tmp[link_len] = 0;
+         if (equal_ustring(link, tmp)) {
+            cm_msg(MERROR, "db_validate_key", "Warning: Link \"%s\" to \"%s\" is a loop", path, link);
+         }
+      }
+      //return 0;
+   }
+
    /* check access mode */
    if ((pkey->access_mode & ~(MODE_READ | MODE_WRITE | MODE_DELETE | MODE_EXCLUSIVE | MODE_ALLOC))) {
       cm_msg(MERROR, "db_validate_key", "Warning: invalid access mode, key \"%s\", mode %d", path, pkey->access_mode);
