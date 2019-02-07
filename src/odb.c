@@ -3012,17 +3012,22 @@ INT db_create_link(HNDLE hDB, HNDLE hKey, const char *link_name, const char *des
       return rpc_call(RPC_DB_CREATE_LINK, hDB, hKey, link_name, destination);
 
    if (destination == NULL) {
-      cm_msg(MERROR, "db_create_link", "destination name is NULL");
+      cm_msg(MERROR, "db_create_link", "link destination name is NULL");
       return DB_INVALID_NAME;
    }
 
    if (destination[0] != '/') {
-      cm_msg(MERROR, "db_create_link", "destination name \'%s\' should start with \'/\', relative links not supported", destination);
+      cm_msg(MERROR, "db_create_link", "link destination name \'%s\' should start with \'/\', relative links are forbidden", destination);
       return DB_INVALID_NAME;
    }
 
    if (strlen(destination) < 1) {
-      cm_msg(MERROR, "db_create_link", "destination name \'%s\' is too short", destination);
+      cm_msg(MERROR, "db_create_link", "link destination name \'%s\' is too short", destination);
+      return DB_INVALID_NAME;
+   }
+
+   if ((destination[0] == '/') && (destination[1] == 0)) {
+      cm_msg(MERROR, "db_create_link", "links to \"/\" are forbidden");
       return DB_INVALID_NAME;
    }
 
@@ -3032,6 +3037,8 @@ INT db_create_link(HNDLE hDB, HNDLE hKey, const char *link_name, const char *des
       cm_msg(MERROR, "db_create_link", "Link destination \"%s\" does not exist", destination);
       return DB_NO_KEY;
    }
+
+   //printf("db_create_link: [%s] hkey %d\n", destination, hkey);
 
    return db_set_value(hDB, hKey, link_name, destination, strlen(destination) + 1, 1, TID_LINK);
 }
