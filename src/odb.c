@@ -9196,6 +9196,7 @@ static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buf
    for (i=0; ; i++) {
       HNDLE hLink, hLinkTarget;
       KEY link, link_target;
+      char link_buf[MAX_ODB_PATH]; // link_path points to link_buf
       char* link_path = NULL;
 
       status = db_enum_link(hDB, hKey, i, &hLink);
@@ -9209,7 +9210,6 @@ static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buf
       hLinkTarget = hLink;
 
       if (link.type == TID_LINK) {
-         char link_buf[MAX_ODB_PATH];
          int size = sizeof(link_buf);
          status = db_get_link_data(hDB, hLink, link_buf, &size, TID_LINK);
          if (status != DB_SUCCESS)
