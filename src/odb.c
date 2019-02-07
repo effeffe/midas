@@ -9154,8 +9154,6 @@ static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buf
       HNDLE hLink, hLinkTarget;
       KEY link, link_target;
       char* link_path = NULL;
-      char link_buf[MAX_ODB_PATH];
-      char link_name[MAX_ODB_PATH];
 
       status = db_enum_link(hDB, hKey, i, &hLink);
       if (status != DB_SUCCESS && !hLink)
@@ -9168,19 +9166,24 @@ static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buf
       hLinkTarget = hLink;
 
       if (link.type == TID_LINK) {
+         char link_buf[MAX_ODB_PATH];
          int size = sizeof(link_buf);
          status = db_get_link_data(hDB, hLink, link_buf, &size, TID_LINK);
          if (status != DB_SUCCESS)
             return status;
 
-         link_path = link_buf;
+         //printf("link size %d, len %d, data [%s]\n", size, (int)strlen(link_buf), link_buf);
 
-         // resolve the link, unless it is a link to an array element
-         if ((flags & JSFLAG_FOLLOW_LINKS) && strchr(link_path, '[') == NULL) {
-            status = db_find_key(hDB, 0, link_path, &hLinkTarget);
-            if (status != DB_SUCCESS) {
-               // dangling link to nowhere
-               hLinkTarget = hLink;
+         if ((size > 0) && (strlen(link_buf) > 0)) {
+            link_path = link_buf;
+
+            // resolve the link, unless it is a link to an array element
+            if ((flags & JSFLAG_FOLLOW_LINKS) && strchr(link_path, '[') == NULL) {
+               status = db_find_key(hDB, 0, link_path, &hLinkTarget);
+               if (status != DB_SUCCESS) {
+                  // dangling link to nowhere
+                  hLinkTarget = hLink;
+               }
             }
          }
       }
@@ -9200,6 +9203,8 @@ static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buf
       } else {
          json_write(buffer, buffer_size, buffer_end, 0, "\n", 0);
       }
+
+      char link_name[MAX_ODB_PATH];
 
       strlcpy(link_name, link.name, sizeof(link_name));
 
