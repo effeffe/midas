@@ -8410,6 +8410,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
       r->rsprintf("<tr><td colspan=%d>\n", colspan);
       r->rsprintf("<input type=button value=Find onclick=\"self.location=\'?cmd=Find\';\">\n");
       r->rsprintf("<input type=button value=Create onclick=\"dlgShow('dlgCreate')\">\n");
+      r->rsprintf("<input type=button value=Link   onclick=\"dlgShow('dlgLink')\">\n");
       r->rsprintf("<input type=button value=Delete onclick=\"dlgShow('dlgDelete')\">\n");
       r->rsprintf("<input type=button value=\"Create Elog from this page\" onclick=\"self.location=\'?cmd=Create Elog from this page&odb_path=%s\';\"></td></tr>\n", odbpath);
    }
@@ -8862,7 +8863,25 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
 
    cd += "<table class=\"dialogTable\">\n";
    cd += "<th colspan=2>Create ODB entry:</th>\n";
-   cd += "<tr><td>Type<td><select type=text size=1 id=create_tid name=type><option value=7>Integer (32-bit)<option value=9>Float (4 Bytes)<option value=12>String<option selected value=15>Subdirectory<option value=1>Byte<option value=2>Signed byte<option value=3>Character (8-bit)<option value=4>Word (16-bit)<option value=5>Short integer(16-bit)<option value=6>Double Word (32-bit)<option value=8>Boolean<option value=10>Double float(8 Bytes)<option value=16>Symbolic link</select></tr>\n";
+   cd += "<tr>";
+   cd += "<td>Type";
+   cd += "<td>";
+   cd += "<select type=text size=1 id=create_tid name=type>";
+   cd += "<option value=7>Integer (32-bit)";
+   cd += "<option value=9>Float (4 Bytes)";
+   cd += "<option value=12>String";
+   cd += "<option selected value=15>Subdirectory";
+   cd += "<option value=1>Byte";
+   cd += "<option value=2>Signed byte";
+   cd += "<option value=3>Character (8-bit)";
+   cd += "<option value=4>Word (16-bit)";
+   cd += "<option value=5>Short integer (16-bit)";
+   cd += "<option value=6>Double Word (32-bit)";
+   cd += "<option value=8>Boolean";
+   cd += "<option value=10>Double float (8 Bytes)";
+   //cd += "<option value=16>Symbolic link";
+   cd += "</select>";
+   cd += "</tr>\n";
    cd += "<tr><td>Name<td><input type=text size=31 maxlength=31 id=create_name name=value></tr>\n";
    cd += "<tr><td>Array size<td><input type=text size=31 maxlength=31 id=create_array_length name=index value=1></tr>\n";
    cd += "<tr><td>String length<td><input type=text size=31 maxlength=31 id=create_strlen name=strlen value=32></tr>\n";
@@ -8873,6 +8892,34 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    cd += "</div>\n";
 
    r->rsputs(cd.c_str());
+   
+   /*---- Build the Link dialog------------------------------------*/
+
+   std::string ld = "";
+   
+   ld += "<!-- Demo dialog -->\n";
+   ld += "<div id=\"dlgLink\" class=\"dlgFrame\">\n";
+   ld += "<div class=\"dlgTitlebar\">Create a link to an ODB entry</div>\n";
+   ld += "<div class=\"dlgPanel\">\n";
+   ld += "<br />\n";
+   ld += "<div id=link_odbpath>";
+   ld += "\"";
+   ld += MJsonNode::Encode(odbpath);
+   ld += "\"";
+   ld += "</div>\n";
+   ld += "<div><br></div>\n";
+
+   ld += "<table class=\"dialogTable\">\n";
+   ld += "<th colspan=2>Create a link to an ODB entry:</th>\n";
+   ld += "<tr><td>Name<td><input type=text size=31 maxlength=31 id=link_name name=value></tr>\n";
+   ld += "<tr><td>Link target<td><input type=text size=31 maxlength=256 id=link_target name=target></tr>\n";
+   ld += "</table>\n";
+   ld += "<input type=button value=Link onClick='mhttpd_link_page_handle_link(event);'>\n";
+   ld += "<input type=button value=Cancel onClick='mhttpd_link_page_handle_cancel(event);'>\n";
+   ld += "</div>\n";
+   ld += "</div>\n";
+
+   r->rsputs(ld.c_str());
 }
 
 /*------------------------------------------------------------------*/
