@@ -1130,15 +1130,14 @@ typedef struct {
    int num_modified;
 } UPDATE_OPEN_RECORDS;
 
-static void db_update_open_record(HNDLE hDB, HNDLE hKey, KEY* xkey, INT level, void* voidp)
+static int db_update_open_record_locked(HNDLE hDB, HNDLE hKey, KEY* xkey, INT level, void* voidp)
 {
-   KEY* pkey;
    int found = 0;
    int count = 0;
    int status;
    int k;
    UPDATE_OPEN_RECORDS *uorp = (UPDATE_OPEN_RECORDS *)voidp;
-   char path[256];
+   char path[MAX_ODB_PATH];
 
    if (!hKey)
       hKey = uorp->pheader->root_key;
@@ -1151,18 +1150,20 @@ static void db_update_open_record(HNDLE hDB, HNDLE hKey, KEY* xkey, INT level, v
       }
 
    if (xkey->notify_count == 0 && !found)
-      return; // no open record here
+      return DB_SUCCESS; // no open record here
 
-   status = db_get_path(hDB, hKey, path, sizeof(path));
+   status = db_get_path_locked(uorp->pheader, hKey, path, sizeof(path));
    if (status != DB_SUCCESS)
-      return;
+      return DB_SUCCESS;
 
    if (!db_validate_hkey(uorp->pheader, hKey)) {
       cm_msg(MINFO, "db_update_open_record", "Invalid hKey %d", hKey);
-      return;
+      return DB_SUCCESS;
    }
 
-   pkey = (KEY *) ((char *) uorp->pheader + hKey);
+   KEY* pkey = (KEY *) ((char *) uorp->pheader + hKey);
+
+   //printf("path [%s], type %d, notify_count %d\n", path, pkey->type, pkey->notify_count);
 
    // extra check: are we looking at the same key?
    assert(xkey->notify_count == pkey->notify_count);
@@ -1175,7 +1176,7 @@ static void db_update_open_record(HNDLE hDB, HNDLE hKey, KEY* xkey, INT level, v
       cm_msg(MINFO, "db_update_open_record", "Added missing open record flag to \"%s\"", path);
       pkey->notify_count = count;
       uorp->num_modified++;
-      return;
+      return DB_SUCCESS;
    }
 
    if (pkey->notify_count!=0 && !found) {
@@ -1187,19 +1188,21 @@ static void db_update_open_record(HNDLE hDB, HNDLE hKey, KEY* xkey, INT level, v
          status = db_set_mode(hDB, hKey, (WORD) (pkey->access_mode & ~MODE_EXCLUSIVE), 2);
          if (status != DB_SUCCESS) {
             cm_msg(MERROR, "db_update_open_record", "Cannot remove exclusive access mode from \"%s\", db_set_mode() status %d", path, status);
-            return;
+            return DB_SUCCESS;
          }
          cm_msg(MINFO, "db_update_open_record", "Removed exclusive access mode from \"%s\"", path);
       }
-      return;
+      return DB_SUCCESS;
    }
 
    if (pkey->notify_count != uorp->counts[k]) {
       cm_msg(MINFO, "db_update_open_record", "Updated notify_count of \"%s\" from %d to %d", path, pkey->notify_count, count);
       pkey->notify_count = count;
       uorp->num_modified++;
-      return;
+      return DB_SUCCESS;
    }
+
+   return DB_SUCCESS;
 }
 
 static int db_validate_open_records(HNDLE hDB)
@@ -1256,7 +1259,7 @@ static int db_validate_open_records(HNDLE hDB)
       printf("index %d, handle %d, count %d, access mode %d\n", i, uor.hkeys[i], uor.counts[i], uor.modes[i]);
 #endif
    
-   db_scan_tree_link(hDB, 0, 0, db_update_open_record, &uor);
+   db_scan_tree(hDB, 0, 0, db_update_open_record_locked, &uor);
 
    if (uor.num_modified) {
       cm_msg(MINFO, "db_validate_open_records", "Corrected %d ODB entries", uor.num_modified);
@@ -3988,7 +3991,7 @@ INT db_scan_tree_link(HNDLE hDB, HNDLE hKey, INT level, void (*callback) (HNDLE,
   Routine: db_scan_tree_link
 
   Purpose: Scan a subtree recursively and call 'callback' for each key.
-           Similar to db_scan_tree but without follwing links.
+           Similar to db_scan_tree but without following links.
 
   Input:
     HNDLE  hDB              Handle to the database
@@ -4151,7 +4154,7 @@ INT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size)
 }
 
 /*------------------------------------------------------------------*/
-void db_find_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *result)
+int db_find_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *result)
 {
 #ifdef LOCAL_ROUTINES
    /* check if this key has notify count set */
@@ -4163,6 +4166,8 @@ void db_find_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *res
 
       db_get_path(hDB, hKey, path, sizeof(path));
       sprintf(line, "%s open %d times by ", path, key->notify_count);
+
+      printf("path [%s] key.name [%s]\n", path, key->name);
 
       db_lock_database(hDB);
       pheader = _database[hDB - 1].database_header;
@@ -4187,9 +4192,10 @@ void db_find_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *res
       db_unlock_database(hDB);
    }
 #endif                          /* LOCAL_ROUTINES */
+   return DB_SUCCESS;
 }
 
-void db_fix_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *result)
+int db_fix_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *result)
 {
 #ifdef LOCAL_ROUTINES
    DATABASE_HEADER *pheader;
@@ -4219,7 +4225,7 @@ void db_fix_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *resu
          /* check if hKey argument is correct */
          if (!db_validate_hkey(pheader, hKey)) {
             db_unlock_database(hDB);
-            return;
+            return DB_SUCCESS;
          }
 
          /* reset notify count */
@@ -4234,6 +4240,7 @@ void db_fix_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *resu
       db_unlock_database(hDB);
    }
 #endif                          /* LOCAL_ROUTINES */
+   return DB_SUCCESS;
 }
 
 INT db_get_open_records(HNDLE hDB, HNDLE hKey, char *str, INT buf_size, BOOL fix)
@@ -4265,9 +4272,9 @@ INT db_get_open_records(HNDLE hDB, HNDLE hKey, char *str, INT buf_size, BOOL fix
       return rpc_call(RPC_DB_GET_OPEN_RECORDS, hDB, hKey, str, buf_size);
 
    if (fix)
-      db_scan_tree_link(hDB, hKey, 0, db_fix_open_records, str);
+      db_scan_tree(hDB, hKey, 0, db_fix_open_records, str);
    else
-      db_scan_tree_link(hDB, hKey, 0, db_find_open_records, str);
+      db_scan_tree(hDB, hKey, 0, db_find_open_records, str);
 
    return DB_SUCCESS;
 }
