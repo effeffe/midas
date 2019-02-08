@@ -1873,9 +1873,21 @@ function mhttpd_resume_run() {
 function mhttpd_cancel_transition() {
    dlgConfirm('Are you sure to cancel the currently active run transition?', function(flag) {
       if (flag == true) {
-         mjsonrpc_call("db_paste", {"paths": ["/Runinfo/Transition in progress"], "values": [0]}).then(function (rpc) {
+         var paths = new Array;
+         var values = new Array;
+
+         paths.push("/Runinfo/Requested Transition");
+         values.push(0);
+         paths.push("/Runinfo/Transition in progress");
+         values.push(0);
+
+         var params = new Object;
+         params.paths = paths;
+         params.values = values;
+
+         mjsonrpc_call("db_paste", params).then(function (rpc) {
             //mjsonrpc_debug_alert(rpc);
-            if (rpc.result.status != 1) {
+            if ((rpc.result.status[0] != 1)||(rpc.result.status[1] != 1)) {
                throw new Error("Cannot cancel transition, db_paste() status " + rpc.result.status + ", see MIDAS messages");
             }
             mhttpd_goto_page("Transition"); // DOES NOT RETURN

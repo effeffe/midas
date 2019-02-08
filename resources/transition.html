@@ -354,7 +354,13 @@
          set_text("time", tr_time_text);
       }
 
-      if (odb.end_time != 0) {
+      var in_progress = false;
+      if (runinfo["transition in progress"] != 0)
+         in_progress = true;
+      if (runinfo["requested transition"] != 0)
+         in_progress = true;
+      
+      if (!in_progress) {
          // transition is completed
          document.getElementById("cancelButton").disabled = true;
          set_text("tr_status", "");
@@ -362,6 +368,12 @@
          // transition still in progress
          document.getElementById("cancelButton").disabled = false;
          set_text("tr_status", "Transition \"" + tr_name(odb.transition) + "\" in progress, elapsed time: " + tr_time_text);
+      }
+
+      if (odb.deferred) {
+         var id = "DEFERRED";
+         var e = document.getElementById(id);
+         if (!e) e = create_separator(id, "<b>Transition deferred by client \"" + odb.deferred + "\"</b>");
       }
 
       for (var name in odb.clients) {
