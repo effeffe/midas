@@ -891,7 +891,7 @@ typedef struct {
    INT num_received_events;           /**< no of received events      */
    INT num_sent_events;               /**< no of sent events          */
    INT unused1;                       /**< was num_waiting_events     */
-   float data_rate;                   /**< data rate in kB/sec        */
+   float unused2;                     /**< was data_rate              */
    BOOL read_wait;                    /**< wait for read - flag       */
    INT write_wait;                    /**< wait for write # bytes     */
    BOOL wake_up;                      /**< client got a wake-up msg   */
@@ -922,6 +922,8 @@ typedef struct {
 typedef struct {
    BOOL attached;                   /**< TRUE if buffer is attached   */
    INT client_index;                /**< index to CLIENT str. in buf. */
+   char client_name[NAME_LENGTH];   /**< name of client               */
+   char buffer_name[NAME_LENGTH];   /**< name of buffer               */
    BUFFER_HEADER *buffer_header;    /**< pointer to buffer header     */
    MUTEX_T* buffer_mutex;           /**< buffer mutex                 */
    char *read_cache;                /**< cache for burst read         */
@@ -937,6 +939,19 @@ typedef struct {
    INT shm_handle;                  /**< handle to shared memory      */
    BOOL callback;                   /**< callback defined for this buffer */
    BOOL locked;                     /**< buffer is currently locked by us */
+
+   /* buffer statistics */
+   int count_lock;                  /**< count how many times we locked the buffer */
+   int count_sent;                  /**< count how many events we sent */
+   double bytes_sent;               /**< count how many bytes we sent */
+   int count_write_wait;            /**< count how many times we waited for free space */
+   DWORD time_write_wait;           /**< count for how long we waited for free space, in units of ss_millitime() */
+   int last_count_lock;             /**< avoid writing statistics to odb if lock count did not change */
+   DWORD wait_start_time;           /**< time when we started the wait */
+   int wait_client_index;           /**< waiting for which client */
+   int max_requested_space;         /**< waiting for this many bytes of free space */
+   int client_count_write_wait[MAX_CLIENTS]; /**< per-client count_write_wait */
+   DWORD client_time_write_wait[MAX_CLIENTS]; /**< per-client time_write_wait */
 
 } BUFFER;
 
@@ -1738,6 +1753,7 @@ extern "C" {
    INT EXPRT bm_poll_event(void);
    INT EXPRT bm_empty_buffers(void);
    INT EXPRT bm_check_buffers(void);
+   INT EXPRT bm_write_statistics_to_odb(void);
 
    /** @addtogroup odbfunctionc */
    /** @{ */
