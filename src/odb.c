@@ -4368,7 +4368,7 @@ INT db_set_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *da
 
       if (type != TID_STRING && type != TID_LINK && data_size != rpc_tid_size(type) * num_values) {
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_value", "data_size (%d) does not match num_values (%d)", data_size, num_values);
+         cm_msg(MERROR, "db_set_value", "\"%s\" data_size %d does not match tid %d size %d times num_values %d", key_name, data_size, type, rpc_tid_size(type), num_values);
          return DB_TYPE_MISMATCH;
       }
 
