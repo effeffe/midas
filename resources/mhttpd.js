@@ -1489,12 +1489,12 @@ function mhttpd_message(msg, chat) {
    var lastChatT = 0;
    var lastT = 0;
 
-   if (msg != undefined) {
+   if (msg !== undefined) {
       lastMsg = msg[0].substr(msg[0].indexOf(" ") + 1);
       lastMsgT = parseInt(msg[0]);
    }
 
-   if (chat != undefined) {
+   if (chat !== undefined) {
       lastChat = chat[0].substr(chat[0].indexOf(" ") + 1);
       lastChatT = parseInt(chat[0]);
       if (chat[0].length > 0)
@@ -1524,7 +1524,7 @@ function mhttpd_message(msg, chat) {
    if (m !== "") {
       var d = document.getElementById("mheader_message");
       if (d !== undefined && d.currentMessage !== m &&
-         (mhttpdConfig().suppressMessageBefore == undefined || lastT > mhttpdConfig().suppressMessageBefore)) {
+         (mhttpdConfig().suppressMessageBefore === undefined || lastT > mhttpdConfig().suppressMessageBefore)) {
 
          if (mType === "USER" && mhttpdConfig().displayChat  ||
              mType === "TALK" && mhttpdConfig().displayTalk  ||
@@ -1566,7 +1566,7 @@ function mhttpd_message(msg, chat) {
          if (mTalk !== "") {
             if (mType === "USER" && mhttpdConfig().speakChat) {
                // do not speak own message
-               if (document.getElementById("chatName") == undefined || document.getElementById("chatName").value != chatName)
+               if (document.getElementById("chatName") === undefined || document.getElementById("chatName").value !== chatName)
                   mhttpd_speak(talkTime, mTalk);
             } else if (mType === "TALK" && mhttpdConfig().speakTalk) {
                mhttpd_speak(talkTime, mTalk);
@@ -1586,7 +1586,8 @@ function mhttpd_message(msg, chat) {
 function mhttpd_error(error) {
    var d = document.getElementById("mheader_error");
    if (d !== undefined) {
-      error += "<div style='display: inline; float: right; padding-right: 10px; cursor: pointer;' onclick='document.getElementById(&quot;mheader_error&quot;).style.zIndex = 0;'>&#9587;</div>";
+      error += "<div style=\"display: inline; float: right; padding-right: 10px; cursor: pointer;\""+
+         " onclick=\"document.getElementById(&quot;mheader_error&quot;).style.zIndex = 0;\">&#9587;</div>";
       d.innerHTML = error;
       d.style.zIndex = 3; // above header
    }
@@ -1610,7 +1611,7 @@ function mhttpd_create_page_handle_create(mouseEvent) {
    } else {
       var e = document.getElementById("odbpath");
       path = JSON.parse(e.innerHTML);
-      if (path == "/") path = "";
+      if (path === "/") path = "";
 
       type = document.getElementById("create_tid").value;
       name = document.getElementById("create_name").value;
@@ -1620,7 +1621,7 @@ function mhttpd_create_page_handle_create(mouseEvent) {
       //alert("Path: " + path + " Name: " + name);
    }
 
-   if (path == "/") path = "";
+   if (path === "/") path = "";
 
    if (name.length < 1) {
       dlgAlert("Name is too short");
@@ -1653,11 +1654,11 @@ function mhttpd_create_page_handle_create(mouseEvent) {
 
    mjsonrpc_db_create([param]).then(function (rpc) {
       var status = rpc.result.status[0];
-      if (status == 311) {
+      if (status === 311) {
          dlgMessage("Error", "ODB entry with this name already exists.", true, true, function() {
             location.search = "?cmd=odb&odb_path="+path; // reloads the document
          });
-      } else if (status != 1) {
+      } else if (status !== 1) {
          dlgMessage("Error", "db_create_key() error " + status + ", see MIDAS messages.", true, true, function() {
             location.search = "?cmd=odb&odb_path="+path; // reloads the document
          });
@@ -1677,68 +1678,6 @@ function mhttpd_create_page_handle_cancel(mouseEvent) {
    return false;
 }
 
-function mhttpd_link_page_handle_link(mouseEvent) {
-   var e = document.getElementById("link_odbpath");
-   var path = JSON.parse(e.innerHTML);
-   if (path == "/") path = "";
-   //var path   = document.getElementById("odb_path").value;
-   var name   = document.getElementById("link_name").value;
-   var target = document.getElementById("link_target").value;
-   
-   //console.log("Path: " + path + " Name: " + name + " Target: [" + target + "]");
-
-   if (name.length < 1) {
-      dlgAlert("Name is too short");
-      return false;
-   }
-
-   if (target.length <= 1) {
-      dlgAlert("Link target is too short");
-      return false;
-   }
-
-   var param = {};
-   param.new_links = [ path + "/" + name ];
-   param.target_paths = [ target ];
-
-   mjsonrpc_call("db_link", param).then(function (rpc) {
-      var status = rpc.result.status[0];
-      if (status == 304) {
-         dlgMessage("Error", "Invalid link, see MIDAS messages.", true, true, function() {
-            //location.search = "?cmd=odb&odb_path="+path; // reloads the document
-         });
-      } else if (status == 311) {
-         dlgMessage("Error", "ODB entry with this name already exists.", true, true, function() {
-            //location.search = "?cmd=odb&odb_path="+path; // reloads the document
-         });
-      } else if (status == 312) {
-         dlgMessage("Error", "Target path " + target + " does not exist in ODB.", true, true, function() {
-            //location.search = "?cmd=odb&odb_path="+path; // reloads the document
-         });
-      } else if (status == 315) {
-         dlgMessage("Error", "ODB data type mismatch, see MIDAS messages.", true, true, function() {
-            //location.search = "?cmd=odb&odb_path="+path; // reloads the document
-         });
-      } else if (status != 1) {
-         dlgMessage("Error", "db_create_link() error " + status + ", see MIDAS messages.", true, true, function() {
-            location.search = "?cmd=odb&odb_path="+path; // reloads the document
-         });
-      } else {
-         location.search = "?cmd=odb&odb_path="+path; // reloads the document
-      }
-   }).catch(function (error) {
-      mjsonrpc_error_alert(error);
-      //location.search = "?cmd=odb&odb_path="+path; // reloads the document
-   });
-
-   return false;
-}
-
-function mhttpd_link_page_handle_cancel(mouseEvent) {
-   dlgHide('dlgLink');
-   return false;
-}
-
 function mhttpd_delete_page_handle_delete(mouseEvent, xpath) {
    var form = document.getElementsByTagName('form')[0];
    var path;
@@ -1747,27 +1686,27 @@ function mhttpd_delete_page_handle_delete(mouseEvent, xpath) {
    if (form) {
       path = form.elements['odb'].value;
 
-      if (path == "/") path = "";
+      if (path === "/") path = "";
 
       for (var i = 0; ; i++) {
          var n = "name" + i;
          var v = form.elements[n];
-         if (v == undefined) break;
-         if (v == undefined) break;
+         if (v === undefined) break;
+         if (v === undefined) break;
          if (v.checked)
             names.push(path + "/" + v.value);
       }
    } else {
       var e = document.getElementById("odbpath");
       path = JSON.parse(e.innerHTML);
-      if (path == "/") path = "";
+      if (path === "/") path = "";
 
       //alert("Path: " + path);
 
-      for (var i = 0; ; i++) {
+      for (i = 0; ; i++) {
          var v = document.getElementById("delete" + i);
-         if (v == undefined) break;
-         if (v == undefined) break;
+         if (v === undefined) break;
+         if (v === undefined) break;
          if (v.checked) {
             var name = JSON.parse(v.value);
             if (name.length > 0) {
@@ -1794,7 +1733,7 @@ function mhttpd_delete_page_handle_delete(mouseEvent, xpath) {
       var status = rpc.result.status;
       //alert(JSON.stringify(status));
       for (var i = 0; i < status.length; i++) {
-         if (status[i] != 1) {
+         if (status[i] !== 1) {
             message += "Cannot delete \"" + rpc.request.params.paths[i] + "\", db_delete_key() status " + status[i] + "\n";
          }
       }
@@ -1822,10 +1761,10 @@ function mhttpd_start_run() {
 
 function mhttpd_stop_run() {
    dlgConfirm('Are you sure to stop the run?', function(flag) {
-      if (flag == true) {
+      if (flag === true) {
          mjsonrpc_call("cm_transition", {"transition": "TR_STOP"}).then(function (rpc) {
             //mjsonrpc_debug_alert(rpc);
-            if (rpc.result.status != 1) {
+            if (rpc.result.status !== 1) {
                throw new Error("Cannot stop run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
             }
             mhttpd_goto_page("Transition"); // DOES NOT RETURN
@@ -1839,10 +1778,10 @@ function mhttpd_stop_run() {
 
 function mhttpd_pause_run() {
    dlgConfirm('Are you sure to pause the run?', function(flag) {
-      if (flag == true) {
+      if (flag === true) {
          mjsonrpc_call("cm_transition", {"transition": "TR_PAUSE"}).then(function (rpc) {
             //mjsonrpc_debug_alert(rpc);
-            if (rpc.result.status != 1) {
+            if (rpc.result.status !== 1) {
                throw new Error("Cannot pause run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
             }
             mhttpd_goto_page("Transition"); // DOES NOT RETURN
@@ -1856,10 +1795,10 @@ function mhttpd_pause_run() {
 
 function mhttpd_resume_run() {
    dlgConfirm('Are you sure to resume the run?', function(flag) {
-      if (flag == true) {
+      if (flag === true) {
          mjsonrpc_call("cm_transition", {"transition": "TR_RESUME"}).then(function (rpc) {
             //mjsonrpc_debug_alert(rpc);
-            if (rpc.result.status != 1) {
+            if (rpc.result.status !== 1) {
                throw new Error("Cannot resume run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
             }
             mhttpd_goto_page("Transition"); // DOES NOT RETURN
@@ -1872,22 +1811,10 @@ function mhttpd_resume_run() {
 
 function mhttpd_cancel_transition() {
    dlgConfirm('Are you sure to cancel the currently active run transition?', function(flag) {
-      if (flag == true) {
-         var paths = new Array;
-         var values = new Array;
-
-         paths.push("/Runinfo/Requested Transition");
-         values.push(0);
-         paths.push("/Runinfo/Transition in progress");
-         values.push(0);
-
-         var params = new Object;
-         params.paths = paths;
-         params.values = values;
-
-         mjsonrpc_call("db_paste", params).then(function (rpc) {
+      if (flag === true) {
+         mjsonrpc_call("db_paste", {"paths": ["/Runinfo/Transition in progress"], "values": [0]}).then(function (rpc) {
             //mjsonrpc_debug_alert(rpc);
-            if ((rpc.result.status[0] != 1)||(rpc.result.status[1] != 1)) {
+            if (rpc.result.status !== 1) {
                throw new Error("Cannot cancel transition, db_paste() status " + rpc.result.status + ", see MIDAS messages");
             }
             mhttpd_goto_page("Transition"); // DOES NOT RETURN
@@ -1901,7 +1828,7 @@ function mhttpd_cancel_transition() {
 function mhttpd_reset_alarm(alarm_name) {
    mjsonrpc_call("al_reset_alarm", {"alarms": [alarm_name]}).then(function (rpc) {
       //mjsonrpc_debug_alert(rpc);
-      if (rpc.result.status != 1 && rpc.result.status != 1004) {
+      if (rpc.result.status !== 1 && rpc.result.status !== 1004) {
          throw new Error("Cannot reset alarm, status " + rpc.result.status + ", see MIDAS messages");
       }
    }).catch(function (error) {
@@ -1939,13 +1866,13 @@ function msg_prepend(msg) {
       var line = msg[i];
       var t = parseInt(line);
 
-      if (line.indexOf(" ") && (t > 0 || t == -1))
+      if (line.indexOf(" ") && (t > 0 || t === -1))
          line = line.substr(line.indexOf(" ") + 1);
       var e = document.createElement("p");
       e.className = "messageLine";
       e.appendChild(document.createTextNode(line));
 
-      if (e.innerHTML == mf.childNodes[2 + i].innerHTML)
+      if (e.innerHTML === mf.childNodes[2 + i].innerHTML)
          break;
       mf.insertBefore(e, mf.childNodes[2 + i]);
       first_tstamp = t;
@@ -1971,11 +1898,11 @@ function msg_append(msg) {
       var line = msg[i];
       var t = parseInt(line);
 
-      if (t != -1 && t > first_tstamp)
+      if (t !== -1 && t > first_tstamp)
          first_tstamp = t;
-      if (t != -1 && (last_tstamp == 0 || t < last_tstamp))
+      if (t !== -1 && (last_tstamp === 0 || t < last_tstamp))
          last_tstamp = t;
-      if (line.indexOf(" ") && (t > 0 || t == -1))
+      if (line.indexOf(" ") && (t > 0 || t === -1))
          line = line.substr(line.indexOf(" ") + 1);
       var e = document.createElement("p");
       e.className = "messageLine";
@@ -2012,14 +1939,14 @@ function msg_extend() {
 
          if (last_tstamp > 0) {
             var msg = ODBGetMsg(facility, last_tstamp - 1, 100);
-            if (msg[0] == "")
+            if (msg[0] === "")
                end_of_messages = true;
             if (!end_of_messages) {
                msg_append(msg);
             }
          } else {
             // in non-timestamped mode, simple load full message list
-            var msg = ODBGetMsg(facility, 0, n_messages + 100);
+            msg = ODBGetMsg(facility, 0, n_messages + 100);
             n_messages = 0;
 
             var mf = document.getElementById('messageFrame');
@@ -2032,13 +1959,13 @@ function msg_extend() {
 
    // check for new message if time stamping is on
    if (first_tstamp) {
-      var msg = ODBGetMsg(facility, first_tstamp, 0);
+      msg = ODBGetMsg(facility, first_tstamp, 0);
       msg_prepend(msg);
    }
 
    // remove color of elements
    for (i = 2; i < mf.childNodes.length; i++) {
-      if (mf.childNodes[i].age != undefined) {
+      if (mf.childNodes[i].age !== undefined) {
          t = new Date() / 1000;
          if (t > mf.childNodes[i].age + 5)
             mf.childNodes[i].style.backgroundColor = "";
@@ -2105,7 +2032,7 @@ function mhttpdConfig() {
          c = JSON.parse(localStorage.mhttpd);
 
       // if element has been added to mhttpd_config_defaults, merge it
-      if (Object.keys(c).length != Object.keys(mhttpd_config_defaults).length) {
+      if (Object.keys(c).length !== Object.keys(mhttpd_config_defaults).length) {
          for (var o in mhttpd_config_defaults)
             if (!(o in c))
                c[o] = mhttpd_config_defaults[o];
@@ -2160,7 +2087,8 @@ function mhttpd_speak(time, text) {
       if (time > mhttpdConfig().var.lastSpeak) {
          mhttpdConfigSet("var.lastSpeak", time);
          var u = new SpeechSynthesisUtterance(text);
-         u.voice = speechSynthesis.getVoices().filter(function(voice) { return voice.name == mhttpdConfig().speakVoice; })[0];
+         u.voice = speechSynthesis.getVoices().filter(function(voice) {
+            return voice.name === mhttpdConfig().speakVoice; })[0];
          u.volume = mhttpdConfig().speakVolume;
             speechSynthesis.speak(u);
       }
