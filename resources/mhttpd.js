@@ -1678,6 +1678,68 @@ function mhttpd_create_page_handle_cancel(mouseEvent) {
    return false;
 }
 
+function mhttpd_link_page_handle_link(mouseEvent) {
+   var e = document.getElementById("link_odbpath");
+   var path = JSON.parse(e.innerHTML);
+   if (path == "/") path = "";
+   //var path   = document.getElementById("odb_path").value;
+   var name   = document.getElementById("link_name").value;
+   var target = document.getElementById("link_target").value;
+
+   //console.log("Path: " + path + " Name: " + name + " Target: [" + target + "]");
+
+   if (name.length < 1) {
+      dlgAlert("Name is too short");
+      return false;
+   }
+
+   if (target.length <= 1) {
+      dlgAlert("Link target is too short");
+      return false;
+   }
+
+   var param = {};
+   param.new_links = [ path + "/" + name ];
+   param.target_paths = [ target ];
+
+   mjsonrpc_call("db_link", param).then(function (rpc) {
+      var status = rpc.result.status[0];
+      if (status == 304) {
+         dlgMessage("Error", "Invalid link, see MIDAS messages.", true, true, function() {
+            //location.search = "?cmd=odb&odb_path="+path; // reloads the document
+         });
+      } else if (status == 311) {
+         dlgMessage("Error", "ODB entry with this name already exists.", true, true, function() {
+            //location.search = "?cmd=odb&odb_path="+path; // reloads the document
+         });
+      } else if (status == 312) {
+         dlgMessage("Error", "Target path " + target + " does not exist in ODB.", true, true, function() {
+            //location.search = "?cmd=odb&odb_path="+path; // reloads the document
+         });
+      } else if (status == 315) {
+         dlgMessage("Error", "ODB data type mismatch, see MIDAS messages.", true, true, function() {
+            //location.search = "?cmd=odb&odb_path="+path; // reloads the document
+         });
+      } else if (status != 1) {
+         dlgMessage("Error", "db_create_link() error " + status + ", see MIDAS messages.", true, true, function() {
+            location.search = "?cmd=odb&odb_path="+path; // reloads the document
+         });
+      } else {
+         location.search = "?cmd=odb&odb_path="+path; // reloads the document
+      }
+   }).catch(function (error) {
+      mjsonrpc_error_alert(error);
+      //location.search = "?cmd=odb&odb_path="+path; // reloads the document
+   });
+
+   return false;
+}
+
+function mhttpd_link_page_handle_cancel(mouseEvent) {
+   dlgHide('dlgLink');
+   return false;
+}
+
 function mhttpd_delete_page_handle_delete(mouseEvent, xpath) {
    var form = document.getElementsByTagName('form')[0];
    var path;
@@ -1811,10 +1873,22 @@ function mhttpd_resume_run() {
 
 function mhttpd_cancel_transition() {
    dlgConfirm('Are you sure to cancel the currently active run transition?', function(flag) {
-      if (flag === true) {
-         mjsonrpc_call("db_paste", {"paths": ["/Runinfo/Transition in progress"], "values": [0]}).then(function (rpc) {
+      if (flag == true) {
+         var paths = new Array;
+         var values = new Array;
+
+         paths.push("/Runinfo/Requested Transition");
+         values.push(0);
+         paths.push("/Runinfo/Transition in progress");
+         values.push(0);
+
+         var params = new Object;
+         params.paths = paths;
+         params.values = values;
+
+         mjsonrpc_call("db_paste", params).then(function (rpc) {
             //mjsonrpc_debug_alert(rpc);
-            if (rpc.result.status !== 1) {
+            if ((rpc.result.status[0] != 1)||(rpc.result.status[1] != 1)) {
                throw new Error("Cannot cancel transition, db_paste() status " + rpc.result.status + ", see MIDAS messages");
             }
             mhttpd_goto_page("Transition"); // DOES NOT RETURN
