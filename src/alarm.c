@@ -220,7 +220,6 @@ INT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const ch
    {
       int status, size;
       HNDLE hDB, hkeyalarm, hkey;
-      char str[256];
       ALARM a;
       BOOL flag;
       ALARM_ODB_STR(alarm_odb_str);
@@ -235,14 +234,15 @@ INT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const ch
          return AL_SUCCESS;
 
       /* find alarm */
-      sprintf(str, "/Alarms/Alarms/%s", alarm_name);
-      db_find_key(hDB, 0, str, &hkeyalarm);
+      char alarm_path[MAX_ODB_PATH];
+      sprintf(alarm_path, "/Alarms/Alarms/%s", alarm_name);
+      db_find_key(hDB, 0, alarm_path, &hkeyalarm);
       if (!hkeyalarm) {
          /* alarm must be an internal analyzer alarm, so create a default alarm */
-         status = db_create_record(hDB, 0, str, strcomb(alarm_odb_str));
-         db_find_key(hDB, 0, str, &hkeyalarm);
+         status = db_create_record(hDB, 0, alarm_path, strcomb(alarm_odb_str));
+         db_find_key(hDB, 0, alarm_path, &hkeyalarm);
          if (!hkeyalarm) {
-            cm_msg(MERROR, "al_trigger_alarm", "Cannot create alarm record");
+            cm_msg(MERROR, "al_trigger_alarm", "Cannot create alarm record for alarm \"%s\", db_create_record() status %d", alarm_path, status);
             return AL_ERROR_ODB;
          }
 
@@ -255,7 +255,8 @@ INT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const ch
       /* set parameters for internal alarms */
       if (type != AT_EVALUATED && type != AT_PERIODIC) {
          db_set_value(hDB, hkeyalarm, "Type", &type, sizeof(INT), 1, TID_INT);
-         strcpy(str, cond_str);
+         char str[256];
+         strlcpy(str, cond_str, sizeof(str));
          db_set_value(hDB, hkeyalarm, "Condition", str, 256, 1, TID_STRING);
       }
 
@@ -266,7 +267,7 @@ INT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const ch
          size = sizeof(a);
          status = db_get_record1(hDB, hkeyalarm, &a, &size, 0, strcomb(alarm_odb_str));
          if (status != DB_SUCCESS) {
-            cm_msg(MERROR, "al_trigger_alarm", "Cannot get alarm record");
+            cm_msg(MERROR, "al_trigger_alarm", "Cannot get alarm record for alarm \"%s\", db_get_record1() status %d", alarm_path, status);
             return AL_ERROR_ODB;
          }
       }
@@ -290,6 +291,14 @@ INT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const ch
          a.checked_last = ss_time();
       }
 
+      if (a.type == AT_PROGRAM) {
+         /* alarm class of "program not running" alarms is set in two places,
+          * complain if they do not match */
+         if (!equal_ustring(a.alarm_class, default_class)) {
+            cm_msg(MERROR, "al_trigger_alarm", "Program alarm class mismatch: \"%s/Alarm class\" set to \"%s\" does not match \"/Programs/%s/Alarm Class\" set to \"%s\"", alarm_path, a.alarm_class, alarm_name, default_class);
+         }
+      }
+
       /* write back alarm message for internal alarms */
       if (a.type != AT_EVALUATED && a.type != AT_PERIODIC) {
          strncpy(a.alarm_message, alarm_message, 79);
@@ -304,20 +313,24 @@ INT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const ch
       if (db_find_key(hDB, 0, "/Alarms/Classes/All", &hkey) == DB_SUCCESS)
          al_trigger_class("All", alarm_message, a.triggered > 0);
 
-      /* signal alarm being triggered */
-      cm_asctime(str, sizeof(str));
+      {
+         char str[256];
 
-      if (!a.triggered)
-         strcpy(a.time_triggered_first, str);
+         /* signal alarm being triggered */
+         cm_asctime(str, sizeof(str));
 
-      a.triggered++;
-      strcpy(a.time_triggered_last, str);
+         if (!a.triggered)
+            strcpy(a.time_triggered_first, str);
+
+         a.triggered++;
+         strcpy(a.time_triggered_last, str);
+      }
 
       a.checked_last = ss_time();
 
       status = db_set_record(hDB, hkeyalarm, &a, sizeof(a), 0);
       if (status != DB_SUCCESS) {
-         cm_msg(MERROR, "al_trigger_alarm", "Cannot update alarm record");
+         cm_msg(MERROR, "al_trigger_alarm", "Cannot update alarm record for alarm \"%s\", db_set_record() status %d", alarm_path, status);
          return AL_ERROR_ODB;
       }
 
@@ -541,7 +554,6 @@ INT al_check()
    HNDLE hDB, hkeyroot, hkey;
    KEY key;
    char str[256], value[256];
-   time_t now;
    PROGRAM_INFO_STR(program_info_str);
    PROGRAM_INFO program_info;
    BOOL flag;
@@ -679,27 +691,34 @@ INT al_check()
          size = sizeof(program_info);
          status = db_get_record1(hDB, hkey, &program_info, &size, 0, strcomb(program_info_str));
          if (status != DB_SUCCESS) {
-            cm_msg(MERROR, "al_check", "Cannot get program info record");
+            cm_msg(MERROR, "al_check", "Cannot get program info record for program \"%s\", db_get_record1() status %d", key.name, status);
             continue;
          }
          
-         now = ss_time();
-         
+         time_t now = ss_time();
+
+         // get name of this client
          rpc_get_name(str);
+
+         // truncate name of this client to the length of program name in /Programs/xxx
+         // to get rid if "odbedit1", "odbedit2", etc.
          str[strlen(key.name)] = 0;
+         
+         //printf("str [%s], key.name [%s]\n", str, key.name);
          if (!equal_ustring(str, key.name) && cm_exist(key.name, FALSE) == CM_NO_CLIENT) {
             if (program_info.first_failed == 0) {
                program_info.first_failed = (DWORD) now;
                db_set_record(hDB, hkey, &program_info, sizeof(program_info), 0);
             }
+
+            //printf("check %d-%d = %d >= %d\n", now, program_info.first_failed, now - program_info.first_failed, program_info.check_interval / 1000);
             
             /* fire alarm when not running for more than what specified in check interval */
             if (now - program_info.first_failed >= program_info.check_interval / 1000) {
                /* if not running and alarm calss defined, trigger alarm */
                if (program_info.alarm_class[0]) {
                   sprintf(str, "Program %s is not running", key.name);
-                  al_trigger_alarm(key.name, str, program_info.alarm_class,
-                                   "Program not running", AT_PROGRAM);
+                  al_trigger_alarm(key.name, str, program_info.alarm_class, "Program not running", AT_PROGRAM);
                }
                
                /* auto restart program */
