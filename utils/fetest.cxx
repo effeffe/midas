@@ -87,7 +87,7 @@ EQUIPMENT equipment[] = {
       "MIDAS",              /* format */
       TRUE,                 /* enabled */
       RO_RUNNING,           /* Read when running */
-      0,                    /* poll every so milliseconds */
+      100,                  /* poll every so milliseconds */
       0,                    /* stop run after this event limit */
       0,                    /* number of sub events */
       0,                    /* no history */
