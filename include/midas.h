@@ -1703,6 +1703,9 @@ extern "C" {
    INT EXPRT cm_time(DWORD * t);
    BOOL EXPRT cm_is_ctrlc_pressed(void);
    void EXPRT cm_ack_ctrlc_pressed(void);
+#ifdef __cplusplus
+   INT EXPRT cm_exec_script(const char* odb_path_to_script);
+#endif
 
    INT EXPRT cm_set_msg_print(INT system_mask, INT user_mask, int (*func) (const char *));
    INT EXPRT cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) MATTRPRINTF(5,6);

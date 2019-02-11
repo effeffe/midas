@@ -316,30 +316,6 @@ char *stristr(const char *str, const char *pattern)
 
 /*------------------------------------------------------------------*/
 
-class auto_string
-{
-private:
-   char* ptr;
-
-public:
-   auto_string(int size) // ctor
-   {
-      ptr = (char*)malloc(size);
-   }
-
-   ~auto_string() // dtor
-   {
-      if (ptr)
-         free(ptr);
-      ptr = NULL;
-   }
-
-   char* str() { return ptr; };
-   char* c_str() { return ptr; };
-};
-
-/*------------------------------------------------------------------*/
-
 static double GetTimeSec()
 {
    struct timeval tv;
@@ -1513,105 +1489,6 @@ void show_error(Return* r, const char *error)
    r->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
    r->rsprintf("<title>MIDAS error</title></head>\n");
    r->rsprintf("<body><H1>%s</H1></body></html>\n", error);
-}
-
-/*------------------------------------------------------------------*/
-
-int exec_script(HNDLE hkey)
-/********************************************************************\
-
-  Routine: exec_script
-
-  Purpose: Execute script from /Script tree
-
-  exec_script is enabled by the tree /Script
-  The /Script struct is composed of list of keys
-  from which the name of the key is the button name
-  and the sub-structure is a record as follow:
-
-  /Script/<button_name> = <script command> (TID_STRING)
-
-  The "Script command", containing possible arguements,
-  is directly executed.
-
-  /Script/<button_name>/<script command>
-                        <soft link1>|<arg1>
-                        <soft link2>|<arg2>
-                           ...
-
-  The arguments for the script are derived from the
-  subtree below <button_name>, where <button_name> must be
-  TID_KEY. The subtree may then contain arguments or links
-  to other values in the ODB, like run number etc.
-
-\********************************************************************/
-{
-   HNDLE hDB;
-   KEY key;
-   std::string command;
-
-   cm_get_experiment_database(&hDB, NULL);
-   db_get_key(hDB, hkey, &key);
-
-   if (key.type == TID_STRING) {
-      int size = key.item_size;
-      auto_string data(size);
-      int status = db_get_data(hDB, hkey, data.str(), &size, TID_STRING);
-      if (status != DB_SUCCESS) {
-         cm_msg(MERROR, "exec_script", "key \"%s\" of type TID_STRING, db_get_data() error %d", key.name, status);
-         return status;
-      }
-      command = data.c_str();
-   } else if (key.type == TID_KEY) {
-      for (int i = 0;; i++) {
-         HNDLE hsubkey;
-         KEY subkey;
-         db_enum_key(hDB, hkey, i, &hsubkey);
-         if (!hsubkey)
-            break;
-         db_get_key(hDB, hsubkey, &subkey);
-
-         if (i > 0)
-            command += " ";
-
-         if (subkey.type == TID_KEY) {
-            cm_msg(MERROR, "exec_script", "key \"%s/%s\" should not be TID_KEY", key.name, subkey.name);
-            return DB_TYPE_MISMATCH;
-         } else if (subkey.type == TID_STRING) {
-            int size = subkey.item_size;
-            auto_string data(size);
-            int status = db_get_data(hDB, hsubkey, data.str(), &size, TID_STRING);
-            if (status != DB_SUCCESS) {
-               cm_msg(MERROR, "exec_script", "key \"%s/%s\" of type TID_STRING, db_get_data() error %d", key.name, subkey.name, status);
-               return status;
-            }
-            command += data.c_str();
-         } else {
-            char str[256];
-            int size = subkey.item_size;
-            auto_string data(size);
-            int status = db_get_data(hDB, hsubkey, data.str(), &size, subkey.type);
-            if (status != DB_SUCCESS) {
-               cm_msg(MERROR, "exec_script", "key \"%s/%s\" of type %d, db_get_data() error %d", key.name, subkey.name, subkey.type, status);
-               return status;
-            }
-            db_sprintf(str, data.c_str(), subkey.item_size, 0, subkey.type);
-            command += str;
-         }
-      }
-   } else {
-      cm_msg(MERROR, "exec_script", "key \"%s\" has invalid type %d, should be TID_STRING or TID_KEY", key.name, key.type);
-      return DB_TYPE_MISMATCH;
-   }
-
-   // printf("exec_script: %s\n", command.c_str());
-
-   if (command.length() > 0) {
-      cm_msg(MINFO, "exec_script", "Executing script \"%s\"", command.c_str());
-      ss_system(command.c_str());
-   }
-
-   return SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
@@ -15503,24 +15380,17 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       sprintf(str, "%s?script=%s", dec_path, p->getparam("script")); // FIXME: overflows str[]
       if (!check_web_password(r, dec_path, cookie_wpwd, str))
          return;
+
+      std::string path;
+      path += "/Script/";
+      path += p->getparam("script");
       
-      sprintf(str, "/Script/%s", p->getparam("script")); // FIXME: overflows str[]
-      
-      db_find_key(hDB, 0, str, &hkey);
-      
-      if (hkey) {
-         /* for NT: close reply socket before starting subprocess */
-         if (p->isparam("redir"))
-            redirect2(r, p->getparam("redir"));
-         else
-            redirect2(r, "");
-         exec_script(hkey);
-      } else {
-         if (p->isparam("redir"))
-            redirect2(r, p->getparam("redir"));
-         else
-            redirect2(r, "");
-      }
+      cm_exec_script(path.c_str());
+
+      if (p->isparam("redir"))
+         redirect2(r, p->getparam("redir"));
+      else
+         redirect2(r, "");
       
       return;
    }
@@ -15533,29 +15403,17 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       sprintf(str, "%s?customscript=%s", dec_path, p->getparam("customscript")); // FIXME: overflows str[]
       if (!check_web_password(r, dec_path, cookie_wpwd, str))
          return;
-      
-      sprintf(str, "/CustomScript/%s", p->getparam("customscript")); // FIXME: overflows str[]
-      
-      db_find_key(hDB, 0, str, &hkey);
-      
-      if (strrchr(dec_path, '/'))
-         strlcpy(str, strrchr(dec_path, '/')+1, sizeof(str));
-      else
-         strlcpy(str, dec_path, sizeof(str));
 
-      if (hkey) {
-         /* for NT: close reply socket before starting subprocess */
-         if (p->isparam("redir"))
-            redirect2(r, p->getparam("redir"));
-         else
-            redirect2(r, str);
-         exec_script(hkey);
-      } else {
-         if (p->isparam("redir"))
-            redirect(r, p->getparam("redir"));
-         else
-            redirect(r, str);
-      }
+      std::string path;
+      path += "/CustomScript/";
+      path += p->getparam("customscript");
+      
+      cm_exec_script(path.c_str());
+
+      if (p->isparam("redir"))
+         redirect2(r, p->getparam("redir"));
+      else
+         redirect2(r, str);
       
       return;
    }
