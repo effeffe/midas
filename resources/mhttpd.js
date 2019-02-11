@@ -22,6 +22,14 @@ var transition_names = {
 
 var global_base_url = "";
 
+// extend 2d canvas object
+CanvasRenderingContext2D.prototype.drawLine = function (x1, y1, x2, y2) {
+   this.beginPath();
+   this.moveTo(x1, y1);
+   this.lineTo(x2, y2);
+   this.stroke();
+};
+
 //
 // convert json dom values to text for display and editing
 // this is similar to db_sprintf()
@@ -812,11 +820,11 @@ function mhttpd_scan()
    // replace all horizontal bars with proper <div>'s
    var mbar = document.getElementsByName("modbhbar");
    for (i = 0; i < mbar.length; i++) {
-      mbar[i].style.display = "inline-block";
+      mbar[i].style.display = "block";
       if (mbar[i].style.position === "")
          mbar[i].style.position = "relative";
       mbar[i].style.border = "1px solid #808080";
-      var color = mbar[i].dataset.color;
+      var color = mbar[i].style.color;
       mbar[i].innerHTML = "<div style='background-color:" + color + ";" +
          "width:0;height:"+ mbar[i].clientHeight+"px;"+
          "position:relative; display:inline-block;border-right:1px solid #808080'>&nbsp;</div>";
@@ -829,7 +837,7 @@ function mhttpd_scan()
       if (mbar[i].style.position === "")
          mbar[i].style.position = "relative";
       mbar[i].style.border = "1px solid #808080";
-      color = mbar[i].dataset.color;
+      color = mbar[i].style.color;
       mbar[i].innerHTML = "<div style='background-color:" + color + "; height:0; width:100%; position:absolute; bottom:0; left:0; display:inline-block; border-top:1px solid #808080'>&nbsp;</div>";
    }
 
@@ -864,6 +872,36 @@ function mhttpd_scan()
       mg[i].appendChild(cvs);
       mg[i].draw = mhttpd_gauge_draw;
       mg[i].draw();
+   }
+
+   // replace all haxis with canvas
+   var mha = document.getElementsByName("mhaxis");
+   for (i = 0; i < mha.length; i++) {
+      mha[i].style.display = "block";
+      if (mha[i].style.position === "")
+         mha[i].style.position = "relative";
+
+      var cvs = document.createElement("canvas");
+      cvs.width = mha[i].clientWidth+2;
+      cvs.height = mha[i].clientHeight;
+      mha[i].appendChild(cvs);
+      mha[i].draw = mhttpd_haxis_draw;
+      mha[i].draw();
+   }
+
+   // replace all vaxis with canvas
+   var mva = document.getElementsByName("mvaxis");
+   for (i = 0; i < mva.length; i++) {
+      mva[i].style.display = "inline-block";
+      if (mva[i].style.position === "")
+         mva[i].style.position = "relative";
+
+      var cvs = document.createElement("canvas");
+      cvs.width = mva[i].clientWidth;
+      cvs.height = mva[i].clientHeight;
+      mva[i].appendChild(cvs);
+      mva[i].draw = mhttpd_vaxis_draw;
+      mva[i].draw();
    }
 
    // replace all mhistory tags with history plots
@@ -1090,6 +1128,220 @@ function mhttpd_gauge_draw()
    ctx.restore();
 }
 
+function mhttpd_vaxis_draw()
+{
+   var ctx = this.firstChild.getContext("2d");
+   ctx.save();
+   var w = this.firstChild.width;
+   var h = this.firstChild.height;
+   ctx.clearRect(0, 0, w, h);
+
+   var scaleMin = this.dataset.min;
+   var scaleMax = this.dataset.max;
+   if (scaleMin === undefined)
+      scaleMin = 0;
+   if (scaleMax === undefined)
+      scaleMax = 1;
+   if (scaleMin === scaleMax)
+      scaleMax += 1;
+
+   ctx.translate(0.5, 0.5);
+   ctx.strokeStyle = "#000000";
+   ctx.fillStyle = "#FFFFFF";
+   ctx.lineWidth = 1;
+
+   ctx.beginPath();
+   ctx.moveTo(w-1, h-1);
+   ctx.lineTo(w-1, 0);
+   ctx.stroke();
+
+   ctx.restore();
+}
+
+function mhttpd_haxis_draw()
+{
+   var ctx = this.firstChild.getContext("2d");
+   ctx.save();
+   var w = this.firstChild.width;
+   var h = this.firstChild.height;
+   ctx.clearRect(0, 0, w, h);
+
+   var scaleMin = this.dataset.min;
+   var scaleMax = this.dataset.max;
+   if (scaleMin === undefined)
+      scaleMin = 0;
+   if (scaleMax === undefined)
+      scaleMax = 1;
+   if (scaleMin === scaleMax)
+      scaleMax += 1;
+
+   ctx.strokeStyle = "#000000";
+   ctx.fillStyle = "#FFFFFF";
+   ctx.lineWidth = 1;
+
+   if (this.style.verticalAlign === "top") {
+      ctx.translate(0.5, 0.5);
+      haxisDraw(ctx, 0, 0, w - 1, 4, 8, 10, 10, 0, scaleMin, scaleMax);
+   }
+   else {
+      ctx.translate(0.5, -0.5);
+      haxisDraw(ctx, 0, h, w - 1, 4, 8, 10, 20, 0, scaleMin, scaleMax);
+   }
+   ctx.restore();
+}
+
+String.prototype.stripZeros = function () {
+   var s = this.trim();
+   if (s.search("[.]") >= 0) {
+      while (s.charAt(s.length - 1) == "0")
+         s = s.substring(0, s.length - 1);
+      if (s.charAt(s.length - 1) == ".")
+         s = s.substring(0, s.length - 1);
+   }
+   return s;
+};
+
+function haxisDraw(ctx, x1, y1, width, minor, major, text, label, grid, xmin, xmax) {
+   var dx, int_dx, frac_dx, x_act, label_dx, major_dx, x_screen, maxwidth;
+   var tick_base, major_base, label_base, n_sig1, n_sig2, xs;
+   var base = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+
+   ctx.textAlign = "center";
+   ctx.textBaseline = "top";
+
+   if (xmax <= xmin || width <= 0)
+      return;
+
+   /* use 10 as min tick distance */
+   dx = (xmax - xmin) / (width / 10);
+
+   int_dx = Math.floor(Math.log(dx) / Math.log(10));
+   frac_dx = Math.log(dx) / Math.log(10) - int_dx;
+
+   if (frac_dx < 0) {
+      frac_dx += 1;
+      int_dx -= 1;
+   }
+
+   if (y1 > 0) {
+      minor = -minor;
+      major = -major;
+      text = -text;
+      label = -label;
+   }
+
+   tick_base = frac_dx < (Math.log(2)/Math.log(10)) ? 1 : frac_dx < (Math.log(5)/Math.log(10)) ? 2 : 3;
+   major_base = label_base = tick_base + 1;
+
+   /* rounding up of dx, label_dx */
+   dx = Math.pow(10, int_dx) * base[tick_base];
+   major_dx = Math.pow(10, int_dx) * base[major_base];
+   label_dx = major_dx;
+
+   do {
+      /* number of significant digits */
+      if (xmin == 0)
+         n_sig1 = 0;
+      else
+         n_sig1 = Math.floor(Math.log(Math.abs(xmin)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dx)) / Math.log(10)) + 1;
+
+      if (xmax == 0)
+         n_sig2 = 0;
+      else
+         n_sig2 = Math.floor(Math.log(Math.abs(xmax)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dx)) / Math.log(10)) + 1;
+
+      n_sig1 = Math.max(n_sig1, n_sig2);
+
+      // toPrecision displays 1050 with 3 digits as 1.05e+3, so increase presicion to number of digits
+      if (Math.abs(xmin) < 100000)
+         n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(xmin)) / Math.log(10))+1);
+      if (Math.abs(xmax) < 100000)
+         n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(xmax)) / Math.log(10))+1);
+
+      /* determination of maximal width of labels */
+      var str = (Math.floor(xmin / dx) * dx).toPrecision(n_sig1);
+      var ext = ctx.measureText(str);
+      maxwidth = ext.width;
+
+      str = (Math.floor(xmax / dx) * dx).toPrecision(n_sig1).stripZeros();
+      ext = ctx.measureText(str);
+      maxwidth = Math.max(maxwidth, ext.width);
+      str = (Math.floor(xmax / dx) * dx + label_dx).toPrecision(n_sig1).stripZeros();
+      maxwidth = Math.max(maxwidth, ext.width);
+
+      /* increasing label_dx, if labels would overlap */
+      if (maxwidth > 0.5 * label_dx / (xmax - xmin) * width) {
+         label_base++;
+         label_dx = Math.pow(10, int_dx) * base[label_base];
+         if (label_base % 3 == 2 && major_base % 3 == 1) {
+            major_base++;
+            major_dx = Math.pow(10, int_dx) * base[major_base];
+         }
+      } else
+         break;
+
+   } while (true);
+
+   x_act = Math.floor(xmin / dx) * dx;
+
+   ctx.drawLine(x1, y1, x1 + width, y1);
+
+   do {
+      x_screen = (x_act - xmin) / (xmax - xmin) * width + x1;
+      xs = Math.floor(x_screen + 0.5);
+
+      if (x_screen > x1 + width + 0.001)
+         break;
+
+      if (x_screen >= x1) {
+         if (Math.abs(Math.floor(x_act / major_dx + 0.5) - x_act / major_dx) <
+            dx / major_dx / 10.0) {
+
+            if (Math.abs(Math.floor(x_act / label_dx + 0.5) - x_act / label_dx) <
+               dx / label_dx / 10.0) {
+               /* label tick mark */
+               ctx.drawLine(xs, y1, xs, y1 + text);
+
+               /* grid line */
+               if (grid != 0 && xs > x1 && xs < x1 + width)
+                  ctx.drawLine(xs, y1, xs, y1 + grid);
+
+               /* label */
+               if (label != 0) {
+                  str = x_act.toPrecision(n_sig1).stripZeros();
+                  ext = ctx.measureText(str);
+                  ctx.save();
+                  ctx.fillStyle = "black";
+                  if (xs - ext.width / 2 > x1 &&
+                     xs + ext.width / 2 < x1 + width)
+                     ctx.fillText(str, xs, y1 + label);
+                  ctx.restore();
+               }
+            } else {
+               /* major tick mark */
+               ctx.drawLine(xs, y1, xs, y1 + major);
+
+               /* grid line */
+               if (grid != 0 && xs > x1 && xs < x1 + width)
+                  ctx.drawLine(xs, y1 - 1, xs, y1 + grid);
+            }
+
+         } else
+         /* minor tick mark */
+            ctx.drawLine(xs, y1, xs, y1 + minor);
+
+      }
+
+      x_act += dx;
+
+      /* supress 1.23E-17 ... */
+      if (Math.abs(x_act) < dx / 100)
+         x_act = 0;
+
+   } while (1);
+}
+
+
 function mhttpd_resize_sidenav() {
    var h = document.getElementById('mheader');
    var s = document.getElementById('msidenav');
@@ -1301,7 +1553,7 @@ function mhttpd_refresh() {
          mvalue = mie_to_string(tid, value, modbthermo[i].dataset.format);
          if (mvalue === "")
             mvalue = "(empty)";
-         modbthermo[i].value = mvalue;
+         modbthermo[i].value = value;
 
          if (modbthermo[i].onchange !== null)
             modbthermo[i].onchange();
@@ -1315,7 +1567,7 @@ function mhttpd_refresh() {
          mvalue = mie_to_string(tid, value, modbgauge[i].dataset.format);
          if (mvalue === "")
             mvalue = "(empty)";
-         modbgauge[i].value = mvalue;
+         modbgauge[i].value = value;
 
          if (modbgauge[i].onchange !== null)
             modbgauge[i].onchange();
