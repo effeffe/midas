@@ -5840,6 +5840,27 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
          strcpy(pheader->name, buffer_name);
          pheader->size = buffer_size;
       } else {
+         if (!equal_ustring(pheader->name, buffer_name)) {
+            cm_msg(MERROR, "bm_open_buffer", "Buffer \"%s\" is corrupted, mismatch of buffer name in shared memory \"%s\"", buffer_name, pheader->name);
+            *buffer_handle = 0;
+            _buffer_entries--;
+            return BM_CORRUPTED;
+         }
+         
+         if ((pheader->num_clients < 0) || (pheader->num_clients > MAX_CLIENTS)) {
+            cm_msg(MERROR, "bm_open_buffer", "Buffer \"%s\" is corrupted, num_clients %d exceeds MAX_CLIENTS %d", buffer_name, pheader->num_clients, MAX_CLIENTS);
+            *buffer_handle = 0;
+            _buffer_entries--;
+            return BM_CORRUPTED;
+         }
+         
+         if ((pheader->max_client_index < 0) || (pheader->max_client_index > MAX_CLIENTS)) {
+            cm_msg(MERROR, "bm_open_buffer", "Buffer \"%s\" is corrupted, max_client_index %d exceeds MAX_CLIENTS %d", buffer_name, pheader->max_client_index, MAX_CLIENTS);
+            *buffer_handle = 0;
+            _buffer_entries--;
+            return BM_CORRUPTED;
+         }
+         
          /* check if buffer size is identical */
          if (pheader->size != buffer_size) {
             cm_msg(MINFO, "bm_open_buffer", "Buffer \"%s\" requested size %d differs from existing size %d", buffer_name, buffer_size, pheader->size);
