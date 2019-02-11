@@ -489,6 +489,41 @@ static MJsonNode* start_program(const MJsonNode* params)
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
 
+static MJsonNode* exec_script(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("execute custom script defined in ODB /Script (scripts show in the menu) or /CustomScript (scripts from custom pages)");
+      doc->P("script?", MJSON_STRING, "Execute ODB /Script/xxx");
+      doc->P("customscript?", MJSON_STRING, "Execute ODB /CustomScript/xxx");
+      doc->R("status", MJSON_INT, "return status of cm_exec_script()");
+      return doc;
+   }
+
+   std::string script = mjsonrpc_get_param(params, "script", NULL)->GetString();
+   std::string customscript = mjsonrpc_get_param(params, "customscript", NULL)->GetString();
+
+   std::string path;
+   
+   if (script.length() > 0) {
+      path += "/Script";
+      path += "/";
+      path += script;
+   } else if (customscript.length() > 0) {
+      path += "/CustomScript";
+      path += "/";
+      path += customscript;
+   }
+
+   int status = 0;
+
+   if (path.length() > 0) {
+      status = cm_exec_script(path.c_str());
+   }
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+}
+
 /////////////////////////////////////////////////////////////////////////////////
 //
 // ODB code goes here
@@ -3074,6 +3109,7 @@ void mjsonrpc_init()
    //mjsonrpc_add_handler("get_messages",  get_messages);
    mjsonrpc_add_handler("jrpc",  jrpc);
    mjsonrpc_add_handler("start_program", start_program);
+   mjsonrpc_add_handler("exec_script", exec_script);
 
    mjsonrpc_user_init();
 }

@@ -515,6 +515,21 @@ function mhttpd_toggle_menu() {
    mhttpd_show_menu(flag);
 }
 
+function mhttpd_exec_script(name)
+{
+   //console.log("exec_script: " + name);
+   var params = new Object;
+   params.script = name;
+   mjsonrpc_call("exec_script", params).then(function(rpc) {
+      var status = rpc.result.status;
+      if (status != 1) {
+         dlgAlert("Exec script \"" + name + "\" status " + status);
+      }
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+   });
+}
+
 var mhttpd_refresh_id;
 var mhttpd_refresh_history_id;
 var mhttpd_refresh_interval;
@@ -696,7 +711,8 @@ function mhttpd_init(current_page, interval, callback) {
                if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
                   continue;
                var n = script[b + "/name"];
-               html += "<div class='mmenuitem'><a href='?script=" + b + "' class='mmenulink'>" + n + "</a></div>\n";
+               //html += "<div class='mmenuitem'><a href='?script=" + b + "' class='mmenulink'>" + n + "</a></div>\n";
+               html += "<div class='mmenuitem'><button class='mbutton' onclick='mhttpd_exec_script(\"" + n + "\")'>" + n + "</button></div>\n";
             }
 
          }
