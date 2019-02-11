@@ -1767,8 +1767,8 @@ function mhttpd_delete_page_handle_delete(mouseEvent, xpath) {
 
       for (i = 0; ; i++) {
          var v = document.getElementById("delete" + i);
-         if (v === undefined) break;
-         if (v === undefined) break;
+         if (v == undefined) break;
+         if (v == undefined) break;
          if (v.checked) {
             var name = JSON.parse(v.value);
             if (name.length > 0) {
@@ -1902,7 +1902,7 @@ function mhttpd_cancel_transition() {
 function mhttpd_reset_alarm(alarm_name) {
    mjsonrpc_call("al_reset_alarm", {"alarms": [alarm_name]}).then(function (rpc) {
       //mjsonrpc_debug_alert(rpc);
-      if (rpc.result.status !== 1 && rpc.result.status !== 1004) {
+      if (rpc.result.status != 1 && rpc.result.status != 1004) {
          throw new Error("Cannot reset alarm, status " + rpc.result.status + ", see MIDAS messages");
       }
    }).catch(function (error) {
