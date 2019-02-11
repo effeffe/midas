@@ -619,7 +619,15 @@ INT register_equipment(void)
       if (status == DB_NO_KEY) {
          db_create_record(hDB, 0, str, EQUIPMENT_COMMON_STR);
          db_find_key(hDB, 0, str, &hKey);
-         db_set_record(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), 0);
+         if (eq_info->write_cache_size == 0)
+            eq_info->write_cache_size = 100000;
+         status = db_set_record(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), 0);
+         if (status != DB_SUCCESS) {
+            printf("ERROR: Cannot create equipment record \"%s\", db_set_record() status %d\n", str, status);
+            cm_disconnect_experiment();
+            ss_sleep(3000);
+            return 0;
+         }
       } else if (status == DB_STRUCT_MISMATCH) {
          cm_msg(MINFO, "register_equipment", "Correcting \"%s\", db_check_record() status %d", str, status);
          db_create_record(hDB, 0, str, EQUIPMENT_COMMON_STR);
@@ -1091,9 +1099,10 @@ void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
       rpc_set_option(-1, RPC_OTRANSPORT, RPC_FTCP); */
 
    if (format == FORMAT_FIXED) {
-      if (db_set_record(hDB, hKey, (char *) (pevent + 1),
-                        pevent->data_size, 0) != DB_SUCCESS)
-         cm_msg(MERROR, "update_odb", "event #%d size mismatch", pevent->event_id);
+      status = db_set_record(hDB, hKey, (char *) (pevent + 1), pevent->data_size, 0);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "update_odb", "event #%d size mismatch, db_set_record() status %d", pevent->event_id, status);
+      }
    } else if (format == FORMAT_MIDAS) {
       pbh = (BANK_HEADER *) (pevent + 1);
       pbk = NULL;
