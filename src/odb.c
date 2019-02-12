@@ -2033,30 +2033,23 @@ INT db_lock_database(HNDLE hDB)
       return DB_INVALID_HANDLE;
    }
 
-   //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
-
-/* obtain access mutex in multi-thread applications */
+   /* obtain access mutex in multi-thread applications */
    status = ss_mutex_wait_for(_database[hDB - 1].mutex, _database[hDB - 1].timeout);
    if (status != SS_SUCCESS) {
       cm_msg(MERROR, "db_lock_database", "internal error: cannot obtain access mutex, aborting...");
       abort();
    }
 
-#if 0
    // test recursive locking
-   static int out=0;
-   out++;
-   printf("HERE %d!\n", out);
-   if (out>10) abort();
-   db_lock_database(hDB);
-   printf("OUT %d!\n", out);
-#endif
+   // static int out=0;
+   // out++;
+   // printf("HERE %d!\n", out);
+   // if (out>10) abort();
+   // db_lock_database(hDB);
+   // printf("OUT %d!\n", out);
 
    if (_database[hDB - 1].lock_cnt == 0) {
       _database[hDB - 1].lock_cnt = 1;
-
-      //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
-
       /* wait max. 5 minutes for semaphore (required if locking process is being debugged) */
       status = ss_semaphore_wait_for(_database[hDB - 1].semaphore, _database[hDB - 1].timeout);
       if (status == SS_TIMEOUT) {
@@ -2083,7 +2076,6 @@ INT db_lock_database(HNDLE hDB)
    if (_database[hDB - 1].protect) {
       if (_database[hDB - 1].database_header == NULL) {
          int status;
-         //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
          assert(!_database[hDB - 1].protect_read);
          assert(!_database[hDB - 1].protect_write);
          status = ss_shm_unprotect(_database[hDB - 1].shm_handle, &p, TRUE, FALSE, "db_lock_database");
@@ -2097,10 +2089,8 @@ INT db_lock_database(HNDLE hDB)
          _database[hDB - 1].protect_write = FALSE;
       }
    }
-
-   //_db_kludge_protect_odb_locking_against_cm_watchdog = 0;
-
 #endif                          /* LOCAL_ROUTINES */
+   
    return DB_SUCCESS;
 }
 
@@ -2110,7 +2100,6 @@ INT db_allow_write_locked(DATABASE* p, const char* caller_name)
    assert(p);
    if (p->protect && !p->protect_write) {
       int status;
-      //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
       assert(p->lock_cnt > 0);
       assert(p->database_header != NULL);
       assert(p->protect_read);
@@ -2123,7 +2112,6 @@ INT db_allow_write_locked(DATABASE* p, const char* caller_name)
       }
       p->protect_read = TRUE;
       p->protect_write = TRUE;
-      //_db_kludge_protect_odb_locking_against_cm_watchdog = 0;
    }
    return DB_SUCCESS;
 }
@@ -2152,15 +2140,11 @@ INT db_unlock_database(HNDLE hDB)
    }
 #endif
 
-   //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
-
    if (_database[hDB - 1].lock_cnt == 1) {
-      //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
       ss_semaphore_release(_database[hDB - 1].semaphore);
 
       if (_database[hDB - 1].protect && _database[hDB - 1].database_header) {
          int status;
-         //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
          assert(_database[hDB - 1].protect_read);
          assert(_database[hDB - 1].database_header);
          DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
@@ -2179,17 +2163,8 @@ INT db_unlock_database(HNDLE hDB)
    assert(_database[hDB - 1].lock_cnt > 0);
    _database[hDB - 1].lock_cnt--;
 
-   //_db_kludge_protect_odb_locking_against_cm_watchdog = 1;
-
    /* release mutex for multi-thread applications */
    ss_mutex_release(_database[hDB - 1].mutex);
-   
-   //_db_kludge_protect_odb_locking_against_cm_watchdog = 0;
-   
-   //if (_db_kludge_cm_watchdog_wants_to_run) {
-   //   _db_kludge_cm_watchdog_wants_to_run = 0;
-   //   cm_watchdog(-1);
-   //}
 
 #endif                          /* LOCAL_ROUTINES */
    return DB_SUCCESS;
