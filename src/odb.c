@@ -1952,6 +1952,10 @@ INT db_close_all_databases(void)
       if (status != DB_SUCCESS)
          return status;
    }
+
+   db_close_all_records();
+   db_unwatch_all();
+
 #ifdef LOCAL_ROUTINES
    {
       INT i;
@@ -1960,9 +1964,6 @@ INT db_close_all_databases(void)
          db_close_database(i);
    }
 #endif                          /* LOCAL_ROUTINES */
-
-   db_close_all_records();
-   db_unwatch_all();
    
    return DB_SUCCESS;
 }
