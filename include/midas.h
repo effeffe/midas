@@ -1720,6 +1720,7 @@ extern "C" {
    INT EXPRT cm_msg_get_logfile(const char *facility, time_t t, char *filename, int fsize, char *linkname, int lsize);
    INT EXPRT cm_msg_open_buffer(void);
    INT EXPRT cm_msg_close_buffer(void);
+   INT EXPRT cm_msg_early_init(void);
 
    BOOL EXPRT equal_ustring(const char *str1, const char *str2);
 

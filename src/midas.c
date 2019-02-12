@@ -354,6 +354,24 @@ INT cm_get_error(INT code, char *string)
 }
 
 /********************************************************************/
+int cm_msg_early_init(void)
+{
+   int status;
+   
+   if (!_msg_rb) {
+      status = rb_create(100*1024, 1024, &_msg_rb);
+      assert(status==SUCCESS);
+   }
+
+   if (!_msg_mutex) {
+      status = ss_mutex_create(&_msg_mutex, FALSE);
+      assert(status==SS_SUCCESS || status==SS_CREATED);
+   }
+
+   return CM_SUCCESS;
+}
+   
+/********************************************************************/
 
 int cm_msg_open_buffer(void)
 {
@@ -381,8 +399,7 @@ int cm_msg_close_buffer(void)
 
 /********************************************************************/
 
-int cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_size,
-                        char *linkname, int linkname_size)
+int cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_size, char *linkname, int linkname_size)
 {
    HNDLE hDB, hKey;
    char dir[256];
@@ -391,72 +408,78 @@ int cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_s
    char facility[256];
    int status, size, flag;
    
-   cm_get_experiment_database(&hDB, NULL);
+   status = cm_get_experiment_database(&hDB, NULL);
+
+   if (status != CM_SUCCESS)
+      return -1;
+   if (!hDB)
+      return -1;
+   
    if (linkname)
       linkname[0] = 0;
    flag = 0;
    
-   if (hDB) {
-      if (fac && fac[0])
-         strlcpy(facility, fac, sizeof(facility));
-      else
-         strlcpy(facility, "midas", sizeof(facility));
-         
-      strlcpy(str, "midas.log", sizeof(str));
-      size = sizeof(str);
-      db_get_value(hDB, 0, "/Logger/Message file", str, &size, TID_STRING, TRUE);
-
-      /* extension must be .log and will be added later */
-      if (strchr(str, '.'))
-         *strchr(str, '.') = 0;
-
-      if (strchr(str, '%')) {
-         /* replace stings such as %y%m%d with current date */
-         struct tm *tms;
-         
-         flag = 1;
-         tzset();
-         if (t == 0)
-            time(&t);
-         tms = localtime(&t);
-         
-         date_ext[0] = '_';
-         strftime(date_ext+1, sizeof(date_ext), strchr(str, '%'), tms);
-      } else
-         date_ext[0] = 0;
-      
-      if (strchr(str, DIR_SEPARATOR) == NULL) {
-         status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
-         if (status == DB_SUCCESS) {
-            size = sizeof(dir);
-            memset(dir, 0, size);
-            db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
-            if (dir[0] != 0) {
-               if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                  strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
-            } else {
-               cm_get_path(dir, sizeof(dir));
-               if (dir[0] == 0)
-                  getcwd(dir, sizeof(dir));
-               if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                  strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
-            }
-         } else {
-            cm_get_path(dir, sizeof(dir));
-            if (dir[0] != 0)
-               if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-                  strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
-         }
-      } else {
-         strlcpy(dir, str, sizeof(dir));
-         *(strrchr(dir, DIR_SEPARATOR)+1) = 0;
-      }
-   } else {
-      dir[0] = 0;
+   if (fac && fac[0])
+      strlcpy(facility, fac, sizeof(facility));
+   else
       strlcpy(facility, "midas", sizeof(facility));
+   
+   strlcpy(str, "midas.log", sizeof(str));
+   size = sizeof(str);
+   status = db_get_value(hDB, 0, "/Logger/Message file", str, &size, TID_STRING, TRUE);
+
+   if (status != DB_SUCCESS)
+      return -1;
+   
+   /* extension must be .log and will be added later */
+   if (strchr(str, '.'))
+      *strchr(str, '.') = 0;
+   
+   if (strchr(str, '%')) {
+      /* replace stings such as %y%m%d with current date */
+      struct tm *tms;
+      
+      flag = 1;
+      tzset();
+      if (t == 0)
+         time(&t);
+      tms = localtime(&t);
+      
+      date_ext[0] = '_';
+      strftime(date_ext+1, sizeof(date_ext), strchr(str, '%'), tms);
+   } else {
       date_ext[0] = 0;
    }
-
+   
+   if (strchr(str, DIR_SEPARATOR) == NULL) {
+      status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
+      if (status == DB_SUCCESS) {
+         size = sizeof(dir);
+         memset(dir, 0, size);
+         status = db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
+         if (status != DB_SUCCESS)
+            return -1;
+         if (dir[0] != 0) {
+            if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
+               strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
+         } else {
+            cm_get_path(dir, sizeof(dir));
+            if (dir[0] == 0)
+               getcwd(dir, sizeof(dir));
+            if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
+               strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
+         }
+      } else {
+         cm_get_path(dir, sizeof(dir));
+         if (dir[0] != 0)
+            if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
+               strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
+      }
+   } else {
+      strlcpy(dir, str, sizeof(dir));
+      *(strrchr(dir, DIR_SEPARATOR)+1) = 0;
+   }
+   
    strlcpy(filename, dir, filename_size);
    strlcat(filename, facility, filename_size);
    strlcat(filename, date_ext, filename_size);
@@ -469,6 +492,49 @@ int cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_s
    }
    
    return flag;
+}
+
+int cm_msg_get_logfile1(const char *fac, time_t t, char *filename, int filename_size, char *linkname, int linkname_size)
+{
+   static int first_time = 1;
+   static int prev_flag = 0;
+   static char prev_filename[256];
+   static char prev_linkname[256];
+
+   if (first_time) {
+      first_time = 0;
+      if (fac && fac[0]) {
+         strlcpy(prev_filename, fac, sizeof(prev_filename));
+      } else {
+         strlcpy(prev_filename, "midas", sizeof(prev_filename));
+      }
+      strlcat(prev_filename, ".log", sizeof(prev_filename));
+      prev_linkname[0] = 0;
+   }
+
+   if (filename)
+      filename[0] = 0;
+   if (linkname)
+      linkname[0] = 0;
+
+   int flag = cm_msg_get_logfile(fac, t, filename, filename_size, linkname, linkname_size);
+
+   //printf("cm_msg_get_logfile1: flag %d prev %d, filename [%s] prev [%s], linkname [%s] prev [%s]\n", flag, prev_flag, filename, prev_filename, linkname, prev_linkname);
+
+   if (flag >= 0) {
+      prev_flag = flag;
+      if (filename)
+         strlcpy(prev_filename, filename, sizeof(prev_filename));
+      if (linkname)
+         strlcpy(prev_linkname, linkname, sizeof(prev_linkname));
+      return flag;
+   }
+
+   if (filename)
+      strlcpy(filename, prev_filename, filename_size);
+   if (linkname)
+      strlcpy(linkname, prev_linkname, linkname_size);
+   return prev_flag;
 }
 
 /********************************************************************/
@@ -527,22 +593,32 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message)
 
    filename[0] = 0;
 
-   if (rpc_is_remote())
-      return rpc_call(RPC_CM_MSG_LOG, message_type, facility, message);
+   if (rpc_is_remote()) {
+      status = rpc_call(RPC_CM_MSG_LOG, message_type, facility, message);
+      if (status != RPC_SUCCESS) {
+         fprintf(stderr, "cm_msg_log: Message \"%s\" not written to midas.log because rpc_call(RPC_CM_MSG_LOG) failed with status %d\n", message, status);
+      }
+      return status;
+   }
 
    if (message_type != MT_DEBUG) {
-      cm_msg_get_logfile(facility, 0, filename, sizeof(filename), linkname, sizeof(linkname));
+      int flag = cm_msg_get_logfile1(facility, 0, filename, sizeof(filename), linkname, sizeof(linkname));
+
+      if (flag < 0) {
+         fprintf(stderr, "cm_msg_log: Message \"%s\" not written to midas.log because cm_msg_get_logfile1() failed with flag %d\n", message, flag);
+         return CM_SUCCESS;
+      }
       
       fh = open(filename, O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
       if (fh < 0) {
-         printf("Cannot open message log file \'%s', open() errno: %d (%s)\n", filename, errno, strerror(errno));
+         fprintf(stderr, "cm_msg_log: Message \"%s\" not written to midas.log because open(%s) failed with errno %d (%s)\n", message, filename, errno, strerror(errno));
       } else {
          char str[256];
 
          cm_get_experiment_semaphore(NULL, NULL, NULL, &semaphore);
 
          if (semaphore == -1) {
-            fprintf(stderr, "cm_msg_log: Message \"%s\" not written to midas.log because message system is not initialized yet.\n", message);
+            fprintf(stderr, "cm_msg_log: Message \"%s\" not written to midas.log (%s) because the message semaphore is not initialized yet.\n", message, filename);
             return CM_SUCCESS;
          }
          
@@ -577,7 +653,7 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message)
             unlink(linkname);
             status = symlink(filename, linkname);
             if (status != 0) {
-               printf("Cannot symlink message log file \'%s' to \'%s\', symlink() errno: %d (%s)\n", filename, linkname, errno, strerror(errno));
+               fprintf(stderr, "cm_msg_log: Error: Cannot symlink message log file \'%s' to \'%s\', symlink() errno: %d (%s)\n", filename, linkname, errno, strerror(errno));
             }
          }
 #endif
@@ -679,11 +755,8 @@ static INT cm_msg_buffer(int ts, int message_type, const char *message)
    //printf("cm_msg_buffer ts %d, type %d, message [%s]!\n", ts, message_type, message);
 
    if (!_msg_rb) {
-      status = rb_create(100*1024, 1024, &_msg_rb);
-      assert(status==SUCCESS);
-
-      status = ss_mutex_create(&_msg_mutex, FALSE);
-      assert(status==SS_SUCCESS || status==SS_CREATED);
+      fprintf(stderr, "cm_msg_buffer: Error: dropped message [%s] because message ring buffer is not initialized\n", message);
+      return CM_SUCCESS;
    }
 
    len = strlen(message) + 1;
@@ -827,16 +900,20 @@ INT cm_msg(INT message_type, const char *filename, INT line, const char *routine
    static BOOL in_routine = FALSE;
    int ts = ss_time();
 
-   /* avoid recursive calls */
-   if (in_routine)
-      return CM_SUCCESS;
-
-   in_routine = TRUE;
-
    /* print argument list into message */
    va_start(argptr, format);
    cm_msg_format(message, sizeof(message), message_type, filename, line, routine, format, &argptr);
    va_end(argptr);
+
+   //printf("message [%s]\n", message);
+
+   /* avoid recursive calls */
+   if (in_routine) {
+      fprintf(stderr, "cm_msg: Error: dropped message [%s] to break recursion\n", message);
+      return CM_SUCCESS;
+   }
+
+   in_routine = TRUE;
 
    /* call user function if set via cm_set_msg_print */
    if (_message_print != NULL && (message_type & _message_mask_user) != 0)
@@ -1190,6 +1267,11 @@ INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char** messa
    time(&filedate);
    flag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), linkname, sizeof(linkname));
 
+   if (flag < 0) {
+      *num_messages = 0;
+      return CM_SUCCESS;
+   }
+
    //printf("facility %s, filename \"%s\" \"%s\"\n", facility, filename, linkname);
 
    // see if file exists, use linkname if not
@@ -1207,14 +1289,15 @@ INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char** messa
    while (n < n_message && flag) {
       filedate -= 3600 * 24;         // go one day back
 
-      cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), NULL, 0);
+      int xflag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), NULL, 0);
       
-      if (ss_file_exist(filename)) {
+      if ((xflag >= 0) && ss_file_exist(filename)) {
          cm_msg_retrieve1(filename, t, n_message - n, messages, &length, &allocated, &i);
          n += i;
          missing = 0;
-      } else
+      } else {
          missing++;
+      }
       
       // stop if ten consecutive files are not found
       if (missing > 10)
@@ -1951,7 +2034,7 @@ INT cm_get_environment(char *host_name, int host_name_size, char *exp_name, int 
 void cm_check_connect(void)
 {
    if (_hKeyClient) {
-      cm_msg(MERROR, "", "cm_disconnect_experiment not called at end of program");
+      cm_msg(MERROR, "cm_check_connect", "cm_disconnect_experiment not called at end of program");
       cm_msg_flush_buffer();
    }
 }
@@ -2064,6 +2147,11 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    if (_hKeyClient)
       cm_disconnect_experiment();
 
+   cm_msg_early_init();
+
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg before connecting to experiment");
+   //cm_msg_flush_buffer();
+
    rpc_set_name(client_name);
 
    /* check for local host */
@@ -2148,6 +2236,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       cm_set_experiment_semaphore(semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg);
    }
 
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg before open ODB");
+   //cm_msg_flush_buffer();
+   
    /* open ODB */
    if (odb_size == 0)
       odb_size = DEFAULT_ODB_SIZE;
@@ -2231,9 +2322,21 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       }
    }
 
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after open ODB");
+   //cm_msg_flush_buffer();
+   
    /* tell the rest of MIDAS that ODB is open for business */
 
    cm_set_experiment_database(hDB, hKeyClient);
+
+   /* save the filename of midas.log */
+   {
+      const char* facility = "midas";
+      char filename[256];
+      char linkname[256];
+      cm_msg_get_logfile1(facility, 0, filename, sizeof(filename), linkname, sizeof(linkname));
+   }
+
 
    /* cm_msg_open_buffer() calls bm_open_buffer() calls ODB function
     * to get event buffer size, etc */
@@ -2244,6 +2347,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       return status;
    }
 
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after message system is ready");
+   //cm_msg_flush_buffer();
+   
    /* set experiment name in ODB */
    db_set_value(hDB, 0, "/Experiment/Name", exp_name1, NAME_LENGTH, 1, TID_STRING);
 
@@ -2289,6 +2395,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    /* register ctrl-c handler */
    ss_ctrlc_handler(cm_ctrlc_handler);
 
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after connect to experiment is complete");
+   //cm_msg_flush_buffer();
+   
    return CM_SUCCESS;
 }
 
@@ -2538,6 +2647,9 @@ INT cm_disconnect_experiment(void)
    HNDLE hDB, hKey;
    char local_host_name[HOST_NAME_LENGTH], client_name[80];
 
+   //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before disconnect from experiment");
+   //cm_msg_flush_buffer();
+   
    /* wait on any transition thread */
    if (_trp.transition && !_trp.finished) {
       printf("Waiting for transition to finish...\n");
@@ -2571,8 +2683,12 @@ INT cm_disconnect_experiment(void)
       /* close open records */
       db_close_all_records();
 
+      cm_msg_close_buffer();
+
       rpc_client_disconnect(-1, FALSE);
       rpc_server_disconnect();
+
+      cm_set_experiment_database(0, 0);
    } else {
       rpc_client_disconnect(-1, FALSE);
 
@@ -2587,8 +2703,14 @@ INT cm_disconnect_experiment(void)
       if (hDB)
          cm_delete_client_info(hDB, 0);
 
+      //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before close all buffers, close all databases");
+      //cm_msg_flush_buffer();
+
+      cm_msg_close_buffer();
       bm_close_all_buffers();
       db_close_all_databases();
+
+      cm_set_experiment_database(0, 0);
    }
 
    if (!rpc_is_mserver())
@@ -2597,8 +2719,13 @@ INT cm_disconnect_experiment(void)
    /* free RPC list */
    rpc_deregister_functions();
 
-   cm_set_experiment_database(0, 0);
+   //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before deleting the message ring buffer");
+   //cm_msg_flush_buffer();
 
+   /* last flush before we delete the message ring buffer */
+   cm_msg_flush_buffer();
+
+   /* delete the message ring buffer and semaphore */
    if (_msg_mutex)
       ss_mutex_delete(_msg_mutex);
    _msg_mutex = 0;
@@ -2606,7 +2733,8 @@ INT cm_disconnect_experiment(void)
       rb_delete(_msg_rb);
    _msg_rb = 0;
 
-   cm_msg_close_buffer();
+   //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after deleting message ring buffer");
+   //cm_msg_flush_buffer();
 
    /* free memory buffers */
    if (_event_buffer_size > 0) {
@@ -2627,6 +2755,9 @@ INT cm_disconnect_experiment(void)
       _tcp_buffer = NULL;
    }
 
+   //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after disconnect is completed");
+   //cm_msg_flush_buffer();
+
    return CM_SUCCESS;
 }
 
@@ -2641,6 +2772,10 @@ INT cm_set_experiment_database(HNDLE hDB, HNDLE hKeyClient)
 {
    _hDB = hDB;
    _hKeyClient = hKeyClient;
+
+   if (hDB == 0) {
+      rpc_set_server_option(RPC_ODB_HANDLE, 0);
+   }
 
    return CM_SUCCESS;
 }
@@ -11683,6 +11818,13 @@ INT rpc_call(const INT routine_id, ...)
    }
 
    /* find rpc definition */
+
+   if (rpc_list == NULL) {
+      ss_mutex_release(_mutex_rpc);
+      // cannot call cm_msg() here as it can cause recursive message loop after RPC connection was shut down. K.O.
+      //cm_msg(MERROR, "rpc_call", "cannot call rpc ID (%d), rpc_list is NULL", routine_id);
+      return RPC_INVALID_ID;
+   }
 
    for (i = 0;; i++)
       if (rpc_list[i].id == routine_id || rpc_list[i].id == 0)
