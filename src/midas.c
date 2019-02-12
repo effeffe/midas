@@ -355,6 +355,32 @@ INT cm_get_error(INT code, char *string)
 
 /********************************************************************/
 
+int cm_msg_open_buffer(void)
+{
+   //printf("cm_msg_open_buffer!\n");
+   if (_msg_buffer == 0) {
+      int status = bm_open_buffer(MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &_msg_buffer);
+      if (status != BM_SUCCESS && status != BM_CREATED) {
+         return status;
+      }
+   }
+   return CM_SUCCESS;
+}
+
+/********************************************************************/
+
+int cm_msg_close_buffer(void)
+{
+   //printf("cm_msg_close_buffer!\n");
+   if (_msg_buffer) {
+      bm_close_buffer(_msg_buffer);
+      _msg_buffer = 0;
+   }
+   return CM_SUCCESS;
+}
+
+/********************************************************************/
+
 int cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_size,
                         char *linkname, int linkname_size)
 {
@@ -622,30 +648,22 @@ static INT cm_msg_format(char* message, int sizeof_message, INT message_type, co
 
 static INT cm_msg_send_event(INT ts, INT message_type, const char *send_message)
 {
-   int status;
-   char event[1000];
-   EVENT_HEADER *pevent;
-
    //printf("cm_msg_send: ts %d, type %d, message [%s]\n", ts, message_type, send_message);
-
-   /* copy message to event */
-   pevent = (EVENT_HEADER *) event;
-   strlcpy(event + sizeof(EVENT_HEADER), send_message, sizeof(event) - sizeof(EVENT_HEADER));
 
    /* send event if not of type MLOG */
    if (message_type != MT_LOG) {
-      /* if no message buffer already opened, do so now */
-      if (_msg_buffer == 0) {
-         status = bm_open_buffer(MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &_msg_buffer);
-         if (status != BM_SUCCESS && status != BM_CREATED) {
-            return status;
-         }
-      }
+      if (_msg_buffer) {
+         /* copy message to event */
+         char event[1000];
+         EVENT_HEADER *pevent = (EVENT_HEADER *) event;
+         
+         strlcpy(event + sizeof(EVENT_HEADER), send_message, sizeof(event) - sizeof(EVENT_HEADER));
 
-      /* setup the event header and send the message */
-      bm_compose_event(pevent, EVENTID_MESSAGE, (WORD) message_type, strlen(event + sizeof(EVENT_HEADER)) + 1, 0);
-      pevent->time_stamp = ts;
-      bm_send_event(_msg_buffer, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
+         /* setup the event header and send the message */
+         bm_compose_event(pevent, EVENTID_MESSAGE, (WORD) message_type, strlen(event + sizeof(EVENT_HEADER)) + 1, 0);
+         pevent->time_stamp = ts;
+         bm_send_event(_msg_buffer, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
+      }
    }
 
    return CM_SUCCESS;
@@ -866,9 +884,7 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
             const char *facility, const char *routine, const char *format, ...)
 {
    va_list argptr;
-   char event[1000], message[256];
-   EVENT_HEADER *pevent;
-   INT status;
+   char message[256];
    static BOOL in_routine = FALSE;
 
    /* avoid recursive calles */
@@ -892,24 +908,20 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
       return CM_SUCCESS;
    }
 
-   /* copy message to event */
-   pevent = (EVENT_HEADER *) event;
-   strcpy(event + sizeof(EVENT_HEADER), message);
-
    /* send event if not of type MLOG */
    if (message_type != MT_LOG) {
       /* if no message buffer already opened, do so now */
-      if (_msg_buffer == 0) {
-         status = bm_open_buffer(MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &_msg_buffer);
-         if (status != BM_SUCCESS && status != BM_CREATED) {
-            in_routine = FALSE;
-            return status;
-         }
-      }
+      if (_msg_buffer) {
+         /* copy message to event */
+         char event[1000];
+         EVENT_HEADER* pevent = (EVENT_HEADER *) event;
 
-      /* setup the event header and send the message */
-      bm_compose_event(pevent, EVENTID_MESSAGE, (WORD) message_type, strlen(event + sizeof(EVENT_HEADER)) + 1, 0);
-      bm_send_event(_msg_buffer, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
+         strlcpy(event + sizeof(EVENT_HEADER), message, sizeof(event)-sizeof(EVENT_HEADER));
+
+         /* setup the event header and send the message */
+         bm_compose_event(pevent, EVENTID_MESSAGE, (WORD) message_type, strlen(event + sizeof(EVENT_HEADER)) + 1, 0);
+         bm_send_event(_msg_buffer, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
+      }
    }
 
    /* log message */
@@ -963,12 +975,9 @@ INT cm_msg_register(EVENT_HANDLER* func)
 {
    INT status, id;
 
-   /* if no message buffer already opened, do so now */
-   if (_msg_buffer == 0) {
-      status = bm_open_buffer(MESSAGE_BUFFER_NAME, MESSAGE_BUFFER_SIZE, &_msg_buffer);
-      if (status != BM_SUCCESS && status != BM_CREATED)
-         return status;
-   }
+   // we should only come here after the message buffer
+   // was opened by cm_connect_experiment()
+   assert(_msg_buffer);
 
    _msg_dispatch = func;
 
@@ -2145,7 +2154,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
    status = db_open_database("ODB", odb_size, &hDB, client_name);
    if (status != DB_SUCCESS && status != DB_CREATED) {
-      cm_msg(MERROR, "cm_connect_experiment1", "cannot open database");
+      cm_msg(MERROR, "cm_connect_experiment1", "cannot open database, db_open_database() status %d", status);
       return status;
    }
 
@@ -2222,7 +2231,18 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       }
    }
 
+   /* tell the rest of MIDAS that ODB is open for business */
+
    cm_set_experiment_database(hDB, hKeyClient);
+
+   /* cm_msg_open_buffer() calls bm_open_buffer() calls ODB function
+    * to get event buffer size, etc */
+
+   status = cm_msg_open_buffer();
+   if (status != CM_SUCCESS) {
+      cm_msg(MERROR, "cm_connect_experiment1", "cannot open message buffer, cm_msg_open_buffer() status %d", status);
+      return status;
+   }
 
    /* set experiment name in ODB */
    db_set_value(hDB, 0, "/Experiment/Name", exp_name1, NAME_LENGTH, 1, TID_STRING);
@@ -2586,7 +2606,7 @@ INT cm_disconnect_experiment(void)
       rb_delete(_msg_rb);
    _msg_rb = 0;
 
-   _msg_buffer = 0;
+   cm_msg_close_buffer();
 
    /* free memory buffers */
    if (_event_buffer_size > 0) {
@@ -6181,10 +6201,7 @@ INT bm_close_all_buffers(void)
    {
       INT i;
 
-      if (_msg_buffer) {
-         bm_close_buffer(_msg_buffer);
-         _msg_buffer = 0;
-      }
+      cm_msg_close_buffer();
 
       for (i = _buffer_entries; i > 0; i--)
          bm_close_buffer(i);
