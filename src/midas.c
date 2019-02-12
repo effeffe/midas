@@ -6645,6 +6645,7 @@ INT cm_shutdown(const char *name, BOOL bUnique)
             cm_msg(MERROR, "cm_shutdown", "Killing and Deleting client \'%s\' pid %d", client_name,
                    client_pid);
             kill(client_pid, SIGKILL);
+            return_status = CM_SUCCESS;
             status = cm_delete_client_info(hDB, client_pid);
             if (status != CM_SUCCESS)
                cm_msg(MERROR, "cm_shutdown", "Cannot delete client info for client \'%s\', pid %d, status %d",
@@ -10232,6 +10233,12 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    if (_client_name[0] == 0) {
       cm_msg(MERROR, "rpc_client_connect", "cm_connect_experiment/rpc_set_name not called");
       return RPC_NOT_REGISTERED;
+   }
+
+   /* refuse connection to port 0 */
+   if (port == 0) {
+      cm_msg(MERROR, "rpc_client_connect", "invalid port %d", port);
+      return RPC_NET_ERROR;
    }
 
    /* make this funciton multi-thread safe */

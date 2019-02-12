@@ -2660,7 +2660,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                if (strcmp(param[1], "all") == 0)
                   printf("No clients found\n");
                else
-                  printf("Client %s not active\n", param[1]);
+                  printf("Client \"%s\" not active\n", param[1]);
             }
          }
       }
