@@ -66,7 +66,7 @@ void create_runlog_ascii_tree();
 "Format = STRING : [8] MIDAS",\
 "Compression = INT : 0",\
 "ODB dump = BOOL : 1",\
-"ODB dump format = STRING : [32] odb",\
+"ODB dump format = STRING : [32] json",\
 "Log messages = DWORD : 0",\
 "Buffer = STRING : [32] SYSTEM",\
 "Event ID = INT : -1",\
@@ -77,10 +77,10 @@ void create_runlog_ascii_tree();
 "Tape capacity = DOUBLE : 0",\
 "Subdir format = STRING : [32]",\
 "Current filename = STRING : [256]",\
-"Data checksum = STRING : [256]",\
-"File checksum = STRING : [256]",\
-"Compress = STRING : [256]",\
-"Output = STRING : [256]",\
+"Data checksum = STRING : [256] CRC32C",\
+"File checksum = STRING : [256] CRC32C",\
+"Compress = STRING : [256] lz4",\
+"Output = STRING : [256] FILE",\
 "",\
 "[Statistics]",\
 "Events written = DOUBLE : 0",\
@@ -1540,11 +1540,11 @@ void logger_init()
    flag = FALSE;
    db_get_value(hDB, 0, "/Logger/ODB Dump", &flag, &size, TID_BOOL, TRUE);
 
-   strcpy(str, "run%05d.odb");
+   strcpy(str, "run%05d.json");
    size = sizeof(str);
    db_get_value(hDB, 0, "/Logger/ODB Dump File", str, &size, TID_STRING, TRUE);
 
-   strcpy(str, "last.odb");
+   strcpy(str, "last.json");
    size = sizeof(str);
    db_get_value(hDB, 0, "/Logger/ODB Last Dump File", str, &size, TID_STRING, TRUE);
 
@@ -5552,7 +5552,7 @@ INT tr_start(INT run_number, char *error)
    cm_get_experiment_database(&hDB, NULL);
 
    /* save current ODB */
-   std::string str = "last.odb";
+   std::string str = "last.json";
    db_get_value_string(hDB, 0, "/Logger/ODB Last Dump File", 0, &str, TRUE);
    odb_save(str.c_str());
 
@@ -5897,12 +5897,12 @@ INT tr_stop(INT run_number, char *error)
    flag = 0;
    db_get_value(hDB, 0, "/Logger/ODB Dump", &flag, &size, TID_BOOL, TRUE);
    if (flag) {
-      strcpy(str, "run%d.odb");
+      strcpy(str, "run%d.json");
       size = sizeof(str);
       str[0] = 0;
       db_get_value(hDB, 0, "/Logger/ODB Dump File", str, &size, TID_STRING, TRUE);
       if (str[0] == 0)
-         strcpy(str, "run%d.odb");
+         strcpy(str, "run%d.json");
 
       /* substitue "%d" by current run number */
       if (strchr(str, '%'))
