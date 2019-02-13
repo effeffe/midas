@@ -66,6 +66,7 @@ void create_runlog_ascii_tree();
 "Format = STRING : [8] MIDAS",\
 "Compression = INT : 0",\
 "ODB dump = BOOL : 1",\
+"ODB dump format = STRING : [32] odb",\
 "Log messages = DWORD : 0",\
 "Buffer = STRING : [32] SYSTEM",\
 "Event ID = INT : -1",\
@@ -99,6 +100,7 @@ typedef struct {
    char format[8];
    INT compression;
    BOOL odb_dump;
+   char odb_dump_format[32];
    DWORD log_messages;
    char buffer[32];
    INT event_id;
@@ -1542,6 +1544,10 @@ void logger_init()
    size = sizeof(str);
    db_get_value(hDB, 0, "/Logger/ODB Dump File", str, &size, TID_STRING, TRUE);
 
+   strcpy(str, "last.odb");
+   size = sizeof(str);
+   db_get_value(hDB, 0, "/Logger/ODB Last Dump File", str, &size, TID_STRING, TRUE);
+
    flag = FALSE;
    size = sizeof(BOOL);
    db_get_value(hDB, 0, "/Logger/Auto restart", &flag, &size, TID_BOOL, TRUE);
@@ -1586,7 +1592,36 @@ void logger_init()
 
 /*---- ODB dump routine --------------------------------------------*/
 
-void log_odb_dump(LOG_CHN * log_chn, short int event_id, INT run_number)
+void log_odb_dump_odb(LOG_CHN * log_chn, short int event_id, INT run_number)
+{
+   /* write ODB dump */
+
+   static int buffer_size = 100000;
+
+   do {
+      EVENT_HEADER* pevent = (EVENT_HEADER *) malloc(buffer_size);
+      if (pevent == NULL) {
+         cm_msg(MERROR, "log_odb_dump", "Cannot allocate ODB dump buffer");
+         break;
+      }
+
+      int size = buffer_size - sizeof(EVENT_HEADER);
+      //int status = db_copy_xml(hDB, 0, (char *) (pevent + 1), &size);
+      int status = db_copy(hDB, 0, (char *) (pevent + 1), &size, "");
+      if (status != DB_TRUNCATED) {
+         bm_compose_event(pevent, event_id, MIDAS_MAGIC, buffer_size - sizeof(EVENT_HEADER) - size + 1, run_number);
+         log_write(log_chn, pevent);
+         free(pevent);
+         break;
+      }
+
+      /* increase buffer size if truncated */
+      free(pevent);
+      buffer_size *= 10;
+   } while (1);
+}
+
+void log_odb_dump_xml(LOG_CHN * log_chn, short int event_id, INT run_number)
 {
    /* write ODB dump */
 
@@ -1605,8 +1640,7 @@ void log_odb_dump(LOG_CHN * log_chn, short int event_id, INT run_number)
       /* following line would dump ODB in old ASCII format instead of XML */
       //status = db_copy(hDB, 0, (char *) (pevent + 1), &size, "");
       if (status != DB_TRUNCATED) {
-         bm_compose_event(pevent, event_id, MIDAS_MAGIC,
-                          buffer_size - sizeof(EVENT_HEADER) - size + 1, run_number);
+         bm_compose_event(pevent, event_id, MIDAS_MAGIC, buffer_size - sizeof(EVENT_HEADER) - size + 1, run_number);
          log_write(log_chn, pevent);
          free(pevent);
          break;
@@ -1616,6 +1650,46 @@ void log_odb_dump(LOG_CHN * log_chn, short int event_id, INT run_number)
       free(pevent);
       buffer_size *= 10;
    } while (1);
+}
+
+void log_odb_dump_json(LOG_CHN * log_chn, short int event_id, INT run_number)
+{
+   /* write ODB dump */
+
+   char* buffer = NULL;
+   int buffer_size = 0;
+   int buffer_end = 0;
+
+   int status = db_copy_json_save(hDB, 0, &buffer, &buffer_size, &buffer_end);
+
+   //printf("db_copy_json_save: status %d, buffer_size %d, buffer_end %d\n", status, buffer_size, buffer_end);
+
+   if (status == DB_SUCCESS) {
+      int event_size = sizeof(EVENT_HEADER) + buffer_end;
+      EVENT_HEADER* pevent = (EVENT_HEADER *) malloc(event_size);
+      if (pevent == NULL) {
+         cm_msg(MERROR, "log_odb_dump", "Cannot allocate ODB dump buffer size %d", event_size);
+      } else {
+         bm_compose_event(pevent, event_id, MIDAS_MAGIC, buffer_end, run_number);
+         memcpy(pevent+1, buffer, buffer_end);
+         log_write(log_chn, pevent);
+         free(pevent);
+      }
+   }
+   free(buffer);
+}
+
+void log_odb_dump(LOG_CHN * log_chn, short int event_id, INT run_number)
+{
+   if (equal_ustring(log_chn->settings.odb_dump_format, "odb")) {
+      log_odb_dump_odb(log_chn, event_id, run_number);
+   } else if (equal_ustring(log_chn->settings.odb_dump_format, "xml")) {
+      log_odb_dump_xml(log_chn, event_id, run_number);
+   } else if (equal_ustring(log_chn->settings.odb_dump_format, "json")) {
+      log_odb_dump_json(log_chn, event_id, run_number);
+   } else {
+      cm_msg(MERROR, "log_odb_dump", "Invalid ODB dump format \"%s\" in ODB settings for channel \"%s\". Valid formats are: \"odb\", \"xml\", \"json\"", log_chn->settings.odb_dump_format, log_chn->name.c_str());
+   }
 }
 
 /*---- ODB save routine --------------------------------------------*/
@@ -1638,12 +1712,19 @@ void odb_save(const char *filename)
    } else
       strcpy(path, filename);
 
-   if (strstr(filename, ".xml") || strstr(filename, ".XML"))
+   DWORD t0 = ss_millitime();
+
+   if (ends_with_ustring(filename, ".xml"))
       db_save_xml(hDB, 0, path);
-   else if (strstr(filename, ".js") || strstr(filename, ".JS"))
+   else if (ends_with_ustring(filename, ".json"))
       db_save_json(hDB, 0, path);
    else
       db_save(hDB, 0, path, FALSE);
+
+   DWORD te = ss_millitime();
+
+   if (verbose)
+      printf("saved odb to \"%s\" in %d ms\n", path, te-t0);
 }
 
 
@@ -5466,15 +5547,23 @@ INT tr_start(INT run_number, char *error)
    if (verbose)
       printf("tr_start: run %d\n", run_number);
 
+   DWORD t0 = ss_millitime();
+
    cm_get_experiment_database(&hDB, NULL);
 
    /* save current ODB */
-   odb_save("last.xml");
+   std::string str = "last.odb";
+   db_get_value_string(hDB, 0, "/Logger/ODB Last Dump File", 0, &str, TRUE);
+   odb_save(str.c_str());
+
+   DWORD t1 = ss_millitime();
 
    in_stop_transition = TRUE;
 
    close_channels(run_number, NULL);
    close_buffers();
+
+   DWORD t2 = ss_millitime();
 
    in_stop_transition = FALSE;
 
@@ -5698,6 +5787,8 @@ INT tr_start(INT run_number, char *error)
       }
    }
 
+   DWORD t3 = ss_millitime();
+
    if (tape_flag && tape_message)
       cm_msg(MTALK, "tr_start", "tape mounting finished");
 
@@ -5713,6 +5804,7 @@ INT tr_start(INT run_number, char *error)
    /* write transition event into history */
    write_history(STATE_RUNNING, run_number);
 
+   DWORD t4 = ss_millitime();
 
 #ifdef HAVE_MYSQL
    /* write to SQL database if requested */
@@ -5721,6 +5813,20 @@ INT tr_start(INT run_number, char *error)
 
    /* write to runlog file if requested */
    write_runlog_ascii(TRUE);
+
+   DWORD t5 = ss_millitime();
+   DWORD te = t5;
+
+   if (verbose)
+      printf("tr_start: run %d started in %d ms: odb dump %d ms, close channels %d ms, configure channels %d ms, configure history %d ms, write runlog %d ms\n",
+             run_number,
+             te-t0,
+             t1-t0,
+             t2-t1,
+             t3-t2,
+             t4-t3,
+             t5-t4
+             );
 
    local_state = STATE_RUNNING;
    run_start_time = subrun_start_time = ss_time();
@@ -5777,10 +5883,14 @@ INT tr_stop(INT run_number, char *error)
    if (in_stop_transition)
       return CM_SUCCESS;
 
+   DWORD t0 = ss_millitime();
+
    in_stop_transition = TRUE;
 
    close_channels(run_number, &tape_flag);
    close_buffers();
+
+   DWORD t1 = ss_millitime();
 
    /* ODB dump if requested */
    size = sizeof(flag);
@@ -5802,6 +5912,9 @@ INT tr_stop(INT run_number, char *error)
 
       odb_save(filename);
    }
+
+   DWORD t2 = ss_millitime();
+
 #ifdef HAVE_MYSQL
    /* write to SQL database if requested */
    write_runlog_sql(FALSE);
@@ -5809,6 +5922,8 @@ INT tr_stop(INT run_number, char *error)
    
    /* write to ASCII file if requested */
    write_runlog_ascii(FALSE);
+
+   DWORD t3 = ss_millitime();
    
    in_stop_transition = FALSE;
 
@@ -5817,6 +5932,8 @@ INT tr_stop(INT run_number, char *error)
 
    /* write transition event into history */
    write_history(STATE_STOPPED, run_number);
+
+   DWORD t4 = ss_millitime();
 
    /* clear flag */
    stop_requested = FALSE;
@@ -5828,6 +5945,18 @@ INT tr_stop(INT run_number, char *error)
       auto_restart = ss_time() + delay; /* start after specified delay */
       start_requested = FALSE;
    }
+
+   DWORD te = t4;
+
+   if (verbose)
+      printf("tr_stop: run %d stopped in %d ms: close channels %d ms, odb dump %d ms, write run log %d ms, write history %d ms\n",
+             run_number,
+             te-t0,
+             t1-t0,
+             t2-t1,
+             t3-t2,
+             t4-t3);
+
 
    local_state = STATE_STOPPED;
 
