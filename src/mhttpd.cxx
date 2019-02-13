@@ -1524,6 +1524,7 @@ void init_menu_buttons()
    db_get_value(hDB, 0, "/Experiment/Menu/Elog",       &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Alarms",     &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Programs",   &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Buffers",    &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/History",    &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/MSCB",       &value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Sequencer",  &value, &size, TID_BOOL, TRUE);
@@ -1558,7 +1559,6 @@ void init_mhttpd_odb()
 
 void init_elog_odb()
 {
-   int status;
    HNDLE hDB;
    int size;
    HNDLE hkey;
@@ -1568,8 +1568,8 @@ void init_elog_odb()
    std::string external_elog_url;
 
    size = sizeof(external_elog);
-   status = db_get_value(hDB, 0, "/Elog/External Elog", &external_elog, &size, TID_BOOL, TRUE);
-   status = db_get_value_string(hDB, 0, "/Elog/URL", 0, &external_elog_url, TRUE);
+   db_get_value(hDB, 0, "/Elog/External Elog", &external_elog, &size, TID_BOOL, TRUE);
+   db_get_value_string(hDB, 0, "/Elog/URL", 0, &external_elog_url, TRUE);
 
    BOOL allow_delete = FALSE;
    BOOL allow_edit = FALSE;
@@ -15468,6 +15468,11 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (equal_ustring(command, "chat")) {
       send_resource(r, "chat.html");
+      return;
+   }
+
+   if (equal_ustring(command, "buffers")) {
+      send_resource(r, "buffers.html");
       return;
    }
 
