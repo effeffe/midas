@@ -2689,7 +2689,17 @@ BOOL equal_ustring(const char *str1, const char *str2)
    return TRUE;
 }
 
+BOOL ends_with_ustring(const char *str, const char *suffix)
+{
+   int len_str = strlen(str);
+   int len_suffix = strlen(suffix);
 
+   // suffix is longer than the string
+   if (len_suffix > len_str)
+      return FALSE;
+
+   return equal_ustring(str + len_str - len_suffix, suffix);
+}
 
 /********************************************************************/
 /**

@@ -1723,6 +1723,7 @@ extern "C" {
    INT EXPRT cm_msg_early_init(void);
 
    BOOL EXPRT equal_ustring(const char *str1, const char *str2);
+   BOOL EXPRT ends_with_ustring(const char *str, const char *suffix);
 
    /*---- buffer manager ----*/
    INT EXPRT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle);
