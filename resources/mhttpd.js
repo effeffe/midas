@@ -1591,22 +1591,24 @@ function mhttpd_refresh() {
          modbgauge[i].draw();
       }
 
+      var alarms = rpc[1].result;
+
       // update alarm display
       var e = document.getElementById('mheader_alarm');
-      if (!rpc[1].result.alarm_system_active) {
+      if (!alarms.alarm_system_active) {
          e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: Off</a>";
          e.className = "mgray mbox";
       } else {
-         if (Object.keys(rpc[1].result.alarms) === 0) {
+         var s = "";
+         var n = 0;
+         for (var a in alarms.alarms) {
+            s += a + ", ";
+            n++;
+         }
+         if (n < 1) {
             e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: None</a>";
             e.className = "mgreen mbox";
          } else {
-            var s = "";
-            var n = 0;
-            for (var a in rpc[1].result.alarms) {
-               s += a + ", ";
-               n++;
-            }
             s = s.slice(0, -2);
             if (n > 1)
                e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: " + s + "</a>";
