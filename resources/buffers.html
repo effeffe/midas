@@ -61,8 +61,8 @@
       td.align = "center";
       var s = "";
       s += "Size: <span id=\"" + bufname + "_bufsize" + "\">bufsize</span>, ";
-      s += "Fill: <span id=\"" + bufname + "_buffill" + "\">buffill</span>, ";
-      s += "Free: <span id=\"" + bufname + "_buffree" + "\">buffree</span>, ";
+      s += "Filled: <span id=\"" + bufname + "_buffill" + "\">buffill</span>, ";
+      s += "Used: <span id=\"" + bufname + "_bufused" + "\">bufused</span>, ";
       s += "Age: <span id=\"" + bufname + "_bufage" + "\">bufage</span> ";
       td.innerHTML = s;
       tr.appendChild(td);
@@ -283,6 +283,10 @@
          if (wc.length > 0)
             wc += "<br>";
          wc += "GET_ALL";
+         wc += " ";
+         wc += "Used " + client.bytes_used + " bytes";
+         wc += " ";
+         wc += client.pct_used.toFixed(1) + "%";
       }
       for (var w in client.writes_blocked_by) {
          if (w.indexOf("/") > 0)
@@ -303,8 +307,14 @@
       
       var buffer_table = create_buffer_table(bufname);
 
+      console.log("buffer: " + JSON.stringify(buffer));
+
       set_text(bufname + "_bufsize", buffer.size);
+      set_text(bufname + "_buffill", buffer["filled"] + " bytes, " + buffer["filled pct"].toFixed(1) + "%");
       set_text(bufname + "_bufage", millitime_to_string(now-buffer["last updated"]));
+
+      var max_bytes_used = 0;
+      var max_pct_used = 0;
 
       for (var c in buffer.clients) {
          if (c.indexOf("/") > 0)
@@ -313,7 +323,16 @@
          var client_name = buffer.clients[c+"/name"];
 
          show_client(bufname, client_name, client, now);
+
+         if (client.get_all_flag) {
+            if (client.bytes_used > max_bytes_used) {
+               max_bytes_used = client.bytes_used;
+               max_pct_used = client.pct_used;
+            }
+         }
       }
+
+      set_text(bufname + "_bufused", max_bytes_used + " bytes, " + max_pct_used.toFixed(1) + "%");
    }
 
    function callback(rpc_batch) {

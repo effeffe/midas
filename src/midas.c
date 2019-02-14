@@ -5753,9 +5753,49 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER* pbuf, BOOL forc
          return;
    }
 
+   double buf_size = 0;
+   double buf_rptr = 0;
+   double buf_wptr = 0;
+   double buf_fill = 0;
+   double buf_cptr = 0;
+   double buf_cused = 0;
+   double buf_cused_pct = 0;
+
    if (pbuf->attached && pbuf->buffer_header) {
-      double buf_size = pbuf->buffer_header->size;
+      buf_size = pbuf->buffer_header->size;
+      buf_rptr = pbuf->buffer_header->read_pointer;
+      buf_wptr = pbuf->buffer_header->write_pointer;
+      if (pbuf->client_index >= 0 && pbuf->client_index <= pbuf->buffer_header->max_client_index) {
+         buf_cptr = pbuf->buffer_header->client[pbuf->client_index].read_pointer;
+
+         if (buf_wptr > buf_cptr) {
+            buf_cused = buf_wptr - buf_cptr;
+         } else {
+            buf_cused = (buf_size - buf_cptr) + buf_wptr;
+         }
+
+         buf_cused_pct = buf_cused/buf_size*100.0;
+
+         // we cannot write buf_cused and buf_cused_pct into the buffer statistics
+         // because some other GET_ALL client may have different buf_cused & etc,
+         // so they must be written into the per-client statistics
+         // and the web page should look at all the GET_ALL clients and used
+         // the biggest buf_cused as the whole-buffer "bytes used" value.
+      }
+
+      if (buf_wptr > buf_rptr) {
+         buf_fill = buf_wptr - buf_rptr;
+      } else {
+         buf_fill = (buf_size - buf_rptr) + buf_wptr;
+      }
+
+      double buf_fill_pct = buf_fill/buf_size*100.0;
+      
       db_set_value(hDB, hKeyBuffer, "Size", &buf_size, sizeof(double), 1, TID_DOUBLE);
+      db_set_value(hDB, hKeyBuffer, "Write pointer", &buf_wptr, sizeof(double), 1, TID_DOUBLE);
+      db_set_value(hDB, hKeyBuffer, "Read pointer", &buf_rptr, sizeof(double), 1, TID_DOUBLE);
+      db_set_value(hDB, hKeyBuffer, "Filled", &buf_fill, sizeof(double), 1, TID_DOUBLE);
+      db_set_value(hDB, hKeyBuffer, "Filled pct", &buf_fill_pct, sizeof(double), 1, TID_DOUBLE);
    }
    
    status = db_find_key(hDB, hKeyBuffer, "Clients", &hKey);
@@ -5774,15 +5814,18 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER* pbuf, BOOL forc
          return;
    }
    
-   db_set_value(hDB, hKeyClient, "count_lock", &pbuf->count_lock, sizeof(int), 1, TID_INT);
-   db_set_value(hDB, hKeyClient, "count_sent", &pbuf->count_sent, sizeof(int), 1, TID_INT);
-   db_set_value(hDB, hKeyClient, "bytes_sent", &pbuf->bytes_sent, sizeof(double), 1, TID_DOUBLE);
+   db_set_value(hDB, hKeyClient, "count_lock", &pbuf->count_lock,   sizeof(int),    1, TID_INT);
+   db_set_value(hDB, hKeyClient, "count_sent", &pbuf->count_sent,   sizeof(int),    1, TID_INT);
+   db_set_value(hDB, hKeyClient, "bytes_sent", &pbuf->bytes_sent,   sizeof(double), 1, TID_DOUBLE);
    db_set_value(hDB, hKeyClient, "count_write_wait", &pbuf->count_write_wait, sizeof(int), 1, TID_INT);
    db_set_value(hDB, hKeyClient, "time_write_wait", &pbuf->time_write_wait, sizeof(DWORD), 1, TID_DWORD);
    db_set_value(hDB, hKeyClient, "max_bytes_write_wait", &pbuf->max_requested_space, sizeof(INT), 1, TID_INT);
    db_set_value(hDB, hKeyClient, "count_read",   &pbuf->count_read, sizeof(int),    1, TID_INT);
    db_set_value(hDB, hKeyClient, "bytes_read",   &pbuf->bytes_read, sizeof(double), 1, TID_DOUBLE);
    db_set_value(hDB, hKeyClient, "get_all_flag", &pbuf->get_all_flag, sizeof(BOOL), 1, TID_BOOL);
+   db_set_value(hDB, hKeyClient, "read_pointer", &buf_cptr,         sizeof(double), 1, TID_DOUBLE);
+   db_set_value(hDB, hKeyClient, "bytes_used",   &buf_cused,        sizeof(double), 1, TID_DOUBLE);
+   db_set_value(hDB, hKeyClient, "pct_used",     &buf_cused_pct,    sizeof(double), 1, TID_DOUBLE);
 
    if (pbuf->attached && pbuf->buffer_header) {
       int i;
