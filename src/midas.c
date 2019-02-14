@@ -5768,7 +5768,9 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER* pbuf, BOOL forc
       if (pbuf->client_index >= 0 && pbuf->client_index <= pbuf->buffer_header->max_client_index) {
          buf_cptr = pbuf->buffer_header->client[pbuf->client_index].read_pointer;
 
-         if (buf_wptr > buf_cptr) {
+         if (buf_wptr == buf_cptr) {
+            buf_cused = 0;
+         } else if (buf_wptr > buf_cptr) {
             buf_cused = buf_wptr - buf_cptr;
          } else {
             buf_cused = (buf_size - buf_cptr) + buf_wptr;
@@ -5783,7 +5785,9 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER* pbuf, BOOL forc
          // the biggest buf_cused as the whole-buffer "bytes used" value.
       }
 
-      if (buf_wptr > buf_rptr) {
+      if (buf_wptr == buf_rptr) {
+         buf_fill = 0;
+      } else if (buf_wptr > buf_rptr) {
          buf_fill = buf_wptr - buf_rptr;
       } else {
          buf_fill = (buf_size - buf_rptr) + buf_wptr;
