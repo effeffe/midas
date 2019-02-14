@@ -36,7 +36,7 @@
       var tr;
       var td;
 
-      var span = 7;
+      var span = 9;
 
       // table name - show buffer name
 
@@ -100,6 +100,16 @@
       td = document.createElement("th");
       td.align = "center";
       td.innerHTML = "Wait time";
+      tr.appendChild(td);
+      
+      td = document.createElement("th");
+      td.align = "center";
+      td.innerHTML = "Wait bytes";
+      tr.appendChild(td);
+      
+      td = document.createElement("th");
+      td.align = "center";
+      td.innerHTML = "Wait client";
       tr.appendChild(td);
       
       td = document.createElement("th");
@@ -201,6 +211,18 @@
       tr.appendChild(td);
       
       td = document.createElement("td");
+      td.id = p + "_wait_bytes";
+      td.align = "center";
+      td.innerHTML = "wait_bytes";
+      tr.appendChild(td);
+      
+      td = document.createElement("td");
+      td.id = p + "_wait_client";
+      td.align = "center";
+      td.innerHTML = "wait_client";
+      tr.appendChild(td);
+      
+      td = document.createElement("td");
       td.id = p + "_age";
       td.align = "center";
       td.innerHTML = "age";
@@ -243,10 +265,35 @@
    function show_client(bufname, client_name, client, now) {
       create_client(bufname, client_name);
       set_text(bufname + "_" + client_name + "_locks", client.count_lock);
-      set_text(bufname + "_" + client_name + "_events", client.count_sent);
-      set_text(bufname + "_" + client_name + "_bytes", client.bytes_sent);
+      if (client.count_read > 0) {
+         set_text(bufname + "_" + client_name + "_events", client.count_sent + "w+" + client.count_read + "r");
+      } else {
+         set_text(bufname + "_" + client_name + "_events", client.count_sent);
+      }
+      if (client.bytes_read > 0) {
+         set_text(bufname + "_" + client_name + "_bytes", client.bytes_sent + "w+" + client.bytes_read + "r");
+      } else {
+         set_text(bufname + "_" + client_name + "_bytes", client.bytes_sent);
+      }
       set_text(bufname + "_" + client_name + "_waits", client.count_write_wait);
       set_text(bufname + "_" + client_name + "_wait_time", client.time_write_wait);
+      set_text(bufname + "_" + client_name + "_wait_bytes", client.max_bytes_write_wait);
+      var wc = "";
+      if (client.get_all_flag) {
+         if (wc.length > 0)
+            wc += "<br>";
+         wc += "GET_ALL";
+      }
+      for (var w in client.writes_blocked_by) {
+         if (w.indexOf("/") > 0)
+            continue;
+         var wclient = client.writes_blocked_by[w];
+         var wclient_name = client.writes_blocked_by[w+"/name"];
+         if (wc.length > 0)
+            wc += "<br>";
+         wc += wclient_name + " " + wclient.count_write_wait + " " + wclient.time_write_wait;
+      }
+      set_text(bufname + "_" + client_name + "_wait_client", wc);
       set_text(bufname + "_" + client_name + "_age", millitime_to_string(now - client.last_updated));
    }
 
@@ -266,71 +313,6 @@
          var client_name = buffer.clients[c+"/name"];
 
          show_client(bufname, client_name, client, now);
-      }
-
-      return;
-      
-      //continue;
-      
-      if (!e)
-         return;
-      
-      //console.log(name + " | " + name + " | " + e);
-      
-      var time_string = "";
-      
-      if (client.connect_start_time == 0 && client.end_time == 0) {
-         var wait_time = millitime - client.init_time;
-         time_string += time2sec(wait_time);
-      } else {
-         var wait_time = client.connect_start_time - client.init_time;
-         time_string += time2sec(wait_time);
-         
-         if (client.connect_end_time == 0 && client.end_time == 0) {
-            var connect_time = millitime - client.connect_start_time;
-            time_string += "/" + time2sec(connect_time) + ", timeout " + time2sec(client.connect_timeout);
-         } else {
-            var connect_time = client.connect_end_time - client.connect_start_time;
-            time_string += "/" + time2sec(connect_time);
-
-            if (client.rpc_end_time == 0 && client.end_time == 0) {
-               var rpc_time = millitime - client.rpc_start_time;
-               time_string += "+" + time2sec(rpc_time) + ", timeout " + time2sec(client.rpc_timeout);
-            } else {
-               var rpc_time = client.rpc_end_time - client.rpc_start_time;
-               time_string += "+" + time2sec(rpc_time);
-               
-               if (client.end_time == 0) {
-                  var tr_time = millitime - client.connect_start_time;
-                  time_string += "=" + time2sec(tr_time);
-               } else {
-                  var tr_time = client.end_time - client.connect_start_time;
-                  time_string += "=" + time2sec(tr_time);
-               }
-            }
-         }
-      }
-      
-      e.childNodes[0].innerHTML = client.client_name;
-      e.childNodes[1].innerHTML = client.sequence_number;
-      e.childNodes[2].innerHTML = time_string;
-      if (client.status == 0) {
-         e.childNodes[3].innerHTML = "Waiting...";
-         e.childNodes[3].className = "";
-      } else if (client.status == 1) {
-         e.childNodes[3].innerHTML = "Success";
-         e.childNodes[3].className = "mgreen mbox";
-      } else {
-         e.childNodes[3].innerHTML = client.status;
-         e.childNodes[3].className = "mred mbox";
-      }
-      
-      if (client.error.length > 0) {
-         e.childNodes[4].innerHTML = client.error;
-      } else if (client.waiting_for_client.length > 0) {
-         e.childNodes[4].innerHTML = "Waiting for " + client.waiting_for_client;
-      } else {
-         e.childNodes[4].innerHTML = "";
       }
    }
 

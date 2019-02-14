@@ -5779,6 +5779,10 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER* pbuf, BOOL forc
    db_set_value(hDB, hKeyClient, "bytes_sent", &pbuf->bytes_sent, sizeof(double), 1, TID_DOUBLE);
    db_set_value(hDB, hKeyClient, "count_write_wait", &pbuf->count_write_wait, sizeof(int), 1, TID_INT);
    db_set_value(hDB, hKeyClient, "time_write_wait", &pbuf->time_write_wait, sizeof(DWORD), 1, TID_DWORD);
+   db_set_value(hDB, hKeyClient, "max_bytes_write_wait", &pbuf->max_requested_space, sizeof(INT), 1, TID_INT);
+   db_set_value(hDB, hKeyClient, "count_read",   &pbuf->count_read, sizeof(int),    1, TID_INT);
+   db_set_value(hDB, hKeyClient, "bytes_read",   &pbuf->bytes_read, sizeof(double), 1, TID_DOUBLE);
+   db_set_value(hDB, hKeyClient, "get_all_flag", &pbuf->get_all_flag, sizeof(BOOL), 1, TID_BOOL);
 
    if (pbuf->attached && pbuf->buffer_header) {
       int i;
@@ -7353,6 +7357,8 @@ INT bm_add_event_request(INT buffer_handle, short int event_id,
 
       pclient->all_flag = pclient->all_flag || (sampling_type & GET_ALL);
 
+      pbuf->get_all_flag = pclient->all_flag;
+
       /* set callback flag in buffer structure */
       if (func != NULL)
          pbuf->callback = TRUE;
@@ -7504,7 +7510,7 @@ INT bm_remove_event_request(INT buffer_handle, INT request_id)
 
       pclient->max_request_index = i + 1;
 
-      /* caluclate new all_flag */
+      /* calculate new all_flag */
       pclient->all_flag = FALSE;
 
       for (i = 0; i < pclient->max_request_index; i++)
@@ -7512,6 +7518,8 @@ INT bm_remove_event_request(INT buffer_handle, INT request_id)
             pclient->all_flag = TRUE;
             break;
          }
+
+      pbuf->get_all_flag = pclient->all_flag;
 
       bm_unlock_buffer(pbuf);
 
@@ -7964,6 +7972,8 @@ static int bm_fill_read_cache_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, int a
 
          /* update statistics */
          pheader->num_out_events++;
+         pbuf->count_read++;
+         pbuf->bytes_read += event_size;
       }
 
       /* shift read pointer */
@@ -8890,6 +8900,9 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
             if (convert_flags) {
                bm_convert_event_header((EVENT_HEADER *)buf, convert_flags);
             }
+
+            pbuf->count_read++;
+            pbuf->bytes_read += event_size;
          }
 
          if (dispatch || bufptr) {
@@ -8897,6 +8910,9 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
             event_buffer = (EVENT_HEADER*)malloc(event_size);
          
             bm_read_from_buffer_locked(pheader, pc->read_pointer, (char*)event_buffer, event_size);
+
+            pbuf->count_read++;
+            pbuf->bytes_read += event_size;
          }
          
          int new_read_pointer = bm_incr_rp_no_check(pheader, pc->read_pointer, total_size);

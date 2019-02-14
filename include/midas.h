@@ -939,6 +939,7 @@ typedef struct {
    INT shm_handle;                  /**< handle to shared memory      */
    BOOL callback;                   /**< callback defined for this buffer */
    BOOL locked;                     /**< buffer is currently locked by us */
+   BOOL get_all_flag;               /**< this is a get_all reader     */
 
    /* buffer statistics */
    int count_lock;                  /**< count how many times we locked the buffer */
@@ -950,6 +951,8 @@ typedef struct {
    DWORD wait_start_time;           /**< time when we started the wait */
    int wait_client_index;           /**< waiting for which client */
    int max_requested_space;         /**< waiting for this many bytes of free space */
+   int count_read;                  /**< count how many events we read */
+   double bytes_read;               /**< count how many bytes we read */
    int client_count_write_wait[MAX_CLIENTS]; /**< per-client count_write_wait */
    DWORD client_time_write_wait[MAX_CLIENTS]; /**< per-client time_write_wait */
 
