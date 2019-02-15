@@ -13922,7 +13922,6 @@ BOOL msl_parse(const char *filename, char *error, int error_size, int *error_lin
    } else {
       // WE NEVER COME HERE
       abort();
-      sprintf(error, "File error on \"%s\"", filename); // FIXME: overflows "error"
       return FALSE;
    }
    
