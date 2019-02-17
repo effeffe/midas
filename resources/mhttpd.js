@@ -853,6 +853,9 @@ function mhttpd_scan()
       if (mbar[i].style.position === "")
          mbar[i].style.position = "relative";
       mbar[i].style.border = "1px solid #808080";
+      // leave space for border
+      mbar[i].style.height = (parseInt(mbar[i].style.height) - 2) + "px";
+      mbar[i].style.width = (parseInt(mbar[i].style.width) - 2) + "px";
       color = mbar[i].style.color;
       mbar[i].innerHTML = "<div style='background-color:" + color + "; height:0; width:100%; position:absolute; bottom:0; left:0; display:inline-block; border-top:1px solid #808080'>&nbsp;</div>";
    }
@@ -1152,6 +1155,10 @@ function mhttpd_vaxis_draw()
    var h = this.firstChild.height;
    ctx.clearRect(0, 0, w, h);
 
+   var line = true;
+   if (this.dataset.line === "0")
+      line = false;
+
    var scaleMin = this.dataset.min;
    var scaleMax = this.dataset.max;
    if (scaleMin === undefined)
@@ -1166,10 +1173,14 @@ function mhttpd_vaxis_draw()
    ctx.fillStyle = "#FFFFFF";
    ctx.lineWidth = 1;
 
-   ctx.beginPath();
-   ctx.moveTo(w-1, h-1);
-   ctx.lineTo(w-1, 0);
-   ctx.stroke();
+   if (this.style.textAlign === "left") {
+      ctx.translate(-0.5, -0.5);
+      vaxisDraw(ctx, 0, h - 1, h - 1, line, 4, 8, 10, 12, 0, scaleMin, scaleMax);
+   }
+   else {
+      ctx.translate(-0.5, -0.5);
+      vaxisDraw(ctx, w, h - 1, h - 1, line, 4, 8, 10, 12, 0, scaleMin, scaleMax);
+   }
 
    ctx.restore();
 }
@@ -1181,6 +1192,10 @@ function mhttpd_haxis_draw()
    var w = this.firstChild.width;
    var h = this.firstChild.height;
    ctx.clearRect(0, 0, w, h);
+
+   var line = true;
+   if (this.dataset.line === "0")
+      line = false;
 
    var scaleMin = this.dataset.min;
    var scaleMax = this.dataset.max;
@@ -1197,11 +1212,11 @@ function mhttpd_haxis_draw()
 
    if (this.style.verticalAlign === "top") {
       ctx.translate(0.5, 0.5);
-      haxisDraw(ctx, 0, 0, w - 1, 4, 8, 10, 10, 0, scaleMin, scaleMax);
+      haxisDraw(ctx, 0, 0, w - 1, line, 4, 8, 10, 10, 0, scaleMin, scaleMax);
    }
    else {
       ctx.translate(0.5, -0.5);
-      haxisDraw(ctx, 0, h, w - 1, 4, 8, 10, 20, 0, scaleMin, scaleMax);
+      haxisDraw(ctx, 0, h, w - 1, line, 4, 8, 10, 20, 0, scaleMin, scaleMax);
    }
    ctx.restore();
 }
@@ -1217,7 +1232,7 @@ String.prototype.stripZeros = function () {
    return s;
 };
 
-function haxisDraw(ctx, x1, y1, width, minor, major, text, label, grid, xmin, xmax) {
+function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xmin, xmax) {
    var dx, int_dx, frac_dx, x_act, label_dx, major_dx, x_screen, maxwidth;
    var tick_base, major_base, label_base, n_sig1, n_sig2, xs;
    var base = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
@@ -1228,8 +1243,8 @@ function haxisDraw(ctx, x1, y1, width, minor, major, text, label, grid, xmin, xm
    if (xmax <= xmin || width <= 0)
       return;
 
-   /* use 10 as min tick distance */
-   dx = (xmax - xmin) / (width / 10);
+   /* use 6 as min tick distance */
+   dx = (xmax - xmin) / (width / 6);
 
    int_dx = Math.floor(Math.log(dx) / Math.log(10));
    frac_dx = Math.log(dx) / Math.log(10) - int_dx;
@@ -1300,7 +1315,8 @@ function haxisDraw(ctx, x1, y1, width, minor, major, text, label, grid, xmin, xm
 
    x_act = Math.floor(xmin / dx) * dx;
 
-   ctx.drawLine(x1, y1, x1 + width, y1);
+   if (line === true)
+      ctx.drawLine(x1, y1, x1 + width, y1);
 
    do {
       x_screen = (x_act - xmin) / (xmax - xmin) * width + x1;
@@ -1357,6 +1373,171 @@ function haxisDraw(ctx, x1, y1, width, minor, major, text, label, grid, xmin, xm
    } while (1);
 }
 
+
+function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, ymin, ymax, logaxis) {
+   var dy, int_dy, frac_dy, y_act, label_dy, major_dy, y_screen, maxwidth;
+   var tick_base, major_base, label_base, n_sig1, n_sig2, ys;
+   var base = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+
+   if (x1 > 0)
+      ctx.textAlign = "right";
+   else
+      ctx.textAlign = "left";
+   ctx.textBaseline = "middle";
+   var ext = ctx.font.match(/\d+/)[0];
+
+   if (ymax <= ymin || height <= 0)
+      return;
+
+   if (logaxis) {
+      dy = Math.pow(10, Math.floor(Math.log(ymin) / Math.log(10)));
+      label_dy = dy;
+      major_dy = dy * 10;
+      n_sig1 = 4;
+   } else {
+      /* use 6 as min tick distance */
+      dy = (ymax - ymin) / (height / 6);
+
+      int_dy = Math.floor(Math.log(dy) / Math.log(10));
+      frac_dy = Math.log(dy) / Math.log(10) - int_dy;
+
+      if (frac_dy < 0) {
+         frac_dy += 1;
+         int_dy -= 1;
+      }
+
+      tick_base = frac_dy < (Math.log(2) / Math.log(10)) ? 1 : frac_dy < (Math.log(5) / Math.log(10)) ? 2 : 3;
+      major_base = label_base = tick_base + 1;
+
+      /* rounding up of dy, label_dy */
+      dy = Math.pow(10, int_dy) * base[tick_base];
+      major_dy = Math.pow(10, int_dy) * base[major_base];
+      label_dy = major_dy;
+
+      /* number of significant digits */
+      if (ymin == 0)
+         n_sig1 = 0;
+      else
+         n_sig1 = Math.floor(Math.log(Math.abs(xmin)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dy)) / Math.log(10)) + 1;
+
+      if (ymax == 0)
+         n_sig2 = 0;
+      else
+         n_sig2 = Math.floor(Math.log(Math.abs(ymax)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dy)) / Math.log(10)) + 1;
+
+      n_sig1 = Math.max(n_sig1, n_sig2);
+
+      // toPrecision displays 1050 with 3 digits as 1.05e+3, so increase presicion to number of digits
+      if (Math.abs(ymin) < 100000)
+         n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(ymin)) / Math.log(10)) + 1);
+      if (Math.abs(ymax) < 100000)
+         n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(ymax)) / Math.log(10)) + 1);
+
+      /* increase label_dy if labels would overlap */
+      while (label_dy / (ymax - ymin) * height < 1.5 * ext) {
+         label_base++;
+         label_dy = Math.pow(10, int_dy) * base[label_base];
+         if (label_base % 3 == 2 && major_base % 3 == 1) {
+            major_base++;
+            major_dy = Math.pow(10, int_dy) * base[major_base];
+         }
+      }
+   }
+
+   if (x1 > 0) {
+      minor = -minor;
+      major = -major;
+      text = -text;
+      label = -label;
+   }
+
+   y_act = Math.floor(ymin / dy) * dy;
+
+   if (line === true)
+      ctx.drawLine(x1, y1, x1, y1 - height);
+
+   do {
+      if (logaxis)
+         y_screen = y1 - (Math.log(y_act) - Math.log(ymin)) / (Math.log(ymax) - Math.log(ymin)) * height;
+      else
+         y_screen = y1 - (y_act - ymin) / (ymax - ymin) * height;
+      ys = Math.floor(y_screen + 0.5);
+
+      if (y_screen < y1 - height - 0.001)
+         break;
+
+      if (y_screen <= y1 + 0.001) {
+         if (Math.abs(Math.floor(y_act / major_dy + 0.5) - y_act / major_dy) <
+            dy / major_dy / 10.0) {
+
+            if (Math.abs(Math.floor(y_act / label_dy + 0.5) - y_act / label_dy) <
+               dy / label_dy / 10.0) {
+               /* label tick mark */
+               ctx.drawLine(x1, ys, x1 + text, ys);
+
+               /* grid line */
+               if (grid != 0 && ys < y1 && ys > y1 - height)
+                  ctx.drawLine(x1, ys, x1 + grid, ys);
+
+               /* label */
+               if (label != 0) {
+                  str = y_act.toPrecision(n_sig1).stripZeros();
+                  ctx.save();
+                  ctx.fillStyle = "black";
+                  if (ys - ext / 2 > y1 - height &&
+                     ys + ext / 2 < y1)
+                     ctx.fillText(str, x1 + label, ys);
+                  ctx.restore();
+               }
+            } else {
+               /* major tick mark */
+               cts.drawLine(x1, ys, x1 + major, ys);
+
+               /* grid line */
+               if (grid != 0 && ys < y1 && ys > y1 - height)
+                  ctx.drawLine(x1, ys, x1 + grid, ys);
+            }
+
+            if (logaxis) {
+               dy *= 10;
+               major_dy *= 10;
+               label_dy *= 10;
+            }
+
+         } else
+            /* minor tick mark */
+            ctx.drawLine(x1, ys, x1 + minor, ys);
+
+         /* for logaxis, also put labes on minor tick marks */
+         if (logaxis) {
+            if (label != 0) {
+               /* calculate position of next major label */
+               y_next = Math.pow(10, Math.floor(Math.log(y_act) / Math.log(10)) + 1);
+               y_screen = y1 -
+                  (Math.log(y_next) - Math.log(ymin)) / (Math.log(ymax) -
+                  Math.log(ymin)) * height;
+
+               str = y_act.toPrecision(n_sig1).stripZeros();
+               ctx.save();
+               ctx.fillStyle = "black";
+               if (ys - ext.height / 2 > y1 - height &&
+                  ys + ext.height / 2 < y1)
+                  ctx.fillText(str, x1 + label, ys);
+               ctx.restore();
+
+               last_label_y = ys - ext.height / 2;
+            }
+         }
+      }
+
+      y_act += dy;
+
+      /* supress 1.23E-17 ... */
+      if (Math.abs(y_act) < dy / 100)
+         y_act = 0;
+
+   } while (1);
+}
 
 function mhttpd_resize_sidenav() {
    var h = document.getElementById('mheader');

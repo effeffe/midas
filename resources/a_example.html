@@ -7,6 +7,10 @@
    <script src="midas.js"></script>
    <script src="mhttpd.js"></script>
    <title>Example</title>
+
+   <style>
+      .mtable td { padding: 10px; }
+   </style>
 </head>
 
 <body class="mcss" onload="mhttpd_init('Test');">
@@ -74,7 +78,7 @@
                  data-value="0"></div><br />
             <div name="modbhbar" style="width: 200px; height: 10px;color:lightgreen;background-color:white" data-odb-path="/Runinfo/Run number" data-max-value="10"
                  data-value="0"></div>
-            <div name="mhaxis" style="width:200px;height:22px;vertical-align:top;" data-min="0" data-max="10"></div>
+            <div name="mhaxis" style="width:200px;height:22px;vertical-align:top;" data-min="0" data-max="10" data-line="0"></div>
          </td>
       </tr>
       <tr>
@@ -82,9 +86,8 @@
             Vertical bars:
          </td>
          <td>
-            <div name="mvaxis" style="width:30px;height:100px;" data-min="0" data-max="10"></div>
-            <div name="modbvbar" style="width:20px;height:100px;color:red;" data-odb-path="/Runinfo/Run number" data-min-value="4" data-max-value="20"></div>
-            <div name="modbvbar" style="width:10px;height:100px;vertical-align:top;color:red" data-odb-path="/Runinfo/Run number" data-max-value="10"></div>
+            <span name="mvaxis" style="width:100px;height:200px;text-align:right;" data-min="0" data-max="20"></span><span name="modbvbar" style="width:20px;height:200px;color:red;" data-odb-path="/Runinfo/Run number" data-min-value="0" data-max-value="20"></span>
+            <span name="modbvbar" style="width:10px;height:200px;vertical-align:top;color:red" data-odb-path="/Runinfo/Run number" data-max-value="10"></span><span name="mvaxis" style="width:100px;height:200px;text-align:left;" data-min="0" data-max="10"></span>
          </td>
       </tr>
 
