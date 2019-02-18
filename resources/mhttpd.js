@@ -853,9 +853,6 @@ function mhttpd_scan()
       if (mbar[i].style.position === "")
          mbar[i].style.position = "relative";
       mbar[i].style.border = "1px solid #808080";
-      // leave space for border
-      mbar[i].style.height = (parseInt(mbar[i].style.height) - 2) + "px";
-      mbar[i].style.width = (parseInt(mbar[i].style.width) - 2) + "px";
       color = mbar[i].style.color;
       mbar[i].innerHTML = "<div style='background-color:" + color + "; height:0; width:100%; position:absolute; bottom:0; left:0; display:inline-block; border-top:1px solid #808080'>&nbsp;</div>";
    }
@@ -917,7 +914,7 @@ function mhttpd_scan()
 
       var cvs = document.createElement("canvas");
       cvs.width = mva[i].clientWidth;
-      cvs.height = mva[i].clientHeight;
+      cvs.height = mva[i].clientHeight + 2; // leave space for vbar border
       mva[i].appendChild(cvs);
       mva[i].draw = mhttpd_vaxis_draw;
       mva[i].draw();
@@ -1158,13 +1155,18 @@ function mhttpd_vaxis_draw()
    var line = true;
    if (this.dataset.line === "0")
       line = false;
+   var log = false;
+   if (this.dataset.log === "1")
+      log = true;
 
-   var scaleMin = this.dataset.min;
-   var scaleMax = this.dataset.max;
-   if (scaleMin === undefined)
-      scaleMin = 0;
-   if (scaleMax === undefined)
-      scaleMax = 1;
+   var scaleMin = 0;
+   var scaleMax = 1;
+   if (this.dataset.min !== undefined)
+      scaleMin = parseFloat(this.dataset.min);
+   if (log && scaleMin === 0)
+      scaleMin = 1E-3;
+   if (this.dataset.max !== undefined)
+      scaleMax = parseFloat(this.dataset.max);
    if (scaleMin === scaleMax)
       scaleMax += 1;
 
@@ -1175,11 +1177,11 @@ function mhttpd_vaxis_draw()
 
    if (this.style.textAlign === "left") {
       ctx.translate(-0.5, -0.5);
-      vaxisDraw(ctx, 0, h - 1, h - 1, line, 4, 8, 10, 12, 0, scaleMin, scaleMax);
+      vaxisDraw(ctx, 0, h - 1, h - 2, line, 4, 8, 10, 12, 0, scaleMin, scaleMax, log);
    }
    else {
       ctx.translate(-0.5, -0.5);
-      vaxisDraw(ctx, w, h - 1, h - 1, line, 4, 8, 10, 12, 0, scaleMin, scaleMax);
+      vaxisDraw(ctx, w, h - 1, h - 2, line, 4, 8, 10, 12, 0, scaleMin, scaleMax, log);
    }
 
    ctx.restore();
@@ -1384,13 +1386,15 @@ function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, y
    else
       ctx.textAlign = "left";
    ctx.textBaseline = "middle";
-   var ext = ctx.font.match(/\d+/)[0];
+   var textHeight = parseInt(ctx.font.match(/\d+/)[0]);
 
    if (ymax <= ymin || height <= 0)
       return;
 
    if (logaxis) {
       dy = Math.pow(10, Math.floor(Math.log(ymin) / Math.log(10)));
+      if (dy === 0)
+         dy = 1E-10;
       label_dy = dy;
       major_dy = dy * 10;
       n_sig1 = 4;
@@ -1434,7 +1438,7 @@ function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, y
          n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(ymax)) / Math.log(10)) + 1);
 
       /* increase label_dy if labels would overlap */
-      while (label_dy / (ymax - ymin) * height < 1.5 * ext) {
+      while (label_dy / (ymax - ymin) * height < 1.5 * textHeight) {
          label_base++;
          label_dy = Math.pow(10, int_dy) * base[label_base];
          if (label_base % 3 == 2 && major_base % 3 == 1) {
@@ -1452,6 +1456,8 @@ function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, y
    }
 
    y_act = Math.floor(ymin / dy) * dy;
+
+   var last_label_y = y1;
 
    if (line === true)
       ctx.drawLine(x1, y1, x1, y1 - height);
@@ -1484,10 +1490,11 @@ function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, y
                   str = y_act.toPrecision(n_sig1).stripZeros();
                   ctx.save();
                   ctx.fillStyle = "black";
-                  if (ys - ext / 2 > y1 - height &&
-                     ys + ext / 2 < y1)
+                  if (ys - textHeight / 2 > y1 - height &&
+                     ys + textHeight / 2 < y1)
                      ctx.fillText(str, x1 + label, ys);
                   ctx.restore();
+                  last_label_y = ys - textHeight / 2;
                }
             } else {
                /* major tick mark */
@@ -1520,12 +1527,13 @@ function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, y
                str = y_act.toPrecision(n_sig1).stripZeros();
                ctx.save();
                ctx.fillStyle = "black";
-               if (ys - ext.height / 2 > y1 - height &&
-                  ys + ext.height / 2 < y1)
+               if (ys - textHeight / 2 > y1 - height &&
+                  ys + textHeight / 2 < y1 &&
+                  ys + textHeight < last_label_y + 2)
                   ctx.fillText(str, x1 + label, ys);
                ctx.restore();
 
-               last_label_y = ys - ext.height / 2;
+               last_label_y = ys;
             }
          }
       }
@@ -1729,12 +1737,21 @@ function mhttpd_refresh() {
          modbvbar[i].value = value;
          if (modbvbar[i].dataset.value === "1")
             modbvbar[i].children[0].innerHTML = html;
-         if (modbvbar[i].dataset.minValue === undefined)
-            modbvbar[i].dataset.minValue = 0;
-         if (modbvbar[i].dataset.maxValue === undefined)
-            modbvbar[i].dataset.maxValue = 1;
-         percent = Math.round(100 * (value - modbvbar[i].dataset.minValue) /
-            (modbvbar[i].dataset.maxValue - modbvbar[i].dataset.minValue));
+         var minValue = parseFloat(modbvbar[i].dataset.minValue);
+         var maxValue = parseFloat(modbvbar[i].dataset.maxValue);
+         if (minValue === undefined)
+            minValue = 0;
+         if (modbvbar[i].dataset.log === "1" &&
+             minValue === 0)
+            minValue = 1E-3;
+         if (maxValue === undefined)
+            maxValue = 1;
+         if (modbvbar[i].dataset.log === "1")
+            percent = Math.round(100 * (Math.log(value) - Math.log(minValue)) /
+               (Math.log(maxValue) - Math.log(minValue)));
+         else
+            percent = Math.round(100 * (value - minValue) /
+               (maxValue - minValue));
          if (percent < 0)
             percent = 0;
          if (percent > 100)
