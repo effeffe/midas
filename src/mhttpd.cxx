@@ -13129,7 +13129,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       for (i = 0; i < key.num_values; i++) {
          size = sizeof(str);
          db_get_data_index(hDB, hkeybutton, str, &size, i, TID_STRING);
-         r->rsprintf("<input type=\"button\" title=\"display last %s\" value=%s onclick=\"histDisp('scale=%s')\">\n", str, str);
+         r->rsprintf("<input type=\"button\" title=\"display last %s\" value=%s onclick=\"histDisp('scale=%s')\">\n", str, str, str);
       }
 
       r->rsprintf("<input type=\"button\" value=\"<<<\" title=\"go back in time to last available data for all variables on the plot\" onclick=\"histDisp('shift=leftmaxall')\">");
