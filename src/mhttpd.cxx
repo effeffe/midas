@@ -608,7 +608,7 @@ void rsputs2(const char *str)
 
 /*------------------------------------------------------------------*/
 
-void rsprintf(const char *format, ...)
+void rsprintf(const char *format, ...) MATTRPRINTF(2,3)
 {
    va_list argptr;
    char str[10000];
