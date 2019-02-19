@@ -1323,7 +1323,7 @@ void show_help_page(Return* r, const char* dec_path)
       } else {
          r->rsprintf("        <tr>\n");
          r->rsprintf("          <td style=\"text-align:right;\">Logfiles:</td>\n");
-         r->rsprintf("          <td style=\"text-align:left;\">\n", str);
+         r->rsprintf("          <td style=\"text-align:left;\">\n");
          for (unsigned i=0 ; i<list.size() ; i++) {
             if (i>0)
                r->rsputs("<br />\n");
@@ -8515,7 +8515,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                         strencode3(r, data_str);
                         r->rsprintf("</pre>");
                         if (strlen(data) > strlen(data_str))
-                           r->rsprintf("<i>... (%d bytes total)<p>\n", strlen(data));
+                           r->rsprintf("<i>... (%d bytes total)<p>\n", (int)strlen(data));
 
                         r->rsprintf("<a href=\"%s\">Edit</a>\n", ref);
                      } else {
@@ -11111,7 +11111,7 @@ void show_query_page(Param* p, Return* r)
    ptms = localtime(&starttime);
    ptms->tm_year += 1900;
 
-   r->rsprintf("<tr><td nowrap>Start date:</td>", "Start date");
+   r->rsprintf("<tr><td nowrap>Start date:</td>");
 
    r->rsprintf("<td>Month: <select name=\"m1\">\n");
    r->rsprintf("<option value=\"\">\n");
@@ -11799,7 +11799,7 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    /* menu buttons */
    r->rsprintf("<tr><td colspan=8>\n");
    r->rsprintf("<input type=button value=Refresh ");
-   r->rsprintf("onclick=\"document.form1.hcmd.value='Refresh';document.form1.submit()\">\n", hgroup, hpanel);
+   r->rsprintf("onclick=\"document.form1.hcmd.value='Refresh';document.form1.submit()\">\n");
    
    r->rsprintf("<input type=button value=Save ");
    r->rsprintf("onclick=\"document.form1.hcmd.value='Save';document.form1.submit()\">\n");
@@ -12053,7 +12053,7 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
          }
       } else if (events.size() > max_display_events) { // too many events
          r->rsprintf("<option selected value=\"%s\">%s\n", plot.vars[index].event_name.c_str(), plot.vars[index].event_name.c_str());
-         r->rsprintf("<option>(%d events omitted)\n", events.size());
+         r->rsprintf("<option>(%d events omitted)\n", (int)events.size());
       } else { // show all events
          bool found = false;
          for (unsigned e=0; e<events.size(); e++) {
@@ -15016,8 +15016,9 @@ void show_seq_page(Param* p, Return* r)
             if (f) {
                for (int line=0 ; !feof(f) ; line++) {
                   str[0] = 0;
-                  if (fgets(str, sizeof(str), f))
-                     r->rsprintf(str);
+                  if (fgets(str, sizeof(str), f)) {
+                     r->rsputs(str);
+                  }
                }
                fclose(f);
             }
