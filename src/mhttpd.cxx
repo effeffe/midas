@@ -608,7 +608,7 @@ void rsputs2(const char *str)
 
 /*------------------------------------------------------------------*/
 
-void rsprintf(const char *format, ...)
+void rsprintf(const char *format, ...) MATTRPRINTF(2,3)
 {
    va_list argptr;
    char str[10000];
@@ -1106,7 +1106,7 @@ void redirect(Return *r, const char *path)
 
    /* redirect */
    r->rsprintf("HTTP/1.1 302 Found\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    r->rsprintf("Content-Type: text/html; charset=%s\r\n", HTTP_ENCODING);
 
    if (strncmp(path, "http:", 5) == 0)
@@ -1323,7 +1323,7 @@ void show_help_page(Return* r, const char* dec_path)
       } else {
          r->rsprintf("        <tr>\n");
          r->rsprintf("          <td style=\"text-align:right;\">Logfiles:</td>\n");
-         r->rsprintf("          <td style=\"text-align:left;\">\n", str);
+         r->rsprintf("          <td style=\"text-align:left;\">\n");
          for (unsigned i=0 ; i<list.size() ; i++) {
             if (i>0)
                r->rsputs("<br />\n");
@@ -1428,7 +1428,7 @@ void show_header(Return* r, const char *title, const char *method, const char *p
 
    /* header */
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    r->rsprintf("Cache-control: private, max-age=0, no-cache\r\n");
    r->rsprintf("Expires: Fri, 01 Jan 1983 00:00:00 GMT\r\n");
    r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
@@ -1469,7 +1469,7 @@ void show_header(Return* r, const char *title, const char *method, const char *p
 void show_text_header(Return* r)
 {
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    r->rsprintf("Access-Control-Allow-Origin: *\r\n");
    r->rsprintf("Cache-control: private, max-age=0, no-cache\r\n");
    r->rsprintf("Expires: Fri, 01 Jan 1983 00:00:00 GMT\r\n");
@@ -1482,7 +1482,7 @@ void show_error(Return* r, const char *error)
 {
    /* header */
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    r->rsprintf("<html><head>\n");
@@ -1764,7 +1764,7 @@ void show_elog_new(Return* r, const char* dec_path, const char *path, BOOL bedit
 
    /* header */
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    r->rsprintf("<html><head>\n");
@@ -2023,7 +2023,7 @@ void show_elog_query(Return* r, const char* dec_path)
 
    /* header */
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    r->rsprintf("<html><head>\n");
@@ -2712,7 +2712,7 @@ void show_rawfile(Param* pp, Return* r, const char* dec_path, const char *path)
 
    /* header */
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    r->rsprintf("<html><head>\n");
@@ -2857,7 +2857,7 @@ void show_form_query(Param* p, Return* r, const char* dec_path)
 
    /* header */
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    r->rsprintf("<html><head>\n");
@@ -3167,7 +3167,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
             pp->unsetparam("index");
          } else {
             r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-            r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+            r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
             r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
             r->rsprintf("<html><head>\n");
@@ -3292,7 +3292,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
       }
 
    r->rsprintf("HTTP/1.1 302 Found\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
 
    //if (mail_param[0])
    //   r->rsprintf("Location: ../EL/%s?%s\n\n<html>redir</html>\r\n", tag, mail_param + 1);
@@ -3319,7 +3319,7 @@ void submit_form(Param* p, Return* r, Attachment* a)
    /* check for author */
    if (*p->getparam("author") == 0) {
       r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-      r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+      r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
       r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
       r->rsprintf("<html><head>\n");
@@ -3413,7 +3413,7 @@ void show_elog_attachment(Param* p, Return* r, const char* path)
       lseek(fh, 0, SEEK_SET);
       
       r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-      r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+      r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
       r->rsprintf("Accept-Ranges: bytes\r\n");
       //r->rsprintf("Content-disposition: attachment; filename=%s\r\n", path);
       
@@ -5095,7 +5095,7 @@ void show_custom_file(Return* r, const char *name)
 
    /* return audio file */
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
 
    /* return proper header for file type */
    for (i = 0; i < (int) strlen(name); i++)
@@ -5455,7 +5455,7 @@ void show_custom_gif(Return* rr, const char *name)
    length = gb.size;
 
    rr->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   rr->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   rr->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
 
    rr->rsprintf("Content-Type: image/gif\r\n");
    rr->rsprintf("Content-Length: %d\r\n", length);
@@ -7032,7 +7032,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
 
       /* HTTP header */
       r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-      r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+      r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
       r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
       /* interprete text, replace <odb> tags with ODB values */
@@ -7112,7 +7112,7 @@ void show_cnaf_page(Param* p, Return* rr)
 
    /* header */
    rr->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   rr->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   rr->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    rr->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    rr->rsprintf("<html><head>\n");
@@ -8099,7 +8099,7 @@ mscb_error:
 void show_password_page(Return* r, const char* dec_path, const char *password)
 {
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    r->rsprintf("<html><head>\n");
@@ -8148,7 +8148,7 @@ BOOL check_web_password(Return* r, const char* dec_path, const char *password, c
 
       /* show web password page */
       r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-      r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+      r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
       r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
       r->rsprintf("<html><head>\n");
@@ -8515,7 +8515,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                         strencode3(r, data_str);
                         r->rsprintf("</pre>");
                         if (strlen(data) > strlen(data_str))
-                           r->rsprintf("<i>... (%d bytes total)<p>\n", strlen(data));
+                           r->rsprintf("<i>... (%d bytes total)<p>\n", (int)strlen(data));
 
                         r->rsprintf("<a href=\"%s\">Edit</a>\n", ref);
                      } else {
@@ -10930,7 +10930,7 @@ void generate_hist_graph(Return* rr, const char *hgroup, const char *hpanel, cha
 
    if (buffer == NULL) {
       rr->rsprintf("HTTP/1.1 200 Document follows\r\n");
-      rr->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+      rr->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
 
       rr->rsprintf("Content-Type: image/gif\r\n");
       rr->rsprintf("Content-Length: %d\r\n", length);
@@ -11111,7 +11111,7 @@ void show_query_page(Param* p, Return* r)
    ptms = localtime(&starttime);
    ptms->tm_year += 1900;
 
-   r->rsprintf("<tr><td nowrap>Start date:</td>", "Start date");
+   r->rsprintf("<tr><td nowrap>Start date:</td>");
 
    r->rsprintf("<td>Month: <select name=\"m1\">\n");
    r->rsprintf("<option value=\"\">\n");
@@ -11799,7 +11799,7 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    /* menu buttons */
    r->rsprintf("<tr><td colspan=8>\n");
    r->rsprintf("<input type=button value=Refresh ");
-   r->rsprintf("onclick=\"document.form1.hcmd.value='Refresh';document.form1.submit()\">\n", hgroup, hpanel);
+   r->rsprintf("onclick=\"document.form1.hcmd.value='Refresh';document.form1.submit()\">\n");
    
    r->rsprintf("<input type=button value=Save ");
    r->rsprintf("onclick=\"document.form1.hcmd.value='Save';document.form1.submit()\">\n");
@@ -12053,7 +12053,7 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
          }
       } else if (events.size() > max_display_events) { // too many events
          r->rsprintf("<option selected value=\"%s\">%s\n", plot.vars[index].event_name.c_str(), plot.vars[index].event_name.c_str());
-         r->rsprintf("<option>(%d events omitted)\n", events.size());
+         r->rsprintf("<option>(%d events omitted)\n", (int)events.size());
       } else { // show all events
          bool found = false;
          for (unsigned e=0; e<events.size(); e++) {
@@ -12271,7 +12271,7 @@ void export_hist(Return* r, const char *group, const char *panel, time_t endtime
 
    /* header */
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    r->rsprintf("Accept-Ranges: bytes\r\n");
    r->rsprintf("Cache-control: private, max-age=0, no-cache\r\n");
    r->rsprintf("Expires: Fri, 01 Jan 1983 00:00:00 GMT\r\n");
@@ -13322,7 +13322,7 @@ void send_icon(Return* r, const char *icon)
       return;
 
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    r->rsprintf("Accept-Ranges: bytes\r\n");
 
    /* set expiration time to one day */
@@ -13451,7 +13451,7 @@ void send_css(Return* r)
    struct tm *gmt;
 
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    r->rsprintf("Accept-Ranges: bytes\r\n");
 
    /* set expiration time to one day */
@@ -13501,7 +13501,7 @@ bool send_resource(Return* r, const std::string& name)
    // send HTTP headers
    
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    r->rsprintf("Accept-Ranges: bytes\r\n");
 
    // send HTTP cache control headers
@@ -14507,7 +14507,7 @@ void show_seq_page(Param* p, Return* r)
 
    /* header */
    r->rsprintf("HTTP/1.0 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
    r->rsprintf("Content-Type: text/html; charset=iso-8859-1\r\n\r\n");
    
    r->rsprintf("<html><head>\n");
@@ -15016,8 +15016,9 @@ void show_seq_page(Param* p, Return* r)
             if (f) {
                for (int line=0 ; !feof(f) ; line++) {
                   str[0] = 0;
-                  if (fgets(str, sizeof(str), f))
-                     r->rsprintf(str);
+                  if (fgets(str, sizeof(str), f)) {
+                     r->rsputs(str);
+                  }
                }
                fclose(f);
             }
@@ -15274,7 +15275,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (password[0]) {
       r->rsprintf("HTTP/1.1 302 Found\r\n");
-      r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+      r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
 
       time_t now;
       struct tm *gmt;
@@ -15299,7 +15300,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
          return;
 
       r->rsprintf("HTTP/1.1 302 Found\r\n");
-      r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+      r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
 
       time_t now;
       struct tm *gmt;
@@ -15815,7 +15816,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
       /* redirect with cookie */
       r->rsprintf("HTTP/1.1 302 Found\r\n");
-      r->rsprintf("Server: MIDAS HTTP %d\r\n", mhttpd_revision());
+      r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
       r->rsprintf("Content-Type: text/html; charset=%s\r\n", HTTP_ENCODING);
 
       time_t now;
