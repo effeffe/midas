@@ -3454,12 +3454,21 @@ INT cm_set_transition_sequence(INT transition, INT sequence_number)
 
 }
 
-INT cm_set_run_state(INT state)
+INT cm_set_client_run_state(INT state)
 {
    INT status;
    HNDLE hDB, hKey;
+   KEY key;
 
    cm_get_experiment_database(&hDB, &hKey);
+
+   /* check that hKey is still valid */
+   status = db_get_key(hDB, hKey, &key);
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "cm_set_client_run_state", "Cannot set client run state, client hKey %d into /System/Clients is not valid, maybe this client was removed by a watchdog timeout", hKey);
+      return status;
+   }
 
    /* unlock database */
    db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE, TRUE);

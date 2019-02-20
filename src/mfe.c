@@ -158,7 +158,7 @@ INT tr_start(INT rn, char *error)
       readout_enable(TRUE);
    }
 
-   cm_set_run_state(run_state);
+   cm_set_client_run_state(run_state);
    return status;
 }
 
@@ -221,7 +221,7 @@ INT tr_stop(INT rn, char *error)
    }
 
    db_send_changed_records();
-   cm_set_run_state(run_state);
+   cm_set_client_run_state(run_state);
    return status;
 }
 
@@ -247,7 +247,7 @@ INT tr_pause(INT rn, char *error)
    } else
       readout_enable(TRUE);
 
-   cm_set_run_state(run_state);
+   cm_set_client_run_state(run_state);
    return status;
 }
 
@@ -272,7 +272,7 @@ INT tr_resume(INT rn, char *error)
       readout_enable(TRUE);
    }
 
-   cm_set_run_state(run_state);
+   cm_set_client_run_state(run_state);
    return status;
 }
 
@@ -2860,7 +2860,7 @@ int main(int argc, char *argv[])
       ss_sleep(5000);
       return 1;
    }
-   cm_set_run_state(run_state);
+   cm_set_client_run_state(run_state);
 
    cm_get_experiment_database(&hDB, &hClient);
    /* set time from server */
