@@ -11562,59 +11562,56 @@ INT rpc_client_call(HNDLE hConn, const INT routine_id, ...)
 {
    va_list ap, aptmp;
    char arg[8], arg_tmp[8];
-   INT arg_type, transport, rpc_timeout;
-   INT i, idx, status, rpc_index;
+   INT i, status;
    INT param_size, arg_size, send_size;
-   INT tid, flags;
    char *param_ptr;
    BOOL bpointer, bbig;
-   NET_COMMAND *nc;
-   int send_sock;
-   char* buf = NULL;
-   DWORD buf_size = 0;
-   const char* host_name = NULL;
-   const char* client_name = NULL;
-   const char* rpc_name = NULL;
    DWORD rpc_status = 0;
 
-   idx = hConn - 1;
+   int idx = hConn - 1;
 
    if (_client_connection[idx].send_sock == 0) {
       cm_msg(MERROR, "rpc_client_call", "no rpc connection or invalid rpc connection handle %d", hConn);
       return RPC_NO_CONNECTION;
    }
 
-   send_sock = _client_connection[idx].send_sock;
-   rpc_timeout = _client_connection[idx].rpc_timeout;
-   transport = _client_connection[idx].transport;
+   int send_sock = _client_connection[idx].send_sock;
+   int rpc_timeout = _client_connection[idx].rpc_timeout;
+   int transport = _client_connection[idx].transport;
 
-   host_name = _client_connection[idx].host_name;
-   client_name = _client_connection[idx].client_name;
+   // make local copy of the client name just in case _client_connection is erased by another thread
+
+   char host_name[HOST_NAME_LENGTH];
+   char client_name[NAME_LENGTH];
+
+   strlcpy(host_name, _client_connection[idx].host_name, sizeof(host_name));
+   strlcpy(client_name, _client_connection[idx].client_name, sizeof(client_name));
 
    /* find rpc_index */
 
    for (i = 0;; i++)
       if (rpc_list[i].id == routine_id || rpc_list[i].id == 0)
          break;
-   rpc_index = i;
+
+   int rpc_index = i;
 
    if (rpc_list[rpc_index].id == 0) {
       cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" with invalid RPC ID %d", client_name, host_name, routine_id);
       return RPC_INVALID_ID;
    }
 
-   rpc_name = rpc_list[rpc_index].name;
+   const char* rpc_name = rpc_list[rpc_index].name;
 
    /* prepare output buffer */
 
-   buf_size = sizeof(NET_COMMAND) + 1024;
-   buf = (char *)malloc(buf_size);
+   DWORD buf_size = sizeof(NET_COMMAND) + 1024;
+   char* buf = (char *)malloc(buf_size);
    if (buf == NULL) {
       cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\" cannot allocate %d bytes for transmit buffer", client_name, host_name, rpc_name, (int)buf_size);
       return RPC_NO_MEMORY;
    }
 
-   nc = (NET_COMMAND *) buf;
+   NET_COMMAND* nc = (NET_COMMAND *) buf;
    nc->header.routine_id = routine_id;
 
    if (transport == RPC_FTCP)
@@ -11627,12 +11624,14 @@ INT rpc_client_call(HNDLE hConn, const INT routine_id, ...)
    bbig = ((rpc_get_option(0, RPC_OHW_TYPE) & DRI_BIG_ENDIAN) > 0);
 
    for (i = 0, param_ptr = nc->param; rpc_list[rpc_index].param[i].tid != 0; i++) {
-      tid = rpc_list[rpc_index].param[i].tid;
-      flags = rpc_list[rpc_index].param[i].flags;
+      int tid = rpc_list[rpc_index].param[i].tid;
+      int flags = rpc_list[rpc_index].param[i].flags;
 
       bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
           (flags & RPC_FIXARRAY) || (flags & RPC_VARARRAY) ||
           tid == TID_STRING || tid == TID_ARRAY || tid == TID_STRUCT || tid == TID_LINK;
+
+      int arg_type;
 
       if (bpointer)
          arg_type = TID_ARRAY;
@@ -11773,12 +11772,14 @@ INT rpc_client_call(HNDLE hConn, const INT routine_id, ...)
    va_start(ap, routine_id);
 
    for (i = 0, param_ptr = buf; rpc_list[rpc_index].param[i].tid != 0; i++) {
-      tid = rpc_list[rpc_index].param[i].tid;
-      flags = rpc_list[rpc_index].param[i].flags;
+      int tid = rpc_list[rpc_index].param[i].tid;
+      int flags = rpc_list[rpc_index].param[i].flags;
 
       bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
           (flags & RPC_FIXARRAY) || (flags & RPC_VARARRAY) ||
           tid == TID_STRING || tid == TID_ARRAY || tid == TID_STRUCT || tid == TID_LINK;
+
+      int arg_type;
 
       if (bpointer)
          arg_type = TID_ARRAY;
