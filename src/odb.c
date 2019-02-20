@@ -2019,9 +2019,6 @@ Lock a database for exclusive access via system semaphore calls.
 @return DB_SUCCESS, DB_INVALID_HANDLE, DB_TIMEOUT
 */
 
-//int _db_kludge_protect_odb_locking_against_cm_watchdog = 0;
-//int _db_kludge_cm_watchdog_wants_to_run = 0;
-
 INT db_lock_database(HNDLE hDB)
 {
 #ifdef LOCAL_ROUTINES
@@ -2040,6 +2037,21 @@ INT db_lock_database(HNDLE hDB)
       cm_msg(MERROR, "db_lock_database", "internal error: cannot obtain access mutex, aborting...");
       abort();
    }
+
+   /* protect this function against recursive call from signal handlers */
+   if (_database[hDB - 1].inside_lock_unlock) {
+      fprintf(stderr, "db_lock_database: Detected recursive call to db_{lock,unlock}_database() while already inside db_{lock,unlock}_database(). Maybe this is a call from a signal handler. Cannot continue, aborting...\n");
+      abort();
+   }
+
+   _database[hDB - 1].inside_lock_unlock = 1;
+
+   //static int x = 0;
+   //x++;
+   //if (x > 5000) {
+   //   printf("inside db_lock_database(), press Ctrl-C now!\n");
+   //   sleep(5);
+   //}
 
    // test recursive locking
    // static int out=0;
@@ -2090,6 +2102,9 @@ INT db_lock_database(HNDLE hDB)
          _database[hDB - 1].protect_write = FALSE;
       }
    }
+
+   _database[hDB - 1].inside_lock_unlock = 0;
+
 #endif                          /* LOCAL_ROUTINES */
    
    return DB_SUCCESS;
@@ -2141,6 +2156,21 @@ INT db_unlock_database(HNDLE hDB)
    }
 #endif
 
+   /* protect this function against recursive call from signal handlers */
+   if (_database[hDB - 1].inside_lock_unlock) {
+      fprintf(stderr, "db_unlock_database: Detected recursive call to db_{lock,unlock}_database() while already inside db_{lock,unlock}_database(). Maybe this is a call from a signal handler. Cannot continue, aborting...\n");
+      abort();
+   }
+
+   _database[hDB - 1].inside_lock_unlock = 1;
+
+   //static int x = 0;
+   //x++;
+   //if (x > 5000) {
+   //   printf("inside db_unlock_database(), press Ctrl-C now!\n");
+   //   sleep(5);
+   //}
+
    if (_database[hDB - 1].lock_cnt == 1) {
       ss_semaphore_release(_database[hDB - 1].semaphore);
 
@@ -2163,6 +2193,8 @@ INT db_unlock_database(HNDLE hDB)
 
    assert(_database[hDB - 1].lock_cnt > 0);
    _database[hDB - 1].lock_cnt--;
+
+   _database[hDB - 1].inside_lock_unlock = 0;
 
    /* release mutex for multi-thread applications */
    ss_mutex_release(_database[hDB - 1].mutex);

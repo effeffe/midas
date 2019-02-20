@@ -418,6 +418,7 @@ typedef struct {
    BOOL protect_write;          /* write is permitted           */
    MUTEX_T *mutex;              /* mutex for multi-thread access */
    INT timeout;                 /* timeout for mutex and semaphore */
+   BOOL inside_lock_unlock;     /* protection against recursive call to db_lock/unlock */
 
 } DATABASE;
 
