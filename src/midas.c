@@ -6225,45 +6225,31 @@ Closes an event buffer previously opened with bm_open_buffer().
 */
 INT bm_close_buffer(INT buffer_handle)
 {
+   //printf("bm_close_buffer: handle %d\n", buffer_handle);
+   
    if (rpc_is_remote())
       return rpc_call(RPC_BM_CLOSE_BUFFER, buffer_handle);
 
 #ifdef LOCAL_ROUTINES
    {
-      BUFFER* pbuf;
-
-      int status = bm_get_buffer("bm_close_buffer", buffer_handle, &pbuf);
-
-      if (status != BM_SUCCESS)
-         return status;
-      
-      BUFFER_CLIENT *pclient;
-      INT i, j, destroy_flag;
-      char xname[256];
-
-      /*
-         Check if buffer was opened by current thread. This is necessary
-         in the server process where one thread may not close the buffer
-         of other threads.
-       */
-
-      BUFFER_HEADER* pheader = pbuf->buffer_header;
-
-      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE &&
-      //    _buffer[buffer_handle - 1].index != rpc_get_server_acception()) {
-      //   return BM_INVALID_HANDLE;
-      //}
-
-      //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE
-      //    && _buffer[buffer_handle - 1].index != ss_gettid()) {
-      //   return BM_INVALID_HANDLE;
-      //}
+      if (buffer_handle > _buffer_entries || buffer_handle <= 0) {
+         // silently fail, maybe this buffer was already closed.
+         //cm_msg(MERROR, who, "invalid buffer handle %d: out of range, _buffer_entries is %d", buffer_handle, _buffer_entries);
+         return BM_INVALID_HANDLE;
+      }
 
       if (!_buffer[buffer_handle - 1].attached) {
-         /* don't produce error, since bm_close_all_buffers() might want to close an
-            already closed buffer */
-         return BM_SUCCESS;
+         // silently fail, maybe this buffer was already closed.
+         //cm_msg(MERROR, who, "invalid buffer handle %d: not attached", buffer_handle);
+         return BM_INVALID_HANDLE;
       }
+
+      BUFFER* pbuf = &_buffer[buffer_handle - 1];
+      BUFFER_HEADER* pheader = pbuf->buffer_header;
+
+      //printf("bm_close_buffer: handle %d, name [%s]\n", buffer_handle, pheader->name);
+
+      int i;
 
       /* delete all requests for this buffer */
       for (i = 0; i < _request_list_entries; i++)
@@ -6298,12 +6284,13 @@ INT bm_close_buffer(INT buffer_handle)
       pheader->max_client_index = i + 1;
 
       /* count new number of clients */
-      for (i = MAX_CLIENTS - 1, j = 0; i >= 0; i--)
+      int j = 0;
+      for (i = MAX_CLIENTS - 1; i >= 0; i--)
          if (pheader->client[i].pid != 0)
             j++;
       pheader->num_clients = j;
 
-      destroy_flag = (pheader->num_clients == 0);
+      int destroy_flag = (pheader->num_clients == 0);
 
       /* free cache */
       if (pbuf->read_cache_size > 0) {
@@ -6332,12 +6319,13 @@ INT bm_close_buffer(INT buffer_handle)
       }
 
       /* check if anyone is waiting and wake him up */
-      pclient = pheader->client;
+      BUFFER_CLIENT* pclient = pheader->client;
 
       for (i = 0; i < pheader->max_client_index; i++, pclient++)
          if (pclient->pid && (pclient->write_wait || pclient->read_wait))
             ss_resume(pclient->port, "B  ");
 
+      char xname[256];
       strlcpy(xname, pheader->name, sizeof(xname));
 
       pheader = NULL; // after ss_shm_close(), pheader points nowhere
