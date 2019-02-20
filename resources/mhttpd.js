@@ -1708,7 +1708,7 @@ function mhttpd_refresh() {
          mvalue = mie_to_string(tid, value);
          if (mvalue === "")
             mvalue = "(empty)";
-         html = mhttpd_escape(""+mvalue);
+         html = mhttpd_escape("&nbsp;"+mvalue);
          modbhbar.value = value;
          if (modbhbar[i].dataset.printValue === "1")
             modbhbar[i].children[0].innerHTML = html;
