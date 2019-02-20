@@ -841,7 +841,7 @@ function mhttpd_scan()
          mbar[i].style.position = "relative";
       mbar[i].style.border = "1px solid #808080";
       var color = mbar[i].style.color;
-      mbar[i].innerHTML = "<div style='background-color:" + color + ";" +
+      mbar[i].innerHTML = "<div style='background-color:" + color + ";" + "color:black;" +
          "width:0;height:"+ mbar[i].clientHeight+"px;"+
          "position:relative; display:inline-block;border-right:1px solid #808080'>&nbsp;</div>";
    }
@@ -962,7 +962,7 @@ function mhttpd_thermo_draw()
       w = Math.floor(w/4)*4;
    }
 
-   if (this.dataset.value === "1") {
+   if (this.dataset.printValue === "1") {
       h = h - 14;
    }
 
@@ -1051,7 +1051,7 @@ function mhttpd_thermo_draw()
    }
 
    // optional value display
-   if (this.dataset.value === "1") {
+   if (this.dataset.printValue === "1") {
       ctx.font = "12px sans-serif";
       ctx.fillStyle = "#000000";
       ctx.strokeStyle = "#000000";
@@ -1121,7 +1121,7 @@ function mhttpd_gauge_draw()
    ctx.stroke();
 
    // optional value display
-   if (this.dataset.value === "1") {
+   if (this.dataset.printValue === "1") {
       ctx.font = "12px sans-serif";
       ctx.fillStyle = "#000000";
       ctx.strokeStyle = "#000000";
@@ -1161,12 +1161,12 @@ function mhttpd_vaxis_draw()
 
    var scaleMin = 0;
    var scaleMax = 1;
-   if (this.dataset.min !== undefined)
-      scaleMin = parseFloat(this.dataset.min);
+   if (this.dataset.minValue !== undefined)
+      scaleMin = parseFloat(this.dataset.minValue);
    if (log && scaleMin === 0)
       scaleMin = 1E-3;
-   if (this.dataset.max !== undefined)
-      scaleMax = parseFloat(this.dataset.max);
+   if (this.dataset.maxValue !== undefined)
+      scaleMax = parseFloat(this.dataset.maxValue);
    if (scaleMin === scaleMax)
       scaleMax += 1;
 
@@ -1199,8 +1199,8 @@ function mhttpd_haxis_draw()
    if (this.dataset.line === "0")
       line = false;
 
-   var scaleMin = this.dataset.min;
-   var scaleMax = this.dataset.max;
+   var scaleMin = this.dataset.minValue;
+   var scaleMax = this.dataset.maxValue;
    if (scaleMin === undefined)
       scaleMin = 0;
    if (scaleMax === undefined)
@@ -1710,7 +1710,7 @@ function mhttpd_refresh() {
             mvalue = "(empty)";
          html = mhttpd_escape(""+mvalue);
          modbhbar.value = value;
-         if (modbhbar[i].dataset.value === "1")
+         if (modbhbar[i].dataset.printValue === "1")
             modbhbar[i].children[0].innerHTML = html;
          if (modbhbar[i].dataset.minValue === undefined)
             modbhbar[i].dataset.minValue = 0
@@ -1735,7 +1735,7 @@ function mhttpd_refresh() {
             mvalue = "(empty)";
          html = mhttpd_escape(""+mvalue);
          modbvbar[i].value = value;
-         if (modbvbar[i].dataset.value === "1")
+         if (modbvbar[i].dataset.printValue === "1")
             modbvbar[i].children[0].innerHTML = html;
          var minValue = parseFloat(modbvbar[i].dataset.minValue);
          var maxValue = parseFloat(modbvbar[i].dataset.maxValue);
