@@ -1198,27 +1198,33 @@ function mhttpd_haxis_draw()
    var line = true;
    if (this.dataset.line === "0")
       line = false;
+   var log = false;
+   if (this.dataset.log === "1")
+      log = true;
 
-   var scaleMin = this.dataset.minValue;
-   var scaleMax = this.dataset.maxValue;
-   if (scaleMin === undefined)
-      scaleMin = 0;
-   if (scaleMax === undefined)
-      scaleMax = 1;
+   var scaleMin = 0;
+   var scaleMax = 1;
+   if (this.dataset.minValue !== undefined)
+      scaleMin = parseFloat(this.dataset.minValue);
+   if (log && scaleMin === 0)
+      scaleMin = 1E-3;
+   if (this.dataset.maxValue !== undefined)
+      scaleMax = parseFloat(this.dataset.maxValue);
    if (scaleMin === scaleMax)
       scaleMax += 1;
 
+   ctx.translate(-0.5, 0);
    ctx.strokeStyle = "#000000";
    ctx.fillStyle = "#FFFFFF";
    ctx.lineWidth = 1;
 
    if (this.style.verticalAlign === "top") {
       ctx.translate(0.5, 0.5);
-      haxisDraw(ctx, 0, 0, w - 1, line, 4, 8, 10, 10, 0, scaleMin, scaleMax);
+      haxisDraw(ctx, 1, 0, w - 2, line, 4, 8, 10, 10, 0, scaleMin, scaleMax, log);
    }
    else {
       ctx.translate(0.5, -0.5);
-      haxisDraw(ctx, 0, h, w - 1, line, 4, 8, 10, 20, 0, scaleMin, scaleMax);
+      haxisDraw(ctx, 1, h, w - 2, line, 4, 8, 10, 20, 0, scaleMin, scaleMax, log);
    }
    ctx.restore();
 }
@@ -1234,7 +1240,7 @@ String.prototype.stripZeros = function () {
    return s;
 };
 
-function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xmin, xmax) {
+function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xmin, xmax, logaxis) {
    var dx, int_dx, frac_dx, x_act, label_dx, major_dx, x_screen, maxwidth;
    var tick_base, major_base, label_base, n_sig1, n_sig2, xs;
    var base = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
@@ -1245,15 +1251,76 @@ function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xm
    if (xmax <= xmin || width <= 0)
       return;
 
-   /* use 6 as min tick distance */
-   dx = (xmax - xmin) / (width / 6);
+   if (logaxis) {
+      dx = Math.pow(10, Math.floor(Math.log(xmin) / Math.log(10)));
+      if (dx === 0)
+         dx = 1E-10;
+      label_dx = dx;
+      major_dx = dx * 10;
+      n_sig1 = 4;
+   } else {
+      /* use 6 as min tick distance */
+      dx = (xmax - xmin) / (width / 6);
 
-   int_dx = Math.floor(Math.log(dx) / Math.log(10));
-   frac_dx = Math.log(dx) / Math.log(10) - int_dx;
+      int_dx = Math.floor(Math.log(dx) / Math.log(10));
+      frac_dx = Math.log(dx) / Math.log(10) - int_dx;
 
-   if (frac_dx < 0) {
-      frac_dx += 1;
-      int_dx -= 1;
+      if (frac_dx < 0) {
+         frac_dx += 1;
+         int_dx -= 1;
+      }
+
+      tick_base = frac_dx < (Math.log(2) / Math.log(10)) ? 1 : frac_dx < (Math.log(5) / Math.log(10)) ? 2 : 3;
+      major_base = label_base = tick_base + 1;
+
+      /* rounding up of dx, label_dx */
+      dx = Math.pow(10, int_dx) * base[tick_base];
+      major_dx = Math.pow(10, int_dx) * base[major_base];
+      label_dx = major_dx;
+
+      do {
+         /* number of significant digits */
+         if (xmin == 0)
+            n_sig1 = 0;
+         else
+            n_sig1 = Math.floor(Math.log(Math.abs(xmin)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dx)) / Math.log(10)) + 1;
+
+         if (xmax == 0)
+            n_sig2 = 0;
+         else
+            n_sig2 = Math.floor(Math.log(Math.abs(xmax)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dx)) / Math.log(10)) + 1;
+
+         n_sig1 = Math.max(n_sig1, n_sig2);
+
+         // toPrecision displays 1050 with 3 digits as 1.05e+3, so increase presicion to number of digits
+         if (Math.abs(xmin) < 100000)
+            n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(xmin)) / Math.log(10)) + 1);
+         if (Math.abs(xmax) < 100000)
+            n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(xmax)) / Math.log(10)) + 1);
+
+         /* determination of maximal width of labels */
+         var str = (Math.floor(xmin / dx) * dx).toPrecision(n_sig1);
+         var ext = ctx.measureText(str);
+         maxwidth = ext.width;
+
+         str = (Math.floor(xmax / dx) * dx).toPrecision(n_sig1).stripZeros();
+         ext = ctx.measureText(str);
+         maxwidth = Math.max(maxwidth, ext.width);
+         str = (Math.floor(xmax / dx) * dx + label_dx).toPrecision(n_sig1).stripZeros();
+         maxwidth = Math.max(maxwidth, ext.width);
+
+         /* increasing label_dx, if labels would overlap */
+         if (maxwidth > 0.5 * label_dx / (xmax - xmin) * width) {
+            label_base++;
+            label_dx = Math.pow(10, int_dx) * base[label_base];
+            if (label_base % 3 == 2 && major_base % 3 == 1) {
+               major_base++;
+               major_dx = Math.pow(10, int_dx) * base[major_base];
+            }
+         } else
+            break;
+
+      } while (true);
    }
 
    if (y1 > 0) {
@@ -1263,65 +1330,18 @@ function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xm
       label = -label;
    }
 
-   tick_base = frac_dx < (Math.log(2)/Math.log(10)) ? 1 : frac_dx < (Math.log(5)/Math.log(10)) ? 2 : 3;
-   major_base = label_base = tick_base + 1;
-
-   /* rounding up of dx, label_dx */
-   dx = Math.pow(10, int_dx) * base[tick_base];
-   major_dx = Math.pow(10, int_dx) * base[major_base];
-   label_dx = major_dx;
-
-   do {
-      /* number of significant digits */
-      if (xmin == 0)
-         n_sig1 = 0;
-      else
-         n_sig1 = Math.floor(Math.log(Math.abs(xmin)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dx)) / Math.log(10)) + 1;
-
-      if (xmax == 0)
-         n_sig2 = 0;
-      else
-         n_sig2 = Math.floor(Math.log(Math.abs(xmax)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dx)) / Math.log(10)) + 1;
-
-      n_sig1 = Math.max(n_sig1, n_sig2);
-
-      // toPrecision displays 1050 with 3 digits as 1.05e+3, so increase presicion to number of digits
-      if (Math.abs(xmin) < 100000)
-         n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(xmin)) / Math.log(10))+1);
-      if (Math.abs(xmax) < 100000)
-         n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(xmax)) / Math.log(10))+1);
-
-      /* determination of maximal width of labels */
-      var str = (Math.floor(xmin / dx) * dx).toPrecision(n_sig1);
-      var ext = ctx.measureText(str);
-      maxwidth = ext.width;
-
-      str = (Math.floor(xmax / dx) * dx).toPrecision(n_sig1).stripZeros();
-      ext = ctx.measureText(str);
-      maxwidth = Math.max(maxwidth, ext.width);
-      str = (Math.floor(xmax / dx) * dx + label_dx).toPrecision(n_sig1).stripZeros();
-      maxwidth = Math.max(maxwidth, ext.width);
-
-      /* increasing label_dx, if labels would overlap */
-      if (maxwidth > 0.5 * label_dx / (xmax - xmin) * width) {
-         label_base++;
-         label_dx = Math.pow(10, int_dx) * base[label_base];
-         if (label_base % 3 == 2 && major_base % 3 == 1) {
-            major_base++;
-            major_dx = Math.pow(10, int_dx) * base[major_base];
-         }
-      } else
-         break;
-
-   } while (true);
-
    x_act = Math.floor(xmin / dx) * dx;
+
+   var last_label_x = x1;
 
    if (line === true)
       ctx.drawLine(x1, y1, x1 + width, y1);
 
    do {
-      x_screen = (x_act - xmin) / (xmax - xmin) * width + x1;
+      if (logaxis)
+         x_screen = (Math.log(x_act) - Math.log(xmin)) / (Math.log(xmax) - Math.log(xmin)) * width + x1;
+      else
+         x_screen = (x_act - xmin) / (xmax - xmin) * width + x1;
       xs = Math.floor(x_screen + 0.5);
 
       if (x_screen > x1 + width + 0.001)
@@ -1350,6 +1370,7 @@ function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xm
                      xs + ext.width / 2 < x1 + width)
                      ctx.fillText(str, xs, y1 + label);
                   ctx.restore();
+                  last_label_x = xs + ext.width/2;
                }
             } else {
                /* major tick mark */
@@ -1360,10 +1381,31 @@ function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xm
                   ctx.drawLine(xs, y1 - 1, xs, y1 + grid);
             }
 
+            if (logaxis) {
+               dx *= 10;
+               major_dx *= 10;
+               label_dx *= 10;
+            }
          } else
-         /* minor tick mark */
+            /* minor tick mark */
             ctx.drawLine(xs, y1, xs, y1 + minor);
 
+         /* for logaxis, also put labes on minor tick marks */
+         if (logaxis) {
+            if (label != 0) {
+               str = x_act.toPrecision(n_sig1).stripZeros();
+               ext = ctx.measureText(str);
+               ctx.save();
+               ctx.fillStyle = "black";
+               if (xs - ext.width / 2 > x1 &&
+                  xs + ext.width / 2 < x1 + width &&
+                  xs - ext.width / 2 > last_label_x + 2)
+                  ctx.fillText(str, xs, y1 + label);
+               ctx.restore();
+
+               last_label_x = xs + ext.width/2;
+            }
+         }
       }
 
       x_act += dx;
@@ -1518,12 +1560,6 @@ function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, y
          /* for logaxis, also put labes on minor tick marks */
          if (logaxis) {
             if (label != 0) {
-               /* calculate position of next major label */
-               y_next = Math.pow(10, Math.floor(Math.log(y_act) / Math.log(10)) + 1);
-               y_screen = y1 -
-                  (Math.log(y_next) - Math.log(ymin)) / (Math.log(ymax) -
-                  Math.log(ymin)) * height;
-
                str = y_act.toPrecision(n_sig1).stripZeros();
                ctx.save();
                ctx.fillStyle = "black";
@@ -1709,15 +1745,24 @@ function mhttpd_refresh() {
          if (mvalue === "")
             mvalue = "(empty)";
          html = mhttpd_escape("&nbsp;"+mvalue);
-         modbhbar.value = value;
+         modbhbar[i].value = value;
          if (modbhbar[i].dataset.printValue === "1")
             modbhbar[i].children[0].innerHTML = html;
-         if (modbhbar[i].dataset.minValue === undefined)
-            modbhbar[i].dataset.minValue = 0
-         if (modbhbar[i].dataset.maxValue === undefined)
-            modbhbar[i].dataset.maxValue = 1;
-         var percent = Math.round(100 * (value - modbhbar[i].dataset.minValue) /
-            (modbhbar[i].dataset.maxValue - modbhbar[i].dataset.minValue));
+         var minValue = parseFloat(modbhbar[i].dataset.minValue);
+         var maxValue = parseFloat(modbhbar[i].dataset.maxValue);
+         if (isNaN(minValue))
+            minValue = 0;
+         if (modbhbar[i].dataset.log === "1" &&
+            minValue === 0)
+            minValue = 1E-3;
+         if (isNaN(maxValue))
+            maxValue = 1;
+         if (modbhbar[i].dataset.log === "1")
+            percent = Math.round(100 * (Math.log(value) - Math.log(minValue)) /
+               (Math.log(maxValue) - Math.log(minValue)));
+         else
+            percent = Math.round(100 * (value - minValue) /
+               (maxValue - minValue));
          if (percent < 0)
             percent = 0;
          if (percent > 100)
@@ -1733,18 +1778,18 @@ function mhttpd_refresh() {
          mvalue = mie_to_string(tid, value);
          if (mvalue === "")
             mvalue = "(empty)";
-         html = mhttpd_escape(""+mvalue);
+         html = mhttpd_escape("&nbsp;"+mvalue);
          modbvbar[i].value = value;
          if (modbvbar[i].dataset.printValue === "1")
             modbvbar[i].children[0].innerHTML = html;
-         var minValue = parseFloat(modbvbar[i].dataset.minValue);
-         var maxValue = parseFloat(modbvbar[i].dataset.maxValue);
-         if (minValue === undefined)
+         minValue = parseFloat(modbvbar[i].dataset.minValue);
+         maxValue = parseFloat(modbvbar[i].dataset.maxValue);
+         if (isNaN(minValue))
             minValue = 0;
          if (modbvbar[i].dataset.log === "1" &&
              minValue === 0)
             minValue = 1E-3;
-         if (maxValue === undefined)
+         if (isNaN(maxValue))
             maxValue = 1;
          if (modbvbar[i].dataset.log === "1")
             percent = Math.round(100 * (Math.log(value) - Math.log(minValue)) /
