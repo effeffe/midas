@@ -13,9 +13,9 @@
    </style>
 </head>
 
-<body class="mcss" onload="mhttpd_init('Test');">
+<body class="mcss" onload="mhttpd_init('Example');">
 
-<!-- header and side navigation will be filled in mhttpd_start -->
+<!-- header and side navigation will be filled in mhttpd_init -->
 <div id="mheader"></div>
 <div id="msidenav"></div>
 
@@ -53,7 +53,10 @@
             Check box:
          </td>
          <td>
+            <!-- checkbox changes /Logger/Write data, fire dialog box on change (even if changed by odbedit) -->
             <input type="checkbox" name="modbcheckbox" data-odb-path="/Logger/Write data"></input>
+
+            <div name="modb" data-odb-path="/Logger/Write data" onchange="dlgAlert('Flag has changed');"></div>
          </td>
       </tr>
       <tr>
@@ -61,6 +64,7 @@
             Color box:
          </td>
          <td>
+            <!-- box changes color according to /Logger/Write data -->
             <div name="modbbox" style="width: 30px; height: 30px;" data-odb-path="/Logger/Write data"
                  data-color="lightgreen" data-background-color="red"></div>
          </td>
@@ -70,13 +74,17 @@
             Horizontal bars:
          </td>
          <td>
-            <div name="modbhbar" style="width:300px;height:20px;color:orange;" data-odb-path="/Runinfo/Run number" data-max-value="10"
-                 data-print-value="1"></div><br />
+            <div name="modbhbar" style="width:300px;height:20px;color:orange;" data-odb-path="/Runinfo/Run number"
+                 data-max-value="10" data-print-value="1"></div><br />
 
             <div name="mhaxis" style="width:500px;height:22px;" data-min-value="0" data-max-value="10"></div>
-            <div name="modbhbar" style="width: 500px; height: 18px;color:lightblue" data-odb-path="/Runinfo/Run number" data-max-value="10"></div><br />
-            <div name="modbhbar" style="width: 200px; height: 10px;color:lightgreen;background-color:white" data-odb-path="/Runinfo/Run number" data-min-value="0.1" data-max-value="10" data-log="1"></div>
-            <div name="mhaxis" style="width:200px;height:22px;vertical-align:top;" data-min-value="0.1" data-max-value="10" data-line="0" data-log="1"></div>
+            <div name="modbhbar" style="width: 500px; height: 18px;color:lightblue" data-odb-path="/Runinfo/Run number"
+                 data-max-value="10"></div><br />
+
+            <div name="modbhbar" style="width: 200px; height: 10px;color:lightgreen;background-color:white"
+                 data-odb-path="/Runinfo/Run number" data-min-value="0.1" data-max-value="10" data-log="1"></div>
+            <div name="mhaxis" style="width:200px;height:22px;vertical-align:top;" data-min-value="0.1"
+                 data-max-value="10" data-line="0" data-log="1"></div>
          </td>
       </tr>
       <tr>
@@ -84,8 +92,12 @@
             Vertical bars:
          </td>
          <td>
-            <span name="mvaxis" style="width:100px;height:200px;text-align:right;" data-min-value="0" data-max-value="20"></span><span name="modbvbar" style="width:20px;height:200px;color:yellow;" data-odb-path="/Runinfo/Run number" data-min-value="0" data-max-value="20"></span>
-            <span name="modbvbar" style="width:10px;height:200px;vertical-align:top;color:red" data-odb-path="/Runinfo/Run number" data-min-value="0.1" data-max-value="10" data-log="1"></span><span name="mvaxis" style="width:100px;height:200px;text-align:left;" data-min-value="0.1" data-max-value="10" data-log="1"></span>
+            <span name="mvaxis" style="width:100px;height:200px;text-align:right;" data-min-value="0" data-max-value="20"></span><span name="modbvbar"
+                  style="width:20px;height:200px;color:yellow;" data-odb-path="/Runinfo/Run number"
+                  data-min-value="0" data-max-value="20"></span>
+            <span name="modbvbar" style="width:10px;height:200px;vertical-align:top;color:red" data-odb-path="/Runinfo/Run number" data-min-value="0.1"
+                  data-max-value="10" data-log="1"></span><span name="mvaxis" style="width:100px;height:200px;text-align:left;" data-min-value="0.1"
+                                                                data-max-value="10" data-log="1"></span>
          </td>
       </tr>
 
@@ -143,6 +155,7 @@
 
       <tr>
          <td colspan="2" style="text-align: center;">
+            <!-- three buttons to change an ODB entry (run number in this example) -->
             <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="1">Set run
                number to 1
             </button>
@@ -152,9 +165,6 @@
             <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="10">Set run
                number to 10
             </button>
-
-            <div name="modb" data-odb-path="/Logger/Write data" onchange="dlgAlert('Flag has changed');"></div>
-
          </td>
       </tr>
    </table>
