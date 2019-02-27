@@ -12603,14 +12603,10 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
 
 \********************************************************************/
 {
-   INT size, param_size;
-   NET_COMMAND *nc;
-   INT write_ptr, read_ptr, misalign;
-   char *net_buffer;
-   INT copied, status;
-   INT sock;
+   //INT size;
+   INT status;
 
-   sock = _server_acception[idx].recv_sock;
+   int sock = _server_acception[idx].recv_sock;
 
    if (flags & MSG_PEEK) {
       status = recv(sock, buffer, buffer_size, flags);
@@ -12640,13 +12636,13 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
       return -1;
    }
 
-   copied = 0;
-   param_size = -1;
+   int copied = 0;
+   int param_size = -1;
 
-   write_ptr = _server_acception[idx].write_ptr;
-   read_ptr = _server_acception[idx].read_ptr;
-   misalign = _server_acception[idx].misalign;
-   net_buffer = _server_acception[idx].net_buffer;
+   int write_ptr    = _server_acception[idx].write_ptr;
+   int read_ptr     = _server_acception[idx].read_ptr;
+   int misalign     = _server_acception[idx].misalign;
+   char* net_buffer = _server_acception[idx].net_buffer;
 
    do {
       if (write_ptr - read_ptr >= (INT) sizeof(NET_COMMAND_HEADER) - copied) {
@@ -12654,11 +12650,12 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
             if (copied > 0) {
                /* assemble split header */
                memcpy(buffer + copied, net_buffer + read_ptr, (INT) sizeof(NET_COMMAND_HEADER) - copied);
-               nc = (NET_COMMAND *) (buffer);
-            } else
-               nc = (NET_COMMAND *) (net_buffer + read_ptr);
-
-            param_size = (INT) nc->header.param_size;
+               NET_COMMAND* nc = (NET_COMMAND *) (buffer);
+               param_size = (INT) nc->header.param_size;
+            } else {
+               NET_COMMAND* nc = (NET_COMMAND *) (net_buffer + read_ptr);
+               param_size = (INT) nc->header.param_size;
+            }
 
             if (_server_acception[idx].convert_flags)
                rpc_convert_single(&param_size, TID_DWORD, 0, _server_acception[idx].convert_flags);
@@ -12677,7 +12674,7 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
       }
 
       /* not enough data, so copy partially and get new */
-      size = write_ptr - read_ptr;
+      int size = write_ptr - read_ptr;
 
       if (size > 0) {
          memcpy(buffer + copied, net_buffer + read_ptr, size);
@@ -12716,7 +12713,7 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
    } while (TRUE);
 
    /* copy rest of parameters */
-   size = param_size + sizeof(NET_COMMAND_HEADER) - copied;
+   int size = param_size + sizeof(NET_COMMAND_HEADER) - copied;
    memcpy(buffer + copied, net_buffer + read_ptr, size);
    read_ptr += size;
 
@@ -14615,9 +14612,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
 \********************************************************************/
 {
-   INT status, n_received;
-   INT remaining, start_time;
-   char test_buffer[256], str[80];
+   INT status;
 
    /* init network buffer */
    if (_net_recv_buffer_size == 0) {
@@ -14651,10 +14646,11 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
    /* only check if TCP connection is broken */
    if (check) {
+      char test_buffer[256];
 #ifdef OS_WINNT
-      n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK);
+      int n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK);
 #else
-      n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK|MSG_DONTWAIT);
+      int n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK|MSG_DONTWAIT);
 
       /* check if we caught a signal */
       if ((n_received == -1) && (errno == EAGAIN))
@@ -14672,11 +14668,12 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       return SS_SUCCESS;
    }
 
-   remaining = 0;
-
    /* receive command */
    if (sock == _server_acception[idx].recv_sock) {
+      int remaining = 0;
+
       do {
+         int n_received = 0;
          if (_server_acception[idx].remote_hw_type == DR_ASCII)
             n_received = recv_string(_server_acception[idx].recv_sock, _net_recv_buffer, _net_recv_buffer_size, 10000);
          else
@@ -14710,7 +14707,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
    } else {
       /* receive event */
       if (sock == _server_acception[idx].event_sock) {
-         start_time = ss_millitime();
+         DWORD start_time = ss_millitime();
 
          char* buf = NULL;
          int   bufsize = 0;
@@ -14752,10 +14749,13 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
  error:
 
-   strlcpy(str, _server_acception[idx].host_name, sizeof(str));
-   if (strchr(str, '.'))
-      *strchr(str, '.') = 0;
-   cm_msg(MTALK, "rpc_server_receive", "Program \'%s\' on host \'%s\' aborted", _server_acception[idx].prog_name, str);
+   {
+      char str[80];
+      strlcpy(str, _server_acception[idx].host_name, sizeof(str));
+      if (strchr(str, '.'))
+         *strchr(str, '.') = 0;
+      cm_msg(MTALK, "rpc_server_receive", "Program \'%s\' on host \'%s\' aborted", _server_acception[idx].prog_name, str);
+   }
 
  exit:
 
