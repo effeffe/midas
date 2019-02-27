@@ -8841,7 +8841,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
          status = BM_SUCCESS;
          if (buf) {
             if (event_size > max_size) {
-               cm_msg(MERROR, "bm_read_buffer", "buffer \"%s\" event truncated, buffer size %d is smaller than event size %d", pheader->name, max_size, event_size);
+               cm_msg(MERROR, "bm_read_buffer", "buffer size %d is smaller than event size %d, event truncated. buffer \"%s\"", max_size, event_size, pheader->name);
                event_size = max_size;
                status = BM_TRUNCATED;
             }
@@ -8919,8 +8919,8 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
 
          if (buf) {
             if (event_size > max_size) {
+               cm_msg(MERROR, "bm_read_buffer", "buffer size %d is smaller than event size %d, event truncated. buffer \"%s\"", max_size, event_size, pheader->name);
                event_size = max_size;
-               cm_msg(MERROR, "bm_read_buffer", "buffer \"%s\" event truncated, buffer size %d is smaller than event size %d", pheader->name, max_size, event_size);
                status = BM_TRUNCATED;
             }
             
@@ -9521,6 +9521,11 @@ INT bm_poll_event()
          /* break if no more events */
          if (status == BM_ASYNC_RETURN)
             break;
+
+         /* break if corrupted event buffer */
+         if (status == BM_TRUNCATED) {
+            cm_msg(MERROR, "bm_poll_event", "received event was truncated, buffer size %d is too small, see messages and increase /Experiment/MAX_EVENT_SIZE in ODB", _event_buffer_size);
+         }
 
          /* break if corrupted event buffer */
          if (status == BM_CORRUPTED)
