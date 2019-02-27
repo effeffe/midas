@@ -160,6 +160,26 @@
    const secondLogChannelHtml = "<tr id=\"logChannelSecondPart\" class=\"mtabvaritle\"><th colspan=\"2\">Lazy Label</th><th>Progress</th><th>File Name</th><th># Files</th><th>Total</th></tr>";
    const clientTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Clients</th></tr>";
 
+   function set_if_changed(id, text)
+   {
+      var e = document.getElementById(id);
+      if (e) {
+         if (e.innerHTML != text) {
+            e.innerHTML = text;
+         }
+      }
+   }
+
+   function set_class_if_changed(id, cname)
+   {
+      var e = document.getElementById(id);
+      if (e) {
+         if (e.className != cname) {
+            e.className = cname;
+         }
+      }
+   }
+
    function callback(rpc, alarm, loggerBool, lastMessage, equipmentNames, equipmentStatData, equipmentCommonData) {
 
 
@@ -230,15 +250,15 @@
                   case STATE_STOPPED:
                      state = "Stopped";
                      buttonText = "Start";
-                     document.getElementById("runNumberCell").className = "mred mbox";
+                     set_class_if_changed("runNumberCell", "mred mbox");
                      // show stop time
                      if (runinfoJson.hasOwnProperty("stop time"))
-                        document.getElementById("runStatusStopTime").innerHTML = "Stop: " + runinfoJson["stop time"];
+                        set_if_changed("runStatusStopTime", "Stop: " + runinfoJson["stop time"]);
                      break;
                   case STATE_PAUSED:
                      state = "Paused";
                      buttonText = "Start";
-                     document.getElementById("runNumberCell").className = "myellow mbox";
+                     set_class_if_changed("runNumberCell", "myellow mbox");
                      // show running time
                      if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
                         //var time=runinfoJson["start time binary/last_written"];
@@ -246,16 +266,16 @@
                         var h = Math.floor(difftime / 3600);
                         var m = Math.floor(difftime % 3600 / 60);
                         var s = Math.floor(difftime % 60);
-                        document.getElementById("runStatusStopTime").innerHTML = "Running time: " +
+                        set_if_changed("runStatusStopTime", "Running time: " +
                                 + h + "h"
                                 + ((m<10)?"0"+m:m) + "m"
-                                + ((s<10)?"0"+s:s) + "s";
+                                + ((s<10)?"0"+s:s) + "s");
                      }
                      break;
                   case STATE_RUNNING:
                      state = "Running";
                      buttonText = "Stop";
-                     document.getElementById("runNumberCell").className = "mgreen mbox";
+                     set_class_if_changed("runNumberCell", "mgreen mbox");
                      // show running time
                      if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
                         //var time=runinfoJson["start time binary/last_written"];
@@ -263,10 +283,10 @@
                         var h = Math.floor(difftime / 3600);
                         var m = Math.floor(difftime % 3600 / 60);
                         var s = Math.floor(difftime % 60);
-                        document.getElementById("runStatusStopTime").innerHTML = "Running time: " +
+                        set_if_changed("runStatusStopTime", "Running time: " +
                                 + h + "h"
                                 + ((m<10)?"0"+m:m) + "m"
-                                + ((s<10)?"0"+s:s) + "s";
+                                + ((s<10)?"0"+s:s) + "s");
                      }
                      break;
                }
@@ -302,12 +322,11 @@
                   panelText += "<br>" +
                      "<input type=\"button\" class=\"mbutton\" value=\"" + buttonText + "\" onclick=\"" + buttonFunc + "\">";
 
-               if (document.getElementById("runNumberCell").innerHTML !== panelText)
-                  document.getElementById("runNumberCell").innerHTML = panelText;
+               set_if_changed("runNumberCell", panelText);
             }
 
             if (runinfoJson.hasOwnProperty("start time")) {
-               document.getElementById("runStatusStartTime").innerHTML = "Start: " + runinfoJson["start time"];
+               set_if_changed("runStatusStartTime", "Start: " + runinfoJson["start time"]);
             }
 
             if (experimentItemsJson != null && experimentItemsJson.hasOwnProperty("experiment name")) {
@@ -346,11 +365,11 @@
          }
 
          if (alarm["alarm_system_active"]) {
-            document.getElementById("runStatusAlarm").innerHTML = "<a href='?cmd=Alarms'>" + "Alarms: On" + "</a>";
-            document.getElementById("runStatusAlarm").className = "mgreen mbox";
+            set_if_changed("runStatusAlarm", "<a href='?cmd=Alarms'>" + "Alarms: On" + "</a>");
+            set_class_if_changed("runStatusAlarm", "mgreen mbox");
          } else {
-            document.getElementById("runStatusAlarm").innerHTML = "<a href='?cmd=Alarms'>" + "Alarms: Off" + "</a>";
-            document.getElementById("runStatusAlarm").className = "mred mbox";
+            set_if_changed("runStatusAlarm", "<a href='?cmd=Alarms'>" + "Alarms: Off" + "</a>");
+            set_class_if_changed("runStatusAlarm", "mred mbox");
          }
 
          if (sequencerJson) {
@@ -377,20 +396,18 @@
 
          if (loggerBool["status"] == 1) {
             if (loggerJson.hasOwnProperty("data dir")) {
-               document.getElementById("runStatusLogger").innerHTML = "Data dir: " + loggerJson["data dir"];
+               set_if_changed("runStatusLogger", "Data dir: " + loggerJson["data dir"]);
                if (loggerJson["write data"] == true)
-                  document.getElementById("runStatusLogger").className = "";
+                  set_class_if_changed("runStatusLogger", "");
                else
-                  document.getElementById("runStatusLogger").className = "myellow mbox";
+                  set_class_if_changed("runStatusLogger", "myellow mbox");
             }
          } else {
-            document.getElementById("runStatusLogger").innerHTML = "Logger not running";
-            document.getElementById("runStatusLogger").className = "mred mbox";
+            set_if_changed("runStatusLogger", "Logger not running");
+            set_class_if_changed("runStatusLogger", "mred mbox");
          }
 
-         document.getElementById("msgService").innerHTML = lastMessage.messages;
-
-
+         set_if_changed("msgService", lastMessage.messages);
       }
 
 
