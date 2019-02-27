@@ -148,10 +148,6 @@ static INT _request_list_entries = 0;
 static EVENT_HEADER *_event_buffer;
 static INT _event_buffer_size = 0;
 
-static char *_net_recv_buffer;
-static INT _net_recv_buffer_size = 0;
-static INT _net_recv_buffer_size_odb = 0;
-
 static char *_tcp_buffer = NULL;
 static INT _tcp_wp = 0;
 static INT _tcp_rp = 0;
@@ -2741,13 +2737,6 @@ INT cm_disconnect_experiment(void)
       M_FREE(_event_buffer);
       _event_buffer = NULL;
       _event_buffer_size = 0;
-   }
-
-   if (_net_recv_buffer_size > 0) {
-      M_FREE(_net_recv_buffer);
-      _net_recv_buffer = NULL;
-      _net_recv_buffer_size = 0;
-      _net_recv_buffer_size_odb = 0;
    }
 
    if (_tcp_buffer != NULL) {
@@ -14613,36 +14602,6 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 {
    INT status;
 
-   /* init network buffer */
-   if (_net_recv_buffer_size == 0) {
-      int size = DEFAULT_MAX_EVENT_SIZE + sizeof(EVENT_HEADER) + 1024;
-      _net_recv_buffer = (char *) M_MALLOC(size);
-      if (_net_recv_buffer == NULL) {
-         cm_msg(MERROR, "rpc_server_receive", "Cannot allocate %d bytes for network buffer", size);
-         return RPC_EXCEED_BUFFER;
-      }
-      _net_recv_buffer_size = size;
-      _net_recv_buffer_size_odb = 0;
-      //printf("rpc_server_receive: allocated _net_recv_buffer size %d, max_event_size %d\n", _net_recv_buffer_size, _bm_max_event_size);
-   }
-
-   /* init network buffer */
-   if (_net_recv_buffer_size_odb == 0 && _bm_max_event_size > 0) {
-      int size = _bm_max_event_size + sizeof(EVENT_HEADER) + 2*1024;
-
-      _net_recv_buffer_size_odb = size;
-
-      if (size > _net_recv_buffer_size) {
-         _net_recv_buffer = (char *) realloc(_net_recv_buffer, size);
-         if (_net_recv_buffer == NULL) {
-            cm_msg(MERROR, "rpc_server_receive", "Cannot allocate %d bytes for network buffer", size);
-            return RPC_EXCEED_BUFFER;
-         }
-         _net_recv_buffer_size = size;
-         //printf("rpc_server_receive: reallocated _net_recv_buffer size %d, max_event_size %d\n", _net_recv_buffer_size, _bm_max_event_size);
-      }
-   }
-
    /* only check if TCP connection is broken */
    if (check) {
       char test_buffer[256];
@@ -14675,12 +14634,22 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       int   bufsize = 0;
 
       do {
-         int n_received = 0;
          if (_server_acception[idx].remote_hw_type == DR_ASCII) {
-            n_received = recv_string(_server_acception[idx].recv_sock, _net_recv_buffer, _net_recv_buffer_size, 10000);
-            status = rpc_execute_ascii(_server_acception[idx].recv_sock, _net_recv_buffer);
+            // previous code allocated DEFAULT_MAX_EVENT_SIZE bytes, around 4 Mbytes
+            int asize = 100*1024;
+            char* abuf = malloc(asize);
+            
+            int n_received = recv_string(_server_acception[idx].recv_sock, abuf, asize, 10000);
+
+            if (n_received <= 0) {
+               status = SS_ABORT;
+               cm_msg(MERROR, "rpc_server_receive", "recv_string() returned %d, abort", n_received);
+               goto error;
+            }
+            
+            status = rpc_execute_ascii(_server_acception[idx].recv_sock, abuf);
          } else {
-            n_received = recv_net_command_realloc(idx, &buf, &bufsize, &remaining);
+            int n_received = recv_net_command_realloc(idx, &buf, &bufsize, &remaining);
 
             if (n_received <= 0) {
                status = SS_ABORT;
