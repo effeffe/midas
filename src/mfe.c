@@ -2688,9 +2688,8 @@ int mfe(char *ahost_name, char *aexp_name, BOOL adebug)
 int main(int argc, char *argv[])
 #endif
 {
-   INT status, i, j, size;
+   INT status, i, j;
    INT daemon_flag;
-   int sys_max_event_size = DEFAULT_MAX_EVENT_SIZE;
 
    host_name[0] = 0;
    exp_name[0] = 0;
@@ -2867,15 +2866,6 @@ int main(int argc, char *argv[])
 #ifdef OS_VXWORKS
    cm_synchronize(NULL);
 #endif
-
-   size = sizeof(sys_max_event_size);
-   status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &sys_max_event_size, &size, TID_DWORD, TRUE);
-
-   if (max_event_size > sys_max_event_size) {
-      cm_msg(MERROR, "mainFE", "Requested max_event_size (%d) exceeds max. system event size (%d)",
-             max_event_size, sys_max_event_size);
-      return 1;
-   }
 
    /* turn off watchdog if in debug mode */
    if (debug)
