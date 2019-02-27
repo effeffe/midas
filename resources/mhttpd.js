@@ -205,6 +205,7 @@ function ODBInlineEditKeydown(event, p, path, bracket) {
    if (keyCode == 27) {
       /* cancel editing */
       p.ODBsent = true;
+      p.inEdit  = false;
       mie_back_to_link(p, path, bracket);
       return false;
    }
