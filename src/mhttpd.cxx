@@ -897,94 +897,113 @@ static void urlEncode(char *ps, int ps_size)
 
 /*------------------------------------------------------------------*/
 
+std::string expand_env(const char* filename)
+{
+   const char* s = filename;
+   std::string r;
+   for (; *s; s++) {
+      if (*s == '$') {
+         s++;
+         std::string envname;
+         for (; *s; s++) {
+            if (*s == DIR_SEPARATOR)
+               break;
+            envname += *s;
+         }
+         const char* e = getenv(envname.c_str());
+         //printf("expanding [%s] at [%s] envname [%s] value [%s]\n", filename, s, envname.c_str(), e);
+         if (!e) {
+            //cm_msg(MERROR, "expand_env", "Env.variable \"%s\" cannot be expanded in \"%s\"", envname.c_str(), filename);
+            r += '$';
+            r += envname;
+            r += *s; // DIR_SEPARATOR or NUL
+         } else {
+            r += e;
+            if (r[r.length()-1] != DIR_SEPARATOR)
+               r += DIR_SEPARATOR_STR;
+         }
+      } else {
+         r += *s;
+      }
+   }
+   return r;
+}
+
+/*------------------------------------------------------------------*/
+
 bool open_resource_file(const char *filename, std::string* ppath, FILE** pfp)
 {
+   // resource file names should not contain directory separator "/"
+   // as this will allow them to escape the mhttpd filename "jail"
+   // by asking file files names like "../../etc/passwd", etc.
+   // reliably detecting special path elements like ".." is difficult.
+   
+   if (strchr(filename, '/') || strchr(filename, DIR_SEPARATOR)) {
+      cm_msg(MERROR, "open_resource_file", "Invalid resource file name \'%s\' contains \'/\' or \'%c\'", filename, DIR_SEPARATOR);
+      return false;
+   }
+   
    int status;
    HNDLE hDB;
-   char* env;
-   std::string path;
-   FILE *fp = NULL;
 
    cm_get_experiment_database(&hDB, NULL);
 
-   do { // THIS IS NOT A LOOP
+   std::vector<std::string> paths;
+   std::vector<std::string> paths_not_found;
 
-      std::string buf;
-      status = db_get_value_string(hDB, 0, "/Experiment/Resources", 0, &buf, FALSE);
-      if (status == DB_SUCCESS && buf.length() > 0) {
-         path = buf;
-         if (path[path.length()-1] != DIR_SEPARATOR)
-            path += DIR_SEPARATOR_STR;
-         path += filename;
-         fp = fopen(path.c_str(), "r");
-         if (fp)
-            break;
-      }
+   //paths.push_back("test/");
 
-      path = filename;
-      fp = fopen(path.c_str(), "r");
-      if (fp)
-         break;
-
-      path = std::string("resources") + DIR_SEPARATOR_STR + filename;
-      fp = fopen(path.c_str(), "r");
-      if (fp)
-         break;
-
-      env = getenv("MIDAS_DIR");
-      if (env && strlen(env) > 0) {
-         path = env;
-         if (path[path.length()-1] != DIR_SEPARATOR)
-            path += DIR_SEPARATOR_STR;
-         path += filename;
-         fp = fopen(path.c_str(), "r");
-         if (fp)
-            break;
-      }
-
-      env = getenv("MIDAS_DIR");
-      if (env && strlen(env) > 0) {
-         path = env;
-         if (path[path.length()-1] != DIR_SEPARATOR)
-            path += DIR_SEPARATOR_STR;
-         path += "resources";
-         path += DIR_SEPARATOR_STR;
-         path += filename;
-         fp = fopen(path.c_str(), "r");
-         if (fp)
-            break;
-      }
-
-      env = getenv("MIDASSYS");
-      if (env && strlen(env) > 0) {
-         path = env;
-         if (path[path.length()-1] != DIR_SEPARATOR)
-            path += std::string(DIR_SEPARATOR_STR);
-         path += "resources";
-         path += DIR_SEPARATOR_STR;
-         path += filename;
-         fp = fopen(path.c_str(), "r");
-         if (fp)
-            break;
-      }
-
-      break;
-   } while (false); // THIS IS NOT A LOOP
-
-   if (fp) {
-      if (ppath)
-         *ppath = path;
-      if (pfp) {
-         *pfp = fp;
-      } else {
-         fclose(fp);
-         fp = NULL;
-      }
-      //cm_msg(MINFO, "open_resource_file", "Resource file \'%s\' is \'%s\'", filename, path.c_str());
-      return true;
+   std::string buf;
+   status = db_get_value_string(hDB, 0, "/Experiment/Resources", 0, &buf, FALSE);
+   if (status == DB_SUCCESS && buf.length() > 0) {
+      paths.push_back(buf);
    }
 
-   cm_msg(MERROR, "open_resource_file", "Cannot find resource file \'%s\' in ODB /Experiment/Resources, in $MIDASSYS/resources, in $MIDAS_DIR/resources or in local directory", filename);
+   paths.push_back(".");
+   paths.push_back("resources");
+   paths.push_back("$MIDAS_DIR");
+   paths.push_back("$MIDAS_DIR/resources");
+   paths.push_back("$MIDASSYS/resources");
+
+   for (unsigned i=0; i<paths.size(); i++) {
+      std::string path = paths[i];
+      if (path.length() < 1)
+         continue;
+      if (path[0] == '#')
+         continue;
+      if (path[path.length()-1] != DIR_SEPARATOR)
+         path += DIR_SEPARATOR_STR;
+      path += filename;
+
+      std::string xpath = expand_env(path.c_str());
+      
+      //printf("path [%s] [%s] [%s]\n", paths[i].c_str(), path.c_str(), xpath.c_str());
+
+      FILE* fp = fopen(xpath.c_str(), "r");
+      if (fp) {
+         if (ppath)
+            *ppath = xpath;
+         if (pfp) {
+            *pfp = fp;
+         } else {
+            fclose(fp);
+            fp = NULL;
+         }
+         //cm_msg(MINFO, "open_resource_file", "Resource file \'%s\' is \'%s\'", filename, xpath.c_str());
+         return true;
+      }
+
+      paths_not_found.push_back(xpath);
+   }
+
+   std::string s;
+   for (unsigned i=0; i<paths_not_found.size(); i++) {
+      if (i>0)
+         s += ", ";
+      s += paths_not_found[i];
+   }
+
+   cm_msg(MERROR, "open_resource_file", "Cannot find resource file \'%s\', tried %s", filename, s.c_str());
    return false;
 }
 
@@ -994,11 +1013,19 @@ std::string get_content_type(const char* filename)
 {
    std::string ext_upper;
    const char* p = filename;
-   for (; *p; p++)
+   const char* last_dot = NULL;
+   for (; *p; p++) {
       if (*p == '.')
-         break;
-   for (; *p; p++)
-      ext_upper += toupper(*p);
+         last_dot = p;
+      if (*p == DIR_SEPARATOR)
+         last_dot = NULL;
+   }
+
+   if (last_dot) {
+      p = last_dot;
+      for (; *p; p++)
+         ext_upper += toupper(*p);
+   }
 
    //printf("filename: [%s], ext [%s]\n", filename, ext_upper.c_str());
    
@@ -1017,23 +1044,10 @@ std::string get_content_type(const char* filename)
 
 /*------------------------------------------------------------------*/
 
-bool send_resource(Return* r, const std::string& name)
+bool send_fp(Return* r, const std::string& path, FILE* fp)
 {
-   std::string path;
-   FILE *fp = NULL;
-
-   bool found = open_resource_file(name.c_str(), &path, &fp);
-
-   if (!found) {
-      /* header */
-      r->rsprintf("HTTP/1.1 404 Not Found\r\n");
-      r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
-      r->rsprintf("Content-Type: text/plain\r\n");
-      r->rsprintf("\r\n");
-      r->rsprintf("Error: resource file \"%s\" not found, see messages\n", name.c_str());
-      return false;
-   }
-
+   assert(fp != NULL);
+   
    // send HTTP headers
    
    r->rsprintf("HTTP/1.1 200 Document follows\r\n");
@@ -1053,7 +1067,7 @@ bool send_resource(Return* r, const std::string& name)
 
    // send Content-Type header
 
-   r->rsprintf("Content-Type: %s\r\n", get_content_type(name.c_str()).c_str());
+   r->rsprintf("Content-Type: %s\r\n", get_content_type(path.c_str()).c_str());
 
    // send Content-Length header
 
@@ -1073,6 +1087,47 @@ bool send_resource(Return* r, const std::string& name)
    fclose(fp);
 
    return true;
+}
+
+bool send_file(Return* r, const std::string& path, bool generate_404 = true)
+{
+   FILE *fp = fopen(path.c_str(), "r");
+
+   if (!fp) {
+      if (generate_404) {
+         /* header */
+         r->rsprintf("HTTP/1.1 404 Not Found\r\n");
+         r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
+         r->rsprintf("Content-Type: text/plain\r\n");
+         r->rsprintf("\r\n");
+         r->rsprintf("Error: File \"%s\" not found\n", path.c_str());
+      }
+      return false;
+   }
+   
+   return send_fp(r, path, fp);
+}
+
+bool send_resource(Return* r, const std::string& name, bool generate_404 = true)
+{
+   std::string path;
+   FILE *fp = NULL;
+
+   bool found = open_resource_file(name.c_str(), &path, &fp);
+
+   if (!found) {
+      if (generate_404) {
+         /* header */
+         r->rsprintf("HTTP/1.1 404 Not Found\r\n");
+         r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
+         r->rsprintf("Content-Type: text/plain\r\n");
+         r->rsprintf("\r\n");
+         r->rsprintf("Error: resource file \"%s\" not found, see messages\n", name.c_str());
+      }
+      return false;
+   }
+   
+   return send_fp(r, path, fp);
 }
 
 /*------------------------------------------------------------------*/
@@ -15505,7 +15560,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       strlcat(custom_path, dec_path, sizeof(custom_path));
       // if custom file exists, send it (like normal web server)
       if (ss_file_exist(custom_path)) {
-         send_resource(r, custom_path);
+         send_file(r, custom_path);
          return;
       }
    }
@@ -15555,11 +15610,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    }
 #endif
    
-   /*---- redirect if web page --------------------------------------*/
-
-   //if (send_resource(std::string(command) + ".html"))
-   //   return;
-
    /*---- history command -------------------------------------------*/
 
    if (equal_ustring(command, "history")) {
@@ -15917,6 +15967,18 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
    
+   /*---- redirect if web page --------------------------------------*/
+
+   //if (strlen(command) > 0) {
+   //   if (send_resource(r, std::string(command) + ".html", false))
+   //      return;
+   //}
+
+   /*---- serve url as a resource file ------------------------------*/
+
+   //if (send_resource(r, p->getparam("path"), false))
+   //   return;
+
    /*---- show status -----------------------------------------------*/
    
    if (elog_mode) {
@@ -15926,7 +15988,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    {
       char str[256];
-      sprintf(str, "Invalid URL: [%s%s] or command: [%s]", p->getparam("path"), p->getparam("query"), command); // FIXME: overflows str[]
+      sprintf(str, "Invalid URL: [%s]?[%s] or command: [%s]", p->getparam("path"), p->getparam("query"), command); // FIXME: overflows str[]
       show_error(r, str);
    }
 }
