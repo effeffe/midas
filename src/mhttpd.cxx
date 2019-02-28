@@ -1334,17 +1334,9 @@ void show_help_page(Return* r, const char* dec_path)
       }
    }
 
-   r->rsprintf("        <tr>\n");
-   r->rsprintf("          <td style=\"text-align:right;\">Obsolete mhttpd.css:</td>\n");
+   FILE *fp;
    std::string f;
-   FILE *fp = open_resource_file("mhttpd.css", &f);
-   if (fp) {
-      fclose(fp);
-      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
-   } else
-      r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
-   r->rsprintf("        </tr>\n");
-
+   
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">midas.css:</td>\n");
    fp = open_resource_file("midas.css", &f);
@@ -1366,6 +1358,16 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");
+   r->rsprintf("          <td style=\"text-align:right;\">controls.js:</td>\n");
+   fp = open_resource_file("controls.js", &f);
+   if (fp) {
+      fclose(fp);
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
+   } else
+      r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
+   r->rsprintf("        </tr>\n");
+
+   r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">mhttpd.js:</td>\n");
    fp = open_resource_file("mhttpd.js", &f);
    if (fp) {
@@ -1378,6 +1380,16 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">obsolete.js:</td>\n");
    fp = open_resource_file("obsolete.js", &f);
+   if (fp) {
+      fclose(fp);
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
+   } else
+      r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
+   r->rsprintf("        </tr>\n");
+
+   r->rsprintf("        <tr>\n");
+   r->rsprintf("          <td style=\"text-align:right;\">Obsolete mhttpd.css:</td>\n");
+   fp = open_resource_file("mhttpd.css", &f);
    if (fp) {
       fclose(fp);
       r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
@@ -1556,6 +1568,11 @@ void init_mhttpd_odb()
    status = db_find_key(hDB, 0, "/Experiment/CSS File", &hKey);
    if (status == DB_SUCCESS) {
       cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/CSS File\" is obsolete, please delete it.");
+   }
+
+   status = db_find_key(hDB, 0, "/Experiment/JS File", &hKey);
+   if (status == DB_SUCCESS) {
+      cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/JS File\" is obsolete, please delete it.");
    }
 }
 
@@ -8220,17 +8237,6 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    if (str[0] == 0)
       strlcpy(str, "root", sizeof(str));
    show_header(r, "MIDAS online database", "", str, 0);
-
-#if 0
-   /* add one "../" for each level */
-   tmp_path[0] = 0;
-   for (p = dec_path ; *p ; p++)
-      if (*p == '/')
-         strlcat(tmp_path, "../", sizeof(tmp_path));
-   strlcat(tmp_path, "../", sizeof(tmp_path));
-   strlcat(tmp_path, get_js_filename(), sizeof(tmp_path));
-   r->rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", tmp_path);
-#endif
 
    /* use javascript file */
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
