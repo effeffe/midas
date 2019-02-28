@@ -145,7 +145,7 @@ const Filetype filetype[] = {
    ".MP3", "audio/mpeg",}, {
    ".CSS", "text/css",}, {
    ".JS",  "application/javascript"}, {
-""},};
+   ""},};
 
 #define HTTP_ENCODING "UTF-8"
 
@@ -897,6 +897,186 @@ static void urlEncode(char *ps, int ps_size)
 
 /*------------------------------------------------------------------*/
 
+bool open_resource_file(const char *filename, std::string* ppath, FILE** pfp)
+{
+   int status;
+   HNDLE hDB;
+   char* env;
+   std::string path;
+   FILE *fp = NULL;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   do { // THIS IS NOT A LOOP
+
+      std::string buf;
+      status = db_get_value_string(hDB, 0, "/Experiment/Resources", 0, &buf, FALSE);
+      if (status == DB_SUCCESS && buf.length() > 0) {
+         path = buf;
+         if (path[path.length()-1] != DIR_SEPARATOR)
+            path += DIR_SEPARATOR_STR;
+         path += filename;
+         fp = fopen(path.c_str(), "r");
+         if (fp)
+            break;
+      }
+
+      path = filename;
+      fp = fopen(path.c_str(), "r");
+      if (fp)
+         break;
+
+      path = std::string("resources") + DIR_SEPARATOR_STR + filename;
+      fp = fopen(path.c_str(), "r");
+      if (fp)
+         break;
+
+      env = getenv("MIDAS_DIR");
+      if (env && strlen(env) > 0) {
+         path = env;
+         if (path[path.length()-1] != DIR_SEPARATOR)
+            path += DIR_SEPARATOR_STR;
+         path += filename;
+         fp = fopen(path.c_str(), "r");
+         if (fp)
+            break;
+      }
+
+      env = getenv("MIDAS_DIR");
+      if (env && strlen(env) > 0) {
+         path = env;
+         if (path[path.length()-1] != DIR_SEPARATOR)
+            path += DIR_SEPARATOR_STR;
+         path += "resources";
+         path += DIR_SEPARATOR_STR;
+         path += filename;
+         fp = fopen(path.c_str(), "r");
+         if (fp)
+            break;
+      }
+
+      env = getenv("MIDASSYS");
+      if (env && strlen(env) > 0) {
+         path = env;
+         if (path[path.length()-1] != DIR_SEPARATOR)
+            path += std::string(DIR_SEPARATOR_STR);
+         path += "resources";
+         path += DIR_SEPARATOR_STR;
+         path += filename;
+         fp = fopen(path.c_str(), "r");
+         if (fp)
+            break;
+      }
+
+      break;
+   } while (false); // THIS IS NOT A LOOP
+
+   if (fp) {
+      if (ppath)
+         *ppath = path;
+      if (pfp) {
+         *pfp = fp;
+      } else {
+         fclose(fp);
+         fp = NULL;
+      }
+      //cm_msg(MINFO, "open_resource_file", "Resource file \'%s\' is \'%s\'", filename, path.c_str());
+      return true;
+   }
+
+   cm_msg(MERROR, "open_resource_file", "Cannot find resource file \'%s\' in ODB /Experiment/Resources, in $MIDASSYS/resources, in $MIDAS_DIR/resources or in local directory", filename);
+   return false;
+}
+
+/*------------------------------------------------------------------*/
+
+std::string get_content_type(const char* filename)
+{
+   std::string ext_upper;
+   const char* p = filename;
+   for (; *p; p++)
+      if (*p == '.')
+         break;
+   for (; *p; p++)
+      ext_upper += toupper(*p);
+
+   //printf("filename: [%s], ext [%s]\n", filename, ext_upper.c_str());
+   
+   for (int i=0; filetype[i].ext[0]; i++) {
+      if (ext_upper == filetype[i].ext) {
+         const char* type = filetype[i].type;
+         //printf("filename: [%s], ext [%s] return content-type [%s]\n", filename, ext_upper.c_str(), type);
+         return type;
+      }
+   }
+
+   cm_msg(MERROR, "get_content_type", "Unknown HTTP Content-Type for resource file \'%s\', file extension \'%s\'", filename, ext_upper.c_str());
+
+   return "text/plain";
+}
+
+/*------------------------------------------------------------------*/
+
+bool send_resource(Return* r, const std::string& name)
+{
+   std::string path;
+   FILE *fp = NULL;
+
+   bool found = open_resource_file(name.c_str(), &path, &fp);
+
+   if (!found) {
+      /* header */
+      r->rsprintf("HTTP/1.1 404 Not Found\r\n");
+      r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
+      r->rsprintf("Content-Type: text/plain\r\n");
+      r->rsprintf("\r\n");
+      r->rsprintf("Error: resource file \"%s\" not found, see messages\n", name.c_str());
+      return false;
+   }
+
+   // send HTTP headers
+   
+   r->rsprintf("HTTP/1.1 200 Document follows\r\n");
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
+   r->rsprintf("Accept-Ranges: bytes\r\n");
+
+   // send HTTP cache control headers
+
+   time_t now = time(NULL);
+   now += (int) (3600 * 24);
+   struct tm* gmt = gmtime(&now);
+   const char* format = "%A, %d-%b-%y %H:%M:%S GMT";
+
+   char str[256];
+   strftime(str, sizeof(str), format, gmt);
+   r->rsprintf("Expires: %s\r\n", str);
+
+   // send Content-Type header
+
+   r->rsprintf("Content-Type: %s\r\n", get_content_type(name.c_str()).c_str());
+
+   // send Content-Length header
+
+   struct stat stat_buf;
+   fstat(fileno(fp), &stat_buf);
+   int length = stat_buf.st_size;
+   r->rsprintf("Content-Length: %d\r\n", length);
+
+   // send end of headers
+
+   r->rsprintf("\r\n");
+
+   // send file data
+   
+   r->rread(path.c_str(), fileno(fp), length);
+   
+   fclose(fp);
+
+   return true;
+}
+
+/*------------------------------------------------------------------*/
+
 static LASTMSG lastMsg;
 static LASTMSG lastChatMsg;
 static LASTMSG lastTalkMsg;
@@ -1203,8 +1383,6 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 
 /*------------------------------------------------------------------*/
 
-FILE *open_resource_file(const char *filename, std::string* pfilename);
-
 void show_help_page(Return* r, const char* dec_path)
 {
    const char *s;
@@ -1334,66 +1512,53 @@ void show_help_page(Return* r, const char* dec_path)
       }
    }
 
-   FILE *fp;
-   std::string f;
+   std::string path;
    
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">midas.css:</td>\n");
-   fp = open_resource_file("midas.css", &f);
-   if (fp) {
-      fclose(fp);
-      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
-   } else
+   if (open_resource_file("midas.css", &path, NULL))
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", path.c_str());
+   else
       r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
    r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">midas.js:</td>\n");
-   fp = open_resource_file("midas.js", &f);
-   if (fp) {
-      fclose(fp);
-      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
-   } else
+   if (open_resource_file("midas.js", &path, NULL))
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", path.c_str());
+   else
       r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
    r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">controls.js:</td>\n");
-   fp = open_resource_file("controls.js", &f);
-   if (fp) {
-      fclose(fp);
-      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
-   } else
+   if (open_resource_file("controls.js", &path, NULL))
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", path.c_str());
+   else
       r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
    r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">mhttpd.js:</td>\n");
-   fp = open_resource_file("mhttpd.js", &f);
-   if (fp) {
-      fclose(fp);
-      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
-   } else
+   if (open_resource_file("mhttpd.js", &path, NULL))
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", path.c_str());
+   else
       r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
    r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">obsolete.js:</td>\n");
-   fp = open_resource_file("obsolete.js", &f);
-   if (fp) {
-      fclose(fp);
-      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
-   } else
+   if (open_resource_file("obsolete.js", &path, NULL))
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", path.c_str());
+   else
       r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
    r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">Obsolete mhttpd.css:</td>\n");
-   fp = open_resource_file("mhttpd.css", &f);
-   if (fp) {
-      fclose(fp);
-      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
-   } else
+   if (open_resource_file("mhttpd.css", &path, NULL))
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", path.c_str());
+   else
       r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
    r->rsprintf("        </tr>\n");
 
@@ -13351,157 +13516,6 @@ void send_icon(Return* r, const char *icon)
    r->rsprintf("Content-Length: %d\r\n\r\n", length);
 
    r->rmemcpy(picon, length);
-}
-
-/*------------------------------------------------------------------*/
-
-FILE *open_resource_file(const char *filename, std::string* pfilename)
-{
-   int status;
-   HNDLE hDB;
-   char* env;
-   std::string path;
-   FILE *fp = NULL;
-
-   cm_get_experiment_database(&hDB, NULL);
-
-   do { // THIS IS NOT A LOOP
-
-      std::string buf;
-      status = db_get_value_string(hDB, 0, "/Experiment/Resources", 0, &buf, FALSE);
-      if (status == DB_SUCCESS && buf.length() > 0) {
-         path = buf;
-         if (path[path.length()-1] != DIR_SEPARATOR)
-            path += DIR_SEPARATOR_STR;
-         path += filename;
-         fp = fopen(path.c_str(), "r");
-         if (fp)
-            break;
-      }
-
-      path = filename;
-      fp = fopen(path.c_str(), "r");
-      if (fp)
-         break;
-
-      path = std::string("resources") + DIR_SEPARATOR_STR + filename;
-      fp = fopen(path.c_str(), "r");
-      if (fp)
-         break;
-
-      env = getenv("MIDAS_DIR");
-      if (env && strlen(env) > 0) {
-         path = env;
-         if (path[path.length()-1] != DIR_SEPARATOR)
-            path += DIR_SEPARATOR_STR;
-         path += filename;
-         fp = fopen(path.c_str(), "r");
-         if (fp)
-            break;
-      }
-
-      env = getenv("MIDAS_DIR");
-      if (env && strlen(env) > 0) {
-         path = env;
-         if (path[path.length()-1] != DIR_SEPARATOR)
-            path += DIR_SEPARATOR_STR;
-         path += "resources";
-         path += DIR_SEPARATOR_STR;
-         path += filename;
-         fp = fopen(path.c_str(), "r");
-         if (fp)
-            break;
-      }
-
-      env = getenv("MIDASSYS");
-      if (env && strlen(env) > 0) {
-         path = env;
-         if (path[path.length()-1] != DIR_SEPARATOR)
-            path += std::string(DIR_SEPARATOR_STR);
-         path += "resources";
-         path += DIR_SEPARATOR_STR;
-         path += filename;
-         fp = fopen(path.c_str(), "r");
-         if (fp)
-            break;
-      }
-
-      break;
-   } while (false); // THIS IS NOT A LOOP
-
-   if (fp) {
-      if (pfilename)
-         *pfilename = path;
-      //cm_msg(MINFO, "open_resource_file", "Resource file \'%s\' is \'%s\'", filename, path.c_str());
-      return fp;
-   }
-
-   cm_msg(MERROR, "open_resource_file", "Cannot find resource file \'%s\' in ODB /Experiment/Resources, in $MIDASSYS/resources, in $MIDAS_DIR/resources or in local directory", filename);
-   return NULL;
-}
-
-/*------------------------------------------------------------------*/
-
-bool send_resource(Return* r, const std::string& name)
-{
-   std::string filename;
-   FILE *fp = open_resource_file(name.c_str(), &filename);
-
-   if (!fp) {
-      std::string str;
-      str = "Error: file \""+name+"\" not found";
-      show_error(r, str.c_str());
-      return false;
-   }
-
-   // send HTTP headers
-   
-   r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
-   r->rsprintf("Accept-Ranges: bytes\r\n");
-
-   // send HTTP cache control headers
-
-   time_t now = time(NULL);
-   now += (int) (3600 * 24);
-   struct tm* gmt = gmtime(&now);
-   const char* format = "%A, %d-%b-%y %H:%M:%S GMT";
-   char str[256];
-   strftime(str, sizeof(str), format, gmt);
-   r->rsprintf("Expires: %s\r\n", str);
-
-   // send Content-Type header
-
-   const char* type = "text/plain";
-
-   /* return proper header for file type */
-   int i;
-   for (i = 0; i < (int) strlen(name.c_str()); i++)
-      str[i] = toupper(name[i]);
-   str[i] = 0;
-
-   for (i = 0; filetype[i].ext[0]; i++)
-      if (strstr(str, filetype[i].ext)){
-         type = filetype[i].type;
-         break;
-      }
-
-   r->rsprintf("Content-Type: %s\r\n", type);
-
-   // send Content-Length header
-
-   struct stat stat_buf;
-   fstat(fileno(fp), &stat_buf);
-   int length = stat_buf.st_size;
-   r->rsprintf("Content-Length: %d\r\n\r\n", length);
-
-   // send file data
-   
-   r->rread(filename.c_str(), fileno(fp), length);
-   
-   fclose(fp);
-
-   return true;
 }
 
 /*------------------------------------------------------------------*/
