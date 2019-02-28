@@ -277,7 +277,6 @@ void haxis(gdImagePtr im, gdFont * font, int col, int gcol, int x1, int y1, int 
 void get_elog_url(char *url, int len);
 void show_header(Return* r, const char *title, const char *method, const char *path, int refresh);
 void show_navigation_bar(Return* r, const char *cur_page);
-const char *get_css_filename();
 
 /*------------------------------------------------------------------*/
 
@@ -1336,9 +1335,9 @@ void show_help_page(Return* r, const char* dec_path)
    }
 
    r->rsprintf("        <tr>\n");
-   r->rsprintf("          <td style=\"text-align:right;\">CSS File:</td>\n");
+   r->rsprintf("          <td style=\"text-align:right;\">Obsolete mhttpd.css:</td>\n");
    std::string f;
-   FILE *fp = open_resource_file(get_css_filename(), &f);
+   FILE *fp = open_resource_file("mhttpd.css", &f);
    if (fp) {
       fclose(fp);
       r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
@@ -1438,7 +1437,7 @@ void show_header(Return* r, const char *title, const char *method, const char *p
 
    /* style sheet */
    r->rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
-   r->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
+   r->rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
    r->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
 
    /* auto refresh */
@@ -1486,7 +1485,7 @@ void show_error(Return* r, const char *error)
    r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    r->rsprintf("<html><head>\n");
-   r->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
+   r->rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
    r->rsprintf("<title>MIDAS error</title></head>\n");
    r->rsprintf("<body><H1>%s</H1></body></html>\n", error);
 }
@@ -1552,6 +1551,11 @@ void init_mhttpd_odb()
    status = db_find_key(hDB, 0, "/Experiment/Base URL", &hKey);
    if (status == DB_SUCCESS) {
       cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/Base URL\" is obsolete, please delete it.");
+   }
+
+   status = db_find_key(hDB, 0, "/Experiment/CSS File", &hKey);
+   if (status == DB_SUCCESS) {
+      cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/CSS File\" is obsolete, please delete it.");
    }
 }
 
@@ -3173,7 +3177,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
             r->rsprintf("<html><head>\n");
             r->rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
             r->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
-            r->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
+            r->rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
             r->rsprintf("<title>ELog Error</title></head>\n");
             r->rsprintf("<i>Error: Attachment file <i>%s</i> not valid.</i><p>\n", pp->getparam(str));
             r->rsprintf("Please go back and enter a proper filename (use the <b>Browse</b> button).\n");
@@ -7118,7 +7122,7 @@ void show_cnaf_page(Param* p, Return* rr)
    rr->rsprintf("<html><head>\n");
    rr->rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
    rr->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
-   rr->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
+   rr->rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
    rr->rsprintf("<title>MIDAS CAMAC interface</title></head>\n");
    rr->rsprintf("<body><form method=\"GET\" action=\"CNAF\">\n\n");
 
@@ -8105,7 +8109,7 @@ void show_password_page(Return* r, const char* dec_path, const char *password)
    r->rsprintf("<html><head>\n");
    r->rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
    r->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
-   r->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
+   r->rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
    r->rsprintf("<title>Enter password</title></head><body>\n\n");
 
    r->rsprintf("<form method=\"GET\" action=\".\">\n\n");
@@ -8154,7 +8158,7 @@ BOOL check_web_password(Return* r, const char* dec_path, const char *password, c
       r->rsprintf("<html><head>\n");
       r->rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
       r->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
-      r->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
+      r->rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
       r->rsprintf("<title>Enter password</title></head><body>\n\n");
 
       r->rsprintf("<form method=\"GET\" action=\".\">\n\n");
@@ -13432,60 +13436,6 @@ FILE *open_resource_file(const char *filename, std::string* pfilename)
 
 /*------------------------------------------------------------------*/
 
-static std::string css_file = "mhttpd.css";
-
-const char *get_css_filename()
-{
-   HNDLE hDB;
-   cm_get_experiment_database(&hDB, NULL);
-   db_get_value_string(hDB, 0, "/Experiment/CSS File", 0, &css_file, TRUE);
-   return css_file.c_str();
-}
-
-/*------------------------------------------------------------------*/
-
-void send_css(Return* r)
-{
-   char str[MAX_STRING_LENGTH], format[MAX_STRING_LENGTH];
-   time_t now;
-   struct tm *gmt;
-
-   r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
-   r->rsprintf("Accept-Ranges: bytes\r\n");
-
-   /* set expiration time to one day */
-   time(&now);
-   now += (int) (3600 * 24);
-   gmt = gmtime(&now);
-   strcpy(format, "%A, %d-%b-%y %H:%M:%S GMT");
-   strftime(str, sizeof(str), format, gmt);
-   r->rsprintf("Expires: %s\r\n", str);
-   r->rsprintf("Content-Type: text/css\r\n");
-
-   /* look for external CSS file */
-
-   std::string filename;
-   FILE *fp = open_resource_file(get_css_filename(), &filename);
-
-   if (fp) {
-      struct stat stat_buf;
-      fstat(fileno(fp), &stat_buf);
-      int length = stat_buf.st_size;
-      r->rsprintf("Content-Length: %d\r\n\r\n", length);
-
-      r->rread(filename.c_str(), fileno(fp), length);
-
-      fclose(fp);
-      return;
-   }
-
-   int length = 0;
-   r->rsprintf("Content-Length: %d\r\n\r\n", length);
-}
-
-/*------------------------------------------------------------------*/
-
 bool send_resource(Return* r, const std::string& name)
 {
    std::string filename;
@@ -15231,11 +15181,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   if (strstr(dec_path, get_css_filename())) {
-      send_css(r);
-      return;
-   }
-
    const char* password = p->getparam("pwd");
    const char* wpassword = p->getparam("wpwd");
    const char* command = p->getparam("cmd");
@@ -15355,6 +15300,13 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (strstr(dec_path, "obsolete.js")) {
       send_resource(r, "obsolete.js");
+      return;
+   }
+
+   /*---- send the obsolete mhttpd.css ------------------------------*/
+
+   if (strstr(dec_path, "mhttpd.css")) {
+      send_resource(r, "mhttpd.css");
       return;
    }
 
