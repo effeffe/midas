@@ -5356,8 +5356,6 @@ void show_custom_file(Return* r, const char *name)
    std::string filename;
    std::string custom_path;
    int i, fh, size;
-   HNDLE hDB, hkey;
-   KEY key;
 
    if (!open_custom_file(r, name, &filename, &fh, true))
       return;
@@ -5452,13 +5450,11 @@ void show_custom_file(Return* r, const char *name)
 
 /*------------------------------------------------------------------*/
 
-bool open_custom_gif(Return* r, const char *name, std::string *ppath, FILE** pfp, bool generate_404)
+bool open_custom_gif(Return* r, const char *name, std::string *ppath, FILE** pfp, HNDLE *phkeygif, bool generate_404)
 {
-   char str[256], filename[256], custom_path[256],
-      full_filename[256];
-   int i, index, length, status, size;
-   HNDLE hDB, hkeygif, hkeyroot, hkey, hkeyval;
-   KEY key, vkey;
+   char str[256], filename[256], custom_path[256], full_filename[256];
+   int size;
+   HNDLE hDB, hkeygif;
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -5501,6 +5497,11 @@ bool open_custom_gif(Return* r, const char *name, std::string *ppath, FILE** pfp
       fclose(f);
       f = NULL;
    }
+
+   if (phkeygif)
+      *phkeygif = hkeygif;
+   
+   return true;
 }
 
 /*------------------------------------------------------------------*/
@@ -5521,7 +5522,7 @@ void show_custom_gif(Return* rr, const char *name)
 
    std::string filename;
 
-   if (!open_custom_gif(rr, name, &filename, &f, true))
+   if (!open_custom_gif(rr, name, &filename, &f, &hkeygif, true))
       return;
 
 #if 0   
@@ -5567,6 +5568,8 @@ void show_custom_gif(Return* rr, const char *name)
       show_error(rr, str);
       return;
    }
+
+   cm_get_experiment_database(&hDB, NULL);
 
    /*---- draw labels ----------------------------------------------*/
 
@@ -15690,47 +15693,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   /* old custom pages that used to be in the subdirectory /CS/... */
-
-   if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
-      if (strstr(dec_path, ".gif")) {
-         if (open_custom_gif(r, dec_path, NULL, NULL, false)) {
-            show_custom_gif(r, dec_path);
-            return;
-         }
-      }
-
-      if (strchr(dec_path, '.')) {
-         if (open_custom_file(r, dec_path, NULL, NULL, false)) {
-            show_custom_file(r, dec_path);
-            return;
-         }
-      }
-
-   }
-
-   /* new custom pages */
-   if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
-      char custom_path[256];
-      if (getenv("MIDAS_DIR"))
-        strlcpy(custom_path, getenv("MIDAS_DIR"), sizeof(custom_path));
-      else if (getenv("MIDASSYS"))
-         strlcpy(custom_path, getenv("MIDASSYS"), sizeof(custom_path));
-      else
-         strlcpy(custom_path, "/home/custom", sizeof(custom_path));
-
-      int size = sizeof(custom_path);
-      db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, TRUE);
-      if (custom_path[strlen(custom_path)-1] != DIR_SEPARATOR)
-         strlcat(custom_path, DIR_SEPARATOR_STR, sizeof(custom_path));
-      strlcat(custom_path, dec_path, sizeof(custom_path));
-      // if custom file exists, send it (like normal web server)
-      if (ss_file_exist(custom_path)) {
-         send_file(r, custom_path);
-         return;
-      }
-   }
-   
    /*---- java script commands --------------------------------------*/
 
    if (equal_ustring(command, "jset") ||
@@ -16099,13 +16061,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    }
 #endif
 
-   /*---- (old) custom page -----------------------------------------*/
-
-   if (equal_ustring(command, "custom")) {
-      show_custom_page(p, r, dec_path, cookie_cpwd);
-      return;
-   }
-
    /*---- show ODB --------------------------------------------------*/
 
    if (equal_ustring(command, "odb")) {
@@ -16131,6 +16086,56 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
       show_odb_page(p, r, odb_enc_path, sizeof(odb_enc_path), odb_dec_path, write_access);
       return;
+   }
+   
+   /*---- custom page -----------------------------------------------*/
+
+   if (equal_ustring(command, "custom")) {
+      show_custom_page(p, r, dec_path, cookie_cpwd);
+      return;
+   }
+
+   /*---- custom page accessed by direct URL that used to be under /CS/... ----*/
+
+   if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
+      if (strstr(dec_path, ".gif")) {
+         printf("try custom_gif [%s]\n", dec_path);
+         if (open_custom_gif(r, dec_path, NULL, NULL, NULL, false)) {
+            show_custom_gif(r, dec_path);
+            return;
+         }
+      }
+
+      if (strchr(dec_path, '.')) {
+         printf("try custom_file [%s]\n", dec_path);
+         if (open_custom_file(r, dec_path, NULL, NULL, false)) {
+            show_custom_file(r, dec_path);
+            return;
+         }
+      }
+
+   }
+
+   /* new custom pages */
+   if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
+      char custom_path[256];
+      if (getenv("MIDAS_DIR"))
+        strlcpy(custom_path, getenv("MIDAS_DIR"), sizeof(custom_path));
+      else if (getenv("MIDASSYS"))
+         strlcpy(custom_path, getenv("MIDASSYS"), sizeof(custom_path));
+      else
+         strlcpy(custom_path, "/home/custom", sizeof(custom_path));
+
+      int size = sizeof(custom_path);
+      db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, TRUE);
+      if (custom_path[strlen(custom_path)-1] != DIR_SEPARATOR)
+         strlcat(custom_path, DIR_SEPARATOR_STR, sizeof(custom_path));
+      strlcat(custom_path, dec_path, sizeof(custom_path));
+      // if custom file exists, send it (like normal web server)
+      if (ss_file_exist(custom_path)) {
+         send_file(r, custom_path);
+         return;
+      }
    }
    
    /*---- redirect if web page --------------------------------------*/
