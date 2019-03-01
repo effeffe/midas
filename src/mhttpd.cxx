@@ -5452,10 +5452,62 @@ void show_custom_file(Return* r, const char *name)
 
 /*------------------------------------------------------------------*/
 
+bool open_custom_gif(Return* r, const char *name, std::string *ppath, FILE** pfp, bool generate_404)
+{
+   char str[256], filename[256], custom_path[256],
+      full_filename[256];
+   int i, index, length, status, size;
+   HNDLE hDB, hkeygif, hkeyroot, hkey, hkeyval;
+   KEY key, vkey;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   custom_path[0] = 0;
+   size = sizeof(custom_path);
+   db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, FALSE);
+
+   /* find image description in ODB */
+   sprintf(str, "/Custom/Images/%s", name);
+   db_find_key(hDB, 0, str, &hkeygif);
+   if (!hkeygif) {
+      return false;
+   }
+
+   /* load background image */
+   size = sizeof(filename);
+   db_get_value(hDB, hkeygif, "Background", filename, &size, TID_STRING, FALSE);
+
+   strlcpy(full_filename, custom_path, sizeof(str));
+   if (full_filename[strlen(full_filename)-1] != DIR_SEPARATOR)
+      strlcat(full_filename, DIR_SEPARATOR_STR, sizeof(full_filename));
+   strlcat(full_filename, filename, sizeof(full_filename));
+
+   FILE *f = fopen(full_filename, "rb");
+   if (f == NULL) {
+      if (generate_404) {
+         sprintf(str, "Cannot open file \"%s\"", full_filename);
+         show_error(r, str);
+      }
+      return false;
+   }
+
+   if (ppath)
+      *ppath = full_filename;
+
+   if (pfp) {
+      *pfp = f;
+      f = NULL;
+   } else {
+      fclose(f);
+      f = NULL;
+   }
+}
+
+/*------------------------------------------------------------------*/
+
 void show_custom_gif(Return* rr, const char *name)
 {
-   char str[256], filename[256], data[256], value[256], src[256], custom_path[256],
-      full_filename[256];
+   char str[256], data[256], value[256], src[256];
    int i, index, length, status, size, width, height, bgcol, fgcol, bdcol, r, g, b, x, y;
    HNDLE hDB, hkeygif, hkeyroot, hkey, hkeyval;
    double fvalue, ratio;
@@ -5467,6 +5519,12 @@ void show_custom_gif(Return* rr, const char *name)
    CGIF_LABEL label;
    CGIF_BAR bar;
 
+   std::string filename;
+
+   if (!open_custom_gif(rr, name, &filename, &f, true))
+      return;
+
+#if 0   
    cm_get_experiment_database(&hDB, NULL);
 
    custom_path[0] = 0;
@@ -5499,12 +5557,13 @@ void show_custom_gif(Return* rr, const char *name)
       show_error(rr, str);
       return;
    }
+#endif
 
    im = gdImageCreateFromGif(f);
    fclose(f);
 
    if (im == NULL) {
-      sprintf(str, "File \"%s\" is not a GIF image", filename);
+      sprintf(str, "File \"%s\" is not a GIF image", filename.c_str());
       show_error(rr, str);
       return;
    }
@@ -15631,9 +15690,23 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   if (open_custom_file(r, p->getparam("path"), NULL, NULL, false)) {
-      show_custom_file(r, p->getparam("path"));
-      return;
+   /* old custom pages that used to be in the subdirectory /CS/... */
+
+   if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
+      if (strstr(dec_path, ".gif")) {
+         if (open_custom_gif(r, dec_path, NULL, NULL, false)) {
+            show_custom_gif(r, dec_path);
+            return;
+         }
+      }
+
+      if (strchr(dec_path, '.')) {
+         if (open_custom_file(r, dec_path, NULL, NULL, false)) {
+            show_custom_file(r, dec_path);
+            return;
+         }
+      }
+
    }
 
    /* new custom pages */
