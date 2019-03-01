@@ -5267,6 +5267,89 @@ int evaluate_src(char *key, char *src, double *fvalue)
 
 /*------------------------------------------------------------------*/
 
+bool open_custom_file(Return *r, const char *name, std::string* ppath, int* pfd, bool generate_404)
+{
+   char str[256];
+   std::string filename;
+   std::string custom_path;
+   int size;
+   HNDLE hDB, hkey;
+   KEY key;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   // Get custom page value
+   db_get_value_string(hDB, 0, "/Custom/Path", 0, &custom_path, FALSE);
+
+   /* check for PATH variable */
+   if (custom_path.length() > 0) {
+      filename = custom_path;
+      if (filename[filename.length()-1] != DIR_SEPARATOR)
+         filename += DIR_SEPARATOR_STR;
+      filename += name;
+   } else {
+      sprintf(str, "/Custom/%s", name);
+      db_find_key(hDB, 0, str, &hkey);
+
+      if (!hkey) {
+         sprintf(str, "/Custom/%s&", name);
+         db_find_key(hDB, 0, str, &hkey);
+         if (!hkey) {
+            sprintf(str, "/Custom/%s!", name);
+            db_find_key(hDB, 0, str, &hkey);
+         }
+      }
+      
+      if(!hkey){
+         if (generate_404) {
+            sprintf(str,"Invalid custom page: /Custom/%s not found in ODB",name);
+            show_error(r, str);
+         }
+         return false;
+      }
+      
+      char* ctext;
+      int status;
+      
+      status = db_get_key(hDB, hkey, &key);
+      assert(status == DB_SUCCESS);
+      size = key.total_size;
+      ctext = (char*)malloc(size);
+      status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
+      if (status != DB_SUCCESS) {
+         if (generate_404) {
+            sprintf(str, "Error: db_get_data() status %d", status);
+            show_error(r, str);
+         }
+         free(ctext);
+         return false;
+      }      
+      filename = ctext;
+   }
+
+   int fd = open(filename.c_str(), O_RDONLY | O_BINARY);
+   if (fd < 0) {
+      if (generate_404) {
+         sprintf(str, "Cannot open file \"%s\" ", filename.c_str());
+         show_error(r, str);
+      }
+      return false;
+   }
+
+   if (ppath)
+      *ppath = filename;
+
+   if (pfd) {
+      *pfd = fd;
+   } else {
+      close(fd);
+   }
+   
+   return true;
+}
+
+/*------------------------------------------------------------------*/
+
 void show_custom_file(Return* r, const char *name)
 {
    char str[256];
@@ -5276,6 +5359,10 @@ void show_custom_file(Return* r, const char *name)
    HNDLE hDB, hkey;
    KEY key;
 
+   if (!open_custom_file(r, name, &filename, &fh, true))
+      return;
+
+#if 0
    cm_get_experiment_database(&hDB, NULL);
 
    // Get custom page value
@@ -5330,6 +5417,7 @@ void show_custom_file(Return* r, const char *name)
       show_error(r, str);
       return;
    }
+#endif
 
    size = lseek(fh, 0, SEEK_END);
    lseek(fh, 0, SEEK_SET);
@@ -15540,6 +15628,11 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (equal_ustring(dec_path, "spinning-wheel.gif")) {
       send_resource(r, "spinning-wheel.gif");
+      return;
+   }
+
+   if (open_custom_file(r, p->getparam("path"), NULL, NULL, false)) {
+      show_custom_file(r, p->getparam("path"));
       return;
    }
 
