@@ -15986,11 +15986,12 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   {
-      char str[256];
-      sprintf(str, "Invalid URL: [%s]?[%s] or command: [%s]", p->getparam("path"), p->getparam("query"), command); // FIXME: overflows str[]
-      show_error(r, str);
-   }
+   /* header */
+   r->rsprintf("HTTP/1.1 400 Bad Request\r\n");
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
+   r->rsprintf("Content-Type: text/plain\r\n");
+   r->rsprintf("\r\n");
+   r->rsprintf("Error: Invalid URL \"%s\" or query \"%s\" or command \"%s\"\n", p->getparam("path"), p->getparam("query"), command);
 }
 
 /*------------------------------------------------------------------*/
