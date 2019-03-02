@@ -16122,6 +16122,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       int status = db_get_value_string(hDB, 0, odb_path.c_str(), 0, &value, FALSE);
       printf("Try [%s] status %d\n", odb_path.c_str(), status);
       if (status == DB_SUCCESS) {
+         p->setparam("page", dec_path);
          show_custom_page(p, r, dec_path, cookie_cpwd);
          return;
       }
