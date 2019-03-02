@@ -7123,7 +7123,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
 
    strlcpy(path, pp->getparam("page"), sizeof(path));
    if (path[0] == 0) {
-      show_error(r, "Invalid custom page: NULL path");
+      show_error_404(r, "show_custom_page: Invalid custom page: \"page\" parameter is empty");
       return;
    }
    sprintf(str, "/Custom/%s", path);
@@ -7151,8 +7151,8 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
       ctext = (char*)malloc(size);
       status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
       if (status != DB_SUCCESS) {
-         sprintf(str, "Error: db_get_data() status %d", status);
-         show_error(r, str);
+         sprintf(str, "show_custom_page: Error: db_get_data() for \"%s\" status %d", str, status);
+         show_error_404(r, str);
          free(ctext);
          return;
       }
@@ -7171,8 +7171,8 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
          }
          fh = open(filename, O_RDONLY | O_BINARY);
          if (fh < 0) {
-            sprintf(str, "Cannot open file \"%s\", errno %d (%s)", filename, errno, strerror(errno));
-            show_error(r, str);
+            sprintf(str, "show_custom_page: Cannot open file \"%s\", errno %d (%s)", filename, errno, strerror(errno));
+            show_error_404(r, str);
             free(ctext);
             return;
          }
@@ -7218,7 +7218,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
                str[0] = 0;
                db_get_value(hDB, 0, ppath, str, &size, TID_STRING, TRUE);
                if (!equal_ustring(cookie_cpwd, str)) {
-                  show_error(r, "Invalid password!");
+                  show_error_404(r, "show_custom_page: Invalid password!");
                   free(ctext);
                   return;
                } else
@@ -7237,7 +7237,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
             str[0] = 0;
             db_get_value(hDB, 0, ppath, str, &size, TID_STRING, TRUE);
             if (!equal_ustring(cookie_cpwd, str)) {
-               show_error(r, "Invalid password!");
+               show_error_404(r, "show_custom_page: Invalid password!");
                free(ctext);
                return;
             }
@@ -7304,7 +7304,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
       free(ctext);
       ctext = NULL;
    } else {
-      show_error_404(r, "Invalid custom page: Page not found in ODB");
+      show_error_404(r, "Invalid custom page: Page \"%s\" not found in ODB", path);
       return;
    }
 }
