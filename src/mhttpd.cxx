@@ -1120,7 +1120,7 @@ bool send_resource(Return* r, const std::string& name, bool generate_404 = true)
          /* header */
          r->rsprintf("HTTP/1.1 404 Not Found\r\n");
          r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
-         r->rsprintf("Content-Type: text/plain, charset=%s\r\n", HTTP_ENCODING);
+         r->rsprintf("Content-Type: text/plain; charset=%s\r\n", HTTP_ENCODING);
          r->rsprintf("\r\n");
          r->rsprintf("Error: resource file \"%s\" not found, see messages\n", name.c_str());
       }
@@ -15934,6 +15934,22 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
    
+   /*---- old ODB path ----------------------------------------------*/
+
+   if ((command[0]==0) && dec_path[0]) {
+      HNDLE hkey;
+      status = db_find_key(hDB, 0, dec_path, &hkey);
+      printf("try odb path [%s], status %d\n", dec_path, status);
+      if (status == DB_SUCCESS) {
+         std::string new_url;
+         new_url += "?cmd=odb";
+         new_url += "&odb_path=";
+         new_url += dec_path;
+         redirect(r, new_url.c_str());
+         return;
+      }
+   }
+
    /*---- custom page -----------------------------------------------*/
 
    if (equal_ustring(command, "custom")) {
@@ -16053,7 +16069,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /* header */
    r->rsprintf("HTTP/1.1 400 Bad Request\r\n");
    r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
-   r->rsprintf("Content-Type: text/plain, charset=%s\r\n", HTTP_ENCODING);
+   r->rsprintf("Content-Type: text/plain; charset=%s\r\n", HTTP_ENCODING);
    r->rsprintf("\r\n");
    r->rsprintf("Error: Invalid URL \"%s\" or query \"%s\" or command \"%s\"\n", p->getparam("path"), p->getparam("query"), command);
 }
