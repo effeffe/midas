@@ -1098,7 +1098,7 @@ bool send_file(Return* r, const std::string& path, bool generate_404 = true)
          /* header */
          r->rsprintf("HTTP/1.1 404 Not Found\r\n");
          r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
-         r->rsprintf("Content-Type: text/plain\r\n");
+         r->rsprintf("Content-Type: text/plain; charset=%s\r\n", HTTP_ENCODING);
          r->rsprintf("\r\n");
          r->rsprintf("Error: Cannot read \"%s\", fopen() errno %d (%s)\n", path.c_str(), errno, strerror(errno));
       }
@@ -1120,7 +1120,7 @@ bool send_resource(Return* r, const std::string& name, bool generate_404 = true)
          /* header */
          r->rsprintf("HTTP/1.1 404 Not Found\r\n");
          r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
-         r->rsprintf("Content-Type: text/plain\r\n");
+         r->rsprintf("Content-Type: text/plain, charset=%s\r\n", HTTP_ENCODING);
          r->rsprintf("\r\n");
          r->rsprintf("Error: resource file \"%s\" not found, see messages\n", name.c_str());
       }
@@ -16052,7 +16052,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /* header */
    r->rsprintf("HTTP/1.1 400 Bad Request\r\n");
    r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
-   r->rsprintf("Content-Type: text/plain\r\n");
+   r->rsprintf("Content-Type: text/plain, charset=%s\r\n", HTTP_ENCODING);
    r->rsprintf("\r\n");
    r->rsprintf("Error: Invalid URL \"%s\" or query \"%s\" or command \"%s\"\n", p->getparam("path"), p->getparam("query"), command);
 }
