@@ -15939,12 +15939,23 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    if ((command[0]==0) && dec_path[0]) {
       HNDLE hkey;
       status = db_find_key(hDB, 0, dec_path, &hkey);
-      printf("try odb path [%s], status %d\n", dec_path, status);
+      //printf("try odb path [%s], status %d\n", dec_path, status);
       if (status == DB_SUCCESS) {
+         int level = 1;
+         for (const char* s = dec_path; *s; s++) {
+            if (*s == '/')
+               level++;
+         }
          std::string new_url;
+         for (int i=0; i<level; i++) {
+            if (i>0)
+               new_url += "/";
+            new_url += "..";
+         }
          new_url += "?cmd=odb";
          new_url += "&odb_path=";
          new_url += dec_path;
+         //printf("redirect old odb path url [%s] to [%s]\n", dec_path, new_url.c_str());
          redirect(r, new_url.c_str());
          return;
       }
