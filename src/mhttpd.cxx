@@ -5280,77 +5280,81 @@ int evaluate_src(char *key, char *src, double *fvalue)
 
 /*------------------------------------------------------------------*/
 
+std::string add_custom_path(const std::string& filename)
+{
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   std::string custom_path = "";
+
+   int status = db_get_value_string(hDB, 0, "/Custom/Path", 0, &custom_path, TRUE);
+
+   if (status != DB_SUCCESS)
+      return filename;
+
+   std::string full_filename = custom_path;
+   if (full_filename[full_filename.length()-1] != DIR_SEPARATOR)
+      full_filename += DIR_SEPARATOR_STR;
+   full_filename += filename;
+
+   return full_filename;
+}
+
+/*------------------------------------------------------------------*/
+
 void show_custom_file(Return* r, const char *name)
 {
    char str[256];
    std::string filename;
-   std::string custom_path;
    HNDLE hDB;
 
    cm_get_experiment_database(&hDB, NULL);
 
-   // Get custom page value
-   db_get_value_string(hDB, 0, "/Custom/Path", 0, &custom_path, FALSE);
-
-   /* check for PATH variable */
-   if (custom_path.length() > 0) {
-      if (strchr(name, '/') || strchr(name, DIR_SEPARATOR)) {
-         sprintf(str,"show_custom_file: Directory separator \'%c\' or \'%c\' not permitted in file name \"%s\"", '/', DIR_SEPARATOR, name);
-         show_error_404(r, str);
-         return;
-      }
-
-      filename = custom_path;
-      if (filename[filename.length()-1] != DIR_SEPARATOR)
-         filename += DIR_SEPARATOR_STR;
-      filename += name;
-   } else {
-      HNDLE hkey;
-      sprintf(str, "/Custom/%s", name);
+   HNDLE hkey;
+   sprintf(str, "/Custom/%s", name);
+   db_find_key(hDB, 0, str, &hkey);
+   
+   if (!hkey) {
+      sprintf(str, "/Custom/%s&", name);
       db_find_key(hDB, 0, str, &hkey);
-
       if (!hkey) {
-         sprintf(str, "/Custom/%s&", name);
+         sprintf(str, "/Custom/%s!", name);
          db_find_key(hDB, 0, str, &hkey);
-         if (!hkey) {
-            sprintf(str, "/Custom/%s!", name);
-            db_find_key(hDB, 0, str, &hkey);
-         }
       }
-      
-      if(!hkey){
-         sprintf(str,"show_custom_file: Invalid custom page: /Custom/%s not found in ODB",name);
-         show_error_404(r, str);
-         return;
-      }
-      
-      int status;
-      KEY key;
-      
-      status = db_get_key(hDB, hkey, &key);
-
-      if (status != DB_SUCCESS) {
-         sprintf(str, "show_custom_file: Error: db_get_key() for \"%s\" status %d", str, status);
-         show_error_404(r, str);
-         return;
-      }      
-
-      int size = key.total_size;
-      char* ctext = (char*)malloc(size);
-
-      status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
-
-      if (status != DB_SUCCESS) {
-         sprintf(str, "show_custom_file: Error: db_get_data() for \"%s\" status %d", str, status);
-         show_error_404(r, str);
-         free(ctext);
-         return;
-      }      
-
-      filename = ctext;
-
-      free(ctext);
    }
+   
+   if(!hkey){
+      sprintf(str,"show_custom_file: Invalid custom page: \"/Custom/%s\" not found in ODB", name);
+      show_error_404(r, str);
+      return;
+   }
+      
+   int status;
+   KEY key;
+   
+   status = db_get_key(hDB, hkey, &key);
+   
+   if (status != DB_SUCCESS) {
+      sprintf(str, "show_custom_file: Error: db_get_key() for \"%s\" status %d", str, status);
+      show_error_404(r, str);
+      return;
+   }      
+   
+   int size = key.total_size;
+   char* ctext = (char*)malloc(size);
+   
+   status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
+   
+   if (status != DB_SUCCESS) {
+      sprintf(str, "show_custom_file: Error: db_get_data() for \"%s\" status %d", str, status);
+      show_error_404(r, str);
+      free(ctext);
+      return;
+   }      
+   
+   filename = add_custom_path(ctext);
+   
+   free(ctext);
 
    send_file(r, filename, true);
 
@@ -5375,9 +5379,6 @@ void show_custom_gif(Return* rr, const char *name)
 
    cm_get_experiment_database(&hDB, NULL);
 
-   std::string custom_path;
-   db_get_value_string(hDB, 0, "/Custom/Path", 0, &custom_path, FALSE);
-
    /* find image description in ODB */
    sprintf(str, "/Custom/Images/%s", name);
    db_find_key(hDB, 0, str, &hkeygif);
@@ -5393,10 +5394,7 @@ void show_custom_gif(Return* rr, const char *name)
    std::string filename;
    db_get_value_string(hDB, hkeygif, "Background", 0, &filename, FALSE);
 
-   std::string full_filename = custom_path;
-   if (full_filename[full_filename.length()-1] != DIR_SEPARATOR)
-      full_filename += DIR_SEPARATOR_STR;
-   full_filename += filename;
+   std::string full_filename = add_custom_path(filename);
 
    f = fopen(full_filename.c_str(), "rb");
    if (f == NULL) {
@@ -7103,8 +7101,8 @@ void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
 void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_cpwd)
 {
    int size, n_var, fh, index, edit;
-   char str[TEXT_SIZE], keypath[256], type[32], *p, *ps, custom_path[256],
-      filename[256], pwd[256], path[256], ppath[256], tail[256];
+   char str[TEXT_SIZE], keypath[256], type[32], *p, *ps;
+   char pwd[256], path[256], ppath[256], tail[256];
    HNDLE hDB, hkey;
    KEY key;
    char data[TEXT_SIZE];
@@ -7128,9 +7126,6 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
    }
    sprintf(str, "/Custom/%s", path);
 
-   custom_path[0] = 0;
-   size = sizeof(custom_path);
-   db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, FALSE);
    db_find_key(hDB, 0, str, &hkey);
    if (!hkey) {
       sprintf(str, "/Custom/%s&", path);
@@ -7161,17 +7156,10 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
 
       /* check if filename */
       if (strchr(ctext, '\n') == 0) {
-         if (custom_path[0]) {
-            strlcpy(filename, custom_path, sizeof(filename));
-            if (filename[strlen(filename)-1] != DIR_SEPARATOR)
-               strlcat(filename, DIR_SEPARATOR_STR, sizeof(filename));
-            strlcat(filename, ctext, sizeof(filename));
-         } else {
-            strlcpy(filename, ctext, sizeof(filename));
-         }
-         fh = open(filename, O_RDONLY | O_BINARY);
+         std::string full_filename = add_custom_path(ctext);
+         fh = open(full_filename.c_str(), O_RDONLY | O_BINARY);
          if (fh < 0) {
-            sprintf(str, "show_custom_page: Cannot open file \"%s\", errno %d (%s)", filename, errno, strerror(errno));
+            sprintf(str, "show_custom_page: Cannot open file \"%s\", errno %d (%s)", full_filename.c_str(), errno, strerror(errno));
             show_error_404(r, str);
             free(ctext);
             return;
@@ -7191,7 +7179,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
          }
          close(fh);
 
-         content_type = get_content_type(filename);
+         content_type = get_content_type(full_filename.c_str());
       }
 
       /* check for valid password */
@@ -7304,7 +7292,9 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
       free(ctext);
       ctext = NULL;
    } else {
-      show_error_404(r, "Invalid custom page: Page \"%s\" not found in ODB", path);
+      char str[256];
+      sprintf(str, "Invalid custom page: Page \"%s\" not found in ODB", path);
+      show_error_404(r, str);
       return;
    }
 }
@@ -15958,7 +15948,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
       status = db_get_value_string(hDB, 0, odb_path.c_str(), 0, &value, FALSE);
 
-      printf("Try custom gif [%s] status %d\n", odb_path.c_str(), status);
+      //printf("Try custom gif [%s] status %d\n", odb_path.c_str(), status);
 
       if (status == DB_SUCCESS) {
          show_custom_gif(r, dec_path);
@@ -15973,7 +15963,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
       status = db_get_value_string(hDB, 0, odb_path.c_str(), 0, &value, FALSE);
 
-      printf("Try [%s] status %d\n", odb_path.c_str(), status);
+      //printf("Try [%s] status %d\n", odb_path.c_str(), status);
 
       if (status == DB_SUCCESS) {
          found_custom = true;
@@ -15985,7 +15975,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
          status = db_get_value_string(hDB, 0, odb_path.c_str(), 0, &value, FALSE);
          
-         printf("Try [%s] status %d\n", odb_path.c_str(), status);
+         //printf("Try [%s] status %d\n", odb_path.c_str(), status);
          
          if (status == DB_SUCCESS) {
             found_custom = true;
@@ -15997,7 +15987,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
             status = db_get_value_string(hDB, 0, odb_path.c_str(), 0, &value, FALSE);
             
-            printf("Try [%s] status %d\n", odb_path.c_str(), status);
+            //printf("Try [%s] status %d\n", odb_path.c_str(), status);
             
             if (status == DB_SUCCESS) {
                found_custom = true;
