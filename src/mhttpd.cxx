@@ -5282,6 +5282,13 @@ int evaluate_src(char *key, char *src, double *fvalue)
 
 std::string add_custom_path(const std::string& filename)
 {
+   // do not append custom path to absolute filenames
+
+   if (filename[0] == '/')
+      return filename;
+   if (filename[0] == DIR_SEPARATOR)
+      return filename;
+   
    HNDLE hDB;
    cm_get_experiment_database(&hDB, NULL);
 
@@ -16004,23 +16011,23 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    /* new custom pages */
    if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
-      char custom_path[256];
-      if (getenv("MIDAS_DIR"))
-        strlcpy(custom_path, getenv("MIDAS_DIR"), sizeof(custom_path));
-      else if (getenv("MIDASSYS"))
-         strlcpy(custom_path, getenv("MIDASSYS"), sizeof(custom_path));
-      else
-         strlcpy(custom_path, "/home/custom", sizeof(custom_path));
+      std::string custom_path;
+      status = db_get_value_string(hDB, 0, "/Custom/Path", 0, &custom_path, TRUE);
+      if ((status == DB_SUCCESS) && (custom_path.length() > 0)) {
+         if (strchr(dec_path, '/') || strchr(dec_path, DIR_SEPARATOR)) {
+            char str[256];
+            sprintf(str, "Invalid custom file name \'%s\' contains \'/\' or \'%c\'", dec_path, DIR_SEPARATOR);
+            show_error_404(r, str);
+            return;
+         }
 
-      int size = sizeof(custom_path);
-      db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, TRUE);
-      if (custom_path[strlen(custom_path)-1] != DIR_SEPARATOR)
-         strlcat(custom_path, DIR_SEPARATOR_STR, sizeof(custom_path));
-      strlcat(custom_path, dec_path, sizeof(custom_path));
-      // if custom file exists, send it (like normal web server)
-      if (ss_file_exist(custom_path)) {
-         send_file(r, custom_path);
-         return;
+         std::string full_filename = add_custom_path(dec_path);
+
+         // if custom file exists, send it (like normal web server)
+         if (ss_file_exist(full_filename.c_str())) {
+            send_file(r, full_filename);
+            return;
+         }
       }
    }
    
