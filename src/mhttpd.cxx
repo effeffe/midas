@@ -7157,6 +7157,8 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
          return;
       }
 
+      std::string content_type = "text/html";
+
       /* check if filename */
       if (strchr(ctext, '\n') == 0) {
          if (custom_path[0]) {
@@ -7188,6 +7190,8 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
             size = 0;
          }
          close(fh);
+
+         content_type = get_content_type(filename);
       }
 
       /* check for valid password */
@@ -7269,7 +7273,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
       /* HTTP header */
       r->rsprintf("HTTP/1.1 200 Document follows\r\n");
       r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
-      r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
+      r->rsprintf("Content-Type: %s; charset=%s\r\n\r\n", content_type.c_str(), HTTP_ENCODING);
 
       /* interprete text, replace <odb> tags with ODB values */
       p = ps = ctext;
@@ -7300,7 +7304,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
       free(ctext);
       ctext = NULL;
    } else {
-      show_error(r, "Invalid custom page: Page not found in ODB");
+      show_error_404(r, "Invalid custom page: Page not found in ODB");
       return;
    }
 }
