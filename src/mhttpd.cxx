@@ -5299,6 +5299,15 @@ std::string add_custom_path(const std::string& filename)
    if (status != DB_SUCCESS)
       return filename;
 
+   if (custom_path.length() < 1)
+      return filename;
+
+   if ((custom_path == "/") || !strchr(custom_path.c_str(), DIR_SEPARATOR)) {
+      cm_msg(MERROR, "add_custom_path", "ODB /Custom/Path has a forbidden value \"%s\", please change it", custom_path.c_str());
+      return filename;
+   }
+
+
    std::string full_filename = custom_path;
    if (full_filename[full_filename.length()-1] != DIR_SEPARATOR)
       full_filename += DIR_SEPARATOR_STR;
