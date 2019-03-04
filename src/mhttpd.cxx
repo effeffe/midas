@@ -916,7 +916,8 @@ std::string expand_env(const char* filename)
             //cm_msg(MERROR, "expand_env", "Env.variable \"%s\" cannot be expanded in \"%s\"", envname.c_str(), filename);
             r += '$';
             r += envname;
-            r += *s; // DIR_SEPARATOR or NUL
+            if (*s)
+               r += *s; // DIR_SEPARATOR or NUL
          } else {
             r += e;
             if (r[r.length()-1] != DIR_SEPARATOR)
@@ -927,6 +928,34 @@ std::string expand_env(const char* filename)
       }
    }
    return r;
+}
+
+/*------------------------------------------------------------------*/
+
+std::vector<std::string> get_resource_paths()
+{
+   HNDLE hDB;
+   int status;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   std::vector<std::string> paths;
+
+   //paths.push_back("test/");
+
+   std::string buf;
+   status = db_get_value_string(hDB, 0, "/Experiment/Resources", 0, &buf, TRUE);
+   if (status == DB_SUCCESS && buf.length() > 0) {
+      paths.push_back(buf);
+   }
+
+   paths.push_back(".");
+   paths.push_back("resources");
+   paths.push_back("$MIDAS_DIR");
+   paths.push_back("$MIDAS_DIR/resources");
+   paths.push_back("$MIDASSYS/resources");
+
+   return paths;
 }
 
 /*------------------------------------------------------------------*/
@@ -943,27 +972,9 @@ bool open_resource_file(const char *filename, std::string* ppath, FILE** pfp)
       return false;
    }
    
-   int status;
-   HNDLE hDB;
+   std::vector<std::string> paths = get_resource_paths();
 
-   cm_get_experiment_database(&hDB, NULL);
-
-   std::vector<std::string> paths;
    std::vector<std::string> paths_not_found;
-
-   //paths.push_back("test/");
-
-   std::string buf;
-   status = db_get_value_string(hDB, 0, "/Experiment/Resources", 0, &buf, FALSE);
-   if (status == DB_SUCCESS && buf.length() > 0) {
-      paths.push_back(buf);
-   }
-
-   paths.push_back(".");
-   paths.push_back("resources");
-   paths.push_back("$MIDAS_DIR");
-   paths.push_back("$MIDAS_DIR/resources");
-   paths.push_back("$MIDASSYS/resources");
 
    for (unsigned i=0; i<paths.size(); i++) {
       std::string path = paths[i];
@@ -1514,7 +1525,7 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">MIDAS_EXPTAB:</td>\n");
    s = getenv("MIDAS_EXPTAB");
-   if (!s) s = "";
+   if (!s) s = "(unset)";
    strlcpy(str, s, sizeof(str));
    r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
    r->rsprintf("        </tr>\n");
@@ -1522,7 +1533,7 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">MIDAS_DIR:</td>\n");
    s = getenv("MIDAS_DIR");
-   if (!s) s = "";
+   if (!s) s = "(unset)";
    strlcpy(str, s, sizeof(str));
    r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
    r->rsprintf("        </tr>\n");
@@ -1530,7 +1541,7 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">MIDASSYS:</td>\n");
    s = getenv("MIDASSYS");
-   if (!s) s = "";
+   if (!s) s = "(unset)";
    strlcpy(str, s, sizeof(str));
    r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
    r->rsprintf("        </tr>\n");
@@ -1566,6 +1577,25 @@ void show_help_page(Return* r, const char* dec_path)
          r->rsprintf("        </tr>\n");
       }
    }
+
+   r->rsprintf("        <tr>\n");
+   r->rsprintf("          <td style=\"text-align:right;\">Resource paths:</td>\n");
+   r->rsprintf("          <td style=\"text-align:left;\">");
+   std::vector<std::string> resource_paths = get_resource_paths();
+   for (unsigned i=0; i<resource_paths.size(); i++) {
+      if (i>0)
+         r->rsputs("<br>");
+      r->rsputs(resource_paths[i].c_str());
+      std::string exp = expand_env(resource_paths[i].c_str());
+      //printf("%d %d [%s] [%s]\n", resource_paths[i].length(), exp.length(), resource_paths[i].c_str(), exp.c_str());
+      if (exp != resource_paths[i]) {
+         r->rsputs(" (");
+         r->rsputs(exp.c_str());
+         r->rsputs(")");
+      }
+   }
+   r->rsprintf("          </td>\n");
+   r->rsprintf("        </tr>\n");
 
    std::string path;
    
@@ -16076,8 +16106,8 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    /*---- serve url as a resource file ------------------------------*/
 
-   //if (send_resource(r, p->getparam("path"), false))
-   //   return;
+   if (send_resource(r, p->getparam("path"), false))
+      return;
 
    /*---- show status -----------------------------------------------*/
    
