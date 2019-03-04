@@ -7144,41 +7144,42 @@ void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
 
 /*------------------------------------------------------------------*/
 
-void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_cpwd)
+void show_custom_page(Param* pp, Return* r, const char *cookie_cpwd)
 {
    int size, n_var, fh, index, edit;
-   char str[TEXT_SIZE], keypath[256], type[32], *p, *ps;
-   char pwd[256], path[256], ppath[256], tail[256];
+   char keypath[256], type[32], *p, *ps;
+   char pwd[256], ppath[256], tail[256];
    HNDLE hDB, hkey;
    KEY key;
    char data[TEXT_SIZE];
 
-   if (strstr(url, ".gif")) {
-      show_custom_gif(r, url);
+   std::string path = pp->getparam("page");
+   
+   if (path[0] == 0) {
+      show_error_404(r, "show_custom_page: Invalid custom page: \"page\" parameter is empty");
       return;
    }
 
-   if (strchr(url, '.')) {
-      show_custom_file(r, url);
+   if (strstr(path.c_str(), ".gif")) {
+      show_custom_gif(r, path.c_str());
+      return;
+   }
+
+   if (strchr(path.c_str(), '.')) {
+      show_custom_file(r, path.c_str());
       return;
    }
 
    cm_get_experiment_database(&hDB, NULL);
 
-   strlcpy(path, pp->getparam("page"), sizeof(path));
-   if (path[0] == 0) {
-      show_error_404(r, "show_custom_page: Invalid custom page: \"page\" parameter is empty");
-      return;
-   }
-   sprintf(str, "/Custom/%s", path);
-
-   db_find_key(hDB, 0, str, &hkey);
+   std::string xpath = std::string("/Custom/") + path;
+   db_find_key(hDB, 0, xpath.c_str(), &hkey);
    if (!hkey) {
-      sprintf(str, "/Custom/%s&", path);
-      db_find_key(hDB, 0, str, &hkey);
+      xpath = std::string("/Custom/") + path + "&";
+      db_find_key(hDB, 0, xpath.c_str(), &hkey);
       if (!hkey) {
-         sprintf(str, "/Custom/%s!", path);
-         db_find_key(hDB, 0, str, &hkey);
+         xpath = std::string("/Custom/") + path + "!";
+         db_find_key(hDB, 0, xpath.c_str(), &hkey);
       }
    }
 
@@ -7192,7 +7193,8 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
       ctext = (char*)malloc(size);
       status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
       if (status != DB_SUCCESS) {
-         sprintf(str, "show_custom_page: Error: db_get_data() for \"%s\" status %d", str, status);
+         char str[256];
+         sprintf(str, "show_custom_page: Error: db_get_data() for \"%s\" status %d", str, status); // FIXME: overflows "str"
          show_error_404(r, str);
          free(ctext);
          return;
@@ -7205,7 +7207,8 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
          std::string full_filename = add_custom_path(ctext);
          fh = open(full_filename.c_str(), O_RDONLY | O_BINARY);
          if (fh < 0) {
-            sprintf(str, "show_custom_page: Cannot open file \"%s\", errno %d (%s)", full_filename.c_str(), errno, strerror(errno));
+            char str[256];
+            sprintf(str, "show_custom_page: Cannot open file \"%s\", errno %d (%s)", full_filename.c_str(), errno, strerror(errno)); // FIXME: overflows "str"
             show_error_404(r, str);
             free(ctext);
             return;
@@ -7241,8 +7244,9 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
             ps = strchr(p, '>') + 1;
 
             if (pwd[0] && n_var == atoi(pp->getparam("index"))) {
+               char str[256];
                size = NAME_LENGTH;
-               strlcpy(str, path, sizeof(str));
+               strlcpy(str, path.c_str(), sizeof(str)); // FIXME: overflows "str"
                if (strlen(str)>0 && str[strlen(str)-1] == '&')
                   str[strlen(str)-1] = 0;
                if (pp->getparam("pnam") && *pp->getparam("pnam"))
@@ -7268,6 +7272,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
 
          if (pp->getparam("pnam") && *pp->getparam("pnam")) {
             sprintf(ppath, "/Custom/Pwd/%s", pp->getparam("pnam"));
+            char str[256];
             str[0] = 0;
             db_get_value(hDB, 0, ppath, str, &size, TID_STRING, TRUE);
             if (!equal_ustring(cookie_cpwd, str)) {
@@ -7276,20 +7281,23 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
                return;
             }
          }
-         strlcpy(str, pp->getparam("odb"), sizeof(str));
-         if (strchr(str, '[')) {
-            index = atoi(strchr(str, '[')+1);
-            *strchr(str, '[') = 0;
+         std::string podb = pp->getparam("odb");
+         std::string::size_type pos = podb.find('[');
+         if (pos != std::string::npos) {
+            index = atoi(podb.substr(pos+1).c_str());
+            podb.resize(pos);
+            //printf("found index %d in [%s] [%s]\n", index, pp->getparam("odb"), podb.c_str());
          } else
             index = 0;
 
-         if (db_find_key(hDB, 0, str, &hkey)) {
+         if (db_find_key(hDB, 0, podb.c_str(), &hkey)) {
             db_get_key(hDB, hkey, &key);
             memset(data, 0, sizeof(data));
             if (key.item_size <= (int)sizeof(data)) {
                size = sizeof(data);
                db_get_data_index(hDB, hkey, data, &size, index, key.type);
-               db_sprintf(str, data, size, 0, key.type);
+               char str[256];
+               db_sprintf(str, data, size, 0, key.type); // FIXME: overflows "str"
                if (atoi(str) == 0)
                   db_sscanf("1", data, &size, 0, key.type);
                else
@@ -7299,7 +7307,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
          }
 
          /* redirect (so that 'reload' does not toggle again) */
-         redirect(r, path);
+         redirect(r, path.c_str());
          free(ctext);
          return;
       }
@@ -7323,7 +7331,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
             break;
          ps = strchr(p + 1, '>') + 1;
 
-         show_odb_tag(pp, r, path, keypath, format, n_var, edit, type, pwd, tail);
+         show_odb_tag(pp, r, path.c_str(), keypath, format, n_var, edit, type, pwd, tail);
          n_var++;
 
       } while (p != NULL);
@@ -7331,15 +7339,14 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
       if (equal_ustring(pp->getparam("cmd"), "Set") || pp->isparam("cbi")) {
          /* redirect (so that 'reload' does not change value) */
          r->reset();
-         sprintf(str, "%s", path);
-         redirect(r, str);
+         redirect(r, path.c_str());
       }
 
       free(ctext);
       ctext = NULL;
    } else {
       char str[256];
-      sprintf(str, "Invalid custom page: Page \"%s\" not found in ODB", path);
+      sprintf(str, "Invalid custom page: Page \"%s\" not found in ODB", path.c_str()); // FIXME: overflows "str"
       show_error_404(r, str);
       return;
    }
@@ -16003,7 +16010,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- custom page -----------------------------------------------*/
 
    if (equal_ustring(command, "custom")) {
-      show_custom_page(p, r, dec_path, cookie_cpwd);
+      show_custom_page(p, r, cookie_cpwd);
       return;
    }
 
@@ -16070,7 +16077,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
       if (found_custom) {
          p->setparam("page", dec_path);
-         show_custom_page(p, r, dec_path, cookie_cpwd);
+         show_custom_page(p, r, cookie_cpwd);
          return;
       }
    }
