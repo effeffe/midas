@@ -1770,6 +1770,7 @@ function mhttpd_refresh() {
          modbhbar[i].children[0].style.width = percent + "%";
          if (modbhbar[i].onchange !== null)
             modbhbar[i].onchange();
+         modbhbar[i].children[0].style.backgroundColor = modbhbar[i].style.color;
       }
 
       for (i = 0; i < modbvbar.length; i++,idata++) {
@@ -1804,6 +1805,7 @@ function mhttpd_refresh() {
          modbvbar[i].children[0].style.height = percent + "%";
          if (modbvbar[i].onchange !== null)
             modbvbar[i].onchange();
+         modbvbar[i].children[0].style.backgroundColor = modbvbar[i].style.color;
       }
 
       for (i = 0; i < modbthermo.length; i++,idata++) {
