@@ -145,7 +145,7 @@ const Filetype filetype[] = {
    ".MP3", "audio/mpeg",}, {
    ".CSS", "text/css",}, {
    ".JS",  "application/javascript"}, {
-""},};
+   ""},};
 
 #define HTTP_ENCODING "UTF-8"
 
@@ -277,7 +277,6 @@ void haxis(gdImagePtr im, gdFont * font, int col, int gcol, int x1, int y1, int 
 void get_elog_url(char *url, int len);
 void show_header(Return* r, const char *title, const char *method, const char *path, int refresh);
 void show_navigation_bar(Return* r, const char *cur_page);
-const char *get_css_filename();
 
 /*------------------------------------------------------------------*/
 
@@ -898,6 +897,252 @@ static void urlEncode(char *ps, int ps_size)
 
 /*------------------------------------------------------------------*/
 
+std::string expand_env(const char* filename)
+{
+   const char* s = filename;
+   std::string r;
+   for (; *s; s++) {
+      if (*s == '$') {
+         s++;
+         std::string envname;
+         for (; *s; s++) {
+            if (*s == DIR_SEPARATOR)
+               break;
+            envname += *s;
+         }
+         const char* e = getenv(envname.c_str());
+         //printf("expanding [%s] at [%s] envname [%s] value [%s]\n", filename, s, envname.c_str(), e);
+         if (!e) {
+            //cm_msg(MERROR, "expand_env", "Env.variable \"%s\" cannot be expanded in \"%s\"", envname.c_str(), filename);
+            r += '$';
+            r += envname;
+            if (*s)
+               r += *s; // DIR_SEPARATOR or NUL
+         } else {
+            r += e;
+            if (r[r.length()-1] != DIR_SEPARATOR)
+               r += DIR_SEPARATOR_STR;
+         }
+      } else {
+         r += *s;
+      }
+   }
+   return r;
+}
+
+/*------------------------------------------------------------------*/
+
+std::vector<std::string> get_resource_paths()
+{
+   HNDLE hDB;
+   int status;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   std::vector<std::string> paths;
+
+   //paths.push_back("test/");
+
+   std::string buf;
+   status = db_get_value_string(hDB, 0, "/Experiment/Resources", 0, &buf, TRUE);
+   if (status == DB_SUCCESS && buf.length() > 0) {
+      paths.push_back(buf);
+   }
+
+   paths.push_back(".");
+   paths.push_back("resources");
+   paths.push_back("$MIDAS_DIR");
+   paths.push_back("$MIDAS_DIR/resources");
+   paths.push_back("$MIDASSYS/resources");
+
+   return paths;
+}
+
+/*------------------------------------------------------------------*/
+
+bool open_resource_file(const char *filename, std::string* ppath, FILE** pfp)
+{
+   // resource file names should not contain directory separator "/"
+   // as this will allow them to escape the mhttpd filename "jail"
+   // by asking file files names like "../../etc/passwd", etc.
+   // reliably detecting special path elements like ".." is difficult.
+   
+   if (strchr(filename, '/') || strchr(filename, DIR_SEPARATOR)) {
+      cm_msg(MERROR, "open_resource_file", "Invalid resource file name \'%s\' contains \'/\' or \'%c\'", filename, DIR_SEPARATOR);
+      return false;
+   }
+   
+   std::vector<std::string> paths = get_resource_paths();
+
+   std::vector<std::string> paths_not_found;
+
+   for (unsigned i=0; i<paths.size(); i++) {
+      std::string path = paths[i];
+      if (path.length() < 1)
+         continue;
+      if (path[0] == '#')
+         continue;
+      if (path[path.length()-1] != DIR_SEPARATOR)
+         path += DIR_SEPARATOR_STR;
+      path += filename;
+
+      std::string xpath = expand_env(path.c_str());
+      
+      //printf("path [%s] [%s] [%s]\n", paths[i].c_str(), path.c_str(), xpath.c_str());
+
+      FILE* fp = fopen(xpath.c_str(), "r");
+      if (fp) {
+         if (ppath)
+            *ppath = xpath;
+         if (pfp) {
+            *pfp = fp;
+         } else {
+            fclose(fp);
+            fp = NULL;
+         }
+         //cm_msg(MINFO, "open_resource_file", "Resource file \'%s\' is \'%s\'", filename, xpath.c_str());
+         return true;
+      }
+
+      paths_not_found.push_back(xpath);
+   }
+
+   std::string s;
+   for (unsigned i=0; i<paths_not_found.size(); i++) {
+      if (i>0)
+         s += ", ";
+      s += paths_not_found[i];
+   }
+
+   cm_msg(MERROR, "open_resource_file", "Cannot find resource file \'%s\', tried %s", filename, s.c_str());
+   return false;
+}
+
+/*------------------------------------------------------------------*/
+
+std::string get_content_type(const char* filename)
+{
+   std::string ext_upper;
+   const char* p = filename;
+   const char* last_dot = NULL;
+   for (; *p; p++) {
+      if (*p == '.')
+         last_dot = p;
+      if (*p == DIR_SEPARATOR)
+         last_dot = NULL;
+   }
+
+   if (last_dot) {
+      p = last_dot;
+      for (; *p; p++)
+         ext_upper += toupper(*p);
+   }
+
+   //printf("filename: [%s], ext [%s]\n", filename, ext_upper.c_str());
+   
+   for (int i=0; filetype[i].ext[0]; i++) {
+      if (ext_upper == filetype[i].ext) {
+         const char* type = filetype[i].type;
+         //printf("filename: [%s], ext [%s] return content-type [%s]\n", filename, ext_upper.c_str(), type);
+         return type;
+      }
+   }
+
+   cm_msg(MERROR, "get_content_type", "Unknown HTTP Content-Type for resource file \'%s\', file extension \'%s\'", filename, ext_upper.c_str());
+
+   return "text/plain";
+}
+
+/*------------------------------------------------------------------*/
+
+bool send_fp(Return* r, const std::string& path, FILE* fp)
+{
+   assert(fp != NULL);
+   
+   // send HTTP headers
+   
+   r->rsprintf("HTTP/1.1 200 Document follows\r\n");
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
+   r->rsprintf("Accept-Ranges: bytes\r\n");
+
+   // send HTTP cache control headers
+
+   time_t now = time(NULL);
+   now += (int) (3600 * 24);
+   struct tm* gmt = gmtime(&now);
+   const char* format = "%A, %d-%b-%y %H:%M:%S GMT";
+
+   char str[256];
+   strftime(str, sizeof(str), format, gmt);
+   r->rsprintf("Expires: %s\r\n", str);
+
+   // send Content-Type header
+
+   r->rsprintf("Content-Type: %s\r\n", get_content_type(path.c_str()).c_str());
+
+   // send Content-Length header
+
+   struct stat stat_buf;
+   fstat(fileno(fp), &stat_buf);
+   int length = stat_buf.st_size;
+   r->rsprintf("Content-Length: %d\r\n", length);
+
+   // send end of headers
+
+   r->rsprintf("\r\n");
+
+   // send file data
+   
+   r->rread(path.c_str(), fileno(fp), length);
+   
+   fclose(fp);
+
+   return true;
+}
+
+bool send_file(Return* r, const std::string& path, bool generate_404 = true)
+{
+   FILE *fp = fopen(path.c_str(), "rb");
+
+   if (!fp) {
+      if (generate_404) {
+         /* header */
+         r->rsprintf("HTTP/1.1 404 Not Found\r\n");
+         r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
+         r->rsprintf("Content-Type: text/plain; charset=%s\r\n", HTTP_ENCODING);
+         r->rsprintf("\r\n");
+         r->rsprintf("Error: Cannot read \"%s\", fopen() errno %d (%s)\n", path.c_str(), errno, strerror(errno));
+      }
+      return false;
+   }
+   
+   return send_fp(r, path, fp);
+}
+
+bool send_resource(Return* r, const std::string& name, bool generate_404 = true)
+{
+   std::string path;
+   FILE *fp = NULL;
+
+   bool found = open_resource_file(name.c_str(), &path, &fp);
+
+   if (!found) {
+      if (generate_404) {
+         /* header */
+         r->rsprintf("HTTP/1.1 404 Not Found\r\n");
+         r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
+         r->rsprintf("Content-Type: text/plain; charset=%s\r\n", HTTP_ENCODING);
+         r->rsprintf("\r\n");
+         r->rsprintf("Error: resource file \"%s\" not found, see messages\n", name.c_str());
+      }
+      return false;
+   }
+   
+   return send_fp(r, path, fp);
+}
+
+/*------------------------------------------------------------------*/
+
 static LASTMSG lastMsg;
 static LASTMSG lastChatMsg;
 static LASTMSG lastTalkMsg;
@@ -1204,8 +1449,6 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 
 /*------------------------------------------------------------------*/
 
-FILE *open_resource_file(const char *filename, std::string* pfilename);
-
 void show_help_page(Return* r, const char* dec_path)
 {
    const char *s;
@@ -1282,7 +1525,7 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">MIDAS_EXPTAB:</td>\n");
    s = getenv("MIDAS_EXPTAB");
-   if (!s) s = "";
+   if (!s) s = "(unset)";
    strlcpy(str, s, sizeof(str));
    r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
    r->rsprintf("        </tr>\n");
@@ -1290,7 +1533,7 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">MIDAS_DIR:</td>\n");
    s = getenv("MIDAS_DIR");
-   if (!s) s = "";
+   if (!s) s = "(unset)";
    strlcpy(str, s, sizeof(str));
    r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
    r->rsprintf("        </tr>\n");
@@ -1298,7 +1541,7 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">MIDASSYS:</td>\n");
    s = getenv("MIDASSYS");
-   if (!s) s = "";
+   if (!s) s = "(unset)";
    strlcpy(str, s, sizeof(str));
    r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
    r->rsprintf("        </tr>\n");
@@ -1336,53 +1579,71 @@ void show_help_page(Return* r, const char* dec_path)
    }
 
    r->rsprintf("        <tr>\n");
-   r->rsprintf("          <td style=\"text-align:right;\">CSS File:</td>\n");
-   std::string f;
-   FILE *fp = open_resource_file(get_css_filename(), &f);
-   if (fp) {
-      fclose(fp);
-      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
-   } else
-      r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
+   r->rsprintf("          <td style=\"text-align:right;\">Resource paths:</td>\n");
+   r->rsprintf("          <td style=\"text-align:left;\">");
+   std::vector<std::string> resource_paths = get_resource_paths();
+   for (unsigned i=0; i<resource_paths.size(); i++) {
+      if (i>0)
+         r->rsputs("<br>");
+      r->rsputs(resource_paths[i].c_str());
+      std::string exp = expand_env(resource_paths[i].c_str());
+      //printf("%d %d [%s] [%s]\n", resource_paths[i].length(), exp.length(), resource_paths[i].c_str(), exp.c_str());
+      if (exp != resource_paths[i]) {
+         r->rsputs(" (");
+         r->rsputs(exp.c_str());
+         r->rsputs(")");
+      }
+   }
+   r->rsprintf("          </td>\n");
    r->rsprintf("        </tr>\n");
 
+   std::string path;
+   
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">midas.css:</td>\n");
-   fp = open_resource_file("midas.css", &f);
-   if (fp) {
-      fclose(fp);
-      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
-   } else
+   if (open_resource_file("midas.css", &path, NULL))
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", path.c_str());
+   else
       r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
    r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">midas.js:</td>\n");
-   fp = open_resource_file("midas.js", &f);
-   if (fp) {
-      fclose(fp);
-      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
-   } else
+   if (open_resource_file("midas.js", &path, NULL))
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", path.c_str());
+   else
+      r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
+   r->rsprintf("        </tr>\n");
+
+   r->rsprintf("        <tr>\n");
+   r->rsprintf("          <td style=\"text-align:right;\">controls.js:</td>\n");
+   if (open_resource_file("controls.js", &path, NULL))
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", path.c_str());
+   else
       r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
    r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">mhttpd.js:</td>\n");
-   fp = open_resource_file("mhttpd.js", &f);
-   if (fp) {
-      fclose(fp);
-      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
-   } else
+   if (open_resource_file("mhttpd.js", &path, NULL))
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", path.c_str());
+   else
       r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
    r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">obsolete.js:</td>\n");
-   fp = open_resource_file("obsolete.js", &f);
-   if (fp) {
-      fclose(fp);
-      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", f.c_str());
-   } else
+   if (open_resource_file("obsolete.js", &path, NULL))
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", path.c_str());
+   else
+      r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
+   r->rsprintf("        </tr>\n");
+
+   r->rsprintf("        <tr>\n");
+   r->rsprintf("          <td style=\"text-align:right;\">Obsolete mhttpd.css:</td>\n");
+   if (open_resource_file("mhttpd.css", &path, NULL))
+      r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", path.c_str());
+   else
       r->rsprintf("          <td style=\"text-align:left;\">NOT FOUND</td>\n");
    r->rsprintf("        </tr>\n");
 
@@ -1438,7 +1699,7 @@ void show_header(Return* r, const char *title, const char *method, const char *p
 
    /* style sheet */
    r->rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
-   r->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
+   r->rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
    r->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
 
    /* auto refresh */
@@ -1486,9 +1747,22 @@ void show_error(Return* r, const char *error)
    r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
 
    r->rsprintf("<html><head>\n");
-   r->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
+   r->rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
    r->rsprintf("<title>MIDAS error</title></head>\n");
    r->rsprintf("<body><H1>%s</H1></body></html>\n", error);
+}
+
+/*------------------------------------------------------------------*/
+
+void show_error_404(Return* r, const char *error)
+{
+   /* header */
+   r->rsprintf("HTTP/1.1 404 Not Found\r\n");
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
+   r->rsprintf("Content-Type: text/plain\r\n");
+   r->rsprintf("\r\n");
+
+   r->rsprintf("MIDAS error: %s\n", error);
 }
 
 /*------------------------------------------------------------------*/
@@ -1552,6 +1826,16 @@ void init_mhttpd_odb()
    status = db_find_key(hDB, 0, "/Experiment/Base URL", &hKey);
    if (status == DB_SUCCESS) {
       cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/Base URL\" is obsolete, please delete it.");
+   }
+
+   status = db_find_key(hDB, 0, "/Experiment/CSS File", &hKey);
+   if (status == DB_SUCCESS) {
+      cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/CSS File\" is obsolete, please delete it.");
+   }
+
+   status = db_find_key(hDB, 0, "/Experiment/JS File", &hKey);
+   if (status == DB_SUCCESS) {
+      cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/JS File\" is obsolete, please delete it.");
    }
 }
 
@@ -3173,7 +3457,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
             r->rsprintf("<html><head>\n");
             r->rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
             r->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
-            r->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
+            r->rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
             r->rsprintf("<title>ELog Error</title></head>\n");
             r->rsprintf("<i>Error: Attachment file <i>%s</i> not valid.</i><p>\n", pp->getparam(str));
             r->rsprintf("Please go back and enter a proper filename (use the <b>Browse</b> button).\n");
@@ -5026,98 +5310,100 @@ int evaluate_src(char *key, char *src, double *fvalue)
 
 /*------------------------------------------------------------------*/
 
+std::string add_custom_path(const std::string& filename)
+{
+   // do not append custom path to absolute filenames
+
+   if (filename[0] == '/')
+      return filename;
+   if (filename[0] == DIR_SEPARATOR)
+      return filename;
+   
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   std::string custom_path = "";
+
+   int status = db_get_value_string(hDB, 0, "/Custom/Path", 0, &custom_path, TRUE);
+
+   if (status != DB_SUCCESS)
+      return filename;
+
+   if (custom_path.length() < 1)
+      return filename;
+
+   if ((custom_path == "/") || !strchr(custom_path.c_str(), DIR_SEPARATOR)) {
+      cm_msg(MERROR, "add_custom_path", "ODB /Custom/Path has a forbidden value \"%s\", please change it", custom_path.c_str());
+      return filename;
+   }
+
+
+   std::string full_filename = custom_path;
+   if (full_filename[full_filename.length()-1] != DIR_SEPARATOR)
+      full_filename += DIR_SEPARATOR_STR;
+   full_filename += filename;
+
+   return full_filename;
+}
+
+/*------------------------------------------------------------------*/
+
 void show_custom_file(Return* r, const char *name)
 {
    char str[256];
    std::string filename;
-   std::string custom_path;
-   int i, fh, size;
-   HNDLE hDB, hkey;
-   KEY key;
+   HNDLE hDB;
 
    cm_get_experiment_database(&hDB, NULL);
 
-   // Get custom page value
-   db_get_value_string(hDB, 0, "/Custom/Path", 0, &custom_path, FALSE);
-
-   /* check for PATH variable */
-   if (custom_path.length() > 0) {
-      filename = custom_path;
-      if (filename[filename.length()-1] != DIR_SEPARATOR)
-         filename += DIR_SEPARATOR_STR;
-      filename += name;
-   } else {
-      sprintf(str, "/Custom/%s", name);
+   HNDLE hkey;
+   sprintf(str, "/Custom/%s", name);
+   db_find_key(hDB, 0, str, &hkey);
+   
+   if (!hkey) {
+      sprintf(str, "/Custom/%s&", name);
       db_find_key(hDB, 0, str, &hkey);
-
       if (!hkey) {
-         sprintf(str, "/Custom/%s&", name);
+         sprintf(str, "/Custom/%s!", name);
          db_find_key(hDB, 0, str, &hkey);
-         if (!hkey) {
-            sprintf(str, "/Custom/%s!", name);
-            db_find_key(hDB, 0, str, &hkey);
-         }
       }
-      
-      if(!hkey){
-         sprintf(str,"Invalid custom page: /Custom/%s not found in ODB",name);
-         show_error(r, str);
-         return;
-      }
-      
-      char* ctext;
-      int status;
-      
-      status = db_get_key(hDB, hkey, &key);
-      assert(status == DB_SUCCESS);
-      size = key.total_size;
-      ctext = (char*)malloc(size);
-      status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
-      if (status != DB_SUCCESS) {
-         sprintf(str, "Error: db_get_data() status %d", status);
-         show_error(r, str);
-         free(ctext);
-         return;
-      }      
-      filename = ctext;
    }
-
-
-   fh = open(filename.c_str(), O_RDONLY | O_BINARY);
-   if (fh < 0) {
-      sprintf(str, "Cannot open file \"%s\" ", filename.c_str());
-      show_error(r, str);
+   
+   if(!hkey){
+      sprintf(str,"show_custom_file: Invalid custom page: \"/Custom/%s\" not found in ODB", name);
+      show_error_404(r, str);
       return;
    }
+      
+   int status;
+   KEY key;
+   
+   status = db_get_key(hDB, hkey, &key);
+   
+   if (status != DB_SUCCESS) {
+      sprintf(str, "show_custom_file: Error: db_get_key() for \"%s\" status %d", str, status);
+      show_error_404(r, str);
+      return;
+   }      
+   
+   int size = key.total_size;
+   char* ctext = (char*)malloc(size);
+   
+   status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
+   
+   if (status != DB_SUCCESS) {
+      sprintf(str, "show_custom_file: Error: db_get_data() for \"%s\" status %d", str, status);
+      show_error_404(r, str);
+      free(ctext);
+      return;
+   }      
+   
+   filename = add_custom_path(ctext);
+   
+   free(ctext);
 
-   size = lseek(fh, 0, SEEK_END);
-   lseek(fh, 0, SEEK_SET);
+   send_file(r, filename, true);
 
-   /* return audio file */
-   r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
-
-   /* return proper header for file type */
-   for (i = 0; i < (int) strlen(name); i++)
-      str[i] = toupper(name[i]);
-   str[i] = 0;
-
-   for (i = 0; filetype[i].ext[0]; i++)
-      if (strstr(str, filetype[i].ext))
-         break;
-
-   if (filetype[i].ext[0])
-      r->rsprintf("Content-Type: %s\r\n", filetype[i].type);
-   else if (strchr(str, '.') == NULL)
-      r->rsprintf("Content-Type: text/plain\r\n");
-   else
-      r->rsprintf("Content-Type: application/octet-stream\r\n");
-
-   r->rsprintf("Content-Length: %d\r\n\r\n", size);
-
-   r->rread(filename.c_str(), fh, size);
-
-   close(fh);
    return;
 }
 
@@ -5125,8 +5411,7 @@ void show_custom_file(Return* r, const char *name)
 
 void show_custom_gif(Return* rr, const char *name)
 {
-   char str[256], filename[256], data[256], value[256], src[256], custom_path[256],
-      full_filename[256];
+   char str[256], data[256], value[256], src[256];
    int i, index, length, status, size, width, height, bgcol, fgcol, bdcol, r, g, b, x, y;
    HNDLE hDB, hkeygif, hkeyroot, hkey, hkeyval;
    double fvalue, ratio;
@@ -5140,10 +5425,6 @@ void show_custom_gif(Return* rr, const char *name)
 
    cm_get_experiment_database(&hDB, NULL);
 
-   custom_path[0] = 0;
-   size = sizeof(custom_path);
-   db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, FALSE);
-
    /* find image description in ODB */
    sprintf(str, "/Custom/Images/%s", name);
    db_find_key(hDB, 0, str, &hkeygif);
@@ -5156,18 +5437,15 @@ void show_custom_gif(Return* rr, const char *name)
    }
 
    /* load background image */
-   size = sizeof(filename);
-   db_get_value(hDB, hkeygif, "Background", filename, &size, TID_STRING, FALSE);
+   std::string filename;
+   db_get_value_string(hDB, hkeygif, "Background", 0, &filename, FALSE);
 
-   strlcpy(full_filename, custom_path, sizeof(str));
-   if (full_filename[strlen(full_filename)-1] != DIR_SEPARATOR)
-      strlcat(full_filename, DIR_SEPARATOR_STR, sizeof(full_filename));
-   strlcat(full_filename, filename, sizeof(full_filename));
+   std::string full_filename = add_custom_path(filename);
 
-   f = fopen(full_filename, "rb");
+   f = fopen(full_filename.c_str(), "rb");
    if (f == NULL) {
-      sprintf(str, "Cannot open file \"%s\"", full_filename);
-      show_error(rr, str);
+      sprintf(str, "show_custom_gif: Cannot open file \"%s\"", full_filename.c_str());
+      show_error_404(rr, str);
       return;
    }
 
@@ -5175,10 +5453,12 @@ void show_custom_gif(Return* rr, const char *name)
    fclose(f);
 
    if (im == NULL) {
-      sprintf(str, "File \"%s\" is not a GIF image", filename);
-      show_error(rr, str);
+      sprintf(str, "show_custom_gif: File \"%s\" is not a GIF image", filename.c_str());
+      show_error_404(rr, str);
       return;
    }
+
+   cm_get_experiment_database(&hDB, NULL);
 
    /*---- draw labels ----------------------------------------------*/
 
@@ -6864,44 +7144,42 @@ void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
 
 /*------------------------------------------------------------------*/
 
-void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_cpwd)
+void show_custom_page(Param* pp, Return* r, const char *cookie_cpwd)
 {
    int size, n_var, fh, index, edit;
-   char str[TEXT_SIZE], keypath[256], type[32], *p, *ps, custom_path[256],
-      filename[256], pwd[256], path[256], ppath[256], tail[256];
+   char keypath[256], type[32], *p, *ps;
+   char pwd[256], ppath[256], tail[256];
    HNDLE hDB, hkey;
    KEY key;
    char data[TEXT_SIZE];
 
-   if (strstr(url, ".gif")) {
-      show_custom_gif(r, url);
+   std::string path = pp->getparam("page");
+   
+   if (path[0] == 0) {
+      show_error_404(r, "show_custom_page: Invalid custom page: \"page\" parameter is empty");
       return;
    }
 
-   if (strchr(url, '.')) {
-      show_custom_file(r, url);
+   if (strstr(path.c_str(), ".gif")) {
+      show_custom_gif(r, path.c_str());
+      return;
+   }
+
+   if (strchr(path.c_str(), '.')) {
+      show_custom_file(r, path.c_str());
       return;
    }
 
    cm_get_experiment_database(&hDB, NULL);
 
-   strlcpy(path, pp->getparam("page"), sizeof(path));
-   if (path[0] == 0) {
-      show_error(r, "Invalid custom page: NULL path");
-      return;
-   }
-   sprintf(str, "/Custom/%s", path);
-
-   custom_path[0] = 0;
-   size = sizeof(custom_path);
-   db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, FALSE);
-   db_find_key(hDB, 0, str, &hkey);
+   std::string xpath = std::string("/Custom/") + path;
+   db_find_key(hDB, 0, xpath.c_str(), &hkey);
    if (!hkey) {
-      sprintf(str, "/Custom/%s&", path);
-      db_find_key(hDB, 0, str, &hkey);
+      xpath = std::string("/Custom/") + path + "&";
+      db_find_key(hDB, 0, xpath.c_str(), &hkey);
       if (!hkey) {
-         sprintf(str, "/Custom/%s!", path);
-         db_find_key(hDB, 0, str, &hkey);
+         xpath = std::string("/Custom/") + path + "!";
+         db_find_key(hDB, 0, xpath.c_str(), &hkey);
       }
    }
 
@@ -6915,26 +7193,23 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
       ctext = (char*)malloc(size);
       status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
       if (status != DB_SUCCESS) {
-         sprintf(str, "Error: db_get_data() status %d", status);
-         show_error(r, str);
+         char str[256];
+         sprintf(str, "show_custom_page: Error: db_get_data() for \"%s\" status %d", str, status); // FIXME: overflows "str"
+         show_error_404(r, str);
          free(ctext);
          return;
       }
 
+      std::string content_type = "text/html";
+
       /* check if filename */
       if (strchr(ctext, '\n') == 0) {
-         if (custom_path[0]) {
-            strlcpy(filename, custom_path, sizeof(filename));
-            if (filename[strlen(filename)-1] != DIR_SEPARATOR)
-               strlcat(filename, DIR_SEPARATOR_STR, sizeof(filename));
-            strlcat(filename, ctext, sizeof(filename));
-         } else {
-            strlcpy(filename, ctext, sizeof(filename));
-         }
-         fh = open(filename, O_RDONLY | O_BINARY);
+         std::string full_filename = add_custom_path(ctext);
+         fh = open(full_filename.c_str(), O_RDONLY | O_BINARY);
          if (fh < 0) {
-            sprintf(str, "Cannot open file \"%s\", errno %d (%s)", filename, errno, strerror(errno));
-            show_error(r, str);
+            char str[256];
+            sprintf(str, "show_custom_page: Cannot open file \"%s\", errno %d (%s)", full_filename.c_str(), errno, strerror(errno)); // FIXME: overflows "str"
+            show_error_404(r, str);
             free(ctext);
             return;
          }
@@ -6952,6 +7227,8 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
             size = 0;
          }
          close(fh);
+
+         content_type = get_content_type(full_filename.c_str());
       }
 
       /* check for valid password */
@@ -6967,8 +7244,9 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
             ps = strchr(p, '>') + 1;
 
             if (pwd[0] && n_var == atoi(pp->getparam("index"))) {
+               char str[256];
                size = NAME_LENGTH;
-               strlcpy(str, path, sizeof(str));
+               strlcpy(str, path.c_str(), sizeof(str)); // FIXME: overflows "str"
                if (strlen(str)>0 && str[strlen(str)-1] == '&')
                   str[strlen(str)-1] = 0;
                if (pp->getparam("pnam") && *pp->getparam("pnam"))
@@ -6978,7 +7256,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
                str[0] = 0;
                db_get_value(hDB, 0, ppath, str, &size, TID_STRING, TRUE);
                if (!equal_ustring(cookie_cpwd, str)) {
-                  show_error(r, "Invalid password!");
+                  show_error_404(r, "show_custom_page: Invalid password!");
                   free(ctext);
                   return;
                } else
@@ -6994,28 +7272,32 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
 
          if (pp->getparam("pnam") && *pp->getparam("pnam")) {
             sprintf(ppath, "/Custom/Pwd/%s", pp->getparam("pnam"));
+            char str[256];
             str[0] = 0;
             db_get_value(hDB, 0, ppath, str, &size, TID_STRING, TRUE);
             if (!equal_ustring(cookie_cpwd, str)) {
-               show_error(r, "Invalid password!");
+               show_error_404(r, "show_custom_page: Invalid password!");
                free(ctext);
                return;
             }
          }
-         strlcpy(str, pp->getparam("odb"), sizeof(str));
-         if (strchr(str, '[')) {
-            index = atoi(strchr(str, '[')+1);
-            *strchr(str, '[') = 0;
+         std::string podb = pp->getparam("odb");
+         std::string::size_type pos = podb.find('[');
+         if (pos != std::string::npos) {
+            index = atoi(podb.substr(pos+1).c_str());
+            podb.resize(pos);
+            //printf("found index %d in [%s] [%s]\n", index, pp->getparam("odb"), podb.c_str());
          } else
             index = 0;
 
-         if (db_find_key(hDB, 0, str, &hkey)) {
+         if (db_find_key(hDB, 0, podb.c_str(), &hkey)) {
             db_get_key(hDB, hkey, &key);
             memset(data, 0, sizeof(data));
             if (key.item_size <= (int)sizeof(data)) {
                size = sizeof(data);
                db_get_data_index(hDB, hkey, data, &size, index, key.type);
-               db_sprintf(str, data, size, 0, key.type);
+               char str[256];
+               db_sprintf(str, data, size, 0, key.type); // FIXME: overflows "str"
                if (atoi(str) == 0)
                   db_sscanf("1", data, &size, 0, key.type);
                else
@@ -7025,7 +7307,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
          }
 
          /* redirect (so that 'reload' does not toggle again) */
-         redirect(r, path);
+         redirect(r, path.c_str());
          free(ctext);
          return;
       }
@@ -7033,7 +7315,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
       /* HTTP header */
       r->rsprintf("HTTP/1.1 200 Document follows\r\n");
       r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
-      r->rsprintf("Content-Type: text/html; charset=%s\r\n\r\n", HTTP_ENCODING);
+      r->rsprintf("Content-Type: %s; charset=%s\r\n\r\n", content_type.c_str(), HTTP_ENCODING);
 
       /* interprete text, replace <odb> tags with ODB values */
       p = ps = ctext;
@@ -7049,7 +7331,7 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
             break;
          ps = strchr(p + 1, '>') + 1;
 
-         show_odb_tag(pp, r, path, keypath, format, n_var, edit, type, pwd, tail);
+         show_odb_tag(pp, r, path.c_str(), keypath, format, n_var, edit, type, pwd, tail);
          n_var++;
 
       } while (p != NULL);
@@ -7057,14 +7339,15 @@ void show_custom_page(Param* pp, Return* r, const char *url, const char *cookie_
       if (equal_ustring(pp->getparam("cmd"), "Set") || pp->isparam("cbi")) {
          /* redirect (so that 'reload' does not change value) */
          r->reset();
-         sprintf(str, "%s", path);
-         redirect(r, str);
+         redirect(r, path.c_str());
       }
 
       free(ctext);
       ctext = NULL;
    } else {
-      show_error(r, "Invalid custom page: Page not found in ODB");
+      char str[256];
+      sprintf(str, "Invalid custom page: Page \"%s\" not found in ODB", path.c_str()); // FIXME: overflows "str"
+      show_error_404(r, str);
       return;
    }
 }
@@ -7118,7 +7401,7 @@ void show_cnaf_page(Param* p, Return* rr)
    rr->rsprintf("<html><head>\n");
    rr->rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
    rr->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
-   rr->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
+   rr->rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
    rr->rsprintf("<title>MIDAS CAMAC interface</title></head>\n");
    rr->rsprintf("<body><form method=\"GET\" action=\"CNAF\">\n\n");
 
@@ -8105,7 +8388,7 @@ void show_password_page(Return* r, const char* dec_path, const char *password)
    r->rsprintf("<html><head>\n");
    r->rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
    r->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
-   r->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
+   r->rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
    r->rsprintf("<title>Enter password</title></head><body>\n\n");
 
    r->rsprintf("<form method=\"GET\" action=\".\">\n\n");
@@ -8154,7 +8437,7 @@ BOOL check_web_password(Return* r, const char* dec_path, const char *password, c
       r->rsprintf("<html><head>\n");
       r->rsprintf("<link rel=\"icon\" href=\"favicon.png\" type=\"image/png\" />\n");
       r->rsprintf("<link rel=\"stylesheet\" href=\"midas.css\" type=\"text/css\" />\n");
-      r->rsprintf("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" />\n", get_css_filename());
+      r->rsprintf("<link rel=\"stylesheet\" href=\"mhttpd.css\" type=\"text/css\" />\n");
       r->rsprintf("<title>Enter password</title></head><body>\n\n");
 
       r->rsprintf("<form method=\"GET\" action=\".\">\n\n");
@@ -8216,17 +8499,6 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    if (str[0] == 0)
       strlcpy(str, "root", sizeof(str));
    show_header(r, "MIDAS online database", "", str, 0);
-
-#if 0
-   /* add one "../" for each level */
-   tmp_path[0] = 0;
-   for (p = dec_path ; *p ; p++)
-      if (*p == '/')
-         strlcat(tmp_path, "../", sizeof(tmp_path));
-   strlcat(tmp_path, "../", sizeof(tmp_path));
-   strlcat(tmp_path, get_js_filename(), sizeof(tmp_path));
-   r->rsprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", tmp_path);
-#endif
 
    /* use javascript file */
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
@@ -13345,211 +13617,6 @@ void send_icon(Return* r, const char *icon)
 
 /*------------------------------------------------------------------*/
 
-FILE *open_resource_file(const char *filename, std::string* pfilename)
-{
-   int status;
-   HNDLE hDB;
-   char* env;
-   std::string path;
-   FILE *fp = NULL;
-
-   cm_get_experiment_database(&hDB, NULL);
-
-   do { // THIS IS NOT A LOOP
-
-      std::string buf;
-      status = db_get_value_string(hDB, 0, "/Experiment/Resources", 0, &buf, FALSE);
-      if (status == DB_SUCCESS && buf.length() > 0) {
-         path = buf;
-         if (path[path.length()-1] != DIR_SEPARATOR)
-            path += DIR_SEPARATOR_STR;
-         path += filename;
-         fp = fopen(path.c_str(), "r");
-         if (fp)
-            break;
-      }
-
-      path = filename;
-      fp = fopen(path.c_str(), "r");
-      if (fp)
-         break;
-
-      path = std::string("resources") + DIR_SEPARATOR_STR + filename;
-      fp = fopen(path.c_str(), "r");
-      if (fp)
-         break;
-
-      env = getenv("MIDAS_DIR");
-      if (env && strlen(env) > 0) {
-         path = env;
-         if (path[path.length()-1] != DIR_SEPARATOR)
-            path += DIR_SEPARATOR_STR;
-         path += filename;
-         fp = fopen(path.c_str(), "r");
-         if (fp)
-            break;
-      }
-
-      env = getenv("MIDAS_DIR");
-      if (env && strlen(env) > 0) {
-         path = env;
-         if (path[path.length()-1] != DIR_SEPARATOR)
-            path += DIR_SEPARATOR_STR;
-         path += "resources";
-         path += DIR_SEPARATOR_STR;
-         path += filename;
-         fp = fopen(path.c_str(), "r");
-         if (fp)
-            break;
-      }
-
-      env = getenv("MIDASSYS");
-      if (env && strlen(env) > 0) {
-         path = env;
-         if (path[path.length()-1] != DIR_SEPARATOR)
-            path += std::string(DIR_SEPARATOR_STR);
-         path += "resources";
-         path += DIR_SEPARATOR_STR;
-         path += filename;
-         fp = fopen(path.c_str(), "r");
-         if (fp)
-            break;
-      }
-
-      break;
-   } while (false); // THIS IS NOT A LOOP
-
-   if (fp) {
-      if (pfilename)
-         *pfilename = path;
-      //cm_msg(MINFO, "open_resource_file", "Resource file \'%s\' is \'%s\'", filename, path.c_str());
-      return fp;
-   }
-
-   cm_msg(MERROR, "open_resource_file", "Cannot find resource file \'%s\' in ODB /Experiment/Resources, in $MIDASSYS/resources, in $MIDAS_DIR/resources or in local directory", filename);
-   return NULL;
-}
-
-/*------------------------------------------------------------------*/
-
-static std::string css_file = "mhttpd.css";
-
-const char *get_css_filename()
-{
-   HNDLE hDB;
-   cm_get_experiment_database(&hDB, NULL);
-   db_get_value_string(hDB, 0, "/Experiment/CSS File", 0, &css_file, TRUE);
-   return css_file.c_str();
-}
-
-/*------------------------------------------------------------------*/
-
-void send_css(Return* r)
-{
-   char str[MAX_STRING_LENGTH], format[MAX_STRING_LENGTH];
-   time_t now;
-   struct tm *gmt;
-
-   r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
-   r->rsprintf("Accept-Ranges: bytes\r\n");
-
-   /* set expiration time to one day */
-   time(&now);
-   now += (int) (3600 * 24);
-   gmt = gmtime(&now);
-   strcpy(format, "%A, %d-%b-%y %H:%M:%S GMT");
-   strftime(str, sizeof(str), format, gmt);
-   r->rsprintf("Expires: %s\r\n", str);
-   r->rsprintf("Content-Type: text/css\r\n");
-
-   /* look for external CSS file */
-
-   std::string filename;
-   FILE *fp = open_resource_file(get_css_filename(), &filename);
-
-   if (fp) {
-      struct stat stat_buf;
-      fstat(fileno(fp), &stat_buf);
-      int length = stat_buf.st_size;
-      r->rsprintf("Content-Length: %d\r\n\r\n", length);
-
-      r->rread(filename.c_str(), fileno(fp), length);
-
-      fclose(fp);
-      return;
-   }
-
-   int length = 0;
-   r->rsprintf("Content-Length: %d\r\n\r\n", length);
-}
-
-/*------------------------------------------------------------------*/
-
-bool send_resource(Return* r, const std::string& name)
-{
-   std::string filename;
-   FILE *fp = open_resource_file(name.c_str(), &filename);
-
-   if (!fp) {
-      std::string str;
-      str = "Error: file \""+name+"\" not found";
-      show_error(r, str.c_str());
-      return false;
-   }
-
-   // send HTTP headers
-   
-   r->rsprintf("HTTP/1.1 200 Document follows\r\n");
-   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
-   r->rsprintf("Accept-Ranges: bytes\r\n");
-
-   // send HTTP cache control headers
-
-   time_t now = time(NULL);
-   now += (int) (3600 * 24);
-   struct tm* gmt = gmtime(&now);
-   const char* format = "%A, %d-%b-%y %H:%M:%S GMT";
-   char str[256];
-   strftime(str, sizeof(str), format, gmt);
-   r->rsprintf("Expires: %s\r\n", str);
-
-   // send Content-Type header
-
-   const char* type = "text/plain";
-
-   /* return proper header for file type */
-   int i;
-   for (i = 0; i < (int) strlen(name.c_str()); i++)
-      str[i] = toupper(name[i]);
-   str[i] = 0;
-
-   for (i = 0; filetype[i].ext[0]; i++)
-      if (strstr(str, filetype[i].ext)){
-         type = filetype[i].type;
-         break;
-      }
-
-   r->rsprintf("Content-Type: %s\r\n", type);
-
-   // send Content-Length header
-
-   struct stat stat_buf;
-   fstat(fileno(fp), &stat_buf);
-   int length = stat_buf.st_size;
-   r->rsprintf("Content-Length: %d\r\n\r\n", length);
-
-   // send file data
-   
-   r->rread(filename.c_str(), fileno(fp), length);
-   
-   fclose(fp);
-
-   return true;
-}
-
-/*------------------------------------------------------------------*/
-
 #define XNAME_LENGTH 256
 
 PMXML_NODE pnseq;
@@ -15231,11 +15298,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   if (strstr(dec_path, get_css_filename())) {
-      send_css(r);
-      return;
-   }
-
    const char* password = p->getparam("pwd");
    const char* wpassword = p->getparam("wpwd");
    const char* command = p->getparam("cmd");
@@ -15355,6 +15417,13 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (strstr(dec_path, "obsolete.js")) {
       send_resource(r, "obsolete.js");
+      return;
+   }
+
+   /*---- send the obsolete mhttpd.css ------------------------------*/
+
+   if (strstr(dec_path, "mhttpd.css")) {
+      send_resource(r, "mhttpd.css");
       return;
    }
 
@@ -15516,28 +15585,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   /* new custom pages */
-   if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
-      char custom_path[256];
-      if (getenv("MIDAS_DIR"))
-        strlcpy(custom_path, getenv("MIDAS_DIR"), sizeof(custom_path));
-      else if (getenv("MIDASSYS"))
-         strlcpy(custom_path, getenv("MIDASSYS"), sizeof(custom_path));
-      else
-         strlcpy(custom_path, "/home/custom", sizeof(custom_path));
-
-      int size = sizeof(custom_path);
-      db_get_value(hDB, 0, "/Custom/Path", custom_path, &size, TID_STRING, TRUE);
-      if (custom_path[strlen(custom_path)-1] != DIR_SEPARATOR)
-         strlcat(custom_path, DIR_SEPARATOR_STR, sizeof(custom_path));
-      strlcat(custom_path, dec_path, sizeof(custom_path));
-      // if custom file exists, send it (like normal web server)
-      if (ss_file_exist(custom_path)) {
-         send_resource(r, custom_path);
-         return;
-      }
-   }
-   
    /*---- java script commands --------------------------------------*/
 
    if (equal_ustring(command, "jset") ||
@@ -15583,11 +15630,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    }
 #endif
    
-   /*---- redirect if web page --------------------------------------*/
-
-   //if (send_resource(std::string(command) + ".html"))
-   //   return;
-
    /*---- history command -------------------------------------------*/
 
    if (equal_ustring(command, "history")) {
@@ -15911,13 +15953,6 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    }
 #endif
 
-   /*---- (old) custom page -----------------------------------------*/
-
-   if (equal_ustring(command, "custom")) {
-      show_custom_page(p, r, dec_path, cookie_cpwd);
-      return;
-   }
-
    /*---- show ODB --------------------------------------------------*/
 
    if (equal_ustring(command, "odb")) {
@@ -15945,6 +15980,142 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
    
+   /*---- old ODB path ----------------------------------------------*/
+
+   if ((command[0]==0) && dec_path[0]) {
+      HNDLE hkey;
+      status = db_find_key(hDB, 0, dec_path, &hkey);
+      //printf("try odb path [%s], status %d\n", dec_path, status);
+      if (status == DB_SUCCESS) {
+         int level = 1;
+         for (const char* s = dec_path; *s; s++) {
+            if (*s == '/')
+               level++;
+         }
+         std::string new_url;
+         for (int i=0; i<level; i++) {
+            if (i>0)
+               new_url += "/";
+            new_url += "..";
+         }
+         new_url += "?cmd=odb";
+         new_url += "&odb_path=";
+         new_url += dec_path;
+         //printf("redirect old odb path url [%s] to [%s]\n", dec_path, new_url.c_str());
+         redirect(r, new_url.c_str());
+         return;
+      }
+   }
+
+   /*---- custom page -----------------------------------------------*/
+
+   if (equal_ustring(command, "custom")) {
+      show_custom_page(p, r, cookie_cpwd);
+      return;
+   }
+
+   /*---- custom page accessed by direct URL that used to be under /CS/... ----*/
+
+   if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
+      std::string odb_path;
+      std::string value;
+      int status;
+
+      odb_path = "";
+      odb_path += "/Custom/Images/";
+      odb_path += dec_path;
+      odb_path += "/Background";
+
+      status = db_get_value_string(hDB, 0, odb_path.c_str(), 0, &value, FALSE);
+
+      //printf("Try custom gif [%s] status %d\n", odb_path.c_str(), status);
+
+      if (status == DB_SUCCESS) {
+         show_custom_gif(r, dec_path);
+         return;
+      }
+
+      bool found_custom = false;
+
+      odb_path = "";
+      odb_path += "/Custom/";
+      odb_path += dec_path;
+
+      status = db_get_value_string(hDB, 0, odb_path.c_str(), 0, &value, FALSE);
+
+      //printf("Try [%s] status %d\n", odb_path.c_str(), status);
+
+      if (status == DB_SUCCESS) {
+         found_custom = true;
+      } else {
+         odb_path = "";
+         odb_path += "/Custom/";
+         odb_path += dec_path;
+         odb_path += "&";
+
+         status = db_get_value_string(hDB, 0, odb_path.c_str(), 0, &value, FALSE);
+         
+         //printf("Try [%s] status %d\n", odb_path.c_str(), status);
+         
+         if (status == DB_SUCCESS) {
+            found_custom = true;
+         } else {
+            odb_path = "";
+            odb_path += "/Custom/";
+            odb_path += dec_path;
+            odb_path += "!";
+
+            status = db_get_value_string(hDB, 0, odb_path.c_str(), 0, &value, FALSE);
+            
+            //printf("Try [%s] status %d\n", odb_path.c_str(), status);
+            
+            if (status == DB_SUCCESS) {
+               found_custom = true;
+            }
+         }
+      }
+
+      if (found_custom) {
+         p->setparam("page", dec_path);
+         show_custom_page(p, r, cookie_cpwd);
+         return;
+      }
+   }
+
+   /* new custom pages */
+   if (db_find_key(hDB, 0, "/Custom", &hkey) == DB_SUCCESS && dec_path[0]) {
+      std::string custom_path;
+      status = db_get_value_string(hDB, 0, "/Custom/Path", 0, &custom_path, TRUE);
+      if ((status == DB_SUCCESS) && (custom_path.length() > 0)) {
+         if (strchr(dec_path, '/') || strchr(dec_path, DIR_SEPARATOR)) {
+            char str[256];
+            sprintf(str, "Invalid custom file name \'%s\' contains \'/\' or \'%c\'", dec_path, DIR_SEPARATOR);
+            show_error_404(r, str);
+            return;
+         }
+
+         std::string full_filename = add_custom_path(dec_path);
+
+         // if custom file exists, send it (like normal web server)
+         if (ss_file_exist(full_filename.c_str())) {
+            send_file(r, full_filename);
+            return;
+         }
+      }
+   }
+   
+   /*---- redirect if web page --------------------------------------*/
+
+   //if (strlen(command) > 0) {
+   //   if (send_resource(r, std::string(command) + ".html", false))
+   //      return;
+   //}
+
+   /*---- serve url as a resource file ------------------------------*/
+
+   if (send_resource(r, p->getparam("path"), false))
+      return;
+
    /*---- show status -----------------------------------------------*/
    
    if (elog_mode) {
@@ -15952,11 +16123,12 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   {
-      char str[256];
-      sprintf(str, "Invalid URL: [%s%s] or command: [%s]", p->getparam("path"), p->getparam("query"), command); // FIXME: overflows str[]
-      show_error(r, str);
-   }
+   /* header */
+   r->rsprintf("HTTP/1.1 400 Bad Request\r\n");
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
+   r->rsprintf("Content-Type: text/plain; charset=%s\r\n", HTTP_ENCODING);
+   r->rsprintf("\r\n");
+   r->rsprintf("Error: Invalid URL \"%s\" or query \"%s\" or command \"%s\"\n", p->getparam("path"), p->getparam("query"), command);
 }
 
 /*------------------------------------------------------------------*/

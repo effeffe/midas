@@ -24,8 +24,6 @@ Contents:     Dump event on screen with MIDAS or YBOS data format
 #define  REP_EVENT     4
 #define  REP_BANKLIST  5
 
-//int sys_max_event_size = DEFAULT_MAX_EVENT_SIZE;
-
 char bank_name[4], sbank_name[4];
 INT hBufEvent;
 INT save_dsp = 1, evt_display = 0;
@@ -658,11 +656,6 @@ int main(int argc, char **argv)
   /* connect to the database */
   cm_get_experiment_database(&hDB, &hKey);
 
-#if 0
-  size = sizeof(sys_max_event_size);
-  status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &sys_max_event_size, &size, TID_DWORD, TRUE);
-#endif
-  
   {   /* ID block */
     INT l = 0;
     /* check if dir exists */

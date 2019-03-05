@@ -148,10 +148,6 @@ static INT _request_list_entries = 0;
 static EVENT_HEADER *_event_buffer;
 static INT _event_buffer_size = 0;
 
-static char *_net_recv_buffer;
-static INT _net_recv_buffer_size = 0;
-static INT _net_recv_buffer_size_odb = 0;
-
 static char *_tcp_buffer = NULL;
 static INT _tcp_wp = 0;
 static INT _tcp_rp = 0;
@@ -2741,13 +2737,6 @@ INT cm_disconnect_experiment(void)
       M_FREE(_event_buffer);
       _event_buffer = NULL;
       _event_buffer_size = 0;
-   }
-
-   if (_net_recv_buffer_size > 0) {
-      M_FREE(_net_recv_buffer);
-      _net_recv_buffer = NULL;
-      _net_recv_buffer_size = 0;
-      _net_recv_buffer_size_odb = 0;
    }
 
    if (_tcp_buffer != NULL) {
@@ -8852,7 +8841,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
          status = BM_SUCCESS;
          if (buf) {
             if (event_size > max_size) {
-               cm_msg(MERROR, "bm_read_buffer", "buffer \"%s\" event truncated, buffer size %d is smaller than event size %d", pheader->name, max_size, event_size);
+               cm_msg(MERROR, "bm_read_buffer", "buffer size %d is smaller than event size %d, event truncated. buffer \"%s\"", max_size, event_size, pheader->name);
                event_size = max_size;
                status = BM_TRUNCATED;
             }
@@ -8930,8 +8919,8 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
 
          if (buf) {
             if (event_size > max_size) {
+               cm_msg(MERROR, "bm_read_buffer", "buffer size %d is smaller than event size %d, event truncated. buffer \"%s\"", max_size, event_size, pheader->name);
                event_size = max_size;
-               cm_msg(MERROR, "bm_read_buffer", "buffer \"%s\" event truncated, buffer size %d is smaller than event size %d", pheader->name, max_size, event_size);
                status = BM_TRUNCATED;
             }
             
@@ -9532,6 +9521,11 @@ INT bm_poll_event()
          /* break if no more events */
          if (status == BM_ASYNC_RETURN)
             break;
+
+         /* break if corrupted event buffer */
+         if (status == BM_TRUNCATED) {
+            cm_msg(MERROR, "bm_poll_event", "received event was truncated, buffer size %d is too small, see messages and increase /Experiment/MAX_EVENT_SIZE in ODB", _event_buffer_size);
+         }
 
          /* break if corrupted event buffer */
          if (status == BM_CORRUPTED)
@@ -12574,14 +12568,14 @@ void debug_dump(unsigned char *p, int size)
 #endif
 
 /********************************************************************/
-INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * remaining)
+static int recv_net_command_realloc(INT idx, char **pbuf, int* pbufsize, INT * remaining)
 /********************************************************************\
 
-  Routine: recv_tcp_server
+  Routine: recv_net_command
 
   Purpose: TCP receive routine with local cache. To speed up network
            performance, a 64k buffer is read in at once and split into
-           several RPC command on successive calls to recv_tcp_server.
+           several RPC command on successive calls to recv_net_command.
            Therefore, the number of recv() calls is minimized.
 
            This routine is ment to be called by the server process.
@@ -12603,21 +12597,9 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
 
 \********************************************************************/
 {
-   INT size, param_size;
-   NET_COMMAND *nc;
-   INT write_ptr, read_ptr, misalign;
-   char *net_buffer;
-   INT copied, status;
-   INT sock;
-
-   sock = _server_acception[idx].recv_sock;
-
-   if (flags & MSG_PEEK) {
-      status = recv(sock, buffer, buffer_size, flags);
-      if (status == -1)
-         cm_msg(MERROR, "recv_tcp_server", "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", buffer_size, status, errno, strerror(errno));
-      return status;
-   }
+   char* buffer = NULL; // buffer is changed to point to *pbuf when we receive the NET_COMMAND header
+   
+   int sock = _server_acception[idx].recv_sock;
 
    if (!_server_acception[idx].net_buffer) {
       if (rpc_is_mserver())
@@ -12631,22 +12613,17 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
       _server_acception[idx].misalign = 0;
    }
    if (!_server_acception[idx].net_buffer) {
-      cm_msg(MERROR, "recv_tcp_server", "Cannot allocate %d bytes for network buffer", _server_acception[idx].net_buffer_size);
+      cm_msg(MERROR, "recv_net_command", "Cannot allocate %d bytes for network buffer", _server_acception[idx].net_buffer_size);
       return -1;
    }
 
-   if (buffer_size < sizeof(NET_COMMAND_HEADER)) {
-      cm_msg(MERROR, "recv_tcp_server", "parameters too large for network buffer");
-      return -1;
-   }
+   int copied = 0;
+   int param_size = -1;
 
-   copied = 0;
-   param_size = -1;
-
-   write_ptr = _server_acception[idx].write_ptr;
-   read_ptr = _server_acception[idx].read_ptr;
-   misalign = _server_acception[idx].misalign;
-   net_buffer = _server_acception[idx].net_buffer;
+   int write_ptr    = _server_acception[idx].write_ptr;
+   int read_ptr     = _server_acception[idx].read_ptr;
+   int misalign     = _server_acception[idx].misalign;
+   char* net_buffer = _server_acception[idx].net_buffer;
 
    do {
       if (write_ptr - read_ptr >= (INT) sizeof(NET_COMMAND_HEADER) - copied) {
@@ -12654,22 +12631,35 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
             if (copied > 0) {
                /* assemble split header */
                memcpy(buffer + copied, net_buffer + read_ptr, (INT) sizeof(NET_COMMAND_HEADER) - copied);
-               nc = (NET_COMMAND *) (buffer);
-            } else
-               nc = (NET_COMMAND *) (net_buffer + read_ptr);
-
-            param_size = (INT) nc->header.param_size;
+               NET_COMMAND* nc = (NET_COMMAND *) (buffer);
+               param_size = (INT) nc->header.param_size;
+            } else {
+               NET_COMMAND* nc = (NET_COMMAND *) (net_buffer + read_ptr);
+               param_size = (INT) nc->header.param_size;
+            }
 
             if (_server_acception[idx].convert_flags)
                rpc_convert_single(&param_size, TID_DWORD, 0, _server_acception[idx].convert_flags);
          }
 
+         //printf("recv_net_command: param_size %d, NET_COMMAND_HEADER %d, buffer_size %d\n", param_size, (int)sizeof(NET_COMMAND_HEADER), *pbufsize);
+
          /* check if parameters fit in buffer */
-         if (buffer_size < param_size + sizeof(NET_COMMAND_HEADER)) {
-            cm_msg(MERROR, "recv_tcp_server", "parameters too large for network buffer");
-            _server_acception[idx].read_ptr = _server_acception[idx].write_ptr = 0;
-            return -1;
+         if (*pbufsize < param_size + sizeof(NET_COMMAND_HEADER)) {
+            int new_size = param_size + sizeof(NET_COMMAND_HEADER) + 1024;
+            char* p = realloc(*pbuf, new_size);
+            //printf("recv_net_command: reallocate buffer %d -> %d, %p\n", *pbufsize, new_size, p);
+            if (p == NULL) {
+               cm_msg(MERROR, "recv_net_command", "cannot reallocate buffer from %d bytes to %d bytes", *pbufsize, new_size);
+               _server_acception[idx].read_ptr  = 0;
+               _server_acception[idx].write_ptr = 0;
+               return -1;
+            }
+            *pbuf = p;
+            *pbufsize = new_size;
          }
+
+         buffer = *pbuf;
 
          /* check if we have all parameters in buffer */
          if (write_ptr - read_ptr >= param_size + (INT) sizeof(NET_COMMAND_HEADER) - copied)
@@ -12677,7 +12667,7 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
       }
 
       /* not enough data, so copy partially and get new */
-      size = write_ptr - read_ptr;
+      int size = write_ptr - read_ptr;
 
       if (size > 0) {
          memcpy(buffer + copied, net_buffer + read_ptr, size);
@@ -12686,21 +12676,21 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
       }
 #ifdef OS_UNIX
       do {
-         write_ptr = recv(sock, net_buffer + misalign, _server_acception[idx].net_buffer_size - 8, flags);
+         write_ptr = recv(sock, net_buffer + misalign, _server_acception[idx].net_buffer_size - 8, 0);
 
          /* don't return if an alarm signal was cought */
       } while (write_ptr == -1 && errno == EINTR);
 #else
-      write_ptr = recv(sock, net_buffer + misalign, _server_acception[idx].net_buffer_size - 8, flags);
+      write_ptr = recv(sock, net_buffer + misalign, _server_acception[idx].net_buffer_size - 8, 0);
 #endif
 
       /* abort if connection broken */
       if (write_ptr <= 0) {
          if (write_ptr == 0)
-            cm_msg(MERROR, "recv_tcp_server", "rpc connection from \'%s\' on \'%s\' unexpectedly closed",
+            cm_msg(MERROR, "recv_net_command", "rpc connection from \'%s\' on \'%s\' unexpectedly closed",
                    _server_acception[idx].prog_name, _server_acception[idx].host_name);
          else
-            cm_msg(MERROR, "recv_tcp_server", "recv() returned %d, errno: %d (%s)", write_ptr, errno,
+            cm_msg(MERROR, "recv_net_command", "recv() returned %d, errno: %d (%s)", write_ptr, errno,
                    strerror(errno));
 
          if (remaining)
@@ -12716,7 +12706,7 @@ INT recv_tcp_server(INT idx, char *buffer, DWORD buffer_size, INT flags, INT * r
    } while (TRUE);
 
    /* copy rest of parameters */
-   size = param_size + sizeof(NET_COMMAND_HEADER) - copied;
+   int size = param_size + sizeof(NET_COMMAND_HEADER) - copied;
    memcpy(buffer + copied, net_buffer + read_ptr, size);
    read_ptr += size;
 
@@ -14615,46 +14605,15 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
 \********************************************************************/
 {
-   INT status, n_received;
-   INT remaining, start_time;
-   char test_buffer[256], str[80];
-
-   /* init network buffer */
-   if (_net_recv_buffer_size == 0) {
-      int size = DEFAULT_MAX_EVENT_SIZE + sizeof(EVENT_HEADER) + 1024;
-      _net_recv_buffer = (char *) M_MALLOC(size);
-      if (_net_recv_buffer == NULL) {
-         cm_msg(MERROR, "rpc_server_receive", "Cannot allocate %d bytes for network buffer", size);
-         return RPC_EXCEED_BUFFER;
-      }
-      _net_recv_buffer_size = size;
-      _net_recv_buffer_size_odb = 0;
-      //printf("rpc_server_receive: allocated _net_recv_buffer size %d, max_event_size %d\n", _net_recv_buffer_size, _bm_max_event_size);
-   }
-
-   /* init network buffer */
-   if (_net_recv_buffer_size_odb == 0 && _bm_max_event_size > 0) {
-      int size = _bm_max_event_size + sizeof(EVENT_HEADER) + 2*1024;
-
-      _net_recv_buffer_size_odb = size;
-
-      if (size > _net_recv_buffer_size) {
-         _net_recv_buffer = (char *) realloc(_net_recv_buffer, size);
-         if (_net_recv_buffer == NULL) {
-            cm_msg(MERROR, "rpc_server_receive", "Cannot allocate %d bytes for network buffer", size);
-            return RPC_EXCEED_BUFFER;
-         }
-         _net_recv_buffer_size = size;
-         //printf("rpc_server_receive: reallocated _net_recv_buffer size %d, max_event_size %d\n", _net_recv_buffer_size, _bm_max_event_size);
-      }
-   }
+   INT status;
 
    /* only check if TCP connection is broken */
    if (check) {
+      char test_buffer[256];
 #ifdef OS_WINNT
-      n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK);
+      int n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK);
 #else
-      n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK|MSG_DONTWAIT);
+      int n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK|MSG_DONTWAIT);
 
       /* check if we caught a signal */
       if ((n_received == -1) && (errno == EAGAIN))
@@ -14672,28 +14631,39 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       return SS_SUCCESS;
    }
 
-   remaining = 0;
-
    /* receive command */
    if (sock == _server_acception[idx].recv_sock) {
+      int remaining = 0;
+
+      char* buf = NULL;
+      int   bufsize = 0;
+
       do {
-         if (_server_acception[idx].remote_hw_type == DR_ASCII)
-            n_received = recv_string(_server_acception[idx].recv_sock, _net_recv_buffer, _net_recv_buffer_size, 10000);
-         else
-            n_received = recv_tcp_server(idx, _net_recv_buffer, _net_recv_buffer_size, 0, &remaining);
+         if (_server_acception[idx].remote_hw_type == DR_ASCII) {
+            // previous code allocated DEFAULT_MAX_EVENT_SIZE bytes, around 4 Mbytes
+            int asize = 100*1024;
+            char* abuf = malloc(asize);
+            
+            int n_received = recv_string(_server_acception[idx].recv_sock, abuf, asize, 10000);
 
-         if (n_received <= 0) {
-            status = SS_ABORT;
-            cm_msg(MERROR, "rpc_server_receive", "recv_tcp_server() returned %d, abort", n_received);
-            goto error;
+            if (n_received <= 0) {
+               status = SS_ABORT;
+               cm_msg(MERROR, "rpc_server_receive", "recv_string() returned %d, abort", n_received);
+               goto error;
+            }
+            
+            status = rpc_execute_ascii(_server_acception[idx].recv_sock, abuf);
+         } else {
+            int n_received = recv_net_command_realloc(idx, &buf, &bufsize, &remaining);
+
+            if (n_received <= 0) {
+               status = SS_ABORT;
+               cm_msg(MERROR, "rpc_server_receive", "recv_net_command() returned %d, abort", n_received);
+               goto error;
+            }
+
+            status = rpc_execute(_server_acception[idx].recv_sock, buf, _server_acception[idx].convert_flags);
          }
-
-         //rpc_set_server_acception(idx + 1);
-
-         if (_server_acception[idx].remote_hw_type == DR_ASCII)
-            status = rpc_execute_ascii(_server_acception[idx].recv_sock, _net_recv_buffer);
-         else
-            status = rpc_execute(_server_acception[idx].recv_sock, _net_recv_buffer, _server_acception[idx].convert_flags);
 
          if (status == SS_ABORT) {
             cm_msg(MERROR, "rpc_server_receive", "rpc_execute() returned %d, abort", status);
@@ -14707,10 +14677,16 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
          }
 
       } while (remaining);
+
+      if (buf) {
+         free(buf);
+         buf = NULL;
+         bufsize = 0;
+      }
    } else {
       /* receive event */
       if (sock == _server_acception[idx].event_sock) {
-         start_time = ss_millitime();
+         DWORD start_time = ss_millitime();
 
          char* buf = NULL;
          int   bufsize = 0;
@@ -14752,10 +14728,13 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
  error:
 
-   strlcpy(str, _server_acception[idx].host_name, sizeof(str));
-   if (strchr(str, '.'))
-      *strchr(str, '.') = 0;
-   cm_msg(MTALK, "rpc_server_receive", "Program \'%s\' on host \'%s\' aborted", _server_acception[idx].prog_name, str);
+   {
+      char str[80];
+      strlcpy(str, _server_acception[idx].host_name, sizeof(str));
+      if (strchr(str, '.'))
+         *strchr(str, '.') = 0;
+      cm_msg(MTALK, "rpc_server_receive", "Program \'%s\' on host \'%s\' aborted", _server_acception[idx].prog_name, str);
+   }
 
  exit:
 

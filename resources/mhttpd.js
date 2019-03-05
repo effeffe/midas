@@ -20,8 +20,6 @@ var transition_names = {
    4096: "Deferred"
 };
 
-var global_base_url = "";
-
 // extend 2d canvas object
 CanvasRenderingContext2D.prototype.drawLine = function (x1, y1, x2, y2) {
    this.beginPath();
@@ -205,6 +203,7 @@ function ODBInlineEditKeydown(event, p, path, bracket) {
    if (keyCode == 27) {
       /* cancel editing */
       p.ODBsent = true;
+      p.inEdit  = false;
       mie_back_to_link(p, path, bracket);
       return false;
    }
@@ -639,15 +638,10 @@ function mhttpd_init(current_page, interval, callback) {
          document.getElementById("mheader_expt_name").innerHTML = expt_name;
          sessionStorage.setItem("mexpname", expt_name);
 
-         // check for base URL
-         global_base_url = window.location.pathname;
-         if (global_base_url.slice(-1) !== "/")
-            global_base_url += "/";
-
          // preload spinning wheel for later use
          if (mhttpd_spinning_wheel === undefined) {
             mhttpd_spinning_wheel = new Image();
-            mhttpd_spinning_wheel.src = global_base_url + "spinning-wheel.gif";
+            mhttpd_spinning_wheel.src = "spinning-wheel.gif";
          }
 
          // menu buttons
@@ -675,7 +669,7 @@ function mhttpd_init(current_page, interval, callback) {
             if (bb === current_page) {
                cc += " mmenuitemsel";
             }
-            html += "<div class='" + cc + "'><a href='" + global_base_url + "?cmd=" + bb + "' class='mmenulink'>" + bb + "</a></div>\n";
+            html += "<div class='" + cc + "'><a href='?cmd=" + bb + "' class='mmenulink'>" + bb + "</a></div>\n";
          }
 
          // custom
@@ -698,7 +692,7 @@ function mhttpd_init(current_page, interval, callback) {
                   continue;
                if (l.substr(-1) === '&')
                   l = l.slice(0, -1);
-               html += "<div class='" + cc + "'><a href='" + global_base_url + "?cmd=custom&page=" + custom[b + "/name"] + "' class='mmenulink'>" + l + "</a></div>\n";
+               html += "<div class='" + cc + "'><a href='?cmd=custom&page=" + custom[b + "/name"] + "' class='mmenulink'>" + l + "</a></div>\n";
             }
          }
 
@@ -1961,7 +1955,7 @@ function mhttpd_fit_message(m)
 {
    var d = document.getElementById("mheader_message");
    var cross = "&nbsp;&nbsp;&nbsp;<span style=\"cursor: pointer;\" onclick=\"mhttpd_close_message();\">&#9587;</span>";
-   var link1 = "<span style=\"cursor: pointer;\" onclick=\"window.location.href='&quot;'"+global_base_url+"?cmd=Messages&quot;\">";
+   var link1 = "<span style=\"cursor: pointer;\" onclick=\"window.location.href='&quot;'?cmd=Messages&quot;\">";
    var link2 = "</span>";
    d.style.display = "inline-block";
 

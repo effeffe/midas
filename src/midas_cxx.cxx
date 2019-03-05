@@ -133,18 +133,6 @@ int cm_exec_script(const char* odb_path_to_script)
          if (subkey.type == TID_KEY) {
             cm_msg(MERROR, "cm_exec_script", "Script ODB \"%s/%s\" should not be TID_KEY", odb_path_to_script, subkey.name);
             return DB_TYPE_MISMATCH;
-         } else if (subkey.type == TID_STRING) {
-            std::string path;
-            path += odb_path_to_script;
-            path += "/";
-            path += subkey.name;
-            std::string data;
-            int status = db_get_value_string(hDB, 0, path.c_str(), 0, &data, FALSE);
-            if (status != DB_SUCCESS) {
-               cm_msg(MERROR, "cm_exec_script", "Script ODB \"%s\" of type TID_STRING, db_get_value_string() error %d", path.c_str(), status);
-               return status;
-            }
-            command += data;
          } else {
             int size = subkey.item_size;
             char *buf = (char*)malloc(size);
@@ -155,9 +143,13 @@ int cm_exec_script(const char* odb_path_to_script)
                free(buf);
                return status;
             }
-            char str[256];
-            db_sprintf(str, buf, subkey.item_size, 0, subkey.type);
-            command += str;
+            if (subkey.type == TID_STRING) {
+               command += buf;
+            } else {
+               char str[256];
+               db_sprintf(str, buf, subkey.item_size, 0, subkey.type);
+               command += str;
+            }
             free(buf);
          }
       }
