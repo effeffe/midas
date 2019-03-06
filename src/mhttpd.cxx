@@ -1014,12 +1014,18 @@ bool open_resource_file(const char *filename, std::string* ppath, FILE** pfp)
          continue;
       if (path[0] == '#')
          continue;
-      if (path[path.length()-1] != DIR_SEPARATOR)
-         path += DIR_SEPARATOR_STR;
-      path += filename;
+
+      // expand env.variables before we add the filename.
+      // the filename comes from the URL and if the URL
+      // has '$' characters we will try to expand them
+      // as an env.variable and maybe escape the file jail.
 
       std::string xpath = expand_env(path.c_str());
       
+      if (xpath[xpath.length()-1] != DIR_SEPARATOR)
+         xpath += DIR_SEPARATOR_STR;
+      xpath += filename;
+
       //printf("path [%s] [%s] [%s]\n", paths[i].c_str(), path.c_str(), xpath.c_str());
 
       FILE* fp = fopen(xpath.c_str(), "r");
