@@ -16032,6 +16032,15 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    }
    
    /*---- old ODB path ----------------------------------------------*/
+   
+   if ((command[0]==0) && dec_path[0]) {
+      if (equal_ustring(dec_path, "root")) {
+         std::string new_url = "./?cmd=odb";
+         //printf("redirect old odb path url [%s] to [%s]\n", dec_path, new_url.c_str());
+         redirect_307(r, new_url.c_str());
+         return;
+      }
+   }
 
    if ((command[0]==0) && dec_path[0]) {
       HNDLE hkey;
