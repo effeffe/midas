@@ -895,6 +895,38 @@ static void urlEncode(char *ps, int ps_size)
    free(str);
 }
 
+static std::string urlEncode(const char *text)
+/*
+   Encode mhttpd ODB path for embedding into HTML <a href="?cmd=odb&odb_path=xxx"> elements.
+   Encoding is intended to be compatible with RFC 3986 section 2 (adding of %XX escapes)
+*/
+{
+   std::string encoded;
+
+   const char* p = text;
+   while (*p) {
+      if (isalnum(*p)) {
+         encoded += *p++;
+      } else {
+         char buf[16];
+         sprintf(buf, "%%%02X", (*p)&0xFF);
+         encoded += buf;
+         p++;
+      }
+   }
+
+   if (/* DISABLES CODE */ (0)) {
+      printf("urlEncode [");
+      for (p=text; *p!=0; p++)
+         printf("0x%02x ", (*p)&0xFF);
+      printf("]\n");
+
+      printf("urlEncode [%s] -> [%s]\n", text, encoded.c_str());
+   }
+
+   return encoded;
+}
+
 /*------------------------------------------------------------------*/
 
 std::string expand_env(const char* filename)
@@ -1361,6 +1393,19 @@ void redirect(Return *r, const char *path)
    else {
       r->rsprintf("Location: %s\r\n\r\n<html>redir</html>\r\n", str);
    }
+}
+
+void redirect_307(Return *r, const char *path)
+{
+   //printf("redirect_307 to [%s]\n", path);
+
+   /* redirect */
+   r->rsprintf("HTTP/1.1 307 Temporary Redirect\r\n");
+   r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
+   r->rsprintf("Content-Type: text/html; charset=%s\r\n", HTTP_ENCODING);
+   r->rsprintf("Location: %s\r\n", path);
+   r->rsprintf("\r\n");
+   r->rsprintf("<html>redirect to %s</html>\r\n", path);
 }
 
 void redirect2(Return* r, const char *path)
@@ -15987,22 +16032,27 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       status = db_find_key(hDB, 0, dec_path, &hkey);
       //printf("try odb path [%s], status %d\n", dec_path, status);
       if (status == DB_SUCCESS) {
-         int level = 1;
+         int level = 0;
          for (const char* s = dec_path; *s; s++) {
             if (*s == '/')
                level++;
          }
          std::string new_url;
-         for (int i=0; i<level; i++) {
-            if (i>0)
-               new_url += "/";
-            new_url += "..";
+         if (level == 0) {
+            // Top-level directory like /Logger, (which appears in dec_path as "Logger")
+            new_url += "./";
+         } else {
+            for (int i=0; i<level; i++) {
+               if (i>0)
+                  new_url += "/";
+               new_url += "..";
+            }
          }
          new_url += "?cmd=odb";
          new_url += "&odb_path=";
-         new_url += dec_path;
+         new_url += urlEncode(dec_path);
          //printf("redirect old odb path url [%s] to [%s]\n", dec_path, new_url.c_str());
-         redirect(r, new_url.c_str());
+         redirect_307(r, new_url.c_str());
          return;
       }
    }
