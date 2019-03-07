@@ -449,19 +449,41 @@ static RequestTraceBuf* gTraceBuf = NULL;
 
 /*------------------------------------------------------------------*/
 
-#if 0
+MUTEX_T *gMemMutex = NULL;
+
+#if 1
 #include <malloc.h>
 #endif
-//#include <resource.h>
 
 void report_memory_use()
 {
-#if 0
+   if (!gMemMutex)
+      ss_mutex_create(&gMemMutex, FALSE);
+   ss_mutex_wait_for(gMemMutex, 0);
+#if 1
    struct mallinfo info = mallinfo();
 
+#if 1
    printf("malloc statistics:\n");
    printf(" arena %d\n", info.arena);
+   printf(" ordblks %d\n", info.ordblks);
+   printf(" hblks %d\n", info.hblks);
+   printf(" uordblks %d\n", info.uordblks);
+   printf(" fordblks %d\n", info.fordblks);
+   printf(" keepcost %d\n", info.keepcost);
 #endif
+
+#if 0
+   printf("malloc statistics: arena %d (%d=%d+%d)\n",
+          info.arena,
+          info.uordblks + info.fordblks,
+          info.uordblks,
+          info.fordblks
+          );
+#endif
+
+#endif
+#if 0
    struct rusage info;
    getrusage(RUSAGE_SELF, &info);
    printf("rusage statistics:");
@@ -470,13 +492,25 @@ void report_memory_use()
    //printf(" ru_idrss: %ld", (long)info.ru_idrss);
    //printf(" ru_isrss: %ld", (long)info.ru_isrss);
    printf("\n");
+#endif
+   ss_mutex_release(gMemMutex);
 }
 
 uint64_t get_memory_use()
 {
+#if 0
    struct rusage info;
    getrusage(RUSAGE_SELF, &info);
    return info.ru_maxrss;
+#endif
+#if 1
+   if (!gMemMutex)
+      ss_mutex_create(&gMemMutex, FALSE);
+   ss_mutex_wait_for(gMemMutex, 0);
+   struct mallinfo info = mallinfo();
+   ss_mutex_release(gMemMutex);
+   return info.uordblks;
+#endif
 }
 
 /*------------------------------------------------------------------*/
@@ -16293,11 +16327,11 @@ void decode_get(Return* rr, char *string, const char *cookie_pwd, const char *co
    if (decode_url)
       urlDecode(dec_path);
 
-   uint64_t mem0 = get_memory_use();
+   long mem0 = get_memory_use();
 
    interprete(param, rr, NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, dec_path, refresh, expand_equipment);
 
-   uint64_t mem1 = get_memory_use();
+   long mem1 = get_memory_use();
 
    if (mem1 > mem0) {
       printf("memusage: http get interprete() - %llu -> %llu (diff %llu), cmd %s\n", mem0, mem1, mem1-mem0, param->getparam("cmd"));
@@ -16433,11 +16467,11 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
    if (decode_url)
       urlDecode(dec_path);
 
-   uint64_t mem0 = get_memory_use();
+   long mem0 = get_memory_use();
 
    interprete(param, rr, a, cookie_pwd, cookie_wpwd, "", dec_path, refresh, expand_equipment);
 
-   uint64_t mem1 = get_memory_use();
+   long mem1 = get_memory_use();
 
    if (mem1 > mem0) {
       printf("memusage: post interprete() - %llu -> %llu (diff %llu)\n", mem0, mem1, mem1-mem0);
@@ -17284,6 +17318,48 @@ static bool handle_http_get(struct mg_connection *nc, const http_message* msg, c
    return handle_decode_get(nc, msg, uri, query_string.c_str(), t);
 }
 
+static bool handle_http_post_mjsonrpc(struct mg_connection *nc, const char* origin_header, const char* post_data, RequestTrace* t)
+{
+   //printf("post body: %s\n", post_data);
+
+   int status = ss_mutex_wait_for(request_mutex, 0);
+   assert(status == SS_SUCCESS);
+         
+   t->fTimeLocked = GetTimeSec();
+
+   std::string reply = mjsonrpc_decode_post_data(post_data);
+
+   t->fTimeUnlocked = GetTimeSec();
+
+   ss_mutex_release(request_mutex);
+         
+   int reply_length = reply.length();
+         
+   std::string headers;
+   headers += "HTTP/1.1 200 OK\n";
+   if (strlen(origin_header) > 0)
+      headers += "Access-Control-Allow-Origin: " + std::string(origin_header) + "\n";
+   else
+      headers += "Access-Control-Allow-Origin: *\n";
+   headers += "Access-Control-Allow-Credentials: true\n";
+   headers += "Content-Length: " + toString(reply_length) + "\n";
+   headers += "Content-Type: application/json\n";
+   //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+      
+   //printf("sending headers: %s\n", headers.c_str());
+   //printf("sending reply: %s\n", reply.c_str());
+      
+   std::string send = headers + "\n" + reply;
+      
+   t->fTimeProcessed = GetTimeSec();
+
+   mg_send(nc, send.c_str(), send.length());
+      
+   t->fTimeSent = GetTimeSec();
+
+   return true;
+}
+
 static bool handle_http_post(struct mg_connection *nc, const http_message* msg, const char* uri, RequestTrace* t)
 {
    std::string query_string = mgstr(&msg->query_string);
@@ -17314,56 +17390,27 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg, 
          return true;
       }
 
-      //printf("post body: %s\n", post_data.c_str());
-
       t->fRPC = post_data;
-      
-      int status = ss_mutex_wait_for(request_mutex, 0);
-      assert(status == SS_SUCCESS);
-         
-      t->fTimeLocked = GetTimeSec();
+
+      const std::string origin_header = find_header_mg(msg, "Origin");
 
       uint64_t mem0 = get_memory_use();
-
-      std::string reply = mjsonrpc_decode_post_data(post_data.c_str());
+      size_t xmem0 =  nc->send_mbuf.size;
+         
+      bool status = handle_http_post_mjsonrpc(nc, origin_header.c_str(), post_data.c_str(), t);
 
       uint64_t mem1 = get_memory_use();
+      size_t xmem1 =  nc->send_mbuf.size;
+
+      int64_t memdiff = mem1-mem0;
+      int xmemdiff = xmem1-xmem0;
+      int64_t xdiff = memdiff - xmemdiff;
       
-      if (mem1 > mem0) {
-         printf("memusage: mjsonrpc_decode_...() - %llu -> %llu (diff %llu), post data %s\n", mem0, mem1, mem1-mem0, post_data.c_str());
+      if ((memdiff != 0) && ((xdiff < -16) || (xdiff > 17))) {
+         printf("memusage: mjsonrpc_decode_...() - %llu -> %llu (diff %lld), mbuf %d -> %d (diff %d) xdiff %lld, post data %s\n", mem0, mem1, memdiff, (int)xmem0, (int)xmem1, (int)xmemdiff, xdiff, post_data.c_str());
       }
 
-      t->fTimeUnlocked = GetTimeSec();
-
-      ss_mutex_release(request_mutex);
-         
-      int reply_length = reply.length();
-         
-      const std::string origin_header = find_header_mg(msg, "Origin");
-         
-      std::string headers;
-      headers += "HTTP/1.1 200 OK\n";
-      if (origin_header.length() > 0)
-         headers += "Access-Control-Allow-Origin: " + std::string(origin_header) + "\n";
-      else
-         headers += "Access-Control-Allow-Origin: *\n";
-      headers += "Access-Control-Allow-Credentials: true\n";
-      headers += "Content-Length: " + toString(reply_length) + "\n";
-      headers += "Content-Type: application/json\n";
-      //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
-      
-      //printf("sending headers: %s\n", headers.c_str());
-      //printf("sending reply: %s\n", reply.c_str());
-      
-      std::string send = headers + "\n" + reply;
-      
-      t->fTimeProcessed = GetTimeSec();
-
-      mg_send(nc, send.c_str(), send.length());
-      
-      t->fTimeSent = GetTimeSec();
-
-      return true;
+      return status;
    }
 
    return handle_decode_post(nc, msg, uri, query_string.c_str());
@@ -17445,6 +17492,9 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
    if (trace_mg)
       printf("handle_http_message: method [%s] uri [%s] proto [%s]\n", method.c_str(), uri.c_str(), mgstr(&msg->proto).c_str());
 
+   uint64_t mem0 = get_memory_use();
+   size_t mem0x =  nc->send_mbuf.size;
+
    RequestTrace* t = new RequestTrace;
    t->fTimeReceived = GetTimeSec();
    t->fMethod = method;
@@ -17489,8 +17539,6 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       t->fAuthOk = true;
    }
 
-   uint64_t mem0 = get_memory_use();
-
    if (method == "GET")
       response_sent = handle_http_get(nc, msg, uri.c_str(), t);
    else if (method == "POST")
@@ -17505,14 +17553,18 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       mg_send(nc, response.c_str(), response.length());
    }
 
-   uint64_t mem1 = get_memory_use();
-
-   if (mem1 > mem0) {
-      printf("memusage: handle_http_message() - %llu -> %llu (diff %llu)\n", mem0, mem1, mem1-mem0);
-   }
-
    t->fCompleted = true;
    gTraceBuf->AddTraceMTS(t);
+
+   uint64_t mem1 = get_memory_use();
+   int64_t memdiff = mem1 - mem0;
+   size_t mem1x = nc->send_mbuf.size;
+   int64_t mdiff = nc->send_mbuf.size - mem0x;
+   int64_t xdiff = memdiff - mdiff;
+
+   if ((memdiff != 0) && ((xdiff < -16) || (xdiff > 17))) {
+      printf("memusage: handle_http_message() - %llu -> %llu (diff %lld), %s %s %s, mbuf %d -> %d (diff %d) xdiff %d\n", mem0, mem1, memdiff, method.c_str(), uri.c_str(), query_string.c_str(), (int)mem0x, (int)mem1x, (int)(mdiff), (int)xdiff);
+   }
 }
 
 static void handle_http_event_mg(struct mg_connection *nc, int ev, void *ev_data)
@@ -17676,7 +17728,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
 
       nc->flags |= MG_F_LISTENING;
 #ifdef MG_ENABLE_THREADS
-      mg_enable_multithreading(nc);
+      //mg_enable_multithreading(nc);
 #endif
       mg_set_protocol_http_websocket(nc);
       mg_register_http_endpoint(nc, "/", handle_http_event_mg);
@@ -17695,7 +17747,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
       }
       
 #ifdef MG_ENABLE_THREADS
-      mg_enable_multithreading(nc);
+      //mg_enable_multithreading(nc);
 #endif
       mg_set_protocol_http_websocket(nc);
 
@@ -17728,7 +17780,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
 
       mg_set_ssl(nc, cert_file.c_str(), NULL);
 #ifdef MG_ENABLE_THREADS
-      mg_enable_multithreading(nc);
+      //mg_enable_multithreading(nc);
 #endif
       mg_set_protocol_http_websocket(nc);
       mg_register_http_endpoint(nc, "/", handle_http_event_mg);
@@ -17786,7 +17838,15 @@ int loop_mg()
 
       //ss_sleep(10);
 
+      //uint64_t mem0 = get_memory_use();
+         
       mg_mgr_poll(&mgr_mg, 1000);
+
+      //uint64_t mem1 = get_memory_use();
+      
+      //if (1 || mem1 > mem0) {
+      //   printf("memusage: mg_mgr_poll() - %llu -> %llu (diff %llu)\n", mem0, mem1, mem1-mem0);
+      //}
    }
 
    return status;
