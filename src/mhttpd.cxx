@@ -449,6 +449,38 @@ static RequestTraceBuf* gTraceBuf = NULL;
 
 /*------------------------------------------------------------------*/
 
+#if 0
+#include <malloc.h>
+#endif
+//#include <resource.h>
+
+void report_memory_use()
+{
+#if 0
+   struct mallinfo info = mallinfo();
+
+   printf("malloc statistics:\n");
+   printf(" arena %d\n", info.arena);
+#endif
+   struct rusage info;
+   getrusage(RUSAGE_SELF, &info);
+   printf("rusage statistics:");
+   printf(" ru_maxrss: %ld", (long)info.ru_maxrss);
+   //printf(" ru_ixrss: %ld", (long)info.ru_ixrss);
+   //printf(" ru_idrss: %ld", (long)info.ru_idrss);
+   //printf(" ru_isrss: %ld", (long)info.ru_isrss);
+   printf("\n");
+}
+
+uint64_t get_memory_use()
+{
+   struct rusage info;
+   getrusage(RUSAGE_SELF, &info);
+   return info.ru_maxrss;
+}
+
+/*------------------------------------------------------------------*/
+
 /* size of buffer for incoming data, must fit sum of all attachments */
 #define WEB_BUFFER_SIZE (6*1024*1024)
 
@@ -16261,7 +16293,15 @@ void decode_get(Return* rr, char *string, const char *cookie_pwd, const char *co
    if (decode_url)
       urlDecode(dec_path);
 
+   uint64_t mem0 = get_memory_use();
+
    interprete(param, rr, NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, dec_path, refresh, expand_equipment);
+
+   uint64_t mem1 = get_memory_use();
+
+   if (mem1 > mem0) {
+      printf("memusage: http get interprete() - %llu -> %llu (diff %llu), cmd %s\n", mem0, mem1, mem1-mem0, param->getparam("cmd"));
+   }
 
    param->freeparam();
    delete param;
@@ -16393,7 +16433,15 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
    if (decode_url)
       urlDecode(dec_path);
 
+   uint64_t mem0 = get_memory_use();
+
    interprete(param, rr, a, cookie_pwd, cookie_wpwd, "", dec_path, refresh, expand_equipment);
+
+   uint64_t mem1 = get_memory_use();
+
+   if (mem1 > mem0) {
+      printf("memusage: post interprete() - %llu -> %llu (diff %llu)\n", mem0, mem1, mem1-mem0);
+   }
 
    delete a;
    delete param;
@@ -17275,8 +17323,16 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg, 
          
       t->fTimeLocked = GetTimeSec();
 
+      uint64_t mem0 = get_memory_use();
+
       std::string reply = mjsonrpc_decode_post_data(post_data.c_str());
-         
+
+      uint64_t mem1 = get_memory_use();
+      
+      if (mem1 > mem0) {
+         printf("memusage: mjsonrpc_decode_...() - %llu -> %llu (diff %llu), post data %s\n", mem0, mem1, mem1-mem0, post_data.c_str());
+      }
+
       t->fTimeUnlocked = GetTimeSec();
 
       ss_mutex_release(request_mutex);
@@ -17433,6 +17489,8 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       t->fAuthOk = true;
    }
 
+   uint64_t mem0 = get_memory_use();
+
    if (method == "GET")
       response_sent = handle_http_get(nc, msg, uri.c_str(), t);
    else if (method == "POST")
@@ -17445,6 +17503,12 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       std::string response = "501 Not Implemented";
       mg_send_head(nc, 501, response.length(), NULL); // 501 Not Implemented
       mg_send(nc, response.c_str(), response.length());
+   }
+
+   uint64_t mem1 = get_memory_use();
+
+   if (mem1 > mem0) {
+      printf("memusage: handle_http_message() - %llu -> %llu (diff %llu)\n", mem0, mem1, mem1-mem0);
    }
 
    t->fCompleted = true;
@@ -17716,11 +17780,13 @@ int loop_mg()
       if (status == RPC_SHUTDOWN)
          break;
 
+      //report_memory_use();
+
       status = ss_mutex_release(request_mutex);
 
       //ss_sleep(10);
 
-      mg_mgr_poll(&mgr_mg, 10);
+      mg_mgr_poll(&mgr_mg, 1000);
    }
 
    return status;
