@@ -711,7 +711,7 @@ static INT cm_msg_format(char* message, int sizeof_message, INT message_type, co
    strlcpy(format_cpy, format, sizeof(format_cpy));
 
    /* print argument list into message */
-   vsprintf(str, (char *) format, *argptr);
+   vsnprintf(str, sizeof(str), (char *) format_cpy, *argptr);
 
    strlcat(message, str, sizeof_message);
 
