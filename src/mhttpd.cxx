@@ -16334,7 +16334,7 @@ void decode_get(Return* rr, char *string, const char *cookie_pwd, const char *co
    long mem1 = get_memory_use();
 
    if (mem1 > mem0) {
-      printf("memusage: http get interprete() - %llu -> %llu (diff %llu), cmd %s\n", mem0, mem1, mem1-mem0, param->getparam("cmd"));
+      cm_msg(MINFO, "decode_get", "memusage: http get interprete() - %lu -> %lu (diff %lu), cmd %s", mem0, mem1, mem1-mem0, param->getparam("cmd"));
    }
 
    param->freeparam();
@@ -16474,7 +16474,7 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
    long mem1 = get_memory_use();
 
    if (mem1 > mem0) {
-      printf("memusage: post interprete() - %llu -> %llu (diff %llu)\n", mem0, mem1, mem1-mem0);
+      cm_msg(MINFO, "decode_post", "memusage: post interprete() - %lu -> %lu (diff %lu)", mem0, mem1, mem1-mem0);
    }
 
    delete a;
@@ -17407,7 +17407,7 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg, 
       int64_t xdiff = memdiff - xmemdiff;
       
       if ((memdiff != 0) && ((xdiff < -16) || (xdiff > 17))) {
-         printf("memusage: mjsonrpc_decode_...() - %llu -> %llu (diff %lld), mbuf %d -> %d (diff %d) xdiff %lld, post data %s\n", mem0, mem1, memdiff, (int)xmem0, (int)xmem1, (int)xmemdiff, xdiff, post_data.c_str());
+         cm_msg(MINFO, "handle_http_post", "memusage: mjsonrpc_decode_...() - %lu -> %lu (diff %ld), mbuf %d -> %d (diff %d) xdiff %ld, post data %s", mem0, mem1, memdiff, (int)xmem0, (int)xmem1, (int)xmemdiff, xdiff, post_data.c_str());
       }
 
       return status;
@@ -17563,7 +17563,7 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
    int64_t xdiff = memdiff - mdiff;
 
    if ((memdiff != 0) && ((xdiff < -16) || (xdiff > 17))) {
-      printf("memusage: handle_http_message() - %llu -> %llu (diff %lld), %s %s %s, mbuf %d -> %d (diff %d) xdiff %d\n", mem0, mem1, memdiff, method.c_str(), uri.c_str(), query_string.c_str(), (int)mem0x, (int)mem1x, (int)(mdiff), (int)xdiff);
+      cm_msg(MINFO, "handle_http_message", "memusage: handle_http_message() - %lu -> %lu (diff %ld), %s %s %s, mbuf %d -> %d (diff %d) xdiff %d", mem0, mem1, memdiff, method.c_str(), uri.c_str(), query_string.c_str(), (int)mem0x, (int)mem1x, (int)(mdiff), (int)xdiff);
    }
 }
 
