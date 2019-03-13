@@ -270,18 +270,11 @@ typedef struct {
    char param[32];              /* parameter array              */
 } NET_COMMAND;
 
-
-typedef struct {
-   DWORD serial_number;
-   DWORD sequence_number;
-} UDP_HEADER;
-
 /** @} *//* end of mssectionh */
 
 /** @addtogroup msdefineh
  *  @{  */
 
-#define UDP_FIRST 0x80000000l
 #define TCP_FAST  0x80000000l
 
 #define MSG_BM       1
@@ -601,8 +594,6 @@ extern "C" {
    INT EXPRT send_tcp(int sock, char *buffer, DWORD buffer_size, INT flags);
    INT EXPRT recv_tcp(int sock, char *buffer, DWORD buffer_size, INT flags);
    INT EXPRT recv_tcp2(int sock, char *buffer, int buffer_size, int timeout_ms);
-   INT send_udp(int sock, char *buffer, DWORD buffer_size, INT flags);
-   INT recv_udp(int sock, char *buffer, DWORD buffer_size, INT flags);
    INT EXPRT recv_string(int sock, char *buffer, DWORD buffer_size, INT flags);
    INT EXPRT ss_socket_wait(int sock, int millisec);
    INT EXPRT ss_recv_net_command(int sock, DWORD* routine_id, DWORD* param_size, char **param_ptr, int timeout_ms);
