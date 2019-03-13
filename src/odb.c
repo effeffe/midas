@@ -12327,13 +12327,12 @@ INT db_send_changed_records()
    for (i = 0; i < _record_list_entries; i++)
       if (_record_list[i].access_mode & MODE_WRITE) {
          if (memcmp(_record_list[i].copy, _record_list[i].data, _record_list[i].buf_size) != 0) {
-            /* switch to fast TCP mode temporarily */
-            if (rpc_is_remote())
-               rpc_set_option(-1, RPC_OTRANSPORT, RPC_FTCP);
-            db_set_record(_record_list[i].hDB,
-                          _record_list[i].handle, _record_list[i].data, _record_list[i].buf_size, 0);
-            if (rpc_is_remote())
-               rpc_set_option(-1, RPC_OTRANSPORT, RPC_TCP);
+            if (rpc_is_remote()) {
+               int align = ss_get_struct_align();
+               rpc_call(RPC_DB_SET_RECORD|RPC_NO_REPLY, _record_list[i].hDB, _record_list[i].handle, _record_list[i].data, _record_list[i].buf_size, align);
+            } else {
+               db_set_record(_record_list[i].hDB, _record_list[i].handle, _record_list[i].data, _record_list[i].buf_size, 0);
+            }
             memcpy(_record_list[i].copy, _record_list[i].data, _record_list[i].buf_size);
          }
       }

@@ -1094,10 +1094,6 @@ void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
    HNDLE hKeyRoot, hKeyl, *hKeys;
    KEY key;
 
-
-   /* outcommented since db_find_key does not work in FTCP mode, SR 25.4.03
-      rpc_set_option(-1, RPC_OTRANSPORT, RPC_FTCP); */
-
    if (format == FORMAT_FIXED) {
       status = db_set_record(hDB, hKey, (char *) (pevent + 1), pevent->data_size, 0);
       if (status != DB_SUCCESS) {
@@ -1210,8 +1206,6 @@ void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
    } else if (format == FORMAT_YBOS) {
      assert(!"YBOS not supported anymore");
    }
-
-   rpc_set_option(-1, RPC_OTRANSPORT, RPC_TCP);
 }
 
 /*------------------------------------------------------------------*/
@@ -2476,9 +2470,7 @@ INT scheduler(void)
          }
 
          /* propagate changes in equipment to ODB */
-         rpc_set_option(-1, RPC_OTRANSPORT, RPC_FTCP);
          db_send_changed_records();
-         rpc_set_option(-1, RPC_OTRANSPORT, RPC_TCP);
 
          if (display_period) {
             display(FALSE);
@@ -2531,14 +2523,16 @@ INT scheduler(void)
                   //printf("mfe: eq %d, buffer %d, done %d\n", i, equipment[i].buffer_handle, buffer_done);
 
                   if (!buffer_done) {
-                     rpc_set_option(-1, RPC_OTRANSPORT, RPC_FTCP);
                      rpc_flush_event();
-                     err = bm_flush_cache(equipment[i].buffer_handle, BM_NO_WAIT);
+                     if (rpc_is_remote()) {
+                        err = rpc_call(RPC_BM_FLUSH_CACHE|RPC_NO_REPLY, equipment[i].buffer_handle, BM_NO_WAIT);
+                     } else {
+                        err = bm_flush_cache(equipment[i].buffer_handle, BM_NO_WAIT);
+                     }
                      if ((err != BM_SUCCESS) && (err != BM_ASYNC_RETURN)) {
                         cm_msg(MERROR, "scheduler", "bm_flush_cache(BM_NO_WAIT) returned status %d", err);
                         return err;
                      }
-                     rpc_set_option(-1, RPC_OTRANSPORT, RPC_TCP);
                   }
                }
             }
