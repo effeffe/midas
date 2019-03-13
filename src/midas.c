@@ -10348,7 +10348,6 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    strcpy(_client_connection[idx].client_name, client_name);
    _client_connection[idx].port = port;
    _client_connection[idx].exp_name[0] = 0;
-   _client_connection[idx].transport = RPC_TCP;
    _client_connection[idx].rpc_timeout = DEFAULT_RPC_TIMEOUT;
    _client_connection[idx].rpc_timeout = DEFAULT_RPC_TIMEOUT;
    _client_connection[idx].send_sock = sock;
@@ -10606,7 +10605,6 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
 
    strcpy(_server_connection.host_name, host_name);
    strcpy(_server_connection.exp_name, exp_name);
-   _server_connection.transport = RPC_TCP;
    _server_connection.rpc_timeout = DEFAULT_RPC_TIMEOUT;
 
    /* create new TCP sockets for listening */
@@ -10875,9 +10873,8 @@ INT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown)
    } else {
       /* notify server about exit */
 
-      /* set FTCP mode (helps for rebooted VxWorks nodes) */
-      rpc_set_option(hConn, RPC_OTRANSPORT, RPC_FTCP);
-      rpc_client_call(hConn, bShutdown ? RPC_ID_SHUTDOWN : RPC_ID_EXIT);
+      /* call exit and shutdown with RPC_NO_REPLY because client will exit immediately without possibility of replying */
+      rpc_client_call(hConn, bShutdown ? (RPC_ID_SHUTDOWN|RPC_NO_REPLY) : (RPC_ID_EXIT|RPC_NO_REPLY));
 
       /* close socket */
       if (_client_connection[hConn - 1].send_sock)
@@ -11086,11 +11083,6 @@ INT rpc_get_option(HNDLE hConn, INT item)
          return _rpc_connect_timeout;
       return _client_connection[hConn - 1].rpc_timeout;
 
-   case RPC_OTRANSPORT:
-      if (hConn == -1)
-         return _server_connection.transport;
-      return _client_connection[hConn - 1].transport;
-
    case RPC_OHW_TYPE:
       {
          INT tmp_type, size;
@@ -11190,13 +11182,6 @@ INT rpc_set_option(HNDLE hConn, INT item, INT value)
          _rpc_connect_timeout = value;
       else
          _client_connection[hConn - 1].rpc_timeout = value;
-      break;
-
-   case RPC_OTRANSPORT:
-      if (hConn == -1)
-         _server_connection.transport = value;
-      else
-         _client_connection[hConn - 1].transport = value;
       break;
 
    case RPC_NODELAY:
@@ -11528,7 +11513,7 @@ void rpc_va_arg(va_list * arg_ptr, INT arg_type, void *arg)
 }
 
 /********************************************************************/
-INT rpc_client_call(HNDLE hConn, INT routine_id, ...)
+INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
 /********************************************************************\
 
   Routine: rpc_client_call
@@ -11574,7 +11559,6 @@ INT rpc_client_call(HNDLE hConn, INT routine_id, ...)
 
    int send_sock = _client_connection[idx].send_sock;
    int rpc_timeout = _client_connection[idx].rpc_timeout;
-   int transport = _client_connection[idx].transport;
 
    // make local copy of the client name just in case _client_connection is erased by another thread
 
@@ -11611,7 +11595,7 @@ INT rpc_client_call(HNDLE hConn, INT routine_id, ...)
    NET_COMMAND* nc = (NET_COMMAND *) buf;
    nc->header.routine_id = routine_id;
 
-   if (transport == RPC_FTCP || rpc_no_reply)
+   if (rpc_no_reply)
       nc->header.routine_id |= RPC_NO_REPLY;
 
    /* examine variable argument list and convert it to parameter array */
@@ -11722,7 +11706,7 @@ INT rpc_client_call(HNDLE hConn, INT routine_id, ...)
    send_size = nc->header.param_size + sizeof(NET_COMMAND_HEADER);
 
    /* in FAST TCP mode, only send call and return immediately */
-   if (transport == RPC_FTCP || rpc_no_reply) {
+   if (rpc_no_reply) {
       i = send_tcp(send_sock, (char *) nc, send_size, 0);
 
       if (i != send_size) {
@@ -11827,7 +11811,7 @@ INT rpc_client_call(HNDLE hConn, INT routine_id, ...)
 }
 
 /********************************************************************/
-INT rpc_call(INT routine_id, ...)
+INT rpc_call(DWORD routine_id, ...)
 /********************************************************************\
 
   Routine: rpc_call
@@ -11854,7 +11838,7 @@ INT rpc_call(INT routine_id, ...)
 {
    va_list ap, aptmp;
    char arg[8], arg_tmp[8];
-   INT arg_type, transport, rpc_timeout;
+   INT arg_type, rpc_timeout;
    INT i, idx, status;
    INT param_size, arg_size, send_size;
    INT tid, flags;
@@ -11871,7 +11855,6 @@ INT rpc_call(INT routine_id, ...)
    routine_id &= ~RPC_NO_REPLY;
 
    send_sock = _server_connection.send_sock;
-   transport = _server_connection.transport;
    rpc_timeout = _server_connection.rpc_timeout;
 
    if (!_mutex_rpc) {
@@ -11919,7 +11902,7 @@ INT rpc_call(INT routine_id, ...)
    nc = (NET_COMMAND *) buf;
    nc->header.routine_id = routine_id;
 
-   if (transport == RPC_FTCP || rpc_no_reply)
+   if (rpc_no_reply)
       nc->header.routine_id |= RPC_NO_REPLY;
 
    /* examine variable argument list and convert it to parameter array */
@@ -12029,8 +12012,8 @@ INT rpc_call(INT routine_id, ...)
 
    send_size = nc->header.param_size + sizeof(NET_COMMAND_HEADER);
 
-   /* in FAST TCP mode, only send call and return immediately */
-   if (transport == RPC_FTCP || rpc_no_reply) {
+   /* do not wait for reply if requested RPC_NO_REPLY */
+   if (rpc_no_reply) {
       i = send_tcp(send_sock, (char *) nc, send_size, 0);
 
       if (i != send_size) {
