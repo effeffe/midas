@@ -11528,7 +11528,7 @@ void rpc_va_arg(va_list * arg_ptr, INT arg_type, void *arg)
 }
 
 /********************************************************************/
-INT rpc_client_call(HNDLE hConn, const INT routine_id, ...)
+INT rpc_client_call(HNDLE hConn, INT routine_id, ...)
 /********************************************************************\
 
   Routine: rpc_client_call
@@ -11569,6 +11569,9 @@ INT rpc_client_call(HNDLE hConn, const INT routine_id, ...)
       return RPC_NO_CONNECTION;
    }
 
+   BOOL rpc_no_reply = routine_id & RPC_NO_REPLY;
+   routine_id &= ~RPC_NO_REPLY;
+
    int send_sock = _client_connection[idx].send_sock;
    int rpc_timeout = _client_connection[idx].rpc_timeout;
    int transport = _client_connection[idx].transport;
@@ -11608,8 +11611,8 @@ INT rpc_client_call(HNDLE hConn, const INT routine_id, ...)
    NET_COMMAND* nc = (NET_COMMAND *) buf;
    nc->header.routine_id = routine_id;
 
-   if (transport == RPC_FTCP)
-      nc->header.routine_id |= TCP_FAST;
+   if (transport == RPC_FTCP || rpc_no_reply)
+      nc->header.routine_id |= RPC_NO_REPLY;
 
    /* examine variable argument list and convert it to parameter array */
    va_start(ap, routine_id);
@@ -11719,7 +11722,7 @@ INT rpc_client_call(HNDLE hConn, const INT routine_id, ...)
    send_size = nc->header.param_size + sizeof(NET_COMMAND_HEADER);
 
    /* in FAST TCP mode, only send call and return immediately */
-   if (transport == RPC_FTCP) {
+   if (transport == RPC_FTCP || rpc_no_reply) {
       i = send_tcp(send_sock, (char *) nc, send_size, 0);
 
       if (i != send_size) {
@@ -11824,7 +11827,7 @@ INT rpc_client_call(HNDLE hConn, const INT routine_id, ...)
 }
 
 /********************************************************************/
-INT rpc_call(const INT routine_id, ...)
+INT rpc_call(INT routine_id, ...)
 /********************************************************************\
 
   Routine: rpc_call
@@ -11863,6 +11866,9 @@ INT rpc_call(const INT routine_id, ...)
    DWORD buf_size = 0;
    DWORD rpc_status = 0;
    const char* rpc_name = NULL;
+
+   BOOL rpc_no_reply = routine_id & RPC_NO_REPLY;
+   routine_id &= ~RPC_NO_REPLY;
 
    send_sock = _server_connection.send_sock;
    transport = _server_connection.transport;
@@ -11913,8 +11919,8 @@ INT rpc_call(const INT routine_id, ...)
    nc = (NET_COMMAND *) buf;
    nc->header.routine_id = routine_id;
 
-   if (transport == RPC_FTCP)
-      nc->header.routine_id |= TCP_FAST;
+   if (transport == RPC_FTCP || rpc_no_reply)
+      nc->header.routine_id |= RPC_NO_REPLY;
 
    /* examine variable argument list and convert it to parameter array */
    va_start(ap, routine_id);
@@ -12024,7 +12030,7 @@ INT rpc_call(const INT routine_id, ...)
    send_size = nc->header.param_size + sizeof(NET_COMMAND_HEADER);
 
    /* in FAST TCP mode, only send call and return immediately */
-   if (transport == RPC_FTCP) {
+   if (transport == RPC_FTCP || rpc_no_reply) {
       i = send_tcp(send_sock, (char *) nc, send_size, 0);
 
       if (i != send_size) {
@@ -12263,7 +12269,7 @@ INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag
 
    if (mode == 0) {
       nc = (NET_COMMAND *) (_tcp_buffer + _tcp_wp);
-      nc->header.routine_id = RPC_BM_SEND_EVENT | TCP_FAST;
+      nc->header.routine_id = RPC_BM_SEND_EVENT | RPC_NO_REPLY;
       nc->header.param_size = 4 * 8 + aligned_buf_size;
 
       /* assemble parameters manually */
@@ -13160,12 +13166,12 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
       rpc_convert_single(&nc_in->header.param_size, TID_DWORD, 0, convert_flags);
    }
 
-   /* no result return in FAST TCP mode */
-   if (nc_in->header.routine_id & TCP_FAST)
+   /* no result return as requested */
+   if (nc_in->header.routine_id & RPC_NO_REPLY)
       sock = 0;
 
    /* find entry in rpc_list */
-   routine_id = nc_in->header.routine_id & ~TCP_FAST;
+   routine_id = nc_in->header.routine_id & ~RPC_NO_REPLY;
 
    assert(rpc_list != NULL);
 

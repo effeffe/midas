@@ -282,7 +282,6 @@ typedef struct {
  *  @{  */
 
 #define UDP_FIRST 0x80000000l
-#define TCP_FAST  0x80000000l
 
 #define MSG_BM       1
 #define MSG_ODB      2

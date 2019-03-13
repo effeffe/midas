@@ -353,6 +353,8 @@ RPC options */
 #define RPC_TCP            0
 #define RPC_FTCP           1
 
+#define RPC_NO_REPLY 0x80000000l
+
 /**
 Watchdog flags */
 #define WF_WATCH_ME   (1<<0)    /* see cm_set_watchdog_flags   */
@@ -1911,8 +1913,8 @@ extern "C" {
    INT EXPRT rpc_register_client(const char *name, RPC_LIST * list);
    INT EXPRT rpc_server_thread(void *pointer);
    INT EXPRT rpc_server_shutdown(void);
-   INT EXPRT rpc_client_call(HNDLE hConn, const INT routine_id, ...);
-   INT EXPRT rpc_call(const INT routine_id, ...);
+   INT EXPRT rpc_client_call(HNDLE hConn, INT routine_id, ...);
+   INT EXPRT rpc_call(INT routine_id, ...);
    INT EXPRT rpc_tid_size(INT id);
    const char EXPRT *rpc_tid_name(INT id);
    INT EXPRT rpc_server_connect(const char *host_name, const char *exp_name);
