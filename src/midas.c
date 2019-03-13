@@ -11557,6 +11557,9 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
    BOOL rpc_no_reply = routine_id & RPC_NO_REPLY;
    routine_id &= ~RPC_NO_REPLY;
 
+   //if (rpc_no_reply)
+   //   printf("rpc_client_call: routine_id %d, RPC_NO_REPLY\n", routine_id);
+
    int send_sock = _client_connection[idx].send_sock;
    int rpc_timeout = _client_connection[idx].rpc_timeout;
 
@@ -11853,6 +11856,9 @@ INT rpc_call(DWORD routine_id, ...)
 
    BOOL rpc_no_reply = routine_id & RPC_NO_REPLY;
    routine_id &= ~RPC_NO_REPLY;
+
+   //if (rpc_no_reply)
+   //   printf("rpc_call: routine_id %d, RPC_NO_REPLY\n", routine_id);
 
    send_sock = _server_connection.send_sock;
    rpc_timeout = _server_connection.rpc_timeout;
@@ -13148,6 +13154,10 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
       rpc_convert_single(&nc_in->header.routine_id, TID_DWORD, 0, convert_flags);
       rpc_convert_single(&nc_in->header.param_size, TID_DWORD, 0, convert_flags);
    }
+
+   //if (nc_in->header.routine_id & RPC_NO_REPLY) {
+   //   printf("rpc_execute: routine_id %d, RPC_NO_REPLY\n", (int)(nc_in->header.routine_id & ~RPC_NO_REPLY));
+   //}
 
    /* no result return as requested */
    if (nc_in->header.routine_id & RPC_NO_REPLY)
