@@ -77,7 +77,7 @@ Open history file belonging to certain date. Internal use
 @param fh             File handle
 @return HS_SUCCESS
 */
-INT hs_open_file(time_t ltime, char *suffix, INT mode, int *fh)
+INT hs_open_file(time_t ltime, const char *suffix, INT mode, int *fh)
 {
    struct tm *tms;
    char file_name[256];
