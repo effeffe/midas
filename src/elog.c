@@ -125,9 +125,9 @@ Submit an ELog entry.
 */
 INT el_submit(int run, const char *author, const char *type, const char *syst, const char *subject,
               const char *text, const char *reply_to, const char *encoding,
-              const char *afilename1, char *buffer1, INT buffer_size1,
-              const char *afilename2, char *buffer2, INT buffer_size2,
-              const char *afilename3, char *buffer3, INT buffer_size3, char *tag, INT tag_size)
+              const char *afilename1, const char *buffer1, INT buffer_size1,
+              const char *afilename2, const char *buffer2, INT buffer_size2,
+              const char *afilename3, const char *buffer3, INT buffer_size3, char *tag, INT tag_size)
 {
    if (rpc_is_remote())
       return rpc_call(RPC_EL_SUBMIT, run, author, type, syst, subject,
@@ -137,16 +137,15 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
 
 #ifdef LOCAL_ROUTINES
    {
-      INT size, fh, status, run_number, semaphore, buffer_size = 0, idx, offset = 0, tail_size = 0;
+      INT size, fh, status, run_number, semaphore, idx, offset = 0, tail_size = 0;
       struct tm *tms = NULL;
-      char afilename[256], file_name[256], afile_name[3][256], dir[256], str[256],
+      char file_name[256], afile_name[3][256], dir[256], str[256],
           start_str[80], end_str[80], last[80], date[80], thread[80], attachment[256];
       HNDLE hDB;
       time_t now;
       char *p;
       char* message = NULL;
       size_t message_size = 0;
-      char *buffer = NULL;
       BOOL bedit;
 
       cm_get_experiment_database(&hDB, NULL);
@@ -180,16 +179,20 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
          /* generate filename for attachment */
          afile_name[idx][0] = file_name[0] = 0;
 
+         char afilename[256];
+         const char* buffer = NULL;
+         int buffer_size = 0;
+
          if (idx == 0) {
-            strcpy(afilename, afilename1);
+            strlcpy(afilename, afilename1, sizeof(afilename));
             buffer = buffer1;
             buffer_size = buffer_size1;
          } else if (idx == 1) {
-            strcpy(afilename, afilename2);
+            strlcpy(afilename, afilename2, sizeof(afilename));
             buffer = buffer2;
             buffer_size = buffer_size2;
          } else if (idx == 2) {
-            strcpy(afilename, afilename3);
+            strlcpy(afilename, afilename3, sizeof(afilename));
             buffer = buffer3;
             buffer_size = buffer_size3;
          }
@@ -246,7 +249,7 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
                }
             }
          }
-      }
+      } // loop over attachmnents
 
       /* generate new file name YYMMDD.log in data directory */
       cm_get_experiment_database(&hDB, NULL);
@@ -265,6 +268,8 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
       tzset();
 #endif
 #endif
+
+      char* buffer = NULL;
 
       if (bedit) {
          /* edit existing message */
