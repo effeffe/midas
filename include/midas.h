@@ -1919,7 +1919,7 @@ extern "C" {
    INT EXPRT rpc_client_connect(const char *host_name, INT midas_port, const char *client_name, HNDLE * hConnection);
    INT EXPRT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown);
 
-   INT EXPRT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag, INT mode);
+   INT EXPRT rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, INT buf_size, INT async_flag, INT mode);
    INT EXPRT rpc_flush_event(void);
 
    void EXPRT rpc_get_convert_flags(INT * convert_flags);

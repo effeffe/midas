@@ -12175,7 +12175,7 @@ Fast send_event routine which bypasses the RPC layer and
 @return BM_INVALID_PARAM, BM_ASYNC_RETURN, RPC_SUCCESS, RPC_NET_ERROR,
         RPC_NO_CONNECTION, RPC_EXCEED_BUFFER
 */
-INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag, INT mode)
+INT rpc_send_event(INT buffer_handle, const EVENT_HEADER* event, INT buf_size, INT async_flag, INT mode)
 {
    INT i;
    NET_COMMAND *nc;
@@ -12193,13 +12193,13 @@ INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag
 
    _tcp_sock = sock; // remember socket for rpc_flush_event()
 
-   if ((INT) aligned_buf_size != (INT) (ALIGN8(((EVENT_HEADER *) source)->data_size + sizeof(EVENT_HEADER)))) {
+   if ((INT) aligned_buf_size != (INT) (ALIGN8(event->data_size + sizeof(EVENT_HEADER)))) {
       cm_msg(MERROR, "rpc_send_event", "event size mismatch");
       return BM_INVALID_PARAM;
    }
 
    if (!rpc_is_remote())
-      return bm_send_event(buffer_handle, source, buf_size, async_flag);
+      return bm_send_event(buffer_handle, event, buf_size, async_flag);
 
    /* init network buffer */
    if (!_tcp_buffer)
@@ -12280,7 +12280,7 @@ INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag
          }
 
          /* send data */
-         i = send_tcp(sock, (char *) source, aligned_buf_size, 0);
+         i = send_tcp(sock, (char *) event, aligned_buf_size, 0);
          if (i <= 0) {
             cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
             return RPC_NET_ERROR;
@@ -12296,7 +12296,7 @@ INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag
          }
       } else {
          /* copy event */
-         memcpy(&nc->param[16], source, buf_size);
+         memcpy(&nc->param[16], event, buf_size);
 
          /* last two parameters (buf_size and async_flag */
          *((INT *) (&nc->param[16 + aligned_buf_size])) = buf_size;
@@ -12319,7 +12319,7 @@ INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag
 
          /* send data */
          //printf("rpc_send_event: send %d (aligned_buf_size)\n", aligned_buf_size);
-         i = send_tcp(sock, (char *) source, aligned_buf_size, 0);
+         i = send_tcp(sock, (char *) event, aligned_buf_size, 0);
          if (i <= 0) {
             cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
             return RPC_NET_ERROR;
@@ -12328,7 +12328,7 @@ INT rpc_send_event(INT buffer_handle, void *source, INT buf_size, INT async_flag
          /* copy event */
          *((INT *) (_tcp_buffer + _tcp_wp)) = buffer_handle;
          _tcp_wp += sizeof(INT);
-         memcpy(_tcp_buffer + _tcp_wp, source, buf_size);
+         memcpy(_tcp_buffer + _tcp_wp, event, buf_size);
 
          _tcp_wp += aligned_buf_size;
       }
