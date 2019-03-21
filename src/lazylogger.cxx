@@ -2474,7 +2474,7 @@ int main(int argc, char **argv)
    
 #ifdef HAVE_FTPLIB
    if (debug)
-     ftp_debug((int (*)(char *)) puts, (int (*)(char *)) puts);
+     ftp_debug((int (*)(const char *)) puts, (int (*)(const char *)) puts);
 #endif
    
    printf("Lazy_%s starting... " "!" " to exit \n", lazyinfo[channel].name);

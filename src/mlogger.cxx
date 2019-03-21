@@ -2530,7 +2530,7 @@ void write_runlog_ascii(BOOL bor)
 
 /*---- open FTP channel --------------------------------------------*/
 
-INT ftp_error(char *message)
+INT ftp_error(const char *message)
 {
    cm_msg(MERROR, "ftp_error", "%s", message);
    return 1;
@@ -2590,7 +2590,7 @@ INT ftp_open(const char *xdestination, FTP_CON ** con)
 #ifdef FAL_MAIN
    ftp_debug(NULL, ftp_error);
 #else
-   ftp_debug((int (*)(char *)) puts, ftp_error);
+   ftp_debug((int (*)(const char *)) puts, ftp_error);
 #endif
 
    status = ftp_login(con, host_name, port, user, pass, "");

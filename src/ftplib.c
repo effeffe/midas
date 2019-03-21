@@ -24,12 +24,12 @@
 #endif
 
 static char bars[] = "/-\\|";
-int (*ftp_debug_func) (char *message);
-int (*ftp_error_func) (char *message);
+int (*ftp_debug_func) (const char *message);
+int (*ftp_error_func) (const char *message);
 
 /*------------------------------------------------------------------*/
 
-void ftp_debug(int (*debug_func) (char *message), int (*error_func) (char *message))
+void ftp_debug(int (*debug_func) (const char *message), int (*error_func) (const char *message))
 /* set message display functions for debug and error messages */
 {
    ftp_debug_func = debug_func;
@@ -126,7 +126,7 @@ int ftp_connect(FTP_CON ** con, const char *host_name, unsigned short port)
 
 /*------------------------------------------------------------------*/
 
-int ftp_send_message(FTP_CON * con, char *message)
+int ftp_send_message(FTP_CON * con, const char *message)
 /* send a message to a FTP server */
 {
    if (send(con->sock, message, strlen(message), 0) == -1)

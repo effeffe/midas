@@ -58,14 +58,14 @@ extern "C" {
    int EXPRT ftp_put(FTP_CON * con, const char *local_name, const char *remote_name);
    int EXPRT ftp_send(int sock, const char *buffer, int n_bytes);
    int EXPRT ftp_receive(int sock, char *buffer, int bsize);
-   int EXPRT ftp_send_message(FTP_CON * con, char *message);
+   int EXPRT ftp_send_message(FTP_CON * con, const char *message);
    int EXPRT ftp_get_message(FTP_CON * con, char *message);
    BOOL EXPRT ftp_good(int number, ...);
    int EXPRT ftp_command(FTP_CON * con, const char *command, const char *param, ...);
    int EXPRT ftp_dir(FTP_CON * con, const char *file);
    char EXPRT *ftp_pwd(FTP_CON * con);
-   void EXPRT ftp_debug(int (*debug_func) (char *message),
-                        int (*error_func) (char *message));
+   void EXPRT ftp_debug(int (*debug_func) (const char *message),
+                        int (*error_func) (const char *message));
 
 #ifdef __cplusplus
 }
