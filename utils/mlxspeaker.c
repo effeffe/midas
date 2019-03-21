@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
    INT status, i, ch;
    char host_name[HOST_NAME_LENGTH];
    char exp_name[NAME_LENGTH];
-   char *speech_program = SPEECH_PROGRAM;
+   const char *speech_program = SPEECH_PROGRAM;
 
    /* get default from environment */
    cm_get_environment(host_name, sizeof(host_name), exp_name, sizeof(exp_name));
