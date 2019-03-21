@@ -8924,7 +8924,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void** bufptr, void *
                status = BM_TRUNCATED;
             }
             
-            bm_read_from_buffer_locked(pheader, pc->read_pointer, buf, event_size);
+            bm_read_from_buffer_locked(pheader, pc->read_pointer, (char*)buf, event_size);
 
             if (buf_size) {
                *buf_size = event_size;
@@ -11372,7 +11372,7 @@ INT rpc_set_mserver_path(const char *path)
    if (_mserver_path)
       free(_mserver_path);
    int len = strlen(path);
-   _mserver_path = malloc(len+1);
+   _mserver_path = (char*)malloc(len+1);
    memcpy(_mserver_path, path, len+1);
    return RPC_SUCCESS;
 }
@@ -12647,7 +12647,7 @@ static int recv_net_command_realloc(INT idx, char **pbuf, int* pbufsize, INT * r
          /* check if parameters fit in buffer */
          if (*pbufsize < param_size + sizeof(NET_COMMAND_HEADER)) {
             int new_size = param_size + sizeof(NET_COMMAND_HEADER) + 1024;
-            char* p = realloc(*pbuf, new_size);
+            char* p = (char*)realloc(*pbuf, new_size);
             //printf("recv_net_command: reallocate buffer %d -> %d, %p\n", *pbufsize, new_size, p);
             if (p == NULL) {
                cm_msg(MERROR, "recv_net_command", "cannot reallocate buffer from %d bytes to %d bytes", *pbufsize, new_size);
@@ -12868,7 +12868,7 @@ int recv_event_server_realloc(INT idx, char **pbuffer, int *pbuffer_size)
 
       //printf("recv_event_server: buffer realloc %d -> %d\n", *pbuffer_size, newsize);
 
-      void* newbuf = realloc(*pbuffer, newsize);
+      char* newbuf = (char*)realloc(*pbuffer, newsize);
       if (newbuf == NULL) {
          cm_msg(MERROR, "recv_event_server", "cannot realloc() event buffer from %d to %d bytes", *pbuffer_size, newsize);
          return -1;
@@ -13939,13 +13939,13 @@ INT rpc_server_accept(int lsock)
       command = (char) toupper(net_buffer[0]);
 
       switch (command) {
-      case 'S':
+      case 'S': {
 
          /*----------- shutdown listener ----------------------*/
          closesocket(sock);
          return RPC_SHUTDOWN;
-
-      case 'I':
+      }
+      case 'I': {
 
          /*----------- return available experiments -----------*/
          cm_scan_experiments();
@@ -13957,8 +13957,8 @@ INT rpc_server_accept(int lsock)
          send(sock, "", 1, 0);
          closesocket(sock);
          break;
-
-      case 'C':
+      }
+      case 'C': {
 
          /*----------- connect to experiment -----------*/
 
@@ -14131,12 +14131,12 @@ INT rpc_server_accept(int lsock)
             //rpc_server_callback(&callback);
 
          break;
-
-      default:
+      }
+      default: {
          cm_msg(MERROR, "rpc_server_accept", "received unknown command '%c' code %d", command, command);
          closesocket(sock);
          break;
-
+      }
       }
    } else {                     /* if i>0 */
 
@@ -14642,7 +14642,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
          if (_server_acception[idx].remote_hw_type == DR_ASCII) {
             // previous code allocated DEFAULT_MAX_EVENT_SIZE bytes, around 4 Mbytes
             int asize = 100*1024;
-            char* abuf = malloc(asize);
+            char* abuf = (char*)malloc(asize);
             
             int n_received = recv_string(_server_acception[idx].recv_sock, abuf, asize, 10000);
 
