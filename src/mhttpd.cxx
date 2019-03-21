@@ -7211,6 +7211,15 @@ void show_custom_page(Param* pp, Return* r, const char *cookie_cpwd)
       return;
    }
 
+   if (strstr(path.c_str(), "..")) {
+      std::string str;
+      str += "Invalid custom page name \'";
+      str += path;
+      str += "\' contains \'..\'";
+      show_error_404(r, str.c_str());
+      return;
+   }
+   
    if (strstr(path.c_str(), ".gif")) {
       show_custom_gif(r, path.c_str());
       return;
@@ -16096,6 +16105,15 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       //printf("Try custom gif [%s] status %d\n", odb_path.c_str(), status);
 
       if (status == DB_SUCCESS) {
+         if (strstr(dec_path, "..")) {
+            std::string str;
+            str += "Invalid custom gif name \'";
+            str += dec_path;
+            str += "\' contains \'..\'";
+            show_error_404(r, str.c_str());
+            return;
+         }
+
          show_custom_gif(r, dec_path);
          return;
       }
@@ -16141,6 +16159,16 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       }
 
       if (found_custom) {
+         //printf("custom file: serving [%s] value [%s]\n", dec_path, value.c_str());
+         if (strstr(dec_path, "..")) {
+            std::string str;
+            str += "Invalid custom page name \'";
+            str += dec_path;
+            str += "\' contains \'..\'";
+            show_error_404(r, str.c_str());
+            return;
+         }
+
          p->setparam("page", dec_path);
          show_custom_page(p, r, cookie_cpwd);
          return;
