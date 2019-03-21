@@ -532,7 +532,7 @@ static void add_to_buf(struct print_key_info_buf* buf, const char* s)
    if (buf->used + len + 10 > buf->alloc_size) {
       int new_size = 1024 + 2*buf->alloc_size + len;
       //printf("realloc %d->%d, used %d, adding %d\n", buf->alloc_size, new_size, buf->used, len);
-      buf->buf = realloc(buf->buf, new_size);
+      buf->buf = (char*)realloc(buf->buf, new_size);
       assert(buf->buf != NULL);
       buf->alloc_size = new_size;
    }
@@ -544,7 +544,7 @@ static void add_to_buf(struct print_key_info_buf* buf, const char* s)
 
 static INT print_key_info(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
 {
-   struct print_key_info_buf* buf = info;
+   struct print_key_info_buf* buf = (struct print_key_info_buf*)info;
    int i;
 
    char str[256];
@@ -10772,7 +10772,7 @@ INT db_get_record2(HNDLE hDB, HNDLE hKey, void *data, INT * xbuf_size, INT align
    char* r1 = NULL;
    int rs = *xbuf_size;
    if (1) {
-      r1 = malloc(rs);
+      r1 = (char*)malloc(rs);
       memset(data, 0xFF, *xbuf_size);
       memset(r1, 0xFF, rs);
       //status = db_get_record1(hDB, hKey, r1, &rs, 0, rec_str);
