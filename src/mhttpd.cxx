@@ -16152,10 +16152,12 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       std::string custom_path;
       status = db_get_value_string(hDB, 0, "/Custom/Path", 0, &custom_path, TRUE);
       if ((status == DB_SUCCESS) && (custom_path.length() > 0)) {
-         if (strchr(dec_path, '/') || strchr(dec_path, DIR_SEPARATOR)) {
-            char str[256];
-            sprintf(str, "Invalid custom file name \'%s\' contains \'/\' or \'%c\'", dec_path, DIR_SEPARATOR);
-            show_error_404(r, str);
+         if (strstr(dec_path, "..")) {
+            std::string str;
+            str += "Invalid custom file name \'";
+            str += dec_path;
+            str += "\' contains \'..\'";
+            show_error_404(r, str.c_str());
             return;
          }
 
