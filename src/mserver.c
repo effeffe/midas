@@ -588,7 +588,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
          rpc_convert_single(&pevent->data_size, TID_DWORD, 0, convert_flags);
       }
 
-      status = bm_send_event(CINT(0), CARRAY(1), CINT(2), CINT(3));
+      status = bm_send_event(CINT(0), (const EVENT_HEADER*)(CARRAY(1)), CINT(2), CINT(3));
       break;
 
    case RPC_BM_RECEIVE_EVENT:
