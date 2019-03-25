@@ -4422,6 +4422,7 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
    if (pp->getparam("group") && *pp->getparam("group"))
       strlcpy(group, pp->getparam("group"), sizeof(group));
 
+#if 0
    /* check for "names" in settings */
    if (eq_name[0]) {
       sprintf(str, "/Equipment/%s/Settings", eq_name);
@@ -4449,6 +4450,7 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
          return;
       }
    }
+#endif
 
    sprintf(str, "%s", group);
    show_header(r, "MIDAS slow control", "", str, i_edit == -1 ? refresh : 0);
@@ -4574,6 +4576,11 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
             r->rsprintf("<a href=\"?cmd=eqtable&eq=%s&group=%s\">%s</a> &nbsp;&nbsp;", eq_name, s, group_name[i]);
          }
       }
+
+      r->rsprintf("<i>ODB:</i> &nbsp;&nbsp;");
+      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Common\">Common</a> &nbsp;&nbsp;", eq_name);
+      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Settings\">Settings</a> &nbsp;&nbsp;", eq_name);
+      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Variables\">Variables</a> &nbsp;&nbsp;", eq_name);
       r->rsprintf("</tr>\n");
 
       /* count variables */
@@ -4717,6 +4724,10 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
          }
       }
 
+      r->rsprintf("<i>ODB:</i> &nbsp;&nbsp;");
+      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Common\">Common</a> &nbsp;&nbsp;", eq_name);
+      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Settings\">Settings</a> &nbsp;&nbsp;", eq_name);
+      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Variables\">Variables</a> &nbsp;&nbsp;", eq_name);
       r->rsprintf("</tr>\n");
 
       /* enumerate variable arrays */
