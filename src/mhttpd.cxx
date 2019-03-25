@@ -4710,10 +4710,11 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
 
          db_get_key(hDB, hkey, &key);
 
-         if (equal_ustring(key.name, group))
+         if (equal_ustring(key.name, group)) {
             r->rsprintf("<b>%s</b> &nbsp;&nbsp;", key.name);
-         else
-            r->rsprintf("<a href=\"?cmd=odb&odb_path=%s/Variables/%s\">%s</a> &nbsp;&nbsp;\n", eq_name, key.name, key.name);
+         } else {
+            r->rsprintf("<a href=\"?cmd=eqtable&eq=%s&group=%s\">%s</a> &nbsp;&nbsp;", eq_name, key.name, key.name);
+         }
       }
 
       r->rsprintf("</tr>\n");
