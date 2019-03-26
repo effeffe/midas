@@ -145,6 +145,7 @@ const Filetype filetype[] = {
    ".MP3", "audio/mpeg",}, {
    ".CSS", "text/css",}, {
    ".JS",  "application/javascript"}, {
+   ".JSON",  "application/json"}, {
    ""},};
 
 #define HTTP_ENCODING "UTF-8"
