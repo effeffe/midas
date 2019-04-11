@@ -150,26 +150,26 @@ int replog(int data_fmt, char *rep_file, int bl, int action, int max_event_size)
     i = 0;
     while (md_event_get(data_fmt, (void **) &pmyevt, &evtlen) == MD_SUCCESS) {
       status = md_event_swap(data_fmt, pmyevt);
+      pme = (EVENT_HEADER *) pmyevt;
       if ((consistency == 1) && (data_fmt == FORMAT_MIDAS)) {
-	pme = (EVENT_HEADER *) pmyevt;
-	if (pme->serial_number != pevh.serial_number + 1) {
-	  /* event header */
-	  printf
-	    ("\nLast - Evid:%4.4x- Mask:%4.4x- Serial:%i- Time:0x%x- Dsize:%i/0x%x\n",
-	     pevh.event_id, pevh.trigger_mask, pevh.serial_number, pevh.time_stamp,
-	     pevh.data_size, pevh.data_size);
-	  printf
-	    ("Now  - Evid:%4.4x- Mask:%4.4x- Serial:%i- Time:0x%x- Dsize:%i/0x%x\n",
-	     pme->event_id, pme->trigger_mask, pme->serial_number,
-	     pme->time_stamp, pme->data_size, pme->data_size);
-	} else {
-	  printf("Consistency check: %c - %i (Data size:%i)\r", bars[i_bar++ % 4],
-		 pme->serial_number, pme->data_size);
-	  fflush(stdout);
-	}
-	memcpy((char *) &pevh, (char *) pme, sizeof(EVENT_HEADER));
-	continue;
+	//if (pme->serial_number != pevh.serial_number + 1) {
+	/* event header */
+	printf
+	  ("\nLast - Evid:%4.4x- Mask:%4.4x- Serial:%i- Time:0x%x- Dsize:%i/0x%x\n",
+	   pevh.event_id, pevh.trigger_mask, pevh.serial_number, pevh.time_stamp,
+	   pevh.data_size, pevh.data_size);
+	printf
+	  ("Now  - Evid:%4.4x- Mask:%4.4x- Serial:%i- Time:0x%x- Dsize:%i/0x%x\n",
+	   pme->event_id, pme->trigger_mask, pme->serial_number,
+	   pme->time_stamp, pme->data_size, pme->data_size);
+      } else {
+	printf("Consistency check: %c - %i (Data size:%i)\r", bars[i_bar++ % 4],
+	       pme->serial_number, pme->data_size);
+	fflush(stdout);
       }
+
+      memcpy((char *) &pevh, (char *) pme, sizeof(EVENT_HEADER));
+      continue;
       if (action == REP_LENGTH)
 	status = md_all_info_display(D_EVTLEN);
       if ((action == REP_BANKLIST) || (disp_bank_list == 1)) {
