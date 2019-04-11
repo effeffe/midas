@@ -329,6 +329,20 @@ INT EXPRT db_resize_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int 
    return status;
 }
 
+/*------------------------------------------------------------------*/
+std::string strcomb1(const char **list)
+/* convert list of strings into single string to be used by db_paste() */
+{
+   std::string s;
+
+   for (int i = 0; list[i]; i++) {
+      s += list[i];
+      s += "\n";
+   }
+
+   return s;
+}
+
 /* emacs
  * Local Variables:
  * tab-width: 8

@@ -1563,7 +1563,7 @@ void logger_init()
    status = db_find_key(hDB, 0, "/Logger/Channels/0", &hKey);
    if (status != DB_SUCCESS) {
       /* if no channels are defined, define at least one */
-      status = db_create_record(hDB, 0, "/Logger/Channels/0", strcomb(chn_tree_str));
+      status = db_create_record(hDB, 0, "/Logger/Channels/0", strcomb1(chn_tree_str).c_str());
       if (status != DB_SUCCESS)
          cm_msg(MERROR, "logger_init", "Cannot create channel entry in database");
    } else {
@@ -1576,7 +1576,7 @@ void logger_init()
                break;
 
             db_get_key(hDB, hKeyChannel, &key);
-            status = db_check_record(hDB, hKey, key.name, strcomb(chn_tree_str), TRUE);
+            status = db_check_record(hDB, hKey, key.name, strcomb1(chn_tree_str).c_str(), TRUE);
             if (status != DB_SUCCESS && status != DB_OPEN_RECORD) {
                cm_msg(MERROR, "logger_init", "Cannot create/check channel record %s, db_check_record() status %d", key.name, status);
                break;
@@ -5511,7 +5511,7 @@ static void watch_settings(HNDLE hDB, HNDLE hKey, HNDLE index, void* info)
    assert(info != NULL);
    LOG_CHN *log_chn = (LOG_CHN*)info;
    int size = sizeof(CHN_SETTINGS);
-   status = db_get_record1(hDB, log_chn->settings_hkey, &log_chn->settings, &size, 0, strcomb(chn_settings_str));
+   status = db_get_record1(hDB, log_chn->settings_hkey, &log_chn->settings, &size, 0, strcomb1(chn_settings_str).c_str());
    if (status != DB_SUCCESS) {
       cm_msg(MINFO, "watch_settings", "db_get_record(%s) status %d", log_chn->name.c_str(), status);
       return;
@@ -5586,7 +5586,7 @@ INT tr_start(INT run_number, char *error)
    status = db_find_key(hDB, 0, "/Logger/Channels", &hKeyRoot);
    if (status != DB_SUCCESS) {
       /* if no channels are defined, define at least one */
-      status = db_create_record(hDB, 0, "/Logger/Channels/0/", strcomb(chn_tree_str));
+      status = db_create_record(hDB, 0, "/Logger/Channels/0/", strcomb1(chn_tree_str).c_str());
       if (status != DB_SUCCESS) {
          strcpy(error, "Cannot create channel entry in database");
          cm_msg(MERROR, "tr_start", "%s", error);
@@ -5611,7 +5611,7 @@ INT tr_start(INT run_number, char *error)
 
       /* correct channel record */
       db_get_key(hDB, hKeyChannel, &key);
-      status = db_check_record(hDB, hKeyRoot, key.name, strcomb(chn_tree_str), TRUE);
+      status = db_check_record(hDB, hKeyRoot, key.name, strcomb1(chn_tree_str).c_str(), TRUE);
       if (status != DB_SUCCESS && status != DB_OPEN_RECORD) {
          cm_msg(MERROR, "tr_start", "Cannot create/check channel record, status %d", status);
          break;
@@ -5640,7 +5640,7 @@ INT tr_start(INT run_number, char *error)
 
          /* clear statistics */
          size = sizeof(CHN_STATISTICS);
-         db_get_record1(hDB, chn->stats_hkey, &chn->statistics, &size, 0, strcomb(chn_statistics_str));
+         db_get_record1(hDB, chn->stats_hkey, &chn->statistics, &size, 0, strcomb1(chn_statistics_str).c_str());
 
          chn->statistics.events_written = 0;
          chn->statistics.bytes_written = 0;
@@ -5652,7 +5652,7 @@ INT tr_start(INT run_number, char *error)
          /* get channel info structure */
          chn_settings = &chn->settings;
          size = sizeof(CHN_SETTINGS);
-         status = db_get_record1(hDB, chn->settings_hkey, chn_settings, &size, 0, strcomb(chn_settings_str));
+         status = db_get_record1(hDB, chn->settings_hkey, chn_settings, &size, 0, strcomb1(chn_settings_str).c_str());
          if (status != DB_SUCCESS) {
             strcpy(error, "Cannot read channel info");
             cm_msg(MERROR, "tr_start", "%s", error);
@@ -5727,7 +5727,7 @@ INT tr_start(INT run_number, char *error)
             db_close_record(hDB, chn->settings_hkey);
 
          /* open hot link to statistics tree */
-         status = db_open_record1(hDB, chn->stats_hkey, &chn->statistics, sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL, strcomb(chn_statistics_str));
+         status = db_open_record1(hDB, chn->stats_hkey, &chn->statistics, sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL, strcomb1(chn_statistics_str).c_str());
          if (status == DB_NO_ACCESS) {
             /* record is probably still in exclusive access by dead logger, so reset it */
             status = db_set_mode(hDB, chn->stats_hkey, MODE_READ | MODE_WRITE | MODE_DELETE, TRUE);
@@ -5735,7 +5735,7 @@ INT tr_start(INT run_number, char *error)
                cm_msg(MERROR, "tr_start", "Cannot change access mode for statistics record, error %d", status);
             else
                cm_msg(MINFO, "tr_start", "Recovered access mode for statistics record of channel \"%s\"", chn->name.c_str());
-            status = db_open_record1(hDB, chn->stats_hkey, &chn->statistics, sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL, strcomb(chn_statistics_str));
+            status = db_open_record1(hDB, chn->stats_hkey, &chn->statistics, sizeof(CHN_STATISTICS), MODE_WRITE, NULL, NULL, strcomb1(chn_statistics_str).c_str());
          }
 
          if (status != DB_SUCCESS)

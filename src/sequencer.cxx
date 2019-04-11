@@ -704,7 +704,7 @@ static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
    }
    
    int size = sizeof(seq);
-   status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb(sequencer_str));
+   status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb1(sequencer_str).c_str());
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "seq_watch", "Cannot get /Sequencer/State from ODB, db_get_record1() status %d", status);
       return;
@@ -964,7 +964,7 @@ void sequencer()
             }
             
             size = sizeof(seq);
-            db_get_record1(hDB, hKeySeq, &seq, &size, 0, strcomb(sequencer_str)); // could have changed seq tree
+            db_get_record1(hDB, hKeySeq, &seq, &size, 0, strcomb1(sequencer_str).c_str()); // could have changed seq tree
             seq.current_line_number++;
          }
       }
@@ -1021,7 +1021,7 @@ void sequencer()
             db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
             
             size = sizeof(seq);
-            db_get_record1(hDB, hKeySeq, &seq, &size, 0, strcomb(sequencer_str)); // could have changed seq tree
+            db_get_record1(hDB, hKeySeq, &seq, &size, 0, strcomb1(sequencer_str).c_str()); // could have changed seq tree
             seq.current_line_number = mxml_get_line_number_end(pn)+1;
          }
       }
@@ -1564,7 +1564,7 @@ void init_sequencer()
    
    cm_get_experiment_database(&hDB, NULL);
    
-   status = db_check_record(hDB, 0, "/Sequencer/State", strcomb(sequencer_str), TRUE);
+   status = db_check_record(hDB, 0, "/Sequencer/State", strcomb1(sequencer_str).c_str(), TRUE);
    if (status == DB_STRUCT_MISMATCH) {
       cm_msg(MERROR, "init_sequencer", "Sequencer error: mismatching /Sequencer/State structure, db_check_record() status %d", status);
       return;
@@ -1577,7 +1577,7 @@ void init_sequencer()
    }
    
    int size = sizeof(seq);
-   status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb(sequencer_str));
+   status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb1(sequencer_str).c_str());
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot get /Sequencer/State, db_get_record1() status %d", status);
       return;

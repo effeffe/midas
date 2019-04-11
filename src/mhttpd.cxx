@@ -5535,7 +5535,7 @@ void show_custom_gif(Return* rr, const char *name)
          db_get_key(hDB, hkey, &key);
 
          size = sizeof(label);
-         status = db_get_record1(hDB, hkey, &label, &size, 0, strcomb(cgif_label_str));
+         status = db_get_record1(hDB, hkey, &label, &size, 0, strcomb1(cgif_label_str).c_str());
          if (status != DB_SUCCESS) {
             cm_msg(MERROR, "show_custom_gif", "Cannot open data record for label \"%s\"",
                    key.name);
@@ -5634,7 +5634,7 @@ void show_custom_gif(Return* rr, const char *name)
          db_get_key(hDB, hkey, &key);
 
          size = sizeof(bar);
-         status = db_get_record1(hDB, hkey, &bar, &size, 0, strcomb(cgif_bar_str));
+         status = db_get_record1(hDB, hkey, &bar, &size, 0, strcomb1(cgif_bar_str).c_str());
          if (status != DB_SUCCESS) {
             cm_msg(MERROR, "show_custom_gif", "Cannot open data record for bar \"%s\"",
                    key.name);
@@ -14229,7 +14229,7 @@ static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
    }
    
    int size = sizeof(seq);
-   status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb(sequencer_str));
+   status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb1(sequencer_str).c_str());
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "seq_watch", "Cannot get /Sequencer/State from ODB, db_get_record1() status %d", status);
       return;
@@ -14247,7 +14247,7 @@ void init_sequencer()
    
    cm_get_experiment_database(&hDB, NULL);
    
-   status = db_check_record(hDB, 0, "/Sequencer/State", strcomb(sequencer_str), TRUE);
+   status = db_check_record(hDB, 0, "/Sequencer/State", strcomb1(sequencer_str).c_str(), TRUE);
    if (status == DB_STRUCT_MISMATCH) {
       cm_msg(MERROR, "init_sequencer", "Sequencer error: mismatching /Sequencer/State structure, db_check_record() status %d", status);
       return;
@@ -14260,7 +14260,7 @@ void init_sequencer()
    }
    
    int size = sizeof(seq);
-   status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb(sequencer_str));
+   status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb1(sequencer_str).c_str());
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot get /Sequencer/State, db_get_record1() status %d", status);
       return;
@@ -14501,7 +14501,7 @@ void show_seq_page(Param* p, Return* r)
    }
    
    size = sizeof(seq);
-   status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb(sequencer_str));
+   status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb1(sequencer_str).c_str());
    if (status != DB_SUCCESS) {
       sprintf(str, "Cannot get /Sequencer/State from ODB, db_get_record1() status %d", status);
       show_error(r, str);
@@ -16455,9 +16455,9 @@ INT check_odb_records(void)
    status = cm_get_experiment_database(&hDB, NULL);
    assert(status == DB_SUCCESS);
 
-   status = db_check_record(hDB, 0, "/Runinfo", strcomb(runinfo_str), FALSE);
+   status = db_check_record(hDB, 0, "/Runinfo", strcomb1(runinfo_str).c_str(), FALSE);
    if (status == DB_STRUCT_MISMATCH) {
-      status = db_check_record(hDB, 0, "/Runinfo", strcomb(runinfo_str), TRUE);
+      status = db_check_record(hDB, 0, "/Runinfo", strcomb1(runinfo_str).c_str(), TRUE);
       if (status == DB_SUCCESS) {
          cm_msg(MINFO, "check_odb_records", "ODB subtree /Runinfo corrected successfully");
       } else {
@@ -16466,7 +16466,7 @@ INT check_odb_records(void)
       }
    } else if (status == DB_NO_KEY) {
       cm_msg(MERROR, "check_odb_records", "ODB subtree /Runinfo does not exist");
-      status = db_create_record(hDB, 0, "/Runinfo", strcomb(runinfo_str));
+      status = db_create_record(hDB, 0, "/Runinfo", strcomb1(runinfo_str).c_str());
       if (status == DB_SUCCESS) {
          cm_msg(MINFO, "check_odb_records", "ODB subtree /Runinfo created successfully");
       } else {
