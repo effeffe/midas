@@ -935,6 +935,7 @@ typedef struct {
    MUTEX_T* write_cache_mutex;      /**< cache write mutex            */
    HNDLE semaphore;                 /**< semaphore handle             */
    INT shm_handle;                  /**< handle to shared memory      */
+   size_t shm_size;                 /**< size of shared memory        */
    BOOL callback;                   /**< callback defined for this buffer */
    BOOL locked;                     /**< buffer is currently locked by us */
    BOOL get_all_flag;               /**< this is a get_all reader     */

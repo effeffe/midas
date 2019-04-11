@@ -399,6 +399,8 @@ typedef struct {
    void *database_data;         /* pointer to database data     */
    HNDLE semaphore;             /* semaphore handle             */
    INT lock_cnt;                /* flag to avoid multiple locks */
+   void* shm_adr;               /* address of shared memory     */
+   HNDLE shm_size;              /* size of shared memory        */
    HNDLE shm_handle;            /* handle (id) to shared memory */
    //INT index;                   /* connection index / tid       */
    BOOL protect;                /* read/write protection        */
@@ -538,12 +540,12 @@ extern "C" {
    /** @{ */
 
    /*---- system services ----*/
-   INT ss_shm_open(const char *name, INT size, void **adr, HNDLE *handle, BOOL get_size);
-   INT ss_shm_close(const char *name, void *adr, HNDLE handle, INT destroy_flag);
-   INT ss_shm_flush(const char *name, const void *adr, INT size, HNDLE handle);
+   INT ss_shm_open(const char *name, INT size, void **shm_adr, size_t *shm_size, HNDLE *handle, BOOL get_size);
+   INT ss_shm_close(const char *name, void *shm_adr, size_t shm_size, HNDLE handle, INT destroy_flag);
+   INT ss_shm_flush(const char *name, const void *shm_adr, size_t shm_size, HNDLE handle);
    INT EXPRT ss_shm_delete(const char *name);
-   INT ss_shm_protect(HNDLE handle, void *adr);
-   INT ss_shm_unprotect(HNDLE handle, void **adr, BOOL read, BOOL write, const char* caller_name);
+   INT ss_shm_protect(HNDLE handle, void *shm_adr, size_t shm_size);
+   INT ss_shm_unprotect(HNDLE handle, void **shm_adr, size_t shm_size, BOOL read, BOOL write, const char* caller_name);
    INT ss_spawnv(INT mode, const char *cmdname, const char* const argv[]);
    INT ss_shell(int sock);
    INT EXPRT ss_daemon_init(BOOL keep_stdout);

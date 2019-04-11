@@ -5936,6 +5936,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       INT i, handle, size;
       BOOL shm_created;
       HNDLE shm_handle;
+      size_t shm_size;
       BUFFER_HEADER *pheader;
       HNDLE hDB, odb_key;
       char odb_path[256];
@@ -6024,7 +6025,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       handle = i;
 
       /* open shared memory region */
-      status = ss_shm_open(buffer_name, sizeof(BUFFER_HEADER) + buffer_size, &p, &shm_handle, FALSE);
+      status = ss_shm_open(buffer_name, sizeof(BUFFER_HEADER) + buffer_size, &p, &shm_size, &shm_handle, FALSE);
       _buffer[handle].buffer_header = (BUFFER_HEADER *) p;
 
       if (status != SS_SUCCESS && status != SS_CREATED) {
@@ -6071,9 +6072,9 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
 
             buffer_size = pheader->size;
 
-            ss_shm_close(buffer_name, p, shm_handle, FALSE);
+            ss_shm_close(buffer_name, p, shm_size, shm_handle, FALSE);
       
-            status = ss_shm_open(buffer_name, sizeof(BUFFER_HEADER) + buffer_size, &p, &shm_handle, FALSE);
+            status = ss_shm_open(buffer_name, sizeof(BUFFER_HEADER) + buffer_size, &p, &shm_size, &shm_handle, FALSE);
             _buffer[handle].buffer_header = (BUFFER_HEADER *) p;
 
             if (status != SS_SUCCESS) {
@@ -6178,6 +6179,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       /* setup _buffer entry */
       pbuf->attached = TRUE;
       pbuf->shm_handle = shm_handle;
+      pbuf->shm_size = shm_size;
       pbuf->callback = FALSE;
 #ifndef HAVE_CM_WATCHDOG
       ss_mutex_create(&pbuf->write_cache_mutex, FALSE);
@@ -6329,7 +6331,7 @@ INT bm_close_buffer(INT buffer_handle)
       pheader = NULL; // after ss_shm_close(), pheader points nowhere
 
       /* unmap shared memory, delete it if we are the last */
-      ss_shm_close(xname, _buffer[buffer_handle - 1].buffer_header, _buffer[buffer_handle - 1].shm_handle, destroy_flag);
+      ss_shm_close(xname, _buffer[buffer_handle - 1].buffer_header, _buffer[buffer_handle - 1].shm_size, _buffer[buffer_handle - 1].shm_handle, destroy_flag);
 
       /* unlock buffer */
       bm_unlock_buffer(pbuf);

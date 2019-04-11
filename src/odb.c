@@ -1400,7 +1400,6 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    HNDLE handle;
    DATABASE_CLIENT *pclient;
    BOOL shm_created;
-   HNDLE shm_handle;
    DATABASE_HEADER *pheader;
    KEY *pkey;
    KEYLIST *pkeylist;
@@ -1408,7 +1407,6 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    BOOL call_watchdog;
    DWORD timeout;
    char database_name[NAME_LENGTH];
-   void *p;
 
    /* restrict name length */
    strlcpy(database_name, xdatabase_name, NAME_LENGTH);
@@ -1477,13 +1475,22 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    handle = (HNDLE) i;
 
    /* open shared memory region */
-   status = ss_shm_open(database_name, sizeof(DATABASE_HEADER) + 2 * ALIGN8(database_size / 2), &p, &shm_handle, TRUE);
+   void* shm_adr = NULL;
+   size_t shm_size = 0;
+   HNDLE shm_handle;
+   
+   status = ss_shm_open(database_name, sizeof(DATABASE_HEADER) + 2 * ALIGN8(database_size / 2), &shm_adr, &shm_size, &shm_handle, TRUE);
 
-   _database[(INT) handle].database_header = (DATABASE_HEADER *) p;
    if (status == SS_NO_MEMORY || status == SS_FILE_ERROR) {
       *hDB = 0;
       return DB_INVALID_NAME;
    }
+
+   _database[handle].shm_adr  = shm_adr;
+   _database[handle].shm_size = shm_size;
+   _database[handle].shm_handle = shm_handle;
+
+   _database[handle].database_header = (DATABASE_HEADER *) shm_adr;
 
    /* shortcut to header */
    pheader = _database[handle].database_header;
@@ -1692,7 +1699,6 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    /* setup _database entry */
    _database[handle].database_data = _database[handle].database_header + 1;
    _database[handle].attached = TRUE;
-   _database[handle].shm_handle = shm_handle;
    _database[handle].protect = FALSE;
    _database[handle].protect_read = FALSE;
    _database[handle].protect_write = FALSE;
@@ -1806,12 +1812,12 @@ INT db_close_database(HNDLE hDB)
       destroy_flag = (pheader->num_clients == 0);
 
       /* flush shared memory to disk */
-      ss_shm_flush(pheader->name, pheader, 0, _database[hDB - 1].shm_handle);
+      ss_shm_flush(pheader->name, _database[hDB - 1].shm_adr, _database[hDB - 1].shm_size, _database[hDB - 1].shm_handle);
 
       strlcpy(xname, pheader->name, sizeof(xname));
 
       /* unmap shared memory, delete it if we are the last */
-      ss_shm_close(xname, pheader, _database[hDB - 1].shm_handle, destroy_flag);
+      ss_shm_close(xname, _database[hDB - 1].shm_adr, _database[hDB - 1].shm_size, _database[hDB - 1].shm_handle, destroy_flag);
 
       pheader = NULL; // after ss_shm_close(), pheader points nowhere
       _database[hDB - 1].database_header = NULL; // ditto
@@ -1917,7 +1923,7 @@ INT db_flush_database(HNDLE hDB)
       }
 
       /* flush shared memory to disk */
-      ss_shm_flush(pheader->name, pheader, sizeof(DATABASE_HEADER) + 2 * pheader->data_size, _database[hDB - 1].shm_handle);
+      ss_shm_flush(pheader->name, _database[hDB - 1].shm_adr, _database[hDB - 1].shm_size, _database[hDB - 1].shm_handle);
       db_unlock_database(hDB);
 
    }
@@ -2023,7 +2029,6 @@ INT db_lock_database(HNDLE hDB)
 {
 #ifdef LOCAL_ROUTINES
    int status;
-   void *p;
 
    if (hDB > _database_entries || hDB <= 0) {
       cm_msg(MERROR, "db_lock_database", "invalid database handle %d, aborting...", hDB);
@@ -2091,13 +2096,13 @@ INT db_lock_database(HNDLE hDB)
          int status;
          assert(!_database[hDB - 1].protect_read);
          assert(!_database[hDB - 1].protect_write);
-         status = ss_shm_unprotect(_database[hDB - 1].shm_handle, &p, TRUE, FALSE, "db_lock_database");
+         status = ss_shm_unprotect(_database[hDB - 1].shm_handle, &_database[hDB - 1].shm_adr, _database[hDB - 1].shm_size, TRUE, FALSE, "db_lock_database");
          if (status != SS_SUCCESS) {
             cm_msg(MERROR, "db_lock_database", "ss_shm_unprotect(TRUE,FALSE) failed with status %d, aborting...", status);
             cm_msg_flush_buffer();
             abort();
          }
-         _database[hDB - 1].database_header = (DATABASE_HEADER *) p;
+         _database[hDB - 1].database_header = (DATABASE_HEADER *) _database[hDB - 1].shm_adr;
          _database[hDB - 1].protect_read = TRUE;
          _database[hDB - 1].protect_write = FALSE;
       }
@@ -2119,13 +2124,13 @@ INT db_allow_write_locked(DATABASE* p, const char* caller_name)
       assert(p->lock_cnt > 0);
       assert(p->database_header != NULL);
       assert(p->protect_read);
-      void*tmp;
-      status = ss_shm_unprotect(p->shm_handle, &tmp, TRUE, TRUE, caller_name);
+      status = ss_shm_unprotect(p->shm_handle, &p->shm_adr, p->shm_size, TRUE, TRUE, caller_name);
       if (status != SS_SUCCESS) {
          cm_msg(MERROR, "db_allow_write_locked", "ss_shm_unprotect(TRUE,TRUE) failed with status %d, aborting...", status);
          cm_msg_flush_buffer();
          abort();
       }
+      p->database_header = (DATABASE_HEADER *) p->shm_adr;
       p->protect_read = TRUE;
       p->protect_write = TRUE;
    }
@@ -2178,9 +2183,8 @@ INT db_unlock_database(HNDLE hDB)
          int status;
          assert(_database[hDB - 1].protect_read);
          assert(_database[hDB - 1].database_header);
-         DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
          _database[hDB - 1].database_header = NULL;
-         status = ss_shm_protect(_database[hDB - 1].shm_handle, pheader);
+         status = ss_shm_protect(_database[hDB - 1].shm_handle, _database[hDB - 1].shm_adr, _database[hDB - 1].shm_size);
          if (status != SS_SUCCESS) {
             cm_msg(MERROR, "db_unlock_database", "ss_shm_protect() failed with status %d, aborting...", status);
             cm_msg_flush_buffer();
@@ -2678,7 +2682,7 @@ INT db_protect_database(HNDLE hDB)
    }
 
    _database[hDB - 1].protect = TRUE;
-   ss_shm_protect(_database[hDB - 1].shm_handle, _database[hDB - 1].database_header);
+   ss_shm_protect(_database[hDB - 1].shm_handle, _database[hDB - 1].database_header, _database[hDB - 1].shm_size);
    _database[hDB - 1].database_header = NULL;
 #endif                          /* LOCAL_ROUTINES */
    return DB_SUCCESS;
