@@ -236,7 +236,6 @@ typedef std::vector<std::string> STRING_LIST;
 #endif
 #define NET_TCP_SIZE           0xFFFF        /**< maximum TCP transfer size   */
 #define OPT_TCP_SIZE           8192          /**< optimal TCP buffer size     */
-#define NET_UDP_SIZE           8192          /**< maximum UDP transfer        */
 
 #define EVENT_BUFFER_NAME      "SYSTEM"      /**< buffer name for commands    */
 #define DEFAULT_ODB_SIZE       0x100000      /**< online database 1M          */
