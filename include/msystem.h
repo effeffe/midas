@@ -282,7 +282,6 @@ typedef struct {
  *  @{  */
 
 #define UDP_FIRST 0x80000000l
-#define TCP_FAST  0x80000000l
 
 #define MSG_BM       1
 #define MSG_ODB      2
@@ -319,7 +318,6 @@ typedef struct {
    int connected;               /*  socket is connected     */
    INT remote_hw_type;          /*  remote hardware type    */
    char client_name[NAME_LENGTH];       /* name of remote client    */
-   INT transport;               /*  RPC_TCP/RPC_FTCP        */
    INT rpc_timeout;             /*  in milliseconds         */
 
 } RPC_CLIENT_CONNECTION;
@@ -332,7 +330,6 @@ typedef struct {
    int recv_sock;               /*  tcp receive socket      */
    int event_sock;              /*  event socket            */
    INT remote_hw_type;          /*  remote hardware type    */
-   INT transport;               /*  RPC_TCP/RPC_FTCP        */
    INT rpc_timeout;             /*  in milliseconds         */
 
 } RPC_SERVER_CONNECTION;
@@ -345,7 +342,6 @@ typedef struct {
    int recv_sock;               /*  tcp receive socket      */
    int event_sock;              /*  tcp event socket        */
    INT remote_hw_type;          /*  hardware type           */
-   INT transport;               /*  RPC_TCP/RPC_FTCP        */
    INT watchdog_timeout;        /*  in milliseconds         */
    DWORD last_activity;         /*  time of last recv       */
    INT convert_flags;           /*  convertion flags        */
