@@ -2734,6 +2734,8 @@ INT ss_mutex_create(MUTEX_T ** mutex, BOOL recursive)
          return SS_NO_MUTEX;
       }
 
+      free(attr);
+   
       if (recursive) {
          // test recursive locks
          
