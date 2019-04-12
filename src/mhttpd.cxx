@@ -10022,7 +10022,7 @@ struct HistoryData
 
    ~HistoryData() // dtor
    {
-      if (nvars > 0)
+      if (alloc_nvars > 0)
          Free();
    }
 };
