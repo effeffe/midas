@@ -118,7 +118,7 @@ document.write("<style>" +
    "   left: 0;" +
    "   z-index: 10;" +
    "   display: none; /* pre-hidden */" +
-   "}" +
+   "}\n" +
    ".dlgTitlebar {" +
    "   user-select: none;" +
    "   text-align: center;" +
@@ -127,10 +127,10 @@ document.write("<style>" +
    "   border-top-right-radius: 6px;" +
    "   font-size: 12pt;" +
    "   padding: 10px;" +
-   "}" +
+   "}\n" +
    ".dlgTitlebar:hover {" +
    "   cursor: pointer;" +
-   "}" +
+   "}\n" +
    ".dlgButton {" +
    "   font-size: 1em;" +
    "   background-color: #D0D0D0;" +
@@ -138,17 +138,17 @@ document.write("<style>" +
    "   border-radius: 6px;" +
    "   padding: 4px 10px;" +
    "   margin: 3px;" +
-   "}" +
+   "}\n" +
    ".dlgButton:hover {" +
    "   background-color: #F0F0F0;" +
-   "}" +
+   "}\n" +
    ".dlgPanel {" +
    "   background-color: #F0F0F0;" +
    "   text-align: center;" +
    "   padding: 10px;" +
    "   border-bottom-left-radius: 6px;" +
    "   border-bottom-right-radius: 6px;" +
-   "}" +
+   "}\n" +
    ".dlgBlackout {" +
    "   background: rgba(0,0,0,.5);" +
    "   position: fixed;" +
@@ -157,18 +157,19 @@ document.write("<style>" +
    "   bottom: 0;" +
    "   right: 0;" +
    "   z-index: 20;" +
-   "}" +
+   "}\n" +
    ".ctrlHSlider {" +
    "   width: 200px;" +
    "   height: 30px;" +
    "   border-radius: 5px;" +
    "   padding: 0;" +
-   "}" +
+   "}\n" +
    ".ctrlVSlider {" +
    "   width: 20px;" +
    "   height: 200px;" +
    "   border-radius: 5px;" +
    "   padding: 0;" +
+   "}\n" +
    ".ctrlProgress {" +
    "   border: 1px solid #A0A0A0;" +
    "   border-radius: 5px;" +
@@ -177,14 +178,14 @@ document.write("<style>" +
    "   background-color: #E0E0E0;" +
    "   margin-left: 6px;" +
    "   margin-top: 5px;" +
-   "}" +
+   "}\n" +
    ".ctrlProgressInd {" +
    "   border-radius: 5px;" +
    "   width: 0;" +
    "   height: 5px;" +
    "   background-color: #419bf9;" +
    "   margin: 0;" +
-   "}" +
+   "}\n" +
 "</style>");
 
 (function (window) { // anonymous global function
@@ -480,7 +481,9 @@ function dlgShow(dlg, modal) {
    }
    
    d.dlgMouseDown = function (e) {
-      //console.log(e.target);
+      if (d.style.display === "none")
+         return;
+
       if ((e.target === this || e.target.parentNode === this) &&
          e.target.className === "dlgTitlebar") {
          e.preventDefault();
@@ -490,7 +493,7 @@ function dlgShow(dlg, modal) {
          this.Dy = parseInt(this.style.top);
       }
 
-      if (d.modal && e.target !== d && !d.contains(e.target) && d.style.display !== "none") {
+      if (d.modal && e.target !== d && !d.contains(e.target)) {
          // catch all mouse events outside the dialog
          e.preventDefault();
       } else {
@@ -504,6 +507,9 @@ function dlgShow(dlg, modal) {
    };
 
    d.dlgMouseMove = function (e) {
+      if (d.style.display === "none")
+         return;
+
       if (this.Ax > 0 && this.Ay > 0) {
          e.preventDefault();
          var x = e.clientX;
@@ -528,6 +534,9 @@ function dlgShow(dlg, modal) {
    };
 
    d.dlgTouchStart = function (e) {
+      if (d.style.display === "none")
+         return;
+
       if ((e.target === this || e.target.parentNode === this) &&
          e.target.className === "dlgTitlebar") {
          e.preventDefault();
@@ -537,7 +546,7 @@ function dlgShow(dlg, modal) {
          this.Dy = parseInt(this.style.top);
       }
 
-      if (d.modal && e.target !== d && !d.contains(e.target) && d.style.display !== "none") {
+      if (d.modal && e.target !== d && !d.contains(e.target)) {
          // catch all mouse events
          e.preventDefault();
       } else {
@@ -551,6 +560,9 @@ function dlgShow(dlg, modal) {
    };
 
    d.dlgTouchMove = function (e) {
+      if (d.style.display === "none")
+         return;
+
       if (this.Ax > 0 && this.Ay > 0) {
          e.preventDefault();
          var x = e.changedTouches[e.changedTouches.length - 1].clientX;
@@ -561,6 +573,9 @@ function dlgShow(dlg, modal) {
    };
 
    d.dlgTouchEnd = function (e) {
+      if (d.style.display === "none")
+         return;
+
       if (this.Ax > 0 && this.Ay > 0) {
          e.preventDefault();
          this.Ax = 0;
@@ -569,6 +584,9 @@ function dlgShow(dlg, modal) {
    };
 
    d.dlgTouchCancel = function (e) {
+      if (d.style.display === "none")
+         return;
+
       if (this.Ax > 0 && this.Ay > 0) {
          e.preventDefault();
          this.Ax = 0;
