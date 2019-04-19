@@ -1546,6 +1546,7 @@ void sequencer()
    seq.running = seq1.running;
    seq.finished = seq1.finished;
    seq.paused = seq1.paused;
+   seq.stop_after_run = seq1.stop_after_run;
    
    /* update current line number */
    db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
