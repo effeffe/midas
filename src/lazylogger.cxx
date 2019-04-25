@@ -303,7 +303,7 @@ INT lazy_file_remove(const char *pufile)
 /*------------------------------------------------------------------*/
 INT lazy_log_update(INT action, INT run, const char *label, const char *file, DWORD perf_time)
 {
-   char str[MAX_FILE_PATH];
+   char str[1024];
 
    strcpy(str, "no action");
 
@@ -331,7 +331,7 @@ INT lazy_log_update(INT action, INT run, const char *label, const char *file, DW
                  label, lazyst.nfiles, (double) perf_time / 1000.,
                  lazy.path, lazyst.backfile, lazyst.file_size / 1024.0 / 1024.0, blockn);
          if (lazy.commandAfter[0]) {
-            char cmd[256];
+            char cmd[1024];
             sprintf(cmd, "%s %s %i %s/%s %1.3lf %d", lazy.commandAfter,
                     lazy.backlabel, lazyst.nfiles, lazy.path, lazyst.backfile,
                     lazyst.file_size / 1024.0 / 1024.0, blockn);
@@ -1233,7 +1233,7 @@ Function value:
    /* force a statistics update on the first loop */
    cpy_loop_time = -2000;
    if (dev_type == LOG_TYPE_TAPE) {
-      char str[MAX_FILE_PATH];
+      char str[256];
       sprintf(str, "Starting lazy job on %s at block %d", lazyst.backfile, blockn);
       if (msg_flag)
          cm_msg(MTALK, "Lazy", "%s", str);
@@ -1663,9 +1663,14 @@ INT lazy_maintain_free_space(LAZY_INFO *pLch, LAZY_INFO *pLall)
 
       // Check for Disk full first
       if (freepercent < 5.0) {
+         std::string str;
+         str += "Disk ";
+         str += lazy.dir;
+         str += "is almost full, free space: ";
          char buf[256];
-         sprintf(buf, "Disk %s is almost full, free space: %.1f%%", lazy.dir, freepercent);
-         al_trigger_alarm("Disk Full", buf, lazy.alarm, "Disk buffer full", AT_INTERNAL);
+         sprintf(buf, "%.1f%%", freepercent);
+         str += buf;
+         al_trigger_alarm("Disk Full", str.c_str(), lazy.alarm, "Disk buffer full", AT_INTERNAL);
       } else {
          HNDLE hKey;
          if (db_find_key(hDB, 0, "/Alarms/Alarms/Disk Full", &hKey) == DB_SUCCESS)
@@ -2020,8 +2025,7 @@ Function value:
          /* rewind device if TAPE type */
          if (dev_type == LOG_TYPE_TAPE) {
             INT status, channel;
-            char str[128];
-
+            char str[256];
             sprintf(str, "Tape %s is full with %d files", pre_label, lazyst.nfiles);
             cm_msg(MINFO, "Lazy", "%s", str);
 
@@ -2038,10 +2042,16 @@ Function value:
 
             /* run shell command if available */
             if (lazy.command[0]) {
-               char cmd[256];
-               sprintf(cmd, "%s %s %s %s", lazy.command, lazy.path, pLch->name, pre_label);
-               cm_msg(MINFO, "Lazy", "Exec post-rewind script:%s", cmd);
-               ss_system(cmd);
+               std::string cmd;
+               cmd += lazy.command;
+               cmd += " ";
+               cmd += lazy.path;
+               cmd += " ";
+               cmd += pLch->name;
+               cmd += " ";
+               cmd += pre_label;
+               cm_msg(MINFO, "Lazy", "Exec post-rewind script:%s", cmd.c_str());
+               ss_system(cmd.c_str());
             }
 
             cm_msg(MINFO, "Lazy", "backup device rewinding...");
@@ -2140,16 +2150,22 @@ Function value:
    /* generate/update a <channel>_recover.odb file when everything is Ok
       after each file copy */
    {
-      char str[128];
+      std::string str;
       /* leave "list label" as it is, as long as the _recover.odb is loaded before
          the lazylogger is started with NO -z things should be fine */
       /* save the recover with "List Label" empty */
-      if (lazy.dir[strlen(lazy.dir) - 1] != DIR_SEPARATOR)
-         sprintf(str, "%s%c%s_recover.odb", lazy.dir, DIR_SEPARATOR, pLch->name);
-      else
-         sprintf(str, "%s%s_recover.odb", lazy.dir, pLch->name);
+      if (lazy.dir[strlen(lazy.dir) - 1] != DIR_SEPARATOR) {
+         str += lazy.dir;
+         str += DIR_SEPARATOR;
+         str += pLch->name;
+         str += "_recover.odb";
+      } else {
+         str += lazy.dir;
+         str += pLch->name;
+         str += "_recover.odb";
+      }
 
-      db_save(hDB, pLch->hKey, str, TRUE);
+      db_save(hDB, pLch->hKey, str.c_str(), TRUE);
    }
 
    if (exit_request)
@@ -2304,7 +2320,6 @@ int main(int argc, char **argv)
    if (db_find_key(hDB, 0, "/Lazy", &hKey) == DB_SUCCESS) {
       HNDLE hSubkey;
       KEY key;
-      char strclient[32];
       INT j = 0;
       for (i = 0;; i++) {
          db_enum_key(hDB, hKey, i, &hSubkey);
@@ -2313,8 +2328,10 @@ int main(int argc, char **argv)
          db_get_key(hDB, hSubkey, &key);
          if (key.type == TID_KEY) {
             /* compose client name */
-            sprintf(strclient, "Lazy_%s", key.name);
-            if (cm_exist(strclient, TRUE) == CM_SUCCESS)
+            std::string strclient;
+            strclient += "Lazy_";
+            strclient += key.name;
+            if (cm_exist(strclient.c_str(), TRUE) == CM_SUCCESS)
                lazyinfo[j].active = TRUE;
             else
                lazyinfo[j].active = FALSE;
@@ -2326,12 +2343,14 @@ int main(int argc, char **argv)
       }
    } else {
       /* create settings tree */
-      char str[32];
       channel = 0;
       if (channel_name[0] != 0)
          strlcpy(lazyinfo[channel].name, channel_name, sizeof(lazyinfo[channel].name));
-      sprintf(str, "/Lazy/%s/Settings", lazyinfo[channel].name);
-      db_create_record(hDB, 0, str, LAZY_SETTINGS_STRING);
+      std::string str;
+      str += "/Lazy/";
+      str += lazyinfo[channel].name;
+      str += "/Settings";
+      db_create_record(hDB, 0, str.c_str(), LAZY_SETTINGS_STRING);
    }
 
    {  /* Selection of client */
@@ -2385,7 +2404,7 @@ int main(int argc, char **argv)
             if (j == -1) {
                /* new entry */
                i = 0;
-               sprintf(str, "%s", channel_name);
+               strlcpy(str, channel_name, sizeof(str));
             } else {
                /* connect to */
                i = j + 1;
@@ -2393,12 +2412,13 @@ int main(int argc, char **argv)
          }
 
          if (i == 0) { /* new entry */
-            char strclient[32];
             for (j = 0; j < MAX_LAZY_CHANNEL; j++) {
                if (lazyinfo[j].hKey == 0) {
                   /* compose client name */
-                  sprintf(strclient, "Lazy_%s", str);
-                  if (cm_exist(strclient, TRUE) == CM_SUCCESS)
+                  std::string strclient;
+                  strclient += "Lazy_";
+                  strclient += str;
+                  if (cm_exist(strclient.c_str(), TRUE) == CM_SUCCESS)
                      lazyinfo[j].active = TRUE;
                   else
                      lazyinfo[j].active = FALSE;
@@ -2439,9 +2459,10 @@ int main(int argc, char **argv)
    cm_disconnect_experiment();
    
    {                            /* reconnect to experiment with proper name */
-     char str[32];
-     sprintf(str, "Lazy_%s", lazyinfo[channel].name);
-     status = cm_connect_experiment1(host_name, expt_name, str, 0, DEFAULT_ODB_SIZE, WATCHDOG_TIMEOUT);
+      std::string str;
+      str += "Lazy_";
+      str += lazyinfo[channel].name;
+      status = cm_connect_experiment1(host_name, expt_name, str.c_str(), 0, DEFAULT_ODB_SIZE, WATCHDOG_TIMEOUT);
    }
    if (status != CM_SUCCESS) {
      cm_disconnect_experiment();
