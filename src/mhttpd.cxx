@@ -4398,7 +4398,7 @@ BOOL is_editable(char *eq_name, char *var_name)
 void show_eqtable_page(Param* pp, Return* r, int refresh)
 {
    int i, j, k, colspan, size, n_var, i_edit, i_set, line;
-   char str[256], eq_name[32], group[32], name[32];
+   char str[256], eq_name[32], group[32], name[NAME_LENGTH+32];
    char group_name[MAX_GROUPS][32], data[256], style[80];
    HNDLE hDB, hkey, hkeyeq, hkeyset, hkeynames, hkeyvar, hkeyroot;
    KEY eqkey, key, varkey;
@@ -4835,11 +4835,13 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
                   if (hkeyset && j<key.num_values) {
                      size = sizeof(name);
                      db_get_data_index(hDB, hkeyset, name, &size, j, TID_STRING);
-                  } else
+                  } else {
                      sprintf(name, "%s[%d]", varkey.name, j);
+                  }
 
-                  if (strlen(name) < 1)
+                  if (strlen(name) < 1) {
                      sprintf(name, "%s[%d]", varkey.name, j);
+                  }
 
                   r->rsprintf("<tr class=\"%s\"><td colspan=9>%s", style, name);
 
@@ -4861,9 +4863,7 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
                         return;
                      }
                      if (n_var == i_edit) {
-                        r->rsprintf
-                            ("<td align=center><input type=text size=10 maxlenth=80 name=value value=\"%s\">\n",
-                             str);
+                        r->rsprintf("<td align=center><input type=text size=10 maxlenth=80 name=value value=\"%s\">\n", str);
                         r->rsprintf("<input type=submit size=20 name=cmd value=Set></tr>\n");
                         r->rsprintf("<input type=hidden name=index value=%d>\n", i_edit);
                         r->rsprintf("<input type=hidden name=cmd value=Set>\n");
