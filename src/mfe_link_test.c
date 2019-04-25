@@ -13,8 +13,8 @@
 
 /*------------------------------------------------------------------*/
 
-char* frontend_name = "frontend_name";
-char* frontend_file_name = "frontend_file_name";
+const char* frontend_name = "frontend_name";
+const char* frontend_file_name = "frontend_file_name";
 BOOL  frontend_call_loop = 1;
 int event_buffer_size = 1000;
 int max_event_size = 1000;

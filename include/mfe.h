@@ -7,8 +7,8 @@
 
 \********************************************************************/
 
-extern char *frontend_name;
-extern char *frontend_file_name;
+extern const char *frontend_name;
+extern const char *frontend_file_name;
 extern BOOL frontend_call_loop;
 extern INT max_event_size;
 extern INT max_event_size_frag;
