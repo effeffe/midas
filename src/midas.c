@@ -460,8 +460,12 @@ int cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_s
                strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
          } else {
             cm_get_path(dir, sizeof(dir));
-            if (dir[0] == 0)
-               getcwd(dir, sizeof(dir));
+            if (dir[0] == 0) {
+               const char*s = getcwd(dir, sizeof(dir));
+               // per "man getcwd" we must check the return value and if it is NULL, contents of "dir" may be undefined and we must fix it.
+               if (s==NULL)
+                  dir[0] = 0;
+            }
             if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
                strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
          }
@@ -3609,7 +3613,7 @@ typedef struct tr_client {
    int   port;
    char  key_name[NAME_LENGTH]; /* this client key name in /System/Clients */
    int   status;
-   char  errorstr[256];
+   char  errorstr[1024];
    DWORD init_time;    // time when tr_client created
    char  waiting_for_client[NAME_LENGTH]; // name of client we are waiting for
    DWORD connect_timeout;
