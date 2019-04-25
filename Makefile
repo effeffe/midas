@@ -426,6 +426,7 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/melog   \
 	$(BIN_DIR)/mh2sql  \
 	$(BIN_DIR)/mfe_link_test  \
+	$(BIN_DIR)/mfe_link_test_cxx  \
 	$(BIN_DIR)/fetest  \
 	$(BIN_DIR)/feudp   \
 	$(BIN_DIR)/mana_link_test \
@@ -788,8 +789,11 @@ $(BIN_DIR)/feudp: $(UTL_DIR)/feudp.cxx $(LIB_DIR)/mfe.o
 $(BIN_DIR)/crc32c: $(SRC_DIR)/crc32c.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -DTEST -o $@ $^ $(LIB) $(LIBS)
 
-$(BIN_DIR)/mfe_link_test: $(SRC_DIR)/mfe.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mfe.c $(LIB) $(LIBS)
+$(BIN_DIR)/mfe_link_test: $(SRC_DIR)/mfe_link_test.c $(LIB_DIR)/mfe.o
+	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
+
+$(BIN_DIR)/mfe_link_test_cxx: $(SRC_DIR)/mfe_link_test_cxx.cxx $(LIB_DIR)/mfe.o
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/mana_link_test: $(SRC_DIR)/mana.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mana.cxx $(LIB) $(LIBS)

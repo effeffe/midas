@@ -21,24 +21,7 @@
 
 /*------------------------------------------------------------------*/
 
-/* items defined in user part of frontend */
-
-extern char *frontend_name;
-extern char *frontend_file_name;
-extern BOOL frontend_call_loop;
-extern INT max_event_size;
-extern INT max_event_size_frag;
-extern INT event_buffer_size;
-extern INT display_period;
-extern INT frontend_init(void);
-extern INT frontend_exit(void);
-extern INT frontend_loop(void);
-extern INT begin_of_run(INT run_number, char *error);
-extern INT end_of_run(INT run_number, char *error);
-extern INT pause_run(INT run_number, char *error);
-extern INT resume_run(INT run_number, char *error);
-extern INT poll_event(INT source, INT count, BOOL test);
-extern INT interrupt_configure(INT cmd, INT source, POINTER_T adr);
+#include "mfe.h"
 
 /*------------------------------------------------------------------*/
 
@@ -76,8 +59,6 @@ BOOL lockout_readout_thread = TRUE; /* manual triggers, periodic events and 1Hz 
 
 HNDLE hDB;
 HNDLE hClient;
-
-extern EQUIPMENT equipment[];
 
 EQUIPMENT *interrupt_eq = NULL;
 EQUIPMENT *multithread_eq = NULL;
