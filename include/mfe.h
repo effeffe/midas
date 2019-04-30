@@ -7,6 +7,12 @@
 
 \********************************************************************/
 
+#ifndef NEED_NO_EXTERN_C
+#ifdef __cplusplus
+extern "C" {
+#endif
+#endif
+
 extern const char *frontend_name;
 extern const char *frontend_file_name;
 extern BOOL frontend_call_loop;
@@ -24,6 +30,12 @@ extern INT pause_run(INT run_number, char *error);
 extern INT resume_run(INT run_number, char *error);
 extern INT poll_event(INT source, INT count, BOOL test);
 extern INT interrupt_configure(INT cmd, INT source, POINTER_T adr);
+
+#ifndef NEED_NO_EXTERN_C
+#ifdef __cplusplus
+}
+#endif
+#endif
 
 /* emacs
  * Local Variables:
