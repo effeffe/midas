@@ -35,11 +35,11 @@ INT rpc_mode = 1; // 0 for RPC socket, 1 for event socket
 
 #define MAX_N_THREADS          32       /* maximum number of readout threads */
 
-INT run_state;                  /* STATE_RUNNING, STATE_STOPPED, STATE_PAUSED */
-INT run_number;
-DWORD actual_time;              /* current time in seconds since 1970 */
-DWORD actual_millitime;         /* current time in milliseconds */
-DWORD rate_period;              /* period in ms for rate calculations */
+INT run_state = 0;              /* STATE_RUNNING, STATE_STOPPED, STATE_PAUSED */
+INT run_number = 0;
+DWORD actual_time = 0;          /* current time in seconds since 1970 */
+DWORD actual_millitime = 0;     /* current time in milliseconds */
+DWORD rate_period = 0;          /* period in ms for rate calculations */
 
 int gWriteCacheSize = 0;        /* remember max write cache size to use in periodic flush buffer */
 
@@ -47,44 +47,45 @@ char host_name[HOST_NAME_LENGTH];
 char exp_name[NAME_LENGTH];
 char full_frontend_name[256];
 
-INT max_bytes_per_sec;
+INT max_bytes_per_sec = 0;
 INT optimize = 0;               /* set this to one to opimize TCP buffer size */
 INT fe_stop = 0;                /* stop switch for VxWorks */
-BOOL debug;                     /* disable watchdog messages from server */
+BOOL debug = 0;                 /* disable watchdog messages from server */
 DWORD auto_restart = 0;         /* restart run after event limit reached stop */
 INT manual_trigger_event_id = 0;        /* set from the manual_trigger callback */
-INT frontend_index = -1;        /* frontend index for event building */
+static INT frontend_index = -1;        /* frontend index for event building */
 INT verbosity_level = 0;        /* can be used by user code for debugging output */
 BOOL lockout_readout_thread = TRUE; /* manual triggers, periodic events and 1Hz flush cache lockout the readout thread */
 
-HNDLE hDB;
-HNDLE hClient;
+HNDLE hDB = 0;
+HNDLE hClient = 0;
 
 EQUIPMENT *interrupt_eq = NULL;
 EQUIPMENT *multithread_eq = NULL;
 BOOL slowcont_eq = FALSE;
-void *event_buffer;
+void *event_buffer = NULL;
 void *frag_buffer = NULL;
 
-int *n_events;
+int *n_events = NULL;
 
 /* inter-thread communication */
-int rbh[MAX_N_THREADS];
+static int rbh[MAX_N_THREADS];
 volatile int stop_all_threads = 0;
-int _readout_thread(void *param);
-volatile int readout_thread_active[MAX_N_THREADS];
+static int _readout_thread(void *param);
+static volatile int readout_thread_active[MAX_N_THREADS];
+
 void mfe_error_check(void);
 
-int send_event(INT idx, BOOL manual_trig);
-int receive_trigger_event(EQUIPMENT *eq);
-void send_all_periodic_events(INT transition);
-void interrupt_routine(void);
+static int send_event(INT idx, BOOL manual_trig);
+static int receive_trigger_event(EQUIPMENT *eq);
+static void send_all_periodic_events(INT transition);
+static void interrupt_routine(void);
 void readout_enable(BOOL flag);
 int readout_enabled(void);
 void display(BOOL bInit);
 void rotate_wheel(void);
 BOOL logger_root(void);
-INT check_polled_events(void);
+static INT check_polled_events(void);
 
 /*------------------------------------------------------------------*/
 
@@ -102,7 +103,7 @@ int get_rate_period()
 
 /*-- start ---------------------------------------------------------*/
 
-INT tr_start(INT rn, char *error)
+static INT tr_start(INT rn, char *error)
 {
    INT i, status;
 
@@ -145,7 +146,7 @@ INT tr_start(INT rn, char *error)
 
 /*-- prestop -------------------------------------------------------*/
 
-INT tr_stop(INT rn, char *error)
+static INT tr_stop(INT rn, char *error)
 {
    INT status, i;
    EQUIPMENT *eq;
@@ -208,7 +209,7 @@ INT tr_stop(INT rn, char *error)
 
 /*-- pause ---------------------------------------------------------*/
 
-INT tr_pause(INT rn, char *error)
+static INT tr_pause(INT rn, char *error)
 {
    INT status;
 
@@ -234,7 +235,7 @@ INT tr_pause(INT rn, char *error)
 
 /*-- resume --------------------------------------------------------*/
 
-INT tr_resume(INT rn, char *error)
+static INT tr_resume(INT rn, char *error)
 {
    INT status;
 
@@ -267,7 +268,7 @@ INT manual_trigger(INT idx, void *prpc_param[])
 
 /*------------------------------------------------------------------*/
 
-int sc_thread(void *info)
+static int sc_thread(void *info)
 {
    DEVICE_DRIVER *device_drv = (DEVICE_DRIVER*)info;
    int i, status, cmd;
@@ -531,7 +532,7 @@ static void eq_common_watcher(INT hDB, INT hKey, INT index, void* info)
 
 /*------------------------------------------------------------------*/
 
-INT register_equipment(void)
+static INT register_equipment(void)
 {
    INT idx, size, status;
    char str[256];
@@ -809,7 +810,7 @@ INT register_equipment(void)
 
 /*------------------------------------------------------------------*/
 
-INT initialize_equipment(void)
+static INT initialize_equipment(void)
 {
    INT idx, i, j, k, n;
    double count;
@@ -1062,7 +1063,7 @@ int set_equipment_status(const char *name, const char *equipment_status, const c
 
 /*------------------------------------------------------------------*/
 
-void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
+static void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
 {
    INT size, n, i, status, n_data;
    char *pdata, *pdata0;
@@ -1191,7 +1192,7 @@ void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
 
 /*------------------------------------------------------------------*/
 
-int send_event(INT idx, BOOL manual_trig)
+static int send_event(INT idx, BOOL manual_trig)
 {
    EQUIPMENT_INFO *eq_info;
    EVENT_HEADER *pevent, *pfragment;
@@ -1346,7 +1347,7 @@ int send_event(INT idx, BOOL manual_trig)
 
 /*------------------------------------------------------------------*/
 
-void send_all_periodic_events(INT transition)
+static void send_all_periodic_events(INT transition)
 {
    EQUIPMENT_INFO *eq_info;
    INT i;
@@ -1393,7 +1394,7 @@ void readout_enable(BOOL flag)
 
 /*------------------------------------------------------------------*/
 
-void interrupt_routine(void)
+static void interrupt_routine(void)
 {
    int status;
    EVENT_HEADER *pevent;
@@ -1473,7 +1474,7 @@ void signal_readout_thread_active(int index, int flag)
 
 /*------------------------------------------------------------------*/
 
-int _readout_thread(void *param)
+static int _readout_thread(void *param)
 {
    int status, source;
    EVENT_HEADER *pevent;
@@ -1551,7 +1552,7 @@ int _readout_thread(void *param)
 
 /*-- Receive event from readout thread or interrupt routine --------*/
 
-int receive_trigger_event(EQUIPMENT *eq)
+static int receive_trigger_event(EQUIPMENT *eq)
 {
    int i, status;
    EVENT_HEADER *prb = NULL, *pevent;
@@ -1619,7 +1620,7 @@ int receive_trigger_event(EQUIPMENT *eq)
 
 /*------------------------------------------------------------------*/
 
-int message_print(const char *msg)
+static int message_print(const char *msg)
 {
    char str[160];
 
@@ -1766,7 +1767,7 @@ BOOL logger_root()
 
 /*------------------------------------------------------------------*/
 
-INT check_polled_events(void)
+static INT check_polled_events(void)
 {
    EQUIPMENT_INFO *eq_info;
    EQUIPMENT *eq;
@@ -1993,7 +1994,7 @@ INT check_polled_events(void)
 
 /*------------------------------------------------------------------*/
 
-INT scheduler(void)
+static INT scheduler(void)
 {
    EQUIPMENT_INFO *eq_info;
    EQUIPMENT *eq;
@@ -2646,8 +2647,8 @@ void mfe_error_check(void)
 
 /*------------------------------------------------------------------*/
 
-int _argc;
-char **_argv;
+static int _argc = 0;
+static char **_argv = NULL;
 
 void mfe_get_args(int *argc, char ***argv)
 {

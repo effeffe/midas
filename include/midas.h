@@ -2026,21 +2026,6 @@ extern "C" {
    BOOL EXPRT al_evaluate_condition(const char *condition, char *value);
    INT al_get_alarms(char *result, int result_size);
 
-   /*---- frontend functions ----*/
-   INT get_frontend_index(void);
-   void mfe_get_args(int *argc, char ***argv);
-   void register_cnaf_callback(int debug);
-   void mfe_error(const char *error);
-   void mfe_set_error(void (*dispatcher) (const char *));
-   int set_equipment_status(const char *name, const char *eq_status, const char *status_color);
-   INT create_event_rb(int i);
-   INT get_event_rbh(int i);
-   INT create_event_rb(int i);
-   void stop_readout_threads(void);
-   int is_readout_thread_enabled(void);
-   int is_readout_thread_active(void);
-   void signal_readout_thread_active(int index, int flag);
-
    /*---- analyzer functions ----*/
    void EXPRT test_register(ANA_TEST * t);
    void EXPRT add_data_dir(char *result, char *file);

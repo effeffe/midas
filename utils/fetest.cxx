@@ -22,10 +22,7 @@
 #include <string.h>
 
 #include "midas.h"
-
-#ifndef NEED_NO_EXTERN_C
-extern "C" {
-#endif
+#include "mfe.h"
 
 /*-- Globals -------------------------------------------------------*/
 
@@ -58,13 +55,8 @@ INT end_of_run(INT run_number, char *error);
 INT pause_run(INT run_number, char *error);
 INT resume_run(INT run_number, char *error);
 INT frontend_loop();
-int create_event_rb(int i);
-int get_event_rb(int i);
-extern int stop_all_threads;
 INT poll_event(INT source, INT count, BOOL test);
 INT interrupt_configure(INT cmd, INT source, PTYPE adr);
-
-extern HNDLE hDB;
 
 int read_test_event(char *pevent, int off);
 int read_slow_event(char *pevent, int off);
@@ -131,10 +123,6 @@ EQUIPMENT equipment[] = {
   },
   { "" }
 };
-
-#ifndef NEED_NO_EXTERN_C
-}
-#endif
 
 /********************************************************************\
               Callback routines for system transitions

@@ -764,6 +764,7 @@ $(LIB_DIR)/ftplib.o: msystem.h midas.h midasinc.h
 $(LIB_DIR)/mxml.o: msystem.h midas.h midasinc.h $(MXML_DIR)/mxml.h
 $(LIB_DIR)/alarm.o: msystem.h midas.h midasinc.h
 $(LIB_DIR)/mjsonrpc.o: midas.h mjsonrpc.h
+$(LIB_DIR)/mfe.o: midas.h msystem.h mfe.h
 
 #
 # utilities
