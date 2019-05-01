@@ -475,9 +475,11 @@ typedef struct {
 
 /*---- Function declarations ---------------------------------------*/
 
+#ifndef NEED_NO_EXTERN_C
 /* make functions callable from a C++ program */
 #ifdef __cplusplus
 extern "C" {
+#endif
 #endif
 
    /*---- common function ----*/
@@ -632,8 +634,10 @@ extern "C" {
 
 #include "mrpc.h"
 
+#ifndef NEED_NO_EXTERN_C
 #ifdef __cplusplus
 }
+#endif
 #endif
 
 /* emacs

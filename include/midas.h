@@ -1632,9 +1632,11 @@ Data conversion flags */
 
 /*---- Function declarations ---------------------------------------*/
 
+#ifndef NEED_NO_EXTERN_C
 /* make functions callable from a C++ program */
 #ifdef __cplusplus
 extern "C" {
+#endif
 #endif
 
 /* make functions under WinNT dll exportable */
@@ -2043,8 +2045,10 @@ extern "C" {
 #endif
 #endif
 
+#ifndef NEED_NO_EXTERN_C
 #ifdef __cplusplus
 }
+#endif
 #endif
 
 #ifdef __cplusplus
