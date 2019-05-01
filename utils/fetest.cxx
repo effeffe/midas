@@ -152,8 +152,6 @@ EQUIPMENT equipment[] = {
 
 int event_size = 10*1024;
 
-extern "C" { void set_rate_period(int ms); }
-
 /*-- Frontend Init -------------------------------------------------*/
 
 HNDLE hSet;
