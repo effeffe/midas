@@ -769,8 +769,8 @@ static BOOL is_utf8(const char * string)
     return 1;
 }
 
-BOOL utfCheckEnvVar = 0;
-BOOL checkUtfValidString = 0;
+static BOOL utfCheckEnvVar = 0;
+static BOOL checkUtfValidString = 0;
 
 /*------------------------------------------------------------------*/
 static int db_validate_name(const char* name, int maybe_path, const char* caller_name)
