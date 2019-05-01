@@ -458,6 +458,7 @@ OBJS = \
    $(LIB_DIR)/system.o \
    $(LIB_DIR)/mrpc.o \
 	$(LIB_DIR)/odb.o \
+	$(LIB_DIR)/device_driver.o \
    $(LIB_DIR)/ftplib.o \
 	$(LIB_DIR)/crc32c.o \
 	$(LIB_DIR)/sha256.o \

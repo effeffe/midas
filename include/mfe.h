@@ -79,7 +79,6 @@ extern BOOL logger_root(void);
 extern void set_rate_period(int ms);
 extern int get_rate_period(void);
 
-//extern INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...);
 extern INT manual_trigger(INT idx, void *prpc_param[]);
 
 /*---- frontend functions from midas.h ----*/
