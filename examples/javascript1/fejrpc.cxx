@@ -23,6 +23,7 @@
 
 #include "midas.h"
 #include "mrpc.h"
+#include "mfe.h"
 
 #define FE_NAME "fejrpc"
 #define EQ_NAME "RpcExample"
@@ -65,7 +66,7 @@ INT pause_run(INT run_number, char *error);
 INT resume_run(INT run_number, char *error);
 INT frontend_loop();
 
-HNDLE hDB;
+//HNDLE hDB;
 INT gbl_run_number;
 
 int read_slow_event(char *pevent, int off);

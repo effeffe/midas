@@ -29,6 +29,7 @@ MIDASLIBS = $(MIDASSYS)/$(MIDAS_OS)/lib/libmidas.a
 MFE       = $(MIDASSYS)/$(MIDAS_OS)/lib/mfe.o
 
 all:: fejrpc.exe
+all:: fesimdaq.exe
 
 %.exe: %.o $(MIDASLIBS) $(MFE)
 	$(CXX) -o $@ $(CXXFLAGS) $(OSFLAGS) $^ $(MIDASLIBS) $(LIBS)
