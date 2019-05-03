@@ -104,9 +104,9 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-int mjsonrpc_debug = 0;
-int mjsonrpc_sleep = 0;
-int mjsonrpc_time = 0;
+int mjsonrpc_debug = 0; // in mjsonrpc.h
+static int mjsonrpc_sleep = 0;
+static int mjsonrpc_time = 0;
 
 static double GetTimeSec()
 {
@@ -3177,7 +3177,7 @@ struct NestedLine {
 
 typedef std::vector<NestedLine> NestedText;
 
-NestedText nested_output;
+static NestedText nested_output;
 
 static void nested_clear()
 {

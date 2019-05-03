@@ -1113,7 +1113,7 @@ static void flush_char(void);
 /* Allows for reuse */
 static void init_statics(void);
 
-char gif_buffer[500000];
+static char gif_buffer[500000];
 
 void gdImageGif(gdImagePtr im, gdGifBuffer * buffer)
 {

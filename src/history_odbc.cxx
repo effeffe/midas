@@ -958,7 +958,7 @@ struct IndexEntry
    std::vector<TAG> tags_cache;
 };
 
-std::vector<IndexEntry*> gHistoryIndex;
+static std::vector<IndexEntry*> gHistoryIndex;
 
 #if 0
 static void PrintIndex()

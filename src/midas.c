@@ -160,7 +160,7 @@ static INT _debug_mode = 0;
 
 //static INT _watchdog_last_called = 0;
 
-int _rpc_connect_timeout = 10000;
+static int _rpc_connect_timeout = 10000;
 
 // for use on a single machine it is best to restrict RPC access to localhost
 // by binding the RPC listener socket to the localhost IP address.
@@ -176,9 +176,9 @@ typedef struct {
 
 #define MAX_TRANSITIONS 20
 
-TRANS_TABLE _trans_table[MAX_TRANSITIONS];
+static TRANS_TABLE _trans_table[MAX_TRANSITIONS];
 
-TRANS_TABLE _deferred_trans_table[] = {
+static TRANS_TABLE _deferred_trans_table[] = {
    {TR_START, 0, NULL},
    {TR_STOP, 0, NULL},
    {TR_PAUSE, 0, NULL},
@@ -197,7 +197,7 @@ typedef struct {
    const char *string;
 } ERROR_TABLE;
 
-const ERROR_TABLE _error_table[] = {
+static const ERROR_TABLE _error_table[] = {
    {CM_WRONG_PASSWORD, "Wrong password"},
    {CM_UNDEF_EXP, "Experiment not defined"},
    {CM_UNDEF_ENVIRON,
@@ -213,8 +213,8 @@ typedef struct {
    int line;
 } DBG_MEM_LOC;
 
-DBG_MEM_LOC *_mem_loc = NULL;
-INT _n_mem = 0;
+static DBG_MEM_LOC *_mem_loc = NULL;
+static INT _n_mem = 0;
 
 typedef struct {
    INT  transition;
@@ -9790,7 +9790,7 @@ RPC_SERVER_ACCEPTION _server_acception[MAX_RPC_CONNECTION];
 
 static RPC_LIST *rpc_list = NULL;
 
-int _opt_tcp_size = OPT_TCP_SIZE;
+static int _opt_tcp_size = OPT_TCP_SIZE;
 
 
 /********************************************************************\
@@ -13076,8 +13076,8 @@ typedef struct {
    char *buffer;
 } TLS_POINTER;
 
-TLS_POINTER *tls_buffer = NULL;
-int tls_size = 0;
+static TLS_POINTER *tls_buffer = NULL;
+static int tls_size = 0;
 
 /********************************************************************/
 INT rpc_execute(INT sock, char *buffer, INT convert_flags)
@@ -15670,9 +15670,9 @@ typedef struct {
 
 #define MAX_RING_BUFFER 100
 
-RING_BUFFER rb[MAX_RING_BUFFER];
+static RING_BUFFER rb[MAX_RING_BUFFER];
 
-volatile int _rb_nonblocking = 0;
+static volatile int _rb_nonblocking = 0;
 
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
