@@ -3345,7 +3345,6 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
 {
    INT size, i;
    char bank_name[32];
-   EVENT_DEF *event_def;
    BANK_HEADER *pbh;
    void *pdata;
    EVENT_TREE *et;
@@ -3356,7 +3355,16 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
    WORD bktype;
    TBranch *branch;
 
-   event_def = db_get_event_definition(pevent->event_id);
+   if ((pevent->event_id == EVENTID_BOR) ||
+       (pevent->event_id == EVENTID_EOR) ||
+       (pevent->event_id == EVENTID_MESSAGE) ||
+       (pevent->event_id == EVENTID_FRAG1) ||
+       (pevent->event_id == EVENTID_FRAG)) {
+      cm_msg(MERROR, "root_write", "Cannot write system event into ROOT file, event_id 0x%04x", pevent->event_id);
+      return SS_INVALID_FORMAT;
+   }
+
+   EVENT_DEF *event_def = db_get_event_definition(pevent->event_id);
    if (event_def == NULL) {
       cm_msg(MERROR, "root_write", "Definition for event #%d not found under /Equipment", pevent->event_id);
       return SS_INVALID_FORMAT;
