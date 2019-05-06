@@ -165,6 +165,10 @@ NULL}
 /*---- logger channel definition---------------------------------------*/
 
 class WriterInterface;
+struct MIDAS_INFO;
+#ifdef HAVE_ROOT
+struct TREE_STRUCT;
+#endif
 
 typedef struct {
    std::string name;
@@ -183,7 +187,10 @@ typedef struct {
    HNDLE settings_hkey;
    CHN_SETTINGS settings;
    CHN_STATISTICS statistics;
-   void **format_info;
+   MIDAS_INFO *midas_info;
+#ifdef HAVE_ROOT
+   TREE_STRUCT *root_tree_struct;
+#endif
    FTP_CON *ftp_con;
    void *gzfile;
    FILE *pfile;
@@ -214,7 +221,10 @@ LOG_CHN* new_LOG_CHN(const char* name)
    chn->settings_hkey = 0;
    // chn->settings clear settings
    // chn->statistics clear statistics
-   chn->format_info = NULL;
+   chn->midas_info = NULL;
+#ifdef HAVE_ROOT
+   chn->root_tree_struct = NULL;
+#endif
    chn->ftp_con = NULL;
    chn->gzfile = NULL;
    chn->pfile = NULL;
@@ -269,10 +279,10 @@ static CHN_TREE_STR(chn_tree_str);
 
 /*---- data structures for MIDAS format ----------------------------*/
 
-typedef struct {
+struct MIDAS_INFO {
    char *buffer;
    char *write_pointer;
-} MIDAS_INFO;
+};
 
 /*---- forward declarations ----------------------------------------*/
 
@@ -2724,12 +2734,11 @@ private:
 INT midas_flush_buffer(LOG_CHN * log_chn)
 {
    INT size, written;
-   MIDAS_INFO *info;
 #ifdef HAVE_ZLIB
    off_t n;
 #endif
 
-   info = (MIDAS_INFO *) log_chn->format_info;
+   MIDAS_INFO* info = log_chn->midas_info;
    size = (POINTER_T) info->write_pointer - (POINTER_T) info->buffer;
 
    if (size == 0)
@@ -2782,9 +2791,8 @@ INT midas_flush_buffer(LOG_CHN * log_chn)
 INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 {
    INT i, written, size_left;
-   MIDAS_INFO *info;
 
-   info = (MIDAS_INFO *) log_chn->format_info;
+   MIDAS_INFO* info = log_chn->midas_info;
    written = 0;
 
    /* check if event fits into buffer */
@@ -2835,13 +2843,12 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 
 INT midas_log_open(LOG_CHN * log_chn, INT run_number)
 {
-   MIDAS_INFO *info;
    INT status;
 
    /* allocate MIDAS buffer info */
-   log_chn->format_info = (void **) malloc(sizeof(MIDAS_INFO));
+   log_chn->midas_info = (MIDAS_INFO*) malloc(sizeof(MIDAS_INFO));
 
-   info = (MIDAS_INFO *) log_chn->format_info;
+   MIDAS_INFO* info = log_chn->midas_info;
    if (info == NULL) {
       log_chn->handle = 0;
       return SS_NO_MEMORY;
@@ -3023,10 +3030,13 @@ INT midas_log_close(LOG_CHN * log_chn, INT run_number)
       log_chn->handle = 0;
    }
 
-   free(((MIDAS_INFO *) log_chn->format_info)->buffer);
-   ((MIDAS_INFO*)log_chn->format_info)->buffer = NULL;
-   free(log_chn->format_info);
-   log_chn->format_info = NULL;
+   assert(log_chn->midas_info != NULL);
+   assert(log_chn->midas_info->buffer != NULL);
+
+   free(log_chn->midas_info->buffer);
+   log_chn->midas_info->buffer = NULL;
+   free(log_chn->midas_info);
+   log_chn->midas_info = NULL;
 
    return SS_SUCCESS;
 }
@@ -3135,11 +3145,11 @@ typedef struct {
    TBranch *branch[MAX_BANKS];
 } EVENT_TREE;
 
-typedef struct {
+struct TREE_STRUCT {
    TFile *f;
    int n_tree;
    EVENT_TREE *event_tree;
-} TREE_STRUCT;
+};
 
 /*------------------------------------------------------------------*/
 
@@ -3338,7 +3348,6 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
    EVENT_DEF *event_def;
    BANK_HEADER *pbh;
    void *pdata;
-   TREE_STRUCT *ts;
    EVENT_TREE *et;
    BANK *pbk;
    BANK32 *pbk32;
@@ -3353,7 +3362,7 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
       return SS_INVALID_FORMAT;
    }
 
-   ts = (TREE_STRUCT *) log_chn->format_info;
+   TREE_STRUCT *ts = log_chn->root_tree_struct;
 
    size = (INT) ts->f->GetBytesWritten();
 
@@ -3505,7 +3514,7 @@ INT root_log_open(LOG_CHN * log_chn, INT run_number)
       root_book_trees(tree_struct);
 
       /* store file object in format_info */
-      log_chn->format_info = (void **) tree_struct;
+      log_chn->root_tree_struct = tree_struct;
    }
 
 #if 0
@@ -3528,9 +3537,7 @@ INT root_log_open(LOG_CHN * log_chn, INT run_number)
 
 INT root_log_close(LOG_CHN * log_chn, INT run_number)
 {
-   TREE_STRUCT *ts;
-
-   ts = (TREE_STRUCT *) log_chn->format_info;
+   TREE_STRUCT *ts = log_chn->root_tree_struct;
 
    /* flush and close file */
    ts->f->Write();
@@ -3543,7 +3550,7 @@ INT root_log_close(LOG_CHN * log_chn, INT run_number)
    free(ts);
    ts = NULL;
 
-   log_chn->format_info = NULL;
+   log_chn->root_tree_struct = NULL;
 
    return SS_SUCCESS;
 }
