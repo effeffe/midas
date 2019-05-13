@@ -4400,8 +4400,7 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
    int i, j, k, colspan, size, n_var, i_edit, i_set, line;
    char str[256], eq_name[32], group[32], name[NAME_LENGTH+32];
    char group_name[MAX_GROUPS][32], data[256], style[80];
-   HNDLE hDB, hkey, hkeyeq, hkeyset, hkeynames, hkeyvar, hkeyroot;
-   KEY eqkey, key, varkey;
+   HNDLE hDB;
    char data_str[256], hex_str[256], odb_path[256];
 
    cm_get_experiment_database(&hDB, NULL);
@@ -4427,8 +4426,9 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
    /* check for "names" in settings */
    if (eq_name[0]) {
       sprintf(str, "/Equipment/%s/Settings", eq_name);
+      HNDLE hkeyset;
       db_find_key(hDB, 0, str, &hkeyset);
-      hkeynames = 0;
+      HNDLE hkeynames = 0;
       if (hkeyset) {
          for (i = 0;; i++) {
             db_enum_link(hDB, hkeyset, i, &hkeynames);
@@ -4436,6 +4436,7 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
             if (!hkeynames)
                break;
 
+            KEY key;
             db_get_key(hDB, hkeynames, &key);
 
             if (strncmp(key.name, "Names", 5) == 0)
@@ -4476,24 +4477,30 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
 
    r->rsprintf("<tr><td class=\"subStatusTitle\" colspan=15><i>Equipment:</i> &nbsp;&nbsp;\n");
 
-   db_find_key(hDB, 0, "/Equipment", &hkey);
-   if (hkey)
+   HNDLE hkeyeqroot;
+   db_find_key(hDB, 0, "/Equipment", &hkeyeqroot);
+   if (hkeyeqroot)
       for (i = 0;; i++) {
-         db_enum_link(hDB, hkey, i, &hkeyeq);
+         HNDLE hkeyeq;
+         db_enum_link(hDB, hkeyeqroot, i, &hkeyeq);
 
          if (!hkeyeq)
             break;
 
+         KEY eqkey;
          db_get_key(hDB, hkeyeq, &eqkey);
 
+         HNDLE hkeyset;
          db_find_key(hDB, hkeyeq, "Settings", &hkeyset);
          if (hkeyset) {
             for (j = 0;; j++) {
+               HNDLE hkeynames;
                db_enum_link(hDB, hkeyset, j, &hkeynames);
 
                if (!hkeynames)
                   break;
 
+               KEY key;
                db_get_key(hDB, hkeynames, &key);
 
                if (strncmp(key.name, "Names", 5) == 0) {
@@ -4519,9 +4526,10 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
 
    n_var = 0;
    sprintf(str, "/Equipment/%s/Settings/Names", eq_name);
-   db_find_key(hDB, 0, str, &hkey);
+   HNDLE hkeyeqnames;
+   db_find_key(hDB, 0, str, &hkeyeqnames);
 
-   if (hkey) {
+   if (hkeyeqnames) {
 
       /*---- single name array ----*/
       r->rsprintf("<tr><td colspan=15><i>Groups:</i> &nbsp;&nbsp;");
@@ -4535,13 +4543,14 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
       /* collect groups */
 
       memset(group_name, 0, sizeof(group_name));
-      db_get_key(hDB, hkey, &key);
+      KEY key;
+      db_get_key(hDB, hkeyeqnames, &key);
 
       for (int level = 0; ; level++) {
          bool next_level = false;
          for (i = 0; i < key.num_values; i++) {
             size = sizeof(str);
-            db_get_data_index(hDB, hkey, str, &size, i, TID_STRING);
+            db_get_data_index(hDB, hkeyeqnames, str, &size, i, TID_STRING);
 
             char *s = strchr(str, '%');
             for (int k=0; s && k<level; k++)
@@ -4586,12 +4595,14 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
 
       /* count variables */
       sprintf(str, "/Equipment/%s/Variables", eq_name);
+      HNDLE hkeyvar;
       db_find_key(hDB, 0, str, &hkeyvar);
       if (!hkeyvar) {
          r->rsprintf("</table>");
          return;
       }
       for (i = 0;; i++) {
+         HNDLE hkey;
          db_enum_link(hDB, hkeyvar, i, &hkey);
          if (!hkey)
             break;
@@ -4607,12 +4618,14 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
       r->rsprintf("<tr class=\"subStatusTitle\"><th colspan=%d>Names", colspan);
 
       /* display entries for this group */
-      for (i = 0;; i++) {
+      for (int i = 0;; i++) {
+         HNDLE hkey;
          db_enum_link(hDB, hkeyvar, i, &hkey);
 
          if (!hkey)
             break;
 
+         KEY key;
          db_get_key(hDB, hkey, &key);
          r->rsprintf("<th>%s", key.name);
       }
@@ -4621,10 +4634,15 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
 
       /* data for current group */
       sprintf(str, "/Equipment/%s/Settings/Names", eq_name);
+      int num_values = 0;
+      HNDLE hkeyset;
       db_find_key(hDB, 0, str, &hkeyset);
-      assert(hkeyset);
-      db_get_key(hDB, hkeyset, &key);
-      for (i = 0; i < key.num_values; i++) {
+      if (hkeyset) {
+         KEY key;
+         db_get_key(hDB, hkeyset, &key);
+         num_values = key.num_values;
+      }
+      for (int i = 0; i < num_values; i++) {
          size = sizeof(str);
          db_get_data_index(hDB, hkeyset, str, &size, i, TID_STRING);
 
@@ -4649,10 +4667,13 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
          else
             r->rsprintf("<tr class=\"ODBtableOdd\"><td colspan=%d>%s", colspan, name);
 
-         for (j = 0;; j++) {
+         for (int j = 0;; j++) {
+            HNDLE hkey;
             db_enum_link(hDB, hkeyvar, j, &hkey);
             if (!hkey)
                break;
+
+            KEY varkey;
             db_get_key(hDB, hkey, &varkey);
 
             /* check if "variables" array is shorter than the "names" array */
@@ -4707,21 +4728,25 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
       /* groups from Variables tree */
 
       sprintf(str, "/Equipment/%s/Variables", eq_name);
+      HNDLE hkeyvar;
       db_find_key(hDB, 0, str, &hkeyvar);
-      assert(hkeyvar);
 
-      for (i = 0;; i++) {
-         db_enum_link(hDB, hkeyvar, i, &hkey);
+      if (hkeyvar) {
+         for (int i = 0;; i++) {
+            HNDLE hkey;
+            db_enum_link(hDB, hkeyvar, i, &hkey);
 
-         if (!hkey)
-            break;
+            if (!hkey)
+               break;
 
-         db_get_key(hDB, hkey, &key);
+            KEY key;
+            db_get_key(hDB, hkey, &key);
 
-         if (equal_ustring(key.name, group)) {
-            r->rsprintf("<b>%s</b> &nbsp;&nbsp;", key.name);
-         } else {
-            r->rsprintf("<a href=\"?cmd=eqtable&eq=%s&group=%s\">%s</a> &nbsp;&nbsp;", eq_name, key.name, key.name);
+            if (equal_ustring(key.name, group)) {
+               r->rsprintf("<b>%s</b> &nbsp;&nbsp;", key.name);
+            } else {
+               r->rsprintf("<a href=\"?cmd=eqtable&eq=%s&group=%s\">%s</a> &nbsp;&nbsp;", eq_name, key.name, key.name);
+            }
          }
       }
 
@@ -4734,6 +4759,7 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
       /* enumerate variable arrays */
       line = 0;
       for (i = 0;; i++) {
+         HNDLE hkey;
          db_enum_link(hDB, hkeyvar, i, &hkey);
 
          if (line % 2 == 0)
@@ -4744,6 +4770,7 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
          if (!hkey)
             break;
 
+         KEY varkey;
          db_get_key(hDB, hkey, &varkey);
 
          if (!equal_ustring(group, "All") && !equal_ustring(varkey.name, group))
@@ -4753,13 +4780,15 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
          r->rsprintf("<tr class=\"subStatusTitle\"><th colspan=9>Names<th>%s</tr>\n", varkey.name);
 
          if (varkey.type == TID_KEY) {
-            hkeyroot = hkey;
+            HNDLE hkeyroot = hkey;
 
             /* enumerate subkeys */
             for (j = 0;; j++) {
                db_enum_key(hDB, hkeyroot, j, &hkey);
                if (!hkey)
                   break;
+
+               KEY key;
                db_get_key(hDB, hkey, &key);
 
                if (key.type == TID_KEY) {
@@ -4817,7 +4846,9 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
          } else {
             /* data for current group */
             sprintf(str, "/Equipment/%s/Settings/Names %s", eq_name, varkey.name);
+            HNDLE hkeyset;
             db_find_key(hDB, 0, str, &hkeyset);
+            KEY key;
             if (hkeyset)
                db_get_key(hDB, hkeyset, &key);
 
