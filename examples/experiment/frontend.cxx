@@ -25,10 +25,7 @@
 #include "midas.h"
 #include "experim.h"
 
-/* make frontend functions callable from the C framework */
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "mfe.h"
 
 /*-- Globals -------------------------------------------------------*/
 
@@ -108,10 +105,6 @@ EQUIPMENT equipment[] = {
 
    {""}
 };
-
-#ifdef __cplusplus
-}
-#endif
 
 /********************************************************************\
               Callback routines for system transitions
