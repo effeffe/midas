@@ -102,7 +102,7 @@ UFE = frontend
 LIB = $(LIB_DIR)/libmidas.a
 
 # compiler
-CC = gcc
+CC = g++ -DNEED_NO_EXTERN_C
 CXX = g++
 CFLAGS += -g -I$(INC_DIR) -I$(DRV_DIR)
 LDFLAGS +=
