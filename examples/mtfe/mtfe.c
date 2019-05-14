@@ -14,10 +14,7 @@
 #include "midas.h"
 #include "msystem.h"
 
-/* make frontend functions callable from the C framework */
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "mfe.h"
 
 /*-- Globals -------------------------------------------------------*/
 
@@ -43,21 +40,9 @@ INT event_buffer_size = 100 * 10000;
 
 /*-- Function declarations -----------------------------------------*/
 
-INT frontend_init();
-INT frontend_exit();
-INT begin_of_run(INT run_number, char *error);
-INT end_of_run(INT run_number, char *error);
-INT pause_run(INT run_number, char *error);
-INT resume_run(INT run_number, char *error);
-INT frontend_loop();
-
 INT trigger_thread(void *param);
 INT read_scaler_event(char *pevent, INT off);
 
-INT poll_event(INT source, INT count, BOOL test);
-INT interrupt_configure(INT cmd, INT source, POINTER_T adr);
-INT trigger_thread(void *param);
-   
 /*-- Equipment list ------------------------------------------------*/
 
 EQUIPMENT equipment[] = {
@@ -80,11 +65,6 @@ EQUIPMENT equipment[] = {
 
    {""}
 };
-
-#ifdef __cplusplus
-}
-#endif
-
 
 /********************************************************************\
               Callback routines for system transitions
