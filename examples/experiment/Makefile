@@ -109,8 +109,8 @@ LDFLAGS +=
 
 all: $(UFE) analyzer
 
-$(UFE): $(LIB) $(LIB_DIR)/mfe.o $(UFE).c
-	$(CC) $(CFLAGS) $(OSFLAGS) -o $(UFE) $(UFE).c \
+$(UFE): $(LIB) $(LIB_DIR)/mfe.o $(UFE).cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $(UFE) $(UFE).cxx \
 	$(LIB_DIR)/mfe.o $(LIB) \
 	$(LDFEFLAGS) $(LIBS)
 
