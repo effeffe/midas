@@ -311,9 +311,15 @@ INT EXPRT db_resize_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int 
    char* new_data = (char*)malloc(new_size);
    assert(new_data);
 
+   int num = old_num_values;
+   if (num > num_values)
+      num = num_values;
+
+   //printf("new num_values %d, item_size %d, new_size %d, to copy %d values\n", num_values, item_size, new_size, num);
+
    memset(new_data, 0, new_size);
 
-   for (int i=0; i<old_num_values; i++) {
+   for (int i=0; i<num; i++) {
       const char* old_ptr = old_data + i*old_item_size;
       char* new_ptr = new_data + i*item_size;
       strlcpy(new_ptr, old_ptr, item_size);
