@@ -11,5 +11,6 @@ pipelines:
         script: # Modify the commands below to build your repository.
           - #./configure
           - gcc -v
-          - make
+          - git clone https://bitbucket.org/tmidas/mxml.git
+          - make MXML_DIR=./mxml
           - #make test
