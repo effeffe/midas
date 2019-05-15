@@ -1307,8 +1307,10 @@ static int db_validate_db(DATABASE_HEADER * pheader)
       nextpfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
 
       if (pfree->next_free != 0 && nextpfree == pfree) {
-         cm_msg(MERROR, "db_validate_db", "Warning: database corruption, key area next_free 0x%08X is same as current free %p", pfree->next_free, pfree - (int)sizeof(DATABASE_HEADER));
-         return 0;
+         cm_msg(MERROR, "db_validate_db", "Warning: database corruption, key area next_free 0x%08X is same as current free %p, truncating the free list", pfree->next_free, pfree - (int)sizeof(DATABASE_HEADER));
+         pfree->next_free = 0;
+         break;
+         //return 0;
       }
 
       pfree = nextpfree;
@@ -1344,8 +1346,10 @@ static int db_validate_db(DATABASE_HEADER * pheader)
       nextpfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
 
       if (pfree->next_free != 0 && nextpfree == pfree) {
-         cm_msg(MERROR, "db_validate_db", "Warning: database corruption, data area next_free 0x%08X is same as current free %p", pfree->next_free, pfree - (int)sizeof(DATABASE_HEADER));
-         return 0;
+         cm_msg(MERROR, "db_validate_db", "Warning: database corruption, data area next_free 0x%08X is same as current free %p, truncating the free list", pfree->next_free, pfree - (int)sizeof(DATABASE_HEADER));
+         pfree->next_free = 0;
+         break;
+         //return 0;
       }
 
       pfree = nextpfree;
@@ -6704,6 +6708,16 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
 
       /* copy data */
       memcpy((char *) pheader + pkey->data + idx * pkey->item_size, data, pkey->item_size);
+
+#if 0
+      /* ensure strings are NUL terminated */
+      if ((type == TID_STRING || type == TID_LINK)) {
+         int len = strlen(data);
+         int end_of_string = idx * pkey->item_size + pkey->item_size - 1;
+         printf("db_set_data_index: len %d, item_size %d, idx %d, end_of_string %d, char %d\n", len, pkey->item_size, idx, end_of_string, ((char*) pheader + pkey->data)[end_of_string]);
+         ((char*) pheader + pkey->data)[end_of_string] = 0;
+      }
+#endif
 
       /* update time */
       pkey->last_written = ss_time();
