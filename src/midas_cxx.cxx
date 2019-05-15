@@ -170,12 +170,12 @@ int cm_exec_script(const char* odb_path_to_script)
 
 /* C++ wrapper for db_get_value */
 
-INT EXPRT db_get_value_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int index, std::string* s, BOOL create)
+INT EXPRT db_get_value_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int index, std::string* s, BOOL create, int create_string_length)
 {
    int status;
    int hkey;
 
-   //printf("db_get_value_string: key_name [%s], index %d, string [%s], create %d\n", key_name, index, s->c_str(), create);
+   //printf("db_get_value_string: key_name [%s], index %d, string [%s], create %d, create_string_length %d\n", key_name, index, s->c_str(), create, create_string_length);
 
    if (index > 0 && create) {
       cm_msg(MERROR, "db_get_value_string", "cannot resize odb string arrays, please use db_resize_string() instead");
@@ -221,8 +221,16 @@ INT EXPRT db_get_value_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, i
       if (status != DB_SUCCESS)
          return status;
       assert(s != NULL);
-      int size = s->length() + 1; // 1 byte for final \0
-      status = db_set_data(hdb, hkey, s->c_str(), size, 1, TID_STRING);
+      if (create_string_length == 0) {
+         int size = s->length() + 1; // 1 byte for final \0
+         status = db_set_data_index(hdb, hkey, s->c_str(), size, index, TID_STRING);
+      } else {
+         char* buf = (char*)malloc(create_string_length);
+         assert(buf);
+         strlcpy(buf, s->c_str(), create_string_length);
+         status = db_set_data_index(hdb, hkey, buf, create_string_length, index, TID_STRING);
+         free(buf);
+      }
       if (status != DB_SUCCESS)
          return status;
       //printf("db_get_value_string: created with value [%s]\n", s->c_str());

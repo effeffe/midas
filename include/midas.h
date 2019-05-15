@@ -1700,6 +1700,7 @@ extern "C" {
    INT EXPRT cm_exist(const char *name, BOOL bUnique);
    INT EXPRT cm_cleanup(const char *client_name, BOOL ignore_timeout);
    INT EXPRT cm_yield(INT millisec);
+#define HAVE_CM_PERIODIC_TASKS 1
    INT EXPRT cm_periodic_tasks(void);
    INT EXPRT cm_execute(const char *command, char *result, INT buf_size);
    INT EXPRT cm_synchronize(DWORD * sec);
@@ -1782,7 +1783,8 @@ extern "C" {
    INT EXPRT db_get_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, void *data, INT * size, DWORD type, BOOL create);
 #ifdef __cplusplus
    INT EXPRT db_resize_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, int num_values, int max_string_size);
-   INT EXPRT db_get_value_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int index, std::string* s, BOOL create);
+#define HAVE_DB_GET_VALUE_STRING_CREATE_STRING_LENGTH 1
+   INT EXPRT db_get_value_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int index, std::string* s, BOOL create = FALSE, int create_string_length = 0);
    INT EXPRT db_set_value_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const std::string* s);
 #endif
    INT EXPRT db_find_key(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
