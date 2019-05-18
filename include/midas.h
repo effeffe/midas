@@ -854,8 +854,8 @@ system event IDs */
 
 /**
 fragmented events */
-#define EVENTID_FRAG1    ((unsigned short) 0xC000)      /* first fragment */
-#define EVENTID_FRAG     ((unsigned short) 0xD000)      /* added to real event-id */
+#define EVENTID_FRAG1    ((short int) 0xC000)  /* first fragment */
+#define EVENTID_FRAG     ((short int) 0xD000)  /* added to real event-id */
 
 /**
 magic number used in trigger_mask for BOR event */
