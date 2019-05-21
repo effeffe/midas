@@ -7,6 +7,11 @@
 
 \********************************************************************/
 
+#ifndef _MFE_H_
+#define _MFE_H_
+
+#include "midas.h"
+
 #ifndef NEED_NO_EXTERN_C
 #ifdef __cplusplus
 extern "C" {
@@ -99,6 +104,8 @@ void signal_readout_thread_active(int index, int flag);
 #ifdef __cplusplus
 }
 #endif
+#endif
+
 #endif
 
 /* emacs
