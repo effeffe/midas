@@ -921,13 +921,7 @@ private:
 
 /*---- CRC32C computation ------------------------------------------*/
 
-#ifndef NEED_NO_EXTERN_C
-extern "C" {
-#endif
 #include "crc32c.h"
-#ifndef NEED_NO_EXTERN_C
-}
-#endif
 
 class WriterCRC32C : public WriterInterface
 {
@@ -1043,9 +1037,7 @@ private:
 
 /*---- SHA-256 computation -----------------------------------------*/
 
-extern "C" {
 #include "sha256.h"
-}
 
 class WriterSHA256 : public WriterInterface
 {
@@ -1185,9 +1177,7 @@ private:
 
 /*---- SHA-512 computation -----------------------------------------*/
 
-extern "C" {
 #include "sha512.h"
-}
 
 class WriterSHA512 : public WriterInterface
 {

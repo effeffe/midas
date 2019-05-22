@@ -19,13 +19,7 @@
 #include "strlcpy.h"
 #endif
 
-#ifndef NEED_NO_EXTERN_C
-extern "C" {
-#endif
 #include "mgd.h"
-#ifndef NEED_NO_EXTERN_C
-}
-#endif
 #include "history.h"
 
 #ifdef HAVE_MSCB
@@ -16633,9 +16627,6 @@ static int init_allowed_hosts()
    return SUCCESS;
 }
 
-#ifndef NEED_NO_EXTERN_C
-extern "C" {
-#endif
    int check_midas_acl(const struct sockaddr *sa, int len) {
       // access control list is empty?
       if (gAllowedHosts.size() == 0)
@@ -16673,9 +16664,6 @@ extern "C" {
       printf("Rejecting http connection from \'%s\'\n", hname);
       return 0;
    }
-#ifndef NEED_NO_EXTERN_C
-}
-#endif
 
 int open_listening_socket(int port)
 {
@@ -16792,9 +16780,7 @@ int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace
 #undef MG_ENABLE_THREADS
 #endif
 // cs_md5() in not in mongoose.h
-extern "C" {
 extern void cs_md5(char buf[33], ...);
-}
 #endif
 
 static bool verbose_mg = false;
