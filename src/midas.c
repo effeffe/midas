@@ -10149,6 +10149,21 @@ INT rpc_register_function(INT id, INT(*func) (INT, void **))
    return RPC_SUCCESS;
 }
 
+/********************************************************************/
+
+static int handle_msg_odb(int n, const NET_COMMAND* nc)
+{
+   //printf("rpc_client_dispatch: MSG_ODB: packet size %d, expected %d\n", n, (int)(sizeof(NET_COMMAND_HEADER) + 4 * sizeof(INT)));
+   if (n == sizeof(NET_COMMAND_HEADER) + 4 * sizeof(INT)) {
+      /* update a changed record */
+      HNDLE hDB      = *((INT *) nc->param);
+      HNDLE hKeyRoot = *((INT *) nc->param + 1);
+      HNDLE hKey     = *((INT *) nc->param + 2);
+      int   index    = *((INT *) nc->param + 3);
+      return db_update_record(hDB, hKeyRoot, hKey, index, 0);
+   }
+   return CM_VERSION_MISMATCH;
+}
 
 /********************************************************************/
 INT rpc_client_dispatch(int sock)
@@ -10161,7 +10176,7 @@ INT rpc_client_dispatch(int sock)
 
 \********************************************************************/
 {
-   INT hDB, hKeyRoot, hKey, n, index;
+   INT n;
    NET_COMMAND *nc;
    INT status = 0;
    char net_buffer[256];
@@ -10173,13 +10188,7 @@ INT rpc_client_dispatch(int sock)
       return SS_ABORT;
 
    if (nc->header.routine_id == MSG_ODB) {
-      assert(n == sizeof(NET_COMMAND_HEADER) + 4 * sizeof(INT));
-      /* update a changed record */
-      hDB = *((INT *) nc->param);
-      hKeyRoot = *((INT *) nc->param + 1);
-      hKey = *((INT *) nc->param + 2);
-      index = *((INT *) nc->param + 3);
-      status = db_update_record(hDB, hKeyRoot, hKey, index, 0);
+      status = handle_msg_odb(n, nc);
    }
 
    else if (nc->header.routine_id == MSG_WATCHDOG) {
@@ -10211,12 +10220,7 @@ INT rpc_client_dispatch(int sock)
                return SS_ABORT;
 
             if (nc->header.routine_id == MSG_ODB) {
-               /* update a changed record */
-               hDB = *((INT *) nc->param);
-               hKeyRoot = *((INT *) nc->param + 1);
-               hKey = *((INT *) nc->param + 2);
-               index = *((INT *) nc->param + 3);
-               status = db_update_record(hDB, hKeyRoot, hKey, index, 0);
+               status = handle_msg_odb(n, nc);
             }
 
             else if (nc->header.routine_id == MSG_WATCHDOG) {
