@@ -2028,8 +2028,10 @@ Data conversion flags */
 #ifndef HAVE_STRLCPY
 #ifndef _STRLCPY_H_
 #define _STRLCPY_H_
+extern "C" {
    size_t EXPRT strlcpy(char *dst, const char *src, size_t size);
    size_t EXPRT strlcat(char *dst, const char *src, size_t size);
+}
 #endif
 #endif
 
