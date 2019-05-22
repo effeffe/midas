@@ -16,13 +16,11 @@
 #include <vector>
 
 #include "midas.h"
+#include "mfe.h"
 
 const char *frontend_name = "feudp";                     /* fe MIDAS client name */
 const char *frontend_file_name = __FILE__;               /* The frontend file name */
 
-#ifndef NEED_NO_EXTERN_C
-extern "C" {
-#endif
    BOOL frontend_call_loop = TRUE;       /* frontend_loop called periodically TRUE */
    int display_period = 0;               /* status page displayed with this freq[ms] */
    int max_event_size = 1*1024*1024;     /* max event size produced by this frontend */
@@ -39,9 +37,6 @@ extern "C" {
   int resume_run(int run, char *err);
   int frontend_loop();
   int read_event(char *pevent, INT off);
-#ifndef NEED_NO_EXTERN_C
-}
-#endif
 
 #ifndef EQ_NAME
 #define EQ_NAME "UDP"
@@ -81,7 +76,7 @@ struct Source
 
 static std::vector<Source> gSrc;
 
-static HNDLE hDB;
+//static HNDLE hDB;
 static HNDLE hKeySet; // equipment settings
 
 static int gDataSocket;

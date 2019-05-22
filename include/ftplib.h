@@ -41,11 +41,6 @@ typedef struct {
 #define ftp_open_write(ftp,file)   ftp_data(ftp,"STOR %s",file)
 #define ftp_open_append(ftp,file)  ftp_data(ftp,"APPE %s",file)
 
-/* make functions callable from a C++ program */
-#ifdef __cplusplus
-extern "C" {
-#endif
-
    int EXPRT ftp_bye(FTP_CON * con);
    int EXPRT ftp_close(FTP_CON * con);
    int EXPRT ftp_connect(FTP_CON ** con, const char *host_name, unsigned short port);
@@ -66,9 +61,5 @@ extern "C" {
    char EXPRT *ftp_pwd(FTP_CON * con);
    void EXPRT ftp_debug(int (*debug_func) (const char *message),
                         int (*error_func) (const char *message));
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // _FTPLIB_H

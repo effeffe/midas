@@ -475,13 +475,6 @@ typedef struct {
 
 /*---- Function declarations ---------------------------------------*/
 
-#ifndef NEED_NO_EXTERN_C
-/* make functions callable from a C++ program */
-#ifdef __cplusplus
-extern "C" {
-#endif
-#endif
-
    /*---- common function ----*/
    INT EXPRT cm_set_path(const char *path);
    INT EXPRT cm_get_path(char *path, int path_size);
@@ -633,12 +626,6 @@ extern "C" {
 /*---- Include RPC identifiers -------------------------------------*/
 
 #include "mrpc.h"
-
-#ifndef NEED_NO_EXTERN_C
-#ifdef __cplusplus
-}
-#endif
-#endif
 
 /* emacs
  * Local Variables:

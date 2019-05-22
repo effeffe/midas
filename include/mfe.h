@@ -12,12 +12,6 @@
 
 #include "midas.h"
 
-#ifndef NEED_NO_EXTERN_C
-#ifdef __cplusplus
-extern "C" {
-#endif
-#endif
-
 // following items must be provided to mfe.c by the user frontend
 
 extern const char *frontend_name;
@@ -99,12 +93,6 @@ void stop_readout_threads(void);
 int is_readout_thread_enabled(void);
 int is_readout_thread_active(void);
 void signal_readout_thread_active(int index, int flag);
-
-#ifndef NEED_NO_EXTERN_C
-#ifdef __cplusplus
-}
-#endif
-#endif
 
 #endif
 

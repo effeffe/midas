@@ -112,10 +112,6 @@ Display format */
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /*---- function declarations ---------------------------------------*/
-/* make functions callable from a C++ program */
-#ifdef __cplusplus
-extern "C" {
-#endif
 
   INT  mftp_open(char *destination, FTP_CON ** con);
   void EXPRT md_bank_display(void *pmbh, void *pbk, INT fmt, INT dsp_mode, INT dsp_fmt);
@@ -132,10 +128,6 @@ extern "C" {
   INT EXPRT md_event_swap(INT data_fmt, void *pevent);
   INT EXPRT md_event_get(INT data_fmt, void **pevent, DWORD * psize);
   
-#ifdef __cplusplus
-}
-#endif
-
 /*------------ END --------------------------------------------------------------*/
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
