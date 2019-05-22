@@ -216,11 +216,9 @@ typedef INT MUTEX_T;
 #endif
 #endif
 
-#ifdef __cplusplus
 #include <vector>
 #include <string>
 typedef std::vector<std::string> STRING_LIST;
-#endif
 
 /*------------------------------------------------------------------*/
 
@@ -1632,13 +1630,6 @@ Data conversion flags */
 
 /*---- Function declarations ---------------------------------------*/
 
-#ifndef NEED_NO_EXTERN_C
-/* make functions callable from a C++ program */
-#ifdef __cplusplus
-extern "C" {
-#endif
-#endif
-
 /* make functions under WinNT dll exportable */
 #if defined(OS_WINNT) && defined(MIDAS_DLL)
 #define EXPRT __declspec(dllexport)
@@ -1708,9 +1699,7 @@ extern "C" {
    INT EXPRT cm_time(DWORD * t);
    BOOL EXPRT cm_is_ctrlc_pressed(void);
    void EXPRT cm_ack_ctrlc_pressed(void);
-#ifdef __cplusplus
    INT EXPRT cm_exec_script(const char* odb_path_to_script);
-#endif
 
    INT EXPRT cm_set_msg_print(INT system_mask, INT user_mask, int (*func) (const char *));
    INT EXPRT cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) MATTRPRINTF(5,6);
@@ -1719,9 +1708,7 @@ extern "C" {
    INT EXPRT cm_msg_register(EVENT_HANDLER* func);
    INT EXPRT cm_msg_retrieve(INT n_message, char *message, INT buf_size);
    INT EXPRT cm_msg_retrieve2(const char *facility, time_t t, int min_messages, char** messages, int* num_messages);
-#ifdef __cplusplus
    INT EXPRT cm_msg_facilities(STRING_LIST *list);
-#endif
    INT EXPRT cm_msg_get_logfile(const char *facility, time_t t, char *filename, int fsize, char *linkname, int lsize);
    INT EXPRT cm_msg_open_buffer(void);
    INT EXPRT cm_msg_close_buffer(void);
@@ -1781,12 +1768,10 @@ extern "C" {
    INT EXPRT db_set_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, const void *data, INT size, INT num_values, DWORD type);
    INT EXPRT db_set_value_index(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *data, INT data_size, INT index, DWORD type, BOOL truncate);
    INT EXPRT db_get_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, void *data, INT * size, DWORD type, BOOL create);
-#ifdef __cplusplus
    INT EXPRT db_resize_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, int num_values, int max_string_size);
 #define HAVE_DB_GET_VALUE_STRING_CREATE_STRING_LENGTH 1
    INT EXPRT db_get_value_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int index, std::string* s, BOOL create = FALSE, int create_string_length = 0);
    INT EXPRT db_set_value_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const std::string* s);
-#endif
    INT EXPRT db_find_key(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
    INT EXPRT db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
    INT EXPRT db_find_key1(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
@@ -1877,6 +1862,7 @@ extern "C" {
    INT EXPRT db_update_last_activity(DWORD millitime);
 
    char EXPRT *strcomb(const char **list);
+   std::string EXPRT strcomb1(const char **list);
 
    /** @} */
 
@@ -2045,16 +2031,6 @@ extern "C" {
    size_t EXPRT strlcpy(char *dst, const char *src, size_t size);
    size_t EXPRT strlcat(char *dst, const char *src, size_t size);
 #endif
-#endif
-
-#ifndef NEED_NO_EXTERN_C
-#ifdef __cplusplus
-}
-#endif
-#endif
-
-#ifdef __cplusplus
-std::string EXPRT strcomb1(const char **list);
 #endif
 
 #endif                          /* _MIDAS_H */
