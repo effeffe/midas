@@ -21,6 +21,7 @@
 
 #include <stdio.h>
 #include "midas.h"
+#include "mfe.h"
 #include "class/hv.h"
 #include "class/multi.h"
 #include "device/nulldev.h"
@@ -29,9 +30,9 @@
 /*-- Globals -------------------------------------------------------*/
 
 /* The frontend name (client name) as seen by other MIDAS clients   */
-char *frontend_name = "SC Frontend";
+const char *frontend_name = "SC Frontend";
 /* The frontend file name, don't change it */
-char *frontend_file_name = __FILE__;
+const char *frontend_file_name = __FILE__;
 
 /* frontend_loop is called periodically if this variable is TRUE    */
 BOOL frontend_call_loop = FALSE;
@@ -109,11 +110,11 @@ EQUIPMENT equipment[] = {
 
 /*-- Dummy routines ------------------------------------------------*/
 
-INT poll_event(INT source[], INT count, BOOL test)
+INT poll_event(INT source, INT count, BOOL test)
 {
    return 1;
 };
-INT interrupt_configure(INT cmd, INT source[], POINTER_T adr)
+INT interrupt_configure(INT cmd, INT source, POINTER_T adr)
 {
    return 1;
 };

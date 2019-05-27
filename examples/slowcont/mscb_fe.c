@@ -13,9 +13,11 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
+#include <pthread.h>
 #include "mscb.h"
 #include "midas.h"
 #include "msystem.h"
+#include "mfe.h"
 #include "class/multi.h"
 #include "class/generic.h"
 #include "device/mscbdev.h"
@@ -24,9 +26,9 @@
 /*-- Globals -------------------------------------------------------*/
 
 /* The frontend name (client name) as seen by other MIDAS clients   */
-char *frontend_name = "SC Frontend";
+const char *frontend_name = "SC Frontend";
 /* The frontend file name, don't change it */
-char *frontend_file_name = __FILE__;
+const char *frontend_file_name = __FILE__;
 
 /* frontend_loop is called periodically if this variable is TRUE    */
 BOOL frontend_call_loop = TRUE;
@@ -78,11 +80,11 @@ EQUIPMENT equipment[] = {
 
 /*-- Dummy routines ------------------------------------------------*/
 
-INT poll_event(INT source[], INT count, BOOL test)
+INT poll_event(INT source, INT count, BOOL test)
 {
    return 1;
 };
-INT interrupt_configure(INT cmd, INT source[], PTYPE adr)
+INT interrupt_configure(INT cmd, INT source, PTYPE adr)
 {
    return 1;
 };

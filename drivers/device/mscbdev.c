@@ -16,6 +16,8 @@
 #include "midas.h"
 #include "mscb.h"
 
+extern void mfe_error(const char *error);
+
 /*---- globals -----------------------------------------------------*/
 
 /* MSCB node address / channel mapping */
