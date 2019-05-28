@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="midas.css">
+    <script src="controls.js"></script>
+    <script src="midas.js"></script>
+    <script src="mhttpd.js"></script>
+    <title>Clock and Reset</title>
+</head>
+<body class="mcss" onload="mhttpd_init('myPage');">
+
+<!-- header and side navigation will be filled in mhttpd_start -->
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+    <table class="mtable" cellpadding="6">
+        <tr>
+            <td style="text-align: right; width: 200px">
+                System active:
+            </td>
+            <td width="100px">
+                <input type="checkbox"
+                       name="modbcheckbox"
+                       data-odb-path="/Equipment/Clock Reset/Settings/Active" />
+            </td>
+        </tr>
+        <tr>
+            <td style="text-align: right;">
+                Delay:
+            </td>
+            <td>
+                <div name="modbvalue"
+                     data-odb-path="/Equipment/Clock Reset/Settings/Delay"
+                     data-odb-editable="1"></div>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2" style="text-align: center">
+                <button name="modbbutton" class="mbutton"
+                        data-odb-path="/Equipment/Clock Reset/Settings/Reset Trigger"
+                        data-odb-value="1">
+                    Trigger Reset
+                </button>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2" style="text-align: center">
+                <button name="modbbutton" class="mbutton"
+                        data-odb-path="/Equipment/Clock Reset/Settings/Sync Trigger"
+                        data-odb-value="1">
+                    Trigger Sync
+                </button>
+            </td>
+        </tr>
+    </table>
+</div>
+
+</body>
+</html>
