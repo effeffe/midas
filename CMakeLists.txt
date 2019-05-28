@@ -5,7 +5,7 @@
 #
 
 project(midas)
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.1)
 
 #
 # Directories
@@ -18,34 +18,48 @@ set(SYSINC_DIR ${CMAKE_SOURCE_DIR}/include)
 set(MXML_DIR ${CMAKE_SOURCE_DIR}/../mxml)
 set(MSCB_DIR ${CMAKE_SOURCE_DIR}/../mscb)
 
-#####################################################################                               
-# Nothing needs to be modified after this line                                                      
-#####################################################################                               
+#####################################################################
+# Nothing needs to be modified after this line
+#####################################################################
 
 #
 # Configurable options. Use "ccmake .." to change them.
 #
-option(USE_ROOT    "mlogger otuput and analyzer" OFF)
-option(USE_SSL     "SSL support for mhttpd" ON)
-
 option(USE_MYSQL   "mlogger begin/end of run info and history" OFF)
 option(USE_ODBC    "history ODBC logging" OFF)
 option(USE_SQLITE  "history sqlite logging" OFF)
 option(USE_MSCB    "mhttpd mscb support" OFF)
 
 #
+# Check for MIDASSYS environment variable
+#
+if (EXISTS $ENV{MIDASSYS})
+   set(MIDASSYS $ENV{MIDASSYS})
+else()
+   message(FATAL_ERROR "\nMissing definition of environment variable 'MIDASSYS'!")
+endif()
+
+#
 # Optional ROOT support for mlogger
 #
-if (USE_ROOT)
-   execute_process(COMMAND root-config --version OUTPUT_VARIABLE HAVE_ROOT)
-endif(USE_ROOT)
+execute_process(COMMAND root-config --version OUTPUT_VARIABLE HAVE_ROOT)
+if (HAVE_ROOT)
+   string(REGEX REPLACE "\n" "" HAVE_ROOT ${HAVE_ROOT})
+   message("Found ROOT version " ${HAVE_ROOT})
+   execute_process(COMMAND root-config --incdir OUTPUT_VARIABLE ROOT_INC)
+   execute_process(COMMAND root-config --libs OUTPUT_VARIABLE ROOT_LIBS)
+   string(STRIP ${ROOT_LIBS} ROOT_LIBS)
+   include_directories(${ROOT_INC})
+   add_definitions(-DHAVE_ROOT)
+endif(HAVE_ROOT)
 
 #
 # Optional SSL support for mhttpd
 #
-if (USE_SSL)
-   find_package(OpenSSL REQUIRED)
-endif(USE_SSL)
+find_package(OpenSSL)
+if (OPENSSL_FOUND)
+   message("Found OpenSSL version" ${OPENSSL_VERSION})
+endif()
 
 #
 # Optional MYSQL library for mlogger and for the history
@@ -81,10 +95,11 @@ if (USE_MSCB)
    endif()
 endif(USE_MSCB)
 
-#-----------------------                                                                            
-# Common flags                                                                                      
-#                                                                                                   
+#-----------------------
+# Common flags
+#
 add_compile_options(-Wall -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
+set(CMAKE_CXX_STANDARD 11)
 
 #-----------------------
 # Include directories
@@ -97,7 +112,7 @@ include_directories(${OPENSSL_INCLUDE_DIR})
 #
 add_definitions(-DHAVE_MONGOOSE6 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI)
 if (OPENSSL_FOUND)
-  add_definitions(-DMG_ENABLE_SSL)
+   add_definitions(-DMG_ENABLE_SSL)
 endif(OPENSSL_FOUND)
 
 #####################################################################
@@ -110,18 +125,18 @@ endif(OPENSSL_FOUND)
 if (${CMAKE_SYSTEM_NAME} MATCHES Darwin)
 endif()
 
-#-----------------------                                                                            
-# This is for Linux                                                                                 
-#                                                                                                   
+#-----------------------
+# This is for Linux
+#
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
-   # >2GB file support                                                                                 
+   # >2GB file support
    add_definitions(-D_LARGEFILE64_SOURCE)
    set(LIBS -lpthread -lutil -lrt)
 endif()
 
-#####################################################################                               
-# end of conditional code                                                                           
-#####################################################################                               
+#####################################################################
+# end of conditional code
+#####################################################################
 
 #
 # Midas Library
@@ -189,7 +204,6 @@ foreach(PROG ${UTIL_PROGS})
    target_link_libraries(${PROG} midas ${LIBS})
 endforeach()
 
-
 #
 # non-standard executables using additional source files
 #
@@ -204,3 +218,10 @@ target_link_libraries(fetest midas ${LIBS})
 
 add_executable(odbedit src/odbedit.cxx src/cmdedit.cxx)
 target_link_libraries(odbedit midas ${LIBS})
+
+target_link_libraries(mlogger ${ROOT_LIBS})
+
+#####################################################################
+# sub-projects
+#####################################################################
+add_subdirectory(examples)
