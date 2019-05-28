@@ -649,7 +649,7 @@ endif
 $(BIN_DIR)/mhttpd: $(MHTTPD_OBJS)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(MHTTPD_OBJS) $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
 
-$(BIN_DIR)/msequencer: $(BIN_DIR)/%: $(SRC_DIR)/sequencer.cxx
+$(BIN_DIR)/msequencer: $(BIN_DIR)/%: $(SRC_DIR)/msequencer.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
 $(BIN_DIR)/mh2sql: $(BIN_DIR)/%: $(UTL_DIR)/mh2sql.cxx
