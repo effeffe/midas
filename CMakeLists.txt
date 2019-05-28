@@ -116,6 +116,7 @@ endif()
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
    # >2GB file support                                                                                 
    add_definitions(-D_LARGEFILE64_SOURCE)
+   set(LIBS -lpthread -lutil -lrt)
 endif()
 
 #####################################################################                               
@@ -180,12 +181,12 @@ set(UTIL_PROGS
 
 foreach(PROG ${PROGS})
    add_executable(${PROG} src/${PROG})
-   target_link_libraries(${PROG} midas)
+   target_link_libraries(${PROG} midas ${LIBS})
 endforeach()
 
 foreach(PROG ${UTIL_PROGS})
    add_executable(${PROG} utils/${PROG})
-   target_link_libraries(${PROG} midas)
+   target_link_libraries(${PROG} midas ${LIBS})
 endforeach()
 
 
@@ -193,13 +194,13 @@ endforeach()
 # non-standard executables using additional source files
 #
 add_executable(mhttpd src/mhttpd.cxx src/mongoose6.c src/mgd.c)
-target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES})
+target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS})
 
 add_executable(feudp utils/feudp.cxx src/mfe.c)
-target_link_libraries(feudp midas)
+target_link_libraries(feudp midas ${LIBS})
 
 add_executable(fetest utils/fetest.cxx src/mfe.c)
-target_link_libraries(fetest midas)
+target_link_libraries(fetest midas ${LIBS})
 
 add_executable(odbedit src/odbedit.cxx src/cmdedit.cxx)
-target_link_libraries(odbedit midas)
+target_link_libraries(odbedit midas ${LIBS})
