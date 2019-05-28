@@ -79,6 +79,11 @@ const char *cr_settings_str[] = {
 "Delay = INT : 0",
 "Reset Trigger = BOOL : 0",
 "Sync Trigger = BOOL : 0",
+"Names CRT1 = STRING[4] :",
+"[32] Temp0",
+"[32] Temp1",
+"[32] Temp2",
+"[32] Temp3",
 NULL
 };
 
