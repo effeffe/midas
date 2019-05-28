@@ -108,8 +108,6 @@ endif(OPENSSL_FOUND)
 # MacOSC/Darwin
 #
 if (${CMAKE_SYSTEM_NAME} MATCHES Darwin)
-   add_definitions(-DOS_DARWIN -DOS_LINUX)
-   set(LIBS ${LIBS} -lpthread)
 endif()
 
 #-----------------------                                                                            
@@ -117,8 +115,7 @@ endif()
 #                                                                                                   
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
    # >2GB file support                                                                                 
-   add_definitions(-DOS_LINUX -D_LARGEFILE64_SOURCE)
-   set(LIBS ${LIBS} -lpthread -lutil -lrt -ldl)
+   add_definitions(-D_LARGEFILE64_SOURCE)
 endif()
 
 #####################################################################                               
@@ -154,7 +151,9 @@ add_library(midas STATIC
    src/sha512.c
    src/ftplib.c
    src/mdsupport.cxx
-   ${MXML_DIR}/mxml.c)
+   ${MXML_DIR}/mxml.c
+   ${MXML_DIR}/strlcpy.c
+   )
 
 #
 # Standard targets requiring only midas library
