@@ -115,33 +115,6 @@ if (OPENSSL_FOUND)
    add_definitions(-DMG_ENABLE_SSL)
 endif(OPENSSL_FOUND)
 
-#-----------------------
-# generate git revision file
-#
-find_package(Git)
-set(GIT_REVISION ${CMAKE_SOURCE_DIR}/include/git-revision.h)
-set(GIT_REVISION_TMP ${GIT_REVISION}.tmp)
-
-execute_process(COMMAND ${GIT_EXECUTABLE} log -1 --format=%ad OUTPUT_VARIABLE GIT1)
-string(REGEX REPLACE "\n|\r" "" GIT1 ${GIT1}) # strip return from end of string
-
-execute_process(COMMAND ${GIT_EXECUTABLE} describe --abbrev=8 --tags --dirty OUTPUT_VARIABLE GIT2)
-string(REGEX REPLACE "\n|\r" "" GIT2 ${GIT2})
-
-execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD OUTPUT_VARIABLE GIT3)
-string(REGEX REPLACE "\n|\r" "" GIT3 ${GIT3})
-
-string(CONCAT GIT_DEFINE "\\#define GIT_REVISION \\\"" ${GIT1} " - " ${GIT2} " on branch " ${GIT3} "\\\"")
-
-# copy temporary file to git-revision.h only if it is different
-add_custom_command(OUTPUT ${GIT_REVISION}
-   COMMAND ${CMAKE_COMMAND} -E echo ${GIT_DEFINE} > ${GIT_REVISION_TMP}
-   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${GIT_REVISION_TMP} ${GIT_REVISION}
-   COMMAND ${CMAKE_COMMAND} -E remove ${GIT_REVISION_TMP}
-   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/include/
-   COMMENT "Generating include/git-revision.h file"
-)
-
 #####################################################################
 # Conditional code for various OS'es
 #####################################################################
@@ -233,12 +206,34 @@ target_link_libraries(odbedit midas ${LIBS})
 
 target_link_libraries(mlogger ${ROOT_LIBS})
 
-#
+#####################################################################
 # Installation to bin/ directory
-#
+#####################################################################
+
 install(TARGETS ${PROGS} DESTINATION bin)
 install(TARGETS mhttpd feudp fetest odbedit mlogger DESTINATION bin)
 install(TARGETS midas LIBRARY DESTINATION lib)
+
+#####################################################################
+# generate git revision file
+#####################################################################
+
+find_package(Git)
+set(GIT_REVISION ${CMAKE_SOURCE_DIR}/include/git-revision.h)
+set(GIT_REVISION_TMP ${GIT_REVISION}.tmp)
+
+add_custom_target(git_revision_h
+   COMMAND ${CMAKE_COMMAND} -E echo_append "\\#define GIT_REVISION \\\"" > ${GIT_REVISION_TMP}
+   COMMAND ${GIT_EXECUTABLE} log -n 1 --pretty=format:"%ad" >> ${GIT_REVISION_TMP}
+   COMMAND ${CMAKE_COMMAND} -E echo_append " - " >> ${GIT_REVISION_TMP}
+   COMMAND ${GIT_EXECUTABLE} log -n 1 --pretty=format:"%h" >> ${GIT_REVISION_TMP}
+   COMMAND ${CMAKE_COMMAND} -E echo \\\" >> ${GIT_REVISION_TMP}
+   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${GIT_REVISION_TMP} ${GIT_REVISION}
+   COMMAND ${CMAKE_COMMAND} -E remove ${GIT_REVISION_TMP}
+   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/include/
+)
+
+add_dependencies(midas git_revision_h)
 
 #####################################################################
 # sub-projects
