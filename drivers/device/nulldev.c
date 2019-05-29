@@ -134,13 +134,12 @@ INT nulldev_set(NULLDEV_INFO * info, INT channel, float value)
 
 INT nulldev_get(NULLDEV_INFO * info, INT channel, float *pvalue)
 {
-   int status;
    char str[80];
 
    /* read value from channel, something like ... */
    sprintf(str, "GET %d", channel);
    BD_PUTS(str);
-   status = BD_GETS(str, sizeof(str), ">", DEFAULT_TIMEOUT);
+   BD_GETS(str, sizeof(str), ">", DEFAULT_TIMEOUT);
 
    *pvalue = (float) atof(str);
 
@@ -160,7 +159,6 @@ INT nulldev(INT cmd, ...)
    va_list argptr;
    HNDLE hKey;
    INT channel, status;
-   DWORD flags;
    float value, *pvalue;
    void *info, *bd;
 
@@ -172,7 +170,7 @@ INT nulldev(INT cmd, ...)
       hKey = va_arg(argptr, HNDLE);
       info = va_arg(argptr, void *);
       channel = va_arg(argptr, INT);
-      flags = va_arg(argptr, DWORD);
+      va_arg(argptr, DWORD);
       bd = va_arg(argptr, void *);
       status = nulldev_init(hKey, info, channel, bd);
       break;
