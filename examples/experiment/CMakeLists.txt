@@ -10,5 +10,6 @@ if (HAVE_ROOT)
       adcsum.cxx
       scaler.cxx)
 
-target_link_libraries(analyzer midas ${ROOT_LIBS} ${LIBS})
+   target_include_directories(analyzer PUBLIC ${ROOT_INC})
+   target_link_libraries(analyzer midas ${ROOT_LIBS} ${LIBS})
 endif(HAVE_ROOT)

@@ -40,7 +40,7 @@ else()
 endif()
 
 #
-# Optional ROOT support for mlogger
+# Optional ROOT support
 #
 execute_process(COMMAND root-config --version OUTPUT_VARIABLE HAVE_ROOT)
 if (HAVE_ROOT)
@@ -49,7 +49,6 @@ if (HAVE_ROOT)
    execute_process(COMMAND root-config --incdir OUTPUT_VARIABLE ROOT_INC)
    execute_process(COMMAND root-config --libs OUTPUT_VARIABLE ROOT_LIBS)
    string(STRIP ${ROOT_LIBS} ROOT_LIBS)
-   include_directories(${ROOT_INC})
    add_definitions(-DHAVE_ROOT)
 endif(HAVE_ROOT)
 
