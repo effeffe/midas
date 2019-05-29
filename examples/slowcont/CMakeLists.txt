@@ -7,9 +7,9 @@ set(DRIVERS
 )
 
 add_executable(scfe ${CMAKE_SOURCE_DIR}/src/mfe.c scfe.c ${DRIVERS} ${MSCB_DIR}/src/mscb.c)
-target_link_libraries(scfe midas)
+target_link_libraries(scfe midas ${LIBS})
 
 add_executable(mscb_fe ${CMAKE_SOURCE_DIR}/src/mfe.c mscb_fe.c ${DRIVERS} ${MSCB_DIR}/src/mscb.c)
-target_link_libraries(mscb_fe midas)
+target_link_libraries(mscb_fe midas ${LIBS})
 
 
