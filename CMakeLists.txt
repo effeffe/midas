@@ -205,6 +205,13 @@ target_link_libraries(odbedit midas ${LIBS})
 
 target_link_libraries(mlogger ${ROOT_LIBS})
 
+#
+# Installation to bin/ directory
+#
+install(TARGETS ${PROGS} DESTINATION bin)
+install(TARGETS mhttpd feudp fetest odbedit mlogger DESTINATION bin)
+install(TARGETS midas LIBRARY DESTINATION lib)
+
 #####################################################################
 # sub-projects
 #####################################################################
