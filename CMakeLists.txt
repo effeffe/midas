@@ -183,24 +183,8 @@ set(PROGS
    mtransition
    )
 
-set(UTIL_PROGS
-   mdump
-   mhist
-   mstat
-   mhdump
-   mchart
-   odbhist
-   melog
-   mh2sql
-   )
-
 foreach(PROG ${PROGS})
    add_executable(${PROG} src/${PROG})
-   target_link_libraries(${PROG} midas ${LIBS})
-endforeach()
-
-foreach(PROG ${UTIL_PROGS})
-   add_executable(${PROG} utils/${PROG})
    target_link_libraries(${PROG} midas ${LIBS})
 endforeach()
 
@@ -224,4 +208,5 @@ target_link_libraries(mlogger ${ROOT_LIBS})
 #####################################################################
 # sub-projects
 #####################################################################
+add_subdirectory(utils)
 add_subdirectory(examples)
