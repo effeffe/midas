@@ -115,6 +115,33 @@ if (OPENSSL_FOUND)
    add_definitions(-DMG_ENABLE_SSL)
 endif(OPENSSL_FOUND)
 
+#-----------------------
+# generate git revision file
+#
+find_package(Git)
+set(GIT_REVISION ${CMAKE_SOURCE_DIR}/include/git-revision.h)
+set(GIT_REVISION_TMP ${GIT_REVISION}.tmp)
+
+execute_process(COMMAND ${GIT_EXECUTABLE} log -1 --format=%ad OUTPUT_VARIABLE GIT1)
+string(REGEX REPLACE "\n|\r" "" GIT1 ${GIT1}) # strip return from end of string
+
+execute_process(COMMAND ${GIT_EXECUTABLE} describe --abbrev=8 --tags --dirty OUTPUT_VARIABLE GIT2)
+string(REGEX REPLACE "\n|\r" "" GIT2 ${GIT2})
+
+execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD OUTPUT_VARIABLE GIT3)
+string(REGEX REPLACE "\n|\r" "" GIT3 ${GIT3})
+
+string(CONCAT GIT_DEFINE "\\#define GIT_REVISION \\\"" ${GIT1} " - " ${GIT2} " on branch " ${GIT3} "\\\"")
+
+# copy temporary file to git-revision.h only if it is different
+add_custom_command(OUTPUT ${GIT_REVISION}
+   COMMAND ${CMAKE_COMMAND} -E echo ${GIT_DEFINE} > ${GIT_REVISION_TMP}
+   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${GIT_REVISION_TMP} ${GIT_REVISION}
+   COMMAND ${CMAKE_COMMAND} -E remove ${GIT_REVISION_TMP}
+   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/include/
+   COMMENT "Generating include/git-revision.h file"
+)
+
 #####################################################################
 # Conditional code for various OS'es
 #####################################################################
@@ -169,6 +196,7 @@ add_library(midas STATIC
    src/mdsupport.cxx
    ${MXML_DIR}/mxml.c
    ${MXML_DIR}/strlcpy.c
+   ${GIT_REVISION}
    )
 
 #
