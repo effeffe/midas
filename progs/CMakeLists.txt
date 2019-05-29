@@ -7,6 +7,7 @@ set(PROGS
    msequencer
    lazylogger
    mtransition
+   odbinit
 )
 
 foreach(PROG ${PROGS})
