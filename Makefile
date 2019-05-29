@@ -388,7 +388,6 @@ endif
 #
 INC_DIR  = include
 SRC_DIR  = src
-UTL_DIR  = utils
 DRV_DIR  = drivers
 EXAM_DIR = examples
 
@@ -398,7 +397,6 @@ EXAM_DIR = examples
 LIB_DIR   = lib
 BIN_DIR   = bin
 PROGS_DIR = progs
-UTILS_DIR = utils
 
 #
 # targets
@@ -652,10 +650,10 @@ $(BIN_DIR)/mhttpd: $(MHTTPD_OBJS)
 $(BIN_DIR)/msequencer: $(BIN_DIR)/%: $(PROGS_DIR)/msequencer.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
-$(BIN_DIR)/mh2sql: $(BIN_DIR)/%: $(UTL_DIR)/mh2sql.cxx
+$(BIN_DIR)/mh2sql: $(BIN_DIR)/%: $(PROGS_DIR)/mh2sql.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
 
-$(BIN_DIR)/mhist: $(BIN_DIR)/%: $(UTL_DIR)/%.cxx
+$(BIN_DIR)/mhist: $(BIN_DIR)/%: $(PROGS_DIR)/%.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
 
 $(PROGS): $(LIBNAME)
@@ -770,22 +768,22 @@ $(LIB_DIR)/mfe.o: midas.h msystem.h mfe.h
 #
 # utilities
 #
-$(BIN_DIR)/%: $(UTL_DIR)/%.c
+$(BIN_DIR)/%: $(PROGS_DIR)/%.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
-$(BIN_DIR)/%: $(UTL_DIR)/%.cxx
+$(BIN_DIR)/%: $(PROGS_DIR)/%.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
-$(BIN_DIR)/mcnaf: $(UTL_DIR)/mcnaf.c $(DRV_DIR)/camac/camacrpc.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $(UTL_DIR)/mcnaf.c $(DRV_DIR)/camac/camacrpc.c $(LIB) $(LIBS)
+$(BIN_DIR)/mcnaf: $(PROGS_DIR)/mcnaf.c $(DRV_DIR)/camac/camacrpc.c
+	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/mcnaf.c $(DRV_DIR)/camac/camacrpc.c $(LIB) $(LIBS)
 
-$(BIN_DIR)/mdump: $(UTL_DIR)/mdump.cxx $(PROGS_DIR)/mdsupport.cxx
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(UTL_DIR)/mdump.cxx $(PROGS_DIR)/mdsupport.cxx $(LIB) $(LIBS)
+$(BIN_DIR)/mdump: $(PROGS_DIR)/mdump.cxx $(PROGS_DIR)/mdsupport.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/mdump.cxx $(PROGS_DIR)/mdsupport.cxx $(LIB) $(LIBS)
 
-$(BIN_DIR)/fetest: $(UTL_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
+$(BIN_DIR)/fetest: $(PROGS_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
-$(BIN_DIR)/feudp: $(UTL_DIR)/feudp.cxx $(LIB_DIR)/mfe.o
+$(BIN_DIR)/feudp: $(PROGS_DIR)/feudp.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/crc32c: $(SRC_DIR)/crc32c.c
@@ -805,7 +803,7 @@ $(BIN_DIR)/rmana_link_test: $(SRC_DIR)/mana.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mana.cxx $(ROOTLIBS) $(LIB) $(LIBS)
 endif
 
-$(BIN_DIR)/mhdump: $(UTL_DIR)/mhdump.cxx
+$(BIN_DIR)/mhdump: $(PROGS_DIR)/mhdump.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $<
 
 $(BIN_DIR)/mtransition: $(PROGS_DIR)/mtransition.cxx
@@ -814,11 +812,11 @@ $(BIN_DIR)/mtransition: $(PROGS_DIR)/mtransition.cxx
 $(BIN_DIR)/lazylogger: $(PROGS_DIR)/lazylogger.cxx $(PROGS_DIR)/mdsupport.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $<  $(PROGS_DIR)/mdsupport.cxx $(LIB) $(LIBS)
 
-$(BIN_DIR)/dio: $(UTL_DIR)/dio.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $(UTL_DIR)/dio.c
+$(BIN_DIR)/dio: $(PROGS_DIR)/dio.c
+	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/dio.c
 
-$(BIN_DIR)/stripchart.tcl: $(UTL_DIR)/stripchart.tcl
-	cp -f $(UTL_DIR)/stripchart.tcl $(BIN_DIR)/. 
+$(BIN_DIR)/stripchart.tcl: $(PROGS_DIR)/stripchart.tcl
+	cp -f $(PROGS_DIR)/stripchart.tcl $(BIN_DIR)/. 
 
 
 #####################################################################

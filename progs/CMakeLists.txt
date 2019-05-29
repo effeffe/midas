@@ -8,6 +8,14 @@ set(PROGS
    lazylogger
    mtransition
    odbinit
+   mdump
+   mhist
+   mstat
+   mhdump
+   mchart
+   odbhist
+   melog
+   mh2sql
 )
 
 foreach(PROG ${PROGS})

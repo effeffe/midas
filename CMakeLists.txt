@@ -204,5 +204,4 @@ add_dependencies(midas git_revision_h)
 # sub-projects
 #####################################################################
 add_subdirectory(progs)
-add_subdirectory(utils)
 add_subdirectory(examples)
