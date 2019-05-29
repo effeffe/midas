@@ -92,6 +92,7 @@ endif(USE_SQLITE)
 if (USE_MSCB)
    if (EXISTS ${MSCB_DIR})
       set(HAVE_MSCB 1)
+      add_definitions(-DHAVE_MSCB)
    endif()
 endif(USE_MSCB)
 
@@ -194,7 +195,12 @@ endforeach()
 #
 # non-standard executables using additional source files
 #
+if (HAVE_MSCB)
 add_executable(mhttpd src/mhttpd.cxx src/mongoose6.c src/mgd.c ${MSCB_DIR}/src/mscb.c)
+else(HAVE_MSCB)
+add_executable(mhttpd src/mhttpd.cxx src/mongoose6.c src/mgd.c)
+endif(HAVE_MSCB)
+
 target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS})
 
 add_executable(feudp utils/feudp.cxx src/mfe.c)
