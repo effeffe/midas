@@ -1,5 +1,4 @@
 include_directories(${CMAKE_SOURCE_DIR}/include)
-include_directories(${})
 
 add_executable(frontend ${CMAKE_SOURCE_DIR}/src/mfe.c frontend.cxx)
 target_link_libraries(frontend midas)

@@ -105,6 +105,7 @@ set(CMAKE_CXX_STANDARD 11)
 # Include directories
 #
 include_directories(${SYSINC_DIR} ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include)
+include_directories(${CMAKE_SOURCE_DIR}/drivers)
 include_directories(${OPENSSL_INCLUDE_DIR})
 
 #-----------------------
@@ -192,7 +193,7 @@ endforeach()
 #
 # non-standard executables using additional source files
 #
-add_executable(mhttpd src/mhttpd.cxx src/mongoose6.c src/mgd.c)
+add_executable(mhttpd src/mhttpd.cxx src/mongoose6.c src/mgd.c ${MSCB_DIR}/src/mscb.c)
 target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS})
 
 add_executable(feudp utils/feudp.cxx src/mfe.c)
