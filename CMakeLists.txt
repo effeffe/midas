@@ -175,51 +175,6 @@ add_library(midas STATIC
    ${GIT_REVISION}
    )
 
-#
-# Standard targets requiring only midas library
-#
-set(PROGS
-   mserver
-   odbinit
-   mlogger
-   msequencer
-   lazylogger
-   mtransition
-   )
-
-foreach(PROG ${PROGS})
-   add_executable(${PROG} src/${PROG})
-   target_link_libraries(${PROG} midas ${LIBS})
-endforeach()
-
-#
-# non-standard executables using additional source files
-#
-if (HAVE_MSCB)
-add_executable(mhttpd src/mhttpd.cxx src/mongoose6.c src/mgd.c ${MSCB_DIR}/src/mscb.c)
-else(HAVE_MSCB)
-add_executable(mhttpd src/mhttpd.cxx src/mongoose6.c src/mgd.c)
-endif(HAVE_MSCB)
-
-target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS})
-
-add_executable(feudp utils/feudp.cxx src/mfe.c)
-target_link_libraries(feudp midas ${LIBS})
-
-add_executable(fetest utils/fetest.cxx src/mfe.c)
-target_link_libraries(fetest midas ${LIBS})
-
-add_executable(odbedit src/odbedit.cxx src/cmdedit.cxx)
-target_link_libraries(odbedit midas ${LIBS})
-
-target_link_libraries(mlogger ${ROOT_LIBS})
-
-#####################################################################
-# Installation to bin/ directory
-#####################################################################
-
-install(TARGETS ${PROGS} DESTINATION bin)
-install(TARGETS mhttpd feudp fetest odbedit mlogger DESTINATION bin)
 install(TARGETS midas LIBRARY DESTINATION lib)
 
 #####################################################################
@@ -246,5 +201,6 @@ add_dependencies(midas git_revision_h)
 #####################################################################
 # sub-projects
 #####################################################################
+add_subdirectory(progs)
 add_subdirectory(utils)
 add_subdirectory(examples)
