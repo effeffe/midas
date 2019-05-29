@@ -175,7 +175,9 @@ add_library(midas STATIC
    ${GIT_REVISION}
    )
 
-install(TARGETS midas LIBRARY DESTINATION lib)
+install(TARGETS midas
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib)
 
 #####################################################################
 # generate git revision file
