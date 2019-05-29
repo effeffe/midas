@@ -169,7 +169,7 @@ add_library(midas STATIC
    src/sha256.c
    src/sha512.c
    src/ftplib.c
-   src/mdsupport.cxx
+   progs/mdsupport.cxx
    ${MXML_DIR}/mxml.c
    ${MXML_DIR}/strlcpy.c
    ${GIT_REVISION}
