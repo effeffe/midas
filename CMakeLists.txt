@@ -146,6 +146,7 @@ add_library(midas STATIC
    src/midas.c
    src/midas_cxx.cxx
    src/odb.c
+   src/device_driver.c
    src/system.c
    src/alarm.c
    src/elog.c
