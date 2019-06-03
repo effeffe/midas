@@ -496,6 +496,13 @@ ALL+= $(PROGS)
 
 all: check-mxml $(GIT_REVISION) $(ALL)
 
+cmake:
+	-mkdir build
+	cd build; cmake ..; make $(MAKEFLAGS);	make install
+
+cclean:
+	-rm -rf build
+
 dox:
 	doxygen
 
