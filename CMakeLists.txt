@@ -12,11 +12,18 @@ cmake_minimum_required(VERSION 3.1)
 #
 
 # do not install under /usr/local, but under current directory
-set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
-set(SYSLIB_DIR ${CMAKE_SOURCE_DIR}/lib)
-set(SYSINC_DIR ${CMAKE_SOURCE_DIR}/include)
-set(MXML_DIR ${CMAKE_SOURCE_DIR}/../mxml)
-set(MSCB_DIR ${CMAKE_SOURCE_DIR}/../mscb)
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}" CACHE PATH "" FORCE)
+endif()
+message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
+
+set(ENV{MIDASSYS} ${CMAKE_INSTALL_PREFIX})
+
+set(SYSLIB_DIR ${PROJECT_SOURCE_DIR}/lib)
+set(SYSINC_DIR ${PROJECT_SOURCE_DIR}/include)
+set(MXML_DIR ${PROJECT_SOURCE_DIR}/../mxml)
+set(MSCB_DIR ${PROJECT_SOURCE_DIR}/../mscb)
+set(DRV_DIR ${PROJECT_SOURCE_DIR}/drivers)
 
 #####################################################################
 # Nothing needs to be modified after this line
@@ -33,7 +40,7 @@ option(USE_MSCB    "mhttpd mscb support" OFF)
 #
 # Check for MIDASSYS environment variable
 #
-if (EXISTS $ENV{MIDASSYS})
+if (DEFINED ENV{MIDASSYS})
    set(MIDASSYS $ENV{MIDASSYS})
 else()
    message(FATAL_ERROR "\nMissing definition of environment variable 'MIDASSYS'!")
@@ -49,6 +56,7 @@ if (HAVE_ROOT)
    execute_process(COMMAND root-config --incdir OUTPUT_VARIABLE ROOT_INC)
    execute_process(COMMAND root-config --libs OUTPUT_VARIABLE ROOT_LIBS)
    string(STRIP ${ROOT_LIBS} ROOT_LIBS)
+   string(REGEX REPLACE "\n$" "" ROOT_INC "${ROOT_INC}")
    add_definitions(-DHAVE_ROOT)
 endif(HAVE_ROOT)
 
@@ -102,13 +110,6 @@ add_compile_options(-Wall -Wno-strict-aliasing -Wuninitialized -Wno-unused-funct
 set(CMAKE_CXX_STANDARD 11)
 
 #-----------------------
-# Include directories
-#
-include_directories(${SYSINC_DIR} ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include)
-include_directories(${CMAKE_SOURCE_DIR}/drivers)
-include_directories(${OPENSSL_INCLUDE_DIR})
-
-#-----------------------
 # Mongoose server
 #
 add_definitions(-DHAVE_MONGOOSE6 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI)
@@ -124,6 +125,7 @@ endif(OPENSSL_FOUND)
 # MacOSC/Darwin
 #
 if (${CMAKE_SYSTEM_NAME} MATCHES Darwin)
+   add_definitions(-DOS_DARWIN)
 endif()
 
 #-----------------------
@@ -131,7 +133,7 @@ endif()
 #
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
    # >2GB file support
-   add_definitions(-D_LARGEFILE64_SOURCE)
+   add_definitions(-D_LARGEFILE64_SOURCE -DOS_LINUX)
    set(LIBS -lpthread -lutil -lrt)
 endif()
 
@@ -174,6 +176,12 @@ add_library(midas STATIC
    ${GIT_REVISION}
    )
 
+target_include_directories(midas PUBLIC ${SYSINC_DIR})
+target_include_directories(midas PRIVATE ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include)
+target_include_directories(midas PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
+target_include_directories(midas PRIVATE ${OPENSSL_INCLUDE_DIR})
+
+
 install(TARGETS midas
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
@@ -183,7 +191,7 @@ install(TARGETS midas
 #####################################################################
 
 find_package(Git)
-set(GIT_REVISION ${CMAKE_SOURCE_DIR}/include/git-revision.h)
+set(GIT_REVISION ${PROJECT_SOURCE_DIR}/include/git-revision.h)
 set(GIT_REVISION_TMP ${GIT_REVISION}.tmp)
 
 add_custom_target(git_revision_h
@@ -194,7 +202,7 @@ add_custom_target(git_revision_h
    COMMAND ${CMAKE_COMMAND} -E echo \\\" >> ${GIT_REVISION_TMP}
    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${GIT_REVISION_TMP} ${GIT_REVISION}
    COMMAND ${CMAKE_COMMAND} -E remove ${GIT_REVISION_TMP}
-   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/include/
+   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/include/
 )
 
 add_dependencies(midas git_revision_h)
