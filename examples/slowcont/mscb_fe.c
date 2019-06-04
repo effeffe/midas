@@ -91,8 +91,8 @@ INT interrupt_configure(INT cmd, INT source, PTYPE adr)
 
 /*-- Function to define MSCB variables in a convenient way ---------*/
 
-void mscb_define(char *submaster, char *equipment, char *devname, DEVICE_DRIVER *driver, 
-                 int address, unsigned char var_index, char *name, double threshold)
+void mscb_define(const char *submaster, const char *equipment, const char *devname, DEVICE_DRIVER *driver, 
+                 int address, unsigned char var_index, const char *name, double threshold)
 {
    int i, dev_index, chn_index, chn_total;
    char str[256];
