@@ -57,7 +57,7 @@ endif(HAVE_ROOT)
 #
 find_package(OpenSSL)
 if (OPENSSL_FOUND)
-   message("Found OpenSSL version" ${OPENSSL_VERSION})
+   message("Found OpenSSL version " ${OPENSSL_VERSION})
 endif()
 
 #
@@ -138,6 +138,9 @@ endif()
 #####################################################################
 # end of conditional code
 #####################################################################
+
+#file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/*.c")
+#SET_SOURCE_FILES_PROPERTIES(${CFILES} PROPERTIES LANGUAGE CXX)
 
 #
 # Midas Library
