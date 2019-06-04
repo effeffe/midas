@@ -11,9 +11,12 @@ cmake_minimum_required(VERSION 3.1)
 # Directories
 #
 
-# do not install under /usr/local, but under current directory
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-    set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}" CACHE PATH "")
+   # inherit install path from top level project
+   set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}" CACHE PATH "")
+else()
+   # in standalone mode, install under <midas>/bin
+   set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}")
 endif()
 message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
@@ -125,7 +128,6 @@ endif(OPENSSL_FOUND)
 # MacOSC/Darwin
 #
 if (${CMAKE_SYSTEM_NAME} MATCHES Darwin)
-   add_definitions(-DOS_DARWIN)
 endif()
 
 #-----------------------
@@ -133,7 +135,7 @@ endif()
 #
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
    # >2GB file support
-   add_definitions(-D_LARGEFILE64_SOURCE -DOS_LINUX)
+   add_definitions(-D_LARGEFILE64_SOURCE)
    set(LIBS -lpthread -lutil -lrt)
 endif()
 

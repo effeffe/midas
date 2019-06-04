@@ -57,17 +57,13 @@ The main include file
 #undef OS_UNIX
 #endif
 
-#if !defined(OS_LINUX)
 #if defined ( __linux__ )
 #define OS_LINUX
 #endif
-#endif
 
-#if !defined(OS_DARWIN)
 #if defined ( __APPLE__ )
 #define OS_LINUX
 #define OS_DARWIN
-#endif
 #endif
 
 #if defined(OS_LINUX) || defined(OS_OSF1) || defined(OS_ULTRIX) || defined(OS_FREEBSD) || defined(OS_SOLARIS) || defined(OS_IRIX) || defined(OS_DARWIN)
