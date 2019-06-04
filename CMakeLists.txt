@@ -20,8 +20,6 @@ else()
 endif()
 message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
-set(ENV{MIDASSYS} ${CMAKE_INSTALL_PREFIX})
-
 set(SYSLIB_DIR ${PROJECT_SOURCE_DIR}/lib)
 set(SYSINC_DIR ${PROJECT_SOURCE_DIR}/include)
 set(MXML_DIR ${PROJECT_SOURCE_DIR}/../mxml)
@@ -39,15 +37,6 @@ option(USE_MYSQL   "mlogger begin/end of run info and history" OFF)
 option(USE_ODBC    "history ODBC logging" OFF)
 option(USE_SQLITE  "history sqlite logging" OFF)
 option(USE_MSCB    "mhttpd mscb support" OFF)
-
-#
-# Check for MIDASSYS environment variable
-#
-if (DEFINED ENV{MIDASSYS})
-   set(MIDASSYS $ENV{MIDASSYS})
-else()
-   message(FATAL_ERROR "\nMissing definition of environment variable 'MIDASSYS'!")
-endif()
 
 #
 # Optional ROOT support
