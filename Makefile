@@ -500,6 +500,10 @@ cmake:
 	-mkdir build
 	cd build; cmake ..; make $(MAKEFLAGS);	make install
 
+cmake3:
+	-mkdir build
+	cd build; cmake3 ..; make $(MAKEFLAGS);	make install
+
 cclean:
 	-rm -rf build
 
