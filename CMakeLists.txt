@@ -99,7 +99,6 @@ endif(USE_MSCB)
 # Common flags
 #
 add_compile_options(-Wall -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
-set(CMAKE_CXX_STANDARD 11)
 
 #-----------------------
 # Mongoose server
