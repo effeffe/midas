@@ -74,19 +74,21 @@ INT addr_changed(HNDLE hDB, HNDLE hKey, void *arg)
 /* the init function creates a ODB record which contains the
    settings and initialized it variables as well as the bus driver */
 
-INT mscbdev_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...))
+typedef INT(func_t) (INT cmd, ...);
+
+INT mscbdev_init(HNDLE hkey, MSCBDEV_INFO **pinfo, INT channels, func_t *bd)
 {
    int i, status, size;
    HNDLE hDB, hsubkey;
    MSCBDEV_INFO *info;
 
    /* allocate info structure */
-   info = calloc(1, sizeof(MSCBDEV_INFO));
+   info = (MSCBDEV_INFO*) calloc(1, sizeof(MSCBDEV_INFO));
    *pinfo = info;
-   info->mscbdev_settings.mscb_address = calloc(channels, sizeof(INT));
-   info->mscbdev_settings.mscb_index = calloc(channels, sizeof(INT));
-   info->mscbdev_settings.var_size = calloc(channels, sizeof(INT));
-   info->mscbdev_settings.var_cache = calloc(channels, sizeof(float));
+   info->mscbdev_settings.mscb_address = (int*) calloc(channels, sizeof(INT));
+   info->mscbdev_settings.mscb_index = (unsigned char*) calloc(channels, sizeof(INT));
+   info->mscbdev_settings.var_size = (int*) calloc(channels, sizeof(INT));
+   info->mscbdev_settings.var_cache = (float*) calloc(channels, sizeof(float));
    for (i = 0; i < channels; i++)
       info->mscbdev_settings.var_cache[i] = (float) ss_nan();
 
@@ -317,29 +319,29 @@ INT mscbdev(INT cmd, ...)
    HNDLE hKey;
    INT channel, status;
    float value, *pvalue;
-   void *info, *bd;
+   MSCBDEV_INFO *info;
    char *name;
 
    va_start(argptr, cmd);
    status = FE_SUCCESS;
 
    switch (cmd) {
-   case CMD_INIT:
+   case CMD_INIT: {
       hKey = va_arg(argptr, HNDLE);
-      info = va_arg(argptr, void *);
+      MSCBDEV_INFO **pinfo = va_arg(argptr, MSCBDEV_INFO**);
       channel = va_arg(argptr, INT);
       va_arg(argptr, DWORD);
-      bd = va_arg(argptr, void *);
-      status = mscbdev_init(hKey, info, channel, bd);
+      func_t* bd = va_arg(argptr, func_t *);
+      status = mscbdev_init(hKey, pinfo, channel, bd);
       break;
-
+   }
    case CMD_EXIT:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBDEV_INFO *);
       status = mscbdev_exit(info);
       break;
 
    case CMD_SET:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBDEV_INFO *);
       channel = va_arg(argptr, INT);
       value = (float) va_arg(argptr, double);   // floats are passed as double
       status = mscbdev_set(info, channel, value);
@@ -347,14 +349,14 @@ INT mscbdev(INT cmd, ...)
 
    case CMD_GET:
    case CMD_GET_DEMAND:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBDEV_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
       status = mscbdev_get(info, channel, pvalue);
       break;
 
    case CMD_GET_LABEL:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBDEV_INFO *);
       channel = va_arg(argptr, INT);
       name = va_arg(argptr, char *);
       status = mscbdev_get_label(info, channel, name);

@@ -194,14 +194,14 @@ int null_gets(NULL_INFO * info, char *str, int size, char *pattern, int timeout)
 
 /*----------------------------------------------------------------------------*/
 
-int null_init(HNDLE hkey, void **pinfo)
+int null_init(HNDLE hkey, NULL_INFO **pinfo)
 {
    HNDLE hDB, hkeybd;
    INT size, status;
    NULL_INFO *info;
 
    /* allocate info structure */
-   info = calloc(1, sizeof(NULL_INFO));
+   info = (NULL_INFO*) calloc(1, sizeof(NULL_INFO));
    *pinfo = info;
 
    cm_get_experiment_database(&hDB, NULL);
@@ -231,39 +231,39 @@ INT null(INT cmd, ...)
    va_list argptr;
    HNDLE hkey;
    INT status, size, timeout;
-   void *info;
+   NULL_INFO *info;
    char *str, *pattern;
 
    va_start(argptr, cmd);
    status = FE_SUCCESS;
 
    switch (cmd) {
-   case CMD_INIT:
+   case CMD_INIT: {
       hkey = va_arg(argptr, HNDLE);
-      info = va_arg(argptr, void *);
-      status = null_init(hkey, info);
+      NULL_INFO **pinfo = va_arg(argptr, NULL_INFO **);
+      status = null_init(hkey, pinfo);
       break;
-
+   }
    case CMD_EXIT:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, NULL_INFO *);
       status = null_exit(info);
       break;
 
    case CMD_NAME:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, NULL_INFO *);
       str = va_arg(argptr, char *);
       strcpy(str, "null");
       break;
 
    case CMD_WRITE:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, NULL_INFO *);
       str = va_arg(argptr, char *);
       size = va_arg(argptr, int);
       status = null_write(info, str, size);
       break;
 
    case CMD_READ:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, NULL_INFO *);
       str = va_arg(argptr, char *);
       size = va_arg(argptr, INT);
       timeout = va_arg(argptr, INT);
@@ -271,13 +271,13 @@ INT null(INT cmd, ...)
       break;
 
    case CMD_PUTS:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, NULL_INFO *);
       str = va_arg(argptr, char *);
       status = null_puts(info, str);
       break;
 
    case CMD_GETS:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, NULL_INFO *);
       str = va_arg(argptr, char *);
       size = va_arg(argptr, INT);
       pattern = va_arg(argptr, char *);
