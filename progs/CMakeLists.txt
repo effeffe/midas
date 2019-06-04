@@ -39,6 +39,13 @@ else(HAVE_MSCB)
    target_include_directories(mhttpd PRIVATE ${OPENSSL_INCLUDE_DIR})
 endif(HAVE_MSCB)
 
+# mongoose flags
+# mongoose flags
+target_compile_options(mhttpd PRIVATE -DHAVE_MONGOOSE6 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI)
+if (OPENSSL_FOUND)
+   target_compile_options(mhttpd PRIVATE -DMG_ENABLE_SSL)
+endif(OPENSSL_FOUND)
+
 target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS})
 
 add_executable(odbedit odbedit.cxx cmdedit.cxx)
