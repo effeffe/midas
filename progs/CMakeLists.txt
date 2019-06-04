@@ -57,4 +57,4 @@ target_link_libraries(mlogger ${ROOT_LIBS})
 #
 # Installation
 #
-install(TARGETS ${PROGS} mhttpd odbedit mlogger DESTINATION bin)
+install(TARGETS ${PROGS} mhttpd odbedit DESTINATION bin)
