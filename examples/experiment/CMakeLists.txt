@@ -1,7 +1,4 @@
-
-
 add_executable(frontend ${PROJECT_SOURCE_DIR}/src/mfe.c frontend.cxx)
-target_include_directories(frontend PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_include_directories(frontend PRIVATE ${DRV_DIR} ${MXML_DIR})
 target_link_libraries(frontend midas ${LIBS})
 

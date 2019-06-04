@@ -8,12 +8,10 @@ set(DRIVERS
 
 add_executable(scfe ${PROJECT_SOURCE_DIR}/src/mfe.c scfe.c ${DRIVERS} ${MSCB_DIR}/src/mscb.c)
 target_include_directories(scfe PRIVATE ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include)
-target_include_directories(mhttpd PRIVATE ${SYSINC_DIR})
 target_link_libraries(scfe midas ${LIBS})
 
 add_executable(mscb_fe ${PROJECT_SOURCE_DIR}/src/mfe.c mscb_fe.c ${DRIVERS} ${MSCB_DIR}/src/mscb.c)
 target_include_directories(mscb_fe PRIVATE ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include )
-target_include_directories(mscb_fe PRIVATE ${SYSINC_DIR})
 target_link_libraries(mscb_fe midas ${LIBS})
 
 
