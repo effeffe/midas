@@ -163,11 +163,11 @@ target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
 # midas include is public so all programs linking to libmidas will inherit this
 target_include_directories(midas PUBLIC ${SYSINC_DIR})
 
-install(TARGETS midas
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
+# library for mfe.o
+add_library(mfe src/mfe.c)
+target_include_directories(mfe PUBLIC ${SYSINC_DIR})
 
-install(TARGETS midas-shared
+install(TARGETS midas midas-shared mfe
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 

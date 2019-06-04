@@ -5,19 +5,18 @@ set(DRIVERS
     ${PROJECT_SOURCE_DIR}/drivers/bus/null.c
 )
 
-add_executable(scfe ${PROJECT_SOURCE_DIR}/src/mfe.c scfe.c ${DRIVERS})
+add_executable(scfe scfe.c ${DRIVERS})
 target_include_directories(scfe PRIVATE ${DRV_DIR} ${MXML_DIR})
-target_link_libraries(scfe midas ${LIBS})
+target_link_libraries(scfe midas mfe ${LIBS})
 
 if (HAVE_MSCB)
 add_executable(mscb_fe
-        ${PROJECT_SOURCE_DIR}/src/mfe.c
         mscb_fe.c
         ${DRIVERS}
         ${PROJECT_SOURCE_DIR}/drivers/device/mscbdev.c
         ${MSCB_DIR}/src/mscb.c)
 
 target_include_directories(mscb_fe PRIVATE ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include )
-target_link_libraries(mscb_fe midas ${LIBS})
+target_link_libraries(mscb_fe midas mfe ${LIBS})
 endif(HAVE_MSCB)
 
