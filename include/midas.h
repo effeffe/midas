@@ -45,7 +45,9 @@ The main include file
 #endif
 
 #if defined( _MSC_VER )
+#ifndef OS_WINNT
 #define OS_WINNT
+#endif
 #endif
 
 #if defined( __MSDOS__ )
@@ -53,17 +55,23 @@ The main include file
 #endif
 
 #if defined ( vxw )
+#ifndef OS_VXWORKS
 #define OS_VXWORKS
 #undef OS_UNIX
 #endif
+#endif
 
 #if defined ( __linux__ )
+#ifndef OS_LINUX
 #define OS_LINUX
+#endif
 #endif
 
 #if defined ( __APPLE__ )
+#ifndef OS_DARWIN
 #define OS_LINUX
 #define OS_DARWIN
+#endif
 #endif
 
 #if defined(OS_LINUX) || defined(OS_OSF1) || defined(OS_ULTRIX) || defined(OS_FREEBSD) || defined(OS_SOLARIS) || defined(OS_IRIX) || defined(OS_DARWIN)
