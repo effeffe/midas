@@ -101,14 +101,6 @@ endif(USE_MSCB)
 #
 add_compile_options(-Wall -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
 
-#-----------------------
-# Mongoose server
-#
-add_definitions(-DHAVE_MONGOOSE6 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI)
-if (OPENSSL_FOUND)
-   add_definitions(-DMG_ENABLE_SSL)
-endif(OPENSSL_FOUND)
-
 #####################################################################
 # Conditional code for various OS'es
 #####################################################################
@@ -138,7 +130,7 @@ endif()
 #
 # Midas Library
 #
-add_library(midas STATIC 
+set(libsrc
    src/midas.c
    src/midas_cxx.cxx
    src/odb.c
@@ -170,13 +162,29 @@ add_library(midas STATIC
    ${GIT_REVISION}
    )
 
-target_include_directories(midas PUBLIC ${SYSINC_DIR})
-target_include_directories(midas PRIVATE ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include)
-target_include_directories(midas PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
-target_include_directories(midas PRIVATE ${OPENSSL_INCLUDE_DIR})
+# this is the "object library" target: compiles the sources only once
+add_library(objlib OBJECT ${libsrc})
 
+# shared libraries need PIC
+set_property(TARGET objlib PROPERTY POSITION_INDEPENDENT_CODE 1)
+
+# shared and static libraries build from the same object files
+add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
+add_library(midas_shared SHARED $<TARGET_OBJECTS:objlib>)
+
+target_include_directories(objlib PUBLIC ${SYSINC_DIR})
+target_include_directories(objlib PRIVATE ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include)
+target_include_directories(objlib PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
+target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
+
+# midas include is public so all programs linking to libmidas will inherit this
+target_include_directories(midas PUBLIC ${SYSINC_DIR})
 
 install(TARGETS midas
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib)
+
+install(TARGETS midas_shared
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
@@ -199,7 +207,7 @@ add_custom_target(git_revision_h
    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/include/
 )
 
-add_dependencies(midas git_revision_h)
+add_dependencies(objlib git_revision_h)
 
 #####################################################################
 # sub-projects
