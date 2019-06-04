@@ -31,15 +31,14 @@ endforeach()
 #
 if (HAVE_MSCB)
    add_executable(mhttpd mhttpd.cxx mongoose6.c mgd.c ${MSCB_DIR}/src/mscb.c)
-   target_include_directories(mhttpd PRIVATE ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include)
-   target_include_directories(mhttpd PRIVATE ${OPENSSL_INCLUDE_DIR})
+   target_compile_options(mhttpd PRIVATE -DHAVE_MSCB)
+   target_include_directories(mhttpd PRIVATE ${MSCB_DIR}/include)
 else(HAVE_MSCB)
    add_executable(mhttpd mhttpd.cxx mongoose6.c mgd.c)
-   target_include_directories(mhttpd PRIVATE ${DRV_DIR} ${MXML_DIR})
-   target_include_directories(mhttpd PRIVATE ${OPENSSL_INCLUDE_DIR})
 endif(HAVE_MSCB)
+target_include_directories(mhttpd PRIVATE ${DRV_DIR} ${MXML_DIR})
+target_include_directories(mhttpd PRIVATE ${OPENSSL_INCLUDE_DIR})
 
-# mongoose flags
 # mongoose flags
 target_compile_options(mhttpd PRIVATE -DHAVE_MONGOOSE6 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI)
 if (OPENSSL_FOUND)

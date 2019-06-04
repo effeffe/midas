@@ -31,11 +31,6 @@ set(DRV_DIR ${PROJECT_SOURCE_DIR}/drivers)
 #####################################################################
 
 #
-# Configurable options. Use "ccmake .." to change them.
-#
-option(USE_MSCB    "mhttpd mscb support" OFF)
-
-#
 # Optional ROOT support
 #
 execute_process(COMMAND root-config --version OUTPUT_VARIABLE HAVE_ROOT)
@@ -80,12 +75,9 @@ endif()
 #
 # Indicator that MSCB is available
 #
-if (USE_MSCB)
-   if (EXISTS ${MSCB_DIR})
-      set(HAVE_MSCB 1)
-      add_definitions(-DHAVE_MSCB)
-   endif()
-endif(USE_MSCB)
+if (EXISTS ${MSCB_DIR})
+   set(HAVE_MSCB 1)
+endif()
 
 #-----------------------
 # Common flags
@@ -161,7 +153,7 @@ set_property(TARGET objlib PROPERTY POSITION_INDEPENDENT_CODE 1)
 
 # shared and static libraries build from the same object files
 add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
-add_library(midas_shared SHARED $<TARGET_OBJECTS:objlib>)
+add_library(midas-shared SHARED $<TARGET_OBJECTS:objlib>)
 
 target_include_directories(objlib PUBLIC ${SYSINC_DIR})
 target_include_directories(objlib PRIVATE ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include)
@@ -175,7 +167,7 @@ install(TARGETS midas
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
-install(TARGETS midas_shared
+install(TARGETS midas-shared
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
