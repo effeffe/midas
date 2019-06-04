@@ -33,9 +33,6 @@ set(DRV_DIR ${PROJECT_SOURCE_DIR}/drivers)
 #
 # Configurable options. Use "ccmake .." to change them.
 #
-option(USE_MYSQL   "mlogger begin/end of run info and history" OFF)
-option(USE_ODBC    "history ODBC logging" OFF)
-option(USE_SQLITE  "history sqlite logging" OFF)
 option(USE_MSCB    "mhttpd mscb support" OFF)
 
 #
@@ -62,29 +59,23 @@ if (OPENSSL_FOUND)
 endif()
 
 #
-# Optional MYSQL library for mlogger and for the history
+# Check for MYSQL library for mlogger and for the history
 #
-if (USE_MYSQL)
-   execute_process(COMMAND mysql_config --version OUTPUT_VARIABLE HAVE_MYSQL)
-endif(USE_MYSQL)
+execute_process(COMMAND mysql_config --version OUTPUT_VARIABLE HAVE_MYSQL)
 
 #
-# Optional ODBC history support
+# Check for ODBC for history support
 #
-if (USE_ODBC)
-   if (EXISTS /usr/include/sql.h)
-      set(HAVE_ODBC 1)
-   endif()
-endif(USE_ODBC)
+if (EXISTS /usr/include/sql.h)
+   set(HAVE_ODBC 1)
+endif()
 
 #
-# Optional SQLITE history support
+# Check for SQLITE for history support
 #
-if (USE_SQLITE)
-   if (EXISTS /usr/include/sqlite3.h)
-      set(HAVE_SQLITE 1)
-   endif()
-endif(USE_SQLITE)
+if (EXISTS /usr/include/sqlite3.h)
+   set(HAVE_SQLITE 1)
+endif()
 
 #
 # Indicator that MSCB is available
