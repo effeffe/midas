@@ -1770,7 +1770,7 @@ INT bor(INT run_number, char *error)
 #else
                strcpy(error,
                       ".gz extension not possible because zlib support is not compiled in.\n");
-               cm_msg(MERROR, "bor", error);
+               cm_msg(MERROR, "bor", "%s", error);
                return 0;
 #endif
             }

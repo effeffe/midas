@@ -67,8 +67,8 @@ LDFLAGS =
 
 all: scfe mscb_fe
 
-scfe:  $(LIB) $(LIB_DIR)/mfe.o frontend.o $(DRIVERS)
-	$(CC) -o scfe frontend.o $(LIB_DIR)/mfe.o $(DRIVERS) $(LIB) $(LDFLAGS) $(LIBS)
+scfe:  $(LIB) $(LIB_DIR)/mfe.o scfe.o $(DRIVERS)
+	$(CC) -o scfe scfe.o $(LIB_DIR)/mfe.o $(DRIVERS) $(LIB) $(LDFLAGS) $(LIBS)
 
 mscb_fe:  $(LIB) $(LIB_DIR)/mfe.o mscb_fe.o $(DRIVERS)
 	$(CC) -o mscb_fe mscb_fe.o $(LIB_DIR)/mfe.o $(DRIVERS) $(LIB) $(LDFLAGS) $(LIBS)

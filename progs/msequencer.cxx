@@ -1,11 +1,9 @@
 /********************************************************************\
 
-  Name:         sequencer.cxx
+  Name:         msequencer.cxx
   Created by:   Stefan Ritt
 
   Contents:     MIDAS sequencer engine
-
-  $Id: alarm.c 5212 2011-10-10 15:55:23Z ritt $
 
 \********************************************************************/
 

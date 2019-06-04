@@ -382,15 +382,15 @@ endif
 #
 INC_DIR  = include
 SRC_DIR  = src
-UTL_DIR  = utils
 DRV_DIR  = drivers
 EXAM_DIR = examples
 
 #
 # Midas operating system dependent directories
 #
-LIB_DIR  = $(OS_DIR)/lib
-BIN_DIR  = $(OS_DIR)/bin
+LIB_DIR   = lib
+BIN_DIR   = bin
+PROGS_DIR = progs
 
 #
 # targets
@@ -447,13 +447,13 @@ ANALYZER += $(LIB_DIR)/rmana.o
 endif
 
 OBJS = \
-   $(LIB_DIR)/midas.o \
-   $(LIB_DIR)/midas_cxx.o \
-   $(LIB_DIR)/system.o \
-   $(LIB_DIR)/mrpc.o \
+	$(LIB_DIR)/midas.o \
+	$(LIB_DIR)/midas_cxx.o \
+	$(LIB_DIR)/system.o \
+	$(LIB_DIR)/mrpc.o \
 	$(LIB_DIR)/odb.o \
 	$(LIB_DIR)/device_driver.o \
-   $(LIB_DIR)/ftplib.o \
+	$(LIB_DIR)/ftplib.o \
 	$(LIB_DIR)/crc32c.o \
 	$(LIB_DIR)/sha256.o \
 	$(LIB_DIR)/sha512.o \
@@ -466,8 +466,8 @@ OBJS = \
 	$(LIB_DIR)/history_schema.o \
 	$(LIB_DIR)/lz4.o $(LIB_DIR)/lz4frame.o $(LIB_DIR)/lz4hc.o $(LIB_DIR)/xxhash.o \
 	$(LIB_DIR)/history.o \
-   $(LIB_DIR)/alarm.o \
-   $(LIB_DIR)/elog.o
+	$(LIB_DIR)/alarm.o \
+	$(LIB_DIR)/elog.o
 
 ifdef NEED_STRLCPY
 OBJS += $(LIB_DIR)/strlcpy.o
@@ -482,13 +482,24 @@ endif
 VPATH = $(LIB_DIR):$(INC_DIR)
 
 ALL:=
-ALL+= $(OS_DIR) $(LIB_DIR) $(BIN_DIR)
+ALL+= $(LIB_DIR) $(BIN_DIR)
 ALL+= $(LIBNAME) $(SHLIB)
 ALL+= $(ANALYZER)
 ALL+= $(LIB_DIR)/mfe.o
 ALL+= $(PROGS)
 
 all: check-mxml $(GIT_REVISION) $(ALL)
+
+cmake:
+	-mkdir build
+	cd build; cmake ..; make $(MAKEFLAGS);	make install
+
+cmake3:
+	-mkdir build
+	cd build; cmake3 ..; make $(MAKEFLAGS);	make install
+
+cclean:
+	-rm -rf build
 
 dox:
 	doxygen
@@ -534,12 +545,6 @@ examples: $(EXAMPLES)
 # create library and binary directories
 #
 
-$(OS_DIR):
-	@if [ ! -d  $(OS_DIR) ] ; then \
-           echo "Making directory $(OS_DIR)" ; \
-           mkdir $(OS_DIR); \
-        fi;
-
 $(LIB_DIR):
 	@if [ ! -d  $(LIB_DIR) ] ; then \
            echo "Making directory $(LIB_DIR)" ; \
@@ -555,7 +560,7 @@ $(BIN_DIR):
 #
 # put current GIT revision into header file to be included by programs
 #
-$(GIT_REVISION): $(SRC_DIR)/midas.c $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.c $(SRC_DIR)/system.c $(SRC_DIR)/mhttpd.cxx $(INC_DIR)/midas.h
+$(GIT_REVISION): $(SRC_DIR)/midas.c $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.c $(SRC_DIR)/system.c $(PROGS_DIR)/mhttpd.cxx $(INC_DIR)/midas.h
 	echo \#define GIT_REVISION \"`git log -1 --format="%ad"` - `git describe --abbrev=8 --tags --dirty` on branch `git rev-parse --abbrev-ref HEAD`\" > $(GIT_REVISION)-new
 	rsync --checksum $(GIT_REVISION)-new $(GIT_REVISION) # only update git-revision.h and update it's timestamp if it's contents have changed
 	-/bin/rm -f $(GIT_REVISION)-new
@@ -599,21 +604,21 @@ ifdef HAVE_MSCB
 CFLAGS     += -DHAVE_MSCB
 endif
 
-$(BIN_DIR)/mlogger: $(BIN_DIR)/%: $(SRC_DIR)/%.cxx
+$(BIN_DIR)/mlogger: $(BIN_DIR)/%: $(PROGS_DIR)/%.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
 
 ifdef HAVE_ROOT
-$(BIN_DIR)/rmlogger: $(BIN_DIR)/%: $(SRC_DIR)/mlogger.cxx
+$(BIN_DIR)/rmlogger: $(BIN_DIR)/%: $(PROGS_DIR)/mlogger.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -o $@ $< $(LIB) $(ROOTLIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
 endif
 
 $(BIN_DIR)/%:$(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
-$(BIN_DIR)/odbedit: $(SRC_DIR)/odbedit.cxx $(SRC_DIR)/cmdedit.cxx
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(SRC_DIR)/odbedit.cxx $(SRC_DIR)/cmdedit.cxx $(LIB) $(LIBS)
+$(BIN_DIR)/odbedit: $(PROGS_DIR)/odbedit.cxx $(PROGS_DIR)/cmdedit.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/odbedit.cxx $(PROGS_DIR)/cmdedit.cxx $(LIB) $(LIBS)
 
-$(BIN_DIR)/odbinit: $(BIN_DIR)/%: $(SRC_DIR)/%.cxx
+$(BIN_DIR)/odbinit: $(BIN_DIR)/%: $(PROGS_DIR)/%.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
 MHTTPD_OBJS=
@@ -640,16 +645,20 @@ endif
 #CFLAGS      += -DMG_ENABLE_SSL
 #endif
 
+$(LIB_DIR)/mongoose6.o: $(PROGS_DIR)/mongoose6.c $(INC_DIR)/mongoose6.h 
+	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
+$(LIB_DIR)/mgd.o: $(PROGS_DIR)/mgd.c $(INC_DIR)/mgd.h 
+	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 $(BIN_DIR)/mhttpd: $(MHTTPD_OBJS)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(MHTTPD_OBJS) $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
 
-$(BIN_DIR)/msequencer: $(BIN_DIR)/%: $(SRC_DIR)/sequencer.cxx
+$(BIN_DIR)/msequencer: $(BIN_DIR)/%: $(PROGS_DIR)/msequencer.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
-$(BIN_DIR)/mh2sql: $(BIN_DIR)/%: $(UTL_DIR)/mh2sql.cxx
+$(BIN_DIR)/mh2sql: $(BIN_DIR)/%: $(PROGS_DIR)/mh2sql.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
 
-$(BIN_DIR)/mhist: $(BIN_DIR)/%: $(UTL_DIR)/%.cxx
+$(BIN_DIR)/mhist: $(BIN_DIR)/%: $(PROGS_DIR)/%.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
 
 $(PROGS): $(LIBNAME)
@@ -728,7 +737,7 @@ endif
 # library objects
 #
 
-$(LIB_DIR)/mhttpd.o: $(LIB_DIR)/%.o: $(SRC_DIR)/%.cxx
+$(LIB_DIR)/mhttpd.o: $(LIB_DIR)/%.o: $(PROGS_DIR)/%.cxx
 	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 
 $(LIB_DIR)/%.o:$(SRC_DIR)/%.c
@@ -764,22 +773,22 @@ $(LIB_DIR)/mfe.o: midas.h msystem.h mfe.h
 #
 # utilities
 #
-$(BIN_DIR)/%: $(UTL_DIR)/%.c
+$(BIN_DIR)/%: $(PROGS_DIR)/%.c
 	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
-$(BIN_DIR)/%: $(UTL_DIR)/%.cxx
+$(BIN_DIR)/%: $(PROGS_DIR)/%.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
-$(BIN_DIR)/mcnaf: $(UTL_DIR)/mcnaf.c $(DRV_DIR)/camac/camacrpc.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $(UTL_DIR)/mcnaf.c $(DRV_DIR)/camac/camacrpc.c $(LIB) $(LIBS)
+$(BIN_DIR)/mcnaf: $(PROGS_DIR)/mcnaf.c $(DRV_DIR)/camac/camacrpc.c
+	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/mcnaf.c $(DRV_DIR)/camac/camacrpc.c $(LIB) $(LIBS)
 
-$(BIN_DIR)/mdump: $(UTL_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(UTL_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx $(LIB) $(LIBS)
+$(BIN_DIR)/mdump: $(PROGS_DIR)/mdump.cxx $(PROGS_DIR)/mdsupport.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/mdump.cxx $(PROGS_DIR)/mdsupport.cxx $(LIB) $(LIBS)
 
-$(BIN_DIR)/fetest: $(UTL_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
+$(BIN_DIR)/fetest: $(PROGS_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
-$(BIN_DIR)/feudp: $(UTL_DIR)/feudp.cxx $(LIB_DIR)/mfe.o
+$(BIN_DIR)/feudp: $(PROGS_DIR)/feudp.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/crc32c: $(SRC_DIR)/crc32c.c
@@ -799,20 +808,20 @@ $(BIN_DIR)/rmana_link_test: $(SRC_DIR)/mana.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -DLINK_TEST -o $@ $(SRC_DIR)/mana.cxx $(ROOTLIBS) $(LIB) $(LIBS)
 endif
 
-$(BIN_DIR)/mhdump: $(UTL_DIR)/mhdump.cxx
+$(BIN_DIR)/mhdump: $(PROGS_DIR)/mhdump.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $<
 
-$(BIN_DIR)/mtransition: $(SRC_DIR)/mtransition.cxx
+$(BIN_DIR)/mtransition: $(PROGS_DIR)/mtransition.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
-$(BIN_DIR)/lazylogger: $(SRC_DIR)/lazylogger.cxx $(SRC_DIR)/mdsupport.cxx
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $<  $(SRC_DIR)/mdsupport.cxx $(LIB) $(LIBS)
+$(BIN_DIR)/lazylogger: $(PROGS_DIR)/lazylogger.cxx $(PROGS_DIR)/mdsupport.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $<  $(PROGS_DIR)/mdsupport.cxx $(LIB) $(LIBS)
 
-$(BIN_DIR)/dio: $(UTL_DIR)/dio.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $(UTL_DIR)/dio.c
+$(BIN_DIR)/dio: $(PROGS_DIR)/dio.c
+	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/dio.c
 
-$(BIN_DIR)/stripchart.tcl: $(UTL_DIR)/stripchart.tcl
-	cp -f $(UTL_DIR)/stripchart.tcl $(BIN_DIR)/. 
+$(BIN_DIR)/stripchart.tcl: $(PROGS_DIR)/stripchart.tcl
+	cp -f $(PROGS_DIR)/stripchart.tcl $(BIN_DIR)/. 
 
 
 #####################################################################
@@ -926,7 +935,6 @@ clean:
 	-rm -vf $(BIN_DIR)/*
 
 mrproper : clean
-	rm -rf $(OS_DIR)
 	rm -rf vxworks/68kobj vxworks/ppcobj
 
 check-mxml :
