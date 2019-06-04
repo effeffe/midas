@@ -50,6 +50,7 @@ if (HAVE_ROOT)
    string(STRIP ${ROOT_LIBS} ROOT_LIBS)
    string(REGEX REPLACE "\n$" "" ROOT_INC "${ROOT_INC}")
    add_definitions(-DHAVE_ROOT)
+   set(CMAKE_CXX_STANDARD 11)
 endif(HAVE_ROOT)
 
 #
