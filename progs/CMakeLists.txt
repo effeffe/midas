@@ -23,6 +23,12 @@ foreach(PROG ${PROGS})
    target_link_libraries(${PROG} midas ${LIBS})
 endforeach()
 
+#
+# Build C files with C++
+#
+
+file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/*.c")
+SET_SOURCE_FILES_PROPERTIES(${CFILES} PROPERTIES LANGUAGE CXX)
 
 #
 # non-standard executables using additional source files

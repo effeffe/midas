@@ -139,8 +139,8 @@ endif()
 # end of conditional code
 #####################################################################
 
-#file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/*.c")
-#SET_SOURCE_FILES_PROPERTIES(${CFILES} PROPERTIES LANGUAGE CXX)
+file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/*.c")
+SET_SOURCE_FILES_PROPERTIES(${CFILES} PROPERTIES LANGUAGE CXX)
 
 #
 # Midas Library
