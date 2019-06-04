@@ -1,13 +1,16 @@
 set(DRIVERS
-   ${MIDASSYS}/drivers/class/hv.c
-   ${MIDASSYS}/drivers/class/multi.c
-   ${MIDASSYS}/drivers/device/nulldev.c
-   ${MIDASSYS}/drivers/device/mscbdev.c
-   ${MIDASSYS}/drivers/bus/null.c
+   ../../drivers/class/hv.c
+   ../../drivers/class/multi.c
+   ../../drivers/device/nulldev.c
+   ../../drivers/device/mscbdev.c
+   ../../drivers/bus/null.c
 )
+
+# $(CMAKE_SOURCE_DIR)/../../drivers/class/hv.c
 
 file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/*.c")
 SET_SOURCE_FILES_PROPERTIES(${CFILES} PROPERTIES LANGUAGE CXX)
+SET_SOURCE_FILES_PROPERTIES(${DRIVERS} PROPERTIES LANGUAGE CXX)
 
 add_executable(scfe ${CMAKE_SOURCE_DIR}/src/mfe.c scfe.c ${DRIVERS} ${MSCB_DIR}/src/mscb.c)
 target_link_libraries(scfe midas ${LIBS})
