@@ -12,3 +12,5 @@ git-revision.h
 ssl_cert.csr
 ssl_cert.key
 ssl_cert.pem
+*~
+set_env.sh

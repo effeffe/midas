@@ -1,10 +1,12 @@
-include_directories(${CMAKE_SOURCE_DIR}/include)
 
-add_executable(frontend ${CMAKE_SOURCE_DIR}/src/mfe.c frontend.cxx)
+
+add_executable(frontend ${PROJECT_SOURCE_DIR}/src/mfe.c frontend.cxx)
+target_include_directories(frontend PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(frontend PRIVATE ${DRV_DIR} ${MXML_DIR})
 target_link_libraries(frontend midas ${LIBS})
 
 if (HAVE_ROOT)
-   add_executable(analyzer ${CMAKE_SOURCE_DIR}/src/mana.cxx
+   add_executable(analyzer ${PROJECT_SOURCE_DIR}/src/mana.cxx
       analyzer.cxx
       adccalib.cxx
       adcsum.cxx
