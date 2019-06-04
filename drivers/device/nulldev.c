@@ -50,17 +50,19 @@ typedef struct {
 
 /*---- device driver routines --------------------------------------*/
 
+typedef INT(func_t) (INT cmd, ...);
+
 /* the init function creates a ODB record which contains the
    settings and initialized it variables as well as the bus driver */
 
-INT nulldev_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...))
+INT nulldev_init(HNDLE hkey, NULLDEV_INFO **pinfo, INT channels, func_t *bd)
 {
    int status, size;
    HNDLE hDB, hkeydd;
    NULLDEV_INFO *info;
 
    /* allocate info structure */
-   info = calloc(1, sizeof(NULLDEV_INFO));
+   info = (NULLDEV_INFO*) calloc(1, sizeof(NULLDEV_INFO));
    *pinfo = info;
 
    cm_get_experiment_database(&hDB, NULL);
@@ -76,7 +78,7 @@ INT nulldev_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
 
    /* initialize driver */
    info->num_channels = channels;
-   info->array = calloc(channels, sizeof(float));
+   info->array = (float*) calloc(channels, sizeof(float));
    info->bd = bd;
    info->hkey = hkey;
 
@@ -160,35 +162,36 @@ INT nulldev(INT cmd, ...)
    HNDLE hKey;
    INT channel, status;
    float value, *pvalue;
-   void *info, *bd;
+   NULLDEV_INFO *info;
+   void *bd;
 
    va_start(argptr, cmd);
    status = FE_SUCCESS;
 
    switch (cmd) {
-   case CMD_INIT:
+   case CMD_INIT: {
       hKey = va_arg(argptr, HNDLE);
-      info = va_arg(argptr, void *);
+      NULLDEV_INFO** pinfo = va_arg(argptr, NULLDEV_INFO **);
       channel = va_arg(argptr, INT);
       va_arg(argptr, DWORD);
-      bd = va_arg(argptr, void *);
-      status = nulldev_init(hKey, info, channel, bd);
+      func_t *bd = va_arg(argptr, func_t *);
+      status = nulldev_init(hKey, pinfo, channel, bd);
       break;
-
+   }
    case CMD_EXIT:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, NULLDEV_INFO *);
       status = nulldev_exit(info);
       break;
 
    case CMD_SET:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, NULLDEV_INFO *);
       channel = va_arg(argptr, INT);
       value = (float) va_arg(argptr, double);   // floats are passed as double
       status = nulldev_set(info, channel, value);
       break;
 
    case CMD_GET:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, NULLDEV_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
       status = nulldev_get(info, channel, pvalue);

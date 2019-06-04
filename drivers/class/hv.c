@@ -548,7 +548,7 @@ void hv_set_chState(INT hDB, INT hKey, void *info)
 
 /*------------------------------------------------------------------*/
    
-void validate_odb_array(HNDLE hDB, HV_INFO *hv_info, char *path, double default_value, int cmd, 
+void validate_odb_array(HNDLE hDB, HV_INFO *hv_info, const char *path, double default_value, int cmd, 
                         float *array, void (*callback)(INT,INT,void *) ,EQUIPMENT *pequipment)
 {
    int i;
@@ -568,7 +568,7 @@ void validate_odb_array(HNDLE hDB, HV_INFO *hv_info, char *path, double default_
                   callback, pequipment);
 }
 
-void validate_odb_array_bool(HNDLE hDB, HV_INFO *hv_info, char *path, double default_value, int cmd,
+void validate_odb_array_bool(HNDLE hDB, HV_INFO *hv_info, const char *path, double default_value, int cmd,
                         DWORD *array, void (*callback)(INT,INT,void *) ,EQUIPMENT *pequipment)
 {
    int i;
@@ -588,7 +588,7 @@ void validate_odb_array_bool(HNDLE hDB, HV_INFO *hv_info, char *path, double def
                   callback, pequipment);
 }
 
-void validate_odb_int(HNDLE hDB, HV_INFO *hv_info, char *path, double default_value, int cmd,
+void validate_odb_int(HNDLE hDB, HV_INFO *hv_info, const char *path, double default_value, int cmd,
                         int *target, void (*callback)(INT,INT,void *) ,EQUIPMENT *pequipment)
 {
    int i;
@@ -679,9 +679,9 @@ INT hv_init(EQUIPMENT * pequipment)
    hv_info->temperature_mirror = (float *) calloc(hv_info->num_channels, sizeof(float));
    hv_info->last_change = (DWORD *) calloc(hv_info->num_channels, sizeof(DWORD));
 
-   hv_info->dd_info = (void *) calloc(hv_info->num_channels, sizeof(void *));
+   hv_info->dd_info = (void **) calloc(hv_info->num_channels, sizeof(void *));
    hv_info->channel_offset = (INT *) calloc(hv_info->num_channels, sizeof(INT));
-   hv_info->driver = (void *) calloc(hv_info->num_channels, sizeof(void *));
+   hv_info->driver = (DEVICE_DRIVER **) calloc(hv_info->num_channels, sizeof(void *));
 
    if (!hv_info->driver) {
       cm_msg(MERROR, "hv_init", "Not enough memory");

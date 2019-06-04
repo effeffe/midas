@@ -274,7 +274,7 @@ INT multi_init(EQUIPMENT * pequipment)
       m_info->factor_input = (float *) calloc(m_info->num_channels_input, sizeof(float));
       m_info->input_mirror = (float *) calloc(m_info->num_channels_input, sizeof(float));
       m_info->channel_offset_input = (INT *) calloc(m_info->num_channels_input, sizeof(INT));
-      m_info->driver_input = (void *) calloc(m_info->num_channels_input, sizeof(void *));
+      m_info->driver_input = (DEVICE_DRIVER **) calloc(m_info->num_channels_input, sizeof(void *));
    }
    
    if (m_info->num_channels_output) {
@@ -284,7 +284,7 @@ INT multi_init(EQUIPMENT * pequipment)
       m_info->factor_output = (float *) calloc(m_info->num_channels_output, sizeof(float));
       m_info->output_mirror = (float *) calloc(m_info->num_channels_output, sizeof(float));
       m_info->channel_offset_output = (INT *) calloc(m_info->num_channels_output, sizeof(DWORD));
-      m_info->driver_output = (void *) calloc(m_info->num_channels_output, sizeof(void *));
+      m_info->driver_output = (DEVICE_DRIVER **) calloc(m_info->num_channels_output, sizeof(void *));
    }
  
    /*---- Create/Read settings ----*/
