@@ -11,33 +11,26 @@ cmake_minimum_required(VERSION 3.1)
 # Directories
 #
 
-# do not install under /usr/local, but under current directory
+#if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+#   # in standalone mode, install under <midas>/bin
+#   set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}" CACHE PATH "")
+#else()
+#  # there is an user choice or a higher level project specifying the install path
+#endif()
+
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
-set(SYSLIB_DIR ${CMAKE_SOURCE_DIR}/lib)
-set(SYSINC_DIR ${CMAKE_SOURCE_DIR}/include)
-set(MXML_DIR ${CMAKE_SOURCE_DIR}/../mxml)
-set(MSCB_DIR ${CMAKE_SOURCE_DIR}/../mscb)
+
+message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
+
+set(SYSLIB_DIR ${PROJECT_SOURCE_DIR}/lib)
+set(SYSINC_DIR ${PROJECT_SOURCE_DIR}/include)
+set(MXML_DIR ${PROJECT_SOURCE_DIR}/../mxml)
+set(MSCB_DIR ${PROJECT_SOURCE_DIR}/../mscb)
+set(DRV_DIR ${PROJECT_SOURCE_DIR}/drivers)
 
 #####################################################################
 # Nothing needs to be modified after this line
 #####################################################################
-
-#
-# Configurable options. Use "ccmake .." to change them.
-#
-option(USE_MYSQL   "mlogger begin/end of run info and history" OFF)
-option(USE_ODBC    "history ODBC logging" OFF)
-option(USE_SQLITE  "history sqlite logging" OFF)
-option(USE_MSCB    "mhttpd mscb support" OFF)
-
-#
-# Check for MIDASSYS environment variable
-#
-if (EXISTS $ENV{MIDASSYS})
-   set(MIDASSYS $ENV{MIDASSYS})
-else()
-   message(FATAL_ERROR "\nMissing definition of environment variable 'MIDASSYS'!")
-endif()
 
 #
 # Optional ROOT support
@@ -49,7 +42,9 @@ if (HAVE_ROOT)
    execute_process(COMMAND root-config --incdir OUTPUT_VARIABLE ROOT_INC)
    execute_process(COMMAND root-config --libs OUTPUT_VARIABLE ROOT_LIBS)
    string(STRIP ${ROOT_LIBS} ROOT_LIBS)
+   string(REGEX REPLACE "\n$" "" ROOT_INC "${ROOT_INC}")
    add_definitions(-DHAVE_ROOT)
+   set(CMAKE_CXX_STANDARD 11)
 endif(HAVE_ROOT)
 
 #
@@ -61,60 +56,36 @@ if (OPENSSL_FOUND)
 endif()
 
 #
-# Optional MYSQL library for mlogger and for the history
+# Check for MYSQL library for mlogger and for the history
 #
-if (USE_MYSQL)
-   execute_process(COMMAND mysql_config --version OUTPUT_VARIABLE HAVE_MYSQL)
-endif(USE_MYSQL)
+execute_process(COMMAND mysql_config --version OUTPUT_VARIABLE HAVE_MYSQL)
 
 #
-# Optional ODBC history support
+# Check for ODBC for history support
 #
-if (USE_ODBC)
-   if (EXISTS /usr/include/sql.h)
-      set(HAVE_ODBC 1)
-   endif()
-endif(USE_ODBC)
+if (EXISTS /usr/include/sql.h)
+   set(HAVE_ODBC 1)
+endif()
 
 #
-# Optional SQLITE history support
+# Check for SQLITE for history support
 #
-if (USE_SQLITE)
-   if (EXISTS /usr/include/sqlite3.h)
-      set(HAVE_SQLITE 1)
-   endif()
-endif(USE_SQLITE)
+if (EXISTS /usr/include/sqlite3.h)
+   set(HAVE_SQLITE 1)
+endif()
 
 #
 # Indicator that MSCB is available
 #
-if (USE_MSCB)
-   if (EXISTS ${MSCB_DIR})
-      set(HAVE_MSCB 1)
-      add_definitions(-DHAVE_MSCB)
-   endif()
-endif(USE_MSCB)
+if (EXISTS ${MSCB_DIR})
+   set(HAVE_MSCB 1)
+   message(STATUS "MSCB found")
+endif()
 
 #-----------------------
 # Common flags
 #
 add_compile_options(-Wall -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
-set(CMAKE_CXX_STANDARD 11)
-
-#-----------------------
-# Include directories
-#
-include_directories(${SYSINC_DIR} ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include)
-include_directories(${CMAKE_SOURCE_DIR}/drivers)
-include_directories(${OPENSSL_INCLUDE_DIR})
-
-#-----------------------
-# Mongoose server
-#
-add_definitions(-DHAVE_MONGOOSE6 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI)
-if (OPENSSL_FOUND)
-   add_definitions(-DMG_ENABLE_SSL)
-endif(OPENSSL_FOUND)
 
 #####################################################################
 # Conditional code for various OS'es
@@ -145,7 +116,7 @@ SET_SOURCE_FILES_PROPERTIES(${CFILES} PROPERTIES LANGUAGE CXX)
 #
 # Midas Library
 #
-add_library(midas STATIC 
+set(libsrc
    src/midas.c
    src/midas_cxx.cxx
    src/odb.c
@@ -177,7 +148,31 @@ add_library(midas STATIC
    ${GIT_REVISION}
    )
 
-install(TARGETS midas
+# this is the "object library" target: compiles the sources only once
+add_library(objlib OBJECT ${libsrc})
+
+# shared libraries need PIC
+set_property(TARGET objlib PROPERTY POSITION_INDEPENDENT_CODE 1)
+
+# shared and static libraries build from the same object files
+add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
+add_library(midas-shared SHARED $<TARGET_OBJECTS:objlib>)
+
+target_include_directories(objlib PUBLIC ${SYSINC_DIR})
+target_include_directories(objlib PRIVATE ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include)
+target_include_directories(objlib PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
+target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
+
+# midas include is public so all programs linking to libmidas will inherit this
+target_include_directories(midas PUBLIC ${SYSINC_DIR})
+
+# library for mfe.o
+add_library(mfe src/mfe.c)
+target_include_directories(mfe PUBLIC ${SYSINC_DIR})
+target_include_directories(mfe PRIVATE ${MXML_DIR})
+
+
+install(TARGETS midas midas-shared mfe
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
@@ -186,21 +181,23 @@ install(TARGETS midas
 #####################################################################
 
 find_package(Git)
-set(GIT_REVISION ${CMAKE_SOURCE_DIR}/include/git-revision.h)
+set(GIT_REVISION ${PROJECT_SOURCE_DIR}/include/git-revision.h)
 set(GIT_REVISION_TMP ${GIT_REVISION}.tmp)
 
 add_custom_target(git_revision_h
    COMMAND ${CMAKE_COMMAND} -E echo_append "\\#define GIT_REVISION \\\"" > ${GIT_REVISION_TMP}
    COMMAND ${GIT_EXECUTABLE} log -n 1 --pretty=format:"%ad" >> ${GIT_REVISION_TMP}
    COMMAND ${CMAKE_COMMAND} -E echo_append " - " >> ${GIT_REVISION_TMP}
-   COMMAND ${GIT_EXECUTABLE} log -n 1 --pretty=format:"%h" >> ${GIT_REVISION_TMP}
+   COMMAND ${GIT_EXECUTABLE} describe --abbrev=8 --tags --dirty | tr -d '\\n' >> ${GIT_REVISION_TMP}
+   COMMAND ${CMAKE_COMMAND} -E echo_append " on branch " >> ${GIT_REVISION_TMP}
+   COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD  | tr -d '\\n' >> ${GIT_REVISION_TMP}
    COMMAND ${CMAKE_COMMAND} -E echo \\\" >> ${GIT_REVISION_TMP}
    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${GIT_REVISION_TMP} ${GIT_REVISION}
    COMMAND ${CMAKE_COMMAND} -E remove ${GIT_REVISION_TMP}
-   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/include/
+   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/include/
 )
 
-add_dependencies(midas git_revision_h)
+add_dependencies(objlib git_revision_h)
 
 #####################################################################
 # sub-projects
