@@ -98,7 +98,7 @@ static const char *tid_name[] = {
    "LINK"
 };
 
-struct {
+static struct {
    int transition;
    char name[32];
 } trans_name[] = {
@@ -12833,7 +12833,7 @@ int recv_event_server_realloc(INT idx, char **pbuffer, int *pbuffer_size)
    }
 
    /* abort if connection broken */
-   if (hrd != header_size) {
+   if (hrd != (int)header_size) {
       cm_msg(MERROR, "recv_event_server", "recv_tcp2(header) returned %d instead of %d", hrd, (int)header_size);
       return -1;
    }

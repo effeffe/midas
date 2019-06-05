@@ -1230,12 +1230,12 @@ INT ss_shm_flush(const char *name, const void *adr, size_t size, HNDLE handle)
 #endif                          /* LOCAL_ROUTINES */
 
 /*------------------------------------------------------------------*/
-struct {
+static struct {
    char c;
    double d;
 } test_align;
 
-struct {
+static struct {
    double d;
    char c;
 } test_padding;
