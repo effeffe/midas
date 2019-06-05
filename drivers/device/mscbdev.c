@@ -203,7 +203,6 @@ INT mscbdev_read_all(MSCBDEV_INFO * info)
    int i, j, status, i_start, i_stop, v_start, v_stop, addr, size;
    unsigned char buffer[256], *pbuf;
    static DWORD last_error = 0;
-   char str[256];
 
    /* find consecutive ranges in variables */
    v_start = v_stop = 0;
@@ -230,6 +229,7 @@ INT mscbdev_read_all(MSCBDEV_INFO * info)
             /* only produce error once every minute */
             if (ss_time() - last_error >= 60) {
                last_error = ss_time();
+               char str[512];
                sprintf(str, "Read error submaster %s address %d", info->mscbdev_settings.mscb_device, addr);
                mfe_error(str);
             }
