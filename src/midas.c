@@ -1099,9 +1099,7 @@ static int cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char** mes
 {
    BOOL stop;
    int fh;
-   unsigned int size;
-   INT i, n;
-   char *p, *buffer, str[1000];
+   char *p, str[1000];
    struct stat stat_buf;
    struct tm tms;
    time_t tstamp, tstamp_valid, tstamp_last;
@@ -1116,28 +1114,28 @@ static int cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char** mes
 
    /* read whole file into memory */
    fstat(fh, &stat_buf);
-   size = stat_buf.st_size;
+   ssize_t size = stat_buf.st_size;
    
    /* if file is too big, only read tail of file */
-   int maxsize = 10*1024*1024;
+   ssize_t maxsize = 10*1024*1024;
    if (size > maxsize) {
       lseek(fh, -maxsize, SEEK_END);
       //printf("lseek status %d, errno %d (%s)\n", status, errno, strerror(errno));
       size = maxsize;
    }
    
-   buffer = (char *) malloc(size + 1);
+   char* buffer = (char *) malloc(size + 1);
 
    if (buffer == NULL) {
-      cm_msg(MERROR, "cm_msg_retrieve1", "Cannot malloc %d bytes to read log file \"%s\", errno %d (%s)", size, filename, errno, strerror(errno));
+      cm_msg(MERROR, "cm_msg_retrieve1", "Cannot malloc %d bytes to read log file \"%s\", errno %d (%s)", (int)size, filename, errno, strerror(errno));
       close(fh);
       return SS_FILE_ERROR;
    }
 
-   i = read(fh, buffer, size);
+   ssize_t rd = read(fh, buffer, size);
 
-   if (i != size) {
-      cm_msg(MERROR, "cm_msg_retrieve1", "Cannot read %d bytes from log file \"%s\", read() returned %d, errno %d (%s)", size, filename, i, errno, strerror(errno));
+   if (rd != size) {
+      cm_msg(MERROR, "cm_msg_retrieve1", "Cannot read %d bytes from log file \"%s\", read() returned %d, errno %d (%s)", (int)size, filename, (int)rd, errno, strerror(errno));
       close(fh);
       return SS_FILE_ERROR;
    }
@@ -1151,14 +1149,17 @@ static int cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char** mes
    
    while (*p == '\n' || *p == '\r')
       p--;
+
+   int n;
    for (n=0 ; !stop && p>buffer ; ) {
       
       /* go to beginning of line */
+      int i;
       for (i=0 ; p != buffer && (*p != '\n' && *p != '\r') ; i++)
          p--;
       
       /* limit line length to sizeof(str) */
-      if (i >= sizeof(str))
+      if (i >= (int)sizeof(str))
          i = sizeof(str)-1;
       
       if (p == buffer) {
@@ -1334,7 +1335,8 @@ INT cm_msg_retrieve(INT n_message, char *message, INT buf_size)
 
    if (messages) {
       strlcpy(message, messages, buf_size);
-      if (strlen(messages) > buf_size)
+      int len = strlen(messages);
+      if (len > buf_size)
          status = CM_TRUNCATED;
       free(messages);
    }
@@ -5524,7 +5526,7 @@ static BOOL bm_validate_rp(const char* who, const BUFFER_HEADER* pheader, int rp
       return FALSE;
    }
 
-   if (rp + sizeof(EVENT_HEADER) > pheader->size) {
+   if ((rp + (int)sizeof(EVENT_HEADER)) > pheader->size) {
       // note ">" here, has to match bm_incr_rp() and bm_write_to_buffer()
       cm_msg(MERROR, "bm_validate_rp",
              "error: buffer \"%s\" is corrupted: rp %d plus event header point beyond the end of buffer by %d bytes. buffer read_pointer %d, write_pointer %d, size %d, called from %s",
@@ -5546,7 +5548,7 @@ static int bm_incr_rp_no_check(const BUFFER_HEADER* pheader, int rp, int total_s
    rp += total_size;
    if (rp >= pheader->size) {
       rp -= pheader->size;
-   } else if (rp + sizeof(EVENT_HEADER) > pheader->size) {
+   } else if ((rp + (int)sizeof(EVENT_HEADER)) > pheader->size) {
       // note: ">" here to match bm_write_to_buffer_locked() and bm_validate_rp().
       // if at the end of the buffer, the remaining free space is exactly
       // equal to the size of an event header, the event header
@@ -8344,7 +8346,7 @@ static void bm_write_to_buffer_locked(BUFFER_HEADER* pheader, const void* pevent
       pheader->write_pointer = pheader->write_pointer + total_size;
       assert(pheader->write_pointer <= pheader->size);
       /* remaining space is smaller than size of an event header? */
-      if (pheader->write_pointer + sizeof(EVENT_HEADER) > pheader->size) {
+      if ((pheader->write_pointer + (int)sizeof(EVENT_HEADER)) > pheader->size) {
          // note: ">" here to match "bm_incr_rp". If remaining space is exactly
          // equal to the event header size, we will write the next event header here,
          // then wrap the pointer and write the event data at the beginning of the buffer.
@@ -8716,7 +8718,7 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag)
                 total_size);
 #endif
 
-         assert(total_size >= sizeof(EVENT_HEADER));
+         assert(total_size >= (int)sizeof(EVENT_HEADER));
          assert(total_size <= pheader->size);
 
          bm_write_to_buffer_locked(pheader, pevent, event_size, total_size);
@@ -11582,7 +11584,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
    /* find rpc_index */
 
    for (i = 0;; i++)
-      if (rpc_list[i].id == routine_id || rpc_list[i].id == 0)
+      if ((rpc_list[i].id == (int)routine_id) || (rpc_list[i].id == 0))
          break;
 
    int rpc_index = i;
@@ -11892,7 +11894,7 @@ INT rpc_call(DWORD routine_id, ...)
    }
 
    for (i = 0;; i++)
-      if (rpc_list[i].id == routine_id || rpc_list[i].id == 0)
+      if ((rpc_list[i].id == (int)routine_id) || (rpc_list[i].id == 0))
          break;
    idx = i;
    if (rpc_list[i].id == 0) {
@@ -12648,7 +12650,7 @@ static int recv_net_command_realloc(INT idx, char **pbuf, int* pbufsize, INT * r
          //printf("recv_net_command: param_size %d, NET_COMMAND_HEADER %d, buffer_size %d\n", param_size, (int)sizeof(NET_COMMAND_HEADER), *pbufsize);
 
          /* check if parameters fit in buffer */
-         if (*pbufsize < param_size + sizeof(NET_COMMAND_HEADER)) {
+         if (*pbufsize < (param_size + (int)sizeof(NET_COMMAND_HEADER))) {
             int new_size = param_size + sizeof(NET_COMMAND_HEADER) + 1024;
             char* p = (char*)realloc(*pbuf, new_size);
             //printf("recv_net_command: reallocate buffer %d -> %d, %p\n", *pbufsize, new_size, p);
@@ -12792,7 +12794,7 @@ int recv_event_server_realloc(INT idx, char **pbuffer, int *pbuffer_size)
 
    //printf("recv_event_server: idx %d, buffer %p, buffer_size %d\n", idx, buffer, buffer_size);
 
-   const DWORD header_size = (sizeof(EVENT_HEADER) + sizeof(INT));
+   const size_t header_size = (sizeof(EVENT_HEADER) + sizeof(INT));
 
    char header_buf[header_size];
 
@@ -12818,7 +12820,7 @@ int recv_event_server_realloc(INT idx, char **pbuffer, int *pbuffer_size)
       return -1;
    }
 
-   if (hrd < header_size) {
+   if (hrd < (int)header_size) {
       int hrd1 = recv_tcp2(sock, header_buf + hrd, header_size - hrd, 0);
 
       /* abort if connection broken */
@@ -12832,7 +12834,7 @@ int recv_event_server_realloc(INT idx, char **pbuffer, int *pbuffer_size)
 
    /* abort if connection broken */
    if (hrd != header_size) {
-      cm_msg(MERROR, "recv_event_server", "recv_tcp2(header) returned %d instead of %d", hrd, header_size);
+      cm_msg(MERROR, "recv_event_server", "recv_tcp2(header) returned %d instead of %d", hrd, (int)header_size);
       return -1;
    }
 
