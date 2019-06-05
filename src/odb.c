@@ -2805,7 +2805,7 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
       db_allow_write_locked(&_database[hDB-1], "db_create_key");
 
       if (pkey->type != TID_KEY) {
-         int xtid = pkey->type;
+         DWORD xtid = pkey->type;
          db_unlock_database(hDB);
          char str[MAX_ODB_PATH];
          db_get_path(hDB, hKey, str, sizeof(str));
@@ -2992,7 +2992,7 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
             }
 
             if (!(*pkey_name == '/')) {
-               int xtid = pkey->type;
+               DWORD xtid = pkey->type;
                db_unlock_database(hDB);
 
                if (xtid != type) {
@@ -3299,7 +3299,7 @@ static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const 
 
    if (pkey->type < 1 || pkey->type >= TID_LAST) {
       *subhKey = 0;
-      int xtid = pkey->type;
+      DWORD xtid = pkey->type;
       if (hKey_is_root_key) {
          db_msg(msg, MERROR, "db_find_key", "root_key hkey %d invalid key type %d, database root directory is corrupted", hKey, xtid);
          return DB_CORRUPTED;
@@ -3313,7 +3313,7 @@ static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const 
    }
 
    if (pkey->type != TID_KEY) {
-      int xtid = pkey->type;
+      DWORD xtid = pkey->type;
       char str[MAX_ODB_PATH];
       db_get_path_locked(pheader, hKey, str, sizeof(str));
       *subhKey = 0;
@@ -9295,8 +9295,7 @@ static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buf
       strlcpy(link_name, link.name, sizeof(link_name));
 
       if (flags & JSFLAG_LOWERCASE) {
-         int i;
-         for (i=0; i<sizeof(link.name) && link.name[i]; i++)
+         for (int i=0; (i<(int)sizeof(link.name)) && link.name[i]; i++)
             link_name[i] = tolower(link.name[i]);
       }
 
@@ -10574,7 +10573,7 @@ static int db_parse_record(const char* rec_str, const char** out_rec_str, char* 
    // extract type id
    char stid[256];
    int i;
-   for (i=0; i<sizeof(stid)-1; i++) {
+   for (i=0; i<(int)sizeof(stid)-1; i++) {
       char s = *rec_str;
       if (s == 0)    break;
       if (s == ' ')  break;
@@ -10585,7 +10584,7 @@ static int db_parse_record(const char* rec_str, const char** out_rec_str, char* 
    }
    stid[i] = 0;
 
-   int xtid = 0;
+   DWORD xtid = 0;
    for (xtid = 0; xtid < TID_LAST; xtid++) {
       if (strcmp(rpc_tid_name(xtid), stid) == 0) {
          *tid = xtid;
@@ -11217,10 +11216,11 @@ INT db_notify_clients_array(HNDLE hDB, HNDLE hKeys[], INT size)
    
 #ifdef LOCAL_ROUTINES
    {
-      int i;
       db_lock_database(hDB);
-      for (i=0 ; i<size/sizeof(INT); i++)
+      int count = size/sizeof(INT);
+      for (int i=0 ; i<count; i++) {
          db_notify_clients(hDB, hKeys[i], -1, TRUE);
+      }
       db_unlock_database(hDB);
    }
 #endif
