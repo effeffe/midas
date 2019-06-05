@@ -4,6 +4,7 @@
 set(PROGS
    mserver
    mlogger
+#  rmlogger
    msequencer
    lazylogger
    mtransition
@@ -56,8 +57,9 @@ target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS})
 add_executable(odbedit odbedit.cxx cmdedit.cxx)
 target_include_directories(odbedit PRIVATE ${DRV_DIR} ${MXML_DIR})
 target_link_libraries(odbedit midas ${LIBS})
-target_include_directories(mlogger PUBLIC ${ROOT_INC})
-target_link_libraries(mlogger ${ROOT_LIBS})
+remove_definitions(-DHAVE_ROOT)
+#target_include_directories(rmlogger PUBLIC ${ROOT_INC})
+#target_link_libraries(rmlogger ${ROOT_LIBS})
 
 #
 # Installation
