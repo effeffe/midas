@@ -12,11 +12,10 @@ cmake_minimum_required(VERSION 3.1)
 #
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-   # inherit install path from top level project
+   # in standalone mode, install under <midas>/bin
    set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}" CACHE PATH "")
 else()
-   # in standalone mode, install under <midas>/bin
-   set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}")
+  # there is an user choice or a higher level project specifying the install path
 endif()
 message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
@@ -77,6 +76,7 @@ endif()
 #
 if (EXISTS ${MSCB_DIR})
    set(HAVE_MSCB 1)
+   message(STATUS "MSCB found")
 endif()
 
 #-----------------------
@@ -166,6 +166,8 @@ target_include_directories(midas PUBLIC ${SYSINC_DIR})
 # library for mfe.o
 add_library(mfe src/mfe.c)
 target_include_directories(mfe PUBLIC ${SYSINC_DIR})
+target_include_directories(mfe PRIVATE ${MXML_DIR})
+
 
 install(TARGETS midas midas-shared mfe
         LIBRARY DESTINATION lib
