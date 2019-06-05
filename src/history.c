@@ -158,7 +158,7 @@ INT hs_gen_index(DWORD ltime)
    do {
       n = read(fh, (char *) &rec, sizeof(rec));
       //printf("read %d\n", n);
-      if (n < sizeof(rec))
+      if (n < (int)sizeof(rec))
          break;
 
       /* check if record type is definition */
@@ -660,7 +660,8 @@ INT hs_write_event(DWORD event_id, const void *data, DWORD size)
    /* write index record */
    lseek(_history[index].index_fh, 0, SEEK_END);
    last_pos_index = TELL(_history[index].index_fh);
-   if (write(_history[index].index_fh, (char *) &irec, sizeof(irec)) < sizeof(irec)) {
+   int size_of_irec = sizeof(irec);
+   if (write(_history[index].index_fh, (char *) &irec, size_of_irec) < size_of_irec) {
       /* disk maybe full? Do a roll-back! */
       lseek(_history[index].hist_fh, last_pos_data, SEEK_SET);
       TRUNCATE(_history[index].hist_fh);
@@ -739,7 +740,7 @@ INT hs_enum_events(DWORD ltime, char *event_name, DWORD * name_size, INT event_i
 
       /* new entry found */
       if (i == n) {
-         if (i * NAME_LENGTH > (INT) * name_size || i * sizeof(INT) > (INT) * id_size) {
+         if (((i * NAME_LENGTH) > ((INT) * name_size)) || ((i * sizeof(INT)) > (*id_size))) {
             cm_msg(MERROR, "hs_enum_events", "index buffer too small");
             close(fh);
             close(fhd);
@@ -1281,7 +1282,7 @@ INT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int* 
    *tags = (TAG*) malloc(rec.data_size);
 
    status = read(fh, (char *) (*tags), rec.data_size);
-   assert(status == rec.data_size);
+   assert(status == (int)rec.data_size);
 
    close(fh);
    close(fhd);
@@ -1987,7 +1988,7 @@ INT hs_fdump(const char *file_name, DWORD id, BOOL binary_time)
    /* loop over file records in .hst file */
    do {
       n = read(fh, (char *) &rec, sizeof(rec));
-      if (n < sizeof(rec))
+      if (n < (int)sizeof(rec))
          break;
 
       /* check if record type is definition */

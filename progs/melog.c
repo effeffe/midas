@@ -404,7 +404,7 @@ int main(int argc, char *argv[])
       size = lseek(fh, 0, SEEK_END);
       lseek(fh, 0, SEEK_SET);
 
-      if (size > sizeof(text) - 1) {
+      if (size > (int)sizeof(text) - 1) {
          printf("Message file \"%s\" is too long (%d bytes max).\n", textfile,
                 (int)sizeof(text));
          return 0;

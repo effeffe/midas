@@ -145,7 +145,8 @@ INT mchart_get_names(HNDLE hDB, char *eqpstr, char *element, char **pname, INT *
    p = eqpstr;
    for (i = 0; i < 128; i++)
       strtmp[i] = 0;
-   for (i=0 ; i<strlen(eqpstr) ; i++)
+   int len_eqpstr = strlen(eqpstr);
+   for (i=0 ; i<len_eqpstr; i++)
       eqpstr[i] = tolower(eqpstr[i]);
 
    /* I don't remember what I'm doing here but it's useful! */
@@ -330,7 +331,7 @@ int main(int argc, char **argv)
    char command[128];
    BOOL daemon, keep_strip = FALSE;
    INT status, last_time = 0;
-   DWORD i;
+   //DWORD i;
    HNDLE hDB, hKey;
    char host_name[HOST_NAME_LENGTH], expt_name[NAME_LENGTH];
    char eqpstr[128] = { '\0' };
@@ -352,7 +353,7 @@ int main(int argc, char **argv)
    }
 
    /* get parameters parse command line parameters */
-   for (i = 1; i < argc; i++) {
+   for (int i = 1; i < argc; i++) {
       if (argv[i][0] == '-' && argv[i][1] == 'd')
          debug = TRUE;
       else if (argv[i][0] == '-' && argv[i][1] == 'c')
@@ -447,7 +448,7 @@ int main(int argc, char **argv)
 
    /* recompose command line */
    sprintf(cmdline, "%s ", argv[1]);
-   for (i = 2; i < argc; i++) {
+   for (int i = 2; i < argc; i++) {
       strcat(cmdline, " ");
       strcat(cmdline, argv[i]);
    }

@@ -610,7 +610,7 @@ int main(int argc, char **argv)
             wr = write(fHandle, "\n", 1);
             assert(wr == 1);
             wr = write(fHandle, ststr[j], strlen(ststr[j]));
-            assert(wr == strlen(ststr[j]));
+            assert(wr == (int)strlen(ststr[j]));
             j++;
          }
          close(fHandle);
