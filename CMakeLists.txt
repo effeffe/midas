@@ -11,12 +11,15 @@ cmake_minimum_required(VERSION 3.1)
 # Directories
 #
 
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-   # in standalone mode, install under <midas>/bin
-   set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}" CACHE PATH "")
-else()
-  # there is an user choice or a higher level project specifying the install path
-endif()
+#if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+#   # in standalone mode, install under <midas>/bin
+#   set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}" CACHE PATH "")
+#else()
+#  # there is an user choice or a higher level project specifying the install path
+#endif()
+
+set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
+
 message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
 set(SYSLIB_DIR ${PROJECT_SOURCE_DIR}/lib)
