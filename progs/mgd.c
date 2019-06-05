@@ -1106,7 +1106,7 @@ static void Putword(int w, gdGifBuffer * buffer);
 static void compress(int init_bits, gdGifBuffer * buffer, gdImagePtr im);
 static void output(code_int code);
 static void cl_block(void);
-static void cl_hash(register count_int hsize);
+static void cl_hash(count_int hsize);
 static void char_init(void);
 static void char_out(int c);
 static void flush_char(void);
@@ -1525,13 +1525,13 @@ static int EOFCode;
 
 static void compress(int init_bits, gdGifBuffer * buffer, gdImagePtr im)
 {
-   register long fcode;
-   register code_int i /* = 0 */ ;
-   register int c;
-   register code_int ent;
-   register code_int disp;
-   register code_int hsize_reg;
-   register int hshift;
+   long fcode;
+   code_int i /* = 0 */ ;
+   int c;
+   code_int ent;
+   code_int disp;
+   code_int hsize_reg;
+   int hshift;
 
    /*
     * Set up the globals:  g_init_bits - initial number of bits
@@ -1710,13 +1710,13 @@ static void cl_block(void)
    output((code_int) ClearCode);
 }
 
-static void cl_hash(register count_int hsize)
+static void cl_hash(count_int hsize)
 {                               /* reset code table */
+  
+   count_int *htab_p = htab + hsize;
 
-   register count_int *htab_p = htab + hsize;
-
-   register long i;
-   register long m1 = -1;
+   long i;
+   long m1 = -1;
 
    i = hsize - 16;
    do {                         /* might use Sys V memset(3) here */
@@ -2111,7 +2111,7 @@ static int LWZReadByte(FILE * fd, int flag, int input_code_size)
    static int clear_code, end_code;
    static int table[2][(1 << MAX_LWZ_BITS)];
    static int stack[(1 << (MAX_LWZ_BITS)) * 2], *sp;
-   register int i;
+   int i;
 
    if (flag) {
       set_code_size = input_code_size;

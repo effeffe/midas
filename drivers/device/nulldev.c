@@ -163,7 +163,6 @@ INT nulldev(INT cmd, ...)
    INT channel, status;
    float value, *pvalue;
    NULLDEV_INFO *info;
-   void *bd;
 
    va_start(argptr, cmd);
    status = FE_SUCCESS;
