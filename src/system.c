@@ -1190,14 +1190,14 @@ INT ss_shm_flush(const char *name, const void *adr, size_t size, HNDLE handle)
       }
 
       /* write shared memory to file */
-      int ret = write(fd, adr, size);
-      if (ret != size) {
-         cm_msg(MERROR, "ss_shm_flush", "Cannot write to file \'%s\', write() returned %d instead of %d, errno %d (%s)", file_name, ret, (int)size, errno, strerror(errno));
+      ssize_t wr = write(fd, adr, size);
+      if ((size_t)wr != size) {
+         cm_msg(MERROR, "ss_shm_flush", "Cannot write to file \'%s\', write() returned %d instead of %d, errno %d (%s)", file_name, (int)wr, (int)size, errno, strerror(errno));
          close(fd);
          return SS_NO_MEMORY;
       }
-
-      ret = close(fd);
+      
+      int ret = close(fd);
       if (ret < 0) {
          cm_msg(MERROR, "ss_shm_flush", "Cannot write to file \'%s\', close() errno %d (%s)", file_name, errno, strerror(errno));
          return SS_NO_MEMORY;
@@ -4698,7 +4698,7 @@ INT ss_recv_net_command(int sock, DWORD* routine_id, DWORD* param_size, char **p
 \********************************************************************/
 {
    NET_COMMAND_HEADER ncbuf;
-   int n;
+   size_t n;
 
    /* first receive header */
    n = recv_tcp2(sock, (char*)&ncbuf, sizeof(ncbuf), timeout_ms);
