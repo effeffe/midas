@@ -492,11 +492,11 @@ all: check-mxml $(GIT_REVISION) $(ALL)
 
 cmake:
 	-mkdir build
-	cd build; cmake ..; make $(MAKEFLAGS);	make install
+	cd build; cmake ..; $(MAKE) $(MAKEFLAGS); $(MAKE) install
 
 cmake3:
 	-mkdir build
-	cd build; cmake3 ..; make $(MAKEFLAGS);	make install
+	cd build; cmake3 ..; $(MAKE) $(MAKEFLAGS); $(MAKE) install
 
 cclean:
 	-rm -rf build
