@@ -110,41 +110,38 @@ endif()
 # end of conditional code
 #####################################################################
 
-file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/*.c")
-SET_SOURCE_FILES_PROPERTIES(${CFILES} PROPERTIES LANGUAGE CXX)
-
 #
 # Midas Library
 #
 set(libsrc
-   src/midas.c
-   src/midas_cxx.cxx
-   src/odb.c
-   src/device_driver.c
-   src/system.c
-   src/alarm.c
-   src/elog.c
-   src/mrpc.c
-   src/mjson.cxx
-   src/json_paste.cxx
-   src/mjsonrpc.cxx
-   src/mjsonrpc_user.cxx
-   src/history.c
-   src/history_common.cxx
-   src/history_midas.cxx
-   src/history_odbc.cxx
-   src/history_schema.cxx
-   src/lz4.c
-   src/lz4frame.c
-   src/lz4hc.c
-   src/xxhash.c
-   src/crc32c.c
-   src/sha256.c
-   src/sha512.c
-   src/ftplib.c
-   progs/mdsupport.cxx
-   ${MXML_DIR}/mxml.c
-   ${MXML_DIR}/strlcpy.c
+   src/midas
+   src/midas_cxx
+   src/odb
+   src/device_driver
+   src/system
+   src/alarm
+   src/elog
+   src/mrpc
+   src/mjson
+   src/json_paste
+   src/mjsonrpc
+   src/mjsonrpc_user
+   src/history
+   src/history_common
+   src/history_midas
+   src/history_odbc
+   src/history_schema
+   src/lz4
+   src/lz4frame
+   src/lz4hc
+   src/xxhash
+   src/crc32c
+   src/sha256
+   src/sha512
+   src/ftplib
+   progs/mdsupport
+   ${MXML_DIR}/mxml
+   ${MXML_DIR}/strlcpy
    ${GIT_REVISION}
    )
 
@@ -167,7 +164,7 @@ target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
 target_include_directories(midas PUBLIC ${SYSINC_DIR})
 
 # library for mfe.o
-add_library(mfe src/mfe.c)
+add_library(mfe src/mfe)
 target_include_directories(mfe PUBLIC ${SYSINC_DIR})
 target_include_directories(mfe PRIVATE ${MXML_DIR})
 

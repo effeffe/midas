@@ -27,21 +27,14 @@ foreach(PROG ${PROGS})
 endforeach()
 
 #
-# Build C files with C++
-#
-
-file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/*.c")
-SET_SOURCE_FILES_PROPERTIES(${CFILES} PROPERTIES LANGUAGE CXX)
-
-#
 # non-standard executables using additional source files
 #
 if (HAVE_MSCB)
-   add_executable(mhttpd mhttpd.cxx mongoose6.c mgd.c ${MSCB_DIR}/src/mscb.c)
+   add_executable(mhttpd mhttpd mongoose6 mgd ${MSCB_DIR}/src/mscb)
    target_compile_options(mhttpd PRIVATE -DHAVE_MSCB)
    target_include_directories(mhttpd PRIVATE ${MSCB_DIR}/include)
 else(HAVE_MSCB)
-   add_executable(mhttpd mhttpd.cxx mongoose6.c mgd.c)
+   add_executable(mhttpd mhttpd mongoose6 mgd)
 endif(HAVE_MSCB)
 target_include_directories(mhttpd PRIVATE ${DRV_DIR} ${MXML_DIR})
 target_include_directories(mhttpd PRIVATE ${OPENSSL_INCLUDE_DIR})
@@ -54,7 +47,7 @@ endif(OPENSSL_FOUND)
 
 target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS})
 
-add_executable(odbedit odbedit.cxx cmdedit.cxx)
+add_executable(odbedit odbedit cmdedit)
 target_include_directories(odbedit PRIVATE ${DRV_DIR} ${MXML_DIR})
 target_link_libraries(odbedit midas ${LIBS})
 remove_definitions(-DHAVE_ROOT)

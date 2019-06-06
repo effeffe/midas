@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(MIDASSYS $ENV{MIDASSYS})
 set(MXMLSYS ${MIDASSYS}/../mxml)
 
-add_executable(crfe crfe.cpp ${MXMLSYS}/mxml.c)
+add_executable(crfe crfe ${MXMLSYS}/mxml)
 
 target_include_directories(crfe PRIVATE ${MIDASSYS}/include ${MXMLSYS})
 target_link_libraries(crfe ${MIDASSYS}/lib/libmfe.a ${MIDASSYS}/lib/libmidas.a)
