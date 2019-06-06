@@ -8,19 +8,18 @@ image: gcc:6.5
 pipelines:
   default:
   - parallel:
-      - step:
+    - step:
         name: Build on root-centos
         image: rootproject/root-centos
-        script: # Modify the commands below to build your repository.
-          - #./configure
+        script:
           - gcc -v
           - git clone https://bitbucket.org/tmidas/mxml.git
           - make MXML_DIR=./mxml
-          - #make test
-     - step:
+
+    - step:
         name: cmake build on root-centos
         image: rootproject/root-centos
-        script: # Modify the commands below to build your repository.
+        script:
           - gcc -v
           - git clone https://bitbucket.org/tmidas/mxml.git
           - make cmake3
