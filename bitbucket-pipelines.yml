@@ -26,7 +26,7 @@ pipelines:
 
     - step:
         name: Build on el6 CERN SLC6
-        image: cern/scl6-base
+        image: cern/slc6-base
         script:
           - gcc -v
           - git clone https://bitbucket.org/tmidas/mxml.git
