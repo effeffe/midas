@@ -104,7 +104,7 @@ int main()
                printf("Error: act_size = %d, size = %d\n", act_size, event_size);
 
             /* now send event */
-            status = rpc_send_event(hBuf, event, act_size + sizeof(EVENT_HEADER), BM_WAIT, rpc_mode);
+            status = rpc_send_event(hBuf, (const EVENT_HEADER *)event, act_size + sizeof(EVENT_HEADER), BM_WAIT, rpc_mode);
 
             if (status != BM_SUCCESS) {
                printf("rpc_send_event returned error %d, event_size %d\n",

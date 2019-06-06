@@ -123,13 +123,13 @@ endif
 NEED_STRLCPY=1
 
 #
-# Directory in which mxml.c/h resides. This library has to be checked
+# Directory in which mxml.cxx/h resides. This library has to be checked
 # out separately from the midas CVS since it's used in several projects
 #
 MXML_DIR=../mxml
 
 #
-# Directory in which mscb.c/h resides. These files are necessary for
+# Directory in which mscb.cxx/h resides. These files are necessary for
 # the optional MSCB support in mhttpd
 #
 MSCB_DIR=../mscb
@@ -560,7 +560,7 @@ $(BIN_DIR):
 #
 # put current GIT revision into header file to be included by programs
 #
-$(GIT_REVISION): $(SRC_DIR)/midas.c $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.c $(SRC_DIR)/system.c $(PROGS_DIR)/mhttpd.cxx $(INC_DIR)/midas.h
+$(GIT_REVISION): $(SRC_DIR)/midas.cxx $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.cxx $(SRC_DIR)/system.cxx $(PROGS_DIR)/mhttpd.cxx $(INC_DIR)/midas.h
 	echo \#define GIT_REVISION \"`git log -1 --format="%ad"` - `git describe --abbrev=8 --tags --dirty` on branch `git rev-parse --abbrev-ref HEAD`\" > $(GIT_REVISION)-new
 	rsync --checksum $(GIT_REVISION)-new $(GIT_REVISION) # only update git-revision.h and update it's timestamp if it's contents have changed
 	-/bin/rm -f $(GIT_REVISION)-new
@@ -612,8 +612,8 @@ $(BIN_DIR)/rmlogger: $(BIN_DIR)/%: $(PROGS_DIR)/mlogger.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -o $@ $< $(LIB) $(ROOTLIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) $(LIBS)
 endif
 
-$(BIN_DIR)/%:$(SRC_DIR)/%.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
+$(BIN_DIR)/%:$(SRC_DIR)/%.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
 $(BIN_DIR)/odbedit: $(PROGS_DIR)/odbedit.cxx $(PROGS_DIR)/cmdedit.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/odbedit.cxx $(PROGS_DIR)/cmdedit.cxx $(LIB) $(LIBS)
@@ -645,10 +645,10 @@ endif
 #CFLAGS      += -DMG_ENABLE_SSL
 #endif
 
-$(LIB_DIR)/mongoose6.o: $(PROGS_DIR)/mongoose6.c $(INC_DIR)/mongoose6.h 
-	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
-$(LIB_DIR)/mgd.o: $(PROGS_DIR)/mgd.c $(INC_DIR)/mgd.h 
-	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
+$(LIB_DIR)/mongoose6.o: $(PROGS_DIR)/mongoose6.cxx $(INC_DIR)/mongoose6.h 
+	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
+$(LIB_DIR)/mgd.o: $(PROGS_DIR)/mgd.cxx $(INC_DIR)/mgd.h 
+	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 $(BIN_DIR)/mhttpd: $(MHTTPD_OBJS)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(MHTTPD_OBJS) $(LIB) $(MYSQL_LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(LIBS) -lm
 
@@ -667,11 +667,11 @@ $(PROGS): $(LIBNAME)
 # examples
 #
 
-$(BIN_DIR)/%:$(EXAM_DIR)/lowlevel/%.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
+$(BIN_DIR)/%:$(EXAM_DIR)/lowlevel/%.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
-$(BIN_DIR)/%:$(EXAM_DIR)/basic/%.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
+$(BIN_DIR)/%:$(EXAM_DIR)/basic/%.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
 $(EXAMPLES): $(LIBNAME)
 
@@ -725,9 +725,9 @@ $(LIB_DIR)/mgd.o: midas.h
 $(LIB_DIR)/mfe.o: msystem.h midas.h midasinc.h mrpc.h
 
 $(LIB_DIR)/mana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
-	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
+	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 $(LIB_DIR)/hmana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
-	$(CC) -Dextname -DHAVE_HBOOK -c $(CFLAGS) $(OSFLAGS) -o $@ $<
+	$(CXX) -Dextname -DHAVE_HBOOK -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 ifdef HAVE_ROOT
 $(LIB_DIR)/rmana.o: $(SRC_DIR)/mana.cxx msystem.h midas.h midasinc.h mrpc.h
 	$(CXX) -c $(CFLAGS) $(OSFLAGS) $(ROOTCFLAGS) -o $@ $<
@@ -740,21 +740,18 @@ endif
 $(LIB_DIR)/mhttpd.o: $(LIB_DIR)/%.o: $(PROGS_DIR)/%.cxx
 	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 
-$(LIB_DIR)/%.o:$(SRC_DIR)/%.c
-	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
-
 $(LIB_DIR)/%.o:$(SRC_DIR)/%.cxx
 	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 
-$(LIB_DIR)/mxml.o:$(MXML_DIR)/mxml.c
-	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $(MXML_DIR)/mxml.c
+$(LIB_DIR)/mxml.o:$(MXML_DIR)/mxml.cxx
+	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $(MXML_DIR)/mxml.cxx
 
-$(LIB_DIR)/strlcpy.o:$(MXML_DIR)/strlcpy.c
-	$(CC) -c $(CFLAGS) $(OSFLAGS) -o $@ $(MXML_DIR)/strlcpy.c
+$(LIB_DIR)/strlcpy.o:$(MXML_DIR)/strlcpy.cxx
+	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $(MXML_DIR)/strlcpy.cxx
 
 ifdef HAVE_MSCB
-$(LIB_DIR)/mscb.o:$(MSCB_DIR)/src/mscb.c $(MSCB_DIR)/include/mscb.h
-	$(CXX) -x c++ -c $(CFLAGS) $(OSFLAGS) -o $@ $(MSCB_DIR)/src/mscb.c
+$(LIB_DIR)/mscb.o:$(MSCB_DIR)/src/mscb.cxx $(MSCB_DIR)/include/mscb.h
+	$(CXX) -x c++ -c $(CFLAGS) $(OSFLAGS) -o $@ $(MSCB_DIR)/src/mscb.cxx
 endif
 
 $(LIB_DIR)/mhttpd.o: msystem.h midas.h midasinc.h mrpc.h mjsonrpc.h
@@ -773,14 +770,11 @@ $(LIB_DIR)/mfe.o: midas.h msystem.h mfe.h
 #
 # utilities
 #
-$(BIN_DIR)/%: $(PROGS_DIR)/%.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
-
 $(BIN_DIR)/%: $(PROGS_DIR)/%.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
-$(BIN_DIR)/mcnaf: $(PROGS_DIR)/mcnaf.c $(DRV_DIR)/camac/camacrpc.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/mcnaf.c $(DRV_DIR)/camac/camacrpc.c $(LIB) $(LIBS)
+$(BIN_DIR)/mcnaf: $(PROGS_DIR)/mcnaf.cxx $(DRV_DIR)/camac/camacrpc.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/mcnaf.cxx $(DRV_DIR)/camac/camacrpc.cxx $(LIB) $(LIBS)
 
 $(BIN_DIR)/mdump: $(PROGS_DIR)/mdump.cxx $(PROGS_DIR)/mdsupport.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/mdump.cxx $(PROGS_DIR)/mdsupport.cxx $(LIB) $(LIBS)
@@ -791,11 +785,11 @@ $(BIN_DIR)/fetest: $(PROGS_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
 $(BIN_DIR)/feudp: $(PROGS_DIR)/feudp.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
-$(BIN_DIR)/crc32c: $(SRC_DIR)/crc32c.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -DTEST -o $@ $^ $(LIB) $(LIBS)
+$(BIN_DIR)/crc32c: $(SRC_DIR)/crc32c.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -DTEST -o $@ $^ $(LIB) $(LIBS)
 
-$(BIN_DIR)/mfe_link_test: $(SRC_DIR)/mfe_link_test.c $(LIB_DIR)/mfe.o
-	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
+$(BIN_DIR)/mfe_link_test: $(SRC_DIR)/mfe_link_test.cxx $(LIB_DIR)/mfe.o
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/mfe_link_test_cxx: $(SRC_DIR)/mfe_link_test_cxx.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
@@ -817,8 +811,8 @@ $(BIN_DIR)/mtransition: $(PROGS_DIR)/mtransition.cxx
 $(BIN_DIR)/lazylogger: $(PROGS_DIR)/lazylogger.cxx $(PROGS_DIR)/mdsupport.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $<  $(PROGS_DIR)/mdsupport.cxx $(LIB) $(LIBS)
 
-$(BIN_DIR)/dio: $(PROGS_DIR)/dio.c
-	$(CC) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/dio.c
+$(BIN_DIR)/dio: $(PROGS_DIR)/dio.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/dio.cxx
 
 $(BIN_DIR)/stripchart.tcl: $(PROGS_DIR)/stripchart.tcl
 	cp -f $(PROGS_DIR)/stripchart.tcl $(BIN_DIR)/. 
