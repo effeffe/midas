@@ -4,7 +4,6 @@
 set(PROGS
    mserver
    mlogger
-#  rmlogger
    msequencer
    lazylogger
    mtransition
@@ -27,7 +26,7 @@ foreach(PROG ${PROGS})
 endforeach()
 
 #
-# non-standard executables using additional source files
+# mhttpd
 #
 if (HAVE_MSCB)
    add_executable(mhttpd mhttpd mongoose6 mgd ${MSCB_DIR}/src/mscb)
@@ -47,12 +46,22 @@ endif(OPENSSL_FOUND)
 
 target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS})
 
+#
+# odbedit
+#
 add_executable(odbedit odbedit cmdedit)
 target_include_directories(odbedit PRIVATE ${DRV_DIR} ${MXML_DIR})
 target_link_libraries(odbedit midas ${LIBS})
 remove_definitions(-DHAVE_ROOT)
-#target_include_directories(rmlogger PUBLIC ${ROOT_INC})
-#target_link_libraries(rmlogger ${ROOT_LIBS})
+
+#
+# rmlogger
+#
+if (HAVE_ROOT)
+   add_executable(rmlogger mlogger)
+   target_include_directories(rmlogger PUBLIC ${ROOT_INC})
+   target_link_libraries(rmlogger midas ${LIBS} ${ROOT_LIBS})
+endif(HAVE_ROOT)
 
 #
 # Installation
