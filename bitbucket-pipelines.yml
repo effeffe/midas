@@ -17,7 +17,7 @@ pipelines:
           - make MXML_DIR=./mxml
 
     - step:
-        name: cmake build on root-centos
+        name: Build on root-centos with cmake
         image: rootproject/root-centos
         script:
           - gcc -v
@@ -26,7 +26,8 @@ pipelines:
 
     - step:
         name: Build on el6 CERN SLC6
-        image: cern/slc6-base
+        #image: cern/slc6-base # no gcc
+        image: centos:centos6
         script:
           - gcc -v
           - git clone https://bitbucket.org/tmidas/mxml.git
