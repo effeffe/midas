@@ -6908,6 +6908,101 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout)
    return CM_SUCCESS;
 }
 
+/********************************************************************/
+/**
+Expand environment variables in filesystem file path names
+
+Examples of expansion: $FOO=foo, $BAR=bar, $UNDEF is undefined (undefined, not empty)
+
+   ok &= test_cm_expand_env1("aaa", "aaa");
+   ok &= test_cm_expand_env1("$FOO", "foo");
+   ok &= test_cm_expand_env1("/$FOO", "/foo");
+   ok &= test_cm_expand_env1("/$FOO/", "/foo/");
+   ok &= test_cm_expand_env1("$FOO/$BAR", "foo/bar");
+   ok &= test_cm_expand_env1("$FOO1", "$FOO1");
+   ok &= test_cm_expand_env1("1$FOO", "1foo");
+   ok &= test_cm_expand_env1("$UNDEF", "$UNDEF");
+   ok &= test_cm_expand_env1("/$UNDEF/", "/$UNDEF/");
+
+@param    str     Input file path
+@return   expanded file path
+*/
+std::string cm_expand_env(const char *str)
+{
+   const char* s = str;
+   std::string r;
+   for (; *s; ) {
+      if (*s == '$') {
+         s++;
+         std::string envname;
+         for (; *s; ) {
+            if (*s == DIR_SEPARATOR)
+               break;
+            envname += *s;
+            s++;
+         }
+         const char* e = getenv(envname.c_str());
+         //printf("expanding [%s] at [%s] envname [%s] value [%s]\n", filename, s, envname.c_str(), e);
+         if (!e) {
+            //cm_msg(MERROR, "expand_env", "Env.variable \"%s\" cannot be expanded in \"%s\"", envname.c_str(), filename);
+            r += '$';
+            r += envname;
+         } else {
+            r += e;
+            //if (r[r.length()-1] != DIR_SEPARATOR)
+            //r += DIR_SEPARATOR_STR;
+         }
+      } else {
+         r += *s;
+         s++;
+      }
+   }
+   return r;
+}
+
+static bool test_cm_expand_env1(const char* str, const char* expected)
+{
+   std::string s = cm_expand_env(str);
+   printf("test_expand_env: [%s] -> [%s] expected [%s]",
+          str,
+          s.c_str(),
+          expected);
+   if (s != expected) {
+      printf(", MISMATCH!\n");
+      return false;
+   }
+
+   printf("\n");
+   return true;
+}
+
+void cm_test_expand_env()
+{
+   printf("Test expand_end()\n");
+   setenv("FOO", "foo", 1);
+   setenv("BAR", "bar", 1);
+   setenv("EMPTY", "", 1);
+   unsetenv("UNDEF");
+
+   bool ok = true;
+
+   ok &= test_cm_expand_env1("aaa", "aaa");
+   ok &= test_cm_expand_env1("$FOO", "foo");
+   ok &= test_cm_expand_env1("/$FOO", "/foo");
+   ok &= test_cm_expand_env1("/$FOO/", "/foo/");
+   ok &= test_cm_expand_env1("$FOO/$BAR", "foo/bar");
+   ok &= test_cm_expand_env1("$FOO1", "$FOO1");
+   ok &= test_cm_expand_env1("1$FOO", "1foo");
+   ok &= test_cm_expand_env1("$UNDEF", "$UNDEF");
+   ok &= test_cm_expand_env1("/$UNDEF/", "/$UNDEF/");
+
+   if (ok) {
+      printf("test_expand_env: all tests passed!\n");
+   } else {
+      printf("test_expand_env: test FAILED!\n");
+   }
+}
+
 /**dox***************************************************************/
 
 /** @} *//* end of cmfunctionc */

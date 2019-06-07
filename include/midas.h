@@ -1730,6 +1730,8 @@ Data conversion flags */
    BOOL EXPRT equal_ustring(const char *str1, const char *str2);
    BOOL EXPRT ends_with_ustring(const char *str, const char *suffix);
 
+   std::string cm_expand_env(const char* str);
+
    /*---- buffer manager ----*/
    INT EXPRT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle);
    INT EXPRT bm_close_buffer(INT buffer_handle);

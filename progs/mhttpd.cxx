@@ -924,41 +924,6 @@ static std::string urlEncode(const char *text)
 
 /*------------------------------------------------------------------*/
 
-std::string expand_env(const char* filename)
-{
-   const char* s = filename;
-   std::string r;
-   for (; *s; s++) {
-      if (*s == '$') {
-         s++;
-         std::string envname;
-         for (; *s; s++) {
-            if (*s == DIR_SEPARATOR)
-               break;
-            envname += *s;
-         }
-         const char* e = getenv(envname.c_str());
-         //printf("expanding [%s] at [%s] envname [%s] value [%s]\n", filename, s, envname.c_str(), e);
-         if (!e) {
-            //cm_msg(MERROR, "expand_env", "Env.variable \"%s\" cannot be expanded in \"%s\"", envname.c_str(), filename);
-            r += '$';
-            r += envname;
-            if (*s)
-               r += *s; // DIR_SEPARATOR or NUL
-         } else {
-            r += e;
-            if (r[r.length()-1] != DIR_SEPARATOR)
-               r += DIR_SEPARATOR_STR;
-         }
-      } else {
-         r += *s;
-      }
-   }
-   return r;
-}
-
-/*------------------------------------------------------------------*/
-
 std::vector<std::string> get_resource_paths()
 {
    HNDLE hDB;
@@ -1015,7 +980,7 @@ bool open_resource_file(const char *filename, std::string* ppath, FILE** pfp)
       // has '$' characters we will try to expand them
       // as an env.variable and maybe escape the file jail.
 
-      std::string xpath = expand_env(path.c_str());
+      std::string xpath = cm_expand_env(path.c_str());
       
       if (xpath[xpath.length()-1] != DIR_SEPARATOR)
          xpath += DIR_SEPARATOR_STR;
@@ -1632,7 +1597,7 @@ void show_help_page(Return* r, const char* dec_path)
       if (i>0)
          r->rsputs("<br>");
       r->rsputs(resource_paths[i].c_str());
-      std::string exp = expand_env(resource_paths[i].c_str());
+      std::string exp = cm_expand_env(resource_paths[i].c_str());
       //printf("%d %d [%s] [%s]\n", resource_paths[i].length(), exp.length(), resource_paths[i].c_str(), exp.c_str());
       if (exp != resource_paths[i]) {
          r->rsputs(" (");
