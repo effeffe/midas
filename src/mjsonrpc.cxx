@@ -2849,17 +2849,23 @@ static MJsonNode* get_alarms(const MJsonNode* params)
 
       char bgcol[256];
       strcpy(bgcol, "red");
-      sprintf(str, "/Alarms/Classes/%s/Display BGColor", alarm_class);
-      size = sizeof(bgcol);
-      status = db_get_value(hDB, 0, str, bgcol, &size, TID_STRING, TRUE);
+
+      if (strlen(alarm_class) > 0) {
+         sprintf(str, "/Alarms/Classes/%s/Display BGColor", alarm_class);
+         size = sizeof(bgcol);
+         status = db_get_value(hDB, 0, str, bgcol, &size, TID_STRING, TRUE);
+      }
          
       a->AddToObject("bgcolor", MJsonNode::MakeString(bgcol));
 
       char fgcol[256];
       strcpy(fgcol, "black");
-      sprintf(str, "/Alarms/Classes/%s/Display FGColor", alarm_class);
-      size = sizeof(fgcol);
-      status = db_get_value(hDB, 0, str, fgcol, &size, TID_STRING, TRUE);
+
+      if (strlen(alarm_class) > 0) {
+         sprintf(str, "/Alarms/Classes/%s/Display FGColor", alarm_class);
+         size = sizeof(fgcol);
+         status = db_get_value(hDB, 0, str, fgcol, &size, TID_STRING, TRUE);
+      }
          
       a->AddToObject("fgcolor", MJsonNode::MakeString(fgcol));
 
