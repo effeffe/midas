@@ -46,7 +46,7 @@ target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS})
 # odbedit
 #
 add_executable(odbedit odbedit cmdedit)
-target_include_directories(odbedit PRIVATE ${DRV_DIR} ${MXML_DIR})
+target_include_directories(odbedit PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 target_link_libraries(odbedit midas ${LIBS})
 remove_definitions(-DHAVE_ROOT)
 
