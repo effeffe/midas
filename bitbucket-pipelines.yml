@@ -14,7 +14,8 @@ pipelines:
         script:
           - gcc -v
           - git clone https://bitbucket.org/tmidas/mxml.git
-          - make MXML_DIR=./mxml
+          - git clone https://bitbucket.org/tmidas/mscb.git
+          - make
 
     - step:
         name: Build on root-centos with cmake
@@ -22,6 +23,7 @@ pipelines:
         script:
           - gcc -v
           - git clone https://bitbucket.org/tmidas/mxml.git
+          - git clone https://bitbucket.org/tmidas/mscb.git
           - make cmake3
 
     - step:
@@ -31,5 +33,6 @@ pipelines:
         script:
           - gcc -v
           - git clone https://bitbucket.org/tmidas/mxml.git
-          - make MXML_DIR=./mxml
+          - git clone https://bitbucket.org/tmidas/mscb.git
+          - make clean
 
