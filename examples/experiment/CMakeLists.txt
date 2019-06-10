@@ -9,6 +9,6 @@ if (HAVE_ROOT)
       adcsum
       scaler)
 
-   target_include_directories(analyzer PUBLIC ${ROOT_INC})
+   target_include_directories(analyzer PUBLIC ${ROOT_INC} ${PROJECT_SOURCE_DIR}/mxml)
    target_link_libraries(analyzer midas ${ROOT_LIBS} ${LIBS})
 endif(HAVE_ROOT)
