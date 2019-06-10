@@ -26,13 +26,13 @@ pipelines:
           - git clone https://bitbucket.org/tmidas/mscb.git
           - make cmake3
 
-    - step:
-        name: Build on el6 CERN SLC6
-        #image: cern/slc6-base # no gcc
-        image: centos:centos6
-        script:
-          - gcc -v
-          - git clone https://bitbucket.org/tmidas/mxml.git
-          - git clone https://bitbucket.org/tmidas/mscb.git
-          - make clean
+#    - step:
+#        name: Build on el6 CERN SLC6
+#        #image: cern/slc6-base # no gcc
+#        image: centos:centos6
+#        script:
+#          - gcc -v
+#          - git clone https://bitbucket.org/tmidas/mxml.git
+#          - git clone https://bitbucket.org/tmidas/mscb.git
+#          - make
 
