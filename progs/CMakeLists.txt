@@ -20,7 +20,7 @@ set(PROGS
 
 foreach(PROG ${PROGS})
    add_executable(${PROG} ${PROG})
-   target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include)
+   target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
    target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
    target_link_libraries(${PROG} midas ${LIBS})
 endforeach()
@@ -28,14 +28,10 @@ endforeach()
 #
 # mhttpd
 #
-if (HAVE_MSCB)
-   add_executable(mhttpd mhttpd mongoose6 mgd ${MSCB_DIR}/src/mscb)
-   target_compile_options(mhttpd PRIVATE -DHAVE_MSCB)
-   target_include_directories(mhttpd PRIVATE ${MSCB_DIR}/include)
-else(HAVE_MSCB)
-   add_executable(mhttpd mhttpd mongoose6 mgd)
-endif(HAVE_MSCB)
-target_include_directories(mhttpd PRIVATE ${DRV_DIR} ${MXML_DIR})
+add_executable(mhttpd mhttpd mongoose6 mgd ${PROJECT_SOURCE_DIR}/mscb/src/mscb)
+target_compile_options(mhttpd PRIVATE -DHAVE_MSCB)
+target_include_directories(mhttpd PRIVATE ${PROJECT_SOURCE_DIR}/mscb/include)
+target_include_directories(mhttpd PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml)
 target_include_directories(mhttpd PRIVATE ${OPENSSL_INCLUDE_DIR})
 
 # mongoose flags

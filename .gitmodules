@@ -1,0 +1,6 @@
+[submodule "mxml"]
+	path = mxml
+	url = git@bitbucket.org:tmidas/mxml.git
+[submodule "mscb"]
+	path = mscb
+	url = git@bitbucket.org:tmidas/mscb.git

@@ -126,13 +126,13 @@ NEED_STRLCPY=1
 # Directory in which mxml.cxx/h resides. This library has to be checked
 # out separately from the midas CVS since it's used in several projects
 #
-MXML_DIR=../mxml
+MXML_DIR=mxml
 
 #
 # Directory in which mscb.cxx/h resides. These files are necessary for
 # the optional MSCB support in mhttpd
 #
-MSCB_DIR=../mscb
+MSCB_DIR=mscb
 
 #
 # Indicator that MSCB is available

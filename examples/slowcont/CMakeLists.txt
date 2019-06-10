@@ -6,17 +6,16 @@ set(DRIVERS
 )
 
 add_executable(scfe scfe ${DRIVERS})
-target_include_directories(scfe PRIVATE ${DRV_DIR} ${MXML_DIR})
+target_include_directories(scfe PRIVATE ${DRV_DIR})
 target_link_libraries(scfe midas mfe ${LIBS})
 
-if (HAVE_MSCB)
 add_executable(mscb_fe
         mscb_fe
         ${DRIVERS}
         ${PROJECT_SOURCE_DIR}/drivers/device/mscbdev
-        ${MSCB_DIR}/src/mscb)
+        ${PROJECT_SOURCE_DIR}/mscb/src/mscb)
 
-target_include_directories(mscb_fe PRIVATE ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include )
+target_include_directories(mscb_fe PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mscb/include)
 target_link_libraries(mscb_fe midas mfe ${LIBS})
-endif(HAVE_MSCB)
+
 

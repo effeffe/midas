@@ -24,8 +24,6 @@ message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
 set(SYSLIB_DIR ${PROJECT_SOURCE_DIR}/lib)
 set(SYSINC_DIR ${PROJECT_SOURCE_DIR}/include)
-set(MXML_DIR ${PROJECT_SOURCE_DIR}/../mxml)
-set(MSCB_DIR ${PROJECT_SOURCE_DIR}/../mscb)
 set(DRV_DIR ${PROJECT_SOURCE_DIR}/drivers)
 
 #####################################################################
@@ -72,14 +70,6 @@ endif()
 #
 if (EXISTS /usr/include/sqlite3.h)
    set(HAVE_SQLITE 1)
-endif()
-
-#
-# Indicator that MSCB is available
-#
-if (EXISTS ${MSCB_DIR})
-   set(HAVE_MSCB 1)
-   message(STATUS "MSCB found")
 endif()
 
 #-----------------------
@@ -140,8 +130,8 @@ set(libsrc
    src/sha512
    src/ftplib
    progs/mdsupport
-   ${MXML_DIR}/mxml
-   ${MXML_DIR}/strlcpy
+   mxml/mxml
+   mxml/strlcpy
    ${GIT_REVISION}
    )
 
@@ -156,7 +146,7 @@ add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
 add_library(midas-shared SHARED $<TARGET_OBJECTS:objlib>)
 
 target_include_directories(objlib PUBLIC ${SYSINC_DIR})
-target_include_directories(objlib PRIVATE ${DRV_DIR} ${MXML_DIR} ${MSCB_DIR}/include)
+target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
 target_include_directories(objlib PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
 target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
 
@@ -166,7 +156,7 @@ target_include_directories(midas PUBLIC ${SYSINC_DIR})
 # library for mfe.o
 add_library(mfe src/mfe)
 target_include_directories(mfe PUBLIC ${SYSINC_DIR})
-target_include_directories(mfe PRIVATE ${MXML_DIR})
+target_include_directories(mfe PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 
 
 install(TARGETS midas midas-shared mfe
