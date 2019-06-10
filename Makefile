@@ -153,8 +153,7 @@ NEED_ZLIB=
 #-----------------------
 # Common flags
 #
-#CC = g++ -x c++ $(USERFLAGS)
-CC = g++ $(USERFLAGS)
+CC = gcc $(USERFLAGS)
 CXX = g++ $(USERFLAGS)
 CFLAGS = -g -O2 -Wall -Wno-strict-aliasing -Wuninitialized -I$(INC_DIR) -I$(DRV_DIR) -I$(MXML_DIR) -I$(MSCB_DIR)/include -DHAVE_FTPLIB
 
@@ -751,7 +750,7 @@ $(LIB_DIR)/strlcpy.o:$(MXML_DIR)/strlcpy.cxx
 
 ifdef HAVE_MSCB
 $(LIB_DIR)/mscb.o:$(MSCB_DIR)/src/mscb.cxx $(MSCB_DIR)/include/mscb.h
-	$(CXX) -x c++ -c $(CFLAGS) $(OSFLAGS) -o $@ $(MSCB_DIR)/src/mscb.cxx
+	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $(MSCB_DIR)/src/mscb.cxx
 endif
 
 $(LIB_DIR)/mhttpd.o: msystem.h midas.h midasinc.h mrpc.h mjsonrpc.h
