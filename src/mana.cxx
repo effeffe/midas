@@ -189,7 +189,7 @@ const char *bstr = " ";
 /*------------------------------------------------------------------*/
 
 /* items defined in analyzer.c */
-extern char *analyzer_name;
+extern const char *analyzer_name;
 extern INT analyzer_loop_period;
 extern INT analyzer_init(void);
 extern INT analyzer_exit(void);
