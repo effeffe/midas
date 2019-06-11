@@ -5616,7 +5616,7 @@ int main(int argc, char *argv[])
 
 #ifdef LINK_TEST
 int   odb_size;
-char* analyzer_name;
+const char* analyzer_name;
 int   analyzer_loop_period;
 ANALYZE_REQUEST analyze_request[1];
 int analyzer_init(void) { return 0; }
