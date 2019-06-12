@@ -12,12 +12,14 @@ cmake_minimum_required(VERSION 3.1)
 #
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-   # in standalone mode, install under <mscb>/bin
-   set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
+   # in standalone mode, install under <midas>/bin
+   set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR} CACHE PATH "" FORCE)
+   message(STATUS "Here")
 else()
    # there is an user choice or a higher level project
    # specifying the install path - keep that
-   set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}" CACHE PATH "")
+    set(CMAKE_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
+    message(STATUS "There")
 endif()
 message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
@@ -152,7 +154,7 @@ target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
 # midas include is public so all programs linking to libmidas will inherit this
 target_include_directories(midas PUBLIC ${SYSINC_DIR})
 
-# library for mfe.o
+# library for mfe
 add_library(mfe src/mfe)
 target_include_directories(mfe PUBLIC ${SYSINC_DIR})
 target_include_directories(mfe PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
@@ -161,6 +163,16 @@ target_include_directories(mfe PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 install(TARGETS midas midas-shared mfe
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
+
+# library for mfe.o
+add_library(mfeo OBJECT src/mfe)
+target_include_directories(mfeo PUBLIC ${SYSINC_DIR})
+target_include_directories(mfeo PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
+
+# this is somewhat dirty, as the path to the object dir is hardcoded and
+# might change in future CMake versions. The only other option however
+# would be to pack and then unpack again a library (NB, 12.6.2019)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/mfeo.dir/src/mfe.cxx.o DESTINATION lib RENAME mfe.o)
 
 #####################################################################
 # generate git revision file
