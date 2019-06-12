@@ -32,7 +32,7 @@ set(DRV_DIR ${PROJECT_SOURCE_DIR}/drivers)
 #
 # Check for mxml
 #
-if (NOT EXISTS ${CMAKE_SOURCE_DIR}/mxml/mxml.cxx)
+if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mxml/mxml.cxx)
    message(FATAL_ERROR "\nError: 'mxml' submodule not found. Please install via\n"
       "'git submodule update --init'\n"
       "in midas root directory."
@@ -42,7 +42,7 @@ endif()
 #
 # Check for mscb
 #
-if (NOT EXISTS ${CMAKE_SOURCE_DIR}/mscb/src/mscb.cxx)
+if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mscb/src/mscb.cxx)
    message(FATAL_ERROR "\nError: 'mscb' submodule not found. Please install via\n"
       "'git submodule update --init'\n"
       "in midas root directory."
@@ -219,5 +219,5 @@ add_dependencies(objlib git_revision_h)
 #####################################################################
 # sub-projects
 #####################################################################
-add_subdirectory(progs)
-add_subdirectory(examples)
+#add_subdirectory(progs)
+#add_subdirectory(examples)
