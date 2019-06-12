@@ -14,12 +14,10 @@ cmake_minimum_required(VERSION 3.1)
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
    # in standalone mode, install under <midas>/bin
    set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR} CACHE PATH "" FORCE)
-   message(STATUS "Here")
 else()
    # there is an user choice or a higher level project
    # specifying the install path - keep that
-    set(CMAKE_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
-    message(STATUS "There")
+   set(CMAKE_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 endif()
 message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
