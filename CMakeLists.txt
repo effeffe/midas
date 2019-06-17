@@ -174,11 +174,19 @@ target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
 target_include_directories(midas PUBLIC ${SYSINC_DIR})
 
 # library for mfe
-#add_library(mfe src/mfe)
-#target_include_directories(mfe PUBLIC ${SYSINC_DIR})
-#target_include_directories(mfe PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
+add_library(mfe src/mfe)
+target_include_directories(mfe PUBLIC ${SYSINC_DIR})
+target_include_directories(mfe PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 
-install(TARGETS midas midas-shared
+# library for mana
+add_library(mana src/mana)
+target_include_directories(mana PUBLIC ${SYSINC_DIR})
+target_include_directories(mana PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
+if (HAVE_ROOT)
+   target_include_directories(mana PUBLIC ${ROOT_INC})
+endif(HAVE_ROOT)
+
+install(TARGETS midas midas-shared mfe mana
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
@@ -191,6 +199,24 @@ target_include_directories(mfeo PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 # might change in future CMake versions. The only other option however
 # would be to pack and then unpack again a library (NB, 12.6.2019)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/mfeo.dir/src/mfe.cxx.o DESTINATION lib RENAME mfe.o)
+
+# library for mana.o
+add_library(manao OBJECT src/mana)
+target_include_directories(manao PUBLIC ${SYSINC_DIR})
+target_include_directories(manao PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
+if (HAVE_ROOT)
+   target_include_directories(manao PUBLIC ${ROOT_INC})
+endif(HAVE_ROOT)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manao.dir/src/mana.cxx.o DESTINATION lib RENAME mana.o)
+
+# library for rmana.o
+#add_library(rmanao OBJECT src/mana)
+#target_include_directories(rmanao PUBLIC ${SYSINC_DIR})
+#target_include_directories(rmanao PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
+#if (HAVE_ROOT)
+#   target_include_directories(rmanao PUBLIC ${ROOT_INC})
+#endif(HAVE_ROOT)
+#install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/rmanao.dir/src/mana.cxx.o DESTINATION lib RENAME rmana.o)
 
 #####################################################################
 # generate git revision file
@@ -218,5 +244,5 @@ add_dependencies(objlib git_revision_h)
 #####################################################################
 # sub-projects
 #####################################################################
-#add_subdirectory(progs)
-#add_subdirectory(examples)
+add_subdirectory(progs)
+add_subdirectory(examples)

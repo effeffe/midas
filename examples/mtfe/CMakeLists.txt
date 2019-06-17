@@ -1,4 +1,4 @@
-add_executable(mtfe ${PROJECT_SOURCE_DIR}/src/mfe mtfe)
+add_executable(mtfe mtfe)
 target_include_directories(mtfe PRIVATE ${SYSINC_DIR})
 target_include_directories(mtfe PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml)
-target_link_libraries(mtfe midas ${LIBS})
+target_link_libraries(mtfe midas mfe ${LIBS})
