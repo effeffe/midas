@@ -3,19 +3,33 @@
 #
 set(PROGS
    mserver
+   #odbedit
+   odbinit
+   #mhttpd
    mlogger
    msequencer
-   lazylogger
-   mtransition
-   odbinit
-   mdump
    mhist
    mstat
+   mdump
+   lazylogger
+   mtransition
    mhdump
    mchart
    odbhist
    melog
    mh2sql
+   fetest
+   feudp
+   #crc32c
+   #mfe_link_test
+   #mfe_link_test_cxx
+   #mana_link_test
+   #mjson_test
+   #mcnaf
+   #get_record_test
+   #odb_lock_test
+   #rmlogger
+   #rmana_link_test
 )
 
 foreach(PROG ${PROGS})
@@ -43,11 +57,23 @@ endif(OPENSSL_FOUND)
 target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS})
 
 #
+# feudp, fetest
+#
+
+target_link_libraries(feudp midas mfe ${LIBS})
+target_link_libraries(fetest midas mfe ${LIBS})
+
+#
 # odbedit
 #
 add_executable(odbedit odbedit cmdedit)
 target_include_directories(odbedit PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 target_link_libraries(odbedit midas ${LIBS})
+
+#
+# ensure mlogger is built without ROOT
+#
+
 remove_definitions(-DHAVE_ROOT)
 
 #
