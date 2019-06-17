@@ -535,18 +535,6 @@ var mhttpd_refresh_interval;
 var mhttpd_refresh_history_interval;
 var mhttpd_spinning_wheel;
 
-function modbset(path, value)
-/* shortcut for mjsonrpc_db_paste() with standard error handling */
-{
-   if (Array.isArray(path)) {
-      mjsonrpc_db_paste(path,value).then(function(rpc) {}).catch(function(error) {
-         mjsonrpc_error_alert(error); });
-   } else {
-      mjsonrpc_db_paste([path],[value]).then(function(rpc) {}).catch(function(error) {
-         mjsonrpc_error_alert(error); });
-   }
-}
-
 function mhttpd_init(current_page, interval, callback) {
    /*
     This funciton should be called from custom pages to initialize all ODB tags and refresh
