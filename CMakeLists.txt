@@ -174,12 +174,11 @@ target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
 target_include_directories(midas PUBLIC ${SYSINC_DIR})
 
 # library for mfe
-add_library(mfe src/mfe)
-target_include_directories(mfe PUBLIC ${SYSINC_DIR})
-target_include_directories(mfe PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
+#add_library(mfe src/mfe)
+#target_include_directories(mfe PUBLIC ${SYSINC_DIR})
+#target_include_directories(mfe PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 
-
-install(TARGETS midas midas-shared mfe
+install(TARGETS midas midas-shared
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
