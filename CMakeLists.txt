@@ -61,7 +61,6 @@ if (HAVE_ROOT)
    execute_process(COMMAND root-config --libs OUTPUT_VARIABLE ROOT_LIBS)
    string(STRIP ${ROOT_LIBS} ROOT_LIBS)
    string(REGEX REPLACE "\n$" "" ROOT_INC "${ROOT_INC}")
-   add_definitions(-DHAVE_ROOT)
    set(CMAKE_CXX_STANDARD 11)
 endif(HAVE_ROOT)
 
@@ -182,11 +181,17 @@ target_include_directories(mfe PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 add_library(mana src/mana)
 target_include_directories(mana PUBLIC ${SYSINC_DIR})
 target_include_directories(mana PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
+
+# library for rmana
+add_library(rmana src/mana)
+target_include_directories(rmana PUBLIC ${SYSINC_DIR})
+target_include_directories(rmana PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 if (HAVE_ROOT)
-   target_include_directories(mana PUBLIC ${ROOT_INC})
+   target_include_directories(rmana PUBLIC ${ROOT_INC})
+   target_compile_options(rmana PRIVATE -DHAVE_ROOT)
 endif(HAVE_ROOT)
 
-install(TARGETS midas midas-shared mfe mana
+install(TARGETS midas midas-shared mfe mana rmana
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
@@ -204,19 +209,17 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/mfeo.dir/src/mfe.cxx.o DEST
 add_library(manao OBJECT src/mana)
 target_include_directories(manao PUBLIC ${SYSINC_DIR})
 target_include_directories(manao PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
-if (HAVE_ROOT)
-   target_include_directories(manao PUBLIC ${ROOT_INC})
-endif(HAVE_ROOT)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manao.dir/src/mana.cxx.o DESTINATION lib RENAME mana.o)
 
 # library for rmana.o
-#add_library(rmanao OBJECT src/mana)
-#target_include_directories(rmanao PUBLIC ${SYSINC_DIR})
-#target_include_directories(rmanao PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
-#if (HAVE_ROOT)
-#   target_include_directories(rmanao PUBLIC ${ROOT_INC})
-#endif(HAVE_ROOT)
-#install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/rmanao.dir/src/mana.cxx.o DESTINATION lib RENAME rmana.o)
+add_library(rmanao OBJECT src/mana)
+target_include_directories(rmanao PUBLIC ${SYSINC_DIR})
+target_include_directories(rmanao PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
+if (HAVE_ROOT)
+   target_include_directories(rmanao PUBLIC ${ROOT_INC})
+   target_compile_options(rmanao PRIVATE -DHAVE_ROOT)
+endif(HAVE_ROOT)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/rmanao.dir/src/mana.cxx.o DESTINATION lib RENAME rmana.o)
 
 #####################################################################
 # generate git revision file

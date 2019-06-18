@@ -71,17 +71,12 @@ target_include_directories(odbedit PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 target_link_libraries(odbedit midas ${LIBS})
 
 #
-# ensure mlogger is built without ROOT
-#
-
-remove_definitions(-DHAVE_ROOT)
-
-#
 # rmlogger
 #
 if (HAVE_ROOT)
    add_executable(rmlogger mlogger)
    target_include_directories(rmlogger PUBLIC ${ROOT_INC})
+   target_compile_options(rmlogger PRIVATE -DHAVE_ROOT)
    target_link_libraries(rmlogger midas ${LIBS} ${ROOT_LIBS})
 endif(HAVE_ROOT)
 
@@ -93,3 +88,5 @@ install(TARGETS ${PROGS} mhttpd odbedit DESTINATION bin)
 if (HAVE_ROOT)
    install(TARGETS rmlogger DESTINATION bin)
 endif(HAVE_ROOT)
+
+#end

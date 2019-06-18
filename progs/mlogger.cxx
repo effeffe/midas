@@ -29,6 +29,9 @@
 #include "TFile.h"
 #include "TNtuple.h"
 #include "TLeaf.h"
+//#warning HAVE_ROOT!
+//#else
+//#warning NO HAVE_ROOT!
 #endif
 
 #ifdef HAVE_ZLIB

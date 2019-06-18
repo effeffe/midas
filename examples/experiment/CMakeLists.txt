@@ -10,5 +10,5 @@ if (HAVE_ROOT)
       scaler)
 
    target_include_directories(analyzer PUBLIC ${ROOT_INC} ${PROJECT_SOURCE_DIR}/mxml)
-   target_link_libraries(analyzer mana midas ${ROOT_LIBS} ${LIBS})
+   target_link_libraries(analyzer rmana midas ${ROOT_LIBS} ${LIBS})
 endif(HAVE_ROOT)

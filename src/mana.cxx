@@ -105,6 +105,9 @@ typedef struct {
 
 TREE_STRUCT tree_struct;
 
+//#warning HAVE_ROOT!
+//#else
+//#warning NO HAVE_ROOT!
 #endif                          /* HAVE_ROOT */
 
 /*------------------------------------------------------------------*/
