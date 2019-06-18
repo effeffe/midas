@@ -867,32 +867,32 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
       </p>
       <p> Test nan and inf encoding
 
-         <script type="text/javascript">
+        <script type="text/javascript">
 
-            function test_nan_inf_encode() {
-               var data = new Array();
-               data[0] = 3.1415;
-               data[1] = 1.0 / 0.0; // +infinity
-               data[2] = -1.0 / 0.0; // -infinity
-               data[3] = 0.0 / 0.0; // nan
-               data[4] = Math.sqrt(-1.0); // nan
-               alert("Test of JSON encode: data array: " + data + ", encoded to JSON: " + JSON.stringify(data));
-            }
+        function test_nan_inf_encode() {
+           var data = new Array();
+           data[0] = 3.1415;
+           data[1] = 1.0 / 0.0; // +infinity
+           data[2] = -1.0 / 0.0; // -infinity
+           data[3] = 0.0 / 0.0; // nan
+           data[4] = Math.sqrt(-1.0); // nan
+           alert("Test of JSON encode: data array: " + data + ", encoded to JSON: " + JSON.stringify(data));
+        }
 
-            function test_nan_inf_decode() {
-               var json = '[ 2.5, "NaN", 1, "+Infinity", "-Infinity", 1e10000, 1e-10000 ]';
-               var data = JSON.parse(json);
-               alert("Test of JSON decode: " + json + " decoded as data array: " + data);
-            }
+        function test_nan_inf_decode() {
+           var json = '[ 2.5, "NaN", 1, "+Infinity", "-Infinity", 1e10000, 1e-10000 ]';
+           var data = JSON.parse(json);
+           alert("Test of JSON decode: " + json + " decoded as data array: " + data);
+        }
 
-         </script>
+        </script>
 
-         <input type=button value='test encode of nan and inf' onClick='test_nan_inf_encode();'></input>
-         <input type=button value='test decode of nan and inf' onClick='test_nan_inf_decode();'></input>
-         <input
-                 type=button
-                 value='test db_paste of nan and inf'
-                 onClick='var paths = [
+        <input type=button value='test encode of nan and inf' onClick='test_nan_inf_encode();'></input>
+        <input type=button value='test decode of nan and inf' onClick='test_nan_inf_decode();'></input>
+        <input
+          type=button
+          value='test db_paste of nan and inf'
+          onClick='var paths = [
              "/example/test_nan",
 	          "/example/test_plusinf",
 	          "/example/test_minusinf",
@@ -901,16 +901,48 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
           mjsonrpc_db_paste(paths, values).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'>
          </input>
          <input
-                 type=button
-                 value='test db_copy of nan and inf'
-                 onClick='var paths = [
+           type=button
+           value='test db_copy of nan and inf'
+           onClick='var paths = [
              "/example/test_nan",
 	          "/example/test_plusinf",
 	          "/example/test_minusinf",
 	       ];
           mjsonrpc_db_get_values(paths).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
          <input type=button value='test MJSonNode encoding of nan and inf'
-                onClick='mjsonrpc_call("test_nan_inf").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+           onClick='mjsonrpc_call("test_nan_inf").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
+      </p>
+      <p> Test modbset()
+
+        <script type="text/javascript">
+
+        function test_modbset() {
+           modbset("/example/int", 1);
+           modbset("/example/int", 2);
+           modbset("/example/int", 3);
+           modbset("/example/int", 4);
+           modbset("/example/int", 5);
+        }
+
+        function test_chained_db_paste() {
+           var paths = [ "/example/int" ];
+           mjsonrpc_db_paste(paths,[6]).then(function(rpc) {
+              mjsonrpc_db_paste(paths,[7]).then(function(rpc) {
+                 mjsonrpc_db_paste(paths,[8]).then(function(rpc) {
+                    mjsonrpc_db_paste(paths,[9]).then(function(rpc) {
+                       mjsonrpc_db_paste(paths,[10]).then(function(rpc) {
+                          // nothing
+                       }).catch(function(error){mjsonrpc_error_alert(error);});
+                    }).catch(function(error){mjsonrpc_error_alert(error);});
+                 }).catch(function(error){mjsonrpc_error_alert(error);});
+              }).catch(function(error){mjsonrpc_error_alert(error);});
+           }).catch(function(error){mjsonrpc_error_alert(error);});
+        }
+
+        </script>
+
+        <input type=button value='test modbset()' onClick='test_modbset();'></input>
+        <input type=button value='test chained db_paste()' onClick='test_chained_db_paste();'></input>
       </p>
 
       <h2>mjsonrpc_get_schema()</h2>
