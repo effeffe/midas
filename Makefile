@@ -498,6 +498,8 @@ cmake3:
 	cd build; cmake3 ..; $(MAKE) $(MAKEFLAGS); $(MAKE) install
 
 cclean:
+	-rm -f lib/*
+	-rm -f bin/*
 	-rm -rf build
 
 dox:

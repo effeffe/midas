@@ -79,7 +79,7 @@ endif
 #                 
 INC_DIR   = $(MIDASSYS)/include
 DRV_DIR   = $(MIDASSYS)/drivers
-LIB_DIR   = $(MIDASSYS)/$(OS_DIR)/lib
+LIB_DIR   = $(MIDASSYS)/lib
 SRC_DIR   = $(MIDASSYS)/src
 
 #-------------------------------------------------------------------

@@ -32,7 +32,7 @@ set(DRV_DIR ${PROJECT_SOURCE_DIR}/drivers)
 #
 # Check for mxml
 #
-if (NOT EXISTS ${CMAKE_SOURCE_DIR}/mxml/mxml.cxx)
+if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mxml/mxml.cxx)
    message(FATAL_ERROR "\nError: 'mxml' submodule not found. Please install via\n"
       "'git submodule update --init'\n"
       "in midas root directory."
@@ -42,7 +42,7 @@ endif()
 #
 # Check for mscb
 #
-if (NOT EXISTS ${CMAKE_SOURCE_DIR}/mscb/src/mscb.cxx)
+if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mscb/src/mscb.cxx)
    message(FATAL_ERROR "\nError: 'mscb' submodule not found. Please install via\n"
       "'git submodule update --init'\n"
       "in midas root directory."
@@ -178,8 +178,15 @@ add_library(mfe src/mfe)
 target_include_directories(mfe PUBLIC ${SYSINC_DIR})
 target_include_directories(mfe PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 
+# library for mana
+add_library(mana src/mana)
+target_include_directories(mana PUBLIC ${SYSINC_DIR})
+target_include_directories(mana PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
+if (HAVE_ROOT)
+   target_include_directories(mana PUBLIC ${ROOT_INC})
+endif(HAVE_ROOT)
 
-install(TARGETS midas midas-shared mfe
+install(TARGETS midas midas-shared mfe mana
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
@@ -192,6 +199,24 @@ target_include_directories(mfeo PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 # might change in future CMake versions. The only other option however
 # would be to pack and then unpack again a library (NB, 12.6.2019)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/mfeo.dir/src/mfe.cxx.o DESTINATION lib RENAME mfe.o)
+
+# library for mana.o
+add_library(manao OBJECT src/mana)
+target_include_directories(manao PUBLIC ${SYSINC_DIR})
+target_include_directories(manao PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
+if (HAVE_ROOT)
+   target_include_directories(manao PUBLIC ${ROOT_INC})
+endif(HAVE_ROOT)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manao.dir/src/mana.cxx.o DESTINATION lib RENAME mana.o)
+
+# library for rmana.o
+#add_library(rmanao OBJECT src/mana)
+#target_include_directories(rmanao PUBLIC ${SYSINC_DIR})
+#target_include_directories(rmanao PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
+#if (HAVE_ROOT)
+#   target_include_directories(rmanao PUBLIC ${ROOT_INC})
+#endif(HAVE_ROOT)
+#install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/rmanao.dir/src/mana.cxx.o DESTINATION lib RENAME rmana.o)
 
 #####################################################################
 # generate git revision file

@@ -745,6 +745,20 @@ function mjsonrpc_cm_msg(message, type, id) {
    return mjsonrpc_call("cm_msg1", req, id);
 }
 
+function modbset(path, value)
+   /// \ingroup mjsonrpc_js
+   /// Simplified function to initiate an ODB write RPC request. This function returns immediately, without waiting for the request to complete. There is no way to check that the write request completed without error. Multiple calls to modbset() may result in out-of-order writes to ODB (later requests may be processed before earlier requests).
+   ///
+{
+   if (Array.isArray(path)) {
+      mjsonrpc_db_paste(path,value).then(function(rpc) {}).catch(function(error) {
+         mjsonrpc_error_alert(error); });
+   } else {
+      mjsonrpc_db_paste([path],[value]).then(function(rpc) {}).catch(function(error) {
+         mjsonrpc_error_alert(error); });
+   }
+}
+
 /* emacs
  * Local Variables:
  * tab-width: 8
