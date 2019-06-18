@@ -29,10 +29,6 @@
 #define EQ_NAME "RpcExample"
 #define EQ_EVID 1
 
-/* make frontend functions callable from the C framework */
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /*-- Globals -------------------------------------------------------*/
 
@@ -94,10 +90,6 @@ EQUIPMENT equipment[] = {
   },
   { "" }
 };
-
-#ifdef __cplusplus
-}
-#endif
 
 /********************************************************************\
               Callback routines for system transitions
@@ -252,7 +244,7 @@ INT frontend_loop()
 
 \********************************************************************/
 
-extern "C" INT poll_event(INT source, INT count, BOOL test)
+INT poll_event(INT source, INT count, BOOL test)
 /* Polling routine for events. Returns TRUE if event
    is available. If test equals TRUE, don't return. The test
    flag is used to time the polling */
@@ -265,7 +257,7 @@ extern "C" INT poll_event(INT source, INT count, BOOL test)
 
 /*-- Interrupt configuration ---------------------------------------*/
 
-extern "C" INT interrupt_configure(INT cmd, INT source, PTYPE adr)
+INT interrupt_configure(INT cmd, INT source, PTYPE adr)
 {
   switch(cmd)
     {

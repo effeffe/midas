@@ -1,6 +1,6 @@
 # Makefile
 
-MIDAS_OS=linux
+#MIDAS_OS=linux
 
 ifndef MIDASSYS
 MIDASSYS=$(HOME)/packages/midas
@@ -12,7 +12,7 @@ endif
 #MIDAS_OS=darwin
 #endif
 
-OSFLAGS  = -DOS_LINUX -Dextname
+OSFLAGS  = -Dextname
 CFLAGS   = -g -O2 -Wall -Wuninitialized -I$(MIDASSYS)/include -I$(DRV_DIR) -I$(HOME)/daq/rootana
 CXXFLAGS = $(CFLAGS)
 
@@ -25,8 +25,8 @@ LIBS += -lrt
 endif
 
 # MIDAS library
-MIDASLIBS = $(MIDASSYS)/$(MIDAS_OS)/lib/libmidas.a
-MFE       = $(MIDASSYS)/$(MIDAS_OS)/lib/mfe.o
+MIDASLIBS = $(MIDASSYS)/lib/libmidas.a
+MFE       = $(MIDASSYS)/lib/mfe.o
 
 all:: fejrpc.exe
 all:: fesimdaq.exe

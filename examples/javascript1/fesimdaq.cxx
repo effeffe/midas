@@ -17,11 +17,6 @@ ii) deferred transition; frontend waits 5 extra seconds at end of run with defer
 #include <sstream>
 #include <unistd.h>
 
-/* make frontend functions callable from the C framework */
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /*-- Globals -------------------------------------------------------*/
 
 /* The frontend name (client name) as seen by other MIDAS clients   */
@@ -95,10 +90,6 @@ EQUIPMENT equipment[] = {
 
    {""}
 };
-
-#ifdef __cplusplus
-}
-#endif
 
 /********************************************************************\
               Callback routines for system transitions
@@ -236,7 +227,7 @@ INT frontend_loop()
 
 /*-- Trigger event routines ----------------------------------------*/
 // Not currently used for DCRC readout
-extern "C" { INT poll_event(INT source, INT count, BOOL test)
+INT poll_event(INT source, INT count, BOOL test)
 /* Polling routine for events. Returns TRUE if event
    is available. If test equals TRUE, don't return. The test
    flag is used to time the polling */
@@ -254,11 +245,10 @@ extern "C" { INT poll_event(INT source, INT count, BOOL test)
    usleep(1000);
    return 0;
 }
-}
 
 /*-- Interrupt configuration ---------------------------------------*/
 // This is not currently used by the DCRC readout
-extern "C" { INT interrupt_configure(INT cmd, INT source, POINTER_T adr)
+INT interrupt_configure(INT cmd, INT source, POINTER_T adr)
 {
    switch (cmd) {
    case CMD_INTERRUPT_ENABLE:
@@ -271,7 +261,6 @@ extern "C" { INT interrupt_configure(INT cmd, INT source, POINTER_T adr)
       break;
    }
    return SUCCESS;
-}
 }
 
 #include "math.h" // for RAND, and rand
