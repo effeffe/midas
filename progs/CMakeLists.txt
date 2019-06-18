@@ -63,3 +63,7 @@ endif(HAVE_ROOT)
 # Installation
 #
 install(TARGETS ${PROGS} mhttpd odbedit DESTINATION bin)
+
+if (HAVE_ROOT)
+   install(TARGETS rmlogger DESTINATION bin)
+endif(HAVE_ROOT)
