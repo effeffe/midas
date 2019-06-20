@@ -221,8 +221,14 @@
     function load() {
        var cmd = mhttpd_getParameterByName("cmd");
        var tag    = mhttpd_getParameterByName("tag");
-       
-       set_text("table_name", "Elog message " + tag);
+
+       //console.log("load() cmd: " + cmd + " tag: " + tag);
+
+       if (tag) {
+          set_text("table_name", "Elog message " + tag);
+       } else {
+          set_text("table_name", "Last Elog message");
+       }
        
        var show_text = (mhttpd_getParameterByName("show_text") == "true");
        var show_attachments = (mhttpd_getParameterByName("show_attachments") == "true");
@@ -241,7 +247,14 @@
 
           //dlgMessage(title, message, modal, error, callback, param)
 
-          if (status == 906) {
+          if (!tag && (status == 902)) {
+             dlgMessage("Welcome to the elog", "Please create the first elog message", true, false,
+                        function modal1(flag) {
+                           mhttpd_goto_page("new+elog");
+                           // does not return
+                        }
+             );
+          } else if (status == 906) {
              dlgMessage("No more messages", "There are not more messages, returning to the last message", true, false,
                         function modal1(flag) {
                            last_message();
