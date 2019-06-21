@@ -7,10 +7,11 @@
 
 \********************************************************************/
 
-#include <math.h>
+#include <stdio.h>
+#include <math.h> // fabs()
 #include <assert.h>
-#include <float.h>
-#include <algorithm>
+#include <algorithm> // std::sort()
+
 #include "midas.h"
 #include "msystem.h"
 #include "mxml.h"
