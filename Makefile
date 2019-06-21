@@ -155,7 +155,7 @@ NEED_ZLIB=
 #
 CC = gcc $(USERFLAGS)
 CXX = g++ $(USERFLAGS)
-CFLAGS = -g -O2 -Wall -Wno-strict-aliasing -Wuninitialized -I$(INC_DIR) -I$(DRV_DIR) -I$(MXML_DIR) -I$(MSCB_DIR)/include -DHAVE_FTPLIB
+CFLAGS = -g -O2 -Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -I$(INC_DIR) -I$(DRV_DIR) -I$(MXML_DIR) -I$(MSCB_DIR)/include -DHAVE_FTPLIB
 
 #-----------------------
 # Cross-compilation, change GCC_PREFIX
