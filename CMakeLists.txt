@@ -149,8 +149,8 @@ set(libsrc
    src/sha512
    src/ftplib
    progs/mdsupport
-   mxml/mxml
-   mxml/strlcpy
+   mxml/mxml.cxx
+   mxml/strlcpy.cxx
    ${GIT_REVISION}
    )
 
