@@ -256,7 +256,7 @@ INT hs_search_file(DWORD * ltime, INT direction)
    if (fh < 0)
       return HS_FILE_ERROR;
 
-   if (lt != *ltime) {
+   if (lt != (time_t) *ltime) {
       /* if switched to new day, set start_time to 0:00 */
       tms = localtime(&lt);
       tms->tm_hour = tms->tm_min = tms->tm_sec = 0;

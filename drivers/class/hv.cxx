@@ -136,7 +136,7 @@ INT hv_stop(EQUIPMENT * pequipment)
 
 INT hv_read(EQUIPMENT * pequipment, int channel)
 {
-   int i, status;
+   int i, status = 0;
    float max_diff;
    DWORD act_time, min_time;
    BOOL changed;
@@ -995,7 +995,7 @@ INT hv_exit(EQUIPMENT * pequipment)
 
 INT hv_idle(EQUIPMENT * pequipment)
 {
-   INT act, status;
+   INT act, status = 0;
    DWORD act_time;
    HV_INFO *hv_info;
 
