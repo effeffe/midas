@@ -263,7 +263,7 @@ OSTYPE = osf1
 endif
 
 ifeq ($(OSTYPE),osf1)
-OS_DIR = osf1
+#OS_DIR = osf1
 OSFLAGS = -DOS_OSF1
 FFLAGS = -nofor_main -D 40000000 -T 20000000
 LIBS = -lc -lbsd
@@ -278,7 +278,7 @@ OSTYPE = ultrix
 endif
 
 ifeq ($(OSTYPE),ultrix)
-OS_DIR = ultrix
+#OS_DIR = ultrix
 OSFLAGS = -DOS_ULTRIX -DNO_PTY
 LIBS =
 SPECIFIC_OS_PRG = 
@@ -288,7 +288,7 @@ endif
 # FreeBSD
 #
 ifeq ($(OSTYPE), FreeBSD)
-OS_DIR = freeBSD
+#OS_DIR = freeBSD
 OSFLAGS = -DOS_FREEBSD
 LIBS = -lbsd -lcompat
 SPECIFIC_OS_PRG = 
@@ -302,7 +302,7 @@ OSTYPE = darwin
 endif
 
 ifeq ($(OSTYPE),darwin)
-OS_DIR = darwin
+#OS_DIR = darwin
 OSFLAGS = -DOS_LINUX -DOS_DARWIN -fPIC -Wno-unused-function
 LIBS = -lpthread
 SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker
@@ -325,7 +325,7 @@ endif
 
 ifeq ($(OSTYPE),cygwin)
 
-OS_DIR = cygwin
+#OS_DIR = cygwin
 OSFLAGS = -DOS_LINUX -DOS_CYGWIN -Wno-unused-function
 LIBS = -lutil -lpthread
 endif
@@ -345,7 +345,7 @@ CFLAGS += -D_LARGEFILE64_SOURCE
 # include ZLIB support
 NEED_ZLIB=1
 
-OS_DIR = linux
+#OS_DIR = linux
 OSFLAGS += -DOS_LINUX -fPIC -Wno-unused-function
 LIBS = -lutil -lpthread -lrt -ldl
 SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker $(BIN_DIR)/dio
@@ -362,14 +362,10 @@ endif
 #
 ifeq ($(OSTYPE),solaris)
 CC = gcc
-OS_DIR = solaris
+#OS_DIR = solaris
 OSFLAGS = -DOS_SOLARIS
 LIBS = -lsocket -lnsl
 SPECIFIC_OS_PRG = 
-endif
-
-ifndef OS_DIR
-OS_DIR = unknown
 endif
 
 #####################################################################
@@ -383,13 +379,18 @@ INC_DIR  = include
 SRC_DIR  = src
 DRV_DIR  = drivers
 EXAM_DIR = examples
+PROGS_DIR = progs
 
 #
 # Midas operating system dependent directories
 #
+ifdef OS_DIR
+LIB_DIR   = $(OS_DIR)/lib
+BIN_DIR   = $(OS_DIR)/bin
+else
 LIB_DIR   = lib
 BIN_DIR   = bin
-PROGS_DIR = progs
+endif
 
 #
 # targets
@@ -571,13 +572,13 @@ examples: $(EXAMPLES)
 $(LIB_DIR):
 	@if [ ! -d  $(LIB_DIR) ] ; then \
            echo "Making directory $(LIB_DIR)" ; \
-           mkdir $(LIB_DIR); \
+           mkdir -p $(LIB_DIR); \
         fi;
 
 $(BIN_DIR):
 	@if [ ! -d  $(BIN_DIR) ] ; then \
            echo "Making directory $(BIN_DIR)" ; \
-           mkdir $(BIN_DIR); \
+           mkdir -p $(BIN_DIR); \
         fi;
 
 #
