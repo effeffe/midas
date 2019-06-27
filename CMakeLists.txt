@@ -53,43 +53,74 @@ endif()
 #
 # Optional ROOT support
 #
+if (NO_ROOT)
+   message(STATUS "MIDAS: ROOT support is disabled via NO_ROOT")
+else (NO_ROOT)
 execute_process(COMMAND root-config --version OUTPUT_VARIABLE HAVE_ROOT)
 if (HAVE_ROOT)
    string(REGEX REPLACE "\n" "" HAVE_ROOT ${HAVE_ROOT})
-   message("Found ROOT version " ${HAVE_ROOT})
+   message(STATUS "MIDAS: Found ROOT version " ${HAVE_ROOT})
    execute_process(COMMAND root-config --incdir OUTPUT_VARIABLE ROOT_INC)
    execute_process(COMMAND root-config --libs OUTPUT_VARIABLE ROOT_LIBS)
    string(STRIP ${ROOT_LIBS} ROOT_LIBS)
    string(REGEX REPLACE "\n$" "" ROOT_INC "${ROOT_INC}")
    set(CMAKE_CXX_STANDARD 11)
+else (HAVE_ROOT)
+   message(STATUS "MIDAS: ROOT not found")
 endif(HAVE_ROOT)
+endif(NO_ROOT)
 
 #
 # Optional SSL support for mhttpd
 #
+if (NO_SSL)
+   message(STATUS "MIDAS: OpenSSL support is disabled via NO_SSL")
+else (NO_SSL)
 find_package(OpenSSL)
 if (OPENSSL_FOUND)
-   message("Found OpenSSL version " ${OPENSSL_VERSION})
+   message(STATUS "MIDAS: Found OpenSSL version " ${OPENSSL_VERSION})
+else ()
+   message(STATUS "MIDAS: OpenSSL not found")
 endif()
+endif (NO_SSL)
 
 #
 # Check for MYSQL library for mlogger and for the history
 #
-execute_process(COMMAND mysql_config --version OUTPUT_VARIABLE HAVE_MYSQL)
+if (NO_MYSQL)
+   message(STATUS "MIDAS: MySQL support is disabled via NO_MYSQL")
+else (NO_MYSQL)
+   execute_process(COMMAND mysql_config --version OUTPUT_VARIABLE HAVE_MYSQL)
+   message(STATUS "MIDAS: Found MySQL version " ${HAVE_MYSQL})
+endif (NO_MYSQL)
 
 #
 # Check for ODBC for history support
 #
+if (NO_ODBC)
+   message(STATUS "MIDAS: ODBC support is disabled via NO_ODBC")
+else (NO_ODBC)
 if (EXISTS /usr/include/sql.h)
+   message(STATUS "MIDAS: Found ODBC /usr/include/sql.h")
    set(HAVE_ODBC 1)
+else ()
+   message(STATUS "MIDAS: ODBC not found")
 endif()
+endif (NO_ODBC)
 
 #
 # Check for SQLITE for history support
 #
+if (NO_SQLITE)
+   message(STATUS "MIDAS: SQLITE support is disabled via NO_SQLITE")
+else (NO_SQLITE)
 if (EXISTS /usr/include/sqlite3.h)
+   message(STATUS "MIDAS: Found SQLITE /usr/include/sqlite3.h")
    set(HAVE_SQLITE 1)
+else ()
+   message(STATUS "MIDAS: SQLITE not found")
 endif()
+endif (NO_SQLITE)
 
 #-----------------------
 # Common flags

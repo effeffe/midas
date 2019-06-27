@@ -489,13 +489,35 @@ ALL+= $(PROGS)
 
 all: check-mxml $(GIT_REVISION) $(ALL)
 
+CMAKEFLAGS:=
+
+ifdef NO_ROOT
+CMAKEFLAGS+= -DNO_ROOT=1
+endif
+
+ifdef NO_ODBC
+CMAKEFLAGS+= -DNO_ODBC=1
+endif
+
+ifdef NO_SQLITE
+CMAKEFLAGS+= -DNO_SQLITE=1
+endif
+
+ifdef NO_MYSQL
+CMAKEFLAGS+= -DNO_MYSQL=1
+endif
+
+ifdef NO_SSL
+CMAKEFLAGS+= -DNO_SSL=1
+endif
+
 cmake:
 	-mkdir build
-	cd build; cmake ..; $(MAKE) $(MAKEFLAGS); $(MAKE) install
+	cd build; cmake .. $(CMAKEFLAGS); $(MAKE) $(MAKEFLAGS); $(MAKE) install
 
 cmake3:
 	-mkdir build
-	cd build; cmake3 ..; $(MAKE) $(MAKEFLAGS); $(MAKE) install
+	cd build; cmake3 .. $(CMAKEFLAGS); $(MAKE) $(MAKEFLAGS); $(MAKE) install
 
 cclean:
 	-rm -f lib/*
