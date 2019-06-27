@@ -4,8 +4,9 @@
 # S.R. 28 May 2019
 #
 
-project(midas)
+message(STATUS "MIDAS: cmake version: " ${CMAKE_VERSION})
 cmake_minimum_required(VERSION 3.1)
+project(midas)
 
 #
 # Directories
