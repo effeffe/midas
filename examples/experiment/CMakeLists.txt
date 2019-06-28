@@ -3,22 +3,23 @@ project(frontend)
 
 if (${MIDAS_IN_TREE_BUILD})
    message(STATUS "MIDAS example/experiment: MIDAS_IN_TREE_BUILD: " ${MIDAS_IN_TREE_BUILD})
-   set(INC_PATH ../../include ../../mxml)
-   set(LIB_PATH -L../..)
+   set(INC_PATH $ENV{PWD}/../include $ENV{PWD}/../mxml)
+   set(LIB_PATH $ENV{PWD})
 else()
    message(STATUS "MIDAS example/experiment: MIDASSYS set to " $ENV{MIDASSYS})
    set(INC_PATH $ENV{MIDASSYS}/include $ENV{MIDASSYS}/mxml)
-   set(LIB_PATH -L$ENV{MIDASSYS}/lib)
+   set(LIB_PATH $ENV{MIDASSYS}/lib)
 endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux) 
    set(LIBS -lpthread -lutil -lrt) 
 endif() 
 
+link_directories(${LIB_PATH})
+
 add_executable(frontend frontend.cxx)
 target_include_directories(frontend PRIVATE ${INC_PATH})
 target_link_libraries(frontend libmfe.a libmidas.a ${LIBS})
-target_link_options(frontend PRIVATE ${LIB_PATH})
 
 if (NO_ROOT)
    message(STATUS "MIDAS example/experiment: ROOT support is disabled via NO_ROOT")
@@ -46,5 +47,4 @@ if (HAVE_ROOT)
 
    target_include_directories(analyzer PUBLIC ${ROOT_INC} ${INC_PATH})
    target_link_libraries(analyzer librmana.a libmidas.a ${ROOT_LIBS} ${LIBS})
-   target_link_options(analyzer PRIVATE ${LIB_PATH})
 endif(HAVE_ROOT)
