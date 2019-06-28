@@ -1,15 +1,7 @@
-#####################################################################
 #
-#  Name:         Makefile
-#  Created by:   Stefan Ritt
+# Makefile for the MIDAS examples/experiment frontend and analyzer
 #
-#  Contents:     Makefile for MIDAS example frontend and analyzer
-#
-#  $Id$
-#
-#####################################################################
-#
-#--------------------------------------------------------------------
+
 # The MIDASSYS should be defined prior the use of this Makefile
 ifndef MIDASSYS
 missmidas::
@@ -21,107 +13,74 @@ endif
 # get OS type from shell
 OSTYPE = $(shell uname)
 
-#--------------------------------------------------------------------
-# The following lines contain specific switches for different UNIX
-# systems. Find the one which matches your OS and outcomment the 
-# lines below.
-
-#-----------------------------------------
-# This is for Linux
+# Linux settings
 ifeq ($(OSTYPE),Linux)
 OSTYPE = linux
 endif
 
 ifeq ($(OSTYPE),linux)
-OS_DIR = linux
-OSFLAGS = -DOS_LINUX -Dextname
-CFLAGS = -g -O2 -Wall
-# add to compile in 32-bit mode
-# OSFLAGS += -m32
 LIBS = -lm -lz -lutil -lnsl -lpthread -lrt
 endif
 
-#-----------------------
-# MacOSX/Darwin is just a funny Linux
-#
+# MacOSX/Darwin settings
 ifeq ($(OSTYPE),Darwin)
 OSTYPE = darwin
 endif
 
 ifeq ($(OSTYPE),darwin)
-OS_DIR = darwin
-FF = cc
-OSFLAGS = -DOS_LINUX -DOS_DARWIN -DHAVE_STRLCPY -fPIC -Wno-unused-function
 LIBS = -lpthread -lz
-NEED_STRLCPY=
-NEED_RANLIB=1
-NEED_SHLIB=
-NEED_RPATH=
-
 endif
+
+# add this to compile against 32-bit midas (make linux32)
+# OSFLAGS += -m32
+# OS_DIR := linux-m32
 
 #-----------------------------------------
 # ROOT flags and libs
 #
 ifdef ROOTSYS
 ROOTCFLAGS := $(shell  $(ROOTSYS)/bin/root-config --cflags)
-ROOTCFLAGS += -DHAVE_ROOT -DUSE_ROOT
+ROOTCFLAGS += -DHAVE_ROOT
 ROOTLIBS   := $(shell  $(ROOTSYS)/bin/root-config --libs) -Wl,-rpath,$(ROOTSYS)/lib
 ROOTLIBS   += -lThread
-else
-missroot:
-	@echo "...";
-	@echo "Missing definition of environment variable 'ROOTSYS' !";
-	@echo "...";
 endif
-#-------------------------------------------------------------------
-# The following lines define directories. Adjust if necessary
-#                 
-INC_DIR   = $(MIDASSYS)/include
-DRV_DIR   = $(MIDASSYS)/drivers
-LIB_DIR   = $(MIDASSYS)/lib
-SRC_DIR   = $(MIDASSYS)/src
 
-#-------------------------------------------------------------------
-# List of analyzer modules
-#
-MODULES   = adccalib.o adcsum.o scaler.o
+# location of MIDAS things
+INC_DIR = $(MIDASSYS)/include
+ifdef OS_DIR
+LIB_DIR = $(MIDASSYS)/$(OS_DIR)/lib
+else
+LIB_DIR = $(MIDASSYS)/lib
+endif
 
-#-------------------------------------------------------------------
-# Frontend code name defaulted to frontend in this example.
-# comment out the line and run your own frontend as follow:
-# gmake UFE=my_frontend
-#
-UFE = frontend
-
-####################################################################
-# Lines below here should not be edited
-####################################################################
-
-# MIDAS library
+# midas library
 LIB = $(LIB_DIR)/libmidas.a
 
-# compiler
-CC = g++ -DNEED_NO_EXTERN_C
-CXX = g++
-CFLAGS += -g -I$(INC_DIR) -I$(DRV_DIR)
+# compiler settings
+CFLAGS += -O2 -g -Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Wno-unused-function
+CFLAGS += -I$(INC_DIR)
 LDFLAGS +=
 
-all: $(UFE) analyzer
+# list of programs to build
+PROGS:=
+PROGS+= frontend
+ifdef ROOTSYS
+PROGS+= analyzer
+endif
 
-$(UFE): $(LIB) $(LIB_DIR)/mfe.o $(UFE).cxx
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $(UFE) $(UFE).cxx \
-	$(LIB_DIR)/mfe.o $(LIB) \
-	$(LDFEFLAGS) $(LIBS)
+all: $(PROGS)
 
-analyzer: $(LIB) $(LIB_DIR)/rmana.o analyzer.o $(MODULES)
-	$(CXX) $(CFLAGS) -o $@ $(LIB_DIR)/rmana.o analyzer.o $(MODULES) \
-	$(LIB) $(LDFLAGS) $(ROOTLIBS) $(LIBS)
+frontend: $(LIB_DIR)/mfe.o frontend.o $(LIB)
+	$(CXX) -o $@ $(CFLAGS) $(OSFLAGS) $^ $(LDFEFLAGS) $(LIBS)
 
-%.o: %.cxx experim.h
-	$(CXX) $(USERFLAGS) $(ROOTCFLAGS) $(CFLAGS) $(OSFLAGS) -o $@ -c $<
+analyzer: $(LIB_DIR)/rmana.o analyzer.o adccalib.o adcsum.o scaler.o $(LIB)
+	$(CXX) -o $@ $(CFLAGS) $(OSFLAGS) $^ $(LDFLAGS) $(ROOTLIBS) $(LIBS)
+
+%.o: %.cxx
+	$(CXX) -o $@ -c $(USERFLAGS) $(ROOTCFLAGS) $(CFLAGS) $(OSFLAGS) $<
 
 clean::
-	rm -f $(UFE) analyzer *.o *~ \#*
+	-rm -f $(PROGS)
+	-rm -f *.o *~ \#*
 
 #end file
