@@ -11,7 +11,7 @@
 
 #include "crc32c.h"
 
-#ifdef __SSE__
+#if defined(__SSE__) && defined(__x86_64__)
 #define HAVE_HWCRC32C 1
 #endif
 
