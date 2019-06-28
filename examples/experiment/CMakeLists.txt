@@ -1,25 +1,62 @@
+#
+# CMakeLists.txt for midas examples/experiment
+#
+# S.R. 28 May 2019
+# K.O. 28 June 2019
+#
+# This cmakefile is dual use:
+# if MIDAS_IN_TREE_BUILD is set, the example experiment is built as part of the midas compilation
+# if MIDAS_IN_TREE_BUILD is unset, the example experiment is built against MIDAS installed at $MIDASSYS
+#
+# Optional settings for this cmakefile:
+#
+# $MIDASSYS - env.variable pointing to the location of MIDAS
+# root-config in the $PATH - sets the location of ROOT for the analyzer
+# -DNO_ROOT=1 - do not use ROOT
+#
+# Normal use:
+#
+# Copy all files from examples/experiment to the experiment directory:
+# mkdir -p $HOME/online/src
+# cd $HOME/online/src
+# cp $MIDASSYS/examples/experiment/* .
+# mkdir build
+# cd build
+# cmake ..
+# or cmake3 ..
+# make
+#
+# For testing the cmakefile inside the midas tree:
+#
+# cd $HOME/git/midas/examples/experiment
+# mkdir build
+# cd build
+# MIDASSYS=$HOME/git/midas cmake ..
+# make
+#
+
 cmake_minimum_required(VERSION 3.0)
 project(frontend)
 
 if (${MIDAS_IN_TREE_BUILD})
    message(STATUS "MIDAS example/experiment: MIDAS_IN_TREE_BUILD: " ${MIDAS_IN_TREE_BUILD})
-   set(INC_PATH $ENV{PWD}/../include $ENV{PWD}/../mxml)
-   set(LIB_PATH $ENV{PWD})
 else()
    message(STATUS "MIDAS example/experiment: MIDASSYS set to " $ENV{MIDASSYS})
+   if (NOT EXISTS $ENV{MIDASSYS}/include/midas.h)
+      message(FATAL_ERROR "Cannot find $MIDASSYS/include/midas.h at " $ENV{MIDASSYS}/include/midas.h)
+   endif()
    set(INC_PATH $ENV{MIDASSYS}/include $ENV{MIDASSYS}/mxml)
    set(LIB_PATH $ENV{MIDASSYS}/lib)
+   link_directories(${LIB_PATH})
 endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux) 
    set(LIBS -lpthread -lutil -lrt) 
 endif() 
 
-link_directories(${LIB_PATH})
-
 add_executable(frontend frontend.cxx)
 target_include_directories(frontend PRIVATE ${INC_PATH})
-target_link_libraries(frontend libmfe.a libmidas.a ${LIBS})
+target_link_libraries(frontend mfe midas ${LIBS})
 
 if (NO_ROOT)
    message(STATUS "MIDAS example/experiment: ROOT support is disabled via NO_ROOT")
@@ -46,5 +83,7 @@ if (HAVE_ROOT)
       scaler.cxx)
 
    target_include_directories(analyzer PUBLIC ${ROOT_INC} ${INC_PATH})
-   target_link_libraries(analyzer librmana.a libmidas.a ${ROOT_LIBS} ${LIBS})
+   target_link_libraries(analyzer rmana midas ${ROOT_LIBS} ${LIBS})
 endif(HAVE_ROOT)
+
+#end
