@@ -39,14 +39,12 @@ cmake_minimum_required(VERSION 3.0)
 project(frontend)
 
 # check if we are called from parent directory
-get_directory_property(MIDAS_IN_TREE_BUILD PARENT_DIRECTORY)
-
-if (${MIDAS_IN_TREE_BUILD})
-   message(STATUS "MIDAS example/experiment: MIDAS_IN_TREE_BUILD: " ${MIDAS_IN_TREE_BUILD})
+if (NOT ${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
+   message(STATUS "MIDAS example/experiment: MIDAS in-tree-build")
 else()
    message(STATUS "MIDAS example/experiment: MIDASSYS set to " $ENV{MIDASSYS})
-   if (NOT EXISTS $ENV{MIDASSYS}/include/midas.h)
-      message(FATAL_ERROR "Cannot find $MIDASSYS/include/midas.h at " $ENV{MIDASSYS}/include/midas.h)
+   if (NOT EXISTS $ENV{MIDASSYS})
+      message(FATAL_ERROR "Environment variable $MIDASSYS not defined, aborting.")
    endif()
    set(INC_PATH $ENV{MIDASSYS}/include $ENV{MIDASSYS}/mxml)
    link_directories($ENV{MIDASSYS}/lib)
