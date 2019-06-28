@@ -1,18 +1,23 @@
 cmake_minimum_required(VERSION 3.0)
 project(frontend)
 
-if (NOT DEFINED ENV{MIDASSYS})
-   message(STATUS "MIDAS example/experiment: MIDASSYS environment variable not defined, assuming in-tree build")
+if (${MIDAS_IN_TREE_BUILD})
+   message(STATUS "MIDAS example/experiment: MIDAS_IN_TREE_BUILD: " ${MIDAS_IN_TREE_BUILD})
    set(INC_PATH ../../include ../../mxml)
    set(LIB_PATH -L../..)
 else()
+   message(STATUS "MIDAS example/experiment: MIDASSYS set to " $ENV{MIDASSYS})
    set(INC_PATH $ENV{MIDASSYS}/include $ENV{MIDASSYS}/mxml)
-   set(LIB_PATH $ENV{MIDASSYS}/lib)
+   set(LIB_PATH -L$ENV{MIDASSYS}/lib)
 endif()
+
+if (${CMAKE_SYSTEM_NAME} MATCHES Linux) 
+   set(LIBS -lpthread -lutil -lrt) 
+endif() 
 
 add_executable(frontend frontend.cxx)
 target_include_directories(frontend PRIVATE ${INC_PATH})
-target_link_libraries(frontend libmfe.a libmidas.a)
+target_link_libraries(frontend libmfe.a libmidas.a ${LIBS})
 target_link_options(frontend PRIVATE ${LIB_PATH})
 
 if (NO_ROOT)
