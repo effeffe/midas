@@ -38,6 +38,9 @@
 cmake_minimum_required(VERSION 3.0)
 project(frontend)
 
+# check if we are called from parent directory
+get_directory_property(MIDAS_IN_TREE_BUILD PARENT_DIRECTORY)
+
 if (${MIDAS_IN_TREE_BUILD})
    message(STATUS "MIDAS example/experiment: MIDAS_IN_TREE_BUILD: " ${MIDAS_IN_TREE_BUILD})
 else()

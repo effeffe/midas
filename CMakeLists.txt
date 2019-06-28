@@ -280,5 +280,4 @@ add_dependencies(objlib git_revision_h)
 # sub-projects
 #####################################################################
 add_subdirectory(progs)
-set(MIDAS_IN_TREE_BUILD 1)
 add_subdirectory(examples)
