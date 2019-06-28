@@ -38,10 +38,12 @@ endif
 #-----------------------------------------
 # ROOT flags and libs
 #
-ifdef ROOTSYS
-ROOTCFLAGS := $(shell  $(ROOTSYS)/bin/root-config --cflags)
+HAVE_ROOT := $(shell root-config --version 2> /dev/null)
+
+ifdef HAVE_ROOT
+ROOTCFLAGS := $(shell root-config --cflags)
 ROOTCFLAGS += -DHAVE_ROOT
-ROOTLIBS   := $(shell  $(ROOTSYS)/bin/root-config --libs) -Wl,-rpath,$(ROOTSYS)/lib
+ROOTLIBS   := $(shell root-config --libs)
 ROOTLIBS   += -lThread
 endif
 
@@ -64,7 +66,7 @@ LDFLAGS +=
 # list of programs to build
 PROGS:=
 PROGS+= frontend
-ifdef ROOTSYS
+ifdef HAVE_ROOT
 PROGS+= analyzer
 endif
 
