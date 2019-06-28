@@ -13,8 +13,13 @@ pipelines:
         image: rootproject/root-centos
         script:
           - gcc -v
-          - git clone https://bitbucket.org/tmidas/mxml.git
-          - git clone https://bitbucket.org/tmidas/mscb.git
+          - echo $ROOTSYS
+          - root-config --version
+          - root-config --cflags
+          - root-config --features
+          - #git clone https://bitbucket.org/tmidas/mxml.git
+          - #git clone https://bitbucket.org/tmidas/mscb.git
+          - git submodule update --init
           - make
 
     - step:
