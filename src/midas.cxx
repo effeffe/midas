@@ -3198,7 +3198,7 @@ INT cm_register_server(void)
          return status;
       }
 
-      status = rpc_register_server(/*ST_REMOTE, NULL,*/ &port, rpc_client_accept, NULL);
+      status = rpc_register_server(false, /*ST_REMOTE, NULL,*/ &port, NULL);
       if (status != RPC_SUCCESS)
          return status;
       _server_registered = TRUE;
@@ -6211,7 +6211,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       bm_init_buffer_counters(handle + 1);
 
       /* setup dispatcher for receive events */
-      ss_suspend_set_dispatch_ipc(cm_dispatch_ipc);
+      //ss_suspend_set_dispatch_ipc(cm_dispatch_ipc);
 
       bm_cleanup("bm_open_buffer", ss_millitime(), FALSE);
 
@@ -10936,7 +10936,7 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    _server_connection.remote_hw_type = remote_hw_type;
 
    /* set dispatcher which receives database updates */
-   ss_suspend_set_dispatch_client(&_server_connection, rpc_client_dispatch);
+   //ss_suspend_set_dispatch_client(&_server_connection, rpc_client_dispatch);
 
    return RPC_SUCCESS;
 }
@@ -13030,7 +13030,7 @@ INT recv_event_check(int sock)
 
 
 /********************************************************************/
-INT rpc_register_server(/*INT server_type, const char *name,*/ INT * port, int accept_func(int), INT(*func) (INT, void **))
+INT rpc_register_server(bool is_mserver, /*INT server_type, const char *name,*/ INT * port, /*int accept_func(int),*/ INT(*func) (INT, void **))
 /********************************************************************\
 
   Routine: rpc_register_server
@@ -13040,6 +13040,7 @@ INT rpc_register_server(/*INT server_type, const char *name,*/ INT * port, int a
            rpc_register_server.
 
   Input:
+    bool  is_mserver        true if this is the mserver, false otherwise
     INT   server_type       One of the following constants:
                             //ST_SINGLE: register a single process server
                             //ST_MTHREAD: for each connection, start
@@ -13158,7 +13159,7 @@ INT rpc_register_server(/*INT server_type, const char *name,*/ INT * port, int a
    }
 
    /* define callbacks for ss_suspend */
-   ss_suspend_set_dispatch_listen(_lsock, accept_func);
+   //ss_suspend_set_dispatch_listen(_lsock, accept_func);
 
    ///* define callbacks for ss_suspend */
    //if (server_type == ST_REMOTE)
@@ -14424,7 +14425,7 @@ INT rpc_client_accept(int lsock)
    rpc_set_server_option(RPC_CONVERT_FLAGS, convert_flags);
 
    /* set callback function for ss_suspend */
-   ss_suspend_set_dispatch_server(_server_acception, rpc_server_receive);
+   //ss_suspend_set_dispatch_server(_server_acception, rpc_server_receive);
 
    return RPC_SUCCESS;
 }
@@ -14605,7 +14606,7 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    rpc_set_server_option(RPC_CONVERT_FLAGS, convert_flags);
 
    /* set callback function for ss_suspend */
-   ss_suspend_set_dispatch_server(_server_acception, rpc_server_receive);
+   //ss_suspend_set_dispatch_server(_server_acception, rpc_server_receive);
 
    if (rpc_is_mserver())
       rpc_debug_printf("Connection to %s:%s established\n",

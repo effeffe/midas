@@ -1912,7 +1912,7 @@ Data conversion flags */
    INT EXPRT rpc_set_debug(void (*func) (const char *), INT mode);
    void EXPRT rpc_debug_printf(const char *format, ...);
 
-   INT EXPRT rpc_register_server(/*INT server_type, const char *name,*/ INT * port, int accept_func(int), INT(*func) (INT, void **));
+   INT EXPRT rpc_register_server(bool is_mserver, /*INT server_type, const char *name,*/ INT * port, /*int accept_func(int),*/ INT(*func) (INT, void **));
    INT EXPRT rpc_register_client(const char *name, RPC_LIST * list);
    INT EXPRT rpc_server_thread(void *pointer);
    INT EXPRT rpc_server_shutdown(void);

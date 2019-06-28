@@ -1716,7 +1716,7 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    *hDB = (handle + 1);
 
    /* setup dispatcher for updated records */
-   ss_suspend_set_dispatch_ipc(cm_dispatch_ipc);
+   //ss_suspend_set_dispatch_ipc(cm_dispatch_ipc);
 
    status = db_validate_open_records(handle + 1);
    if (status != DB_SUCCESS) {

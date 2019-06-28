@@ -319,7 +319,7 @@ int main(int argc, char **argv)
       //}
 
       /* register server */
-      status =  rpc_register_server(&port, rpc_server_accept, rpc_server_dispatch);
+      status =  rpc_register_server(true, &port, /*rpc_server_accept,*/ rpc_server_dispatch);
       if (status != RPC_SUCCESS) {
          printf("Cannot start server, rpc_register_server() status %d\n", status);
          return 1;

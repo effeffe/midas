@@ -513,6 +513,7 @@ typedef struct {
    INT rpc_server_callback(struct callback_addr *callback);
    INT EXPRT rpc_server_accept(int sock);
    INT rpc_client_accept(int sock);
+   INT rpc_client_dispatch(int sock);
    //INT rpc_get_server_acception(void);
    //INT rpc_set_server_acception(INT idx);
    INT rpc_set_mserver_mode(void);
@@ -560,10 +561,11 @@ typedef struct {
    INT EXPRT ss_mutex_delete(MUTEX_T *mutex);
    INT ss_alarm(INT millitime, void (*func) (int));
    INT ss_suspend_get_port(INT * port);
-   INT ss_suspend_set_dispatch_listen(int listen_socket, INT(*dispatch)(INT));
-   INT ss_suspend_set_dispatch_server(RPC_SERVER_ACCEPTION* connection, INT(*dispatch)(INT,int,BOOL));
-   INT ss_suspend_set_dispatch_client(RPC_SERVER_CONNECTION* connection, INT(*dispatch)(INT));
-   INT ss_suspend_set_dispatch_ipc(INT(*dispatch)(const char*,INT));
+   INT ss_suspend_set_server_type(bool is_mserver);
+   //INT ss_suspend_set_dispatch_listen(int listen_socket, INT(*dispatch)(INT));
+   //INT ss_suspend_set_dispatch_server(RPC_SERVER_ACCEPTION* connection, INT(*dispatch)(INT,int,BOOL));
+   //INT ss_suspend_set_dispatch_client(RPC_SERVER_CONNECTION* connection, INT(*dispatch)(INT));
+   //INT ss_suspend_set_dispatch_ipc(INT(*dispatch)(const char*,INT));
    INT ss_resume(INT port, const char *message);
    INT ss_suspend_exit(void);
    INT ss_exception_handler(void (*func) (void));

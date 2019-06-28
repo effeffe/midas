@@ -3589,13 +3589,13 @@ typedef struct {
    INT ipc_port;
    INT ipc_recv_socket;
    INT ipc_send_socket;
-   INT(*ipc_dispatch) (const char *, INT);
+   //INT(*ipc_dispatch) (const char *, INT);
    INT listen_socket;
-   INT(*listen_dispatch) (INT);
+   //INT(*listen_dispatch) (INT);
    RPC_SERVER_CONNECTION *server_connection;
-   INT(*client_dispatch) (INT);
+   //INT(*client_dispatch) (INT);
    RPC_SERVER_ACCEPTION *server_acception;
-   INT(*server_dispatch) (INT, int, BOOL);
+   //INT(*server_dispatch) (INT, int, BOOL);
    struct sockaddr_in bind_addr;
 } SUSPEND_STRUCT;
 
@@ -3863,6 +3863,7 @@ INT ss_suspend_exit()
    return SS_SUCCESS;
 }
 
+#if 0
 /*------------------------------------------------------------------*/
 INT ss_suspend_set_dispatch_ipc(INT(*dispatch)(const char*,INT))
 {
@@ -3879,7 +3880,9 @@ INT ss_suspend_set_dispatch_ipc(INT(*dispatch)(const char*,INT))
 
    return SS_SUCCESS;
 }
+#endif
 
+#if 0
 INT ss_suspend_set_dispatch_client(RPC_SERVER_CONNECTION* connection, INT(*dispatch)(INT))
 {
    int i;
@@ -3893,7 +3896,9 @@ INT ss_suspend_set_dispatch_client(RPC_SERVER_CONNECTION* connection, INT(*dispa
 
    return SS_SUCCESS;
 }
+#endif
 
+#if 0
 INT ss_suspend_set_dispatch_server(RPC_SERVER_ACCEPTION* connection, INT(*dispatch)(INT,int,BOOL))
 {
    int i;
@@ -3907,7 +3912,9 @@ INT ss_suspend_set_dispatch_server(RPC_SERVER_ACCEPTION* connection, INT(*dispat
 
    return SS_SUCCESS;
 }
+#endif
 
+#if 0
 INT ss_suspend_set_dispatch_listen(int listen_socket, INT(*dispatch)(INT))
 {
    int i;
@@ -3919,6 +3926,15 @@ INT ss_suspend_set_dispatch_listen(int listen_socket, INT(*dispatch)(INT))
    _suspend_struct[i].listen_socket = listen_socket;
    _suspend_struct[i].listen_dispatch = dispatch;
 
+   return SS_SUCCESS;
+}
+#endif
+
+static bool ss_is_mserver = false;
+
+INT ss_suspend_set_server_type(bool is_mserver)
+{
+   ss_is_mserver = is_mserver;
    return SS_SUCCESS;
 }
 
@@ -4081,14 +4097,22 @@ INT ss_suspend(INT millisec, INT msg)
       if (_suspend_struct[idx].listen_socket && FD_ISSET(_suspend_struct[idx].listen_socket, &readfds)) {
          sock = _suspend_struct[idx].listen_socket;
 
-         if (_suspend_struct[idx].listen_dispatch) {
-            status = _suspend_struct[idx].listen_dispatch(sock);
-            // listen_dispatch actually calls:
-            // all midas client programs (server_type is ST_REMOTE) status = rpc_client_accept(sock);
-            // mserver main listener (server_type ST_MPROCESS, etc) status = rpc_server_accept(sock);
-            if (status == RPC_SHUTDOWN)
-               return status;
+         //if (_suspend_struct[idx].listen_dispatch) {
+         //   status = _suspend_struct[idx].listen_dispatch(sock);
+         //   // listen_dispatch actually calls:
+         //   // all midas client programs (server_type is ST_REMOTE) status = rpc_client_accept(sock);
+         //   // mserver main listener (server_type ST_MPROCESS, etc) status = rpc_server_accept(sock);
+         //   if (status == RPC_SHUTDOWN)
+         //      return status;
+         //}
+
+         if (ss_is_mserver) {
+            status = rpc_server_accept(sock);
+         } else {
+            status = rpc_client_accept(sock);
          }
+         if (status == RPC_SHUTDOWN)
+            return status;
       }
 
       /* check server channels */
@@ -4104,16 +4128,24 @@ INT ss_suspend(INT millisec, INT msg)
             //printf("rpc index %d, socket %d, hostname \'%s\', progname \'%s\'\n", i, sock, _suspend_struct[idx].server_acception[i].host_name, _suspend_struct[idx].server_acception[i].prog_name);
 
             if (recv_tcp_check(sock) || FD_ISSET(sock, &readfds)) {
-               if (_suspend_struct[idx].server_dispatch) {
-                  status = _suspend_struct[idx].server_dispatch(i, sock, msg != 0);
-                  // server_dispatch actually calls - status = rpc_server_receive(i, sock, msg != 0);
-                  _suspend_struct[idx].server_acception[i].last_activity = ss_millitime();
+               //if (_suspend_struct[idx].server_dispatch) {
+               //   status = _suspend_struct[idx].server_dispatch(i, sock, msg != 0);
+               //   // server_dispatch actually calls - status = rpc_server_receive(i, sock, msg != 0);
+               //   _suspend_struct[idx].server_acception[i].last_activity = ss_millitime();
+               //
+               //   if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
+               //      return status;
+               //
+               //   return_status = SS_SERVER_RECV;
+               //}
 
-                  if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
-                     return status;
+               status = rpc_server_receive(i, sock, msg != 0);
+               _suspend_struct[idx].server_acception[i].last_activity = ss_millitime();
 
-                  return_status = SS_SERVER_RECV;
-               }
+               if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
+                  return status;
+               
+               return_status = SS_SERVER_RECV;
             }
 
             /* event channel */
@@ -4122,16 +4154,24 @@ INT ss_suspend(INT millisec, INT msg)
                continue;
 
             if (recv_event_check(sock) || FD_ISSET(sock, &readfds)) {
-               if (_suspend_struct[idx].server_dispatch) {
-                  status = _suspend_struct[idx].server_dispatch(i, sock, msg != 0);
-                  // server_dispatch actually calls - status = rpc_server_receive(i, sock, msg != 0);
-                  _suspend_struct[idx].server_acception[i].last_activity = ss_millitime();
+               //if (_suspend_struct[idx].server_dispatch) {
+               //   status = _suspend_struct[idx].server_dispatch(i, sock, msg != 0);
+               //   // server_dispatch actually calls - status = rpc_server_receive(i, sock, msg != 0);
+               //   _suspend_struct[idx].server_acception[i].last_activity = ss_millitime();
+               //
+               //   if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
+               //      return status;
+               //
+               //   return_status = SS_SERVER_RECV;
+               //}
 
-                  if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
-                     return status;
+               status = rpc_server_receive(i, sock, msg != 0);
+               _suspend_struct[idx].server_acception[i].last_activity = ss_millitime();
 
-                  return_status = SS_SERVER_RECV;
-               }
+               if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
+                  return status;
+               
+               return_status = SS_SERVER_RECV;
             }
          }
 
@@ -4140,16 +4180,17 @@ INT ss_suspend(INT millisec, INT msg)
          sock = _suspend_struct[idx].server_connection->recv_sock;
 
          if (sock && FD_ISSET(sock, &readfds)) {
-            if (_suspend_struct[idx].client_dispatch) {
-               status = _suspend_struct[idx].client_dispatch(sock);
-               // client_dispatch actually calls - status = rpc_client_dispatch(sock);
-            } else {
-               status = SS_SUCCESS;
-               size = recv_tcp(sock, buffer, sizeof(buffer), 0);
-
-               if (size <= 0)
-                  status = SS_ABORT;
-            }
+            //if (_suspend_struct[idx].client_dispatch) {
+            //   status = _suspend_struct[idx].client_dispatch(sock);
+            //   // client_dispatch actually calls - status = rpc_client_dispatch(sock);
+            //} else {
+            //   status = SS_SUCCESS;
+            //   size = recv_tcp(sock, buffer, sizeof(buffer), 0);
+            //
+            //   if (size <= 0)
+            //      status = SS_ABORT;
+            //}
+            status = rpc_client_dispatch(sock);
 
             if (status == SS_ABORT) {
                cm_msg(MINFO, "ss_suspend", "Server connection to \'%s\' was broken", _suspend_struct[idx].server_connection->host_name);
@@ -4214,11 +4255,13 @@ INT ss_suspend(INT millisec, INT msg)
 #endif
 
                /* don't forward same MSG_BM as above */
-               if (buffer_tmp[0] != 'B' || strcmp(buffer_tmp, buffer) != 0)
-                  if (_suspend_struct[idx].ipc_dispatch) {
-                     _suspend_struct[idx].ipc_dispatch(buffer_tmp, server_socket);
-                     // ipc_dispatch actually calls - cm_dispatch_ipc(buffer_tmp, server_socket);
-                  }
+               if (buffer_tmp[0] != 'B' || strcmp(buffer_tmp, buffer) != 0) {
+                  //if (_suspend_struct[idx].ipc_dispatch) {
+                  //   _suspend_struct[idx].ipc_dispatch(buffer_tmp, server_socket);
+                  //   // ipc_dispatch actually calls - cm_dispatch_ipc(buffer_tmp, server_socket);
+                  //}
+                  cm_dispatch_ipc(buffer_tmp, server_socket);
+               }
             }
 
             if (millisec > 0) {
@@ -4240,10 +4283,11 @@ INT ss_suspend(INT millisec, INT msg)
             return SS_SUCCESS;
 
          /* call dispatcher */
-         if (_suspend_struct[idx].ipc_dispatch) {
-            _suspend_struct[idx].ipc_dispatch(buffer, server_socket);
-            // ipc_dispatch actually calls - cm_dispatch_ipc(buffer_tmp, server_socket);
-         }
+         //if (_suspend_struct[idx].ipc_dispatch) {
+         //   _suspend_struct[idx].ipc_dispatch(buffer, server_socket);
+         //   // ipc_dispatch actually calls - cm_dispatch_ipc(buffer_tmp, server_socket);
+         //}
+         cm_dispatch_ipc(buffer, server_socket);
 
          return_status = SS_SUCCESS;
       }
