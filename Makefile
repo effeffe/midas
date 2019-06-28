@@ -446,6 +446,11 @@ ifdef HAVE_ROOT
 ANALYZER += $(LIB_DIR)/rmana.o
 endif
 
+EXAMPLES += examples/experiment/frontend
+ifdef HAVE_ROOT
+EXAMPLES += examples/experiment/analyzer
+endif
+
 OBJS = \
 	$(LIB_DIR)/midas.o \
 	$(LIB_DIR)/midas_cxx.o \
@@ -487,6 +492,7 @@ ALL+= $(LIBNAME) $(SHLIB)
 ALL+= $(ANALYZER)
 ALL+= $(LIB_DIR)/mfe.o
 ALL+= $(PROGS)
+ALL+= $(EXAMPLES)
 
 all: check-mxml $(GIT_REVISION) $(ALL)
 
@@ -698,6 +704,12 @@ $(BIN_DIR)/%:$(EXAM_DIR)/basic/%.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
 $(EXAMPLES): $(LIBNAME)
+
+examples/experiment/frontend:
+	$(MAKE) -C examples/experiment MIDASSYS=$(PWD) frontend
+
+examples/experiment/analyzer:
+	$(MAKE) -C examples/experiment MIDASSYS=$(PWD) analyzer
 
 #
 # midas library
@@ -951,6 +963,7 @@ clean:
 	-rm -vf $(GIT_REVISION)
 	-rm -rvf $(BIN_DIR)/*.dSYM
 	-rm -vf $(BIN_DIR)/*
+	-$(MAKE) -C examples/experiment clean
 
 mrproper : clean
 	rm -rf vxworks/68kobj vxworks/ppcobj
