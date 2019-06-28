@@ -50,6 +50,8 @@ else()
    link_directories(${LIB_PATH})
 endif()
 
+add_compile_options(-O2 -g -Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
+
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux) 
    set(LIBS -lpthread -lutil -lrt) 
 endif() 
