@@ -14,9 +14,6 @@ pipelines:
         script:
           - gcc -v
           - which root-config
-          - which thisroot.sh
-          - . thisroot.sh
-          - echo $ROOTSYS
           - root-config --version
           - root-config --cflags
           - root-config --features
@@ -28,6 +25,7 @@ pipelines:
         image: rootproject/root-centos
         script:
           - gcc -v
+          - which root-config
           - root-config --version
           - root-config --cflags
           - root-config --features
