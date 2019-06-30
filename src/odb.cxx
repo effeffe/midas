@@ -12107,54 +12107,16 @@ INT db_close_all_records()
 
 /********************************************************************/
 /**
-If called locally, update a record (hDB/hKey) and copy
-its new contents to the local copy of it.
+db_open_record() and db_watch() event handler
 
-If called from a server, send a network notification to the client.
 @param hDB          ODB handle obtained via cm_get_experiment_database().
 @param hKey         Handle for key which changed.
 @param index        Index for array keys.
-@param s            optional server socket.
 @return DB_SUCCESS, DB_INVALID_HANDLE
 */
-INT db_update_record(INT hDB, INT hKeyRoot, INT hKey, int index, int s)
+INT db_update_record_local(INT hDB, INT hKeyRoot, INT hKey, int index)
 {
-   INT i, size, convert_flags, status;
-   char buffer[32];
-   NET_COMMAND *nc;
-
-   /* check if we are the server */
-   if (s) {
-      convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
-
-      if (convert_flags & CF_ASCII) {
-         sprintf(buffer, "MSG_ODB&%d&%d%d%d", hDB, hKeyRoot, hKey, index);
-         send_tcp(s, buffer, strlen(buffer) + 1, 0);
-      } else {
-         nc = (NET_COMMAND *) buffer;
-
-         nc->header.routine_id = MSG_ODB;
-         nc->header.param_size = 4 * sizeof(INT);
-         *((INT *) nc->param) = hDB;
-         *((INT *) nc->param + 1) = hKeyRoot;
-         *((INT *) nc->param + 2) = hKey;
-         *((INT *) nc->param + 3) = index;
-
-         if (convert_flags) {
-            rpc_convert_single(&nc->header.routine_id, TID_DWORD, RPC_OUTGOING, convert_flags);
-            rpc_convert_single(&nc->header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
-            rpc_convert_single(&nc->param[0], TID_DWORD, RPC_OUTGOING, convert_flags);
-            rpc_convert_single(&nc->param[4], TID_DWORD, RPC_OUTGOING, convert_flags);
-            rpc_convert_single(&nc->param[8], TID_DWORD, RPC_OUTGOING, convert_flags);
-            rpc_convert_single(&nc->param[12], TID_DWORD, RPC_OUTGOING, convert_flags);
-         }
-
-         /* send the update notification to the client */
-         send_tcp(s, buffer, sizeof(NET_COMMAND_HEADER) + 4 * sizeof(INT), 0);
-      }
-
-      return DB_SUCCESS;
-   }
+   INT i, size, status;
 
    status = DB_INVALID_HANDLE;
 
@@ -12188,6 +12150,50 @@ INT db_update_record(INT hDB, INT hKeyRoot, INT hKey, int index, int s)
       }
 
    return status;
+}
+
+/********************************************************************/
+/**
+Relay db_open_record() and db_watch() notification to the remote client.
+@param hDB          ODB handle obtained via cm_get_experiment_database().
+@param hKey         Handle for key which changed.
+@param index        Index for array keys.
+@param s            client socket.
+@return DB_SUCCESS, DB_INVALID_HANDLE
+*/
+INT db_update_record_mserver(INT hDB, INT hKeyRoot, INT hKey, int index, int client_socket)
+{
+   char buffer[32];
+
+   int convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+   
+   if (convert_flags & CF_ASCII) {
+      sprintf(buffer, "MSG_ODB&%d&%d%d%d", hDB, hKeyRoot, hKey, index);
+      send_tcp(client_socket, buffer, strlen(buffer) + 1, 0);
+   } else {
+      NET_COMMAND* nc = (NET_COMMAND *) buffer;
+      
+      nc->header.routine_id = MSG_ODB;
+      nc->header.param_size = 4 * sizeof(INT);
+      *((INT *) nc->param) = hDB;
+      *((INT *) nc->param + 1) = hKeyRoot;
+      *((INT *) nc->param + 2) = hKey;
+      *((INT *) nc->param + 3) = index;
+      
+      if (convert_flags) {
+         rpc_convert_single(&nc->header.routine_id, TID_DWORD, RPC_OUTGOING, convert_flags);
+         rpc_convert_single(&nc->header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
+         rpc_convert_single(&nc->param[0], TID_DWORD, RPC_OUTGOING, convert_flags);
+         rpc_convert_single(&nc->param[4], TID_DWORD, RPC_OUTGOING, convert_flags);
+         rpc_convert_single(&nc->param[8], TID_DWORD, RPC_OUTGOING, convert_flags);
+         rpc_convert_single(&nc->param[12], TID_DWORD, RPC_OUTGOING, convert_flags);
+      }
+      
+      /* send the update notification to the client */
+      send_tcp(client_socket, buffer, sizeof(NET_COMMAND_HEADER) + 4 * sizeof(INT), 0);
+   }
+   
+   return DB_SUCCESS;
 }
 
 /********************************************************************/

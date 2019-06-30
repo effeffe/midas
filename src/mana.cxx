@@ -5398,11 +5398,6 @@ int main(int argc, char *argv[])
       return 1;
 #endif
 
-#ifdef HAVE_ROOT
-   /* workaround for multi-threading with midas system calls */
-   ss_force_single_thread();
-#endif
-
    /* now connect to server */
    if (clp.online) {
       if (clp.host_name[0])

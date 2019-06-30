@@ -327,7 +327,7 @@ typedef struct {
 } RPC_SERVER_CONNECTION;
 
 typedef struct {
-   INT tid;                     /*  thread id               */
+   //INT tid;                     /*  thread id               */
    char prog_name[NAME_LENGTH]; /*  client program name     */
    char host_name[HOST_NAME_LENGTH];    /*  client name        */
    int send_sock;               /*  tcp send socket         */
@@ -482,7 +482,7 @@ typedef struct {
    INT EXPRT cm_get_path_string(std::string* path);
 #endif
    INT EXPRT cm_set_experiment_name(const char *name);
-   INT cm_dispatch_ipc(const char *message, int s);
+   INT cm_dispatch_ipc(const char *message, int client_socket);
    INT EXPRT cm_msg_log(INT message_type, const char *facility, const char *message);
    void EXPRT name2c(char *str);
    INT cm_delete_client_info(HNDLE hDB, INT pid);
@@ -492,7 +492,8 @@ typedef struct {
    INT EXPRT db_unlock_database(HNDLE database_handle);
    //INT EXPRT db_get_lock_cnt(HNDLE database_handle);
    INT EXPRT db_set_lock_timeout(HNDLE database_handle, int timeout_millisec);
-   INT db_update_record(INT hDB, INT hKeyRoot, INT hKey, int index, int s);
+   INT db_update_record_local(INT hDB, INT hKeyRoot, INT hKey, int index);
+   INT db_update_record_mserver(INT hDB, INT hKeyRoot, INT hKey, int index, int client_socket);
    INT db_close_all_records(void);
    INT EXPRT db_flush_database(HNDLE hDB);
    INT EXPRT db_notify_clients(HNDLE hDB, HNDLE hKey, int index, BOOL bWalk);
@@ -549,7 +550,7 @@ typedef struct {
    INT EXPRT ss_exec(const char *cmd, INT * child_pid);
    BOOL EXPRT ss_existpid(INT pid);
    INT EXPRT ss_getpid(void);
-   INT EXPRT ss_gettid(void);
+   midas_thread_t EXPRT ss_gettid(void);
    INT ss_set_async_flag(INT flag);
    INT EXPRT ss_semaphore_create(const char *semaphore_name, HNDLE * semaphore_handle);
    INT EXPRT ss_semaphore_wait_for(HNDLE semaphore_handle, INT timeout);
@@ -569,7 +570,6 @@ typedef struct {
    INT ss_resume(INT port, const char *message);
    INT ss_suspend_exit(void);
    INT ss_exception_handler(void (*func) (void));
-   void EXPRT ss_force_single_thread(void);
    INT EXPRT ss_suspend(INT millisec, INT msg);
    midas_thread_t EXPRT ss_thread_create(INT(*func) (void *), void *param);
    INT EXPRT ss_thread_kill(midas_thread_t thread_id);

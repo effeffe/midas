@@ -4951,7 +4951,7 @@ INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size,
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-INT cm_dispatch_ipc(const char *message, int s)
+INT cm_dispatch_ipc(const char *message, int client_socket)
 /********************************************************************\
 
   Routine: cm_dispatch_ipc
@@ -4976,7 +4976,11 @@ INT cm_dispatch_ipc(const char *message, int s)
       INT index;
       index = 0;
       sscanf(message + 2, "%d %d %d %d", &hDB, &hKeyRoot, &hKey, &index);
-      return db_update_record(hDB, hKeyRoot, hKey, index, s);
+      if (client_socket) {
+         return db_update_record_mserver(hDB, hKeyRoot, hKey, index, client_socket);
+      } else {
+         return db_update_record_local(hDB, hKeyRoot, hKey, index);
+      }
    }
 
    /* message == "B" means "resume event sender" */
@@ -4989,8 +4993,8 @@ INT cm_dispatch_ipc(const char *message, int s)
       if (strchr(str, ' '))
          *strchr(str, ' ') = 0;
 
-      if (s)
-         return bm_notify_client(str, s);
+      if (client_socket)
+         return bm_notify_client(str, client_socket);
       else
          return bm_push_event(str);
    }
@@ -9499,17 +9503,18 @@ INT bm_check_buffers()
 }
 
 /********************************************************************/
-static INT bm_notify_client(const char *buffer_name, int s)
+static INT bm_notify_client(const char *buffer_name, int client_socket)
 /********************************************************************\
 
   Routine: bm_notify_client
 
   Purpose: Called by cm_dispatch_ipc. Send an event notification to
-           the connected client
+           the connected client. Used by mserver to relay the BM_MSG
+           buffer message from local UDP socket to the remote connected client.
 
   Input:
     char  *buffer_name      Name of buffer
-    int   s                 Network socket to client
+    int   client_socket     Network socket to client
 
   Output:
     none
@@ -9525,7 +9530,7 @@ static INT bm_notify_client(const char *buffer_name, int s)
    static DWORD last_time = 0;
    DWORD now = ss_millitime();
 
-   //printf("bm_notify_client: buffer [%s], socket %d, time %d\n", buffer_name, s, now - last_time);
+   //printf("bm_notify_client: buffer [%s], socket %d, time %d\n", buffer_name, client_socket, now - last_time);
 
    for (i = 0; i < _buffer_entries; i++)
       if (strcmp(buffer_name, _buffer[i].buffer_header->name) == 0)
@@ -9548,7 +9553,7 @@ static INT bm_notify_client(const char *buffer_name, int s)
 
    if (convert_flags & CF_ASCII) {
       sprintf(buffer, "MSG_BM&%s", buffer_name);
-      send_tcp(s, buffer, strlen(buffer) + 1, 0);
+      send_tcp(client_socket, buffer, strlen(buffer) + 1, 0);
    } else {
       nc = (NET_COMMAND *) buffer;
 
@@ -9563,7 +9568,7 @@ static INT bm_notify_client(const char *buffer_name, int s)
       //printf("bm_notify_client: Sending MSG_BM! buffer [%s]\n", buffer_name);
 
       /* send the update notification to the client */
-      send_tcp(s, (char *) buffer, sizeof(NET_COMMAND_HEADER), 0);
+      send_tcp(client_socket, (char *) buffer, sizeof(NET_COMMAND_HEADER), 0);
    }
 
    return BM_SUCCESS;
@@ -10263,7 +10268,7 @@ static int handle_msg_odb(int n, const NET_COMMAND* nc)
       HNDLE hKeyRoot = *((INT *) nc->param + 1);
       HNDLE hKey     = *((INT *) nc->param + 2);
       int   index    = *((INT *) nc->param + 3);
-      return db_update_record(hDB, hKeyRoot, hKey, index, 0);
+      return db_update_record_local(hDB, hKeyRoot, hKey, index);
    }
    return CM_VERSION_MISMATCH;
 }
@@ -13171,7 +13176,7 @@ INT rpc_register_server(bool is_mserver, /*INT server_type, const char *name,*/ 
 }
 
 typedef struct {
-   int tid;
+   midas_thread_t thread_id;
    int buffer_size;
    char *buffer;
 } TLS_POINTER;
@@ -13226,18 +13231,18 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
    /* return buffer must must use thread local storage multi-thread servers */
    if (!tls_size) {
       tls_buffer = (TLS_POINTER *) malloc(sizeof(TLS_POINTER));
-      tls_buffer[tls_size].tid = ss_gettid();
+      tls_buffer[tls_size].thread_id = ss_gettid();
       tls_buffer[tls_size].buffer_size = initial_buffer_size;
       tls_buffer[tls_size].buffer = (char *) malloc(tls_buffer[tls_size].buffer_size);
       tls_size = 1;
    }
    for (i = 0; i < tls_size; i++)
-      if (tls_buffer[i].tid == ss_gettid())
+      if (tls_buffer[i].thread_id == ss_gettid())
          break;
    if (i == tls_size) {
       /* new thread -> allocate new buffer */
       tls_buffer = (TLS_POINTER *) realloc(tls_buffer, (tls_size + 1) * sizeof(TLS_POINTER));
-      tls_buffer[tls_size].tid = ss_gettid();
+      tls_buffer[tls_size].thread_id = ss_gettid();
       tls_buffer[tls_size].buffer_size = initial_buffer_size;
       tls_buffer[tls_size].buffer = (char *) malloc(tls_buffer[tls_size].buffer_size);
       tls_size++;
@@ -14409,7 +14414,7 @@ INT rpc_client_accept(int lsock)
    _server_acception[idx].remote_hw_type = client_hw_type;
    strcpy(_server_acception[idx].host_name, host_name);
    strcpy(_server_acception[idx].prog_name, client_program);
-   _server_acception[idx].tid = ss_gettid();
+   //_server_acception[idx].tid = ss_gettid();
    _server_acception[idx].last_activity = ss_millitime();
    _server_acception[idx].watchdog_timeout = 0;
 
@@ -14592,7 +14597,7 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    _server_acception[idx].remote_hw_type = client_hw_type;
    strcpy(_server_acception[idx].host_name, host_name);
    strcpy(_server_acception[idx].prog_name, client_program);
-   _server_acception[idx].tid = ss_gettid();
+   //_server_acception[idx].tid = ss_gettid();
    _server_acception[idx].last_activity = ss_millitime();
    _server_acception[idx].watchdog_timeout = 0;
 
@@ -14990,7 +14995,7 @@ INT rpc_check_channels(void)
 
    for (idx = 0; idx < MAX_RPC_CONNECTION; idx++) {
       if (_server_acception[idx].recv_sock &&
-          _server_acception[idx].tid == ss_gettid() &&
+          //_server_acception[idx].tid == ss_gettid() &&
           _server_acception[idx].watchdog_timeout &&
           (ss_millitime() - _server_acception[idx].last_activity >
            (DWORD) _server_acception[idx].watchdog_timeout)) {
