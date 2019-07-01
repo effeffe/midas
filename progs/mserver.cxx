@@ -318,8 +318,11 @@ int main(int argc, char **argv)
       //   printf("Multi thread server started\n");
       //}
 
+      int lsock = 0; // mserver main listener socket
+      int lport = 0; // mserver listener port number
+
       /* register server */
-      status =  rpc_register_server(true, &port, /*rpc_server_accept,*/ rpc_server_dispatch);
+      status = rpc_register_server(port, /*rpc_server_accept,*/ rpc_server_dispatch, &lsock, &lport);
       if (status != RPC_SUCCESS) {
          printf("Cannot start server, rpc_register_server() status %d\n", status);
          return 1;
@@ -338,6 +341,8 @@ int main(int argc, char **argv)
          if (status == RPC_SHUTDOWN)
             break;
       }
+
+      closesocket(lsock);
 
       cm_disconnect_experiment();
    } else {

@@ -187,6 +187,7 @@ static TRANS_TABLE _deferred_trans_table[] = {
 };
 
 static BOOL _server_registered = FALSE;
+static int  _server_listen_socket = 0;
 
 static INT rpc_transition_dispatch(INT idx, void *prpc_param[]);
 
@@ -3198,9 +3199,12 @@ INT cm_register_server(void)
          return status;
       }
 
-      status = rpc_register_server(false, /*ST_REMOTE, NULL,*/ &port, NULL);
+      int lport = 0; // actual port number assigned to us by the OS
+
+      status = rpc_register_server(/*ST_REMOTE, NULL,*/ port, NULL, &_server_listen_socket, &lport);
       if (status != RPC_SUCCESS)
          return status;
+
       _server_registered = TRUE;
 
       /* register MIDAS library functions */
@@ -3216,7 +3220,7 @@ INT cm_register_server(void)
       db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE, TRUE);
 
       /* set value */
-      status = db_set_data(hDB, hKey, &port, sizeof(INT), 1, TID_INT);
+      status = db_set_data(hDB, hKey, &lport, sizeof(INT), 1, TID_INT);
       if (status != DB_SUCCESS) {
          return status;
       }
@@ -9884,7 +9888,6 @@ static void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
 RPC_CLIENT_CONNECTION _client_connection[MAX_RPC_CONNECTION];
 RPC_SERVER_CONNECTION _server_connection;
 
-static int _lsock;
 RPC_SERVER_ACCEPTION _server_acception[MAX_RPC_CONNECTION];
 //static INT _server_acception_index = 0;
 //static INT _server_type;
@@ -13035,7 +13038,7 @@ INT recv_event_check(int sock)
 
 
 /********************************************************************/
-INT rpc_register_server(bool is_mserver, /*INT server_type, const char *name,*/ INT * port, /*int accept_func(int),*/ INT(*func) (INT, void **))
+INT rpc_register_server(/*INT server_type, const char *name,*/ int port, /*int accept_func(int),*/ INT(*func) (INT, void **), int* plsock, int *pport)
 /********************************************************************\
 
   Routine: rpc_register_server
@@ -13055,14 +13058,13 @@ INT rpc_register_server(bool is_mserver, /*INT server_type, const char *name,*/ 
                             ST_SUBPROCESS: mserver process servicing a single connection
                             ST_REMOTE: rpc server inside a normal midas program
     char  *name             Name of .EXE file to start in MPROCESS mode
-    INT   *port             TCP port for listen. NULL if listen as main
-                            server (MIDAS_TCP_PORT is then used). If *port=0,
-                            the OS chooses a free port and returns it. If
-                            *port != 0, this port is used.
+    INT   port              TCP port for listen. If port==0,
+                            the OS chooses a free port and returns it in *pport
     INT   *func             Default dispatch function
 
   Output:
-    INT   *port             Port under which server is listening.
+    int   *plsock           Listener socket.
+    int   *pport            Port under which server is listening.
 
   Function value:
     RPC_SUCCESS             Successful completion
@@ -13097,15 +13099,15 @@ INT rpc_register_server(bool is_mserver, /*INT server_type, const char *name,*/ 
    //   return RPC_SUCCESS;
 
    /* create a socket for listening */
-   _lsock = socket(AF_INET, SOCK_STREAM, 0);
-   if (_lsock == -1) {
+   int lsock = socket(AF_INET, SOCK_STREAM, 0);
+   if (lsock == -1) {
       cm_msg(MERROR, "rpc_register_server", "socket(AF_INET, SOCK_STREAM) failed, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
    /* set close-on-exec flag to prevent child mserver processes from inheriting the listen socket */
 #if defined(F_SETFD) && defined(FD_CLOEXEC)
-   status = fcntl(_lsock, F_SETFD, fcntl(_lsock, F_GETFD) | FD_CLOEXEC);
+   status = fcntl(lsock, F_SETFD, fcntl(lsock, F_GETFD) | FD_CLOEXEC);
    if (status < 0) {
       cm_msg(MERROR, "rpc_register_server", "fcntl(F_SETFD, FD_CLOEXEC) failed, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
@@ -13114,7 +13116,7 @@ INT rpc_register_server(bool is_mserver, /*INT server_type, const char *name,*/ 
 
    /* reuse address, needed if previous server stopped (30s timeout!) */
    flag = 1;
-   status = setsockopt(_lsock, SOL_SOCKET, SO_REUSEADDR, (char *) &flag, sizeof(INT));
+   status = setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, (char *) &flag, sizeof(INT));
    if (status < 0) {
       cm_msg(MERROR, "rpc_register_server", "setsockopt(SO_REUSEADDR) failed, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
@@ -13133,19 +13135,19 @@ INT rpc_register_server(bool is_mserver, /*INT server_type, const char *name,*/ 
    if (!port)
       bind_addr.sin_port = htons(MIDAS_TCP_PORT);
    else
-      bind_addr.sin_port = htons((short) (*port));
+      bind_addr.sin_port = htons((short)port);
 
-   status = bind(_lsock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
+   status = bind(lsock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
    if (status < 0) {
-      cm_msg(MERROR, "rpc_register_server", "bind() to port %d failed, errno %d (%s)", ntohs(bind_addr.sin_port), errno, strerror(errno));
+      cm_msg(MERROR, "rpc_register_server", "bind() to port %d failed, errno %d (%s)", port, errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
    /* listen for connection */
 #ifdef OS_MSDOS
-   status = listen(_lsock, 1);
+   status = listen(lsock, 1);
 #else
-   status = listen(_lsock, SOMAXCONN);
+   status = listen(lsock, SOMAXCONN);
 #endif
    if (status < 0) {
       cm_msg(MERROR, "rpc_register_server", "listen() failed, errno %d (%s)", errno, strerror(errno));
@@ -13153,24 +13155,26 @@ INT rpc_register_server(bool is_mserver, /*INT server_type, const char *name,*/ 
    }
 
    /* return port wich OS has choosen */
-   if (port && *port == 0) {
+   if (pport) {
       socklen_t sosize = sizeof(bind_addr);
 #ifdef OS_WINNT
-      getsockname(_lsock, (struct sockaddr *) &bind_addr, (int *) &sosize);
+      getsockname(lsock, (struct sockaddr *) &bind_addr, (int *) &sosize);
 #else
-      getsockname(_lsock, (struct sockaddr *) &bind_addr, &sosize);
+      getsockname(lsock, (struct sockaddr *) &bind_addr, &sosize);
 #endif
-      *port = ntohs(bind_addr.sin_port);
+      *pport = ntohs(bind_addr.sin_port);
    }
 
    /* define callbacks for ss_suspend */
-   //ss_suspend_set_dispatch_listen(_lsock, accept_func);
+   //ss_suspend_set_dispatch_listen(lsock, accept_func);
 
    ///* define callbacks for ss_suspend */
    //if (server_type == ST_REMOTE)
-   //   ss_suspend_set_dispatch(CH_LISTEN, &_lsock, (int (*)(void)) rpc_client_accept);
+   //   ss_suspend_set_dispatch(CH_LISTEN, &lsock, (int (*)(void)) rpc_client_accept);
    //else
-   //   ss_suspend_set_dispatch(CH_LISTEN, &_lsock, (int (*)(void)) rpc_server_accept);
+   //   ss_suspend_set_dispatch(CH_LISTEN, &lsock, (int (*)(void)) rpc_server_accept);
+
+   *plsock = lsock;
 
    return RPC_SUCCESS;
 }
@@ -14925,9 +14929,9 @@ INT rpc_server_shutdown(void)
          _server_acception[i].event_sock = 0;
       }
 
-   if (_lsock) {
-      closesocket(_lsock);
-      _lsock = 0;
+   if (_server_registered) {
+      closesocket(_server_listen_socket);
+      _server_listen_socket = 0;
       _server_registered = FALSE;
    }
 
