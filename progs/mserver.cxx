@@ -413,7 +413,25 @@ int main(int argc, char **argv)
       /* register MIDAS library functions */
       rpc_register_functions(rpc_get_internal_list(1), rpc_server_dispatch);
 
-      rpc_server_thread(&callback);
+      int status = rpc_server_callback(&callback);
+      
+      if (status != RPC_SUCCESS) {
+         cm_msg_flush_buffer();
+         printf("Cannot start mserver, rpc_server_callback() status %d\n", status);
+         return 1;
+      }
+      
+      /* create alarm and elog semaphores */
+      int semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg;
+      ss_semaphore_create("ALARM", &semaphore_alarm);
+      ss_semaphore_create("ELOG", &semaphore_elog);
+      ss_semaphore_create("HISTORY", &semaphore_history);
+      ss_semaphore_create("MSG", &semaphore_msg);
+      cm_set_experiment_semaphore(semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg);
+
+      rpc_server_loop();
+
+      ss_suspend_exit();
    }
 
    return 0;

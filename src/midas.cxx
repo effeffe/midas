@@ -14630,44 +14630,17 @@ INT rpc_server_callback(struct callback_addr * pcallback)
 
 
 /********************************************************************/
-INT rpc_server_thread(void *pointer)
+INT rpc_server_loop(void)
 /********************************************************************\
 
-  Routine: rpc_server_thread
+  Routine: rpc_server_loop
 
-  Purpose: RPC server and mserver main event loop. Callback to the
-           client and process RPC requests.
-
-  Input:
-    vcoid  pointer          pointer to callback_addr structure.
-
-  Output:
-    none
-
-  Function value:
-    RPC_SUCCESS             Successful completion
+  Purpose: mserver main event loop
 
 \********************************************************************/
 {
-   struct callback_addr callback;
-   int status, semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg;
-
-   memcpy(&callback, pointer, sizeof(callback));
-
-   status = rpc_server_callback(&callback);
-
-   if (status != RPC_SUCCESS)
-      return status;
-
-   /* create alarm and elog semaphores */
-   ss_semaphore_create("ALARM", &semaphore_alarm);
-   ss_semaphore_create("ELOG", &semaphore_elog);
-   ss_semaphore_create("HISTORY", &semaphore_history);
-   ss_semaphore_create("MSG", &semaphore_msg);
-   cm_set_experiment_semaphore(semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg);
-
    while (1) {
-      status = ss_suspend(1000, 0);
+      int status = ss_suspend(1000, 0);
 
       if (status == SS_ABORT || status == SS_EXIT)
          break;
@@ -14680,9 +14653,6 @@ INT rpc_server_thread(void *pointer)
 
       cm_msg_flush_buffer();
    }
-
-   /* delete entry in suspend table for this thread */
-   ss_suspend_exit();
 
    return RPC_SUCCESS;
 }
