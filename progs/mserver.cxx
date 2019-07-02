@@ -334,7 +334,7 @@ int main(int argc, char **argv)
       /* register MIDAS library functions */
       rpc_register_functions(rpc_get_internal_list(1), rpc_server_dispatch);
 
-      ss_suspend_add_server_listener(lsock);
+      ss_suspend_set_server_listener(lsock);
 
       /* run forever */
       while (1) {

@@ -330,6 +330,7 @@ typedef struct {
    //INT tid;                     /*  thread id               */
    char prog_name[NAME_LENGTH]; /*  client program name     */
    char host_name[HOST_NAME_LENGTH];    /*  client name        */
+   BOOL is_mserver;             /*  this is an mserver server-side connection */
    int send_sock;               /*  tcp send socket         */
    int recv_sock;               /*  tcp receive socket      */
    int event_sock;              /*  tcp event socket        */
@@ -562,10 +563,10 @@ typedef struct {
    INT EXPRT ss_mutex_delete(MUTEX_T *mutex);
    INT ss_alarm(INT millitime, void (*func) (int));
    INT ss_suspend_get_port(INT * port);
-   INT ss_suspend_add_server_listener(int listen_socket);
-   INT ss_suspend_add_client_listener(int listen_socket);
-   //INT ss_suspend_set_dispatch_server(RPC_SERVER_ACCEPTION* connection, INT(*dispatch)(INT,int,BOOL));
-   //INT ss_suspend_set_dispatch_client(RPC_SERVER_CONNECTION* connection, INT(*dispatch)(INT));
+   INT ss_suspend_set_server_listener(int listen_socket);
+   INT ss_suspend_set_client_listener(int listen_socket);
+   INT ss_suspend_set_client_connection(RPC_SERVER_CONNECTION* connection);
+   INT ss_suspend_set_server_acceptions_array(int num_acceptions, RPC_SERVER_ACCEPTION* acceptions);
    //INT ss_suspend_set_dispatch_ipc(INT(*dispatch)(const char*,INT));
    INT ss_resume(INT port, const char *message);
    INT ss_suspend_exit(void);

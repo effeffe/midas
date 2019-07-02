@@ -3205,7 +3205,7 @@ INT cm_register_server(void)
       if (status != RPC_SUCCESS)
          return status;
 
-      status = ss_suspend_add_client_listener(_rpc_listen_socket);
+      status = ss_suspend_set_client_listener(_rpc_listen_socket);
       if (status != SS_SUCCESS)
          return status;
 
@@ -3742,7 +3742,7 @@ static void write_tr_client_to_odb(HNDLE hDB, const TR_CLIENT* tr_client)
 
 /*------------------------------------------------------------------*/
 
-/* Perform a detached transition through teh externam "mtransition" program */
+/* Perform a detached transition through the external "mtransition" program */
 int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag)
 {
    HNDLE hDB;
@@ -3752,7 +3752,6 @@ int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errst
    char debug_arg[256];
    char start_arg[256];
    char expt_name[256];
-   extern RPC_SERVER_CONNECTION _server_connection;
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -3776,20 +3775,21 @@ int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errst
 
    args[iarg++] = path;
 
-   if (_server_connection.send_sock) {
-      /* if connected to mserver, pass connection info to mtransition */
-      args[iarg++] = "-h";
-      args[iarg++] = _server_connection.host_name;
-      args[iarg++] = "-e";
-      args[iarg++] = _server_connection.exp_name;
-   } else {
-      /* get experiment name from ODB */
-      size = sizeof(expt_name);
-      db_get_value(hDB, 0, "/Experiment/Name", expt_name, &size, TID_STRING, FALSE);
+   std::string mserver_hostname;
 
-      args[iarg++] = "-e";
-      args[iarg++] = expt_name;
+   if (rpc_is_remote()) {
+      /* if connected to mserver, pass connection info to mtransition */
+      mserver_hostname = rpc_get_mserver_hostname();
+      args[iarg++] = "-h";
+      args[iarg++] = mserver_hostname.c_str();
    }
+
+   /* get experiment name from ODB */
+   size = sizeof(expt_name);
+   db_get_value(hDB, 0, "/Experiment/Name", expt_name, &size, TID_STRING, FALSE);
+   
+   args[iarg++] = "-e";
+   args[iarg++] = expt_name;
 
    if (debug_flag) {
       args[iarg++] = "-d";
@@ -9889,10 +9889,11 @@ static void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
 
 /* globals */
 
-RPC_CLIENT_CONNECTION _client_connection[MAX_RPC_CONNECTION];
-RPC_SERVER_CONNECTION _server_connection;
+static RPC_CLIENT_CONNECTION _client_connection[MAX_RPC_CONNECTION];
+static RPC_SERVER_CONNECTION _server_connection; // connection to the mserver
+static BOOL _rpc_is_remote = FALSE;
 
-RPC_SERVER_ACCEPTION _server_acception[MAX_RPC_CONNECTION];
+static RPC_SERVER_ACCEPTION _server_acception[MAX_RPC_CONNECTION];
 //static INT _server_acception_index = 0;
 //static INT _server_type;
 //static char _server_name[256];
@@ -10286,8 +10287,7 @@ INT rpc_client_dispatch(int sock)
 
   Routine: rpc_client_dispatch
 
-  Purpose: Gets called whenever a client receives data from the
-           server. Get set via rpc_connect. Internal use only.
+  Purpose: Receive data from the mserver: watchdog and buffer notification messages
 
 \********************************************************************/
 {
@@ -10950,6 +10950,10 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    /* set dispatcher which receives database updates */
    //ss_suspend_set_dispatch_client(&_server_connection, rpc_client_dispatch);
 
+   ss_suspend_set_client_connection(&_server_connection);
+
+   _rpc_is_remote = TRUE;
+
    return RPC_SUCCESS;
 }
 
@@ -11055,8 +11059,6 @@ INT rpc_server_disconnect()
    return RPC_SUCCESS;
 }
 
-static BOOL _rpc_is_remote = FALSE;
-
 /********************************************************************/
 INT rpc_is_remote(void)
 /********************************************************************\
@@ -11076,9 +11078,20 @@ INT rpc_is_remote(void)
 
 \********************************************************************/
 {
-   if (_server_connection.send_sock != 0)
-      _rpc_is_remote = TRUE;
    return _rpc_is_remote;
+}
+
+/********************************************************************/
+std::string rpc_get_mserver_hostname(void)
+/********************************************************************\
+
+  Routine: rpc_get_mserver_hostname
+
+  Purpose: Return the hostname of the mserver connection (host:port format)
+
+\********************************************************************/
+{
+   return _server_connection.host_name;
 }
 
 static BOOL _mserver_mode = FALSE;
@@ -14274,7 +14287,7 @@ INT rpc_client_accept(int lsock)
 
   Routine: rpc_client_accept
 
-  Purpose: Accept new incoming connections as a client
+  Purpose: midas program accept new RPC connection (run transitions, etc)
 
   Input:
     INT    lsock            Listen socket
@@ -14425,6 +14438,7 @@ INT rpc_client_accept(int lsock)
    //_server_acception[idx].tid = ss_gettid();
    _server_acception[idx].last_activity = ss_millitime();
    _server_acception[idx].watchdog_timeout = 0;
+   _server_acception[idx].is_mserver = FALSE;
 
    /* send my own computer id */
    hw_type = rpc_get_option(0, RPC_OHW_TYPE);
@@ -14439,6 +14453,7 @@ INT rpc_client_accept(int lsock)
 
    /* set callback function for ss_suspend */
    //ss_suspend_set_dispatch_server(_server_acception, rpc_server_receive);
+   ss_suspend_set_server_acceptions_array(MAX_RPC_CONNECTION, _server_acception);
 
    return RPC_SUCCESS;
 }
@@ -14608,6 +14623,7 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    //_server_acception[idx].tid = ss_gettid();
    _server_acception[idx].last_activity = ss_millitime();
    _server_acception[idx].watchdog_timeout = 0;
+   _server_acception[idx].is_mserver = TRUE;
 
    /* send my own computer id */
    hw_type = rpc_get_option(0, RPC_OHW_TYPE);

@@ -3581,9 +3581,9 @@ typedef struct {
    //INT(*ipc_dispatch) (const char *, INT);
    //INT listen_socket;
    //INT(*listen_dispatch) (INT);
-   RPC_SERVER_CONNECTION *server_connection;
+   //RPC_SERVER_CONNECTION *server_connection;
    //INT(*client_dispatch) (INT);
-   RPC_SERVER_ACCEPTION *server_acception;
+   //RPC_SERVER_ACCEPTION *server_acception;
    //INT(*server_dispatch) (INT, int, BOOL);
    struct sockaddr_in bind_addr;
 } SUSPEND_STRUCT;
@@ -3594,6 +3594,13 @@ static INT _suspend_entries;
 static midas_thread_t _ss_listen_thread = 0;
 static int _ss_server_listen_socket = 0; // mserver listening for connections
 static int _ss_client_listen_socket = 0; // normal midas program listening for rpc connections for run transitions, etc
+
+static midas_thread_t _ss_client_thread = 0;
+static RPC_SERVER_CONNECTION* _ss_client_connection = NULL; // client-side connection to the mserver
+
+static midas_thread_t _ss_server_thread = 0;
+static int _ss_server_num_acceptions = 0;
+static RPC_SERVER_ACCEPTION* _ss_server_acceptions = NULL; // server side RPC connections (run transitions, etc)
 
 /*------------------------------------------------------------------*/
 static bool ss_match_thread(midas_thread_t tid)
@@ -3943,15 +3950,32 @@ INT ss_suspend_set_server_type(bool is_mserver)
 }
 #endif
 
-INT ss_suspend_add_server_listener(int listen_socket)
+INT ss_suspend_set_server_listener(int listen_socket)
 {
+   // mserver listener socket
    _ss_server_listen_socket = listen_socket;
    return SS_SUCCESS;
 }
 
-INT ss_suspend_add_client_listener(int listen_socket)
+INT ss_suspend_set_client_listener(int listen_socket)
 {
+   // midas program rpc listener socket (run transitions, etc)
    _ss_client_listen_socket = listen_socket;
+   return SS_SUCCESS;
+}
+
+INT ss_suspend_set_client_connection(RPC_SERVER_CONNECTION* connection)
+{
+   // client side of the mserver connection
+   _ss_client_connection = connection;
+   return SS_SUCCESS;
+}
+
+INT ss_suspend_set_server_acceptions_array(int num, RPC_SERVER_ACCEPTION* acceptions)
+{
+   // server side of the RPC connections (run transitions, etc)
+   _ss_server_num_acceptions = num;
+   _ss_server_acceptions = acceptions;
    return SS_SUCCESS;
 }
 
@@ -4026,13 +4050,7 @@ INT ss_suspend(INT millisec, INT msg)
 
 \********************************************************************/
 {
-   fd_set readfds;
-   struct timeval timeout;
-   INT sock;
-   INT idx, status, i, return_status;
-   unsigned int size;
-   struct sockaddr from_addr;
-   char buffer[80], buffer_tmp[80];
+   INT idx, status, return_status;
 
    /* get index to _suspend_struct for this thread */
    status = ss_suspend_get_index(&idx);
@@ -4043,6 +4061,7 @@ INT ss_suspend(INT millisec, INT msg)
    return_status = SS_TIMEOUT;
 
    do {
+      fd_set readfds;
       FD_ZERO(&readfds);
 
       if (ss_match_thread(_ss_listen_thread)) {
@@ -4055,10 +4074,10 @@ INT ss_suspend(INT millisec, INT msg)
       }
 
       /* check server channels */
-      if (_suspend_struct[idx].server_acception)
-         for (i = 0; i < MAX_RPC_CONNECTION; i++) {
+      if (ss_match_thread(_ss_server_thread) && (_ss_server_num_acceptions > 0))
+         for (int i = 0; i < _ss_server_num_acceptions; i++) {
             /* RPC channel */
-            sock = _suspend_struct[idx].server_acception[i].recv_sock;
+            int sock = _ss_server_acceptions[i].recv_sock;
 
             if (!sock)
                continue;
@@ -4076,7 +4095,7 @@ INT ss_suspend(INT millisec, INT msg)
                millisec = 0;
 
             /* event channel */
-            sock = _suspend_struct[idx].server_acception[i].event_sock;
+            sock = _ss_server_acceptions[i].event_sock;
 
             if (!sock)
                continue;
@@ -4090,16 +4109,18 @@ INT ss_suspend(INT millisec, INT msg)
                millisec = 0;
          }
 
-      /* watch client recv connections */
-      if (_suspend_struct[idx].server_connection) {
-         sock = _suspend_struct[idx].server_connection->recv_sock;
-         if (sock)
-            FD_SET(sock, &readfds);
+      /* watch for messages from the mserver */
+      if (ss_match_thread(_ss_client_thread)) {
+         if (_ss_client_connection) {
+            FD_SET(_ss_client_connection->recv_sock, &readfds);
+         }
       }
 
       /* check IPC socket */
       if (_suspend_struct[idx].ipc_recv_socket)
          FD_SET(_suspend_struct[idx].ipc_recv_socket, &readfds);
+
+      struct timeval timeout;
 
       timeout.tv_sec = millisec / 1000;
       timeout.tv_usec = (millisec % 1000) * 1000;
@@ -4155,10 +4176,10 @@ INT ss_suspend(INT millisec, INT msg)
       }
 
       /* check server channels */
-      if (_suspend_struct[idx].server_acception)
-         for (i = 0; i < MAX_RPC_CONNECTION; i++) {
+      if (_ss_server_num_acceptions > 0)
+         for (int i = 0; i < _ss_server_num_acceptions; i++) {
             /* rpc channel */
-            sock = _suspend_struct[idx].server_acception[i].recv_sock;
+            int sock = _ss_server_acceptions[i].recv_sock;
 
             if (!sock)
                continue;
@@ -4182,7 +4203,7 @@ INT ss_suspend(INT millisec, INT msg)
                //}
 
                status = rpc_server_receive(i, sock, msg != 0);
-               _suspend_struct[idx].server_acception[i].last_activity = ss_millitime();
+               _ss_server_acceptions[i].last_activity = ss_millitime();
 
                if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
                   return status;
@@ -4191,7 +4212,8 @@ INT ss_suspend(INT millisec, INT msg)
             }
 
             /* event channel */
-            sock = _suspend_struct[idx].server_acception[i].event_sock;
+            sock = _ss_server_acceptions[i].event_sock;
+
             if (!sock)
                continue;
 
@@ -4208,7 +4230,7 @@ INT ss_suspend(INT millisec, INT msg)
                //}
 
                status = rpc_server_receive(i, sock, msg != 0);
-               _suspend_struct[idx].server_acception[i].last_activity = ss_millitime();
+               _ss_server_acceptions[i].last_activity = ss_millitime();
 
                if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
                   return status;
@@ -4217,11 +4239,11 @@ INT ss_suspend(INT millisec, INT msg)
             }
          }
 
-      /* check server message channels */
-      if (_suspend_struct[idx].server_connection) {
-         sock = _suspend_struct[idx].server_connection->recv_sock;
+      /* check for messages from the mserver */
+      if (_ss_client_connection) {
+         int sock = _ss_client_connection->recv_sock;
 
-         if (sock && FD_ISSET(sock, &readfds)) {
+         if (FD_ISSET(sock, &readfds)) {
             //if (_suspend_struct[idx].client_dispatch) {
             //   status = _suspend_struct[idx].client_dispatch(sock);
             //   // client_dispatch actually calls - status = rpc_client_dispatch(sock);
@@ -4235,14 +4257,18 @@ INT ss_suspend(INT millisec, INT msg)
             status = rpc_client_dispatch(sock);
 
             if (status == SS_ABORT) {
-               cm_msg(MINFO, "ss_suspend", "Server connection to \'%s\' was broken", _suspend_struct[idx].server_connection->host_name);
+               cm_msg(MINFO, "ss_suspend", "RPC connection to mserver at \'%s\' was broken", _ss_client_connection->host_name);
 
                /* close client connection if link broken */
-               closesocket(_suspend_struct[idx].server_connection->send_sock);
-               closesocket(_suspend_struct[idx].server_connection->recv_sock);
-               closesocket(_suspend_struct[idx].server_connection->event_sock);
+               closesocket(_ss_client_connection->send_sock);
+               closesocket(_ss_client_connection->recv_sock);
+               closesocket(_ss_client_connection->event_sock);
 
-               memset(_suspend_struct[idx].server_connection, 0, sizeof(RPC_SERVER_CONNECTION));
+               _ss_client_connection->send_sock = 0;
+               _ss_client_connection->recv_sock = 0;
+               _ss_client_connection->event_sock = 0;
+            
+               memset(_ss_client_connection, 0, sizeof(RPC_SERVER_CONNECTION));
 
                /* exit program after broken connection to MIDAS server */
                return SS_ABORT;
@@ -4254,27 +4280,26 @@ INT ss_suspend(INT millisec, INT msg)
 
       /* check IPC socket */
       if (_suspend_struct[idx].ipc_recv_socket && FD_ISSET(_suspend_struct[idx].ipc_recv_socket, &readfds)) {
+         struct sockaddr from_addr;
+         socklen_t from_addr_size;
          time_t tstart, tnow;
          int count;
+         char buffer[80];
          /* receive IPC message */
-         size = sizeof(struct sockaddr);
+         from_addr_size = sizeof(struct sockaddr);
 #ifdef OS_WINNT
-         size = recvfrom(_suspend_struct[idx].ipc_recv_socket, buffer, sizeof(buffer), 0, &from_addr, (int *) &size);
+         ssize_t size = recvfrom(_suspend_struct[idx].ipc_recv_socket, buffer, sizeof(buffer), 0, &from_addr, (int *) &from_addr_size);
 #else
-         size = recvfrom(_suspend_struct[idx].ipc_recv_socket, buffer, sizeof(buffer), 0, &from_addr, &size);
+         ssize_t size = recvfrom(_suspend_struct[idx].ipc_recv_socket, buffer, sizeof(buffer), 0, &from_addr, &from_addr_size);
 #endif
 
-         /* find out if this thread is connected as a server */
+         // NB: do not need to check thread id, the mserver is single-threaded. K.O.
          int mserver_client_socket = 0;
-         if (_suspend_struct[idx].server_acception && rpc_is_mserver())
-            for (i = 0; i < MAX_RPC_CONNECTION; i++) {
-               sock = _suspend_struct[idx].server_acception[i].send_sock;
-               if (sock) {
-                  //if (_suspend_struct[idx].server_acception[i].tid == ss_gettid()) {
-                     mserver_client_socket = sock;
-                  //}
-               }
+         for (int i = 0; i < _ss_server_num_acceptions; i++) {
+            if (_ss_server_acceptions[i].is_mserver) {
+               mserver_client_socket = _ss_server_acceptions[i].send_sock;
             }
+         }
 
          tstart = time(NULL);
          count = 0;
@@ -4290,13 +4315,13 @@ INT ss_suspend(INT millisec, INT msg)
             status = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
 
             if (status != -1 && FD_ISSET(_suspend_struct[idx].ipc_recv_socket, &readfds)) {
-               size = sizeof(struct sockaddr);
+               char buffer_tmp[80];
+               from_addr_size = sizeof(struct sockaddr);
                size =
 #ifdef OS_WINNT
-                   recvfrom(_suspend_struct[idx].ipc_recv_socket,
-                            buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, (int *) &size);
+                   recvfrom(_suspend_struct[idx].ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, (int *) &from_addr_size);
 #else
-                   recvfrom(_suspend_struct[idx].ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, &size);
+                   recvfrom(_suspend_struct[idx].ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, &from_addr_size);
 #endif
 
                /* don't forward same MSG_BM as above */
