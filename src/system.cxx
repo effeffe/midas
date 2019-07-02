@@ -3612,6 +3612,13 @@ static bool ss_match_thread(midas_thread_t tid)
    return false;
 }
 
+INT ss_suspend_set_rpc_thread(midas_thread_t thread_id)
+{
+   _ss_listen_thread = thread_id; // this thread handles listen()/accept() activity
+   _ss_client_thread = thread_id; // this thread reads the mserver connection, handles ODB and event buffer notifications (db_watch->db_update_record_local(), bm_poll_event())
+   _ss_server_thread = thread_id; // this thread reads and executes RPC requests
+}
+
 /*------------------------------------------------------------------*/
 INT ss_suspend_init_ipc(INT idx)
 /********************************************************************\
@@ -4023,7 +4030,7 @@ INT ss_suspend(INT millisec, INT msg)
 
   Routine: ss_suspend
 
-  Purpose: Suspend the calling thread for a speficic time. If
+  Purpose: Suspend the calling thread for a specified time. If
      timeout (in millisec.) is negative, the thead is suspended
      indefinitely. It can only be resumed from another thread
      or process which calls ss_resume or by some data which

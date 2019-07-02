@@ -563,6 +563,7 @@ typedef struct {
    INT EXPRT ss_mutex_delete(MUTEX_T *mutex);
    INT ss_alarm(INT millitime, void (*func) (int));
    INT ss_suspend_get_port(INT * port);
+   INT ss_suspend_set_rpc_thread(midas_thread_t thread_id);
    INT ss_suspend_set_server_listener(int listen_socket);
    INT ss_suspend_set_client_listener(int listen_socket);
    INT ss_suspend_set_client_connection(RPC_SERVER_CONNECTION* connection);
