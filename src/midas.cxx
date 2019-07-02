@@ -186,8 +186,8 @@ static TRANS_TABLE _deferred_trans_table[] = {
    {0, 0, NULL}
 };
 
-static BOOL _server_registered = FALSE;
-static int  _server_listen_socket = 0;
+static BOOL _rpc_registered = FALSE;
+static int  _rpc_listen_socket = 0;
 
 static INT rpc_transition_dispatch(INT idx, void *prpc_param[]);
 
@@ -3170,7 +3170,7 @@ INT cm_register_server(void)
 
 \********************************************************************/
 {
-   if (!_server_registered) {
+   if (!_rpc_registered) {
       INT status;
       int size;
       HNDLE hDB, hKey;
@@ -3201,11 +3201,15 @@ INT cm_register_server(void)
 
       int lport = 0; // actual port number assigned to us by the OS
 
-      status = rpc_register_server(/*ST_REMOTE, NULL,*/ port, NULL, &_server_listen_socket, &lport);
+      status = rpc_register_server(/*ST_REMOTE, NULL,*/ port, NULL, &_rpc_listen_socket, &lport);
       if (status != RPC_SUCCESS)
          return status;
 
-      _server_registered = TRUE;
+      status = ss_suspend_add_client_listener(_rpc_listen_socket);
+      if (status != SS_SUCCESS)
+         return status;
+
+      _rpc_registered = TRUE;
 
       /* register MIDAS library functions */
       rpc_register_functions(rpc_get_internal_list(1), NULL);
@@ -14929,10 +14933,10 @@ INT rpc_server_shutdown(void)
          _server_acception[i].event_sock = 0;
       }
 
-   if (_server_registered) {
-      closesocket(_server_listen_socket);
-      _server_listen_socket = 0;
-      _server_registered = FALSE;
+   if (_rpc_registered) {
+      closesocket(_rpc_listen_socket);
+      _rpc_listen_socket = 0;
+      _rpc_registered = FALSE;
    }
 
    /* free suspend structures */

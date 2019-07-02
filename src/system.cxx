@@ -3579,7 +3579,7 @@ typedef struct {
    INT ipc_recv_socket;
    INT ipc_send_socket;
    //INT(*ipc_dispatch) (const char *, INT);
-   INT listen_socket;
+   //INT listen_socket;
    //INT(*listen_dispatch) (INT);
    RPC_SERVER_CONNECTION *server_connection;
    //INT(*client_dispatch) (INT);
@@ -3590,6 +3590,20 @@ typedef struct {
 
 static SUSPEND_STRUCT *_suspend_struct = NULL;
 static INT _suspend_entries;
+
+static midas_thread_t _ss_listen_thread = 0;
+static int _ss_server_listen_socket = 0; // mserver listening for connections
+static int _ss_client_listen_socket = 0; // normal midas program listening for rpc connections for run transitions, etc
+
+/*------------------------------------------------------------------*/
+static bool ss_match_thread(midas_thread_t tid)
+{
+   if (tid == 0)
+      return true;
+   if (tid == ss_gettid())
+      return true;
+   return false;
+}
 
 /*------------------------------------------------------------------*/
 INT ss_suspend_init_ipc(INT idx)
@@ -3919,11 +3933,25 @@ INT ss_suspend_set_dispatch_listen(int listen_socket, INT(*dispatch)(INT))
 }
 #endif
 
+#if 0
 static bool ss_is_mserver = false;
 
 INT ss_suspend_set_server_type(bool is_mserver)
 {
    ss_is_mserver = is_mserver;
+   return SS_SUCCESS;
+}
+#endif
+
+INT ss_suspend_add_server_listener(int listen_socket)
+{
+   _ss_server_listen_socket = listen_socket;
+   return SS_SUCCESS;
+}
+
+INT ss_suspend_add_client_listener(int listen_socket)
+{
+   _ss_client_listen_socket = listen_socket;
    return SS_SUCCESS;
 }
 
@@ -4017,9 +4045,14 @@ INT ss_suspend(INT millisec, INT msg)
    do {
       FD_ZERO(&readfds);
 
-      /* check listen socket */
-      if (_suspend_struct[idx].listen_socket)
-         FD_SET(_suspend_struct[idx].listen_socket, &readfds);
+      if (ss_match_thread(_ss_listen_thread)) {
+         /* check listen sockets */
+         if (_ss_server_listen_socket)
+            FD_SET(_ss_server_listen_socket, &readfds);
+         
+         if (_ss_client_listen_socket)
+            FD_SET(_ss_client_listen_socket, &readfds);
+      }
 
       /* check server channels */
       if (_suspend_struct[idx].server_acception)
@@ -4086,8 +4119,8 @@ INT ss_suspend(INT millisec, INT msg)
       } while (status == -1);   /* dont return if an alarm signal was cought */
 
       /* if listen socket got data, call dispatcher with socket */
-      if (_suspend_struct[idx].listen_socket && FD_ISSET(_suspend_struct[idx].listen_socket, &readfds)) {
-         sock = _suspend_struct[idx].listen_socket;
+      //if (_suspend_struct[idx].listen_socket && FD_ISSET(_suspend_struct[idx].listen_socket, &readfds)) {
+      //   sock = _suspend_struct[idx].listen_socket;
 
          //if (_suspend_struct[idx].listen_dispatch) {
          //   status = _suspend_struct[idx].listen_dispatch(sock);
@@ -4098,11 +4131,25 @@ INT ss_suspend(INT millisec, INT msg)
          //      return status;
          //}
 
-         if (ss_is_mserver) {
-            status = rpc_server_accept(sock);
-         } else {
-            status = rpc_client_accept(sock);
-         }
+      //   if (ss_is_mserver) {
+      //      status = rpc_server_accept(sock);
+      //   } else {
+      //      status = rpc_client_accept(sock);
+      //   }
+      //   if (status == RPC_SHUTDOWN)
+      //      return status;
+      //}
+
+      /* check listener sockets */
+
+      if (_ss_server_listen_socket && FD_ISSET(_ss_server_listen_socket, &readfds)) {
+         status = rpc_server_accept(_ss_server_listen_socket);
+         if (status == RPC_SHUTDOWN)
+            return status;
+      }
+
+      if (_ss_client_listen_socket && FD_ISSET(_ss_client_listen_socket, &readfds)) {
+         status = rpc_client_accept(_ss_client_listen_socket);
          if (status == RPC_SHUTDOWN)
             return status;
       }
