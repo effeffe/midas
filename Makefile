@@ -72,6 +72,7 @@ endif
 # Optional MYSQL library for mlogger and for the history
 #
 ifndef NO_MYSQL
+HAVE_MARIADB := $(shell mariadb_config --include 2> /dev/null)
 HAVE_MYSQL := $(shell mysql_config --include 2> /dev/null)
 endif
 
@@ -599,7 +600,11 @@ $(GIT_REVISION): $(SRC_DIR)/midas.cxx $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.cx
 # main binaries
 #
 
-ifdef HAVE_MYSQL
+ifdef HAVE_MARIADB
+CFLAGS      += -DHAVE_MYSQL $(shell mariadb_config --include)
+MYSQL_LIBS  += $(shell mariadb_config --libs)
+NEED_ZLIB = 1
+else ifdef HAVE_MYSQL
 CFLAGS      += -DHAVE_MYSQL $(shell mysql_config --include)
 MYSQL_LIBS  += $(shell mysql_config --libs)
 NEED_ZLIB = 1
