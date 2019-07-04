@@ -6185,7 +6185,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
 
       pclient->pid = ss_getpid();
 
-      ss_suspend_get_port(&pclient->port);
+      ss_suspend_get_buffer_port(ss_gettid(), &pclient->port);
 
       pclient->read_pointer = pheader->write_pointer;
       pclient->last_activity = ss_millitime();
@@ -8323,6 +8323,8 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER * pbuf, int a
       if (async_flag == BM_NO_WAIT)
          return BM_ASYNC_RETURN;
 
+      ss_suspend_get_buffer_port(ss_gettid(), &pc->port);
+
       bm_unlock_buffer(pbuf);
 
       //printf("bm_wait_for_free_space: blocking client \"%s\"\n", blocking_client_name);
@@ -8404,6 +8406,8 @@ static int bm_wait_for_more_events_locked(BUFFER* pbuf, BUFFER_HEADER* pheader, 
          //printf("bm_wait_for_more_events: buffer [%s] client [%s] set read_wait!\n", pheader->name, pc->name);
          pc->read_wait = TRUE;
       }
+
+      ss_suspend_get_buffer_port(ss_gettid(), &pc->port);
 
       // NB: locking order is: 1st read cache lock, 2nd buffer lock, unlock in reverse order
 

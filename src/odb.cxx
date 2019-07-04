@@ -1681,7 +1681,7 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    pclient->pid = ss_getpid();
    pclient->num_open_records = 0;
 
-   ss_suspend_get_port(&pclient->port);
+   ss_suspend_get_odb_port(&pclient->port);
 
    pclient->last_activity = ss_millitime();
 

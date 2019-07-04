@@ -32,6 +32,7 @@ The Midas System file
 
 #include <stdio.h>
 #include <math.h>
+#include <vector>
 
 #include "midas.h"
 #include "msystem.h"
@@ -3573,7 +3574,8 @@ void *ss_ctrlc_handler(void (*func) (int))
 */
 
 typedef struct {
-   BOOL in_use;
+   //BOOL in_use;
+   //BOOL is_odb;
    midas_thread_t thread_id;
    INT ipc_recv_port;
    INT ipc_recv_socket;
@@ -3588,8 +3590,13 @@ typedef struct {
    struct sockaddr_in bind_addr;
 } SUSPEND_STRUCT;
 
-static SUSPEND_STRUCT *_suspend_struct = NULL;
-static INT _suspend_entries;
+//static SUSPEND_STRUCT *_suspend_struct = NULL;
+//static INT _suspend_entries;
+
+static std::vector<SUSPEND_STRUCT*> _ss_suspend_vector;
+
+static midas_thread_t _ss_odb_thread = 0;
+static SUSPEND_STRUCT* _ss_suspend_odb = NULL;
 
 static midas_thread_t _ss_listen_thread = 0;
 static int _ss_server_listen_socket = 0; // mserver listening for connections
@@ -3617,21 +3624,20 @@ INT ss_suspend_set_rpc_thread(midas_thread_t thread_id)
    _ss_listen_thread = thread_id; // this thread handles listen()/accept() activity
    _ss_client_thread = thread_id; // this thread reads the mserver connection, handles ODB and event buffer notifications (db_watch->db_update_record_local(), bm_poll_event())
    _ss_server_thread = thread_id; // this thread reads and executes RPC requests
+   _ss_odb_thread = thread_id; // this thread reads and dispatches ODB notifications (db_watch & co)
+   return SS_SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
-INT ss_suspend_init_ipc(INT idx)
+static INT ss_suspend_init_struct(SUSPEND_STRUCT* psuspend)
 /********************************************************************\
 
-  Routine: ss_suspend_init_ipc
+  Routine: ss_suspend_init_struct
 
   Purpose: Create sockets used in the suspend/resume mechanism.
 
   Input:
-    INT    idx              Index to the _suspend_struct array for
-                            the calling thread.
-  Output:
-    <indirect>              Set entry in _suspend_struct
+    SUSPEND_STRUCT* psuspend structure to initialize
 
   Function value:
     SS_SUCCESS              Successful completion
@@ -3723,8 +3729,8 @@ INT ss_suspend_init_ipc(INT idx)
    getsockname(sock, (struct sockaddr *) &bind_addr, &size);
 #endif
 
-   _suspend_struct[idx].ipc_recv_socket = sock;
-   _suspend_struct[idx].ipc_recv_port = ntohs(bind_addr.sin_port);
+   psuspend->ipc_recv_socket = sock;
+   psuspend->ipc_recv_port = ntohs(bind_addr.sin_port);
 
   /*--------------- create UDP send socket ----------------------*/
    sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -3756,79 +3762,57 @@ INT ss_suspend_init_ipc(INT idx)
    }
 #endif
 
-   memcpy(&_suspend_struct[idx].bind_addr, &bind_addr, sizeof(bind_addr));
-   _suspend_struct[idx].ipc_send_socket = sock;
+   memcpy(&(psuspend->bind_addr), &bind_addr, sizeof(bind_addr));
+   psuspend->ipc_send_socket = sock;
 
    return SS_SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
-INT ss_suspend_get_index(INT * pindex)
+SUSPEND_STRUCT* ss_suspend_get_struct(midas_thread_t thread_id)
 /********************************************************************\
 
-  Routine: ss_suspend_init
+  Routine: ss_suspend_get_struct
 
-  Purpose: Return the index for the suspend structure for this
-     thread.
+  Purpose: Return the suspend structure for this thread.
 
   Input:
-    none
-
-  Output:
-    INT    *pindex          Index to the _suspend_struct array for
-                            the calling thread.
+    midas_thread_t thread_id thread is returned by ss_gettid()
 
   Function value:
-    SS_SUCCESS              Successful completion
-    SS_NO_MEMORY            Not enough memory
+    SUSPEND_STRUCT for the given thread
 
 \********************************************************************/
 {
-   INT idx;
-
-   if (_suspend_struct == NULL) {
-      /* create a new entry for this thread */
-      _suspend_struct = (SUSPEND_STRUCT *) malloc(sizeof(SUSPEND_STRUCT));
-      memset(_suspend_struct, 0, sizeof(SUSPEND_STRUCT));
-      if (_suspend_struct == NULL)
-         return SS_NO_MEMORY;
-
-      _suspend_entries = 1;
-      *pindex = 0;
-      _suspend_struct[0].thread_id = ss_gettid();
-      _suspend_struct[0].in_use = TRUE;
-   } else {
-      /* check for an existing entry for this thread */
-      for (idx = 0; idx < _suspend_entries; idx++)
-         if (_suspend_struct[idx].thread_id == ss_gettid()) {
-            if (pindex != NULL)
-               *pindex = idx;
-
-            return SS_SUCCESS;
-         }
-
-      /* check for a deleted entry */
-      for (idx = 0; idx < _suspend_entries; idx++)
-         if (!_suspend_struct[idx].in_use)
-            break;
-
-      if (idx == _suspend_entries) {
-         /* if not found, create new one */
-         _suspend_struct = (SUSPEND_STRUCT *) realloc(_suspend_struct, sizeof(SUSPEND_STRUCT) * (_suspend_entries + 1));
-         memset(&_suspend_struct[_suspend_entries], 0, sizeof(SUSPEND_STRUCT));
-
-         _suspend_entries++;
-         if (_suspend_struct == NULL) {
-            _suspend_entries--;
-            return SS_NO_MEMORY;
-         }
+   // find thread_id
+   for (unsigned i=0; i<_ss_suspend_vector.size(); i++) {
+      if (!_ss_suspend_vector[i])
+         continue;
+      //if (_ss_suspend_vector[i]->is_odb)
+      //   continue;
+      if (_ss_suspend_vector[i]->thread_id == thread_id) {
+         return _ss_suspend_vector[i];
       }
-      *pindex = idx;
-      _suspend_struct[idx].thread_id = ss_gettid();
-      _suspend_struct[idx].in_use = TRUE;
    }
 
-   return SS_SUCCESS;
+   // create new one if not found
+   SUSPEND_STRUCT *psuspend = new SUSPEND_STRUCT;
+
+   memset(psuspend, 0, sizeof(SUSPEND_STRUCT));
+   psuspend->thread_id = thread_id;
+
+   // place into empty slot
+   for (unsigned i=0; i<_ss_suspend_vector.size(); i++) {
+      if (!_ss_suspend_vector[i]) {
+         _ss_suspend_vector[i] = psuspend;
+         return psuspend;
+      }
+   }
+
+   // add to vector if no empty slots
+   _ss_suspend_vector.push_back(psuspend);
+
+   return psuspend;
 }
 
 /*------------------------------------------------------------------*/
@@ -3851,30 +3835,26 @@ INT ss_suspend_exit()
 
 \********************************************************************/
 {
-   INT i, status;
-
-   status = ss_suspend_get_index(&i);
-
-   if (status != SS_SUCCESS)
-      return status;
-
-   if (_suspend_struct[i].ipc_recv_socket) {
-      closesocket(_suspend_struct[i].ipc_recv_socket);
-      closesocket(_suspend_struct[i].ipc_send_socket);
-   }
-
-   memset(&_suspend_struct[i], 0, sizeof(SUSPEND_STRUCT));
-
-   /* calculate new _suspend_entries value */
-   for (i = _suspend_entries - 1; i >= 0; i--)
-      if (_suspend_struct[i].in_use)
-         break;
-
-   _suspend_entries = i + 1;
-
-   if (_suspend_entries == 0) {
-      free(_suspend_struct);
-      _suspend_struct = NULL;
+   midas_thread_t thread_id = ss_gettid();
+   
+   for (unsigned i=0; i<_ss_suspend_vector.size(); i++) {
+      if (!_ss_suspend_vector[i])
+         continue;
+      //if (_ss_suspend_vector[i]->is_odb)
+      //   continue;
+      if (_ss_suspend_vector[i]->thread_id == thread_id) {
+         SUSPEND_STRUCT* psuspend = _ss_suspend_vector[i];
+      
+         if (psuspend->ipc_recv_socket) {
+            closesocket(psuspend->ipc_recv_socket);
+            closesocket(psuspend->ipc_send_socket);
+         }
+         
+         memset(psuspend, 0, sizeof(SUSPEND_STRUCT));
+         
+         _ss_suspend_vector[i] = NULL;
+         delete psuspend;
+      }
    }
 
    return SS_SUCCESS;
@@ -3987,10 +3967,42 @@ INT ss_suspend_set_server_acceptions_array(int num, RPC_SERVER_ACCEPTION* accept
 }
 
 /*------------------------------------------------------------------*/
-INT ss_suspend_get_port(INT * port)
+INT ss_suspend_get_odb_port(INT * port)
 /********************************************************************\
 
-  Routine: ss_suspend_get_port
+  Routine: ss_suspend_get_odb_port
+
+  Purpose: Return the UDP port number for receiving ODB notifications (db_watch & co)
+
+  Input:
+    none
+
+  Output:
+    INT    *port            UDP port number
+
+  Function value:
+    SS_SUCCESS              Successful completion
+
+\********************************************************************/
+{
+   if (!_ss_suspend_odb) {
+      _ss_suspend_odb = new SUSPEND_STRUCT;
+      memset(_ss_suspend_odb, 0, sizeof(SUSPEND_STRUCT));
+      ss_suspend_init_struct(_ss_suspend_odb);
+      //_ss_suspend_odb->is_odb = TRUE;
+      //_ss_suspend_vector.push_back(_ss_suspend_odb);
+   }
+
+   *port = _ss_suspend_odb->ipc_recv_port;
+
+   return SS_SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
+INT ss_suspend_get_buffer_port(midas_thread_t thread_id, INT * port)
+/********************************************************************\
+
+  Routine: ss_suspend_get_buffer_port
 
   Purpose: Return the UDP port number which can be used to resume
      the calling thread inside a ss_suspend function. The port
@@ -4009,19 +4021,102 @@ INT ss_suspend_get_port(INT * port)
 
 \********************************************************************/
 {
-   INT idx, status;
+   SUSPEND_STRUCT* psuspend = ss_suspend_get_struct(thread_id);
 
-   status = ss_suspend_get_index(&idx);
+   if (!psuspend->ipc_recv_port) {
+      ss_suspend_init_struct(psuspend);
+   }
 
-   if (status != SS_SUCCESS)
-      return status;
-
-   if (!_suspend_struct[idx].ipc_recv_port)
-      ss_suspend_init_ipc(idx);
-
-   *port = _suspend_struct[idx].ipc_recv_port;
+   *port = psuspend->ipc_recv_port;
 
    return SS_SUCCESS;
+}
+
+static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
+{
+   struct sockaddr from_addr;
+   socklen_t from_addr_size;
+   time_t tstart, tnow;
+   int count;
+   char buffer[80];
+   /* receive IPC message */
+   from_addr_size = sizeof(struct sockaddr);
+#ifdef OS_WINNT
+   ssize_t size = recvfrom(ipc_recv_socket, buffer, sizeof(buffer), 0, &from_addr, (int *) &from_addr_size);
+#else
+   ssize_t size = recvfrom(ipc_recv_socket, buffer, sizeof(buffer), 0, &from_addr, &from_addr_size);
+#endif
+   
+   // NB: do not need to check thread id, the mserver is single-threaded. K.O.
+   int mserver_client_socket = 0;
+   for (int i = 0; i < _ss_server_num_acceptions; i++) {
+      if (_ss_server_acceptions[i].is_mserver) {
+         mserver_client_socket = _ss_server_acceptions[i].send_sock;
+      }
+   }
+   
+   tstart = time(NULL);
+   count = 0;
+
+   fd_set readfds;
+
+   /* receive further messages to empty UDP queue */
+   do {
+      FD_ZERO(&readfds);
+      FD_SET(ipc_recv_socket, &readfds);
+      
+      struct timeval timeout;
+
+      timeout.tv_sec = 0;
+      timeout.tv_usec = 0;
+      
+      int status = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
+      
+      if (status != -1 && FD_ISSET(ipc_recv_socket, &readfds)) {
+         char buffer_tmp[80];
+         from_addr_size = sizeof(struct sockaddr);
+#ifdef OS_WINNT
+         size = recvfrom(ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, (int *) &from_addr_size);
+#else
+         size = recvfrom(ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, &from_addr_size);
+#endif
+         
+         /* don't forward same MSG_BM as above */
+         if (buffer_tmp[0] != 'B' || strcmp(buffer_tmp, buffer) != 0) {
+            //if (_suspend_struct[idx].ipc_dispatch) {
+            //   _suspend_struct[idx].ipc_dispatch(buffer_tmp, server_socket);
+            //   // ipc_dispatch actually calls - cm_dispatch_ipc(buffer_tmp, server_socket);
+            //}
+            cm_dispatch_ipc(buffer_tmp, mserver_client_socket);
+         }
+      }
+      
+      if (millisec > 0) {
+         tnow = time(NULL);
+         // make sure we do not loop for longer than our timeout
+         if (tnow - tstart > 1 + millisec/1000) {
+            //printf("ss_suspend - break out dt %d, %d loops\n", (int)(tnow-tstart), count);
+            break;
+         }
+      }
+      
+      count++;
+   } while (FD_ISSET(ipc_recv_socket, &readfds));
+   
+   /* return if received requested message */
+   if (msg == MSG_BM && buffer[0] == 'B')
+      return SS_SUCCESS;
+   if (msg == MSG_ODB && buffer[0] == 'O')
+      return SS_SUCCESS;
+   
+   /* call dispatcher */
+   //if (_suspend_struct[idx].ipc_dispatch) {
+   //   _suspend_struct[idx].ipc_dispatch(buffer, server_socket);
+   //   // ipc_dispatch actually calls - cm_dispatch_ipc(buffer_tmp, server_socket);
+   //}
+   cm_dispatch_ipc(buffer, mserver_client_socket);
+   
+   return 0;
 }
 
 /*------------------------------------------------------------------*/
@@ -4057,13 +4152,9 @@ INT ss_suspend(INT millisec, INT msg)
 
 \********************************************************************/
 {
-   INT idx, status, return_status;
+   INT status, return_status;
 
-   /* get index to _suspend_struct for this thread */
-   status = ss_suspend_get_index(&idx);
-
-   if (status != SS_SUCCESS)
-      return status;
+   SUSPEND_STRUCT* psuspend = ss_suspend_get_struct(ss_gettid());
 
    return_status = SS_TIMEOUT;
 
@@ -4123,9 +4214,14 @@ INT ss_suspend(INT millisec, INT msg)
          }
       }
 
-      /* check IPC socket */
-      if (_suspend_struct[idx].ipc_recv_socket)
-         FD_SET(_suspend_struct[idx].ipc_recv_socket, &readfds);
+      /* watch for UDP messages in the IPC socket: buffer and odb notifications */
+      if (ss_match_thread(_ss_odb_thread)) {
+         if (_ss_suspend_odb && _ss_suspend_odb->ipc_recv_socket)
+            FD_SET(_ss_suspend_odb->ipc_recv_socket, &readfds);
+      }
+
+      if (psuspend->ipc_recv_socket)
+         FD_SET(psuspend->ipc_recv_socket, &readfds);
 
       struct timeval timeout;
 
@@ -4285,89 +4381,20 @@ INT ss_suspend(INT millisec, INT msg)
          }
       }
 
-      /* check IPC socket */
-      if (_suspend_struct[idx].ipc_recv_socket && FD_ISSET(_suspend_struct[idx].ipc_recv_socket, &readfds)) {
-         struct sockaddr from_addr;
-         socklen_t from_addr_size;
-         time_t tstart, tnow;
-         int count;
-         char buffer[80];
-         /* receive IPC message */
-         from_addr_size = sizeof(struct sockaddr);
-#ifdef OS_WINNT
-         ssize_t size = recvfrom(_suspend_struct[idx].ipc_recv_socket, buffer, sizeof(buffer), 0, &from_addr, (int *) &from_addr_size);
-#else
-         ssize_t size = recvfrom(_suspend_struct[idx].ipc_recv_socket, buffer, sizeof(buffer), 0, &from_addr, &from_addr_size);
-#endif
-
-         // NB: do not need to check thread id, the mserver is single-threaded. K.O.
-         int mserver_client_socket = 0;
-         for (int i = 0; i < _ss_server_num_acceptions; i++) {
-            if (_ss_server_acceptions[i].is_mserver) {
-               mserver_client_socket = _ss_server_acceptions[i].send_sock;
-            }
-         }
-
-         tstart = time(NULL);
-         count = 0;
-
-         /* receive further messages to empty UDP queue */
-         do {
-            FD_ZERO(&readfds);
-            FD_SET(_suspend_struct[idx].ipc_recv_socket, &readfds);
-
-            timeout.tv_sec = 0;
-            timeout.tv_usec = 0;
-
-            status = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
-
-            if (status != -1 && FD_ISSET(_suspend_struct[idx].ipc_recv_socket, &readfds)) {
-               char buffer_tmp[80];
-               from_addr_size = sizeof(struct sockaddr);
-               size =
-#ifdef OS_WINNT
-                   recvfrom(_suspend_struct[idx].ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, (int *) &from_addr_size);
-#else
-                   recvfrom(_suspend_struct[idx].ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, &from_addr_size);
-#endif
-
-               /* don't forward same MSG_BM as above */
-               if (buffer_tmp[0] != 'B' || strcmp(buffer_tmp, buffer) != 0) {
-                  //if (_suspend_struct[idx].ipc_dispatch) {
-                  //   _suspend_struct[idx].ipc_dispatch(buffer_tmp, server_socket);
-                  //   // ipc_dispatch actually calls - cm_dispatch_ipc(buffer_tmp, server_socket);
-                  //}
-                  cm_dispatch_ipc(buffer_tmp, mserver_client_socket);
-               }
-            }
-
-            if (millisec > 0) {
-               tnow = time(NULL);
-               // make sure we do not loop for longer than our timeout
-               if (tnow - tstart > 1 + millisec/1000) {
-                  //printf("ss_suspend - break out dt %d, %d loops\n", (int)(tnow-tstart), count);
-                  break;
-               }
-            }
-
-            count++;
-         } while (FD_ISSET(_suspend_struct[idx].ipc_recv_socket, &readfds));
-
-         /* return if received requested message */
-         if (msg == MSG_BM && buffer[0] == 'B')
-            return SS_SUCCESS;
-         if (msg == MSG_ODB && buffer[0] == 'O')
-            return SS_SUCCESS;
-
-         /* call dispatcher */
-         //if (_suspend_struct[idx].ipc_dispatch) {
-         //   _suspend_struct[idx].ipc_dispatch(buffer, server_socket);
-         //   // ipc_dispatch actually calls - cm_dispatch_ipc(buffer_tmp, server_socket);
-         //}
-         cm_dispatch_ipc(buffer, mserver_client_socket);
-
-         return_status = SS_SUCCESS;
+      /* check ODB IPC socket */
+      if (_ss_suspend_odb && _ss_suspend_odb->ipc_recv_socket && FD_ISSET(_ss_suspend_odb->ipc_recv_socket, &readfds)) {
+         status = ss_suspend_process_ipc(millisec, msg, _ss_suspend_odb->ipc_recv_socket);
+         if (status)
+            return status;
       }
+      
+      /* check per-thread IPC socket */
+      if (psuspend && psuspend->ipc_recv_socket && FD_ISSET(psuspend->ipc_recv_socket, &readfds)) {
+         status = ss_suspend_process_ipc(millisec, msg, psuspend->ipc_recv_socket);
+         if (status)
+            return status;
+      }
+
 
    } while (millisec < 0);
 
@@ -4399,19 +4426,26 @@ INT ss_resume(INT port, const char *message)
 
 \********************************************************************/
 {
+   if (!_ss_suspend_odb) {
+      int port = 0;
+      ss_suspend_get_odb_port(&port);
+   }
+   assert(_ss_suspend_odb);
+
    INT status;
-   INT idx = 0;
    struct sockaddr_in bind_addr;
 
-   memcpy(&bind_addr, &_suspend_struct[idx].bind_addr, sizeof(struct sockaddr_in));
+   memcpy(&bind_addr, &_ss_suspend_odb->bind_addr, sizeof(struct sockaddr_in));
    bind_addr.sin_port = htons((short) port);
 
-   status = sendto(_suspend_struct[idx].ipc_send_socket, message,
-                   strlen(message) + 1, 0,
+   size_t message_size = strlen(message) + 1;
+
+   status = sendto(_ss_suspend_odb->ipc_send_socket, message, message_size, 0,
                    (struct sockaddr *) &bind_addr, sizeof(struct sockaddr_in));
 
-   if (status != (INT) strlen(message) + 1)
+   if (status != message_size) {
       return SS_SOCKET_ERROR;
+   }
 
    return SS_SUCCESS;
 }
