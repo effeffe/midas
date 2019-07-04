@@ -20,6 +20,7 @@ set(PROGS
    mh2sql
    fetest
    feudp
+   fetest_tmfe
    #crc32c
    #mfe_link_test
    #mfe_link_test_cxx

@@ -424,6 +424,7 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/mfe_link_test_cxx  \
 	$(BIN_DIR)/fetest  \
 	$(BIN_DIR)/feudp   \
+	$(BIN_DIR)/fetest_tmfe    \
 	$(BIN_DIR)/mana_link_test \
 	$(BIN_DIR)/mjson_test \
 	$(BIN_DIR)/mcnaf    \
