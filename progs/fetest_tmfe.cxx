@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <signal.h> // SIGPIPE
 #include <assert.h> // assert()
+#include <stdlib.h> // malloc()
 
 #include "midas.h"
 #include "tmfe.h"
