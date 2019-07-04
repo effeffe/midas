@@ -185,6 +185,12 @@ set(libsrc
    src/elog
    src/mrpc
    src/mjson
+   src/tmfe
+   src/mvodb
+   src/nullodb
+   src/midasodb
+   src/mxmlodb
+   src/mjsonodb
    src/json_paste
    src/mjsonrpc
    src/mjsonrpc_user

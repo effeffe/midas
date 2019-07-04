@@ -466,6 +466,12 @@ OBJS = \
 	$(LIB_DIR)/mxml.o \
 	$(LIB_DIR)/mjson.o \
 	$(LIB_DIR)/json_paste.o \
+	$(LIB_DIR)/tmfe.o \
+	$(LIB_DIR)/mvodb.o \
+	$(LIB_DIR)/nullodb.o \
+	$(LIB_DIR)/midasodb.o \
+	$(LIB_DIR)/mxmlodb.o \
+	$(LIB_DIR)/mjsonodb.o \
 	$(LIB_DIR)/history_common.o \
 	$(LIB_DIR)/history_midas.o \
 	$(LIB_DIR)/history_odbc.o \
