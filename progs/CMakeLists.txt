@@ -59,8 +59,8 @@ target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS})
 #
 target_link_libraries(feudp mfe)
 target_link_libraries(fetest mfe)
-target_link_libraries(mfe_link_test mfe)
-target_link_libraries(mfe_link_test_cxx mfe)
+target_link_libraries(mfe_link_test mfe midas)
+target_link_libraries(mfe_link_test_cxx mfe midas)
 
 #
 # odbedit
