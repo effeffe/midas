@@ -78,9 +78,8 @@ if (HAVE_ROOT)
    add_executable(rmlogger mlogger)
    target_include_directories(rmlogger PUBLIC ${ROOT_INC})
    target_compile_options(rmlogger PRIVATE -DHAVE_ROOT)
-   target_link_libraries(rmlogger midas ${LIBS} ${ROOT_LIBS})
+   target_link_libraries(rmlogger midas ${LIBS} ${ROOT_LIBS} ${DB_LIBS})
 endif(HAVE_ROOT)
-target_link_libraries(rmlogger ${DB_LIBS})
 
 #
 # Installation
