@@ -836,10 +836,10 @@ $(BIN_DIR)/feudp: $(PROGS_DIR)/feudp.cxx $(LIB_DIR)/mfe.o
 $(BIN_DIR)/crc32c: $(SRC_DIR)/crc32c.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -DTEST -o $@ $^ $(LIB) $(LIBS)
 
-$(BIN_DIR)/mfe_link_test: $(SRC_DIR)/mfe_link_test.cxx $(LIB_DIR)/mfe.o
+$(BIN_DIR)/mfe_link_test: $(PROGS_DIR)/mfe_link_test.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
-$(BIN_DIR)/mfe_link_test_cxx: $(SRC_DIR)/mfe_link_test_cxx.cxx $(LIB_DIR)/mfe.o
+$(BIN_DIR)/mfe_link_test_cxx: $(PROGS_DIR)/mfe_link_test_cxx.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/mana_link_test: $(SRC_DIR)/mana.cxx
