@@ -3,9 +3,7 @@
 #
 set(PROGS
    mserver
-   #odbedit
    odbinit
-   #mhttpd
    mlogger
    msequencer
    mhist
@@ -21,19 +19,18 @@ set(PROGS
    fetest
    feudp
    fetest_tmfe
-   #crc32c
-   #mfe_link_test
-   #mfe_link_test_cxx
-   #mana_link_test
-   #mjson_test
-   #mcnaf
-   #get_record_test
-   #odb_lock_test
-   #rmlogger
-   #rmana_link_test
 )
 
-foreach(PROG ${PROGS})
+set(TESTPROGS
+   crc32c_test
+   mfe_link_test
+   mfe_link_test_cxx
+   mjson_test
+   get_record_test
+   odb_lock_test
+)
+
+foreach(PROG ${PROGS} ${TESTPROGS})
    add_executable(${PROG} ${PROG})
    target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
    target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
@@ -58,11 +55,12 @@ endif(OPENSSL_FOUND)
 target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS})
 
 #
-# feudp, fetest
+# Add libmfe to front-ends
 #
-
-target_link_libraries(feudp midas mfe ${LIBS})
-target_link_libraries(fetest midas mfe ${LIBS})
+target_link_libraries(feudp mfe)
+target_link_libraries(fetest mfe)
+target_link_libraries(mfe_link_test mfe)
+target_link_libraries(mfe_link_test_cxx mfe)
 
 #
 # odbedit
