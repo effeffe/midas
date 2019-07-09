@@ -70,6 +70,14 @@ target_include_directories(odbedit PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 target_link_libraries(odbedit midas ${LIBS})
 
 #
+# mlogger
+#
+if (HAVE_MYSQL)
+   target_compile_options(mlogger PRIVATE -DHAVE_MYSQL ${MYSQL_CFLAGS})
+   target_link_libraries(mlogger ${MYSQL_LIBS})
+endif()
+
+#
 # rmlogger
 #
 if (HAVE_ROOT)
@@ -78,6 +86,10 @@ if (HAVE_ROOT)
    target_compile_options(rmlogger PRIVATE -DHAVE_ROOT)
    target_link_libraries(rmlogger midas ${LIBS} ${ROOT_LIBS})
 endif(HAVE_ROOT)
+if (HAVE_MYSQL)
+   target_compile_options(rmlogger PRIVATE -DHAVE_MYSQL ${MYSQL_CFLAGS})
+   target_link_libraries(rmlogger ${MYSQL_LIBS})
+endif()
 
 #
 # Installation
