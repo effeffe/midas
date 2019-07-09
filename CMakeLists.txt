@@ -103,6 +103,7 @@ else (NO_MYSQL)
          message(STATUS "MIDAS: Found MySQL version " ${HAVE_MYSQL})
          set(HAVE_MYSQL 1)
          execute_process(COMMAND mysql_config --cflags OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE MYSQL_CFLAGS)
+         add_compile_options(-DHAVE_MYSQL ${MYSQL_CFLAGS})
          execute_process(COMMAND mysql_config --libs OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE MYSQL_LIBS)
       else ()
          message(STATUS "MIDAS: MySQL not found")
@@ -213,9 +214,14 @@ add_library(objlib OBJECT ${libsrc})
 # shared libraries need PIC
 set_property(TARGET objlib PROPERTY POSITION_INDEPENDENT_CODE 1)
 
-# shared and static libraries build from the same object files
+# static midas library
 add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
+
+# shared midas library
 add_library(midas-shared SHARED $<TARGET_OBJECTS:objlib>)
+if (HAVE_MYSQL)
+   target_link_libraries(midas-shared ${MYSQL_LIBS})
+endif()
 
 target_include_directories(objlib PUBLIC ${SYSINC_DIR})
 target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
