@@ -1,11 +1,9 @@
 /********************************************************************\
 
-  Name:         tcpip.c
+  Name:         tcpip.cxx
   Created by:   Stefan Ritt
 
   Contents:     TCP/IP socket communication routines
-
-  $Id$
 
 \********************************************************************/
 
@@ -88,7 +86,7 @@ int tcpip_connect(char *host, int port)
    bind_addr.sin_addr.s_addr = 0;
    bind_addr.sin_port = 0;
 
-   status = bind(fd, (void *) &bind_addr, sizeof(bind_addr));
+   status = bind(fd, (const sockaddr*) &bind_addr, sizeof(bind_addr));
    if (status < 0) {
       perror("tcpip_connect:bind");
       return -1;
@@ -118,7 +116,7 @@ int tcpip_connect(char *host, int port)
 
 #ifdef OS_UNIX
    do {
-      status = connect(fd, (void *) &bind_addr, sizeof(bind_addr));
+      status = connect(fd, (const sockaddr *) &bind_addr, sizeof(bind_addr));
 
       /* don't return if an alarm signal was cought */
    } while (status == -1 && errno == EINTR);
@@ -204,7 +202,7 @@ int tcpip_read(TCPIP_INFO * info, char *data, int size, int millisec)
          timeout.tv_usec = (millisec % 1000) * 1000;
 
          do {
-            status = select(FD_SETSIZE, (void *) &readfds, NULL, NULL, (void *) &timeout);
+            status = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
 
             /* if an alarm signal was cought, restart select with reduced timeout */
             if (status == -1 && timeout.tv_sec >= WATCHDOG_INTERVAL / 1000)
@@ -285,7 +283,7 @@ int tcpip_gets(TCPIP_INFO * info, char *str, int size, char *pattern, int millis
          timeout.tv_usec = (millisec % 1000) * 1000;
 
          do {
-            status = select(FD_SETSIZE, (void *) &readfds, NULL, NULL, (void *) &timeout);
+            status = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
 
             /* if an alarm signal was cought, restart select with reduced timeout */
             if (status == -1 && timeout.tv_sec >= WATCHDOG_INTERVAL / 1000)
@@ -331,14 +329,14 @@ int tcpip_gets(TCPIP_INFO * info, char *str, int size, char *pattern, int millis
 
 /*----------------------------------------------------------------------------*/
 
-int tcpip_init(HNDLE hkey, void **pinfo)
+int tcpip_init(HNDLE hkey, TCPIP_INFO **pinfo)
 {
    HNDLE hDB, hkeybd;
    INT size, status;
    TCPIP_INFO *info;
 
    /* allocate info structure */
-   info = calloc(1, sizeof(TCPIP_INFO));
+   info = (TCPIP_INFO*) calloc(1, sizeof(TCPIP_INFO));
    *pinfo = info;
 
    cm_get_experiment_database(&hDB, NULL);
@@ -367,75 +365,75 @@ INT tcpip(INT cmd, ...)
    va_list argptr;
    HNDLE hkey;
    INT status, size, timeout;
-   void *info;
+   TCPIP_INFO *info;
    char *str, *pattern;
 
    va_start(argptr, cmd);
    status = FE_SUCCESS;
 
    switch (cmd) {
-   case CMD_INIT:
-      hkey = va_arg(argptr, HNDLE);
-      info = va_arg(argptr, void *);
-      status = tcpip_init(hkey, info);
-      break;
+      case CMD_INIT: {
+         hkey = va_arg(argptr, HNDLE);
+         TCPIP_INFO **pinfo = va_arg(argptr, TCPIP_INFO **);
+         status = tcpip_init(hkey, pinfo);
+         break;
+      }
+      case CMD_EXIT:
+         info = va_arg(argptr, TCPIP_INFO *);
+         status = tcpip_exit(info);
+         break;
 
-   case CMD_EXIT:
-      info = va_arg(argptr, void *);
-      status = tcpip_exit(info);
-      break;
+      case CMD_OPEN:
+         info = va_arg(argptr, TCPIP_INFO *);
+         status = tcpip_open(info);
+         break;
 
-   case CMD_OPEN:
-      info = va_arg(argptr, void *);
-      status = tcpip_open(info);
-      break;
+      case CMD_CLOSE:
+         info = va_arg(argptr, TCPIP_INFO *);
+         status = tcpip_close(info);
+         break;
 
-   case CMD_CLOSE:
-      info = va_arg(argptr, void *);
-      status = tcpip_close(info);
-      break;
+      case CMD_NAME:
+         info = va_arg(argptr, TCPIP_INFO *);
+         str = va_arg(argptr, char *);
+         strcpy(str, "tcpip");
+         break;
 
-   case CMD_NAME:
-      info = va_arg(argptr, void *);
-      str = va_arg(argptr, char *);
-      strcpy(str, "tcpip");
-      break;
+      case CMD_WRITE:
+         info = va_arg(argptr, TCPIP_INFO *);
+         str = va_arg(argptr, char *);
+         size = va_arg(argptr, int);
+         status = tcpip_write(info, str, size);
+         break;
 
-   case CMD_WRITE:
-      info = va_arg(argptr, void *);
-      str = va_arg(argptr, char *);
-      size = va_arg(argptr, int);
-      status = tcpip_write(info, str, size);
-      break;
+      case CMD_READ:
+         info = va_arg(argptr, TCPIP_INFO *);
+         str = va_arg(argptr, char *);
+         size = va_arg(argptr, INT);
+         timeout = va_arg(argptr, INT);
+         status = tcpip_read(info, str, size, timeout);
+         break;
 
-   case CMD_READ:
-      info = va_arg(argptr, void *);
-      str = va_arg(argptr, char *);
-      size = va_arg(argptr, INT);
-      timeout = va_arg(argptr, INT);
-      status = tcpip_read(info, str, size, timeout);
-      break;
+      case CMD_PUTS:
+         info = va_arg(argptr, TCPIP_INFO *);
+         str = va_arg(argptr, char *);
+         status = tcpip_puts(info, str);
+         break;
 
-   case CMD_PUTS:
-      info = va_arg(argptr, void *);
-      str = va_arg(argptr, char *);
-      status = tcpip_puts(info, str);
-      break;
+      case CMD_GETS:
+         info = va_arg(argptr, TCPIP_INFO *);
+         str = va_arg(argptr, char *);
+         size = va_arg(argptr, INT);
+         pattern = va_arg(argptr, char *);
+         timeout = va_arg(argptr, INT);
+         status = tcpip_gets(info, str, size, pattern, timeout);
+         break;
 
-   case CMD_GETS:
-      info = va_arg(argptr, void *);
-      str = va_arg(argptr, char *);
-      size = va_arg(argptr, INT);
-      pattern = va_arg(argptr, char *);
-      timeout = va_arg(argptr, INT);
-      status = tcpip_gets(info, str, size, pattern, timeout);
-      break;
-
-   case CMD_DEBUG:
-      info = va_arg(argptr, void *);
-      status = va_arg(argptr, INT);
-      ((TCPIP_INFO *) info)->settings.debug = status;
-      break;
+      case CMD_DEBUG:
+         info = va_arg(argptr, TCPIP_INFO *);
+         status = va_arg(argptr, INT);
+         ((TCPIP_INFO *) info)->settings.debug = status;
+         break;
    }
 
    va_end(argptr);
