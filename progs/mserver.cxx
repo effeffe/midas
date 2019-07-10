@@ -660,6 +660,10 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       status = db_get_path(CHNDLE(0), CHNDLE(1), CSTRING(2), CINT(3));
       break;
 
+   case RPC_DB_GET_PARENT:
+      status = db_get_parent(CHNDLE(0), CHNDLE(1), CPHNDLE(2));
+      break;
+
    case RPC_DB_DELETE_KEY:
       status = db_delete_key(CHNDLE(0), CHNDLE(1), CBOOL(2));
       break;

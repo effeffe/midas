@@ -3975,22 +3975,50 @@ INT db_get_parent(HNDLE hDB, HNDLE hKey, HNDLE * parenthKey)
 
 \********************************************************************/
 {
-   DATABASE_HEADER *pheader;
-   const KEY *pkey;
+   if (rpc_is_remote())
+      return rpc_call(RPC_DB_GET_PARENT, hDB, hKey, parenthKey);
 
-   pheader = _database[hDB - 1].database_header;
-   pkey = (const KEY *) ((char *) pheader + hKey);
+#ifdef LOCAL_ROUTINES
+   {
 
-   /* find parent key */
-   const KEYLIST* pkeylist = (const KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+      DATABASE_HEADER *pheader;
+      const KEY *pkey;
 
-   if (!db_validate_hkey(pheader, pkeylist->parent)) {
-      return DB_INVALID_HANDLE;
+      if (hDB > _database_entries || hDB <= 0) {
+         cm_msg(MERROR, "db_get_parent", "invalid database handle");
+         return DB_INVALID_HANDLE;
+      }
+
+      if (!_database[hDB - 1].attached) {
+         cm_msg(MERROR, "db_get_parent", "invalid database handle");
+         return DB_INVALID_HANDLE;
+      }
+
+      if (hKey < (int) sizeof(DATABASE_HEADER)) {
+         cm_msg(MERROR, "db_get_parent", "invalid key handle");
+         return DB_INVALID_HANDLE;
+      }
+
+      db_lock_database(hDB);
+
+      pheader = _database[hDB - 1].database_header;
+      pkey = (const KEY *) ((char *) pheader + hKey);
+
+      /* find parent key */
+      const KEYLIST *pkeylist = (const KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+
+      if (!db_validate_hkey(pheader, pkeylist->parent)) {
+         db_unlock_database(hDB);
+         return DB_INVALID_HANDLE;
+      }
+
+      pkey = (const KEY *) ((char *) pheader + pkeylist->parent);
+
+      *parenthKey = (POINTER_T) pkey - (POINTER_T) pheader;
+
+      db_unlock_database(hDB);
    }
-
-   pkey = (const KEY *) ((char *) pheader + pkeylist->parent);
-
-   *parenthKey = (POINTER_T) pkey - (POINTER_T) pheader;
+#endif
 
    return DB_SUCCESS;
 }
