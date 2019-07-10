@@ -1791,6 +1791,7 @@ Data conversion flags */
    INT EXPRT db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
    INT EXPRT db_find_key1(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
    INT EXPRT db_find_link1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
+   INT EXPRT db_get_parent(HNDLE hDB, HNDLE hKey, HNDLE * parenthKey);
    INT EXPRT db_scan_tree(HNDLE hDB, HNDLE hKey, int level, INT(*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
    INT EXPRT db_scan_tree_link(HNDLE hDB, HNDLE hKey, int level, void (*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
    INT EXPRT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size);

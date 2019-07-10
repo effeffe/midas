@@ -3956,6 +3956,46 @@ INT db_find_link1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
 }
 
 /*------------------------------------------------------------------*/
+INT db_get_parent(HNDLE hDB, HNDLE hKey, HNDLE * parenthKey)
+/********************************************************************\
+
+  Routine: db_get_parent
+
+  Purpose: return an handle to the parent key
+
+  Input:
+    HNDLE  bufer_handle     Handle to the database
+    HNDLE  hKey       Key handle of the key
+
+  Output:
+    INT    *handle          Parent key handle
+
+  Function value:
+    DB_SUCCESS              Successful completion
+
+\********************************************************************/
+{
+   DATABASE_HEADER *pheader;
+   const KEY *pkey;
+
+   pheader = _database[hDB - 1].database_header;
+   pkey = (const KEY *) ((char *) pheader + hKey);
+
+   /* find parent key */
+   const KEYLIST* pkeylist = (const KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+
+   if (!db_validate_hkey(pheader, pkeylist->parent)) {
+      return DB_INVALID_HANDLE;
+   }
+
+   pkey = (const KEY *) ((char *) pheader + pkeylist->parent);
+
+   *parenthKey = (POINTER_T) pkey - (POINTER_T) pheader;
+
+   return DB_SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
 INT db_scan_tree(HNDLE hDB, HNDLE hKey, INT level, INT(*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info)
 /********************************************************************\
 
