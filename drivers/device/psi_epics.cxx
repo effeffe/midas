@@ -62,6 +62,37 @@ typedef struct {
 
 struct ca_client_context *ca_context;
 
+/*---- EPICS exception handler -------------------------------------*/
+
+/*
+   We need to define our own exception handler to avoid aborts initiated by the
+   default exception handler of the ca library
+
+   The function below is a modified example of
+   https://epics.anl.gov/base/R3-14/10-docs/CAref.html#ca_add_exception_event
+   This exception handler is actually doing nothing except printing a message in a buffer.
+   It is important to comment the line with th ca_signal() function since ca_signal()
+   may cause a program abort.
+*/
+void ca_exception_handler (
+        struct exception_handler_args args)
+{
+   char buf[512];
+   const char *pName;
+
+   if (args.chid)
+      pName = ca_name (args.chid);
+   else
+      pName = "?";
+
+   sprintf(buf,
+           "%s - with request chan=%s op=%ld data type=%s count=%ld",
+           args.ctx, pName, args.op, dbr_type_to_text ( args.type ), args.count);
+//      ca_signal ( args.stat, buf ); //this may cause a program abort.
+//      cm_msg(MINFO,"ca_exception_handler","Msg. from exception handler: %s", buf);
+   return;
+}
+
 /*---- device driver routines --------------------------------------*/
 
 INT psi_epics_init(HNDLE hKey, void **pinfo, INT channels)
@@ -72,7 +103,7 @@ INT psi_epics_init(HNDLE hKey, void **pinfo, INT channels)
    char str[256];
    
    /* allocate info structure */
-   info = calloc(1, sizeof(CA_INFO));
+   info = (CA_INFO*)calloc(1, sizeof(CA_INFO));
    *pinfo = info;
    
    cm_get_experiment_database(&hDB, NULL);
@@ -96,33 +127,33 @@ INT psi_epics_init(HNDLE hKey, void **pinfo, INT channels)
    setenv("EPICS_CA_SERVER_PORT", str, 1);
    
    /* allocate arrays */
-   info->demand = calloc(channels, sizeof(CA_NODE));
-   info->measured = calloc(channels, sizeof(CA_NODE));
-   info->extra = calloc(channels, sizeof(CA_NODE));
+   info->demand = (CA_NODE *)calloc(channels, sizeof(CA_NODE));
+   info->measured = (CA_NODE *)calloc(channels, sizeof(CA_NODE));
+   info->extra = (CA_NODE *)calloc(channels, sizeof(CA_NODE));
 
    /* get channel names */
-   info->channel_name = calloc(channels, CHN_NAME_LENGTH);
+   info->channel_name = (char *)calloc(channels, CHN_NAME_LENGTH);
    for (i=0; i<channels; i++)
       sprintf(info->channel_name + CHN_NAME_LENGTH * i, "<Empty>%d", i);
    db_merge_data(hDB, hKey, "Channel name",
                  info->channel_name, CHN_NAME_LENGTH * channels, channels, TID_STRING);
    
    /* get demand strings */
-   info->demand_string = calloc(channels, CHN_NAME_LENGTH);
+   info->demand_string = (char *)calloc(channels, CHN_NAME_LENGTH);
    for (i=0; i<channels; i++)
       sprintf(info->demand_string + CHN_NAME_LENGTH * i, "<Empty>%d", i);
    db_merge_data(hDB, hKey, "Demand",
                  info->demand_string, CHN_NAME_LENGTH * channels, channels, TID_STRING);
 
    /* get measured strings */
-   info->measured_string = calloc(channels, CHN_NAME_LENGTH);
+   info->measured_string = (char *)calloc(channels, CHN_NAME_LENGTH);
    for (i=0; i<channels; i++)
       sprintf(info->measured_string + CHN_NAME_LENGTH * i, "<Empty>%d", i);
    db_merge_data(hDB, hKey, "Measured",
                  info->measured_string, CHN_NAME_LENGTH * channels, channels, TID_STRING);
 
    /* get device types */
-   info->device_type = calloc(channels, sizeof(INT));
+   info->device_type = (INT *)calloc(channels, sizeof(INT));
    for (i=0; i<channels; i++)
       info->device_type[i] = DT_DEVICE;
    db_merge_data(hDB, hKey, "Device type",
@@ -189,6 +220,13 @@ INT psi_epics_init(HNDLE hKey, void **pinfo, INT channels)
          }
       }
    }
+
+   /* Define now our own exception handler to avoid program aborts by the default epics ca library */
+   status = ca_add_exception_event(ca_exception_handler, 0);
+   if (status != ECA_NORMAL)
+      cm_msg(MERROR, "psi_epics_init", "Error adding epics exception handler, status = %d", status);
+   else
+      cm_msg(MINFO, "psi_epics_init", "Successfully added epics exception handler.");
 
    return FE_SUCCESS;
 }
@@ -359,11 +397,11 @@ INT psi_epics(INT cmd, ...)
       pinfo = va_arg(argptr, void *);
       channel = va_arg(argptr, INT);
       flags = va_arg(argptr, DWORD);
-      status = psi_epics_init(hKey, pinfo, channel);
+      status = psi_epics_init(hKey, (void**)pinfo, channel);
       info = *(CA_INFO **) pinfo;
       info->flags = flags;
    } else {
-      info = va_arg(argptr, void *);
+      info = (CA_INFO*)va_arg(argptr, void *);
       
       /* only execute command if enabled */
       switch (cmd) {
