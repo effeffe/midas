@@ -132,7 +132,8 @@ static INT tr_start(INT rn, char *error)
       if (display_period) {
          ss_printf(14, 2, "Running ");
          ss_printf(36, 2, "%d", rn);
-      }
+      } else
+         printf("Running %d\n", rn);
 
       /* enable interrupts or readout thread */
       readout_enable(TRUE);
@@ -169,6 +170,8 @@ static INT tr_stop(INT rn, char *error)
 
       if (display_period)
          ss_printf(14, 2, "Stopped ");
+      else
+         printf("Stopped\n");
    } else
       readout_enable(TRUE);
 
@@ -224,6 +227,8 @@ static INT tr_pause(INT rn, char *error)
 
       if (display_period)
          ss_printf(14, 2, "Paused  ");
+      else
+         printf("Paused\n");
    } else
       readout_enable(TRUE);
 
@@ -247,6 +252,8 @@ static INT tr_resume(INT rn, char *error)
 
       if (display_period)
          ss_printf(14, 2, "Running ");
+      else
+         printf("Running\n");
 
       /* enable interrupts or readout thread */
       readout_enable(TRUE);
@@ -2537,17 +2544,15 @@ int main(int argc, char *argv[])
    set_rate_period(3000);
 
    /* now connect to server */
-   if (display_period) {
-      if (host_name[0]) {
-         if (exp_name[0])
-            printf("Connect to experiment %s on host %s...\n", exp_name, host_name);
-         else
-            printf("Connect to experiment on host %s...\n", host_name);
-      } else if (exp_name[0])
-         printf("Connect to experiment %s...\n", exp_name);
+   if (host_name[0]) {
+      if (exp_name[0])
+         printf("Connect to experiment %s on host %s...\n", exp_name, host_name);
       else
-         printf("Connect to experiment...\n");
-   }
+         printf("Connect to experiment on host %s...\n", host_name);
+   } else if (exp_name[0])
+      printf("Connect to experiment %s...\n", exp_name);
+   else
+      printf("Connect to experiment...\n");
 
    status = cm_connect_experiment1(host_name, exp_name, full_frontend_name,
                                    NULL, DEFAULT_ODB_SIZE, DEFAULT_FE_TIMEOUT);
@@ -2558,8 +2563,7 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   if (display_period)
-      printf("OK\n");
+   printf("OK\n");
 
    /* allocate buffer space */
    event_buffer = malloc(max_event_size);
@@ -2573,7 +2577,7 @@ int main(int argc, char *argv[])
 
    /* shutdown previous frontend */
    status = cm_shutdown(full_frontend_name, FALSE);
-   if (status == CM_SUCCESS && display_period) {
+   if (status == CM_SUCCESS) {
       printf("Previous frontend stopped\n");
 
       /* let user read message */
@@ -2609,14 +2613,9 @@ int main(int argc, char *argv[])
    /* increase RPC timeout to 2min for logger with exabyte or blocked disk */
    rpc_set_option(-1, RPC_OTIMEOUT, 120000);
 
-   /* set own message print function */
-   if (display_period)
-      cm_set_msg_print(MT_ALL, MT_ALL, message_print);
-
    /* reqister equipment in ODB */
    if (register_equipment() != SUCCESS) {
-      if (display_period)
-         printf("\n");
+      printf("\n");
       cm_disconnect_experiment();
 
       /* let user read message before window might close */
@@ -2625,11 +2624,9 @@ int main(int argc, char *argv[])
    }
 
    /* call user init function */
-   if (display_period)
-      printf("Init hardware...\n");
+   printf("Init hardware...");
    if (frontend_init() != SUCCESS) {
-      if (display_period)
-         printf("\n");
+      printf("\n");
       cm_disconnect_experiment();
 
       /* let user read message before window might close */
@@ -2639,14 +2636,7 @@ int main(int argc, char *argv[])
 
    initialize_equipment();
 
-   if (display_period)
-      printf("OK\n");
-
-   /* initialize screen display */
-   if (display_period) {
-      ss_sleep(300);
-      display(TRUE);
-   }
+   printf("OK\n");
 
    /* switch on interrupts or readout thread if running */
    if (run_state == STATE_RUNNING)
@@ -2654,6 +2644,16 @@ int main(int argc, char *argv[])
 
    /* initialize ss_getchar */
    ss_getchar(0);
+
+   /* initialize screen display */
+   if (display_period) {
+      ss_sleep(500);
+      display(TRUE);
+   }
+
+   /* set own message print function */
+   if (display_period)
+      cm_set_msg_print(MT_ALL, MT_ALL, message_print);
 
    /* call main scheduler loop */
    status = scheduler();
@@ -2700,11 +2700,13 @@ int main(int argc, char *argv[])
    /* close network connection to server */
    cm_disconnect_experiment();
 
-   if (display_period) {
-      if (status == RPC_SHUTDOWN) {
+   if (status == RPC_SHUTDOWN) {
+      if (display_period) {
          ss_clear_screen();
          ss_printf(0, 0, "Frontend shut down.");
          ss_printf(0, 1, "");
+      } else {
+         printf("Frontend shut down.\n");
       }
    }
 
