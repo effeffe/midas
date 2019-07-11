@@ -2628,9 +2628,6 @@ int main(int argc, char *argv[])
    if (frontend_init() != SUCCESS) {
       printf("\n");
       cm_disconnect_experiment();
-
-      /* let user read message before window might close */
-      ss_sleep(5000);
       return 1;
    }
 
