@@ -1491,7 +1491,7 @@ void display(BOOL bInit)
 
 void display_inline()
 {
-   INT i, status;
+   INT i;
    time_t full_time;
    char str[30];
 
@@ -1502,8 +1502,6 @@ void display_inline()
    printf("%s ", str);
 
    for (i = 0; equipment[i].name[0]; i++) {
-      status = equipment[i].status;
-
       printf(" %s:", equipment[i].name);
 
       if (equipment[i].stats.events_per_sec > 1E6)
