@@ -54,6 +54,7 @@ INT manual_trigger_event_id = 0;        /* set from the manual_trigger callback 
 static INT frontend_index = -1;        /* frontend index for event building */
 INT verbosity_level = 0;        /* can be used by user code for debugging output */
 BOOL lockout_readout_thread = TRUE; /* manual triggers, periodic events and 1Hz flush cache lockout the readout thread */
+BOOL mfe_debug = FALSE;
 
 HNDLE hDB = 0;
 HNDLE hClient = 0;
@@ -129,7 +130,7 @@ static INT tr_start(INT rn, char *error)
 
       send_all_periodic_events(TR_START);
 
-      if (display_period) {
+      if (display_period && !mfe_debug) {
          ss_printf(14, 2, "Running ");
          ss_printf(36, 2, "%d", rn);
       } else
@@ -168,7 +169,7 @@ static INT tr_stop(INT rn, char *error)
       run_state = STATE_STOPPED;
       run_number = rn;
 
-      if (display_period)
+      if (display_period && !mfe_debug)
          ss_printf(14, 2, "Stopped ");
       else
          printf("Stopped\n");
@@ -225,7 +226,7 @@ static INT tr_pause(INT rn, char *error)
 
       send_all_periodic_events(TR_PAUSE);
 
-      if (display_period)
+      if (display_period && !mfe_debug)
          ss_printf(14, 2, "Paused  ");
       else
          printf("Paused\n");
@@ -250,7 +251,7 @@ static INT tr_resume(INT rn, char *error)
 
       send_all_periodic_events(TR_RESUME);
 
-      if (display_period)
+      if (display_period && !mfe_debug)
          ss_printf(14, 2, "Running ");
       else
          printf("Running\n");
@@ -1488,12 +1489,43 @@ void display(BOOL bInit)
 
 /*------------------------------------------------------------------*/
 
+void display_inline()
+{
+   INT i, status;
+   time_t full_time;
+   char str[30];
+
+   /* display time */
+   time(&full_time);
+   strcpy(str, ctime(&full_time) + 11);
+   str[8] = 0;
+   printf("%s ", str);
+
+   for (i = 0; equipment[i].name[0]; i++) {
+      status = equipment[i].status;
+
+      printf(" %s:", equipment[i].name);
+
+      if (equipment[i].stats.events_per_sec > 1E6)
+         printf("%6.3lfM", equipment[i].stats.events_per_sec / 1E6);
+      else if (equipment[i].stats.events_per_sec > 1E3)
+         printf("%6.3lfk", equipment[i].stats.events_per_sec / 1E3);
+      else
+         printf("%6.1lf ", equipment[i].stats.events_per_sec);
+   }
+
+   /* go to next line */
+   printf("\n");
+}
+
+/*------------------------------------------------------------------*/
+
 void rotate_wheel(void)
 {
    static DWORD last_wheel = 0, wheel_index = 0;
    static char wheel_char[] = { '-', '\\', '|', '/' };
 
-   if (display_period) {
+   if (display_period && !mfe_debug) {
       if (ss_millitime() - last_wheel > 300) {
          last_wheel = ss_millitime();
          ss_printf(79, 2, "%c", wheel_char[wheel_index]);
@@ -1758,7 +1790,7 @@ static INT check_polled_events(void)
 
 /*------------------------------------------------------------------*/
 
-static INT scheduler(void)
+static INT scheduler()
 {
    EQUIPMENT_INFO *eq_info;
    EQUIPMENT *eq;
@@ -2152,9 +2184,6 @@ static INT scheduler(void)
             overflow = equipment[i].bytes_sent;
       }
 
-      //if (overflow)
-      //   printf("overflow %d\n", overflow);
-
       /*---- calculate rates and update status page periodically -----*/
       if (force_update || overflow ||
           (display_period
@@ -2179,8 +2208,6 @@ static INT scheduler(void)
                eq->stats.kbytes_per_sec =
                    eq->bytes_sent / 1000.0 / ((actual_millitime - last_time_rate) /
                                               1000.0);
-
-               //printf("events %d, bytes %d, dt %d\n", n_events[i], eq->bytes_sent, actual_millitime - last_time_rate);
 
                if ((INT) eq->bytes_sent > max_bytes_per_sec)
                   max_bytes_per_sec = eq->bytes_sent;
@@ -2218,7 +2245,7 @@ static INT scheduler(void)
          /* propagate changes in equipment to ODB */
          db_send_changed_records();
 
-         if (display_period) {
+         if (display_period && !mfe_debug) {
             display(FALSE);
 
             /* check keyboard */
@@ -2237,6 +2264,10 @@ static INT scheduler(void)
                display(TRUE);
             if (status == RPC_SHUTDOWN)
                break;
+         }
+
+         if (display_period && mfe_debug) {
+            display_inline();
          }
 
          last_time_display = actual_millitime;
@@ -2433,7 +2464,6 @@ int main(int argc, char *argv[])
 
    host_name[0] = 0;
    exp_name[0] = 0;
-   debug = FALSE;
    daemon_flag = 0;
 
    setbuf(stdout, 0);
@@ -2448,7 +2478,7 @@ int main(int argc, char *argv[])
       strcpy(host_name, ahost_name);
    if (aexp_name)
       strcpy(exp_name, aexp_name);
-   debug = adebug;
+   mfe_debug = adebug;
 #else
 
    /* get default from environment */
@@ -2464,7 +2494,7 @@ int main(int argc, char *argv[])
    /* parse command line parameters */
    for (i = 1; i < argc; i++) {
       if (argv[i][0] == '-' && argv[i][1] == 'd')
-         debug = TRUE;
+         mfe_debug = TRUE;
       else if (argv[i][0] == '-' && argv[i][1] == 'D')
          daemon_flag = 1;
       else if (argv[i][0] == '-' && argv[i][1] == 'O')
@@ -2605,7 +2635,7 @@ int main(int argc, char *argv[])
 #endif
 
    /* turn off watchdog if in debug mode */
-   if (debug)
+   if (mfe_debug)
       cm_set_watchdog_params(FALSE, 0);
 
    cm_start_watchdog_thread();
@@ -2639,17 +2669,19 @@ int main(int argc, char *argv[])
    if (run_state == STATE_RUNNING)
       readout_enable(TRUE);
 
-   /* initialize ss_getchar */
-   ss_getchar(0);
+   if (!mfe_debug) {
+      /* initialize ss_getchar */
+      ss_getchar(0);
 
-   /* initialize screen display */
-   if (display_period) {
-      ss_sleep(500);
-      display(TRUE);
+      /* initialize screen display */
+      if (display_period) {
+         ss_sleep(500);
+         display(TRUE);
+      }
    }
 
    /* set own message print function */
-   if (display_period)
+   if (display_period && !mfe_debug)
       cm_set_msg_print(MT_ALL, MT_ALL, message_print);
 
    /* call main scheduler loop */
@@ -2698,7 +2730,7 @@ int main(int argc, char *argv[])
    cm_disconnect_experiment();
 
    if (status == RPC_SHUTDOWN) {
-      if (display_period) {
+      if (display_period && !mfe_debug) {
          ss_clear_screen();
          ss_printf(0, 0, "Frontend shut down.");
          ss_printf(0, 1, "");
