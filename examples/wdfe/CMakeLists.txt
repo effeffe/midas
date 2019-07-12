@@ -9,7 +9,7 @@ endif()
 
 set(LIBS $ENV{MIDASSYS}/lib/libmfe.a $ENV{MIDASSYS}/lib/libmidas.a $ENV{WDBSYS}/software/lib/libwdb.a)
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
-   set(LIBS -lpthread -lutil -lrt)
+   set(LIBS ${LIBS} -lpthread -lutil -lrt)
 endif()
 
 add_executable(wdfe wdfe $ENV{WDBSYS}/software/src/WDBLib.cpp)
