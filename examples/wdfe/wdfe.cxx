@@ -31,13 +31,13 @@ BOOL frontend_call_loop = FALSE;
 INT display_period = 3000;
 
 /* maximum event size produced by this frontend */
-INT max_event_size = 10000;
+INT max_event_size = 1024 * 1014;
 
 /* maximum event size for fragmented events (EQ_FRAGMENTED) */
-INT max_event_size_frag = 5 * 1024 * 1024;
+INT max_event_size_frag = 5 * max_event_size;
 
 /* buffer size to hold events */
-INT event_buffer_size = 100 * 10000;
+INT event_buffer_size = 5 * max_event_size;
 
 /*-- Function declarations -----------------------------------------*/
 
@@ -66,8 +66,7 @@ EQUIPMENT equipment[] = {
          0,                  /* event source */
          "MIDAS",            /* format */
          TRUE,               /* enabled */
-         RO_RUNNING |        /* read only when running */
-         RO_ODB,             /* and update ODB */
+         RO_RUNNING,         /* read only when running */
          100,                /* poll for 100ms */
          0,                  /* stop run after this event limit */
          0,                  /* number of sub events */
@@ -133,18 +132,34 @@ INT frontend_init()
       b->Connect();                       // connect to board, throws exception if unsuccessful
       b->ReceiveControlRegisters();
 
-      b->SetSendBlocked(true);            // update all control registers together
+      // Reset DRS FSM
+      b->ResetDrsControlFsm();
+      b->ResetPackager();
 
+      // Stop DRS
+      b->SetDaqSingle(false);
+      b->SetDaqAuto(false);
+      b->SetDaqNormal(false);
+
+      b->SetSendBlock(true);              // update all control registers together
+
+      //---- readout settings
       b->SetDrsChTxEn(0xFFFF);            // enable all DRS readout
       b->SetAdcChTxEn(0);                 // disable ADC readout
       b->SetTdcChTxEn(0);                 // disable TDC readout
+      b->SetSclTxEn(0);                   // disable scaler readout
 
+      //---- board settings
       b->SetDaqClkSrcSel(1);              // select on-board clock oscillator
-
       b->SetDrsSampleFreq(2000);          // Sampling speed 2 GSPS
+      b->SetFeGain(-1, 1);                // set FE gain to 1
+      b->SetFePzc(-1, false);             // disable pole-zero cancellation
+      b->SetInterPkgDelay(0x753);         // minimum inter-packet delay
+      b->SetFeMux(-1, WDB::cFeMuxInput);  // set multiplexer to input
 
+      //---- trigger settings
       b->SetExtAsyncTriggerEn(false);     // disable external trigger
-      b->SetTriggerDelay(0);
+      b->SetTriggerDelay(0);              // minimal inter-packet delay
       b->SetLeadTrailEdgeSel(0);          // trigger on leading edge
       b->SetPatternTriggerEn(true);       // enable internal pattern trigger
       b->SetDacTriggerLevelV(-1, -0.1);   // set trigger level to -100 mV for all channels
@@ -156,10 +171,8 @@ INT frontend_init()
          b->SetTrgStatePtrn(i, (1<<i));   // set trigger coincidence for single channel
       }
 
-      b->SetInterPkgDelay(0);             // minimum packet delay
-
       // now send all changes in one packet
-      b->SetSendBlocked(false);
+      b->SetSendBlock(false);
       b->SendControlRegisters();
 
       // check if PLLs are locked
@@ -171,15 +184,6 @@ INT frontend_init()
                  b->GetName().c_str(), b->GetPllLock(false));
          return FE_ERR_HW;
       }
-
-      // Reset DRS FSM
-      b->ResetDrsControlFsm();
-      b->ResetPackager();
-
-      // Stop DRS
-      b->SetDaqSingle(false);
-      b->SetDaqAuto(false);
-      b->SetDaqNormal(false);
 
       // read all status registers
       b->ReceiveStatusRegisters();
@@ -206,7 +210,7 @@ INT frontend_init()
    WD::wdb.push_back(b);
 
    // instantiate waveform processor
-   WD::wp = new WP(WD::wdb);
+   WD::wp = new WP(WD::wdb, 0);
    WD::wp->SetAllCalib(true);
    WD::wp->RequestAllBoards();
 
@@ -232,6 +236,15 @@ INT frontend_exit()
 
 INT begin_of_run(INT run_number, char *error)
 {
+   WD::wp->ResetStatistics();
+
+   // start DRS for first event
+   for (auto b: WD::wdb) {
+      b->ResetDrsControlFsm();
+      b->ResetEventCounter();
+      b->SetDaqSingle(true);
+   }
+
    return SUCCESS;
 }
 
@@ -329,18 +342,25 @@ INT read_trigger_event(char *pevent, INT off)
       return 0;
 
    // init bank structure
-   bk_init(pevent);
+   bk_init32(pevent);
+
+   // store time arrays for all channels on first event
+   if (SERIAL_NUMBER(pevent) == 0) {
+      bk_create(pevent, "DRST", TID_FLOAT, (void **) &pdata);
+      for (int i = 0; i < 16; i++) {
+         memcpy(pdata, event.mWfTDRS[i], sizeof(float) * 1024);
+         pdata += 1024;
+      }
+      bk_close(pevent, pdata);
+   }
 
    // create calibrated time array
    bk_create(pevent, "DRS0", TID_FLOAT, (void **) &pdata);
 
    // copy over 16 channels
    for (int i=0 ; i<16 ; i++) {
-      memcpy(pdata, event.mWfTDRS[i], sizeof(float)*1024);
-      pdata += sizeof(float)*1024;
-
       memcpy(pdata, event.mWfUDRS[i], sizeof(float)*1024);
-      pdata += sizeof(float)*1024;
+      pdata += 1024;
    }
 
    bk_close(pevent, pdata);
