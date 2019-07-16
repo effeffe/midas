@@ -147,6 +147,14 @@ endif()
 endif (NO_SQLITE)
 
 #-----------------------
+# Default build type
+#
+if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
+    message(STATUS "Setting default build type to \"RelWithDebInfo\"")
+    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "" FORCE)
+endif()
+
+#-----------------------
 # Common flags
 #
 add_compile_options(-g -Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
