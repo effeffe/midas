@@ -3233,7 +3233,7 @@ int HsSqlSchema::write_event(const time_t t, const char* data, const int data_si
       if (offset < 0)
          continue;
 
-      assert(n_data == 1);
+      massert(n_data == 1);
       assert(strlen(column_name) > 0);
       assert(offset < data_size);
 

@@ -30,7 +30,7 @@ int read_state(HNDLE hDB)
   int state = STATE_STOPPED;
   int size = sizeof(state);
   int status = db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
-  assert(status == DB_SUCCESS);
+  massert(status == DB_SUCCESS);
   return state;
 }
 

@@ -17311,7 +17311,7 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg, 
       t->fRPC = post_data;
       
       int status = ss_mutex_wait_for(request_mutex, 0);
-      assert(status == SS_SUCCESS);
+      massert(status == SS_SUCCESS);
          
       t->fTimeLocked = GetTimeSec();
 

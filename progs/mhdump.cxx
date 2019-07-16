@@ -21,6 +21,9 @@
 #include <map>
 #include <vector>
 
+#define massert(x) { if (!(x)) { fprintf(stderr, "assertion \"%s\" failed: file \"%s\", line %d\n", \
+                    #x, __FILE__, __LINE__); abort(); }}
+
 ////////////////////////////////////////
 // Definitions extracted from midas.h //
 ////////////////////////////////////////
@@ -293,7 +296,7 @@ int readHstFile(FILE*f)
 	    
                   char *buf = new char[size];
                   int rd = fread(buf, 1, size, f);
-                  assert(rd == size);
+                  massert(rd == size);
 
                   time_t t = (time_t)rec.time;
 
