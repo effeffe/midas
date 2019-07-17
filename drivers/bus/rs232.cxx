@@ -652,17 +652,16 @@ int rs232_open(char *port, int baud, char parity, int data_bit, int stop_bit,
       int speed;
       int code;
    } baud_table[] = {
-      {
-      300, B300}, {
-      600, B600}, {
-      1200, B1200}, {
-      1800, B1800}, {
-      2400, B2400}, {
-      4800, B4800}, {
-      9600, B9600}, {
-      19200, B19200}, {
-      38400, B38400}, {
-      0, 0}
+      {300, B300},
+      {600, B600},
+      {1200, B1200},
+      {1800, B1800},
+      {2400, B2400},
+      {4800, B4800},
+      {9600, B9600},
+      {19200, B19200},
+      {38400, B38400},
+      {0, 0}
    };
 
 
@@ -867,14 +866,14 @@ int rs232_gets(RS232_INFO * info, char *str, int size, char *pattern, int timeou
 
 /*----------------------------------------------------------------------------*/
 
-int rs232_init(HNDLE hkey, void **pinfo)
+int rs232_init(HNDLE hkey, RS232_INFO **pinfo)
 {
    HNDLE hDB, hkeybd;
    INT size, status;
    RS232_INFO *info;
 
    /* allocate info structure */
-   info = calloc(1, sizeof(RS232_INFO));
+   info = (RS232_INFO *) calloc(1, sizeof(RS232_INFO));
    *pinfo = info;
 
    cm_get_experiment_database(&hDB, NULL);
@@ -907,64 +906,65 @@ INT rs232(INT cmd, ...)
    va_list argptr;
    HNDLE hkey;
    INT status, size, timeout;
-   void *info;
+   RS232_INFO *info;
    char *str, *pattern;
 
    va_start(argptr, cmd);
    status = FE_SUCCESS;
 
    switch (cmd) {
-   case CMD_INIT:
-      hkey = va_arg(argptr, HNDLE);
-      info = va_arg(argptr, void *);
-      status = rs232_init(hkey, info);
-      break;
+      case CMD_INIT: {
+         hkey = va_arg(argptr, HNDLE);
+         RS232_INFO **pinfo = va_arg(argptr, RS232_INFO**);
+         status = rs232_init(hkey, pinfo);
+         break;
+      }
 
-   case CMD_EXIT:
-      info = va_arg(argptr, void *);
-      status = rs232_exit(info);
-      break;
+      case CMD_EXIT:
+         info = va_arg(argptr, RS232_INFO *);
+         status = rs232_exit(info);
+         break;
 
-   case CMD_NAME:
-      info = va_arg(argptr, void *);
-      str = va_arg(argptr, char *);
-      strcpy(str, "rs232");
-      break;
+      case CMD_NAME:
+         info = va_arg(argptr, RS232_INFO *);
+         str = va_arg(argptr, char *);
+         strcpy(str, "rs232");
+         break;
 
-   case CMD_WRITE:
-      info = va_arg(argptr, void *);
-      str = va_arg(argptr, char *);
-      size = va_arg(argptr, int);
-      status = rs232_write(info, str, size);
-      break;
+      case CMD_WRITE:
+         info = va_arg(argptr, RS232_INFO *);
+         str = va_arg(argptr, char *);
+         size = va_arg(argptr, int);
+         status = rs232_write(info, str, size);
+         break;
 
-   case CMD_READ:
-      info = va_arg(argptr, void *);
-      str = va_arg(argptr, char *);
-      size = va_arg(argptr, INT);
-      timeout = va_arg(argptr, INT);
-      status = rs232_read(info, str, size, timeout);
-      break;
+      case CMD_READ:
+         info = va_arg(argptr, RS232_INFO *);
+         str = va_arg(argptr, char *);
+         size = va_arg(argptr, INT);
+         timeout = va_arg(argptr, INT);
+         status = rs232_read(info, str, size, timeout);
+         break;
 
-   case CMD_PUTS:
-      info = va_arg(argptr, void *);
-      str = va_arg(argptr, char *);
-      status = rs232_puts(info, str);
-      break;
+      case CMD_PUTS:
+         info = va_arg(argptr, RS232_INFO *);
+         str = va_arg(argptr, char *);
+         status = rs232_puts(info, str);
+         break;
 
-   case CMD_GETS:
-      info = va_arg(argptr, void *);
-      str = va_arg(argptr, char *);
-      size = va_arg(argptr, INT);
-      pattern = va_arg(argptr, char *);
-      timeout = va_arg(argptr, INT);
-      status = rs232_gets(info, str, size, pattern, timeout);
-      break;
+      case CMD_GETS:
+         info = va_arg(argptr, RS232_INFO *);
+         str = va_arg(argptr, char *);
+         size = va_arg(argptr, INT);
+         pattern = va_arg(argptr, char *);
+         timeout = va_arg(argptr, INT);
+         status = rs232_gets(info, str, size, pattern, timeout);
+         break;
 
-   case CMD_DEBUG:
-      status = va_arg(argptr, INT);
-      debug_flag = status;
-      break;
+      case CMD_DEBUG:
+         status = va_arg(argptr, INT);
+         debug_flag = status;
+         break;
    }
 
    va_end(argptr);
