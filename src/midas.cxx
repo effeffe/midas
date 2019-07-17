@@ -13206,7 +13206,7 @@ INT rpc_register_server(/*INT server_type, const char *name,*/ int port, /*int a
 
    *plsock = lsock;
 
-   printf("rpc_register_server: requested port %d, actual port %d, socket %d\n", port, *pport, *plsock);
+   //printf("rpc_register_server: requested port %d, actual port %d, socket %d\n", port, *pport, *plsock);
 
    return RPC_SUCCESS;
 }

@@ -4234,12 +4234,12 @@ INT ss_suspend(INT millisec, INT msg)
          /* check listen sockets */
          if (_ss_server_listen_socket) {
             FD_SET(_ss_server_listen_socket, &readfds);
-            printf("ss_suspend: thread %s listen ss_server socket %d\n", ss_tid_to_string(thread_id).c_str(), _ss_server_listen_socket);
+            //printf("ss_suspend: thread %s listen ss_server socket %d\n", ss_tid_to_string(thread_id).c_str(), _ss_server_listen_socket);
          }
          
          if (_ss_client_listen_socket) {
             FD_SET(_ss_client_listen_socket, &readfds);
-            printf("ss_suspend: thread %s listen ss_client socket %d\n", ss_tid_to_string(thread_id).c_str(), _ss_client_listen_socket);
+            //printf("ss_suspend: thread %s listen ss_client socket %d\n", ss_tid_to_string(thread_id).c_str(), _ss_client_listen_socket);
          }
       }
 
@@ -4340,14 +4340,14 @@ INT ss_suspend(INT millisec, INT msg)
       /* check listener sockets */
 
       if (_ss_server_listen_socket && FD_ISSET(_ss_server_listen_socket, &readfds)) {
-         printf("ss_suspend: thread %s rpc_server_accept socket %d\n", ss_tid_to_string(thread_id).c_str(), _ss_server_listen_socket);
+         //printf("ss_suspend: thread %s rpc_server_accept socket %d\n", ss_tid_to_string(thread_id).c_str(), _ss_server_listen_socket);
          status = rpc_server_accept(_ss_server_listen_socket);
          if (status == RPC_SHUTDOWN)
             return status;
       }
 
       if (_ss_client_listen_socket && FD_ISSET(_ss_client_listen_socket, &readfds)) {
-         printf("ss_suspend: thread %s rpc_client_accept socket %d\n", ss_tid_to_string(thread_id).c_str(), _ss_client_listen_socket);
+         //printf("ss_suspend: thread %s rpc_client_accept socket %d\n", ss_tid_to_string(thread_id).c_str(), _ss_client_listen_socket);
          status = rpc_client_accept(_ss_client_listen_socket);
          if (status == RPC_SHUTDOWN)
             return status;
