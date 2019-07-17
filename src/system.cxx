@@ -1453,6 +1453,51 @@ midas_thread_t ss_gettid(void)
 #endif
 }
 
+std::string ss_tid_to_string(midas_thread_t thread_id)
+{
+#if defined OS_MSDOS
+
+   return "0";
+
+#elif defined OS_WINNT
+
+#error Do not know how to do ss_tid_to_string()
+   return "???";
+
+#elif defined OS_VMS
+
+   char buf[256];
+   sprintf(buf, "%d", thread_id);
+   return buf;
+
+#elif defined OS_DARWIN
+
+   char buf[256];
+   sprintf(buf, "%p", thread_id);
+   return buf;
+
+#elif defined OS_CYGWIN
+
+   char buf[256];
+   sprintf(buf, "%p", thread_id);
+   return buf;
+
+#elif defined OS_UNIX
+
+#error Do not know how to do ss_tid_to_string()
+   return "???";
+
+#elif defined OS_VXWORKS
+
+   char buf[256];
+   sprintf(buf, "%d", thread_id);
+   return buf;
+
+#else
+#error Do not know how to do ss_tid_to_string()
+#endif
+}
+
 /*------------------------------------------------------------------*/
 
 #ifdef OS_UNIX
@@ -3574,8 +3619,6 @@ void *ss_ctrlc_handler(void (*func) (int))
 */
 
 typedef struct {
-   //BOOL in_use;
-   //BOOL is_odb;
    midas_thread_t thread_id;
    INT ipc_recv_port;
    INT ipc_recv_socket;
@@ -3650,6 +3693,10 @@ static INT ss_suspend_init_struct(SUSPEND_STRUCT* psuspend)
    unsigned int size;
    struct sockaddr_in bind_addr;
    int udp_bind_hostname = 0; // bind to localhost or bind to hostname or bind to INADDR_ANY?
+
+   printf("ss_suspend_init_struct: thread %s\n", ss_tid_to_string(psuspend->thread_id).c_str());
+
+   assert(psuspend->thread_id != 0);
 
 #ifdef OS_WINNT
    {
@@ -3765,6 +3812,8 @@ static INT ss_suspend_init_struct(SUSPEND_STRUCT* psuspend)
    memcpy(&(psuspend->bind_addr), &bind_addr, sizeof(bind_addr));
    psuspend->ipc_send_socket = sock;
 
+   printf("ss_suspend_init_struct: thread %s, udp port %d\n", ss_tid_to_string(psuspend->thread_id).c_str(), psuspend->ipc_recv_port);
+
    return SS_SUCCESS;
 }
 
@@ -3788,8 +3837,6 @@ SUSPEND_STRUCT* ss_suspend_get_struct(midas_thread_t thread_id)
    for (unsigned i=0; i<_ss_suspend_vector.size(); i++) {
       if (!_ss_suspend_vector[i])
          continue;
-      //if (_ss_suspend_vector[i]->is_odb)
-      //   continue;
       if (_ss_suspend_vector[i]->thread_id == thread_id) {
          return _ss_suspend_vector[i];
       }
@@ -3813,6 +3860,17 @@ SUSPEND_STRUCT* ss_suspend_get_struct(midas_thread_t thread_id)
    _ss_suspend_vector.push_back(psuspend);
 
    return psuspend;
+}
+
+static void ss_suspend_close(SUSPEND_STRUCT* psuspend)
+{
+   if (psuspend->ipc_recv_socket) {
+      closesocket(psuspend->ipc_recv_socket);
+      closesocket(psuspend->ipc_send_socket);
+      printf("ss_suspend_exit: free thread %s, udp port %d\n", ss_tid_to_string(psuspend->thread_id).c_str(), psuspend->ipc_recv_port);
+   }
+   
+   memset(psuspend, 0, sizeof(SUSPEND_STRUCT));
 }
 
 /*------------------------------------------------------------------*/
@@ -3840,19 +3898,26 @@ INT ss_suspend_exit()
    for (unsigned i=0; i<_ss_suspend_vector.size(); i++) {
       if (!_ss_suspend_vector[i])
          continue;
-      //if (_ss_suspend_vector[i]->is_odb)
-      //   continue;
       if (_ss_suspend_vector[i]->thread_id == thread_id) {
          SUSPEND_STRUCT* psuspend = _ss_suspend_vector[i];
-      
-         if (psuspend->ipc_recv_socket) {
-            closesocket(psuspend->ipc_recv_socket);
-            closesocket(psuspend->ipc_send_socket);
-         }
-         
-         memset(psuspend, 0, sizeof(SUSPEND_STRUCT));
-         
          _ss_suspend_vector[i] = NULL;
+         ss_suspend_close(psuspend);
+         delete psuspend;
+      }
+   }
+
+   if (_ss_suspend_odb) {
+      bool last = true;
+      for (unsigned i=0; i<_ss_suspend_vector.size(); i++) {
+         if (_ss_suspend_vector[i]) {
+            last = false;
+            break;
+         }
+      }
+      if (last) {
+         SUSPEND_STRUCT* psuspend = _ss_suspend_odb;
+         _ss_suspend_odb = NULL;
+         ss_suspend_close(psuspend);
          delete psuspend;
       }
    }
@@ -3988,9 +4053,8 @@ INT ss_suspend_get_odb_port(INT * port)
    if (!_ss_suspend_odb) {
       _ss_suspend_odb = new SUSPEND_STRUCT;
       memset(_ss_suspend_odb, 0, sizeof(SUSPEND_STRUCT));
+      _ss_suspend_odb->thread_id = ss_gettid();
       ss_suspend_init_struct(_ss_suspend_odb);
-      //_ss_suspend_odb->is_odb = TRUE;
-      //_ss_suspend_vector.push_back(_ss_suspend_odb);
    }
 
    *port = _ss_suspend_odb->ipc_recv_port;

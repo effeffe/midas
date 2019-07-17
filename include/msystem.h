@@ -552,6 +552,7 @@ typedef struct {
    BOOL EXPRT ss_existpid(INT pid);
    INT EXPRT ss_getpid(void);
    midas_thread_t EXPRT ss_gettid(void);
+   std::string ss_tid_to_string(midas_thread_t thread_id);
    INT ss_set_async_flag(INT flag);
    INT EXPRT ss_semaphore_create(const char *semaphore_name, HNDLE * semaphore_handle);
    INT EXPRT ss_semaphore_wait_for(HNDLE semaphore_handle, INT timeout);
