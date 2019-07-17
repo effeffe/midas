@@ -13069,8 +13069,8 @@ INT rpc_register_server(/*INT server_type, const char *name,*/ int port, /*int a
            rpc_register_server.
 
   Input:
-    bool  is_mserver        true if this is the mserver, false otherwise
-    INT   server_type       One of the following constants:
+    //bool  is_mserver        true if this is the mserver, false otherwise
+    //INT   server_type       One of the following constants:
                             //ST_SINGLE: register a single process server
                             //ST_MTHREAD: for each connection, start
                             //            a new thread to serve it
@@ -13078,9 +13078,8 @@ INT rpc_register_server(/*INT server_type, const char *name,*/ int port, /*int a
                                          start a new process to service it
                             ST_SUBPROCESS: mserver process servicing a single connection
                             ST_REMOTE: rpc server inside a normal midas program
-    char  *name             Name of .EXE file to start in MPROCESS mode
-    INT   port              TCP port for listen. If port==0,
-                            the OS chooses a free port and returns it in *pport
+    //char  *name             Name of .EXE file to start in MPROCESS mode
+    INT   port              TCP port for listen. If port==0, the OS chooses a free port and returns it in *pport
     INT   *func             Default dispatch function
 
   Output:
@@ -13154,7 +13153,7 @@ INT rpc_register_server(/*INT server_type, const char *name,*/ int port, /*int a
    }
 
    if (!port)
-      bind_addr.sin_port = htons(MIDAS_TCP_PORT);
+      bind_addr.sin_port = htons(0); // OS will allocate a port number for us
    else
       bind_addr.sin_port = htons((short)port);
 
@@ -13196,6 +13195,8 @@ INT rpc_register_server(/*INT server_type, const char *name,*/ int port, /*int a
    //   ss_suspend_set_dispatch(CH_LISTEN, &lsock, (int (*)(void)) rpc_server_accept);
 
    *plsock = lsock;
+
+   printf("rpc_register_server: requested port %d, actual port %d, socket %d\n", port, *pport, *plsock);
 
    return RPC_SUCCESS;
 }
