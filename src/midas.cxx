@@ -10746,15 +10746,25 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    memset(&bind_addr, 0, sizeof(bind_addr));
    bind_addr.sin_family = AF_INET;
    bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-   bind_addr.sin_port = 0;
 
+   bind_addr.sin_port = 0;
    status = bind(lsock1, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
+   if (status < 0) {
+      cm_msg(MERROR, "rpc_server_connect", "cannot bind, errno %d (%s)", errno, strerror(errno));
+      return RPC_NET_ERROR;
+   }
+
    bind_addr.sin_port = 0;
    status = bind(lsock2, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
+   if (status < 0) {
+      cm_msg(MERROR, "rpc_server_connect", "cannot bind, errno %d (%s)", errno, strerror(errno));
+      return RPC_NET_ERROR;
+   }
+
    bind_addr.sin_port = 0;
    status = bind(lsock3, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
    if (status < 0) {
-      cm_msg(MERROR, "rpc_server_connect", "cannot bind");
+      cm_msg(MERROR, "rpc_server_connect", "cannot bind, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
@@ -10763,7 +10773,7 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    status = listen(lsock2, 1);
    status = listen(lsock3, 1);
    if (status < 0) {
-      cm_msg(MERROR, "rpc_server_connect", "cannot listen");
+      cm_msg(MERROR, "rpc_server_connect", "cannot listen, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
@@ -13982,7 +13992,6 @@ INT rpc_server_accept(int lsock)
    INT idx, i;
    unsigned int size;
    int status;
-   char command;
    INT sock;
    char version[NAME_LENGTH], v1[32];
    char experiment[NAME_LENGTH];
@@ -14072,7 +14081,9 @@ INT rpc_server_accept(int lsock)
    rpc_debug_printf("Received command: %s", net_buffer);
 
    if (i > 0) {
-      command = (char) toupper(net_buffer[0]);
+      char command = (char) toupper(net_buffer[0]);
+
+      //printf("rpc_server_accept: command [%c]\n", command);
 
       switch (command) {
       case 'S': {
@@ -14102,7 +14113,7 @@ INT rpc_server_accept(int lsock)
          callback.experiment[0] = 0;
          port1 = port2 = version[0] = 0;
 
-         //printf("net buffer \'%s\'\n", net_buffer);
+         //printf("rpc_server_accept: net buffer \'%s\'\n", net_buffer);
 
          /* parse string in format "C port1 port2 port3 version expt" */
          /* example: C 51046 45838 56832 2.0.0 alpha */
@@ -14541,7 +14552,7 @@ INT rpc_server_callback(struct callback_addr * pcallback)
 #endif
 
    if (status != 0) {
-      cm_msg(MERROR, "rpc_server_callback", "cannot connect receive socket");
+      cm_msg(MERROR, "rpc_server_callback", "cannot connect receive socket, host \"%s\", port %d, errno %d (%s)", callback.host_name, callback.host_port1, errno, strerror(errno));
       goto error;
    }
 
@@ -14630,6 +14641,8 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    _server_acception[idx].watchdog_timeout = 0;
    _server_acception[idx].is_mserver = TRUE;
 
+   //printf("rpc_server_callback: _server_acception %p, idx %d\n", _server_acception, idx);
+
    /* send my own computer id */
    hw_type = rpc_get_option(0, RPC_OHW_TYPE);
    sprintf(str, "%d", hw_type);
@@ -14641,6 +14654,7 @@ INT rpc_server_callback(struct callback_addr * pcallback)
 
    /* set callback function for ss_suspend */
    //ss_suspend_set_dispatch_server(_server_acception, rpc_server_receive);
+   ss_suspend_set_server_acceptions_array(MAX_RPC_CONNECTION, _server_acception);
 
    if (rpc_is_mserver())
       rpc_debug_printf("Connection to %s:%s established\n",

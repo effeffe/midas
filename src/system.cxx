@@ -3655,11 +3655,11 @@ static int _ss_server_num_acceptions = 0;
 static RPC_SERVER_ACCEPTION* _ss_server_acceptions = NULL; // server side RPC connections (run transitions, etc)
 
 /*------------------------------------------------------------------*/
-static bool ss_match_thread(midas_thread_t tid)
+static bool ss_match_thread(midas_thread_t tid1, midas_thread_t tid2)
 {
-   if (tid == 0)
+   if (tid1 == 0)
       return true;
-   if (tid == ss_gettid())
+   if (tid1 == tid2)
       return true;
    return false;
 }
@@ -4224,21 +4224,28 @@ INT ss_suspend(INT millisec, INT msg)
 
    return_status = SS_TIMEOUT;
 
+   midas_thread_t thread_id = ss_gettid();
+
    do {
       fd_set readfds;
       FD_ZERO(&readfds);
 
-      if (ss_match_thread(_ss_listen_thread)) {
+      if (ss_match_thread(_ss_listen_thread, thread_id)) {
          /* check listen sockets */
-         if (_ss_server_listen_socket)
+         if (_ss_server_listen_socket) {
             FD_SET(_ss_server_listen_socket, &readfds);
+            printf("ss_suspend: thread %s listen ss_server socket %d\n", ss_tid_to_string(thread_id).c_str(), _ss_server_listen_socket);
+         }
          
-         if (_ss_client_listen_socket)
+         if (_ss_client_listen_socket) {
             FD_SET(_ss_client_listen_socket, &readfds);
+            printf("ss_suspend: thread %s listen ss_client socket %d\n", ss_tid_to_string(thread_id).c_str(), _ss_client_listen_socket);
+         }
       }
 
       /* check server channels */
-      if (ss_match_thread(_ss_server_thread) && (_ss_server_num_acceptions > 0))
+      if (ss_match_thread(_ss_server_thread, thread_id) && (_ss_server_num_acceptions > 0))
+         //printf("ss_suspend: thread %s server acceptions %d\n", ss_tid_to_string(thread_id).c_str(), _ss_server_num_acceptions);
          for (int i = 0; i < _ss_server_num_acceptions; i++) {
             /* RPC channel */
             int sock = _ss_server_acceptions[i].recv_sock;
@@ -4274,14 +4281,14 @@ INT ss_suspend(INT millisec, INT msg)
          }
 
       /* watch for messages from the mserver */
-      if (ss_match_thread(_ss_client_thread)) {
+      if (ss_match_thread(_ss_client_thread, thread_id)) {
          if (_ss_client_connection) {
             FD_SET(_ss_client_connection->recv_sock, &readfds);
          }
       }
 
       /* watch for UDP messages in the IPC socket: buffer and odb notifications */
-      if (ss_match_thread(_ss_odb_thread)) {
+      if (ss_match_thread(_ss_odb_thread, thread_id)) {
          if (_ss_suspend_odb && _ss_suspend_odb->ipc_recv_socket)
             FD_SET(_ss_suspend_odb->ipc_recv_socket, &readfds);
       }
@@ -4333,12 +4340,14 @@ INT ss_suspend(INT millisec, INT msg)
       /* check listener sockets */
 
       if (_ss_server_listen_socket && FD_ISSET(_ss_server_listen_socket, &readfds)) {
+         printf("ss_suspend: thread %s rpc_server_accept socket %d\n", ss_tid_to_string(thread_id).c_str(), _ss_server_listen_socket);
          status = rpc_server_accept(_ss_server_listen_socket);
          if (status == RPC_SHUTDOWN)
             return status;
       }
 
       if (_ss_client_listen_socket && FD_ISSET(_ss_client_listen_socket, &readfds)) {
+         printf("ss_suspend: thread %s rpc_client_accept socket %d\n", ss_tid_to_string(thread_id).c_str(), _ss_client_listen_socket);
          status = rpc_client_accept(_ss_client_listen_socket);
          if (status == RPC_SHUTDOWN)
             return status;
