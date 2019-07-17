@@ -1442,7 +1442,8 @@ midas_thread_t ss_gettid(void)
 
 #elif defined OS_UNIX
 
-   return syscall(SYS_gettid);
+   return pthread_self();
+   //return syscall(SYS_gettid);
 
 #elif defined OS_VXWORKS
 
@@ -1484,8 +1485,9 @@ std::string ss_tid_to_string(midas_thread_t thread_id)
 
 #elif defined OS_UNIX
 
-#error Do not know how to do ss_tid_to_string()
-   return "???";
+   char buf[256];
+   sprintf(buf, "%p", thread_id);
+   return buf;
 
 #elif defined OS_VXWORKS
 
