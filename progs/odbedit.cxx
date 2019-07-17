@@ -238,7 +238,9 @@ BOOL check_abort(int flags, int l)
             return FALSE;
          }
 
-         cm_yield(100);
+         int status = cm_yield(100);
+         if (status == SS_ABORT)
+            break;
 
       } while (!cm_is_ctrlc_pressed());
    }
@@ -2715,7 +2717,9 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                db_open_record(hDB, hKey, buf, size, MODE_READ, key_update, NULL);
                
                do {
-                  cm_yield(1000);
+                  status = cm_yield(1000);
+                  if (status == SS_ABORT)
+                     break;
                } while (!key_modified && !ss_kbhit());
                
                while (ss_kbhit())
@@ -2752,7 +2756,9 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                db_watch(hDB, hKey, watch_callback, NULL);
                
                do {
-                  cm_yield(1000);
+                  status = cm_yield(1000);
+                  if (status == SS_ABORT)
+                     break;
                } while (!ss_kbhit());
                
                while (ss_kbhit())
@@ -2844,8 +2850,11 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
    } while (TRUE);
 
    /* check if client connections are broken */
-   for (i = 0; i < MAX_RPC_CONNECTION; i++)
-      cm_yield(0);
+   for (i = 0; i < MAX_RPC_CONNECTION; i++) {
+      status = cm_yield(0);
+      if (status == SS_ABORT)
+         break;
+   }
 
    return 1; /* indicate success */
 }

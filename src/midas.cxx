@@ -9652,8 +9652,9 @@ INT bm_poll_event()
             return SS_ABORT;
 
          /* break if server died */
-         if (status == RPC_NET_ERROR)
+         if (status == RPC_NET_ERROR) {
             return SS_ABORT;
+         }
 
          /* stop after one second */
          if (ss_millitime() - start_time > 1000) {
@@ -12006,6 +12007,11 @@ INT rpc_call(DWORD routine_id, ...)
 
    send_sock = _server_connection.send_sock;
    rpc_timeout = _server_connection.rpc_timeout;
+
+   if (!send_sock) {
+      fprintf(stderr, "rpc_call(routine_id=%d) failed, no connection to mserver.\n", routine_id);
+      return RPC_NET_ERROR;
+   }
 
    if (!_mutex_rpc) {
       /* create a local mutex for multi-threaded applications */
