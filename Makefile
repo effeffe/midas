@@ -528,11 +528,11 @@ endif
 
 cmake:
 	-mkdir build
-	cd build; cmake .. $(CMAKEFLAGS); $(MAKE) VERBOSE=1; $(MAKE) VERBOSE=1 install
+	cd build; cmake .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install
 
 cmake3:
 	-mkdir build
-	cd build; cmake3 .. $(CMAKEFLAGS); $(MAKE) VERBOSE=1; $(MAKE) VERBOSE=1 install
+	cd build; cmake3 .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install
 
 cclean:
 	-rm -f lib/*
