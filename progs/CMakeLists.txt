@@ -17,6 +17,7 @@ set(PROGS
    melog
    mh2sql
    fetest_tmfe
+   fetest_tmfe_thread
 )
 
 set(TESTPROGS

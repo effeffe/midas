@@ -213,6 +213,15 @@ class TMFE
    std::vector<TMFeRpcHandlerInterface*> fRpcHandlers;
    std::vector<TMFePeriodicHandler*> fPeriodicHandlers;
    double fNextPeriodic;
+
+ public:
+   bool fRpcThreadStarting;
+   bool fRpcThreadRunning;
+   bool fRpcThreadShutdownRequested;
+
+   bool fPeriodicThreadStarting;
+   bool fPeriodicThreadRunning;
+   bool fPeriodicThreadShutdownRequested;
    
  private:
    /// TMFE is a singleton class: only one
@@ -234,6 +243,12 @@ class TMFE
    TMFeError RegisterEquipment(TMFeEquipment* eq);
    void RegisterRpcHandler(TMFeRpcHandlerInterface* handler);
    void RegisterPeriodicHandler(TMFeEquipment* eq, TMFePeriodicHandlerInterface* handler);
+
+   void StartRpcThread();
+   void StartPeriodicThread();
+
+   void StopRpcThread();
+   void StopPeriodicThread();
 
    TMFeError SetWatchdogSec(int sec);
 
@@ -258,6 +273,7 @@ class TMFE
 
    static double GetTime(); ///< return current time in seconds, with micro-second precision
    static void Sleep(double sleep_time_sec); ///< sleep, with micro-second precision
+   static std::string GetThreadId(); ///< return identification of this thread
 };
 
 #endif

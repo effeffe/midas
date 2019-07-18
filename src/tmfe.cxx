@@ -24,6 +24,14 @@ TMFE::TMFE() // ctor
    fOdbRoot = NULL;
    fShutdownRequested = false;
    fNextPeriodic = 0;
+
+   fRpcThreadStarting = false;
+   fRpcThreadRunning = false;
+   fRpcThreadShutdownRequested = false;
+
+   fPeriodicThreadStarting = false;
+   fPeriodicThreadRunning = false;
+   fPeriodicThreadShutdownRequested = false;
 }
 
 TMFE::~TMFE() // dtor
@@ -107,6 +115,8 @@ TMFeError TMFE::SetWatchdogSec(int sec)
 TMFeError TMFE::Disconnect()
 {
    fprintf(stderr, "TMFE::Disconnect: Disconnecting from experiment \"%s\" on host \"%s\"\n", fExptname.c_str(), fHostname.c_str());
+   StopRpcThread();
+   StopPeriodicThread();
    cm_disconnect_experiment();
    return TMFeError();
 }
@@ -196,6 +206,112 @@ void TMFE::MidasPeriodicTasks()
    cm_periodic_tasks();
 }
 
+static int tmfe_rpc_thread(void* param)
+{
+   fprintf(stderr, "tmfe_rpc_thread: RPC thread started\n");
+
+   int msec = 1000;
+   TMFE* mfe = TMFE::Instance();
+   mfe->fRpcThreadRunning = true;
+   ss_suspend_set_rpc_thread(ss_gettid());
+   while (!mfe->fShutdownRequested && !mfe->fRpcThreadShutdownRequested) {
+
+      int status = cm_yield(msec);
+
+      if (status == RPC_SHUTDOWN || status == SS_ABORT) {
+         mfe->fShutdownRequested = true;
+         fprintf(stderr, "tmfe_rpc_thread: cm_yield(%d) status %d, shutdown requested...\n", msec, status);
+      }
+   }
+   ss_suspend_exit();
+   fprintf(stderr, "tmfe_rpc_thread: RPC thread stopped\n");
+   mfe->fRpcThreadRunning = false;
+   return SUCCESS;
+}
+
+static int tmfe_periodic_thread(void* param)
+{
+   fprintf(stderr, "tmfe_periodic_thread: periodic thread started\n");
+   TMFE* mfe = TMFE::Instance();
+   mfe->fPeriodicThreadRunning = true;
+   while (!mfe->fShutdownRequested && !mfe->fPeriodicThreadShutdownRequested) {
+      mfe->EquipmentPeriodicTasks();
+      int status = ss_suspend(1000, 0);
+      if (status == RPC_SHUTDOWN || status == SS_ABORT || status == SS_EXIT) {
+         mfe->fShutdownRequested = true;
+         fprintf(stderr, "tmfe_periodic_thread: ss_susend() status %d, shutdown requested...\n", status);
+      }
+   }
+   ss_suspend_exit();
+   fprintf(stderr, "tmfe_periodic_thread: periodic thread stopped\n");
+   mfe->fPeriodicThreadRunning = false;
+   return SUCCESS;
+}
+
+void TMFE::StartRpcThread()
+{
+   if (fRpcThreadRunning || fRpcThreadStarting) {
+      fprintf(stderr, "TMFE::StartRpcThread: RPC thread already running\n");
+      return;
+   }
+   
+   fRpcThreadStarting = true;
+   ss_thread_create(tmfe_rpc_thread, NULL);
+}
+
+void TMFE::StartPeriodicThread()
+{
+   if (fPeriodicThreadRunning || fPeriodicThreadStarting) {
+      fprintf(stderr, "TMFE::StartPeriodicThread: periodic thread already running\n");
+      return;
+   }
+
+   fPeriodicThreadStarting = true;
+   ss_thread_create(tmfe_periodic_thread, NULL);
+}
+
+void TMFE::StopRpcThread()
+{
+   if (!fRpcThreadRunning)
+      return;
+   
+   fRpcThreadStarting = false;
+   fRpcThreadShutdownRequested = true;
+   for (int i=0; i<60; i++) {
+      if (!fRpcThreadRunning)
+         break;
+      if (i>5) {
+         fprintf(stderr, "TMFE::StopRpcThread: waiting for RPC thread to stop\n");
+      }
+      ::sleep(1);
+   }
+
+   if (fRpcThreadRunning) {
+      fprintf(stderr, "TMFE::StopRpcThread: timeout waiting for RPC thread to stop\n");
+   }
+}
+
+void TMFE::StopPeriodicThread()
+{
+   if (!fPeriodicThreadRunning)
+      return;
+   
+   fPeriodicThreadStarting = false;
+   fPeriodicThreadShutdownRequested = true;
+   for (int i=0; i<60; i++) {
+      if (!fPeriodicThreadRunning)
+         break;
+      if (i>5) {
+         fprintf(stderr, "TMFE::StopPeriodicThread: waiting for periodic thread to stop\n");
+      }
+      ::sleep(1);
+   }
+
+   if (fPeriodicThreadRunning) {
+      fprintf(stderr, "TMFE::StopPeriodicThread: timeout waiting for periodic thread to stop\n");
+   }
+}
+
 void TMFE::Msg(int message_type, const char *filename, int line, const char *routine, const char *format, ...)
 {
    char message[1024];
@@ -238,6 +354,11 @@ void TMFE::Sleep(double time)
    if (status < 0) {
       TMFE::Instance()->Msg(MERROR, "TMFE::Sleep", "select() returned %d, errno %d (%s)", status, errno, strerror(errno));
    }
+}
+
+std::string TMFE::GetThreadId() ///< return identification of this thread
+{
+   return ss_tid_to_string(ss_gettid());
 }
 
 std::string TMFeRpcHandlerInterface::HandleRpc(const char* cmd, const char* args)
