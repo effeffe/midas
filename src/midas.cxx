@@ -13107,7 +13107,8 @@ INT rpc_register_server(int port, INT(*func) (INT, void **), int* plsock, int *p
       *pport = ntohs(bind_addr.sin_port);
    }
 
-   *plsock = lsock;
+   if (plsock)
+      *plsock = lsock;
 
    //printf("rpc_register_server: requested port %d, actual port %d, socket %d\n", port, *pport, *plsock);
 

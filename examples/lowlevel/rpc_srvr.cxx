@@ -86,11 +86,10 @@ INT rpc_dispatch(INT index, void *prpc_param[])
 
 int main()
 {
-   INT status, port;
+   INT status;
 
    /* register RPC server under port 1750 */
-   port = 1750;
-   status = rpc_register_server(&port, NULL, NULL);
+   status = rpc_register_server(1750, NULL, NULL, NULL);
    if (status != RPC_SUCCESS) {
       printf("Cannot start server");
       return 0;

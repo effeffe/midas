@@ -6,7 +6,7 @@
   Contents:     Mini RPC client for testing purposes
 
                 This program connects to a server running the MIDAS
-                main server. It calles the routine rpc_test on this
+                main server. It calls the routine rpc_test on this
                 server, which simply doubles some arguments. By
                 receiving the proper results, one can check that the
                 parameter passing via MIDAS RPCs works correctly.
