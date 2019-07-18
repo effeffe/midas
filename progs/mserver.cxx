@@ -162,7 +162,6 @@ int main(int argc, char **argv)
 \********************************************************************/
 {
    int i, flag;
-   //int server_type;
    socklen_t size;
    //char name[256];
    char str[1000];
@@ -222,7 +221,6 @@ int main(int argc, char **argv)
 
    if (argc < 7 && inetd) {
       /* accept connection from stdin */
-      //rpc_set_server_option(RPC_OSERVER_TYPE, ST_MPROCESS);
       rpc_server_accept(0);
       return 0;
    }
@@ -231,7 +229,6 @@ int main(int argc, char **argv)
       printf("%s started interactively\n", argv[0]);
 
    debug = daemon = FALSE;
-   //server_type = ST_MPROCESS;
 
    if (argc < 7 || argv[1][0] == '-') {
       int status;
@@ -249,12 +246,6 @@ int main(int argc, char **argv)
             debug = TRUE;
          else if (argv[i][0] == '-' && argv[i][1] == 'D')
             daemon = TRUE;
-         //else if (argv[i][0] == '-' && argv[i][1] == 's')
-         //   server_type = ST_SINGLE;
-         //else if (argv[i][0] == '-' && argv[i][1] == 't')
-         //   server_type = ST_MTHREAD;
-         //else if (argv[i][0] == '-' && argv[i][1] == 'm')
-         //   server_type = ST_MPROCESS;
          else if (argv[i][0] == '-' && argv[i][1] == 'p')
             port = strtoul(argv[++i], NULL, 0);
          else if (argv[i][0] == '-') {
@@ -264,8 +255,6 @@ int main(int argc, char **argv)
              usage:
                printf("usage: mserver [-e Experiment] [-s][-t][-m][-d][-p port]\n");
                printf("               -e    experiment to connect to\n");
-               //printf("               -s    Single process server (DO NOT USE!)\n");
-               //printf("               -t    Multi threaded server (DO NOT USE!)\n");
                printf("               -m    Multi process server (default)\n");
                printf("               -p port Listen for connections on specifed tcp port. Default value is taken from ODB \"/Experiment/midas server port\"\n");
 #ifdef OS_LINUX
@@ -307,22 +296,11 @@ int main(int argc, char **argv)
 
       printf("mserver will listen on TCP port %d\n", port);
 
-      /* if command line parameter given, start according server type */
-      //if (server_type == ST_MTHREAD) {
-      //   if (ss_thread_create(NULL, NULL) == 0) {
-      //      printf("MIDAS doesn't support threads on this OS.\n");
-      //      return 1;
-      //   }
-      //
-      //   printf("NOTE: THE MULTI THREADED SERVER IS BUGGY, ONLY USE IT FOR TEST PURPOSES\n");
-      //   printf("Multi thread server started\n");
-      //}
-
       int lsock = 0; // mserver main listener socket
       int lport = 0; // mserver listener port number
 
       /* register server */
-      status = rpc_register_server(port, /*rpc_server_accept,*/ rpc_server_dispatch, &lsock, &lport);
+      status = rpc_register_server(port, rpc_server_dispatch, &lsock, &lport);
       if (status != RPC_SUCCESS) {
          printf("Cannot start server, rpc_register_server() status %d\n", status);
          return 1;
@@ -407,9 +385,6 @@ int main(int argc, char **argv)
       
       if (callback.experiment[0])
          cm_set_experiment_name(callback.experiment);
-
-      //rpc_register_server(ST_SUBPROCESS, NULL, NULL, rpc_server_dispatch);
-      //rpc_set_server_option(RPC_OSERVER_TYPE, ST_SUBPROCESS);
 
       /* switch rpc to mserver mode */
       rpc_set_mserver_mode();
