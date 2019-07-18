@@ -11420,7 +11420,8 @@ INT db_create_record(HNDLE hDB, HNDLE hKey, const char *orig_key_name, const cha
       }
 #endif
       /* create temporary records */
-      sprintf(str, "/System/Tmp/%1dI", ss_gettid());
+      sprintf(str, "/System/Tmp/%sI", ss_tid_to_string(ss_gettid()).c_str());
+      //printf("db_create_record str [%s]\n", str);
       db_find_key(hDB, 0, str, &hKeyTmp);
       if (hKeyTmp)
          db_delete_key(hDB, hKeyTmp, FALSE);
@@ -11431,7 +11432,8 @@ INT db_create_record(HNDLE hDB, HNDLE hKey, const char *orig_key_name, const cha
          return status;
       }
 
-      sprintf(str, "/System/Tmp/%1dO", ss_gettid());
+      sprintf(str, "/System/Tmp/%sO", ss_tid_to_string(ss_gettid()).c_str());
+      //printf("db_create_record str [%s]\n", str);
       db_find_key(hDB, 0, str, &hKeyTmpO);
       if (hKeyTmpO)
          db_delete_key(hDB, hKeyTmpO, FALSE);
