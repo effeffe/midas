@@ -14668,7 +14668,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
          if (status == SS_EXIT || status == RPC_SHUTDOWN) {
             if (rpc_is_mserver())
-               rpc_debug_printf("Connection to %s:%s closed\n", _server_acception[idx].host_name, _server_acception[idx].prog_name);
+               rpc_debug_printf("Connection to %s:%s closed\n", _server_acception[idx].host_name.c_str(), _server_acception[idx].prog_name.c_str());
             goto exit;
          }
 
