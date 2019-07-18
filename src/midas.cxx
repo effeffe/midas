@@ -1768,8 +1768,8 @@ Set client information in online database and return handle
                          by ODB setting /programs/\<name\>/Watchdog timeout
 @return   CM_SUCCESS
 */
-INT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient, char *host_name,
-                       char *client_name, INT hw_type, char *password, DWORD watchdog_timeout)
+INT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient, const char *host_name,
+                       char *client_name, INT hw_type, const char *password, DWORD watchdog_timeout)
 {
    if (rpc_is_remote())
       return rpc_call(RPC_CM_SET_CLIENT_INFO, hDB, hKeyClient,
@@ -10404,7 +10404,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    /* check if connection already exists */
    for (i = 0; i < MAX_RPC_CONNECTION; i++)
       if (_client_connection[i].send_sock != 0 &&
-          strcmp(_client_connection[i].host_name, host_name) == 0 && _client_connection[i].port == port) {
+          strcmp(_client_connection[i].host_name.c_str(), host_name) == 0 && _client_connection[i].port == port) {
          status = ss_socket_wait(_client_connection[i].send_sock, 0);
          if (status == SS_TIMEOUT) { // socket should be empty
             *hConnection = i + 1;
@@ -10437,10 +10437,10 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    }
 
    idx = i;
-   strcpy(_client_connection[idx].host_name, host_name);
-   strcpy(_client_connection[idx].client_name, client_name);
+   _client_connection[idx].host_name = host_name;
+   _client_connection[idx].client_name = client_name;
    _client_connection[idx].port = port;
-   _client_connection[idx].exp_name[0] = 0;
+   _client_connection[idx].exp_name = "";
    _client_connection[idx].rpc_timeout = DEFAULT_RPC_TIMEOUT;
    _client_connection[idx].rpc_timeout = DEFAULT_RPC_TIMEOUT;
    _client_connection[idx].send_sock = sock;
@@ -10596,7 +10596,9 @@ void rpc_client_check()
                // connection error
                cm_msg(MERROR, "rpc_client_check",
                       "Connection to \"%s\" on host \"%s\" is broken, recv() errno %d (%s)",
-                      _client_connection[i].client_name, _client_connection[i].host_name, errno, strerror(errno));
+                      _client_connection[i].client_name.c_str(),
+                      _client_connection[i].host_name.c_str(),
+                      errno, strerror(errno));
             }
          } else if (status == 0) {
             // connection closed by remote end without sending an EXIT message
@@ -10605,7 +10607,7 @@ void rpc_client_check()
             // of midas programs. K.O.
             cm_msg(MINFO, "rpc_client_check",
                    "Connection to \"%s\" on host \"%s\" unexpectedly closed",
-                   _client_connection[i].client_name, _client_connection[i].host_name);
+                   _client_connection[i].client_name.c_str(), _client_connection[i].host_name.c_str());
          } else {
             // read some data
             ok = 1;
@@ -10696,8 +10698,8 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    if (_server_connection.send_sock != 0)
       return RPC_SUCCESS;
 
-   strcpy(_server_connection.host_name, host_name);
-   strcpy(_server_connection.exp_name, exp_name);
+   _server_connection.host_name = host_name;
+   _server_connection.exp_name = exp_name;
    _server_connection.rpc_timeout = DEFAULT_RPC_TIMEOUT;
 
    /* create new TCP sockets for listening */
@@ -11636,11 +11638,8 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
 
    // make local copy of the client name just in case _client_connection is erased by another thread
 
-   char host_name[HOST_NAME_LENGTH];
-   char client_name[NAME_LENGTH];
-
-   strlcpy(host_name, _client_connection[idx].host_name, sizeof(host_name));
-   strlcpy(client_name, _client_connection[idx].client_name, sizeof(client_name));
+   const char* host_name = _client_connection[idx].host_name.c_str();
+   const char* client_name = _client_connection[idx].client_name.c_str();
 
    /* find rpc_index */
 
@@ -12759,7 +12758,7 @@ static int recv_net_command_realloc(INT idx, char **pbuf, int* pbufsize, INT * r
       if (write_ptr <= 0) {
          if (write_ptr == 0)
             cm_msg(MERROR, "recv_net_command", "rpc connection from \'%s\' on \'%s\' unexpectedly closed",
-                   _server_acception[idx].prog_name, _server_acception[idx].host_name);
+                   _server_acception[idx].prog_name.c_str(), _server_acception[idx].host_name.c_str());
          else
             cm_msg(MERROR, "recv_net_command", "recv() returned %d, errno: %d (%s)", write_ptr, errno,
                    strerror(errno));
@@ -14052,7 +14051,7 @@ INT rpc_server_accept(int lsock)
          assert(i < (int) sizeof(experiment));
          experiment[i] = 0;
 
-         strlcpy(callback.experiment, experiment, NAME_LENGTH);
+         callback.experiment = experiment;
 
          /* print warning if version patch level doesn't agree */
          strlcpy(v1, version, sizeof(v1));
@@ -14092,9 +14091,9 @@ INT rpc_server_accept(int lsock)
          phe = gethostbyaddr((char *) &acc_addr.sin_addr, 4, PF_INET);
          if (phe == NULL) {
             /* use IP number instead */
-            strlcpy(callback.host_name, (char *) inet_ntoa(acc_addr.sin_addr), HOST_NAME_LENGTH);
+            callback.host_name = (char *) inet_ntoa(acc_addr.sin_addr);
          } else {
-            strlcpy(callback.host_name, phe->h_name, HOST_NAME_LENGTH);
+            callback.host_name = phe->h_name;
          }
 #endif
 
@@ -14102,15 +14101,15 @@ INT rpc_server_accept(int lsock)
             cm_scan_experiments();
 
             /* lookup experiment */
-            if (equal_ustring(callback.experiment, "Default"))
+            if (equal_ustring(callback.experiment.c_str(), "Default"))
                idx = 0;
             else
                for (idx = 0; idx < MAX_EXPERIMENT && exptab[idx].name[0]; idx++)
-                  if (equal_ustring(callback.experiment, exptab[idx].name))
+                  if (equal_ustring(callback.experiment.c_str(), exptab[idx].name))
                      break;
 
             if (idx == MAX_EXPERIMENT || exptab[idx].name[0] == 0) {
-               sprintf(str, "experiment \'%s\' not defined in exptab\r", callback.experiment);
+               sprintf(str, "experiment \'%s\' not defined in exptab\r", callback.experiment.c_str());
                cm_msg(MERROR, "rpc_server_accept", "%s", str);
 
                send(sock, "2", 2, 0);   /* 2 means exp. not found */
@@ -14118,8 +14117,8 @@ INT rpc_server_accept(int lsock)
                break;
             }
 
-            strlcpy(callback.directory, exptab[idx].directory, MAX_STRING_LENGTH);
-            strlcpy(callback.user, exptab[idx].user, NAME_LENGTH);
+            callback.directory = exptab[idx].directory;
+            callback.user = exptab[idx].user;
 
             /* create a new process */
             sprintf(host_port1_str, "%d", callback.host_port1);
@@ -14130,14 +14129,14 @@ INT rpc_server_accept(int lsock)
             const char* mserver_path = rpc_get_mserver_path();
 
             argv[0] = mserver_path;
-            argv[1] = callback.host_name;
+            argv[1] = callback.host_name.c_str();
             argv[2] = host_port1_str;
             argv[3] = host_port2_str;
             argv[4] = host_port3_str;
             argv[5] = debug_str;
-            argv[6] = callback.experiment;
-            argv[7] = callback.directory;
-            argv[8] = callback.user;
+            argv[6] = callback.experiment.c_str();
+            argv[7] = callback.directory.c_str();
+            argv[8] = callback.user.c_str();
             argv[9] = NULL;
 
             rpc_debug_printf("Spawn: %s %s %s %s %s %s %s %s %s %s",
@@ -14331,9 +14330,8 @@ INT rpc_client_accept(int lsock)
    _server_acception[idx].send_sock = 0;
    _server_acception[idx].event_sock = 0;
    _server_acception[idx].remote_hw_type = client_hw_type;
-   strcpy(_server_acception[idx].host_name, host_name);
-   strcpy(_server_acception[idx].prog_name, client_program);
-   //_server_acception[idx].tid = ss_gettid();
+   _server_acception[idx].host_name = host_name;
+   _server_acception[idx].prog_name = client_program;
    _server_acception[idx].last_activity = ss_millitime();
    _server_acception[idx].watchdog_timeout = 0;
    _server_acception[idx].is_mserver = FALSE;
@@ -14407,13 +14405,13 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    {
       INT host_addr;
 
-      host_addr = hostGetByName(callback.host_name);
+      host_addr = hostGetByName(callback.host_name.c_str());
       memcpy((char *) &(bind_addr.sin_addr), &host_addr, 4);
    }
 #else
-   phe = gethostbyname(callback.host_name);
+   phe = gethostbyname(callback.host_name.c_str());
    if (phe == NULL) {
-      cm_msg(MERROR, "rpc_server_callback", "cannot lookup host name \'%s\'", callback.host_name);
+      cm_msg(MERROR, "rpc_server_callback", "cannot lookup host name \'%s\'", callback.host_name.c_str());
       return RPC_NET_ERROR;
    }
    memcpy((char *) &(bind_addr.sin_addr), phe->h_addr, phe->h_length);
@@ -14431,7 +14429,7 @@ INT rpc_server_callback(struct callback_addr * pcallback)
 #endif
 
    if (status != 0) {
-      cm_msg(MERROR, "rpc_server_callback", "cannot connect receive socket, host \"%s\", port %d, errno %d (%s)", callback.host_name, callback.host_port1, errno, strerror(errno));
+      cm_msg(MERROR, "rpc_server_callback", "cannot connect receive socket, host \"%s\", port %d, errno %d (%s)", callback.host_name.c_str(), callback.host_port1, errno, strerror(errno));
       goto error;
    }
 
@@ -14513,9 +14511,8 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    _server_acception[idx].send_sock = send_sock;
    _server_acception[idx].event_sock = event_sock;
    _server_acception[idx].remote_hw_type = client_hw_type;
-   strcpy(_server_acception[idx].host_name, host_name);
-   strcpy(_server_acception[idx].prog_name, client_program);
-   //_server_acception[idx].tid = ss_gettid();
+   _server_acception[idx].host_name = host_name;
+   _server_acception[idx].prog_name = client_program;
    _server_acception[idx].last_activity = ss_millitime();
    _server_acception[idx].watchdog_timeout = 0;
    _server_acception[idx].is_mserver = TRUE;
@@ -14532,9 +14529,9 @@ INT rpc_server_callback(struct callback_addr * pcallback)
 
    ss_suspend_set_server_acceptions_array(MAX_RPC_CONNECTION, _server_acception);
 
-   if (rpc_is_mserver())
-      rpc_debug_printf("Connection to %s:%s established\n",
-                       _server_acception[idx].host_name, _server_acception[idx].prog_name);
+   if (rpc_is_mserver()) {
+      rpc_debug_printf("Connection to %s:%s established\n", _server_acception[idx].host_name.c_str(), _server_acception[idx].prog_name.c_str());
+   }
 
    return RPC_SUCCESS;
 
@@ -14729,10 +14726,10 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
    {
       char str[80];
-      strlcpy(str, _server_acception[idx].host_name, sizeof(str));
+      strlcpy(str, _server_acception[idx].host_name.c_str(), sizeof(str));
       if (strchr(str, '.'))
          *strchr(str, '.') = 0;
-      cm_msg(MTALK, "rpc_server_receive", "Program \'%s\' on host \'%s\' aborted", _server_acception[idx].prog_name, str);
+      cm_msg(MTALK, "rpc_server_receive", "Program \'%s\' on host \'%s\' aborted", _server_acception[idx].prog_name.c_str(), str);
    }
 
  exit:
@@ -14943,8 +14940,8 @@ INT rpc_check_channels(void)
  exit:
 
    cm_msg(MINFO, "rpc_check_channels", "client \"%s\" on host \"%s\" failed watchdog test after %d sec",
-          _server_acception[idx].prog_name,
-          _server_acception[idx].host_name,
+          _server_acception[idx].prog_name.c_str(),
+          _server_acception[idx].host_name.c_str(),
           _server_acception[idx].watchdog_timeout / 1000);
 
    /* disconnect from experiment */

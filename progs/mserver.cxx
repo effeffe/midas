@@ -53,7 +53,7 @@ void debug_print(const char *msg)
       cm_get_client_info(client_name);
 
    sprintf(str, "%10.3lf [%d,%s,%s] ", (ss_millitime() - start_time) / 1000.0,
-           ss_getpid(), callback.host_name, client_name);
+           ss_getpid(), callback.host_name.c_str(), client_name);
    strlcat(str, msg, sizeof(str));
    strlcat(str, "\n", sizeof(str));
 
@@ -345,17 +345,17 @@ int main(int argc, char **argv)
       if (argc > 9)
          strlcpy(callback.user, argv[9], sizeof(callback.user));
 #else
-      strlcpy(callback.host_name, argv[1], sizeof(callback.host_name));
+      callback.host_name = argv[1];
       callback.host_port1 = atoi(argv[2]);
       callback.host_port2 = atoi(argv[3]);
       callback.host_port3 = atoi(argv[4]);
       callback.debug = atoi(argv[5]);
       if (argc > 6)
-         strlcpy(callback.experiment, argv[6], sizeof(callback.experiment));
+         callback.experiment = argv[6];
       if (argc > 7)
-         strlcpy(callback.directory, argv[7], sizeof(callback.directory));
+         callback.directory = argv[7];
       if (argc > 8)
-         strlcpy(callback.user, argv[8], sizeof(callback.user));
+         callback.user = argv[8];
 #endif
       callback.index = 0;
 
@@ -363,28 +363,28 @@ int main(int argc, char **argv)
          rpc_set_debug(debug_print, 1);
          if (callback.directory[0]) {
             if (callback.user[0])
-               rpc_debug_printf("Start subprocess in %s under user %s", callback.directory, callback.user);
+               rpc_debug_printf("Start subprocess in %s under user %s", callback.directory.c_str(), callback.user.c_str());
             else
-               rpc_debug_printf("Start subprocess in %s", callback.directory);
+               rpc_debug_printf("Start subprocess in %s", callback.directory.c_str());
 
          } else
             rpc_debug_printf("Start subprocess in current directory");
       }
 
       /* change the directory and uid */
-      if (callback.directory[0])
-         if (chdir(callback.directory) != 0)
-            rpc_debug_printf("Cannot change to directory \"%s\"", callback.directory);
+      if (callback.directory.length() > 0)
+         if (chdir(callback.directory.c_str()) != 0)
+            rpc_debug_printf("Cannot change to directory \"%s\"", callback.directory.c_str());
 
       cm_msg_early_init();
 
       /* set the experiment name and expt path name */
 
-      if (callback.directory[0])
-         cm_set_path(callback.directory);
+      if (callback.directory.length() > 0)
+         cm_set_path(callback.directory.c_str());
       
-      if (callback.experiment[0])
-         cm_set_experiment_name(callback.experiment);
+      if (callback.experiment.length() > 0)
+         cm_set_experiment_name(callback.experiment.c_str());
 
       /* switch rpc to mserver mode */
       rpc_set_mserver_mode();
@@ -469,7 +469,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       /* common functions */
 
    case RPC_CM_SET_CLIENT_INFO:
-      status = cm_set_client_info(CHNDLE(0), CPHNDLE(1), (use_callback_addr?callback.host_name:CSTRING(2)),
+      status = cm_set_client_info(CHNDLE(0), CPHNDLE(1), (use_callback_addr?callback.host_name.c_str():CSTRING(2)),
                                   CSTRING(3), CINT(4), CSTRING(5), CINT(6));
       break;
 

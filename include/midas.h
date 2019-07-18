@@ -1678,8 +1678,8 @@ Data conversion flags */
    INT EXPRT cm_set_experiment_semaphore(INT semaphore_alarm, INT semaphore_elog, INT semaphore_history, INT semaphore_msg);
    INT EXPRT cm_get_experiment_semaphore(INT * semaphore_alarm, INT * semaphore_elog, INT * semaphore_history, INT * semaphore_msg);
    INT EXPRT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient,
-                                char *host_name, char *client_name,
-                                INT computer_id, char *password, DWORD watchdog_timeout);
+                                const char *host_name, char *client_name,
+                                INT computer_id, const char *password, DWORD watchdog_timeout);
    INT EXPRT cm_get_client_info(char *client_name);
    INT EXPRT cm_check_client(HNDLE hDB, HNDLE hKeyClient);
    INT EXPRT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout);

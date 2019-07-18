@@ -26,6 +26,7 @@ The Midas System include file
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 #include "midasinc.h"
+#include <string> // std::string
 
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
@@ -291,33 +292,33 @@ typedef struct {
 /* RPC structures */
 
 struct callback_addr {
-   char host_name[HOST_NAME_LENGTH];
+   std::string host_name;
    unsigned short host_port1;
    unsigned short host_port2;
    unsigned short host_port3;
    int debug;
-   char experiment[NAME_LENGTH];
-   char directory[MAX_STRING_LENGTH];
-   char user[NAME_LENGTH];
+   std::string experiment;
+   std::string directory;
+   std::string user;
    INT index;
 };
 
 typedef struct {
-   char host_name[HOST_NAME_LENGTH];    /*  server name        */
+   std::string host_name;       /*  server name        */
    INT port;                    /*  ip port                 */
-   char exp_name[NAME_LENGTH];  /*  experiment to connect   */
+   std::string exp_name;        /*  experiment to connect   */
    int send_sock;               /*  tcp send socket         */
    int connected;               /*  socket is connected     */
    INT remote_hw_type;          /*  remote hardware type    */
-   char client_name[NAME_LENGTH];       /* name of remote client    */
+   std::string client_name;     /* name of remote client    */
    INT rpc_timeout;             /*  in milliseconds         */
 
 } RPC_CLIENT_CONNECTION;
 
 typedef struct {
-   char host_name[HOST_NAME_LENGTH];    /*  server name        */
+   std::string host_name;       /*  server name        */
    INT port;                    /*  ip port                 */
-   char exp_name[NAME_LENGTH];  /*  experiment to connect   */
+   std::string exp_name;        /*  experiment to connect   */
    int send_sock;               /*  tcp send socket         */
    int recv_sock;               /*  tcp receive socket      */
    int event_sock;              /*  event socket            */
@@ -327,8 +328,8 @@ typedef struct {
 } RPC_SERVER_CONNECTION;
 
 typedef struct {
-   char prog_name[NAME_LENGTH]; /*  client program name     */
-   char host_name[HOST_NAME_LENGTH];    /*  client name        */
+   std::string prog_name;       /*  client program name     */
+   std::string host_name;       /*  client name        */
    BOOL is_mserver;             /*  this is an mserver server-side connection */
    int send_sock;               /*  tcp send socket         */
    int recv_sock;               /*  tcp receive socket      */

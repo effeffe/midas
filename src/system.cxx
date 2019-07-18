@@ -4284,7 +4284,7 @@ INT ss_suspend(INT millisec, INT msg)
             status = rpc_client_dispatch(sock);
 
             if (status == SS_ABORT) {
-               cm_msg(MINFO, "ss_suspend", "RPC connection to mserver at \'%s\' was broken", _ss_client_connection->host_name);
+               cm_msg(MINFO, "ss_suspend", "RPC connection to mserver at \'%s\' was broken", _ss_client_connection->host_name.c_str());
 
                /* close client connection if link broken */
                closesocket(_ss_client_connection->send_sock);
