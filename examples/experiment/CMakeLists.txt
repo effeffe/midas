@@ -50,8 +50,16 @@ else()
    link_directories($ENV{MIDASSYS}/lib)
 endif()
 
-add_compile_options(-O2 -g -Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
+# default build type
+if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
+    message(STATUS "Setting default build type to \"RelWithDebInfo\"")
+    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "" FORCE)
+endif()
 
+# enable certain compile warnings
+add_compile_options(-Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
+
+# ass required linux libraries
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux) 
    set(LIBS -lpthread -lutil -lrt) 
 endif() 
