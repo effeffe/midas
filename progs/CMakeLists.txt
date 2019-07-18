@@ -16,26 +16,35 @@ set(PROGS
    odbhist
    melog
    mh2sql
-   fetest
-   feudp
    fetest_tmfe
 )
 
 set(TESTPROGS
    crc32c_test
-   mfe_link_test
-   mfe_link_test_cxx
    mjson_test
    get_record_test
    odb_lock_test
+)
+
+set(MFEPROGS
+   mfe_link_test
+   mfe_link_test_cxx
+   fetest
+   feudp
 )
 
 foreach(PROG ${PROGS} ${TESTPROGS})
    add_executable(${PROG} ${PROG})
    target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
    target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
-   target_link_libraries(${PROG} midas ${LIBS})
-   target_link_libraries(${PROG} ${DB_LIBS})
+   target_link_libraries(${PROG} midas ${LIBS} ${DB_LIBS})
+endforeach()
+
+foreach(PROG ${MFEPROGS})
+   add_executable(${PROG} ${PROG})
+   target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
+   target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
+   target_link_libraries(${PROG} mfe midas ${LIBS} ${DB_LIBS})
 endforeach()
 
 #
@@ -54,15 +63,7 @@ if (OPENSSL_FOUND)
    target_compile_options(mhttpd PRIVATE -DMG_ENABLE_SSL)
 endif(OPENSSL_FOUND)
 
-target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS})
-
-#
-# Add libmfe to front-ends
-#
-target_link_libraries(feudp mfe)
-target_link_libraries(fetest mfe)
-target_link_libraries(mfe_link_test mfe midas)
-target_link_libraries(mfe_link_test_cxx mfe midas)
+target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS} ${DB_LIBS})
 
 #
 # odbedit
@@ -84,7 +85,7 @@ endif(HAVE_ROOT)
 #
 # Installation
 #
-install(TARGETS ${PROGS} mhttpd odbedit DESTINATION bin)
+install(TARGETS ${PROGS} ${MFEPROGS} mhttpd odbedit DESTINATION bin)
 
 if (HAVE_ROOT)
    install(TARGETS rmlogger DESTINATION bin)
