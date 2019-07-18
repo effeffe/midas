@@ -1488,7 +1488,7 @@ std::string ss_tid_to_string(midas_thread_t thread_id)
 #elif defined OS_UNIX
 
    char buf[256];
-   sprintf(buf, "%p", thread_id);
+   sprintf(buf, "%lu", thread_id);
    return buf;
 
 #elif defined OS_VXWORKS
@@ -4057,14 +4057,14 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
          char buffer_tmp[80];
          from_addr_size = sizeof(struct sockaddr);
 #ifdef OS_WINNT
-         size = recvfrom(ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, (int *) &from_addr_size);
+         ssize_t size_tmp = recvfrom(ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, (int *) &from_addr_size);
 #else
-         size = recvfrom(ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, &from_addr_size);
+         ssize_t size_tmp = recvfrom(ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, &from_addr_size);
 #endif
          
          /* don't forward same MSG_BM as above */
          if (buffer_tmp[0] != 'B' || strcmp(buffer_tmp, buffer) != 0) {
-            cm_dispatch_ipc(buffer_tmp, mserver_client_socket);
+            cm_dispatch_ipc(buffer_tmp, size_tmp, mserver_client_socket);
          }
       }
       
@@ -4087,7 +4087,7 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
       return SS_SUCCESS;
    
    /* call dispatcher */
-   cm_dispatch_ipc(buffer, mserver_client_socket);
+   cm_dispatch_ipc(buffer, size, mserver_client_socket);
    
    return 0;
 }
@@ -4356,7 +4356,6 @@ INT ss_resume(INT port, const char *message)
    }
    assert(_ss_suspend_odb);
 
-   INT status;
    struct sockaddr_in bind_addr;
 
    memcpy(&bind_addr, &_ss_suspend_odb->bind_addr, sizeof(struct sockaddr_in));
@@ -4364,10 +4363,13 @@ INT ss_resume(INT port, const char *message)
 
    size_t message_size = strlen(message) + 1;
 
-   status = sendto(_ss_suspend_odb->ipc_send_socket, message, message_size, 0,
-                   (struct sockaddr *) &bind_addr, sizeof(struct sockaddr_in));
+   ssize_t wr = sendto(_ss_suspend_odb->ipc_send_socket, message, message_size, 0, (struct sockaddr *) &bind_addr, sizeof(struct sockaddr_in));
 
-   if (status != message_size) {
+   if (wr < 0) {
+      return SS_SOCKET_ERROR;
+   }
+
+   if (((size_t)wr) != message_size) {
       return SS_SOCKET_ERROR;
    }
 

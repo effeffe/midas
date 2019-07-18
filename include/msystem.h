@@ -482,7 +482,7 @@ typedef struct {
    INT EXPRT cm_get_path_string(std::string* path);
 #endif
    INT EXPRT cm_set_experiment_name(const char *name);
-   INT cm_dispatch_ipc(const char *message, int client_socket);
+   INT cm_dispatch_ipc(const char *message, int message_size, int client_socket);
    INT EXPRT cm_msg_log(INT message_type, const char *facility, const char *message);
    void EXPRT name2c(char *str);
    INT cm_delete_client_info(HNDLE hDB, INT pid);

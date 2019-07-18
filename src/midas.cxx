@@ -4961,7 +4961,7 @@ INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size,
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-INT cm_dispatch_ipc(const char *message, int client_socket)
+INT cm_dispatch_ipc(const char *message, int message_size, int client_socket)
 /********************************************************************\
 
   Routine: cm_dispatch_ipc
