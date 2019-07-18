@@ -49,7 +49,7 @@ INT thread(void *p)
    HNDLE hDB;
    cm_get_experiment_database(&hDB, NULL);
    do {
-      sprintf(str, "%d", ss_gettid());
+      sprintf(str, "%s", ss_tid_to_string(ss_gettid()).c_str());
       db_set_value(hDB, 0, "/Experiment/Name", str, sizeof(str), 1, TID_STRING);
    } while (1);
 
