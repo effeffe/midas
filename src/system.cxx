@@ -3688,7 +3688,7 @@ static INT ss_suspend_init_struct(SUSPEND_STRUCT* psuspend)
    struct sockaddr_in bind_addr;
    int udp_bind_hostname = 0; // bind to localhost or bind to hostname or bind to INADDR_ANY?
 
-   printf("ss_suspend_init_struct: thread %s\n", ss_tid_to_string(psuspend->thread_id).c_str());
+   //printf("ss_suspend_init_struct: thread %s\n", ss_tid_to_string(psuspend->thread_id).c_str());
 
    assert(psuspend->thread_id != 0);
 
@@ -3806,7 +3806,7 @@ static INT ss_suspend_init_struct(SUSPEND_STRUCT* psuspend)
    memcpy(&(psuspend->bind_addr), &bind_addr, sizeof(bind_addr));
    psuspend->ipc_send_socket = sock;
 
-   printf("ss_suspend_init_struct: thread %s, udp port %d\n", ss_tid_to_string(psuspend->thread_id).c_str(), psuspend->ipc_recv_port);
+   //printf("ss_suspend_init_struct: thread %s, udp port %d\n", ss_tid_to_string(psuspend->thread_id).c_str(), psuspend->ipc_recv_port);
 
    return SS_SUCCESS;
 }
@@ -3861,7 +3861,7 @@ static void ss_suspend_close(SUSPEND_STRUCT* psuspend)
    if (psuspend->ipc_recv_socket) {
       closesocket(psuspend->ipc_recv_socket);
       closesocket(psuspend->ipc_send_socket);
-      printf("ss_suspend_exit: free thread %s, udp port %d\n", ss_tid_to_string(psuspend->thread_id).c_str(), psuspend->ipc_recv_port);
+      //printf("ss_suspend_close: free thread %s, udp port %d\n", ss_tid_to_string(psuspend->thread_id).c_str(), psuspend->ipc_recv_port);
    }
    
    memset(psuspend, 0, sizeof(SUSPEND_STRUCT));
@@ -4127,11 +4127,13 @@ INT ss_suspend(INT millisec, INT msg)
 {
    INT status, return_status;
 
-   SUSPEND_STRUCT* psuspend = ss_suspend_get_struct(ss_gettid());
+   midas_thread_t thread_id = ss_gettid();
+
+   SUSPEND_STRUCT* psuspend = ss_suspend_get_struct(thread_id);
+
+   //printf("ss_suspend: thread %s\n", ss_tid_to_string(thread_id).c_str());
 
    return_status = SS_TIMEOUT;
-
-   midas_thread_t thread_id = ss_gettid();
 
    do {
       fd_set readfds;
