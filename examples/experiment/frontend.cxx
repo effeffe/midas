@@ -19,9 +19,13 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <assert.h> // assert()
+
 #include "midas.h"
 #include "experim.h"
 
@@ -136,7 +140,7 @@ EQUIPMENT equipment[] = {
 INT frontend_init()
 {
    /* put any hardware initialization here */
-
+   assert(1 == 2);
 
    /* print message and return FE_ERR_HW if frontend should not be started */
 

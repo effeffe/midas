@@ -7,6 +7,9 @@ Contents:     Disk to Tape copier for background job.
 $Id$
 
 \********************************************************************/
+
+#undef NDEBUG // midas required assert() to be always enabled
+
 #include "midas.h"
 #include "msystem.h"
 #ifndef HAVE_STRLCPY

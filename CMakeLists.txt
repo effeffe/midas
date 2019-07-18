@@ -82,7 +82,7 @@ if (OPENSSL_FOUND)
    message(STATUS "MIDAS: Found OpenSSL version " ${OPENSSL_VERSION})
 else ()
    message(STATUS "MIDAS: OpenSSL not found")
-endif()
+endif ()
 endif (NO_SSL)
 
 #
@@ -91,8 +91,27 @@ endif (NO_SSL)
 if (NO_MYSQL)
    message(STATUS "MIDAS: MySQL support is disabled via NO_MYSQL")
 else (NO_MYSQL)
-   execute_process(COMMAND mysql_config --version OUTPUT_VARIABLE HAVE_MYSQL)
-   message(STATUS "MIDAS: Found MySQL version " ${HAVE_MYSQL})
+   execute_process(COMMAND mariadb_config --version OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE HAVE_MYSQL)
+   if (HAVE_MYSQL)
+      message(STATUS "MIDAS: Found MariaDB (MySQL replacement) version " ${HAVE_MYSQL})
+      set(HAVE_MYSQL 1)
+      execute_process(COMMAND mariadb_config --cflags OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE MYSQL_CFLAGS)
+      execute_process(COMMAND mariadb_config --libs OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE MYSQL_LIBS)
+   else ()
+      execute_process(COMMAND mysql_config --version OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE HAVE_MYSQL)
+      if (HAVE_MYSQL)
+         message(STATUS "MIDAS: Found MySQL version " ${HAVE_MYSQL})
+         set(HAVE_MYSQL 1)
+         execute_process(COMMAND mysql_config --cflags OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE MYSQL_CFLAGS)
+         execute_process(COMMAND mysql_config --libs OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE MYSQL_LIBS)
+      else ()
+         message(STATUS "MIDAS: MySQL not found")
+      endif ()
+   if (HAVE_MYSQL)
+      add_compile_options(-DHAVE_MYSQL ${MYSQL_CFLAGS})
+      set(DB_LIBS ${DB_LIBS} ${MYSQL_LIBS})
+   endif ()
+   endif ()
 endif (NO_MYSQL)
 
 #
@@ -104,9 +123,11 @@ else (NO_ODBC)
 if (EXISTS /usr/include/sql.h)
    message(STATUS "MIDAS: Found ODBC /usr/include/sql.h")
    set(HAVE_ODBC 1)
+   add_compile_options(-DHAVE_ODBC)
+   set(DB_LIBS ${DB_LIBS} -lodbc)
 else ()
    message(STATUS "MIDAS: ODBC not found")
-endif()
+endif ()
 endif (NO_ODBC)
 
 #
@@ -118,15 +139,25 @@ else (NO_SQLITE)
 if (EXISTS /usr/include/sqlite3.h)
    message(STATUS "MIDAS: Found SQLITE /usr/include/sqlite3.h")
    set(HAVE_SQLITE 1)
+   add_compile_options(-DHAVE_SQLITE)
+   set(DB_LIBS ${DB_LIBS} -lsqlite3)
 else ()
    message(STATUS "MIDAS: SQLITE not found")
 endif()
 endif (NO_SQLITE)
 
 #-----------------------
+# Default build type
+#
+if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
+    message(STATUS "Setting default build type to \"RelWithDebInfo\"")
+    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "" FORCE)
+endif()
+
+#-----------------------
 # Common flags
 #
-add_compile_options(-O2 -g -Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
+add_compile_options(-g -Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
 
 #####################################################################
 # Conditional code for various OS'es
@@ -164,6 +195,12 @@ set(libsrc
    src/elog
    src/mrpc
    src/mjson
+   src/tmfe
+   src/mvodb
+   src/nullodb
+   src/midasodb
+   src/mxmlodb
+   src/mjsonodb
    src/json_paste
    src/mjsonrpc
    src/mjsonrpc_user
@@ -192,14 +229,21 @@ add_library(objlib OBJECT ${libsrc})
 # shared libraries need PIC
 set_property(TARGET objlib PROPERTY POSITION_INDEPENDENT_CODE 1)
 
-# shared and static libraries build from the same object files
+# static midas library
 add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
+
+# shared midas library
 add_library(midas-shared SHARED $<TARGET_OBJECTS:objlib>)
+if (HAVE_MYSQL)
+   target_link_libraries(midas-shared ${DB_LIBS})
+endif()
 
 target_include_directories(objlib PUBLIC ${SYSINC_DIR})
 target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
 target_include_directories(objlib PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
-target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
+if (OPENSSL_FOUND)
+   target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
+endif ()
 
 # midas include is public so all programs linking to libmidas will inherit this
 target_include_directories(midas PUBLIC ${SYSINC_DIR})

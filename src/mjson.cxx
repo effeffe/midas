@@ -721,6 +721,7 @@ std::string MJsonNode::EncodeDouble(double numbervalue)
    } else {
       assert(!"this cannot happen!");
    }
+   return "";
 }
 
 std::string MJsonNode::Stringify(int flags) const

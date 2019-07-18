@@ -4,6 +4,10 @@
 // Author: Konstantin Olchanski, 2017-OCT-11
 //
 
+#undef NDEBUG // midas required assert() to be always enabled
+
+#include <assert.h>
+
 #include "midas.h"
 #include "msystem.h"
 #include "history.h"

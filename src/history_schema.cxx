@@ -10,6 +10,8 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
 #include "midas.h"
 #include "msystem.h"
 
@@ -732,7 +734,9 @@ void HsFileSchema::print(bool print_tags) const
 //     MYSQL/MariaDB database access  //
 ////////////////////////////////////////
 
-#include <my_global.h>
+//#warning !!!HAVE_MYSQL!!!
+
+//#include <my_global.h> // my_global.h removed MySQL 8.0, MariaDB 10.2. K.O.
 #include <mysql.h>
 
 class Mysql: public SqlBase
@@ -1146,9 +1150,30 @@ int Mysql::Prepare(const char* table_name, const char* sql)
    assert(fResult == NULL); // there should be no unfinalized queries
    assert(fRow == NULL);
 
-   if (mysql_query(fMysql, sql)) {
-      cm_msg(MERROR, "Mysql::Prepare", "mysql_query(%s) error %d (%s)", sql, mysql_errno(fMysql), mysql_error(fMysql));
-      return DB_FILE_ERROR;
+   //   if (mysql_query(fMysql, sql)) {
+   //   cm_msg(MERROR, "Mysql::Prepare", "mysql_query(%s) error %d (%s)", sql, mysql_errno(fMysql), mysql_error(fMysql));
+   //   return DB_FILE_ERROR;
+   //}
+
+   // Check if the connection to MySQL timed out; fix from B. Smith
+   int status = mysql_query(fMysql, sql);
+   if (status) {
+      if (mysql_errno(fMysql) == 2006 || mysql_errno(fMysql) == 2013) {
+         // "MySQL server has gone away" or "Lost connection to MySQL server during query"
+         status = Connect(fConnectString.c_str());
+         if (status == DB_SUCCESS) {
+            // Retry after reconnecting
+            status = mysql_query(fMysql, sql);
+         } else {
+            cm_msg(MERROR, "Mysql::Prepare", "mysql_query(%s) - MySQL server has gone away, and couldn't reconnect - %d", sql, status);
+            return DB_FILE_ERROR;
+         }
+      }
+      if (status) {
+         cm_msg(MERROR, "Mysql::Prepare", "mysql_query(%s) error %d (%s)", sql, mysql_errno(fMysql), mysql_error(fMysql));
+         return DB_FILE_ERROR;
+      }
+      cm_msg(MINFO, "Mysql::Prepare", "Reconnected to MySQL after long inactivity.");
    }
 
    fResult = mysql_store_result(fMysql);

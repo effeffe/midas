@@ -9,6 +9,8 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
 #include "midas.h"
 #include "msystem.h"
 #include "hardware.h"
@@ -2726,7 +2728,7 @@ private:
 
 INT midas_flush_buffer(LOG_CHN * log_chn)
 {
-   INT size, written;
+   INT size, written = 0;
 #ifdef HAVE_ZLIB
    off_t n;
 #endif

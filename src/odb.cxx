@@ -9,6 +9,8 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
 /**dox***************************************************************/
 /** @file odb.c
 The Online Database file
@@ -3951,6 +3953,74 @@ INT db_find_link1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
       *subhKey = (POINTER_T) pkey - (POINTER_T) pheader;
    }
 #endif                          /* LOCAL_ROUTINES */
+
+   return DB_SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
+INT db_get_parent(HNDLE hDB, HNDLE hKey, HNDLE * parenthKey)
+/********************************************************************\
+
+  Routine: db_get_parent
+
+  Purpose: return an handle to the parent key
+
+  Input:
+    HNDLE  bufer_handle     Handle to the database
+    HNDLE  hKey       Key handle of the key
+
+  Output:
+    INT    *handle          Parent key handle
+
+  Function value:
+    DB_SUCCESS              Successful completion
+
+\********************************************************************/
+{
+   if (rpc_is_remote())
+      return rpc_call(RPC_DB_GET_PARENT, hDB, hKey, parenthKey);
+
+#ifdef LOCAL_ROUTINES
+   {
+
+      DATABASE_HEADER *pheader;
+      const KEY *pkey;
+
+      if (hDB > _database_entries || hDB <= 0) {
+         cm_msg(MERROR, "db_get_parent", "invalid database handle");
+         return DB_INVALID_HANDLE;
+      }
+
+      if (!_database[hDB - 1].attached) {
+         cm_msg(MERROR, "db_get_parent", "invalid database handle");
+         return DB_INVALID_HANDLE;
+      }
+
+      if (hKey < (int) sizeof(DATABASE_HEADER)) {
+         cm_msg(MERROR, "db_get_parent", "invalid key handle");
+         return DB_INVALID_HANDLE;
+      }
+
+      db_lock_database(hDB);
+
+      pheader = _database[hDB - 1].database_header;
+      pkey = (const KEY *) ((char *) pheader + hKey);
+
+      /* find parent key */
+      const KEYLIST *pkeylist = (const KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+
+      if (!db_validate_hkey(pheader, pkeylist->parent)) {
+         db_unlock_database(hDB);
+         return DB_INVALID_HANDLE;
+      }
+
+      pkey = (const KEY *) ((char *) pheader + pkeylist->parent);
+
+      *parenthKey = (POINTER_T) pkey - (POINTER_T) pheader;
+
+      db_unlock_database(hDB);
+   }
+#endif
 
    return DB_SUCCESS;
 }

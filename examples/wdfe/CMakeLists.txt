@@ -7,9 +7,14 @@ if (NOT DEFINED ENV{MIDASSYS})
    message(SEND_ERROR "MIDASSYS environment variable not defined.")
 endif()
 
+set(LIBS $ENV{MIDASSYS}/lib/libmfe.a $ENV{MIDASSYS}/lib/libmidas.a $ENV{WDBSYS}/software/lib/libwdb.a)
+if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
+   set(LIBS ${LIBS} -lpthread -lutil -lrt)
+endif()
+
 add_executable(wdfe wdfe $ENV{WDBSYS}/software/src/WDBLib.cpp)
 target_include_directories(wdfe PRIVATE $ENV{MIDASSYS}/include $ENV{MIDASSYS}/mxml $ENV{WDBSYS}/software/include)
-target_link_libraries(wdfe $ENV{MIDASSYS}/lib/libmfe.a $ENV{MIDASSYS}/lib/libmidas.a $ENV{WDBSYS}/software/lib/libwdb.a)
+target_link_libraries(wdfe ${LIBS})
 target_compile_definitions(wdfe PRIVATE -DWD2_DONT_INCLUDE_REG_ACCESS_VARS)
 
 set_property(TARGET wdfe PROPERTY CXX_STANDARD 11)

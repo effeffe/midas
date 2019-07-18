@@ -273,6 +273,12 @@ static RPC_LIST rpc_list_library[] = {
      {TID_INT, RPC_OUT},
      {0}}},
 
+   {RPC_DB_GET_PARENT, "db_get_parent",
+     {{TID_INT, RPC_IN},
+      {TID_INT, RPC_IN},
+      {TID_INT, RPC_OUT},
+      {0}}},
+
    {RPC_DB_GET_PATH, "db_get_path",
     {{TID_INT, RPC_IN},
      {TID_INT, RPC_IN},

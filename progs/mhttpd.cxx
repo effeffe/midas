@@ -7,6 +7,8 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
 #include <stdio.h>
 #include <math.h> // fabs()
 #include <assert.h>

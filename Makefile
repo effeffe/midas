@@ -72,6 +72,7 @@ endif
 # Optional MYSQL library for mlogger and for the history
 #
 ifndef NO_MYSQL
+HAVE_MARIADB := $(shell mariadb_config --include 2> /dev/null)
 HAVE_MYSQL := $(shell mysql_config --include 2> /dev/null)
 endif
 
@@ -423,6 +424,7 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/mfe_link_test_cxx  \
 	$(BIN_DIR)/fetest  \
 	$(BIN_DIR)/feudp   \
+	$(BIN_DIR)/fetest_tmfe    \
 	$(BIN_DIR)/mana_link_test \
 	$(BIN_DIR)/mjson_test \
 	$(BIN_DIR)/mcnaf    \
@@ -465,6 +467,12 @@ OBJS = \
 	$(LIB_DIR)/mxml.o \
 	$(LIB_DIR)/mjson.o \
 	$(LIB_DIR)/json_paste.o \
+	$(LIB_DIR)/tmfe.o \
+	$(LIB_DIR)/mvodb.o \
+	$(LIB_DIR)/nullodb.o \
+	$(LIB_DIR)/midasodb.o \
+	$(LIB_DIR)/mxmlodb.o \
+	$(LIB_DIR)/mjsonodb.o \
 	$(LIB_DIR)/history_common.o \
 	$(LIB_DIR)/history_midas.o \
 	$(LIB_DIR)/history_odbc.o \
@@ -520,11 +528,11 @@ endif
 
 cmake:
 	-mkdir build
-	cd build; cmake .. $(CMAKEFLAGS); $(MAKE) $(MAKEFLAGS); $(MAKE) install
+	cd build; cmake .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install
 
 cmake3:
 	-mkdir build
-	cd build; cmake3 .. $(CMAKEFLAGS); $(MAKE) $(MAKEFLAGS); $(MAKE) install
+	cd build; cmake3 .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install
 
 cclean:
 	-rm -f lib/*
@@ -599,7 +607,11 @@ $(GIT_REVISION): $(SRC_DIR)/midas.cxx $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.cx
 # main binaries
 #
 
-ifdef HAVE_MYSQL
+ifdef HAVE_MARIADB
+CFLAGS      += -DHAVE_MYSQL $(shell mariadb_config --include)
+MYSQL_LIBS  += $(shell mariadb_config --libs)
+NEED_ZLIB = 1
+else ifdef HAVE_MYSQL
 CFLAGS      += -DHAVE_MYSQL $(shell mysql_config --include)
 MYSQL_LIBS  += $(shell mysql_config --libs)
 NEED_ZLIB = 1
@@ -824,10 +836,10 @@ $(BIN_DIR)/feudp: $(PROGS_DIR)/feudp.cxx $(LIB_DIR)/mfe.o
 $(BIN_DIR)/crc32c: $(SRC_DIR)/crc32c.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -DTEST -o $@ $^ $(LIB) $(LIBS)
 
-$(BIN_DIR)/mfe_link_test: $(SRC_DIR)/mfe_link_test.cxx $(LIB_DIR)/mfe.o
+$(BIN_DIR)/mfe_link_test: $(PROGS_DIR)/mfe_link_test.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
-$(BIN_DIR)/mfe_link_test_cxx: $(SRC_DIR)/mfe_link_test_cxx.cxx $(LIB_DIR)/mfe.o
+$(BIN_DIR)/mfe_link_test_cxx: $(PROGS_DIR)/mfe_link_test_cxx.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/mana_link_test: $(SRC_DIR)/mana.cxx

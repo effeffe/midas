@@ -1761,8 +1761,8 @@ public:
                return status;
          }
 
-         TAG* t = (TAG*)malloc(sizeof(TAG)*columns.size());
-         assert(t);
+         //TAG* t = (TAG*)malloc(sizeof(TAG)*columns.size());
+         //assert(t);
 
          for (unsigned int j=0; j<columns.size(); j+=2) {
             if (columns[j] == "_t_time")
