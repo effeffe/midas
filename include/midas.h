@@ -1505,15 +1505,6 @@ flags */
 #define RPC_OUTGOING (1 << 5)
 
 /**
-Server types */
-//#define ST_NONE            0
-//#define ST_SINGLE          1
-//#define ST_MTHREAD         2
-//#define ST_MPROCESS        3
-//#define ST_SUBPROCESS      4
-//#define ST_REMOTE          5
-
-/**
 function list */
 typedef struct {
    WORD tid;
@@ -1694,9 +1685,6 @@ Data conversion flags */
    INT EXPRT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout);
    INT EXPRT cm_get_watchdog_params(BOOL * call_watchdog, DWORD * timeout);
    INT EXPRT cm_get_watchdog_info(HNDLE hDB, char *client_name, DWORD * timeout, DWORD * last);
-   //INT EXPRT cm_enable_watchdog(BOOL flag);
-   //#define HAVE_CM_WATCHDOG 1
-   //void EXPRT cm_watchdog(int);
    INT EXPRT cm_watchdog_thread(void*unused);
    INT EXPRT cm_start_watchdog_thread(void);
    INT EXPRT cm_stop_watchdog_thread(void);
@@ -1914,7 +1902,7 @@ Data conversion flags */
    INT EXPRT rpc_set_debug(void (*func) (const char *), INT mode);
    void EXPRT rpc_debug_printf(const char *format, ...);
 
-   INT EXPRT rpc_register_server(/*INT server_type, const char *name,*/ int port, /*int accept_func(int),*/ INT(*func) (INT, void **), int* plsock, int *pport);
+   INT EXPRT rpc_register_server(int port, INT(*func) (INT, void **), int* plsock, int *pport);
    INT EXPRT rpc_register_client(const char *name, RPC_LIST * list);
    INT EXPRT rpc_server_loop(void);
    INT EXPRT rpc_server_shutdown(void);

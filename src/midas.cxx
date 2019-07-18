@@ -3203,7 +3203,7 @@ INT cm_register_server(void)
 
       int lport = 0; // actual port number assigned to us by the OS
 
-      status = rpc_register_server(/*ST_REMOTE, NULL,*/ port, NULL, &_rpc_listen_socket, &lport);
+      status = rpc_register_server(port, NULL, &_rpc_listen_socket, &lport);
       if (status != RPC_SUCCESS)
          return status;
 
@@ -6223,9 +6223,6 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
 
       /* initialize buffer counters */
       bm_init_buffer_counters(handle + 1);
-
-      /* setup dispatcher for receive events */
-      //ss_suspend_set_dispatch_ipc(cm_dispatch_ipc);
 
       bm_cleanup("bm_open_buffer", ss_millitime(), FALSE);
 
@@ -10964,9 +10961,6 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    sscanf(str, "%d", &remote_hw_type);
    _server_connection.remote_hw_type = remote_hw_type;
 
-   /* set dispatcher which receives database updates */
-   //ss_suspend_set_dispatch_client(&_server_connection, rpc_client_dispatch);
-
    ss_suspend_set_client_connection(&_server_connection);
 
    _rpc_is_remote = TRUE;
@@ -11372,28 +11366,6 @@ INT rpc_get_server_option(INT item)
 {
    INT i = 0;
 
-   //if (item == RPC_OSERVER_TYPE) {
-   //   printf("rpc_get_server_type %d (pid %d)\n", _server_type, getpid());
-   //   return _server_type;
-   //}
-
-   //if (item == RPC_OSERVER_NAME)
-   //   return (POINTER_T) _server_name;
-
-   /* return 0 for local calls */
-   //if (_server_type == ST_NONE)
-   //   return 0;
-
-   ///* check which connections belongs to caller */
-   //if (0 /*_server_type == ST_MTHREAD*/) {
-   //   //for (i = 0; i < MAX_RPC_CONNECTION; i++)
-   //   //   if (_server_acception[i].tid == ss_gettid())
-   //   //   break;
-   //} else if (0/*_server_type == ST_SINGLE*/ || _server_type == ST_REMOTE)
-   //   i = 0; /*MAX(0, _server_acception_index - 1);*/
-   //else
-   //   i = 0;
-
    switch (item) {
    case RPC_CONVERT_FLAGS:
       return _server_acception[i].convert_flags;
@@ -11432,25 +11404,6 @@ INT rpc_set_server_option(INT item, INT value)
 \********************************************************************/
 {
    INT i = 0;
-
-   //if (item == RPC_OSERVER_TYPE) {
-   //   _server_type = value;
-   //   return RPC_SUCCESS;
-   //}
-   //if (item == RPC_OSERVER_NAME) {
-   //   strcpy(_server_name, (char *) value);
-   //   return RPC_SUCCESS;
-   //}
-
-   ///* check which connections belongs to caller */
-   //if (0 /*_server_type == ST_MTHREAD*/) {
-   //   //for (i = 0; i < MAX_RPC_CONNECTION; i++)
-   //   //if (_server_acception[i].tid == ss_gettid())
-   //   //break;
-   //} else if (0/*_server_type == ST_SINGLE*/ || _server_type == ST_REMOTE)
-   //   i = 0; /*MAX(0, _server_acception_index - 1);*/
-   //else
-   //   i = 0;
 
    switch (item) {
    case RPC_CONVERT_FLAGS:
@@ -13077,7 +13030,7 @@ INT recv_event_check(int sock)
 
 
 /********************************************************************/
-INT rpc_register_server(/*INT server_type, const char *name,*/ int port, /*int accept_func(int),*/ INT(*func) (INT, void **), int* plsock, int *pport)
+INT rpc_register_server(int port, INT(*func) (INT, void **), int* plsock, int *pport)
 /********************************************************************\
 
   Routine: rpc_register_server
@@ -13087,16 +13040,6 @@ INT rpc_register_server(/*INT server_type, const char *name,*/ int port, /*int a
            rpc_register_server.
 
   Input:
-    //bool  is_mserver        true if this is the mserver, false otherwise
-    //INT   server_type       One of the following constants:
-                            //ST_SINGLE: register a single process server
-                            //ST_MTHREAD: for each connection, start
-                            //            a new thread to serve it
-                            ST_MPROCESS: mserver main program, for each connection,
-                                         start a new process to service it
-                            ST_SUBPROCESS: mserver process servicing a single connection
-                            ST_REMOTE: rpc server inside a normal midas program
-    //char  *name             Name of .EXE file to start in MPROCESS mode
     INT   port              TCP port for listen. If port==0, the OS chooses a free port and returns it in *pport
     INT   *func             Default dispatch function
 
@@ -13124,17 +13067,8 @@ INT rpc_register_server(/*INT server_type, const char *name,*/ int port, /*int a
    }
 #endif
 
-   //rpc_set_server_option(RPC_OSERVER_TYPE, server_type);
-
    /* register system functions */
    rpc_register_functions(rpc_get_internal_list(0), func);
-
-   //if (name != NULL)
-   //   rpc_set_server_option(RPC_OSERVER_NAME, (POINTER_T) name);
-
-   ///* in subprocess mode, don't start listener */
-   //if (server_type == ST_SUBPROCESS)
-   //   return RPC_SUCCESS;
 
    /* create a socket for listening */
    int lsock = socket(AF_INET, SOCK_STREAM, 0);
@@ -13202,15 +13136,6 @@ INT rpc_register_server(/*INT server_type, const char *name,*/ int port, /*int a
 #endif
       *pport = ntohs(bind_addr.sin_port);
    }
-
-   /* define callbacks for ss_suspend */
-   //ss_suspend_set_dispatch_listen(lsock, accept_func);
-
-   ///* define callbacks for ss_suspend */
-   //if (server_type == ST_REMOTE)
-   //   ss_suspend_set_dispatch(CH_LISTEN, &lsock, (int (*)(void)) rpc_client_accept);
-   //else
-   //   ss_suspend_set_dispatch(CH_LISTEN, &lsock, (int (*)(void)) rpc_server_accept);
 
    *plsock = lsock;
 
@@ -14197,11 +14122,11 @@ INT rpc_server_accept(int lsock)
          if (phe == NULL) {
             /* use IP number instead */
             strlcpy(callback.host_name, (char *) inet_ntoa(acc_addr.sin_addr), HOST_NAME_LENGTH);
-         } else
+         } else {
             strlcpy(callback.host_name, phe->h_name, HOST_NAME_LENGTH);
+         }
 #endif
 
-         //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MPROCESS) {
             /* update experiment definition */
             cm_scan_experiments();
 
@@ -14262,28 +14187,6 @@ INT rpc_server_accept(int lsock)
             sprintf(str, "1 %s", cm_get_version());     /* 1 means ok */
             send(sock, str, strlen(str) + 1, 0);
             closesocket(sock);
-            //} else {
-            //sprintf(str, "1 %s", cm_get_version());     /* 1 means ok */
-            //send(sock, str, strlen(str) + 1, 0);
-            //closesocket(sock);
-            //}
-
-         ///* look for next free entry */
-         //for (idx = 0; idx < MAX_RPC_CONNECTION; idx++)
-         //   if (_server_acception[idx].recv_sock == 0)
-         //      break;
-         //if (idx == MAX_RPC_CONNECTION)
-         //   return RPC_NET_ERROR;
-         //callback.index = idx;
-
-        /*----- multi thread server ------------------------*/
-         //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_MTHREAD)
-         //   ss_thread_create(rpc_server_thread, (void *) (&callback));
-
-        /*----- single thread server -----------------------*/
-            //if (0/*rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE*/ ||
-            // rpc_get_server_option(RPC_OSERVER_TYPE) == ST_REMOTE)
-            //rpc_server_callback(&callback);
 
          break;
       }
@@ -14471,12 +14374,9 @@ INT rpc_client_accept(int lsock)
    if (status != (INT) strlen(str) + 1)
       return RPC_NET_ERROR;
 
-   //rpc_set_server_acception(idx + 1);
    rpc_calc_convert_flags(hw_type, client_hw_type, &convert_flags);
    rpc_set_server_option(RPC_CONVERT_FLAGS, convert_flags);
 
-   /* set callback function for ss_suspend */
-   //ss_suspend_set_dispatch_server(_server_acception, rpc_server_receive);
    ss_suspend_set_server_acceptions_array(MAX_RPC_CONNECTION, _server_acception);
 
    return RPC_SUCCESS;
@@ -14656,12 +14556,9 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    sprintf(str, "%d", hw_type);
    send(recv_sock, str, strlen(str) + 1, 0);
 
-   //rpc_set_server_acception(idx + 1);
    rpc_calc_convert_flags(hw_type, client_hw_type, &convert_flags);
    rpc_set_server_option(RPC_CONVERT_FLAGS, convert_flags);
 
-   /* set callback function for ss_suspend */
-   //ss_suspend_set_dispatch_server(_server_acception, rpc_server_receive);
    ss_suspend_set_server_acceptions_array(MAX_RPC_CONNECTION, _server_acception);
 
    if (rpc_is_mserver())

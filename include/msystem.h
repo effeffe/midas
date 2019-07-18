@@ -327,7 +327,6 @@ typedef struct {
 } RPC_SERVER_CONNECTION;
 
 typedef struct {
-   //INT tid;                     /*  thread id               */
    char prog_name[NAME_LENGTH]; /*  client program name     */
    char host_name[HOST_NAME_LENGTH];    /*  client name        */
    BOOL is_mserver;             /*  this is an mserver server-side connection */
@@ -516,8 +515,6 @@ typedef struct {
    INT EXPRT rpc_server_accept(int sock);
    INT rpc_client_accept(int sock);
    INT rpc_client_dispatch(int sock);
-   //INT rpc_get_server_acception(void);
-   //INT rpc_set_server_acception(INT idx);
    INT rpc_set_mserver_mode(void);
    INT EXPRT rpc_set_server_option(INT item, INT value);
    INT EXPRT rpc_get_server_option(INT item);
@@ -570,7 +567,6 @@ typedef struct {
    INT ss_suspend_set_client_listener(int listen_socket);
    INT ss_suspend_set_client_connection(RPC_SERVER_CONNECTION* connection);
    INT ss_suspend_set_server_acceptions_array(int num_acceptions, RPC_SERVER_ACCEPTION* acceptions);
-   //INT ss_suspend_set_dispatch_ipc(INT(*dispatch)(const char*,INT));
    INT ss_resume(INT port, const char *message);
    INT ss_suspend_exit(void);
    INT ss_exception_handler(void (*func) (void));
