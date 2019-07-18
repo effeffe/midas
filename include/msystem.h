@@ -402,7 +402,6 @@ typedef struct {
    void* shm_adr;               /* address of shared memory     */
    HNDLE shm_size;              /* size of shared memory        */
    HNDLE shm_handle;            /* handle (id) to shared memory */
-   //INT index;                   /* connection index / tid       */
    BOOL protect;                /* read/write protection        */
    BOOL protect_read;           /* read is permitted            */
    BOOL protect_write;          /* write is permitted           */

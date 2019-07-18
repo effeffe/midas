@@ -2972,14 +2972,6 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
 
       /* set watchdog flag of all open buffers */
       for (i = _buffer_entries; i > 0; i--) {
-
-         //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE
-         //    && _buffer[i - 1].index != rpc_get_server_acception())
-         //   continue;
-
-         //if (rpc_get_server_option(RPC_OSERVER_TYPE) != ST_SINGLE && _buffer[i - 1].index != ss_gettid())
-         //   continue;
-
          BUFFER *pbuf = &_buffer[i-1];
 
          if (!pbuf->attached)
@@ -6213,12 +6205,6 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
 
       bm_clear_buffer_statistics(hDB, pbuf);
       
-      /* remember to which connection acutal buffer belongs */
-      //if (rpc_get_server_option(RPC_OSERVER_TYPE) == ST_SINGLE)
-      //   _buffer[handle].index = rpc_get_server_acception();
-      //else
-      //   _buffer[handle].index = ss_gettid();
-
       *buffer_handle = (handle + 1);
 
       /* initialize buffer counters */
@@ -9436,8 +9422,6 @@ INT bm_check_buffers()
 
       /* if running as a server, buffer checking is done by client
          via ASYNC bm_receive_event */
-      //if (server_type == ST_SUBPROCESS || 0/*server_type == ST_MTHREAD*/)
-      //   return FALSE;
       if (rpc_is_mserver()) {
          return FALSE;
       }
@@ -9447,12 +9431,6 @@ INT bm_check_buffers()
 
       /* go through all buffers */
       for (idx = 0; idx < _buffer_entries; idx++) {
-         //if (server_type == ST_SINGLE && _buffer[idx].index != server_conn)
-         //   continue;
-
-         //if (server_type != ST_SINGLE && _buffer[idx].index != tid)
-         //   continue;
-
          if (!_buffer[idx].attached)
             continue;
 
@@ -9708,12 +9686,6 @@ INT bm_empty_buffers()
       /* go through all buffers */
       int idx;
       for (idx = 0; idx < _buffer_entries; idx++) {
-         //if (server_type == ST_SINGLE && _buffer[idx].index != server_conn)
-         //   continue;
-
-         //if (server_type != ST_SINGLE && _buffer[idx].index != tid)
-         //   continue;
-
          if (!_buffer[idx].attached)
             continue;
 
@@ -11144,7 +11116,6 @@ INT rpc_is_mserver(void)
 \********************************************************************/
 {
    return _mserver_mode;
-   //return (_server_type == ST_SUBPROCESS);
 }
 
 
