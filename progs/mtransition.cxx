@@ -9,6 +9,8 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,7 +32,7 @@ int read_state(HNDLE hDB)
   int state = STATE_STOPPED;
   int size = sizeof(state);
   int status = db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
-  massert(status == DB_SUCCESS);
+  assert(status == DB_SUCCESS);
   return state;
 }
 

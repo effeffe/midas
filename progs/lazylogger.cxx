@@ -7,6 +7,9 @@ Contents:     Disk to Tape copier for background job.
 $Id$
 
 \********************************************************************/
+
+#undef NDEBUG // midas required assert() to be always enabled
+
 #include "midas.h"
 #include "msystem.h"
 #ifndef HAVE_STRLCPY
@@ -728,7 +731,7 @@ Function value:      number of elements
    HNDLE hKey;
    KEY key;
    int status = db_get_key(hDB, hLch, &key);
-   massert(status == DB_SUCCESS);
+   assert(status == DB_SUCCESS);
 
    if (db_find_key(hDB, hLch, "List", &hKey) == DB_SUCCESS) {
       cm_msg(MERROR, "build_done_list", "lazylogger cannot continue: found old-style done list in ODB \'/Lazy/%s/List\'. Please convert to new done list format using \'lazylogger -C\'", key.name);
@@ -756,7 +759,7 @@ Function value:      number of elements
 {
    KEY key;
    int status = db_get_key(hDB, hLch, &key);
-   massert(status == DB_SUCCESS);
+   assert(status == DB_SUCCESS);
    sort(pdone->begin(), pdone->end(), cmp_dirlog);
    save_list(key.name, "donelist", pdone);
    return SUCCESS;

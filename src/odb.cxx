@@ -9,6 +9,8 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
 /**dox***************************************************************/
 /** @file odb.c
 The Online Database file

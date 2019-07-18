@@ -10,6 +10,8 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
 #include "mfe.h"
 
 #include <stdio.h>

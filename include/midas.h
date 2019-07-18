@@ -233,10 +233,6 @@ typedef INT MUTEX_T;
 #include <string>
 typedef std::vector<std::string> STRING_LIST;
 
-/* assert() which is not removed via -DNDEBUG flag. Needed to silence compiler warnings about unused variables */
-#define massert(x) { if (!(x)) { fprintf(stderr, "assertion \"%s\" failed: file \"%s\", line %d\n", \
-  #x, __FILE__, __LINE__); abort(); }}
-
 /*------------------------------------------------------------------*/
 
 /* Definition of implementation specific constants */

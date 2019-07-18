@@ -9,6 +9,9 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
+#include <assert.h> // assert()
 #include <fcntl.h>
 #include "midas.h"
 #include "msystem.h"

@@ -7,6 +7,8 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
 #include <stdio.h>
 #include <math.h> // fabs()
 #include <assert.h>
@@ -17311,7 +17313,7 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg, 
       t->fRPC = post_data;
       
       int status = ss_mutex_wait_for(request_mutex, 0);
-      massert(status == SS_SUCCESS);
+      assert(status == SS_SUCCESS);
          
       t->fTimeLocked = GetTimeSec();
 

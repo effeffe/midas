@@ -9,6 +9,8 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
 #include "midas.h"
 #include "msystem.h"
 #include "git-revision.h"
