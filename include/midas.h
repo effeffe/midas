@@ -880,6 +880,10 @@ magic number used in trigger_mask for BOR event */
 typedef void (EVENT_HANDLER)(HNDLE buffer_handler, HNDLE request_id, EVENT_HEADER* event_header, void* event_data);
 
 /**
+   Handler for rpc requests */
+typedef INT (RPC_HANDLER)(INT index, void *prpc_param[]);
+
+/**
 Buffer structure */
 typedef struct {
    INT id;                       /**< request id                      */
@@ -1516,7 +1520,7 @@ typedef struct {
    INT id;
    const char *name;
    RPC_PARAM param[20];
-    INT(*dispatch) (INT, void **);
+   RPC_HANDLER *dispatch;
 } RPC_LIST;
 
 /**
@@ -1890,8 +1894,8 @@ Data conversion flags */
    INT EXPRT rpc_clear_allowed_hosts(void);
    INT EXPRT rpc_add_allowed_host(const char* hostname);
 
-   INT EXPRT rpc_register_functions(const RPC_LIST * new_list, INT(*func) (INT, void **));
-   INT EXPRT rpc_register_function(INT id, INT(*func) (INT, void **));
+   INT EXPRT rpc_register_functions(const RPC_LIST * new_list, RPC_HANDLER func);
+   INT EXPRT rpc_register_function(INT id, RPC_HANDLER func);
    INT EXPRT rpc_get_option(HNDLE hConn, INT item);
    INT EXPRT rpc_set_option(HNDLE hConn, INT item, INT value);
    INT EXPRT rpc_set_name(const char *name);
@@ -1902,7 +1906,7 @@ Data conversion flags */
    INT EXPRT rpc_set_debug(void (*func) (const char *), INT mode);
    void EXPRT rpc_debug_printf(const char *format, ...);
 
-   INT EXPRT rpc_register_server(int port, INT(*func) (INT, void **), int* plsock, int *pport);
+   INT EXPRT rpc_register_server(int port, int *plsock, int *pport);
    INT EXPRT rpc_register_client(const char *name, RPC_LIST * list);
    INT EXPRT rpc_server_loop(void);
    INT EXPRT rpc_server_shutdown(void);

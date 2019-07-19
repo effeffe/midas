@@ -13,7 +13,6 @@
 \********************************************************************/
 
 #include "midas.h"
-#include "msystem.h"
 #include <stdio.h>
 
 #define RPC_MYTEST RPC_MIN_ID
@@ -88,16 +87,13 @@ INT rpc_dispatch(INT index, void *prpc_param[])
 int main()
 {
    INT status;
-   int lsock;
 
    /* register RPC server under port 1750 */
-   status = rpc_register_server(1750, NULL, &lsock, NULL);
+   status = rpc_register_server(1750, NULL, NULL);
    if (status != RPC_SUCCESS) {
       printf("Cannot start server");
       return 0;
    }
-
-   ss_suspend_set_client_listener(lsock);
 
    /* Register function list. Calls get forwarded to rpc_dispatch */
    rpc_register_functions(rpc_list, rpc_dispatch);

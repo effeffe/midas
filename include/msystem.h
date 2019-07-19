@@ -509,6 +509,7 @@ typedef struct {
    INT db_check_client(HNDLE hDB, HNDLE hKeyClient);
 
    /*---- rpc functions -----*/
+   INT rpc_register_listener(int port, RPC_HANDLER func, int *plsock, int *pport);
    RPC_LIST EXPRT *rpc_get_internal_list(INT flag);
    INT rpc_server_receive(INT idx, int sock, BOOL check);
    INT rpc_server_callback(struct callback_addr *callback);

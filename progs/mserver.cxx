@@ -300,7 +300,7 @@ int main(int argc, char **argv)
       int lport = 0; // mserver listener port number
 
       /* register server */
-      status = rpc_register_server(port, rpc_server_dispatch, &lsock, &lport);
+      status = rpc_register_listener(port, rpc_server_dispatch, &lsock, &lport);
       if (status != RPC_SUCCESS) {
          printf("Cannot start server, rpc_register_server() status %d\n", status);
          return 1;

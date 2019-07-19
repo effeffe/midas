@@ -3195,12 +3195,8 @@ INT cm_register_server(void)
 
       int lport = 0; // actual port number assigned to us by the OS
 
-      status = rpc_register_server(port, NULL, &_rpc_listen_socket, &lport);
+      status = rpc_register_server(port, &_rpc_listen_socket, &lport);
       if (status != RPC_SUCCESS)
-         return status;
-
-      status = ss_suspend_set_client_listener(_rpc_listen_socket);
-      if (status != SS_SUCCESS)
          return status;
 
       _rpc_registered = TRUE;
@@ -9870,9 +9866,6 @@ static RPC_SERVER_CONNECTION _server_connection; // connection to the mserver
 static BOOL _rpc_is_remote = FALSE;
 
 static RPC_SERVER_ACCEPTION _server_acception[MAX_RPC_CONNECTION];
-//static INT _server_acception_index = 0;
-//static INT _server_type;
-//static char _server_name[256];
 
 static RPC_LIST *rpc_list = NULL;
 
@@ -10125,7 +10118,7 @@ Register a set of RPC functions (both as clients or servers)
 
 @return RPC_SUCCESS, RPC_NO_MEMORY, RPC_DOUBLE_DEFINED
 */
-INT rpc_register_functions(const RPC_LIST * new_list, INT(*func) (INT, void **))
+INT rpc_register_functions(const RPC_LIST * new_list, RPC_HANDLER func)
 {
    INT i, j, iold, inew;
 
@@ -13000,10 +12993,10 @@ INT recv_event_check(int sock)
 
 
 /********************************************************************/
-INT rpc_register_server(int port, INT(*func) (INT, void **), int* plsock, int *pport)
+INT rpc_register_server(int port, int *plsock, int *pport)
 /********************************************************************\
 
-  Routine: rpc_register_server
+  Routine: rpc_register_listener
 
   Purpose: Register the calling process as a MIDAS RPC server. Note
            that cm_connnect_experiment must be called prior to any call of
@@ -13011,11 +13004,52 @@ INT rpc_register_server(int port, INT(*func) (INT, void **), int* plsock, int *p
 
   Input:
     INT   port              TCP port for listen. If port==0, the OS chooses a free port and returns it in *pport
+
+  Output:
+    int   *plsock           Listener socket, can be NULL
+    int   *pport            Port under which server is listening, can be NULL
+
+  Function value:
+    RPC_SUCCESS             Successful completion
+    RPC_NET_ERROR           Error in socket call
+    RPC_NOT_REGISTERED      cm_connect_experiment was not called
+
+\********************************************************************/
+{
+   int status;
+   int lsock;
+
+   status = rpc_register_listener(port, NULL, &lsock, pport);
+   if (status != RPC_SUCCESS)
+      return status;
+
+   status = ss_suspend_set_client_listener(lsock);
+   if (status != SS_SUCCESS)
+      return status;
+
+   if (plsock)
+      *plsock = lsock;
+
+   return RPC_SUCCESS;
+}
+
+/********************************************************************/
+INT rpc_register_listener(int port, RPC_HANDLER func, int* plsock, int *pport)
+/********************************************************************\
+
+  Routine: rpc_register_listener
+
+  Purpose: Register the calling process as a MIDAS RPC server. Note
+           that cm_connnect_experiment must be called prior to any call of
+           rpc_register_listener.
+
+  Input:
+    INT   port              TCP port for listen. If port==0, the OS chooses a free port and returns it in *pport
     INT   *func             Default dispatch function
 
   Output:
-    int   *plsock           Listener socket.
-    int   *pport            Port under which server is listening.
+    int   *plsock           Listener socket, should not be NULL
+    int   *pport            Port under which server is listening, can be NULL
 
   Function value:
     RPC_SUCCESS             Successful completion
@@ -13037,7 +13071,7 @@ INT rpc_register_server(int port, INT(*func) (INT, void **), int* plsock, int *p
    }
 #endif
 
-   /* register system functions */
+   /* register system functions: RPC_ID_EXIT, RPC_ID_SHUTDOWN, RPC_ID_WATCHDOG */
    rpc_register_functions(rpc_get_internal_list(0), func);
 
    /* create a socket for listening */
@@ -13107,8 +13141,9 @@ INT rpc_register_server(int port, INT(*func) (INT, void **), int* plsock, int *p
       *pport = ntohs(bind_addr.sin_port);
    }
 
-   if (plsock)
-      *plsock = lsock;
+   assert(plsock); // must be able to return the new listener socket, otherwise it's a socket leak
+
+   *plsock = lsock;
 
    //printf("rpc_register_server: requested port %d, actual port %d, socket %d\n", port, *pport, *plsock);
 
