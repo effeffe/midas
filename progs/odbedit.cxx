@@ -239,7 +239,7 @@ BOOL check_abort(int flags, int l)
          }
 
          int status = cm_yield(100);
-         if (status == SS_ABORT)
+         if (status == SS_ABORT || status == RPC_SHUTDOWN)
             break;
 
       } while (!cm_is_ctrlc_pressed());
@@ -2719,7 +2719,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                
                do {
                   status = cm_yield(1000);
-                  if (status == SS_ABORT)
+                  if (status == SS_ABORT || status == RPC_SHUTDOWN)
                      break;
                } while (!key_modified && !ss_kbhit());
                
@@ -2731,6 +2731,10 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                   free(buf);
                   buf = NULL;
                }
+
+               if (status == SS_ABORT || status == RPC_SHUTDOWN)
+                  break;
+               
                if (i == '!')
                   printf("Wait aborted.\n");
                else
@@ -2758,14 +2762,17 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                
                do {
                   status = cm_yield(1000);
-                  if (status == SS_ABORT)
+                  if (status == SS_ABORT || status == RPC_SHUTDOWN)
                      break;
                } while (!ss_kbhit());
-               
+
                while (ss_kbhit())
                   ss_getchar(0);
                
                db_unwatch(hDB, hKey);
+
+               if (status == SS_ABORT || status == RPC_SHUTDOWN)
+                  break;
             } else
                printf("key \"%s\" not found\n", str);
          }
@@ -2847,7 +2854,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
       /* check if client connections are broken */
       status = cm_yield(0);
-      if (status == SS_ABORT)
+      if (status == SS_ABORT || status == RPC_SHUTDOWN)
          break;
 
    } while (TRUE);
@@ -2855,7 +2862,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
    /* check if client connections are broken */
    for (i = 0; i < MAX_RPC_CONNECTION; i++) {
       status = cm_yield(0);
-      if (status == SS_ABORT)
+      if (status == SS_ABORT || status == RPC_SHUTDOWN)
          break;
    }
 
