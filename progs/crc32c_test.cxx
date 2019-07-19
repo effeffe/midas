@@ -1,13 +1,11 @@
-// CRC32C code taken from
-// http://stackoverflow.com/questions/17645167/implementing-sse-4-2s-crc32c-in-software/17646775#17646775
-// on 29 July 2015
+//
+// compute CRC32C checksum
 //
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include "crc32c.h"
-
 
 #define SIZE (262144*3)
 #define CHUNK SIZE
@@ -45,3 +43,11 @@ int main(int argc, char **argv)
     printf("%08x\n", crc);
     return 0;
 }
+
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */
