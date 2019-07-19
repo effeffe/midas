@@ -158,7 +158,7 @@ endif()
 #-----------------------
 # Common flags
 #
-add_compile_options(-g -Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
+add_compile_options(-Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
 
 #####################################################################
 # Conditional code for various OS'es
