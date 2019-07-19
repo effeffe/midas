@@ -18,10 +18,10 @@ set(PROGS
    mh2sql
    fetest_tmfe
    fetest_tmfe_thread
+   crc32c_sum
 )
 
 set(TESTPROGS
-   crc32c_test
    mjson_test
    get_record_test
    odb_lock_test
