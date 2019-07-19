@@ -9,6 +9,8 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
 #include "midas.h"
 #include "msystem.h"
 
@@ -65,54 +67,6 @@ void debug_print(const char *msg)
    }
 }
 
-/*---- configure from ODB -------------------------------------------*/
-
-int odb_configure(const char* expt_name, int* port)
-{
-   int status;
-   int size;
-   HNDLE hDB;
-   HNDLE hClient;
-
-   /* connect to experiment */
-   status = cm_connect_experiment(NULL, expt_name, "mserver", 0);
-   if (status != CM_SUCCESS)
-      return status;
-
-   status = cm_get_experiment_database(&hDB, &hClient);
-   assert(status == CM_SUCCESS);
-
-   if (1) {
-      int v;
-
-      status = db_set_mode(hDB, hClient, MODE_READ|MODE_WRITE, TRUE);
-      assert(status == DB_SUCCESS);
-
-      v = 0;
-      size = sizeof(v);
-      status = db_set_value(hDB, hClient, "Server Port", &v, size, 1, TID_INT);
-      assert(status == DB_SUCCESS);
-
-      status = db_set_mode(hDB, hClient, MODE_READ, TRUE);
-      assert(status == DB_SUCCESS);
-   }
-
-   if (port) {
-      int odb_port = MIDAS_TCP_PORT;
-      size = sizeof(odb_port);
-      status = db_get_value(hDB, 0, "/Experiment/Midas server port", &odb_port, &size, TID_DWORD, TRUE);
-      assert(status == DB_SUCCESS);
-
-      if (*port == 0)
-         *port = odb_port;
-   }
-
-   // stay connected to experiment otherwise cm_msg() does not work
-   //status = cm_disconnect_experiment();
-
-   return SUCCESS;
-}
-
 /*---- main --------------------------------------------------------*/
 
 int main(int argc, char **argv)
@@ -166,7 +120,6 @@ int main(int argc, char **argv)
    //char name[256];
    char str[1000];
    BOOL inetd, daemon, debug;
-   int port = 0;
 
 #if defined(SIGPIPE) && defined(SIG_IGN)
    signal(SIGPIPE, SIG_IGN);
@@ -233,6 +186,7 @@ int main(int argc, char **argv)
    if (argc < 7 || argv[1][0] == '-') {
       int status;
       char expt_name[NAME_LENGTH];
+      int port = 0;
 
       /* Get if existing the pre-defined experiment */
       expt_name[0] = 0;
@@ -289,8 +243,28 @@ int main(int argc, char **argv)
          ss_daemon_init(FALSE);
       }
 
-      odb_configure(expt_name, &port);
+      /* connect to experiment */
+      status = cm_connect_experiment(NULL, expt_name, "mserver", 0);
+      if (status != CM_SUCCESS) {
+         printf("cannot connect to experiment \"%s\", status %d\n", expt_name, status);
+         exit(1);
+      }
+      
+      HNDLE hDB;
+      HNDLE hClient;
 
+      status = cm_get_experiment_database(&hDB, &hClient);
+      assert(status == CM_SUCCESS);
+      
+      int odb_port = MIDAS_TCP_PORT;
+      int size = sizeof(odb_port);
+
+      status = db_get_value(hDB, 0, "/Experiment/Midas server port", &odb_port, &size, TID_DWORD, TRUE);
+      assert(status == DB_SUCCESS);
+
+      if (port == 0)
+         port = odb_port;
+      
       if (port == 0)
          port = MIDAS_TCP_PORT;
 

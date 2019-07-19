@@ -3196,8 +3196,10 @@ INT cm_register_server(void)
       int lport = 0; // actual port number assigned to us by the OS
 
       status = rpc_register_server(port, &_rpc_listen_socket, &lport);
-      if (status != RPC_SUCCESS)
+      if (status != RPC_SUCCESS) {
+         cm_msg(MERROR, "cm_register_server", "error, rpc_register_server(port=%d) status %d", port, status);
          return status;
+      }
 
       _rpc_registered = TRUE;
 
@@ -3207,8 +3209,10 @@ INT cm_register_server(void)
       /* store port number in ODB */
 
       status = db_find_key(hDB, hKey, "Server Port", &hKey);
-      if (status != DB_SUCCESS)
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "cm_register_server", "error, db_find_key(\"Server Port\") status %d", status);
          return status;
+      }
 
       /* unlock database */
       db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE, TRUE);
@@ -3216,6 +3220,7 @@ INT cm_register_server(void)
       /* set value */
       status = db_set_data(hDB, hKey, &lport, sizeof(INT), 1, TID_INT);
       if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "cm_register_server", "error, db_set_data(\"Server Port\"=%d) status %d", port, status);
          return status;
       }
 
