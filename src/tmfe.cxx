@@ -175,7 +175,9 @@ void TMFE::PollMidas(int msec)
    double sleep_end = now + msec/1000.0;
 
    while (!fShutdownRequested) {
-      EquipmentPeriodicTasks();
+      if (!fPeriodicThreadRunning) {
+         EquipmentPeriodicTasks();
+      }
 
       now = GetTime();
 

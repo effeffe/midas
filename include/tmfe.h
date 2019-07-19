@@ -241,8 +241,8 @@ class TMFE
    TMFeError Disconnect();
 
    TMFeError RegisterEquipment(TMFeEquipment* eq);
-   void RegisterRpcHandler(TMFeRpcHandlerInterface* handler);
-   void RegisterPeriodicHandler(TMFeEquipment* eq, TMFePeriodicHandlerInterface* handler);
+   void RegisterRpcHandler(TMFeRpcHandlerInterface* handler); ///< RPC handlers are executed from the RPC thread, if started
+   void RegisterPeriodicHandler(TMFeEquipment* eq, TMFePeriodicHandlerInterface* handler); ///< periodic handlers are executed from the periodic thread, if started
 
    void StartRpcThread();
    void StartPeriodicThread();
