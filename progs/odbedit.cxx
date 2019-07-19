@@ -1244,6 +1244,7 @@ INT cmd_idle()
       if (status == SS_ABORT)
          printf("Server connection broken.\n");
 
+      ss_getchar(1);
       cm_disconnect_experiment();
       exit(0);
    }
