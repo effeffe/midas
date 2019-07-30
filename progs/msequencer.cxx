@@ -340,7 +340,7 @@ int eval_condition(const char *condition)
    if (!eval_var(value2_str, value2_var, sizeof(value2_var)))
       return -1;
    for (i=0 ; i<(int)strlen(value1_var) ; i++)
-      if (!isdigit(value1_var[i]))
+      if (strchr("0123456789.+-Ee", value1_var[i]) == NULL)
          break;
    if (i < (int)strlen(value1_var)) {
       // string comparison
@@ -353,15 +353,15 @@ int eval_condition(const char *condition)
       return -1;
    }
    
-   // numberic comparison
+   // numeric comparison
    for (i=0 ; i<(int)strlen(value2_var) ; i++)
-      if (isdigit(value2_var[i]))
+      if (strchr("0123456789.+-Ee", value2_var[i]) != NULL)
          break;
    if (i == (int)strlen(value2_var))
       return -1;
 
-   value1 = atof(value1_var);
-   value2 = atof(value2_var);
+   value1 = strtod(value1_var, NULL);
+   value2 = strtod(value2_var, NULL);
    
    /* now do logical operation */
    if (strcmp(op, "=") == 0)
