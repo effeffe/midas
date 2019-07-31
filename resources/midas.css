@@ -205,8 +205,6 @@ body.mcss {
    padding: 1em;
 }
 
-/* does this overwrite generic html formatting? K.O. */
-
 a.hideButton{
     text-decoration : none; 
     color : #5F88A3;
@@ -255,12 +253,15 @@ input.mnavsel:hover {
    background: linear-gradient(to bottom,  #404040 0%, #808080 100%);
 }
 
-/* input box */
-/* does this overwrite generic html formatting? K.O. */
+/* input box, overwrites default HTML formatting */
 input[type=text] {
    font-size: 100%;
 }
 
+/* drop-down selector */
+select {
+   font-size: 100%;
+}
 
 /* table formatting */
 
