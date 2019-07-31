@@ -148,28 +148,34 @@ int replog(int data_fmt, char *rep_file, int bl, int action, int max_event_size)
     if (md_physrec_skip(data_fmt, bl) != MD_SUCCESS)
       return (-1);
     i = 0;
+    
     while (md_event_get(data_fmt, (void **) &pmyevt, &evtlen) == MD_SUCCESS) {
       status = md_event_swap(data_fmt, pmyevt);
-      pme = (EVENT_HEADER *) pmyevt;
       if ((consistency == 1) && (data_fmt == FORMAT_MIDAS)) {
-	//if (pme->serial_number != pevh.serial_number + 1) {
-	/* event header */
-	printf
-	  ("\nLast - Evid:%4.4x- Mask:%4.4x- Serial:%i- Time:0x%x- Dsize:%i/0x%x\n",
-	   pevh.event_id, pevh.trigger_mask, pevh.serial_number, pevh.time_stamp,
-	   pevh.data_size, pevh.data_size);
-	printf
-	  ("Now  - Evid:%4.4x- Mask:%4.4x- Serial:%i- Time:0x%x- Dsize:%i/0x%x\n",
-	   pme->event_id, pme->trigger_mask, pme->serial_number,
-	   pme->time_stamp, pme->data_size, pme->data_size);
-      } else {
-	printf("Consistency check: %c - %i (Data size:%i)\r", bars[i_bar++ % 4],
-	       pme->serial_number, pme->data_size);
-	fflush(stdout);
-      }
-
-      memcpy((char *) &pevh, (char *) pme, sizeof(EVENT_HEADER));
-      continue;
+        pme = (EVENT_HEADER *) pmyevt;
+        // if ID is given skip the inconsistency event of different ID                                                   
+        if ((event_id != EVENTID_ALL) && (pme->event_id != event_id)) {
+          continue;  // Next event                                                                                       
+        } else if (pme ->serial_number != pevh.serial_number + 1) {
+          /* event header : show last event consistent and new one (ID may be different!) */
+          printf
+            ("\nLast - Evid:%4.4x- Mask:%4.4x- Serial:%i- Time:0x%x- Dsize:%i/0x%x\n",
+             pevh.event_id, pevh.trigger_mask, pevh.serial_number, pevh.time_stamp,
+             pevh.data_size, pevh.data_size);
+          printf
+            ("Now  - Evid:%4.4x- Mask:%4.4x- Serial:%i- Time:0x%x- Dsize:%i/0x%x\n",
+             pme->event_id, pme->trigger_mask, pme->serial_number,
+             pme->time_stamp, pme->data_size, pme->data_size);
+	} else {
+          // last and current SN are seprate by one                                                                      
+          printf("Consistency check: %c - %i (Data size:%i)\r", bars[i_bar++ % 4],
+                 pme->serial_number, pme->data_size);
+          fflush(stdout);
+        }
+        // save current header for later comparison                                                                      
+        memcpy((char *) &pevh, (char *) pme, sizeof(EVENT_HEADER));
+        continue;  // Next event                                                                                         
+      } // consistency==1                                                                                                
       if (action == REP_LENGTH)
 	status = md_all_info_display(D_EVTLEN);
       if ((action == REP_BANKLIST) || (disp_bank_list == 1)) {
@@ -239,6 +245,7 @@ int replog(int data_fmt, char *rep_file, int bl, int action, int max_event_size)
   }                            /* switch */
   
   /* close data file */
+  printf("\n");
   md_file_rclose(data_fmt);
   return 0;
 }
@@ -456,7 +463,7 @@ int main(int argc, char **argv)
 	  printf
 	    ("                  -[single]       : Request single bank only (to be used with -b)\n");
 	  printf
-	    ("                  -y              : Serial number consistency check\n");
+	    ("                  -y              : Serial number consistency check(-i supported)\n");
 	  printf
 	    ("                  -j              : Display # of banks and bank name list only for all the event\n");
 	  printf
