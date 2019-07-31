@@ -1,3 +1,4 @@
+// noinspection SpellCheckingInspection,SpellCheckingInspection
 /********************************************************************\
 
  Name:         mhistory.js
@@ -65,16 +66,18 @@ MhistoryGraph.prototype.draw = function() {
    let ctx = this.canvas.getContext("2d");
 
    ctx.translate(0.5, 0.5);
-   ctx.strokeStyle = "#00000";
-   ctx.fillStyle = "#000000";
+   ctx.strokeStyle = "#808080";
+   ctx.fillStyle = "#404040";
    ctx.lineWidth = 1;
    ctx.font = "12px sans-serif";
 
    ctx.drawLine(50, 10, this.x2-20, 10);
    ctx.drawLine(this.x2-20, 10, this.x2-20, this.y2-25);
 
-   this.drawVAxis(ctx, 50, this.y2-25, this.y2-35, -4, -8, -10, -12, 0, 0, 1000, 0);
-   this.drawHAxis(ctx, 50, this.y2-25, this.x2-70, 4, 8, 10, 12, 0, -10, 10, 0);
+   this.drawVAxis(ctx, 50, this.y2-25, this.y2-35, -4, -7, -10, -12, 0, 0, 1000, 0);
+   //this.drawHAxis(ctx, 50, this.y2-25, this.x2-70, 4, 7, 10, 12, 0, -10, 10, 0);
+   let d = new Date();
+   this.drawTAxis(ctx, 50, this.y2-25, this.x2-70, this.x2, 4, 7, 10, 12, 0, d/1000-3600*40, d/1000);
 };
 
 MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor, major, text, label, grid, xmin, xmax, logaxis) {
@@ -129,7 +132,7 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
 
          n_sig1 = Math.max(n_sig1, n_sig2);
 
-         // toPrecision displays 1050 with 3 digits as 1.05e+3, so increase presicion to number of digits
+         // toPrecision displays 1050 with 3 digits as 1.05e+3, so increase precision to number of digits
          if (Math.abs(xmin) < 100000)
             n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(xmin)) / Math.log(10) + 0.001) + 1);
          if (Math.abs(xmax) < 100000)
@@ -171,16 +174,16 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
          x_screen = (Math.log(x_act) - Math.log(xmin)) / (Math.log(xmax) - Math.log(xmin)) * width + x1;
       else
          x_screen = (x_act - xmin) / (xmax - xmin) * width + x1;
-      xs = Math.floor(x_screen + 0.5);
+      xs = Math.round(x_screen);
 
       if (x_screen > x1 + width + 0.001)
          break;
 
       if (x_screen >= x1) {
-         if (Math.abs(Math.floor(x_act / major_dx + 0.5) - x_act / major_dx) <
+         if (Math.abs(Math.round(x_act / major_dx) - x_act / major_dx) <
             dx / major_dx / 10.0) {
 
-            if (Math.abs(Math.floor(x_act / label_dx + 0.5) - x_act / label_dx) <
+            if (Math.abs(Math.round(x_act / label_dx) - x_act / label_dx) <
                dx / label_dx / 10.0) {
                // label tick mark
                ctx.drawLine(xs, y1, xs, y1 + text);
@@ -216,18 +219,15 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
             // minor tick mark
             ctx.drawLine(xs, y1, xs, y1 + minor);
 
-         // for logaxis, also put labes on minor tick marks
+         // for logaxis, also put labels on minor tick marks
          if (logaxis) {
             if (label !== 0) {
                let str = x_act.toPrecision(n_sig1).stripZeros();
                let ext = ctx.measureText(str);
-               ctx.save();
-               ctx.fillStyle = "black";
                if (xs - ext.width / 2 > x1 &&
                   xs + ext.width / 2 < x1 + width &&
                   xs - ext.width / 2 > last_label_x + 2)
                   ctx.fillText(str, xs, y1 + label);
-               ctx.restore();
 
                last_label_x = xs + ext.width/2;
             }
@@ -236,7 +236,7 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
 
       x_act += dx;
 
-      /* supress 1.23E-17 ... */
+      /* suppress 1.23E-17 ... */
       if (Math.abs(x_act) < dx / 100)
          x_act = 0;
 
@@ -298,7 +298,7 @@ MhistoryGraph.prototype.drawVAxis = function(ctx, x1, y1, height, minor, major, 
 
       n_sig1 = Math.max(n_sig1, n_sig2);
 
-      // toPrecision displays 1050 with 3 digits as 1.05e+3, so increase presicion to number of digits
+      // toPrecision displays 1050 with 3 digits as 1.05e+3, so increase precision to number of digits
       if (Math.abs(ymin) < 100000)
          n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(ymin)) / Math.log(10) + 0.001) + 1);
       if (Math.abs(ymax) < 100000)
@@ -326,16 +326,16 @@ MhistoryGraph.prototype.drawVAxis = function(ctx, x1, y1, height, minor, major, 
          y_screen = y1 - (Math.log(y_act) - Math.log(ymin)) / (Math.log(ymax) - Math.log(ymin)) * height;
       else
          y_screen = y1 - (y_act - ymin) / (ymax - ymin) * height;
-      ys = Math.floor(y_screen + 0.5);
+      ys = Math.round(y_screen);
 
       if (y_screen < y1 - height - 0.001)
          break;
 
       if (y_screen <= y1 + 0.001) {
-         if (Math.abs(Math.floor(y_act / major_dy + 0.5) - y_act / major_dy) <
+         if (Math.abs(Math.round(y_act / major_dy) - y_act / major_dy) <
             dy / major_dy / 10.0) {
 
-            if (Math.abs(Math.floor(y_act / label_dy + 0.5) - y_act / label_dy) <
+            if (Math.abs(Math.round(y_act / label_dy) - y_act / label_dy) <
                dy / label_dy / 10.0) {
                // label tick mark
                ctx.drawLine(x1, ys, x1 + text, ys);
@@ -366,10 +366,10 @@ MhistoryGraph.prototype.drawVAxis = function(ctx, x1, y1, height, minor, major, 
             }
 
          } else
-         // minor tick mark
+            // minor tick mark
             ctx.drawLine(x1, ys, x1 + minor, ys);
 
-         // for logaxis, also put labes on minor tick marks
+         // for logaxis, also put labels on minor tick marks
          if (logaxis) {
             if (label !== 0) {
                let str = y_act.toPrecision(n_sig1).stripZeros();
@@ -385,9 +385,165 @@ MhistoryGraph.prototype.drawVAxis = function(ctx, x1, y1, height, minor, major, 
 
       y_act += dy;
 
-      // supress 1.23E-17 ...
+      // suppress 1.23E-17 ...
       if (Math.abs(y_act) < dy / 100)
          y_act = 0;
 
    } while (1);
 };
+
+function timeToLabel(sec, base, forceDate)
+{
+   let d = new Date(sec*1000);
+   let options;
+
+   if (forceDate) {
+      if (base < 600)
+         options = { day:'2-digit', month:'short', year:'2-digit',
+            hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' };
+      else if (base < 3600 * 24)
+         options = { day:'2-digit', month:'short', year:'2-digit',
+            hour12: false, hour:'2-digit', minute:'2-digit' };
+      else
+         options = { day:'2-digit', month:'short', year:'2-digit' };
+
+      return d.toLocaleDateString('en-GB', options);
+      }
+
+   if (base < 600) {
+      options = {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'};
+      return d.toLocaleTimeString('en-GB', options);
+   } else if (base < 3600 * 3) {
+      options = {hour12: false, hour: '2-digit', minute: '2-digit'};
+      return d.toLocaleTimeString('en-GB', options);
+   } else if (base < 3600 * 24)
+      options = { day: '2-digit', month: 'short', year: '2-digit',
+         hour12: false, hour: '2-digit', minute: '2-digit' };
+   else
+      options = {day: '2-digit', month: 'short', year: '2-digit'};
+
+   return d.toLocaleDateString('en-GB', options);
+}
+
+
+MhistoryGraph.prototype.drawTAxis = function(ctx, x1, y1, width, xr, minor, major, text, label, grid, xmin, xmax) {
+   const base = [ 1, 5, 10, 60, 15*60, 30*60, 60*60, 3*60*60, 6*60*60, 12*60*60, 24*60*60, 0 ];
+
+   ctx.textAlign = "left";
+   ctx.textBaseline = "top";
+
+   if (xmax <= xmin || width <= 0)
+      return;
+
+   /* force date display if xmax not today */
+   let d1 = new Date(xmax*1000);
+   let d2 = new Date();
+   let forceDate = d1.getDate() !== d2.getDate() || (d2-d1 > 1000*3600*24);
+
+   /* use 5 pixel as min tick distance */
+   let dx = Math.round((xmax - xmin) / (width / 5));
+
+   let tick_base;
+   for (tick_base = 0; base[tick_base]; tick_base++) {
+      if (base[tick_base] > dx)
+         break;
+   }
+   if (!base[tick_base])
+      tick_base--;
+   dx = base[tick_base];
+
+   let major_base = tick_base;
+   let major_dx = dx;
+
+   let label_base = major_base;
+   let label_dx = dx;
+
+   do {
+      let str = timeToLabel(xmin, label_dx, forceDate);
+      let maxwidth = ctx.measureText(str).width;
+
+      /* increasing label_dx, if labels would overlap */
+      if (maxwidth > 0.7 * label_dx / (xmax - xmin) * width) {
+         if (base[label_base + 1])
+            label_dx = base[++label_base];
+         else
+            label_dx += 3600 * 24;
+
+         if (label_base > major_base + 1) {
+            if (base[major_base + 1])
+               major_dx = base[++major_base];
+            else
+               major_dx += 3600 * 24;
+         }
+
+         if (major_base > tick_base + 1) {
+            if (base[tick_base + 1])
+               dx = base[++tick_base];
+            else
+               dx += 3600 * 24;
+         }
+
+      } else
+         break;
+   } while (1);
+
+   let d = new Date(xmin*1000);
+   let tz = d.getTimezoneOffset()*60;
+
+   let x_act = Math.floor((xmin - tz)/ dx) * dx + tz;
+
+   ctx.drawLine(x1, y1, x1 + width, y1);
+
+   do {
+      let x_screen = Math.round((x_act - xmin) / (xmax - xmin) * width + x1);
+      let xs = Math.round(x_screen);
+
+      if (x_screen > x1 + width + 0.001)
+         break;
+
+      if (x_screen >= x1) {
+         if ((x_act - tz)% major_dx === 0) {
+            if ((x_act - tz)% label_dx === 0) {
+               // label tick mark
+               ctx.drawLine(xs, y1, xs, y1 + text);
+
+               // grid line
+               if (grid !== 0 && xs > x1 && xs < x1 + width)
+                  ctx.drawLine(xs, y1, xs, y1 + grid);
+
+               // label
+               if (label !== 0) {
+                  let str = timeToLabel(x_act, label_dx, forceDate);
+
+                  // if labels at edge, shift them in
+                  let xl = xs - ctx.measureText(str).width / 2;
+                  if (xl < 0)
+                     xl = 0;
+                  if (xl + ctx.measureText(str).width > xr)
+                  xl = xr - ctx.measureText(str).width;
+                  ctx.fillText(str, xl, y1 + label);
+               }
+            } else {
+               // major tick mark
+               ctx.drawLine(xs, y1, xs, y1 + major);
+
+               // grid line
+               if (grid !== 0 && xs > x1 && xs < x1 + width)
+                  ctx.drawLine(xs, y1 - 1, xs, y1 + grid);
+            }
+
+         } else
+            // minor tick mark
+            ctx.drawLine(xs, y1, xs, y1 + minor);
+
+      }
+
+      x_act += dx;
+
+      // suppress 1.23E-17 ...
+      if (Math.abs(x_act) < dx / 100)
+         x_act = 0;
+
+   } while (1);
+};
+
