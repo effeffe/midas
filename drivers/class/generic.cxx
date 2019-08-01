@@ -228,7 +228,7 @@ INT gen_init(EQUIPMENT * pequipment)
    gen_info->measured_mirror = (float *) calloc(gen_info->num_channels, sizeof(float));
 
    gen_info->channel_offset = (INT *) calloc(gen_info->num_channels, sizeof(INT));
-   gen_info->driver = (void *) calloc(gen_info->num_channels, sizeof(void *));
+   gen_info->driver = (DEVICE_DRIVER **) calloc(gen_info->num_channels, sizeof(void *));
 
    if (!gen_info->driver) {
       cm_msg(MERROR, "hv_init", "Not enough memory");

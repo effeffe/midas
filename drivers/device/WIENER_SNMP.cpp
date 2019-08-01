@@ -9,8 +9,6 @@
 // /usr/lib
 // path for the WIENER MIB file (mibdirs) c:/usr/share/snmp/mibs
 */
-extern "C" {
-
 #include "WIENER_SNMP.h"
 
 const char* readCommunity = "public";       ///< community name for read operations
@@ -1146,5 +1144,3 @@ double snmpSetDouble(HSNMP m_sessp, const oid* parameter, size_t length, double 
   snmp_free_pdu(response);
   return value;
 }
-
-} // extern "C"

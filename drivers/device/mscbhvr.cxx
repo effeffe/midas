@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include "midas.h"
 #include "mscb.h"
+#include "mfe.h"
 
 /*---- globals -----------------------------------------------------*/
 
@@ -89,7 +90,7 @@ INT mscbhvr_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
       return FE_ERR_ODB;
 
    /* calculate address from block address */
-   info->settings.address = calloc(sizeof(INT), channels);
+   info->settings.address = (int*)calloc(sizeof(INT), channels);
    assert(info->settings.address);
 
    block_channels = channels;
@@ -356,7 +357,7 @@ INT mscbhvr(INT cmd, ...)
    INT channel, status;
    float value, *pvalue;
    int *pivalue;
-   void *bd;
+   INT(*bd)(INT,...);
    MSCBHVR_INFO *info;
 
    va_start(argptr, cmd);
@@ -365,54 +366,54 @@ INT mscbhvr(INT cmd, ...)
    switch (cmd) {
    case CMD_INIT:
       hKey = va_arg(argptr, HNDLE);
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
-      bd = va_arg(argptr, void *);
-      status = mscbhvr_init(hKey, (void **)info, channel, bd);
+      bd = va_arg(argptr, INT(*)(INT,...));
+      status = mscbhvr_init(hKey, (void**)info, channel, bd);
       break;
 
    case CMD_EXIT:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       status = mscbhvr_exit(info);
       break;
 
    case CMD_SET:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       value = (float) va_arg(argptr, double);
       status = mscbhvr_set(info, channel, value);
       break;
 
    case CMD_GET:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
       status = mscbhvr_get(info, channel, pvalue);
       break;
 
    case CMD_GET_DEMAND:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
       *pvalue = info->node_vars[channel].u_demand;
       break;
 
    case CMD_GET_CURRENT:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
       *pvalue = info->node_vars[channel].i_meas;
       break;
 
    case CMD_SET_CURRENT_LIMIT:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       value = (float) va_arg(argptr, double);
       status = mscbhvr_set_current_limit(info, channel, value);
       break;
 
    case CMD_SET_VOLTAGE_LIMIT:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       value = (float) va_arg(argptr, double);
       status = mscbhvr_set_voltage_limit(info, channel, value);
@@ -427,77 +428,77 @@ INT mscbhvr(INT cmd, ...)
       break;
 
    case CMD_GET_THRESHOLD:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
       *pvalue = 0.1f;
       break;
 
    case CMD_GET_THRESHOLD_CURRENT:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
       *pvalue = 1;
       break;
 
    case CMD_GET_THRESHOLD_ZERO:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
       *pvalue = 20;
       break;
 
    case CMD_GET_VOLTAGE_LIMIT:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
       *pvalue = info->node_vars[channel].u_limit;
       break;
 
    case CMD_GET_CURRENT_LIMIT:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
       *pvalue = info->node_vars[channel].i_limit;
       break;
 
    case CMD_GET_RAMPUP:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
       *pvalue = info->node_vars[channel].ramp_up;
       break;
 
    case CMD_GET_RAMPDOWN:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
       *pvalue = info->node_vars[channel].ramp_down;
       break;
 
    case CMD_GET_TRIP_TIME:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
       *pvalue = info->node_vars[channel].trip_time;
       break;
 
    case CMD_SET_RAMPUP:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       value = (float) va_arg(argptr, double);
       status = mscbhvr_set_rampup(info, channel, value);
       break;
 
    case CMD_SET_RAMPDOWN:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       value = (float) va_arg(argptr, double);
       status = mscbhvr_set_rampdown(info, channel, value);
       break;
 
    case CMD_SET_TRIP_TIME:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       value = (float) va_arg(argptr, double);
       status = mscbhvr_set_triptime(info, channel, value);
@@ -506,7 +507,7 @@ INT mscbhvr(INT cmd, ...)
    case CMD_GET_TRIP:
    case CMD_GET_STATUS:
    case CMD_GET_TEMPERATURE:
-      info = va_arg(argptr, void *);
+      info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       pivalue = va_arg(argptr, INT *);
       *pivalue = 0; // not implemented for the moment...
