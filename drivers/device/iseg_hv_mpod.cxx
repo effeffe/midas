@@ -342,7 +342,7 @@ INT iseg_hv_mpod(INT cmd, ...)
    HNDLE hKey;
    INT channel, status, *pivalue;
    float value, *pvalue;
-   void *bd;
+   INT(*bd)(INT,...);
    ISEG_HV_MPOD_INFO *info;
 
    va_start(argptr, cmd);
@@ -353,7 +353,7 @@ INT iseg_hv_mpod(INT cmd, ...)
       hKey = va_arg(argptr, HNDLE);
       info = va_arg(argptr, ISEG_HV_MPOD_INFO *);
       channel = va_arg(argptr, INT);
-      bd = va_arg(argptr, void *);
+      bd = va_arg(argptr, INT(*)(INT,...));
       status = iseg_hv_mpod_init(hKey, (void **)info, channel, bd);
       break;
 

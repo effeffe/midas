@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include "midas.h"
+#include "mfe.h"
 #include "msystem.h"
 
 /*---- globals -----------------------------------------------------*/
@@ -40,7 +41,7 @@ INT ip9258_get(IP9258_INFO * info, INT channel, float *pvalue);
 
 /*-------------------------------------------------------------------*/
 
-char *map = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const char *map = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 int cind(char c)
 {
@@ -121,7 +122,7 @@ static INT tcp_connect(char *host, int port, int *sock)
    bind_addr.sin_addr.s_addr = 0;
    bind_addr.sin_port = 0;
 
-   status = bind(*sock, (void *) &bind_addr, sizeof(bind_addr));
+   status = bind(*sock, (const sockaddr*)&bind_addr, sizeof(bind_addr));
    if (status < 0) {
       mfe_error("Cannot bind");
       closesocket(*sock);
@@ -153,7 +154,7 @@ static INT tcp_connect(char *host, int port, int *sock)
 
 #ifdef OS_UNIX
    do {
-      status = connect(*sock, (void *) &bind_addr, sizeof(bind_addr));
+      status = connect(*sock, (const sockaddr *)&bind_addr, sizeof(bind_addr));
 
       /* don't return if an alarm signal was cought */
    } while (status == -1 && errno == EINTR);
@@ -183,7 +184,7 @@ INT ip9258_init(HNDLE hKey, void **pinfo, INT channels)
    float value;
 
    /* allocate info structure */
-   info = calloc(1, sizeof(IP9258_INFO));
+   info = (IP9258_INFO*)calloc(1, sizeof(IP9258_INFO));
    *pinfo = info;
 
    cm_get_experiment_database(&hDB, NULL);
@@ -198,7 +199,7 @@ INT ip9258_init(HNDLE hKey, void **pinfo, INT channels)
 
    /* initialize driver */
    info->num_channels = channels;
-   info->var_cache = calloc(channels, sizeof(float));
+   info->var_cache = (float*)calloc(channels, sizeof(float));
 
    /* check ip address */
    if (strcmp(info->ip9258_settings.address, "x.x.x.x") == 0) {
@@ -362,19 +363,19 @@ INT ip9258(INT cmd, ...)
       hKey = va_arg(argptr, HNDLE);
       info = va_arg(argptr, void *);
       channel = va_arg(argptr, INT);
-      status = ip9258_init(hKey, info, channel);
+      status = ip9258_init(hKey, (void**)info, channel);
       break;
 
    case CMD_EXIT:
       info = va_arg(argptr, void *);
-      status = ip9258_exit(info);
+      status = ip9258_exit((IP9258_INFO*)info);
       break;
 
    case CMD_SET:
       info = va_arg(argptr, void *);
       channel = va_arg(argptr, INT);
       value = (float) va_arg(argptr, double);
-      status = ip9258_set(info, channel, value);
+      status = ip9258_set((IP9258_INFO*)info, channel, value);
       break;
 
    case CMD_GET:
@@ -382,21 +383,21 @@ INT ip9258(INT cmd, ...)
       info = va_arg(argptr, void *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
-      status = ip9258_get(info, channel, pvalue);
+      status = ip9258_get((IP9258_INFO*)info, channel, pvalue);
       break;
 
    case CMD_GET_LABEL:
       info = va_arg(argptr, void *);
       channel = va_arg(argptr, INT);
       name = va_arg(argptr, char *);
-      status = ip9258_get_label(info, channel, name);
+      status = ip9258_get_label((IP9258_INFO*)info, channel, name);
       break;
 
    case CMD_GET_THRESHOLD:
       info = va_arg(argptr, void *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
-      status = ip9258_get_default_threshold(info, channel, pvalue);
+      status = ip9258_get_default_threshold((IP9258_INFO*)info, channel, pvalue);
       break;
 
    default:
