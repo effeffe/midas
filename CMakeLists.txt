@@ -72,6 +72,22 @@ endif(HAVE_ROOT)
 endif(NO_ROOT)
 
 #
+# Optional ZLIB support for mlogger
+#
+if (NO_ZLIB)
+   message(STATUS "MIDAS: ZLIB support is disabled via NO_ZLIB")
+else (NO_ZLIB)
+find_package(ZLIB)
+if (ZLIB_FOUND)
+   message(STATUS "MIDAS: Found ZLIB version " ${ZLIB_VERSION_STRING})
+   add_compile_options(-DHAVE_ZLIB)
+   set(LIBS ${LIBS} -lz)
+else ()
+   message(STATUS "MIDAS: ZLIB not found")
+endif()
+endif (NO_ZLIB)
+
+#
 # Optional SSL support for mhttpd
 #
 if (NO_SSL)
@@ -176,7 +192,7 @@ endif()
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
    # >2GB file support
    add_definitions(-D_LARGEFILE64_SOURCE)
-   set(LIBS -lpthread -lutil -lrt)
+   set(LIBS ${LIBS} -lpthread -lutil -lrt)
 endif()
 
 #####################################################################
@@ -326,3 +342,4 @@ add_dependencies(objlib git_revision_h)
 #####################################################################
 add_subdirectory(progs)
 add_subdirectory(examples)
+
