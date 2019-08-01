@@ -1,4 +1,3 @@
-// noinspection SpellCheckingInspection,SpellCheckingInspection
 /********************************************************************\
 
  Name:         mhistory.js
@@ -19,7 +18,9 @@ function mhistory_init() {
    let mhist = document.getElementsByName("mjshistory");
    for (let i = 0; i < mhist.length; i++) {
       mhist[i].mhg = new MhistoryGraph(mhist[i]);
-      mhist[i].resize = function() { this.mhg.resize(); };
+      mhist[i].resize = function () {
+         this.mhg.resize();
+      };
    }
 }
 
@@ -36,7 +37,7 @@ function MhistoryGraph(divElement) { // Constructor
    window.addEventListener("mouseup", this.mouseEvent.bind(this), true);
 }
 
-MhistoryGraph.prototype.mouseEvent = function(e) {
+MhistoryGraph.prototype.mouseEvent = function (e) {
    // fix buttons for IE
    if (!e.which && e.button) {
       if ((e.button & 1) > 0) e.which = 1;      // Left
@@ -45,42 +46,48 @@ MhistoryGraph.prototype.mouseEvent = function(e) {
    }
 };
 
-MhistoryGraph.prototype.resize = function() {
+MhistoryGraph.prototype.resize = function () {
    this.canvas.width = this.parentDiv.clientWidth;
    this.canvas.height = this.parentDiv.clientHeight;
 
-   this.x1 = 0;
-   this.y1 = 0;
-   this.x2 = this.parentDiv.clientWidth;
-   this.y2 = this.parentDiv.clientHeight;
+   this.width = this.parentDiv.clientWidth;
+   this.height = this.parentDiv.clientHeight;
 
    this.redraw();
 };
 
-MhistoryGraph.prototype.redraw = function() {
+MhistoryGraph.prototype.redraw = function () {
    let f = this.draw.bind(this);
    window.requestAnimationFrame(f);
 };
 
-MhistoryGraph.prototype.draw = function() {
+MhistoryGraph.prototype.draw = function () {
    let ctx = this.canvas.getContext("2d");
 
    ctx.translate(0.5, 0.5);
    ctx.strokeStyle = "#808080";
    ctx.fillStyle = "#404040";
    ctx.lineWidth = 1;
-   ctx.font = "12px sans-serif";
+   ctx.font = "14px sans-serif";
 
-   ctx.drawLine(50, 10, this.x2-20, 10);
-   ctx.drawLine(this.x2-20, 10, this.x2-20, this.y2-25);
+   let maxwidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35, -4, -7, -10, -12, 0, 0, 10, 0, false);
 
-   this.drawVAxis(ctx, 50, this.y2-25, this.y2-35, -4, -7, -10, -12, 0, 0, 1000, 0);
+   this.x1 = maxwidth + 12;
+   this.y1 = this.height - 25;
+   this.x2 = this.width - 10;
+   this.y2 = 10;
+
+   ctx.drawLine(this.x1, this.y2, this.x2, this.y2);
+   ctx.drawLine(this.x2, this.y2, this.x2, this.y1);
+
+   this.drawVAxis(ctx, this.x1, this.y1, this.y1 - this.y2, -4, -7, -10, -12, 0, 0, 10, 0, true);
    //this.drawHAxis(ctx, 50, this.y2-25, this.x2-70, 4, 7, 10, 12, 0, -10, 10, 0);
    let d = new Date();
-   this.drawTAxis(ctx, 50, this.y2-25, this.x2-70, this.x2, 4, 7, 10, 12, 0, d/1000-3600*40, d/1000);
+   this.drawTAxis(ctx, this.x1, this.y1, this.x2-this.x1, this.width, 4, 7, 10, 10, 0, d/1000 - 3600*4, d/1000);
 };
 
-MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor, major, text, label, grid, xmin, xmax, logaxis) {
+MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor, major,
+                                                       text, label, grid, xmin, xmax, logaxis) {
    let dx, int_dx, frac_dx, x_act, label_dx, major_dx, x_screen, maxwidth;
    let tick_base, major_base, label_base, n_sig1, n_sig2, xs;
    let base = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
@@ -123,12 +130,14 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
          if (xmin === 0)
             n_sig1 = 0;
          else
-            n_sig1 = Math.floor(Math.log(Math.abs(xmin)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dx)) / Math.log(10)) + 1;
+            n_sig1 = Math.floor(Math.log(Math.abs(xmin)) /
+               Math.log(10)) - Math.floor(Math.log(Math.abs(label_dx)) / Math.log(10)) + 1;
 
          if (xmax === 0)
             n_sig2 = 0;
          else
-            n_sig2 = Math.floor(Math.log(Math.abs(xmax)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dx)) / Math.log(10)) + 1;
+            n_sig2 = Math.floor(Math.log(Math.abs(xmax)) /
+               Math.log(10)) - Math.floor(Math.log(Math.abs(label_dx)) / Math.log(10)) + 1;
 
          n_sig1 = Math.max(n_sig1, n_sig2);
 
@@ -171,7 +180,8 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
 
    do {
       if (logaxis)
-         x_screen = (Math.log(x_act) - Math.log(xmin)) / (Math.log(xmax) - Math.log(xmin)) * width + x1;
+         x_screen = (Math.log(x_act) - Math.log(xmin)) /
+            (Math.log(xmax) - Math.log(xmin)) * width + x1;
       else
          x_screen = (x_act - xmin) / (xmax - xmin) * width + x1;
       xs = Math.round(x_screen);
@@ -199,7 +209,7 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
                   if (xs - ext.width / 2 > x1 &&
                      xs + ext.width / 2 < x1 + width)
                      ctx.fillText(str, xs, y1 + label);
-                  last_label_x = xs + ext.width/2;
+                  last_label_x = xs + ext.width / 2;
                }
             } else {
                // major tick mark
@@ -216,7 +226,7 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
                label_dx *= 10;
             }
          } else
-            // minor tick mark
+         // minor tick mark
             ctx.drawLine(xs, y1, xs, y1 + minor);
 
          // for logaxis, also put labels on minor tick marks
@@ -229,7 +239,7 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
                   xs - ext.width / 2 > last_label_x + 2)
                   ctx.fillText(str, xs, y1 + label);
 
-               last_label_x = xs + ext.width/2;
+               last_label_x = xs + ext.width / 2;
             }
          }
       }
@@ -243,7 +253,8 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
    } while (1);
 };
 
-MhistoryGraph.prototype.drawVAxis = function(ctx, x1, y1, height, minor, major, text, label, grid, ymin, ymax, logaxis) {
+MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
+                                              text, label, grid, ymin, ymax, logaxis, draw) {
    let dy, int_dy, frac_dy, y_act, label_dy, major_dy, y_screen;
    let tick_base, major_base, label_base, n_sig1, n_sig2, ys;
    let base = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
@@ -289,20 +300,24 @@ MhistoryGraph.prototype.drawVAxis = function(ctx, x1, y1, height, minor, major, 
       if (ymin === 0)
          n_sig1 = 0;
       else
-         n_sig1 = Math.floor(Math.log(Math.abs(ymin)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dy)) / Math.log(10)) + 1;
+         n_sig1 = Math.floor(Math.log(Math.abs(ymin)) / Math.log(10)) -
+            Math.floor(Math.log(Math.abs(label_dy)) / Math.log(10)) + 1;
 
       if (ymax === 0)
          n_sig2 = 0;
       else
-         n_sig2 = Math.floor(Math.log(Math.abs(ymax)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dy)) / Math.log(10)) + 1;
+         n_sig2 = Math.floor(Math.log(Math.abs(ymax)) / Math.log(10)) -
+            Math.floor(Math.log(Math.abs(label_dy)) / Math.log(10)) + 1;
 
       n_sig1 = Math.max(n_sig1, n_sig2);
 
       // toPrecision displays 1050 with 3 digits as 1.05e+3, so increase precision to number of digits
       if (Math.abs(ymin) < 100000)
-         n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(ymin)) / Math.log(10) + 0.001) + 1);
+         n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(ymin)) /
+            Math.log(10) + 0.001) + 1);
       if (Math.abs(ymax) < 100000)
-         n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(ymax)) / Math.log(10) + 0.001) + 1);
+         n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(ymax)) /
+            Math.log(10) + 0.001) + 1);
 
       // increase label_dy if labels would overlap
       while (label_dy / (ymax - ymin) * height < 1.5 * textHeight) {
@@ -318,12 +333,15 @@ MhistoryGraph.prototype.drawVAxis = function(ctx, x1, y1, height, minor, major, 
    y_act = Math.floor(ymin / dy) * dy;
 
    let last_label_y = y1;
+   let maxwidth = 0;
 
-   ctx.drawLine(x1, y1, x1, y1 - height);
+   if (draw)
+      ctx.drawLine(x1, y1, x1, y1 - height);
 
    do {
       if (logaxis)
-         y_screen = y1 - (Math.log(y_act) - Math.log(ymin)) / (Math.log(ymax) - Math.log(ymin)) * height;
+         y_screen = y1 - (Math.log(y_act) - Math.log(ymin)) /
+            (Math.log(ymax) - Math.log(ymin)) * height;
       else
          y_screen = y1 - (y_act - ymin) / (ymax - ymin) * height;
       ys = Math.round(y_screen);
@@ -338,25 +356,31 @@ MhistoryGraph.prototype.drawVAxis = function(ctx, x1, y1, height, minor, major, 
             if (Math.abs(Math.round(y_act / label_dy) - y_act / label_dy) <
                dy / label_dy / 10.0) {
                // label tick mark
-               ctx.drawLine(x1, ys, x1 + text, ys);
+               if (draw)
+                  ctx.drawLine(x1, ys, x1 + text, ys);
 
                // grid line
                if (grid !== 0 && ys < y1 && ys > y1 - height)
-                  ctx.drawLine(x1, ys, x1 + grid, ys);
+                  if (draw)
+                     ctx.drawLine(x1, ys, x1 + grid, ys);
 
                // label
                if (label !== 0) {
                   let str = y_act.toPrecision(n_sig1).stripZeros();
-                  ctx.fillText(str, x1 + label, ys);
+                  maxwidth = Math.max(maxwidth, ctx.measureText(str).width);
+                  if (draw)
+                     ctx.fillText(str, x1 + label, ys);
                   last_label_y = ys - textHeight / 2;
                }
             } else {
                // major tick mark
-               ctx.drawLine(x1, ys, x1 + major, ys);
+               if (draw)
+                  ctx.drawLine(x1, ys, x1 + major, ys);
 
                // grid line
                if (grid !== 0 && ys < y1 && ys > y1 - height)
-                  ctx.drawLine(x1, ys, x1 + grid, ys);
+                  if (draw)
+                     ctx.drawLine(x1, ys, x1 + grid, ys);
             }
 
             if (logaxis) {
@@ -366,7 +390,8 @@ MhistoryGraph.prototype.drawVAxis = function(ctx, x1, y1, height, minor, major, 
             }
 
          } else
-            // minor tick mark
+         // minor tick mark
+         if (draw)
             ctx.drawLine(x1, ys, x1 + minor, ys);
 
          // for logaxis, also put labels on minor tick marks
@@ -376,7 +401,8 @@ MhistoryGraph.prototype.drawVAxis = function(ctx, x1, y1, height, minor, major, 
                if (ys - textHeight / 2 > y1 - height &&
                   ys + textHeight / 2 < y1 &&
                   ys + textHeight < last_label_y + 2)
-                  ctx.fillText(str, x1 + label, ys);
+                  if (draw)
+                     ctx.fillText(str, x1 + label, ys);
 
                last_label_y = ys;
             }
@@ -390,25 +416,30 @@ MhistoryGraph.prototype.drawVAxis = function(ctx, x1, y1, height, minor, major, 
          y_act = 0;
 
    } while (1);
+
+   return maxwidth;
 };
 
-function timeToLabel(sec, base, forceDate)
-{
-   let d = new Date(sec*1000);
+function timeToLabel(sec, base, forceDate) {
+   let d = new Date(sec * 1000);
    let options;
 
    if (forceDate) {
       if (base < 600)
-         options = { day:'2-digit', month:'short', year:'2-digit',
-            hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' };
+         options = {
+            day: '2-digit', month: 'short', year: '2-digit',
+            hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+         };
       else if (base < 3600 * 24)
-         options = { day:'2-digit', month:'short', year:'2-digit',
-            hour12: false, hour:'2-digit', minute:'2-digit' };
+         options = {
+            day: '2-digit', month: 'short', year: '2-digit',
+            hour12: false, hour: '2-digit', minute: '2-digit'
+         };
       else
-         options = { day:'2-digit', month:'short', year:'2-digit' };
+         options = {day: '2-digit', month: 'short', year: '2-digit'};
 
       return d.toLocaleDateString('en-GB', options);
-      }
+   }
 
    if (base < 600) {
       options = {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'};
@@ -417,8 +448,10 @@ function timeToLabel(sec, base, forceDate)
       options = {hour12: false, hour: '2-digit', minute: '2-digit'};
       return d.toLocaleTimeString('en-GB', options);
    } else if (base < 3600 * 24)
-      options = { day: '2-digit', month: 'short', year: '2-digit',
-         hour12: false, hour: '2-digit', minute: '2-digit' };
+      options = {
+         day: '2-digit', month: 'short', year: '2-digit',
+         hour12: false, hour: '2-digit', minute: '2-digit'
+      };
    else
       options = {day: '2-digit', month: 'short', year: '2-digit'};
 
@@ -426,8 +459,10 @@ function timeToLabel(sec, base, forceDate)
 }
 
 
-MhistoryGraph.prototype.drawTAxis = function(ctx, x1, y1, width, xr, minor, major, text, label, grid, xmin, xmax) {
-   const base = [ 1, 5, 10, 60, 15*60, 30*60, 60*60, 3*60*60, 6*60*60, 12*60*60, 24*60*60, 0 ];
+MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, major,
+                                              text, label, grid, xmin, xmax) {
+   const base = [1, 5, 10, 60, 15 * 60, 30 * 60, 60 * 60, 3 * 60 * 60, 6 * 60 * 60,
+      12 * 60 * 60, 24 * 60 * 60, 0];
 
    ctx.textAlign = "left";
    ctx.textBaseline = "top";
@@ -436,9 +471,9 @@ MhistoryGraph.prototype.drawTAxis = function(ctx, x1, y1, width, xr, minor, majo
       return;
 
    /* force date display if xmax not today */
-   let d1 = new Date(xmax*1000);
+   let d1 = new Date(xmax * 1000);
    let d2 = new Date();
-   let forceDate = d1.getDate() !== d2.getDate() || (d2-d1 > 1000*3600*24);
+   let forceDate = d1.getDate() !== d2.getDate() || (d2 - d1 > 1000 * 3600 * 24);
 
    /* use 5 pixel as min tick distance */
    let dx = Math.round((xmax - xmin) / (width / 5));
@@ -463,7 +498,7 @@ MhistoryGraph.prototype.drawTAxis = function(ctx, x1, y1, width, xr, minor, majo
       let maxwidth = ctx.measureText(str).width;
 
       /* increasing label_dx, if labels would overlap */
-      if (maxwidth > 0.7 * label_dx / (xmax - xmin) * width) {
+      if (maxwidth > 0.8 * label_dx / (xmax - xmin) * width) {
          if (base[label_base + 1])
             label_dx = base[++label_base];
          else
@@ -487,10 +522,10 @@ MhistoryGraph.prototype.drawTAxis = function(ctx, x1, y1, width, xr, minor, majo
          break;
    } while (1);
 
-   let d = new Date(xmin*1000);
-   let tz = d.getTimezoneOffset()*60;
+   let d = new Date(xmin * 1000);
+   let tz = d.getTimezoneOffset() * 60;
 
-   let x_act = Math.floor((xmin - tz)/ dx) * dx + tz;
+   let x_act = Math.floor((xmin - tz) / dx) * dx + tz;
 
    ctx.drawLine(x1, y1, x1 + width, y1);
 
@@ -502,8 +537,8 @@ MhistoryGraph.prototype.drawTAxis = function(ctx, x1, y1, width, xr, minor, majo
          break;
 
       if (x_screen >= x1) {
-         if ((x_act - tz)% major_dx === 0) {
-            if ((x_act - tz)% label_dx === 0) {
+         if ((x_act - tz) % major_dx === 0) {
+            if ((x_act - tz) % label_dx === 0) {
                // label tick mark
                ctx.drawLine(xs, y1, xs, y1 + text);
 
@@ -519,8 +554,8 @@ MhistoryGraph.prototype.drawTAxis = function(ctx, x1, y1, width, xr, minor, majo
                   let xl = xs - ctx.measureText(str).width / 2;
                   if (xl < 0)
                      xl = 0;
-                  if (xl + ctx.measureText(str).width > xr)
-                  xl = xr - ctx.measureText(str).width;
+                  if (xl + ctx.measureText(str).width >= xr)
+                     xl = xr - ctx.measureText(str).width - 1;
                   ctx.fillText(str, xl, y1 + label);
                }
             } else {
@@ -533,16 +568,12 @@ MhistoryGraph.prototype.drawTAxis = function(ctx, x1, y1, width, xr, minor, majo
             }
 
          } else
-            // minor tick mark
+         // minor tick mark
             ctx.drawLine(xs, y1, xs, y1 + minor);
 
       }
 
       x_act += dx;
-
-      // suppress 1.23E-17 ...
-      if (Math.abs(x_act) < dx / 100)
-         x_act = 0;
 
    } while (1);
 };
