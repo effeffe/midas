@@ -10984,7 +10984,7 @@ INT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown)
       if (_client_connection[hConn - 1].send_sock)
          closesocket(_client_connection[hConn - 1].send_sock);
 
-      memset(&_client_connection[hConn - 1], 0, sizeof(RPC_CLIENT_CONNECTION));
+      _client_connection[hConn - 1].clear();
    }
 
    return RPC_SUCCESS;
@@ -11031,7 +11031,7 @@ INT rpc_server_disconnect()
    closesocket(_server_connection.recv_sock);
    closesocket(_server_connection.event_sock);
 
-   memset(&_server_connection, 0, sizeof(RPC_SERVER_CONNECTION));
+   _server_connection.clear();
 
    /* remove semaphore */
    if (_mutex_rpc)
@@ -14422,12 +14422,11 @@ INT rpc_server_callback(struct callback_addr * pcallback)
    INT client_hw_type, hw_type;
    INT convert_flags;
    char net_buffer[256];
-   struct callback_addr callback;
    char *p;
    int flag;
 
    /* copy callback information */
-   memcpy(&callback, pcallback, sizeof(callback));
+   struct callback_addr callback(*pcallback);
    idx = callback.index;
 
    /* create new sockets for TCP */
@@ -14821,7 +14820,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
    _server_acception[idx].net_buffer = NULL;
 
    /* mark this entry as invalid */
-   memset(&_server_acception[idx], 0, sizeof(RPC_SERVER_ACCEPTION));
+   _server_acception[idx].clear();
 
    /* signal caller a shutdonw */
    if (status == RPC_SHUTDOWN)
@@ -15002,7 +15001,7 @@ INT rpc_check_channels(void)
    _server_acception[idx].net_buffer = NULL;
 
    /* mark this entry as invalid */
-   memset(&_server_acception[idx], 0, sizeof(RPC_SERVER_ACCEPTION));
+   _server_acception[idx].clear();
 
    return RPC_NET_ERROR;
 }

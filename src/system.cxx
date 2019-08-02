@@ -4297,7 +4297,7 @@ INT ss_suspend(INT millisec, INT msg)
                _ss_client_connection->recv_sock = 0;
                _ss_client_connection->event_sock = 0;
             
-               memset(_ss_client_connection, 0, sizeof(RPC_SERVER_CONNECTION));
+               _ss_client_connection->clear();
 
                /* exit program after broken connection to MIDAS server */
                return SS_ABORT;

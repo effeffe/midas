@@ -303,7 +303,7 @@ int main(int argc, char **argv)
 
       /* here we come if this program is started as a subprocess */
 
-      memset(&callback, 0, sizeof(callback));
+      callback.clear();
 
       /* extract callback arguments and start receiver */
 #ifdef OS_VMS

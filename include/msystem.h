@@ -301,6 +301,18 @@ struct callback_addr {
    std::string directory;
    std::string user;
    INT index;
+
+   void clear() {
+      host_name = "";
+      host_port1 = 0;
+      host_port2 = 0;
+      host_port3 = 0;
+      debug = 0;
+      experiment = "";
+      directory = "";
+      user = "";
+      index = 0;
+   }
 };
 
 typedef struct {
@@ -313,6 +325,16 @@ typedef struct {
    std::string client_name;     /* name of remote client    */
    INT rpc_timeout;             /*  in milliseconds         */
 
+   void clear() {
+      host_name = "";
+      port = 0;
+      exp_name = "";
+      send_sock = 0;
+      connected = 0;
+      remote_hw_type = 0;
+      client_name = "";
+      rpc_timeout = 0;
+   }
 } RPC_CLIENT_CONNECTION;
 
 typedef struct {
@@ -325,6 +347,16 @@ typedef struct {
    INT remote_hw_type;          /*  remote hardware type    */
    INT rpc_timeout;             /*  in milliseconds         */
 
+   void clear() {
+      host_name = "";
+      port = 0;
+      exp_name = "";
+      send_sock = 0;
+      recv_sock = 0;
+      event_sock = 0;
+      remote_hw_type = 0;
+      rpc_timeout = 0;
+   }
 } RPC_SERVER_CONNECTION;
 
 typedef struct {
@@ -346,6 +378,29 @@ typedef struct {
    HNDLE odb_handle;            /*  handle to online datab. */
    HNDLE client_handle;         /*  client key handle .     */
 
+   void clear() {
+      prog_name = "";
+      host_name = "";
+      is_mserver = FALSE;
+      send_sock = 0;
+      recv_sock = 0;
+      event_sock = 0;
+      remote_hw_type = 0;
+      watchdog_timeout = 0;
+      last_activity = 0;
+      convert_flags = 0;
+      net_buffer = NULL;
+      ev_net_buffer = NULL;
+      net_buffer_size = 0;
+      write_ptr = 0;
+      read_ptr = 0;
+      misalign = 0;
+      ev_write_ptr = 0;
+      ev_read_ptr = 0;
+      ev_misalign = 0;
+      odb_handle = 0;
+      client_handle = 0;
+   }
 } RPC_SERVER_ACCEPTION;
 
 typedef struct {
