@@ -140,7 +140,6 @@ EQUIPMENT equipment[] = {
 INT frontend_init()
 {
    /* put any hardware initialization here */
-   assert(1 == 2);
 
    /* print message and return FE_ERR_HW if frontend should not be started */
 
