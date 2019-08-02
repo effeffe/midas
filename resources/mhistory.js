@@ -58,6 +58,7 @@ function MhistoryGraph(divElement) { // Constructor
    this.tMin = this.tMin0;
    this.yMin = this.yMin0;
    this.yMax = this.yMax0;
+   this.scroll = true;
 
    // graph arrays (in screen pixels)
    this.x = [];
@@ -66,16 +67,55 @@ function MhistoryGraph(divElement) { // Constructor
    // dragging
    this.drag = {active: false};
 
+   // axis zoom
+   this.zoom = {
+      x: {active: false},
+      y: {active: false}
+   };
+
    // buttons
    this.button = [
-      {src: "rotate-ccw.svg" },
-      {src: "settings.svg" }
+      {
+         src: "rotate-ccw.svg",
+         click: function (t) {
+            t.yMin = t.yMin0;
+            t.yMax = t.yMax0;
+            t.tMin = t.tMin0;
+            t.tMax = t.tMax0;
+            t.redraw();
+         }
+      },
+      {
+         src: "skip-forward.svg",
+         click: function (t) {
+            let dt = t.tMax - t.tMin;
+            t.tMax = new Date() / 1000;
+            t.tMin = t.tMax - dt;
+            t.scroll = true;
+            t.redraw();
+         }
+      },
+      {
+         src: "clock.svg",
+         click: function () {
+            console.log('clock');
+         }
+      },
+      {
+         src: "settings.svg",
+         click: function () {
+            console.log('config');
+         }
+      }
    ];
 
-   this.button.forEach(b =>  {
+   this.button.forEach(b => {
       b.img = new Image();
-      b.img.src = "icons/"+b.src;
+      b.img.src = "icons/" + b.src;
    });
+
+   // marker
+   this.marker = {active: false};
 
    // mouse event handlers
    divElement.addEventListener("mousedown", this.mouseEvent.bind(this), true);
@@ -100,29 +140,72 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
    if (e.type === "mousedown") {
       // check for buttons
       this.button.forEach(b => {
-         if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
-            e.offsetX < b.x1 + b.width && e.offsetY < b.y1 + b.width) {
-            this.yMin = this.yMin0;
-            this.yMax = this.yMax0;
-            this.tMin = this.tMin0;
-            this.tMax = this.tMax0;
-            this.redraw();
+         if (e.offsetX > b.x1 && e.offsetX < b.x1 + b.width &&
+            e.offsetY > b.y1 && e.offsetY < b.y1 + b.width) {
+            b.click(this);
          }
       });
-      this.drag.active = true;
-      this.drag.xStart = e.offsetX;
-      this.drag.yStart = e.offsetY;
-      this.drag.tStart = this.xToTime(e.offsetX);
-      this.drag.tMinStart = this.tMin;
-      this.drag.tMaxStart = this.tMax;
-      this.drag.yMinStart = this.yMin;
-      this.drag.yMaxStart = this.yMax;
-      this.drag.vStart = this.yToValue(e.offsetY);
+
+      // check for dragging
+      if (e.offsetX > this.x1 && e.offsetX < this.x2 &&
+         e.offsetY > this.y2 && e.offsetY < this.y1) {
+         this.drag.active = true;
+         this.marker.active = false;
+         this.scroll = false;
+         this.drag.xStart = e.offsetX;
+         this.drag.yStart = e.offsetY;
+         this.drag.tStart = this.xToTime(e.offsetX);
+         this.drag.tMinStart = this.tMin;
+         this.drag.tMaxStart = this.tMax;
+         this.drag.yMinStart = this.yMin;
+         this.drag.yMaxStart = this.yMax;
+         this.drag.vStart = this.yToValue(e.offsetY);
+      }
+
+      // check for axis dragging
+      if (e.offsetX > this.x1 && e.offsetX < this.x2 && e.offsetY > this.y1) {
+         this.zoom.x.active = true;
+         this.zoom.x.x1 = e.offsetX;
+         this.zoom.x.t1 = this.xToTime(e.offsetX);
+      }
+      if (e.offsetY < this.y1 && e.offsetY > this.y2 && e.offsetX < this.x1) {
+         this.zoom.y.active = true;
+         this.zoom.y.y1 = e.offsetY;
+         this.zoom.y.v1 = this.yToValue(e.offsetY);
+      }
+
    } else if (e.type === "mouseup") {
-      this.drag.active = false;
+
+      if (this.drag.active)
+         this.drag.active = false;
+
+      if (this.zoom.x.active) {
+         let t1 = this.zoom.x.t1;
+         let t2 = this.xToTime(e.offsetX);
+         if (t1 > t2)
+            [t1, t2] = [t2, t1];
+         this.tMin = t1;
+         this.tMax = t2;
+         this.zoom.x.active = false;
+         this.redraw();
+      }
+
+      if (this.zoom.y.active) {
+         let v1 = this.zoom.y.v1;
+         let v2 = this.yToValue(e.offsetY);
+         if (v1 > v2)
+            [v1, v2] = [v2, v1];
+         this.yMin = v1;
+         this.yMax = v2;
+         this.zoom.y.active = false;
+         this.redraw();
+      }
+
    } else if (e.type === "mousemove") {
 
       if (this.drag.active) {
+
+         // execute dragging
          cursor = "move";
          let dt = (e.offsetX - this.drag.xStart) / (this.x2 - this.x1) * (this.tMax - this.tMin);
          this.tMin = this.drag.tMinStart - dt;
@@ -132,12 +215,48 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.yMax = this.drag.yMaxStart - dy;
          this.redraw();
       } else {
+         // change curser to pointer over buttons
          this.button.forEach(b => {
             if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
                e.offsetX < b.x1 + b.width && e.offsetY < b.y1 + b.height) {
                cursor = "pointer";
             }
          });
+
+         // execute axis zoom
+         if (this.zoom.x.active) {
+            this.zoom.x.x2 = e.offsetX;
+            this.zoom.x.t2 = this.xToTime(e.offsetX);
+            this.redraw();
+         }
+         if (this.zoom.y.active) {
+            this.zoom.y.y2 = e.offsetY;
+            this.zoom.y.v2 = this.yToValue(e.offsetY);
+            this.redraw();
+         }
+
+         // check if cursor close to graph point
+         let minDist = 100;
+         let oldX = this.marker.x;
+         let oldY = this.marker.y;
+         for (let di = 0; di < this.data.length; di++) {
+            for (let i = 0; i < this.data[di].count; i++) {
+               let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
+                  Math.pow(e.offsetY - this.y[di][i], 2));
+               if (d < minDist) {
+                  minDist = d;
+                  this.marker.x = this.x[di][i];
+                  this.marker.y = this.y[di][i];
+                  this.marker.graphIndex = di;
+                  this.marker.index = i;
+               }
+            }
+         }
+         let oldActive = this.marker.active;
+         this.marker.active = minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
+         if (oldActive !== this.marker.active ||
+            (this.marker.active && oldX !== this.marker.x || oldY !== this.marker.y))
+            this.redraw();
       }
    }
 
@@ -162,6 +281,7 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
       this.tMax += dtMax;
    }
 
+   this.scroll = false;
    this.redraw();
 
    e.preventDefault();
@@ -345,7 +465,7 @@ MhistoryGraph.prototype.draw = function () {
    // buttons
    this.button.forEach((b, i) => {
       b.x1 = this.width - 30;
-      b.y1 = 6 + i * 30;
+      b.y1 = 6 + i * 28;
       b.width = 28;
       b.height = 28;
 
@@ -353,8 +473,99 @@ MhistoryGraph.prototype.draw = function () {
       ctx.strokeStyle = "#808080";
       ctx.fillRect(b.x1, b.y1, b.width, b.height);
       ctx.strokeRect(b.x1, b.y1, b.width, b.height);
-      ctx.drawImage(b.img, b.x1+2, b.y1+2);
+      ctx.drawImage(b.img, b.x1 + 2, b.y1 + 2);
    });
+
+   // axis zoom
+   if (this.zoom.x.active) {
+      ctx.fillStyle = "#808080";
+      ctx.globalAlpha = 0.2;
+      ctx.fillRect(this.zoom.x.x1, this.y2, this.zoom.x.x2-this.zoom.x.x1, this.y1-this.y2);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "#808080";
+      ctx.drawLine(this.zoom.x.x1, this.y1, this.zoom.x.x1, this.y2);
+      ctx.drawLine(this.zoom.x.x2, this.y1, this.zoom.x.x2, this.y2);
+   }
+   if (this.zoom.y.active) {
+      ctx.fillStyle = "#808080";
+      ctx.globalAlpha = 0.2;
+      ctx.fillRect(this.x1, this.zoom.y.y1, this.x2-this.x1, this.zoom.y.y2-this.zoom.y.y1);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "#808080";
+      ctx.drawLine(this.x1, this.zoom.y.y1, this.x2, this.zoom.y.y1);
+      ctx.drawLine(this.x1, this.zoom.y.y2, this.x2, this.zoom.y.y2);
+   }
+
+   // marker
+   if (this.marker.active) {
+
+      // round marker
+      ctx.beginPath();
+      ctx.globalAlpha = 0.1;
+      ctx.arc(this.marker.x, this.marker.y, 10, 0, 2 * Math.PI);
+      ctx.fillStyle = "#000000";
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      ctx.beginPath();
+      ctx.arc(this.marker.x, this.marker.y, 4, 0, 2 * Math.PI);
+      ctx.fillStyle = "#000000";
+      ctx.fill();
+
+      ctx.strokeStyle = "#A0A0A0";
+      ctx.drawLine(this.marker.x, this.y1, this.marker.x, this.y2);
+
+      // text label
+      let v = this.data[this.marker.graphIndex].value[this.marker.index];
+      let s = "Trigger Rate: " + v.toPrecision(6);
+
+      let w = ctx.measureText(s).width + 6;
+      let h = ctx.measureText("M").width * 1.2 + 6;
+      let x = this.marker.x + 20;
+      let y = this.marker.y + h / 3 * 2;
+      let xl = x;
+      let yl = y;
+
+      if (x + w >= this.x2) {
+         x = this.marker.x - 20 - w;
+         xl = x + w;
+      }
+
+      if (y > (this.y1 - this.y2) / 2) {
+         y = this.marker.y - h / 3 * 5;
+         yl = y + h;
+      }
+
+      ctx.strokeStyle = "#808080";
+      ctx.fillStyle = "#F0F0F0";
+      ctx.textBaseline = "middle";
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeRect(x, y, w, h);
+      ctx.fillStyle = "#404040";
+      ctx.fillText(s, x + 3, y + h / 2);
+
+      // vertical line
+      ctx.strokeStyle = "#808080";
+      ctx.drawLine(this.marker.x, this.marker.y, xl, yl);
+
+      // time label
+      s = timeToLabel(this.data[this.marker.graphIndex].time[this.marker.index], 1, true);
+      w = ctx.measureText(s).width + 6;
+      h = ctx.measureText("M").width * 1.2 + 6;
+      x = this.marker.x - w / 2;
+      y = this.y1 + 4;
+      if (x <= this.x1)
+         x = this.x1;
+      if (x + w >= this.x2)
+         x = this.x2 - w;
+
+      ctx.strokeStyle = "#808080";
+      ctx.fillStyle = "#F0F0F0";
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeRect(x, y, w, h);
+      ctx.fillStyle = "#404040";
+      ctx.fillText(s, x + 3, y + h / 2);
+   }
 };
 
 /*
@@ -731,10 +942,15 @@ function timeToLabel(sec, base, forceDate) {
    let options;
 
    if (forceDate) {
-      if (base < 600)
+      if (base < 60) {
          options = {
             day: '2-digit', month: 'short', year: '2-digit',
             hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+         };
+      } else if (base < 600)
+         options = {
+            day: '2-digit', month: 'short', year: '2-digit',
+            hour12: false, hour: '2-digit', minute: '2-digit'
          };
       else if (base < 3600 * 24)
          options = {
@@ -747,8 +963,11 @@ function timeToLabel(sec, base, forceDate) {
       return d.toLocaleDateString('en-GB', options);
    }
 
-   if (base < 600) {
+   if (base < 60) {
       options = {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'};
+      return d.toLocaleTimeString('en-GB', options);
+   } else if (base < 600) {
+      options = {hour12: false, hour: '2-digit', minute: '2-digit'};
       return d.toLocaleTimeString('en-GB', options);
    } else if (base < 3600 * 3) {
       options = {hour12: false, hour: '2-digit', minute: '2-digit'};
