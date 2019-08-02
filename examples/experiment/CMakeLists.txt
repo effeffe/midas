@@ -59,9 +59,23 @@ endif()
 # enable certain compile warnings
 add_compile_options(-Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
 
+# Optional ZLIB support
+if (NO_ZLIB)
+   message(STATUS "MIDAS: ZLIB support is disabled via NO_ZLIB")
+else (NO_ZLIB)
+find_package(ZLIB)
+if (ZLIB_FOUND)
+   message(STATUS "MIDAS: Found ZLIB version " ${ZLIB_VERSION_STRING})
+   add_compile_options(-DHAVE_ZLIB)
+   set(LIBS ${LIBS} -lz)
+else ()
+   message(STATUS "MIDAS: ZLIB not found")
+endif()
+endif (NO_ZLIB)
+
 # ass required linux libraries
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux) 
-   set(LIBS -lpthread -lutil -lrt) 
+   set(LIBS ${LIBS} -lpthread -lutil -lrt) 
 endif() 
 
 add_executable(frontend frontend.cxx)
@@ -97,3 +111,4 @@ if (HAVE_ROOT)
 endif(HAVE_ROOT)
 
 #end
+
