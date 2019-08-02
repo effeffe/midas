@@ -7,7 +7,7 @@
 
  Note: please load midas.js and mhttpd.js before mhistory.js
 
-\********************************************************************/
+ \********************************************************************/
 
 LN10 = 2.302585094;
 LOG2 = 0.301029996;
@@ -31,10 +31,42 @@ function MhistoryGraph(divElement) { // Constructor
    this.canvas.style.border = "1ps solid black";
    divElement.appendChild(this.canvas);
 
+   // colors
+   this.color = {
+      background: "#FFFFFF",
+      axis: "#808080",
+      grid: "#F0F0F0",
+      label: "#404040",
+      data: [
+         "#B0B040", "#B0B0FF", "#FFA0A0", "#A0FFA0",
+         "#FF9000", "#00AAFF", "#FF00A0", "#00C030",
+         "#D0A060", "#A0C0D0", "#C04010", "#807060",
+         "#F0C000", "#2090A0", "#D040D0", "#90B000"],
+      idata: [
+         "#FFFF00", "#B0B0FF", "#FFA0A0", "#A0FFA0",
+         "#FF9000", "#00AAFF", "#FF00A0", "#00C030",
+         "#D0A060", "#A0C0D0", "#C04010", "#807060",
+         "#F0C000", "#2090A0", "#D040D0", "#90B000"]
+   };
+
+   // scales
+   this.tMax = new Date() / 1000;
+   this.tMin = this.tMax - 3600;
+   this.yMin = 0;
+   this.yMax = 1;
+
+   // graph arrays (in screen pixels)
+   this.x = [];
+   this.y = [];
+
    // mouse event handlers
-   window.addEventListener("mousedown", this.mouseEvent.bind(this), true);
-   window.addEventListener("mousemove", this.mouseEvent.bind(this), true);
-   window.addEventListener("mouseup", this.mouseEvent.bind(this), true);
+   divElement.addEventListener("mousedown", this.mouseEvent.bind(this), true);
+   divElement.addEventListener("mousemove", this.mouseEvent.bind(this), true);
+   divElement.addEventListener("mouseup", this.mouseEvent.bind(this), true);
+
+   divElement.addEventListener("wheel", this.mouseWheelEvent.bind(this), true);
+
+   this.loadData();
 }
 
 MhistoryGraph.prototype.mouseEvent = function (e) {
@@ -44,6 +76,21 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       else if ((e.button & 4) > 0) e.which = 2; // Middle
       else if ((e.button & 2) > 0) e.which = 3; // Right
    }
+};
+
+MhistoryGraph.prototype.mouseWheelEvent = function (e) {
+
+   let f = (e.offsetX - this.x1) / (this.x2 - this.x1);
+   let dtMin = f * (this.tMax - this.tMin) / 100 * e.deltaY;
+   let dtMax = (1 - f) * (this.tMax - this.tMin) / 100 * e.deltaY;
+   this.tMin -= dtMin;
+   this.tMax += dtMax;
+
+   let now = new Date() / 1000;
+   if (this.tMax > now)
+      this.tMax = now;
+
+   this.redraw();
 };
 
 MhistoryGraph.prototype.resize = function () {
@@ -61,31 +108,151 @@ MhistoryGraph.prototype.redraw = function () {
    window.requestAnimationFrame(f);
 };
 
+MhistoryGraph.prototype.loadData = function () {
+   let t = Date.now() / 1000;
+   mjsonrpc_call("hs_read",
+      {
+         "start_time": t - 24 * 3600,
+         "end_time": t,
+         "events": ["System", "System"],
+         "tags": ["Trigger per sec.", "Trigger kB per sec."],
+         "index": [0, 0]
+      })
+      .then(function (rpc) {
+         if (this.data === undefined) {
+            this.yMin = 0;
+            this.yMax = 0;
+
+            rpc.result.data.forEach(d => {
+               this.yMin = Math.min(this.yMin, ...d.value);
+               this.yMax = Math.max(this.yMax, ...d.value);
+            });
+            if (this.yMin === this.yMax) {
+               this.yMin -= 0.5;
+               this.yMax += 0.5;
+            } else {
+               this.yMax += (this.yMax - this.yMin) * 0.05;
+            }
+         }
+         this.data = rpc.result.data;
+         this.redraw();
+      }.bind(this))
+      .catch(function (error) {
+         mjsonrpc_error_alert(error);
+      })
+};
+
 MhistoryGraph.prototype.draw = function () {
    let ctx = this.canvas.getContext("2d");
 
-   ctx.translate(0.5, 0.5);
-   ctx.strokeStyle = "#808080";
-   ctx.fillStyle = "#404040";
+   if (this.data === undefined) {
+      ctx.translate(0, 0);
+      ctx.lineWidth = 1;
+      ctx.font = "14px sans-serif";
+      ctx.strokeStyle = "#808080";
+      ctx.fillStyle = "#808080";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Data being loaded ...", this.width / 2, this.height / 2);
+      return;
+   }
+
+   //ctx.translate(0.5, 0.5);
    ctx.lineWidth = 1;
    ctx.font = "14px sans-serif";
 
-   let maxwidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35, -4, -7, -10, -12, 0, 0, 10, 0, false);
+   let maxwidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35,
+      -4, -7, -10, -12, 0, this.yMin, this.yMax, 0, false);
 
-   this.x1 = maxwidth + 12;
+   this.x1 = maxwidth + 15;
    this.y1 = this.height - 25;
    this.x2 = this.width - 10;
    this.y2 = 10;
 
+   ctx.fillStyle = this.color.background;
+   ctx.fillRect(0, 0, this.width, this.height);
+
+   ctx.strokeStyle = this.color.axis;
    ctx.drawLine(this.x1, this.y2, this.x2, this.y2);
    ctx.drawLine(this.x2, this.y2, this.x2, this.y1);
 
-   this.drawVAxis(ctx, this.x1, this.y1, this.y1 - this.y2, -4, -7, -10, -12, 0, 0, 10, 0, true);
+   this.drawVAxis(ctx, this.x1, this.y1, this.y1 - this.y2,
+      -4, -7, -10, -12, this.x2 - this.x1, this.yMin, this.yMax, 0, true);
    //this.drawHAxis(ctx, 50, this.y2-25, this.x2-70, 4, 7, 10, 12, 0, -10, 10, 0);
-   let d = new Date();
-   this.drawTAxis(ctx, this.x1, this.y1, this.x2-this.x1, this.width, 4, 7, 10, 10, 0, d/1000 - 3600*4, d/1000);
+   this.drawTAxis(ctx, this.x1, this.y1, this.x2 - this.x1, this.width,
+      4, 7, 10, 10, this.y2 - this.y1, this.tMin, this.tMax);
+
+
+   ctx.save();
+   ctx.beginPath();
+   ctx.rect(this.x1, this.y2, this.x2 - this.x1, this.y1 - this.y2);
+   ctx.clip();
+
+   for (let di = 0; di < this.data.length; di++) {
+      if (di >= this.color.data.length) {
+         ctx.strokeStyle = "#000000";
+         ctx.fillStyle = "#F0F0F0";
+      } else {
+         ctx.strokeStyle = this.color.data[di];
+         ctx.fillStyle = this.color.data[di];
+      }
+
+      this.x[di] = [];
+      this.y[di] = [];
+
+      for (let i = 0; i < this.data[di].count; i++) {
+         this.x[di][i] = (this.data[di].time[i] - this.tMin) /
+            (this.tMax - this.tMin) * (this.x2 - this.x1) + this.x1;
+         this.y[di][i] = this.y1 - (this.data[di].value[i] - this.yMin) /
+            (this.yMax - this.yMin) * (this.y1 - this.y2);
+      }
+
+      ctx.beginPath();
+      let x0;
+      let y0;
+      let xLast;
+      for (let i = 0; i < this.data[di].count; i++) {
+         if (i === this.data[di].count - 1 || this.x[di][i + 1] >= this.x1) {
+            if (x0 === undefined) {
+               x0 = this.x[di][i];
+               y0 = this.y[di][i];
+               ctx.moveTo(this.x[di][i], this.y[di][i]);
+            } else
+               ctx.lineTo(this.x[di][i], this.y[di][i]);
+            xLast = this.x[di][i];
+            if (this.x[di][i] > this.x2)
+               break;
+         }
+      }
+      ctx.lineTo(xLast, this.y1);
+      ctx.lineTo(x0, this.y1);
+      ctx.lineTo(x0, y0);
+      ctx.save();
+      ctx.globalAlpha = 0.3;
+      ctx.fill();
+      ctx.restore();
+
+      ctx.beginPath();
+      x0 = undefined;
+      for (let i = 0; i < this.data[di].count; i++) {
+         if (i === this.data[di].count - 1 || this.x[di][i + 1] >= this.x1) {
+            if (x0 === undefined) {
+               x0 = this.x[di][i];
+               y0 = this.y[di][i];
+               ctx.moveTo(this.x[di][i], this.y[di][i]);
+            } else
+               ctx.lineTo(this.x[di][i], this.y[di][i]);
+            if (this.x[di][i] > this.x2)
+               break;
+         }
+      }
+      ctx.stroke();
+   }
+
+   ctx.restore(); // remove clipping
 };
 
+/*
 MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor, major,
                                                        text, label, grid, xmin, xmax, logaxis) {
    let dx, int_dx, frac_dx, x_act, label_dx, major_dx, x_screen, maxwidth;
@@ -120,7 +287,7 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
       tick_base = frac_dx < (Math.log(2) / Math.log(10)) ? 1 : frac_dx < (Math.log(5) / Math.log(10)) ? 2 : 3;
       major_base = label_base = tick_base + 1;
 
-      /* rounding up of dx, label_dx */
+      /!* rounding up of dx, label_dx *!/
       dx = Math.pow(10, int_dx) * base[tick_base];
       major_dx = Math.pow(10, int_dx) * base[major_base];
       label_dx = major_dx;
@@ -176,6 +343,7 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
 
    let last_label_x = x1;
 
+   ctx.strokeStyle = this.color.axis;
    ctx.drawLine(x1, y1, x1 + width, y1);
 
    do {
@@ -196,28 +364,37 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
             if (Math.abs(Math.round(x_act / label_dx) - x_act / label_dx) <
                dx / label_dx / 10.0) {
                // label tick mark
+               ctx.strokeStyle = this.color.axis;
                ctx.drawLine(xs, y1, xs, y1 + text);
 
                // grid line
-               if (grid !== 0 && xs > x1 && xs < x1 + width)
+               if (grid !== 0 && xs > x1 && xs < x1 + width) {
+                  ctx.strokeStyle = this.color.grid;
                   ctx.drawLine(xs, y1, xs, y1 + grid);
+               }
 
                // label
                if (label !== 0) {
                   let str = x_act.toPrecision(n_sig1).stripZeros();
                   let ext = ctx.measureText(str);
                   if (xs - ext.width / 2 > x1 &&
-                     xs + ext.width / 2 < x1 + width)
+                     xs + ext.width / 2 < x1 + width) {
+                     ctx.strokeStyle = this.color.label;
+                     ctx.fillStyle = this.color.label;
                      ctx.fillText(str, xs, y1 + label);
+                  }
                   last_label_x = xs + ext.width / 2;
                }
             } else {
                // major tick mark
+               ctx.strokeStyle = this.color.axis;
                ctx.drawLine(xs, y1, xs, y1 + major);
 
                // grid line
-               if (grid !== 0 && xs > x1 && xs < x1 + width)
+               if (grid !== 0 && xs > x1 && xs < x1 + width) {
+                  ctx.strokeStyle = this.color.grid;
                   ctx.drawLine(xs, y1 - 1, xs, y1 + grid);
+               }
             }
 
             if (logaxis) {
@@ -225,9 +402,11 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
                major_dx *= 10;
                label_dx *= 10;
             }
-         } else
-         // minor tick mark
+         } else {
+            // minor tick mark
+            ctx.strokeStyle = this.color.axis;
             ctx.drawLine(xs, y1, xs, y1 + minor);
+         }
 
          // for logaxis, also put labels on minor tick marks
          if (logaxis) {
@@ -236,8 +415,11 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
                let ext = ctx.measureText(str);
                if (xs - ext.width / 2 > x1 &&
                   xs + ext.width / 2 < x1 + width &&
-                  xs - ext.width / 2 > last_label_x + 2)
+                  xs - ext.width / 2 > last_label_x + 2) {
+                  ctx.strokeStyle = this.color.label;
+                  ctx.fillStyle = this.color.label;
                   ctx.fillText(str, xs, y1 + label);
+               }
 
                last_label_x = xs + ext.width / 2;
             }
@@ -246,12 +428,13 @@ MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor
 
       x_act += dx;
 
-      /* suppress 1.23E-17 ... */
+      /!* suppress 1.23E-17 ... *!/
       if (Math.abs(x_act) < dx / 100)
          x_act = 0;
 
    } while (1);
 };
+*/
 
 MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
                                               text, label, grid, ymin, ymax, logaxis, draw) {
@@ -335,8 +518,10 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
    let last_label_y = y1;
    let maxwidth = 0;
 
-   if (draw)
+   if (draw) {
+      ctx.strokeStyle = this.color.axis;
       ctx.drawLine(x1, y1, x1, y1 - height);
+   }
 
    do {
       if (logaxis)
@@ -356,31 +541,42 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
             if (Math.abs(Math.round(y_act / label_dy) - y_act / label_dy) <
                dy / label_dy / 10.0) {
                // label tick mark
-               if (draw)
+               if (draw) {
+                  ctx.strokeStyle = this.color.axis;
                   ctx.drawLine(x1, ys, x1 + text, ys);
+               }
 
                // grid line
                if (grid !== 0 && ys < y1 && ys > y1 - height)
-                  if (draw)
+                  if (draw) {
+                     ctx.strokeStyle = this.color.grid;
                      ctx.drawLine(x1, ys, x1 + grid, ys);
+                  }
 
                // label
                if (label !== 0) {
                   let str = y_act.toPrecision(n_sig1).stripZeros();
                   maxwidth = Math.max(maxwidth, ctx.measureText(str).width);
-                  if (draw)
+                  if (draw) {
+                     ctx.strokeStyle = this.color.label;
+                     ctx.fillStyle = this.color.label;
                      ctx.fillText(str, x1 + label, ys);
+                  }
                   last_label_y = ys - textHeight / 2;
                }
             } else {
                // major tick mark
-               if (draw)
+               if (draw) {
+                  ctx.strokeStyle = this.color.axis;
                   ctx.drawLine(x1, ys, x1 + major, ys);
+               }
 
                // grid line
                if (grid !== 0 && ys < y1 && ys > y1 - height)
-                  if (draw)
+                  if (draw) {
+                     ctx.strokeStyle = this.color.grid;
                      ctx.drawLine(x1, ys, x1 + grid, ys);
+                  }
             }
 
             if (logaxis) {
@@ -391,8 +587,10 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
 
          } else
          // minor tick mark
-         if (draw)
+         if (draw) {
+            ctx.strokeStyle = this.color.axis;
             ctx.drawLine(x1, ys, x1 + minor, ys);
+         }
 
          // for logaxis, also put labels on minor tick marks
          if (logaxis) {
@@ -401,8 +599,11 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
                if (ys - textHeight / 2 > y1 - height &&
                   ys + textHeight / 2 < y1 &&
                   ys + textHeight < last_label_y + 2)
-                  if (draw)
+                  if (draw) {
+                     ctx.strokeStyle = this.color.label;
+                     ctx.fillStyle = this.color.label;
                      ctx.fillText(str, x1 + label, ys);
+                  }
 
                last_label_y = ys;
             }
@@ -527,6 +728,7 @@ MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, maj
 
    let x_act = Math.floor((xmin - tz) / dx) * dx + tz;
 
+   ctx.strokeStyle = this.color.axis;
    ctx.drawLine(x1, y1, x1 + width, y1);
 
    do {
@@ -540,11 +742,14 @@ MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, maj
          if ((x_act - tz) % major_dx === 0) {
             if ((x_act - tz) % label_dx === 0) {
                // label tick mark
+               ctx.strokeStyle = this.color.axis;
                ctx.drawLine(xs, y1, xs, y1 + text);
 
                // grid line
-               if (grid !== 0 && xs > x1 && xs < x1 + width)
+               if (grid !== 0 && xs > x1 && xs < x1 + width) {
+                  ctx.strokeStyle = this.color.grid;
                   ctx.drawLine(xs, y1, xs, y1 + grid);
+               }
 
                // label
                if (label !== 0) {
@@ -556,21 +761,26 @@ MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, maj
                      xl = 0;
                   if (xl + ctx.measureText(str).width >= xr)
                      xl = xr - ctx.measureText(str).width - 1;
+                  ctx.strokeStyle = this.color.label;
+                  ctx.fillStyle = this.color.label;
                   ctx.fillText(str, xl, y1 + label);
                }
             } else {
                // major tick mark
+               ctx.strokeStyle = this.color.axis;
                ctx.drawLine(xs, y1, xs, y1 + major);
-
-               // grid line
-               if (grid !== 0 && xs > x1 && xs < x1 + width)
-                  ctx.drawLine(xs, y1 - 1, xs, y1 + grid);
             }
 
-         } else
-         // minor tick mark
+            // grid line
+            if (grid !== 0 && xs > x1 && xs < x1 + width) {
+               ctx.strokeStyle = this.color.grid;
+               ctx.drawLine(xs, y1 - 1, xs, y1 + grid);
+            }
+         } else {
+            // minor tick mark
+            ctx.strokeStyle = this.color.axis;
             ctx.drawLine(xs, y1, xs, y1 + minor);
-
+         }
       }
 
       x_act += dx;
