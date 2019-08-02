@@ -50,14 +50,26 @@ function MhistoryGraph(divElement) { // Constructor
    };
 
    // scales
-   this.tMax = new Date() / 1000;
-   this.tMin = this.tMax - 3600;
-   this.yMin = 0;
-   this.yMax = 1;
+   this.tMax0 = new Date() / 1000;
+   this.tMin0 = this.tMax0 - 3600;
+   this.yMin0 = 0;
+   this.yMax0 = 1;
+   this.tMax  = this.tMax0;
+   this.tMin  = this.tMin0;
+   this.yMin  = this.yMin0;
+   this.yMax  = this.yMax0;
 
    // graph arrays (in screen pixels)
    this.x = [];
    this.y = [];
+
+   // dragging
+   this.drag = {active: false};
+
+   // buttons
+   this.button = [
+      { char: 0x21BA }
+   ];
 
    // mouse event handlers
    divElement.addEventListener("mousedown", this.mouseEvent.bind(this), true);
@@ -76,21 +88,77 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       else if ((e.button & 4) > 0) e.which = 2; // Middle
       else if ((e.button & 2) > 0) e.which = 3; // Right
    }
+
+   let cursor = "default";
+
+   if (e.type === "mousedown") {
+      // check for buttons
+      this.button.forEach(b => {
+         if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
+             e.offsetX < b.x1+b.width && e.offsetY < b.y1+b.width) {
+            this.yMin = this.yMin0;
+            this.yMax = this.yMax0;
+            this.tMin = this.tMin0;
+            this.tMax = this.tMax0;
+            this.redraw();
+         }
+      });
+      this.drag.active = true;
+      this.drag.xStart = e.offsetX;
+      this.drag.yStart = e.offsetY;
+      this.drag.tStart = this.xToTime(e.offsetX);
+      this.drag.tMinStart = this.tMin;
+      this.drag.tMaxStart = this.tMax;
+      this.drag.yMinStart = this.yMin;
+      this.drag.yMaxStart = this.yMax;
+      this.drag.vStart = this.yToValue(e.offsetY);
+   } else if (e.type === "mouseup") {
+      this.drag.active = false;
+   } else if (e.type === "mousemove") {
+
+      if (this.drag.active) {
+         cursor = "move";
+         let dt = (e.offsetX - this.drag.xStart) / (this.x2 - this.x1) * (this.tMax - this.tMin);
+         this.tMin = this.drag.tMinStart - dt;
+         this.tMax = this.drag.tMaxStart - dt;
+         let dy = (this.drag.yStart - e.offsetY) / (this.y1 - this.y2) * (this.yMax - this.yMin);
+         this.yMin = this.drag.yMinStart - dy;
+         this.yMax = this.drag.yMaxStart - dy;
+         this.redraw();
+      } else {
+         this.button.forEach(b => {
+            if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
+               e.offsetX < b.x1+b.width && e.offsetY < b.y1+b.height) {
+               cursor = "pointer";
+            }
+         });
+      }
+   }
+
+   this.parentDiv.style.cursor = cursor;
+
+   e.preventDefault();
 };
 
 MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
-   let f = (e.offsetX - this.x1) / (this.x2 - this.x1);
-   let dtMin = f * (this.tMax - this.tMin) / 100 * e.deltaY;
-   let dtMax = (1 - f) * (this.tMax - this.tMin) / 100 * e.deltaY;
-   this.tMin -= dtMin;
-   this.tMax += dtMax;
-
-   let now = new Date() / 1000;
-   if (this.tMax > now)
-      this.tMax = now;
+   if (e.altKey) {
+      let f = (e.offsetY - this.y1) / (this.y2 - this.y1);
+      let dtMin = f * (this.yMax - this.yMin) / 100 * e.deltaY;
+      let dtMax = (1 - f) * (this.yMax - this.yMin) / 100 * e.deltaY;
+      this.yMin -= dtMin;
+      this.yMax += dtMax;
+   } else {
+      let f = (e.offsetX - this.x1) / (this.x2 - this.x1);
+      let dtMin = f * (this.tMax - this.tMin) / 100 * e.deltaY;
+      let dtMax = (1 - f) * (this.tMax - this.tMin) / 100 * e.deltaY;
+      this.tMin -= dtMin;
+      this.tMax += dtMax;
+   }
 
    this.redraw();
+
+   e.preventDefault();
 };
 
 MhistoryGraph.prototype.resize = function () {
@@ -133,6 +201,8 @@ MhistoryGraph.prototype.loadData = function () {
             } else {
                this.yMax += (this.yMax - this.yMin) * 0.05;
             }
+            this.yMin0 = this.yMin;
+            this.yMax0 = this.yMax;
          }
          this.data = rpc.result.data;
          this.redraw();
@@ -140,6 +210,23 @@ MhistoryGraph.prototype.loadData = function () {
       .catch(function (error) {
          mjsonrpc_error_alert(error);
       })
+};
+
+MhistoryGraph.prototype.timeToX = function (t) {
+   return (t - this.tMin) / (this.tMax - this.tMin) * (this.x2 - this.x1) + this.x1;
+};
+
+MhistoryGraph.prototype.valueToY = function (v) {
+   return this.y1 - (v - this.yMin) /
+      (this.yMax - this.yMin) * (this.y1 - this.y2);
+};
+
+MhistoryGraph.prototype.xToTime = function (x) {
+   return (x - this.x1) / (this.x2 - this.x1) * (this.tMax - this.tMin) + this.tMin;
+};
+
+MhistoryGraph.prototype.yToValue = function (y) {
+   return (this.y1 - y) / (this.y1 - this.y2) * (this.yMax - this.yMin) + this.yMin;
 };
 
 MhistoryGraph.prototype.draw = function () {
@@ -201,10 +288,8 @@ MhistoryGraph.prototype.draw = function () {
       this.y[di] = [];
 
       for (let i = 0; i < this.data[di].count; i++) {
-         this.x[di][i] = (this.data[di].time[i] - this.tMin) /
-            (this.tMax - this.tMin) * (this.x2 - this.x1) + this.x1;
-         this.y[di][i] = this.y1 - (this.data[di].value[i] - this.yMin) /
-            (this.yMax - this.yMin) * (this.y1 - this.y2);
+         this.x[di][i] = this.timeToX(this.data[di].time[i]);
+         this.y[di][i] = this.valueToY(this.data[di].value[i]);
       }
 
       ctx.beginPath();
@@ -250,6 +335,23 @@ MhistoryGraph.prototype.draw = function () {
    }
 
    ctx.restore(); // remove clipping
+
+   // buttons
+   this.button.forEach((b,i) => {
+      ctx.fillStyle = "#FFFFFF";
+      ctx.strokeStyle = "#808080";
+      b.x1 = this.width - 22*(i+1);
+      b.y1 = 2;
+      b.width = 20;
+      b.height = 20;
+      ctx.fillRect(b.x1, b.y1, b.width, b.height);
+      ctx.strokeRect(b.x1, b.y1, b.width, b.height);
+      ctx.fillStyle = "#000000";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String.fromCharCode(b.char), b.x1+b.width/2, b.y1+b.height/2);
+   });
+
 };
 
 /*
