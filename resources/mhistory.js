@@ -54,10 +54,10 @@ function MhistoryGraph(divElement) { // Constructor
    this.tMin0 = this.tMax0 - 3600;
    this.yMin0 = 0;
    this.yMax0 = 1;
-   this.tMax  = this.tMax0;
-   this.tMin  = this.tMin0;
-   this.yMin  = this.yMin0;
-   this.yMax  = this.yMax0;
+   this.tMax = this.tMax0;
+   this.tMin = this.tMin0;
+   this.yMin = this.yMin0;
+   this.yMax = this.yMax0;
 
    // graph arrays (in screen pixels)
    this.x = [];
@@ -68,8 +68,14 @@ function MhistoryGraph(divElement) { // Constructor
 
    // buttons
    this.button = [
-      { char: 0x21BA }
+      {src: "rotate-ccw.svg" },
+      {src: "settings.svg" }
    ];
+
+   this.button.forEach(b =>  {
+      b.img = new Image();
+      b.img.src = "icons/"+b.src;
+   });
 
    // mouse event handlers
    divElement.addEventListener("mousedown", this.mouseEvent.bind(this), true);
@@ -95,7 +101,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       // check for buttons
       this.button.forEach(b => {
          if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
-             e.offsetX < b.x1+b.width && e.offsetY < b.y1+b.width) {
+            e.offsetX < b.x1 + b.width && e.offsetY < b.y1 + b.width) {
             this.yMin = this.yMin0;
             this.yMax = this.yMax0;
             this.tMin = this.tMin0;
@@ -128,7 +134,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       } else {
          this.button.forEach(b => {
             if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
-               e.offsetX < b.x1+b.width && e.offsetY < b.y1+b.height) {
+               e.offsetX < b.x1 + b.width && e.offsetY < b.y1 + b.height) {
                cursor = "pointer";
             }
          });
@@ -253,8 +259,8 @@ MhistoryGraph.prototype.draw = function () {
 
    this.x1 = maxwidth + 15;
    this.y1 = this.height - 25;
-   this.x2 = this.width - 10;
-   this.y2 = 10;
+   this.x2 = this.width - 30;
+   this.y2 = 6;
 
    ctx.fillStyle = this.color.background;
    ctx.fillRect(0, 0, this.width, this.height);
@@ -337,21 +343,18 @@ MhistoryGraph.prototype.draw = function () {
    ctx.restore(); // remove clipping
 
    // buttons
-   this.button.forEach((b,i) => {
-      ctx.fillStyle = "#FFFFFF";
+   this.button.forEach((b, i) => {
+      b.x1 = this.width - 30;
+      b.y1 = 6 + i * 30;
+      b.width = 28;
+      b.height = 28;
+
+      ctx.fillStyle = "#F0F0F0";
       ctx.strokeStyle = "#808080";
-      b.x1 = this.width - 22*(i+1);
-      b.y1 = 2;
-      b.width = 20;
-      b.height = 20;
       ctx.fillRect(b.x1, b.y1, b.width, b.height);
       ctx.strokeRect(b.x1, b.y1, b.width, b.height);
-      ctx.fillStyle = "#000000";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(String.fromCharCode(b.char), b.x1+b.width/2, b.y1+b.height/2);
+      ctx.drawImage(b.img, b.x1+2, b.y1+2);
    });
-
 };
 
 /*
