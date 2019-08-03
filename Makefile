@@ -825,8 +825,8 @@ $(BIN_DIR)/%: $(PROGS_DIR)/%.cxx
 $(BIN_DIR)/mcnaf: $(PROGS_DIR)/mcnaf.cxx $(DRV_DIR)/camac/camacrpc.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/mcnaf.cxx $(DRV_DIR)/camac/camacrpc.cxx $(LIB) $(LIBS)
 
-$(BIN_DIR)/mdump: $(PROGS_DIR)/mdump.cxx $(PROGS_DIR)/mdsupport.cxx
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/mdump.cxx $(PROGS_DIR)/mdsupport.cxx $(LIB) $(LIBS)
+$(BIN_DIR)/mdump: $(PROGS_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx $(LIB) $(LIBS)
 
 $(BIN_DIR)/fetest: $(PROGS_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
@@ -857,8 +857,8 @@ $(BIN_DIR)/mhdump: $(PROGS_DIR)/mhdump.cxx
 $(BIN_DIR)/mtransition: $(PROGS_DIR)/mtransition.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $< $(LIB) $(LIBS)
 
-$(BIN_DIR)/lazylogger: $(PROGS_DIR)/lazylogger.cxx $(PROGS_DIR)/mdsupport.cxx
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $<  $(PROGS_DIR)/mdsupport.cxx $(LIB) $(LIBS)
+$(BIN_DIR)/lazylogger: $(PROGS_DIR)/lazylogger.cxx $(SRC_DIR)/mdsupport.cxx
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $<  $(SRC_DIR)/mdsupport.cxx $(LIB) $(LIBS)
 
 $(BIN_DIR)/dio: $(PROGS_DIR)/dio.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/dio.cxx
