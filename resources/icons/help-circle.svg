@@ -15,13 +15,13 @@
    stroke-width="2"
    stroke-linecap="round"
    stroke-linejoin="round"
-   class="feather feather-target"
+   class="feather feather-help-circle"
    version="1.1"
-   id="svg11252"
-   sodipodi:docname="target.svg"
+   id="svg880"
+   sodipodi:docname="help-circle.svg"
    inkscape:version="0.92.4 (5da689c313, 2019-01-14)">
   <metadata
-     id="metadata11258">
+     id="metadata886">
     <rdf:RDF>
       <cc:Work
          rdf:about="">
@@ -32,7 +32,7 @@
     </rdf:RDF>
   </metadata>
   <defs
-     id="defs11256" />
+     id="defs884" />
   <sodipodi:namedview
      pagecolor="#ffffff"
      bordercolor="#666666"
@@ -44,31 +44,30 @@
      inkscape:pageshadow="2"
      inkscape:window-width="726"
      inkscape:window-height="480"
-     id="namedview11254"
+     id="namedview882"
      showgrid="false"
-     inkscape:zoom="9.8333333"
+     inkscape:zoom="9.5606729"
      inkscape:cx="12"
      inkscape:cy="12"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="0"
-     inkscape:current-layer="svg11252" />
+     inkscape:current-layer="svg880" />
   <circle
      cx="12"
      cy="12"
      r="10"
-     id="circle11246"
+     id="circle874"
      style="stroke:#808080" />
-  <circle
-     cx="12"
-     cy="12"
-     r="6"
-     id="circle11248"
+  <path
+     d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+     id="path876"
      style="stroke:#808080" />
-  <circle
-     cx="12"
-     cy="12"
-     r="2"
-     id="circle11250"
+  <line
+     x1="12"
+     y1="17"
+     x2="12"
+     y2="17"
+     id="line878"
      style="stroke:#808080" />
 </svg>

@@ -107,8 +107,62 @@ function MhistoryGraph(divElement) { // Constructor
          click: function () {
             console.log('config');
          }
+      },
+      {
+         src: "help-circle.svg",
+         click: function (t) {
+            dlgShow(t.helpDialog, false);
+         }
       }
    ];
+
+   // help dialog
+   this.helpDialog =  document.createElement("div");
+   this.helpDialog.id = "dlgHelp";
+   this.helpDialog.className = "dlgFrame";
+   this.helpDialog.style.zIndex = 20;
+
+   this.helpDialog.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Help</div>"+
+      "<div class=\"dlgPanel\" style=\"padding: 5px;\">"+
+      "<div id=\"dlgMessageString\">"+
+
+      "<table class='mtable'>" +
+      "<tr>" +
+      "<td>Action</td>" +
+      "<td>Howto</td>" +
+      "</tr>" +
+      "<tr>" +
+      "<td>Horizontal Zoom</td>" +
+      "<td>Scroll mouse wheel or drag along X-Axis</td>" +
+      "</tr>" +
+      "<tr>" +
+      "<td>Vertical Zoom</td>" +
+      "<td>&nbsp;Press ALT key and scroll mouse wheel or drag along Y-Axis&nbsp;</td>" +
+      "</tr>" +
+      "<tr>" +
+      "<td>Pan</td>" +
+      "<td>Drag inside graph</td>" +
+      "</tr>" +
+      "<tr>" +
+      "<td>Display values</td>" +
+      "<td>Hover over graph</td>" +
+      "</tr>" +
+      "<tr>" +
+      "<td>&nbsp;Back to live scolling after pan/zoom&nbsp;</td>" +
+      "<td>Click on <img src='icons/skip-forward.svg' style='vertical-align:middle'></td>" +
+      "</tr>" +
+      "<tr>" +
+      "<td>&nbsp;Rest axis&nbsp;</td>" +
+      "<td>Click on <img src='icons/rotate-ccw.svg' style='vertical-align:middle'></td>" +
+      "</tr>" +
+      "</table>"+
+
+      "</div>"+
+      "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" "+
+      " onClick=\"dlgHide('dlgHelp')\">Close</button>"+
+      "</div>";
+
+   document.body.appendChild(this.helpDialog);
 
    this.button.forEach(b => {
       b.img = new Image();
