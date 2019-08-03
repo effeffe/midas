@@ -82,6 +82,7 @@ function MhistoryGraph(divElement) { // Constructor
             t.yMax = t.yMax0;
             t.tMin = t.tMin0;
             t.tMax = t.tMax0;
+            t.scroll = true;
             t.redraw();
          }
       },
@@ -125,7 +126,19 @@ function MhistoryGraph(divElement) { // Constructor
    divElement.addEventListener("wheel", this.mouseWheelEvent.bind(this), true);
 
    this.loadData();
+
+   window.setTimeout(this.update.bind(this), 1000);
 }
+
+MhistoryGraph.prototype.update = function () {
+   if (this.scroll) {
+      let dt = this.tMax - this.tMin;
+      this.tMax = new Date() / 1000;
+      this.tMin = this.tMax - dt;
+      this.redraw();
+   }
+   window.setTimeout(this.update.bind(this), 1000);
+};
 
 MhistoryGraph.prototype.mouseEvent = function (e) {
    // fix buttons for IE
@@ -165,11 +178,13 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       // check for axis dragging
       if (e.offsetX > this.x1 && e.offsetX < this.x2 && e.offsetY > this.y1) {
          this.zoom.x.active = true;
+         this.scroll = false;
          this.zoom.x.x1 = e.offsetX;
          this.zoom.x.t1 = this.xToTime(e.offsetX);
       }
       if (e.offsetY < this.y1 && e.offsetY > this.y2 && e.offsetX < this.x1) {
          this.zoom.y.active = true;
+         this.scroll = false;
          this.zoom.y.y1 = e.offsetY;
          this.zoom.y.v1 = this.yToValue(e.offsetY);
       }
@@ -181,7 +196,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
       if (this.zoom.x.active) {
          let t1 = this.zoom.x.t1;
-         let t2 = this.xToTime(e.offsetX);
+         let t2 = this.xToTime(this.zoom.x.x2);
          if (t1 > t2)
             [t1, t2] = [t2, t1];
          this.tMin = t1;
@@ -192,7 +207,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
       if (this.zoom.y.active) {
          let v1 = this.zoom.y.v1;
-         let v2 = this.yToValue(e.offsetY);
+         let v2 = this.yToValue(this.zoom.y.y2);
          if (v1 > v2)
             [v1, v2] = [v2, v1];
          this.yMin = v1;
@@ -225,12 +240,12 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
          // execute axis zoom
          if (this.zoom.x.active) {
-            this.zoom.x.x2 = e.offsetX;
+            this.zoom.x.x2 = Math.max(this.x1, Math.min(this.x2, e.offsetX));
             this.zoom.x.t2 = this.xToTime(e.offsetX);
             this.redraw();
          }
          if (this.zoom.y.active) {
-            this.zoom.y.y2 = e.offsetY;
+            this.zoom.y.y2 = Math.max(this.y2, Math.min(this.y1, e.offsetY));
             this.zoom.y.v2 = this.yToValue(e.offsetY);
             this.redraw();
          }
@@ -469,7 +484,10 @@ MhistoryGraph.prototype.draw = function () {
       b.width = 28;
       b.height = 28;
 
-      ctx.fillStyle = "#F0F0F0";
+      if (i === 1 && !this.scroll)
+         ctx.fillStyle = "#FFC0C0";
+      else
+         ctx.fillStyle = "#F0F0F0";
       ctx.strokeStyle = "#808080";
       ctx.fillRect(b.x1, b.y1, b.width, b.height);
       ctx.strokeRect(b.x1, b.y1, b.width, b.height);
@@ -480,7 +498,7 @@ MhistoryGraph.prototype.draw = function () {
    if (this.zoom.x.active) {
       ctx.fillStyle = "#808080";
       ctx.globalAlpha = 0.2;
-      ctx.fillRect(this.zoom.x.x1, this.y2, this.zoom.x.x2-this.zoom.x.x1, this.y1-this.y2);
+      ctx.fillRect(this.zoom.x.x1, this.y2, this.zoom.x.x2 - this.zoom.x.x1, this.y1 - this.y2);
       ctx.globalAlpha = 1;
       ctx.strokeStyle = "#808080";
       ctx.drawLine(this.zoom.x.x1, this.y1, this.zoom.x.x1, this.y2);
@@ -489,7 +507,7 @@ MhistoryGraph.prototype.draw = function () {
    if (this.zoom.y.active) {
       ctx.fillStyle = "#808080";
       ctx.globalAlpha = 0.2;
-      ctx.fillRect(this.x1, this.zoom.y.y1, this.x2-this.x1, this.zoom.y.y2-this.zoom.y.y1);
+      ctx.fillRect(this.x1, this.zoom.y.y1, this.x2 - this.x1, this.zoom.y.y2 - this.zoom.y.y1);
       ctx.globalAlpha = 1;
       ctx.strokeStyle = "#808080";
       ctx.drawLine(this.x1, this.zoom.y.y1, this.x2, this.zoom.y.y1);
