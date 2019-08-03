@@ -234,7 +234,7 @@ set(libsrc
    src/sha256
    src/sha512
    src/ftplib
-   progs/mdsupport
+   src/mdsupport
    mxml/mxml.cxx
    mxml/strlcpy.cxx
    ${GIT_REVISION}
@@ -251,6 +251,7 @@ add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
 
 # shared midas library
 add_library(midas-shared SHARED $<TARGET_OBJECTS:objlib>)
+target_link_libraries(midas-shared ${LIBS})
 if (HAVE_MYSQL)
    target_link_libraries(midas-shared ${DB_LIBS})
 endif()
