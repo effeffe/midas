@@ -250,8 +250,6 @@ function mjsonrpc_decode_error(error) {
    }
 }
 
-//dlgMessage(title, message, modal, error, callback, param)
-
 function mjsonrpc_error_alert(error, callback, param) {
    /// \ingroup mjsonrpc_js
    /// Handle all errors

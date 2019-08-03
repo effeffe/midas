@@ -285,9 +285,9 @@ INT read_periodic_event(char *pevent, INT off)
    /* create SCLR bank */
    bk_create(pevent, "PRDC", TID_FLOAT, (void **)&pdata);
 
-   /* following code "simulates" some values */
-   for (a = 0; a < 4; a++)
-      *pdata++ = 100*sin(M_PI*time(NULL)/60+a/2.0);
+   /* following code "simulates" some values in sine wave form */
+   for (a = 0; a < 16; a++)
+      *pdata++ = 100*sin(M_PI*time(NULL)/60+a/2.0)+100;
 
    bk_close(pevent, pdata);
 

@@ -25,6 +25,24 @@ function mhistory_init() {
 }
 
 function MhistoryGraph(divElement) { // Constructor
+
+   // Retrieve group and panel
+   this.group = divElement.dataset.group;
+   this.panel = divElement.dataset.panel;
+
+   if (this.group === undefined) {
+      dlgMessage("Error", "Definition of \'dataset-group\' missing for history panel \'" + divElement.id + "\'. " +
+         "Please use syntax:<br /><br /><b>&lt;div name=\"mjshistory\" " +
+         "data-group=\"&lt;Group&gt;\" data-panel=\"&lt;Panel&gt;\"&gt;&lt;/div&gt;</b>", true);
+      return;
+   }
+   if (this.panel === undefined) {
+      dlgMessage("Error", "Definition of \'dataset-panel\' missing for history panel \'" + divElement.id + "\'. " +
+         "Please use syntax:<br /><br /><b>&lt;div name=\"mjshistory\" " +
+         "data-group=\"&lt;Group&gt;\" data-panel=\"&lt;Panel&gt;\"&gt;&lt;/div&gt;</b>", true);
+      return;
+   }
+
    // create canvas inside the div
    this.parentDiv = divElement;
    this.canvas = document.createElement("canvas");
@@ -50,12 +68,11 @@ function MhistoryGraph(divElement) { // Constructor
    };
 
    // scales
-   this.tMax0 = new Date() / 1000;
-   this.tMin0 = this.tMax0 - 3600;
+   this.tScale = 3600;
    this.yMin0 = 0;
    this.yMax0 = 1;
-   this.tMax = this.tMax0;
-   this.tMin = this.tMin0;
+   this.tMax = new Date() / 1000;
+   this.tMin = this.tMax - this.tScale;
    this.yMin = this.yMin0;
    this.yMax = this.yMax0;
    this.scroll = true;
@@ -80,8 +97,8 @@ function MhistoryGraph(divElement) { // Constructor
          click: function (t) {
             t.yMin = t.yMin0;
             t.yMax = t.yMax0;
-            t.tMin = t.tMin0;
-            t.tMax = t.tMax0;
+            t.tMax = new Date() / 1000;
+            t.tMin = t.tMax - t.tScale;
             t.scroll = true;
             t.redraw();
          }
@@ -117,14 +134,14 @@ function MhistoryGraph(divElement) { // Constructor
    ];
 
    // help dialog
-   this.helpDialog =  document.createElement("div");
+   this.helpDialog = document.createElement("div");
    this.helpDialog.id = "dlgHelp";
    this.helpDialog.className = "dlgFrame";
-   this.helpDialog.style.zIndex = 20;
+   this.helpDialog.style.zIndex = "20";
 
-   this.helpDialog.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Help</div>"+
-      "<div class=\"dlgPanel\" style=\"padding: 5px;\">"+
-      "<div id=\"dlgMessageString\">"+
+   this.helpDialog.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Help</div>" +
+      "<div class=\"dlgPanel\" style=\"padding: 5px;\">" +
+      "<div id=\"dlgMessageString\">" +
 
       "<table class='mtable'>" +
       "<tr>" +
@@ -149,17 +166,17 @@ function MhistoryGraph(divElement) { // Constructor
       "</tr>" +
       "<tr>" +
       "<td>&nbsp;Back to live scolling after pan/zoom&nbsp;</td>" +
-      "<td>Click on <img src='icons/skip-forward.svg' style='vertical-align:middle'></td>" +
+      "<td>Click on <img src='icons/skip-forward.svg' style='vertical-align:middle' alt='Live scrolling'></td>" +
       "</tr>" +
       "<tr>" +
-      "<td>&nbsp;Rest axis&nbsp;</td>" +
-      "<td>Click on <img src='icons/rotate-ccw.svg' style='vertical-align:middle'></td>" +
+      "<td>&nbsp;Reset axis&nbsp;</td>" +
+      "<td>Click on <img src='icons/rotate-ccw.svg' style='vertical-align:middle' alt='Reset'></td>" +
       "</tr>" +
-      "</table>"+
+      "</table>" +
 
-      "</div>"+
-      "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" "+
-      " onClick=\"dlgHide('dlgHelp')\">Close</button>"+
+      "</div>" +
+      "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" " +
+      " onClick=\"dlgHide('dlgHelp')\">Close</button>" +
       "</div>";
 
    document.body.appendChild(this.helpDialog);
@@ -176,13 +193,101 @@ function MhistoryGraph(divElement) { // Constructor
    divElement.addEventListener("mousedown", this.mouseEvent.bind(this), true);
    divElement.addEventListener("mousemove", this.mouseEvent.bind(this), true);
    divElement.addEventListener("mouseup", this.mouseEvent.bind(this), true);
-
    divElement.addEventListener("wheel", this.mouseWheelEvent.bind(this), true);
 
-   this.loadData();
-
-   window.setTimeout(this.update.bind(this), 1000);
+   // retrieve panel definition from ODB
+   mjsonrpc_db_copy(["/History/Display/" + this.group + "/" + this.panel]).then(function (rpc) {
+      if (rpc.result.status[0] !== 1) {
+         dlgMessage("Error", "Panel \'" + this.group + "/" + this.panel + "\' not found in ODB", true)
+      } else {
+         this.odb = rpc.result.data[0];
+         this.loadInitialData();
+      }
+   }.bind(this)).catch(function (error) {
+      if (error.xhr !== undefined)
+         mjsonrpc_error_alert(error);
+      else
+         throw(error);
+   });
 }
+
+function timeToSec(str) {
+   let s = parseFloat(str);
+   switch (str[str.length - 1]) {
+      case 'm':
+      case 'M':
+         s *= 60;
+         break;
+      case 'h':
+      case 'H':
+         s *= 3600;
+         break;
+      case 'd':
+      case 'D':
+         s *= 3600 * 24;
+         break;
+   }
+
+   return s;
+}
+
+MhistoryGraph.prototype.loadInitialData = function () {
+   let t = Date.now() / 1000;
+
+   this.tScale = timeToSec(this.odb["Timescale"]);
+
+   let events = [];
+   let tags = [];
+   let index = [];
+
+   this.odb["Variables"].forEach(v => {
+      events.push(v.substr(0, v.indexOf(':')));
+      let t = v.substr(v.indexOf(':')+1);
+      if (t.indexOf('[') !== -1) {
+         tags.push(t.substr(0, t.indexOf('[')));
+         index.push(parseInt(t.substr(t.indexOf('[')+1)));
+      } else {
+         tags.push(t);
+         index.push(0);
+      }
+   });
+
+   mjsonrpc_call("hs_read",
+      {
+         "start_time": t - 24 * 3600,
+         "end_time": t,
+         "events": events,
+         "tags": tags,
+         "index": index
+      })
+      .then(function (rpc) {
+         if (this.data === undefined) {
+            this.yMin = 0;
+            this.yMax = 0;
+
+            rpc.result.data.forEach(d => {
+               this.yMin = Math.min(this.yMin, ...d.value);
+               this.yMax = Math.max(this.yMax, ...d.value);
+            });
+            if (this.yMin === this.yMax) {
+               this.yMin -= 0.5;
+               this.yMax += 0.5;
+            } else {
+               this.yMax += (this.yMax - this.yMin) * 0.05;
+            }
+            this.yMin0 = this.yMin;
+            this.yMax0 = this.yMax;
+         }
+         this.data = rpc.result.data;
+         this.redraw();
+
+         window.setTimeout(this.update.bind(this), 1000);
+
+      }.bind(this))
+      .catch(function (error) {
+         mjsonrpc_error_alert(error);
+      })
+};
 
 MhistoryGraph.prototype.update = function () {
    if (this.scroll) {
@@ -305,27 +410,29 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          }
 
          // check if cursor close to graph point
-         let minDist = 100;
-         let oldX = this.marker.x;
-         let oldY = this.marker.y;
-         for (let di = 0; di < this.data.length; di++) {
-            for (let i = 0; i < this.data[di].count; i++) {
-               let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
-                  Math.pow(e.offsetY - this.y[di][i], 2));
-               if (d < minDist) {
-                  minDist = d;
-                  this.marker.x = this.x[di][i];
-                  this.marker.y = this.y[di][i];
-                  this.marker.graphIndex = di;
-                  this.marker.index = i;
+         if (this.data !== undefined) {
+            let minDist = 100;
+            let oldX = this.marker.x;
+            let oldY = this.marker.y;
+            for (let di = 0; di < this.data.length; di++) {
+               for (let i = 0; i < this.data[di].count; i++) {
+                  let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
+                     Math.pow(e.offsetY - this.y[di][i], 2));
+                  if (d < minDist) {
+                     minDist = d;
+                     this.marker.x = this.x[di][i];
+                     this.marker.y = this.y[di][i];
+                     this.marker.graphIndex = di;
+                     this.marker.index = i;
+                  }
                }
             }
+            let oldActive = this.marker.active;
+            this.marker.active = minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
+            if (oldActive !== this.marker.active ||
+               (this.marker.active && oldX !== this.marker.x || oldY !== this.marker.y))
+               this.redraw();
          }
-         let oldActive = this.marker.active;
-         this.marker.active = minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
-         if (oldActive !== this.marker.active ||
-            (this.marker.active && oldX !== this.marker.x || oldY !== this.marker.y))
-            this.redraw();
       }
    }
 
@@ -369,42 +476,6 @@ MhistoryGraph.prototype.resize = function () {
 MhistoryGraph.prototype.redraw = function () {
    let f = this.draw.bind(this);
    window.requestAnimationFrame(f);
-};
-
-MhistoryGraph.prototype.loadData = function () {
-   let t = Date.now() / 1000;
-   mjsonrpc_call("hs_read",
-      {
-         "start_time": t - 24 * 3600,
-         "end_time": t,
-         "events": ["System", "System"],
-         "tags": ["Trigger per sec.", "Trigger kB per sec."],
-         "index": [0, 0]
-      })
-      .then(function (rpc) {
-         if (this.data === undefined) {
-            this.yMin = 0;
-            this.yMax = 0;
-
-            rpc.result.data.forEach(d => {
-               this.yMin = Math.min(this.yMin, ...d.value);
-               this.yMax = Math.max(this.yMax, ...d.value);
-            });
-            if (this.yMin === this.yMax) {
-               this.yMin -= 0.5;
-               this.yMax += 0.5;
-            } else {
-               this.yMax += (this.yMax - this.yMin) * 0.05;
-            }
-            this.yMin0 = this.yMin;
-            this.yMax0 = this.yMax;
-         }
-         this.data = rpc.result.data;
-         this.redraw();
-      }.bind(this))
-      .catch(function (error) {
-         mjsonrpc_error_alert(error);
-      })
 };
 
 MhistoryGraph.prototype.timeToX = function (t) {
@@ -869,18 +940,19 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
 
       // number of significant digits
       if (ymin === 0)
-         n_sig1 = 0;
+         n_sig1 = 1;
       else
          n_sig1 = Math.floor(Math.log(Math.abs(ymin)) / Math.log(10)) -
             Math.floor(Math.log(Math.abs(label_dy)) / Math.log(10)) + 1;
 
       if (ymax === 0)
-         n_sig2 = 0;
+         n_sig2 = 1;
       else
          n_sig2 = Math.floor(Math.log(Math.abs(ymax)) / Math.log(10)) -
             Math.floor(Math.log(Math.abs(label_dy)) / Math.log(10)) + 1;
 
       n_sig1 = Math.max(n_sig1, n_sig2);
+      n_sig1 = Math.max(1, n_sig1);
 
       // toPrecision displays 1050 with 3 digits as 1.05e+3, so increase precision to number of digits
       if (Math.abs(ymin) < 100000)
