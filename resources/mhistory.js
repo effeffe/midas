@@ -242,10 +242,10 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    this.odb["Variables"].forEach(v => {
       events.push(v.substr(0, v.indexOf(':')));
-      let t = v.substr(v.indexOf(':')+1);
+      let t = v.substr(v.indexOf(':') + 1);
       if (t.indexOf('[') !== -1) {
          tags.push(t.substr(0, t.indexOf('[')));
-         index.push(parseInt(t.substr(t.indexOf('[')+1)));
+         index.push(parseInt(t.substr(t.indexOf('[') + 1)));
       } else {
          tags.push(t);
          index.push(0);
@@ -254,7 +254,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    mjsonrpc_call("hs_read",
       {
-         "start_time": t - 24 * 3600,
+         "start_time": t - this.tScale * 2,
          "end_time": t,
          "events": events,
          "tags": tags,
@@ -422,6 +422,8 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
                      minDist = d;
                      this.marker.x = this.x[di][i];
                      this.marker.y = this.y[di][i];
+                     this.marker.mx = e.offsetX;
+                     this.marker.my = e.offsetY;
                      this.marker.graphIndex = di;
                      this.marker.index = i;
                   }
@@ -429,9 +431,9 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             }
             let oldActive = this.marker.active;
             this.marker.active = minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
-            if (oldActive !== this.marker.active ||
-               (this.marker.active && oldX !== this.marker.x || oldY !== this.marker.y))
-               this.redraw();
+            //if (oldActive !== this.marker.active ||
+            //   (this.marker.active && oldX !== this.marker.x || oldY !== this.marker.y))
+            this.redraw();
          }
       }
    }
@@ -453,8 +455,11 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
       let f = (e.offsetX - this.x1) / (this.x2 - this.x1);
       let dtMin = f * (this.tMax - this.tMin) / 100 * e.deltaY;
       let dtMax = (1 - f) * (this.tMax - this.tMin) / 100 * e.deltaY;
-      this.tMin -= dtMin;
-      this.tMax += dtMax;
+      if ((this.tMax + dtMax) - (this.tMin - dtMin) > 10 &&
+         (this.tMax + dtMax) - (this.tMin - dtMin) < 3600 * 24 * 365) {
+         this.tMin -= dtMin;
+         this.tMax += dtMax;
+      }
    }
 
    this.scroll = false;
@@ -542,13 +547,10 @@ MhistoryGraph.prototype.draw = function () {
    ctx.clip();
 
    for (let di = 0; di < this.data.length; di++) {
-      if (di >= this.color.data.length) {
-         ctx.strokeStyle = "#000000";
+      if (di >= this.color.data.length)
          ctx.fillStyle = "#F0F0F0";
-      } else {
-         ctx.strokeStyle = this.color.data[di];
+      else
          ctx.fillStyle = this.color.data[di];
-      }
 
       this.x[di] = [];
       this.y[di] = [];
@@ -578,10 +580,16 @@ MhistoryGraph.prototype.draw = function () {
       ctx.lineTo(xLast, this.y1);
       ctx.lineTo(x0, this.y1);
       ctx.lineTo(x0, y0);
-      ctx.save();
-      ctx.globalAlpha = 0.3;
+      ctx.globalAlpha = 0.1;
       ctx.fill();
-      ctx.restore();
+      ctx.globalAlpha = 1;
+   }
+
+   for (let di = 0; di < this.data.length; di++) {
+      if (di >= this.color.data.length)
+         ctx.strokeStyle = "#000000";
+      else
+         ctx.strokeStyle = this.color.data[di];
 
       ctx.beginPath();
       x0 = undefined;
@@ -664,8 +672,8 @@ MhistoryGraph.prototype.draw = function () {
 
       let w = ctx.measureText(s).width + 6;
       let h = ctx.measureText("M").width * 1.2 + 6;
-      let x = this.marker.x + 20;
-      let y = this.marker.y + h / 3 * 2;
+      let x = this.marker.mx + 20;
+      let y = this.marker.my + h / 3 * 2;
       let xl = x;
       let yl = y;
 
