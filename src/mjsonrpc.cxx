@@ -3476,7 +3476,7 @@ static void add(std::string* s, const char* text)
    *s += text;
 }
 
-std::string mjsonrpc_handle_request(const MJsonNode* request)
+static MJsonNode* mjsonrpc_handle_request(const MJsonNode* request)
 {
    // find required request elements
    const MJsonNode* version = request->FindObjectNode("jsonrpc");
@@ -3504,27 +3504,21 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
       add(&bad, "method is not a string");
 
    if (bad.length() > 0) {
-      std::string reply;
-      reply += "{";
-      reply += "\"jsonrpc\": \"2.0\",";
-      reply += "\"error\":{";
-      reply += "\"code\":-32600,";
-      reply += "\"message\":\"Invalid request\",";
-      reply += "\"data\":\"" + MJsonNode::Encode(bad.c_str()) + "\"";
-      reply += "},";
-      if (id)
-         reply += "\"id\":" + id->Stringify();
-      else
-         reply += "\"id\":null";
-      reply += "}";
+      MJsonNode* response = mjsonrpc_make_error(-32600, "Invalid request", bad.c_str());
+      response->AddToObject("jsonrpc", MJsonNode::MakeString("2.0"));
+      if (id) {
+         response->AddToObject("id", id->Copy());
+      } else {
+         response->AddToObject("id", MJsonNode::MakeNull());
+      }
 
       if (mjsonrpc_debug) {
          printf("mjsonrpc: invalid request: reply:\n");
-         printf("%s\n", reply.c_str());
+         printf("%s\n", response->Stringify().c_str());
          printf("\n");
       }
 
-      return reply;
+      return response;
    }
 
    double start_time = 0;
@@ -3536,7 +3530,7 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
    const std::string ms = method->GetString();
    const char* m = ms.c_str();
 
-   const MJsonNode* result = NULL;
+   MJsonNode* result = NULL;
 
    // special built-in methods
 
@@ -3548,7 +3542,7 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
       if (mjsonrpc_debug) {
          printf("mjsonrpc: reply with invalid json\n");
       }
-      return "this is invalid json data";
+      return MJsonNode::MakeJSON("this is invalid json data");
    } else if (strcmp(m, "test_nan_inf") == 0) {
       double one = 1;
       double zero = 0;
@@ -3588,37 +3582,33 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
    const MJsonNode *nerror  = result->FindObjectNode("error");
    const MJsonNode *nresult = result->FindObjectNode("result");
 
-   std::string reply;
-   reply += "{";
-   reply += "\"jsonrpc\": \"2.0\",";
    if (nerror) {
-      reply += "\"error\":" + nerror->Stringify() + ",";
+      result->DeleteObjectNode("result");
    } else if (nresult) {
-      reply += "\"result\":" + nresult->Stringify() + ",";
+      result->DeleteObjectNode("error");
    } else {
-      nerror = mjsonrpc_make_error(-32603, "Internal error", "bad dispatcher reply: no result and no error");
-      reply += "\"error\":" + nerror->Stringify() + ",";
-      delete nerror;
-      nerror = NULL;
-   }
-   if (id)
-      reply += "\"id\":" + id->Stringify();
-   else
-      reply += "\"id\":null";
-   if (mjsonrpc_time) {
-      reply += ",";
-      reply += "\"elapsed_time\":" + MJsonNode::EncodeDouble(elapsed_time);
-   }
-
-   reply += "}";
-
-   if (result)
       delete result;
+      result = mjsonrpc_make_error(-32603, "Internal error", "bad dispatcher reply: no result and no error");
+   }
 
-   return reply;
+   result->AddToObject("jsonrpc", MJsonNode::MakeString("2.0"));
+
+   if (id) {
+      result->AddToObject("id", id->Copy());
+   } else {
+      result->AddToObject("id", MJsonNode::MakeNull());
+   }
+
+   if (mjsonrpc_time) {
+      result->AddToObject("elapsed_time", MJsonNode::MakeNumber(elapsed_time));
+   }
+
+   assert(result != NULL);
+
+   return result;
 }
 
-std::string mjsonrpc_decode_post_data(const char* post_data)
+MJsonNode* mjsonrpc_decode_post_data(const char* post_data)
 {
    //printf("mjsonrpc call, data [%s]\n", post_data);
    MJsonNode *request = MJsonNode::Parse(post_data);
@@ -3641,47 +3631,33 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
    }
 
    if (request->GetType() == MJSON_ERROR) {
-      std::string reply;
-      reply += "{";
-      reply += "\"jsonrpc\": \"2.0\",";
-      reply += "\"error\":{";
-      reply += "\"code\":-32700,";
-      reply += "\"message\":\"Parse error\",";
-      reply += "\"data\":\"" + MJsonNode::Encode(request->GetError().c_str()) + "\"";
-      reply += "},";
-      reply += "\"id\":null";
-      reply += "}";
+      MJsonNode* reply = mjsonrpc_make_error(-32700, "Parse error", request->GetError().c_str());
+      reply->AddToObject("jsonrpc", MJsonNode::MakeString("2.0"));
+      reply->AddToObject("id", MJsonNode::MakeNull());
 
       if (mjsonrpc_debug) {
          printf("mjsonrpc: invalid json: reply:\n");
-         printf("%s\n", reply.c_str());
+         printf("%s\n", reply->Stringify().c_str());
          printf("\n");
       }
 
       delete request;
       return reply;
    } else if (request->GetType() == MJSON_OBJECT) {
-      std::string reply = mjsonrpc_handle_request(request);
+      MJsonNode* reply = mjsonrpc_handle_request(request);
       delete request;
       return reply;
    } else if (request->GetType() == MJSON_ARRAY) {
       const MJsonNodeVector* a = request->GetArray();
 
       if (a->size() < 1) {
-         std::string reply;
-         reply += "{";
-         reply += "\"jsonrpc\": \"2.0\",";
-         reply += "\"error\":{";
-         reply += "\"code\":-32600,";
-         reply += "\"message\":\"Invalid Request\",";
-         reply += "\"data\":\"batch request array has less than 1 element\"";
-         reply += "},";
-         reply += "\"id\":null";
-         reply += "}";
+         MJsonNode* reply = mjsonrpc_make_error(-32600, "Invalid request", "batch request array has less than 1 element");
+         reply->AddToObject("jsonrpc", MJsonNode::MakeString("2.0"));
+         reply->AddToObject("id", MJsonNode::MakeNull());
          
          if (mjsonrpc_debug) {
             printf("mjsonrpc: invalid json: reply:\n");
-            printf("%s\n", reply.c_str());
+            printf("%s\n", reply->Stringify().c_str());
             printf("\n");
          }
          
@@ -3689,35 +3665,22 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
          return reply;
       }
 
-      std::string reply = "";
-      reply += "[";
+      MJsonNode* reply = MJsonNode::MakeArray();
 
       for (unsigned i=0; i<a->size(); i++) {
-         if (i>0) {
-            reply += ",";
-         }
-         reply += mjsonrpc_handle_request(a->at(i));
+         reply->AddToArray(mjsonrpc_handle_request(a->at(i)));
       }
-
-      reply += "]";
 
       delete request;
       return reply;
    } else {
-      std::string reply;
-      reply += "{";
-      reply += "\"jsonrpc\": \"2.0\",";
-      reply += "\"error\":{";
-      reply += "\"code\":-32600,";
-      reply += "\"message\":\"Invalid Request\",";
-      reply += "\"data\":\"request is not a JSON object or JSON array\"";
-      reply += "},";
-      reply += "\"id\":null";
-      reply += "}";
+      MJsonNode* reply = mjsonrpc_make_error(-32600, "Invalid request", "request is not a JSON object or JSON array");
+      reply->AddToObject("jsonrpc", MJsonNode::MakeString("2.0"));
+      reply->AddToObject("id", MJsonNode::MakeNull());
 
       if (mjsonrpc_debug) {
          printf("mjsonrpc: invalid json: reply:\n");
-         printf("%s\n", reply.c_str());
+         printf("%s\n", reply->Stringify().c_str());
          printf("\n");
       }
 
