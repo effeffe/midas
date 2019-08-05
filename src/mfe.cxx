@@ -388,7 +388,6 @@ static INT register_equipment(void)
       }
 
       status = db_find_key(hDB, 0, str, &hKey);
-
       if (status != DB_SUCCESS) {
          printf("ERROR:  Cannot find \"%s\", db_find_key() status %d", str, status);
          cm_disconnect_experiment();
@@ -396,15 +395,28 @@ static INT register_equipment(void)
          exit(0);
       }
 
-      /* set fixed parameters from user structure */
-      db_set_value(hDB, hKey, "Event ID", &eq_info->event_id, sizeof(WORD), 1, TID_WORD);
-      db_set_value(hDB, hKey, "Type", &eq_info->eq_type, sizeof(INT), 1, TID_INT);
-      db_set_value(hDB, hKey, "Source", &eq_info->source, sizeof(INT), 1, TID_INT);
+      status = db_check_record(hDB, hKey, "", EQUIPMENT_COMMON_STR, TRUE);
+      if (status != DB_SUCCESS) {
+         printf("ERROR:  Cannot check record \"%s\", db_check_record() status %d", str, status);
+         cm_disconnect_experiment();
+         ss_sleep(3000);
+         exit(0);
+      }
+
+      /* set record from user structure */
+      size = sizeof(EQUIPMENT_INFO);
+      status = db_set_record(hDB, hKey, eq_info, size, 0);
+      if (status != DB_SUCCESS) {
+         printf("ERROR:  Cannot set record \"%s\", db_set_record() status %d", str, status);
+         cm_disconnect_experiment();
+         ss_sleep(3000);
+         exit(0);
+      }
 
       /* read equipment Common from ODB */
 
       size = sizeof(EQUIPMENT_INFO);
-      status = db_get_record1(hDB, hKey, eq_info, &size, 0, EQUIPMENT_COMMON_STR);
+      status = db_get_record(hDB, hKey, eq_info, &size, 0);
 
       if (status != DB_SUCCESS) {
          printf("ERROR:  Cannot read record \"%s\", db_get_record1() status %d", str, status);
