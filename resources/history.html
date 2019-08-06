@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="mcss">
+<html class="mcss" lang=en">
 <head>
    <meta charset="UTF-8">
    <link rel="stylesheet" href="midas.css">
@@ -19,15 +19,71 @@
 <script>
 
    function init() {
-      window.addEventListener("resize", windowResize);
-      windowResize();
+
+      // populate group selector
+      mjsonrpc_db_ls(["/History/Display"]).then(function (rpc) {
+         let sgroup = document.getElementById("sgroup");
+         if (rpc.result.status[0] === 1) {
+            for (let [key] of Object.entries(rpc.result.data[0])) {
+               let o = document.createElement("option");
+               o.text = key;
+               sgroup.add(o);
+            }
+         }
+         let o = document.createElement("option");
+         o.text = "- All -";
+         sgroup.add(o);
+
+         sgroup.selectedIndex = "0";
+         let e = new Event("change");
+         sgroup.dispatchEvent(e);
+      });
+
+      // add listener to group selector
+      document.getElementById("sgroup").addEventListener("change", function () {
+         let group = document.getElementById("sgroup").value;
+
+         let spanel = document.getElementById("spanel");
+         while (spanel.options.length)
+            spanel.remove(0);
+
+         mjsonrpc_db_ls(["/History/Display/" + group]).then(function (rpc) {
+            let spanel = document.getElementById("spanel");
+            if (rpc.result.status[0] === 1) {
+               for (let [key] of Object.entries(rpc.result.data[0])) {
+                  let o = document.createElement("option");
+                  o.text = key;
+                  spanel.add(o);
+               }
+            }
+            let o = document.createElement("option");
+            o.text = "- All -";
+            spanel.add(o);
+
+            spanel.selectedIndex = "0";
+            let e = new Event("change");
+            spanel.dispatchEvent(e);
+         });
+
+         // add listener to panel selector
+         if (spanel.listenerRegistered === undefined) {
+            spanel.listenerRegistered = true;
+            spanel.addEventListener("change", function () {
+               let h = document.getElementById("hist1");
+               h.dataset.group = document.getElementById("sgroup").value;
+               h.dataset.panel = document.getElementById("spanel").value;
+               h.mhg.initializePanel();
+            });
+         }
+
+         window.addEventListener("resize", windowResize);
+         windowResize();
+      });
    }
 
    function windowResize() {
-      var m = document.getElementById("mmain");
-      var t = document.getElementById("overallTable");
-
-      d = document.getElementById("hist1");
+      let m = document.getElementById("mmain");
+      let d = document.getElementById("hist1");
       d.style.width = document.documentElement.clientWidth - parseInt(m.style.marginLeft) - 30 + "px";
       d.style.height = document.documentElement.clientHeight - d.getBoundingClientRect().top - 20 + "px";
       d.resize();
@@ -44,19 +100,15 @@
          <td>
             Group:
             <select title="Select Group" id="sgroup">
-               <option selected value="Default">Default</option>
-               <option value="All">- All -</option>
             </select>&nbsp;&nbsp;
             Panel:
             <select title="Select Panel" id="spanel">
-               <option selected value="Trigger Rate">Trigger Rate</option>
-               <option value="All">- All -</option>
             </select>
          </td>
       </tr>
       <tr>
          <td>
-            <div name="mjshistory" id="hist1" data-group="Slow" data-panel="Sines"></div>
+            <div data-name="mjshistory" id="hist1" data-group="" data-panel=""></div>
          </td>
       </tr>
    </table>
