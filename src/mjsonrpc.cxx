@@ -3560,11 +3560,14 @@ static MJsonNode* mjsonrpc_handle_request(const MJsonNode* request)
       if (mjsonrpc_debug) {
          printf("mjsonrpc: reply with test arraybuffer data\n");
       }
-      size_t size = 16;
+      size_t size = 32;
       char* ptr = (char*)malloc(size);
-      for (int i=0; i<size; i++) {
+      for (size_t i=0; i<size; i++) {
          ptr[i] = 'A' + i;
       }
+      *((short*)(ptr+4*2*1)) = 111; // int16[4]
+      *((int*)(ptr+4*2*2)) = 1234; // int32[4]
+      *((double*)(ptr+4*2*3)) = 3.14; // float64[3]
       return MJsonNode::MakeArrayBuffer(ptr, size);
    } else {
       MethodHandlersIterator s = gHandlers.find(ms);

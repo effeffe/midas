@@ -921,6 +921,26 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
            var req = mjsonrpc_make_request("test_arraybuffer", null, "arraybuffer");
            mjsonrpc_send_request(req).then(function(reply) {
               alert("test_arraybuffer returned: " + reply);
+{
+              var dv = new DataView(reply);
+              alert("dv: " + dv + ", dv.length: " + dv.byteLength + ", u8[0]: " + dv.getUint8(0) + ", u16[0]: " + dv.getUint16(0));
+}
+{
+              var u8 = new Uint8Array(reply);
+              alert("u8: " + u8 + ", u8.length: " + u8.length + ", u8[0]: " + u8[0] + ", u8[1]: " + u8[1]);
+}
+{
+              var u16 = new Uint16Array(reply);
+              alert("u16: " + u16 + ", u16.length: " + u16.length + ", u16[4]: " + u16[4]);
+}
+{
+              var u32 = new Uint32Array(reply);
+              alert("u32: " + u32 + ", u32.length: " + u32.length + ", u32[4]: " + u32[4]);
+}
+{
+              var f64 = new Float64Array(reply);
+              alert("f64: " + f64 + ", f64.length: " + f64.length + ", f64[3]: " + f64[3]);
+}
            }).catch(function(error){mjsonrpc_error_alert(error);});
         }
 
