@@ -165,7 +165,7 @@ function MhistoryGraph(divElement) { // Constructor
       "</tr>" +
       "<tr>" +
       "<td>&nbsp;Back to live scolling after pan/zoom&nbsp;</td>" +
-      "<td>Click on <img src='icons/skip-forward.svg' style='vertical-align:middle' alt='Live scrolling'></td>" +
+      "<td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'></td>" +
       "</tr>" +
       "<tr>" +
       "<td>&nbsp;Reset axis&nbsp;</td>" +
@@ -264,7 +264,7 @@ MhistoryGraph.prototype.initializePanel = function () {
 
 MhistoryGraph.prototype.loadInitialData = function () {
 
-   let t = Date.now() / 1000;
+   this.lastTimeStamp = Math.floor(Date.now() / 1000);
 
    this.tScale = timeToSec(this.odb["Timescale"]);
 
@@ -282,8 +282,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    mjsonrpc_call("hs_read",
       {
-         "start_time": t - this.tScale * 2,
-         "end_time": t,
+         "start_time": this.lastTimeStamp - this.tScale * 2,
+         "end_time": this.lastTimeStamp,
          "events": this.events,
          "tags": this.tags,
          "index": this.index
@@ -309,22 +309,85 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
          if (this.updateTimer === undefined)
             this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
+         if (this.redrawTimer === undefined)
+            this.redrawTimer = window.setTimeout(this.scrollRedraw.bind(this), 1000);
 
       }.bind(this))
       .catch(function (error) {
          mjsonrpc_error_alert(error);
-      })
+      });
 };
 
 MhistoryGraph.prototype.update = function () {
+
+   let t = Math.floor(new Date() / 1000);
+
+   mjsonrpc_call("hs_read",
+      {
+         "start_time": this.lastTimeStamp,
+         "end_time": t,
+         "events": this.events,
+         "tags": this.tags,
+         "index": this.index
+      })
+      .then(function (rpc) {
+
+            // append newer values to end of arrays
+            for (let di = 0; di < rpc.result.data.length; di++) {
+               for (let i = 0; i < rpc.result.data[di].time.length; i++) {
+                  if (rpc.result.data[di].time[i] > this.data[di].time[this.data[di].time.length - 1]) {
+
+                     this.data[di].time.push(rpc.result.data[di].time[i]);
+                     this.data[di].value.push(rpc.result.data[di].value[i]);
+
+                     this.lastTimeStamp = rpc.result.data[di].time[i];
+                  }
+               }
+            }
+
+            let min = 0;
+            let max = 0;
+            this.data.forEach(d => {
+               min = Math.min(min, ...d.value);
+               max = Math.max(max, ...d.value);
+            });
+            if (min === max) {
+               min -= 0.5;
+               max += 0.5;
+            } else {
+               max += (max - min) * 0.05;
+            }
+            this.yMin0 = min;
+            this.yMax0 = max;
+            if (this.scroll) {
+               this.yMax = max;
+               this.yMin = min;
+            }
+            this.redraw();
+
+            this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
+
+         }.bind(this)
+      )
+      .catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
+};
+
+MhistoryGraph.prototype.scrollRedraw = function () {
    if (this.scroll) {
       let dt = this.tMax - this.tMin;
       this.tMax = new Date() / 1000;
       this.tMin = this.tMax - dt;
-      console.log("Update: " + new Date());
       this.redraw();
+
+      // calculate time for one pixel
+      dt = (this.tMax - this.tMin) / (this.x2 - this.x1);
+      dt = Math.min(Math.max(0.1, dt), 60);
+      this.updateTimer = window.setTimeout(this.scrollRedraw.bind(this), dt / 2 * 1000);
+   } else {
+      this.updateTimer = window.setTimeout(this.scrollRedraw.bind(this), 1000);
    }
-   this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
 };
 
 MhistoryGraph.prototype.mouseEvent = function (e) {
@@ -441,7 +504,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          if (this.data !== undefined && this.x.length && this.y.length) {
             let minDist = 100;
             for (let di = 0; di < this.data.length; di++) {
-               for (let i = 0; i < this.data[di].count; i++) {
+               for (let i = 0; i < this.data[di].length; i++) {
                   let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
                      Math.pow(e.offsetY - this.y[di][i], 2));
                   if (d < minDist) {
@@ -614,7 +677,7 @@ MhistoryGraph.prototype.draw = function () {
       this.x[di] = [];
       this.y[di] = [];
 
-      for (let i = 0; i < this.data[di].count; i++) {
+      for (let i = 0; i < this.data[di].time.length; i++) {
          this.x[di][i] = this.timeToX(this.data[di].time[i]);
          this.y[di][i] = this.valueToY(this.data[di].value[i]);
       }
@@ -623,8 +686,8 @@ MhistoryGraph.prototype.draw = function () {
       let x0;
       let y0;
       let xLast;
-      for (let i = 0; i < this.data[di].count; i++) {
-         if (i === this.data[di].count - 1 || this.x[di][i + 1] >= this.x1) {
+      for (let i = 0; i < this.data[di].time.length; i++) {
+         if (i === this.data[di].time.length - 1 || this.x[di][i + 1] >= this.x1) {
             if (x0 === undefined) {
                x0 = this.x[di][i];
                y0 = this.y[di][i];
@@ -652,8 +715,8 @@ MhistoryGraph.prototype.draw = function () {
 
       ctx.beginPath();
       let first = true;
-      for (let i = 0; i < this.data[di].count; i++) {
-         if (i === this.data[di].count - 1 || this.x[di][i + 1] >= this.x1) {
+      for (let i = 0; i < this.data[di].time.length; i++) {
+         if (i === this.data[di].time.length - 1 || this.x[di][i + 1] >= this.x1) {
             if (first) {
                first = false;
                ctx.moveTo(this.x[di][i], this.y[di][i]);
@@ -675,7 +738,7 @@ MhistoryGraph.prototype.draw = function () {
       b.width = 28;
       b.height = 28;
 
-      if (b.src === "skip-forward.svg" && !this.scroll)
+      if (b.src === "play.svg" && !this.scroll)
          ctx.fillStyle = "#FFC0C0";
       else
          ctx.fillStyle = "#F0F0F0";
