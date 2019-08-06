@@ -17323,6 +17323,41 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg, 
 
       ss_mutex_release(request_mutex);
 
+      if (reply->GetType() == MJSON_ARRAYBUFFER) {
+         const std::string origin_header = find_header_mg(msg, "Origin");
+
+         const char* ptr;
+         size_t size;
+         reply->GetArrayBuffer(&ptr, &size);
+         
+         std::string headers;
+         headers += "HTTP/1.1 200 OK\n";
+         if (origin_header.length() > 0)
+            headers += "Access-Control-Allow-Origin: " + std::string(origin_header) + "\n";
+         else
+            headers += "Access-Control-Allow-Origin: *\n";
+         headers += "Access-Control-Allow-Credentials: true\n";
+         headers += "Content-Length: " + toString(size) + "\n";
+         headers += "Content-Type: application/octet-stream\n";
+         //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+         
+         //printf("sending headers: %s\n", headers.c_str());
+         //printf("sending reply: %s\n", reply_string.c_str());
+         
+         std::string send = headers + "\n";
+         
+         t->fTimeProcessed = GetTimeSec();
+         
+         mg_send(nc, send.c_str(), send.length());
+         mg_send(nc, ptr, size);
+         
+         t->fTimeSent = GetTimeSec();
+         
+         delete reply;
+         
+         return true;
+      }
+
       std::string reply_string = reply->Stringify();
       int reply_length = reply_string.length();
          

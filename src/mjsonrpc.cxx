@@ -7,6 +7,8 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -3554,6 +3556,16 @@ static MJsonNode* mjsonrpc_handle_request(const MJsonNode* request)
       n->AddToArray(MJsonNode::MakeNumber(plusinf));
       n->AddToArray(MJsonNode::MakeNumber(minusinf));
       result = mjsonrpc_make_result("test_nan_plusinf_minusinf", n);
+   } else if (strcmp(m, "test_arraybuffer") == 0) {
+      if (mjsonrpc_debug) {
+         printf("mjsonrpc: reply with test arraybuffer data\n");
+      }
+      size_t size = 16;
+      char* ptr = (char*)malloc(size);
+      for (int i=0; i<size; i++) {
+         ptr[i] = 'A' + i;
+      }
+      return MJsonNode::MakeArrayBuffer(ptr, size);
    } else {
       MethodHandlersIterator s = gHandlers.find(ms);
       if (s != gHandlers.end()) {
@@ -3577,6 +3589,10 @@ static MJsonNode* mjsonrpc_handle_request(const MJsonNode* request)
       if (mjsonrpc_time > 1) {
          printf("request took %.3f seconds, method [%s]\n", elapsed_time, m);
       }
+   }
+
+   if (result->GetType() == MJSON_ARRAYBUFFER) {
+      return result;
    }
    
    const MJsonNode *nerror  = result->FindObjectNode("error");
@@ -3668,7 +3684,16 @@ MJsonNode* mjsonrpc_decode_post_data(const char* post_data)
       MJsonNode* reply = MJsonNode::MakeArray();
 
       for (unsigned i=0; i<a->size(); i++) {
-         reply->AddToArray(mjsonrpc_handle_request(a->at(i)));
+         MJsonNode* r = mjsonrpc_handle_request(a->at(i));
+         reply->AddToArray(r);
+         if (r->GetType() == MJSON_ARRAYBUFFER) {
+            delete request;
+            delete reply;
+            reply = mjsonrpc_make_error(-32600, "Invalid request", "MJSON_ARRAYBUFFER return is not permitted for batch requests");
+            reply->AddToObject("jsonrpc", MJsonNode::MakeString("2.0"));
+            reply->AddToObject("id", MJsonNode::MakeNull());
+            return reply;
+         }
       }
 
       delete request;

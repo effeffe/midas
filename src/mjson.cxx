@@ -11,14 +11,16 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
+#include "mjson.h"
+
 #include <stdio.h>
 #include <assert.h>
 #include <math.h>
 #include <string.h>
 #include <limits.h>
 #include <stdlib.h>
-
-#include "mjson.h"
 
 static const char* skip_spaces(const char* s)
 {
@@ -652,6 +654,13 @@ MJsonNode::~MJsonNode() // dtor
       delete subnodes[i];
    subnodes.clear();
 
+   if (arraybuffer_size > 0) {
+      assert(arraybuffer_ptr != NULL);
+      free(arraybuffer_ptr);
+      arraybuffer_size = 0;
+      arraybuffer_ptr = NULL;
+   }
+
    // poison deleted nodes
    type = MJSON_NONE;
 }
@@ -769,6 +778,8 @@ std::string MJsonNode::Stringify(int flags) const
       return "null";
    case MJSON_JSON:
       return stringvalue;
+   case MJSON_ARRAYBUFFER:
+      return "arraybuffer";
    case MJSON_ERROR:
       return std::string("json parse error: ") + stringvalue;
    default:
@@ -858,6 +869,14 @@ MJsonNode* MJsonNode::MakeJSON(const char* json)
 {
    MJsonNode* n = new MJsonNode(MJSON_JSON);
    n->stringvalue = json;
+   return n;
+}
+
+MJsonNode* MJsonNode::MakeArrayBuffer(char* ptr, size_t size)
+{
+   MJsonNode* n = new MJsonNode(MJSON_ARRAYBUFFER);
+   n->arraybuffer_ptr = ptr;
+   n->arraybuffer_size = size;
    return n;
 }
 
@@ -987,6 +1006,21 @@ bool MJsonNode::GetBool() const /// get boolean value, false if not a boolean or
       return false;
 }
 
+void MJsonNode::GetArrayBuffer(const char** pptr, size_t* psize) const
+{
+   if (type == MJSON_ARRAYBUFFER) {
+      if (pptr)
+         *pptr = arraybuffer_ptr;
+      if (psize)
+         *psize = arraybuffer_size;
+   } else {
+      if (pptr)
+         *pptr = NULL;
+      if (psize)
+         *psize = 0;
+   }
+}
+
 std::string MJsonNode::GetError() const
 {
    if (type == MJSON_ERROR)
@@ -1001,6 +1035,8 @@ MJsonNode::MJsonNode(int xtype) // default constructor
    type = xtype;
    intvalue = 0;
    numbervalue = 0;
+   arraybuffer_size = 0;
+   arraybuffer_ptr  = NULL;
 }
 
 const char* MJsonNode::TypeToString(int type)
@@ -1017,6 +1053,7 @@ const char* MJsonNode::TypeToString(int type)
    case MJSON_BOOL: return "BOOL";
    case MJSON_NULL: return "NULL";
    case MJSON_JSON: return "JSON";
+   case MJSON_ARRAYBUFFER: return "ARRAYBUFFER";
    }
 }
 
@@ -1037,6 +1074,7 @@ void MJsonNode::Dump(int nest) const // debug
    case MJSON_BOOL: printf(", value %d\n", intvalue); break;
    case MJSON_NULL: printf(", null\n"); break;
    case MJSON_JSON: printf(", json [%s]\n", stringvalue.c_str()); break;
+   case MJSON_ARRAYBUFFER: printf(", arraybuffer size %d\n", (int)arraybuffer_size); break;
    case MJSON_ARRAY:
       printf("\n");
       for (unsigned i=0; i<subnodes.size(); i++) {
@@ -1071,6 +1109,14 @@ MJsonNode* MJsonNode::Copy() const
    assert(n->subnodes.size() == subnodes.size());
    for (unsigned i=0; i<n->subnodes.size(); i++) {
       n->subnodes[i] = subnodes[i]->Copy();
+   }
+   if (arraybuffer_size > 0) {
+      n->arraybuffer_size = arraybuffer_size;
+      n->arraybuffer_ptr = (char*)malloc(arraybuffer_size);
+      memcpy(n->arraybuffer_ptr, arraybuffer_ptr, arraybuffer_size);
+   } else {
+      n->arraybuffer_size = 0;
+      n->arraybuffer_ptr = NULL;
    }
    return n;
 }

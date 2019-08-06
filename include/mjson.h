@@ -26,6 +26,7 @@
 #define MJSON_BOOL   6
 #define MJSON_NULL   7
 #define MJSON_JSON   8
+#define MJSON_ARRAYBUFFER 9
 
 class MJsonNode;
 
@@ -40,6 +41,8 @@ class MJsonNode {
    std::string     stringvalue;
    int             intvalue;
    double          numbervalue;
+   size_t          arraybuffer_size;
+   char*           arraybuffer_ptr;
    
  public:
    ~MJsonNode(); // dtor
@@ -64,6 +67,7 @@ class MJsonNode {
    static MJsonNode* MakeBool(bool value);
    static MJsonNode* MakeNull();
    static MJsonNode* MakeJSON(const char* json);
+   static MJsonNode* MakeArrayBuffer(char* ptr, size_t size); /// the node takes ownership of the buffer
    static MJsonNode* MakeError(MJsonNode* errornode, const char* errormessage, const char* sin, const char* serror);
    
  public: // public "put" methods
@@ -83,6 +87,7 @@ class MJsonNode {
    int                    GetInt() const;    /// get integer value, 0 if not an integer or value is JSON "null"
    double                 GetDouble() const; /// get number or integer value, 0 if not a number or value is JSON "null"
    bool                   GetBool() const;   /// get boolean value, false if not a boolean or value is JSON "null"
+   void                   GetArrayBuffer(const char** pptr, size_t* psize) const;
    std::string            GetError() const;  /// get error message from MJSON_ERROR nodes
 
  public: // public helper and debug methods
