@@ -563,6 +563,42 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
       </div>
       </p>
 
+      <p>
+      <div>
+         <input type=button value='Get history data as binary arraybuffer'
+                onClick='var t=Date.now()/1000;mjsonrpc_call("hs_read_arraybuffer",{"start_time":t-10*60,"end_time":t,"events":["Run transitions","fetest","fetest/EPS","slow/SLOW"],"tags":["State","EPS","EPS","SLOW"],"index":[0,0,0,0]}, "arraybuffer")
+                   .then(function(result) {
+                    //console.log("result: " + result);
+                    var data = new Float64Array(result);
+                   document.getElementById("hs_read_data_arraybuffer").innerHTML = data;
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+      </div>
+      <div id="hs_read_data_arraybuffer">
+         history data
+      </div>
+      </p>
+
+      <p>
+      <div>
+         <input type=button value='Get binned history data as binary arraybuffer'
+                onClick='var t=Date.now()/1000;mjsonrpc_call("hs_read_binned_arraybuffer",{"start_time":t-1*60,"end_time":t,"num_bins":10,"events":["Run transitions","fetest","fetest/EPS","slow/SLOW"],"tags":["State","EPS","EPS","SLOW"],"index":[0,0,0,0]}, "arraybuffer")
+                   .then(function(result) {
+                    //console.log("result: " + result);
+                    var data = new Float64Array(result);
+                    document.getElementById("hs_read_binned_data_arraybuffer").innerHTML = data;
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+      </div>
+      <div id="hs_read_binned_data_arraybuffer">
+         binned history data
+      </div>
+      </p>
+
       <hr>
 
       <h2>Inline editor functions</h2>
