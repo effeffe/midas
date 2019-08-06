@@ -2254,6 +2254,32 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "channel", MJsonNode::MakeString(mh->name), "data", data);
 }
 
+class BinaryHistoryBuffer: public MidasHistoryBufferInterface
+{
+public:
+   std::vector<double> fTimes;
+   std::vector<double> fValues;
+
+public:
+   BinaryHistoryBuffer() // ctor
+   {
+      // empty
+   }
+
+   void Add(time_t t, double v)
+   {
+      //printf("add time %d, value %f\n", (int)t, v);
+
+      fTimes.push_back(t);
+      fValues.push_back(v);
+   }
+
+   void Finish()
+   {
+      assert(fTimes.size() == fValues.size());
+   }
+};
+
 static MJsonNode* js_hs_read_arraybuffer(const MJsonNode* params)
 {
    if (!params) {
@@ -2299,7 +2325,7 @@ static MJsonNode* js_hs_read_arraybuffer(const MJsonNode* params)
    std::vector<std::string> event_names(num_var);
    std::vector<std::string> tag_names(num_var);
    int* var_index = new int[num_var];
-   JsonHistoryBuffer** jbuf = new JsonHistoryBuffer*[num_var];
+   BinaryHistoryBuffer** jbuf = new BinaryHistoryBuffer*[num_var];
    MidasHistoryBufferInterface** buf = new MidasHistoryBufferInterface*[num_var];
    int* hs_status = new int[num_var];
 
@@ -2309,7 +2335,7 @@ static MJsonNode* js_hs_read_arraybuffer(const MJsonNode* params)
       event_names[i] = (*events_array)[i]->GetString();
       tag_names[i] = (*tags_array)[i]->GetString();
       var_index[i] = (*index_array)[i]->GetInt();
-      jbuf[i] = new JsonHistoryBuffer();
+      jbuf[i] = new BinaryHistoryBuffer();
       buf[i] = jbuf[i];
       hs_status[i] = 0;
    }
@@ -2330,26 +2356,61 @@ static MJsonNode* js_hs_read_arraybuffer(const MJsonNode* params)
 
    int status = mh->hs_read_buffer(start_time, end_time, num_var, event_name, tag_name, var_index, buf, hs_status);
 
-   int p0_size = sizeof(double)*(2+num_var+num_var);
-   double* p0 = (double*)malloc(p0_size);
-   assert(p0);
-
-   p0[0] = status;
-   p0[1] = num_var;
+   size_t num_values = 0;
 
    for (unsigned i=0; i<num_var; i++) {
       jbuf[i]->Finish();
+      num_values += jbuf[i]->fValues.size();
+   }
 
-      p0[2+0*num_var+i] = hs_status[i];
-      p0[2+1*num_var+i] = jbuf[i]->fCount;
+   size_t p0_size = sizeof(double)*(2+2*num_var+2*num_values);
+   double* p0 = (double*)malloc(p0_size);
+   assert(p0);
 
-      //obj->AddToObject("time", MJsonNode::MakeJSON(jbuf[i]->fTimeJson.c_str()));
-      //obj->AddToObject("value", MJsonNode::MakeJSON(jbuf[i]->fValueJson.c_str()));
+   double *pptr = p0;
+   
+   //
+   // Binary data format:
+   //
+   // - hs_read() status
+   // - num_var
+   // - hs_status[0..num_var-1]
+   // - num_values[0..num_var-1]
+   // - data for var0:
+   // - t[0][0], v[0][0] ... t[0][num_values[0]-1], v[0][num_values[0]-1]
+   // - data for var1:
+   // - t[1][0], v[1][0] ... t[1][num_values[1]-1], v[1][num_values[1]-1]
+   // ...
+   // - data for last variable:
+   // - t[num_var-1][0], v[num_var-1][0] ... t[num_var-1][num_values[num_var-1]-1], v[num_var-1][num_values[num_var-1]-1]
+   //
+
+   *pptr++ = status;
+   *pptr++ = num_var;
+
+   for (unsigned i=0; i<num_var; i++) {
+      *pptr++ = hs_status[i];
+   }
+
+   for (unsigned i=0; i<num_var; i++) {
+      *pptr++ = jbuf[i]->fValues.size();
+   }
+
+   for (unsigned i=0; i<num_var; i++) {
+      size_t nv = jbuf[i]->fValues.size();
+      for (unsigned j=0; j<nv; j++) {
+         *pptr++ = jbuf[i]->fTimes[j];
+         *pptr++ = jbuf[i]->fValues[j];
+      }
 
       delete jbuf[i];
       jbuf[i] = NULL;
       buf[i] = NULL;
    }
+
+   //printf("p0_size %d, %d/%d\n", (int)p0_size, (int)(pptr-p0), (int)((pptr-p0)*sizeof(double)));
+
+   assert(p0_size == ((pptr-p0)*sizeof(double)));
 
    delete[] event_name;
    delete[] tag_name;
