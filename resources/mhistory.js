@@ -115,13 +115,13 @@ function MhistoryGraph(divElement) { // Constructor
       {
          src: "clock.svg",
          click: function () {
-            console.log('clock');
+            dlgMessage("Notification", "Not yet implemented");
          }
       },
       {
          src: "settings.svg",
-         click: function () {
-            console.log('config');
+         click: function (t) {
+            window.location.href = "?cmd=history&group=" + t.group + "&panel=" + t.panel + "&hcmd=Config";
          }
       },
       {
@@ -391,6 +391,7 @@ MhistoryGraph.prototype.scrollRedraw = function () {
 };
 
 MhistoryGraph.prototype.mouseEvent = function (e) {
+
    // fix buttons for IE
    if (!e.which && e.button) {
       if ((e.button & 1) > 0) e.which = 1;      // Left
@@ -401,6 +402,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
    let cursor = "default";
 
    if (e.type === "mousedown") {
+
       // check for buttons
       this.button.forEach(b => {
          if (e.offsetX > b.x1 && e.offsetX < b.x1 + b.width &&
@@ -479,7 +481,9 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.yMin = this.drag.yMinStart - dy;
          this.yMax = this.drag.yMaxStart - dy;
          this.redraw();
+
       } else {
+
          // change curser to pointer over buttons
          this.button.forEach(b => {
             if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
@@ -504,17 +508,19 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          if (this.data !== undefined && this.x.length && this.y.length) {
             let minDist = 100;
             for (let di = 0; di < this.data.length; di++) {
-               for (let i = 0; i < this.data[di].length; i++) {
-                  let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
-                     Math.pow(e.offsetY - this.y[di][i], 2));
-                  if (d < minDist) {
-                     minDist = d;
-                     this.marker.x = this.x[di][i];
-                     this.marker.y = this.y[di][i];
-                     this.marker.mx = e.offsetX;
-                     this.marker.my = e.offsetY;
-                     this.marker.graphIndex = di;
-                     this.marker.index = i;
+               for (let i = 0; i < this.x[di].length; i++) {
+                  if (this.x[di][i] > this.x1 && this.x[di][i] < this.x2) {
+                     let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
+                        Math.pow(e.offsetY - this.y[di][i], 2));
+                     if (d < minDist) {
+                        minDist = d;
+                        this.marker.x = this.x[di][i];
+                        this.marker.y = this.y[di][i];
+                        this.marker.mx = e.offsetX;
+                        this.marker.my = e.offsetY;
+                        this.marker.graphIndex = di;
+                        this.marker.index = i;
+                     }
                   }
                }
             }
