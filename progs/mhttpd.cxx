@@ -12045,8 +12045,10 @@ struct hist_plot_t
    std::string NextColor()
    {
       const char* const color[] = {
-         "#0000FF", "#00C000", "#FF0000", "#00C0C0", "#FF00FF",
-         "#C0C000", "#808080", "#80FF80", "#FF8080", "#8080FF", NULL };
+              "#00AAFF", "#FF9000", "#FF00A0", "#00C030",
+              "#A0C0D0", "#D0A060", "#C04010", "#807060",
+              "#F0C000", "#2090A0", "#D040D0", "#90B000",
+              "#B0B040", "#B0B0FF", "#FFA0A0", "#A0FFA0", NULL };
 
       for (int i=0; color[i]; i++) {
          bool in_use = false;
