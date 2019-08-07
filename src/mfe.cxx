@@ -403,20 +403,15 @@ static INT register_equipment(void)
          exit(0);
       }
 
-      /* set record from user structure */
-      size = sizeof(EQUIPMENT_INFO);
-      status = db_set_record(hDB, hKey, eq_info, size, 0);
-      if (status != DB_SUCCESS) {
-         printf("ERROR:  Cannot set record \"%s\", db_set_record() status %d", str, status);
-         cm_disconnect_experiment();
-         ss_sleep(3000);
-         exit(0);
-      }
+      /* set fixed parameters from user structure */
+      db_set_value(hDB, hKey, "Event ID", &eq_info->event_id, sizeof(WORD), 1, TID_WORD);
+      db_set_value(hDB, hKey, "Type", &eq_info->eq_type, sizeof(INT), 1, TID_INT);
+      db_set_value(hDB, hKey, "Source", &eq_info->source, sizeof(INT), 1, TID_INT);
 
       /* read equipment Common from ODB */
 
       size = sizeof(EQUIPMENT_INFO);
-      status = db_get_record(hDB, hKey, eq_info, &size, 0);
+      status = db_get_record1(hDB, hKey, eq_info, &size, 0, EQUIPMENT_COMMON_STR);
 
       if (status != DB_SUCCESS) {
          printf("ERROR:  Cannot read record \"%s\", db_get_record1() status %d", str, status);
@@ -527,14 +522,14 @@ static INT register_equipment(void)
          /* record is probably still in exclusive access by dead FE, so reset it */
          status = db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE | MODE_DELETE, TRUE);
          if (status != DB_SUCCESS)
-            cm_msg(MERROR, "register_equipment", 
+            cm_msg(MERROR, "register_equipment",
                    "Cannot change access mode for record \'%s\', error %d", str, status);
          else
             cm_msg(MINFO, "register_equipment", "Recovered access mode for record \'%s\'", str);
          status = db_open_record1(hDB, hKey, eq_stats, sizeof(EQUIPMENT_STATS), MODE_WRITE, NULL, NULL, EQUIPMENT_STATISTICS_STR);
       }
       if (status != DB_SUCCESS) {
-         cm_msg(MERROR, "register_equipment", 
+         cm_msg(MERROR, "register_equipment",
                 "Cannot open statistics record \'%s\', error %d", str, status);
          ss_sleep(3000);
       }
@@ -581,10 +576,41 @@ static INT register_equipment(void)
          }
       }
    }
-   
+
    n_events = (int*)calloc(sizeof(int), idx);
 
    return SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
+
+INT set_odb_equipment_common(EQUIPMENT eq[], const char *name)
+/* set ODB tree /Equipmnet/<name>/Common record from user structure */
+{
+   HNDLE hDB, hKey;
+   char str[256];
+
+   sprintf(str, "/Equipment/%s/Common", name);
+   cm_get_experiment_database(&hDB, NULL);
+   for (int i=0 ; eq[i].name[0] ; i++) {
+      if (strcmp(eq[i].name, name) == 0) {
+         int status = db_find_key(hDB, 0, str, &hKey);
+         if (status != DB_SUCCESS) {
+            cm_msg(MERROR, "set_odb_equipment_common", "Cannot find ODB key \"%s\"", str);
+            return status;
+         }
+         int size = sizeof(EQUIPMENT_INFO);
+         status = db_set_record(hDB, hKey, (void *)(&eq[i].info), size, 0);
+         if (status != DB_SUCCESS) {
+            cm_msg(MERROR, "set_odb_equipment_common",
+                    "Cannot set record \"%s\" status %d", str, status);
+
+            return status;
+         }
+      }
+   }
+
+   return FE_SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
@@ -617,10 +643,10 @@ static INT initialize_equipment(void)
          if (equipment[idx].status != FE_ERR_DISABLED) {
             if (eq_info->enabled) {
                interrupt_eq = &equipment[idx];
-               
+
                /* create ring buffer for inter-thread data transfer */
                create_event_rb(0);
-               
+
                /* establish interrupt handler */
                interrupt_configure(CMD_INTERRUPT_ATTACH, idx,
                                    (POINTER_T) interrupt_routine);
@@ -639,11 +665,11 @@ static INT initialize_equipment(void)
          if (eq_info->eq_type & EQ_INTERRUPT) {
             if (eq_info->eq_type & EQ_POLLED)
                cm_msg(MERROR, "register_equipment",
-                      "Equipment \"%s\" cannot be of type EQ_INTERRUPT and EQ_POLLED at the same time", 
+                      "Equipment \"%s\" cannot be of type EQ_INTERRUPT and EQ_POLLED at the same time",
                       equipment[idx].name);
             else
                cm_msg(MERROR, "register_equipment",
-                      "Equipment \"%s\" cannot be of type EQ_INTERRUPT and EQ_MULTITHREAD at the same time", 
+                      "Equipment \"%s\" cannot be of type EQ_INTERRUPT and EQ_MULTITHREAD at the same time",
                       equipment[idx].name);
             return 0;
          }
@@ -672,13 +698,13 @@ static INT initialize_equipment(void)
                count = count * eq_info->period / delta_time;
             else
                count *= 100;
-            
+
             // avoid overflows
             if (count > 2147483647.0) {
                count = 2147483647.0;
                break;
             }
-            
+
          } while (delta_time > eq_info->period * 1.2 || delta_time < eq_info->period * 0.8);
 
          equipment[idx].poll_count = (INT)count;
@@ -722,7 +748,7 @@ static INT initialize_equipment(void)
       }
 
       /*---- initialize user events -------------------------------*/
-      
+
       if (eq_info->eq_type & EQ_USER) {
          if (equipment[idx].status != FE_ERR_DISABLED) {
             if (!eq_info->enabled) {
@@ -733,7 +759,7 @@ static INT initialize_equipment(void)
             }
          }
       }
-      
+
       /*---- initialize slow control equipment ---------------------*/
 
       if (eq_info->eq_type & EQ_SLOW) {
@@ -794,7 +820,7 @@ static INT initialize_equipment(void)
          slowcont_eq = TRUE;
 
          /* let user read error messages */
-         if (equipment[idx].status != FE_SUCCESS && 
+         if (equipment[idx].status != FE_SUCCESS &&
              equipment[idx].status != FE_ERR_DISABLED)
             ss_sleep(3000);
       }
@@ -864,7 +890,7 @@ static void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
       pbh = (BANK_HEADER *) (pevent + 1);
       pbk = NULL;
       pbk32 = NULL;
-      
+
       /* count number of banks */
       for (n=0 ; ; n++) {
          if (bk_is32(pbh)) {
@@ -877,10 +903,10 @@ static void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
                break;
          }
       }
-      
+
       /* build array of keys */
       hKeys = (HNDLE *)malloc(sizeof(HNDLE) * n);
-      
+
       pbk = NULL;
       pbk32 = NULL;
       n = 0;
@@ -958,12 +984,12 @@ static void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
             }
          }
       } while (1);
-      
+
       /* notify all hot-lined clients in one go */
       db_notify_clients_array(hDB, hKeys, n*sizeof(INT));
-      
+
       free(hKeys);
-      
+
    } else if (format == FORMAT_YBOS) {
      assert(!"YBOS not supported anymore");
    }
@@ -1214,7 +1240,7 @@ static void interrupt_routine(void)
 int create_event_rb(int i)
 {
    int status;
-   
+
    assert(i < MAX_N_THREADS);
    assert(rbh[i] == 0);
    status = rb_create(event_buffer_size, max_event_size, &rbh[i]);
@@ -1278,7 +1304,7 @@ static int _readout_thread(void *param)
          break;
 
       if (readout_enabled()) {
-        
+
          /* check for new event */
          source = poll_event(multithread_eq->info.source, multithread_eq->poll_count, FALSE);
 
@@ -1288,11 +1314,11 @@ static int _readout_thread(void *param)
                break;
 
             pevent = (EVENT_HEADER *)p;
-            /* put source at beginning of event, will be overwritten by 
-               user readout code, just a special feature used by some 
+            /* put source at beginning of event, will be overwritten by
+               user readout code, just a special feature used by some
                multi-source applications */
             *(INT *) (pevent + 1) = source;
-            
+
             /* compose MIDAS event header */
             pevent->event_id = multithread_eq->info.event_id;
             pevent->trigger_mask = multithread_eq->info.trigger_mask;
@@ -1346,54 +1372,54 @@ static int receive_trigger_event(EQUIPMENT *eq)
          printf("mfe: ring buffer contains %d bytes\n", nbytes);
    }
 #endif
-   
+
    for (i=0 ; get_event_rbh(i) ; i++) {
       status = rb_get_rp(get_event_rbh(i), &p, 10);
       prb = (EVENT_HEADER *)p;
       if (status == DB_TIMEOUT)
          return 0;
-      
+
       pevent = prb;
-      
+
       /* send event */
       if (pevent->data_size) {
          if (eq->buffer_handle) {
-            
+
             /* save event in temporary buffer to push it to the ODB later */
             if (eq->info.read_on & RO_ODB)
                memcpy(event_buffer, pevent, pevent->data_size + sizeof(EVENT_HEADER));
-            
+
             /* send first event to ODB if logger writes in root format */
             if (pevent->serial_number == 0)
                if (logger_root())
                   update_odb(pevent, eq->hkey_variables, eq->format);
-            
+
             status = rpc_send_event(eq->buffer_handle, pevent,
                                     pevent->data_size + sizeof(EVENT_HEADER),
                                     BM_WAIT, rpc_mode);
-            
+
             if (status != SUCCESS) {
                cm_msg(MERROR, "receive_trigger_event", "rpc_send_event error %d", status);
                return -1;
             }
-            
+
             eq->bytes_sent += pevent->data_size + sizeof(EVENT_HEADER);
-            
+
             if (eq->info.num_subevents)
                eq->events_sent += eq->subevent_number;
             else
                eq->events_sent++;
-            
+
             rotate_wheel();
          }
       }
-      
+
       rb_increment_rp(get_event_rbh(i), sizeof(EVENT_HEADER) + prb->data_size);
    } // for rbh[]
 
    if (prb == NULL)
       return 0;
-   
+
    return prb->data_size;
 }
 
@@ -1478,21 +1504,21 @@ void display(BOOL bInit)
          ss_printf(25, i + 6, "%1.3lfM     ", equipment[i].stats.events_sent / 1E6);
       else
          ss_printf(25, i + 6, "%1.0lf      ", equipment[i].stats.events_sent);
-      
+
       if (equipment[i].stats.events_per_sec > 1E6)
          ss_printf(36, i + 6, "%1.3lfM      ", equipment[i].stats.events_per_sec / 1E6);
       else if (equipment[i].stats.events_per_sec > 1E3)
          ss_printf(36, i + 6, "%1.3lfk      ", equipment[i].stats.events_per_sec / 1E3);
       else
          ss_printf(36, i + 6, "%1.1lf      ", equipment[i].stats.events_per_sec);
-      
+
       if (equipment[i].stats.kbytes_per_sec > 1E3)
          ss_printf(47, i + 6, "%1.3lfM      ", equipment[i].stats.kbytes_per_sec / 1E3);
       else if (equipment[i].stats.kbytes_per_sec < 1E3)
          ss_printf(47, i + 6, "%1.1lf      ", equipment[i].stats.kbytes_per_sec * 1E3);
       else
          ss_printf(47, i + 6, "%1.3lfk      ", equipment[i].stats.kbytes_per_sec);
-      
+
       ss_printf(58, i + 6, "%ld       ", equipment[i].odb_in);
       ss_printf(69, i + 6, "%ld       ", equipment[i].odb_out);
    }
@@ -1611,7 +1637,7 @@ static INT check_polled_events(void)
       pevent = NULL;
 
       while ((source = poll_event(eq_info->source, eq->poll_count, FALSE)) > 0) {
-         
+
          if (eq_info->eq_type & EQ_FRAGMENTED)
             pevent = (EVENT_HEADER *)frag_buffer;
          else
@@ -1624,8 +1650,8 @@ static INT check_polled_events(void)
          pevent->time_stamp = actual_time;
          pevent->serial_number = eq->serial_number;
 
-         /* put source at beginning of event, will be overwritten by 
-            user readout code, just a special feature used by some 
+         /* put source at beginning of event, will be overwritten by
+            user readout code, just a special feature used by some
             multi-source applications */
          *(INT *) (pevent + 1) = source;
 
@@ -1751,7 +1777,7 @@ static INT check_polled_events(void)
                      rpc_flush_event();
                   }
                }
-            
+
             } else { /*-------------------*/
 
                /* send unfragmented event */
@@ -1807,7 +1833,7 @@ static INT scheduler()
    EQUIPMENT_INFO *eq_info;
    EQUIPMENT *eq;
    EVENT_HEADER *pevent, *pfragment;
-   DWORD last_time_network = 0, last_time_display = 0, last_time_flush = 0, 
+   DWORD last_time_network = 0, last_time_display = 0, last_time_flush = 0,
       readout_start, sent, size, last_time_rate = 0;
    INT i, j, idx, status = 0, ch, source, state, old_flag;
    char str[80], *pdata;
@@ -1851,7 +1877,7 @@ static INT scheduler()
          if ((eq_info->eq_type & EQ_SLOW) &&
              (eq->status == FE_SUCCESS || eq->status == FE_PARTIALLY_DISABLED)) {
             /* if equipment is multi-threaded, read all channel in one loop */
-             
+
             if (eq_info->event_limit > 0) {
                if (actual_millitime - eq->last_idle >= (DWORD) eq_info->event_limit) {
                   eq->cd(CMD_IDLE, eq);
@@ -1900,7 +1926,7 @@ static INT scheduler()
             pevent = NULL;
 
             while ((source = poll_event(eq_info->source, eq->poll_count, FALSE)) > 0) {
-               
+
                if (eq_info->eq_type & EQ_FRAGMENTED)
                   pevent = (EVENT_HEADER *)frag_buffer;
                else
@@ -1913,8 +1939,8 @@ static INT scheduler()
                pevent->time_stamp = actual_time;
                pevent->serial_number = eq->serial_number;
 
-               /* put source at beginning of event, will be overwritten by 
-                  user readout code, just a special feature used by some 
+               /* put source at beginning of event, will be overwritten by
+                  user readout code, just a special feature used by some
                   multi-source applications */
                *(INT *) (pevent + 1) = source;
 
@@ -2040,7 +2066,7 @@ static INT scheduler()
                            rpc_flush_event();
                         }
                      }
-                  
+
                   } else { /*-------------------*/
 
                      /* send unfragmented event */
@@ -2369,7 +2395,7 @@ static INT scheduler()
          } else
             status = RPC_SUCCESS;
       } else
-         /* when run is stopped or interrupts used, 
+         /* when run is stopped or interrupts used,
             call yield with 100ms timeout */
          status = cm_yield(100);
 
@@ -2502,7 +2528,7 @@ int main(int argc, char *argv[])
    for (i=0 ; i<argc ; i++) {
       _argv[i] = argv[i];
    }
-   
+
    /* parse command line parameters */
    for (i = 1; i < argc; i++) {
       if (argv[i][0] == '-' && argv[i][1] == 'd')
@@ -2517,7 +2543,7 @@ int main(int argc, char *argv[])
          else
             verbosity_level = 1;
       }
-      
+
       else if (argv[i][0] == '-') {
          if (i + 1 >= argc || argv[i + 1][0] == '-')
             goto usage;
@@ -2581,7 +2607,7 @@ int main(int argc, char *argv[])
       printf("\nBecoming a daemon...\n");
       ss_daemon_init(daemon_flag == 2);
    }
-  
+
    /* set default rate period */
    set_rate_period(3000);
 
@@ -2713,7 +2739,7 @@ int main(int argc, char *argv[])
       interrupt_configure(CMD_INTERRUPT_DISABLE, 0, 0);
       interrupt_configure(CMD_INTERRUPT_DETACH, 0, 0);
    }
-   
+
    /* call user exit function */
    frontend_exit();
 
