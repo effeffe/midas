@@ -757,7 +757,6 @@ function mhttpd_init(current_page, interval, callback) {
 }
 
 function getMElements(name)
-function getMElements(name)
 {
    // collect all <div name=[name] >
    let e = [];
