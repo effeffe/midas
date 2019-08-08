@@ -29,7 +29,7 @@
             Run number:
          </td>
          <td>
-            <div name="modbvalue" data-odb-path="/Runinfo/Run number" data-odb-editable="1"></div>
+            <div data-name="modbvalue" data-odb-path="/Runinfo/Run number" data-odb-editable="1"></div>
          </td>
       </tr>
       <tr>
@@ -37,7 +37,7 @@
             Last run start:
          </td>
          <td>
-            <div name="modbvalue" data-odb-path="/Runinfo/Start time"></div>
+            <div data-name="modbvalue" data-odb-path="/Runinfo/Start time"></div>
          </td>
       </tr>
       <tr>
@@ -45,7 +45,7 @@
             Last run stop:
          </td>
          <td>
-            <div name="modbvalue" data-odb-path="/Runinfo/Stop time"></div>
+            <div data-name="modbvalue" data-odb-path="/Runinfo/Stop time"></div>
          </td>
       </tr>
       <tr>
@@ -54,9 +54,9 @@
          </td>
          <td>
             <!-- checkbox changes /Logger/Write data, fire dialog box on change (even if changed by odbedit) -->
-            <input type="checkbox" name="modbcheckbox" data-odb-path="/Logger/Write data"></input>
+            <input type="checkbox" data-name="modbcheckbox" data-odb-path="/Logger/Write data"></input>
 
-            <div name="modb" data-odb-path="/Logger/Write data" onchange="dlgAlert('Flag has changed');"></div>
+            <div data-name="modb" data-odb-path="/Logger/Write data" onchange="dlgAlert('Flag has changed');"></div>
          </td>
       </tr>
       <tr>
@@ -65,7 +65,7 @@
          </td>
          <td>
             <!-- box changes color according to /Logger/Write data -->
-            <div name="modbbox" style="width: 30px; height: 30px;" data-odb-path="/Logger/Write data"
+            <div data-name="modbbox" style="width: 30px; height: 30px;" data-odb-path="/Logger/Write data"
                  data-color="lightgreen" data-background-color="red"></div>
          </td>
       </tr>
@@ -74,16 +74,16 @@
             Horizontal bars:
          </td>
          <td>
-            <div name="modbhbar" style="width:300px;height:20px;color:orange;" data-odb-path="/Runinfo/Run number"
+            <div data-name="modbhbar" style="width:300px;height:20px;color:orange;" data-odb-path="/Runinfo/Run number"
                  data-max-value="10" data-print-value="1"></div><br />
 
-            <div name="mhaxis" style="width:500px;height:22px;" data-min-value="0" data-max-value="10"></div>
-            <div name="modbhbar" style="width: 500px; height: 18px;color:lightblue" data-odb-path="/Runinfo/Run number"
+            <div data-name="mhaxis" style="width:500px;height:22px;" data-min-value="0" data-max-value="10"></div>
+            <div data-name="modbhbar" style="width: 500px; height: 18px;color:lightblue" data-odb-path="/Runinfo/Run number"
                  data-max-value="10"></div><br />
 
-            <div name="modbhbar" style="width: 200px; height: 10px;color:lightgreen;background-color:white"
+            <div data-name="modbhbar" style="width: 200px; height: 10px;color:lightgreen;background-color:white"
                  data-odb-path="/Runinfo/Run number" data-min-value="0.1" data-max-value="10" data-log="1"></div>
-            <div name="mhaxis" style="width:200px;height:22px;vertical-align:top;" data-min-value="0.1"
+            <div data-name="mhaxis" style="width:200px;height:22px;vertical-align:top;" data-min-value="0.1"
                  data-max-value="10" data-line="0" data-log="1"></div>
          </td>
       </tr>
@@ -92,11 +92,11 @@
             Vertical bars:
          </td>
          <td>
-            <span name="mvaxis" style="width:100px;height:200px;text-align:right;" data-min-value="0" data-max-value="20"></span><span name="modbvbar"
+            <span data-name="mvaxis" style="width:100px;height:200px;text-align:right;" data-min-value="0" data-max-value="20"></span><span data-name="modbvbar"
                   style="width:20px;height:200px;color:yellow;" data-odb-path="/Runinfo/Run number"
                   data-min-value="0" data-max-value="20"></span>
-            <span name="modbvbar" style="width:10px;height:200px;vertical-align:top;color:red" data-odb-path="/Runinfo/Run number" data-min-value="0.1"
-                  data-max-value="10" data-log="1"></span><span name="mvaxis" style="width:100px;height:200px;text-align:left;" data-min-value="0.1"
+            <span data-name="modbvbar" style="width:10px;height:200px;vertical-align:top;color:red" data-odb-path="/Runinfo/Run number" data-min-value="0.1"
+                  data-max-value="10" data-log="1"></span><span data-name="mvaxis" style="width:100px;height:200px;text-align:left;" data-min-value="0.1"
                                                                 data-max-value="10" data-log="1"></span>
          </td>
       </tr>
@@ -106,12 +106,12 @@
             Thermometer:
          </td>
          <td>
-            <div name="modbthermo" style="width:30px;height:100px;" data-odb-path="/Runinfo/Run number" data-min-value="-10" data-max-value="30"
+            <div data-name="modbthermo" style="width:30px;height:100px;" data-odb-path="/Runinfo/Run number" data-min-value="-10" data-max-value="30"
                  data-color="darkgreen"></div>
-            <div name="modbthermo" style="width:60px;height:100px;" data-odb-path="/Runinfo/Run number" data-min-value="-10" data-max-value="30"
+            <div data-name="modbthermo" style="width:60px;height:100px;" data-odb-path="/Runinfo/Run number" data-min-value="-10" data-max-value="30"
                  data-color="blue" data-scale="1"
                  onchange="this.dataset.color=this.value > 9?'red':'blue';"></div>
-            <div name="modbthermo" style="width:30px;height:100px;" data-odb-path="/Runinfo/Run number" data-min-value="-10" data-max-value="30"
+            <div data-name="modbthermo" style="width:30px;height:100px;" data-odb-path="/Runinfo/Run number" data-min-value="-10" data-max-value="30"
                  data-color="blue" data-background-color="white" data-value="1"></div>
          </td>
       </tr>
@@ -121,9 +121,9 @@
             Gauges:
          </td>
          <td>
-            <div name="modbgauge" style="width:100px;height:50px;" data-odb-path="/Runinfo/Run number" data-min-value="0" data-max-value="10"
+            <div data-name="modbgauge" style="width:100px;height:50px;" data-odb-path="/Runinfo/Run number" data-min-value="0" data-max-value="10"
                  data-color="darkgreen" data-background-color="lightgrey" ></div>
-            <div name="modbgauge" style="width:100px;height:65px;" data-odb-path="/Runinfo/Run number" data-min-value="0" data-max-value="10"
+            <div data-name="modbgauge" style="width:100px;height:65px;" data-odb-path="/Runinfo/Run number" data-min-value="0" data-max-value="10"
                  data-color="red" data-value="1" data-scale="1"></div>
          </td>
       </tr>
@@ -136,16 +136,16 @@
                <img src="tank.gif"> <!-- background image of tank -->
 
                <!-- label next to valve -->
-               <div name="modbvalue" data-odb-path="/Runinfo/Run number" data-odb-editable="1"
+               <div data-name="modbvalue" data-odb-path="/Runinfo/Run number" data-odb-editable="1"
                     style="position:absolute;top:157px;left:288px;"></div>
 
                <!-- vertical bar inside tank, render red if value > 9 -->
-               <div name="modbvbar" style="position:absolute;top:80px;left:10px;width:104px;height:170px;color:green"
+               <div data-name="modbvbar" style="position:absolute;top:80px;left:10px;width:104px;height:170px;color:green"
                     data-odb-path="/Runinfo/Run number" data-max-value="11"
                     onchange="this.firstChild.style.backgroundColor=(this.value > 9)?'red':'green';"></div>
 
                <!-- thermometer inside tank -->
-               <div name="modbthermo" style="position:absolute;top:140px;left:20px;width:20px;height:100px;"
+               <div data-name="modbthermo" style="position:absolute;top:140px;left:20px;width:20px;height:100px;"
                     data-odb-path="/Runinfo/Run number" data-min-value="-10" data-max-value="30"
                     data-color="blue" data-value="1"></div>
 
@@ -156,13 +156,13 @@
       <tr>
          <td colspan="2" style="text-align: center;">
             <!-- three buttons to change an ODB entry (run number in this example) -->
-            <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="1">Set run
+            <button data-name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="1">Set run
                number to 1
             </button>
-            <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="5">Set run
+            <button data-name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="5">Set run
                number to 5
             </button>
-            <button name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="10">Set run
+            <button data-name="modbbutton" class="mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="10">Set run
                number to 10
             </button>
          </td>
