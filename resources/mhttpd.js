@@ -762,23 +762,8 @@ function getMElements(name)
    let e = [];
    e.push(...document.getElementsByName(name));
 
-   // collect all <div data-name=[name] >
-   let eData = Array.from(document.getElementsByTagName("div")).filter(d => {
-      return d.dataset.name === name;
-   });
-   e.push(...eData);
-
-   // collect all <span data-name=[name] >
-   eData = Array.from(document.getElementsByTagName("span")).filter(d => {
-      return d.dataset.name === name;
-   });
-   e.push(...eData);
-
-   // collect all <button data-name=[name] >
-   eData = Array.from(document.getElementsByTagName("button")).filter(d => {
-      return d.dataset.name === name;
-   });
-   e.push(...eData);
+   // collect all <div class=[name] >
+   e.push(...document.getElementsByClassName(name));
 
    return e;
 }
