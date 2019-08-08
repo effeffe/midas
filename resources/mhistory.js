@@ -68,6 +68,9 @@ function MhistoryGraph(divElement) { // Constructor
    this.yMax = this.yMax0;
    this.scroll = true;
 
+   // data aggays
+   this.data = [];
+
    // graph arrays (in screen pixels)
    this.x = [];
    this.y = [];
@@ -273,6 +276,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
    this.lastTimeStamp = Math.floor(Date.now() / 1000);
 
    this.tScale = timeToSec(this.odb["Timescale"]);
+   this.tMax = new Date() / 1000;
+   this.tMin = this.tMax - this.tScale;
 
    this.odb["Variables"].forEach(v => {
       this.events.push(v.substr(0, v.indexOf(':')));
@@ -295,23 +300,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
          "index": this.index
       })
       .then(function (rpc) {
-         this.yMin = 0;
-         this.yMax = 0;
 
-         rpc.result.data.forEach(d => {
-            this.yMin = Math.min(this.yMin, ...d.value);
-            this.yMax = Math.max(this.yMax, ...d.value);
-         });
-         if (this.yMin === this.yMax) {
-            this.yMin -= 0.5;
-            this.yMax += 0.5;
-         } else {
-            this.yMax += (this.yMax - this.yMin) * 0.05;
-         }
-         this.yMin0 = this.yMin;
-         this.yMax0 = this.yMax;
-         this.data = rpc.result.data;
-         this.redraw();
+         this.receiveData(rpc);
 
          if (this.updateTimer === undefined)
             this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
@@ -322,6 +312,49 @@ MhistoryGraph.prototype.loadInitialData = function () {
       .catch(function (error) {
          mjsonrpc_error_alert(error);
       });
+};
+
+MhistoryGraph.prototype.receiveData = function (rpc) {
+   // append newer values to end of arrays
+   if (this.data === undefined) {
+
+      // initial data
+      this.data = rpc.result.data;
+
+   } else {
+      for (let di = 0; di < rpc.result.data.length; di++) {
+         for (let i = 0; i < rpc.result.data[di].time.length; i++) {
+            if (this.data[di].time.length === 0 ||
+               rpc.result.data[di].time[i] > this.data[di].time[this.data[di].time.length - 1]) {
+
+               this.data[di].time.push(rpc.result.data[di].time[i]);
+               this.data[di].value.push(rpc.result.data[di].value[i]);
+
+               this.lastTimeStamp = rpc.result.data[di].time[i];
+            }
+         }
+      }
+   }
+
+   let min = 0;
+   let max = 0;
+   if (this.data.length)
+   this.data.forEach(d => {
+      min = Math.min(min, ...d.value);
+      max = Math.max(max, ...d.value);
+   });
+   if (min === max) {
+      min -= 0.5;
+      max += 0.5;
+   } else {
+      max += (max - min) * 0.05;
+   }
+   this.yMin0 = min;
+   this.yMax0 = max;
+   if (this.scroll) {
+      this.yMax = max;
+      this.yMin = min;
+   }
 };
 
 MhistoryGraph.prototype.update = function () {
@@ -338,46 +371,14 @@ MhistoryGraph.prototype.update = function () {
       })
       .then(function (rpc) {
 
-            // append newer values to end of arrays
-            for (let di = 0; di < rpc.result.data.length; di++) {
-               for (let i = 0; i < rpc.result.data[di].time.length; i++) {
-                  if (rpc.result.data[di].time[i] > this.data[di].time[this.data[di].time.length - 1]) {
+         this.receiveData(rpc);
+         this.redraw();
 
-                     this.data[di].time.push(rpc.result.data[di].time[i]);
-                     this.data[di].value.push(rpc.result.data[di].value[i]);
+         this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
 
-                     this.lastTimeStamp = rpc.result.data[di].time[i];
-                  }
-               }
-            }
-
-            let min = 0;
-            let max = 0;
-            this.data.forEach(d => {
-               min = Math.min(min, ...d.value);
-               max = Math.max(max, ...d.value);
-            });
-            if (min === max) {
-               min -= 0.5;
-               max += 0.5;
-            } else {
-               max += (max - min) * 0.05;
-            }
-            this.yMin0 = min;
-            this.yMax0 = max;
-            if (this.scroll) {
-               this.yMax = max;
-               this.yMin = min;
-            }
-            this.redraw();
-
-            this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
-
-         }.bind(this)
-      )
-      .catch(function (error) {
-         mjsonrpc_error_alert(error);
-      });
+      }.bind(this)).catch(function (error) {
+      mjsonrpc_error_alert(error);
+   });
 };
 
 MhistoryGraph.prototype.scrollRedraw = function () {
@@ -674,22 +675,24 @@ MhistoryGraph.prototype.draw = function () {
          ctx.fillText(v.substr(v.indexOf(':') + 1), 25, 40 + i * 17);
 
          ctx.textAlign = "right";
+         if (this.data[i].value.length > 0) {
+            // use last point in array
+            let index = this.data[i].value.length - 1;
 
-         // use last point in array
-         let index = this.data[i].value.length - 1;
+            // use point at current marker
+            if (this.marker.active)
+               index = this.marker.index;
 
-         // use point at current marker
-         if (this.marker.active)
-            index = this.marker.index;
-
-         // convert value to string with 6 digits
-         let value = this.data[i].value[index];
-         let str;
-         if (value < 1)
-            str = value.toFixed(5);
-         else
-            str = value.toPrecision(6);
-         ctx.fillText(str, 25 + variablesWidth, 40 + i * 17);
+            // convert value to string with 6 digits
+            let value = this.data[i].value[index];
+            let str;
+            if (value < 1)
+               str = value.toFixed(5);
+            else
+               str = value.toPrecision(6);
+            ctx.fillText(str, 25 + variablesWidth, 40 + i * 17);
+         } else
+            ctx.fillText('no data', 25 + variablesWidth, 40 + i* 17);
 
       });
 
