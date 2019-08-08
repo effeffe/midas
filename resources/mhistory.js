@@ -544,7 +544,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
 MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
-   if (e.altKey) {
+   if (e.altKey || e.shiftKey) {
       let f = (e.offsetY - this.y1) / (this.y2 - this.y1);
       let dtMin = f * (this.yMax - this.yMin) / 100 * e.deltaY;
       let dtMax = (1 - f) * (this.yMax - this.yMin) / 100 * e.deltaY;
