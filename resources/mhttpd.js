@@ -768,6 +768,12 @@ function getMElements(name)
    });
    e.push(...eData);
 
+   // collect all <span data-name=[name] >
+   eData = Array.from(document.getElementsByTagName("span")).filter(d => {
+      return d.dataset.name === name;
+   });
+   e.push(...eData);
+
    // collect all <button data-name=[name] >
    eData = Array.from(document.getElementsByTagName("button")).filter(d => {
       return d.dataset.name === name;
