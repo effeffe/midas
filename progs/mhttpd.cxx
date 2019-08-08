@@ -12045,8 +12045,10 @@ struct hist_plot_t
    std::string NextColor()
    {
       const char* const color[] = {
-         "#0000FF", "#00C000", "#FF0000", "#00C0C0", "#FF00FF",
-         "#C0C000", "#808080", "#80FF80", "#FF8080", "#8080FF", NULL };
+              "#00AAFF", "#FF9000", "#FF00A0", "#00C030",
+              "#A0C0D0", "#D0A060", "#C04010", "#807060",
+              "#F0C000", "#2090A0", "#D040D0", "#90B000",
+              "#B0B040", "#B0B0FF", "#FFA0A0", "#A0FFA0", NULL };
 
       for (int i=0; color[i]; i++) {
          bool in_use = false;
@@ -12122,8 +12124,12 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    if (hcmd[0] && equal_ustring(hcmd, "save")) {
       plot.SaveToOdb(hDB, path);
 
-      sprintf(str, "?cmd=history&group=%s&panel=%s", hgroup, hpanel);
-      redirect(r, str);
+      if (p->getparam("redir") && *p->getparam("redir"))
+         redirect(r, p->getparam("redir"));
+      else {
+         sprintf(str, "?cmd=history&group=%s&panel=%s", hgroup, hpanel);
+         redirect(r, str);
+      }
       return;
    }
 
@@ -12171,6 +12177,10 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    r->rsprintf("<input type=hidden name=hcmd value=Refresh>\n");
    r->rsprintf("<input type=hidden name=panel value=\"%s\">\n", hpanel);
    r->rsprintf("<input type=hidden name=group value=\"%s\">\n", hgroup);
+
+   if (p->getparam("redir") && *p->getparam("redir"))
+      r->rsprintf("<input type=hidden name=redir value=\"%s\">\n", p->getparam("redir"));
+
    r->rsprintf("</td></tr>\n");
 
    r->rsprintf("<tr><td colspan=8>Time scale: &nbsp;&nbsp;");

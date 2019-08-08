@@ -93,6 +93,7 @@ void stop_readout_threads(void);
 int is_readout_thread_enabled(void);
 int is_readout_thread_active(void);
 void signal_readout_thread_active(int index, int flag);
+INT set_odb_equipment_common(EQUIPMENT eq[], const char *name);
 
 #endif
 

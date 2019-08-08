@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="mcss">
+<html class="mcss" lang=en">
 <head>
    <meta charset="UTF-8">
    <link rel="stylesheet" href="midas.css">
@@ -18,19 +18,90 @@
 
 <script>
 
+   function getUrlVars() {
+      let vars = {};
+      window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function (m, key, value) {
+         vars[key] = value;
+      });
+      return vars;
+   }
+
    function init() {
-      window.addEventListener("resize", windowResize);
-      windowResize();
+
+      mjsonrpc_db_copy(["/History/Display"]).then(function (rpc) {
+         let historyDisplay = rpc.result.data[0];
+
+         let curGroup = decodeURI(getUrlVars()["group"]);
+         let curPanel = decodeURI(getUrlVars()["panel"]);
+         let baseURL = window.location.href;
+         if (baseURL.search("&group") > 0)
+            baseURL = baseURL.substr(0, baseURL.search("&group"));
+
+         if (curGroup === "undefined")
+            curGroup = Object.keys(historyDisplay)[0];
+         if (curPanel === "undefined")
+            curPanel = Object.keys(historyDisplay[curGroup])[0];
+
+         // create history object
+         mhistory_create(document.getElementById("hist"), curGroup, curPanel);
+
+         // populate group selector
+         let sgroup = document.getElementById("sgroup");
+         Object.keys(historyDisplay).forEach(key => {
+            let o = document.createElement("option");
+            o.text = key;
+            sgroup.add(o);
+            if (curGroup === key)
+               o.selected = true;
+         });
+         let o = document.createElement("option");
+         o.text = "- All -";
+         //##sgroup.add(o);
+         if (curGroup === "- All -")
+            o.selected = true;
+
+         // populate panel selector
+         let spanel = document.getElementById("spanel");
+         Object.keys(historyDisplay[curGroup]).forEach(key => {
+            let o = document.createElement("option");
+            o.text = key;
+            spanel.add(o);
+            if (curPanel === key)
+               o.selected = true;
+         });
+         o = document.createElement("option");
+         o.text = "- All -";
+         //##spanel.add(o);
+         if (curPanel === "- All -")
+            o.selected = true;
+
+         // add listener to group selector
+         document.getElementById("sgroup").addEventListener("change", function () {
+            window.location.href = baseURL + "&group=" + document.getElementById("sgroup").value;
+         });
+
+         // add listener to panel selector
+         document.getElementById("spanel").addEventListener("change", function () {
+            window.location.href = baseURL +
+               "&group=" + document.getElementById("sgroup").value +
+               "&panel=" + document.getElementById("spanel").value;
+         });
+
+         window.addEventListener("resize", windowResize);
+         windowResize();
+
+
+      }).catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
    }
 
    function windowResize() {
-      var m = document.getElementById("mmain");
-      var t = document.getElementById("overallTable");
-
-      d = document.getElementById("hist1");
+      let m = document.getElementById("mmain");
+      let d = document.getElementById("hist").childNodes[0];
       d.style.width = document.documentElement.clientWidth - parseInt(m.style.marginLeft) - 30 + "px";
       d.style.height = document.documentElement.clientHeight - d.getBoundingClientRect().top - 20 + "px";
-      d.resize();
+      d.mhg.resize();
    }
 
 </script>
@@ -44,19 +115,15 @@
          <td>
             Group:
             <select title="Select Group" id="sgroup">
-               <option selected value="Default">Default</option>
-               <option value="All">- All -</option>
             </select>&nbsp;&nbsp;
             Panel:
             <select title="Select Panel" id="spanel">
-               <option selected value="Trigger Rate">Trigger Rate</option>
-               <option value="All">- All -</option>
             </select>
          </td>
       </tr>
       <tr>
          <td>
-            <div name="mjshistory" id="hist1" data-group="Slow" data-panel="Sines"></div>
+            <div id="hist"></div>
          </td>
       </tr>
    </table>

@@ -14,34 +14,30 @@ LOG2 = 0.301029996;
 LOG5 = 0.698970005;
 
 function mhistory_init() {
-   // go through all name="mhistory" tags
-   let mhist = document.getElementsByName("mjshistory");
+   // go through all data-name="mhistory" tags
+   let mhist = Array.from(document.getElementsByTagName("div")).filter(d => {
+      return d.dataset.name === "mjshistory";
+   });
+
    for (let i = 0; i < mhist.length; i++) {
       mhist[i].mhg = new MhistoryGraph(mhist[i]);
+      mhist[i].mhg.initializePanel();
       mhist[i].resize = function () {
          this.mhg.resize();
       };
    }
 }
 
+function mhistory_create(parentElement, group, panel) {
+   let d = document.createElement("div");
+   parentElement.appendChild(d);
+   d.dataset.group = group;
+   d.dataset.panel = panel;
+   d.mhg = new MhistoryGraph(d);
+   d.mhg.initializePanel();
+}
+
 function MhistoryGraph(divElement) { // Constructor
-
-   // Retrieve group and panel
-   this.group = divElement.dataset.group;
-   this.panel = divElement.dataset.panel;
-
-   if (this.group === undefined) {
-      dlgMessage("Error", "Definition of \'dataset-group\' missing for history panel \'" + divElement.id + "\'. " +
-         "Please use syntax:<br /><br /><b>&lt;div name=\"mjshistory\" " +
-         "data-group=\"&lt;Group&gt;\" data-panel=\"&lt;Panel&gt;\"&gt;&lt;/div&gt;</b>", true);
-      return;
-   }
-   if (this.panel === undefined) {
-      dlgMessage("Error", "Definition of \'dataset-panel\' missing for history panel \'" + divElement.id + "\'. " +
-         "Please use syntax:<br /><br /><b>&lt;div name=\"mjshistory\" " +
-         "data-group=\"&lt;Group&gt;\" data-panel=\"&lt;Panel&gt;\"&gt;&lt;/div&gt;</b>", true);
-      return;
-   }
 
    // create canvas inside the div
    this.parentDiv = divElement;
@@ -56,15 +52,10 @@ function MhistoryGraph(divElement) { // Constructor
       grid: "#F0F0F0",
       label: "#404040",
       data: [
-         "#B0B040", "#B0B0FF", "#FFA0A0", "#A0FFA0",
-         "#FF9000", "#00AAFF", "#FF00A0", "#00C030",
-         "#D0A060", "#A0C0D0", "#C04010", "#807060",
-         "#F0C000", "#2090A0", "#D040D0", "#90B000"],
-      idata: [
-         "#FFFF00", "#B0B0FF", "#FFA0A0", "#A0FFA0",
-         "#FF9000", "#00AAFF", "#FF00A0", "#00C030",
-         "#D0A060", "#A0C0D0", "#C04010", "#807060",
-         "#F0C000", "#2090A0", "#D040D0", "#90B000"]
+         "#00AAFF", "#FF9000", "#FF00A0", "#00C030",
+         "#A0C0D0", "#D0A060", "#C04010", "#807060",
+         "#F0C000", "#2090A0", "#D040D0", "#90B000",
+         "#B0B040", "#B0B0FF", "#FFA0A0", "#A0FFA0"],
    };
 
    // scales
@@ -76,6 +67,9 @@ function MhistoryGraph(divElement) { // Constructor
    this.yMin = this.yMin0;
    this.yMax = this.yMax0;
    this.scroll = true;
+
+   // data aggays
+   this.data = [];
 
    // graph arrays (in screen pixels)
    this.x = [];
@@ -90,8 +84,21 @@ function MhistoryGraph(divElement) { // Constructor
       y: {active: false}
    };
 
+   // marker
+   this.marker = {active: false};
+
+   // labels
+   this.showLabels = false;
+
    // buttons
    this.button = [
+      {
+         src: "menu.svg",
+         click: function (t) {
+            t.showLabels = !t.showLabels;
+            t.redraw();
+         }
+      },
       {
          src: "rotate-ccw.svg",
          click: function (t) {
@@ -104,7 +111,7 @@ function MhistoryGraph(divElement) { // Constructor
          }
       },
       {
-         src: "skip-forward.svg",
+         src: "play.svg",
          click: function (t) {
             let dt = t.tMax - t.tMin;
             t.tMax = new Date() / 1000;
@@ -116,13 +123,14 @@ function MhistoryGraph(divElement) { // Constructor
       {
          src: "clock.svg",
          click: function () {
-            console.log('clock');
+            dlgMessage("Notification", "Not yet implemented");
          }
       },
       {
          src: "settings.svg",
-         click: function () {
-            console.log('config');
+         click: function (t) {
+            window.location.href = "?cmd=history&group=" + t.group + "&panel=" + t.panel
+               + "&hcmd=Config" + "&redir=" + encodeURIComponent(window.location.href);
          }
       },
       {
@@ -166,7 +174,7 @@ function MhistoryGraph(divElement) { // Constructor
       "</tr>" +
       "<tr>" +
       "<td>&nbsp;Back to live scolling after pan/zoom&nbsp;</td>" +
-      "<td>Click on <img src='icons/skip-forward.svg' style='vertical-align:middle' alt='Live scrolling'></td>" +
+      "<td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'></td>" +
       "</tr>" +
       "<tr>" +
       "<td>&nbsp;Reset axis&nbsp;</td>" +
@@ -194,21 +202,6 @@ function MhistoryGraph(divElement) { // Constructor
    divElement.addEventListener("mousemove", this.mouseEvent.bind(this), true);
    divElement.addEventListener("mouseup", this.mouseEvent.bind(this), true);
    divElement.addEventListener("wheel", this.mouseWheelEvent.bind(this), true);
-
-   // retrieve panel definition from ODB
-   mjsonrpc_db_copy(["/History/Display/" + this.group + "/" + this.panel]).then(function (rpc) {
-      if (rpc.result.status[0] !== 1) {
-         dlgMessage("Error", "Panel \'" + this.group + "/" + this.panel + "\' not found in ODB", true)
-      } else {
-         this.odb = rpc.result.data[0];
-         this.loadInitialData();
-      }
-   }.bind(this)).catch(function (error) {
-      if (error.xhr !== undefined)
-         mjsonrpc_error_alert(error);
-      else
-         throw(error);
-   });
 }
 
 function timeToSec(str) {
@@ -231,75 +224,181 @@ function timeToSec(str) {
    return s;
 }
 
+MhistoryGraph.prototype.initializePanel = function () {
+
+   // Retrieve group and panel
+   this.group = this.parentDiv.dataset.group;
+   this.panel = this.parentDiv.dataset.panel;
+
+   if (this.group === undefined) {
+      dlgMessage("Error", "Definition of \'dataset-group\' missing for history panel \'" + this.parentDiv.id + "\'. " +
+         "Please use syntax:<br /><br /><b>&lt;div name=\"mjshistory\" " +
+         "data-group=\"&lt;Group&gt;\" data-panel=\"&lt;Panel&gt;\"&gt;&lt;/div&gt;</b>", true);
+      return;
+   }
+   if (this.panel === undefined) {
+      dlgMessage("Error", "Definition of \'dataset-panel\' missing for history panel \'" + this.parentDiv.id + "\'. " +
+         "Please use syntax:<br /><br /><b>&lt;div name=\"mjshistory\" " +
+         "data-group=\"&lt;Group&gt;\" data-panel=\"&lt;Panel&gt;\"&gt;&lt;/div&gt;</b>", true);
+      return;
+   }
+
+   if (this.group === "" || this.panel === "")
+      return;
+
+   this.marker = {active: false};
+   this.drag = {active: false};
+   this.data = undefined;
+   this.x = [];
+   this.y = [];
+   this.events = [];
+   this.tags = [];
+   this.index = [];
+
+   // retrieve panel definition from ODB
+   mjsonrpc_db_copy(["/History/Display/" + this.group + "/" + this.panel]).then(function (rpc) {
+      if (rpc.result.status[0] !== 1) {
+         dlgMessage("Error", "Panel \'" + this.group + "/" + this.panel + "\' not found in ODB", true)
+      } else {
+         this.odb = rpc.result.data[0];
+         this.loadInitialData();
+      }
+   }.bind(this)).catch(function (error) {
+      if (error.xhr !== undefined)
+         mjsonrpc_error_alert(error);
+      else
+         throw(error);
+   });
+};
+
 MhistoryGraph.prototype.loadInitialData = function () {
-   let t = Date.now() / 1000;
+
+   this.lastTimeStamp = Math.floor(Date.now() / 1000);
 
    this.tScale = timeToSec(this.odb["Timescale"]);
-
-   let events = [];
-   let tags = [];
-   let index = [];
+   this.tMax = new Date() / 1000;
+   this.tMin = this.tMax - this.tScale;
 
    this.odb["Variables"].forEach(v => {
-      events.push(v.substr(0, v.indexOf(':')));
+      this.events.push(v.substr(0, v.indexOf(':')));
       let t = v.substr(v.indexOf(':') + 1);
       if (t.indexOf('[') !== -1) {
-         tags.push(t.substr(0, t.indexOf('[')));
-         index.push(parseInt(t.substr(t.indexOf('[') + 1)));
+         this.tags.push(t.substr(0, t.indexOf('[')));
+         this.index.push(parseInt(t.substr(t.indexOf('[') + 1)));
       } else {
-         tags.push(t);
-         index.push(0);
+         this.tags.push(t);
+         this.index.push(0);
       }
    });
 
    mjsonrpc_call("hs_read",
       {
-         "start_time": t - this.tScale * 2,
-         "end_time": t,
-         "events": events,
-         "tags": tags,
-         "index": index
+         "start_time": this.lastTimeStamp - this.tScale * 2,
+         "end_time": this.lastTimeStamp,
+         "events": this.events,
+         "tags": this.tags,
+         "index": this.index
       })
       .then(function (rpc) {
-         if (this.data === undefined) {
-            this.yMin = 0;
-            this.yMax = 0;
 
-            rpc.result.data.forEach(d => {
-               this.yMin = Math.min(this.yMin, ...d.value);
-               this.yMax = Math.max(this.yMax, ...d.value);
-            });
-            if (this.yMin === this.yMax) {
-               this.yMin -= 0.5;
-               this.yMax += 0.5;
-            } else {
-               this.yMax += (this.yMax - this.yMin) * 0.05;
-            }
-            this.yMin0 = this.yMin;
-            this.yMax0 = this.yMax;
-         }
-         this.data = rpc.result.data;
-         this.redraw();
+         this.receiveData(rpc);
 
-         window.setTimeout(this.update.bind(this), 1000);
+         if (this.updateTimer === undefined)
+            this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
+         if (this.redrawTimer === undefined)
+            this.redrawTimer = window.setTimeout(this.scrollRedraw.bind(this), 1000);
 
       }.bind(this))
       .catch(function (error) {
          mjsonrpc_error_alert(error);
-      })
+      });
+};
+
+MhistoryGraph.prototype.receiveData = function (rpc) {
+   // append newer values to end of arrays
+   if (this.data === undefined) {
+
+      // initial data
+      this.data = rpc.result.data;
+
+   } else {
+      for (let di = 0; di < rpc.result.data.length; di++) {
+         for (let i = 0; i < rpc.result.data[di].time.length; i++) {
+            if (this.data[di].time.length === 0 ||
+               rpc.result.data[di].time[i] > this.data[di].time[this.data[di].time.length - 1]) {
+
+               this.data[di].time.push(rpc.result.data[di].time[i]);
+               this.data[di].value.push(rpc.result.data[di].value[i]);
+
+               this.lastTimeStamp = rpc.result.data[di].time[i];
+            }
+         }
+      }
+   }
+
+   let min = 0;
+   let max = 0;
+   if (this.data.length)
+   this.data.forEach(d => {
+      min = Math.min(min, ...d.value);
+      max = Math.max(max, ...d.value);
+   });
+   if (min === max) {
+      min -= 0.5;
+      max += 0.5;
+   } else {
+      max += (max - min) * 0.05;
+   }
+   this.yMin0 = min;
+   this.yMax0 = max;
+   if (this.scroll) {
+      this.yMax = max;
+      this.yMin = min;
+   }
 };
 
 MhistoryGraph.prototype.update = function () {
+
+   let t = Math.floor(new Date() / 1000);
+
+   mjsonrpc_call("hs_read",
+      {
+         "start_time": this.lastTimeStamp,
+         "end_time": t,
+         "events": this.events,
+         "tags": this.tags,
+         "index": this.index
+      })
+      .then(function (rpc) {
+
+         this.receiveData(rpc);
+         this.redraw();
+
+         this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
+
+      }.bind(this)).catch(function (error) {
+      mjsonrpc_error_alert(error);
+   });
+};
+
+MhistoryGraph.prototype.scrollRedraw = function () {
    if (this.scroll) {
       let dt = this.tMax - this.tMin;
       this.tMax = new Date() / 1000;
       this.tMin = this.tMax - dt;
       this.redraw();
+
+      // calculate time for one pixel
+      dt = (this.tMax - this.tMin) / (this.x2 - this.x1);
+      dt = Math.min(Math.max(0.1, dt), 60);
+      this.updateTimer = window.setTimeout(this.scrollRedraw.bind(this), dt / 2 * 1000);
+   } else {
+      this.updateTimer = window.setTimeout(this.scrollRedraw.bind(this), 1000);
    }
-   window.setTimeout(this.update.bind(this), 1000);
 };
 
 MhistoryGraph.prototype.mouseEvent = function (e) {
+
    // fix buttons for IE
    if (!e.which && e.button) {
       if ((e.button & 1) > 0) e.which = 1;      // Left
@@ -310,6 +409,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
    let cursor = "default";
 
    if (e.type === "mousedown") {
+
       // check for buttons
       this.button.forEach(b => {
          if (e.offsetX > b.x1 && e.offsetX < b.x1 + b.width &&
@@ -388,7 +488,9 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.yMin = this.drag.yMinStart - dy;
          this.yMax = this.drag.yMaxStart - dy;
          this.redraw();
+
       } else {
+
          // change curser to pointer over buttons
          this.button.forEach(b => {
             if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
@@ -410,29 +512,26 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          }
 
          // check if cursor close to graph point
-         if (this.data !== undefined) {
+         if (this.data !== undefined && this.x.length && this.y.length) {
             let minDist = 100;
-            let oldX = this.marker.x;
-            let oldY = this.marker.y;
             for (let di = 0; di < this.data.length; di++) {
-               for (let i = 0; i < this.data[di].count; i++) {
-                  let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
-                     Math.pow(e.offsetY - this.y[di][i], 2));
-                  if (d < minDist) {
-                     minDist = d;
-                     this.marker.x = this.x[di][i];
-                     this.marker.y = this.y[di][i];
-                     this.marker.mx = e.offsetX;
-                     this.marker.my = e.offsetY;
-                     this.marker.graphIndex = di;
-                     this.marker.index = i;
+               for (let i = 0; i < this.x[di].length; i++) {
+                  if (this.x[di][i] > this.x1 && this.x[di][i] < this.x2) {
+                     let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
+                        Math.pow(e.offsetY - this.y[di][i], 2));
+                     if (d < minDist) {
+                        minDist = d;
+                        this.marker.x = this.x[di][i];
+                        this.marker.y = this.y[di][i];
+                        this.marker.mx = e.offsetX;
+                        this.marker.my = e.offsetY;
+                        this.marker.graphIndex = di;
+                        this.marker.index = i;
+                     }
                   }
                }
             }
-            let oldActive = this.marker.active;
             this.marker.active = minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
-            //if (oldActive !== this.marker.active ||
-            //   (this.marker.active && oldX !== this.marker.x || oldY !== this.marker.y))
             this.redraw();
          }
       }
@@ -445,12 +544,15 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
 MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
-   if (e.altKey) {
+   if (e.altKey || e.shiftKey) {
       let f = (e.offsetY - this.y1) / (this.y2 - this.y1);
       let dtMin = f * (this.yMax - this.yMin) / 100 * e.deltaY;
       let dtMax = (1 - f) * (this.yMax - this.yMin) / 100 * e.deltaY;
-      this.yMin -= dtMin;
-      this.yMax += dtMax;
+      if (((this.yMax + dtMax) - (this.yMin - dtMin)) / (this.yMax0 - this.yMin0) < 1000 &&
+         (this.yMax0 - this.yMin0) / ((this.yMax + dtMax) - (this.yMin - dtMin)) < 1000) {
+         this.yMin -= dtMin;
+         this.yMax += dtMax;
+      }
    } else {
       let f = (e.offsetX - this.x1) / (this.x2 - this.x1);
       let dtMin = f * (this.tMax - this.tMin) / 100 * e.deltaY;
@@ -462,6 +564,7 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
       }
    }
 
+   this.marker.active = false;
    this.scroll = false;
    this.redraw();
 
@@ -504,7 +607,6 @@ MhistoryGraph.prototype.draw = function () {
    let ctx = this.canvas.getContext("2d");
 
    if (this.data === undefined) {
-      ctx.translate(0, 0);
       ctx.lineWidth = 1;
       ctx.font = "14px sans-serif";
       ctx.strokeStyle = "#808080";
@@ -515,20 +617,87 @@ MhistoryGraph.prototype.draw = function () {
       return;
    }
 
-   //ctx.translate(0.5, 0.5);
    ctx.lineWidth = 1;
    ctx.font = "14px sans-serif";
 
-   let maxwidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35,
+   if (this.height === undefined || this.width === undefined)
+      return;
+
+   let axisLabelWidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35,
       -4, -7, -10, -12, 0, this.yMin, this.yMax, 0, false);
 
-   this.x1 = maxwidth + 15;
-   this.y1 = this.height - 25;
-   this.x2 = this.width - 30;
-   this.y2 = 6;
+   let variablesWidth = 0;
+   if (this.showLabels) {
+      this.odb["Variables"].forEach(v => {
+         variablesWidth = Math.max(variablesWidth, ctx.measureText(v.substr(v.indexOf(':') + 1)).width);
+      });
+      variablesWidth += ctx.measureText("00.000000").width;
+      this.x1 = 25 + variablesWidth + 5 + axisLabelWidth + 20;
+      this.y1 = this.height - 25;
+      this.x2 = this.width - 30;
+      this.y2 = 6;
+   } else {
+      this.x1 = axisLabelWidth + 15;
+      this.y1 = this.height - 25;
+      this.x2 = this.width - 30;
+      this.y2 = 6;
+   }
 
    ctx.fillStyle = this.color.background;
    ctx.fillRect(0, 0, this.width, this.height);
+
+   if (this.showLabels) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(2, this.y2, 25 + variablesWidth + 5, this.y1 - this.y2);
+      ctx.clip();
+
+      ctx.strokeStyle = this.color.axis;
+      ctx.fillStyle = this.color.axis;
+      ctx.strokeRect(2, this.y2, 25 + variablesWidth + 5, this.y1 - this.y2);
+      ctx.fillStyle = this.color.axis;
+      ctx.fillRect(2, this.y2, 25 + variablesWidth + 5, 20);
+      ctx.drawLine(2, this.y2 + 20, 25 + variablesWidth + 7, this.y2 + 20);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#F0F0F0";
+      ctx.fillText(this.panel, (34 + variablesWidth) / 2, this.y2 + 10);
+
+      this.odb["Variables"].forEach((v, i) => {
+         ctx.lineWidth = 4;
+         ctx.strokeStyle = this.color.data[i];
+         ctx.drawLine(5, 40 + i * 17, 20, 40 + i * 17);
+         ctx.lineWidth = 1;
+
+         ctx.textAlign = "left";
+         ctx.textBaseline = "middle";
+         ctx.fillStyle = this.color.axis;
+         ctx.fillText(v.substr(v.indexOf(':') + 1), 25, 40 + i * 17);
+
+         ctx.textAlign = "right";
+         if (this.data[i].value.length > 0) {
+            // use last point in array
+            let index = this.data[i].value.length - 1;
+
+            // use point at current marker
+            if (this.marker.active)
+               index = this.marker.index;
+
+            // convert value to string with 6 digits
+            let value = this.data[i].value[index];
+            let str;
+            if (value < 1)
+               str = value.toFixed(5);
+            else
+               str = value.toPrecision(6);
+            ctx.fillText(str, 25 + variablesWidth, 40 + i * 17);
+         } else
+            ctx.fillText('no data', 25 + variablesWidth, 40 + i* 17);
+
+      });
+
+      ctx.restore(); // remove clipping
+   }
 
    ctx.strokeStyle = this.color.axis;
    ctx.drawLine(this.x1, this.y2, this.x2, this.y2);
@@ -539,7 +708,6 @@ MhistoryGraph.prototype.draw = function () {
    //this.drawHAxis(ctx, 50, this.y2-25, this.x2-70, 4, 7, 10, 12, 0, -10, 10, 0);
    this.drawTAxis(ctx, this.x1, this.y1, this.x2 - this.x1, this.width,
       4, 7, 10, 10, this.y2 - this.y1, this.tMin, this.tMax);
-
 
    ctx.save();
    ctx.beginPath();
@@ -555,7 +723,7 @@ MhistoryGraph.prototype.draw = function () {
       this.x[di] = [];
       this.y[di] = [];
 
-      for (let i = 0; i < this.data[di].count; i++) {
+      for (let i = 0; i < this.data[di].time.length; i++) {
          this.x[di][i] = this.timeToX(this.data[di].time[i]);
          this.y[di][i] = this.valueToY(this.data[di].value[i]);
       }
@@ -564,8 +732,8 @@ MhistoryGraph.prototype.draw = function () {
       let x0;
       let y0;
       let xLast;
-      for (let i = 0; i < this.data[di].count; i++) {
-         if (i === this.data[di].count - 1 || this.x[di][i + 1] >= this.x1) {
+      for (let i = 0; i < this.data[di].time.length; i++) {
+         if (i === this.data[di].time.length - 1 || this.x[di][i + 1] >= this.x1) {
             if (x0 === undefined) {
                x0 = this.x[di][i];
                y0 = this.y[di][i];
@@ -592,12 +760,11 @@ MhistoryGraph.prototype.draw = function () {
          ctx.strokeStyle = this.color.data[di];
 
       ctx.beginPath();
-      x0 = undefined;
-      for (let i = 0; i < this.data[di].count; i++) {
-         if (i === this.data[di].count - 1 || this.x[di][i + 1] >= this.x1) {
-            if (x0 === undefined) {
-               x0 = this.x[di][i];
-               y0 = this.y[di][i];
+      let first = true;
+      for (let i = 0; i < this.data[di].time.length; i++) {
+         if (i === this.data[di].time.length - 1 || this.x[di][i + 1] >= this.x1) {
+            if (first) {
+               first = false;
                ctx.moveTo(this.x[di][i], this.y[di][i]);
             } else
                ctx.lineTo(this.x[di][i], this.y[di][i]);
@@ -617,7 +784,7 @@ MhistoryGraph.prototype.draw = function () {
       b.width = 28;
       b.height = 28;
 
-      if (i === 1 && !this.scroll)
+      if (b.src === "play.svg" && !this.scroll)
          ctx.fillStyle = "#FFC0C0";
       else
          ctx.fillStyle = "#F0F0F0";
@@ -668,7 +835,7 @@ MhistoryGraph.prototype.draw = function () {
 
       // text label
       let v = this.data[this.marker.graphIndex].value[this.marker.index];
-      let s = "Trigger Rate: " + v.toPrecision(6);
+      let s = this.odb["Variables"][this.marker.graphIndex] + ": " + v.toPrecision(6);
 
       let w = ctx.measureText(s).width + 6;
       let h = ctx.measureText("M").width * 1.2 + 6;

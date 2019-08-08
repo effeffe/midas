@@ -756,16 +756,28 @@ function mhttpd_init(current_page, interval, callback) {
    mhttpd_scan();
 }
 
+function getMElements(name)
+{
+   // collect all <div name=[name] >
+   let e = [];
+   e.push(...document.getElementsByName(name));
+
+   // collect all <div class=[name] >
+   e.push(...document.getElementsByClassName(name));
+
+   return e;
+}
+
 function mhttpd_scan()
 {
    // go through all name="modb" tags
-   var modb = document.getElementsByName("modb");
-   for (var i = 0; i < modb.length; i++) {
+   let modb = getMElements("modb");
+   for (let i = 0; i < modb.length; i++) {
       // nothing needs to be done here
    }
 
    // go through all name="modbvalue" tags
-   var modbvalue = document.getElementsByName("modbvalue");
+   let modbvalue = getMElements("modbvalue");
    for (i = 0; i < modbvalue.length; i++) {
       var o = modbvalue[i];
       var loading = "(Loading " + modbvalue[i].dataset.odbPath + " ...)";
@@ -793,7 +805,7 @@ function mhttpd_scan()
    }
 
    // go through all name="modbcheckbox" tags
-   var modbcheckbox = document.getElementsByName("modbcheckbox");
+   var modbcheckbox = getMElements("modbcheckbox");
    for (i = 0; i < modbcheckbox.length; i++) {
       modbcheckbox[i].onclick = function () {
          mjsonrpc_db_set_value(this.dataset.odbPath, this.checked ? 1 : 0);
@@ -802,13 +814,13 @@ function mhttpd_scan()
    }
 
    // go through all name="modbbox" tags
-   var modbbox = document.getElementsByName("modbbox");
+   var modbbox = getMElements("modbbox");
    for (i = 0; i < modbbox.length; i++) {
       modbbox[i].style.border = "1px solid #808080";
    }
 
    // attach "set" function to all ODB buttons
-   var modbbutton = document.getElementsByName("modbbutton");
+   var modbbutton = getMElements("modbbutton");
    for (i = 0; i < modbbutton.length; i++)
       modbbutton[i].onclick = function () {
          mjsonrpc_db_set_value(this.dataset.odbPath, this.dataset.odbValue);
@@ -816,7 +828,7 @@ function mhttpd_scan()
       };
 
    // replace all horizontal bars with proper <div>'s
-   var mbar = document.getElementsByName("modbhbar");
+   var mbar = getMElements("modbhbar");
    for (i = 0; i < mbar.length; i++) {
       mbar[i].style.display = "block";
       if (mbar[i].style.position === "")
@@ -829,7 +841,7 @@ function mhttpd_scan()
    }
 
    // replace all vertical bars with proper <div>'s
-   mbar = document.getElementsByName("modbvbar");
+   mbar = getMElements("modbvbar");
    for (i = 0; i < mbar.length; i++) {
       mbar[i].style.display = "inline-block";
       if (mbar[i].style.position === "")
@@ -840,7 +852,7 @@ function mhttpd_scan()
    }
 
    // replace all thermometers with canvas
-   var mth = document.getElementsByName("modbthermo");
+   var mth = getMElements("modbthermo");
    for (i = 0; i < mth.length; i++) {
       mth[i].style.display = "inline-block";
       if (mth[i].style.position === "")
@@ -858,7 +870,7 @@ function mhttpd_scan()
    }
 
    // replace all gauges with canvas
-   var mg = document.getElementsByName("modbgauge");
+   var mg = getMElements("modbgauge");
    for (i = 0; i < mg.length; i++) {
       mg[i].style.display = "inline-block";
       if (mg[i].style.position === "")
@@ -873,7 +885,7 @@ function mhttpd_scan()
    }
 
    // replace all haxis with canvas
-   var mha = document.getElementsByName("mhaxis");
+   var mha = getMElements("mhaxis");
    for (i = 0; i < mha.length; i++) {
       mha[i].style.display = "block";
       if (mha[i].style.position === "")
@@ -888,7 +900,7 @@ function mhttpd_scan()
    }
 
    // replace all vaxis with canvas
-   var mva = document.getElementsByName("mvaxis");
+   var mva = getMElements("mvaxis");
    for (i = 0; i < mva.length; i++) {
       mva[i].style.display = "inline-block";
       if (mva[i].style.position === "")
@@ -903,7 +915,7 @@ function mhttpd_scan()
    }
 
    // replace all mhistory tags with history plots
-   var mhist = document.getElementsByName("mhistory");
+   var mhist = getMElements("mhistory");
    for (i = 0; i < mhist.length; i++) {
       w = mhist[i].style.width;
       if (w === "")
@@ -1585,39 +1597,38 @@ function mhttpd_refresh() {
 
    /* this fuction gets called by mhttpd_init to periodically refresh all ODB tags plus alarms and messages */
 
-   var paths = [];
+   let paths = [];
 
    // go through all "modb" tags
-   var modb = document.getElementsByName("modb");
-   for (var i = 0; i < modb.length; i++)
-      paths.push(modb[i].dataset.odbPath);
+   let modb = getMElements("modb");
+   modb.forEach(m => { paths.push(m.dataset.odbPath); });
 
    // go through all "modbvalue" tags
-   var modbvalue = document.getElementsByName("modbvalue");
+   var modbvalue = getMElements("modbvalue");
    for (i = 0; i < modbvalue.length; i++)
       paths.push(modbvalue[i].dataset.odbPath);
 
-   var modbcheckbox = document.getElementsByName("modbcheckbox");
+   var modbcheckbox = getMElements("modbcheckbox");
    for (i = 0; i < modbcheckbox.length; i++)
       paths.push(modbcheckbox[i].dataset.odbPath);
 
-   var modbbox = document.getElementsByName("modbbox");
+   var modbbox = getMElements("modbbox");
    for (i = 0; i < modbbox.length; i++)
       paths.push(modbbox[i].dataset.odbPath);
 
-   var modbhbar = document.getElementsByName("modbhbar");
+   var modbhbar = getMElements("modbhbar");
    for (i = 0; i < modbhbar.length; i++)
       paths.push(modbhbar[i].dataset.odbPath);
 
-   var modbvbar = document.getElementsByName("modbvbar");
+   var modbvbar = getMElements("modbvbar");
    for (i = 0; i < modbvbar.length; i++)
       paths.push(modbvbar[i].dataset.odbPath);
 
-   var modbthermo = document.getElementsByName("modbthermo");
+   var modbthermo = getMElements("modbthermo");
    for (i = 0; i < modbthermo.length; i++)
       paths.push(modbthermo[i].dataset.odbPath);
 
-   var modbgauge = document.getElementsByName("modbgauge");
+   var modbgauge = getMElements("modbgauge");
    for (i = 0; i < modbgauge.length; i++)
       paths.push(modbgauge[i].dataset.odbPath);
 
