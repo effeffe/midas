@@ -2526,38 +2526,71 @@ static MJsonNode* js_hs_read_binned_arraybuffer(const MJsonNode* params)
 
    int status = mh->hs_read_binned(start_time, end_time, num_bins, num_var, event_name, tag_name, var_index, num_entries, count_bins, mean_bins, rms_bins, min_bins, max_bins, last_time, last_value, hs_status);
 
-   int p0_size = sizeof(double)*(2+4*num_var);
+   size_t p0_size = sizeof(double)*(5+4*num_var+5*num_var*num_bins);
    double* p0 = (double*)malloc(p0_size);
    assert(p0);
 
-   p0[0] = status;
-   p0[1] = num_var;
+   double *pptr = p0;
+   
+   //
+   // Binary data format:
+   //
+   // * header
+   // -- hs_read() status
+   // -- start_time
+   // -- end_time
+   // -- num_bins
+   // -- num_var
+   // * per variable info
+   // -- hs_status[0..num_var-1]
+   // -- num_entries[0..num_var-1]
+   // -- last_time[0..num_var-1]
+   // -- last_value[0..num_var-1]
+   // * data for var0 bin0
+   // -- count - number of entries in this bin
+   // -- mean - mean value
+   // -- rms - rms value
+   // -- min - minimum value
+   // -- max - maximum value
+   // - data for var0 bin1
+   // - ... bin[num_bins-1]
+   // - data for var1 bin0
+   // - ...
+   // - data for var[num_vars-1] bin[0]
+   // - ...
+   // - data for var[num_vars-1] bin[num_bins-1]
+   //
+
+   *pptr++ = status;
+   *pptr++ = start_time;
+   *pptr++ = end_time;
+   *pptr++ = num_bins;
+   *pptr++ = num_var;
 
    for (unsigned i=0; i<num_var; i++) {
-      p0[2+0*num_var+i] = hs_status[i];
-      p0[2+1*num_var+i] = num_entries[i];
-      p0[2+2*num_var+i] = last_time[i];
-      p0[2+3*num_var+i] = last_value[i];
-      
-      //MJsonNode* a1 = MJsonNode::MakeArray();
-      //MJsonNode* a2 = MJsonNode::MakeArray();
-      //MJsonNode* a3 = MJsonNode::MakeArray();
-      //MJsonNode* a4 = MJsonNode::MakeArray();
-      //MJsonNode* a5 = MJsonNode::MakeArray();
+      *pptr++ = hs_status[i];
+   }
 
-      //for (int j=0; j<num_bins; j++) {
-      //   a1->AddToArray(MJsonNode::MakeInt(count_bins[i][j]));
-      //   a2->AddToArray(MJsonNode::MakeNumber(mean_bins[i][j]));
-      //   a3->AddToArray(MJsonNode::MakeNumber(rms_bins[i][j]));
-      //   a4->AddToArray(MJsonNode::MakeNumber(min_bins[i][j]));
-      //   a5->AddToArray(MJsonNode::MakeNumber(max_bins[i][j]));
-      //}
+   for (unsigned i=0; i<num_var; i++) {
+      *pptr++ = num_entries[i];
+   }
 
-      //obj->AddToObject("count", a1);
-      //obj->AddToObject("mean", a2);
-      //obj->AddToObject("rms", a3);
-      //obj->AddToObject("min", a4);
-      //obj->AddToObject("max", a5);
+   for (unsigned i=0; i<num_var; i++) {
+      *pptr++ = last_time[i];
+   }
+
+   for (unsigned i=0; i<num_var; i++) {
+      *pptr++ = last_value[i];
+   }
+
+   for (unsigned i=0; i<num_var; i++) {
+      for (int j=0; j<num_bins; j++) {
+         *pptr++ = count_bins[i][j];
+         *pptr++ = mean_bins[i][j];
+         *pptr++ = rms_bins[i][j];
+         *pptr++ = min_bins[i][j];
+         *pptr++ = max_bins[i][j];
+      }
 
       delete count_bins[i];
       delete mean_bins[i];
@@ -2565,6 +2598,10 @@ static MJsonNode* js_hs_read_binned_arraybuffer(const MJsonNode* params)
       delete min_bins[i];
       delete max_bins[i];
    }
+
+   //printf("p0_size %d, %d/%d\n", (int)p0_size, (int)(pptr-p0), (int)((pptr-p0)*sizeof(double)));
+
+   assert(p0_size == ((pptr-p0)*sizeof(double)));
 
    delete[] count_bins;
    delete[] mean_bins;
