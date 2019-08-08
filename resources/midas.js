@@ -259,7 +259,8 @@ function mjsonrpc_error_alert(error, callback, param) {
       var s = mjsonrpc_decode_error(error);
       dlgMessage("RPC Error", s, true, true, callback, param);
    } else {
-      dlgMessage("RPC Handler error or exception", error, true, true, callback, param);
+      dlgMessage("Javascript exception or error", error, true, true, callback, param);
+      throw(error);
    }
 }
 

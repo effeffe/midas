@@ -331,9 +331,7 @@
          mjsonrpc_al_reset_alarm(names);
          dlgAlert('All alarms reset');
       }).catch(function (error) {
-         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
-         dlgShow('dlgError');
-         //mjsonrpc_error_alert(error);
+         mjsonrpc_error_alert(error);
       });
    }
 
@@ -342,6 +340,7 @@
       mjsonrpc_call("get_alarms", {"get_all": true}).then(function (rpc) {
          callback(rpc);
       }).catch(function (error) {
+         //mjsonrpc_error_alert(error);
          document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
       });
       //document.getElementById('updateStatus').innerHTML = "RW__";
