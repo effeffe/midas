@@ -56,11 +56,6 @@ function MhistoryGraph(divElement) { // Constructor
          "#A0C0D0", "#D0A060", "#C04010", "#807060",
          "#F0C000", "#2090A0", "#D040D0", "#90B000",
          "#B0B040", "#B0B0FF", "#FFA0A0", "#A0FFA0"],
-      idata: [
-         "#00AAFF", "#FF9000", "#FF00A0", "#00C030",
-         "#D0A060", "#A0C0D0", "#C04010", "#807060",
-         "#F0C000", "#2090A0", "#D040D0", "#90B000",
-         "#FFFF00", "#B0B0FF", "#FFA0A0", "#A0FFA0"],
    };
 
    // scales
@@ -131,7 +126,8 @@ function MhistoryGraph(divElement) { // Constructor
       {
          src: "settings.svg",
          click: function (t) {
-            window.location.href = "?cmd=history&group=" + t.group + "&panel=" + t.panel + "&hcmd=Config";
+            window.location.href = "?cmd=history&group=" + t.group + "&panel=" + t.panel
+               + "&hcmd=Config" + "&redir=" + encodeURIComponent(window.location.href);
          }
       },
       {

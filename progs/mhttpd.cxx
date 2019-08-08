@@ -12124,8 +12124,12 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    if (hcmd[0] && equal_ustring(hcmd, "save")) {
       plot.SaveToOdb(hDB, path);
 
-      sprintf(str, "?cmd=history&group=%s&panel=%s", hgroup, hpanel);
-      redirect(r, str);
+      if (p->getparam("redir") && *p->getparam("redir"))
+         redirect(r, p->getparam("redir"));
+      else {
+         sprintf(str, "?cmd=history&group=%s&panel=%s", hgroup, hpanel);
+         redirect(r, str);
+      }
       return;
    }
 
@@ -12173,6 +12177,10 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    r->rsprintf("<input type=hidden name=hcmd value=Refresh>\n");
    r->rsprintf("<input type=hidden name=panel value=\"%s\">\n", hpanel);
    r->rsprintf("<input type=hidden name=group value=\"%s\">\n", hgroup);
+
+   if (p->getparam("redir") && *p->getparam("redir"))
+      r->rsprintf("<input type=hidden name=redir value=\"%s\">\n", p->getparam("redir"));
+
    r->rsprintf("</td></tr>\n");
 
    r->rsprintf("<tr><td colspan=8>Time scale: &nbsp;&nbsp;");
