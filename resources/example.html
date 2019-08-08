@@ -563,6 +563,42 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
       </div>
       </p>
 
+      <p>
+      <div>
+         <input type=button value='Get history data as binary arraybuffer'
+                onClick='var t=Date.now()/1000;mjsonrpc_call("hs_read_arraybuffer",{"start_time":t-10*60,"end_time":t,"events":["Run transitions","fetest","fetest/EPS","slow/SLOW"],"tags":["State","EPS","EPS","SLOW"],"index":[0,0,0,0]}, "arraybuffer")
+                   .then(function(result) {
+                    //console.log("result: " + result);
+                    var data = new Float64Array(result);
+                   document.getElementById("hs_read_data_arraybuffer").innerHTML = data;
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+      </div>
+      <div id="hs_read_data_arraybuffer">
+         history data
+      </div>
+      </p>
+
+      <p>
+      <div>
+         <input type=button value='Get binned history data as binary arraybuffer'
+                onClick='var t=Date.now()/1000;mjsonrpc_call("hs_read_binned_arraybuffer",{"start_time":t-1*60,"end_time":t,"num_bins":10,"events":["Run transitions","fetest","fetest/EPS","slow/SLOW"],"tags":["State","EPS","EPS","SLOW"],"index":[0,0,0,0]}, "arraybuffer")
+                   .then(function(result) {
+                    //console.log("result: " + result);
+                    var data = new Float64Array(result);
+                    document.getElementById("hs_read_binned_data_arraybuffer").innerHTML = data;
+                   })
+                   .catch(function(error) {
+                   mjsonrpc_error_alert(error);
+                   });'></input>
+      </div>
+      <div id="hs_read_binned_data_arraybuffer">
+         binned history data
+      </div>
+      </p>
+
       <hr>
 
       <h2>Inline editor functions</h2>
@@ -912,6 +948,53 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
          <input type=button value='test MJSonNode encoding of nan and inf'
            onClick='mjsonrpc_call("test_nan_inf").then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'></input>
       </p>
+
+      <p> Test arraybuffer requests
+
+        <script type="text/javascript">
+
+        function test_arraybuffer() {
+           var req = mjsonrpc_make_request("test_arraybuffer", null, "arraybuffer");
+           mjsonrpc_send_request(req).then(function(reply) {
+              alert("test_arraybuffer returned: " + reply);
+{
+              var dv = new DataView(reply);
+              alert("dv: " + dv + ", dv.length: " + dv.byteLength + ", u8[0]: " + dv.getUint8(0) + ", u16[0]: " + dv.getUint16(0));
+}
+{
+              var u8 = new Uint8Array(reply);
+              alert("u8: " + u8 + ", u8.length: " + u8.length + ", u8[0]: " + u8[0] + ", u8[1]: " + u8[1]);
+}
+{
+              var u16 = new Uint16Array(reply);
+              alert("u16: " + u16 + ", u16.length: " + u16.length + ", u16[4]: " + u16[4]);
+}
+{
+              var u32 = new Uint32Array(reply);
+              alert("u32: " + u32 + ", u32.length: " + u32.length + ", u32[4]: " + u32[4]);
+}
+{
+              var f64 = new Float64Array(reply);
+              alert("f64: " + f64 + ", f64.length: " + f64.length + ", f64[3]: " + f64[3]);
+}
+           }).catch(function(error){mjsonrpc_error_alert(error);});
+        }
+
+        function test_arraybuffer_batch() {
+           var req = [
+              mjsonrpc_make_request("test_arraybuffer", null, "arraybuffer"),
+              mjsonrpc_make_request("test_arraybuffer", null, "arraybuffer") ];
+           mjsonrpc_send_request(req).then(function(reply) {
+              alert("test_arraybuffer batch returned: " + reply);
+           }).catch(function(error){mjsonrpc_error_alert(error);});
+        }
+
+        </script>
+
+        <input type=button value='test arraybuffer' onClick='test_arraybuffer();'></input>
+        <input type=button value='test batched arraybuffer (error)' onClick='test_arraybuffer_batch();'></input>
+      </p>
+
       <p> Test modbset()
 
         <script type="text/javascript">

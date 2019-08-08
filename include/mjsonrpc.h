@@ -32,7 +32,7 @@ MJsonNode* mjsonrpc_make_result(MJsonNode* node);
 MJsonNode* mjsonrpc_make_result(const char* name, MJsonNode* value, const char* name2 = NULL, MJsonNode* value2 = NULL, const char* name3 = NULL, MJsonNode* value3 = NULL);
 const MJsonNode* mjsonrpc_get_param(const MJsonNode* params, const char* name, MJsonNode** error);
 
-std::string mjsonrpc_decode_post_data(const char* post_data);
+MJsonNode* mjsonrpc_decode_post_data(const char* post_data);
 
 ///
 /// MIDAS JSON Schema Objects for documenting RPC calls.

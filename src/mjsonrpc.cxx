@@ -7,6 +7,8 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -348,6 +350,8 @@ void MJSO::Add(const char* name, int mjson_type, const char* description)
       p->AddToObject("type", MJsonNode::MakeString("bool"));
    else if (mjson_type == MJSON_NULL)
       p->AddToObject("type", MJsonNode::MakeString("null"));
+   else if (mjson_type == MJSON_ARRAYBUFFER)
+      p->AddToObject("type", MJsonNode::MakeString("arraybuffer"));
    else if (mjson_type == 0)
       ;
    else
@@ -2250,6 +2254,375 @@ static MJsonNode* js_hs_read_binned(const MJsonNode* params)
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "channel", MJsonNode::MakeString(mh->name), "data", data);
 }
 
+class BinaryHistoryBuffer: public MidasHistoryBufferInterface
+{
+public:
+   std::vector<double> fTimes;
+   std::vector<double> fValues;
+
+public:
+   BinaryHistoryBuffer() // ctor
+   {
+      // empty
+   }
+
+   void Add(time_t t, double v)
+   {
+      //printf("add time %d, value %f\n", (int)t, v);
+
+      fTimes.push_back(t);
+      fValues.push_back(v);
+   }
+
+   void Finish()
+   {
+      assert(fTimes.size() == fValues.size());
+   }
+};
+
+static MJsonNode* js_hs_read_arraybuffer(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get history data for given history events that existed at give time using hs_read_buffer()");
+      doc->P("channel?", MJSON_STRING, "midas history channel, default is the default reader channel");
+      doc->P("start_time", MJSON_NUMBER, "start time of the data");
+      doc->P("end_time", MJSON_NUMBER, "end time of the data");
+      doc->P("events[]", MJSON_STRING, "array of history event names");
+      doc->P("tags[]", MJSON_STRING, "array of history event tag names");
+      doc->P("index[]", MJSON_STRING, "array of history event tag array indices");
+      doc->R("binary data", MJSON_ARRAYBUFFER, "binary data, see documentation");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   std::string channel = mjsonrpc_get_param(params, "channel", NULL)->GetString();
+   double start_time = mjsonrpc_get_param(params, "start_time", &error)->GetDouble(); if (error) return error;
+   double end_time = mjsonrpc_get_param(params, "end_time", &error)->GetDouble(); if (error) return error;
+
+   const MJsonNodeVector* events_array = mjsonrpc_get_param_array(params, "events", NULL);
+   const MJsonNodeVector* tags_array = mjsonrpc_get_param_array(params, "tags", NULL);
+   const MJsonNodeVector* index_array = mjsonrpc_get_param_array(params, "index", NULL);
+
+   MidasHistoryInterface* mh = GetHistory(channel.c_str());
+
+   if (!mh) {
+      int status = HS_FILE_ERROR;
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+   }
+
+   unsigned num_var = events_array->size();
+
+   if (tags_array->size() != num_var) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and tags should have the same length");
+   }
+
+   if (index_array->size() != num_var) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and index should have the same length");
+   }
+
+   std::vector<std::string> event_names(num_var);
+   std::vector<std::string> tag_names(num_var);
+   int* var_index = new int[num_var];
+   BinaryHistoryBuffer** jbuf = new BinaryHistoryBuffer*[num_var];
+   MidasHistoryBufferInterface** buf = new MidasHistoryBufferInterface*[num_var];
+   int* hs_status = new int[num_var];
+
+   for (unsigned i=0; i<num_var; i++) {
+      //event_name[i] = (*events_array)[i]->GetString().c_str();
+      //tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      event_names[i] = (*events_array)[i]->GetString();
+      tag_names[i] = (*tags_array)[i]->GetString();
+      var_index[i] = (*index_array)[i]->GetInt();
+      jbuf[i] = new BinaryHistoryBuffer();
+      buf[i] = jbuf[i];
+      hs_status[i] = 0;
+   }
+
+   if (/* DISABLES CODE */ (0)) {
+      printf("time %f %f, num_vars %d:\n", start_time, end_time, num_var);
+      for (unsigned i=0; i<num_var; i++) {
+         printf("%d: [%s] [%s] [%d]\n", i, event_names[i].c_str(), tag_names[i].c_str(), var_index[i]);
+      }
+   }
+
+   const char** event_name = new const char*[num_var];
+   const char** tag_name = new const char*[num_var];
+   for (unsigned i=0; i<num_var; i++) {
+      event_name[i] = event_names[i].c_str();
+      tag_name[i] = tag_names[i].c_str();
+   }
+
+   int status = mh->hs_read_buffer(start_time, end_time, num_var, event_name, tag_name, var_index, buf, hs_status);
+
+   size_t num_values = 0;
+
+   for (unsigned i=0; i<num_var; i++) {
+      jbuf[i]->Finish();
+      num_values += jbuf[i]->fValues.size();
+   }
+
+   size_t p0_size = sizeof(double)*(2+2*num_var+2*num_values);
+   double* p0 = (double*)malloc(p0_size);
+   assert(p0);
+
+   double *pptr = p0;
+   
+   //
+   // Binary data format:
+   //
+   // - hs_read() status
+   // - num_var
+   // - hs_status[0..num_var-1]
+   // - num_values[0..num_var-1]
+   // - data for var0:
+   // - t[0][0], v[0][0] ... t[0][num_values[0]-1], v[0][num_values[0]-1]
+   // - data for var1:
+   // - t[1][0], v[1][0] ... t[1][num_values[1]-1], v[1][num_values[1]-1]
+   // ...
+   // - data for last variable:
+   // - t[num_var-1][0], v[num_var-1][0] ... t[num_var-1][num_values[num_var-1]-1], v[num_var-1][num_values[num_var-1]-1]
+   //
+
+   *pptr++ = status;
+   *pptr++ = num_var;
+
+   for (unsigned i=0; i<num_var; i++) {
+      *pptr++ = hs_status[i];
+   }
+
+   for (unsigned i=0; i<num_var; i++) {
+      *pptr++ = jbuf[i]->fValues.size();
+   }
+
+   for (unsigned i=0; i<num_var; i++) {
+      size_t nv = jbuf[i]->fValues.size();
+      for (unsigned j=0; j<nv; j++) {
+         *pptr++ = jbuf[i]->fTimes[j];
+         *pptr++ = jbuf[i]->fValues[j];
+      }
+
+      delete jbuf[i];
+      jbuf[i] = NULL;
+      buf[i] = NULL;
+   }
+
+   //printf("p0_size %d, %d/%d\n", (int)p0_size, (int)(pptr-p0), (int)((pptr-p0)*sizeof(double)));
+
+   assert(p0_size == ((pptr-p0)*sizeof(double)));
+
+   delete[] event_name;
+   delete[] tag_name;
+   delete[] var_index;
+   delete[] buf;
+   delete[] jbuf;
+   delete[] hs_status;
+
+   MJsonNode* result = MJsonNode::MakeArrayBuffer((char*)p0, p0_size);
+
+   return result;
+}
+
+static MJsonNode* js_hs_read_binned_arraybuffer(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("get history data for given history events that existed at give time using hs_read_buffer()");
+      doc->P("channel?", MJSON_STRING, "midas history channel, default is the default reader channel");
+      doc->P("start_time", MJSON_NUMBER, "start time of the data");
+      doc->P("end_time", MJSON_NUMBER, "end time of the data");
+      doc->P("num_bins", MJSON_INT, "number of time bins");
+      doc->P("events[]", MJSON_STRING, "array of history event names");
+      doc->P("tags[]", MJSON_STRING, "array of history event tag names");
+      doc->P("index[]", MJSON_STRING, "array of history event tag array indices");
+      doc->R("binary data", MJSON_ARRAYBUFFER, "binary data, see documentation");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   std::string channel = mjsonrpc_get_param(params, "channel", NULL)->GetString();
+   double start_time = mjsonrpc_get_param(params, "start_time", &error)->GetDouble(); if (error) return error;
+   double end_time = mjsonrpc_get_param(params, "end_time", &error)->GetDouble(); if (error) return error;
+   int num_bins = mjsonrpc_get_param(params, "num_bins", &error)->GetInt(); if (error) return error;
+
+   if (num_bins < 1) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "Value of num_bins should be 1 or more");
+   }
+
+   const MJsonNodeVector* events_array = mjsonrpc_get_param_array(params, "events", NULL);
+   const MJsonNodeVector* tags_array = mjsonrpc_get_param_array(params, "tags", NULL);
+   const MJsonNodeVector* index_array = mjsonrpc_get_param_array(params, "index", NULL);
+
+   MidasHistoryInterface* mh = GetHistory(channel.c_str());
+
+   if (!mh) {
+      int status = HS_FILE_ERROR;
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+   }
+
+   unsigned num_var = events_array->size();
+
+   if (num_var < 1) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "Array of events should have 1 or more elements");
+   }
+
+   if (tags_array->size() != num_var) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and tags should have the same length");
+   }
+
+   if (index_array->size() != num_var) {
+      return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and index should have the same length");
+   }
+   
+   std::vector<std::string> event_names(num_var);
+   std::vector<std::string> tag_names(num_var);
+   //const char** event_name = new const char*[num_var];
+   //const char** tag_name = new const char*[num_var];
+   int* var_index = new int[num_var];
+
+   int* num_entries = new int[num_var];
+   time_t* last_time = new time_t[num_var];
+   double* last_value = new double[num_var];
+   int* hs_status = new int[num_var];
+
+   int** count_bins = new int*[num_var];
+   double** mean_bins = new double*[num_var];
+   double** rms_bins = new double*[num_var];
+   double** min_bins = new double*[num_var];
+   double** max_bins = new double*[num_var];
+
+   for (unsigned i=0; i<num_var; i++) {
+      //event_name[i] = (*events_array)[i]->GetString().c_str();
+      //tag_name[i] = (*tags_array)[i]->GetString().c_str();
+      event_names[i] = (*events_array)[i]->GetString();
+      tag_names[i] = (*tags_array)[i]->GetString();
+      var_index[i] = (*index_array)[i]->GetInt();
+      num_entries[i] = 0;
+      last_time[i] = 0;
+      last_value[i] = 0;
+      hs_status[i] = 0;
+      count_bins[i] = new int[num_bins];
+      mean_bins[i] = new double[num_bins];
+      rms_bins[i] = new double[num_bins];
+      min_bins[i] = new double[num_bins];
+      max_bins[i] = new double[num_bins];
+   }
+
+   if (/* DISABLES CODE */ (0)) {
+      printf("time %f %f, num_vars %d:\n", start_time, end_time, num_var);
+      for (unsigned i=0; i<num_var; i++) {
+         printf("%d: [%s] [%s] [%d]\n", i, event_names[i].c_str(), tag_names[i].c_str(), var_index[i]);
+      }
+   }
+
+   const char** event_name = new const char*[num_var];
+   const char** tag_name = new const char*[num_var];
+   for (unsigned i=0; i<num_var; i++) {
+      event_name[i] = event_names[i].c_str();
+      tag_name[i] = tag_names[i].c_str();
+   }
+
+   int status = mh->hs_read_binned(start_time, end_time, num_bins, num_var, event_name, tag_name, var_index, num_entries, count_bins, mean_bins, rms_bins, min_bins, max_bins, last_time, last_value, hs_status);
+
+   size_t p0_size = sizeof(double)*(5+4*num_var+5*num_var*num_bins);
+   double* p0 = (double*)malloc(p0_size);
+   assert(p0);
+
+   double *pptr = p0;
+   
+   //
+   // Binary data format:
+   //
+   // * header
+   // -- hs_read() status
+   // -- start_time
+   // -- end_time
+   // -- num_bins
+   // -- num_var
+   // * per variable info
+   // -- hs_status[0..num_var-1]
+   // -- num_entries[0..num_var-1]
+   // -- last_time[0..num_var-1]
+   // -- last_value[0..num_var-1]
+   // * data for var0 bin0
+   // -- count - number of entries in this bin
+   // -- mean - mean value
+   // -- rms - rms value
+   // -- min - minimum value
+   // -- max - maximum value
+   // - data for var0 bin1
+   // - ... bin[num_bins-1]
+   // - data for var1 bin0
+   // - ...
+   // - data for var[num_vars-1] bin[0]
+   // - ...
+   // - data for var[num_vars-1] bin[num_bins-1]
+   //
+
+   *pptr++ = status;
+   *pptr++ = start_time;
+   *pptr++ = end_time;
+   *pptr++ = num_bins;
+   *pptr++ = num_var;
+
+   for (unsigned i=0; i<num_var; i++) {
+      *pptr++ = hs_status[i];
+   }
+
+   for (unsigned i=0; i<num_var; i++) {
+      *pptr++ = num_entries[i];
+   }
+
+   for (unsigned i=0; i<num_var; i++) {
+      *pptr++ = last_time[i];
+   }
+
+   for (unsigned i=0; i<num_var; i++) {
+      *pptr++ = last_value[i];
+   }
+
+   for (unsigned i=0; i<num_var; i++) {
+      for (int j=0; j<num_bins; j++) {
+         *pptr++ = count_bins[i][j];
+         *pptr++ = mean_bins[i][j];
+         *pptr++ = rms_bins[i][j];
+         *pptr++ = min_bins[i][j];
+         *pptr++ = max_bins[i][j];
+      }
+
+      delete count_bins[i];
+      delete mean_bins[i];
+      delete rms_bins[i];
+      delete min_bins[i];
+      delete max_bins[i];
+   }
+
+   //printf("p0_size %d, %d/%d\n", (int)p0_size, (int)(pptr-p0), (int)((pptr-p0)*sizeof(double)));
+
+   assert(p0_size == ((pptr-p0)*sizeof(double)));
+
+   delete[] count_bins;
+   delete[] mean_bins;
+   delete[] rms_bins;
+   delete[] min_bins;
+   delete[] max_bins;
+
+   delete[] event_name;
+   delete[] tag_name;
+   delete[] var_index;
+
+   delete[] num_entries;
+   delete[] last_time;
+   delete[] last_value;
+   delete[] hs_status;
+
+   MJsonNode* result = MJsonNode::MakeArrayBuffer((char*)p0, p0_size);
+
+   return result;
+}
+
 /////////////////////////////////////////////////////////////////////////////////
 //
 // elog code goes here
@@ -3108,6 +3481,8 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("hs_reopen", js_hs_reopen);
    mjsonrpc_add_handler("hs_read", js_hs_read);
    mjsonrpc_add_handler("hs_read_binned", js_hs_read_binned);
+   mjsonrpc_add_handler("hs_read_arraybuffer", js_hs_read_arraybuffer);
+   mjsonrpc_add_handler("hs_read_binned_arraybuffer", js_hs_read_binned_arraybuffer);
    // interface to ss_system functions
    mjsonrpc_add_handler("ss_millitime", js_ss_millitime);
    // methods that perform computations or invoke actions
@@ -3476,7 +3851,7 @@ static void add(std::string* s, const char* text)
    *s += text;
 }
 
-std::string mjsonrpc_handle_request(const MJsonNode* request)
+static MJsonNode* mjsonrpc_handle_request(const MJsonNode* request)
 {
    // find required request elements
    const MJsonNode* version = request->FindObjectNode("jsonrpc");
@@ -3504,27 +3879,21 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
       add(&bad, "method is not a string");
 
    if (bad.length() > 0) {
-      std::string reply;
-      reply += "{";
-      reply += "\"jsonrpc\": \"2.0\",";
-      reply += "\"error\":{";
-      reply += "\"code\":-32600,";
-      reply += "\"message\":\"Invalid request\",";
-      reply += "\"data\":\"" + MJsonNode::Encode(bad.c_str()) + "\"";
-      reply += "},";
-      if (id)
-         reply += "\"id\":" + id->Stringify();
-      else
-         reply += "\"id\":null";
-      reply += "}";
+      MJsonNode* response = mjsonrpc_make_error(-32600, "Invalid request", bad.c_str());
+      response->AddToObject("jsonrpc", MJsonNode::MakeString("2.0"));
+      if (id) {
+         response->AddToObject("id", id->Copy());
+      } else {
+         response->AddToObject("id", MJsonNode::MakeNull());
+      }
 
       if (mjsonrpc_debug) {
          printf("mjsonrpc: invalid request: reply:\n");
-         printf("%s\n", reply.c_str());
+         printf("%s\n", response->Stringify().c_str());
          printf("\n");
       }
 
-      return reply;
+      return response;
    }
 
    double start_time = 0;
@@ -3536,7 +3905,7 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
    const std::string ms = method->GetString();
    const char* m = ms.c_str();
 
-   const MJsonNode* result = NULL;
+   MJsonNode* result = NULL;
 
    // special built-in methods
 
@@ -3548,7 +3917,7 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
       if (mjsonrpc_debug) {
          printf("mjsonrpc: reply with invalid json\n");
       }
-      return "this is invalid json data";
+      return MJsonNode::MakeJSON("this is invalid json data");
    } else if (strcmp(m, "test_nan_inf") == 0) {
       double one = 1;
       double zero = 0;
@@ -3560,6 +3929,19 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
       n->AddToArray(MJsonNode::MakeNumber(plusinf));
       n->AddToArray(MJsonNode::MakeNumber(minusinf));
       result = mjsonrpc_make_result("test_nan_plusinf_minusinf", n);
+   } else if (strcmp(m, "test_arraybuffer") == 0) {
+      if (mjsonrpc_debug) {
+         printf("mjsonrpc: reply with test arraybuffer data\n");
+      }
+      size_t size = 32;
+      char* ptr = (char*)malloc(size);
+      for (size_t i=0; i<size; i++) {
+         ptr[i] = 'A' + i;
+      }
+      *((short*)(ptr+4*2*1)) = 111; // int16[4]
+      *((int*)(ptr+4*2*2)) = 1234; // int32[4]
+      *((double*)(ptr+4*2*3)) = 3.14; // float64[3]
+      return MJsonNode::MakeArrayBuffer(ptr, size);
    } else {
       MethodHandlersIterator s = gHandlers.find(ms);
       if (s != gHandlers.end()) {
@@ -3584,41 +3966,41 @@ std::string mjsonrpc_handle_request(const MJsonNode* request)
          printf("request took %.3f seconds, method [%s]\n", elapsed_time, m);
       }
    }
+
+   if (result->GetType() == MJSON_ARRAYBUFFER) {
+      return result;
+   }
    
    const MJsonNode *nerror  = result->FindObjectNode("error");
    const MJsonNode *nresult = result->FindObjectNode("result");
 
-   std::string reply;
-   reply += "{";
-   reply += "\"jsonrpc\": \"2.0\",";
    if (nerror) {
-      reply += "\"error\":" + nerror->Stringify() + ",";
+      result->DeleteObjectNode("result");
    } else if (nresult) {
-      reply += "\"result\":" + nresult->Stringify() + ",";
+      result->DeleteObjectNode("error");
    } else {
-      nerror = mjsonrpc_make_error(-32603, "Internal error", "bad dispatcher reply: no result and no error");
-      reply += "\"error\":" + nerror->Stringify() + ",";
-      delete nerror;
-      nerror = NULL;
-   }
-   if (id)
-      reply += "\"id\":" + id->Stringify();
-   else
-      reply += "\"id\":null";
-   if (mjsonrpc_time) {
-      reply += ",";
-      reply += "\"elapsed_time\":" + MJsonNode::EncodeDouble(elapsed_time);
-   }
-
-   reply += "}";
-
-   if (result)
       delete result;
+      result = mjsonrpc_make_error(-32603, "Internal error", "bad dispatcher reply: no result and no error");
+   }
 
-   return reply;
+   result->AddToObject("jsonrpc", MJsonNode::MakeString("2.0"));
+
+   if (id) {
+      result->AddToObject("id", id->Copy());
+   } else {
+      result->AddToObject("id", MJsonNode::MakeNull());
+   }
+
+   if (mjsonrpc_time) {
+      result->AddToObject("elapsed_time", MJsonNode::MakeNumber(elapsed_time));
+   }
+
+   assert(result != NULL);
+
+   return result;
 }
 
-std::string mjsonrpc_decode_post_data(const char* post_data)
+MJsonNode* mjsonrpc_decode_post_data(const char* post_data)
 {
    //printf("mjsonrpc call, data [%s]\n", post_data);
    MJsonNode *request = MJsonNode::Parse(post_data);
@@ -3641,47 +4023,33 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
    }
 
    if (request->GetType() == MJSON_ERROR) {
-      std::string reply;
-      reply += "{";
-      reply += "\"jsonrpc\": \"2.0\",";
-      reply += "\"error\":{";
-      reply += "\"code\":-32700,";
-      reply += "\"message\":\"Parse error\",";
-      reply += "\"data\":\"" + MJsonNode::Encode(request->GetError().c_str()) + "\"";
-      reply += "},";
-      reply += "\"id\":null";
-      reply += "}";
+      MJsonNode* reply = mjsonrpc_make_error(-32700, "Parse error", request->GetError().c_str());
+      reply->AddToObject("jsonrpc", MJsonNode::MakeString("2.0"));
+      reply->AddToObject("id", MJsonNode::MakeNull());
 
       if (mjsonrpc_debug) {
          printf("mjsonrpc: invalid json: reply:\n");
-         printf("%s\n", reply.c_str());
+         printf("%s\n", reply->Stringify().c_str());
          printf("\n");
       }
 
       delete request;
       return reply;
    } else if (request->GetType() == MJSON_OBJECT) {
-      std::string reply = mjsonrpc_handle_request(request);
+      MJsonNode* reply = mjsonrpc_handle_request(request);
       delete request;
       return reply;
    } else if (request->GetType() == MJSON_ARRAY) {
       const MJsonNodeVector* a = request->GetArray();
 
       if (a->size() < 1) {
-         std::string reply;
-         reply += "{";
-         reply += "\"jsonrpc\": \"2.0\",";
-         reply += "\"error\":{";
-         reply += "\"code\":-32600,";
-         reply += "\"message\":\"Invalid Request\",";
-         reply += "\"data\":\"batch request array has less than 1 element\"";
-         reply += "},";
-         reply += "\"id\":null";
-         reply += "}";
+         MJsonNode* reply = mjsonrpc_make_error(-32600, "Invalid request", "batch request array has less than 1 element");
+         reply->AddToObject("jsonrpc", MJsonNode::MakeString("2.0"));
+         reply->AddToObject("id", MJsonNode::MakeNull());
          
          if (mjsonrpc_debug) {
             printf("mjsonrpc: invalid json: reply:\n");
-            printf("%s\n", reply.c_str());
+            printf("%s\n", reply->Stringify().c_str());
             printf("\n");
          }
          
@@ -3689,35 +4057,31 @@ std::string mjsonrpc_decode_post_data(const char* post_data)
          return reply;
       }
 
-      std::string reply = "";
-      reply += "[";
+      MJsonNode* reply = MJsonNode::MakeArray();
 
       for (unsigned i=0; i<a->size(); i++) {
-         if (i>0) {
-            reply += ",";
+         MJsonNode* r = mjsonrpc_handle_request(a->at(i));
+         reply->AddToArray(r);
+         if (r->GetType() == MJSON_ARRAYBUFFER) {
+            delete request;
+            delete reply;
+            reply = mjsonrpc_make_error(-32600, "Invalid request", "MJSON_ARRAYBUFFER return is not permitted for batch requests");
+            reply->AddToObject("jsonrpc", MJsonNode::MakeString("2.0"));
+            reply->AddToObject("id", MJsonNode::MakeNull());
+            return reply;
          }
-         reply += mjsonrpc_handle_request(a->at(i));
       }
-
-      reply += "]";
 
       delete request;
       return reply;
    } else {
-      std::string reply;
-      reply += "{";
-      reply += "\"jsonrpc\": \"2.0\",";
-      reply += "\"error\":{";
-      reply += "\"code\":-32600,";
-      reply += "\"message\":\"Invalid Request\",";
-      reply += "\"data\":\"request is not a JSON object or JSON array\"";
-      reply += "},";
-      reply += "\"id\":null";
-      reply += "}";
+      MJsonNode* reply = mjsonrpc_make_error(-32600, "Invalid request", "request is not a JSON object or JSON array");
+      reply->AddToObject("jsonrpc", MJsonNode::MakeString("2.0"));
+      reply->AddToObject("id", MJsonNode::MakeNull());
 
       if (mjsonrpc_debug) {
          printf("mjsonrpc: invalid json: reply:\n");
-         printf("%s\n", reply.c_str());
+         printf("%s\n", reply->Stringify().c_str());
          printf("\n");
       }
 

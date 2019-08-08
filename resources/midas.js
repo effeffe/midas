@@ -97,7 +97,11 @@ function mjsonrpc_send_request(req)
    return new Promise(function(resolve, reject) {
       var xhr = new XMLHttpRequest();
       //xhr.responseType = 'json'; // this does not work: behaviour is not defined if RPC returns unparsable JSON
-      xhr.responseType = 'text';
+      if (req.id == "arraybuffer") {
+         xhr.responseType = 'arraybuffer';
+      } else {
+         xhr.responseType = 'text';
+      }
       xhr.withCredentials = true;
 
       xhr.onreadystatechange = function()
@@ -113,55 +117,74 @@ function mjsonrpc_send_request(req)
                return;
             }
 
-            var rpc_response = null;
+            var contentType = xhr.getResponseHeader("Content-Type");
+            //console.log("XHR ContentType: " + contentType);
+            //console.log("XHR response type: " + typeof(xhr.response));
 
-            try {
-               rpc_response = JSON.parse(xhr.responseText);
-               if (!rpc_response) {
-                  throw "JSON parser returned null";
-               }
-            } catch (exc) {
-               //alert("exception " + exc);
-               var error = new Object;
-               error.request = req;
-               error.xhr = xhr;
-               error.exception = exc;
-               reject(error);
+            if (contentType == "application/octet-stream") {
+               var response = xhr.response;
+               //console.log("XHR response type: " + typeof(response));
+               //console.log("XHR response: " + response);
+               resolve(response);
                return;
-            }
-            
-            if (Array.isArray(rpc_response)) {
-               var batch = new Array;
-               for (var i=0; i<rpc_response.length; i++) {
-                  var rpc = new Object;
-                  rpc.request = req[i];
-                  rpc.id = rpc_response[i].id;
-                  if (rpc_response[i].hasOwnProperty("error")) {
-                     rpc.error = rpc_response[i].error;
-                  } else {
-                     rpc.result = rpc_response[i].result;
+            } else if (contentType == "application/json") {
+               var rpc_response = null;
+
+               try {
+                  rpc_response = JSON.parse(xhr.response);
+                  if (!rpc_response) {
+                     throw "JSON parser returned null";
                   }
-                  batch.push(rpc);
+               } catch (exc) {
+                  //alert("exception " + exc);
+                  var error = new Object;
+                  error.request = req;
+                  error.xhr = xhr;
+                  error.exception = exc;
+                  reject(error);
+                  return;
                }
-               resolve(batch);
+               
+               if (Array.isArray(rpc_response)) {
+                  var batch = new Array;
+                  for (var i=0; i<rpc_response.length; i++) {
+                     var rpc = new Object;
+                     rpc.request = req[i];
+                     rpc.id = rpc_response[i].id;
+                     if (rpc_response[i].hasOwnProperty("error")) {
+                        rpc.error = rpc_response[i].error;
+                     } else {
+                        rpc.result = rpc_response[i].result;
+                     }
+                     batch.push(rpc);
+                  }
+                  resolve(batch);
+                  return;
+               }
+               
+               if (rpc_response.error) {
+                  var error = new Object;
+                  error.request = req;
+                  error.xhr = xhr;
+                  error.error = rpc_response.error;
+                  reject(error);
+                  return;
+               }
+               
+               var rpc = new Object;
+               rpc.request = req;
+               rpc.id = rpc_response.id;
+               rpc.result = rpc_response.result;
+               resolve(rpc);
                return;
-            }
-            
-            if (rpc_response.error) {
+            } else {
                var error = new Object;
                error.request = req;
                error.xhr = xhr;
-               error.error = rpc_response.error;
+               error.error = "Unexpected Content-Type: " + contentType;
                reject(error);
                return;
             }
-
-            var rpc = new Object;
-            rpc.request = req;
-            rpc.id = rpc_response.id;
-            rpc.result = rpc_response.result;
-            resolve(rpc);
-            return;
          }
       }
 
