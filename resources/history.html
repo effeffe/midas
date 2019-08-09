@@ -37,13 +37,65 @@
          if (baseURL.search("&group") > 0)
             baseURL = baseURL.substr(0, baseURL.search("&group"));
 
+         if (curGroup === "undefined") {
+            // create selector table
+            let d = document.getElementById("hist");
+
+            let h =
+               "<table class=\"mtable\" id=\"overallTable\">\n" +
+               "    <tr><th colspan=\"2\" class=\"mtableheader\">History</th></tr>\n" +
+               "    <tr><td colspan=2><input type=\"button\" name=\"New\" value=\"New\" onClick=\"window.location.href='?cmd=history&hcmd=New'\"></td></tr>\n" +
+               "    <tr><td colspan=2 style=\"text-align:center;\"><b>Please select panel:</b></td></tr>\n" +
+               "    <tr><td colspan=2 class=\"titleCell\"><a href=\"?cmd=history&group=All\">ALL</a>\n</td></tr>\n";
+
+
+            Object.keys(historyDisplay).forEach(group => {
+               h +=
+                  "    <tr>\n" +
+                  "      <td class=\"titleCell\"><a href=\"" + baseURL + "&group=" + group + "&panel=All\">" + group + "</a></td>\n" +
+                  "      <td>\n";
+
+               Object.keys(historyDisplay[group]).forEach(panel => {
+                  h += "         <a href=\"" + baseURL + "&group=" + group + "&panel=" + panel + "\">" + panel + "</a>&nbsp;\n";
+               });
+
+               h +=
+                  "      </td>\n" +
+                  "    </tr>\n";
+            });
+
+            h +=
+               "</table>\n";
+
+            d.innerHTML = h;
+            return;
+         }
+
+         let d = document.getElementById("hist");
+
+         d.innerHTML =
+            "<table class=\"mtable\" id=\"overallTable\">\n" +
+            "   <tr><th class=\"mtableheader\">History</th></tr>\n" +
+            "   <tr><td>\n" +
+            "      Group:\n" +
+            "      <select title=\"Select Group\" id=\"sgroup\">\n" +
+            "      </select>&nbsp;&nbsp;\n" +
+            "      Panel:\n" +
+            "      <select title=\"Select Panel\" id=\"spanel\">\n" +
+            "      </select>\n" +
+            "   </td></tr>\n" +
+            "   <tr><td>\n" +
+            "      <div id=\"histPanel\"></div>\n" +
+            "   </td></tr>\n" +
+            "</table>\n";
+
          if (curGroup === "undefined")
             curGroup = Object.keys(historyDisplay)[0];
          if (curPanel === "undefined")
             curPanel = Object.keys(historyDisplay[curGroup])[0];
 
          // create history object
-         mhistory_create(document.getElementById("hist"), curGroup, curPanel);
+         mhistory_create(document.getElementById("histPanel"), curGroup, curPanel);
 
          // populate group selector
          let sgroup = document.getElementById("sgroup");
@@ -56,8 +108,9 @@
          });
          let o = document.createElement("option");
          o.text = "- All -";
-         //##sgroup.add(o);
-         if (curGroup === "- All -")
+         o.value = "All";
+         sgroup.add(o);
+         if (curGroup === "All")
             o.selected = true;
 
          // populate panel selector
@@ -71,8 +124,9 @@
          });
          o = document.createElement("option");
          o.text = "- All -";
-         //##spanel.add(o);
-         if (curPanel === "- All -")
+         o.value = "All";
+         spanel.add(o);
+         if (curPanel === "All")
             o.selected = true;
 
          // add listener to group selector
@@ -98,7 +152,7 @@
 
    function windowResize() {
       let m = document.getElementById("mmain");
-      let d = document.getElementById("hist").childNodes[0];
+      let d = document.getElementById("histPanel").childNodes[0];
       d.style.width = document.documentElement.clientWidth - parseInt(m.style.marginLeft) - 30 + "px";
       d.style.height = document.documentElement.clientHeight - d.getBoundingClientRect().top - 20 + "px";
       d.mhg.resize();
@@ -107,26 +161,7 @@
 </script>
 
 <div id="mmain">
-   <table class="mtable" id="overallTable">
-      <tr>
-         <th class="mtableheader">History</th>
-      </tr>
-      <tr>
-         <td>
-            Group:
-            <select title="Select Group" id="sgroup">
-            </select>&nbsp;&nbsp;
-            Panel:
-            <select title="Select Panel" id="spanel">
-            </select>
-         </td>
-      </tr>
-      <tr>
-         <td>
-            <div id="hist"></div>
-         </td>
-      </tr>
-   </table>
+   <div id="hist"></div>
 </div>
 
 </body>

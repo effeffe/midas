@@ -202,7 +202,13 @@ function MhistoryGraph(divElement) { // Constructor
    divElement.addEventListener("mousemove", this.mouseEvent.bind(this), true);
    divElement.addEventListener("mouseup", this.mouseEvent.bind(this), true);
    divElement.addEventListener("wheel", this.mouseWheelEvent.bind(this), true);
+
+   window.addEventListener("keydown", this.keyDown.bind(this));
 }
+
+MhistoryGraph.prototype.keyDown = function (e) {
+   console.log(e);
+};
 
 function timeToSec(str) {
    let s = parseFloat(str);
