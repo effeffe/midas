@@ -1952,13 +1952,17 @@ INT cm_get_client_info(char *client_name)
    }
 
    status = db_find_key(hDB, hKey, "Name", &hKey);
-   if (status != DB_SUCCESS)
+   if (status != DB_SUCCESS) {
+      client_name[0] = 0;
       return status;
+   }
 
    length = NAME_LENGTH;
    status = db_get_data(hDB, hKey, client_name, &length, TID_STRING);
-   if (status != DB_SUCCESS)
+   if (status != DB_SUCCESS) {
+      client_name[0] = 0;
       return status;
+   }
 
    return CM_SUCCESS;
 }

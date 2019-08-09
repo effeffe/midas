@@ -334,6 +334,8 @@ static void *malloc_data(DATABASE_HEADER * pheader, INT size)
    if (size == 0)
       return NULL;
 
+   assert(size > 0);
+
    /* quadword alignment for alpha CPU */
    size = ALIGN8(size);
 
@@ -764,6 +766,9 @@ static BOOL is_utf8(const char * string)
             bytes += 4;
             continue;
         }
+        
+        //printf("is_utf8: string [%s], not utf8 at offset %d, byte %d, [%s]\n", string, (int)((char*)bytes-(char*)string), (int)(0xFF&bytes[0]), bytes);
+        //abort();
 
         return 0;
     }
