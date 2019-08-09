@@ -162,7 +162,7 @@ function MhistoryGraph(divElement) { // Constructor
       "</tr>" +
       "<tr>" +
       "<td>Vertical Zoom</td>" +
-      "<td>&nbsp;Press ALT key and scroll mouse wheel or drag along Y-Axis&nbsp;</td>" +
+      "<td>&nbsp;Press ALT or Shift key and scroll mouse wheel or drag along Y-Axis&nbsp;</td>" +
       "</tr>" +
       "<tr>" +
       "<td>Pan</td>" +
@@ -174,7 +174,7 @@ function MhistoryGraph(divElement) { // Constructor
       "</tr>" +
       "<tr>" +
       "<td>&nbsp;Back to live scolling after pan/zoom&nbsp;</td>" +
-      "<td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'></td>" +
+      "<td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'> or press spacebar </td>" +
       "</tr>" +
       "<tr>" +
       "<td>&nbsp;Reset axis&nbsp;</td>" +
