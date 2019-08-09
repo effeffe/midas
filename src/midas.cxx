@@ -2150,7 +2150,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    char client_name1[NAME_LENGTH];
    char password[NAME_LENGTH], str[256], exp_name1[NAME_LENGTH];
    char xclient_name[NAME_LENGTH];
-   HNDLE hDB, hKeyClient;
+   HNDLE hDB = 0, hKeyClient = 0;
    BOOL call_watchdog;
 
    if (_hKeyClient)
@@ -2772,6 +2772,8 @@ Set the handle to the ODB for the currently connected experiment
 */
 INT cm_set_experiment_database(HNDLE hDB, HNDLE hKeyClient)
 {
+   //printf("cm_set_experiment_database: hDB %d, hKeyClient %d\n", hDB, hKeyClient);
+
    _hDB = hDB;
    _hKeyClient = hKeyClient;
 
