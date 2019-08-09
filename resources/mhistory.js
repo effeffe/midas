@@ -314,6 +314,29 @@ MhistoryGraph.prototype.loadInitialData = function () {
       });
 };
 
+MhistoryGraph.prototype.loadOldData = function () {
+
+   if (this.tMin < this.data[0].time[0]) {
+      mjsonrpc_call("hs_read",
+         {
+            "start_time": this.data[0].time[0] - (this.tMax - this.tMin),
+            "end_time": this.data[0].time[0],
+            "events": this.events,
+            "tags": this.tags,
+            "index": this.index
+         })
+         .then(function (rpc) {
+
+            this.receiveData(rpc);
+
+         }.bind(this))
+         .catch(function (error) {
+            mjsonrpc_error_alert(error);
+         });
+   }
+};
+
+
 MhistoryGraph.prototype.receiveData = function (rpc) {
    // append newer values to end of arrays
    if (this.data === undefined) {
@@ -321,17 +344,34 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       // initial data
       this.data = rpc.result.data;
 
+   } else if (rpc.result.data[0].time[i] < this.data[0].time[0]) {
+
+      // add data to the left
+      for (let di = 0; di < rpc.result.data.length; di++) {
+         for (let i = rpc.result.data[di].time.length - 1; i >= 0 ; i--) {
+
+            if (rpc.result.data[di].time[i] < this.data[di].time[0]) {
+               this.data[di].time.unshift(rpc.result.data[di].time[i]);
+               this.data[di].value.unshift(rpc.result.data[di].value[i]);
+            }
+         }
+      }
+
    } else {
+
+      // add data to the right
       for (let di = 0; di < rpc.result.data.length; di++) {
          for (let i = 0; i < rpc.result.data[di].time.length; i++) {
-            if (this.data[di].time.length === 0 ||
-               rpc.result.data[di].time[i] > this.data[di].time[this.data[di].time.length - 1]) {
+
+            // add data to the right
+            if (rpc.result.data[di].time[i] > this.data[di].time[this.data[di].time.length - 1]) {
 
                this.data[di].time.push(rpc.result.data[di].time[i]);
                this.data[di].value.push(rpc.result.data[di].value[i]);
 
                this.lastTimeStamp = rpc.result.data[di].time[i];
             }
+
          }
       }
    }
@@ -339,10 +379,10 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
    let min = 0;
    let max = 0;
    if (this.data.length)
-   this.data.forEach(d => {
-      min = Math.min(min, ...d.value);
-      max = Math.max(max, ...d.value);
-   });
+      this.data.forEach(d => {
+         min = Math.min(min, ...d.value);
+         max = Math.max(max, ...d.value);
+      });
    if (min === max) {
       min -= 0.5;
       max += 0.5;
@@ -489,6 +529,8 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.yMax = this.drag.yMaxStart - dy;
          this.redraw();
 
+         this.loadOldData();
+         
       } else {
 
          // change curser to pointer over buttons
@@ -563,6 +605,8 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
          this.tMax += dtMax;
       }
    }
+
+   this.loadOldData();
 
    this.marker.active = false;
    this.scroll = false;
@@ -692,7 +736,7 @@ MhistoryGraph.prototype.draw = function () {
                str = value.toPrecision(6);
             ctx.fillText(str, 25 + variablesWidth, 40 + i * 17);
          } else
-            ctx.fillText('no data', 25 + variablesWidth, 40 + i* 17);
+            ctx.fillText('no data', 25 + variablesWidth, 40 + i * 17);
 
       });
 
