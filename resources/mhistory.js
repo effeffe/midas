@@ -203,16 +203,13 @@ function MhistoryGraph(divElement) { // Constructor
    divElement.addEventListener("mouseup", this.mouseEvent.bind(this), true);
    divElement.addEventListener("wheel", this.mouseWheelEvent.bind(this), true);
 
+   // Keyboard event handler (has to be on the window!)
    window.addEventListener("keydown", this.keyDown.bind(this));
 }
 
-MhistoryGraph.prototype.keyDown = function (e) {
-   console.log(e);
-};
-
 function timeToSec(str) {
-   let s = parseFloat(str);
-   switch (str[str.length - 1]) {
+      let s = parseFloat(str);
+      switch (str[str.length - 1]) {
       case 'm':
       case 'M':
          s *= 60;
@@ -229,6 +226,17 @@ function timeToSec(str) {
 
    return s;
 }
+
+MhistoryGraph.prototype.keyDown = function (e) {
+//   console.log(e.keyCode);
+   if (e.keyCode == 32) {  // space key
+      let dt = this.tMax - this.tMin;
+            this.tMax = new Date() / 1000;
+            this.tMin = this.tMax - dt;
+            this.scroll = true;
+            this.redraw();
+   }
+};
 
 MhistoryGraph.prototype.initializePanel = function () {
 
