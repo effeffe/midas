@@ -6,6 +6,10 @@
 
 message(STATUS "MIDAS: cmake version: " ${CMAKE_VERSION})
 cmake_minimum_required(VERSION 3.0)
+
+set(CMAKE_CXX_STANDARD 11) # this does not work on SL6
+set(CMAKE_CXX_STANDARD_REQUIRED ON) # this does not work on SL6
+
 project(midas)
 
 #
@@ -65,7 +69,6 @@ if (HAVE_ROOT)
    execute_process(COMMAND root-config --libs OUTPUT_VARIABLE ROOT_LIBS)
    string(STRIP ${ROOT_LIBS} ROOT_LIBS)
    string(REGEX REPLACE "\n$" "" ROOT_INC "${ROOT_INC}")
-   set(CMAKE_CXX_STANDARD 11)
 else (HAVE_ROOT)
    message(STATUS "MIDAS: ROOT not found")
 endif(HAVE_ROOT)
