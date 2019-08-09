@@ -117,7 +117,7 @@ function MhistoryGraph(divElement) { // Constructor
             t.tMax = new Date() / 1000;
             t.tMin = t.tMax - dt;
             t.scroll = true;
-            t.redraw();
+            t.scrollRedraw();
          }
       },
       {
@@ -254,6 +254,8 @@ MhistoryGraph.prototype.initializePanel = function () {
    this.events = [];
    this.tags = [];
    this.index = [];
+   this.yMin0 = 0;
+   this.yMax0 = 0;
 
    // retrieve panel definition from ODB
    mjsonrpc_db_copy(["/History/Display/" + this.group + "/" + this.panel]).then(function (rpc) {
@@ -305,8 +307,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
          if (this.updateTimer === undefined)
             this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
-         if (this.redrawTimer === undefined)
-            this.redrawTimer = window.setTimeout(this.scrollRedraw.bind(this), 1000);
+         if (this.scrollTimer === undefined)
+            this.scrollTimer = window.setTimeout(this.scrollRedraw.bind(this), 100);
 
       }.bind(this))
       .catch(function (error) {
@@ -344,15 +346,33 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       // initial data
       this.data = rpc.result.data;
 
+      this.data.forEach(d => {
+         d.value.forEach(v => {
+            if (v > this.yMax0)
+               this.yMax0 = v;
+            if (v < this.yMin0)
+               this.yMin0 = v;
+
+         });
+      });
+
    } else if (rpc.result.data[0].time[i] < this.data[0].time[0]) {
 
       // add data to the left
       for (let di = 0; di < rpc.result.data.length; di++) {
-         for (let i = rpc.result.data[di].time.length - 1; i >= 0 ; i--) {
+         for (let i = rpc.result.data[di].time.length - 1; i >= 0; i--) {
 
-            if (rpc.result.data[di].time[i] < this.data[di].time[0]) {
-               this.data[di].time.unshift(rpc.result.data[di].time[i]);
-               this.data[di].value.unshift(rpc.result.data[di].value[i]);
+            let t = rpc.result.data[di].time[i];
+            let v = rpc.result.data[di].value[i];
+
+            if (v > this.yMax0)
+               this.yMax0 = v;
+            if (v < this.yMin0)
+               this.yMin0 = v;
+
+            if (t < this.data[di].time[0]) {
+               this.data[di].time.unshift(t);
+               this.data[di].value.unshift(v);
             }
          }
       }
@@ -363,39 +383,37 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       for (let di = 0; di < rpc.result.data.length; di++) {
          for (let i = 0; i < rpc.result.data[di].time.length; i++) {
 
+            let t = rpc.result.data[di].time[i];
+            let v = rpc.result.data[di].value[i];
+
             // add data to the right
-            if (rpc.result.data[di].time[i] > this.data[di].time[this.data[di].time.length - 1]) {
+            if (t > this.data[di].time[this.data[di].time.length - 1]) {
 
-               this.data[di].time.push(rpc.result.data[di].time[i]);
-               this.data[di].value.push(rpc.result.data[di].value[i]);
+               if (v > this.yMax0)
+                  this.yMax0 = v;
+               if (v < this.yMin0)
+                  this.yMin0 = v;
 
-               this.lastTimeStamp = rpc.result.data[di].time[i];
+               this.data[di].time.push(t);
+               this.data[di].value.push(v);
+
+               this.lastTimeStamp = t;
             }
-
          }
       }
    }
 
-   let min = 0;
-   let max = 0;
-   if (this.data.length)
-      this.data.forEach(d => {
-         min = Math.min(min, ...d.value);
-         max = Math.max(max, ...d.value);
-      });
-   if (min === max) {
-      min -= 0.5;
-      max += 0.5;
-   } else {
-      max += (max - min) * 0.05;
+   if (this.yMin0 === this.yMax0) {
+      this.yMin0 -= 0.5;
+      this.yMax0 += 0.5;
    }
-   this.yMin0 = min;
-   this.yMax0 = max;
+
    if (this.scroll) {
-      this.yMax = max;
-      this.yMin = min;
+      this.yMax = this.yMax0 + (this.yMax0 - this.yMin0) / 10;
+      this.yMin = this.yMin0;
    }
-};
+}
+;
 
 MhistoryGraph.prototype.update = function () {
 
@@ -431,9 +449,9 @@ MhistoryGraph.prototype.scrollRedraw = function () {
       // calculate time for one pixel
       dt = (this.tMax - this.tMin) / (this.x2 - this.x1);
       dt = Math.min(Math.max(0.1, dt), 60);
-      this.updateTimer = window.setTimeout(this.scrollRedraw.bind(this), dt / 2 * 1000);
+      this.scrollTimer = window.setTimeout(this.scrollRedraw.bind(this), dt / 2 * 1000);
    } else {
-      this.updateTimer = window.setTimeout(this.scrollRedraw.bind(this), 1000);
+      this.scrollTimer = window.setTimeout(this.scrollRedraw.bind(this), 1000);
    }
 };
 
@@ -530,7 +548,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.redraw();
 
          this.loadOldData();
-         
+
       } else {
 
          // change curser to pointer over buttons
@@ -776,8 +794,8 @@ MhistoryGraph.prototype.draw = function () {
       let x0;
       let y0;
       let xLast;
-      for (let i = 0; i < this.data[di].time.length; i++) {
-         if (i === this.data[di].time.length - 1 || this.x[di][i + 1] >= this.x1) {
+      for (let i = 0; i < this.x[di].length; i++) {
+         if (i === this.x[di].length - 1 || this.x[di][i + 1] >= this.x1) {
             if (x0 === undefined) {
                x0 = this.x[di][i];
                y0 = this.y[di][i];
