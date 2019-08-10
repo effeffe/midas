@@ -576,11 +576,12 @@ static INT print_key_info(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *in
    return SUCCESS;
 }
 
+static int db_validate_key_offset(const DATABASE_HEADER * pheader, int offset);
+static int db_validate_data_offset(const DATABASE_HEADER * pheader, int offset);
+
 INT db_show_mem(HNDLE hDB, char **result, BOOL verbose)
 {
-   DATABASE_HEADER *pheader;
    INT total_size_key, total_size_data;
-   FREE_DESCRIP *pfree;
 
    struct print_key_info_buf buf;
    buf.buf = NULL;
@@ -589,7 +590,7 @@ INT db_show_mem(HNDLE hDB, char **result, BOOL verbose)
 
    db_lock_database(hDB);
 
-   pheader = _database[hDB - 1].database_header;
+   DATABASE_HEADER *pheader = _database[hDB - 1].database_header;
 
    char str[256];
 
@@ -603,7 +604,19 @@ INT db_show_mem(HNDLE hDB, char **result, BOOL verbose)
    add_to_buf(&buf, "Keylist:\n");
    add_to_buf(&buf, "--------\n");
    total_size_key = 0;
-   pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_key);
+
+   if (!db_validate_key_offset(pheader, pheader->first_free_key)) {
+      add_to_buf(&buf, "ODB is corrupted: pheader->first_free_key is invalid\n");
+      db_unlock_database(hDB);
+      if (result) {
+         *result = buf.buf;
+      } else {
+         free(buf.buf);
+      }
+      return DB_CORRUPTED;
+   }
+
+   FREE_DESCRIP *pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_key);
 
    while ((POINTER_T) pfree != (POINTER_T) pheader) {
       total_size_key += pfree->size;
@@ -620,6 +633,18 @@ INT db_show_mem(HNDLE hDB, char **result, BOOL verbose)
    add_to_buf(&buf, "\nData:\n");
    add_to_buf(&buf, "-----\n");
    total_size_data = 0;
+
+   if (!db_validate_data_offset(pheader, pheader->first_free_data)) {
+      add_to_buf(&buf, "ODB is corrupted: pheader->first_free_data is invalid\n");
+      db_unlock_database(hDB);
+      if (result) {
+         *result = buf.buf;
+      } else {
+         free(buf.buf);
+      }
+      return DB_CORRUPTED;
+   }
+
    pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_data);
 
    while ((POINTER_T) pfree != (POINTER_T) pheader) {

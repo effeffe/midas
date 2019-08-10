@@ -1774,10 +1774,13 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
             if (str[0] == 'y') {
                status = db_delete_key(hDB, hKey, (flags & (1 << 1)) > 0);
-               if (status == DB_NO_ACCESS)
+               if (status == DB_NO_ACCESS) {
                   printf("deletion of key not allowed\n");
-               if (status == DB_OPEN_RECORD)
+               } else if (status == DB_OPEN_RECORD) {
                   printf("key is open by other client\n");
+               } else if (status != DB_SUCCESS) {
+                  printf("Error, db_delete_key() status %d\n", status);
+               }
             }
          } else
             printf("key not found\n");
