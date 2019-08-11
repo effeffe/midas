@@ -139,8 +139,11 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
    {
       INT size, fh, status, run_number, semaphore, idx, offset = 0, tail_size = 0;
       struct tm *tms = NULL;
-      char file_name[256], afile_name[3][256], dir[256], str[256],
-          start_str[80], end_str[80], last[80], date[80], thread[80], attachment[256];
+      char file_name[256+256+100];
+      char afile_name[3][256];
+      char dir[256];
+      char str[256];
+      char start_str[80], end_str[80], last[80], date[80], thread[80], attachment[256];
       HNDLE hDB;
       time_t now;
       char *p;
@@ -504,7 +507,9 @@ INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilen
    int i, size, offset, direction, status;
    struct tm *tms, ltms;
    time_t lt, ltime=0, lact;
-   char str[256], file_name[256], dir[256];
+   char str[256];
+   char dir[256];
+   char file_name[256+100];
    HNDLE hDB;
 
 #if !defined(OS_VXWORKS)
@@ -1036,7 +1041,9 @@ INT el_delete_message(const char *tag)
 {
 #ifdef LOCAL_ROUTINES
    INT size, fh, semaphore, offset = 0, tail_size, status;
-   char dir[256], str[256], file_name[256];
+   char dir[256];
+   char str[256];
+   char file_name[256+256+10];
    HNDLE hDB;
    char *buffer = NULL;
 
