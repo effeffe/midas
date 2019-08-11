@@ -638,9 +638,10 @@ INT load_parameters(INT run_number)
 {
    INT i, size, index, status;
    HNDLE hkey;
-   char file_name[256], str[80], value_string[80], param_string[80];
+   char file_name[256];
+   char value_string[80];
+   char param_string[80];
    char data[32];
-   KEY key;
 
    /* loop over configutation file names */
    for (i = 0; clp.config_file_name[i][0] && i < 10; i++) {
@@ -669,6 +670,8 @@ INT load_parameters(INT run_number)
             *strchr(param_string, '[') = 0;
          }
 
+         char str[MAX_ODB_PATH];
+
          if (param_string[0] == '/')
             strcpy(str, param_string);
          else
@@ -677,6 +680,7 @@ INT load_parameters(INT run_number)
          if (hkey == 0) {
             printf("Error: cannot find parameter %s in ODB\n", str);
          } else {
+            KEY key;
             db_get_key(hDB, hkey, &key);
             db_sscanf(value_string, data, &size, 0, key.type);
 

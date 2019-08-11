@@ -4994,7 +4994,7 @@ INT cm_dispatch_ipc(const char *message, int message_size, int client_socket)
 
    /* message == "B" means "resume event sender" */
    if (message[0] == 'B' && message[2] != ' ') {
-      char str[80];
+      char str[NAME_LENGTH];
 
       //printf("cm_dispatch_ipc: message [%s], s=%d\n", message, s);
 
@@ -9520,9 +9520,7 @@ static INT bm_notify_client(const char *buffer_name, int client_socket)
 
 \********************************************************************/
 {
-   char buffer[32];
-   NET_COMMAND *nc;
-   INT i, convert_flags;
+   INT i;
    static DWORD last_time = 0;
    DWORD now = ss_millitime();
 
@@ -9539,7 +9537,7 @@ static INT bm_notify_client(const char *buffer_name, int client_socket)
    if (!_buffer[i].callback)
       return DB_SUCCESS;
 
-   convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+   int convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
 
    /* only send notification once each 500ms */
    if (now - last_time < 500 && !(convert_flags & CF_ASCII))
@@ -9548,10 +9546,12 @@ static INT bm_notify_client(const char *buffer_name, int client_socket)
    last_time = now;
 
    if (convert_flags & CF_ASCII) {
+      char buffer[10+NAME_LENGTH];
       sprintf(buffer, "MSG_BM&%s", buffer_name);
       send_tcp(client_socket, buffer, strlen(buffer) + 1, 0);
    } else {
-      nc = (NET_COMMAND *) buffer;
+      char buffer[32];
+      NET_COMMAND *nc = (NET_COMMAND *) buffer;
 
       nc->header.routine_id = MSG_BM;
       nc->header.param_size = 0;
@@ -10363,7 +10363,6 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    struct sockaddr_in bind_addr;
    INT sock;
    INT remote_hw_type, hw_type;
-   char str[200];
    char version[32], v1[32];
    char local_prog_name[NAME_LENGTH];
    char local_host_name[HOST_NAME_LENGTH];
@@ -10502,15 +10501,17 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    ss_gethostname(local_host_name, sizeof(local_host_name));
 
    hw_type = rpc_get_option(0, RPC_OHW_TYPE);
+   
+   char str[128+NAME_LENGTH+HOST_NAME_LENGTH];
    sprintf(str, "%d %s %s %s", hw_type, cm_get_version(), local_prog_name, local_host_name);
-
+   
    size = strlen(str) + 1;
    i = send(sock, str, size, 0);
    if (i < 0 || i != size) {
       cm_msg(MERROR, "rpc_client_connect", "cannot send %d bytes, send() returned %d, errno %d (%s)", size, i, errno, strerror(errno));
       return RPC_NET_ERROR;
    }
-
+   
    /* receive remote computer info */
    i = recv_string(sock, str, sizeof(str), _rpc_connect_timeout);
    if (i <= 0) {
@@ -13844,11 +13845,8 @@ INT rpc_execute_ascii(INT sock, char *buffer)
    }
 
    /* print return buffer */
-   if (strlen(return_buffer) > sizeof(debug_line)) {
-      memcpy(debug_line, return_buffer, sizeof(debug_line) - 10);
-      strcat(debug_line, "...");
-   } else
-      sprintf(debug_line, "-> %s", return_buffer);
+   strlcpy(debug_line, "-> ", sizeof(debug_line));
+   strlcat(debug_line, return_buffer, sizeof(debug_line));
    rpc_debug_printf(debug_line);
 
    /* return SS_EXIT if RPC_EXIT is called */
