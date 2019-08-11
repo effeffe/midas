@@ -8295,7 +8295,7 @@ static void db_save_tree_struct(HNDLE hDB, HNDLE hKey, int hfile, INT level)
          wr = write(hfile, line, strlen(line));
          assert(wr > 0);
       } else {
-         char line[MAX_ODB_PATH];
+         char line[10+MAX_ODB_PATH];
          char str[MAX_ODB_PATH];
 
          /* recurse subtree */
@@ -9563,7 +9563,7 @@ INT db_save_json(HNDLE hDB, HNDLE hKey, const char *filename)
       /* open file */
       fp = fopen(filename, "w");
       if (fp == NULL) {
-         cm_msg(MERROR, "db_save_json", "Cannot open file \"%s\"", filename);
+         cm_msg(MERROR, "db_save_json", "Cannot open file \"%s\", fopen() errno %d (%s)", filename, errno, strerror(errno));
          return DB_FILE_ERROR;
       }
 
@@ -9601,8 +9601,15 @@ INT db_save_json(HNDLE hDB, HNDLE hKey, const char *filename)
       json_write(&buffer, &buffer_size, &buffer_end, 0, "\n}\n", 0);
 
       if (status == DB_SUCCESS) {
-         if (buffer)
-            fwrite(buffer, 1, buffer_end, fp);
+         if (buffer) {
+            size_t wr = fwrite(buffer, 1, buffer_end, fp);
+            if (wr != (size_t)buffer_end) {
+               cm_msg(MERROR, "db_save_json", "Cannot write to file \"%s\", fwrite() errno %d (%s)", filename, errno, strerror(errno));
+               free(buffer);
+               fclose(fp);
+               return DB_FILE_ERROR;
+            }
+         }
       }
 
       if (buffer)
@@ -9629,7 +9636,7 @@ Save a branch of a database to a C structure .H file
 INT db_save_struct(HNDLE hDB, HNDLE hKey, const char *file_name, const char *struct_name, BOOL append)
 {
    KEY key;
-   char str[100], line[100];
+   char str[100], line[10+100];
    INT status, i, fh;
    int wr, size;
 
@@ -9660,9 +9667,9 @@ INT db_save_struct(HNDLE hDB, HNDLE hKey, const char *file_name, const char *str
    db_save_tree_struct(hDB, hKey, fh, 0);
 
    if (struct_name && struct_name[0])
-      strcpy(str, struct_name);
+      strlcpy(str, struct_name, sizeof(str));
    else
-      strcpy(str, key.name);
+      strlcpy(str, key.name, sizeof(str));
 
    name2c(str);
    for (i = 0; i < (int) strlen(str); i++)
@@ -9712,7 +9719,7 @@ INT db_save_string(HNDLE hDB, HNDLE hKey, const char *file_name, const char *str
 \********************************************************************/
 {
    KEY key;
-   char str[256], line[256];
+   char str[256], line[50+256];
    INT status, i, size, fh, buffer_size;
    char *buffer = NULL, *pc;
    int wr;
@@ -10797,7 +10804,7 @@ static int db_get_record2_read_element(HNDLE hDB, HNDLE hKey, const char* key_na
             cm_msg(MERROR, "db_get_record2", "string buffer overrun at key \"%s\" index %d, size %d, buffer remaining %d", key_name, i, xsize, *buf_remain);
             return DB_INVALID_PARAM;
          }
-         char xkey_name[NAME_LENGTH+100];
+         char xkey_name[MAX_ODB_PATH+100];
          sprintf(xkey_name, "%s[%d]", key_name, i);
          int status = db_get_value(hDB, hKey, xkey_name, *buf_ptr, &xsize, tid, FALSE);
          //printf("status %d, string length %d, xsize %d, actual len %d\n", status, string_length, xsize, (int)strlen(*buf_ptr));
