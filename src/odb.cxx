@@ -317,11 +317,20 @@ static int validate_free_data(DATABASE_HEADER * pheader, int free_data)
    if (free_data <= 0)
       return 0;
 
-   if (free_data < pheader->key_size)
+   if (free_data < (int)sizeof(DATABASE_HEADER)) {
+      //printf("validate_free_data: failed: %d is inside the database header 0..%d\n", free_data, (int)sizeof(DATABASE_HEADER));
       return 0;
+   }
 
-   if (free_data > pheader->key_size + pheader->data_size)
+   if (free_data < (int)sizeof(DATABASE_HEADER) + pheader->key_size) {
+      //printf("validate_free_data: failed: %d is inside key space %d..%d\n", free_data, (int)sizeof(DATABASE_HEADER), (int)sizeof(DATABASE_HEADER) + pheader->key_size);
       return 0;
+   }
+
+   if (free_data > (int)sizeof(DATABASE_HEADER) + pheader->key_size + pheader->data_size) {
+      //printf("validate_free_data: failed: %d is beyound end of odb %d+%d+%d = %d\n", free_data, (int)sizeof(DATABASE_HEADER), pheader->key_size, pheader->data_size, (int)sizeof(DATABASE_HEADER) + pheader->key_size + pheader->data_size);
+      return 0;
+   }
 
    return 1;
 }
@@ -329,8 +338,6 @@ static int validate_free_data(DATABASE_HEADER * pheader, int free_data)
 /*------------------------------------------------------------------*/
 static void *malloc_data(DATABASE_HEADER * pheader, INT size)
 {
-   FREE_DESCRIP *pfree, *pfound, *pprev = NULL;
-
    if (size == 0)
       return NULL;
 
@@ -339,29 +346,48 @@ static void *malloc_data(DATABASE_HEADER * pheader, INT size)
    /* quadword alignment for alpha CPU */
    size = ALIGN8(size);
 
+   /* smallest allocation size is 8 bytes to make sure we can always create a new FREE_DESCRIP in free_data() */
+   assert(size >= (int)sizeof(FREE_DESCRIP));
+
    if (!validate_free_data(pheader, pheader->first_free_data)) {
       return NULL;
    }
 
    /* search for free block */
-   pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_data);
+   FREE_DESCRIP *pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_data);
+   FREE_DESCRIP *pprev = NULL;
+   FREE_DESCRIP *pfound = NULL;
 
-   while (pfree->size < size && pfree->next_free) {
+   while (1) {
+      //printf("malloc_data: pprev %p,  pfree %p, next %d, size %d, want %d\n", pprev, pfree, pfree->next_free, pfree->size, size);
+
+      if (pfree->size >= size) {
+         // we will use this block
+         pfound = pfree;
+         break;
+      }
+
+      if (!pfree->next_free) {
+         // no more free blocks
+         return NULL;
+      }
+
       if (!validate_free_data(pheader, pfree->next_free)) {
+         // next_free is invalid
+         //printf("malloc_data: pprev %p,  pfree %p, next %d, size %d, next is invalid\n", pprev, pfree, pfree->next_free, pfree->size);
          return NULL;
       }
       pprev = pfree;
       pfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
    }
 
-   /* return if not enough memory */
-   if (pfree->size < size)
-      return 0;
+   //printf("malloc_data: pprev %p, pfound %p, size %d, want %d\n", pprev, pfound, pfound->size, size);
 
-   pfound = pfree;
+   assert(pfound != NULL);
+   assert(size <= pfound->size);
 
    /* if found block is first in list, correct pheader */
-   if (pfree == (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_data)) {
+   if (!pprev) {
       if (size < pfree->size) {
          /* free block is only used partially */
          pheader->first_free_data += size;
@@ -376,7 +402,7 @@ static void *malloc_data(DATABASE_HEADER * pheader, INT size)
    } else {
       /* check if free block is used totally */
       if (pfound->size - size < (int) sizeof(FREE_DESCRIP)) {
-         /* skip block totally */
+         /* delete this free block from the free blocks chain */
          pprev->next_free = pfound->next_free;
       } else {
          /* decrease free block */
@@ -400,8 +426,6 @@ static void *malloc_data(DATABASE_HEADER * pheader, INT size)
 /*------------------------------------------------------------------*/
 static int free_data(DATABASE_HEADER * pheader, void *address, INT size, const char* caller)
 {
-   FREE_DESCRIP *pfree, *pprev, *pnext;
-
    if (size == 0)
       return DB_SUCCESS;
 
@@ -410,27 +434,41 @@ static int free_data(DATABASE_HEADER * pheader, void *address, INT size, const c
    /* quadword alignment for alpha CPU */
    size = ALIGN8(size);
 
-   pfree = (FREE_DESCRIP *) address;
-   pprev = NULL;
+   /* smallest allocation size is 8 bytes to make sure we can always create a new FREE_DESCRIP in free_data() */
+   assert(size >= (int)sizeof(FREE_DESCRIP));
+
+   FREE_DESCRIP *pprev = NULL;
+   FREE_DESCRIP *pfree = (FREE_DESCRIP *) address;
+   int pfree_offset = (POINTER_T) address - (POINTER_T) pheader;
 
    /* clear current block */
    memset(address, 0, size);
 
-   /* if data comes before first free block, adjust pheader */
-   if ((POINTER_T) address - (POINTER_T) pheader < pheader->first_free_data) {
+   if (pheader->first_free_data == 0) {
+      /* if free list is empty, create the first free block, adjust pheader */
+      pfree->size = size;
+      pfree->next_free = 0;
+      pheader->first_free_data = pfree_offset;
+      /* nothing else to do */
+      return DB_SUCCESS;
+   } else if ((POINTER_T) address - (POINTER_T) pheader < pheader->first_free_data) {
+      /* if data comes before first free block, create new free block, adjust pheader */
       pfree->size = size;
       pfree->next_free = pheader->first_free_data;
-      pheader->first_free_data = (POINTER_T) address - (POINTER_T) pheader;
+      pheader->first_free_data = pfree_offset;
+      /* maybe merge next free block into the new free block */
+      //printf("free_data: created new first free block, maybe merge with old first free block\n");
    } else {
       /* find last free block before current block */
       pprev = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_data);
 
-      while (pprev->next_free < (POINTER_T) address - (POINTER_T) pheader) {
+      while (pprev->next_free < pfree_offset) {
          if (pprev->next_free == 0) {
-            cm_msg(MERROR, "free_data", "cannot free data, database is full");
-            return DB_FULL;
+            /* add new free block at the end of the chain of free blocks */
+            //printf("free_data: adding new free block at the very end\n");
+            break;
          }
-         if (pprev->next_free <= 0) {
+         if (!validate_free_data(pheader, pprev->next_free)) {
             cm_msg(MERROR, "free_data", "database is corrupted: pprev=%p, pprev->next_free=%d in free_data(%p,%p,%d) from %s", pprev, pprev->next_free, pheader, address, size, caller);
             return DB_CORRUPTED;
          }
@@ -441,12 +479,13 @@ static int free_data(DATABASE_HEADER * pheader, void *address, INT size, const c
       pfree->size = size;
       pfree->next_free = pprev->next_free;
 
-      pprev->next_free = (POINTER_T) pfree - (POINTER_T) pheader;
+      pprev->next_free = pfree_offset;
    }
 
    /* try to melt adjacent free blocks after current block */
-   pnext = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
+   FREE_DESCRIP *pnext = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
    if ((POINTER_T) pnext == (POINTER_T) pfree + pfree->size) {
+      //printf("free_data: merging first and second free block\n");
       pfree->size += pnext->size;
       pfree->next_free = pnext->next_free;
 
@@ -455,6 +494,7 @@ static int free_data(DATABASE_HEADER * pheader, void *address, INT size, const c
 
    /* try to melt adjacent free blocks before current block */
    if (pprev && pprev->next_free == (POINTER_T) pprev - (POINTER_T) pheader + pprev->size) {
+      //printf("free_data: merging pprev and pfree\n");
       pprev->size += pfree->size;
       pprev->next_free = pfree->next_free;
 
@@ -467,30 +507,39 @@ static int free_data(DATABASE_HEADER * pheader, void *address, INT size, const c
 /*------------------------------------------------------------------*/
 static void *realloc_data(DATABASE_HEADER * pheader, void *address, INT old_size, INT new_size, const char* caller)
 {
-   void *tmp = NULL, *pnew;
+   void *tmp = NULL;
 
    if (old_size) {
       int status;
       tmp = malloc(old_size);
-      if (tmp == NULL)
+      if (tmp == NULL) {
+         cm_msg(MERROR, "realloc_data", "cannot malloc(%d), called from %s", old_size, caller);
          return NULL;
+      }
 
       memcpy(tmp, address, old_size);
 
       status = free_data(pheader, address, old_size, caller);
       if (status != DB_SUCCESS) {
          free(tmp);
+         cm_msg(MERROR, "realloc_data", "cannot free_data(%p, %d), called from %s", address, old_size, caller);
          return NULL;
       }
    }
 
-   pnew = malloc_data(pheader, new_size);
+   void *pnew = malloc_data(pheader, new_size);
 
-   if (pnew && old_size)
+   if (!pnew) {
+      if (tmp)
+         free(tmp);
+      cm_msg(MERROR, "realloc_data", "cannot malloc_data(%d), called from %s", new_size, caller);
+      return NULL;
+   }
+
+   if (old_size) {
       memcpy(pnew, tmp, old_size < new_size ? old_size : new_size);
-
-   if (old_size)
       free(tmp);
+   }
 
    return pnew;
 }
