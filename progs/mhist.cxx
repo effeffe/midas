@@ -100,9 +100,11 @@ void generate_hist()
 #endif
 
 /*------------------------------------------------------------------*/
-INT query_params(MidasHistoryInterface* mh, std::string* event_name, DWORD * start_time, DWORD * end_time,
-                 DWORD * interval, char *var_name, DWORD * var_type,
-                 INT * var_n_data, DWORD * index)
+static INT query_params(MidasHistoryInterface* mh,
+                        std::string* event_name,
+                        DWORD * start_time, DWORD * end_time, DWORD * interval,
+                        char *var_name, DWORD * var_type,
+                        INT * var_n_data, DWORD * index)
 {
    DWORD status, hour;
    int var_index;
@@ -252,7 +254,94 @@ INT file_display_vars(const char *file_name)
 }
 #endif
 
-INT display_vars(MidasHistoryInterface* mh, time_t t)
+/********************************************************************/
+static INT hs_fdump(const char *file_name, DWORD id, BOOL binary_time)
+/********************************************************************\
+
+  Routine: hs_fdump
+
+  Purpose: Display history for a given history file
+
+  Input:
+    char   *file_name       Name of file to dump
+    DWORD  event_id         Event ID
+    BOOL   binary_time      Display DWORD time stamp
+
+  Output:
+    <screen output>
+
+  Function value:
+    HS_SUCCESS              Successful completion
+    HS_FILE_ERROR           Cannot open history file
+
+\********************************************************************/
+{
+   int fh;
+   INT n;
+   time_t ltime;
+   HIST_RECORD rec;
+   char event_name[NAME_LENGTH];
+
+   /* open file, add O_BINARY flag for Windows NT */
+   fh = open(file_name, O_RDONLY | O_BINARY, 0644);
+   if (fh < 0) {
+      cm_msg(MERROR, "hs_fdump", "cannot open file %s", file_name);
+      return HS_FILE_ERROR;
+   }
+
+   /* loop over file records in .hst file */
+   do {
+      n = read(fh, (char *) &rec, sizeof(rec));
+      if (n == 0)
+         break; // end of file
+      if (n < 0) {
+         printf("Error reading \"%s\", errno %d (%s)\n", file_name, errno, strerror(errno));
+         break;
+      }
+      if (n != (int)sizeof(rec)) {
+         printf("Error reading \"%s\", truncated data, requested %d bytes, read %d bytes\n", file_name, (int)sizeof(rec), n);
+         break;
+      }
+
+      /* check if record type is definition */
+      if (rec.record_type == RT_DEF) {
+         /* read name */
+         n = read(fh, event_name, sizeof(event_name));
+         if (n != sizeof(event_name)) {
+            printf("Error reading \"%s\", truncated data or error, requested %d bytes, read %d bytes, errno %d (%s)\n", file_name, (int)sizeof(rec), n, errno, strerror(errno));
+            break;
+         }
+
+         if (rec.event_id == id || id == 0)
+            printf("Event definition %s, ID %d\n", event_name, rec.event_id);
+
+         /* skip tags */
+         lseek(fh, rec.data_size, SEEK_CUR);
+      } else {
+         /* print data record */
+         char str[32];
+         if (binary_time) {
+            sprintf(str, "%d ", rec.time);
+         } else {
+            ltime = (time_t) rec.time;
+            strcpy(str, ctime(&ltime) + 4);
+            str[15] = 0;
+         }
+         if (rec.event_id == id || id == 0)
+            printf("ID %d, %s, size %d\n", rec.event_id, str, rec.data_size);
+
+         /* skip data */
+         lseek(fh, rec.data_size, SEEK_CUR);
+      }
+
+   } while (TRUE);
+
+   close(fh);
+
+   return HS_SUCCESS;
+}
+
+static INT display_vars(MidasHistoryInterface* mh, time_t t)
 {
    std::vector<std::string> events;
    int status = mh->hs_get_events(t, &events);
@@ -284,8 +373,10 @@ INT display_vars(MidasHistoryInterface* mh, time_t t)
 }
 
 /*------------------------------------------------------------------*/
-void display_single_hist(MidasHistoryInterface* mh, const char* event_name, time_t start_time, time_t end_time,
-                         time_t interval, const char *var_name, int index)
+static void display_single_hist(MidasHistoryInterface* mh,
+                                const char* event_name,
+                                time_t start_time, time_t end_time, time_t interval,
+                                const char *var_name, int index)
 /* read back history */
 {
    time_t *tbuffer = NULL;
@@ -331,8 +422,10 @@ void display_single_hist(MidasHistoryInterface* mh, const char* event_name, time
 
 /*------------------------------------------------------------------*/
 
-void display_range_hist(MidasHistoryInterface* mh, const char* event_name, time_t start_time, time_t end_time,
-                        time_t interval, const char *var_name, int index1, int index2)
+static void display_range_hist(MidasHistoryInterface* mh,
+                               const char* event_name,
+                               time_t start_time, time_t end_time, time_t interval,
+                               const char *var_name, int index1, int index2)
 /* read back history */
 {
    INT status = 0;
@@ -410,7 +503,9 @@ void display_range_hist(MidasHistoryInterface* mh, const char* event_name, time_
 
 /*------------------------------------------------------------------*/
 
-void display_all_hist(MidasHistoryInterface* mh, const char* event_name, time_t start_time, time_t end_time, time_t interval)
+static void display_all_hist(MidasHistoryInterface* mh,
+                             const char* event_name,
+                             time_t start_time, time_t end_time, time_t interval)
 /* read back history */
 {
    INT status = 0;
@@ -572,7 +667,7 @@ void display_all_hist(MidasHistoryInterface* mh, const char* event_name, time_t 
 }
 
 /*------------------------------------------------------------------*/
-DWORD convert_time(char *t)
+static DWORD convert_time(char *t)
 /* convert date in format YYMMDD[.HHMM[SS]] into decimal time */
 {
    struct tm tms;
@@ -626,17 +721,21 @@ DWORD convert_time(char *t)
 
 int main(int argc, char *argv[])
 {
-   DWORD status, start_time = 0, end_time, interval, index1 = 0, index2 = 0;
+   DWORD status;
+   DWORD start_time = 0;
+   DWORD end_time = 0;
+   DWORD interval = 0;
+   DWORD index1 = 0;
+   DWORD index2 = 0;
    INT i, var_n_data;
    BOOL list_query;
    DWORD var_type;
    char var_name[NAME_LENGTH];
-   //char file_name[256];
-   //char path_name[256];
-   //char path1_name[256];
-   //char start_name[64];
+   std::string path_name;
+   //std::string path1_name;
+   //std::string start_name;
    char *column;
-   //BOOL do_hst_file = false;
+   BOOL do_hst_file = false;
    std::string event_name;
    int debug = 0;
 
@@ -645,12 +744,6 @@ int main(int argc, char *argv[])
 
    var_name[0] = 0;
    list_query = FALSE;
-#if REMOVE_HS
-   file_name[0] = 0;
-   path_name[0] = 0;
-   path1_name[0] = 0;
-   start_name[0] = 0;
-#endif
 
    HNDLE hDB;
    char host_name[256];
@@ -712,20 +805,18 @@ int main(int argc, char *argv[])
             } else if (strncmp(argv[i], "-d", 2) == 0) {
                start_time = ss_time() - atoi(argv[++i]) * 3600 * 24;
             } else if (strncmp(argv[i], "-s", 2) == 0) {
-#if REMOVE_HS
-               strcpy(start_name, argv[++i]);
-#endif
+               //start_name = argv[++i];
                start_time = convert_time(argv[i]);
             } else if (strncmp(argv[i], "-p", 2) == 0) {
                end_time = convert_time(argv[++i]);
             } else if (strncmp(argv[i], "-t", 2) == 0) {
                interval = atoi(argv[++i]);
-#if REMOVE_HS
             } else if (strncmp(argv[i], "-f", 2) == 0) {
-               strcpy(path_name, argv[++i]);
+               path_name = argv[++i];
                do_hst_file = true;
+#ifdef REMOVE_HS
             } else if (strncmp(argv[i], "-z", 2) == 0) {
-               strcpy(path1_name, argv[++i]);
+               path1_name = argv[++i];
                do_hst_file = true;
 #endif
             }
@@ -737,9 +828,7 @@ int main(int argc, char *argv[])
             printf("         [-t Interval] minimum interval in sec. between two displayed records\n");
             printf("         [-h Hours] display between some hours ago and now\n");
             printf("         [-d Days] display between some days ago and now\n");
-#if REMOVE_HS
             printf("         [-f File] specify history file explicitly\n");
-#endif
             printf("         [-s Start date] specify start date YYMMDD[.HHMM[SS]]\n");
             printf("         [-p End date] specify end date YYMMDD[.HHMM[SS]]\n");
             printf("         [-l] list available events and variables\n");
@@ -749,46 +838,10 @@ int main(int argc, char *argv[])
       }
    }
 
-#if REMOVE_HS
-   /*
-      -z is needed in case the mhist called by script
-
-      -f /path/file.hst
-      -f file.hst -z /path         =>   file_name = file.hst
-      path1_name= /path/
-      -f /path/file.hst -z path1   =>   file_name = file.hst
-      path1_name = path1
-    */
-   char* p = strrchr(path_name, DIR_SEPARATOR);
-   if (p != NULL) {
-      strcpy(file_name, p + 1);
-      *(p + 1) = '\0';
-      if (path1_name[0] == '\0')
-         strcpy(path1_name, path_name);
-   } else {
-      strcpy(file_name, path_name);
-      path_name[0] = '\0';
-   }
-
    if (do_hst_file) {
-      /* Set path */
-      if (path1_name[0])
-         hs_set_path(path1_name);
-
-      /* -l listing only */
-      if (list_query) {
-         /* Overwrite the file_name if -s is given with -l only
-            in order to produce the -l on the specified date */
-         if (start_name[0] != 0)
-            strcpy(file_name, start_name);
-         
-         file_display_vars(file_name);
-      } else if (file_name[0]) {
-         hs_fdump(file_name, atoi(event_name.c_str()), binary_time);
-      }
+      hs_fdump(path_name.c_str(), atoi(event_name.c_str()), binary_time);
       return 0;
    }
-#endif
 
    if (!mh) {
       status = cm_connect_experiment1(host_name, expt_name, "mhist", 0, DEFAULT_ODB_SIZE, 0);
