@@ -5438,8 +5438,9 @@ void show_custom_file(Return* r, const char *name)
    status = db_get_key(hDB, hkey, &key);
    
    if (status != DB_SUCCESS) {
-      sprintf(str, "show_custom_file: Error: db_get_key() for \"%s\" status %d", str, status);
-      show_error_404(r, str);
+      char errtext[256];
+      sprintf(errtext, "show_custom_file: Error: db_get_key() for \"%s\" status %d", str, status);
+      show_error_404(r, errtext);
       return;
    }      
    
@@ -5449,8 +5450,9 @@ void show_custom_file(Return* r, const char *name)
    status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
    
    if (status != DB_SUCCESS) {
-      sprintf(str, "show_custom_file: Error: db_get_data() for \"%s\" status %d", str, status);
-      show_error_404(r, str);
+      char errtext[256];
+      sprintf(errtext, "show_custom_file: Error: db_get_data() for \"%s\" status %d", str, status);
+      show_error_404(r, errtext);
       free(ctext);
       return;
    }      
@@ -7259,9 +7261,9 @@ void show_custom_page(Param* pp, Return* r, const char *cookie_cpwd)
       ctext = (char*)malloc(size);
       status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
       if (status != DB_SUCCESS) {
-         char str[256];
-         sprintf(str, "show_custom_page: Error: db_get_data() for \"%s\" status %d", str, status); // FIXME: overflows "str"
-         show_error_404(r, str);
+         char errtext[256];
+         sprintf(errtext, "show_custom_page: Error: db_get_data() for \"%s\" status %d", xpath.c_str(), status); // FIXME: overflows "errtext"
+         show_error_404(r, errtext);
          free(ctext);
          return;
       }
@@ -7944,7 +7946,8 @@ void show_mscb_page(Param* p, Return* r, int refresh)
    unsigned int uptime;
    BOOL comment_created;
    float fvalue;
-   char str[256], comment[256], *pd, dbuf[256], value[256], evalue[256], unit[256], cur_subm_name[256];
+   char *pd;
+   char dbuf[256], value[256], evalue[256], unit[256], cur_subm_name[256];
    HNDLE hDB, hKeySubm, hKeyCurSubm, hKey, hKeyAddr, hKeyComm;
    KEY key;
    MSCB_INFO info;
@@ -7962,8 +7965,9 @@ void show_mscb_page(Param* p, Return* r, int refresh)
    if (cur_subm_name[0] == 0) {
       db_enum_key(hDB, hKeySubm, 0, &hKeyCurSubm);
       if (!hKeyCurSubm) {
-         sprintf(str, "No submaster defined under /MSCB/Submaster");
-         show_error(r, str);
+         char errorstr[256];
+         sprintf(errorstr, "No submaster defined under /MSCB/Submaster");
+         show_error(r, errorstr);
          return;
       }
       db_get_key(hDB, hKeyCurSubm, &key);
@@ -7979,11 +7983,12 @@ void show_mscb_page(Param* p, Return* r, int refresh)
    /* perform MSCB rescan */
    if (p->isparam("mcmd") && equal_ustring(p->getparam("mcmd"), "Rescan") && p->isparam("subm")) {
       /* create Pwd and Comment if not there */
+      char tmp[32];
       size = 32;
-      str[0] = 0;
-      db_get_value(hDB, hKeyCurSubm, "Pwd", (void *)str, &size, TID_STRING, true);
-      str[0] = 0;
-      db_get_value(hDB, hKeyCurSubm, "Comment", (void *)str, &size, TID_STRING, true);
+      tmp[0] = 0;
+      db_get_value(hDB, hKeyCurSubm, "Pwd", (void *)tmp, &size, TID_STRING, true);
+      tmp[0] = 0;
+      db_get_value(hDB, hKeyCurSubm, "Comment", (void *)tmp, &size, TID_STRING, true);
 
       db_find_key(hDB, hKeyCurSubm, "Address", &hKeyAddr);
       if (hKeyAddr) {
@@ -8044,8 +8049,8 @@ void show_mscb_page(Param* p, Return* r, int refresh)
                      ping_addr[j] = 1;
 
                status = mscb_info(fd, (unsigned short) ind, &info);
-               strncpy(str, info.node_name, sizeof(info.node_name));
-               str[16] = 0;
+               //strncpy(str, info.node_name, sizeof(info.node_name));
+               //str[16] = 0;
 
                if (status == MSCB_SUCCESS) {
                   /* check if node already in list */
@@ -8073,13 +8078,15 @@ void show_mscb_page(Param* p, Return* r, int refresh)
          db_set_data(hDB, hKeyComm, node_comment, n_addr*32, n_addr, TID_STRING);
          free(node_comment);
 
-         sprintf(str, "?cmd=mscb&subm=%s", cur_subm_name);
-         redirect(r, str);
+         char redirstr[256];
+         sprintf(redirstr, "?cmd=mscb&subm=%s", cur_subm_name);
+         redirect(r, redirstr);
          return;
 
       } else {
-         sprintf(str, "Cannot talk to submaster \"%s\"", cur_subm_name);
-         show_error(r, str);
+         char errorstr[256];
+         sprintf(errorstr, "Cannot talk to submaster \"%s\"", cur_subm_name);
+         show_error(r, errorstr);
          return;
       }
    }
@@ -8096,13 +8103,14 @@ void show_mscb_page(Param* p, Return* r, int refresh)
                                      (unsigned short) cur_node, (unsigned char) i, &info_var);
          if (status == MSCB_SUCCESS) {
             if (info_var.unit == UNIT_STRING) {
-               memset(str, 0, sizeof(str));
-               strncpy(str, value, info_var.width);
-               if (strlen(str) > 0 && str[strlen(str) - 1] == '\n')
-                  str[strlen(str) - 1] = 0;
+               char valstr[256];
+               memset(valstr, 0, sizeof(valstr));
+               strncpy(valstr, value, info_var.width);
+               if (strlen(valstr) > 0 && valstr[strlen(valstr) - 1] == '\n')
+                  valstr[strlen(valstr) - 1] = 0;
                
                status = mscb_write(fd, (unsigned short) cur_node,
-                                   (unsigned char) i, str, strlen(str) + 1);
+                                   (unsigned char) i, valstr, strlen(valstr) + 1);
             } else {
                if (info_var.flags & MSCBF_FLOAT) {
                   fvalue = (float) atof(value);
@@ -8119,8 +8127,9 @@ void show_mscb_page(Param* p, Return* r, int refresh)
             }
          }
       }
-      sprintf(str, "?cmd=mscb&subm=%s&node=%d", cur_subm_name, cur_node);
-      redirect(r, str);
+      char redirstr[256];
+      sprintf(redirstr, "?cmd=mscb&subm=%s&node=%d", cur_subm_name, cur_node);
+      redirect(r, redirstr);
       return;
    }
 
@@ -8236,10 +8245,12 @@ void show_mscb_page(Param* p, Return* r, int refresh)
       if (!hKey)
          break;
       db_get_key(hDB, hKey, &key);
-      strcpy(str, key.name);
+      char str[NAME_LENGTH+10+256];
+      strlcpy(str, key.name, sizeof(str));
+      char comment[256];
       size = sizeof(comment);
       if (db_get_value(hDB, hKey, "Comment", comment, &size, TID_STRING, FALSE) == DB_SUCCESS) {
-         strcat(str, ": ");
+         strlcat(str, ": ", sizeof(str));
          strlcat(str, comment, sizeof(str));
       }
 
@@ -8313,14 +8324,17 @@ void show_mscb_page(Param* p, Return* r, int refresh)
          db_get_data_index(hDB, hKeyAddr, &cur_node, &size, 0, TID_INT);
 
       for (i = 0; i<key.num_values ;i++) {
+         char str[100+256];
          size = sizeof(adr);
          db_get_data_index(hDB, hKeyAddr, &adr, &size, i, TID_INT);
          if (hKeyComm) {
+            char comment[256];
             size = sizeof(comment);
             db_get_data_index(hDB, hKeyComm, comment, &size, i, TID_STRING);
             sprintf(str, "%d: %s", adr, comment);
-         } else
+         } else {
             sprintf(str, "%d", adr);
+         }
          if (cur_node == 0 && i == 0)
             cur_node = adr;
          if (adr == cur_node)
@@ -8340,11 +8354,13 @@ void show_mscb_page(Param* p, Return* r, int refresh)
    else
       r->rsprintf("<tr><td colspan=3 align=center><b>%s</b>", key.name);
    r->rsprintf("<hr></td></tr>\r\n");
-   str[0] = 0;
-   size = 32;
-   db_get_value(hDB, hKeyCurSubm, "Pwd", str, &size, TID_STRING, TRUE);
 
-   fd = mscb_init(key.name, 0, str, FALSE);
+   char passwd[32];
+   passwd[0] = 0;
+   size = 32;
+   db_get_value(hDB, hKeyCurSubm, "Pwd", passwd, &size, TID_STRING, TRUE);
+
+   fd = mscb_init(key.name, 0, passwd, FALSE);
    if (fd < 0) {
       if (fd == EMSCB_WRONG_PASSWORD)
          r->rsprintf("<tr><td colspan=3><b>Invalid password</b></td>");
@@ -8365,9 +8381,9 @@ void show_mscb_page(Param* p, Return* r, int refresh)
       r->rsprintf("<tr><td colspan=3><b>No response from node</b></td>");
       goto mscb_error;
    }
-   strncpy(str, info.node_name, sizeof(info.node_name));
-   str[16] = 0;
-   r->rsprintf("<tr><td class=\"v1\">Node name<td colspan=2 class=\"v2\">%s</tr>\n", str);
+   char tr16[17];
+   strlcpy(tr16, info.node_name, sizeof(tr16));
+   r->rsprintf("<tr><td class=\"v1\">Node name<td colspan=2 class=\"v2\">%s</tr>\n", tr16);
    r->rsprintf("<tr><td class=\"v1\">GIT revision<td colspan=2 class=\"v2\">%d</tr>\n", info.revision);
 
    if (info.rtc[0] && info.rtc[0] != 0xFF) {
@@ -8394,6 +8410,7 @@ void show_mscb_page(Param* p, Return* r, int refresh)
          break;
    }
    if (i < info.n_variables) {
+      char str[32];
       strcpy(str, show_hidden ? " checked" : "");
       r->rsprintf("<tr><td colspan=3><input type=checkbox%s name=\"hidden\" value=\"1\"", str);
       r->rsprintf("onChange=\"window.location.search=?cmd=mscb&subm=%s&node=%d&hidden=1\">Display hidden variables<hr></td></tr>\r\n", cur_subm_name, cur_node);
@@ -8417,9 +8434,9 @@ void show_mscb_page(Param* p, Return* r, int refresh)
       for (j=fi ; j<i ; j++) {
          status = mscb_info_variable(fd, cur_node, j, &info_var);
          if ((info_var.flags & MSCBF_HIDDEN) == 0 || show_hidden) {
-            memcpy(str, info_var.name, 8);
-            str[8] = 0;
-            r->rsprintf("<tr><td class=\"v1\">%s</td>\r\n", str);
+            char tr8[9];
+            strlcpy(tr8, info_var.name, sizeof(tr8));
+            r->rsprintf("<tr><td class=\"v1\">%s</td>\r\n", tr8);
             r->rsprintf("<td class=\"v2\">\r\n");
             print_mscb_var(value, evalue, unit, &info_var, pd);
             r->rsprintf("<a href=\"#\" onClick=\"mscb_edit(%d,'%s')\">%s</a>",
