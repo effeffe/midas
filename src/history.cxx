@@ -777,7 +777,7 @@ static INT hs_write_event(DWORD event_id, const void *data, DWORD size)
       xwrite(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
    }
 
-   /* got to end of file */
+   /* go to end of file */
    xseek_end(_history[index]->hist_fn, _history[index]->hist_fh);
    last_pos_data = irec.offset = xcurpos(_history[index]->hist_fn, _history[index]->hist_fh);
 
@@ -785,7 +785,7 @@ static INT hs_write_event(DWORD event_id, const void *data, DWORD size)
    xwrite(_history[index]->hist_fn, _history[index]->hist_fh, (char *) &rec, sizeof(rec));
 
    /* write data */
-   if (write(_history[index]->hist_fh, (char *) data, size) < (int) size) {
+   if (!xwrite(_history[index]->hist_fn, _history[index]->hist_fh, (char *) data, size)) {
       /* disk maybe full? Do a roll-back! */
       xtruncate(_history[index]->hist_fn, _history[index]->hist_fh, last_pos_data);
       ss_semaphore_release(semaphore);
@@ -796,7 +796,7 @@ static INT hs_write_event(DWORD event_id, const void *data, DWORD size)
    xseek_end(_history[index]->index_fn, _history[index]->index_fh);
    last_pos_index = xcurpos(_history[index]->index_fn, _history[index]->index_fh);
    int size_of_irec = sizeof(irec);
-   if (write(_history[index]->index_fh, (char *) &irec, size_of_irec) < size_of_irec) {
+   if (!xwrite(_history[index]->index_fn, _history[index]->index_fh, (char *) &irec, size_of_irec)) {
       /* disk maybe full? Do a roll-back! */
       xtruncate(_history[index]->hist_fn, _history[index]->hist_fh, last_pos_data);
       xtruncate(_history[index]->index_fn, _history[index]->index_fh, last_pos_index);
@@ -835,7 +835,7 @@ static INT hs_enum_events(DWORD ltime, char *event_name, DWORD * name_size, INT 
 {
    int fh, fhd;
    std::string fn, fnd;
-   INT status, i, j, n;
+   INT status, i, n;
    DEF_RECORD def_rec;
 
    /* search latest history file */
@@ -858,8 +858,7 @@ static INT hs_enum_events(DWORD ltime, char *event_name, DWORD * name_size, INT 
    n = 0;
    do {
       /* read event definition */
-      j = read(fhd, (char *) &def_rec, sizeof(def_rec));
-      if (j < (int) sizeof(def_rec))
+      if (xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec), true) <= 0)
          break;
 
       /* look for existing entry for this event id */
@@ -916,7 +915,7 @@ static INT hs_count_events(DWORD ltime, DWORD * count)
 {
    int fh, fhd;
    std::string fn, fnd;
-   INT status, i, j, n;
+   INT status, i, n;
    DWORD *id;
    DEF_RECORD def_rec;
 
@@ -946,8 +945,7 @@ static INT hs_count_events(DWORD ltime, DWORD * count)
    n = 0;
    do {
       /* read definition index record */
-      j = read(fhd, (char *) &def_rec, sizeof(def_rec));
-      if (j < (int) sizeof(def_rec))
+      if (xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec), true) <= 0)
          break;
 
       /* look for existing entries */
@@ -996,7 +994,7 @@ static INT hs_get_event_id(DWORD ltime, const char *name, DWORD * id)
 {
    int fh, fhd;
    std::string fn, fnd;
-   INT status, i;
+   INT status;
    DWORD lt;
    DEF_RECORD def_rec;
 
@@ -1025,8 +1023,7 @@ static INT hs_get_event_id(DWORD ltime, const char *name, DWORD * id)
       *id = 0;
       do {
          /* read definition index record */
-         i = read(fhd, (char *) &def_rec, sizeof(def_rec));
-         if (i < (int) sizeof(def_rec))
+         if (xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec), true) <= 0)
             break;
 
          if (strcmp(name, def_rec.event_name) == 0) {
@@ -1460,7 +1457,6 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
    struct tm *tms;
    char *cache = NULL;
    time_t ltime;
-   int rd;
 
    //printf("hs_read event %d, time %d:%d, tagname: \'%s\', varindex: %d\n", event_id, start_time, end_time, tag_name, var_index);
 
@@ -1529,15 +1525,15 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
          xseek(fni, fhi, delta * sizeof(irec));
          do {
             delta = (int) (abs(delta) / 2.0 + 0.5);
-            rd = read(fhi, (char *) &irec, sizeof(irec));
-            assert(rd == sizeof(irec));
+            if (xread(fni, fhi, (char *) &irec, sizeof(irec)) < 0)
+               return HS_FILE_ERROR;
             if (irec.time > start_time)
                delta = -delta;
 
             xseek_cur(fni, fhi, (delta - 1) * sizeof(irec));
          } while (abs(delta) > 1 && irec.time != start_time);
-         rd = read(fhi, (char *) &irec, sizeof(irec));
-         assert(rd == sizeof(irec));
+         if (xread(fni, fhi, (char *) &irec, sizeof(irec)) < 0)
+            return HS_FILE_ERROR;
          if (irec.time > start_time)
             delta = -abs(delta);
 
@@ -1546,8 +1542,8 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
             xseek(fni, fhi, 0);
          else
             xseek_cur(fni, fhi, (delta - 1) * sizeof(irec));
-         rd = read(fhi, (char *) &irec, sizeof(irec));
-         assert(rd == sizeof(irec));
+         if (xread(fni, fhi, (char *) &irec, sizeof(irec)) < 0)
+            return HS_FILE_ERROR;
       } else {
          delta = (cache_size / sizeof(irec)) / 2;
          cp = delta * sizeof(irec);
@@ -1757,7 +1753,7 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
             }
          }
       } else {
-         i = read(fhi, (char *) &irec, sizeof(irec));
+         i = xread(fni, fhi, (char *) &irec, sizeof(irec), true);
       }
 
       /* end of file: search next history file */
@@ -2012,7 +2008,7 @@ static INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
       }
 
       /* read next index record */
-      i = read(fhi, (char *) &irec, sizeof(irec));
+      i = xread(fni, fhi, (char *) &irec, sizeof(irec), true);
 
       /* end of file: search next history file */
       if (i <= 0) {
@@ -2045,7 +2041,7 @@ static INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
          }
 
          /* read first record */
-         i = read(fhi, (char *) &irec, sizeof(irec));
+         i = xread(fni, fhi, (char *) &irec, sizeof(irec), true);
          if (i <= 0)
             break;
 
