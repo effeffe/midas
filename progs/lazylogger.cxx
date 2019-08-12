@@ -1531,7 +1531,7 @@ Function value:
    sprintf(cmd, "%s %s 2>&1", lazy.path, infile);
 
    {
-      char str[MAX_FILE_PATH];
+      char str[100+256];
       sprintf(str, "Starting lazy job \'%s\'", cmd);
       if (msg_flag)
          cm_msg(MTALK, "Lazy", "%s", str);

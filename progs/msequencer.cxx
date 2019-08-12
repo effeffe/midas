@@ -932,8 +932,9 @@ void sequencer()
             return;
          status = db_find_key(hDB, 0, odbpath, &hKey);
          if (status != DB_SUCCESS) {
-            sprintf(str, "Cannot find ODB key \"%s\"", odbpath);
-            seq_error(str);
+            char errorstr[512];
+            sprintf(errorstr, "Cannot find ODB key \"%s\"", odbpath);
+            seq_error(errorstr);
             return;
          } else {
             db_get_key(hDB, hKey, &key);
@@ -956,8 +957,9 @@ void sequencer()
                status = db_set_data_index1(hDB, hKey, data, key.item_size, index1, key.type, notify);
             
             if (status != DB_SUCCESS) {
-               sprintf(str, "Cannot set ODB key \"%s\"", odbpath);
-               seq_error(str);
+               char errorstr[512];
+               sprintf(errorstr, "Cannot set ODB key \"%s\"", odbpath);
+               seq_error(errorstr);
                return;
             }
             
@@ -999,8 +1001,9 @@ void sequencer()
          strlcpy(name, mxml_get_value(pn), sizeof(name));
          status = db_find_key(hDB, 0, odbpath, &hKey);
          if (status != DB_SUCCESS) {
-            sprintf(str, "Cannot find ODB key \"%s\"", odbpath);
-            seq_error(str);
+            char errorstr[512];
+            sprintf(errorstr, "Cannot find ODB key \"%s\"", odbpath);
+            seq_error(errorstr);
             return;
          } else {
             db_get_key(hDB, hKey, &key);
@@ -1043,8 +1046,9 @@ void sequencer()
             return;
          status = db_find_key(hDB, 0, odbpath, &hKey);
          if (status != DB_SUCCESS) {
-            sprintf(str, "Cannot find ODB key \"%s\"", odbpath);
-            seq_error(str);
+            char errorstr[512];
+            sprintf(errorstr, "Cannot find ODB key \"%s\"", odbpath);
+            seq_error(errorstr);
          } else {
             db_get_key(hDB, hKey, &key);
             size = sizeof(data);
@@ -1106,8 +1110,9 @@ void sequencer()
                db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, &size, TID_INT, FALSE);
                status = cm_transition(TR_START, run_number+1, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
                if (status != CM_SUCCESS) {
-                  sprintf(str, "Cannot start run: %s", str);
-                  seq_error(str);
+                  char errorstr[512];
+                  sprintf(errorstr, "Cannot start run: %s", str);
+                  seq_error(errorstr);
                }
             }
          } else {
@@ -1129,8 +1134,9 @@ void sequencer()
                if (status == CM_DEFERRED_TRANSITION) {
                   // do nothing
                } else if (status != CM_SUCCESS) {
-                  sprintf(str, "Cannot stop run: %s", str);
-                  seq_error(str);
+                  char errorstr[512];
+                  sprintf(errorstr, "Cannot stop run: %s", str);
+                  seq_error(errorstr);
                }
             }
          } else {
@@ -1197,8 +1203,9 @@ void sequencer()
                index = 0;
             status = db_find_key(hDB, 0, odbpath, &hKey);
             if (status != DB_SUCCESS) {
-               sprintf(str, "Cannot find ODB key \"%s\"", odbpath);
-               seq_error(str);
+               char errorstr[512];
+               sprintf(errorstr, "Cannot find ODB key \"%s\"", odbpath);
+               seq_error(errorstr);
                return;
             } else {
                if (mxml_get_attribute(pn, "op"))
