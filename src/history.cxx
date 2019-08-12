@@ -59,6 +59,11 @@ static bool xwrite(const std::string& fn, int fh, const void *buf, size_t count)
    return true;
 }
 
+// xread() return value:
+// 1 = ok
+// 0 = expected EOF, if eof_ok == true
+// -1 = error or short read or unexpected eof
+
 static int xread(const std::string& fn, int fh, void *buf, size_t count, bool eof_ok = false)
 {
    ssize_t rd = read(fh, buf, count);
@@ -83,6 +88,37 @@ static int xread(const std::string& fn, int fh, void *buf, size_t count, bool eo
    return 1;
 }
 
+static bool xseek(const std::string& fn, int fh, DWORD pos)
+{
+   off_t off = lseek(fh, pos, SEEK_SET);
+
+   if (off < 0) {
+      cm_msg(MERROR, "xseek", "Error in lseek(%llu) for file \"%s\", errno %d (%s)", (unsigned long long)pos, fn.c_str(), errno, strerror(errno));
+      return false;
+   }
+
+   return true;
+}
+
+static bool xtruncate(const std::string& fn, int fh, DWORD pos)
+{
+   off_t off = lseek(fh, pos, SEEK_SET);
+
+   if (off < 0) {
+      cm_msg(MERROR, "xtruncate", "Error in lseek(%llu) for file \"%s\", errno %d (%s)", (unsigned long long)pos, fn.c_str(), errno, strerror(errno));
+      return false;
+   }
+
+   int status = ftruncate(fh, pos);
+
+   if (status != 0) {
+      cm_msg(MERROR, "xtruncate", "Error setting file size of \"%s\" to %llu, errno %d (%s)", fn.c_str(), (unsigned long long)pos, errno, strerror(errno));
+      return false;
+   }
+
+   return true;
+}
+
 /********************************************************************/
 /**
 Sets the path for future history file accesses. Should
@@ -90,14 +126,8 @@ be called before any other history function is called.
 @param path             Directory where history files reside
 @return HS_SUCCESS
 */
-INT hs_set_path(const char *path)
+static INT hs_set_path(const char *path)
 {
-   /* set path locally and remotely */
-   if (rpc_is_remote()) {
-      //rpc_call(RPC_HS_SET_PATH, path);
-      abort();
-   }
-
    strcpy(_hs_path_name, path);
 
    /* check for trailing directory seperator */
@@ -121,7 +151,7 @@ Open history file belonging to certain date. Internal use
 @param fh             File handle
 @return HS_SUCCESS
 */
-INT hs_open_file(time_t ltime, const char *suffix, INT mode, std::string *pfile_name, int *fh)
+static INT hs_open_file(time_t ltime, const char *suffix, INT mode, std::string *pfile_name, int *fh)
 {
    struct tm *tms;
    time_t ttime;
@@ -156,7 +186,7 @@ INT hs_open_file(time_t ltime, const char *suffix, INT mode, std::string *pfile_
 }
 
 /********************************************************************/
-INT hs_gen_index(DWORD ltime)
+static INT hs_gen_index(DWORD ltime)
 /********************************************************************\
 
   Routine: hs_gen_index
@@ -209,19 +239,19 @@ INT hs_gen_index(DWORD ltime)
    hs_open_file(ltime, "hst", O_RDONLY, &fn, &fh);
    if (fh < 0)
       return HS_FILE_ERROR;
-   lseek(fh, 0, SEEK_SET);
+   xseek(fn, fh, 0);
 
    /* loop over file records in .hst file */
    do {
-      n = xread(fn, fh, (char *) &rec, sizeof(rec));
-      //printf("read %d\n", n);
-      if (n < (int)sizeof(rec))
+      if (xread(fn, fh, (char *) &rec, sizeof(rec), true) <= 0) {
          break;
+      }
 
       /* check if record type is definition */
       if (rec.record_type == RT_DEF) {
          /* read name */
-         xread(fn, fh, event_name, sizeof(event_name));
+         if (xread(fn, fh, event_name, sizeof(event_name)) < 0)
+            return HS_FILE_ERROR;
 
          printf("Event definition %s, ID %d\n", event_name, rec.event_id);
 
@@ -269,7 +299,7 @@ INT hs_gen_index(DWORD ltime)
 
 
 /********************************************************************/
-INT hs_search_file(DWORD * ltime, INT direction)
+static INT hs_search_file(DWORD * ltime, INT direction)
 /********************************************************************\
 
   Routine: hs_search_file
@@ -340,7 +370,7 @@ INT hs_search_file(DWORD * ltime, INT direction)
 
 
 /********************************************************************/
-INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD size)
+static INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD size)
 /********************************************************************\
 
   Routine: hs_define_event
@@ -372,11 +402,6 @@ INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD siz
 
 \********************************************************************/
 {
-/* History events are only written locally (?)
-
-   if (rpc_is_remote())
-      return rpc_call(RPC_HS_DEFINE_EVENT, event_id, name, tag, size);
-*/
    {
       HIST_RECORD rec, prev_rec;
       DEF_RECORD def_rec;
@@ -468,8 +493,8 @@ INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD siz
          n = TELL(fhd) / sizeof(def_rec);
          def_rec.event_id = 0;
          for (int i = n - 1; i >= 0; i--) {
-            lseek(fhd, i * sizeof(def_rec), SEEK_SET);
-            xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
+            if (!xseek(fnd, fhd, i * sizeof(def_rec))) return HS_FILE_ERROR;
+            if (xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec)) < 0) return HS_FILE_ERROR;
             if (def_rec.event_id == event_id)
                break;
          }
@@ -480,7 +505,7 @@ INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD siz
             buffer = (char *) M_MALLOC(size);
             memset(buffer, 0, size);
 
-            lseek(fh, def_rec.def_offset, SEEK_SET);
+            xseek(fn, fh, def_rec.def_offset);
             xread(fn, fh, (char *) &prev_rec, sizeof(prev_rec));
             xread(fn, fh, str, NAME_LENGTH);
             xread(fn, fh, buffer, size);
@@ -524,7 +549,7 @@ INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD siz
          buffer = (char *) M_MALLOC(size);
          memset(buffer, 0, size);
 
-         lseek(fh, _history[index]->def_offset, SEEK_SET);
+         xseek(fn, fh, _history[index]->def_offset);
          xread(fn, fh, (char *) &prev_rec, sizeof(prev_rec));
          xread(fn, fh, str, NAME_LENGTH);
          xread(fn, fh, buffer, size);
@@ -559,7 +584,7 @@ INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD siz
 
 
 /********************************************************************/
-INT hs_write_event(DWORD event_id, const void *data, DWORD size)
+static INT hs_write_event(DWORD event_id, const void *data, DWORD size)
 /********************************************************************\
 
   Routine: hs_write_event
@@ -583,15 +608,11 @@ INT hs_write_event(DWORD event_id, const void *data, DWORD size)
 
 \********************************************************************/
 {
-/* history events are only written locally (?)
-
-  if (rpc_is_remote())
-    return rpc_call(RPC_HS_WRITE_EVENT, event_id, data, size);
-*/
    HIST_RECORD rec, drec;
    DEF_RECORD def_rec;
    INDEX_RECORD irec;
-   int fh, fhi, fhd, last_pos_data, last_pos_index;
+   int fh, fhi, fhd;
+   DWORD last_pos_data, last_pos_index;
    std::string fn, fni, fnd;
    INT semaphore;
    int status;
@@ -707,8 +728,7 @@ INT hs_write_event(DWORD event_id, const void *data, DWORD size)
    /* write data */
    if (write(_history[index]->hist_fh, (char *) data, size) < (int) size) {
       /* disk maybe full? Do a roll-back! */
-      lseek(_history[index]->hist_fh, last_pos_data, SEEK_SET);
-      TRUNCATE(_history[index]->hist_fh);
+      xtruncate(_history[index]->hist_fn, _history[index]->hist_fh, last_pos_data);
       ss_semaphore_release(semaphore);
       return HS_FILE_ERROR;
    }
@@ -719,10 +739,8 @@ INT hs_write_event(DWORD event_id, const void *data, DWORD size)
    int size_of_irec = sizeof(irec);
    if (write(_history[index]->index_fh, (char *) &irec, size_of_irec) < size_of_irec) {
       /* disk maybe full? Do a roll-back! */
-      lseek(_history[index]->hist_fh, last_pos_data, SEEK_SET);
-      TRUNCATE(_history[index]->hist_fh);
-      lseek(_history[index]->index_fh, last_pos_index, SEEK_SET);
-      TRUNCATE(_history[index]->index_fh);
+      xtruncate(_history[index]->hist_fn, _history[index]->hist_fh, last_pos_data);
+      xtruncate(_history[index]->index_fn, _history[index]->index_fh, last_pos_index);
       ss_semaphore_release(semaphore);
       return HS_FILE_ERROR;
    }
@@ -733,7 +751,7 @@ INT hs_write_event(DWORD event_id, const void *data, DWORD size)
 
 
 /********************************************************************/
-INT hs_enum_events(DWORD ltime, char *event_name, DWORD * name_size, INT event_id[], DWORD * id_size)
+static INT hs_enum_events(DWORD ltime, char *event_name, DWORD * name_size, INT event_id[], DWORD * id_size)
 /********************************************************************\
 
   Routine: hs_enum_events
@@ -761,11 +779,6 @@ INT hs_enum_events(DWORD ltime, char *event_name, DWORD * name_size, INT event_i
    INT status, i, j, n;
    DEF_RECORD def_rec;
 
-   if (rpc_is_remote()) {
-      //return rpc_call(RPC_HS_ENUM_EVENTS, ltime, event_name, name_size, event_id, id_size);
-      abort();
-   }
-
    /* search latest history file */
    status = hs_search_file(&ltime, -1);
    if (status != HS_SUCCESS) {
@@ -780,7 +793,7 @@ INT hs_enum_events(DWORD ltime, char *event_name, DWORD * name_size, INT event_i
       cm_msg(MERROR, "hs_enum_events", "cannot open index files");
       return HS_FILE_ERROR;
    }
-   lseek(fhd, 0, SEEK_SET);
+   xseek(fnd, fhd, 0);
 
    /* loop over definition index file */
    n = 0;
@@ -823,7 +836,7 @@ INT hs_enum_events(DWORD ltime, char *event_name, DWORD * name_size, INT event_i
 
 
 /********************************************************************/
-INT hs_count_events(DWORD ltime, DWORD * count)
+static INT hs_count_events(DWORD ltime, DWORD * count)
 /********************************************************************\
 
   Routine: hs_count_events
@@ -848,11 +861,6 @@ INT hs_count_events(DWORD ltime, DWORD * count)
    DWORD *id;
    DEF_RECORD def_rec;
 
-   if (rpc_is_remote()) {
-      //return rpc_call(RPC_HS_COUNT_EVENTS, ltime, count);
-      abort();
-   }
-
    /* search latest history file */
    status = hs_search_file(&ltime, -1);
    if (status != HS_SUCCESS) {
@@ -871,7 +879,7 @@ INT hs_count_events(DWORD ltime, DWORD * count)
    /* allocate event id array */
    lseek(fhd, 0, SEEK_END);
    id = (DWORD *) M_MALLOC(TELL(fhd) / sizeof(def_rec) * sizeof(DWORD));
-   lseek(fhd, 0, SEEK_SET);
+   xseek(fnd, fhd, 0);
 
    /* loop over index file */
    n = 0;
@@ -904,7 +912,7 @@ INT hs_count_events(DWORD ltime, DWORD * count)
 
 
 /********************************************************************/
-INT hs_get_event_id(DWORD ltime, const char *name, DWORD * id)
+static INT hs_get_event_id(DWORD ltime, const char *name, DWORD * id)
 /********************************************************************\
 
   Routine: hs_get_event_id
@@ -930,11 +938,6 @@ INT hs_get_event_id(DWORD ltime, const char *name, DWORD * id)
    INT status, i;
    DWORD lt;
    DEF_RECORD def_rec;
-
-   if (rpc_is_remote()) {
-      //return rpc_call(RPC_HS_GET_EVENT_ID, ltime, name, id);
-      abort();
-   }
 
    /* search latest history file */
    if (ltime == 0)
@@ -986,7 +989,7 @@ INT hs_get_event_id(DWORD ltime, const char *name, DWORD * id)
 
 
 /********************************************************************/
-INT hs_count_vars(DWORD ltime, DWORD event_id, DWORD * count)
+static INT hs_count_vars(DWORD ltime, DWORD event_id, DWORD * count)
 /********************************************************************\
 
   Routine: hs_count_vars
@@ -1011,11 +1014,6 @@ INT hs_count_vars(DWORD ltime, DWORD event_id, DWORD * count)
    DEF_RECORD def_rec;
    HIST_RECORD rec;
 
-   if (rpc_is_remote()) {
-      //return rpc_call(RPC_HS_COUNT_VARS, ltime, event_id, count);
-      abort();
-   }
-
    /* search latest history file */
    status = hs_search_file(&ltime, -1);
    if (status != HS_SUCCESS) {
@@ -1036,8 +1034,8 @@ INT hs_count_vars(DWORD ltime, DWORD event_id, DWORD * count)
    n = TELL(fhd) / sizeof(def_rec);
    def_rec.event_id = 0;
    for (i = n - 1; i >= 0; i--) {
-      lseek(fhd, i * sizeof(def_rec), SEEK_SET);
-      xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
+      if (!xseek(fnd, fhd, i * sizeof(def_rec))) return HS_FILE_ERROR;
+      if (xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec)) < 0) return HS_FILE_ERROR;
       if (def_rec.event_id == event_id)
          break;
    }
@@ -1047,7 +1045,7 @@ INT hs_count_vars(DWORD ltime, DWORD event_id, DWORD * count)
    }
 
    /* read definition */
-   lseek(fh, def_rec.def_offset, SEEK_SET);
+   xseek(fn, fh, def_rec.def_offset);
    xread(fn, fh, (char *) &rec, sizeof(rec));
    *count = rec.data_size / sizeof(TAG);
 
@@ -1059,7 +1057,7 @@ INT hs_count_vars(DWORD ltime, DWORD event_id, DWORD * count)
 
 
 /********************************************************************/
-INT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name, DWORD * size, DWORD * var_n, DWORD * n_size)
+static INT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name, DWORD * size, DWORD * var_n, DWORD * n_size)
 /********************************************************************\
 
   Routine: hs_enum_vars
@@ -1091,11 +1089,6 @@ INT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name, DWORD * size, DWOR
    HIST_RECORD rec;
    TAG *tag;
 
-   if (rpc_is_remote()) {
-      //return rpc_call(RPC_HS_ENUM_VARS, ltime, event_id, var_name, size);
-      abort();
-   }
-
    /* search latest history file */
    status = hs_search_file(&ltime, -1);
    if (status != HS_SUCCESS) {
@@ -1116,8 +1109,8 @@ INT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name, DWORD * size, DWOR
    n = TELL(fhd) / sizeof(def_rec);
    def_rec.event_id = 0;
    for (i = n - 1; i >= 0; i--) {
-      lseek(fhd, i * sizeof(def_rec), SEEK_SET);
-      xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
+      if (!xseek(fnd, fhd, i * sizeof(def_rec))) return HS_FILE_ERROR;
+      if (xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec)) < 0) return HS_FILE_ERROR;
       if (def_rec.event_id == event_id)
          break;
    }
@@ -1127,7 +1120,7 @@ INT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name, DWORD * size, DWOR
    }
 
    /* read definition header */
-   lseek(fh, def_rec.def_offset, SEEK_SET);
+   xseek(fn, fh, def_rec.def_offset);
    xread(fn, fh, (char *) &rec, sizeof(rec));
    xread(fn, fh, str, NAME_LENGTH);
 
@@ -1168,7 +1161,7 @@ INT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name, DWORD * size, DWOR
 
 
 /********************************************************************/
-INT hs_get_var(DWORD ltime, DWORD event_id, const char *var_name, DWORD * type, INT * n_data)
+static INT hs_get_var(DWORD ltime, DWORD event_id, const char *var_name, DWORD * type, INT * n_data)
 /********************************************************************\
 
   Routine: hs_get_var
@@ -1200,11 +1193,6 @@ INT hs_get_var(DWORD ltime, DWORD event_id, const char *var_name, DWORD * type, 
    HIST_RECORD rec;
    TAG *tag;
 
-   if (rpc_is_remote()) {
-      //return rpc_call(RPC_HS_GET_VAR, ltime, event_id, var_name, type, n_data);
-      abort();
-   }
-
    /* search latest history file */
    status = hs_search_file(&ltime, -1);
    if (status != HS_SUCCESS) {
@@ -1225,8 +1213,8 @@ INT hs_get_var(DWORD ltime, DWORD event_id, const char *var_name, DWORD * type, 
    n = TELL(fhd) / sizeof(def_rec);
    def_rec.event_id = 0;
    for (i = n - 1; i >= 0; i--) {
-      lseek(fhd, i * sizeof(def_rec), SEEK_SET);
-      xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
+      if (!xseek(fnd, fhd, i * sizeof(def_rec))) return HS_FILE_ERROR;
+      if (xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec)) < 0) return HS_FILE_ERROR;
       if (def_rec.event_id == event_id)
          break;
    }
@@ -1236,7 +1224,7 @@ INT hs_get_var(DWORD ltime, DWORD event_id, const char *var_name, DWORD * type, 
    }
 
    /* read definition header */
-   lseek(fh, def_rec.def_offset, SEEK_SET);
+   xseek(fn, fh, def_rec.def_offset);
    xread(fn, fh, (char *) &rec, sizeof(rec));
    xread(fn, fh, str, NAME_LENGTH);
 
@@ -1269,7 +1257,7 @@ INT hs_get_var(DWORD ltime, DWORD event_id, const char *var_name, DWORD * type, 
 
 
 /********************************************************************/
-INT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int* n_tags, TAG** tags)
+static INT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int* n_tags, TAG** tags)
 /********************************************************************\
 
   Routine: hs_get_tags
@@ -1329,8 +1317,8 @@ INT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int* 
    n = TELL(fhd) / sizeof(def_rec);
    def_rec.event_id = 0;
    for (i = n - 1; i >= 0; i--) {
-      lseek(fhd, i * sizeof(def_rec), SEEK_SET);
-      xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
+      if (!xseek(fnd, fhd, i * sizeof(def_rec))) return HS_FILE_ERROR;
+      if (xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec)) < 0) return HS_FILE_ERROR;
       //printf("reading index file found event_id %d, looking for %d\n", def_rec.event_id, event_id);
       if (def_rec.event_id == event_id)
          break;
@@ -1344,20 +1332,16 @@ INT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int* 
    }
 
    /* read definition header */
-   lseek(fh, def_rec.def_offset, SEEK_SET);
-   status = read(fh, (char *) &rec, sizeof(rec));
-   assert(status == sizeof(rec));
-
-   status = read(fh, event_name, NAME_LENGTH);
-   assert(status == NAME_LENGTH);
+   if (!xseek(fn, fh, def_rec.def_offset)) return HS_FILE_ERROR;
+   if (xread(fn, fh, (char *) &rec, sizeof(rec)) < 0) return HS_FILE_ERROR;
+   if (xread(fn, fh, event_name, NAME_LENGTH) < 0)    return HS_FILE_ERROR;
 
    /* read event definition */
    *n_tags = rec.data_size / sizeof(TAG);
 
    *tags = (TAG*) malloc(rec.data_size);
 
-   status = read(fh, (char *) (*tags), rec.data_size);
-   assert(status == (int)rec.data_size);
+   if (xread(fn, fh, (char *) (*tags), rec.data_size) < 0) return HS_FILE_ERROR;
 
    close(fh);
    close(fhd);
@@ -1366,7 +1350,7 @@ INT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int* 
 }
 
 
-INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, const char *tag_name, DWORD var_index, DWORD * time_buffer, DWORD * tbsize, void *data_buffer, DWORD * dbsize, DWORD * type, DWORD * n)
+static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, const char *tag_name, DWORD var_index, DWORD * time_buffer, DWORD * tbsize, void *data_buffer, DWORD * dbsize, DWORD * type, DWORD * n)
 /********************************************************************\
 
   Routine: hs_read
@@ -1419,11 +1403,6 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
 
    //printf("hs_read event %d, time %d:%d, tagname: \'%s\', varindex: %d\n", event_id, start_time, end_time, tag_name, var_index);
 
-#if 0
-   if (rpc_is_remote())
-      return rpc_call(RPC_HS_READ, event_id, start_time, end_time, interval, tag_name, var_index, time_buffer, tbsize, data_buffer, dbsize, type, n);
-#endif
-
    /* if not time given, use present to one hour in past */
    if (start_time == 0)
       start_time = (DWORD) time(NULL) - 3600;
@@ -1469,9 +1448,8 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
    if (cache_size > 0) {
       cache = (char *) M_MALLOC(cache_size);
       if (cache) {
-         lseek(fhi, 0, SEEK_SET);
-         i = read(fhi, cache, cache_size);
-         if (i < cache_size) {
+         xseek(fni, fhi, 0);
+         if (xread(fni, fhi, cache, cache_size) < 0) {
             M_FREE(cache);
             if (fh > 0)
                close(fh);
@@ -1487,7 +1465,7 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
       if (cache == NULL) {
          lseek(fhi, 0, SEEK_END);
          delta = (TELL(fhi) / sizeof(irec)) / 2;
-         lseek(fhi, delta * sizeof(irec), SEEK_SET);
+         xseek(fni, fhi, delta * sizeof(irec));
          do {
             delta = (int) (abs(delta) / 2.0 + 0.5);
             rd = read(fhi, (char *) &irec, sizeof(irec));
@@ -1504,7 +1482,7 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
 
          i = TELL(fhi) + (delta - 1) * sizeof(irec);
          if (i <= 0)
-            lseek(fhi, 0, SEEK_SET);
+            xseek(fni, fhi, 0);
          else
             lseek(fhi, (delta - 1) * sizeof(irec), SEEK_CUR);
          rd = read(fhi, (char *) &irec, sizeof(irec));
@@ -1572,10 +1550,9 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
          /* check if record time more than "interval" seconds after previous time */
          if (irec.time >= prev_time + interval) {
             prev_time = irec.time;
-            lseek(fh, irec.offset, SEEK_SET);
-            rd = read(fh, (char *) &rec, sizeof(rec));
-            if (rd != sizeof(rec)) {
-               cm_msg(MERROR, "hs_read", "corrupted history data at time %d: read() of %d bytes returned %d, errno %d (%s)", (int) irec.time, (int)sizeof(rec), rd, errno, strerror(errno));
+            xseek(fn, fh, irec.offset);
+            if (xread(fn, fh, (char *) &rec, sizeof(rec)) < 0) {
+               cm_msg(MERROR, "hs_read", "corrupted history data at time %d", (int) irec.time);
                //*tbsize = *dbsize = *n = 0;
                if (fh > 0)
                   close(fh);
@@ -1589,7 +1566,7 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
 
             /* if definition changed, read new definition */
             if ((INT) rec.def_offset != old_def_offset) {
-               lseek(fh, rec.def_offset, SEEK_SET);
+               xseek(fn, fh, rec.def_offset);
                xread(fn, fh, (char *) &drec, sizeof(drec));
                xread(fn, fh, str, NAME_LENGTH);
 
@@ -1654,7 +1631,7 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
 
                M_FREE(tag);
                old_def_offset = rec.def_offset;
-               lseek(fh, irec.offset + sizeof(rec), SEEK_SET);
+               xseek(fn, fh, irec.offset + sizeof(rec));
             }
 
             if (index >= 0) {
@@ -1764,18 +1741,20 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
             goto nextday;
          }
 
-         lseek(fhi, 0, SEEK_SET);
-         cache = (char *) M_MALLOC(cache_size);
+         xseek(fni, fhi, 0);
+         cache = (char *) M_MALLOC(cache_size); // FIXME: is this a memory leak?
          if (cache) {
-            i = read(fhi, cache, cache_size);
-            if (i < cache_size)
+            if (xread(fni, fhi, cache, cache_size) < 0) {
                break;
+            }
             /* read first record */
             cp = 0;
             memcpy(&irec, cache, sizeof(irec));
          } else {
             /* read first record */
-            i = read(fhi, (char *) &irec, sizeof(irec));
+            if (xread(fni, fhi, (char *) &irec, sizeof(irec)) < 0) {
+               break;
+            }
             if (i <= 0)
                break;
             assert(i == sizeof(irec));
@@ -1819,7 +1798,7 @@ can be redirected to be read by Excel for example.
 @return HS_SUCCESS, HS_FILE_ERROR
 */
 /********************************************************************/
-INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BOOL binary_time)
+static INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BOOL binary_time)
 {
    DWORD prev_time, last_irec_time;
    time_t ltime;
@@ -1858,7 +1837,7 @@ INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BO
    /* search record closest to start time */
    lseek(fhi, 0, SEEK_END);
    delta = (TELL(fhi) / sizeof(irec)) / 2;
-   lseek(fhi, delta * sizeof(irec), SEEK_SET);
+   xseek(fni, fhi, delta * sizeof(irec));
    do {
       delta = (int) (abs(delta) / 2.0 + 0.5);
       xread(fni, fhi, (char *) &irec, sizeof(irec));
@@ -1873,7 +1852,7 @@ INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BO
 
    i = TELL(fhi) + (delta - 1) * sizeof(irec);
    if (i <= 0)
-      lseek(fhi, 0, SEEK_SET);
+      xseek(fni, fhi, 0);
    else
       lseek(fhi, (delta - 1) * sizeof(irec), SEEK_CUR);
    xread(fni, fhi, (char *) &irec, sizeof(irec));
@@ -1892,12 +1871,12 @@ INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BO
       if (irec.event_id == event_id && irec.time <= end_time && irec.time >= start_time) {
          if (irec.time >= prev_time + interval) {
             prev_time = irec.time;
-            lseek(fh, irec.offset, SEEK_SET);
+            xseek(fn, fh, irec.offset);
             xread(fn, fh, (char *) &rec, sizeof(rec));
 
             /* if definition changed, read new definition */
             if ((INT) rec.def_offset != old_def_offset) {
-               lseek(fh, rec.def_offset, SEEK_SET);
+               xseek(fn, fh, rec.def_offset);
                xread(fn, fh, (char *) &drec, sizeof(drec));
                xread(fn, fh, str, NAME_LENGTH);
 
@@ -1931,7 +1910,7 @@ INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BO
                }
 
                old_def_offset = rec.def_offset;
-               lseek(fh, irec.offset + sizeof(rec), SEEK_SET);
+               xseek(fn, fh, irec.offset + sizeof(rec));
             }
 
             /* print time from header */
@@ -2026,84 +2005,6 @@ INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BO
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
-/********************************************************************/
-INT hs_fdump(const char *file_name, DWORD id, BOOL binary_time)
-/********************************************************************\
-
-  Routine: hs_fdump
-
-  Purpose: Display history for a given history file
-
-  Input:
-    char   *file_name       Name of file to dump
-    DWORD  event_id         Event ID
-    BOOL   binary_time      Display DWORD time stamp
-
-  Output:
-    <screen output>
-
-  Function value:
-    HS_SUCCESS              Successful completion
-    HS_FILE_ERROR           Cannot open history file
-
-\********************************************************************/
-{
-   int fh;
-   INT n;
-   time_t ltime;
-   HIST_RECORD rec;
-   char event_name[NAME_LENGTH];
-   //char str[256];
-
-   /* open file, add O_BINARY flag for Windows NT */
-   std::string fn;
-   fn += _hs_path_name;
-   fn += file_name;
-   fh = open(fn.c_str(), O_RDONLY | O_BINARY, 0644);
-   if (fh < 0) {
-      cm_msg(MERROR, "hs_fdump", "cannot open file %s", fn.c_str());
-      return HS_FILE_ERROR;
-   }
-
-   /* loop over file records in .hst file */
-   do {
-      n = read(fh, (char *) &rec, sizeof(rec));
-      if (n < (int)sizeof(rec))
-         break;
-
-      /* check if record type is definition */
-      if (rec.record_type == RT_DEF) {
-         /* read name */
-         xread(fn, fh, event_name, sizeof(event_name));
-
-         if (rec.event_id == id || id == 0)
-            printf("Event definition %s, ID %d\n", event_name, rec.event_id);
-
-         /* skip tags */
-         lseek(fh, rec.data_size, SEEK_CUR);
-      } else {
-         /* print data record */
-         char str[32];
-         if (binary_time) {
-            sprintf(str, "%d ", rec.time);
-         } else {
-            ltime = (time_t) rec.time;
-            strcpy(str, ctime(&ltime) + 4);
-            str[15] = 0;
-         }
-         if (rec.event_id == id || id == 0)
-            printf("ID %d, %s, size %d\n", rec.event_id, str, rec.data_size);
-
-         /* skip data */
-         lseek(fh, rec.data_size, SEEK_CUR);
-      }
-
-   } while (TRUE);
-
-   close(fh);
-
-   return HS_SUCCESS;
-}
 #endif                          /* OS_VXWORKS hs section */
 
 /**dox***************************************************************/
@@ -3179,8 +3080,8 @@ public:
       }
 
       for (int i=0; i<num_var; i++) {
-         DWORD tid;
-         int event_id;
+         DWORD tid = 0;
+         int event_id = 0;
 
          if (event_name[i]==NULL) {
             st[i] = HS_UNDEFINED_EVENT;
@@ -3236,6 +3137,9 @@ public:
           
             /* convert data to float */
             switch (tid) {
+            default:
+               y[n_vp] =  0;
+               break;
             case TID_BYTE:
                y[n_vp] =  *(((BYTE *) ybuffer) + j);
                break;
