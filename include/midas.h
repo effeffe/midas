@@ -1313,15 +1313,18 @@ typedef struct {
 } INDEX_RECORD;
 
 typedef struct {
-   DWORD event_id;
-   char event_name[NAME_LENGTH];
-   DWORD n_tag;
-   TAG *tag;
-   DWORD hist_fh;
-   DWORD index_fh;
-   DWORD def_fh;
-   DWORD base_time;
-   DWORD def_offset;
+   DWORD event_id = 0;
+   std::string event_name;
+   DWORD n_tag = 0;
+   TAG *tag = NULL;
+   std::string hist_fn;
+   std::string index_fn;
+   std::string def_fn;
+   int hist_fh  = 0;
+   int index_fh = 0;
+   int def_fh   = 0;
+   DWORD base_time  = 0;
+   DWORD def_offset = 0;
 } HISTORY;
 
 /*---- ODB runinfo -------------------------------------------------*/

@@ -36,12 +36,52 @@
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
-static HISTORY *_history;
-static INT _history_entries = 0;
+static std::vector<HISTORY*> _history;
 static char _hs_path_name[MAX_STRING_LENGTH];
 
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
+
+static bool xwrite(const std::string& fn, int fh, const void *buf, size_t count)
+{
+   ssize_t wr = write(fh, buf, count);
+
+   if (wr < 0) {
+      cm_msg(MERROR, "xwrite", "Error writing %d bytes to file \"%s\" errno %d (%s)", (int)count, fn.c_str(), errno, strerror(errno));
+      return false;
+   }
+
+   if ((size_t)wr != count) {
+      cm_msg(MERROR, "xwrite", "Error writing %d bytes to file \"%s\", short write %d bytes", (int)count, fn.c_str(), (int)wr);
+      return false;
+   }
+
+   return true;
+}
+
+static int xread(const std::string& fn, int fh, void *buf, size_t count, bool eof_ok = false)
+{
+   ssize_t rd = read(fh, buf, count);
+
+   if (rd < 0) {
+      cm_msg(MERROR, "xread", "Error reading from file \"%s\" errno %d (%s)", fn.c_str(), errno, strerror(errno));
+      return -1;
+   }
+
+   if (rd == 0) {
+      if (eof_ok)
+         return 0;
+      cm_msg(MERROR, "xread", "Error: Unexpected end-of-file when reading file \"%s\"", fn.c_str());
+      return -1;
+   }
+
+   if ((size_t)rd != count) {
+      cm_msg(MERROR, "xread", "Error: Truncated read from file \"%s\", requested %d bytes, read %d bytes", fn.c_str(), (int)count, (int)rd);
+      return -1;
+   }
+
+   return 1;
+}
 
 /********************************************************************/
 /**
@@ -81,10 +121,9 @@ Open history file belonging to certain date. Internal use
 @param fh             File handle
 @return HS_SUCCESS
 */
-INT hs_open_file(time_t ltime, const char *suffix, INT mode, int *fh)
+INT hs_open_file(time_t ltime, const char *suffix, INT mode, std::string *pfile_name, int *fh)
 {
    struct tm *tms;
-   char file_name[256];
    time_t ttime;
 
    /* generate new file name YYMMDD.xxx */
@@ -96,12 +135,22 @@ INT hs_open_file(time_t ltime, const char *suffix, INT mode, int *fh)
    ttime = (time_t) ltime;
    tms = localtime(&ttime);
 
-   sprintf(file_name, "%s%02d%02d%02d.%s", _hs_path_name, tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday, suffix);
+   //sprintf(file_name, "%s%02d%02d%02d.%s", _hs_path_name, tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday, suffix);
+   std::string file_name;
+   file_name += _hs_path_name;
+   char tmp[100];
+   sprintf(tmp, "%02d%02d%02d", tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
+   file_name += tmp;
+   file_name += ".";
+   file_name += suffix;
+
+   if (pfile_name)
+      *pfile_name = file_name;
 
    /* open file, add O_BINARY flag for Windows NT */
-   *fh = open(file_name, mode | O_BINARY, 0644);
+   *fh = open(file_name.c_str(), mode | O_BINARY, 0644);
 
-   //printf("hs_open_file: time %d, file \'%s\', fh %d\n", (int)ltime, file_name, *fh);
+   //printf("hs_open_file: time %d, file \'%s\', fh %d\n", (int)ltime, file_name.c_str(), *fh);
 
    return HS_SUCCESS;
 }
@@ -143,9 +192,13 @@ INT hs_gen_index(DWORD ltime)
    if (ltime == 0)
       ltime = (DWORD) time(NULL);
 
+   std::string fni;
+   std::string fnd;
+   std::string fn;
+
    /* open new index file */
-   hs_open_file(ltime, "idx", O_RDWR | O_CREAT | O_TRUNC, &fhi);
-   hs_open_file(ltime, "idf", O_RDWR | O_CREAT | O_TRUNC, &fhd);
+   hs_open_file(ltime, "idx", O_RDWR | O_CREAT | O_TRUNC, &fni, &fhi);
+   hs_open_file(ltime, "idf", O_RDWR | O_CREAT | O_TRUNC, &fnd, &fhd);
 
    if (fhd < 0 || fhi < 0) {
       cm_msg(MERROR, "hs_gen_index", "cannot create index file");
@@ -153,14 +206,14 @@ INT hs_gen_index(DWORD ltime)
    }
 
    /* open history file */
-   hs_open_file(ltime, "hst", O_RDONLY, &fh);
+   hs_open_file(ltime, "hst", O_RDONLY, &fn, &fh);
    if (fh < 0)
       return HS_FILE_ERROR;
    lseek(fh, 0, SEEK_SET);
 
    /* loop over file records in .hst file */
    do {
-      n = read(fh, (char *) &rec, sizeof(rec));
+      n = xread(fn, fh, (char *) &rec, sizeof(rec));
       //printf("read %d\n", n);
       if (n < (int)sizeof(rec))
          break;
@@ -168,7 +221,7 @@ INT hs_gen_index(DWORD ltime)
       /* check if record type is definition */
       if (rec.record_type == RT_DEF) {
          /* read name */
-         read(fh, event_name, sizeof(event_name));
+         xread(fn, fh, event_name, sizeof(event_name));
 
          printf("Event definition %s, ID %d\n", event_name, rec.event_id);
 
@@ -176,7 +229,7 @@ INT hs_gen_index(DWORD ltime)
          def_rec.event_id = rec.event_id;
          memcpy(def_rec.event_name, event_name, sizeof(event_name));
          def_rec.def_offset = TELL(fh) - sizeof(event_name) - sizeof(rec);
-         write(fhd, (char *) &def_rec, sizeof(def_rec));
+         xwrite(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
 
          //printf("data def at %d (age %d)\n", rec.time, now-rec.time);
 
@@ -187,7 +240,7 @@ INT hs_gen_index(DWORD ltime)
          irec.event_id = rec.event_id;
          irec.time = rec.time;
          irec.offset = TELL(fh) - sizeof(rec);
-         write(fhi, (char *) &irec, sizeof(irec));
+         xwrite(fni, fhi, (char *) &irec, sizeof(irec));
 
          //printf("data rec at %d (age %d)\n", rec.time, now-rec.time);
 
@@ -240,6 +293,7 @@ INT hs_search_file(DWORD * ltime, INT direction)
 {
    time_t lt;
    int fh, fhd, fhi;
+   std::string fn;
    struct tm *tms;
 
    if (*ltime == 0)
@@ -248,7 +302,7 @@ INT hs_search_file(DWORD * ltime, INT direction)
    lt = (time_t) * ltime;
    do {
       /* try to open history file for date "lt" */
-      hs_open_file(lt, "hst", O_RDONLY, &fh);
+      hs_open_file(lt, "hst", O_RDONLY, &fn, &fh);
 
       /* if not found, look for next day */
       if (fh < 0)
@@ -268,8 +322,8 @@ INT hs_search_file(DWORD * ltime, INT direction)
    }
 
    /* check if index files are there */
-   hs_open_file(*ltime, "idf", O_RDONLY, &fhd);
-   hs_open_file(*ltime, "idx", O_RDONLY, &fhi);
+   hs_open_file(*ltime, "idf", O_RDONLY, NULL, &fhd);
+   hs_open_file(*ltime, "idx", O_RDONLY, NULL, &fhi);
 
    close(fh);
    if (fhd > 0)
@@ -329,7 +383,8 @@ INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD siz
       time_t ltime;
       char str[256], event_name[NAME_LENGTH], *buffer;
       int fh, fhi, fhd;
-      INT i, n, index, status, semaphore;
+      std::string fn, fni, fnd;
+      INT n, status, semaphore;
       struct tm *tmb;
 
       /* request semaphore */
@@ -339,35 +394,18 @@ INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD siz
          return SUCCESS;        /* someone else blocked the history system */
 
       /* allocate new space for the new history descriptor */
-      if (_history_entries == 0) {
-         _history = (HISTORY *) M_MALLOC(sizeof(HISTORY));
-         memset(_history, 0, sizeof(HISTORY));
-         if (_history == NULL) {
-            ss_semaphore_release(semaphore);
-            return HS_NO_MEMORY;
+      /* check if history already open */
+      int index = -1;
+      for (unsigned i = 0; i < _history.size(); i++)
+         if (_history[i]->event_id == event_id) {
+            index = i;
+            break;
          }
 
-         _history_entries = 1;
-         index = 0;
-      } else {
-         /* check if history already open */
-         for (i = 0; i < _history_entries; i++)
-            if (_history[i].event_id == event_id)
-               break;
-
-         /* if not found, create new one */
-         if (i == _history_entries) {
-            _history = (HISTORY *) realloc(_history, sizeof(HISTORY) * (_history_entries + 1));
-            memset(&_history[_history_entries], 0, sizeof(HISTORY));
-
-            _history_entries++;
-            if (_history == NULL) {
-               _history_entries--;
-               ss_semaphore_release(semaphore);
-               return HS_NO_MEMORY;
-            }
-         }
-         index = i;
+      /* if not found, create new one */
+      if (index < 0) {
+         index = _history.size();
+         _history.push_back(new HISTORY);
       }
 
       /* assemble definition record header */
@@ -378,17 +416,17 @@ INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD siz
       strncpy(event_name, name, NAME_LENGTH);
 
       /* if history structure not set up, do so now */
-      if (!_history[index].hist_fh) {
+      if (!_history[index]->hist_fh) {
          /* open history file */
-         hs_open_file(rec.time, "hst", O_CREAT | O_RDWR, &fh);
+         hs_open_file(rec.time, "hst", O_CREAT | O_RDWR, &fn, &fh);
          if (fh < 0) {
             ss_semaphore_release(semaphore);
             return HS_FILE_ERROR;
          }
 
          /* open index files */
-         hs_open_file(rec.time, "idf", O_CREAT | O_RDWR, &fhd);
-         hs_open_file(rec.time, "idx", O_CREAT | O_RDWR, &fhi);
+         hs_open_file(rec.time, "idf", O_CREAT | O_RDWR, &fnd, &fhd);
+         hs_open_file(rec.time, "idx", O_CREAT | O_RDWR, &fni, &fhi);
          lseek(fh, 0, SEEK_END);
          lseek(fhi, 0, SEEK_END);
          lseek(fhd, 0, SEEK_END);
@@ -399,9 +437,9 @@ INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD siz
             close(fhi);
             close(fhd);
             hs_gen_index(rec.time);
-            hs_open_file(rec.time, "hst", O_RDWR, &fh);
-            hs_open_file(rec.time, "idx", O_RDWR, &fhi);
-            hs_open_file(rec.time, "idf", O_RDWR, &fhd);
+            hs_open_file(rec.time, "hst", O_RDWR, &fn, &fh);
+            hs_open_file(rec.time, "idx", O_RDWR, &fni, &fhi);
+            hs_open_file(rec.time, "idf", O_RDWR, &fnd, &fhd);
             lseek(fh, 0, SEEK_END);
             lseek(fhi, 0, SEEK_END);
             lseek(fhd, 0, SEEK_END);
@@ -412,23 +450,26 @@ INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD siz
          tmb->tm_hour = tmb->tm_min = tmb->tm_sec = 0;
 
          /* setup history structure */
-         _history[index].hist_fh = fh;
-         _history[index].index_fh = fhi;
-         _history[index].def_fh = fhd;
-         _history[index].def_offset = TELL(fh);
-         _history[index].event_id = event_id;
-         strcpy(_history[index].event_name, event_name);
-         _history[index].base_time = (DWORD) mktime(tmb);
-         _history[index].n_tag = size / sizeof(TAG);
-         _history[index].tag = (TAG *) M_MALLOC(size);
-         memcpy(_history[index].tag, tag, size);
+         _history[index]->hist_fn = fn;
+         _history[index]->index_fn = fni;
+         _history[index]->def_fn = fnd;
+         _history[index]->hist_fh = fh;
+         _history[index]->index_fh = fhi;
+         _history[index]->def_fh = fhd;
+         _history[index]->def_offset = TELL(fh);
+         _history[index]->event_id = event_id;
+         _history[index]->event_name = event_name;
+         _history[index]->base_time = (DWORD) mktime(tmb);
+         _history[index]->n_tag = size / sizeof(TAG);
+         _history[index]->tag = (TAG *) M_MALLOC(size);
+         memcpy(_history[index]->tag, tag, size);
 
          /* search previous definition */
          n = TELL(fhd) / sizeof(def_rec);
          def_rec.event_id = 0;
-         for (i = n - 1; i >= 0; i--) {
+         for (int i = n - 1; i >= 0; i--) {
             lseek(fhd, i * sizeof(def_rec), SEEK_SET);
-            read(fhd, (char *) &def_rec, sizeof(def_rec));
+            xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
             if (def_rec.event_id == event_id)
                break;
          }
@@ -440,69 +481,71 @@ INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD siz
             memset(buffer, 0, size);
 
             lseek(fh, def_rec.def_offset, SEEK_SET);
-            read(fh, (char *) &prev_rec, sizeof(prev_rec));
-            read(fh, str, NAME_LENGTH);
-            read(fh, buffer, size);
+            xread(fn, fh, (char *) &prev_rec, sizeof(prev_rec));
+            xread(fn, fh, str, NAME_LENGTH);
+            xread(fn, fh, buffer, size);
             lseek(fh, 0, SEEK_END);
 
             if (prev_rec.data_size != size || strcmp(str, event_name) != 0 || memcmp(buffer, tag, size) != 0) {
                /* write definition to history file */
-               write(fh, (char *) &rec, sizeof(rec));
-               write(fh, event_name, NAME_LENGTH);
-               write(fh, (char *) tag, size);
+               xwrite(fn, fh, (char *) &rec, sizeof(rec));
+               xwrite(fn, fh, event_name, NAME_LENGTH);
+               xwrite(fn, fh, (char *) tag, size);
 
                /* write index record */
                def_rec.event_id = event_id;
                memcpy(def_rec.event_name, event_name, sizeof(event_name));
-               def_rec.def_offset = _history[index].def_offset;
-               write(fhd, (char *) &def_rec, sizeof(def_rec));
+               def_rec.def_offset = _history[index]->def_offset;
+               xwrite(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
             } else
                /* definition identical, just remember old offset */
-               _history[index].def_offset = def_rec.def_offset;
+               _history[index]->def_offset = def_rec.def_offset;
 
             M_FREE(buffer);
          } else {
             /* write definition to history file */
-            write(fh, (char *) &rec, sizeof(rec));
-            write(fh, event_name, NAME_LENGTH);
-            write(fh, (char *) tag, size);
+            xwrite(fn, fh, (char *) &rec, sizeof(rec));
+            xwrite(fn, fh, event_name, NAME_LENGTH);
+            xwrite(fn, fh, (char *) tag, size);
 
             /* write definition index record */
             def_rec.event_id = event_id;
             memcpy(def_rec.event_name, event_name, sizeof(event_name));
-            def_rec.def_offset = _history[index].def_offset;
-            write(fhd, (char *) &def_rec, sizeof(def_rec));
+            def_rec.def_offset = _history[index]->def_offset;
+            xwrite(fn, fhd, (char *) &def_rec, sizeof(def_rec));
          }
       } else {
-         fh = _history[index].hist_fh;
-         fhd = _history[index].def_fh;
+         fn = _history[index]->hist_fn;
+         fnd = _history[index]->def_fn;
+         fh = _history[index]->hist_fh;
+         fhd = _history[index]->def_fh;
 
          /* compare definition with previous definition */
          buffer = (char *) M_MALLOC(size);
          memset(buffer, 0, size);
 
-         lseek(fh, _history[index].def_offset, SEEK_SET);
-         read(fh, (char *) &prev_rec, sizeof(prev_rec));
-         read(fh, str, NAME_LENGTH);
-         read(fh, buffer, size);
+         lseek(fh, _history[index]->def_offset, SEEK_SET);
+         xread(fn, fh, (char *) &prev_rec, sizeof(prev_rec));
+         xread(fn, fh, str, NAME_LENGTH);
+         xread(fn, fh, buffer, size);
 
          lseek(fh, 0, SEEK_END);
          lseek(fhd, 0, SEEK_END);
 
          if (prev_rec.data_size != size || strcmp(str, event_name) != 0 || memcmp(buffer, tag, size) != 0) {
             /* save new definition offset */
-            _history[index].def_offset = TELL(fh);
+            _history[index]->def_offset = TELL(fh);
 
             /* write definition to history file */
-            write(fh, (char *) &rec, sizeof(rec));
-            write(fh, event_name, NAME_LENGTH);
-            write(fh, (char *) tag, size);
+            xwrite(fn, fh, (char *) &rec, sizeof(rec));
+            xwrite(fn, fh, event_name, NAME_LENGTH);
+            xwrite(fn, fh, (char *) tag, size);
 
             /* write index record */
             def_rec.event_id = event_id;
             memcpy(def_rec.event_name, event_name, sizeof(event_name));
-            def_rec.def_offset = _history[index].def_offset;
-            write(fhd, (char *) &def_rec, sizeof(def_rec));
+            def_rec.def_offset = _history[index]->def_offset;
+            xwrite(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
          }
 
          M_FREE(buffer);
@@ -549,7 +592,9 @@ INT hs_write_event(DWORD event_id, const void *data, DWORD size)
    DEF_RECORD def_rec;
    INDEX_RECORD irec;
    int fh, fhi, fhd, last_pos_data, last_pos_index;
-   INT index, semaphore, status;
+   std::string fn, fni, fnd;
+   INT semaphore;
+   int status;
    struct tm tmb, tmr;
    time_t ltime;
 
@@ -562,52 +607,55 @@ INT hs_write_event(DWORD event_id, const void *data, DWORD size)
    }
 
    /* find index to history structure */
-   for (index = 0; index < _history_entries; index++)
-      if (_history[index].event_id == event_id)
+   int index = -1;
+   for (unsigned i = 0; i < _history.size(); i++)
+      if (_history[i]->event_id == event_id) {
+         index = i;
          break;
-   if (index == _history_entries) {
+      }
+   if (index < 0) {
       ss_semaphore_release(semaphore);
       return HS_UNDEFINED_EVENT;
    }
 
    /* assemble record header */
    rec.record_type = RT_DATA;
-   rec.event_id = _history[index].event_id;
+   rec.event_id = _history[index]->event_id;
    rec.time = (DWORD) time(NULL);
-   rec.def_offset = _history[index].def_offset;
+   rec.def_offset = _history[index]->def_offset;
    rec.data_size = size;
 
-   irec.event_id = _history[index].event_id;
+   irec.event_id = _history[index]->event_id;
    irec.time = rec.time;
 
    /* check if new day */
    ltime = (time_t) rec.time;
    memcpy(&tmr, localtime(&ltime), sizeof(tmr));
-   ltime = (time_t) _history[index].base_time;
+   ltime = (time_t) _history[index]->base_time;
    memcpy(&tmb, localtime(&ltime), sizeof(tmb));
 
    if (tmr.tm_yday != tmb.tm_yday) {
       /* close current history file */
-      close(_history[index].hist_fh);
-      close(_history[index].def_fh);
-      close(_history[index].index_fh);
+      close(_history[index]->hist_fh);
+      close(_history[index]->def_fh);
+      close(_history[index]->index_fh);
 
       /* open new history file */
-      hs_open_file(rec.time, "hst", O_CREAT | O_RDWR, &fh);
+      hs_open_file(rec.time, "hst", O_CREAT | O_RDWR, &fn, &fh);
       if (fh < 0) {
          ss_semaphore_release(semaphore);
          return HS_FILE_ERROR;
       }
 
       /* open new index file */
-      hs_open_file(rec.time, "idx", O_CREAT | O_RDWR, &fhi);
+      hs_open_file(rec.time, "idx", O_CREAT | O_RDWR, &fni, &fhi);
       if (fhi < 0) {
          ss_semaphore_release(semaphore);
          return HS_FILE_ERROR;
       }
 
       /* open new definition index file */
-      hs_open_file(rec.time, "idf", O_CREAT | O_RDWR, &fhd);
+      hs_open_file(rec.time, "idf", O_CREAT | O_RDWR, &fnd, &fhd);
       if (fhd < 0) {
          ss_semaphore_release(semaphore);
          return HS_FILE_ERROR;
@@ -618,59 +666,63 @@ INT hs_write_event(DWORD event_id, const void *data, DWORD size)
       lseek(fhd, 0, SEEK_END);
 
       /* remember new file handles */
-      _history[index].hist_fh = fh;
-      _history[index].index_fh = fhi;
-      _history[index].def_fh = fhd;
+      _history[index]->hist_fn = fn;
+      _history[index]->index_fn = fni;
+      _history[index]->def_fn = fnd;
 
-      _history[index].def_offset = TELL(fh);
-      rec.def_offset = _history[index].def_offset;
+      _history[index]->hist_fh = fh;
+      _history[index]->index_fh = fhi;
+      _history[index]->def_fh = fhd;
+
+      _history[index]->def_offset = TELL(fh);
+      rec.def_offset = _history[index]->def_offset;
 
       tmr.tm_hour = tmr.tm_min = tmr.tm_sec = 0;
-      _history[index].base_time = (DWORD) mktime(&tmr);
+      _history[index]->base_time = (DWORD) mktime(&tmr);
 
       /* write definition from _history structure */
       drec.record_type = RT_DEF;
-      drec.event_id = _history[index].event_id;
+      drec.event_id = _history[index]->event_id;
       drec.time = rec.time;
-      drec.data_size = _history[index].n_tag * sizeof(TAG);
+      drec.data_size = _history[index]->n_tag * sizeof(TAG);
 
-      write(fh, (char *) &drec, sizeof(drec));
-      write(fh, _history[index].event_name, NAME_LENGTH);
-      write(fh, (char *) _history[index].tag, drec.data_size);
+      xwrite(fn, fh, (char *) &drec, sizeof(drec));
+      xwrite(fn, fh, _history[index]->event_name.c_str(), NAME_LENGTH);
+      xwrite(fn, fh, (char *) _history[index]->tag, drec.data_size);
 
       /* write definition index record */
-      def_rec.event_id = _history[index].event_id;
-      memcpy(def_rec.event_name, _history[index].event_name, sizeof(def_rec.event_name));
-      def_rec.def_offset = _history[index].def_offset;
-      write(fhd, (char *) &def_rec, sizeof(def_rec));
+      def_rec.event_id = _history[index]->event_id;
+      memcpy(def_rec.event_name, _history[index]->event_name.c_str(), sizeof(def_rec.event_name));
+      def_rec.def_offset = _history[index]->def_offset;
+      xwrite(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
    }
 
    /* got to end of file */
-   lseek(_history[index].hist_fh, 0, SEEK_END);
-   last_pos_data = irec.offset = TELL(_history[index].hist_fh);
+   lseek(_history[index]->hist_fh, 0, SEEK_END);
+   last_pos_data = irec.offset = TELL(_history[index]->hist_fh);
 
    /* write record header */
-   write(_history[index].hist_fh, (char *) &rec, sizeof(rec));
+   xwrite(_history[index]->hist_fn, _history[index]->hist_fh, (char *) &rec, sizeof(rec));
 
    /* write data */
-   if (write(_history[index].hist_fh, (char *) data, size) < (int) size) {
+   if (write(_history[index]->hist_fh, (char *) data, size) < (int) size) {
       /* disk maybe full? Do a roll-back! */
-      lseek(_history[index].hist_fh, last_pos_data, SEEK_SET);
-      TRUNCATE(_history[index].hist_fh);
+      lseek(_history[index]->hist_fh, last_pos_data, SEEK_SET);
+      TRUNCATE(_history[index]->hist_fh);
       ss_semaphore_release(semaphore);
       return HS_FILE_ERROR;
    }
 
    /* write index record */
-   lseek(_history[index].index_fh, 0, SEEK_END);
-   last_pos_index = TELL(_history[index].index_fh);
+   lseek(_history[index]->index_fh, 0, SEEK_END);
+   last_pos_index = TELL(_history[index]->index_fh);
    int size_of_irec = sizeof(irec);
-   if (write(_history[index].index_fh, (char *) &irec, size_of_irec) < size_of_irec) {
+   if (write(_history[index]->index_fh, (char *) &irec, size_of_irec) < size_of_irec) {
       /* disk maybe full? Do a roll-back! */
-      lseek(_history[index].hist_fh, last_pos_data, SEEK_SET);
-      TRUNCATE(_history[index].hist_fh);
-      lseek(_history[index].index_fh, last_pos_index, SEEK_SET);
-      TRUNCATE(_history[index].index_fh);
+      lseek(_history[index]->hist_fh, last_pos_data, SEEK_SET);
+      TRUNCATE(_history[index]->hist_fh);
+      lseek(_history[index]->index_fh, last_pos_index, SEEK_SET);
+      TRUNCATE(_history[index]->index_fh);
       ss_semaphore_release(semaphore);
       return HS_FILE_ERROR;
    }
@@ -705,6 +757,7 @@ INT hs_enum_events(DWORD ltime, char *event_name, DWORD * name_size, INT event_i
 \********************************************************************/
 {
    int fh, fhd;
+   std::string fn, fnd;
    INT status, i, j, n;
    DEF_RECORD def_rec;
 
@@ -721,8 +774,8 @@ INT hs_enum_events(DWORD ltime, char *event_name, DWORD * name_size, INT event_i
    }
 
    /* open history and definition files */
-   hs_open_file(ltime, "hst", O_RDONLY, &fh);
-   hs_open_file(ltime, "idf", O_RDONLY, &fhd);
+   hs_open_file(ltime, "hst", O_RDONLY, &fn, &fh);
+   hs_open_file(ltime, "idf", O_RDONLY, &fnd, &fhd);
    if (fh < 0 || fhd < 0) {
       cm_msg(MERROR, "hs_enum_events", "cannot open index files");
       return HS_FILE_ERROR;
@@ -790,6 +843,7 @@ INT hs_count_events(DWORD ltime, DWORD * count)
 \********************************************************************/
 {
    int fh, fhd;
+   std::string fn, fnd;
    INT status, i, j, n;
    DWORD *id;
    DEF_RECORD def_rec;
@@ -807,8 +861,8 @@ INT hs_count_events(DWORD ltime, DWORD * count)
    }
 
    /* open history and definition files */
-   hs_open_file(ltime, "hst", O_RDONLY, &fh);
-   hs_open_file(ltime, "idf", O_RDONLY, &fhd);
+   hs_open_file(ltime, "hst", O_RDONLY, &fn, &fh);
+   hs_open_file(ltime, "idf", O_RDONLY, &fnd, &fhd);
    if (fh < 0 || fhd < 0) {
       cm_msg(MERROR, "hs_count_events", "cannot open index files");
       return HS_FILE_ERROR;
@@ -872,6 +926,7 @@ INT hs_get_event_id(DWORD ltime, const char *name, DWORD * id)
 \********************************************************************/
 {
    int fh, fhd;
+   std::string fn, fnd;
    INT status, i;
    DWORD lt;
    DEF_RECORD def_rec;
@@ -895,8 +950,8 @@ INT hs_get_event_id(DWORD ltime, const char *name, DWORD * id)
       }
 
       /* open history and definition files */
-      hs_open_file(lt, "hst", O_RDONLY, &fh);
-      hs_open_file(lt, "idf", O_RDONLY, &fhd);
+      hs_open_file(lt, "hst", O_RDONLY, &fn, &fh);
+      hs_open_file(lt, "idf", O_RDONLY, &fnd, &fhd);
       if (fh < 0 || fhd < 0) {
          cm_msg(MERROR, "hs_count_events", "cannot open index files");
          return HS_FILE_ERROR;
@@ -951,6 +1006,7 @@ INT hs_count_vars(DWORD ltime, DWORD event_id, DWORD * count)
 \********************************************************************/
 {
    int fh, fhd;
+   std::string fn, fnd;
    INT i, n, status;
    DEF_RECORD def_rec;
    HIST_RECORD rec;
@@ -968,8 +1024,8 @@ INT hs_count_vars(DWORD ltime, DWORD event_id, DWORD * count)
    }
 
    /* open history and definition files */
-   hs_open_file(ltime, "hst", O_RDONLY, &fh);
-   hs_open_file(ltime, "idf", O_RDONLY, &fhd);
+   hs_open_file(ltime, "hst", O_RDONLY, &fn, &fh);
+   hs_open_file(ltime, "idf", O_RDONLY, &fnd, &fhd);
    if (fh < 0 || fhd < 0) {
       cm_msg(MERROR, "hs_count_tags", "cannot open index files");
       return HS_FILE_ERROR;
@@ -981,7 +1037,7 @@ INT hs_count_vars(DWORD ltime, DWORD event_id, DWORD * count)
    def_rec.event_id = 0;
    for (i = n - 1; i >= 0; i--) {
       lseek(fhd, i * sizeof(def_rec), SEEK_SET);
-      read(fhd, (char *) &def_rec, sizeof(def_rec));
+      xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
       if (def_rec.event_id == event_id)
          break;
    }
@@ -992,7 +1048,7 @@ INT hs_count_vars(DWORD ltime, DWORD event_id, DWORD * count)
 
    /* read definition */
    lseek(fh, def_rec.def_offset, SEEK_SET);
-   read(fh, (char *) &rec, sizeof(rec));
+   xread(fn, fh, (char *) &rec, sizeof(rec));
    *count = rec.data_size / sizeof(TAG);
 
    close(fh);
@@ -1029,6 +1085,7 @@ INT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name, DWORD * size, DWOR
 {
    char str[256];
    int fh, fhd;
+   std::string fn, fnd;
    INT i, n, status;
    DEF_RECORD def_rec;
    HIST_RECORD rec;
@@ -1047,8 +1104,8 @@ INT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name, DWORD * size, DWOR
    }
 
    /* open history and definition files */
-   hs_open_file(ltime, "hst", O_RDONLY, &fh);
-   hs_open_file(ltime, "idf", O_RDONLY, &fhd);
+   hs_open_file(ltime, "hst", O_RDONLY, &fn, &fh);
+   hs_open_file(ltime, "idf", O_RDONLY, &fnd, &fhd);
    if (fh < 0 || fhd < 0) {
       cm_msg(MERROR, "hs_enum_vars", "cannot open index files");
       return HS_FILE_ERROR;
@@ -1060,7 +1117,7 @@ INT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name, DWORD * size, DWOR
    def_rec.event_id = 0;
    for (i = n - 1; i >= 0; i--) {
       lseek(fhd, i * sizeof(def_rec), SEEK_SET);
-      read(fhd, (char *) &def_rec, sizeof(def_rec));
+      xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
       if (def_rec.event_id == event_id)
          break;
    }
@@ -1071,13 +1128,13 @@ INT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name, DWORD * size, DWOR
 
    /* read definition header */
    lseek(fh, def_rec.def_offset, SEEK_SET);
-   read(fh, (char *) &rec, sizeof(rec));
-   read(fh, str, NAME_LENGTH);
+   xread(fn, fh, (char *) &rec, sizeof(rec));
+   xread(fn, fh, str, NAME_LENGTH);
 
    /* read event definition */
    n = rec.data_size / sizeof(TAG);
    tag = (TAG *) M_MALLOC(rec.data_size);
-   read(fh, (char *) tag, rec.data_size);
+   xread(fn, fh, (char *) tag, rec.data_size);
 
    if (n * NAME_LENGTH > (INT) * size || n * sizeof(DWORD) > *n_size) {
 
@@ -1137,6 +1194,7 @@ INT hs_get_var(DWORD ltime, DWORD event_id, const char *var_name, DWORD * type, 
 {
    char str[256];
    int fh, fhd;
+   std::string fn, fnd;
    INT i, n, status;
    DEF_RECORD def_rec;
    HIST_RECORD rec;
@@ -1155,8 +1213,8 @@ INT hs_get_var(DWORD ltime, DWORD event_id, const char *var_name, DWORD * type, 
    }
 
    /* open history and definition files */
-   hs_open_file(ltime, "hst", O_RDONLY, &fh);
-   hs_open_file(ltime, "idf", O_RDONLY, &fhd);
+   hs_open_file(ltime, "hst", O_RDONLY, &fn, &fh);
+   hs_open_file(ltime, "idf", O_RDONLY, &fnd, &fhd);
    if (fh < 0 || fhd < 0) {
       cm_msg(MERROR, "hs_get_var", "cannot open index files");
       return HS_FILE_ERROR;
@@ -1168,7 +1226,7 @@ INT hs_get_var(DWORD ltime, DWORD event_id, const char *var_name, DWORD * type, 
    def_rec.event_id = 0;
    for (i = n - 1; i >= 0; i--) {
       lseek(fhd, i * sizeof(def_rec), SEEK_SET);
-      read(fhd, (char *) &def_rec, sizeof(def_rec));
+      xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
       if (def_rec.event_id == event_id)
          break;
    }
@@ -1179,13 +1237,13 @@ INT hs_get_var(DWORD ltime, DWORD event_id, const char *var_name, DWORD * type, 
 
    /* read definition header */
    lseek(fh, def_rec.def_offset, SEEK_SET);
-   read(fh, (char *) &rec, sizeof(rec));
-   read(fh, str, NAME_LENGTH);
+   xread(fn, fh, (char *) &rec, sizeof(rec));
+   xread(fn, fh, str, NAME_LENGTH);
 
    /* read event definition */
    n = rec.data_size / sizeof(TAG);
    tag = (TAG *) M_MALLOC(rec.data_size);
-   read(fh, (char *) tag, rec.data_size);
+   xread(fn, fh, (char *) tag, rec.data_size);
 
    /* search variable */
    for (i = 0; i < n; i++)
@@ -1236,6 +1294,7 @@ INT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int* 
 \********************************************************************/
 {
    int fh, fhd;
+   std::string fn, fnd;
    INT i, n, status;
    DEF_RECORD def_rec;
    HIST_RECORD rec;
@@ -1254,8 +1313,8 @@ INT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int* 
    }
 
    /* open history and definition files */
-   hs_open_file(ltime, "hst", O_RDONLY, &fh);
-   hs_open_file(ltime, "idf", O_RDONLY, &fhd);
+   hs_open_file(ltime, "hst", O_RDONLY, &fn, &fh);
+   hs_open_file(ltime, "idf", O_RDONLY, &fnd, &fhd);
    if (fh < 0 || fhd < 0) {
       cm_msg(MERROR, "hs_get_tags", "cannot open index files for time %d", ltime);
       if (fh>0)
@@ -1271,7 +1330,7 @@ INT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int* 
    def_rec.event_id = 0;
    for (i = n - 1; i >= 0; i--) {
       lseek(fhd, i * sizeof(def_rec), SEEK_SET);
-      read(fhd, (char *) &def_rec, sizeof(def_rec));
+      xread(fnd, fhd, (char *) &def_rec, sizeof(def_rec));
       //printf("reading index file found event_id %d, looking for %d\n", def_rec.event_id, event_id);
       if (def_rec.event_id == event_id)
          break;
@@ -1346,6 +1405,7 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
 {
    DWORD prev_time, last_irec_time;
    int fh, fhd, fhi, cp = 0;
+   std::string fn, fnd, fni;
    INT i, delta, index = 0, status, cache_size;
    INDEX_RECORD irec, *pirec;
    HIST_RECORD rec, drec;
@@ -1383,9 +1443,9 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
    }
 
    /* open history and definition files */
-   hs_open_file(start_time, "hst", O_RDONLY, &fh);
-   hs_open_file(start_time, "idf", O_RDONLY, &fhd);
-   hs_open_file(start_time, "idx", O_RDONLY, &fhi);
+   hs_open_file(start_time, "hst", O_RDONLY, &fn, &fh);
+   hs_open_file(start_time, "idf", O_RDONLY, &fnd, &fhd);
+   hs_open_file(start_time, "idx", O_RDONLY, &fni, &fhi);
    if (fh < 0 || fhd < 0 || fhi < 0) {
       cm_msg(MERROR, "hs_read", "cannot open index files");
       *tbsize = *dbsize = *n = 0;
@@ -1530,8 +1590,8 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
             /* if definition changed, read new definition */
             if ((INT) rec.def_offset != old_def_offset) {
                lseek(fh, rec.def_offset, SEEK_SET);
-               read(fh, (char *) &drec, sizeof(drec));
-               read(fh, str, NAME_LENGTH);
+               xread(fn, fh, (char *) &drec, sizeof(drec));
+               xread(fn, fh, str, NAME_LENGTH);
 
                tag = (TAG *) M_MALLOC(drec.data_size);
                if (tag == NULL) {
@@ -1543,7 +1603,7 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
                   close(fhi);
                   return HS_NO_MEMORY;
                }
-               read(fh, (char *) tag, drec.data_size);
+               xread(fn, fh, (char *) tag, drec.data_size);
 
                /* find index of tag_name in new definition */
                index = -1;
@@ -1615,7 +1675,7 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
 
                /* copy data from record */
                lseek(fh, var_offset, SEEK_CUR);
-               read(fh, (char *) data_buffer + (*n) * var_size, var_size);
+               xread(fn, fh, (char *) data_buffer + (*n) * var_size, var_size);
 
                /* increment counter */
                (*n)++;
@@ -1658,8 +1718,9 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
                i = -1;
             }
          }
-      } else
+      } else {
          i = read(fhi, (char *) &irec, sizeof(irec));
+      }
 
       /* end of file: search next history file */
       if (i <= 0) {
@@ -1687,9 +1748,9 @@ INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, co
             break;
 
          /* open history and definition files */
-         hs_open_file(last_irec_time, "hst", O_RDONLY, &fh);
-         hs_open_file(last_irec_time, "idf", O_RDONLY, &fhd);
-         hs_open_file(last_irec_time, "idx", O_RDONLY, &fhi);
+         hs_open_file(last_irec_time, "hst", O_RDONLY, &fn, &fh);
+         hs_open_file(last_irec_time, "idf", O_RDONLY, &fnd, &fhd);
+         hs_open_file(last_irec_time, "idx", O_RDONLY, &fni, &fhi);
          if (fh < 0 || fhd < 0 || fhi < 0) {
             cm_msg(MERROR, "hs_read", "cannot open index files");
             break;
@@ -1763,6 +1824,7 @@ INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BO
    DWORD prev_time, last_irec_time;
    time_t ltime;
    int fh, fhd, fhi;
+   std::string fn, fnd, fni;
    INT i, j, delta, status, n_tag = 0, old_n_tag = 0;
    INDEX_RECORD irec;
    HIST_RECORD rec, drec;
@@ -1785,9 +1847,9 @@ INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BO
    }
 
    /* open history and definition files */
-   hs_open_file(start_time, "hst", O_RDONLY, &fh);
-   hs_open_file(start_time, "idf", O_RDONLY, &fhd);
-   hs_open_file(start_time, "idx", O_RDONLY, &fhi);
+   hs_open_file(start_time, "hst", O_RDONLY, &fn, &fh);
+   hs_open_file(start_time, "idf", O_RDONLY, &fnd, &fhd);
+   hs_open_file(start_time, "idx", O_RDONLY, &fni, &fhi);
    if (fh < 0 || fhd < 0 || fhi < 0) {
       cm_msg(MERROR, "hs_dump", "cannot open index files");
       return HS_FILE_ERROR;
@@ -1799,13 +1861,13 @@ INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BO
    lseek(fhi, delta * sizeof(irec), SEEK_SET);
    do {
       delta = (int) (abs(delta) / 2.0 + 0.5);
-      read(fhi, (char *) &irec, sizeof(irec));
+      xread(fni, fhi, (char *) &irec, sizeof(irec));
       if (irec.time > start_time)
          delta = -delta;
 
       i = lseek(fhi, (delta - 1) * sizeof(irec), SEEK_CUR);
    } while (abs(delta) > 1 && irec.time != start_time);
-   read(fhi, (char *) &irec, sizeof(irec));
+   xread(fni, fhi, (char *) &irec, sizeof(irec));
    if (irec.time > start_time)
       delta = -abs(delta);
 
@@ -1814,7 +1876,7 @@ INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BO
       lseek(fhi, 0, SEEK_SET);
    else
       lseek(fhi, (delta - 1) * sizeof(irec), SEEK_CUR);
-   read(fhi, (char *) &irec, sizeof(irec));
+   xread(fni, fhi, (char *) &irec, sizeof(irec));
 
    /* read records, skip wrong IDs */
    old_def_offset = -1;
@@ -1831,13 +1893,13 @@ INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BO
          if (irec.time >= prev_time + interval) {
             prev_time = irec.time;
             lseek(fh, irec.offset, SEEK_SET);
-            read(fh, (char *) &rec, sizeof(rec));
+            xread(fn, fh, (char *) &rec, sizeof(rec));
 
             /* if definition changed, read new definition */
             if ((INT) rec.def_offset != old_def_offset) {
                lseek(fh, rec.def_offset, SEEK_SET);
-               read(fh, (char *) &drec, sizeof(drec));
-               read(fh, str, NAME_LENGTH);
+               xread(fn, fh, (char *) &drec, sizeof(drec));
+               xread(fn, fh, str, NAME_LENGTH);
 
                if (tag == NULL)
                   tag = (TAG *) M_MALLOC(drec.data_size);
@@ -1845,7 +1907,7 @@ INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BO
                   tag = (TAG *) realloc(tag, drec.data_size);
                if (tag == NULL)
                   return HS_NO_MEMORY;
-               read(fh, (char *) tag, drec.data_size);
+               xread(fn, fh, (char *) tag, drec.data_size);
                n_tag = drec.data_size / sizeof(TAG);
 
                /* print tag names if definition has changed */
@@ -1883,7 +1945,7 @@ INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BO
             }
 
             /* read data */
-            read(fh, data_buffer, rec.data_size);
+            xread(fn, fh, data_buffer, rec.data_size);
 
             /* interprete data from tag definition */
             offset = 0;
@@ -1934,9 +1996,9 @@ INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BO
             break;
 
          /* open history and definition files */
-         hs_open_file(last_irec_time, "hst", O_RDONLY, &fh);
-         hs_open_file(last_irec_time, "idf", O_RDONLY, &fhd);
-         hs_open_file(last_irec_time, "idx", O_RDONLY, &fhi);
+         hs_open_file(last_irec_time, "hst", O_RDONLY, &fn, &fh);
+         hs_open_file(last_irec_time, "idf", O_RDONLY, &fnd, &fhd);
+         hs_open_file(last_irec_time, "idx", O_RDONLY, &fni, &fhi);
          if (fh < 0 || fhd < 0 || fhi < 0) {
             cm_msg(MERROR, "hs_dump", "cannot open index files");
             break;
@@ -1991,13 +2053,15 @@ INT hs_fdump(const char *file_name, DWORD id, BOOL binary_time)
    time_t ltime;
    HIST_RECORD rec;
    char event_name[NAME_LENGTH];
-   char str[256];
+   //char str[256];
 
    /* open file, add O_BINARY flag for Windows NT */
-   sprintf(str, "%s%s", _hs_path_name, file_name);
-   fh = open(str, O_RDONLY | O_BINARY, 0644);
+   std::string fn;
+   fn += _hs_path_name;
+   fn += file_name;
+   fh = open(fn.c_str(), O_RDONLY | O_BINARY, 0644);
    if (fh < 0) {
-      cm_msg(MERROR, "hs_fdump", "cannot open file %s", str);
+      cm_msg(MERROR, "hs_fdump", "cannot open file %s", fn.c_str());
       return HS_FILE_ERROR;
    }
 
@@ -2010,7 +2074,7 @@ INT hs_fdump(const char *file_name, DWORD id, BOOL binary_time)
       /* check if record type is definition */
       if (rec.record_type == RT_DEF) {
          /* read name */
-         read(fh, event_name, sizeof(event_name));
+         xread(fn, fh, event_name, sizeof(event_name));
 
          if (rec.event_id == id || id == 0)
             printf("Event definition %s, ID %d\n", event_name, rec.event_id);
@@ -2019,9 +2083,10 @@ INT hs_fdump(const char *file_name, DWORD id, BOOL binary_time)
          lseek(fh, rec.data_size, SEEK_CUR);
       } else {
          /* print data record */
-         if (binary_time)
+         char str[32];
+         if (binary_time) {
             sprintf(str, "%d ", rec.time);
-         else {
+         } else {
             ltime = (time_t) rec.time;
             strcpy(str, ctime(&ltime) + 4);
             str[15] = 0;
