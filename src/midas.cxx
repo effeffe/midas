@@ -13780,6 +13780,7 @@ INT rpc_execute_ascii(INT sock, char *buffer)
                   param_size = *((INT *) prpc_param[i + 1]);
                   array_tid = *((INT *) prpc_param[i + 3]);
                   num_values = 1;
+#if REMOVE_HS
                } else if (rpc_list[idx].id == RPC_HS_READ) {
                   param_size = *((INT *) prpc_param[i + 1]);
                   if (i == 6) {
@@ -13789,6 +13790,7 @@ INT rpc_execute_ascii(INT sock, char *buffer)
                      array_tid = *((INT *) prpc_param[10]);
                      num_values = *((INT *) prpc_param[11]);
                   }
+#endif
                } else {         /* variable arrays of fixed type like hs_enum_events, hs_enum_vars */
 
                   param_size = *((INT *) prpc_param[i + 1]);

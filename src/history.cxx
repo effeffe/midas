@@ -53,8 +53,10 @@ be called before any other history function is called.
 INT hs_set_path(const char *path)
 {
    /* set path locally and remotely */
-   if (rpc_is_remote())
-      rpc_call(RPC_HS_SET_PATH, path);
+   if (rpc_is_remote()) {
+      //rpc_call(RPC_HS_SET_PATH, path);
+      abort();
+   }
 
    strcpy(_hs_path_name, path);
 
@@ -318,8 +320,8 @@ INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD siz
 {
 /* History events are only written locally (?)
 
-  if (rpc_is_remote())
-    return rpc_call(RPC_HS_DEFINE_EVENT, event_id, name, tag, size);
+   if (rpc_is_remote())
+      return rpc_call(RPC_HS_DEFINE_EVENT, event_id, name, tag, size);
 */
    {
       HIST_RECORD rec, prev_rec;
@@ -706,8 +708,10 @@ INT hs_enum_events(DWORD ltime, char *event_name, DWORD * name_size, INT event_i
    INT status, i, j, n;
    DEF_RECORD def_rec;
 
-   if (rpc_is_remote())
-      return rpc_call(RPC_HS_ENUM_EVENTS, ltime, event_name, name_size, event_id, id_size);
+   if (rpc_is_remote()) {
+      //return rpc_call(RPC_HS_ENUM_EVENTS, ltime, event_name, name_size, event_id, id_size);
+      abort();
+   }
 
    /* search latest history file */
    status = hs_search_file(&ltime, -1);
@@ -790,8 +794,10 @@ INT hs_count_events(DWORD ltime, DWORD * count)
    DWORD *id;
    DEF_RECORD def_rec;
 
-   if (rpc_is_remote())
-      return rpc_call(RPC_HS_COUNT_EVENTS, ltime, count);
+   if (rpc_is_remote()) {
+      //return rpc_call(RPC_HS_COUNT_EVENTS, ltime, count);
+      abort();
+   }
 
    /* search latest history file */
    status = hs_search_file(&ltime, -1);
@@ -870,8 +876,10 @@ INT hs_get_event_id(DWORD ltime, const char *name, DWORD * id)
    DWORD lt;
    DEF_RECORD def_rec;
 
-   if (rpc_is_remote())
-      return rpc_call(RPC_HS_GET_EVENT_ID, ltime, name, id);
+   if (rpc_is_remote()) {
+      //return rpc_call(RPC_HS_GET_EVENT_ID, ltime, name, id);
+      abort();
+   }
 
    /* search latest history file */
    if (ltime == 0)
@@ -947,8 +955,10 @@ INT hs_count_vars(DWORD ltime, DWORD event_id, DWORD * count)
    DEF_RECORD def_rec;
    HIST_RECORD rec;
 
-   if (rpc_is_remote())
-      return rpc_call(RPC_HS_COUNT_VARS, ltime, event_id, count);
+   if (rpc_is_remote()) {
+      //return rpc_call(RPC_HS_COUNT_VARS, ltime, event_id, count);
+      abort();
+   }
 
    /* search latest history file */
    status = hs_search_file(&ltime, -1);
@@ -1024,8 +1034,10 @@ INT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name, DWORD * size, DWOR
    HIST_RECORD rec;
    TAG *tag;
 
-   if (rpc_is_remote())
-      return rpc_call(RPC_HS_ENUM_VARS, ltime, event_id, var_name, size);
+   if (rpc_is_remote()) {
+      //return rpc_call(RPC_HS_ENUM_VARS, ltime, event_id, var_name, size);
+      abort();
+   }
 
    /* search latest history file */
    status = hs_search_file(&ltime, -1);
@@ -1130,8 +1142,10 @@ INT hs_get_var(DWORD ltime, DWORD event_id, const char *var_name, DWORD * type, 
    HIST_RECORD rec;
    TAG *tag;
 
-   if (rpc_is_remote())
-      return rpc_call(RPC_HS_GET_VAR, ltime, event_id, var_name, type, n_data);
+   if (rpc_is_remote()) {
+      //return rpc_call(RPC_HS_GET_VAR, ltime, event_id, var_name, type, n_data);
+      abort();
+   }
 
    /* search latest history file */
    status = hs_search_file(&ltime, -1);

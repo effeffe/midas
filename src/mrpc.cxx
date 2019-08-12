@@ -531,6 +531,7 @@ static RPC_LIST rpc_list_library[] = {
      {TID_BOOL, RPC_IN},
      {0}}},
 
+#if REMOVE_HS
    /* history functions */
 
    {RPC_HS_SET_PATH, "hs_set_path",
@@ -606,6 +607,7 @@ static RPC_LIST rpc_list_library[] = {
      {TID_DWORD, RPC_OUT},
      {TID_DWORD, RPC_OUT},
      {0}}},
+#endif
 
    /* elog funcions */
 

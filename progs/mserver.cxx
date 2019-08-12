@@ -815,6 +815,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       status = db_get_open_records(CHNDLE(0), CHNDLE(1), CSTRING(2), CINT(3), CBOOL(4));
       break;
 
+#if REMOVE_HS
       /* history functions */
 
    case RPC_HS_SET_PATH:
@@ -875,6 +876,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
                           CDWORD(11) / rpc_tid_size(CDWORD(10)), convert_flags);
       }
       break;
+#endif
 
    case RPC_EL_SUBMIT:
       status = el_submit(CINT(0), CSTRING(1), CSTRING(2), CSTRING(3), CSTRING(4),

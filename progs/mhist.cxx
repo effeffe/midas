@@ -17,6 +17,9 @@
 #define CALLOC(num, type) (type*)calloc((num),sizeof(type))
 #define FREE(ptr) free(ptr); (ptr)=NULL;
 
+BOOL binary_time;
+
+#if REMOVE_HS
 void tmp()
 {
    time_t tm;
@@ -40,7 +43,6 @@ TAG hv_tag[] = {
 
 float hist[200];
 float hv[100];
-BOOL binary_time;
 TAG tag[10];
 void write_hist_speed()
 /* write some history */
@@ -95,6 +97,7 @@ void generate_hist()
       ss_sleep(1000);
    }
 }
+#endif
 
 /*------------------------------------------------------------------*/
 INT query_params(MidasHistoryInterface* mh, std::string* event_name, DWORD * start_time, DWORD * end_time,
@@ -193,7 +196,7 @@ INT query_params(MidasHistoryInterface* mh, std::string* event_name, DWORD * sta
 }
 
 /*------------------------------------------------------------------*/
-
+#if REMOVE_HS
 INT file_display_vars(const char *file_name)
 {
    DWORD status, i, j, bytes, n, nv, ltime, n_bytes, name_size, id_size;
@@ -247,6 +250,7 @@ INT file_display_vars(const char *file_name)
 
    return HS_SUCCESS;
 }
+#endif
 
 INT display_vars(MidasHistoryInterface* mh, time_t t)
 {
@@ -626,11 +630,13 @@ int main(int argc, char *argv[])
    INT i, var_n_data;
    BOOL list_query;
    DWORD var_type;
-   char var_name[NAME_LENGTH], file_name[256];
-   char *p, path_name[256], path1_name[256];
-   char start_name[64];
+   char var_name[NAME_LENGTH];
+   //char file_name[256];
+   //char path_name[256];
+   //char path1_name[256];
+   //char start_name[64];
    char *column;
-   BOOL do_hst_file = false;
+   //BOOL do_hst_file = false;
    std::string event_name;
    int debug = 0;
 
@@ -638,11 +644,13 @@ int main(int argc, char *argv[])
    cm_set_msg_print(0, MT_ALL, puts);
 
    var_name[0] = 0;
-   file_name[0] = 0;
    list_query = FALSE;
+#if REMOVE_HS
+   file_name[0] = 0;
    path_name[0] = 0;
    path1_name[0] = 0;
    start_name[0] = 0;
+#endif
 
    HNDLE hDB;
    char host_name[256];
@@ -699,23 +707,27 @@ int main(int argc, char *argv[])
                   index1 = atoi(argv[i]);
                   index2 = atoi(column + 1);
                }
-            } else if (strncmp(argv[i], "-h", 2) == 0)
+            } else if (strncmp(argv[i], "-h", 2) == 0) {
                start_time = ss_time() - atoi(argv[++i]) * 3600;
-            else if (strncmp(argv[i], "-d", 2) == 0)
+            } else if (strncmp(argv[i], "-d", 2) == 0) {
                start_time = ss_time() - atoi(argv[++i]) * 3600 * 24;
-            else if (strncmp(argv[i], "-s", 2) == 0) {
+            } else if (strncmp(argv[i], "-s", 2) == 0) {
+#if REMOVE_HS
                strcpy(start_name, argv[++i]);
+#endif
                start_time = convert_time(argv[i]);
             } else if (strncmp(argv[i], "-p", 2) == 0) {
                end_time = convert_time(argv[++i]);
             } else if (strncmp(argv[i], "-t", 2) == 0) {
                interval = atoi(argv[++i]);
+#if REMOVE_HS
             } else if (strncmp(argv[i], "-f", 2) == 0) {
                strcpy(path_name, argv[++i]);
                do_hst_file = true;
             } else if (strncmp(argv[i], "-z", 2) == 0) {
                strcpy(path1_name, argv[++i]);
                do_hst_file = true;
+#endif
             }
          } else {
           usage:
@@ -725,7 +737,9 @@ int main(int argc, char *argv[])
             printf("         [-t Interval] minimum interval in sec. between two displayed records\n");
             printf("         [-h Hours] display between some hours ago and now\n");
             printf("         [-d Days] display between some days ago and now\n");
+#if REMOVE_HS
             printf("         [-f File] specify history file explicitly\n");
+#endif
             printf("         [-s Start date] specify start date YYMMDD[.HHMM[SS]]\n");
             printf("         [-p End date] specify end date YYMMDD[.HHMM[SS]]\n");
             printf("         [-l] list available events and variables\n");
@@ -735,6 +749,7 @@ int main(int argc, char *argv[])
       }
    }
 
+#if REMOVE_HS
    /*
       -z is needed in case the mhist called by script
 
@@ -744,7 +759,7 @@ int main(int argc, char *argv[])
       -f /path/file.hst -z path1   =>   file_name = file.hst
       path1_name = path1
     */
-   p = strrchr(path_name, DIR_SEPARATOR);
+   char* p = strrchr(path_name, DIR_SEPARATOR);
    if (p != NULL) {
       strcpy(file_name, p + 1);
       *(p + 1) = '\0';
@@ -773,6 +788,7 @@ int main(int argc, char *argv[])
       }
       return 0;
    }
+#endif
 
    if (!mh) {
       status = cm_connect_experiment1(host_name, expt_name, "mhist", 0, DEFAULT_ODB_SIZE, 0);
