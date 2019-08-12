@@ -442,7 +442,9 @@ static INT register_equipment(void)
       strlcpy(eq_info->frontend_host, str, sizeof(eq_info->frontend_host));
       strlcpy(eq_info->frontend_name, full_frontend_name, sizeof(eq_info->frontend_name));
       strlcpy(eq_info->frontend_file_name, frontend_file_name, sizeof(eq_info->frontend_file_name));
-      sprintf(eq_info->status, "%s@%s", full_frontend_name, eq_info->frontend_host);
+      strlcpy(eq_info->status, full_frontend_name, sizeof(eq_info->status));
+      strlcat(eq_info->status, "@", sizeof(eq_info->status));
+      strlcat(eq_info->status, eq_info->frontend_host, sizeof(eq_info->status));
       strlcpy(eq_info->status_color, "greenLight", sizeof(eq_info->status_color));
 
       /* update variables in ODB */
@@ -773,8 +775,14 @@ static INT initialize_equipment(void)
                                  equipment[idx].driver[j].name)) {
                   strcpy(str, equipment[idx].driver[i].name);
                   for (k = 0, n = 0; equipment[idx].driver[k].name[0]; k++)
-                     if (equal_ustring(str, equipment[idx].driver[k].name))
-                        sprintf(equipment[idx].driver[k].name, "%s_%d", str, n++);
+                     if (equal_ustring(str, equipment[idx].driver[k].name)) {
+                        //sprintf(equipment[idx].driver[k].name, "%s_%d", str, n++);
+                        strlcpy(equipment[idx].driver[k].name, str, sizeof(equipment[idx].driver[k].name));
+                        strlcat(equipment[idx].driver[k].name, "_", sizeof(equipment[idx].driver[k].name));
+                        char tmp[256];
+                        sprintf(tmp, "%d", n++);
+                        strlcat(equipment[idx].driver[k].name, tmp, sizeof(equipment[idx].driver[k].name));
+                     }
 
                   break;
                }

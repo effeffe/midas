@@ -222,7 +222,7 @@ public:
       }
 
       if (1) {
-         char tmp[256];
+         char tmp[256+100];
          WORD evid;
          int size;
 

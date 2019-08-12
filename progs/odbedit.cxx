@@ -1033,7 +1033,7 @@ void create_experim_h(HNDLE hDB, const char *analyzer_name)
 {
    INT i, index, subindex, hfile, status, size;
    HNDLE hKey, hKeyRoot, hKeyEq, hDefKey, hKeyBank, hKeyPar;
-   char str[80], eq_name[80], subeq_name[80];
+   char str[100+80], eq_name[80], subeq_name[80];
    KEY key;
    time_t now;
 
@@ -1107,7 +1107,7 @@ void create_experim_h(HNDLE hDB, const char *analyzer_name)
             break;
 
          db_get_key(hDB, hKeyPar, &key);
-         strcpy(eq_name, key.name);
+         strlcpy(eq_name, key.name, sizeof(eq_name));
          name2c(eq_name);
          for (i = 0; i < (int) strlen(eq_name); i++)
             eq_name[i] = toupper(eq_name[i]);

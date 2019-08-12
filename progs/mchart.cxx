@@ -328,7 +328,7 @@ INT mchart_compose(HNDLE hDB, char *confpath, char *datapath, char *eqpstr)
 /*------------------------------------------------------------------*/
 int main(int argc, char **argv)
 {
-   char command[128];
+   char command[512];
    BOOL daemon, keep_strip = FALSE;
    INT status, last_time = 0;
    //DWORD i;
@@ -337,7 +337,9 @@ int main(int argc, char **argv)
    char eqpstr[128] = { '\0' };
    char cmdline[256];
    signed char ch;
-   char mchart_dir[128] = { '\0' }, mchart_data[128], mchart_conf[128];
+   char mchart_dir[128] = { '\0' };
+   char mchart_data[128];
+   char mchart_conf[128+10];
    INT msg, childpid;
    int sys_err;
    /* set default */
@@ -508,7 +510,7 @@ int main(int argc, char **argv)
 
       /* spawn graph once if possible */
       if (graph == 1) {
-         char command[128];
+         char command[512];
          char *list = NULL;
          INT i, nfile;
 

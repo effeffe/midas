@@ -3467,7 +3467,7 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
 INT root_log_open(LOG_CHN * log_chn, INT run_number)
 {
    INT size, level;
-   char str[256], name[256];
+   char str[256+100], name[256];
    TREE_STRUCT *tree_struct;
 
    /* Create device channel */
