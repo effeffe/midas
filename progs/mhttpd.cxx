@@ -3288,8 +3288,7 @@ void gen_odb_attachment(Return* r, const char *path, std::string& bout)
    //db_get_value(hDB, 0, "/Experiment/Name", str, &size, TID_STRING, TRUE);
    time(&now);
 
-   sprintf(b, "<table border=3 cellpadding=1 class=\"dialogTable\">\n");
-   bout += b;
+   bout += "<table border=3 cellpadding=1 class=\"dialogTable\">\n";
    sprintf(b, "<tr><th colspan=2>%s</tr>\n", ctime(&now));
    bout += b;
    sprintf(b, "<tr><th colspan=2>%s</tr>\n", path);
@@ -3329,15 +3328,20 @@ void gen_odb_attachment(Return* r, const char *path, std::string& bout)
             }
 
             if (strcmp(data_str, hex_str) != 0 && hex_str[0]) {
-               sprintf(b, "<tr><td>%s</td><td>%s (%s)</td></tr>\n", key.name, data_str, hex_str);
-               bout += b;
+               //sprintf(b, "<tr><td>%s</td><td>%s (%s)</td></tr>\n", key.name, data_str, hex_str);
+               bout += "<tr><td>";
+               bout += key.name;
+               bout += "</td><td>";
+               bout += data_str;
+               bout += " (";
+               bout += hex_str;
+               bout += ")</td></tr>\n";
             } else {
                sprintf(b, "<tr><td>%s</td><td>", key.name);
                bout += b;
                strencode2(b, data_str);
                bout += b;
-               sprintf(b, "</td></tr>\n");
-               bout += b;
+               bout += "</td></tr>\n";
             }
          } else {
             /* display first value */
@@ -3358,24 +3362,32 @@ void gen_odb_attachment(Return* r, const char *path, std::string& bout)
                }
 
                if (j > 0) {
-                  sprintf(b, "<tr>");
-                  bout += b;
+                  bout += "<tr>";
                }
 
                if (strcmp(data_str, hex_str) != 0 && hex_str[0]) {
-                  sprintf(b, "<td>[%d] %s (%s)<br></td></tr>\n", j, data_str, hex_str);
-                  bout += b;
+                  //sprintf(b, "<td>[%d] %s (%s)<br></td></tr>\n", j, data_str, hex_str);
+                  bout += "<td>[";
+                  bout += toString(j);
+                  bout += "] ";
+                  bout += data_str;
+                  bout += " (";
+                  bout += hex_str;
+                  bout += ")<br></td></tr>\n";
                } else {
-                  sprintf(b, "<td>[%d] %s<br></td></tr>\n", j, data_str);
-                  bout += b;
+                  //sprintf(b, "<td>[%d] %s<br></td></tr>\n", j, data_str);
+                  bout += "<td>[";
+                  bout += toString(j);
+                  bout += "] ";
+                  bout += data_str;
+                  bout += "<br></td></tr>\n";
                }
             }
          }
       }
    }
 
-   sprintf(b, "</table>\n");
-   bout += b;
+   bout += "</table>\n";
 }
 
 /*------------------------------------------------------------------*/
@@ -5438,7 +5450,7 @@ void show_custom_file(Return* r, const char *name)
    status = db_get_key(hDB, hkey, &key);
    
    if (status != DB_SUCCESS) {
-      char errtext[256];
+      char errtext[512];
       sprintf(errtext, "show_custom_file: Error: db_get_key() for \"%s\" status %d", str, status);
       show_error_404(r, errtext);
       return;
@@ -5450,7 +5462,7 @@ void show_custom_file(Return* r, const char *name)
    status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
    
    if (status != DB_SUCCESS) {
-      char errtext[256];
+      char errtext[512];
       sprintf(errtext, "show_custom_file: Error: db_get_data() for \"%s\" status %d", str, status);
       show_error_404(r, errtext);
       free(ctext);
@@ -7207,7 +7219,7 @@ void show_custom_page(Param* pp, Return* r, const char *cookie_cpwd)
 {
    int size, n_var, fh, index, edit;
    char keypath[256], type[32], *p, *ps;
-   char pwd[256], ppath[256], tail[256];
+   char pwd[256], tail[256];
    HNDLE hDB, hkey;
    KEY key;
    char data[TEXT_SIZE];
@@ -7317,12 +7329,15 @@ void show_custom_page(Param* pp, Return* r, const char *cookie_cpwd)
                strlcpy(str, path.c_str(), sizeof(str)); // FIXME: overflows "str"
                if (strlen(str)>0 && str[strlen(str)-1] == '&')
                   str[strlen(str)-1] = 0;
-               if (pp->getparam("pnam") && *pp->getparam("pnam"))
-                  sprintf(ppath, "/Custom/Pwd/%s", pp->getparam("pnam"));
-               else
-                  sprintf(ppath, "/Custom/Pwd/%s", str);
+               std::string ppath;
+               ppath += "/Custom/Pwd/";
+               if (pp->getparam("pnam") && *pp->getparam("pnam")) {
+                  ppath += pp->getparam("pnam");
+               } else {
+                  ppath += str;
+               }
                str[0] = 0;
-               db_get_value(hDB, 0, ppath, str, &size, TID_STRING, TRUE);
+               db_get_value(hDB, 0, ppath.c_str(), str, &size, TID_STRING, TRUE);
                if (!equal_ustring(cookie_cpwd, str)) {
                   show_error_404(r, "show_custom_page: Invalid password!");
                   free(ctext);
@@ -7339,6 +7354,7 @@ void show_custom_page(Param* pp, Return* r, const char *cookie_cpwd)
       if (equal_ustring(pp->getparam("cmd"), "Toggle")) {
 
          if (pp->getparam("pnam") && *pp->getparam("pnam")) {
+            char ppath[MAX_ODB_PATH];
             sprintf(ppath, "/Custom/Pwd/%s", pp->getparam("pnam"));
             char str[256];
             str[0] = 0;
@@ -8049,8 +8065,6 @@ void show_mscb_page(Param* p, Return* r, int refresh)
                      ping_addr[j] = 1;
 
                status = mscb_info(fd, (unsigned short) ind, &info);
-               //strncpy(str, info.node_name, sizeof(info.node_name));
-               //str[16] = 0;
 
                if (status == MSCB_SUCCESS) {
                   /* check if node already in list */
@@ -8078,13 +8092,13 @@ void show_mscb_page(Param* p, Return* r, int refresh)
          db_set_data(hDB, hKeyComm, node_comment, n_addr*32, n_addr, TID_STRING);
          free(node_comment);
 
-         char redirstr[256];
+         char redirstr[512];
          sprintf(redirstr, "?cmd=mscb&subm=%s", cur_subm_name);
          redirect(r, redirstr);
          return;
 
       } else {
-         char errorstr[256];
+         char errorstr[512];
          sprintf(errorstr, "Cannot talk to submaster \"%s\"", cur_subm_name);
          show_error(r, errorstr);
          return;
@@ -8127,7 +8141,7 @@ void show_mscb_page(Param* p, Return* r, int refresh)
             }
          }
       }
-      char redirstr[256];
+      char redirstr[512];
       sprintf(redirstr, "?cmd=mscb&subm=%s&node=%d", cur_subm_name, cur_node);
       redirect(r, redirstr);
       return;
@@ -8558,11 +8572,15 @@ BOOL check_web_password(Return* r, const char* dec_path, const char *password, c
 void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char *dec_path, int write_access)
 {
    int i, j, keyPresent, scan, size, status, line, link_index;
-   char str[256], tmp_path[256], url_path[256],
-      hex_str[256], ref[256], keyname[32], link_name[256], link_ref[256],
-      full_path[256], root_path[256], odb_path[256], colspan, style[32];
+   char hex_str[256];
+   char keyname[32];
+   char link_name[256];
+   char full_path[256];
+   char root_path[256];
+   //char odb_path[256];
+   char colspan;
+   char style[32];
    char *p;
-   char *pd;
    HNDLE hDB, hkey, hkeyroot;
    KEY key;
    DWORD delta;
@@ -8576,12 +8594,13 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
       strcpy(dec_path, "");
    }
 
-   strlcpy(str, dec_path, sizeof(str));
-   if (strrchr(str, '/'))
-      strlcpy(str, strrchr(str, '/')+1, sizeof(str));
-   if (str[0] == 0)
-      strlcpy(str, "root", sizeof(str));
-   show_header(r, "MIDAS online database", "", str, 0);
+   char xdecpath[256];
+   strlcpy(xdecpath, dec_path, sizeof(xdecpath));
+   if (strrchr(xdecpath, '/'))
+      strlcpy(xdecpath, strrchr(xdecpath, '/')+1, sizeof(xdecpath));
+   if (xdecpath[0] == 0)
+      strlcpy(xdecpath, "root", sizeof(xdecpath));
+   show_header(r, "MIDAS online database", "", xdecpath, 0);
 
    /* use javascript file */
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
@@ -8677,25 +8696,25 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
 
    /*---- display path ----*/
    p = dec_path;
-   url_path[0] = 0;
+   std::string url_path;
    while (*p) {
-      pd = str;
+      std::string pd;
       while (*p && *p != '/')
-         *pd++ = *p++;
-      *pd = 0;
+         pd += *p++;
 
-      strlcpy(tmp_path, str, sizeof(tmp_path));
+      char tmp_path[MAX_ODB_PATH];
+      strlcpy(tmp_path, pd.c_str(), sizeof(tmp_path));
       urlEncode(tmp_path, sizeof(tmp_path));
-      strlcat(url_path, tmp_path, sizeof(url_path));
+      url_path = tmp_path;
 
-      if (str[0])
-         r->rsprintf("<a href=\"?cmd=odb&odb_path=%s\">%s</a>\n / ", url_path, str);
+      if (pd.length() > 0)
+         r->rsprintf("<a href=\"?cmd=odb&odb_path=%s\">%s</a>\n / ", url_path.c_str(), pd.c_str());
 
-      strlcat(url_path, "/", sizeof(url_path));
+      url_path += "/";
       if (*p == '/')
          p++;
    }
-   strlcpy(root_path, url_path, sizeof(root_path));
+   strlcpy(root_path, url_path.c_str(), sizeof(root_path));
    r->rsprintf("</b></tr>\n");
 
    /* enumerate subkeys */
@@ -8753,12 +8772,13 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
          strlcat(full_path, key.name, sizeof(full_path));
          urlEncode(full_path, sizeof(full_path));
          strlcpy(keyname, key.name, sizeof(keyname));
-         strlcpy(odb_path, dec_path, sizeof(odb_path));
-         if (odb_path[0] && odb_path[strlen(odb_path) - 1] != '/')
-            strlcat(odb_path, "/", sizeof(odb_path));
-         strlcat(odb_path, key.name, sizeof(odb_path));
+         std::string odb_path = dec_path;
+         if (odb_path.length() > 0 && odb_path[odb_path.length() - 1] != '/')
+            odb_path += "/";
+         odb_path += key.name;
 
          /* resolve links */
+         std::string link_ref;
          link_name[0] = 0;
          status = DB_SUCCESS;
          if (key.type == TID_LINK) {
@@ -8770,7 +8790,9 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
             if (status == DB_SUCCESS)
                db_get_key(hDB, hkey, &key);
 
-            sprintf(link_ref, "?cmd=Set&odb_path=%s", full_path);
+            //sprintf(link_ref, "?cmd=Set&odb_path=%s", full_path);
+            link_ref = "?cmd=Set&odb_path=";
+            link_ref += full_path;
 
             if (status == DB_SUCCESS && link_name[0] == 0) {
                // fake the case when an empty link somehow resolves
@@ -8778,18 +8800,33 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
             }
          }
 
+         std::string ref;
+
          if (link_name[0]) {
-            if (root_path[strlen(root_path)-1] == '/' && link_name[0] == '/')
-               sprintf(ref, "?cmd=Set&odb_path=%s%s", root_path, link_name+1);
-            else
-               sprintf(ref, "?cmd=Set&odb_path=%s%s", root_path, link_name);
-         } else
-            sprintf(ref, "?cmd=Set&odb_path=%s", full_path);
+            if (root_path[strlen(root_path)-1] == '/' && link_name[0] == '/') {
+               //sprintf(ref, "?cmd=Set&odb_path=%s%s", root_path, link_name+1);
+               ref = "";
+               ref += "?cmd=Set&odb_path=";
+               ref += root_path;
+               ref += link_name + 1;
+            } else {
+               //sprintf(ref, "?cmd=Set&odb_path=%s%s", root_path, link_name);
+               ref = "";
+               ref += "?cmd=Set&odb_path=";
+               ref += root_path;
+               ref += link_name;
+            }
+         } else {
+            //sprintf(ref, "?cmd=Set&odb_path=%s", full_path);
+            ref = "";
+            ref += "?cmd=Set&odb_path=";
+            ref += full_path;
+         }
 
          if (status != DB_SUCCESS) {
             if (scan == 1) {
                r->rsprintf("<tr><td class=\"yellowLight\">");
-               r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td><b><div style=\"color:red\">&lt;cannot resolve link&gt;</div></b></tr>\n", keyname, link_ref, link_name[0]?link_name:"(empty)");
+               r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td><b><div style=\"color:red\">&lt;cannot resolve link&gt;</div></b></tr>\n", keyname, link_ref.c_str(), link_name[0]?link_name:"(empty)");
             }
          } else {
 
@@ -8797,7 +8834,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                /* for keys, don't display data value */
                r->rsprintf("<tr><td colspan=%d class=\"ODBdirectory\"><a href=\"?cmd=odb&odb_path=%s\">&#x25B6 %s</a>\n", colspan, full_path, keyname);
                if (link_name[0])
-                  r->rsprintf("<i>&rarr; <a href=\"?cmd=odb&odb_path=%s\">%s</a></i>", link_ref, link_name);
+                  r->rsprintf("<i>&rarr; <a href=\"?cmd=odb&odb_path=%s\">%s</a></i>", link_ref.c_str(), link_name);
                r->rsprintf("</tr>\n");
             } else if(key.type != TID_KEY && scan == 1) {
                
@@ -8841,13 +8878,13 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                      if (link_name[0]) {
                         r->rsprintf("<td class=\"ODBkey\">\n");
                         r->rsprintf("%s <i>&rarr; ", keyname);
-                        r->rsprintf("<a href=\"%s\">%s</a></i>\n", link_ref, link_name);
+                        r->rsprintf("<a href=\"%s\">%s</a></i>\n", link_ref.c_str(), link_name);
                         r->rsprintf("<td class=\"%s\">\n", style);
                         if (!write_access)
                            r->rsprintf("%s (%s)", data_str, hex_str);
                         else {
-                           r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref, odb_path);
-                           r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">%s (%s)</a>\n", odb_path, data_str, hex_str);
+                           r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref.c_str(), odb_path.c_str());
+                           r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">%s (%s)</a>\n", odb_path.c_str(), data_str, hex_str);
                         }
                      } else {
                         r->rsprintf("<td class=\"ODBkey\">\n");
@@ -8855,15 +8892,15 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                         if (!write_access)
                            r->rsprintf("%s (%s)", data_str, hex_str);
                         else {
-                           r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref, odb_path);
-                           r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">%s (%s)</a>\n", odb_path, data_str, hex_str);
+                           r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref.c_str(), odb_path.c_str());
+                           r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">%s (%s)</a>\n", odb_path.c_str(), data_str, hex_str);
                         }
                      }
                   } else {
                      if (strchr(data_str, '\n')) {
                         if (link_name[0]) {
                            r->rsprintf("<td class=\"ODBkey\">");
-                           r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"ODBvalue\">", keyname, link_ref, link_name);
+                           r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"ODBvalue\">", keyname, link_ref.c_str(), link_name);
                         } else
                            r->rsprintf("<td class=\"ODBkey\">%s<td class=\"%s\">", keyname, style);
                         r->rsprintf("\n<pre>");
@@ -8872,16 +8909,16 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                         if (strlen(data) > strlen(data_str))
                            r->rsprintf("<i>... (%d bytes total)<p>\n", (int)strlen(data));
 
-                        r->rsprintf("<a href=\"%s\">Edit</a>\n", ref);
+                        r->rsprintf("<a href=\"%s\">Edit</a>\n", ref.c_str());
                      } else {
                         if (link_name[0]) {
                            r->rsprintf("<td class=\"ODBkey\">\n");
-                           r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"%s\">", keyname, link_ref, link_name, style);
+                           r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"%s\">", keyname, link_ref.c_str(), link_name, style);
                            if (!write_access)
                               strencode(r, data_str);
                            else {
-                              r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref, odb_path);
-                              r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">", odb_path);
+                              r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref.c_str(), odb_path.c_str());
+                              r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">", odb_path.c_str());
                               strencode(r, data_str);
                               r->rsprintf("</a>\n");
                            }
@@ -8890,8 +8927,8 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                            if (!write_access) {
                               strencode(r, data_str);
                            } else {
-                              r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref, odb_path);
-                              r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">", odb_path);
+                              r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref.c_str(), odb_path.c_str());
+                              r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">", odb_path.c_str());
                               strencode(r, data_str);
                               r->rsprintf("</a>\n");
                            }
@@ -8948,7 +8985,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                      /* display first value */
                      if (link_name[0])
                         r->rsprintf("<tr><td class=\"ODBkey\" rowspan=%d>%s<br><i>&rarr; <a href=\"%s\">%s</a></i>\n",
-                                 key.num_values, keyname, link_ref, link_name);
+                                    key.num_values, keyname, link_ref.c_str(), link_name);
                      else
                         r->rsprintf("<tr><td class=\"ODBkey\" rowspan=%d>%s\n",
                                  key.num_values, keyname);
@@ -8979,18 +9016,29 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                            hex_str[0] = 0;
                         }
 
-                        sprintf(ref, "?cmd=Set&odb_path=%s&index=%d", full_path, j);
-                        sprintf(str, "%s[%d]", odb_path, j);
+                        //sprintf(ref, "?cmd=Set&odb_path=%s&index=%d", full_path, j);
+                        ref = "";
+                        ref += "?cmd=Set&odb_path=";
+                        ref += full_path;
+                        ref += "&index=";
+                        ref += toString(j);
+
+                        std::string tmpstr;
+                        //sprintf(str, "%s[%d]", odb_path, j);
+                        tmpstr += odb_path;
+                        tmpstr += "[";
+                        tmpstr += toString(i);
+                        tmpstr += "]";
 
                         if (j > 0)
                            r->rsprintf("<tr>");
 
                         r->rsprintf("<td class=\"%s\">[%d]&nbsp;", style, j);
                         if (!write_access)
-                           r->rsprintf("<a href=\"%s\">", ref);
+                           r->rsprintf("<a href=\"%s\">", ref.c_str());
                         else {
-                           r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref, str);
-                           r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">", str);
+                           r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref.c_str(), tmpstr.c_str());
+                           r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">", tmpstr.c_str());
                         }
                         if (strcmp(data_str, hex_str) != 0 && hex_str[0])
                            r->rsprintf("%s (%s)</a>\n", data_str, hex_str);
@@ -10302,7 +10350,7 @@ void generate_hist_graph(Return* rr, const char *hgroup, const char *hpanel, cha
    //int black, ltgrey, green, blue;
    int fgcol, bgcol, gridcol;
    int curve_col[MAX_VARS], state_col[3];
-   char str[256], *p, odbpath[256];
+   char str[256], *p;
    INT var_index[MAX_VARS];
    char event_name[MAX_VARS][NAME_LENGTH];
    char tag_name[MAX_VARS][64], var_name[MAX_VARS][NAME_LENGTH], varname[64], key_name[256];
@@ -10542,7 +10590,7 @@ void generate_hist_graph(Return* rr, const char *hgroup, const char *hpanel, cha
       db_get_value(hDB, hkeypanel, "Show run markers", &runmarker, &size, TID_BOOL, TRUE);
 
       /* make ODB path from tag name */
-      odbpath[0] = 0;
+      std::string odbpath;
       db_find_key(hDB, 0, "/Equipment", &hkeyroot);
       if (hkeyroot) {
          for (j = 0;; j++) {
@@ -10557,7 +10605,12 @@ void generate_hist_graph(Return* rr, const char *hgroup, const char *hpanel, cha
                sprintf(str, "Variables/%s", var_name[i]);
                db_find_key(hDB, hkeyeq, str, &hkey);
                if (hkey) {
-                  sprintf(odbpath, "/Equipment/%s/Variables/%s", event_name[i], var_name[i]);
+                  //sprintf(odbpath, "/Equipment/%s/Variables/%s", event_name[i], var_name[i]);
+                  odbpath = "";
+                  odbpath += "/Equipment/";
+                  odbpath += event_name[i];
+                  odbpath += "/Variables/";
+                  odbpath += var_name[i];
                   break;
                }
 
@@ -10579,7 +10632,15 @@ void generate_hist_graph(Return* rr, const char *hgroup, const char *hpanel, cha
                      size = sizeof(str);
                      db_get_data_index(hDB, hkeynames, str, &size, k, TID_STRING);
                      if (equal_ustring(str, varname)) {
-                        sprintf(odbpath, "/Equipment/%s/Variables/%s[%d]", event_name[i], key_name, k);
+                        //sprintf(odbpath, "/Equipment/%s/Variables/%s[%d]", event_name[i], key_name, k);
+                        odbpath = "";
+                        odbpath += "/Equipment/";
+                        odbpath += event_name[i];
+                        odbpath += "/Variables/";
+                        odbpath += key_name;
+                        odbpath += "[";
+                        odbpath += toString(k);
+                        odbpath += "]";
                         break;
                      }
                   }
@@ -10598,16 +10659,28 @@ void generate_hist_graph(Return* rr, const char *hgroup, const char *hpanel, cha
 
                         /* find key in key_name array */
                         strlcpy(key_name, key.name, sizeof(key_name));
-                        sprintf(str, "Settings/Names %s", key_name);
 
-                        db_find_key(hDB, hkeyeq, str, &hkeynames);
+                        std::string path;
+                        //sprintf(str, "Settings/Names %s", key_name);
+                        path += "Settings/Names ";
+                        path += key_name;
+
+                        db_find_key(hDB, hkeyeq, path.c_str(), &hkeynames);
                         if (hkeynames) {
                            db_get_key(hDB, hkeynames, &key);
                            for (l = 0; l < key.num_values; l++) {
                               size = sizeof(str);
                               db_get_data_index(hDB, hkeynames, str, &size, l, TID_STRING);
                               if (equal_ustring(str, var_name[i])) {
-                                 sprintf(odbpath, "/Equipment/%s/Variables/%s[%d]", event_name[i], key_name, l);
+                                 //sprintf(odbpath, "/Equipment/%s/Variables/%s[%d]", event_name[i], key_name, l);
+                                 odbpath = "";
+                                 odbpath += "/Equipment/";
+                                 odbpath += event_name[i];
+                                 odbpath += "/Variables/";
+                                 odbpath += key_name;
+                                 odbpath += "[";
+                                 odbpath += toString(l);
+                                 odbpath += "]";
                                  break;
                               }
                            }
@@ -10635,9 +10708,14 @@ void generate_hist_graph(Return* rr, const char *hgroup, const char *hpanel, cha
                      db_find_key(hDB, hkey, var_name[i], &hkey);
                      if (hkey) {
                         db_get_key(hDB, hkey, &key);
-                        db_get_path(hDB, hkey, odbpath, sizeof(odbpath));
-                        if (key.num_values > 1)
-                           sprintf(odbpath + strlen(odbpath), "[%d]", var_index[i]);
+                        char xodbpath[MAX_ODB_PATH];
+                        db_get_path(hDB, hkey, xodbpath, sizeof(xodbpath));
+                        odbpath = xodbpath;
+                        if (key.num_values > 1) {
+                           odbpath += "[";
+                           odbpath += toString(var_index[i]);
+                           odbpath += "]";
+                        }
                         break;
                      }
                   }
@@ -10649,7 +10727,7 @@ void generate_hist_graph(Return* rr, const char *hgroup, const char *hpanel, cha
       /* search alarm limits */
       upper_limit[i] = lower_limit[i] = -12345;
       db_find_key(hDB, 0, "Alarms/Alarms", &hkeyroot);
-      if (odbpath[0] && hkeyroot) {
+      if (odbpath.length() > 0 && hkeyroot) {
          for (j = 0;; j++) {
             db_enum_key(hDB, hkeyroot, j, &hkey);
 
@@ -10659,7 +10737,7 @@ void generate_hist_graph(Return* rr, const char *hgroup, const char *hpanel, cha
             size = sizeof(str);
             db_get_value(hDB, hkey, "Condition", str, &size, TID_STRING, TRUE);
 
-            if (strstr(str, odbpath)) {
+            if (strstr(str, odbpath.c_str())) {
                if (strchr(str, '<')) {
                   p = strchr(str, '<') + 1;
                   if (*p == '=')
@@ -12783,9 +12861,13 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       strlcpy(hcmd, p->getparam("hcmd"), sizeof(hcmd));
 
    if (equal_ustring(hcmd, "Reset")) {
-      char str[MAX_STRING_LENGTH];
-      sprintf(str, "?cmd=history&group=%s&panel=%s", hgroup, hpanel);
-      redirect(r, str);
+      std::string redir;
+      //sprintf(str, "?cmd=history&group=%s&panel=%s", hgroup, hpanel);
+      redir += "?cmd=history&group=";
+      redir += hgroup;
+      redir += "&panel=";
+      redir += hpanel;
+      redirect(r, redir.c_str());
       return;
    }
 
@@ -12795,9 +12877,13 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
    }
 
    if (equal_ustring(hcmd, "Cancel")) {
-      char str[MAX_STRING_LENGTH];
-      sprintf(str, "?cmd=history&group=%s&panel=%s", hgroup, hpanel);
-      redirect(r, str);
+      std::string redir;
+      //sprintf(str, "?cmd=history&group=%s&panel=%s", hgroup, hpanel);
+      redir += "?cmd=history&group=";
+      redir += hgroup;
+      redir += "&panel=";
+      redir += hpanel;
+      redirect(r, redir.c_str());
       return;
    }
 
@@ -12863,9 +12949,13 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
    }
 
    if (equal_ustring(hcmd, "Delete Panel")) {
-      char str[MAX_ODB_PATH];
-      sprintf(str, "/History/Display/%s/%s", hgroup, hpanel);
-      if (db_find_key(hDB, 0, str, &hkey)==DB_SUCCESS)
+      std::string path;
+      //sprintf(str, "/History/Display/%s/%s", hgroup, hpanel);
+      path += "/History/Display/";
+      path += hgroup;
+      path += "/";
+      path += hpanel;
+      if (db_find_key(hDB, 0, path.c_str(), &hkey)==DB_SUCCESS)
          db_delete_key(hDB, hkey, FALSE);
 
       redirect(r, "?cmd=History");
@@ -12887,14 +12977,18 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       if (p->isparam("new_group") && *p->getparam("new_group"))
          strlcpy(hgroup, p->getparam("new_group"), sizeof(hgroup));
 
-      char str[MAX_ODB_PATH];
 
       /* create new panel */
-      sprintf(str, "/History/Display/%s/%s", hgroup, hpanel); // FIXME: overflow str
-      db_create_key(hDB, 0, str, TID_KEY);
-      status = db_find_key(hDB, 0, str, &hkey);
+      std::string path;
+      //sprintf(str, "/History/Display/%s/%s", hgroup, hpanel); // FIXME: overflow str
+      path += "/History/Display/";
+      path += hgroup;
+      path += "/";
+      path += hpanel;
+      db_create_key(hDB, 0, path.c_str(), TID_KEY);
+      status = db_find_key(hDB, 0, path.c_str(), &hkey);
       if (status != DB_SUCCESS || !hkey) {
-         cm_msg(MERROR, "show_hist_page", "Cannot create history panel with invalid ODB path \"%s\"", str);
+         cm_msg(MERROR, "show_hist_page", "Cannot create history panel with invalid ODB path \"%s\"", path.c_str());
          return;
       }
       db_set_value(hDB, hkey, "Timescale", "1h", NAME_LENGTH, 1, TID_STRING);
@@ -13169,10 +13263,14 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
    r->rsprintf("<tr><th class=\"mtableheader\" colspan=2>History</th></tr>");
 
    {
-      char str[MAX_ODB_PATH];
       /* check if panel exists */
-      sprintf(str, "/History/Display/%s/%s", hgroup, hpanel);
-      status = db_find_key(hDB, 0, str, &hkey);
+      std::string path;
+      //sprintf(str, "/History/Display/%s/%s", hgroup, hpanel);
+      path += "/History/Display/";
+      path += hgroup;
+      path += "/";
+      path += hpanel;
+      status = db_find_key(hDB, 0, path.c_str(), &hkey);
       if (status != DB_SUCCESS && !equal_ustring(hpanel, "All") && !equal_ustring(hpanel,"")) {
          r->rsprintf("<h1>Error: History panel \"%s\" in group \"%s\" does not exist</h1>\n", hpanel, hgroup);
          r->rsprintf("</table>\r\n");
@@ -13189,19 +13287,24 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
    else {
       /* if no scale and offset given, get it from default */
       if (hpanel[0] && !equal_ustring(hpanel, "All") && hgroup[0]) {
-         char str[MAX_ODB_PATH];
-         sprintf(str, "/History/Display/%s/%s/Timescale", hgroup, hpanel); // FIXME: overflows str
+         std::string path;
+         //sprintf(str, "/History/Display/%s/%s/Timescale", hgroup, hpanel); // FIXME: overflows str
+         path += "/History/Display/";
+         path += hgroup;
+         path += "/";
+         path += hpanel;
+         path += "/Timescale";
 
          std::string scalestr = "1h";
-         status = db_get_value_string(hDB, 0, str, 0, &scalestr, TRUE);
+         status = db_get_value_string(hDB, 0, path.c_str(), 0, &scalestr, TRUE);
          if (status != DB_SUCCESS) {
             /* delete old integer key */
-            db_find_key(hDB, 0, str, &hkey);
+            db_find_key(hDB, 0, path.c_str(), &hkey);
             if (hkey)
                db_delete_key(hDB, hkey, FALSE);
 
             scalestr = "1h";
-            db_get_value_string(hDB, 0, str, 0, &scalestr, TRUE);
+            db_get_value_string(hDB, 0, path.c_str(), 0, &scalestr, TRUE);
          }
 
          r->rsprintf("<input type=hidden name=hscale id=hscale value=%s>\n", scalestr.c_str());
@@ -13404,9 +13507,11 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       std::string strwidth = "Small";
       db_get_value_string(hDB, 0, "/History/Display Settings/Width Group", 0, &strwidth, TRUE);
 
-      char str[MAX_ODB_PATH];
-      sprintf(str, "/History/Display/%s", hgroup); // FIXME: overflows str
-      db_find_key(hDB, 0, str, &hkey);
+      std::string path;
+      //sprintf(str, "/History/Display/%s", hgroup); // FIXME: overflows str
+      path += "/History/Display/";
+      path += hgroup;
+      db_find_key(hDB, 0, path.c_str(), &hkey);
       if (hkey) {
          for (i = 0 ;; i++) {     // scan group
             db_enum_link(hDB, hkey, i, &hikeyp);
@@ -13459,15 +13564,20 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       /* navigation links */
       r->rsprintf("<tr><td>\n");
 
-      char str[MAX_ODB_PATH];
-      sprintf(str, "/History/Display/%s/%s/Buttons", hgroup, hpanel); // FIXME: overflow str
-      db_find_key(hDB, 0, str, &hkeybutton);
+      std::string path;
+      //sprintf(str, "/History/Display/%s/%s/Buttons", hgroup, hpanel); // FIXME: overflow str
+      path += "/History/Display/";
+      path += hgroup;
+      path += "/";
+      path += hpanel;
+      path += "/Buttons";
+      db_find_key(hDB, 0, path.c_str(), &hkeybutton);
       if (hkeybutton == 0) {
          /* create default buttons */
-         db_create_key(hDB, 0, str, TID_STRING);
-         status = db_find_key(hDB, 0, str, &hkeybutton);
+         db_create_key(hDB, 0, path.c_str(), TID_STRING);
+         status = db_find_key(hDB, 0, path.c_str(), &hkeybutton);
          if (status != DB_SUCCESS || !hkey) {
-            cm_msg(MERROR, "show_hist_page", "Cannot create history panel with invalid ODB path \"%s\"", str);
+            cm_msg(MERROR, "show_hist_page", "Cannot create history panel with invalid ODB path \"%s\"", path.c_str());
             return;
          }
          db_set_data(hDB, hkeybutton, def_button, sizeof(def_button), 7, TID_STRING);
@@ -13492,6 +13602,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       db_get_key(hDB, hkeybutton, &key);
 
       for (i = 0; i < key.num_values; i++) {
+         char str[256];
          size = sizeof(str);
          db_get_data_index(hDB, hkeybutton, str, &size, i, TID_STRING);
          r->rsprintf("<input type=\"button\" title=\"display last %s\" value=%s onclick=\"histDisp('scale=%s')\">\n", str, str, str);
@@ -13537,21 +13648,37 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       r->rsprintf("<map name=\"%s\">\r\n", hpanel);
 
       if (!(pindex && *pindex)) {
-         char str[MAX_ODB_PATH];
-         sprintf(str, "/History/Display/%s/%s/Variables", hgroup, hpanel); // FIXME: overflows str
-         db_find_key(hDB, 0, str, &hkey);
+         std::string path;
+         //sprintf(str, "/History/Display/%s/%s/Variables", hgroup, hpanel); // FIXME: overflows str
+         path += "/History/Display/";
+         path += hgroup;
+         path += "/";
+         path += hpanel;
+         path += "/Variables";
+         db_find_key(hDB, 0, path.c_str(), &hkey);
          if (hkey) {
             db_get_key(hDB, hkey, &key);
 
             for (i = 0; i < key.num_values; i++) {
-               char ref[256];
-               if (paramstr[0])
-                  sprintf(ref, "?cmd=history&group=%s&panel=%s&%s&index=%d", hgroup, hpanel, paramstr, i);
-               else
-                  sprintf(ref, "?cmd=history&group=%s&panel=%s&index=%d", hgroup, hpanel, i);
+               std::string ref;
+               //if (paramstr[0]) {
+               //   sprintf(ref, "?cmd=history&group=%s&panel=%s&%s&index=%d", hgroup, hpanel, paramstr, i);
+               //} else {
+               //   sprintf(ref, "?cmd=history&group=%s&panel=%s&index=%d", hgroup, hpanel, i);
+               //}
 
-               r->rsprintf("  <area shape=rect coords=\"%d,%d,%d,%d\" href=\"%s\">\r\n",
-                        30, 31 + 23 * i, 150, 30 + 23 * i + 17, ref);
+               ref += "?cmd=history&group=";
+               ref += hgroup;
+               ref += "&panel=";
+               ref += hpanel;
+               if (paramstr[0]) {
+                  ref += "&";
+                  ref += paramstr;
+               }
+               ref += "&index=";
+               ref += toString(i);
+
+               r->rsprintf("  <area shape=rect coords=\"%d,%d,%d,%d\" href=\"%s\">\r\n", 30, 31 + 23 * i, 150, 30 + 23 * i + 17, ref.c_str());
             }
          }
       } else {
@@ -13583,11 +13710,16 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       if (pindex && *pindex)
          sprintf(paramstr + strlen(paramstr), "&index=%s", pindex);
 
-      char ref[256];
-      sprintf(ref, "graph.gif?cmd=history&group=%s&panel=%s%s", hgroup, hpanel, paramstr);
+      std::string ref;
+      //sprintf(ref, "graph.gif?cmd=history&group=%s&panel=%s%s", hgroup, hpanel, paramstr);
+      ref += "graph.gif?cmd=history&group=";
+      ref += hgroup;
+      ref += "&panel=";
+      ref += hgroup;
+      ref += paramstr;
 
       /* put reference to graph */
-      r->rsprintf("<tr><td colspan=2><img src=\"%s\" usemap=\"#%s\"></tr>\n", ref, hpanel);
+      r->rsprintf("<tr><td colspan=2><img src=\"%s\" usemap=\"#%s\"></tr>\n", ref.c_str(), hpanel);
    }
 
    else if (equal_ustring(hgroup, "All")) {
@@ -14501,7 +14633,7 @@ void show_seq_page(Param* p, Return* r)
 {
    INT i, size, status, n,  width, eob, last_line, error_line, sectionEmpty;
    HNDLE hDB;
-   char str[256], path[256], dir[256], error[256], comment[256], data[256], buffer[10000], line[256], name[32];
+   char str[256], path[256], dir[256], error[256], data[256], buffer[10000], line[256], name[32];
    time_t now;
    char *flist = NULL, *pc, *pline, *buf;
    PMXML_NODE pn;
@@ -15060,6 +15192,8 @@ void show_seq_page(Param* p, Return* r)
       /*---- go over MSL files in sequencer directory ----*/
       n = ss_file_find(path, (char *)"*.msl", &flist);
       for (int i=0 ; i<n ; i++) {
+         char comment[512];
+         comment[0] = 0;
          strlcpy(str, path, sizeof(str));
          if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
             strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
@@ -15091,8 +15225,9 @@ void show_seq_page(Param* p, Return* r)
                mxml_free_tree(pnseq);
                pnseq = NULL;
             }
-         } else
+         } else {
             sprintf(comment, "Error in MSL: %s", error);
+         }
          
          strsubst(comment, sizeof(comment), "\"", "\\\'");
          r->rsprintf("<option onClick=\"document.getElementById('cmnt').innerHTML='%s'\"", comment);
