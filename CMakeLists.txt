@@ -226,7 +226,6 @@ set(libsrc
    src/mjsonrpc_user
    src/history
    src/history_common
-   src/history_midas
    src/history_odbc
    src/history_schema
    src/lz4

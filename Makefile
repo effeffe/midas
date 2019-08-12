@@ -475,11 +475,10 @@ OBJS = \
 	$(LIB_DIR)/mxmlodb.o \
 	$(LIB_DIR)/mjsonodb.o \
 	$(LIB_DIR)/history_common.o \
-	$(LIB_DIR)/history_midas.o \
 	$(LIB_DIR)/history_odbc.o \
 	$(LIB_DIR)/history_schema.o \
-	$(LIB_DIR)/lz4.o $(LIB_DIR)/lz4frame.o $(LIB_DIR)/lz4hc.o $(LIB_DIR)/xxhash.o \
 	$(LIB_DIR)/history.o \
+	$(LIB_DIR)/lz4.o $(LIB_DIR)/lz4frame.o $(LIB_DIR)/lz4hc.o $(LIB_DIR)/xxhash.o \
 	$(LIB_DIR)/alarm.o \
 	$(LIB_DIR)/elog.o
 
