@@ -10,6 +10,9 @@
 
 \********************************************************************/
 
+#ifndef _MSYSTEM_H
+#define _MSYSTEM_H
+
 /**dox***************************************************************/
 /** @file msystem.h
 The Midas System include file
@@ -684,6 +687,8 @@ typedef struct {
 /*---- Include RPC identifiers -------------------------------------*/
 
 #include "mrpc.h"
+
+#endif /* _MSYSTEM_H */
 
 /* emacs
  * Local Variables:
