@@ -2387,9 +2387,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          } else {
             /* get present run number */
             old_run_number = 0;
-            status =
-                db_get_value(hDB, 0, "/Runinfo/Run number", &old_run_number, &size,
-                             TID_INT, TRUE);
+            status = db_get_value(hDB, 0, "/Runinfo/Run number", &old_run_number, &size, TID_INT, TRUE);
             assert(status == SUCCESS);
             assert(old_run_number >= 0);
 
@@ -2409,9 +2407,9 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                            break;
 
                         db_get_key(hDB, hSubkey, &key);
-                        strcpy(str, key.name);
+                        std::string str = key.name;
 
-                        if (equal_ustring(str, "Edit run number"))
+                        if (equal_ustring(str.c_str(), "Edit run number"))
                            continue;
 
                         db_enum_key(hDB, hKey, i, &hSubkey);
@@ -2429,11 +2427,19 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
                         for (int j = 0; j < key.num_values; j++) {
                            db_sprintf(data_str, buf, key.item_size, j, key.type);
-                           sprintf(prompt, "%s : ", str);
+                           char xprompt[256];
+                           strlcpy(xprompt, str.c_str(), sizeof(xprompt));
+                           if (key.num_values == 1) {
+                              strlcat(xprompt, " : ", sizeof(xprompt));
+                           } else {
+                              char tmp[256];
+                              sprintf(tmp, "[%d] : ", j);
+                              strlcat(xprompt, tmp, sizeof(xprompt));
+                           }
 
                            strcpy(line, data_str);
                            in_cmd_edit = TRUE;
-                           cmd_edit(prompt, line, NULL, cmd_idle);
+                           cmd_edit(xprompt, line, NULL, cmd_idle);
                            in_cmd_edit = FALSE;
 
                            if (line[0]) {
