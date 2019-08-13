@@ -37,6 +37,7 @@
          if (baseURL.search("&group") > 0)
             baseURL = baseURL.substr(0, baseURL.search("&group"));
 
+         // show history panel selector
          if (curGroup === "undefined") {
             // create selector table
             let d = document.getElementById("hist");
@@ -46,7 +47,7 @@
                "    <tr><th colspan=\"2\" class=\"mtableheader\">History</th></tr>\n" +
                "    <tr><td colspan=2><input type=\"button\" name=\"New\" value=\"New\" onClick=\"window.location.href='?cmd=history&hcmd=New'\"></td></tr>\n" +
                "    <tr><td colspan=2 style=\"text-align:center;\"><b>Please select panel:</b></td></tr>\n" +
-               "    <tr><td colspan=2 class=\"titleCell\"><a href=\"?cmd=history&group=All\">ALL</a>\n</td></tr>\n";
+               "    <tr><td colspan=2 class=\"titleCell\"><a href=\"" + baseURL + "&group=All\">ALL</a>\n</td></tr>\n";
 
 
             Object.keys(historyDisplay).forEach(group => {
@@ -73,6 +74,7 @@
 
          let d = document.getElementById("hist");
 
+         // drop-down panel selector
          d.innerHTML =
             "<table class=\"mtable\" id=\"overallTable\">\n" +
             "   <tr><th class=\"mtableheader\">History</th></tr>\n" +
@@ -89,21 +91,13 @@
             "   </td></tr>\n" +
             "</table>\n";
 
-         if (curGroup === "undefined")
-            curGroup = Object.keys(historyDisplay)[0];
-         if (curPanel === "undefined")
-            curPanel = Object.keys(historyDisplay[curGroup])[0];
-
-         // create history object
-         mhistory_create(document.getElementById("histPanel"), curGroup, curPanel);
-
          // populate group selector
          let sgroup = document.getElementById("sgroup");
          Object.keys(historyDisplay).forEach(key => {
             let o = document.createElement("option");
             o.text = key;
             sgroup.add(o);
-            if (curGroup === key)
+            if (curGroup !== undefined && curGroup === key)
                o.selected = true;
          });
          let o = document.createElement("option");
@@ -114,20 +108,24 @@
             o.selected = true;
 
          // populate panel selector
+         if (curPanel === "undefined" && curGroup !== "All")
+            curPanel = curPanel = Object.keys(historyDisplay[curGroup])[0];
          let spanel = document.getElementById("spanel");
-         Object.keys(historyDisplay[curGroup]).forEach(key => {
-            let o = document.createElement("option");
-            o.text = key;
+         if (curGroup !== "undefined" && curGroup !== "All") {
+            Object.keys(historyDisplay[curGroup]).forEach(key => {
+               let o = document.createElement("option");
+               o.text = key;
+               spanel.add(o);
+               if (curPanel !== undefined && curPanel === key)
+                  o.selected = true;
+            });
+            o = document.createElement("option");
+            o.text = "- All -";
+            o.value = "All";
             spanel.add(o);
-            if (curPanel === key)
+            if (curPanel === "All")
                o.selected = true;
-         });
-         o = document.createElement("option");
-         o.text = "- All -";
-         o.value = "All";
-         spanel.add(o);
-         if (curPanel === "All")
-            o.selected = true;
+         }
 
          // add listener to group selector
          document.getElementById("sgroup").addEventListener("change", function () {
@@ -141,9 +139,44 @@
                "&panel=" + document.getElementById("spanel").value;
          });
 
+         if (curGroup === "All") {
+            let table = document.createElement("table");
+            let tr;
+            let nPanel = 0;
+
+            Object.keys(historyDisplay).forEach(group => {
+
+               Object.keys(historyDisplay[group]).forEach(panel => {
+                  if ((nPanel++) % 2 === 0) // put two panels in one row
+                     tr = table.insertRow();
+                  let td = tr.insertCell();
+                  mhistory_create(td, baseURL, group, panel);
+               });
+            });
+
+            document.getElementById("histPanel").appendChild(table);
+
+         } else if (curPanel === "All") {
+            let table = document.createElement("table");
+            let tr;
+            let nPanel = 0;
+
+            Object.keys(historyDisplay[curGroup]).forEach(panel => {
+               if (nPanel++ % 2 === 0) // put two panels in one row
+                  tr = table.insertRow();
+               let td = tr.insertCell();
+               mhistory_create(td, baseURL, curGroup, panel);
+            });
+
+            document.getElementById("histPanel").appendChild(table);
+
+         } else {
+            // create single history object
+            mhistory_create(document.getElementById("histPanel"), baseURL, curGroup, curPanel);
+         }
+
          window.addEventListener("resize", windowResize);
          windowResize();
-
 
       }).catch(function (error) {
          mjsonrpc_error_alert(error);
@@ -153,9 +186,22 @@
    function windowResize() {
       let m = document.getElementById("mmain");
       let d = document.getElementById("histPanel").childNodes[0];
-      d.style.width = document.documentElement.clientWidth - parseInt(m.style.marginLeft) - 30 + "px";
-      d.style.height = document.documentElement.clientHeight - d.getBoundingClientRect().top - 20 + "px";
-      d.mhg.resize();
+      if (d.tagName === "TABLE") {
+         let width = document.documentElement.clientWidth - parseInt(m.style.marginLeft) - 30;
+         d.style.width = width + "px";
+         let tds = [...d.getElementsByTagName("td")];
+         tds.forEach(td => {
+            td.style.width = Math.floor(width / 2) + "px";
+            td.style.height = Math.floor(width / 2 / 3 * 2) + "px";
+            td.childNodes[0].style.width = td.style.width;
+            td.childNodes[0].style.height = td.style.height;
+            td.childNodes[0].mhg.resize();
+         });
+      } else {
+         d.style.width = document.documentElement.clientWidth - parseInt(m.style.marginLeft) - 30 + "px";
+         d.style.height = document.documentElement.clientHeight - d.getBoundingClientRect().top - 20 + "px";
+         d.mhg.resize();
+      }
    }
 
 </script>
