@@ -17,6 +17,24 @@
 #include "strlcpy.h"
 #endif
 #include <assert.h>
+#include <math.h> // sqrt()
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+
+#include <map>
+
+#include "midas.h"
+#include "msystem.h"
+#include "history.h"
+
+#ifndef HAVE_STRLCPY
+#include "strlcpy.h"
+#endif
+
+#define STRLCPY(dst, src) strlcpy(dst, src, sizeof(dst))
 
 /** @defgroup hsfunctioncode Midas History Functions (hs_xxx)
  */
@@ -1407,8 +1425,38 @@ static INT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH]
    return HS_SUCCESS;
 }
 
+double hs_to_double(int tid, const void* ybuffer)
+{
+   int j = 0;
+   /* convert data to float */
+   switch (tid) {
+   default:
+      return 0;
+   case TID_BYTE:
+      return *(((BYTE *) ybuffer) + j);
+   case TID_SBYTE:
+      return *(((char *) ybuffer) + j);
+   case TID_CHAR:
+      return *(((char *) ybuffer) + j);
+   case TID_WORD:
+      return *(((WORD *) ybuffer) + j);
+   case TID_SHORT:
+      return *(((short *) ybuffer) + j);
+   case TID_DWORD:
+      return *(((DWORD *) ybuffer) + j);
+   case TID_INT:
+      return *(((INT *) ybuffer) + j);
+   case TID_BOOL:
+      return *(((BOOL *) ybuffer) + j);
+   case TID_FLOAT:
+      return *(((float *) ybuffer) + j);
+   case TID_DOUBLE:
+      return *(((double *) ybuffer) + j);
+   }
+   /* NOT REACHED */
+}
 
-static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, const char *tag_name, DWORD var_index, DWORD * time_buffer, DWORD * tbsize, void *data_buffer, DWORD * dbsize, DWORD * type, DWORD * n)
+static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, const char *tag_name, DWORD var_index, DWORD * time_buffer, DWORD * tbsize, void *data_buffer, DWORD * dbsize, DWORD * data_type, DWORD * data_n, MidasHistoryBufferInterface* buffer)
 /********************************************************************\
 
   Routine: hs_read
@@ -1448,15 +1496,24 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
    DWORD prev_time, last_irec_time;
    int fh, fhd, fhi, cp = 0;
    std::string fn, fnd, fni;
-   INT i, delta, index = 0, status, cache_size;
+   int delta;
+   int status;
+   int cache_size;
    INDEX_RECORD irec, *pirec;
    HIST_RECORD rec, drec;
-   INT old_def_offset, var_size = 0, var_offset = 0;
+   INT old_def_offset;
    TAG *tag;
    char str[NAME_LENGTH];
    struct tm *tms;
    char *cache = NULL;
    time_t ltime;
+
+   int tag_index = -1;
+   int var_type = -1;
+   unsigned var_size = 0;
+   unsigned var_offset = 0;
+         
+   int ieof = 0;
 
    //printf("hs_read event %d, time %d:%d, tagname: \'%s\', varindex: %d\n", event_id, start_time, end_time, tag_name, var_index);
 
@@ -1466,7 +1523,8 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
    if (end_time == 0)
       end_time = (DWORD) time(NULL);
 
-   *n = 0;
+   if (data_n)
+      *data_n = 0;
    prev_time = 0;
    last_irec_time = start_time;
 
@@ -1474,7 +1532,12 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
    status = hs_search_file(&start_time, 1);
    if (status != HS_SUCCESS) {
       cm_msg(MERROR, "hs_read", "cannot find recent history file");
-      *tbsize = *dbsize = *n = 0;
+      if (data_n)
+         *data_n = 0;
+      if (tbsize)
+         *tbsize = 0;
+      if (dbsize)
+         *dbsize = 0;
       return HS_FILE_ERROR;
    }
 
@@ -1484,7 +1547,12 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
    hs_open_file(start_time, "idx", O_RDONLY, &fni, &fhi);
    if (fh < 0 || fhd < 0 || fhi < 0) {
       cm_msg(MERROR, "hs_read", "cannot open index files");
-      *tbsize = *dbsize = *n = 0;
+      if (tbsize)
+         *tbsize = 0;
+      if (dbsize)
+         *dbsize = 0;
+      if (data_n)
+         *data_n = 0;
       if (fh > 0)
          close(fh);
       if (fhd > 0)
@@ -1537,7 +1605,7 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
          if (irec.time > start_time)
             delta = -abs(delta);
 
-         i = xcurpos(fni, fhi) + (delta - 1) * sizeof(irec);
+         int i = xcurpos(fni, fhi) + (delta - 1) * sizeof(irec);
          if (i <= 0)
             xseek(fni, fhi, 0);
          else
@@ -1629,7 +1697,12 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
 
                tag = (TAG *) M_MALLOC(drec.data_size);
                if (tag == NULL) {
-                  *n = *tbsize = *dbsize = 0;
+                  if (data_n)
+                     *data_n = 0;
+                  if (tbsize)
+                     *tbsize = 0;
+                  if (dbsize)
+                     *dbsize = 0;
                   if (cache)
                      M_FREE(cache);
                   close(fh);
@@ -1640,10 +1713,9 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
                xread(fn, fh, (char *) tag, drec.data_size);
 
                /* find index of tag_name in new definition */
-               index = -1;
-               for (i = 0; (DWORD) i < drec.data_size / sizeof(TAG); i++)
+               for (DWORD i = 0; i < drec.data_size / sizeof(TAG); i++)
                   if (equal_ustring(tag[i].name, tag_name)) {
-                     index = i;
+                     tag_index = i;
                      break;
                   }
 
@@ -1658,8 +1730,13 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
                   }
                 */
 
-               if (index >= 0 && var_index >= tag[i].n_data) {
-                  *n = *tbsize = *dbsize = 0;
+               if (tag_index >= 0 && var_index >= tag[tag_index].n_data) {
+                  if (data_n)
+                     *data_n = 0;
+                  if (tbsize)
+                     *tbsize = 0;
+                  if (dbsize)
+                     *dbsize = 0;
                   if (cache)
                      M_FREE(cache);
                   M_FREE(tag);
@@ -1670,18 +1747,22 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
                }
 
                /* calculate offset for variable */
-               if (index >= 0) {
-                  *type = tag[i].type;
+               if (tag_index >= 0) {
+                  var_type = tag[tag_index].type;
+
+                  if (data_type)
+                     *data_type = var_type;
 
                   /* loop over all previous variables */
-                  for (i = 0, var_offset = 0; i < index; i++)
+                  var_offset = 0;
+                  for (int i=0; i<tag_index; i++)
                      var_offset += rpc_tid_size(tag[i].type) * tag[i].n_data;
 
                   /* strings have size n_data */
-                  if (tag[index].type == TID_STRING)
-                     var_size = tag[i].n_data;
+                  if (tag[tag_index].type == TID_STRING)
+                     var_size = tag[tag_index].n_data;
                   else
-                     var_size = rpc_tid_size(tag[index].type);
+                     var_size = rpc_tid_size(tag[tag_index].type);
 
                   var_offset += var_size * var_index;
                }
@@ -1691,11 +1772,19 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
                xseek(fn, fh, irec.offset + sizeof(rec));
             }
 
-            if (index >= 0) {
+            if (buffer) {
+               /* copy time from header */
+               DWORD t = irec.time;
+               char buf[16]; // biggest data is 8-byte "double"
+               assert(var_size <= sizeof(buf));
+               xseek_cur(fn, fh, var_offset);
+               xread(fn, fh, buf, var_size);
+               buffer->Add(t, hs_to_double(var_type, buf));
+            } else if (tag_index >= 0 && data_n) {
                /* check if data fits in buffers */
-               if ((*n) * sizeof(DWORD) >= *tbsize || (*n) * var_size >= *dbsize) {
-                  *dbsize = (*n) * var_size;
-                  *tbsize = (*n) * sizeof(DWORD);
+               if ((*data_n) * sizeof(DWORD) >= *tbsize || (*data_n) * var_size >= *dbsize) {
+                  *dbsize = (*data_n) * var_size;
+                  *tbsize = (*data_n) * sizeof(DWORD);
                   if (cache)
                      M_FREE(cache);
                   close(fh);
@@ -1705,29 +1794,29 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
                }
 
                /* copy time from header */
-               time_buffer[*n] = irec.time;
+               time_buffer[*data_n] = irec.time;
 
                /* copy data from record */
                xseek_cur(fn, fh, var_offset);
-               xread(fn, fh, (char *) data_buffer + (*n) * var_size, var_size);
+               xread(fn, fh, (char *) data_buffer + (*data_n) * var_size, var_size);
 
                /* increment counter */
-               (*n)++;
+               (*data_n)++;
             }
          }
       }
-
+         
       /* read next index record */
       if (cache) {
          if (cp >= cache_size) {
-            i = -1;
+            ieof = -1;
             M_FREE(cache);
             cache = NULL;
          } else {
 
           try_again:
 
-            i = sizeof(irec);
+            ieof = sizeof(irec);
 
             memcpy(&irec, cache + cp, sizeof(irec));
             cp += sizeof(irec);
@@ -1749,15 +1838,15 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
                   cp++;
                }
 
-               i = -1;
+               ieof = -1;
             }
          }
       } else {
-         i = xread(fni, fhi, (char *) &irec, sizeof(irec), true);
+         ieof = xread(fni, fhi, (char *) &irec, sizeof(irec), true);
       }
 
       /* end of file: search next history file */
-      if (i <= 0) {
+      if (ieof <= 0) {
          close(fh);
          close(fhd);
          close(fhi);
@@ -1812,9 +1901,6 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
             if (xread(fni, fhi, (char *) &irec, sizeof(irec)) < 0) {
                break;
             }
-            if (i <= 0)
-               break;
-            assert(i == sizeof(irec));
          }
 
          /* old definition becomes invalid */
@@ -1833,8 +1919,10 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
    if (fhi)
       close(fhi);
 
-   *dbsize = *n * var_size;
-   *tbsize = *n * sizeof(DWORD);
+   if (dbsize && data_n)
+      *dbsize = *data_n * var_size;
+   if (tbsize && data_n)
+      *tbsize = *data_n * sizeof(DWORD);
 
    return HS_SUCCESS;
 }
@@ -2067,37 +2155,6 @@ static INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
-/**dox***************************************************************/
-         /** @} *//* end of hsfunctioncode */
-
-/**dox***************************************************************/
-
-/********************************************************************\
-
-  Name:         history_midas.cxx
-  Created by:   Konstantin Olchanski
-
-  Contents:     Interface class for traditional MIDAS history
-
-\********************************************************************/
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-
-#include <map>
-
-#include "midas.h"
-#include "msystem.h"
-#include "history.h"
-
-#ifndef HAVE_STRLCPY
-#include "strlcpy.h"
-#endif
-
-#define STRLCPY(dst, src) strlcpy(dst, src, sizeof(dst))
-
 #if 0
 char* sort_names(char* names)
 {
@@ -2140,6 +2197,100 @@ char* sort_names(char* names)
    return sorted.names;
 }
 #endif
+
+/*------------------------------------------------------------------*/
+
+#define AMALLOC(num_bins) (double*)malloc(sizeof(double)*(num_bins))
+#define AFREE(var) if (var) free(var); (var) = NULL;
+
+class BinnedBuffer: public MidasHistoryBufferInterface
+{
+public:
+   double start_time = 0;
+   double end_time = 0;
+   int num_bins = 0;
+
+public:
+   double bin_size = 0;
+   int* count = NULL;
+   double* sum0 = NULL;
+   double* sum1 = NULL;
+   double* sum2 = NULL;
+   double* vmax = NULL;
+   double* vmin = NULL;
+
+   double* mean = NULL;
+   double* rms  = NULL;
+
+   time_t last_time = 0;
+   double last_value = 0;
+
+public:
+   void Init()
+   {
+      bin_size = (end_time - start_time)/num_bins;
+
+      count = (int*)malloc(sizeof(int)*num_bins);
+      sum0 = AMALLOC(num_bins);
+      sum1 = AMALLOC(num_bins);
+      sum2 = AMALLOC(num_bins);
+      vmax = AMALLOC(num_bins);
+      vmin = AMALLOC(num_bins);
+      mean = AMALLOC(num_bins);
+      rms = AMALLOC(num_bins);
+   }
+
+   void Finish()
+   {
+      for (int i=0; i<num_bins; i++) {
+         if (count[i] > 0) {
+            mean[i] = sum1[i]/sum0[i];
+            double var = sum2[i]/sum0[i] - mean[i]*mean[i];
+            if (var > 0)
+               rms[i] = sqrt(var);
+            else
+               rms[i] = 0;
+         } else {
+            mean[i] = 0;
+            rms[i] = 0;
+         }
+      }
+   }
+
+   ~BinnedBuffer() // dtor
+   {
+      AFREE(count);
+      AFREE(sum0);
+      AFREE(sum1);
+      AFREE(sum2);
+      AFREE(vmax);
+      AFREE(vmin);
+      
+      AFREE(mean);
+      AFREE(rms);
+   }
+
+public:
+   void Add(time_t t, double v)
+   {
+      int i = (t-start_time)/bin_size;
+      assert(i >= 0);
+      assert(i < num_bins);
+      if (count[i] == 0) {
+         vmin[i] = v;
+         vmax[i] = v;
+      }
+      count[i]++;
+      sum0[i] += 1;
+      sum1[i] += v;
+      sum2[i] += v*v;
+      if (v > vmax[i]) vmax[i] = v;
+      if (v < vmin[i]) vmin[i] = v;
+
+      last_time = t;
+      last_value = v;
+   }
+};
 
 /*------------------------------------------------------------------*/
 
@@ -3118,12 +3269,13 @@ public:
 
    /*------------------------------------------------------------------*/
 
+
    int hs_read(time_t start_time, time_t end_time, time_t interval,
                int num_var,
                const char* const event_name[], const char* const tag_name[], const int var_index[],
                int num_entries[],
                time_t* time_buffer[], double* data_buffer[],
-               int st[])
+               int read_status[])
    {
       DWORD* tbuffer = NULL;
       char* ybuffer = NULL;
@@ -3141,7 +3293,7 @@ public:
          int event_id = 0;
 
          if (event_name[i]==NULL) {
-            st[i] = HS_UNDEFINED_EVENT;
+            read_status[i] = HS_UNDEFINED_EVENT;
             num_entries[i] = 0;
             continue;
          }
@@ -3149,7 +3301,7 @@ public:
          int status = GetEventId(end_time, event_name[i], tag_name[i], &event_id);
          
          if (status != HS_SUCCESS) {
-            st[i] = status;
+            read_status[i] = status;
             continue;
          }
          
@@ -3159,10 +3311,11 @@ public:
             bsize = tsize = hbuffer_size;
             memset(ybuffer, 0, bsize);
             status = ::hs_read(event_id, (DWORD)start_time, (DWORD)end_time, (DWORD)interval,
-                               (char*)tag_name[i], var_index[i],
+                               tag_name[i], var_index[i],
                                tbuffer, &tsize,
                                ybuffer, &bsize,
-                               &tid, &n_point);
+                               &tid, &n_point,
+                               NULL);
          
             if (fDebug)
                printf("hs_read %d \'%s\' [%d] returned %d, %d entries\n", event_id, tag_name[i], var_index[i], status, n_point);
@@ -3177,7 +3330,7 @@ public:
 
          } while (status == HS_TRUNCATED);
         
-         st[i] = status;
+         read_status[i] = status;
 
          time_t* x = (time_t*)malloc(n_point*sizeof(time_t));
          assert(x);
@@ -3244,7 +3397,7 @@ public:
    }
 
    /*------------------------------------------------------------------*/
-
+#if 0
    int hs_read2(time_t start_time, time_t end_time, time_t interval,
                 int num_var,
                 const char* const event_name[], const char* const tag_name[], const int var_index[],
@@ -3273,13 +3426,43 @@ public:
       
       return status;
    }
+#endif
 
    int hs_read_buffer(time_t start_time, time_t end_time,
                       int num_var, const char* const event_name[], const char* const tag_name[], const int var_index[],
                       MidasHistoryBufferInterface* buffer[],
-                      int status[])
+                      int read_status[])
    {
-      return HS_FILE_ERROR;
+      for (int i=0; i<num_var; i++) {
+         int event_id = 0;
+
+         if (event_name[i]==NULL) {
+            read_status[i] = HS_UNDEFINED_EVENT;
+            continue;
+         }
+         
+         int status = GetEventId(end_time, event_name[i], tag_name[i], &event_id);
+         
+         if (status != HS_SUCCESS) {
+            read_status[i] = status;
+            continue;
+         }
+         
+         status = ::hs_read(event_id, (DWORD)start_time, (DWORD)end_time, 0,
+                            tag_name[i], var_index[i],
+                            NULL, NULL,
+                            NULL, NULL,
+                            NULL, NULL,
+                            buffer[i]);
+         
+         if (fDebug) {
+            printf("hs_read %d \'%s\' [%d] returned %d\n", event_id, tag_name[i], var_index[i], status);
+         }
+        
+         read_status[i] = status;
+      }
+
+      return HS_SUCCESS;
    }
    
    int hs_read_binned(time_t start_time, time_t end_time, int num_bins,
@@ -3287,9 +3470,64 @@ public:
                       int num_entries[],
                       int* count_bins[], double* mean_bins[], double* rms_bins[], double* min_bins[], double* max_bins[],
                       time_t last_time[], double last_value[],
-                      int status[])
+                      int read_status[])
    {
-      return HS_FILE_ERROR;
+      int status;
+
+      MidasHistoryBufferInterface** buffer = new MidasHistoryBufferInterface*[num_var];
+      BinnedBuffer** binnedbuffer = new BinnedBuffer*[num_var];
+
+      for (int i=0; i<num_var; i++) {
+         BinnedBuffer* b = new BinnedBuffer();
+         b->start_time = start_time;
+         b->end_time = end_time;
+         b->num_bins = num_bins;
+         b->Init();
+         buffer[i] = b;
+         binnedbuffer[i] = b;
+      }
+
+      status = hs_read_buffer(start_time, end_time,
+                              num_var, event_name, tag_name, var_index,
+                              buffer,
+                              read_status);
+
+      for (int i=0; i<num_var; i++) {
+         BinnedBuffer* b = binnedbuffer[i];
+         binnedbuffer[i] = NULL;
+         buffer[i] = NULL;
+         b->Finish();
+         if (count_bins) {
+            *count_bins = b->count;
+            b->count = NULL;
+         }
+         if (mean_bins) {
+            *mean_bins = b->mean;
+            b->mean = NULL;
+         }
+         if (rms_bins) {
+            *rms_bins = b->rms;
+            b->rms = NULL;
+         }
+         if (min_bins) {
+            *min_bins = b->vmin;
+            b->vmin = NULL;
+         }
+         if (max_bins) {
+            *max_bins = b->vmax;
+            b->vmax = NULL;
+         }
+         if (last_time)
+            last_time[i] = b->last_time;
+         if (last_value)
+            last_value[i] = b->last_value;
+         delete b;
+      }
+
+      delete[] buffer;
+      delete[] binnedbuffer;
+
+      return status;
    }
 
 }; // end class
