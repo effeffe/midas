@@ -790,8 +790,11 @@ MhistoryGraph.prototype.draw = function () {
       -4, -7, -10, -12, 0, this.yMin, this.yMax, 0, false);
 
    let variablesWidth = 0;
-   this.odb["Variables"].forEach(v => {
-      variablesWidth = Math.max(variablesWidth, ctx.measureText(v.substr(v.indexOf(':') + 1)).width);
+   this.odb["Variables"].forEach((v, i) => {
+      if (this.odb.Label[i] !== "")
+         variablesWidth = Math.max(variablesWidth, ctx.measureText(this.odb.Label[i]).width);
+      else
+         variablesWidth = Math.max(variablesWidth, ctx.measureText(v.substr(v.indexOf(':') + 1)).width);
    });
    variablesWidth += ctx.measureText("00.000000").width;
    let variablesHeight = this.odb["Variables"].length * 17 + 7;
@@ -923,7 +926,10 @@ MhistoryGraph.prototype.draw = function () {
          ctx.textAlign = "left";
          ctx.textBaseline = "middle";
          ctx.fillStyle = "#404040";
-         ctx.fillText(v.substr(v.indexOf(':') + 1), this.x1 + 25, 40 + i * 17);
+         if (this.odb.Label[i] !== "")
+            ctx.fillText(this.odb.Label[i], this.x1 + 25, 40 + i * 17);
+         else
+            ctx.fillText(v.substr(v.indexOf(':') + 1), this.x1 + 25, 40 + i * 17);
 
          ctx.textAlign = "right";
          if (this.data[i].value.length > 0) {
