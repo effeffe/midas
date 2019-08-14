@@ -1799,26 +1799,27 @@ void init_menu_buttons()
 {
    int status;
    HNDLE hDB;
-   BOOL value = TRUE;
+   BOOL true_value = TRUE;
    BOOL false_value = FALSE;
-   int size = sizeof(value);
+   int size = sizeof(true_value);
    cm_get_experiment_database(&hDB, NULL);
-   db_get_value(hDB, 0, "/Experiment/Menu/Status",     &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Status",     &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Start",      &false_value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Transition", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/ODB",        &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Messages",   &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Chat",       &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Elog",       &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Alarms",     &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Programs",   &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Buffers",    &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/OldHistory", &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/MSCB",       &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Sequencer",  &value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Config",     &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Transition", &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/ODB",        &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Messages",   &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Chat",       &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Elog",       &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Alarms",     &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Programs",   &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Buffers",    &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/History",    &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/OldHistory", &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/MSCB",       &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Sequencer",  &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Config",     &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Example",    &false_value, &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/Help",       &value, &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/Help",       &true_value,  &size, TID_BOOL, TRUE);
 
    std::string buf;
    status = db_get_value_string(hDB, 0, "/Experiment/Menu buttons", 0, &buf, FALSE);
@@ -12279,7 +12280,7 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
 
    r->rsprintf("<tr><td colspan=8>\n");
    /* hidden command for refresh */
-   r->rsprintf("<input type=hidden name=cmd value=History>\n");
+   r->rsprintf("<input type=hidden name=cmd value=Oldhistory>\n");
    r->rsprintf("<input type=hidden name=hcmd value=Refresh>\n");
    r->rsprintf("<input type=hidden name=panel value=\"%s\">\n", hpanel);
    r->rsprintf("<input type=hidden name=group value=\"%s\">\n", hgroup);

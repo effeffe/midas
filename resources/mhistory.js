@@ -114,6 +114,8 @@ function MhistoryGraph(divElement) { // Constructor
          click: function (t) {
             t.yMin = t.yMin0;
             t.yMax = t.yMax0;
+            if (t.autoscale)
+               t.yMax += (t.yMax0 - t.yMin0) / 10;
             t.tMax = Math.floor(new Date() / 1000);
             t.tMin = t.tMax - t.tScale;
             t.scroll = true;
@@ -123,9 +125,12 @@ function MhistoryGraph(divElement) { // Constructor
       {
          src: "play.svg",
          click: function (t) {
-            let dt = t.tMax - t.tMin;
+            t.yMin = t.yMin0;
+            t.yMax = t.yMax0;
+            if (t.autoscale)
+               t.yMax += (t.yMax0 - t.yMin0) / 10;
             t.tMax = Math.floor(new Date() / 1000);
-            t.tMin = t.tMax - dt;
+            t.tMin = t.tMax - (t.tMax - t.tMin);
             t.scroll = true;
             t.scrollRedraw();
          }
@@ -305,6 +310,20 @@ MhistoryGraph.prototype.loadInitialData = function () {
    this.tMax = Math.floor(new Date() / 1000);
    this.tMin = this.tMax - this.tScale;
 
+   this.showLabels = this.odb["Show values"];
+
+   this.autoscale = (this.odb["Minimum"] === this.odb["Maximum"] ||
+      this.odb["Minimum"] === "-Infinity" ||
+      this.odb["Maximum"] === "Infinity");
+   if (!this.autoscale) {
+      this.yMin0 = this.odb["Minimum"];
+      this.yMax0 = this.odb["Maximum"];
+   }
+
+   this.logAxis = this.odb["Log axis"];
+   if (this.logAxis)
+      this.yMin0 = this.yMin = 1;
+
    this.odb["Variables"].forEach(v => {
       this.events.push(v.substr(0, v.indexOf(':')));
       let t = v.substr(v.indexOf(':') + 1);
@@ -354,14 +373,14 @@ MhistoryGraph.prototype.loadOldData = function () {
       // let t = Math.floor(new Date() / 1000);
       // console.log((this.tMinRequested - t) + " - " + (oldTMinRequestested - t));
 
-      mjsonrpc_call("hs_read",
+      mjsonrpc_call("hs_read_arraybuffer",
          {
             "start_time": this.tMinRequested,
             "end_time": oldTMinRequestested,
             "events": this.events,
             "tags": this.tags,
             "index": this.index
-         })
+         }, "arraybuffer")
          .then(function (rpc) {
 
             this.receiveData(rpc);
@@ -375,51 +394,65 @@ MhistoryGraph.prototype.loadOldData = function () {
 
 
 MhistoryGraph.prototype.receiveData = function (rpc) {
+
+   // decode binary array
+   let array = new Float64Array(rpc);
+   let nVars = array[1];
+   let i = 2 + nVars * 2;
+   let t0 = array[i];
+
    // append newer values to end of arrays
    if (this.data === undefined) {
 
       this.data = [];
 
       // initial data
-      let array = new Float64Array(rpc);
-      let nVars = array[1];
-      let i = 2 + nVars * 2;
       for (let index = 0; index < nVars; index++) {
-         let nData = array[2 + nVars + index];
+
          this.data.push({time: [], value: []});
+
+         let nData = array[2 + nVars + index];
          for (let j = 0; j < nData; j++) {
             this.data[index].time.push(array[i++]);
             this.data[index].value.push(array[i++]);
          }
       }
 
-      this.data.forEach(d => {
-         d.value.forEach(v => {
-            if (v > this.yMax0)
-               this.yMax0 = v;
-            if (v < this.yMin0)
-               this.yMin0 = v;
+      if (this.autoscale) {
+         this.data.forEach(d => {
+            d.value.forEach(v => {
+               if (v > this.yMax0)
+                  this.yMax0 = v;
+               if (v < this.yMin0)
+                  this.yMin0 = v;
 
+            });
          });
-      });
+      }
 
-   } else if (rpc.result.data[0].time[i] < this.data[0].time[0]) {
+   } else if (t0 < this.data[0].time[0]) {
 
       // add data to the left
-      for (let di = 0; di < rpc.result.data.length; di++) {
-         for (let i = rpc.result.data[di].time.length - 1; i >= 0; i--) {
+      for (let index = 0; index < nVars; index++) {
+         let nData = array[2 + nVars + index];
+         let i = 2 + nVars * 2 +  // offset first value
+            index * nData * 2 +   // offset full channel
+            nData * 2 - 1;        // offset end of channel
 
-            let t = rpc.result.data[di].time[i];
-            let v = rpc.result.data[di].value[i];
+         for (let j = 0; j < nData; j++) {
+            let v = array[i--];
+            let t = array[i--];
 
-            if (v > this.yMax0)
-               this.yMax0 = v;
-            if (v < this.yMin0)
-               this.yMin0 = v;
+            if (this.autoscale) {
+               if (v > this.yMax0)
+                  this.yMax0 = v;
+               if (v < this.yMin0)
+                  this.yMin0 = v;
+            }
 
-            if (t < this.data[di].time[0]) {
-               this.data[di].time.unshift(t);
-               this.data[di].value.unshift(v);
+            if (t < this.data[index].time[0]) {
+               this.data[index].time.unshift(t);
+               this.data[index].value.unshift(v);
             }
          }
       }
@@ -427,22 +460,24 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
    } else {
 
       // add data to the right
-      for (let di = 0; di < rpc.result.data.length; di++) {
-         for (let i = 0; i < rpc.result.data[di].time.length; i++) {
-
-            let t = rpc.result.data[di].time[i];
-            let v = rpc.result.data[di].value[i];
+      for (let index = 0; index < nVars; index++) {
+         let nData = array[2 + nVars + index];
+         for (let j = 0; j < nData; j++) {
+            let t = array[i++];
+            let v = array[i++];
 
             // add data to the right
-            if (t > this.data[di].time[this.data[di].time.length - 1]) {
+            if (t > this.data[index].time[this.data[index].time.length - 1]) {
 
-               if (v > this.yMax0)
-                  this.yMax0 = v;
-               if (v < this.yMin0)
-                  this.yMin0 = v;
+               if (this.autoscale) {
+                  if (v > this.yMax0)
+                     this.yMax0 = v;
+                  if (v < this.yMin0)
+                     this.yMin0 = v;
+               }
 
-               this.data[di].time.push(t);
-               this.data[di].value.push(v);
+               this.data[index].time.push(t);
+               this.data[index].value.push(v);
 
                this.lastTimeStamp = t;
             }
@@ -456,24 +491,27 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
    }
 
    if (this.scroll) {
-      this.yMax = this.yMax0 + (this.yMax0 - this.yMin0) / 10;
+      if (this.autoscale)
+      // leave 10% space above graph
+         this.yMax = this.yMax0 + (this.yMax0 - this.yMin0) / 10;
+      else
+         this.yMax = this.yMax0;
       this.yMin = this.yMin0;
    }
-}
-;
+};
 
 MhistoryGraph.prototype.update = function () {
 
    let t = Math.floor(new Date() / 1000);
 
-   mjsonrpc_call("hs_read",
+   mjsonrpc_call("hs_read_arraybuffer",
       {
          "start_time": this.lastTimeStamp,
          "end_time": t,
          "events": this.events,
          "tags": this.tags,
          "index": this.index
-      })
+      }, "arraybuffer")
       .then(function (rpc) {
 
          this.receiveData(rpc);
@@ -704,8 +742,12 @@ MhistoryGraph.prototype.timeToX = function (t) {
 };
 
 MhistoryGraph.prototype.valueToY = function (v) {
-   return this.y1 - (v - this.yMin) /
-      (this.yMax - this.yMin) * (this.y1 - this.y2);
+   if (this.logAxis)
+      return this.y1 - (Math.log(v) - Math.log(this.yMin)) /
+         (Math.log(this.yMax) - Math.log(this.yMin)) * (this.y1 - this.y2);
+   else
+      return this.y1 - (v - this.yMin) /
+         (this.yMax - this.yMin) * (this.y1 - this.y2);
 };
 
 MhistoryGraph.prototype.xToTime = function (x) {
@@ -768,8 +810,10 @@ MhistoryGraph.prototype.draw = function () {
    ctx.drawLine(this.x1, this.y2, this.x2, this.y2);
    ctx.drawLine(this.x2, this.y2, this.x2, this.y1);
 
+   if (this.logAxis && this.yMin < 1E-10)
+      this.yMin = 1E-10;
    this.drawVAxis(ctx, this.x1, this.y1, this.y1 - this.y2,
-      -4, -7, -10, -12, this.x2 - this.x1, this.yMin, this.yMax, 0, true);
+      -4, -7, -10, -12, this.x2 - this.x1, this.yMin, this.yMax, this.logAxis, true);
    //this.drawHAxis(ctx, 50, this.y2-25, this.x2-70, 4, 7, 10, 12, 0, -10, 10, 0);
    this.drawTAxis(ctx, this.x1, this.y1, this.x2 - this.x1, this.width,
       4, 7, 10, 10, this.y2 - this.y1, this.tMin, this.tMax);
@@ -780,10 +824,7 @@ MhistoryGraph.prototype.draw = function () {
    ctx.clip();
 
    for (let di = 0; di < this.data.length; di++) {
-      if (di >= this.color.data.length)
-         ctx.fillStyle = "#F0F0F0";
-      else
-         ctx.fillStyle = this.color.data[di];
+      ctx.fillStyle = this.odb["Colour"][di];
 
       this.x[di] = [];
       this.y[di] = [];
@@ -796,44 +837,53 @@ MhistoryGraph.prototype.draw = function () {
       ctx.beginPath();
       let x0;
       let y0;
+      let xPrev;
       let xLast;
       for (let i = 0; i < this.x[di].length; i++) {
          if (i === this.x[di].length - 1 || this.x[di][i + 1] >= this.x1) {
+            let x = this.x[di][i];
+            let y = this.y[di][i];
             if (x0 === undefined) {
-               x0 = this.x[di][i];
-               y0 = this.y[di][i];
-               ctx.moveTo(this.x[di][i], this.y[di][i]);
-            } else
-               ctx.lineTo(this.x[di][i], this.y[di][i]);
-            xLast = this.x[di][i];
-            if (this.x[di][i] > this.x2)
+               x0 = x;
+               y0 = y;
+               xPrev = x0;
+               ctx.moveTo(x, y);
+            } else {
+               //if (this.x[di][i] > xPrev + 1) {
+               ctx.lineTo(x, y);
+               //   xPrev = this.x[di][i];
+               //}
+            }
+            xLast = x;
+            if (x > this.x2)
                break;
          }
       }
+      ctx.lineTo(xLast, this.y[di][i]);
       ctx.lineTo(xLast, this.y1);
       ctx.lineTo(x0, this.y1);
       ctx.lineTo(x0, y0);
-      ctx.globalAlpha = 0.1;
+      ctx.globalAlpha = 0.05;
       ctx.fill();
       ctx.globalAlpha = 1;
    }
 
    for (let di = 0; di < this.data.length; di++) {
-      if (di >= this.color.data.length)
-         ctx.strokeStyle = "#000000";
-      else
-         ctx.strokeStyle = this.color.data[di];
+      ctx.strokeStyle = this.odb["Colour"][di];
 
       ctx.beginPath();
       let first = true;
       for (let i = 0; i < this.data[di].time.length; i++) {
          if (i === this.data[di].time.length - 1 || this.x[di][i + 1] >= this.x1) {
+            let x = this.x[di][i];
+            let y = this.y[di][i];
             if (first) {
                first = false;
-               ctx.moveTo(this.x[di][i], this.y[di][i]);
-            } else
-               ctx.lineTo(this.x[di][i], this.y[di][i]);
-            if (this.x[di][i] > this.x2)
+               ctx.moveTo(x, y);
+            } else {
+               ctx.lineTo(x, y);
+            }
+            if (x > this.x2)
                break;
          }
       }
