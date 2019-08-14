@@ -8706,7 +8706,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
       char tmp_path[MAX_ODB_PATH];
       strlcpy(tmp_path, pd.c_str(), sizeof(tmp_path));
       urlEncode(tmp_path, sizeof(tmp_path));
-      url_path = tmp_path;
+      url_path += tmp_path;
 
       if (pd.length() > 0)
          r->rsprintf("<a href=\"?cmd=odb&odb_path=%s\">%s</a>\n / ", url_path.c_str(), pd.c_str());
