@@ -324,6 +324,14 @@ MhistoryGraph.prototype.loadInitialData = function () {
    if (this.logAxis)
       this.yMin0 = this.yMin = 1;
 
+   // if only one variable present, convert it to array[0]
+   if (!Array.isArray(this.odb.Variables))
+      this.odb.Variables = new Array(this.odb.Variables);
+   if (!Array.isArray(this.odb.Label))
+      this.odb.Label = new Array(this.odb.Label);
+   if (!Array.isArray(this.odb.Colour))
+      this.odb.Colour = new Array(this.odb.Colour);
+
    this.odb["Variables"].forEach(v => {
       this.events.push(v.substr(0, v.indexOf(':')));
       let t = v.substr(v.indexOf(':') + 1);
