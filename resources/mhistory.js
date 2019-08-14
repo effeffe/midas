@@ -139,7 +139,7 @@ function MhistoryGraph(divElement) { // Constructor
       {
          src: "settings.svg",
          click: function (t) {
-            window.location.href = "?cmd=history&group=" + t.group + "&panel=" + t.panel
+            window.location.href = "?cmd=oldhistory&group=" + t.group + "&panel=" + t.panel
                + "&hcmd=Config" + "&redir=" + encodeURIComponent(window.location.href);
          }
       },
