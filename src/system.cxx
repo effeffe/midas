@@ -3623,10 +3623,10 @@ void *ss_ctrlc_handler(void (*func) (int))
 */
 
 typedef struct {
-   midas_thread_t thread_id;
-   INT ipc_recv_port;
-   INT ipc_recv_socket;
-   INT ipc_send_socket;
+   midas_thread_t thread_id = 0;
+   INT ipc_recv_port = 0;
+   INT ipc_recv_socket = 0;
+   INT ipc_send_socket = 0;
    struct sockaddr_in bind_addr;
 } SUSPEND_STRUCT;
 
@@ -3838,8 +3838,6 @@ SUSPEND_STRUCT* ss_suspend_get_struct(midas_thread_t thread_id)
 
    // create new one if not found
    SUSPEND_STRUCT *psuspend = new SUSPEND_STRUCT;
-
-   memset(psuspend, 0, sizeof(SUSPEND_STRUCT));
    psuspend->thread_id = thread_id;
 
    // place into empty slot
@@ -3860,11 +3858,18 @@ static void ss_suspend_close(SUSPEND_STRUCT* psuspend)
 {
    if (psuspend->ipc_recv_socket) {
       closesocket(psuspend->ipc_recv_socket);
+      psuspend->ipc_recv_socket = 0;
+   }
+
+   if (psuspend->ipc_send_socket) {
       closesocket(psuspend->ipc_send_socket);
-      //printf("ss_suspend_close: free thread %s, udp port %d\n", ss_tid_to_string(psuspend->thread_id).c_str(), psuspend->ipc_recv_port);
+      psuspend->ipc_send_socket = 0;
    }
    
-   memset(psuspend, 0, sizeof(SUSPEND_STRUCT));
+   //printf("ss_suspend_close: free thread %s, udp port %d\n", ss_tid_to_string(psuspend->thread_id).c_str(), psuspend->ipc_recv_port);
+
+   psuspend->thread_id = 0;
+   psuspend->ipc_recv_port = 0;
 }
 
 /*------------------------------------------------------------------*/
@@ -3969,7 +3974,6 @@ INT ss_suspend_get_odb_port(INT * port)
 {
    if (!_ss_suspend_odb) {
       _ss_suspend_odb = new SUSPEND_STRUCT;
-      memset(_ss_suspend_odb, 0, sizeof(SUSPEND_STRUCT));
       _ss_suspend_odb->thread_id = ss_gettid();
       ss_suspend_init_struct(_ss_suspend_odb);
    }
