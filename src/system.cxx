@@ -4015,13 +4015,11 @@ INT ss_suspend_get_buffer_port(midas_thread_t thread_id, INT * port)
 
 static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
 {
-   struct sockaddr from_addr;
-   socklen_t from_addr_size;
-   time_t tstart, tnow;
-   int count;
    char buffer[80];
+   buffer[0] = 0;
    /* receive IPC message */
-   from_addr_size = sizeof(struct sockaddr);
+   struct sockaddr from_addr;
+   socklen_t from_addr_size = sizeof(struct sockaddr);
 #ifdef OS_WINNT
    ssize_t size = recvfrom(ipc_recv_socket, buffer, sizeof(buffer), 0, &from_addr, (int *) &from_addr_size);
 #else
@@ -4048,8 +4046,10 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
       }
    }
    
-   tstart = time(NULL);
-   count = 0;
+   time_t tstart = time(NULL);
+   int count = 0;
+
+   int return_status = 0;
 
    fd_set readfds;
 
@@ -4067,12 +4067,23 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
       
       if (status != -1 && FD_ISSET(ipc_recv_socket, &readfds)) {
          char buffer_tmp[80];
+         buffer_tmp[0] = 0;
          from_addr_size = sizeof(struct sockaddr);
 #ifdef OS_WINNT
          ssize_t size_tmp = recvfrom(ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, (int *) &from_addr_size);
 #else
          ssize_t size_tmp = recvfrom(ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, &from_addr_size);
 #endif
+
+         /* stop the loop if received requested message */
+         if (msg == MSG_BM && buffer_tmp[0] == 'B') {
+            return_status = SS_SUCCESS;
+            break;
+         }
+         if (msg == MSG_ODB && buffer_tmp[0] == 'O') {
+            return_status = SS_SUCCESS;
+            break;
+         }
          
          /* don't forward same MSG_BM as above */
          if (buffer_tmp[0] != 'B' || strcmp(buffer_tmp, buffer) != 0) {
@@ -4081,7 +4092,7 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
       }
       
       if (millisec > 0) {
-         tnow = time(NULL);
+         time_t tnow = time(NULL);
          // make sure we do not loop for longer than our timeout
          if (tnow - tstart > 1 + millisec/1000) {
             //printf("ss_suspend - break out dt %d, %d loops\n", (int)(tnow-tstart), count);
@@ -4095,7 +4106,7 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
    /* call dispatcher */
    cm_dispatch_ipc(buffer, size, mserver_client_socket);
    
-   return 0;
+   return return_status;
 }
 
 /*------------------------------------------------------------------*/
