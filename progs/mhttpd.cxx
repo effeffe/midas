@@ -957,13 +957,19 @@ std::vector<std::string> get_resource_paths()
 
 bool open_resource_file(const char *filename, std::string* ppath, FILE** pfp)
 {
-   // resource file names should not contain directory separator "/"
-   // as this will allow them to escape the mhttpd filename "jail"
+   // resource file names should not start with a directory separator "/"
+   // or contain ".." as this will allow them to escape the mhttpd filename "jail"
    // by asking file files names like "../../etc/passwd", etc.
-   // reliably detecting special path elements like ".." is difficult.
 
-   if (strchr(filename, '/') || strchr(filename, DIR_SEPARATOR)) {
-      cm_msg(MERROR, "open_resource_file", "Invalid resource file name \'%s\' contains \'/\' or \'%c\'", filename, DIR_SEPARATOR);
+   if (filename[0] == DIR_SEPARATOR) {
+      cm_msg(MERROR, "open_resource_file", "Invalid resource file name \'%s\' starting with \'%c\' which is not allowed",
+              filename, DIR_SEPARATOR);
+      return false;
+   }
+
+   if (strstr(filename, "..") != NULL) {
+      cm_msg(MERROR, "open_resource_file", "Invalid resource file name \'%s\' containing \'..\' which is not allowed",
+             filename);
       return false;
    }
 
