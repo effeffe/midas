@@ -150,7 +150,7 @@ function MhistoryGraph(divElement) { // Constructor
       },
       {
          src: "help-circle.svg",
-         click: function (t) {
+         click: function () {
             dlgShow(document.getElementById("dlgHelp"), false);
          }
       }
@@ -720,7 +720,7 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
          }
       } else if (e.ctrlKey || e.metaKey) {
          let f = (e.offsetX - this.x1) / (this.x2 - this.x1);
-         m = Math.min(0.002, 0.002 / ((this.tMax - this.tMin) / 3600 / 24));
+         let m = Math.min(0.002, 0.002 / ((this.tMax - this.tMin) / 3600 / 24));
          let dtMin = Math.abs(f * (this.tMax - this.tMin) * m * e.deltaY);
          let dtMax = Math.abs((1 - f) * (this.tMax - this.tMin) * m * e.deltaY);
 
@@ -813,7 +813,7 @@ MhistoryGraph.prototype.draw = function () {
       else
          variablesWidth = Math.max(variablesWidth, ctx.measureText(v.substr(v.indexOf(':') + 1)).width);
    });
-   variablesWidth += ctx.measureText("00.000000").width;
+   variablesWidth += ctx.measureText("0").width * (this.yPrecision + 2);
    let variablesHeight = this.odb["Variables"].length * 17 + 7;
 
    this.x1 = axisLabelWidth + 15;
@@ -845,6 +845,14 @@ MhistoryGraph.prototype.draw = function () {
    //this.drawHAxis(ctx, 50, this.y2-25, this.x2-70, 4, 7, 10, 12, 0, -10, 10, 0);
    this.drawTAxis(ctx, this.x1, this.y1, this.x2 - this.x1, this.width,
       4, 7, 10, 10, this.y2 - this.y1, this.tMin, this.tMax);
+
+   // determine precision
+   if (this.yMin === 0)
+      this.yPrecision = Math.max(5, Math.ceil(Math.log(Math.abs(this.yMax)) / Math.log(10)) + 3);
+   else if (this.yMax === 0)
+      this.yPrecision = Math.max(5, Math.ceil(Math.log(Math.abs(this.yMin)) / Math.log(10)) + 3);
+   else
+      this.yPrecision = Math.max(5, Math.ceil(-Math.log(Math.abs(1 - this.yMax / this.yMin)) / Math.log(10)) + 3);
 
    ctx.save();
    ctx.beginPath();
@@ -959,11 +967,7 @@ MhistoryGraph.prototype.draw = function () {
 
             // convert value to string with 6 digits
             let value = this.data[i].value[index];
-            let str;
-            if (value < 1)
-               str = value.toFixed(5);
-            else
-               str = value.toPrecision(6);
+            let str = value.toPrecision(this.yPrecision);
             ctx.fillText(str, this.x1 + 25 + variablesWidth, 40 + i * 17);
          } else
             ctx.fillText('no data', this.x1 + 25 + variablesWidth, 40 + i * 17);
@@ -978,8 +982,8 @@ MhistoryGraph.prototype.draw = function () {
       let str = "Updating data ...";
       ctx.strokeStyle = "#404040";
       ctx.fillStyle = "#F0F0F0";
-      ctx.fillRect(this.x1 + 5, this.y1-22, 10 + ctx.measureText(str).width, 17);
-      ctx.strokeRect(this.x1 + 5, this.y1-22, 10 + ctx.measureText(str).width, 17);
+      ctx.fillRect(this.x1 + 5, this.y1 - 22, 10 + ctx.measureText(str).width, 17);
+      ctx.strokeRect(this.x1 + 5, this.y1 - 22, 10 + ctx.measureText(str).width, 17);
       ctx.fillStyle = "#404040";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
@@ -1054,7 +1058,12 @@ MhistoryGraph.prototype.draw = function () {
 
       // text label
       let v = this.data[this.marker.graphIndex].value[this.marker.index];
-      let s = this.odb["Variables"][this.marker.graphIndex] + ": " + v.toPrecision(6);
+
+      let s;
+      if (this.odb.Label[this.marker.graphIndex] !== "")
+         s = this.odb.Label[this.marker.graphIndex] + ": " + v.toPrecision(this.yPrecision);
+      else
+         s = this.odb["Variables"][this.marker.graphIndex] + ": " + v.toPrecision(this.yPrecision);
 
       let w = ctx.measureText(s).width + 6;
       let h = ctx.measureText("M").width * 1.2 + 6;
