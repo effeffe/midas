@@ -173,11 +173,11 @@ function MhistoryGraph(divElement) { // Constructor
       "</tr>" +
       "<tr>" +
       "<td>Horizontal Zoom</td>" +
-      "<td>Scroll mouse wheel or drag along X-Axis</td>" +
+      "<td>&nbsp;Press Command (Mac) or Ctrl key and scroll mouse wheel or drag along X-Axis&nbsp;   </td>" +
       "</tr>" +
       "<tr>" +
       "<td>Vertical Zoom</td>" +
-      "<td>&nbsp;Press ALT or Shift key and scroll mouse wheel or drag along Y-Axis&nbsp;</td>" +
+      "<td>&nbsp;Press Option (Mac) or Shift key and scroll mouse wheel or drag along Y-Axis&nbsp;</td>" +
       "</tr>" +
       "<tr>" +
       "<td>Pan</td>" +
@@ -189,7 +189,7 @@ function MhistoryGraph(divElement) { // Constructor
       "</tr>" +
       "<tr>" +
       "<td>&nbsp;Back to live scolling after pan/zoom&nbsp;</td>" +
-      "<td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'> or press spacebar </td>" +
+      "<td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'> or press 'u' </td>" +
       "</tr>" +
       "<tr>" +
       "<td>&nbsp;Reset axis&nbsp;</td>" +
@@ -243,7 +243,7 @@ function timeToSec(str) {
 }
 
 MhistoryGraph.prototype.keyDown = function (e) {
-   if (e.key === " ") {  // space key
+   if (e.key === "u") {  // 'u' key
       let dt = this.tMax - this.tMin;
       this.tMax = Math.floor(new Date() / 1000);
       this.tMin = this.tMax - dt;
@@ -709,16 +709,24 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
             this.yMin -= dtMin;
             this.yMax += dtMax;
          }
-      } else {
+      } else if (e.ctrlKey || e.metaKey) {
          let f = (e.offsetX - this.x1) / (this.x2 - this.x1);
-         let dtMin = Math.floor(f * (this.tMax - this.tMin) / 100 * e.deltaY);
-         let dtMax = Math.floor((1 - f) * (this.tMax - this.tMin) / 100 * e.deltaY);
-         if ((this.tMax + dtMax) - (this.tMin - dtMin) > 10 &&
-            (this.tMax + dtMax) - (this.tMin - dtMin) < 3600 * 24 * 365) {
+         m = Math.min(0.002, 0.002 / ((this.tMax - this.tMin) / 3600 / 24));
+         let dtMin = Math.abs(f * (this.tMax - this.tMin) * m * e.deltaY);
+         let dtMax = Math.abs((1 - f) * (this.tMax - this.tMin) * m * e.deltaY);
+
+         if ((this.tMax - dtMax) - (this.tMin + dtMin) > 10 && e.deltaY < 0) {
+            // zoom in
+            this.tMin += dtMin;
+            this.tMax -= dtMax;
+         }
+         if ((this.tMax + dtMax) - (this.tMin - dtMin) < 3600 * 24 * 365 && e.deltaY > 0) {
+            // zoom out
             this.tMin -= dtMin;
             this.tMax += dtMax;
          }
-      }
+      } else
+         return;
 
       this.loadOldData();
 
