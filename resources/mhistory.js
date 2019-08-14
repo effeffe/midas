@@ -151,58 +151,60 @@ function MhistoryGraph(divElement) { // Constructor
       {
          src: "help-circle.svg",
          click: function (t) {
-            dlgShow(t.helpDialog, false);
+            dlgShow(document.getElementById("dlgHelp"), false);
          }
       }
    ];
 
    // help dialog
-   this.helpDialog = document.createElement("div");
-   this.helpDialog.id = "dlgHelp";
-   this.helpDialog.className = "dlgFrame";
-   this.helpDialog.style.zIndex = "20";
+   if (document.getElementById('dlgHelp') === null) {
+      this.helpDialog = document.createElement("div");
+      this.helpDialog.id = "dlgHelp";
+      this.helpDialog.className = "dlgFrame";
+      this.helpDialog.style.zIndex = "20";
 
-   this.helpDialog.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Help</div>" +
-      "<div class=\"dlgPanel\" style=\"padding: 5px;\">" +
-      "<div id=\"dlgMessageString\">" +
+      this.helpDialog.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Help</div>" +
+         "<div class=\"dlgPanel\" style=\"padding: 5px;\">" +
+         "<div id=\"dlgMessageString\">" +
 
-      "<table class='mtable'>" +
-      "<tr>" +
-      "<td>Action</td>" +
-      "<td>Howto</td>" +
-      "</tr>" +
-      "<tr>" +
-      "<td>Horizontal Zoom</td>" +
-      "<td>&nbsp;Press Command (Mac) or Ctrl key and scroll mouse wheel or drag along X-Axis&nbsp;   </td>" +
-      "</tr>" +
-      "<tr>" +
-      "<td>Vertical Zoom</td>" +
-      "<td>&nbsp;Press Option (Mac) or Shift key and scroll mouse wheel or drag along Y-Axis&nbsp;</td>" +
-      "</tr>" +
-      "<tr>" +
-      "<td>Pan</td>" +
-      "<td>Drag inside graph</td>" +
-      "</tr>" +
-      "<tr>" +
-      "<td>Display values</td>" +
-      "<td>Hover over graph</td>" +
-      "</tr>" +
-      "<tr>" +
-      "<td>&nbsp;Back to live scolling after pan/zoom&nbsp;</td>" +
-      "<td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'> or press 'u' </td>" +
-      "</tr>" +
-      "<tr>" +
-      "<td>&nbsp;Reset axis&nbsp;</td>" +
-      "<td>Click on <img src='icons/rotate-ccw.svg' style='vertical-align:middle' alt='Reset'></td>" +
-      "</tr>" +
-      "</table>" +
+         "<table class='mtable'>" +
+         "<tr>" +
+         "<td>Action</td>" +
+         "<td>Howto</td>" +
+         "</tr>" +
+         "<tr>" +
+         "<td>Horizontal Zoom</td>" +
+         "<td>&nbsp;Press Command (Mac) or Ctrl key and scroll mouse wheel or drag along X-Axis&nbsp;   </td>" +
+         "</tr>" +
+         "<tr>" +
+         "<td>Vertical Zoom</td>" +
+         "<td>&nbsp;Press Option (Mac) or Shift key and scroll mouse wheel or drag along Y-Axis&nbsp;</td>" +
+         "</tr>" +
+         "<tr>" +
+         "<td>Pan</td>" +
+         "<td>Drag inside graph</td>" +
+         "</tr>" +
+         "<tr>" +
+         "<td>Display values</td>" +
+         "<td>Hover over graph</td>" +
+         "</tr>" +
+         "<tr>" +
+         "<td>&nbsp;Back to live scolling after pan/zoom&nbsp;</td>" +
+         "<td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'> or press 'u' </td>" +
+         "</tr>" +
+         "<tr>" +
+         "<td>&nbsp;Reset axis&nbsp;</td>" +
+         "<td>Click on <img src='icons/rotate-ccw.svg' style='vertical-align:middle' alt='Reset'></td>" +
+         "</tr>" +
+         "</table>" +
 
-      "</div>" +
-      "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" " +
-      " onClick=\"dlgHide('dlgHelp')\">Close</button>" +
-      "</div>";
+         "</div>" +
+         "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" " +
+         " onClick=\"dlgHide('dlgHelp')\">Close</button>" +
+         "</div>";
 
-   document.body.appendChild(this.helpDialog);
+      document.body.appendChild(this.helpDialog);
+   }
 
    this.button.forEach(b => {
       b.img = new Image();
@@ -285,6 +287,7 @@ MhistoryGraph.prototype.initializePanel = function () {
    this.index = [];
    this.yMin0 = 0;
    this.yMax0 = 0;
+   this.pendingUpdates = 0;
 
    // retrieve panel definition from ODB
    mjsonrpc_db_copy(["/History/Display/" + this.group + "/" + this.panel]).then(function (rpc) {
@@ -346,6 +349,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    this.tMinRequested = this.lastTimeStamp - this.tScale * 2;
 
+   this.pendingUpdates++;
    mjsonrpc_call("hs_read_arraybuffer",
       {
          "start_time": this.tMinRequested,
@@ -355,6 +359,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
          "index": this.index
       }, "arraybuffer")
       .then(function (rpc) {
+
+         this.pendingUpdates--;
 
          this.receiveData(rpc);
 
@@ -381,6 +387,7 @@ MhistoryGraph.prototype.loadOldData = function () {
       // let t = Math.floor(new Date() / 1000);
       // console.log((this.tMinRequested - t) + " - " + (oldTMinRequestested - t));
 
+      this.pendingUpdates++;
       mjsonrpc_call("hs_read_arraybuffer",
          {
             "start_time": this.tMinRequested,
@@ -390,6 +397,8 @@ MhistoryGraph.prototype.loadOldData = function () {
             "index": this.index
          }, "arraybuffer")
          .then(function (rpc) {
+
+            this.pendingUpdates--;
 
             this.receiveData(rpc);
 
@@ -962,6 +971,19 @@ MhistoryGraph.prototype.draw = function () {
       });
 
       ctx.restore(); // remove clipping
+   }
+
+   // "updating" notice
+   if (this.pendingUpdates > 0) {
+      let str = "Updating data ...";
+      ctx.strokeStyle = "#404040";
+      ctx.fillStyle = "#F0F0F0";
+      ctx.fillRect(this.x1 + 5, this.y1-22, 10 + ctx.measureText(str).width, 17);
+      ctx.strokeRect(this.x1 + 5, this.y1-22, 10 + ctx.measureText(str).width, 17);
+      ctx.fillStyle = "#404040";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(str, this.x1 + 10, this.y1 - 13);
    }
 
    // buttons
