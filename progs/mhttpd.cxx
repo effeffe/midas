@@ -13731,7 +13731,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       ref += "graph.gif?cmd=oldhistory&group=";
       ref += hgroup;
       ref += "&panel=";
-      ref += hgroup;
+      ref += hpanel;
       ref += paramstr;
 
       /* put reference to graph */
