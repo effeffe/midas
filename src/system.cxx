@@ -4027,6 +4027,18 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
 #else
    ssize_t size = recvfrom(ipc_recv_socket, buffer, sizeof(buffer), 0, &from_addr, &from_addr_size);
 #endif
+
+   // NB: ss_suspend(MSG_BM) (and ss_suspend(MSG_ODB)) are needed to break
+   // recursive calls to the event handler (and db_watch() handler) if these
+   // handlers call ss_suspend() again. The rootana interactive ROOT graphics
+   // mode does this. To prevent this recursion, event handlers must always
+   // call ss_suspend() with MSG_BM (and MSG_ODB). K.O.
+   
+   /* return if received requested message */
+   if (msg == MSG_BM && buffer[0] == 'B')
+      return SS_SUCCESS;
+   if (msg == MSG_ODB && buffer[0] == 'O')
+      return SS_SUCCESS;
    
    // NB: do not need to check thread id, the mserver is single-threaded. K.O.
    int mserver_client_socket = 0;
@@ -4080,12 +4092,6 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
       count++;
    } while (FD_ISSET(ipc_recv_socket, &readfds));
    
-   /* return if received requested message */
-   if (msg == MSG_BM && buffer[0] == 'B')
-      return SS_SUCCESS;
-   if (msg == MSG_ODB && buffer[0] == 'O')
-      return SS_SUCCESS;
-   
    /* call dispatcher */
    cm_dispatch_ipc(buffer, size, mserver_client_socket);
    
@@ -4105,12 +4111,52 @@ INT ss_suspend(INT millisec, INT msg)
      arrives on the client or server sockets.
 
      If msg equals to one of MSG_BM, MSG_ODB, the function
-     return whenever such a message is received.
+     return whenever such a message is received. This is needed
+     to break recursive calls to the event handler and db_watch() handler:
+
+     Avoided recursion via ss_suspend(MSG_BM):
+
+     ss_suspend(0) ->
+     -> MSG_BM message arrives in the UDP socket
+     -> suspend_process_ipc()
+     -> cm_dispatch_ipc()
+     -> bm_push_event()
+     -> bm_push_buffer()
+     -> bm_read_buffer()
+     -> bm_wait_for_more_events()
+     -> ss_suspend(MSG_BM) <- event buffer code calls ss_suspend() with MSG_BM set
+     -> MSG_BM arrives arrives in the UDP socket
+     -> suspend_process_ipc(MSG_BM)
+     -> the newly arrived MSG_BM message is discarded,
+        recursive call to cm_dispatch_ipc(), bm_push_buffer() & co avoided
+
+     Incorrect recursion via the event handler where user called ss_suspend() without MSG_BM:
+
+     analyzer ->
+     -> cm_yield() in the main loop
+     -> ss_suspend(0)
+     -> MSG_BM message arrives in the UDP socket
+     -> suspend_process_ipc(0)
+     -> cm_dispatch_ipc()
+     -> bm_push_event()
+     -> bm_push_buffer()
+     -> bm_read_buffer()
+     -> bm_dispatch_event()
+     -> user event handler
+     -> user event handler ROOT graphics main loop needs to sleep
+     -> ss_suspend(0) <--- should be ss_suspend(MSG_BM)!!!     
+     -> MSG_BM message arrives in the UDP socket
+     -> suspend_process_ipc(0) <- should be suspend_process_ipc(MSG_BM)!!!
+     -> cm_dispatch_ipc() <- without MSG_BM, calling cm_dispatch_ipc() again
+     -> bm_push_event()
+     -> bm_push_buffer()
+     -> bm_read_buffer()
+     -> bm_dispatch_event()
+     -> user event handler <---- called recursively, very bad!
 
   Input:
     INT    millisec         Timeout in milliseconds
-    INT    msg              Return from ss_suspend when msg
-          (MSG_BM, MSG_ODB) is received.
+    INT    msg              Return from ss_suspend when msg (MSG_BM, MSG_ODB) is received.
 
   Output:
     none
