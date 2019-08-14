@@ -8578,7 +8578,7 @@ BOOL check_web_password(Return* r, const char* dec_path, const char *password, c
 
 void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char *dec_path, int write_access)
 {
-   int i, j, keyPresent, scan, size, status, line, link_index;
+   int keyPresent, size, status, line, link_index;
    char hex_str[256];
    char keyname[32];
    char link_name[256];
@@ -8726,7 +8726,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
 
    /* enumerate subkeys */
    keyPresent = 0;
-   for(scan=0; scan<2; scan++){
+   for(int scan=0; scan<2; scan++){
       if(scan==1 && keyPresent==1) {
          r->rsprintf("<tr class=\"titleRow\">\n");
          r->rsprintf("<th class=\"ODBkey\">Key</th>\n");
@@ -8760,7 +8760,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
          r->rsprintf("</tr>\n");
       }
       line = 0;
-      for (i = 0;; i++) {
+      for (int i = 0;; i++) {
          db_enum_link(hDB, hkeyroot, i, &hkey);
          if (!hkey)
             break;
@@ -8997,7 +8997,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                         r->rsprintf("<tr><td class=\"ODBkey\" rowspan=%d>%s\n",
                                  key.num_values, keyname);
 
-                     for (j = 0; j < key.num_values; j++) {
+                     for (int j = 0; j < key.num_values; j++) {
                         char data[TEXT_SIZE];
                         char data_str[TEXT_SIZE];
 
@@ -9034,7 +9034,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                         //sprintf(str, "%s[%d]", odb_path, j);
                         tmpstr += odb_path;
                         tmpstr += "[";
-                        tmpstr += toString(i);
+                        tmpstr += toString(j);
                         tmpstr += "]";
 
                         if (j > 0)
