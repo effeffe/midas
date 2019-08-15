@@ -137,8 +137,15 @@ function MhistoryGraph(divElement) { // Constructor
       },
       {
          src: "clock.svg",
-         click: function () {
-            dlgMessage("Notification", "Not yet implemented");
+         click: function (t) {
+            if (t.intSelector.style.display === "none") {
+               t.intSelector.style.display = "block";
+               t.intSelector.style.left = ((t.canvas.getBoundingClientRect().x + t.x2) -
+                  t.intSelector.offsetWidth) + "px";
+               t.intSelector.style.top = (t.parentDiv.getBoundingClientRect().y + this.y1 - 1) + "px";
+            } else {
+               t.intSelector.style.display = "none";
+            }
          }
       },
       {
@@ -347,9 +354,58 @@ MhistoryGraph.prototype.loadInitialData = function () {
       }
    });
 
-   this.tMinRequested = this.lastTimeStamp - this.tScale * 2;
+   // interval selector
+   this.intSelector = document.createElement("div");
+   this.intSelector.id = "intSel";
+   this.intSelector.style.display = "none";
+   this.intSelector.style.position = "absolute";
+   this.intSelector.className = "mtable";
+   this.intSelector.style.borderRadius = "0";
+   this.intSelector.style.border = "2px solid #808080";
+   this.intSelector.style.margin = "0";
+   this.intSelector.style.padding = "0";
 
+   this.intSelector.style.left = "100px";
+   this.intSelector.style.top = "100px";
+
+   let table = document.createElement("table");
+   let row = null;
+   let cell;
+   let link;
+   this.odb["Buttons"].forEach(function (b, i) {
+      if (i % 2 === 0)
+         row = document.createElement("tr");
+
+      cell = document.createElement("td");
+
+      link = document.createElement("a");
+      link.href = "#";
+      link.innerHTML = b;
+      let mhg = this;
+      link.onclick = function () {
+         mhg.tMax = new Date() / 1000;
+         mhg.tMin = mhg.tMax - timeToSec(b);
+         mhg.intSelector.style.display = "none";
+         mhg.scroll = true;
+         mhg.scrollRedraw();
+         return false;
+      };
+
+      cell.appendChild(link);
+      row.appendChild(cell);
+      if (i % 2 === 1)
+         table.appendChild(row);
+   }, this);
+
+   if (this.odb["Buttons"].length % 2 === 1)
+      table.appendChild(row);
+
+   this.intSelector.appendChild(table);
+   document.body.appendChild(this.intSelector);
+
+   this.tMinRequested = this.lastTimeStamp - this.tScale * 2;
    this.pendingUpdates++;
+   this.parentDiv.style.cursor = "progress";
    mjsonrpc_call("hs_read_arraybuffer",
       {
          "start_time": this.tMinRequested,
@@ -361,6 +417,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
       .then(function (rpc) {
 
          this.pendingUpdates--;
+         if (this.pendingUpdates === 0)
+            this.parentDiv.style.cursor = "default";
 
          this.receiveData(rpc);
 
@@ -388,6 +446,7 @@ MhistoryGraph.prototype.loadOldData = function () {
       // console.log((this.tMinRequested - t) + " - " + (oldTMinRequestested - t));
 
       this.pendingUpdates++;
+      this.parentDiv.style.cursor = "progress";
       mjsonrpc_call("hs_read_arraybuffer",
          {
             "start_time": this.tMinRequested,
@@ -399,6 +458,8 @@ MhistoryGraph.prototype.loadOldData = function () {
          .then(function (rpc) {
 
             this.pendingUpdates--;
+            if (this.pendingUpdates === 0)
+               this.parentDiv.style.cursor = "default";
 
             this.receiveData(rpc);
 
@@ -566,7 +627,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       else if ((e.button & 2) > 0) e.which = 3; // Right
    }
 
-   let cursor = "default";
+   let cursor = this.pendingUpdates > 0 ? "progress" : "default";
 
    if (e.type === "mousedown") {
 
@@ -662,7 +723,13 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             }
          });
 
-         // execute axis zoom
+         // display zoom cursor
+         if (e.offsetX > this.x1 && e.offsetX < this.x2 && e.offsetY > this.y1)
+            cursor = "ew-resize";
+         if (e.offsetY < this.y1 && e.offsetY > this.y2 && e.offsetX < this.x1)
+            cursor = "ns-resize";
+
+            // execute axis zoom
          if (this.zoom.x.active) {
             this.zoom.x.x2 = Math.max(this.x1, Math.min(this.x2, e.offsetX));
             this.zoom.x.t2 = this.xToTime(e.offsetX);
@@ -753,6 +820,9 @@ MhistoryGraph.prototype.resize = function () {
 
    this.width = this.parentDiv.clientWidth;
    this.height = this.parentDiv.clientHeight;
+
+   if (this.intSelector !== undefined)
+      this.intSelector.style.display = "none";
 
    this.redraw();
 };
