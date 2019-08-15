@@ -9418,14 +9418,9 @@ INT bm_check_buffers()
 #ifdef LOCAL_ROUTINES
    {
       INT idx, status = 0;
-      //INT server_type/*, server_conn, tid*/;
       BOOL bMore;
       DWORD start_time;
       //static DWORD last_time = 0;
-
-      //server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
-      //server_conn = rpc_get_server_acception();
-      //tid = ss_gettid();
 
       /* if running as a server, buffer checking is done by client
          via ASYNC bm_receive_event */
@@ -9686,10 +9681,6 @@ INT bm_empty_buffers()
 
 #ifdef LOCAL_ROUTINES
    {
-      //server_type = rpc_get_server_option(RPC_OSERVER_TYPE);
-      //server_conn = rpc_get_server_acception();
-      //tid = ss_gettid();
-
       /* go through all buffers */
       int idx;
       for (idx = 0; idx < _buffer_entries; idx++) {
@@ -9698,7 +9689,6 @@ INT bm_empty_buffers()
 
          bm_skip_event(idx);
       }
-
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -11124,54 +11114,6 @@ INT rpc_is_mserver(void)
 {
    return _mserver_mode;
 }
-
-
-/********************************************************************/
-//INT rpc_get_server_acception(void)
-/********************************************************************\
-
-  Routine: rpc_get_server_acception
-
-  Purpose: Return actual RPC server connection index
-
-  Input:
-   none
-
-  Output:
-    none
-
-  Function value:
-    INT    RPC server connection index
-
-\********************************************************************/
-//{
-//   return _server_acception_index;
-//}
-
-
-/********************************************************************/
-//INT rpc_set_server_acception(INT idx)
-/********************************************************************\
-
-  Routine: rpc_set_server_acception
-
-  Purpose: Set actual RPC server connection index
-
-  Input:
-    INT  idx                Server index
-
-  Output:
-    none
-
-  Function value:
-    RPC_SUCCESS             Successful completion
-
-\********************************************************************/
-//{
-//   _server_acception_index = idx;
-//   return RPC_SUCCESS;
-//}
-
 
 /********************************************************************/
 INT rpc_get_option(HNDLE hConn, INT item)
