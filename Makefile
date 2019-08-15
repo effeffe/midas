@@ -526,13 +526,27 @@ ifdef NO_SSL
 CMAKEFLAGS+= -DNO_SSL=1
 endif
 
+CMAKEFLAGS+= -DCMAKE_TARGET_MESSAGES=OFF
+#CMAKEFLAGS+= -DCMAKE_RULE_MESSAGES=OFF
+#CMAKEFLAGS+= -DCMAKE_VERBOSE_MAKEFILE=ON
+
+CMAKEGREPFLAGS+= -e ^make
+CMAKEGREPFLAGS+= -e ^Dependee
+CMAKEGREPFLAGS+= -e cmake_depends
+CMAKEGREPFLAGS+= -e ^Scanning
+CMAKEGREPFLAGS+= -e cmake_link_script
+CMAKEGREPFLAGS+= -e cmake_progress_start
+CMAKEGREPFLAGS+= -e cmake_clean_target
+#CMAKEGREPFLAGS+= -e c++
+#CMAKEGREPFLAGS+= -e Building
+
 cmake:
 	-mkdir build
-	cd build; cmake .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install
+	cd build; cmake .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install |& grep -v $(CMAKEGREPFLAGS)
 
 cmake3:
 	-mkdir build
-	cd build; cmake3 .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install
+	cd build; cmake3 .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install |& grep -v $(CMAKEGREPFLAGS)
 
 cclean:
 	-rm -f lib/*
