@@ -137,8 +137,17 @@ function MhistoryGraph(divElement) { // Constructor
       },
       {
          src: "clock.svg",
-         click: function () {
-            dlgMessage("Notification", "Not yet implemented");
+         click: function (t) {
+            if (t.intSelector.style.display === "none") {
+
+               t.intSelector.style.display = "block";
+               t.intSelector.style.left = ((t.canvas.getBoundingClientRect().x + t.x2) -
+                  t.intSelector.offsetWidth) + "px";
+               t.intSelector.style.top = (t.parentDiv.getBoundingClientRect().y + this.y1 - 1) + "px";
+            } else {
+               t.intSelector.style.display = "none";
+            }
+
          }
       },
       {
@@ -347,8 +356,49 @@ MhistoryGraph.prototype.loadInitialData = function () {
       }
    });
 
-   this.tMinRequested = this.lastTimeStamp - this.tScale * 2;
+   // interval selector
+   this.intSelector = document.createElement("div");
+   this.intSelector.id = "intSel";
+   this.intSelector.style.display = "none";
+   this.intSelector.style.position = "absolute";
+   this.intSelector.className = "mtable";
+   this.intSelector.style.borderRadius = "0";
+   this.intSelector.style.border = "2px solid #808080";
+   this.intSelector.style.margin = "0";
+   this.intSelector.style.padding = "0";
 
+   this.intSelector.style.left = "100px";
+   this.intSelector.style.top = "100px";
+
+   let table = document.createElement("table");
+   let row = null;
+   let cell;
+   let link;
+   this.odb.Buttons.forEach(function(b, i) {
+      if (i % 2 === 0)
+         row = document.createElement("tr");
+
+      cell = document.createElement("td");
+
+      link = document.createElement("a");
+      link.innerHTML = b;
+      link.onclick = function() {
+          selectInterval(this, b);
+      };
+
+      cell.appendChild(link);
+      row.appendChild(cell);
+      if (i % 2 === 1)
+         table.appendChild(row);
+   }, this);
+
+   if (this.odb["Buttons"].length % 2 === 1)
+      table.appendChild(row);
+
+   this.intSelector.appendChild(table);
+   document.body.appendChild(this.intSelector);
+
+   this.tMinRequested = this.lastTimeStamp - this.tScale * 2;
    this.pendingUpdates++;
    mjsonrpc_call("hs_read_arraybuffer",
       {
@@ -374,6 +424,10 @@ MhistoryGraph.prototype.loadInitialData = function () {
          mjsonrpc_error_alert(error);
       });
 };
+
+function selectInterval(mhg, interval) {
+   console.log(interval);
+}
 
 MhistoryGraph.prototype.loadOldData = function () {
 
