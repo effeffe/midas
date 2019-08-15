@@ -1536,7 +1536,7 @@ Data conversion flags */
 #define CF_ENDIAN          (1<<0)
 #define CF_IEEE2VAX        (1<<1)
 #define CF_VAX2IEEE        (1<<2)
-#define CF_ASCII           (1<<3)
+//#define CF_ASCII           (1<<3)
 
 #define CBYTE(_i)        (* ((BYTE *)       prpc_param[_i]))
 #define CPBYTE(_i)       (  ((BYTE *)       prpc_param[_i]))

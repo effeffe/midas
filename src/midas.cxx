@@ -9535,32 +9535,26 @@ static INT bm_notify_client(const char *buffer_name, int client_socket)
    int convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
 
    /* only send notification once each 500ms */
-   if (now - last_time < 500 && !(convert_flags & CF_ASCII))
+   if (now - last_time < 500)
       return DB_SUCCESS;
 
    last_time = now;
 
-   if (convert_flags & CF_ASCII) {
-      char buffer[10+NAME_LENGTH];
-      sprintf(buffer, "MSG_BM&%s", buffer_name);
-      send_tcp(client_socket, buffer, strlen(buffer) + 1, 0);
-   } else {
-      char buffer[32];
-      NET_COMMAND *nc = (NET_COMMAND *) buffer;
+   char buffer[32];
+   NET_COMMAND *nc = (NET_COMMAND *) buffer;
 
-      nc->header.routine_id = MSG_BM;
-      nc->header.param_size = 0;
+   nc->header.routine_id = MSG_BM;
+   nc->header.param_size = 0;
 
-      if (convert_flags) {
-         rpc_convert_single(&nc->header.routine_id, TID_DWORD, RPC_OUTGOING, convert_flags);
-         rpc_convert_single(&nc->header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
-      }
-
-      //printf("bm_notify_client: Sending MSG_BM! buffer [%s]\n", buffer_name);
-
-      /* send the update notification to the client */
-      send_tcp(client_socket, (char *) buffer, sizeof(NET_COMMAND_HEADER), 0);
+   if (convert_flags) {
+      rpc_convert_single(&nc->header.routine_id, TID_DWORD, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
    }
+   
+   //printf("bm_notify_client: Sending MSG_BM! buffer [%s]\n", buffer_name);
+
+   /* send the update notification to the client */
+   send_tcp(client_socket, (char *) buffer, sizeof(NET_COMMAND_HEADER), 0);
 
    return BM_SUCCESS;
 }
@@ -9895,9 +9889,9 @@ void rpc_calc_convert_flags(INT hw_type, INT remote_hw_type, INT * convert_flags
    if ((remote_hw_type & DRF_IEEE) && (hw_type & DRF_G_FLOAT))
       *convert_flags |= CF_IEEE2VAX;
 
-   /* ASCII format */
-   if (remote_hw_type & DR_ASCII)
-      *convert_flags |= CF_ASCII;
+   ///* ASCII format */
+   //if (remote_hw_type & DR_ASCII)
+   //   *convert_flags |= CF_ASCII;
 }
 
 /********************************************************************/
@@ -13483,312 +13477,6 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
    return RPC_SUCCESS;
 }
 
-
-/********************************************************************/
-INT rpc_execute_ascii(INT sock, char *buffer)
-/********************************************************************\
-
-  Routine: rpc_execute_ascii
-
-  Purpose: Execute a RPC command received over the network in ASCII
-           mode
-
-  Input:
-    INT  sock               TCP socket to which the result should be
-                            send back
-
-    char *buffer            Command buffer
-
-  Output:
-    none
-
-  Function value:
-    RPC_SUCCESS             Successful completion
-    RPC_INVALID_ID          Invalid routine_id received
-    RPC_NET_ERROR           Error in socket call
-    RPC_EXCEED_BUFFER       Not enough memory for network buffer
-    RPC_SHUTDOWN            Shutdown requested
-    SS_ABORT                TCP connection broken
-    SS_EXIT                 TCP connection closed
-
-\********************************************************************/
-{
-#define ASCII_BUFFER_SIZE 64500
-#define N_APARAM           1024
-
-   INT i, j, idx, status, index_in;
-   char *in_param_ptr, *out_param_ptr;
-   INT routine_id, tid, flags, array_tid, n_param;
-   INT param_size=0, item_size, num_values;
-   void *prpc_param[20];
-   char *arpc_param[N_APARAM], *pc;
-   char str[1024], debug_line[1024];
-   char buffer1[ASCII_BUFFER_SIZE];     /* binary in */
-   char buffer2[ASCII_BUFFER_SIZE];     /* binary out */
-   char return_buffer[ASCII_BUFFER_SIZE];       /* ASCII out */
-
-   /* parse arguments */
-   arpc_param[0] = buffer;
-   for (i = 1; i < N_APARAM; i++) {
-      arpc_param[i] = strchr(arpc_param[i - 1], '&');
-      if (arpc_param[i] == NULL)
-         break;
-      *arpc_param[i] = 0;
-      arpc_param[i]++;
-   }
-
-   /* decode '%' */
-   for (i = 0; i < N_APARAM && arpc_param[i]; i++)
-      while ((pc = strchr(arpc_param[i], '%')) != NULL) {
-         if (isxdigit(pc[1]) && isxdigit(pc[2])) {
-            str[0] = pc[1];
-            str[1] = pc[2];
-            str[2] = 0;
-            sscanf(str, "%02X", &i);
-
-            *pc++ = i;
-            while (pc[2]) {
-               pc[0] = pc[2];
-               pc++;
-            }
-         }
-      }
-
-   /* find entry in rpc_list */
-   for (i = 0;; i++)
-      if (rpc_list[i].id == 0 || strcmp(arpc_param[0], rpc_list[i].name) == 0)
-         break;
-   idx = i;
-   routine_id = rpc_list[i].id;
-   if (rpc_list[i].id == 0) {
-      cm_msg(MERROR, "rpc_execute", "Invalid rpc name (%s)", arpc_param[0]);
-      return RPC_INVALID_ID;
-   }
-
-   in_param_ptr = buffer1;
-   out_param_ptr = buffer2;
-   index_in = 1;
-
-   sprintf(debug_line, "%s(", rpc_list[idx].name);
-
-   for (i = 0; rpc_list[idx].param[i].tid != 0; i++) {
-      tid = rpc_list[idx].param[i].tid;
-      flags = rpc_list[idx].param[i].flags;
-
-      if (flags & RPC_IN) {
-         if (flags & RPC_VARARRAY) {
-            sscanf(arpc_param[index_in++], "%d %d", &n_param, &array_tid);
-
-            prpc_param[i] = in_param_ptr;
-            for (j = 0; j < n_param; j++) {
-               db_sscanf(arpc_param[index_in++], in_param_ptr, &param_size, 0, array_tid);
-               in_param_ptr += param_size;
-            }
-            in_param_ptr = (char *) ALIGN8(((POINTER_T) in_param_ptr));
-
-            strcat(debug_line, "<array>");
-         } else {
-            db_sscanf(arpc_param[index_in++], in_param_ptr, &param_size, 0, tid);
-            param_size = ALIGN8(param_size);
-
-            if (tid == TID_STRING || tid == TID_LINK)
-               param_size = ALIGN8(1 + strlen((char *) (in_param_ptr)));
-
-            /*
-               if (tid == TID_STRUCT)
-               param_size = ALIGN8( rpc_list[idx].param[i].n );
-             */
-            prpc_param[i] = in_param_ptr;
-
-            db_sprintf(str, in_param_ptr, param_size, 0, rpc_list[idx].param[i].tid);
-            if (rpc_list[idx].param[i].tid == TID_STRING) {
-               /* check for long strings (db_create_record...) */
-               if (strlen(debug_line) + strlen(str) + 2 < sizeof(debug_line)) {
-                  strcat(debug_line, "\"");
-                  strcat(debug_line, str);
-                  strcat(debug_line, "\"");
-               } else
-                  strcat(debug_line, "...");
-            } else
-               strcat(debug_line, str);
-
-            in_param_ptr += param_size;
-         }
-
-         if ((POINTER_T) in_param_ptr - (POINTER_T) buffer1 > ASCII_BUFFER_SIZE) {
-            cm_msg(MERROR, "rpc_ascii_execute",
-                   "parameters (%d) too large for network buffer (%d)", param_size, ASCII_BUFFER_SIZE);
-            return RPC_EXCEED_BUFFER;
-         }
-
-      }
-
-      if (flags & RPC_OUT) {
-         param_size = ALIGN8(tid_size[tid]);
-
-         if (flags & RPC_VARARRAY || tid == TID_STRING) {
-            /* reserve maximum array length */
-            param_size = atoi(arpc_param[index_in]);
-            param_size = ALIGN8(param_size);
-         }
-
-/*
-      if (rpc_list[idx].param[i].tid == TID_STRUCT)
-        param_size = ALIGN8( rpc_list[idx].param[i].n );
-*/
-         if ((POINTER_T) out_param_ptr - (POINTER_T) buffer2 + param_size > ASCII_BUFFER_SIZE) {
-            cm_msg(MERROR, "rpc_execute",
-                   "return parameters (%d) too large for network buffer (%d)",
-                   (int)((POINTER_T) out_param_ptr - (POINTER_T) buffer2 + param_size), ASCII_BUFFER_SIZE);
-            return RPC_EXCEED_BUFFER;
-         }
-
-         /* if parameter goes both directions, copy input to output */
-         if (rpc_list[idx].param[i].flags & RPC_IN)
-            memcpy(out_param_ptr, prpc_param[i], param_size);
-
-         if (!(flags & RPC_IN))
-            strcat(debug_line, "-");
-
-         prpc_param[i] = out_param_ptr;
-         out_param_ptr += param_size;
-      }
-
-      if (rpc_list[idx].param[i + 1].tid)
-         strcat(debug_line, ", ");
-   }
-
-   strcat(debug_line, ")");
-   rpc_debug_printf(debug_line);
-
-   /*********************************\
-   *   call dispatch function        *
-   \*********************************/
-
-   if (rpc_list[idx].dispatch)
-      status = rpc_list[idx].dispatch(routine_id, prpc_param);
-   else
-      status = RPC_INVALID_ID;
-
-   if (routine_id == RPC_ID_EXIT || routine_id == RPC_ID_SHUTDOWN || routine_id == RPC_ID_WATCHDOG)
-      status = RPC_SUCCESS;
-
-   /* Return if TCP connection broken */
-   if (status == SS_ABORT)
-      return SS_ABORT;
-
-   /* if sock == 0, we are in FTCP mode and may not sent results */
-   if (!sock)
-      return RPC_SUCCESS;
-
-   /* send return status */
-   out_param_ptr = return_buffer;
-   sprintf(out_param_ptr, "%d", status);
-   out_param_ptr += strlen(out_param_ptr);
-
-   /* convert return parameters */
-   for (i = 0; rpc_list[idx].param[i].tid != 0; i++)
-      if (rpc_list[idx].param[i].flags & RPC_OUT) {
-         *out_param_ptr++ = '&';
-
-         tid = rpc_list[idx].param[i].tid;
-         flags = rpc_list[idx].param[i].flags;
-         param_size = ALIGN8(tid_size[tid]);
-
-         if (tid == TID_STRING && !(flags & RPC_VARARRAY)) {
-            strcpy(out_param_ptr, (char *) prpc_param[i]);
-            param_size = strlen((char *) prpc_param[i]);
-         }
-
-         else if (flags & RPC_VARARRAY) {
-            if (rpc_list[idx].id == RPC_BM_RECEIVE_EVENT) {
-               param_size = *((INT *) prpc_param[i + 1]);
-               /* write number of bytes to output */
-               sprintf(out_param_ptr, "%d", param_size);
-               out_param_ptr += strlen(out_param_ptr) + 1;      /* '0' finishes param */
-               memcpy(out_param_ptr, prpc_param[i], param_size);
-               out_param_ptr += param_size;
-               *out_param_ptr = 0;
-            } else {
-               if (rpc_list[idx].id == RPC_DB_GET_DATA1) {
-                  param_size = *((INT *) prpc_param[i + 1]);
-                  array_tid = *((INT *) prpc_param[i + 2]);
-                  num_values = *((INT *) prpc_param[i + 3]);
-               } else if (rpc_list[idx].id == RPC_DB_GET_DATA_INDEX) {
-                  param_size = *((INT *) prpc_param[i + 1]);
-                  array_tid = *((INT *) prpc_param[i + 3]);
-                  num_values = 1;
-               } else {         /* variable arrays of fixed type like hs_enum_events, hs_enum_vars */
-
-                  param_size = *((INT *) prpc_param[i + 1]);
-                  array_tid = tid;
-                  if (tid == TID_STRING)
-                     num_values = param_size / NAME_LENGTH;
-                  else
-                     num_values = param_size / tid_size[tid];
-               }
-
-               /* derive size of individual item */
-               if (array_tid == TID_STRING)
-                  item_size = param_size / num_values;
-               else
-                  item_size = tid_size[array_tid];
-
-               /* write number of elements to output */
-               sprintf(out_param_ptr, "%d", num_values);
-               out_param_ptr += strlen(out_param_ptr);
-
-               /* write array of values to output */
-               for (j = 0; j < num_values; j++) {
-                  *out_param_ptr++ = '&';
-                  db_sprintf(out_param_ptr, prpc_param[i], item_size, j, array_tid);
-                  out_param_ptr += strlen(out_param_ptr);
-               }
-            }
-         }
-
-/*
-      else if (tid == TID_STRUCT)
-        param_size = ALIGN8( rpc_list[idx].param[i].n );
-*/
-         else
-            db_sprintf(out_param_ptr, prpc_param[i], param_size, 0, tid);
-
-         out_param_ptr += strlen(out_param_ptr);
-
-         if ((POINTER_T) out_param_ptr - (POINTER_T) return_buffer > ASCII_BUFFER_SIZE) {
-            cm_msg(MERROR, "rpc_execute",
-                   "return parameter (%d) too large for network buffer (%d)", param_size, ASCII_BUFFER_SIZE);
-            return RPC_EXCEED_BUFFER;
-         }
-      }
-
-   /* send return parameters */
-   param_size = (POINTER_T) out_param_ptr - (POINTER_T) return_buffer + 1;
-
-   status = send_tcp(sock, return_buffer, param_size, 0);
-
-   if (status < 0) {
-      cm_msg(MERROR, "rpc_execute", "send_tcp() failed");
-      return RPC_NET_ERROR;
-   }
-
-   /* print return buffer */
-   strlcpy(debug_line, "-> ", sizeof(debug_line));
-   strlcat(debug_line, return_buffer, sizeof(debug_line));
-   rpc_debug_printf(debug_line);
-
-   /* return SS_EXIT if RPC_EXIT is called */
-   if (routine_id == RPC_ID_EXIT)
-      return SS_EXIT;
-
-   /* return SS_SHUTDOWN if RPC_SHUTDOWN is called */
-   if (routine_id == RPC_ID_SHUTDOWN)
-      return RPC_SHUTDOWN;
-
-   return RPC_SUCCESS;
-}
-
 #define MAX_N_ALLOWED_HOSTS 100
 static char allowed_host[MAX_N_ALLOWED_HOSTS][256];
 static int  n_allowed_hosts = 0;
@@ -14608,31 +14296,15 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       int   bufsize = 0;
 
       do {
-         if (_server_acception[idx].remote_hw_type == DR_ASCII) {
-            // previous code allocated DEFAULT_MAX_EVENT_SIZE bytes, around 4 Mbytes
-            int asize = 100*1024;
-            char* abuf = (char*)malloc(asize);
-            
-            int n_received = recv_string(_server_acception[idx].recv_sock, abuf, asize, 10000);
-
-            if (n_received <= 0) {
-               status = SS_ABORT;
-               cm_msg(MERROR, "rpc_server_receive", "recv_string() returned %d, abort", n_received);
-               goto error;
-            }
-            
-            status = rpc_execute_ascii(_server_acception[idx].recv_sock, abuf);
-         } else {
-            int n_received = recv_net_command_realloc(idx, &buf, &bufsize, &remaining);
-
-            if (n_received <= 0) {
-               status = SS_ABORT;
-               cm_msg(MERROR, "rpc_server_receive", "recv_net_command() returned %d, abort", n_received);
-               goto error;
-            }
-
-            status = rpc_execute(_server_acception[idx].recv_sock, buf, _server_acception[idx].convert_flags);
+         int n_received = recv_net_command_realloc(idx, &buf, &bufsize, &remaining);
+         
+         if (n_received <= 0) {
+            status = SS_ABORT;
+            cm_msg(MERROR, "rpc_server_receive", "recv_net_command() returned %d, abort", n_received);
+            goto error;
          }
+         
+         status = rpc_execute(_server_acception[idx].recv_sock, buf, _server_acception[idx].convert_flags);
 
          if (status == SS_ABORT) {
             cm_msg(MERROR, "rpc_server_receive", "rpc_execute() returned %d, abort", status);

@@ -12276,31 +12276,26 @@ INT db_update_record_mserver(INT hDB, INT hKeyRoot, INT hKey, int index, int cli
 
    int convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
    
-   if (convert_flags & CF_ASCII) {
-      sprintf(buffer, "MSG_ODB&%d&%d%d%d", hDB, hKeyRoot, hKey, index);
-      send_tcp(client_socket, buffer, strlen(buffer) + 1, 0);
-   } else {
-      NET_COMMAND* nc = (NET_COMMAND *) buffer;
-      
-      nc->header.routine_id = MSG_ODB;
-      nc->header.param_size = 4 * sizeof(INT);
-      *((INT *) nc->param) = hDB;
-      *((INT *) nc->param + 1) = hKeyRoot;
-      *((INT *) nc->param + 2) = hKey;
-      *((INT *) nc->param + 3) = index;
-      
-      if (convert_flags) {
-         rpc_convert_single(&nc->header.routine_id, TID_DWORD, RPC_OUTGOING, convert_flags);
-         rpc_convert_single(&nc->header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
-         rpc_convert_single(&nc->param[0], TID_DWORD, RPC_OUTGOING, convert_flags);
-         rpc_convert_single(&nc->param[4], TID_DWORD, RPC_OUTGOING, convert_flags);
-         rpc_convert_single(&nc->param[8], TID_DWORD, RPC_OUTGOING, convert_flags);
-         rpc_convert_single(&nc->param[12], TID_DWORD, RPC_OUTGOING, convert_flags);
-      }
-      
-      /* send the update notification to the client */
-      send_tcp(client_socket, buffer, sizeof(NET_COMMAND_HEADER) + 4 * sizeof(INT), 0);
+   NET_COMMAND* nc = (NET_COMMAND *) buffer;
+   
+   nc->header.routine_id = MSG_ODB;
+   nc->header.param_size = 4 * sizeof(INT);
+   *((INT *) nc->param) = hDB;
+   *((INT *) nc->param + 1) = hKeyRoot;
+   *((INT *) nc->param + 2) = hKey;
+   *((INT *) nc->param + 3) = index;
+   
+   if (convert_flags) {
+      rpc_convert_single(&nc->header.routine_id, TID_DWORD, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->param[0], TID_DWORD, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->param[4], TID_DWORD, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->param[8], TID_DWORD, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->param[12], TID_DWORD, RPC_OUTGOING, convert_flags);
    }
+   
+   /* send the update notification to the client */
+   send_tcp(client_socket, buffer, sizeof(NET_COMMAND_HEADER) + 4 * sizeof(INT), 0);
    
    return DB_SUCCESS;
 }
