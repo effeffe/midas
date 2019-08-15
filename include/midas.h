@@ -1984,26 +1984,6 @@ Data conversion flags */
 
    /** @} */
 
-#if REMOVE_HS
-   /*---- history routines ----*/
-   INT EXPRT hs_set_path(const char *path);
-   INT EXPRT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DWORD size);
-   INT EXPRT hs_write_event(DWORD event_id, const void *data, DWORD size);
-   INT EXPRT hs_count_events(DWORD ltime, DWORD * count);
-   INT EXPRT hs_enum_events(DWORD ltime, char *event_name, DWORD * name_size, INT event_id[], DWORD * id_size);
-   INT EXPRT hs_count_vars(DWORD ltime, DWORD event_id, DWORD * count);
-   INT EXPRT hs_enum_vars(DWORD ltime, DWORD event_id, char *var_name, DWORD * size, DWORD * var_n, DWORD * n_size);
-   INT EXPRT hs_get_var(DWORD ltime, DWORD event_id, const char *var_name, DWORD * type, INT * n_data);
-   INT EXPRT hs_get_event_id(DWORD ltime, const char *name, DWORD * id);
-   INT EXPRT hs_get_tags(DWORD ltime, DWORD event_id, char event_name[NAME_LENGTH], int *n_tags, TAG **tags);
-   INT EXPRT hs_read(DWORD event_id, DWORD start_time, DWORD end_time,
-                     DWORD interval, const char *tag_name, DWORD var_index,
-                     DWORD * time_buffer, DWORD * tbsize,
-                     void *data_buffer, DWORD * dbsize, DWORD * type, DWORD * n);
-   INT EXPRT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD interval, BOOL binary_time);
-   INT EXPRT hs_fdump(const char *file_name, DWORD id, BOOL binary_time);
-#endif
-
    /*---- ELog functions ----*/
    INT EXPRT el_retrieve(char *tag, char *date, int *run, char *author,
                          char *type, char *system, char *subject,

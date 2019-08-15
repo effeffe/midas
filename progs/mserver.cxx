@@ -815,69 +815,6 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       status = db_get_open_records(CHNDLE(0), CHNDLE(1), CSTRING(2), CINT(3), CBOOL(4));
       break;
 
-#if REMOVE_HS
-      /* history functions */
-
-   case RPC_HS_SET_PATH:
-      status = hs_set_path(CSTRING(0));
-      break;
-
-   case RPC_HS_DEFINE_EVENT:
-      if (convert_flags) {
-         TAG *tag;
-         INT i;
-
-         /* convert tags */
-         tag = (TAG *) CARRAY(2);
-         for (i = 0; i < CINT(3); i++) {
-            rpc_convert_single(&tag[i].type, TID_DWORD, 0, convert_flags);
-            rpc_convert_single(&tag[i].n_data, TID_DWORD, 0, convert_flags);
-         }
-      }
-
-      status = hs_define_event(CDWORD(0), CSTRING(1), (const TAG*)CARRAY(2), CDWORD(3));
-      break;
-
-   case RPC_HS_WRITE_EVENT:
-      status = hs_write_event(CDWORD(0), CARRAY(1), CDWORD(2));
-      break;
-
-   case RPC_HS_COUNT_EVENTS:
-      status = hs_count_events(CDWORD(0), CPDWORD(1));
-      break;
-
-   case RPC_HS_ENUM_EVENTS:
-      status = hs_enum_events(CDWORD(0), CSTRING(1), CPDWORD(2), CPINT(3), CPDWORD(4));
-      break;
-
-   case RPC_HS_COUNT_VARS:
-      status = hs_count_vars(CDWORD(0), CDWORD(1), CPDWORD(2));
-      break;
-
-   case RPC_HS_ENUM_VARS:
-      status = hs_enum_vars(CDWORD(0), CDWORD(1), CSTRING(2), CPDWORD(3), CPDWORD(4), CPDWORD(5));
-      break;
-
-   case RPC_HS_GET_VAR:
-      status = hs_get_var(CDWORD(0), CDWORD(1), CSTRING(2), CPDWORD(3), CPINT(4));
-      break;
-
-   case RPC_HS_GET_EVENT_ID:
-      status = hs_get_event_id(CDWORD(0), CSTRING(1), CPDWORD(2));
-      break;
-
-   case RPC_HS_READ:
-      status = hs_read(CDWORD(0), CDWORD(1), CDWORD(2), CDWORD(3), CSTRING(4),
-                       CDWORD(5), (DWORD*)CARRAY(6), CPDWORD(7), CARRAY(8), CPDWORD(9), CPDWORD(10), CPDWORD(11));
-      if (convert_flags && rpc_tid_size(CDWORD(10)) > 0) {
-         rpc_convert_data(CARRAY(6), TID_DWORD, RPC_FIXARRAY | RPC_OUTGOING,
-                          CDWORD(7) / sizeof(DWORD), convert_flags);
-         rpc_convert_data(CARRAY(8), CDWORD(10), RPC_FIXARRAY | RPC_OUTGOING,
-                          CDWORD(11) / rpc_tid_size(CDWORD(10)), convert_flags);
-      }
-      break;
-#endif
-
    case RPC_EL_SUBMIT:
       status = el_submit(CINT(0), CSTRING(1), CSTRING(2), CSTRING(3), CSTRING(4),
                          CSTRING(5), CSTRING(6), CSTRING(7),
