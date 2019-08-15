@@ -11401,7 +11401,7 @@ INT rpc_set_server_option(INT item, INT value)
    return RPC_SUCCESS;
 }
 
-static char* _mserver_path = NULL;
+static std::string _mserver_path;
 
 /********************************************************************/
 const char* rpc_get_mserver_path()
@@ -11413,7 +11413,7 @@ const char* rpc_get_mserver_path()
 
 \********************************************************************/
 {
-   return _mserver_path;
+   return _mserver_path.c_str();
 }
 
 /********************************************************************/
@@ -11432,11 +11432,7 @@ INT rpc_set_mserver_path(const char *path)
 
 \********************************************************************/
 {
-   if (_mserver_path)
-      free(_mserver_path);
-   int len = strlen(path);
-   _mserver_path = (char*)malloc(len+1);
-   memcpy(_mserver_path, path, len+1);
+   _mserver_path = path;
    return RPC_SUCCESS;
 }
 
