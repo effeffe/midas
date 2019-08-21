@@ -973,6 +973,9 @@ MhistoryGraph.prototype.yToValue = function (y) {
 MhistoryGraph.prototype.draw = function () {
    let ctx = this.canvas.getContext("2d");
 
+   ctx.fillStyle = this.color.background;
+   ctx.fillRect(0, 0, this.width, this.height);
+
    if (this.data === undefined) {
       ctx.lineWidth = 1;
       ctx.font = "14px sans-serif";
@@ -1022,9 +1025,6 @@ MhistoryGraph.prototype.draw = function () {
    this.y1 = this.height - 25;
    this.x2 = this.width - 30;
    this.y2 = 26;
-
-   ctx.fillStyle = this.color.background;
-   ctx.fillRect(0, 0, this.width, this.height);
 
    // title
    ctx.strokeStyle = this.color.axis;
