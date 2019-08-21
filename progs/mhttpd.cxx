@@ -12299,14 +12299,8 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    r->rsprintf("<tr><td colspan=8>Time scale: &nbsp;&nbsp;");
    r->rsprintf("<input type=text name=timescale value=%s></td></tr>\n", plot.timescale.c_str());
 
-   if (plot.zero_ylow)
-      r->rsprintf("<tr><td colspan=8><input type=checkbox checked name=zero_ylow value=1>");
-   else
-      r->rsprintf("<tr><td colspan=8><input type=checkbox name=zero_ylow value=1>");
-   r->rsprintf("&nbsp;&nbsp;Zero Ylow</td></tr>\n");
-
-   r->rsprintf("<tr><td colspan=8>Minimum: &nbsp;&nbsp;<input type=text name=minimum value=%f></td></tr>\n", plot.minimum);
-   r->rsprintf("<tr><td colspan=8>Maximum: &nbsp;&nbsp;<input type=text name=maximum value=%f></td></tr>\n", plot.maximum);
+   r->rsprintf("<tr><td colspan=8>Minimum (set to \"-inf\" for autoscale): &nbsp;&nbsp;<input type=text name=minimum value=%f></td></tr>\n", plot.minimum);
+   r->rsprintf("<tr><td colspan=8>Maximum (set to \"inf\" for autoscale): &nbsp;&nbsp;<input type=text name=maximum value=%f></td></tr>\n", plot.maximum);
 
    if (plot.log_axis)
       r->rsprintf("<tr><td colspan=8><input type=checkbox checked name=log_axis value=1>");
