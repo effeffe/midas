@@ -500,33 +500,47 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          let nData = array[2 + nVars + index];
          let x = undefined;
          let y = undefined;
-         if (formula !== undefined) {
+         if (formula !== undefined && formula[index] !== "") {
             for (let j = 0; j < nData; j++) {
                this.data[index].time.push(array[i++]);
                x = array[i++];
                y = eval(formula[index]);
                this.data[index].value.push(y);
+
+               if (j === 0 && this.yMin0 === undefined)
+                  this.yMin0 = y;
+
+               if (j === 0 && this.yMax0 === undefined)
+                  this.yMax0 = y;
+
+               if (this.autoscaleMin)
+                  if (y < this.yMin0)
+                     this.yMin0 = y;
+
+               if (this.autoscaleMax)
+                  if (y > this.yMax0)
+                     this.yMax0 = y;
             }
          } else {
             for (let j = 0; j < nData; j++) {
                let t = array[i++];
-               let v = array[i++];
+               y = array[i++];
                this.data[index].time.push(t);
-               this.data[index].value.push(v);
+               this.data[index].value.push(y);
 
                if (j === 0 && this.yMin0 === undefined)
-                  this.yMin0 = v;
+                  this.yMin0 = y;
 
                if (j === 0 && this.yMax0 === undefined)
-                  this.yMax0 = v;
+                  this.yMax0 = y;
 
                if (this.autoscaleMin)
-                  if (v < this.yMin0)
-                     this.yMin0 = v;
+                  if (y < this.yMin0)
+                     this.yMin0 = y;
 
                if (this.autoscaleMax)
-                  if (v > this.yMax0)
-                     this.yMax0 = v;
+                  if (y > this.yMax0)
+                     this.yMax0 = y;
             }
          }
       }
@@ -544,7 +558,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
             nData * 2 - 1;        // offset end of channel
 
          let x = undefined;
-         if (formula !== undefined) {
+         if (formula !== undefined && formula[index] !== "") {
             for (let j = 0; j < nData; j++) {
                x = array[i--];
                let t = array[i--];
@@ -594,7 +608,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          let nData = array[2 + nVars + index];
 
          let x = undefined;
-         if (formula !== undefined) {
+         if (formula !== undefined && formula[index] !== "") {
             for (let j = 0; j < nData; j++) {
                let t = array[i++];
                x = array[i++];

@@ -11755,16 +11755,14 @@ struct hist_var_t
 {
    std::string event_name;
    std::string tag_name;
-   float hist_factor;
-   float hist_offset;
+   std::string hist_formula;
    std::string hist_col;
    std::string hist_label;
    int  hist_order;
 
    hist_var_t() // ctor
    {
-      hist_factor = 1;
-      hist_offset = 0;
+      hist_formula = "";
       hist_order = -1;
    }
 };
@@ -11805,7 +11803,7 @@ struct hist_plot_t
       printf("timescale: %s, minimum: %f, maximum: %f, zero_ylow: %d, log_axis: %d, show_run_markers: %d, show_values: %d\n", timescale.c_str(), minimum, maximum, zero_ylow, log_axis, show_run_markers, show_values);
 
       for (unsigned i=0; i<vars.size(); i++) {
-         printf("var[%d] event [%s][%s] factor %f, offset %f, color [%s] label [%s] order %d\n", i, vars[i].event_name.c_str(), vars[i].tag_name.c_str(), vars[i].hist_factor, vars[i].hist_offset, vars[i].hist_col.c_str(), vars[i].hist_label.c_str(), vars[i].hist_order);
+         printf("var[%d] event [%s][%s] formula %s, color [%s] label [%s] order %d\n", i, vars[i].event_name.c_str(), vars[i].tag_name.c_str(), vars[i].hist_formula.c_str(), vars[i].hist_col.c_str(), vars[i].hist_label.c_str(), vars[i].hist_order);
       }
    }
 
@@ -11897,18 +11895,15 @@ struct hist_plot_t
 
          //printf("index %d, var_name_odb [%s] %p [%s]\n", index, var_name_odb, s, s?(s+1):"");
 
-         v.hist_factor = 1;
+         v.hist_formula = "";
 
-         sprintf(str, "/History/Display/%s/Factor", path);
-         xdb_get_data_index(hDB, str, &v.hist_factor, sizeof(float), index, TID_FLOAT);
+         char buf[NAME_LENGTH];
+         buf[0] = 0;
+         sprintf(str, "/History/Display/%s/Formula", path);
+         xdb_get_data_index(hDB, str, buf, sizeof(buf), index, TID_STRING);
+         v.hist_formula = buf;
 
-         v.hist_offset = 0;
-
-         sprintf(str, "/History/Display/%s/Offset", path);
-         xdb_get_data_index(hDB, str, &v.hist_offset, sizeof(float), index, TID_FLOAT);
-
-         char buf[256];
-
+         strlcpy(buf, "#000000", sizeof(buf));
          sprintf(str, "/History/Display/%s/Colour", path);
          xdb_get_data_index(hDB, str, buf, sizeof(buf), index, TID_STRING);
          v.hist_col = buf;
@@ -11954,13 +11949,9 @@ struct hist_plot_t
          sprintf(str, "var%d", index);
          v.tag_name = p->getparam(str);
 
-         sprintf(str, "fac%d", index);
+         sprintf(str, "form%d", index);
          if (p->getparam(str) && *p->getparam(str))
-            v.hist_factor = (float) atof(p->getparam(str));
-
-         sprintf(str, "ofs%d", index);
-         if (p->getparam(str) && *p->getparam(str))
-            v.hist_offset = (float) atof(p->getparam(str));
+            v.hist_formula = p->getparam(str);
 
          sprintf(str, "col%d", index);
          if (p->getparam(str) && *p->getparam(str))
@@ -12006,7 +11997,7 @@ struct hist_plot_t
 
          v.event_name = par.substr(0, pos);
          v.tag_name = par.substr(pos+1);
-         v.hist_factor = 1;
+         v.hist_formula = "";
          v.hist_order = NextOrder();
 
          vars.push_back(v);
@@ -12092,11 +12083,8 @@ struct hist_plot_t
          xdb_find_key(hDB, hDir, "Variables", &hKey, TID_STRING, 2*NAME_LENGTH);
          db_set_data_index(hDB, hKey, str, 2 * NAME_LENGTH, index, TID_STRING);
 
-         xdb_find_key(hDB, hDir, "Factor", &hKey, TID_FLOAT, 0);
-         db_set_data_index(hDB, hKey, &vars[index].hist_factor, sizeof(float), index, TID_FLOAT);
-
-         xdb_find_key(hDB, hDir, "Offset", &hKey, TID_FLOAT, 0);
-         db_set_data_index(hDB, hKey, &vars[index].hist_offset, sizeof(float), index, TID_FLOAT);
+         xdb_find_key(hDB, hDir, "Formula", &hKey, TID_STRING, NAME_LENGTH);
+         db_set_data_index(hDB, hKey, vars[index].hist_formula.c_str(), NAME_LENGTH, index, TID_STRING);
 
          xdb_find_key(hDB, hDir, "Colour", &hKey, TID_STRING, NAME_LENGTH);
          db_set_data_index(hDB, hKey, vars[index].hist_col.c_str(), NAME_LENGTH, index, TID_STRING);
@@ -12475,7 +12463,7 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
       r->rsprintf("</tr>\n");
    }
 
-   r->rsprintf("<tr><th>Col<th>Event<th>Variable<th>Factor<th>Offset<th>Color<th>Label<th>Order</tr>\n");
+   r->rsprintf("<tr><th>Col<th>Event<th>Variable<th>Formula e.g. '3*x+4'<th>Color<th>Label<th>Order</tr>\n");
 
    //print_vars(vars);
 
@@ -12603,8 +12591,7 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
                r->rsprintf("<option selected value=\"%s\">%s\n", plot.vars[index].tag_name.c_str(), plot.vars[index].tag_name.c_str());
 
          r->rsprintf("</select></td>\n");
-         r->rsprintf("<td><input type=text size=10 maxlength=10 name=\"fac%d\" value=%g></td>\n", index, plot.vars[index].hist_factor);
-         r->rsprintf("<td><input type=text size=10 maxlength=10 name=\"ofs%d\" value=%g></td>\n", index, plot.vars[index].hist_offset);
+         r->rsprintf("<td><input type=text size=20 maxlength=32 name=\"form%d\" value=%s></td>\n", index, plot.vars[index].hist_formula.c_str());
          r->rsprintf("<td><input type=text size=10 maxlength=10 name=\"col%d\" value=%s></td>\n", index, plot.vars[index].hist_col.c_str());
          r->rsprintf("<td><input type=text size=10 maxlength=%d name=\"lab%d\" value=\"%s\"></td>\n", NAME_LENGTH, index, plot.vars[index].hist_label.c_str());
          r->rsprintf("<td><input type=text size=5 maxlength=10 name=\"ord%d\" value=\"%d\"></td>\n", index, plot.vars[index].hist_order);
