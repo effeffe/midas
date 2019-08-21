@@ -706,9 +706,11 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          let dt = Math.floor((e.offsetX - this.drag.xStart) / (this.x2 - this.x1) * (this.tMax - this.tMin));
          this.tMin = this.drag.tMinStart - dt;
          this.tMax = this.drag.tMaxStart - dt;
-         let dy = (this.drag.yStart - e.offsetY) / (this.y1 - this.y2) * (this.yMax - this.yMin);
-         this.yMin = this.drag.yMinStart - dy;
-         this.yMax = this.drag.yMaxStart - dy;
+         if (this.yMin !== this.odb["Minimum"]) {
+            let dy = (this.drag.yStart - e.offsetY) / (this.y1 - this.y2) * (this.yMax - this.yMin);
+            this.yMin = this.drag.yMinStart - dy;
+            this.yMax = this.drag.yMaxStart - dy;
+         }
          this.redraw();
 
          this.loadOldData();
