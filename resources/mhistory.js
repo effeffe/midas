@@ -64,12 +64,12 @@ function MhistoryGraph(divElement) { // Constructor
 
    // scales
    this.tScale = 3600;
-   this.yMin0 = 0;
-   this.yMax0 = 1;
+   this.yMin0 = undefined;
+   this.yMax0 = undefined;
    this.tMax = Math.floor(new Date() / 1000);
    this.tMin = this.tMax - this.tScale;
-   this.yMin = this.yMin0;
-   this.yMax = this.yMax0;
+   this.yMin = undefined;
+   this.yMax = undefined;
    this.scroll = true;
    this.dragYEnabled = false;
 
@@ -299,8 +299,8 @@ MhistoryGraph.prototype.initializePanel = function () {
    this.events = [];
    this.tags = [];
    this.index = [];
-   this.yMin0 = 0;
-   this.yMax0 = 0;
+   this.yMin0 = undefined;
+   this.yMax0 = undefined;
    this.pendingUpdates = 0;
 
    // retrieve panel definition from ODB
@@ -340,8 +340,6 @@ MhistoryGraph.prototype.loadInitialData = function () {
       this.yMax0 = this.odb["Maximum"];
 
    this.logAxis = this.odb["Log axis"];
-   if (this.logAxis)
-      this.yMin0 = this.yMin = 1;
 
    // if only one variable present, convert it to array[0]
    if (!Array.isArray(this.odb.Variables))
@@ -496,73 +494,61 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       // initial data
       for (let index = 0; index < nVars; index++) {
 
+         let formula = this.odb["Formula"];
          this.data.push({time: [], value: []});
 
          let nData = array[2 + nVars + index];
-         for (let j = 0; j < nData; j++) {
-            this.data[index].time.push(array[i++]);
-            this.data[index].value.push(array[i++]);
-         }
-      }
+         let x = undefined;
+         let y = undefined;
+         if (formula !== undefined) {
+            for (let j = 0; j < nData; j++) {
+               this.data[index].time.push(array[i++]);
+               x = array[i++];
+               y = eval(formula[index]);
+               this.data[index].value.push(y);
+            }
+         } else {
+            for (let j = 0; j < nData; j++) {
+               let t = array[i++];
+               let v = array[i++];
+               this.data[index].time.push(t);
+               this.data[index].value.push(v);
 
-      if (this.autoscaleMin) {
-         this.data.forEach(d => {
-            d.value.forEach(v => {
-               if (v < this.yMin0)
+               if (j === 0 && this.yMin0 === undefined)
                   this.yMin0 = v;
 
-            });
-         });
-      }
-
-      if (this.autoscaleMax) {
-         this.data.forEach(d => {
-            d.value.forEach(v => {
-               if (v > this.yMax0)
+               if (j === 0 && this.yMax0 === undefined)
                   this.yMax0 = v;
-            });
-         });
+
+               if (this.autoscaleMin)
+                  if (v < this.yMin0)
+                     this.yMin0 = v;
+
+               if (this.autoscaleMax)
+                  if (v > this.yMax0)
+                     this.yMax0 = v;
+            }
+         }
       }
 
    } else if (t0 < this.data[0].time[0]) {
 
       // add data to the left
       for (let index = 0; index < nVars; index++) {
+
+         let formula = this.odb["Formula"];
+
          let nData = array[2 + nVars + index];
          let i = 2 + nVars * 2 +  // offset first value
             index * nData * 2 +   // offset full channel
             nData * 2 - 1;        // offset end of channel
 
-         for (let j = 0; j < nData; j++) {
-            let v = array[i--];
-            let t = array[i--];
-
-            if (this.autoscaleMin)
-               if (v < this.yMin0)
-                  this.yMin0 = v;
-
-            if (this.autoscaleMax)
-               if (v > this.yMax0)
-                  this.yMax0 = v;
-
-            if (t < this.data[index].time[0]) {
-               this.data[index].time.unshift(t);
-               this.data[index].value.unshift(v);
-            }
-         }
-      }
-
-   } else {
-
-      // add data to the right
-      for (let index = 0; index < nVars; index++) {
-         let nData = array[2 + nVars + index];
-         for (let j = 0; j < nData; j++) {
-            let t = array[i++];
-            let v = array[i++];
-
-            // add data to the right
-            if (t > this.data[index].time[this.data[index].time.length - 1]) {
+         let x = undefined;
+         if (formula !== undefined) {
+            for (let j = 0; j < nData; j++) {
+               x = array[i--];
+               let t = array[i--];
+               let v = eval(formula[index]);
 
                if (this.autoscaleMin)
                   if (v < this.yMin0)
@@ -572,10 +558,86 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
                   if (v > this.yMax0)
                      this.yMax0 = v;
 
-               this.data[index].time.push(t);
-               this.data[index].value.push(v);
+               if (t < this.data[index].time[0]) {
+                  this.data[index].time.unshift(t);
+                  this.data[index].value.unshift(v);
+               }
+            }
+         } else {
+            for (let j = 0; j < nData; j++) {
+               let v = array[i--];
+               let t = array[i--];
 
-               this.lastTimeStamp = t;
+               if (this.autoscaleMin)
+                  if (v < this.yMin0)
+                     this.yMin0 = v;
+
+               if (this.autoscaleMax)
+                  if (v > this.yMax0)
+                     this.yMax0 = v;
+
+               if (t < this.data[index].time[0]) {
+                  this.data[index].time.unshift(t);
+                  this.data[index].value.unshift(v);
+               }
+            }
+         }
+      }
+
+   } else {
+
+      // add data to the right
+      for (let index = 0; index < nVars; index++) {
+
+         let formula = this.odb["Formula"];
+
+         let nData = array[2 + nVars + index];
+
+         let x = undefined;
+         if (formula !== undefined) {
+            for (let j = 0; j < nData; j++) {
+               let t = array[i++];
+               x = array[i++];
+               let v = eval(formula[index]);
+
+               // add data to the right
+               if (t > this.data[index].time[this.data[index].time.length - 1]) {
+
+                  if (this.autoscaleMin)
+                     if (v < this.yMin0)
+                        this.yMin0 = v;
+
+                  if (this.autoscaleMax)
+                     if (v > this.yMax0)
+                        this.yMax0 = v;
+
+                  this.data[index].time.push(t);
+                  this.data[index].value.push(v);
+
+                  this.lastTimeStamp = t;
+               }
+            }
+         } else {
+            for (let j = 0; j < nData; j++) {
+               let t = array[i++];
+               let v = array[i++];
+
+               // add data to the right
+               if (t > this.data[index].time[this.data[index].time.length - 1]) {
+
+                  if (this.autoscaleMin)
+                     if (v < this.yMin0)
+                        this.yMin0 = v;
+
+                  if (this.autoscaleMax)
+                     if (v > this.yMax0)
+                        this.yMax0 = v;
+
+                  this.data[index].time.push(t);
+                  this.data[index].value.push(v);
+
+                  this.lastTimeStamp = t;
+               }
             }
          }
       }
@@ -828,7 +890,7 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
          // zoom time axis
          let f = (e.offsetX - this.x1) / (this.x2 - this.x1);
-         let m = 1/1000;
+         let m = 1 / 1000;
          let dtMin = Math.abs(f * (this.tMax - this.tMin) * m * e.deltaY);
          let dtMax = Math.abs((1 - f) * (this.tMax - this.tMin) * m * e.deltaY);
 
