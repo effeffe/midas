@@ -971,7 +971,7 @@ MhistoryGraph.prototype.draw = function () {
       ctx.lineTo(xLast, this.y1);
       ctx.lineTo(x0, this.y1);
       ctx.lineTo(x0, y0);
-      ctx.globalAlpha = 0.05;
+      ctx.globalAlpha = 0.1;
       ctx.fill();
       ctx.globalAlpha = 1;
    }
@@ -1016,7 +1016,7 @@ MhistoryGraph.prototype.draw = function () {
 
       this.odb["Variables"].forEach((v, i) => {
          ctx.lineWidth = 4;
-         ctx.strokeStyle = this.color.data[i];
+         ctx.strokeStyle = this.odb["Colour"][i];
          ctx.drawLine(this.x1 + 5, 40 + i * 17, this.x1 + 20, 40 + i * 17);
          ctx.lineWidth = 1;
 
