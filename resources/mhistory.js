@@ -984,10 +984,25 @@ MhistoryGraph.prototype.draw = function () {
       return;
    }
 
+   if (this.data[0].length === undefined) {
+      ctx.lineWidth = 1;
+      ctx.font = "14px sans-serif";
+      ctx.strokeStyle = "#808080";
+      ctx.fillStyle = "#808080";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("No data available", this.width / 2, this.height / 2);
+      return;
+   }
+
    ctx.lineWidth = 1;
    ctx.font = "14px sans-serif";
 
    if (this.height === undefined || this.width === undefined)
+      return;
+   if (this.yMin === undefined || this.yMin === NaN)
+      return;
+   if (this.yMax === undefined || this.yMax === NaN)
       return;
 
    let axisLabelWidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35,
