@@ -987,7 +987,7 @@ MhistoryGraph.prototype.draw = function () {
       return;
    }
 
-   if (this.data[0].length === undefined) {
+   if (this.data[0].time === undefined || this.data[0].time.length === 0) {
       ctx.lineWidth = 1;
       ctx.font = "14px sans-serif";
       ctx.strokeStyle = "#808080";
@@ -1003,9 +1003,9 @@ MhistoryGraph.prototype.draw = function () {
 
    if (this.height === undefined || this.width === undefined)
       return;
-   if (this.yMin === undefined || this.yMin === NaN)
+   if (this.yMin === undefined || Number.isNaN(this.yMin))
       return;
-   if (this.yMax === undefined || this.yMax === NaN)
+   if (this.yMax === undefined || Number.isNaN(this.yMax))
       return;
 
    let axisLabelWidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35,
