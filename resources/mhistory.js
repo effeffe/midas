@@ -16,12 +16,19 @@ LOG5 = 0.698970005;
 function mhistory_init() {
    // go through all data-name="mhistory" tags
    let mhist = Array.from(document.getElementsByTagName("div")).filter(d => {
-      return d.dataset.name === "mjshistory";
+      return d.className === "mjshistory";
    });
 
+   let baseURL = window.location.href;
+   if (baseURL.indexOf("?cmd") > 0)
+      baseURL = baseURL.substr(0, baseURL.indexOf("?cmd"));
+   baseURL += "?cmd=history";
+
    for (let i = 0; i < mhist.length; i++) {
+      mhist[i].dataset.baseURL = baseURL;
       mhist[i].mhg = new MhistoryGraph(mhist[i]);
       mhist[i].mhg.initializePanel();
+      mhist[i].mhg.resize();
       mhist[i].resize = function () {
          this.mhg.resize();
       };
@@ -282,13 +289,13 @@ MhistoryGraph.prototype.initializePanel = function () {
 
    if (this.group === undefined) {
       dlgMessage("Error", "Definition of \'dataset-group\' missing for history panel \'" + this.parentDiv.id + "\'. " +
-         "Please use syntax:<br /><br /><b>&lt;div name=\"mjshistory\" " +
+         "Please use syntax:<br /><br /><b>&lt;div class=\"mjshistory\" " +
          "data-group=\"&lt;Group&gt;\" data-panel=\"&lt;Panel&gt;\"&gt;&lt;/div&gt;</b>", true);
       return;
    }
    if (this.panel === undefined) {
       dlgMessage("Error", "Definition of \'dataset-panel\' missing for history panel \'" + this.parentDiv.id + "\'. " +
-         "Please use syntax:<br /><br /><b>&lt;div name=\"mjshistory\" " +
+         "Please use syntax:<br /><br /><b>&lt;div class=\"mjshistory\" " +
          "data-group=\"&lt;Group&gt;\" data-panel=\"&lt;Panel&gt;\"&gt;&lt;/div&gt;</b>", true);
       return;
    }
