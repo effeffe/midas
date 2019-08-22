@@ -902,8 +902,11 @@ MhistoryGraph.prototype.findMinMax = function () {
    if (!this.autoscaleMax)
       this.yMax0 = this.odb["Maximum"];
 
-   if (!this.autoscaleMin && !this.autoscaleMax)
+   if (!this.autoscaleMin && !this.autoscaleMax) {
+      this.yMin = this.yMin0;
+      this.yMax = this.yMax0;
       return;
+   }
 
    if (this.autoscaleMin)
       this.yMin0 = undefined;
