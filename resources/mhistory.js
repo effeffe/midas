@@ -71,7 +71,7 @@ function MhistoryGraph(divElement) { // Constructor
    this.yMin = undefined;
    this.yMax = undefined;
    this.scroll = true;
-   this.dragYEnabled = false;
+   this.yZoom = false;
 
    // data aggays
    this.data = [];
@@ -122,7 +122,7 @@ function MhistoryGraph(divElement) { // Constructor
             t.tMax = Math.floor(new Date() / 1000);
             t.tMin = t.tMax - t.tScale;
             t.scroll = true;
-            t.dragYEnabled = false;
+            t.yZoom = false;
             t.redraw();
          }
       },
@@ -138,7 +138,7 @@ function MhistoryGraph(divElement) { // Constructor
             t.tMax = Math.floor(new Date() / 1000);
             t.tMin = t.tMax - (t.tMax - t.tMin);
             t.scroll = true;
-            t.dragYEnabled = false;
+            t.yZoom = false;
             t.scrollRedraw();
          }
       },
@@ -394,6 +394,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
          mhg.tMin = mhg.tMax - timeToSec(b);
          mhg.intSelector.style.display = "none";
          mhg.scroll = true;
+         mhg.loadOldData();
          mhg.scrollRedraw();
          return false;
       };
@@ -662,7 +663,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       this.yMax0 += 0.5;
    }
 
-   if (this.scroll) {
+   if (!this.yZoom) {
       if (this.autoscaleMin)
       // leave 10% space above graph
          this.yMin = this.yMin0 - (this.yMax0 - this.yMin0) / 10;
@@ -674,7 +675,6 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          this.yMax = this.yMax0 + (this.yMax0 - this.yMin0) / 10;
       else
          this.yMax = this.yMax0;
-
    }
 };
 
@@ -806,7 +806,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          let dt = Math.floor((e.offsetX - this.drag.xStart) / (this.x2 - this.x1) * (this.tMax - this.tMin));
          this.tMin = this.drag.tMinStart - dt;
          this.tMax = this.drag.tMaxStart - dt;
-         if (this.dragYEnabled) {
+         if (this.yZoom) {
             let dy = (this.drag.yStart - e.offsetY) / (this.y1 - this.y2) * (this.yMax - this.yMin);
             this.yMin = this.drag.yMinStart - dy;
             this.yMax = this.drag.yMaxStart - dy;
@@ -882,7 +882,7 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
       if (e.altKey || e.shiftKey) {
 
          // zoom Y axis
-         this.dragYEnabled = true;
+         this.yZoom = true;
          let f = (e.offsetY - this.y1) / (this.y2 - this.y1);
 
          let step = e.deltaY / 1000;
