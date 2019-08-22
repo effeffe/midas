@@ -113,14 +113,31 @@ function MhistoryGraph(divElement) { // Constructor
       {
          src: "rotate-ccw.svg",
          click: function (t) {
+
+            t.tMax = Math.floor(new Date() / 1000);
+            t.tMin = t.tMax - t.tScale;
+
+            t.yMin0 = t.yMax0 = t.data[0].value[t.data[0].value.length - 1];
+            for (let index = 0; index < t.data.length; index++)
+               for (let j = 0; j < t.data[index].time.length; j++) {
+                  if (t.data[index].time[j] > t.tMin) {
+                     let v = t.data[index].value[j];
+                     if (t.autoscaleMax)
+                        if (v > t.yMax0)
+                           t.yMax0 = v;
+                     if (t.autoscaleMin)
+                        if (v < t.yMin0)
+                           t.yMin0 = v;
+                  }
+               }
+
             t.yMin = t.yMin0;
             t.yMax = t.yMax0;
             if (t.autoscaleMin)
                t.yMin -= (t.yMax0 - t.yMin0) / 10;
             if (t.autoscaleMax)
                t.yMax += (t.yMax0 - t.yMin0) / 10;
-            t.tMax = Math.floor(new Date() / 1000);
-            t.tMin = t.tMax - t.tScale;
+
             t.scroll = true;
             t.yZoom = false;
             t.redraw();
@@ -129,16 +146,7 @@ function MhistoryGraph(divElement) { // Constructor
       {
          src: "play.svg",
          click: function (t) {
-            t.yMin = t.yMin0;
-            t.yMax = t.yMax0;
-            if (t.autoscaleMin)
-               t.yMin -= (t.yMax0 - t.yMin0) / 10;
-            if (t.autoscaleMax)
-               t.yMax += (t.yMax0 - t.yMin0) / 10;
-            t.tMax = Math.floor(new Date() / 1000);
-            t.tMin = t.tMax - (t.tMax - t.tMin);
             t.scroll = true;
-            t.yZoom = false;
             t.scrollRedraw();
          }
       },
@@ -260,11 +268,8 @@ function timeToSec(str) {
 
 MhistoryGraph.prototype.keyDown = function (e) {
    if (e.key === "u") {  // 'u' key
-      let dt = this.tMax - this.tMin;
-      this.tMax = Math.floor(new Date() / 1000);
-      this.tMin = this.tMax - dt;
       this.scroll = true;
-      this.redraw();
+      this.scrollRedraw();
       e.preventDefault();
    }
 };
@@ -299,8 +304,6 @@ MhistoryGraph.prototype.initializePanel = function () {
    this.events = [];
    this.tags = [];
    this.index = [];
-   this.yMin0 = undefined;
-   this.yMax0 = undefined;
    this.pendingUpdates = 0;
 
    // retrieve panel definition from ODB
@@ -333,11 +336,6 @@ MhistoryGraph.prototype.loadInitialData = function () {
       this.odb["Minimum"] === "-Infinity" || this.odb["Minimum"] === "Infinity");
    this.autoscaleMax = (this.odb["Minimum"] === this.odb["Maximum"] ||
       this.odb["Maximum"] === "-Infinity" || this.odb["Maximum"] === "Infinity");
-
-   if (!this.autoscaleMin)
-      this.yMin0 = this.odb["Minimum"];
-   if (!this.autoscaleMax)
-      this.yMax0 = this.odb["Maximum"];
 
    this.logAxis = this.odb["Log axis"];
 
@@ -501,26 +499,12 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          let nData = array[2 + nVars + index];
          let x = undefined;
          let y = undefined;
-         if (formula !== undefined && formula[index] !== "") {
+         if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
             for (let j = 0; j < nData; j++) {
                this.data[index].time.push(array[i++]);
                x = array[i++];
                y = eval(formula[index]);
                this.data[index].value.push(y);
-
-               if (j === 0 && this.yMin0 === undefined)
-                  this.yMin0 = y;
-
-               if (j === 0 && this.yMax0 === undefined)
-                  this.yMax0 = y;
-
-               if (this.autoscaleMin)
-                  if (y < this.yMin0)
-                     this.yMin0 = y;
-
-               if (this.autoscaleMax)
-                  if (y > this.yMax0)
-                     this.yMax0 = y;
             }
          } else {
             for (let j = 0; j < nData; j++) {
@@ -528,20 +512,6 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
                y = array[i++];
                this.data[index].time.push(t);
                this.data[index].value.push(y);
-
-               if (j === 0 && this.yMin0 === undefined)
-                  this.yMin0 = y;
-
-               if (j === 0 && this.yMax0 === undefined)
-                  this.yMax0 = y;
-
-               if (this.autoscaleMin)
-                  if (y < this.yMin0)
-                     this.yMin0 = y;
-
-               if (this.autoscaleMax)
-                  if (y > this.yMax0)
-                     this.yMax0 = y;
             }
          }
       }
@@ -559,20 +529,11 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
             nData * 2 - 1;        // offset end of channel
 
          let x = undefined;
-         if (formula !== undefined && formula[index] !== "") {
+         if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
             for (let j = 0; j < nData; j++) {
                x = array[i--];
                let t = array[i--];
                let v = eval(formula[index]);
-
-               if (this.autoscaleMin)
-                  if (v < this.yMin0)
-                     this.yMin0 = v;
-
-               if (this.autoscaleMax)
-                  if (v > this.yMax0)
-                     this.yMax0 = v;
-
                if (t < this.data[index].time[0]) {
                   this.data[index].time.unshift(t);
                   this.data[index].value.unshift(v);
@@ -582,15 +543,6 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
             for (let j = 0; j < nData; j++) {
                let v = array[i--];
                let t = array[i--];
-
-               if (this.autoscaleMin)
-                  if (v < this.yMin0)
-                     this.yMin0 = v;
-
-               if (this.autoscaleMax)
-                  if (v > this.yMax0)
-                     this.yMax0 = v;
-
                if (t < this.data[index].time[0]) {
                   this.data[index].time.unshift(t);
                   this.data[index].value.unshift(v);
@@ -609,7 +561,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          let nData = array[2 + nVars + index];
 
          let x = undefined;
-         if (formula !== undefined && formula[index] !== "") {
+         if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
             for (let j = 0; j < nData; j++) {
                let t = array[i++];
                x = array[i++];
@@ -617,14 +569,6 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
 
                // add data to the right
                if (t > this.data[index].time[this.data[index].time.length - 1]) {
-
-                  if (this.autoscaleMin)
-                     if (v < this.yMin0)
-                        this.yMin0 = v;
-
-                  if (this.autoscaleMax)
-                     if (v > this.yMax0)
-                        this.yMax0 = v;
 
                   this.data[index].time.push(t);
                   this.data[index].value.push(v);
@@ -640,14 +584,6 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
                // add data to the right
                if (t > this.data[index].time[this.data[index].time.length - 1]) {
 
-                  if (this.autoscaleMin)
-                     if (v < this.yMin0)
-                        this.yMin0 = v;
-
-                  if (this.autoscaleMax)
-                     if (v > this.yMax0)
-                        this.yMax0 = v;
-
                   this.data[index].time.push(t);
                   this.data[index].value.push(v);
 
@@ -656,25 +592,6 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
             }
          }
       }
-   }
-
-   if (this.yMin0 === this.yMax0) {
-      this.yMin0 -= 0.5;
-      this.yMax0 += 0.5;
-   }
-
-   if (!this.yZoom) {
-      if (this.autoscaleMin)
-      // leave 10% space above graph
-         this.yMin = this.yMin0 - (this.yMax0 - this.yMin0) / 10;
-      else
-         this.yMin = this.yMin0;
-
-      if (this.autoscaleMax)
-      // leave 10% space above graph
-         this.yMax = this.yMax0 + (this.yMax0 - this.yMin0) / 10;
-      else
-         this.yMax = this.yMax0;
    }
 };
 
@@ -970,6 +887,62 @@ MhistoryGraph.prototype.yToValue = function (y) {
    return (this.y1 - y) / (this.y1 - this.y2) * (this.yMax - this.yMin) + this.yMin;
 };
 
+MhistoryGraph.prototype.findMinMax = function () {
+
+   if (!this.autoscaleMin)
+      this.yMin0 = this.odb["Minimum"];
+
+   if (!this.autoscaleMax)
+      this.yMax0 = this.odb["Maximum"];
+
+   if (!this.autoscaleMin && !this.autoscaleMax)
+      return;
+
+   if (this.autoscaleMin)
+      this.yMin0 = undefined;
+   if (this.autoscaleMax)
+      this.yMax0 = undefined;
+   for (let index = 0; index < this.data.length; index++) {
+      for (let i = 0; i < this.data[index].time.length; i++) {
+         let t = this.data[index].time[i];
+         let v = this.data[index].value[i];
+         if (t > this.tMin && t < this.tMax) {
+            if (this.yMin0 === undefined)
+               this.yMin0 = v;
+            if (this.yMax0 === undefined)
+               this.yMax0 = v;
+            if (this.autoscaleMin) {
+               if (v < this.yMin0)
+                  this.yMin0 = v;
+            }
+            if (this.autoscaleMax) {
+               if (v > this.yMax0)
+                  this.yMax0 = v;
+            }
+         }
+      }
+   }
+
+   if (this.yMin0 === this.yMax0) {
+      this.yMin0 -= 0.5;
+      this.yMax0 += 0.5;
+   }
+
+   if (!this.yZoom) {
+      if (this.autoscaleMin)
+      // leave 10% space above graph
+         this.yMin = this.yMin0 - (this.yMax0 - this.yMin0) / 10;
+      else
+         this.yMin = this.yMin0;
+
+      if (this.autoscaleMax)
+      // leave 10% space above graph
+         this.yMax = this.yMax0 + (this.yMax0 - this.yMin0) / 10;
+      else
+         this.yMax = this.yMax0;
+   }
+};
+
 MhistoryGraph.prototype.draw = function () {
    let ctx = this.canvas.getContext("2d");
 
@@ -997,6 +970,8 @@ MhistoryGraph.prototype.draw = function () {
       ctx.fillText("No data available", this.width / 2, this.height / 2);
       return;
    }
+
+   this.findMinMax();
 
    ctx.lineWidth = 1;
    ctx.font = "14px sans-serif";
@@ -1061,16 +1036,16 @@ MhistoryGraph.prototype.draw = function () {
    ctx.rect(this.x1, this.y2, this.x2 - this.x1, this.y1 - this.y2);
    ctx.clip();
 
-   for (let di = 0; di < this.data.length; di++) {
-      ctx.fillStyle = this.odb["Colour"][di];
+      for (let di = 0; di < this.data.length; di++) {
+         ctx.fillStyle = this.odb["Colour"][di];
 
-      this.x[di] = [];
-      this.y[di] = [];
+         this.x[di] = [];
+         this.y[di] = [];
 
-      for (let i = 0; i < this.data[di].time.length; i++) {
-         this.x[di][i] = this.timeToX(this.data[di].time[i]);
-         this.y[di][i] = this.valueToY(this.data[di].value[i]);
-      }
+         for (let i = 0; i < this.data[di].time.length; i++) {
+            this.x[di][i] = this.timeToX(this.data[di].time[i]);
+            this.y[di][i] = this.valueToY(this.data[di].value[i]);
+         }
 
       ctx.beginPath();
       let x0;
