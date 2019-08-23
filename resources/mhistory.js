@@ -102,6 +102,9 @@ function MhistoryGraph(divElement) { // Constructor
    // labels
    this.showLabels = false;
 
+   // solo
+   this.solo = {active: false, index: undefined };
+
    // buttons
    this.button = [
       {
@@ -198,8 +201,8 @@ function MhistoryGraph(divElement) { // Constructor
 
          "<table class='mtable'>" +
          "<tr>" +
-         "<td>Action</td>" +
-         "<td>Howto</td>" +
+         "<th>Action</th>" +
+         "<th>Howto</th>" +
          "</tr>" +
          "<tr>" +
          "<td>Horizontal Zoom</td>" +
@@ -225,6 +228,9 @@ function MhistoryGraph(divElement) { // Constructor
          "<td>&nbsp;Reset axis&nbsp;</td>" +
          "<td>Click on <img src='icons/rotate-ccw.svg' style='vertical-align:middle' alt='Reset'></td>" +
          "</tr>" +
+         "<td>&nbsp;Select individual graph&nbsp;</td>" +
+         "<td>Double click on a data point of desired graph. Switch back with &lt;esc&gt;</td>" +
+         "</tr>" +
          "</table>" +
 
          "</div>" +
@@ -245,6 +251,7 @@ function MhistoryGraph(divElement) { // Constructor
 
    // mouse event handlers
    divElement.addEventListener("mousedown", this.mouseEvent.bind(this), true);
+   divElement.addEventListener("dblclick", this.mouseEvent.bind(this), true);
    divElement.addEventListener("mousemove", this.mouseEvent.bind(this), true);
    divElement.addEventListener("mouseup", this.mouseEvent.bind(this), true);
    divElement.addEventListener("wheel", this.mouseWheelEvent.bind(this), true);
@@ -277,6 +284,11 @@ MhistoryGraph.prototype.keyDown = function (e) {
    if (e.key === "u") {  // 'u' key
       this.scroll = true;
       this.scrollRedraw();
+      e.preventDefault();
+   }
+   if (e.key === "Escape") {
+      this.solo.active = false;
+      this.redraw();
       e.preventDefault();
    }
 };
@@ -791,7 +803,30 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             this.redraw();
          }
       }
+   } else if (e.type === "dblclick") {
+
+      // check if cursor close to graph point
+      if (this.data !== undefined && this.x.length && this.y.length) {
+         let minDist = 100;
+         for (let di = 0; di < this.data.length; di++) {
+            for (let i = 0; i < this.x[di].length; i++) {
+               if (this.x[di][i] > this.x1 && this.x[di][i] < this.x2) {
+                  let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
+                     Math.pow(e.offsetY - this.y[di][i], 2));
+                  if (d < minDist) {
+                     minDist = d;
+                     this.solo.index = di;
+                  }
+               }
+            }
+         }
+         if (minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2) {
+            this.solo.active = !this.solo.active;
+            this.redraw();
+         }
+      }
    }
+
 
    this.parentDiv.style.cursor = cursor;
 
@@ -1048,16 +1083,20 @@ MhistoryGraph.prototype.draw = function () {
    ctx.rect(this.x1, this.y2, this.x2 - this.x1, this.y1 - this.y2);
    ctx.clip();
 
-      for (let di = 0; di < this.data.length; di++) {
-         ctx.fillStyle = this.odb["Colour"][di];
+   // draw shaded areas
+   for (let di = 0; di < this.data.length; di++) {
+      if (this.solo.active && this.solo.index != di)
+         continue;
 
-         this.x[di] = [];
-         this.y[di] = [];
+      ctx.fillStyle = this.odb["Colour"][di];
 
-         for (let i = 0; i < this.data[di].time.length; i++) {
-            this.x[di][i] = this.timeToX(this.data[di].time[i]);
-            this.y[di][i] = this.valueToY(this.data[di].value[i]);
-         }
+      this.x[di] = [];
+      this.y[di] = [];
+
+      for (let i = 0; i < this.data[di].time.length; i++) {
+         this.x[di][i] = this.timeToX(this.data[di].time[i]);
+         this.y[di][i] = this.valueToY(this.data[di].value[i]);
+      }
 
       ctx.beginPath();
       let x0;
@@ -1095,7 +1134,11 @@ MhistoryGraph.prototype.draw = function () {
       ctx.globalAlpha = 1;
    }
 
+   // draw graphs
    for (let di = 0; di < this.data.length; di++) {
+      if (this.solo.active && this.solo.index != di)
+         continue;
+
       ctx.strokeStyle = this.odb["Colour"][di];
 
       ctx.beginPath();
