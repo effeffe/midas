@@ -80,7 +80,7 @@ function MhistoryGraph(divElement) { // Constructor
    this.scroll = true;
    this.yZoom = false;
 
-   // data aggays
+   // data arrays
    this.data = [];
 
    // graph arrays (in screen pixels)
@@ -89,6 +89,9 @@ function MhistoryGraph(divElement) { // Constructor
    // t/v arrays corresponding to x/y
    this.t = [];
    this.v = [];
+
+   // points array with min/max/avg
+   this.p = [];
 
    // dragging
    this.drag = {active: false};
@@ -1114,25 +1117,28 @@ MhistoryGraph.prototype.draw = function () {
 
       let first = undefined;
       let last = undefined;
+      let n = 0;
       for (let i = 0; i < this.data[di].time.length; i++) {
          let x = this.timeToX(this.data[di].time[i]);
          let v = this.valueToY(this.data[di].value[i]);
-         if (x >= this.x1 && x <= this.x2) {
-            this.x[di][i] = x;
-            this.y[di][i] = v;
-            this.t[di][i] = this.data[di].time[i];
-            this.v[di][i] = this.data[di].value[i];
+         if (!Number.isNaN(v) && x >= this.x1 && x <= this.x2) {
+            this.x[di][n] = x;
+            this.y[di][n] = v;
+            this.t[di][n] = this.data[di].time[i];
+            this.v[di][n] = this.data[di].value[i];
             if (first === undefined)
                first = i;
             last = i;
+            n++;
          }
       }
       // add one point beyond right limit
       if (last + 1 < this.data[di].time.length) {
-         this.x[di][last + 1] = this.timeToX(this.data[di].time[last + 1]);
-         this.y[di][last + 1] = this.valueToY(this.data[di].value[last + 1]);
-         this.t[di][last + 1] = this.data[di].time[last + 1];
-         this.v[di][last + 1] = this.data[di].value[last + 1];
+         this.x[di][n] = this.timeToX(this.data[di].time[last + 1]);
+         this.y[di][n] = this.valueToY(this.data[di].value[last + 1]);
+         this.t[di][n] = this.data[di].time[last + 1];
+         this.v[di][n] = this.data[di].value[last + 1];
+         n++;
       }
       // add one point beyond left limit
       if (first > 0) {
@@ -1143,6 +1149,51 @@ MhistoryGraph.prototype.draw = function () {
       }
    }
 
+   // compress points to aggregate values
+   let avgN = 0;
+   let numberN = 0;
+   for (let di = 0; di < this.data.length; di++) {
+      this.p[di] = [];
+      let p = {};
+
+      let xLast = undefined;
+      for (let i = 0; i < this.x[di].length; i++) {
+         let x = Math.floor(this.x[di][i]);
+         let y = Math.floor(this.y[di][i]);
+
+         if (i === 0 || x > xLast) {
+
+            if (p.x !== undefined) {
+               // store point
+               if (p.n > 0)
+                  p.avg = p.avg / p.n;
+               avgN += p.n;
+               numberN++;
+               this.p[di].push(p);
+               p = {};
+            }
+            p.n = 1;
+            p.x = x;
+            xLast = x;
+            p.min = y;
+            p.max = y;
+            p.avg = y;
+            p.first = y;
+            p.last = y;
+         } else {
+            p.n++;
+            if (y < p.min)
+               p.min = y;
+            if (y > p.max)
+               p.max = y;
+            p.avg += y;
+            p.last = y;
+         }
+      }
+   }
+   if (numberN > 0)
+      avgN = avgN / numberN;
+
    // draw shaded areas
    for (let di = 0; di < this.data.length; di++) {
       if (this.solo.active && this.solo.index !== di)
@@ -1150,31 +1201,33 @@ MhistoryGraph.prototype.draw = function () {
 
       ctx.fillStyle = this.odb["Colour"][di];
 
-      ctx.beginPath();
-      let x0;
-      let y0;
-      let xLast;
-      let i;
-      for (i = 0; i < this.x[di].length; i++) {
-         let x = this.x[di][i];
-         let y = this.y[di][i];
-         if (Number.isNaN(y))
-            continue;
-         if (x0 === undefined) {
-            x0 = x;
-            y0 = y;
-            ctx.moveTo(x, y);
-         } else {
-            ctx.lineTo(x, y);
+      if (false) { //avgN > 2
+
+      } else {
+         ctx.beginPath();
+         let x0;
+         let y0;
+         let xLast;
+         let i;
+         for (i = 0; i < this.x[di].length; i++) {
+            let x = this.x[di][i];
+            let y = this.y[di][i];
+            if (x0 === undefined) {
+               x0 = x;
+               y0 = y;
+               ctx.moveTo(x, y);
+            } else {
+               ctx.lineTo(x, y);
+            }
+            xLast = x;
          }
-         xLast = x;
+         ctx.lineTo(xLast, this.y1);
+         ctx.lineTo(x0, this.y1);
+         ctx.lineTo(x0, y0);
+         ctx.globalAlpha = 0.1;
+         ctx.fill();
+         ctx.globalAlpha = 1;
       }
-      ctx.lineTo(xLast, this.y1);
-      ctx.lineTo(x0, this.y1);
-      ctx.lineTo(x0, y0);
-      ctx.globalAlpha = 0.1;
-      ctx.fill();
-      ctx.globalAlpha = 1;
    }
 
    // draw graphs
@@ -1183,24 +1236,40 @@ MhistoryGraph.prototype.draw = function () {
          continue;
 
       ctx.strokeStyle = this.odb["Colour"][di];
-      ctx.beginPath();
 
-      let first = true;
-      for (let i = 0; i < this.x[di].length; i++) {
-         let x = this.x[di][i];
-         let y = this.y[di][i];
-         if (Number.isNaN(y))
-            continue;
-         if (first) {
-            first = false;
-            ctx.moveTo(x, y);
-         } else {
-            ctx.lineTo(x, y);
+      if (false) { //avgN > 2
+         let prevX = undefined;
+         let prevY = undefined;
+         for (let i = 0; i < this.p[di].length; i++) {
+            let p = this.p[di][i];
+
+            if (prevX !== undefined) {
+               // ctx.drawLine(prevX, prevY, p.x, p.first);
+            }
+
+            // draw min-max line
+            ctx.drawLine(p.x, p.min, p.x, p.max);
+
+            if (prevX === undefined) {
+               prevX = p.x;
+               prevY = p.last;
+            }
          }
-         if (x > this.x2)
-            break;
+      } else {
+         ctx.beginPath();
+         let first = true;
+         for (let i = 0; i < this.x[di].length; i++) {
+            let x = this.x[di][i];
+            let y = this.y[di][i];
+            if (first) {
+               first = false;
+               ctx.moveTo(x, y);
+            } else {
+               ctx.lineTo(x, y);
+            }
+         }
+         ctx.stroke();
       }
-      ctx.stroke();
    }
 
    ctx.restore(); // remove clipping
