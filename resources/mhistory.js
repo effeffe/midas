@@ -1159,7 +1159,7 @@ MhistoryGraph.prototype.draw = function () {
       let xLast = undefined;
       for (let i = 0; i < this.x[di].length; i++) {
          let x = Math.floor(this.x[di][i]);
-         let y = Math.floor(this.y[di][i]);
+         let y = this.y[di][i];
 
          if (i === 0 || x > xLast) {
 
@@ -1201,8 +1201,30 @@ MhistoryGraph.prototype.draw = function () {
 
       ctx.fillStyle = this.odb["Colour"][di];
 
-      if (false) { //avgN > 2
-
+      if (avgN > 2) {
+         ctx.beginPath();
+         let x0;
+         let y0;
+         let xLast;
+         let i;
+         for (let i = 0; i < this.p[di].length; i++) {
+            let p = this.p[di][i];
+            if (x0 === undefined) {
+               x0 = p.x;
+               y0 = p.first;
+               ctx.moveTo(p.x, p.first);
+            } else {
+               ctx.lineTo(p.x, p.first);
+            }
+            xLast = p.x;
+            ctx.lineTo(p.x, p.last);
+         }
+         ctx.lineTo(xLast, this.y1);
+         ctx.lineTo(x0, this.y1);
+         ctx.lineTo(x0, y0);
+         ctx.globalAlpha = 0.1;
+         ctx.fill();
+         ctx.globalAlpha = 1;
       } else {
          ctx.beginPath();
          let x0;
@@ -1237,23 +1259,21 @@ MhistoryGraph.prototype.draw = function () {
 
       ctx.strokeStyle = this.odb["Colour"][di];
 
-      if (false) { //avgN > 2
+      if (avgN > 2) {
          let prevX = undefined;
          let prevY = undefined;
          for (let i = 0; i < this.p[di].length; i++) {
             let p = this.p[di][i];
 
-            if (prevX !== undefined) {
-               // ctx.drawLine(prevX, prevY, p.x, p.first);
-            }
+            // draw line from end of previous cluster to beginning of current cluster
+            if (prevX !== undefined)
+               ctx.drawLine(prevX, prevY, p.x, p.first);
 
             // draw min-max line
-            ctx.drawLine(p.x, p.min, p.x, p.max);
+            ctx.drawLine(p.x, p.min, p.x, p.max + 1);
 
-            if (prevX === undefined) {
-               prevX = p.x;
-               prevY = p.last;
-            }
+            prevX = p.x;
+            prevY = p.last;
          }
       } else {
          ctx.beginPath();
