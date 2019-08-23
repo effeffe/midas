@@ -103,7 +103,7 @@ function MhistoryGraph(divElement) { // Constructor
    this.showLabels = false;
 
    // solo
-   this.solo = {active: false, index: undefined };
+   this.solo = {active: false, index: undefined};
 
    // buttons
    this.button = [
@@ -229,7 +229,7 @@ function MhistoryGraph(divElement) { // Constructor
          "<td>Click on <img src='icons/rotate-ccw.svg' style='vertical-align:middle' alt='Reset'></td>" +
          "</tr>" +
          "<td>&nbsp;Select individual graph&nbsp;</td>" +
-         "<td>Double click on a data point of desired graph. Switch back with &lt;esc&gt;</td>" +
+         "<td>Double click on a data point of desired graph or its label. Switch back with &lt;esc&gt;</td>" +
          "</tr>" +
          "</table>" +
 
@@ -805,7 +805,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       }
    } else if (e.type === "dblclick") {
 
-      // check if cursor close to graph point
+      // measure distance to graphs
       if (this.data !== undefined && this.x.length && this.y.length) {
          let minDist = 100;
          for (let di = 0; di < this.data.length; di++) {
@@ -820,10 +820,27 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
                }
             }
          }
+         // check if close to graph point
          if (minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2) {
             this.solo.active = !this.solo.active;
-            this.redraw();
+         } else {
+            // check if inside label area
+            if (this.showLabels) {
+               if (e.offsetX > this.x1 && e.offsetX < this.x1 + 25 + this.variablesWidth + 7) {
+                  console.log((e.offsetY - 30) / 17);
+                  let i = Math.floor((e.offsetY - 30) / 17);
+                  if (i < this.data.length) {
+                     if (this.solo.active && this.solo.index === i) {
+                        this.solo.active = false;
+                     } else {
+                        this.solo.active = true;
+                        this.solo.index = i;
+                     }
+                  }
+               }
+            }
          }
+         this.redraw();
       }
    }
 
@@ -1033,15 +1050,15 @@ MhistoryGraph.prototype.draw = function () {
    let axisLabelWidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35,
       -4, -7, -10, -12, 0, this.yMin, this.yMax, 0, false);
 
-   let variablesWidth = 0;
+   this.variablesWidth = 0;
    this.odb["Variables"].forEach((v, i) => {
       if (this.odb.Label[i] !== "")
-         variablesWidth = Math.max(variablesWidth, ctx.measureText(this.odb.Label[i]).width);
+         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(this.odb.Label[i]).width);
       else
-         variablesWidth = Math.max(variablesWidth, ctx.measureText(v.substr(v.indexOf(':') + 1)).width);
+         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(v.substr(v.indexOf(':') + 1)).width);
    });
-   variablesWidth += ctx.measureText("0").width * (this.yPrecision + 2);
-   let variablesHeight = this.odb["Variables"].length * 17 + 7;
+   this.variablesWidth += ctx.measureText("0").width * (this.yPrecision + 2);
+   this.variablesHeight = this.odb["Variables"].length * 17 + 7;
 
    this.x1 = axisLabelWidth + 15;
    this.y1 = this.height - 25;
@@ -1085,7 +1102,7 @@ MhistoryGraph.prototype.draw = function () {
 
    // draw shaded areas
    for (let di = 0; di < this.data.length; di++) {
-      if (this.solo.active && this.solo.index != di)
+      if (this.solo.active && this.solo.index !== di)
          continue;
 
       ctx.fillStyle = this.odb["Colour"][di];
@@ -1136,7 +1153,7 @@ MhistoryGraph.prototype.draw = function () {
 
    // draw graphs
    for (let di = 0; di < this.data.length; di++) {
-      if (this.solo.active && this.solo.index != di)
+      if (this.solo.active && this.solo.index !== di)
          continue;
 
       ctx.strokeStyle = this.odb["Colour"][di];
@@ -1168,14 +1185,14 @@ MhistoryGraph.prototype.draw = function () {
    if (this.showLabels) {
       ctx.save();
       ctx.beginPath();
-      ctx.rect(this.x1, this.y2, 25 + variablesWidth + 7, variablesHeight + 2);
+      ctx.rect(this.x1, this.y2, 25 + this.variablesWidth + 7, this.variablesHeight + 2);
       ctx.clip();
 
       ctx.strokeStyle = this.color.axis;
       ctx.fillStyle = "#F0F0F0";
       ctx.globalAlpha = 0.5;
-      ctx.strokeRect(this.x1, this.y2, 25 + variablesWidth + 5, variablesHeight);
-      ctx.fillRect(this.x1, this.y2, 25 + variablesWidth + 5, variablesHeight);
+      ctx.strokeRect(this.x1, this.y2, 25 + this.variablesWidth + 5, this.variablesHeight);
+      ctx.fillRect(this.x1, this.y2, 25 + this.variablesWidth + 5, this.variablesHeight);
       ctx.globalAlpha = 1;
 
       this.odb["Variables"].forEach((v, i) => {
@@ -1204,9 +1221,9 @@ MhistoryGraph.prototype.draw = function () {
             // convert value to string with 6 digits
             let value = this.data[i].value[index];
             let str = value.toPrecision(this.yPrecision);
-            ctx.fillText(str, this.x1 + 25 + variablesWidth, 40 + i * 17);
+            ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
          } else
-            ctx.fillText('no data', this.x1 + 25 + variablesWidth, 40 + i * 17);
+            ctx.fillText('no data', this.x1 + 25 + this.variablesWidth, 40 + i * 17);
 
       });
 
