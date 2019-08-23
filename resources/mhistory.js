@@ -916,6 +916,8 @@ MhistoryGraph.prototype.findMinMax = function () {
       for (let i = 0; i < this.data[index].time.length; i++) {
          let t = this.data[index].time[i];
          let v = this.data[index].value[i];
+         if (Number.isNaN(v))
+            continue;
          if (t > this.tMin && t < this.tMax) {
             if (this.yMin0 === undefined)
                this.yMin0 = v;
@@ -1066,6 +1068,8 @@ MhistoryGraph.prototype.draw = function () {
          if (i === this.x[di].length - 1 || this.x[di][i + 1] >= this.x1) {
             let x = this.x[di][i];
             let y = this.y[di][i];
+            if (Number.isNaN(y))
+               continue;
             if (x0 === undefined) {
                x0 = x;
                y0 = y;
@@ -1100,6 +1104,8 @@ MhistoryGraph.prototype.draw = function () {
          if (i === this.data[di].time.length - 1 || this.x[di][i + 1] >= this.x1) {
             let x = this.x[di][i];
             let y = this.y[di][i];
+            if (Number.isNaN(y))
+               continue;
             if (first) {
                first = false;
                ctx.moveTo(x, y);
