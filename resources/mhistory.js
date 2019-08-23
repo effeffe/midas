@@ -86,6 +86,9 @@ function MhistoryGraph(divElement) { // Constructor
    // graph arrays (in screen pixels)
    this.x = [];
    this.y = [];
+   // t/v arrays corresponding to x/y
+   this.t = [];
+   this.v = [];
 
    // dragging
    this.drag = {active: false};
@@ -791,6 +794,8 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
                         minDist = d;
                         this.marker.x = this.x[di][i];
                         this.marker.y = this.y[di][i];
+                        this.marker.t = this.t[di][i];
+                        this.marker.v = this.v[di][i];
                         this.marker.mx = e.offsetX;
                         this.marker.my = e.offsetY;
                         this.marker.graphIndex = di;
@@ -1100,6 +1105,44 @@ MhistoryGraph.prototype.draw = function () {
    ctx.rect(this.x1, this.y2, this.x2 - this.x1, this.y1 - this.y2);
    ctx.clip();
 
+   // convert values to points
+   for (let di = 0; di < this.data.length; di++) {
+      this.x[di] = []; // x/y contain visible part of graph
+      this.y[di] = [];
+      this.t[di] = []; // t/v contain time/value pairs corresponding to x/y
+      this.v[di] = [];
+
+      let first = undefined;
+      let last = undefined;
+      for (let i = 0; i < this.data[di].time.length; i++) {
+         let x = this.timeToX(this.data[di].time[i]);
+         let v = this.valueToY(this.data[di].value[i]);
+         if (x >= this.x1 && x <= this.x2) {
+            this.x[di][i] = x;
+            this.y[di][i] = v;
+            this.t[di][i] = this.data[di].time[i];
+            this.v[di][i] = this.data[di].value[i];
+            if (first === undefined)
+               first = i;
+            last = i;
+         }
+      }
+      // add one point beyond right limit
+      if (last + 1 < this.data[di].time.length) {
+         this.x[di][last + 1] = this.timeToX(this.data[di].time[last + 1]);
+         this.y[di][last + 1] = this.valueToY(this.data[di].value[last + 1]);
+         this.t[di][last + 1] = this.data[di].time[last + 1];
+         this.v[di][last + 1] = this.data[di].value[last + 1];
+      }
+      // add one point beyond left limit
+      if (first > 0) {
+         this.x[di].unshift(this.timeToX(this.data[di].time[first - 1]));
+         this.y[di].unshift(this.valueToY(this.data[di].value[first - 1]));
+         this.t[di].unshift(this.data[di].value[first - 1]);
+         this.v[di].unshift(this.data[di].time[first - 1]);
+      }
+   }
+
    // draw shaded areas
    for (let di = 0; di < this.data.length; di++) {
       if (this.solo.active && this.solo.index !== di)
@@ -1107,42 +1150,25 @@ MhistoryGraph.prototype.draw = function () {
 
       ctx.fillStyle = this.odb["Colour"][di];
 
-      this.x[di] = [];
-      this.y[di] = [];
-
-      for (let i = 0; i < this.data[di].time.length; i++) {
-         this.x[di][i] = this.timeToX(this.data[di].time[i]);
-         this.y[di][i] = this.valueToY(this.data[di].value[i]);
-      }
-
       ctx.beginPath();
       let x0;
       let y0;
-      let xPrev;
       let xLast;
-      for (let i = 0; i < this.x[di].length; i++) {
-         if (i === this.x[di].length - 1 || this.x[di][i + 1] >= this.x1) {
-            let x = this.x[di][i];
-            let y = this.y[di][i];
-            if (Number.isNaN(y))
-               continue;
-            if (x0 === undefined) {
-               x0 = x;
-               y0 = y;
-               xPrev = x0;
-               ctx.moveTo(x, y);
-            } else {
-               //if (this.x[di][i] > xPrev + 1) {
-               ctx.lineTo(x, y);
-               //   xPrev = this.x[di][i];
-               //}
-            }
-            xLast = x;
-            if (x > this.x2)
-               break;
+      let i;
+      for (i = 0; i < this.x[di].length; i++) {
+         let x = this.x[di][i];
+         let y = this.y[di][i];
+         if (Number.isNaN(y))
+            continue;
+         if (x0 === undefined) {
+            x0 = x;
+            y0 = y;
+            ctx.moveTo(x, y);
+         } else {
+            ctx.lineTo(x, y);
          }
+         xLast = x;
       }
-      ctx.lineTo(xLast, this.y[di][i]);
       ctx.lineTo(xLast, this.y1);
       ctx.lineTo(x0, this.y1);
       ctx.lineTo(x0, y0);
@@ -1157,24 +1183,22 @@ MhistoryGraph.prototype.draw = function () {
          continue;
 
       ctx.strokeStyle = this.odb["Colour"][di];
-
       ctx.beginPath();
+
       let first = true;
-      for (let i = 0; i < this.data[di].time.length; i++) {
-         if (i === this.data[di].time.length - 1 || this.x[di][i + 1] >= this.x1) {
-            let x = this.x[di][i];
-            let y = this.y[di][i];
-            if (Number.isNaN(y))
-               continue;
-            if (first) {
-               first = false;
-               ctx.moveTo(x, y);
-            } else {
-               ctx.lineTo(x, y);
-            }
-            if (x > this.x2)
-               break;
+      for (let i = 0; i < this.x[di].length; i++) {
+         let x = this.x[di][i];
+         let y = this.y[di][i];
+         if (Number.isNaN(y))
+            continue;
+         if (first) {
+            first = false;
+            ctx.moveTo(x, y);
+         } else {
+            ctx.lineTo(x, y);
          }
+         if (x > this.x2)
+            break;
       }
       ctx.stroke();
    }
@@ -1210,16 +1234,16 @@ MhistoryGraph.prototype.draw = function () {
             ctx.fillText(v.substr(v.indexOf(':') + 1), this.x1 + 25, 40 + i * 17);
 
          ctx.textAlign = "right";
-         if (this.data[i].value.length > 0) {
+         if (this.v[i].length > 0) {
             // use last point in array
-            let index = this.data[i].value.length - 1;
+            let index = this.v[i].length - 1;
 
             // use point at current marker
             if (this.marker.active)
                index = this.marker.index;
 
             // convert value to string with 6 digits
-            let value = this.data[i].value[index];
+            let value = this.v[i][index];
             let str = value.toPrecision(this.yPrecision);
             ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
          } else
@@ -1310,7 +1334,7 @@ MhistoryGraph.prototype.draw = function () {
       ctx.drawLine(this.marker.x, this.y1, this.marker.x, this.y2);
 
       // text label
-      let v = this.data[this.marker.graphIndex].value[this.marker.index];
+      let v = this.marker.v;
 
       let s;
       if (this.odb.Label[this.marker.graphIndex] !== "")
@@ -1348,7 +1372,7 @@ MhistoryGraph.prototype.draw = function () {
       ctx.drawLine(this.marker.x, this.marker.y, xl, yl);
 
       // time label
-      s = timeToLabel(this.data[this.marker.graphIndex].time[this.marker.index], 1, true);
+      s = timeToLabel(this.marker.t, 1, true);
       w = ctx.measureText(s).width + 6;
       h = ctx.measureText("M").width * 1.2 + 6;
       x = this.marker.x - w / 2;
@@ -1365,7 +1389,8 @@ MhistoryGraph.prototype.draw = function () {
       ctx.fillStyle = "#404040";
       ctx.fillText(s, x + 3, y + h / 2);
    }
-};
+}
+;
 
 /*
 MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor, major,
