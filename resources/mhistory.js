@@ -722,6 +722,8 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          let t2 = this.xToTime(this.zoom.x.x2);
          if (t1 > t2)
             [t1, t2] = [t2, t1];
+         if (t2 - t1 < 1)
+            t1 -= 1;
          this.tMin = t1;
          this.tMax = t2;
          this.zoom.x.active = false;
@@ -736,6 +738,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.yMin = v1;
          this.yMax = v2;
          this.zoom.y.active = false;
+         this.yZoom = true;
          this.redraw();
       }
 
@@ -869,7 +872,7 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
          this.yZoom = true;
          let f = (e.offsetY - this.y1) / (this.y2 - this.y1);
 
-         let step = e.deltaY / 1000;
+         let step = e.deltaY / 100;
          if (step > 0.5)
             step = 0.5;
          if (step < -0.5)
@@ -888,7 +891,7 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
          // zoom time axis
          let f = (e.offsetX - this.x1) / (this.x2 - this.x1);
-         let m = 1 / 1000;
+         let m = 1 / 100;
          let dtMin = Math.abs(f * (this.tMax - this.tMin) * m * e.deltaY);
          let dtMax = Math.abs((1 - f) * (this.tMax - this.tMin) * m * e.deltaY);
 
