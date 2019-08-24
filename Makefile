@@ -542,11 +542,11 @@ CMAKEGREPFLAGS+= -e cmake_clean_target
 
 cmake:
 	-mkdir build
-	cd build; cmake .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install |& grep -v $(CMAKEGREPFLAGS)
+	cd build; cmake .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install | 2>&1 grep -v $(CMAKEGREPFLAGS)
 
 cmake3:
 	-mkdir build
-	cd build; cmake3 .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install |& grep -v $(CMAKEGREPFLAGS)
+	cd build; cmake3 .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install | 2>&1 grep -v $(CMAKEGREPFLAGS)
 
 cclean:
 	-rm -f lib/*
