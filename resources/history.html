@@ -144,10 +144,14 @@
             let tr;
             let nPanel = 0;
 
+            let m = document.getElementById("mmain");
+            let nColumns = Math.floor((document.documentElement.clientWidth - parseInt(m.style.marginLeft) - 30) / 400);
+            nColumns = Math.max(1, nColumns);
+
             Object.keys(historyDisplay).forEach(group => {
 
                Object.keys(historyDisplay[group]).forEach(panel => {
-                  if ((nPanel++) % 2 === 0) // put two panels in one row
+                  if ((nPanel++) % nColumns === 0) // put two panels in one row
                      tr = table.insertRow();
                   let td = tr.insertCell();
                   mhistory_create(td, baseURL, group, panel);
@@ -161,8 +165,12 @@
             let tr;
             let nPanel = 0;
 
+            let m = document.getElementById("mmain");
+            let nColumns = Math.floor((document.documentElement.clientWidth - parseInt(m.style.marginLeft) - 30) / 400);
+            nColumns = Math.max(1, nColumns);
+
             Object.keys(historyDisplay[curGroup]).forEach(panel => {
-               if (nPanel++ % 2 === 0) // put two panels in one row
+               if (nPanel++ % nColumns === 0) // put two panels in one row
                   tr = table.insertRow();
                let td = tr.insertCell();
                mhistory_create(td, baseURL, curGroup, panel);
@@ -189,10 +197,11 @@
       if (d.tagName === "TABLE") {
          let width = document.documentElement.clientWidth - parseInt(m.style.marginLeft) - 30;
          d.style.width = width + "px";
+         let nColumns = d.childNodes[0].childNodes[0].childNodes.length;
          let tds = [...d.getElementsByTagName("td")];
          tds.forEach(td => {
-            td.style.width = Math.floor(width / 2) + "px";
-            td.style.height = Math.floor(width / 2 / 3 * 2) + "px";
+            td.style.width = Math.floor(width / nColumns) + "px";
+            td.style.height = Math.floor(width / nColumns / 3 * 2) + "px";
             td.childNodes[0].style.width = td.style.width;
             td.childNodes[0].style.height = td.style.height;
             td.childNodes[0].mhg.resize();

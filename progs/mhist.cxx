@@ -19,7 +19,7 @@
 
 BOOL binary_time;
 
-#if REMOVE_HS
+#if 0
 void tmp()
 {
    time_t tm;
@@ -198,7 +198,7 @@ static INT query_params(MidasHistoryInterface* mh,
 }
 
 /*------------------------------------------------------------------*/
-#if REMOVE_HS
+#if 0
 INT file_display_vars(const char *file_name)
 {
    DWORD status, i, j, bytes, n, nv, ltime, n_bytes, name_size, id_size;
@@ -732,8 +732,6 @@ int main(int argc, char *argv[])
    DWORD var_type;
    char var_name[NAME_LENGTH];
    std::string path_name;
-   //std::string path1_name;
-   //std::string start_name;
    char *column;
    BOOL do_hst_file = false;
    std::string event_name;
@@ -814,11 +812,6 @@ int main(int argc, char *argv[])
             } else if (strncmp(argv[i], "-f", 2) == 0) {
                path_name = argv[++i];
                do_hst_file = true;
-#ifdef REMOVE_HS
-            } else if (strncmp(argv[i], "-z", 2) == 0) {
-               path1_name = argv[++i];
-               do_hst_file = true;
-#endif
             }
          } else {
           usage:

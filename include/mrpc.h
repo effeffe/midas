@@ -96,18 +96,16 @@ routine IDs for RPC calls
 #define RPC_DB_NOTIFY_CLIENTS_ARRAY     11247 /**< - */
 #define RPC_DB_GET_PARENT               11248 /**< - */
 
-#if REMOVE_HS
-#define RPC_HS_SET_PATH                 11300 /**< - */
-#define RPC_HS_DEFINE_EVENT             11301 /**< - */
-#define RPC_HS_WRITE_EVENT              11302 /**< - */
-#define RPC_HS_COUNT_EVENTS             11303 /**< - */
-#define RPC_HS_ENUM_EVENTS              11304 /**< - */
-#define RPC_HS_COUNT_VARS               11305 /**< - */
-#define RPC_HS_ENUM_VARS                11306 /**< - */
-#define RPC_HS_READ                     11307 /**< - */
-#define RPC_HS_GET_VAR                  11308 /**< - */
-#define RPC_HS_GET_EVENT_ID             11309 /**< - */
-#endif
+//#define RPC_HS_SET_PATH                 11300 /**< - */
+//#define RPC_HS_DEFINE_EVENT             11301 /**< - */
+//#define RPC_HS_WRITE_EVENT              11302 /**< - */
+//#define RPC_HS_COUNT_EVENTS             11303 /**< - */
+//#define RPC_HS_ENUM_EVENTS              11304 /**< - */
+//#define RPC_HS_COUNT_VARS               11305 /**< - */
+//#define RPC_HS_ENUM_VARS                11306 /**< - */
+//#define RPC_HS_READ                     11307 /**< - */
+//#define RPC_HS_GET_VAR                  11308 /**< - */
+//#define RPC_HS_GET_EVENT_ID             11309 /**< - */
 
 #define RPC_EL_SUBMIT                   11400 /**< - */
 

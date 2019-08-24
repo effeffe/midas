@@ -48,7 +48,7 @@ data representations
 #define DRI_BIG_ENDIAN      (1<<4)  /**< - */
 #define DRF_IEEE            (1<<5)  /**< - */
 #define DRF_G_FLOAT         (1<<6)  /**< - */
-#define DR_ASCII            (1<<7)  /**< - */
+//#define DR_ASCII            (1<<7)  /**< - */
 
 /**dox***************************************************************/
 /** @} *//* end of msdefineh */

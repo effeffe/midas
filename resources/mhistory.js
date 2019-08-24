@@ -16,12 +16,19 @@ LOG5 = 0.698970005;
 function mhistory_init() {
    // go through all data-name="mhistory" tags
    let mhist = Array.from(document.getElementsByTagName("div")).filter(d => {
-      return d.dataset.name === "mjshistory";
+      return d.className === "mjshistory";
    });
 
+   let baseURL = window.location.href;
+   if (baseURL.indexOf("?cmd") > 0)
+      baseURL = baseURL.substr(0, baseURL.indexOf("?cmd"));
+   baseURL += "?cmd=history";
+
    for (let i = 0; i < mhist.length; i++) {
+      mhist[i].dataset.baseURL = baseURL;
       mhist[i].mhg = new MhistoryGraph(mhist[i]);
       mhist[i].mhg.initializePanel();
+      mhist[i].mhg.resize();
       mhist[i].resize = function () {
          this.mhg.resize();
       };
@@ -64,20 +71,27 @@ function MhistoryGraph(divElement) { // Constructor
 
    // scales
    this.tScale = 3600;
-   this.yMin0 = 0;
-   this.yMax0 = 1;
+   this.yMin0 = undefined;
+   this.yMax0 = undefined;
    this.tMax = Math.floor(new Date() / 1000);
    this.tMin = this.tMax - this.tScale;
-   this.yMin = this.yMin0;
-   this.yMax = this.yMax0;
+   this.yMin = undefined;
+   this.yMax = undefined;
    this.scroll = true;
+   this.yZoom = false;
 
-   // data aggays
+   // data arrays
    this.data = [];
 
    // graph arrays (in screen pixels)
    this.x = [];
    this.y = [];
+   // t/v arrays corresponding to x/y
+   this.t = [];
+   this.v = [];
+
+   // points array with min/max/avg
+   this.p = [];
 
    // dragging
    this.drag = {active: false};
@@ -93,6 +107,9 @@ function MhistoryGraph(divElement) { // Constructor
 
    // labels
    this.showLabels = false;
+
+   // solo
+   this.solo = {active: false, index: undefined};
 
    // buttons
    this.button = [
@@ -112,33 +129,54 @@ function MhistoryGraph(divElement) { // Constructor
       {
          src: "rotate-ccw.svg",
          click: function (t) {
-            t.yMin = t.yMin0;
-            t.yMax = t.yMax0;
-            if (t.autoscale)
-               t.yMax += (t.yMax0 - t.yMin0) / 10;
+
             t.tMax = Math.floor(new Date() / 1000);
             t.tMin = t.tMax - t.tScale;
+
+            t.yMin0 = t.yMax0 = t.data[0].value[t.data[0].value.length - 1];
+            for (let index = 0; index < t.data.length; index++)
+               for (let j = 0; j < t.data[index].time.length; j++) {
+                  if (t.data[index].time[j] > t.tMin) {
+                     let v = t.data[index].value[j];
+                     if (t.autoscaleMax)
+                        if (v > t.yMax0)
+                           t.yMax0 = v;
+                     if (t.autoscaleMin)
+                        if (v < t.yMin0)
+                           t.yMin0 = v;
+                  }
+               }
+
+            t.yMin = t.yMin0;
+            t.yMax = t.yMax0;
+            if (t.autoscaleMin)
+               t.yMin -= (t.yMax0 - t.yMin0) / 10;
+            if (t.autoscaleMax)
+               t.yMax += (t.yMax0 - t.yMin0) / 10;
+
             t.scroll = true;
+            t.yZoom = false;
             t.redraw();
          }
       },
       {
          src: "play.svg",
          click: function (t) {
-            t.yMin = t.yMin0;
-            t.yMax = t.yMax0;
-            if (t.autoscale)
-               t.yMax += (t.yMax0 - t.yMin0) / 10;
-            t.tMax = Math.floor(new Date() / 1000);
-            t.tMin = t.tMax - (t.tMax - t.tMin);
             t.scroll = true;
             t.scrollRedraw();
          }
       },
       {
          src: "clock.svg",
-         click: function () {
-            dlgMessage("Notification", "Not yet implemented");
+         click: function (t) {
+            if (t.intSelector.style.display === "none") {
+               t.intSelector.style.display = "block";
+               t.intSelector.style.left = ((t.canvas.getBoundingClientRect().x + t.x2) -
+                  t.intSelector.offsetWidth) + "px";
+               t.intSelector.style.top = (t.parentDiv.getBoundingClientRect().y + this.y1 - 1) + "px";
+            } else {
+               t.intSelector.style.display = "none";
+            }
          }
       },
       {
@@ -150,59 +188,64 @@ function MhistoryGraph(divElement) { // Constructor
       },
       {
          src: "help-circle.svg",
-         click: function (t) {
-            dlgShow(t.helpDialog, false);
+         click: function () {
+            dlgShow(document.getElementById("dlgHelp"), false);
          }
       }
    ];
 
    // help dialog
-   this.helpDialog = document.createElement("div");
-   this.helpDialog.id = "dlgHelp";
-   this.helpDialog.className = "dlgFrame";
-   this.helpDialog.style.zIndex = "20";
+   if (document.getElementById('dlgHelp') === null) {
+      this.helpDialog = document.createElement("div");
+      this.helpDialog.id = "dlgHelp";
+      this.helpDialog.className = "dlgFrame";
+      this.helpDialog.style.zIndex = "20";
 
-   this.helpDialog.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Help</div>" +
-      "<div class=\"dlgPanel\" style=\"padding: 5px;\">" +
-      "<div id=\"dlgMessageString\">" +
+      this.helpDialog.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Help</div>" +
+         "<div class=\"dlgPanel\" style=\"padding: 5px;\">" +
+         "<div id=\"dlgMessageString\">" +
 
-      "<table class='mtable'>" +
-      "<tr>" +
-      "<td>Action</td>" +
-      "<td>Howto</td>" +
-      "</tr>" +
-      "<tr>" +
-      "<td>Horizontal Zoom</td>" +
-      "<td>Scroll mouse wheel or drag along X-Axis</td>" +
-      "</tr>" +
-      "<tr>" +
-      "<td>Vertical Zoom</td>" +
-      "<td>&nbsp;Press ALT or Shift key and scroll mouse wheel or drag along Y-Axis&nbsp;</td>" +
-      "</tr>" +
-      "<tr>" +
-      "<td>Pan</td>" +
-      "<td>Drag inside graph</td>" +
-      "</tr>" +
-      "<tr>" +
-      "<td>Display values</td>" +
-      "<td>Hover over graph</td>" +
-      "</tr>" +
-      "<tr>" +
-      "<td>&nbsp;Back to live scolling after pan/zoom&nbsp;</td>" +
-      "<td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'> or press spacebar </td>" +
-      "</tr>" +
-      "<tr>" +
-      "<td>&nbsp;Reset axis&nbsp;</td>" +
-      "<td>Click on <img src='icons/rotate-ccw.svg' style='vertical-align:middle' alt='Reset'></td>" +
-      "</tr>" +
-      "</table>" +
+         "<table class='mtable'>" +
+         "<tr>" +
+         "<th>Action</th>" +
+         "<th>Howto</th>" +
+         "</tr>" +
+         "<tr>" +
+         "<td>Horizontal Zoom</td>" +
+         "<td>&nbsp;Press Command (Mac) or Ctrl key and scroll mouse wheel or drag along X-Axis&nbsp;   </td>" +
+         "</tr>" +
+         "<tr>" +
+         "<td>Vertical Zoom</td>" +
+         "<td>&nbsp;Press Option (Mac) or Shift key and scroll mouse wheel or drag along Y-Axis&nbsp;</td>" +
+         "</tr>" +
+         "<tr>" +
+         "<td>Pan</td>" +
+         "<td>Drag inside graph</td>" +
+         "</tr>" +
+         "<tr>" +
+         "<td>Display values</td>" +
+         "<td>Hover over graph</td>" +
+         "</tr>" +
+         "<tr>" +
+         "<td>&nbsp;Back to live scolling after pan/zoom&nbsp;</td>" +
+         "<td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'> or press 'u' </td>" +
+         "</tr>" +
+         "<tr>" +
+         "<td>&nbsp;Reset axis&nbsp;</td>" +
+         "<td>Click on <img src='icons/rotate-ccw.svg' style='vertical-align:middle' alt='Reset'></td>" +
+         "</tr>" +
+         "<td>&nbsp;Select individual graph&nbsp;</td>" +
+         "<td>Double click on a data point of desired graph or its label. Switch back with &lt;esc&gt;</td>" +
+         "</tr>" +
+         "</table>" +
 
-      "</div>" +
-      "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" " +
-      " onClick=\"dlgHide('dlgHelp')\">Close</button>" +
-      "</div>";
+         "</div>" +
+         "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" " +
+         " onClick=\"dlgHide('dlgHelp')\">Close</button>" +
+         "</div>";
 
-   document.body.appendChild(this.helpDialog);
+      document.body.appendChild(this.helpDialog);
+   }
 
    this.button.forEach(b => {
       b.img = new Image();
@@ -214,6 +257,7 @@ function MhistoryGraph(divElement) { // Constructor
 
    // mouse event handlers
    divElement.addEventListener("mousedown", this.mouseEvent.bind(this), true);
+   divElement.addEventListener("dblclick", this.mouseEvent.bind(this), true);
    divElement.addEventListener("mousemove", this.mouseEvent.bind(this), true);
    divElement.addEventListener("mouseup", this.mouseEvent.bind(this), true);
    divElement.addEventListener("wheel", this.mouseWheelEvent.bind(this), true);
@@ -243,11 +287,13 @@ function timeToSec(str) {
 }
 
 MhistoryGraph.prototype.keyDown = function (e) {
-   if (e.key === " ") {  // space key
-      let dt = this.tMax - this.tMin;
-      this.tMax = Math.floor(new Date() / 1000);
-      this.tMin = this.tMax - dt;
+   if (e.key === "u") {  // 'u' key
       this.scroll = true;
+      this.scrollRedraw();
+      e.preventDefault();
+   }
+   if (e.key === "Escape") {
+      this.solo.active = false;
       this.redraw();
       e.preventDefault();
    }
@@ -261,13 +307,13 @@ MhistoryGraph.prototype.initializePanel = function () {
 
    if (this.group === undefined) {
       dlgMessage("Error", "Definition of \'dataset-group\' missing for history panel \'" + this.parentDiv.id + "\'. " +
-         "Please use syntax:<br /><br /><b>&lt;div name=\"mjshistory\" " +
+         "Please use syntax:<br /><br /><b>&lt;div class=\"mjshistory\" " +
          "data-group=\"&lt;Group&gt;\" data-panel=\"&lt;Panel&gt;\"&gt;&lt;/div&gt;</b>", true);
       return;
    }
    if (this.panel === undefined) {
       dlgMessage("Error", "Definition of \'dataset-panel\' missing for history panel \'" + this.parentDiv.id + "\'. " +
-         "Please use syntax:<br /><br /><b>&lt;div name=\"mjshistory\" " +
+         "Please use syntax:<br /><br /><b>&lt;div class=\"mjshistory\" " +
          "data-group=\"&lt;Group&gt;\" data-panel=\"&lt;Panel&gt;\"&gt;&lt;/div&gt;</b>", true);
       return;
    }
@@ -283,8 +329,7 @@ MhistoryGraph.prototype.initializePanel = function () {
    this.events = [];
    this.tags = [];
    this.index = [];
-   this.yMin0 = 0;
-   this.yMax0 = 0;
+   this.pendingUpdates = 0;
 
    // retrieve panel definition from ODB
    mjsonrpc_db_copy(["/History/Display/" + this.group + "/" + this.panel]).then(function (rpc) {
@@ -312,17 +357,20 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    this.showLabels = this.odb["Show values"];
 
-   this.autoscale = (this.odb["Minimum"] === this.odb["Maximum"] ||
-      this.odb["Minimum"] === "-Infinity" ||
-      this.odb["Maximum"] === "Infinity");
-   if (!this.autoscale) {
-      this.yMin0 = this.odb["Minimum"];
-      this.yMax0 = this.odb["Maximum"];
-   }
+   this.autoscaleMin = (this.odb["Minimum"] === this.odb["Maximum"] ||
+      this.odb["Minimum"] === "-Infinity" || this.odb["Minimum"] === "Infinity");
+   this.autoscaleMax = (this.odb["Minimum"] === this.odb["Maximum"] ||
+      this.odb["Maximum"] === "-Infinity" || this.odb["Maximum"] === "Infinity");
 
    this.logAxis = this.odb["Log axis"];
-   if (this.logAxis)
-      this.yMin0 = this.yMin = 1;
+
+   // if only one variable present, convert it to array[0]
+   if (!Array.isArray(this.odb.Variables))
+      this.odb.Variables = new Array(this.odb.Variables);
+   if (!Array.isArray(this.odb.Label))
+      this.odb.Label = new Array(this.odb.Label);
+   if (!Array.isArray(this.odb.Colour))
+      this.odb.Colour = new Array(this.odb.Colour);
 
    this.odb["Variables"].forEach(v => {
       this.events.push(v.substr(0, v.indexOf(':')));
@@ -336,8 +384,59 @@ MhistoryGraph.prototype.loadInitialData = function () {
       }
    });
 
-   this.tMinRequested = this.lastTimeStamp - this.tScale * 2;
+   // interval selector
+   this.intSelector = document.createElement("div");
+   this.intSelector.id = "intSel";
+   this.intSelector.style.display = "none";
+   this.intSelector.style.position = "absolute";
+   this.intSelector.className = "mtable";
+   this.intSelector.style.borderRadius = "0";
+   this.intSelector.style.border = "2px solid #808080";
+   this.intSelector.style.margin = "0";
+   this.intSelector.style.padding = "0";
 
+   this.intSelector.style.left = "100px";
+   this.intSelector.style.top = "100px";
+
+   let table = document.createElement("table");
+   let row = null;
+   let cell;
+   let link;
+   this.odb["Buttons"].forEach(function (b, i) {
+      if (i % 2 === 0)
+         row = document.createElement("tr");
+
+      cell = document.createElement("td");
+
+      link = document.createElement("a");
+      link.href = "#";
+      link.innerHTML = b;
+      let mhg = this;
+      link.onclick = function () {
+         mhg.tMax = new Date() / 1000;
+         mhg.tMin = mhg.tMax - timeToSec(b);
+         mhg.intSelector.style.display = "none";
+         mhg.scroll = true;
+         mhg.loadOldData();
+         mhg.scrollRedraw();
+         return false;
+      };
+
+      cell.appendChild(link);
+      row.appendChild(cell);
+      if (i % 2 === 1)
+         table.appendChild(row);
+   }, this);
+
+   if (this.odb["Buttons"].length % 2 === 1)
+      table.appendChild(row);
+
+   this.intSelector.appendChild(table);
+   document.body.appendChild(this.intSelector);
+
+   this.tMinRequested = this.lastTimeStamp - this.tScale * 2;
+   this.pendingUpdates++;
+   this.parentDiv.style.cursor = "progress";
    mjsonrpc_call("hs_read_arraybuffer",
       {
          "start_time": this.tMinRequested,
@@ -347,6 +446,10 @@ MhistoryGraph.prototype.loadInitialData = function () {
          "index": this.index
       }, "arraybuffer")
       .then(function (rpc) {
+
+         this.pendingUpdates--;
+         if (this.pendingUpdates === 0)
+            this.parentDiv.style.cursor = "default";
 
          this.receiveData(rpc);
 
@@ -373,6 +476,8 @@ MhistoryGraph.prototype.loadOldData = function () {
       // let t = Math.floor(new Date() / 1000);
       // console.log((this.tMinRequested - t) + " - " + (oldTMinRequestested - t));
 
+      this.pendingUpdates++;
+      this.parentDiv.style.cursor = "progress";
       mjsonrpc_call("hs_read_arraybuffer",
          {
             "start_time": this.tMinRequested,
@@ -382,6 +487,10 @@ MhistoryGraph.prototype.loadOldData = function () {
             "index": this.index
          }, "arraybuffer")
          .then(function (rpc) {
+
+            this.pendingUpdates--;
+            if (this.pendingUpdates === 0)
+               this.parentDiv.style.cursor = "default";
 
             this.receiveData(rpc);
 
@@ -409,50 +518,60 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       // initial data
       for (let index = 0; index < nVars; index++) {
 
+         let formula = this.odb["Formula"];
          this.data.push({time: [], value: []});
 
          let nData = array[2 + nVars + index];
-         for (let j = 0; j < nData; j++) {
-            this.data[index].time.push(array[i++]);
-            this.data[index].value.push(array[i++]);
+         let x = undefined;
+         let y = undefined;
+         if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
+            for (let j = 0; j < nData; j++) {
+               this.data[index].time.push(array[i++]);
+               x = array[i++];
+               y = eval(formula[index]);
+               this.data[index].value.push(y);
+            }
+         } else {
+            for (let j = 0; j < nData; j++) {
+               let t = array[i++];
+               y = array[i++];
+               this.data[index].time.push(t);
+               this.data[index].value.push(y);
+            }
          }
-      }
-
-      if (this.autoscale) {
-         this.data.forEach(d => {
-            d.value.forEach(v => {
-               if (v > this.yMax0)
-                  this.yMax0 = v;
-               if (v < this.yMin0)
-                  this.yMin0 = v;
-
-            });
-         });
       }
 
    } else if (t0 < this.data[0].time[0]) {
 
       // add data to the left
       for (let index = 0; index < nVars; index++) {
+
+         let formula = this.odb["Formula"];
+
          let nData = array[2 + nVars + index];
          let i = 2 + nVars * 2 +  // offset first value
             index * nData * 2 +   // offset full channel
             nData * 2 - 1;        // offset end of channel
 
-         for (let j = 0; j < nData; j++) {
-            let v = array[i--];
-            let t = array[i--];
-
-            if (this.autoscale) {
-               if (v > this.yMax0)
-                  this.yMax0 = v;
-               if (v < this.yMin0)
-                  this.yMin0 = v;
+         let x = undefined;
+         if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
+            for (let j = 0; j < nData; j++) {
+               x = array[i--];
+               let t = array[i--];
+               let v = eval(formula[index]);
+               if (t < this.data[index].time[0]) {
+                  this.data[index].time.unshift(t);
+                  this.data[index].value.unshift(v);
+               }
             }
-
-            if (t < this.data[index].time[0]) {
-               this.data[index].time.unshift(t);
-               this.data[index].value.unshift(v);
+         } else {
+            for (let j = 0; j < nData; j++) {
+               let v = array[i--];
+               let t = array[i--];
+               if (t < this.data[index].time[0]) {
+                  this.data[index].time.unshift(t);
+                  this.data[index].value.unshift(v);
+               }
             }
          }
       }
@@ -461,42 +580,43 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
 
       // add data to the right
       for (let index = 0; index < nVars; index++) {
+
+         let formula = this.odb["Formula"];
+
          let nData = array[2 + nVars + index];
-         for (let j = 0; j < nData; j++) {
-            let t = array[i++];
-            let v = array[i++];
 
-            // add data to the right
-            if (t > this.data[index].time[this.data[index].time.length - 1]) {
+         let x = undefined;
+         if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
+            for (let j = 0; j < nData; j++) {
+               let t = array[i++];
+               x = array[i++];
+               let v = eval(formula[index]);
 
-               if (this.autoscale) {
-                  if (v > this.yMax0)
-                     this.yMax0 = v;
-                  if (v < this.yMin0)
-                     this.yMin0 = v;
+               // add data to the right
+               if (t > this.data[index].time[this.data[index].time.length - 1]) {
+
+                  this.data[index].time.push(t);
+                  this.data[index].value.push(v);
+
+                  this.lastTimeStamp = t;
                }
+            }
+         } else {
+            for (let j = 0; j < nData; j++) {
+               let t = array[i++];
+               let v = array[i++];
 
-               this.data[index].time.push(t);
-               this.data[index].value.push(v);
+               // add data to the right
+               if (t > this.data[index].time[this.data[index].time.length - 1]) {
 
-               this.lastTimeStamp = t;
+                  this.data[index].time.push(t);
+                  this.data[index].value.push(v);
+
+                  this.lastTimeStamp = t;
+               }
             }
          }
       }
-   }
-
-   if (this.yMin0 === this.yMax0) {
-      this.yMin0 -= 0.5;
-      this.yMax0 += 0.5;
-   }
-
-   if (this.scroll) {
-      if (this.autoscale)
-      // leave 10% space above graph
-         this.yMax = this.yMax0 + (this.yMax0 - this.yMin0) / 10;
-      else
-         this.yMax = this.yMax0;
-      this.yMin = this.yMin0;
    }
 };
 
@@ -549,7 +669,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       else if ((e.button & 2) > 0) e.which = 3; // Right
    }
 
-   let cursor = "default";
+   let cursor = this.pendingUpdates > 0 ? "progress" : "default";
 
    if (e.type === "mousedown") {
 
@@ -602,6 +722,8 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          let t2 = this.xToTime(this.zoom.x.x2);
          if (t1 > t2)
             [t1, t2] = [t2, t1];
+         if (t2 - t1 < 1)
+            t1 -= 1;
          this.tMin = t1;
          this.tMax = t2;
          this.zoom.x.active = false;
@@ -616,6 +738,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.yMin = v1;
          this.yMax = v2;
          this.zoom.y.active = false;
+         this.yZoom = true;
          this.redraw();
       }
 
@@ -628,9 +751,11 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          let dt = Math.floor((e.offsetX - this.drag.xStart) / (this.x2 - this.x1) * (this.tMax - this.tMin));
          this.tMin = this.drag.tMinStart - dt;
          this.tMax = this.drag.tMaxStart - dt;
-         let dy = (this.drag.yStart - e.offsetY) / (this.y1 - this.y2) * (this.yMax - this.yMin);
-         this.yMin = this.drag.yMinStart - dy;
-         this.yMax = this.drag.yMaxStart - dy;
+         if (this.yZoom) {
+            let dy = (this.drag.yStart - e.offsetY) / (this.y1 - this.y2) * (this.yMax - this.yMin);
+            this.yMin = this.drag.yMinStart - dy;
+            this.yMax = this.drag.yMaxStart - dy;
+         }
          this.redraw();
 
          this.loadOldData();
@@ -644,6 +769,12 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
                cursor = "pointer";
             }
          });
+
+         // display zoom cursor
+         if (e.offsetX > this.x1 && e.offsetX < this.x2 && e.offsetY > this.y1)
+            cursor = "ew-resize";
+         if (e.offsetY < this.y1 && e.offsetY > this.y2 && e.offsetX < this.x1)
+            cursor = "ns-resize";
 
          // execute axis zoom
          if (this.zoom.x.active) {
@@ -669,6 +800,8 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
                         minDist = d;
                         this.marker.x = this.x[di][i];
                         this.marker.y = this.y[di][i];
+                        this.marker.t = this.t[di][i];
+                        this.marker.v = this.v[di][i];
                         this.marker.mx = e.offsetX;
                         this.marker.my = e.offsetY;
                         this.marker.graphIndex = di;
@@ -681,7 +814,47 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             this.redraw();
          }
       }
+   } else if (e.type === "dblclick") {
+
+      // measure distance to graphs
+      if (this.data !== undefined && this.x.length && this.y.length) {
+         let minDist = 100;
+         for (let di = 0; di < this.data.length; di++) {
+            for (let i = 0; i < this.x[di].length; i++) {
+               if (this.x[di][i] > this.x1 && this.x[di][i] < this.x2) {
+                  let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
+                     Math.pow(e.offsetY - this.y[di][i], 2));
+                  if (d < minDist) {
+                     minDist = d;
+                     this.solo.index = di;
+                  }
+               }
+            }
+         }
+         // check if close to graph point
+         if (minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2) {
+            this.solo.active = !this.solo.active;
+         } else {
+            // check if inside label area
+            if (this.showLabels) {
+               if (e.offsetX > this.x1 && e.offsetX < this.x1 + 25 + this.variablesWidth + 7) {
+                  console.log((e.offsetY - 30) / 17);
+                  let i = Math.floor((e.offsetY - 30) / 17);
+                  if (i < this.data.length) {
+                     if (this.solo.active && this.solo.index === i) {
+                        this.solo.active = false;
+                     } else {
+                        this.solo.active = true;
+                        this.solo.index = i;
+                     }
+                  }
+               }
+            }
+         }
+         this.redraw();
+      }
    }
+
 
    this.parentDiv.style.cursor = cursor;
 
@@ -692,25 +865,48 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
    if (e.offsetX > this.x1 && e.offsetX < this.x2 &&
       e.offsetY > this.y2 && e.offsetY < this.y1) {
+
       if (e.altKey || e.shiftKey) {
+
+         // zoom Y axis
+         this.yZoom = true;
          let f = (e.offsetY - this.y1) / (this.y2 - this.y1);
-         let dtMin = f * (this.yMax - this.yMin) / 100 * e.deltaY;
-         let dtMax = (1 - f) * (this.yMax - this.yMin) / 100 * e.deltaY;
+
+         let step = e.deltaY / 100;
+         if (step > 0.5)
+            step = 0.5;
+         if (step < -0.5)
+            step = -0.5;
+
+         let dtMin = f * (this.yMax - this.yMin) * step;
+         let dtMax = (1 - f) * (this.yMax - this.yMin) * step;
+
          if (((this.yMax + dtMax) - (this.yMin - dtMin)) / (this.yMax0 - this.yMin0) < 1000 &&
             (this.yMax0 - this.yMin0) / ((this.yMax + dtMax) - (this.yMin - dtMin)) < 1000) {
             this.yMin -= dtMin;
             this.yMax += dtMax;
          }
-      } else {
+
+      } else if (e.ctrlKey || e.metaKey) {
+
+         // zoom time axis
          let f = (e.offsetX - this.x1) / (this.x2 - this.x1);
-         let dtMin = Math.floor(f * (this.tMax - this.tMin) / 100 * e.deltaY);
-         let dtMax = Math.floor((1 - f) * (this.tMax - this.tMin) / 100 * e.deltaY);
-         if ((this.tMax + dtMax) - (this.tMin - dtMin) > 10 &&
-            (this.tMax + dtMax) - (this.tMin - dtMin) < 3600 * 24 * 365) {
+         let m = 1 / 100;
+         let dtMin = Math.abs(f * (this.tMax - this.tMin) * m * e.deltaY);
+         let dtMax = Math.abs((1 - f) * (this.tMax - this.tMin) * m * e.deltaY);
+
+         if ((this.tMax - dtMax) - (this.tMin + dtMin) > 10 && e.deltaY < 0) {
+            // zoom in
+            this.tMin += dtMin;
+            this.tMax -= dtMax;
+         }
+         if ((this.tMax + dtMax) - (this.tMin - dtMin) < 3600 * 24 * 365 && e.deltaY > 0) {
+            // zoom out
             this.tMin -= dtMin;
             this.tMax += dtMax;
          }
-      }
+      } else
+         return;
 
       this.loadOldData();
 
@@ -728,6 +924,9 @@ MhistoryGraph.prototype.resize = function () {
 
    this.width = this.parentDiv.clientWidth;
    this.height = this.parentDiv.clientHeight;
+
+   if (this.intSelector !== undefined)
+      this.intSelector.style.display = "none";
 
    this.redraw();
 };
@@ -758,8 +957,72 @@ MhistoryGraph.prototype.yToValue = function (y) {
    return (this.y1 - y) / (this.y1 - this.y2) * (this.yMax - this.yMin) + this.yMin;
 };
 
+MhistoryGraph.prototype.findMinMax = function () {
+
+   if (!this.autoscaleMin)
+      this.yMin0 = this.odb["Minimum"];
+
+   if (!this.autoscaleMax)
+      this.yMax0 = this.odb["Maximum"];
+
+   if (!this.autoscaleMin && !this.autoscaleMax) {
+      this.yMin = this.yMin0;
+      this.yMax = this.yMax0;
+      return;
+   }
+
+   if (this.autoscaleMin)
+      this.yMin0 = undefined;
+   if (this.autoscaleMax)
+      this.yMax0 = undefined;
+   for (let index = 0; index < this.data.length; index++) {
+      for (let i = 0; i < this.data[index].time.length; i++) {
+         let t = this.data[index].time[i];
+         let v = this.data[index].value[i];
+         if (Number.isNaN(v))
+            continue;
+         if (t > this.tMin && t < this.tMax) {
+            if (this.yMin0 === undefined)
+               this.yMin0 = v;
+            if (this.yMax0 === undefined)
+               this.yMax0 = v;
+            if (this.autoscaleMin) {
+               if (v < this.yMin0)
+                  this.yMin0 = v;
+            }
+            if (this.autoscaleMax) {
+               if (v > this.yMax0)
+                  this.yMax0 = v;
+            }
+         }
+      }
+   }
+
+   if (this.yMin0 === this.yMax0) {
+      this.yMin0 -= 0.5;
+      this.yMax0 += 0.5;
+   }
+
+   if (!this.yZoom) {
+      if (this.autoscaleMin)
+      // leave 10% space above graph
+         this.yMin = this.yMin0 - (this.yMax0 - this.yMin0) / 10;
+      else
+         this.yMin = this.yMin0;
+
+      if (this.autoscaleMax)
+      // leave 10% space above graph
+         this.yMax = this.yMax0 + (this.yMax0 - this.yMin0) / 10;
+      else
+         this.yMax = this.yMax0;
+   }
+};
+
 MhistoryGraph.prototype.draw = function () {
    let ctx = this.canvas.getContext("2d");
+
+   ctx.fillStyle = this.color.background;
+   ctx.fillRect(0, 0, this.width, this.height);
 
    if (this.data === undefined) {
       ctx.lineWidth = 1;
@@ -772,29 +1035,46 @@ MhistoryGraph.prototype.draw = function () {
       return;
    }
 
+   if (this.data[0].time === undefined || this.data[0].time.length === 0) {
+      ctx.lineWidth = 1;
+      ctx.font = "14px sans-serif";
+      ctx.strokeStyle = "#808080";
+      ctx.fillStyle = "#808080";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("No data available", this.width / 2, this.height / 2);
+      return;
+   }
+
+   this.findMinMax();
+
    ctx.lineWidth = 1;
    ctx.font = "14px sans-serif";
 
    if (this.height === undefined || this.width === undefined)
       return;
+   if (this.yMin === undefined || Number.isNaN(this.yMin))
+      return;
+   if (this.yMax === undefined || Number.isNaN(this.yMax))
+      return;
 
    let axisLabelWidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35,
       -4, -7, -10, -12, 0, this.yMin, this.yMax, 0, false);
 
-   let variablesWidth = 0;
-   this.odb["Variables"].forEach(v => {
-      variablesWidth = Math.max(variablesWidth, ctx.measureText(v.substr(v.indexOf(':') + 1)).width);
+   this.variablesWidth = 0;
+   this.odb["Variables"].forEach((v, i) => {
+      if (this.odb.Label[i] !== "")
+         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(this.odb.Label[i]).width);
+      else
+         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(v.substr(v.indexOf(':') + 1)).width);
    });
-   variablesWidth += ctx.measureText("00.000000").width;
-   let variablesHeight = this.odb["Variables"].length * 17 + 7;
+   this.variablesWidth += ctx.measureText("0").width * (this.yPrecision + 2);
+   this.variablesHeight = this.odb["Variables"].length * 17 + 7;
 
    this.x1 = axisLabelWidth + 15;
    this.y1 = this.height - 25;
    this.x2 = this.width - 30;
    this.y2 = 26;
-
-   ctx.fillStyle = this.color.background;
-   ctx.fillRect(0, 0, this.width, this.height);
 
    // title
    ctx.strokeStyle = this.color.axis;
@@ -818,63 +1098,190 @@ MhistoryGraph.prototype.draw = function () {
    this.drawTAxis(ctx, this.x1, this.y1, this.x2 - this.x1, this.width,
       4, 7, 10, 10, this.y2 - this.y1, this.tMin, this.tMax);
 
+   // determine precision
+   if (this.yMin === 0)
+      this.yPrecision = Math.max(5, Math.ceil(Math.log(Math.abs(this.yMax)) / Math.log(10)) + 3);
+   else if (this.yMax === 0)
+      this.yPrecision = Math.max(5, Math.ceil(Math.log(Math.abs(this.yMin)) / Math.log(10)) + 3);
+   else
+      this.yPrecision = Math.max(5, Math.ceil(-Math.log(Math.abs(1 - this.yMax / this.yMin)) / Math.log(10)) + 3);
+
    ctx.save();
    ctx.beginPath();
    ctx.rect(this.x1, this.y2, this.x2 - this.x1, this.y1 - this.y2);
    ctx.clip();
 
+   // convert values to points
    for (let di = 0; di < this.data.length; di++) {
+      this.x[di] = []; // x/y contain visible part of graph
+      this.y[di] = [];
+      this.t[di] = []; // t/v contain time/value pairs corresponding to x/y
+      this.v[di] = [];
+
+      let first = undefined;
+      let last = undefined;
+      let n = 0;
+      for (let i = 0; i < this.data[di].time.length; i++) {
+         let x = this.timeToX(this.data[di].time[i]);
+         let v = this.valueToY(this.data[di].value[i]);
+         if (!Number.isNaN(v) && x >= this.x1 && x <= this.x2) {
+            this.x[di][n] = x;
+            this.y[di][n] = v;
+            this.t[di][n] = this.data[di].time[i];
+            this.v[di][n] = this.data[di].value[i];
+            if (first === undefined)
+               first = i;
+            last = i;
+            n++;
+         }
+      }
+      // add one point beyond right limit
+      if (last + 1 < this.data[di].time.length) {
+         this.x[di][n] = this.timeToX(this.data[di].time[last + 1]);
+         this.y[di][n] = this.valueToY(this.data[di].value[last + 1]);
+         this.t[di][n] = this.data[di].time[last + 1];
+         this.v[di][n] = this.data[di].value[last + 1];
+         n++;
+      }
+      // add one point beyond left limit
+      if (first > 0) {
+         this.x[di].unshift(this.timeToX(this.data[di].time[first - 1]));
+         this.y[di].unshift(this.valueToY(this.data[di].value[first - 1]));
+         this.t[di].unshift(this.data[di].value[first - 1]);
+         this.v[di].unshift(this.data[di].time[first - 1]);
+      }
+   }
+
+   // compress points to aggregate values
+   let avgN = 0;
+   let numberN = 0;
+   for (let di = 0; di < this.data.length; di++) {
+      this.p[di] = [];
+      let p = {};
+
+      let xLast = undefined;
+      for (let i = 0; i < this.x[di].length; i++) {
+         let x = Math.floor(this.x[di][i]);
+         let y = this.y[di][i];
+
+         if (i === 0 || x > xLast) {
+
+            if (p.x !== undefined) {
+               // store point
+               if (p.n > 0)
+                  p.avg = p.avg / p.n;
+               avgN += p.n;
+               numberN++;
+               this.p[di].push(p);
+               p = {};
+            }
+            p.n = 1;
+            p.x = x;
+            xLast = x;
+            p.min = y;
+            p.max = y;
+            p.avg = y;
+            p.first = y;
+            p.last = y;
+         } else {
+            p.n++;
+            if (y < p.min)
+               p.min = y;
+            if (y > p.max)
+               p.max = y;
+            p.avg += y;
+            p.last = y;
+         }
+      }
+   }
+   if (numberN > 0)
+      avgN = avgN / numberN;
+
+   // draw shaded areas
+   for (let di = 0; di < this.data.length; di++) {
+      if (this.solo.active && this.solo.index !== di)
+         continue;
+
       ctx.fillStyle = this.odb["Colour"][di];
 
-      this.x[di] = [];
-      this.y[di] = [];
-
-      for (let i = 0; i < this.data[di].time.length; i++) {
-         this.x[di][i] = this.timeToX(this.data[di].time[i]);
-         this.y[di][i] = this.valueToY(this.data[di].value[i]);
-      }
-
-      ctx.beginPath();
-      let x0;
-      let y0;
-      let xPrev;
-      let xLast;
-      for (let i = 0; i < this.x[di].length; i++) {
-         if (i === this.x[di].length - 1 || this.x[di][i + 1] >= this.x1) {
+      if (avgN > 2) {
+         ctx.beginPath();
+         let x0;
+         let y0;
+         let xLast;
+         let i;
+         for (let i = 0; i < this.p[di].length; i++) {
+            let p = this.p[di][i];
+            if (x0 === undefined) {
+               x0 = p.x;
+               y0 = p.first;
+               ctx.moveTo(p.x, p.first);
+            } else {
+               ctx.lineTo(p.x, p.first);
+            }
+            xLast = p.x;
+            ctx.lineTo(p.x, p.last);
+         }
+         ctx.lineTo(xLast, this.y1);
+         ctx.lineTo(x0, this.y1);
+         ctx.lineTo(x0, y0);
+         ctx.globalAlpha = 0.1;
+         ctx.fill();
+         ctx.globalAlpha = 1;
+      } else {
+         ctx.beginPath();
+         let x0;
+         let y0;
+         let xLast;
+         let i;
+         for (i = 0; i < this.x[di].length; i++) {
             let x = this.x[di][i];
             let y = this.y[di][i];
             if (x0 === undefined) {
                x0 = x;
                y0 = y;
-               xPrev = x0;
                ctx.moveTo(x, y);
             } else {
-               //if (this.x[di][i] > xPrev + 1) {
                ctx.lineTo(x, y);
-               //   xPrev = this.x[di][i];
-               //}
             }
             xLast = x;
-            if (x > this.x2)
-               break;
          }
+         ctx.lineTo(xLast, this.y1);
+         ctx.lineTo(x0, this.y1);
+         ctx.lineTo(x0, y0);
+         ctx.globalAlpha = 0.1;
+         ctx.fill();
+         ctx.globalAlpha = 1;
       }
-      ctx.lineTo(xLast, this.y[di][i]);
-      ctx.lineTo(xLast, this.y1);
-      ctx.lineTo(x0, this.y1);
-      ctx.lineTo(x0, y0);
-      ctx.globalAlpha = 0.05;
-      ctx.fill();
-      ctx.globalAlpha = 1;
    }
 
+   // draw graphs
    for (let di = 0; di < this.data.length; di++) {
+      if (this.solo.active && this.solo.index !== di)
+         continue;
+
       ctx.strokeStyle = this.odb["Colour"][di];
 
-      ctx.beginPath();
-      let first = true;
-      for (let i = 0; i < this.data[di].time.length; i++) {
-         if (i === this.data[di].time.length - 1 || this.x[di][i + 1] >= this.x1) {
+      if (avgN > 2) {
+         let prevX = undefined;
+         let prevY = undefined;
+         for (let i = 0; i < this.p[di].length; i++) {
+            let p = this.p[di][i];
+
+            // draw line from end of previous cluster to beginning of current cluster
+            if (prevX !== undefined)
+               ctx.drawLine(prevX, prevY, p.x, p.first);
+
+            // draw min-max line
+            ctx.drawLine(p.x, p.min, p.x, p.max + 1);
+
+            prevX = p.x;
+            prevY = p.last;
+         }
+      } else {
+         ctx.beginPath();
+         let first = true;
+         for (let i = 0; i < this.x[di].length; i++) {
             let x = this.x[di][i];
             let y = this.y[di][i];
             if (first) {
@@ -883,11 +1290,9 @@ MhistoryGraph.prototype.draw = function () {
             } else {
                ctx.lineTo(x, y);
             }
-            if (x > this.x2)
-               break;
          }
+         ctx.stroke();
       }
-      ctx.stroke();
    }
 
    ctx.restore(); // remove clipping
@@ -896,50 +1301,62 @@ MhistoryGraph.prototype.draw = function () {
    if (this.showLabels) {
       ctx.save();
       ctx.beginPath();
-      ctx.rect(this.x1, this.y2, 25 + variablesWidth + 7, variablesHeight + 2);
+      ctx.rect(this.x1, this.y2, 25 + this.variablesWidth + 7, this.variablesHeight + 2);
       ctx.clip();
 
       ctx.strokeStyle = this.color.axis;
       ctx.fillStyle = "#F0F0F0";
       ctx.globalAlpha = 0.5;
-      ctx.strokeRect(this.x1, this.y2, 25 + variablesWidth + 5, variablesHeight);
-      ctx.fillRect(this.x1, this.y2, 25 + variablesWidth + 5, variablesHeight);
+      ctx.strokeRect(this.x1, this.y2, 25 + this.variablesWidth + 5, this.variablesHeight);
+      ctx.fillRect(this.x1, this.y2, 25 + this.variablesWidth + 5, this.variablesHeight);
       ctx.globalAlpha = 1;
 
       this.odb["Variables"].forEach((v, i) => {
          ctx.lineWidth = 4;
-         ctx.strokeStyle = this.color.data[i];
+         ctx.strokeStyle = this.odb["Colour"][i];
          ctx.drawLine(this.x1 + 5, 40 + i * 17, this.x1 + 20, 40 + i * 17);
          ctx.lineWidth = 1;
 
          ctx.textAlign = "left";
          ctx.textBaseline = "middle";
          ctx.fillStyle = "#404040";
-         ctx.fillText(v.substr(v.indexOf(':') + 1), this.x1 + 25, 40 + i * 17);
+         if (this.odb.Label[i] !== "")
+            ctx.fillText(this.odb.Label[i], this.x1 + 25, 40 + i * 17);
+         else
+            ctx.fillText(v.substr(v.indexOf(':') + 1), this.x1 + 25, 40 + i * 17);
 
          ctx.textAlign = "right";
-         if (this.data[i].value.length > 0) {
+         if (this.v[i].length > 0) {
             // use last point in array
-            let index = this.data[i].value.length - 1;
+            let index = this.v[i].length - 1;
 
             // use point at current marker
             if (this.marker.active)
                index = this.marker.index;
 
             // convert value to string with 6 digits
-            let value = this.data[i].value[index];
-            let str;
-            if (value < 1)
-               str = value.toFixed(5);
-            else
-               str = value.toPrecision(6);
-            ctx.fillText(str, this.x1 + 25 + variablesWidth, 40 + i * 17);
+            let value = this.v[i][index];
+            let str = value.toPrecision(this.yPrecision);
+            ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
          } else
-            ctx.fillText('no data', this.x1 + 25 + variablesWidth, 40 + i * 17);
+            ctx.fillText('no data', this.x1 + 25 + this.variablesWidth, 40 + i * 17);
 
       });
 
       ctx.restore(); // remove clipping
+   }
+
+   // "updating" notice
+   if (this.pendingUpdates > 0) {
+      let str = "Updating data ...";
+      ctx.strokeStyle = "#404040";
+      ctx.fillStyle = "#F0F0F0";
+      ctx.fillRect(this.x1 + 5, this.y1 - 22, 10 + ctx.measureText(str).width, 17);
+      ctx.strokeRect(this.x1 + 5, this.y1 - 22, 10 + ctx.measureText(str).width, 17);
+      ctx.fillStyle = "#404040";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(str, this.x1 + 10, this.y1 - 13);
    }
 
    // buttons
@@ -1009,8 +1426,13 @@ MhistoryGraph.prototype.draw = function () {
       ctx.drawLine(this.marker.x, this.y1, this.marker.x, this.y2);
 
       // text label
-      let v = this.data[this.marker.graphIndex].value[this.marker.index];
-      let s = this.odb["Variables"][this.marker.graphIndex] + ": " + v.toPrecision(6);
+      let v = this.marker.v;
+
+      let s;
+      if (this.odb.Label[this.marker.graphIndex] !== "")
+         s = this.odb.Label[this.marker.graphIndex] + ": " + v.toPrecision(this.yPrecision);
+      else
+         s = this.odb["Variables"][this.marker.graphIndex] + ": " + v.toPrecision(this.yPrecision);
 
       let w = ctx.measureText(s).width + 6;
       let h = ctx.measureText("M").width * 1.2 + 6;
@@ -1042,7 +1464,7 @@ MhistoryGraph.prototype.draw = function () {
       ctx.drawLine(this.marker.x, this.marker.y, xl, yl);
 
       // time label
-      s = timeToLabel(this.data[this.marker.graphIndex].time[this.marker.index], 1, true);
+      s = timeToLabel(this.marker.t, 1, true);
       w = ctx.measureText(s).width + 6;
       h = ctx.measureText("M").width * 1.2 + 6;
       x = this.marker.x - w / 2;
@@ -1059,7 +1481,8 @@ MhistoryGraph.prototype.draw = function () {
       ctx.fillStyle = "#404040";
       ctx.fillText(s, x + 3, y + h / 2);
    }
-};
+}
+;
 
 /*
 MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor, major,
@@ -1259,7 +1682,7 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
    let textHeight = parseInt(ctx.font.match(/\d+/)[0]);
 
    if (ymax <= ymin || height <= 0)
-      return;
+      return undefined;
 
    if (logaxis) {
       dy = Math.pow(10, Math.floor(Math.log(ymin) / Math.log(10)));
