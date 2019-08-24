@@ -4129,7 +4129,7 @@ INT ss_suspend(INT millisec, INT msg)
 
      ss_suspend(0) ->
      -> MSG_BM message arrives in the UDP socket
-     -> suspend_process_ipc()
+     -> ss_suspend_process_ipc()
      -> cm_dispatch_ipc()
      -> bm_push_event()
      -> bm_push_buffer()
@@ -4137,7 +4137,7 @@ INT ss_suspend(INT millisec, INT msg)
      -> bm_wait_for_more_events()
      -> ss_suspend(MSG_BM) <- event buffer code calls ss_suspend() with MSG_BM set
      -> MSG_BM arrives arrives in the UDP socket
-     -> suspend_process_ipc(MSG_BM)
+     -> ss_suspend_process_ipc(MSG_BM)
      -> the newly arrived MSG_BM message is discarded,
         recursive call to cm_dispatch_ipc(), bm_push_buffer() & co avoided
 
@@ -4147,7 +4147,7 @@ INT ss_suspend(INT millisec, INT msg)
      -> cm_yield() in the main loop
      -> ss_suspend(0)
      -> MSG_BM message arrives in the UDP socket
-     -> suspend_process_ipc(0)
+     -> ss_suspend_process_ipc(0)
      -> cm_dispatch_ipc()
      -> bm_push_event()
      -> bm_push_buffer()
@@ -4157,7 +4157,7 @@ INT ss_suspend(INT millisec, INT msg)
      -> user event handler ROOT graphics main loop needs to sleep
      -> ss_suspend(0) <--- should be ss_suspend(MSG_BM)!!!     
      -> MSG_BM message arrives in the UDP socket
-     -> suspend_process_ipc(0) <- should be suspend_process_ipc(MSG_BM)!!!
+     -> ss_suspend_process_ipc(0) <- should be ss_suspend_process_ipc(MSG_BM)!!!
      -> cm_dispatch_ipc() <- without MSG_BM, calling cm_dispatch_ipc() again
      -> bm_push_event()
      -> bm_push_buffer()
