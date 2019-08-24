@@ -382,6 +382,22 @@ function mhttpd_unhide_button(button) {
    button.style.display = "";
 }
 
+function mhttpd_hide(id) {
+   var e = document.getElementById(id);
+   if (e) {
+      e.style.visibility = "hidden";
+      e.style.display = "none";
+   }
+}
+
+function mhttpd_unhide(id) {
+   var e = document.getElementById(id);
+   if (e) {
+      e.style.visibility = "visible";
+      e.style.display = "";
+   }
+}
+
 function mhttpd_init_overlay(overlay) {
    mhttpd_hide_overlay(overlay);
 

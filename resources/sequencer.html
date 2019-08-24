@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html class="mcss">
+<head>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css">
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <script src="controls.js"></script>
+   <title>Sequencer</title>
+</head>
+
+<body class="mcss" onload="mhttpd_init('Sequencer')">
+
+<!-- header and side navigation will be filled in mhttpd_start -->
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+   <div align="center" style="margin-top:10px;">
+      <button class="mbutton" id='seq_load_script' onclick='xxxreset_all_alarms()'>Load Script</button>
+      <button class="mbutton" id='seq_edit_script' onclick='xxxdisable_alarm_system(false)'>Edit Script</button>
+      <button class="mbutton" id='seq_start_script' onclick='start_script()'>Start</button>
+      <button class="mbutton" id='seq_stop_after_current_run' onclick='xxxdisable_alarm_system(false)'>Stop after current run</button>
+      <button class="mbutton" id='seq_cancel_stop_after_current_run' onclick='xxxdisable_alarm_system(false)'>Cancel 'Stop after current run'</button>
+      <button class="mbutton" id='seq_stop_immediately' onclick='stop_immediately()'>Stop immediately</button>
+      <button class="mbutton" id='seq_pause' onclick='pause()'>Pause</button>
+      <button class="mbutton" id='seq_resume' onclick='seq_resume()'>Resume</button>
+   </div>
+
+   <div id="msg_state">
+     <table class="mtable" width="100%">
+       <tr>
+         <th class="mtableheader">State</th>
+       </tr>
+       <tr id="msg_stop_after_run">
+         <td align="center" colspan=2><b>Sequence will be stopped after current run</b></td>
+       </tr>
+       <tr id="msg_seq_paused">
+         <td align="center" colspan=2 style="background-color:#FFFF80;"><b>Sequencer is paused</b></td>
+       </tr>
+       <tr id="msg_seq_finished">
+         <td align="center" colspan=2 style="background-color:#80FF80;"><b>Sequence is finished</b></td>
+       </tr>
+     </table>
+   </div>
+
+   <div id="msg_progress">
+     <table class="mtable" width="100%">
+       <tr>
+         <th class="mtableheader">Progress</th>
+       </tr>
+
+       <tr id="loop0">
+         <td colspan=2>
+           <table width="100%">
+             <tr>
+               <td style="width:150px;" id="loop_label0">Loop&nbsp;0:</td>
+               <td>
+                 <table id="loopprgs0" width="100%" height="25">
+                   <tr>
+                     <td style="background-color:bar_col[i];border:2px solid #000080;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
+                   </tr>
+                 </table>
+               </td>
+             </tr>
+           </table>
+         </td>
+       </tr>
+       <tr id="loop1">
+         <td colspan=2>
+           <table width="100%">
+             <tr>
+               <td style="width:150px;" id="loop_label1">Loop&nbsp;1:</td>
+               <td>
+                 <table id="loopprgs1" width="100%" height="25">
+                   <tr>
+                     <td style="background-color:bar_col[i];border:2px solid #000080;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
+                   </tr>
+                 </table>
+               </td>
+             </tr>
+           </table>
+         </td>
+       </tr>
+       <tr id="loop2">
+         <td colspan=2>
+           <table width="100%">
+             <tr>
+               <td style="width:150px;" id="loop_label2">Loop&nbsp;2:</td>
+               <td>
+                 <table id="loopprgs2" width="100%" height="25">
+                   <tr>
+                     <td style="background-color:bar_col[i];border:2px solid #000080;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
+                   </tr>
+                 </table>
+               </td>
+             </tr>
+           </table>
+         </td>
+       </tr>
+       <tr id="loop3">
+         <td colspan=2>
+           <table width="100%">
+             <tr>
+               <td style="width:150px;" id="loop_label3">Loop&nbsp;3:</td>
+               <td>
+                 <table id="loopprgs3" width="100%" height="25">
+                   <tr>
+                     <td style="background-color:bar_col[i];border:2px solid #000080;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
+                   </tr>
+                 </table>
+               </td>
+             </tr>
+           </table>
+         </td>
+       </tr>
+
+       <tr id="wait_row">
+         <td colspan=2>
+           <table width="100%">
+             <tr>
+               <td style="width:150px" id="wait_label">Run:</td>
+               <td>
+                 <table id="runprgs" width="100%" height="25">
+                   <tr>
+                     <td style="background-color:#80FF80;border:2px solid #008000;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
+                   </tr>
+                 </table>
+               </td>
+             </tr>
+           </table>
+         </td>
+       </tr>
+     </table>
+   </div>
+
+   <div>
+     <table class="mtable" width="100%">
+       <tr>
+         <th class="mtableheader">Sequencer File</th>
+       </tr>
+
+       <tr>
+         <td colspan=2>
+           <table width=100%>
+             <tr>
+               <td>Filename:<b>seq.filename</b></td>
+             </tr>
+           </table>
+         </td>
+       </tr>
+
+       <tr>
+         <td class="redLight" colspan=2><b>seq.error</b></td>
+       </tr>
+
+       <tr>
+         <td colspan=2>
+           <table width=100%>
+
+             <tr>
+               <td style="background-color:#FFFFFF; text-align:left;" colspan=2 valign="top">
+                 <a onClick="sshow_lines();return false;" href="#" id="supperarrow" style="display:none;">&#x25B2</a><br>
+
+                 if (line == seq.serror_line)
+                 <div id="sline%d" style="font-family:monospace;background-color:red;">line&nbsp;str</div>
+                 else if (seq.running && line == seq.current_line_number)
+                 <div id="sline%d" style="font-family:monospace;background-color:#80FF00">line&nbsp;str</div>
+                 else
+                 <div id="sline%d" style="font-family:monospace">line&nbsp;str</div>
+                 <a onClick="sshow_lines();return false;" href="#" id="slowerarrow" style="display:none;">&#x25BC</a><br>
+               </td>
+             </tr>
+             <tr>
+               <td colspan=2><b>Cannot open file "%s"</b></td>
+             </tr>
+           </table>
+         </td>
+       </tr>
+     </table>
+   </div>
+
+   <div id="msg_messages">
+     <table class="mtable" width=100%%>
+       <tr>
+         <th class="mtableheader">Messages</th>
+       </tr>
+       <tr>
+         <td colspan=2>
+           <div id="sequencerMessages" style="font-family:monospace; text-align:left;">
+             <br>
+             cm_msg_retrieve(10, buffer, sizeof(buffer));
+             <div>str</div>
+             <br>
+
+             <script type="text/javascript">
+             var messages = document.getElementById("sequencerMessages");
+             var i = messages.childNodes.length;
+             while (i--) {
+                messages.appendChild(messages.childNodes[i])
+             }
+             </script>
+             <a href="../?cmd=Messages">...</a>
+           </div>
+         </td>
+       </tr>
+     </table>
+   </div>
+
+   <div id="updateStatus" align="left">
+      updateStatus
+   </div>
+</div>
+<div id="dlgError" class="dlgFrame">
+  <div class="dlgTitlebar">Error message</div>
+  <div class="dlgPanel">
+    <div id="dlgErrorText">Dialog Contents</div>
+    <br />
+    <button class="dlgButton" onClick="dlgHide('dlgError')">Close</button>
+  </div>
+</div>
+
+<script>
+var show_all_lines = false;
+var sshow_all_lines = false;
+var last_msg = null;
+var last_paused = null;
+
+function start_script()
+{
+   mjsonrpc_call('cm_exist', '{"name": "sequencer"}').then(function(rpc) {
+      if (rpc.result.status === 1) {;
+         window.location.href = '?cmd=Start+Script';
+      } else {
+         dlgAlert('Sequencer is not running, please start it');
+      }
+   }).catch(function(error) {
+      mjsonrpc_error_alert(error);
+   });
+
+   return false;
+}
+
+function seq_set_paused(paused)
+{
+   //db_find_key(hDB, 0, "/Sequencer/State", &hKey);
+   //seq.paused = paused;
+   //db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+   mjsonrpc_db_paste(["/sequencer/state/paused"], [paused]).then(function (rpc) {
+      update();
+   }).catch(function (error) {
+      document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+      dlgShow('dlgError');
+      //mjsonrpc_error_alert(error);
+   });
+}
+
+function seq_set_stop_after_run(stop_after_run)
+{
+   //db_find_key(hDB, 0, "/Sequencer/State", &hKey);
+   //seq.stop_after_run = stop_after_run;
+   //db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+}
+
+function seq_stop_immediately(flag)
+{
+   if (flag) {
+      window.location.href = '?cmd=Stop immediately';
+   }
+}
+
+function stop_immediately()
+{
+   dlgConfirm("Are you sure to stop the script immediately?", seq_stop_immediately);
+}
+
+function seq_pause(flag)
+{
+   if (flag) {
+      seq_set_paused(true);
+      //window.location.href='?cmd=SPause';
+   }
+}
+
+function seq_resume()
+{
+   seq_set_paused(false);
+   //window.location.href='?cmd=SResume';
+}
+
+function pause()
+{
+   dlgConfirm("Are you sure to pause the script?", seq_pause);
+}
+
+function seq_refresh(seq)
+{
+   var current_line = seq['current line number'];
+   var scurrent_line = seq['scurrent line number'];
+   var subroutine_call_line = seq['subroutine call line'];
+   var ssubroutine_call_line = seq['ssubroutine call line'];
+   var error_line = seq['error line'];
+   var serror_line = seq['serror line'];
+   var message = seq.message;
+   var wait_value = seq['wait value'];
+   var wait_limit = seq['wait limit'];
+   var wait_type = seq['wait type'];
+   var loop_n = seq['loop n'];
+   var loop_counter = seq['loop counter'];
+   var loop_start_line = seq['loop start line'];
+   var sloop_start_line = seq['sloop start line'];
+   var loop_end_line = seq['loop end line'];
+   var sloop_end_line = seq['sloop end line'];
+   var finished = seq.finished;
+   var paused = seq.paused;
+   var start_time = seq['start time'];
+   var msg = seq['last msg'];
+   
+   if (last_msg == null)
+      last_msg = msg;
+   else if (last_msg != msg)
+      window.location.reload();
+   
+   if (last_paused == null)
+      last_paused = paused;
+   else if (last_paused != paused)
+      window.location.reload();
+
+   if (seq.running) {
+      mhttpd_unhide("msg_progress");
+      mhttpd_unhide("msg_messages");
+      mhttpd_hide("seq_load_script");
+      mhttpd_hide("seq_edit_script");
+      mhttpd_hide("seq_start_script");
+      mhttpd_unhide("seq_pause");
+      mhttpd_unhide("seq_resume");
+      mhttpd_unhide("seq_stop_immediately");
+      mhttpd_unhide("seq_stop_after_current_run");
+      mhttpd_unhide("seq_cancel_stop_after_current_run");
+   } else {
+      mhttpd_hide("msg_progress");
+      mhttpd_hide("msg_messages");
+      mhttpd_unhide("seq_load_script");
+      mhttpd_unhide("seq_edit_script");
+      mhttpd_unhide("seq_start_script");
+      mhttpd_hide("seq_pause");
+      mhttpd_hide("seq_resume");
+      mhttpd_hide("seq_stop_immediately");
+      mhttpd_hide("seq_stop_after_current_run");
+      mhttpd_hide("seq_cancel_stop_after_current_run");
+   }
+   
+   if (seq["stop after run"]) {
+      mhttpd_unhide("msg_stop_after_run");
+      mhttpd_hide("seq_stop_after_current_run");
+      mhttpd_unhide("seq_cancel_stop_after_current_run");
+   } else {
+      mhttpd_hide("msg_stop_after_run");
+      mhttpd_hide("seq_cancel_stop_after_current_run");
+   }
+   
+   if (seq.paused) {
+      mhttpd_unhide("msg_seq_paused");
+      mhttpd_unhide("seq_resume");
+      mhttpd_hide("seq_pause");
+   } else {
+      mhttpd_hide("msg_seq_paused");
+   }
+
+   if (seq.finished) {
+      mhttpd_unhide("msg_seq_finished");
+   } else {
+      mhttpd_hide("msg_seq_finished");
+   }
+
+   for (var sl=1 ; ; sl++) {
+      sline = document.getElementById('sline'+sl);
+      if (sline == null) {
+         var slast_line = sl-1;
+         break;
+      }
+      if (Math.abs(sl - scurrent_line) > 10 && !sshow_all_lines)
+         sline.style.display = 'none';
+      else
+         sline.style.display = 'inline';
+      if (scurrent_line > 10) {
+         document.getElementById('supperarrow').style.display = 'inline';
+         if (sshow_all_lines)
+            document.getElementById('supperarrow').style.display = '&#x25BC';
+         else
+            document.getElementById('supperarrow').style.display = '&#x25B2';
+      } else
+      document.getElementById('supperarrow').style.display = 'none';
+      if (sl == serror_line)
+         sline.style.backgroundColor = '#FF0000';
+      else if (sl == scurrent_line)
+         sline.style.backgroundColor = '#80FF80';
+      else if (sl == ssubroutine_call_line[3])
+         sline.style.backgroundColor = '#E0FFE0';
+      else if (sl == ssubroutine_call_line[2])
+         sline.style.backgroundColor = '#D0FFD0';
+      else if (sl == ssubroutine_call_line[1])
+         sline.style.backgroundColor = '#C0FFC0';
+      else if (sl == ssubroutine_call_line[0])
+         sline.style.backgroundColor = '#B0FFB0';
+      else if (sl >= sloop_start_line[3] && sl <= sloop_end_line[3])
+         sline.style.backgroundColor = '#E0E0FF';
+      else if (sl >= sloop_start_line[2] && sl <= sloop_end_line[2])
+         sline.style.backgroundColor = '#D0D0FF';
+      else if (sl >= sloop_start_line[1] && sl <= sloop_end_line[1])
+         sline.style.backgroundColor = '#C0C0FF';
+      else if (sl >= sloop_start_line[0] && sl <= sloop_end_line[0])
+         sline.style.backgroundColor = '#B0B0FF';
+      else
+         sline.style.backgroundColor = '#FFFFFF';
+   }
+   for (var l=1 ; ; l++) {
+      line = document.getElementById('line'+l);
+      if (line == null) {
+         var last_line = l-1;
+         break;
+      }
+      if (Math.abs(l - current_line) > 10 && !show_all_lines)
+         line.style.display = 'none';
+      else
+         line.style.display = 'inline';
+      if (current_line > 10) {
+         document.getElementById('upperarrow').style.display = 'inline';
+         if (show_all_lines)
+            document.getElementById('upperarrow').style.display = '&#x25BC';
+         else
+            document.getElementById('upperarrow').style.display = '&#x25B2';
+      } else
+      document.getElementById('upperarrow').style.display = 'none';
+      if (l == error_line)
+         line.style.backgroundColor = '#FF0000';
+      else if (l == current_line)
+         line.style.backgroundColor = '#80FF80';
+      else if (l == subroutine_call_line[3])
+         line.style.backgroundColor = '#E0FFE0';
+      else if (l == subroutine_call_line[2])
+         line.style.backgroundColor = '#D0FFD0';
+      else if (l == subroutine_call_line[1])
+         line.style.backgroundColor = '#C0FFC0';
+      else if (l == subroutine_call_line[0])
+         line.style.backgroundColor = '#B0FFB0';
+      else if (l >= loop_start_line[3] && l <= loop_end_line[3])
+         line.style.backgroundColor = '#E0E0FF';
+      else if (l >= loop_start_line[2] && l <= loop_end_line[2])
+         line.style.backgroundColor = '#D0D0FF';
+      else if (l >= loop_start_line[1] && l <= loop_end_line[1])
+         line.style.backgroundColor = '#C0C0FF';
+      else if (l >= loop_start_line[0] && l <= loop_end_line[0])
+         line.style.backgroundColor = '#B0B0FF';
+      else
+         line.style.backgroundColor = '#FFFFFF';
+   }
+   
+   if (document.getElementById('lowerarrow')) {
+      if (current_line < last_line-10) {
+         document.getElementById('lowerarrow').style.display = 'inline';
+         if (show_all_lines)
+            document.getElementById('lowerarrow').innerHTML = '&#x25B2';
+         else
+            document.getElementById('lowerarrow').innerHTML = '&#x25BC';
+      } else
+      document.getElementById('lowerarrow').style.display = 'none';
+   }
+   if (document.getElementById('slowerarrow')) {
+      if (scurrent_line < slast_line-10) {
+         document.getElementById('slowerarrow').style.display = 'inline';
+         if (sshow_all_lines)
+            document.getElementById('slowerarrow').innerHTML = '&#x25B2';
+         else
+            document.getElementById('slowerarrow').innerHTML = '&#x25BC';
+      } else
+      document.getElementById('slowerarrow').style.display = 'none';
+   }
+   
+   var wl = document.getElementById('wait_label');
+   if (wl != null) {
+      if (wait_type == 'Seconds')
+         wl.innerHTML = 'Wait:&nbsp['+wait_value+'/'+wait_limit+'&nbsp;s]';
+      else if (wait_type == 'Events')
+         wl.innerHTML = 'Run:&nbsp['+wait_value+'/'+wait_limit+'&nbsp;events]';
+      else if (wait_type.substr(0, 3) == 'ODB') {
+         op = wait_type.substr(3);
+         if (op == '')
+            op = '>=';
+         op = op.replace(/>/g, '&gt;').replace(/</g, '&lt;');
+         wl.innerHTML = 'ODB:&nbsp['+wait_value+'&nbsp;'+op+'&nbsp;'+wait_limit+']';
+      } else {
+         wl.innerHTML = '';
+      }
+      wr = document.getElementById('wait_row');
+      if (wait_type == '')
+         wr.style.display = 'none';
+      else
+         wr.style.display = 'table-row';
+   }
+   var rp = document.getElementById('runprgs');
+   if (rp != null) {
+      var width = Math.round(100.0*wait_value/wait_limit);
+      if (width > 100)
+         width = 100;
+      rp.width = width+'%';
+   }
+   
+   for (var i=0 ; i<4 ; i++) {
+      var l = document.getElementById('loop'+i);
+      if (loop_start_line[i] > 0) {
+         var ll = document.getElementById('loop_label'+i);
+         if (loop_n[i] == -1)
+            ll.innerHTML = 'Loop:&nbsp['+loop_counter[i]+']';
+         else
+            ll.innerHTML = 'Loop:&nbsp['+loop_counter[i]+'/'+loop_n[i]+']';
+         l.style.display = 'table-row';
+         var lp = document.getElementById('loopprgs'+i);
+         if (loop_n[i] == -1)
+            lp.style.display = 'none';
+         else
+            lp.width = Math.round(100.0*loop_counter[i]/loop_n[i])+'%';
+      } else
+      l.style.display = 'none';
+   }
+   
+   if (message != '') {
+      alert(message);
+      message = '';
+      ODBSet('/Sequencer/State/Message', '');
+      window.location.reload();
+   }
+   
+   if (finished == 'y' || error_line > 0) {
+      window.location.reload();
+   }
+}
+
+function show_lines()
+{
+   show_all_lines = !show_all_lines;
+   if (show_all_lines)
+      document.getElementById('upperarrow').innerHTML = '&#x25BC';
+   else
+      document.getElementById('upperarrow').innerHTML = '&#x25B2';
+   update();
+}
+
+function sshow_lines()
+{
+   sshow_all_lines = !sshow_all_lines;
+   if (sshow_all_lines)
+      document.getElementById('supperarrow').innerHTML = '&#x25BC';
+   else
+      document.getElementById('supperarrow').innerHTML = '&#x25B2';
+   update();
+}
+
+function load()
+{
+   if (document.getElementById('fs').selectedIndex == -1)
+      dlgAlert('Please select a file to load');
+   else {
+      var o = document.createElement('input');
+      o.type = 'hidden'; o.name='xcmd'; o.value='Load script file';
+      document.form1.appendChild(o);
+      document.form1.submit();
+   }
+}
+
+   function write_alarm_system_active(flag, value) {
+      if (flag) {
+         mjsonrpc_db_paste(["/alarms/alarm system active"], [value]).then(function (rpc) {
+            update();
+         }).catch(function (error) {
+            document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+            dlgShow('dlgError');
+            //mjsonrpc_error_alert(error);
+         });
+      }
+   }
+
+   function enable_alarm_system() {
+      dlgConfirm("Please confirm: Enable the MIDAS alarm system?",
+         write_alarm_system_active, true);
+   }
+
+   function disable_alarm_system() {
+      dlgConfirm("Please confirm: Disable the MIDAS alarm system?",
+         write_alarm_system_active, false);
+   }
+</script>
+
+<script>
+   var update_timer_id;
+
+   function callback(rpc) {
+      //document.getElementById('updateStatus').innerHTML = "RWP_";
+
+      var seq_state = rpc.result.data[0];
+
+      if (seq_state) {
+         seq_refresh(seq_state);
+      }
+
+      document.getElementById('updateStatus').innerHTML = "";
+   }
+
+   function update() {
+      //document.getElementById('updateStatus').innerHTML = "R___";
+      var paths = ["/Sequencer/State"];
+      mjsonrpc_db_get_values(paths).then(function (rpc) {
+         callback(rpc);
+      }).catch(function (error) {
+         //mjsonrpc_error_alert(error);
+         document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
+      });
+      //document.getElementById('updateStatus').innerHTML = "RW__";
+   }
+
+   function update_periodic() {
+      clearTimeout(update_timer_id);
+      var update_period = 1000;
+      update();
+      update_timer_id = setTimeout('update_periodic()', update_period);
+   }
+
+   update_periodic();
+</script>
+</body>
+</html>
