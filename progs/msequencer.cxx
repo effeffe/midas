@@ -386,19 +386,21 @@ int eval_condition(const char *condition)
 
 /*------------------------------------------------------------------*/
 
-BOOL msl_parse(char *filename, char *error, int error_size, int *error_line)
+BOOL msl_parse(const char *filename, const char* xml_filename, char *error, int error_size, int *error_line)
 {
    char str[256], *buf, *pl, *pe;
    char list[100][XNAME_LENGTH], list2[100][XNAME_LENGTH], **lines;
-   int i, j, n, size, n_lines, endl, line, fhin, nest, incl, library;
-   FILE *fout = NULL;
+   int i, j, n, size, n_lines, endl, line, nest, incl, library;
    
-   fhin = open(filename, O_RDONLY | O_TEXT);
-   if (strchr(filename, '.')) {
-      strlcpy(str, filename, sizeof(str));
-      *strchr(str, '.') = 0;
-      strlcat(str, ".xml", sizeof(str));
-      fout = fopen(str, "wt");
+   int fhin = open(filename, O_RDONLY | O_TEXT);
+   if (fhin < 0) {
+      sprintf(error, "Cannot open \"%s\", errno %d (%s)", filename, errno, strerror(errno));
+      return FALSE;
+   }
+   FILE *fout = fopen(xml_filename, "wt");
+   if (fout == NULL) {
+      sprintf(error, "Cannot write to \"%s\", fopen() errno %d (%s)", xml_filename, errno, strerror(errno));
+      return FALSE;
    }
    if (fhin > 0 && fout) {
       size = (int)lseek(fhin, 0, SEEK_END);
@@ -686,6 +688,35 @@ void seq_stop(HNDLE hDB, HNDLE hKey)
 
 /*------------------------------------------------------------------*/
 
+static void seq_open_file(const char* str)
+{
+   seq.new_file = FALSE;
+   seq.error[0] = 0;
+   seq.error_line = 0;
+   seq.serror_line = 0;
+   if (pnseq) {
+      mxml_free_tree(pnseq);
+      pnseq = NULL;
+   }
+   if (stristr(str, ".msl")) {
+      int size = strlen(str) + 1;
+      char* xml_filename = (char*)malloc(size);
+      strlcpy(xml_filename, str, size);
+      strsubst(xml_filename, size, ".msl", ".xml");
+      printf("Parsing MSL sequencer file: %s to XML sequencer file %s\n", str, xml_filename);
+      if (msl_parse(str, xml_filename, seq.error, sizeof(seq.error), &seq.serror_line)) {
+         printf("Loading XML sequencer file: %s\n", xml_filename);
+         pnseq = mxml_parse_file(xml_filename, seq.error, sizeof(seq.error), &seq.error_line);
+      }
+      free(xml_filename);
+   } else {
+      printf("Loading XML sequencer file: %s\n", str);
+      pnseq = mxml_parse_file(str, seq.error, sizeof(seq.error), &seq.error_line);
+   }
+}
+
+/*------------------------------------------------------------------*/
+
 static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
 {
    int status;
@@ -716,23 +747,9 @@ static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
 
       printf("Load file %s\n", str);
 
-      seq.new_file = FALSE;
-      seq.error[0] = 0;
-      seq.error_line = 0;
-      seq.serror_line = 0;
-      seq.finished = FALSE;
+      seq_open_file(str);
 
-      if (pnseq) {
-         mxml_free_tree(pnseq);
-         pnseq = NULL;
-      }
-      if (stristr(str, ".msl")) {
-         if (msl_parse(str, seq.error, sizeof(seq.error), &seq.serror_line)) {
-            strsubst(str, sizeof(str), ".msl", ".xml");
-            pnseq = mxml_parse_file(str, seq.error, sizeof(seq.error), &seq.error_line);
-         }
-      } else
-         pnseq = mxml_parse_file(str, seq.error, sizeof(seq.error), &seq.error_line);
+      seq.finished = FALSE;
    
       db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
    }
@@ -1600,21 +1617,7 @@ void init_sequencer()
    if (seq.filename[0]) {
       strlcpy(str, seq.path, sizeof(str));
       strlcat(str, seq.filename, sizeof(str));
-      seq.new_file = FALSE;
-      seq.error[0] = 0;
-      seq.error_line = 0;
-      seq.serror_line = 0;
-      if (pnseq) {
-         mxml_free_tree(pnseq);
-         pnseq = NULL;
-      }
-      if (stristr(str, ".msl")) {
-         if (msl_parse(str, seq.error, sizeof(seq.error), &seq.serror_line)) {
-            strsubst(str, sizeof(str), ".msl", ".xml");
-            pnseq = mxml_parse_file(str, seq.error, sizeof(seq.error), &seq.error_line);
-         }
-      } else
-         pnseq = mxml_parse_file(str, seq.error, sizeof(seq.error), &seq.error_line);
+      seq_open_file(str);
    }
    
    seq.transition_request = FALSE;
@@ -1737,3 +1740,10 @@ int main(int argc, const char *argv[])
 /**dox***************************************************************/
 /** @} *//* end of alfunctioncode */
 
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */
