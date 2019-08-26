@@ -660,6 +660,24 @@ MhistoryGraph.prototype.scrollRedraw = function () {
    }
 };
 
+function binarySearch(array, target) {
+   let startIndex = 0;
+   let endIndex = array.length - 1;
+   let middleIndex;
+   while (startIndex <= endIndex) {
+      middleIndex = Math.floor((startIndex + endIndex) / 2);
+      if (target === array[middleIndex])
+         return middleIndex;
+
+      if (target > array[middleIndex])
+         startIndex = middleIndex + 1;
+      if (target < array[middleIndex])
+         endIndex = middleIndex - 1;
+   }
+
+   return middleIndex;
+}
+
 MhistoryGraph.prototype.mouseEvent = function (e) {
 
    // fix buttons for IE
@@ -790,27 +808,33 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
          // check if cursor close to graph point
          if (this.data !== undefined && this.x.length && this.y.length) {
-            let minDist = 100;
+            let minDist = 10000;
+            console.time();
             for (let di = 0; di < this.data.length; di++) {
-               for (let i = 0; i < this.x[di].length; i++) {
-                  if (this.x[di][i] > this.x1 && this.x[di][i] < this.x2) {
-                     let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
-                        Math.pow(e.offsetY - this.y[di][i], 2));
-                     if (d < minDist) {
-                        minDist = d;
-                        this.marker.x = this.x[di][i];
-                        this.marker.y = this.y[di][i];
-                        this.marker.t = this.t[di][i];
-                        this.marker.v = this.v[di][i];
-                        this.marker.mx = e.offsetX;
-                        this.marker.my = e.offsetY;
-                        this.marker.graphIndex = di;
-                        this.marker.index = i;
-                     }
+
+               let i1 = binarySearch(this.x[di], e.offsetX - 10);
+               let i2 = binarySearch(this.x[di], e.offsetX + 10);
+
+               for (let i = i1; i < i2; i++) {
+                  let d = (e.offsetX - this.x[di][i]) * (e.offsetX - this.x[di][i]) +
+                     (e.offsetY - this.y[di][i]) * (e.offsetY - this.y[di][i]);
+                  if (d < minDist) {
+                     minDist = d;
+                     this.marker.graphIndex = di;
+                     this.marker.index = i;
                   }
                }
             }
-            this.marker.active = minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
+            console.timeEnd();
+            this.marker.active = Math.sqrt(minDist) < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
+            if (this.marker.active) {
+               this.marker.x = this.x[this.marker.graphIndex][this.marker.index];
+               this.marker.y = this.y[this.marker.graphIndex][this.marker.index];
+               this.marker.t = this.t[this.marker.graphIndex][this.marker.index];
+               this.marker.v = this.v[this.marker.graphIndex][this.marker.index];
+               this.marker.mx = e.offsetX;
+               this.marker.my = e.offsetY;
+            }
             this.redraw();
          }
       }
