@@ -386,7 +386,7 @@ int eval_condition(const char *condition)
 
 /*------------------------------------------------------------------*/
 
-BOOL msl_parse(const char *filename, const char* xml_filename, char *error, int error_size, int *error_line)
+BOOL msl_parse(HNDLE hDB, const char *filename, const char* xml_filename, char *error, int error_size, int *error_line)
 {
    char str[256], *buf, *pl, *pe;
    char list[100][XNAME_LENGTH], list2[100][XNAME_LENGTH], **lines;
@@ -451,6 +451,29 @@ BOOL msl_parse(const char *filename, const char* xml_filename, char *error, int 
       /* parse rest of file */
       if (!library)
          fprintf(fout, "<RunSequence xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"\">\n");
+
+      //for (line=0 ; line<n_lines ; line++) {
+      //   printf("line %d: [%s]\n", line, lines[line]);
+      //}
+      
+      int max_len = 0;
+      for (line=0 ; line<n_lines ; line++) {
+         int len = strlen(lines[line]);
+         if (len > max_len) max_len = len;
+      }
+
+      //printf("max_len: %d\n", max_len);
+
+      HNDLE hKey;
+      int status = db_find_key(hDB, 0, "/Sequencer/Script/Lines", &hKey);
+      if (status == DB_SUCCESS) {
+         db_set_value(hDB, 0, "/Sequencer/Script/Lines", lines[0], max_len + 1, 1, TID_STRING);
+      }
+      
+      for (line=0 ; line<n_lines ; line++) {
+         db_set_value_index(hDB, 0, "/Sequencer/Script/Lines", lines[line], max_len + 1, line, TID_STRING, FALSE);
+      }
+      
       for (line=0 ; line<n_lines ; line++) {
          n = strbreak(lines[line], list, 100, ", ", FALSE);
          
@@ -688,7 +711,7 @@ void seq_stop(HNDLE hDB, HNDLE hKey)
 
 /*------------------------------------------------------------------*/
 
-static void seq_open_file(const char* str)
+static void seq_open_file(HNDLE hDB, const char* str, SEQUENCER& seq)
 {
    seq.new_file = FALSE;
    seq.error[0] = 0;
@@ -704,9 +727,11 @@ static void seq_open_file(const char* str)
       strlcpy(xml_filename, str, size);
       strsubst(xml_filename, size, ".msl", ".xml");
       printf("Parsing MSL sequencer file: %s to XML sequencer file %s\n", str, xml_filename);
-      if (msl_parse(str, xml_filename, seq.error, sizeof(seq.error), &seq.serror_line)) {
+      if (msl_parse(hDB, str, xml_filename, seq.error, sizeof(seq.error), &seq.serror_line)) {
          printf("Loading XML sequencer file: %s\n", xml_filename);
          pnseq = mxml_parse_file(xml_filename, seq.error, sizeof(seq.error), &seq.error_line);
+      } else {
+         printf("Error in MSL sequencer file \"%s\" line %d, error: %s\n", str, seq.serror_line, seq.error);
       }
       free(xml_filename);
    } else {
@@ -747,7 +772,7 @@ static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
 
       printf("Load file %s\n", str);
 
-      seq_open_file(str);
+      seq_open_file(hDB, str, seq);
 
       seq.finished = FALSE;
    
@@ -1617,11 +1642,11 @@ void init_sequencer()
    if (seq.filename[0]) {
       strlcpy(str, seq.path, sizeof(str));
       strlcat(str, seq.filename, sizeof(str));
-      seq_open_file(str);
+      seq_open_file(hDB, str, seq);
    }
    
    seq.transition_request = FALSE;
-   
+
    db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
    
    status = db_watch(hDB, hKey, seq_watch, NULL);
