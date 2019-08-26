@@ -612,6 +612,16 @@ MhistoryGraph.prototype.loadInitialData = function () {
       }
    });
 
+   if (this.odb["Show run markers"]) {
+      this.events.push("Run transitions");
+      this.events.push("Run transitions");
+
+      this.tags.push("State");
+      this.tags.push("Run number");
+      this.index.push(0);
+      this.index.push(0);
+   }
+
    // interval selector
    this.intSelector = document.createElement("div");
    this.intSelector.id = "intSel";
@@ -1252,6 +1262,8 @@ MhistoryGraph.prototype.findMinMax = function () {
    if (this.autoscaleMax)
       this.yMax0 = undefined;
    for (let index = 0; index < this.data.length; index++) {
+      if (this.events[index] === "Run transitions")
+         continue;
       for (let i = 0; i < this.data[index].time.length; i++) {
          let t = this.data[index].time[i];
          let v = this.data[index].value[i];
@@ -1439,6 +1451,8 @@ MhistoryGraph.prototype.draw = function () {
    let avgN = 0;
    let numberN = 0;
    for (let di = 0; di < this.data.length; di++) {
+      if (this.events[di] === "Run transitions")
+         continue;
       this.p[di] = [];
       let p = {};
 
@@ -1484,6 +1498,33 @@ MhistoryGraph.prototype.draw = function () {
    for (let di = 0; di < this.data.length; di++) {
       if (this.solo.active && this.solo.index !== di)
          continue;
+      if (this.events[di] === "Run transitions") {
+
+         if (this.tags[di] === "State") {
+            for (let i = 0; i < this.x[di].length; i++) {
+               if (this.v[di][i] === 1) {
+                  ctx.strokeStyle = "#FF0000";
+                  ctx.fillStyle = "#808080";
+                  ctx.textAlign = "right";
+                  ctx.textBaseline = "top";
+                  ctx.fillText(this.v[di+1][i], this.x[di][i]-5, this.y2+3);
+               } else if (this.v[di][i] === 3) {
+                  ctx.strokeStyle = "#00A000";
+                  ctx.fillStyle = "#808080";
+                  ctx.textAlign = "left";
+                  ctx.textBaseline = "top";
+                  ctx.fillText(this.v[di+1][i], this.x[di][i]+3, this.y2+3);
+               } else {
+                  ctx.strokeStyle = "#F9A600";
+               }
+
+               ctx.setLineDash([8, 2]);
+               ctx.drawLine(Math.floor(this.x[di][i]), this.y1, Math.floor(this.x[di][i]), this.y2);
+               ctx.setLineDash([]);
+            }
+         }
+         continue;
+      }
 
       ctx.fillStyle = this.odb["Colour"][di];
 
@@ -1540,6 +1581,8 @@ MhistoryGraph.prototype.draw = function () {
    // draw graphs
    for (let di = 0; di < this.data.length; di++) {
       if (this.solo.active && this.solo.index !== di)
+         continue;
+      if (this.events[di] === "Run transitions")
          continue;
 
       ctx.strokeStyle = this.odb["Colour"][di];
