@@ -227,7 +227,7 @@ function MhistoryGraph(divElement) { // Constructor
          "<td>Hover over graph</td>" +
          "</tr>" +
          "<tr>" +
-         "<td>&nbsp;Back to live scolling after pan/zoom&nbsp;</td>" +
+         "<td>&nbsp;Move window to present time&nbsp;</td>" +
          "<td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'> or press 'u' </td>" +
          "</tr>" +
          "<tr>" +
@@ -495,13 +495,13 @@ function doQuery(t) {
    let d1 = new Date(
       document.getElementsByName('y1')[0].value,
       document.getElementsByName('m1')[0].selectedIndex,
-      document.getElementsByName('d1')[0].selectedIndex+1,
+      document.getElementsByName('d1')[0].selectedIndex + 1,
       document.getElementsByName('h1')[0].selectedIndex);
 
    let d2 = new Date(
       document.getElementsByName('y2')[0].value,
       document.getElementsByName('m2')[0].selectedIndex,
-      document.getElementsByName('d2')[0].selectedIndex+1,
+      document.getElementsByName('d2')[0].selectedIndex + 1,
       document.getElementsByName('h2')[0].selectedIndex);
 
    if (d1 > d2)
@@ -668,7 +668,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
             document.getElementsByName('h2')[0].selectedIndex = dMax.getHours();
             document.getElementsByName('y2')[0].selectedIndex = currentYear - dMax.getFullYear();
 
-            document.getElementById('dlgQueryQuery').onclick = function() {
+            document.getElementById('dlgQueryQuery').onclick = function () {
                doQuery(this);
             }.bind(this);
 
@@ -803,7 +803,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          }
       }
 
-   } else if (t0 < this.data[0].time[0]) {
+   } else if (this.data[0].time.length === 0 || t0 < this.data[0].time[0]) {
 
       // add data to the left
       for (let index = 0; index < nVars; index++) {
@@ -830,6 +830,10 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
             for (let j = 0; j < nData; j++) {
                let v = array[i--];
                let t = array[i--];
+               if (this.data[index].time.length === 0) {
+                  this.data[index].time.push(t);
+                  this.data[index].value.push(v);
+               }
                if (t < this.data[index].time[0]) {
                   this.data[index].time.unshift(t);
                   this.data[index].value.unshift(v);
@@ -1330,17 +1334,6 @@ MhistoryGraph.prototype.draw = function () {
       return;
    }
 
-   if (this.data[0].time === undefined || this.data[0].time.length === 0) {
-      ctx.lineWidth = 1;
-      ctx.font = "14px sans-serif";
-      ctx.strokeStyle = "#808080";
-      ctx.fillStyle = "#808080";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("No data available", this.width / 2, this.height / 2);
-      return;
-   }
-
    this.findMinMax();
 
    ctx.lineWidth = 1;
@@ -1507,13 +1500,13 @@ MhistoryGraph.prototype.draw = function () {
                   ctx.fillStyle = "#808080";
                   ctx.textAlign = "right";
                   ctx.textBaseline = "top";
-                  ctx.fillText(this.v[di+1][i], this.x[di][i]-5, this.y2+3);
+                  ctx.fillText(this.v[di + 1][i], this.x[di][i] - 5, this.y2 + 3);
                } else if (this.v[di][i] === 3) {
                   ctx.strokeStyle = "#00A000";
                   ctx.fillStyle = "#808080";
                   ctx.textAlign = "left";
                   ctx.textBaseline = "top";
-                  ctx.fillText(this.v[di+1][i], this.x[di][i]+3, this.y2+3);
+                  ctx.fillText(this.v[di + 1][i], this.x[di][i] + 3, this.y2 + 3);
                } else {
                   ctx.strokeStyle = "#F9A600";
                }
@@ -1682,6 +1675,23 @@ MhistoryGraph.prototype.draw = function () {
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       ctx.fillText(str, this.x1 + 10, this.y1 - 13);
+   }
+
+   // "empty window" notice
+   if (this.data[0].time === undefined || this.data[0].time.length === 0) {
+      ctx.font = "16px sans-serif";
+      let str = "No data available";
+      ctx.strokeStyle = "#404040";
+      ctx.fillStyle = "#F0F0F0";
+      let w = ctx.measureText(str).width + 10;
+      let h = 16 + 10;
+      ctx.fillRect((this.x1 + this.x2) / 2 - w / 2, (this.y1 + this.y2) / 2 - h / 2, w, h);
+      ctx.strokeRect((this.x1 + this.x2) / 2 - w / 2, (this.y1 + this.y2) / 2 - h / 2, w, h);
+      ctx.fillStyle = "#404040";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(str, (this.x1 + this.x2) / 2, (this.y1 + this.y2) / 2);
+      ctx.font = "14px sans-serif";
    }
 
    // buttons
