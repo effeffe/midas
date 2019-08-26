@@ -2,15 +2,20 @@
 <RunSequence xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="">
 <Comment l="1">Sequencer Test File</Comment>
 <RunDescription l="3">Sequencer Test</RunDescription>
-<Call l="5" name="init"></Call>
-<Loop l="6" le="11" n="3">
-<Transition l="7">start</Transition>
-<Wait l="8" for="seconds">10</Wait>
-<Transition l="9">stop</Transition>
-<Wait l="10" for="seconds">3</Wait>
+<Param l="5" name="num_runs" comment="Number" options="of,runs" />
+<Call l="7" name="init"></Call>
+<Loop l="8" le="13" n="3">
+<Transition l="9">start</Transition>
+<Wait l="10" for="seconds">10</Wait>
+<Transition l="11">stop</Transition>
+<Wait l="12" for="seconds">3</Wait>
 </Loop>
 
-<Subroutine l="13" name="init">
-<Message l="14" wait="1">Initialization successfully completed</Message>
+<Subroutine l="15" name="init">
+<Message l="16">Initialization started</Message>
+<Loop l="17" le="19" n="4">
+<Wait l="18" for="seconds">3</Wait>
+</Loop>
+<Message l="20" wait="1">Initialization completed</Message>
 </Subroutine>
 </RunSequence>
