@@ -247,6 +247,208 @@ function MhistoryGraph(divElement) { // Constructor
       document.body.appendChild(this.helpDialog);
    }
 
+   // help dialog
+   if (document.getElementById('dlgQuery') === null) {
+      this.queryDialog = document.createElement("div");
+      this.queryDialog.id = "dlgQuery";
+      this.queryDialog.className = "dlgFrame";
+      this.queryDialog.style.zIndex = "20";
+
+      let year = new Date().getFullYear();
+      this.queryDialog.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Select time interval</div>" +
+         "<div class=\"dlgPanel\" style=\"padding: 5px;\">" +
+         "<div id=\"dlgMessageString\">" +
+
+         "<table>\n" +
+         "<tr>" +
+         "<td>Start date:</td>" +
+         "<td>Month: <select name='m1'>" +
+         "<option value='January'>January</option>" +
+         "<option value='February'>February</option>" +
+         "<option value='March'>March</option>" +
+         "<option value='April'>April</option>" +
+         "<option value='May'>May</option>" +
+         "<option value='June'>June</option>" +
+         "<option value='July'>July</option>" +
+         "<option value='August'>August</option>" +
+         "<option value='September'>September</option>" +
+         "<option value='October'>October</option>" +
+         "<option value='November'>November</option>" +
+         "<option value='December'>December</option>" +
+         "</select>" +
+         "</td>" +
+         "<td>Day: <select name='d1'>" +
+         "<option value='1'>1</option>" +
+         "<option value='2'>2</option>" +
+         "<option value='3'>3</option>" +
+         "<option value='4'>4</option>" +
+         "<option value='5'>5</option>" +
+         "<option value='6'>6</option>" +
+         "<option value='7'>7</option>" +
+         "<option value='8'>8</option>" +
+         "<option value='9'>9</option>" +
+         "<option value='10'>10</option>" +
+         "<option value='11'>11</option>" +
+         "<option value='12'>12</option>" +
+         "<option value='13'>13</option>" +
+         "<option value='14'>14</option>" +
+         "<option value='15'>15</option>" +
+         "<option value='16'>16</option>" +
+         "<option value='17'>17</option>" +
+         "<option value='18'>18</option>" +
+         "<option value='19'>19</option>" +
+         "<option value='20'>20</option>" +
+         "<option value='21'>21</option>" +
+         "<option value='22'>22</option>" +
+         "<option value='23'>23</option>" +
+         "<option value='24'>24</option>" +
+         "<option value='25'>25</option>" +
+         "<option value='26'>26</option>" +
+         "<option value='27'>27</option>" +
+         "<option value='28'>28</option>" +
+         "<option value='29'>29</option>" +
+         "<option value='30'>30</option>" +
+         "<option value='31'>31</option>" +
+         "</select>" +
+         "</td>" +
+         "<td>Hour:<select name='h1'>" +
+         "<option value='0'>0</option>" +
+         "<option value='1'>1</option>" +
+         "<option value='2'>2</option>" +
+         "<option value='3'>3</option>" +
+         "<option value='4'>4</option>" +
+         "<option value='5'>5</option>" +
+         "<option value='6'>6</option>" +
+         "<option value='7'>7</option>" +
+         "<option value='8'>8</option>" +
+         "<option value='9'>9</option>" +
+         "<option value='10'>10</option>" +
+         "<option value='11'>11</option>" +
+         "<option value='12'>12</option>" +
+         "<option value='13'>13</option>" +
+         "<option value='14'>14</option>" +
+         "<option value='15'>15</option>" +
+         "<option value='16'>16</option>" +
+         "<option value='17'>17</option>" +
+         "<option value='18'>18</option>" +
+         "<option value='19'>19</option>" +
+         "<option value='20'>20</option>" +
+         "<option value='21'>21</option>" +
+         "<option value='22'>22</option>" +
+         "<option value='23'>23</option>" +
+         "</select>" +
+         "</td>" +
+         "<td>Year:<select name='y1'>" +
+         "<option value='" + year + "'>" + year + "</option>" +
+         "<option value='" + (year - 1) + "'>" + (year - 1) + "</option>" +
+         "<option value='" + (year - 2) + "'>" + (year - 2) + "</option>" +
+         "<option value='" + (year - 3) + "'>" + (year - 3) + "</option>" +
+         "<option value='" + (year - 4) + "'>" + (year - 4) + "</option>" +
+         "</select>" +
+         "</td>" +
+         "</tr>" +
+         "<tr>" +
+         "<td>End date:</td>" +
+         "<td>Month: <select name='m2'>" +
+         "<option value='January'>January</option>" +
+         "<option value='February'>February</option>" +
+         "<option value='March'>March</option>" +
+         "<option value='April'>April</option>" +
+         "<option value='May'>May</option>" +
+         "<option value='June'>June</option>" +
+         "<option value='July'>July</option>" +
+         "<option value='August'>August</option>" +
+         "<option value='September'>September</option>" +
+         "<option value='October'>October</option>" +
+         "<option value='November'>November</option>" +
+         "<option value='December'>December</option>" +
+         "</select>" +
+         "</td>" +
+         "<td>Day: <select name='d2'>" +
+         "<option value='1'>1</option>" +
+         "<option value='2'>2</option>" +
+         "<option value='3'>3</option>" +
+         "<option value='4'>4</option>" +
+         "<option value='5'>5</option>" +
+         "<option value='6'>6</option>" +
+         "<option value='7'>7</option>" +
+         "<option value='8'>8</option>" +
+         "<option value='9'>9</option>" +
+         "<option value='10'>10</option>" +
+         "<option value='11'>11</option>" +
+         "<option value='12'>12</option>" +
+         "<option value='13'>13</option>" +
+         "<option value='14'>14</option>" +
+         "<option value='15'>15</option>" +
+         "<option value='16'>16</option>" +
+         "<option value='17'>17</option>" +
+         "<option value='18'>18</option>" +
+         "<option value='19'>19</option>" +
+         "<option value='20'>20</option>" +
+         "<option value='21'>21</option>" +
+         "<option value='22'>22</option>" +
+         "<option value='23'>23</option>" +
+         "<option value='24'>24</option>" +
+         "<option value='25'>25</option>" +
+         "<option value='26'>26</option>" +
+         "<option value='27'>27</option>" +
+         "<option value='28'>28</option>" +
+         "<option value='29'>29</option>" +
+         "<option value='30'>30</option>" +
+         "<option value='31'>31</option>" +
+         "</select>" +
+         "</td>" +
+         "<td>Hour:<select name='h2'>" +
+         "<option value='0'>0</option>" +
+         "<option value='1'>1</option>" +
+         "<option value='2'>2</option>" +
+         "<option value='3'>3</option>" +
+         "<option value='4'>4</option>" +
+         "<option value='5'>5</option>" +
+         "<option value='6'>6</option>" +
+         "<option value='7'>7</option>" +
+         "<option value='8'>8</option>" +
+         "<option value='9'>9</option>" +
+         "<option value='10'>10</option>" +
+         "<option value='11'>11</option>" +
+         "<option value='12'>12</option>" +
+         "<option value='13'>13</option>" +
+         "<option value='14'>14</option>" +
+         "<option value='15'>15</option>" +
+         "<option value='16'>16</option>" +
+         "<option value='17'>17</option>" +
+         "<option value='18'>18</option>" +
+         "<option value='19'>19</option>" +
+         "<option value='20'>20</option>" +
+         "<option value='21'>21</option>" +
+         "<option value='22'>22</option>" +
+         "<option value='23'>23</option>" +
+         "</select>" +
+         "</td>" +
+         "<td>Year:<select name='y2'>" +
+         "<option value='" + year + "'>" + year + "</option>" +
+         "<option value='" + (year - 1) + "'>" + (year - 1) + "</option>" +
+         "<option value='" + (year - 2) + "'>" + (year - 2) + "</option>" +
+         "<option value='" + (year - 3) + "'>" + (year - 3) + "</option>" +
+         "<option value='" + (year - 4) + "'>" + (year - 4) + "</option>" +
+         "</select>" +
+         "</td>" +
+         "</tr>" +
+         "</table>\n" +
+
+         "</div>" +
+
+         "<button class=\"dlgButton\" id=\"dlgQueryCancel\" style=\"background-color:#F8F8F8\" type=\"button\" " +
+         " onClick=\"dlgHide('dlgQuery');\">Cancel</button>" +
+
+         "<button class=\"dlgButton\" id=\"dlgQueryQuery\" style=\"background-color:#F8F8F8\" type=\"button\">" +
+         "Query</button>" +
+
+         "</div>";
+
+      document.body.appendChild(this.queryDialog);
+   }
+
    this.button.forEach(b => {
       b.img = new Image();
       b.img.src = "icons/" + b.src;
@@ -285,6 +487,32 @@ function timeToSec(str) {
 
    return s;
 }
+
+function doQuery(t) {
+
+   dlgHide('dlgQuery');
+
+   let d1 = new Date(
+      document.getElementsByName('y1')[0].value,
+      document.getElementsByName('m1')[0].selectedIndex,
+      document.getElementsByName('d1')[0].selectedIndex+1,
+      document.getElementsByName('h1')[0].selectedIndex);
+
+   let d2 = new Date(
+      document.getElementsByName('y2')[0].value,
+      document.getElementsByName('m2')[0].selectedIndex,
+      document.getElementsByName('d2')[0].selectedIndex+1,
+      document.getElementsByName('h2')[0].selectedIndex);
+
+   if (d1 > d2)
+      [d1, d2] = [d2, d1];
+
+   t.tMin = d1.getTime() / 1000;
+   t.tMax = d2.getTime() / 1000;
+   t.loadOldData();
+   t.redraw();
+}
+
 
 MhistoryGraph.prototype.keyDown = function (e) {
    if (e.key === "u") {  // 'u' key
@@ -384,6 +612,16 @@ MhistoryGraph.prototype.loadInitialData = function () {
       }
    });
 
+   if (this.odb["Show run markers"]) {
+      this.events.push("Run transitions");
+      this.events.push("Run transitions");
+
+      this.tags.push("State");
+      this.tags.push("Run number");
+      this.index.push(0);
+      this.index.push(0);
+   }
+
    // interval selector
    this.intSelector = document.createElement("div");
    this.intSelector.id = "intSel";
@@ -402,7 +640,9 @@ MhistoryGraph.prototype.loadInitialData = function () {
    let row = null;
    let cell;
    let link;
-   this.odb["Buttons"].forEach(function (b, i) {
+   let buttons = this.odb["Buttons"];
+   buttons.push("A&rarr;B");
+   buttons.forEach(function (b, i) {
       if (i % 2 === 0)
          row = document.createElement("tr");
 
@@ -413,14 +653,36 @@ MhistoryGraph.prototype.loadInitialData = function () {
       link.innerHTML = b;
       let mhg = this;
       link.onclick = function () {
-         mhg.tMax = new Date() / 1000;
-         mhg.tMin = mhg.tMax - timeToSec(b);
+         if (b === "A&rarr;B") {
+            let currentYear = new Date().getFullYear();
+            let dMin = new Date(this.tMin * 1000);
+            let dMax = new Date(this.tMax * 1000);
+
+            document.getElementsByName('m1')[0].selectedIndex = dMin.getMonth();
+            document.getElementsByName('d1')[0].selectedIndex = dMin.getDate() - 1;
+            document.getElementsByName('h1')[0].selectedIndex = dMin.getHours();
+            document.getElementsByName('y1')[0].selectedIndex = currentYear - dMin.getFullYear();
+
+            document.getElementsByName('m2')[0].selectedIndex = dMax.getMonth();
+            document.getElementsByName('d2')[0].selectedIndex = dMax.getDate() - 1;
+            document.getElementsByName('h2')[0].selectedIndex = dMax.getHours();
+            document.getElementsByName('y2')[0].selectedIndex = currentYear - dMax.getFullYear();
+
+            document.getElementById('dlgQueryQuery').onclick = function() {
+               doQuery(this);
+            }.bind(this);
+
+            dlgShow("dlgQuery");
+         } else {
+            mhg.tMax = new Date() / 1000;
+            mhg.tMin = mhg.tMax - timeToSec(b);
+            mhg.scroll = true;
+            mhg.loadOldData();
+            mhg.scrollRedraw();
+         }
          mhg.intSelector.style.display = "none";
-         mhg.scroll = true;
-         mhg.loadOldData();
-         mhg.scrollRedraw();
          return false;
-      };
+      }.bind(this);
 
       cell.appendChild(link);
       row.appendChild(cell);
@@ -660,6 +922,24 @@ MhistoryGraph.prototype.scrollRedraw = function () {
    }
 };
 
+function binarySearch(array, target) {
+   let startIndex = 0;
+   let endIndex = array.length - 1;
+   let middleIndex;
+   while (startIndex <= endIndex) {
+      middleIndex = Math.floor((startIndex + endIndex) / 2);
+      if (target === array[middleIndex])
+         return middleIndex;
+
+      if (target > array[middleIndex])
+         startIndex = middleIndex + 1;
+      if (target < array[middleIndex])
+         endIndex = middleIndex - 1;
+   }
+
+   return middleIndex;
+}
+
 MhistoryGraph.prototype.mouseEvent = function (e) {
 
    // fix buttons for IE
@@ -790,27 +1070,31 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
          // check if cursor close to graph point
          if (this.data !== undefined && this.x.length && this.y.length) {
-            let minDist = 100;
+            let minDist = 10000;
             for (let di = 0; di < this.data.length; di++) {
-               for (let i = 0; i < this.x[di].length; i++) {
-                  if (this.x[di][i] > this.x1 && this.x[di][i] < this.x2) {
-                     let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
-                        Math.pow(e.offsetY - this.y[di][i], 2));
-                     if (d < minDist) {
-                        minDist = d;
-                        this.marker.x = this.x[di][i];
-                        this.marker.y = this.y[di][i];
-                        this.marker.t = this.t[di][i];
-                        this.marker.v = this.v[di][i];
-                        this.marker.mx = e.offsetX;
-                        this.marker.my = e.offsetY;
-                        this.marker.graphIndex = di;
-                        this.marker.index = i;
-                     }
+
+               let i1 = binarySearch(this.x[di], e.offsetX - 10);
+               let i2 = binarySearch(this.x[di], e.offsetX + 10);
+
+               for (let i = i1; i < i2; i++) {
+                  let d = (e.offsetX - this.x[di][i]) * (e.offsetX - this.x[di][i]) +
+                     (e.offsetY - this.y[di][i]) * (e.offsetY - this.y[di][i]);
+                  if (d < minDist) {
+                     minDist = d;
+                     this.marker.graphIndex = di;
+                     this.marker.index = i;
                   }
                }
             }
-            this.marker.active = minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
+            this.marker.active = Math.sqrt(minDist) < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
+            if (this.marker.active) {
+               this.marker.x = this.x[this.marker.graphIndex][this.marker.index];
+               this.marker.y = this.y[this.marker.graphIndex][this.marker.index];
+               this.marker.t = this.t[this.marker.graphIndex][this.marker.index];
+               this.marker.v = this.v[this.marker.graphIndex][this.marker.index];
+               this.marker.mx = e.offsetX;
+               this.marker.my = e.offsetY;
+            }
             this.redraw();
          }
       }
@@ -959,6 +1243,8 @@ MhistoryGraph.prototype.yToValue = function (y) {
 
 MhistoryGraph.prototype.findMinMax = function () {
 
+   let n = 0;
+
    if (!this.autoscaleMin)
       this.yMin0 = this.odb["Minimum"];
 
@@ -976,12 +1262,16 @@ MhistoryGraph.prototype.findMinMax = function () {
    if (this.autoscaleMax)
       this.yMax0 = undefined;
    for (let index = 0; index < this.data.length; index++) {
+      if (this.events[index] === "Run transitions")
+         continue;
       for (let i = 0; i < this.data[index].time.length; i++) {
          let t = this.data[index].time[i];
          let v = this.data[index].value[i];
          if (Number.isNaN(v))
             continue;
          if (t > this.tMin && t < this.tMax) {
+            n++;
+
             if (this.yMin0 === undefined)
                this.yMin0 = v;
             if (this.yMax0 === undefined)
@@ -996,6 +1286,11 @@ MhistoryGraph.prototype.findMinMax = function () {
             }
          }
       }
+   }
+
+   if (n === 0) {
+      this.yMin0 = -0.5;
+      this.yMax0 = 0.5;
    }
 
    if (this.yMin0 === this.yMax0) {
@@ -1156,6 +1451,8 @@ MhistoryGraph.prototype.draw = function () {
    let avgN = 0;
    let numberN = 0;
    for (let di = 0; di < this.data.length; di++) {
+      if (this.events[di] === "Run transitions")
+         continue;
       this.p[di] = [];
       let p = {};
 
@@ -1201,6 +1498,33 @@ MhistoryGraph.prototype.draw = function () {
    for (let di = 0; di < this.data.length; di++) {
       if (this.solo.active && this.solo.index !== di)
          continue;
+      if (this.events[di] === "Run transitions") {
+
+         if (this.tags[di] === "State") {
+            for (let i = 0; i < this.x[di].length; i++) {
+               if (this.v[di][i] === 1) {
+                  ctx.strokeStyle = "#FF0000";
+                  ctx.fillStyle = "#808080";
+                  ctx.textAlign = "right";
+                  ctx.textBaseline = "top";
+                  ctx.fillText(this.v[di+1][i], this.x[di][i]-5, this.y2+3);
+               } else if (this.v[di][i] === 3) {
+                  ctx.strokeStyle = "#00A000";
+                  ctx.fillStyle = "#808080";
+                  ctx.textAlign = "left";
+                  ctx.textBaseline = "top";
+                  ctx.fillText(this.v[di+1][i], this.x[di][i]+3, this.y2+3);
+               } else {
+                  ctx.strokeStyle = "#F9A600";
+               }
+
+               ctx.setLineDash([8, 2]);
+               ctx.drawLine(Math.floor(this.x[di][i]), this.y1, Math.floor(this.x[di][i]), this.y2);
+               ctx.setLineDash([]);
+            }
+         }
+         continue;
+      }
 
       ctx.fillStyle = this.odb["Colour"][di];
 
@@ -1209,7 +1533,6 @@ MhistoryGraph.prototype.draw = function () {
          let x0;
          let y0;
          let xLast;
-         let i;
          for (let i = 0; i < this.p[di].length; i++) {
             let p = this.p[di][i];
             if (x0 === undefined) {
@@ -1258,6 +1581,8 @@ MhistoryGraph.prototype.draw = function () {
    // draw graphs
    for (let di = 0; di < this.data.length; di++) {
       if (this.solo.active && this.solo.index !== di)
+         continue;
+      if (this.events[di] === "Run transitions")
          continue;
 
       ctx.strokeStyle = this.odb["Colour"][di];
