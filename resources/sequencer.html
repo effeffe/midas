@@ -41,6 +41,9 @@
        <tr id="msg_seq_finished">
          <td align="center" colspan=2 style="background-color:#80FF80;"><b>Sequence is finished</b></td>
        </tr>
+       <tr id="msg_error_tr">
+         <td align="center" class="redLight">Error: <b><span id="msg_error">seq.error</span></b></td>
+       </tr>
      </table>
    </div>
 
@@ -137,45 +140,19 @@
    <div>
      <table class="mtable" width="100%">
        <tr>
-         <th class="mtableheader">Sequencer File</th>
+         <th class="mtableheader">Sequencer File <span id="msg_filename">seq.filename</span></th>
        </tr>
-
        <tr>
-         <td colspan=2>
-           <table width=100%>
-             <tr>
-               <td>Filename:<b>seq.filename</b></td>
-             </tr>
-           </table>
+         <td><a onClick="sshow_lines();return false;" href="#" id="supperarrow">&#x25B2</a></td>
+       </tr>
+       <tr>
+         <td>
+           <div id="lines" style="background-color:#FFFFFF; font-family:monospace; text-align:left;">
+           </div>
          </td>
        </tr>
-
        <tr>
-         <td class="redLight" colspan=2><b>seq.error</b></td>
-       </tr>
-
-       <tr>
-         <td colspan=2>
-           <table width=100%>
-
-             <tr>
-               <td style="background-color:#FFFFFF; text-align:left;" colspan=2 valign="top">
-                 <a onClick="sshow_lines();return false;" href="#" id="supperarrow" style="display:none;">&#x25B2</a><br>
-
-                 if (line == seq.serror_line)
-                 <div id="sline%d" style="font-family:monospace;background-color:red;">line&nbsp;str</div>
-                 else if (seq.running && line == seq.current_line_number)
-                 <div id="sline%d" style="font-family:monospace;background-color:#80FF00">line&nbsp;str</div>
-                 else
-                 <div id="sline%d" style="font-family:monospace">line&nbsp;str</div>
-                 <a onClick="sshow_lines();return false;" href="#" id="slowerarrow" style="display:none;">&#x25BC</a><br>
-               </td>
-             </tr>
-             <tr>
-               <td colspan=2><b>Cannot open file "%s"</b></td>
-             </tr>
-           </table>
-         </td>
+         <td><a onClick="sshow_lines();return false;" href="#" id="slowerarrow">&#x25BC</a></td>
        </tr>
      </table>
    </div>
@@ -225,6 +202,16 @@ var show_all_lines = false;
 var sshow_all_lines = false;
 var last_msg = null;
 var last_paused = null;
+
+function set_if_changed(id, value)
+{
+   var e = document.getElementById(id);
+   if (e) {
+      if (e.innerHTML != value) {
+         e.innerHTML = value;
+      }
+   }
+}
 
 function start_script()
 {
@@ -316,15 +303,14 @@ function seq_refresh(seq)
    var start_time = seq['start time'];
    var msg = seq['last msg'];
    
-   if (last_msg == null)
-      last_msg = msg;
-   else if (last_msg != msg)
-      window.location.reload();
-   
-   if (last_paused == null)
-      last_paused = paused;
-   else if (last_paused != paused)
-      window.location.reload();
+   if (seq.error) {
+      set_if_changed("msg_error", seq.error);
+      mhttpd_unhide("msg_error_tr");
+   } else {
+      mhttpd_hide("msg_error_tr");
+   }
+
+   set_if_changed("msg_filename", seq.filename);
 
    if (seq.running) {
       mhttpd_unhide("msg_progress");
@@ -365,6 +351,7 @@ function seq_refresh(seq)
       mhttpd_hide("seq_pause");
    } else {
       mhttpd_hide("msg_seq_paused");
+      mhttpd_hide("seq_resume");
    }
 
    if (seq.finished) {
@@ -379,18 +366,21 @@ function seq_refresh(seq)
          var slast_line = sl-1;
          break;
       }
-      if (Math.abs(sl - scurrent_line) > 10 && !sshow_all_lines)
+
+      if (seq.running && Math.abs(sl - scurrent_line) > 10 && !sshow_all_lines)
          sline.style.display = 'none';
       else
          sline.style.display = 'inline';
+      
       if (scurrent_line > 10) {
          document.getElementById('supperarrow').style.display = 'inline';
          if (sshow_all_lines)
             document.getElementById('supperarrow').style.display = '&#x25BC';
          else
             document.getElementById('supperarrow').style.display = '&#x25B2';
-      } else
-      document.getElementById('supperarrow').style.display = 'none';
+      } else {
+         document.getElementById('supperarrow').style.display = 'none';
+      }
       if (sl == serror_line)
          sline.style.backgroundColor = '#FF0000';
       else if (sl == scurrent_line)
@@ -430,8 +420,9 @@ function seq_refresh(seq)
             document.getElementById('upperarrow').style.display = '&#x25BC';
          else
             document.getElementById('upperarrow').style.display = '&#x25B2';
-      } else
-      document.getElementById('upperarrow').style.display = 'none';
+      } else {
+         document.getElementById('upperarrow').style.display = 'none';
+      }
       if (l == error_line)
          line.style.backgroundColor = '#FF0000';
       else if (l == current_line)
@@ -466,6 +457,7 @@ function seq_refresh(seq)
       } else
       document.getElementById('lowerarrow').style.display = 'none';
    }
+   
    if (document.getElementById('slowerarrow')) {
       if (scurrent_line < slast_line-10) {
          document.getElementById('slowerarrow').style.display = 'inline';
@@ -536,6 +528,37 @@ function seq_refresh(seq)
    }
 }
 
+function seq_add_line(root, i, s)
+{
+   var id = "sline" + (i+1);
+   var e = document.getElementById(id);
+   if (e) {
+      if (e.innerHTML != s)
+         e.innerHTML = s;
+   } else {
+      var e = document.createElement("div");
+      e.id = id;
+      root.appendChild(e);
+      //root.appendChild(document.createElement("br"));
+      e.innerHTML = s;
+   }
+}
+
+function seq_show_script(lines)
+{
+   var len = lines.length;
+   var e = document.getElementById("lines");
+   //console.log("e="+e);
+   for (var i=0; i<len; ++i) {
+      //console.log("i="+i+" line="+lines[i]);
+      var s = (i+1) + "&nbsp;";
+      if (i<9) s += "&nbsp;";
+      s += lines[i];
+      s += "<br>";
+      seq_add_line(e, i, s);
+   }
+}
+
 function show_lines()
 {
    show_all_lines = !show_all_lines;
@@ -598,6 +621,11 @@ function load()
       //document.getElementById('updateStatus').innerHTML = "RWP_";
 
       var seq_state = rpc.result.data[0];
+      var seq_script = rpc.result.data[1];
+
+      if (seq_script && seq_script.lines) {
+         seq_show_script(seq_script.lines);
+      }
 
       if (seq_state) {
          seq_refresh(seq_state);
@@ -608,7 +636,7 @@ function load()
 
    function update() {
       //document.getElementById('updateStatus').innerHTML = "R___";
-      var paths = ["/Sequencer/State"];
+      var paths = ["/Sequencer/State", "/Sequencer/Script"];
       mjsonrpc_db_get_values(paths).then(function (rpc) {
          callback(rpc);
       }).catch(function (error) {
