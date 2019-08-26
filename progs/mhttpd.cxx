@@ -12257,22 +12257,16 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    r->rsprintf("onclick=\"window.location.search='?cmd=oldhistory&group=%s&panel=%s&hcmd=Delete%%20panel'\">\n", hgroup, hpanel);
    r->rsprintf("</td></tr>\n");
 
-   r->rsprintf("<tr><td colspan=8>\n");
+   r->rsprintf("<tr><td colspan=6>\n");
 
    /* sort_vars */
    int sort_vars = *p->getparam("sort_vars");
    r->rsprintf("<input type=checkbox %s name=sort_vars value=1 onclick=\"this.form.submit();\">Sort variable names", sort_vars?"checked":"");
 
-   r->rsprintf("</td></tr>\n");
-   r->rsprintf("<tr><td colspan=8>\n");
-
    /* old_vars */
    int old_vars = *p->getparam("old_vars");
-   r->rsprintf("<input type=checkbox %s name=old_vars value=1 onclick=\"this.form.submit();\">Show deleted and renamed variables", old_vars?"checked":"");
+   r->rsprintf("&nbsp;&nbsp;<input type=checkbox %s name=old_vars value=1 onclick=\"this.form.submit();\">Show deleted and renamed variables", old_vars?"checked":"");
 
-   r->rsprintf("</td></tr>\n");
-
-   r->rsprintf("<tr><td colspan=8>\n");
    /* hidden command for refresh */
    r->rsprintf("<input type=hidden name=cmd value=Oldhistory>\n");
    r->rsprintf("<input type=hidden name=hcmd value=Refresh>\n");
@@ -12284,29 +12278,32 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
 
    r->rsprintf("</td></tr>\n");
 
-   r->rsprintf("<tr><td colspan=8>Time scale: &nbsp;&nbsp;");
-   r->rsprintf("<input type=text name=timescale value=%s></td></tr>\n", plot.timescale.c_str());
+   r->rsprintf("<tr><td colspan=4 style='text-align:right'>Time scale (in units 'm', 'h', 'd'):</td>\n");
+   r->rsprintf("<td colspan=2><input type=text size=12 name=timescale value=%s></td></tr>\n", plot.timescale.c_str());
 
-   r->rsprintf("<tr><td colspan=8>Minimum (set to \"-inf\" for autoscale): &nbsp;&nbsp;<input type=text name=minimum value=%f></td></tr>\n", plot.minimum);
-   r->rsprintf("<tr><td colspan=8>Maximum (set to \"inf\" for autoscale): &nbsp;&nbsp;<input type=text name=maximum value=%f></td></tr>\n", plot.maximum);
+   r->rsprintf("<tr><td colspan=4 style='text-align:right'>Minimum (set to '-inf' for autoscale):</td>\n");
+   r->rsprintf("<td colspan=2><input type=text size=12 name=minimum value=%f></td></tr>\n", plot.minimum);
+
+   r->rsprintf("<tr><td colspan=4 style='text-align:right'>Maximum (set to 'inf' for autoscale):</td>\n");
+   r->rsprintf("<td colspan=2><input type=text size=12 name=maximum value=%f></td></tr>\n", plot.maximum);
 
    if (plot.log_axis)
-      r->rsprintf("<tr><td colspan=8><input type=checkbox checked name=log_axis value=1>");
+      r->rsprintf("<tr><td colspan=6><input type=checkbox checked name=log_axis value=1>");
    else
-      r->rsprintf("<tr><td colspan=8><input type=checkbox name=log_axis value=1>");
-   r->rsprintf("&nbsp;&nbsp;Logarithmic Y axis</td></tr>\n");
+      r->rsprintf("<tr><td colspan=6><input type=checkbox name=log_axis value=1>");
+   r->rsprintf("Logarithmic Y axis\n");
 
    if (plot.show_run_markers)
-      r->rsprintf("<tr><td colspan=8><input type=checkbox checked name=run_markers value=1>");
+      r->rsprintf("&nbsp;&nbsp;<input type=checkbox checked name=run_markers value=1>");
    else
-      r->rsprintf("<tr><td colspan=8><input type=checkbox name=run_markers value=1>");
-   r->rsprintf("&nbsp;&nbsp;Show run markers</td></tr>\n");
+      r->rsprintf("&nbsp;&nbsp;<input type=checkbox name=run_markers value=1>");
+   r->rsprintf("Show run markers\n");
 
    if (plot.show_values)
-      r->rsprintf("<tr><td colspan=8><input type=checkbox checked name=show_values value=1>");
+      r->rsprintf("&nbsp;&nbsp;<input type=checkbox checked name=show_values value=1>");
    else
-      r->rsprintf("<tr><td colspan=8><input type=checkbox name=show_values value=1>");
-   r->rsprintf("&nbsp;&nbsp;Show values of variables</td></tr>\n");
+      r->rsprintf("&nbsp;&nbsp;<input type=checkbox name=show_values value=1>");
+   r->rsprintf("Show values of variables</td></tr>\n");
 
    /*---- events and variables ----*/
 
@@ -12463,7 +12460,8 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
       r->rsprintf("</tr>\n");
    }
 
-   r->rsprintf("<tr><th>Col<th>Event<th>Variable<th>Formula e.g. '3*x+4'<th>Color<th>Label<th>Order</tr>\n");
+   //r->rsprintf("<tr><th>Col<th>Event<th>Variable<th>Formula e.g. '3*x+4'<th>Color<th>Label<th>Order</tr>\n");
+   r->rsprintf("<tr><th>Col<th>Event<th>Variable<th>Formula e.g. '3*x+4'<th>Color<th>Label</tr>\n");
 
    //print_vars(vars);
 
@@ -12594,7 +12592,7 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
          r->rsprintf("<td><input type=text size=20 maxlength=32 name=\"form%d\" value=%s></td>\n", index, plot.vars[index].hist_formula.c_str());
          r->rsprintf("<td><input type=text size=10 maxlength=10 name=\"col%d\" value=%s></td>\n", index, plot.vars[index].hist_col.c_str());
          r->rsprintf("<td><input type=text size=10 maxlength=%d name=\"lab%d\" value=\"%s\"></td>\n", NAME_LENGTH, index, plot.vars[index].hist_label.c_str());
-         r->rsprintf("<td><input type=text size=5 maxlength=10 name=\"ord%d\" value=\"%d\"></td>\n", index, plot.vars[index].hist_order);
+         //r->rsprintf("<td><input type=text size=5 maxlength=10 name=\"ord%d\" value=\"%d\"></td>\n", index, plot.vars[index].hist_order);
       } else {
          r->rsprintf("<td><input type=submit name=cmdx value=\"List all variables\"></td>\n");
       }
