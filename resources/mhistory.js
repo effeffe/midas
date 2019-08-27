@@ -42,8 +42,10 @@ function mhistory_create(parentElement, baseURL, group, panel, tMin, tMax) {
    d.dataset.group = group;
    d.dataset.panel = panel;
    d.mhg = new MhistoryGraph(d);
-   d.mhg.initTMin = tMin;
-   d.mhg.initTMax = tMax;
+   if (!Number.isNaN(tMin) && !Number.isNaN(tMax)) {
+      d.mhg.initTMin = tMin;
+      d.mhg.initTMax = tMax;
+   }
    d.mhg.initializePanel();
 }
 
@@ -403,6 +405,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
    let link;
    let buttons = this.odb["Buttons"];
    buttons.push("A&rarr;B");
+   buttons.push("&lt;&lt;&lt;");
+   buttons.push("&lt;&lt;");
    buttons.forEach(function (b, i) {
       if (i % 2 === 0)
          row = document.createElement("tr");
@@ -412,6 +416,15 @@ MhistoryGraph.prototype.loadInitialData = function () {
       link = document.createElement("a");
       link.href = "#";
       link.innerHTML = b;
+      if (b === "A&rarr;B")
+         link.title = "Display data between two dates";
+      else if (b === "&lt;&lt;")
+         link.title = "Go back in time to last available data";
+      else if (b === "&lt;&lt;&lt;")
+         link.title = "Go back in time to last available data for all variables on plot";
+      else
+         link.title = "Show last "+b;
+
       let mhg = this;
       link.onclick = function () {
          if (b === "A&rarr;B") {
@@ -447,7 +460,31 @@ MhistoryGraph.prototype.loadInitialData = function () {
             }.bind(this);
 
             dlgShow("dlgQuery");
+
+         } else if (b === "&lt;&lt;") {
+
+            // go back to last data
+            // ====> K.O. : please add code here <====
+            //let scale = mhg.tMax - mhg.tMin
+            //mhg.tMax = ??? add code here ??? + scale / 5;
+            //mhg.tMin = mhg.tMax - scale;
+            //mhg.scroll = false;
+            //mhg.loadOldData();
+            dlgAlert("Not yet implemented");
+
+         } else if (b === "&lt;&lt;&lt;") {
+
+            // go back to last data for all variables
+            // ====> K.O. : please add code here <====
+            //let scale = mhg.tMax - mhg.tMin
+            //mhg.tMax = ??? add code here ??? + scale / 5;
+            //mhg.tMin = mhg.tMax - scale;
+            //mhg.scroll = false;
+            //mhg.loadOldData();
+            dlgAlert("Not yet implemented");
+
          } else {
+
             mhg.tMax = new Date() / 1000;
             mhg.tMin = mhg.tMax - timeToSec(b);
             mhg.scroll = true;
