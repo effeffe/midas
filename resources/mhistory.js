@@ -35,13 +35,15 @@ function mhistory_init() {
    }
 }
 
-function mhistory_create(parentElement, baseURL, group, panel) {
+function mhistory_create(parentElement, baseURL, group, panel, tMin, tMax) {
    let d = document.createElement("div");
    parentElement.appendChild(d);
    d.dataset.baseURL = baseURL;
    d.dataset.group = group;
    d.dataset.panel = panel;
    d.mhg = new MhistoryGraph(d);
+   d.mhg.initTMin = tMin;
+   d.mhg.initTMax = tMax;
    d.mhg.initializePanel();
 }
 
@@ -331,8 +333,14 @@ MhistoryGraph.prototype.loadInitialData = function () {
    this.lastTimeStamp = Math.floor(Date.now() / 1000);
 
    this.tScale = timeToSec(this.odb["Timescale"]);
-   this.tMax = Math.floor(new Date() / 1000);
-   this.tMin = this.tMax - this.tScale;
+
+   if (this.initTMin !== "undefined") {
+      this.tMin = this.initTMin;
+      this.tMax = this.initTMax;
+   } else {
+      this.tMax = Math.floor(new Date() / 1000);
+      this.tMin = this.tMax - this.tScale;
+   }
 
    this.showLabels = this.odb["Show values"];
 
@@ -409,15 +417,17 @@ MhistoryGraph.prototype.loadInitialData = function () {
             let dMin = new Date(this.tMin * 1000);
             let dMax = new Date(this.tMax * 1000);
 
-            for (let i = currentYear; i > currentYear - 5; i--) {
-               let o = document.createElement('option');
-               o.value = i.toString();
-               o.appendChild(document.createTextNode(i.toString()));
-               document.getElementById('y1').appendChild(o);
-               o = document.createElement('option');
-               o.value = i.toString();
-               o.appendChild(document.createTextNode(i.toString()));
-               document.getElementById('y2').appendChild(o);
+            if (document.getElementById('y1').length === 0) {
+               for (let i = currentYear; i > currentYear - 5; i--) {
+                  let o = document.createElement('option');
+                  o.value = i.toString();
+                  o.appendChild(document.createTextNode(i.toString()));
+                  document.getElementById('y1').appendChild(o);
+                  o = document.createElement('option');
+                  o.value = i.toString();
+                  o.appendChild(document.createTextNode(i.toString()));
+                  document.getElementById('y2').appendChild(o);
+               }
             }
 
             document.getElementById('m1').selectedIndex = dMin.getMonth();
