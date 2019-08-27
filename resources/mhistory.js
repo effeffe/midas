@@ -262,6 +262,7 @@ function doQuery(t) {
 
    t.tMin = d1.getTime() / 1000;
    t.tMax = d2.getTime() / 1000;
+   t.scroll = false;
    t.loadOldData();
    t.redraw();
 }
@@ -332,12 +333,13 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    this.lastTimeStamp = Math.floor(Date.now() / 1000);
 
-   this.tScale = timeToSec(this.odb["Timescale"]);
-
-   if (this.initTMin !== "undefined") {
+   if (this.initTMin !== undefined && this.initTMin !== "undefined") {
       this.tMin = this.initTMin;
       this.tMax = this.initTMax;
+      this.tScale = this.tMax - this.tMin;
+      this.scroll = false;
    } else {
+      this.tScale = timeToSec(this.odb["Timescale"]);
       this.tMax = Math.floor(new Date() / 1000);
       this.tMin = this.tMax - this.tScale;
    }
@@ -468,13 +470,14 @@ MhistoryGraph.prototype.loadInitialData = function () {
    this.intSelector.appendChild(table);
    document.body.appendChild(this.intSelector);
 
-   this.tMinRequested = this.lastTimeStamp - this.tScale * 2;
+   this.tMinRequested = this.tMin - this.tScale; // look one window ahead in past
    this.pendingUpdates++;
    this.parentDiv.style.cursor = "progress";
+   let n = new Date()/ 1000;
    mjsonrpc_call("hs_read_arraybuffer",
       {
-         "start_time": this.tMinRequested,
-         "end_time": this.lastTimeStamp,
+         "start_time": Math.floor(this.tMinRequested),
+         "end_time": Math.floor(this.lastTimeStamp),
          "events": this.events,
          "tags": this.tags,
          "index": this.index
@@ -486,9 +489,10 @@ MhistoryGraph.prototype.loadInitialData = function () {
             this.parentDiv.style.cursor = "default";
 
          this.receiveData(rpc);
+         this.redraw();
 
          if (this.updateTimer === undefined)
-            this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
+            this.updateTimer = window.setTimeout(this.update.bind(this), 60000);
          if (this.scrollTimer === undefined)
             this.scrollTimer = window.setTimeout(this.scrollRedraw.bind(this), 100);
 
@@ -514,8 +518,8 @@ MhistoryGraph.prototype.loadOldData = function () {
       this.parentDiv.style.cursor = "progress";
       mjsonrpc_call("hs_read_arraybuffer",
          {
-            "start_time": this.tMinRequested,
-            "end_time": oldTMinRequestested,
+            "start_time": Math.floor(this.tMinRequested),
+            "end_time": Math.floor(oldTMinRequestested),
             "events": this.events,
             "tags": this.tags,
             "index": this.index
@@ -664,8 +668,8 @@ MhistoryGraph.prototype.update = function () {
 
    mjsonrpc_call("hs_read_arraybuffer",
       {
-         "start_time": this.lastTimeStamp,
-         "end_time": t,
+         "start_time": Math.floor(this.lastTimeStamp),
+         "end_time": Math.floor(t),
          "events": this.events,
          "tags": this.tags,
          "index": this.index
@@ -898,7 +902,6 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             // check if inside label area
             if (this.showLabels) {
                if (e.offsetX > this.x1 && e.offsetX < this.x1 + 25 + this.variablesWidth + 7) {
-                  console.log((e.offsetY - 30) / 17);
                   let i = Math.floor((e.offsetY - 30) / 17);
                   if (i < this.data.length) {
                      if (this.solo.active && this.solo.index === i) {
@@ -1121,16 +1124,6 @@ MhistoryGraph.prototype.draw = function () {
    let axisLabelWidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35,
       -4, -7, -10, -12, 0, this.yMin, this.yMax, 0, false);
 
-   this.variablesWidth = 0;
-   this.odb["Variables"].forEach((v, i) => {
-      if (this.odb.Label[i] !== "")
-         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(this.odb.Label[i]).width);
-      else
-         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(v.substr(v.indexOf(':') + 1)).width);
-   });
-   this.variablesWidth += ctx.measureText("0").width * (this.yPrecision + 2);
-   this.variablesHeight = this.odb["Variables"].length * 17 + 7;
-
    this.x1 = axisLabelWidth + 15;
    this.y1 = this.height - 25;
    this.x2 = this.width - 30;
@@ -1165,6 +1158,16 @@ MhistoryGraph.prototype.draw = function () {
       this.yPrecision = Math.max(5, Math.ceil(Math.log(Math.abs(this.yMin)) / Math.log(10)) + 3);
    else
       this.yPrecision = Math.max(5, Math.ceil(-Math.log(Math.abs(1 - this.yMax / this.yMin)) / Math.log(10)) + 3);
+
+   this.variablesWidth = 0;
+   this.odb["Variables"].forEach((v, i) => {
+      if (this.odb.Label[i] !== "")
+         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(this.odb.Label[i]).width);
+      else
+         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(v.substr(v.indexOf(':') + 1)).width);
+   });
+   this.variablesWidth += ctx.measureText("0").width * (this.yPrecision + 2);
+   this.variablesHeight = this.odb["Variables"].length * 17 + 7;
 
    ctx.save();
    ctx.beginPath();

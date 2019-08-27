@@ -203,7 +203,8 @@
 
          } else {
             // create single history object
-            mhistory_create(document.getElementById("histPanel"), baseURL, curGroup, curPanel, tMin, tMax);
+            mhistory_create(document.getElementById("histPanel"), baseURL, curGroup, curPanel,
+               parseInt(tMin), parseInt(tMax));
          }
 
          window.addEventListener("resize", windowResize);
