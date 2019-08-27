@@ -189,265 +189,16 @@ function MhistoryGraph(divElement) { // Constructor
       {
          src: "help-circle.svg",
          click: function () {
-            dlgShow(document.getElementById("dlgHelp"), false);
+            dlgShow("dlgHelp", false);
          }
       }
    ];
 
    // help dialog
-   if (document.getElementById('dlgHelp') === null) {
-      this.helpDialog = document.createElement("div");
-      this.helpDialog.id = "dlgHelp";
-      this.helpDialog.className = "dlgFrame";
-      this.helpDialog.style.zIndex = "20";
+   dlgCreate('dlgHelp', 'dlgHistHelp.html');
 
-      this.helpDialog.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Help</div>" +
-         "<div class=\"dlgPanel\" style=\"padding: 5px;\">" +
-         "<div id=\"dlgMessageString\">" +
-
-         "<table class='mtable'>" +
-         "<tr>" +
-         "<th>Action</th>" +
-         "<th>Howto</th>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>Horizontal Zoom</td>" +
-         "<td>&nbsp;Press Command (Mac) or Ctrl key and scroll mouse wheel or drag along X-Axis&nbsp;   </td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>Vertical Zoom</td>" +
-         "<td>&nbsp;Press Option (Mac) or Shift key and scroll mouse wheel or drag along Y-Axis&nbsp;</td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>Pan</td>" +
-         "<td>Drag inside graph</td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>Display values</td>" +
-         "<td>Hover over graph</td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>&nbsp;Move window to present time&nbsp;</td>" +
-         "<td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'> or press 'u' </td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>&nbsp;Reset axis&nbsp;</td>" +
-         "<td>Click on <img src='icons/rotate-ccw.svg' style='vertical-align:middle' alt='Reset'></td>" +
-         "</tr>" +
-         "<td>&nbsp;Select individual graph&nbsp;</td>" +
-         "<td>Double click on a data point of desired graph or its label. Switch back with &lt;esc&gt;</td>" +
-         "</tr>" +
-         "</table>" +
-
-         "</div>" +
-         "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" " +
-         " onClick=\"dlgHide('dlgHelp')\">Close</button>" +
-         "</div>";
-
-      document.body.appendChild(this.helpDialog);
-   }
-
-   // help dialog
-   if (document.getElementById('dlgQuery') === null) {
-      this.queryDialog = document.createElement("div");
-      this.queryDialog.id = "dlgQuery";
-      this.queryDialog.className = "dlgFrame";
-      this.queryDialog.style.zIndex = "20";
-
-      let year = new Date().getFullYear();
-      this.queryDialog.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Select time interval</div>" +
-         "<div class=\"dlgPanel\" style=\"padding: 5px;\">" +
-         "<div id=\"dlgMessageString\">" +
-
-         "<table>\n" +
-         "<tr>" +
-         "<td>Start date:</td>" +
-         "<td>Month: <select name='m1'>" +
-         "<option value='January'>January</option>" +
-         "<option value='February'>February</option>" +
-         "<option value='March'>March</option>" +
-         "<option value='April'>April</option>" +
-         "<option value='May'>May</option>" +
-         "<option value='June'>June</option>" +
-         "<option value='July'>July</option>" +
-         "<option value='August'>August</option>" +
-         "<option value='September'>September</option>" +
-         "<option value='October'>October</option>" +
-         "<option value='November'>November</option>" +
-         "<option value='December'>December</option>" +
-         "</select>" +
-         "</td>" +
-         "<td>Day: <select name='d1'>" +
-         "<option value='1'>1</option>" +
-         "<option value='2'>2</option>" +
-         "<option value='3'>3</option>" +
-         "<option value='4'>4</option>" +
-         "<option value='5'>5</option>" +
-         "<option value='6'>6</option>" +
-         "<option value='7'>7</option>" +
-         "<option value='8'>8</option>" +
-         "<option value='9'>9</option>" +
-         "<option value='10'>10</option>" +
-         "<option value='11'>11</option>" +
-         "<option value='12'>12</option>" +
-         "<option value='13'>13</option>" +
-         "<option value='14'>14</option>" +
-         "<option value='15'>15</option>" +
-         "<option value='16'>16</option>" +
-         "<option value='17'>17</option>" +
-         "<option value='18'>18</option>" +
-         "<option value='19'>19</option>" +
-         "<option value='20'>20</option>" +
-         "<option value='21'>21</option>" +
-         "<option value='22'>22</option>" +
-         "<option value='23'>23</option>" +
-         "<option value='24'>24</option>" +
-         "<option value='25'>25</option>" +
-         "<option value='26'>26</option>" +
-         "<option value='27'>27</option>" +
-         "<option value='28'>28</option>" +
-         "<option value='29'>29</option>" +
-         "<option value='30'>30</option>" +
-         "<option value='31'>31</option>" +
-         "</select>" +
-         "</td>" +
-         "<td>Hour:<select name='h1'>" +
-         "<option value='0'>0</option>" +
-         "<option value='1'>1</option>" +
-         "<option value='2'>2</option>" +
-         "<option value='3'>3</option>" +
-         "<option value='4'>4</option>" +
-         "<option value='5'>5</option>" +
-         "<option value='6'>6</option>" +
-         "<option value='7'>7</option>" +
-         "<option value='8'>8</option>" +
-         "<option value='9'>9</option>" +
-         "<option value='10'>10</option>" +
-         "<option value='11'>11</option>" +
-         "<option value='12'>12</option>" +
-         "<option value='13'>13</option>" +
-         "<option value='14'>14</option>" +
-         "<option value='15'>15</option>" +
-         "<option value='16'>16</option>" +
-         "<option value='17'>17</option>" +
-         "<option value='18'>18</option>" +
-         "<option value='19'>19</option>" +
-         "<option value='20'>20</option>" +
-         "<option value='21'>21</option>" +
-         "<option value='22'>22</option>" +
-         "<option value='23'>23</option>" +
-         "</select>" +
-         "</td>" +
-         "<td>Year:<select name='y1'>" +
-         "<option value='" + year + "'>" + year + "</option>" +
-         "<option value='" + (year - 1) + "'>" + (year - 1) + "</option>" +
-         "<option value='" + (year - 2) + "'>" + (year - 2) + "</option>" +
-         "<option value='" + (year - 3) + "'>" + (year - 3) + "</option>" +
-         "<option value='" + (year - 4) + "'>" + (year - 4) + "</option>" +
-         "</select>" +
-         "</td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>End date:</td>" +
-         "<td>Month: <select name='m2'>" +
-         "<option value='January'>January</option>" +
-         "<option value='February'>February</option>" +
-         "<option value='March'>March</option>" +
-         "<option value='April'>April</option>" +
-         "<option value='May'>May</option>" +
-         "<option value='June'>June</option>" +
-         "<option value='July'>July</option>" +
-         "<option value='August'>August</option>" +
-         "<option value='September'>September</option>" +
-         "<option value='October'>October</option>" +
-         "<option value='November'>November</option>" +
-         "<option value='December'>December</option>" +
-         "</select>" +
-         "</td>" +
-         "<td>Day: <select name='d2'>" +
-         "<option value='1'>1</option>" +
-         "<option value='2'>2</option>" +
-         "<option value='3'>3</option>" +
-         "<option value='4'>4</option>" +
-         "<option value='5'>5</option>" +
-         "<option value='6'>6</option>" +
-         "<option value='7'>7</option>" +
-         "<option value='8'>8</option>" +
-         "<option value='9'>9</option>" +
-         "<option value='10'>10</option>" +
-         "<option value='11'>11</option>" +
-         "<option value='12'>12</option>" +
-         "<option value='13'>13</option>" +
-         "<option value='14'>14</option>" +
-         "<option value='15'>15</option>" +
-         "<option value='16'>16</option>" +
-         "<option value='17'>17</option>" +
-         "<option value='18'>18</option>" +
-         "<option value='19'>19</option>" +
-         "<option value='20'>20</option>" +
-         "<option value='21'>21</option>" +
-         "<option value='22'>22</option>" +
-         "<option value='23'>23</option>" +
-         "<option value='24'>24</option>" +
-         "<option value='25'>25</option>" +
-         "<option value='26'>26</option>" +
-         "<option value='27'>27</option>" +
-         "<option value='28'>28</option>" +
-         "<option value='29'>29</option>" +
-         "<option value='30'>30</option>" +
-         "<option value='31'>31</option>" +
-         "</select>" +
-         "</td>" +
-         "<td>Hour:<select name='h2'>" +
-         "<option value='0'>0</option>" +
-         "<option value='1'>1</option>" +
-         "<option value='2'>2</option>" +
-         "<option value='3'>3</option>" +
-         "<option value='4'>4</option>" +
-         "<option value='5'>5</option>" +
-         "<option value='6'>6</option>" +
-         "<option value='7'>7</option>" +
-         "<option value='8'>8</option>" +
-         "<option value='9'>9</option>" +
-         "<option value='10'>10</option>" +
-         "<option value='11'>11</option>" +
-         "<option value='12'>12</option>" +
-         "<option value='13'>13</option>" +
-         "<option value='14'>14</option>" +
-         "<option value='15'>15</option>" +
-         "<option value='16'>16</option>" +
-         "<option value='17'>17</option>" +
-         "<option value='18'>18</option>" +
-         "<option value='19'>19</option>" +
-         "<option value='20'>20</option>" +
-         "<option value='21'>21</option>" +
-         "<option value='22'>22</option>" +
-         "<option value='23'>23</option>" +
-         "</select>" +
-         "</td>" +
-         "<td>Year:<select name='y2'>" +
-         "<option value='" + year + "'>" + year + "</option>" +
-         "<option value='" + (year - 1) + "'>" + (year - 1) + "</option>" +
-         "<option value='" + (year - 2) + "'>" + (year - 2) + "</option>" +
-         "<option value='" + (year - 3) + "'>" + (year - 3) + "</option>" +
-         "<option value='" + (year - 4) + "'>" + (year - 4) + "</option>" +
-         "</select>" +
-         "</td>" +
-         "</tr>" +
-         "</table>\n" +
-
-         "</div>" +
-
-         "<button class=\"dlgButton\" id=\"dlgQueryCancel\" style=\"background-color:#F8F8F8\" type=\"button\" " +
-         " onClick=\"dlgHide('dlgQuery');\">Cancel</button>" +
-
-         "<button class=\"dlgButton\" id=\"dlgQueryQuery\" style=\"background-color:#F8F8F8\" type=\"button\">" +
-         "Query</button>" +
-
-         "</div>";
-
-      document.body.appendChild(this.queryDialog);
-   }
+   // query dialog
+   dlgCreate('dlgQuery', 'dlgHistQuery.html');
 
    this.button.forEach(b => {
       b.img = new Image();
@@ -493,16 +244,16 @@ function doQuery(t) {
    dlgHide('dlgQuery');
 
    let d1 = new Date(
-      document.getElementsByName('y1')[0].value,
-      document.getElementsByName('m1')[0].selectedIndex,
-      document.getElementsByName('d1')[0].selectedIndex + 1,
-      document.getElementsByName('h1')[0].selectedIndex);
+      document.getElementById('y1').value,
+      document.getElementById('m1').selectedIndex,
+      document.getElementById('d1').selectedIndex + 1,
+      document.getElementById('h1').selectedIndex);
 
    let d2 = new Date(
-      document.getElementsByName('y2')[0].value,
-      document.getElementsByName('m2')[0].selectedIndex,
-      document.getElementsByName('d2')[0].selectedIndex + 1,
-      document.getElementsByName('h2')[0].selectedIndex);
+      document.getElementById('y2').value,
+      document.getElementById('m2').selectedIndex,
+      document.getElementById('d2').selectedIndex + 1,
+      document.getElementById('h2').selectedIndex);
 
    if (d1 > d2)
       [d1, d2] = [d2, d1];
@@ -658,15 +409,26 @@ MhistoryGraph.prototype.loadInitialData = function () {
             let dMin = new Date(this.tMin * 1000);
             let dMax = new Date(this.tMax * 1000);
 
-            document.getElementsByName('m1')[0].selectedIndex = dMin.getMonth();
-            document.getElementsByName('d1')[0].selectedIndex = dMin.getDate() - 1;
-            document.getElementsByName('h1')[0].selectedIndex = dMin.getHours();
-            document.getElementsByName('y1')[0].selectedIndex = currentYear - dMin.getFullYear();
+            for (let i = currentYear; i > currentYear - 5; i--) {
+               let o = document.createElement('option');
+               o.value = i.toString();
+               o.appendChild(document.createTextNode(i.toString()));
+               document.getElementById('y1').appendChild(o);
+               o = document.createElement('option');
+               o.value = i.toString();
+               o.appendChild(document.createTextNode(i.toString()));
+               document.getElementById('y2').appendChild(o);
+            }
 
-            document.getElementsByName('m2')[0].selectedIndex = dMax.getMonth();
-            document.getElementsByName('d2')[0].selectedIndex = dMax.getDate() - 1;
-            document.getElementsByName('h2')[0].selectedIndex = dMax.getHours();
-            document.getElementsByName('y2')[0].selectedIndex = currentYear - dMax.getFullYear();
+            document.getElementById('m1').selectedIndex = dMin.getMonth();
+            document.getElementById('d1').selectedIndex = dMin.getDate() - 1;
+            document.getElementById('h1').selectedIndex = dMin.getHours();
+            document.getElementById('y1').selectedIndex = currentYear - dMin.getFullYear();
+
+            document.getElementById('m2').selectedIndex = dMax.getMonth();
+            document.getElementById('d2').selectedIndex = dMax.getDate() - 1;
+            document.getElementById('h2').selectedIndex = dMax.getHours();
+            document.getElementById('y2').selectedIndex = currentYear - dMax.getFullYear();
 
             document.getElementById('dlgQueryQuery').onclick = function () {
                doQuery(this);

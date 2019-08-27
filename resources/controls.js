@@ -438,6 +438,24 @@ Controls.prototype.ctrlProgressSet = function (value) {
 
 //-------------------------------------------------------------------------------------------------
 
+function dlgCreate(dlg, url)
+{
+   if (document.getElementById(dlg) === null) {
+      let xhr = new XMLHttpRequest();
+      xhr.onreadystatechange = function() {
+         if (xhr.readyState === 4 && xhr.status === 200) {
+            let d = document.createElement("div");
+            d.innerHTML = xhr.responseText;
+            document.body.appendChild(d);
+         }
+      };
+
+      xhr.open("GET", url, true);
+      xhr.setRequestHeader('Content-type', 'text/html');
+      xhr.send();
+   }
+}
+
 function dlgShow(dlg, modal) {
    var d;
    if (typeof dlg === "string")
