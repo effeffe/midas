@@ -184,6 +184,12 @@ function MhistoryGraph(divElement) { // Constructor
          }
       },
       {
+         src: "download.svg",
+         click: function (t) {
+            t.download();
+         }
+      },
+      {
          src: "settings.svg",
          click: function (t) {
             window.location.href = "?cmd=oldhistory&group=" + t.group + "&panel=" + t.panel
@@ -423,7 +429,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
       else if (b === "&lt;&lt;&lt;")
          link.title = "Go back in time to last available data for all variables on plot";
       else
-         link.title = "Show last "+b;
+         link.title = "Show last " + b;
 
       let mhg = this;
       link.onclick = function () {
@@ -510,7 +516,6 @@ MhistoryGraph.prototype.loadInitialData = function () {
    this.tMinRequested = this.tMin - this.tScale; // look one window ahead in past
    this.pendingUpdates++;
    this.parentDiv.style.cursor = "progress";
-   let n = new Date()/ 1000;
    mjsonrpc_call("hs_read_arraybuffer",
       {
          "start_time": Math.floor(this.tMinRequested),
@@ -2176,3 +2181,45 @@ MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, maj
    } while (1);
 };
 
+MhistoryGraph.prototype.download = function () {
+   let data = "Time,";
+
+   this.odb["Variables"].forEach((v, i) => {
+      data += v + ",";
+   });
+   data = data.slice(0, -1);
+   data += '\n';
+
+   for (let i = 0; i < this.data[0].time.length; i++) {
+
+      let l = "";
+      if (this.data[0].time[i] > this.tMin && this.data[0].time[i] < this.tMax) {
+         l += this.data[0].time[i] + ",";
+         for (let di = 0; di < this.odb["Variables"].length; di++)
+            l += this.data[di].value[i] + ",";
+         l = l.slice(0, -1);
+         l += '\n';
+         data += l;
+      }
+
+   }
+
+   // use trick from FileSaver.js
+   let a = document.getElementById('downloadHook');
+   if (a === null) {
+      a = document.createElement("a");
+      a.style = "display: none";
+      a.id = "downloadHook";
+      document.body.appendChild(a);
+   }
+
+   let blob = new Blob([data], {type: "text/csv"});
+   let url = window.URL.createObjectURL(blob);
+
+   a.href = url;
+   a.download = "download.csv";
+   a.click();
+   window.URL.revokeObjectURL(url);
+
+   dlgAlert("Data downloaded to 'download.csv'");
+};
