@@ -2,7 +2,10 @@ COMMENT "Sequencer Test File"
 
 RUNDESCRIPTION "Sequencer Test"
 
-PARAM num_runs,Number of runs
+PARAM num_runs, "Number of runs"
+PARAM test_param
+PARAM test_bool, "Test bool", bool
+PARAM test_opt, "Test opt", opt1,opt2,opt3
 
 CALL init
 LOOP 3
