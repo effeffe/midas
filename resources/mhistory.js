@@ -276,7 +276,6 @@ function doQuery(t) {
    t.tMax = d2.getTime() / 1000;
    t.scroll = false;
    t.loadOldData();
-   t.redraw();
 }
 
 
@@ -477,25 +476,61 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
          } else if (b === "&lt;&lt;") {
 
-            // go back to last data
-            // ====> K.O. : please add code here <====
-            //let scale = mhg.tMax - mhg.tMin
-            //mhg.tMax = ??? add code here ??? + scale / 5;
-            //mhg.tMin = mhg.tMax - scale;
-            //mhg.scroll = false;
-            //mhg.loadOldData();
-            dlgAlert("Not yet implemented");
+            mjsonrpc_call("hs_get_last_written",
+               {
+                  "time": this.tMin,
+                  "events": this.events,
+                  "tags": this.tags,
+                  "index": this.index
+               })
+               .then(function (rpc) {
+
+                  let last = rpc.result.last_written[0];
+                  rpc.result.last_written.forEach(l => {
+                     last = Math.max(last, l);
+                  });
+
+                  let scale = mhg.tMax - mhg.tMin;
+                  mhg.tMax = last + scale / 5;
+                  mhg.tMin = mhg.tMax - scale;
+
+                  mhg.scroll = false;
+                  mhg.marker.active = false;
+                  mhg.loadOldData();
+
+               }.bind(this))
+               .catch(function (error) {
+                  mjsonrpc_error_alert(error);
+               });
 
          } else if (b === "&lt;&lt;&lt;") {
 
-            // go back to last data for all variables
-            // ====> K.O. : please add code here <====
-            //let scale = mhg.tMax - mhg.tMin
-            //mhg.tMax = ??? add code here ??? + scale / 5;
-            //mhg.tMin = mhg.tMax - scale;
-            //mhg.scroll = false;
-            //mhg.loadOldData();
-            dlgAlert("Not yet implemented");
+            mjsonrpc_call("hs_get_last_written",
+               {
+                  "time": this.tMin,
+                  "events": this.events,
+                  "tags": this.tags,
+                  "index": this.index
+               })
+               .then(function (rpc) {
+
+                  let last = rpc.result.last_written[0];
+                  rpc.result.last_written.forEach(l => {
+                     last = Math.min(last, l);
+                  });
+
+                  let scale = mhg.tMax - mhg.tMin;
+                  mhg.tMax = last + scale / 5;
+                  mhg.tMin = mhg.tMax - scale;
+
+                  mhg.scroll = false;
+                  mhg.marker.active = false;
+                  mhg.loadOldData();
+
+               }.bind(this))
+               .catch(function (error) {
+                  mjsonrpc_error_alert(error);
+               });
 
          } else {
 
@@ -607,13 +642,10 @@ MhistoryGraph.prototype.loadOldData = function () {
 
    let dt = Math.floor(this.tMax - this.tMin);
 
-   if (this.tMin - dt < this.tMinRequested) {
+   if (this.tMin - dt/2 < this.tMinRequested) {
 
       let oldTMinRequestested = this.tMinRequested;
       this.tMinRequested = this.tMin - dt;
-
-      // let t = Math.floor(new Date() / 1000);
-      // console.log((this.tMinRequested - t) + " - " + (oldTMinRequestested - t));
 
       this.pendingUpdates++;
       this.parentDiv.style.cursor = "progress";
@@ -632,12 +664,14 @@ MhistoryGraph.prototype.loadOldData = function () {
                this.parentDiv.style.cursor = "default";
 
             this.receiveData(rpc);
+            this.redraw();
 
          }.bind(this))
          .catch(function (error) {
             mjsonrpc_error_alert(error);
          });
    }
+   this.redraw();
 };
 
 
@@ -917,7 +951,6 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             this.yMin = this.drag.yMinStart - dy;
             this.yMax = this.drag.yMaxStart - dy;
          }
-         this.redraw();
 
          this.loadOldData();
 
@@ -1072,11 +1105,9 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
       } else
          return;
 
-      this.loadOldData();
-
       this.marker.active = false;
       this.scroll = false;
-      this.redraw();
+      this.loadOldData();
 
       e.preventDefault();
    }
