@@ -186,7 +186,14 @@ function MhistoryGraph(divElement) { // Constructor
       {
          src: "download.svg",
          click: function (t) {
-            t.download();
+            if (t.downloadSelector.style.display === "none") {
+               t.downloadSelector.style.display = "block";
+               t.downloadSelector.style.left = ((t.canvas.getBoundingClientRect().x + t.x2) -
+                  t.downloadSelector.offsetWidth) + "px";
+               t.downloadSelector.style.top = (t.parentDiv.getBoundingClientRect().y + this.y1 - 1) + "px";
+            } else {
+               t.downloadSelector.style.display = "none";
+            }
          }
       },
       {
@@ -513,6 +520,57 @@ MhistoryGraph.prototype.loadInitialData = function () {
    this.intSelector.appendChild(table);
    document.body.appendChild(this.intSelector);
 
+   // download selector
+   this.downloadSelector = document.createElement("div");
+   this.downloadSelector.id = "intSel";
+   this.downloadSelector.style.display = "none";
+   this.downloadSelector.style.position = "absolute";
+   this.downloadSelector.className = "mtable";
+   this.downloadSelector.style.borderRadius = "0";
+   this.downloadSelector.style.border = "2px solid #808080";
+   this.downloadSelector.style.margin = "0";
+   this.downloadSelector.style.padding = "0";
+
+   this.downloadSelector.style.left = "100px";
+   this.downloadSelector.style.top = "100px";
+
+   table = document.createElement("table");
+   let mhg = this;
+
+   row = document.createElement("tr");
+   cell = document.createElement("td");
+   link = document.createElement("a");
+   link.href = "#";
+   link.innerHTML = "CSV";
+   link.title = "Download data in Comma Separated Value format";
+   link.onclick = function () {
+      mhg.downloadSelector.style.display = "none";
+      mhg.download("CSV");
+      return false;
+   }.bind(this);
+   cell.appendChild(link);
+   row.appendChild(cell);
+   table.appendChild(row);
+
+   row = document.createElement("tr");
+   cell = document.createElement("td");
+   link = document.createElement("a");
+   link.href = "#";
+   link.innerHTML = "PNG";
+   link.title = "Download image in PNG format";
+   link.onclick = function () {
+      mhg.downloadSelector.style.display = "none";
+      this.download("PNG");
+      return false;
+   }.bind(this);
+   cell.appendChild(link);
+   row.appendChild(cell);
+   table.appendChild(row);
+
+   this.downloadSelector.appendChild(table);
+   document.body.appendChild(this.downloadSelector);
+
+   // load initial data
    this.tMinRequested = this.tMin - this.tScale; // look one window ahead in past
    this.pendingUpdates++;
    this.parentDiv.style.cursor = "progress";
@@ -2181,45 +2239,79 @@ MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, maj
    } while (1);
 };
 
-MhistoryGraph.prototype.download = function () {
-   let data = "Time,";
+MhistoryGraph.prototype.download = function (mode) {
 
-   this.odb["Variables"].forEach((v, i) => {
-      data += v + ",";
-   });
-   data = data.slice(0, -1);
-   data += '\n';
-
-   for (let i = 0; i < this.data[0].time.length; i++) {
-
-      let l = "";
-      if (this.data[0].time[i] > this.tMin && this.data[0].time[i] < this.tMax) {
-         l += this.data[0].time[i] + ",";
-         for (let di = 0; di < this.odb["Variables"].length; di++)
-            l += this.data[di].value[i] + ",";
-         l = l.slice(0, -1);
-         l += '\n';
-         data += l;
-      }
-
-   }
+   let leftDate = new Date(this.tMin * 1000);
+   let rightDate = new Date(this.tMax * 1000);
+   let filename = this.group + "-" + this.panel + "-" +
+      leftDate.getFullYear() +
+      ("0" + leftDate.getMonth() + 1).slice(-2) +
+      ("0" + leftDate.getDate()).slice(-2) + "-" +
+      ("0" + leftDate.getHours()).slice(-2) +
+      ("0" + leftDate.getMinutes()).slice(-2) +
+      ("0" + leftDate.getSeconds()).slice(-2) + "-" +
+      rightDate.getFullYear() +
+      ("0" + rightDate.getMonth() + 1).slice(-2) +
+      ("0" + rightDate.getDate()).slice(-2) + "-" +
+      ("0" + rightDate.getHours()).slice(-2) +
+      ("0" + rightDate.getMinutes()).slice(-2) +
+      ("0" + rightDate.getSeconds()).slice(-2);
 
    // use trick from FileSaver.js
    let a = document.getElementById('downloadHook');
    if (a === null) {
       a = document.createElement("a");
-      a.style = "display: none";
+      a.style.display = "none";
       a.id = "downloadHook";
       document.body.appendChild(a);
    }
 
-   let blob = new Blob([data], {type: "text/csv"});
-   let url = window.URL.createObjectURL(blob);
+   if (mode === "CSV") {
+      filename += ".csv";
 
-   a.href = url;
-   a.download = "download.csv";
-   a.click();
-   window.URL.revokeObjectURL(url);
+      let data = "Time,";
+      this.odb["Variables"].forEach(v => {
+         data += v + ",";
+      });
+      data = data.slice(0, -1);
+      data += '\n';
 
-   dlgAlert("Data downloaded to 'download.csv'");
+      for (let i = 0; i < this.data[0].time.length; i++) {
+
+         let l = "";
+         if (this.data[0].time[i] > this.tMin && this.data[0].time[i] < this.tMax) {
+            l += this.data[0].time[i] + ",";
+            for (let di = 0; di < this.odb["Variables"].length; di++)
+               l += this.data[di].value[i] + ",";
+            l = l.slice(0, -1);
+            l += '\n';
+            data += l;
+         }
+
+      }
+
+      let blob = new Blob([data], {type: "text/csv"});
+      let url = window.URL.createObjectURL(blob);
+
+      a.href = url;
+      a.download = filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      dlgAlert("Data downloaded to '" + filename + "'");
+
+   } else if (mode === "PNG") {
+      filename += ".png";
+
+      this.canvas.toBlob(function (blob) {
+         let url = window.URL.createObjectURL(blob);
+
+         a.href = url;
+         a.download = filename;
+         a.click();
+         window.URL.revokeObjectURL(url);
+         dlgAlert("Image downloaded to '" + filename + "'");
+
+      }, 'image/png');
+   }
+
 };
