@@ -91,7 +91,7 @@
    // example for an up-arrow with 36x36 pixels
    cvs.width = 36;
    cvs.height = 36;
-   var ctx = cvs.getContext("2d");
+   let ctx = cvs.getContext("2d");
    ctx.fillStyle = "#E0E0E0";
    ctx.fillRect(0, 0, 36, 36);
    ctx.beginPath();
@@ -145,7 +145,7 @@ document.write("<style>" +
    ".dlgPanel {" +
    "   background-color: #F0F0F0;" +
    "   text-align: center;" +
-   "   padding: 10px;" +
+   "   padding: 5px;" +
    "   border-bottom-left-radius: 6px;" +
    "   border-bottom-right-radius: 6px;" +
    "}\n" +
@@ -186,14 +186,14 @@ document.write("<style>" +
    "   background-color: #419bf9;" +
    "   margin: 0;" +
    "}\n" +
-"</style>");
+   "</style>");
 
 (function (window) { // anonymous global function
    window.addEventListener("load", ctlInit, false);
 })(window);
 
 function ctlInit() {
-   var CTL = new Controls();
+   let CTL = new Controls();
    CTL.init();
 }
 
@@ -210,18 +210,18 @@ Controls.prototype.init = function () // scan DOM
    this.ctrlProgress = document.getElementsByName("ctrlProgress");
 
    // ctrlButton
-   for (var i = 0; i < this.ctrlButton.length; i++) {
-      var cvs = document.createElement("canvas");
+   for (let i = 0; i < this.ctrlButton.length; i++) {
+      let cvs = document.createElement("canvas");
       this.ctrlButton[i].appendChild(cvs);
 
-      if (this.ctrlButton[i].dataset.draw != undefined)
-         eval(this.ctrlButton[i].dataset.draw+"(cvs)");
+      if (this.ctrlButton[i].dataset.draw !== undefined)
+         eval(this.ctrlButton[i].dataset.draw + "(cvs)");
    }
 
    // ctrlVSlider
-   for (i = 0; i < this.ctrlVSlider.length; i++) {
-      cvs = document.createElement("canvas");
-      var sl = this.ctrlVSlider[i];
+   for (let i = 0; i < this.ctrlVSlider.length; i++) {
+      let cvs = document.createElement("canvas");
+      let sl = this.ctrlVSlider[i];
       cvs.width = sl.clientWidth;
       cvs.height = sl.clientHeight;
       sl.appendChild(cvs);
@@ -238,9 +238,9 @@ Controls.prototype.init = function () // scan DOM
    }
 
    // ctrlHSlider
-   for (i = 0; i < this.ctrlHSlider.length; i++) {
-      cvs = document.createElement("canvas");
-      sl = this.ctrlHSlider[i];
+   for (let i = 0; i < this.ctrlHSlider.length; i++) {
+      let cvs = document.createElement("canvas");
+      let sl = this.ctrlHSlider[i];
       cvs.width = sl.clientWidth;
       cvs.height = sl.clientHeight;
       sl.appendChild(cvs);
@@ -257,10 +257,10 @@ Controls.prototype.init = function () // scan DOM
    }
 
    // ctrlProgress
-   for (i = 0; i < this.ctrlProgress.length; i++) {
-      var p = this.ctrlProgress[i];
+   for (let i = 0; i < this.ctrlProgress.length; i++) {
+      let p = this.ctrlProgress[i];
       p.className = "ctrlProgress";
-      var ind = document.createElement("div");
+      let ind = document.createElement("div");
       ind.className = "ctrlProgressInd";
       ind.style.height = p.style.height;
       ind.style.backgroundColor = p.style.color;
@@ -273,15 +273,15 @@ Controls.prototype.init = function () // scan DOM
 Controls.prototype.ctrlVSliderDraw = function (b) {
    if (b === undefined)
       b = this;
-   var w = b.canvas.width;
-   var h = b.canvas.height;
+   let w = b.canvas.width;
+   let h = b.canvas.height;
    b.sliderOfs = 20;
 
-   var ctx = b.canvas.getContext("2d");
+   let ctx = b.canvas.getContext("2d");
    ctx.fillStyle = "#E0E0E0";
    ctx.fillRect(0, 0, b.canvas.width, b.canvas.height);
 
-   var knob = b.sliderOfs + (1 - b.position) * (h - 2 * b.sliderOfs);
+   let knob = b.sliderOfs + (1 - b.position) * (h - 2 * b.sliderOfs);
 
    ctx.strokeStyle = "#A0A0A0";
    ctx.lineWidth = 3;
@@ -315,8 +315,8 @@ Controls.prototype.ctrlVSliderSet = function (pos) {
 
 Controls.prototype.ctrlVSliderHandler = function (e) {
    e.preventDefault();
-   var y = undefined;
-   var b = e.currentTarget;
+   let y = undefined;
+   let b = e.currentTarget;
 
    if (b.canvas === undefined) // we can get events from parent node
       return;
@@ -329,7 +329,7 @@ Controls.prototype.ctrlVSliderHandler = function (e) {
    if (e.type === "contextmenu") {
       b.position = 0.5;
       this.ctrlVSliderDraw(b);
-      var f = b.dataset.update;
+      let f = b.dataset.update;
       if (f.indexOf("("))
          f = f.substr(0, f.indexOf("("));
       window[f](b.position);
@@ -341,7 +341,7 @@ Controls.prototype.ctrlVSliderHandler = function (e) {
          if (b.position > 1)
             b.position = 1;
          this.ctrlVSliderDraw(b);
-         var f = b.dataset.update;
+         let f = b.dataset.update;
          if (f.indexOf("("))
             f = f.substr(0, f.indexOf("("));
          window[f](b.position);
@@ -352,15 +352,15 @@ Controls.prototype.ctrlVSliderHandler = function (e) {
 Controls.prototype.ctrlHSliderDraw = function (b) {
    if (b === undefined)
       b = this;
-   var w = b.canvas.width;
-   var h = b.canvas.height;
+   let w = b.canvas.width;
+   let h = b.canvas.height;
    b.sliderOfs = 20;
 
-   var ctx = b.canvas.getContext("2d");
+   let ctx = b.canvas.getContext("2d");
    ctx.fillStyle = "#E0E0E0";
    ctx.fillRect(0, 0, b.canvas.width, b.canvas.height);
 
-   var knob = b.sliderOfs + (b.position) * (w - 2 * b.sliderOfs);
+   let knob = b.sliderOfs + (b.position) * (w - 2 * b.sliderOfs);
 
    ctx.strokeStyle = "#A0A0A0";
    ctx.lineWidth = 3;
@@ -394,8 +394,8 @@ Controls.prototype.ctrlHSliderSet = function (pos) {
 
 Controls.prototype.ctrlHSliderHandler = function (e) {
    e.preventDefault();
-   var x = undefined;
-   var b = e.currentTarget;
+   let x = undefined;
+   let b = e.currentTarget;
 
    if (b.canvas === undefined) // we can get events from parent node
       return;
@@ -408,7 +408,7 @@ Controls.prototype.ctrlHSliderHandler = function (e) {
    if (e.type === "contextmenu") {
       b.position = 0.5;
       this.ctrlHSliderDraw(b);
-      var f = b.dataset.update;
+      let f = b.dataset.update;
       if (f.indexOf("("))
          f = f.substr(0, f.indexOf("("));
       window[f](b.position);
@@ -420,7 +420,7 @@ Controls.prototype.ctrlHSliderHandler = function (e) {
          if (b.position > 1)
             b.position = 1;
          this.ctrlHSliderDraw(b);
-         var f = b.dataset.update;
+         let f = b.dataset.update;
          if (f.indexOf("("))
             f = f.substr(0, f.indexOf("("));
          window[f](b.position);
@@ -438,12 +438,40 @@ Controls.prototype.ctrlProgressSet = function (value) {
 
 //-------------------------------------------------------------------------------------------------
 
+function dlgLoad(url) {
+   return new Promise(function (resolve, reject) {
+      let xhr = new XMLHttpRequest();
+      xhr.onreadystatechange = function () {
+         if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+               let d = document.createElement("div");
+               d.innerHTML = xhr.responseText;
+               document.body.appendChild(d);
+               resolve(xhr.responseText);
+            } else {
+               dlgAlert("Cannot laod " + xhr.responseURL);
+               reject(xhr.responseURL);
+            }
+         }
+      };
+
+      xhr.open("GET", url, true);
+      xhr.setRequestHeader('Content-type', 'text/html');
+      xhr.send();
+   });
+}
+
 function dlgShow(dlg, modal) {
-   var d;
+   let d;
    if (typeof dlg === "string")
       d = document.getElementById(dlg);
    else
       d = dlg;
+
+   if (d === null) {
+      dlgAlert("Dialog '" + dlg + "' does not exist");
+      return;
+   }
 
    d.dlgAx = 0;
    d.dlgAy = 0;
@@ -460,26 +488,26 @@ function dlgShow(dlg, modal) {
       d.style.top = Math.round(document.documentElement.clientHeight / 2 - d.offsetHeight / 2) + "px";
    if (d.offsetHeight > document.documentElement.clientHeight)
       d.style.position = "absolute";
-   
+
    // put dialog on top of all other dialogs
-   var dlgs = document.getElementsByClassName("dlgFrame");
-   for (var i=0 ; i<dlgs.length ; i++)
-      dlgs[i].style.zIndex = 10;
-   d.style.zIndex = 11;
+   let dlgs = document.getElementsByClassName("dlgFrame");
+   for (let i = 0; i < dlgs.length; i++)
+      dlgs[i].style.zIndex = "10";
+   d.style.zIndex = "11";
 
    if (d.modal) {
-      var b = document.getElementById("dlgBlackout");
+      let b = document.getElementById("dlgBlackout");
       if (b === undefined || b === null) {
-         b =  document.createElement("div");
+         b = document.createElement("div");
          b.id = "dlgBlackout";
          b.className = "dlgBlackout";
          document.body.appendChild(b);
       }
-      
+
       b.style.display = "block";
-      d.style.zIndex = 21; // on top of dlgBlackout (20)
+      d.style.zIndex = "21"; // on top of dlgBlackout (20)
    }
-   
+
    d.dlgMouseDown = function (e) {
       if (d.style.display === "none")
          return;
@@ -498,10 +526,10 @@ function dlgShow(dlg, modal) {
          e.preventDefault();
       } else {
          if (e.target === this || d.contains(e.target)) {
-            var dlgs = document.getElementsByClassName("dlgFrame");
-            for (var i=0 ; i<dlgs.length ; i++)
-               dlgs[i].style.zIndex = 10;
-            d.style.zIndex = d.modal ? 21 : 11;
+            let dlgs = document.getElementsByClassName("dlgFrame");
+            for (let i = 0; i < dlgs.length; i++)
+               dlgs[i].style.zIndex = "10";
+            d.style.zIndex = d.modal ? "21" : "11";
          }
       }
    };
@@ -512,13 +540,13 @@ function dlgShow(dlg, modal) {
 
       if (this.Ax > 0 && this.Ay > 0) {
          e.preventDefault();
-         var x = e.clientX;
-         var y = e.clientY;
+         let x = e.clientX;
+         let y = e.clientY;
          // stop dragging if leaving window
          if (x < 0 || y < 0 ||
-             x > document.documentElement.clientWidth ||
-             y > document.documentElement.clientHeight ||
-             (this.Dy + (y - this.Ay)) < 0) {
+            x > document.documentElement.clientWidth ||
+            y > document.documentElement.clientHeight ||
+            (this.Dy + (y - this.Ay)) < 0) {
             this.Ax = 0;
             this.Ay = 0;
          } else {
@@ -527,7 +555,7 @@ function dlgShow(dlg, modal) {
          }
       }
    };
-   
+
    d.dlgMouseUp = function () {
       this.Ax = 0;
       this.Ay = 0;
@@ -551,10 +579,10 @@ function dlgShow(dlg, modal) {
          e.preventDefault();
       } else {
          if (e.target === this || d.contains(e.target)) {
-            var dlgs = document.getElementsByClassName("dlgFrame");
-            for (var i=0 ; i<dlgs.length ; i++)
-               dlgs[i].style.zIndex = 10;
-            d.style.zIndex = 11;
+            let dlgs = document.getElementsByClassName("dlgFrame");
+            for (let i = 0; i < dlgs.length; i++)
+               dlgs[i].style.zIndex = "10";
+            d.style.zIndex = "11";
          }
       }
    };
@@ -565,8 +593,8 @@ function dlgShow(dlg, modal) {
 
       if (this.Ax > 0 && this.Ay > 0) {
          e.preventDefault();
-         var x = e.changedTouches[e.changedTouches.length - 1].clientX;
-         var y = e.changedTouches[e.changedTouches.length - 1].clientY;
+         let x = e.changedTouches[e.changedTouches.length - 1].clientX;
+         let y = e.changedTouches[e.changedTouches.length - 1].clientY;
          this.style.left = (this.Dx + (x - this.Ax)) + "px";
          this.style.top = (this.Dy + (y - this.Ay)) + "px";
       }
@@ -604,18 +632,24 @@ function dlgShow(dlg, modal) {
 }
 
 function dlgHide(dlg) {
-   var d = document.getElementById("dlgBlackout");
+   if (typeof dlg === "string")
+      dlg = document.getElementById(dlg);
+   else if (dlg.type === "button") {
+      do {
+         dlg = dlg.parentElement;
+      } while (dlg.className !== 'dlgFrame');
+   }
+
+   let d = document.getElementById("dlgBlackout");
    if (d !== undefined && d !== null)
       d.style.display = "none";
-   d = document.getElementById(dlg);
-   d.style.display = "none";
+   dlg.style.display = "none";
 }
 
-function dlgMessageDestroy(b)
-{
-   var dlg = b.parentElement.parentElement;
+function dlgMessageDestroy(b) {
+   let dlg = b.parentElement.parentElement;
    if (dlg.modal) {
-      var d = document.getElementById("dlgBlackout");
+      let d = document.getElementById("dlgBlackout");
       if (d !== undefined && d !== null)
          d.style.display = "none";
    }
@@ -626,54 +660,51 @@ function dlgMessageDestroy(b)
    document.body.removeChild(dlg);
 }
 
-function dlgMessage(title, string, modal, error, callback, param)
-{
-   d =  document.createElement("div");
+function dlgMessage(title, string, modal, error, callback, param) {
+   let d = document.createElement("div");
    d.className = "dlgFrame";
-   d.style.zIndex = modal? 21 : 20;
+   d.style.zIndex = modal ? "21" : "20";
    d.callback = callback;
    d.callbackParam = param;
 
-   d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">"+title+"</div>"+
-   "<div class=\"dlgPanel\" style=\"padding: 30px;\">"+
-   "<div id=\"dlgMessageString\">"+string+"</div>"+
-   "<br /><br /><button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" "+
-   " onClick=\"var d=this.parentElement.parentElement;if(d.callback!==undefined)d.callback(d.callbackParam);dlgMessageDestroy(this)\">Close</button>"+
-   "</div>";
+   d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">" + title + "</div>" +
+      "<div class=\"dlgPanel\" style=\"padding: 30px;\">" +
+      "<div id=\"dlgMessageString\">" + string + "</div>" +
+      "<br /><br /><button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" " +
+      " onClick=\"let d=this.parentElement.parentElement;if(d.callback!==undefined)d.callback(d.callbackParam);dlgMessageDestroy(this)\">Close</button>" +
+      "</div>";
 
    document.body.appendChild(d);
 
    if (error === true) {
-      var t = document.getElementById("dlgMessageTitle");
+      let t = document.getElementById("dlgMessageTitle");
       t.style.backgroundColor = "#9E2A2A";
       t.style.color = "white";
    }
-         
+
    dlgShow(d, modal);
    return d;
 }
 
-function dlgAlert(s)
-{
+function dlgAlert(s) {
    dlgMessage('Message', s, true, false);
 }
 
-function dlgConfirm(string, confirmCallback, param)
-{
-   d = document.createElement("div");
+function dlgConfirm(string, confirmCallback, param) {
+   let d = document.createElement("div");
    d.className = "dlgFrame";
-   d.style.zIndex = 21;
+   d.style.zIndex = "21";
    d.callback = confirmCallback;
    d.callbackParam = param;
 
-   d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Please confirm</div>"+
-      "<div class=\"dlgPanel\" style=\"padding: 30px;\">"+
-      "<div id=\"dlgMessageString\">"+string+"</div>"+
+   d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Please confirm</div>" +
+      "<div class=\"dlgPanel\" style=\"padding: 30px;\">" +
+      "<div id=\"dlgMessageString\">" + string + "</div>" +
       "<br /><br />" +
-      "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" "+
-      " onClick=\"var d=this.parentElement.parentElement;d.callback(true,d.callbackParam);dlgMessageDestroy(this);\">OK</button>"+
-      "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" "+
-      " onClick=\"var d=this.parentElement.parentElement;d.callback(false,d.callbackParam);dlgMessageDestroy(this);\">Cancel</button>"+
+      "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
+      " onClick=\"let d=this.parentElement.parentElement;d.callback(true,d.callbackParam);dlgMessageDestroy(this);\">OK</button>" +
+      "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
+      " onClick=\"let d=this.parentElement.parentElement;d.callback(false,d.callbackParam);dlgMessageDestroy(this);\">Cancel</button>" +
       "</div>";
 
    document.body.appendChild(d);

@@ -26,6 +26,28 @@
       return vars;
    }
 
+   function panelCreate() {
+      let selGroup = document.getElementById('dlgNewSelGroup').value;
+      let newGroup = document.getElementById('dlgNewNewGroup').value;
+      let panelName = document.getElementById('dlgNewPanelName').value;
+      if (panelName === "") {
+         dlgAlert('Empty panel name is not allowed');
+         return;
+      }
+      if (newGroup === "")
+         newGroup = selGroup;
+
+      let url = window.location.href;
+      if (url.indexOf("?cmd") > 0)
+         url = url.substr(0, url.indexOf("?cmd"));
+      url += "?cmd=oldhistory&hcmd=createnew&new_group=" + newGroup +
+      "&group=" + selGroup + "&panel=" + panelName;
+
+      url += "&redir=" + encodeURIComponent("?cmd=history&group="+newGroup+"&panel="+panelName);
+
+      window.location.href = url;
+   }
+
    function init() {
 
       mjsonrpc_db_copy(["/History/Display"]).then(function (rpc) {
@@ -33,6 +55,8 @@
 
          let curGroup = decodeURI(getUrlVars()["group"]);
          let curPanel = decodeURI(getUrlVars()["panel"]);
+         let tMin = decodeURI(getUrlVars()["tmin"]);
+         let tMax = decodeURI(getUrlVars()["tmax"]);
          let baseURL = window.location.href;
          if (baseURL.search("&group") > 0)
             baseURL = baseURL.substr(0, baseURL.search("&group"));
@@ -42,22 +66,40 @@
             // create selector table
             let d = document.getElementById("hist");
 
+            dlgLoad('dlgHistory.html').then(
+               () => {
+                  let sgroup = document.getElementById('dlgNewSelGroup');
+                  Object.keys(historyDisplay).forEach(key => {
+                     let o = document.createElement("option");
+                     o.text = key;
+                     sgroup.add(o);
+                  });
+
+               },
+               () => {
+               }
+            );
+
             let h =
                "<table class=\"mtable\" id=\"overallTable\">\n" +
                "    <tr><th colspan=\"2\" class=\"mtableheader\">History</th></tr>\n" +
-               "    <tr><td colspan=2><input type=\"button\" name=\"New\" value=\"New\" onClick=\"window.location.href='?cmd=history&hcmd=New'\"></td></tr>\n" +
+               "    <tr><td colspan=2><input type=\"button\" class=\"mbutton\" name=\"New\" value=\"New\" " +
+               "        onClick=\"dlgShow('dlgNew')\"></td></tr>\n" +
                "    <tr><td colspan=2 style=\"text-align:center;\"><b>Please select panel:</b></td></tr>\n" +
-               "    <tr><td colspan=2 class=\"titleCell\"><a href=\"" + baseURL + "&group=All\">ALL</a>\n</td></tr>\n";
+               "    <tr><td colspan=2 class=\"titleCell\"><a href=\"" + baseURL + "&group=All\">ALL</a>\n" +
+               "</td></tr>\n";
 
 
             Object.keys(historyDisplay).forEach(group => {
                h +=
                   "    <tr>\n" +
-                  "      <td class=\"titleCell\"><a href=\"" + baseURL + "&group=" + group + "&panel=All\">" + group + "</a></td>\n" +
+                  "      <td class=\"titleCell\"><a href=\"" + baseURL + "&group=" + group + "&panel=All\">" +
+                  group + "</a></td>\n" +
                   "      <td>\n";
 
                Object.keys(historyDisplay[group]).forEach(panel => {
-                  h += "         <a href=\"" + baseURL + "&group=" + group + "&panel=" + panel + "\">" + panel + "</a>&nbsp;\n";
+                  h += "         <a href=\"" + baseURL + "&group=" + group + "&panel=" + panel + "\">" +
+                     panel + "</a>&nbsp;\n";
                });
 
                h +=
@@ -75,7 +117,7 @@
          let d = document.getElementById("hist");
 
          // drop-down panel selector
-         d.innerHTML =
+         let h =
             "<table class=\"mtable\" id=\"overallTable\">\n" +
             "   <tr><th class=\"mtableheader\">History</th></tr>\n" +
             "   <tr><td>\n" +
@@ -84,12 +126,21 @@
             "      </select>&nbsp;&nbsp;\n" +
             "      Panel:\n" +
             "      <select title=\"Select Panel\" id=\"spanel\">\n" +
-            "      </select>\n" +
-            "   </td></tr>\n" +
+            "      </select>\n";
+
+         if (curPanel !== "All") {
+            if (tMin !== "undefined")
+               h += "      &nbsp;&nbsp;<input type='checkbox' checked id='keepTAxis'>Keep horizontal axis when switching panels</input>";
+            else
+               h += "      &nbsp;&nbsp;<input type='checkbox' id='keepTAxis'>Keep horizontal axis when switching panels</input>";
+         }
+
+         h += "   </td></tr>\n" +
             "   <tr><td>\n" +
             "      <div id=\"histPanel\"></div>\n" +
             "   </td></tr>\n" +
             "</table>\n";
+         d.innerHTML = h;
 
          // populate group selector
          let sgroup = document.getElementById("sgroup");
@@ -134,9 +185,17 @@
 
          // add listener to panel selector
          document.getElementById("spanel").addEventListener("change", function () {
-            window.location.href = baseURL +
+            let url = baseURL +
                "&group=" + document.getElementById("sgroup").value +
                "&panel=" + document.getElementById("spanel").value;
+
+            let d = document.getElementById("histPanel").childNodes[0];
+
+            if (document.getElementById('keepTAxis') !== null &&
+               document.getElementById('keepTAxis').checked)
+               url += "&tmin=" + Math.floor(d.mhg.tMin) + "&tmax=" + Math.floor(d.mhg.tMax);
+
+            window.location.href = url;
          });
 
          if (curGroup === "All") {
@@ -180,7 +239,8 @@
 
          } else {
             // create single history object
-            mhistory_create(document.getElementById("histPanel"), baseURL, curGroup, curPanel);
+            mhistory_create(document.getElementById("histPanel"), baseURL, curGroup, curPanel,
+               parseInt(tMin), parseInt(tMax));
          }
 
          window.addEventListener("resize", windowResize);

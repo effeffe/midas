@@ -35,13 +35,17 @@ function mhistory_init() {
    }
 }
 
-function mhistory_create(parentElement, baseURL, group, panel) {
+function mhistory_create(parentElement, baseURL, group, panel, tMin, tMax) {
    let d = document.createElement("div");
    parentElement.appendChild(d);
    d.dataset.baseURL = baseURL;
    d.dataset.group = group;
    d.dataset.panel = panel;
    d.mhg = new MhistoryGraph(d);
+   if (!Number.isNaN(tMin) && !Number.isNaN(tMax)) {
+      d.mhg.initTMin = tMin;
+      d.mhg.initTMax = tMax;
+   }
    d.mhg.initializePanel();
 }
 
@@ -180,6 +184,19 @@ function MhistoryGraph(divElement) { // Constructor
          }
       },
       {
+         src: "download.svg",
+         click: function (t) {
+            if (t.downloadSelector.style.display === "none") {
+               t.downloadSelector.style.display = "block";
+               t.downloadSelector.style.left = ((t.canvas.getBoundingClientRect().x + t.x2) -
+                  t.downloadSelector.offsetWidth) + "px";
+               t.downloadSelector.style.top = (t.parentDiv.getBoundingClientRect().y + this.y1 - 1) + "px";
+            } else {
+               t.downloadSelector.style.display = "none";
+            }
+         }
+      },
+      {
          src: "settings.svg",
          click: function (t) {
             window.location.href = "?cmd=oldhistory&group=" + t.group + "&panel=" + t.panel
@@ -189,265 +206,13 @@ function MhistoryGraph(divElement) { // Constructor
       {
          src: "help-circle.svg",
          click: function () {
-            dlgShow(document.getElementById("dlgHelp"), false);
+            dlgShow("dlgHelp", false);
          }
       }
    ];
 
-   // help dialog
-   if (document.getElementById('dlgHelp') === null) {
-      this.helpDialog = document.createElement("div");
-      this.helpDialog.id = "dlgHelp";
-      this.helpDialog.className = "dlgFrame";
-      this.helpDialog.style.zIndex = "20";
-
-      this.helpDialog.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Help</div>" +
-         "<div class=\"dlgPanel\" style=\"padding: 5px;\">" +
-         "<div id=\"dlgMessageString\">" +
-
-         "<table class='mtable'>" +
-         "<tr>" +
-         "<th>Action</th>" +
-         "<th>Howto</th>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>Horizontal Zoom</td>" +
-         "<td>&nbsp;Press Command (Mac) or Ctrl key and scroll mouse wheel or drag along X-Axis&nbsp;   </td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>Vertical Zoom</td>" +
-         "<td>&nbsp;Press Option (Mac) or Shift key and scroll mouse wheel or drag along Y-Axis&nbsp;</td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>Pan</td>" +
-         "<td>Drag inside graph</td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>Display values</td>" +
-         "<td>Hover over graph</td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>&nbsp;Back to live scolling after pan/zoom&nbsp;</td>" +
-         "<td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'> or press 'u' </td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>&nbsp;Reset axis&nbsp;</td>" +
-         "<td>Click on <img src='icons/rotate-ccw.svg' style='vertical-align:middle' alt='Reset'></td>" +
-         "</tr>" +
-         "<td>&nbsp;Select individual graph&nbsp;</td>" +
-         "<td>Double click on a data point of desired graph or its label. Switch back with &lt;esc&gt;</td>" +
-         "</tr>" +
-         "</table>" +
-
-         "</div>" +
-         "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" " +
-         " onClick=\"dlgHide('dlgHelp')\">Close</button>" +
-         "</div>";
-
-      document.body.appendChild(this.helpDialog);
-   }
-
-   // help dialog
-   if (document.getElementById('dlgQuery') === null) {
-      this.queryDialog = document.createElement("div");
-      this.queryDialog.id = "dlgQuery";
-      this.queryDialog.className = "dlgFrame";
-      this.queryDialog.style.zIndex = "20";
-
-      let year = new Date().getFullYear();
-      this.queryDialog.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Select time interval</div>" +
-         "<div class=\"dlgPanel\" style=\"padding: 5px;\">" +
-         "<div id=\"dlgMessageString\">" +
-
-         "<table>\n" +
-         "<tr>" +
-         "<td>Start date:</td>" +
-         "<td>Month: <select name='m1'>" +
-         "<option value='January'>January</option>" +
-         "<option value='February'>February</option>" +
-         "<option value='March'>March</option>" +
-         "<option value='April'>April</option>" +
-         "<option value='May'>May</option>" +
-         "<option value='June'>June</option>" +
-         "<option value='July'>July</option>" +
-         "<option value='August'>August</option>" +
-         "<option value='September'>September</option>" +
-         "<option value='October'>October</option>" +
-         "<option value='November'>November</option>" +
-         "<option value='December'>December</option>" +
-         "</select>" +
-         "</td>" +
-         "<td>Day: <select name='d1'>" +
-         "<option value='1'>1</option>" +
-         "<option value='2'>2</option>" +
-         "<option value='3'>3</option>" +
-         "<option value='4'>4</option>" +
-         "<option value='5'>5</option>" +
-         "<option value='6'>6</option>" +
-         "<option value='7'>7</option>" +
-         "<option value='8'>8</option>" +
-         "<option value='9'>9</option>" +
-         "<option value='10'>10</option>" +
-         "<option value='11'>11</option>" +
-         "<option value='12'>12</option>" +
-         "<option value='13'>13</option>" +
-         "<option value='14'>14</option>" +
-         "<option value='15'>15</option>" +
-         "<option value='16'>16</option>" +
-         "<option value='17'>17</option>" +
-         "<option value='18'>18</option>" +
-         "<option value='19'>19</option>" +
-         "<option value='20'>20</option>" +
-         "<option value='21'>21</option>" +
-         "<option value='22'>22</option>" +
-         "<option value='23'>23</option>" +
-         "<option value='24'>24</option>" +
-         "<option value='25'>25</option>" +
-         "<option value='26'>26</option>" +
-         "<option value='27'>27</option>" +
-         "<option value='28'>28</option>" +
-         "<option value='29'>29</option>" +
-         "<option value='30'>30</option>" +
-         "<option value='31'>31</option>" +
-         "</select>" +
-         "</td>" +
-         "<td>Hour:<select name='h1'>" +
-         "<option value='0'>0</option>" +
-         "<option value='1'>1</option>" +
-         "<option value='2'>2</option>" +
-         "<option value='3'>3</option>" +
-         "<option value='4'>4</option>" +
-         "<option value='5'>5</option>" +
-         "<option value='6'>6</option>" +
-         "<option value='7'>7</option>" +
-         "<option value='8'>8</option>" +
-         "<option value='9'>9</option>" +
-         "<option value='10'>10</option>" +
-         "<option value='11'>11</option>" +
-         "<option value='12'>12</option>" +
-         "<option value='13'>13</option>" +
-         "<option value='14'>14</option>" +
-         "<option value='15'>15</option>" +
-         "<option value='16'>16</option>" +
-         "<option value='17'>17</option>" +
-         "<option value='18'>18</option>" +
-         "<option value='19'>19</option>" +
-         "<option value='20'>20</option>" +
-         "<option value='21'>21</option>" +
-         "<option value='22'>22</option>" +
-         "<option value='23'>23</option>" +
-         "</select>" +
-         "</td>" +
-         "<td>Year:<select name='y1'>" +
-         "<option value='" + year + "'>" + year + "</option>" +
-         "<option value='" + (year - 1) + "'>" + (year - 1) + "</option>" +
-         "<option value='" + (year - 2) + "'>" + (year - 2) + "</option>" +
-         "<option value='" + (year - 3) + "'>" + (year - 3) + "</option>" +
-         "<option value='" + (year - 4) + "'>" + (year - 4) + "</option>" +
-         "</select>" +
-         "</td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>End date:</td>" +
-         "<td>Month: <select name='m2'>" +
-         "<option value='January'>January</option>" +
-         "<option value='February'>February</option>" +
-         "<option value='March'>March</option>" +
-         "<option value='April'>April</option>" +
-         "<option value='May'>May</option>" +
-         "<option value='June'>June</option>" +
-         "<option value='July'>July</option>" +
-         "<option value='August'>August</option>" +
-         "<option value='September'>September</option>" +
-         "<option value='October'>October</option>" +
-         "<option value='November'>November</option>" +
-         "<option value='December'>December</option>" +
-         "</select>" +
-         "</td>" +
-         "<td>Day: <select name='d2'>" +
-         "<option value='1'>1</option>" +
-         "<option value='2'>2</option>" +
-         "<option value='3'>3</option>" +
-         "<option value='4'>4</option>" +
-         "<option value='5'>5</option>" +
-         "<option value='6'>6</option>" +
-         "<option value='7'>7</option>" +
-         "<option value='8'>8</option>" +
-         "<option value='9'>9</option>" +
-         "<option value='10'>10</option>" +
-         "<option value='11'>11</option>" +
-         "<option value='12'>12</option>" +
-         "<option value='13'>13</option>" +
-         "<option value='14'>14</option>" +
-         "<option value='15'>15</option>" +
-         "<option value='16'>16</option>" +
-         "<option value='17'>17</option>" +
-         "<option value='18'>18</option>" +
-         "<option value='19'>19</option>" +
-         "<option value='20'>20</option>" +
-         "<option value='21'>21</option>" +
-         "<option value='22'>22</option>" +
-         "<option value='23'>23</option>" +
-         "<option value='24'>24</option>" +
-         "<option value='25'>25</option>" +
-         "<option value='26'>26</option>" +
-         "<option value='27'>27</option>" +
-         "<option value='28'>28</option>" +
-         "<option value='29'>29</option>" +
-         "<option value='30'>30</option>" +
-         "<option value='31'>31</option>" +
-         "</select>" +
-         "</td>" +
-         "<td>Hour:<select name='h2'>" +
-         "<option value='0'>0</option>" +
-         "<option value='1'>1</option>" +
-         "<option value='2'>2</option>" +
-         "<option value='3'>3</option>" +
-         "<option value='4'>4</option>" +
-         "<option value='5'>5</option>" +
-         "<option value='6'>6</option>" +
-         "<option value='7'>7</option>" +
-         "<option value='8'>8</option>" +
-         "<option value='9'>9</option>" +
-         "<option value='10'>10</option>" +
-         "<option value='11'>11</option>" +
-         "<option value='12'>12</option>" +
-         "<option value='13'>13</option>" +
-         "<option value='14'>14</option>" +
-         "<option value='15'>15</option>" +
-         "<option value='16'>16</option>" +
-         "<option value='17'>17</option>" +
-         "<option value='18'>18</option>" +
-         "<option value='19'>19</option>" +
-         "<option value='20'>20</option>" +
-         "<option value='21'>21</option>" +
-         "<option value='22'>22</option>" +
-         "<option value='23'>23</option>" +
-         "</select>" +
-         "</td>" +
-         "<td>Year:<select name='y2'>" +
-         "<option value='" + year + "'>" + year + "</option>" +
-         "<option value='" + (year - 1) + "'>" + (year - 1) + "</option>" +
-         "<option value='" + (year - 2) + "'>" + (year - 2) + "</option>" +
-         "<option value='" + (year - 3) + "'>" + (year - 3) + "</option>" +
-         "<option value='" + (year - 4) + "'>" + (year - 4) + "</option>" +
-         "</select>" +
-         "</td>" +
-         "</tr>" +
-         "</table>\n" +
-
-         "</div>" +
-
-         "<button class=\"dlgButton\" id=\"dlgQueryCancel\" style=\"background-color:#F8F8F8\" type=\"button\" " +
-         " onClick=\"dlgHide('dlgQuery');\">Cancel</button>" +
-
-         "<button class=\"dlgButton\" id=\"dlgQueryQuery\" style=\"background-color:#F8F8F8\" type=\"button\">" +
-         "Query</button>" +
-
-         "</div>";
-
-      document.body.appendChild(this.queryDialog);
-   }
+   // load dialogs
+   dlgLoad('dlgHistory.html');
 
    this.button.forEach(b => {
       b.img = new Image();
@@ -493,22 +258,23 @@ function doQuery(t) {
    dlgHide('dlgQuery');
 
    let d1 = new Date(
-      document.getElementsByName('y1')[0].value,
-      document.getElementsByName('m1')[0].selectedIndex,
-      document.getElementsByName('d1')[0].selectedIndex+1,
-      document.getElementsByName('h1')[0].selectedIndex);
+      document.getElementById('y1').value,
+      document.getElementById('m1').selectedIndex,
+      document.getElementById('d1').selectedIndex + 1,
+      document.getElementById('h1').selectedIndex);
 
    let d2 = new Date(
-      document.getElementsByName('y2')[0].value,
-      document.getElementsByName('m2')[0].selectedIndex,
-      document.getElementsByName('d2')[0].selectedIndex+1,
-      document.getElementsByName('h2')[0].selectedIndex);
+      document.getElementById('y2').value,
+      document.getElementById('m2').selectedIndex,
+      document.getElementById('d2').selectedIndex + 1,
+      document.getElementById('h2').selectedIndex);
 
    if (d1 > d2)
       [d1, d2] = [d2, d1];
 
    t.tMin = d1.getTime() / 1000;
    t.tMax = d2.getTime() / 1000;
+   t.scroll = false;
    t.loadOldData();
    t.redraw();
 }
@@ -579,9 +345,16 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    this.lastTimeStamp = Math.floor(Date.now() / 1000);
 
-   this.tScale = timeToSec(this.odb["Timescale"]);
-   this.tMax = Math.floor(new Date() / 1000);
-   this.tMin = this.tMax - this.tScale;
+   if (this.initTMin !== undefined && this.initTMin !== "undefined") {
+      this.tMin = this.initTMin;
+      this.tMax = this.initTMax;
+      this.tScale = this.tMax - this.tMin;
+      this.scroll = false;
+   } else {
+      this.tScale = timeToSec(this.odb["Timescale"]);
+      this.tMax = Math.floor(new Date() / 1000);
+      this.tMin = this.tMax - this.tScale;
+   }
 
    this.showLabels = this.odb["Show values"];
 
@@ -641,7 +414,13 @@ MhistoryGraph.prototype.loadInitialData = function () {
    let cell;
    let link;
    let buttons = this.odb["Buttons"];
+   if (buttons === undefined) {
+      buttons = [];
+      buttons.push("10m", "1h", "3h", "12h", "24h", "3d", "7d");
+   }
    buttons.push("A&rarr;B");
+   buttons.push("&lt;&lt;&lt;");
+   buttons.push("&lt;&lt;");
    buttons.forEach(function (b, i) {
       if (i % 2 === 0)
          row = document.createElement("tr");
@@ -651,6 +430,15 @@ MhistoryGraph.prototype.loadInitialData = function () {
       link = document.createElement("a");
       link.href = "#";
       link.innerHTML = b;
+      if (b === "A&rarr;B")
+         link.title = "Display data between two dates";
+      else if (b === "&lt;&lt;")
+         link.title = "Go back in time to last available data";
+      else if (b === "&lt;&lt;&lt;")
+         link.title = "Go back in time to last available data for all variables on plot";
+      else
+         link.title = "Show last " + b;
+
       let mhg = this;
       link.onclick = function () {
          if (b === "A&rarr;B") {
@@ -658,22 +446,59 @@ MhistoryGraph.prototype.loadInitialData = function () {
             let dMin = new Date(this.tMin * 1000);
             let dMax = new Date(this.tMax * 1000);
 
-            document.getElementsByName('m1')[0].selectedIndex = dMin.getMonth();
-            document.getElementsByName('d1')[0].selectedIndex = dMin.getDate() - 1;
-            document.getElementsByName('h1')[0].selectedIndex = dMin.getHours();
-            document.getElementsByName('y1')[0].selectedIndex = currentYear - dMin.getFullYear();
+            if (document.getElementById('y1').length === 0) {
+               for (let i = currentYear; i > currentYear - 5; i--) {
+                  let o = document.createElement('option');
+                  o.value = i.toString();
+                  o.appendChild(document.createTextNode(i.toString()));
+                  document.getElementById('y1').appendChild(o);
+                  o = document.createElement('option');
+                  o.value = i.toString();
+                  o.appendChild(document.createTextNode(i.toString()));
+                  document.getElementById('y2').appendChild(o);
+               }
+            }
 
-            document.getElementsByName('m2')[0].selectedIndex = dMax.getMonth();
-            document.getElementsByName('d2')[0].selectedIndex = dMax.getDate() - 1;
-            document.getElementsByName('h2')[0].selectedIndex = dMax.getHours();
-            document.getElementsByName('y2')[0].selectedIndex = currentYear - dMax.getFullYear();
+            document.getElementById('m1').selectedIndex = dMin.getMonth();
+            document.getElementById('d1').selectedIndex = dMin.getDate() - 1;
+            document.getElementById('h1').selectedIndex = dMin.getHours();
+            document.getElementById('y1').selectedIndex = currentYear - dMin.getFullYear();
 
-            document.getElementById('dlgQueryQuery').onclick = function() {
+            document.getElementById('m2').selectedIndex = dMax.getMonth();
+            document.getElementById('d2').selectedIndex = dMax.getDate() - 1;
+            document.getElementById('h2').selectedIndex = dMax.getHours();
+            document.getElementById('y2').selectedIndex = currentYear - dMax.getFullYear();
+
+            document.getElementById('dlgQueryQuery').onclick = function () {
                doQuery(this);
             }.bind(this);
 
             dlgShow("dlgQuery");
+
+         } else if (b === "&lt;&lt;") {
+
+            // go back to last data
+            // ====> K.O. : please add code here <====
+            //let scale = mhg.tMax - mhg.tMin
+            //mhg.tMax = ??? add code here ??? + scale / 5;
+            //mhg.tMin = mhg.tMax - scale;
+            //mhg.scroll = false;
+            //mhg.loadOldData();
+            dlgAlert("Not yet implemented");
+
+         } else if (b === "&lt;&lt;&lt;") {
+
+            // go back to last data for all variables
+            // ====> K.O. : please add code here <====
+            //let scale = mhg.tMax - mhg.tMin
+            //mhg.tMax = ??? add code here ??? + scale / 5;
+            //mhg.tMin = mhg.tMax - scale;
+            //mhg.scroll = false;
+            //mhg.loadOldData();
+            dlgAlert("Not yet implemented");
+
          } else {
+
             mhg.tMax = new Date() / 1000;
             mhg.tMin = mhg.tMax - timeToSec(b);
             mhg.scroll = true;
@@ -690,19 +515,70 @@ MhistoryGraph.prototype.loadInitialData = function () {
          table.appendChild(row);
    }, this);
 
-   if (this.odb["Buttons"].length % 2 === 1)
+   if (buttons.length % 2 === 1)
       table.appendChild(row);
 
    this.intSelector.appendChild(table);
    document.body.appendChild(this.intSelector);
 
-   this.tMinRequested = this.lastTimeStamp - this.tScale * 2;
+   // download selector
+   this.downloadSelector = document.createElement("div");
+   this.downloadSelector.id = "intSel";
+   this.downloadSelector.style.display = "none";
+   this.downloadSelector.style.position = "absolute";
+   this.downloadSelector.className = "mtable";
+   this.downloadSelector.style.borderRadius = "0";
+   this.downloadSelector.style.border = "2px solid #808080";
+   this.downloadSelector.style.margin = "0";
+   this.downloadSelector.style.padding = "0";
+
+   this.downloadSelector.style.left = "100px";
+   this.downloadSelector.style.top = "100px";
+
+   table = document.createElement("table");
+   let mhg = this;
+
+   row = document.createElement("tr");
+   cell = document.createElement("td");
+   link = document.createElement("a");
+   link.href = "#";
+   link.innerHTML = "CSV";
+   link.title = "Download data in Comma Separated Value format";
+   link.onclick = function () {
+      mhg.downloadSelector.style.display = "none";
+      mhg.download("CSV");
+      return false;
+   }.bind(this);
+   cell.appendChild(link);
+   row.appendChild(cell);
+   table.appendChild(row);
+
+   row = document.createElement("tr");
+   cell = document.createElement("td");
+   link = document.createElement("a");
+   link.href = "#";
+   link.innerHTML = "PNG";
+   link.title = "Download image in PNG format";
+   link.onclick = function () {
+      mhg.downloadSelector.style.display = "none";
+      this.download("PNG");
+      return false;
+   }.bind(this);
+   cell.appendChild(link);
+   row.appendChild(cell);
+   table.appendChild(row);
+
+   this.downloadSelector.appendChild(table);
+   document.body.appendChild(this.downloadSelector);
+
+   // load initial data
+   this.tMinRequested = this.tMin - this.tScale; // look one window ahead in past
    this.pendingUpdates++;
    this.parentDiv.style.cursor = "progress";
    mjsonrpc_call("hs_read_arraybuffer",
       {
-         "start_time": this.tMinRequested,
-         "end_time": this.lastTimeStamp,
+         "start_time": Math.floor(this.tMinRequested),
+         "end_time": Math.floor(this.lastTimeStamp),
          "events": this.events,
          "tags": this.tags,
          "index": this.index
@@ -714,9 +590,10 @@ MhistoryGraph.prototype.loadInitialData = function () {
             this.parentDiv.style.cursor = "default";
 
          this.receiveData(rpc);
+         this.redraw();
 
          if (this.updateTimer === undefined)
-            this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
+            this.updateTimer = window.setTimeout(this.update.bind(this), 60000);
          if (this.scrollTimer === undefined)
             this.scrollTimer = window.setTimeout(this.scrollRedraw.bind(this), 100);
 
@@ -742,8 +619,8 @@ MhistoryGraph.prototype.loadOldData = function () {
       this.parentDiv.style.cursor = "progress";
       mjsonrpc_call("hs_read_arraybuffer",
          {
-            "start_time": this.tMinRequested,
-            "end_time": oldTMinRequestested,
+            "start_time": Math.floor(this.tMinRequested),
+            "end_time": Math.floor(oldTMinRequestested),
             "events": this.events,
             "tags": this.tags,
             "index": this.index
@@ -803,7 +680,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          }
       }
 
-   } else if (t0 < this.data[0].time[0]) {
+   } else if (this.data[0].time.length === 0 || t0 < this.data[0].time[0]) {
 
       // add data to the left
       for (let index = 0; index < nVars; index++) {
@@ -830,6 +707,10 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
             for (let j = 0; j < nData; j++) {
                let v = array[i--];
                let t = array[i--];
+               if (this.data[index].time.length === 0) {
+                  this.data[index].time.push(t);
+                  this.data[index].value.push(v);
+               }
                if (t < this.data[index].time[0]) {
                   this.data[index].time.unshift(t);
                   this.data[index].value.unshift(v);
@@ -888,8 +769,8 @@ MhistoryGraph.prototype.update = function () {
 
    mjsonrpc_call("hs_read_arraybuffer",
       {
-         "start_time": this.lastTimeStamp,
-         "end_time": t,
+         "start_time": Math.floor(this.lastTimeStamp),
+         "end_time": Math.floor(t),
          "events": this.events,
          "tags": this.tags,
          "index": this.index
@@ -1122,7 +1003,6 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             // check if inside label area
             if (this.showLabels) {
                if (e.offsetX > this.x1 && e.offsetX < this.x1 + 25 + this.variablesWidth + 7) {
-                  console.log((e.offsetY - 30) / 17);
                   let i = Math.floor((e.offsetY - 30) / 17);
                   if (i < this.data.length) {
                      if (this.solo.active && this.solo.index === i) {
@@ -1330,17 +1210,6 @@ MhistoryGraph.prototype.draw = function () {
       return;
    }
 
-   if (this.data[0].time === undefined || this.data[0].time.length === 0) {
-      ctx.lineWidth = 1;
-      ctx.font = "14px sans-serif";
-      ctx.strokeStyle = "#808080";
-      ctx.fillStyle = "#808080";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("No data available", this.width / 2, this.height / 2);
-      return;
-   }
-
    this.findMinMax();
 
    ctx.lineWidth = 1;
@@ -1355,16 +1224,6 @@ MhistoryGraph.prototype.draw = function () {
 
    let axisLabelWidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35,
       -4, -7, -10, -12, 0, this.yMin, this.yMax, 0, false);
-
-   this.variablesWidth = 0;
-   this.odb["Variables"].forEach((v, i) => {
-      if (this.odb.Label[i] !== "")
-         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(this.odb.Label[i]).width);
-      else
-         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(v.substr(v.indexOf(':') + 1)).width);
-   });
-   this.variablesWidth += ctx.measureText("0").width * (this.yPrecision + 2);
-   this.variablesHeight = this.odb["Variables"].length * 17 + 7;
 
    this.x1 = axisLabelWidth + 15;
    this.y1 = this.height - 25;
@@ -1400,6 +1259,16 @@ MhistoryGraph.prototype.draw = function () {
       this.yPrecision = Math.max(5, Math.ceil(Math.log(Math.abs(this.yMin)) / Math.log(10)) + 3);
    else
       this.yPrecision = Math.max(5, Math.ceil(-Math.log(Math.abs(1 - this.yMax / this.yMin)) / Math.log(10)) + 3);
+
+   this.variablesWidth = 0;
+   this.odb["Variables"].forEach((v, i) => {
+      if (this.odb.Label[i] !== "")
+         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(this.odb.Label[i]).width);
+      else
+         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(v.substr(v.indexOf(':') + 1)).width);
+   });
+   this.variablesWidth += ctx.measureText("0").width * (this.yPrecision + 2);
+   this.variablesHeight = this.odb["Variables"].length * 17 + 7;
 
    ctx.save();
    ctx.beginPath();
@@ -1507,13 +1376,13 @@ MhistoryGraph.prototype.draw = function () {
                   ctx.fillStyle = "#808080";
                   ctx.textAlign = "right";
                   ctx.textBaseline = "top";
-                  ctx.fillText(this.v[di+1][i], this.x[di][i]-5, this.y2+3);
+                  ctx.fillText(this.v[di + 1][i], this.x[di][i] - 5, this.y2 + 3);
                } else if (this.v[di][i] === 3) {
                   ctx.strokeStyle = "#00A000";
                   ctx.fillStyle = "#808080";
                   ctx.textAlign = "left";
                   ctx.textBaseline = "top";
-                  ctx.fillText(this.v[di+1][i], this.x[di][i]+3, this.y2+3);
+                  ctx.fillText(this.v[di + 1][i], this.x[di][i] + 3, this.y2 + 3);
                } else {
                   ctx.strokeStyle = "#F9A600";
                }
@@ -1682,6 +1551,23 @@ MhistoryGraph.prototype.draw = function () {
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       ctx.fillText(str, this.x1 + 10, this.y1 - 13);
+   }
+
+   // "empty window" notice
+   if (this.data[0].time === undefined || this.data[0].time.length === 0) {
+      ctx.font = "16px sans-serif";
+      let str = "No data available";
+      ctx.strokeStyle = "#404040";
+      ctx.fillStyle = "#F0F0F0";
+      let w = ctx.measureText(str).width + 10;
+      let h = 16 + 10;
+      ctx.fillRect((this.x1 + this.x2) / 2 - w / 2, (this.y1 + this.y2) / 2 - h / 2, w, h);
+      ctx.strokeRect((this.x1 + this.x2) / 2 - w / 2, (this.y1 + this.y2) / 2 - h / 2, w, h);
+      ctx.fillStyle = "#404040";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(str, (this.x1 + this.x2) / 2, (this.y1 + this.y2) / 2);
+      ctx.font = "14px sans-serif";
    }
 
    // buttons
@@ -2354,3 +2240,79 @@ MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, maj
    } while (1);
 };
 
+MhistoryGraph.prototype.download = function (mode) {
+
+   let leftDate = new Date(this.tMin * 1000);
+   let rightDate = new Date(this.tMax * 1000);
+   let filename = this.group + "-" + this.panel + "-" +
+      leftDate.getFullYear() +
+      ("0" + leftDate.getMonth() + 1).slice(-2) +
+      ("0" + leftDate.getDate()).slice(-2) + "-" +
+      ("0" + leftDate.getHours()).slice(-2) +
+      ("0" + leftDate.getMinutes()).slice(-2) +
+      ("0" + leftDate.getSeconds()).slice(-2) + "-" +
+      rightDate.getFullYear() +
+      ("0" + rightDate.getMonth() + 1).slice(-2) +
+      ("0" + rightDate.getDate()).slice(-2) + "-" +
+      ("0" + rightDate.getHours()).slice(-2) +
+      ("0" + rightDate.getMinutes()).slice(-2) +
+      ("0" + rightDate.getSeconds()).slice(-2);
+
+   // use trick from FileSaver.js
+   let a = document.getElementById('downloadHook');
+   if (a === null) {
+      a = document.createElement("a");
+      a.style.display = "none";
+      a.id = "downloadHook";
+      document.body.appendChild(a);
+   }
+
+   if (mode === "CSV") {
+      filename += ".csv";
+
+      let data = "Time,";
+      this.odb["Variables"].forEach(v => {
+         data += v + ",";
+      });
+      data = data.slice(0, -1);
+      data += '\n';
+
+      for (let i = 0; i < this.data[0].time.length; i++) {
+
+         let l = "";
+         if (this.data[0].time[i] > this.tMin && this.data[0].time[i] < this.tMax) {
+            l += this.data[0].time[i] + ",";
+            for (let di = 0; di < this.odb["Variables"].length; di++)
+               l += this.data[di].value[i] + ",";
+            l = l.slice(0, -1);
+            l += '\n';
+            data += l;
+         }
+
+      }
+
+      let blob = new Blob([data], {type: "text/csv"});
+      let url = window.URL.createObjectURL(blob);
+
+      a.href = url;
+      a.download = filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      dlgAlert("Data downloaded to '" + filename + "'");
+
+   } else if (mode === "PNG") {
+      filename += ".png";
+
+      this.canvas.toBlob(function (blob) {
+         let url = window.URL.createObjectURL(blob);
+
+         a.href = url;
+         a.download = filename;
+         a.click();
+         window.URL.revokeObjectURL(url);
+         dlgAlert("Image downloaded to '" + filename + "'");
+
+      }, 'image/png');
+   }
+
+};
