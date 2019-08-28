@@ -537,6 +537,7 @@ CMAKEGREPFLAGS+= -e ^Scanning
 CMAKEGREPFLAGS+= -e cmake_link_script
 CMAKEGREPFLAGS+= -e cmake_progress_start
 CMAKEGREPFLAGS+= -e cmake_clean_target
+CMAKEGREPFLAGS+= -e build.make
 #CMAKEGREPFLAGS+= -e c++
 #CMAKEGREPFLAGS+= -e Building
 
