@@ -211,11 +211,8 @@ function MhistoryGraph(divElement) { // Constructor
       }
    ];
 
-   // help dialog
-   dlgCreate('dlgHelp', 'dlgHistHelp.html');
-
-   // query dialog
-   dlgCreate('dlgQuery', 'dlgHistQuery.html');
+   // load dialogs
+   dlgLoad('dlgHistory.html');
 
    this.button.forEach(b => {
       b.img = new Image();
@@ -417,6 +414,10 @@ MhistoryGraph.prototype.loadInitialData = function () {
    let cell;
    let link;
    let buttons = this.odb["Buttons"];
+   if (buttons === undefined) {
+      buttons = [];
+      buttons.push("10m", "1h", "3h", "12h", "24h", "3d", "7d");
+   }
    buttons.push("A&rarr;B");
    buttons.push("&lt;&lt;&lt;");
    buttons.push("&lt;&lt;");
@@ -514,7 +515,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
          table.appendChild(row);
    }, this);
 
-   if (this.odb["Buttons"].length % 2 === 1)
+   if (buttons.length % 2 === 1)
       table.appendChild(row);
 
    this.intSelector.appendChild(table);

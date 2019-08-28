@@ -26,6 +26,28 @@
       return vars;
    }
 
+   function panelCreate() {
+      let selGroup = document.getElementById('dlgNewSelGroup').value;
+      let newGroup = document.getElementById('dlgNewNewGroup').value;
+      let panelName = document.getElementById('dlgNewPanelName').value;
+      if (panelName === "") {
+         dlgAlert('Empty panel name is not allowed');
+         return;
+      }
+      if (newGroup === "")
+         newGroup = selGroup;
+
+      let url = window.location.href;
+      if (url.indexOf("?cmd") > 0)
+         url = url.substr(0, url.indexOf("?cmd"));
+      url += "?cmd=oldhistory&hcmd=createnew&new_group=" + newGroup +
+      "&group=" + selGroup + "&panel=" + panelName;
+
+      url += "&redir=" + encodeURIComponent("?cmd=history&group="+newGroup+"&panel="+panelName);
+
+      window.location.href = url;
+   }
+
    function init() {
 
       mjsonrpc_db_copy(["/History/Display"]).then(function (rpc) {
@@ -44,11 +66,25 @@
             // create selector table
             let d = document.getElementById("hist");
 
+            dlgLoad('dlgHistory.html').then(
+               () => {
+                  let sgroup = document.getElementById('dlgNewSelGroup');
+                  Object.keys(historyDisplay).forEach(key => {
+                     let o = document.createElement("option");
+                     o.text = key;
+                     sgroup.add(o);
+                  });
+
+               },
+               () => {
+               }
+            );
+
             let h =
                "<table class=\"mtable\" id=\"overallTable\">\n" +
                "    <tr><th colspan=\"2\" class=\"mtableheader\">History</th></tr>\n" +
-               "    <tr><td colspan=2><input type=\"button\" name=\"New\" value=\"New\" " +
-               "        onClick=\"window.location.href='?cmd=oldhistory&hcmd=New'\"></td></tr>\n" +
+               "    <tr><td colspan=2><input type=\"button\" class=\"mbutton\" name=\"New\" value=\"New\" " +
+               "        onClick=\"dlgShow('dlgNew')\"></td></tr>\n" +
                "    <tr><td colspan=2 style=\"text-align:center;\"><b>Please select panel:</b></td></tr>\n" +
                "    <tr><td colspan=2 class=\"titleCell\"><a href=\"" + baseURL + "&group=All\">ALL</a>\n" +
                "</td></tr>\n";
