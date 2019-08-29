@@ -628,7 +628,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
          this.redraw();
 
          if (this.updateTimer === undefined)
-            this.updateTimer = window.setTimeout(this.update.bind(this), 60000);
+            this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
          if (this.scrollTimer === undefined)
             this.scrollTimer = window.setTimeout(this.scrollRedraw.bind(this), 100);
 
@@ -1094,20 +1094,30 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
          if ((this.tMax - dtMax) - (this.tMin + dtMin) > 10 && e.deltaY < 0) {
             // zoom in
-            this.tMin += dtMin;
-            this.tMax -= dtMax;
+            if (this.scroll) {
+               this.tMin += dtMin;
+            } else {
+               this.tMin += dtMin;
+               this.tMax -= dtMax;
+            }
+
+            this.redraw();
          }
          if ((this.tMax + dtMax) - (this.tMin - dtMin) < 3600 * 24 * 365 && e.deltaY > 0) {
             // zoom out
-            this.tMin -= dtMin;
-            this.tMax += dtMax;
+            if (this.scroll) {
+               this.tMin -= dtMin;
+            } else {
+               this.tMin -= dtMin;
+               this.tMax += dtMax;
+            }
+
+            this.loadOldData();
          }
       } else
          return;
 
       this.marker.active = false;
-      this.scroll = false;
-      this.loadOldData();
 
       e.preventDefault();
    }
