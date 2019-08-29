@@ -628,7 +628,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
          this.redraw();
 
          if (this.updateTimer === undefined)
-            this.updateTimer = window.setTimeout(this.update.bind(this), 60000);
+            this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
          if (this.scrollTimer === undefined)
             this.scrollTimer = window.setTimeout(this.scrollRedraw.bind(this), 100);
 
