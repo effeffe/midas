@@ -474,13 +474,17 @@ function seq_refresh(seq)
       } else
       l.style.display = 'none';
    }
+
+   //console.log("message [" + message + "] last [" + last_msg + "]");
    
    if (message) {
       if (message != last_msg) {
          last_msg = message;
          if (message_wait) {
+            //console.log("show dlgMessage: message [" + message + "] last [" + last_msg + "]");
             dlgMessage("Message", message, true, false, seq_msg_callback);
          } else {
+            //console.log("show dlgAlert: message [" + message + "] last [" + last_msg + "]");
             dlgAlert(message);
          }
       }

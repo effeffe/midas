@@ -949,6 +949,8 @@ void sequencer()
    if (seq.current_line_number > last_line) {
       size = sizeof(seq);
       db_get_record(hDB, hKeySeq, &seq, &size, 0);
+      seq.current_line_number = 0;
+      seq.scurrent_line_number = 0;
       seq.running = FALSE;
       seq.finished = TRUE;
       db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
