@@ -921,10 +921,11 @@ void sequencer()
    db_find_key(hDB, 0, "/Sequencer/State", &hKeySeq);
    if (!hKeySeq)
       return;
-   
-   cm_msg_retrieve(1, str, sizeof(str));
-   str[19] = 0;
-   strcpy(seq.last_msg, str+11);
+
+   // NB seq.last_msg is not used anywhere.
+   //cm_msg_retrieve(1, str, sizeof(str));
+   //str[19] = 0;
+   //strcpy(seq.last_msg, str+11);
    
    pr = mxml_find_node(pnseq, "RunSequence");
    if (!pr) {
@@ -938,6 +939,9 @@ void sequencer()
    if (seq.stack_index > 0 && seq.current_line_number == seq.subroutine_end_line[seq.stack_index-1]) {
       seq.subroutine_end_line[seq.stack_index-1] = 0;
       seq.current_line_number = seq.subroutine_return_line[seq.stack_index-1];
+      seq.subroutine_return_line[seq.stack_index-1] = 0;
+      seq.subroutine_call_line[seq.stack_index-1] = 0;
+      seq.ssubroutine_call_line[seq.stack_index-1] = 0;
       seq.stack_index --;
    }
 

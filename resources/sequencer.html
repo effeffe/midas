@@ -313,7 +313,6 @@ function seq_refresh(seq)
    var finished = seq.finished;
    var paused = seq.paused;
    var start_time = seq['start time'];
-   var msg = seq['last msg'];
    
    if (seq.error) {
       set_if_changed("msg_error", seq.error);
