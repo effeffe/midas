@@ -199,7 +199,7 @@
 
 <script>
 var sshow_all_lines = false;
-var last_msg = null;
+var last_msg = "";
 
 function set_if_changed(id, value)
 {
@@ -282,12 +282,27 @@ function pause()
    dlgConfirm("Are you sure to pause the script?", seq_pause);
 }
 
+function seq_msg_callback()
+{
+   //console.log("seq_msg_callback!\n");
+   //ODBSet('/Sequencer/State/Message', '');
+   mjsonrpc_db_paste(["/sequencer/state/message"], [""]).then(function (rpc) {
+      //console.log("seq_msg_callback rpc done!\n");
+      update();
+   }).catch(function (error) {
+      document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+      dlgShow('dlgError');
+      //mjsonrpc_error_alert(error);
+   });
+}
+
 function seq_refresh(seq)
 {
    var scurrent_line = seq['scurrent line number'];
    var ssubroutine_call_line = seq['ssubroutine call line'];
    var serror_line = seq['serror line'];
    var message = seq.message;
+   var message_wait = seq['message wait'];
    var wait_value = seq['wait value'];
    var wait_limit = seq['wait limit'];
    var wait_type = seq['wait type'];
@@ -461,16 +476,21 @@ function seq_refresh(seq)
       l.style.display = 'none';
    }
    
-   if (message != '') {
-      alert(message);
-      message = '';
-      ODBSet('/Sequencer/State/Message', '');
-      window.location.reload();
+   if (message) {
+      if (message != last_msg) {
+         last_msg = message;
+         if (message_wait) {
+            dlgMessage("Message", message, true, false, seq_msg_callback);
+         } else {
+            dlgAlert(message);
+         }
+      }
+   } else {
+      last_msg = "";
    }
-   
-   if (finished == 'y' || serror_line > 0) {
-      window.location.reload();
-   }
+
+   //ODBSet('/Sequencer/State/Message', '');
+   //window.location.reload();
 }
 
 function seq_add_line(root, i, s)
@@ -514,39 +534,17 @@ function sshow_lines()
    update();
 }
 
-function load()
-{
-   if (document.getElementById('fs').selectedIndex == -1)
-      dlgAlert('Please select a file to load');
-   else {
-      var o = document.createElement('input');
-      o.type = 'hidden'; o.name='xcmd'; o.value='Load script file';
-      document.form1.appendChild(o);
-      document.form1.submit();
-   }
-}
-
-   function write_alarm_system_active(flag, value) {
-      if (flag) {
-         mjsonrpc_db_paste(["/alarms/alarm system active"], [value]).then(function (rpc) {
-            update();
-         }).catch(function (error) {
-            document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
-            dlgShow('dlgError');
-            //mjsonrpc_error_alert(error);
-         });
-      }
-   }
-
-   function enable_alarm_system() {
-      dlgConfirm("Please confirm: Enable the MIDAS alarm system?",
-         write_alarm_system_active, true);
-   }
-
-   function disable_alarm_system() {
-      dlgConfirm("Please confirm: Disable the MIDAS alarm system?",
-         write_alarm_system_active, false);
-   }
+//function load()
+//{
+//   if (document.getElementById('fs').selectedIndex == -1)
+//      dlgAlert('Please select a file to load');
+//   else {
+//      var o = document.createElement('input');
+//      o.type = 'hidden'; o.name='xcmd'; o.value='Load script file';
+//      document.form1.appendChild(o);
+//      document.form1.submit();
+//   }
+//}
 </script>
 
 <script>

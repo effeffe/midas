@@ -880,6 +880,8 @@ static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
       cm_msg(MERROR, "seq_watch", "Cannot get /Sequencer/State from ODB, db_get_record1() status %d", status);
       return;
    }
+
+   //printf("seq.message [%s] seq.message_wait %d\n", seq.message, seq.message_wait);
    
    if (seq.new_file) {
       strlcpy(str, seq.path, sizeof(str));
@@ -1611,15 +1613,21 @@ void sequencer()
    else if (equal_ustring(mxml_get_name(pn), "Message")) {
       if (!eval_var(mxml_get_value(pn), value, sizeof(value)))
          return;
-      if (!seq.message_wait)
+      if (seq.message_wait) {
+         if (seq.message[0] != 0)
+            return;
+         seq.message_wait = false;
+      } else {
          strlcpy(seq.message, value, sizeof(seq.message));
-      if (mxml_get_attribute(pn, "wait")) {
-         if (atoi(mxml_get_attribute(pn, "wait")) == 1) {
-            seq.message_wait = TRUE;
-            db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
-            if (seq.message[0] != 0)
-               return; // don't increment line number until message is cleared from within browser
-            seq.message_wait = FALSE;
+         if (mxml_get_attribute(pn, "wait")) {
+            if (atoi(mxml_get_attribute(pn, "wait")) == 1) {
+               seq.message_wait = TRUE;
+               //printf("set_record: message [%s] message_wait %d\n", seq.message, seq.message_wait);
+               db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
+               if (seq.message[0] != 0)
+                  return; // don't increment line number until message is cleared from within browser
+               seq.message_wait = FALSE;
+            }
          }
       }
       seq.current_line_number = mxml_get_line_number_end(pn)+1;
