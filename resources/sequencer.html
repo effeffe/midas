@@ -20,8 +20,8 @@
       <button class="mbutton" id='seq_load_script' onclick='xxxreset_all_alarms()'>Load Script</button>
       <button class="mbutton" id='seq_edit_script' onclick='xxxdisable_alarm_system(false)'>Edit Script</button>
       <button class="mbutton" id='seq_start_script' onclick='start_script()'>Start</button>
-      <button class="mbutton" id='seq_stop_after_current_run' onclick='xxxdisable_alarm_system(false)'>Stop after current run</button>
-      <button class="mbutton" id='seq_cancel_stop_after_current_run' onclick='xxxdisable_alarm_system(false)'>Cancel 'Stop after current run'</button>
+      <button class="mbutton" id='seq_stop_after_current_run' onclick='seq_set_stop_after_run(true)'>Stop after current run</button>
+      <button class="mbutton" id='seq_cancel_stop_after_current_run' onclick='seq_set_stop_after_run(false)'>Cancel 'Stop after current run'</button>
       <button class="mbutton" id='seq_stop_immediately' onclick='stop_immediately()'>Stop immediately</button>
       <button class="mbutton" id='seq_pause' onclick='pause()'>Pause</button>
       <button class="mbutton" id='seq_resume' onclick='seq_resume()'>Resume</button>
@@ -198,10 +198,8 @@
 </div>
 
 <script>
-var show_all_lines = false;
 var sshow_all_lines = false;
 var last_msg = null;
-var last_paused = null;
 
 function set_if_changed(id, value)
 {
@@ -230,9 +228,6 @@ function start_script()
 
 function seq_set_paused(paused)
 {
-   //db_find_key(hDB, 0, "/Sequencer/State", &hKey);
-   //seq.paused = paused;
-   //db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
    mjsonrpc_db_paste(["/sequencer/state/paused"], [paused]).then(function (rpc) {
       update();
    }).catch(function (error) {
@@ -247,6 +242,13 @@ function seq_set_stop_after_run(stop_after_run)
    //db_find_key(hDB, 0, "/Sequencer/State", &hKey);
    //seq.stop_after_run = stop_after_run;
    //db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+   mjsonrpc_db_paste(["/sequencer/state/stop after run"], [stop_after_run]).then(function (rpc) {
+      update();
+   }).catch(function (error) {
+      document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+      dlgShow('dlgError');
+      //mjsonrpc_error_alert(error);
+   });
 }
 
 function seq_stop_immediately(flag)
@@ -282,11 +284,8 @@ function pause()
 
 function seq_refresh(seq)
 {
-   var current_line = seq['current line number'];
    var scurrent_line = seq['scurrent line number'];
-   var subroutine_call_line = seq['subroutine call line'];
    var ssubroutine_call_line = seq['ssubroutine call line'];
-   var error_line = seq['error line'];
    var serror_line = seq['serror line'];
    var message = seq.message;
    var wait_value = seq['wait value'];
@@ -294,9 +293,7 @@ function seq_refresh(seq)
    var wait_type = seq['wait type'];
    var loop_n = seq['loop n'];
    var loop_counter = seq['loop counter'];
-   var loop_start_line = seq['loop start line'];
    var sloop_start_line = seq['sloop start line'];
-   var loop_end_line = seq['loop end line'];
    var sloop_end_line = seq['sloop end line'];
    var finished = seq.finished;
    var paused = seq.paused;
@@ -404,59 +401,6 @@ function seq_refresh(seq)
       else
          sline.style.backgroundColor = '#FFFFFF';
    }
-   for (var l=1 ; ; l++) {
-      line = document.getElementById('line'+l);
-      if (line == null) {
-         var last_line = l-1;
-         break;
-      }
-      if (Math.abs(l - current_line) > 10 && !show_all_lines)
-         line.style.display = 'none';
-      else
-         line.style.display = 'inline';
-      if (current_line > 10) {
-         document.getElementById('upperarrow').style.display = 'inline';
-         if (show_all_lines)
-            document.getElementById('upperarrow').style.display = '&#x25BC';
-         else
-            document.getElementById('upperarrow').style.display = '&#x25B2';
-      } else {
-         document.getElementById('upperarrow').style.display = 'none';
-      }
-      if (l == error_line)
-         line.style.backgroundColor = '#FF0000';
-      else if (l == current_line)
-         line.style.backgroundColor = '#80FF80';
-      else if (l == subroutine_call_line[3])
-         line.style.backgroundColor = '#E0FFE0';
-      else if (l == subroutine_call_line[2])
-         line.style.backgroundColor = '#D0FFD0';
-      else if (l == subroutine_call_line[1])
-         line.style.backgroundColor = '#C0FFC0';
-      else if (l == subroutine_call_line[0])
-         line.style.backgroundColor = '#B0FFB0';
-      else if (l >= loop_start_line[3] && l <= loop_end_line[3])
-         line.style.backgroundColor = '#E0E0FF';
-      else if (l >= loop_start_line[2] && l <= loop_end_line[2])
-         line.style.backgroundColor = '#D0D0FF';
-      else if (l >= loop_start_line[1] && l <= loop_end_line[1])
-         line.style.backgroundColor = '#C0C0FF';
-      else if (l >= loop_start_line[0] && l <= loop_end_line[0])
-         line.style.backgroundColor = '#B0B0FF';
-      else
-         line.style.backgroundColor = '#FFFFFF';
-   }
-   
-   if (document.getElementById('lowerarrow')) {
-      if (current_line < last_line-10) {
-         document.getElementById('lowerarrow').style.display = 'inline';
-         if (show_all_lines)
-            document.getElementById('lowerarrow').innerHTML = '&#x25B2';
-         else
-            document.getElementById('lowerarrow').innerHTML = '&#x25BC';
-      } else
-      document.getElementById('lowerarrow').style.display = 'none';
-   }
    
    if (document.getElementById('slowerarrow')) {
       if (scurrent_line < slast_line-10) {
@@ -490,6 +434,7 @@ function seq_refresh(seq)
       else
          wr.style.display = 'table-row';
    }
+
    var rp = document.getElementById('runprgs');
    if (rp != null) {
       var width = Math.round(100.0*wait_value/wait_limit);
@@ -500,7 +445,7 @@ function seq_refresh(seq)
    
    for (var i=0 ; i<4 ; i++) {
       var l = document.getElementById('loop'+i);
-      if (loop_start_line[i] > 0) {
+      if (sloop_start_line[i] > 0) {
          var ll = document.getElementById('loop_label'+i);
          if (loop_n[i] == -1)
             ll.innerHTML = 'Loop:&nbsp['+loop_counter[i]+']';
@@ -523,7 +468,7 @@ function seq_refresh(seq)
       window.location.reload();
    }
    
-   if (finished == 'y' || error_line > 0) {
+   if (finished == 'y' || serror_line > 0) {
       window.location.reload();
    }
 }
@@ -557,16 +502,6 @@ function seq_show_script(lines)
       s += "<br>";
       seq_add_line(e, i, s);
    }
-}
-
-function show_lines()
-{
-   show_all_lines = !show_all_lines;
-   if (show_all_lines)
-      document.getElementById('upperarrow').innerHTML = '&#x25BC';
-   else
-      document.getElementById('upperarrow').innerHTML = '&#x25B2';
-   update();
 }
 
 function sshow_lines()
