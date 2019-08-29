@@ -44,6 +44,9 @@
        <tr id="msg_error_tr">
          <td align="center" class="redLight">Error: <b><span id="msg_error">seq.error</span></b></td>
        </tr>
+       <tr id="msg_seq_not_running">
+         <td align="center" class="redLight">Error: <b>The msequencer program is not running</b></td>
+       </tr>
      </table>
    </div>
 
@@ -163,22 +166,13 @@
          <th class="mtableheader">Messages</th>
        </tr>
        <tr>
-         <td colspan=2>
-           <div id="sequencerMessages" style="font-family:monospace; text-align:left;">
-             <br>
-             cm_msg_retrieve(10, buffer, sizeof(buffer));
-             <div>str</div>
-             <br>
-
-             <script type="text/javascript">
-             var messages = document.getElementById("sequencerMessages");
-             var i = messages.childNodes.length;
-             while (i--) {
-                messages.appendChild(messages.childNodes[i])
-             }
-             </script>
-             <a href="../?cmd=Messages">...</a>
-           </div>
+         <td>
+           <pre id="seq_messages"></pre>
+         </td>
+       </tr>
+       <tr>
+         <td>
+           <a href="?cmd=Messages">...</a>
          </td>
        </tr>
      </table>
@@ -537,6 +531,23 @@ function sshow_lines()
    update();
 }
 
+function show_messages(messages)
+{
+   var m = messages.split("\n");
+   var n = m.length;
+   //console.log("n=" + n);
+   var s = "";
+   for (var i=0; i<n; i++) {
+      if (m[i].length < 1)
+         continue;
+      s += m[i];
+      s += "\n";
+      console.log("m [" + m[i] + "]");
+   }
+
+   set_if_changed("seq_messages", s);
+}
+
 //function load()
 //{
 //   if (document.getElementById('fs').selectedIndex == -1)
@@ -556,8 +567,11 @@ function sshow_lines()
    function callback(rpc) {
       //document.getElementById('updateStatus').innerHTML = "RWP_";
 
-      var seq_state = rpc.result.data[0];
-      var seq_script = rpc.result.data[1];
+      var seq_state = rpc[0].result.data[0];
+      var seq_script = rpc[0].result.data[1];
+
+      //console.log("rpc1: " + JSON.stringify(rpc[1].result));
+      //console.log("rpc2: " + JSON.stringify(rpc[2].result));
 
       if (seq_script && seq_script.lines) {
          seq_show_script(seq_script.lines);
@@ -567,13 +581,31 @@ function sshow_lines()
          seq_refresh(seq_state);
       }
 
+      if (rpc[1] && rpc[1].result && rpc[1].result.status) {
+         if (rpc[1].result.status == 1) {
+            mhttpd_hide("msg_seq_not_running");
+         } else {
+            mhttpd_unhide("msg_seq_not_running");
+         }
+      }
+
+      if (rpc[2] && rpc[2].result && rpc[2].result.messages) {
+         var messages = rpc[2].result.messages;
+         show_messages(messages);
+      }
+
       document.getElementById('updateStatus').innerHTML = "";
    }
 
    function update() {
       //document.getElementById('updateStatus').innerHTML = "R___";
       var paths = ["/Sequencer/State", "/Sequencer/Script"];
-      mjsonrpc_db_get_values(paths).then(function (rpc) {
+      var req = [
+         mjsonrpc_make_request("db_get_values", {"paths":paths}),
+         mjsonrpc_make_request("cm_exist", {"name":"sequencer"}),
+         mjsonrpc_make_request("cm_msg_retrieve", "{\"min_messages\":10}")
+         ];
+      mjsonrpc_send_request(req).then(function (rpc) {
          callback(rpc);
       }).catch(function (error) {
          //mjsonrpc_error_alert(error);
