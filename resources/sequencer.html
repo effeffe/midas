@@ -17,8 +17,8 @@
 
 <div id="mmain">
    <div align="center" style="margin-top:10px;">
-      <button class="mbutton" id='seq_load_script' onclick='xxxreset_all_alarms()'>Load Script</button>
-      <button class="mbutton" id='seq_edit_script' onclick='xxxdisable_alarm_system(false)'>Edit Script</button>
+      <button class="mbutton" id='seq_load_script' onclick='load_script()'>Load Script</button>
+      <button class="mbutton" id='seq_edit_script' onclick='edit_script()'>Edit Script</button>
       <button class="mbutton" id='seq_start_script' onclick='start_script()'>Start</button>
       <button class="mbutton" id='seq_stop_after_current_run' onclick='seq_set_stop_after_run(true)'>Stop after current run</button>
       <button class="mbutton" id='seq_cancel_stop_after_current_run' onclick='seq_set_stop_after_run(false)'>Cancel 'Stop after current run'</button>
@@ -288,6 +288,18 @@ function seq_msg_callback()
       dlgShow('dlgError');
       //mjsonrpc_error_alert(error);
    });
+}
+
+function load_script()
+{
+   window.location.href='?cmd=Load+Script';
+   // DOES NOT RETURN
+}
+
+function edit_script()
+{
+   window.location.href='?cmd=Edit+Script';
+   // DOES NOT RETURN
 }
 
 function seq_refresh(seq)

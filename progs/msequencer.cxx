@@ -1626,23 +1626,41 @@ void sequencer()
    else if (equal_ustring(mxml_get_name(pn), "Message")) {
       if (!eval_var(mxml_get_value(pn), value, sizeof(value)))
          return;
-      if (seq.message_wait) {
-         if (seq.message[0] != 0)
-            return;
-         seq.message_wait = false;
-      } else {
+
+      const char* wait_attr = mxml_get_attribute(pn, "wait");
+      bool wait = false;
+      if (wait_attr)
+         wait = (atoi(wait_attr) == 1);
+
+      if (!wait) {
+         // message with no wait: set seq.message and move on. we do not care if web page clears it
          strlcpy(seq.message, value, sizeof(seq.message));
-         if (mxml_get_attribute(pn, "wait")) {
-            if (atoi(mxml_get_attribute(pn, "wait")) == 1) {
-               seq.message_wait = TRUE;
-               //printf("set_record: message [%s] message_wait %d\n", seq.message, seq.message_wait);
-               db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
-               if (seq.message[0] != 0)
-                  return; // don't increment line number until message is cleared from within browser
-               seq.message_wait = FALSE;
+         seq.message_wait = FALSE;
+         db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
+      } else {
+         // message with wait
+
+         // if message_wait not set, we are here for the first time
+         if (!seq.message_wait) {
+            strlcpy(seq.message, value, sizeof(seq.message));
+            seq.message_wait = TRUE;
+            db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
+            // wait
+            return;
+         } else {
+            // message_wait is set, we have been here before
+
+            // if web page did not clear the message, keep waiting
+            if (seq.message[0] != 0) {
+               // wait
+               return;
             }
+
+            // web page cleared the message, we are done with waiting
+            seq.message_wait = false;
          }
       }
+
       seq.current_line_number = mxml_get_line_number_end(pn)+1;
    }
 
@@ -1732,6 +1750,7 @@ void sequencer()
    seq.finished = seq1.finished;
    seq.paused = seq1.paused;
    seq.stop_after_run = seq1.stop_after_run;
+   strlcpy(seq.message, seq1.message, sizeof(seq.message));
    
    /* update current line number */
    db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);

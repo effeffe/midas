@@ -7,6 +7,9 @@ PARAM test_param
 PARAM test_bool, bool
 PARAM test_opt, "Test option selection", opt1,opt2,opt3
 
+CAT message,"Parameters: "," num_runs=",$num_runs," test_param=",$test_param," test_bool=",$test_bool," test_opt=",$test_opt
+MESSAGE $message, 1
+
 CALL init
 LOOP 3
   TRANSITION start

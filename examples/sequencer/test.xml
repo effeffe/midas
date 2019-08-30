@@ -6,19 +6,21 @@
 <Param l="6" name="test_param" />
 <Param l="7" name="test_bool" type="bool" />
 <Param l="8" name="test_opt" comment="Test option selection" options="opt1,opt2,opt3" />
-<Call l="10" name="init"></Call>
-<Loop l="11" le="16" n="3">
-<Transition l="12">start</Transition>
-<Wait l="13" for="seconds">10</Wait>
-<Transition l="14">stop</Transition>
-<Wait l="15" for="seconds">3</Wait>
+<Cat l="10" name="message">"Parameters: "," num_runs=","$num_runs"," test_param=","$test_param"," test_bool=","$test_bool"," test_opt=","$test_opt"</Cat>
+<Message l="11" wait="1">$message</Message>
+<Call l="13" name="init"></Call>
+<Loop l="14" le="19" n="3">
+<Transition l="15">start</Transition>
+<Wait l="16" for="seconds">10</Wait>
+<Transition l="17">stop</Transition>
+<Wait l="18" for="seconds">3</Wait>
 </Loop>
 
-<Subroutine l="18" name="init">
-<Message l="19">Initialization started</Message>
-<Loop l="20" le="22" n="4">
-<Wait l="21" for="seconds">3</Wait>
+<Subroutine l="21" name="init">
+<Message l="22">Initialization started</Message>
+<Loop l="23" le="25" n="4">
+<Wait l="24" for="seconds">3</Wait>
 </Loop>
-<Message l="23" wait="1">Initialization completed</Message>
+<Message l="26" wait="1">Initialization completed</Message>
 </Subroutine>
 </RunSequence>

@@ -14319,8 +14319,9 @@ void seq_start_page(Param* p, Return* r)
             strlcpy(name, mxml_get_attribute(pn, "name"), sizeof(name));
 
             r->rsprintf("<tr><td>%s", name);
-            if (mxml_get_attribute(pn, "comment"))
+            if (mxml_get_attribute(pn, "comment")) {
                r->rsprintf("<br>%s\n", mxml_get_attribute(pn, "comment"));
+            }
 
             size = sizeof(data_str);
             sprintf(str, "/Sequencer/Variables/%s", name);
