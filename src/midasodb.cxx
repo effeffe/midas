@@ -796,7 +796,25 @@ public:
 
    void Delete(const char* odbname, MVOdbError* error)
    {
-      // FIXME: incomplete
+      std::string path = Path(odbname);
+
+      //printf("Delete(%s)\n", path.c_str());
+
+      HNDLE hKey;
+      int status = db_find_key(fDB, 0, path.c_str(), &hKey);
+
+      if (status != DB_SUCCESS) {
+         SetMidasStatus(error, fPrintError, path, "db_find_key", status);
+         return;
+      }
+
+      status = db_delete_key(fDB, hKey, FALSE);
+
+      if (status != DB_SUCCESS) {
+         SetMidasStatus(error, fPrintError, path, "db_delete_key", status);
+         return;
+      }
+
       SetOk(error);
    };
 };
