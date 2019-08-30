@@ -777,6 +777,14 @@ public:
       unsigned num = v.size();
       unsigned length = odb_string_size;
 
+      if (length == 0) {
+         for (unsigned i=0; i<v.size(); i++) {
+            if (v[i].length() > length)
+               length = v[i].length();
+         }
+         length += 1; // for the string terminator NUL character
+      }
+
       char val[length*num];
       memset(val, 0, length*num);
       
