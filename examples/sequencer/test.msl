@@ -4,8 +4,8 @@ RUNDESCRIPTION "Sequencer Test"
 
 PARAM num_runs, "Number of runs"
 PARAM test_param
-PARAM test_bool, "Test bool", bool
-PARAM test_opt, "Test opt", opt1,opt2,opt3
+PARAM test_bool, bool
+PARAM test_opt, "Test option selection", opt1,opt2,opt3
 
 CALL init
 LOOP 3

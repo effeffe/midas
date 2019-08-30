@@ -4,8 +4,8 @@
 <RunDescription l="3">Sequencer Test</RunDescription>
 <Param l="5" name="num_runs" comment="Number of runs" />
 <Param l="6" name="test_param" />
-<Param l="7" name="test_bool" comment="Test bool" options="bool" />
-<Param l="8" name="test_opt" comment="Test opt" options="opt1,opt2,opt3" />
+<Param l="7" name="test_bool" type="bool" />
+<Param l="8" name="test_opt" comment="Test option selection" options="opt1,opt2,opt3" />
 <Call l="10" name="init"></Call>
 <Loop l="11" le="16" n="3">
 <Transition l="12">start</Transition>
