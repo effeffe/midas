@@ -11,6 +11,7 @@
 #include "msystem.h"
 #include "strlcpy.h"
 #include "mxml.h"
+#include "mvodb.h"
 #include "sequencer.h"
 #include <assert.h>
 
@@ -34,6 +35,8 @@ The Midas Sequencer file
 SEQUENCER_STR(sequencer_str);
 SEQUENCER seq;
 PMXML_NODE pnseq = NULL;
+
+MVOdb* gOdb = NULL;
 
 /*------------------------------------------------------------------*/
 
@@ -407,13 +410,13 @@ int eval_condition(const char *condition)
 
 /*------------------------------------------------------------------*/
 
-BOOL msl_parse(HNDLE hDB, const char *filename, const char* xml_filename, char *error, int error_size, int *error_line)
+static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* xml_filename, char *error, int error_size, int *error_line)
 {
    char str[256], *buf, *pl, *pe;
    char list[100][XNAME_LENGTH], list2[100][XNAME_LENGTH], **lines;
    int i, j, n, size, n_lines, endl, line, nest, incl, library;
    std::string xml;
-   
+
    int fhin = open(filename, O_RDONLY | O_TEXT);
    if (fhin < 0) {
       sprintf(error, "Cannot open \"%s\", errno %d (%s)", filename, errno, strerror(errno));
@@ -493,23 +496,14 @@ BOOL msl_parse(HNDLE hDB, const char *filename, const char* xml_filename, char *
       //   printf("line %d: [%s]\n", line, lines[line]);
       //}
       
-      int max_len = 0;
+      std::vector<std::string> slines;
       for (line=0 ; line<n_lines ; line++) {
-         int len = strlen(lines[line]);
-         if (len > max_len) max_len = len;
+         slines.push_back(lines[line]);
       }
 
-      //printf("max_len: %d\n", max_len);
+      odb->WSA("Sequencer/Script/Lines", slines, 0);
 
-      HNDLE hKey;
-      int status = db_find_key(hDB, 0, "/Sequencer/Script/Lines", &hKey);
-      if (status == DB_SUCCESS) {
-         db_set_value(hDB, 0, "/Sequencer/Script/Lines", lines[0], max_len + 1, 1, TID_STRING);
-      }
-      
-      for (line=0 ; line<n_lines ; line++) {
-         db_set_value_index(hDB, 0, "/Sequencer/Script/Lines", lines[line], max_len + 1, line, TID_STRING, FALSE);
-      }
+      odb->Delete("Sequencer/Param");
       
       for (line=0 ; line<n_lines ; line++) {
          n = strbreak(lines[line], list, 100, ", ", FALSE);
@@ -669,15 +663,26 @@ BOOL msl_parse(HNDLE hDB, const char *filename, const char* xml_filename, char *
             if (list[2][0] == 0) {
                fprintf(fout, "<Param l=\"%d\" name=\"%s\" />\n", line+1, list[1]);
                xml += "<Param l=" + qtoString(line+1) + " name=" + q(list[1]) + " />\n";
+               std::string v;
+               odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
             } else if (!list[3][0] && equal_ustring(list[2], "bool")) {
                fprintf(fout, "<Param l=\"%d\" name=\"%s\" type=\"bool\" />\n", line+1, list[1]);
                xml += "<Param l=" + qtoString(line+1) + " name=" + q(list[1]) + " type=\"bool\" />\n";
+               bool v = false;
+               odb->RB((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
             } else if (!list[3][0]) {
                fprintf(fout, "<Param l=\"%d\" name=\"%s\" comment=\"%s\" />\n", line+1, list[1], list[2]);
                xml += "<Param l=" + qtoString(line+1) + " name=" + q(list[1]) + " comment=" + q(list[2]) + " />\n";
+               std::string v;
+               odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+               odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
             } else {
                fprintf(fout, "<Param l=\"%d\" name=\"%s\" comment=\"%s\" options=\"", line+1, list[1], list[2]);
                xml += "<Param l=" + qtoString(line+1) + " name=" + q(list[1]) + " comment=" + q(list[2]) + " options=\"";
+               std::string v;
+               odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+               odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
+               std::vector<std::string> options;
                for (i=3 ; i < 100 && list[i][0] ; i++) {
                   if (i > 3) {
                      fprintf(fout, ",");
@@ -685,9 +690,11 @@ BOOL msl_parse(HNDLE hDB, const char *filename, const char* xml_filename, char *
                   }
                   fprintf(fout, "%s", list[i]);
                   xml += list[i];
+                  options.push_back(list[i]);
                }
                fprintf(fout, "\" />\n");
                xml += "\" />\n";
+               odb->WSA((std::string("Sequencer/Param/Options/") + list[1]).c_str(), options, 0);
             }
             
          } else if (equal_ustring(list[0], "rundescription")) {
@@ -763,7 +770,7 @@ BOOL msl_parse(HNDLE hDB, const char *filename, const char* xml_filename, char *
       }
       fclose(fout);
 
-      db_set_value(hDB, 0, "/Sequencer/Script/XML", xml.c_str(), xml.length() + 1, 1, TID_STRING);
+      odb->WS("Sequencer/Script/XML", xml.c_str());
 
       std::string tmpxml = std::string(xml_filename) + ".odb";
       FILE *fp = fopen(tmpxml.c_str(), "w");
@@ -782,7 +789,7 @@ BOOL msl_parse(HNDLE hDB, const char *filename, const char* xml_filename, char *
 
 /*------------------------------------------------------------------*/
 
-void seq_set_paused(HNDLE hDB, HNDLE hKey, BOOL paused)
+static void seq_set_paused(HNDLE hDB, HNDLE hKey, BOOL paused)
 {
    seq.paused = paused;
    db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
@@ -790,7 +797,7 @@ void seq_set_paused(HNDLE hDB, HNDLE hKey, BOOL paused)
 
 /*------------------------------------------------------------------*/
 
-void seq_set_stop_after_run(HNDLE hDB, HNDLE hKey, BOOL stop_after_run)
+static void seq_set_stop_after_run(HNDLE hDB, HNDLE hKey, BOOL stop_after_run)
 {
    seq.stop_after_run = stop_after_run;
    db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
@@ -798,7 +805,7 @@ void seq_set_stop_after_run(HNDLE hDB, HNDLE hKey, BOOL stop_after_run)
 
 /*------------------------------------------------------------------*/
 
-void seq_stop(HNDLE hDB, HNDLE hKey)
+static void seq_stop(HNDLE hDB, HNDLE hKey)
 {
    seq.running = FALSE;
    seq.finished = FALSE;
@@ -844,7 +851,7 @@ static void seq_open_file(HNDLE hDB, const char* str, SEQUENCER& seq)
       strlcpy(xml_filename, str, size);
       strsubst(xml_filename, size, ".msl", ".xml");
       printf("Parsing MSL sequencer file: %s to XML sequencer file %s\n", str, xml_filename);
-      if (msl_parse(hDB, str, xml_filename, seq.error, sizeof(seq.error), &seq.serror_line)) {
+      if (msl_parse(hDB, gOdb, str, xml_filename, seq.error, sizeof(seq.error), &seq.serror_line)) {
          printf("Loading XML sequencer file: %s\n", xml_filename);
          pnseq = mxml_parse_file(xml_filename, seq.error, sizeof(seq.error), &seq.error_line);
       } else {
@@ -1856,6 +1863,10 @@ int main(int argc, const char *argv[])
       puts(str);
       return 1;
    }
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+   gOdb = MakeMidasOdb(hDB);
 
    init_sequencer();
    
