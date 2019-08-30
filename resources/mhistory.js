@@ -119,6 +119,7 @@ function MhistoryGraph(divElement) { // Constructor
    this.button = [
       {
          src: "menu.svg",
+         title: "Show / hide legend",
          click: function (t) {
             t.showLabels = !t.showLabels;
             t.redraw();
@@ -126,12 +127,14 @@ function MhistoryGraph(divElement) { // Constructor
       },
       {
          src: "maximize-2.svg",
+         title: "Make plot bigger",
          click: function (t) {
             window.location.href = t.baseURL + "&group=" + t.group + "&panel=" + t.panel;
          }
       },
       {
          src: "rotate-ccw.svg",
+         title: "Reset histogram axes",
          click: function (t) {
 
             t.tMax = Math.floor(new Date() / 1000);
@@ -165,6 +168,7 @@ function MhistoryGraph(divElement) { // Constructor
       },
       {
          src: "play.svg",
+         title: "Jump to current time",
          click: function (t) {
             t.scroll = true;
             t.scrollRedraw();
@@ -172,6 +176,7 @@ function MhistoryGraph(divElement) { // Constructor
       },
       {
          src: "clock.svg",
+         title: "Select timespan...",
          click: function (t) {
             if (t.intSelector.style.display === "none") {
                t.intSelector.style.display = "block";
@@ -185,6 +190,7 @@ function MhistoryGraph(divElement) { // Constructor
       },
       {
          src: "download.svg",
+         title: "Download image/data...",
          click: function (t) {
             if (t.downloadSelector.style.display === "none") {
                t.downloadSelector.style.display = "block";
@@ -198,6 +204,7 @@ function MhistoryGraph(divElement) { // Constructor
       },
       {
          src: "settings.svg",
+         title: "Configure this plot",
          click: function (t) {
             window.location.href = "?cmd=oldhistory&group=" + t.group + "&panel=" + t.panel
                + "&hcmd=Config" + "&redir=" + encodeURIComponent(window.location.href);
@@ -205,6 +212,7 @@ function MhistoryGraph(divElement) { // Constructor
       },
       {
          src: "help-circle.svg",
+         title: "Show help",
          click: function () {
             dlgShow("dlgHelp", false);
          }
@@ -865,6 +873,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
    }
 
    let cursor = this.pendingUpdates > 0 ? "progress" : "default";
+   let title = "";
 
    if (e.type === "mousedown") {
 
@@ -961,6 +970,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
                e.offsetX < b.x1 + b.width && e.offsetY < b.y1 + b.height) {
                cursor = "pointer";
+               title = b.title;
             }
          });
 
@@ -1052,7 +1062,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       }
    }
 
-
+   this.parentDiv.title = title;
    this.parentDiv.style.cursor = cursor;
 
    e.preventDefault();
