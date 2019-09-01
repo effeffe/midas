@@ -30,32 +30,23 @@
    <div id="msg_state">
      <table class="mtable" width="100%">
        <tr>
-         <th class="mtableheader">State</th>
+         <th class="mtableheader">Progress</th>
        </tr>
        <tr id="msg_stop_after_run">
-         <td align="center" colspan=2><b>Sequence will be stopped after current run</b></td>
+         <td align="left">Sequence will be stopped after current run</td>
        </tr>
        <tr id="msg_seq_paused">
-         <td align="center" colspan=2 style="background-color:#FFFF80;"><b>Sequencer is paused</b></td>
+         <td align="left" style="background-color:#FFFF80;">Sequence is paused</td>
        </tr>
        <tr id="msg_seq_finished">
-         <td align="center" colspan=2 style="background-color:#80FF80;"><b>Sequence is finished</b></td>
+         <td align="left" style="background-color:#80FF80;">Sequence is finished</td>
        </tr>
        <tr id="msg_error_tr">
          <td align="center" class="redLight">Error: <b><span id="msg_error">seq.error</span></b></td>
        </tr>
        <tr id="msg_seq_not_running">
-         <td align="center" class="redLight">Error: <b>The msequencer program is not running</b></td>
+         <td align="left" class="redLight">Error: The Sequencer program is not running</td>
        </tr>
-     </table>
-   </div>
-
-   <div id="msg_progress">
-     <table class="mtable" width="100%">
-       <tr>
-         <th class="mtableheader">Progress</th>
-       </tr>
-
        <tr id="loop0">
          <td colspan=2>
            <table width="100%">
@@ -64,7 +55,7 @@
                <td>
                  <table id="loopprgs0" width="100%" height="25">
                    <tr>
-                     <td style="background-color:bar_col[i];border:2px solid #000080;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
+                     <td style="background-color:#B0B0FF;border:2px solid #000080;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
                    </tr>
                  </table>
                </td>
@@ -80,7 +71,7 @@
                <td>
                  <table id="loopprgs1" width="100%" height="25">
                    <tr>
-                     <td style="background-color:bar_col[i];border:2px solid #000080;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
+                     <td style="background-color:#C0C0FF;border:2px solid #000080;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
                    </tr>
                  </table>
                </td>
@@ -96,7 +87,7 @@
                <td>
                  <table id="loopprgs2" width="100%" height="25">
                    <tr>
-                     <td style="background-color:bar_col[i];border:2px solid #000080;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
+                     <td style="background-color:#D0D0FF;border:2px solid #000080;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
                    </tr>
                  </table>
                </td>
@@ -112,7 +103,7 @@
                <td>
                  <table id="loopprgs3" width="100%" height="25">
                    <tr>
-                     <td style="background-color:bar_col[i];border:2px solid #000080;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
+                     <td style="background-color:#E0E0FF;border:2px solid #000080;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
                    </tr>
                  </table>
                </td>
@@ -120,14 +111,13 @@
            </table>
          </td>
        </tr>
-
        <tr id="wait_row">
-         <td colspan=2>
+         <td>
            <table width="100%">
              <tr>
-               <td style="width:150px" id="wait_label">Run:</td>
+               <td style="width:150px" id="wait_label">wait_label</td>
                <td>
-                 <table id="runprgs" width="100%" height="25">
+                 <table id="runprgs">
                    <tr>
                      <td style="background-color:#80FF80;border:2px solid #008000;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
                    </tr>
@@ -202,6 +192,15 @@ function set_if_changed(id, value)
       if (e.innerHTML != value) {
          e.innerHTML = value;
       }
+   }
+}
+
+function set_innerHTML_if_changed(e, value)
+{
+   //console.log("A" + e.innerHTML);
+   if (e.innerHTML != value) {
+      //console.log("B" + value);
+      e.innerHTML = value;
    }
 }
 
@@ -330,7 +329,7 @@ function seq_refresh(seq)
    set_if_changed("msg_filename", seq.filename);
 
    if (seq.running) {
-      mhttpd_unhide("msg_progress");
+      //mhttpd_unhide("msg_progress");
       mhttpd_unhide("msg_messages");
       mhttpd_hide("seq_load_script");
       mhttpd_hide("seq_edit_script");
@@ -341,7 +340,7 @@ function seq_refresh(seq)
       mhttpd_unhide("seq_stop_after_current_run");
       mhttpd_unhide("seq_cancel_stop_after_current_run");
    } else {
-      mhttpd_hide("msg_progress");
+      //mhttpd_hide("msg_progress");
       mhttpd_hide("msg_messages");
       mhttpd_unhide("seq_load_script");
       mhttpd_unhide("seq_edit_script");
@@ -436,23 +435,22 @@ function seq_refresh(seq)
    var wl = document.getElementById('wait_label');
    if (wl != null) {
       if (wait_type == 'Seconds')
-         wl.innerHTML = 'Wait:&nbsp['+wait_value+'/'+wait_limit+'&nbsp;s]';
+         set_innerHTML_if_changed(wl, 'Wait:&nbsp;['+wait_value+'/'+wait_limit+'&nbsp;s]');
       else if (wait_type == 'Events')
-         wl.innerHTML = 'Run:&nbsp['+wait_value+'/'+wait_limit+'&nbsp;events]';
+         set_innerHTML_if_changed(wl, 'Run:&nbsp;['+wait_value+'/'+wait_limit+'&nbsp;events]');
       else if (wait_type.substr(0, 3) == 'ODB') {
          op = wait_type.substr(3);
          if (op == '')
             op = '>=';
          op = op.replace(/>/g, '&gt;').replace(/</g, '&lt;');
-         wl.innerHTML = 'ODB:&nbsp['+wait_value+'&nbsp;'+op+'&nbsp;'+wait_limit+']';
+         set_innerHTML_if_changed(wl, 'ODB:&nbsp;['+wait_value+'&nbsp;'+op+'&nbsp;'+wait_limit+']');
       } else {
-         wl.innerHTML = '';
+         set_innerHTML_if_changed(wl, '');
       }
-      wr = document.getElementById('wait_row');
       if (wait_type == '')
-         wr.style.display = 'none';
+         mhttpd_hide("wait_row");
       else
-         wr.style.display = 'table-row';
+         mhttpd_unhide("wait_row");
    }
 
    var rp = document.getElementById('runprgs');
@@ -554,7 +552,7 @@ function show_messages(messages)
          continue;
       s += m[i];
       s += "\n";
-      console.log("m [" + m[i] + "]");
+      //console.log("m [" + m[i] + "]");
    }
 
    set_if_changed("seq_messages", s);
