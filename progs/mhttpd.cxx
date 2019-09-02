@@ -14294,13 +14294,15 @@ void seq_start_page(Param* p, Return* r)
                maxlength = key.item_size;
 
             if (key.type == TID_BOOL) {
-               if (((DWORD*)data)[i])
+               if (((DWORD*)data)[i]) {
                   r->rsprintf("<td><input type=checkbox checked name=x%d value=1></td></tr>\n", n++);
-               else
+               } else {
                   r->rsprintf("<td><input type=checkbox name=x%d value=1></td></tr>\n", n++);
-            } else
+               }
+            } else {
                r->rsprintf("<td><input type=text size=%d maxlength=%d name=x%d value=\"%s\"></tr>\n",
                         (maxlength<80)?maxlength:80, maxlength-1, n++, data_str);
+            }
          }
       }
    }
@@ -14332,16 +14334,27 @@ void seq_start_page(Param* p, Return* r)
                strlcpy(data, mxml_get_attribute(pn, "options"), sizeof(data));
                no = strbreak(mxml_get_attribute(pn, "options"), list, 100, ",", FALSE);
                r->rsprintf("<td><select name=x%d>\n", n++);
-               for (i=0 ; i<no ; i++)
-                  r->rsprintf("<option>%s</option>\n", list[i]);
+               for (i=0 ; i<no ; i++) {
+                  if (stricmp(list[i], data_str)==0) {
+                     r->rsprintf("<option selected>%s</option>\n", list[i]);
+                  } else {
+                     r->rsprintf("<option>%s</option>\n", list[i]);
+                  }
+               }
                r->rsprintf("</select></td></tr>\n");
+               //printf("opt param [%s] option [%s] [%s]\n", name, list[0], data_str);
             } else if (mxml_get_attribute(pn, "type") && equal_ustring(mxml_get_attribute(pn, "type"), "bool")) {
-               if (data_str[0] == '1')
+               if (data_str[0] == '1') {
                   r->rsprintf("<td><input type=checkbox checked name=x%d value=1></tr>\n", n++);
-               else
+                  //printf("bool param [%s] value true\n", name);
+               } else {
                   r->rsprintf("<td><input type=checkbox name=x%d value=1></tr>\n", n++);
-            } else
+                  //printf("bool param [%s] value false\n", name);
+               }
+            } else {
                r->rsprintf("<td><input type=text name=x%d value=\"%s\"></tr>\n", n++, data_str);
+               //printf("string param [%s] value [%s]\n", name, data_str);
+            }
          }
 
       }

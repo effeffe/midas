@@ -19,7 +19,7 @@
    <div align="center" style="margin-top:10px;">
       <button class="mbutton" id='seq_load_script' onclick='load_script()'>Load Script</button>
       <button class="mbutton" id='seq_edit_script' onclick='edit_script()'>Edit Script</button>
-      <button class="mbutton" id='seq_start_script' onclick='start_script()'>Start</button>
+      <button class="mbutton" id='seq_start_script' onclick='start_script()'>Start Script</button>
       <button class="mbutton" id='seq_stop_after_current_run' onclick='seq_set_stop_after_run(true)'>Stop after current run</button>
       <button class="mbutton" id='seq_cancel_stop_after_current_run' onclick='seq_set_stop_after_run(false)'>Cancel 'Stop after current run'</button>
       <button class="mbutton" id='seq_stop_immediately' onclick='stop_immediately()'>Stop immediately</button>
@@ -208,7 +208,9 @@ function start_script()
 {
    mjsonrpc_call('cm_exist', '{"name": "sequencer"}').then(function(rpc) {
       if (rpc.result.status === 1) {;
-         window.location.href = '?cmd=Start+Script';
+         //window.location.href = '?cmd=Start+Script';
+         window.location.pathname = 'start_script.html';
+         // DOES NOT RETURN
       } else {
          dlgAlert('Sequencer is not running, please start it');
       }

@@ -789,6 +789,55 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
 
 /*------------------------------------------------------------------*/
 
+void seq_start()
+{
+   HNDLE hDB, hKey;
+
+   cm_get_experiment_database(&hDB, NULL);
+   db_find_key(hDB, 0, "/Sequencer/State", &hKey);
+
+   /* start sequencer */
+   seq.running = TRUE;
+   seq.finished = FALSE;
+   seq.paused = FALSE;
+   seq.transition_request = FALSE;
+   seq.wait_limit = 0;
+   seq.wait_value = 0;
+   seq.start_time = 0;
+   seq.wait_type[0] = 0;
+   for (int i=0 ; i<4 ; i++) {
+      seq.loop_start_line[i] = 0;
+      seq.sloop_start_line[i] = 0;
+      seq.loop_end_line[i] = 0;
+      seq.sloop_end_line[i] = 0;
+      seq.loop_counter[i] = 0;
+      seq.loop_n[i] = 0;
+   }
+   for (int i=0 ; i<4 ; i++) {
+      seq.if_else_line[i] = 0;
+      seq.if_endif_line[i] = 0;
+      seq.subroutine_end_line[i] = 0;
+      seq.subroutine_return_line[i] = 0;
+      seq.subroutine_call_line[i] = 0;
+      seq.ssubroutine_call_line[i] = 0;
+      seq.subroutine_param[i][0] = 0;
+   }
+   seq.current_line_number = 1;
+   seq.scurrent_line_number = 1;
+   seq.if_index = 0;
+   seq.stack_index = 0;
+   seq.error[0] = 0;
+   seq.error_line = 0;
+   seq.serror_line = 0;
+   seq.subdir_end_line = 0;
+   seq.subdir_not_notify = 0;
+   seq.message[0] = 0;
+   seq.message_wait = FALSE;
+   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+}
+
+/*------------------------------------------------------------------*/
+
 static void seq_stop()
 {
    printf("seq_stop!\n");
@@ -911,9 +960,23 @@ static void seq_watch_command(HNDLE hDB, HNDLE hKeyChanged, int index, void* inf
 {
    printf("seq_watch_command!\n");
 
+   bool start_script = false;
    bool stop_immediately = false;
 
+   gOdb->RB("Sequencer/Command/Start script", &start_script);
    gOdb->RB("Sequencer/Command/Stop immediately", &stop_immediately);
+
+   if (start_script) {
+      printf("Command: start script!\n");
+
+      gOdb->WB("Sequencer/Command/Start script", false);
+
+      if (!seq.running) {
+         seq_start();
+      } else {
+         printf("sequencer is already running!\n");
+      }
+   }
 
    if (stop_immediately) {
       printf("Command: stop immediately!\n");
@@ -1831,6 +1894,8 @@ void init_sequencer()
    }
 
    bool b = false;
+   gOdb->RB("Sequencer/Command/Start script", &b, true);
+   b = false;
    gOdb->RB("Sequencer/Command/Stop immediately", &b, true);
 
    status = db_find_key(hDB, 0, "/Sequencer/Command", &hKey);
