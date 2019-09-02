@@ -789,39 +789,42 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
 
 /*------------------------------------------------------------------*/
 
-static void seq_set_paused(HNDLE hDB, HNDLE hKey, BOOL paused)
+static void seq_stop()
 {
-   seq.paused = paused;
-   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
-}
+   printf("seq_stop!\n");
+   
+   HNDLE hDB, hKey;
 
-/*------------------------------------------------------------------*/
+   cm_get_experiment_database(&hDB, NULL);
+   db_find_key(hDB, 0, "/Sequencer/State", &hKey);
 
-static void seq_set_stop_after_run(HNDLE hDB, HNDLE hKey, BOOL stop_after_run)
-{
-   seq.stop_after_run = stop_after_run;
-   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
-}
-
-/*------------------------------------------------------------------*/
-
-static void seq_stop(HNDLE hDB, HNDLE hKey)
-{
    seq.running = FALSE;
-   seq.finished = FALSE;
+   seq.finished = TRUE;
    seq.paused = FALSE;
+   seq.current_line_number = 0;
+   seq.scurrent_line_number = 0;
    seq.wait_limit = 0;
    seq.wait_value = 0;
    seq.wait_type[0] = 0;
    for (int i=0 ; i<4 ; i++) {
       seq.loop_start_line[i] = 0;
       seq.loop_end_line[i] = 0;
+      seq.sloop_start_line[i] = 0;
+      seq.sloop_end_line[i] = 0;
       seq.loop_counter[i] = 0;
       seq.loop_n[i] = 0;
+      seq.subroutine_call_line[i] = 0;
+      seq.ssubroutine_call_line[i] = 0;
+      seq.subroutine_end_line[i] = 0;
+      seq.subroutine_return_line[i] = 0;
    }
+   seq.stack_index = 0;
    seq.stop_after_run = FALSE;
-   seq.subdir[0] = 0;
+   seq.message_wait = FALSE;
+   //seq.subdir[0] = 0;
    
+   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+
    /* stop run if not already stopped */
    char str[256];
    int state = 0;
@@ -829,8 +832,6 @@ static void seq_stop(HNDLE hDB, HNDLE hKey)
    db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
    if (state != STATE_STOPPED)
       cm_transition(TR_STOP, 0, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
-   
-   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
 }
 
 /*------------------------------------------------------------------*/
@@ -903,6 +904,23 @@ static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
       seq.finished = FALSE;
    
       db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+   }
+}
+
+static void seq_watch_command(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
+{
+   printf("seq_watch_command!\n");
+
+   bool stop_immediately = false;
+
+   gOdb->RB("Sequencer/Command/Stop immediately", &stop_immediately);
+
+   if (stop_immediately) {
+      printf("Command: stop immediately!\n");
+
+      gOdb->WB("Sequencer/Command/Stop immediately", false);
+
+      seq_stop();
    }
 }
 
@@ -1809,6 +1827,21 @@ void init_sequencer()
    status = db_watch(hDB, hKey, seq_watch, NULL);
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot watch /Sequencer/State, db_watch() status %d", status);
+      return;
+   }
+
+   bool b = false;
+   gOdb->RB("Sequencer/Command/Stop immediately", &b, true);
+
+   status = db_find_key(hDB, 0, "/Sequencer/Command", &hKey);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot find /Sequencer/Command, db_find_key() status %d", status);
+      return;
+   }
+   
+   status = db_watch(hDB, hKey, seq_watch_command, NULL);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot watch /Sequencer/Command, db_watch() status %d", status);
       return;
    }
 }

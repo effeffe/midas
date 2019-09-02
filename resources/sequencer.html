@@ -247,7 +247,14 @@ function seq_set_stop_after_run(stop_after_run)
 function seq_stop_immediately(flag)
 {
    if (flag) {
-      window.location.href = '?cmd=Stop immediately';
+      mjsonrpc_db_paste(["/sequencer/command/stop immediately"], [true]).then(function (rpc) {
+         update();
+      }).catch(function (error) {
+         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+         dlgShow('dlgError');
+         //mjsonrpc_error_alert(error);
+      });
+      //window.location.href = '?cmd=Stop immediately';
    }
 }
 
