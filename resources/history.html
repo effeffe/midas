@@ -266,7 +266,7 @@
                   if ((nPanel++) % nColumns === 0) // put two panels in one row
                      tr = table.insertRow();
                   let td = tr.insertCell();
-                  createdPlots.push(mhistory_create(td, baseURL, group, panel));
+                  createdPlots.push(mhistory_create(td, baseURL, group, panel, parseInt(tMin), parseInt(tMax)));
                });
             });
 
@@ -285,7 +285,7 @@
                if (nPanel++ % nColumns === 0) // put two panels in one row
                   tr = table.insertRow();
                let td = tr.insertCell();
-               createdPlots.push(mhistory_create(td, baseURL, curGroup, panel));
+               createdPlots.push(mhistory_create(td, baseURL, curGroup, panel, parseInt(tMin), parseInt(tMax)));
             });
 
             document.getElementById("histPanel").appendChild(table);
