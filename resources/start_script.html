@@ -43,6 +43,7 @@
 var write_back = {};
 var write_path = {};
 var write_bool = {};
+var write_opts = {};
 
    function start_sequence() {
 
@@ -51,15 +52,17 @@ var write_bool = {};
 
       for (var k in write_back) {
          var p = write_path[k];
-         var v = write_back[k].value;
-         if (write_back[k].type == "checkbox") {
+         var v;
+         if (write_bool[k]) {
             v = write_back[k].checked;
-            if (write_bool[k]) {
-               if (v)
-                  v = "1";
-               else
-                  v = "0";
-            }
+            if (v)
+               v = "1";
+            else
+               v = "0";
+         } else if (write_opts[k]) {
+            v = write_back[k].value;
+         } else {
+            v = write_back[k].value;
          }
          paths.push(p);
          values.push(v);
@@ -68,9 +71,9 @@ var write_bool = {};
       paths.push("/sequencer/command/start script");
       values.push(true);
 
-      console.log("write_back: " + JSON.stringify(write_back));
-      console.log("paths: " + JSON.stringify(paths));
-      console.log("values: " + JSON.stringify(values));
+      //console.log("write_back: " + JSON.stringify(write_back));
+      //console.log("paths: " + JSON.stringify(paths));
+      //console.log("values: " + JSON.stringify(values));
 
       mjsonrpc_call("db_paste", {"paths": paths, "values": values}).then(function (rpc) {
          //mjsonrpc_debug_alert(rpc);
@@ -143,6 +146,69 @@ var write_bool = {};
       table.appendChild(tr);
    }
 
+   function add_param_entry(table, name, value, comment, type_bool, options, path) {
+      var tr = document.createElement("tr");
+      
+      var td;
+      var input;
+      
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = name;
+      tr.appendChild(td);
+      
+      td = document.createElement("td");
+      
+      if (options) {
+         var s = document.createElement("select");
+         for (var iopt in options) {
+            var opt = options[iopt];
+            var o = document.createElement("option");
+            o.innerHTML = opt;
+            if (opt == value) {
+               o.selected = true;
+            }
+            s.appendChild(o);
+         }
+         td.appendChild(s);
+         write_opts[name] = true;
+         write_back[name] = s;
+      } else if (type_bool) {
+         var i = document.createElement("input");
+         i.type = "checkbox";
+         if (value == "1")
+            i.checked = true;
+         td.appendChild(i);
+         write_bool[name] = true;
+         write_back[name] = i;
+      } else {
+         var i = document.createElement("input");
+         i.size = 32;
+         if (value.length + 5 > i.size) {
+            i.size = value.length + 10;
+         }
+         i.value = value;
+         td.appendChild(i);
+         write_back[name] = i;
+      }
+      td.align = "center";
+      write_path[name] = path + "/" + name;
+      
+      tr.appendChild(td);
+      
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = comment;
+      tr.appendChild(td);
+      
+      //td = document.createElement("td");
+      //td.align = "center";
+      //td.innerHTML = "type: " + type + ", size: " + size + ", array: " + isarray;
+      //tr.appendChild(td);
+      
+      table.appendChild(tr);
+   }
+
    function callback(rpc) {
       var editonstart = rpc.result.data[0];
       var comments = rpc.result.data[1];
@@ -197,11 +263,7 @@ var write_bool = {};
                if (k.indexOf("/") > 0)
                   continue;
                var v = param_values[k];
-               var vv = v;
                var c = "";
-               var n = param_values[k + "/key"].num_values;
-               var t = param_values[k + "/key"].type;
-               var s = param_values[k + "/key"].item_size;
                var o;
 
                if (param_options) {
@@ -212,21 +274,14 @@ var write_bool = {};
                   }
                }
 
+               var type_bool = (typeof v == "boolean");
+
                if (variables) {
                   for (var kk in variables) {
                      if (kk.toLowerCase() == k.toLowerCase()) {
-                        vv = variables[kk];
+                        v = variables[kk];
                      }
                   }
-               }
-
-               if (typeof v == "boolean") {
-                  if (vv == "1")
-                     v = true;
-                  else
-                     v = false;
-               } else {
-                  v = vv;
                }
 
                if (param_comment) {
@@ -236,14 +291,8 @@ var write_bool = {};
                      }
                   }
                }
-
-               if (o) {
-                  add_table_entry(table, k, v, c, true, t, s, false, "/Sequencer/Variables");
-               } else {
-                  add_table_entry(table, k, v, c, true, t, s, false, "/Sequencer/Variables");
-               }
-
-               write_bool[k] = true;
+               
+               add_param_entry(table, k, v, c, type_bool, o, "/Sequencer/Variables");
             }
          }
       }
