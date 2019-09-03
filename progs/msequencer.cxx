@@ -1988,6 +1988,9 @@ int main(int argc, const char *argv[])
    init_sequencer();
    
    printf("Sequencer started. Stop with \"!\"\n");
+
+   // if any commands are active, process them now
+   seq_watch_command(hDB, 0, 0, NULL);
    
    /* initialize ss_getchar */
    ss_getchar(0);
