@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html class="mcss">
+<head>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css">
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <script src="controls.js"></script>
+   <title>Load script</title>
+</head>
+
+<body class="mcss" onload="mhttpd_init('Sequencer')">
+
+<!-- header and side navigation will be filled in mhttpd_start -->
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+   <table class="mtable" id="seq_table">
+      <tbody>
+      <tr>
+         <th class="mtableheader subStatusTitle">Select a sequence file:</th>
+      </tr>
+      <tr align="center">
+        <td align="center">
+          <button class="mbutton" onclick='load_script()' disabled id="load_button">Load script</button>
+          <button class="mbutton" onclick='cancel()'>Cancel</button>
+        </td>
+      </tr>
+      <tr align="center">
+        <td align="center">
+          Directory: <span id="msg_directory">msg_directory</span>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <select id="sel" size="20">
+            <option onDblClick="document.form1.submit()">[test]</option>
+            <option onDblClick="document.form1.submit()">[file]</option>
+            <option onDblClick="document.form1.submit()">[xxx]</option>
+            <option onDblClick="document.form1.submit()">[instrumentscli8.trace]</option>
+            <option onDblClick="document.form1.submit()">[sqlite]</option>
+            <option onDblClick="document.form1.submit()">[instrumentscli0.trace]</option>
+            <option onClick="document.getElementById('cmnt').innerHTML='Sequencer Test File'" onDblClick="load();">test.msl</option>
+            <option onClick="document.getElementById('cmnt').innerHTML='This is a MSL test file'" onDblClick="load();">sleep.msl</option>
+          </select>
+        </td>
+      </tr>
+      </tbody>
+   </table>
+</div>
+<div id="dlgError" class="dlgFrame">
+  <div class="dlgTitlebar">Error message</div>
+  <div class="dlgPanel">
+    <div id="dlgErrorText">Dialog Contents</div>
+    <br />
+    <button class="dlgButton" onClick="dlgHide('dlgError')">Close</button>
+  </div>
+</div>
+
+<script>
+function set_if_changed(id, value)
+{
+   var e = document.getElementById(id);
+   if (e) {
+      if (e.innerHTML != value) {
+         e.innerHTML = value;
+      }
+   }
+}
+
+function enable_button_by_id(id) {
+   var e = document.getElementById(id);
+   if (e) {
+      mhttpd_enable_button(e);
+   }
+}
+
+function load_script() {
+   var sel = document.getElementById("sel");
+   var selected = sel.value;
+   console.log("Selected: " + selected);
+
+   var paths = [];
+   var values = [];
+   paths.push("/Sequencer/State/Filename");
+   values.push(selected);
+   paths.push("/Sequencer/State/New File");
+   values.push(true);
+
+   mjsonrpc_call("db_paste", {"paths": paths, "values": values}).then(function (rpc) {
+      //mjsonrpc_debug_alert(rpc);
+      for (var i = 0; i < rpc.result.status.length; i++) {
+         if (rpc.result.status[i] != 1) {
+            throw new Error("Cannot write ODB \'" + paths[i] + "\', status " + rpc.result.status[i] + ", see MIDAS messages");
+         }
+      }
+      //location.search = "cmd=Sequencer";
+      location.pathname = "sequencer.html";
+      // not reached: reloads the page
+   }).catch(function (error) {
+      document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+      dlgShow('dlgError');
+      //mjsonrpc_error_alert(error);
+   });
+}
+
+function cancel() {
+   mhttpd_goto_page("status");
+}
+
+function callback(rpc) {
+   var path = rpc[0].result.data[0];
+   var filename = rpc[0].result.data[1];
+   
+   if (path) {
+      set_if_changed("msg_directory", path);
+   }
+   
+   var sel = document.getElementById("sel");
+   
+   if (filename) {
+      enable_button_by_id("load_button");
+      var o = document.createElement("option");
+      o.innerHTML = filename;
+      o.selected = true;
+      o.addEventListener("dblclick", load_script);
+      sel.appendChild(o);
+   }
+}
+
+function update() {
+   var paths = [
+      "/Sequencer/State/Path",
+      "/Sequencer/State/Filename",
+   ];
+   var req = [
+      mjsonrpc_make_request("db_get_values", {"paths":paths}),
+      //mjsonrpc_make_request("seq_list_files", {"path":""}),
+   ];
+   mjsonrpc_send_request(req).then(function (rpc) {
+      callback(rpc);
+   }).catch(function (error) {
+      document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+      dlgShow('dlgError');
+      //alert("RWE: RPC or JS error: " + mjsonrpc_decode_error(error));
+   });
+}
+
+update();
+</script>
+</body>
+</html>
