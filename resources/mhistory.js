@@ -47,6 +47,7 @@ function mhistory_create(parentElement, baseURL, group, panel, tMin, tMax) {
       d.mhg.initTMax = tMax;
    }
    d.mhg.initializePanel();
+   return d;
 }
 
 function MhistoryGraph(divElement) { // Constructor
@@ -105,6 +106,15 @@ function MhistoryGraph(divElement) { // Constructor
       x: {active: false},
       y: {active: false}
    };
+   
+   // callbacks when certain actions are performed.
+   // All callback functions should accept a single parameter, which is the 
+   // MhistoryGraph object that triggered the callback.
+   this.callbacks = {
+     resetAxes: undefined,
+     timeZoom: undefined,
+     jumpToCurrent: undefined
+   }
 
    // marker
    this.marker = {active: false};
@@ -127,7 +137,7 @@ function MhistoryGraph(divElement) { // Constructor
       },
       {
          src: "maximize-2.svg",
-         title: "Make plot bigger",
+         title: "Show only this plot",
          click: function (t) {
             window.location.href = t.baseURL + "&group=" + t.group + "&panel=" + t.panel;
          }
@@ -136,34 +146,11 @@ function MhistoryGraph(divElement) { // Constructor
          src: "rotate-ccw.svg",
          title: "Reset histogram axes",
          click: function (t) {
-
-            t.tMax = Math.floor(new Date() / 1000);
-            t.tMin = t.tMax - t.tScale;
-
-            t.yMin0 = t.yMax0 = t.data[0].value[t.data[0].value.length - 1];
-            for (let index = 0; index < t.data.length; index++)
-               for (let j = 0; j < t.data[index].time.length; j++) {
-                  if (t.data[index].time[j] > t.tMin) {
-                     let v = t.data[index].value[j];
-                     if (t.autoscaleMax)
-                        if (v > t.yMax0)
-                           t.yMax0 = v;
-                     if (t.autoscaleMin)
-                        if (v < t.yMin0)
-                           t.yMin0 = v;
-                  }
-               }
-
-            t.yMin = t.yMin0;
-            t.yMax = t.yMax0;
-            if (t.autoscaleMin)
-               t.yMin -= (t.yMax0 - t.yMin0) / 10;
-            if (t.autoscaleMax)
-               t.yMax += (t.yMax0 - t.yMin0) / 10;
-
-            t.scroll = true;
-            t.yZoom = false;
-            t.redraw();
+            t.resetAxes();
+            
+            if (t.callbacks.resetAxes !== undefined) {
+               t.callbacks.resetAxes(t);
+            }
          }
       },
       {
@@ -172,6 +159,10 @@ function MhistoryGraph(divElement) { // Constructor
          click: function (t) {
             t.scroll = true;
             t.scrollRedraw();
+            
+            if (t.callbacks.jumpToCurrent !== undefined) {
+               t.callbacks.jumpToCurrent(t);
+            }
          }
       },
       {
@@ -284,6 +275,10 @@ function doQuery(t) {
    t.tMax = d2.getTime() / 1000;
    t.scroll = false;
    t.loadOldData();
+   
+   if (t.callbacks.timeZoom !== undefined) {
+      t.callbacks.timeZoom(t);
+   }
 }
 
 
@@ -505,6 +500,10 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   mhg.scroll = false;
                   mhg.marker.active = false;
                   mhg.loadOldData();
+                  
+                  if (mhg.callbacks.timeZoom !== undefined) {
+                     mhg.callbacks.timeZoom(mhg);
+                  }
 
                }.bind(this))
                .catch(function (error) {
@@ -534,6 +533,10 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   mhg.scroll = false;
                   mhg.marker.active = false;
                   mhg.loadOldData();
+                  
+                  if (mhg.callbacks.timeZoom !== undefined) {
+                     mhg.callbacks.timeZoom(mhg);
+                  }
 
                }.bind(this))
                .catch(function (error) {
@@ -547,6 +550,10 @@ MhistoryGraph.prototype.loadInitialData = function () {
             mhg.scroll = true;
             mhg.loadOldData();
             mhg.scrollRedraw();
+            
+            if (mhg.callbacks.timeZoom !== undefined) {
+               mhg.callbacks.timeZoom(mhg);
+            }
          }
          mhg.intSelector.style.display = "none";
          return false;
@@ -932,6 +939,10 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.tMax = t2;
          this.zoom.x.active = false;
          this.redraw();
+         
+         if (this.callbacks.timeZoom !== undefined) {
+            this.callbacks.timeZoom(this);
+         }
       }
 
       if (this.zoom.y.active) {
@@ -962,6 +973,10 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          }
 
          this.loadOldData();
+         
+         if (this.callbacks.timeZoom !== undefined) {
+            this.callbacks.timeZoom(this);
+         }
 
       } else {
 
@@ -1124,6 +1139,10 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
             this.loadOldData();
          }
+         
+         if (this.callbacks.timeZoom !== undefined) {
+            this.callbacks.timeZoom(this);
+         }
       } else
          return;
 
@@ -1132,6 +1151,43 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
       e.preventDefault();
    }
 };
+
+MhistoryGraph.prototype.resetAxes = function() {
+   this.tMax = Math.floor(new Date() / 1000);
+   this.tMin = this.tMax - this.tScale;
+   
+   this.yMin0 = this.yMax0 = this.data[0].value[this.data[0].value.length - 1];
+   for (let index = 0; index < this.data.length; index++)
+      for (let j = 0; j < this.data[index].time.length; j++) {
+         if (this.data[index].time[j] > this.tMin) {
+            let v = this.data[index].value[j];
+            if (this.autoscaleMax)
+               if (v > this.yMax0)
+                  this.yMax0 = v;
+            if (this.autoscaleMin)
+               if (v < this.yMin0)
+                  this.yMin0 = v;
+         }
+      }
+  
+   this.yMin = this.yMin0;
+   this.yMax = this.yMax0;
+   if (this.autoscaleMin)
+      this.yMin -= (this.yMax0 - this.yMin0) / 10;
+   if (this.autoscaleMax)
+      this.yMax += (this.yMax0 - this.yMin0) / 10;
+   
+   this.scroll = true;
+   this.yZoom = false;
+   this.redraw();
+}
+
+MhistoryGraph.prototype.setTimespan = function(tMin, tMax, scroll) {
+   this.tMin = tMin;
+   this.tMax = tMax;
+   this.scroll = scroll;
+   this.loadOldData();
+}
 
 MhistoryGraph.prototype.resize = function () {
    this.canvas.width = this.parentDiv.clientWidth;
