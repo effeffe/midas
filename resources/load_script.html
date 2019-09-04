@@ -19,30 +19,30 @@
    <table class="mtable" id="seq_table">
       <tbody>
       <tr>
-         <th class="mtableheader subStatusTitle">Select a sequence file:</th>
+         <th colspan="2" class="mtableheader">Select a sequence file:</th>
       </tr>
       <tr align="center">
-        <td align="center">
+        <td colspan="2" align="center">
           <button class="mbutton" onclick='load_script()' disabled id="load_button">Load script</button>
           <button class="mbutton" onclick='cancel()'>Cancel</button>
         </td>
       </tr>
-      <tr align="center">
-        <td align="center">
-          Directory: <span id="msg_directory">msg_directory</span>
-        </td>
+      <tr>
+        <td colspan="2">Directory: <span id="msg_directory">msg_directory</span></td>
       </tr>
       <tr>
+        <td colspan="2">Path: <span id="msg_path">msg_path</span></td>
+      </tr>
+      <tr>
+        <td>Subdirs:</td>
         <td>
-          <select id="sel" size="20">
-            <option onDblClick="document.form1.submit()">[test]</option>
-            <option onDblClick="document.form1.submit()">[file]</option>
-            <option onDblClick="document.form1.submit()">[xxx]</option>
-            <option onDblClick="document.form1.submit()">[instrumentscli8.trace]</option>
-            <option onDblClick="document.form1.submit()">[sqlite]</option>
-            <option onDblClick="document.form1.submit()">[instrumentscli0.trace]</option>
-            <option onClick="document.getElementById('cmnt').innerHTML='Sequencer Test File'" onDblClick="load();">test.msl</option>
-            <option onClick="document.getElementById('cmnt').innerHTML='This is a MSL test file'" onDblClick="load();">sleep.msl</option>
+          <select id="subdir_sel">
+          </select>
+        </td>
+      </tr>
+      <tr align="center">
+        <td colspan="2">
+          <select id="sel">
           </select>
         </td>
       </tr>
@@ -76,15 +76,31 @@ function enable_button_by_id(id) {
    }
 }
 
+function disable_button_by_id(id) {
+   var e = document.getElementById(id);
+   if (e) {
+      mhttpd_disable_button(e);
+   }
+}
+
+function click_script() {
+   enable_button_by_id("load_button");
+}
+
 function load_script() {
    var sel = document.getElementById("sel");
    var selected = sel.value;
-   console.log("Selected: " + selected);
+   //console.log("Selected: " + selected);
 
+   var filename = "";
+   if (xsubdir.length > 0)
+      filename = xsubdir + "/";
+   filename += selected;
+   
    var paths = [];
    var values = [];
    paths.push("/Sequencer/State/Filename");
-   values.push(selected);
+   values.push(filename);
    paths.push("/Sequencer/State/New File");
    values.push(true);
 
@@ -105,6 +121,18 @@ function load_script() {
    });
 }
 
+var xsubdir = "";
+
+function load_subdir() {
+   var sel = document.getElementById("subdir_sel");
+   var selected = sel.value;
+   //console.log("Selected subdir: " + selected);
+   if (xsubdir.length > 0)
+      xsubdir += "/";
+   xsubdir += selected;
+   update();
+}
+
 function cancel() {
    mhttpd_goto_page("status");
 }
@@ -112,21 +140,67 @@ function cancel() {
 function callback(rpc) {
    var path = rpc[0].result.data[0];
    var filename = rpc[0].result.data[1];
+   var xpath   = rpc[1].result.path;
+   var subdirs = rpc[1].result.subdirs;
+   var files = rpc[1].result.files;
+
+   disable_button_by_id("load_button");
    
    if (path) {
       set_if_changed("msg_directory", path);
    }
    
-   var sel = document.getElementById("sel");
-   
-   if (filename) {
-      enable_button_by_id("load_button");
-      var o = document.createElement("option");
-      o.innerHTML = filename;
-      o.selected = true;
-      o.addEventListener("dblclick", load_script);
-      sel.appendChild(o);
+   if (xpath) {
+      set_if_changed("msg_path", xpath);
    }
+   
+   var subdir_sel = document.getElementById("subdir_sel");
+
+   if (subdirs) {
+      subdir_sel.innerHTML = "";
+      var count = 0;
+      subdirs.forEach(function (item, index) {
+         //console.log(item, index);
+         var o = document.createElement("option");
+         o.innerHTML = item;
+         o.selected = false;
+         o.addEventListener("dblclick", load_subdir);
+         subdir_sel.appendChild(o);
+         count++;
+      });
+      subdir_sel.size = count;
+   }
+
+   var sel = document.getElementById("sel");
+
+   var sel_size = 0;
+   sel.innerHTML = "";
+
+   if (files) {
+      files.forEach(function (item) {
+         //console.log(item);
+         var o = document.createElement("option");
+         o.innerHTML = item.filename; // + " : " + item.description;
+         var xfilename = "";
+         if (xsubdir.length > 0)
+            xfilename += xsubdir + "/";
+         xfilename += item.filename;
+         //console.log("item ["+xfilename+"] vs ["+filename+"]");
+         if (xfilename == filename) {
+            //console.log("Match!");
+            enable_button_by_id("load_button");
+            o.selected = true;
+         } else {
+            o.selected = false;
+         }
+         o.addEventListener("click", click_script);
+         o.addEventListener("dblclick", load_script);
+         sel.appendChild(o);
+         sel_size++;
+      });
+   }
+
+   sel.size = sel_size+1;
 }
 
 function update() {
@@ -136,7 +210,7 @@ function update() {
    ];
    var req = [
       mjsonrpc_make_request("db_get_values", {"paths":paths}),
-      //mjsonrpc_make_request("seq_list_files", {"path":""}),
+      mjsonrpc_make_request("seq_list_files", {"subdir":xsubdir}),
    ];
    mjsonrpc_send_request(req).then(function (rpc) {
       callback(rpc);
