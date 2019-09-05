@@ -118,7 +118,8 @@ function load_script() {
          }
       }
       //location.search = "cmd=Sequencer";
-      location.pathname = "sequencer.html";
+      //location.search = "";
+      location.href = "sequencer.html";
       // not reached: reloads the page
    }).catch(function (error) {
       document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
