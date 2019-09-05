@@ -789,15 +789,9 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
 
 /*------------------------------------------------------------------*/
 
-void seq_start()
+void seq_clear()
 {
-   HNDLE hDB, hKey;
-
-   cm_get_experiment_database(&hDB, NULL);
-   db_find_key(hDB, 0, "/Sequencer/State", &hKey);
-
-   /* start sequencer */
-   seq.running = TRUE;
+   seq.running = FALSE;
    seq.finished = FALSE;
    seq.paused = FALSE;
    seq.transition_request = FALSE;
@@ -822,17 +816,37 @@ void seq_start()
       seq.ssubroutine_call_line[i] = 0;
       seq.subroutine_param[i][0] = 0;
    }
-   seq.current_line_number = 1;
-   seq.scurrent_line_number = 1;
+   seq.current_line_number = 0;
+   seq.scurrent_line_number = 0;
    seq.if_index = 0;
    seq.stack_index = 0;
    seq.error[0] = 0;
    seq.error_line = 0;
    seq.serror_line = 0;
+   seq.subdir[0] = 0;
    seq.subdir_end_line = 0;
    seq.subdir_not_notify = 0;
    seq.message[0] = 0;
    seq.message_wait = FALSE;
+   seq.stop_after_run = FALSE;
+}
+
+/*------------------------------------------------------------------*/
+
+void seq_start()
+{
+   HNDLE hDB, hKey;
+
+   cm_get_experiment_database(&hDB, NULL);
+   db_find_key(hDB, 0, "/Sequencer/State", &hKey);
+
+   seq_clear();
+
+   /* start sequencer */
+   seq.running = TRUE;
+   seq.current_line_number = 1;
+   seq.scurrent_line_number = 1;
+
    db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
 }
 
@@ -847,30 +861,9 @@ static void seq_stop()
    cm_get_experiment_database(&hDB, NULL);
    db_find_key(hDB, 0, "/Sequencer/State", &hKey);
 
-   seq.running = FALSE;
+   seq_clear();
+   
    seq.finished = TRUE;
-   seq.paused = FALSE;
-   seq.current_line_number = 0;
-   seq.scurrent_line_number = 0;
-   seq.wait_limit = 0;
-   seq.wait_value = 0;
-   seq.wait_type[0] = 0;
-   for (int i=0 ; i<4 ; i++) {
-      seq.loop_start_line[i] = 0;
-      seq.loop_end_line[i] = 0;
-      seq.sloop_start_line[i] = 0;
-      seq.sloop_end_line[i] = 0;
-      seq.loop_counter[i] = 0;
-      seq.loop_n[i] = 0;
-      seq.subroutine_call_line[i] = 0;
-      seq.ssubroutine_call_line[i] = 0;
-      seq.subroutine_end_line[i] = 0;
-      seq.subroutine_return_line[i] = 0;
-   }
-   seq.stack_index = 0;
-   seq.stop_after_run = FALSE;
-   seq.message_wait = FALSE;
-   //seq.subdir[0] = 0;
    
    db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
 
@@ -950,7 +943,7 @@ static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
 
       seq_open_file(hDB, str, seq);
 
-      seq.finished = FALSE;
+      seq_clear();
    
       db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
    }
@@ -994,7 +987,7 @@ void sequencer()
    PMXML_NODE pn, pr, pt, pe;
    char odbpath[256], value[256], data[256], str[256], str1[256], name[32], op[32];
    char list[100][XNAME_LENGTH], *pc;
-   int i, j, l, n, status, size, index, index1, index2, last_line, state, run_number, cont;
+   int i, j, l, n, status, size, index, index1, index2, state, run_number, cont;
    HNDLE hDB, hKey, hKeySeq;
    KEY key;
    double d;
@@ -1021,7 +1014,7 @@ void sequencer()
       return;
    }
 
-   last_line = mxml_get_line_number_end(pr);
+   int last_line = mxml_get_line_number_end(pr);
    
    /* check for Subroutine end */
    if (seq.stack_index > 0 && seq.current_line_number == seq.subroutine_end_line[seq.stack_index-1]) {
@@ -1037,9 +1030,7 @@ void sequencer()
    if (seq.current_line_number > last_line) {
       size = sizeof(seq);
       db_get_record(hDB, hKeySeq, &seq, &size, 0);
-      seq.current_line_number = 0;
-      seq.scurrent_line_number = 0;
-      seq.running = FALSE;
+      seq_clear();
       seq.finished = TRUE;
       db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
       cm_msg(MTALK, "sequencer", "Sequencer is finished.");
