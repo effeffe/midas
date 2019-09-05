@@ -312,6 +312,8 @@ function edit_script()
    // DOES NOT RETURN
 }
 
+var slast_line = 0;
+
 function seq_refresh(seq)
 {
    var scurrent_line = seq['scurrent line number'];
@@ -390,7 +392,7 @@ function seq_refresh(seq)
    for (var sl=1 ; ; sl++) {
       sline = document.getElementById('sline'+sl);
       if (sline == null) {
-         var slast_line = sl-1;
+         slast_line = sl-1;
          break;
       }
 
@@ -530,7 +532,10 @@ function seq_add_line(root, i, s)
 function seq_show_script(lines)
 {
    var len = lines.length;
+   //console.log("seq_show_script: " + len + ", slast_line: " + slast_line);
    var e = document.getElementById("lines");
+   if (len != slast_line)
+      e.innerHTML = "";
    //console.log("e="+e);
    for (var i=0; i<len; ++i) {
       //console.log("i="+i+" line="+lines[i]);
@@ -568,18 +573,6 @@ function show_messages(messages)
 
    set_if_changed("seq_messages", s);
 }
-
-//function load()
-//{
-//   if (document.getElementById('fs').selectedIndex == -1)
-//      dlgAlert('Please select a file to load');
-//   else {
-//      var o = document.createElement('input');
-//      o.type = 'hidden'; o.name='xcmd'; o.value='Load script file';
-//      document.form1.appendChild(o);
-//      document.form1.submit();
-//   }
-//}
 </script>
 
 <script>
@@ -596,6 +589,9 @@ function show_messages(messages)
 
       if (seq_script && seq_script.lines) {
          seq_show_script(seq_script.lines);
+      } else {
+         var e = document.getElementById("lines");
+         e.innerHTML = "";
       }
 
       if (seq_state) {

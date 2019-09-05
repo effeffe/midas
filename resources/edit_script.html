@@ -91,9 +91,9 @@ function save_script() {
 
    var paths = [];
    var values = [];
-   paths.push("/Sequencer/State/Filename");
+   paths.push("/Sequencer/Command/Load filename");
    values.push(filename);
-   paths.push("/Sequencer/State/New File");
+   paths.push("/Sequencer/Command/Load new file");
    values.push(true);
 
    var req = [

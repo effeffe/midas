@@ -506,9 +506,8 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
       }
 
       odb->WSA("Sequencer/Script/Lines", slines, 0);
-
       odb->Delete("Sequencer/Param");
-      
+
       for (line=0 ; line<n_lines ; line++) {
          n = strbreak(lines[line], list, 100, ", ", FALSE);
          
@@ -793,11 +792,12 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
 
 /*------------------------------------------------------------------*/
 
-void seq_read(HNDLE* hDB, HNDLE* hKey, SEQUENCER* seq)
+void seq_read(SEQUENCER* seq)
 {
    int status;
-   status = cm_get_experiment_database(hDB, NULL);
-   status = db_find_key(*hDB, 0, "/Sequencer/State", hKey);
+   HNDLE hDB, hKey;
+   status = cm_get_experiment_database(&hDB, NULL);
+   status = db_find_key(hDB, 0, "/Sequencer/State", &hKey);
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "seq_read", "Cannot find /Sequencer/State in ODB, db_find_key() status %d", status);
       return;
@@ -805,16 +805,23 @@ void seq_read(HNDLE* hDB, HNDLE* hKey, SEQUENCER* seq)
 
    SEQUENCER_STR(sequencer_str);
    int size = sizeof(SEQUENCER);
-   status = db_get_record1(*hDB, *hKey, seq, &size, 0, strcomb1(sequencer_str).c_str());
+   status = db_get_record1(hDB, hKey, seq, &size, 0, strcomb1(sequencer_str).c_str());
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "seq_read", "Cannot get /Sequencer/State from ODB, db_get_record1() status %d", status);
       return;
    }
 }
 
-void seq_write(HNDLE hDB, HNDLE hKey, const SEQUENCER& seq)
+void seq_write(const SEQUENCER& seq)
 {
    int status;
+   HNDLE hDB, hKey;
+   status = cm_get_experiment_database(&hDB, NULL);
+   status = db_find_key(hDB, 0, "/Sequencer/State", &hKey);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "seq_write", "Cannot find /Sequencer/State in ODB, db_find_key() status %d", status);
+      return;
+   }
    status = db_set_record(hDB, hKey, (void*)&seq, sizeof(SEQUENCER), 0);
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "seq_write", "Cannot write to ODB /Sequencer/State, db_set_record() status %d", status);
@@ -870,19 +877,24 @@ void seq_clear(SEQUENCER& seq)
 
 static void seq_start()
 {
-   HNDLE hDB, hKey;
    //SEQUENCER seq;
 
-   seq_read(&hDB, &hKey, &seq);
+   seq_read(&seq);
 
    seq_clear(seq);
+
+   if (!pnseq) {
+      strlcpy(seq.error, "Cannot start script, no script loaded", sizeof(seq.error));
+      seq_write(seq);
+      return;
+   }
 
    /* start sequencer */
    seq.running = TRUE;
    seq.current_line_number = 1;
    seq.scurrent_line_number = 1;
 
-   seq_write(hDB, hKey, seq);
+   seq_write(seq);
 }
 
 /*------------------------------------------------------------------*/
@@ -891,21 +903,19 @@ static void seq_stop()
 {
    printf("seq_stop!\n");
    
-   HNDLE hDB, hKey;
    //SEQUENCER seq;
 
-   seq_read(&hDB, &hKey, &seq);
+   seq_read(&seq);
 
    seq_clear(seq);
    seq.finished = TRUE;
    
-   seq_write(hDB, hKey, seq);
+   seq_write(seq);
 
    /* stop run if not already stopped */
    char str[256];
    int state = 0;
-   int size = sizeof(state);
-   db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
+   gOdb->RI("Runinfo/State", &state);
    if (state != STATE_STOPPED)
       cm_transition(TR_STOP, 0, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
 }
@@ -922,6 +932,10 @@ static void seq_open_file(HNDLE hDB, const char* str, SEQUENCER& seq)
       mxml_free_tree(pnseq);
       pnseq = NULL;
    }
+   gOdb->WS("Sequencer/Script/XML", "");
+   gOdb->WS("Sequencer/Script/Lines", "");
+   gOdb->Delete("Sequencer/Param");
+
    if (stristr(str, ".msl")) {
       int size = strlen(str) + 1;
       char* xml_filename = (char*)malloc(size);
@@ -945,11 +959,10 @@ static void seq_open_file(HNDLE hDB, const char* str, SEQUENCER& seq)
 
 static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
 {
-   HNDLE hKey;
    char str[256];
    //SEQUENCER seq;
 
-   seq_read(&hDB, &hKey, &seq);
+   seq_read(&seq);
 
    if (seq.new_file) {
       strlcpy(str, seq.path, sizeof(str));
@@ -963,7 +976,7 @@ static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
 
       seq_clear(seq);
    
-      seq_write(hDB, hKey, seq);
+      seq_write(seq);
    }
 }
 
@@ -973,9 +986,42 @@ static void seq_watch_command(HNDLE hDB, HNDLE hKeyChanged, int index, void* inf
 
    bool start_script = false;
    bool stop_immediately = false;
+   bool load_new_file = false;
 
    gOdb->RB("Sequencer/Command/Start script", &start_script);
    gOdb->RB("Sequencer/Command/Stop immediately", &stop_immediately);
+   gOdb->RB("Sequencer/Command/Load new file", &load_new_file);
+
+   if (load_new_file) {
+      std::string filename;
+      gOdb->RS("Sequencer/Command/Load filename", &filename);
+      printf("Command: load new file: \"%s\"\n", filename.c_str());
+      gOdb->WB("Sequencer/Command/Load new file", false);
+
+      if (filename.find("..") != std::string::npos) {
+         strlcpy(seq.error, "Cannot load \"", sizeof(seq.error));
+         strlcat(seq.error, filename.c_str(), sizeof(seq.error));
+         strlcat(seq.error, "\": file names with \"..\" is not permitted", sizeof(seq.error));
+         seq_write(seq);
+      } else if (filename.find(".msl") == std::string::npos) {
+         strlcpy(seq.error, "Cannot load \"", sizeof(seq.error));
+         strlcat(seq.error, filename.c_str(), sizeof(seq.error));
+         strlcat(seq.error, "\": file name should end with \".msl\"", sizeof(seq.error));
+         seq_write(seq);
+      } else {
+         strlcpy(seq.filename, filename.c_str(), sizeof(seq.filename));
+         std::string path = cm_expand_env(seq.path);
+         if (path.length() > 0) {
+            path += "/";
+         }
+         path += filename;
+         HNDLE hDB;
+         cm_get_experiment_database(&hDB, NULL);
+         seq_clear(seq);
+         seq_open_file(hDB, path.c_str(), seq);
+         seq_write(seq);
+      }
+   }
 
    if (start_script) {
       printf("Command: start script!\n");
@@ -1014,7 +1060,15 @@ void sequencer()
    double d;
    float v;
 
-   if (!seq.running || seq.paused || pnseq == NULL) {
+   if (!seq.running || seq.paused) {
+      ss_sleep(10);
+      return;
+   }
+   
+   if (pnseq == NULL) {
+      seq_stop();
+      strlcpy(seq.error, "No script loaded", sizeof(seq.error));
+      seq_write(seq);
       ss_sleep(10);
       return;
    }
@@ -1053,7 +1107,7 @@ void sequencer()
       db_get_record(hDB, hKeySeq, &seq, &size, 0);
       seq_clear(seq);
       seq.finished = TRUE;
-      seq_write(hDB, hKeySeq, seq);
+      seq_write(seq);
       cm_msg(MTALK, "sequencer", "Sequencer is finished.");
       return;
    }
@@ -1909,6 +1963,10 @@ void init_sequencer()
    gOdb->RB("Sequencer/Command/Start script", &b, true);
    b = false;
    gOdb->RB("Sequencer/Command/Stop immediately", &b, true);
+   b = false;
+   gOdb->RB("Sequencer/Command/Load new file", &b, true);
+   std::string s;
+   gOdb->RS("Sequencer/Command/Load filename", &s, true);
 
    status = db_find_key(hDB, 0, "/Sequencer/Command", &hKey);
    if (status != DB_SUCCESS) {

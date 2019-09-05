@@ -105,9 +105,11 @@ function load_script() {
    
    var paths = [];
    var values = [];
-   paths.push("/Sequencer/State/Filename");
+   //paths.push("/Sequencer/State/Filename");
+   paths.push("/Sequencer/Command/Load filename");
    values.push(filename);
-   paths.push("/Sequencer/State/New File");
+   //paths.push("/Sequencer/State/New File");
+   paths.push("/Sequencer/Command/Load new file");
    values.push(true);
 
    mjsonrpc_call("db_paste", {"paths": paths, "values": values}).then(function (rpc) {
