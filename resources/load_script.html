@@ -33,6 +33,12 @@
       <tr>
         <td colspan="2">Path: <span id="msg_path">msg_path</span></td>
       </tr>
+      <tr id="tr_subdir">
+        <td colspan="2">
+          Subdir: <span id="msg_subdir">msg_subdir</span>
+          <button class="mbutton" onclick='up_subdir()'>Up</button>
+        </td>
+      </tr>
       <tr>
         <td>Subdirs:</td>
         <td>
@@ -93,7 +99,7 @@ function load_script() {
    //console.log("Selected: " + selected);
 
    var filename = "";
-   if (xsubdir.length > 0)
+   if (xsubdir)
       filename = xsubdir + "/";
    filename += selected;
    
@@ -121,16 +127,31 @@ function load_script() {
    });
 }
 
-var xsubdir = "";
+var xsubdir;
 
 function load_subdir() {
    var sel = document.getElementById("subdir_sel");
    var selected = sel.value;
-   //console.log("Selected subdir: " + selected);
-   if (xsubdir.length > 0)
-      xsubdir += "/";
-   xsubdir += selected;
-   update();
+   console.log("Selected subdir: " + selected);
+   var nextdir = "";
+   if (xsubdir)
+      nextdir = xsubdir + "/";
+   nextdir += selected;
+   document.location.href = "?subdir=" + encodeURIComponent(nextdir);
+   // DOES NOT RETURN
+}
+
+function up_subdir() {
+   var a = xsubdir.split('/');
+   a.pop();
+   if (a.length > 0) {
+      var nextdir = a.join("/");
+      document.location.href = "?subdir=" + encodeURIComponent(nextdir);
+      // DOES NOT RETURN
+   } else {
+      document.location.href = "?nosubdir";
+      // DOES NOT RETURN
+   }
 }
 
 function cancel() {
@@ -154,11 +175,26 @@ function callback(rpc) {
       set_if_changed("msg_path", xpath);
    }
    
+   if (xsubdir) {
+      set_if_changed("msg_subdir", xsubdir);
+      mhttpd_unhide("tr_subdir");
+   } else {
+      mhttpd_hide("tr_subdir");
+   }
+   
    var subdir_sel = document.getElementById("subdir_sel");
 
    if (subdirs) {
       subdir_sel.innerHTML = "";
       var count = 0;
+      if (0 && xsubdir) {
+         var o = document.createElement("option");
+         o.innerHTML = "..";
+         o.selected = false;
+         o.addEventListener("dblclick", up_subdir);
+         subdir_sel.appendChild(o);
+         count++;
+      }
       subdirs.forEach(function (item, index) {
          //console.log(item, index);
          var o = document.createElement("option");
@@ -168,7 +204,12 @@ function callback(rpc) {
          subdir_sel.appendChild(o);
          count++;
       });
-      subdir_sel.size = count;
+      if (count > 0) {
+         subdir_sel.size = count+1;
+         mhttpd_unhide("subdir_sel");
+      } else {
+         mhttpd_hide("subdir_sel");
+      }
    }
 
    var sel = document.getElementById("sel");
@@ -182,7 +223,7 @@ function callback(rpc) {
          var o = document.createElement("option");
          o.innerHTML = item.filename; // + " : " + item.description;
          var xfilename = "";
-         if (xsubdir.length > 0)
+         if (xsubdir)
             xfilename += xsubdir + "/";
          xfilename += item.filename;
          //console.log("item ["+xfilename+"] vs ["+filename+"]");
@@ -200,7 +241,12 @@ function callback(rpc) {
       });
    }
 
-   sel.size = sel_size+1;
+   if (sel_size > 0) {
+      sel.size = sel_size+1;
+      mhttpd_unhide("sel");
+   } else {
+      mhttpd_hide("sel");
+   }
 }
 
 function update() {
@@ -220,6 +266,8 @@ function update() {
       //alert("RWE: RPC or JS error: " + mjsonrpc_decode_error(error));
    });
 }
+
+xsubdir = mhttpd_getParameterByName("subdir");
 
 update();
 </script>
