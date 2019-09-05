@@ -3448,6 +3448,70 @@ static MJsonNode* js_seq_list_files(const MJsonNode* params)
 
 }
 
+static MJsonNode* js_seq_save_script(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("js_seq_save_script");
+      doc->P("filename", MJSON_STRING, "Script file name");
+      doc->P("script", MJSON_STRING, "Script text");
+      doc->R("status", MJSON_INT, "return status of midas library calls");
+      doc->R("error", MJSON_STRING, "error text");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   std::string filename = mjsonrpc_get_param(params, "filename", &error)->GetString(); if (error) return error;
+   std::string script = mjsonrpc_get_param(params, "script", &error)->GetString(); if (error) return error;
+
+   if (filename.find("..") != std::string::npos) {
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(DB_INVALID_PARAM), "error", MJsonNode::MakeString("Filename with \"..\" is not permitted"));
+   }
+
+   int status;
+   HNDLE hDB;
+
+   status = cm_get_experiment_database(&hDB, NULL);
+
+   if (status != DB_SUCCESS) {
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "error", MJsonNode::MakeString("cm_get_experiment_database() error"));
+   }
+
+   std::string path;
+
+   status = db_get_value_string(hDB, 0, "/Sequencer/State/Path", 0, &path, FALSE);
+
+   if (status != DB_SUCCESS) {
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "error", MJsonNode::MakeString("odb read /Sequencer/State/Path error"));
+   }
+
+   path = cm_expand_env(path.c_str());
+
+   path += DIR_SEPARATOR_STR;
+   path += filename;
+
+   //printf("path: [%s]\n", path.c_str());
+
+   FILE* fp = fopen(path.c_str(), "w");
+   if (!fp) {
+      status = SS_FILE_ERROR;
+      char errstr[256];
+      sprintf(errstr, "fopen() errno %d (%s)", errno, strerror(errno));
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "error", MJsonNode::MakeString(errstr));
+   }
+
+   fwrite(script.c_str(), script.length(), 1, fp);
+   fprintf(fp, "\n");
+   fclose(fp);
+   fp = NULL;
+
+   status = CM_SUCCESS;
+   std::string errstr = "no error";
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "error", MJsonNode::MakeString(errstr.c_str()));
+}
+
 /////////////////////////////////////////////////////////////////////////////////
 //
 // JSON-RPC management code goes here
@@ -3620,6 +3684,7 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("hs_read_binned_arraybuffer", js_hs_read_binned_arraybuffer);
    // sequencer
    mjsonrpc_add_handler("seq_list_files", js_seq_list_files);
+   mjsonrpc_add_handler("seq_save_script", js_seq_save_script);
    // interface to ss_system functions
    mjsonrpc_add_handler("ss_millitime", js_ss_millitime);
    // methods that perform computations or invoke actions
