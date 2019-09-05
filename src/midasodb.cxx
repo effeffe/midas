@@ -803,6 +803,11 @@ public:
       HNDLE hKey;
       int status = db_find_key(fDB, 0, path.c_str(), &hKey);
 
+      if (status == DB_NO_KEY) {
+         SetOk(error);
+         return;
+      }
+
       if (status != DB_SUCCESS) {
          SetMidasStatus(error, fPrintError, path, "db_find_key", status);
          return;
