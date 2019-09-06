@@ -209,7 +209,8 @@ function start_script()
    mjsonrpc_call('cm_exist', '{"name": "sequencer"}').then(function(rpc) {
       if (rpc.result.status === 1) {;
          //window.location.href = '?cmd=Start+Script';
-         window.location.pathname = 'start_script.html';
+         //window.location.pathname = 'start_script.html';
+         mhttpd_goto_page("start_script");
          // DOES NOT RETURN
       } else {
          dlgAlert('Sequencer is not running, please start it');
@@ -301,14 +302,16 @@ function seq_msg_callback()
 function load_script()
 {
    //window.location.href='?cmd=Load+Script';
-   window.location.pathname = "load_script.html";
+   //window.location.pathname = "load_script.html";
+   mhttpd_goto_page("load_script");
    // DOES NOT RETURN
 }
 
 function edit_script()
 {
    //window.location.href='?cmd=Edit+Script';
-   window.location.pathname = "edit_script.html";
+   //window.location.pathname = "edit_script.html";
+   mhttpd_goto_page("edit_script");
    // DOES NOT RETURN
 }
 

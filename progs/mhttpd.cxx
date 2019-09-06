@@ -16127,6 +16127,26 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    /*---- sequencer page --------------------------------------------*/
 
+   if (equal_ustring(command, "seq")) {
+      send_resource(r, "sequencer.html");
+      return;
+   }
+
+   if (equal_ustring(command, "start_script")) {
+      send_resource(r, "start_script.html");
+      return;
+   }
+
+   if (equal_ustring(command, "load_script")) {
+      send_resource(r, "load_script.html");
+      return;
+   }
+
+   if (equal_ustring(command, "edit_script")) {
+      send_resource(r, "edit_script.html");
+      return;
+   }
+
    if (equal_ustring(command, "Sequencer")) {
       show_seq_page(p, r);
       return;
