@@ -106,14 +106,14 @@ function MhistoryGraph(divElement) { // Constructor
       x: {active: false},
       y: {active: false}
    };
-   
+
    // callbacks when certain actions are performed.
    // All callback functions should accept a single parameter, which is the 
    // MhistoryGraph object that triggered the callback.
    this.callbacks = {
-     resetAxes: undefined,
-     timeZoom: undefined,
-     jumpToCurrent: undefined
+      resetAxes: undefined,
+      timeZoom: undefined,
+      jumpToCurrent: undefined
    }
 
    // marker
@@ -147,7 +147,7 @@ function MhistoryGraph(divElement) { // Constructor
          title: "Reset histogram axes",
          click: function (t) {
             t.resetAxes();
-            
+
             if (t.callbacks.resetAxes !== undefined) {
                t.callbacks.resetAxes(t);
             }
@@ -159,7 +159,7 @@ function MhistoryGraph(divElement) { // Constructor
          click: function (t) {
             t.scroll = true;
             t.scrollRedraw();
-            
+
             if (t.callbacks.jumpToCurrent !== undefined) {
                t.callbacks.jumpToCurrent(t);
             }
@@ -275,7 +275,7 @@ function doQuery(t) {
    t.tMax = d2.getTime() / 1000;
    t.scroll = false;
    t.loadOldData();
-   
+
    if (t.callbacks.timeZoom !== undefined) {
       t.callbacks.timeZoom(t);
    }
@@ -359,6 +359,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
    }
 
    this.showLabels = this.odb["Show values"];
+   this.showFill = this.odb["Show fill"];
 
    this.autoscaleMin = (this.odb["Minimum"] === this.odb["Maximum"] ||
       this.odb["Minimum"] === "-Infinity" || this.odb["Minimum"] === "Infinity");
@@ -500,7 +501,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   mhg.scroll = false;
                   mhg.marker.active = false;
                   mhg.loadOldData();
-                  
+
                   if (mhg.callbacks.timeZoom !== undefined) {
                      mhg.callbacks.timeZoom(mhg);
                   }
@@ -533,7 +534,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   mhg.scroll = false;
                   mhg.marker.active = false;
                   mhg.loadOldData();
-                  
+
                   if (mhg.callbacks.timeZoom !== undefined) {
                      mhg.callbacks.timeZoom(mhg);
                   }
@@ -550,7 +551,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
             mhg.scroll = true;
             mhg.loadOldData();
             mhg.scrollRedraw();
-            
+
             if (mhg.callbacks.timeZoom !== undefined) {
                mhg.callbacks.timeZoom(mhg);
             }
@@ -657,7 +658,7 @@ MhistoryGraph.prototype.loadOldData = function () {
 
    let dt = Math.floor(this.tMax - this.tMin);
 
-   if (this.tMin - dt/2 < this.tMinRequested) {
+   if (this.tMin - dt / 2 < this.tMinRequested) {
 
       let oldTMinRequestested = this.tMinRequested;
       this.tMinRequested = this.tMin - dt;
@@ -939,7 +940,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.tMax = t2;
          this.zoom.x.active = false;
          this.redraw();
-         
+
          if (this.callbacks.timeZoom !== undefined) {
             this.callbacks.timeZoom(this);
          }
@@ -973,7 +974,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          }
 
          this.loadOldData();
-         
+
          if (this.callbacks.timeZoom !== undefined) {
             this.callbacks.timeZoom(this);
          }
@@ -1139,7 +1140,7 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
             this.loadOldData();
          }
-         
+
          if (this.callbacks.timeZoom !== undefined) {
             this.callbacks.timeZoom(this);
          }
@@ -1152,10 +1153,10 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
    }
 };
 
-MhistoryGraph.prototype.resetAxes = function() {
+MhistoryGraph.prototype.resetAxes = function () {
    this.tMax = Math.floor(new Date() / 1000);
    this.tMin = this.tMax - this.tScale;
-   
+
    this.yMin0 = this.yMax0 = this.data[0].value[this.data[0].value.length - 1];
    for (let index = 0; index < this.data.length; index++)
       for (let j = 0; j < this.data[index].time.length; j++) {
@@ -1169,20 +1170,20 @@ MhistoryGraph.prototype.resetAxes = function() {
                   this.yMin0 = v;
          }
       }
-  
+
    this.yMin = this.yMin0;
    this.yMax = this.yMax0;
    if (this.autoscaleMin)
       this.yMin -= (this.yMax0 - this.yMin0) / 10;
    if (this.autoscaleMax)
       this.yMax += (this.yMax0 - this.yMin0) / 10;
-   
+
    this.scroll = true;
    this.yZoom = false;
    this.redraw();
 }
 
-MhistoryGraph.prototype.setTimespan = function(tMin, tMax, scroll) {
+MhistoryGraph.prototype.setTimespan = function (tMin, tMax, scroll) {
    this.tMin = tMin;
    this.tMax = tMax;
    this.scroll = scroll;
@@ -1471,9 +1472,72 @@ MhistoryGraph.prototype.draw = function () {
       avgN = avgN / numberN;
 
    // draw shaded areas
+   if (this.showFill) {
+      for (let di = 0; di < this.data.length; di++) {
+         if (this.solo.active && this.solo.index !== di)
+            continue;
+
+         if (this.events[di] === "Run transitions")
+            continue;
+
+         ctx.fillStyle = this.odb["Colour"][di];
+
+         if (avgN > 2) {
+            ctx.beginPath();
+            let x0;
+            let y0;
+            let xLast;
+            for (let i = 0; i < this.p[di].length; i++) {
+               let p = this.p[di][i];
+               if (x0 === undefined) {
+                  x0 = p.x;
+                  y0 = p.first;
+                  ctx.moveTo(p.x, p.first);
+               } else {
+                  ctx.lineTo(p.x, p.first);
+               }
+               xLast = p.x;
+               ctx.lineTo(p.x, p.last);
+            }
+            ctx.lineTo(xLast, this.valueToY(0));
+            ctx.lineTo(x0, this.valueToY(0));
+            ctx.lineTo(x0, y0);
+            ctx.globalAlpha = 0.1;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+         } else {
+            ctx.beginPath();
+            let x0;
+            let y0;
+            let xLast;
+            let i;
+            for (i = 0; i < this.x[di].length; i++) {
+               let x = this.x[di][i];
+               let y = this.y[di][i];
+               if (x0 === undefined) {
+                  x0 = x;
+                  y0 = y;
+                  ctx.moveTo(x, y);
+               } else {
+                  ctx.lineTo(x, y);
+               }
+               xLast = x;
+            }
+            ctx.lineTo(xLast, this.valueToY(0));
+            ctx.lineTo(x0, this.valueToY(0));
+            ctx.lineTo(x0, y0);
+            ctx.globalAlpha = 0.1;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+         }
+      }
+   }
+
+   // draw graphs
    for (let di = 0; di < this.data.length; di++) {
       if (this.solo.active && this.solo.index !== di)
          continue;
+
       if (this.events[di] === "Run transitions") {
 
          if (this.tags[di] === "State") {
@@ -1499,100 +1563,42 @@ MhistoryGraph.prototype.draw = function () {
                ctx.setLineDash([]);
             }
          }
-         continue;
-      }
 
-      ctx.fillStyle = this.odb["Colour"][di];
-
-      if (avgN > 2) {
-         ctx.beginPath();
-         let x0;
-         let y0;
-         let xLast;
-         for (let i = 0; i < this.p[di].length; i++) {
-            let p = this.p[di][i];
-            if (x0 === undefined) {
-               x0 = p.x;
-               y0 = p.first;
-               ctx.moveTo(p.x, p.first);
-            } else {
-               ctx.lineTo(p.x, p.first);
-            }
-            xLast = p.x;
-            ctx.lineTo(p.x, p.last);
-         }
-         ctx.lineTo(xLast, this.y1);
-         ctx.lineTo(x0, this.y1);
-         ctx.lineTo(x0, y0);
-         ctx.globalAlpha = 0.1;
-         ctx.fill();
-         ctx.globalAlpha = 1;
       } else {
-         ctx.beginPath();
-         let x0;
-         let y0;
-         let xLast;
-         let i;
-         for (i = 0; i < this.x[di].length; i++) {
-            let x = this.x[di][i];
-            let y = this.y[di][i];
-            if (x0 === undefined) {
-               x0 = x;
-               y0 = y;
-               ctx.moveTo(x, y);
-            } else {
-               ctx.lineTo(x, y);
+
+         ctx.strokeStyle = this.odb["Colour"][di];
+
+         if (avgN > 2) {
+            let prevX = undefined;
+            let prevY = undefined;
+            for (let i = 0; i < this.p[di].length; i++) {
+               let p = this.p[di][i];
+
+               // draw line from end of previous cluster to beginning of current cluster
+               if (prevX !== undefined)
+                  ctx.drawLine(prevX, prevY, p.x, p.first);
+
+               // draw min-max line
+               ctx.drawLine(p.x, p.min, p.x, p.max + 1);
+
+               prevX = p.x;
+               prevY = p.last;
             }
-            xLast = x;
-         }
-         ctx.lineTo(xLast, this.y1);
-         ctx.lineTo(x0, this.y1);
-         ctx.lineTo(x0, y0);
-         ctx.globalAlpha = 0.1;
-         ctx.fill();
-         ctx.globalAlpha = 1;
-      }
-   }
-
-   // draw graphs
-   for (let di = 0; di < this.data.length; di++) {
-      if (this.solo.active && this.solo.index !== di)
-         continue;
-      if (this.events[di] === "Run transitions")
-         continue;
-
-      ctx.strokeStyle = this.odb["Colour"][di];
-
-      if (avgN > 2) {
-         let prevX = undefined;
-         let prevY = undefined;
-         for (let i = 0; i < this.p[di].length; i++) {
-            let p = this.p[di][i];
-
-            // draw line from end of previous cluster to beginning of current cluster
-            if (prevX !== undefined)
-               ctx.drawLine(prevX, prevY, p.x, p.first);
-
-            // draw min-max line
-            ctx.drawLine(p.x, p.min, p.x, p.max + 1);
-
-            prevX = p.x;
-            prevY = p.last;
-         }
-      } else {
-         ctx.beginPath();
-         let first = true;
-         for (let i = 0; i < this.x[di].length; i++) {
-            let x = this.x[di][i];
-            let y = this.y[di][i];
-            if (first) {
-               first = false;
-               ctx.moveTo(x, y);
-            } else {
-               ctx.lineTo(x, y);
+         } else {
+            ctx.beginPath();
+            let first = true;
+            for (let i = 0; i < this.x[di].length; i++) {
+               let x = this.x[di][i];
+               let y = this.y[di][i];
+               if (first) {
+                  first = false;
+                  ctx.moveTo(x, y);
+               } else {
+                  ctx.lineTo(x, y);
+               }
             }
+            ctx.stroke();
          }
-         ctx.stroke();
       }
    }
 
@@ -1799,8 +1805,7 @@ MhistoryGraph.prototype.draw = function () {
       ctx.fillStyle = "#404040";
       ctx.fillText(s, x + 3, y + h / 2);
    }
-}
-;
+};
 
 /*
 MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor, major,
