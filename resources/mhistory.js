@@ -114,10 +114,12 @@ function MhistoryGraph(divElement) { // Constructor
       resetAxes: undefined,
       timeZoom: undefined,
       jumpToCurrent: undefined
-   }
+   };
 
    // marker
    this.marker = {active: false};
+   this.variablesWidth = 0;
+   this.variablesHeight = 0;
 
    // labels
    this.showLabels = false;
@@ -1110,6 +1112,8 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
             this.yMax += dtMax;
          }
 
+         this.redraw();
+
       } else if (e.ctrlKey || e.metaKey) {
 
          // zoom time axis
@@ -1181,14 +1185,14 @@ MhistoryGraph.prototype.resetAxes = function () {
    this.scroll = true;
    this.yZoom = false;
    this.redraw();
-}
+};
 
 MhistoryGraph.prototype.setTimespan = function (tMin, tMax, scroll) {
    this.tMin = tMin;
    this.tMax = tMax;
    this.scroll = scroll;
    this.loadOldData();
-}
+};
 
 MhistoryGraph.prototype.resize = function () {
    this.canvas.width = this.parentDiv.clientWidth;
@@ -1361,22 +1365,32 @@ MhistoryGraph.prototype.draw = function () {
       4, 7, 10, 10, this.y2 - this.y1, this.tMin, this.tMax);
 
    // determine precision
+   let n_sig1 = 0;
+   let n_sig2 = 0;
    if (this.yMin === 0)
-      this.yPrecision = Math.max(5, Math.ceil(Math.log(Math.abs(this.yMax)) / Math.log(10)) + 3);
-   else if (this.yMax === 0)
-      this.yPrecision = Math.max(5, Math.ceil(Math.log(Math.abs(this.yMin)) / Math.log(10)) + 3);
+      n_sig1 = 1;
    else
-      this.yPrecision = Math.max(5, Math.ceil(-Math.log(Math.abs(1 - this.yMax / this.yMin)) / Math.log(10)) + 3);
+      n_sig1 = Math.floor(Math.log(Math.abs(this.yMin)) / Math.log(10)) -
+         Math.floor(Math.log(Math.abs((this.yMax - this.yMin) / 50)) / Math.log(10)) + 1;
 
-   this.variablesWidth = 0;
-   this.odb["Variables"].forEach((v, i) => {
-      if (this.odb.Label[i] !== "")
-         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(this.odb.Label[i]).width);
-      else
-         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(v.substr(v.indexOf(':') + 1)).width);
-   });
-   this.variablesWidth += ctx.measureText("0").width * (this.yPrecision + 2);
-   this.variablesHeight = this.odb["Variables"].length * 17 + 7;
+   if (this.yMax === 0)
+      n_sig2 = 1;
+   else
+      n_sig2 = Math.floor(Math.log(Math.abs(this.yMax)) / Math.log(10)) -
+         Math.floor(Math.log(Math.abs((this.yMax - this.yMin) / 50)) / Math.log(10)) + 1;
+
+   n_sig1 = Math.max(n_sig1, n_sig2);
+   n_sig1 = Math.max(1, n_sig1);
+
+   // toPrecision displays 1050 with 3 digits as 1.05e+3, so increase precision to number of digits
+   if (Math.abs(this.yMin) < 100000)
+      n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(this.yMin)) /
+         Math.log(10) + 0.001) + 1);
+   if (Math.abs(this.yMax) < 100000)
+      n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(this.yMax)) /
+         Math.log(10) + 0.001) + 1);
+
+   this.yPrecision = Math.max(6, n_sig1); // use at least 5 digits
 
    ctx.save();
    ctx.beginPath();
@@ -1606,6 +1620,33 @@ MhistoryGraph.prototype.draw = function () {
 
    // labels with variable names and values
    if (this.showLabels) {
+      this.variablesHeight = this.odb["Variables"].length * 17 + 7;
+
+      this.odb["Variables"].forEach((v, i) => {
+         let width = 0;
+         if (this.odb.Label[i] !== "")
+            width = ctx.measureText(this.odb.Label[i]).width;
+         else
+            width = ctx.measureText(v.substr(v.indexOf(':') + 1)).width;
+
+         if (this.v[i].length > 0) {
+            // use last point in array
+            let index = this.v[i].length - 1;
+
+            // use point at current marker
+            if (this.marker.active)
+               index = this.marker.index;
+
+            // convert value to string with 6 digits
+            let value = this.v[i][index];
+            let str = "  " + value.toPrecision(this.yPrecision).stripZeros();
+            width += ctx.measureText(str).width;
+         } else
+            width += ctx.measureText('no data').width;
+
+         this.variablesWidth = Math.max(this.variablesWidth, width);
+      });
+
       ctx.save();
       ctx.beginPath();
       ctx.rect(this.x1, this.y2, 25 + this.variablesWidth + 7, this.variablesHeight + 2);
@@ -1643,7 +1684,7 @@ MhistoryGraph.prototype.draw = function () {
 
             // convert value to string with 6 digits
             let value = this.v[i][index];
-            let str = value.toPrecision(this.yPrecision);
+            let str = value.toPrecision(this.yPrecision).stripZeros();
             ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
          } else
             ctx.fillText('no data', this.x1 + 25 + this.variablesWidth, 40 + i * 17);
@@ -1754,9 +1795,9 @@ MhistoryGraph.prototype.draw = function () {
 
       let s;
       if (this.odb.Label[this.marker.graphIndex] !== "")
-         s = this.odb.Label[this.marker.graphIndex] + ": " + v.toPrecision(this.yPrecision);
+         s = this.odb.Label[this.marker.graphIndex] + ": " + v.toPrecision(this.yPrecision).stripZeros();
       else
-         s = this.odb["Variables"][this.marker.graphIndex] + ": " + v.toPrecision(this.yPrecision);
+         s = this.odb["Variables"][this.marker.graphIndex] + ": " + v.toPrecision(this.yPrecision).stripZeros();
 
       let w = ctx.measureText(s).width + 6;
       let h = ctx.measureText("M").width * 1.2 + 6;
