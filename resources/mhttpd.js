@@ -365,36 +365,56 @@ function dlgOdbEdit(path) {
 /*---- mhttpd functions -------------------------------------*/
 
 function mhttpd_disable_button(button) {
-   button.disabled = true;
+   if (!button.disabled) {
+      button.disabled = true;
+   }
 }
 
 function mhttpd_enable_button(button) {
-   button.disabled = false;
+   if (button.disabled) {
+      button.disabled = false;
+   }
+}
+
+function mhttpd_set_style_visibility(e, v) {
+   if (e) {
+      if (e.style.visibility !== v) {
+         e.style.visibility = v;
+      }
+   }
+}
+
+function mhttpd_set_style_display(e, v) {
+   if (e) {
+      if (e.style.display !== v) {
+         e.style.display = v;
+      }
+   }
 }
 
 function mhttpd_hide_button(button) {
-   button.style.visibility = "hidden";
-   button.style.display = "none";
+   mhttpd_set_style_visibility(button, "hidden");
+   mhttpd_set_style_display(button, "none");
 }
 
 function mhttpd_unhide_button(button) {
-   button.style.visibility = "visible";
-   button.style.display = "";
+   mhttpd_set_style_visibility(button, "visible");
+   mhttpd_set_style_display(button, "");
 }
 
 function mhttpd_hide(id) {
    var e = document.getElementById(id);
    if (e) {
-      e.style.visibility = "hidden";
-      e.style.display = "none";
+      mhttpd_set_style_visibility(e, "hidden");
+      mhttpd_set_style_display(e, "none");
    }
 }
 
 function mhttpd_unhide(id) {
    var e = document.getElementById(id);
    if (e) {
-      e.style.visibility = "visible";
-      e.style.display = "";
+      mhttpd_set_style_visibility(e, "visible");
+      mhttpd_set_style_display(e, "");
    }
 }
 
