@@ -11783,6 +11783,7 @@ struct hist_plot_t
    bool log_axis;
    bool show_run_markers;
    bool show_values;
+   bool show_fill;
 
    hist_var_list_t vars;
 
@@ -11795,12 +11796,13 @@ struct hist_plot_t
       log_axis = false;
       show_run_markers = true;
       show_values = true;
+      show_fill = true;
    }
 
    void Print() const
    {
       printf("hist plot:\n");
-      printf("timescale: %s, minimum: %f, maximum: %f, zero_ylow: %d, log_axis: %d, show_run_markers: %d, show_values: %d\n", timescale.c_str(), minimum, maximum, zero_ylow, log_axis, show_run_markers, show_values);
+      printf("timescale: %s, minimum: %f, maximum: %f, zero_ylow: %d, log_axis: %d, show_run_markers: %d, show_values: %d, show_fill: %d\n", timescale.c_str(), minimum, maximum, zero_ylow, log_axis, show_run_markers, show_values, show_fill);
 
       for (unsigned i=0; i<vars.size(); i++) {
          printf("var[%d] event [%s][%s] formula %s, color [%s] label [%s] order %d\n", i, vars[i].event_name.c_str(), vars[i].tag_name.c_str(), vars[i].hist_formula.c_str(), vars[i].hist_col.c_str(), vars[i].hist_label.c_str(), vars[i].hist_order);
@@ -11867,6 +11869,12 @@ struct hist_plot_t
       if (status == DB_SUCCESS)
          show_values = flag;
 
+      flag = show_fill;
+      size = sizeof(flag);
+      status = db_get_value(hDB, hDir, "Show fill", &flag, &size, TID_BOOL, FALSE);
+      if (status == DB_SUCCESS)
+         show_fill = flag;
+
       for (unsigned index=0; ; index++) {
          hist_var_t v;
 
@@ -11930,6 +11938,7 @@ struct hist_plot_t
       log_axis         = *p->getparam("log_axis");
       show_run_markers = *p->getparam("run_markers");
       show_values      = *p->getparam("show_values");
+      show_fill        = *p->getparam("show_fill");
 
       for (unsigned index=0; ; index++) {
          char str[256];
@@ -12045,6 +12054,9 @@ struct hist_plot_t
 
       flag = show_values;
       db_set_value(hDB, hDir, "Show values", &flag, sizeof(flag), 1, TID_BOOL);
+
+      flag = show_fill;
+      db_set_value(hDB, hDir, "Show fill", &flag, sizeof(flag), 1, TID_BOOL);
 
       int index = vars.size();
 
@@ -12303,7 +12315,13 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
       r->rsprintf("&nbsp;&nbsp;<input type=checkbox checked name=show_values value=1>");
    else
       r->rsprintf("&nbsp;&nbsp;<input type=checkbox name=show_values value=1>");
-   r->rsprintf("Show values of variables</td></tr>\n");
+   r->rsprintf("Show values of variables\n");
+
+   if (plot.show_fill)
+      r->rsprintf("&nbsp;&nbsp;<input type=checkbox checked name=show_fill value=1>");
+   else
+      r->rsprintf("&nbsp;&nbsp;<input type=checkbox name=show_fill value=1>");
+   r->rsprintf("Show graph fill</td></tr>\n");
 
    /*---- events and variables ----*/
 

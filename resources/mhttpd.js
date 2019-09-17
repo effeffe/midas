@@ -963,7 +963,7 @@ function mhttpd_scan()
          h = 200;
       else
          h = parseInt(h);
-      mhist[i].innerHTML = "<img src=\"graph.gif?cmd=history&group="+
+      mhist[i].innerHTML = "<img src=\"graph.gif?cmd=oldhistory&group="+
          mhist[i].dataset.group+
          "&panel="+mhist[i].dataset.panel+
          "&scale="+mhist[i].dataset.scale+
