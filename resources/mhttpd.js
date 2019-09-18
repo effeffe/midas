@@ -392,6 +392,24 @@ function mhttpd_set_style_display(e, v) {
    }
 }
 
+function mhttpd_set_innerHTML(e, v) {
+   if (e) {
+      if (e.innerHTML !== v) {
+         //console.log("mhttpd_set_innerHTML for " + e + " from " + e.innerHTML + " to " + v);
+         e.innerHTML = v;
+      }
+   }
+}
+
+function mhttpd_set_className(e, v) {
+   if (e) {
+      if (e.className !== v) {
+         //console.log("mhttpd_set_className for " + e + " from " + e.className + " to " + v);
+         e.className = v;
+      }
+   }
+}
+
 function mhttpd_hide_button(button) {
    mhttpd_set_style_visibility(button, "hidden");
    mhttpd_set_style_display(button, "none");
@@ -1616,9 +1634,17 @@ function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, y
 function mhttpd_resize_sidenav() {
    var h = document.getElementById('mheader');
    var s = document.getElementById('msidenav');
-   s.style.top = h.clientHeight + 1 + "px";
+   var top = h.clientHeight + 1 + "px";
+   if (s.style.top !== top) {
+      //console.log("httpd_resize_sidenav: top changed from " + s.style.top + " to " + top);
+      s.style.top = top;
+   }
    var m = document.getElementById('mmain');
-   m.style.paddingTop = h.clientHeight + 1 + "px";
+   var paddingTop = h.clientHeight + 1 + "px";
+   if (m.style.paddingTop !== paddingTop) {
+      //console.log("httpd_resize_sidenav: paddingTop changed from " + m.style.paddingTop + " to " + paddingTop);
+      m.style.paddingTop = paddingTop;
+   }
 }
 
 function mhttpd_resize_header() {
@@ -1695,8 +1721,9 @@ function mhttpd_refresh() {
       var dstr = d.toLocaleString("en-gb", { hour12: false, day: 'numeric', month: 'short', year: 'numeric',
          hour: 'numeric', minute: 'numeric', second: 'numeric', timeZoneName: 'short' });
 
-      if (document.getElementById("mheader_last_updated") !== undefined)
-         document.getElementById("mheader_last_updated").innerHTML = dstr;
+      if (document.getElementById("mheader_last_updated") !== undefined) {
+         mhttpd_set_innerHTML(document.getElementById("mheader_last_updated"), dstr);
+      }
 
       var idata = 0;
 
@@ -1870,8 +1897,8 @@ function mhttpd_refresh() {
       // update alarm display
       var e = document.getElementById('mheader_alarm');
       if (!alarms.alarm_system_active) {
-         e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: Off</a>";
-         e.className = "mgray mbox";
+         mhttpd_set_innerHTML(e, "<a href=\"?cmd=Alarms\">Alarms: Off</a>");
+         mhttpd_set_className(e, "mgray mbox");
       } else {
          var s = "";
          var n = 0;
@@ -1880,15 +1907,15 @@ function mhttpd_refresh() {
             n++;
          }
          if (n < 1) {
-            e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: None</a>";
-            e.className = "mgreen mbox";
+            mhttpd_set_innerHTML(e, "<a href=\"?cmd=Alarms\">Alarms: None</a>");
+            mhttpd_set_className(e, "mgreen mbox");
          } else {
             s = s.slice(0, -2);
             if (n > 1)
-               e.innerHTML = "<a href=\"?cmd=Alarms\">Alarms: " + s + "</a>";
+               mhttpd_set_innerHTML(e, "<a href=\"?cmd=Alarms\">Alarms: " + s + "</a>");
             else
-               e.innerHTML = "<a href=\"?cmd=Alarms\">Alarm: " + s + "</a>";
-            e.className = "mred mbox";
+               mhttpd_set_innerHTML(e, "<a href=\"?cmd=Alarms\">Alarm: " + s + "</a>");
+            mhttpd_set_className(e, "mred mbox");
 
             mhttpd_alarm_play();
          }
@@ -1988,6 +2015,7 @@ function mhttpd_close_message()
 
 function mhttpd_fit_message(m)
 {
+   //console.log("mhttpd_fit_message!\n");
    var d = document.getElementById("mheader_message");
    var cross = "&nbsp;&nbsp;&nbsp;<span style=\"cursor: pointer;\" onclick=\"mhttpd_close_message();\">&#9587;</span>";
    var link1 = "<span style=\"cursor: pointer;\" onclick=\"window.location.href='&quot;'?cmd=Messages&quot;\">";
@@ -2122,8 +2150,11 @@ function mhttpd_message(msg, chat) {
          }
       }
       var t = new Date() / 1000;
-      if (t > d.age + 5 && d.style.backgroundColor === "var(--myellow)")
-         d.style.backgroundColor = "var(--mgray)";
+      if (t > d.age + 5 && d.style.backgroundColor === "var(--myellow)") {
+         var backgroundColor = "var(--mgray)";
+         //console.log("mhttpd_message: d.style.backgroundColor changed " + d.style.backgroundColor + " to " + backgroundColor);
+         d.style.backgroundColor = backgroundColor;
+      }
    }
 }
 
