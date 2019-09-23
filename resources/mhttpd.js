@@ -2732,26 +2732,38 @@ function mhttpdConfigSetAll(new_config) {
 
 /*---- sound and speak functions --------------------------*/
 
+function mhttpd_alarm_play_now() {
+   //console.log("mhttpd_alarm_play: audio.play!");
+   var audio = new Audio(mhttpdConfig().alarmSoundFile);
+   audio.volume = mhttpdConfig().alarmVolume;
+   var promise = audio.play();
+   if (promise) {
+      promise.catch(function(e) {
+         console.log("mhttpd_alarm_play: audio.play() exception: " + e);
+      });
+   }
+}
+
 function mhttpd_alarm_play() {
    if (mhttpdConfig().alarmSound && mhttpdConfig().alarmSoundFile) {
       var now = new Date() / 1000;
       if (now > mhttpdConfig().var.lastAlarm + parseFloat(mhttpdConfig().alarmRepeat)) {
          mhttpdConfigSet("var.lastAlarm", now);
          if (1) {
-         //console.log("mhttpd_alarm_play: audio.play!");
-         var audio = new Audio(mhttpdConfig().alarmSoundFile);
-         audio.volume = mhttpdConfig().alarmVolume;
-         var promise = audio.play();
-         if (promise) {
-            promise.catch(function(e) {
-               console.log("mhttpd_alarm_play: audio.play() exception: " + e);
-            });
-         }
+            mhttpd_alarm_play_now();
          } else {
-         console.log("mhttpd_alarm_play: audio.play is disabled!");
+            console.log("mhttpd_alarm_play: audio.play is disabled!");
          }
       }
    }
+}
+
+function mhttpd_speak_now(text) {
+   var u = new SpeechSynthesisUtterance(text);
+   u.voice = speechSynthesis.getVoices().filter(function(voice) {
+      return voice.name === mhttpdConfig().speakVoice; })[0];
+   u.volume = mhttpdConfig().speakVolume;
+   speechSynthesis.speak(u);
 }
 
 function mhttpd_speak(time, text) {
@@ -2762,11 +2774,7 @@ function mhttpd_speak(time, text) {
    if (mhttpdConfig().speakChat) {
       if (time > mhttpdConfig().var.lastSpeak) {
          mhttpdConfigSet("var.lastSpeak", time);
-         var u = new SpeechSynthesisUtterance(text);
-         u.voice = speechSynthesis.getVoices().filter(function(voice) {
-            return voice.name === mhttpdConfig().speakVoice; })[0];
-         u.volume = mhttpdConfig().speakVolume;
-            speechSynthesis.speak(u);
+         mhttpd_speak_now(text);
       }
    }
 }
