@@ -392,6 +392,15 @@ function mhttpd_set_style_display(e, v) {
    }
 }
 
+function mhttpd_set_firstChild_data(e, v) {
+   if (e) {
+      if (e.firstChild.data !== v) {
+         //console.log("mhttpd_set_firstChild_data for " + e + " from " + e.firstChild.data + " to " + v);
+         e.firstChild.data = v;
+      }
+   }
+}
+
 function mhttpd_set_innerHTML(e, v) {
    if (e) {
       if (e.innerHTML !== v) {
@@ -629,11 +638,11 @@ function mhttpd_init(current_page, interval, callback) {
 
       "<div style='display: inline; flex:none;'>" +
       "  <div id='mheader_alarm'>&nbsp;</div>" +
-      "  <div style='display: inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'></div>" +
+      "  <div style='display: inline; font-size: 75%; margin-right: 10px' id='mheader_last_updated'>mheader_last_updated</div>" +
       "</div>";
 
    mhttpd_resize_sidenav();
-   window.addEventListener('resize', mhttpd_resize_sidenav);
+   window.addEventListener('resize', mhttpd_resize_event_call_resize_sidenav);
 
    // put error header in front of header
    var d = document.createElement('div');
@@ -1631,7 +1640,13 @@ function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, y
    } while (1);
 }
 
+function mhttpd_resize_event_call_resize_sidenav() {
+   //console.log("mhttpd_resize_event_call_resize_sidenav!");
+   mhttpd_resize_sidenav();
+}
+
 function mhttpd_resize_sidenav() {
+   //console.log("mhttpd_resize_sidenav!");
    var h = document.getElementById('mheader');
    var s = document.getElementById('msidenav');
    var top = h.clientHeight + 1 + "px";
@@ -1722,7 +1737,8 @@ function mhttpd_refresh() {
          hour: 'numeric', minute: 'numeric', second: 'numeric', timeZoneName: 'short' });
 
       if (document.getElementById("mheader_last_updated") !== undefined) {
-         mhttpd_set_innerHTML(document.getElementById("mheader_last_updated"), dstr);
+         //mhttpd_set_innerHTML(document.getElementById("mheader_last_updated"), dstr);
+         mhttpd_set_firstChild_data(document.getElementById("mheader_last_updated"), dstr);
       }
 
       var idata = 0;
@@ -1997,6 +2013,7 @@ function mhttpd_reconnect() {
 window.addEventListener('resize', mhttpd_resize_message);
 
 function mhttpd_resize_message() {
+   //console.log("mhttpd_resize_message() via resize event listener");
    var d = document.getElementById("mheader_message");
    if (d.currentMessage !== undefined && d.style.display !== 'none')
       mhttpd_fit_message(d.currentMessage);
@@ -2015,7 +2032,7 @@ function mhttpd_close_message()
 
 function mhttpd_fit_message(m)
 {
-   //console.log("mhttpd_fit_message!\n");
+   //console.log("mhttpd_fit_message() with " + m.length + " messages");
    var d = document.getElementById("mheader_message");
    var cross = "&nbsp;&nbsp;&nbsp;<span style=\"cursor: pointer;\" onclick=\"mhttpd_close_message();\">&#9587;</span>";
    var link1 = "<span style=\"cursor: pointer;\" onclick=\"window.location.href='&quot;'?cmd=Messages&quot;\">";
@@ -2720,9 +2737,19 @@ function mhttpd_alarm_play() {
       var now = new Date() / 1000;
       if (now > mhttpdConfig().var.lastAlarm + parseFloat(mhttpdConfig().alarmRepeat)) {
          mhttpdConfigSet("var.lastAlarm", now);
+         if (1) {
+         //console.log("mhttpd_alarm_play: audio.play!");
          var audio = new Audio(mhttpdConfig().alarmSoundFile);
          audio.volume = mhttpdConfig().alarmVolume;
-         audio.play();
+         var promise = audio.play();
+         if (promise) {
+            promise.catch(function(e) {
+               console.log("mhttpd_alarm_play: audio.play() exception: " + e);
+            });
+         }
+         } else {
+         console.log("mhttpd_alarm_play: audio.play is disabled!");
+         }
       }
    }
 }
