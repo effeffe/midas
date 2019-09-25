@@ -2732,14 +2732,61 @@ function mhttpdConfigSetAll(new_config) {
 
 /*---- sound and speak functions --------------------------*/
 
+var last_audio = null;
+
+//function mhttpd_alarm_done() {
+//   var ended;
+//   if (last_audio) {
+//      ended = last_audio.ended;
+//      last_audio = null;
+//   }
+//   count_audio_done++;
+//   console.log(Date() + ": mhttpd_alarm_done: created: " + count_audio_created + ", done: " + count_audio_done + ", last_ended: " + ended);
+//}
+
 function mhttpd_alarm_play_now() {
-   //console.log("mhttpd_alarm_play: audio.play!");
+   if (last_audio) {
+      //
+      // NOTE:
+      // check for playing the alarm sound is done every few minutes.
+      // it takes 3 seconds to play the alarm sound
+      // so in theory, this check is not needed: previous alarm sound should
+      // always have finished by the time we play a new sound.
+      //
+      // However, observed with google-chrome, in inactive and/or iconized tabs
+      // javascript code is "throttled" and the above time sequence is not necessarily
+      // observed.
+      //
+      // Specifically, I see the following sequence: after 1-2 days of inactivity,
+      // (i.e.) the "programs" page starts consuming 10-15% CPU, if I open it,
+      // CPU use goes to 100% for a short while, memory use goes from ~50 Mbytes
+      // to ~150 Mbytes. console.log() debug print out shows that there are ~400
+      // accumulated Audio() objects that have been created but did not finish playing
+      // (because google-chrome is throttling javascript in inactive tabs?), and now
+      // they all try to load the mp3 file and play all at the same time.
+      //
+      // This fix for this observed behaviour is to only create new Audio() objects
+      // if previous one finished playing.
+      //
+      // K.O.
+      //
+      if (!last_audio.ended) {
+         console.log(Date() + ": mhttpd_alarm_play: Cannot play alarm sound: previous alarm sound did not finish playing yet");
+         return;
+      }
+   }
+   //console.log(Date() + ": mhttpd_alarm_play: created: " + count_audio_created + ", done: " + count_audio_done + ", last_ended: " + ended + ", audio.play!");
+   //count_audio_created++;
    var audio = new Audio(mhttpdConfig().alarmSoundFile);
+   last_audio = audio;
    audio.volume = mhttpdConfig().alarmVolume;
+   //audio.addEventListener("ended", mhttpd_alarm_done);
    var promise = audio.play();
    if (promise) {
       promise.catch(function(e) {
-         console.log("mhttpd_alarm_play: audio.play() exception: " + e);
+         //count_audio_done++;
+         //console.log(Date() + ": mhttpd_alarm_play: audio.play() exception: " + e + ", created: " + count_audio_created + ", done: " + count_audio_done);
+         console.log(Date() + ": mhttpd_alarm_play: Cannot play alarm sound: audio.play() exception: " + e);
       });
    }
 }
@@ -2747,13 +2794,14 @@ function mhttpd_alarm_play_now() {
 function mhttpd_alarm_play() {
    if (mhttpdConfig().alarmSound && mhttpdConfig().alarmSoundFile) {
       var now = new Date() / 1000;
-      if (now > mhttpdConfig().var.lastAlarm + parseFloat(mhttpdConfig().alarmRepeat)) {
+      var last = mhttpdConfig().var.lastAlarm;
+      var next = last + parseFloat(mhttpdConfig().alarmRepeat);
+      var wait = next - now;
+      var do_play = (now > next);
+      //console.log("mhttpd_alarm_play: now: " + now + ", next: " + next + ", last: " + last + ", wait: " + wait + ", play: " + do_play);
+      if (do_play) {
          mhttpdConfigSet("var.lastAlarm", now);
-         if (1) {
-            mhttpd_alarm_play_now();
-         } else {
-            console.log("mhttpd_alarm_play: audio.play is disabled!");
-         }
+         mhttpd_alarm_play_now();
       }
    }
 }
