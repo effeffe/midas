@@ -2787,6 +2787,7 @@ function mhttpd_alarm_play_now() {
          //count_audio_done++;
          //console.log(Date() + ": mhttpd_alarm_play: audio.play() exception: " + e + ", created: " + count_audio_created + ", done: " + count_audio_done);
          console.log(Date() + ": mhttpd_alarm_play: Cannot play alarm sound: audio.play() exception: " + e);
+         last_audio = null;
       });
    }
 }
