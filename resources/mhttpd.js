@@ -45,11 +45,11 @@ function mie_to_string(tid, jvalue, format) {
       if (jvalue === "NaN")
          return jvalue;
       if (format && format.indexOf("p") != -1) {
-         var p = parseInt(format.substr(format.indexOf("p")+1));
+         var p = parseInt(format.substr(format.indexOf("p") + 1));
          return jvalue.toPrecision(p);
       }
       if (format && format.indexOf("f") != -1) {
-         var p = parseInt(format.substr(format.indexOf("f")+1));
+         var p = parseInt(format.substr(format.indexOf("f") + 1));
          return jvalue.toFixed(p);
       }
       return jvalue;
@@ -64,8 +64,8 @@ function mie_to_string(tid, jvalue, format) {
    if (tid == TID_DWORD || tid == TID_INT || tid == TID_WORD || tid == TID_SHORT || tid == TID_BYTE) {
       if (format == undefined)
          format = "d";
-      var str  = "";
-      for (i = 0 ; i<format.length ; i++) {
+      var str = "";
+      for (i = 0; i < format.length; i++) {
          if (format[i] == "d") {
             if (str.length > 0)
                str += " / " + parseInt(jvalue);
@@ -203,7 +203,7 @@ function ODBInlineEditKeydown(event, p, path, bracket) {
    if (keyCode == 27) {
       /* cancel editing */
       p.ODBsent = true;
-      p.inEdit  = false;
+      p.inEdit = false;
       mie_back_to_link(p, path, bracket);
       return false;
    }
@@ -326,24 +326,24 @@ function dlgOdbEdit(path) {
       var tid = rpc.result.tid[0];
       var value = mie_to_string(tid, value);
 
-      d =  document.createElement("div");
+      d = document.createElement("div");
       d.className = "dlgFrame";
       d.style.zIndex = 20;
       d.odbPath = path;
 
-      d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Change ODB value</div>"+
-         "<form>"+
-         "<div class=\"dlgPanel\" style=\"padding: 30px;\">"+
-         "<div id=\"dlgMessageString\">"+
-         path+"&nbsp;:&nbsp;&nbsp;"+
-         "<input type='text' size='16' value='"+value+"' onkeydown='return dlgOdbEditKeydown(event, this);'>"+
-         "</div>"+
-         "<br /><br />"+
-         "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" "+
-         " onClick=\"dlgOdbEditSend(this);dlgMessageDestroy(this.parentElement);\">Ok</button>"+
-         "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" "+
-         " onClick=\"dlgMessageDestroy(this.parentElement)\">Cancel</button>"+
-         "</div>"+
+      d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Change ODB value</div>" +
+         "<form>" +
+         "<div class=\"dlgPanel\" style=\"padding: 30px;\">" +
+         "<div id=\"dlgMessageString\">" +
+         path + "&nbsp;:&nbsp;&nbsp;" +
+         "<input type='text' size='16' value='" + value + "' onkeydown='return dlgOdbEditKeydown(event, this);'>" +
+         "</div>" +
+         "<br /><br />" +
+         "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" " +
+         " onClick=\"dlgOdbEditSend(this);dlgMessageDestroy(this.parentElement);\">Ok</button>" +
+         "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" " +
+         " onClick=\"dlgMessageDestroy(this.parentElement)\">Cancel</button>" +
+         "</div>" +
          "</form>";
 
       document.body.appendChild(d);
@@ -577,17 +577,16 @@ function mhttpd_toggle_menu() {
    mhttpd_show_menu(flag);
 }
 
-function mhttpd_exec_script(name)
-{
+function mhttpd_exec_script(name) {
    //console.log("exec_script: " + name);
    var params = new Object;
    params.script = name;
-   mjsonrpc_call("exec_script", params).then(function(rpc) {
+   mjsonrpc_call("exec_script", params).then(function (rpc) {
       var status = rpc.result.status;
       if (status != 1) {
          dlgAlert("Exec script \"" + name + "\" status " + status);
       }
-   }).catch(function(error) {
+   }).catch(function (error) {
       mjsonrpc_error_alert(error);
    });
 }
@@ -806,7 +805,7 @@ function mhttpd_init(current_page, interval, callback) {
          mjsonrpc_error_alert(error);
       });
    }
-   
+
    // store refresh interval and do initial refresh
    if (interval === undefined)
       interval = 1000;
@@ -819,8 +818,7 @@ function mhttpd_init(current_page, interval, callback) {
    mhttpd_scan();
 }
 
-function getMElements(name)
-{
+function getMElements(name) {
    // collect all <div name=[name] >
    let e = [];
    e.push(...document.getElementsByName(name));
@@ -831,8 +829,7 @@ function getMElements(name)
    return e;
 }
 
-function mhttpd_scan()
-{
+function mhttpd_scan() {
    // go through all name="modb" tags
    let modb = getMElements("modb");
    for (let i = 0; i < modb.length; i++) {
@@ -899,7 +896,7 @@ function mhttpd_scan()
       mbar[i].style.border = "1px solid #808080";
       var color = mbar[i].style.color;
       mbar[i].innerHTML = "<div style='background-color:" + color + ";" + "color:black;" +
-         "width:0;height:"+ mbar[i].clientHeight+"px;"+
+         "width:0;height:" + mbar[i].clientHeight + "px;" +
          "position:relative; display:inline-block;border-right:1px solid #808080'>&nbsp;</div>";
    }
 
@@ -924,7 +921,7 @@ function mhttpd_scan()
       cvs = document.createElement("canvas");
       var w = mth[i].clientWidth;
       var h = mth[i].clientHeight;
-      w = Math.floor(w/4)*4; // 2 must be devidable by 4
+      w = Math.floor(w / 4) * 4; // 2 must be devidable by 4
       cvs.width = w + 1;
       cvs.height = h;
       mth[i].appendChild(cvs);
@@ -955,7 +952,7 @@ function mhttpd_scan()
          mha[i].style.position = "relative";
 
       var cvs = document.createElement("canvas");
-      cvs.width = mha[i].clientWidth+2;
+      cvs.width = mha[i].clientWidth + 2;
       cvs.height = mha[i].clientHeight;
       mha[i].appendChild(cvs);
       mha[i].draw = mhttpd_haxis_draw;
@@ -990,13 +987,13 @@ function mhttpd_scan()
          h = 200;
       else
          h = parseInt(h);
-      mhist[i].innerHTML = "<img src=\"graph.gif?cmd=oldhistory&group="+
-         mhist[i].dataset.group+
-         "&panel="+mhist[i].dataset.panel+
-         "&scale="+mhist[i].dataset.scale+
-         "&width="+w+
-         "&height="+h+
-         "&rnd="+(new Date().getTime())+
+      mhist[i].innerHTML = "<img src=\"graph.gif?cmd=oldhistory&group=" +
+         mhist[i].dataset.group +
+         "&panel=" + mhist[i].dataset.panel +
+         "&scale=" + mhist[i].dataset.scale +
+         "&width=" + w +
+         "&height=" + h +
+         "&rnd=" + (new Date().getTime()) +
          "\">";
    }
 
@@ -1004,36 +1001,35 @@ function mhttpd_scan()
    mhttpd_refresh_history();
 }
 
-function mhttpd_thermo_draw()
-{
+function mhttpd_thermo_draw() {
    var ctx = this.firstChild.getContext("2d");
    ctx.save();
    var w = this.firstChild.width;
    var h = this.firstChild.height;
    ctx.clearRect(0, 0, w, h);
-   w = w-1; // space for full circles
-   h = h-1;
+   w = w - 1; // space for full circles
+   h = h - 1;
 
    if (this.dataset.scale === "1") {
       w = w / 2;
-      w = Math.floor(w/4)*4;
+      w = Math.floor(w / 4) * 4;
    }
 
    if (this.dataset.printValue === "1") {
       h = h - 14;
    }
 
-   var x0 = Math.round(w/4*0);
-   var x1 = Math.round(w/4*1);
-   var x2 = Math.round(w/4*2);
-   var x3 = Math.round(w/4*3);
+   var x0 = Math.round(w / 4 * 0);
+   var x1 = Math.round(w / 4 * 1);
+   var x2 = Math.round(w / 4 * 2);
+   var x3 = Math.round(w / 4 * 3);
 
    var v = this.value;
    if (v < this.dataset.minValue)
       v = this.dataset.minValue;
    if (v > this.dataset.maxValue)
       v = this.dataset.maxValue;
-   var yt = (h-4*x1) - (h-5*x1)*(v-this.dataset.minValue)/(this.dataset.maxValue-this.dataset.minValue);
+   var yt = (h - 4 * x1) - (h - 5 * x1) * (v - this.dataset.minValue) / (this.dataset.maxValue - this.dataset.minValue);
 
    ctx.translate(0.5, 0.5);
    ctx.strokeStyle = "#000000";
@@ -1043,10 +1039,10 @@ function mhttpd_thermo_draw()
    // outer "glass"
    ctx.beginPath();
    ctx.arc(x2, x1, x1, Math.PI, 0);
-   ctx.lineTo(x3, h-x1*4);
-   ctx.lineTo(x3, h-x1*2*(1+Math.sin(60/360*2*Math.PI)));
-   ctx.arc(x2, h-x2, x2, 300/360*2*Math.PI, 240/360*2*Math.PI);
-   ctx.lineTo(x1, h-x1*2*(1+Math.sin(60/360*2*Math.PI)));
+   ctx.lineTo(x3, h - x1 * 4);
+   ctx.lineTo(x3, h - x1 * 2 * (1 + Math.sin(60 / 360 * 2 * Math.PI)));
+   ctx.arc(x2, h - x2, x2, 300 / 360 * 2 * Math.PI, 240 / 360 * 2 * Math.PI);
+   ctx.lineTo(x1, h - x1 * 2 * (1 + Math.sin(60 / 360 * 2 * Math.PI)));
    ctx.lineTo(x1, x1);
    ctx.stroke();
    if (this.dataset.backgroundColor !== undefined) {
@@ -1064,16 +1060,16 @@ function mhttpd_thermo_draw()
    }
 
    ctx.beginPath();
-   ctx.moveTo(x1+3, yt);
-   ctx.lineTo(x3-3, yt);
-   ctx.lineTo(x3-3, h-x2);
-   ctx.lineTo(x1+3, h-x2);
-   ctx.lineTo(x1+3, yt);
+   ctx.moveTo(x1 + 3, yt);
+   ctx.lineTo(x3 - 3, yt);
+   ctx.lineTo(x3 - 3, h - x2);
+   ctx.lineTo(x1 + 3, h - x2);
+   ctx.lineTo(x1 + 3, yt);
    ctx.stroke();
    ctx.fill();
 
    ctx.beginPath();
-   ctx.arc(x2, h-x2, x2-4, 0, 2*Math.PI);
+   ctx.arc(x2, h - x2, x2 - 4, 0, 2 * Math.PI);
    ctx.stroke();
    ctx.fill();
 
@@ -1083,28 +1079,28 @@ function mhttpd_thermo_draw()
    ctx.lineWidth = 1;
    ctx.beginPath();
    ctx.arc(x2, x1, x1, Math.PI, 0);
-   ctx.lineTo(x3, h-x1*4);
-   ctx.lineTo(x3, h-x1*2*(1+Math.sin(60/360*2*Math.PI)));
-   ctx.arc(x2, h-x2, x2, 300/360*2*Math.PI, 240/360*2*Math.PI);
-   ctx.lineTo(x1, h-x1*2*(1+Math.sin(60/360*2*Math.PI)));
+   ctx.lineTo(x3, h - x1 * 4);
+   ctx.lineTo(x3, h - x1 * 2 * (1 + Math.sin(60 / 360 * 2 * Math.PI)));
+   ctx.arc(x2, h - x2, x2, 300 / 360 * 2 * Math.PI, 240 / 360 * 2 * Math.PI);
+   ctx.lineTo(x1, h - x1 * 2 * (1 + Math.sin(60 / 360 * 2 * Math.PI)));
    ctx.lineTo(x1, x1);
    ctx.stroke();
 
    // optional scale
    if (this.dataset.scale === "1") {
       ctx.beginPath();
-      ctx.moveTo(x3+x1/2, x1);
-      ctx.lineTo(x3+x1, x1);
-      ctx.moveTo(x3+x1/2, h-4*x1);
-      ctx.lineTo(x3+x1, h-4*x1);
+      ctx.moveTo(x3 + x1 / 2, x1);
+      ctx.lineTo(x3 + x1, x1);
+      ctx.moveTo(x3 + x1 / 2, h - 4 * x1);
+      ctx.lineTo(x3 + x1, h - 4 * x1);
       ctx.stroke();
 
       ctx.font = "12px sans-serif";
       ctx.fillStyle = "#000000";
       ctx.strokeStyle = "#000000";
       ctx.textBaseline = "middle";
-      ctx.fillText(this.dataset.minValue, 4.5*x1, h-4*x1, 3.5*x1);
-      ctx.fillText(this.dataset.maxValue, 4.5*x1, x1, 3.5*x1);
+      ctx.fillText(this.dataset.minValue, 4.5 * x1, h - 4 * x1, 3.5 * x1);
+      ctx.fillText(this.dataset.maxValue, 4.5 * x1, x1, 3.5 * x1);
    }
 
    // optional value display
@@ -1114,14 +1110,13 @@ function mhttpd_thermo_draw()
       ctx.strokeStyle = "#000000";
       ctx.textBaseline = "bottom";
       ctx.textAlign = "center";
-      ctx.fillText(this.value, x2, this.firstChild.height, 4*x1);
+      ctx.fillText(this.value, x2, this.firstChild.height, 4 * x1);
    }
 
    ctx.restore();
 }
 
-function mhttpd_gauge_draw()
-{
+function mhttpd_gauge_draw() {
    var ctx = this.firstChild.getContext("2d");
    ctx.save();
    var w = this.firstChild.width;
@@ -1146,9 +1141,9 @@ function mhttpd_gauge_draw()
    ctx.lineWidth = 1;
 
    ctx.beginPath();
-   ctx.arc(w/2, y, w/2-1, Math.PI, 0);
-   ctx.lineTo(w-w/5, y);
-   ctx.arc(w/2, y, w/2-w/5, 0, Math.PI, true);
+   ctx.arc(w / 2, y, w / 2 - 1, Math.PI, 0);
+   ctx.lineTo(w - w / 5, y);
+   ctx.arc(w / 2, y, w / 2 - w / 5, 0, Math.PI, true);
    ctx.lineTo(1, y);
    if (this.dataset.backgroundColor !== undefined) {
       ctx.fillStyle = this.dataset.backgroundColor;
@@ -1160,8 +1155,8 @@ function mhttpd_gauge_draw()
    ctx.beginPath();
    ctx.fillStyle = this.dataset.color;
    ctx.strokeStyle = this.dataset.color;
-   ctx.arc(w/2, y, w/2-1, Math.PI, (1+v)*Math.PI);
-   ctx.arc(w/2, y, w/2-w/5, (1+v)*Math.PI, Math.PI, true);
+   ctx.arc(w / 2, y, w / 2 - 1, Math.PI, (1 + v) * Math.PI);
+   ctx.arc(w / 2, y, w / 2 - w / 5, (1 + v) * Math.PI, Math.PI, true);
    ctx.lineTo(1, y);
    ctx.stroke();
    ctx.fill();
@@ -1171,9 +1166,9 @@ function mhttpd_gauge_draw()
    ctx.fillStyle = "#FFFFFF";
    ctx.lineWidth = 1;
    ctx.beginPath();
-   ctx.arc(w/2, y, w/2-1, Math.PI, 0);
-   ctx.lineTo(w-w/5, y);
-   ctx.arc(w/2, y, w/2-w/5, 0, Math.PI, true);
+   ctx.arc(w / 2, y, w / 2 - 1, Math.PI, 0);
+   ctx.lineTo(w - w / 5, y);
+   ctx.arc(w / 2, y, w / 2 - w / 5, 0, Math.PI, true);
    ctx.lineTo(1, y);
    ctx.stroke();
 
@@ -1184,7 +1179,7 @@ function mhttpd_gauge_draw()
       ctx.strokeStyle = "#000000";
       ctx.textBaseline = "bottom";
       ctx.textAlign = "center";
-      ctx.fillText(this.value, w/2, y, w);
+      ctx.fillText(this.value, w / 2, y, w);
    }
 
    // optional scale display
@@ -1194,15 +1189,14 @@ function mhttpd_gauge_draw()
       ctx.strokeStyle = "#000000";
       ctx.textBaseline = "bottom";
       ctx.textAlign = "center";
-      ctx.fillText(this.dataset.minValue, 0.1*w, h, 0.2*w);
-      ctx.fillText(this.dataset.maxValue, 0.9*w, h, 0.2*w);
+      ctx.fillText(this.dataset.minValue, 0.1 * w, h, 0.2 * w);
+      ctx.fillText(this.dataset.maxValue, 0.9 * w, h, 0.2 * w);
    }
 
    ctx.restore();
 }
 
-function mhttpd_vaxis_draw()
-{
+function mhttpd_vaxis_draw() {
    var ctx = this.firstChild.getContext("2d");
    ctx.save();
    var w = this.firstChild.width;
@@ -1235,8 +1229,7 @@ function mhttpd_vaxis_draw()
    if (this.style.textAlign === "left") {
       ctx.translate(-0.5, -0.5);
       vaxisDraw(ctx, 0, h - 1, h - 2, line, 4, 8, 10, 12, 0, scaleMin, scaleMax, log);
-   }
-   else {
+   } else {
       ctx.translate(-0.5, -0.5);
       vaxisDraw(ctx, w, h - 1, h - 2, line, 4, 8, 10, 12, 0, scaleMin, scaleMax, log);
    }
@@ -1244,8 +1237,7 @@ function mhttpd_vaxis_draw()
    ctx.restore();
 }
 
-function mhttpd_haxis_draw()
-{
+function mhttpd_haxis_draw() {
    var ctx = this.firstChild.getContext("2d");
    ctx.save();
    var w = this.firstChild.width;
@@ -1278,8 +1270,7 @@ function mhttpd_haxis_draw()
    if (this.style.verticalAlign === "top") {
       ctx.translate(0.5, 0.5);
       haxisDraw(ctx, 1, 0, w - 2, line, 4, 8, 10, 10, 0, scaleMin, scaleMax, log);
-   }
-   else {
+   } else {
       ctx.translate(0.5, -0.5);
       haxisDraw(ctx, 1, h, w - 2, line, 4, 8, 10, 20, 0, scaleMin, scaleMax, log);
    }
@@ -1427,7 +1418,7 @@ function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xm
                      xs + ext.width / 2 < x1 + width)
                      ctx.fillText(str, xs, y1 + label);
                   ctx.restore();
-                  last_label_x = xs + ext.width/2;
+                  last_label_x = xs + ext.width / 2;
                }
             } else {
                /* major tick mark */
@@ -1444,7 +1435,7 @@ function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xm
                label_dx *= 10;
             }
          } else
-            /* minor tick mark */
+         /* minor tick mark */
             ctx.drawLine(xs, y1, xs, y1 + minor);
 
          /* for logaxis, also put labes on minor tick marks */
@@ -1460,7 +1451,7 @@ function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xm
                   ctx.fillText(str, xs, y1 + label);
                ctx.restore();
 
-               last_label_x = xs + ext.width/2;
+               last_label_x = xs + ext.width / 2;
             }
          }
       }
@@ -1611,7 +1602,7 @@ function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, y
             }
 
          } else
-            /* minor tick mark */
+         /* minor tick mark */
             ctx.drawLine(x1, ys, x1 + minor, ys);
 
          /* for logaxis, also put labes on minor tick marks */
@@ -1678,7 +1669,9 @@ function mhttpd_refresh() {
 
    // go through all "modb" tags
    let modb = getMElements("modb");
-   modb.forEach(m => { paths.push(m.dataset.odbPath); });
+   modb.forEach(m => {
+      paths.push(m.dataset.odbPath);
+   });
 
    // go through all "modbvalue" tags
    var modbvalue = getMElements("modbvalue");
@@ -1733,8 +1726,10 @@ function mhttpd_refresh() {
 
       // update time in header
       var d = new Date();
-      var dstr = d.toLocaleString("en-gb", { hour12: false, day: 'numeric', month: 'short', year: 'numeric',
-         hour: 'numeric', minute: 'numeric', second: 'numeric', timeZoneName: 'short' });
+      var dstr = d.toLocaleString("en-gb", {
+         hour12: false, day: 'numeric', month: 'short', year: 'numeric',
+         hour: 'numeric', minute: 'numeric', second: 'numeric', timeZoneName: 'short'
+      });
 
       if (document.getElementById("mheader_last_updated") !== undefined) {
          //mhttpd_set_innerHTML(document.getElementById("mheader_last_updated"), dstr);
@@ -1743,10 +1738,13 @@ function mhttpd_refresh() {
 
       var idata = 0;
 
-      for (var i = 0; i < modb.length; i++,idata++) {
+      for (var i = 0; i < modb.length; i++, idata++) {
          value = rpc[0].result.data[idata];
-         if (modb[i].value === undefined)
+         if (modb[i].value === undefined) {
             modb[i].value = value;
+            if (modb[i].onchange !== null)
+               modb[i].onchange();
+         }
          if (typeof value === 'object') { // subdircectory
             if (modb[i].onchange !== null) {
                modb[i].value = value;
@@ -1758,11 +1756,12 @@ function mhttpd_refresh() {
                modb[i].onchange();
             }
          }
+
       }
 
-      for (i = 0; i < modbvalue.length; i++,idata++) {
+      for (i = 0; i < modbvalue.length; i++, idata++) {
          if (rpc[0].result.status[i] === 312) {
-            modbvalue[i].innerHTML = "ODB key \""+modbvalue[i].dataset.odbPath+"\" not found";
+            modbvalue[i].innerHTML = "ODB key \"" + modbvalue[i].dataset.odbPath + "\" not found";
          } else {
             var value = rpc[0].result.data[idata];
             var tid = rpc[0].result.tid[idata];
@@ -1777,7 +1776,7 @@ function mhttpd_refresh() {
                   mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, 100);
                   return;
                }
-               if (modbvalue[i].childNodes.length === 2){
+               if (modbvalue[i].childNodes.length === 2) {
                   modbvalue[i].childNodes[1].innerHTML = html;
                } else {
                   modbvalue[i].childNodes[0].innerHTML = html;
@@ -1789,14 +1788,14 @@ function mhttpd_refresh() {
             modbvalue[i].onchange();
       }
 
-      for (i = 0; i < modbcheckbox.length; i++,idata++) {
+      for (i = 0; i < modbcheckbox.length; i++, idata++) {
          value = rpc[0].result.data[idata];
          modbcheckbox[i].checked = (value === 1 || value === true);
          if (modbcheckbox[i].onchange !== null)
             modbcheckbox[i].onchange();
       }
 
-      for (i = 0; i < modbbox.length; i++,idata++) {
+      for (i = 0; i < modbbox.length; i++, idata++) {
          value = rpc[0].result.data[idata];
          if (value === 1 || value === true) {
             modbbox[i].style.backgroundColor = modbbox[i].dataset.color;
@@ -1810,13 +1809,13 @@ function mhttpd_refresh() {
             modbbox[i].onchange();
       }
 
-      for (i = 0; i < modbhbar.length; i++,idata++) {
+      for (i = 0; i < modbhbar.length; i++, idata++) {
          value = rpc[0].result.data[idata];
          tid = rpc[0].result.tid[idata];
          mvalue = mie_to_string(tid, value);
          if (mvalue === "")
             mvalue = "(empty)";
-         html = mhttpd_escape("&nbsp;"+mvalue);
+         html = mhttpd_escape("&nbsp;" + mvalue);
          modbhbar[i].value = value;
          if (modbhbar[i].dataset.printValue === "1")
             modbhbar[i].children[0].innerHTML = html;
@@ -1845,13 +1844,13 @@ function mhttpd_refresh() {
          modbhbar[i].children[0].style.backgroundColor = modbhbar[i].style.color;
       }
 
-      for (i = 0; i < modbvbar.length; i++,idata++) {
+      for (i = 0; i < modbvbar.length; i++, idata++) {
          value = rpc[0].result.data[idata];
          tid = rpc[0].result.tid[idata];
          mvalue = mie_to_string(tid, value);
          if (mvalue === "")
             mvalue = "(empty)";
-         html = mhttpd_escape("&nbsp;"+mvalue);
+         html = mhttpd_escape("&nbsp;" + mvalue);
          modbvbar[i].value = value;
          if (modbvbar[i].dataset.printValue === "1")
             modbvbar[i].children[0].innerHTML = html;
@@ -1860,7 +1859,7 @@ function mhttpd_refresh() {
          if (isNaN(minValue))
             minValue = 0;
          if (modbvbar[i].dataset.log === "1" &&
-             minValue === 0)
+            minValue === 0)
             minValue = 1E-3;
          if (isNaN(maxValue))
             maxValue = 1;
@@ -1880,7 +1879,7 @@ function mhttpd_refresh() {
          modbvbar[i].children[0].style.backgroundColor = modbvbar[i].style.color;
       }
 
-      for (i = 0; i < modbthermo.length; i++,idata++) {
+      for (i = 0; i < modbthermo.length; i++, idata++) {
          value = rpc[0].result.data[idata];
          tid = rpc[0].result.tid[idata];
          mvalue = mie_to_string(tid, value, modbthermo[i].dataset.format);
@@ -1894,7 +1893,7 @@ function mhttpd_refresh() {
          modbthermo[i].draw();
       }
 
-      for (i = 0; i < modbgauge.length; i++,idata++) {
+      for (i = 0; i < modbgauge.length; i++, idata++) {
          value = rpc[0].result.data[idata];
          tid = rpc[0].result.tid[idata];
          mvalue = mie_to_string(tid, value, modbgauge[i].dataset.format);
@@ -2019,8 +2018,7 @@ function mhttpd_resize_message() {
       mhttpd_fit_message(d.currentMessage);
 }
 
-function mhttpd_close_message()
-{
+function mhttpd_close_message() {
    var d = document.getElementById("mheader_message");
 
    // remember time of messages to suppress
@@ -2030,9 +2028,7 @@ function mhttpd_close_message()
    mhttpd_resize_sidenav();
 }
 
-function mhttpd_fit_message(m)
-{
-   //console.log("mhttpd_fit_message() with " + m.length + " messages");
+function mhttpd_fit_message(m) {
    var d = document.getElementById("mheader_message");
    var cross = "&nbsp;&nbsp;&nbsp;<span style=\"cursor: pointer;\" onclick=\"mhttpd_close_message();\">&#9587;</span>";
    var link1 = "<span style=\"cursor: pointer;\" onclick=\"window.location.href='&quot;'?cmd=Messages&quot;\">";
@@ -2042,7 +2038,7 @@ function mhttpd_fit_message(m)
    // limit message to fit parent element
    var parentWidth = d.parentNode.offsetWidth;
    var s = "";
-   for (var i = 0; i < m.length+1; i++) {
+   for (var i = 0; i < m.length + 1; i++) {
       s = m.substr(0, i);
       if (i < m.length - 1)
          s += "...";
@@ -2053,9 +2049,9 @@ function mhttpd_fit_message(m)
 
    if (s.substr(-3) === "...") {
       // if message got truncated, remove timestamp and type
-      m = m.substr(m.indexOf(']')+1);
+      m = m.substr(m.indexOf(']') + 1);
 
-      for (i = 0; i < m.length+1; i++) {
+      for (i = 0; i < m.length + 1; i++) {
          s = m.substr(0, i);
          if (i < m.length - 1)
             s += "...";
@@ -2115,10 +2111,10 @@ function mhttpd_message(msg, chat) {
       if (d !== undefined && d.currentMessage !== m &&
          (mhttpdConfig().suppressMessageBefore === undefined || lastT > mhttpdConfig().suppressMessageBefore)) {
 
-         if (mType === "USER" && mhttpdConfig().displayChat  ||
-             mType === "TALK" && mhttpdConfig().displayTalk  ||
-             mType === "ERROR" && mhttpdConfig().displayError ||
-             mType === "INFO" && mhttpdConfig().displayInfo) {
+         if (mType === "USER" && mhttpdConfig().displayChat ||
+            mType === "TALK" && mhttpdConfig().displayTalk ||
+            mType === "ERROR" && mhttpdConfig().displayError ||
+            mType === "INFO" && mhttpdConfig().displayInfo) {
 
             var first = (d.currentMessage === undefined);
             d.currentMessage = m; // store full message in user-defined attribute
@@ -2178,7 +2174,7 @@ function mhttpd_message(msg, chat) {
 function mhttpd_error(error) {
    var d = document.getElementById("mheader_error");
    if (d !== undefined) {
-      error += "<div style=\"display: inline; float: right; padding-right: 10px; cursor: pointer;\""+
+      error += "<div style=\"display: inline; float: right; padding-right: 10px; cursor: pointer;\"" +
          " onclick=\"document.getElementById(&quot;mheader_error&quot;).style.zIndex = 0;\">&#9587;</div>";
       d.innerHTML = error;
       d.style.zIndex = 3; // above header
@@ -2247,15 +2243,15 @@ function mhttpd_create_page_handle_create(mouseEvent) {
    mjsonrpc_db_create([param]).then(function (rpc) {
       var status = rpc.result.status[0];
       if (status === 311) {
-         dlgMessage("Error", "ODB entry with this name already exists.", true, true, function() {
-            location.search = "?cmd=odb&odb_path="+path; // reloads the document
+         dlgMessage("Error", "ODB entry with this name already exists.", true, true, function () {
+            location.search = "?cmd=odb&odb_path=" + path; // reloads the document
          });
       } else if (status !== 1) {
-         dlgMessage("Error", "db_create_key() error " + status + ", see MIDAS messages.", true, true, function() {
-            location.search = "?cmd=odb&odb_path="+path; // reloads the document
+         dlgMessage("Error", "db_create_key() error " + status + ", see MIDAS messages.", true, true, function () {
+            location.search = "?cmd=odb&odb_path=" + path; // reloads the document
          });
       } else {
-         location.search = "?cmd=odb&odb_path="+path; // reloads the document
+         location.search = "?cmd=odb&odb_path=" + path; // reloads the document
       }
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
@@ -2275,7 +2271,7 @@ function mhttpd_link_page_handle_link(mouseEvent) {
    var path = JSON.parse(e.innerHTML);
    if (path == "/") path = "";
    //var path   = document.getElementById("odb_path").value;
-   var name   = document.getElementById("link_name").value;
+   var name = document.getElementById("link_name").value;
    var target = document.getElementById("link_target").value;
 
    //console.log("Path: " + path + " Name: " + name + " Target: [" + target + "]");
@@ -2291,33 +2287,33 @@ function mhttpd_link_page_handle_link(mouseEvent) {
    }
 
    var param = {};
-   param.new_links = [ path + "/" + name ];
-   param.target_paths = [ target ];
+   param.new_links = [path + "/" + name];
+   param.target_paths = [target];
 
    mjsonrpc_call("db_link", param).then(function (rpc) {
       var status = rpc.result.status[0];
       if (status == 304) {
-         dlgMessage("Error", "Invalid link, see MIDAS messages.", true, true, function() {
+         dlgMessage("Error", "Invalid link, see MIDAS messages.", true, true, function () {
             //location.search = "?cmd=odb&odb_path="+path; // reloads the document
          });
       } else if (status == 311) {
-         dlgMessage("Error", "ODB entry with this name already exists.", true, true, function() {
+         dlgMessage("Error", "ODB entry with this name already exists.", true, true, function () {
             //location.search = "?cmd=odb&odb_path="+path; // reloads the document
          });
       } else if (status == 312) {
-         dlgMessage("Error", "Target path " + target + " does not exist in ODB.", true, true, function() {
+         dlgMessage("Error", "Target path " + target + " does not exist in ODB.", true, true, function () {
             //location.search = "?cmd=odb&odb_path="+path; // reloads the document
          });
       } else if (status == 315) {
-         dlgMessage("Error", "ODB data type mismatch, see MIDAS messages.", true, true, function() {
+         dlgMessage("Error", "ODB data type mismatch, see MIDAS messages.", true, true, function () {
             //location.search = "?cmd=odb&odb_path="+path; // reloads the document
          });
       } else if (status != 1) {
-         dlgMessage("Error", "db_create_link() error " + status + ", see MIDAS messages.", true, true, function() {
-            location.search = "?cmd=odb&odb_path="+path; // reloads the document
+         dlgMessage("Error", "db_create_link() error " + status + ", see MIDAS messages.", true, true, function () {
+            location.search = "?cmd=odb&odb_path=" + path; // reloads the document
          });
       } else {
-         location.search = "?cmd=odb&odb_path="+path; // reloads the document
+         location.search = "?cmd=odb&odb_path=" + path; // reloads the document
       }
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
@@ -2394,7 +2390,7 @@ function mhttpd_delete_page_handle_delete(mouseEvent, xpath) {
       if (message.length > 0) {
          dlgAlert(message);
       } else {
-         location.search = "?cmd=odb&odb_path="+path; // reloads the document
+         location.search = "?cmd=odb&odb_path=" + path; // reloads the document
       }
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
@@ -2414,7 +2410,7 @@ function mhttpd_start_run() {
 }
 
 function mhttpd_stop_run() {
-   dlgConfirm('Are you sure to stop the run?', function(flag) {
+   dlgConfirm('Are you sure to stop the run?', function (flag) {
       if (flag === true) {
          mjsonrpc_call("cm_transition", {"transition": "TR_STOP"}).then(function (rpc) {
             //mjsonrpc_debug_alert(rpc);
@@ -2431,7 +2427,7 @@ function mhttpd_stop_run() {
 }
 
 function mhttpd_pause_run() {
-   dlgConfirm('Are you sure to pause the run?', function(flag) {
+   dlgConfirm('Are you sure to pause the run?', function (flag) {
       if (flag === true) {
          mjsonrpc_call("cm_transition", {"transition": "TR_PAUSE"}).then(function (rpc) {
             //mjsonrpc_debug_alert(rpc);
@@ -2448,7 +2444,7 @@ function mhttpd_pause_run() {
 
 
 function mhttpd_resume_run() {
-   dlgConfirm('Are you sure to resume the run?', function(flag) {
+   dlgConfirm('Are you sure to resume the run?', function (flag) {
       if (flag === true) {
          mjsonrpc_call("cm_transition", {"transition": "TR_RESUME"}).then(function (rpc) {
             //mjsonrpc_debug_alert(rpc);
@@ -2464,7 +2460,7 @@ function mhttpd_resume_run() {
 }
 
 function mhttpd_cancel_transition() {
-   dlgConfirm('Are you sure to cancel the currently active run transition?', function(flag) {
+   dlgConfirm('Are you sure to cancel the currently active run transition?', function (flag) {
       if (flag == true) {
          var paths = new Array;
          var values = new Array;
@@ -2480,7 +2476,7 @@ function mhttpd_cancel_transition() {
 
          mjsonrpc_call("db_paste", params).then(function (rpc) {
             //mjsonrpc_debug_alert(rpc);
-            if ((rpc.result.status[0] != 1)||(rpc.result.status[1] != 1)) {
+            if ((rpc.result.status[0] != 1) || (rpc.result.status[1] != 1)) {
                throw new Error("Cannot cancel transition, db_paste() status " + rpc.result.status + ", see MIDAS messages");
             }
             mhttpd_goto_page("Transition"); // DOES NOT RETURN
@@ -2714,7 +2710,7 @@ function mhttpdConfigSet(item, value) {
       var c = mhttpdConfig();
       if (item.indexOf('.') > 0) {
          var c1 = item.substring(0, item.indexOf('.'));
-         var c2 = item.substring(item.indexOf('.')+1);
+         var c2 = item.substring(item.indexOf('.') + 1);
          c[c1][c2] = value;
       } else
          c[item] = value;
@@ -2783,7 +2779,7 @@ function mhttpd_alarm_play_now() {
    //audio.addEventListener("ended", mhttpd_alarm_done);
    var promise = audio.play();
    if (promise) {
-      promise.catch(function(e) {
+      promise.catch(function (e) {
          //count_audio_done++;
          //console.log(Date() + ": mhttpd_alarm_play: audio.play() exception: " + e + ", created: " + count_audio_created + ", done: " + count_audio_done);
          console.log(Date() + ": mhttpd_alarm_play: Cannot play alarm sound: audio.play() exception: " + e);
@@ -2809,8 +2805,9 @@ function mhttpd_alarm_play() {
 
 function mhttpd_speak_now(text) {
    var u = new SpeechSynthesisUtterance(text);
-   u.voice = speechSynthesis.getVoices().filter(function(voice) {
-      return voice.name === mhttpdConfig().speakVoice; })[0];
+   u.voice = speechSynthesis.getVoices().filter(function (voice) {
+      return voice.name === mhttpdConfig().speakVoice;
+   })[0];
    u.volume = mhttpdConfig().speakVolume;
    speechSynthesis.speak(u);
 }
