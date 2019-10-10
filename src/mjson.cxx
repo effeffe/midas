@@ -672,7 +672,7 @@ static char toHexChar(int c)
    if (c <= 9)
       return '0' + c;
    else
-      return 'A' + c;
+      return 'A' + c - 10;
 }
 
 std::string MJsonNode::Encode(const char* s)

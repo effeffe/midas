@@ -11783,6 +11783,7 @@ struct hist_plot_t
    bool log_axis;
    bool show_run_markers;
    bool show_values;
+   bool show_fill;
 
    hist_var_list_t vars;
 
@@ -11795,12 +11796,13 @@ struct hist_plot_t
       log_axis = false;
       show_run_markers = true;
       show_values = true;
+      show_fill = true;
    }
 
    void Print() const
    {
       printf("hist plot:\n");
-      printf("timescale: %s, minimum: %f, maximum: %f, zero_ylow: %d, log_axis: %d, show_run_markers: %d, show_values: %d\n", timescale.c_str(), minimum, maximum, zero_ylow, log_axis, show_run_markers, show_values);
+      printf("timescale: %s, minimum: %f, maximum: %f, zero_ylow: %d, log_axis: %d, show_run_markers: %d, show_values: %d, show_fill: %d\n", timescale.c_str(), minimum, maximum, zero_ylow, log_axis, show_run_markers, show_values, show_fill);
 
       for (unsigned i=0; i<vars.size(); i++) {
          printf("var[%d] event [%s][%s] formula %s, color [%s] label [%s] order %d\n", i, vars[i].event_name.c_str(), vars[i].tag_name.c_str(), vars[i].hist_formula.c_str(), vars[i].hist_col.c_str(), vars[i].hist_label.c_str(), vars[i].hist_order);
@@ -11867,6 +11869,12 @@ struct hist_plot_t
       if (status == DB_SUCCESS)
          show_values = flag;
 
+      flag = show_fill;
+      size = sizeof(flag);
+      status = db_get_value(hDB, hDir, "Show fill", &flag, &size, TID_BOOL, FALSE);
+      if (status == DB_SUCCESS)
+         show_fill = flag;
+
       for (unsigned index=0; ; index++) {
          hist_var_t v;
 
@@ -11930,6 +11938,7 @@ struct hist_plot_t
       log_axis         = *p->getparam("log_axis");
       show_run_markers = *p->getparam("run_markers");
       show_values      = *p->getparam("show_values");
+      show_fill        = *p->getparam("show_fill");
 
       for (unsigned index=0; ; index++) {
          char str[256];
@@ -12045,6 +12054,9 @@ struct hist_plot_t
 
       flag = show_values;
       db_set_value(hDB, hDir, "Show values", &flag, sizeof(flag), 1, TID_BOOL);
+
+      flag = show_fill;
+      db_set_value(hDB, hDir, "Show fill", &flag, sizeof(flag), 1, TID_BOOL);
 
       int index = vars.size();
 
@@ -12257,22 +12269,16 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    r->rsprintf("onclick=\"window.location.search='?cmd=oldhistory&group=%s&panel=%s&hcmd=Delete%%20panel'\">\n", hgroup, hpanel);
    r->rsprintf("</td></tr>\n");
 
-   r->rsprintf("<tr><td colspan=8>\n");
+   r->rsprintf("<tr><td colspan=6>\n");
 
    /* sort_vars */
    int sort_vars = *p->getparam("sort_vars");
    r->rsprintf("<input type=checkbox %s name=sort_vars value=1 onclick=\"this.form.submit();\">Sort variable names", sort_vars?"checked":"");
 
-   r->rsprintf("</td></tr>\n");
-   r->rsprintf("<tr><td colspan=8>\n");
-
    /* old_vars */
    int old_vars = *p->getparam("old_vars");
-   r->rsprintf("<input type=checkbox %s name=old_vars value=1 onclick=\"this.form.submit();\">Show deleted and renamed variables", old_vars?"checked":"");
+   r->rsprintf("&nbsp;&nbsp;<input type=checkbox %s name=old_vars value=1 onclick=\"this.form.submit();\">Show deleted and renamed variables", old_vars?"checked":"");
 
-   r->rsprintf("</td></tr>\n");
-
-   r->rsprintf("<tr><td colspan=8>\n");
    /* hidden command for refresh */
    r->rsprintf("<input type=hidden name=cmd value=Oldhistory>\n");
    r->rsprintf("<input type=hidden name=hcmd value=Refresh>\n");
@@ -12284,29 +12290,38 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
 
    r->rsprintf("</td></tr>\n");
 
-   r->rsprintf("<tr><td colspan=8>Time scale: &nbsp;&nbsp;");
-   r->rsprintf("<input type=text name=timescale value=%s></td></tr>\n", plot.timescale.c_str());
+   r->rsprintf("<tr><td colspan=4 style='text-align:right'>Time scale (in units 'm', 'h', 'd'):</td>\n");
+   r->rsprintf("<td colspan=2><input type=text size=12 name=timescale value=%s></td></tr>\n", plot.timescale.c_str());
 
-   r->rsprintf("<tr><td colspan=8>Minimum (set to \"-inf\" for autoscale): &nbsp;&nbsp;<input type=text name=minimum value=%f></td></tr>\n", plot.minimum);
-   r->rsprintf("<tr><td colspan=8>Maximum (set to \"inf\" for autoscale): &nbsp;&nbsp;<input type=text name=maximum value=%f></td></tr>\n", plot.maximum);
+   r->rsprintf("<tr><td colspan=4 style='text-align:right'>Minimum (set to '-inf' for autoscale):</td>\n");
+   r->rsprintf("<td colspan=2><input type=text size=12 name=minimum value=%f></td></tr>\n", plot.minimum);
+
+   r->rsprintf("<tr><td colspan=4 style='text-align:right'>Maximum (set to 'inf' for autoscale):</td>\n");
+   r->rsprintf("<td colspan=2><input type=text size=12 name=maximum value=%f></td></tr>\n", plot.maximum);
 
    if (plot.log_axis)
-      r->rsprintf("<tr><td colspan=8><input type=checkbox checked name=log_axis value=1>");
+      r->rsprintf("<tr><td colspan=6><input type=checkbox checked name=log_axis value=1>");
    else
-      r->rsprintf("<tr><td colspan=8><input type=checkbox name=log_axis value=1>");
-   r->rsprintf("&nbsp;&nbsp;Logarithmic Y axis</td></tr>\n");
+      r->rsprintf("<tr><td colspan=6><input type=checkbox name=log_axis value=1>");
+   r->rsprintf("Logarithmic Y axis\n");
 
    if (plot.show_run_markers)
-      r->rsprintf("<tr><td colspan=8><input type=checkbox checked name=run_markers value=1>");
+      r->rsprintf("&nbsp;&nbsp;<input type=checkbox checked name=run_markers value=1>");
    else
-      r->rsprintf("<tr><td colspan=8><input type=checkbox name=run_markers value=1>");
-   r->rsprintf("&nbsp;&nbsp;Show run markers</td></tr>\n");
+      r->rsprintf("&nbsp;&nbsp;<input type=checkbox name=run_markers value=1>");
+   r->rsprintf("Show run markers\n");
 
    if (plot.show_values)
-      r->rsprintf("<tr><td colspan=8><input type=checkbox checked name=show_values value=1>");
+      r->rsprintf("&nbsp;&nbsp;<input type=checkbox checked name=show_values value=1>");
    else
-      r->rsprintf("<tr><td colspan=8><input type=checkbox name=show_values value=1>");
-   r->rsprintf("&nbsp;&nbsp;Show values of variables</td></tr>\n");
+      r->rsprintf("&nbsp;&nbsp;<input type=checkbox name=show_values value=1>");
+   r->rsprintf("Show values of variables\n");
+
+   if (plot.show_fill)
+      r->rsprintf("&nbsp;&nbsp;<input type=checkbox checked name=show_fill value=1>");
+   else
+      r->rsprintf("&nbsp;&nbsp;<input type=checkbox name=show_fill value=1>");
+   r->rsprintf("Show graph fill</td></tr>\n");
 
    /*---- events and variables ----*/
 
@@ -12463,7 +12478,8 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
       r->rsprintf("</tr>\n");
    }
 
-   r->rsprintf("<tr><th>Col<th>Event<th>Variable<th>Formula e.g. '3*x+4'<th>Color<th>Label<th>Order</tr>\n");
+   //r->rsprintf("<tr><th>Col<th>Event<th>Variable<th>Formula e.g. '3*x+4'<th>Color<th>Label<th>Order</tr>\n");
+   r->rsprintf("<tr><th>Col<th>Event<th>Variable<th>Formula e.g. '3*x+4'<th>Color<th>Label</tr>\n");
 
    //print_vars(vars);
 
@@ -12594,7 +12610,7 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
          r->rsprintf("<td><input type=text size=20 maxlength=32 name=\"form%d\" value=%s></td>\n", index, plot.vars[index].hist_formula.c_str());
          r->rsprintf("<td><input type=text size=10 maxlength=10 name=\"col%d\" value=%s></td>\n", index, plot.vars[index].hist_col.c_str());
          r->rsprintf("<td><input type=text size=10 maxlength=%d name=\"lab%d\" value=\"%s\"></td>\n", NAME_LENGTH, index, plot.vars[index].hist_label.c_str());
-         r->rsprintf("<td><input type=text size=5 maxlength=10 name=\"ord%d\" value=\"%d\"></td>\n", index, plot.vars[index].hist_order);
+         //r->rsprintf("<td><input type=text size=5 maxlength=10 name=\"ord%d\" value=\"%d\"></td>\n", index, plot.vars[index].hist_order);
       } else {
          r->rsprintf("<td><input type=submit name=cmdx value=\"List all variables\"></td>\n");
       }
@@ -14296,13 +14312,15 @@ void seq_start_page(Param* p, Return* r)
                maxlength = key.item_size;
 
             if (key.type == TID_BOOL) {
-               if (((DWORD*)data)[i])
+               if (((DWORD*)data)[i]) {
                   r->rsprintf("<td><input type=checkbox checked name=x%d value=1></td></tr>\n", n++);
-               else
+               } else {
                   r->rsprintf("<td><input type=checkbox name=x%d value=1></td></tr>\n", n++);
-            } else
+               }
+            } else {
                r->rsprintf("<td><input type=text size=%d maxlength=%d name=x%d value=\"%s\"></tr>\n",
                         (maxlength<80)?maxlength:80, maxlength-1, n++, data_str);
+            }
          }
       }
    }
@@ -14321,8 +14339,9 @@ void seq_start_page(Param* p, Return* r)
             strlcpy(name, mxml_get_attribute(pn, "name"), sizeof(name));
 
             r->rsprintf("<tr><td>%s", name);
-            if (mxml_get_attribute(pn, "comment"))
+            if (mxml_get_attribute(pn, "comment")) {
                r->rsprintf("<br>%s\n", mxml_get_attribute(pn, "comment"));
+            }
 
             size = sizeof(data_str);
             sprintf(str, "/Sequencer/Variables/%s", name);
@@ -14333,16 +14352,27 @@ void seq_start_page(Param* p, Return* r)
                strlcpy(data, mxml_get_attribute(pn, "options"), sizeof(data));
                no = strbreak(mxml_get_attribute(pn, "options"), list, 100, ",", FALSE);
                r->rsprintf("<td><select name=x%d>\n", n++);
-               for (i=0 ; i<no ; i++)
-                  r->rsprintf("<option>%s</option>\n", list[i]);
+               for (i=0 ; i<no ; i++) {
+                  if (stricmp(list[i], data_str)==0) {
+                     r->rsprintf("<option selected>%s</option>\n", list[i]);
+                  } else {
+                     r->rsprintf("<option>%s</option>\n", list[i]);
+                  }
+               }
                r->rsprintf("</select></td></tr>\n");
+               //printf("opt param [%s] option [%s] [%s]\n", name, list[0], data_str);
             } else if (mxml_get_attribute(pn, "type") && equal_ustring(mxml_get_attribute(pn, "type"), "bool")) {
-               if (data_str[0] == '1')
+               if (data_str[0] == '1') {
                   r->rsprintf("<td><input type=checkbox checked name=x%d value=1></tr>\n", n++);
-               else
+                  //printf("bool param [%s] value true\n", name);
+               } else {
                   r->rsprintf("<td><input type=checkbox name=x%d value=1></tr>\n", n++);
-            } else
+                  //printf("bool param [%s] value false\n", name);
+               }
+            } else {
                r->rsprintf("<td><input type=text name=x%d value=\"%s\"></tr>\n", n++, data_str);
+               //printf("string param [%s] value [%s]\n", name, data_str);
+            }
          }
 
       }
@@ -16114,6 +16144,26 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    }
 
    /*---- sequencer page --------------------------------------------*/
+
+   if (equal_ustring(command, "seq")) {
+      send_resource(r, "sequencer.html");
+      return;
+   }
+
+   if (equal_ustring(command, "start_script")) {
+      send_resource(r, "start_script.html");
+      return;
+   }
+
+   if (equal_ustring(command, "load_script")) {
+      send_resource(r, "load_script.html");
+      return;
+   }
+
+   if (equal_ustring(command, "edit_script")) {
+      send_resource(r, "edit_script.html");
+      return;
+   }
 
    if (equal_ustring(command, "Sequencer")) {
       show_seq_page(p, r);

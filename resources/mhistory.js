@@ -35,14 +35,19 @@ function mhistory_init() {
    }
 }
 
-function mhistory_create(parentElement, baseURL, group, panel) {
+function mhistory_create(parentElement, baseURL, group, panel, tMin, tMax) {
    let d = document.createElement("div");
    parentElement.appendChild(d);
    d.dataset.baseURL = baseURL;
    d.dataset.group = group;
    d.dataset.panel = panel;
    d.mhg = new MhistoryGraph(d);
+   if (!Number.isNaN(tMin) && !Number.isNaN(tMax)) {
+      d.mhg.initTMin = tMin;
+      d.mhg.initTMax = tMax;
+   }
    d.mhg.initializePanel();
+   return d;
 }
 
 function MhistoryGraph(divElement) { // Constructor
@@ -102,8 +107,19 @@ function MhistoryGraph(divElement) { // Constructor
       y: {active: false}
    };
 
+   // callbacks when certain actions are performed.
+   // All callback functions should accept a single parameter, which is the 
+   // MhistoryGraph object that triggered the callback.
+   this.callbacks = {
+      resetAxes: undefined,
+      timeZoom: undefined,
+      jumpToCurrent: undefined
+   };
+
    // marker
    this.marker = {active: false};
+   this.variablesWidth = 0;
+   this.variablesHeight = 0;
 
    // labels
    this.showLabels = false;
@@ -115,6 +131,7 @@ function MhistoryGraph(divElement) { // Constructor
    this.button = [
       {
          src: "menu.svg",
+         title: "Show / hide legend",
          click: function (t) {
             t.showLabels = !t.showLabels;
             t.redraw();
@@ -122,52 +139,37 @@ function MhistoryGraph(divElement) { // Constructor
       },
       {
          src: "maximize-2.svg",
+         title: "Show only this plot",
          click: function (t) {
             window.location.href = t.baseURL + "&group=" + t.group + "&panel=" + t.panel;
          }
       },
       {
          src: "rotate-ccw.svg",
+         title: "Reset histogram axes",
          click: function (t) {
+            t.resetAxes();
 
-            t.tMax = Math.floor(new Date() / 1000);
-            t.tMin = t.tMax - t.tScale;
-
-            t.yMin0 = t.yMax0 = t.data[0].value[t.data[0].value.length - 1];
-            for (let index = 0; index < t.data.length; index++)
-               for (let j = 0; j < t.data[index].time.length; j++) {
-                  if (t.data[index].time[j] > t.tMin) {
-                     let v = t.data[index].value[j];
-                     if (t.autoscaleMax)
-                        if (v > t.yMax0)
-                           t.yMax0 = v;
-                     if (t.autoscaleMin)
-                        if (v < t.yMin0)
-                           t.yMin0 = v;
-                  }
-               }
-
-            t.yMin = t.yMin0;
-            t.yMax = t.yMax0;
-            if (t.autoscaleMin)
-               t.yMin -= (t.yMax0 - t.yMin0) / 10;
-            if (t.autoscaleMax)
-               t.yMax += (t.yMax0 - t.yMin0) / 10;
-
-            t.scroll = true;
-            t.yZoom = false;
-            t.redraw();
+            if (t.callbacks.resetAxes !== undefined) {
+               t.callbacks.resetAxes(t);
+            }
          }
       },
       {
          src: "play.svg",
+         title: "Jump to current time",
          click: function (t) {
             t.scroll = true;
             t.scrollRedraw();
+
+            if (t.callbacks.jumpToCurrent !== undefined) {
+               t.callbacks.jumpToCurrent(t);
+            }
          }
       },
       {
          src: "clock.svg",
+         title: "Select timespan...",
          click: function (t) {
             if (t.intSelector.style.display === "none") {
                t.intSelector.style.display = "block";
@@ -180,7 +182,22 @@ function MhistoryGraph(divElement) { // Constructor
          }
       },
       {
+         src: "download.svg",
+         title: "Download image/data...",
+         click: function (t) {
+            if (t.downloadSelector.style.display === "none") {
+               t.downloadSelector.style.display = "block";
+               t.downloadSelector.style.left = ((t.canvas.getBoundingClientRect().x + t.x2) -
+                  t.downloadSelector.offsetWidth) + "px";
+               t.downloadSelector.style.top = (t.parentDiv.getBoundingClientRect().y + this.y1 - 1) + "px";
+            } else {
+               t.downloadSelector.style.display = "none";
+            }
+         }
+      },
+      {
          src: "settings.svg",
+         title: "Configure this plot",
          click: function (t) {
             window.location.href = "?cmd=oldhistory&group=" + t.group + "&panel=" + t.panel
                + "&hcmd=Config" + "&redir=" + encodeURIComponent(window.location.href);
@@ -188,64 +205,15 @@ function MhistoryGraph(divElement) { // Constructor
       },
       {
          src: "help-circle.svg",
+         title: "Show help",
          click: function () {
-            dlgShow(document.getElementById("dlgHelp"), false);
+            dlgShow("dlgHelp", false);
          }
       }
    ];
 
-   // help dialog
-   if (document.getElementById('dlgHelp') === null) {
-      this.helpDialog = document.createElement("div");
-      this.helpDialog.id = "dlgHelp";
-      this.helpDialog.className = "dlgFrame";
-      this.helpDialog.style.zIndex = "20";
-
-      this.helpDialog.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Help</div>" +
-         "<div class=\"dlgPanel\" style=\"padding: 5px;\">" +
-         "<div id=\"dlgMessageString\">" +
-
-         "<table class='mtable'>" +
-         "<tr>" +
-         "<th>Action</th>" +
-         "<th>Howto</th>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>Horizontal Zoom</td>" +
-         "<td>&nbsp;Press Command (Mac) or Ctrl key and scroll mouse wheel or drag along X-Axis&nbsp;   </td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>Vertical Zoom</td>" +
-         "<td>&nbsp;Press Option (Mac) or Shift key and scroll mouse wheel or drag along Y-Axis&nbsp;</td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>Pan</td>" +
-         "<td>Drag inside graph</td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>Display values</td>" +
-         "<td>Hover over graph</td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>&nbsp;Back to live scolling after pan/zoom&nbsp;</td>" +
-         "<td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'> or press 'u' </td>" +
-         "</tr>" +
-         "<tr>" +
-         "<td>&nbsp;Reset axis&nbsp;</td>" +
-         "<td>Click on <img src='icons/rotate-ccw.svg' style='vertical-align:middle' alt='Reset'></td>" +
-         "</tr>" +
-         "<td>&nbsp;Select individual graph&nbsp;</td>" +
-         "<td>Double click on a data point of desired graph or its label. Switch back with &lt;esc&gt;</td>" +
-         "</tr>" +
-         "</table>" +
-
-         "</div>" +
-         "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" " +
-         " onClick=\"dlgHide('dlgHelp')\">Close</button>" +
-         "</div>";
-
-      document.body.appendChild(this.helpDialog);
-   }
+   // load dialogs
+   dlgLoad('dlgHistory.html');
 
    this.button.forEach(b => {
       b.img = new Image();
@@ -285,6 +253,36 @@ function timeToSec(str) {
 
    return s;
 }
+
+function doQuery(t) {
+
+   dlgHide('dlgQuery');
+
+   let d1 = new Date(
+      document.getElementById('y1').value,
+      document.getElementById('m1').selectedIndex,
+      document.getElementById('d1').selectedIndex + 1,
+      document.getElementById('h1').selectedIndex);
+
+   let d2 = new Date(
+      document.getElementById('y2').value,
+      document.getElementById('m2').selectedIndex,
+      document.getElementById('d2').selectedIndex + 1,
+      document.getElementById('h2').selectedIndex);
+
+   if (d1 > d2)
+      [d1, d2] = [d2, d1];
+
+   t.tMin = d1.getTime() / 1000;
+   t.tMax = d2.getTime() / 1000;
+   t.scroll = false;
+   t.loadOldData();
+
+   if (t.callbacks.timeZoom !== undefined) {
+      t.callbacks.timeZoom(t);
+   }
+}
+
 
 MhistoryGraph.prototype.keyDown = function (e) {
    if (e.key === "u") {  // 'u' key
@@ -351,11 +349,19 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    this.lastTimeStamp = Math.floor(Date.now() / 1000);
 
-   this.tScale = timeToSec(this.odb["Timescale"]);
-   this.tMax = Math.floor(new Date() / 1000);
-   this.tMin = this.tMax - this.tScale;
+   if (this.initTMin !== undefined && this.initTMin !== "undefined") {
+      this.tMin = this.initTMin;
+      this.tMax = this.initTMax;
+      this.tScale = this.tMax - this.tMin;
+      this.scroll = false;
+   } else {
+      this.tScale = timeToSec(this.odb["Timescale"]);
+      this.tMax = Math.floor(new Date() / 1000);
+      this.tMin = this.tMax - this.tScale;
+   }
 
    this.showLabels = this.odb["Show values"];
+   this.showFill = this.odb["Show fill"];
 
    this.autoscaleMin = (this.odb["Minimum"] === this.odb["Maximum"] ||
       this.odb["Minimum"] === "-Infinity" || this.odb["Minimum"] === "Infinity");
@@ -384,6 +390,16 @@ MhistoryGraph.prototype.loadInitialData = function () {
       }
    });
 
+   if (this.odb["Show run markers"]) {
+      this.events.push("Run transitions");
+      this.events.push("Run transitions");
+
+      this.tags.push("State");
+      this.tags.push("Run number");
+      this.index.push(0);
+      this.index.push(0);
+   }
+
    // interval selector
    this.intSelector = document.createElement("div");
    this.intSelector.id = "intSel";
@@ -402,7 +418,15 @@ MhistoryGraph.prototype.loadInitialData = function () {
    let row = null;
    let cell;
    let link;
-   this.odb["Buttons"].forEach(function (b, i) {
+   let buttons = this.odb["Buttons"];
+   if (buttons === undefined) {
+      buttons = [];
+      buttons.push("10m", "1h", "3h", "12h", "24h", "3d", "7d");
+   }
+   buttons.push("A&rarr;B");
+   buttons.push("&lt;&lt;&lt;");
+   buttons.push("&lt;&lt;");
+   buttons.forEach(function (b, i) {
       if (i % 2 === 0)
          row = document.createElement("tr");
 
@@ -411,16 +435,132 @@ MhistoryGraph.prototype.loadInitialData = function () {
       link = document.createElement("a");
       link.href = "#";
       link.innerHTML = b;
+      if (b === "A&rarr;B")
+         link.title = "Display data between two dates";
+      else if (b === "&lt;&lt;")
+         link.title = "Go back in time to last available data";
+      else if (b === "&lt;&lt;&lt;")
+         link.title = "Go back in time to last available data for all variables on plot";
+      else
+         link.title = "Show last " + b;
+
       let mhg = this;
       link.onclick = function () {
-         mhg.tMax = new Date() / 1000;
-         mhg.tMin = mhg.tMax - timeToSec(b);
+         if (b === "A&rarr;B") {
+            let currentYear = new Date().getFullYear();
+            let dMin = new Date(this.tMin * 1000);
+            let dMax = new Date(this.tMax * 1000);
+
+            if (document.getElementById('y1').length === 0) {
+               for (let i = currentYear; i > currentYear - 5; i--) {
+                  let o = document.createElement('option');
+                  o.value = i.toString();
+                  o.appendChild(document.createTextNode(i.toString()));
+                  document.getElementById('y1').appendChild(o);
+                  o = document.createElement('option');
+                  o.value = i.toString();
+                  o.appendChild(document.createTextNode(i.toString()));
+                  document.getElementById('y2').appendChild(o);
+               }
+            }
+
+            document.getElementById('m1').selectedIndex = dMin.getMonth();
+            document.getElementById('d1').selectedIndex = dMin.getDate() - 1;
+            document.getElementById('h1').selectedIndex = dMin.getHours();
+            document.getElementById('y1').selectedIndex = currentYear - dMin.getFullYear();
+
+            document.getElementById('m2').selectedIndex = dMax.getMonth();
+            document.getElementById('d2').selectedIndex = dMax.getDate() - 1;
+            document.getElementById('h2').selectedIndex = dMax.getHours();
+            document.getElementById('y2').selectedIndex = currentYear - dMax.getFullYear();
+
+            document.getElementById('dlgQueryQuery').onclick = function () {
+               doQuery(this);
+            }.bind(this);
+
+            dlgShow("dlgQuery");
+
+         } else if (b === "&lt;&lt;") {
+
+            mjsonrpc_call("hs_get_last_written",
+               {
+                  "time": this.tMin,
+                  "events": this.events,
+                  "tags": this.tags,
+                  "index": this.index
+               })
+               .then(function (rpc) {
+
+                  let last = rpc.result.last_written[0];
+                  rpc.result.last_written.forEach(l => {
+                     last = Math.max(last, l);
+                  });
+
+                  let scale = mhg.tMax - mhg.tMin;
+                  mhg.tMax = last + scale / 5;
+                  mhg.tMin = mhg.tMax - scale;
+
+                  mhg.scroll = false;
+                  mhg.marker.active = false;
+                  mhg.loadOldData();
+
+                  if (mhg.callbacks.timeZoom !== undefined) {
+                     mhg.callbacks.timeZoom(mhg);
+                  }
+
+               }.bind(this))
+               .catch(function (error) {
+                  mjsonrpc_error_alert(error);
+               });
+
+         } else if (b === "&lt;&lt;&lt;") {
+
+            mjsonrpc_call("hs_get_last_written",
+               {
+                  "time": this.tMin,
+                  "events": this.events,
+                  "tags": this.tags,
+                  "index": this.index
+               })
+               .then(function (rpc) {
+
+                  let last = rpc.result.last_written[0];
+                  rpc.result.last_written.forEach(l => {
+                     last = Math.min(last, l);
+                  });
+
+                  let scale = mhg.tMax - mhg.tMin;
+                  mhg.tMax = last + scale / 5;
+                  mhg.tMin = mhg.tMax - scale;
+
+                  mhg.scroll = false;
+                  mhg.marker.active = false;
+                  mhg.loadOldData();
+
+                  if (mhg.callbacks.timeZoom !== undefined) {
+                     mhg.callbacks.timeZoom(mhg);
+                  }
+
+               }.bind(this))
+               .catch(function (error) {
+                  mjsonrpc_error_alert(error);
+               });
+
+         } else {
+
+            mhg.tMax = new Date() / 1000;
+            mhg.tMin = mhg.tMax - timeToSec(b);
+            mhg.scroll = true;
+            mhg.loadOldData();
+            mhg.scrollRedraw();
+
+            if (mhg.callbacks.timeZoom !== undefined) {
+               mhg.callbacks.timeZoom(mhg);
+            }
+         }
          mhg.intSelector.style.display = "none";
-         mhg.scroll = true;
-         mhg.loadOldData();
-         mhg.scrollRedraw();
          return false;
-      };
+      }.bind(this);
 
       cell.appendChild(link);
       row.appendChild(cell);
@@ -428,19 +568,70 @@ MhistoryGraph.prototype.loadInitialData = function () {
          table.appendChild(row);
    }, this);
 
-   if (this.odb["Buttons"].length % 2 === 1)
+   if (buttons.length % 2 === 1)
       table.appendChild(row);
 
    this.intSelector.appendChild(table);
    document.body.appendChild(this.intSelector);
 
-   this.tMinRequested = this.lastTimeStamp - this.tScale * 2;
+   // download selector
+   this.downloadSelector = document.createElement("div");
+   this.downloadSelector.id = "intSel";
+   this.downloadSelector.style.display = "none";
+   this.downloadSelector.style.position = "absolute";
+   this.downloadSelector.className = "mtable";
+   this.downloadSelector.style.borderRadius = "0";
+   this.downloadSelector.style.border = "2px solid #808080";
+   this.downloadSelector.style.margin = "0";
+   this.downloadSelector.style.padding = "0";
+
+   this.downloadSelector.style.left = "100px";
+   this.downloadSelector.style.top = "100px";
+
+   table = document.createElement("table");
+   let mhg = this;
+
+   row = document.createElement("tr");
+   cell = document.createElement("td");
+   link = document.createElement("a");
+   link.href = "#";
+   link.innerHTML = "CSV";
+   link.title = "Download data in Comma Separated Value format";
+   link.onclick = function () {
+      mhg.downloadSelector.style.display = "none";
+      mhg.download("CSV");
+      return false;
+   }.bind(this);
+   cell.appendChild(link);
+   row.appendChild(cell);
+   table.appendChild(row);
+
+   row = document.createElement("tr");
+   cell = document.createElement("td");
+   link = document.createElement("a");
+   link.href = "#";
+   link.innerHTML = "PNG";
+   link.title = "Download image in PNG format";
+   link.onclick = function () {
+      mhg.downloadSelector.style.display = "none";
+      this.download("PNG");
+      return false;
+   }.bind(this);
+   cell.appendChild(link);
+   row.appendChild(cell);
+   table.appendChild(row);
+
+   this.downloadSelector.appendChild(table);
+   document.body.appendChild(this.downloadSelector);
+
+   // load initial data
+   this.tMinRequested = this.tMin - this.tScale; // look one window ahead in past
    this.pendingUpdates++;
    this.parentDiv.style.cursor = "progress";
    mjsonrpc_call("hs_read_arraybuffer",
       {
-         "start_time": this.tMinRequested,
-         "end_time": this.lastTimeStamp,
+         "start_time": Math.floor(this.tMinRequested),
+         "end_time": Math.floor(this.lastTimeStamp),
          "events": this.events,
          "tags": this.tags,
          "index": this.index
@@ -452,6 +643,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
             this.parentDiv.style.cursor = "default";
 
          this.receiveData(rpc);
+         this.redraw();
 
          if (this.updateTimer === undefined)
             this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
@@ -468,20 +660,17 @@ MhistoryGraph.prototype.loadOldData = function () {
 
    let dt = Math.floor(this.tMax - this.tMin);
 
-   if (this.tMin - dt < this.tMinRequested) {
+   if (this.tMin - dt / 2 < this.tMinRequested) {
 
       let oldTMinRequestested = this.tMinRequested;
       this.tMinRequested = this.tMin - dt;
-
-      // let t = Math.floor(new Date() / 1000);
-      // console.log((this.tMinRequested - t) + " - " + (oldTMinRequestested - t));
 
       this.pendingUpdates++;
       this.parentDiv.style.cursor = "progress";
       mjsonrpc_call("hs_read_arraybuffer",
          {
-            "start_time": this.tMinRequested,
-            "end_time": oldTMinRequestested,
+            "start_time": Math.floor(this.tMinRequested),
+            "end_time": Math.floor(oldTMinRequestested),
             "events": this.events,
             "tags": this.tags,
             "index": this.index
@@ -493,12 +682,14 @@ MhistoryGraph.prototype.loadOldData = function () {
                this.parentDiv.style.cursor = "default";
 
             this.receiveData(rpc);
+            this.redraw();
 
          }.bind(this))
          .catch(function (error) {
             mjsonrpc_error_alert(error);
          });
    }
+   this.redraw();
 };
 
 
@@ -541,7 +732,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          }
       }
 
-   } else if (t0 < this.data[0].time[0]) {
+   } else if (this.data[0].time.length === 0 || t0 < this.data[0].time[0]) {
 
       // add data to the left
       for (let index = 0; index < nVars; index++) {
@@ -568,6 +759,10 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
             for (let j = 0; j < nData; j++) {
                let v = array[i--];
                let t = array[i--];
+               if (this.data[index].time.length === 0) {
+                  this.data[index].time.push(t);
+                  this.data[index].value.push(v);
+               }
                if (t < this.data[index].time[0]) {
                   this.data[index].time.unshift(t);
                   this.data[index].value.unshift(v);
@@ -626,8 +821,8 @@ MhistoryGraph.prototype.update = function () {
 
    mjsonrpc_call("hs_read_arraybuffer",
       {
-         "start_time": this.lastTimeStamp,
-         "end_time": t,
+         "start_time": Math.floor(this.lastTimeStamp),
+         "end_time": Math.floor(t),
          "events": this.events,
          "tags": this.tags,
          "index": this.index
@@ -660,6 +855,24 @@ MhistoryGraph.prototype.scrollRedraw = function () {
    }
 };
 
+function binarySearch(array, target) {
+   let startIndex = 0;
+   let endIndex = array.length - 1;
+   let middleIndex;
+   while (startIndex <= endIndex) {
+      middleIndex = Math.floor((startIndex + endIndex) / 2);
+      if (target === array[middleIndex])
+         return middleIndex;
+
+      if (target > array[middleIndex])
+         startIndex = middleIndex + 1;
+      if (target < array[middleIndex])
+         endIndex = middleIndex - 1;
+   }
+
+   return middleIndex;
+}
+
 MhistoryGraph.prototype.mouseEvent = function (e) {
 
    // fix buttons for IE
@@ -670,6 +883,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
    }
 
    let cursor = this.pendingUpdates > 0 ? "progress" : "default";
+   let title = "";
 
    if (e.type === "mousedown") {
 
@@ -728,6 +942,10 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.tMax = t2;
          this.zoom.x.active = false;
          this.redraw();
+
+         if (this.callbacks.timeZoom !== undefined) {
+            this.callbacks.timeZoom(this);
+         }
       }
 
       if (this.zoom.y.active) {
@@ -756,9 +974,12 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             this.yMin = this.drag.yMinStart - dy;
             this.yMax = this.drag.yMaxStart - dy;
          }
-         this.redraw();
 
          this.loadOldData();
+
+         if (this.callbacks.timeZoom !== undefined) {
+            this.callbacks.timeZoom(this);
+         }
 
       } else {
 
@@ -767,6 +988,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
                e.offsetX < b.x1 + b.width && e.offsetY < b.y1 + b.height) {
                cursor = "pointer";
+               title = b.title;
             }
          });
 
@@ -790,27 +1012,31 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
          // check if cursor close to graph point
          if (this.data !== undefined && this.x.length && this.y.length) {
-            let minDist = 100;
+            let minDist = 10000;
             for (let di = 0; di < this.data.length; di++) {
-               for (let i = 0; i < this.x[di].length; i++) {
-                  if (this.x[di][i] > this.x1 && this.x[di][i] < this.x2) {
-                     let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
-                        Math.pow(e.offsetY - this.y[di][i], 2));
-                     if (d < minDist) {
-                        minDist = d;
-                        this.marker.x = this.x[di][i];
-                        this.marker.y = this.y[di][i];
-                        this.marker.t = this.t[di][i];
-                        this.marker.v = this.v[di][i];
-                        this.marker.mx = e.offsetX;
-                        this.marker.my = e.offsetY;
-                        this.marker.graphIndex = di;
-                        this.marker.index = i;
-                     }
+
+               let i1 = binarySearch(this.x[di], e.offsetX - 10);
+               let i2 = binarySearch(this.x[di], e.offsetX + 10);
+
+               for (let i = i1; i < i2; i++) {
+                  let d = (e.offsetX - this.x[di][i]) * (e.offsetX - this.x[di][i]) +
+                     (e.offsetY - this.y[di][i]) * (e.offsetY - this.y[di][i]);
+                  if (d < minDist) {
+                     minDist = d;
+                     this.marker.graphIndex = di;
+                     this.marker.index = i;
                   }
                }
             }
-            this.marker.active = minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
+            this.marker.active = Math.sqrt(minDist) < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
+            if (this.marker.active) {
+               this.marker.x = this.x[this.marker.graphIndex][this.marker.index];
+               this.marker.y = this.y[this.marker.graphIndex][this.marker.index];
+               this.marker.t = this.t[this.marker.graphIndex][this.marker.index];
+               this.marker.v = this.v[this.marker.graphIndex][this.marker.index];
+               this.marker.mx = e.offsetX;
+               this.marker.my = e.offsetY;
+            }
             this.redraw();
          }
       }
@@ -838,7 +1064,6 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             // check if inside label area
             if (this.showLabels) {
                if (e.offsetX > this.x1 && e.offsetX < this.x1 + 25 + this.variablesWidth + 7) {
-                  console.log((e.offsetY - 30) / 17);
                   let i = Math.floor((e.offsetY - 30) / 17);
                   if (i < this.data.length) {
                      if (this.solo.active && this.solo.index === i) {
@@ -855,7 +1080,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       }
    }
 
-
+   this.parentDiv.title = title;
    this.parentDiv.style.cursor = cursor;
 
    e.preventDefault();
@@ -887,6 +1112,8 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
             this.yMax += dtMax;
          }
 
+         this.redraw();
+
       } else if (e.ctrlKey || e.metaKey) {
 
          // zoom time axis
@@ -897,25 +1124,74 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
          if ((this.tMax - dtMax) - (this.tMin + dtMin) > 10 && e.deltaY < 0) {
             // zoom in
-            this.tMin += dtMin;
-            this.tMax -= dtMax;
+            if (this.scroll) {
+               this.tMin += dtMin;
+            } else {
+               this.tMin += dtMin;
+               this.tMax -= dtMax;
+            }
+
+            this.redraw();
          }
          if ((this.tMax + dtMax) - (this.tMin - dtMin) < 3600 * 24 * 365 && e.deltaY > 0) {
             // zoom out
-            this.tMin -= dtMin;
-            this.tMax += dtMax;
+            if (this.scroll) {
+               this.tMin -= dtMin;
+            } else {
+               this.tMin -= dtMin;
+               this.tMax += dtMax;
+            }
+
+            this.loadOldData();
+         }
+
+         if (this.callbacks.timeZoom !== undefined) {
+            this.callbacks.timeZoom(this);
          }
       } else
          return;
 
-      this.loadOldData();
-
       this.marker.active = false;
-      this.scroll = false;
-      this.redraw();
 
       e.preventDefault();
    }
+};
+
+MhistoryGraph.prototype.resetAxes = function () {
+   this.tMax = Math.floor(new Date() / 1000);
+   this.tMin = this.tMax - this.tScale;
+
+   this.yMin0 = this.yMax0 = this.data[0].value[this.data[0].value.length - 1];
+   for (let index = 0; index < this.data.length; index++)
+      for (let j = 0; j < this.data[index].time.length; j++) {
+         if (this.data[index].time[j] > this.tMin) {
+            let v = this.data[index].value[j];
+            if (this.autoscaleMax)
+               if (v > this.yMax0)
+                  this.yMax0 = v;
+            if (this.autoscaleMin)
+               if (v < this.yMin0)
+                  this.yMin0 = v;
+         }
+      }
+
+   this.yMin = this.yMin0;
+   this.yMax = this.yMax0;
+   if (this.autoscaleMin)
+      this.yMin -= (this.yMax0 - this.yMin0) / 10;
+   if (this.autoscaleMax)
+      this.yMax += (this.yMax0 - this.yMin0) / 10;
+
+   this.scroll = true;
+   this.yZoom = false;
+   this.redraw();
+};
+
+MhistoryGraph.prototype.setTimespan = function (tMin, tMax, scroll) {
+   this.tMin = tMin;
+   this.tMax = tMax;
+   this.scroll = scroll;
+   this.loadOldData();
 };
 
 MhistoryGraph.prototype.resize = function () {
@@ -959,6 +1235,8 @@ MhistoryGraph.prototype.yToValue = function (y) {
 
 MhistoryGraph.prototype.findMinMax = function () {
 
+   let n = 0;
+
    if (!this.autoscaleMin)
       this.yMin0 = this.odb["Minimum"];
 
@@ -976,12 +1254,16 @@ MhistoryGraph.prototype.findMinMax = function () {
    if (this.autoscaleMax)
       this.yMax0 = undefined;
    for (let index = 0; index < this.data.length; index++) {
+      if (this.events[index] === "Run transitions")
+         continue;
       for (let i = 0; i < this.data[index].time.length; i++) {
          let t = this.data[index].time[i];
          let v = this.data[index].value[i];
          if (Number.isNaN(v))
             continue;
          if (t > this.tMin && t < this.tMax) {
+            n++;
+
             if (this.yMin0 === undefined)
                this.yMin0 = v;
             if (this.yMax0 === undefined)
@@ -996,6 +1278,11 @@ MhistoryGraph.prototype.findMinMax = function () {
             }
          }
       }
+   }
+
+   if (n === 0) {
+      this.yMin0 = -0.5;
+      this.yMax0 = 0.5;
    }
 
    if (this.yMin0 === this.yMax0) {
@@ -1035,17 +1322,6 @@ MhistoryGraph.prototype.draw = function () {
       return;
    }
 
-   if (this.data[0].time === undefined || this.data[0].time.length === 0) {
-      ctx.lineWidth = 1;
-      ctx.font = "14px sans-serif";
-      ctx.strokeStyle = "#808080";
-      ctx.fillStyle = "#808080";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("No data available", this.width / 2, this.height / 2);
-      return;
-   }
-
    this.findMinMax();
 
    ctx.lineWidth = 1;
@@ -1060,16 +1336,6 @@ MhistoryGraph.prototype.draw = function () {
 
    let axisLabelWidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35,
       -4, -7, -10, -12, 0, this.yMin, this.yMax, 0, false);
-
-   this.variablesWidth = 0;
-   this.odb["Variables"].forEach((v, i) => {
-      if (this.odb.Label[i] !== "")
-         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(this.odb.Label[i]).width);
-      else
-         this.variablesWidth = Math.max(this.variablesWidth, ctx.measureText(v.substr(v.indexOf(':') + 1)).width);
-   });
-   this.variablesWidth += ctx.measureText("0").width * (this.yPrecision + 2);
-   this.variablesHeight = this.odb["Variables"].length * 17 + 7;
 
    this.x1 = axisLabelWidth + 15;
    this.y1 = this.height - 25;
@@ -1099,12 +1365,32 @@ MhistoryGraph.prototype.draw = function () {
       4, 7, 10, 10, this.y2 - this.y1, this.tMin, this.tMax);
 
    // determine precision
+   let n_sig1 = 0;
+   let n_sig2 = 0;
    if (this.yMin === 0)
-      this.yPrecision = Math.max(5, Math.ceil(Math.log(Math.abs(this.yMax)) / Math.log(10)) + 3);
-   else if (this.yMax === 0)
-      this.yPrecision = Math.max(5, Math.ceil(Math.log(Math.abs(this.yMin)) / Math.log(10)) + 3);
+      n_sig1 = 1;
    else
-      this.yPrecision = Math.max(5, Math.ceil(-Math.log(Math.abs(1 - this.yMax / this.yMin)) / Math.log(10)) + 3);
+      n_sig1 = Math.floor(Math.log(Math.abs(this.yMin)) / Math.log(10)) -
+         Math.floor(Math.log(Math.abs((this.yMax - this.yMin) / 50)) / Math.log(10)) + 1;
+
+   if (this.yMax === 0)
+      n_sig2 = 1;
+   else
+      n_sig2 = Math.floor(Math.log(Math.abs(this.yMax)) / Math.log(10)) -
+         Math.floor(Math.log(Math.abs((this.yMax - this.yMin) / 50)) / Math.log(10)) + 1;
+
+   n_sig1 = Math.max(n_sig1, n_sig2);
+   n_sig1 = Math.max(1, n_sig1);
+
+   // toPrecision displays 1050 with 3 digits as 1.05e+3, so increase precision to number of digits
+   if (Math.abs(this.yMin) < 100000)
+      n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(this.yMin)) /
+         Math.log(10) + 0.001) + 1);
+   if (Math.abs(this.yMax) < 100000)
+      n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(this.yMax)) /
+         Math.log(10) + 0.001) + 1);
+
+   this.yPrecision = Math.max(6, n_sig1); // use at least 5 digits
 
    ctx.save();
    ctx.beginPath();
@@ -1156,6 +1442,8 @@ MhistoryGraph.prototype.draw = function () {
    let avgN = 0;
    let numberN = 0;
    for (let di = 0; di < this.data.length; di++) {
+      if (this.events[di] === "Run transitions")
+         continue;
       this.p[di] = [];
       let p = {};
 
@@ -1198,60 +1486,64 @@ MhistoryGraph.prototype.draw = function () {
       avgN = avgN / numberN;
 
    // draw shaded areas
-   for (let di = 0; di < this.data.length; di++) {
-      if (this.solo.active && this.solo.index !== di)
-         continue;
+   if (this.showFill) {
+      for (let di = 0; di < this.data.length; di++) {
+         if (this.solo.active && this.solo.index !== di)
+            continue;
 
-      ctx.fillStyle = this.odb["Colour"][di];
+         if (this.events[di] === "Run transitions")
+            continue;
 
-      if (avgN > 2) {
-         ctx.beginPath();
-         let x0;
-         let y0;
-         let xLast;
-         let i;
-         for (let i = 0; i < this.p[di].length; i++) {
-            let p = this.p[di][i];
-            if (x0 === undefined) {
-               x0 = p.x;
-               y0 = p.first;
-               ctx.moveTo(p.x, p.first);
-            } else {
-               ctx.lineTo(p.x, p.first);
+         ctx.fillStyle = this.odb["Colour"][di];
+
+         if (avgN > 2) {
+            ctx.beginPath();
+            let x0;
+            let y0;
+            let xLast;
+            for (let i = 0; i < this.p[di].length; i++) {
+               let p = this.p[di][i];
+               if (x0 === undefined) {
+                  x0 = p.x;
+                  y0 = p.first;
+                  ctx.moveTo(p.x, p.first);
+               } else {
+                  ctx.lineTo(p.x, p.first);
+               }
+               xLast = p.x;
+               ctx.lineTo(p.x, p.last);
             }
-            xLast = p.x;
-            ctx.lineTo(p.x, p.last);
-         }
-         ctx.lineTo(xLast, this.y1);
-         ctx.lineTo(x0, this.y1);
-         ctx.lineTo(x0, y0);
-         ctx.globalAlpha = 0.1;
-         ctx.fill();
-         ctx.globalAlpha = 1;
-      } else {
-         ctx.beginPath();
-         let x0;
-         let y0;
-         let xLast;
-         let i;
-         for (i = 0; i < this.x[di].length; i++) {
-            let x = this.x[di][i];
-            let y = this.y[di][i];
-            if (x0 === undefined) {
-               x0 = x;
-               y0 = y;
-               ctx.moveTo(x, y);
-            } else {
-               ctx.lineTo(x, y);
+            ctx.lineTo(xLast, this.valueToY(0));
+            ctx.lineTo(x0, this.valueToY(0));
+            ctx.lineTo(x0, y0);
+            ctx.globalAlpha = 0.1;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+         } else {
+            ctx.beginPath();
+            let x0;
+            let y0;
+            let xLast;
+            let i;
+            for (i = 0; i < this.x[di].length; i++) {
+               let x = this.x[di][i];
+               let y = this.y[di][i];
+               if (x0 === undefined) {
+                  x0 = x;
+                  y0 = y;
+                  ctx.moveTo(x, y);
+               } else {
+                  ctx.lineTo(x, y);
+               }
+               xLast = x;
             }
-            xLast = x;
+            ctx.lineTo(xLast, this.valueToY(0));
+            ctx.lineTo(x0, this.valueToY(0));
+            ctx.lineTo(x0, y0);
+            ctx.globalAlpha = 0.1;
+            ctx.fill();
+            ctx.globalAlpha = 1;
          }
-         ctx.lineTo(xLast, this.y1);
-         ctx.lineTo(x0, this.y1);
-         ctx.lineTo(x0, y0);
-         ctx.globalAlpha = 0.1;
-         ctx.fill();
-         ctx.globalAlpha = 1;
       }
    }
 
@@ -1260,38 +1552,67 @@ MhistoryGraph.prototype.draw = function () {
       if (this.solo.active && this.solo.index !== di)
          continue;
 
-      ctx.strokeStyle = this.odb["Colour"][di];
+      if (this.events[di] === "Run transitions") {
 
-      if (avgN > 2) {
-         let prevX = undefined;
-         let prevY = undefined;
-         for (let i = 0; i < this.p[di].length; i++) {
-            let p = this.p[di][i];
+         if (this.tags[di] === "State") {
+            for (let i = 0; i < this.x[di].length; i++) {
+               if (this.v[di][i] === 1) {
+                  ctx.strokeStyle = "#FF0000";
+                  ctx.fillStyle = "#808080";
+                  ctx.textAlign = "right";
+                  ctx.textBaseline = "top";
+                  ctx.fillText(this.v[di + 1][i], this.x[di][i] - 5, this.y2 + 3);
+               } else if (this.v[di][i] === 3) {
+                  ctx.strokeStyle = "#00A000";
+                  ctx.fillStyle = "#808080";
+                  ctx.textAlign = "left";
+                  ctx.textBaseline = "top";
+                  ctx.fillText(this.v[di + 1][i], this.x[di][i] + 3, this.y2 + 3);
+               } else {
+                  ctx.strokeStyle = "#F9A600";
+               }
 
-            // draw line from end of previous cluster to beginning of current cluster
-            if (prevX !== undefined)
-               ctx.drawLine(prevX, prevY, p.x, p.first);
-
-            // draw min-max line
-            ctx.drawLine(p.x, p.min, p.x, p.max + 1);
-
-            prevX = p.x;
-            prevY = p.last;
-         }
-      } else {
-         ctx.beginPath();
-         let first = true;
-         for (let i = 0; i < this.x[di].length; i++) {
-            let x = this.x[di][i];
-            let y = this.y[di][i];
-            if (first) {
-               first = false;
-               ctx.moveTo(x, y);
-            } else {
-               ctx.lineTo(x, y);
+               ctx.setLineDash([8, 2]);
+               ctx.drawLine(Math.floor(this.x[di][i]), this.y1, Math.floor(this.x[di][i]), this.y2);
+               ctx.setLineDash([]);
             }
          }
-         ctx.stroke();
+
+      } else {
+
+         ctx.strokeStyle = this.odb["Colour"][di];
+
+         if (avgN > 2) {
+            let prevX = undefined;
+            let prevY = undefined;
+            for (let i = 0; i < this.p[di].length; i++) {
+               let p = this.p[di][i];
+
+               // draw line from end of previous cluster to beginning of current cluster
+               if (prevX !== undefined)
+                  ctx.drawLine(prevX, prevY, p.x, p.first);
+
+               // draw min-max line
+               ctx.drawLine(p.x, p.min, p.x, p.max + 1);
+
+               prevX = p.x;
+               prevY = p.last;
+            }
+         } else {
+            ctx.beginPath();
+            let first = true;
+            for (let i = 0; i < this.x[di].length; i++) {
+               let x = this.x[di][i];
+               let y = this.y[di][i];
+               if (first) {
+                  first = false;
+                  ctx.moveTo(x, y);
+               } else {
+                  ctx.lineTo(x, y);
+               }
+            }
+            ctx.stroke();
+         }
       }
    }
 
@@ -1299,6 +1620,33 @@ MhistoryGraph.prototype.draw = function () {
 
    // labels with variable names and values
    if (this.showLabels) {
+      this.variablesHeight = this.odb["Variables"].length * 17 + 7;
+
+      this.odb["Variables"].forEach((v, i) => {
+         let width = 0;
+         if (this.odb.Label[i] !== "")
+            width = ctx.measureText(this.odb.Label[i]).width;
+         else
+            width = ctx.measureText(v.substr(v.indexOf(':') + 1)).width;
+
+         if (this.v[i].length > 0) {
+            // use last point in array
+            let index = this.v[i].length - 1;
+
+            // use point at current marker
+            if (this.marker.active)
+               index = this.marker.index;
+
+            // convert value to string with 6 digits
+            let value = this.v[i][index];
+            let str = "  " + value.toPrecision(this.yPrecision).stripZeros();
+            width += ctx.measureText(str).width;
+         } else
+            width += ctx.measureText('no data').width;
+
+         this.variablesWidth = Math.max(this.variablesWidth, width);
+      });
+
       ctx.save();
       ctx.beginPath();
       ctx.rect(this.x1, this.y2, 25 + this.variablesWidth + 7, this.variablesHeight + 2);
@@ -1336,7 +1684,7 @@ MhistoryGraph.prototype.draw = function () {
 
             // convert value to string with 6 digits
             let value = this.v[i][index];
-            let str = value.toPrecision(this.yPrecision);
+            let str = value.toPrecision(this.yPrecision).stripZeros();
             ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
          } else
             ctx.fillText('no data', this.x1 + 25 + this.variablesWidth, 40 + i * 17);
@@ -1357,6 +1705,23 @@ MhistoryGraph.prototype.draw = function () {
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       ctx.fillText(str, this.x1 + 10, this.y1 - 13);
+   }
+
+   // "empty window" notice
+   if (this.data[0].time === undefined || this.data[0].time.length === 0) {
+      ctx.font = "16px sans-serif";
+      let str = "No data available";
+      ctx.strokeStyle = "#404040";
+      ctx.fillStyle = "#F0F0F0";
+      let w = ctx.measureText(str).width + 10;
+      let h = 16 + 10;
+      ctx.fillRect((this.x1 + this.x2) / 2 - w / 2, (this.y1 + this.y2) / 2 - h / 2, w, h);
+      ctx.strokeRect((this.x1 + this.x2) / 2 - w / 2, (this.y1 + this.y2) / 2 - h / 2, w, h);
+      ctx.fillStyle = "#404040";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(str, (this.x1 + this.x2) / 2, (this.y1 + this.y2) / 2);
+      ctx.font = "14px sans-serif";
    }
 
    // buttons
@@ -1430,9 +1795,9 @@ MhistoryGraph.prototype.draw = function () {
 
       let s;
       if (this.odb.Label[this.marker.graphIndex] !== "")
-         s = this.odb.Label[this.marker.graphIndex] + ": " + v.toPrecision(this.yPrecision);
+         s = this.odb.Label[this.marker.graphIndex] + ": " + v.toPrecision(this.yPrecision).stripZeros();
       else
-         s = this.odb["Variables"][this.marker.graphIndex] + ": " + v.toPrecision(this.yPrecision);
+         s = this.odb["Variables"][this.marker.graphIndex] + ": " + v.toPrecision(this.yPrecision).stripZeros();
 
       let w = ctx.measureText(s).width + 6;
       let h = ctx.measureText("M").width * 1.2 + 6;
@@ -1481,8 +1846,7 @@ MhistoryGraph.prototype.draw = function () {
       ctx.fillStyle = "#404040";
       ctx.fillText(s, x + 3, y + h / 2);
    }
-}
-;
+};
 
 /*
 MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor, major,
@@ -2029,3 +2393,79 @@ MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, maj
    } while (1);
 };
 
+MhistoryGraph.prototype.download = function (mode) {
+
+   let leftDate = new Date(this.tMin * 1000);
+   let rightDate = new Date(this.tMax * 1000);
+   let filename = this.group + "-" + this.panel + "-" +
+      leftDate.getFullYear() +
+      ("0" + leftDate.getMonth() + 1).slice(-2) +
+      ("0" + leftDate.getDate()).slice(-2) + "-" +
+      ("0" + leftDate.getHours()).slice(-2) +
+      ("0" + leftDate.getMinutes()).slice(-2) +
+      ("0" + leftDate.getSeconds()).slice(-2) + "-" +
+      rightDate.getFullYear() +
+      ("0" + rightDate.getMonth() + 1).slice(-2) +
+      ("0" + rightDate.getDate()).slice(-2) + "-" +
+      ("0" + rightDate.getHours()).slice(-2) +
+      ("0" + rightDate.getMinutes()).slice(-2) +
+      ("0" + rightDate.getSeconds()).slice(-2);
+
+   // use trick from FileSaver.js
+   let a = document.getElementById('downloadHook');
+   if (a === null) {
+      a = document.createElement("a");
+      a.style.display = "none";
+      a.id = "downloadHook";
+      document.body.appendChild(a);
+   }
+
+   if (mode === "CSV") {
+      filename += ".csv";
+
+      let data = "Time,";
+      this.odb["Variables"].forEach(v => {
+         data += v + ",";
+      });
+      data = data.slice(0, -1);
+      data += '\n';
+
+      for (let i = 0; i < this.data[0].time.length; i++) {
+
+         let l = "";
+         if (this.data[0].time[i] > this.tMin && this.data[0].time[i] < this.tMax) {
+            l += this.data[0].time[i] + ",";
+            for (let di = 0; di < this.odb["Variables"].length; di++)
+               l += this.data[di].value[i] + ",";
+            l = l.slice(0, -1);
+            l += '\n';
+            data += l;
+         }
+
+      }
+
+      let blob = new Blob([data], {type: "text/csv"});
+      let url = window.URL.createObjectURL(blob);
+
+      a.href = url;
+      a.download = filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      dlgAlert("Data downloaded to '" + filename + "'");
+
+   } else if (mode === "PNG") {
+      filename += ".png";
+
+      this.canvas.toBlob(function (blob) {
+         let url = window.URL.createObjectURL(blob);
+
+         a.href = url;
+         a.download = filename;
+         a.click();
+         window.URL.revokeObjectURL(url);
+         dlgAlert("Image downloaded to '" + filename + "'");
+
+      }, 'image/png');
+   }
+
+};

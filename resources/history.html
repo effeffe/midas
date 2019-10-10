@@ -26,13 +26,78 @@
       return vars;
    }
 
-   function init() {
+   function panelCreate() {
+      let selGroup = document.getElementById('dlgNewSelGroup').value;
+      let newGroup = document.getElementById('dlgNewNewGroup').value;
+      let panelName = document.getElementById('dlgNewPanelName').value;
+      if (panelName === "") {
+         dlgAlert('Empty panel name is not allowed');
+         return;
+      }
+      if (newGroup === "")
+         newGroup = selGroup;
 
+      let url = window.location.href;
+      if (url.indexOf("?cmd") > 0)
+         url = url.substr(0, url.indexOf("?cmd"));
+      url += "?cmd=oldhistory&hcmd=createnew&new_group=" + newGroup +
+      "&group=" + selGroup + "&panel=" + panelName;
+
+      url += "&redir=" + encodeURIComponent("?cmd=history&group="+newGroup+"&panel="+panelName);
+
+      window.location.href = url;
+   }
+
+   function getPlotsForCallback(caller) {
+      // Get all divs containing midas history graphs, except for the
+      // div that contains the graph specified by 'caller'.
+      let checkbox = document.getElementById('linkTAxes');
+      
+      if (checkbox === undefined || checkbox === null || ! checkbox.checked) {
+         // Don't return any plots if "Change all time axes together" checkbox isn't checked.
+         return [];
+      }
+      
+      let mhist = Array.from(document.getElementsByTagName("div")).filter(d => {
+         return d.hasOwnProperty('mhg') && d.mhg != caller;
+      });
+      
+      return mhist;
+   }
+
+   function timeZoomCallback(caller) {
+      let mhist = getPlotsForCallback(caller);
+      
+      for (let i = 0; i < mhist.length; i++) {
+         mhist[i].mhg.setTimespan(caller.tMin, caller.tMax, caller.scroll);
+      }
+   }
+
+   function resetAxesCallback(caller) {
+      let mhist = getPlotsForCallback(caller);
+      
+      for (let i = 0; i < mhist.length; i++) {
+         mhist[i].mhg.resetAxes();
+      }
+   }
+   
+   function jumpToCurrentCallback(caller) {
+      let mhist = getPlotsForCallback(caller);
+      
+      for (let i = 0; i < mhist.length; i++) {
+         mhist[i].mhg.scroll = true;
+         mhist[i].mhg.scrollRedraw();
+      }
+   }
+
+   function init() {
       mjsonrpc_db_copy(["/History/Display"]).then(function (rpc) {
          let historyDisplay = rpc.result.data[0];
 
          let curGroup = decodeURI(getUrlVars()["group"]);
          let curPanel = decodeURI(getUrlVars()["panel"]);
+         let tMin = decodeURI(getUrlVars()["tmin"]);
+         let tMax = decodeURI(getUrlVars()["tmax"]);
          let baseURL = window.location.href;
          if (baseURL.search("&group") > 0)
             baseURL = baseURL.substr(0, baseURL.search("&group"));
@@ -42,22 +107,40 @@
             // create selector table
             let d = document.getElementById("hist");
 
+            dlgLoad('dlgHistory.html').then(
+               () => {
+                  let sgroup = document.getElementById('dlgNewSelGroup');
+                  Object.keys(historyDisplay).forEach(key => {
+                     let o = document.createElement("option");
+                     o.text = key;
+                     sgroup.add(o);
+                  });
+
+               },
+               () => {
+               }
+            );
+
             let h =
                "<table class=\"mtable\" id=\"overallTable\">\n" +
                "    <tr><th colspan=\"2\" class=\"mtableheader\">History</th></tr>\n" +
-               "    <tr><td colspan=2><input type=\"button\" name=\"New\" value=\"New\" onClick=\"window.location.href='?cmd=history&hcmd=New'\"></td></tr>\n" +
+               "    <tr><td colspan=2><input type=\"button\" class=\"mbutton\" name=\"New\" value=\"New\" " +
+               "        onClick=\"dlgShow('dlgNew')\"></td></tr>\n" +
                "    <tr><td colspan=2 style=\"text-align:center;\"><b>Please select panel:</b></td></tr>\n" +
-               "    <tr><td colspan=2 class=\"titleCell\"><a href=\"" + baseURL + "&group=All\">ALL</a>\n</td></tr>\n";
+               "    <tr><td colspan=2 class=\"titleCell\"><a href=\"" + baseURL + "&group=All\">ALL</a>\n" +
+               "</td></tr>\n";
 
 
             Object.keys(historyDisplay).forEach(group => {
                h +=
                   "    <tr>\n" +
-                  "      <td class=\"titleCell\"><a href=\"" + baseURL + "&group=" + group + "&panel=All\">" + group + "</a></td>\n" +
+                  "      <td class=\"titleCell\"><a href=\"" + baseURL + "&group=" + group + "&panel=All\">" +
+                  group + "</a></td>\n" +
                   "      <td>\n";
 
                Object.keys(historyDisplay[group]).forEach(panel => {
-                  h += "         <a href=\"" + baseURL + "&group=" + group + "&panel=" + panel + "\">" + panel + "</a>&nbsp;\n";
+                  h += "         <a href=\"" + baseURL + "&group=" + group + "&panel=" + panel + "\">" +
+                     panel + "</a>&nbsp;\n";
                });
 
                h +=
@@ -75,7 +158,7 @@
          let d = document.getElementById("hist");
 
          // drop-down panel selector
-         d.innerHTML =
+         let h =
             "<table class=\"mtable\" id=\"overallTable\">\n" +
             "   <tr><th class=\"mtableheader\">History</th></tr>\n" +
             "   <tr><td>\n" +
@@ -84,12 +167,23 @@
             "      </select>&nbsp;&nbsp;\n" +
             "      Panel:\n" +
             "      <select title=\"Select Panel\" id=\"spanel\">\n" +
-            "      </select>\n" +
-            "   </td></tr>\n" +
+            "      </select>\n";
+
+         if (curPanel == "All") {
+            h += "      &nbsp;&nbsp;<input type='checkbox' id='linkTAxes' name='linkTAxes'><label for='linkTAxes'>Change all time axes together</label>";
+         } else {
+            if (tMin !== "undefined")
+               h += "      &nbsp;&nbsp;<input type='checkbox' checked id='keepTAxis' name='keepTAxis'><label for='keepTAxis'>Keep horizontal axis when switching panels</label>";
+            else
+               h += "      &nbsp;&nbsp;<input type='checkbox' id='keepTAxis' name='keepTAxis'><label for='keepTAxis'>Keep horizontal axis when switching panels</label>";
+         }
+
+         h += "   </td></tr>\n" +
             "   <tr><td>\n" +
             "      <div id=\"histPanel\"></div>\n" +
             "   </td></tr>\n" +
             "</table>\n";
+         d.innerHTML = h;
 
          // populate group selector
          let sgroup = document.getElementById("sgroup");
@@ -129,15 +223,33 @@
 
          // add listener to group selector
          document.getElementById("sgroup").addEventListener("change", function () {
-            window.location.href = baseURL + "&group=" + document.getElementById("sgroup").value;
+            let url = baseURL + "&group=" + document.getElementById("sgroup").value;
+            
+            let d = document.getElementById("histPanel").childNodes[0];
+
+            if (document.getElementById('keepTAxis') !== null &&
+               document.getElementById('keepTAxis').checked)
+               url += "&tmin=" + Math.floor(d.mhg.tMin) + "&tmax=" + Math.floor(d.mhg.tMax);
+
+            window.location.href = url;
          });
 
          // add listener to panel selector
          document.getElementById("spanel").addEventListener("change", function () {
-            window.location.href = baseURL +
+            let url = baseURL +
                "&group=" + document.getElementById("sgroup").value +
                "&panel=" + document.getElementById("spanel").value;
+
+            let d = document.getElementById("histPanel").childNodes[0];
+
+            if (document.getElementById('keepTAxis') !== null &&
+               document.getElementById('keepTAxis').checked)
+               url += "&tmin=" + Math.floor(d.mhg.tMin) + "&tmax=" + Math.floor(d.mhg.tMax);
+
+            window.location.href = url;
          });
+         
+         let createdPlots = [];
 
          if (curGroup === "All") {
             let table = document.createElement("table");
@@ -154,7 +266,7 @@
                   if ((nPanel++) % nColumns === 0) // put two panels in one row
                      tr = table.insertRow();
                   let td = tr.insertCell();
-                  mhistory_create(td, baseURL, group, panel);
+                  createdPlots.push(mhistory_create(td, baseURL, group, panel, parseInt(tMin), parseInt(tMax)));
                });
             });
 
@@ -173,14 +285,22 @@
                if (nPanel++ % nColumns === 0) // put two panels in one row
                   tr = table.insertRow();
                let td = tr.insertCell();
-               mhistory_create(td, baseURL, curGroup, panel);
+               createdPlots.push(mhistory_create(td, baseURL, curGroup, panel, parseInt(tMin), parseInt(tMax)));
             });
 
             document.getElementById("histPanel").appendChild(table);
 
          } else {
             // create single history object
-            mhistory_create(document.getElementById("histPanel"), baseURL, curGroup, curPanel);
+            createdPlots.push(mhistory_create(document.getElementById("histPanel"), baseURL, curGroup, curPanel,
+               parseInt(tMin), parseInt(tMax)));
+         }
+
+         // Register callback functions in case user wants to change all tiem axes together.
+         for (let i = 0; i < createdPlots.length; i++) {
+            createdPlots[i].mhg.callbacks.timeZoom = timeZoomCallback;
+            createdPlots[i].mhg.callbacks.resetAxes = resetAxesCallback;
+            createdPlots[i].mhg.callbacks.jumpToCurrent = jumpToCurrentCallback;
          }
 
          window.addEventListener("resize", windowResize);

@@ -1,15 +1,27 @@
-COMMENT "Sequencer Test File" 
- 
-RUNDESCRIPTION "Sequencer Test" 
+COMMENT "Sequencer Test File"
+
+RUNDESCRIPTION "Sequencer Test"
+
+PARAM num_runs, "Number of runs"
+PARAM test_param
+PARAM test_bool, bool
+PARAM test_opt, "Test option selection", opt1,opt2,opt3
+
+CAT message,"Parameters: "," num_runs=",$num_runs," test_param=",$test_param," test_bool=",$test_bool," test_opt=",$test_opt
+MESSAGE $message, 1
 
 CALL init
-LOOP 3 
-  TRANSITION start 
-  WAIT seconds, 10 
-  TRANSITION stop 
-  WAIT seconds, 3  
-ENDLOOP 
+LOOP 3
+  TRANSITION start
+  WAIT seconds, 10
+  TRANSITION stop
+  WAIT seconds, 3
+ENDLOOP
 
 SUBROUTINE init
-  MESSAGE "Initialization successfully completed", 1
+  MESSAGE "Initialization started"
+  LOOP 4
+    WAIT seconds, 3
+  ENDLOOP
+  MESSAGE "Initialization completed", 1
 ENDSUBROUTINE

@@ -213,7 +213,7 @@
 
       <tr>
          <td>
-            Play alarm sound:
+            Enable alarm sound:
          </td>
          <td colspan="2">
             <input type="checkbox" id="alarmSound">
@@ -267,8 +267,9 @@
 
       <tr>
          <td colspan="3" style="text-align: center;">
-            <button class="mbutton" onclick="mhttpdConfigSetAll(mhttpd_config_defaults);config_init();">Reset defaults
-            </button>
+           <button class="mbutton" onclick="mhttpd_alarm_play_now();">Play test sound</button>
+           <button class="mbutton" onclick="mhttpd_speak_now('test test 1 2 3');">Speak test message</button>
+           <button class="mbutton" onclick="mhttpdConfigSetAll(mhttpd_config_defaults);config_init();">Reset defaults</button>
          </td>
       </tr>
 
@@ -301,4 +302,4 @@ var mhttpd_config_default = {
    }
 };
 
--->
+--->

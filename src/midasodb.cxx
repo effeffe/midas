@@ -777,6 +777,14 @@ public:
       unsigned num = v.size();
       unsigned length = odb_string_size;
 
+      if (length == 0) {
+         for (unsigned i=0; i<v.size(); i++) {
+            if (v[i].length() > length)
+               length = v[i].length();
+         }
+         length += 1; // for the string terminator NUL character
+      }
+
       char val[length*num];
       memset(val, 0, length*num);
       
@@ -788,7 +796,30 @@ public:
 
    void Delete(const char* odbname, MVOdbError* error)
    {
-      // FIXME: incomplete
+      std::string path = Path(odbname);
+
+      //printf("Delete(%s)\n", path.c_str());
+
+      HNDLE hKey;
+      int status = db_find_key(fDB, 0, path.c_str(), &hKey);
+
+      if (status == DB_NO_KEY) {
+         SetOk(error);
+         return;
+      }
+
+      if (status != DB_SUCCESS) {
+         SetMidasStatus(error, fPrintError, path, "db_find_key", status);
+         return;
+      }
+
+      status = db_delete_key(fDB, hKey, FALSE);
+
+      if (status != DB_SUCCESS) {
+         SetMidasStatus(error, fPrintError, path, "db_delete_key", status);
+         return;
+      }
+
       SetOk(error);
    };
 };

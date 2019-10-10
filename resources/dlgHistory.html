@@ -1,0 +1,270 @@
+<div id="dlgHelp" class="dlgFrame">
+   <div class="dlgTitlebar">Help</div>
+   <div class="dlgPanel">
+
+      <table class='mtable'>
+         <tr>
+            <th>Action</th>
+            <th>Howto</th>
+         </tr>
+         <tr>
+            <td>Horizontal Zoom</td>
+            <td>&nbsp;Press Command (Mac) or Ctrl key and scroll mouse wheel or drag along X-Axis&nbsp;</td>
+         </tr>
+         <tr>
+            <td>Vertical Zoom</td>
+            <td>&nbsp;Press Option (Mac) or Shift key and scroll mouse wheel or drag along Y-Axis&nbsp;</td>
+         </tr>
+         <tr>
+            <td>Pan</td>
+            <td>Drag inside graph</td>
+         </tr>
+         <tr>
+            <td>Display values</td>
+            <td>Hover over graph</td>
+         </tr>
+         <tr>
+            <td>&nbsp;Move window to present time&nbsp;</td>
+            <td>Click on <img src='icons/play.svg' style='vertical-align:middle' alt='Live scrolling'> or press 'u'
+            </td>
+         </tr>
+         <tr>
+            <td>&nbsp;Reset axis&nbsp;</td>
+            <td>Click on <img src='icons/rotate-ccw.svg' style='vertical-align:middle' alt='Reset'></td>
+         </tr>
+         <tr>
+            <td>&nbsp;Select individual graph&nbsp;</td>
+            <td>Double click on a data point of desired graph or its label. Switch back with &lt;esc&gt;</td>
+         </tr>
+      </table>
+
+
+      <button class="dlgButton" type="button" onClick="dlgHide('dlgHelp')">Close</button>
+
+   </div>
+</div>
+
+
+<!-------------------------------------------------------------------------------------->
+
+
+<div id="dlgQuery" class="dlgFrame">
+   <div class="dlgTitlebar">Select time interval</div>
+   <div class="dlgPanel">
+
+      <table>
+         <tr>
+            <td>Start date:</td>
+            <td>
+               <label for='m1'>Month:</label>
+               <select id='m1'>
+                  <option value='January'>January</option>
+                  <option value='February'>February</option>
+                  <option value='March'>March</option>
+                  <option value='April'>April</option>
+                  <option value='May'>May</option>
+                  <option value='June'>June</option>
+                  <option value='July'>July</option>
+                  <option value='August'>August</option>
+                  <option value='September'>September</option>
+                  <option value='October'>October</option>
+                  <option value='November'>November</option>
+                  <option value='December'>December</option>
+               </select>
+            </td>
+            <td>
+               <label for='d1'>Day:</label>
+               <select id='d1'>
+                  <option value='1'>1</option>
+                  <option value='2'>2</option>
+                  <option value='3'>3</option>
+                  <option value='4'>4</option>
+                  <option value='5'>5</option>
+                  <option value='6'>6</option>
+                  <option value='7'>7</option>
+                  <option value='8'>8</option>
+                  <option value='9'>9</option>
+                  <option value='10'>10</option>
+                  <option value='11'>11</option>
+                  <option value='12'>12</option>
+                  <option value='13'>13</option>
+                  <option value='14'>14</option>
+                  <option value='15'>15</option>
+                  <option value='16'>16</option>
+                  <option value='17'>17</option>
+                  <option value='18'>18</option>
+                  <option value='19'>19</option>
+                  <option value='20'>20</option>
+                  <option value='21'>21</option>
+                  <option value='22'>22</option>
+                  <option value='23'>23</option>
+                  <option value='24'>24</option>
+                  <option value='25'>25</option>
+                  <option value='26'>26</option>
+                  <option value='27'>27</option>
+                  <option value='28'>28</option>
+                  <option value='29'>29</option>
+                  <option value='30'>30</option>
+                  <option value='31'>31</option>
+               </select>
+            </td>
+            <td>
+               <label for='h1'>Hour:</label>
+               <select id='h1'>
+                  <option value='0'>0</option>
+                  <option value='1'>1</option>
+                  <option value='2'>2</option>
+                  <option value='3'>3</option>
+                  <option value='4'>4</option>
+                  <option value='5'>5</option>
+                  <option value='6'>6</option>
+                  <option value='7'>7</option>
+                  <option value='8'>8</option>
+                  <option value='9'>9</option>
+                  <option value='10'>10</option>
+                  <option value='11'>11</option>
+                  <option value='12'>12</option>
+                  <option value='13'>13</option>
+                  <option value='14'>14</option>
+                  <option value='15'>15</option>
+                  <option value='16'>16</option>
+                  <option value='17'>17</option>
+                  <option value='18'>18</option>
+                  <option value='19'>19</option>
+                  <option value='20'>20</option>
+                  <option value='21'>21</option>
+                  <option value='22'>22</option>
+                  <option value='23'>23</option>
+               </select>
+            </td>
+            <td>
+               <label for='y1'>Year:</label>
+               <select id='y1'>
+               </select>
+            </td>
+         </tr>
+         <tr>
+            <td>End date:</td>
+            <td>
+               <label for='m2'>Month:</label>
+               <select id='m2'>
+                  <option value='January'>January</option>
+                  <option value='February'>February</option>
+                  <option value='March'>March</option>
+                  <option value='April'>April</option>
+                  <option value='May'>May</option>
+                  <option value='June'>June</option>
+                  <option value='July'>July</option>
+                  <option value='August'>August</option>
+                  <option value='September'>September</option>
+                  <option value='October'>October</option>
+                  <option value='November'>November</option>
+                  <option value='December'>December</option>
+               </select>
+            </td>
+            <td>
+               <label for='d2'>Day:</label>
+               <select id='d2'>
+                  <option value='1'>1</option>
+                  <option value='2'>2</option>
+                  <option value='3'>3</option>
+                  <option value='4'>4</option>
+                  <option value='5'>5</option>
+                  <option value='6'>6</option>
+                  <option value='7'>7</option>
+                  <option value='8'>8</option>
+                  <option value='9'>9</option>
+                  <option value='10'>10</option>
+                  <option value='11'>11</option>
+                  <option value='12'>12</option>
+                  <option value='13'>13</option>
+                  <option value='14'>14</option>
+                  <option value='15'>15</option>
+                  <option value='16'>16</option>
+                  <option value='17'>17</option>
+                  <option value='18'>18</option>
+                  <option value='19'>19</option>
+                  <option value='20'>20</option>
+                  <option value='21'>21</option>
+                  <option value='22'>22</option>
+                  <option value='23'>23</option>
+                  <option value='24'>24</option>
+                  <option value='25'>25</option>
+                  <option value='26'>26</option>
+                  <option value='27'>27</option>
+                  <option value='28'>28</option>
+                  <option value='29'>29</option>
+                  <option value='30'>30</option>
+                  <option value='31'>31</option>
+               </select>
+            </td>
+            <td>
+               <label for='h2'>Hour:</label>
+               <select id='h2'>
+                  <option value='0'>0</option>
+                  <option value='1'>1</option>
+                  <option value='2'>2</option>
+                  <option value='3'>3</option>
+                  <option value='4'>4</option>
+                  <option value='5'>5</option>
+                  <option value='6'>6</option>
+                  <option value='7'>7</option>
+                  <option value='8'>8</option>
+                  <option value='9'>9</option>
+                  <option value='10'>10</option>
+                  <option value='11'>11</option>
+                  <option value='12'>12</option>
+                  <option value='13'>13</option>
+                  <option value='14'>14</option>
+                  <option value='15'>15</option>
+                  <option value='16'>16</option>
+                  <option value='17'>17</option>
+                  <option value='18'>18</option>
+                  <option value='19'>19</option>
+                  <option value='20'>20</option>
+                  <option value='21'>21</option>
+                  <option value='22'>22</option>
+                  <option value='23'>23</option>
+               </select>
+            </td>
+            <td>
+               <label for='y2'>Year:</label>
+               <select id='y2'>
+               </select>
+            </td>
+         </tr>
+      </table>
+
+      <button class="dlgButton" type="button" onClick="dlgHide('dlgQuery')">Cancel</button>
+      <button class="dlgButton" type="button" id="dlgQueryQuery">Query</button>
+
+   </div>
+</div>
+
+<!-------------------------------------------------------------------------------------->
+
+<div id="dlgNew" class="dlgFrame">
+   <div class="dlgTitlebar">New History Panel</div>
+   <div class="dlgPanel">
+
+      <table class='mtable'>
+         <tr>
+            <td>Select group:</td>
+            <td><select id="dlgNewSelGroup"></select></td>
+         </tr>
+         <tr>
+            <td>... or enter new group name:</td>
+            <td><input type="text" size="15" id="dlgNewNewGroup"></input></td>
+         </tr>
+         <tr>
+            <td>Panel name:</td>
+            <td><input type="text" size="15" id="dlgNewPanelName"></input></td>
+         </tr>
+      </table>
+
+
+      <button class="dlgButton" type="button" onClick="dlgHide(this)">Cancel</button>
+      <button class="dlgButton" type="button" onClick="dlgHide(this);panelCreate();">Create</button>
+
+   </div>
+</div>

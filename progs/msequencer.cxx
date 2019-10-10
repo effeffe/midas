@@ -11,6 +11,7 @@
 #include "msystem.h"
 #include "strlcpy.h"
 #include "mxml.h"
+#include "mvodb.h"
 #include "sequencer.h"
 #include <assert.h>
 
@@ -34,6 +35,8 @@ The Midas Sequencer file
 SEQUENCER_STR(sequencer_str);
 SEQUENCER seq;
 PMXML_NODE pnseq = NULL;
+
+MVOdb* gOdb = NULL;
 
 /*------------------------------------------------------------------*/
 
@@ -102,8 +105,30 @@ void strsubst(char *string, int size, const char *pattern, const char *subst)
 
 /*------------------------------------------------------------------*/
 
-void seq_error(const char *str)
+static std::string toString(int v)
 {
+   char buf[256];
+   sprintf(buf, "%d", v);
+   return buf;
+}
+
+static std::string qtoString(int v)
+{
+   char buf[256];
+   sprintf(buf, "\"%d\"", v);
+   return buf;
+}
+
+static std::string q(const char* s)
+{
+   return "\"" + std::string(s) + "\"";
+}
+
+/*------------------------------------------------------------------*/
+
+void seq_error(SEQUENCER& seq, const char *str)
+{
+   int status;
    HNDLE hDB, hKey;
    
    strlcpy(seq.error, str, sizeof(seq.error));
@@ -113,9 +138,12 @@ void seq_error(const char *str)
    seq.transition_request = FALSE;
 
    cm_get_experiment_database(&hDB, NULL);
-   db_find_key(hDB, 0, "/Sequencer/State", &hKey);
-   assert(hKey);
-   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+   status = db_find_key(hDB, 0, "/Sequencer/State", &hKey);
+   if (status != DB_SUCCESS)
+      return;
+   status = db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+   if (status != DB_SUCCESS)
+      return;
    
    cm_msg(MTALK, "sequencer", "Sequencer has stopped with error.");
 }
@@ -203,7 +231,7 @@ extern char *stristr(const char *str, const char *pattern);
 
 /*------------------------------------------------------------------*/
 
-BOOL eval_var(const char *value, char *result, int size)
+BOOL eval_var(SEQUENCER& seq, const char *value, char *result, int size)
 {
    HNDLE hDB, hkey;
    KEY key;
@@ -233,7 +261,7 @@ BOOL eval_var(const char *value, char *result, int size)
                   strlcpy(result, str, size);
                   if (result[0] == '$') {
                      strlcpy(str, result, sizeof(str));
-                     return eval_var(str, result, size);
+                     return eval_var(seq, str, result, size);
                   }                  
                   return TRUE;
                } else
@@ -245,7 +273,7 @@ BOOL eval_var(const char *value, char *result, int size)
                strlcpy(result, s, size);
                if (result[0] == '$') {
                   strlcpy(str, result, sizeof(str));
-                  return eval_var(str, result, size);
+                  return eval_var(seq, str, result, size);
                }                  
                return TRUE;
             }
@@ -287,13 +315,13 @@ BOOL eval_var(const char *value, char *result, int size)
 
 error:
    sprintf(str, "Invalid parameter \"%s\"", value);
-   seq_error(str);
+   seq_error(seq, str);
    return FALSE;
 }
 
 /*------------------------------------------------------------------*/
 
-int concatenate(char *result, int size, char *value)
+int concatenate(SEQUENCER& seq, char *result, int size, char *value)
 {
    char str[256], list[100][XNAME_LENGTH];
    int  i, n;
@@ -302,7 +330,7 @@ int concatenate(char *result, int size, char *value)
    
    result[0] = 0;
    for (i=0 ; i<n ; i++) {
-      if (!eval_var(list[i], str, sizeof(str)))
+      if (!eval_var(seq, list[i], str, sizeof(str)))
           return FALSE;
       strlcat(result, str, size);
    }
@@ -312,7 +340,7 @@ int concatenate(char *result, int size, char *value)
 
 /*------------------------------------------------------------------*/
 
-int eval_condition(const char *condition)
+int eval_condition(SEQUENCER& seq, const char *condition)
 {
    int i;
    double value1, value2;
@@ -335,9 +363,9 @@ int eval_condition(const char *condition)
    for (i++; str[i] == ' '; i++);
    strlcpy(value2_str, str + i, sizeof(value2_str));
    
-   if (!eval_var(value1_str, value1_var, sizeof(value1_var)))
+   if (!eval_var(seq, value1_str, value1_var, sizeof(value1_var)))
       return -1;
-   if (!eval_var(value2_str, value2_var, sizeof(value2_var)))
+   if (!eval_var(seq, value2_str, value2_var, sizeof(value2_var)))
       return -1;
    for (i=0 ; i<(int)strlen(value1_var) ; i++)
       if (strchr("0123456789.+-Ee", value1_var[i]) == NULL)
@@ -386,12 +414,13 @@ int eval_condition(const char *condition)
 
 /*------------------------------------------------------------------*/
 
-BOOL msl_parse(const char *filename, const char* xml_filename, char *error, int error_size, int *error_line)
+static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* xml_filename, char *error, int error_size, int *error_line)
 {
    char str[256], *buf, *pl, *pe;
    char list[100][XNAME_LENGTH], list2[100][XNAME_LENGTH], **lines;
    int i, j, n, size, n_lines, endl, line, nest, incl, library;
-   
+   std::string xml;
+
    int fhin = open(filename, O_RDONLY | O_TEXT);
    if (fhin < 0) {
       sprintf(error, "Cannot open \"%s\", errno %d (%s)", filename, errno, strerror(errno));
@@ -434,23 +463,51 @@ BOOL msl_parse(const char *filename, const char* xml_filename, char *error, int 
             if (!incl) {
                fprintf(fout, "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n");
                fprintf(fout, "<!DOCTYPE RunSequence [\n");
+               xml += "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n";
+               xml += "<!DOCTYPE RunSequence [\n";
                incl = 1;
             }
             fprintf(fout, "  <!ENTITY %s SYSTEM \"%s.xml\">\n", list[1], list[1]);
+            xml += "  <!ENTITY ";
+            xml += list[1];
+            xml += " SYSTEM \"";
+            xml += list[1];
+            xml += ".xml\">\n";
          }
          if (equal_ustring(list[0], "library")) {
             fprintf(fout, "<Library name=\"%s\">\n", list[1]);
+            xml += "<Library name=\"";
+            xml += list[1];
+            xml += "\">\n";
             library = TRUE;
          }
       }
-      if (incl)
+      if (incl) {
          fprintf(fout, "]>\n");
-      else if (!library)
+         xml += "]>\n";
+      } else if (!library) {
          fprintf(fout, "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n");
+         xml += "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n";
+      }
       
       /* parse rest of file */
-      if (!library)
+      if (!library) {
          fprintf(fout, "<RunSequence xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"\">\n");
+         xml += "<RunSequence xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"\">\n";
+      }
+
+      //for (line=0 ; line<n_lines ; line++) {
+      //   printf("line %d: [%s]\n", line, lines[line]);
+      //}
+      
+      std::vector<std::string> slines;
+      for (line=0 ; line<n_lines ; line++) {
+         slines.push_back(lines[line]);
+      }
+
+      odb->WSA("Sequencer/Script/Lines", slines, 0);
+      odb->Delete("Sequencer/Param");
+
       for (line=0 ; line<n_lines ; line++) {
          n = strbreak(lines[line], list, 100, ", ", FALSE);
          
@@ -467,42 +524,63 @@ BOOL msl_parse(const char *filename, const char* xml_filename, char *error, int 
             
          } else if (equal_ustring(list[0], "include")) {
             fprintf(fout, "&%s;\n", list[1]);
-            
+            xml += "&";
+            xml += list[1];
+            xml += ";\n";
+
          } else if (equal_ustring(list[0], "call")) {
             fprintf(fout, "<Call l=\"%d\" name=\"%s\">", line+1, list[1]);
+            xml += "<Call l=" + qtoString(line+1) + " name=" + q(list[1]) + ">";
             for (i=2 ; i < 100 && list[i][0] ; i++) {
-               if (i > 2)
+               if (i > 2) {
                   fprintf(fout, ",");
+                  xml += ",";
+               }
                fprintf(fout, "%s", list[i]);
+               xml += list[i];
             }
             fprintf(fout, "</Call>\n");
+            xml += "</Call>\n";
             
          } else if (equal_ustring(list[0], "cat")) {
             fprintf(fout, "<Cat l=\"%d\" name=\"%s\">", line+1, list[1]);
+            xml += "<Cat l=" + qtoString(line+1) + " name=" + q(list[1]) + ">";
             for (i=2 ; i < 100 && list[i][0] ; i++) {
-               if (i > 2)
+               if (i > 2) {
                   fprintf(fout, ",");
+                  xml += ",";
+               }
                fprintf(fout, "\"%s\"", list[i]);
+               xml += q(list[i]);
             }
             fprintf(fout, "</Cat>\n");
+            xml += "</Cat>\n";
             
          } else if (equal_ustring(list[0], "comment")) {
             fprintf(fout, "<Comment l=\"%d\">%s</Comment>\n", line+1, list[1]);
+            xml += "<Comment l=" + qtoString(line+1) + ">" + list[1] + "</Comment>\n";
             
          } else if (equal_ustring(list[0], "goto")) {
             fprintf(fout, "<Goto l=\"%d\" sline=\"%s\" />\n", line+1, list[1]);
+            xml += "<Goto l=" + qtoString(line+1) + " sline=" + q(list[1]) + " />\n";
             
          } else if (equal_ustring(list[0], "if")) {
             fprintf(fout, "<If l=\"%d\" condition=\"", line+1);
-            for (i=1 ; i<100 && list[i][0] && stricmp(list[i], "THEN") != 0 ; i++)
+            xml += "<If l=" + qtoString(line+1) + " condition=\"";
+            for (i=1 ; i<100 && list[i][0] && stricmp(list[i], "THEN") != 0 ; i++) {
                fprintf(fout, "%s", list[i]);
+               xml += list[i];
+            }
             fprintf(fout, "\">\n");
+            xml += "\">\n";
             
          } else if (equal_ustring(list[0], "else")) {
             fprintf(fout, "<Else />\n");
+            xml += "<Else />\n";
             
          } else if (equal_ustring(list[0], "endif")) {
             fprintf(fout, "</If>\n");
+            xml += "</If>\n";
             
          } else if (equal_ustring(list[0], "loop")) {
             /* find end of loop */
@@ -520,100 +598,159 @@ BOOL msl_parse(const char *filename, const char* xml_filename, char *error, int 
                endl = i+1;
             else
                endl = line+1;
-            if (list[2][0] == 0)
+            if (list[2][0] == 0) {
                fprintf(fout, "<Loop l=\"%d\" le=\"%d\" n=\"%s\">\n", line+1, endl, list[1]);
-            else if (list[3][0] == 0){
+               xml += "<Loop l=" + qtoString(line+1) + " le=" + qtoString(endl) + " n=" + q(list[1]) + ">\n";
+            } else if (list[3][0] == 0){
                fprintf(fout, "<Loop l=\"%d\" le=\"%d\" var=\"%s\" n=\"%s\">\n", line+1, endl, list[1], list[2]);
+               xml += "<Loop l=" + qtoString(line+1) + " le=" + qtoString(endl) + " var=" + q(list[1]) + " n=" + q(list[2]) + ">\n";
             } else {
                fprintf(fout, "<Loop l=\"%d\" le=\"%d\" var=\"%s\" values=\"", line+1, endl, list[1]);
+               xml += "<Loop l=" + qtoString(line+1) + " le=" + qtoString(endl) + " var=" + q(list[1]) + " values=\"";
                for (i=2 ; i < 100 && list[i][0] ; i++) {
-                  if (i > 2)
+                  if (i > 2) {
                      fprintf(fout, ",");
+                     xml += ",";
+                  }
                   fprintf(fout, "%s", list[i]);
+                  xml += list[i];
                }
                fprintf(fout, "\">\n");
+               xml += "\">\n";
             }
          } else if (equal_ustring(list[0], "endloop")) {
             fprintf(fout, "</Loop>\n");
+            xml += "</Loop>\n";
             
          } else if (equal_ustring(list[0], "message")) {
-            fprintf(fout, "<Message l=\"%d\"%s>%s</Message>\n", line+1,
-                    list[2][0] == '1'? " wait=\"1\"" : "", list[1]);
+            fprintf(fout, "<Message l=\"%d\"%s>%s</Message>\n", line+1, list[2][0] == '1'? " wait=\"1\"" : "", list[1]);
+            xml += "<Message l=" + qtoString(line+1);
+            if (list[2][0] == '1')
+               xml += " wait=\"1\"";
+            xml += ">";
+            xml += list[1];
+            xml += "</Message>\n";
             
          } else if (equal_ustring(list[0], "odbinc")) {
             if (list[2][0] == 0)
                strlcpy(list[2], "1", 2);
             fprintf(fout, "<ODBInc l=\"%d\" path=\"%s\">%s</ODBInc>\n", line+1, list[1], list[2]);
+            xml += "<ODBInc l=" + qtoString(line+1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBInc>\n";
             
          } else if (equal_ustring(list[0], "odbset")) {
-            if (list[3][0])
+            if (list[3][0]) {
                fprintf(fout, "<ODBSet l=\"%d\" notify=\"%s\" path=\"%s\">%s</ODBSet>\n", line+1, list[3], list[1], list[2]);
-            else
+               xml += "<ODBSet l=" + qtoString(line+1) + " notify=" + q(list[3]) + " path=" + q(list[1]) + ">" + list[2] + "</ODBSet>\n";
+            } else {
                fprintf(fout, "<ODBSet l=\"%d\" path=\"%s\">%s</ODBSet>\n", line+1, list[1], list[2]);
+               xml += "<ODBSet l=" + qtoString(line+1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBSet>\n";
+            }
             
          } else if (equal_ustring(list[0], "odbget")) {
             fprintf(fout, "<ODBGet l=\"%d\" path=\"%s\">%s</ODBGet>\n", line+1, list[1], list[2]);
+            xml += "<ODBGet l=" + qtoString(line+1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBGet>\n";
             
          } else if (equal_ustring(list[0], "odbsubdir")) {
-            if (list[2][0])
+            if (list[2][0]) {
                fprintf(fout, "<ODBSubdir l=\"%d\" notify=\"%s\" path=\"%s\">\n", line+1, list[2], list[1]);
-            else
+               xml += "<ODBSubdir l=" + qtoString(line+1) + " notify=" + q(list[2]) + " path=" + q(list[1]) + ">\n";
+            } else {
                fprintf(fout, "<ODBSubdir l=\"%d\" path=\"%s\">\n", line+1, list[1]);
+               xml += "<ODBSubdir l=" + qtoString(line+1) + " path=" + q(list[1]) + ">\n";
+            }
          } else if (equal_ustring(list[0], "endodbsubdir")) {
             fprintf(fout, "</ODBSubdir>\n");
+            xml += "</ODBSubdir>\n";
             
          } else if (equal_ustring(list[0], "param")) {
-            if (list[2][0] == 0)
+            if (list[2][0] == 0) {
                fprintf(fout, "<Param l=\"%d\" name=\"%s\" />\n", line+1, list[1]);
-            else if (!list[3][0] && equal_ustring(list[2], "bool")) {
+               xml += "<Param l=" + qtoString(line+1) + " name=" + q(list[1]) + " />\n";
+               std::string v;
+               odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+            } else if (!list[3][0] && equal_ustring(list[2], "bool")) {
                fprintf(fout, "<Param l=\"%d\" name=\"%s\" type=\"bool\" />\n", line+1, list[1]);
+               xml += "<Param l=" + qtoString(line+1) + " name=" + q(list[1]) + " type=\"bool\" />\n";
+               bool v = false;
+               odb->RB((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
             } else if (!list[3][0]) {
                fprintf(fout, "<Param l=\"%d\" name=\"%s\" comment=\"%s\" />\n", line+1, list[1], list[2]);
+               xml += "<Param l=" + qtoString(line+1) + " name=" + q(list[1]) + " comment=" + q(list[2]) + " />\n";
+               std::string v;
+               odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+               odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
             } else {
                fprintf(fout, "<Param l=\"%d\" name=\"%s\" comment=\"%s\" options=\"", line+1, list[1], list[2]);
+               xml += "<Param l=" + qtoString(line+1) + " name=" + q(list[1]) + " comment=" + q(list[2]) + " options=\"";
+               std::string v;
+               odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+               odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
+               std::vector<std::string> options;
                for (i=3 ; i < 100 && list[i][0] ; i++) {
-                  if (i > 3)
+                  if (i > 3) {
                      fprintf(fout, ",");
+                     xml += ",";
+                  }
                   fprintf(fout, "%s", list[i]);
+                  xml += list[i];
+                  options.push_back(list[i]);
                }
                fprintf(fout, "\" />\n");
+               xml += "\" />\n";
+               odb->WSA((std::string("Sequencer/Param/Options/") + list[1]).c_str(), options, 0);
             }
             
          } else if (equal_ustring(list[0], "rundescription")) {
             fprintf(fout, "<RunDescription l=\"%d\">%s</RunDescription>\n", line+1, list[1]);
+            xml += "<RunDescription l=" + qtoString(line+1) + ">" + list[1] + "</RunDescription>\n";
             
          } else if (equal_ustring(list[0], "script")) {
-            if (list[2][0] == 0)
+            if (list[2][0] == 0) {
                fprintf(fout, "<Script l=\"%d\">%s</Script>\n", line+1, list[1]);
-            else {
+               xml += "<Script l=" + qtoString(line+1) + ">" + list[1] + "</Script>\n";
+            } else {
                fprintf(fout, "<Script l=\"%d\" params=\"", line+1);
+               xml += "<Script l=" + qtoString(line+1) + " params=\"";
                for (i=2 ; i < 100 && list[i][0] ; i++) {
-                  if (i > 2)
+                  if (i > 2) {
                      fprintf(fout, ",");
+                     xml += ",";
+                  }
                   fprintf(fout, "%s", list[i]);
+                  xml += list[i];
                }
                fprintf(fout, "\">%s</Script>\n", list[1]);
+               xml += "\">";
+               xml += list[1];
+               xml += "</Script>\n";
             }
             
          } else if (equal_ustring(list[0], "set")) {
             fprintf(fout, "<Set l=\"%d\" name=\"%s\">%s</Set>\n", line+1, list[1], list[2]);
+            xml += "<Set l=" + qtoString(line+1) + " name=" + q(list[1]) + ">" + list[2] + "</Set>\n";
             
          } else if (equal_ustring(list[0], "subroutine")) {
             fprintf(fout, "\n<Subroutine l=\"%d\" name=\"%s\">\n", line+1, list[1]);
+            xml += "\n<Subroutine l=" + qtoString(line+1) + " name=" + q(list[1]) + ">\n";
+
          } else if (equal_ustring(list[0], "endsubroutine")) {
             fprintf(fout, "</Subroutine>\n");
+            xml += "</Subroutine>\n";
             
          } else if (equal_ustring(list[0], "transition")) {
             fprintf(fout, "<Transition l=\"%d\">%s</Transition>\n", line+1, list[1]);
+            xml += "<Transition l=" + qtoString(line+1) + ">" + list[1] + "</Transition>\n";
             
          } else if (equal_ustring(list[0], "wait")) {
-            if (!list[2][0])
+            if (!list[2][0]) {
                fprintf(fout, "<Wait l=\"%d\" for=\"seconds\">%s</Wait>\n", line+1, list[1]);
-            else if (!list[3][0])
+               xml += "<Wait l=" + qtoString(line+1) + " for=\"seconds\">" + list[1] + "</Wait>\n";
+            } else if (!list[3][0]) {
                fprintf(fout, "<Wait l=\"%d\" for=\"%s\">%s</Wait>\n", line+1, list[1], list[2]);
-            else {
-               fprintf(fout, "<Wait l=\"%d\" for=\"%s\" path=\"%s\" op=\"%s\">%s</Wait>\n",
-                       line+1, list[1], list[2], list[3], list[4]);
+               xml += "<Wait l=" + qtoString(line+1) + " for=" + q(list[1]) + ">" + list[2] + "</Wait>\n";
+            } else {
+               fprintf(fout, "<Wait l=\"%d\" for=\"%s\" path=\"%s\" op=\"%s\">%s</Wait>\n", line+1, list[1], list[2], list[3], list[4]);
+               xml += "<Wait l=" + qtoString(line+1) + " for=" + q(list[1]) + " path=" + q(list[2]) + " op=" + q(list[3]) + ">" + list[4] + "</Wait>\n";
             }
             
          } else if (list[0][0] == 0 || list[0][0] == '#'){
@@ -627,11 +764,24 @@ BOOL msl_parse(const char *filename, const char* xml_filename, char *error, int 
       
       free(lines);
       free(buf);
-      if (library)
+      if (library) {
          fprintf(fout, "\n</Library>\n");
-      else
+         xml += "\n</Library>\n";
+      } else {
          fprintf(fout, "</RunSequence>\n");
+         xml += "</RunSequence>\n";
+      }
       fclose(fout);
+
+      odb->WS("Sequencer/Script/XML", xml.c_str());
+
+      std::string tmpxml = std::string(xml_filename) + ".odb";
+      FILE *fp = fopen(tmpxml.c_str(), "w");
+      if (fp) {
+         fprintf(fp, "%s", xml.c_str());
+         fclose(fp);
+      }
+
    } else {
       sprintf(error, "File error on \"%s\"", filename);
       return FALSE;
@@ -642,53 +792,137 @@ BOOL msl_parse(const char *filename, const char* xml_filename, char *error, int 
 
 /*------------------------------------------------------------------*/
 
-void seq_set_paused(HNDLE hDB, HNDLE hKey, BOOL paused)
+void seq_read(SEQUENCER* seq)
 {
-   seq.paused = paused;
-   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+   int status;
+   HNDLE hDB, hKey;
+   status = cm_get_experiment_database(&hDB, NULL);
+   status = db_find_key(hDB, 0, "/Sequencer/State", &hKey);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "seq_read", "Cannot find /Sequencer/State in ODB, db_find_key() status %d", status);
+      return;
+   }
+
+   SEQUENCER_STR(sequencer_str);
+   int size = sizeof(SEQUENCER);
+   status = db_get_record1(hDB, hKey, seq, &size, 0, strcomb1(sequencer_str).c_str());
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "seq_read", "Cannot get /Sequencer/State from ODB, db_get_record1() status %d", status);
+      return;
+   }
+}
+
+void seq_write(const SEQUENCER& seq)
+{
+   int status;
+   HNDLE hDB, hKey;
+   status = cm_get_experiment_database(&hDB, NULL);
+   status = db_find_key(hDB, 0, "/Sequencer/State", &hKey);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "seq_write", "Cannot find /Sequencer/State in ODB, db_find_key() status %d", status);
+      return;
+   }
+   status = db_set_record(hDB, hKey, (void*)&seq, sizeof(SEQUENCER), 0);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "seq_write", "Cannot write to ODB /Sequencer/State, db_set_record() status %d", status);
+      return;
+   }
 }
 
 /*------------------------------------------------------------------*/
 
-void seq_set_stop_after_run(HNDLE hDB, HNDLE hKey, BOOL stop_after_run)
-{
-   seq.stop_after_run = stop_after_run;
-   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
-}
-
-/*------------------------------------------------------------------*/
-
-void seq_stop(HNDLE hDB, HNDLE hKey)
+void seq_clear(SEQUENCER& seq)
 {
    seq.running = FALSE;
    seq.finished = FALSE;
    seq.paused = FALSE;
+   seq.transition_request = FALSE;
    seq.wait_limit = 0;
    seq.wait_value = 0;
+   seq.start_time = 0;
    seq.wait_type[0] = 0;
    for (int i=0 ; i<4 ; i++) {
       seq.loop_start_line[i] = 0;
+      seq.sloop_start_line[i] = 0;
       seq.loop_end_line[i] = 0;
+      seq.sloop_end_line[i] = 0;
       seq.loop_counter[i] = 0;
       seq.loop_n[i] = 0;
    }
-   seq.stop_after_run = FALSE;
+   for (int i=0 ; i<4 ; i++) {
+      seq.if_else_line[i] = 0;
+      seq.if_endif_line[i] = 0;
+      seq.subroutine_end_line[i] = 0;
+      seq.subroutine_return_line[i] = 0;
+      seq.subroutine_call_line[i] = 0;
+      seq.ssubroutine_call_line[i] = 0;
+      seq.subroutine_param[i][0] = 0;
+   }
+   seq.current_line_number = 0;
+   seq.scurrent_line_number = 0;
+   seq.if_index = 0;
+   seq.stack_index = 0;
+   seq.error[0] = 0;
+   seq.error_line = 0;
+   seq.serror_line = 0;
    seq.subdir[0] = 0;
-   
-   /* stop run if not already stopped */
-   char str[256];
-   int state = 0;
-   int size = sizeof(state);
-   db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
-   if (state != STATE_STOPPED)
-      cm_transition(TR_STOP, 0, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
-   
-   db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+   seq.subdir_end_line = 0;
+   seq.subdir_not_notify = 0;
+   seq.message[0] = 0;
+   seq.message_wait = FALSE;
+   seq.stop_after_run = FALSE;
 }
 
 /*------------------------------------------------------------------*/
 
-static void seq_open_file(const char* str)
+static void seq_start()
+{
+   //SEQUENCER seq;
+
+   seq_read(&seq);
+
+   seq_clear(seq);
+
+   if (!pnseq) {
+      strlcpy(seq.error, "Cannot start script, no script loaded", sizeof(seq.error));
+      seq_write(seq);
+      return;
+   }
+
+   /* start sequencer */
+   seq.running = TRUE;
+   seq.current_line_number = 1;
+   seq.scurrent_line_number = 1;
+
+   seq_write(seq);
+}
+
+/*------------------------------------------------------------------*/
+
+static void seq_stop()
+{
+   printf("seq_stop!\n");
+   
+   //SEQUENCER seq;
+
+   seq_read(&seq);
+
+   seq_clear(seq);
+   seq.finished = TRUE;
+   
+   seq_write(seq);
+
+   /* stop run if not already stopped */
+   char str[256];
+   int state = 0;
+   gOdb->RI("Runinfo/State", &state);
+   if (state != STATE_STOPPED)
+      cm_transition(TR_STOP, 0, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
+}
+
+/*------------------------------------------------------------------*/
+
+static void seq_open_file(HNDLE hDB, const char* str, SEQUENCER& seq)
 {
    seq.new_file = FALSE;
    seq.error[0] = 0;
@@ -698,15 +932,21 @@ static void seq_open_file(const char* str)
       mxml_free_tree(pnseq);
       pnseq = NULL;
    }
+   gOdb->WS("Sequencer/Script/XML", "");
+   gOdb->WS("Sequencer/Script/Lines", "");
+   gOdb->Delete("Sequencer/Param");
+
    if (stristr(str, ".msl")) {
       int size = strlen(str) + 1;
       char* xml_filename = (char*)malloc(size);
       strlcpy(xml_filename, str, size);
       strsubst(xml_filename, size, ".msl", ".xml");
       printf("Parsing MSL sequencer file: %s to XML sequencer file %s\n", str, xml_filename);
-      if (msl_parse(str, xml_filename, seq.error, sizeof(seq.error), &seq.serror_line)) {
+      if (msl_parse(hDB, gOdb, str, xml_filename, seq.error, sizeof(seq.error), &seq.serror_line)) {
          printf("Loading XML sequencer file: %s\n", xml_filename);
          pnseq = mxml_parse_file(xml_filename, seq.error, sizeof(seq.error), &seq.error_line);
+      } else {
+         printf("Error in MSL sequencer file \"%s\" line %d, error: %s\n", str, seq.serror_line, seq.error);
       }
       free(xml_filename);
    } else {
@@ -719,26 +959,11 @@ static void seq_open_file(const char* str)
 
 static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
 {
-   int status;
-   HNDLE hKey;
-   SEQUENCER_STR(sequencer_str);
    char str[256];
-   
-   cm_get_experiment_database(&hDB, NULL);
-   
-   status = db_find_key(hDB, 0, "/Sequencer/State", &hKey);
-   if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "seq_watch", "Cannot find /Sequencer/State in ODB, db_find_key() status %d", status);
-      return;
-   }
-   
-   int size = sizeof(seq);
-   status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb1(sequencer_str).c_str());
-   if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "seq_watch", "Cannot get /Sequencer/State from ODB, db_get_record1() status %d", status);
-      return;
-   }
-   
+   //SEQUENCER seq;
+
+   seq_read(&seq);
+
    if (seq.new_file) {
       strlcpy(str, seq.path, sizeof(str));
       if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
@@ -747,11 +972,78 @@ static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
 
       printf("Load file %s\n", str);
 
-      seq_open_file(str);
+      seq_open_file(hDB, str, seq);
 
-      seq.finished = FALSE;
+      seq_clear(seq);
    
-      db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
+      seq_write(seq);
+   }
+}
+
+static void seq_watch_command(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
+{
+   printf("seq_watch_command!\n");
+
+   bool start_script = false;
+   bool stop_immediately = false;
+   bool load_new_file = false;
+
+   gOdb->RB("Sequencer/Command/Start script", &start_script);
+   gOdb->RB("Sequencer/Command/Stop immediately", &stop_immediately);
+   gOdb->RB("Sequencer/Command/Load new file", &load_new_file);
+
+   if (load_new_file) {
+      std::string filename;
+      gOdb->RS("Sequencer/Command/Load filename", &filename);
+      printf("Command: load new file: \"%s\"\n", filename.c_str());
+      gOdb->WB("Sequencer/Command/Load new file", false);
+
+      if (filename.find("..") != std::string::npos) {
+         strlcpy(seq.error, "Cannot load \"", sizeof(seq.error));
+         strlcat(seq.error, filename.c_str(), sizeof(seq.error));
+         strlcat(seq.error, "\": file names with \"..\" is not permitted", sizeof(seq.error));
+         seq_write(seq);
+      } else if (filename.find(".msl") == std::string::npos) {
+         strlcpy(seq.error, "Cannot load \"", sizeof(seq.error));
+         strlcat(seq.error, filename.c_str(), sizeof(seq.error));
+         strlcat(seq.error, "\": file name should end with \".msl\"", sizeof(seq.error));
+         seq_write(seq);
+      } else {
+         strlcpy(seq.filename, filename.c_str(), sizeof(seq.filename));
+         std::string path = cm_expand_env(seq.path);
+         if (path.length() > 0) {
+            path += "/";
+         }
+         path += filename;
+         HNDLE hDB;
+         cm_get_experiment_database(&hDB, NULL);
+         seq_clear(seq);
+         seq_open_file(hDB, path.c_str(), seq);
+         seq_write(seq);
+      }
+   }
+
+   if (start_script) {
+      printf("Command: start script!\n");
+
+      gOdb->WB("Sequencer/Command/Start script", false);
+
+      bool seq_running = false;
+      gOdb->RB("Sequencer/State/running", &seq_running);
+
+      if (!seq_running) {
+         seq_start();
+      } else {
+         printf("sequencer is already running!\n");
+      }
+   }
+
+   if (stop_immediately) {
+      printf("Command: stop immediately!\n");
+
+      gOdb->WB("Sequencer/Command/Stop immediately", false);
+
+      seq_stop();
    }
 }
 
@@ -762,13 +1054,21 @@ void sequencer()
    PMXML_NODE pn, pr, pt, pe;
    char odbpath[256], value[256], data[256], str[256], str1[256], name[32], op[32];
    char list[100][XNAME_LENGTH], *pc;
-   int i, j, l, n, status, size, index, index1, index2, last_line, state, run_number, cont;
+   int i, j, l, n, status, size, index, index1, index2, state, run_number, cont;
    HNDLE hDB, hKey, hKeySeq;
    KEY key;
    double d;
    float v;
+
+   if (!seq.running || seq.paused) {
+      ss_sleep(10);
+      return;
+   }
    
-   if (!seq.running || seq.paused || pnseq == NULL) {
+   if (pnseq == NULL) {
+      seq_stop();
+      strlcpy(seq.error, "No script loaded", sizeof(seq.error));
+      seq_write(seq);
       ss_sleep(10);
       return;
    }
@@ -777,23 +1077,27 @@ void sequencer()
    db_find_key(hDB, 0, "/Sequencer/State", &hKeySeq);
    if (!hKeySeq)
       return;
-   
-   cm_msg_retrieve(1, str, sizeof(str));
-   str[19] = 0;
-   strcpy(seq.last_msg, str+11);
+
+   // NB seq.last_msg is not used anywhere.
+   //cm_msg_retrieve(1, str, sizeof(str));
+   //str[19] = 0;
+   //strcpy(seq.last_msg, str+11);
    
    pr = mxml_find_node(pnseq, "RunSequence");
    if (!pr) {
-      seq_error("Cannot find <RunSequence> tag in XML file");
+      seq_error(seq, "Cannot find <RunSequence> tag in XML file");
       return;
    }
 
-   last_line = mxml_get_line_number_end(pr);
+   int last_line = mxml_get_line_number_end(pr);
    
    /* check for Subroutine end */
    if (seq.stack_index > 0 && seq.current_line_number == seq.subroutine_end_line[seq.stack_index-1]) {
       seq.subroutine_end_line[seq.stack_index-1] = 0;
       seq.current_line_number = seq.subroutine_return_line[seq.stack_index-1];
+      seq.subroutine_return_line[seq.stack_index-1] = 0;
+      seq.subroutine_call_line[seq.stack_index-1] = 0;
+      seq.ssubroutine_call_line[seq.stack_index-1] = 0;
       seq.stack_index --;
    }
 
@@ -801,9 +1105,9 @@ void sequencer()
    if (seq.current_line_number > last_line) {
       size = sizeof(seq);
       db_get_record(hDB, hKeySeq, &seq, &size, 0);
-      seq.running = FALSE;
+      seq_clear(seq);
       seq.finished = TRUE;
-      db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
+      seq_write(seq);
       cm_msg(MTALK, "sequencer", "Sequencer is finished.");
       return;
    }
@@ -832,7 +1136,7 @@ void sequencer()
                if (mxml_get_attribute(pn, "values")) {
                   strlcpy(data, mxml_get_attribute(pn, "values"), sizeof(data));
                   strbreak(data, list, 100, ",", FALSE);
-                  if (!eval_var(list[seq.loop_counter[i]], value, sizeof(value)))
+                  if (!eval_var(seq, list[seq.loop_counter[i]], value, sizeof(value)))
                      return;
                } else if (mxml_get_attribute(pn, "n")) {
                   sprintf(value, "%d", seq.loop_counter[i]+1);
@@ -895,7 +1199,7 @@ void sequencer()
    /*---- ODBSubdir ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBSubdir")) {
       if (!mxml_get_attribute(pn, "path")) {
-         seq_error("Missing attribute \"path\"");
+         seq_error(seq, "Missing attribute \"path\"");
       } else {
          strlcpy(seq.subdir, mxml_get_attribute(pn, "path"), sizeof(seq.subdir));
          if (mxml_get_attribute(pn, "notify"))
@@ -908,7 +1212,7 @@ void sequencer()
    /*---- ODBSet ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBSet")) {
       if (!mxml_get_attribute(pn, "path")) {
-         seq_error("Missing attribute \"path\"");
+         seq_error(seq, "Missing attribute \"path\"");
       } else {
          strlcpy(odbpath, seq.subdir, sizeof(odbpath));
          if (strlen(odbpath) > 0 && odbpath[strlen(odbpath)-1] != '/')
@@ -935,7 +1239,7 @@ void sequencer()
                      strlcpy(str, strchr(odbpath, '[') + 1, sizeof(str));
                      if (strchr(str, ']'))
                         *strchr(str, ']') = 0;
-                     if (!eval_var(str, value, sizeof(value)))
+                     if (!eval_var(seq, str, value, sizeof(value)))
                         return;
                      index1 = atoi(value);
                   } else
@@ -945,13 +1249,13 @@ void sequencer()
             *strchr(odbpath, '[') = 0;
          }
 
-         if (!eval_var(mxml_get_value(pn), value, sizeof(value)))
+         if (!eval_var(seq, mxml_get_value(pn), value, sizeof(value)))
             return;
          status = db_find_key(hDB, 0, odbpath, &hKey);
          if (status != DB_SUCCESS) {
             char errorstr[512];
             sprintf(errorstr, "Cannot find ODB key \"%s\"", odbpath);
-            seq_error(errorstr);
+            seq_error(seq, errorstr);
             return;
          } else {
             db_get_key(hDB, hKey, &key);
@@ -976,7 +1280,7 @@ void sequencer()
             if (status != DB_SUCCESS) {
                char errorstr[512];
                sprintf(errorstr, "Cannot set ODB key \"%s\"", odbpath);
-               seq_error(errorstr);
+               seq_error(seq, errorstr);
                return;
             }
             
@@ -990,7 +1294,7 @@ void sequencer()
    /*---- ODBGet ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBGet")) {
       if (!mxml_get_attribute(pn, "path")) {
-         seq_error("Missing attribute \"path\"");
+         seq_error(seq, "Missing attribute \"path\"");
       } else {
          strlcpy(odbpath, seq.subdir, sizeof(odbpath));
          if (strlen(odbpath) > 0 && odbpath[strlen(odbpath)-1] != '/')
@@ -1006,7 +1310,7 @@ void sequencer()
                   strlcpy(str, strchr(odbpath, '[') + 1, sizeof(str));
                   if (strchr(str, ']'))
                      *strchr(str, ']') = 0;
-                  if (!eval_var(str, value, sizeof(value)))
+                  if (!eval_var(seq, str, value, sizeof(value)))
                      return;
                   index1 = atoi(value);
                } else
@@ -1020,7 +1324,7 @@ void sequencer()
          if (status != DB_SUCCESS) {
             char errorstr[512];
             sprintf(errorstr, "Cannot find ODB key \"%s\"", odbpath);
-            seq_error(errorstr);
+            seq_error(seq, errorstr);
             return;
          } else {
             db_get_key(hDB, hKey, &key);
@@ -1048,7 +1352,7 @@ void sequencer()
    /*---- ODBInc ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBInc")) {
       if (!mxml_get_attribute(pn, "path")) {
-         seq_error("Missing attribute \"path\"");
+         seq_error(seq, "Missing attribute \"path\"");
       } else {
          strlcpy(odbpath, seq.subdir, sizeof(odbpath));
          if (strlen(odbpath) > 0 && odbpath[strlen(odbpath)-1] != '/')
@@ -1059,13 +1363,13 @@ void sequencer()
             *strchr(odbpath, '[') = 0;
          } else
             index = 0;
-         if (!eval_var(mxml_get_value(pn), value, sizeof(value)))
+         if (!eval_var(seq, mxml_get_value(pn), value, sizeof(value)))
             return;
          status = db_find_key(hDB, 0, odbpath, &hKey);
          if (status != DB_SUCCESS) {
             char errorstr[512];
             sprintf(errorstr, "Cannot find ODB key \"%s\"", odbpath);
-            seq_error(errorstr);
+            seq_error(seq, errorstr);
          } else {
             db_get_key(hDB, hKey, &key);
             size = sizeof(data);
@@ -1105,7 +1409,7 @@ void sequencer()
          strlcpy(data, mxml_get_attribute(pn, "params"), sizeof(data));
          n = strbreak(data, list, 100, ",", FALSE);
          for (i=0 ; i<n ; i++) {
-            if (!eval_var(list[i], value, sizeof(value)))
+            if (!eval_var(seq, list[i], value, sizeof(value)))
                return;
             strlcat(str, " ", sizeof(str));
             strlcat(str, value, sizeof(str));
@@ -1129,7 +1433,7 @@ void sequencer()
                if (status != CM_SUCCESS) {
                   char errorstr[512];
                   sprintf(errorstr, "Cannot start run: %s", str);
-                  seq_error(errorstr);
+                  seq_error(seq, errorstr);
                }
             }
          } else {
@@ -1153,7 +1457,7 @@ void sequencer()
                } else if (status != CM_SUCCESS) {
                   char errorstr[512];
                   sprintf(errorstr, "Cannot stop run: %s", str);
-                  seq_error(errorstr);
+                  seq_error(seq, errorstr);
                }
             }
          } else {
@@ -1179,7 +1483,7 @@ void sequencer()
          }
       } else {
          sprintf(str, "Invalid transition \"%s\"", mxml_get_value(pn));
-         seq_error(str);
+         seq_error(seq, str);
          return;
       }
    }
@@ -1187,7 +1491,7 @@ void sequencer()
    /*---- Wait ----*/
    else if (equal_ustring(mxml_get_name(pn), "Wait")) {
       if (equal_ustring(mxml_get_attribute(pn, "for"), "Events")) {
-         if (!eval_var(mxml_get_value(pn), str, sizeof(str)))
+         if (!eval_var(seq, mxml_get_value(pn), str, sizeof(str)))
             return;
          n = atoi(str);
          seq.wait_limit = (float)n;
@@ -1203,13 +1507,13 @@ void sequencer()
          }
          seq.wait_value = (float)d;
       } else  if (equal_ustring(mxml_get_attribute(pn, "for"), "ODBValue")) {
-         if (!eval_var(mxml_get_value(pn), str1, sizeof(str1)))
+         if (!eval_var(seq, mxml_get_value(pn), str1, sizeof(str1)))
             return;
          v = (float)atof(str1);
          seq.wait_limit = v;
          strcpy(seq.wait_type, "ODB");
          if (!mxml_get_attribute(pn, "path")) {
-            seq_error("\"path\" must be given for ODB values");
+            seq_error(seq, "\"path\" must be given for ODB values");
             return;
          } else {
             strlcpy(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
@@ -1222,7 +1526,7 @@ void sequencer()
             if (status != DB_SUCCESS) {
                char errorstr[512];
                sprintf(errorstr, "Cannot find ODB key \"%s\"", odbpath);
-               seq_error(errorstr);
+               seq_error(seq, errorstr);
                return;
             } else {
                if (mxml_get_attribute(pn, "op"))
@@ -1254,7 +1558,7 @@ void sequencer()
                   cont = (seq.wait_value != seq.wait_limit);
                } else {
                   sprintf(str, "Invalid comaprison \"%s\"", op);
-                  seq_error(str);
+                  seq_error(seq, str);
                   return;
                }
                
@@ -1267,7 +1571,7 @@ void sequencer()
             }
          }
       } else if (equal_ustring(mxml_get_attribute(pn, "for"), "Seconds")) {
-         if (!eval_var(mxml_get_value(pn), str, sizeof(str)))
+         if (!eval_var(seq, mxml_get_value(pn), str, sizeof(str)))
             return;
          n = atoi(str);
          seq.wait_limit = (float)n;
@@ -1289,7 +1593,7 @@ void sequencer()
          }
       } else {
          sprintf(str, "Invalid wait attribute \"%s\"", mxml_get_attribute(pn, "for"));
-         seq_error(str);
+         seq_error(seq, str);
       }
       
       // sleep to keep the CPU from consuming 100%
@@ -1302,7 +1606,7 @@ void sequencer()
          if (seq.loop_start_line[i] == 0)
             break;
       if (i == 4) {
-         seq_error("Maximum loop nesting exceeded");
+         seq_error(seq, "Maximum loop nesting exceeded");
          return;
       }
       seq.loop_start_line[i] = seq.current_line_number;
@@ -1317,7 +1621,7 @@ void sequencer()
          if (equal_ustring(mxml_get_attribute(pn, "n"), "infinite"))
             seq.loop_n[i] = -1;
          else {
-            if (!eval_var(mxml_get_attribute(pn, "n"), value, sizeof(value)))
+            if (!eval_var(seq, mxml_get_attribute(pn, "n"), value, sizeof(value)))
                return;
             seq.loop_n[i] = atoi(value);
          }
@@ -1325,10 +1629,10 @@ void sequencer()
       } else if (mxml_get_attribute(pn, "values")) {
          strlcpy(data, mxml_get_attribute(pn, "values"), sizeof(data));
          seq.loop_n[i] = strbreak(data, list, 100, ",", FALSE);
-         if (!eval_var(list[0], value, sizeof(value)))
+         if (!eval_var(seq, list[0], value, sizeof(value)))
             return;
       } else {
-         seq_error("Missing \"var\" or \"n\" attribute");
+         seq_error(seq, "Missing \"var\" or \"n\" attribute");
          return;
       }
 
@@ -1348,7 +1652,7 @@ void sequencer()
    else if (equal_ustring(mxml_get_name(pn), "If")) {
       
       if (seq.if_index == 4) {
-         seq_error("Maximum number of nexted if..endif exceeded");
+         seq_error(seq, "Maximum number of nexted if..endif exceeded");
          return;
       }
       
@@ -1366,9 +1670,9 @@ void sequencer()
       }
       
       strlcpy(str, mxml_get_attribute(pn, "condition"), sizeof(str));
-      i = eval_condition(str);
+      i = eval_condition(seq, str);
       if (i < 0) {
-         seq_error("Invalid number in comparison");
+         seq_error(seq, "Invalid number in comparison");
          return;
       }
       
@@ -1386,7 +1690,7 @@ void sequencer()
    else if (equal_ustring(mxml_get_name(pn), "Else")) {
       // goto next "Endif"
       if (seq.if_index == 0) {
-         seq_error("Unexpected Else");
+         seq_error(seq, "Unexpected Else");
          return;
       }
       seq.current_line_number = seq.if_endif_line[seq.if_index-1];
@@ -1395,16 +1699,16 @@ void sequencer()
    /*---- Goto ----*/
    else if (equal_ustring(mxml_get_name(pn), "Goto")) {
       if (!mxml_get_attribute(pn, "line") && !mxml_get_attribute(pn, "sline")) {
-         seq_error("Missing line number");
+         seq_error(seq, "Missing line number");
          return;
       }
       if (mxml_get_attribute(pn, "line")) {
-         if (!eval_var(mxml_get_attribute(pn, "line"), str, sizeof(str)))
+         if (!eval_var(seq, mxml_get_attribute(pn, "line"), str, sizeof(str)))
             return;
          seq.current_line_number = atoi(str);
       }
       if (mxml_get_attribute(pn, "sline")) {
-         if (!eval_var(mxml_get_attribute(pn, "sline"), str, sizeof(str)))
+         if (!eval_var(seq, mxml_get_attribute(pn, "sline"), str, sizeof(str)))
             return;
          for (i=0 ; i<last_line ; i++) {
             pt = mxml_get_node_at_line(pnseq, i);
@@ -1440,11 +1744,11 @@ void sequencer()
    /*---- Set ----*/
    else if (equal_ustring(mxml_get_name(pn), "Set")) {
       if (!mxml_get_attribute(pn, "name")) {
-         seq_error("Missing variable name");
+         seq_error(seq, "Missing variable name");
          return;
       }
       strlcpy(name, mxml_get_attribute(pn, "name"), sizeof(name));
-      if (!eval_var(mxml_get_value(pn), value, sizeof(value)))
+      if (!eval_var(seq, mxml_get_value(pn), value, sizeof(value)))
          return;
       sprintf(str, "/Sequencer/Variables/%s", name);
       size = strlen(value)+1;
@@ -1467,30 +1771,54 @@ void sequencer()
 
    /*---- Message ----*/
    else if (equal_ustring(mxml_get_name(pn), "Message")) {
-      if (!eval_var(mxml_get_value(pn), value, sizeof(value)))
+      if (!eval_var(seq, mxml_get_value(pn), value, sizeof(value)))
          return;
-      if (!seq.message_wait)
+
+      const char* wait_attr = mxml_get_attribute(pn, "wait");
+      bool wait = false;
+      if (wait_attr)
+         wait = (atoi(wait_attr) == 1);
+
+      if (!wait) {
+         // message with no wait: set seq.message and move on. we do not care if web page clears it
          strlcpy(seq.message, value, sizeof(seq.message));
-      if (mxml_get_attribute(pn, "wait")) {
-         if (atoi(mxml_get_attribute(pn, "wait")) == 1) {
+         seq.message_wait = FALSE;
+         db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
+      } else {
+         // message with wait
+
+         // if message_wait not set, we are here for the first time
+         if (!seq.message_wait) {
+            strlcpy(seq.message, value, sizeof(seq.message));
             seq.message_wait = TRUE;
             db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
-            if (seq.message[0] != 0)
-               return; // don't increment line number until message is cleared from within browser
-            seq.message_wait = FALSE;
+            // wait
+            return;
+         } else {
+            // message_wait is set, we have been here before
+
+            // if web page did not clear the message, keep waiting
+            if (seq.message[0] != 0) {
+               // wait
+               return;
+            }
+
+            // web page cleared the message, we are done with waiting
+            seq.message_wait = false;
          }
       }
+
       seq.current_line_number = mxml_get_line_number_end(pn)+1;
    }
 
    /*---- Cat ----*/
    else if (equal_ustring(mxml_get_name(pn), "Cat")) {
       if (!mxml_get_attribute(pn, "name")) {
-         seq_error("Missing variable name");
+         seq_error(seq, "Missing variable name");
          return;
       }
       strlcpy(name, mxml_get_attribute(pn, "name"), sizeof(name));
-      if (!concatenate(value, sizeof(value), mxml_get_value(pn)))
+      if (!concatenate(seq, value, sizeof(value), mxml_get_value(pn)))
          return;
       sprintf(str, "/Sequencer/Variables/%s", name);
       size = strlen(value)+1;
@@ -1504,7 +1832,7 @@ void sequencer()
    /*---- Call ----*/
    else if (equal_ustring(mxml_get_name(pn), "Call")) {
       if (seq.stack_index == 4) {
-         seq_error("Maximum subroutine level exceeded");
+         seq_error(seq, "Maximum subroutine level exceeded");
          return;
       } else {
          // put current line number on stack
@@ -1534,7 +1862,7 @@ void sequencer()
          }
          if (i == mxml_get_line_number_end(mxml_find_node(pnseq, "RunSequence"))) {
             sprintf(str, "Subroutine '%s' not found", mxml_get_attribute(pn, "name"));
-            seq_error(str);
+            seq_error(seq, str);
          }
       }
    }
@@ -1542,7 +1870,7 @@ void sequencer()
    /*---- <unknown> ----*/   
    else {
       sprintf(str, "Unknown statement \"%s\"", mxml_get_name(pn));
-      seq_error(str);
+      seq_error(seq, str);
    }
    
    /* set MSL line from current element */
@@ -1569,6 +1897,7 @@ void sequencer()
    seq.finished = seq1.finished;
    seq.paused = seq1.paused;
    seq.stop_after_run = seq1.stop_after_run;
+   strlcpy(seq.message, seq1.message, sizeof(seq.message));
    
    /* update current line number */
    db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
@@ -1582,7 +1911,7 @@ void init_sequencer()
    HNDLE hDB;
    HNDLE hKey;
    char str[256];
-   SEQUENCER seq;
+   //SEQUENCER seq;
    SEQUENCER_STR(sequencer_str);
    
    cm_get_experiment_database(&hDB, NULL);
@@ -1617,16 +1946,37 @@ void init_sequencer()
    if (seq.filename[0]) {
       strlcpy(str, seq.path, sizeof(str));
       strlcat(str, seq.filename, sizeof(str));
-      seq_open_file(str);
+      seq_open_file(hDB, str, seq);
    }
    
    seq.transition_request = FALSE;
-   
+
    db_set_record(hDB, hKey, &seq, sizeof(seq), 0);
    
    status = db_watch(hDB, hKey, seq_watch, NULL);
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot watch /Sequencer/State, db_watch() status %d", status);
+      return;
+   }
+
+   bool b = false;
+   gOdb->RB("Sequencer/Command/Start script", &b, true);
+   b = false;
+   gOdb->RB("Sequencer/Command/Stop immediately", &b, true);
+   b = false;
+   gOdb->RB("Sequencer/Command/Load new file", &b, true);
+   std::string s;
+   gOdb->RS("Sequencer/Command/Load filename", &s, true);
+
+   status = db_find_key(hDB, 0, "/Sequencer/Command", &hKey);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot find /Sequencer/Command, db_find_key() status %d", status);
+      return;
+   }
+   
+   status = db_watch(hDB, hKey, seq_watch_command, NULL);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot watch /Sequencer/Command, db_watch() status %d", status);
       return;
    }
 }
@@ -1701,9 +2051,16 @@ int main(int argc, const char *argv[])
       return 1;
    }
 
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+   gOdb = MakeMidasOdb(hDB);
+
    init_sequencer();
    
    printf("Sequencer started. Stop with \"!\"\n");
+
+   // if any commands are active, process them now
+   seq_watch_command(hDB, 0, 0, NULL);
    
    /* initialize ss_getchar */
    ss_getchar(0);

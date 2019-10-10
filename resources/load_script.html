@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html class="mcss">
+<head>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css">
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <script src="controls.js"></script>
+   <title>Load script</title>
+</head>
+
+<body class="mcss" onload="mhttpd_init('Sequencer')">
+
+<!-- header and side navigation will be filled in mhttpd_start -->
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+   <table class="mtable" id="seq_table">
+      <tbody>
+      <tr>
+         <th colspan="2" class="mtableheader">Select a sequence file:</th>
+      </tr>
+      <tr align="center">
+        <td colspan="2" align="center">
+          <button class="mbutton" onclick='load_script()' disabled id="load_button">Load script</button>
+          <button class="mbutton" onclick='cancel()'>Cancel</button>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2">Directory: <span id="msg_directory">msg_directory</span></td>
+      </tr>
+      <tr>
+        <td colspan="2">Path: <span id="msg_path">msg_path</span></td>
+      </tr>
+      <tr id="tr_subdir">
+        <td colspan="2">
+          Subdir: <span id="msg_subdir">msg_subdir</span>
+          <button class="mbutton" onclick='up_subdir()'>Up</button>
+        </td>
+      </tr>
+      <tr>
+        <td>Subdirs:</td>
+        <td>
+          <select id="subdir_sel">
+          </select>
+        </td>
+      </tr>
+      <tr align="center">
+        <td colspan="2">
+          <select id="sel">
+          </select>
+        </td>
+      </tr>
+      </tbody>
+   </table>
+</div>
+<div id="dlgError" class="dlgFrame">
+  <div class="dlgTitlebar">Error message</div>
+  <div class="dlgPanel">
+    <div id="dlgErrorText">Dialog Contents</div>
+    <br />
+    <button class="dlgButton" onClick="dlgHide('dlgError')">Close</button>
+  </div>
+</div>
+
+<script>
+function set_if_changed(id, value)
+{
+   var e = document.getElementById(id);
+   if (e) {
+      if (e.innerHTML != value) {
+         e.innerHTML = value;
+      }
+   }
+}
+
+function enable_button_by_id(id) {
+   var e = document.getElementById(id);
+   if (e) {
+      mhttpd_enable_button(e);
+   }
+}
+
+function disable_button_by_id(id) {
+   var e = document.getElementById(id);
+   if (e) {
+      mhttpd_disable_button(e);
+   }
+}
+
+function click_script() {
+   enable_button_by_id("load_button");
+}
+
+function load_script() {
+   var sel = document.getElementById("sel");
+   var selected = sel.value;
+   //console.log("Selected: " + selected);
+
+   var filename = "";
+   if (xsubdir)
+      filename = xsubdir + "/";
+   filename += selected;
+   
+   var paths = [];
+   var values = [];
+   //paths.push("/Sequencer/State/Filename");
+   paths.push("/Sequencer/Command/Load filename");
+   values.push(filename);
+   //paths.push("/Sequencer/State/New File");
+   paths.push("/Sequencer/Command/Load new file");
+   values.push(true);
+
+   mjsonrpc_call("db_paste", {"paths": paths, "values": values}).then(function (rpc) {
+      //mjsonrpc_debug_alert(rpc);
+      for (var i = 0; i < rpc.result.status.length; i++) {
+         if (rpc.result.status[i] != 1) {
+            throw new Error("Cannot write ODB \'" + paths[i] + "\', status " + rpc.result.status[i] + ", see MIDAS messages");
+         }
+      }
+      //location.search = "cmd=Sequencer";
+      //location.search = "";
+      //location.href = "sequencer.html";
+      mhttpd_goto_page("seq");
+      // DOES NOT RETURN
+   }).catch(function (error) {
+      document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+      dlgShow('dlgError');
+      //mjsonrpc_error_alert(error);
+   });
+}
+
+var xsubdir;
+
+function load_subdir() {
+   var sel = document.getElementById("subdir_sel");
+   var selected = sel.value;
+   console.log("Selected subdir: " + selected);
+   var nextdir = "";
+   if (xsubdir)
+      nextdir = xsubdir + "/";
+   nextdir += selected;
+   //document.location.href = "?subdir=" + encodeURIComponent(nextdir);
+   mhttpd_goto_page("load_script&subdir=" + encodeURIComponent(nextdir));
+   // DOES NOT RETURN
+}
+
+function up_subdir() {
+   var a = xsubdir.split('/');
+   a.pop();
+   if (a.length > 0) {
+      var nextdir = a.join("/");
+      //document.location.href = "?subdir=" + encodeURIComponent(nextdir);
+      mhttpd_goto_page("load_script&subdir=" + encodeURIComponent(nextdir));
+      // DOES NOT RETURN
+   } else {
+      //document.location.href = "?nosubdir";
+      mhttpd_goto_page("load_script");
+      // DOES NOT RETURN
+   }
+}
+
+function cancel() {
+   mhttpd_goto_page("seq");
+}
+
+function callback(rpc) {
+   var path = rpc[0].result.data[0];
+   var filename = rpc[0].result.data[1];
+   var xpath   = rpc[1].result.path;
+   var subdirs = rpc[1].result.subdirs;
+   var files = rpc[1].result.files;
+
+   disable_button_by_id("load_button");
+   
+   if (path) {
+      set_if_changed("msg_directory", path);
+   }
+   
+   if (xpath) {
+      set_if_changed("msg_path", xpath);
+   }
+   
+   if (xsubdir) {
+      set_if_changed("msg_subdir", xsubdir);
+      mhttpd_unhide("tr_subdir");
+   } else {
+      mhttpd_hide("tr_subdir");
+   }
+   
+   var subdir_sel = document.getElementById("subdir_sel");
+
+   if (subdirs) {
+      subdir_sel.innerHTML = "";
+      var count = 0;
+      if (0 && xsubdir) {
+         var o = document.createElement("option");
+         o.innerHTML = "..";
+         o.selected = false;
+         o.addEventListener("dblclick", up_subdir);
+         subdir_sel.appendChild(o);
+         count++;
+      }
+      subdirs.forEach(function (item, index) {
+         //console.log(item, index);
+         var o = document.createElement("option");
+         o.innerHTML = item;
+         o.selected = false;
+         o.addEventListener("dblclick", load_subdir);
+         subdir_sel.appendChild(o);
+         count++;
+      });
+      if (count > 0) {
+         subdir_sel.size = count+1;
+         mhttpd_unhide("subdir_sel");
+      } else {
+         mhttpd_hide("subdir_sel");
+      }
+   }
+
+   var sel = document.getElementById("sel");
+
+   var sel_size = 0;
+   sel.innerHTML = "";
+
+   if (files) {
+      files.forEach(function (item) {
+         //console.log(item);
+         var o = document.createElement("option");
+         o.innerHTML = item.filename; // + " : " + item.description;
+         var xfilename = "";
+         if (xsubdir)
+            xfilename += xsubdir + "/";
+         xfilename += item.filename;
+         //console.log("item ["+xfilename+"] vs ["+filename+"]");
+         if (xfilename == filename) {
+            //console.log("Match!");
+            enable_button_by_id("load_button");
+            o.selected = true;
+         } else {
+            o.selected = false;
+         }
+         o.addEventListener("click", click_script);
+         o.addEventListener("dblclick", load_script);
+         sel.appendChild(o);
+         sel_size++;
+      });
+   }
+
+   if (sel_size > 0) {
+      sel.size = sel_size+1;
+      mhttpd_unhide("sel");
+   } else {
+      mhttpd_hide("sel");
+   }
+}
+
+function update() {
+   var paths = [
+      "/Sequencer/State/Path",
+      "/Sequencer/State/Filename",
+   ];
+   var req = [
+      mjsonrpc_make_request("db_get_values", {"paths":paths}),
+      mjsonrpc_make_request("seq_list_files", {"subdir":xsubdir}),
+   ];
+   mjsonrpc_send_request(req).then(function (rpc) {
+      callback(rpc);
+   }).catch(function (error) {
+      document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+      dlgShow('dlgError');
+      //alert("RWE: RPC or JS error: " + mjsonrpc_decode_error(error));
+   });
+}
+
+xsubdir = mhttpd_getParameterByName("subdir");
+
+update();
+</script>
+</body>
+</html>

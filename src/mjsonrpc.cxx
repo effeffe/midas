@@ -3315,6 +3315,205 @@ static MJsonNode* get_alarms(const MJsonNode* params)
 
 /////////////////////////////////////////////////////////////////////////////////
 //
+// Sequencer code goes here
+//
+/////////////////////////////////////////////////////////////////////////////////
+
+static MJsonNode* js_seq_list_files(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("js_seq_list_files");
+      doc->P("subdir", MJSON_STRING, "List files in /Seq/State/Path/subdir");
+      doc->R("status", MJSON_INT, "return status of midas library calls");
+      doc->R("path", MJSON_STRING, "Search path");
+      doc->R("subdirs[]", MJSON_STRING, "list of subdirectories");
+      doc->R("files[].filename", MJSON_STRING, "script filename");
+      doc->R("files[].description", MJSON_STRING, "script description");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   std::string subdir = mjsonrpc_get_param(params, "subdir", &error)->GetString(); if (error) return error;
+
+   if (subdir.find("..") != std::string::npos) {
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(DB_INVALID_PARAM));
+   }
+
+   int status;
+   HNDLE hDB;
+
+   status = cm_get_experiment_database(&hDB, NULL);
+
+   if (status != DB_SUCCESS) {
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+   }
+
+   std::string path;
+
+   status = db_get_value_string(hDB, 0, "/Sequencer/State/Path", 0, &path, FALSE);
+
+   if (status != DB_SUCCESS) {
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
+   }
+
+   path = cm_expand_env(path.c_str());
+
+   if (subdir.length() > 0) {
+      path += DIR_SEPARATOR_STR;
+      path += subdir;
+   }
+
+   char* flist = NULL;
+
+   //printf("path: [%s]\n", path.c_str());
+
+   MJsonNode* s = MJsonNode::MakeArray();
+   
+   /*---- go over subdirectories ----*/
+   int n = ss_dir_find(path.c_str(), "*", &flist);
+
+   for (int i=0 ; i<n ; i++) {
+      if (flist[i*MAX_STRING_LENGTH] != '.') {
+         //printf("subdir %d: [%s]\n", i, flist+i*MAX_STRING_LENGTH);
+         s->AddToArray(MJsonNode::MakeString(flist+i*MAX_STRING_LENGTH));
+      }
+   }
+   
+   MJsonNode* f = MJsonNode::MakeArray();
+
+   /*---- go over MSL files in sequencer directory ----*/
+   n = ss_file_find(path.c_str(), "*.msl", &flist);
+   for (int i=0 ; i<n ; i++) {
+      //printf("file %d: [%s]\n", i, flist+i*MAX_STRING_LENGTH);
+      MJsonNode* o = MJsonNode::MakeObject();
+      o->AddToObject("filename", MJsonNode::MakeString(flist+i*MAX_STRING_LENGTH));
+      o->AddToObject("description", MJsonNode::MakeString("description"));
+      f->AddToArray(o);
+#if 0
+      char comment[512];
+      comment[0] = 0;
+      strlcpy(str, path, sizeof(str));
+      if (strlen(str)>1 && str[strlen(str)-1] != DIR_SEPARATOR)
+         strlcat(str, DIR_SEPARATOR_STR, sizeof(str));
+      strlcat(str, flist+i*MAX_STRING_LENGTH, sizeof(str));
+      
+      if (msl_parse(str, error, sizeof(error), &error_line)) {
+         if (strchr(str, '.')) {
+            *strchr(str, '.') = 0;
+            strlcat(str, ".xml", sizeof(str));
+         }
+         comment[0] = 0;
+         if (pnseq) {
+            mxml_free_tree(pnseq);
+            pnseq = NULL;
+         }
+         pnseq = mxml_parse_file(str, error, sizeof(error), &error_line);
+         if (error[0]) {
+            strlcpy(comment, error, sizeof(comment));
+         } else {
+            if (pnseq) {
+               pn = mxml_find_node(pnseq, "RunSequence/Comment");
+               if (pn)
+                  strlcpy(comment, mxml_get_value(pn), sizeof(comment));
+               else
+                  strcpy(comment, "<No description in XML file>");
+            }
+         }
+         if (pnseq) {
+            mxml_free_tree(pnseq);
+            pnseq = NULL;
+         }
+      } else {
+         sprintf(comment, "Error in MSL: %s", error);
+      }
+      
+      strsubst(comment, sizeof(comment), "\"", "\\\'");
+      r->rsprintf("<option onClick=\"document.getElementById('cmnt').innerHTML='%s'\"", comment);
+      r->rsprintf(" onDblClick=\"load();\">%s</option>\n", flist+i*MAX_STRING_LENGTH);
+#endif
+   }
+
+   free(flist);
+   flist = NULL;
+
+   MJsonNode* r = MJsonNode::MakeObject();
+   r->AddToObject("status", MJsonNode::MakeInt(SUCCESS));
+   r->AddToObject("path", MJsonNode::MakeString(path.c_str()));
+   r->AddToObject("subdirs", s);
+   r->AddToObject("files", f);
+   
+   return mjsonrpc_make_result(r);
+
+}
+
+static MJsonNode* js_seq_save_script(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("js_seq_save_script");
+      doc->P("filename", MJSON_STRING, "Script file name");
+      doc->P("script", MJSON_STRING, "Script text");
+      doc->R("status", MJSON_INT, "return status of midas library calls");
+      doc->R("error", MJSON_STRING, "error text");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   std::string filename = mjsonrpc_get_param(params, "filename", &error)->GetString(); if (error) return error;
+   std::string script = mjsonrpc_get_param(params, "script", &error)->GetString(); if (error) return error;
+
+   if (filename.find("..") != std::string::npos) {
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(DB_INVALID_PARAM), "error", MJsonNode::MakeString("Filename with \"..\" is not permitted"));
+   }
+
+   int status;
+   HNDLE hDB;
+
+   status = cm_get_experiment_database(&hDB, NULL);
+
+   if (status != DB_SUCCESS) {
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "error", MJsonNode::MakeString("cm_get_experiment_database() error"));
+   }
+
+   std::string path;
+
+   status = db_get_value_string(hDB, 0, "/Sequencer/State/Path", 0, &path, FALSE);
+
+   if (status != DB_SUCCESS) {
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "error", MJsonNode::MakeString("odb read /Sequencer/State/Path error"));
+   }
+
+   path = cm_expand_env(path.c_str());
+
+   path += DIR_SEPARATOR_STR;
+   path += filename;
+
+   //printf("path: [%s]\n", path.c_str());
+
+   FILE* fp = fopen(path.c_str(), "w");
+   if (!fp) {
+      status = SS_FILE_ERROR;
+      char errstr[256];
+      sprintf(errstr, "fopen() errno %d (%s)", errno, strerror(errno));
+      return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "error", MJsonNode::MakeString(errstr));
+   }
+
+   fwrite(script.c_str(), script.length(), 1, fp);
+   fprintf(fp, "\n");
+   fclose(fp);
+   fp = NULL;
+
+   status = CM_SUCCESS;
+   std::string errstr = "no error";
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "error", MJsonNode::MakeString(errstr.c_str()));
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+//
 // JSON-RPC management code goes here
 //
 /////////////////////////////////////////////////////////////////////////////////
@@ -3435,7 +3634,7 @@ void mjsonrpc_init()
       printf("mjsonrpc_init!\n");
    }
 
-   // system methods
+   // test, debug and control methods for the rpc system
    mjsonrpc_add_handler("null", xnull);
    mjsonrpc_add_handler("get_debug",   get_debug);
    mjsonrpc_add_handler("set_debug",   set_debug);
@@ -3483,6 +3682,9 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("hs_read_binned", js_hs_read_binned);
    mjsonrpc_add_handler("hs_read_arraybuffer", js_hs_read_arraybuffer);
    mjsonrpc_add_handler("hs_read_binned_arraybuffer", js_hs_read_binned_arraybuffer);
+   // sequencer
+   mjsonrpc_add_handler("seq_list_files", js_seq_list_files);
+   mjsonrpc_add_handler("seq_save_script", js_seq_save_script);
    // interface to ss_system functions
    mjsonrpc_add_handler("ss_millitime", js_ss_millitime);
    // methods that perform computations or invoke actions

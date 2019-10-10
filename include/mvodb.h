@@ -129,9 +129,10 @@ public:
 
    // create and write whole arrays
    //
-   // the WSA() function for writing string arrays requires string length argument
+   // the WSA() function for writing string arrays requires the string_length argument
    // because ODB string arrays have fixed element length and it must be specified
-   // at array creation (write) time
+   // at array creation (write) time. If string_length is zero, length of longest array
+   // element will be used.
    //
 
    virtual void WBA(const char* varname, const std::vector<bool>&   v, MVOdbError* error = NULL) = 0;

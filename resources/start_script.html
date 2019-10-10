@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html class="mcss">
+<head>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css">
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <script src="controls.js"></script>
+   <title>Start sequence</title>
+</head>
+
+<body class="mcss" onload="mhttpd_init('Sequencer')">
+
+<!-- header and side navigation will be filled in mhttpd_start -->
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+   <table class="mtable" id="seq_table">
+      <tbody>
+      <tr>
+         <th colspan="3" class="mtableheader subStatusTitle">Start script</th>
+      </tr>
+      <tr align="center">
+         <td colspan="3" align="center">
+            <button class="mbutton" onclick='start_sequence()' disabled id="start_button">Start script</button>
+            <button class="mbutton" onclick='cancel()'>Cancel</button>
+         </td>
+      </tr>
+      </tbody>
+   </table>
+</div>
+<div id="dlgError" class="dlgFrame">
+  <div class="dlgTitlebar">Error message</div>
+  <div class="dlgPanel">
+    <div id="dlgErrorText">Dialog Contents</div>
+    <br />
+    <button class="dlgButton" onClick="dlgHide('dlgError')">Close</button>
+  </div>
+</div>
+
+<script>
+var write_back = {};
+var write_path = {};
+var write_bool = {};
+var write_opts = {};
+
+function cancel() {
+   mhttpd_goto_page("seq");
+   // DOES NOT RETURN
+}
+
+   function start_sequence() {
+
+      var paths = [];
+      var values = [];
+
+      for (var k in write_back) {
+         var p = write_path[k];
+         var v;
+         if (write_bool[k]) {
+            v = write_back[k].checked;
+            if (v)
+               v = "1";
+            else
+               v = "0";
+         } else if (write_opts[k]) {
+            v = write_back[k].value;
+         } else {
+            v = write_back[k].value;
+         }
+         paths.push(p);
+         values.push(v);
+      }
+
+      paths.push("/sequencer/command/start script");
+      values.push(true);
+
+      //console.log("write_back: " + JSON.stringify(write_back));
+      //console.log("paths: " + JSON.stringify(paths));
+      //console.log("values: " + JSON.stringify(values));
+
+      mjsonrpc_call("db_paste", {"paths": paths, "values": values}).then(function (rpc) {
+         //mjsonrpc_debug_alert(rpc);
+         for (var i = 0; i < rpc.result.status.length; i++) {
+            if (rpc.result.status[i] != 1) {
+               throw new Error("Cannot write ODB \'" + paths[i] + "\', status " + rpc.result.status[i] + ", see MIDAS messages");
+            }
+         }
+         //location.search = "cmd=Sequencer";
+         //location.pathname = "sequencer.html";
+         mhttpd_goto_page("seq");
+         // not reached: reloads the page
+      }).catch(function (error) {
+         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+         dlgShow('dlgError');
+         //mjsonrpc_error_alert(error);
+      });
+   }
+
+   function add_table_entry(table, name, value, comment, editable, type, size, isarray, path) {
+      var tr = document.createElement("tr");
+      //tr.id = "program " + name;
+
+      var td;
+      var input;
+
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = name;
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+
+      var i = document.createElement("input");
+      if (!editable)
+         i.disabled = true;
+      if (typeof value == "boolean") {
+         i.type = "checkbox";
+         if (value)
+            i.checked = true;
+      }
+      if (type && type == TID_STRING) {
+         if (isarray) {
+            i.size = size + 1;
+            i.maxLength = size - 1;
+         } else {
+            i.size = 32;
+            if (value.length + 5 > i.size) {
+               i.size = value.length + 10;
+            }
+         }
+      }
+      i.value = value;
+      td.appendChild(i);
+      td.align = "center";
+      write_back[name] = i;
+      write_path[name] = path + "/" + name;
+
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = comment;
+      tr.appendChild(td);
+
+      //td = document.createElement("td");
+      //td.align = "center";
+      //td.innerHTML = "type: " + type + ", size: " + size + ", array: " + isarray;
+      //tr.appendChild(td);
+
+      table.appendChild(tr);
+   }
+
+   function add_param_entry(table, name, value, comment, type_bool, options, path) {
+      var tr = document.createElement("tr");
+      
+      var td;
+      var input;
+      
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = name;
+      tr.appendChild(td);
+      
+      td = document.createElement("td");
+      
+      if (options) {
+         var s = document.createElement("select");
+         for (var iopt in options) {
+            var opt = options[iopt];
+            var o = document.createElement("option");
+            o.innerHTML = opt;
+            if (opt == value) {
+               o.selected = true;
+            }
+            s.appendChild(o);
+         }
+         td.appendChild(s);
+         write_opts[name] = true;
+         write_back[name] = s;
+      } else if (type_bool) {
+         var i = document.createElement("input");
+         i.type = "checkbox";
+         if (value == "1")
+            i.checked = true;
+         td.appendChild(i);
+         write_bool[name] = true;
+         write_back[name] = i;
+      } else {
+         var i = document.createElement("input");
+         i.size = 32;
+         if (value.length + 5 > i.size) {
+            i.size = value.length + 10;
+         }
+         i.value = value;
+         td.appendChild(i);
+         write_back[name] = i;
+      }
+      td.align = "center";
+      write_path[name] = path + "/" + name;
+      
+      tr.appendChild(td);
+      
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = comment;
+      tr.appendChild(td);
+      
+      //td = document.createElement("td");
+      //td.align = "center";
+      //td.innerHTML = "type: " + type + ", size: " + size + ", array: " + isarray;
+      //tr.appendChild(td);
+      
+      table.appendChild(tr);
+   }
+
+   function callback(rpc) {
+      var editonstart = rpc.result.data[0];
+      var comments = rpc.result.data[1];
+      var variables = rpc.result.data[2];
+      var param_values = rpc.result.data[3];
+      var param_comment = rpc.result.data[4];
+      var param_options = rpc.result.data[5];
+
+      var table = document.getElementById("seq_table");
+
+      if (editonstart) {
+         for (var k in editonstart) {
+            if (k.indexOf("/") > 0)
+               continue;
+            var v = editonstart[k];
+            var c = "";
+            var n = editonstart[k + "/key"].num_values;
+            var t = editonstart[k + "/key"].type;
+            var s = editonstart[k + "/key"].item_size;
+
+            if (comments) {
+               for (var kk in comments) {
+                  if (kk.toLowerCase() == k.toLowerCase()) {
+                     c = comments[kk];
+                  }
+               }
+            }
+
+            if (n) {
+               var cc = c;
+               for (var i = 0; i < n; i++) {
+                  if (i != 0)
+                     cc = null;
+                  add_table_entry(table, k + "[" + i + "]", v[i], cc, true, t, s, true, "/Experiment/edit on sequence");
+               }
+            } else {
+               if (comments) {
+                  for (var kk in comments) {
+                     if (kk.toLowerCase() == k.toLowerCase()) {
+                        c = comments[kk];
+                     }
+                  }
+               }
+
+               add_table_entry(table, k, v, c, true, t, s, false, "/Experiment/edit on sequence");
+            }
+         }
+         
+         if (param_values) {
+            for (var k in param_values) {
+               //console.log("param_values: " + k);
+               if (k.indexOf("/") > 0)
+                  continue;
+               var v = param_values[k];
+               var c = "";
+               var o;
+
+               if (param_options) {
+                  for (var kk in param_options) {
+                     if (kk.toLowerCase() == k.toLowerCase()) {
+                        o = param_options[kk];
+                     }
+                  }
+               }
+
+               var type_bool = (typeof v == "boolean");
+
+               if (variables) {
+                  for (var kk in variables) {
+                     if (kk.toLowerCase() == k.toLowerCase()) {
+                        v = variables[kk];
+                     }
+                  }
+               }
+
+               if (param_comment) {
+                  for (var kk in param_comment) {
+                     if (kk.toLowerCase() == k.toLowerCase()) {
+                        c = param_comment[kk];
+                     }
+                  }
+               }
+               
+               add_param_entry(table, k, v, c, type_bool, o, "/Sequencer/Variables");
+            }
+         }
+      }
+
+      mhttpd_enable_button(document.getElementById('start_button'));
+   }
+
+   function update() {
+      var paths = [
+         "/Experiment/Edit on sequence",
+         "/Experiment/Parameter comments",
+         "/Sequencer/Variables",
+         "/Sequencer/Param/Value",
+         "/Sequencer/Param/Comment",
+         "/Sequencer/Param/Options",
+      ];
+      mjsonrpc_call("db_ls", {"paths": paths}).then(function (rpc) {
+         callback(rpc);
+      }).catch(function (error) {
+         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+         dlgShow('dlgError');
+         //alert("RWE: RPC or JS error: " + mjsonrpc_decode_error(error));
+      });
+   }
+
+   update();
+</script>
+</body>
+</html>

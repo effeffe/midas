@@ -2,15 +2,25 @@
 <RunSequence xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="">
 <Comment l="1">Sequencer Test File</Comment>
 <RunDescription l="3">Sequencer Test</RunDescription>
-<Call l="5" name="init"></Call>
-<Loop l="6" le="11" n="3">
-<Transition l="7">start</Transition>
-<Wait l="8" for="seconds">10</Wait>
-<Transition l="9">stop</Transition>
-<Wait l="10" for="seconds">3</Wait>
+<Param l="5" name="num_runs" comment="Number of runs" />
+<Param l="6" name="test_param" />
+<Param l="7" name="test_bool" type="bool" />
+<Param l="8" name="test_opt" comment="Test option selection" options="opt1,opt2,opt3" />
+<Cat l="10" name="message">"Parameters: "," num_runs=","$num_runs"," test_param=","$test_param"," test_bool=","$test_bool"," test_opt=","$test_opt"</Cat>
+<Message l="11" wait="1">$message</Message>
+<Call l="13" name="init"></Call>
+<Loop l="14" le="19" n="3">
+<Transition l="15">start</Transition>
+<Wait l="16" for="seconds">10</Wait>
+<Transition l="17">stop</Transition>
+<Wait l="18" for="seconds">3</Wait>
 </Loop>
 
-<Subroutine l="13" name="init">
-<Message l="14" wait="1">Initialization successfully completed</Message>
+<Subroutine l="21" name="init">
+<Message l="22">Initialization started</Message>
+<Loop l="23" le="25" n="4">
+<Wait l="24" for="seconds">3</Wait>
+</Loop>
+<Message l="26" wait="1">Initialization completed</Message>
 </Subroutine>
 </RunSequence>

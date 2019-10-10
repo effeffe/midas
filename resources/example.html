@@ -1028,6 +1028,34 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
         <input type=button value='test chained db_paste()' onClick='test_chained_db_paste();'></input>
       </p>
 
+      <p> Test set and get e.innerHTML
+
+        <script type="text/javascript">
+
+        function test_innerHTML(v) {
+           if (!v) {
+              v = document.getElementById("test_innerHTML_input").value;
+           }
+           var e = document.getElementById("test_innerHTML");
+           e.innerHTML = v;
+           var g = e.innerHTML;
+           var match = (v === g);
+           if (!match) {
+              alert("innerHTML mismatch: set: " + v + ", get: " + g);
+           }
+        }
+
+        </script>
+
+        <input type=button value='test a&b' onClick='test_innerHTML("a&b");'></input>
+        <input type=button value="span id=\'aaa\'" onClick="test_innerHTML('<span id=\'aaa\'>span</span>');"></input>
+        or enter:
+        <input type=input id="test_innerHTML_input" value="a&b"></input>
+        <input type=button value='test set and get innerHTML' onClick='test_innerHTML();'></input>
+        Span: 
+        <span id="test_innerHTML">test_innerHTML</span>
+      </p>
+
       <h2>mjsonrpc_get_schema()</h2>
 
       <p>
