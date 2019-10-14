@@ -424,6 +424,7 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/mfe_link_test_cxx  \
 	$(BIN_DIR)/fetest  \
 	$(BIN_DIR)/sysmon \
+	$(BIN_DIR)/sysmon_cxx \
 	$(BIN_DIR)/feudp   \
 	$(BIN_DIR)/fetest_tmfe    \
 	$(BIN_DIR)/fetest_tmfe_thread \
@@ -844,6 +845,9 @@ $(BIN_DIR)/mdump: $(PROGS_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx $(LIB) $(LIBS)
 
 $(BIN_DIR)/sysmon: $(PROGS_DIR)/sysmon.cxx $(LIB_DIR)/mfe.o
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
+
+$(BIN_DIR)/sysmon_cxx: $(PROGS_DIR)/sysmon_cxx.cxx $(LIB_DIR)/tmfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/fetest: $(PROGS_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
