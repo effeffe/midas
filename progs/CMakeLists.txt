@@ -18,6 +18,7 @@ set(PROGS
    mh2sql
    fetest_tmfe
    fetest_tmfe_thread
+   sysmon_cxx
    crc32c_sum
 )
 
@@ -32,6 +33,7 @@ set(MFEPROGS
    mfe_link_test_cxx
    fetest
    feudp
+   sysmon
 )
 
 foreach(PROG ${PROGS} ${TESTPROGS})
