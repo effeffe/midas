@@ -89,16 +89,16 @@ int read_system_load(char *pevent, int off);
 
 EQUIPMENT equipment[] = {
 
-  { "sysmon_%02d"   ,         /* equipment name */
+  { "sysmon_%02d"   ,       /* equipment name */
     {
-      EVID_MONITOR, (1<<EVID_MONITOR),           /* event ID, trigger mask */
+      EVID_MONITOR, 0,      /* event ID, trigger mask */
       "SYSTEM",             /* event buffer */
       EQ_PERIODIC,          /* equipment type */
       0,                    /* event source */
       "MIDAS",              /* format */
       TRUE,                 /* enabled */
       RO_ALWAYS,            /* Read when running */
-      10000,                 /* poll every so milliseconds */
+      10000,                /* poll every so milliseconds */
       0,                    /* stop run after this event limit */
       0,                    /* number of sub events */
       1,                    /* history period */
@@ -432,6 +432,7 @@ INT frontend_init()
    FILE* file = fopen(PROCSTATFILE, "r");
    if (file == NULL) {
       cm_msg(MERROR, frontend_name, "Cannot open " PROCSTATFILE);
+      return FE_ERR_HW;
    }
    char buffer[256];
    int Ncpus = -1;
