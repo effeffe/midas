@@ -18,7 +18,6 @@ set(PROGS
    mh2sql
    fetest_tmfe
    fetest_tmfe_thread
-   sysmon_cxx
    crc32c_sum
 )
 
