@@ -4945,7 +4945,7 @@ INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size,
 
          /* wait until main thread has finished */
          do {
-            ss_sleep(10);
+            cm_yield(10);
          } while (!_trp.finished);
 
          return _trp.status;
