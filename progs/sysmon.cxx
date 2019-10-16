@@ -298,14 +298,15 @@ void BuildHostCPUPlot()
       memset(vars, 0, size*NVARS);
       for (int i=0; i<cpuCount; i++)
       {
-         int h='0'+i/100;
-         int t='0'+(i%100)/10;
-         int u='0'+i%10+1;
-         if (i<10)
+         int icpu=i+1;
+         int h='0'+icpu/100;
+         int t='0'+(icpu%100)/10;
+         int u='0'+icpu%10;
+         if (icpu<10)
             sprintf(vars+size*i,"%s:CPU%c[3]",equipment[0].name,u);
-         else if (i<100)
+         else if (icpu<100)
             sprintf(vars+size*i,"%s:CP%c%c[3]",equipment[0].name,t,u);
-         else if (i<1000)
+         else if (icpu<1000)
             sprintf(vars+size*i,"%s:C%c%c%c[3]",equipment[0].name,h,t,u);
          else
          {
