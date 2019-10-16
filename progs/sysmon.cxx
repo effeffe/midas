@@ -717,9 +717,12 @@ int read_system_load(char *pevent, int off)
    *m=mem_percent;
    bk_close(pevent,m+1);
 
-   bk_create(pevent, "SWAP", TID_DOUBLE, (void**)&m);
-   *m=swap_percent;
-   bk_close(pevent,m+1);
+   if (totalSwap) //Only log SWAP if there is any
+   {
+      bk_create(pevent, "SWAP", TID_DOUBLE, (void**)&m);
+      *m=swap_percent;
+      bk_close(pevent,m+1);
+   }
 
    return bk_size(pevent);
 }
