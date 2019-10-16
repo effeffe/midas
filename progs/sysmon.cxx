@@ -267,6 +267,19 @@ void BuildHostHistoryPlot()
    }
    assert(status == DB_SUCCESS);
 
+   /////////////////////////////////////////////////////
+   // Setup time scale and range:
+   /////////////////////////////////////////////////////
+   sprintf(path,"/History/Display/sysmon/%s/Timescale",getenv("HOSTNAME"));
+   status = db_set_value(hDB,0,path,"1h",3,1,TID_STRING);
+   float *m=new float();
+   *m=0.;
+   sprintf(path,"/History/Display/sysmon/%s/Minimum",getenv("HOSTNAME"));
+   status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
+   *m=100.;
+   sprintf(path,"/History/Display/sysmon/%s/Maximum",getenv("HOSTNAME"));
+   status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
+   delete m;
 }
 
 void BuildHostCPUPlot()
@@ -331,7 +344,19 @@ void BuildHostCPUPlot()
       status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
    }
    assert(status == DB_SUCCESS);
-
+   /////////////////////////////////////////////////////
+   // Setup time scale and range:
+   /////////////////////////////////////////////////////
+   sprintf(path,"/History/Display/sysmon/%s-CPU/Timescale",getenv("HOSTNAME"));
+   status = db_set_value(hDB,0,path,"1h",3,1,TID_STRING);
+   float *m=new float();
+   *m=0.;
+   sprintf(path,"/History/Display/sysmon/%s-CPU/Minimum",getenv("HOSTNAME"));
+   status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
+   *m=100.;
+   sprintf(path,"/History/Display/sysmon/%s-CPU/Maximum",getenv("HOSTNAME"));
+   status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
+   delete m;
 }
 
 
