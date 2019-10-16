@@ -210,135 +210,60 @@ INT rpc_callback(INT index, void *prpc_param[])
 
 #include "msystem.h"
 
-static int odbReadArraySize(const char*name)
-{
-  int status;
-  HNDLE hdir = 0;
-  HNDLE hkey;
-  KEY key;
-
-  status = db_find_key (hDB, hdir, (char*)name, &hkey);
-  if (status != SUCCESS)
-    return 0;
-
-  status = db_get_key(hDB, hkey, &key);
-  if (status != SUCCESS)
-    return 0;
-
-  return key.num_values;
-}
-
-static int odbResizeArray(const char*name, int tid, int size)
-{
-   int oldSize = odbReadArraySize(name);
-
-   if (oldSize >= size)
-      return oldSize;
-
-   int status;
-   HNDLE hkey;
-   HNDLE hdir = 0;
-
-   status = db_find_key (hDB, hdir, (char*)name, &hkey);
-   if (status != SUCCESS)
-      {
-         cm_msg(MINFO, frontend_name, "Creating \'%s\'[%d] of type %d", name, size, tid);
-
-         status = db_create_key(hDB, hdir, (char*)name, tid);
-         if (status != SUCCESS)
-            {
-               cm_msg (MERROR, frontend_name, "Cannot create \'%s\' of type %d, db_create_key() status %d", name, tid, status);
-               return -1;
-            }
-         
-         status = db_find_key (hDB, hdir, (char*)name, &hkey);
-         if (status != SUCCESS)
-            {
-               cm_msg(MERROR, frontend_name, "Cannot create \'%s\', db_find_key() status %d", name, status);
-               return -1;
-            }
-      }
-   
-   cm_msg(MINFO, frontend_name, "Resizing \'%s\'[%d] of type %d, old size %d", name, size, tid, oldSize);
-
-   status = db_set_num_values(hDB, hkey, size);
-   if (status != SUCCESS)
-      {
-         cm_msg(MERROR, frontend_name, "Cannot resize \'%s\'[%d] of type %d, db_set_num_values() status %d", name, size, tid, status);
-         return -1;
-      }
-   
-   return size;
-}
-
 void BuildHostHistoryPlot()
 {
-   //Insert myself into the history
-   int status, size;
-   char str[64];
-   size = sizeof(str);
-   int NVARS=5;
-   char var[NVARS][64];
-   char path[256];
-   HNDLE hKey;
+  //Insert myself into the history
 
+   char path[256];
+   int status;
+   int size;
+   int NVARS=5;
+   
    /////////////////////////////////////////////////////
    // Setup variables to plot:
    /////////////////////////////////////////////////////
-   //Old midas style:
-   //sprintf(var[0],"%s/LOAD:LOAD[%d]",equipment[0].name,0);
-   //sprintf(var[1],"%s/LOAD:LOAD[%d]",equipment[0].name,1);
-   //sprintf(var[2],"%s/LOAD:LOAD[%d]",equipment[0].name,2);
-   //sprintf(var[3],"%s/MEMP:MEMP",equipment[0].name);
-   //sprintf(var[4],"%s/SWAP:SWAP",equipment[0].name);*/
-   //new midas style
-   sprintf(var[0],"%s:LOAD[%d]",equipment[0].name,0);
-   sprintf(var[1],"%s:LOAD[%d]",equipment[0].name,1);
-   sprintf(var[2],"%s:LOAD[%d]",equipment[0].name,2);
-   sprintf(var[3],"%s:MEMP",equipment[0].name);
-   sprintf(var[4],"%s:SWAP",equipment[0].name);
+   size = 64; // String length in ODB
    sprintf(path,"/History/Display/sysmon/%s/Variables",getenv("HOSTNAME"));
-   odbResizeArray(path, TID_STRING, NVARS);
-   status = db_find_key (hDB, 0, path, &hKey);
-   for (int i=0; i<NVARS; i++)
    {
-      strlcpy(str, var[i], size);
-      status = db_set_data_index(hDB, hKey, str, size, i, TID_STRING);
-      
+      char vars[size*NVARS];
+      memset(vars, 0, size*NVARS);
+      sprintf(vars+size*0,"%s:LOAD[%d]",equipment[0].name,0);
+      sprintf(vars+size*1,"%s:LOAD[%d]",equipment[0].name,1);
+      sprintf(vars+size*2,"%s:LOAD[%d]",equipment[0].name,2);
+      sprintf(vars+size*3,"%s:MEMP",equipment[0].name);
+      sprintf(vars+size*4,"%s:SWAP",equipment[0].name);
+      status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
    }
    assert(status == DB_SUCCESS);
 
    /////////////////////////////////////////////////////
    // Setup labels 
    /////////////////////////////////////////////////////
-   char strr[32];
-   size = sizeof(strr);
-   sprintf(var[0],"NICE CPU Load (%%)");
-   sprintf(var[1],"USER CPU Load (%%)");
-   sprintf(var[2],"SYSTEM CPU Load (%%)");
-   sprintf(var[3],"Memory Usage (%%)");
-   sprintf(var[4],"Swap Usage (%%)");
-   strlcpy(strr, var[0], size);
+   size = 32;
    sprintf(path,"/History/Display/sysmon/%s/Label",getenv("HOSTNAME"));
-   odbResizeArray(path, TID_STRING, NVARS);
-   status = db_find_key (hDB, 0, path, &hKey);
-   for (int i=0; i<NVARS; i++)
    {
-      strlcpy(str, var[i], size);
-      status = db_set_data_index(hDB, hKey, str, size, i, TID_STRING);
+      char vars[size*NVARS];
+      memset(vars, 0, size*NVARS);
+      sprintf(vars+size*0,"NICE CPU Load (%%)");
+      sprintf(vars+size*1,"USER CPU Load (%%)");
+      sprintf(vars+size*2,"SYSTEM CPU Load (%%)");
+      sprintf(vars+size*3,"Memory Usage (%%)");
+      sprintf(vars+size*4,"Swap Usage (%%)");
+      status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
    }
    assert(status == DB_SUCCESS);
 
    /////////////////////////////////////////////////////
    // Setup colours:
    /////////////////////////////////////////////////////
+   size = 32;
    sprintf(path,"/History/Display/sysmon/%s/Colour",getenv("HOSTNAME"));
-   odbResizeArray(path, TID_STRING, NVARS);
-   status = db_find_key (hDB, 0, path, &hKey);
-   for (int i=0; i<NVARS; i++)
    {
-      strlcpy(str, (colours[i%16]).c_str(), size);
-      status = db_set_data_index(hDB, hKey, str, size, i, TID_STRING);
+      char vars[size*NVARS];
+      memset(vars, 0, size*NVARS);
+      for (int i=0; i<NVARS; i++)
+         sprintf(vars+size*i,"%s",(colours[i%16]).c_str());
+      status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
    }
    assert(status == DB_SUCCESS);
 
@@ -348,75 +273,62 @@ void BuildHostCPUPlot()
 {
    //Insert per CPU graphs into the history
    int status, size;
-   char str[64];
-   size = sizeof(str);
-   char var[cpuCount][64];
-   HNDLE hKey;
    char path[256];
-
+   int NVARS=cpuCount;
    /////////////////////////////////////////////////////
    // Setup variables to plot:
    /////////////////////////////////////////////////////
-   //Older midas:
-   //sprintf(var[0],"%s/LOAD:LOAD[%d]",equipment[0].name,0);
-   //sprintf(var[1],"%s/LOAD:LOAD[%d]",equipment[0].name,1);
-   //sprintf(var[2],"%s/LOAD:LOAD[%d]",equipment[0].name,2);
-   //sprintf(var[3],"%s/MEMP:MEMP",equipment[0].name);
-   //sprintf(var[4],"%s/SWAP:SWAP",equipment[0].name);*/
-   //new midas
-   for (int i=0; i<cpuCount; i++)
-   {
-      int h='0'+i/100;
-      int t='0'+(i%100)/10;
-      int u='0'+i%10+1;
-      if (i<10)
-         sprintf(var[i],"%s:CPU%c[3]",equipment[0].name,u);
-      else if (i<100)
-         sprintf(var[i],"%s:CP%c%c[3]",equipment[0].name,t,u);
-      else if (i<1000)
-         sprintf(var[i],"%s:C%c%c%c[3]",equipment[0].name,h,t,u);
-      else
-         cm_msg(MERROR, frontend_name, "Cannot handle a system with more than 1000 CPUs");
-   }
+   size = 64;
    sprintf(path,"/History/Display/sysmon/%s-CPU/Variables",getenv("HOSTNAME"));
-   odbResizeArray(path, TID_STRING, cpuCount);
-   status = db_find_key (hDB, 0, path, &hKey);
-   for (int i=0; i<cpuCount; i++)
    {
-      strlcpy(str, var[i], size);
-      status = db_set_data_index(hDB, hKey, str, size, i, TID_STRING);
+      char vars[size*NVARS];
+      memset(vars, 0, size*NVARS);
+      for (int i=0; i<cpuCount; i++)
+      {
+         int h='0'+i/100;
+         int t='0'+(i%100)/10;
+         int u='0'+i%10+1;
+         if (i<10)
+            sprintf(vars+size*i,"%s:CPU%c[3]",equipment[0].name,u);
+         else if (i<100)
+            sprintf(vars+size*i,"%s:CP%c%c[3]",equipment[0].name,t,u);
+         else if (i<1000)
+            sprintf(vars+size*i,"%s:C%c%c%c[3]",equipment[0].name,h,t,u);
+         else
+         {
+            cm_msg(MERROR, frontend_name, "Cannot handle a system with more than 1000 CPUs");
+            exit(FE_ERR_HW);
+         }
+      }
+      status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
    }
    assert(status == DB_SUCCESS);
 
-   
    /////////////////////////////////////////////////////
    // Setup labels 
    /////////////////////////////////////////////////////
-   char strr[32];
-   size = sizeof(strr);
-   for (int i=0; i<cpuCount; i++)
-      sprintf(var[i],"CPU%d Load (%%)",i+1);
-   strlcpy(strr, var[0], size);
+   size = 32;
    sprintf(path,"/History/Display/sysmon/%s-CPU/Label",getenv("HOSTNAME"));
-   odbResizeArray(path, TID_STRING, cpuCount);
-   status = db_find_key (hDB, 0, path, &hKey);
-   for (int i=0; i<cpuCount; i++)
    {
-      strlcpy(str, var[i], size);
-      status = db_set_data_index(hDB, hKey, str, size, i, TID_STRING);
+      char vars[size*NVARS];
+      memset(vars, 0, size*NVARS);
+      for (int i=0; i<cpuCount; i++)
+         sprintf(vars+size*i,"CPU%d Load (%%)",i+1);
+      status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
    }
    assert(status == DB_SUCCESS);
 
    /////////////////////////////////////////////////////
    // Setup colours:
    /////////////////////////////////////////////////////
+   size = 32;
    sprintf(path,"/History/Display/sysmon/%s-CPU/Colour",getenv("HOSTNAME"));
-   odbResizeArray(path, TID_STRING, cpuCount);
-   status = db_find_key (hDB, 0, path, &hKey);
-   for (int i=0; i<cpuCount; i++)
    {
-      strlcpy(str, (colours[i%16]).c_str(), size);
-      status = db_set_data_index(hDB, hKey, str, size, i, TID_STRING);
+      char vars[size*NVARS];
+      memset(vars, 0, size*NVARS);
+      for (int i=0; i<NVARS; i++)
+         sprintf(vars+size*i,"%s",(colours[i%16]).c_str());
+      status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
    }
    assert(status == DB_SUCCESS);
 
