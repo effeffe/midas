@@ -630,26 +630,6 @@ int read_system_load(char *pevent, int off)
       bk_close(pevent,a);
    
    }
-
-   //Lazy std lib version:
-   //double averages[3];
-   //getloadavg(averages, 3);
-   //printf("Average 1-min: %f\n",averages[0]);
-   //printf("Average 5-min: %f\n",averages[1]);
-   //printf("Average 15-min:%f\n",averages[2]);
-   /*printf("nice load:   %f\n",CPULoadTotal[0]);
-   printf("user load:   %f\n",CPULoadTotal[1]);
-   printf("system load: %f\n",CPULoadTotal[2]);
-   printf("total load:  %f\n",CPULoadTotal[3]);
-   double* a;
-   bk_create(pevent, "LOAD", TID_DOUBLE, (void**)&a);
-   for (int i=0; i<4; i++)
-   {
-      *a=CPULoadTotal[i];
-      a++;
-   }
-   bk_close(pevent,a);
-*/
    
    //Again from htop:
    unsigned long long int totalMem;
@@ -701,11 +681,12 @@ int read_system_load(char *pevent, int off)
    double swap_percent=100;
    if (totalSwap) //If there is an swap space, calculate... else always say 100% used
       swap_percent=100*(double)usedSwap/(double)totalSwap;
+#ifdef FE_DEBUG
    printf("-----------------------------\n");
    printf("MemUsed:  %lld kB (%lld GB) (%.2f%%)\n",usedMem,usedMem/1024/1024,mem_percent);
    printf("SwapUsed: %lld kB (%lld GB) (%.2f%%)\n",usedSwap,usedSwap/1024/1024,swap_percent);
    printf("-----------------------------\n");
-
+#endif
    double* m;
    bk_create(pevent, "MEMP", TID_DOUBLE, (void**)&m);
    *m=mem_percent;
