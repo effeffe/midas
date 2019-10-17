@@ -1648,375 +1648,384 @@ Data conversion flags */
 #define EXPRT
 #endif
 
+#ifdef USE_EXTERN_C
+#define CLINK extern "C"
+#else
+#define CLINK
+#endif
+
+
    /*---- common routines ----*/
-   INT EXPRT cm_get_error(INT code, char *string);
-   const char* EXPRT cm_get_version(void);
-   const char* EXPRT cm_get_revision(void);
-   INT EXPRT cm_get_experiment_name(char *name, int name_size);
-   INT EXPRT cm_get_environment(char *host_name, int host_name_size,
-                                char *exp_name, int exp_name_size);
-   INT EXPRT cm_list_experiments(const char *host_name,
-                                 char exp_name[MAX_EXPERIMENT][NAME_LENGTH]);
-   INT EXPRT cm_get_exptab_filename(char* filename, int filename_size);
-   INT EXPRT cm_get_exptab(const char* exp_name, char* expdir, int expdir_size, char* expuser, int expuser_size);
-   INT EXPRT cm_select_experiment(const char *host_name, char *exp_name);
-   INT EXPRT cm_connect_experiment(const char *host_name, const char *exp_name,
-                                   const char *client_name, void (*func) (char *));
-   INT EXPRT cm_connect_experiment1(const char *host_name, const char *exp_name,
-                                    const char *client_name,
-                                    void (*func) (char *), INT odb_size,
-                                    DWORD watchdog_timeout);
-   INT EXPRT cm_disconnect_experiment(void);
-   INT EXPRT cm_register_transition(INT transition, INT(*func) (INT, char *),
-                                    int sequence_number);
-   INT EXPRT cm_deregister_transition(INT transition);
-   INT EXPRT cm_set_transition_sequence(INT transition, INT sequence_number);
-   INT EXPRT cm_set_client_run_state(INT state);
-   INT EXPRT cm_query_transition(int *transition, int *run_number, int *trans_time);
-   INT EXPRT cm_register_deferred_transition(INT transition, BOOL(*func) (INT, BOOL));
-   INT EXPRT cm_check_deferred_transition(void);
-   INT EXPRT cm_transition(INT transition, INT run_number, char *error, INT strsize, INT async_flag, INT debug_flag);
-   INT EXPRT cm_register_server(void);
-   INT EXPRT cm_register_function(INT id, INT(*func) (INT, void **));
-   INT EXPRT cm_connect_client(const char *client_name, HNDLE * hConn);
-   INT EXPRT cm_disconnect_client(HNDLE hConn, BOOL bShutdown);
-   INT EXPRT cm_set_experiment_database(HNDLE hDB, HNDLE hKeyClient);
-   INT EXPRT cm_get_experiment_database(HNDLE * hDB, HNDLE * hKeyClient);
-   INT EXPRT cm_set_experiment_semaphore(INT semaphore_alarm, INT semaphore_elog, INT semaphore_history, INT semaphore_msg);
-   INT EXPRT cm_get_experiment_semaphore(INT * semaphore_alarm, INT * semaphore_elog, INT * semaphore_history, INT * semaphore_msg);
-   INT EXPRT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient,
-                                const char *host_name, char *client_name,
-                                INT computer_id, const char *password, DWORD watchdog_timeout);
-   INT EXPRT cm_get_client_info(char *client_name);
-   INT EXPRT cm_check_client(HNDLE hDB, HNDLE hKeyClient);
-   INT EXPRT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout);
-   INT EXPRT cm_get_watchdog_params(BOOL * call_watchdog, DWORD * timeout);
-   INT EXPRT cm_get_watchdog_info(HNDLE hDB, char *client_name, DWORD * timeout, DWORD * last);
-   INT EXPRT cm_watchdog_thread(void*unused);
-   INT EXPRT cm_start_watchdog_thread(void);
-   INT EXPRT cm_stop_watchdog_thread(void);
-   INT EXPRT cm_shutdown(const char *name, BOOL bUnique);
-   INT EXPRT cm_exist(const char *name, BOOL bUnique);
-   INT EXPRT cm_cleanup(const char *client_name, BOOL ignore_timeout);
-   INT EXPRT cm_yield(INT millisec);
+CLINK INT EXPRT cm_get_error(INT code, char *string);
+CLINK const char* EXPRT cm_get_version(void);
+CLINK const char* EXPRT cm_get_revision(void);
+CLINK INT EXPRT cm_get_experiment_name(char *name, int name_size);
+CLINK INT EXPRT cm_get_environment(char *host_name, int host_name_size,
+                                   char *exp_name, int exp_name_size);
+CLINK INT EXPRT cm_list_experiments(const char *host_name,
+                                    char exp_name[MAX_EXPERIMENT][NAME_LENGTH]);
+CLINK INT EXPRT cm_get_exptab_filename(char* filename, int filename_size);
+CLINK INT EXPRT cm_get_exptab(const char* exp_name, char* expdir, int expdir_size, char* expuser, int expuser_size);
+CLINK INT EXPRT cm_select_experiment(const char *host_name, char *exp_name);
+CLINK INT EXPRT cm_connect_experiment(const char *host_name, const char *exp_name,
+                                      const char *client_name, void (*func) (char *));
+CLINK INT EXPRT cm_connect_experiment1(const char *host_name, const char *exp_name,
+                                       const char *client_name,
+                                       void (*func) (char *), INT odb_size,
+                                       DWORD watchdog_timeout);
+CLINK INT EXPRT cm_disconnect_experiment(void);
+CLINK INT EXPRT cm_register_transition(INT transition, INT(*func) (INT, char *),
+                                       int sequence_number);
+CLINK INT EXPRT cm_deregister_transition(INT transition);
+CLINK INT EXPRT cm_set_transition_sequence(INT transition, INT sequence_number);
+CLINK INT EXPRT cm_set_client_run_state(INT state);
+CLINK INT EXPRT cm_query_transition(int *transition, int *run_number, int *trans_time);
+CLINK INT EXPRT cm_register_deferred_transition(INT transition, BOOL(*func) (INT, BOOL));
+CLINK INT EXPRT cm_check_deferred_transition(void);
+CLINK INT EXPRT cm_transition(INT transition, INT run_number, char *error, INT strsize, INT async_flag, INT debug_flag);
+CLINK INT EXPRT cm_register_server(void);
+CLINK INT EXPRT cm_register_function(INT id, INT(*func) (INT, void **));
+CLINK INT EXPRT cm_connect_client(const char *client_name, HNDLE * hConn);
+CLINK INT EXPRT cm_disconnect_client(HNDLE hConn, BOOL bShutdown);
+CLINK INT EXPRT cm_set_experiment_database(HNDLE hDB, HNDLE hKeyClient);
+CLINK INT EXPRT cm_get_experiment_database(HNDLE * hDB, HNDLE * hKeyClient);
+CLINK INT EXPRT cm_set_experiment_semaphore(INT semaphore_alarm, INT semaphore_elog, INT semaphore_history, INT semaphore_msg);
+CLINK INT EXPRT cm_get_experiment_semaphore(INT * semaphore_alarm, INT * semaphore_elog, INT * semaphore_history, INT * semaphore_msg);
+CLINK INT EXPRT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient,
+                                   const char *host_name, char *client_name,
+                                   INT computer_id, const char *password, DWORD watchdog_timeout);
+CLINK INT EXPRT cm_get_client_info(char *client_name);
+CLINK INT EXPRT cm_check_client(HNDLE hDB, HNDLE hKeyClient);
+CLINK INT EXPRT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout);
+CLINK INT EXPRT cm_get_watchdog_params(BOOL * call_watchdog, DWORD * timeout);
+CLINK INT EXPRT cm_get_watchdog_info(HNDLE hDB, char *client_name, DWORD * timeout, DWORD * last);
+CLINK INT EXPRT cm_watchdog_thread(void*unused);
+CLINK INT EXPRT cm_start_watchdog_thread(void);
+CLINK INT EXPRT cm_stop_watchdog_thread(void);
+CLINK INT EXPRT cm_shutdown(const char *name, BOOL bUnique);
+CLINK INT EXPRT cm_exist(const char *name, BOOL bUnique);
+CLINK INT EXPRT cm_cleanup(const char *client_name, BOOL ignore_timeout);
+CLINK INT EXPRT cm_yield(INT millisec);
 #define HAVE_CM_PERIODIC_TASKS 1
-   INT EXPRT cm_periodic_tasks(void);
-   INT EXPRT cm_execute(const char *command, char *result, INT buf_size);
-   INT EXPRT cm_synchronize(DWORD * sec);
-   INT EXPRT cm_asctime(char *str, INT buf_size);
-   INT EXPRT cm_time(DWORD * t);
-   BOOL EXPRT cm_is_ctrlc_pressed(void);
-   void EXPRT cm_ack_ctrlc_pressed(void);
-   INT EXPRT cm_exec_script(const char* odb_path_to_script);
+CLINK INT EXPRT cm_periodic_tasks(void);
+CLINK INT EXPRT cm_execute(const char *command, char *result, INT buf_size);
+CLINK INT EXPRT cm_synchronize(DWORD * sec);
+CLINK INT EXPRT cm_asctime(char *str, INT buf_size);
+CLINK INT EXPRT cm_time(DWORD * t);
+CLINK BOOL EXPRT cm_is_ctrlc_pressed(void);
+CLINK void EXPRT cm_ack_ctrlc_pressed(void);
+CLINK INT EXPRT cm_exec_script(const char* odb_path_to_script);
 
-   INT EXPRT cm_set_msg_print(INT system_mask, INT user_mask, int (*func) (const char *));
-   INT EXPRT cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) MATTRPRINTF(5,6);
-   INT EXPRT cm_msg1(INT message_type, const char *filename, INT line, const char *facility, const char *routine, const char *format, ...) MATTRPRINTF(6,7);
-   INT EXPRT cm_msg_flush_buffer(void);
-   INT EXPRT cm_msg_register(EVENT_HANDLER* func);
-   INT EXPRT cm_msg_retrieve(INT n_message, char *message, INT buf_size);
-   INT EXPRT cm_msg_retrieve2(const char *facility, time_t t, int min_messages, char** messages, int* num_messages);
-   INT EXPRT cm_msg_facilities(STRING_LIST *list);
-   INT EXPRT cm_msg_get_logfile(const char *facility, time_t t, char *filename, int fsize, char *linkname, int lsize);
-   INT EXPRT cm_msg_open_buffer(void);
-   INT EXPRT cm_msg_close_buffer(void);
-   INT EXPRT cm_msg_early_init(void);
+CLINK INT EXPRT cm_set_msg_print(INT system_mask, INT user_mask, int (*func) (const char *));
+CLINK INT EXPRT cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) MATTRPRINTF(5,6);
+CLINK INT EXPRT cm_msg1(INT message_type, const char *filename, INT line, const char *facility, const char *routine, const char *format, ...) MATTRPRINTF(6,7);
+CLINK INT EXPRT cm_msg_flush_buffer(void);
+CLINK INT EXPRT cm_msg_register(EVENT_HANDLER* func);
+CLINK INT EXPRT cm_msg_retrieve(INT n_message, char *message, INT buf_size);
+CLINK INT EXPRT cm_msg_retrieve2(const char *facility, time_t t, int min_messages, char** messages, int* num_messages);
+      INT EXPRT cm_msg_facilities(STRING_LIST *list);
+CLINK INT EXPRT cm_msg_get_logfile(const char *facility, time_t t, char *filename, int fsize, char *linkname, int lsize);
+CLINK INT EXPRT cm_msg_open_buffer(void);
+CLINK INT EXPRT cm_msg_close_buffer(void);
+CLINK INT EXPRT cm_msg_early_init(void);
 
-   BOOL EXPRT equal_ustring(const char *str1, const char *str2);
-   BOOL EXPRT ends_with_ustring(const char *str, const char *suffix);
+CLINK BOOL EXPRT equal_ustring(const char *str1, const char *str2);
+CLINK BOOL EXPRT ends_with_ustring(const char *str, const char *suffix);
 
-   std::string cm_expand_env(const char* str);
+      std::string cm_expand_env(const char* str);
 
    /*---- buffer manager ----*/
-   INT EXPRT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle);
-   INT EXPRT bm_close_buffer(INT buffer_handle);
-   INT EXPRT bm_close_all_buffers(void);
-   INT EXPRT bm_init_buffer_counters(INT buffer_handle);
-   INT EXPRT bm_get_buffer_info(INT buffer_handle, BUFFER_HEADER * buffer_header);
-   INT EXPRT bm_get_buffer_level(INT buffer_handle, INT * n_bytes);
-   INT EXPRT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size);
-   INT EXPRT bm_compose_event(EVENT_HEADER * event_header,
-                              short int event_id, short int trigger_mask,
-                              DWORD size, DWORD serial);
-   INT EXPRT bm_request_event(INT buffer_handle,
-                              short int event_id,
-                              short int trigger_mask,
-                              INT sampling_type,
-                              INT * request_id,
-                              EVENT_HANDLER *func
-                              );
-   INT EXPRT bm_add_event_request(INT buffer_handle,
-                                  short int event_id,
-                                  short int trigger_mask,
-                                  INT sampling_type,
-                                  EVENT_HANDLER *func,
-                                  INT request_id);
-   INT EXPRT bm_remove_event_request(INT buffer_handle, INT request_id);
-   INT EXPRT bm_delete_request(INT request_id);
-   INT EXPRT bm_send_event(INT buffer_handle, const EVENT_HEADER* event, INT buf_size, INT async_flag);
-   INT EXPRT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT async_flag);
+CLINK INT EXPRT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle);
+CLINK INT EXPRT bm_close_buffer(INT buffer_handle);
+CLINK INT EXPRT bm_close_all_buffers(void);
+CLINK INT EXPRT bm_init_buffer_counters(INT buffer_handle);
+CLINK INT EXPRT bm_get_buffer_info(INT buffer_handle, BUFFER_HEADER * buffer_header);
+CLINK INT EXPRT bm_get_buffer_level(INT buffer_handle, INT * n_bytes);
+CLINK INT EXPRT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size);
+CLINK INT EXPRT bm_compose_event(EVENT_HEADER * event_header,
+                                 short int event_id, short int trigger_mask,
+                                 DWORD size, DWORD serial);
+CLINK INT EXPRT bm_request_event(INT buffer_handle,
+                                 short int event_id,
+                                 short int trigger_mask,
+                                 INT sampling_type,
+                                 INT * request_id,
+                                 EVENT_HANDLER *func
+                                 );
+CLINK INT EXPRT bm_add_event_request(INT buffer_handle,
+                                     short int event_id,
+                                     short int trigger_mask,
+                                     INT sampling_type,
+                                     EVENT_HANDLER *func,
+                                     INT request_id);
+CLINK INT EXPRT bm_remove_event_request(INT buffer_handle, INT request_id);
+CLINK INT EXPRT bm_delete_request(INT request_id);
+CLINK INT EXPRT bm_send_event(INT buffer_handle, const EVENT_HEADER* event, INT buf_size, INT async_flag);
+CLINK INT EXPRT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT async_flag);
 #define HAVE_BM_RECEIVE_EVENT_ALLOC 1
-   INT EXPRT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER** ppevent, INT async_flag);
-   INT EXPRT bm_skip_event(INT buffer_handle);
-   INT EXPRT bm_flush_cache(INT buffer_handle, INT async_flag);
-   INT EXPRT bm_poll_event(void);
-   INT EXPRT bm_empty_buffers(void);
-   INT EXPRT bm_check_buffers(void);
-   INT EXPRT bm_write_statistics_to_odb(void);
+CLINK INT EXPRT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER** ppevent, INT async_flag);
+CLINK INT EXPRT bm_skip_event(INT buffer_handle);
+CLINK INT EXPRT bm_flush_cache(INT buffer_handle, INT async_flag);
+CLINK INT EXPRT bm_poll_event(void);
+CLINK INT EXPRT bm_empty_buffers(void);
+CLINK INT EXPRT bm_check_buffers(void);
+CLINK INT EXPRT bm_write_statistics_to_odb(void);
 
    /** @addtogroup odbfunctionc */
    /** @{ */
 
    /*---- online database functions -----*/
-   INT EXPRT db_open_database(const char *database_name, INT database_size, HNDLE * hdb, const char *client_name);
-   INT EXPRT db_close_database(HNDLE database_handle);
-   INT EXPRT db_close_all_databases(void);
-   INT EXPRT db_protect_database(HNDLE database_handle);
+CLINK INT EXPRT db_open_database(const char *database_name, INT database_size, HNDLE * hdb, const char *client_name);
+CLINK INT EXPRT db_close_database(HNDLE database_handle);
+CLINK INT EXPRT db_close_all_databases(void);
+CLINK INT EXPRT db_protect_database(HNDLE database_handle);
 
-   INT EXPRT db_create_key(HNDLE hdb, HNDLE key_handle, const char *key_name, DWORD type);
-   INT EXPRT db_create_link(HNDLE hdb, HNDLE key_handle, const char *link_name, const char *destination);
-   INT EXPRT db_set_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, const void *data, INT size, INT num_values, DWORD type);
-   INT EXPRT db_set_value_index(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *data, INT data_size, INT index, DWORD type, BOOL truncate);
-   INT EXPRT db_get_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, void *data, INT * size, DWORD type, BOOL create);
-   INT EXPRT db_resize_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, int num_values, int max_string_size);
+CLINK INT EXPRT db_create_key(HNDLE hdb, HNDLE key_handle, const char *key_name, DWORD type);
+CLINK INT EXPRT db_create_link(HNDLE hdb, HNDLE key_handle, const char *link_name, const char *destination);
+CLINK INT EXPRT db_set_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, const void *data, INT size, INT num_values, DWORD type);
+CLINK INT EXPRT db_set_value_index(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *data, INT data_size, INT index, DWORD type, BOOL truncate);
+CLINK INT EXPRT db_get_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, void *data, INT * size, DWORD type, BOOL create);
+CLINK INT EXPRT db_resize_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, int num_values, int max_string_size);
 #define HAVE_DB_GET_VALUE_STRING_CREATE_STRING_LENGTH 1
-   INT EXPRT db_get_value_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int index, std::string* s, BOOL create = FALSE, int create_string_length = 0);
-   INT EXPRT db_set_value_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const std::string* s);
-   INT EXPRT db_find_key(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
-   INT EXPRT db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
-   INT EXPRT db_find_key1(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
-   INT EXPRT db_find_link1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
-   INT EXPRT db_get_parent(HNDLE hDB, HNDLE hKey, HNDLE * parenthKey);
-   INT EXPRT db_scan_tree(HNDLE hDB, HNDLE hKey, int level, INT(*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
-   INT EXPRT db_scan_tree_link(HNDLE hDB, HNDLE hKey, int level, void (*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
-   INT EXPRT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size);
-   INT EXPRT db_delete_key(HNDLE database_handle, HNDLE key_handle, BOOL follow_links);
-   INT EXPRT db_enum_key(HNDLE hdb, HNDLE key_handle, INT index, HNDLE * subkey_handle);
-   INT EXPRT db_enum_link(HNDLE hdb, HNDLE key_handle, INT index, HNDLE * subkey_handle);
-   INT EXPRT db_get_next_link(HNDLE hdb, HNDLE key_handle, HNDLE * subkey_handle);
-   INT EXPRT db_get_key(HNDLE hdb, HNDLE key_handle, KEY * key);
-   INT EXPRT db_get_link(HNDLE hdb, HNDLE key_handle, KEY * key);
-   INT EXPRT db_get_key_info(HNDLE hDB, HNDLE hKey, char *name, INT name_size, INT * type, INT * num_values, INT * item_size);
-   INT EXPRT db_get_key_time(HNDLE hdb, HNDLE key_handle, DWORD * delta);
-   INT EXPRT db_rename_key(HNDLE hDB, HNDLE hKey, const char *name);
-   INT EXPRT db_reorder_key(HNDLE hDB, HNDLE hKey, INT index);
-   INT EXPRT db_get_data(HNDLE hdb, HNDLE key_handle, void *data, INT * buf_size, DWORD type);
-   INT EXPRT db_get_link_data(HNDLE hdb, HNDLE key_handle, void *data, INT * buf_size, DWORD type);
-   INT EXPRT db_get_data1(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type, INT * num_values);
-   INT EXPRT db_get_data_index(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT index, DWORD type);
-   INT EXPRT db_set_data(HNDLE hdb, HNDLE hKey, const void *data, INT buf_size, INT num_values, DWORD type);
-   INT EXPRT db_set_data1(HNDLE hdb, HNDLE hKey, const void *data, INT buf_size, INT num_values, DWORD type);
-   INT EXPRT db_notify_clients_array(HNDLE hdb, HNDLE hKey[], INT n);
-   INT EXPRT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_values, DWORD type);
-   INT EXPRT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type);
-   INT EXPRT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type);
-   INT EXPRT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type, BOOL bNotify);
-   INT EXPRT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values);
-   INT EXPRT db_merge_data(HNDLE hDB, HNDLE hKeyRoot, const char *name, void *data, INT data_size, INT num_values, INT type);
-   INT EXPRT db_set_mode(HNDLE hdb, HNDLE key_handle, WORD mode, BOOL recurse);
-   INT EXPRT db_create_record(HNDLE hdb, HNDLE hkey, const char *name, const char *init_str);
-   INT EXPRT db_check_record(HNDLE hDB, HNDLE hKey, const char *key_name, const char *rec_str, BOOL correct);
-   INT EXPRT db_open_record(HNDLE hdb, HNDLE hkey, void *ptr, INT rec_size, WORD access, void (*dispatcher) (INT, INT, void *), void *info);
-   INT EXPRT db_open_record1(HNDLE hdb, HNDLE hkey, void *ptr, INT rec_size, WORD access, void (*dispatcher) (INT, INT, void *), void *info, const char *rec_str);
-   INT EXPRT db_close_record(HNDLE hdb, HNDLE hkey);
-   INT EXPRT db_get_record(HNDLE hdb, HNDLE hKey, void *data, INT * buf_size, INT align);
-   INT EXPRT db_get_record1(HNDLE hdb, HNDLE hKey, void *data, INT * buf_size, INT align, const char *rec_str);
-   INT EXPRT db_get_record2(HNDLE hdb, HNDLE hKey, void *data, INT * buf_size, INT align, const char *rec_str, BOOL correct);
-   INT EXPRT db_get_record_size(HNDLE hdb, HNDLE hKey, INT align, INT * buf_size);
-   INT EXPRT db_set_record(HNDLE hdb, HNDLE hKey, void *data, INT buf_size, INT align);
-   INT EXPRT db_set_record2(HNDLE hdb, HNDLE hKey, void *data, INT buf_size, INT align, const char *rec_str);
-   INT EXPRT db_send_changed_records(void);
-   INT EXPRT db_get_open_records(HNDLE hDB, HNDLE hKey, char *str, INT buf_size, BOOL fix);
+      INT EXPRT db_get_value_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int index, std::string* s, BOOL create = FALSE, int create_string_length = 0);
+      INT EXPRT db_set_value_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const std::string* s);
+CLINK INT EXPRT db_find_key(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
+CLINK INT EXPRT db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
+CLINK INT EXPRT db_find_key1(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
+CLINK INT EXPRT db_find_link1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
+CLINK INT EXPRT db_get_parent(HNDLE hDB, HNDLE hKey, HNDLE * parenthKey);
+CLINK INT EXPRT db_scan_tree(HNDLE hDB, HNDLE hKey, int level, INT(*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
+CLINK INT EXPRT db_scan_tree_link(HNDLE hDB, HNDLE hKey, int level, void (*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
+CLINK INT EXPRT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size);
+CLINK INT EXPRT db_delete_key(HNDLE database_handle, HNDLE key_handle, BOOL follow_links);
+CLINK INT EXPRT db_enum_key(HNDLE hdb, HNDLE key_handle, INT index, HNDLE * subkey_handle);
+CLINK INT EXPRT db_enum_link(HNDLE hdb, HNDLE key_handle, INT index, HNDLE * subkey_handle);
+CLINK INT EXPRT db_get_next_link(HNDLE hdb, HNDLE key_handle, HNDLE * subkey_handle);
+CLINK INT EXPRT db_get_key(HNDLE hdb, HNDLE key_handle, KEY * key);
+CLINK INT EXPRT db_get_link(HNDLE hdb, HNDLE key_handle, KEY * key);
+CLINK INT EXPRT db_get_key_info(HNDLE hDB, HNDLE hKey, char *name, INT name_size, INT * type, INT * num_values, INT * item_size);
+CLINK INT EXPRT db_get_key_time(HNDLE hdb, HNDLE key_handle, DWORD * delta);
+CLINK INT EXPRT db_rename_key(HNDLE hDB, HNDLE hKey, const char *name);
+CLINK INT EXPRT db_reorder_key(HNDLE hDB, HNDLE hKey, INT index);
+CLINK INT EXPRT db_get_data(HNDLE hdb, HNDLE key_handle, void *data, INT * buf_size, DWORD type);
+CLINK INT EXPRT db_get_link_data(HNDLE hdb, HNDLE key_handle, void *data, INT * buf_size, DWORD type);
+CLINK INT EXPRT db_get_data1(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type, INT * num_values);
+CLINK INT EXPRT db_get_data_index(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT index, DWORD type);
+CLINK INT EXPRT db_set_data(HNDLE hdb, HNDLE hKey, const void *data, INT buf_size, INT num_values, DWORD type);
+CLINK INT EXPRT db_set_data1(HNDLE hdb, HNDLE hKey, const void *data, INT buf_size, INT num_values, DWORD type);
+CLINK INT EXPRT db_notify_clients_array(HNDLE hdb, HNDLE hKey[], INT n);
+CLINK INT EXPRT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_values, DWORD type);
+CLINK INT EXPRT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type);
+CLINK INT EXPRT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type);
+CLINK INT EXPRT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT size, INT index, DWORD type, BOOL bNotify);
+CLINK INT EXPRT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values);
+CLINK INT EXPRT db_merge_data(HNDLE hDB, HNDLE hKeyRoot, const char *name, void *data, INT data_size, INT num_values, INT type);
+CLINK INT EXPRT db_set_mode(HNDLE hdb, HNDLE key_handle, WORD mode, BOOL recurse);
+CLINK INT EXPRT db_create_record(HNDLE hdb, HNDLE hkey, const char *name, const char *init_str);
+CLINK INT EXPRT db_check_record(HNDLE hDB, HNDLE hKey, const char *key_name, const char *rec_str, BOOL correct);
+CLINK INT EXPRT db_open_record(HNDLE hdb, HNDLE hkey, void *ptr, INT rec_size, WORD access, void (*dispatcher) (INT, INT, void *), void *info);
+CLINK INT EXPRT db_open_record1(HNDLE hdb, HNDLE hkey, void *ptr, INT rec_size, WORD access, void (*dispatcher) (INT, INT, void *), void *info, const char *rec_str);
+CLINK INT EXPRT db_close_record(HNDLE hdb, HNDLE hkey);
+CLINK INT EXPRT db_get_record(HNDLE hdb, HNDLE hKey, void *data, INT * buf_size, INT align);
+CLINK INT EXPRT db_get_record1(HNDLE hdb, HNDLE hKey, void *data, INT * buf_size, INT align, const char *rec_str);
+CLINK INT EXPRT db_get_record2(HNDLE hdb, HNDLE hKey, void *data, INT * buf_size, INT align, const char *rec_str, BOOL correct);
+CLINK INT EXPRT db_get_record_size(HNDLE hdb, HNDLE hKey, INT align, INT * buf_size);
+CLINK INT EXPRT db_set_record(HNDLE hdb, HNDLE hKey, void *data, INT buf_size, INT align);
+CLINK INT EXPRT db_set_record2(HNDLE hdb, HNDLE hKey, void *data, INT buf_size, INT align, const char *rec_str);
+CLINK INT EXPRT db_send_changed_records(void);
+CLINK INT EXPRT db_get_open_records(HNDLE hDB, HNDLE hKey, char *str, INT buf_size, BOOL fix);
 
-   INT EXPRT db_add_open_record(HNDLE hDB, HNDLE hKey, WORD access_mode);
-   INT EXPRT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock);
+CLINK INT EXPRT db_add_open_record(HNDLE hDB, HNDLE hKey, WORD access_mode);
+CLINK INT EXPRT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock);
 
-   INT EXPRT db_watch(HNDLE hDB, HNDLE hKey, void (*dispatcher) (INT, INT, INT, void *info), void *info);
-   INT EXPRT db_unwatch(HNDLE hDB, HNDLE hKey);
-   INT EXPRT db_unwatch_all(void);
+CLINK INT EXPRT db_watch(HNDLE hDB, HNDLE hKey, void (*dispatcher) (INT, INT, INT, void *info), void *info);
+CLINK INT EXPRT db_unwatch(HNDLE hDB, HNDLE hKey);
+CLINK INT EXPRT db_unwatch_all(void);
    
-   INT EXPRT db_load(HNDLE hdb, HNDLE key_handle, const char *filename, BOOL bRemote);
-   INT EXPRT db_save(HNDLE hdb, HNDLE key_handle, const char *filename, BOOL bRemote);
-   INT EXPRT db_copy(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size, const char *path);
-   INT EXPRT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer);
-   INT EXPRT db_paste_xml(HNDLE hDB, HNDLE hKeyRoot, const char *buffer);
-   INT EXPRT db_save_struct(HNDLE hDB, HNDLE hKey, const char *file_name, const char *struct_name, BOOL append);
-   INT EXPRT db_save_string(HNDLE hDB, HNDLE hKey, const char *file_name, const char *string_name, BOOL append);
-   INT EXPRT db_save_xml(HNDLE hDB, HNDLE hKey, const char *file_name);
-   INT EXPRT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size);
+CLINK INT EXPRT db_load(HNDLE hdb, HNDLE key_handle, const char *filename, BOOL bRemote);
+CLINK INT EXPRT db_save(HNDLE hdb, HNDLE key_handle, const char *filename, BOOL bRemote);
+CLINK INT EXPRT db_copy(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size, const char *path);
+CLINK INT EXPRT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer);
+CLINK INT EXPRT db_paste_xml(HNDLE hDB, HNDLE hKeyRoot, const char *buffer);
+CLINK INT EXPRT db_save_struct(HNDLE hDB, HNDLE hKey, const char *file_name, const char *struct_name, BOOL append);
+CLINK INT EXPRT db_save_string(HNDLE hDB, HNDLE hKey, const char *file_name, const char *string_name, BOOL append);
+CLINK INT EXPRT db_save_xml(HNDLE hDB, HNDLE hKey, const char *file_name);
+CLINK INT EXPRT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size);
 
-   INT EXPRT db_save_json(HNDLE hDB, HNDLE hKey, const char *file_name);
-   INT EXPRT db_load_json(HNDLE hdb, HNDLE key_handle, const char *filename);
+CLINK INT EXPRT db_save_json(HNDLE hDB, HNDLE hKey, const char *file_name);
+CLINK INT EXPRT db_load_json(HNDLE hdb, HNDLE key_handle, const char *filename);
 
    /* db_copy_json() is obsolete, use db_copy_json_save, _values and _ls instead */
-   INT EXPRT db_copy_json_obsolete(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int save_keys, int follow_links, int recurse);
+CLINK INT EXPRT db_copy_json_obsolete(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int save_keys, int follow_links, int recurse);
 
    /* json encoder using the "ODB save" encoding, for use with "ODB load" and db_paste_json() */
-   INT EXPRT db_copy_json_save(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
+CLINK INT EXPRT db_copy_json_save(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
    /* json encoder using the "ls" format, for getting the contents of a single ODB subdirectory */
-   INT EXPRT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
+CLINK INT EXPRT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
    /* json encoder using the "get_values" format, for resolving links and normalized ODB path names (converted to lower-case) */
   INT EXPRT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end, int omit_names, int omit_last_written, time_t omit_old_timestamp, int preserve_case);
    /* json encoder for an ODB array */
-   INT EXPRT db_copy_json_array(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end);
+CLINK INT EXPRT db_copy_json_array(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end);
    /* json encoder for a single element of an ODB array */
-   INT EXPRT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int *buffer_size, int *buffer_end);
+CLINK INT EXPRT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int *buffer_size, int *buffer_end);
 
-   INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKey, const char *buffer);
-   INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKey, int index, const /* MJsonNode */ void *json_node);
+CLINK INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKey, const char *buffer);
+CLINK INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKey, int index, const /* MJsonNode */ void *json_node);
 
-   INT EXPRT db_sprintf(char *string, const void *data, INT data_size, INT index, DWORD type);
-   INT EXPRT db_sprintff(char *string, const char *format, const void *data, INT data_size, INT index, DWORD type);
-   INT EXPRT db_sprintfh(char *string, const void *data, INT data_size, INT index, DWORD type);
-   INT EXPRT db_sscanf(const char *string, void *data, INT * data_size, INT index, DWORD type);
-   INT db_get_watchdog_info(HNDLE hDB, const char *client_name, DWORD * timeout, DWORD * last);
-   INT EXPRT db_update_last_activity(DWORD millitime);
+CLINK INT EXPRT db_sprintf(char *string, const void *data, INT data_size, INT index, DWORD type);
+CLINK INT EXPRT db_sprintff(char *string, const char *format, const void *data, INT data_size, INT index, DWORD type);
+CLINK INT EXPRT db_sprintfh(char *string, const void *data, INT data_size, INT index, DWORD type);
+CLINK INT EXPRT db_sscanf(const char *string, void *data, INT * data_size, INT index, DWORD type);
+CLINK INT db_get_watchdog_info(HNDLE hDB, const char *client_name, DWORD * timeout, DWORD * last);
+CLINK INT EXPRT db_update_last_activity(DWORD millitime);
 
-   char EXPRT *strcomb(const char **list);
-   std::string EXPRT strcomb1(const char **list);
+CLINK char EXPRT *strcomb(const char **list);
+      std::string EXPRT strcomb1(const char **list);
 
    /** @} */
 
    /*---- Bank routines ----*/
-   void EXPRT bk_init(void *pbh);
-   void EXPRT bk_init32(void *event);
-   BOOL EXPRT bk_is32(const void *event);
-   INT EXPRT bk_size(const void *pbh);
-   void EXPRT bk_create(void *pbh, const char *name, WORD type, void **pdata);
-   INT EXPRT bk_delete(void *event, const char *name);
-   INT EXPRT bk_close(void *pbh, void *pdata);
-   INT EXPRT bk_list(const void *pbh, char *bklist);
-   INT EXPRT bk_locate(const void *pbh, const char *name, void *pdata);
-   INT EXPRT bk_iterate(const void *pbh, BANK ** pbk, void *pdata);
-   INT EXPRT bk_iterate32(const void *pbh, BANK32 ** pbk, void *pdata);
-   INT EXPRT bk_copy(char * pevent, char * psrce, const char * bkname);
-   INT EXPRT bk_swap(void *event, BOOL force);
-   INT EXPRT bk_find(const BANK_HEADER * pbkh, const char *name, DWORD * bklen, DWORD * bktype, void **pdata);
+CLINK void EXPRT bk_init(void *pbh);
+CLINK void EXPRT bk_init32(void *event);
+CLINK BOOL EXPRT bk_is32(const void *event);
+CLINK INT EXPRT bk_size(const void *pbh);
+CLINK void EXPRT bk_create(void *pbh, const char *name, WORD type, void **pdata);
+CLINK INT EXPRT bk_delete(void *event, const char *name);
+CLINK INT EXPRT bk_close(void *pbh, void *pdata);
+CLINK INT EXPRT bk_list(const void *pbh, char *bklist);
+CLINK INT EXPRT bk_locate(const void *pbh, const char *name, void *pdata);
+CLINK INT EXPRT bk_iterate(const void *pbh, BANK ** pbk, void *pdata);
+CLINK INT EXPRT bk_iterate32(const void *pbh, BANK32 ** pbk, void *pdata);
+CLINK INT EXPRT bk_copy(char * pevent, char * psrce, const char * bkname);
+CLINK INT EXPRT bk_swap(void *event, BOOL force);
+CLINK INT EXPRT bk_find(const BANK_HEADER * pbkh, const char *name, DWORD * bklen, DWORD * bktype, void **pdata);
 
    /*---- RPC routines ----*/
-   INT EXPRT rpc_clear_allowed_hosts(void);
-   INT EXPRT rpc_add_allowed_host(const char* hostname);
+CLINK INT EXPRT rpc_clear_allowed_hosts(void);
+CLINK INT EXPRT rpc_add_allowed_host(const char* hostname);
 
-   INT EXPRT rpc_register_functions(const RPC_LIST * new_list, RPC_HANDLER func);
-   INT EXPRT rpc_register_function(INT id, RPC_HANDLER func);
-   INT EXPRT rpc_get_option(HNDLE hConn, INT item);
-   INT EXPRT rpc_set_option(HNDLE hConn, INT item, INT value);
-   INT EXPRT rpc_set_name(const char *name);
-   INT EXPRT rpc_get_name(char *name);
-   INT EXPRT rpc_is_remote(void);
-   std::string rpc_get_mserver_hostname();
-   INT EXPRT rpc_is_mserver(void);
-   INT EXPRT rpc_set_debug(void (*func) (const char *), INT mode);
-   void EXPRT rpc_debug_printf(const char *format, ...);
+CLINK INT EXPRT rpc_register_functions(const RPC_LIST * new_list, RPC_HANDLER func);
+CLINK INT EXPRT rpc_register_function(INT id, RPC_HANDLER func);
+CLINK INT EXPRT rpc_get_option(HNDLE hConn, INT item);
+CLINK INT EXPRT rpc_set_option(HNDLE hConn, INT item, INT value);
+CLINK INT EXPRT rpc_set_name(const char *name);
+CLINK INT EXPRT rpc_get_name(char *name);
+CLINK INT EXPRT rpc_is_remote(void);
 
-   INT EXPRT rpc_register_server(int port, int *plsock, int *pport);
-   INT EXPRT rpc_register_client(const char *name, RPC_LIST * list);
-   INT EXPRT rpc_server_loop(void);
-   INT EXPRT rpc_server_shutdown(void);
-   INT EXPRT rpc_client_call(HNDLE hConn, DWORD routine_id, ...);
-   INT EXPRT rpc_call(DWORD routine_id, ...);
-   INT EXPRT rpc_tid_size(INT id);
-   const char EXPRT *rpc_tid_name(INT id);
-   INT EXPRT rpc_server_connect(const char *host_name, const char *exp_name);
-   INT EXPRT rpc_client_connect(const char *host_name, INT midas_port, const char *client_name, HNDLE * hConnection);
-   INT EXPRT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown);
+      std::string rpc_get_mserver_hostname();
 
-   INT EXPRT rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, INT buf_size, INT async_flag, INT mode);
-   INT EXPRT rpc_flush_event(void);
+CLINK INT EXPRT rpc_is_mserver(void);
+CLINK INT EXPRT rpc_set_debug(void (*func) (const char *), INT mode);
+CLINK void EXPRT rpc_debug_printf(const char *format, ...);
 
-   void EXPRT rpc_get_convert_flags(INT * convert_flags);
-   void EXPRT rpc_convert_single(void *data, INT tid, INT flags, INT convert_flags);
-   void EXPRT rpc_convert_data(void *data, INT tid, INT flags, INT size, INT convert_flags);
+CLINK INT EXPRT rpc_register_server(int port, int *plsock, int *pport);
+CLINK INT EXPRT rpc_register_client(const char *name, RPC_LIST * list);
+CLINK INT EXPRT rpc_server_loop(void);
+CLINK INT EXPRT rpc_server_shutdown(void);
+CLINK INT EXPRT rpc_client_call(HNDLE hConn, DWORD routine_id, ...);
+CLINK INT EXPRT rpc_call(DWORD routine_id, ...);
+CLINK INT EXPRT rpc_tid_size(INT id);
+CLINK const char EXPRT *rpc_tid_name(INT id);
+CLINK INT EXPRT rpc_server_connect(const char *host_name, const char *exp_name);
+CLINK INT EXPRT rpc_client_connect(const char *host_name, INT midas_port, const char *client_name, HNDLE * hConnection);
+CLINK INT EXPRT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown);
+
+CLINK INT EXPRT rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, INT buf_size, INT async_flag, INT mode);
+CLINK INT EXPRT rpc_flush_event(void);
+
+CLINK void EXPRT rpc_get_convert_flags(INT * convert_flags);
+CLINK void EXPRT rpc_convert_single(void *data, INT tid, INT flags, INT convert_flags);
+CLINK void EXPRT rpc_convert_data(void *data, INT tid, INT flags, INT size, INT convert_flags);
 
    /** @addtogroup msfunctionc */
    /** @{ */
 
    /*---- system services ----*/
-   DWORD EXPRT ss_millitime(void);
-   DWORD EXPRT ss_time(void);
-   DWORD EXPRT ss_settime(DWORD seconds);
-   char EXPRT *ss_asctime(void);
-   INT EXPRT ss_sleep(INT millisec);
-   BOOL EXPRT ss_kbhit(void);
+CLINK DWORD EXPRT ss_millitime(void);
+CLINK DWORD EXPRT ss_time(void);
+CLINK DWORD EXPRT ss_settime(DWORD seconds);
+CLINK char EXPRT *ss_asctime(void);
+CLINK INT EXPRT ss_sleep(INT millisec);
+CLINK BOOL EXPRT ss_kbhit(void);
 
-   double EXPRT ss_nan(void);
-   int EXPRT ss_isnan(double x);
-   int EXPRT ss_isfin(double x);
+CLINK double EXPRT ss_nan(void);
+CLINK INT EXPRT ss_isnan(double x);
+CLINK INT EXPRT ss_isfin(double x);
 
-   void EXPRT ss_clear_screen(void);
-   void EXPRT ss_printf(INT x, INT y, const char *format, ...);
-   void ss_set_screen_size(int x, int y);
+CLINK void EXPRT ss_clear_screen(void);
+CLINK void EXPRT ss_printf(INT x, INT y, const char *format, ...);
+CLINK void ss_set_screen_size(int x, int y);
 
-   char EXPRT *ss_getpass(const char *prompt);
-   INT EXPRT ss_getchar(BOOL reset);
-   char EXPRT *ss_crypt(const char *key, const char *salt);
-   char EXPRT *ss_gets(char *string, int size);
+CLINK char EXPRT *ss_getpass(const char *prompt);
+CLINK INT EXPRT ss_getchar(BOOL reset);
+CLINK char EXPRT *ss_crypt(const char *key, const char *salt);
+CLINK char EXPRT *ss_gets(char *string, int size);
 
-   void EXPRT *ss_ctrlc_handler(void (*func) (int));
+CLINK void EXPRT *ss_ctrlc_handler(void (*func) (int));
 
    /*---- direct io routines ----*/
-   INT EXPRT ss_directio_give_port(INT start, INT end);
-   INT EXPRT ss_directio_lock_port(INT start, INT end);
+CLINK INT EXPRT ss_directio_give_port(INT start, INT end);
+CLINK INT EXPRT ss_directio_lock_port(INT start, INT end);
 
    /*---- tape routines ----*/
-   INT EXPRT ss_tape_open(char *path, INT oflag, INT * channel);
-   INT EXPRT ss_tape_close(INT channel);
-   INT EXPRT ss_tape_status(char *path);
-   INT EXPRT ss_tape_read(INT channel, void *pdata, INT * count);
-   INT EXPRT ss_tape_write(INT channel, void *pdata, INT count);
-   INT EXPRT ss_tape_write_eof(INT channel);
-   INT EXPRT ss_tape_fskip(INT channel, INT count);
-   INT EXPRT ss_tape_rskip(INT channel, INT count);
-   INT EXPRT ss_tape_rewind(INT channel);
-   INT EXPRT ss_tape_spool(INT channel);
-   INT EXPRT ss_tape_mount(INT channel);
-   INT EXPRT ss_tape_unmount(INT channel);
-   INT EXPRT ss_tape_get_blockn(INT channel);
+CLINK INT EXPRT ss_tape_open(char *path, INT oflag, INT * channel);
+CLINK INT EXPRT ss_tape_close(INT channel);
+CLINK INT EXPRT ss_tape_status(char *path);
+CLINK INT EXPRT ss_tape_read(INT channel, void *pdata, INT * count);
+CLINK INT EXPRT ss_tape_write(INT channel, void *pdata, INT count);
+CLINK INT EXPRT ss_tape_write_eof(INT channel);
+CLINK INT EXPRT ss_tape_fskip(INT channel, INT count);
+CLINK INT EXPRT ss_tape_rskip(INT channel, INT count);
+CLINK INT EXPRT ss_tape_rewind(INT channel);
+CLINK INT EXPRT ss_tape_spool(INT channel);
+CLINK INT EXPRT ss_tape_mount(INT channel);
+CLINK INT EXPRT ss_tape_unmount(INT channel);
+CLINK INT EXPRT ss_tape_get_blockn(INT channel);
 
    /*---- disk routines ----*/
-   double EXPRT ss_disk_free(const char *path);
-   double EXPRT ss_file_size(const char *path);
-   INT EXPRT ss_file_exist(const char *path);
-   INT EXPRT ss_file_remove(const char *path);
-   INT EXPRT ss_file_find(const char *path, const char *pattern, char **plist);
-   INT EXPRT ss_dir_find(const char *path, const char *pattern, char **plist);
-   double EXPRT ss_disk_size(const char *path);
+CLINK double EXPRT ss_disk_free(const char *path);
+CLINK double EXPRT ss_file_size(const char *path);
+CLINK INT EXPRT ss_file_exist(const char *path);
+CLINK INT EXPRT ss_file_remove(const char *path);
+CLINK INT EXPRT ss_file_find(const char *path, const char *pattern, char **plist);
+CLINK INT EXPRT ss_dir_find(const char *path, const char *pattern, char **plist);
+CLINK double EXPRT ss_disk_size(const char *path);
 
    /** @} */
 
    /*---- ELog functions ----*/
-   INT EXPRT el_retrieve(char *tag, char *date, int *run, char *author,
-                         char *type, char *system, char *subject,
-                         char *text, int *textsize, char *orig_tag,
-                         char *reply_tag, char *attachment1,
-                         char *attachment2, char *attachment3, char *encoding);
-   INT EXPRT el_submit(int run, const char *author, const char *type, const char *system,
-                       const char *subject, const char *text, const char *reply_to,
-                       const char *encoding,
-                       const char *afilename1, const char *buffer1, INT buffer_size1,
-                       const char *afilename2, const char *buffer2, INT buffer_size2,
-                       const char *afilename3, const char *buffer3, INT buffer_size3,
-                       char *tag, INT tag_size);
-   INT EXPRT el_search_message(char *tag, int *fh, BOOL walk, char* filename, int filename_size);
-   INT EXPRT el_search_run(int run, char *return_tag);
-   INT EXPRT el_delete_message(const char *tag);
+CLINK INT EXPRT el_retrieve(char *tag, char *date, int *run, char *author,
+                            char *type, char *system, char *subject,
+                            char *text, int *textsize, char *orig_tag,
+                            char *reply_tag, char *attachment1,
+                            char *attachment2, char *attachment3, char *encoding);
+CLINK INT EXPRT el_submit(int run, const char *author, const char *type, const char *system,
+                          const char *subject, const char *text, const char *reply_to,
+                          const char *encoding,
+                          const char *afilename1, const char *buffer1, INT buffer_size1,
+                          const char *afilename2, const char *buffer2, INT buffer_size2,
+                          const char *afilename3, const char *buffer3, INT buffer_size3,
+                          char *tag, INT tag_size);
+CLINK INT EXPRT el_search_message(char *tag, int *fh, BOOL walk, char* filename, int filename_size);
+CLINK INT EXPRT el_search_run(int run, char *return_tag);
+CLINK INT EXPRT el_delete_message(const char *tag);
 
    /*---- alarm functions ----*/
-   INT EXPRT al_check(void);
-   INT EXPRT al_trigger_alarm(const char *alarm_name, const char *alarm_message,
+CLINK INT EXPRT al_check(void);
+CLINK INT EXPRT al_trigger_alarm(const char *alarm_name, const char *alarm_message,
                               const char *default_class, const char *cond_str, INT type);
-   INT EXPRT al_trigger_class(const char *alarm_class, const char *alarm_message, BOOL first);
-   INT EXPRT al_reset_alarm(const char *alarm_name);
-   BOOL EXPRT al_evaluate_condition(const char *condition, char *value);
-   INT al_get_alarms(char *result, int result_size);
+CLINK INT EXPRT al_trigger_class(const char *alarm_class, const char *alarm_message, BOOL first);
+CLINK INT EXPRT al_reset_alarm(const char *alarm_name);
+CLINK BOOL EXPRT al_evaluate_condition(const char *condition, char *value);
+CLINK INT al_get_alarms(char *result, int result_size);
 
    /*---- analyzer functions ----*/
-   void EXPRT test_register(ANA_TEST * t);
-   void EXPRT add_data_dir(char *result, char *file);
-   void EXPRT lock_histo(INT id);
+CLINK void EXPRT test_register(ANA_TEST * t);
+CLINK void EXPRT add_data_dir(char *result, char *file);
+CLINK void EXPRT lock_histo(INT id);
 
-   void EXPRT open_subfolder(const char *name);
-   void EXPRT close_subfolder(void);
+CLINK void EXPRT open_subfolder(const char *name);
+CLINK void EXPRT close_subfolder(void);
 
    /* we need a duplicate of mxml/strlcpy.h or nobody can use strlcpy() from libmidas.a */
 #ifndef HAVE_STRLCPY
@@ -2028,6 +2037,8 @@ extern "C" {
 }
 #endif
 #endif
+
+
 
 #endif                          /* _MIDAS_H */
 

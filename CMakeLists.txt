@@ -246,9 +246,12 @@ set(libsrc
 
 # this is the "object library" target: compiles the sources only once
 add_library(objlib OBJECT ${libsrc})
+add_library(objlib-extern OBJECT ${libsrc})
 
 # shared libraries need PIC
 set_property(TARGET objlib PROPERTY POSITION_INDEPENDENT_CODE 1)
+set_property(TARGET objlib-extern PROPERTY POSITION_INDEPENDENT_CODE 1)
+target_compile_options(objlib-extern PUBLIC -DUSE_EXTERN_C)
 
 # static midas library
 add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
@@ -260,11 +263,26 @@ if (HAVE_MYSQL)
    target_link_libraries(midas-shared ${DB_LIBS})
 endif()
 
+# shared midas library
+add_library(midas-shared-extern SHARED $<TARGET_OBJECTS:objlib-extern>)
+target_compile_options(midas-shared-extern PUBLIC -DUSE_EXTERN_C)
+target_link_libraries(midas-shared-extern ${LIBS})
+if (HAVE_MYSQL)
+   target_link_libraries(midas-shared-extern ${DB_LIBS})
+endif()
+
 target_include_directories(objlib PUBLIC ${SYSINC_DIR})
 target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
 target_include_directories(objlib PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
 if (OPENSSL_FOUND)
    target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
+endif ()
+
+target_include_directories(objlib-extern PUBLIC ${SYSINC_DIR})
+target_include_directories(objlib-extern PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
+target_include_directories(objlib-extern PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
+if (OPENSSL_FOUND)
+   target_include_directories(objlib-extern PRIVATE ${OPENSSL_INCLUDE_DIR})
 endif ()
 
 # midas include is public so all programs linking to libmidas will inherit this
@@ -289,7 +307,7 @@ if (HAVE_ROOT)
    target_compile_options(rmana PRIVATE -DHAVE_ROOT)
 endif(HAVE_ROOT)
 
-install(TARGETS midas midas-shared mfe mana rmana
+install(TARGETS midas midas-shared midas-shared-extern mfe mana rmana
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 

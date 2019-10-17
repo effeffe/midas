@@ -12,19 +12,33 @@ We can read on files in .mid. .mid.gz and .mid.lz4 format. lz4 support is not pr
 libraries, but can be installed using pip (e.g. `pip install lz4`). See the README file to learn more about pip.
 
 
-Example usage for reading event information:
+Basic usage:
 
 ```
 import midas.file_reader
 
 # Open our file
-mfile = midas.file_reader.MidasFile("040129.mid")
+mfile = midas.file_reader.MidasFile("040644.mid")
+
+# We can simply iterate over all events in the file
+for event in mfile:
+    bank_names = ", ".join(b.name for b in event.body.banks.values())
+    print("Event # %s of type ID %s contains banks %s" % (event.header.serial_number, event.header.event_id, bank_names))
+```
+
+
+More complex usage, which can allow you to skip events more efficiently:
+
+```
+import midas.file_reader
+
+# Open our file
+mfile = midas.file_reader.MidasFile("040644.mid")
 
 # Here we choose to just read in the header of each event, and will read
-# the body (the actual banks) later. You could instead just call
-# `mfile.read_next_event()` to read the header and body at the same time.
+# the body (the actual banks) later.
 while mfile.read_next_event_header():
-    header = mfile.event_header
+    header = mfile.event.header
     
     if header.is_midas_internal_event():
         # Skip over events that contain midas messages or ODB dumps
@@ -36,7 +50,7 @@ while mfile.read_next_event_header():
         raise RuntimeError("Unexpectedly failed to read body of event!")
     
     # Loop over the banks of data in this event and print information about them
-    for name, bank in mfile.event_body.banks.items():
+    for name, bank in mfile.event.body.banks.items():
         # The `bank.data` member is automatically converted to appropriate python data types.
         # Here we're just figuring out what that type is to print it to screen. Normally
         # you already know what to expect for each bank, and could just the tuple of floats,
@@ -54,7 +68,7 @@ while mfile.read_next_event_header():
         else:
             # Some data types we just leave as a set of bytes.
             type_str = type(bank.data[0]).__name__
-            
+        
         print("  - bank %s contains %d bytes of data. Python data type: %s" % (name, bank.size_bytes, type_str))
 
 
@@ -87,7 +101,7 @@ except RuntimeError:
 import gzip
 import struct
 import midas
-import json
+import midas.event
 import datetime
 import math
 from xml.etree import ElementTree
@@ -98,109 +112,6 @@ try:
 except ImportError:
     have_lz4 = False
         
-    
-class EventHeader:
-    """
-    Represents a midas EVENT_HEADER struct.
-    See https://midas.triumf.ca/MidasWiki/index.php/Event_Structure#MIDAS_Format_Event
-    
-    Members:
-        
-    * event_id (int)
-    * trigger_mask (int)
-    * serial_number (int)
-    * timestamp (int) - UNIX timestamp of event
-    * event_data_size_bytes (int) - Size of all banks
-    """
-    def __init__(self):
-        self.event_id = None
-        self.trigger_mask = None
-        self.serial_number = None
-        self.timestamp = None
-        self.event_data_size_bytes = None        
-        
-    def is_midas_internal_event(self):
-        """
-        Whether this is a special event that contains the ODB dumps or midas messages.
-        
-        Returns:
-            bool
-        """
-        return self.is_bor_event() or self.is_eor_event() or self.is_msg_event()
-        
-    def is_bor_event(self):
-        """
-        Whether this is a special event that contains the begin-of-run ODB dump.
-        
-        Returns:
-            bool
-        """
-        return self.event_id == 0x8000
-    
-    def is_eor_event(self):
-        """
-        Whether this is a special event that contains the end-of-run ODB dump.
-        
-        Returns:
-            bool
-        """
-        return self.event_id == 0x8001
-    
-    def is_msg_event(self):
-        """
-        Whether this is a special event that contains a midas message.
-        
-        Returns:
-            bool
-        """
-        return self.event_id == 0x8002
-    
-class Bank:
-    """
-    Represents a midas BANK or BANK32 struct.
-    See https://midas.triumf.ca/MidasWiki/index.php/Event_Structure#MIDAS_Format_Event
-    
-    Members:
-        
-    * name (str) - 4 characters
-    * type (int) - See `TID_xxx` members in `midas` module
-    * size_bytes (int)
-    * data (bytes) 
-    """
-    def __init__(self):
-        self.name = None
-        self.type = None
-        self.size_bytes = None
-        self.data = None
-
-class EventBody:
-    """
-    Represents a midas BANK_HEADER and its associated banks.
-    See https://midas.triumf.ca/MidasWiki/index.php/Event_Structure#MIDAS_Format_Event
-    
-    Members:
-        
-    * all_bank_size_bytes (int)
-    * flags (int)
-    * banks (dict of {str: `Bank`}) - Keyed by bank name
-    * non_bank_data (bytes or None) - Content of some special events that don't use banks (e.g. begin-of-run ODB dump)
-    """
-    def __init__(self):
-        self.all_bank_size_bytes = None
-        self.flags = None
-        self.banks = {}
-        self.non_bank_data = None
-        
-    def add_bank(self, bank):
-        self.banks[bank.name] = bank
-        
-    def get_bank(self, bank_name):
-        return self.banks[bank_name]
-    
-    def bank_exists(self, bank_name):
-        return bank_name in self.banks
-
-        
 class MidasFile:
     """
     Provides access to a midas file - either raw (.mid), gzipped (.mid.gz) or lz4 (.mid.lz4).
@@ -208,8 +119,7 @@ class MidasFile:
     Members:
         
     * file (file-like object)
-    * event_header (`EventHeader`) - The event we've just read
-    * event_body (`EventBody`) - The event we've just read
+    * event (`Event`) - The event we've just read
     * next_event_offset (int) - Position in file where the next event starts
     * this_event_payload_offset (int) - Sometimes we just read the event header,
         not the full data. This member is where the data of the current event starts.
@@ -227,44 +137,6 @@ class MidasFile:
         self.reset_event()
         self.open(path)
         
-        self.__tid_size = {midas.TID_BYTE: 1, 
-                           midas.TID_SBYTE: 1,
-                           midas.TID_CHAR: 1, 
-                           midas.TID_WORD: 2,
-                           midas.TID_SHORT: 2,
-                           midas.TID_DWORD: 4,
-                           midas.TID_INT: 4,
-                           midas.TID_BOOL: 4,
-                           midas.TID_FLOAT: 4,
-                           midas.TID_DOUBLE: 8,
-                           midas.TID_BITFIELD: 1,
-                           midas.TID_STRING: 0,
-                           midas.TID_ARRAY: 0,
-                           midas.TID_STRUCT: 0,
-                           midas.TID_KEY: 0,
-                           midas.TID_LINK: 0}
-        
-        self.__tid_unpack_format = {midas.TID_BYTE: 'c', # C char / python byte
-                                    midas.TID_SBYTE: 'b', # C signed char / python int
-                                    midas.TID_CHAR: 'c', # C char / we'll make a python string 
-                                    midas.TID_WORD: 'H', # C unsigned short / python int
-                                    midas.TID_SHORT: 'h', # C signed short / python int
-                                    midas.TID_DWORD: 'I', # C unsigned int / python int
-                                    midas.TID_INT: 'i', # C signed int / python int
-                                    midas.TID_BOOL: 'I', # C unsigned int / we'll make a list of python bools
-                                    midas.TID_FLOAT: 'f', # C float / python float
-                                    midas.TID_DOUBLE: 'd', # C double / python double
-                                    midas.TID_BITFIELD: 'I', # C unsigned int / python int 
-                                    midas.TID_STRING: None, # We just give raw bytes
-                                    midas.TID_ARRAY: None, # We just give raw bytes
-                                    midas.TID_STRUCT: None, # We just give raw bytes
-                                    midas.TID_KEY: None, # We just give raw bytes
-                                    midas.TID_LINK: None # We just give raw bytes
-                                    }
-        
-        # Read in little-endian
-        self.endian_format_flag = '<'
-        
         
     def __del__(self):
         """
@@ -273,13 +145,30 @@ class MidasFile:
         if self.file:
             self.file.close()
         
+    def __next__(self):
+        """
+        Iterable interface for looping through events.
+        """
+        ev = self.read_next_event()
+        
+        if not ev:
+            raise StopIteration()
+        else:
+            return ev
+            
+        
+    def __iter__(self):
+        """
+        Iterable interface for looping through events.
+        """
+        return self
+        
     def reset_event(self):
         """
         Forget about an event we've already read (but don't rewind
         the actual file pointer).
         """
-        self.event_header = EventHeader()
-        self.event_body = EventBody()
+        self.event = midas.event.Event()
         self.this_event_payload_offset = 0
         
     def open(self, path):
@@ -342,15 +231,31 @@ class MidasFile:
         self.jump_to_start()
         raise RuntimeError("Unable to find EOR event")
     
+    def get_next_event_with_bank(self, bank_name):
+        """
+        Find the next event that contain a bank with the specified name.
+        
+        Returns:
+            `Event`, or None of no such event found.
+        """
+        while self.read_next_event():
+            if bank_name in self.event.body.banks.keys():
+                return self.event
+            
+        return None
+    
     def read_next_event(self):
         """
         Read the header and content of the next event.
         May be slow if there is a lot of data.
+        
+        Returns:
+            `Event`, of None if no more events left.
         """
         if self.read_next_event_header():
             return self.read_this_event_body()
         else:
-            return False
+            return None
     
     def read_next_event_header(self):
         """
@@ -360,106 +265,83 @@ class MidasFile:
         If the event isn't interesting, then you saved yourself a lot
         of time by not loading a bunch of data you don't care about.
         
-        Populates self.event.header only.
+        Returns:
+            `Event` (with only the header populated), or None if no
+            more events left.
         """
         self.reset_event()
         this_event_offset = self.next_event_offset
         
         self.file.seek(self.next_event_offset, 0)
-        header_data = self.file.read(16)
+        header_data = self.file.read(midas.event.event_header_size)
         
         if not header_data:
-            return False
+            return None
         
-        unpacked = struct.unpack(self.endian_format_flag + "HHIII", header_data)
-        self.event_header.event_id = unpacked[0]
-        self.event_header.trigger_mask = unpacked[1]
-        self.event_header.serial_number = unpacked[2]
-        self.event_header.timestamp = unpacked[3]
-        self.event_header.event_data_size_bytes = unpacked[4]
+        self.event.header.fill_from_bytes(header_data)
         
-        self.this_event_payload_offset = this_event_offset + 4 * 4
-        self.next_event_offset += self.event_header.event_data_size_bytes + 4 * 4
+        self.this_event_payload_offset = this_event_offset + midas.event.event_header_size
+        self.next_event_offset += self.event.header.event_data_size_bytes + midas.event.event_header_size
         
-        return True
+        return self.event
     
     def read_this_event_body(self):
         """
         Read the data of the current event (that you've already read the header info of).
         
-        Populates self.event.banks or self.event.non_bank_data (depending on the event type).
+        Populates event.banks or event.non_bank_data (depending on the event type).
+        
+        Returns:
+            `Event` (with both the header and body populated)
         """
         self.file.seek(self.this_event_payload_offset, 0)
             
-        if self.event_header.is_midas_internal_event():
-            self.event_body.non_bank_data = self.file.read(self.event_header.event_data_size_bytes - 1)
+        if self.event.header.is_midas_internal_event():
+            self.event.body.non_bank_data = self.file.read(self.event_header.event_data_size_bytes - 1)
         else:
-            bank_header_data = self.file.read(8)
-            unpacked = struct.unpack(self.endian_format_flag + "II", bank_header_data)
-            self.event_body.all_bank_size_bytes = unpacked[0]
-            self.event_body.flags = unpacked[1]
-            
-            is_bank_32 = self.event_body.flags & (1<<4)
+            all_bank_header_data = self.file.read(midas.event.all_bank_header_size)
+            self.event.body.fill_header_from_bytes(all_bank_header_data)
             
             while self.file.tell() < self.next_event_offset - 4:
-                tmp = self.file.tell()
-                
-                if is_bank_32:
+                if self.event.body.is_bank_32():
                     bank_header_data = self.file.read(12)
-                    unpacked = struct.unpack(self.endian_format_flag + "ccccII", bank_header_data)
                 else:
                     bank_header_data = self.file.read(8)
-                    unpacked = struct.unpack(self.endian_format_flag + "ccccHH", bank_header_data)
+                
+                bank = midas.event.Bank()
+                bank.fill_header_from_bytes(bank_header_data, self.event.body.is_bank_32())
                     
-                bank = Bank()
-                bank.name = "".join(x.decode('utf-8') for x in unpacked[:4])
-                bank.type = unpacked[4]
-                bank.size_bytes = unpacked[5]
-                
-                if bank.type not in self.__tid_size:
-                    raise ValueError("Unexpected bank type %d for name '%s'" % (bank.type, bank.name))
-                
-                padding = ((bank.size_bytes + 7) & ~7) - bank.size_bytes
                 raw_data = self.file.read(bank.size_bytes)
-                self.file.read(padding)
+                bank.convert_and_store_data(raw_data)
                 
-                # Convert to python types
-                
-                if self.__tid_size[bank.type] == 0 or self.__tid_unpack_format[bank.type] is None:
-                    # No special handling - just return raw bytes.
-                    bank.data = raw_data
-                else:
-                    fmt = self.endian_format_flag + self.__tid_unpack_format[bank.type] * (bank.size_bytes / self.__tid_size[bank.type])
-                    unpacked_data = struct.unpack(fmt, raw_data)
-                        
-                    if bank.type == midas.TID_CHAR:
-                        # Make a string
-                        bank.data = "".join(unpacked_data)
-                    elif bank.type == midas.TID_BOOL:
-                        # Convert from 0/1 to False/True
-                        bank.data = (u != 0 for u in unpacked_data)
-                    else:
-                        # Regular list
-                        bank.data = unpacked_data
-                
-                self.event_body.add_bank(bank)
-        
-        return True
+                self.event.body.add_bank(bank)
 
-    def get_event_count(self):
+                self.file.read(bank.get_expected_padding())
+        
+        return self.event
+
+    def get_event_count(self, include_midas_special_events=False):
         """
-        Count the number of events in this file. Does not include
-        the special begin-of-ruin or end-of-run events.
+        Count the number of events in this file.
+        
+        Args:
+            * include_midas_special_events (bool) - Whether to include
+                midas' internal events in the count (begin-of-run, message and 
+                end-of-run events).
+        
+        Returns:
+            int
         """
         self.jump_to_start()
         count = 0
         
         while self.read_next_event_header():
-            if self.event_header.is_midas_internal_event():
+            if self.event.header.is_midas_internal_event() and not include_midas_special_events:
                 continue
             
             count += 1
             
+        self.jump_to_start()
         return count
 
 class Odb:
