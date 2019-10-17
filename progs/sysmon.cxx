@@ -7,11 +7,11 @@
   * 
   * Parse /proc/stat and /proc/memstat like htop
   * 
-  * I trust users to assign a new instance number for each machine they 
-  * want to monitor... eg:
-  * ssh mydaq sysmon -i 1
-  * ssh myvme sysmon -i 2
-  * ssh mypi sysmon -i 3
+  * Equipment names are assiged by the local hostname, so run an 
+  * instance for each system you want to monitor... eg:
+  * ssh mydaq sysmon 
+  * ssh myvme sysmon 
+  * ssh mypi sysmon 
 
 \********************************************************************/
 
@@ -89,8 +89,7 @@ int read_system_load(char *pevent, int off);
 
 EQUIPMENT equipment[] = {
 
-  { "sysmon%02d"   ,       /* equipment name */
-    {
+  { "sysmon_${HOSTNAME}",   /* equipment name */    {
       EVID_MONITOR, 0,      /* event ID, trigger mask */
       "SYSTEM",             /* event buffer */
       EQ_PERIODIC,          /* equipment type */
