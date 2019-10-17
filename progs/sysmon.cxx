@@ -546,6 +546,9 @@ void BuildHostGPUPlot()
    *m=0.;
    sprintf(path,"/History/Display/sysmon/%s-GPU/Minimum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
+   *m=100.;
+   sprintf(path,"/History/Display/sysmon/%s-GPU/Maximum",equipment[0].info.frontend_host);
+   status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    delete m;
 }
 #endif
