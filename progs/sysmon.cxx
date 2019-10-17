@@ -546,9 +546,6 @@ void BuildHostGPUPlot()
    *m=0.;
    sprintf(path,"/History/Display/sysmon/%s-GPU/Minimum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
-   *m=100.;
-   sprintf(path,"/History/Display/sysmon/%s-GPU/Maximum",equipment[0].info.frontend_host);
-   status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    delete m;
 }
 #endif
@@ -810,7 +807,6 @@ static void get_device_features(GPU* dev)
     dev->feature_support |= POWER_USAGE;
   }
 
-
   if(nvmlDeviceGetFanSpeed(dev->handle, &dev->fan) == NVML_SUCCESS) {
     dev->feature_support |= FAN_INFO;
   }
@@ -827,12 +823,10 @@ void InitGPU()
     exit(1);
   NVML_TRY(nvmlDeviceGetCount(&nGPUs));
 
-  //GPUs. = calloc(nGPUs, sizeof(struct device));
-
   for(unsigned i = 0; i < nGPUs; ++i) {
     GPU* dev=new GPU();
     GPUs.push_back(dev);
-    
+
     dev->index = i;
 
     NVML_TRY(nvmlDeviceGetHandleByIndex(i, &dev->handle));
@@ -851,14 +845,7 @@ void InitGPU()
     } else {
       dev->event_set = NULL;
     }
-/*
-    for(nvmlClockType_t type = NVML_CLOCK_GRAPHICS; type < NVML_CLOCK_COUNT;
-        ++type) {
-      if(NVML_TRY(nvmlDeviceGetMaxClockInfo(dev->handle, type,
-                                            &dev->max_clock[type])))
-        break;
-    }
-*/
+
     get_device_features(dev);
 
   }
@@ -885,13 +872,6 @@ void ReadGPUData()
       NVML_TRY(nvmlDeviceGetPowerUsage(dev->handle, &dev->power_usage));
     }
 
-/*    if(dev->feature_support & CLOCK_INFO) {
-      for(nvmlClockType_t type = NVML_CLOCK_GRAPHICS; type < NVML_CLOCK_COUNT;
-          ++type) {
-        NVML_TRY(nvmlDeviceGetClockInfo(dev->handle, type, &dev->clock[type]));
-      }
-    }
-*/
     if(dev->feature_support & FAN_INFO) {
       NVML_TRY(nvmlDeviceGetFanSpeed(dev->handle, &dev->fan));
     }
@@ -1031,42 +1011,41 @@ int read_system_load(char *pevent, int off)
       *m=swap_percent;
       bk_close(pevent,m+1);
    }
-   
-   
+
 #if HAVE_NVIDIA
    ReadGPUData();
    int* t;
-   
+
    //GPU Temperature
    bk_create(pevent, "GPUT", TID_INT, (void**)&t);
-   for (int i=0; i<nGPUs; i++)
+   for (unsigned i=0; i<nGPUs; i++)
    {
       *t=GPUs[i]->temperature;
       t++;
    }
    bk_close(pevent,t);
-   
+
    //GPU Fan speed
    bk_create(pevent, "GPUF", TID_INT, (void**)&t);
-   for (int i=0; i<nGPUs; i++)
+   for (unsigned i=0; i<nGPUs; i++)
    {
       *t=GPUs[i]->fan;
       t++;
    }
    bk_close(pevent,t);
-   
+
    //GPU Power (W)
    bk_create(pevent, "GPUP", TID_INT, (void**)&t);
-   for (int i=0; i<nGPUs; i++)
+   for (unsigned i=0; i<nGPUs; i++)
    {
       *t=GPUs[i]->power_usage/1000;
       t++;
    }
    bk_close(pevent,t);
-   
+
    //GPU Utilisiation (%)
    bk_create(pevent, "GPUU", TID_INT, (void**)&t);
-   for (int i=0; i<nGPUs; i++)
+   for (unsigned i=0; i<nGPUs; i++)
    {
       *t=GPUs[i]->util.gpu;
       t++;
@@ -1075,7 +1054,7 @@ int read_system_load(char *pevent, int off)
 
    //GPU Memory Utilisiation (%)
    bk_create(pevent, "GPUM", TID_DOUBLE, (void**)&m);
-   for (int i=0; i<nGPUs; i++)
+   for (unsigned i=0; i<nGPUs; i++)
    {
      *m=100.*(double)GPUs[i]->memory.used/(double)GPUs[i]->memory.total;
       m++;
