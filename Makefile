@@ -147,6 +147,13 @@ endif
 #
 NEED_ZLIB=
 
+#
+# Optional nvidia gpu support, HAVE_NVIDIA is a count of CPUs
+#
+ifndef NO_NVIDIA
+HAVE_NVIDIA := $(shell nvidia-smi -L | wc -l 2> /dev/null)
+endif
+
 #####################################################################
 # Nothing needs to be modified after this line 
 #####################################################################
@@ -651,6 +658,10 @@ ROOTLIBS    := $(shell root-config --libs)
 ROOTGLIBS   := $(shell root-config --glibs)
 ROOTCFLAGS  := $(shell root-config --cflags)
 ROOTCFLAGS  += -DHAVE_ROOT
+endif
+
+ifdef HAVE_NVIDIA
+CFLAGS      += -DHAVE_NVIDIA   -L/usr/local/cuda/lib64 -lnvidia-ml -I/usr/local/cuda/include
 endif
 
 ifdef NEED_ZLIB
