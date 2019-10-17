@@ -121,8 +121,9 @@ function load_script() {
       }
       //location.search = "cmd=Sequencer";
       //location.search = "";
-      location.href = "sequencer.html";
-      // not reached: reloads the page
+      //location.href = "sequencer.html";
+      mhttpd_goto_page("seq");
+      // DOES NOT RETURN
    }).catch(function (error) {
       document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
       dlgShow('dlgError');
@@ -140,7 +141,8 @@ function load_subdir() {
    if (xsubdir)
       nextdir = xsubdir + "/";
    nextdir += selected;
-   document.location.href = "?subdir=" + encodeURIComponent(nextdir);
+   //document.location.href = "?subdir=" + encodeURIComponent(nextdir);
+   mhttpd_goto_page("load_script&subdir=" + encodeURIComponent(nextdir));
    // DOES NOT RETURN
 }
 
@@ -149,16 +151,18 @@ function up_subdir() {
    a.pop();
    if (a.length > 0) {
       var nextdir = a.join("/");
-      document.location.href = "?subdir=" + encodeURIComponent(nextdir);
+      //document.location.href = "?subdir=" + encodeURIComponent(nextdir);
+      mhttpd_goto_page("load_script&subdir=" + encodeURIComponent(nextdir));
       // DOES NOT RETURN
    } else {
-      document.location.href = "?nosubdir";
+      //document.location.href = "?nosubdir";
+      mhttpd_goto_page("load_script");
       // DOES NOT RETURN
    }
 }
 
 function cancel() {
-   mhttpd_goto_page("status");
+   mhttpd_goto_page("seq");
 }
 
 function callback(rpc) {

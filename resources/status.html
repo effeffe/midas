@@ -437,31 +437,31 @@
             try {
                var statusItem = document.createElement("td");
                statusItem.align = "center";
-               statusItem.innerHTML = equipmentCommonData[i]["status"];
+               mhttpd_set_innerHTML(statusItem, equipmentCommonData[i]["status"]);
 
                if (equipmentCommonData[i]["enabled"]) {
 
                   if (equipmentCommonData[i]["frontend name"].length > 0 &&
-                     !clientExists(clients, equipmentCommonData[i]["frontend name"])) {
-                     statusItem.innerHTML = "Frontend stopped";
-                     statusItem.className = "redLight";
+                      !clientExists(clients, equipmentCommonData[i]["frontend name"])) {
+                     mhttpd_set_innerHTML(statusItem, "Frontend stopped");
+                     mhttpd_set_className(statusItem, "redLight");
                   } else {
                      if (equipmentCommonData[i]["status"].length < 1) {
-                        statusItem.innerHTML = equipmentCommonData[i]["frontend name"] + "@" + equipmentCommonData[i]["frontend host"];
-                        statusItem.className = "greenLight";
+                        mhttpd_set_innerHTML(statusItem, equipmentCommonData[i]["frontend name"] + "@" + equipmentCommonData[i]["frontend host"]);
+                        mhttpd_set_className(statusItem, "greenLight");
                      } else {
-                        statusItem.innerHTML = equipmentCommonData[i]["status"];
+                        mhttpd_set_innerHTML(statusItem, equipmentCommonData[i]["status"]);
                         if (equipmentCommonData[i]["status color"].indexOf("Light") != -1)
-                           statusItem.className = equipmentCommonData[i]["status color"];
+                           mhttpd_set_className(statusItem, equipmentCommonData[i]["status color"]);
                         else {
-                           statusItem.className = "Light";
+                           mhttpd_set_className(statusItem, "Light");
                            statusItem.style.backgroundColor = equipmentCommonData[i]["status color"];
                         }
                      }
                   }
                } else {
-                  statusItem.innerHTML = "Disabled";
-                  statusItem.className = "yellowLight";
+                  mhttpd_set_innerHTML(statusItem, "Disabled");
+                  mhttpd_set_className(statusItem, "yellowLight");
                }
 
                var eventsNum = equipmentStatData[i]["events sent"];
@@ -471,22 +471,22 @@
                   eventsNum = (equipmentStatData[i]["events sent"] / 1E6).toFixed(3) + "M";
                }
 
-               var equipmentRow = document.createElement("tr");
-               equipmentRow.id = equipmentNames[i] + "equipment";
-               equipmentRow.className = "equipmentRow";
+               var className = "equipmentRow";
                var unhidden = document.getElementById("hide").innerText === "-";
-               if (equipmentCommonData[i]["hidden"])
-                  equipmentRow.className += " hiddenEquip";
+               if (equipmentCommonData[i]["hidden"]) {
+                  className += " hiddenEquip";
+               }
 
+               var style_display;
                if (equipmentCommonData[i]["hidden"] && !unhidden)
-                  equipmentRow.style.display = "none";
+                  style_display = "none";
                else
-                  equipmentRow.style.display = "table-row";
+                  style_display = "table-row";
 
                var mb = equipmentStatData[i]["kbytes per sec."] / 1000.0;
-               equipmentRow.innerHTML = "<td align=\"center\"><a href='?cmd=eqtable&eq=" +
+               var html = "<td align=\"center\"><a href=\"?cmd=eqtable&amp;eq=" +
                   equipmentNames[i] +
-                  "'>" +
+                  "\">" +
                   equipmentNames[i] +
                   "</a></td>" +
                   statusItem.outerHTML +
@@ -499,15 +499,19 @@
                   "<td align=\"center\">" +
                   mb.toFixed(3) +
                   "</td>";
-               if (document.getElementById(equipmentNames[i] + "equipment") === null) {
+               
+               var e = document.getElementById(equipmentNames[i] + "equipment");
+               if (!e) {
+                  var equipmentRow = document.createElement("tr");
+                  equipmentRow.id = equipmentNames[i] + "equipment";
+                  equipmentRow.style.display = style_display;
+                  equipmentRow.className = className;
+                  equipmentRow.innerHTML = html;
                   document.getElementById("equipmentList").appendChild(equipmentRow);
                } else {
-                  if (document.getElementById(equipmentNames[i] + "equipment").innerHTML !== equipmentRow.innerHTML)
-                     document.getElementById(equipmentNames[i] + "equipment").innerHTML = equipmentRow.innerHTML;
-                  if (document.getElementById(equipmentNames[i] + "equipment").style.display !== equipmentRow.style.display)
-                     document.getElementById(equipmentNames[i] + "equipment").style.display = equipmentRow.style.display;
-                  if (document.getElementById(equipmentNames[i] + "equipment").className !== equipmentRow.className)
-                     document.getElementById(equipmentNames[i] + "equipment").className = equipmentRow.className;
+                  mhttpd_set_innerHTML(e, html);
+                  mhttpd_set_style_display(e, style_display);
+                  mhttpd_set_className(e, className);
                }
             } catch(err) {
                // invalid ODB equipment entry: just skip equipment
@@ -576,17 +580,13 @@
                outerDiv.appendChild(innerDiv);
                diskLevelHtml.appendChild(outerDiv);
 
-               var logChannelRow = document.createElement("tr");
-               logChannelRow.id = element + "channel";
-               logChannelRow.className = "logChannel";
-
                var cl = "myellow mbox";
                if (loggerJson["write data"] == true &&
                    currentChannel["settings"]["active"] == true)
                   cl = "mgreen mbox";
 
-               logChannelRow.innerHTML = "<td colspan=\"2\" class=\""+cl+"\">" +
-                       "<a href=\"?cmd=odb&odb_path=Logger/Channels/" + element + "/Settings\">" +
+               var html = "<td colspan=\"2\" class=\""+cl+"\">" +
+                       "<a href=\"?cmd=odb&amp;odb_path=Logger/Channels/" + element + "/Settings\">" +
                        "#" + element + ": " + "</a>" +
                        currentChannel["settings"]["current filename"] +
                        "</td>" +
@@ -609,33 +609,29 @@
                           //Disk Level
                        diskLevelHtml.outerHTML;
 
-               if (document.getElementById(element + "channel") === null) {
+
+               if (!document.getElementById(element + "channel")) {
+                  var logChannelRow = document.createElement("tr");
+                  logChannelRow.id = element + "channel";
+                  logChannelRow.className = "logChannel";
+                  logChannelRow.innerHTML = html;
                   document.getElementById("logChannel").appendChild(logChannelRow);
                } else {
-                  if (document.getElementById(element + "channel").innerHTML != logChannelRow.innerHTML) {
-                     document.getElementById(element + "channel").innerHTML = logChannelRow.innerHTML;
-                  }
+                  mhttpd_set_innerHTML(document.getElementById(element + "channel"), html);
                }
-
-
             }
          }
-
 
          if (document.getElementById("logChannelSecondPart") === null) {
             document.getElementById("logChannel").innerHTML += secondLogChannelHtml;
          }
 
-
          for (var element in LazyJson) {
             if (LazyJson[element].settings && LazyJson[element].statistics) {
                var currentLazy = LazyJson[element];
 
-               var logChannelLazy = document.createElement("tr");
-               logChannelLazy.id = element + "channelLazy";
-               logChannelLazy.className = "logChannelLazy";
-               logChannelLazy.innerHTML = "<td colspan=\"2\" >" +
-                       "<a href=\"?cmd=odb&odb_path=Lazy/" + element + "/Settings\">" +
+               var html = "<td colspan=\"2\">" +
+                       "<a href=\"?cmd=odb&amp;odb_path=Lazy/" + element + "/Settings\">" +
                        element + "</a>" +
                        "</td>" +
                        "<td align=\"center\">" +
@@ -651,20 +647,18 @@
                        currentLazy["statistics"]["backup status (%)"].toFixed(1) + "%" +
                        "</td>";
 
-               if (document.getElementById(element + "channelLazy") === null) {
+               if (!document.getElementById(element + "channelLazy")) {
+                  var logChannelLazy = document.createElement("tr");
+                  logChannelLazy.id = element + "channelLazy";
+                  logChannelLazy.className = "logChannelLazy";
+                  logChannelLazy.innerHTML = html;
                   document.getElementById("logChannel").appendChild(logChannelLazy);
                } else {
-                  if (document.getElementById(element + "channelLazy").innerHTML != logChannelLazy.innerHTML) {
-                     document.getElementById(element + "channelLazy").innerHTML = logChannelLazy.innerHTML;
-                  }
+                  mhttpd_set_innerHTML(document.getElementById(element + "channelLazy"), html);
                }
-
-
             }
          }
-
       }
-
 
       function generateClientsTable() {
 
@@ -712,11 +706,9 @@
             }
 
             clientTable.appendChild(oneClientRow);
+         }
 
-         }
-         if (document.getElementById("clientsTable").firstChild.innerHTML != clientTable.innerHTML) {
-            document.getElementById("clientsTable").innerHTML = clientTable.innerHTML;
-         }
+         mhttpd_set_innerHTML(document.getElementById("clientsTable"), "<tbody>" + clientTable.innerHTML + "</tbody>");
       }
 
 

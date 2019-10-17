@@ -24,7 +24,7 @@
       <tr align="center">
          <td colspan="3" align="center">
             <button class="mbutton" onclick='start_sequence()' disabled id="start_button">Start script</button>
-            <button class="mbutton" onclick='location.search="?cmd=status"'>Cancel</button>
+            <button class="mbutton" onclick='cancel()'>Cancel</button>
          </td>
       </tr>
       </tbody>
@@ -44,6 +44,11 @@ var write_back = {};
 var write_path = {};
 var write_bool = {};
 var write_opts = {};
+
+function cancel() {
+   mhttpd_goto_page("seq");
+   // DOES NOT RETURN
+}
 
    function start_sequence() {
 
@@ -83,7 +88,8 @@ var write_opts = {};
             }
          }
          //location.search = "cmd=Sequencer";
-         location.pathname = "sequencer.html";
+         //location.pathname = "sequencer.html";
+         mhttpd_goto_page("seq");
          // not reached: reloads the page
       }).catch(function (error) {
          document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);

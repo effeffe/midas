@@ -50,6 +50,24 @@
 
    var program_status = new Array();
 
+function set_if_changed(e, v) {
+   if (e) {
+      if (e.innerHTML !== v) {
+         //console.log("set_if_changed: " + e + " from " + e.innerHTML + " to " + v);
+         e.innerHTML = v;
+      }
+   }
+}
+
+function set_className_if_changed(e, v) {
+   if (e) {
+      if (e.className !== v) {
+         //console.log("set_className_if_changed: " + e + " from " + e.className + " to " + v);
+         e.className = v;
+      }
+   }
+}
+
    function start_poll(name, start_command, count) {
       program_status[name] = "Starting " + count;
 
@@ -230,7 +248,7 @@
          if (!xclients && !required) {
             if (e) {
                // hide this table row
-               e.style.display = 'none';
+               mhttpd_set_style_display(e, 'none');
             }
             continue;
          }
@@ -243,7 +261,7 @@
          }
 
          // unhide this table row
-         e.style.display = '';
+         mhttpd_set_style_display(e, '');
 
          if (xclients) {
             var s = "";
@@ -253,11 +271,11 @@
                if (host) {
                   if (s.length > 0)
                      s += "<br>";
-                  s += "<a href='?cmd=odb&odb_path=System/Clients/" + key + "'>" + host + "</a>";
+                  s += "<a href=\"?cmd=odb&amp;odb_path=System/Clients/" + key + "\">" + host + "</a>";
                }
             }
-            e.childNodes[1].innerHTML = s;
-            e.childNodes[1].className = "mgreen";
+            set_if_changed(e.childNodes[1], s);
+            set_className_if_changed(e.childNodes[1], "mgreen");
             // enable start/stop buttons
             var b = document.getElementById("start " + name);
             if (b) {
@@ -275,8 +293,8 @@
                }
             }
          } else if (program_status[name]) {
-            e.childNodes[1].innerHTML = program_status[name];
-            e.childNodes[1].className = "myellow";
+            set_if_changed(e.childNodes[1], program_status[name]);
+            set_className_if_changed(e.childNodes[1], "myellow");
             var b = document.getElementById("start " + name);
             if (b && start_command) {
                mhttpd_disable_button(b);
@@ -286,8 +304,8 @@
                mhttpd_disable_button(b);
             }
          } else {
-            e.childNodes[1].innerHTML = "Not running";
-            e.childNodes[1].className = "mred";
+            set_if_changed(e.childNodes[1], "Not running");
+            set_className_if_changed(e.childNodes[1], "mred");
             // enable start/stop buttons
             var b = document.getElementById("start " + name);
             if (b && start_command) {
@@ -303,23 +321,23 @@
 
          var alarm_class = programs[name]["alarm class"];
          if (alarm_class.length > 0) {
-            e.childNodes[2].innerHTML = "<a href='?cmd=odb&odb_path=Alarms/Classes/" + alarm_class + "'>" + alarm_class + "</a>";
-            e.childNodes[2].className = "myellow";
+            set_if_changed(e.childNodes[2], "<a href=\"?cmd=odb&amp;odb_path=Alarms/Classes/" + alarm_class + "\">" + alarm_class + "</a>");
+            set_className_if_changed(e.childNodes[2], "myellow");
          } else {
-            e.childNodes[2].innerHTML = "-";
+            set_if_changed(e.childNodes[2], "-");
          }
 
          if (programs[name]["auto restart"]){
-            e.childNodes[3].innerHTML = "Yes";
-            e.childNodes[3].className = "mgreen";
+            set_if_changed(e.childNodes[3], "Yes");
+            set_className_if_changed(e.childNodes[3], "mgreen");
          }else{
-            e.childNodes[3].innerHTML = "No";
-            e.childNodes[3].className = "mgrey";
+            set_if_changed(e.childNodes[3], "No");
+            set_className_if_changed(e.childNodes[3], "mgrey");
          }
       }
 
       //document.getElementById('updateStatus').innerHTML = "RWPD";
-      document.getElementById('updateStatus').innerHTML = "";
+      set_if_changed(document.getElementById('updateStatus'), "");
    }
 
    function update() {

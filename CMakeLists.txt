@@ -168,6 +168,11 @@ else ()
 endif()
 endif (NO_SQLITE)
 
+#
+# FTP support for mdsupport
+#
+add_compile_options(-DHAVE_FTPLIB)
+
 #-----------------------
 # Default build type
 #

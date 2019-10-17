@@ -111,8 +111,9 @@ function save_script() {
          }
       }
       //location.search = "cmd=Sequencer";
-      location.pathname = "sequencer.html";
-      // not reached: reloads the page
+      //location.pathname = "sequencer.html";
+      mhttpd_goto_page("seq");
+      // DOES NOT RETURN
    }).catch(function (error) {
       document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
       dlgShow('dlgError');
@@ -121,7 +122,7 @@ function save_script() {
 }
 
 function cancel() {
-   mhttpd_goto_page("status");
+   mhttpd_goto_page("seq");
 }
 
 function callback(rpc) {
