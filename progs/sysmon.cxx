@@ -59,8 +59,8 @@ const char *frontend_file_name = __FILE__;
 BOOL frontend_call_loop = FALSE;
 
 /* a frontend status page is displayed with this frequency in ms */
-//INT display_period = 3000;
-INT display_period = 0;
+INT display_period = 3000;
+
 
 
 /* maximum event size produced by this frontend */
