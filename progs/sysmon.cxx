@@ -222,7 +222,7 @@ void BuildHostHistoryPlot()
    // Setup variables to plot:
    /////////////////////////////////////////////////////
    size = 64; // String length in ODB
-   sprintf(path,"/History/Display/sysmon/%s/Variables",getenv("HOSTNAME"));
+   sprintf(path,"/History/Display/sysmon/%s/Variables",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -239,7 +239,7 @@ void BuildHostHistoryPlot()
    // Setup labels 
    /////////////////////////////////////////////////////
    size = 32;
-   sprintf(path,"/History/Display/sysmon/%s/Label",getenv("HOSTNAME"));
+   sprintf(path,"/History/Display/sysmon/%s/Label",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -256,7 +256,7 @@ void BuildHostHistoryPlot()
    // Setup colours:
    /////////////////////////////////////////////////////
    size = 32;
-   sprintf(path,"/History/Display/sysmon/%s/Colour",getenv("HOSTNAME"));
+   sprintf(path,"/History/Display/sysmon/%s/Colour",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -269,14 +269,14 @@ void BuildHostHistoryPlot()
    /////////////////////////////////////////////////////
    // Setup time scale and range:
    /////////////////////////////////////////////////////
-   sprintf(path,"/History/Display/sysmon/%s/Timescale",getenv("HOSTNAME"));
+   sprintf(path,"/History/Display/sysmon/%s/Timescale",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,"1h",3,1,TID_STRING);
    float *m=new float();
    *m=0.;
-   sprintf(path,"/History/Display/sysmon/%s/Minimum",getenv("HOSTNAME"));
+   sprintf(path,"/History/Display/sysmon/%s/Minimum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    *m=100.;
-   sprintf(path,"/History/Display/sysmon/%s/Maximum",getenv("HOSTNAME"));
+   sprintf(path,"/History/Display/sysmon/%s/Maximum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    delete m;
 }
@@ -291,7 +291,7 @@ void BuildHostCPUPlot()
    // Setup variables to plot:
    /////////////////////////////////////////////////////
    size = 64;
-   sprintf(path,"/History/Display/sysmon/%s-CPU/Variables",getenv("HOSTNAME"));
+   sprintf(path,"/History/Display/sysmon/%s-CPU/Variables",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -321,7 +321,7 @@ void BuildHostCPUPlot()
    // Setup labels 
    /////////////////////////////////////////////////////
    size = 32;
-   sprintf(path,"/History/Display/sysmon/%s-CPU/Label",getenv("HOSTNAME"));
+   sprintf(path,"/History/Display/sysmon/%s-CPU/Label",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -335,7 +335,7 @@ void BuildHostCPUPlot()
    // Setup colours:
    /////////////////////////////////////////////////////
    size = 32;
-   sprintf(path,"/History/Display/sysmon/%s-CPU/Colour",getenv("HOSTNAME"));
+   sprintf(path,"/History/Display/sysmon/%s-CPU/Colour",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -347,14 +347,14 @@ void BuildHostCPUPlot()
    /////////////////////////////////////////////////////
    // Setup time scale and range:
    /////////////////////////////////////////////////////
-   sprintf(path,"/History/Display/sysmon/%s-CPU/Timescale",getenv("HOSTNAME"));
+   sprintf(path,"/History/Display/sysmon/%s-CPU/Timescale",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,"1h",3,1,TID_STRING);
    float *m=new float();
    *m=0.;
-   sprintf(path,"/History/Display/sysmon/%s-CPU/Minimum",getenv("HOSTNAME"));
+   sprintf(path,"/History/Display/sysmon/%s-CPU/Minimum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    *m=100.;
-   sprintf(path,"/History/Display/sysmon/%s-CPU/Maximum",getenv("HOSTNAME"));
+   sprintf(path,"/History/Display/sysmon/%s-CPU/Maximum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    delete m;
 }
