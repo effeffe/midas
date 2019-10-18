@@ -62,6 +62,7 @@ BOOL frontend_call_loop = FALSE;
 INT display_period = 3000;
 
 
+
 /* maximum event size produced by this frontend */
 INT max_event_size      = 4*1024*1024;
 INT max_event_size_frag = 4*1024*1024;
@@ -140,6 +141,134 @@ typedef struct CPUData_ {
 std::vector<CPUData*> cpus;
 void ReadCPUData();
 unsigned long long int usertime, nicetime, systemtime, idletime;
+
+#ifdef HAVE_NVIDIA
+#include "nvml.h"
+
+enum feature {
+  TEMPERATURE      = 1 << 0,
+  COMPUTE_MODE     = 1 << 1,
+  POWER_USAGE      = 1 << 2,
+  MEMORY_INFO      = 1 << 3,
+  CLOCK_INFO       = 1 << 4,
+  FAN_INFO         = 1 << 5,
+  UTILIZATION_INFO = 1 << 6
+};
+struct GPU {
+  unsigned index;
+
+  nvmlDevice_t handle;
+
+  nvmlPciInfo_t pci;
+  nvmlComputeMode_t compute_mode;
+  nvmlMemory_t memory;
+  nvmlEventSet_t event_set;
+  // Current device resource utilization rates (as percentages)
+  nvmlUtilization_t util;
+
+  // In Celsius
+  unsigned temperature;
+
+  // In milliwatts
+  unsigned power_usage;
+
+  // Maximum clock speeds, in MHz
+  nvmlClockType_t clock[NVML_CLOCK_COUNT], max_clock[NVML_CLOCK_COUNT];
+
+  // Fan speed, percentage
+  unsigned fan;
+
+  char name[NVML_DEVICE_NAME_BUFFER_SIZE];
+  char serial[NVML_DEVICE_SERIAL_BUFFER_SIZE];
+  char uuid[NVML_DEVICE_UUID_BUFFER_SIZE];
+
+  // Bitmask of enum feature
+  unsigned feature_support;
+};
+unsigned nGPUs=HAVE_NVIDIA;
+std::vector<GPU*> GPUs;
+
+
+// Return string representation of return code
+// Strings are directly from NVML documentation
+
+const char* nvml_error_code_string(nvmlReturn_t ret)
+{
+  switch(ret) {
+  case NVML_SUCCESS:
+    return "The operation was successful";
+  case NVML_ERROR_UNINITIALIZED:
+    return "was not first initialized with nvmlInit()";
+  case NVML_ERROR_INVALID_ARGUMENT:
+    return "A supplied argument is invalid";
+  case NVML_ERROR_NOT_SUPPORTED:
+    return "The requested operation is not available on target device";
+  case NVML_ERROR_NO_PERMISSION:
+    return "The current user does not have permission for operation";
+  case NVML_ERROR_ALREADY_INITIALIZED:
+    return"Deprecated: Multiple initializations are now allowed through ref counting";
+  case NVML_ERROR_NOT_FOUND:
+    return "A query to find an object was unsuccessful";
+  case NVML_ERROR_INSUFFICIENT_SIZE:
+    return "An input argument is not large enough";
+  case NVML_ERROR_INSUFFICIENT_POWER:
+    return "A device’s external power cables are not properly attached";
+  case NVML_ERROR_DRIVER_NOT_LOADED:
+    return "NVIDIA driver is not loaded";
+  case NVML_ERROR_TIMEOUT:
+    return "User provided timeout passed";
+  case NVML_ERROR_IRQ_ISSUE:
+    return "NVIDIA Kernel detected an interrupt issue with a GPU";
+  case NVML_ERROR_LIBRARY_NOT_FOUND:
+    return "NVML Shared Library couldn’t be found or loaded";
+  case NVML_ERROR_FUNCTION_NOT_FOUND:
+    return"Local version of NVML doesn’t implement this function";
+  case NVML_ERROR_CORRUPTED_INFOROM:
+    return "infoROM is corrupted";
+  case NVML_ERROR_GPU_IS_LOST:
+    return "The GPU has fallen off the bus or has otherwise become inaccessible.";
+  case NVML_ERROR_RESET_REQUIRED:
+    return "The GPU requires a reset before it can be used again";
+  case NVML_ERROR_OPERATING_SYSTEM:
+    return "The GPU control device has been blocked by the operating system/cgroups.";
+  case NVML_ERROR_LIB_RM_VERSION_MISMATCH:
+    return "RM detects a driver/library version mismatch.";
+  case NVML_ERROR_IN_USE:
+    return "An operation cannot be performed because the GPU is currently in use.";
+  case NVML_ERROR_MEMORY:
+    return "Insufficient memory.";
+  case NVML_ERROR_NO_DATA:
+    return "No data.";
+  case NVML_ERROR_VGPU_ECC_NOT_SUPPORTED:
+    return "The requested vgpu operation is not available on target device, becasue ECC is enabled.";
+  case NVML_ERROR_UNKNOWN:
+    return "An internal driver error occurred";
+  }
+
+  return "Unknown error";
+}
+
+
+// Simple wrapper function to remove boiler plate code of checking
+// NVML API return codes.
+//
+// Returns non-zero on error, 0 otherwise
+static inline int nvml_try(nvmlReturn_t ret, const char* fn)
+{
+  // We ignore the TIMEOUT error, as it simply indicates that
+  // no events (errors) were triggered in the given interval.
+  if(ret != NVML_SUCCESS && ret != NVML_ERROR_TIMEOUT) {
+    fprintf(stderr, "%s: %s: %s\n", fn, nvml_error_code_string(ret),
+            nvmlErrorString(ret));
+    return 1;
+  }
+
+  return 0;
+}
+
+#define NVML_TRY(code) nvml_try(code, #code)
+
+#endif
 
 //Cycle through these 16 colours when installing History graphs
 std::string colours[16]={
@@ -358,12 +487,91 @@ void BuildHostCPUPlot()
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    delete m;
 }
+#ifdef HAVE_NVIDIA
+void BuildHostGPUPlot()
+{
+  //Insert myself into the history
 
+   char path[256];
+   int status;
+   int size;
+   //5 vars per GPU
+   int NVARS=5*HAVE_NVIDIA;
+   
+   /////////////////////////////////////////////////////
+   // Setup variables to plot:
+   /////////////////////////////////////////////////////
+   size = 64; // String length in ODB
+   sprintf(path,"/History/Display/sysmon/%s-GPU/Variables",equipment[0].info.frontend_host);
+   {
+      char vars[size*NVARS];
+      memset(vars, 0, size*NVARS);
+      for (int i=0; i<HAVE_NVIDIA; i++)
+      {
+         sprintf(vars+size*0+i*size*5,"%s:GPUT[%d]",equipment[0].name,i);
+         sprintf(vars+size*1+i*size*5,"%s:GPUF[%d]",equipment[0].name,i);
+         sprintf(vars+size*2+i*size*5,"%s:GPUP[%d]",equipment[0].name,i);
+         sprintf(vars+size*3+i*size*5,"%s:GPUU[%d]",equipment[0].name,i);
+         sprintf(vars+size*4+i*size*5,"%s:GPUM[%d]",equipment[0].name,i);
+      }
+      status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
+   }
+   assert(status == DB_SUCCESS);
 
+   /////////////////////////////////////////////////////
+   // Setup labels 
+   /////////////////////////////////////////////////////
+   size = 32;
+   sprintf(path,"/History/Display/sysmon/%s-GPU/Label",equipment[0].info.frontend_host);
+   {
+      char vars[size*NVARS];
+      memset(vars, 0, size*NVARS);
+      for (int i=0; i<HAVE_NVIDIA; i++)
+      {
+         sprintf(vars+size*0+i*size*5,"GPU %d Temperature (C)",i);
+         sprintf(vars+size*1+i*size*5,"GPU %d FAN (%%)",i);
+         sprintf(vars+size*2+i*size*5,"GPU %d Power (W)",i);
+         sprintf(vars+size*3+i*size*5,"GPU %d Utilisation (%%)",i);
+         sprintf(vars+size*4+i*size*5,"GPU %d Memory Usage (%%)",i);
+      }
+      status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
+   }
+   assert(status == DB_SUCCESS);
+
+   /////////////////////////////////////////////////////
+   // Setup colours:
+   /////////////////////////////////////////////////////
+   size = 32;
+   sprintf(path,"/History/Display/sysmon/%s-GPU/Colour",equipment[0].info.frontend_host);
+   {
+      char vars[size*NVARS];
+      memset(vars, 0, size*NVARS);
+      for (int i=0; i<NVARS; i++)
+         for (int j=0; j<HAVE_NVIDIA; j++)
+            sprintf(vars+size*i+j*size*5,"%s",(colours[i%16]).c_str());
+      status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
+   }
+   assert(status == DB_SUCCESS);
+
+   /////////////////////////////////////////////////////
+   // Setup time scale and range:
+   /////////////////////////////////////////////////////
+   sprintf(path,"/History/Display/sysmon/%s-GPU/Timescale",equipment[0].info.frontend_host);
+   status = db_set_value(hDB,0,path,"1h",3,1,TID_STRING);
+   float *m=new float();
+   *m=0.;
+   sprintf(path,"/History/Display/sysmon/%s-GPU/Minimum",equipment[0].info.frontend_host);
+   status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
+   *m=100.;
+   sprintf(path,"/History/Display/sysmon/%s-GPU/Maximum",equipment[0].info.frontend_host);
+   status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
+   delete m;
+}
+#endif
+void InitGPU();
 INT frontend_init()
 {
    int status;
-   
    printf("frontend_init!\n");
 
    FILE* file = fopen(PROCSTATFILE, "r");
@@ -388,7 +596,10 @@ INT frontend_init()
 
    BuildHostHistoryPlot();
    BuildHostCPUPlot();
-
+#ifdef HAVE_NVIDIA
+   BuildHostGPUPlot();
+   InitGPU();
+#endif
 #ifdef RPC_JRPC
    status = cm_register_function(RPC_JRPC, rpc_callback);
    assert(status == SUCCESS);
@@ -597,7 +808,104 @@ void ReadCPUData()
    fclose(file);
    //end htop code
 }
+#if HAVE_NVIDIA
 
+// Build the set of device features
+static void get_device_features(GPU* dev)
+{
+  if(nvmlDeviceGetTemperature(dev->handle, NVML_TEMPERATURE_GPU,
+                              &dev->temperature) == NVML_SUCCESS) {
+    dev->feature_support |= TEMPERATURE;
+  }
+
+  if(nvmlDeviceGetMemoryInfo(dev->handle, &dev->memory) == NVML_SUCCESS) {
+    dev->feature_support |= MEMORY_INFO;
+  }
+
+  if(nvmlDeviceGetPowerUsage(dev->handle, &dev->power_usage) == NVML_SUCCESS) {
+    dev->feature_support |= POWER_USAGE;
+  }
+
+  if(nvmlDeviceGetFanSpeed(dev->handle, &dev->fan) == NVML_SUCCESS) {
+    dev->feature_support |= FAN_INFO;
+  }
+
+  if(nvmlDeviceGetUtilizationRates(dev->handle, &dev->util) == NVML_SUCCESS) {
+    dev->feature_support |= UTILIZATION_INFO;
+  }
+}
+
+void InitGPU()
+{
+  printf("Initialising NVIDIA monitoring\n");
+  // No point in continuing if we can't even initialize the library.
+  if(NVML_TRY(nvmlInit()))
+    exit(1);
+  NVML_TRY(nvmlDeviceGetCount(&nGPUs));
+
+  for(unsigned i = 0; i < nGPUs; ++i) {
+    GPU* dev=new GPU();
+    GPUs.push_back(dev);
+
+    dev->index = i;
+
+    NVML_TRY(nvmlDeviceGetHandleByIndex(i, &dev->handle));
+
+    NVML_TRY(nvmlDeviceGetName(dev->handle, dev->name, sizeof(dev->name)));
+    NVML_TRY(nvmlDeviceGetSerial(dev->handle, dev->serial, sizeof(dev->serial)));
+    NVML_TRY(nvmlDeviceGetUUID(dev->handle, dev->uuid, sizeof(dev->uuid)));
+
+    NVML_TRY(nvmlDeviceGetPciInfo(dev->handle, &dev->pci));
+    NVML_TRY(nvmlDeviceGetMemoryInfo(dev->handle, &dev->memory));
+
+    unsigned long long event_types;
+    NVML_TRY(nvmlEventSetCreate(&dev->event_set));
+    if(0 == NVML_TRY(nvmlDeviceGetSupportedEventTypes(dev->handle, &event_types))) {
+      NVML_TRY(nvmlDeviceRegisterEvents(dev->handle, event_types, dev->event_set));
+    } else {
+      dev->event_set = NULL;
+    }
+
+    get_device_features(dev);
+
+  }
+  printf("OK\n");
+}
+
+void ReadGPUData()
+{
+  unsigned i;
+
+  for(i = 0; i < nGPUs; ++i) {
+    GPU* dev = GPUs[i];
+
+    if(dev->feature_support & MEMORY_INFO) {
+      NVML_TRY(nvmlDeviceGetMemoryInfo(dev->handle, &dev->memory));
+    }
+
+    if(dev->feature_support & TEMPERATURE) {
+      NVML_TRY(nvmlDeviceGetTemperature(dev->handle, NVML_TEMPERATURE_GPU,
+                                        &dev->temperature));
+    }
+
+    if(dev->feature_support & POWER_USAGE) {
+      NVML_TRY(nvmlDeviceGetPowerUsage(dev->handle, &dev->power_usage));
+    }
+
+    if(dev->feature_support & FAN_INFO) {
+      NVML_TRY(nvmlDeviceGetFanSpeed(dev->handle, &dev->fan));
+    }
+
+    if(dev->event_set != NULL) {
+      nvmlEventData_t data;
+
+      NVML_TRY(nvmlEventSetWait(dev->event_set, &data, 1));
+
+    }
+  }
+
+}
+#endif
 /*-- Event readout -------------------------------------------------*/
 #include <fstream>
 int read_system_load(char *pevent, int off)
@@ -723,6 +1031,57 @@ int read_system_load(char *pevent, int off)
       *m=swap_percent;
       bk_close(pevent,m+1);
    }
+
+#if HAVE_NVIDIA
+   ReadGPUData();
+   int* t;
+
+   //GPU Temperature
+   bk_create(pevent, "GPUT", TID_INT, (void**)&t);
+   for (unsigned i=0; i<nGPUs; i++)
+   {
+      *t=GPUs[i]->temperature;
+      t++;
+   }
+   bk_close(pevent,t);
+
+   //GPU Fan speed
+   bk_create(pevent, "GPUF", TID_INT, (void**)&t);
+   for (unsigned i=0; i<nGPUs; i++)
+   {
+      *t=GPUs[i]->fan;
+      t++;
+   }
+   bk_close(pevent,t);
+
+   //GPU Power (W)
+   bk_create(pevent, "GPUP", TID_INT, (void**)&t);
+   for (unsigned i=0; i<nGPUs; i++)
+   {
+      *t=GPUs[i]->power_usage/1000;
+      t++;
+   }
+   bk_close(pevent,t);
+
+   //GPU Utilisiation (%)
+   bk_create(pevent, "GPUU", TID_INT, (void**)&t);
+   for (unsigned i=0; i<nGPUs; i++)
+   {
+      *t=GPUs[i]->util.gpu;
+      t++;
+   }
+   bk_close(pevent,t);
+
+   //GPU Memory Utilisiation (%)
+   bk_create(pevent, "GPUM", TID_DOUBLE, (void**)&m);
+   for (unsigned i=0; i<nGPUs; i++)
+   {
+     *m=100.*(double)GPUs[i]->memory.used/(double)GPUs[i]->memory.total;
+      m++;
+   }
+   bk_close(pevent,m);
+
+#endif
 
    return bk_size(pevent);
 }

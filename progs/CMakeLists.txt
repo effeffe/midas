@@ -42,12 +42,21 @@ foreach(PROG ${PROGS} ${TESTPROGS})
    target_link_libraries(${PROG} midas ${LIBS} ${DB_LIBS})
 endforeach()
 
+
 foreach(PROG ${MFEPROGS})
    add_executable(${PROG} ${PROG})
    target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
    target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
    target_link_libraries(${PROG} mfe midas ${LIBS} ${DB_LIBS})
 endforeach()
+
+if (HAVE_NVIDIA)
+   add_executable(sysmon-nvidia sysmon)
+   target_include_directories(sysmon-nvidia PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include ${NVIDIA_INC})
+   target_include_directories(sysmon-nvidia PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
+   target_link_libraries(sysmon-nvidia mfe midas ${LIBS} ${DB_LIBS} ${NVIDIA_LIBS})
+   target_compile_options(sysmon-nvidia PRIVATE -DHAVE_NVIDIA)
+endif(HAVE_NVIDIA)
 
 #
 # mhttpd
