@@ -462,6 +462,9 @@ ifdef HAVE_ROOT
 EXAMPLES += examples/experiment/analyzer
 endif
 
+ifdef HAVE_NVIDIA
+PROGS += $(BIN_DIR)/sysmon-nvidia
+endif
 OBJS = \
 	$(LIB_DIR)/midas.o \
 	$(LIB_DIR)/midas_cxx.o \
@@ -661,7 +664,7 @@ ROOTCFLAGS  += -DHAVE_ROOT
 endif
 
 ifdef HAVE_NVIDIA
-CFLAGS      += -DHAVE_NVIDIA   -L/usr/local/cuda/lib64 -lnvidia-ml -I/usr/local/cuda/include
+NVIDIA_FLAGS      += -DHAVE_NVIDIA   -L/usr/local/cuda/lib64 -lnvidia-ml -I/usr/local/cuda/include
 endif
 
 ifdef NEED_ZLIB
@@ -856,6 +859,9 @@ $(BIN_DIR)/mdump: $(PROGS_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx
 
 $(BIN_DIR)/sysmon: $(PROGS_DIR)/sysmon.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
+
+$(BIN_DIR)/sysmon-nvidia: $(PROGS_DIR)/sysmon.cxx $(LIB_DIR)/mfe.o
+	$(CXX) $(CFLAGS) $(NVIDIA_FLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/fetest: $(PROGS_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)

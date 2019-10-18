@@ -821,6 +821,7 @@ static void get_device_features(GPU* dev)
 
 void InitGPU()
 {
+  printf("Initialising NVIDIA monitoring\n");
   // No point in continuing if we can't even initialize the library.
   if(NVML_TRY(nvmlInit()))
     exit(1);
@@ -852,7 +853,7 @@ void InitGPU()
     get_device_features(dev);
 
   }
-
+  printf("OK\n");
 }
 
 void ReadGPUData()
