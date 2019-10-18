@@ -173,6 +173,22 @@ endif (NO_SQLITE)
 #
 add_compile_options(-DHAVE_FTPLIB)
 
+#
+# Optional nvidia gpu support, HAVE_NVIDIA is a count of CPUs
+#
+if (NO_NVIDIA)
+   message(STATUS "MIDAS: NVIDIA GPU support is disabled via NO_NVIDIA")
+else (NO_NVIDIA)
+execute_process(COMMAND nvidia-smi -L COMMAND wc -l OUTPUT_VARIABLE HAVE_NVIDIA)
+if (HAVE_NVIDIA)
+   message(STATUS "MIDAS: Found nvidia-smi. Number of GPUs detected: " ${HAVE_NVIDIA} )
+   set(NVIDIA_INC /usr/local/cuda/include)
+   set(NVIDIA_LIBS -L/usr/local/cuda/lib64 -lnvidia-ml)
+else (HAVE_NVIDIA)
+   message(STATUS "MIDAS: nvidia-smi not found")
+endif(HAVE_NVIDIA)
+endif(NO_NVIDIA)
+
 #-----------------------
 # Default build type
 #
