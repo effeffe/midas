@@ -169,6 +169,11 @@ endif()
 endif (NO_SQLITE)
 
 #
+# FTP support for mdsupport
+#
+add_compile_options(-DHAVE_FTPLIB)
+
+#
 # Optional nvidia gpu support, HAVE_NVIDIA is a count of CPUs
 #
 if (NO_NVIDIA)
