@@ -151,7 +151,7 @@ NEED_ZLIB=
 # Optional nvidia gpu support, HAVE_NVIDIA is a count of CPUs
 #
 ifndef NO_NVIDIA
-HAVE_NVIDIA := $(shell nvidia-smi -L | wc -l 2> /dev/null)
+HAVE_NVIDIA := $(shell nvidia-smi -L  2> /dev/null | grep GPU )
 endif
 
 #####################################################################
