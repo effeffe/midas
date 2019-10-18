@@ -225,6 +225,22 @@ const char* nvml_error_code_string(nvmlReturn_t ret)
     return"Local version of NVML doesn’t implement this function";
   case NVML_ERROR_CORRUPTED_INFOROM:
     return "infoROM is corrupted";
+  case NVML_ERROR_GPU_IS_LOST:
+    return "The GPU has fallen off the bus or has otherwise become inaccessible.";
+  case NVML_ERROR_RESET_REQUIRED:
+    return "The GPU requires a reset before it can be used again";
+  case NVML_ERROR_OPERATING_SYSTEM:
+    return "The GPU control device has been blocked by the operating system/cgroups.";
+  case NVML_ERROR_LIB_RM_VERSION_MISMATCH:
+    return "RM detects a driver/library version mismatch.";
+  case NVML_ERROR_IN_USE:
+    return "An operation cannot be performed because the GPU is currently in use.";
+  case NVML_ERROR_MEMORY:
+    return "Insufficient memory.";
+  case NVML_ERROR_NO_DATA:
+    return "No data.";
+  case NVML_ERROR_VGPU_ECC_NOT_SUPPORTED:
+    return "The requested vgpu operation is not available on target device, becasue ECC is enabled.";
   case NVML_ERROR_UNKNOWN:
     return "An internal driver error occurred";
   }
