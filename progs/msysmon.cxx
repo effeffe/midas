@@ -1,6 +1,6 @@
 /*******************************************************************\
 
-  Name:         sysmon.cxx
+  Name:         msysmon.cxx
   Created by:   J.T.K.McKenna
 
   Contents:     Front end for monitoring CPU and Memory usage with MIDAS
@@ -9,9 +9,9 @@
   * 
   * Equipment names are assiged by the local hostname, so run an 
   * instance for each system you want to monitor... eg:
-  * ssh mydaq sysmon 
-  * ssh myvme sysmon 
-  * ssh mypi sysmon 
+  * ssh mydaq msysmon 
+  * ssh myvme msysmon 
+  * ssh mypi msysmon 
 
 \********************************************************************/
 
@@ -50,7 +50,7 @@
 
 /* The frontend name (client name) as seen by other MIDAS clients   */
 
-const char *frontend_name = "sysmon";
+const char *frontend_name = "msysmon";
 
 /* The frontend file name, don't change it */
 const char *frontend_file_name = __FILE__;
@@ -90,7 +90,7 @@ int read_system_load(char *pevent, int off);
 
 EQUIPMENT equipment[] = {
 
-  { "sysmon_${HOSTNAME}",   /* equipment name */    {
+  { "msysmon_${HOSTNAME}",   /* equipment name */    {
       EVID_MONITOR, 0,      /* event ID, trigger mask */
       "SYSTEM",             /* event buffer */
       EQ_PERIODIC,          /* equipment type */
@@ -351,7 +351,7 @@ void BuildHostHistoryPlot()
    // Setup variables to plot:
    /////////////////////////////////////////////////////
    size = 64; // String length in ODB
-   sprintf(path,"/History/Display/sysmon/%s/Variables",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s/Variables",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -368,7 +368,7 @@ void BuildHostHistoryPlot()
    // Setup labels 
    /////////////////////////////////////////////////////
    size = 32;
-   sprintf(path,"/History/Display/sysmon/%s/Label",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s/Label",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -385,7 +385,7 @@ void BuildHostHistoryPlot()
    // Setup colours:
    /////////////////////////////////////////////////////
    size = 32;
-   sprintf(path,"/History/Display/sysmon/%s/Colour",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s/Colour",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -398,14 +398,14 @@ void BuildHostHistoryPlot()
    /////////////////////////////////////////////////////
    // Setup time scale and range:
    /////////////////////////////////////////////////////
-   sprintf(path,"/History/Display/sysmon/%s/Timescale",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s/Timescale",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,"1h",3,1,TID_STRING);
    float *m=new float();
    *m=0.;
-   sprintf(path,"/History/Display/sysmon/%s/Minimum",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s/Minimum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    *m=100.;
-   sprintf(path,"/History/Display/sysmon/%s/Maximum",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s/Maximum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    delete m;
 }
@@ -420,7 +420,7 @@ void BuildHostCPUPlot()
    // Setup variables to plot:
    /////////////////////////////////////////////////////
    size = 64;
-   sprintf(path,"/History/Display/sysmon/%s-CPU/Variables",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s-CPU/Variables",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -450,7 +450,7 @@ void BuildHostCPUPlot()
    // Setup labels 
    /////////////////////////////////////////////////////
    size = 32;
-   sprintf(path,"/History/Display/sysmon/%s-CPU/Label",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s-CPU/Label",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -464,7 +464,7 @@ void BuildHostCPUPlot()
    // Setup colours:
    /////////////////////////////////////////////////////
    size = 32;
-   sprintf(path,"/History/Display/sysmon/%s-CPU/Colour",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s-CPU/Colour",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -476,14 +476,14 @@ void BuildHostCPUPlot()
    /////////////////////////////////////////////////////
    // Setup time scale and range:
    /////////////////////////////////////////////////////
-   sprintf(path,"/History/Display/sysmon/%s-CPU/Timescale",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s-CPU/Timescale",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,"1h",3,1,TID_STRING);
    float *m=new float();
    *m=0.;
-   sprintf(path,"/History/Display/sysmon/%s-CPU/Minimum",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s-CPU/Minimum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    *m=100.;
-   sprintf(path,"/History/Display/sysmon/%s-CPU/Maximum",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s-CPU/Maximum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    delete m;
 }
@@ -502,7 +502,7 @@ void BuildHostGPUPlot()
    // Setup variables to plot:
    /////////////////////////////////////////////////////
    size = 64; // String length in ODB
-   sprintf(path,"/History/Display/sysmon/%s-GPU/Variables",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s-GPU/Variables",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -522,7 +522,7 @@ void BuildHostGPUPlot()
    // Setup labels 
    /////////////////////////////////////////////////////
    size = 32;
-   sprintf(path,"/History/Display/sysmon/%s-GPU/Label",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s-GPU/Label",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -542,7 +542,7 @@ void BuildHostGPUPlot()
    // Setup colours:
    /////////////////////////////////////////////////////
    size = 32;
-   sprintf(path,"/History/Display/sysmon/%s-GPU/Colour",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s-GPU/Colour",equipment[0].info.frontend_host);
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
@@ -556,14 +556,14 @@ void BuildHostGPUPlot()
    /////////////////////////////////////////////////////
    // Setup time scale and range:
    /////////////////////////////////////////////////////
-   sprintf(path,"/History/Display/sysmon/%s-GPU/Timescale",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s-GPU/Timescale",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,"1h",3,1,TID_STRING);
    float *m=new float();
    *m=0.;
-   sprintf(path,"/History/Display/sysmon/%s-GPU/Minimum",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s-GPU/Minimum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    *m=100.;
-   sprintf(path,"/History/Display/sysmon/%s-GPU/Maximum",equipment[0].info.frontend_host);
+   sprintf(path,"/History/Display/msysmon/%s-GPU/Maximum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    delete m;
 }
