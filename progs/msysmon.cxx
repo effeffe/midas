@@ -23,6 +23,10 @@
 #define PROCMEMINFOFILE "/proc/meminfo"
 #endif
 
+#ifndef PROCNETSTATFILE
+#define PROCNETSTATFILE "/proc/net/dev"
+#endif
+
 #define String_startsWith(s, match) (strstr((s), (match)) == (s))
 
 #undef NDEBUG // midas required assert() to be always enabled
@@ -60,8 +64,6 @@ BOOL frontend_call_loop = FALSE;
 
 /* a frontend status page is displayed with this frequency in ms */
 INT display_period = 3000;
-
-
 
 /* maximum event size produced by this frontend */
 INT max_event_size      = 4*1024*1024;
@@ -109,7 +111,6 @@ EQUIPMENT equipment[] = {
   { "" }
 };
 
-int cpuCount;
 // Not all items in struct are logged, but all are calculated 
 // leaving options to log more if we want to...
 typedef struct CPUData_ {
@@ -138,9 +139,38 @@ typedef struct CPUData_ {
    unsigned long long int stealPeriod;
    unsigned long long int guestPeriod;
 } CPUData;
+int cpuCount;
 std::vector<CPUData*> cpus;
 void ReadCPUData();
 unsigned long long int usertime, nicetime, systemtime, idletime;
+
+
+struct NetStat
+{
+   std::string face;
+   unsigned long int bytes;
+   unsigned long int packets;
+   unsigned long int errs;
+   unsigned long int drop;
+   unsigned long int fifo;
+   unsigned long int frame;
+   unsigned long int compressed;
+   unsigned long int multicast;
+   unsigned long int bytesPeriod;
+   unsigned long int packetsPeriod;
+   unsigned long int errsPeriod;
+   unsigned long int dropPeriod;
+   unsigned long int fifoPeriod;
+   unsigned long int framePeriod;
+   unsigned long int compressedPeriod;
+   unsigned long int multicastPeriod;
+   timeval tv; //Time of these integrated values
+};
+int networkInterfaceCount=0;
+std::vector<NetStat*> NetReceive;
+std::vector<NetStat*> NetTransmit;
+void ReadNetData();
+
 
 #ifdef HAVE_NVIDIA
 #include "nvml.h"
@@ -187,7 +217,6 @@ struct GPU {
 };
 unsigned nGPUs=HAVE_NVIDIA;
 std::vector<GPU*> GPUs;
-
 
 // Return string representation of return code
 // Strings are directly from NVML documentation
@@ -487,6 +516,74 @@ void BuildHostCPUPlot()
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    delete m;
 }
+
+void BuildHostNetPlot()
+{
+   //Insert per CPU graphs into the history
+   int status, size;
+   char path[256];
+   int NVARS=networkInterfaceCount*2;
+   /////////////////////////////////////////////////////
+   // Setup variables to plot:
+   /////////////////////////////////////////////////////
+   size = 64;
+   sprintf(path,"/History/Display/msysmon/%s-net/Variables",equipment[0].info.frontend_host);
+   {
+      char vars[size*NVARS];
+      memset(vars, 0, size*NVARS);
+      for (int i=0; i<networkInterfaceCount; i++)
+         sprintf(vars+size*i,"%s:NETR[%d]",equipment[0].name,i);
+      for (int i=networkInterfaceCount; i<NVARS; i++)
+         sprintf(vars+size*i,"%s:NETT[%d]",equipment[0].name,i-networkInterfaceCount);
+      status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
+   }
+   assert(status == DB_SUCCESS);
+
+   /////////////////////////////////////////////////////
+   // Setup labels 
+   /////////////////////////////////////////////////////
+   size = 32;
+   sprintf(path,"/History/Display/msysmon/%s-net/Label",equipment[0].info.frontend_host);
+   {
+      char vars[size*NVARS];
+      memset(vars, 0, size*NVARS);
+      for (int i=0; i<networkInterfaceCount; i++)
+         sprintf(vars+size*i,"%s Received (Mbps)",NetReceive.at(i)->face.c_str());
+      for (int i=networkInterfaceCount; i<NVARS; i++)
+         sprintf(vars+size*i,"%s Transmitted (Mbps)",NetReceive.at(i-networkInterfaceCount)->face.c_str());
+      status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
+   }
+   assert(status == DB_SUCCESS);
+
+   /////////////////////////////////////////////////////
+   // Setup colours:
+   /////////////////////////////////////////////////////
+   size = 32;
+   sprintf(path,"/History/Display/msysmon/%s-net/Colour",equipment[0].info.frontend_host);
+   {
+      char vars[size*NVARS];
+      memset(vars, 0, size*NVARS);
+      for (int i=0; i<NVARS; i++)
+         sprintf(vars+size*i,"%s",(colours[i%16]).c_str());
+      status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
+   }
+   assert(status == DB_SUCCESS);
+   /////////////////////////////////////////////////////
+   // Setup time scale and range:
+   /////////////////////////////////////////////////////
+   sprintf(path,"/History/Display/msysmon/%s-net/Timescale",equipment[0].info.frontend_host);
+   status = db_set_value(hDB,0,path,"1h",3,1,TID_STRING);
+   float *m=new float();
+   *m=0.;
+   sprintf(path,"/History/Display/msysmon/%s-net/Minimum",equipment[0].info.frontend_host);
+   status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
+   *m=1000.;//./0.; //infinity
+   sprintf(path,"/History/Display/msysmon/%s-net/Maximum",equipment[0].info.frontend_host);
+   status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
+   delete m;
+}
+
+
 #ifdef HAVE_NVIDIA
 void BuildHostGPUPlot()
 {
@@ -587,15 +684,44 @@ INT frontend_init()
    } while (String_startsWith(buffer, "cpu"));
    fclose(file);
    cpuCount = MAX(Ncpus - 1, 1);
-
+   printf("%d CPUs found\n",cpuCount);
    //Note, cpus[0] is a total for all CPUs
    for (int i = 0; i <= cpuCount; i++) {
       cpus.push_back(new CPUData);
    }
-   ReadCPUData();
+   
+   file = fopen(PROCNETSTATFILE, "r");
+   if (file == NULL) {
+      cm_msg(MERROR, frontend_name, "Cannot open " PROCNETSTATFILE);
+      return FE_ERR_HW;
+   }
+    do {
+      if (!fgets(buffer, 255, file)) break;
+      for (int i=0; i<255; i++)
+      {
+         if (!buffer[i]) break;
+         if (buffer[i]==':') 
+         {
+            NetStat* r=new NetStat;
+            r->face=std::string(buffer,&buffer[i]);
+            NetReceive.push_back(r);
 
+            NetStat* t=new NetStat;
+            t->face=std::string(buffer,&buffer[i]);
+            NetTransmit.push_back(t);
+
+            networkInterfaceCount++;
+         }
+      }
+   } while (1);
+   fclose(file);
+   printf("%d network inferfaces found\n",networkInterfaceCount);
+   
+   ReadCPUData();
+   ReadNetData();
    BuildHostHistoryPlot();
    BuildHostCPUPlot();
+   BuildHostNetPlot();
 #ifdef HAVE_NVIDIA
    BuildHostGPUPlot();
    InitGPU();
@@ -808,6 +934,81 @@ void ReadCPUData()
    fclose(file);
    //end htop code
 }
+#include <sys/time.h>
+timeval tv, old_tv, new_tv;
+void ReadNetData()
+{
+   FILE* file = fopen(PROCNETSTATFILE,"r");
+   if (file == NULL) {
+      cm_msg(MERROR, frontend_name, "Cannot open " PROCNETSTATFILE);
+   }
+   gettimeofday(&new_tv, NULL);
+   timersub(&new_tv, &old_tv, &tv);
+   //Note, there are two title lines (hence +2)
+   const int title_lines=2;
+   for (int i = 0; i < networkInterfaceCount+title_lines; i++) {
+      char buffer[256];
+      char InterfaceName[20];
+      unsigned long int rbytes, rpackets, rerrs, rdrop, rfifo, rframe, rcompressed, rmulticast;
+      unsigned long int sbytes, spackets, serrs, sdrop, sfifo, sframe, scompressed, smulticast;
+      // Dependending on your kernel version,
+      // 5, 7, 8 or 9 of these fields will be set.
+      // The rest will remain at zero.
+      fgets(buffer, 255, file);
+      if (i < 2)
+         continue; //Title lines
+      else
+         sscanf(buffer, "%[^:]: %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",InterfaceName, &rbytes, &rpackets, &rerrs, &rdrop, &rfifo, &rframe, &rcompressed, &rmulticast,&sbytes, &spackets, &serrs, &sdrop, &sfifo, &sframe, &scompressed, &smulticast);
+#ifdef FE_DEBUG
+      printf("--------------------Parsing line %d from " PROCNETSTATFILE "---------------------\n",i);
+      printf("Intput: %s\n",buffer);
+      printf("Output: %s: %16lu %16lu %16lu %16lu %16lu %16lu %16lu %16lu %16lu %16lu %16lu %16lu %16lu %16lu %16lu %16lu\n\n",InterfaceName, rbytes, rpackets, rerrs, rdrop, rfifo, rframe, rcompressed, rmulticast,sbytes, spackets, serrs, sdrop, sfifo, sframe, scompressed, smulticast);
+      printf("-------------------------------------------------------------------------------\n");
+#endif
+      NetStat* RData = NetReceive.at(i-title_lines);
+      NetStat* SData = NetTransmit.at(i-title_lines);
+      
+      RData->bytesPeriod      =rbytes-RData->bytes;
+      RData->packetsPeriod    =rpackets-RData->packets;
+      RData->errsPeriod       =rerrs-RData->errs;
+      RData->dropPeriod       =rdrop-RData->drop;
+      RData->fifoPeriod       =rfifo-RData->fifo;
+      RData->framePeriod      =rframe-RData->frame;
+      RData->compressedPeriod =rcompressed-RData->compressed;
+      RData->multicastPeriod  =rmulticast-RData->multicast;
+
+      RData->bytes      =rbytes;
+      RData->packets    =rpackets;
+      RData->errs       =rerrs;
+      RData->drop       =rdrop;
+      RData->fifo       =rfifo;
+      RData->frame      =rframe;
+      RData->compressed =rcompressed;
+      RData->multicast  =rmulticast;
+      RData->tv         =tv;
+      
+      SData->bytesPeriod      =sbytes-SData->bytes;
+      SData->packetsPeriod    =spackets-SData->packets;
+      SData->errsPeriod       =serrs-SData->errs;
+      SData->dropPeriod       =sdrop-SData->drop;
+      SData->fifoPeriod       =sfifo-SData->fifo;
+      SData->framePeriod      =sframe-SData->frame;
+      SData->compressedPeriod =scompressed-SData->compressed;
+      SData->multicastPeriod  =smulticast-SData->multicast;
+      
+      SData->bytes      =sbytes;
+      SData->packets    =spackets;
+      SData->errs       =serrs;
+      SData->drop       =sdrop;
+      SData->fifo       =sfifo;
+      SData->frame      =sframe;
+      SData->compressed =scompressed;
+      SData->multicast  =smulticast;
+      SData->tv         =tv;
+   }
+   old_tv = new_tv;
+   fclose(file);
+}
 #if HAVE_NVIDIA
 
 // Build the set of device features
@@ -915,6 +1116,8 @@ int read_system_load(char *pevent, int off)
 
    ReadCPUData();
 
+   ReadNetData();
+
    //Calculate load:
    double CPULoadTotal[4]; //nice, user, system, total
    for (int j=0; j<4; j++)
@@ -964,6 +1167,35 @@ int read_system_load(char *pevent, int off)
    
    }
    
+   double DataRecieve;
+   double DataTransmit;
+
+   double* a;
+   char name[5]="NETR";
+   bk_create(pevent, name, TID_DOUBLE, (void**)&a);
+   for (int i=0; i<networkInterfaceCount; i++)
+   {
+      NetStat* RData = NetReceive.at(i);
+      double Rdt=RData->tv.tv_sec + (RData->tv.tv_usec * 1e-6);
+      DataRecieve=(double)(RData->bytesPeriod)*8./1024./1024. / Rdt; //Megabits / s
+      *a=DataRecieve;
+      a++;
+   }
+   bk_close(pevent,a);
+
+   double* b;
+   sprintf(name,"NETT");
+   bk_create(pevent, name, TID_DOUBLE, (void**)&b);
+   for (int i=0; i<networkInterfaceCount; i++)
+   {
+      NetStat* SData = NetTransmit.at(i);
+      double Sdt=SData->tv.tv_sec + (SData->tv.tv_usec * 1e-6);
+      DataTransmit=(double)(SData->bytesPeriod)*8./1024./1024. / Sdt; //Megabits /s
+      *b=DataTransmit;
+      b++;
+   }
+   bk_close(pevent,b);
+
    //Again from htop:
    unsigned long long int totalMem;
    unsigned long long int usedMem;
