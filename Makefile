@@ -430,7 +430,7 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/mfe_link_test  \
 	$(BIN_DIR)/mfe_link_test_cxx  \
 	$(BIN_DIR)/fetest  \
-	$(BIN_DIR)/sysmon \
+	$(BIN_DIR)/msysmon \
 	$(BIN_DIR)/feudp   \
 	$(BIN_DIR)/fetest_tmfe    \
 	$(BIN_DIR)/fetest_tmfe_thread \
@@ -463,7 +463,7 @@ EXAMPLES += examples/experiment/analyzer
 endif
 
 ifdef HAVE_NVIDIA
-PROGS += $(BIN_DIR)/sysmon-nvidia
+PROGS += $(BIN_DIR)/msysmon-nvidia
 endif
 OBJS = \
 	$(LIB_DIR)/midas.o \
@@ -857,10 +857,10 @@ $(BIN_DIR)/mcnaf: $(PROGS_DIR)/mcnaf.cxx $(DRV_DIR)/camac/camacrpc.cxx
 $(BIN_DIR)/mdump: $(PROGS_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx $(LIB) $(LIBS)
 
-$(BIN_DIR)/sysmon: $(PROGS_DIR)/sysmon.cxx $(LIB_DIR)/mfe.o
+$(BIN_DIR)/msysmon: $(PROGS_DIR)/msysmon.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
-$(BIN_DIR)/sysmon-nvidia: $(PROGS_DIR)/sysmon.cxx $(LIB_DIR)/mfe.o
+$(BIN_DIR)/msysmon-nvidia: $(PROGS_DIR)/msysmon.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(NVIDIA_FLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/fetest: $(PROGS_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
