@@ -643,7 +643,7 @@ class FrontendBase:
         self.run_state = self.client.odb_get("/Runinfo/State")
         self.client.odb_watch("/Runinfo/State", self._run_state_callback)
         
-        self.client.lib.cm_start_watchdog_thread()
+        self.client.lib.c_cm_start_watchdog_thread()
         self._inited = True
         
     def begin_of_run(self, run_number):
@@ -778,7 +778,7 @@ class FrontendBase:
             if should_stop_run:
                 self.client.stop_run()
             
-            self.client.lib.cm_check_deferred_transition()
+            self.client.lib.c_cm_check_deferred_transition()
             
             shortest_period = min([e.common["Period"] for e in self.equipment.values()])
             yield_time = max(1, int(shortest_period/5 - run_time_ms))
@@ -920,9 +920,9 @@ class FrontendBase:
         if retval == midas.status_codes["SUCCESS"]:
             self._get_and_send_transition_events(midas.TR_STOP)
             
-        self.client.lib.rpc_flush_event();
+        self.client.lib.c_rpc_flush_event();
         for buf in self.buffers.values():
-            self.client.lib.bm_flush_cache(buf, midas.BM_WAIT);
+            self.client.lib.c_bm_flush_cache(buf, midas.BM_WAIT);
 
         return retval
     

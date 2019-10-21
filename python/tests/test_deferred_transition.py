@@ -46,7 +46,7 @@ class TestDeferredTransition(unittest.TestCase):
                 state = self.client.odb_get("/Runinfo/State")
                 self.assertEqual(state, midas.STATE_STOPPED)
             
-            self.client.lib.cm_check_deferred_transition()
+            self.client.lib.c_cm_check_deferred_transition()
             
             state = self.client.odb_get("/Runinfo/State")
             

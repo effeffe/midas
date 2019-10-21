@@ -248,15 +248,19 @@ set(libsrc
    mxml/strlcpy.cxx
    ${GIT_REVISION}
    )
+ 
+set(libsrc-c-compat
+    ${libsrc}
+    src/midas_c_compat
+    )
 
 # this is the "object library" target: compiles the sources only once
 add_library(objlib OBJECT ${libsrc})
-add_library(objlib-extern OBJECT ${libsrc})
+add_library(objlib-c-compat OBJECT ${libsrc-c-compat})
 
 # shared libraries need PIC
 set_property(TARGET objlib PROPERTY POSITION_INDEPENDENT_CODE 1)
-set_property(TARGET objlib-extern PROPERTY POSITION_INDEPENDENT_CODE 1)
-target_compile_options(objlib-extern PUBLIC -DUSE_EXTERN_C)
+set_property(TARGET objlib-c-compat PROPERTY POSITION_INDEPENDENT_CODE 1)
 
 # static midas library
 add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
@@ -268,12 +272,11 @@ if (HAVE_MYSQL)
    target_link_libraries(midas-shared ${DB_LIBS})
 endif()
 
-# shared midas library
-add_library(midas-shared-extern SHARED $<TARGET_OBJECTS:objlib-extern>)
-target_compile_options(midas-shared-extern PUBLIC -DUSE_EXTERN_C)
-target_link_libraries(midas-shared-extern ${LIBS})
+# shared midas library with C compatible signatures
+add_library(midas-c-compat SHARED $<TARGET_OBJECTS:objlib-c-compat>)
+target_link_libraries(midas-c-compat ${LIBS})
 if (HAVE_MYSQL)
-   target_link_libraries(midas-shared-extern ${DB_LIBS})
+   target_link_libraries(midas-c-compat ${DB_LIBS})
 endif()
 
 target_include_directories(objlib PUBLIC ${SYSINC_DIR})
@@ -283,11 +286,11 @@ if (OPENSSL_FOUND)
    target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
 endif ()
 
-target_include_directories(objlib-extern PUBLIC ${SYSINC_DIR})
-target_include_directories(objlib-extern PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
-target_include_directories(objlib-extern PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
+target_include_directories(objlib-c-compat PUBLIC ${SYSINC_DIR})
+target_include_directories(objlib-c-compat PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
+target_include_directories(objlib-c-compat PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
 if (OPENSSL_FOUND)
-   target_include_directories(objlib-extern PRIVATE ${OPENSSL_INCLUDE_DIR})
+   target_include_directories(objlib-c-compat PRIVATE ${OPENSSL_INCLUDE_DIR})
 endif ()
 
 # midas include is public so all programs linking to libmidas will inherit this
@@ -312,7 +315,7 @@ if (HAVE_ROOT)
    target_compile_options(rmana PRIVATE -DHAVE_ROOT)
 endif(HAVE_ROOT)
 
-install(TARGETS midas midas-shared midas-shared-extern mfe mana rmana
+install(TARGETS midas midas-shared midas-c-compat mfe mana rmana
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 

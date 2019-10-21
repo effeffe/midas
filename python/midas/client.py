@@ -49,19 +49,18 @@ class MidasClient:
     
     If no wrapper exists for a C function you need to use, you can still call
     the function throught the `self.lib` member (which is a python ctypes
-    library object). However, you need to convert any arguments to ctypes
-    values (and if the C function doesn't return an integer, then there is even
-    more work to do - see the MidasLib class in the main `midas` module).
+    library object). 
+
+    If you want to use a function that doesn't have a python wrapper, you will
+    need to:
     
-    ```
-    import ctypes
-    import midas.client
-    
-    client = midas.client.MidasClient("LowLevelExample")
-    server_time = ctypes.c_double()
-    client.lib.cm_time(ctypes.byref(server_time))
-    print("The time is %s" % server_time)
-    ```
+    * Define an appropriate C-compatible function in include/midas_c_compat.h
+        and src/midas_c_compat.cxx
+    * Recompile using cmake (cd build && make && make install)
+    * Call the function from python like client.lib.c_my_func(). You will need 
+        to convert any arguments to ctypes values (and if the C function 
+        doesn't return an integer, then there is even more work to do - see the
+        MidasLib class in the main `midas` module).
     
     # Members
     
@@ -98,7 +97,7 @@ class MidasClient:
             if midas_sys is None:
                 raise EnvironmentError("Set environment variable $MIDASSYS to path of midas")
             
-            lib_files = ["libmidas-shared-extern.so", "libmidas-shared-extern.dylib"]
+            lib_files = ["libmidas-c-compat.so", "libmidas-c-compat.dylib"]
             lib_dir = os.path.join(midas_sys, "lib")
             lib_path = None
             
@@ -123,7 +122,7 @@ class MidasClient:
         c_client_name = ctypes.create_string_buffer(client_name.encode('ascii'), 32)
         
         if host_name is None or expt_name is None:
-            self.lib.cm_get_environment(c_host_name, ctypes.sizeof(c_host_name), c_expt_name, ctypes.sizeof(c_expt_name))
+            self.lib.c_cm_get_environment(c_host_name, ctypes.sizeof(c_host_name), c_expt_name, ctypes.sizeof(c_expt_name))
             
         if host_name is not None:
             c_host_name.value = host_name.encode('ascii')
@@ -132,13 +131,13 @@ class MidasClient:
             c_expt_name.value = expt_name.encode('ascii')
         
         # We automatically connect to this experiment's ODB
-        self.lib.cm_connect_experiment(c_host_name, c_expt_name, c_client_name, None)
+        self.lib.c_cm_connect_experiment(c_host_name, c_expt_name, c_client_name, None)
         _midas_connected = True
                 
         self.hDB = ctypes.c_int()
         self.hClient = ctypes.c_int()
 
-        self.lib.cm_get_experiment_database(ctypes.byref(self.hDB), ctypes.byref(self.hClient))
+        self.lib.c_cm_get_experiment_database(ctypes.byref(self.hDB), ctypes.byref(self.hClient))
         
         self.event_buffers = {}
         
@@ -158,7 +157,7 @@ class MidasClient:
         global _midas_connected
         
         if _midas_connected and hasattr(self, 'lib') and self.lib:
-            self.lib.cm_disconnect_experiment()
+            self.lib.c_cm_disconnect_experiment()
             _midas_connected = False
             
     def __del__(self):
@@ -196,7 +195,7 @@ class MidasClient:
         c_msg = ctypes.create_string_buffer(bytes(message, "utf-8"))
         msg_type = ctypes.c_int(midas.MT_ERROR if is_error else midas.MT_INFO)
     
-        self.lib.cm_msg(msg_type, filename, line, routine, c_msg)
+        self.lib.c_cm_msg(msg_type, filename, line, routine, c_msg)
 
     def communicate(self, time_ms):
         """
@@ -221,7 +220,7 @@ class MidasClient:
             c_time_ms.value = time_ms
             
             try:
-                self.lib.cm_yield(c_time_ms)
+                self.lib.c_cm_yield(c_time_ms)
             except midas.MidasError as e:
                 if e.code == midas.status_codes["RPC_SHUTDOWN"]:
                     print("Midas shutdown")
@@ -248,7 +247,7 @@ class MidasClient:
         hKey = ctypes.c_int()
         
         try:
-            self.lib.db_find_key(self.hDB, 0, c_path, ctypes.byref(hKey))
+            self.lib.c_db_find_key(self.hDB, 0, c_path, ctypes.byref(hKey))
         except KeyError:
             return False
         
@@ -266,8 +265,8 @@ class MidasClient:
         c_path = ctypes.create_string_buffer(bytes(path, "utf-8"))
         c_follow = ctypes.c_int(follow_links)
         hKey = ctypes.c_int()
-        self.lib.db_find_key(self.hDB, 0, c_path, ctypes.byref(hKey))
-        self.lib.db_delete_key(self.hDB, hKey, c_follow)
+        self.lib.c_db_find_key(self.hDB, 0, c_path, ctypes.byref(hKey))
+        self.lib.c_db_delete_key(self.hDB, hKey, c_follow)
         
     def odb_get(self, path, recurse_dir=True, include_key_metadata=False):
         """
@@ -315,7 +314,7 @@ class MidasClient:
         c_path = ctypes.create_string_buffer(bytes(path, "utf-8"))
         
         hKey = ctypes.c_int()
-        self.lib.db_find_key(self.hDB, 0, c_path, ctypes.byref(hKey))
+        self.lib.c_db_find_key(self.hDB, 0, c_path, ctypes.byref(hKey))
         
         key_metadata = self._odb_get_key_from_hkey(hKey)
         
@@ -327,9 +326,9 @@ class MidasClient:
             bufend = ctypes.c_int()
 
             if recurse_dir:
-                self.lib.db_copy_json_save(self.hDB, hKey, ctypes.byref(buf), ctypes.byref(bufsize), ctypes.byref(bufend))
+                self.lib.c_db_copy_json_save(self.hDB, hKey, ctypes.byref(buf), ctypes.byref(bufsize), ctypes.byref(bufend))
             else:
-                self.lib.db_copy_json_ls(self.hDB, hKey, ctypes.byref(buf), ctypes.byref(bufsize), ctypes.byref(bufend))
+                self.lib.c_db_copy_json_ls(self.hDB, hKey, ctypes.byref(buf), ctypes.byref(bufsize), ctypes.byref(bufend))
         
             if bufsize.value > 0:
                 retval = midas.safe_to_json(buf.value, use_ordered_dict=True)
@@ -340,6 +339,9 @@ class MidasClient:
         
             if not include_key_metadata:
                 retval = self._prune_metadata_from_odb(retval)
+                
+            # Free the memory allocated by midas
+            self.lib.c_free(buf)
         else:
             # The db_copy_json_xxx functions only support getting the content of a
             # directory, not a single value. We therefore have to use db_get_value
@@ -359,7 +361,7 @@ class MidasClient:
             c_rdb = self._midas_type_to_ctype(key_metadata.type, array_len, str_len=str_len)
             c_size = ctypes.c_int(ctypes.sizeof(c_rdb))
             
-            self.lib.db_get_value(self.hDB, 0, c_path, ctypes.byref(c_rdb), ctypes.byref(c_size), key_metadata.type, 0)
+            self.lib.c_db_get_value(self.hDB, 0, c_path, ctypes.byref(c_rdb), ctypes.byref(c_size), key_metadata.type, 0)
             
             if key_metadata.type == midas.TID_STRING:
                 if array_len > 1:
@@ -468,13 +470,13 @@ class MidasClient:
                     # we'll create a TID_KEY, an in means TID_INT etc)
                     new_midas_type = self._ctype_to_midas_type(contents)
                     
-                self.lib.db_create_key(self.hDB, 0, c_path_no_idx, new_midas_type)
+                self.lib.c_db_create_key(self.hDB, 0, c_path_no_idx, new_midas_type)
                 did_create = True
             else:
                 raise KeyError("ODB path doesn't exist")
 
         hKey = ctypes.c_int()
-        self.lib.db_find_key(self.hDB, 0, c_path_no_idx, ctypes.byref(hKey))
+        self.lib.c_db_find_key(self.hDB, 0, c_path_no_idx, ctypes.byref(hKey))
         key_metadata = self._odb_get_key_from_hkey(hKey)
         
         if key_metadata.type == midas.TID_STRING and (lengthen_strings or did_create):
@@ -526,7 +528,7 @@ class MidasClient:
                     if using_str_len != odb_str_len:
                         raise ValueError("ODB string length is %s, but we want to set strings of length %s" % (odb_str_len, using_str_len))
 
-                self.lib.db_set_value_index(self.hDB, 0, c_path_no_idx, ctypes.byref(c_value), ctypes.sizeof(c_value), array_index, key_metadata.type, 0)
+                self.lib.c_db_set_value_index(self.hDB, 0, c_path_no_idx, ctypes.byref(c_value), ctypes.sizeof(c_value), array_index, key_metadata.type, 0)
             else:
                 # Single value for a single value
                 if key_metadata.num_values != our_num_values:
@@ -539,7 +541,7 @@ class MidasClient:
                     if using_str_len != odb_str_len:
                         raise ValueError("ODB string length is %s, but we want to set strings of length %s" % (odb_str_len, using_str_len))
 
-                self.lib.db_set_value(self.hDB, 0, c_path, ctypes.byref(c_value), ctypes.sizeof(c_value), our_num_values, key_metadata.type)
+                self.lib.c_db_set_value(self.hDB, 0, c_path, ctypes.byref(c_value), ctypes.sizeof(c_value), our_num_values, key_metadata.type)
     
     def odb_link(self, link_path, destination_path):
         """
@@ -554,7 +556,7 @@ class MidasClient:
         """
         c_link_path = ctypes.create_string_buffer(bytes(link_path, "utf-8"))
         c_dest_path = ctypes.create_string_buffer(bytes(destination_path, "utf-8"))
-        self.lib.db_create_link(self.hDB, 0, c_link_path, c_dest_path)
+        self.lib.c_db_create_link(self.hDB, 0, c_link_path, c_dest_path)
         
     def odb_get_link_destination(self, link_path):
         """
@@ -569,7 +571,7 @@ class MidasClient:
         c_dest_path = ctypes.create_string_buffer(256)
         c_size = ctypes.c_int(ctypes.sizeof(c_dest_path))
         hKey = self._odb_get_hkey(link_path, follow_link=False)
-        self.lib.db_get_link_data(self.hDB, hKey, c_dest_path, ctypes.byref(c_size), midas.TID_LINK)
+        self.lib.c_db_get_link_data(self.hDB, hKey, c_dest_path, ctypes.byref(c_size), midas.TID_LINK)
         return c_dest_path.value.decode("utf-8")
     
     def odb_watch(self, path, callback):
@@ -612,7 +614,7 @@ class MidasClient:
         logger.debug("Registering callback function for watching %s" % path)
         hKey = self._odb_get_hkey(path)
         cb = midas.callbacks.make_hotlink_callback(path, callback, self)
-        self.lib.db_open_record(self.hDB, hKey, None, 0, 1, cb, None)
+        self.lib.c_db_open_record(self.hDB, hKey, None, 0, 1, cb, None)
         
     def odb_stop_watching(self, path):
         """
@@ -624,7 +626,7 @@ class MidasClient:
         """
         logger.debug("De-registering callback function that was watching %s" % path)
         hKey = self._odb_get_hkey(path)
-        self.lib.db_close_record(self.hDB, hKey)
+        self.lib.c_db_close_record(self.hDB, hKey)
         
     def open_event_buffer(self, buffer_name, buf_size=None, max_event_size=None):
         """
@@ -655,7 +657,7 @@ class MidasClient:
         buffer_handle = ctypes.c_int()
         
         # Midas allocates the main buffer for us...
-        self.lib.bm_open_buffer(c_name, buffer_size, ctypes.byref(buffer_handle))
+        self.lib.c_bm_open_buffer(c_name, buffer_size, ctypes.byref(buffer_handle))
         
         # But we need to allocate space we'll extract each event into.
         # In future we might want to allow using a ring buffer as well as
@@ -692,9 +694,9 @@ class MidasClient:
         buf = event.pack()
         rpc_mode = 1
         
-        self.lib.rpc_send_event(buffer_handle, buf, len(buf), midas.BM_WAIT, rpc_mode)
-        self.lib.rpc_flush_event()
-        self.lib.bm_flush_cache(buffer_handle, midas.BM_WAIT)
+        self.lib.c_rpc_send_event(buffer_handle, buf, len(buf), midas.BM_WAIT, rpc_mode)
+        self.lib.c_rpc_flush_event()
+        self.lib.c_bm_flush_cache(buffer_handle, midas.BM_WAIT)
         
     def register_event_request(self, buffer_handle, event_id=-1, trigger_mask=-1, sampling_type=midas.GET_ALL):
         """
@@ -726,7 +728,7 @@ class MidasClient:
         c_trigger_mask = ctypes.c_short(trigger_mask)
         c_sampling_type = ctypes.c_short(sampling_type)
         
-        self.lib.bm_request_event(buffer_handle, c_event_id, c_trigger_mask, c_sampling_type, ctypes.byref(request_id), None)
+        self.lib.c_bm_request_event(buffer_handle, c_event_id, c_trigger_mask, c_sampling_type, ctypes.byref(request_id))
         
         return request_id.value
     
@@ -755,7 +757,7 @@ class MidasClient:
         c_async_flag = ctypes.c_int(async_flag)
         
         try:
-            self.lib.bm_receive_event(buffer_handle, ctypes.byref(buf), ctypes.byref(buf_size), c_async_flag)
+            self.lib.c_bm_receive_event(buffer_handle, ctypes.byref(buf), ctypes.byref(buf_size), c_async_flag)
         except midas.MidasError as e:
             if e.code == midas.status_codes["BM_ASYNC_RETURN"]:
                 return None
@@ -779,7 +781,7 @@ class MidasClient:
             * request_id (int) - The return value from a previous call to
                 `register_event_request()`.
         """
-        self.lib.bm_remove_event_request(buffer_handle, request_id)        
+        self.lib.c_bm_remove_event_request(buffer_handle, request_id)        
 
     def start_run(self, run_num=0, async_flag=False):
         """
@@ -864,7 +866,7 @@ class MidasClient:
                 * 2-tuple of (int, str) - Transition failed and the reason why.
         """
         cb = midas.callbacks.make_transition_callback(callback, self)
-        self.lib.cm_register_transition(transition, cb, sequence)
+        self.lib.c_cm_register_transition(transition, cb, sequence)
 
     def set_transition_sequence(self, transition, sequence):
         """
@@ -876,7 +878,7 @@ class MidasClient:
             * sequence (int) - The order in which this function will be 
                 called.
         """
-        self.lib.cm_set_transition_sequence(transition, sequence)
+        self.lib.c_cm_set_transition_sequence(transition, sequence)
     
     def deregister_transition_callback(self, transition):
         """
@@ -887,7 +889,7 @@ class MidasClient:
             * transition (int) - One of `midas.TR_START`, `midas.TR_STOP`,
                 `midas.TR_PAUSE`, `midas.TR_RESUME`, `midas.TR_STARTABORT`.
         """
-        self.lib.cm_deregister_transition(transition)
+        self.lib.c_cm_deregister_transition(transition)
     
     def register_deferred_transition_callback(self, transition, callback):
         """
@@ -912,8 +914,19 @@ class MidasClient:
         
         """
         cb = midas.callbacks.make_deferred_transition_callback(callback, self)
-        self.lib.cm_register_deferred_transition(transition, cb);
+        self.lib.c_cm_register_deferred_transition(transition, cb);
 
+    def get_midas_version(self):
+        """
+        Get the version of midas.
+        
+        Returns:
+            2-tuple of (str, str) for (midas version, git revision)
+        """
+        ver = self.lib.c_cm_get_version()
+        rev = self.lib.c_cm_get_revision()
+        
+        return (ver.decode("utf-8"), rev.decode("utf-8"))
     
     #
     # Most users should not need to use the functions below here, as they are
@@ -1073,7 +1086,7 @@ class MidasClient:
             our_num_values = max(key_metadata.num_values, array_idx)
         
         if our_num_values != key_metadata.num_values:
-            self.lib.db_set_num_values(self.hDB, hKey, our_num_values)
+            self.lib.c_db_set_num_values(self.hDB, hKey, our_num_values)
     
     def _odb_lengthen_string_to_fit_content(self, key_metadata, c_path, contents):
         """
@@ -1101,7 +1114,7 @@ class MidasClient:
         our_max_string_size += 1 # for null byte
                         
         if our_max_string_size > key_metadata.item_size:
-            self.lib.db_resize_string(self.hDB, 0, c_path, key_metadata.num_values, our_max_string_size)
+            self.lib.c_db_resize_string(self.hDB, 0, c_path, key_metadata.num_values, our_max_string_size)
     
     def _odb_get_type(self, path):
         """
@@ -1130,9 +1143,9 @@ class MidasClient:
         hKey = ctypes.c_int()
         
         if follow_link:
-            self.lib.db_find_key(self.hDB, 0, c_path, ctypes.byref(hKey))
+            self.lib.c_db_find_key(self.hDB, 0, c_path, ctypes.byref(hKey))
         else:
-            self.lib.db_find_link(self.hDB, 0, c_path, ctypes.byref(hKey))
+            self.lib.c_db_find_link(self.hDB, 0, c_path, ctypes.byref(hKey))
         
         return hKey
         
@@ -1160,7 +1173,7 @@ class MidasClient:
             `midas.structs.Key`            
         """
         key = midas.structs.Key()
-        self.lib.db_get_key(self.hDB, hKey, ctypes.byref(key))
+        self.lib.c_db_get_key(self.hDB, hKey, ctypes.byref(key))
         return key        
                     
     def _odb_fix_directory_order(self, path, hKey, contents):
@@ -1178,7 +1191,7 @@ class MidasClient:
         bufsize = ctypes.c_int()
         bufend = ctypes.c_int()
 
-        self.lib.db_copy_json_ls(self.hDB, hKey, ctypes.byref(buf), ctypes.byref(bufsize), ctypes.byref(bufend))
+        self.lib.c_db_copy_json_ls(self.hDB, hKey, ctypes.byref(buf), ctypes.byref(bufsize), ctypes.byref(bufend))
     
         if bufsize.value <= 0:
             return
@@ -1205,7 +1218,7 @@ class MidasClient:
             if force_fix or current_order[i] != target_order[i]:
                 force_fix = True
                 subkey = self._odb_get_hkey(path + target_order[i])
-                self.lib.db_reorder_key(self.hDB, subkey, i)
+                self.lib.c_db_reorder_key(self.hDB, subkey, i)
         
     def _midas_type_to_ctype(self, midas_type, array_len=None, str_len=None, initial_value=None):
         """
@@ -1416,7 +1429,7 @@ class MidasClient:
         c_str_len = ctypes.c_int(ctypes.sizeof(c_str))
         c_async = ctypes.c_int(midas.TR_ASYNC if async_flag else midas.TR_SYNC)
         c_debug = ctypes.c_int(0)
-        retval = self.lib.cm_transition(c_trans, c_run_num, c_str, c_str_len, c_async, c_debug)
+        retval = self.lib.c_cm_transition(c_trans, c_run_num, c_str, c_str_len, c_async, c_debug)
         
         if retval != midas.status_codes["SUCCESS"]:
             py_str = c_str.value.decode("utf-8")

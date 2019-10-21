@@ -344,53 +344,20 @@ class MidasLib(ctypes.CDLL):
         # For cm_transition, we have custom error-checking in the wrapper, so
         # specify it in return_types so the regular MidasError is not raised.
         self.return_types = {
-            "cm_get_version": ctypes.c_char_p,
-            "cm_get_revision": ctypes.c_char_p,
-            "cm_is_ctrlc_pressed": ctypes.c_uint32,
-            "cm_ack_ctrlc_pressed": None,
-            "cm_transition": ctypes.c_int32,
-            "strcomb": ctypes.c_char_p,
-            "bk_init": None,
-            "bk_init32": None,
-            "bk_is32": ctypes.c_uint32,
-            "bk_create": None,
-            "rpc_debug_printf": None,
-            "rpc_tid_name": ctypes.c_char_p,
-            "rpc_get_convert_flags": None,
-            "rpc_convert_single": None,
-            "rpc_convert_data": None,
-            "ss_millitime": ctypes.c_uint32,
-            "ss_time": ctypes.c_uint32,
-            "ss_settime": ctypes.c_uint32,
-            "ss_asctime": ctypes.c_char_p,
-            "ss_kbhit": ctypes.c_uint32,
-            "ss_nan": ctypes.c_double,
-            "ss_clear_screen": None,
-            "ss_printf": None,
-            "ss_set_screen_size": None,
-            "ss_getpass": ctypes.c_char_p,
-            "ss_crypt": ctypes.c_char_p,
-            "ss_gets": ctypes.c_char_p,
-            "ss_ctrlc_handler": None,
-            "ss_disk_free": ctypes.c_double,
-            "ss_file_size": ctypes.c_double,
-            "ss_disk_size": ctypes.c_double,
-            "al_evaluate_condition": ctypes.c_uint32,
-            "test_register": None,
-            "add_data_dir": None,
-            "lock_histo": None,
-            "open_subfolder": None,
-            "close_subfolder": None
+            "c_cm_get_version": ctypes.c_char_p,
+            "c_cm_get_revision": ctypes.c_char_p,
+            "c_cm_transition": ctypes.c_int32,
+            "c_free": None
         }
         
         self.ignore_status_codes = {
-            "cm_yield": ["SS_CLIENT_RECV", "SS_SERVER_RECV", "SS_TIMEOUT"],
-            "bm_open_buffer": ["BM_CREATED"]
+            "c_cm_yield": ["SS_CLIENT_RECV", "SS_SERVER_RECV", "SS_TIMEOUT"],
+            "c_bm_open_buffer": ["BM_CREATED"]
         }
         
         self.db_key_name_arg = {
-            "db_find_key": 2,
-            "db_get_value": 2
+            "c_db_find_key": 2,
+            "c_db_get_value": 2
         }
     
     def __getitem__(self, name):
