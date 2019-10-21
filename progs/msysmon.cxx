@@ -577,7 +577,7 @@ void BuildHostNetPlot()
    *m=0.;
    sprintf(path,"/History/Display/msysmon/%s-net/Minimum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
-   *m=1000.;//./0.; //infinity
+   *m=1000./0.; //infinity
    sprintf(path,"/History/Display/msysmon/%s-net/Maximum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    delete m;
