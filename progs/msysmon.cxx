@@ -92,7 +92,7 @@ int read_system_load(char *pevent, int off);
 
 EQUIPMENT equipment[] = {
 
-  { "msysmon_${HOSTNAME}",   /* equipment name */    {
+  { "${HOSTNAME}_msysmon",   /* equipment name */    {
       EVID_MONITOR, 0,      /* event ID, trigger mask */
       "SYSTEM",             /* event buffer */
       EQ_PERIODIC,          /* equipment type */
