@@ -3,7 +3,7 @@
 #include <string>
 #include "string.h"
 #include "stdlib.h"
-
+#include "stdarg.h"
 
 /*
 We define a simple free function to ensure that python clients can

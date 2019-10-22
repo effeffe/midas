@@ -32,6 +32,10 @@ set(SYSLIB_DIR ${PROJECT_SOURCE_DIR}/lib)
 set(SYSINC_DIR ${PROJECT_SOURCE_DIR}/include)
 set(DRV_DIR ${PROJECT_SOURCE_DIR}/drivers)
 
+# Ensure the C-compat library can load the main library after install
+set(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 #####################################################################
 # Nothing needs to be modified after this line
 #####################################################################
@@ -250,7 +254,6 @@ set(libsrc
    )
  
 set(libsrc-c-compat
-    ${libsrc}
     src/midas_c_compat
     )
 
@@ -274,6 +277,7 @@ endif()
 
 # shared midas library with C compatible signatures
 add_library(midas-c-compat SHARED $<TARGET_OBJECTS:objlib-c-compat>)
+target_link_libraries(midas-c-compat midas-shared)
 target_link_libraries(midas-c-compat ${LIBS})
 if (HAVE_MYSQL)
    target_link_libraries(midas-c-compat ${DB_LIBS})
