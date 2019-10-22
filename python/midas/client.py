@@ -47,10 +47,6 @@ class MidasClient:
     
     # Low-level access
     
-    If no wrapper exists for a C function you need to use, you can still call
-    the function throught the `self.lib` member (which is a python ctypes
-    library object). 
-
     If you want to use a function that doesn't have a python wrapper, you will
     need to:
     
@@ -138,6 +134,7 @@ class MidasClient:
         self.hClient = ctypes.c_int()
 
         self.lib.c_cm_get_experiment_database(ctypes.byref(self.hDB), ctypes.byref(self.hClient))
+        self.lib.c_cm_start_watchdog_thread()
         
         self.event_buffers = {}
         
@@ -260,12 +257,19 @@ class MidasClient:
         
         Args:
             * path (str) - e.g. "/Runinfo/State"
-            * follow_links (bool) - Whether to follow symlinks in the ODB or not.
+            * follow_links (bool) - Whether to follow symlinks in the ODB or 
+                not. If False, we'll delete the link itself, rather than the 
+                target of the link.
         """
         c_path = ctypes.create_string_buffer(bytes(path, "utf-8"))
-        c_follow = ctypes.c_int(follow_links)
+        c_follow = ctypes.c_uint32(follow_links)
         hKey = ctypes.c_int()
-        self.lib.c_db_find_key(self.hDB, 0, c_path, ctypes.byref(hKey))
+        
+        if follow_links:
+            self.lib.c_db_find_key(self.hDB, 0, c_path, ctypes.byref(hKey))
+        else:
+            self.lib.c_db_find_link(self.hDB, 0, c_path, ctypes.byref(hKey))
+            
         self.lib.c_db_delete_key(self.hDB, hKey, c_follow)
         
     def odb_get(self, path, recurse_dir=True, include_key_metadata=False):
@@ -1088,6 +1092,37 @@ class MidasClient:
         if our_num_values != key_metadata.num_values:
             self.lib.c_db_set_num_values(self.hDB, hKey, our_num_values)
     
+    def _get_max_str_len(self, contents):
+        """
+        Get the size of ODB string needed to fit the given content.
+        
+        Args:
+            * contents (string, list of string, etc)
+            
+        Returns:
+            int
+        """
+        if contents is None:
+            our_max_string_size = 32
+        elif self._is_list_like(contents):
+            if isinstance(contents, ctypes.Array) and contents._type_ == ctypes.c_char:
+                # Single c string provided. Add a null byte if needed.
+                our_max_string_size = len(contents)
+                
+                if contents[-1] != b"\x00":
+                    our_max_string_size += 1
+            else:
+                # List of strings provided. Add a null byte.
+                our_max_string_size = max(len(x) for x in contents) + 1
+        else:
+            # Single string provided. Add a null byte.
+            our_max_string_size = len(contents) + 1
+        
+        if our_max_string_size > midas.MAX_STRING_LENGTH:
+            our_max_string_size = midas.MAX_STRING_LENGTH
+    
+        return our_max_string_size
+    
     def _odb_lengthen_string_to_fit_content(self, key_metadata, c_path, contents):
         """
         ODB entries for strings have a set capacity. Increase the capacity to 
@@ -1101,18 +1136,8 @@ class MidasClient:
         if key_metadata.type != midas.TID_STRING:
             raise TypeError("Dont call _odb_lengthen_string_to_fit_content() on a non-string ODB key")
         
-        if self._is_list_like(contents):
-            if isinstance(contents, ctypes.Array) and contents._type_ == ctypes.c_char:
-                # Single c string provided
-                our_max_string_size = len(contents)
-            else:
-                # List of strings provided
-                our_max_string_size = max(len(x) for x in contents)
-        else:
-            our_max_string_size = len(contents)
-            
-        our_max_string_size += 1 # for null byte
-                        
+        our_max_string_size = self._get_max_str_len(contents)
+        
         if our_max_string_size > key_metadata.item_size:
             self.lib.c_db_resize_string(self.hDB, 0, c_path, key_metadata.num_values, our_max_string_size)
     
@@ -1247,21 +1272,7 @@ class MidasClient:
 
         if midas_type == midas.TID_STRING:
             if str_len is None:
-                if initial_value is None:
-                    str_len = 31
-                elif self._is_list_like(initial_value):
-                    if isinstance(initial_value, ctypes.Array):
-                        if initial_value._type_ == ctypes.c_char:
-                            str_len = len(initial_value)
-                        else:
-                            raise TypeError("Expected an array of ctypes.c_char not %s" % initial_value._type_)
-                    else:
-                        str_len = max(len(x) for x in initial_value)
-                else:
-                    str_len = len(initial_value)
-                    
-                str_len += 1 # For null byte
-            
+                str_len = self._get_max_str_len(initial_value)
                 
             total_str_len = str_len * array_len
             total_initial_value = None
@@ -1270,8 +1281,10 @@ class MidasClient:
                 total_initial_value = b""
             else:
                 if isinstance(initial_value, ctypes.Array):
-                    # Slightly inefficient, but we need to add the final null byte
-                    total_initial_value = initial_value.value + bytes(1)
+                    total_initial_value = initial_value.value
+                    # We previously assumed this was a list, but it's really
+                    # just one string that was passed in as an array fo chars.
+                    # Update the total string length to reflect that.
                     total_str_len = str_len
                 elif self._is_list_like(initial_value):
                     total_initial_value = b""

@@ -214,7 +214,7 @@ class EquipmentBase:
             common = collections.OrderedDict([
                       ("Event ID", ctypes.c_ushort(default_common.event_id)),
                       ("Trigger mask", ctypes.c_ushort(default_common.trigger_mask)),
-                      ("Buffer", ctypes.create_string_buffer(bytes(default_common.buffer_name, "ascii"), 32)),
+                      ("Buffer", ctypes.create_string_buffer(bytes(default_common.buffer_name, "utf-8"), 32)),
                       ("Type", ctypes.c_int32(default_common.equip_type)),
                       ("Source", ctypes.c_int32(0)),
                       ("Format", ctypes.create_string_buffer(b"MIDAS", 8)),
@@ -224,9 +224,9 @@ class EquipmentBase:
                       ("Event limit", ctypes.c_double(0)),
                       ("Num subevents", ctypes.c_uint32(0)),
                       ("Log history", ctypes.c_int32(default_common.log_history)),
-                      ("Frontend host", ctypes.create_string_buffer(bytes(socket.gethostname(), "ascii"), 32)),
-                      ("Frontend name", ctypes.create_string_buffer(bytes(self.frontend_name, "ascii"), 32)),
-                      ("Frontend file name", ctypes.create_string_buffer(bytes(os.path.basename(__file__), "ascii"), 256)),
+                      ("Frontend host", ctypes.create_string_buffer(bytes(socket.gethostname(), "utf-8"), 32)),
+                      ("Frontend name", ctypes.create_string_buffer(bytes(self.frontend_name, "utf-8"), 32)),
+                      ("Frontend file name", ctypes.create_string_buffer(bytes(os.path.basename(__file__), "utf-8"), 256)),
                       ("Status", ctypes.create_string_buffer(256)),
                       ("Status color", ctypes.create_string_buffer(32)),
                       ("Hidden", False),
@@ -308,8 +308,8 @@ class EquipmentBase:
                 CSS background color name / hex value (max length 32 chars).
         """
         logger.debug("Setting status of equipment %s to `%s` (color `%s`)", self.name, status_text, status_color)
-        self.client.odb_set("%s/%s" % (self.odb_common_dir, "Status"), ctypes.create_string_buffer(bytes(status_text, "ascii"), 256))
-        self.client.odb_set("%s/%s" % (self.odb_common_dir, "Status color"), ctypes.create_string_buffer(bytes(status_color, "ascii"), 32))
+        self.client.odb_set("%s/%s" % (self.odb_common_dir, "Status"), ctypes.create_string_buffer(bytes(status_text, "utf-8"), 256))
+        self.client.odb_set("%s/%s" % (self.odb_common_dir, "Status color"), ctypes.create_string_buffer(bytes(status_color, "utf-8"), 32))
 
     def _is_initialized(self):
         """
@@ -643,7 +643,6 @@ class FrontendBase:
         self.run_state = self.client.odb_get("/Runinfo/State")
         self.client.odb_watch("/Runinfo/State", self._run_state_callback)
         
-        self.client.lib.c_cm_start_watchdog_thread()
         self._inited = True
         
     def begin_of_run(self, run_number):

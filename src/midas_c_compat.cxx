@@ -116,10 +116,14 @@ INT c_cm_get_experiment_database(HNDLE * hDB, HNDLE * hKeyClient) {
 }
 
 const char* c_cm_get_revision(void) {
+   // If this changes to returning a string, do:
+   // return strdup(cm_get_revision().c_str());
    return cm_get_revision();
 }
 
 const char* c_cm_get_version(void) {
+   // If this changes to returning a string, do:
+   // return strdup(cm_get_version().c_str());
    return cm_get_version();
 }
 

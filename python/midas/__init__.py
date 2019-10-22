@@ -94,6 +94,8 @@ EQ_FRAGMENTED  = (1<<6)   # Fragmented Event
 EQ_EB          = (1<<7)   # Event run through the event builder 
 EQ_USER        = (1<<8)   # Polling handled in user part 
 
+MAX_STRING_LENGTH = 256 # Max ODB string length 
+
 # Status codes used by midas
 status_codes = {
     "SUCCESS": 1,
