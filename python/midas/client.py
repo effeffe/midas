@@ -578,6 +578,19 @@ class MidasClient:
         self.lib.c_db_get_link_data(self.hDB, hKey, c_dest_path, ctypes.byref(c_size), midas.TID_LINK)
         return c_dest_path.value.decode("utf-8")
     
+    def odb_last_update_time(self, path):
+        """
+        Get when an ODB key was last written to.
+        
+        Args:
+            * path (str) - The ODB path
+            
+        Returns:
+            datetime.datetime
+        """
+        ts = self._odb_get_key(path).last_written
+        return datetime.datetime.fromtimestamp(ts)
+    
     def odb_watch(self, path, callback):
         """
         Register a function that will be called when a value in the ODB changes.
@@ -1083,11 +1096,11 @@ class MidasClient:
             * array_idx (int) - If setting a single array element, the index
                 we're going to set.
         """
-        our_num_values = self._odb_get_content_array_len(key_metadata, contents)
-
-        if array_idx is not None:
+        if array_idx is None:
             # Don't shrink arrays if setting a single value
             our_num_values = max(key_metadata.num_values, array_idx)
+        else:
+            our_num_values = self._odb_get_content_array_len(key_metadata, contents)
         
         if our_num_values != key_metadata.num_values:
             self.lib.c_db_set_num_values(self.hDB, hKey, our_num_values)
