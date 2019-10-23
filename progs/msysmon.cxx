@@ -63,7 +63,8 @@ const char *frontend_file_name = __FILE__;
 BOOL frontend_call_loop = FALSE;
 
 /* a frontend status page is displayed with this frequency in ms */
-INT display_period = 3000;
+//INT display_period = 3000;
+INT display_period = 0;
 
 /* maximum event size produced by this frontend */
 INT max_event_size      = 4*1024*1024;
@@ -577,7 +578,7 @@ void BuildHostNetPlot()
    *m=0.;
    sprintf(path,"/History/Display/msysmon/%s-net/Minimum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
-   *m=1000./0.; //infinity
+   *m=1.0/0.0; //infinity
    sprintf(path,"/History/Display/msysmon/%s-net/Maximum",equipment[0].info.frontend_host);
    status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
    delete m;
@@ -1091,6 +1092,10 @@ void ReadGPUData()
 
     if(dev->feature_support & POWER_USAGE) {
       NVML_TRY(nvmlDeviceGetPowerUsage(dev->handle, &dev->power_usage));
+    }
+
+    if(dev->feature_support & UTILIZATION_INFO) {
+      NVML_TRY(nvmlDeviceGetUtilizationRates(dev->handle, &dev->util));
     }
 
     if(dev->feature_support & FAN_INFO) {
