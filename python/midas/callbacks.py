@@ -31,6 +31,26 @@ TRANSITION_FUNC_TYPE = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.POINT
 # return BOOL (start transition now?); args int (run number) / BOOL (first time being called?)
 DEFERRED_TRANSITION_FUNC_TYPE = ctypes.CFUNCTYPE(ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32)
 
+def exception_message(e):
+    """
+    Get a printable version of an Exception.
+    
+    Args:
+        e (Exception)
+    Returns:
+        str
+    """
+    if hasattr(e, 'message'):
+        ret_str = e.message
+    else:
+        ret_str = str(e)
+        
+    if ret_str is None or len(ret_str) == 0:
+        ret_str = type(e).__name__
+        
+    return ret_str
+
+
 def make_hotlink_callback(path, callback, client):
     """
     Create a callback function that can be passed to db_open_record from the
@@ -59,7 +79,10 @@ def make_hotlink_callback(path, callback, client):
     # be told the new value etc.
     def _wrapper(hDB, hKey, info):
         odb_value = client.odb_get(path, recurse_dir=True)
-        callback(client, path, odb_value)
+        try:
+            callback(client, path, odb_value)
+        except Exception as e:
+            client.msg("Exception raised during callback on %s: %s" % (path, exception_message(e)), True)
         
     cb = HOTLINK_FUNC_TYPE(_wrapper)
     hotlink_callbacks.append(cb)
@@ -101,11 +124,7 @@ def make_transition_callback(callback, client):
         try:
             retval = callback(client, run_number)
         except Exception as e:
-            if hasattr(e, 'message'):
-                ret_str = e.message
-            else:
-                ret_str = str(e)
-                
+            ret_str = exception_message(e)
             ret_int = midas.status_codes["FE_ERR_DRIVER"]
             retval = (ret_int, ret_str)
         
@@ -160,7 +179,12 @@ def make_deferred_transition_callback(callback, client):
     # midas expects. The dummy param is for midas' "first" parameter, which
     # doesn't seem to be very well documented.
     def _wrapper(run_number, dummy):
-        retval = callback(client, run_number)
+        try:
+            retval = callback(client, run_number)
+        except Exception as e:
+            client.msg("Exception raised during deferred transition callback: %s" % exception_message(e), True)
+            retval = True
+
         return retval
 
     cb = DEFERRED_TRANSITION_FUNC_TYPE(_wrapper)

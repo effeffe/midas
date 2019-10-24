@@ -1096,7 +1096,7 @@ class MidasClient:
             * array_idx (int) - If setting a single array element, the index
                 we're going to set.
         """
-        if array_idx is None:
+        if array_idx is not None:
             # Don't shrink arrays if setting a single value
             our_num_values = max(key_metadata.num_values, array_idx)
         else:

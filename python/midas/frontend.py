@@ -236,7 +236,7 @@ class EquipmentBase:
             logger.info("Setting up %s for the first time" % self.odb_common_dir)
             self.client.odb_set(self.odb_common_dir, common)
             
-        self.set_status("%s@%s" % (socket.gethostname(), os.path.basename(__file__)), "greenLight")
+        self.set_status("%s@%s" % (self.frontend_name, socket.gethostname()), "greenLight")
         
         self.common = self.client.odb_get(self.odb_common_dir)
         self.client.odb_watch(self.odb_common_dir, self._odb_common_callback)
