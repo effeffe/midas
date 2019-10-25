@@ -719,6 +719,22 @@ static DWORD convert_time(char *t)
    return (DWORD)ltime;
 }
 
+void usage()
+{
+   printf("\nusage: mhist [-e Event Name] [-v Variable Name]\n");
+   printf("         [-i Index] index of variables which are arrays\n");
+   printf("         [-i Index1:Index2] index range of variables which are arrays (max 50)\n");
+   printf("         [-t Interval] minimum interval in sec. between two displayed records\n");
+   printf("         [-h Hours] display between some hours ago and now\n");
+   printf("         [-d Days] display between some days ago and now\n");
+   printf("         [-f File] specify history file explicitly\n");
+   printf("         [-s Start date] specify start date YYMMDD[.HHMM[SS]]\n");
+   printf("         [-p End date] specify end date YYMMDD[.HHMM[SS]]\n");
+   printf("         [-l] list available events and variables\n");
+   printf("         [-b] display time stamp in decimal format\n");
+   exit(1);
+}
+
 int main(int argc, char *argv[])
 {
    DWORD status;
@@ -783,13 +799,17 @@ int main(int argc, char *argv[])
          else if (argv[i][0] == '-' && argv[i][1] == 'l')
             list_query = TRUE;
          else if (argv[i][0] == '-') {
-            if (i + 1 >= argc || argv[i + 1][0] == '-')
-               goto usage;
-            if (strncmp(argv[i], "-e", 2) == 0)
+            if (i + 1 >= argc) {
+               printf("Error: command line switch value after \"%s\" is missing\n", argv[i]);
+               usage();
+            } else if (argv[i+1][0] == '-') {
+               printf("Error: command line switch value after \"%s\" starts with a dash: %s\n", argv[i], argv[i+1]);
+               usage();
+            } else if (strncmp(argv[i], "-e", 2) == 0) {
                event_name = argv[++i];
-            else if (strncmp(argv[i], "-v", 2) == 0)
+            } else if (strncmp(argv[i], "-v", 2) == 0) {
                strcpy(var_name, argv[++i]);
-            else if (strncmp(argv[i], "-i", 2) == 0) {
+            } else if (strncmp(argv[i], "-i", 2) == 0) {
                if ((column = strchr(argv[++i], ':')) == NULL) {
                   index1 = atoi(argv[i]);
                   index2 = 0;
@@ -803,8 +823,7 @@ int main(int argc, char *argv[])
             } else if (strncmp(argv[i], "-d", 2) == 0) {
                start_time = ss_time() - atoi(argv[++i]) * 3600 * 24;
             } else if (strncmp(argv[i], "-s", 2) == 0) {
-               //start_name = argv[++i];
-               start_time = convert_time(argv[i]);
+               start_time = convert_time(argv[++i]);
             } else if (strncmp(argv[i], "-p", 2) == 0) {
                end_time = convert_time(argv[++i]);
             } else if (strncmp(argv[i], "-t", 2) == 0) {
@@ -814,19 +833,8 @@ int main(int argc, char *argv[])
                do_hst_file = true;
             }
          } else {
-          usage:
-            printf("\nusage: mhist [-e Event Name] [-v Variable Name]\n");
-            printf("         [-i Index] index of variables which are arrays\n");
-            printf("         [-i Index1:Index2] index range of variables which are arrays (max 50)\n");
-            printf("         [-t Interval] minimum interval in sec. between two displayed records\n");
-            printf("         [-h Hours] display between some hours ago and now\n");
-            printf("         [-d Days] display between some days ago and now\n");
-            printf("         [-f File] specify history file explicitly\n");
-            printf("         [-s Start date] specify start date YYMMDD[.HHMM[SS]]\n");
-            printf("         [-p End date] specify end date YYMMDD[.HHMM[SS]]\n");
-            printf("         [-l] list available events and variables\n");
-            printf("         [-b] display time stamp in decimal format\n");
-            return 1;
+            printf("Error: unknown command line switch: %s\n", argv[i]);
+            usage();
          }
       }
    }
