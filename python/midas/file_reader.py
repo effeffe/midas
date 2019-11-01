@@ -133,7 +133,9 @@ class MidasFile:
         * path (str) - Path to the file
         """
         self.file = None
+        self.event = None
         self.next_event_offset = 0
+        self.this_event_payload_offset = 0
         self.reset_event()
         self.open(path)
         
@@ -207,9 +209,9 @@ class MidasFile:
         """
         self.jump_to_start()
         
-        if self.read_next_event_header() and self.event_header.is_bor_event():
+        if self.read_next_event_header() and self.event.header.is_bor_event():
             self.read_this_event_body()
-            return Odb(self.event_body.non_bank_data)
+            return Odb(self.event.body.non_bank_data)
         
         self.jump_to_start()
         raise RuntimeError("Unable to find BOR event")
@@ -224,9 +226,9 @@ class MidasFile:
             if not self.read_next_event_header():
                 break
         
-            if self.event_header.is_eor_event():
+            if self.event.header.is_eor_event():
                 self.read_this_event_body()
-                return Odb(self.event_body.non_bank_data)
+                return Odb(self.event.body.non_bank_data)
         
         self.jump_to_start()
         raise RuntimeError("Unable to find EOR event")
@@ -297,7 +299,7 @@ class MidasFile:
         self.file.seek(self.this_event_payload_offset, 0)
             
         if self.event.header.is_midas_internal_event():
-            self.event.body.non_bank_data = self.file.read(self.event_header.event_data_size_bytes - 1)
+            self.event.body.non_bank_data = self.file.read(self.event.header.event_data_size_bytes)
         else:
             all_bank_header_data = self.file.read(midas.event.all_bank_header_size)
             self.event.body.fill_header_from_bytes(all_bank_header_data)
@@ -364,11 +366,11 @@ class Odb:
         self.data = {}
         
         if odb_string is not None and len(odb_string) > 0:
-            if odb_string[0] == "<":
+            if odb_string[0] in ["<", 60]:
                 # This decode/encode is needed so that we can handle non-ascii values
                 # that may be in the dump.
                 self.load_from_xml_string(odb_string.decode('utf-8').encode('utf-8'))
-            elif odb_string[0] == "{":
+            elif odb_string[0] in ["{", 123]:
                 self.load_from_json_string(odb_string)
             else:
                 raise ValueError("Couldn't determine ODB dump format (first character is '%s', rather than expected '<' or '{')" % odb_string[0])
