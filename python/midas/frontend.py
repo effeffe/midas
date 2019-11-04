@@ -174,10 +174,11 @@ class EquipmentBase:
                 precendence.
             * default_settings (dict, `collection.OrderedDict`, or None) - Any 
                 ODB parameters we should create in /Equipment/<xxx>/Settings
-                if that directory does not already exist. Note that if you want
-                to CHANGE the structure of an existing /Equipment/<xxx>/Settings,
-                you should manually call client.odb_set() (either before or 
-                after calling __init__()).
+                if that directory does not already exist. We do NOT update the
+                values of any ODB keys that already exist. However, we will 
+                add/remove ODB keys if the structure you pass in does not match
+                the existing ODB structure. This allows you to easily add/remove
+                settings as your frontend development progresses.
         """
         if self._is_initialized():
             logger.debug("Equipment %s is already initialized" % equip_name)
@@ -241,9 +242,9 @@ class EquipmentBase:
         self.common = self.client.odb_get(self.odb_common_dir)
         self.client.odb_watch(self.odb_common_dir, self._odb_common_callback)
         
-        if default_settings is not None and not self.client.odb_exists(self.odb_settings_dir):
-            logger.info("Setting up %s for the first time" % self.odb_settings_dir)
-            self.client.odb_set(self.odb_settings_dir, default_settings)
+        if default_settings is not None:
+            logger.info("Setting up %s" % self.odb_settings_dir)
+            self.client.odb_set(self.odb_settings_dir, default_settings, update_structure_only=True)
                 
         if self.client.odb_exists(self.odb_settings_dir):
             self.settings = self.client.odb_get(self.odb_settings_dir)

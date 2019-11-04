@@ -406,7 +406,10 @@ class MidasClient:
             
         return retval
     
-    def odb_set(self, path, contents, create_if_needed=True, remove_unspecified_keys=True, resize_arrays=True, lengthen_strings=True, explicit_new_midas_type=None):
+    def odb_set(self, path, contents, create_if_needed=True, 
+                    remove_unspecified_keys=True, resize_arrays=True, 
+                    lengthen_strings=True, explicit_new_midas_type=None, 
+                    update_structure_only=False):
         """
         Set the value of an ODB key, or an entire directory. You may pass in
         normal python values, lists and dicts and they will be converted to
@@ -446,6 +449,11 @@ class MidasClient:
             *  explicit_new_midas_type (one of midas.TID_xxx) - If you're 
                 setting the value of a single ODB entry, you can explicitly
                 specify the type to use when creating the ODB entry (if needed).
+            * update_structure_only (bool) - If you want to add/remove entries
+                in an ODB directory, but not change the value of any entries
+                that already exist. Only makes sense if contents is a dict / 
+                `collections.OrderedDict`. Think of it like db_check_record from
+                the C library.
                 
         Raises:
             * KeyError if `create_if_needed` is False and the ODB entry does not
@@ -509,7 +517,10 @@ class MidasClient:
                         self.odb_delete(path + k)
                     
             for k,v in contents.items():
-                self.odb_set(path + k, v, create_if_needed, remove_unspecified_keys, resize_arrays, lengthen_strings)
+                update = did_create or isinstance(v, dict) or not update_structure_only
+                
+                if update or not self.odb_exists(path + k):
+                    self.odb_set(path + k, v, create_if_needed, remove_unspecified_keys, resize_arrays, lengthen_strings, update_structure_only=update_structure_only)
 
             if isinstance(contents, collections.OrderedDict):
                 self._odb_fix_directory_order(path, hKey, contents)

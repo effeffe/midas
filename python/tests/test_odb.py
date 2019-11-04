@@ -249,6 +249,26 @@ class TestOdb(unittest.TestCase):
         self.assert_equal(self.client.odb_get("/pytest/str_si[4]"), "?", midas.TID_STRING)
         self.assert_equal(self.client.odb_get("/pytest/str_si"), ["Hello", "Changed", "", "", "?"], midas.TID_STRING)
     
+    def testUpdateStructureOnly(self):
+        struc = collections.OrderedDict([("int", 1), ("float", 2), ("nested", collections.OrderedDict([("bool", True)]))])
+        self.set_and_readback("/pytest/structonly", struc, midas.TID_KEY)
+        
+        new_struc = struc.copy()
+        new_struc["addition"] = 4.5
+        new_struc["int"] = 3
+        new_struc["nested"]["bool"] = False
+        new_struc["nested"]["nested_add"] = "hello"
+        del new_struc["float"]
+        
+        self.client.odb_set("/pytest/structonly", new_struc, update_structure_only=True)
+        retval = self.client.odb_get("/pytest/structonly")
+        
+        self.assertNotIn("float", retval)
+        self.assert_equal(retval["int"], 1, midas.TID_INT)
+        self.assert_equal(retval["addition"], 4.5, midas.TID_DOUBLE)
+        self.assert_equal(retval["nested"]["bool"], True, midas.TID_BOOL)
+        self.assert_equal(retval["nested"]["nested_add"], "hello", midas.TID_STRING)
+        
     def hotlink_func(self, client, path, odb_value):
         self.seen_hotlink = True
         self.odb_watched_value = odb_value
