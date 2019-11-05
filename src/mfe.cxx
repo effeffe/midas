@@ -354,6 +354,40 @@ static INT register_equipment(void)
             *strchr(eq_info->buffer, '%') = 0;
       }
 
+      /* check for '${HOSTNAME}' in equipment name, replace with env var (needed for sysmon) */
+      char* namepos=strchr(equipment[idx].name, '$');
+      //If there is a $
+      if (namepos) {
+         //and its followed by {HOMENAME}
+         if (strncmp(namepos,"{HOSTNAME}",10) ) {
+            printf("Equipment name: %s ",equipment[idx].name);
+            //Get local_host_name (ODB entry not set yet)
+            char thishost[HOST_NAME_LENGTH];
+            ss_gethostname(thishost, sizeof(thishost));
+            //Cut the hostname string at the first '.'
+            char* cut=strchr(thishost, '.');
+            if (cut)
+               *cut='\0'; 
+            //Get start position of ${HOSTNAME} string
+            int start=namepos-equipment[idx].name;
+            //Copy everything before ${HOSTNAME}
+            char before[128];
+            snprintf(before,start+1,"%s",equipment[idx].name);
+            //Copy everything after ${HOSTNAME}
+            char after[128];
+            snprintf( after, start+sizeof("${HOSTNAME}"), "%s", namepos+ sizeof("${HOSTNAME}") -1);
+            //finish replacing ${HOSTNAME} with local_host_name. Force final name to fit within 32 chars
+            if (strlen(before)+strlen(thishost)+strlen(after)>32)
+               cm_msg(MERROR, "equipment name too long",
+                              "Equipment name %s%s%s too long, trimming down to %d characters",
+                              before,thishost,after,
+                              32);
+            snprintf(equipment[idx].name,32,"%s%s%s",before,thishost,after);
+            printf("\t became:%s\n",equipment[idx].name);
+         }
+      }
+
+
       sprintf(str, "/Equipment/%s/Common", equipment[idx].name);
 
       /* get last event limit from ODB */

@@ -76,7 +76,7 @@ typedef struct
 
 void get_slot (DDSY4527_INFO * info, WORD channel, WORD * chan, WORD * slot);
 INT dd_sy4527_Name_set (DDSY4527_INFO * info, WORD nchannel, WORD , char *chName);
-INT dd_sy4527_Name_get (DDSY4527_INFO * info, WORD nchannel, WORD , char *chName[MAX_CH_NAME]);
+INT dd_sy4527_Name_get (DDSY4527_INFO * info, WORD nchannel, WORD ,  char (*chnamelist)[MAX_CH_NAME]);
 INT dd_sy4527_lParam_set (DDSY4527_INFO * info, WORD nchannel, WORD , char const *ParName, DWORD * lvalue);
 INT dd_sy4527_lParam_get (DDSY4527_INFO * info, WORD nchannel, WORD , char const  *ParName, DWORD * lvalue);
 INT dd_sy4527_fParam_set (DDSY4527_INFO * info, WORD nchannel, WORD , char const  *ParName, float *fvalue);
@@ -441,38 +441,44 @@ INT dd_sy4527_Name_set (DDSY4527_INFO * info, WORD nchannel, WORD channel,
 /*----------------------------------------------------------------------------*/
 INT dd_sy4527_Label_get (DDSY4527_INFO * info, WORD channel, char *label)
 {
-  char * chnamelist[MAX_CH_NAME];
+  char (*chnamelist)[MAX_CH_NAME];
   WORD nchannel;
   CAENHVRESULT ret;
 
+  chnamelist = new char[1][MAX_CH_NAME];
   nchannel = 1;
   ret = dd_sy4527_Name_get (info, nchannel, channel, chnamelist);
   strcpy(label, chnamelist[0]);
+
+  delete[] chnamelist;
 
   return ret == 0 ? FE_SUCCESS : 0;
 }
 
 /*----------------------------------------------------------------------------*/
-INT dd_sy4527_Name_get (DDSY4527_INFO * info, WORD nchannel, WORD channel, char *chnamelist[MAX_CH_NAME])
+INT dd_sy4527_Name_get (DDSY4527_INFO * info, WORD nchannel, WORD channel, char (*chnamelist)[MAX_CH_NAME])
 {
   WORD ch, islot;
   CAENHVRESULT ret;
-  char name[MAX_CH_NAME];
+  char (*name)[MAX_CH_NAME];
   // Find out what slot we need to talk to.
   get_slot (info, channel, &ch, &islot);
-  
+  name = new char[nchannel][MAX_CH_NAME];
+
   ret = CAENHV_GetChName(info->handle, islot, nchannel, &ch, (char (*)[12]) name);
-  printf("slot %d, nchannel %d, channel %d, ch %d, name [%s], ret %d\n", islot, nchannel, channel, ch, name, ret);
+  printf("slot %d, nchannel %d, channel %d, ch %d, name [%s], ret %d\n", islot, nchannel, channel, ch, name[0], ret);
 
   //  strcpy(chnamelist, &name[0]);
   
   ret = CAENHV_GetChName(info->handle, islot, nchannel, &ch, (char (*)[12]) chnamelist);
-  printf("slot %d, nchannel %d, channel %d, ch %d, name [%s], ret %d\n", islot, nchannel, channel, ch, *chnamelist, ret);
+  printf("slot %d, nchannel %d, channel %d, ch %d, name [%s], ret %d\n", islot, nchannel, channel, ch, chnamelist[0], ret);
   
   //  printf("slot %d, nchannel %d, channel %d, ch %d, name [%s], ret %d\n", islot, nchannel, channel, ch, chnamelist[0], ret);
   if (ret != CAENHV_OK) {
     cm_msg (MERROR, "Name Get", "GetChName returns %d", ret);
   }
+
+  delete[] name;
 
   return ret;
 }

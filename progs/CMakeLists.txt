@@ -32,6 +32,7 @@ set(MFEPROGS
    mfe_link_test_cxx
    fetest
    feudp
+   msysmon
 )
 
 foreach(PROG ${PROGS} ${TESTPROGS})
@@ -41,12 +42,21 @@ foreach(PROG ${PROGS} ${TESTPROGS})
    target_link_libraries(${PROG} midas ${LIBS} ${DB_LIBS})
 endforeach()
 
+
 foreach(PROG ${MFEPROGS})
    add_executable(${PROG} ${PROG})
    target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
    target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
    target_link_libraries(${PROG} mfe midas ${LIBS} ${DB_LIBS})
 endforeach()
+
+if (HAVE_NVIDIA)
+   add_executable(msysmon-nvidia msysmon)
+   target_include_directories(msysmon-nvidia PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include ${NVIDIA_INC})
+   target_include_directories(msysmon-nvidia PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
+   target_link_libraries(msysmon-nvidia mfe midas ${LIBS} ${DB_LIBS} ${NVIDIA_LIBS})
+   target_compile_options(msysmon-nvidia PRIVATE -DHAVE_NVIDIA)
+endif(HAVE_NVIDIA)
 
 #
 # mhttpd
@@ -87,6 +97,9 @@ endif(HAVE_ROOT)
 # Installation
 #
 install(TARGETS ${PROGS} ${MFEPROGS} mhttpd odbedit DESTINATION bin)
+if (HAVE_NVIDIA)
+   install(TARGETS msysmon-nvidia)
+endif(HAVE_NVIDIA)
 
 if (HAVE_ROOT)
    install(TARGETS rmlogger DESTINATION bin)

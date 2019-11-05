@@ -2151,8 +2151,11 @@ function mhttpd_message(msg, chat) {
          if (mTalk !== "") {
             if (mType === "USER" && mhttpdConfig().speakChat) {
                // do not speak own message
-               if (document.getElementById("chatName") === undefined || document.getElementById("chatName").value !== chatName)
+               if (document.getElementById("chatName") === undefined || 
+                   document.getElementById("chatName") === null || 
+                   document.getElementById("chatName").value !== chatName) {
                   mhttpd_speak(talkTime, mTalk);
+               }
             } else if (mType === "TALK" && mhttpdConfig().speakTalk) {
                mhttpd_speak(talkTime, mTalk);
             } else if (mType === "ERROR" && mhttpdConfig().speakError) {

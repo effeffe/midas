@@ -147,6 +147,13 @@ endif
 #
 NEED_ZLIB=
 
+#
+# Optional nvidia gpu support, HAVE_NVIDIA is a count of CPUs
+#
+ifndef NO_NVIDIA
+HAVE_NVIDIA := $(shell nvidia-smi -L  2> /dev/null | grep GPU )
+endif
+
 #####################################################################
 # Nothing needs to be modified after this line 
 #####################################################################
@@ -423,6 +430,7 @@ PROGS = $(BIN_DIR)/mserver \
 	$(BIN_DIR)/mfe_link_test  \
 	$(BIN_DIR)/mfe_link_test_cxx  \
 	$(BIN_DIR)/fetest  \
+	$(BIN_DIR)/msysmon \
 	$(BIN_DIR)/feudp   \
 	$(BIN_DIR)/fetest_tmfe    \
 	$(BIN_DIR)/fetest_tmfe_thread \
@@ -454,6 +462,9 @@ ifdef HAVE_ROOT
 EXAMPLES += examples/experiment/analyzer
 endif
 
+ifdef HAVE_NVIDIA
+PROGS += $(BIN_DIR)/msysmon-nvidia
+endif
 OBJS = \
 	$(LIB_DIR)/midas.o \
 	$(LIB_DIR)/midas_cxx.o \
@@ -652,6 +663,10 @@ ROOTCFLAGS  := $(shell root-config --cflags)
 ROOTCFLAGS  += -DHAVE_ROOT
 endif
 
+ifdef HAVE_NVIDIA
+NVIDIA_FLAGS      += -DHAVE_NVIDIA   -L/usr/local/cuda/lib64 -lnvidia-ml -I/usr/local/cuda/include
+endif
+
 ifdef NEED_ZLIB
 CFLAGS     += -DHAVE_ZLIB
 LIBS       += -lz
@@ -841,6 +856,12 @@ $(BIN_DIR)/mcnaf: $(PROGS_DIR)/mcnaf.cxx $(DRV_DIR)/camac/camacrpc.cxx
 
 $(BIN_DIR)/mdump: $(PROGS_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $(PROGS_DIR)/mdump.cxx $(SRC_DIR)/mdsupport.cxx $(LIB) $(LIBS)
+
+$(BIN_DIR)/msysmon: $(PROGS_DIR)/msysmon.cxx $(LIB_DIR)/mfe.o
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
+
+$(BIN_DIR)/msysmon-nvidia: $(PROGS_DIR)/msysmon.cxx $(LIB_DIR)/mfe.o
+	$(CXX) $(CFLAGS) $(NVIDIA_FLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
 
 $(BIN_DIR)/fetest: $(PROGS_DIR)/fetest.cxx $(LIB_DIR)/mfe.o
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIB) $(LIBS)
