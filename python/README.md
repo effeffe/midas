@@ -22,6 +22,8 @@ See the examples in `midas/file_reader.py` and `examples/file_reader.py`.
 
 ### Client and frontend
 
+**THESE TOOLS REQUIRE MIDAS TO BE BUILT USING CMAKE - SEE MORE BELOW!**
+
 `midas/client.py` provides pythonic access to a midas experiment, by wrapping 
 midas' C library. It provides nice ODB access through functions like `odb_set`
 and `odb_get`, and can also handle event buffers, callback functions and more.
@@ -41,6 +43,8 @@ write frontends that do not have strict performance requirements.
 
 * They work with python 3 only.
 * They require the rest of midas to be compiled, as they use the midas C library.
+  For the correct libraries to be built, you must compile using CMake 
+  (e.g. `cd $MIDASSYS; mkdir build; cd build; cmake3 ..; make; make install`)
 * They are designed for ease of use, rather than optimal performance. If
   performance is critical for your application, you should write your code in C.
 
