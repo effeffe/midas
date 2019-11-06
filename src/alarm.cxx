@@ -809,6 +809,40 @@ INT al_get_alarms(char *result, int result_size)
    return n;
 }
 
+
+
+/********************************************************************/
+/**
+Reset (acknoledge) alarm.
+
+@param name         Alarm name, defined in /alarms/alarms
+@param class        Alarm class to be triggered
+@param condition    Alarm condition to be evaluated
+@param message      Alarm message
+@return AL_SUCCESS
+*/
+INT EXPRT al_define_odb_alarm(const char *name, const char *condition, const char *aclass, const char *message)
+{
+   HNDLE hDB, hKey;
+   char str[256];
+   ALARM_ODB_STR(alarm_odb_str);
+
+   cm_get_experiment_database(&hDB, nullptr);
+
+   snprintf(str, sizeof(str), "/Alarms/Alarms/%s", name);
+
+   db_create_record(hDB, 0, str, strcomb(alarm_odb_str));
+   db_find_key(hDB, 0, str, &hKey);
+   if (!hKey)
+      return DB_NO_MEMORY;
+
+   db_set_value(hDB, hKey, "Condition", condition, 256, 1, TID_STRING);
+   db_set_value(hDB, hKey, "Alarm Class", aclass, 32, 1, TID_STRING);
+   db_set_value(hDB, hKey, "Alarm Message", message, 80, 1, TID_STRING);
+
+   return AL_SUCCESS;
+}
+
 /**dox***************************************************************/
 /** @} *//* end of alfunctioncode */
 

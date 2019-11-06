@@ -3594,7 +3594,6 @@ INT hs_define_panel(const char *group, const char *panel, const std::vector<std:
    if (!hKey)
       return DB_NO_MEMORY;
 
-
    int i=0;
    for(auto const& v: var) {
       db_find_key(hDB, hKey, "Variables", &hKeyVar);
