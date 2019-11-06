@@ -27,6 +27,13 @@ $Id: dd_sy4527.c 2780 2005-10-19 13:20:29Z ritt $
 #define DEFAULT_TIMEOUT 10000	/* 10 sec. */
 #define SY4527_MAX_SLOTS   6
 
+#ifndef CAEN_HV_USER
+#define CAEN_HV_USER "admin"
+#endif
+#ifndef CAEN_HV_PASS
+#define CAEN_HV_PASS "4Hackers!"
+#endif
+
 /* Store any parameters the device driver needs in following 
 structure.  Edit the DDSY4527_SETTINGS_STR accordingly. This 
 contains  usually the address of the device. For a CAMAC device
@@ -115,8 +122,8 @@ INT dd_sy4527_init (HNDLE hkey, void **pinfo, WORD channels,
   ret = db_get_record (hDB, hkeydd, &info->dd_sy4527_settings, &size, 0);
   
   //  Connect to device
-  strcpy (username, "admin");
-  strcpy (passwd, "4Hackers!");
+  strcpy (username, CAEN_HV_USER);
+  strcpy (passwd, CAEN_HV_PASS);
   ret = CAENHV_InitSystem (CAEN_SYSTEM_TYPE, info->dd_sy4527_settings.linktype, info->dd_sy4527_settings.ip, username, passwd, &info->handle);
   //cm_msg (MINFO, "dd_sy4527", "device name: %s link type: %d ip: %s user: %s pass: %s",
   //  DevName, info->dd_sy4527_settings.linktype, info->dd_sy4527_settings.ip, username, passwd);
@@ -393,7 +400,10 @@ int howBig(DDSY4527_INFO * info, int slot){
 
 //is this the first channel in the slot?
 int isFirst(DDSY4527_INFO * info, WORD channel){
-  
+#ifdef CAEN_HV_DISABLE_ISFIRST_LOGIC
+  return 1;
+#else
+
   if(channel == 0) return 1;
     
   WORD islot, ch, prevSlot, prevCh;
@@ -402,7 +412,9 @@ int isFirst(DDSY4527_INFO * info, WORD channel){
    
   if(islot == prevSlot) return 0;
   else return 1;
-  
+
+#endif
+
 }
   
 /*----------------------------------------------------------------------------*/
