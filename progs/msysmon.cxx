@@ -265,12 +265,18 @@ const char* nvml_error_code_string(nvmlReturn_t ret)
     return "RM detects a driver/library version mismatch.";
   case NVML_ERROR_IN_USE:
     return "An operation cannot be performed because the GPU is currently in use.";
+  #ifdef NVML_ERROR_MEMORY
   case NVML_ERROR_MEMORY:
     return "Insufficient memory.";
+  #endif
+  #ifdef NVML_ERROR_NO_DATA
   case NVML_ERROR_NO_DATA:
     return "No data.";
+  #endif
+  #ifdef NVML_ERROR_VGPU_ECC_NOT_SUPPORTED
   case NVML_ERROR_VGPU_ECC_NOT_SUPPORTED:
     return "The requested vgpu operation is not available on target device, becasue ECC is enabled.";
+  #endif
   case NVML_ERROR_UNKNOWN:
     return "An internal driver error occurred";
   }
