@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html class="mcss">
+<head>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css">
+   <script src="controls.js"></script>
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <title>Example</title>
+
+   <style>
+      .mtable td {
+         padding: 8px;
+      }
+   </style>
+</head>
+
+<body class="mcss" onload="mhttpd_init('Custom Page Example');">
+
+<!-- header and side navigation will be filled in mhttpd_init -->
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+   <table class="mtable">
+      <tr>
+         <th colspan="3" class="mtableheader">Custom Page Example</th>
+      </tr>
+
+      <tr>
+         <td colspan="3">
+            <p>This is an example custom page showing the different possible elements you can put on a custom page.
+               It can be used to copy/paste to your own custom page. Most elements use the <i>/Runinfo/Run number</i>
+               variable in the ODB simply because this variable is there by default. Changing the run number will
+               then change these displays in real-time. The source code of this page is contained in
+               <i>midas/resources/custom_example.html</i>.</p>
+            <p>Find a full description of the midas custom page structure and tags in the
+               <a href="https://midas.triumf.ca/MidasWiki/index.php/Custom_Page">documentation</a>.</p>
+         </td>
+      </tr>
+
+      <tr>
+         <th style="padding:20px;">
+            Tag
+         </th>
+         <th style="width: 250px;">
+            Example
+         </th>
+         <th>
+            Description
+         </th>
+      </tr>
+
+      <tr>
+         <td style="width: 200px;">
+            <b>modb</b>
+         </td>
+         <td colspan="2">
+            This tag is invisible and gives you a "hook" to execute a JavaScript function if a value in the ODB
+            changes. If you change <a href="?cmd=Set&odb_path=Logger%2FWrite%20data" target="_blank"><i>/Logger/Write
+            data</i></a> in
+            the ODB, a dialog box will appear here.
+            <div class="modb" data-odb-path="/Logger/Write data" onchange="dlgAlert('Write flag has changed')"></div>
+         </td>
+      </tr>
+
+      <tr>
+         <td rowspan="5">
+            <b>modbvalue</b>
+         </td>
+         <td>
+            <div class="modbvalue" data-odb-path="/Runinfo/Run number"></div>
+         </td>
+         <td>
+            Displays <i>/Runinfo/Run number</i>
+         </td>
+      </tr>
+      <tr>
+         <td>
+            <div class="modbvalue" data-odb-path="/Runinfo/Run number" data-odb-editable="1"></div>
+         </td>
+         <td>
+            Displays <i>/Runinfo/Run number</i> with the possibility to edit it directly by clicking on it
+         </td>
+      </tr>
+      <tr>
+         <td>
+            <div class="modbvalue" data-odb-path="/Runinfo/Run number" data-format="x"></div>
+         </td>
+         <td>
+            Displays <i>/Runinfo/Run number</i> in hex format
+         </td>
+      </tr>
+      <tr>
+         <td>
+            <div class="modbvalue" data-odb-path="/Runinfo/Run number" data-format="b"></div>
+         </td>
+         <td>
+            Displays <i>/Runinfo/Run number</i> in binary format
+         </td>
+      </tr>
+
+      <tr>
+         <td>
+            <div class="modbvalue" data-odb-path="/Runinfo/Start time"></div>
+         </td>
+         <td>
+            Display <i>/Runinfo/Start time</i> as string
+         </td>
+      </tr>
+      <tr>
+         <td>
+            <b>modbcheckbox</b>
+         </td>
+         <td>
+            <input type="checkbox" class="modbcheckbox" data-odb-path="/Logger/Write data"></input>
+         </td>
+         <td>
+            Display <i>/Logger/Write data</i> as checkbox, user can change it by clicking on it
+         </td>
+      </tr>
+      <tr>
+         <td>
+            <b>modbbox</b>
+         </td>
+         <td>
+            <div class="modbbox" style="width: 30px; height: 30px;" data-odb-path="/Logger/Write data"
+                 data-color="lightgreen" data-background-color="red"></div>
+         </td>
+         <td>
+            Box displays green if <i>/Logger/Write data</i> is true, otherwise red
+         </td>
+      </tr>
+      <tr>
+         <td rowspan="3">
+            <b>modbhbar / mhaxis</b>
+         </td>
+         <td>
+            <div class="modbhbar" style="width:200px;height:20px;color:orange;" data-odb-path="/Runinfo/Run number"
+                 data-max-value="10" data-print-value="1"></div>
+         </td>
+         <td>
+            Draw a horizontal bar depending on <i>/Runinfo/Run number</i>. Left is 0, right is 10. Show value inside
+            bar.
+         </td>
+      </tr>
+      <tr>
+         <td>
+            <div class="mhaxis" style="width:200px;height:22px;" data-min-value="0" data-max-value="10"></div>
+            <div class="modbhbar" style="width: 200px; height: 18px;color:lightblue" data-odb-path="/Runinfo/Run number"
+                 data-max-value="10"></div>
+         </td>
+         <td>
+            Same together with horizontal axis (mhaxis)
+         </td>
+      </tr>
+      <tr>
+         <td>
+            <div class="modbhbar" style="width: 200px; height: 10px;color:lightgreen;background-color:white"
+                 data-odb-path="/Runinfo/Run number" data-min-value="0.1" data-max-value="10" data-log="1"></div>
+            <div class="mhaxis" style="width:200px;height:22px;vertical-align:top;" data-min-value="0.1"
+                 data-max-value="10" data-line="0" data-log="1"></div>
+         </td>
+         <td>
+            Same in logarithmic display
+         </td>
+      </tr>
+      <tr>
+         <td>
+            <b>modbvbar / mvaxis</b>
+         </td>
+         <td>
+            <span class="mvaxis" style="width:100px;height:200px;text-align:right;" data-min-value="0"
+                  data-max-value="20"></span><span class="modbvbar"
+                                                   style="width:20px;height:200px;color:yellow;"
+                                                   data-odb-path="/Runinfo/Run number"
+                                                   data-min-value="0" data-max-value="20"></span>
+            <span class="modbvbar" style="width:10px;height:200px;vertical-align:top;color:red"
+                  data-odb-path="/Runinfo/Run number" data-min-value="0.1"
+                  data-max-value="10" data-log="1"></span><span class="mvaxis"
+                                                                style="width:100px;height:200px;text-align:left;"
+                                                                data-min-value="0.1"
+                                                                data-max-value="10" data-log="1"></span>
+         </td>
+         <td>
+            Draw a vertical bar depending on <i>/Runinfo/Run number</i>. Bottom is 0, top is 10. Linear and logarithmic.
+
+         </td>
+      </tr>
+
+      <tr>
+         <td rowspan="2">
+            <b>modbthermo</b>
+         </td>
+         <td>
+            <div class="modbthermo" style="width:30px;height:100px;" data-odb-path="/Runinfo/Run number"
+                 data-min-value="-10" data-max-value="30"
+                 data-color="darkgreen"></div>
+            <div class="modbthermo" style="width:60px;height:100px;" data-odb-path="/Runinfo/Run number"
+                 data-min-value="-10" data-max-value="30"
+                 data-color="blue" data-scale="1"
+                 onchange="this.dataset.color=this.value > 9?'red':'blue';"></div>
+         </td>
+         <td>
+            Draw a thermometer depending on <i<>/Runinfo/Run number</i>. Bottom is -10, top is 30. Optional show scale
+            and change color depending on avlue (blue below 9, red above 9.
+         </td>
+      </tr>
+
+      <tr>
+         <td>
+            <div class="modbthermo" style="width:30px;height:100px;" data-odb-path="/Runinfo/Run number"
+                 data-min-value="-10" data-max-value="30"
+                 data-color="blue" data-background-color="white" data-value="1"></div>
+         </td>
+         <td>
+            Same with white background color instead of being transparent.
+         </td>
+      </tr>
+
+      <tr>
+         <td>
+            <b>modbgauge</b>
+         </td>
+         <td>
+            <div class="modbgauge" style="width:100px;height:50px;" data-odb-path="/Runinfo/Run number"
+                 data-min-value="0" data-max-value="10"
+                 data-color="darkgreen" data-background-color="lightgrey"></div>
+            <div class="modbgauge" style="width:100px;height:65px;" data-odb-path="/Runinfo/Run number"
+                 data-min-value="0" data-max-value="10"
+                 data-color="red" data-value="1" data-scale="1"></div>
+         </td>
+         <td>
+            Display gauge depending on <i>/Runfino/Run number</i>. Optionally with scale.
+         </td>
+      </tr>
+
+      <tr>
+         <td colspan="2" style="text-align: center;">
+            <!-- div around image with "relative" position as anchor for labels and bars -->
+            <div style="position:relative;width:300px;margin:auto">
+
+               <img src="tank.gif"> <!-- background image of tank -->
+
+               <!-- label next to valve -->
+               <div class="modbvalue" data-odb-path="/Runinfo/Run number" data-odb-editable="1"
+                    style="position:absolute;top:157px;left:288px;"></div>
+
+               <!-- vertical bar inside tank, render red if value > 9 -->
+               <div class="modbvbar" style="position:absolute;top:80px;left:10px;width:104px;height:170px;color:green"
+                    data-odb-path="/Runinfo/Run number" data-max-value="11"
+                    onchange="this.firstChild.style.backgroundColor=(this.value > 9)?'red':'green';"></div>
+
+               <!-- thermometer inside tank -->
+               <div class="modbthermo" style="position:absolute;top:140px;left:20px;width:20px;height:100px;"
+                    data-odb-path="/Runinfo/Run number" data-min-value="-10" data-max-value="30"
+                    data-color="blue" data-value="1"></div>
+
+            </div>
+         </td>
+         <td>
+            Complex example with underlying gif image, a vertical bar inside the tank, a thermometer inside the tank and
+            a value next to the valve, all depending on <i>/Runinfo/Run number</i>l
+         </td>
+      </tr>
+
+      <tr>
+         <td colspan="2" style="text-align: center;">
+            <!-- three buttons to change an ODB entry (run number in this example) -->
+            <button class="modbbutton mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="1">Set run
+               number to 1
+            </button>
+            <button class="modbbutton mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="5">Set run
+               number to 5
+            </button>
+            <button class="modbbutton mbutton" data-odb-path="/Runinfo/Run number" data-odb-value="10">Set run
+               number to 10
+            </button>
+         </td>
+         <td>
+            <b>modbbuttons</b> which change <i>/Runinfo/Run number</i> directly. Note how the displays above
+            change if the run number gets changed. The same can be achieved by changing the run number by any other
+            program such as odbedit.
+         </td>
+      </tr>
+   </table>
+</div>
+
+</body>
+</html>

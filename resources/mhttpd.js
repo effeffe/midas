@@ -58,7 +58,7 @@ function mie_to_string(tid, jvalue, format) {
    var t = typeof jvalue;
 
    if (t == 'number') {
-      return "" + jvalue;
+      jvalue = "" + jvalue;
    }
 
    if (tid == TID_DWORD || tid == TID_INT || tid == TID_WORD || tid == TID_SHORT || tid == TID_BYTE) {
@@ -73,10 +73,11 @@ function mie_to_string(tid, jvalue, format) {
                str = parseInt(jvalue);
          }
          if (format[i] == "x") {
+            var hex = parseInt(jvalue).toString(16);
             if (str.length > 0)
-               str += " / " + jvalue;
+               str += " / 0x" + hex;
             else
-               str = jvalue;
+               str = "0x" + hex;
          }
          if (format[i] == "b") {
             var bin = parseInt(jvalue).toString(2);
@@ -1742,21 +1743,19 @@ function mhttpd_refresh() {
          value = rpc[0].result.data[idata];
          if (modb[i].value === undefined) {
             modb[i].value = value;
-            if (modb[i].onchange !== null)
-               modb[i].onchange();
-         }
-         if (typeof value === 'object') { // subdircectory
-            if (modb[i].onchange !== null) {
-               modb[i].value = value;
-               modb[i].onchange();
+         } else {
+            if (typeof value === 'object') { // subdircectory
+               if (modb[i].onchange !== null) {
+                  modb[i].value = value;
+                  modb[i].onchange();
+               }
+            } else {                         // individual value
+               if (modb[i].onchange !== null && value !== modb[i].value) {
+                  modb[i].value = value;
+                  modb[i].onchange();
+               }
             }
-         } else {                         // individual value
-            if (modb[i].onchange !== null && value !== modb[i].value) {
-               modb[i].value = value;
-               modb[i].onchange();
-            }
          }
-
       }
 
       for (i = 0; i < modbvalue.length; i++, idata++) {
