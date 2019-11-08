@@ -140,9 +140,6 @@ INT frontend_init()
     */
    cm_set_transition_sequence(TR_START, 600);
 
-   char str[256];
-   begin_of_run(123, str);
-
    return CM_SUCCESS;
 }
 
