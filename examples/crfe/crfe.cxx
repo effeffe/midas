@@ -1,6 +1,6 @@
 /********************************************************************\
 
-  Name:         crfe.c
+  Name:         crfe.cxx
   Created by:   Stefan Ritt
 
   Contents:     Code for modern slow control front-end "Clock and Reset"
@@ -134,6 +134,15 @@ INT frontend_init()
 
    db_watch(hDB, hKey, cr_settings_changed, NULL);
 
+   /*
+    * Set our transition sequence. The default is 500. Setting it
+    * to 600 means we are called AFTER most other clients.
+    */
+   cm_set_transition_sequence(TR_START, 600);
+
+   char str[256];
+   begin_of_run(123, str);
+
    return CM_SUCCESS;
 }
 
@@ -153,8 +162,62 @@ INT frontend_loop()
 
 /*-- Begin of Run --------------------------------------------------*/
 
+#define N_READBACK 4
+
 INT begin_of_run(INT run_number, char *error)
 {
+   /*
+    * This example code starts a run transition, then waits on some
+    * external conditions by polling an array in the ODB. It expects
+    * that other programs set the readback array in the ODB to the
+    * current run number
+    */
+
+   HNDLE hDB, hKey;
+   INT readback[N_READBACK], i;
+   cm_get_experiment_database(&hDB, nullptr);
+
+   // set requested run number in ODB
+   db_set_value(hDB, 0, "/Equipment/Clock Reset/Run transitions/Requested run number", &run_number, sizeof(INT), 1, TID_INT);
+
+   // retrieve readback array form ODB
+   int size = sizeof(readback);
+   memset(readback, 0, size);
+   db_find_key(hDB, 0, "/Equipment/Clock Reset/Run transitions/FEB readback", &hKey);
+   if (!hKey) {
+      // create readback array if not existing
+      db_create_key(hDB, 0, "/Equipment/Clock Reset/Run transitions/FEB readback", TID_INT);
+      db_find_key(hDB, 0, "/Equipment/Clock Reset/Run transitions/FEB readback", &hKey);
+      db_set_data(hDB, hKey, readback, size, N_READBACK, TID_INT);
+   }
+
+   // set equipment status for status web page
+   set_equipment_status("Clock Reset", "Waiting for readback", "yellowLight");
+
+   // wait until readback succeeds
+   int start_time = ss_time();
+   do {
+      db_get_data(hDB, hKey, readback, &size, TID_INT);
+      for (i=0 ; i<N_READBACK ; i++) {
+         if (readback[i] != run_number)
+            break;
+      }
+      if (i == N_READBACK)
+         break;
+
+      // don't waste 100% CPU time
+      ss_sleep(10);
+
+   } while (ss_time() < start_time + 5); // wait maximal 5 seconds
+
+   if (i < N_READBACK) {
+      strcpy(error, "Timeout receiving FEB feedback");
+      return FE_ERR_HW;
+   }
+
+   // set equipment status for status web page
+   set_equipment_status("Clock Reset", "Ok", "greenLight");
+
    return CM_SUCCESS;
 }
 
@@ -180,6 +243,37 @@ INT resume_run(INT run_number, char *error)
 }
 
 /*--- Read Clock and Reset Event to be put into data stream --------*/
+
+ /*
+  *
+ // example event to be directly injected into the stream
+ struct EVENT {
+   BANK_HEADER header;
+   BANK32 bank;
+   DWORD d1[4];
+ };
+
+ struct EVENT e = {
+   { // BANK_HEADER
+     sizeof(BANK32) + ALIGN8(4*sizeof(DWORD)),  // total size
+     BANK_FORMAT_VERSION | BANK_FORMAT_32BIT    // flags
+   },
+   { // BANK32
+     {'N', 'A', 'M', 'E'},  // bank name
+     TID_DWORD,             // type
+     4*sizeof(DWORD)        // data size
+   },
+   {  1, 2, 3, 4 }           // data
+ };
+
+ Inject event via -->
+
+ INT read_cr_event(char *pevent, INT off)
+ {
+    memcpy(pevent, &e, sizeof(e));
+    return bk_size(pevent);
+ }
+ */
 
 INT read_cr_event(char *pevent, INT off)
 {

@@ -13,7 +13,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
    set(LIBS -lpthread -lutil -lrt)
 endif()
 
-add_executable(crfe crfe.cpp)
+add_executable(crfe crfe.cxx)
 
 target_include_directories(crfe PRIVATE ${MIDASSYS}/include)
 target_link_libraries(crfe ${MIDASSYS}/lib/libmfe.a ${MIDASSYS}/lib/libmidas.a ${LIBS})
