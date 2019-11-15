@@ -1664,6 +1664,12 @@ function mhttpd_refresh() {
    if (mhttpd_refresh_id !== undefined)
       window.clearTimeout(mhttpd_refresh_id);
 
+   /* don't update page if document is hidden (minimixed, covered tab etc) */
+   if (document.hidden) {
+      mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, 500);
+      return;
+   }
+
    /* this fuction gets called by mhttpd_init to periodically refresh all ODB tags plus alarms and messages */
 
    let paths = [];
@@ -1744,7 +1750,7 @@ function mhttpd_refresh() {
          if (modb[i].value === undefined) {
             modb[i].value = value;
          } else {
-            if (typeof value === 'object') { // subdircectory
+            if (typeof value === 'object' && value !== null) { // subdircectory
                if (modb[i].onchange !== null) {
                   modb[i].value = value;
                   modb[i].onchange();
