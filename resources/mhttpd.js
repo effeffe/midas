@@ -1659,13 +1659,46 @@ function mhttpd_resize_header() {
 }
 
 var mhttpd_last_message = 1;
+var mhttpd_last_alarm = 0;
 
 function mhttpd_refresh() {
    if (mhttpd_refresh_id !== undefined)
       window.clearTimeout(mhttpd_refresh_id);
 
-   /* don't update page if document is hidden (minimixed, covered tab etc) */
+   /* don't update page if document is hidden (minimized, covered tab etc), only play alarms */
    if (document.hidden) {
+
+      // only check every 10 seconds for alarm
+      if (new Date().getTime() > mhttpd_last_alarm + 10000) {
+
+         // request current alarms
+         var req = mjsonrpc_make_request("get_alarms");
+         mjsonrpc_send_request([req]).then(function (rpc) {
+
+            var alarms = rpc[0].result;
+
+            // update alarm display
+            if (alarms.alarm_system_active) {
+               var n = 0;
+               for (var a in alarms.alarms)
+                  n++;
+               if (n > 0)
+                  mhttpd_alarm_play();
+            }
+
+         }).catch(function (error) {
+            if (error.xhr && (error.xhr.readyState === 4) && ((error.xhr.status === 0) || (error.xhr.status === 503))) {
+               mhttpd_error('Connection to server broken. Trying to reconnect&nbsp;&nbsp;');
+               document.getElementById("mheader_error").appendChild(mhttpd_spinning_wheel);
+               mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
+            } else {
+               mjsonrpc_error_alert(error);
+            }
+         });
+
+         mhttpd_last_alarm = new Date().getTime();
+      }
+
       mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, 500);
       return;
    }
