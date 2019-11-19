@@ -3532,6 +3532,85 @@ public:
 
 }; // end class
 
+
+/********************************************************************/
+/**
+Define history panel in ODB with certain variables and default
+values for everything else
+@param group            History group name
+@param panel            Historyh panel name
+@param var              Vector of variables
+@return HS_SUCCESS
+*/
+/********************************************************************/
+
+#define HISTORY_PANEL(_name) const char *_name[] = {\
+"[.]",\
+"Variables = STRING : [64] :",\
+"Timescale = STRING : [32] 10m",\
+"Zero ylow = BOOL : n",\
+"Show run markers = BOOL : y",\
+"Buttons = STRING[7] :",\
+"[32] 10m",\
+"[32] 1h",\
+"[32] 3h",\
+"[32] 12h",\
+"[32] 24h",\
+"[32] 3d",\
+"[32] 7d",\
+"Log axis = BOOL : n",\
+"Show values = BOOL : y",\
+"Sort vars = BOOL : n",\
+"Show old vars = BOOL : n",\
+"Minimum = FLOAT : -inf",\
+"Maximum = FLOAT : inf",\
+"Label = STRING : [32] ",\
+"Colour = STRING : [32] ",\
+"Formula = STRING : [32] ",\
+"Show fill = BOOL : y",\
+"",\
+NULL }
+
+
+INT hs_define_panel(const char *group, const char *panel, const std::vector<std::string> var)
+{
+   HNDLE hDB, hKey, hKeyVar;
+   HISTORY_PANEL(history_panel_str);
+   char str[256];
+
+   const char *color[] = {
+           "#00AAFF", "#FF9000", "#FF00A0", "#00C030",
+           "#A0C0D0", "#D0A060", "#C04010", "#807060",
+           "#F0C000", "#2090A0", "#D040D0", "#90B000",
+           "#B0B040", "#B0B0FF", "#FFA0A0", "#A0FFA0",
+           "#808080"};
+
+   cm_get_experiment_database(&hDB, nullptr);
+
+   snprintf(str, sizeof(str), "/History/Display/%s/%s", group, panel);
+
+   db_create_record(hDB, 0, str, strcomb(history_panel_str));
+   db_find_key(hDB, 0, str, &hKey);
+   if (!hKey)
+      return DB_NO_MEMORY;
+
+   int i=0;
+   for(auto const& v: var) {
+      db_find_key(hDB, hKey, "Variables", &hKeyVar);
+      db_set_data_index(hDB, hKeyVar, v.c_str(), 64, i, TID_STRING);
+
+      str[0] = 0;
+      db_set_value_index(hDB, hKey, "Formula", str, 32, i, TID_STRING, false);
+      db_set_value_index(hDB, hKey, "Label", str, 32, i, TID_STRING, false);
+      db_set_value_index(hDB, hKey, "Colour", color[i < 16 ? i : 16], 32, i, TID_STRING, false);
+
+      i++;
+   }
+
+   return HS_SUCCESS;
+}
+
+
 MidasHistoryInterface* MakeMidasHistory()
 {
 #if 0

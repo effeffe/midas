@@ -18,6 +18,7 @@ project(midas)
 # Directories
 #
 
+
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
    # in standalone mode, install under <midas>/bin
    set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR} CACHE PATH "" FORCE)
@@ -180,6 +181,9 @@ add_compile_options(-DHAVE_FTPLIB)
 #
 # Optional nvidia gpu support, HAVE_NVIDIA is a count of CPUs
 #
+if (NOT NO_NVIDIA)
+   set(NO_NVIDIA 0 CACHE PATH "")
+endif()
 if (NO_NVIDIA)
    message(STATUS "MIDAS: NVIDIA GPU support is disabled via NO_NVIDIA")
 else (NO_NVIDIA)

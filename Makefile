@@ -354,7 +354,7 @@ CFLAGS += -D_LARGEFILE64_SOURCE
 NEED_ZLIB=1
 
 #OS_DIR = linux
-OSFLAGS += -DOS_LINUX -fPIC -Wno-unused-function
+OSFLAGS += -DOS_LINUX -fPIC -Wno-unused-function -std=c++11
 LIBS = -lutil -lpthread -lrt -ldl
 SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker $(BIN_DIR)/dio
 

@@ -2011,6 +2011,7 @@ Data conversion flags */
    INT EXPRT al_reset_alarm(const char *alarm_name);
    BOOL EXPRT al_evaluate_condition(const char *condition, char *value);
    INT al_get_alarms(char *result, int result_size);
+   INT EXPRT al_define_odb_alarm(const char *name, const char *condition, const char *aclass, const char *message);
 
    /*---- analyzer functions ----*/
    void EXPRT test_register(ANA_TEST * t);

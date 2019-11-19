@@ -817,7 +817,15 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
 
 MhistoryGraph.prototype.update = function () {
 
+   // don't update window if content is hidden (other tab, minimized, etc.)
+   if (document.hidden) {
+      this.updateTimer = window.setTimeout(this.update.bind(this), 500);
+      return;
+   }
+
    let t = Math.floor(new Date() / 1000);
+
+   console.log(new Date());
 
    mjsonrpc_call("hs_read_arraybuffer",
       {
