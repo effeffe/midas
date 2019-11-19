@@ -798,7 +798,7 @@ class MidasClient:
         
         return event
     
-    def cancel_event_request(self, buffer_handle, request_id):
+    def deregister_event_request(self, buffer_handle, request_id):
         """
         Cancel an event request that had previously been opened with 
         `register_event_request()`.

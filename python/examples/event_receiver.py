@@ -34,7 +34,7 @@ if __name__ == "__main__":
     # You don't have to cancel the event request manually (it will be done
     # automatically when the program exits), but for completeness we're just
     # showing that such a function exists.
-    client.cancel_event_request(buffer_handle, request_id)
+    client.deregister_event_request(buffer_handle, request_id)
     
     # Disconnect from midas before we exit.
     client.disconnect()
