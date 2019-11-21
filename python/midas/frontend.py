@@ -34,8 +34,15 @@ cmd_line_hostname = None # If run with the -h flag on the command-line. Populate
 cmd_line_exptname = None # If run with the -e flag on the command-line. Populated by parse_args().
 args_parsed = False      # Whether parse_args() has been called or not.
 
-# TODO - test logging and add more statements
 logger = logging.getLogger('midas')
+
+# mfe uses -h for host rather than help
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument("-i", type=int, metavar="frontend_index")
+parser.add_argument("-h", type=str, metavar="host_name")
+parser.add_argument("-e", type=str, metavar="expt_name")
+parser.add_argument("-d", action="store_true", help="Debug")
+parser.add_argument('--help', action='help', help='Show this help message and exit')
 
 def parse_args():
     """
@@ -44,16 +51,28 @@ def parse_args():
         * -h for the midas hostname (defaults to what's set by env vars)
         * -e for the midas expt name (defaults to what's set by env vars)
         * -d to enable debug logging
-    """
-    global frontend_index, cmd_line_hostname, cmd_line_exptname, args_parsed
+        
+    If you want to support more arguments for your frontend, you can work on
+    the global `parser` object and call add_argument() etc. For example:
     
-    # mfe uses -h for host rather than help
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("-i", type=int, metavar="frontend_index")
-    parser.add_argument("-h", type=str, metavar="host_name")
-    parser.add_argument("-e", type=str, metavar="expt_name")
-    parser.add_argument("-d", action="store_true", help="Debug")
-    parser.add_argument('--help', action='help', help='Show this help message and exit')
+    ```
+    parser = midas.frontend.parser
+    parser.add_argument("-x", type=int, help="Some custom argument")
+    
+    args = midas.frontend.parse_args()
+    
+    print("X argument was %s" % args.x)
+    
+    # Presumably you will use the argument for something in your frontend class.
+    my_fe = SomeFrontendClass(args.x)
+    my_fe.run()
+    ```
+    
+    Returns:
+        The result of calling parser.parse_args()
+    """
+    global frontend_index, cmd_line_hostname, cmd_line_exptname, args_parsed, parser
+    
     args = parser.parse_args()
     
     if args.d:
@@ -72,6 +91,7 @@ def parse_args():
     logger.info("frontend_index:    %s" % frontend_index)
     
     args_parsed = True
+    return args
 
 class InitialEquipmentCommon:
     """
