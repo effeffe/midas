@@ -11,8 +11,16 @@ free any memory that was allocated by midas. We define it as part
 of this library (rather than importing libc directly in python) to
 ensure that the same version of libc is used for the alloc and free.
 */
-void c_free(char* mem) {
+void c_free(void* mem) {
    free(mem);
+}
+
+void c_free_list(void** mem_list, int arr_len) {
+   for (int i = 0; i < arr_len; i++) {
+      free(mem_list[i]);
+   }
+
+   free(mem_list);
 }
 
 /*
@@ -30,6 +38,34 @@ INT copy_string_to_c(std::string src, char* dest, DWORD dest_size) {
 
    if (src.size() > dest_size) {
       return DB_TRUNCATED;
+   }
+
+   return SUCCESS;
+}
+
+/*
+Copies the content of vec into an array of type 'T' at dest. Will malloc the
+memory needed, so you must later call c_free() on dest. Fills dest_len with
+the size of the vector.
+ */
+template <class T> INT copy_vector_to_c(std::vector<T> vec, void** dest, int& dest_len) {
+   dest_len = vec.size();
+   *dest = malloc(sizeof(T) * dest_len);
+   std::copy(vec.begin(), vec.end(), (T*)*dest);
+   return SUCCESS;
+}
+
+/*
+Copies the content of vec into an array of char* at dest. Will malloc the
+memory needed for each string (and for the array itself), so you must later call
+c_free_list() on dest. Fills dest_len with the size of the vector.
+ */
+INT copy_vector_string_to_c(std::vector<std::string> vec, char*** dest, int& dest_len) {
+   dest_len = vec.size();
+   *dest = (char**) malloc(sizeof(char*) * dest_len);
+
+   for (int i = 0; i < dest_len; i++) {
+      (*dest)[i] = strdup(vec[i].c_str());
    }
 
    return SUCCESS;
@@ -68,6 +104,64 @@ INT c_example_string_c_alloc(char** dest) {
    std::string retval("My string that would come from a C++ function");
    *dest = strdup(retval.c_str());
    return SUCCESS;
+}
+
+/*
+Example of how one could wrap a midas function that returns/fills a std::vector.
+In this version we allocate memory for the C array. The caller must later
+free this memory themselves.
+
+The python code would be (note the final free!):
+```
+import ctypes
+import midas.client
+
+client = midas.client.MidasClient("pytest")
+lib = client.lib
+
+arr = ctypes.c_void_p()
+arr_len = ctypes.c_int()
+lib.c_example_vector(ctypes.byref(arr), ctypes.byref(arr_len))
+casted = ctypes.cast(arr, ctypes.POINTER(ctypes.c_float))
+py_list = casted[:arr_len.value]
+lib.c_free(arr)
+```
+ */
+INT c_example_vector(void** dest, int& dest_len) {
+   std::vector<float> retvec;
+   for (int i = 0; i < 10; i++) {
+      retvec.push_back(i/3.);
+   }
+
+   return copy_vector_to_c(retvec, dest, dest_len);
+}
+
+/*
+Example of how one could wrap a midas function that returns/fills a std::vector.
+In this version we allocate memory for the C array. The caller must later
+free this memory themselves.
+
+The python code would be (note the final free!):
+```
+import ctypes
+import midas.client
+client = midas.client.MidasClient("pytest")
+lib = client.lib
+
+arr = ctypes.POINTER(ctypes.c_char_p)()
+arr_len = ctypes.c_int()
+lib.c_example_string_vector(ctypes.byref(arr), ctypes.byref(arr_len))
+casted = ctypes.cast(arr, ctypes.POINTER(ctypes.c_char_p))
+py_list = [casted[i].decode("utf-8") for i in range(arr_len.value)]
+lib.c_free_list(arr, arr_len)
+```
+ */
+INT c_example_string_vector(char*** dest, int& dest_len) {
+   std::vector<std::string> retvec;
+   retvec.push_back("Hello");
+   retvec.push_back("world!");
+
+   return copy_vector_string_to_c(retvec, dest, dest_len);
 }
 
 INT c_bm_flush_cache(INT buffer_handle, INT async_flag) {
@@ -134,6 +228,31 @@ INT c_cm_msg(INT message_type, const char *filename, INT line, const char *routi
    vsprintf(message, (char *) format, argptr);
    va_end(argptr);
    return cm_msg(message_type, filename, line, routine, message);
+}
+
+/*
+Remember to call c_free_list on the dest afterwards. E.g.:
+```
+import ctypes
+import midas.client
+lib = midas.client.MidasClient("pytest").lib
+
+arr = ctypes.POINTER(ctypes.c_char_p)()
+arr_len = ctypes.c_int()
+lib.c_cm_msg_facilities(ctypes.byref(arr), ctypes.byref(arr_len))
+casted = ctypes.cast(arr, ctypes.POINTER(ctypes.c_char_p))
+py_list = [casted[i].decode("utf-8") for i in range(arr_len.value)]
+lib.c_free_list(arr, arr_len)
+```
+*/
+INT c_cm_msg_facilities(char*** dest, int& dest_len) {
+   std::vector<std::string> retvec;
+   INT retcode = cm_msg_facilities(&retvec);
+   if (retcode == SUCCESS) {
+      return copy_vector_string_to_c(retvec, dest, dest_len);
+   } else {
+      return retcode;
+   }
 }
 
 INT c_cm_register_deferred_transition(INT transition, BOOL(*func) (INT, BOOL)) {

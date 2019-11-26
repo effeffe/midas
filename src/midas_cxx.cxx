@@ -47,8 +47,11 @@ INT EXPRT cm_msg_facilities(STRING_LIST *list)
          list->push_back(p);
       }
    }
-   free(flist);
    
+   if (n > 0) {
+      free(flist);
+   }
+
    return SUCCESS;
 }
 

@@ -20,9 +20,12 @@ python/midas/__init__.py.
  */
 
 extern "C" {
-   void c_free(char* mem);
+   void c_free(void* mem);
+   void c_free_list(void** mem_list, int arr_len);
    INT c_example_string_c_bufsize(char* buffer, DWORD buffer_size);
    INT c_example_string_c_alloc(char** dest);
+   INT c_example_vector(void** dest, int& arr_len);
+   INT c_example_string_vector(char*** dest, int& arr_len);
 
    INT c_bm_flush_cache(INT buffer_handle, INT async_flag);
    INT c_bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle);
@@ -38,6 +41,7 @@ extern "C" {
    const char* c_cm_get_revision(void);
    const char* c_cm_get_version(void);
    INT c_cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) MATTRPRINTF(5,6);
+   INT c_cm_msg_facilities(char*** dest, int& dest_len);
    INT c_cm_register_deferred_transition(INT transition, BOOL(*func) (INT, BOOL));
    INT c_cm_register_transition(INT transition, INT(*func) (INT, char *), int sequence_number);
    INT c_cm_set_transition_sequence(INT transition, INT sequence_number);
