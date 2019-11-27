@@ -517,20 +517,36 @@ class Event:
             * buf_offset - Location in the buffer where this event starts.
         
         Returns:
-            None (but we've populated self.header and self.body)
+            None (but we've populated self.header and self.banks)
         """
         self.header.fill_from_bytes(buf[buf_offset:buf_offset+event_header_size])
+        self.unpack_body(buf, buf_offset + event_header_size)
         
-        buf_offset += event_header_size
+    def unpack_body(self, buf, buf_offset=0):
+        """
+        Unpack a buffer of bytes into this `Event` object. You must already have unpacked
+        the event header into self.header.
+        
+        Args:
+            * buf - The buffer to read from.
+            * buf_offset - Location in the buffer where the overall bank header data starts.
+        
+        Returns:
+            None (but we've populated self.banks)
+        """
+        if self.header is None or self.header.event_data_size_bytes is None:
+            raise RuntimeError("Can't unpack event body without first unpacking header")
+        
+        orig_buf_offset = buf_offset
         
         if self.header.is_midas_internal_event():
-            self.non_bank_data = buf[buf_offset:-1]
+            self.non_bank_data = buf[buf_offset:]
         else:
             all_bank_header_data = buf[buf_offset:buf_offset+midas.event.all_bank_header_size]
             buf_offset += midas.event.all_bank_header_size
             self.fill_header_from_bytes(all_bank_header_data)
             
-            while buf_offset < self.header.event_data_size_bytes + event_header_size - 4:
+            while (buf_offset - orig_buf_offset) < self.header.event_data_size_bytes - 4:
                 bank_header_data = buf[buf_offset:buf_offset+self.get_bank_header_size()]
                 buf_offset += self.get_bank_header_size()
                 

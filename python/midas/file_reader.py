@@ -297,29 +297,8 @@ class MidasFile:
             `Event` (with both the header and body populated)
         """
         self.file.seek(self.this_event_payload_offset, 0)
-            
-        if self.event.header.is_midas_internal_event():
-            self.event.non_bank_data = self.file.read(self.event.header.event_data_size_bytes)
-        else:
-            all_bank_header_data = self.file.read(midas.event.all_bank_header_size)
-            self.event.fill_header_from_bytes(all_bank_header_data)
-            
-            while self.file.tell() < self.next_event_offset - 4:
-                if self.event.is_bank_32():
-                    bank_header_data = self.file.read(12)
-                else:
-                    bank_header_data = self.file.read(8)
-                
-                bank = midas.event.Bank()
-                bank.fill_header_from_bytes(bank_header_data, self.event.is_bank_32())
-                    
-                raw_data = self.file.read(bank.size_bytes)
-                bank.convert_and_store_data(raw_data)
-                
-                self.event.add_bank(bank)
-
-                self.file.read(bank.get_expected_padding())
-        
+        body_data = self.file.read(self.event.header.event_data_size_bytes)
+        self.event.unpack_body(body_data, 0)
         return self.event
 
     def get_event_count(self, include_midas_special_events=False):
@@ -388,7 +367,7 @@ class Odb:
         
         Args:
             
-        * xml_string (str)
+        * xml_string (bytes)
         """
         self.written_time = None
         self.data = {}
