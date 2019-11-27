@@ -24,7 +24,7 @@ if __name__ == "__main__":
         
         if event is not None:
             # Print some information to screen about this event.
-            bank_names = ", ".join(b.name for b in event.body.banks)
+            bank_names = ", ".join(b.name for b in event.banks)
             print("Received event with timestamp %s containing banks %s" % (event.header.timestamp, bank_names))
             
         # Talk to midas so it knows we're alive, or can kill us if the user

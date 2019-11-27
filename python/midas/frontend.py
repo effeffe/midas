@@ -856,14 +856,14 @@ class FrontendBase:
                 self.client.send_event(buffer_handle, event)
                 
             ev_size = event.header.event_data_size_bytes
-            bank_list = ", ".join(event.body.banks.keys())
+            bank_list = ", ".join(event.banks.keys())
             logger.debug("Equipment %s has produced an event of size %s bytes with banks: %s" % (equip.name, ev_size, bank_list))
             equip._stats_add_event_of_size(ev_size)
                 
             if equip._is_time_to_write_vars_to_odb():
                 equip.last_odb_var_write_time = datetime.datetime.now()
                 
-                for bank in event.body.banks.values():
+                for bank in event.banks.values():
                     odb_path = equip.odb_variables_dir + "/" + bank.name
                     c_data = self.client._midas_type_to_ctype(bank.type, initial_value=bank.data)
                     self.client.odb_set(odb_path, c_data, explicit_new_midas_type=bank.type)

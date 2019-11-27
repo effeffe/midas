@@ -22,7 +22,7 @@ mfile = midas.file_reader.MidasFile("040644.mid")
 
 # We can simply iterate over all events in the file
 for event in mfile:
-    bank_names = ", ".join(b.name for b in event.body.banks.values())
+    bank_names = ", ".join(b.name for b in event.banks.values())
     print("Event # %s of type ID %s contains banks %s" % (event.header.serial_number, event.header.event_id, bank_names))
 ```
 
@@ -50,7 +50,7 @@ while mfile.read_next_event_header():
         raise RuntimeError("Unexpectedly failed to read body of event!")
     
     # Loop over the banks of data in this event and print information about them
-    for name, bank in mfile.event.body.banks.items():
+    for name, bank in mfile.event.banks.items():
         # The `bank.data` member is automatically converted to appropriate python data types.
         # Here we're just figuring out what that type is to print it to screen. Normally
         # you already know what to expect for each bank, and could just the tuple of floats,
@@ -211,7 +211,7 @@ class MidasFile:
         
         if self.read_next_event_header() and self.event.header.is_bor_event():
             self.read_this_event_body()
-            return Odb(self.event.body.non_bank_data)
+            return Odb(self.event.non_bank_data)
         
         self.jump_to_start()
         raise RuntimeError("Unable to find BOR event")
@@ -228,7 +228,7 @@ class MidasFile:
         
             if self.event.header.is_eor_event():
                 self.read_this_event_body()
-                return Odb(self.event.body.non_bank_data)
+                return Odb(self.event.non_bank_data)
         
         self.jump_to_start()
         raise RuntimeError("Unable to find EOR event")
@@ -241,7 +241,7 @@ class MidasFile:
             `Event`, or None of no such event found.
         """
         while self.read_next_event():
-            if bank_name in self.event.body.banks.keys():
+            if bank_name in self.event.banks.keys():
                 return self.event
             
         return None
@@ -299,24 +299,24 @@ class MidasFile:
         self.file.seek(self.this_event_payload_offset, 0)
             
         if self.event.header.is_midas_internal_event():
-            self.event.body.non_bank_data = self.file.read(self.event.header.event_data_size_bytes)
+            self.event.non_bank_data = self.file.read(self.event.header.event_data_size_bytes)
         else:
             all_bank_header_data = self.file.read(midas.event.all_bank_header_size)
-            self.event.body.fill_header_from_bytes(all_bank_header_data)
+            self.event.fill_header_from_bytes(all_bank_header_data)
             
             while self.file.tell() < self.next_event_offset - 4:
-                if self.event.body.is_bank_32():
+                if self.event.is_bank_32():
                     bank_header_data = self.file.read(12)
                 else:
                     bank_header_data = self.file.read(8)
                 
                 bank = midas.event.Bank()
-                bank.fill_header_from_bytes(bank_header_data, self.event.body.is_bank_32())
+                bank.fill_header_from_bytes(bank_header_data, self.event.is_bank_32())
                     
                 raw_data = self.file.read(bank.size_bytes)
                 bank.convert_and_store_data(raw_data)
                 
-                self.event.body.add_bank(bank)
+                self.event.add_bank(bank)
 
                 self.file.read(bank.get_expected_padding())
         
@@ -352,7 +352,7 @@ class Odb:
     
     Members:
         
-    * written_time (datetime.datetime) - Time the ODB dump was written (as encoded in a comment in the dump)
+    * written_time (datetime.datetime) - Time the ODB dump was written (only if the dump was written as XML)
     * data (dict) - The actual ODB structure
     """
     def __init__(self, odb_string = None):
@@ -369,7 +369,8 @@ class Odb:
             if odb_string[0] in ["<", 60]:
                 # This decode/encode is needed so that we can handle non-ascii values
                 # that may be in the dump.
-                self.load_from_xml_string(odb_string.decode('utf-8').encode('utf-8'))
+                # The -1 is needed so the XML parser doesn't complain about an invalid token.
+                self.load_from_xml_string(odb_string.decode('utf-8').encode('utf-8')[:-1])
             elif odb_string[0] in ["{", 123]:
                 self.load_from_json_string(odb_string)
             else:
@@ -400,14 +401,14 @@ class Odb:
         
         Extract the creation time.
         """
-        comment_start = xml_string.find("<!--")
+        comment_start = xml_string.find(b"<!--")
         
         if comment_start != -1:
-            ts_start = xml_string.find(" on ", comment_start)
-            ts_end = xml_string.find(" -->", comment_start)
+            ts_start = xml_string.find(b" on ", comment_start)
+            ts_end = xml_string.find(b" -->", comment_start)
             
             if ts_start != -1 and ts_end != -1:
-                ts_str = xml_string[ts_start+4:ts_end]
+                ts_str = xml_string[ts_start+4:ts_end].decode('utf-8')
                 self.written_time = datetime.datetime.strptime(ts_str, "%c")
         
         """

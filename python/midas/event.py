@@ -11,101 +11,6 @@ import time
 event_header_size = 16
 all_bank_header_size = 8
 
-class Event:
-    """
-    Represents a full midas event.
-    See https://midas.triumf.ca/MidasWiki/index.php/Event_Structure#MIDAS_Format_Event
-    for documentation of the event structure.
-    
-    Members:
-        * header (`EventHeader`) - Metadata about the event
-        * body (`EventBody`) - The actual event content
-    """
-    def __init__(self):
-        self.header = EventHeader()
-        self.body = EventBody()
-
-    def dump(self, include_bank_content=True):
-        """
-        Print the content of this event to screen. The output format closely
-        resembles that of the `mdump` utility.
-        
-        Args:
-            * include_bank_content (bool) - Whether to print the content of the
-                data banks, or just the metadata.
-        """
-        print("-" * 30)
-        self.header.dump()
-        self.body.dump(include_bank_content)
-
-    def pack(self, buf=None, buf_offset=0):
-        """
-        Pack an event into a buffer of bytes (creating the buffer if needed).
-        
-        Args:
-            * buf - The buffer to write to. Probably best created using
-                `ctypes.create_string_buffer()`. If None, we'll create a buffer
-                of the appropriate size.
-            * buf_offset (int) - Where in the buffer to start writing this
-                event.
-                
-        Returns:
-            The buffer that was written to
-        """
-        # Note - this does not include the overall event header!
-        if self.body.all_bank_size_bytes is None:
-            self.body.calculate_sizes()
-            
-        if self.header.event_data_size_bytes is None:
-            self.header.event_data_size_bytes = self.body.all_bank_size_bytes + all_bank_header_size
-          
-        if buf is None:
-            buf_size = self.header.event_data_size_bytes + event_header_size
-            buf = ctypes.create_string_buffer(buf_size)
-            buf_offset = 0
-
-        self.header.pack(buf, buf_offset)
-        self.body.pack(buf, buf_offset + event_header_size)
-        
-        return buf
-    
-    def unpack(self, buf, buf_offset=0):
-        """
-        Unpack a buffer of bytes into this `Event` object.
-        
-        Args:
-            * buf - The buffer to read from.
-            * buf_offset - Location in the buffer where this event starts.
-        
-        Returns:
-            None (but we've populated self.header and self.body)
-        """
-        self.header.fill_from_bytes(buf[buf_offset:buf_offset+event_header_size])
-        
-        buf_offset += event_header_size
-        
-        if self.header.is_midas_internal_event():
-            self.body.non_bank_data = buf[buf_offset:-1]
-        else:
-            all_bank_header_data = buf[buf_offset:buf_offset+midas.event.all_bank_header_size]
-            buf_offset += midas.event.all_bank_header_size
-            self.body.fill_header_from_bytes(all_bank_header_data)
-            
-            while buf_offset < self.header.event_data_size_bytes + event_header_size - 4:
-                bank_header_data = buf[buf_offset:buf_offset+self.body.get_bank_header_size()]
-                buf_offset += self.body.get_bank_header_size()
-                
-                bank = midas.event.Bank()
-                bank.fill_header_from_bytes(bank_header_data, self.body.is_bank_32())
-                    
-                raw_data = buf[buf_offset:buf_offset+bank.size_bytes]
-                buf_offset += bank.size_bytes
-                bank.convert_and_store_data(raw_data)
-                
-                self.body.add_bank(bank)
-
-                buf_offset += bank.get_expected_padding()
-                
 class EventHeader:
     """
     Represents a midas EVENT_HEADER struct.
@@ -399,13 +304,14 @@ class Bank:
                 # Regular tuple
                 self.data = unpacked_data
 
-class EventBody:
+class Event:
     """
-    Represents a midas BANK_HEADER and its associated banks.
+    Represents a full midas event.
     See https://midas.triumf.ca/MidasWiki/index.php/Event_Structure#MIDAS_Format_Event
+    for documentation of the event structure.
     
     Members:
-        
+    * header (`EventHeader`) - Metadata about the event
     * all_bank_size_bytes (int)
     * flags (int)
     * banks (dict of {str: `Bank`}) - Keyed by bank name
@@ -413,6 +319,7 @@ class EventBody:
         use banks (e.g. begin-of-run ODB dump)
     """
     def __init__(self):
+        self.header = EventHeader()
         self.all_bank_size_bytes = None
         self.flags = (1<<4) # Default to BANK32
         self.banks = {}
@@ -420,13 +327,15 @@ class EventBody:
         
     def dump(self, include_bank_content=True):
         """
-        Dump the content of this bank to screen. Format closely matches that of
-        the `mdump` utility.
+        Print the content of this event to screen. The output format closely
+        resembles that of the `mdump` utility.
         
         Args:
-            * include_bank_content (bool) - Whether to include the content of
-                the data banks, or just the list of names.
+            * include_bank_content (bool) - Whether to print the content of the
+                data banks, or just the metadata.
         """
+        print("-" * 30)
+        self.header.dump()
         print("#banks:%d - Bank list:-%s-" % (len(self.banks), "".join(self.banks.keys())))
         
         if include_bank_content:
@@ -531,7 +440,7 @@ class EventBody:
         """
         return 12 if self.is_bank_32() else 8
         
-    def calculate_sizes(self):
+    def calculate_bank_sizes(self):
         """
         Calculate and fill the size of the banks in this event, and the overall
         event size.
@@ -549,10 +458,7 @@ class EventBody:
         
     def pack(self, buf=None, buf_offset=0):
         """
-        Pack the content of this event body into a buffer of bytes (creating 
-        the buffer if needed).
-        
-        We'll call self.calculate_sizes() automatically if needed.
+        Pack an event into a buffer of bytes (creating the buffer if needed).
         
         Args:
             * buf - The buffer to write to. Probably best created using
@@ -564,13 +470,20 @@ class EventBody:
         Returns:
             The buffer that was written to
         """
+        # Note - this does not include the overall event header!
         if self.all_bank_size_bytes is None:
-            self.calculate_sizes()
+            self.calculate_bank_sizes()
+            
+        if self.header.event_data_size_bytes is None:
+            self.header.event_data_size_bytes = self.all_bank_size_bytes + all_bank_header_size
           
         if buf is None:
-            # Buffer must be big enough for all the bank data AND the overall header.
-            buf = ctypes.create_string_buffer(self.all_bank_size_bytes + all_bank_header_size)
+            buf_size = self.header.event_data_size_bytes + event_header_size
+            buf = ctypes.create_string_buffer(buf_size)
             buf_offset = 0
+
+        self.header.pack(buf, buf_offset)
+        buf_offset += event_header_size
         
         # Overall header
         struct.pack_into(midas.endian_format_flag + "II", buf, buf_offset, self.all_bank_size_bytes, self.flags)
@@ -595,3 +508,40 @@ class EventBody:
             
         return buf
         
+    def unpack(self, buf, buf_offset=0):
+        """
+        Unpack a buffer of bytes into this `Event` object.
+        
+        Args:
+            * buf - The buffer to read from.
+            * buf_offset - Location in the buffer where this event starts.
+        
+        Returns:
+            None (but we've populated self.header and self.body)
+        """
+        self.header.fill_from_bytes(buf[buf_offset:buf_offset+event_header_size])
+        
+        buf_offset += event_header_size
+        
+        if self.header.is_midas_internal_event():
+            self.non_bank_data = buf[buf_offset:-1]
+        else:
+            all_bank_header_data = buf[buf_offset:buf_offset+midas.event.all_bank_header_size]
+            buf_offset += midas.event.all_bank_header_size
+            self.fill_header_from_bytes(all_bank_header_data)
+            
+            while buf_offset < self.header.event_data_size_bytes + event_header_size - 4:
+                bank_header_data = buf[buf_offset:buf_offset+self.get_bank_header_size()]
+                buf_offset += self.get_bank_header_size()
+                
+                bank = midas.event.Bank()
+                bank.fill_header_from_bytes(bank_header_data, self.is_bank_32())
+                    
+                raw_data = buf[buf_offset:buf_offset+bank.size_bytes]
+                buf_offset += bank.size_bytes
+                bank.convert_and_store_data(raw_data)
+                
+                self.add_bank(bank)
+
+                buf_offset += bank.get_expected_padding()
+                

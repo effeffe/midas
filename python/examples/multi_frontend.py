@@ -73,8 +73,8 @@ class MyMultiPeriodicEquipment(midas.frontend.EquipmentBase):
             event = midas.event.Event()
             data = [1,2,3,4,5,6,7,8]
             
-            event.body.create_bank("MYBK", midas.TID_INT, data)
-            event.body.create_bank("BNK2", midas.TID_BOOL, [True, False])
+            event.create_bank("MYBK", midas.TID_INT, data)
+            event.create_bank("BNK2", midas.TID_BOOL, [True, False])
             
             self.prescale_count = 0
             return event
@@ -140,7 +140,7 @@ class MyMultiPolledEquipment(midas.frontend.EquipmentBase):
         event = midas.event.Event()
         data = [4.5, 6.7, 8.9]
         
-        event.body.create_bank("MYFL", midas.TID_FLOAT, data)
+        event.create_bank("MYFL", midas.TID_FLOAT, data)
         
         return event
 

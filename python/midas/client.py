@@ -714,7 +714,7 @@ class MidasClient:
         event = midas.event.Event()
         event.header.event_id = 123
         event.header.serial_number = 1
-        event.body.create_bank("MYBK", midas.TID_WORD, [1,2,3,4])
+        event.create_bank("MYBK", midas.TID_WORD, [1,2,3,4])
         
         client.send_event(buffer_handle, event)
         ```

@@ -59,7 +59,7 @@ class MyPeriodicEquipment(midas.frontend.EquipmentBase):
         # Create a bank (called "MYBK") which in this case will store 8 ints.
         # Note we can pass in lists of pythonic data types.
         data = [1,2,3,4,5,6,7,8]
-        event.body.create_bank("MYBK", midas.TID_INT, data)
+        event.create_bank("MYBK", midas.TID_INT, data)
         
         return event
 
