@@ -1617,20 +1617,26 @@ INT ss_spawnv(INT mode, const char *cmdname, const char* const argv[])
 
    if (child_pid == 0) {
       /* now we are in the child process ... */
-      child_pid = execvp(cmdname, (char*const*)argv);
+      int error = execvp(cmdname, (char*const*)argv);
+      fprintf(stderr, "ss_spawnv: Cannot execute command \"%s\": execvp() returned %d, errno %d (%s), aborting!\n", cmdname, error, errno, strerror(errno));
+      // NB: this is the forked() process, if it returns back to the caller, we will have
+      // a duplicate process for whoever called us. Very bad! So must abort. K.O.
+      abort();
+      // NOT REACHED
       return SS_SUCCESS;
    } else {
       /* still in parent process */
-      if (mode == P_WAIT)
+      if (mode == P_WAIT) {
 #ifdef OS_ULTRIX
          waitpid(child_pid, status, WNOHANG);
 #else
          waitpid(child_pid, &status, WNOHANG);
 #endif
 
-      else
+      } else {
          /* catch SIGCHLD signal to avoid <defunc> processes */
          signal(SIGCHLD, catch_sigchld);
+      }
    }
 
    return SS_SUCCESS;
@@ -1863,7 +1869,10 @@ INT ss_shell(int sock)
          strlcpy(shell, getenv("SHELL"), sizeof(shell));
       else
          strcpy(shell, "/bin/sh");
-      execl(shell, shell, NULL);
+      int error = execl(shell, shell, NULL);
+      // NB: execl() does not return unless there is an error.
+      fprintf(stderr, "ss_shell: Cannot execute command \"%s\": execl() returned %d, errno %d (%s), aborting!\n", shell, error, errno, strerror(errno));
+      abort();
    }
 #else
    send(sock, "not implemented\n", 17, 0);
@@ -2069,7 +2078,10 @@ INT ss_exec(const char *command, INT * pid)
    /* chdir("/"); *//* change working directory (not on NFS!) */
 
    /* execute command */
-   execl("/bin/sh", "sh", "-c", command, NULL);
+   int error = execl("/bin/sh", "sh", "-c", command, NULL);
+   // NB: execl() does not return unless there is an error. K.O.
+   fprintf(stderr, "ss_shell: Cannot execute /bin/sh for command \"%s\": execl() returned %d, errno %d (%s), aborting!\n", command, error, errno, strerror(errno));
+   abort();
 
 #else
 
