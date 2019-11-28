@@ -256,9 +256,7 @@ add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
 # shared midas library
 add_library(midas-shared SHARED $<TARGET_OBJECTS:objlib>)
 target_link_libraries(midas-shared ${LIBS})
-if (HAVE_MYSQL)
-   target_link_libraries(midas-shared ${DB_LIBS})
-endif()
+target_link_libraries(midas-shared ${DB_LIBS})
 
 target_include_directories(objlib PUBLIC ${SYSINC_DIR})
 target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
