@@ -27,6 +27,13 @@ $Id: dd_sy4527.c 2780 2005-10-19 13:20:29Z ritt $
 #define DEFAULT_TIMEOUT 10000	/* 10 sec. */
 #define SY4527_MAX_SLOTS   6
 
+#ifndef CAEN_HV_USER
+#define CAEN_HV_USER "admin"
+#endif
+#ifndef CAEN_HV_PASS
+#define CAEN_HV_PASS "4Hackers!"
+#endif
+
 /* Store any parameters the device driver needs in following 
 structure.  Edit the DDSY4527_SETTINGS_STR accordingly. This 
 contains  usually the address of the device. For a CAMAC device
@@ -76,7 +83,7 @@ typedef struct
 
 void get_slot (DDSY4527_INFO * info, WORD channel, WORD * chan, WORD * slot);
 INT dd_sy4527_Name_set (DDSY4527_INFO * info, WORD nchannel, WORD , char *chName);
-INT dd_sy4527_Name_get (DDSY4527_INFO * info, WORD nchannel, WORD , char *chName[MAX_CH_NAME]);
+INT dd_sy4527_Name_get (DDSY4527_INFO * info, WORD nchannel, WORD ,  char (*chnamelist)[MAX_CH_NAME]);
 INT dd_sy4527_lParam_set (DDSY4527_INFO * info, WORD nchannel, WORD , char const *ParName, DWORD * lvalue);
 INT dd_sy4527_lParam_get (DDSY4527_INFO * info, WORD nchannel, WORD , char const  *ParName, DWORD * lvalue);
 INT dd_sy4527_fParam_set (DDSY4527_INFO * info, WORD nchannel, WORD , char const  *ParName, float *fvalue);
@@ -115,8 +122,8 @@ INT dd_sy4527_init (HNDLE hkey, void **pinfo, WORD channels,
   ret = db_get_record (hDB, hkeydd, &info->dd_sy4527_settings, &size, 0);
   
   //  Connect to device
-  strcpy (username, "admin");
-  strcpy (passwd, "4Hackers!");
+  strcpy (username, CAEN_HV_USER);
+  strcpy (passwd, CAEN_HV_PASS);
   ret = CAENHV_InitSystem (CAEN_SYSTEM_TYPE, info->dd_sy4527_settings.linktype, info->dd_sy4527_settings.ip, username, passwd, &info->handle);
   //cm_msg (MINFO, "dd_sy4527", "device name: %s link type: %d ip: %s user: %s pass: %s",
   //  DevName, info->dd_sy4527_settings.linktype, info->dd_sy4527_settings.ip, username, passwd);
@@ -393,7 +400,10 @@ int howBig(DDSY4527_INFO * info, int slot){
 
 //is this the first channel in the slot?
 int isFirst(DDSY4527_INFO * info, WORD channel){
-  
+#ifdef CAEN_HV_DISABLE_ISFIRST_LOGIC
+  return 1;
+#else
+
   if(channel == 0) return 1;
     
   WORD islot, ch, prevSlot, prevCh;
@@ -402,7 +412,9 @@ int isFirst(DDSY4527_INFO * info, WORD channel){
    
   if(islot == prevSlot) return 0;
   else return 1;
-  
+
+#endif
+
 }
   
 /*----------------------------------------------------------------------------*/
@@ -441,38 +453,44 @@ INT dd_sy4527_Name_set (DDSY4527_INFO * info, WORD nchannel, WORD channel,
 /*----------------------------------------------------------------------------*/
 INT dd_sy4527_Label_get (DDSY4527_INFO * info, WORD channel, char *label)
 {
-  char * chnamelist[MAX_CH_NAME];
+  char (*chnamelist)[MAX_CH_NAME];
   WORD nchannel;
   CAENHVRESULT ret;
 
+  chnamelist = new char[1][MAX_CH_NAME];
   nchannel = 1;
   ret = dd_sy4527_Name_get (info, nchannel, channel, chnamelist);
   strcpy(label, chnamelist[0]);
+
+  delete[] chnamelist;
 
   return ret == 0 ? FE_SUCCESS : 0;
 }
 
 /*----------------------------------------------------------------------------*/
-INT dd_sy4527_Name_get (DDSY4527_INFO * info, WORD nchannel, WORD channel, char *chnamelist[MAX_CH_NAME])
+INT dd_sy4527_Name_get (DDSY4527_INFO * info, WORD nchannel, WORD channel, char (*chnamelist)[MAX_CH_NAME])
 {
   WORD ch, islot;
   CAENHVRESULT ret;
-  char name[MAX_CH_NAME];
+  char (*name)[MAX_CH_NAME];
   // Find out what slot we need to talk to.
   get_slot (info, channel, &ch, &islot);
-  
+  name = new char[nchannel][MAX_CH_NAME];
+
   ret = CAENHV_GetChName(info->handle, islot, nchannel, &ch, (char (*)[12]) name);
-  printf("slot %d, nchannel %d, channel %d, ch %d, name [%s], ret %d\n", islot, nchannel, channel, ch, name, ret);
+  printf("slot %d, nchannel %d, channel %d, ch %d, name [%s], ret %d\n", islot, nchannel, channel, ch, name[0], ret);
 
   //  strcpy(chnamelist, &name[0]);
   
   ret = CAENHV_GetChName(info->handle, islot, nchannel, &ch, (char (*)[12]) chnamelist);
-  printf("slot %d, nchannel %d, channel %d, ch %d, name [%s], ret %d\n", islot, nchannel, channel, ch, *chnamelist, ret);
+  printf("slot %d, nchannel %d, channel %d, ch %d, name [%s], ret %d\n", islot, nchannel, channel, ch, chnamelist[0], ret);
   
   //  printf("slot %d, nchannel %d, channel %d, ch %d, name [%s], ret %d\n", islot, nchannel, channel, ch, chnamelist[0], ret);
   if (ret != CAENHV_OK) {
     cm_msg (MERROR, "Name Get", "GetChName returns %d", ret);
   }
+
+  delete[] name;
 
   return ret;
 }

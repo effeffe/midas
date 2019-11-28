@@ -1677,6 +1677,11 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("          <td style=\"text-align:left;\"><a href=\"?cmd=example\">example.html</a></td>\n");
    r->rsprintf("        </tr>\n");
 
+   r->rsprintf("        <tr>\n");
+   r->rsprintf("          <td style=\"text-align:right;\">Custom page example:</td>\n");
+   r->rsprintf("          <td style=\"text-align:left;\"><a href=\"?cmd=custom_example\">custom_example.html</a></td>\n");
+   r->rsprintf("        </tr>\n");
+
    r->rsprintf("      </table>\n");
    r->rsprintf("    </td>\n");
    r->rsprintf("  </tr>\n");
@@ -15699,6 +15704,13 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (equal_ustring(command, "example")) {
       send_resource(r, "example.html");
+      return;
+   }
+
+   /*---- send example custom page -------------------------------------*/
+
+   if (equal_ustring(command, "custom_example")) {
+      send_resource(r, "custom_example.html");
       return;
    }
 

@@ -844,6 +844,11 @@
    // Slightly different set of JSON-RPC requests on initial load.
    function update_periodic(firstTimeCalled = false) {
       clearTimeout(update_timer_id);
+      if (document.hidden) {
+         // don't update page if hidden
+         setTimeout('update_periodic()', update_period);
+         return;
+      }
       var update_period = 1000;
       update(firstTimeCalled);
       update_timer_id = setTimeout('update_periodic()', update_period);

@@ -48,6 +48,9 @@ int hs_save_event_list(const std::vector<std::string> *pevents);
 // get list of active events
 int hs_read_event_list(std::vector<std::string> *pevents);
 
+// define history panel
+int hs_define_panel(const char *group, const char *panel, const std::vector<std::string> vars);
+
 // MIDAS history data buffer interface class
 
 class MidasHistoryBufferInterface

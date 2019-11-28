@@ -58,7 +58,7 @@ function mie_to_string(tid, jvalue, format) {
    var t = typeof jvalue;
 
    if (t == 'number') {
-      return "" + jvalue;
+      jvalue = "" + jvalue;
    }
 
    if (tid == TID_DWORD || tid == TID_INT || tid == TID_WORD || tid == TID_SHORT || tid == TID_BYTE) {
@@ -73,10 +73,11 @@ function mie_to_string(tid, jvalue, format) {
                str = parseInt(jvalue);
          }
          if (format[i] == "x") {
+            var hex = parseInt(jvalue).toString(16);
             if (str.length > 0)
-               str += " / " + jvalue;
+               str += " / 0x" + hex;
             else
-               str = jvalue;
+               str = "0x" + hex;
          }
          if (format[i] == "b") {
             var bin = parseInt(jvalue).toString(2);
@@ -1658,10 +1659,49 @@ function mhttpd_resize_header() {
 }
 
 var mhttpd_last_message = 1;
+var mhttpd_last_alarm = 0;
 
 function mhttpd_refresh() {
    if (mhttpd_refresh_id !== undefined)
       window.clearTimeout(mhttpd_refresh_id);
+
+   /* don't update page if document is hidden (minimized, covered tab etc), only play alarms */
+   if (document.hidden) {
+
+      // only check every 10 seconds for alarm
+      if (new Date().getTime() > mhttpd_last_alarm + 10000) {
+
+         // request current alarms
+         var req = mjsonrpc_make_request("get_alarms");
+         mjsonrpc_send_request([req]).then(function (rpc) {
+
+            var alarms = rpc[0].result;
+
+            // update alarm display
+            if (alarms.alarm_system_active) {
+               var n = 0;
+               for (var a in alarms.alarms)
+                  n++;
+               if (n > 0)
+                  mhttpd_alarm_play();
+            }
+
+         }).catch(function (error) {
+            if (error.xhr && (error.xhr.readyState === 4) && ((error.xhr.status === 0) || (error.xhr.status === 503))) {
+               mhttpd_error('Connection to server broken. Trying to reconnect&nbsp;&nbsp;');
+               document.getElementById("mheader_error").appendChild(mhttpd_spinning_wheel);
+               mhttpd_reconnect_id = window.setTimeout(mhttpd_reconnect, 1000);
+            } else {
+               mjsonrpc_error_alert(error);
+            }
+         });
+
+         mhttpd_last_alarm = new Date().getTime();
+      }
+
+      mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, 500);
+      return;
+   }
 
    /* this fuction gets called by mhttpd_init to periodically refresh all ODB tags plus alarms and messages */
 
@@ -1742,21 +1782,19 @@ function mhttpd_refresh() {
          value = rpc[0].result.data[idata];
          if (modb[i].value === undefined) {
             modb[i].value = value;
-            if (modb[i].onchange !== null)
-               modb[i].onchange();
-         }
-         if (typeof value === 'object') { // subdircectory
-            if (modb[i].onchange !== null) {
-               modb[i].value = value;
-               modb[i].onchange();
+         } else {
+            if (typeof value === 'object' && value !== null) { // subdircectory
+               if (modb[i].onchange !== null) {
+                  modb[i].value = value;
+                  modb[i].onchange();
+               }
+            } else {                         // individual value
+               if (modb[i].onchange !== null && value !== modb[i].value) {
+                  modb[i].value = value;
+                  modb[i].onchange();
+               }
             }
-         } else {                         // individual value
-            if (modb[i].onchange !== null && value !== modb[i].value) {
-               modb[i].value = value;
-               modb[i].onchange();
-            }
          }
-
       }
 
       for (i = 0; i < modbvalue.length; i++, idata++) {
@@ -2150,8 +2188,11 @@ function mhttpd_message(msg, chat) {
          if (mTalk !== "") {
             if (mType === "USER" && mhttpdConfig().speakChat) {
                // do not speak own message
-               if (document.getElementById("chatName") === undefined || document.getElementById("chatName").value !== chatName)
+               if (document.getElementById("chatName") === undefined || 
+                   document.getElementById("chatName") === null || 
+                   document.getElementById("chatName").value !== chatName) {
                   mhttpd_speak(talkTime, mTalk);
+               }
             } else if (mType === "TALK" && mhttpdConfig().speakTalk) {
                mhttpd_speak(talkTime, mTalk);
             } else if (mType === "ERROR" && mhttpdConfig().speakError) {
