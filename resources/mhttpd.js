@@ -2115,6 +2115,9 @@ function mhttpd_message(msg, chat) {
       if (d !== undefined && d.currentMessage !== m &&
          (mhttpdConfig().suppressMessageBefore === undefined || lastT > mhttpdConfig().suppressMessageBefore)) {
 
+         d.style.removeProperty("-webkit-transition");
+         d.style.removeProperty("transition");
+
          if (mType === "USER" && mhttpdConfig().displayChat  ||
              mType === "TALK" && mhttpdConfig().displayTalk  ||
              mType === "ERROR" && mhttpdConfig().displayError ||
@@ -2144,10 +2147,6 @@ function mhttpd_message(msg, chat) {
                   d.style.removeProperty("-webkit-transition");
                   d.style.removeProperty("transition");
                   d.style.backgroundColor = c;
-                  setTimeout(function () {
-                     d.style.setProperty("-webkit-transition", "background-color 3s", "");
-                     d.style.setProperty("transition", "background-color 3s", "");
-                  }, 10);
                }
             }
          }
@@ -2169,7 +2168,8 @@ function mhttpd_message(msg, chat) {
       var t = new Date() / 1000;
       if (t > d.age + 5 && d.style.backgroundColor === "var(--myellow)") {
          var backgroundColor = "var(--mgray)";
-         //console.log("mhttpd_message: d.style.backgroundColor changed " + d.style.backgroundColor + " to " + backgroundColor);
+         d.style.setProperty("-webkit-transition", "background-color 3s", "");
+         d.style.setProperty("transition", "background-color 3s", "");
          d.style.backgroundColor = backgroundColor;
       }
    }
@@ -2733,6 +2733,8 @@ function mhttpdConfigSetAll(new_config) {
 /*---- sound and speak functions --------------------------*/
 
 var last_audio = null;
+var inside_new_audio = false;
+var count_audio = 0;
 
 //function mhttpd_alarm_done() {
 //   var ended;
@@ -2742,6 +2744,26 @@ var last_audio = null;
 //   }
 //   count_audio_done++;
 //   console.log(Date() + ": mhttpd_alarm_done: created: " + count_audio_created + ", done: " + count_audio_done + ", last_ended: " + ended);
+//}
+//
+//function mhttpd_audio_loadeddata(e) {
+//   console.log(Date() + ": mhttpd_audio_loadeddata: counter " + e.target.counter);
+//}
+//
+//function mhttpd_audio_canplay(e) {
+//   console.log(Date() + ": mhttpd_audio_canplay: counter " + e.target.counter);
+//}
+//
+//function mhttpd_audio_canplaythrough(e) {
+//   console.log(Date() + ": mhttpd_audio_canplaythrough: counter " + e.target.counter);
+//}
+//
+//function mhttpd_audio_ended(e) {
+//   console.log(Date() + ": mhttpd_audio_ended: counter " + e.target.counter);
+//}
+//
+//function mhttpd_audio_paused(e) {
+//   console.log(Date() + ": mhttpd_audio_paused: counter " + e.target.counter);
 //}
 
 function mhttpd_alarm_play_now() {
@@ -2775,21 +2797,48 @@ function mhttpd_alarm_play_now() {
          return;
       }
    }
+
+   if (inside_new_audio) {
+      console.log(Date() + ": mhttpd_alarm_play: Cannot play alarm sound: already inside \"new Audio()\"");
+      return;
+   }
+   inside_new_audio = true;
+
    //console.log(Date() + ": mhttpd_alarm_play: created: " + count_audio_created + ", done: " + count_audio_done + ", last_ended: " + ended + ", audio.play!");
    //count_audio_created++;
+
    var audio = new Audio(mhttpdConfig().alarmSoundFile);
-   last_audio = audio;
    audio.volume = mhttpdConfig().alarmVolume;
-   //audio.addEventListener("ended", mhttpd_alarm_done);
+   audio.counter = ++count_audio;
+
+   last_audio = audio;
+   inside_new_audio = false;
+   //audio.addEventListener("loadeddata", mhttpd_audio_loadeddata);
+   //audio.addEventListener("canplay", mhttpd_audio_canplay);
+   //audio.addEventListener("canplaythrough", mhttpd_audio_canplaythrough);
+   //audio.addEventListener("ended", mhttpd_audio_ended);
+   //audio.addEventListener("paused", mhttpd_audio_paused);
+
    var promise = audio.play();
    if (promise) {
-      promise.catch(function(e) {
+      promise.then(function(e) {
+         console.log(Date() + ": mhttpd_alarm_play: promise fulfilled, counter " + audio.counter);
+      }).catch(function(e) {
          //count_audio_done++;
          //console.log(Date() + ": mhttpd_alarm_play: audio.play() exception: " + e + ", created: " + count_audio_created + ", done: " + count_audio_done);
-         console.log(Date() + ": mhttpd_alarm_play: Cannot play alarm sound: audio.play() exception: " + e);
+         console.log(Date() + ": mhttpd_alarm_play: Cannot play alarm sound: audio.play() exception: " + e + ", counter " + audio.counter);
+         // NB: must clear the URL of the sound file, otherwise, the sound file is still loaded (but not played)
+         // the loading of sound files is observed to be delayed in inactive tabs
+         // resulting in many (100-1000) pending loads getting queued, observed
+         // to all of them attempt to run (load the sound file) in parallel,
+         // consuming memory (100-300 Mbytes) and CPU (10-15% CPU per inactive tab).
+         audio.src = "";
+         // NB: setting audio to pause() does not seem to do anything.
+         audio.pause();
          last_audio = null;
       });
    }
+   //audio.pause();
 }
 
 function mhttpd_alarm_play() {
