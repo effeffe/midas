@@ -2822,7 +2822,7 @@ function mhttpd_alarm_play_now() {
    var promise = audio.play();
    if (promise) {
       promise.then(function(e) {
-         console.log(Date() + ": mhttpd_alarm_play: promise fulfilled, counter " + audio.counter);
+         //console.log(Date() + ": mhttpd_alarm_play: promise fulfilled, counter " + audio.counter);
       }).catch(function(e) {
          //count_audio_done++;
          //console.log(Date() + ": mhttpd_alarm_play: audio.play() exception: " + e + ", created: " + count_audio_created + ", done: " + count_audio_done);
