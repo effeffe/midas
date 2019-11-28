@@ -3747,36 +3747,28 @@ static void write_tr_client_to_odb(HNDLE hDB, const TR_CLIENT* tr_client)
 int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag)
 {
    HNDLE hDB;
+   int  status;
    const char *args[100];
-   char path[256];
-   int  size, status, iarg = 0;
+   std::string path;
    char debug_arg[256];
    char start_arg[256];
-   char expt_name[256];
+   std::string expt_name;
+   std::string mserver_hostname;
+
+   int iarg = 0;
 
    cm_get_experiment_database(&hDB, NULL);
 
-   path[0] = 0;
-   if (getenv("MIDASSYS")) {
-      strlcpy(path, getenv("MIDASSYS"), sizeof(path));
-      strlcat(path, DIR_SEPARATOR_STR, sizeof(path));
-#ifdef OS_LINUX
-#ifdef OS_DARWIN
-      strlcat(path, "darwin/bin/", sizeof(path));
-#else
-      strlcat(path, "linux/bin/", sizeof(path));
-#endif
-#else
-#ifdef OS_WINNT
-      strlcat(path, "nt/bin/", sizeof(path));
-#endif
-#endif
+   const char* midassys = getenv("MIDASSYS");
+   if (midassys) {
+      path += midassys;
+      path += DIR_SEPARATOR_STR;
+      path += "bin";
+      path += DIR_SEPARATOR_STR;
    }
-   strlcat(path, "mtransition", sizeof(path));
+   path += "mtransition";
 
-   args[iarg++] = path;
-
-   std::string mserver_hostname;
+   args[iarg++] = path.c_str();
 
    if (rpc_is_remote()) {
       /* if connected to mserver, pass connection info to mtransition */
@@ -3786,12 +3778,13 @@ int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errst
    }
 
    /* get experiment name from ODB */
-   size = sizeof(expt_name);
-   db_get_value(hDB, 0, "/Experiment/Name", expt_name, &size, TID_STRING, FALSE);
-   
-   args[iarg++] = "-e";
-   args[iarg++] = expt_name;
+   db_get_value_string(hDB, 0, "/Experiment/Name", 0, &expt_name, FALSE);
 
+   if (expt_name.length() > 0) {
+      args[iarg++] = "-e";
+      args[iarg++] = expt_name.c_str();
+   }
+      
    if (debug_flag) {
       args[iarg++] = "-d";
 
@@ -3813,16 +3806,19 @@ int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errst
    }
 
    args[iarg++] = NULL;
+
 #if 0
-      for (iarg = 0; args[iarg] != NULL; iarg++)
-         printf("arg[%d] [%s]\n", iarg, args[iarg]);
+   for (iarg = 0; args[iarg] != NULL; iarg++) {
+      printf("arg[%d] [%s]\n", iarg, args[iarg]);
+   }
 #endif
 
    status = ss_spawnv(P_DETACH, args[0], args);
 
-   if (status != SUCCESS) {
-      if (errstr != NULL)
-         sprintf(errstr, "Cannot execute mtransition, ss_spawnvp() returned %d", status);
+   if (status != SS_SUCCESS) {
+      if (errstr != NULL) {
+         sprintf(errstr, "Cannot execute mtransition, ss_spawnv() returned %d", status);
+      }
       return CM_SET_ERROR;
    }
 
