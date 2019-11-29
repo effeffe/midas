@@ -1863,6 +1863,16 @@ void init_mhttpd_odb()
    if (status == DB_SUCCESS) {
       cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/JS File\" is obsolete, please delete it.");
    }
+
+   status = db_find_key(hDB, 0, "/Experiment/Start-Stop Buttons", &hKey);
+   if (status == DB_SUCCESS) {
+      cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/Start-Stop Buttons\" is obsolete, please delete it.");
+   }
+
+   status = db_find_key(hDB, 0, "/Experiment/Pause-Resume Buttons", &hKey);
+   if (status == DB_SUCCESS) {
+      cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/Pause-Resume Buttons\" is obsolete, please delete it.");
+   }
 }
 
 /*------------------------------------------------------------------*/
