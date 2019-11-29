@@ -16993,7 +16993,7 @@ struct Auth {
    std::vector<AuthEntry> passwords;
 };
 
-static Auth auth_mg;
+static Auth gAuthMg;
 
 static void xmg_mkmd5resp(const char *method, size_t method_len, const char *uri,
                          size_t uri_len, const char *ha1, size_t ha1_len,
@@ -17711,24 +17711,29 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       return;
    }
 
-   if (auth_mg.active) {
-      std::string username = check_digest_auth(msg, &auth_mg);
+   if (gAuthMg.active) {
+      std::string username = check_digest_auth(msg, &gAuthMg);
 
-      // if auth failed, reread password file - maybe user added or password changed
-      if (username.length() < 1) {
-         bool ok = read_passwords(&auth_mg);
-         if (ok)
-            username = check_digest_auth(msg, &auth_mg);
-      }
+      // Cannot re-read the password file - it is not thread safe to do so
+      // unless I lock gAuthMg for each call check_digest_auth() and if I do so,
+      // I will serialize (single-thread) all the http requests and defeat
+      // the whole point of multithreading the web server. K.O.
+      //
+      //// if auth failed, reread password file - maybe user added or password changed
+      //if (username.length() < 1) {
+      //   bool ok = read_passwords(&gAuthMg);
+      //   if (ok)
+      //      username = check_digest_auth(msg, &gAuthMg);
+      //}
 
       if (trace_mg)
          printf("handle_http_message: auth user: \"%s\"\n", username.c_str());
 
       if (username.length() == 0) {
          if (trace_mg||verbose_mg)
-            printf("handle_http_message: method [%s] uri [%s] query [%s] proto [%s], sending auth request for realm \"%s\"\n", method.c_str(), uri.c_str(), query_string.c_str(), mgstr(&msg->proto).c_str(), auth_mg.realm.c_str());
+            printf("handle_http_message: method [%s] uri [%s] query [%s] proto [%s], sending auth request for realm \"%s\"\n", method.c_str(), uri.c_str(), query_string.c_str(), mgstr(&msg->proto).c_str(), gAuthMg.realm.c_str());
 
-         xmg_http_send_digest_auth_request(nc, auth_mg.realm.c_str());
+         xmg_http_send_digest_auth_request(nc, gAuthMg.realm.c_str());
          t->fCompleted = true;
          gTraceBuf->AddTraceMTS(t);
          return;
@@ -17865,7 +17870,7 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
       printf("Mongoose web server will use SSL certificate file \"%s\"\n", cert_file.c_str());
    }
 
-   auth_mg.active = false;
+   gAuthMg.active = false;
 
    if (need_password_file) {
       char exptname[256];
@@ -17873,20 +17878,22 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
       cm_get_experiment_name(exptname, sizeof(exptname));
 
       if (strlen(exptname) > 0)
-         auth_mg.realm = exptname;
+         gAuthMg.realm = exptname;
       else
-         auth_mg.realm = "midas";
+         gAuthMg.realm = "midas";
 
-      bool ok = read_passwords(&auth_mg);
+      bool ok = read_passwords(&gAuthMg);
       if (!ok) {
-         cm_msg(MERROR, "mongoose", "mongoose web server password file \"%s\" has no passwords for realm \"%s\"", auth_mg.passwd_filename.c_str(), auth_mg.realm.c_str());
-         cm_msg(MERROR, "mongoose", "please add passwords by running: htdigest %s %s midas", auth_mg.passwd_filename.c_str(), auth_mg.realm.c_str());
+         cm_msg(MERROR, "mongoose", "mongoose web server password file \"%s\" has no passwords for realm \"%s\"", gAuthMg.passwd_filename.c_str(), gAuthMg.realm.c_str());
+         cm_msg(MERROR, "mongoose", "please add passwords by running: htdigest %s %s midas", gAuthMg.passwd_filename.c_str(), gAuthMg.realm.c_str());
          return SS_FILE_ERROR;
       }
 
-      auth_mg.active = true;
+      gAuthMg.active = true;
 
-      printf("Mongoose web server will use authentication realm \"%s\", password file \"%s\"\n", auth_mg.realm.c_str(), auth_mg.passwd_filename.c_str());
+      printf("Mongoose web server will use authentication realm \"%s\", password file \"%s\"\n", gAuthMg.realm.c_str(), gAuthMg.passwd_filename.c_str());
+   } else {
+      printf("Mongoose web server will not use password protection\n");
    }
 
    if (trace_mg)
