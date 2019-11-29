@@ -2126,7 +2126,6 @@ function mhttpd_fit_message(m) {
          w = d.offsetWidth;
          //console.log("mhttpd_fit_message: len: " + w + ", max: " + maxWidth + ", message: " + g);
          if (w <= maxWidth)
->>>>>>> feature/midas-2019-09
             break;
       }
    }
