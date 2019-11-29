@@ -157,7 +157,8 @@ class MidasFile:
             raise StopIteration()
         else:
             return ev
-            
+    
+    next = __next__ # for Python 2        
         
     def __iter__(self):
         """
