@@ -2074,27 +2074,59 @@ function mhttpd_fit_message(m) {
    d.style.display = "inline-block";
 
    // limit message to fit parent element
+
    var parentWidth = d.parentNode.offsetWidth;
-   var s = "";
-   for (var i = 0; i < m.length + 1; i++) {
-      s = m.substr(0, i);
-      if (i < m.length - 1)
-         s += "...";
-      d.innerHTML = link1 + s + link2 + cross;
-      if (d.offsetWidth > parentWidth - 30)
-         break;
+   var maxWidth = parentWidth - 30;
+
+   // check if the full message fits
+
+   d.innerHTML = link1 + m + link2 + cross;
+   //console.log("mhttpd_fit_message: len: " + d.offsetWidth + ", max: " + maxWidth + ", message: " + m);
+   if (d.offsetWidth <= maxWidth) {
+      return;
    }
 
-   if (s.substr(-3) === "...") {
-      // if message got truncated, remove timestamp and type
-      m = m.substr(m.indexOf(']') + 1);
+   // check if the message minus timestamp and type fits
 
-      for (i = 0; i < m.length + 1; i++) {
-         s = m.substr(0, i);
-         if (i < m.length - 1)
-            s += "...";
-         d.innerHTML = link1 + s + link2 + cross;
-         if (d.offsetWidth > parentWidth - 30)
+   m = m.substr(m.indexOf(']')+1);
+   d.innerHTML = link1 + m + link2 + cross;
+   var w = d.offsetWidth;
+   //console.log("mhttpd_fit_message: len: " + w + ", max: " + maxWidth + ", message: " + m);
+   if (w <= maxWidth) {
+      return;
+   }
+
+   // guess the length assuming fix pixels per char
+
+   var charWidth = w/m.length;
+   var guessLength = maxWidth/charWidth - 3; // 3 chars of "..."
+
+   var g = m.substr(0, guessLength);
+   d.innerHTML = link1 + g + "..." + link2 + cross;
+   w = d.offsetWidth;
+   //console.log("mhttpd_fit_message: char: " + charWidth + ", guess: " + guessLength + ", len: " + w + ", max: " + maxWidth);
+
+   // grow or shrink our guess
+   
+   if (w < maxWidth) {
+      //console.log("mhttpd_fit_message: too short, grow");
+      for (var i=guessLength+1; i<=m.length; i++) {
+         var s = m.substr(0, i);
+         d.innerHTML = link1 + s + "..." + link2 + cross;
+         w = d.offsetWidth;
+         //console.log("mhttpd_fit_message: len: " + w + ", max: " + maxWidth + ", message: " + s);
+         if (w <= maxWidth)
+            break;
+      }
+   } else {
+      //console.log("mhttpd_fit_message: too long, shrink");
+      while (g.length > 0) {
+         g = g.substr(0, g.length-1);
+         d.innerHTML = link1 + g + "..." + link2 + cross;
+         w = d.offsetWidth;
+         //console.log("mhttpd_fit_message: len: " + w + ", max: " + maxWidth + ", message: " + g);
+         if (w <= maxWidth)
+>>>>>>> feature/midas-2019-09
             break;
       }
    }
