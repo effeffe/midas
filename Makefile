@@ -561,6 +561,9 @@ cclean:
 dox:
 	doxygen
 
+htmllint:
+	java -jar ~/git/validator/dist/vnu.jar --filterpattern ".*Use CSS instead.*" resources/*.html
+
 linux32:
 	$(MAKE) NO_ROOT=1 NO_MYSQL=1 NO_ODBC=1 NO_SQLITE=1 NO_SSL=1 OS_DIR=linux-m32 USERFLAGS=-m32
 
