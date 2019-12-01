@@ -113,7 +113,7 @@
             <b>modbcheckbox</b>
          </td>
          <td>
-            <input type="checkbox" class="modbcheckbox" data-odb-path="/Logger/Write data"></input>
+            <input type="checkbox" class="modbcheckbox" data-odb-path="/Logger/Write data">
          </td>
          <td>
             Display <i>/Logger/Write data</i> as checkbox, user can change it by clicking on it
@@ -202,7 +202,7 @@
                  onchange="this.dataset.color=this.value > 9?'red':'blue';"></div>
          </td>
          <td>
-            Draw a thermometer depending on <i<>/Runinfo/Run number</i>. Bottom is -10, top is 30. Optional show scale
+            Draw a thermometer depending on <i>/Runinfo/Run number</i>. Bottom is -10, top is 30. Optional show scale
             and change color depending on avlue (blue below 9, red above 9.
          </td>
       </tr>
@@ -240,7 +240,7 @@
             <!-- div around image with "relative" position as anchor for labels and bars -->
             <div style="position:relative;width:300px;margin:auto">
 
-               <img src="tank.gif"> <!-- background image of tank -->
+               <img src="tank.gif" alt="background image"> <!-- background image of tank -->
 
                <!-- label next to valve -->
                <div class="modbvalue" data-odb-path="/Runinfo/Run number" data-odb-editable="1"

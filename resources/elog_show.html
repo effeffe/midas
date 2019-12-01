@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="mcss">
+<html class="mcss" lang="en">
 <head>
    <link rel="stylesheet" href="midas.css">
    <script src="midas.js"></script>
@@ -14,7 +14,7 @@
 
 <div id="mmain">
   <div>
-    <table class="mtable"">
+    <table class="mtable">
       <tr>
         <td class="mtableheader" id="table_name">elog_show</td>
       </tr>
@@ -95,8 +95,10 @@
         </td>
       </tr>
     </table>
-    
-    <script type="text/javascript">
+  </div>
+</div>
+
+<script>
     
     function set_text(id, text) {
        var e = document.getElementById(id);
@@ -347,13 +349,8 @@
           mjsonrpc_error_alert(error);
        });
     }
-    
-    </script>
-  </div>
-</div>
 
-<script>
-load();
+    load();
 </script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="mcss">
+<html class="mcss" lang="en">
 <head>
    <meta charset="UTF-8">
    <link rel="stylesheet" href="midas.css">
@@ -26,7 +26,7 @@
       <button class="mbutton" id='al_system_disable' onclick='disable_alarm_system(false)'>Disable the alarm system
       </button>
       <input class="mfont" type="checkbox" id="al_sound_checkbox" onclick="mhttpdConfigSet('alarmSound', this.checked);"><span
-           class="mfont">Play sound</span></input>
+           class="mfont">Play sound</span>
    </div>
 
    <table width="95%" class="mtable alarmTable" id="evaluatedAlarms">
@@ -40,12 +40,13 @@
          <th>Class</th>
          <th>Condition</th>
          <th>Current value</th>
+         <th></th>
       </tr>
    </table>
 
    <table width="95%" class="mtable alarmTable" id="programAlarms">
       <tr>
-         <td colspan=7 class="mtableheader subStatusTitle">Program alarms</td>
+         <td colspan=6 class="mtableheader subStatusTitle">Program alarms</td>
       </tr>
       <tr class="titleRow">
          <th>Alarm</th>
@@ -53,12 +54,13 @@
          <th>First triggered</th>
          <th>Class</th>
          <th>Condition</th>
+         <th></th>
       </tr>
    </table>
 
    <table width="95%" class="mtable alarmTable" id="internalAlarms">
       <tr>
-         <td colspan=7 class="mtableheader subStatusTitle">Internal alarms</td>
+         <td colspan=6 class="mtableheader subStatusTitle">Internal alarms</td>
       </tr>
       <tr class="titleRow">
          <th>Alarm</th>
@@ -66,12 +68,13 @@
          <th>First triggered</th>
          <th>Class</th>
          <th>Condition/Message</th>
+         <th></th>
       </tr>
    </table>
 
    <table width="95%" class="mtable alarmTable" id="periodicAlarms">
       <tr>
-         <td colspan=7 class="mtableheader subStatusTitle">Periodic alarms</td>
+         <td colspan=6 class="mtableheader subStatusTitle">Periodic alarms</td>
       </tr>
       <tr class="titleRow">
          <th>Alarm</th>
@@ -79,6 +82,7 @@
          <th>First triggered</th>
          <th>Class</th>
          <th>Time/Message</th>
+         <th></th>
       </tr>
    </table>
 
