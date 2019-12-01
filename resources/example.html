@@ -143,16 +143,22 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                  else
                  lw = variables["slow/last_written"];
                  document.getElementById("db_get_values_data_age").innerHTML = now - lw;
-                 }).catch(function(error) { mjsonrpc_error_alert(error); });'
-         >
+                 }).catch(function(error) { mjsonrpc_error_alert(error); });'>
 
-      <div>JSON data: <tt id='db_get_values_json_data'></tt></div>
-      <div>db_get_values() status: <tt id='db_get_values_status'></tt></div>
-      <div>Runinfo/State: <tt id='db_get_values_runstate'></tt></div>
-      <div>Run number: <tt id='db_get_values_runnumber'></tt></div>
-      <div>/Equipment/test/Settings/event_size: <tt id='db_get_values_settings_event_size'></tt></div>
-      <div>/Equipment/slow/Variables/SLOW: <tt id='db_get_values_data'></tt></div>
-      <div>data age: <tt id='db_get_values_data_age'></tt></div>
+         <br>
+         JSON data: <span id='db_get_values_json_data'></span>
+         <br>
+         db_get_values() status: <span id='db_get_values_status'></span>
+         <br>
+         Runinfo/State: <span id='db_get_values_runstate'></span>
+         <br>
+         Run number: <span id='db_get_values_runnumber'></span>
+         <br>
+         /Equipment/test/Settings/event_size: <span id='db_get_values_settings_event_size'></span>
+         <br>
+         /Equipment/slow/Variables/SLOW: <span id='db_get_values_data'></span>
+         <br>
+         data age: <span id='db_get_values_data_age'></span>
       </p>
 
       <h2>mjsonrpc_db_get_values() omit all optional information to reduce data size</h2>
@@ -183,7 +189,8 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                  document.getElementById("db_get_values_json_data_min").innerHTML = JSON.stringify(rpc);
                  }).catch(function(error) { mjsonrpc_error_alert(error); });'>
 
-      <div>JSON data: <tt id='db_get_values_json_data_min'></tt></div>
+         <br>
+         JSON data: <span id='db_get_values_json_data_min'></span>
       </p>
 
       <h2>mjsonrpc_db_copy()</h2>
@@ -203,7 +210,8 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                  JSON.stringify(rpc.result); }).catch(function(error)
                  { mjsonrpc_error_alert(error); });'>
 
-      <div>JSON data: <tt id='db_copy_json_data'></tt></div>
+         <br>
+         JSON data: <span id='db_copy_json_data'></span>
       </p>
 
       <h2>mjsonrpc_db_paste()</h2>
@@ -240,10 +248,14 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                  //mjsonrpc_debug_alert(rpc);
 	              }).catch(function(error) { mjsonrpc_error_alert(error); });'>
 
-      <div>RPC Status: <tt id='db_ls_status'></tt></div>
-      <div>ls of /Equipment: <tt id='db_ls_equipment'></tt></div>
-      <div>ls of /Example: <tt id='db_ls_example'></tt></div>
-      <div>ls of non-existing directory: <tt id='db_ls_not_exist'></tt></div>
+         <br>
+         RPC Status: <span id='db_ls_status'></span>
+         <br>
+         ls of /Equipment: <span id='db_ls_equipment'></span>
+         <br>
+         ls of /Example: <span id='db_ls_example'></span>
+         <br>
+         ls of non-existing directory: <span id='db_ls_not_exist'></span>
       </p>
 
       <h2>mjsonrpc_db_resize()</h2>
@@ -280,7 +292,7 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                  JSON.stringify(rpc.result); }).catch(function(error)
                  { mjsonrpc_error_alert(error); });'>
 
-      <div>JSON data: <tt id='db_key_json_data'></tt></div>
+         <br>JSON data: <span id='db_key_json_data'></span>
       </p>
 
       <h2>mjsonrpc_db_rename()</h2>
@@ -336,16 +348,13 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
          Type in a message and press Enter. See the new message on the MIDAS "messages" page
          or press "Get MIDAS messages" button in the ODBGetMsg() section above.
 
-      <div>
-         <input type=text size=40 value=''
-                onKeyPress='if (event.keyCode==13) { mjsonrpc_cm_msg(this.value).then(function(rpc) { mjsonrpc_debug_alert(rpc); }).catch(function(error) { mjsonrpc_error_alert(error); }); }'>
-      </div>
+        <br>
+        <input type=text size=40 value='' onKeyPress='if (event.keyCode==13) { mjsonrpc_cm_msg(this.value).then(function(rpc) { mjsonrpc_debug_alert(rpc); }).catch(function(error) { mjsonrpc_error_alert(error); }); }'>
       </p>
 
       <h2>cm_msg_facilities</h2>
 
       <p>
-      <div>
          <input type=button value='Get list of message facilities'
                 onClick='mjsonrpc_call("cm_msg_facilities")
                    .then(function(rpc) {
@@ -355,16 +364,16 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                    .catch(function(error) {
                    mjsonrpc_error_alert(error);
                    });'>
-      </div>
-      <div id="cm_msg_facilities_data">
-         list of messages facilities goes here
-      </div>
+
+         <br>
+         <span id="cm_msg_facilities_data">
+           list of messages facilities goes here
+         </span>
       </p>
 
       <h2>cm_msg_retrieve</h2>
 
       <p>
-      <div>
          <input type=button value='Get last midas message'
                 onClick='mjsonrpc_call("cm_msg_retrieve", { "min_messages": 1 })
                    .then(function(rpc) {
@@ -395,13 +404,10 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                    .catch(function(error) {
                    mjsonrpc_error_alert(error);
                    });'>
-      </div>
-      <div id="cm_msg_retrieve_num_messages">
-         number of messages goes here
-      </div>
-      <div id="cm_msg_retrieve_messages">
-         list of messages goes here
-      </div>
+         <br>
+         <span id="cm_msg_retrieve_num_messages">number of messages goes here</span>
+         <br>
+         <span id="cm_msg_retrieve_messages">list of messages goes here</span>
       </p>
 
       <hr>
@@ -411,7 +417,6 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
       <h2>hs_get_active_events (hs_read_event_list)</h2>
 
       <p>
-      <div>
          <input type=button value='Get list of active history events'
                 onClick='mjsonrpc_call("hs_get_active_events")
                    .then(function(rpc) {
@@ -421,14 +426,11 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                    .catch(function(error) {
                    mjsonrpc_error_alert(error);
                    });'>
-      </div>
-      <div id="hs_get_active_events_data">
-         list of active history events goes here
-      </div>
+         <br>
+         <span id="hs_get_active_events_data">list of active history events goes here</span>
       </p>
 
       <p>
-      <div>
          <input type=button value='Get list of history channels'
                 onClick='mjsonrpc_call("hs_get_channels")
                    .then(function(rpc) {
@@ -438,14 +440,11 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                    .catch(function(error) {
                    mjsonrpc_error_alert(error);
                    });'>
-      </div>
-      <div id="hs_get_channels_data">
-         list of logger history channels
-      </div>
+         <br>
+         <span id="hs_get_channels_data">list of logger history channels</span>
       </p>
 
       <p>
-      <div>
          <input type=button value='Reopen the history database'
                 onClick='mjsonrpc_call("hs_reopen")
                    .then(function(rpc) {
@@ -455,14 +454,11 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                    .catch(function(error) {
                    mjsonrpc_error_alert(error);
                    });'>
-      </div>
-      <div id="hs_reopen_data">
-         result of hs_reopen
-      </div>
+         <br>
+         <span id="hs_reopen_data">result of hs_reopen</span>
       </p>
 
       <p>
-      <div>
          <input type=button value='Get list of history events'
                 onClick='mjsonrpc_call("hs_get_events")
                    .then(function(rpc) {
@@ -472,14 +468,11 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                    .catch(function(error) {
                    mjsonrpc_error_alert(error);
                    });'>
-      </div>
-      <div id="hs_get_events_data">
-         list of history events goes here
-      </div>
+         <br>
+         <span id="hs_get_events_data">list of history events goes here</span>
       </p>
 
       <p>
-      <div>
          <input type=button value='Get list of history events from MIDAS channel'
                 onClick='mjsonrpc_call("hs_get_events",{"channel":"MIDAS"})
                    .then(function(rpc) {
@@ -489,14 +482,11 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                    .catch(function(error) {
                    mjsonrpc_error_alert(error);
                    });'>
-      </div>
-      <div id="hs_get_events_data_midas">
-         list of history events goes here, channel MIDAS
-      </div>
+         <br>
+         <span id="hs_get_events_data_midas">list of history events goes here, channel MIDAS</span>
       </p>
 
       <p>
-      <div>
          <input type=button value='Get list of history tags'
                 onClick='mjsonrpc_call("hs_get_tags",{"events":["fetest","slow/SLOW","nonexistant"]})
                    .then(function(rpc) {
@@ -506,14 +496,11 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                    .catch(function(error) {
                    mjsonrpc_error_alert(error);
                    });'>
-      </div>
-      <div id="hs_get_tags_data">
-         list of history tags goes here
-      </div>
+         <br>
+         <span id="hs_get_tags_data">list of history tags goes here</span>
       </p>
 
       <p>
-      <div>
          <input type=button value='Get list of history last-written'
                 onClick='mjsonrpc_call("hs_get_last_written",{"events":["Run transitions","fetest","fetest/EPS","slow/SLOW"],"tags":["State","EPS","EPS","SLOW"],"index":[0,0,0,0]})
                    .then(function(rpc) {
@@ -523,14 +510,11 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                    .catch(function(error) {
                    mjsonrpc_error_alert(error);
                    });'>
-      </div>
-      <div id="hs_get_last_written_data">
-         list of history last-written goes here
-      </div>
+         <br>
+         <span id="hs_get_last_written_data">list of history last-written goes here</span>
       </p>
 
       <p>
-      <div>
          <input type=button value='Get history data'
                 onClick='var t=Date.now()/1000;mjsonrpc_call("hs_read",{"start_time":t-10*60,"end_time":t,"events":["Run transitions","fetest","fetest/EPS","slow/SLOW"],"tags":["State","EPS","EPS","SLOW"],"index":[0,0,0,0]})
                    .then(function(rpc) {
@@ -540,14 +524,11 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                    .catch(function(error) {
                    mjsonrpc_error_alert(error);
                    });'>
-      </div>
-      <div id="hs_read_data">
-         history data
-      </div>
+         <br>
+         <span id="hs_read_data">history data</span>
       </p>
 
       <p>
-      <div>
          <input type=button value='Get binned history data'
                 onClick='var t=Date.now()/1000;mjsonrpc_call("hs_read_binned",{"start_time":t-1*60,"end_time":t,"num_bins":10,"events":["Run transitions","fetest","fetest/EPS","slow/SLOW"],"tags":["State","EPS","EPS","SLOW"],"index":[0,0,0,0]})
                    .then(function(rpc) {
@@ -557,14 +538,11 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                    .catch(function(error) {
                    mjsonrpc_error_alert(error);
                    });'>
-      </div>
-      <div id="hs_read_binned_data">
-         binned history data
-      </div>
+         <br>
+         <span id="hs_read_binned_data">binned history data</span>
       </p>
 
       <p>
-      <div>
          <input type=button value='Get history data as binary arraybuffer'
                 onClick='var t=Date.now()/1000;mjsonrpc_call("hs_read_arraybuffer",{"start_time":t-10*60,"end_time":t,"events":["Run transitions","fetest","fetest/EPS","slow/SLOW"],"tags":["State","EPS","EPS","SLOW"],"index":[0,0,0,0]}, "arraybuffer")
                    .then(function(result) {
@@ -575,14 +553,11 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                    .catch(function(error) {
                    mjsonrpc_error_alert(error);
                    });'>
-      </div>
-      <div id="hs_read_data_arraybuffer">
-         history data
-      </div>
+         <br>
+         <span id="hs_read_data_arraybuffer">history data</span>
       </p>
 
       <p>
-      <div>
          <input type=button value='Get binned history data as binary arraybuffer'
                 onClick='var t=Date.now()/1000;mjsonrpc_call("hs_read_binned_arraybuffer",{"start_time":t-1*60,"end_time":t,"num_bins":10,"events":["Run transitions","fetest","fetest/EPS","slow/SLOW"],"tags":["State","EPS","EPS","SLOW"],"index":[0,0,0,0]}, "arraybuffer")
                    .then(function(result) {
@@ -593,10 +568,8 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
                    .catch(function(error) {
                    mjsonrpc_error_alert(error);
                    });'>
-      </div>
-      <div id="hs_read_binned_data_arraybuffer">
-         binned history data
-      </div>
+         <br>
+         <span id="hs_read_binned_data_arraybuffer">binned history data</span>
       </p>
 
       <hr>
@@ -618,15 +591,11 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
       <h2>Programs control functions</h2>
 
       <p>
-         Observe the effect of these functions on the MIDAS Programs page.
-      <div>
-         <input type=button value='start fetest (start_program)'
-                onClick='mjsonrpc_call("start_program", "{ \"name\": \"fetest\" }") .then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'>
-         <input type=button value='stop fetest (cm_shutdown)'
-                onClick='mjsonrpc_call("cm_shutdown", "{ \"name\": \"fetest\" }") .then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'>
-         <input type=button value='check if fetest is running (cm_exist)'
-                onClick='mjsonrpc_call("cm_exist", "{ \"name\": \"fetest\" }") .then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'>
-      </div>
+        Observe the effect of these functions on the MIDAS Programs page.
+        <br>
+        <input type=button value='start fetest (start_program)' onClick='mjsonrpc_call("start_program", "{ \"name\": \"fetest\" }") .then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'>
+         <input type=button value='stop fetest (cm_shutdown)' onClick='mjsonrpc_call("cm_shutdown", "{ \"name\": \"fetest\" }") .then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'>
+         <input type=button value='check if fetest is running (cm_exist)' onClick='mjsonrpc_call("cm_exist", "{ \"name\": \"fetest\" }") .then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'>
       </p>
 
       <hr>
@@ -674,11 +643,10 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
       <h2>mjsonrpc_get_alarms()</h2>
 
       <p>
-         <input type=button value='get_alarms'
-                onClick='mjsonrpc_call("get_alarms").then(function(rpc){document.getElementById("get_alarms_data").innerHTML = JSON.stringify(rpc.result, null, " ");}).catch(function(error){mjsonrpc_error_alert(error);});'>
-         <input type=button value='get_alarms with get_all'
-                onClick='mjsonrpc_call("get_alarms", { "get_all": true }).then(function(rpc){document.getElementById("get_alarms_data").innerHTML = JSON.stringify(rpc.result, null, " ");}).catch(function(error){mjsonrpc_error_alert(error);});'>
-      <div>Alarms: <tt id='get_alarms_data'></tt></div>
+        <input type=button value='get_alarms' onClick='mjsonrpc_call("get_alarms").then(function(rpc){document.getElementById("get_alarms_data").innerHTML = JSON.stringify(rpc.result, null, " ");}).catch(function(error){mjsonrpc_error_alert(error);});'>
+        <input type=button value='get_alarms with get_all' onClick='mjsonrpc_call("get_alarms", { "get_all": true }).then(function(rpc){document.getElementById("get_alarms_data").innerHTML = JSON.stringify(rpc.result, null, " ");}).catch(function(error){mjsonrpc_error_alert(error);});'>
+        <br>
+        Alarms: <span id='get_alarms_data'></span>
       </p>
 
       <hr>
@@ -688,11 +656,10 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
       <p>
          (note: frontend "fetest" should be running!) Also see the result of this function in the output of fetest and
          in MIDAS Messages.
-      <div>
-         <input type=button value='Push me'
-                onClick='mjsonrpc_call("jrpc", { "client_name":"fetest", "cmd":"xxx", "args":"xxx" }).then(function(rpc){document.getElementById("jrpc_data").innerHTML = JSON.stringify(rpc.result, null, "	");}).catch(function(error){mjsonrpc_error_alert(error);});'>
-      </div>
-      <div>JRPC reply: <tt id='jrpc_data'></tt></div>
+        <br>
+        <input type=button value='Push me' onClick='mjsonrpc_call("jrpc", { "client_name":"fetest", "cmd":"xxx", "args":"xxx" }).then(function(rpc){document.getElementById("jrpc_data").innerHTML = JSON.stringify(rpc.result, null, "	");}).catch(function(error){mjsonrpc_error_alert(error);});'>
+        <br>
+        JRPC reply: <span id='jrpc_data'></span>
       </p>
 
       <hr>
@@ -1059,9 +1026,9 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
       <h2>mjsonrpc_get_schema()</h2>
 
       <p>
-         <input type=button value='Push me'
-                onClick='mjsonrpc_call("get_schema").then(function(rpc){document.getElementById("get_schema_data").innerHTML = JSON.stringify(rpc.result, null, " ");}).catch(function(error){mjsonrpc_error_alert(error);});'>
-      <div>JSON-RPC schema: <tt id='get_schema_data'></tt></div>
+        <input type=button value='Push me' onClick='mjsonrpc_call("get_schema").then(function(rpc){document.getElementById("get_schema_data").innerHTML = JSON.stringify(rpc.result, null, " ");}).catch(function(error){mjsonrpc_error_alert(error);});'>
+        <br>
+        JSON-RPC schema: <span id='get_schema_data'></span>
       </p>
 
       <hr>
