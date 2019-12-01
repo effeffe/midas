@@ -127,6 +127,9 @@ function MhistoryGraph(divElement) { // Constructor
    // solo
    this.solo = {active: false, index: undefined};
 
+   // time when panel was drawn last
+   this.lastDrawTime = 0;
+
    // buttons
    this.button = [
       {
@@ -825,8 +828,6 @@ MhistoryGraph.prototype.update = function () {
 
    let t = Math.floor(new Date() / 1000);
 
-   console.log(new Date());
-
    mjsonrpc_call("hs_read_arraybuffer",
       {
          "start_time": Math.floor(this.lastTimeStamp),
@@ -1314,6 +1315,11 @@ MhistoryGraph.prototype.findMinMax = function () {
 };
 
 MhistoryGraph.prototype.draw = function () {
+   // draw maximal once per second
+   if (new Date().getTime() < this.lastDrawTime + 1000)
+      return;
+   this.lastDrawTime = new Date().getTime();
+
    let ctx = this.canvas.getContext("2d");
 
    ctx.fillStyle = this.color.background;
@@ -1368,7 +1374,6 @@ MhistoryGraph.prototype.draw = function () {
       this.yMin = 1E-10;
    this.drawVAxis(ctx, this.x1, this.y1, this.y1 - this.y2,
       -4, -7, -10, -12, this.x2 - this.x1, this.yMin, this.yMax, this.logAxis, true);
-   //this.drawHAxis(ctx, 50, this.y2-25, this.x2-70, 4, 7, 10, 12, 0, -10, 10, 0);
    this.drawTAxis(ctx, this.x1, this.y1, this.x2 - this.x1, this.width,
       4, 7, 10, 10, this.y2 - this.y1, this.tMin, this.tMax);
 
@@ -1854,6 +1859,8 @@ MhistoryGraph.prototype.draw = function () {
       ctx.fillStyle = "#404040";
       ctx.fillText(s, x + 3, y + h / 2);
    }
+
+   this.lastDrawTime = new Date().getTime();
 };
 
 /*
