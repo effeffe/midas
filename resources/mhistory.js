@@ -2233,48 +2233,65 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
    return maxwidth;
 };
 
+var options1 = {
+    day: '2-digit', month: 'short', year: '2-digit',
+    hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+};
+
+var options2 = {
+    day: '2-digit', month: 'short', year: '2-digit',
+    hour12: false, hour: '2-digit', minute: '2-digit'
+};
+
+var options3 = {
+    day: '2-digit', month: 'short', year: '2-digit',
+    hour12: false, hour: '2-digit', minute: '2-digit'
+};
+
+var options4 = {day: '2-digit', month: 'short', year: '2-digit'};
+
+var options5 = {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'};
+
+var options6 = {hour12: false, hour: '2-digit', minute: '2-digit'};
+
+var options7 = {hour12: false, hour: '2-digit', minute: '2-digit'};
+
+var options8 = {
+    day: '2-digit', month: 'short', year: '2-digit',
+    hour12: false, hour: '2-digit', minute: '2-digit'
+};
+
+var options9 = {day: '2-digit', month: 'short', year: '2-digit'};
+
 function timeToLabel(sec, base, forceDate) {
    let d = new Date(sec * 1000);
    let options;
 
    if (forceDate) {
       if (base < 60) {
-         options = {
-            day: '2-digit', month: 'short', year: '2-digit',
-            hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
-         };
-      } else if (base < 600)
-         options = {
-            day: '2-digit', month: 'short', year: '2-digit',
-            hour12: false, hour: '2-digit', minute: '2-digit'
-         };
-      else if (base < 3600 * 24)
-         options = {
-            day: '2-digit', month: 'short', year: '2-digit',
-            hour12: false, hour: '2-digit', minute: '2-digit'
-         };
-      else
-         options = {day: '2-digit', month: 'short', year: '2-digit'};
+         options = options1;
+      } else if (base < 600) {
+         options = options2;
+      } else if (base < 3600 * 24) {
+         options = options3;
+      } else {
+         options = options4;
+      }
 
       return d.toLocaleDateString('en-GB', options);
    }
 
    if (base < 60) {
-      options = {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'};
-      return d.toLocaleTimeString('en-GB', options);
+      return d.toLocaleTimeString('en-GB', options5);
    } else if (base < 600) {
-      options = {hour12: false, hour: '2-digit', minute: '2-digit'};
-      return d.toLocaleTimeString('en-GB', options);
+      return d.toLocaleTimeString('en-GB', options6);
    } else if (base < 3600 * 3) {
-      options = {hour12: false, hour: '2-digit', minute: '2-digit'};
-      return d.toLocaleTimeString('en-GB', options);
-   } else if (base < 3600 * 24)
-      options = {
-         day: '2-digit', month: 'short', year: '2-digit',
-         hour12: false, hour: '2-digit', minute: '2-digit'
-      };
-   else
-      options = {day: '2-digit', month: 'short', year: '2-digit'};
+      return d.toLocaleTimeString('en-GB', options7);
+   } else if (base < 3600 * 24) {
+      options = options8;
+   } else {
+      options = options9;
+   }
 
    return d.toLocaleDateString('en-GB', options);
 }
