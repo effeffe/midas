@@ -20,15 +20,14 @@
 <div id="mmain">
    <table class="mtable" id="statusTable">
       <tr>
-         <td colspan="6">
-
+         <td>
             <table class="mtable" id="runStatus" width="100%">
                <tr>
-                  <td colspan="6" class="mtableheader">Run Status</td>
+                  <td colspan="5" class="mtableheader">Run Status</td>
                </tr>
 
                <tr align="center">
-                  <td id="runNumberCell" align="center" rowspan="3" class="mgreencolor">
+                  <td id="runNumberCell" align="center" colspan="1" rowspan="2" class="mgreencolor">
                      Run
                      <br><span id="runNumber">runNumber</span>
                      <br><span id="runState">runState</span>
@@ -50,7 +49,7 @@
                </tr>
 
                <tr>
-                  <td colspan="6">
+                  <td colspan="5">
                      <table id="runStatusExperimentItems" class="genericStripe" width="100%">
 
                      </table>
@@ -58,7 +57,7 @@
                </tr>
 
                <tr>
-                  <td colspan="6" id="msgService" class="mmsgService">
+                  <td colspan="5" id="msgService" class="mmsgService">
 
                   </td>
                </tr>
@@ -70,11 +69,11 @@
 
 
       <tr>
-         <td colspan="6">
+         <td>
 
             <table class="mtable" id="equipmentList" width="100%">
                <tr>
-                  <th colspan="6" class="mtableheader">Equipment</th>
+                  <th colspan="5" class="mtableheader">Equipment</th>
                </tr>
                <tr>
                   <th>Equipment<a id='hide' class='hideButton' href="javascript:unhideEquipments()">+</a></th>
@@ -89,11 +88,11 @@
       </tr>
 
       <tr>
-         <td colspan="6">
+         <td>
 
             <table class="mtable" id="logChannel" width="100%">
                <tr>
-                  <th colspan="6" class="mtableheader">Logging Channels</th>
+                  <th class="mtableheader">Logging Channels</th>
                </tr>
 
 
@@ -103,35 +102,13 @@
       </tr>
 
       <tr>
-         <td colspan="6">
-
-           <style type="text/css">
-            /* "Clients" checker board table at the bottom of the status page */
-
-            .clientsTable tr:nth-child(odd) td:nth-child(odd) {
-              background-color: #DDDDDD;
-            }
-
-            .clientsTable tr:nth-child(odd) td:nth-child(even) {
-              background-color: #FFFFFF;
-            }
-
-            .clientsTable tr:nth-child(even) td:nth-child(even) {
-              background-color: #DDDDDD;
-            }
-
-            .clientsTable tr:nth-child(even) td:nth-child(odd) {
-              background-color: #FFFFFF;
-            }
-           </style>
-           <table class="mtable clientsTable" id="clientsTable" width="100%">
-
-               <tr>
-                  <th colspan="6" class="mtableheader">Clients</th>
-               </tr>
-
-            </table>
-         </td>
+        <td>
+          <table class="mtable clientsTable" id="clientsTable" width="100%">
+            <tr>
+              <th class="mtableheader">Clients</th>
+            </tr>
+          </table>
+        </td>
       </tr>
 
    </table>
