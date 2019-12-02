@@ -1021,7 +1021,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
                let i1 = binarySearch(this.x[di], e.offsetX - 10);
                let i2 = binarySearch(this.x[di], e.offsetX + 10);
 
-               for (let i = i1; i < i2; i++) {
+               for (let i = i1; i <= i2; i++) {
                   let d = (e.offsetX - this.x[di][i]) * (e.offsetX - this.x[di][i]) +
                      (e.offsetY - this.y[di][i]) * (e.offsetY - this.y[di][i]);
                   if (d < minDist) {
