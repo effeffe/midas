@@ -701,10 +701,11 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
    // decode binary array
    let array = new Float64Array(rpc);
    let nVars = array[1];
-   let i = 2 + nVars * 2;
+   let nData = array.slice(2 + nVars, 2 + 2 * nVars);
+   let i = 2 + 2 * nVars;
    let t0 = array[i];
 
-   // append newer values to end of arrays
+   // append new values to end of arrays
    if (this.data === undefined) {
 
       this.data = [];
@@ -715,22 +716,21 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          let formula = this.odb["Formula"];
          this.data.push({time: [], value: []});
 
-         let nData = array[2 + nVars + index];
          let x = undefined;
-         let y = undefined;
+         let v = undefined;
          if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
-            for (let j = 0; j < nData; j++) {
+            for (let j = 0; j < nData[index]; j++) {
                this.data[index].time.push(array[i++]);
                x = array[i++];
-               y = eval(formula[index]);
-               this.data[index].value.push(y);
+               v = eval(formula[index]);
+               this.data[index].value.push(v);
             }
          } else {
-            for (let j = 0; j < nData; j++) {
+            for (let j = 0; j < nData[index]; j++) {
                let t = array[i++];
-               y = array[i++];
+               v = array[i++];
                this.data[index].time.push(t);
-               this.data[index].value.push(y);
+               this.data[index].value.push(v);
             }
          }
       }
@@ -742,16 +742,12 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
 
          let formula = this.odb["Formula"];
 
-         let nData = array[2 + nVars + index];
-         let i = 2 + nVars * 2 +  // offset first value
-            index * nData * 2;    // offset full channel
-
-         let t1 = new Array();
-         let v1 = new Array();
+         let t1 = [];
+         let v1 = [];
 
          let x = undefined;
          if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
-            for (let j = 0; j < nData; j++) {
+            for (let j = 0; j < nData[index]; j++) {
                let t = array[i++];
                x = array[i++];
                let v = eval(formula[index]);
@@ -761,7 +757,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
                }
             }
          } else {
-            for (let j = 0; j < nData; j++) {
+            for (let j = 0; j < nData[index]; j++) {
                let t = array[i++];
                let v = array[i++];
                if (t < this.data[index].time[0]) {
@@ -781,11 +777,9 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
 
          let formula = this.odb["Formula"];
 
-         let nData = array[2 + nVars + index];
-
          let x = undefined;
          if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
-            for (let j = 0; j < nData; j++) {
+            for (let j = 0; j < nData[index]; j++) {
                let t = array[i++];
                x = array[i++];
                let v = eval(formula[index]);
@@ -800,7 +794,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
                }
             }
          } else {
-            for (let j = 0; j < nData; j++) {
+            for (let j = 0; j < nData[index]; j++) {
                let t = array[i++];
                let v = array[i++];
 
@@ -2233,35 +2227,35 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
    return maxwidth;
 };
 
-var options1 = {
+let options1 = {
     day: '2-digit', month: 'short', year: '2-digit',
     hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
 };
 
-var options2 = {
+let options2 = {
     day: '2-digit', month: 'short', year: '2-digit',
     hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
-var options3 = {
+let options3 = {
     day: '2-digit', month: 'short', year: '2-digit',
     hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
-var options4 = {day: '2-digit', month: 'short', year: '2-digit'};
+let options4 = {day: '2-digit', month: 'short', year: '2-digit'};
 
-var options5 = {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'};
+let options5 = {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'};
 
-var options6 = {hour12: false, hour: '2-digit', minute: '2-digit'};
+let options6 = {hour12: false, hour: '2-digit', minute: '2-digit'};
 
-var options7 = {hour12: false, hour: '2-digit', minute: '2-digit'};
+let options7 = {hour12: false, hour: '2-digit', minute: '2-digit'};
 
-var options8 = {
+let options8 = {
     day: '2-digit', month: 'short', year: '2-digit',
     hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
-var options9 = {day: '2-digit', month: 'short', year: '2-digit'};
+let options9 = {day: '2-digit', month: 'short', year: '2-digit'};
 
 function timeToLabel(sec, base, forceDate) {
    let d = new Date(sec * 1000);
