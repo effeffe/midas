@@ -744,34 +744,34 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
 
          let nData = array[2 + nVars + index];
          let i = 2 + nVars * 2 +  // offset first value
-            index * nData * 2 +   // offset full channel
-            nData * 2 - 1;        // offset end of channel
+            index * nData * 2;    // offset full channel
+
+         let t1 = new Array();
+         let v1 = new Array();
 
          let x = undefined;
          if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
             for (let j = 0; j < nData; j++) {
-               x = array[i--];
-               let t = array[i--];
+               let t = array[i++];
+               x = array[i++];
                let v = eval(formula[index]);
                if (t < this.data[index].time[0]) {
-                  this.data[index].time.unshift(t);
-                  this.data[index].value.unshift(v);
+                  t1.push(t);
+                  v1.push(v);
                }
             }
          } else {
             for (let j = 0; j < nData; j++) {
-               let v = array[i--];
-               let t = array[i--];
-               if (this.data[index].time.length === 0) {
-                  this.data[index].time.push(t);
-                  this.data[index].value.push(v);
-               }
+               let t = array[i++];
+               let v = array[i++];
                if (t < this.data[index].time[0]) {
-                  this.data[index].time.unshift(t);
-                  this.data[index].value.unshift(v);
+                  t1.push(t);
+                  v1.push(v);
                }
             }
          }
+         this.data[index].time = t1.concat(this.data[index].time);
+         this.data[index].value = v1.concat(this.data[index].value);
       }
 
    } else {
@@ -1315,8 +1315,8 @@ MhistoryGraph.prototype.findMinMax = function () {
 };
 
 MhistoryGraph.prototype.draw = function () {
-   // draw maximal once per second
-   if (new Date().getTime() < this.lastDrawTime + 1000)
+   // draw maximal 20 times per second
+   if (new Date().getTime() < this.lastDrawTime + 50)
       return;
    this.lastDrawTime = new Date().getTime();
 
