@@ -4941,7 +4941,7 @@ INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size,
 
          /* wait until main thread has finished */
          do {
-            cm_yield(10);
+            ss_sleep(10);
          } while (!_trp.finished);
 
          return _trp.status;
@@ -9852,6 +9852,7 @@ static void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
 
 /* globals */
 
+static MUTEX_T*              _client_connection_mutex = NULL;
 static RPC_CLIENT_CONNECTION _client_connection[MAX_RPC_CONNECTION];
 static RPC_SERVER_CONNECTION _server_connection; // connection to the mserver
 static BOOL _rpc_is_remote = FALSE;
@@ -10347,7 +10348,6 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    char local_prog_name[NAME_LENGTH];
    char local_host_name[HOST_NAME_LENGTH];
    struct hostent *phe;
-   static MUTEX_T *mtx = NULL;
 
 #ifdef OS_WINNT
    {
@@ -10372,11 +10372,11 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    }
 
    /* make this funciton multi-thread safe */
-   if (!mtx) {
-      ss_mutex_create(&mtx, FALSE);
+   if (!_client_connection_mutex) {
+      ss_mutex_create(&_client_connection_mutex, FALSE);
    }
 
-   ss_mutex_wait_for(mtx, 10000);
+   ss_mutex_wait_for(_client_connection_mutex, 10000);
 
 #if 0
    for (i = 0; i < MAX_RPC_CONNECTION; i++)
@@ -10391,7 +10391,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
          status = ss_socket_wait(_client_connection[i].send_sock, 0);
          if (status == SS_TIMEOUT) { // socket should be empty
             *hConnection = i + 1;
-            ss_mutex_release(mtx);
+            ss_mutex_release(_client_connection_mutex);
             return RPC_SUCCESS;
          }
          //cm_msg(MINFO, "rpc_client_connect", "Stale connection to \"%s\" on host %s is closed", _client_connection[i].client_name, _client_connection[i].host_name);
@@ -10407,7 +10407,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    /* open new network connection */
    if (i == MAX_RPC_CONNECTION) {
       cm_msg(MERROR, "rpc_client_connect", "maximum number of connections exceeded");
-      ss_mutex_release(mtx);
+      ss_mutex_release(_client_connection_mutex);
       return RPC_NO_CONNECTION;
    }
 
@@ -10415,7 +10415,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    sock = socket(AF_INET, SOCK_STREAM, 0);
    if (sock == -1) {
       cm_msg(MERROR, "rpc_client_connect", "cannot create socket, socket() errno %d (%s)", errno, strerror(errno));
-      ss_mutex_release(mtx);
+      ss_mutex_release(_client_connection_mutex);
       return RPC_NET_ERROR;
    }
 
@@ -10429,7 +10429,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    _client_connection[idx].send_sock = sock;
    _client_connection[idx].connected = 0;
 
-   ss_mutex_release(mtx);
+   ss_mutex_release(_client_connection_mutex);
 
    /* connect to remote node */
    memset(&bind_addr, 0, sizeof(bind_addr));
@@ -10491,9 +10491,26 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
       cm_msg(MERROR, "rpc_client_connect", "cannot send %d bytes, send() returned %d, errno %d (%s)", size, i, errno, strerror(errno));
       return RPC_NET_ERROR;
    }
+
+   bool restore_watchdog_timeout = false;
+   BOOL  watchdog_call;
+   DWORD watchdog_timeout;
+   cm_get_watchdog_params(&watchdog_call, &watchdog_timeout);
+
+   //printf("watchdog timeout: %d, rpc_connect_timeout: %d\n", watchdog_timeout, _rpc_connect_timeout);
+
+   if (_rpc_connect_timeout >= watchdog_timeout) {
+      restore_watchdog_timeout = true;
+      cm_set_watchdog_params(watchdog_call, _rpc_connect_timeout + 1000);
+   }
    
    /* receive remote computer info */
    i = recv_string(sock, str, sizeof(str), _rpc_connect_timeout);
+
+   if (restore_watchdog_timeout) {
+      cm_set_watchdog_params(watchdog_call, watchdog_timeout);
+   }
+   
    if (i <= 0) {
       cm_msg(MERROR, "rpc_client_connect", "timeout on receive remote computer info: %s", str);
       return RPC_NET_ERROR;
@@ -11737,8 +11754,24 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
    buf_size = 0;
    nc = NULL;
 
+   bool restore_watchdog_timeout = false;
+   BOOL  watchdog_call;
+   DWORD watchdog_timeout;
+   cm_get_watchdog_params(&watchdog_call, &watchdog_timeout);
+
+   //printf("watchdog timeout: %d, rpc_timeout: %d\n", watchdog_timeout, rpc_timeout);
+
+   if (rpc_timeout >= watchdog_timeout) {
+      restore_watchdog_timeout = true;
+      cm_set_watchdog_params(watchdog_call, rpc_timeout + 1000);
+   }
+
    /* receive result on send socket */
    status = ss_recv_net_command(send_sock, &rpc_status, &buf_size, &buf, rpc_timeout);
+
+   if (restore_watchdog_timeout) {
+      cm_set_watchdog_params(watchdog_call, watchdog_timeout);
+   }
 
    if (status == SS_TIMEOUT) {
       cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": timeout waiting for reply", client_name, host_name, rpc_name);
@@ -12057,7 +12090,27 @@ INT rpc_call(DWORD routine_id, ...)
    rpc_status = 0;
    nc = NULL;
 
+   bool restore_watchdog_timeout = false;
+   BOOL  watchdog_call;
+   DWORD watchdog_timeout;
+   cm_get_watchdog_params(&watchdog_call, &watchdog_timeout);
+
+   //printf("watchdog timeout: %d, rpc_timeout: %d\n", watchdog_timeout, rpc_timeout);
+
+   if (!rpc_is_remote()) {
+      // if RPC is remote, we are connected to an mserver,
+      // the mserver takes care of watchdog timeouts.
+      if (rpc_timeout >= watchdog_timeout) {
+         restore_watchdog_timeout = true;
+         cm_set_watchdog_params(watchdog_call, rpc_timeout + 1000);
+      }
+   }
+
    status = ss_recv_net_command(send_sock, &rpc_status, &buf_size, &buf, rpc_timeout);
+
+   if (restore_watchdog_timeout) {
+      cm_set_watchdog_params(watchdog_call, watchdog_timeout);
+   }
 
    /* drop the mutex, we are done with the socket, argument unpacking is done from our own buffer */
 
