@@ -331,6 +331,8 @@ MhistoryGraph.prototype.initializePanel = function () {
    this.tags = [];
    this.index = [];
    this.pendingUpdates = 0;
+   this.startUpdate = 0;
+   this.updateTime = 0;
 
    // retrieve panel definition from ODB
    mjsonrpc_db_copy(["/History/Display/" + this.group + "/" + this.panel]).then(function (rpc) {
@@ -630,6 +632,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
    // load initial data
    this.tMinRequested = this.tMin - this.tScale; // look one window ahead in past
    this.pendingUpdates++;
+   this.startUpdate = new Date().getTime();
    this.parentDiv.style.cursor = "progress";
    mjsonrpc_call("hs_read_arraybuffer",
       {
@@ -641,6 +644,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
       }, "arraybuffer")
       .then(function (rpc) {
 
+         this.updateTime = new Date().getTime() - this.startUpdate;
          this.pendingUpdates--;
          if (this.pendingUpdates === 0)
             this.parentDiv.style.cursor = "default";
@@ -669,6 +673,7 @@ MhistoryGraph.prototype.loadOldData = function () {
       this.tMinRequested = this.tMin - dt;
 
       this.pendingUpdates++;
+      this.startUpdate = new Date().getTime();
       this.parentDiv.style.cursor = "progress";
       mjsonrpc_call("hs_read_arraybuffer",
          {
@@ -680,6 +685,7 @@ MhistoryGraph.prototype.loadOldData = function () {
          }, "arraybuffer")
          .then(function (rpc) {
 
+            this.updateTime = new Date().getTime() - this.startUpdate;
             this.pendingUpdates--;
             if (this.pendingUpdates === 0)
                this.parentDiv.style.cursor = "default";
@@ -1567,26 +1573,28 @@ MhistoryGraph.prototype.draw = function () {
       if (this.events[di] === "Run transitions") {
 
          if (this.tags[di] === "State") {
-            for (let i = 0; i < this.x[di].length; i++) {
-               if (this.v[di][i] === 1) {
-                  ctx.strokeStyle = "#FF0000";
-                  ctx.fillStyle = "#808080";
-                  ctx.textAlign = "right";
-                  ctx.textBaseline = "top";
-                  ctx.fillText(this.v[di + 1][i], this.x[di][i] - 5, this.y2 + 3);
-               } else if (this.v[di][i] === 3) {
-                  ctx.strokeStyle = "#00A000";
-                  ctx.fillStyle = "#808080";
-                  ctx.textAlign = "left";
-                  ctx.textBaseline = "top";
-                  ctx.fillText(this.v[di + 1][i], this.x[di][i] + 3, this.y2 + 3);
-               } else {
-                  ctx.strokeStyle = "#F9A600";
-               }
+            if (this.x[di].length < 200) {
+               for (let i = 0; i < this.x[di].length; i++) {
+                  if (this.v[di][i] === 1) {
+                     ctx.strokeStyle = "#FF0000";
+                     ctx.fillStyle = "#808080";
+                     ctx.textAlign = "right";
+                     ctx.textBaseline = "top";
+                     ctx.fillText(this.v[di + 1][i], this.x[di][i] - 5, this.y2 + 3);
+                  } else if (this.v[di][i] === 3) {
+                     ctx.strokeStyle = "#00A000";
+                     ctx.fillStyle = "#808080";
+                     ctx.textAlign = "left";
+                     ctx.textBaseline = "top";
+                     ctx.fillText(this.v[di + 1][i], this.x[di][i] + 3, this.y2 + 3);
+                  } else {
+                     ctx.strokeStyle = "#F9A600";
+                  }
 
-               ctx.setLineDash([8, 2]);
-               ctx.drawLine(Math.floor(this.x[di][i]), this.y1, Math.floor(this.x[di][i]), this.y2);
-               ctx.setLineDash([]);
+                  ctx.setLineDash([8, 2]);
+                  ctx.drawLine(Math.floor(this.x[di][i]), this.y1, Math.floor(this.x[di][i]), this.y2);
+                  ctx.setLineDash([]);
+               }
             }
          }
 
