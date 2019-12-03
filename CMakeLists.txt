@@ -291,9 +291,7 @@ add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
 # shared midas library
 add_library(midas-shared SHARED $<TARGET_OBJECTS:objlib>)
 target_link_libraries(midas-shared ${LIBS})
-if (HAVE_MYSQL)
-   target_link_libraries(midas-shared ${DB_LIBS})
-endif()
+target_link_libraries(midas-shared ${DB_LIBS})
 
 # shared midas library with C compatible signatures
 add_library(midas-c-compat SHARED $<TARGET_OBJECTS:objlib-c-compat>)

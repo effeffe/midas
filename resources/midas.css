@@ -340,11 +340,11 @@ select {
 
 /* link colors */
 
-.mcss a:link { color:#0645AD; text-decoration:none }
-.mcss a:visited { color:#0B0080; text-decoration:none }
-.mcss a:hover { color:#0645AD; text-decoration:underline }
-.mcss a:active { color:#0645AD; text-decoration:underline }
-.mcss a:focus { color:#0645AD; text-decoration:none }
+.mcss a:link { color:#0000FF; text-decoration:none }
+.mcss a:visited { color:#800080; text-decoration:none }
+.mcss a:hover { color:#0000FF; text-decoration:underline }
+.mcss a:active { color:#0000FF; text-decoration:underline }
+.mcss a:focus { color:#0000FF; text-decoration:none }
 
 /* link colors for left side navigation bar */
 

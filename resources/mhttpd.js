@@ -1281,10 +1281,20 @@ function mhttpd_haxis_draw() {
 String.prototype.stripZeros = function () {
    var s = this.trim();
    if (s.search("[.]") >= 0) {
-      while (s.charAt(s.length - 1) == "0")
-         s = s.substring(0, s.length - 1);
-      if (s.charAt(s.length - 1) == ".")
-         s = s.substring(0, s.length - 1);
+      let i = s.search("[e]");
+      if (i >= 0) {
+         while (s.charAt(i - 1) === "0") {
+            s = s.substring(0, i - 1) + s.substring(i);
+            i--;
+         }
+         if (s.charAt(i - 1) === ".")
+            s = s.substring(0, i - 1) + s.substring(i);
+      } else {
+         while (s.charAt(s.length - 1) === "0")
+            s = s.substring(0, s.length - 1);
+         if (s.charAt(s.length - 1) === ".")
+            s = s.substring(0, s.length - 1);
+      }
    }
    return s;
 };
@@ -2074,27 +2084,58 @@ function mhttpd_fit_message(m) {
    d.style.display = "inline-block";
 
    // limit message to fit parent element
+
    var parentWidth = d.parentNode.offsetWidth;
-   var s = "";
-   for (var i = 0; i < m.length + 1; i++) {
-      s = m.substr(0, i);
-      if (i < m.length - 1)
-         s += "...";
-      d.innerHTML = link1 + s + link2 + cross;
-      if (d.offsetWidth > parentWidth - 30)
-         break;
+   var maxWidth = parentWidth - 30;
+
+   // check if the full message fits
+
+   d.innerHTML = link1 + m + link2 + cross;
+   //console.log("mhttpd_fit_message: len: " + d.offsetWidth + ", max: " + maxWidth + ", message: " + m);
+   if (d.offsetWidth <= maxWidth) {
+      return;
    }
 
-   if (s.substr(-3) === "...") {
-      // if message got truncated, remove timestamp and type
-      m = m.substr(m.indexOf(']') + 1);
+   // check if the message minus timestamp and type fits
 
-      for (i = 0; i < m.length + 1; i++) {
-         s = m.substr(0, i);
-         if (i < m.length - 1)
-            s += "...";
-         d.innerHTML = link1 + s + link2 + cross;
-         if (d.offsetWidth > parentWidth - 30)
+   m = m.substr(m.indexOf(']')+1);
+   d.innerHTML = link1 + m + link2 + cross;
+   var w = d.offsetWidth;
+   //console.log("mhttpd_fit_message: len: " + w + ", max: " + maxWidth + ", message: " + m);
+   if (w <= maxWidth) {
+      return;
+   }
+
+   // guess the length assuming fix pixels per char
+
+   var charWidth = w/m.length;
+   var guessLength = maxWidth/charWidth - 3; // 3 chars of "..."
+
+   var g = m.substr(0, guessLength);
+   d.innerHTML = link1 + g + "..." + link2 + cross;
+   w = d.offsetWidth;
+   //console.log("mhttpd_fit_message: char: " + charWidth + ", guess: " + guessLength + ", len: " + w + ", max: " + maxWidth);
+
+   // grow or shrink our guess
+   
+   if (w < maxWidth) {
+      //console.log("mhttpd_fit_message: too short, grow");
+      for (var i=guessLength+1; i<=m.length; i++) {
+         var s = m.substr(0, i);
+         d.innerHTML = link1 + s + "..." + link2 + cross;
+         w = d.offsetWidth;
+         //console.log("mhttpd_fit_message: len: " + w + ", max: " + maxWidth + ", message: " + s);
+         if (w <= maxWidth)
+            break;
+      }
+   } else {
+      //console.log("mhttpd_fit_message: too long, shrink");
+      while (g.length > 0) {
+         g = g.substr(0, g.length-1);
+         d.innerHTML = link1 + g + "..." + link2 + cross;
+         w = d.offsetWidth;
+         //console.log("mhttpd_fit_message: len: " + w + ", max: " + maxWidth + ", message: " + g);
+         if (w <= maxWidth)
             break;
       }
    }
@@ -2149,10 +2190,13 @@ function mhttpd_message(msg, chat) {
       if (d !== undefined && d.currentMessage !== m &&
          (mhttpdConfig().suppressMessageBefore === undefined || lastT > mhttpdConfig().suppressMessageBefore)) {
 
-         if (mType === "USER" && mhttpdConfig().displayChat ||
-            mType === "TALK" && mhttpdConfig().displayTalk ||
-            mType === "ERROR" && mhttpdConfig().displayError ||
-            mType === "INFO" && mhttpdConfig().displayInfo) {
+         d.style.removeProperty("-webkit-transition");
+         d.style.removeProperty("transition");
+
+         if (mType === "USER" && mhttpdConfig().displayChat  ||
+             mType === "TALK" && mhttpdConfig().displayTalk  ||
+             mType === "ERROR" && mhttpdConfig().displayError ||
+             mType === "INFO" && mhttpdConfig().displayInfo) {
 
             var first = (d.currentMessage === undefined);
             d.currentMessage = m; // store full message in user-defined attribute
@@ -2178,10 +2222,6 @@ function mhttpd_message(msg, chat) {
                   d.style.removeProperty("-webkit-transition");
                   d.style.removeProperty("transition");
                   d.style.backgroundColor = c;
-                  setTimeout(function () {
-                     d.style.setProperty("-webkit-transition", "background-color 3s", "");
-                     d.style.setProperty("transition", "background-color 3s", "");
-                  }, 10);
                }
             }
          }
@@ -2206,7 +2246,8 @@ function mhttpd_message(msg, chat) {
       var t = new Date() / 1000;
       if (t > d.age + 5 && d.style.backgroundColor === "var(--myellow)") {
          var backgroundColor = "var(--mgray)";
-         //console.log("mhttpd_message: d.style.backgroundColor changed " + d.style.backgroundColor + " to " + backgroundColor);
+         d.style.setProperty("-webkit-transition", "background-color 3s", "");
+         d.style.setProperty("transition", "background-color 3s", "");
          d.style.backgroundColor = backgroundColor;
       }
    }
@@ -2770,6 +2811,8 @@ function mhttpdConfigSetAll(new_config) {
 /*---- sound and speak functions --------------------------*/
 
 var last_audio = null;
+var inside_new_audio = false;
+var count_audio = 0;
 
 //function mhttpd_alarm_done() {
 //   var ended;
@@ -2779,6 +2822,26 @@ var last_audio = null;
 //   }
 //   count_audio_done++;
 //   console.log(Date() + ": mhttpd_alarm_done: created: " + count_audio_created + ", done: " + count_audio_done + ", last_ended: " + ended);
+//}
+//
+//function mhttpd_audio_loadeddata(e) {
+//   console.log(Date() + ": mhttpd_audio_loadeddata: counter " + e.target.counter);
+//}
+//
+//function mhttpd_audio_canplay(e) {
+//   console.log(Date() + ": mhttpd_audio_canplay: counter " + e.target.counter);
+//}
+//
+//function mhttpd_audio_canplaythrough(e) {
+//   console.log(Date() + ": mhttpd_audio_canplaythrough: counter " + e.target.counter);
+//}
+//
+//function mhttpd_audio_ended(e) {
+//   console.log(Date() + ": mhttpd_audio_ended: counter " + e.target.counter);
+//}
+//
+//function mhttpd_audio_paused(e) {
+//   console.log(Date() + ": mhttpd_audio_paused: counter " + e.target.counter);
 //}
 
 function mhttpd_alarm_play_now() {
@@ -2812,21 +2875,48 @@ function mhttpd_alarm_play_now() {
          return;
       }
    }
+
+   if (inside_new_audio) {
+      console.log(Date() + ": mhttpd_alarm_play: Cannot play alarm sound: already inside \"new Audio()\"");
+      return;
+   }
+   inside_new_audio = true;
+
    //console.log(Date() + ": mhttpd_alarm_play: created: " + count_audio_created + ", done: " + count_audio_done + ", last_ended: " + ended + ", audio.play!");
    //count_audio_created++;
+
    var audio = new Audio(mhttpdConfig().alarmSoundFile);
-   last_audio = audio;
    audio.volume = mhttpdConfig().alarmVolume;
-   //audio.addEventListener("ended", mhttpd_alarm_done);
+   audio.counter = ++count_audio;
+
+   last_audio = audio;
+   inside_new_audio = false;
+   //audio.addEventListener("loadeddata", mhttpd_audio_loadeddata);
+   //audio.addEventListener("canplay", mhttpd_audio_canplay);
+   //audio.addEventListener("canplaythrough", mhttpd_audio_canplaythrough);
+   //audio.addEventListener("ended", mhttpd_audio_ended);
+   //audio.addEventListener("paused", mhttpd_audio_paused);
+
    var promise = audio.play();
    if (promise) {
-      promise.catch(function (e) {
+      promise.then(function(e) {
+         //console.log(Date() + ": mhttpd_alarm_play: promise fulfilled, counter " + audio.counter);
+      }).catch(function(e) {
          //count_audio_done++;
          //console.log(Date() + ": mhttpd_alarm_play: audio.play() exception: " + e + ", created: " + count_audio_created + ", done: " + count_audio_done);
-         console.log(Date() + ": mhttpd_alarm_play: Cannot play alarm sound: audio.play() exception: " + e);
+         console.log(Date() + ": mhttpd_alarm_play: Cannot play alarm sound: audio.play() exception: " + e + ", counter " + audio.counter);
+         // NB: must clear the URL of the sound file, otherwise, the sound file is still loaded (but not played)
+         // the loading of sound files is observed to be delayed in inactive tabs
+         // resulting in many (100-1000) pending loads getting queued, observed
+         // to all of them attempt to run (load the sound file) in parallel,
+         // consuming memory (100-300 Mbytes) and CPU (10-15% CPU per inactive tab).
+         audio.src = "";
+         // NB: setting audio to pause() does not seem to do anything.
+         audio.pause();
          last_audio = null;
       });
    }
+   //audio.pause();
 }
 
 function mhttpd_alarm_play() {

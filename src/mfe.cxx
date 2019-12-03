@@ -2742,8 +2742,10 @@ int main(int argc, char *argv[])
    }
 
    /* initialize all equipment */
-   if (initialize_equipment() != SUCCESS) {
+   status = initialize_equipment();
+   if (status != SUCCESS) {
       printf("\n");
+      cm_msg(MERROR, "main", "Error status %d received from initialize_equipment, aborting", status);
       cm_disconnect_experiment();
 
       /* let user read message before window might close */

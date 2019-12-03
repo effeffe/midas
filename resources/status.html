@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="mcss">
+<html class="mcss" lang="en">
 <!--Created by Shuoyi Ma in June 2017-->
 
 <head>
@@ -17,33 +17,26 @@
 <div id="mheader"></div>
 <div id="msidenav"></div>
 
-
-<!-- Custom page will not work in the old way <table class="headerTable">
-   <tr>
-     <td colspan="6">
-
-     </td>
-   </tr>
- </table>-->
-
 <div id="mmain">
-   <table class="mtable" id="statusTable" style="display:none">
-
-
+   <table class="mtable" id="statusTable">
       <tr>
-         <td colspan="6">
-
+         <td>
             <table class="mtable" id="runStatus" width="100%">
                <tr>
-                  <td colspan="6" class="mtableheader">Run Status</td>
+                  <td colspan="5" class="mtableheader">Run Status</td>
                </tr>
 
                <tr align="center">
-                  <td id="runNumberCell" align="center" rowspan="3" class="mgreencolor">
+                  <td id="runNumberCell" align="center" colspan="1" rowspan="2" class="mgreencolor">
                      Run
-                     <br> runNum
-                     <br> status
-                     <br> button
+                     <br><span id="runNumber">runNumber</span>
+                     <br><span id="runState">runState</span>
+                     <br>
+                     <input class="mbutton" id="startButton" type=button value=Start onClick="mhttpd_start_run();">
+                     <input class="mbutton" id="stopButton" type=button value=Stop onClick="mhttpd_stop_run();">
+                     <input class="mbutton" id="pauseButton" type=button value=Pause onClick="mhttpd_pause_run();">
+                     <input class="mbutton" id="resumeButton" type=button value=Resume onClick="mhttpd_resume_run();">
+                     <input class="mbutton" id="cancelButton" type=button value="Cancel Transition" onClick="mhttpd_cancel_transition();">
                   </td>
                   <td id="runStatusStartTime" colspan="2"> runStatusStartTime</td>
                   <td id="runStatusStopTime" colspan="2"> runStatusStopTime</td>
@@ -56,7 +49,7 @@
                </tr>
 
                <tr>
-                  <td colspan="6">
+                  <td colspan="5">
                      <table id="runStatusExperimentItems" class="genericStripe" width="100%">
 
                      </table>
@@ -64,7 +57,7 @@
                </tr>
 
                <tr>
-                  <td colspan="6" id="msgService" class="mmsgService">
+                  <td colspan="5" id="msgService" class="mmsgService">
 
                   </td>
                </tr>
@@ -76,11 +69,11 @@
 
 
       <tr>
-         <td colspan="6">
+         <td>
 
             <table class="mtable" id="equipmentList" width="100%">
                <tr>
-                  <th colspan="6" class="mtableheader">Equipment</th>
+                  <th colspan="5" class="mtableheader">Equipment</th>
                </tr>
                <tr>
                   <th>Equipment<a id='hide' class='hideButton' href="javascript:unhideEquipments()">+</a></th>
@@ -95,11 +88,11 @@
       </tr>
 
       <tr>
-         <td colspan="6">
+         <td>
 
             <table class="mtable" id="logChannel" width="100%">
                <tr>
-                  <th colspan="6" class="mtableheader">Logging Channels</th>
+                  <th class="mtableheader">Logging Channels</th>
                </tr>
 
 
@@ -109,35 +102,13 @@
       </tr>
 
       <tr>
-         <td colspan="6">
-
-           <style type="text/css">
-            /* "Clients" checker board table at the bottom of the status page */
-
-            .clientsTable tr:nth-child(odd) td:nth-child(odd) {
-              background-color: #DDDDDD;
-            }
-
-            .clientsTable tr:nth-child(odd) td:nth-child(even) {
-              background-color: #FFFFFF;
-            }
-
-            .clientsTable tr:nth-child(even) td:nth-child(even) {
-              background-color: #DDDDDD;
-            }
-
-            .clientsTable tr:nth-child(even) td:nth-child(odd) {
-              background-color: #FFFFFF;
-            }
-           </style>
-           <table class="mtable clientsTable" id="clientsTable" width="100%">
-
-               <tr>
-                  <th colspan="6" class="mtableheader">Clients</th>
-               </tr>
-
-            </table>
-         </td>
+        <td>
+          <table class="mtable clientsTable" id="clientsTable" width="100%">
+            <tr>
+              <th class="mtableheader">Clients</th>
+            </tr>
+          </table>
+        </td>
       </tr>
 
    </table>
@@ -242,22 +213,48 @@
       //"Run Status" -------- enter and refresh data
       function generateRunStatus() {
          if (runinfoJson) {
-            if (runinfoJson.hasOwnProperty("run number") && runinfoJson.hasOwnProperty("state")) {
-               var state = "";
-               var buttonText = "";
-               switch (runinfoJson["state"]) {
+            if (runinfoJson.hasOwnProperty("transition in progress") && runinfoJson.hasOwnProperty("state")) {
+               var state = runinfoJson["state"];
+               var tip   = runinfoJson["transition in progress"];
+               
+               if (tip) {
+                  if (tip === TR_STOP)
+                     set_if_changed("runState", "Stopping run");
+                  else if (tip === TR_START)
+                     set_if_changed("runState", "Starting run");
+                  else if (tip === TR_PAUSE)
+                     set_if_changed("runState", "Pausing run");
+                  else if (tip === TR_RESUME)
+                     set_if_changed("runState", "Resuming run");
+                  else
+                     set_if_changed("runState", "Transition in progress");
+
+                  mhttpd_hide("startButton");
+                  mhttpd_hide("stopButton");
+                  mhttpd_hide("pauseButton");
+                  mhttpd_hide("resumeButton");
+                  mhttpd_unhide("cancelButton");
+               } else switch (state) {
                   case STATE_STOPPED:
-                     state = "Stopped";
-                     buttonText = "Start";
                      set_class_if_changed("runNumberCell", "mred mbox");
-                     // show stop time
-                     if (runinfoJson.hasOwnProperty("stop time"))
+                     set_if_changed("runState", "Stopped");
+                     mhttpd_unhide("startButton");
+                     mhttpd_hide("stopButton");
+                     mhttpd_hide("pauseButton");
+                     mhttpd_hide("resumeButton");
+                     mhttpd_hide("cancelButton");
+                     if (runinfoJson["stop time"]) {
                         set_if_changed("runStatusStopTime", "Stop: " + runinfoJson["stop time"]);
+                     }
                      break;
                   case STATE_PAUSED:
-                     state = "Paused";
-                     buttonText = "Start";
                      set_class_if_changed("runNumberCell", "myellow mbox");
+                     set_if_changed("runState", "Paused");
+                     mhttpd_hide("startButton");
+                     mhttpd_unhide("stopButton");
+                     mhttpd_hide("pauseButton");
+                     mhttpd_unhide("resumeButton");
+                     mhttpd_hide("cancelButton");
                      // show running time
                      if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
                         //var time=runinfoJson["start time binary/last_written"];
@@ -266,15 +263,19 @@
                         var m = Math.floor(difftime % 3600 / 60);
                         var s = Math.floor(difftime % 60);
                         set_if_changed("runStatusStopTime", "Running time: " +
-                                + h + "h"
-                                + ((m<10)?"0"+m:m) + "m"
-                                + ((s<10)?"0"+s:s) + "s");
+                                                          + h + "h"
+                                                          + ((m<10)?"0"+m:m) + "m"
+                                                          + ((s<10)?"0"+s:s) + "s");
                      }
                      break;
                   case STATE_RUNNING:
-                     state = "Running";
-                     buttonText = "Stop";
                      set_class_if_changed("runNumberCell", "mgreen mbox");
+                     set_if_changed("runState", "Running");
+                     mhttpd_hide("startButton");
+                     mhttpd_unhide("stopButton");
+                     mhttpd_unhide("pauseButton");
+                     mhttpd_hide("resumeButton");
+                     mhttpd_hide("cancelButton");
                      // show running time
                      if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
                         //var time=runinfoJson["start time binary/last_written"];
@@ -283,45 +284,16 @@
                         var m = Math.floor(difftime % 3600 / 60);
                         var s = Math.floor(difftime % 60);
                         set_if_changed("runStatusStopTime", "Running time: " +
-                                + h + "h"
-                                + ((m<10)?"0"+m:m) + "m"
-                                + ((s<10)?"0"+s:s) + "s");
+                                                          + h + "h"
+                                                          + ((m<10)?"0"+m:m) + "m"
+                                                          + ((s<10)?"0"+s:s) + "s");
                      }
                      break;
                }
+            }
 
-               var buttonFunc = "";
-               if (state == "Paused" || state == "Stopped")
-                  buttonFunc = "mhttpd_start_run()";
-               if (state == "Running")
-                  buttonFunc = "mhttpd_stop_run()";
-
-               // don't display button if transition is in progress
-               if (runinfoJson["transition in progress"] !== 0) {
-                  buttonText = "Cancel";
-                  buttonFunc = "mhttpd_cancel_transition()";
-               }
-
-               if (runinfoJson["transition in progress"] === TR_STOP)
-                  state = "Stopping run";
-               else if (runinfoJson["transition in progress"] === TR_START)
-                  state = "Starting run";
-               else if (runinfoJson["transition in progress"] === TR_PAUSE)
-                  state = "Pausing run";
-               else if (runinfoJson["transition in progress"] === TR_RESUME)
-                  state = "Resuming run";
-
-               var panelText = "Run" +
-                  "<br>" +
-                  runinfoJson["run number"] +
-                  "<br>" +
-                  state;
-
-               if (buttonFunc !== "")
-                  panelText += "<br>" +
-                     "<input type=\"button\" class=\"mbutton\" value=\"" + buttonText + "\" onclick=\"" + buttonFunc + "\">";
-
-               set_if_changed("runNumberCell", panelText);
+            if (runinfoJson.hasOwnProperty("run number") && runinfoJson.hasOwnProperty("state")) {
+               set_if_changed("runNumber", runinfoJson["run number"]);
             }
 
             if (runinfoJson.hasOwnProperty("start time")) {

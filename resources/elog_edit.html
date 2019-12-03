@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="mcss">
+<html class="mcss" lang="en">
 <head>
    <link rel="stylesheet" href="midas.css">
    <script src="midas.js"></script>
@@ -14,7 +14,7 @@
 <div id="mmain">
   <div>
     <form method="POST" enctype="multipart/form-data">
-      <table class="mtable"">
+      <table class="mtable">
         <tr>
           <td class="mtableheader" id="table_name">elog_edit</td>
         </tr>
@@ -64,9 +64,13 @@
           </td>
         </tr>
 
-        <input type=hidden name=edit value=0 id="edit_input">
-        <input type=hidden name=tag  value="(tag)" id="tag_input">
-        <input type=hidden name=orig value="(orig)" id="orig_input">
+        <tr>
+          <td>
+            <input type=hidden name=edit value=0 id="edit_input">
+            <input type=hidden name=tag  value="(tag)" id="tag_input">
+            <input type=hidden name=orig value="(orig)" id="orig_input">
+          </td>
+        </tr>
 
         <tr>
           <td>Text:<br>
@@ -81,16 +85,16 @@
         </tr>
 
         <tr hidden id="att0_block">
-          <td colspan=2>ODB Attachment: <input name=attachment0 value="" id="att0_input"></td>
+          <td>ODB Attachment: <input name=attachment0 value="" id="att0_input"></td>
         </tr>
         <tr id="att1_block">
-          <td colspan=2>Attachment 1: <input type="file" size="60" maxlength="256" name="attfile1" value="" accept="filetype/*" id="att1_input"></td>
-          </tr>
+          <td>Attachment 1: <input type="file" size="60" name="attfile1" accept="filetype/*" id="att1_input"></td>
+        </tr>
         <tr id="att2_block">
-          <td colspan=2>Attachment 2: <input type="file" size="60" maxlength="256" name="attfile2" value="" accept="filetype/*" id="att2_input"></td>
+          <td>Attachment 2: <input type="file" size="60" name="attfile2" accept="filetype/*" id="att2_input"></td>
         </tr>
         <tr id="att3_block">
-          <td colspan=2>Attachment 3: <input type="file" size="60" maxlength="256" name="attfile3" value="" accept="filetype/*" id="att3_input"></td>
+          <td>Attachment 3: <input type="file" size="60" name="attfile3" accept="filetype/*" id="att3_input"></td>
         </tr>
         <tr>
           <td align="center">
@@ -98,8 +102,11 @@
           </td>
         </tr>
       </table>
+    </form>
+  </div>
+</div>
      
-      <script type="text/javascript">
+<script>
       
       function set_text(id, text) {
          var e = document.getElementById(id);
@@ -310,12 +317,7 @@
          });
       }
 
-      </script>
-   </div>
-</div>
-
-<script>
-load();
+      load();
 </script>
 </body>
 </html>

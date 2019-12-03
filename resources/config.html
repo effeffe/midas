@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="mcss">
+<html class="mcss" lang="en">
 <head>
    <meta charset="UTF-8">
    <link rel="stylesheet" href="midas.css">
@@ -7,12 +7,14 @@
    <script src="mhttpd.js"></script>
    <script src="controls.js"></script>
    <title>Config</title>
-</head>
-<style>
-   td {
+   <style>
+    td {
       padding: 5px;
-   }
-</style>
+    }
+   </style>
+</head>
+<body class="mcss" onload="mhttpd_init('Config'); config_init();">
+
 <script>
 
    function load_voices() {
@@ -112,8 +114,6 @@
    }
 
 </script>
-
-<body class="mcss" onload="mhttpd_init('Config'); config_init();">
 
 <!-- header and side navigation will be filled in mhttpd_start -->
 <div id="mheader"></div>
@@ -302,4 +302,4 @@ var mhttpd_config_default = {
    }
 };
 
---->
+-->

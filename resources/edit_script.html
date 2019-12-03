@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="mcss">
+<html class="mcss" lang="en">
 <head>
    <meta charset="UTF-8">
    <link rel="stylesheet" href="midas.css">
@@ -16,26 +16,26 @@
 <div id="msidenav"></div>
 
 <div id="mmain">
-   <table class="mtable" id="seq_table">
+   <table class="mtable">
       <tbody>
       <tr>
-         <th colspan="2" class="mtableheader">Script editor</th>
+         <th class="mtableheader">Script editor</th>
       </tr>
       <tr align="center">
-        <td colspan="2" align="center">
+        <td align="center">
           <button class="mbutton" onclick='save_script()' id="save_button">Save script</button>
           <button class="mbutton" onclick='cancel()'>Cancel</button>
           <a href="https://midas.triumf.ca/MidasWiki/index.php/Sequencer">Syntax Help</a>
         </td>
       </tr>
       <tr>
-        <td colspan="2">Directory: <span id="msg_directory">msg_directory</span></td>
+        <td>Directory: <span id="msg_directory">msg_directory</span></td>
       </tr>
       <tr>
-        <td colspan="2">Filename: <textarea rows="1" id="msg_filename" style="font-family:monospace;font-size:medium;">msg_filename</textarea></td>
+        <td>Filename: <textarea rows="1" id="msg_filename" style="font-family:monospace;font-size:medium;">msg_filename</textarea></td>
       </tr>
       <tr>
-        <td colspan=2>
+        <td>
           <textarea rows="30" cols="80" id="edit_area" style="font-family:monospace;font-size:medium;">
 text_area
           </textarea>
@@ -61,20 +61,6 @@ function set_if_changed(id, value)
       if (e.innerHTML != value) {
          e.innerHTML = value;
       }
-   }
-}
-
-function enable_button_by_id(id) {
-   var e = document.getElementById(id);
-   if (e) {
-      mhttpd_enable_button(e);
-   }
-}
-
-function disable_button_by_id(id) {
-   var e = document.getElementById(id);
-   if (e) {
-      mhttpd_disable_button(e);
    }
 }
 

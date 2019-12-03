@@ -160,8 +160,6 @@ static MUTEX_T *_mutex_rpc = NULL; // mutex to protect RPC calls
 static void (*_debug_print) (const char *) = NULL;
 static INT _debug_mode = 0;
 
-//static INT _watchdog_last_called = 0;
-
 static int _rpc_connect_timeout = 10000;
 
 // for use on a single machine it is best to restrict RPC access to localhost
@@ -1435,7 +1433,6 @@ static HNDLE _hDB = 0;          /* Database handle */
 static char _experiment_name[NAME_LENGTH];
 static char _client_name[NAME_LENGTH];
 static char _path_name[MAX_STRING_LENGTH];
-static INT _call_watchdog = TRUE;
 static INT _watchdog_timeout = DEFAULT_WATCHDOG_TIMEOUT;
 INT _semaphore_alarm   = -1;
 INT _semaphore_elog    = -1;
@@ -1916,8 +1913,6 @@ INT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient, const char *host_name,
       /* save watchdog timeout */
       cm_get_watchdog_params(&call_watchdog, NULL);
       cm_set_watchdog_params(call_watchdog, watchdog_timeout);
-      //if (call_watchdog)
-      //ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
 
       /* end of atomic operations */
       db_unlock_database(hDB);
@@ -2701,11 +2696,6 @@ INT cm_disconnect_experiment(void)
    } else {
       rpc_client_disconnect(-1, FALSE);
 
-      //#ifdef LOCAL_ROUTINES
-      //ss_alarm(0, cm_watchdog);
-      //_watchdog_last_called = 0;
-      //#endif                          /* LOCAL_ROUTINES */
-
       /* delete client info */
       cm_get_experiment_database(&hDB, &hKey);
 
@@ -2973,7 +2963,6 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
          db_set_mode(hDB, hKey, MODE_READ, TRUE);
       }
    } else {
-      _call_watchdog = call_watchdog;
       _watchdog_timeout = timeout;
 
       /* set watchdog flag of all open buffers */
@@ -2994,13 +2983,6 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
       }
 
       db_set_watchdog_params(timeout);
-
-      //if (call_watchdog)
-      //   /* restart watchdog */
-      //   ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
-      //else
-      //   /* kill current timer */
-      //   ss_alarm(0, cm_watchdog);
    }
 
 #endif                          /* LOCAL_ROUTINES */
@@ -3018,7 +3000,7 @@ Return the current watchdog parameters
 INT cm_get_watchdog_params(BOOL * call_watchdog, DWORD * timeout)
 {
    if (call_watchdog)
-      *call_watchdog = _call_watchdog;
+      *call_watchdog = FALSE;
    if (timeout)
       *timeout = _watchdog_timeout;
 
@@ -3747,36 +3729,28 @@ static void write_tr_client_to_odb(HNDLE hDB, const TR_CLIENT* tr_client)
 int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag)
 {
    HNDLE hDB;
+   int  status;
    const char *args[100];
-   char path[256];
-   int  size, status, iarg = 0;
+   std::string path;
    char debug_arg[256];
    char start_arg[256];
-   char expt_name[256];
+   std::string expt_name;
+   std::string mserver_hostname;
+
+   int iarg = 0;
 
    cm_get_experiment_database(&hDB, NULL);
 
-   path[0] = 0;
-   if (getenv("MIDASSYS")) {
-      strlcpy(path, getenv("MIDASSYS"), sizeof(path));
-      strlcat(path, DIR_SEPARATOR_STR, sizeof(path));
-#ifdef OS_LINUX
-#ifdef OS_DARWIN
-      strlcat(path, "darwin/bin/", sizeof(path));
-#else
-      strlcat(path, "linux/bin/", sizeof(path));
-#endif
-#else
-#ifdef OS_WINNT
-      strlcat(path, "nt/bin/", sizeof(path));
-#endif
-#endif
+   const char* midassys = getenv("MIDASSYS");
+   if (midassys) {
+      path += midassys;
+      path += DIR_SEPARATOR_STR;
+      path += "bin";
+      path += DIR_SEPARATOR_STR;
    }
-   strlcat(path, "mtransition", sizeof(path));
+   path += "mtransition";
 
-   args[iarg++] = path;
-
-   std::string mserver_hostname;
+   args[iarg++] = path.c_str();
 
    if (rpc_is_remote()) {
       /* if connected to mserver, pass connection info to mtransition */
@@ -3786,12 +3760,13 @@ int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errst
    }
 
    /* get experiment name from ODB */
-   size = sizeof(expt_name);
-   db_get_value(hDB, 0, "/Experiment/Name", expt_name, &size, TID_STRING, FALSE);
-   
-   args[iarg++] = "-e";
-   args[iarg++] = expt_name;
+   db_get_value_string(hDB, 0, "/Experiment/Name", 0, &expt_name, FALSE);
 
+   if (expt_name.length() > 0) {
+      args[iarg++] = "-e";
+      args[iarg++] = expt_name.c_str();
+   }
+      
    if (debug_flag) {
       args[iarg++] = "-d";
 
@@ -3813,16 +3788,19 @@ int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errst
    }
 
    args[iarg++] = NULL;
+
 #if 0
-      for (iarg = 0; args[iarg] != NULL; iarg++)
-         printf("arg[%d] [%s]\n", iarg, args[iarg]);
+   for (iarg = 0; args[iarg] != NULL; iarg++) {
+      printf("arg[%d] [%s]\n", iarg, args[iarg]);
+   }
 #endif
 
    status = ss_spawnv(P_DETACH, args[0], args);
 
-   if (status != SUCCESS) {
-      if (errstr != NULL)
-         sprintf(errstr, "Cannot execute mtransition, ss_spawnvp() returned %d", status);
+   if (status != SS_SUCCESS) {
+      if (errstr != NULL) {
+         sprintf(errstr, "Cannot execute mtransition, ss_spawnv() returned %d", status);
+      }
       return CM_SET_ERROR;
    }
 
@@ -4945,7 +4923,7 @@ INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size,
 
          /* wait until main thread has finished */
          do {
-            cm_yield(10);
+            ss_sleep(10);
          } while (!_trp.finished);
 
          return _trp.status;
@@ -6114,11 +6092,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       }
 
       /* create mutex for the buffer */
-#ifndef HAVE_CM_WATCHDOG
       ss_mutex_create(&_buffer[handle].buffer_mutex, FALSE);
-#else
-      _buffer[handle].buffer_mutex = NULL;
-#endif
 
       /* first lock buffer */
       BUFFER* pbuf = &_buffer[handle];
@@ -6200,15 +6174,8 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       pbuf->shm_handle = shm_handle;
       pbuf->shm_size = shm_size;
       pbuf->callback = FALSE;
-#ifndef HAVE_CM_WATCHDOG
       ss_mutex_create(&pbuf->write_cache_mutex, FALSE);
       ss_mutex_create(&pbuf->read_cache_mutex, FALSE);
-#else
-      /* thread-safe locking impossible if cm_watchdog fires
-       * at random times. */
-      pbuf->write_cache_mutex = NULL;
-      pbuf->read_cache_mutex = NULL;
-#endif
 
       bm_clear_buffer_statistics(hDB, pbuf);
       
@@ -6494,135 +6461,6 @@ INT cm_stop_watchdog_thread()
 #endif
    return CM_SUCCESS;
 }
-
-#ifdef LOCAL_ROUTINES
-
-#if 0
-/********************************************************************/
-/**
-Called at periodic intervals, checks if all clients are
-alive. If one process died, its client entries are cleaned up.
-@param dummy unused!
-*/
-void cm_watchdog(int dummy)
-{
-   DWORD actual_time, interval;
-   BOOL time_changed, wrong_interval;
-
-   /* return immediately if watchdog has been disabled in meantime */
-   if (!_call_watchdog)
-      return;
-
-   extern int _db_kludge_protect_odb_locking_against_cm_watchdog;
-   extern int _db_kludge_cm_watchdog_wants_to_run;
-
-   if (_db_kludge_protect_odb_locking_against_cm_watchdog) {
-      // this is a very bad time to run watchdog functions
-      //fprintf(stderr, "cm_watchdog(%d) here!\n", dummy);
-      //abort();
-      /* Schedule next watchdog call */
-      if (_call_watchdog) {
-         _db_kludge_cm_watchdog_wants_to_run = 1;
-         ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
-      }
-      return;
-   }
-
-   /* prevent deadlock between ODB and SYSMSG by skipping watchdog tests if odb is locked by us */
-   if (1) {
-      int count = -1;
-      HNDLE hDB;
-
-      cm_get_experiment_database(&hDB, NULL);
-
-      if (hDB)
-         count = db_get_lock_cnt(hDB);
-
-      if (count) {
-         //cm_msg(MINFO, "cm_watchdog", "Called with ODB lock count %d!", count);
-
-         DWORD now = ss_millitime();
-         //bm_update_last_activity(now);
-         //db_update_last_activity(now);
-
-         /* Schedule next watchdog call */
-         if (_call_watchdog)
-            ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
-
-         return;
-      }
-   }
-
-   /* extra check on watchdog interval */
-#if 0
-   if (1) {
-      static time_t last = 0;
-      time_t now = time(NULL);
-      fprintf(stderr, "cm_watchdog(%d) interval %d\n", dummy, (int)(now - last));
-      last = now;
-   }
-#endif
-   
-   /* tell system services that we are in async mode ... */
-   ss_set_async_flag(TRUE);
-
-   /* Calculate the time since last watchdog call. Kill clients if they
-      are inactive for more than the timeout they specified */
-   actual_time = ss_millitime();
-   if (_watchdog_last_called == 0)
-      _watchdog_last_called = actual_time - WATCHDOG_INTERVAL;
-   interval = actual_time - _watchdog_last_called;
-
-   /* check if system time has been changed more than 10 min */
-   time_changed = interval > 600000;
-   wrong_interval = interval < 0.8 * WATCHDOG_INTERVAL || interval > 1.2 * WATCHDOG_INTERVAL;
-
-   if (time_changed) {
-      cm_msg(MINFO, "cm_watchdog", "System time has been changed! last:%dms  now:%dms  delta:%dms", _watchdog_last_called, actual_time, interval);
-   }
-
-   //bm_cleanup("cm_watchdog", actual_time, wrong_interval);
-
-   //db_cleanup("cm_watchdog", actual_time, wrong_interval);
-
-   _watchdog_last_called = actual_time;
-
-   ss_set_async_flag(FALSE);
-
-   /* Schedule next watchdog call */
-   if (_call_watchdog)
-      ss_alarm(WATCHDOG_INTERVAL, cm_watchdog);
-}
-#endif
-
-#if 0
-/********************************************************************/
-/**
-Temporarily disable watchdog calling. Used for tape IO
-not to interrupt lengthy operations like mount.
-@param flag FALSE for disable, TRUE for re-enable
-@return CM_SUCCESS
-*/
-INT cm_enable_watchdog(BOOL flag)
-{
-   static INT timeout = DEFAULT_WATCHDOG_TIMEOUT;
-   static BOOL call_flag = FALSE;
-
-   if (flag) {
-      if (call_flag)
-         cm_set_watchdog_params(TRUE, timeout);
-   } else {
-      call_flag = _call_watchdog;
-      timeout = _watchdog_timeout;
-      if (call_flag)
-         cm_set_watchdog_params(FALSE, 0);
-   }
-
-   return CM_SUCCESS;
-}
-#endif
-
-#endif                          /* local routines */
 
 /********************************************************************/
 /**
@@ -9856,6 +9694,7 @@ static void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
 
 /* globals */
 
+static MUTEX_T*              _client_connection_mutex = NULL;
 static RPC_CLIENT_CONNECTION _client_connection[MAX_RPC_CONNECTION];
 static RPC_SERVER_CONNECTION _server_connection; // connection to the mserver
 static BOOL _rpc_is_remote = FALSE;
@@ -10351,7 +10190,6 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    char local_prog_name[NAME_LENGTH];
    char local_host_name[HOST_NAME_LENGTH];
    struct hostent *phe;
-   static MUTEX_T *mtx = NULL;
 
 #ifdef OS_WINNT
    {
@@ -10376,11 +10214,11 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    }
 
    /* make this funciton multi-thread safe */
-   if (!mtx) {
-      ss_mutex_create(&mtx, FALSE);
+   if (!_client_connection_mutex) {
+      ss_mutex_create(&_client_connection_mutex, FALSE);
    }
 
-   ss_mutex_wait_for(mtx, 10000);
+   ss_mutex_wait_for(_client_connection_mutex, 10000);
 
 #if 0
    for (i = 0; i < MAX_RPC_CONNECTION; i++)
@@ -10395,7 +10233,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
          status = ss_socket_wait(_client_connection[i].send_sock, 0);
          if (status == SS_TIMEOUT) { // socket should be empty
             *hConnection = i + 1;
-            ss_mutex_release(mtx);
+            ss_mutex_release(_client_connection_mutex);
             return RPC_SUCCESS;
          }
          //cm_msg(MINFO, "rpc_client_connect", "Stale connection to \"%s\" on host %s is closed", _client_connection[i].client_name, _client_connection[i].host_name);
@@ -10411,7 +10249,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    /* open new network connection */
    if (i == MAX_RPC_CONNECTION) {
       cm_msg(MERROR, "rpc_client_connect", "maximum number of connections exceeded");
-      ss_mutex_release(mtx);
+      ss_mutex_release(_client_connection_mutex);
       return RPC_NO_CONNECTION;
    }
 
@@ -10419,7 +10257,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    sock = socket(AF_INET, SOCK_STREAM, 0);
    if (sock == -1) {
       cm_msg(MERROR, "rpc_client_connect", "cannot create socket, socket() errno %d (%s)", errno, strerror(errno));
-      ss_mutex_release(mtx);
+      ss_mutex_release(_client_connection_mutex);
       return RPC_NET_ERROR;
    }
 
@@ -10433,7 +10271,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    _client_connection[idx].send_sock = sock;
    _client_connection[idx].connected = 0;
 
-   ss_mutex_release(mtx);
+   ss_mutex_release(_client_connection_mutex);
 
    /* connect to remote node */
    memset(&bind_addr, 0, sizeof(bind_addr));
@@ -10495,9 +10333,26 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
       cm_msg(MERROR, "rpc_client_connect", "cannot send %d bytes, send() returned %d, errno %d (%s)", size, i, errno, strerror(errno));
       return RPC_NET_ERROR;
    }
+
+   bool restore_watchdog_timeout = false;
+   BOOL  watchdog_call;
+   DWORD watchdog_timeout;
+   cm_get_watchdog_params(&watchdog_call, &watchdog_timeout);
+
+   //printf("watchdog timeout: %d, rpc_connect_timeout: %d\n", watchdog_timeout, _rpc_connect_timeout);
+
+   if (_rpc_connect_timeout >= watchdog_timeout) {
+      restore_watchdog_timeout = true;
+      cm_set_watchdog_params(watchdog_call, _rpc_connect_timeout + 1000);
+   }
    
    /* receive remote computer info */
    i = recv_string(sock, str, sizeof(str), _rpc_connect_timeout);
+
+   if (restore_watchdog_timeout) {
+      cm_set_watchdog_params(watchdog_call, watchdog_timeout);
+   }
+   
    if (i <= 0) {
       cm_msg(MERROR, "rpc_client_connect", "timeout on receive remote computer info: %s", str);
       return RPC_NET_ERROR;
@@ -11741,8 +11596,24 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
    buf_size = 0;
    nc = NULL;
 
+   bool restore_watchdog_timeout = false;
+   BOOL  watchdog_call;
+   DWORD watchdog_timeout;
+   cm_get_watchdog_params(&watchdog_call, &watchdog_timeout);
+
+   //printf("watchdog timeout: %d, rpc_timeout: %d\n", watchdog_timeout, rpc_timeout);
+
+   if (rpc_timeout >= watchdog_timeout) {
+      restore_watchdog_timeout = true;
+      cm_set_watchdog_params(watchdog_call, rpc_timeout + 1000);
+   }
+
    /* receive result on send socket */
    status = ss_recv_net_command(send_sock, &rpc_status, &buf_size, &buf, rpc_timeout);
+
+   if (restore_watchdog_timeout) {
+      cm_set_watchdog_params(watchdog_call, watchdog_timeout);
+   }
 
    if (status == SS_TIMEOUT) {
       cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": timeout waiting for reply", client_name, host_name, rpc_name);
@@ -12061,7 +11932,27 @@ INT rpc_call(DWORD routine_id, ...)
    rpc_status = 0;
    nc = NULL;
 
+   bool restore_watchdog_timeout = false;
+   BOOL  watchdog_call;
+   DWORD watchdog_timeout;
+   cm_get_watchdog_params(&watchdog_call, &watchdog_timeout);
+
+   //printf("watchdog timeout: %d, rpc_timeout: %d\n", watchdog_timeout, rpc_timeout);
+
+   if (!rpc_is_remote()) {
+      // if RPC is remote, we are connected to an mserver,
+      // the mserver takes care of watchdog timeouts.
+      if (rpc_timeout >= watchdog_timeout) {
+         restore_watchdog_timeout = true;
+         cm_set_watchdog_params(watchdog_call, rpc_timeout + 1000);
+      }
+   }
+
    status = ss_recv_net_command(send_sock, &rpc_status, &buf_size, &buf, rpc_timeout);
+
+   if (restore_watchdog_timeout) {
+      cm_set_watchdog_params(watchdog_call, watchdog_timeout);
+   }
 
    /* drop the mutex, we are done with the socket, argument unpacking is done from our own buffer */
 
@@ -14390,10 +14281,6 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       /* only disconnect from experiment if previously connected.
          Necessary for pure RPC servers (RPC_SRVR) */
       if (hDB) {
-         //#ifdef LOCAL_ROUTINES
-         //ss_alarm(0, cm_watchdog);
-         //#endif
-
          bm_close_all_buffers();
          cm_delete_client_info(hDB, 0);
          db_close_all_databases();

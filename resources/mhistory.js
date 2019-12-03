@@ -127,6 +127,9 @@ function MhistoryGraph(divElement) { // Constructor
    // solo
    this.solo = {active: false, index: undefined};
 
+   // time when panel was drawn last
+   this.lastDrawTime = 0;
+
    // buttons
    this.button = [
       {
@@ -328,6 +331,8 @@ MhistoryGraph.prototype.initializePanel = function () {
    this.tags = [];
    this.index = [];
    this.pendingUpdates = 0;
+   this.startUpdate = 0;
+   this.updateTime = 0;
 
    // retrieve panel definition from ODB
    mjsonrpc_db_copy(["/History/Display/" + this.group + "/" + this.panel]).then(function (rpc) {
@@ -627,6 +632,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
    // load initial data
    this.tMinRequested = this.tMin - this.tScale; // look one window ahead in past
    this.pendingUpdates++;
+   this.startUpdate = new Date().getTime();
    this.parentDiv.style.cursor = "progress";
    mjsonrpc_call("hs_read_arraybuffer",
       {
@@ -638,6 +644,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
       }, "arraybuffer")
       .then(function (rpc) {
 
+         this.updateTime = new Date().getTime() - this.startUpdate;
          this.pendingUpdates--;
          if (this.pendingUpdates === 0)
             this.parentDiv.style.cursor = "default";
@@ -666,6 +673,7 @@ MhistoryGraph.prototype.loadOldData = function () {
       this.tMinRequested = this.tMin - dt;
 
       this.pendingUpdates++;
+      this.startUpdate = new Date().getTime();
       this.parentDiv.style.cursor = "progress";
       mjsonrpc_call("hs_read_arraybuffer",
          {
@@ -677,6 +685,7 @@ MhistoryGraph.prototype.loadOldData = function () {
          }, "arraybuffer")
          .then(function (rpc) {
 
+            this.updateTime = new Date().getTime() - this.startUpdate;
             this.pendingUpdates--;
             if (this.pendingUpdates === 0)
                this.parentDiv.style.cursor = "default";
@@ -698,10 +707,11 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
    // decode binary array
    let array = new Float64Array(rpc);
    let nVars = array[1];
-   let i = 2 + nVars * 2;
+   let nData = array.slice(2 + nVars, 2 + 2 * nVars);
+   let i = 2 + 2 * nVars;
    let t0 = array[i];
 
-   // append newer values to end of arrays
+   // append new values to end of arrays
    if (this.data === undefined) {
 
       this.data = [];
@@ -712,22 +722,21 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          let formula = this.odb["Formula"];
          this.data.push({time: [], value: []});
 
-         let nData = array[2 + nVars + index];
          let x = undefined;
-         let y = undefined;
+         let v = undefined;
          if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
-            for (let j = 0; j < nData; j++) {
+            for (let j = 0; j < nData[index]; j++) {
                this.data[index].time.push(array[i++]);
                x = array[i++];
-               y = eval(formula[index]);
-               this.data[index].value.push(y);
+               v = eval(formula[index]);
+               this.data[index].value.push(v);
             }
          } else {
-            for (let j = 0; j < nData; j++) {
+            for (let j = 0; j < nData[index]; j++) {
                let t = array[i++];
-               y = array[i++];
+               v = array[i++];
                this.data[index].time.push(t);
-               this.data[index].value.push(y);
+               this.data[index].value.push(v);
             }
          }
       }
@@ -739,36 +748,32 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
 
          let formula = this.odb["Formula"];
 
-         let nData = array[2 + nVars + index];
-         let i = 2 + nVars * 2 +  // offset first value
-            index * nData * 2 +   // offset full channel
-            nData * 2 - 1;        // offset end of channel
+         let t1 = [];
+         let v1 = [];
 
          let x = undefined;
          if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
-            for (let j = 0; j < nData; j++) {
-               x = array[i--];
-               let t = array[i--];
+            for (let j = 0; j < nData[index]; j++) {
+               let t = array[i++];
+               x = array[i++];
                let v = eval(formula[index]);
                if (t < this.data[index].time[0]) {
-                  this.data[index].time.unshift(t);
-                  this.data[index].value.unshift(v);
+                  t1.push(t);
+                  v1.push(v);
                }
             }
          } else {
-            for (let j = 0; j < nData; j++) {
-               let v = array[i--];
-               let t = array[i--];
-               if (this.data[index].time.length === 0) {
-                  this.data[index].time.push(t);
-                  this.data[index].value.push(v);
-               }
+            for (let j = 0; j < nData[index]; j++) {
+               let t = array[i++];
+               let v = array[i++];
                if (t < this.data[index].time[0]) {
-                  this.data[index].time.unshift(t);
-                  this.data[index].value.unshift(v);
+                  t1.push(t);
+                  v1.push(v);
                }
             }
          }
+         this.data[index].time = t1.concat(this.data[index].time);
+         this.data[index].value = v1.concat(this.data[index].value);
       }
 
    } else {
@@ -778,11 +783,9 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
 
          let formula = this.odb["Formula"];
 
-         let nData = array[2 + nVars + index];
-
          let x = undefined;
          if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
-            for (let j = 0; j < nData; j++) {
+            for (let j = 0; j < nData[index]; j++) {
                let t = array[i++];
                x = array[i++];
                let v = eval(formula[index]);
@@ -797,7 +800,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
                }
             }
          } else {
-            for (let j = 0; j < nData; j++) {
+            for (let j = 0; j < nData[index]; j++) {
                let t = array[i++];
                let v = array[i++];
 
@@ -824,8 +827,6 @@ MhistoryGraph.prototype.update = function () {
    }
 
    let t = Math.floor(new Date() / 1000);
-
-   console.log(new Date());
 
    mjsonrpc_call("hs_read_arraybuffer",
       {
@@ -981,6 +982,8 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             let dy = (this.drag.yStart - e.offsetY) / (this.y1 - this.y2) * (this.yMax - this.yMin);
             this.yMin = this.drag.yMinStart - dy;
             this.yMax = this.drag.yMaxStart - dy;
+            if (this.logAxis && this.yMin <= 0)
+               this.yMin = 1E-100;
          }
 
          this.loadOldData();
@@ -991,7 +994,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
       } else {
 
-         // change curser to pointer over buttons
+         // change cursor to pointer over buttons
          this.button.forEach(b => {
             if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
                e.offsetX < b.x1 + b.width && e.offsetY < b.y1 + b.height) {
@@ -1026,7 +1029,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
                let i1 = binarySearch(this.x[di], e.offsetX - 10);
                let i2 = binarySearch(this.x[di], e.offsetX + 10);
 
-               for (let i = i1; i < i2; i++) {
+               for (let i = i1; i <= i2; i++) {
                   let d = (e.offsetX - this.x[di][i]) * (e.offsetX - this.x[di][i]) +
                      (e.offsetY - this.y[di][i]) * (e.offsetY - this.y[di][i]);
                   if (d < minDist) {
@@ -1118,6 +1121,9 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
             (this.yMax0 - this.yMin0) / ((this.yMax + dtMax) - (this.yMin - dtMin)) < 1000) {
             this.yMin -= dtMin;
             this.yMax += dtMax;
+
+            if (this.logAxis && this.yMin <= 0)
+               this.yMin = 1E-100;
          }
 
          this.redraw();
@@ -1314,6 +1320,11 @@ MhistoryGraph.prototype.findMinMax = function () {
 };
 
 MhistoryGraph.prototype.draw = function () {
+   // draw maximal 20 times per second
+   if (new Date().getTime() < this.lastDrawTime + 50)
+      return;
+   this.lastDrawTime = new Date().getTime();
+
    let ctx = this.canvas.getContext("2d");
 
    ctx.fillStyle = this.color.background;
@@ -1343,7 +1354,7 @@ MhistoryGraph.prototype.draw = function () {
       return;
 
    let axisLabelWidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35,
-      -4, -7, -10, -12, 0, this.yMin, this.yMax, 0, false);
+      -4, -7, -10, -12, 0, this.yMin, this.yMax, this.logAxis, false);
 
    this.x1 = axisLabelWidth + 15;
    this.y1 = this.height - 25;
@@ -1368,7 +1379,6 @@ MhistoryGraph.prototype.draw = function () {
       this.yMin = 1E-10;
    this.drawVAxis(ctx, this.x1, this.y1, this.y1 - this.y2,
       -4, -7, -10, -12, this.x2 - this.x1, this.yMin, this.yMax, this.logAxis, true);
-   //this.drawHAxis(ctx, 50, this.y2-25, this.x2-70, 4, 7, 10, 12, 0, -10, 10, 0);
    this.drawTAxis(ctx, this.x1, this.y1, this.x2 - this.x1, this.width,
       4, 7, 10, 10, this.y2 - this.y1, this.tMin, this.tMax);
 
@@ -1563,26 +1573,28 @@ MhistoryGraph.prototype.draw = function () {
       if (this.events[di] === "Run transitions") {
 
          if (this.tags[di] === "State") {
-            for (let i = 0; i < this.x[di].length; i++) {
-               if (this.v[di][i] === 1) {
-                  ctx.strokeStyle = "#FF0000";
-                  ctx.fillStyle = "#808080";
-                  ctx.textAlign = "right";
-                  ctx.textBaseline = "top";
-                  ctx.fillText(this.v[di + 1][i], this.x[di][i] - 5, this.y2 + 3);
-               } else if (this.v[di][i] === 3) {
-                  ctx.strokeStyle = "#00A000";
-                  ctx.fillStyle = "#808080";
-                  ctx.textAlign = "left";
-                  ctx.textBaseline = "top";
-                  ctx.fillText(this.v[di + 1][i], this.x[di][i] + 3, this.y2 + 3);
-               } else {
-                  ctx.strokeStyle = "#F9A600";
-               }
+            if (this.x[di].length < 200) {
+               for (let i = 0; i < this.x[di].length; i++) {
+                  if (this.v[di][i] === 1) {
+                     ctx.strokeStyle = "#FF0000";
+                     ctx.fillStyle = "#808080";
+                     ctx.textAlign = "right";
+                     ctx.textBaseline = "top";
+                     ctx.fillText(this.v[di + 1][i], this.x[di][i] - 5, this.y2 + 3);
+                  } else if (this.v[di][i] === 3) {
+                     ctx.strokeStyle = "#00A000";
+                     ctx.fillStyle = "#808080";
+                     ctx.textAlign = "left";
+                     ctx.textBaseline = "top";
+                     ctx.fillText(this.v[di + 1][i], this.x[di][i] + 3, this.y2 + 3);
+                  } else {
+                     ctx.strokeStyle = "#F9A600";
+                  }
 
-               ctx.setLineDash([8, 2]);
-               ctx.drawLine(Math.floor(this.x[di][i]), this.y1, Math.floor(this.x[di][i]), this.y2);
-               ctx.setLineDash([]);
+                  ctx.setLineDash([8, 2]);
+                  ctx.drawLine(Math.floor(this.x[di][i]), this.y1, Math.floor(this.x[di][i]), this.y2);
+                  ctx.setLineDash([]);
+               }
             }
          }
 
@@ -1854,6 +1866,8 @@ MhistoryGraph.prototype.draw = function () {
       ctx.fillStyle = "#404040";
       ctx.fillText(s, x + 3, y + h / 2);
    }
+
+   this.lastDrawTime = new Date().getTime();
 };
 
 /*
@@ -2203,12 +2217,14 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
                let str = y_act.toPrecision(n_sig1).stripZeros();
                if (ys - textHeight / 2 > y1 - height &&
                   ys + textHeight / 2 < y1 &&
-                  ys + textHeight < last_label_y + 2)
+                  ys + textHeight < last_label_y + 2) {
+                  maxwidth = Math.max(maxwidth, ctx.measureText(str).width);
                   if (draw) {
                      ctx.strokeStyle = this.color.label;
                      ctx.fillStyle = this.color.label;
                      ctx.fillText(str, x1 + label, ys);
                   }
+               }
 
                last_label_y = ys;
             }
@@ -2226,48 +2242,65 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
    return maxwidth;
 };
 
+let options1 = {
+    day: '2-digit', month: 'short', year: '2-digit',
+    hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+};
+
+let options2 = {
+    day: '2-digit', month: 'short', year: '2-digit',
+    hour12: false, hour: '2-digit', minute: '2-digit'
+};
+
+let options3 = {
+    day: '2-digit', month: 'short', year: '2-digit',
+    hour12: false, hour: '2-digit', minute: '2-digit'
+};
+
+let options4 = {day: '2-digit', month: 'short', year: '2-digit'};
+
+let options5 = {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'};
+
+let options6 = {hour12: false, hour: '2-digit', minute: '2-digit'};
+
+let options7 = {hour12: false, hour: '2-digit', minute: '2-digit'};
+
+let options8 = {
+    day: '2-digit', month: 'short', year: '2-digit',
+    hour12: false, hour: '2-digit', minute: '2-digit'
+};
+
+let options9 = {day: '2-digit', month: 'short', year: '2-digit'};
+
 function timeToLabel(sec, base, forceDate) {
    let d = new Date(sec * 1000);
    let options;
 
    if (forceDate) {
       if (base < 60) {
-         options = {
-            day: '2-digit', month: 'short', year: '2-digit',
-            hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
-         };
-      } else if (base < 600)
-         options = {
-            day: '2-digit', month: 'short', year: '2-digit',
-            hour12: false, hour: '2-digit', minute: '2-digit'
-         };
-      else if (base < 3600 * 24)
-         options = {
-            day: '2-digit', month: 'short', year: '2-digit',
-            hour12: false, hour: '2-digit', minute: '2-digit'
-         };
-      else
-         options = {day: '2-digit', month: 'short', year: '2-digit'};
+         options = options1;
+      } else if (base < 600) {
+         options = options2;
+      } else if (base < 3600 * 24) {
+         options = options3;
+      } else {
+         options = options4;
+      }
 
       return d.toLocaleDateString('en-GB', options);
    }
 
    if (base < 60) {
-      options = {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'};
-      return d.toLocaleTimeString('en-GB', options);
+      return d.toLocaleTimeString('en-GB', options5);
    } else if (base < 600) {
-      options = {hour12: false, hour: '2-digit', minute: '2-digit'};
-      return d.toLocaleTimeString('en-GB', options);
+      return d.toLocaleTimeString('en-GB', options6);
    } else if (base < 3600 * 3) {
-      options = {hour12: false, hour: '2-digit', minute: '2-digit'};
-      return d.toLocaleTimeString('en-GB', options);
-   } else if (base < 3600 * 24)
-      options = {
-         day: '2-digit', month: 'short', year: '2-digit',
-         hour12: false, hour: '2-digit', minute: '2-digit'
-      };
-   else
-      options = {day: '2-digit', month: 'short', year: '2-digit'};
+      return d.toLocaleTimeString('en-GB', options7);
+   } else if (base < 3600 * 24) {
+      options = options8;
+   } else {
+      options = options9;
+   }
 
    return d.toLocaleDateString('en-GB', options);
 }

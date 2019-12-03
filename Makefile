@@ -537,6 +537,10 @@ ifdef NO_SSL
 CMAKEFLAGS+= -DNO_SSL=1
 endif
 
+ifndef NO_EXPORT_COMPILE_COMMANDS
+CMAKEFLAGS+= -DCMAKE_EXPORT_COMPILE_COMMANDS=1
+endif
+
 CMAKEFLAGS+= -DCMAKE_TARGET_MESSAGES=OFF
 #CMAKEFLAGS+= -DCMAKE_RULE_MESSAGES=OFF
 #CMAKEFLAGS+= -DCMAKE_VERBOSE_MAKEFILE=ON
@@ -567,6 +571,9 @@ cclean:
 
 dox:
 	doxygen
+
+htmllint:
+	java -jar ~/git/validator/dist/vnu.jar --filterpattern ".*Use CSS instead.*" resources/*.html
 
 linux32:
 	$(MAKE) NO_ROOT=1 NO_MYSQL=1 NO_ODBC=1 NO_SQLITE=1 NO_SSL=1 OS_DIR=linux-m32 USERFLAGS=-m32
