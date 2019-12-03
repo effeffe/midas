@@ -1281,10 +1281,20 @@ function mhttpd_haxis_draw() {
 String.prototype.stripZeros = function () {
    var s = this.trim();
    if (s.search("[.]") >= 0) {
-      while (s.charAt(s.length - 1) == "0")
-         s = s.substring(0, s.length - 1);
-      if (s.charAt(s.length - 1) == ".")
-         s = s.substring(0, s.length - 1);
+      let i = s.search("[e]");
+      if (i >= 0) {
+         while (s.charAt(i - 1) === "0") {
+            s = s.substring(0, i - 1) + s.substring(i);
+            i--;
+         }
+         if (s.charAt(i - 1) === ".")
+            s = s.substring(0, i - 1) + s.substring(i);
+      } else {
+         while (s.charAt(s.length - 1) === "0")
+            s = s.substring(0, s.length - 1);
+         if (s.charAt(s.length - 1) === ".")
+            s = s.substring(0, s.length - 1);
+      }
    }
    return s;
 };

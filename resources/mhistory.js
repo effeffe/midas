@@ -976,6 +976,8 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             let dy = (this.drag.yStart - e.offsetY) / (this.y1 - this.y2) * (this.yMax - this.yMin);
             this.yMin = this.drag.yMinStart - dy;
             this.yMax = this.drag.yMaxStart - dy;
+            if (this.logAxis && this.yMin <= 0)
+               this.yMin = 1E-100;
          }
 
          this.loadOldData();
@@ -986,7 +988,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
       } else {
 
-         // change curser to pointer over buttons
+         // change cursor to pointer over buttons
          this.button.forEach(b => {
             if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
                e.offsetX < b.x1 + b.width && e.offsetY < b.y1 + b.height) {
@@ -1113,6 +1115,9 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
             (this.yMax0 - this.yMin0) / ((this.yMax + dtMax) - (this.yMin - dtMin)) < 1000) {
             this.yMin -= dtMin;
             this.yMax += dtMax;
+
+            if (this.logAxis && this.yMin <= 0)
+               this.yMin = 1E-100;
          }
 
          this.redraw();
@@ -1343,7 +1348,7 @@ MhistoryGraph.prototype.draw = function () {
       return;
 
    let axisLabelWidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35,
-      -4, -7, -10, -12, 0, this.yMin, this.yMax, 0, false);
+      -4, -7, -10, -12, 0, this.yMin, this.yMax, this.logAxis, false);
 
    this.x1 = axisLabelWidth + 15;
    this.y1 = this.height - 25;
@@ -2204,12 +2209,14 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
                let str = y_act.toPrecision(n_sig1).stripZeros();
                if (ys - textHeight / 2 > y1 - height &&
                   ys + textHeight / 2 < y1 &&
-                  ys + textHeight < last_label_y + 2)
+                  ys + textHeight < last_label_y + 2) {
+                  maxwidth = Math.max(maxwidth, ctx.measureText(str).width);
                   if (draw) {
                      ctx.strokeStyle = this.color.label;
                      ctx.fillStyle = this.color.label;
                      ctx.fillText(str, x1 + label, ys);
                   }
+               }
 
                last_label_y = ys;
             }
