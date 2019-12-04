@@ -33,7 +33,9 @@ extern "C" {
    INT c_bm_remove_event_request(INT buffer_handle, INT request_id);
    INT c_bm_request_event(INT buffer_handle, short int event_id, short int trigger_mask, INT sampling_type, INT * request_id);
    INT c_cm_check_deferred_transition();
+   INT c_cm_connect_client(const char *client_name, HNDLE * hConn);
    INT c_cm_connect_experiment(const char *host_name, const char *exp_name, const char *client_name, void (*func) (char *));
+   INT c_cm_disconnect_client(HNDLE hConn, BOOL bShutdown);
    INT c_cm_deregister_transition(INT transition);
    INT c_cm_disconnect_experiment();
    INT c_cm_get_environment(char *host_name, int host_name_size, char *exp_name, int exp_name_size);
@@ -43,6 +45,7 @@ extern "C" {
    INT c_cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) MATTRPRINTF(5,6);
    INT c_cm_msg_facilities(char*** dest, int& dest_len);
    INT c_cm_register_deferred_transition(INT transition, BOOL(*func) (INT, BOOL));
+   INT c_cm_register_function(INT id, INT(*func) (INT, void **));
    INT c_cm_register_transition(INT transition, INT(*func) (INT, char *), int sequence_number);
    INT c_cm_set_transition_sequence(INT transition, INT sequence_number);
    INT c_cm_start_watchdog_thread(void);
@@ -66,6 +69,7 @@ extern "C" {
    INT c_db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values);
    INT c_db_set_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, const void *data, INT size, INT num_values, DWORD type);
    INT c_db_set_value_index(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *data, INT data_size, INT index, DWORD type, BOOL truncate);
+   INT c_jrpc_client_call(HNDLE hconn, char* cmd, char* args, char* buf, int buf_length);
    INT c_rpc_flush_event(void);
    INT c_rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, INT buf_size, INT async_flag, INT mode);
 }

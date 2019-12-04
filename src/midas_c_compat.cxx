@@ -1,5 +1,6 @@
 #include "midas_c_compat.h"
 #include "midas.h"
+#include "mrpc.h"
 #include <string>
 #include "string.h"
 #include "stdlib.h"
@@ -189,12 +190,20 @@ INT c_cm_check_deferred_transition(void) {
    return cm_check_deferred_transition();
 }
 
+INT c_cm_connect_client(const char *client_name, HNDLE * hConn) {
+   return cm_connect_client(client_name, hConn);
+}
+
 INT c_cm_connect_experiment(const char *host_name, const char *exp_name, const char *client_name, void (*func) (char *)) {
    return cm_connect_experiment(host_name, exp_name, client_name, func);
 }
 
 INT c_cm_deregister_transition(INT transition) {
    return cm_deregister_transition(transition);
+}
+
+INT c_cm_disconnect_client(HNDLE hConn, BOOL bShutdown) {
+   return cm_disconnect_client(hConn, bShutdown);
 }
 
 INT c_cm_disconnect_experiment() {
@@ -257,6 +266,10 @@ INT c_cm_msg_facilities(char*** dest, int& dest_len) {
 
 INT c_cm_register_deferred_transition(INT transition, BOOL(*func) (INT, BOOL)) {
    return cm_register_deferred_transition(transition, func);
+}
+
+INT c_cm_register_function(INT id, INT(*func) (INT, void **)) {
+   return cm_register_function(id, func);
 }
 
 INT c_cm_register_transition(INT transition, INT(*func) (INT, char *), int sequence_number) {
@@ -349,6 +362,13 @@ INT c_db_set_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, const void *
 
 INT c_db_set_value_index(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *data, INT data_size, INT index, DWORD type, BOOL truncate) {
    return db_set_value_index(hDB, hKeyRoot, key_name, data, data_size, index, type, truncate);
+}
+
+INT c_jrpc_client_call(HNDLE hconn, char* cmd, char* args, char* buf, int buf_length) {
+   // Specialized version of rpc_client_call that just deals with RPC_JRPC,
+   // so we don't have to worry about variable arg lists.
+   // You must already have malloc'd buf to be big enough for buf_length.
+   return rpc_client_call(hconn, RPC_JRPC, cmd, args, buf, buf_length);
 }
 
 INT c_rpc_flush_event(void) {

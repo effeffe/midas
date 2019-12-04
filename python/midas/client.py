@@ -942,7 +942,7 @@ class MidasClient:
         
         """
         cb = midas.callbacks.make_deferred_transition_callback(callback, self)
-        self.lib.c_cm_register_deferred_transition(transition, cb);
+        self.lib.c_cm_register_deferred_transition(transition, cb)
 
     def get_midas_version(self):
         """
@@ -956,6 +956,88 @@ class MidasClient:
         
         return (ver.decode("utf-8"), rev.decode("utf-8"))
     
+    def connect_to_other_client(self, other_client_name):
+        """
+        Connect to a different midas client, so that you can later call RPC
+        functions exposed by that client.
+        
+        Args:
+            * other_client_name (str)
+            
+        Returns:
+            int, which you should pass to `disconnect_from_other_client` and
+            `jrpc_client_call`.
+        """
+        c_name = ctypes.create_string_buffer(bytes(other_client_name, "utf-8"))
+        handle = ctypes.c_int()
+        self.lib.c_cm_connect_client(c_name, ctypes.byref(handle))
+        return handle
+        
+    def disconnect_from_other_client(self, connection, shutdown_other_client=False):
+        """
+        Disconnect from a client that was previously connected to using
+        `connect_to_other_client`.
+        
+        Args:
+            * connection (int) - The connection handle returned to you when 
+                connecting.
+            * shutdown_other_client (bool) - Whether to cause the other 
+                client to exit.
+        """
+        shutdown = ctypes.c_uint32(1 if shutdown_other_client else 0)
+        self.lib.c_cm_disconnect_client(connection, shutdown)
+        
+    def jrpc_client_call(self, connection, cmd, args, max_len=1024):
+        """
+        Call the JRPC (aka "javascript RPC") function exposed by another client.
+        
+        Args:
+            * connection (int) - The connection handle returned to you when 
+                connecting.
+            * cmd (str) - The command to execute. The other client's JRPC 
+                handler must know what to do with this.
+            * args (str) - Any other arguments to pass to the other client.
+                Specify as a single string (probably separating arguments
+                with spaces).
+            * max_len (int) - The maximum length you expect the returned string
+                to be. This is an imposition of the underlying C++ code, not
+                the python side.
+                
+        Returns:
+            str, the string populated by the other client. Note that an exception
+            will be raised if the other client returns a non-SUCESSS status.
+        """
+        c_cmd = ctypes.create_string_buffer(bytes(cmd, "utf-8"))
+        c_args = ctypes.create_string_buffer(bytes(args, "utf-8"))
+        c_buf = ctypes.create_string_buffer(max_len)
+        self.lib.c_jrpc_client_call(connection, c_cmd, c_args, c_buf, max_len)
+        return c_buf.value.decode('utf-8')
+    
+    def register_jrpc_callback(self, callback):
+        """
+        Register a function that can be called from mhttpd, custom webpages, and
+        other clients (using the "javascript RPC" system). You should register a 
+        single function, but can do multiple things in that function based on the 
+        parameters provided by the javascript call.
+        
+        Args:
+            * callback (function) - See below.
+            
+        Python function (`callback`) details:
+        * Arguments it should accept:
+            * client (midas.client.MidasClient)
+            * cmd (str) - The command user wants to execute
+            * args (str) - Other arguments the user supplied
+            * max_len (int) - The maximum string length the user accepts in the return value
+        * Value it should return:
+            * A tuple of (int, str) or just an int. The integer should be a status code
+                from midas.status_codes. The string, if present, should be any text that
+                should be returned to the caller. The maximum string length that will be
+                returned to the user is given by the `max_len` parameter.
+        """
+        cb = midas.callbacks.make_rpc_callback(callback, self)
+        self.lib.c_cm_register_function(midas.RPC_JRPC, cb)
+
     #
     # Most users should not need to use the functions below here, as they are
     # quite low-level and helper functions for the more user-friendly interface

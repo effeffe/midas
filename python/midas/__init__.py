@@ -96,6 +96,8 @@ EQ_USER        = (1<<8)   # Polling handled in user part
 
 MAX_STRING_LENGTH = 256 # Max ODB string length 
 
+RPC_JRPC = 18000 # RPC code for javascript RPC scheme
+
 # Status codes used by midas
 status_codes = {
     "SUCCESS": 1,

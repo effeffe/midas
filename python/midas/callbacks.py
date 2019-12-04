@@ -19,6 +19,9 @@ transition_callbacks = []
 # List of callback functions we've instantated for deferring a run transition
 deferred_transition_callbacks = []
 
+# List of callback functions we've instantated for RPC callbacks
+rpc_callbacks = []
+
 # Define the C style of the callback function we must pass to cm_open_record
 # return void; args int (hDB) / int (hKey) / void* (info; unused).
 HOTLINK_FUNC_TYPE = ctypes.CFUNCTYPE(None, ctypes.c_int, ctypes.c_int, ctypes.c_void_p)
@@ -30,6 +33,10 @@ TRANSITION_FUNC_TYPE = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.POINT
 # Define the C style of the callback function we must pass to cm_register_deferred_transition
 # return BOOL (start transition now?); args int (run number) / BOOL (first time being called?)
 DEFERRED_TRANSITION_FUNC_TYPE = ctypes.CFUNCTYPE(ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32)
+
+# Define the C style of the callback function we must pass to cm_register_function
+# return int (status); args int (index) / void** (params)
+RPC_CALLBACK_FUNC_TYPE = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_void_p))
 
 def exception_message(e):
     """
@@ -189,4 +196,66 @@ def make_deferred_transition_callback(callback, client):
 
     cb = DEFERRED_TRANSITION_FUNC_TYPE(_wrapper)
     deferred_transition_callbacks.append(cb)
+    return cb
+
+
+def make_rpc_callback(callback, client):
+    """
+    Create a callback function that can be passed to cm_register_function from the midas
+    C library.
+
+    Args:
+        * callback (function) - See below.
+        * client (midas.client.MidasClient) - the client that's creating this.
+        
+    Returns:
+        * `RPC_FUNC_TYPE`
+        
+    Python function (`callback`) details:
+        * Arguments it should accept:
+            * client (midas.client.MidasClient)
+            * cmd (str) - The command user wants to execute
+            * args (str) - Other arguments the user supplied
+            * max_len (int) - The maximum string length the user accepts in the return value
+        * Value it should return:
+            * A tuple of (int, str) or just an int. The integer should be a status code
+                from midas.status_codes. The string, if present, should be any text that
+                should be returned to the caller. The maximum string length that will be
+                returned to the user is given by the `max_len` parameter.
+    """
+    
+    # As with the other make_xxx_callback functions, we create a closure.
+    def _wrapper(index, params):
+        cmd = ctypes.cast(params[0], ctypes.c_char_p).value.decode("utf-8")
+        args = ctypes.cast(params[1], ctypes.c_char_p).value.decode("utf-8")
+        buf_p = ctypes.cast(params[2], ctypes.POINTER(ctypes.c_char))
+        max_len = ctypes.cast(params[3], ctypes.POINTER(ctypes.c_int)).contents.value
+        
+        if max_len <= 0:
+            retval = (midas.status_codes["FE_ERR_DRIVER"], "max_len must be > 0")
+        else:
+            try:
+                retval = callback(client, cmd, args, max_len)
+            except Exception as e:
+                retval = (midas.status_codes["FE_ERR_DRIVER"], exception_message(e))
+
+        if isinstance(retval, int):
+            ret_str = ""
+        elif retval is None or len(retval) != 2:
+            ret_int = midas.status_codes["FE_ERR_DRIVER"]
+            ret_str = "Invalid return value from callback functions"
+        else:
+            (ret_int, ret_str) = retval
+            
+        # Write return value to buffer midas created for us.
+        addr = ctypes.addressof(buf_p.contents)
+        dest_chars = (ctypes.c_char * max_len).from_address(addr)
+        write_size = min(len(ret_str), max_len - 1)
+        dest_chars[:write_size] = bytes(ret_str[:write_size], 'utf-8')
+        dest_chars[write_size] = b'\0'
+        
+        return ret_int
+
+    cb = RPC_CALLBACK_FUNC_TYPE(_wrapper)
+    rpc_callbacks.append(cb)
     return cb
