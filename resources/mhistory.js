@@ -293,6 +293,10 @@ MhistoryGraph.prototype.keyDown = function (e) {
       this.scrollRedraw();
       e.preventDefault();
    }
+   if (e.key === "r") {  // 'r' key
+      this.resetAxes();
+      e.preventDefault();
+   }
    if (e.key === "Escape") {
       this.solo.active = false;
       this.redraw();
