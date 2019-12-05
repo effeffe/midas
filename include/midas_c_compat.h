@@ -64,6 +64,7 @@ extern "C" {
    INT c_db_get_link_data(HNDLE hdb, HNDLE key_handle, void *data, INT * buf_size, DWORD type);
    INT c_db_get_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, void *data, INT * size, DWORD type, BOOL create);
    INT c_db_open_record(HNDLE hdb, HNDLE hkey, void *ptr, INT rec_size, WORD access, void (*dispatcher) (INT, INT, void *), void *info);
+   INT c_db_rename_key(HNDLE hDB, HNDLE hKey, const char *name);
    INT c_db_reorder_key(HNDLE hDB, HNDLE hKey, INT index);
    INT c_db_resize_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, int num_values, int max_string_size);
    INT c_db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values);

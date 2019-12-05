@@ -589,6 +589,20 @@ class MidasClient:
         self.lib.c_db_get_link_data(self.hDB, hKey, c_dest_path, ctypes.byref(c_size), midas.TID_LINK)
         return c_dest_path.value.decode("utf-8")
     
+    def odb_rename(self, current_path, new_name):
+        """
+        Rename an existing ODB entry. This function does not allow you to change
+        which directory the entry is in, just the name of it.
+        
+        Args:
+            * current_path (str) - Full ODB path of an existing ODB entry.
+            * new_name (str) - The new name of the entry (do not include any
+                `/` characters; the directory cannot be changed).
+        """
+        hKey = self._odb_get_hkey(current_path)
+        c_new_name = ctypes.create_string_buffer(bytes(new_name, "utf-8"))
+        self.lib.c_db_rename_key(self.hDB, hKey, c_new_name)
+    
     def odb_last_update_time(self, path):
         """
         Get when an ODB key was last written to.

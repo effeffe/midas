@@ -269,6 +269,14 @@ class TestOdb(unittest.TestCase):
         self.assert_equal(retval["nested"]["bool"], True, midas.TID_BOOL)
         self.assert_equal(retval["nested"]["nested_add"], "hello", midas.TID_STRING)
         
+    def testRename(self):
+        self.client.odb_set("/pytest/before_rename", 1)
+        self.client.odb_rename("/pytest/before_rename", "after_rename")
+        
+        self.assertFalse(self.client.odb_exists("/pytest/before_rename"))
+        self.assertTrue(self.client.odb_exists("/pytest/after_rename"))
+        self.assert_equal(self.client.odb_get("/pytest/after_rename"), 1, midas.TID_INT)
+
     def hotlink_func(self, client, path, odb_value):
         self.seen_hotlink = True
         self.odb_watched_value = odb_value

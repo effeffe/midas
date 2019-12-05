@@ -344,6 +344,10 @@ INT c_db_open_record(HNDLE hdb, HNDLE hkey, void *ptr, INT rec_size, WORD access
    return db_open_record(hdb, hkey, ptr, rec_size, access, dispatcher, info);
 }
 
+INT c_db_rename_key(HNDLE hDB, HNDLE hKey, const char *name) {
+   return db_rename_key(hDB, hKey, name);
+}
+
 INT c_db_reorder_key(HNDLE hDB, HNDLE hKey, INT index) {
    return db_reorder_key(hDB, hKey, index);
 }
