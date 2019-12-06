@@ -1888,10 +1888,10 @@ MhistoryGraph.prototype.draw = function () {
 
       // time label
       s = timeToLabel(this.marker.t, 1, true);
-      w = ctx.measureText(s).width + 6;
-      h = ctx.measureText("M").width * 1.2 + 6;
+      w = ctx.measureText(s).width + 10;
+      h = ctx.measureText("M").width * 1.2 + 11;
       x = this.marker.x - w / 2;
-      y = this.y1 + 4;
+      y = this.y1;
       if (x <= this.x1)
          x = this.x1;
       if (x + w >= this.x2)
@@ -1902,7 +1902,7 @@ MhistoryGraph.prototype.draw = function () {
       ctx.fillRect(x, y, w, h);
       ctx.strokeRect(x, y, w, h);
       ctx.fillStyle = "#404040";
-      ctx.fillText(s, x + 3, y + h / 2);
+      ctx.fillText(s, x + 5, y + h / 2);
    }
 
    this.lastDrawTime = new Date().getTime();
