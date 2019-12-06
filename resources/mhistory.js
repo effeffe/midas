@@ -1337,6 +1337,20 @@ MhistoryGraph.prototype.findMinMax = function () {
    }
 };
 
+function convertLastWritten(last) {
+   if (last === 0)
+      return "no data available";
+
+   let d = new Date(last * 1000).toLocaleDateString(
+      'en-GB', {
+         day: '2-digit', month: 'short', year: '2-digit',
+         hour12: false, hour: '2-digit', minute: '2-digit'
+      }
+   );
+
+   return "last data: " + d;
+}
+
 MhistoryGraph.prototype.draw = function () {
    // draw maximal 20 times per second
    if (new Date().getTime() < this.lastDrawTime + 50)
@@ -1683,14 +1697,7 @@ MhistoryGraph.prototype.draw = function () {
             let str = "  " + value.toPrecision(this.yPrecision).stripZeros();
             width += ctx.measureText(str).width;
          } else {
-            let d = new Date(this.lastWritten[i] * 1000).toLocaleDateString(
-               'en-GB', {
-                  day: '2-digit', month: 'short', year: '2-digit',
-                  hour12: false, hour: '2-digit', minute: '2-digit'
-               }
-            );
-            let last = "last data: " + d;
-            width += ctx.measureText(last).width;
+            width += ctx.measureText(convertLastWritten(this.lastWritten[i])).width;
          }
 
          this.variablesWidth = Math.max(this.variablesWidth, width);
@@ -1736,14 +1743,8 @@ MhistoryGraph.prototype.draw = function () {
             let str = value.toPrecision(this.yPrecision).stripZeros();
             ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
          } else {
-            let d = new Date(this.lastWritten[i] * 1000).toLocaleDateString(
-               'en-GB', {
-                  day: '2-digit', month: 'short', year: '2-digit',
-                  hour12: false, hour: '2-digit', minute: '2-digit'
-               }
-            );
-            let last = "last data: " + d;
-            ctx.fillText(last, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
+            ctx.fillText(convertLastWritten(this.lastWritten[i]),
+               this.x1 + 25 + this.variablesWidth, 40 + i * 17);
          }
 
       });
