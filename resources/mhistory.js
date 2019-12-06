@@ -87,6 +87,7 @@ function MhistoryGraph(divElement) { // Constructor
 
    // data arrays
    this.data = [];
+   this.lastWritten = [];
 
    // graph arrays (in screen pixels)
    this.x = [];
@@ -632,6 +633,19 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    this.downloadSelector.appendChild(table);
    document.body.appendChild(this.downloadSelector);
+
+   // load date of latest data points
+   mjsonrpc_call("hs_get_last_written",
+      {
+         "events": this.events,
+         "tags": this.tags,
+         "index": this.index
+      }).then(function (rpc) {
+         this.lastWritten = rpc.result.last_written;
+   }.bind(this))
+      .catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
 
    // load initial data
    this.tMinRequested = this.tMin - this.tScale; // look one window ahead in past
@@ -1645,6 +1659,7 @@ MhistoryGraph.prototype.draw = function () {
    // labels with variable names and values
    if (this.showLabels) {
       this.variablesHeight = this.odb["Variables"].length * 17 + 7;
+      this.variablesWidth = 0;
 
       this.odb["Variables"].forEach((v, i) => {
          let width = 0;
@@ -1652,6 +1667,8 @@ MhistoryGraph.prototype.draw = function () {
             width = ctx.measureText(this.odb.Label[i]).width;
          else
             width = ctx.measureText(v.substr(v.indexOf(':') + 1)).width;
+
+         width += 20; // space between name and value
 
          if (this.v[i].length > 0) {
             // use last point in array
@@ -1665,8 +1682,16 @@ MhistoryGraph.prototype.draw = function () {
             let value = this.v[i][index];
             let str = "  " + value.toPrecision(this.yPrecision).stripZeros();
             width += ctx.measureText(str).width;
-         } else
-            width += ctx.measureText('no data').width;
+         } else {
+            let d = new Date(this.lastWritten[i] * 1000).toLocaleDateString(
+               'en-GB', {
+                  day: '2-digit', month: 'short', year: '2-digit',
+                  hour12: false, hour: '2-digit', minute: '2-digit'
+               }
+            );
+            let last = "last data: " + d;
+            width += ctx.measureText(last).width;
+         }
 
          this.variablesWidth = Math.max(this.variablesWidth, width);
       });
@@ -1710,8 +1735,16 @@ MhistoryGraph.prototype.draw = function () {
             let value = this.v[i][index];
             let str = value.toPrecision(this.yPrecision).stripZeros();
             ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
-         } else
-            ctx.fillText('no data', this.x1 + 25 + this.variablesWidth, 40 + i * 17);
+         } else {
+            let d = new Date(this.lastWritten[i] * 1000).toLocaleDateString(
+               'en-GB', {
+                  day: '2-digit', month: 'short', year: '2-digit',
+                  hour12: false, hour: '2-digit', minute: '2-digit'
+               }
+            );
+            let last = "last data: " + d;
+            ctx.fillText(last, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
+         }
 
       });
 
