@@ -1713,10 +1713,12 @@ MhistoryGraph.prototype.draw = function () {
             if (this.marker.active)
                index = this.marker.index;
 
-            // convert value to string with 6 digits
-            let value = this.v[i][index];
-            let str = "  " + value.toPrecision(this.yPrecision).stripZeros();
-            width += ctx.measureText(str).width;
+            if (index < this.v[i].length) {
+               // convert value to string with 6 digits
+               let value = this.v[i][index];
+               let str = "  " + value.toPrecision(this.yPrecision).stripZeros();
+               width += ctx.measureText(str).width;
+            }
          } else {
             width += ctx.measureText(convertLastWritten(this.lastWritten[i])).width;
          }
@@ -1759,10 +1761,12 @@ MhistoryGraph.prototype.draw = function () {
             if (this.marker.active)
                index = this.marker.index;
 
-            // convert value to string with 6 digits
-            let value = this.v[i][index];
-            let str = value.toPrecision(this.yPrecision).stripZeros();
-            ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
+            if (index < this.v[i].length) {
+               // convert value to string with 6 digits
+               let value = this.v[i][index];
+               let str = value.toPrecision(this.yPrecision).stripZeros();
+               ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
+            }
          } else {
             ctx.fillText(convertLastWritten(this.lastWritten[i]),
                this.x1 + 25 + this.variablesWidth, 40 + i * 17);
