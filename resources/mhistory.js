@@ -502,13 +502,17 @@ MhistoryGraph.prototype.loadInitialData = function () {
                .then(function (rpc) {
 
                   let last = rpc.result.last_written[0];
-                  rpc.result.last_written.forEach(l => {
+                  for (let i=0; i<rpc.result.last_written.length; i++) {
+                     if (this.events[i] === "Run transitions") {
+                        continue;
+                     }
+                     let l = rpc.result.last_written[i];
                      last = Math.max(last, l);
-                  });
+                  }
 
                   let scale = mhg.tMax - mhg.tMin;
-                  mhg.tMax = last + scale / 5;
-                  mhg.tMin = mhg.tMax - scale;
+                  mhg.tMax = last + scale/2;
+                  mhg.tMin = last - scale/2;
 
                   mhg.scroll = false;
                   mhg.marker.active = false;
@@ -540,8 +544,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   });
 
                   let scale = mhg.tMax - mhg.tMin;
-                  mhg.tMax = last + scale / 5;
-                  mhg.tMin = mhg.tMax - scale;
+                  mhg.tMax = last + scale/2;
+                  mhg.tMin = last - scale/2;
 
                   mhg.scroll = false;
                   mhg.marker.active = false;
@@ -687,7 +691,7 @@ MhistoryGraph.prototype.loadOldData = function () {
 
    if (this.tMin - dt / 2 < this.tMinRequested) {
 
-      let oldTMinRequestested = this.tMinRequested;
+      let oldTMinRequested = this.tMinRequested;
       this.tMinRequested = this.tMin - dt;
 
       this.pendingUpdates++;
@@ -696,7 +700,7 @@ MhistoryGraph.prototype.loadOldData = function () {
       mjsonrpc_call("hs_read_arraybuffer",
          {
             "start_time": Math.floor(this.tMinRequested),
-            "end_time": Math.floor(oldTMinRequestested),
+            "end_time": Math.floor(oldTMinRequested),
             "events": this.events,
             "tags": this.tags,
             "index": this.index
@@ -727,10 +731,27 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
    let nVars = array[1];
    let nData = array.slice(2 + nVars, 2 + 2 * nVars);
    let i = 2 + 2 * nVars;
+
+   if (i >= array.length) {
+      // RPC did not return any data
+
+      if (this.data === undefined) {
+         // must initialize the arrays otherwise nothhing works.
+         this.data = [];
+         for (let index = 0; index < nVars; index++) {
+            this.data.push({time: [], value: []});
+         }
+      }
+
+      return;
+   }
+    
    let t0 = array[i];
 
+   //console.log("receiveData: size: " + array.length + ", i: " + i + ", t0: " + t0);
+
    // append new values to end of arrays
-   if (this.data === undefined) {
+   if (this.data === undefined || this.data[0].time.length === 0) {
 
       this.data = [];
 
@@ -759,7 +780,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          }
       }
 
-   } else if (this.data[0].time.length === 0 || t0 < this.data[0].time[0]) {
+   } else if (t0 < this.data[0].time[0]) {
 
       // add data to the left
       for (let index = 0; index < nVars; index++) {
@@ -1765,8 +1786,17 @@ MhistoryGraph.prototype.draw = function () {
       ctx.fillText(str, this.x1 + 10, this.y1 - 13);
    }
 
+   let no_data = true;
+
+   for (let i=0; i<this.data.length; i++) {
+      if (this.data[i].time === undefined || this.data[i].time.length === 0) {
+      } else {
+         no_data = false;
+      }
+   }
+
    // "empty window" notice
-   if (this.data[0].time === undefined || this.data[0].time.length === 0) {
+   if (no_data) {
       ctx.font = "16px sans-serif";
       let str = "No data available";
       ctx.strokeStyle = "#404040";
