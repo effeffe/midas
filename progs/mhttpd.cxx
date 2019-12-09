@@ -16976,12 +16976,15 @@ int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace
 #include "mongoose6.h"
 #endif
 
-#ifdef HAVE_MONGOOSE614
-#include "mongoose614.h"
-// mongoose 6.14 uses "#if MG_ENABLE_THREADS" instead of "#ifdef MG_ENABLE_THREADS"
-#if !MG_ENABLE_THREADS
+#ifdef HAVE_MONGOOSE616
+#undef closesocket
 #undef MG_ENABLE_THREADS
-#endif
+#include "mongoose616.h"
+#undef MG_ENABLE_THREADS
+// mongoose 6.14 uses "#if MG_ENABLE_THREADS" instead of "#ifdef MG_ENABLE_THREADS"
+//#if !MG_ENABLE_THREADS
+//#undef MG_ENABLE_THREADS
+//#endif
 // cs_md5() in not in mongoose.h
 extern void cs_md5(char buf[33], ...);
 #endif
