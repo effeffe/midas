@@ -85,6 +85,7 @@ function MhistoryGraph(divElement) { // Constructor
    this.yMax = undefined;
    this.scroll = true;
    this.yZoom = false;
+   this.showZoomButtons = true;
 
    // data arrays
    this.data = [];
@@ -337,8 +338,6 @@ MhistoryGraph.prototype.initializePanel = function () {
    this.tags = [];
    this.index = [];
    this.pendingUpdates = 0;
-   this.startUpdate = 0;
-   this.updateTime = 0;
 
    // retrieve panel definition from ODB
    mjsonrpc_db_copy(["/History/Display/" + this.group + "/" + this.panel]).then(function (rpc) {
@@ -503,7 +502,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
                .then(function (rpc) {
 
                   let last = rpc.result.last_written[0];
-                  for (let i=0; i<rpc.result.last_written.length; i++) {
+                  for (let i = 0; i < rpc.result.last_written.length; i++) {
                      if (this.events[i] === "Run transitions") {
                         continue;
                      }
@@ -512,8 +511,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   }
 
                   let scale = mhg.tMax - mhg.tMin;
-                  mhg.tMax = last + scale/2;
-                  mhg.tMin = last - scale/2;
+                  mhg.tMax = last + scale / 2;
+                  mhg.tMin = last - scale / 2;
 
                   mhg.scroll = false;
                   mhg.marker.active = false;
@@ -545,8 +544,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   });
 
                   let scale = mhg.tMax - mhg.tMin;
-                  mhg.tMax = last + scale/2;
-                  mhg.tMin = last - scale/2;
+                  mhg.tMax = last + scale / 2;
+                  mhg.tMin = last - scale / 2;
 
                   mhg.scroll = false;
                   mhg.marker.active = false;
@@ -646,7 +645,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
          "tags": this.tags,
          "index": this.index
       }).then(function (rpc) {
-         this.lastWritten = rpc.result.last_written;
+      this.lastWritten = rpc.result.last_written;
    }.bind(this))
       .catch(function (error) {
          mjsonrpc_error_alert(error);
@@ -655,7 +654,6 @@ MhistoryGraph.prototype.loadInitialData = function () {
    // load initial data
    this.tMinRequested = this.tMin - this.tScale; // look one window ahead in past
    this.pendingUpdates++;
-   this.startUpdate = new Date().getTime();
    this.parentDiv.style.cursor = "progress";
    mjsonrpc_call("hs_read_arraybuffer",
       {
@@ -667,7 +665,6 @@ MhistoryGraph.prototype.loadInitialData = function () {
       }, "arraybuffer")
       .then(function (rpc) {
 
-         this.updateTime = new Date().getTime() - this.startUpdate;
          this.pendingUpdates--;
          if (this.pendingUpdates === 0)
             this.parentDiv.style.cursor = "default";
@@ -696,7 +693,6 @@ MhistoryGraph.prototype.loadOldData = function () {
       this.tMinRequested = this.tMin - dt;
 
       this.pendingUpdates++;
-      this.startUpdate = new Date().getTime();
       this.parentDiv.style.cursor = "progress";
       mjsonrpc_call("hs_read_arraybuffer",
          {
@@ -708,7 +704,6 @@ MhistoryGraph.prototype.loadOldData = function () {
          }, "arraybuffer")
          .then(function (rpc) {
 
-            this.updateTime = new Date().getTime() - this.startUpdate;
             this.pendingUpdates--;
             if (this.pendingUpdates === 0)
                this.parentDiv.style.cursor = "default";
@@ -746,7 +741,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
 
       return;
    }
-    
+
    // append new values to end of arrays
    if (this.data === undefined) {
       this.data = [];
@@ -759,13 +754,13 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       if (nData[index] === 0)
          continue;
       let t0 = array[i];
-      
+
       if (this.data[index].time.length === 0) {
          // initial data
          // console.log("add new!");
-         
+
          let formula = this.odb["Formula"];
-         
+
          let x = undefined;
          let v = undefined;
          if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
@@ -786,12 +781,12 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       } else if (t0 < this.data[index].time[0]) {
          // add data to the left
          //console.log("add to the left!");
-         
+
          let formula = this.odb["Formula"];
-         
+
          let t1 = [];
          let v1 = [];
-         
+
          let x = undefined;
          if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
             for (let j = 0; j < nData[index]; j++) {
@@ -818,22 +813,22 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       } else {
          // add data to the right
          //console.log("add to the right!");
-         
+
          let formula = this.odb["Formula"];
-           
+
          let x = undefined;
          if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
             for (let j = 0; j < nData[index]; j++) {
                let t = array[i++];
                x = array[i++];
                let v = eval(formula[index]);
-               
+
                // add data to the right
                if (t > this.data[index].time[this.data[index].time.length - 1]) {
-                  
+
                   this.data[index].time.push(t);
                   this.data[index].value.push(v);
-                  
+
                   this.lastTimeStamp = t;
                }
             }
@@ -841,13 +836,13 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
             for (let j = 0; j < nData[index]; j++) {
                let t = array[i++];
                let v = array[i++];
-               
+
                // add data to the right
                if (t > this.data[index].time[this.data[index].time.length - 1]) {
-                  
+
                   this.data[index].time.push(t);
                   this.data[index].value.push(v);
-                  
+
                   this.lastTimeStamp = t;
                }
             }
@@ -942,6 +937,24 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             b.click(this);
          }
       });
+
+      // check for zoom buttons
+      if (e.offsetX > this.width - 30 - 48 && e.offsetX < this.width - 30 - 24 &&
+         e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
+         // zoom in
+         let delta = this.tMax - this.tMin;
+         this.tMin += delta/4;
+         this.tMax -= delta/4;
+         this.redraw();
+      }
+      if (e.offsetX > this.width - 30 - 24 && e.offsetX < this.width - 30 &&
+         e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
+         // zoom out
+         let delta = this.tMax - this.tMin;
+         this.tMin -= delta/2;
+         this.tMax += delta/2;
+         this.redraw();
+      }
 
       // check for dragging
       if (e.offsetX > this.x1 && e.offsetX < this.x2 &&
@@ -1041,6 +1054,20 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             }
          });
 
+         if (this.showZoomButtons) {
+            // check for zoom buttons
+            if (e.offsetX > this.width - 30 - 48 && e.offsetX < this.width - 30 - 24 &&
+               e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
+               cursor = "pointer";
+               title = "Zoom in";
+            }
+            if (e.offsetX > this.width - 30 - 24 && e.offsetX < this.width - 30 &&
+               e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
+               cursor = "pointer";
+               title = "Zoom out";
+            }
+         }
+
          // display zoom cursor
          if (e.offsetX > this.x1 && e.offsetX < this.x2 && e.offsetY > this.y1)
             cursor = "ew-resize";
@@ -1061,30 +1088,38 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
          // check if cursor close to graph point
          if (this.data !== undefined && this.x.length && this.y.length) {
-            let minDist = 10000;
-            for (let di = 0; di < this.data.length; di++) {
+               let minDist = 10000;
+               for (let di = 0; di < this.data.length; di++) {
 
-               let i1 = binarySearch(this.x[di], e.offsetX - 10);
-               let i2 = binarySearch(this.x[di], e.offsetX + 10);
+                  let i1 = binarySearch(this.x[di], e.offsetX - 10);
+                  let i2 = binarySearch(this.x[di], e.offsetX + 10);
 
-               for (let i = i1; i <= i2; i++) {
-                  let d = (e.offsetX - this.x[di][i]) * (e.offsetX - this.x[di][i]) +
-                     (e.offsetY - this.y[di][i]) * (e.offsetY - this.y[di][i]);
-                  if (d < minDist) {
-                     minDist = d;
-                     this.marker.graphIndex = di;
-                     this.marker.index = i;
+                  for (let i = i1; i <= i2; i++) {
+                     let d = (e.offsetX - this.x[di][i]) * (e.offsetX - this.x[di][i]) +
+                        (e.offsetY - this.y[di][i]) * (e.offsetY - this.y[di][i]);
+                     if (d < minDist) {
+                        minDist = d;
+                        this.marker.graphIndex = di;
+                        this.marker.index = i;
+                     }
                   }
                }
-            }
-            this.marker.active = Math.sqrt(minDist) < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
-            if (this.marker.active) {
-               this.marker.x = this.x[this.marker.graphIndex][this.marker.index];
-               this.marker.y = this.y[this.marker.graphIndex][this.marker.index];
-               this.marker.t = this.t[this.marker.graphIndex][this.marker.index];
-               this.marker.v = this.v[this.marker.graphIndex][this.marker.index];
-               this.marker.mx = e.offsetX;
-               this.marker.my = e.offsetY;
+
+            // exclude zoom buttons if visible
+            if (this.showZoomButtons &&
+               e.offsetX > this.width - 30 - 48 && this.offsetX < this.width - 30 &&
+               e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
+               this.marker.active = false;
+            } else {
+               this.marker.active = Math.sqrt(minDist) < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
+               if (this.marker.active) {
+                  this.marker.x = this.x[this.marker.graphIndex][this.marker.index];
+                  this.marker.y = this.y[this.marker.graphIndex][this.marker.index];
+                  this.marker.t = this.t[this.marker.graphIndex][this.marker.index];
+                  this.marker.v = this.v[this.marker.graphIndex][this.marker.index];
+                  this.marker.mx = e.offsetX;
+                  this.marker.my = e.offsetY;
+               }
             }
             this.redraw();
          }
@@ -1168,6 +1203,8 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
       } else if (e.ctrlKey || e.metaKey) {
 
+         this.showZoomButtons = false;
+
          // zoom time axis
          let f = (e.offsetX - this.x1) / (this.x2 - this.x1);
          let m = 1 / 100;
@@ -1236,6 +1273,7 @@ MhistoryGraph.prototype.resetAxes = function () {
 
    this.scroll = true;
    this.yZoom = false;
+   this.showZoomButtons = true;
    this.redraw();
 };
 
@@ -1562,7 +1600,7 @@ MhistoryGraph.prototype.draw = function () {
       }
 
       if (sum0 > 0)
-         avgN.push(sum1/sum0);
+         avgN.push(sum1 / sum0);
       else
          avgN.push(0);
    }
@@ -1687,7 +1725,7 @@ MhistoryGraph.prototype.draw = function () {
                let x = this.x[di][0];
                let y = this.y[di][0];
                ctx.fillStyle = this.odb["Colour"][di];
-               ctx.fillRect(x-1, y-1, 3, 3);
+               ctx.fillRect(x - 1, y - 1, 3, 3);
             } else {
                ctx.beginPath();
                let first = true;
@@ -1810,7 +1848,7 @@ MhistoryGraph.prototype.draw = function () {
 
    let no_data = true;
 
-   for (let i=0; i<this.data.length; i++) {
+   for (let i = 0; i < this.data.length; i++) {
       if (this.data[i].time === undefined || this.data[i].time.length === 0) {
       } else {
          no_data = false;
@@ -1860,6 +1898,30 @@ MhistoryGraph.prototype.draw = function () {
 
       y++;
    });
+
+   // zoom buttons
+   if (this.showZoomButtons) {
+      let xb = this.width - 30 - 48;
+      let yb = this.y1 - 24;
+      ctx.fillStyle = "#F0F0F0";
+      ctx.globalAlpha = 0.5;
+      ctx.fillRect(xb, yb, 24, 24);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "#808080";
+      ctx.strokeRect(xb, yb, 24, 24);
+      ctx.strokeStyle = "#202020";
+      ctx.drawLine(xb + 5, yb + 12, xb + 19, yb + 12);
+      ctx.drawLine(xb + 12, yb + 5, xb + 12, yb + 19);
+
+      xb += 24;
+      ctx.globalAlpha = 0.5;
+      ctx.fillRect(xb, yb, 24, 24);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "#808080";
+      ctx.strokeRect(xb, yb, 24, 24);
+      ctx.strokeStyle = "#202020";
+      ctx.drawLine(xb + 5, yb + 12, xb + 19, yb + 12);
+   }
 
    // axis zoom
    if (this.zoom.x.active) {
@@ -2333,18 +2395,18 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
 };
 
 let options1 = {
-    day: '2-digit', month: 'short', year: '2-digit',
-    hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+   day: '2-digit', month: 'short', year: '2-digit',
+   hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
 };
 
 let options2 = {
-    day: '2-digit', month: 'short', year: '2-digit',
-    hour12: false, hour: '2-digit', minute: '2-digit'
+   day: '2-digit', month: 'short', year: '2-digit',
+   hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
 let options3 = {
-    day: '2-digit', month: 'short', year: '2-digit',
-    hour12: false, hour: '2-digit', minute: '2-digit'
+   day: '2-digit', month: 'short', year: '2-digit',
+   hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
 let options4 = {day: '2-digit', month: 'short', year: '2-digit'};
@@ -2356,8 +2418,8 @@ let options6 = {hour12: false, hour: '2-digit', minute: '2-digit'};
 let options7 = {hour12: false, hour: '2-digit', minute: '2-digit'};
 
 let options8 = {
-    day: '2-digit', month: 'short', year: '2-digit',
-    hour12: false, hour: '2-digit', minute: '2-digit'
+   day: '2-digit', month: 'short', year: '2-digit',
+   hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
 let options9 = {day: '2-digit', month: 'short', year: '2-digit'};
