@@ -38,6 +38,7 @@ endif
 #-----------------------------------------
 # ROOT flags and libs
 #
+ifndef NO_ROOT
 HAVE_ROOT := $(shell root-config --version 2> /dev/null)
 
 ifdef HAVE_ROOT
@@ -45,6 +46,7 @@ ROOTCFLAGS := $(shell root-config --cflags)
 ROOTCFLAGS += -DHAVE_ROOT
 ROOTLIBS   := $(shell root-config --libs)
 ROOTLIBS   += -lThread
+endif
 endif
 
 # location of MIDAS things
@@ -73,10 +75,10 @@ endif
 all: $(PROGS)
 
 frontend: $(LIB_DIR)/mfe.o frontend.o $(LIB)
-	$(CXX) -o $@ $(CFLAGS) $(OSFLAGS) $^ $(LDFEFLAGS) $(LIBS)
+	$(CXX) -o $@ $(USERFLAGS) $(CFLAGS) $(OSFLAGS) $^ $(LDFEFLAGS) $(LIBS)
 
 analyzer: $(LIB_DIR)/rmana.o analyzer.o adccalib.o adcsum.o scaler.o $(LIB)
-	$(CXX) -o $@ $(CFLAGS) $(OSFLAGS) $^ $(LDFLAGS) $(ROOTLIBS) $(LIBS)
+	$(CXX) -o $@ $(USERFLAGS) $(CFLAGS) $(OSFLAGS) $^ $(LDFLAGS) $(ROOTLIBS) $(LIBS)
 
 %.o: %.cxx
 	$(CXX) -o $@ -c $(USERFLAGS) $(ROOTCFLAGS) $(CFLAGS) $(OSFLAGS) $<

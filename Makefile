@@ -755,10 +755,10 @@ $(BIN_DIR)/%:$(EXAM_DIR)/basic/%.cxx
 $(EXAMPLES): $(LIBNAME)
 
 examples/experiment/frontend:
-	$(MAKE) -C examples/experiment MIDASSYS=$(PWD) frontend
+	$(MAKE) -C examples/experiment MIDASSYS=$(PWD) USERFLAGS=$(USERFLAGS) NO_ROOT=$(NO_ROOT) frontend
 
 examples/experiment/analyzer:
-	$(MAKE) -C examples/experiment MIDASSYS=$(PWD) analyzer
+	$(MAKE) -C examples/experiment MIDASSYS=$(PWD) USERFLAGS=$(USERFLAGS) NO_ROOT=$(NO_ROOT) analyzer
 
 #
 # midas library
