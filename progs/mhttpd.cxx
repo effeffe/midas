@@ -16978,20 +16978,20 @@ int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace
 
 #ifdef HAVE_MONGOOSE616
 #undef closesocket
-#undef MG_ENABLE_THREADS
 #include "mongoose616.h"
-#undef MG_ENABLE_THREADS
-// mongoose 6.14 uses "#if MG_ENABLE_THREADS" instead of "#ifdef MG_ENABLE_THREADS"
-//#if !MG_ENABLE_THREADS
-//#undef MG_ENABLE_THREADS
-//#endif
 // cs_md5() in not in mongoose.h
 extern void cs_md5(char buf[33], ...);
 #endif
 
 static bool verbose_mg = false;
 static bool trace_mg = false;
+static bool trace_mg_recv = false;
+static bool trace_mg_send = false;
+static bool multithread_mg = true;
+
+#ifdef HAVE_MONGOOSE6
 static struct mg_mgr mgr_mg;
+#endif
 
 struct AuthEntry {
    std::string username;
@@ -17810,6 +17810,193 @@ static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data
    }
 }
 
+#ifdef HAVE_MONGOOSE616
+
+// from mongoose examples/multithreaded/multithreaded.c
+
+//static sig_atomic_t s_received_signal = 0;
+//static const char *s_http_port = "8000";
+//static const int s_num_worker_threads = 5;
+static unsigned long s_next_id = 0;
+
+//static void signal_handler(int sig_num) {
+//  signal(sig_num, signal_handler);
+//  s_received_signal = sig_num;
+//}
+
+//static struct mg_serve_http_opts s_http_server_opts;
+static sock_t s_sock[2];
+static bool s_shutdown = false;
+
+// This info is passed to the worker thread
+struct work_request {
+  unsigned long conn_id;  // needed to identify the connection where to send the reply
+  // optionally, more data that could be required by worker 
+};
+
+// This info is passed by the worker thread to mg_broadcast
+struct work_result {
+  unsigned long conn_id;
+  int sleep_time;
+};
+
+static void on_work_complete(struct mg_connection *nc, int ev, void *ev_data)
+{
+   (void) ev;
+   char s[32];
+   struct mg_connection *c;
+   for (c = mg_next(nc->mgr, NULL); c != NULL; c = mg_next(nc->mgr, c)) {
+      if (c->user_data != NULL) {
+         struct work_result *res = (struct work_result *)ev_data;
+         if ((unsigned long)c->user_data == res->conn_id) {
+            sprintf(s, "conn_id:%lu sleep:%d", res->conn_id, res->sleep_time);
+            mg_send_head(c, 200, strlen(s), "Content-Type: text/plain");
+            mg_printf(c, "%s", s);
+         }
+      }
+   }
+}
+
+void *worker_thread_proc(void *param)
+{
+   struct mg_mgr *mgr = (struct mg_mgr *) param;
+   struct work_request req = {0};
+   
+   while ((! _abort) && (! s_shutdown)) {
+      if (read(s_sock[1], &req, sizeof(req)) < 0) {
+         if (_abort || s_shutdown) {
+            return NULL;
+         }
+         fprintf(stderr, "worker_thread_proc: Error: read(s_sock(1)) error %d (%s)\n", errno, strerror(errno));
+         return NULL;
+      }
+      int r = rand() % 10;
+      sleep(r);
+      struct work_result res = {req.conn_id, r};
+      mg_broadcast(mgr, on_work_complete, (void *)&res, sizeof(res));
+   }
+   return NULL;
+}
+
+static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
+{
+   (void) nc;
+   (void) ev_data;
+
+   //if (trace_mg && ev != 0) {
+   //   printf("ev_handler: connection %p, event %d\n", nc, ev);
+   //}
+   
+   switch (ev) {
+   case 0:
+      break;
+   default: { 
+      if (trace_mg) {
+         printf("ev_handler: connection %p, event %d\n", nc, ev);
+      }
+      break;
+   }
+   case MG_EV_ACCEPT:
+      if (trace_mg) {
+         printf("ev_handler: connection %p, MG_EV_ACCEPT\n", nc);
+      }
+      nc->user_data = (void *)++s_next_id;
+      break;
+   case MG_EV_RECV:
+      if (trace_mg_recv) {
+         printf("ev_handler: connection %p, MG_EV_RECV, %d bytes\n", nc, *(int*)ev_data);
+      }
+      break;
+   case MG_EV_SEND:
+      if (trace_mg_send) {
+         printf("ev_handler: connection %p, MG_EV_SEND, %d bytes\n", nc, *(int*)ev_data);
+      }
+      break;
+   case MG_EV_HTTP_CHUNK: {
+      if (trace_mg) {
+         printf("ev_handler: connection %p, MG_EV_HTTP_CHUNK\n", nc);
+      }
+      break;
+   }
+   case MG_EV_HTTP_REQUEST: {
+      struct http_message* msg = (struct http_message*)ev_data;
+      if (trace_mg) {
+         printf("ev_handler: connection %p, MG_EV_HTTP_REQUEST \"%s\" \"%s\"\n", nc, mgstr(&msg->method).c_str(), mgstr(&msg->uri).c_str());
+      }
+      if (multithread_mg) {
+         struct work_request req = {(unsigned long)nc->user_data};
+         
+         if (write(s_sock[0], &req, sizeof(req)) < 0) {
+            perror("Writing worker sock");
+         }
+      } else {
+         handle_http_message(nc, msg);
+      }
+      break;
+   }
+   case MG_EV_CLOSE: {
+      if (trace_mg) {
+         printf("ev_handler: connection %p, MG_EV_CLOSE\n", nc);
+      }
+      if (nc->user_data) nc->user_data = NULL;
+   }
+   }
+}
+
+static struct mg_mgr s_mgr;
+
+static int mongoose_init(int num_worker_threads = 5)
+{
+   if (mg_socketpair(s_sock, SOCK_STREAM) == 0) {
+      perror("Opening socket pair");
+      exit(1);
+   }
+   
+   //signal(SIGTERM, signal_handler);
+   //signal(SIGINT, signal_handler);
+   
+   mg_mgr_init(&s_mgr, NULL);
+   
+   for (int i = 0; i < num_worker_threads; i++) {
+      mg_start_thread(worker_thread_proc, &s_mgr);
+   }
+   
+   return SUCCESS;
+}
+
+static struct mg_connection* mongoose_listen(const char* address)
+{
+   struct mg_connection *nc = mg_bind(&s_mgr, address, ev_handler);
+   if (nc == NULL) {
+      printf("Failed to create listener\n");
+      exit(1);
+   }
+   
+   mg_set_protocol_http_websocket(nc);
+
+   printf("mongoose web server listening on \"%s\"\n", address);
+
+   return nc;
+}
+
+static void mongoose_poll(int msec = 200)
+{
+   mg_mgr_poll(&s_mgr, msec);
+}
+
+static void mongoose_cleanup()
+{
+   s_shutdown = true;
+   
+   mg_mgr_free(&s_mgr);
+   
+   closesocket(s_sock[0]);
+   closesocket(s_sock[1]);
+}
+
+#endif
+
+#ifdef HAVE_MONGOOSE6
 int start_mg(int user_http_port, int user_https_port, int socket_priviledged_port, int verbose)
 {
    HNDLE hDB;
@@ -18050,6 +18237,7 @@ int loop_mg()
 
    return status;
 }
+#endif
 
 static MJsonNode* get_http_trace(const MJsonNode* params)
 {
@@ -18157,6 +18345,18 @@ int main(int argc, const char *argv[])
          if (argv[i+1]) {
             user_https_port = atoi(argv[i+1]);
          }
+      } else if (strcmp(argv[i], "--trace-mg") == 0) {
+         trace_mg = true;
+         trace_mg_recv = true;
+         trace_mg_send = true;
+      } else if (strcmp(argv[i], "--no-trace-mg-recv") == 0) {
+         trace_mg_recv = false;
+      } else if (strcmp(argv[i], "--no-trace-mg-send") == 0) {
+         trace_mg_send = false;
+      } else if (strcmp(argv[i], "--verbose-mg") == 0) {
+         verbose_mg = true;
+      } else if (strcmp(argv[i], "--no-multithread") == 0) {
+         multithread_mg = false;
       } else if (argv[i][0] == '-') {
          if (i + 1 >= argc || argv[i + 1][0] == '-')
             goto usage;
@@ -18183,6 +18383,11 @@ int main(int argc, const char *argv[])
             printf("       -H only display history plots\n");
             printf("       --http port - bind to specified HTTP port (default is ODB \"/Experiment/midas http port\")\n");
             printf("       --https port - bind to specified HTTP port (default is ODB \"/Experiment/midas https port\")\n");
+            printf("       --verbose-mg - trace mongoose web requests\n");
+            printf("       --trace-mg - trace mongoose events\n");
+            printf("       --no-trace-mg-recv - do not trace mongoose recv events\n");
+            printf("       --no-trace-mg-send - dop not trace mongoose send events\n");
+            printf("       --no-multithread - disable mongoose multithreading\n");
             return 0;
          }
       }
@@ -18272,6 +18477,7 @@ int main(int argc, const char *argv[])
 
    add_rpc_functions();
 
+#ifdef HAVE_MONGOOSE6
    status = start_mg(user_http_port, user_https_port, socket_priviledged_port, verbose);
    if (status != SUCCESS) {
       // At least print something!
@@ -18279,6 +18485,7 @@ int main(int argc, const char *argv[])
       cm_disconnect_experiment();
       return 1;
    }
+#endif
 
    /* place a request for system messages */
    cm_msg_register(receive_message);
@@ -18286,9 +18493,61 @@ int main(int argc, const char *argv[])
    /* redirect message display, turn on message logging */
    cm_set_msg_print(MT_ALL, MT_ALL, print_message);
 
+#ifdef HAVE_MONGOOSE6
    loop_mg();
-
    stop_mg();
+#endif
+
+#ifdef HAVE_MONGOOSE616
+
+#ifdef SIGPIPE
+#ifdef SIG_IGN
+   signal(SIGPIPE, SIG_IGN);
+#endif
+#endif
+
+   if (!gTraceBuf) {
+      gTraceBuf = new RequestTraceBuf;
+   }
+
+   if (!request_mutex) {
+      status = ss_mutex_create(&request_mutex, FALSE);
+      assert(status==SS_SUCCESS || status==SS_CREATED);
+   }
+
+   /* establish Ctrl-C handler - will set _abort to TRUE */
+   ss_ctrlc_handler(ctrlc_handler);
+
+   status = mongoose_init();
+   if (status != SUCCESS) {
+      // At least print something!
+      printf("could not start the mongoose web server, see messages and midas.log, bye!\n");
+      cm_disconnect_experiment();
+      return 1;
+   }
+
+   mongoose_listen("localhost:8080");
+
+   while (!_abort) {
+
+      /* cm_yield() is not thread safe, need to take a lock */
+
+      status = ss_mutex_wait_for(request_mutex, 0);
+
+      /* check for shutdown message */
+      status = cm_yield(0);
+      if (status == RPC_SHUTDOWN)
+         break;
+
+      status = ss_mutex_release(request_mutex);
+
+      //ss_sleep(10);
+
+      mongoose_poll(10);
+   }
+
+   mongoose_cleanup();
+#endif
 
    cm_disconnect_experiment();
    return 0;
