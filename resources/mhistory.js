@@ -953,7 +953,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          let delta = this.tMax - this.tMin;
          this.tMin -= delta/2;
          this.tMax += delta/2;
-         this.redraw();
+         this.loadOldData();
       }
 
       // check for dragging

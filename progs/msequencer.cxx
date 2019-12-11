@@ -1044,6 +1044,8 @@ static void seq_watch_command(HNDLE hDB, HNDLE hKeyChanged, int index, void* inf
       gOdb->WB("Sequencer/Command/Stop immediately", false);
 
       seq_stop();
+
+      cm_msg(MTALK, "sequencer", "Sequencer is finished by \"stop immediately\".");
    }
 }
 
@@ -1474,9 +1476,11 @@ void sequencer()
                   seq.stop_after_run = FALSE;
                   seq.running = FALSE;
                   seq.finished = TRUE;
-                  cm_msg(MTALK, "sequencer", "Sequencer is finished.");
-               } else
+                  seq_stop();
+                  cm_msg(MTALK, "sequencer", "Sequencer is finished by \"stop after current run\".");
+               } else {
                   seq.current_line_number++;
+               }
                
                db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
             }

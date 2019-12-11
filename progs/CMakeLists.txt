@@ -98,7 +98,7 @@ endif(HAVE_ROOT)
 #
 install(TARGETS ${PROGS} ${MFEPROGS} mhttpd odbedit DESTINATION bin)
 if (HAVE_NVIDIA)
-   install(TARGETS msysmon-nvidia)
+   install(TARGETS msysmon-nvidia DESTINATION bin)
 endif(HAVE_NVIDIA)
 
 if (HAVE_ROOT)

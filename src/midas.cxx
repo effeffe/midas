@@ -10341,7 +10341,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
 
    //printf("watchdog timeout: %d, rpc_connect_timeout: %d\n", watchdog_timeout, _rpc_connect_timeout);
 
-   if (_rpc_connect_timeout >= watchdog_timeout) {
+   if (_rpc_connect_timeout >= (int)watchdog_timeout) {
       restore_watchdog_timeout = true;
       cm_set_watchdog_params(watchdog_call, _rpc_connect_timeout + 1000);
    }
@@ -11603,7 +11603,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
 
    //printf("watchdog timeout: %d, rpc_timeout: %d\n", watchdog_timeout, rpc_timeout);
 
-   if (rpc_timeout >= watchdog_timeout) {
+   if (rpc_timeout >= (int)watchdog_timeout) {
       restore_watchdog_timeout = true;
       cm_set_watchdog_params(watchdog_call, rpc_timeout + 1000);
    }
@@ -11942,7 +11942,7 @@ INT rpc_call(DWORD routine_id, ...)
    if (!rpc_is_remote()) {
       // if RPC is remote, we are connected to an mserver,
       // the mserver takes care of watchdog timeouts.
-      if (rpc_timeout >= watchdog_timeout) {
+      if (rpc_timeout >= (int)watchdog_timeout) {
          restore_watchdog_timeout = true;
          cm_set_watchdog_params(watchdog_call, rpc_timeout + 1000);
       }
