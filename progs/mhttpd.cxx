@@ -1828,6 +1828,7 @@ void init_menu_buttons()
    db_get_value(hDB, 0, "/Experiment/Menu/OldHistory", &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/MSCB",       &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Sequencer",  &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/OldSequencer", &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Config",     &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Example",    &false_value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Help",       &true_value,  &size, TID_BOOL, TRUE);
@@ -16167,7 +16168,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    /*---- sequencer page --------------------------------------------*/
 
-   if (equal_ustring(command, "seq")) {
+   if (equal_ustring(command, "Sequencer")) {
       send_resource(r, "sequencer.html");
       return;
    }
@@ -16187,7 +16188,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       return;
    }
 
-   if (equal_ustring(command, "Sequencer")) {
+   if (equal_ustring(command, "OldSequencer")) {
       show_seq_page(p, r);
       return;
    }
