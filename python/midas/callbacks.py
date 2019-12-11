@@ -9,6 +9,8 @@ provide a more user-friendly interface (e.g. `odb_watch()`)
 
 import ctypes
 import midas
+import traceback
+import json
 
 # List of callback functions we've instantiated for watching ODB directories
 hotlink_callbacks = []
@@ -89,6 +91,7 @@ def make_hotlink_callback(path, callback, client):
         try:
             callback(client, path, odb_value)
         except Exception as e:
+            traceback.print_exc()
             client.msg("Exception raised during callback on %s: %s" % (path, exception_message(e)), True)
         
     cb = HOTLINK_FUNC_TYPE(_wrapper)
@@ -131,6 +134,7 @@ def make_transition_callback(callback, client):
         try:
             retval = callback(client, run_number)
         except Exception as e:
+            traceback.print_exc()
             ret_str = exception_message(e)
             ret_int = midas.status_codes["FE_ERR_DRIVER"]
             retval = (ret_int, ret_str)
@@ -189,6 +193,7 @@ def make_deferred_transition_callback(callback, client):
         try:
             retval = callback(client, run_number)
         except Exception as e:
+            traceback.print_exc()
             client.msg("Exception raised during deferred transition callback: %s" % exception_message(e), True)
             retval = True
 
@@ -199,7 +204,7 @@ def make_deferred_transition_callback(callback, client):
     return cb
 
 
-def make_rpc_callback(callback, client):
+def make_rpc_callback(callback, client, return_success_even_on_failure=False):
     """
     Create a callback function that can be passed to cm_register_function from the midas
     C library.
@@ -207,6 +212,17 @@ def make_rpc_callback(callback, client):
     Args:
         * callback (function) - See below.
         * client (midas.client.MidasClient) - the client that's creating this.
+        * return_success_even_on_failure (bool) - mjsonrpc (the web interface
+            for calling JRPC functions) does not return any message if the
+            status code isn't "SUCCESS". This can be annoying if you want to
+            show a specific error message to the user, and not have them trawl
+            through the midas message log. 
+            If you set this parameter to False, then you get the "normal"
+            behaviour, where the returned status code and result string are
+            exactly what is returned from the callback function.
+            If you set this parameter to True, then the status code will 
+            always be "SUCCESS", and the result string will be JSON-encoded
+            text of the form `{"code": 604, "msg": "Some error message"}.
         
     Returns:
         * `RPC_FUNC_TYPE`
@@ -237,6 +253,7 @@ def make_rpc_callback(callback, client):
             try:
                 retval = callback(client, cmd, args, max_len)
             except Exception as e:
+                traceback.print_exc()
                 retval = (midas.status_codes["FE_ERR_DRIVER"], exception_message(e))
 
         if isinstance(retval, int):
@@ -247,12 +264,33 @@ def make_rpc_callback(callback, client):
         else:
             (ret_int, ret_str) = retval
             
+        if return_success_even_on_failure:
+            # Encode result, ensuring our JSON struct will be valid
+            temp = {"code": ret_int, "msg": ""}
+            max_msg_len = max_len - 1 - len(json.dumps(temp))
+            
+            if max_msg_len < 0:
+                # Give up - buffer is way too small
+                ret_int = midas.status_codes["FE_ERR_DRIVER"]
+                ret_str = "Return buffer size too small for JSON-encoded result"
+            else:
+                # Encode the result
+                temp["msg"] = ret_str[:max_msg_len]
+                ret_int = midas.status_codes["SUCCESS"]
+                ret_str = json.dumps(temp)
+        
         # Write return value to buffer midas created for us.
         addr = ctypes.addressof(buf_p.contents)
         dest_chars = (ctypes.c_char * max_len).from_address(addr)
         write_size = min(len(ret_str), max_len - 1)
         dest_chars[:write_size] = bytes(ret_str[:write_size], 'utf-8')
         dest_chars[write_size] = b'\0'
+        
+        if ret_int != midas.status_codes["SUCCESS"] and len(ret_str):
+            # mjsonrpc only returns the string to the user if status is
+            # SUCCESS. Make sure we msg the error so user knows what the
+            # problem was.
+            client.msg("Error running RPC function: %s" % ret_str, True)
         
         return ret_int
 

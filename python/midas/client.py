@@ -1027,7 +1027,7 @@ class MidasClient:
         self.lib.c_jrpc_client_call(connection, c_cmd, c_args, c_buf, max_len)
         return c_buf.value.decode('utf-8')
     
-    def register_jrpc_callback(self, callback):
+    def register_jrpc_callback(self, callback, return_success_even_on_failure=False):
         """
         Register a function that can be called from mhttpd, custom webpages, and
         other clients (using the "javascript RPC" system). You should register a 
@@ -1036,6 +1036,17 @@ class MidasClient:
         
         Args:
             * callback (function) - See below.
+            * return_success_even_on_failure (bool) - mjsonrpc (the web interface
+                for calling JRPC functions) does not return any message if the
+                status code isn't "SUCCESS". This can be annoying if you want to
+                show a specific error message to the user, and not have them trawl
+                through the midas message log. 
+                If you set this parameter to False, then you get the "normal"
+                behaviour, where the returned status code and result string are
+                exactly what is returned from the callback function.
+                If you set this parameter to True, then the status code will 
+                always be "SUCCESS", and the result string will be JSON-encoded
+                text of the form `{"code": 604, "msg": "Some error message"}.
             
         Python function (`callback`) details:
         * Arguments it should accept:
@@ -1049,7 +1060,7 @@ class MidasClient:
                 should be returned to the caller. The maximum string length that will be
                 returned to the user is given by the `max_len` parameter.
         """
-        cb = midas.callbacks.make_rpc_callback(callback, self)
+        cb = midas.callbacks.make_rpc_callback(callback, self, return_success_even_on_failure)
         self.lib.c_cm_register_function(midas.RPC_JRPC, cb)
 
     #
