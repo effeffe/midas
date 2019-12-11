@@ -531,6 +531,7 @@ void rread(const char* filename, int fh, int len)
    int rd = read(fh, return_buffer + strlen_retbuf, len);
    if (rd != len) {
       cm_msg(MERROR, "rread", "Cannot read file \'%s\', read of %d returned %d, errno %d (%s)", filename, len, rd, errno, strerror(errno));
+      memset(return_buffer + strlen_retbuf, 0, len);
    }
    strlen_retbuf += len;
    return_length = strlen_retbuf;
@@ -961,6 +962,12 @@ bool open_resource_file(const char *filename, std::string* ppath, FILE** pfp)
    // or contain ".." as this will allow them to escape the mhttpd filename "jail"
    // by asking file files names like "../../etc/passwd", etc.
 
+   if (strlen(filename) < 1) {
+      cm_msg(MERROR, "open_resource_file", "Invalid resource file name \'%s\' is too short",
+              filename);
+      return false;
+   }
+
    if (filename[0] == DIR_SEPARATOR) {
       cm_msg(MERROR, "open_resource_file", "Invalid resource file name \'%s\' starting with \'%c\' which is not allowed",
               filename, DIR_SEPARATOR);
@@ -999,16 +1006,42 @@ bool open_resource_file(const char *filename, std::string* ppath, FILE** pfp)
 
       FILE* fp = fopen(xpath.c_str(), "r");
       if (fp) {
-         if (ppath)
-            *ppath = xpath;
-         if (pfp) {
-            *pfp = fp;
-         } else {
+         struct stat statbuf;
+         int status = fstat(fileno(fp), &statbuf);
+         if (status != 0) {
+            cm_msg(MERROR, "open_resource_file", "Cannot fstat() file \'%s\', error %d (%s)", xpath.c_str(), errno, strerror(errno));
             fclose(fp);
             fp = NULL;
          }
-         //cm_msg(MINFO, "open_resource_file", "Resource file \'%s\' is \'%s\'", filename, xpath.c_str());
-         return true;
+
+         if (statbuf.st_mode & S_IFREG) {
+            // good, normal file
+            //printf("%s: regular!\n", xpath.c_str());
+         //} else if (statbuf.st_mode & S_IFLNK) {
+            // symlink
+            //printf("%s: symlink!\n", xpath.c_str());
+         } else if (statbuf.st_mode & S_IFDIR) {
+            cm_msg(MERROR, "open_resource_file", "File \'%s\' for resource \'%s\' is a directory", xpath.c_str(), filename);
+            fclose(fp);
+            fp = NULL;
+         } else {
+            cm_msg(MERROR, "open_resource_file", "File \'%s\' for resource \'%s\' is not a regular file, st_mode is 0x%08x", xpath.c_str(), filename, statbuf.st_mode);
+            fclose(fp);
+            fp = NULL;
+         }
+
+         if (fp) {
+            if (ppath)
+               *ppath = xpath;
+            if (pfp) {
+               *pfp = fp;
+            } else {
+               fclose(fp);
+               fp = NULL;
+            }
+            //cm_msg(MINFO, "open_resource_file", "Resource file \'%s\' is \'%s\'", filename, xpath.c_str());
+            return true;
+         }
       }
 
       paths_not_found.push_back(xpath);
@@ -16450,8 +16483,11 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    /*---- serve url as a resource file ------------------------------*/
 
-   if (send_resource(r, p->getparam("path"), false))
-      return;
+   if (strlen(p->getparam("path")) > 0) {
+      if (send_resource(r, p->getparam("path"), false)) {
+         return;
+      }
+   }
 
    /*---- show status -----------------------------------------------*/
 
