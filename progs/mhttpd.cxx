@@ -17964,19 +17964,50 @@ static int mongoose_init(int num_worker_threads = 5)
    return SUCCESS;
 }
 
-static struct mg_connection* mongoose_listen(const char* address)
+static int mongoose_listen(const char* address, bool https = false)
 {
    struct mg_connection *nc = mg_bind(&s_mgr, address, ev_handler);
    if (nc == NULL) {
-      printf("Failed to create listener\n");
-      exit(1);
+      cm_msg(MERROR, "mongoose_listen", "Cannot mg_bind address \"%s\"", address);
+      return SS_SOCKET_ERROR;
    }
-   
+
+   if (https) {
+#ifdef MG_ENABLE_SSL
+      std::string cert_file;
+
+      int status = find_file_mg("ssl_cert.pem", cert_file, NULL, trace_mg);
+
+      if (status != SUCCESS) {
+         cm_msg(MERROR, "mongoose_listen", "cannot find SSL certificate file \"%s\"", cert_file.c_str());
+         cm_msg(MERROR, "mongoose_listen", "please create SSL certificate file: cd $MIDASSYS; openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key -subj \"/C=/ST=/L=/O=midas/OU=mhttpd/CN=localhost\"; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
+         return SS_FILE_ERROR;
+      }
+
+      printf("Mongoose web server will use https certificate file \"%s\"\n", cert_file.c_str());
+
+      const char* errmsg = mg_set_ssl(nc, cert_file.c_str(), NULL);
+      if (errmsg) {
+         cm_msg(MERROR, "mongoose_listen", "Cannot enable https with certificate file \"%s\", error: %s\n", cert_file.c_str(), errmsg);
+         return SS_SOCKET_ERROR;
+      }
+
+      // NB: where is the warning that the SSL certificate has expired?!? K.O.
+#else
+      cm_msg(MERROR, "mongoose_listen", "https port \"%s\" requested, but mhttpd compiled without MG_ENABLE_SSL", address);
+      return SS_SOCKET_ERROR;
+#endif
+   }
+
    mg_set_protocol_http_websocket(nc);
 
-   printf("mongoose web server listening on \"%s\"\n", address);
+   if (https) {
+      printf("Mongoose web server listening on https address \"%s\"\n", address);
+   } else {
+      printf("Mongoose web server listening on http address \"%s\"\n", address);
+   }
 
-   return nc;
+   return SUCCESS;
 }
 
 static void mongoose_poll(int msec = 200)
@@ -18486,18 +18517,7 @@ int main(int argc, const char *argv[])
       return 1;
    }
 #endif
-
-   /* place a request for system messages */
-   cm_msg_register(receive_message);
-
-   /* redirect message display, turn on message logging */
-   cm_set_msg_print(MT_ALL, MT_ALL, print_message);
-
-#ifdef HAVE_MONGOOSE6
-   loop_mg();
-   stop_mg();
-#endif
-
+   
 #ifdef HAVE_MONGOOSE616
 
 #ifdef SIGPIPE
@@ -18527,7 +18547,21 @@ int main(int argc, const char *argv[])
    }
 
    mongoose_listen("localhost:8080");
+   mongoose_listen("8443", true);
+#endif
 
+   /* place a request for system messages */
+   cm_msg_register(receive_message);
+
+   /* redirect message display, turn on message logging */
+   cm_set_msg_print(MT_ALL, MT_ALL, print_message);
+
+#ifdef HAVE_MONGOOSE6
+   loop_mg();
+   stop_mg();
+#endif
+
+#ifdef HAVE_MONGOOSE616
    while (!_abort) {
 
       /* cm_yield() is not thread safe, need to take a lock */
