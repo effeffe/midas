@@ -1856,7 +1856,7 @@ Data conversion flags */
    /* json encoder using the "ls" format, for getting the contents of a single ODB subdirectory */
    INT EXPRT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end);
    /* json encoder using the "get_values" format, for resolving links and normalized ODB path names (converted to lower-case) */
-   INT EXPRT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end, int omit_names, int omit_last_written, time_t omit_old_timestamp, int preserve_case);
+  INT EXPRT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end, int omit_names, int omit_last_written, time_t omit_old_timestamp, int preserve_case);
    /* json encoder for an ODB array */
    INT EXPRT db_copy_json_array(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end);
    /* json encoder for a single element of an ODB array */
@@ -1904,9 +1904,7 @@ Data conversion flags */
    INT EXPRT rpc_set_name(const char *name);
    INT EXPRT rpc_get_name(char *name);
    INT EXPRT rpc_is_remote(void);
-
    std::string rpc_get_mserver_hostname();
-
    INT EXPRT rpc_is_mserver(void);
    INT EXPRT rpc_set_debug(void (*func) (const char *), INT mode);
    void EXPRT rpc_debug_printf(const char *format, ...);
@@ -1942,8 +1940,8 @@ Data conversion flags */
    BOOL EXPRT ss_kbhit(void);
 
    double EXPRT ss_nan(void);
-   INT EXPRT ss_isnan(double x);
-   INT EXPRT ss_isfin(double x);
+   int EXPRT ss_isnan(double x);
+   int EXPRT ss_isfin(double x);
 
    void EXPRT ss_clear_screen(void);
    void EXPRT ss_printf(INT x, INT y, const char *format, ...);
@@ -2031,8 +2029,6 @@ extern "C" {
 }
 #endif
 #endif
-
-
 
 #endif                          /* _MIDAS_H */
 
