@@ -1,3 +1,4 @@
+// -*- mode: js; js-indent-level: 3; -*-
 /********************************************************************\
 
  Name:         mhistory.js
@@ -84,9 +85,11 @@ function MhistoryGraph(divElement) { // Constructor
    this.yMax = undefined;
    this.scroll = true;
    this.yZoom = false;
+   this.showZoomButtons = true;
 
    // data arrays
    this.data = [];
+   this.lastWritten = [];
 
    // graph arrays (in screen pixels)
    this.x = [];
@@ -293,6 +296,10 @@ MhistoryGraph.prototype.keyDown = function (e) {
       this.scrollRedraw();
       e.preventDefault();
    }
+   if (e.key === "r") {  // 'r' key
+      this.resetAxes();
+      e.preventDefault();
+   }
    if (e.key === "Escape") {
       this.solo.active = false;
       this.redraw();
@@ -331,8 +338,6 @@ MhistoryGraph.prototype.initializePanel = function () {
    this.tags = [];
    this.index = [];
    this.pendingUpdates = 0;
-   this.startUpdate = 0;
-   this.updateTime = 0;
 
    // retrieve panel definition from ODB
    mjsonrpc_db_copy(["/History/Display/" + this.group + "/" + this.panel]).then(function (rpc) {
@@ -497,13 +502,17 @@ MhistoryGraph.prototype.loadInitialData = function () {
                .then(function (rpc) {
 
                   let last = rpc.result.last_written[0];
-                  rpc.result.last_written.forEach(l => {
+                  for (let i = 0; i < rpc.result.last_written.length; i++) {
+                     if (this.events[i] === "Run transitions") {
+                        continue;
+                     }
+                     let l = rpc.result.last_written[i];
                      last = Math.max(last, l);
-                  });
+                  }
 
                   let scale = mhg.tMax - mhg.tMin;
-                  mhg.tMax = last + scale / 5;
-                  mhg.tMin = mhg.tMax - scale;
+                  mhg.tMax = last + scale / 2;
+                  mhg.tMin = last - scale / 2;
 
                   mhg.scroll = false;
                   mhg.marker.active = false;
@@ -535,8 +544,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   });
 
                   let scale = mhg.tMax - mhg.tMin;
-                  mhg.tMax = last + scale / 5;
-                  mhg.tMin = mhg.tMax - scale;
+                  mhg.tMax = last + scale / 2;
+                  mhg.tMin = last - scale / 2;
 
                   mhg.scroll = false;
                   mhg.marker.active = false;
@@ -629,10 +638,22 @@ MhistoryGraph.prototype.loadInitialData = function () {
    this.downloadSelector.appendChild(table);
    document.body.appendChild(this.downloadSelector);
 
+   // load date of latest data points
+   mjsonrpc_call("hs_get_last_written",
+      {
+         "events": this.events,
+         "tags": this.tags,
+         "index": this.index
+      }).then(function (rpc) {
+      this.lastWritten = rpc.result.last_written;
+   }.bind(this))
+      .catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
+
    // load initial data
    this.tMinRequested = this.tMin - this.tScale; // look one window ahead in past
    this.pendingUpdates++;
-   this.startUpdate = new Date().getTime();
    this.parentDiv.style.cursor = "progress";
    mjsonrpc_call("hs_read_arraybuffer",
       {
@@ -644,7 +665,6 @@ MhistoryGraph.prototype.loadInitialData = function () {
       }, "arraybuffer")
       .then(function (rpc) {
 
-         this.updateTime = new Date().getTime() - this.startUpdate;
          this.pendingUpdates--;
          if (this.pendingUpdates === 0)
             this.parentDiv.style.cursor = "default";
@@ -669,23 +689,21 @@ MhistoryGraph.prototype.loadOldData = function () {
 
    if (this.tMin - dt / 2 < this.tMinRequested) {
 
-      let oldTMinRequestested = this.tMinRequested;
+      let oldTMinRequested = this.tMinRequested;
       this.tMinRequested = this.tMin - dt;
 
       this.pendingUpdates++;
-      this.startUpdate = new Date().getTime();
       this.parentDiv.style.cursor = "progress";
       mjsonrpc_call("hs_read_arraybuffer",
          {
             "start_time": Math.floor(this.tMinRequested),
-            "end_time": Math.floor(oldTMinRequestested),
+            "end_time": Math.floor(oldTMinRequested),
             "events": this.events,
             "tags": this.tags,
             "index": this.index
          }, "arraybuffer")
          .then(function (rpc) {
 
-            this.updateTime = new Date().getTime() - this.startUpdate;
             this.pendingUpdates--;
             if (this.pendingUpdates === 0)
                this.parentDiv.style.cursor = "default";
@@ -709,18 +727,39 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
    let nVars = array[1];
    let nData = array.slice(2 + nVars, 2 + 2 * nVars);
    let i = 2 + 2 * nVars;
-   let t0 = array[i];
+
+   if (i >= array.length) {
+      // RPC did not return any data
+
+      if (this.data === undefined) {
+         // must initialize the arrays otherwise nothhing works.
+         this.data = [];
+         for (let index = 0; index < nVars; index++) {
+            this.data.push({time: [], value: []});
+         }
+      }
+
+      return;
+   }
 
    // append new values to end of arrays
    if (this.data === undefined) {
-
       this.data = [];
-
-      // initial data
       for (let index = 0; index < nVars; index++) {
+         this.data.push({time: [], value: []});
+      }
+   }
+
+   for (let index = 0; index < nVars; index++) {
+      if (nData[index] === 0)
+         continue;
+      let t0 = array[i];
+
+      if (this.data[index].time.length === 0) {
+         // initial data
+         // console.log("add new!");
 
          let formula = this.odb["Formula"];
-         this.data.push({time: [], value: []});
 
          let x = undefined;
          let v = undefined;
@@ -739,12 +778,9 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
                this.data[index].value.push(v);
             }
          }
-      }
-
-   } else if (this.data[0].time.length === 0 || t0 < this.data[0].time[0]) {
-
-      // add data to the left
-      for (let index = 0; index < nVars; index++) {
+      } else if (t0 < this.data[index].time[0]) {
+         // add data to the left
+         //console.log("add to the left!");
 
          let formula = this.odb["Formula"];
 
@@ -774,12 +810,9 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          }
          this.data[index].time = t1.concat(this.data[index].time);
          this.data[index].value = v1.concat(this.data[index].value);
-      }
-
-   } else {
-
-      // add data to the right
-      for (let index = 0; index < nVars; index++) {
+      } else {
+         // add data to the right
+         //console.log("add to the right!");
 
          let formula = this.odb["Formula"];
 
@@ -905,6 +938,24 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          }
       });
 
+      // check for zoom buttons
+      if (e.offsetX > this.width - 30 - 48 && e.offsetX < this.width - 30 - 24 &&
+         e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
+         // zoom in
+         let delta = this.tMax - this.tMin;
+         this.tMin += delta/4;
+         this.tMax -= delta/4;
+         this.redraw();
+      }
+      if (e.offsetX > this.width - 30 - 24 && e.offsetX < this.width - 30 &&
+         e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
+         // zoom out
+         let delta = this.tMax - this.tMin;
+         this.tMin -= delta/2;
+         this.tMax += delta/2;
+         this.loadOldData();
+      }
+
       // check for dragging
       if (e.offsetX > this.x1 && e.offsetX < this.x2 &&
          e.offsetY > this.y2 && e.offsetY < this.y1) {
@@ -1003,6 +1054,20 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             }
          });
 
+         if (this.showZoomButtons) {
+            // check for zoom buttons
+            if (e.offsetX > this.width - 30 - 48 && e.offsetX < this.width - 30 - 24 &&
+               e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
+               cursor = "pointer";
+               title = "Zoom in";
+            }
+            if (e.offsetX > this.width - 30 - 24 && e.offsetX < this.width - 30 &&
+               e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
+               cursor = "pointer";
+               title = "Zoom out";
+            }
+         }
+
          // display zoom cursor
          if (e.offsetX > this.x1 && e.offsetX < this.x2 && e.offsetY > this.y1)
             cursor = "ew-resize";
@@ -1023,30 +1088,38 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
          // check if cursor close to graph point
          if (this.data !== undefined && this.x.length && this.y.length) {
-            let minDist = 10000;
-            for (let di = 0; di < this.data.length; di++) {
+               let minDist = 10000;
+               for (let di = 0; di < this.data.length; di++) {
 
-               let i1 = binarySearch(this.x[di], e.offsetX - 10);
-               let i2 = binarySearch(this.x[di], e.offsetX + 10);
+                  let i1 = binarySearch(this.x[di], e.offsetX - 10);
+                  let i2 = binarySearch(this.x[di], e.offsetX + 10);
 
-               for (let i = i1; i <= i2; i++) {
-                  let d = (e.offsetX - this.x[di][i]) * (e.offsetX - this.x[di][i]) +
-                     (e.offsetY - this.y[di][i]) * (e.offsetY - this.y[di][i]);
-                  if (d < minDist) {
-                     minDist = d;
-                     this.marker.graphIndex = di;
-                     this.marker.index = i;
+                  for (let i = i1; i <= i2; i++) {
+                     let d = (e.offsetX - this.x[di][i]) * (e.offsetX - this.x[di][i]) +
+                        (e.offsetY - this.y[di][i]) * (e.offsetY - this.y[di][i]);
+                     if (d < minDist) {
+                        minDist = d;
+                        this.marker.graphIndex = di;
+                        this.marker.index = i;
+                     }
                   }
                }
-            }
-            this.marker.active = Math.sqrt(minDist) < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
-            if (this.marker.active) {
-               this.marker.x = this.x[this.marker.graphIndex][this.marker.index];
-               this.marker.y = this.y[this.marker.graphIndex][this.marker.index];
-               this.marker.t = this.t[this.marker.graphIndex][this.marker.index];
-               this.marker.v = this.v[this.marker.graphIndex][this.marker.index];
-               this.marker.mx = e.offsetX;
-               this.marker.my = e.offsetY;
+
+            // exclude zoom buttons if visible
+            if (this.showZoomButtons &&
+               e.offsetX > this.width - 30 - 48 && this.offsetX < this.width - 30 &&
+               e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
+               this.marker.active = false;
+            } else {
+               this.marker.active = Math.sqrt(minDist) < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
+               if (this.marker.active) {
+                  this.marker.x = this.x[this.marker.graphIndex][this.marker.index];
+                  this.marker.y = this.y[this.marker.graphIndex][this.marker.index];
+                  this.marker.t = this.t[this.marker.graphIndex][this.marker.index];
+                  this.marker.v = this.v[this.marker.graphIndex][this.marker.index];
+                  this.marker.mx = e.offsetX;
+                  this.marker.my = e.offsetY;
+               }
             }
             this.redraw();
          }
@@ -1130,6 +1203,8 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
       } else if (e.ctrlKey || e.metaKey) {
 
+         this.showZoomButtons = false;
+
          // zoom time axis
          let f = (e.offsetX - this.x1) / (this.x2 - this.x1);
          let m = 1 / 100;
@@ -1198,6 +1273,7 @@ MhistoryGraph.prototype.resetAxes = function () {
 
    this.scroll = true;
    this.yZoom = false;
+   this.showZoomButtons = true;
    this.redraw();
 };
 
@@ -1319,6 +1395,20 @@ MhistoryGraph.prototype.findMinMax = function () {
    }
 };
 
+function convertLastWritten(last) {
+   if (last === 0)
+      return "no data available";
+
+   let d = new Date(last * 1000).toLocaleDateString(
+      'en-GB', {
+         day: '2-digit', month: 'short', year: '2-digit',
+         hour12: false, hour: '2-digit', minute: '2-digit'
+      }
+   );
+
+   return "last data: " + d;
+}
+
 MhistoryGraph.prototype.draw = function () {
    // draw maximal 20 times per second
    if (new Date().getTime() < this.lastDrawTime + 50)
@@ -1428,6 +1518,11 @@ MhistoryGraph.prototype.draw = function () {
       for (let i = 0; i < this.data[di].time.length; i++) {
          let x = this.timeToX(this.data[di].time[i]);
          let v = this.valueToY(this.data[di].value[i]);
+         //if (i === (this.data[di].time.length - 1) /*0*/) {
+         //console.log("draw: index: " + di + ", tMin: " + this.tMin + ", tMax: " + this.tMax + ", t: " + this.data[di].time[i]);
+         //console.log("draw: index: " + di + ", scale: " + (this.tMax - this.tMin) + ", tMin: " + convertLastWritten(this.tMin) + ", tMax: " + convertLastWritten(this.tMax) + ", t: " + convertLastWritten(this.data[di].time[i]));
+         //console.log("draw: index: " + di + ", x1: " + this.x1 + ", x2: " + this.x2 + ", x: " + x);
+         //}
          if (!Number.isNaN(v) && x >= this.x1 && x <= this.x2) {
             this.x[di][n] = x;
             this.y[di][n] = v;
@@ -1454,16 +1549,20 @@ MhistoryGraph.prototype.draw = function () {
          this.t[di].unshift(this.data[di].value[first - 1]);
          this.v[di].unshift(this.data[di].time[first - 1]);
       }
+      //console.log("draw: index: " + di + ", n: " + n);
    }
 
+   let avgN = [];
+
    // compress points to aggregate values
-   let avgN = 0;
-   let numberN = 0;
    for (let di = 0; di < this.data.length; di++) {
       if (this.events[di] === "Run transitions")
          continue;
       this.p[di] = [];
       let p = {};
+
+      let sum0 = 0;
+      let sum1 = 0;
 
       let xLast = undefined;
       for (let i = 0; i < this.x[di].length; i++) {
@@ -1476,8 +1575,8 @@ MhistoryGraph.prototype.draw = function () {
                // store point
                if (p.n > 0)
                   p.avg = p.avg / p.n;
-               avgN += p.n;
-               numberN++;
+               sum0 += 1;
+               sum1 += p.n;
                this.p[di].push(p);
                p = {};
             }
@@ -1499,9 +1598,12 @@ MhistoryGraph.prototype.draw = function () {
             p.last = y;
          }
       }
+
+      if (sum0 > 0)
+         avgN.push(sum1 / sum0);
+      else
+         avgN.push(0);
    }
-   if (numberN > 0)
-      avgN = avgN / numberN;
 
    // draw shaded areas
    if (this.showFill) {
@@ -1514,7 +1616,7 @@ MhistoryGraph.prototype.draw = function () {
 
          ctx.fillStyle = this.odb["Colour"][di];
 
-         if (avgN > 2) {
+         if (avgN[di] > 2) {
             ctx.beginPath();
             let x0;
             let y0;
@@ -1602,7 +1704,7 @@ MhistoryGraph.prototype.draw = function () {
 
          ctx.strokeStyle = this.odb["Colour"][di];
 
-         if (avgN > 2) {
+         if (avgN[di] > 2) {
             let prevX = undefined;
             let prevY = undefined;
             for (let i = 0; i < this.p[di].length; i++) {
@@ -1619,19 +1721,26 @@ MhistoryGraph.prototype.draw = function () {
                prevY = p.last;
             }
          } else {
-            ctx.beginPath();
-            let first = true;
-            for (let i = 0; i < this.x[di].length; i++) {
-               let x = this.x[di][i];
-               let y = this.y[di][i];
-               if (first) {
-                  first = false;
-                  ctx.moveTo(x, y);
-               } else {
-                  ctx.lineTo(x, y);
+            if (this.x[di].length === 1) {
+               let x = this.x[di][0];
+               let y = this.y[di][0];
+               ctx.fillStyle = this.odb["Colour"][di];
+               ctx.fillRect(x - 1, y - 1, 3, 3);
+            } else {
+               ctx.beginPath();
+               let first = true;
+               for (let i = 0; i < this.x[di].length; i++) {
+                  let x = this.x[di][i];
+                  let y = this.y[di][i];
+                  if (first) {
+                     first = false;
+                     ctx.moveTo(x, y);
+                  } else {
+                     ctx.lineTo(x, y);
+                  }
                }
+               ctx.stroke();
             }
-            ctx.stroke();
          }
       }
    }
@@ -1641,6 +1750,7 @@ MhistoryGraph.prototype.draw = function () {
    // labels with variable names and values
    if (this.showLabels) {
       this.variablesHeight = this.odb["Variables"].length * 17 + 7;
+      this.variablesWidth = 0;
 
       this.odb["Variables"].forEach((v, i) => {
          let width = 0;
@@ -1648,6 +1758,8 @@ MhistoryGraph.prototype.draw = function () {
             width = ctx.measureText(this.odb.Label[i]).width;
          else
             width = ctx.measureText(v.substr(v.indexOf(':') + 1)).width;
+
+         width += 20; // space between name and value
 
          if (this.v[i].length > 0) {
             // use last point in array
@@ -1657,12 +1769,15 @@ MhistoryGraph.prototype.draw = function () {
             if (this.marker.active)
                index = this.marker.index;
 
-            // convert value to string with 6 digits
-            let value = this.v[i][index];
-            let str = "  " + value.toPrecision(this.yPrecision).stripZeros();
-            width += ctx.measureText(str).width;
-         } else
-            width += ctx.measureText('no data').width;
+            if (index < this.v[i].length) {
+               // convert value to string with 6 digits
+               let value = this.v[i][index];
+               let str = "  " + value.toPrecision(this.yPrecision).stripZeros();
+               width += ctx.measureText(str).width;
+            }
+         } else {
+            width += ctx.measureText(convertLastWritten(this.lastWritten[i])).width;
+         }
 
          this.variablesWidth = Math.max(this.variablesWidth, width);
       });
@@ -1702,12 +1817,16 @@ MhistoryGraph.prototype.draw = function () {
             if (this.marker.active)
                index = this.marker.index;
 
-            // convert value to string with 6 digits
-            let value = this.v[i][index];
-            let str = value.toPrecision(this.yPrecision).stripZeros();
-            ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
-         } else
-            ctx.fillText('no data', this.x1 + 25 + this.variablesWidth, 40 + i * 17);
+            if (index < this.v[i].length) {
+               // convert value to string with 6 digits
+               let value = this.v[i][index];
+               let str = value.toPrecision(this.yPrecision).stripZeros();
+               ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
+            }
+         } else {
+            ctx.fillText(convertLastWritten(this.lastWritten[i]),
+               this.x1 + 25 + this.variablesWidth, 40 + i * 17);
+         }
 
       });
 
@@ -1727,8 +1846,17 @@ MhistoryGraph.prototype.draw = function () {
       ctx.fillText(str, this.x1 + 10, this.y1 - 13);
    }
 
+   let no_data = true;
+
+   for (let i = 0; i < this.data.length; i++) {
+      if (this.data[i].time === undefined || this.data[i].time.length === 0) {
+      } else {
+         no_data = false;
+      }
+   }
+
    // "empty window" notice
-   if (this.data[0].time === undefined || this.data[0].time.length === 0) {
+   if (no_data) {
       ctx.font = "16px sans-serif";
       let str = "No data available";
       ctx.strokeStyle = "#404040";
@@ -1770,6 +1898,30 @@ MhistoryGraph.prototype.draw = function () {
 
       y++;
    });
+
+   // zoom buttons
+   if (this.showZoomButtons) {
+      let xb = this.width - 30 - 48;
+      let yb = this.y1 - 24;
+      ctx.fillStyle = "#F0F0F0";
+      ctx.globalAlpha = 0.5;
+      ctx.fillRect(xb, yb, 24, 24);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "#808080";
+      ctx.strokeRect(xb, yb, 24, 24);
+      ctx.strokeStyle = "#202020";
+      ctx.drawLine(xb + 5, yb + 12, xb + 19, yb + 12);
+      ctx.drawLine(xb + 12, yb + 5, xb + 12, yb + 19);
+
+      xb += 24;
+      ctx.globalAlpha = 0.5;
+      ctx.fillRect(xb, yb, 24, 24);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "#808080";
+      ctx.strokeRect(xb, yb, 24, 24);
+      ctx.strokeStyle = "#202020";
+      ctx.drawLine(xb + 5, yb + 12, xb + 19, yb + 12);
+   }
 
    // axis zoom
    if (this.zoom.x.active) {
@@ -1850,10 +2002,10 @@ MhistoryGraph.prototype.draw = function () {
 
       // time label
       s = timeToLabel(this.marker.t, 1, true);
-      w = ctx.measureText(s).width + 6;
-      h = ctx.measureText("M").width * 1.2 + 6;
+      w = ctx.measureText(s).width + 10;
+      h = ctx.measureText("M").width * 1.2 + 11;
       x = this.marker.x - w / 2;
-      y = this.y1 + 4;
+      y = this.y1;
       if (x <= this.x1)
          x = this.x1;
       if (x + w >= this.x2)
@@ -1864,7 +2016,7 @@ MhistoryGraph.prototype.draw = function () {
       ctx.fillRect(x, y, w, h);
       ctx.strokeRect(x, y, w, h);
       ctx.fillStyle = "#404040";
-      ctx.fillText(s, x + 3, y + h / 2);
+      ctx.fillText(s, x + 5, y + h / 2);
    }
 
    this.lastDrawTime = new Date().getTime();
@@ -2243,18 +2395,18 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
 };
 
 let options1 = {
-    day: '2-digit', month: 'short', year: '2-digit',
-    hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+   day: '2-digit', month: 'short', year: '2-digit',
+   hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
 };
 
 let options2 = {
-    day: '2-digit', month: 'short', year: '2-digit',
-    hour12: false, hour: '2-digit', minute: '2-digit'
+   day: '2-digit', month: 'short', year: '2-digit',
+   hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
 let options3 = {
-    day: '2-digit', month: 'short', year: '2-digit',
-    hour12: false, hour: '2-digit', minute: '2-digit'
+   day: '2-digit', month: 'short', year: '2-digit',
+   hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
 let options4 = {day: '2-digit', month: 'short', year: '2-digit'};
@@ -2266,8 +2418,8 @@ let options6 = {hour12: false, hour: '2-digit', minute: '2-digit'};
 let options7 = {hour12: false, hour: '2-digit', minute: '2-digit'};
 
 let options8 = {
-    day: '2-digit', month: 'short', year: '2-digit',
-    hour12: false, hour: '2-digit', minute: '2-digit'
+   day: '2-digit', month: 'short', year: '2-digit',
+   hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
 let options9 = {day: '2-digit', month: 'short', year: '2-digit'};
