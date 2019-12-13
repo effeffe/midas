@@ -17738,7 +17738,7 @@ static int handle_http_post(struct mg_connection *nc, const http_message* msg, c
    return handle_decode_post(nc, msg, uri, query_string.c_str());
 }
 
-static bool handle_http_options_cors(struct mg_connection *nc, const http_message* msg, RequestTrace* t)
+static void handle_http_options_cors(struct mg_connection *nc, const http_message* msg, RequestTrace* t)
 {
    //
    // JSON-RPC CORS pre-flight request, see
@@ -17798,8 +17798,6 @@ static bool handle_http_options_cors(struct mg_connection *nc, const http_messag
    mg_send(nc, send.c_str(), send.length());
 
    t->fTimeSent = GetTimeSec();
-
-   return true;
 }
 
 // HTTP event handler
