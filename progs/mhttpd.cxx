@@ -17399,21 +17399,29 @@ static int handle_decode_get(struct mg_connection *nc, const http_message* msg, 
    return RESPONSE_SENT;
 }
 
+static uint32_t s_mwo_seqno = 0;
+
 struct MongooseWorkObject
 {
+   uint32_t seqno = 0;
    bool http_get = false;
+   bool mjsonrpc = false;
    Cookies cookies;
+   std::string origin;
    std::string uri;
    std::string query_string;
+   std::string post_body;
    RequestTrace* t = NULL;
+   bool send_done = false;
 };
 
 static void mongoose_queue(void* nc, MongooseWorkObject* w);
-static void mongoose_send(void* nc, const char* p1, size_t s1, const char* p2, size_t s2, bool close_flag = false);
+static void mongoose_send(void* nc, MongooseWorkObject* w, const char* p1, size_t s1, const char* p2, size_t s2, bool close_flag = false);
 
 static int queue_decode_get(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
 {
    MongooseWorkObject* w = new MongooseWorkObject();
+   w->seqno = s_mwo_seqno++;
    w->http_get = true;
    decode_cookies(&w->cookies, msg);
    w->uri = uri;
@@ -17425,7 +17433,21 @@ static int queue_decode_get(struct mg_connection *nc, const http_message* msg, c
    return RESPONSE_QUEUED;
 }
 
-static int thread_work_function(void *nc, MongooseWorkObject *w)
+static int queue_mjsonrpc(struct mg_connection *nc, const std::string& origin, const std::string& post_body, RequestTrace* t)
+{
+   MongooseWorkObject* w = new MongooseWorkObject();
+   w->seqno = s_mwo_seqno++;
+   w->mjsonrpc = true;
+   w->origin = origin;
+   w->post_body = post_body;
+   w->t = t;
+
+   mongoose_queue(nc, w);
+
+   return RESPONSE_QUEUED;
+}
+
+static int thread_http_get(void *nc, MongooseWorkObject *w)
 {
    // lock shared structures
 
@@ -17472,13 +17494,100 @@ static int thread_work_function(void *nc, MongooseWorkObject *w)
       close_flag = true;
    }
 
-   mongoose_send(nc, rr->return_buffer, rr->return_length, NULL, 0, close_flag);
+   mongoose_send(nc, w, rr->return_buffer, rr->return_length, NULL, 0, close_flag);
 
    w->t->fTimeSent = GetTimeSec();
 
    delete rr;
 
    return RESPONSE_SENT;
+}
+
+static int thread_mjsonrpc(void *nc, MongooseWorkObject *w)
+{
+   w->t->fRPC = w->post_body;
+
+   int status = ss_mutex_wait_for(request_mutex, 0);
+   assert(status == SS_SUCCESS);
+
+   w->t->fTimeLocked = GetTimeSec();
+
+   MJsonNode* reply = mjsonrpc_decode_post_data(w->post_body.c_str());
+
+   w->t->fTimeUnlocked = GetTimeSec();
+
+   ss_mutex_release(request_mutex);
+
+   if (reply->GetType() == MJSON_ARRAYBUFFER) {
+      const char* ptr;
+      size_t size;
+      reply->GetArrayBuffer(&ptr, &size);
+      
+      std::string headers;
+      headers += "HTTP/1.1 200 OK\n";
+      if (w->origin.length() > 0)
+         headers += "Access-Control-Allow-Origin: " + w->origin + "\n";
+      else
+         headers += "Access-Control-Allow-Origin: *\n";
+      headers += "Access-Control-Allow-Credentials: true\n";
+      headers += "Content-Length: " + toString(size) + "\n";
+      headers += "Content-Type: application/octet-stream\n";
+      //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+      
+      //printf("sending headers: %s\n", headers.c_str());
+      //printf("sending reply: %s\n", reply_string.c_str());
+      
+      std::string send = headers + "\n";
+      
+      w->t->fTimeProcessed = GetTimeSec();
+      
+      mongoose_send(nc, w, send.c_str(), send.length(), ptr, size);
+      
+      w->t->fTimeSent = GetTimeSec();
+      
+      delete reply;
+      
+      return RESPONSE_SENT;
+   }
+   
+   std::string reply_string = reply->Stringify();
+   int reply_length = reply_string.length();
+   
+   std::string headers;
+   headers += "HTTP/1.1 200 OK\n";
+   if (w->origin.length() > 0)
+      headers += "Access-Control-Allow-Origin: " + w->origin + "\n";
+   else
+      headers += "Access-Control-Allow-Origin: *\n";
+   headers += "Access-Control-Allow-Credentials: true\n";
+   headers += "Content-Length: " + toString(reply_length) + "\n";
+   headers += "Content-Type: application/json\n";
+   //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+   
+   //printf("sending headers: %s\n", headers.c_str());
+   //printf("sending reply: %s\n", reply_string.c_str());
+   
+   std::string send = headers + "\n" + reply_string;
+   
+   w->t->fTimeProcessed = GetTimeSec();
+   
+   mongoose_send(nc, w, send.c_str(), send.length(), NULL, 0);
+   
+   w->t->fTimeSent = GetTimeSec();
+   
+   delete reply;
+   
+   return RESPONSE_SENT;
+}
+
+static int thread_work_function(void *nc, MongooseWorkObject *w)
+{
+   if (w->http_get)
+      return thread_http_get(nc, w);
+   else if (w->mjsonrpc)
+      return thread_mjsonrpc(nc, w);
+   else
+      return RESPONSE_501;
 }
 
 static int handle_decode_post(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string)
@@ -17632,6 +17741,7 @@ static int handle_http_post(struct mg_connection *nc, const http_message* msg, c
       printf("handle_http_post: uri [%s], query [%s], post data %d bytes\n", uri, query_string.c_str(), (int)post_data.length());
 
    if (query_string == "mjsonrpc") {
+      const std::string origin_header = find_header_mg(msg, "Origin");
       const std::string ctype_header = find_header_mg(msg, "Content-Type");
 
       if (strstr(ctype_header.c_str(), "application/json") == NULL) {
@@ -17653,6 +17763,9 @@ static int handle_http_post(struct mg_connection *nc, const http_message* msg, c
          return RESPONSE_SENT;
       }
 
+      if (multithread_mg)
+         return queue_mjsonrpc(nc, origin_header, post_data, t);
+
       //printf("post body: %s\n", post_data.c_str());
 
       t->fRPC = post_data;
@@ -17669,8 +17782,6 @@ static int handle_http_post(struct mg_connection *nc, const http_message* msg, c
       ss_mutex_release(request_mutex);
 
       if (reply->GetType() == MJSON_ARRAYBUFFER) {
-         const std::string origin_header = find_header_mg(msg, "Origin");
-
          const char* ptr;
          size_t size;
          reply->GetArrayBuffer(&ptr, &size);
@@ -17705,8 +17816,6 @@ static int handle_http_post(struct mg_connection *nc, const http_message* msg, c
 
       std::string reply_string = reply->Stringify();
       int reply_length = reply_string.length();
-
-      const std::string origin_header = find_header_mg(msg, "Origin");
 
       std::string headers;
       headers += "HTTP/1.1 200 OK\n";
@@ -17921,20 +18030,11 @@ static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data
 
 // from mongoose examples/multithreaded/multithreaded.c
 
-//static sig_atomic_t s_received_signal = 0;
-//static const char *s_http_port = "8000";
-//static const int s_num_worker_threads = 5;
-//static unsigned long s_next_id = 0;
-
-//static void signal_handler(int sig_num) {
-//  signal(sig_num, signal_handler);
-//  s_received_signal = sig_num;
-//}
-
-//static struct mg_serve_http_opts s_http_server_opts;
 static sock_t s_sock[2];
 static bool s_shutdown = false;
 static struct mg_mgr s_mgr;
+static uint32_t s_seqno = 0;
+static std::mutex s_mg_broadcast_mutex;
 
 // This info is passed to the worker thread
 struct work_request {
@@ -17944,20 +18044,23 @@ struct work_request {
 
 // This info is passed by the worker thread to mg_broadcast
 struct work_result {
-   void* nc;
-   const char* p1;
-   size_t s1;
-   const char* p2;
-   size_t s2;
-   bool close_flag;
-   bool send_501;
+   void* nc = NULL;
+   uint32_t check = 0x12345678;
+   uint32_t seqno = 0;
+   MongooseWorkObject* w = NULL;
+   const char* p1 = NULL;
+   size_t s1 = 0;
+   const char* p2 = NULL;
+   size_t s2 = 0;
+   bool close_flag = false;
+   bool send_501 = false;
 };
 
 static void mongoose_queue(void *nc, MongooseWorkObject *w)
 {
    struct work_request req = {nc, w};
 
-   printf("nc: %p: queue work object\n", nc);
+   //printf("nc: %p: w: %d, queue work object!\n", nc, w->seqno);
          
    if (write(s_sock[0], &req, sizeof(req)) < 0) {
       fprintf(stderr, "mongoose_queue: Error: write(s_sock(0)) error %d (%s)\n", errno, strerror(errno));
@@ -17970,10 +18073,12 @@ static void on_work_complete(struct mg_connection *nc, int ev, void *ev_data)
    (void) ev;
    struct work_result *res = (struct work_result *)ev_data;
 
+   //printf("nc: %p: w: %d, seqno: %d, check 0x%08x, offered nc %p, flags 0x%08x\n", res->nc, res->w->seqno, res->seqno, res->check, nc, (int)nc->flags);
+
    if (res->nc != nc)
       return;
 
-   printf("nc: %p: on_work_complete(%p, %d, %p), send_501: %d, s1 %d, s2: %d, close_flag: %d\n", res->nc, nc, ev, ev_data, res->send_501, (int)res->s1, (int)res->s2, res->close_flag);
+   //printf("nc: %p: w: %d, on_work_complete: seqno: %d, send_501: %d, s1 %d, s2: %d, close_flag: %d\n", res->nc, res->w->seqno, res->seqno, res->send_501, (int)res->s1, (int)res->s2, res->close_flag);
 
    if (res->send_501) {
       std::string response = "501 Not Implemented";
@@ -17993,43 +18098,86 @@ static void on_work_complete(struct mg_connection *nc, int ev, void *ev_data)
       // must close the connection.
       nc->flags |= MG_F_SEND_AND_CLOSE;
    }
+
+   res->w->send_done = true;
 }
 
-static void mongoose_send(void* nc, const char* p1, size_t s1, const char* p2, size_t s2, bool close_flag)
+static void mongoose_send(void* nc, MongooseWorkObject* w, const char* p1, size_t s1, const char* p2, size_t s2, bool close_flag)
 {
+   //printf("nc: %p: send %d and %d\n", nc, (int)s1, (int)s2);
    struct work_result res;
    res.nc = nc;
+   res.w  = w;
+   res.seqno = s_seqno++;
    res.p1 = p1;
    res.s1 = s1;
    res.p2 = p2;
    res.s2 = s2;
    res.close_flag = close_flag;
    res.send_501 = false;
-   printf("nc: %p, call mg_broadcast()\n", nc);
+   //printf("nc: %p: call mg_broadcast()\n", nc);
+
+   // NB: mg_broadcast() is advertised as thread-safe, but it is not.
+   //
+   // in mongoose 6.16, mg_brodacast() and mg_mgr_handle_ctl_sock() have several problems:
+   //
+   // a) "wrong thread" read from mgr->ctl[0], defeating the handshake
+   //
+   // b) "lost messages". if more than one message is written to mgr->ctl[0], the second message
+   //    will be "eaten" by mg_mgr_handle_ctl_sock() because of mistatch between number of bytes read and written
+   //    in the two functions. mg_mgr_handle_ctl_sock() always reads about 8000 bytes while mg_broadcast()
+   //    writes 8 bytes per message, (per examples/multithreaded/multithreaded.c. mhttpd messages are a bit longer).
+   //    So if multiple messages are present in the msg->ctl[0] pipe, the read call (of about 8000 bytes)
+   //    in mg_mgr_handle_ctl_sock() will return several messages (last message may be truncated)
+   //    but only the first message will be processed by the code. any additional messages are ignored.
+   //
+   // Problems (a) and (b) are easy to fix by using a mutex to serialize mg_broadcast().
+   //
+   // c) if the mg_broadcast() message contains pointers to the data buffer to be sent out,
+   //    the caller of mg_broadcast() should not free these data buffers until mg_send() is called
+   //    in "on_work_complete()". In theory, the caller of mg_broadcast() could wait until on_work_complete()
+   //    sets a "done" flag. In practice, if the corresponding network connection is closed before
+   //    mg_mgr_handle_ctl_sock() has looped over it, on_work_complete() will never run
+   //    and the "done" flag will never be set. (Of course, network connections are permitted to close
+   //    at any time without warning, but) the firefox browser closes the network connections "a lot"
+   //    especially when user pressed the "page reload" button at the moment when HTTP transations
+   //    are "in flight". (google-chrome tends to permit these "lame duck" transactions to complete and mongoose
+   //    does not see unexpected socket closures, at least not as many).
+   //
+   // To fix problem (c) I need to know when mg_mgr_handle_ctl_sock()'s loop over network connections
+   // has completed (two cases: (a) my on_work_complete() was hopefully called and finished,
+   // and (b) the "right" network connection was already closed (for whatever reason) and my on_work_complete()
+   // was never called).
+   //
+   // My solution is to change the handshake between mg_broadcast() and mg_mgr_handle_ctl_sock() by sending
+   // the handshake reply after looping over the network connections instead of after reading the message
+   // from msg->ctl[1].
+   //
+   // This requires a modification to the code in mongoose.c. If this change is lost/undone, nothing will work.
+   //
+
+   s_mg_broadcast_mutex.lock();
    mg_broadcast(&s_mgr, on_work_complete, (void *)&res, sizeof(res));
+   s_mg_broadcast_mutex.unlock();
 }
 
-static void mongoose_send_501(void* nc)
+static void mongoose_send_501(void* nc, MongooseWorkObject* w)
 {
    struct work_result res;
    res.nc = nc;
+   res.w  = w;
+   res.seqno = s_seqno++;
    res.p1 = 0;
    res.s1 = 0;
    res.p2 = 0;
    res.s2 = 0;
    res.close_flag = false;
    res.send_501 = true;
-   printf("nc: %p, call mg_broadcast()\n", nc);
-   mg_broadcast(&s_mgr, on_work_complete, (void *)&res, sizeof(res));
-
-   //struct work_result res = {nc, 0};
-
-   //std::string response = "501 Not Implemented";
-   //mg_send_head(nc, 501, response.length(), NULL); // 501 Not Implemented
-   //mg_send(nc, response.c_str(), response.length());
-
    //printf("nc: %p, call mg_broadcast()\n", nc);
-   //mg_broadcast(&s_mgr, on_work_complete, (void *)&res, sizeof(res));
+
+   s_mg_broadcast_mutex.lock();
+   mg_broadcast(&s_mgr, on_work_complete, (void *)&res, sizeof(res));
+   s_mg_broadcast_mutex.unlock();
 }
 
 void *worker_thread_proc(void *param)
@@ -18051,28 +18199,24 @@ void *worker_thread_proc(void *param)
          abort();
          return NULL;
       }
-      printf("nc: %p: received request!\n", req.nc);
+      
+      //printf("nc: %p: received request!\n", req.nc);
 
       int response = thread_work_function(req.nc, req.w);
 
       if (response == RESPONSE_501) {
          if (trace_mg||verbose_mg)
             printf("handle_http_message: sending 501 Not Implemented error\n");
-         mongoose_send_501(req.nc);
+         mongoose_send_501(req.nc, req.w);
       }
 
       req.w->t->fCompleted = true;
       gTraceBuf->AddTraceMTS(req.w->t);
 
+      //printf("nc: %p: w: %d, delete work object!\n", req.nc, req.w->seqno);
+
       delete req.w;
       req.w = NULL;
-
-      printf("nc: %p: deleted request!\n", req.nc);
-
-      //struct work_result res = {req.nc, 0};
-      //printf("nc: %p: call mg_broadcast!\n", req.nc);
-      //mg_broadcast(mgr, on_work_complete, (void *)&res, sizeof(res));
-      //printf("nc: %p: mg_broadcast returned!\n", req.nc);
    }
    return NULL;
 }
@@ -18126,15 +18270,7 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
       if (trace_mg) {
          printf("ev_handler: connection %p, MG_EV_HTTP_REQUEST \"%s\" \"%s\"\n", nc, mgstr(&msg->method).c_str(), mgstr(&msg->uri).c_str());
       }
-      //if (multithread_mg) {
-      //   struct work_request req = {nc};
-      //   
-      //   if (write(s_sock[0], &req, sizeof(req)) < 0) {
-      //      perror("Writing worker sock");
-      //   }
-      //} else {
-         handle_http_message(nc, msg);
-      //}
+      handle_http_message(nc, msg);
       break;
    }
    case MG_EV_CLOSE: {
