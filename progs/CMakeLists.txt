@@ -77,6 +77,24 @@ endif(OPENSSL_FOUND)
 target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS} ${DB_LIBS})
 
 #
+# mhttpd6 (old mongoose)
+#
+add_executable(mhttpd6 mhttpd mongoose6 mgd ${PROJECT_SOURCE_DIR}/mscb/src/mscb)
+target_compile_options(mhttpd6 PRIVATE -DHAVE_MSCB)
+target_include_directories(mhttpd6 PRIVATE ${PROJECT_SOURCE_DIR}/mscb/include)
+target_include_directories(mhttpd6 PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml)
+target_include_directories(mhttpd6 PRIVATE ${OPENSSL_INCLUDE_DIR})
+target_link_libraries(mhttpd6 ${DB_LIBS})
+
+# mongoose flags
+target_compile_options(mhttpd6 PRIVATE -DHAVE_MONGOOSE6 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI -DMG_ENABLE_EXTRA_ERRORS_DESC)
+if (OPENSSL_FOUND)
+   target_compile_options(mhttpd6 PRIVATE -DMG_ENABLE_SSL)
+endif(OPENSSL_FOUND)
+
+target_link_libraries(mhttpd6 midas ${OPENSSL_LIBRARIES} ${LIBS} ${DB_LIBS})
+
+#
 # odbedit
 #
 add_executable(odbedit odbedit cmdedit)
@@ -96,7 +114,7 @@ endif(HAVE_ROOT)
 #
 # Installation
 #
-install(TARGETS ${PROGS} ${MFEPROGS} mhttpd odbedit DESTINATION bin)
+install(TARGETS ${PROGS} ${MFEPROGS} mhttpd mhttpd6 odbedit DESTINATION bin)
 if (HAVE_NVIDIA)
    install(TARGETS msysmon-nvidia DESTINATION bin)
 endif(HAVE_NVIDIA)

@@ -17046,7 +17046,9 @@ static bool verbose_mg = false;
 static bool trace_mg = false;
 static bool trace_mg_recv = false;
 static bool trace_mg_send = false;
+#ifdef HAVE_MONGOOSE616
 static bool multithread_mg = true;
+#endif
 
 #ifdef HAVE_MONGOOSE6
 static struct mg_mgr mgr_mg;
@@ -17487,6 +17489,8 @@ static int handle_decode_get(struct mg_connection *nc, const http_message* msg, 
    return RESPONSE_SENT;
 }
 
+#ifdef HAVE_MONGOOSE616
+
 static uint32_t s_mwo_seqno = 0;
 
 struct MongooseWorkObject
@@ -17749,6 +17753,8 @@ static int thread_work_function(void *nc, MongooseWorkObject *w)
       return RESPONSE_501;
 }
 
+#endif
+
 static int handle_decode_post(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
 {
 
@@ -17761,8 +17767,10 @@ static int handle_decode_post(struct mg_connection *nc, const http_message* msg,
          strlcpy(boundary, s+9, sizeof(boundary));
    }
 
+#ifdef HAVE_MONGOOSE616
    if (multithread_mg)
       return queue_decode_post(nc, msg, boundary, uri, query_string, t);
+#endif
 
    Cookies cookies;
 
@@ -17889,10 +17897,12 @@ static int handle_http_get(struct mg_connection *nc, const http_message* msg, co
       return RESPONSE_SENT;
    }
 
+#ifdef HAVE_MONGOOSE616
    if (multithread_mg)
       return queue_decode_get(nc, msg, uri, query_string.c_str(), t);
-   else
-      return handle_decode_get(nc, msg, uri, query_string.c_str(), t);
+#endif
+
+   return handle_decode_get(nc, msg, uri, query_string.c_str(), t);
 }
 
 static int handle_http_post(struct mg_connection *nc, const http_message* msg, const char* uri, RequestTrace* t)
@@ -17926,8 +17936,10 @@ static int handle_http_post(struct mg_connection *nc, const http_message* msg, c
          return RESPONSE_SENT;
       }
 
+#ifdef HAVE_MONGOOSE616
       if (multithread_mg)
          return queue_mjsonrpc(nc, origin_header, post_data, t);
+#endif
 
       //printf("post body: %s\n", post_data.c_str());
 
@@ -18877,8 +18889,10 @@ int main(int argc, const char *argv[])
          trace_mg_send = false;
       } else if (strcmp(argv[i], "--verbose-mg") == 0) {
          verbose_mg = true;
+#ifdef HAVE_MONGOOSE616
       } else if (strcmp(argv[i], "--no-multithread") == 0) {
          multithread_mg = false;
+#endif
       } else if (strcmp(argv[i], "--no-passwords") == 0) {
          use_passwords = false;
       } else if (argv[i][0] == '-') {
@@ -19036,9 +19050,12 @@ int main(int argc, const char *argv[])
       status = gAuthMg->Init();
       if (status != SUCCESS) {
          printf("Error: Cannot initialize authorization object!\n");
-      cm_disconnect_experiment();
+         cm_disconnect_experiment();
          return 1;
       }
+      printf("Mongoose web server will use HTTP Digest authentication with realm \"%s\" and password file \"%s\"\n", gAuthMg->realm.c_str(), gAuthMg->passwd_filename.c_str());
+   } else {
+      printf("Mongoose web server will not use password protection\n");
    }
 
    status = mongoose_init();
