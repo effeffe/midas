@@ -17058,14 +17058,39 @@ struct AuthEntry {
    std::string password;
 };
 
-struct Auth {
-   bool active;
+class Auth {
+public:
    std::string realm;
    std::string passwd_filename;
    std::vector<AuthEntry> passwords;
+public:
+   int Init();
 };
 
-static Auth gAuthMg;
+static bool read_passwords(Auth* auth);
+
+int Auth::Init()
+{
+   char exptname[256];
+   exptname[0] = 0;
+   cm_get_experiment_name(exptname, sizeof(exptname));
+   
+   if (strlen(exptname) > 0)
+      realm = exptname;
+   else
+      realm = "midas";
+   
+   bool ok = read_passwords(this);
+   if (!ok) {
+      cm_msg(MERROR, "mongoose", "mongoose web server password file \"%s\" has no passwords for realm \"%s\"", passwd_filename.c_str(), realm.c_str());
+      cm_msg(MERROR, "mongoose", "please add passwords by running: htdigest %s %s midas", passwd_filename.c_str(), realm.c_str());
+      return SS_FILE_ERROR;
+   }
+
+   return SUCCESS;
+}
+
+static Auth *gAuthMg = NULL;
 
 static void xmg_mkmd5resp(const char *method, size_t method_len, const char *uri,
                          size_t uri_len, const char *ha1, size_t ha1_len,
@@ -17155,9 +17180,58 @@ static bool read_passwords(Auth* auth)
    return have_realm;
 }
 
+#if HAVE_MONGOOSE6
+std::string find_var_mg(struct mg_str *hdr, const char* var_name)
+{
+   assert(!"this code is untested!");
+   
+   char* buf = NULL;
+   int buf_size = 0;
+
+   while (1) {
+      if (buf_size == 0) {
+         buf_size = 256;
+         buf = (char*)malloc(buf_size);
+         assert(buf != NULL);
+      }
+         
+      int size = mg_http_parse_header(hdr, var_name, buf, buf_size);
+
+      if (size <= 0) {
+         free(buf);
+         return "";
+      }
+
+      if (size < buf_size) {
+         std::string s = buf;
+         free(buf);
+         return s;
+      }
+
+      buf_size = buf_size*2 + 16;
+      buf = (char*)realloc(buf, buf_size);
+      assert(buf != NULL);
+   }
+}
+#endif
+
+#if HAVE_MONGOOSE616
+std::string find_var_mg(struct mg_str *hdr, const char* var_name)
+{
+   char* buf = NULL;
+   int buf_size = 0;
+   int size = mg_http_parse_header2(hdr, var_name, &buf, buf_size);
+   if (size <= 0)
+      return "";
+   assert(buf != NULL);
+   std::string s = buf;
+   free(buf);
+   return s;
+}
+#endif
+
 static std::string check_digest_auth(struct http_message *hm, Auth* auth)
 {
-   char user[255], cnonce[33], response[40], uri[4000], qop[20], nc[20], nonce[30];
    char expected_response[33];
 
    //printf("HereA!\n");
@@ -17170,21 +17244,23 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
 
    //printf("HereB!\n");
 
-   if (mg_http_parse_header(hdr, "username", user, sizeof(user)) == 0) return "";
-   //printf("HereB1!\n");
-   if (mg_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0) return "";
-   //printf("HereB2!\n");
-   if (mg_http_parse_header(hdr, "response", response, sizeof(response)) == 0) return "";
-   //printf("HereB3!\n");
-   if (mg_http_parse_header(hdr, "uri", uri, sizeof(uri)) == 0) return "";
-   //printf("HereB4!\n");
-   if (mg_http_parse_header(hdr, "qop", qop, sizeof(qop)) == 0) return "";
-   //printf("HereB5!\n");
-   if (mg_http_parse_header(hdr, "nc", nc, sizeof(nc)) == 0) return "";
-   //printf("HereB6!\n");
-   if (mg_http_parse_header(hdr, "nonce", nonce, sizeof(nonce)) == 0) return "";
-   //printf("HereB7!\n");
-   if (xmg_check_nonce(nonce) == 0) return "";
+   std::string user     = find_var_mg(hdr, "username");
+   std::string cnonce   = find_var_mg(hdr, "cnonce");
+   std::string response = find_var_mg(hdr, "response");
+   std::string uri      = find_var_mg(hdr, "uri");
+   std::string qop      = find_var_mg(hdr, "qop");
+   std::string nc       = find_var_mg(hdr, "nc");
+   std::string nonce    = find_var_mg(hdr, "nonce");
+
+   if (user.length()<1) return "";
+   if (cnonce.length()<1) return "";
+   if (response.length()<1) return "";
+   if (uri.length()<1) return "";
+   if (qop.length()<1) return "";
+   if (nc.length()<1) return "";
+   if (nonce.length()<1) return "";
+
+   if (xmg_check_nonce(nonce.c_str()) == 0) return "";
    //printf("HereB8!\n");
 
    //printf("HereC!\n");
@@ -17194,10 +17270,10 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
 
    int uri_length = uri_end - hm->uri.p;
 
-   if (uri_length != (int)strlen(uri))
+   if (uri_length != uri.length())
       return "";
 
-   int cmp = strncmp(hm->uri.p, uri, uri_length);
+   int cmp = strncmp(hm->uri.p, uri.c_str(), uri_length);
 
    //printf("check URI: message %d %d [%d] authorization [%s]\n", (int)hm->uri.len, uri_length, cmp, uri);
 
@@ -17217,13 +17293,14 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
       xmg_mkmd5resp(hm->method.p, hm->method.len,
                     hm->uri.p, uri_len,
                     f_ha1, strlen(f_ha1),
-                    nonce, strlen(nonce),
-                    nc, strlen(nc),
-                    cnonce, strlen(cnonce),
-                    qop, strlen(qop),
+                    nonce.c_str(), nonce.length(),
+                    nc.c_str(), nc.length(),
+                    cnonce.c_str(), cnonce.length(),
+                    qop.c_str(), qop.length(),
                     expected_response);
-      //printf("digest_auth: expected %s, got %s\n", expected_response, response);
-      if (mg_casecmp(response, expected_response) == 0) {
+      int cmp = strcasecmp(response.c_str(), expected_response);
+      //printf("digest_auth: expected %s, got %s, cmp %d\n", expected_response, response.c_str(), cmp);
+      if (cmp == 0) {
          return e->username;
       }
     }
@@ -18022,8 +18099,8 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       return;
    }
 
-   if (gAuthMg.active) {
-      std::string username = check_digest_auth(msg, &gAuthMg);
+   if (gAuthMg) {
+      std::string username = check_digest_auth(msg, gAuthMg);
 
       // Cannot re-read the password file - it is not thread safe to do so
       // unless I lock gAuthMg for each call check_digest_auth() and if I do so,
@@ -18042,9 +18119,9 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
 
       if (username.length() == 0) {
          if (trace_mg||verbose_mg)
-            printf("handle_http_message: method [%s] uri [%s] query [%s] proto [%s], sending auth request for realm \"%s\"\n", method.c_str(), uri.c_str(), query_string.c_str(), mgstr(&msg->proto).c_str(), gAuthMg.realm.c_str());
+            printf("handle_http_message: method [%s] uri [%s] query [%s] proto [%s], sending auth request for realm \"%s\"\n", method.c_str(), uri.c_str(), query_string.c_str(), mgstr(&msg->proto).c_str(), gAuthMg->realm.c_str());
 
-         xmg_http_send_digest_auth_request(nc, gAuthMg.realm.c_str());
+         xmg_http_send_digest_auth_request(nc, gAuthMg->realm.c_str());
          t->fCompleted = true;
          gTraceBuf->AddTraceMTS(t);
          return;
@@ -18528,28 +18605,14 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
       printf("Mongoose web server will use SSL certificate file \"%s\"\n", cert_file.c_str());
    }
 
-   gAuthMg.active = false;
-
    if (need_password_file) {
-      char exptname[256];
-      exptname[0] = 0;
-      cm_get_experiment_name(exptname, sizeof(exptname));
-
-      if (strlen(exptname) > 0)
-         gAuthMg.realm = exptname;
-      else
-         gAuthMg.realm = "midas";
-
-      bool ok = read_passwords(&gAuthMg);
-      if (!ok) {
-         cm_msg(MERROR, "mongoose", "mongoose web server password file \"%s\" has no passwords for realm \"%s\"", gAuthMg.passwd_filename.c_str(), gAuthMg.realm.c_str());
-         cm_msg(MERROR, "mongoose", "please add passwords by running: htdigest %s %s midas", gAuthMg.passwd_filename.c_str(), gAuthMg.realm.c_str());
-         return SS_FILE_ERROR;
+      gAuthMg = new Auth();
+      status = gAuthMg->Init();
+      if (status != SUCCESS) {
+         printf("Error: Cannot initialize authorization object!\n");
+         return status;
       }
-
-      gAuthMg.active = true;
-
-      printf("Mongoose web server will use authentication realm \"%s\", password file \"%s\"\n", gAuthMg.realm.c_str(), gAuthMg.passwd_filename.c_str());
+      printf("Mongoose web server will use authentication realm \"%s\", password file \"%s\"\n", gAuthMg->realm.c_str(), gAuthMg->passwd_filename.c_str());
    } else {
       printf("Mongoose web server will not use password protection\n");
    }
@@ -18739,6 +18802,7 @@ int main(int argc, const char *argv[])
    char str[256];
    int user_http_port = 0;
    int user_https_port = 0;
+   bool use_passwords = true;
    const char *myname = "mhttpd";
 
    setbuf(stdout, NULL);
@@ -18815,6 +18879,8 @@ int main(int argc, const char *argv[])
          verbose_mg = true;
       } else if (strcmp(argv[i], "--no-multithread") == 0) {
          multithread_mg = false;
+      } else if (strcmp(argv[i], "--no-passwords") == 0) {
+         use_passwords = false;
       } else if (argv[i][0] == '-') {
          if (i + 1 >= argc || argv[i + 1][0] == '-')
             goto usage;
@@ -18965,10 +19031,20 @@ int main(int argc, const char *argv[])
    /* establish Ctrl-C handler - will set _abort to TRUE */
    ss_ctrlc_handler(ctrlc_handler);
 
+   if (use_passwords) {
+      gAuthMg = new Auth();
+      status = gAuthMg->Init();
+      if (status != SUCCESS) {
+         printf("Error: Cannot initialize authorization object!\n");
+      cm_disconnect_experiment();
+         return 1;
+      }
+   }
+
    status = mongoose_init();
    if (status != SUCCESS) {
       // At least print something!
-      printf("could not start the mongoose web server, see messages and midas.log, bye!\n");
+      printf("Error: Could not start the mongoose web server, see messages and midas.log, bye!\n");
       cm_disconnect_experiment();
       return 1;
    }
