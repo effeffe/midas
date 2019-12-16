@@ -62,13 +62,15 @@ static std::string toString(int i)
 class Attachment
 {
 public:
-   char *_attachment_buffer[3];
-   INT _attachment_size[3];
+   char*  attachment_buffer[3];
+   size_t attachment_size[3];
 public:
    Attachment() // ctor
    {
-      _attachment_buffer[0] = _attachment_buffer[1] = _attachment_buffer[2] = NULL;
-      _attachment_size[0] = _attachment_size[1] = _attachment_size[2] = 0;
+      for (int i=0; i<3; i++) {
+         attachment_buffer[i] = NULL;
+         attachment_size[i] = 0;
+      }
    }
    ~Attachment() // dtor
    {
@@ -78,10 +80,10 @@ public:
    }
    void clear(int i)
    {
-      if (_attachment_size[i]) {
-         // FIXME: this is a pointer to (probably) the request memory buffer //free(_attachment_buffer[i]);
-         _attachment_size[i] = 0;
-         _attachment_buffer[i] = NULL;
+      if (attachment_size[i]) {
+         attachment_size[i] = 0;
+         free(attachment_buffer[i]);
+         attachment_buffer[i] = NULL;
       }
    }
 };
@@ -3454,7 +3456,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
    char path[256], path1[256];
    char mail_to[256], mail_from[256], mail_text[10000], mail_list[256],
        smtp_host[256], tag[80], mail_param[1000];
-   char *buffer[3], *p, *pitem;
+   char *p, *pitem;
    HNDLE hDB, hkey;
    char att_file[3][256];
    int fh, size, n_mail;
@@ -3467,11 +3469,10 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
 
    /* check for valid attachment files */
    for (int i = 0; i < 3; i++) {
-      buffer[i] = NULL;
       char str[256];
       sprintf(str, "attachment%d", i);
       //printf("submit_elog: att %d, [%s] param [%s], size %d\n", i, str, pp->getparam(str), a->_attachment_size[i]);
-      if (pp->getparam(str) && *pp->getparam(str) && a->_attachment_size[i] == 0) {
+      if (pp->getparam(str) && *pp->getparam(str) && a->attachment_size[i] == 0) {
          /* replace '\' by '/' */
          strlcpy(path, pp->getparam(str), sizeof(path));
          strlcpy(path1, path, sizeof(path1));
@@ -3483,27 +3484,27 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
             std::string bout;
             gen_odb_attachment(r, path, bout);
             int bufsize = bout.length()+1;
-            buffer[i] = (char*)M_MALLOC(bufsize);
-            memcpy(buffer[i], bout.c_str(), bufsize);
+            char* buf = (char*)M_MALLOC(bufsize);
+            memcpy(buf, bout.c_str(), bufsize);
             strlcpy(att_file[i], path, sizeof(att_file[0]));
             strlcat(att_file[i], ".html", sizeof(att_file[0]));
-            a->_attachment_buffer[i] = buffer[i];
-            a->_attachment_size[i] = bufsize;
+            a->attachment_buffer[i] = buf;
+            a->attachment_size[i] = bufsize;
          }
          /* check if local file */
          else if ((fh = open(path1, O_RDONLY | O_BINARY)) >= 0) {
             size = lseek(fh, 0, SEEK_END);
-            buffer[i] = (char*)M_MALLOC(size);
+            char* buf = (char*)M_MALLOC(size);
             lseek(fh, 0, SEEK_SET);
-            int rd = read(fh, buffer[i], size);
+            int rd = read(fh, buf, size);
             if (rd < 0)
                rd = 0;
             close(fh);
             strlcpy(att_file[i], path, sizeof(att_file[0]));
-            a->_attachment_buffer[i] = buffer[i];
-            a->_attachment_size[i] = rd;
+            a->attachment_buffer[i] = buf;
+            a->attachment_size[i] = rd;
          } else if (strncmp(path, "/HS/", 4) == 0) {
-           buffer[i] = (char*)M_MALLOC(100000);
+            char* buf = (char*)M_MALLOC(100000);
             size = 100000;
             strlcpy(str, path + 4, sizeof(str));
             if (strchr(str, '?')) {
@@ -3524,10 +3525,10 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
                }
                *strchr(str, '?') = 0;
             }
-            show_hist_page(pp, r, "image.gif", buffer[i], &size, 0);
+            show_hist_page(pp, r, "image.gif", buf, &size, 0);
             strlcpy(att_file[i], str, sizeof(att_file[0]));
-            a->_attachment_buffer[i] = buffer[i];
-            a->_attachment_size[i] = size;
+            a->attachment_buffer[i] = buf;
+            a->attachment_size[i] = size;
             pp->unsetparam("scale");
             pp->unsetparam("offset");
             pp->unsetparam("width");
@@ -3566,9 +3567,9 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
                           pp->getparam("text"),
                           pp->getparam("orig"),
                           *pp->getparam("html") ? "HTML" : "plain",
-                          att_file[0], a->_attachment_buffer[0], a->_attachment_size[0],
-                          att_file[1], a->_attachment_buffer[1], a->_attachment_size[1],
-                          att_file[2], a->_attachment_buffer[2], a->_attachment_size[2],
+                          att_file[0], a->attachment_buffer[0], a->attachment_size[0],
+                          att_file[1], a->attachment_buffer[1], a->attachment_size[1],
+                          att_file[2], a->attachment_buffer[2], a->attachment_size[2],
                           tag, sizeof(tag));
 
    //printf("el_submit status %d, tag [%s]\n", status, tag);
@@ -3651,12 +3652,6 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
          }
       }
    }
-
-   for (int i = 0; i < 3; i++)
-      if (buffer[i]) {
-         M_FREE(buffer[i]);
-         buffer[i] = NULL;
-      }
 
    r->rsprintf("HTTP/1.1 302 Found\r\n");
    r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
@@ -16580,14 +16575,15 @@ void decode_get(Return* rr, char *string, const Cookies* c, const char* url, con
 
 /*------------------------------------------------------------------*/
 
-void decode_post(Return* rr, const char *header, char *string, const char *boundary, int length, const Cookies* c, const char* url)
+void decode_post(Return* rr, const char *header, const char *string, const char *boundary, int length, const Cookies* c, const char* url)
 {
-   char *pinit, *p, *pitem, *ptmp, file_name[256], str[256], path[256];
-   int n;
-
+   bool debug_decode_post = false;
+   
    Param* param = new Param;
 
    param->initparam();
+
+   char path[256];
 
    if (url)
       strlcpy(path, url + 1, sizeof(path));     /* strip leading '/' */
@@ -16602,7 +16598,7 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
 
    Attachment* a = new Attachment;
 
-   pinit = string;
+   const char* pinit = string;
 
    /* return if no boundary defined */
    if (!boundary[0])
@@ -16611,44 +16607,57 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
    if (strstr(string, boundary))
       string = strstr(string, boundary) + strlen(boundary);
 
+   if (debug_decode_post)
+      printf("decode_post: -->[%s]<--\n", string);
+
    do {
       //printf("decode_post: [%s]\n", string);
       if (strstr(string, "name=")) {
-         pitem = strstr(string, "name=") + 5;
+         const char* pitem = strstr(string, "name=") + 5;
          if (*pitem == '\"')
             pitem++;
 
          //printf("decode_post: pitem [%s]\n", pitem);
 
          if (strncmp(pitem, "attfile", 7) == 0) {
-            n = pitem[7] - '1';
+            int n = pitem[7] - '1';
+
+            char file_name[256];
+            file_name[0] = 0;
 
             /* evaluate file attachment */
             if (strstr(pitem, "filename=")) {
-               p = strstr(pitem, "filename=") + 9;
+               const char* p = strstr(pitem, "filename=") + 9;
                if (*p == '\"')
                   p++;
                if (strstr(p, "\r\n\r\n"))
                   string = strstr(p, "\r\n\r\n") + 4;
                else if (strstr(p, "\r\r\n\r\r\n"))
                   string = strstr(p, "\r\r\n\r\r\n") + 6;
-               if (strchr(p, '\"'))
-                  *strchr(p, '\"') = 0;
+
+               strlcpy(file_name, p, sizeof(file_name));
+
+               char* pp = file_name;
+               if (strchr(pp, '\"'))
+                  *strchr(pp, '\"') = 0;
 
                /* set attachment filename */
-               strlcpy(file_name, p, sizeof(file_name));
+               char str[256];
                sprintf(str, "attachment%d", n);
+               if (debug_decode_post)
+                  printf("decode_post: [%s] = [%s]\n", str, file_name);
                param->setparam(str, file_name); // file_name should be decoded?
-            } else
-               file_name[0] = 0;
+            }
 
             /* find next boundary */
-            ptmp = string;
+            const char* ptmp = string;
+            const char* p = NULL;
             do {
                while (*ptmp != '-')
                   ptmp++;
 
-               if ((p = strstr(ptmp, boundary)) != NULL) {
+               p = strstr(ptmp, boundary);
+               if (p != NULL) {
                   while (*p == '-')
                      p--;
                   if (*p == 10)
@@ -16664,31 +16673,44 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
 
             /* save pointer to file */
             if (file_name[0]) {
-               a->_attachment_buffer[n] = string;
-               a->_attachment_size[n] = (POINTER_T) p - (POINTER_T) string;
+               size_t size = (POINTER_T) p - (POINTER_T) string;
+               char* buf = (char*)malloc(size+1);
+               if (!buf) {
+                  return;
+               }
+               memcpy(buf, string, size);
+               buf[size] = 0; // make sure string is NUL terminated
+               a->attachment_buffer[n] = buf;
+               a->attachment_size[n] = size;
+               if (debug_decode_post)
+                  printf("decode_post: attachment[%d] size %d data --->[%s]<---\n", n, (int)a->attachment_size[n], a->attachment_buffer[n]);
             }
 
             string = strstr(p, boundary) + strlen(boundary);
          } else {
-            p = pitem;
+            const char* p = pitem;
             if (strstr(p, "\r\n\r\n"))
                p = strstr(p, "\r\n\r\n") + 4;
             else if (strstr(p, "\r\r\n\r\r\n"))
                p = strstr(p, "\r\r\n\r\r\n") + 6;
 
-            if (strchr(pitem, '\"'))
-               *strchr(pitem, '\"') = 0;
+            char* ppitem = (char*)strchr(pitem, '\"'); // NB: defeat "const char* string"
+            if (ppitem)
+               *ppitem = 0;
 
-            if (strstr(p, boundary)) {
-               string = strstr(p, boundary) + strlen(boundary);
-               *strstr(p, boundary) = 0;
-               ptmp = p + (strlen(p) - 1);
+            char* pb = (char*)(strstr(p, boundary)); // NB: defeat "const char* string"
+            if (pb) {
+               string = pb + strlen(boundary);
+               *pb = 0;
+               char* ptmp = (char*)(p + (strlen(p) - 1)); // NB: defeat "const char* string"
                while (*ptmp == '-' || *ptmp == '\n' || *ptmp == '\r')
                   *ptmp-- = 0;
             } else {
                show_error(rr, "Invalid POST request");
                return;
             }
+            if (debug_decode_post)
+               printf("decode_post: [%s] = [%s]\n", pitem, p);
             param->setparam(pitem, p); // in decode_post()
          }
 
@@ -17393,13 +17415,15 @@ static uint32_t s_mwo_seqno = 0;
 struct MongooseWorkObject
 {
    uint32_t seqno = 0;
-   bool http_get = false;
-   bool mjsonrpc = false;
+   bool http_get  = false;
+   bool http_post = false;
+   bool mjsonrpc  = false;
    Cookies cookies;
    std::string origin;
    std::string uri;
    std::string query_string;
    std::string post_body;
+   std::string post_boundary;
    RequestTrace* t = NULL;
    bool send_done = false;
 };
@@ -17415,6 +17439,23 @@ static int queue_decode_get(struct mg_connection *nc, const http_message* msg, c
    decode_cookies(&w->cookies, msg);
    w->uri = uri;
    w->query_string = query_string;
+   w->t = t;
+
+   mongoose_queue(nc, w);
+
+   return RESPONSE_QUEUED;
+}
+
+static int queue_decode_post(struct mg_connection *nc, const http_message* msg, const char* boundary, const char* uri, const char* query_string, RequestTrace* t)
+{
+   MongooseWorkObject* w = new MongooseWorkObject();
+   w->seqno = s_mwo_seqno++;
+   w->http_post = true;
+   decode_cookies(&w->cookies, msg);
+   w->uri = uri;
+   w->query_string = query_string;
+   w->post_body = mgstr(&msg->body);
+   w->post_boundary = boundary;
    w->t = t;
 
    mongoose_queue(nc, w);
@@ -17490,6 +17531,56 @@ static int thread_http_get(void *nc, MongooseWorkObject *w)
    delete rr;
 
    return RESPONSE_SENT;
+}
+
+static int thread_http_post(void *nc, MongooseWorkObject *w)
+{
+   const char* post_data = w->post_body.c_str();
+   int post_data_len = w->post_body.length();
+
+   // lock shared strctures
+
+   int status = ss_mutex_wait_for(request_mutex, 0);
+   assert(status == SS_SUCCESS);
+
+   // prepare return buffer
+
+   Return* rr = new Return;
+
+   rr->zero();
+
+   //printf("post_data_len %d, data [%s], boundary [%s]\n", post_data_len, post_data, boundary);
+
+   decode_post(rr, NULL, (char*)post_data, w->post_boundary.c_str(), post_data_len, &w->cookies, w->uri.c_str());
+
+   if (trace_mg)
+      printf("handle_decode_post: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
+
+   if (rr->return_length == -1) {
+      ss_mutex_release(request_mutex);
+      delete rr;
+      return RESPONSE_501;
+   }
+
+   if (rr->return_length == 0)
+      rr->return_length = strlen(rr->return_buffer);
+
+   ss_mutex_release(request_mutex);
+
+   bool close_flag = false;
+   if (!strstr(rr->return_buffer, "Content-Length")) {
+      // cannot do pipelined http if response generated by mhttpd
+      // decode_get() has no Content-Length header.
+      // must close the connection.
+      close_flag = true;
+   }
+
+   mongoose_send(nc, w, rr->return_buffer, rr->return_length, NULL, 0, close_flag);
+
+   delete rr;
+
+   return RESPONSE_SENT;
+
 }
 
 static int thread_mjsonrpc(void *nc, MongooseWorkObject *w)
@@ -17573,17 +17664,16 @@ static int thread_work_function(void *nc, MongooseWorkObject *w)
 {
    if (w->http_get)
       return thread_http_get(nc, w);
+   else if (w->http_post)
+      return thread_http_post(nc, w);
    else if (w->mjsonrpc)
       return thread_mjsonrpc(nc, w);
    else
       return RESPONSE_501;
 }
 
-static int handle_decode_post(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string)
+static int handle_decode_post(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
 {
-   Cookies cookies;
-
-   decode_cookies(&cookies, msg);
 
    char boundary[256];
    boundary[0] = 0;
@@ -17593,6 +17683,13 @@ static int handle_decode_post(struct mg_connection *nc, const http_message* msg,
       if (s)
          strlcpy(boundary, s+9, sizeof(boundary));
    }
+
+   if (multithread_mg)
+      return queue_decode_post(nc, msg, boundary, uri, query_string, t);
+
+   Cookies cookies;
+
+   decode_cookies(&cookies, msg);
 
    const char* post_data = msg->body.p;
    int post_data_len = msg->body.len;
@@ -17833,7 +17930,7 @@ static int handle_http_post(struct mg_connection *nc, const http_message* msg, c
       return RESPONSE_SENT;
    }
 
-   return handle_decode_post(nc, msg, uri, query_string.c_str());
+   return handle_decode_post(nc, msg, uri, query_string.c_str(), t);
 }
 
 static void handle_http_options_cors(struct mg_connection *nc, const http_message* msg, RequestTrace* t)
