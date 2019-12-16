@@ -16542,7 +16542,7 @@ void decode_query(Param* pp, const char *query_string)
    free(buf);
 }
 
-void decode_get(Return* rr, char *string, const Cookies* c, bool decode_url, const char* url, const char* query_string)
+void decode_get(Return* rr, char *string, const Cookies* c, const char* url, const char* query_string)
 {
    char path[256];
 
@@ -16563,23 +16563,14 @@ void decode_get(Return* rr, char *string, const Cookies* c, bool decode_url, con
 
    param->setparam("path", path);
 
-   if (query_string) {
-      decode_query(param, query_string);
-      param->setparam("query", query_string);
-   } else if (string && strchr(string, '?')) {
-      char* p = strchr(string, '?') + 1;
+   assert(query_string != NULL);
 
-      /* cut trailing "/" from netscape */
-      if (p[strlen(p) - 1] == '/')
-         p[strlen(p) - 1] = 0;
+   decode_query(param, query_string);
 
-      decode_query(param, p);
-   }
+   param->setparam("query", query_string);
 
    char dec_path[256];
    strlcpy(dec_path, path, sizeof(dec_path));
-   if (decode_url)
-      urlDecode(dec_path);
 
    interprete(param, rr, NULL, c, dec_path);
 
@@ -16589,7 +16580,7 @@ void decode_get(Return* rr, char *string, const Cookies* c, bool decode_url, con
 
 /*------------------------------------------------------------------*/
 
-void decode_post(Return* rr, const char *header, char *string, const char *boundary, int length, const Cookies* c, bool decode_url, const char* url)
+void decode_post(Return* rr, const char *header, char *string, const char *boundary, int length, const Cookies* c, const char* url)
 {
    char *pinit, *p, *pitem, *ptmp, file_name[256], str[256], path[256];
    int n;
@@ -16709,8 +16700,6 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
 
    char dec_path[256];
    strlcpy(dec_path, path, sizeof(dec_path));
-   if (decode_url)
-      urlDecode(dec_path);
 
    interprete(param, rr, a, c, dec_path);
 
@@ -17362,7 +17351,7 @@ static int handle_decode_get(struct mg_connection *nc, const http_message* msg, 
 
    // call midas
 
-   decode_get(rr, NULL, &cookies, false, uri, query_string);
+   decode_get(rr, NULL, &cookies, uri, query_string);
 
    if (trace_mg)
       printf("handle_decode_get: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
@@ -17464,7 +17453,7 @@ static int thread_http_get(void *nc, MongooseWorkObject *w)
 
    // call midas
 
-   decode_get(rr, NULL, &w->cookies, false, w->uri.c_str(), w->query_string.c_str());
+   decode_get(rr, NULL, &w->cookies, w->uri.c_str(), w->query_string.c_str());
 
    if (trace_mg)
       printf("handle_decode_get: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
@@ -17621,7 +17610,7 @@ static int handle_decode_post(struct mg_connection *nc, const http_message* msg,
 
    //printf("post_data_len %d, data [%s], boundary [%s]\n", post_data_len, post_data, boundary);
 
-   decode_post(rr, NULL, (char*)post_data, boundary, post_data_len, &cookies, false, uri);
+   decode_post(rr, NULL, (char*)post_data, boundary, post_data_len, &cookies, uri);
 
    if (trace_mg)
       printf("handle_decode_post: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
