@@ -20,6 +20,8 @@
 
 #include "mjsonrpc.h"
 
+#include <mutex> // std::mutex
+
 //////////////////////////////////////////////////////////////////////
 //
 // Specifications for JSON-RPC
@@ -1458,7 +1460,7 @@ static MJsonNode* js_cm_msg1(const MJsonNode* params)
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
 
-static MJsonNode* js_cm_retrieve(const MJsonNode* params)
+static MJsonNode* js_cm_msg_retrieve(const MJsonNode* params)
 {
    if (!params) {
       MJSO *doc = MJSO::I();
@@ -3620,14 +3622,29 @@ static MJsonNode* get_schema(const MJsonNode* params)
 //
 /////////////////////////////////////////////////////////////////////////////////
 
-typedef std::map<std::string, mjsonrpc_handler_t*> MethodHandlers;
-typedef MethodHandlers::iterator MethodHandlersIterator;
-
-static MethodHandlers gHandlers;
-
-void mjsonrpc_add_handler(const char* method, mjsonrpc_handler_t* handler)
+struct MethodsTableEntry
 {
-   gHandlers[method] = handler;
+   mjsonrpc_handler_t* fHandler = NULL;
+   bool fNeedsLocking = false;
+};
+   
+typedef std::map<std::string, MethodsTableEntry> MethodsTable;
+typedef MethodsTable::iterator MethodsTableIterator;
+
+static MethodsTable gMethodsTable;
+static std::mutex* gMutex = NULL;
+
+void mjsonrpc_add_handler(const char* method, mjsonrpc_handler_t* handler, bool needs_locking)
+{
+   MethodsTableEntry e;
+   e.fHandler = handler;
+   e.fNeedsLocking = needs_locking;
+   gMethodsTable[method] = e;
+}
+
+void mjsonrpc_set_std_mutex(void* mutex)
+{
+   gMutex = (std::mutex*)mutex;
 }
 
 void mjsonrpc_init()
@@ -3646,16 +3663,16 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("set_time",    set_time);
    mjsonrpc_add_handler("get_schema",  get_schema);
    // interface to alarm functions
-   mjsonrpc_add_handler("al_reset_alarm",    js_al_reset_alarm);
-   mjsonrpc_add_handler("al_trigger_alarm",  js_al_trigger_alarm);
-   mjsonrpc_add_handler("al_trigger_class",  js_al_trigger_class);
+   mjsonrpc_add_handler("al_reset_alarm",    js_al_reset_alarm,    true);
+   mjsonrpc_add_handler("al_trigger_alarm",  js_al_trigger_alarm,  true);
+   mjsonrpc_add_handler("al_trigger_class",  js_al_trigger_class,  true);
    // interface to midas.c functions
-   mjsonrpc_add_handler("cm_exist",    js_cm_exist);
+   mjsonrpc_add_handler("cm_exist",          js_cm_exist,          true);
    mjsonrpc_add_handler("cm_msg_facilities", js_cm_msg_facilities);
-   mjsonrpc_add_handler("cm_msg_retrieve",   js_cm_retrieve);
-   mjsonrpc_add_handler("cm_msg1",     js_cm_msg1);
-   mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
-   mjsonrpc_add_handler("cm_transition", js_cm_transition);
+   mjsonrpc_add_handler("cm_msg_retrieve",   js_cm_msg_retrieve);
+   mjsonrpc_add_handler("cm_msg1",           js_cm_msg1);
+   mjsonrpc_add_handler("cm_shutdown",   js_cm_shutdown,   true);
+   mjsonrpc_add_handler("cm_transition", js_cm_transition, true);
    // interface to odb functions
    mjsonrpc_add_handler("db_copy",     js_db_copy);
    mjsonrpc_add_handler("db_paste",    js_db_paste);
@@ -3670,23 +3687,23 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("db_reorder", js_db_reorder);
    mjsonrpc_add_handler("db_key",    js_db_key);
    // interface to elog functions
-   mjsonrpc_add_handler("el_retrieve", js_el_retrieve);
-   mjsonrpc_add_handler("el_query",    js_el_query);
-   mjsonrpc_add_handler("el_delete",   js_el_delete);
+   mjsonrpc_add_handler("el_retrieve", js_el_retrieve, true);
+   mjsonrpc_add_handler("el_query",    js_el_query,    true);
+   mjsonrpc_add_handler("el_delete",   js_el_delete,   true);
    // interface to midas history
-   mjsonrpc_add_handler("hs_get_active_events", js_hs_get_active_events);
-   mjsonrpc_add_handler("hs_get_channels", js_hs_get_channels);
-   mjsonrpc_add_handler("hs_get_events", js_hs_get_events);
-   mjsonrpc_add_handler("hs_get_tags", js_hs_get_tags);
-   mjsonrpc_add_handler("hs_get_last_written", js_hs_get_last_written);
-   mjsonrpc_add_handler("hs_reopen", js_hs_reopen);
-   mjsonrpc_add_handler("hs_read", js_hs_read);
-   mjsonrpc_add_handler("hs_read_binned", js_hs_read_binned);
-   mjsonrpc_add_handler("hs_read_arraybuffer", js_hs_read_arraybuffer);
-   mjsonrpc_add_handler("hs_read_binned_arraybuffer", js_hs_read_binned_arraybuffer);
+   mjsonrpc_add_handler("hs_get_active_events", js_hs_get_active_events, true);
+   mjsonrpc_add_handler("hs_get_channels", js_hs_get_channels, true);
+   mjsonrpc_add_handler("hs_get_events", js_hs_get_events, true);
+   mjsonrpc_add_handler("hs_get_tags", js_hs_get_tags, true);
+   mjsonrpc_add_handler("hs_get_last_written", js_hs_get_last_written, true);
+   mjsonrpc_add_handler("hs_reopen", js_hs_reopen, true);
+   mjsonrpc_add_handler("hs_read", js_hs_read, true);
+   mjsonrpc_add_handler("hs_read_binned", js_hs_read_binned, true);
+   mjsonrpc_add_handler("hs_read_arraybuffer", js_hs_read_arraybuffer, true);
+   mjsonrpc_add_handler("hs_read_binned_arraybuffer", js_hs_read_binned_arraybuffer, true);
    // sequencer
-   mjsonrpc_add_handler("seq_list_files", js_seq_list_files);
-   mjsonrpc_add_handler("seq_save_script", js_seq_save_script);
+   mjsonrpc_add_handler("seq_list_files", js_seq_list_files, true);
+   mjsonrpc_add_handler("seq_save_script", js_seq_save_script, true);
    // interface to ss_system functions
    mjsonrpc_add_handler("ss_millitime", js_ss_millitime);
    // methods that perform computations or invoke actions
@@ -3699,7 +3716,7 @@ void mjsonrpc_init()
    mjsonrpc_user_init();
 }
 
-static MJsonNode* mjsonrpc_make_schema(MethodHandlers* h)
+static MJsonNode* mjsonrpc_make_schema(MethodsTable* h)
 {
    MJsonNode* s = MJsonNode::MakeObject();
 
@@ -3711,11 +3728,11 @@ static MJsonNode* mjsonrpc_make_schema(MethodHandlers* h)
 
    MJsonNode* m = MJsonNode::MakeObject();
 
-   for (MethodHandlersIterator iterator = h->begin(); iterator != h->end(); iterator++) {
+   for (MethodsTableIterator iterator = h->begin(); iterator != h->end(); iterator++) {
       // iterator->first = key
       // iterator->second = value
       //printf("build schema for method \"%s\"!\n", iterator->first.c_str());
-      MJsonNode* doc = iterator->second(NULL);
+      MJsonNode* doc = iterator->second.fHandler(NULL);
       if (doc == NULL)
          doc = MJsonNode::MakeObject();
       m->AddToObject(iterator->first.c_str(), doc);
@@ -3729,7 +3746,7 @@ static MJsonNode* mjsonrpc_make_schema(MethodHandlers* h)
 
 MJsonNode* mjsonrpc_get_schema()
 {
-   return mjsonrpc_make_schema(&gHandlers);
+   return mjsonrpc_make_schema(&gMethodsTable);
 }
 
 #ifdef MJSON_DEBUG
@@ -4150,9 +4167,14 @@ static MJsonNode* mjsonrpc_handle_request(const MJsonNode* request)
       *((double*)(ptr+4*2*3)) = 3.14; // float64[3]
       return MJsonNode::MakeArrayBuffer(ptr, size);
    } else {
-      MethodHandlersIterator s = gHandlers.find(ms);
-      if (s != gHandlers.end()) {
-         result = s->second(params);
+      MethodsTableIterator s = gMethodsTable.find(ms);
+      if (s != gMethodsTable.end()) {
+         bool lock = s->second.fNeedsLocking;
+         if (lock && gMutex)
+            gMutex->lock();
+         result = s->second.fHandler(params);
+         if (lock && gMutex)
+            gMutex->unlock();
       } else {
          result = mjsonrpc_make_error(-32601, "Method not found", (std::string("unknown method: ") + ms).c_str());
       }

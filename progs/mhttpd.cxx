@@ -17858,15 +17858,13 @@ static int thread_mjsonrpc(void *nc, MongooseWorkObject *w)
    //int status = ss_mutex_wait_for(request_mutex, 0);
    //assert(status == SS_SUCCESS);
 
-   gMutex.lock();
-
-   w->t->fTimeLocked = GetTimeSec();
+   //gMutex.lock();
+   //w->t->fTimeLocked = GetTimeSec();
 
    MJsonNode* reply = mjsonrpc_decode_post_data(w->post_body.c_str());
 
-   w->t->fTimeUnlocked = GetTimeSec();
-
-   gMutex.unlock();
+   //w->t->fTimeUnlocked = GetTimeSec();
+   //gMutex.unlock();
    
    //ss_mutex_release(request_mutex);
 
@@ -18139,15 +18137,13 @@ static int handle_http_post(struct mg_connection *nc, const http_message* msg, c
       //int status = ss_mutex_wait_for(request_mutex, 0);
       //assert(status == SS_SUCCESS);
 
-      gMutex.lock();
-
-      t->fTimeLocked = GetTimeSec();
+      //gMutex.lock();
+      //t->fTimeLocked = GetTimeSec();
 
       MJsonNode* reply = mjsonrpc_decode_post_data(post_data.c_str());
 
-      t->fTimeUnlocked = GetTimeSec();
-
-      gMutex.unlock();
+      //t->fTimeUnlocked = GetTimeSec();
+      //gMutex.unlock();
       
       //ss_mutex_release(request_mutex);
 
@@ -19244,6 +19240,7 @@ int main(int argc, const char *argv[])
 
    /* initialize the JSON RPC handlers */
    mjsonrpc_init();
+   mjsonrpc_set_std_mutex(&gMutex);
 
    add_rpc_functions();
 
