@@ -16,7 +16,9 @@
 <div id="msidenav"></div>
 
 <div id="mmain">
-   <div align="center" style="margin-top:10px;">
+ <table style="margin-left: auto; margin-right: auto;">
+  <tr align="center" style="margin-top:10px;">
+    <td>
       <button class="mbutton" id='seq_load_script' onclick='load_script()'>Load Script</button>
       <button class="mbutton" id='seq_start_script' onclick='start_script()'>Start Script</button>
       <button class="mbutton" id='seq_edit_script' onclick='edit_script()'>Edit Script</button>
@@ -25,10 +27,11 @@
       <button class="mbutton" id='seq_stop_immediately' onclick='stop_immediately()'>Stop immediately</button>
       <button class="mbutton" id='seq_pause' onclick='pause()'>Pause</button>
       <button class="mbutton" id='seq_resume' onclick='seq_resume()'>Resume</button>
-   </div>
-
-   <div id="msg_state">
-     <table class="mtable" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <table class="mtable" width="100%">
        <tr>
          <th class="mtableheader">Progress</th>
        </tr>
@@ -127,16 +130,21 @@
            </table>
          </td>
        </tr>
-     </table>
-   </div>
+       </table>
+    </td>
+  </tr>
 
-   <div>
-     <table class="mtable" width="100%">
+  <tr>
+    <td>
+      <table class="mtable" width="100%">
+        <tr>
+          <th class="mtableheader">Sequencer File</th>
+        </tr>
+        <tr>
+          <td align="center">Filename: <span id="msg_filename">seq.filename</span></td>
+        </tr>
        <tr>
-         <th class="mtableheader">Sequencer File <span id="msg_filename">seq.filename</span></th>
-       </tr>
-       <tr>
-         <td><a onClick="sshow_lines();return false;" href="#" id="supperarrow">&#x25B2</a></td>
+         <td><a onClick="sshow_lines();return false;" href="#" id="supperarrow">&#x25B2;</a></td>
        </tr>
        <tr>
          <td>
@@ -145,19 +153,21 @@
          </td>
        </tr>
        <tr>
-         <td><a onClick="sshow_lines();return false;" href="#" id="slowerarrow">&#x25BC</a></td>
+         <td><a onClick="sshow_lines();return false;" href="#" id="slowerarrow">&#x25BC;</a></td>
        </tr>
-     </table>
-   </div>
+       </table>
+    </td>
+  </tr>
 
-   <div id="msg_messages">
-     <table class="mtable" width=100%%>
+  <tr id="msg_messages">
+    <td>
+       <table class="mtable" width="100%">
        <tr>
          <th class="mtableheader">Messages</th>
        </tr>
        <tr>
          <td>
-           <pre id="seq_messages"></pre>
+           <span id="seq_messages" style="font-family:monospace"></span>
          </td>
        </tr>
        <tr>
@@ -165,13 +175,16 @@
            <a href="?cmd=Messages">...</a>
          </td>
        </tr>
-     </table>
-   </div>
-
-   <div id="updateStatus" align="left">
-      updateStatus
-   </div>
+       </table>
+    </td>
+  </tr>
+</table>
 </div>
+
+<div id="updateStatus" align="left">
+  updateStatus
+</div>
+
 <div id="dlgError" class="dlgFrame">
   <div class="dlgTitlebar">Error message</div>
   <div class="dlgPanel">
@@ -562,15 +575,30 @@ function sshow_lines()
 
 function show_messages(messages)
 {
-   var m = messages.split("\n");
-   var n = m.length;
+   let m = messages.split("\n");
+   let n = m.length;
    //console.log("n=" + n);
-   var s = "";
-   for (var i=0; i<n; i++) {
+   let s = "";
+   for (let i=0; i<n; i++) {
       if (m[i].length < 1)
          continue;
-      s += m[i];
+      let msg = m[i];
+      if (msg.includes("ERROR")) {
+         s += "<span style=\"color:white;background-color:red;\">";
+      } else {
+         s += "<span>";
+      }
+      let x = msg.indexOf(" ");
+      let msg1 = msg.substr(x+1);
+      let y = msg1.indexOf(" ");
+      let msgt = msg1.substr(0, y);
+      let msg2 = msg1.substr(y+1);
+      let z = msg2.indexOf(" ");
+      let msg3 = msg2.substr(z+1);
+      s += msgt + " " + msg3;
       s += "\n";
+      s += "</span>";
+      s += "<br>";
       //console.log("m [" + m[i] + "]");
    }
 
