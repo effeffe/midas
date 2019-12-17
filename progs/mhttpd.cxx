@@ -91,8 +91,6 @@ public:
 static BOOL elog_mode = FALSE;
 static BOOL history_mode = FALSE;
 static BOOL verbose = FALSE;
-static char midas_hostname[256];
-static char midas_expt[256];
 
 // month name from midas.c
 extern const char *mname[];
@@ -1187,6 +1185,7 @@ bool send_resource(Return* r, const std::string& name, bool generate_404 = true)
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 static LASTMSG lastMsg;
 static LASTMSG lastChatMsg;
 static LASTMSG lastTalkMsg;
@@ -1227,6 +1226,7 @@ void receive_message(HNDLE hBuf, HNDLE id, EVENT_HEADER * pheader, void *message
 {
    print_message((const char *)message);
 }
+#endif
 
 /*-------------------------------------------------------------------*/
 
@@ -1436,24 +1436,27 @@ struct search_data
 INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 {
    search_data* sinfo = (search_data*)info;
-   INT i, size, status;
-   char *p;
-   static char data_str[MAX_ODB_PATH];
-   static char str1[MAX_ODB_PATH], str2[MAX_ODB_PATH];
-   char path[MAX_ODB_PATH], data[10000];
+   int i;
+   INT size, status;
 
    Return* r = sinfo->r;
    const char* search_name = sinfo->search_name;
 
    /* convert strings to uppercase */
+
+   char str1[MAX_ODB_PATH];
    for (i = 0; key->name[i]; i++)
       str1[i] = toupper(key->name[i]);
    str1[i] = 0;
+
+   char str2[MAX_ODB_PATH];
    for (i = 0; key->name[i]; i++)
       str2[i] = toupper(search_name[i]);
    str2[i] = 0;
 
    if (strstr(str1, str2) != NULL) {
+      char path[MAX_ODB_PATH];
+      char data[10000];
       db_get_path(hDB, hKey, str1, MAX_ODB_PATH);
       strlcpy(path, str1 + 1, sizeof(path));    /* strip leading '/' */
       strlcpy(str1, path, sizeof(str1));
@@ -1464,7 +1467,7 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
          r->rsprintf("<tr><td class=\"ODBkey\"><a href=\"?cmd=odb&odb_path=/%s\">/%s</a></tr>\n", path, path);
       } else {
          /* strip variable name from path */
-         p = path + strlen(path) - 1;
+         char* p = path + strlen(path) - 1;
          while (*p && *p != '/')
             *p-- = 0;
          if (*p == '/')
@@ -1472,6 +1475,7 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 
          /* display single value */
          if (key->num_values == 1) {
+            char data_str[MAX_ODB_PATH];
             size = sizeof(data);
             status = db_get_data(hDB, hKey, data, &size, key->type);
             if (status == DB_NO_ACCESS)
@@ -1487,9 +1491,11 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
             r->rsprintf("<tr><td rowspan=%d class=\"ODBkey\">", key->num_values);
             r->rsprintf("<a href=\"?cmd=odb&odb_path=/%s\">/%s/%s\n", path, path, key->name);
 
-            for (i = 0; i < key->num_values; i++) {
+            for (int i = 0; i < key->num_values; i++) {
                size = sizeof(data);
                db_get_data(hDB, hKey, data, &size, key->type);
+
+               char data_str[MAX_ODB_PATH];
                db_sprintf(data_str, data, key->item_size, i, key->type);
 
                if (i > 0)
@@ -7502,7 +7508,7 @@ void show_custom_page(Param* pp, Return* r, const char *cookie_cpwd)
 
 /*------------------------------------------------------------------*/
 
-void show_cnaf_page(Param* p, Return* rr)
+static void show_cnaf_page(Param* p, Return* rr)
 {
    char str[256];
    int c, n, a, f, d, q, x, r, ia, id, w;
@@ -9969,9 +9975,9 @@ time_t string_to_time(const char *str)
 
 /*------------------------------------------------------------------*/
 
-const char* time_to_string(time_t t)
+std::string time_to_string(time_t t)
 {
-   static char buf[256];
+   char buf[256];
    sprintf(buf, "%.0f", (double)t);
    return buf;
 }
@@ -11553,7 +11559,7 @@ void show_query_page(Param* p, Return* r)
 
       sprintf(redir, "?cmd=oldhistory&group=%s&panel=%s&scale=%d&time=%s",
               p->getparam("group"), p->getparam("panel"),
-              (int) (ltime_end - ltime_start), time_to_string(ltime_end));
+              (int) (ltime_end - ltime_start), time_to_string(ltime_end).c_str());
       if (p->isparam("hindex"))
          add_param_to_url(redir, sizeof(redir), "index", p->getparam("hindex"));
       redirect(r, redir);
@@ -13389,7 +13395,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
    }
 
    if (endtime != 0)
-      r->rsprintf("<input type=hidden name=htime id=htime value=%s>\n", time_to_string(endtime));
+      r->rsprintf("<input type=hidden name=htime id=htime value=%s>\n", time_to_string(endtime).c_str());
    if (pwidth && *pwidth)
       r->rsprintf("<input type=hidden name=hwidth id=hwidth value=%s>\n", pwidth);
    if (pheight && *pheight)
@@ -13617,7 +13623,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
             if (endtime != 0) {
                char tmp[256];
-               sprintf(tmp, "time=%s&scale=%d", time_to_string(endtime), scale);
+               sprintf(tmp, "time=%s&scale=%d", time_to_string(endtime).c_str(), scale);
                ref += "&";
                ref += tmp;
                ref2 += "?";
@@ -13709,7 +13715,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       paramstr[0] = 0;
       sprintf(paramstr + strlen(paramstr), "&scale=%d", scale);
       if (endtime != 0)
-         sprintf(paramstr + strlen(paramstr), "&time=%s", time_to_string(endtime));
+         sprintf(paramstr + strlen(paramstr), "&time=%s", time_to_string(endtime).c_str());
       if (pwidth && *pwidth)
          sprintf(paramstr + strlen(paramstr), "&width=%s", pwidth);
       else {
@@ -13842,7 +13848,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
                if (endtime != 0) {
                   char tmp[256];
-                  sprintf(tmp, "time=%s&scale=%d", time_to_string(endtime), scale);
+                  sprintf(tmp, "time=%s&scale=%d", time_to_string(endtime).c_str(), scale);
                   ref += "&";
                   ref += tmp;
                   ref2 += "&";
@@ -13865,6 +13871,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void get_password(char *password)
 {
    static char last_password[32];
@@ -13874,6 +13881,7 @@ void get_password(char *password)
    else
       strcpy(password, last_password);  // unsafe: do not know size of password string, has to be this way because of cm_connect_experiment() KO 27-Jul-2006
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -13920,7 +13928,7 @@ void send_icon(Return* r, const char *icon)
 
 #define XNAME_LENGTH 256
 
-PMXML_NODE pnseq;
+static PMXML_NODE pnseq;
 
 /*------------------------------------------------------------------*/
 
@@ -17536,7 +17544,7 @@ struct MongooseThreadObject
    std::condition_variable fNotify;
 };
 
-std::vector<MongooseThreadObject*> gMongooseThreads;
+static std::vector<MongooseThreadObject*> gMongooseThreads;
 
 static void mongoose_thread(MongooseThreadObject*);
 
@@ -18982,6 +18990,9 @@ int main(int argc, const char *argv[])
    }
 #endif
 
+   char midas_hostname[256];
+   char midas_expt[256];
+
    /* get default from environment */
    cm_get_environment(midas_hostname, sizeof(midas_hostname), midas_expt, sizeof(midas_expt));
 
@@ -19195,11 +19206,13 @@ int main(int argc, const char *argv[])
    mongoose_listen("8443", true);
 #endif
 
+#ifdef OBSOLETE   
    /* place a request for system messages */
    cm_msg_register(receive_message);
 
    /* redirect message display, turn on message logging */
    cm_set_msg_print(MT_ALL, MT_ALL, print_message);
+#endif
 
 #ifdef HAVE_MONGOOSE6
    loop_mg();
