@@ -14,6 +14,7 @@
 #include <assert.h>
 #include <algorithm> // std::sort()
 #include <thread> // std::thread
+#include <deque>  // std::deque
 
 #include "midas.h"
 #include "msystem.h"
@@ -17496,6 +17497,7 @@ static uint32_t s_mwo_seqno = 0;
 struct MongooseWorkObject
 {
    uint32_t seqno = 0;
+   void* nc = NULL;
    bool http_get  = false;
    bool http_post = false;
    bool mjsonrpc  = false;
@@ -17509,7 +17511,82 @@ struct MongooseWorkObject
    bool send_done = false;
 };
 
-static void mongoose_queue(void* nc, MongooseWorkObject* w);
+struct MongooseThreadObject
+{
+   std::thread* fThread = NULL; // thread
+   void*        fNc     = NULL; // thread is attached to this network connection
+   std::mutex   fMutex;
+   std::deque<MongooseWorkObject*> fQueue;
+   std::condition_variable fNotify;
+};
+
+std::vector<MongooseThreadObject*> gMongooseThreads;
+
+static void mongoose_thread(MongooseThreadObject*);
+
+MongooseThreadObject* FindThread(void* nc)
+{
+   MongooseThreadObject* last_not_connected = NULL;
+   
+   for (auto it : gMongooseThreads) {
+      MongooseThreadObject* to = it;
+      if (to->fNc == nc) {
+         //printf("to %p, nc %p: found thread\n", to, nc);
+         return to;
+      }
+      if (to->fNc == NULL) {
+         last_not_connected = to;
+      }
+   }
+
+   if (last_not_connected) {
+      MongooseThreadObject* to = last_not_connected;
+      to->fNc = nc;
+      //printf("to %p, nc %p: reusing thread\n", to, nc);
+      return to;
+   }
+
+   MongooseThreadObject* to = new MongooseThreadObject();
+
+   to->fNc = nc;
+
+   //printf("to %p, nc %p: new thread\n", to, nc);
+
+   gMongooseThreads.push_back(to);
+
+   printf("Mongoose web server is using %d threads\n", (int)gMongooseThreads.size());
+
+   to->fThread = new std::thread(mongoose_thread, to);
+   to->fThread->detach();
+
+   return to;
+}
+
+void FreeThread(void* nc)
+{
+   for (auto it : gMongooseThreads) {
+      MongooseThreadObject* to = it;
+      if (to->fNc == nc) {
+         //printf("to %p, nc %p: connection closed\n", to, nc);
+         to->fNc = NULL;
+         return;
+      }
+   }
+
+   //printf("to %p, nc %p: connection closed, but no thread\n", nullptr, nc);
+}
+
+static void mongoose_queue(void* nc, MongooseWorkObject* w)
+{
+   w->nc = nc;
+   MongooseThreadObject* to = FindThread(nc);
+   assert(to->fNc == nc);
+   to->fMutex.lock();
+   to->fQueue.push_back(w);
+   to->fMutex.unlock();
+   to->fNotify.notify_one();
+}
+
 static void mongoose_send(void* nc, MongooseWorkObject* w, const char* p1, size_t s1, const char* p2, size_t s2, bool close_flag = false);
 
 static int queue_decode_get(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
@@ -18205,17 +18282,19 @@ static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data
 
 // from mongoose examples/multithreaded/multithreaded.c
 
-static sock_t s_sock[2];
+//static sock_t s_sock[2];
 static bool s_shutdown = false;
 static struct mg_mgr s_mgr;
 static uint32_t s_seqno = 0;
 static std::mutex s_mg_broadcast_mutex;
 
+#if 0
 // This info is passed to the worker thread
 struct work_request {
    void* nc;
    MongooseWorkObject* w;
 };
+#endif
 
 // This info is passed by the worker thread to mg_broadcast
 struct work_result {
@@ -18231,6 +18310,7 @@ struct work_result {
    bool send_501 = false;
 };
 
+#if 0
 static void mongoose_queue(void *nc, MongooseWorkObject *w)
 {
    struct work_request req = {nc, w};
@@ -18242,6 +18322,7 @@ static void mongoose_queue(void *nc, MongooseWorkObject *w)
       abort();
    }
 }
+#endif
 
 static void on_work_complete(struct mg_connection *nc, int ev, void *ev_data)
 {
@@ -18355,6 +18436,7 @@ static void mongoose_send_501(void* nc, MongooseWorkObject* w)
    s_mg_broadcast_mutex.unlock();
 }
 
+#if 0
 void *worker_thread_proc(void *param)
 {
    //struct mg_mgr *mgr = (struct mg_mgr *) param;
@@ -18395,10 +18477,46 @@ void *worker_thread_proc(void *param)
    }
    return NULL;
 }
+#endif
 
-static void mongoose_thread()
+static void mongoose_thread(MongooseThreadObject* to)
 {
-   worker_thread_proc(NULL);
+   //printf("to %p, nc %p: thread started!\n", to, to->fNc);
+
+   std::unique_lock<std::mutex> ulm(to->fMutex, std::defer_lock);
+   
+   while ((! _abort) && (! s_shutdown)) {
+      MongooseWorkObject *w = NULL;
+
+      ulm.lock();
+      while (to->fQueue.empty()) {
+         //printf("to %p, nc %p: waiting!\n", to, to->fNc);
+         to->fNotify.wait(ulm);
+      }
+      
+      w = to->fQueue.front();
+      to->fQueue.pop_front();
+      ulm.unlock();
+
+      //printf("to %p, nc %p: w: %d, received request!\n", to, w->nc, w->seqno);
+
+      int response = thread_work_function(w->nc, w);
+
+      if (response == RESPONSE_501) {
+         if (trace_mg||verbose_mg)
+            printf("handle_http_message: sending 501 Not Implemented error\n");
+         mongoose_send_501(w->nc, w);
+      }
+
+      w->t->fCompleted = true;
+      gTraceBuf->AddTraceMTS(w->t);
+
+      //printf("nc: %p: w: %d, delete work object!\n", w->nc, w->seqno);
+
+      delete w;
+   }
+
+   //printf("to %p, nc %p: thread finished!\n", to, to->fNc);
 }
 
 static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
@@ -18452,30 +18570,21 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
       if (trace_mg) {
          printf("ev_handler: connection %p, MG_EV_CLOSE\n", nc);
       }
+      FreeThread(nc);
    }
    }
 }
 
-static int mongoose_init(int num_worker_threads = 5)
+static int mongoose_init()
 {
+#if 0
    if (mg_socketpair(s_sock, SOCK_STREAM) == 0) {
       perror("Opening socket pair");
       exit(1);
    }
-   
-   //signal(SIGTERM, signal_handler);
-   //signal(SIGINT, signal_handler);
+#endif
    
    mg_mgr_init(&s_mgr, NULL);
-   
-   //for (int i = 0; i < num_worker_threads; i++) {
-   //   mg_start_thread(worker_thread_proc, &s_mgr);
-   //}
-
-   for (int i = 0; i < num_worker_threads; i++) {
-      std::thread *t = new std::thread(mongoose_thread);
-      t->detach();
-   }
    
    return SUCCESS;
 }
@@ -18537,8 +18646,8 @@ static void mongoose_cleanup()
    
    mg_mgr_free(&s_mgr);
    
-   closesocket(s_sock[0]);
-   closesocket(s_sock[1]);
+   //closesocket(s_sock[0]);
+   //closesocket(s_sock[1]);
 }
 
 #endif
