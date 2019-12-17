@@ -19,36 +19,30 @@
    <table class="mtable" id="seq_table">
       <tbody>
       <tr>
-         <th colspan="2" class="mtableheader">Select a sequence file:</th>
+         <th class="mtableheader">Select a sequence file:</th>
       </tr>
       <tr align="center">
-        <td colspan="2" align="center">
+        <td align="center">
           <button class="mbutton" onclick='load_script()' disabled id="load_button">Load script</button>
           <button class="mbutton" onclick='cancel()'>Cancel</button>
         </td>
       </tr>
       <tr>
-        <td colspan="2">Directory: <span id="msg_directory">msg_directory</span></td>
+        <td>Directory: <span id="msg_directory">msg_directory</span></td>
       </tr>
       <tr>
-        <td colspan="2">Path: <span id="msg_path">msg_path</span></td>
+        <td>Path: <span id="msg_path">msg_path</span></td>
       </tr>
       <tr id="tr_subdir">
-        <td colspan="2">
+        <td>
           Subdir: <span id="msg_subdir">msg_subdir</span>
-          <button class="mbutton" onclick='up_subdir()'>Up</button>
+          <!-- <button class="mbutton" onclick='up_subdir()'>Up</button>-->
         </td>
       </tr>
       <tr>
-        <td>Subdirs:</td>
         <td>
-          <select id="subdir_sel">
-          </select>
-        </td>
-      </tr>
-      <tr align="center">
-        <td colspan="2">
-          <select id="sel">
+          <select id="msg_sel" size="20" style="width:300px">
+            msg_sel
           </select>
         </td>
       </tr>
@@ -94,9 +88,14 @@ function click_script() {
 }
 
 function load_script() {
-   var sel = document.getElementById("sel");
+   var sel = document.getElementById("msg_sel");
    var selected = sel.value;
-   //console.log("Selected: " + selected);
+   //console.log("load_script: Selected: " + selected);
+
+   if (selected.substring(0,1) === "[") {
+      // refuse to load script if the selected a subdirectory
+      return;
+   }
 
    var filename = "";
    if (xsubdir)
@@ -134,10 +133,13 @@ function load_script() {
 var xsubdir;
 
 function load_subdir() {
-   var sel = document.getElementById("subdir_sel");
-   var selected = sel.value;
-   console.log("Selected subdir: " + selected);
-   var nextdir = "";
+   let sel = document.getElementById("msg_sel");
+   let selected = sel.value;
+   // remove the [subdir] brackets
+   selected = selected.substring(1);
+   selected = selected.substring(0,selected.length-1);
+   //console.log("Selected subdir: [" + selected + "]");
+   let nextdir = "";
    if (xsubdir)
       nextdir = xsubdir + "/";
    nextdir += selected;
@@ -189,47 +191,41 @@ function callback(rpc) {
       mhttpd_hide("tr_subdir");
    }
    
-   var subdir_sel = document.getElementById("subdir_sel");
+   let sel = document.getElementById("msg_sel");
+   let count = 0;
 
    if (subdirs) {
-      subdir_sel.innerHTML = "";
-      var count = 0;
-      if (0 && xsubdir) {
-         var o = document.createElement("option");
-         o.innerHTML = "..";
+      if (1 && xsubdir) {
+         let o = document.createElement("option");
+         o.innerHTML = "[..]";
          o.selected = false;
          o.addEventListener("dblclick", up_subdir);
-         subdir_sel.appendChild(o);
+         sel.appendChild(o);
          count++;
       }
       subdirs.forEach(function (item, index) {
          //console.log(item, index);
-         var o = document.createElement("option");
-         o.innerHTML = item;
+         let o = document.createElement("option");
+         o.innerHTML = "[" + item + "]";
+         o.subdir_name = item;
          o.selected = false;
          o.addEventListener("dblclick", load_subdir);
-         subdir_sel.appendChild(o);
+         sel.appendChild(o);
          count++;
+         //let s = document.createElement("span");
+         //s.innerHTML = "[" + item + "]";
+         //s.subdir_name = item;
+         //s.addEventListener("dblclick", load_subdir);
+         //sel.appendChild(o);
       });
-      if (count > 0) {
-         subdir_sel.size = count+1;
-         mhttpd_unhide("subdir_sel");
-      } else {
-         mhttpd_hide("subdir_sel");
-      }
    }
-
-   var sel = document.getElementById("sel");
-
-   var sel_size = 0;
-   sel.innerHTML = "";
 
    if (files) {
       files.forEach(function (item) {
          //console.log(item);
-         var o = document.createElement("option");
+         let o = document.createElement("option");
          o.innerHTML = item.filename; // + " : " + item.description;
-         var xfilename = "";
+         let xfilename = "";
          if (xsubdir)
             xfilename += xsubdir + "/";
          xfilename += item.filename;
@@ -244,16 +240,11 @@ function callback(rpc) {
          o.addEventListener("click", click_script);
          o.addEventListener("dblclick", load_script);
          sel.appendChild(o);
-         sel_size++;
+         count++;
       });
    }
 
-   if (sel_size > 0) {
-      sel.size = sel_size+1;
-      mhttpd_unhide("sel");
-   } else {
-      mhttpd_hide("sel");
-   }
+   //sel.size = count;
 }
 
 function update() {
