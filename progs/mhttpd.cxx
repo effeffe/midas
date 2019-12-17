@@ -39,7 +39,9 @@
 /* refresh times in seconds */
 #define DEFAULT_REFRESH 60
 
-static MUTEX_T* request_mutex = NULL;
+//static MUTEX_T* request_mutex = NULL;
+
+static std::mutex gMutex;
 
 // FIXME: what does "referer" do?!?
 //char referer[256];
@@ -8580,13 +8582,11 @@ void show_password_page(Return* r, const char* dec_path, const char *password)
 
 /*------------------------------------------------------------------*/
 
-BOOL check_web_password(Return* r, const char* dec_path, const char *password, const char *redir)
+BOOL check_web_password(Return* r, HNDLE hDB, const char* dec_path, const char *password, const char *redir)
 {
-   HNDLE hDB, hkey;
+   HNDLE hkey;
    INT size;
    char str[256];
-
-   cm_get_experiment_database(&hDB, NULL);
 
    /* check for password */
    db_find_key(hDB, 0, "/Experiment/Security/Web Password", &hkey);
@@ -15615,7 +15615,21 @@ struct Cookies
 
 /*------------------------------------------------------------------*/
 
-void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char *dec_path)
+void Lock(RequestTrace* t)
+{
+   gMutex.lock();
+   t->fTimeLocked = GetTimeSec();
+}
+
+void Unlock(RequestTrace* t)
+{
+   t->fTimeUnlocked = GetTimeSec();
+   gMutex.unlock();
+}
+
+/*------------------------------------------------------------------*/
+
+void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char *dec_path, RequestTrace* t)
 /********************************************************************\
 
  Routine: interprete
@@ -15649,7 +15663,9 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
             return;
          }
 
+         Lock(t);
          show_hist_page(p, r, dec_path, NULL, NULL, c->refresh);
+         Unlock(t);
          return;
       }
       return;
@@ -15665,7 +15681,9 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       /* check for excemption */
       db_find_key(hDB, 0, "/Experiment/Security/Allowed programs/mhttpd", &hkey);
       if (hkey == 0 && strcmp(c->cookie_pwd.c_str(), str) != 0) {
+         Lock(t);
          show_password_page(r, dec_path, "");
+         Unlock(t);
          return;
       }
    }
@@ -15695,7 +15713,7 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
 
    if (wpassword[0]) {
       /* check if password correct */
-      if (!check_web_password(r, dec_path, ss_crypt(wpassword, "mi"), p->getparam("redir")))
+      if (!check_web_password(r, hDB, dec_path, ss_crypt(wpassword, "mi"), p->getparam("redir")))
          return;
 
       r->rsprintf("HTTP/1.1 302 Found\r\n");
@@ -15791,14 +15809,18 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       char str[256];
 
       sprintf(str, "%s?script=%s", dec_path, p->getparam("script")); // FIXME: overflows str[]
-      if (!check_web_password(r, dec_path, c->cookie_wpwd.c_str(), str))
+      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str))
          return;
 
       std::string path;
       path += "/Script/";
       path += p->getparam("script");
 
+      Lock(t);
+
       cm_exec_script(path.c_str());
+
+      Unlock(t);
 
       if (p->isparam("redir"))
          redirect2(r, p->getparam("redir"));
@@ -15814,14 +15836,18 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       char str[256];
 
       sprintf(str, "%s?customscript=%s", dec_path, p->getparam("customscript")); // FIXME: overflows str[]
-      if (!check_web_password(r, dec_path, c->cookie_wpwd.c_str(), str))
+      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str))
          return;
 
       std::string path;
       path += "/CustomScript/";
       path += p->getparam("customscript");
 
+      Lock(t);
+
       cm_exec_script(path.c_str());
+
+      Unlock(t);
 
       if (p->isparam("redir"))
          redirect2(r, p->getparam("redir"));
@@ -15948,7 +15974,9 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
        equal_ustring(command, "jrpc_rev0") ||
        equal_ustring(command, "jrpc_rev1") ||
        equal_ustring(command, "jrpc")) {
+      Lock(t);
       javascript_commands(p, r, c->cookie_cpwd.c_str());
+      Unlock(t);
       return;
    }
 
@@ -15977,7 +16005,9 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
    /*---- history command -------------------------------------------*/
 
    if (equal_ustring(command, "oldhistory")) {
+      Lock(t);
       show_hist_page(p, r, dec_path, NULL, NULL, c->refresh);
+      Unlock(t);
       return;
    }
 
@@ -15992,22 +16022,28 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       if (equal_ustring(command, "set")) {
          char str[256];
          sprintf(str, "%s?cmd=%s", dec_path, command);
-         if (!check_web_password(r, dec_path, c->cookie_wpwd.c_str(), str))
+         if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str))
             return;
       }
+
+      Lock(t);
 
 #ifdef HAVE_MSCB
       show_mscb_page(p, r, c->refresh);
 #else
       show_error(r, "MSCB support not compiled into this version of mhttpd");
 #endif
+
+      Unlock(t);
       return;
    }
 
    /*---- help command ----------------------------------------------*/
 
    if (equal_ustring(command, "help")) {
+      Lock(t);
       show_help_page(r, dec_path);
+      Unlock(t);
       return;
    }
 
@@ -16016,8 +16052,10 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
    if (strncmp(command, "Trigger", 7) == 0) {
       char str[256];
       sprintf(str, "?cmd=%s", command);
-      if (!check_web_password(r, dec_path, c->cookie_wpwd.c_str(), str))
+      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str))
          return;
+
+      Lock(t);
 
       /* extract equipment name */
       char eq_name[NAME_LENGTH];
@@ -16058,6 +16096,8 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
          }
       }
 
+      Unlock(t);
+
       return;
    }
 
@@ -16085,14 +16125,16 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
    if (equal_ustring(command, "set")) {
       char str[256];
       strlcpy(str, "?cmd=set", sizeof(str));
-      if (!check_web_password(r, dec_path, c->cookie_wpwd.c_str(), str))
+      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str))
          return;
 
       const char* group = p->getparam("group");
       int index = atoi(p->getparam("index"));
       const char* value = p->getparam("value");
 
+      Lock(t);
       show_set_page(p, r, group, index, value);
+      Unlock(t);
       return;
    }
 
@@ -16100,17 +16142,21 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
 
    if (equal_ustring(command, "find")) {
       const char* value = p->getparam("value");
+      Lock(t);
       show_find_page(r, value);
+      Unlock(t);
       return;
    }
 
    /*---- CAMAC CNAF command ----------------------------------------*/
 
    if (equal_ustring(command, "CNAF") || strncmp(dec_path, "CNAF", 4) == 0) {
-      if (!check_web_password(r, dec_path, c->cookie_wpwd.c_str(), "?cmd=CNAF"))
+      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), "?cmd=CNAF"))
          return;
 
+      Lock(t);
       show_cnaf_page(p, r);
+      Unlock(t);
       return;
    }
 
@@ -16162,7 +16208,9 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
    }
 
    if (equal_ustring(command, "Submit elog")) {
+      Lock(t);
       submit_elog(p, r, a);
+      Unlock(t);
       return;
    }
 
@@ -16174,7 +16222,9 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
 #endif
 
    if (equal_ustring(command, "elog_att")) {
+      Lock(t);
       show_elog_attachment(p, r, dec_path);
+      Unlock(t);
       return;
    }
 
@@ -16222,7 +16272,9 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
    /*---- slow control display --------------------------------------*/
 
    if (equal_ustring(command, "eqtable")) {
+      Lock(t);
       show_eqtable_page(p, r, c->refresh);
+      Unlock(t);
       return;
    }
 
@@ -16254,68 +16306,94 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
    }
 
    if (equal_ustring(command, "Sequencer")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Start script")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Cancel script")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Load script")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "New script")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Save script")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Edit script")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "SPause")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "SResume")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Stop immediately")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Stop after current run")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Cancel \'Stop after current run\'")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
 #ifdef OBSOLETE
    if (strncmp(dec_path, "SEQ/", 4) == 0) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 #endif
@@ -16343,7 +16421,9 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       strlcpy(odb_dec_path, odb_enc_path, sizeof(odb_dec_path));
       urlDecode(odb_dec_path);
 
+      Lock(t);
       show_odb_page(p, r, odb_enc_path, sizeof(odb_enc_path), odb_dec_path, write_access);
+      Unlock(t);
       return;
    }
 
@@ -16391,7 +16471,9 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
    /*---- custom page -----------------------------------------------*/
 
    if (equal_ustring(command, "custom")) {
+      Lock(t);
       show_custom_page(p, r, c->cookie_cpwd.c_str());
+      Unlock(t);
       return;
    }
 
@@ -16421,7 +16503,9 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
             return;
          }
 
+         Lock(t);
          show_custom_gif(r, dec_path);
+         Unlock(t);
          return;
       }
 
@@ -16477,7 +16561,9 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
          }
 
          p->setparam("page", dec_path);
+         Lock(t);
          show_custom_page(p, r, c->cookie_cpwd.c_str());
+         Unlock(t);
          return;
       }
    }
@@ -16562,7 +16648,7 @@ void decode_query(Param* pp, const char *query_string)
    free(buf);
 }
 
-void decode_get(Return* rr, char *string, const Cookies* c, const char* url, const char* query_string)
+void decode_get(Return* rr, char *string, const Cookies* c, const char* url, const char* query_string, RequestTrace* t)
 {
    char path[256];
 
@@ -16592,7 +16678,7 @@ void decode_get(Return* rr, char *string, const Cookies* c, const char* url, con
    char dec_path[256];
    strlcpy(dec_path, path, sizeof(dec_path));
 
-   interprete(param, rr, NULL, c, dec_path);
+   interprete(param, rr, NULL, c, dec_path, t);
 
    param->freeparam();
    delete param;
@@ -16600,7 +16686,7 @@ void decode_get(Return* rr, char *string, const Cookies* c, const char* url, con
 
 /*------------------------------------------------------------------*/
 
-void decode_post(Return* rr, const char *header, const char *string, const char *boundary, int length, const Cookies* c, const char* url)
+void decode_post(Return* rr, const char *header, const char *string, const char *boundary, int length, const Cookies* c, const char* url, RequestTrace* t)
 {
    bool debug_decode_post = false;
    
@@ -16748,7 +16834,7 @@ void decode_post(Return* rr, const char *header, const char *string, const char 
    char dec_path[256];
    strlcpy(dec_path, path, sizeof(dec_path));
 
-   interprete(param, rr, a, c, dec_path);
+   interprete(param, rr, a, c, dec_path, t);
 
    delete a;
    delete param;
@@ -17464,10 +17550,10 @@ static int handle_decode_get(struct mg_connection *nc, const http_message* msg, 
 
    // lock shared structures
 
-   int status = ss_mutex_wait_for(request_mutex, 0);
-   assert(status == SS_SUCCESS);
+   //int status = ss_mutex_wait_for(request_mutex, 0);
+   //assert(status == SS_SUCCESS);
 
-   t->fTimeLocked = GetTimeSec();
+   //t->fTimeLocked = GetTimeSec();
 
    // prepare return buffer
 
@@ -17477,7 +17563,7 @@ static int handle_decode_get(struct mg_connection *nc, const http_message* msg, 
 
    // call midas
 
-   decode_get(rr, NULL, &cookies, uri, query_string);
+   decode_get(rr, NULL, &cookies, uri, query_string, t);
 
    if (trace_mg)
       printf("handle_decode_get: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
@@ -17486,17 +17572,17 @@ static int handle_decode_get(struct mg_connection *nc, const http_message* msg, 
 
    if (rr->return_length == -1) {
       delete rr;
-      t->fTimeUnlocked = GetTimeSec();
-      ss_mutex_release(request_mutex);
+      //t->fTimeUnlocked = GetTimeSec();
+      //ss_mutex_release(request_mutex);
       return RESPONSE_501;
    }
 
    if (rr->return_length == 0)
       rr->return_length = strlen(rr->return_buffer);
 
-   t->fTimeUnlocked = GetTimeSec();
+   //t->fTimeUnlocked = GetTimeSec();
 
-   ss_mutex_release(request_mutex);
+   //ss_mutex_release(request_mutex);
 
    mg_send(nc, rr->return_buffer, rr->return_length);
 
@@ -17663,10 +17749,10 @@ static int thread_http_get(void *nc, MongooseWorkObject *w)
 {
    // lock shared structures
 
-   int status = ss_mutex_wait_for(request_mutex, 0);
-   assert(status == SS_SUCCESS);
+   //int status = ss_mutex_wait_for(request_mutex, 0);
+   //assert(status == SS_SUCCESS);
 
-   w->t->fTimeLocked = GetTimeSec();
+   //w->t->fTimeLocked = GetTimeSec();
 
    // prepare return buffer
 
@@ -17676,7 +17762,7 @@ static int thread_http_get(void *nc, MongooseWorkObject *w)
 
    // call midas
 
-   decode_get(rr, NULL, &w->cookies, w->uri.c_str(), w->query_string.c_str());
+   decode_get(rr, NULL, &w->cookies, w->uri.c_str(), w->query_string.c_str(), w->t);
 
    if (trace_mg)
       printf("handle_decode_get: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
@@ -17685,17 +17771,17 @@ static int thread_http_get(void *nc, MongooseWorkObject *w)
 
    if (rr->return_length == -1) {
       delete rr;
-      w->t->fTimeUnlocked = GetTimeSec();
-      ss_mutex_release(request_mutex);
+      //w->t->fTimeUnlocked = GetTimeSec();
+      //ss_mutex_release(request_mutex);
       return RESPONSE_501;
    }
 
    if (rr->return_length == 0)
       rr->return_length = strlen(rr->return_buffer);
 
-   w->t->fTimeUnlocked = GetTimeSec();
+   //w->t->fTimeUnlocked = GetTimeSec();
 
-   ss_mutex_release(request_mutex);
+   //ss_mutex_release(request_mutex);
 
    bool close_flag = false;
 
@@ -17722,8 +17808,8 @@ static int thread_http_post(void *nc, MongooseWorkObject *w)
 
    // lock shared strctures
 
-   int status = ss_mutex_wait_for(request_mutex, 0);
-   assert(status == SS_SUCCESS);
+   //int status = ss_mutex_wait_for(request_mutex, 0);
+   //assert(status == SS_SUCCESS);
 
    // prepare return buffer
 
@@ -17733,13 +17819,13 @@ static int thread_http_post(void *nc, MongooseWorkObject *w)
 
    //printf("post_data_len %d, data [%s], boundary [%s]\n", post_data_len, post_data, boundary);
 
-   decode_post(rr, NULL, (char*)post_data, w->post_boundary.c_str(), post_data_len, &w->cookies, w->uri.c_str());
+   decode_post(rr, NULL, (char*)post_data, w->post_boundary.c_str(), post_data_len, &w->cookies, w->uri.c_str(), w->t);
 
    if (trace_mg)
       printf("handle_decode_post: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
 
    if (rr->return_length == -1) {
-      ss_mutex_release(request_mutex);
+      //ss_mutex_release(request_mutex);
       delete rr;
       return RESPONSE_501;
    }
@@ -17747,7 +17833,7 @@ static int thread_http_post(void *nc, MongooseWorkObject *w)
    if (rr->return_length == 0)
       rr->return_length = strlen(rr->return_buffer);
 
-   ss_mutex_release(request_mutex);
+   //ss_mutex_release(request_mutex);
 
    bool close_flag = false;
    if (!strstr(rr->return_buffer, "Content-Length")) {
@@ -17769,8 +17855,10 @@ static int thread_mjsonrpc(void *nc, MongooseWorkObject *w)
 {
    w->t->fRPC = w->post_body;
 
-   int status = ss_mutex_wait_for(request_mutex, 0);
-   assert(status == SS_SUCCESS);
+   //int status = ss_mutex_wait_for(request_mutex, 0);
+   //assert(status == SS_SUCCESS);
+
+   gMutex.lock();
 
    w->t->fTimeLocked = GetTimeSec();
 
@@ -17778,7 +17866,9 @@ static int thread_mjsonrpc(void *nc, MongooseWorkObject *w)
 
    w->t->fTimeUnlocked = GetTimeSec();
 
-   ss_mutex_release(request_mutex);
+   gMutex.unlock();
+   
+   //ss_mutex_release(request_mutex);
 
    if (reply->GetType() == MJSON_ARRAYBUFFER) {
       const char* ptr;
@@ -17882,8 +17972,8 @@ static int handle_decode_post(struct mg_connection *nc, const http_message* msg,
 
    // lock shared strctures
 
-   int status = ss_mutex_wait_for(request_mutex, 0);
-   assert(status == SS_SUCCESS);
+   //int status = ss_mutex_wait_for(request_mutex, 0);
+   //assert(status == SS_SUCCESS);
 
    // prepare return buffer
 
@@ -17893,13 +17983,13 @@ static int handle_decode_post(struct mg_connection *nc, const http_message* msg,
 
    //printf("post_data_len %d, data [%s], boundary [%s]\n", post_data_len, post_data, boundary);
 
-   decode_post(rr, NULL, (char*)post_data, boundary, post_data_len, &cookies, uri);
+   decode_post(rr, NULL, (char*)post_data, boundary, post_data_len, &cookies, uri, t);
 
    if (trace_mg)
       printf("handle_decode_post: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
 
    if (rr->return_length == -1) {
-      ss_mutex_release(request_mutex);
+      //ss_mutex_release(request_mutex);
       delete rr;
       return RESPONSE_501;
    }
@@ -17907,7 +17997,7 @@ static int handle_decode_post(struct mg_connection *nc, const http_message* msg,
    if (rr->return_length == 0)
       rr->return_length = strlen(rr->return_buffer);
 
-   ss_mutex_release(request_mutex);
+   //ss_mutex_release(request_mutex);
 
    mg_send(nc, rr->return_buffer, rr->return_length);
 
@@ -18046,8 +18136,10 @@ static int handle_http_post(struct mg_connection *nc, const http_message* msg, c
 
       t->fRPC = post_data;
 
-      int status = ss_mutex_wait_for(request_mutex, 0);
-      assert(status == SS_SUCCESS);
+      //int status = ss_mutex_wait_for(request_mutex, 0);
+      //assert(status == SS_SUCCESS);
+
+      gMutex.lock();
 
       t->fTimeLocked = GetTimeSec();
 
@@ -18055,7 +18147,9 @@ static int handle_http_post(struct mg_connection *nc, const http_message* msg, c
 
       t->fTimeUnlocked = GetTimeSec();
 
-      ss_mutex_release(request_mutex);
+      gMutex.unlock();
+      
+      //ss_mutex_release(request_mutex);
 
       if (reply->GetType() == MJSON_ARRAYBUFFER) {
          const char* ptr;
@@ -18773,10 +18867,10 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
       gTraceBuf = new RequestTraceBuf;
    }
 
-   if (!request_mutex) {
-      status = ss_mutex_create(&request_mutex, FALSE);
-      assert(status==SS_SUCCESS || status==SS_CREATED);
-   }
+   //if (!request_mutex) {
+   //   status = ss_mutex_create(&request_mutex, FALSE);
+   //   assert(status==SS_SUCCESS || status==SS_CREATED);
+   //}
 
    mg_mgr_init(&mgr_mg, NULL);
 
@@ -18887,14 +18981,16 @@ int loop_mg()
 
       /* cm_yield() is not thread safe, need to take a lock */
 
-      status = ss_mutex_wait_for(request_mutex, 0);
+      //status = ss_mutex_wait_for(request_mutex, 0);
+      gMutex.lock();
 
       /* check for shutdown message */
       status = cm_yield(0);
       if (status == RPC_SHUTDOWN)
          break;
 
-      status = ss_mutex_release(request_mutex);
+      //status = ss_mutex_release(request_mutex);
+      gMutex.unlock();
 
       //ss_sleep(10);
 
@@ -19173,10 +19269,10 @@ int main(int argc, const char *argv[])
       gTraceBuf = new RequestTraceBuf;
    }
 
-   if (!request_mutex) {
-      status = ss_mutex_create(&request_mutex, FALSE);
-      assert(status==SS_SUCCESS || status==SS_CREATED);
-   }
+   //if (!request_mutex) {
+   //   status = ss_mutex_create(&request_mutex, FALSE);
+   //   assert(status==SS_SUCCESS || status==SS_CREATED);
+   //}
 
    /* establish Ctrl-C handler - will set _abort to TRUE */
    ss_ctrlc_handler(ctrlc_handler);
@@ -19224,14 +19320,16 @@ int main(int argc, const char *argv[])
 
       /* cm_yield() is not thread safe, need to take a lock */
 
-      status = ss_mutex_wait_for(request_mutex, 0);
+      //status = ss_mutex_wait_for(request_mutex, 0);
+      gMutex.lock();
 
       /* check for shutdown message */
       status = cm_yield(0);
       if (status == RPC_SHUTDOWN)
          break;
 
-      status = ss_mutex_release(request_mutex);
+      //status = ss_mutex_release(request_mutex);
+      gMutex.unlock();
 
       //ss_sleep(10);
 
