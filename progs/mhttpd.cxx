@@ -1843,9 +1843,17 @@ void show_navigation_bar(Return* r, const char *cur_page)
 
 /*------------------------------------------------------------------*/
 
+void check_obsolete_odb(HNDLE hDB, const char* odb_path)
+{
+   HNDLE hKey;
+   int status = db_find_key(hDB, 0, odb_path, &hKey);
+   if (status == DB_SUCCESS) {
+      cm_msg(MERROR, "check_obsolete_odb", "ODB \"%s\" is obsolete, please delete it.", odb_path);
+   }
+}
+
 void init_menu_buttons()
 {
-   int status;
    HNDLE hDB;
    BOOL true_value = TRUE;
    BOOL false_value = FALSE;
@@ -1865,16 +1873,19 @@ void init_menu_buttons()
    db_get_value(hDB, 0, "/Experiment/Menu/OldHistory", &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/MSCB",       &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Sequencer",  &true_value,  &size, TID_BOOL, TRUE);
-   db_get_value(hDB, 0, "/Experiment/Menu/OldSequencer", &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/NewSequencer", &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Config",     &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Example",    &false_value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Help",       &true_value,  &size, TID_BOOL, TRUE);
 
-   std::string buf;
-   status = db_get_value_string(hDB, 0, "/Experiment/Menu buttons", 0, &buf, FALSE);
-   if (status == DB_SUCCESS) {
-      cm_msg(MERROR, "init_menu_buttons", "ODB \"/Experiment/Menu buttons\" is obsolete, please delete it.");
-   }
+   //std::string buf;
+   //status = db_get_value_string(hDB, 0, "/Experiment/Menu buttons", 0, &buf, FALSE);
+   //if (status == DB_SUCCESS) {
+   //   cm_msg(MERROR, "init_menu_buttons", "ODB \"/Experiment/Menu buttons\" is obsolete, please delete it.");
+   //}
+
+   check_obsolete_odb(hDB, "/Experiment/Menu buttons");
+   check_obsolete_odb(hDB, "/Experiment/Menu/OldSequencer");
 }
 
 /*------------------------------------------------------------------*/
@@ -16209,7 +16220,12 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
 
    /*---- sequencer page --------------------------------------------*/
 
-   if (equal_ustring(command, "Sequencer")) {
+   if (equal_ustring(command, "NewSequencer")) {
+      send_resource(r, "sequencer.html");
+      return;
+   }
+
+   if (equal_ustring(command, "seq")) {
       send_resource(r, "sequencer.html");
       return;
    }
@@ -16229,7 +16245,7 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       return;
    }
 
-   if (equal_ustring(command, "OldSequencer")) {
+   if (equal_ustring(command, "Sequencer")) {
       show_seq_page(p, r);
       return;
    }

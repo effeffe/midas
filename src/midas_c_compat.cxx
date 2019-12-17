@@ -236,7 +236,7 @@ INT c_cm_msg(INT message_type, const char *filename, INT line, const char *routi
    va_start(argptr, format);
    vsprintf(message, (char *) format, argptr);
    va_end(argptr);
-   return cm_msg(message_type, filename, line, routine, message);
+   return cm_msg(message_type, filename, line, routine, "%s", message);
 }
 
 /*
