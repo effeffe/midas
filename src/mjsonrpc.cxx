@@ -3361,7 +3361,9 @@ static MJsonNode* js_seq_list_files(const MJsonNode* params)
    path = cm_expand_env(path.c_str());
 
    if (subdir.length() > 0) {
-      path += DIR_SEPARATOR_STR;
+      if (path[path.length()-1] != DIR_SEPARATOR) {
+         path += DIR_SEPARATOR_STR;
+      }
       path += subdir;
    }
 
