@@ -15,6 +15,7 @@
 #include <algorithm> // std::sort()
 #include <thread> // std::thread
 #include <deque>  // std::deque
+#include <mutex>  // std::mutex
 
 #include "midas.h"
 #include "msystem.h"
