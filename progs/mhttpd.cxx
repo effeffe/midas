@@ -40,7 +40,9 @@
 /* refresh times in seconds */
 #define DEFAULT_REFRESH 60
 
-//static MUTEX_T* request_mutex = NULL;
+#ifdef HAVE_MONGOOSE6
+static MUTEX_T* request_mutex = NULL;
+#endif
 
 static std::mutex gMutex;
 
@@ -17294,7 +17296,7 @@ static bool read_passwords(Auth* auth)
    return have_realm;
 }
 
-#if HAVE_MONGOOSE6
+#ifdef HAVE_MONGOOSE6
 std::string find_var_mg(struct mg_str *hdr, const char* var_name)
 {
    assert(!"this code is untested!");
@@ -17329,7 +17331,7 @@ std::string find_var_mg(struct mg_str *hdr, const char* var_name)
 }
 #endif
 
-#if HAVE_MONGOOSE616
+#ifdef HAVE_MONGOOSE616
 std::string find_var_mg(struct mg_str *hdr, const char* var_name)
 {
    char* buf = NULL;
@@ -17551,8 +17553,10 @@ static int handle_decode_get(struct mg_connection *nc, const http_message* msg, 
 
    // lock shared structures
 
-   //int status = ss_mutex_wait_for(request_mutex, 0);
-   //assert(status == SS_SUCCESS);
+#ifdef HAVE_MONGOOSE6
+   int status = ss_mutex_wait_for(request_mutex, 0);
+   assert(status == SS_SUCCESS);
+#endif
 
    //t->fTimeLocked = GetTimeSec();
 
@@ -17573,8 +17577,10 @@ static int handle_decode_get(struct mg_connection *nc, const http_message* msg, 
 
    if (rr->return_length == -1) {
       delete rr;
+#ifdef HAVE_MONGOOSE6
       //t->fTimeUnlocked = GetTimeSec();
-      //ss_mutex_release(request_mutex);
+      ss_mutex_release(request_mutex);
+#endif
       return RESPONSE_501;
    }
 
@@ -17583,7 +17589,9 @@ static int handle_decode_get(struct mg_connection *nc, const http_message* msg, 
 
    //t->fTimeUnlocked = GetTimeSec();
 
-   //ss_mutex_release(request_mutex);
+#ifdef HAVE_MONGOOSE6
+   ss_mutex_release(request_mutex);
+#endif
 
    mg_send(nc, rr->return_buffer, rr->return_length);
 
@@ -17971,8 +17979,10 @@ static int handle_decode_post(struct mg_connection *nc, const http_message* msg,
 
    // lock shared strctures
 
-   //int status = ss_mutex_wait_for(request_mutex, 0);
-   //assert(status == SS_SUCCESS);
+#ifdef HAVE_MONGOOSE6
+   int status = ss_mutex_wait_for(request_mutex, 0);
+   assert(status == SS_SUCCESS);
+#endif
 
    // prepare return buffer
 
@@ -17988,7 +17998,9 @@ static int handle_decode_post(struct mg_connection *nc, const http_message* msg,
       printf("handle_decode_post: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
 
    if (rr->return_length == -1) {
-      //ss_mutex_release(request_mutex);
+#ifdef HAVE_MONGOOSE6
+      ss_mutex_release(request_mutex);
+#endif
       delete rr;
       return RESPONSE_501;
    }
@@ -17996,7 +18008,9 @@ static int handle_decode_post(struct mg_connection *nc, const http_message* msg,
    if (rr->return_length == 0)
       rr->return_length = strlen(rr->return_buffer);
 
-   //ss_mutex_release(request_mutex);
+#ifdef HAVE_MONGOOSE6
+   ss_mutex_release(request_mutex);
+#endif
 
    mg_send(nc, rr->return_buffer, rr->return_length);
 
@@ -18135,18 +18149,20 @@ static int handle_http_post(struct mg_connection *nc, const http_message* msg, c
 
       t->fRPC = post_data;
 
-      //int status = ss_mutex_wait_for(request_mutex, 0);
-      //assert(status == SS_SUCCESS);
+#ifdef HAVE_MONGOOSE6
+      int status = ss_mutex_wait_for(request_mutex, 0);
+      assert(status == SS_SUCCESS);
+#endif
 
-      //gMutex.lock();
       //t->fTimeLocked = GetTimeSec();
 
       MJsonNode* reply = mjsonrpc_decode_post_data(post_data.c_str());
 
       //t->fTimeUnlocked = GetTimeSec();
-      //gMutex.unlock();
       
-      //ss_mutex_release(request_mutex);
+#ifdef HAVE_MONGOOSE6
+      ss_mutex_release(request_mutex);
+#endif
 
       if (reply->GetType() == MJSON_ARRAYBUFFER) {
          const char* ptr;
@@ -18864,10 +18880,10 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
       gTraceBuf = new RequestTraceBuf;
    }
 
-   //if (!request_mutex) {
-   //   status = ss_mutex_create(&request_mutex, FALSE);
-   //   assert(status==SS_SUCCESS || status==SS_CREATED);
-   //}
+   if (!request_mutex) {
+      status = ss_mutex_create(&request_mutex, FALSE);
+      assert(status==SS_SUCCESS || status==SS_CREATED);
+   }
 
    mg_mgr_init(&mgr_mg, NULL);
 
@@ -18978,7 +18994,9 @@ int loop_mg()
 
       /* cm_yield() is not thread safe, need to take a lock */
 
-      //status = ss_mutex_wait_for(request_mutex, 0);
+#ifdef HAVE_MONGOOSE6
+      status = ss_mutex_wait_for(request_mutex, 0);
+#endif
       gMutex.lock();
 
       /* check for shutdown message */
@@ -18986,8 +19004,10 @@ int loop_mg()
       if (status == RPC_SHUTDOWN)
          break;
 
-      //status = ss_mutex_release(request_mutex);
       gMutex.unlock();
+#ifdef HAVE_MONGOOSE6
+      status = ss_mutex_release(request_mutex);
+#endif
 
       //ss_sleep(10);
 
@@ -19326,8 +19346,8 @@ int main(int argc, const char *argv[])
       if (status == RPC_SHUTDOWN)
          break;
 
-      //status = ss_mutex_release(request_mutex);
       gMutex.unlock();
+      //status = ss_mutex_release(request_mutex);
 
       //ss_sleep(10);
 
