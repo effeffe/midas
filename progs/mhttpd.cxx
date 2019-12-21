@@ -18353,6 +18353,15 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       t->fAuthOk = true;
    }
 
+#ifdef HAVE_MONGOOSE616
+   if (starts_with(uri, "/proxy")) {
+      mg_str mount = mg_mk_str("/proxy");
+      mg_str upstream = mg_mk_str("http://localhost:8081");
+      mg_http_reverse_proxy(nc, msg, mount, upstream);
+      return;
+   }
+#endif
+
    int response = RESPONSE_501;
 
    if (method == "GET")
