@@ -18672,6 +18672,9 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
       if (trace_mg) {
          printf("ev_handler: connection %p, MG_EV_ACCEPT\n", nc);
       }
+      if (!check_midas_acl(&nc->sa.sa, sizeof(nc->sa))) {
+         nc->flags |= MG_F_CLOSE_IMMEDIATELY;
+      }
       break;
    case MG_EV_RECV:
       if (trace_mg_recv) {
