@@ -33,9 +33,10 @@ set(SYSLIB_DIR ${PROJECT_SOURCE_DIR}/lib)
 set(SYSINC_DIR ${PROJECT_SOURCE_DIR}/include)
 set(DRV_DIR ${PROJECT_SOURCE_DIR}/drivers)
 
-# Ensure the C-compat library can load the main library after install
-set(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+# NB: RPATH is not needed as everything is linked statically. K.O.
+## Ensure the C-compat library can load the main library after install
+#set(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
+#set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 #####################################################################
 # Nothing needs to be modified after this line
