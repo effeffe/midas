@@ -16,6 +16,7 @@
 #include <thread> // std::thread
 #include <deque>  // std::deque
 #include <mutex>  // std::mutex
+#include <condition_variable>  // std::condition_variable
 
 #include "midas.h"
 #include "msystem.h"
