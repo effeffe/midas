@@ -19317,7 +19317,9 @@ int main(int argc, const char *argv[])
    }
 
    mongoose_listen("localhost:8080");
-   mongoose_listen("8443", true);
+   mongoose_listen("[::1]:8080");
+   //mongoose_listen("8443", true);
+   //mongoose_listen("[::1]:8443", true);
 #endif
 
 #ifdef OBSOLETE   

@@ -69,7 +69,7 @@ target_include_directories(mhttpd PRIVATE ${OPENSSL_INCLUDE_DIR})
 target_link_libraries(mhttpd ${DB_LIBS})
 
 # mongoose flags
-target_compile_options(mhttpd PRIVATE -DHAVE_MONGOOSE616 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI -DMG_ENABLE_EXTRA_ERRORS_DESC)
+target_compile_options(mhttpd PRIVATE -DHAVE_MONGOOSE616 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI -DMG_ENABLE_EXTRA_ERRORS_DESC -DMG_ENABLE_IPV6)
 if (OPENSSL_FOUND)
    target_compile_options(mhttpd PRIVATE -DMG_ENABLE_SSL)
 endif(OPENSSL_FOUND)
