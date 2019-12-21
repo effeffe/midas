@@ -17041,6 +17041,7 @@ static int init_allowed_hosts()
       return 0;
    }
 
+#ifdef HAVE_MONGOOSE6
 int open_listening_socket(int port)
 {
    int status;
@@ -17087,6 +17088,7 @@ int open_listening_socket(int port)
 
    return lsock;
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -19073,6 +19075,7 @@ int main(int argc, const char *argv[])
    signal(SIGPIPE, SIG_IGN);
 #endif
 
+#ifdef HAVE_MONGOOSE6
    //
    // if running setuid-root, unconditionally bind to port 80.
    //
@@ -19104,6 +19107,7 @@ int main(int argc, const char *argv[])
          exit(1);
       }
    }
+#endif
 #endif
 
    char midas_hostname[256];
