@@ -6651,7 +6651,9 @@ void mg_http_handler(struct mg_connection *nc, int ev,
 
     if (req_len > 0) {
       /* New request - new proto data */
-      pd = mg_http_create_proto_data(nc);
+      if (!pd) {
+        pd = mg_http_create_proto_data(nc);
+      }
       pd->rcvd = io->len;
     }
 
@@ -8107,8 +8109,8 @@ void mg_http_reverse_proxy(struct mg_connection *nc,
   memset(&opts, 0, sizeof(opts));
   opts.error_string = &error;
 
-  mg_asprintf(&purl, sizeof(burl), "%.*s%.*s", (int) upstream.len, upstream.p,
-              (int) (hm->uri.len - mount.len), hm->uri.p + mount.len);
+  mg_asprintf(&purl, sizeof(burl), "%.*s%.*s%s%.*s", (int) upstream.len, upstream.p,
+    (int) (hm->uri.len - mount.len), hm->uri.p + mount.len, (hm->query_string.len > 0 ? "?" : ""), (int) hm->query_string.len, hm->query_string.p);
 
   be = mg_connect_http_base(nc->mgr, MG_CB(mg_reverse_proxy_handler, NULL),
                             opts, "http", NULL, "https", NULL, purl, &path,
@@ -8121,6 +8123,8 @@ void mg_http_reverse_proxy(struct mg_connection *nc,
     mg_http_send_error(nc, 502, NULL);
     goto cleanup;
   }
+
+  mg_http_create_proto_data(be);
 
   /* link connections to each other, they must live and die together */
   mg_http_get_proto_data(be)->reverse_proxy_data.linked_conn = nc;
