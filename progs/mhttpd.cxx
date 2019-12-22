@@ -125,42 +125,64 @@ static const char default_system_list[20][NAME_LENGTH] = {
    "Beamline"
 };
 
-struct Filetype {
-   char ext[32];
-   char type[32];
+struct MimetypeTableEntry {
+   std::string ext;
+   std::string mimetype;
 };
 
-const Filetype filetype[] = {
+const MimetypeTableEntry gMimetypeTable[] = {
+   { ".HTML",  "text/html"  },
+   { ".HTM",   "text/html"  },
+   { ".CSS",   "text/css"   },
+   { ".TXT",   "text/plain" },
+   { ".ASC",   "text/plain" },
+   
+   { ".ICO",   "image/x-icon"  },
+   { ".GIF",   "image/gif"     },
+   { ".JPG",   "image/jpeg"    },
+   { ".JPEG",  "image/jpeg"    },
+   { ".PNG",   "image/png"     },
+   { ".SVG",   "image/svg+xml" },
+   { ".BMP",   "image/bmp"     },
+                               
+   { ".MP3",   "audio/mpeg"    },
+   { ".OGG",   "audio/ogg"     },
+   { ".MID",   "audio/midi"    },
+   { ".WAV",   "audio/wav"     },
 
-   {
-   ".JPG", "image/jpeg",}, {
-   ".GIF", "image/gif",}, {
-   ".PNG", "image/png",}, {
-   ".SVG", "image/svg+xml",}, {
-   ".PS",  "application/postscript",}, {
-   ".EPS", "application/postscript",}, {
-   ".HTML","text/html",}, {
-   ".HTM", "text/html",}, {
-   ".XLS", "application/x-msexcel",}, {
-   ".DOC", "application/msword",}, {
-   ".PDF", "application/pdf",}, {
-   ".TXT", "text/plain",}, {
-   ".ASC", "text/plain",}, {
-   ".ZIP", "application/zip",}, {
-   ".MP3", "audio/mpeg",}, {
-   ".CSS", "text/css",}, {
-   ".JS",  "application/javascript"}, {
-   ".JSON",  "application/json"}, {
-   ""},};
+   { ".XML",   "application/xml"        },
+   { ".JS",    "application/javascript" },
+   { ".JSON",  "application/json"       },
+   { ".PS",    "application/postscript" },
+   { ".EPS",   "application/postscript" },
+   { ".PDF",   "application/pdf"        },
+   { ".ZIP",   "application/zip"        },
+   { ".XLS",   "application/x-msexcel"  },
+   { ".DOC",   "application/msword"     },
+   { "", "" }
+};
+
+static std::string GetMimetype(const std::string& ext)
+{
+   for (int i=0; gMimetypeTable[i].ext[0]; i++) {
+      if (ext == gMimetypeTable[i].ext) {
+         return gMimetypeTable[i].mimetype;
+      }
+   }
+
+   return "";
+}
 
 #define HTTP_ENCODING "UTF-8"
 
+#ifdef OBSOLETE
 typedef struct {
    char user[256];
    char msg[256];
    time_t last_time;
    time_t prev_time;
 } LASTMSG;
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -1088,13 +1110,9 @@ std::string get_content_type(const char* filename)
 
    //printf("filename: [%s], ext [%s]\n", filename, ext_upper.c_str());
 
-   for (int i=0; filetype[i].ext[0]; i++) {
-      if (ext_upper == filetype[i].ext) {
-         const char* type = filetype[i].type;
-         //printf("filename: [%s], ext [%s] return content-type [%s]\n", filename, ext_upper.c_str(), type);
-         return type;
-      }
-   }
+   std::string type = GetMimetype(ext_upper);
+   if (type.length() > 0)
+      return type;
 
    cm_msg(MERROR, "get_content_type", "Unknown HTTP Content-Type for resource file \'%s\', file extension \'%s\'", filename, ext_upper.c_str());
 
@@ -3803,23 +3821,7 @@ void show_elog_attachment(Param* p, Return* r, const char* path)
       r->rsprintf("Accept-Ranges: bytes\r\n");
       //r->rsprintf("Content-disposition: attachment; filename=%s\r\n", path);
 
-      /* return proper header for file type */
-      char str[256];
-      int i;
-      for (i = 0; i < (int) strlen(path); i++)
-         str[i] = toupper(path[i]);
-      str[i] = 0;
-
-      for (i = 0; filetype[i].ext[0]; i++)
-         if (strstr(str, filetype[i].ext))
-            break;
-
-      if (filetype[i].ext[0])
-         r->rsprintf("Content-Type: %s\r\n", filetype[i].type);
-      else if (strchr(str, '.') == NULL)
-         r->rsprintf("Content-Type: text/plain\r\n");
-      else
-         r->rsprintf("Content-Type: application/octet-stream\r\n");
+      r->rsprintf("Content-Type: %s\r\n", get_content_type(file_name).c_str());
 
       r->rsprintf("Content-Length: %d\r\n\r\n", length);
 
