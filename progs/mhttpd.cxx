@@ -34,6 +34,7 @@
 #endif
 
 #include "mjsonrpc.h"
+#include "mvodb.h"
 
 #define STRLCPY(dst, src) strlcpy((dst), (src), sizeof(dst))
 #define STRLCAT(dst, src) strlcat((dst), (src), sizeof(dst))
@@ -16919,11 +16920,15 @@ void ctrlc_handler(int sig)
 
 /*------------------------------------------------------------------*/
 
-
+#ifdef HAVE_MONGOOSE6
 static std::vector<std::string> gUserAllowedHosts;
+#endif
 static std::vector<std::string> gAllowedHosts;
+#ifdef HAVE_MONGOOSE6
 static const std::string gOdbAllowedHosts = "/Experiment/Security/mhttpd hosts/Allowed hosts";
+#endif
 
+#ifdef HAVE_MONGOOSE6
 static void load_allowed_hosts(HNDLE hDB, HNDLE hKey, int index, void* info)
 {
    if (hKey != 0)
@@ -17005,6 +17010,7 @@ static int init_allowed_hosts()
 
    return SUCCESS;
 }
+#endif
 
    int check_midas_acl(const struct sockaddr *sa, int len) {
       // access control list is empty?
@@ -18723,20 +18729,6 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
    }
 }
 
-static int mongoose_init()
-{
-#if 0
-   if (mg_socketpair(s_sock, SOCK_STREAM) == 0) {
-      perror("Opening socket pair");
-      exit(1);
-   }
-#endif
-   
-   mg_mgr_init(&s_mgr, NULL);
-   
-   return SUCCESS;
-}
-
 static int mongoose_listen(const char* address, bool https = false)
 {
    struct mg_connection *nc = mg_bind(&s_mgr, address, ev_handler);
@@ -18778,6 +18770,123 @@ static int mongoose_listen(const char* address, bool https = false)
       printf("Mongoose web server listening on https address \"%s\"\n", address);
    } else {
       printf("Mongoose web server listening on http address \"%s\"\n", address);
+   }
+
+   return SUCCESS;
+}
+
+static int mongoose_init(MVOdb* odb, bool no_passwords, bool no_hostlist, const std::vector<std::string>& user_hostlist)
+{
+   bool enable_localhost_port = true;
+   int  localhost_port           = 8080;
+   bool localhost_port_passwords = false;
+
+   bool enable_insecure_port     = false;
+   int  insecure_port            = 8081;
+   bool insecure_port_passwords  = true;
+   bool insecure_port_hostlist   = true;
+
+   bool enable_https_port        = false;
+   int  https_port               = 8443;
+   bool https_port_passwords     = true;
+   bool https_port_hostlist      = false;
+
+   std::vector<std::string> hostlist;
+   hostlist.push_back("localhost");
+
+   bool enable_ipv6 = true;
+
+   odb->RB("Enable localhost port", &enable_localhost_port, true);
+   odb->RI("localhost port", &localhost_port, true);
+   odb->RB("localhost port passwords", &localhost_port_passwords, true);
+   odb->RB("Enable insecure port", &enable_insecure_port, true);
+   odb->RI("insecure port", &insecure_port, true);
+   odb->RB("insecure port passwords", &insecure_port_passwords, true);
+   odb->RB("insecure port host list", &insecure_port_hostlist, true);
+   odb->RB("Enable https port", &enable_https_port, true);
+   odb->RI("https port", &https_port, true);
+   odb->RB("https port passwords", &https_port_passwords, true);
+   odb->RB("https port host list", &https_port_hostlist, true);
+   odb->RSA("Host list", &hostlist, true, 10, 32);
+   odb->RB("Enable IPv6", &enable_ipv6, true);
+   
+   if (!no_passwords
+       && ((enable_localhost_port && localhost_port_passwords)
+           || (enable_insecure_port && insecure_port_passwords)
+           || (enable_https_port && https_port_passwords))) {
+      gAuthMg = new Auth();
+      int status = gAuthMg->Init();
+      if (status != SUCCESS) {
+         printf("mongoose_init: Error: Cannot initialize authorization object!\n");
+         return status;
+      }
+      printf("Mongoose web server will use HTTP Digest authentication with realm \"%s\" and password file \"%s\"\n", gAuthMg->realm.c_str(), gAuthMg->passwd_filename.c_str());
+   } else {
+      printf("Mongoose web server will not use password protection\n");
+   }
+
+   if (!no_hostlist
+       && ((enable_insecure_port && insecure_port_hostlist)
+           || (enable_https_port && https_port_hostlist))) {
+      gAllowedHosts.clear();
+
+      // copy the user allowed hosts
+      for (unsigned int i=0; i<user_hostlist.size(); i++)
+         gAllowedHosts.push_back(user_hostlist[i]);
+
+      for (unsigned i=0; i<hostlist.size(); i++) {
+         std::string s = hostlist[i];
+         if (s.length() < 1) // skip emties
+            continue;
+
+         if (s[0] == '#') // skip commented-out entries
+            continue;
+
+         //printf("add allowed hosts %d [%s]\n", i, s.c_str());
+         gAllowedHosts.push_back(s);
+      }
+
+      printf("Mongoose web server will use the hostlist, connections will be accepted only from: ");
+      for (unsigned i=0; i<gAllowedHosts.size(); i++) {
+         if (i>0)
+            printf(", ");
+         printf("%s", gAllowedHosts[i].c_str());
+      }
+      printf("\n");
+   } else {
+      printf("Mongoose web server will not use the hostlist, connections from anywhere will be accepted\n");
+   }
+
+   mg_mgr_init(&s_mgr, NULL);
+
+   if (enable_localhost_port) {
+      char str[256];
+      sprintf(str, "localhost:%d", localhost_port);
+      mongoose_listen(str);
+      if (enable_ipv6) {
+         sprintf(str, "[::1]:%d", localhost_port);
+         mongoose_listen(str);
+      }
+   }
+
+   if (enable_insecure_port) {
+      char str[256];
+      sprintf(str, "%d", insecure_port);
+      mongoose_listen(str);
+      if (enable_ipv6) {
+         sprintf(str, "[::0]:%d", insecure_port);
+         mongoose_listen(str);
+      }
+   }
+
+   if (enable_https_port) {
+      char str[256];
+      sprintf(str, "%d", https_port);
+      mongoose_listen(str, true);
+      if (enable_ipv6) {
+         sprintf(str, "[::0]:%d", https_port);
+         mongoose_listen(str, true);
+      }
    }
 
    return SUCCESS;
@@ -19077,7 +19186,8 @@ int main(int argc, const char *argv[])
    char str[256];
    int user_http_port = 0;
    int user_https_port = 0;
-   bool use_passwords = true;
+   bool no_passwords = false;
+   bool no_hostlist  = false;
    const char *myname = "mhttpd";
 
    setbuf(stdout, NULL);
@@ -19129,7 +19239,11 @@ int main(int argc, const char *argv[])
    cm_get_environment(midas_hostname, sizeof(midas_hostname), midas_expt, sizeof(midas_expt));
 
    /* parse command line parameters */
+#ifdef HAVE_MONGOOSE6
    gUserAllowedHosts.clear();
+#else
+   std::vector<std::string> user_hostlist;
+#endif
    for (int i = 1; i < argc; i++) {
       if (argv[i][0] == '-' && argv[i][1] == 'D')
          daemon = TRUE;
@@ -19162,7 +19276,9 @@ int main(int argc, const char *argv[])
          multithread_mg = false;
 #endif
       } else if (strcmp(argv[i], "--no-passwords") == 0) {
-         use_passwords = false;
+         no_passwords = true;
+      } else if (strcmp(argv[i], "--no-hostlist") == 0) {
+         no_hostlist = true;
       } else if (argv[i][0] == '-') {
          if (i + 1 >= argc || argv[i + 1][0] == '-')
             goto usage;
@@ -19171,7 +19287,11 @@ int main(int argc, const char *argv[])
          else if (argv[i][1] == 'e')
             strlcpy(midas_expt, argv[++i], sizeof(midas_hostname));
          else if (argv[i][1] == 'a') {
+#ifdef HAVE_MONGOOSE6
             gUserAllowedHosts.push_back(argv[++i]);
+#else
+            user_hostlist.push_back(argv[++i]);
+#endif
          } else if (argv[i][1] == 'p') {
             printf("Option \"-p port_number\" for the old web server is obsolete.\n");
             printf("mongoose web server is the new default, port number is set in ODB or with \"--http port_number\".\n");
@@ -19180,7 +19300,7 @@ int main(int argc, const char *argv[])
          } else {
           usage:
             printf("usage: %s [-h Hostname[:port]] [-e Experiment] [-v] [-D] [-a Hostname]\n\n", argv[0]);
-            printf("       -a only allow access for specific host(s), several [-a Hostname] statements might be given (default list is ODB \"/Experiment/security/mhttpd hosts/allowed hosts\")\n");
+            printf("       -a add hostname to the hostlist of hosts allowed to connect to mhttpd\n");
             printf("       -e experiment to connect to\n");
             printf("       -h connect to midas server (mserver) on given host\n");
             printf("       -v display verbose HTTP communication\n");
@@ -19194,6 +19314,8 @@ int main(int argc, const char *argv[])
             printf("       --no-trace-mg-recv - do not trace mongoose recv events\n");
             printf("       --no-trace-mg-send - dop not trace mongoose send events\n");
             printf("       --no-multithread - disable mongoose multithreading\n");
+            printf("       --no-passwords - disable password protection\n");
+            printf("       --no-hostlist - disable access control host list\n");
             return 0;
          }
       }
@@ -19236,6 +19358,14 @@ int main(int argc, const char *argv[])
     * that can take arbitrary long time */
    cm_start_watchdog_thread();
 
+   /* Get ODB handles */
+
+   HNDLE hDB;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   MVOdb *odb = MakeMidasOdb(hDB);
+
    /* do ODB record checking */
    if (!check_odb_records()) {
       // check_odb_records() fails with nothing printed to the terminal
@@ -19246,6 +19376,7 @@ int main(int argc, const char *argv[])
       return 1;
    }
 
+#ifdef MONGOOSE6
    if (init_allowed_hosts() != SUCCESS) {
       printf("init_allowed_hosts() failed, see messages and midas.log, bye!\n");
       cm_disconnect_experiment();
@@ -19265,6 +19396,7 @@ int main(int argc, const char *argv[])
          printf("mhttpd allowed hosts list is empty\n");
       }
    }
+#endif
 
    /* initialize odb entries needed for mhttpd and midas web pages */
    init_mhttpd_odb();
@@ -19314,20 +19446,7 @@ int main(int argc, const char *argv[])
    /* establish Ctrl-C handler - will set _abort to TRUE */
    ss_ctrlc_handler(ctrlc_handler);
 
-   if (use_passwords) {
-      gAuthMg = new Auth();
-      status = gAuthMg->Init();
-      if (status != SUCCESS) {
-         printf("Error: Cannot initialize authorization object!\n");
-         cm_disconnect_experiment();
-         return 1;
-      }
-      printf("Mongoose web server will use HTTP Digest authentication with realm \"%s\" and password file \"%s\"\n", gAuthMg->realm.c_str(), gAuthMg->passwd_filename.c_str());
-   } else {
-      printf("Mongoose web server will not use password protection\n");
-   }
-
-   status = mongoose_init();
+   status = mongoose_init(odb->Chdir("WebServer", true), no_passwords, no_hostlist, user_hostlist);
    if (status != SUCCESS) {
       // At least print something!
       printf("Error: Could not start the mongoose web server, see messages and midas.log, bye!\n");
@@ -19335,10 +19454,6 @@ int main(int argc, const char *argv[])
       return 1;
    }
 
-   mongoose_listen("localhost:8080");
-   mongoose_listen("[::1]:8080");
-   //mongoose_listen("8443", true);
-   //mongoose_listen("[::1]:8443", true);
 #endif
 
 #ifdef OBSOLETE   
