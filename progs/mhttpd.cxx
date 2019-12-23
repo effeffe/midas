@@ -163,15 +163,38 @@ const MimetypeTableEntry gMimetypeTable[] = {
    { "", "" }
 };
 
+static MVOdb* gMimeTypesOdb = NULL;
+
 static std::string GetMimetype(const std::string& ext)
 {
+   if (gMimeTypesOdb) {
+      std::string mimetype;
+      gMimeTypesOdb->RS(ext.c_str(), &mimetype);
+      if (mimetype.length() > 0) {
+         //printf("GetMimetype: %s -> %s from ODB\n", ext.c_str(), mimetype.c_str());
+         return mimetype;
+      }
+   }
+
    for (int i=0; gMimetypeTable[i].ext[0]; i++) {
       if (ext == gMimetypeTable[i].ext) {
+         //printf("GetMimetype: %s -> %s from built-in table\n", ext.c_str(), gMimetypeTable[i].mimetype.c_str());
          return gMimetypeTable[i].mimetype;
       }
    }
 
+   //printf("GetMimetype: %s -> not found\n", ext.c_str());
    return "";
+}
+
+static void SaveMimetypes(MVOdb* odb)
+{
+   gMimeTypesOdb = odb;
+
+   for (int i=0; gMimetypeTable[i].ext.length() > 0; i++) {
+      std::string tmp = gMimetypeTable[i].mimetype;
+      gMimeTypesOdb->RS(gMimetypeTable[i].ext.c_str(), &tmp, true);
+   }
 }
 
 #define HTTP_ENCODING "UTF-8"
@@ -18809,6 +18832,9 @@ static int mongoose_init(MVOdb* odb, bool no_passwords, bool no_hostlist, const 
    odb->RB("https port host list", &https_port_hostlist, true);
    odb->RSA("Host list", &hostlist, true, 10, 32);
    odb->RB("Enable IPv6", &enable_ipv6, true);
+
+   // populate the MIME.types table
+   SaveMimetypes(odb->Chdir("mime.types", true));
    
    if (!no_passwords
        && ((enable_localhost_port && localhost_port_passwords)
@@ -19376,7 +19402,7 @@ int main(int argc, const char *argv[])
       return 1;
    }
 
-#ifdef MONGOOSE6
+#ifdef HAVE_MONGOOSE6
    if (init_allowed_hosts() != SUCCESS) {
       printf("init_allowed_hosts() failed, see messages and midas.log, bye!\n");
       cm_disconnect_experiment();
@@ -19396,6 +19422,9 @@ int main(int argc, const char *argv[])
          printf("mhttpd allowed hosts list is empty\n");
       }
    }
+
+   // populate the MIME.types table
+   SaveMimetypes(odb->Chdir("WebServer/mime.types", true));
 #endif
 
    /* initialize odb entries needed for mhttpd and midas web pages */
