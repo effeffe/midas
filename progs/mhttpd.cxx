@@ -17054,7 +17054,7 @@ static int init_allowed_hosts()
       //printf("connection from [%s], status %d (%s)\n", hname, status, status_string);
 
       if (status != 0) {
-         printf("Rejecting http connection from \'%s\', getnameinfo() status %d (%s)\n", hname, status, status_string);
+         printf("Rejecting connection from \'%s\', getnameinfo() status %d (%s)\n", hname, status, status_string);
          return 0;
       }
 
@@ -17069,7 +17069,7 @@ static int init_allowed_hosts()
             return 1;
          }
 
-      printf("Rejecting http connection from \'%s\'\n", hname);
+      printf("Rejecting connection from \'%s\'\n", hname);
       return 0;
    }
 
@@ -18328,6 +18328,8 @@ static void handle_http_options_cors(struct mg_connection *nc, const http_messag
 
 // HTTP event handler
 
+static bool mongoose_passwords_enabled(const struct mg_connection *nc);
+
 static void handle_http_message(struct mg_connection *nc, http_message* msg)
 {
    std::string method = mgstr(&msg->method);
@@ -18353,7 +18355,7 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       return;
    }
 
-   if (gAuthMg) {
+   if (gAuthMg && mongoose_passwords_enabled(nc)) {
       std::string username = check_digest_auth(msg, gAuthMg);
 
       // Cannot re-read the password file - it is not thread safe to do so
@@ -18416,6 +18418,8 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
    }
 }
 
+#ifdef HAVE_MONGOOSE6
+
 static void handle_http_event_mg(struct mg_connection *nc, int ev, void *ev_data)
 {
    switch (ev) {
@@ -18451,6 +18455,8 @@ static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data
          printf("handle_http_redirect: nc %p, ev %d, ev_data %p\n", nc, ev, ev_data);
    }
 }
+
+#endif
 
 #ifdef HAVE_MONGOOSE616
 
@@ -18693,6 +18699,8 @@ static void mongoose_thread(MongooseThreadObject* to)
    //printf("to %p, nc %p: thread finished!\n", to, to->fNc);
 }
 
+static bool mongoose_hostlist_enabled(const struct mg_connection *nc);
+
 static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
 {
    (void) nc;
@@ -18715,8 +18723,10 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
       if (trace_mg) {
          printf("ev_handler: connection %p, MG_EV_ACCEPT\n", nc);
       }
-      if (!check_midas_acl(&nc->sa.sa, sizeof(nc->sa))) {
-         nc->flags |= MG_F_CLOSE_IMMEDIATELY;
+      if (mongoose_hostlist_enabled(nc)) {
+         if (!check_midas_acl(&nc->sa.sa, sizeof(nc->sa))) {
+            nc->flags |= MG_F_CLOSE_IMMEDIATELY;
+         }
       }
       break;
    case MG_EV_RECV:
@@ -18752,7 +18762,31 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
    }
 }
 
-static int mongoose_listen(const char* address, bool https = false)
+#define FLAG_HTTPS     (1<<0)
+#define FLAG_PASSWORDS (1<<1)
+#define FLAG_HOSTLIST  (1<<2)
+
+static bool mongoose_passwords_enabled(const struct mg_connection *nc)
+{
+   int flags = 0;
+   if (nc && nc->listener && nc->listener->user_data) {
+      flags = *(int*)nc->listener->user_data;
+   }
+   //printf("mongoose_passwords_enabled: nc %p, listener %p, user_data %p, flags 0x%x\n", nc, nc->listener, nc->listener->user_data, flags);
+   return flags & FLAG_PASSWORDS;
+}
+
+static bool mongoose_hostlist_enabled(const struct mg_connection *nc)
+{
+   int flags = 0;
+   if (nc && nc->listener && nc->listener->user_data) {
+      flags = *(int*)nc->listener->user_data;
+   }
+   //printf("mongoose_hostlist_enabled: nc %p, listener %p, user_data %p, flags 0x%x\n", nc, nc->listener, nc->listener->user_data, flags);
+   return flags & FLAG_HOSTLIST;
+}
+
+static int mongoose_listen(const char* address, int flags)
 {
    struct mg_connection *nc = mg_bind(&s_mgr, address, ev_handler);
    if (nc == NULL) {
@@ -18760,7 +18794,7 @@ static int mongoose_listen(const char* address, bool https = false)
       return SS_SOCKET_ERROR;
    }
 
-   if (https) {
+   if (flags & FLAG_HTTPS) {
 #ifdef MG_ENABLE_SSL
       std::string cert_file;
 
@@ -18789,11 +18823,11 @@ static int mongoose_listen(const char* address, bool https = false)
 
    mg_set_protocol_http_websocket(nc);
 
-   if (https) {
-      printf("Mongoose web server listening on https address \"%s\"\n", address);
-   } else {
-      printf("Mongoose web server listening on http address \"%s\"\n", address);
-   }
+   int* flagsp = new int;
+   *flagsp = flags;
+   nc->user_data = flagsp;
+
+   printf("Mongoose web server listening on %s address \"%s\", passwords %s, hostlist %s\n", (flags&FLAG_HTTPS)?"https":"http", address, (flags&FLAG_PASSWORDS)?"enabled":"OFF", (flags&FLAG_HOSTLIST)?"enabled":"OFF");
 
    return SUCCESS;
 }
@@ -18888,30 +18922,41 @@ static int mongoose_init(MVOdb* odb, bool no_passwords, bool no_hostlist, const 
    if (enable_localhost_port) {
       char str[256];
       sprintf(str, "localhost:%d", localhost_port);
-      mongoose_listen(str);
+      mongoose_listen(str, 0);
       if (enable_ipv6) {
          sprintf(str, "[::1]:%d", localhost_port);
-         mongoose_listen(str);
+         mongoose_listen(str, 0);
       }
    }
 
    if (enable_insecure_port) {
       char str[256];
       sprintf(str, "%d", insecure_port);
-      mongoose_listen(str);
+      int flags = 0;
+      if (insecure_port_passwords)
+         flags |= FLAG_PASSWORDS;
+      if (insecure_port_hostlist)
+         flags |= FLAG_HOSTLIST;
+      mongoose_listen(str, flags);
       if (enable_ipv6) {
          sprintf(str, "[::0]:%d", insecure_port);
-         mongoose_listen(str);
+         mongoose_listen(str, flags);
       }
    }
 
    if (enable_https_port) {
       char str[256];
       sprintf(str, "%d", https_port);
-      mongoose_listen(str, true);
+      int flags = 0;
+      if (https_port_passwords)
+         flags |= FLAG_PASSWORDS;
+      if (https_port_hostlist)
+         flags |= FLAG_HOSTLIST;
+      flags |= FLAG_HTTPS;
+      mongoose_listen(str, flags);
       if (enable_ipv6) {
          sprintf(str, "[::0]:%d", https_port);
-         mongoose_listen(str, true);
+         mongoose_listen(str, flags);
       }
    }
 
@@ -18936,6 +18981,12 @@ static void mongoose_cleanup()
 #endif
 
 #ifdef HAVE_MONGOOSE6
+
+static bool mongoose_passwords_enabled(const struct mg_connection *nc)
+{
+   return true;
+}
+
 int start_mg(int user_http_port, int user_https_port, int socket_priviledged_port, int verbose)
 {
    HNDLE hDB;
