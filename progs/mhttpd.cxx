@@ -17033,7 +17033,6 @@ static int init_allowed_hosts()
 
    return SUCCESS;
 }
-#endif
 
    int check_midas_acl(const struct sockaddr *sa, int len) {
       // access control list is empty?
@@ -17073,7 +17072,6 @@ static int init_allowed_hosts()
       return 0;
    }
 
-#ifdef HAVE_MONGOOSE6
 int open_listening_socket(int port)
 {
    int status;
@@ -17457,6 +17455,172 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
 
    return "";
 }
+
+#ifdef HAVE_MONGOOSE616
+
+struct HostlistCacheEntry
+{
+   time_t time_created = 0;
+   time_t time_last_used = 0;
+   int count_used = 0;
+   bool ipv4 = false;
+   bool ipv6 = false;
+   uint32_t ipv4addr = 0;
+   struct in6_addr ipv6addr;
+   std::string hostname;
+   int gai_status = 0;
+   std::string gai_strerror;
+   bool ok = false;
+};
+
+static std::vector<HostlistCacheEntry*> gHostlistCache;
+
+static void print_hostlist_cache()
+{
+   time_t now = time(NULL);
+   
+   for (unsigned i=0; i<gHostlistCache.size(); i++) {
+      HostlistCacheEntry* e = gHostlistCache[i];
+      if (!e) {
+         // empty slot
+         continue;
+      }
+
+      printf("%3d: %s \"%s\", ok %d, count_used %d, age created: %d, last_used %d",
+             i,
+             e->ipv4?"IPv4":(e->ipv6?"IPv6":"????"),
+             e->hostname.c_str(),
+             e->ok,
+             e->count_used,
+             (int)(now - e->time_created),
+             (int)(now - e->time_last_used));
+
+      if (e->gai_status) {
+         printf(", getnameinfo() status %d (%s)", e->gai_status, e->gai_strerror.c_str());
+      }
+
+      printf("\n");
+   }
+}
+
+static bool mongoose_check_hostlist(const union socket_address *sa)
+{
+   time_t now = time(NULL);
+   bool ipv4 = false;
+   bool ipv6 = false;
+   uint32_t ipv4addr = 0;
+   struct in6_addr ipv6addr;
+
+   if (sa->sa.sa_family == AF_INET) {
+      ipv4 = true;
+      ipv4addr = sa->sin.sin_addr.s_addr;
+   } else if (sa->sa.sa_family == AF_INET6) {
+      ipv6 = true;
+      memcpy(&ipv6addr, &sa->sin6.sin6_addr, sizeof(ipv6addr));
+   } else {
+      printf("Rejecting connection from unknown address family %d (AF_xxx)\n", sa->sa.sa_family);
+      return false;
+   }
+   
+   for (unsigned i=0; i<gHostlistCache.size(); i++) {
+      HostlistCacheEntry* e = gHostlistCache[i];
+      if (!e) {
+         // empty slot
+         continue;
+      }
+      
+      if ((ipv4 == e->ipv4) && (ipv4addr == e->ipv4addr)) {
+         // IPv4 address match
+         e->time_last_used = now;
+         e->count_used++;
+         return e->ok;
+      }
+
+      if ((ipv6 == e->ipv6) && (memcmp(&ipv6addr, &e->ipv6addr, sizeof(ipv6addr)) == 0)) {
+         // IPv6 address match
+         e->time_last_used = now;
+         e->count_used++;
+         return e->ok;
+      }
+
+      // not this one. maybe expire old entries?
+
+      if (e->time_last_used < now - 24*60*60) {
+         printf("hostlist: expire \"%s\", ok %d, age %d, count_used: %d\n", e->hostname.c_str(), e->ok, (int)(now - e->time_last_used), e->count_used);
+         gHostlistCache[i] = NULL;
+         delete e;
+      }
+   }
+
+   // not found in cache
+
+   assert(ipv4 || ipv6);
+
+   HostlistCacheEntry* e = new HostlistCacheEntry;
+
+   bool found = false;
+   for (unsigned i=0; i<gHostlistCache.size(); i++) {
+      if (gHostlistCache[i] == NULL) {
+         gHostlistCache[i] = e;
+         found = true;
+      }
+   }
+   if (!found) {
+      gHostlistCache.push_back(e);
+   }
+   
+   e->time_created = now;
+   e->time_last_used = now;
+   e->count_used = 1;
+   e->ipv4 = ipv4;
+   e->ipv6 = ipv6;
+   if (ipv4)
+      e->ipv4addr = ipv4addr;
+   if (ipv6)
+      memcpy(&e->ipv6addr, &ipv6addr, sizeof(ipv6addr));
+   e->ok = false;
+
+   char hname[NI_MAXHOST];
+   hname[0] = 0;
+   
+   e->gai_status = getnameinfo(&sa->sa, sizeof(*sa), hname, sizeof(hname), NULL, 0, 0);
+   
+   if (e->gai_status) {
+      e->gai_strerror = gai_strerror(e->gai_status);
+
+      printf("Rejecting connection from \'%s\', getnameinfo() status %d (%s)\n", hname, e->gai_status, e->gai_strerror.c_str());
+
+      e->ok = false;
+      return e->ok;
+   }
+   
+   printf("connection from \"%s\"\n", hname);
+   
+   e->hostname = hname;
+
+   /* always permit localhost */
+   if (e->hostname == "localhost.localdomain")
+      e->ok = true;
+   else if (e->hostname == "localhost")
+      e->ok = true;
+   else {
+      for (unsigned int i=0 ; i<gAllowedHosts.size() ; i++) {
+         if (e->hostname == gAllowedHosts[i]) {
+            e->ok = true;
+         }
+      }
+   }
+
+   if (!e->ok) {
+      printf("Rejecting connection from \'%s\'\n", hname);
+   }
+
+   print_hostlist_cache();
+
+   return e->ok;
+}
+
+#endif
 
 static std::string mgstr(const mg_str* s)
 {
@@ -18724,7 +18888,7 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
          printf("ev_handler: connection %p, MG_EV_ACCEPT\n", nc);
       }
       if (mongoose_hostlist_enabled(nc)) {
-         if (!check_midas_acl(&nc->sa.sa, sizeof(nc->sa))) {
+         if (!mongoose_check_hostlist(&nc->sa)) {
             nc->flags |= MG_F_CLOSE_IMMEDIATELY;
          }
       }
