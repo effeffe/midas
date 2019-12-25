@@ -1976,6 +1976,13 @@ void init_mhttpd_odb()
    if (status == DB_SUCCESS) {
       cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/Pause-Resume Buttons\" is obsolete, please delete it.");
    }
+
+#ifdef HAVE_MONGOOSE616
+   check_obsolete_odb(hDB, "/Experiment/midas http port");
+   check_obsolete_odb(hDB, "/Experiment/midas https port");
+   check_obsolete_odb(hDB, "/Experiment/http redirect to https");
+   check_obsolete_odb(hDB, "/Experiment/Security/mhttpd hosts");
+#endif
 }
 
 /*------------------------------------------------------------------*/
