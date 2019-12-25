@@ -6343,6 +6343,13 @@ bool starts_with(const std::string& s1, const char* s2)
    return (strncasecmp(s1.c_str(), s2, strlen(s2)) == 0);
 }
 
+bool ends_with_char(const std::string& s, char c)
+{
+   if (s.length() < 1)
+      return false;
+   return s[s.length()-1] == c;
+}
+
 /*------------------------------------------------------------------*/
 
 void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
@@ -18494,6 +18501,10 @@ static void handle_http_options_cors(struct mg_connection *nc, const http_messag
 
 static bool mongoose_passwords_enabled(const struct mg_connection *nc);
 
+#ifdef HAVE_MONGOOSE616
+static MVOdb* gProxyOdb = NULL;
+#endif
+
 static void handle_http_message(struct mg_connection *nc, http_message* msg)
 {
    std::string method = mgstr(&msg->method);
@@ -18552,11 +18563,64 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
    }
 
 #ifdef HAVE_MONGOOSE616
-   if (starts_with(uri, "/proxy")) {
-      mg_str mount = mg_mk_str("/proxy");
-      mg_str upstream = mg_mk_str("http://localhost:8081");
-      mg_http_reverse_proxy(nc, msg, mount, upstream);
-      return;
+   if (gProxyOdb && starts_with(uri, "/proxy/")) {
+      std::string::size_type p1 = uri.find("/", 1);
+      if (p1 == uri.length()-1) {
+         std::string response = "404 Not Found (Proxy name is missing)";
+         mg_send_head(nc, 404, response.length(), NULL);
+         mg_send(nc, response.c_str(), response.length());
+         return;
+      }
+      std::string::size_type p2 = uri.find("/", p1+1);
+      if (p2 == std::string::npos) {
+         std::string response = "404 Not Found (Proxy URL should end with a slash)";
+         mg_send_head(nc, 404, response.length(), NULL);
+         mg_send(nc, response.c_str(), response.length());
+         return;
+      }
+      std::string p = uri.substr(p1+1, p2-p1-1);
+      //printf("uri [%s], p1: %d, p2: %d, substr: [%s]\n", uri.c_str(), (int)p1, (int)p2, p.c_str());
+      if (p.length() < 1) {
+         std::string response = "404 Not Found (Double-slash or Proxy name is too short)";
+         mg_send_head(nc, 404, response.length(), NULL);
+         mg_send(nc, response.c_str(), response.length());
+         return;
+      }
+      std::string destination;
+      gProxyOdb->RS(p.c_str(), &destination);
+      if (destination.length() < 1) {
+         std::string response = "404 Not Found (Proxy not found in ODB)";
+         mg_send_head(nc, 404, response.length(), NULL);
+         mg_send(nc, response.c_str(), response.length());
+         return;
+      } else if (destination[0] == '#') {
+         std::string response = "404 Not Found (Proxy commented-out in ODB)";
+         mg_send_head(nc, 404, response.length(), NULL);
+         mg_send(nc, response.c_str(), response.length());
+         return;
+      } else if (ends_with_char(destination, '/')) {
+         std::string response = "404 Not Found (Proxy address should not end with a slash)";
+         mg_send_head(nc, 404, response.length(), NULL);
+         mg_send(nc, response.c_str(), response.length());
+         return;
+      } else if (!starts_with(destination, "http")) {
+         std::string response = "404 Not Found (Proxy address does not start with http";
+         mg_send_head(nc, 404, response.length(), NULL);
+         mg_send(nc, response.c_str(), response.length());
+         return;
+      } else {
+         std::string m;
+         m += "/proxy";
+         m += "/";
+         m += p;
+         mg_str mount = mg_mk_str(m.c_str());
+         mg_str upstream = mg_mk_str(destination.c_str());
+         if (verbose_mg||trace_mg) {
+            printf("proxy: uri [%s] mount [%s] upstream [%s]\n", uri.c_str(), mgstr(&mount).c_str(), mgstr(&upstream).c_str());
+         }
+         mg_http_reverse_proxy(nc, msg, mount, upstream);
+         return;
+      }
    }
 #endif
 
@@ -19031,6 +19095,11 @@ static int mongoose_init(MVOdb* odb, bool no_passwords, bool no_hostlist, const 
    odb->RSA("Host list", &hostlist, true, 10, 32);
    odb->RB("Enable IPv6", &enable_ipv6, true);
 
+   // populate the MIME.types table
+   gProxyOdb = odb->Chdir("Proxy", true);
+   std::string proxy_example = "#http://localhost:8080";
+   gProxyOdb->RS("example", &proxy_example, true);
+   
    // populate the MIME.types table
    SaveMimetypes(odb->Chdir("mime.types", true));
    
