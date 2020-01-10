@@ -1001,7 +1001,10 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       if (this.drag.active) {
          this.drag.active = false;
          let now = new Date().getTime();
-         this.drag.Vt = this.drag.lastDt / (now - this.drag.lastT);
+         if (now - this.drag.lastT !== 0)
+            this.drag.Vt = this.drag.lastDt / (now - this.drag.lastT);
+         else
+            this.drag.Vt = 0;
          this.drag.lastMoveT = now;
          window.setTimeout(this.inertia.bind(this), 50);
       }
