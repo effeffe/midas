@@ -102,7 +102,14 @@ function MhistoryGraph(divElement) { // Constructor
    this.p = [];
 
    // dragging
-   this.drag = {active: false};
+   this.drag = {
+      active: false,
+      lastT: 0,
+      lastOffsetX: 0,
+      lastDt: 0,
+      lastVt: 0,
+      lastMoveT : 0
+   };
 
    // axis zoom
    this.zoom = {
@@ -167,6 +174,7 @@ function MhistoryGraph(divElement) { // Constructor
          click: function (t) {
             t.scroll = true;
             t.scrollRedraw();
+            t.drag.Vt = 0; // stop inertia
 
             if (t.callbacks.jumpToCurrent !== undefined) {
                t.callbacks.jumpToCurrent(t);
@@ -945,6 +953,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          let delta = this.tMax - this.tMin;
          this.tMin += delta/4;
          this.tMax -= delta/4;
+         this.drag.Vt = 0; // stop inertia
          this.redraw();
       }
       if (e.offsetX > this.width - 30 - 24 && e.offsetX < this.width - 30 &&
@@ -953,6 +962,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          let delta = this.tMax - this.tMin;
          this.tMin -= delta/2;
          this.tMax += delta/2;
+         this.drag.Vt = 0; // stop inertia
          this.loadOldData();
       }
 
@@ -988,8 +998,16 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
    } else if (e.type === "mouseup") {
 
-      if (this.drag.active)
+      if (this.drag.active) {
          this.drag.active = false;
+         let now = new Date().getTime();
+         if (this.drag.lastDt !== undefined && now - this.drag.lastT !== 0)
+            this.drag.Vt = this.drag.lastDt / (now - this.drag.lastT);
+         else
+            this.drag.Vt = 0;
+         this.drag.lastMoveT = now;
+         window.setTimeout(this.inertia.bind(this), 50);
+      }
 
       if (this.zoom.x.active) {
          let t1 = this.zoom.x.t1;
@@ -1026,9 +1044,12 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
          // execute dragging
          cursor = "move";
-         let dt = Math.floor((e.offsetX - this.drag.xStart) / (this.x2 - this.x1) * (this.tMax - this.tMin));
+         let dt = (e.offsetX - this.drag.xStart) / (this.x2 - this.x1) * (this.tMax - this.tMin);
          this.tMin = this.drag.tMinStart - dt;
          this.tMax = this.drag.tMaxStart - dt;
+         this.drag.lastDt = (e.offsetX - this.drag.lastOffsetX) / (this.x2 - this.x1) * (this.tMax - this.tMin);
+         this.drag.lastT = new Date().getTime();
+         this.drag.lastOffsetX = e.offsetX;
          if (this.yZoom) {
             let dy = (this.drag.yStart - e.offsetY) / (this.y1 - this.y2) * (this.yMax - this.yMin);
             this.yMin = this.drag.yMinStart - dy;
@@ -1243,6 +1264,31 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
       this.marker.active = false;
 
       e.preventDefault();
+   }
+};
+
+MhistoryGraph.prototype.inertia = function () {
+   if (this.drag.Vt !== 0) {
+      let now = new Date().getTime();
+      let dt = now - this.drag.lastMoveT;
+      this.drag.lastMoveT = now;
+
+      this.tMin -= this.drag.Vt * dt;
+      this.tMax -= this.drag.Vt * dt;
+
+      this.drag.Vt = this.drag.Vt * 0.85;
+      if (Math.abs(this.drag.Vt) < 0.005) {
+         this.drag.Vt = 0;
+      }
+
+      this.loadOldData();
+
+      if (this.callbacks.timeZoom !== undefined) {
+         this.callbacks.timeZoom(this);
+      }
+
+      if (this.drag.Vt !== 0)
+         window.setTimeout(this.inertia.bind(this), 50);
    }
 };
 
