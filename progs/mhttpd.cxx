@@ -9972,9 +9972,9 @@ time_t string_to_time(const char *str)
 
 /*------------------------------------------------------------------*/
 
-const char* time_to_string(time_t t)
+std::string time_to_string(time_t t)
 {
-   static char buf[256];
+   char buf[256];
    sprintf(buf, "%.0f", (double)t);
    return buf;
 }
@@ -11556,7 +11556,7 @@ void show_query_page(Param* p, Return* r)
 
       sprintf(redir, "?cmd=oldhistory&group=%s&panel=%s&scale=%d&time=%s",
               p->getparam("group"), p->getparam("panel"),
-              (int) (ltime_end - ltime_start), time_to_string(ltime_end));
+              (int) (ltime_end - ltime_start), time_to_string(ltime_end).c_str());
       if (p->isparam("hindex"))
          add_param_to_url(redir, sizeof(redir), "index", p->getparam("hindex"));
       redirect(r, redir);
@@ -13392,7 +13392,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
    }
 
    if (endtime != 0)
-      r->rsprintf("<input type=hidden name=htime id=htime value=%s>\n", time_to_string(endtime));
+      r->rsprintf("<input type=hidden name=htime id=htime value=%s>\n", time_to_string(endtime).c_str());
    if (pwidth && *pwidth)
       r->rsprintf("<input type=hidden name=hwidth id=hwidth value=%s>\n", pwidth);
    if (pheight && *pheight)
@@ -13620,7 +13620,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
             if (endtime != 0) {
                char tmp[256];
-               sprintf(tmp, "time=%s&scale=%d", time_to_string(endtime), scale);
+               sprintf(tmp, "time=%s&scale=%d", time_to_string(endtime).c_str(), scale);
                ref += "&";
                ref += tmp;
                ref2 += "?";
@@ -13712,7 +13712,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       paramstr[0] = 0;
       sprintf(paramstr + strlen(paramstr), "&scale=%d", scale);
       if (endtime != 0)
-         sprintf(paramstr + strlen(paramstr), "&time=%s", time_to_string(endtime));
+         sprintf(paramstr + strlen(paramstr), "&time=%s", time_to_string(endtime).c_str());
       if (pwidth && *pwidth)
          sprintf(paramstr + strlen(paramstr), "&width=%s", pwidth);
       else {
@@ -13845,7 +13845,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
                if (endtime != 0) {
                   char tmp[256];
-                  sprintf(tmp, "time=%s&scale=%d", time_to_string(endtime), scale);
+                  sprintf(tmp, "time=%s&scale=%d", time_to_string(endtime).c_str(), scale);
                   ref += "&";
                   ref += tmp;
                   ref2 += "&";
