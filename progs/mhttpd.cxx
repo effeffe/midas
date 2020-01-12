@@ -8079,7 +8079,7 @@ void show_mscb_page(Param* p, Return* r, int refresh)
    BOOL comment_created;
    float fvalue;
    char *pd;
-   char dbuf[256], value[256], evalue[256], unit[256], cur_subm_name[256];
+   char dbuf[256], evalue[256], unit[256], cur_subm_name[256];
    HNDLE hDB, hKeySubm, hKeyCurSubm, hKey, hKeyAddr, hKeyComm;
    KEY key;
    MSCB_INFO info;
@@ -8225,6 +8225,7 @@ void show_mscb_page(Param* p, Return* r, int refresh)
    if (p->isparam("subm") && p->isparam("node") &&
        p->isparam("idx") && p->isparam("value")) {
       i = atoi(p->getparam("idx"));
+      char value[256];
       strlcpy(value, p->getparam("value"), sizeof(value));
 
       fd = mscb_init(cur_subm_name, 0, "", FALSE);
@@ -8234,8 +8235,7 @@ void show_mscb_page(Param* p, Return* r, int refresh)
          if (status == MSCB_SUCCESS) {
             if (info_var.unit == UNIT_STRING) {
                char valstr[256];
-               memset(valstr, 0, sizeof(valstr));
-               strncpy(valstr, value, info_var.width);
+               strlcpy(valstr, value, sizeof(valstr));
                if (strlen(valstr) > 0 && valstr[strlen(valstr) - 1] == '\n')
                   valstr[strlen(valstr) - 1] = 0;
 
@@ -8568,6 +8568,7 @@ void show_mscb_page(Param* p, Return* r, int refresh)
             strlcpy(tr8, info_var.name, sizeof(tr8));
             r->rsprintf("<tr><td class=\"v1\">%s</td>\r\n", tr8);
             r->rsprintf("<td class=\"v2\">\r\n");
+            char value[256];
             print_mscb_var(value, evalue, unit, &info_var, pd);
             r->rsprintf("<a href=\"#\" onClick=\"mscb_edit(%d,'%s')\">%s</a>",
                j, evalue, value);
