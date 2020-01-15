@@ -4,15 +4,23 @@
 #
 ###########################################################
 
+ifndef MIDASSYS
+MIDASSYS=$(HOME)/git/midas
+endif
+
+ifndef EPICS
 #EPICS = /usr/local/epics/base
 EPICS = $(HOME)/git/epics-base
+endif
 
-CFLAGS  = -g -O0
+CFLAGS  = -g -O2 -Wall
 
 # search main file
 GREP = grep -l "main(" *cxx
 MAIN = $(shell $(GREP))
 OUTNAME = $(basename $(MAIN))
+
+CFLAGS += -I$(MIDASSYS)/include
 
 # OS specific flags and libs
 ifeq ($(shell uname),Linux)
@@ -21,7 +29,7 @@ LIBS    = -pthread -L$(EPICS)/lib/SL5-x86_64 -lca
 endif
 
 ifeq ($(shell uname),Darwin)
-CFLAGS  += -std=gnu++11 -x c++ -I$(EPICS)/include/os/Darwin -I$(EPICS)/include -I$(EPICS)/include/compiler/clang
+CFLAGS  += -std=gnu++11 -I$(EPICS)/include/os/Darwin -I$(EPICS)/include -I$(EPICS)/include/compiler/clang
 #LIBS    = -framework IOKit -framework CoreFoundation -lobjc -L$(EPICS)/lib/darwin-x86 -lca -lCom
 LIBS    = -L$(EPICS)/lib/darwin-x86 -lca -lCom
 endif
@@ -30,12 +38,15 @@ endif
 C_FILES = $(wildcard *.cxx)
 C_OBJ = $(C_FILES:%.cxx=%.o)
 
-all: $(OUTNAME)
+all: $(OUTNAME) epics_ca.o
 
 $(OUTNAME): $(C_OBJ)
 	g++ $(C_OBJ) -o $(OUTNAME) $(LIBS)
 
 $(C_OBJ): %.o: %.cxx
+	g++ $(CFLAGS) -c $<
+
+epics_ca.o: %.o: ../%.cxx
 	g++ $(CFLAGS) -c $<
 
 clean:
