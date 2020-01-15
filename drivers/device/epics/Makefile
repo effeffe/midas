@@ -24,8 +24,8 @@ CFLAGS += -I$(MIDASSYS)/include
 
 # OS specific flags and libs
 ifeq ($(shell uname),Linux)
-CFLAGS += -I$(EPICS)/include/os/Linux -I$(EPICS)/include
-LIBS    = -pthread -L$(EPICS)/lib/SL5-x86_64 -lca
+CFLAGS += -I$(EPICS)/include/os/Linux -I$(EPICS)/include -I$(EPICS)/include/compiler/gcc
+LIBS    = -pthread -L$(EPICS)/lib/linux-x86_64 -lca
 endif
 
 ifeq ($(shell uname),Darwin)
