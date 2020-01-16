@@ -1,5 +1,6 @@
 #include <stdio.h>
-#include <epicsStdlib.h>
+#include <stdlib.h> // setenv()
+//#include <epicsStdlib.h>
 #include "cadef.h"
 #include "dbDefs.h"
 #include "epicsTime.h"
