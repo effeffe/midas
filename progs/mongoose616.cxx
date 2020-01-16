@@ -8079,6 +8079,10 @@ static void mg_reverse_proxy_handler(struct mg_connection *nc, int ev,
     return;
   }
 
+  //if (ev != 0) {
+  //   printf("proxy event %d\n", ev);
+  //}
+
   switch (ev) {
     case MG_EV_CONNECT:
       if (*(int *) ev_data != 0) {
@@ -8086,15 +8090,31 @@ static void mg_reverse_proxy_handler(struct mg_connection *nc, int ev,
       }
       break;
     /* TODO(mkm): handle streaming */
-    case MG_EV_HTTP_REPLY:
-      mg_send(pd->reverse_proxy_data.linked_conn, hm->message.p,
-              hm->message.len);
-      pd->reverse_proxy_data.linked_conn->flags |= MG_F_SEND_AND_CLOSE;
-      nc->flags |= MG_F_CLOSE_IMMEDIATELY;
-      break;
-    case MG_EV_CLOSE:
-      pd->reverse_proxy_data.linked_conn->flags |= MG_F_SEND_AND_CLOSE;
-      break;
+  case MG_EV_RECV: {
+     //struct mbuf *io = &nc->recv_mbuf;
+     //printf("proxy read: %d bytes [%s]\n", (int)io->len, io->buf);
+     break;
+  }
+  case MG_EV_HTTP_REPLY: {
+     char* s = strstr((char*)hm->message.p, "Transfer-Encoding: chunked");
+     if (s) {
+        *s = 'X';
+     }
+     //printf("proxy reply: [%s]\n", hm->message.p);
+     mg_send(pd->reverse_proxy_data.linked_conn, hm->message.p, hm->message.len);
+     pd->reverse_proxy_data.linked_conn->flags |= MG_F_SEND_AND_CLOSE;
+     nc->flags |= MG_F_CLOSE_IMMEDIATELY;
+     break;
+  }
+  case MG_EV_CLOSE: {
+     struct mbuf *io = &nc->recv_mbuf;
+     //printf("proxy close: mbuf %p, bytes %d\n", io, (int)io->len); //, io->buf);
+     if (io->len > 0) {
+        mg_send(pd->reverse_proxy_data.linked_conn, io->buf, io->len);
+     }
+     pd->reverse_proxy_data.linked_conn->flags |= MG_F_SEND_AND_CLOSE;
+     break;
+  }
   }
 
 #if MG_ENABLE_CALLBACK_USERDATA
@@ -8116,6 +8136,8 @@ void mg_http_reverse_proxy(struct mg_connection *nc,
 
   mg_asprintf(&purl, sizeof(burl), "%.*s%.*s%s%.*s", (int) upstream.len, upstream.p,
     (int) (hm->uri.len - mount.len), hm->uri.p + mount.len, (hm->query_string.len > 0 ? "?" : ""), (int) hm->query_string.len, hm->query_string.p);
+
+  //printf("proxy url: [%s]\n", purl);
 
   be = mg_connect_http_base(nc->mgr, MG_CB(mg_reverse_proxy_handler, NULL),
                             opts, "http", NULL, "https", NULL, purl, &path,
