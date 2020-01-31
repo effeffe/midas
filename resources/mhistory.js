@@ -1316,10 +1316,18 @@ MhistoryGraph.prototype.resetAxes = function () {
 
    this.yMin = this.yMin0;
    this.yMax = this.yMax0;
-   if (this.autoscaleMin)
-      this.yMin -= (this.yMax0 - this.yMin0) / 10;
-   if (this.autoscaleMax)
-      this.yMax += (this.yMax0 - this.yMin0) / 10;
+   if (this.autoscaleMin) {
+      if (this.logAxis)
+         this.yMin = 0.8 * this.yMin0;
+      else
+         this.yMin -= (this.yMax0 - this.yMin0) / 10;
+   }
+   if (this.autoscaleMax) {
+      if (this.logAxis)
+         this.yMax = 1.2 * this.yMax0;
+      else
+         this.yMax += (this.yMax0 - this.yMin0) / 10;
+   }
 
    if (this.logAxis && this.yMin <= 0)
       this.yMin = 1E-20;
@@ -1438,18 +1446,24 @@ MhistoryGraph.prototype.findMinMax = function () {
    }
 
    if (!this.yZoom) {
-      if (this.autoscaleMin)
-      // leave 10% space above graph
-         this.yMin = this.yMin0 - (this.yMax0 - this.yMin0) / 10;
-      else
+      if (this.autoscaleMin) {
+         if (this.logAxis)
+            this.yMin = 0.8 * this.yMin0;
+         else
+            // leave 10% space below graph
+            this.yMin = this.yMin0 - (this.yMax0 - this.yMin0) / 10;
+      } else
          this.yMin = this.yMin0;
       if (this.logAxis && this.yMin <= 0)
          this.yMin = 1E-20;
 
-      if (this.autoscaleMax)
-      // leave 10% space above graph
-         this.yMax = this.yMax0 + (this.yMax0 - this.yMin0) / 10;
-      else
+      if (this.autoscaleMax) {
+         if (this.logAxis)
+            this.yMax = 1.2 * this.yMax0;
+         else
+            // leave 10% space above graph
+            this.yMax = this.yMax0 + (this.yMax0 - this.yMin0) / 10;
+      } else
          this.yMax = this.yMax0;
       if (this.logAxis && this.yMax <= 0)
          this.yMax = 1E-18;
