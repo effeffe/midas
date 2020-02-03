@@ -151,7 +151,9 @@ NEED_ZLIB=
 # Optional nvidia gpu support, HAVE_NVIDIA is a count of CPUs
 #
 ifndef NO_NVIDIA
+ifneq (,$(wildcard /usr/local/cuda/include))
 HAVE_NVIDIA := $(shell nvidia-smi -L  2> /dev/null | grep GPU )
+endif
 endif
 
 #####################################################################
