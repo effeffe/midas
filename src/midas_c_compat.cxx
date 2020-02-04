@@ -320,6 +320,10 @@ INT c_db_delete_key(HNDLE database_handle, HNDLE key_handle, BOOL follow_links) 
    return db_delete_key(database_handle, key_handle, follow_links);
 }
 
+INT c_db_enum_key(HNDLE hDB, HNDLE hKey, INT idx, HNDLE * subkey_handle) {
+	return db_enum_key(hDB, hKey, idx, subkey_handle);
+}
+
 INT c_db_find_key(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey) {
    return db_find_key(hdb, hkey, name, hsubkey);
 }
@@ -377,6 +381,10 @@ INT c_jrpc_client_call(HNDLE hconn, char* cmd, char* args, char* buf, int buf_le
 
 INT c_rpc_flush_event(void) {
    return rpc_flush_event();
+}
+
+INT c_rpc_is_remote(void) {
+	return rpc_is_remote();
 }
 
 INT c_rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, INT buf_size, INT async_flag, INT mode) {

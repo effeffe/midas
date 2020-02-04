@@ -352,7 +352,8 @@ class MidasLib(ctypes.CDLL):
             "c_cm_get_revision": ctypes.c_char_p,
             "c_cm_transition": ctypes.c_int32,
             "c_free": None,
-            "c_free_list": None
+            "c_free_list": None,
+            "c_rpc_is_remote": ctypes.c_int32
         }
         
         self.ignore_status_codes = {
