@@ -102,7 +102,7 @@ endif (NO_ZLIB)
 # Optional SSL support for mhttpd
 #
 if (NO_SSL)
-   message(STATUS "MIDAS: OpenSSL support is disabled via NO_SSL")
+   message(STATUS "MIDAS: OpenSSL https support is disabled via NO_SSL")
 else (NO_SSL)
 find_package(OpenSSL)
 if (OPENSSL_FOUND)
@@ -111,6 +111,22 @@ else ()
    message(STATUS "MIDAS: OpenSSL not found")
 endif ()
 endif (NO_SSL)
+
+#
+# Optional MBEDTLS SSL support for mhttpd
+#
+if (NO_MBEDTLS)
+   message(STATUS "MIDAS: MBEDTLS https support is disabled via NO_MBEDTLS")
+else (NO_MBEDTLS)
+   if (EXISTS ../../mbedtls/include/mbedtls/debug.h)
+      message(STATUS "MIDAS: Found MBEDTLS ...")
+      set(MBEDTLS_FOUND 1)
+      add_compile_options(-I../../../mbedtls/include -I../../../mbedtls/crypto/include)
+      set(MBEDTLS_LIBS ${MBEDTLS_LIBS} -L../../../mbedtls/library -lmbedtls -lmbedx509 -L../../../mbedtls/crypto/library -lmbedcrypto)
+   else ()
+      message(STATUS "MIDAS: MBEDTLS not found")
+   endif ()
+endif (NO_MBEDTLS)
 
 #
 # Check for MYSQL library for mlogger and for the history

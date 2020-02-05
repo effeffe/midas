@@ -19031,7 +19031,7 @@ static int mongoose_listen(const char* address, int flags)
    }
 
    if (flags & FLAG_HTTPS) {
-#ifdef MG_ENABLE_SSL
+#if MG_ENABLE_SSL
       std::string cert_file;
 
       int status = find_file_mg("ssl_cert.pem", cert_file, NULL, trace_mg);
