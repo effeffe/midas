@@ -2301,8 +2301,10 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
 
    if (logaxis) {
       dy = Math.pow(10, Math.floor(Math.log(ymin) / Math.log(10)));
-      if (dy === 0)
-         dy = 1E-10;
+      if (dy === 0) {
+         ymin = 1E-20;
+         dy = 1E-20;
+      }
       label_dy = dy;
       major_dy = dy * 10;
       n_sig1 = 4;
@@ -2403,7 +2405,11 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
 
                // label
                if (label !== 0) {
-                  let str = y_act.toPrecision(n_sig1).stripZeros();
+                  let str;
+                  if (Math.abs(y_act) < 0.001)
+                     str = y_act.toExponential(n_sig1).stripZeros();
+                  else
+                     str = y_act.toPrecision(n_sig1).stripZeros();
                   maxwidth = Math.max(maxwidth, ctx.measureText(str).width);
                   if (draw) {
                      ctx.strokeStyle = this.color.label;
@@ -2443,7 +2449,11 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
          // for logaxis, also put labels on minor tick marks
          if (logaxis) {
             if (label !== 0) {
-               let str = y_act.toPrecision(n_sig1).stripZeros();
+               let str;
+               if (Math.abs(y_act) < 0.001)
+                  str = y_act.toExponential(n_sig1).stripZeros();
+               else
+                  str = y_act.toPrecision(n_sig1).stripZeros();
                if (ys - textHeight / 2 > y1 - height &&
                   ys + textHeight / 2 < y1 &&
                   ys + textHeight < last_label_y + 2) {
