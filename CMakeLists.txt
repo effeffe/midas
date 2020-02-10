@@ -69,17 +69,26 @@ endif()
 if (NO_ROOT)
    message(STATUS "MIDAS: ROOT support is disabled via NO_ROOT")
 else (NO_ROOT)
-execute_process(COMMAND root-config --version OUTPUT_VARIABLE HAVE_ROOT)
-if (HAVE_ROOT)
-   string(REGEX REPLACE "\n" "" HAVE_ROOT ${HAVE_ROOT})
-   message(STATUS "MIDAS: Found ROOT version " ${HAVE_ROOT})
-   execute_process(COMMAND root-config --incdir OUTPUT_VARIABLE ROOT_INC)
-   execute_process(COMMAND root-config --libs OUTPUT_VARIABLE ROOT_LIBS)
-   string(STRIP ${ROOT_LIBS} ROOT_LIBS)
-   string(REGEX REPLACE "\n$" "" ROOT_INC "${ROOT_INC}")
-else (HAVE_ROOT)
-   message(STATUS "MIDAS: ROOT not found")
-endif(HAVE_ROOT)
+
+   # You need to tell CMake where to find the ROOT installation. This can be done in a number of ways:
+   #   - ROOT built with classic configure/make use the provided $ROOTSYS/etc/cmake/FindROOT.cmake
+   #   - ROOT built with CMake. Add in CMAKE_PREFIX_PATH the installation prefix for ROOT
+   list(APPEND CMAKE_PREFIX_PATH $ENV{ROOTSYS})
+
+   #---Locate the ROOT package and defines a number of variables (e.g. ROOT_INCLUDE_DIRS)
+   find_package(ROOT REQUIRED COMPONENTS MathCore RIO Hist Tree Net)
+
+   #---Define useful ROOT functions and macros (e.g. ROOT_GENERATE_DICTIONARY)
+   include(${ROOT_USE_FILE})
+
+   if (ROOT_FOUND)
+      separate_arguments(ROOT_CXX_FLAGS UNIX_COMMAND "${ROOT_CXX_FLAGS}")
+      message(STATUS "MIDAS: Found ROOT version " ${ROOT_VERSION})
+      set(HAVE_ROOT true)
+   else (ROOT_FOUND)     
+      message(STATUS "MIDAS: ROOT not found")
+   endif (ROOT_FOUND)
+
 endif(NO_ROOT)
 
 #
@@ -338,8 +347,8 @@ add_library(rmana src/mana)
 target_include_directories(rmana PUBLIC ${SYSINC_DIR})
 target_include_directories(rmana PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 if (HAVE_ROOT)
-   target_include_directories(rmana PUBLIC ${ROOT_INC})
-   target_compile_options(rmana PRIVATE -DHAVE_ROOT)
+   target_include_directories(rmana PUBLIC ${ROOT_INCLUDE_DIRS})
+   target_compile_options(rmana PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
 endif(HAVE_ROOT)
 
 install(TARGETS midas midas-shared midas-c-compat mfe mana rmana
@@ -367,7 +376,7 @@ add_library(rmanao OBJECT src/mana)
 target_include_directories(rmanao PUBLIC ${SYSINC_DIR})
 target_include_directories(rmanao PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 if (HAVE_ROOT)
-   target_include_directories(rmanao PUBLIC ${ROOT_INC})
+   target_include_directories(rmanao PUBLIC ${ROOT_INCLUDE_DIRS})
    target_compile_options(rmanao PRIVATE -DHAVE_ROOT)
 endif(HAVE_ROOT)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/rmanao.dir/src/mana.cxx.o DESTINATION lib RENAME rmana.o)
