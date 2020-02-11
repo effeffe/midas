@@ -3,6 +3,10 @@
 
 FROM rootproject/root-cc7
 
+# install required packages
+RUN apt-get -qq update 
+RUN apt-get -y -qq install emacs
+
 # clone midas
 RUN mkdir /midas
 ENV MIDASSYS /midas
