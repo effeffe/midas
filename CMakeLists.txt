@@ -70,24 +70,28 @@ if (NO_ROOT)
    message(STATUS "MIDAS: ROOT support is disabled via NO_ROOT")
 else (NO_ROOT)
 
-   # You need to tell CMake where to find the ROOT installation. This can be done in a number of ways:
-   #   - ROOT built with classic configure/make use the provided $ROOTSYS/etc/cmake/FindROOT.cmake
-   #   - ROOT built with CMake. Add in CMAKE_PREFIX_PATH the installation prefix for ROOT
-   list(APPEND CMAKE_PREFIX_PATH $ENV{ROOTSYS})
+   if (DEFINED ENV{ROOTSYS})
+      # You need to tell CMake where to find the ROOT installation. This can be done in a number of ways:
+      #   - ROOT built with classic configure/make use the provided $ROOTSYS/etc/cmake/FindROOT.cmake
+      #   - ROOT built with CMake. Add in CMAKE_PREFIX_PATH the installation prefix for ROOT
+      list(APPEND CMAKE_PREFIX_PATH $ENV{ROOTSYS})
 
-   #---Locate the ROOT package and defines a number of variables (e.g. ROOT_INCLUDE_DIRS)
-   find_package(ROOT REQUIRED COMPONENTS MathCore RIO Hist Tree Net)
+      #---Locate the ROOT package and defines a number of variables (e.g. ROOT_INCLUDE_DIRS)
+      find_package(ROOT REQUIRED COMPONENTS MathCore RIO Hist Tree Net)
 
-   #---Define useful ROOT functions and macros (e.g. ROOT_GENERATE_DICTIONARY)
-   include(${ROOT_USE_FILE})
+      #---Define useful ROOT functions and macros (e.g. ROOT_GENERATE_DICTIONARY)
+      include(${ROOT_USE_FILE})
 
-   if (ROOT_FOUND)
-      separate_arguments(ROOT_CXX_FLAGS UNIX_COMMAND "${ROOT_CXX_FLAGS}")
-      message(STATUS "MIDAS: Found ROOT version " ${ROOT_VERSION})
-      set(HAVE_ROOT true)
-   else (ROOT_FOUND)     
-      message(STATUS "MIDAS: ROOT not found")
-   endif (ROOT_FOUND)
+      if (ROOT_FOUND)
+         separate_arguments(ROOT_CXX_FLAGS UNIX_COMMAND "${ROOT_CXX_FLAGS}")
+         message(STATUS "MIDAS: Found ROOT version " ${ROOT_VERSION})
+         set(HAVE_ROOT true)
+      else (ROOT_FOUND)
+         message(STATUS "MIDAS: ROOT not found")
+      endif (ROOT_FOUND)
+   else ()
+      message(STATUS "MIDAS: ROOTSYS not defined")
+   endif()
 
 endif(NO_ROOT)
 
