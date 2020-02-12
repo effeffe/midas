@@ -1860,7 +1860,7 @@ function mhttpd_refresh() {
       for (i = 0; i < modbhbar.length; i++, idata++) {
          value = rpc[0].result.data[idata];
          tid = rpc[0].result.tid[idata];
-         mvalue = mie_to_string(tid, value);
+         mvalue = mie_to_string(tid, value, modbhbar[i].dataset.format);
          if (mvalue === "")
             mvalue = "(empty)";
          html = mhttpd_escape("&nbsp;" + mvalue);
@@ -1895,7 +1895,7 @@ function mhttpd_refresh() {
       for (i = 0; i < modbvbar.length; i++, idata++) {
          value = rpc[0].result.data[idata];
          tid = rpc[0].result.tid[idata];
-         mvalue = mie_to_string(tid, value);
+         mvalue = mie_to_string(tid, value, modbvbar[i].dataset.format);
          if (mvalue === "")
             mvalue = "(empty)";
          html = mhttpd_escape("&nbsp;" + mvalue);
