@@ -3,9 +3,9 @@
 
 FROM rootproject/root-cc7
 
-# install required packages
-RUN apt-get -qq update 
-RUN apt-get -y -qq install emacs
+# install required packages: root-cc7 requires yum
+RUN yum -y -qq update 
+RUN yum -y -qq install emacs
 
 # clone midas
 RUN mkdir /midas
@@ -19,6 +19,7 @@ RUN git submodule update --init
 # build midas
 RUN mkdir build
 RUN cd build && rm -rf * && cmake3 .. && make && make install
+RUN pip3 install -e $MIDASSYS/python --user
 WORKDIR /midas/bin
 
 # show executables and run test program
