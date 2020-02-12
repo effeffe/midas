@@ -262,8 +262,10 @@ function msg_extend_front() {
    if (first_tstamp) {
 
       mjsonrpc_call("cm_msg_retrieve", { "facility": facility, "time" : first_tstamp, "min_messages" : 0 }).then(function(rpc) {
-         var msg = rpc.result.messages.split("\n");
-         msg_prepend(msg);
+         if (rpc.result.messages !== undefined) {
+            var msg = rpc.result.messages.split("\n");
+            msg_prepend(msg);
+         }
          timer_front = window.setTimeout(msg_extend_front, 1000);
       }).catch(function(error) {
 
