@@ -1530,6 +1530,11 @@ class MidasClient:
         if array_len is None:
             if self._is_list_like(initial_value): 
                 array_len = len(initial_value)
+                
+                if array_len == 1:
+                    # Convert arrays of length 1 to single values for easier handling
+                    # later.
+                    initial_value = initial_value[0]
             else:
                 array_len = 1
 

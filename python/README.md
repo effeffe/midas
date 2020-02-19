@@ -124,3 +124,9 @@ pip install -e $MIDASSYS/python --user
 
 You can now use `import midas` and `import midas.file_reader` etc in your python scripts.
 
+## Running tests
+
+Test are written using the python `unittest` framework. To run all the tests, change to
+the `tests` directory and run `python -m unittest`. To run a single script, run e.g.
+`python test_odb.py`. Note that the tests will interact with whichever experiment you
+are connected to, and will start and stop runs, interact with the ODB etc.
