@@ -171,7 +171,7 @@ class TestOdb(unittest.TestCase):
         self.set_and_readback("/pytest/sbyte", ctypes.c_byte(123), midas.TID_SBYTE)
         self.set_and_readback("/pytest/sbyte", (ctypes.c_int8 * 3)(*[1,2,3]), midas.TID_SBYTE)
         
-        self.set_and_readback_from_parent_dir("/pytest", "sbyte2", [ctypes.c_int8(-12), ctypes.c_byte(4)], midas.TID_SBYTE)
+        self.set_and_readback_from_parent_dir("/pytest", "sbyte2", [ctypes.c_int8(-15), ctypes.c_byte(6)], midas.TID_SBYTE)
         self.set_and_readback_from_parent_dir("/pytest", "sbyte2", ctypes.c_byte(13), midas.TID_SBYTE)
         
     def testString(self):    

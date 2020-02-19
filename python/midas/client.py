@@ -1046,7 +1046,8 @@ class MidasClient:
     def _convert_dwords_from_odb(self, curr_place):
         """
         Unsigned ints are returned as JSON strings (like "0x0000").
-        Change them to actual numbers.
+        Change them to actual numbers. Negative signed bytes may
+        alse be returned incorrectly.
         
         Args:
             * curr_place (dict or collections.OrderedDict) - ODB JSON dump
@@ -1075,6 +1076,11 @@ class MidasClient:
                         retval[k] = [int(x, 16) for x in v]
                     else:
                         retval[k] = int(v, 16)
+                elif meta["type"] == midas.TID_SBYTE:
+                    if isinstance(v, list):
+                        retval[k] = [x-256 if x > 127 else x for x in v]
+                    else:
+                        retval[k] = v-256 if v > 127 else v
                 else:
                     retval[k] = v
     
@@ -1478,17 +1484,8 @@ class MidasClient:
             * hKey (int) - from `_odb_get_hkey()`
             * contents (`collections.OrderedDict`)
         """
-        buf = ctypes.c_char_p()
-        bufsize = ctypes.c_int()
-        bufend = ctypes.c_int()
-
-        self.lib.c_db_copy_json_ls(self.hDB, hKey, ctypes.byref(buf), ctypes.byref(bufsize), ctypes.byref(bufend))
-    
-        if bufsize.value <= 0:
-            return
-        
-        odbjson = midas.safe_to_json(buf.value, True)
-        current_order = [k for k in self._prune_metadata_from_odb(odbjson).keys()]
+        odbjson = self.odb_get(path, recurse_dir=False, include_key_metadata=False)
+        current_order = [k for k in odbjson.keys()]
         target_order = [k for k in contents.keys()]
         
         if len(current_order) != len(target_order):
