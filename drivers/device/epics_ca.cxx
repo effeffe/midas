@@ -46,7 +46,7 @@ typedef struct {
     DWORD flags;
 } CA_INFO;
 
-static void printChidInfo(chid chid, char *message)
+static void printChidInfo(chid chid, const char *message)
 {
   printf("\n%s\n",message);
   printf("pv: %s  type(%d) nelements(%ld)", //  host(%s)",
@@ -61,7 +61,7 @@ static void exceptionCallback(struct exception_handler_args args)
   chid        chid = args.chid;
   long        stat = args.stat; /* Channel access status code*/
   const char  *channel;
-  static char *noname = "unknown";
+  static const char *noname = "unknown";
 
   channel = (chid ? ca_name(chid) : noname);
 
@@ -130,13 +130,13 @@ INT epics_ca_init(HNDLE hKey, void **pinfo, INT channels)
   CA_INFO *info;
 
   /* allocate info structure */
-  info = calloc(1, sizeof(CA_INFO));
+  info = (CA_INFO*) calloc(1, sizeof(CA_INFO));
   *pinfo = info;
 
   cm_get_experiment_database(&hDB, NULL);
 
   /* get channel names */
-  info->channel_names = calloc(channels, CHN_NAME_LENGTH);
+  info->channel_names = (char*) calloc(channels, CHN_NAME_LENGTH);
   for (i = 0; i < channels; i++)
     sprintf(info->channel_names + CHN_NAME_LENGTH * i, "Channel%d", i);
   db_merge_data(hDB, hKey, "Channel name",
@@ -150,7 +150,7 @@ INT epics_ca_init(HNDLE hKey, void **pinfo, INT channels)
   }
 
   /* allocate arrays */
-  info->array = calloc(channels, sizeof(float));
+  info->array = (float*) calloc(channels, sizeof(float));
   info->caid = (CA_NODE *) calloc(channels, sizeof(CA_NODE));
 
   /* search channels */
@@ -299,17 +299,17 @@ INT epics_ca(INT cmd, ...)
    status = FE_SUCCESS;
 
    if (cmd == CMD_INIT) {
-      void *pinfo;
+      void **pinfo;
 
       hKey = va_arg(argptr, HNDLE);
-      pinfo = va_arg(argptr, void *);
+      pinfo = va_arg(argptr, void**);
       channel = va_arg(argptr, INT);
       flags = va_arg(argptr, DWORD);
       status = epics_ca_init(hKey, pinfo, channel);
       info = *(CA_INFO **) pinfo;
       info->flags = flags;
    } else {
-      info = va_arg(argptr, void *);
+     info = va_arg(argptr, CA_INFO*);
 
       /* only execute command if enabled */
       switch (cmd) {

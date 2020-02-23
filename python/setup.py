@@ -8,6 +8,6 @@ setup(name='midas',
       author='Ben Smith',
       author_email='bsmith@triumf.ca',
       url='https://midas.triumf.ca/MidasWiki/index.php/Main_Page',
-      packages = find_packages("midas"),
+      packages = ["midas"]
      )
 

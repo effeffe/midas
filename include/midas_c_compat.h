@@ -58,6 +58,7 @@ extern "C" {
    INT c_db_create_key(HNDLE hdb, HNDLE key_handle, const char *key_name, DWORD type);
    INT c_db_create_link(HNDLE hdb, HNDLE key_handle, const char *link_name, const char *destination);
    INT c_db_delete_key(HNDLE database_handle, HNDLE key_handle, BOOL follow_links);
+   INT c_db_enum_key(HNDLE hDB, HNDLE hKey, INT idx, HNDLE * subkey_handle);
    INT c_db_find_key(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
    INT c_db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
    INT c_db_get_key(HNDLE hdb, HNDLE key_handle, KEY * key);
@@ -72,6 +73,7 @@ extern "C" {
    INT c_db_set_value_index(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *data, INT data_size, INT index, DWORD type, BOOL truncate);
    INT c_jrpc_client_call(HNDLE hconn, char* cmd, char* args, char* buf, int buf_length);
    INT c_rpc_flush_event(void);
+   INT c_rpc_is_remote(void);
    INT c_rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, INT buf_size, INT async_flag, INT mode);
 }
 

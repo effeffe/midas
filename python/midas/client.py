@@ -302,9 +302,11 @@ class MidasClient:
                 content is in "State", the metadata is in "State/key").
                 
         Returns:
-            * If `path` points to a directoy, a dict. Dicts are keyed by the
+            * If `path` points to a directory, a dict. Dicts are keyed by the
                 ODB key name. If `recurse_dir` is False and one of the entries
                 in `path` is also a directory, it's value will be an empty dict.
+                If `include_key_metadata` is True, the keys at the top level will
+                be the "directory_name" and "directory_name/key"
             * If `path` points to a single ODB key, an int/float/bool etc (or
                 a list of them). If `include_key_metadata` is True the return 
                 value will be a dict, with two entries (one for the value and
@@ -322,9 +324,10 @@ class MidasClient:
         
         key_metadata = self._odb_get_key_from_hkey(hKey)
         
-        if key_metadata.type == midas.TID_KEY:
+        if key_metadata.type == midas.TID_KEY and not self._rpc_is_remote():
             # If we are getting the content of a directory, we can use the simple
-            # db_copy_json_xxx functions.
+            # db_copy_json_xxx functions. These only work if we're talking to a 
+            # local midas experiment though (not via RPC).
             buf = ctypes.c_char_p()
             bufsize = ctypes.c_int()
             bufend = ctypes.c_int()
@@ -333,7 +336,7 @@ class MidasClient:
                 self.lib.c_db_copy_json_save(self.hDB, hKey, ctypes.byref(buf), ctypes.byref(bufsize), ctypes.byref(bufend))
             else:
                 self.lib.c_db_copy_json_ls(self.hDB, hKey, ctypes.byref(buf), ctypes.byref(bufsize), ctypes.byref(bufend))
-        
+    
             if bufsize.value > 0:
                 retval = midas.safe_to_json(buf.value, use_ordered_dict=True)
             else:
@@ -341,68 +344,28 @@ class MidasClient:
         
             retval = self._convert_dwords_from_odb(retval)
         
-            if not include_key_metadata:
+            if include_key_metadata:
+                # Subkeys already include metadata, we just need to add
+                # the metadata for the top-level key.
+                name_data = "%s" % key_metadata.name.decode("utf-8")
+                name_meta = "%s/key" % name_data
+                retval = {name_data: retval}
+                retval[name_meta] = self._odb_key_metadata_to_dict(key_metadata)
+            else:
+                # Prune metadata from the subkeys.
                 retval = self._prune_metadata_from_odb(retval)
                 
             # Free the memory allocated by midas
             self.lib.c_free(buf)
         else:
-            # The db_copy_json_xxx functions only support getting the content of a
-            # directory, not a single value. We therefore have to use db_get_value
-            # when getting single ODB entries.
-            c_path = ctypes.create_string_buffer(bytes(path, "utf-8"))
-            array_len = key_metadata.num_values
-            
-            if array_single:
-                array_len = 1
-            
-            if key_metadata.type == midas.TID_STRING:
-                str_len = key_metadata.item_size
-            else:
-                str_len = None
-            
-            # Get a ctypes object for midas to put the data into.
-            c_rdb = self._midas_type_to_ctype(key_metadata.type, array_len, str_len=str_len)
-            c_size = ctypes.c_int(ctypes.sizeof(c_rdb))
-            
-            self.lib.c_db_get_value(self.hDB, 0, c_path, ctypes.byref(c_rdb), ctypes.byref(c_size), key_metadata.type, 0)
-            
-            if key_metadata.type == midas.TID_STRING:
-                if array_len > 1:
-                    # Arrays of string are the nastiest bit, as we only given one
-                    # "mega-string" containing all the entries which we now need to
-                    # split up.
-                    # This line splits the string into sections of correct length; 
-                    # then for each line it removes everything after the first null 
-                    # byte, then decode into a python string. We need to do it this 
-                    # way (rather than simply splitting c_rdb.value) as otherwise 
-                    # we'd just get null for everything after the end of the first 
-                    # entry in the array.
-                    retval = [c_rdb[i * str_len:(i+1) * str_len].split(b'\0',1)[0].decode("utf-8") for i in range(array_len)]
-                else:
-                    retval = c_rdb.value.decode("utf-8")
-            else:
-                if array_len > 1:
-                    # Convert to a regular list.
-                    retval = [x for x in c_rdb]
-                else:
-                    retval = c_rdb.value
-                    
-            if include_key_metadata:
-                # Normally we just return a single value, but if the user
-                # wants the metadata as well, we need to mockup a dict
-                # containing the relevant information.
-                name_data = "%s" % key_metadata.name.decode("utf-8")
-                name_meta = "%s/key" % name_data
-                retval = {name_data: retval}
-                retval[name_meta] = {"type": key_metadata.type,
-                                     "access_mode": key_metadata.access_mode,
-                                     "last_written": key_metadata.last_written}
-                
-                if key_metadata.type == midas.TID_STRING:
-                    retval[name_meta]["item_size"] = key_metadata.item_size
-                if key_metadata.num_values > 1:
-                    retval[name_meta]["num_values"] = key_metadata.num_values
+            # Get the value using db_get_value etc, recursing ourselves
+            # if needed.
+            retval = self._odb_get_value(path, 
+                                         recurse_dir=recurse_dir, 
+                                         array_single=array_single, 
+                                         include_key_metadata=include_key_metadata, 
+                                         key_metadata=key_metadata,
+                                         hKey=hKey)
             
         return retval
     
@@ -1069,11 +1032,22 @@ class MidasClient:
     # above.
     #
     
+    def _rpc_is_remote(self):
+        """
+        Whether we're connected to a remote mserver rather than running
+        locally. Needed so we can avoid calling "RPC-unsafe" functions.
+        
+        Returns
+            bool
+        """
+        retval = self.lib.c_rpc_is_remote()
+        return retval == 1
     
     def _convert_dwords_from_odb(self, curr_place):
         """
         Unsigned ints are returned as JSON strings (like "0x0000").
-        Change them to actual numbers.
+        Change them to actual numbers. Negative signed bytes may
+        alse be returned incorrectly.
         
         Args:
             * curr_place (dict or collections.OrderedDict) - ODB JSON dump
@@ -1102,6 +1076,11 @@ class MidasClient:
                         retval[k] = [int(x, 16) for x in v]
                     else:
                         retval[k] = int(v, 16)
+                elif meta["type"] == midas.TID_SBYTE:
+                    if isinstance(v, list):
+                        retval[k] = [x-256 if x > 127 else x for x in v]
+                    else:
+                        retval[k] = v-256 if v > 127 else v
                 else:
                     retval[k] = v
     
@@ -1331,6 +1310,168 @@ class MidasClient:
         key = midas.structs.Key()
         self.lib.c_db_get_key(self.hDB, hKey, ctypes.byref(key))
         return key        
+    
+    def _odb_enum_key(self, hKey):
+        """
+        Get a list of ODB keys beneath this directory.
+        
+        Args:
+            * hKey (`ctypes.c_int`) - From a call to _odb_get_hkey().
+            
+        Returns:
+            list of 2-tuples of (`ctypes.c_int`, `midas.structs.Key`) for
+            hKey, key_metadata.
+        """
+        subkeys = []
+        hSubKey = ctypes.c_int()
+        idx = ctypes.c_int()
+        idx.value = 0
+        
+        while True:
+            try:
+                self.lib.c_db_enum_key(self.hDB, hKey, idx, ctypes.byref(hSubKey))
+            except midas.MidasError as e:
+                if e.code == midas.status_codes["DB_NO_MORE_SUBKEYS"]:
+                    break
+                else:
+                    raise
+            
+            if hSubKey == 0:
+                break
+            
+            idx.value += 1
+            subkeys.append((hSubKey.value, self._odb_get_key_from_hkey(hSubKey)))
+            
+        return subkeys
+
+           
+    def _odb_get_value(self, path, recurse_dir=False, array_single=False, 
+                       include_key_metadata=False, key_metadata=None, hKey=None):
+        """
+        Get a value from the ODB.
+        
+        Args:
+            * path (str) - The ODB path
+            * recurse_dir (bool) - If it's a directory, whether to recurse down and list
+                everything.
+            * array_single (bool) - If this isn't a directory, and you've already parsed
+                the path to see if we expect a single item (user specified /my/path[2] etc).
+            * include_key_metadata (bool) - Whether to return just the value, or the metadata 
+                and value.
+            * key_metadata (`midas.structs.Key`) - If you've already extracted the metadata
+                for this path.
+            * hKey (`ctypes.c_int`) - If you've already got the hkey for this path.
+            
+        Returns:
+            If include_key_metadata is False, the value.
+            If include_key_metadata is True a dict.
+        """
+        c_path = ctypes.create_string_buffer(bytes(path, "utf-8"))
+        
+        if hKey is None:
+            hKey = ctypes.c_int()
+            self.lib.c_db_find_key(self.hDB, 0, c_path, ctypes.byref(hKey))
+
+        if key_metadata is None:
+            key_metadata = self._odb_get_key_from_hkey(hKey)
+        
+        array_len = key_metadata.num_values
+        
+        if array_single:
+            array_len = 1
+        
+        if key_metadata.type == midas.TID_STRING:
+            str_len = key_metadata.item_size
+        else:
+            str_len = None
+                
+        if key_metadata.type == midas.TID_KEY:
+            # A directory
+            child_keys = self._odb_enum_key(hKey)
+            retval = collections.OrderedDict()
+            
+            for (child_hkey, child_key) in child_keys:
+                child_name_data = "%s" % child_key.name.decode("utf-8")
+                child_name_meta = "%s/key" % child_name_data
+                
+                if recurse_dir or child_key.type != midas.TID_KEY:
+                    path_slash = "%s/" % path if not path.endswith("/") else path
+                    child_path = "%s%s" % (path_slash, child_key.name.decode("utf-8"))
+                    child_data = self._odb_get_value(child_path, 
+                                                     recurse_dir=recurse_dir, 
+                                                     include_key_metadata=include_key_metadata, 
+                                                     key_metadata=child_key, 
+                                                     hKey=child_hkey)
+                    if include_key_metadata:
+                        retval[child_name_data] = child_data[child_name_data]
+                    else:
+                        retval[child_name_data] = child_data
+                else:
+                    # No recursion - just show an empty dict
+                    retval[child_name_data] = collections.OrderedDict()
+                    
+                if include_key_metadata:
+                    retval[child_name_meta] = self._odb_key_metadata_to_dict(child_key)
+        else:
+            # Not a directory.
+            # Get a ctypes object for midas to put the data into.
+            c_rdb = self._midas_type_to_ctype(key_metadata.type, array_len, str_len=str_len)
+            c_size = ctypes.c_int(ctypes.sizeof(c_rdb))
+            
+            self.lib.c_db_get_value(self.hDB, 0, c_path, ctypes.byref(c_rdb), ctypes.byref(c_size), key_metadata.type, 0)
+
+            if key_metadata.type == midas.TID_STRING:
+                if array_len > 1:
+                    # Arrays of string are the nastiest bit, as we only given one
+                    # "mega-string" containing all the entries which we now need to
+                    # split up.
+                    # This line splits the string into sections of correct length; 
+                    # then for each line it removes everything after the first null 
+                    # byte, then decode into a python string. We need to do it this 
+                    # way (rather than simply splitting c_rdb.value) as otherwise 
+                    # we'd just get null for everything after the end of the first 
+                    # entry in the array.
+                    retval = [c_rdb[i * str_len:(i+1) * str_len].split(b'\0',1)[0].decode("utf-8") for i in range(array_len)]
+                else:
+                    retval = c_rdb.value.decode("utf-8")
+            else:
+                if array_len > 1:
+                    # Convert to a regular list.
+                    retval = [x for x in c_rdb]
+                else:
+                    retval = c_rdb.value
+                    
+        if include_key_metadata:
+            # Normally we just return a single value, but if the user
+            # wants the metadata as well, we need to mockup a dict
+            # containing the relevant information.
+            name_data = "%s" % key_metadata.name.decode("utf-8")
+            name_meta = "%s/key" % name_data
+            retval = {name_data: retval}
+            retval[name_meta] = self._odb_key_metadata_to_dict(key_metadata)
+                
+        return retval
+
+    def _odb_key_metadata_to_dict(self, key_metadata):
+        """
+        Convert ODB key metadata to a dict like used by db_json_ls().
+        
+        Args:
+            * key_metadata (`midas.structs.Key`)
+            
+        Returns:
+            dict
+        """
+        retval = {"type": key_metadata.type,
+                             "access_mode": key_metadata.access_mode,
+                             "last_written": key_metadata.last_written}
+        
+        if key_metadata.type == midas.TID_STRING:
+            retval["item_size"] = key_metadata.item_size
+        if key_metadata.num_values > 1:
+            retval["num_values"] = key_metadata.num_values
+            
+        return retval
                     
     def _odb_fix_directory_order(self, path, hKey, contents):
         """
@@ -1343,17 +1484,8 @@ class MidasClient:
             * hKey (int) - from `_odb_get_hkey()`
             * contents (`collections.OrderedDict`)
         """
-        buf = ctypes.c_char_p()
-        bufsize = ctypes.c_int()
-        bufend = ctypes.c_int()
-
-        self.lib.c_db_copy_json_ls(self.hDB, hKey, ctypes.byref(buf), ctypes.byref(bufsize), ctypes.byref(bufend))
-    
-        if bufsize.value <= 0:
-            return
-        
-        odbjson = midas.safe_to_json(buf.value, True)
-        current_order = [k for k in self._prune_metadata_from_odb(odbjson).keys()]
+        odbjson = self.odb_get(path, recurse_dir=False, include_key_metadata=False)
+        current_order = [k for k in odbjson.keys()]
         target_order = [k for k in contents.keys()]
         
         if len(current_order) != len(target_order):
@@ -1398,6 +1530,11 @@ class MidasClient:
         if array_len is None:
             if self._is_list_like(initial_value): 
                 array_len = len(initial_value)
+                
+                if array_len == 1:
+                    # Convert arrays of length 1 to single values for easier handling
+                    # later.
+                    initial_value = initial_value[0]
             else:
                 array_len = 1
 

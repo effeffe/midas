@@ -151,7 +151,9 @@ NEED_ZLIB=
 # Optional nvidia gpu support, HAVE_NVIDIA is a count of CPUs
 #
 ifndef NO_NVIDIA
+ifneq (,$(wildcard /usr/local/cuda/include))
 HAVE_NVIDIA := $(shell nvidia-smi -L  2> /dev/null | grep GPU )
+endif
 endif
 
 #####################################################################
@@ -493,6 +495,8 @@ OBJS = \
 	$(LIB_DIR)/alarm.o \
 	$(LIB_DIR)/elog.o
 
+OBJS_C_COMPAT = $(LIB_DIR)/midas_c_compat.o
+
 ifdef NEED_STRLCPY
 OBJS += $(LIB_DIR)/strlcpy.o
 endif
@@ -501,13 +505,14 @@ LIBNAME = $(LIB_DIR)/libmidas.a
 LIB     = $(LIBNAME)
 ifndef NO_SHLIB
 SHLIB   = $(LIB_DIR)/libmidas-shared.so
+SHLIB_C_COMPAT = $(LIB_DIR)/libmidas-c-compat.so
 endif
 
 VPATH = $(LIB_DIR):$(INC_DIR)
 
 ALL:=
 ALL+= $(LIB_DIR) $(BIN_DIR)
-ALL+= $(LIBNAME) $(SHLIB)
+ALL+= $(LIBNAME) $(SHLIB) $(SHLIB_C_COMPAT)
 ALL+= $(ANALYZER)
 ALL+= $(LIB_DIR)/mfe.o
 ALL+= $(PROGS)
@@ -776,6 +781,18 @@ ifdef NEED_RANLIB
 	ranlib $@
 endif
 
+ifndef NO_SHLIB
+ifeq ($(OSTYPE),darwin)
+$(SHLIB_C_COMPAT): $(OBJS) $(OBJS_C_COMPAT)
+	rm -f $@
+	g++ -dynamiclib -dylib -o $@ $^ $(LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) -lc
+else
+$(SHLIB_C_COMPAT): $(OBJS) $(OBJS_C_COMPAT)
+	rm -f $@
+	$(CXX) -shared -o $@ $^ $(LIBS) $(ODBC_LIBS) $(SQLITE_LIBS) $(MYSQL_LIBS) -lc
+endif
+endif
+
 ifeq ($(OSTYPE),crosscompile)
 %.so: $(OBJS)
 	rm -f $@
@@ -856,6 +873,7 @@ $(LIB_DIR)/mxml.o: msystem.h midas.h midasinc.h $(MXML_DIR)/mxml.h
 $(LIB_DIR)/alarm.o: msystem.h midas.h midasinc.h
 $(LIB_DIR)/mjsonrpc.o: midas.h mjsonrpc.h
 $(LIB_DIR)/mfe.o: midas.h msystem.h mfe.h
+$(LIB_DIR)/midas-c-compat.o: msystem.h midas.h midasinc.h mrpc.h git-revision.h
 
 #
 # utilities

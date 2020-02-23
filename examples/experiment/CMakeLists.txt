@@ -85,18 +85,30 @@ target_link_libraries(frontend mfe midas ${LIBS})
 if (NO_ROOT)
    message(STATUS "MIDAS example/experiment: ROOT support is disabled via NO_ROOT")
 else (NO_ROOT)
-   execute_process(COMMAND root-config --version OUTPUT_VARIABLE HAVE_ROOT)
-   if (HAVE_ROOT)
-      string(REGEX REPLACE "\n" "" HAVE_ROOT ${HAVE_ROOT})
-      message(STATUS "MIDAS example/experiment: Found ROOT version " ${HAVE_ROOT})
-      execute_process(COMMAND root-config --incdir OUTPUT_VARIABLE ROOT_INC)
-      execute_process(COMMAND root-config --libs OUTPUT_VARIABLE ROOT_LIBS)
-      string(STRIP ${ROOT_LIBS} ROOT_LIBS)
-      string(REGEX REPLACE "\n$" "" ROOT_INC "${ROOT_INC}")
-      set(CMAKE_CXX_STANDARD 11)
-   else (HAVE_ROOT)
-      message(STATUS "MIDAS example/experiment: ROOT not found")
-   endif(HAVE_ROOT)
+
+   if (DEFINED ENV{ROOTSYS})
+      # You need to tell CMake where to find the ROOT installation. This can be done in a number of ways:
+      #   - ROOT built with classic configure/make use the provided $ROOTSYS/etc/cmake/FindROOT.cmake
+      #   - ROOT built with CMake. Add in CMAKE_PREFIX_PATH the installation prefix for ROOT
+      list(APPEND CMAKE_PREFIX_PATH $ENV{ROOTSYS})
+
+      #---Locate the ROOT package and defines a number of variables (e.g. ROOT_INCLUDE_DIRS)
+      find_package(ROOT REQUIRED COMPONENTS MathCore RIO Hist Tree Net)
+
+      #---Define useful ROOT functions and macros (e.g. ROOT_GENERATE_DICTIONARY)
+      include(${ROOT_USE_FILE})
+
+      if (ROOT_FOUND)
+         separate_arguments(ROOT_CXX_FLAGS UNIX_COMMAND "${ROOT_CXX_FLAGS}")
+         message(STATUS "MIDAS: Found ROOT version " ${ROOT_VERSION})
+         set(HAVE_ROOT true)
+      else (ROOT_FOUND)
+         message(STATUS "MIDAS: ROOT not found")
+      endif (ROOT_FOUND)
+   else ()
+      message(STATUS "MIDAS: ROOTSYS not defined")
+   endif()
+
 endif(NO_ROOT)
 
 if (HAVE_ROOT)
@@ -106,9 +118,7 @@ if (HAVE_ROOT)
       adcsum.cxx
       scaler.cxx)
 
-   target_include_directories(analyzer PUBLIC ${ROOT_INC} ${INC_PATH})
-   target_link_libraries(analyzer rmana midas ${ROOT_LIBS} ${LIBS})
+   target_include_directories(analyzer PUBLIC ${ROOT_INCLUDE_DIRS} ${INC_PATH})
+   target_compile_options(analyzer PRIVATE ${ROOT_CXX_FLAGS})
+   target_link_libraries(analyzer rmana midas ${ROOT_LIBRARIES} ${LIBS})
 endif(HAVE_ROOT)
-
-#end
-

@@ -1055,7 +1055,9 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             this.yMin = this.drag.yMinStart - dy;
             this.yMax = this.drag.yMaxStart - dy;
             if (this.logAxis && this.yMin <= 0)
-               this.yMin = 1E-100;
+               this.yMin = 1E-20;
+            if (this.logAxis && this.yMax <= 0)
+               this.yMax = 1E-18;
          }
 
          this.loadOldData();
@@ -1217,7 +1219,9 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
             this.yMax += dtMax;
 
             if (this.logAxis && this.yMin <= 0)
-               this.yMin = 1E-100;
+               this.yMin = 1E-20;
+            if (this.logAxis && this.yMax <= 0)
+               this.yMax = 1E-18;
          }
 
          this.redraw();
@@ -1312,10 +1316,23 @@ MhistoryGraph.prototype.resetAxes = function () {
 
    this.yMin = this.yMin0;
    this.yMax = this.yMax0;
-   if (this.autoscaleMin)
-      this.yMin -= (this.yMax0 - this.yMin0) / 10;
-   if (this.autoscaleMax)
-      this.yMax += (this.yMax0 - this.yMin0) / 10;
+   if (this.autoscaleMin) {
+      if (this.logAxis)
+         this.yMin = 0.8 * this.yMin0;
+      else
+         this.yMin -= (this.yMax0 - this.yMin0) / 10;
+   }
+   if (this.autoscaleMax) {
+      if (this.logAxis)
+         this.yMax = 1.2 * this.yMax0;
+      else
+         this.yMax += (this.yMax0 - this.yMin0) / 10;
+   }
+
+   if (this.logAxis && this.yMin <= 0)
+      this.yMin = 1E-20;
+   if (this.logAxis && this.yMax <= 0)
+      this.yMax = 1E-18;
 
    this.scroll = true;
    this.yZoom = false;
@@ -1353,10 +1370,12 @@ MhistoryGraph.prototype.timeToX = function (t) {
 };
 
 MhistoryGraph.prototype.valueToY = function (v) {
-   if (this.logAxis)
+   if (this.logAxis) {
+      if (v <= 0)
+         return this.y1;
       return this.y1 - (Math.log(v) - Math.log(this.yMin)) /
          (Math.log(this.yMax) - Math.log(this.yMin)) * (this.y1 - this.y2);
-   else
+   } else
       return this.y1 - (v - this.yMin) /
          (this.yMax - this.yMin) * (this.y1 - this.y2);
 };
@@ -1427,17 +1446,27 @@ MhistoryGraph.prototype.findMinMax = function () {
    }
 
    if (!this.yZoom) {
-      if (this.autoscaleMin)
-      // leave 10% space above graph
-         this.yMin = this.yMin0 - (this.yMax0 - this.yMin0) / 10;
-      else
+      if (this.autoscaleMin) {
+         if (this.logAxis)
+            this.yMin = 0.8 * this.yMin0;
+         else
+            // leave 10% space below graph
+            this.yMin = this.yMin0 - (this.yMax0 - this.yMin0) / 10;
+      } else
          this.yMin = this.yMin0;
+      if (this.logAxis && this.yMin <= 0)
+         this.yMin = 1E-20;
 
-      if (this.autoscaleMax)
-      // leave 10% space above graph
-         this.yMax = this.yMax0 + (this.yMax0 - this.yMin0) / 10;
-      else
+      if (this.autoscaleMax) {
+         if (this.logAxis)
+            this.yMax = 1.2 * this.yMax0;
+         else
+            // leave 10% space above graph
+            this.yMax = this.yMax0 + (this.yMax0 - this.yMin0) / 10;
+      } else
          this.yMax = this.yMax0;
+      if (this.logAxis && this.yMax <= 0)
+         this.yMax = 1E-18;
    }
 };
 
@@ -1511,8 +1540,10 @@ MhistoryGraph.prototype.draw = function () {
    ctx.drawLine(this.x1, this.y2, this.x2, this.y2);
    ctx.drawLine(this.x2, this.y2, this.x2, this.y1);
 
-   if (this.logAxis && this.yMin < 1E-10)
-      this.yMin = 1E-10;
+   if (this.logAxis && this.yMin < 1E-20)
+      this.yMin = 1E-20;
+   if (this.logAxis && this.yMax < 1E-18)
+      this.yMax = 1E-18;
    this.drawVAxis(ctx, this.x1, this.y1, this.y1 - this.y2,
       -4, -7, -10, -12, this.x2 - this.x1, this.yMin, this.yMax, this.logAxis, true);
    this.drawTAxis(ctx, this.x1, this.y1, this.x2 - this.x1, this.width,
@@ -2270,8 +2301,10 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
 
    if (logaxis) {
       dy = Math.pow(10, Math.floor(Math.log(ymin) / Math.log(10)));
-      if (dy === 0)
-         dy = 1E-10;
+      if (dy === 0) {
+         ymin = 1E-20;
+         dy = 1E-20;
+      }
       label_dy = dy;
       major_dy = dy * 10;
       n_sig1 = 4;
@@ -2372,7 +2405,11 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
 
                // label
                if (label !== 0) {
-                  let str = y_act.toPrecision(n_sig1).stripZeros();
+                  let str;
+                  if (Math.abs(y_act) < 0.001)
+                     str = y_act.toExponential(n_sig1).stripZeros();
+                  else
+                     str = y_act.toPrecision(n_sig1).stripZeros();
                   maxwidth = Math.max(maxwidth, ctx.measureText(str).width);
                   if (draw) {
                      ctx.strokeStyle = this.color.label;
@@ -2412,7 +2449,11 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
          // for logaxis, also put labels on minor tick marks
          if (logaxis) {
             if (label !== 0) {
-               let str = y_act.toPrecision(n_sig1).stripZeros();
+               let str;
+               if (Math.abs(y_act) < 0.001)
+                  str = y_act.toExponential(n_sig1).stripZeros();
+               else
+                  str = y_act.toPrecision(n_sig1).stripZeros();
                if (ys - textHeight / 2 > y1 - height &&
                   ys + textHeight / 2 < y1 &&
                   ys + textHeight < last_label_y + 2) {

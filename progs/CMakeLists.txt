@@ -110,9 +110,9 @@ target_link_libraries(odbedit midas ${LIBS})
 #
 if (HAVE_ROOT)
    add_executable(rmlogger mlogger)
-   target_include_directories(rmlogger PUBLIC ${ROOT_INC})
-   target_compile_options(rmlogger PRIVATE -DHAVE_ROOT)
-   target_link_libraries(rmlogger midas ${LIBS} ${ROOT_LIBS} ${DB_LIBS})
+   target_include_directories(rmlogger PUBLIC ${ROOT_INCLUDE_DIRS})
+   target_compile_options(rmlogger PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
+   target_link_libraries(rmlogger midas ${LIBS} ${ROOT_LIBRARIES} ${DB_LIBS})
 endif(HAVE_ROOT)
 
 #

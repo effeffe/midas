@@ -29,6 +29,11 @@ class TestOdb(unittest.TestCase):
 
     def validate_readback(self, value, retval, expected_key_type):
         if isinstance(value, list) or isinstance(value, tuple) or isinstance(value, ctypes.Array):
+            if len(value) == 1:
+                # We passed a length-1 array to ODB, but will have read it back as a single value,
+                # not an array.
+                retval = [retval]
+                
             if expected_key_type == midas.TID_STRING:
                 # Compare as strings
                 if isinstance(value, ctypes.Array):
@@ -101,6 +106,7 @@ class TestOdb(unittest.TestCase):
         self.set_and_readback("/pytest/int", -1, midas.TID_INT)
         self.set_and_readback("/pytest/int", 1, midas.TID_INT)
         self.set_and_readback("/pytest/int", [123, 4], midas.TID_INT)
+        self.set_and_readback("/pytest/int", [45], midas.TID_INT)
         self.set_and_readback("/pytest/int", [ctypes.c_int32(-23), ctypes.c_int32(147)], midas.TID_INT)
         self.set_and_readback("/pytest/int", ctypes.c_int32(135), midas.TID_INT)
         self.set_and_readback("/pytest/int", (ctypes.c_int32 * 4)(*[1,2,3,4]), midas.TID_INT)
@@ -171,11 +177,12 @@ class TestOdb(unittest.TestCase):
         self.set_and_readback("/pytest/sbyte", ctypes.c_byte(123), midas.TID_SBYTE)
         self.set_and_readback("/pytest/sbyte", (ctypes.c_int8 * 3)(*[1,2,3]), midas.TID_SBYTE)
         
-        self.set_and_readback_from_parent_dir("/pytest", "sbyte2", [ctypes.c_int8(-12), ctypes.c_byte(4)], midas.TID_SBYTE)
+        self.set_and_readback_from_parent_dir("/pytest", "sbyte2", [ctypes.c_int8(-15), ctypes.c_byte(6)], midas.TID_SBYTE)
         self.set_and_readback_from_parent_dir("/pytest", "sbyte2", ctypes.c_byte(13), midas.TID_SBYTE)
         
     def testString(self):    
         self.set_and_readback("/pytest/str", "Hello!", midas.TID_STRING)
+        self.set_and_readback("/pytest/str", ["List length one"], midas.TID_STRING)
         self.set_and_readback("/pytest/str", ["Hello", "World!!!!!!!"], midas.TID_STRING)
         self.set_and_readback("/pytest/str", ctypes.create_string_buffer(b"From Ctypes", 32), midas.TID_STRING)
         self.set_and_readback("/pytest/str", [ctypes.create_string_buffer(b"From Ctypes", 32), ctypes.create_string_buffer(b"... and a list", 16)], midas.TID_STRING)
