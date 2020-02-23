@@ -1105,7 +1105,7 @@ void cs_md5_init(cs_md5_ctx *ctx) {
 }
 
 static void cs_md5_transform(uint32_t buf[4], uint32_t const in[16]) {
-  register uint32_t a, b, c, d;
+  uint32_t a, b, c, d;
 
   a = buf[0];
   b = buf[1];
