@@ -37,9 +37,9 @@
 // Regular implementation
 //
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+//#ifdef __cplusplus
+//extern "C" {
+//#endif
 
 /**
  * \brief          SHA-512 context structure
@@ -102,17 +102,17 @@ void mbedtls_sha512_update( mbedtls_sha512_context *ctx, const unsigned char *in
  */
 void mbedtls_sha512_finish( mbedtls_sha512_context *ctx, unsigned char output[64] );
 
-#ifdef __cplusplus
-}
-#endif
+//#ifdef __cplusplus
+//}
+//#endif
 
 #else  /* MBEDTLS_SHA512_ALT */
 #include "sha512_alt.h"
 #endif /* MBEDTLS_SHA512_ALT */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+//#ifdef __cplusplus
+//extern "C" {
+//#endif
 
 /**
  * \brief          Output = SHA-512( input buffer )
@@ -135,8 +135,8 @@ int mbedtls_sha512_self_test( int verbose );
 /* Internal use */
 void mbedtls_sha512_process( mbedtls_sha512_context *ctx, const unsigned char data[128] );
 
-#ifdef __cplusplus
-}
-#endif
+//#ifdef __cplusplus
+//}
+//#endif
 
 #endif /* mbedtls_sha512.h */
