@@ -1458,7 +1458,7 @@ static MJsonNode* js_cm_msg1(const MJsonNode* params)
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
 
-static MJsonNode* js_cm_retrieve(const MJsonNode* params)
+static MJsonNode* js_cm_msg_retrieve(const MJsonNode* params)
 {
    if (!params) {
       MJSO *doc = MJSO::I();
@@ -3652,7 +3652,7 @@ void mjsonrpc_init()
    // interface to midas.c functions
    mjsonrpc_add_handler("cm_exist",    js_cm_exist);
    mjsonrpc_add_handler("cm_msg_facilities", js_cm_msg_facilities);
-   mjsonrpc_add_handler("cm_msg_retrieve",   js_cm_retrieve);
+   mjsonrpc_add_handler("cm_msg_retrieve",   js_cm_msg_retrieve);
    mjsonrpc_add_handler("cm_msg1",     js_cm_msg1);
    mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
    mjsonrpc_add_handler("cm_transition", js_cm_transition);
