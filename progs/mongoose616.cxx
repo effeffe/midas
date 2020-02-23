@@ -3823,7 +3823,7 @@ static void mg_null_if_get_conn_addr(struct mg_connection *c, int remote,
         mg_null_if_sock_set, mg_null_if_get_conn_addr,                         \
   }
 
-const struct mg_iface_vtable mg_null_iface_vtable = MG_NULL_IFACE_VTABLE;
+//const struct mg_iface_vtable mg_null_iface_vtable = MG_NULL_IFACE_VTABLE;
 
 #if MG_NET_IF == MG_NET_IF_NULL
 const struct mg_iface_vtable mg_default_iface_vtable = MG_NULL_IFACE_VTABLE;
