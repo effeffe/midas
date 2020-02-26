@@ -3180,20 +3180,28 @@ DWORD ss_settime(DWORD seconds)
 
 #elif defined(OS_DARWIN)
 
-   assert(!"ss_settime() is not supported");
-   /* not reached */
-   return SS_NO_DRIVER;
+   struct timespec ltm;
+
+   ltm.tv_sec = seconds;
+   ltm.tv_nsec = 0;
+   clock_settime(CLOCK_REALTIME, &ltm);
 
 #elif defined(OS_CYGWIN)
 
-   assert(!"ss_settime() is not supported");
-   /* not reached */
+   struct timespec ltm;
+
+   ltm.tv_sec = seconds;
+   ltm.tv_nsec = 0;
+   clock_settime(CLOCK_REALTIME, &ltm);
    return SS_NO_DRIVER;
 
 #elif defined(OS_UNIX)
 
-   time_t t = seconds;
-   stime(&t);
+   struct timespec ltm;
+
+   ltm.tv_sec = seconds;
+   ltm.tv_nsec = 0;
+   clock_settime(CLOCK_REALTIME, &ltm);
 
 #elif defined(OS_VXWORKS)
 
