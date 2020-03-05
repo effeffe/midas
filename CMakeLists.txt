@@ -68,6 +68,7 @@ endif()
 #
 if (NO_ROOT)
    message(STATUS "MIDAS: ROOT support is disabled via NO_ROOT")
+   unset(HAVE_ROOT)
 else (NO_ROOT)
 
    if (DEFINED ENV{ROOTSYS})
@@ -91,6 +92,7 @@ else (NO_ROOT)
       endif (ROOT_FOUND)
    else ()
       message(STATUS "MIDAS: ROOTSYS not defined")
+      unset(HAVE_ROOT)
    endif()
 
 endif(NO_ROOT)
