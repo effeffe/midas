@@ -81,11 +81,11 @@ else (NO_ROOT)
       find_package(ROOT REQUIRED COMPONENTS MathCore RIO Hist Tree Net)
 
       #---Define useful ROOT functions and macros (e.g. ROOT_GENERATE_DICTIONARY)
-      include(${ROOT_USE_FILE})
+      #include(${ROOT_USE_FILE}) #  this pollutes midas cflags & co with ROOT include and library paths 
 
       if (ROOT_FOUND)
          separate_arguments(ROOT_CXX_FLAGS UNIX_COMMAND "${ROOT_CXX_FLAGS}")
-         message(STATUS "MIDAS: Found ROOT version " ${ROOT_VERSION})
+         message(STATUS "MIDAS: Found ROOT version " ${ROOT_VERSION} " in " $ENV{ROOTSYS})
          set(HAVE_ROOT true)
       else (ROOT_FOUND)
          message(STATUS "MIDAS: ROOT not found")
