@@ -567,7 +567,7 @@ MVOdb* MakeJsonFileOdb(const char* filename, MVOdbError* error)
 MVOdb* MakeJsonBufferOdb(const char* buf, int bufsize, MVOdbError* error)
 {
    MJsonNode* root = MJsonNode::Parse(buf);
-   root->Dump();
+   //root->Dump();
    return new JsonOdb(root, root, error);
    //return MakeNullOdb();
 }
