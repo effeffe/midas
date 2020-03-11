@@ -20,6 +20,9 @@ class MVOdbError;
 class MVOdb
 {
 public:
+   // destructor
+   virtual ~MVOdb() = 0;
+   
    // check if this ODB interface allows writing
    virtual bool IsReadOnly() const = 0;
    

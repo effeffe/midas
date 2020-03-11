@@ -11,6 +11,11 @@
 
 #include "mvodb.h"
 
+MVOdb::~MVOdb() // dtor
+{
+   // empty
+}
+
 static std::string toString(int value)
 {
    char buf[256];
