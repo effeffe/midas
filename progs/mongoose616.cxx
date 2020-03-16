@@ -1,4 +1,6 @@
 #include "mongoose616.h"
+#include <string>
+#include <regex>
 #ifdef MG_MODULE_LINES
 #line 1 "mongoose/src/mg_internal.h"
 #endif
@@ -8069,6 +8071,52 @@ static int mg_http_send_port_based_redirect(
   return 0;
 }
 
+static uint64_t ContentLength(const std::string& msg)
+{
+  const char* CRLFCRLF = "\r\n\r\n";
+  size_t pos = msg.find(CRLFCRLF);
+  if (pos == std::string::npos) {
+    return 0;
+  }
+  //printf("msg.length %d, pos %d\n", (int)msg.length(), (int)pos);
+  return msg.length() - pos - 4;
+}
+
+static void SetContentLength(std::string& msg, uint64_t len)
+{ 
+  const char* CRLF = "\r\n";
+  const char* CL = "Content-Length: ";
+  size_t pos = msg.find(CL);
+  if (pos == std::string::npos) {
+    return;
+  }
+  pos += strlen(CL);
+  size_t pos2 = msg.find(CRLF, pos);
+  if (pos2 == std::string::npos) {
+    return;
+  }
+  char buf[256];
+  sprintf(buf, "%llu", (long long unsigned)len);
+  msg.replace(pos, pos2-pos, buf);
+  //printf("content-length %d, pos %d, pos2 %d\n", (int)len, (int)pos, (int)pos2);
+}
+
+bool Rewrite(std::string& message, const char* re, const char* rs)
+{
+  bool changed = false;
+  size_t pos = 0;
+  size_t len = strlen(re);
+  while (1) {
+    pos = message.find(re, pos);
+    if (pos == std::string::npos) {
+      break;
+    }
+    message.replace(pos, len, rs);
+    changed = true;
+  }
+  return changed;
+}
+
 static void mg_reverse_proxy_handler(struct mg_connection *nc, int ev,
                                      void *ev_data MG_UD_ARG(void *user_data)) {
   struct http_message *hm = (struct http_message *) ev_data;
@@ -8101,7 +8149,33 @@ static void mg_reverse_proxy_handler(struct mg_connection *nc, int ev,
         *s = 'X';
      }
      //printf("proxy reply: [%s]\n", hm->message.p);
-     mg_send(pd->reverse_proxy_data.linked_conn, hm->message.p, hm->message.len);
+     if (0) {
+       std::string message_in(hm->message.p, hm->message.len);
+       // <link rel="icon" type="image/png" href="/static/favicons/favicon-16px-a64986.png" sizes="16x16">
+       // <script type="text/javascript" src="/static/scripts/bundle-9e842c.js"></script></body>
+       //std::regex re("href=\"/");
+       //std::string rs("href=\"");
+       //std::regex re("h");
+       //std::string rs("XXX");
+       //std::regex re ("\\b(sub)([^ ]*)");
+       //std::string message = std::regex_replace(message_in.c_str(), re, "sub-$2");
+       bool changed = false;
+       std::string message = message_in;
+       changed |= Rewrite(message, "href=\"/", "href=\"");
+       changed |= Rewrite(message, "src=\"/", "src=\"");
+       // ...post("/api/...
+       changed |= Rewrite(message, "post(\"/api/", "post(\"api/");
+       if (changed) {
+	 // need to doctor ContentLength!
+	 SetContentLength(message, ContentLength(message));
+	 //printf("proxy rewrite:\n[%s] content-length %d\n[%s] content-length %d\n", message_in.c_str(), (int)ContentLength(message_in), message.c_str(), (int)ContentLength(message));
+	 mg_send(pd->reverse_proxy_data.linked_conn, message.c_str(), message.length());
+       } else {
+	 mg_send(pd->reverse_proxy_data.linked_conn, hm->message.p, hm->message.len);
+       }
+     } else {
+       mg_send(pd->reverse_proxy_data.linked_conn, hm->message.p, hm->message.len);
+     }
      pd->reverse_proxy_data.linked_conn->flags |= MG_F_SEND_AND_CLOSE;
      nc->flags |= MG_F_CLOSE_IMMEDIATELY;
      break;
