@@ -11654,6 +11654,13 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
       rpc_va_arg(&ap, arg_type, arg);
 
       if (rpc_list[rpc_index].param[i].flags & RPC_OUT) {
+
+         if (param_ptr == NULL) {
+            cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": no data in RPC reply, needed to decode an RPC_OUT parameter. param_ptr is NULL", client_name, host_name, rpc_name);
+            rpc_status = RPC_NET_ERROR;
+            break;
+         }
+
          tid = rpc_list[rpc_index].param[i].tid;
          flags = rpc_list[rpc_index].param[i].flags;
 
@@ -11999,6 +12006,13 @@ INT rpc_call(DWORD routine_id, ...)
       rpc_va_arg(&ap, arg_type, arg);
 
       if (rpc_list[idx].param[i].flags & RPC_OUT) {
+
+         if (param_ptr == NULL) {
+            cm_msg(MERROR, "rpc_call", "routine \"%s\": no data in RPC reply, needed to decode an RPC_OUT parameter. param_ptr is NULL", rpc_list[idx].name);
+            rpc_status = RPC_NET_ERROR;
+            break;
+         }
+
          tid = rpc_list[idx].param[i].tid;
          arg_size = tid_size[tid];
 
