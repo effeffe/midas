@@ -17431,7 +17431,7 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
    const char* uri_end = strchr(hm->uri.p, ' ');
    if (!uri_end) return "";
 
-   int uri_length = uri_end - hm->uri.p;
+   size_t uri_length = uri_end - hm->uri.p;
 
    if (uri_length != uri.length())
       return "";
@@ -19502,10 +19502,14 @@ int main(int argc, const char *argv[])
    int status;
    int daemon = FALSE;
    char str[256];
+#ifdef HAVE_MONGOOSE6
    int user_http_port = 0;
    int user_https_port = 0;
+#endif
+#ifdef HAVE_MONGOOSE616
    bool no_passwords = false;
    bool no_hostlist  = false;
+#endif
    const char *myname = "mhttpd";
 
    setbuf(stdout, NULL);
@@ -19571,6 +19575,7 @@ int main(int argc, const char *argv[])
          elog_mode = TRUE;
       else if (argv[i][0] == '-' && argv[i][1] == 'H') {
          history_mode = TRUE;
+#ifdef HAVE_MONGOOSE6
       } else if (strcmp(argv[i], "--http") == 0) {
          if (argv[i+1]) {
             user_http_port = atoi(argv[i+1]);
@@ -19579,6 +19584,7 @@ int main(int argc, const char *argv[])
          if (argv[i+1]) {
             user_https_port = atoi(argv[i+1]);
          }
+#endif
       } else if (strcmp(argv[i], "--trace-mg") == 0) {
          trace_mg = true;
          trace_mg_recv = true;
@@ -19592,11 +19598,11 @@ int main(int argc, const char *argv[])
 #ifdef HAVE_MONGOOSE616
       } else if (strcmp(argv[i], "--no-multithread") == 0) {
          multithread_mg = false;
-#endif
       } else if (strcmp(argv[i], "--no-passwords") == 0) {
          no_passwords = true;
       } else if (strcmp(argv[i], "--no-hostlist") == 0) {
          no_hostlist = true;
+#endif
       } else if (argv[i][0] == '-') {
          if (i + 1 >= argc || argv[i + 1][0] == '-')
             goto usage;
@@ -19625,15 +19631,19 @@ int main(int argc, const char *argv[])
             printf("       -D become a daemon\n");
             printf("       -E only display ELog system\n");
             printf("       -H only display history plots\n");
+#ifdef HAVE_MONGOOSE6
             printf("       --http port - bind to specified HTTP port (default is ODB \"/Experiment/midas http port\")\n");
             printf("       --https port - bind to specified HTTP port (default is ODB \"/Experiment/midas https port\")\n");
+#endif
             printf("       --verbose-mg - trace mongoose web requests\n");
             printf("       --trace-mg - trace mongoose events\n");
             printf("       --no-trace-mg-recv - do not trace mongoose recv events\n");
             printf("       --no-trace-mg-send - dop not trace mongoose send events\n");
+#ifdef HAVE_MONGOOSE616
             printf("       --no-multithread - disable mongoose multithreading\n");
             printf("       --no-passwords - disable password protection\n");
             printf("       --no-hostlist - disable access control host list\n");
+#endif
             return 0;
          }
       }
