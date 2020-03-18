@@ -469,7 +469,6 @@ PROGS += $(BIN_DIR)/msysmon-nvidia
 endif
 OBJS = \
 	$(LIB_DIR)/midas.o \
-	$(LIB_DIR)/midas_cxx.o \
 	$(LIB_DIR)/system.o \
 	$(LIB_DIR)/mrpc.o \
 	$(LIB_DIR)/odb.o \
@@ -640,7 +639,7 @@ $(BIN_DIR):
 #
 # put current GIT revision into header file to be included by programs
 #
-$(GIT_REVISION): $(SRC_DIR)/midas.cxx $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.cxx $(SRC_DIR)/system.cxx $(PROGS_DIR)/mhttpd.cxx $(INC_DIR)/midas.h
+$(GIT_REVISION): $(SRC_DIR)/midas.cxx $(SRC_DIR)/odb.cxx $(SRC_DIR)/system.cxx $(PROGS_DIR)/mhttpd.cxx $(INC_DIR)/midas.h
 	echo \#define GIT_REVISION \"`git log -1 --format="%ad"` - `git describe --abbrev=8 --tags --dirty` on branch `git rev-parse --abbrev-ref HEAD`\" > $(GIT_REVISION)-new
 	rsync --checksum $(GIT_REVISION)-new $(GIT_REVISION) # only update git-revision.h and update it's timestamp if it's contents have changed
 	-/bin/rm -f $(GIT_REVISION)-new

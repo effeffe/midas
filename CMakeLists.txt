@@ -274,7 +274,6 @@ endif()
 #
 set(libsrc
    src/midas
-   src/midas_cxx
    src/odb
    src/device_driver
    src/system
