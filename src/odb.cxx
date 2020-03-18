@@ -673,6 +673,10 @@ INT db_show_mem(HNDLE hDB, char **result, BOOL verbose)
               (int) ((POINTER_T) pfree - (POINTER_T) pheader - sizeof(DATABASE_HEADER)),
               pfree->size, pfree->next_free ? (int) (pfree->next_free - sizeof(DATABASE_HEADER)) : 0);
       add_to_buf(&buf, str);
+      if (!db_validate_key_offset(pheader, pfree->next_free)) {
+         add_to_buf(&buf, "ODB is corrupted: next_free is invalid!");
+         break;
+      }
       pfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
    }
 
@@ -702,6 +706,10 @@ INT db_show_mem(HNDLE hDB, char **result, BOOL verbose)
               (int) ((POINTER_T) pfree - (POINTER_T) pheader - sizeof(DATABASE_HEADER)),
               pfree->size, pfree->next_free ? (int) (pfree->next_free - sizeof(DATABASE_HEADER)) : 0);
       add_to_buf(&buf, str);
+      if (!db_validate_data_offset(pheader, pfree->next_free)) {
+         add_to_buf(&buf, "ODB is corrupted: next_free is invalid!");
+         break;
+      }
       pfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
    }
 
