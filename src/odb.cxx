@@ -790,10 +790,10 @@ INT db_get_free_mem(HNDLE hDB, INT *key_size, INT *data_size)
 // Method to check if a given string is valid UTF-8.  Returns 1 if it is.
 // This method was taken from stackoverflow user Christoph, specifically
 // http://stackoverflow.com/questions/1031645/how-to-detect-utf-8-in-plain-c
-static BOOL is_utf8(const char * string)
+static bool is_utf8(const char * string)
 {
     if(!string)
-        return 0;
+        return false;
 
     const unsigned char * bytes = (const unsigned char *)string;
     while(*bytes)
@@ -867,10 +867,10 @@ static BOOL is_utf8(const char * string)
         //printf("is_utf8: string [%s], not utf8 at offset %d, byte %d, [%s]\n", string, (int)((char*)bytes-(char*)string), (int)(0xFF&bytes[0]), bytes);
         //abort();
 
-        return 0;
+        return false;
     }
 
-    return 1;
+    return true;
 }
 
 static BOOL utfCheckEnvVar = 0;
@@ -1047,6 +1047,14 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
       pkey->num_values = 0;
       pkey->total_size = 0;
       flag = false;
+   }
+
+   if (pkey->type == TID_STRING || pkey->type == TID_LINK) {
+      const char* s = (char*)pheader + pkey->data;
+      if (!is_utf8(s)) {
+         cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", string value is not valid UTF-8", hkey, path);
+         //flag = false;
+      }
    }
 
    /* check for empty link */
