@@ -1084,11 +1084,17 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
       const char* link = (char*)pheader + pkey->data;
       int link_len = strlen(link);
       int path_len = strlen(path);
-      if (link_len <= path_len) {
+      if (link_len == path_len) {
+         // check for link to itself
+         if (equal_ustring(link, path)) {
+            cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", TID_LINK to \"%s\" is a link to itself", hkey, path, link);
+         }
+      } else if (link_len < path_len) {
+         // check for link to the "path" subdirectory
          char tmp[MAX_ODB_PATH];
          memcpy(tmp, path, link_len);
          tmp[link_len] = 0;
-         if (equal_ustring(link, tmp)) {
+         if (equal_ustring(link, tmp) && path[link_len] == DIR_SEPARATOR) {
             cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", TID_LINK to \"%s\" is a loop", hkey, path, link);
          }
       }
