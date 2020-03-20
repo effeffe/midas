@@ -2306,7 +2306,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    int odb_timeout = db_set_lock_timeout(hDB, 0);
    size = sizeof(odb_timeout);
    status = db_get_value(hDB, 0, "/Experiment/ODB timeout", &odb_timeout, &size, TID_INT, TRUE);
-   assert(status == DB_SUCCESS);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "cm_connect_experiment1", "cannot get ODB /Experiment/ODB timeout, status %d", status);
+   }
 
    if (odb_timeout > 0) {
       db_set_lock_timeout(hDB, odb_timeout);
@@ -2315,7 +2317,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    BOOL protect_odb = FALSE;
    size = sizeof(protect_odb);
    status = db_get_value(hDB, 0, "/Experiment/Protect ODB", &protect_odb, &size, TID_BOOL, TRUE);
-   assert(status == DB_SUCCESS);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "cm_connect_experiment1", "cannot get ODB /Experiment/Protect ODB, status %d", status);
+   }
 
    if (protect_odb) {
       db_protect_database(hDB);
@@ -2324,7 +2328,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    BOOL enable_core_dumps = FALSE;
    size = sizeof(enable_core_dumps);
    status = db_get_value(hDB, 0, "/Experiment/Enable core dumps", &enable_core_dumps, &size, TID_BOOL, TRUE);
-   assert(status == DB_SUCCESS);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "cm_connect_experiment1", "cannot get ODB /Experiment/Enable core dumps, status %d", status);
+   }
 
    if (enable_core_dumps) {
 #ifdef RLIMIT_CORE
@@ -2342,7 +2348,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
    size = sizeof(disable_bind_rpc_to_localhost);
    status = db_get_value(hDB, 0, "/Experiment/Security/Enable non-localhost RPC", &disable_bind_rpc_to_localhost, &size, TID_BOOL, TRUE);
-   assert(status == DB_SUCCESS);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "cm_connect_experiment1", "cannot get ODB /Experiment/Security/Enable non-localhost RPC, status %d", status);
+   }
 
    /* now setup client info */
    if (!disable_bind_rpc_to_localhost)
