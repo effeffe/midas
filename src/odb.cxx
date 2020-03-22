@@ -103,6 +103,9 @@ void db_print_msg(const db_err_msg* msg)
 
 void db_msg(db_err_msg** msgp, INT message_type, const char *filename, INT line, const char *routine, const char *format, ...)
 {
+   if (!msgp)
+      return;
+   
    va_list argptr;
    char message[1000];
 
@@ -1048,7 +1051,7 @@ static const KEYLIST* db_get_pkeylist(const DATABASE_HEADER* pheader, HNDLE hKey
 
    const KEYLIST *pkeylist = (const KEYLIST *) ((char *) pheader + pkey->data);
 
-   if (0 && pkeylist->parent != hKey) {
+   if (pkeylist->parent != hKey) {
       std::string path = db_get_path_locked(pheader, hKey);
       db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid pkeylist->parent %d should be hkey %d", hKey, path.c_str(), pkeylist->parent, hKey);
       return NULL;
@@ -1063,6 +1066,59 @@ static const KEYLIST* db_get_pkeylist(const DATABASE_HEADER* pheader, HNDLE hKey
    return pkeylist;
 }
 
+static void db_print_key(DATABASE_HEADER * pheader, int recurse, const char *path, HNDLE parenthkeylist, HNDLE hkey)
+{
+   const KEY *pkey = db_get_pkey(pheader, hkey, NULL, "db_print_key", NULL);
+
+   if (!pkey) {
+      return;
+   }
+
+   printf("path \"%s\", parenthkey %d, hkey %d, name \"%s\", type %d, parent %d, data %d, total_size %d", path, parenthkeylist, hkey, pkey->name, pkey->type, pkey->parent_keylist, pkey->data, pkey->total_size);
+
+   if (pkey->type != TID_KEY) {
+      printf("\n");
+   } else {
+      const KEYLIST *pkeylist = db_get_pkeylist(pheader, hkey, pkey, "db_validate_key", NULL);
+
+      if (pkeylist) {
+         printf(", pkeylist parent %d, num_keys %d, first_key %d", pkeylist->parent, pkeylist->num_keys, pkeylist->first_key);
+         printf("\n");
+
+#if 0
+         HNDLE subhkey = pkeylist->first_key;
+
+         int count = 0;
+         while (subhkey != 0) {
+            db_err_msg* msg = NULL;
+            KEY* subpkey = (KEY*)db_get_pkey(pheader, subhkey, NULL, "db_validate_key", &msg);
+            if (!subpkey) {
+               db_flush_msg(&msg);
+               cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_KEY invalid subhkey %d", hkey, path, subhkey);
+               pkeylist_ok = false;
+               flag = false;
+               break;
+            }
+            
+            std::string buf;
+            buf += path;
+            buf += "/";
+            buf += subpkey->name;
+            
+            //printf("pkey %p, next %d, name [%s], path %s\n", subpkey, subpkey->next_key, subpkey->name, buf.c_str());
+            
+            if (recurse) {
+               flag &= db_validate_and_repair_key(pheader, recurse + 1, buf.c_str(), pkey->data, subhkey, subpkey);
+            }
+            
+            count++;
+            subhkey = subpkey->next_key;
+         }
+#endif
+      }
+   }
+}
+
 static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, const char *path, HNDLE parenthkeylist, HNDLE hkey, KEY * pkey)
 {
    int status;
@@ -1074,6 +1130,8 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
    //std::string xpath = db_get_path_locked(pheader, hkey);
    //if (xpath != path)
    //   printf("hkey %d, path \"%s\" vs \"%s\"\n", hkey, path, xpath.c_str());
+
+   //db_print_key(pheader, 0, path, parenthkeylist, hkey);
 
    if (hkey==0 || !db_validate_key_offset(pheader, hkey)) {
       cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", invalid hkey", hkey, path);
@@ -1214,7 +1272,7 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
    if (pkey->type == TID_KEY) {
       bool pkeylist_ok = true;
       db_err_msg* msg = NULL;
-      const KEYLIST *pkeylist = db_get_pkeylist(pheader, pkey->data, pkey, "db_validate_key", &msg);
+      const KEYLIST *pkeylist = db_get_pkeylist(pheader, hkey, pkey, "db_validate_key", &msg);
 
       if (!pkeylist) {
          db_flush_msg(&msg);
@@ -1244,7 +1302,7 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
          if (pkeylist_ok) {
             //printf("hkey %d, path \"%s\", pkey->data %d, pkeylist parent %d, num_keys %d, first_key %d: ", hkey, path, pkey->data, pkeylist->parent, pkeylist->num_keys, pkeylist->first_key);
             
-            int subhkey = pkeylist->first_key;
+            HNDLE subhkey = pkeylist->first_key;
 
             int count = 0;
             while (subhkey != 0) {
@@ -1252,6 +1310,7 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
                KEY* subpkey = (KEY*)db_get_pkey(pheader, subhkey, NULL, "db_validate_key", &msg);
                if (!subpkey) {
                   db_flush_msg(&msg);
+                  cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_KEY invalid subhkey %d", hkey, path, subhkey);
                   pkeylist_ok = false;
                   flag = false;
                   break;
