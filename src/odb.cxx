@@ -983,6 +983,92 @@ static bool db_validate_pkey(const DATABASE_HEADER * pheader, const KEY* pkey)
    return true;
 }
 
+static const KEY* db_get_pkey(const DATABASE_HEADER* pheader, HNDLE hKey, int* pstatus, const char* caller, db_err_msg **msg)
+{
+   BOOL hKey_is_root_key = FALSE;
+
+   if (!hKey) {
+      hKey_is_root_key = TRUE;
+      hKey = pheader->root_key;
+   }
+
+   /* check if hKey argument is correct */
+   if (!db_validate_hkey(pheader, hKey)) {
+      if (pstatus)
+         *pstatus = DB_INVALID_HANDLE;
+      return NULL;
+   }
+
+   const KEY* pkey = (const KEY *) ((char *) pheader + hKey);
+
+   if (pkey->type < 1 || pkey->type >= TID_LAST) {
+      DWORD tid = pkey->type;
+      if (hKey_is_root_key) {
+         db_msg(msg, MERROR, caller, "root_key hkey %d invalid key type %d, database root directory is corrupted", hKey, tid);
+         if (pstatus)
+            *pstatus = DB_CORRUPTED;
+         return NULL;
+      } else {
+         char str[MAX_ODB_PATH];
+         db_get_path_locked(pheader, hKey, str, sizeof(str));
+         db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid key type %d", hKey, str, tid);
+      }
+      if (pstatus)
+         *pstatus = DB_NO_KEY;
+      return NULL;
+   }
+
+   if (pkey->name[0] == 0) {
+      char str[MAX_ODB_PATH];
+      db_get_path_locked(pheader, hKey, str, sizeof(str));
+      db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid name \"%s\" is empty", hKey, str, pkey->name);
+      if (pstatus)
+         *pstatus = DB_NO_KEY;
+      return NULL;
+   }
+
+   return pkey;
+}
+
+static const KEYLIST* db_get_pkeylist(const DATABASE_HEADER* pheader, HNDLE hKey, const KEY* pkey, const char* caller, db_err_msg **msg)
+{
+   if (pkey->type != TID_KEY) {
+      char str[MAX_ODB_PATH];
+      db_get_path_locked(pheader, hKey, str, sizeof(str));
+      db_msg(msg, MERROR, caller, "hkey %d path \"%s\" unexpected call to db_get_pkeylist(), not a subdirectory, pkey->type %d", hKey, str, pkey->type);
+      return NULL;
+   }
+
+   if (!hKey) {
+      hKey = pheader->root_key;
+   }
+
+   if (!db_validate_data_offset(pheader, pkey->data)) {
+      char str[MAX_ODB_PATH];
+      db_get_path_locked(pheader, hKey, str, sizeof(str));
+      db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid pkey->data %d", hKey, str, pkey->data);
+      return NULL;
+   }
+
+   const KEYLIST *pkeylist = (const KEYLIST *) ((char *) pheader + pkey->data);
+
+   if (0 && pkeylist->parent != hKey) {
+      char str[MAX_ODB_PATH];
+      db_get_path_locked(pheader, hKey, str, sizeof(str));
+      db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid pkeylist->parent %d should be hkey %d", hKey, str, pkeylist->parent, hKey);
+      return NULL;
+   }
+
+   if (pkeylist->first_key == 0 && pkeylist->num_keys != 0) {
+      char str[MAX_ODB_PATH];
+      db_get_path_locked(pheader, hKey, str, sizeof(str));
+      db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid pkeylist->first_key %d should be non zero for num_keys %d", hKey, str, pkeylist->first_key, pkeylist->num_keys);
+      return NULL;
+   }
+
+   return pkeylist;
+}
+
 static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, const char *path, KEY * pkey)
 {
    int status;
@@ -1156,7 +1242,7 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
 
             if (subpkey->next_key == 0) {
                if (i+1 != pkeylist->num_keys) {
-                  cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", pkeylist entry index %d out of %d subhkey %d invalid next_key %d is zero, but this is not the last entry", hkey, path, i, pkeylist->num_keys, subhkey, subpkey->next_key);
+                  cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", subdirectory pkeylist entry index %d out of %d subhkey %d invalid next_key %d is zero, but this is not the last entry", hkey, path, i, pkeylist->num_keys, subhkey, subpkey->next_key);
                   pkeylist_ok = false;
                   flag = false;
                   break;
@@ -3422,49 +3508,23 @@ INT db_delete_key(HNDLE hDB, HNDLE hKey, BOOL follow_links)
 #ifdef LOCAL_ROUTINES
 static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const char *key_name, HNDLE * subhKey, db_err_msg **msg)
 {
-   BOOL hKey_is_root_key = FALSE;
-
-   //db_msg(msg, MINFO, "db_find_key", "db_find_key(%d, \'%s\')", hKey, key_name);
-
-   if (!hKey) {
-      hKey_is_root_key = TRUE;
-      hKey = pheader->root_key;
-   }
-
-   /* check if hKey argument is correct */
-   if (!db_validate_hkey(pheader, hKey)) {
-      *subhKey = 0;
-      return DB_INVALID_HANDLE;
-   }
-
-   const KEY* pkey = (const KEY *) ((char *) pheader + hKey);
-
-   if (pkey->type < 1 || pkey->type >= TID_LAST) {
-      *subhKey = 0;
-      DWORD xtid = pkey->type;
-      if (hKey_is_root_key) {
-         db_msg(msg, MERROR, "db_find_key", "root_key hkey %d invalid key type %d, database root directory is corrupted", hKey, xtid);
-         return DB_CORRUPTED;
-      } else {
-         char str[MAX_ODB_PATH];
-         db_get_path_locked(pheader, hKey, str, sizeof(str));
-         db_msg(msg, MERROR, "db_find_key", "hkey %d path \'%s\' invalid key type %d", hKey, str, xtid);
-      }
-      *subhKey = 0;
-      return DB_NO_KEY;
+   int status;
+   const KEY* pkey = db_get_pkey(pheader, hKey, &status, "db_find_key", msg);
+   if (!pkey) {
+      if (subhKey)
+         *subhKey = 0;
+      return status;
    }
 
    if (pkey->type != TID_KEY) {
-      DWORD xtid = pkey->type;
+      DWORD tid = pkey->type;
       char str[MAX_ODB_PATH];
       db_get_path_locked(pheader, hKey, str, sizeof(str));
       *subhKey = 0;
-      db_msg(msg, MERROR, "db_find_key", "hkey %d path \"%s\" tid %d is not a directory", hKey, str, xtid);
+      db_msg(msg, MERROR, "db_find_key", "hkey %d path \"%s\" tid %d is not a directory", hKey, str, tid);
       return DB_NO_KEY;
    }
    
-   const KEYLIST *pkeylist = (const KEYLIST *) ((char *) pheader + pkey->data);
-
    if (key_name[0] == 0 || strcmp(key_name, "/") == 0) {
       if (!(pkey->access_mode & MODE_READ)) {
          *subhKey = 0;
@@ -3474,6 +3534,12 @@ static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const 
       *subhKey = (POINTER_T) pkey - (POINTER_T) pheader;
 
       return DB_SUCCESS;
+   }
+
+   const KEYLIST *pkeylist = db_get_pkeylist(pheader, hKey, pkey, "db_find_key", msg);
+   if (!pkeylist) {
+      *subhKey = 0;
+      return DB_CORRUPTED;
    }
 
    const char *pkey_name = key_name;
