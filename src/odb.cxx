@@ -3574,7 +3574,7 @@ static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const 
    if (pkey->type != TID_KEY) {
       DWORD tid = pkey->type;
       std::string path = db_get_path_locked(pheader, hKey);
-      db_msg(msg, MERROR, "db_find_key", "hkey %d path \"%s\" tid %d is not a directory", hKey, path.c_str(), tid);
+      db_msg(msg, MERROR, "db_find_key", "hkey %d path \"%s\" tid %d is not a directory, looking for \"%s\"", hKey, path.c_str(), tid, key_name);
       *subhKey = 0;
       return DB_NO_KEY;
    }
@@ -3596,8 +3596,12 @@ static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const 
       return DB_CORRUPTED;
    }
 
+   HNDLE last_good_hkey = hKey;
+
    const char *pkey_name = key_name;
    do {
+      assert(pkeylist!=NULL); // should never happen!
+
       char str[MAX_ODB_PATH];
          
       /* extract single subkey from key_name */
@@ -3619,15 +3623,30 @@ static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const 
       if (strcmp(str, ".") == 0)
          continue;
 
-      /* check if key is in keylist */
-      // FIXME: validate pkeylist->first_key
-      pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
+      last_good_hkey = hKey;
+
+      hKey = pkeylist->first_key;
+
+      if (hKey == 0) {
+         // empty subdirectory
+         *subhKey = 0;
+         return DB_NO_KEY;
+      }
 
       int i;
       for (i = 0; i < pkeylist->num_keys; i++) {
-         if (pkey->name[0] == 0 || !db_validate_key_offset(pheader, pkey->next_key)) {
-            int pkey_next_key = pkey->next_key;
-            db_msg(msg, MERROR, "db_find_key", "Error: database corruption, key \"%s\", next_key 0x%08X is invalid", key_name, pkey_next_key - (int)sizeof(DATABASE_HEADER));
+         pkey = db_get_pkey(pheader, hKey, &status, "db_find_key", msg);
+         
+         if (!pkey) {
+            std::string path = db_get_path_locked(pheader, last_good_hkey);
+            db_msg(msg, MERROR, "db_find_key", "hkey %d path \"%s\" invalid subdirectory entry hkey %d, looking for \"%s\"", last_good_hkey, path.c_str(), hKey, key_name);
+            *subhKey = 0;
+            return status;
+         }
+
+         if (!db_validate_key_offset(pheader, pkey->next_key)) {
+            std::string path = db_get_path_locked(pheader, hKey);
+            db_msg(msg, MERROR, "db_find_key", "hkey %d path \"%s\" invalid next_key %d, looking for \"%s\"", hKey, path.c_str(), pkey->next_key, key_name);
             *subhKey = 0;
             return DB_CORRUPTED;
          }
@@ -3635,7 +3654,12 @@ static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const 
          if (equal_ustring(str, pkey->name))
             break;
 
-         pkey = (KEY *) ((char *) pheader + pkey->next_key); // FIXME: pkey->next_key could be zero
+         if (pkey->next_key == 0) {
+            *subhKey = 0;
+            return DB_NO_KEY;
+         }
+
+         hKey = pkey->next_key;
       }
 
       if (i == pkeylist->num_keys) {
@@ -3675,8 +3699,17 @@ static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const 
          }
       }
 
-      /* descend one level */
-      pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
+      if (pkey->type == TID_KEY) {
+         /* descend one level */
+         pkeylist = db_get_pkeylist(pheader, hKey, pkey, "db_find_key", msg);
+         
+         if (!pkeylist) {
+            *subhKey = 0;
+            return DB_CORRUPTED;
+         }
+      } else {
+         pkeylist = NULL;
+      }
 
    } while (*pkey_name == '/' && *(pkey_name + 1));
 
@@ -5069,8 +5102,6 @@ INT db_enum_key(HNDLE hDB, HNDLE hKey, INT idx, HNDLE * subkey_handle)
 #ifdef LOCAL_ROUTINES
    {
       DATABASE_HEADER *pheader;
-      KEYLIST *pkeylist;
-      KEY *pkey;
       INT i;
       char str[256];
       HNDLE parent;
@@ -5100,24 +5131,62 @@ INT db_enum_key(HNDLE hDB, HNDLE hKey, INT idx, HNDLE * subkey_handle)
          return DB_INVALID_HANDLE;
       }
 
-      pkey = (KEY *) ((char *) pheader + hKey);
+      db_err_msg *msg = NULL;
+      int status;
+
+      const KEY* pkey = db_get_pkey(pheader, hKey, &status, "db_enum_key", &msg);
+
+      if (!pkey) {
+         db_unlock_database(hDB);
+         db_flush_msg(&msg);
+         return DB_NO_MORE_SUBKEYS;
+      }
 
       if (pkey->type != TID_KEY) {
          db_unlock_database(hDB);
          return DB_NO_MORE_SUBKEYS;
       }
-      pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
+
+      const KEYLIST* pkeylist = db_get_pkeylist(pheader, hKey, pkey, "db_enum_key", &msg);
+
+      if (!pkeylist) {
+         db_unlock_database(hDB);
+         db_flush_msg(&msg);
+         return DB_NO_MORE_SUBKEYS;
+      }
 
       if (idx >= pkeylist->num_keys) {
          db_unlock_database(hDB);
          return DB_NO_MORE_SUBKEYS;
       }
 
-      // FIXME: validate pkeylist->first_key
-      pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
+      pkey = db_get_pkey(pheader, pkeylist->first_key, &status, "db_enum_key", &msg);
+      
+      if (!pkey) {
+         std::string path = db_get_path_locked(pheader, hKey);
+         db_unlock_database(hDB);
+         db_flush_msg(&msg);
+         cm_msg(MERROR, "db_enum_key", "hkey %d path \"%s\" invalid first_key %d", hKey, path.c_str(), pkeylist->first_key);
+         return DB_NO_MORE_SUBKEYS;
+      }
+
       for (i = 0; i < idx; i++) {
-         // FIXME: validate pkey->next_key
-         pkey = (KEY *) ((char *) pheader + pkey->next_key);
+         if (pkey->next_key == 0) {
+            std::string path = db_get_path_locked(pheader, hKey);
+            db_unlock_database(hDB);
+            cm_msg(MERROR, "db_enum_key", "hkey %d path \"%s\" unexpected end of key list at index %d", hKey, path.c_str(), i);
+            return DB_NO_MORE_SUBKEYS;
+         }
+
+         pkey = db_get_pkey(pheader, pkey->next_key, &status, "db_enum_key", &msg);
+
+         if (!pkey) {
+            std::string path = db_get_path_locked(pheader, hKey);
+            db_unlock_database(hDB);
+            db_flush_msg(&msg);
+            cm_msg(MERROR, "db_enum_key", "hkey %d path \"%s\" invalid key list at index %d, next_key %d", hKey, path.c_str(), i, pkey->next_key);
+            return DB_NO_MORE_SUBKEYS;
+         }
       }
 
       /* resolve links */
