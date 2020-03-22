@@ -1069,13 +1069,15 @@ static const KEYLIST* db_get_pkeylist(const DATABASE_HEADER* pheader, HNDLE hKey
    return pkeylist;
 }
 
-static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, const char *path, KEY * pkey)
+static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, const char *path, HNDLE parenthkeylist, HNDLE hkey, KEY * pkey)
 {
    int status;
    static time_t t_min = 0, t_max;
    bool flag = true;
 
-   int hkey = (POINTER_T) pkey - (POINTER_T) pheader;
+   //printf("path \"%s\", parenthkey %d, hkey %d, pkey->name \"%s\", type %d\n", path, parenthkeylist, hkey, pkey->name, pkey->type);
+
+   //int hkey = (POINTER_T) pkey - (POINTER_T) pheader;
 
    if (hkey==0 || !db_validate_key_offset(pheader, hkey)) {
       cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", invalid hkey", hkey, path);
@@ -1097,6 +1099,12 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
       strlcpy(pkey->name, newname, sizeof(pkey->name));
       flag = false;
       //return false;
+   }
+
+   /* check parent */
+   if (pkey->parent_keylist != parenthkeylist) {
+      cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", name \"%s\", invalid parent_keylist %d should be %d", hkey, path, pkey->name, pkey->parent_keylist, parenthkeylist);
+      return false;
    }
 
    if (!db_validate_data_offset(pheader, pkey->data)) {
@@ -1262,26 +1270,27 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
 
       if (pkeylist_ok && recurse) {
          /* if key has subkeys, go through whole list */
-         
-         /* check if key is in keylist */
-         KEY* pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
+
+         HNDLE subhkey = pkeylist->first_key;
          
          for (int i = 0; i < pkeylist->num_keys; i++) {
+            KEY* subpkey = (KEY *) ((char *) pheader + subhkey);
+
             std::string buf;
             buf += path;
             buf += "/";
-            buf += pkey->name;
+            buf += subpkey->name;
             
-            //printf("pkey %p, next %d, name [%s], path %s\n", pkey, pkey->next_key, pkey->name, buf.c_str());
+            //printf("pkey %p, next %d, name [%s], path %s\n", subpkey, subpkey->next_key, subpkey->name, buf.c_str());
             
-            flag &= db_validate_and_repair_key(pheader, recurse + 1, buf.c_str(), pkey);
+            flag &= db_validate_and_repair_key(pheader, recurse + 1, buf.c_str(), pkey->data, subhkey, subpkey);
             
-            if (!db_validate_key_offset(pheader, pkey->next_key)) {
-               cm_msg(MERROR, "db_validate_key", "Warning: database corruption, key \"%s\", next_key 0x%08X is invalid", buf.c_str(), pkey->next_key - (int)sizeof(DATABASE_HEADER));
+            if (!db_validate_key_offset(pheader, subpkey->next_key)) {
+               cm_msg(MERROR, "db_validate_key", "Warning: database corruption, key \"%s\", next_key 0x%08X is invalid", buf.c_str(), subpkey->next_key);
                return false;
             }
             
-            pkey = (KEY *) ((char *) pheader + pkey->next_key); // NB: pkey->next_key can be zero
+            subhkey = subpkey->next_key; // NB: subpkey->next_key can be zero
          }
       }
    }
@@ -1635,7 +1644,7 @@ static bool db_validate_and_repair_db_locked(DATABASE_HEADER * pheader)
       return false;
    }
 
-   flag &= db_validate_and_repair_key(pheader, 1, "", (KEY *) ((char *) pheader + pheader->root_key));
+   flag &= db_validate_and_repair_key(pheader, 1, "", 0, pheader->root_key, (KEY *) ((char *) pheader + pheader->root_key));
 
    if (!flag) {
       cm_msg(MERROR, "db_validate_db", "Error: ODB corruption detected, maybe repaired");
@@ -1841,7 +1850,7 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
       // if we skip it here and continue,
       // db_validate_and_repair_db() will call it later anyway... K.O.
       
-      if (!db_validate_and_repair_key(pheader, 0, "", pkey)) {
+      if (!db_validate_and_repair_key(pheader, 0, "", 0, pheader->root_key, pkey)) {
          cm_msg(MERROR, "db_open_database", "Invalid, incompatible or corrupted database: root key is invalid");
          return DB_VERSION_MISMATCH;
       }
