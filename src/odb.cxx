@@ -1007,13 +1007,13 @@ static const KEY* db_get_pkey(const DATABASE_HEADER* pheader, HNDLE hKey, int* p
    if (pkey->type < 1 || pkey->type >= TID_LAST) {
       DWORD tid = pkey->type;
       if (hKey_is_root_key) {
-         db_msg(msg, MERROR, caller, "root_key hkey %d invalid key type %d, database root directory is corrupted", hKey, tid);
+         db_msg(msg, MERROR, caller, "db_get_pkey: root_key hkey %d invalid key type %d, database root directory is corrupted", hKey, tid);
          if (pstatus)
             *pstatus = DB_CORRUPTED;
          return NULL;
       } else {
          std::string path = db_get_path_locked(pheader, hKey);
-         db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid key type %d", hKey, path.c_str(), tid);
+         db_msg(msg, MERROR, caller, "db_get_pkey: hkey %d path \"%s\" invalid key type %d", hKey, path.c_str(), tid);
       }
       if (pstatus)
          *pstatus = DB_NO_KEY;
@@ -1022,7 +1022,7 @@ static const KEY* db_get_pkey(const DATABASE_HEADER* pheader, HNDLE hKey, int* p
 
    if (pkey->name[0] == 0) {
       std::string path = db_get_path_locked(pheader, hKey);
-      db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid name \"%s\" is empty", hKey, path.c_str(), pkey->name);
+      db_msg(msg, MERROR, caller, "db_get_pkey: hkey %d path \"%s\" invalid name \"%s\" is empty", hKey, path.c_str(), pkey->name);
       if (pstatus)
          *pstatus = DB_NO_KEY;
       return NULL;
@@ -1035,7 +1035,7 @@ static const KEYLIST* db_get_pkeylist(const DATABASE_HEADER* pheader, HNDLE hKey
 {
    if (pkey->type != TID_KEY) {
       std::string path = db_get_path_locked(pheader, hKey);
-      db_msg(msg, MERROR, caller, "hkey %d path \"%s\" unexpected call to db_get_pkeylist(), not a subdirectory, pkey->type %d", hKey, path.c_str(), pkey->type);
+      db_msg(msg, MERROR, caller, "db_get_pkeylist: hkey %d path \"%s\" unexpected call to db_get_pkeylist(), not a subdirectory, pkey->type %d", hKey, path.c_str(), pkey->type);
       return NULL;
    }
 
@@ -5399,7 +5399,7 @@ static INT db_get_key_locked(const DATABASE_HEADER* pheader, HNDLE hKey, KEY * k
    
    /* check for link to array index */
    if (pkey->type == TID_LINK) {
-      char link_name[256];
+      char link_name[MAX_ODB_PATH];
       strlcpy(link_name, (char *) pheader + pkey->data, sizeof(link_name));
       if (strlen(link_name) > 0 && link_name[strlen(link_name) - 1] == ']') {
          if (strchr(link_name, '[') == NULL)
@@ -5441,9 +5441,8 @@ typedef struct {
 } KEY;
 \endcode
 Most of these values are used for internal purposes, the values which are of
-public interest are type, num_values, and name. For keys which contain a
-single value, num_values equals to one and total_size equals to
-item_size. For keys which contain an array of strings (TID_STRING),
+public interest are type, name, num_values, item_size and total_size.
+For keys which contain a single value, num_values equals to one and total_size equals to item_size. For keys which contain an array of strings (TID_STRING),
 item_size equals to the length of one string.
 \code
 KEY   key;
@@ -5453,7 +5452,7 @@ db_get_key(hDB, hkey, &key);
 printf("The run number is of type %s\n", rpc_tid_name(key.type));
 \endcode
 @param hDB          ODB handle obtained via cm_get_experiment_database().
-@param hKey Handle for key where search starts, zero for root.
+@param hKey Handle for key where search starts, zero for root. If Key is a link to an array element, this link is resolved. In this case function returns the key of the link destination and num_values is set to 1.
 @param key Pointer to KEY stucture.
 @return DB_SUCCESS, DB_INVALID_HANDLE
 */
@@ -5504,7 +5503,7 @@ INT db_get_key(HNDLE hDB, HNDLE hKey, KEY * key)
 
 /********************************************************************/
 /**
-Same as db_get_key, but it does not follow a link to an array index
+Same as db_get_key, but it does not follow links
 @param hDB          ODB handle obtained via cm_get_experiment_database().
 @param hKey Handle for key where search starts, zero for root.
 @param key Pointer to KEY stucture.
@@ -5518,7 +5517,6 @@ INT db_get_link(HNDLE hDB, HNDLE hKey, KEY * key)
 #ifdef LOCAL_ROUTINES
    {
       DATABASE_HEADER *pheader;
-      KEY *pkey;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_get_link", "invalid database handle");
@@ -5535,32 +5533,28 @@ INT db_get_link(HNDLE hDB, HNDLE hKey, KEY * key)
          return DB_INVALID_HANDLE;
       }
 
+      db_err_msg *msg = NULL;
+
       db_lock_database(hDB);
 
       pheader = _database[hDB - 1].database_header;
 
-      if (!hKey)
-         hKey = pheader->root_key;
+      int status = DB_SUCCESS;
 
-      /* check if hKey argument is correct */
-      if (!db_validate_hkey(pheader, hKey)) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
+      const KEY* pkey = db_get_pkey(pheader, hKey, &status, "db_get_link", &msg);
+      if (pkey) {
+         memcpy(key, pkey, sizeof(KEY));
+      } else {
+         memset(key, 0, sizeof(KEY));
+         //abort();
       }
-
-      pkey = (KEY *) ((char *) pheader + hKey);
-
-      if (pkey->type < 1 || pkey->type >= TID_LAST) {
-         int pkey_type = pkey->type;
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_link", "hkey %d invalid key type %d", hKey, pkey_type);
-         return DB_INVALID_HANDLE;
-      }
-
-      memcpy(key, pkey, sizeof(KEY));
 
       db_unlock_database(hDB);
 
+      if (msg)
+         db_flush_msg(&msg);
+
+      return status;
    }
 #endif                          /* LOCAL_ROUTINES */
 
