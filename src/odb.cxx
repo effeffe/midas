@@ -83,12 +83,12 @@ static std::string db_get_path_locked(const DATABASE_HEADER* pheader, HNDLE hKey
 
 struct db_err_msg_struct
 {
-   db_err_msg *next;
-   int message_type;
-   char filename[256];
-   int line;
-   char routine[256];
-   char text[1];
+   db_err_msg *next = NULL;
+   int message_type = 0;
+   std::string filename;
+   int line = 0;
+   std::string routine;
+   std::string text;
 };
 
 static db_err_msg* _last_error_message = NULL; // for debuging core dumps
@@ -96,7 +96,7 @@ static db_err_msg* _last_error_message = NULL; // for debuging core dumps
 void db_print_msg(const db_err_msg* msg)
 {
    while (msg != NULL) {
-      printf("db_err_msg: %p, next %p, type %d, file \'%s:%d\', function \'%s\': %s\n", msg, msg->next, msg->message_type, msg->filename, msg->line, msg->routine, msg->text);
+      printf("db_err_msg: %p, next %p, type %d, file \'%s:%d\', function \'%s\': %s\n", msg, msg->next, msg->message_type, msg->filename.c_str(), msg->line, msg->routine.c_str(), msg->text.c_str());
       msg = msg->next;
    }
 }
@@ -115,17 +115,14 @@ void db_msg(db_err_msg** msgp, INT message_type, const char *filename, INT line,
    va_end(argptr);
    message[sizeof(message)-1] = 0; // ensure string is NUL-terminated
 
-   int len = strlen(message)+1;
-   int size = sizeof(db_err_msg) + len;
-
-   db_err_msg* msg = (db_err_msg*)malloc(size);
+   db_err_msg* msg = new db_err_msg;
 
    msg->next = NULL;
    msg->message_type = message_type;
-   strlcpy(msg->filename, filename, sizeof(msg->filename));
+   msg->filename = filename;
    msg->line = line;
-   strlcpy(msg->routine, routine, sizeof(msg->routine));
-   memcpy(&msg->text[0], message, len);
+   msg->routine = routine;
+   msg->text = message;
 
    _last_error_message = msg;
 
@@ -161,9 +158,11 @@ void db_flush_msg(db_err_msg** msgp)
    }
 
    while (msg != NULL) {
-      cm_msg(msg->message_type, msg->filename, msg->line, msg->routine, "%s", msg->text);
+      cm_msg(msg->message_type, msg->filename.c_str(), msg->line, msg->routine.c_str(), "%s", msg->text.c_str());
       db_err_msg* next = msg->next;
-      free(msg);
+      msg->message_type = 0;
+      msg->next = NULL;
+      delete msg;
       msg = next;
    }
 }
@@ -5179,9 +5178,11 @@ INT db_enum_key(HNDLE hDB, HNDLE hKey, INT idx, HNDLE * subkey_handle)
       
       if (!pkey) {
          std::string path = db_get_path_locked(pheader, hKey);
+         HNDLE xfirst_key = pkeylist->first_key;
          db_unlock_database(hDB);
-         db_flush_msg(&msg);
-         cm_msg(MERROR, "db_enum_key", "hkey %d path \"%s\" invalid first_key %d", hKey, path.c_str(), pkeylist->first_key);
+         if (msg)
+            db_flush_msg(&msg);
+         cm_msg(MERROR, "db_enum_key", "hkey %d path \"%s\" invalid first_key %d", hKey, path.c_str(), xfirst_key);
          return DB_NO_MORE_SUBKEYS;
       }
 
