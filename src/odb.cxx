@@ -1077,8 +1077,6 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
 
    //printf("path \"%s\", parenthkey %d, hkey %d, pkey->name \"%s\", type %d\n", path, parenthkeylist, hkey, pkey->name, pkey->type);
 
-   //int hkey = (POINTER_T) pkey - (POINTER_T) pheader;
-
    if (hkey==0 || !db_validate_key_offset(pheader, hkey)) {
       cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", invalid hkey", hkey, path);
       return false;
@@ -1217,80 +1215,70 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
 
    if (pkey->type == TID_KEY) {
       bool pkeylist_ok = true;
-      KEYLIST *pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
+      db_err_msg* msg = NULL;
+      const KEYLIST *pkeylist = db_get_pkeylist(pheader, pkey->data, pkey, "db_validate_key", &msg);
 
-      if (pkeylist->parent != hkey) {
-         cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", TID_KEY invalid pkeylist->parent %d is not hkey %d", hkey, path, pkeylist->parent, hkey);
+      if (!pkeylist) {
+         db_flush_msg(&msg);
+         cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", invalid pkey->data %d", hkey, path, pkey->data);
          flag = false;
-         pkeylist_ok = false;
-      }
+      } else {
+         if (pkeylist->parent != hkey) {
+            cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", TID_KEY invalid pkeylist->parent %d is not hkey %d", hkey, path, pkeylist->parent, hkey);
+            flag = false;
+            pkeylist_ok = false;
+         }
 
-      if (pkeylist->num_keys < 0 || pkeylist->num_keys > pheader->key_size) {
-         cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", TID_KEY invalid pkeylist->num_keys %d", hkey, path, pkeylist->num_keys);
-         flag = false;
-         pkeylist_ok = false;
-      }
+         if (pkeylist->num_keys < 0 || pkeylist->num_keys > pheader->key_size) {
+            cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", TID_KEY invalid pkeylist->num_keys %d", hkey, path, pkeylist->num_keys);
+            flag = false;
+            pkeylist_ok = false;
+         }
+         
+         if (pkeylist->num_keys == 0 && pkeylist->first_key == 0) {
+            // empty key
+         } else if (pkeylist->first_key == 0 || !db_validate_key_offset(pheader, pkeylist->first_key)) {
+            cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", TID_KEY invalid pkeylist->first_key %d", hkey, path, pkeylist->first_key);
+            flag = false;
+            pkeylist_ok = false;
+         }
+         
+         if (pkeylist_ok) {
+            //printf("hkey %d, path \"%s\", pkey->data %d, pkeylist parent %d, num_keys %d, first_key %d: ", hkey, path, pkey->data, pkeylist->parent, pkeylist->num_keys, pkeylist->first_key);
+            
+            int subhkey = pkeylist->first_key;
 
-      if (pkeylist->num_keys == 0 && pkeylist->first_key == 0) {
-         // empty key
-      } else if (pkeylist->first_key == 0 || !db_validate_key_offset(pheader, pkeylist->first_key)) {
-         cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", TID_KEY invalid pkeylist->first_key %d", hkey, path, pkeylist->first_key);
-         flag = false;
-         pkeylist_ok = false;
-      }
-
-      if (pkeylist_ok) {
-         //printf("hkey %d, path \"%s\", pkey->data %d, pkeylist parent %d, num_keys %d, first_key %d: ", hkey, path, pkey->data, pkeylist->parent, pkeylist->num_keys, pkeylist->first_key);
-
-         int subhkey = pkeylist->first_key;
-
-         for (int i=0; i<pkeylist->num_keys; i++) {
-            KEY* subpkey = (KEY *) ((char *) pheader + subhkey);
-            //printf("(%d) key %d next %d ", i, subhkey, subpkey->next_key);
-
-            if (subpkey->next_key == 0) {
-               if (i+1 != pkeylist->num_keys) {
-                  cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", subdirectory pkeylist entry index %d out of %d subhkey %d invalid next_key %d is zero, but this is not the last entry", hkey, path, i, pkeylist->num_keys, subhkey, subpkey->next_key);
+            int count = 0;
+            while (subhkey != 0) {
+               db_err_msg* msg = NULL;
+               KEY* subpkey = (KEY*)db_get_pkey(pheader, subhkey, NULL, "db_validate_key", &msg);
+               if (!subpkey) {
+                  db_flush_msg(&msg);
                   pkeylist_ok = false;
                   flag = false;
                   break;
                }
-            } else if (!db_validate_key_offset(pheader, subpkey->next_key)) {
-               cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", pkeylist entry %d out of %d subhkey %d invalid next_key %d", hkey, path, i, pkeylist->num_keys, subhkey, subpkey->next_key);
-               pkeylist_ok = false;
+
+               std::string buf;
+               buf += path;
+               buf += "/";
+               buf += subpkey->name;
+               
+               //printf("pkey %p, next %d, name [%s], path %s\n", subpkey, subpkey->next_key, subpkey->name, buf.c_str());
+               
+               if (recurse) {
+                  flag &= db_validate_and_repair_key(pheader, recurse + 1, buf.c_str(), pkey->data, subhkey, subpkey);
+               }
+
+               count++;
+               subhkey = subpkey->next_key;
+            }
+
+            if (count != pkeylist->num_keys) {
+               cm_msg(MERROR, "db_validate_key", "Warning: hkey %d, path \"%s\", TID_KEY mismatch of pkeylist->num_keys %d against key chain length %d", hkey, path, pkeylist->num_keys, count);
                flag = false;
-               break;
+               pkeylist_ok = false;
             }
-
-            subhkey = subpkey->next_key;
-         }
-
-         //printf("\n");
-      }
-
-      if (pkeylist_ok && recurse) {
-         /* if key has subkeys, go through whole list */
-
-         HNDLE subhkey = pkeylist->first_key;
-         
-         for (int i = 0; i < pkeylist->num_keys; i++) {
-            KEY* subpkey = (KEY *) ((char *) pheader + subhkey);
-
-            std::string buf;
-            buf += path;
-            buf += "/";
-            buf += subpkey->name;
-            
-            //printf("pkey %p, next %d, name [%s], path %s\n", subpkey, subpkey->next_key, subpkey->name, buf.c_str());
-            
-            flag &= db_validate_and_repair_key(pheader, recurse + 1, buf.c_str(), pkey->data, subhkey, subpkey);
-            
-            if (!db_validate_key_offset(pheader, subpkey->next_key)) {
-               cm_msg(MERROR, "db_validate_key", "Warning: database corruption, key \"%s\", next_key 0x%08X is invalid", buf.c_str(), subpkey->next_key);
-               return false;
-            }
-            
-            subhkey = subpkey->next_key; // NB: subpkey->next_key can be zero
          }
       }
    }
