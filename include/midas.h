@@ -1790,6 +1790,7 @@ Data conversion flags */
    INT EXPRT db_scan_tree(HNDLE hDB, HNDLE hKey, int level, INT(*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
    INT EXPRT db_scan_tree_link(HNDLE hDB, HNDLE hKey, int level, void (*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
    INT EXPRT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size);
+   std::string EXPRT db_get_path(HNDLE hDB, HNDLE hKey);
    INT EXPRT db_delete_key(HNDLE database_handle, HNDLE key_handle, BOOL follow_links);
    INT EXPRT db_enum_key(HNDLE hdb, HNDLE key_handle, INT index, HNDLE * subkey_handle);
    INT EXPRT db_enum_link(HNDLE hdb, HNDLE key_handle, INT index, HNDLE * subkey_handle);
