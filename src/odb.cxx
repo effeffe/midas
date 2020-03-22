@@ -1066,7 +1066,12 @@ static const KEYLIST* db_get_pkeylist(const DATABASE_HEADER* pheader, HNDLE hKey
    return pkeylist;
 }
 
-static void db_print_key(DATABASE_HEADER * pheader, int recurse, const char *path, HNDLE parenthkeylist, HNDLE hkey)
+static HNDLE db_pkey_to_hkey(const DATABASE_HEADER* pheader, const KEY* pkey)
+{
+   return (POINTER_T) pkey - (POINTER_T) pheader;
+}
+
+static void db_print_key(const DATABASE_HEADER * pheader, int recurse, const char *path, HNDLE parenthkeylist, HNDLE hkey)
 {
    const KEY *pkey = db_get_pkey(pheader, hkey, NULL, "db_print_key", NULL);
 
@@ -3043,7 +3048,7 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
    {
       DATABASE_HEADER *pheader;
       KEYLIST *pkeylist;
-      KEY *pkey, *pprev_key, *pkeyparent;
+      KEY *pprev_key, *pkeyparent;
       const char *pkey_name;
       INT i;
       int status;
@@ -3064,9 +3069,8 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
 
       /* check type */
       if (type <= 0 || type >= TID_LAST) {
-         char str[MAX_ODB_PATH];
-         db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_create_key", "invalid key type %d to create \'%s\' in \'%s\'", type, key_name, str);
+         std::string path = db_get_path(hDB, hKey);
+         cm_msg(MERROR, "db_create_key", "invalid key type %d to create \'%s\' in \'%s\'", type, key_name, path.c_str());
          return DB_INVALID_PARAM;
       }
 
@@ -3074,25 +3078,25 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
       db_lock_database(hDB);
 
       pheader = _database[hDB - 1].database_header;
-      if (!hKey)
-         hKey = pheader->root_key;
 
-      /* check if hKey argument is correct */
-      if (!db_validate_hkey(pheader, hKey)) {
+      db_err_msg *msg = NULL;
+      
+      KEY* pkey = (KEY*)db_get_pkey(pheader, hKey, &status, "db_create_key", &msg);
+
+      if (!pkey) {
          db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
          return DB_INVALID_HANDLE;
       }
-      
-      pkey = (KEY *) ((char *) pheader + hKey);
 
       db_allow_write_locked(&_database[hDB-1], "db_create_key");
 
       if (pkey->type != TID_KEY) {
          DWORD xtid = pkey->type;
+         std::string path = db_get_path_locked(pheader, hKey);
          db_unlock_database(hDB);
-         char str[MAX_ODB_PATH];
-         db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_create_key", "cannot create \'%s\' in \'%s\' tid is %d, not a directory", key_name, str, xtid);
+         cm_msg(MERROR, "db_create_key", "cannot create \'%s\' in \'%s\' tid is %d, not a directory", key_name, path.c_str(), xtid);
          return DB_NO_KEY;
       }
       pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
@@ -3129,19 +3133,30 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
          }
          if (strcmp(str, ".") == 0)
             continue;
-
+         
          /* check if key is in keylist */
-         // FIXME: validate pkeylist->first_key
-         pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
+         db_err_msg *msg = NULL;
+         KEY* npkey = (KEY*) db_get_pkey(pheader, pkeylist->first_key, &status, "db_create_key", &msg);
+
+         if (!npkey) {
+            int pkey_first_key = pkeylist->first_key;
+            HNDLE pkey_hkey = db_pkey_to_hkey(pheader, pkey);
+            std::string path = db_get_path_locked(pheader, pkey_hkey);
+            db_unlock_database(hDB);
+            cm_msg(MERROR, "db_create_key", "hkey %d path \"%s\" invalid first_key %d, while creating \'%s\' in \'%s\'", pkey_hkey, path.c_str(), pkey_first_key, key_name, str);
+            return DB_CORRUPTED;
+         }
+
+         pkey = npkey;
          pprev_key = NULL;
 
          for (i = 0; i < pkeylist->num_keys; i++) {
             if (!db_validate_key_offset(pheader, pkey->next_key)) {
                int pkey_next_key = pkey->next_key;
+               HNDLE pkey_hkey = db_pkey_to_hkey(pheader, pkey);
+               std::string path = db_get_path_locked(pheader, pkey_hkey);
                db_unlock_database(hDB);
-               char str[MAX_ODB_PATH];
-               db_get_path(hDB, hKey, str, sizeof(str));
-               cm_msg(MERROR, "db_create_key", "Error: database corruption, key \"%s\", next_key 0x%08X, while creating \'%s\' in \'%s\'", key_name, pkey_next_key - (int)sizeof(DATABASE_HEADER), key_name, str);
+               cm_msg(MERROR, "db_create_key", "hkey %d path \"%s\" invalid next_key %d, while creating \'%s\' in \'%s\'", pkey_hkey, path.c_str(), pkey_next_key, key_name, str);
                return DB_CORRUPTED;
             }
 
