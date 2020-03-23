@@ -1349,37 +1349,46 @@ void assemble_prompt(char *prompt, int psize, char *host_name, char *exp_name, c
 void watch_callback(HNDLE hDB, HNDLE hKey, INT index, void* info)
 {
    KEY key;
-   int size;
    int status;
-   char path[MAX_ODB_PATH], data[10000], str[256];
    
-   status = db_get_path(hDB, hKey, path, sizeof(path));
-   if (status != DB_SUCCESS) {
-      printf("callback for invalid or deleted hkey %d\n", hKey);
-      return;
-   }
+   std::string path = db_get_path(hDB, hKey);
 
    status = db_get_key(hDB, hKey, &key);
    if (status != DB_SUCCESS) {
-      printf("callback for invalid or deleted hkey %d odb path %s\n", hKey, path);
+      printf("callback for invalid or deleted hkey %d odb path %s\n", hKey, path.c_str());
       return;
    }
 
    if (key.type == TID_KEY)
-      printf("%s modified\n", path);
+      printf("%s modified\n", path.c_str());
    else {
-      size = sizeof(data);
       if (key.num_values == 1) {
-         db_get_data(hDB, hKey, data, &size, key.type);
-         db_sprintf(str, data, size, 0, key.type);
-         printf("%s = %s\n", path, str);
+         if (key.type == TID_STRING) {
+            std::string data;
+            db_get_value_string(hDB, 0, path.c_str(), 0, &data);
+            printf("%s = \"%s\"\n", path.c_str(), data.c_str());
+         } else {
+            char data[10000], str[256];
+            int size = sizeof(data);
+            db_get_data(hDB, hKey, data, &size, key.type);
+            db_sprintf(str, data, size, 0, key.type);
+            printf("%s = %s\n", path.c_str(), str);
+         }
       } else {
          if (index == -1) {
-            printf("%s[*] modified\n", path);
+            printf("%s[*] modified\n", path.c_str());
          } else {
-            db_get_data_index(hDB, hKey, data, &size, index, key.type);
-            db_sprintf(str, data, size, 0, key.type);
-            printf("%s[%d] = %s\n", path, index, str);
+            if (key.type == TID_STRING) {
+               std::string data;
+               db_get_value_string(hDB, 0, path.c_str(), index, &data);
+               printf("%s[%d] = \"%s\"\n", path.c_str(), index, data.c_str());
+            } else {
+               char data[10000], str[256];
+               int size = sizeof(data);
+               db_get_data_index(hDB, hKey, data, &size, index, key.type);
+               db_sprintf(str, data, size, 0, key.type);
+               printf("%s[%d] = %s\n", path.c_str(), index, str);
+            }
          }
       }
    }
