@@ -76,7 +76,7 @@ static std::string db_get_path_locked(const DATABASE_HEADER* pheader, const KEY 
 static int db_scan_tree_locked(const DATABASE_HEADER* pheader, const KEY* pkey, int level, int(*callback) (const DATABASE_HEADER*, const KEY*, int, void*, db_err_msg**), void *info, db_err_msg** msg);
 static int db_set_mode_wlocked(DATABASE_HEADER*,KEY*,WORD mode,int recurse,db_err_msg**);
 static const KEY* db_resolve_link_locked(const DATABASE_HEADER*, const KEY*,int *pstatus, db_err_msg**);
-static int db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk);
+static int db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk, db_err_msg** msg);
 #endif // LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
@@ -5002,8 +5002,11 @@ INT db_set_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *da
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE);
+      db_err_msg* msg = NULL;
+      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
 
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -6801,8 +6804,12 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE);
+      db_err_msg* msg = NULL;
+      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
+
 
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -7040,8 +7047,11 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE);
+      db_err_msg* msg = NULL;
+      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
 
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -7167,8 +7177,11 @@ INT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values)
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE);
+      db_err_msg* msg = NULL;
+      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
 
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -7327,8 +7340,11 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE);
+      db_err_msg* msg = NULL;
+      db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
 
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -7447,8 +7463,11 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE);
+      db_err_msg* msg = NULL;
+      db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
 
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -7583,10 +7602,14 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
       /* update time */
       pkey->last_written = ss_time();
 
+      db_err_msg* msg = NULL;
       if (bNotify)
-         db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE);
+         db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE, &msg);
       
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
+
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -10764,7 +10787,7 @@ static void db_recurse_record_tree_locked(HNDLE hDB, const DATABASE_HEADER* phea
                   wpkey->last_written = ss_time();
 
                   /* notify clients which have key open */
-                  db_notify_clients_locked(pheader, hDB, db_pkey_to_hkey(pheader, pkey), -1, TRUE);
+                  db_notify_clients_locked(pheader, hDB, db_pkey_to_hkey(pheader, pkey), -1, TRUE, msg);
                }
             } else {
                /* copy key data if there is read access */
@@ -11772,7 +11795,7 @@ INT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock)
 
 #ifdef LOCAL_ROUTINES
 
-static INT db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
+static INT db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk, db_err_msg** msg)
 /********************************************************************\
 
   Routine: db_notify_clients
@@ -11782,21 +11805,19 @@ static INT db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, H
 \********************************************************************/
 {
    HNDLE hKey;
-   KEY *pkey;
    KEYLIST *pkeylist;
    INT i, j;
    char str[80];
+   int status;
 
    hKey = hKeyMod;
 
-   /* check if hKey argument is correct */
-   if (!db_validate_hkey(pheader, hKey)) {
-      return DB_INVALID_HANDLE;
+   const KEY* pkey = db_get_pkey(pheader, hKey, &status, "db_notify_clients", msg);
+   
+   if (!pkey) {
+      return status;
    }
    
-   /* check if key or parent has notify_flag set */
-   pkey = (KEY *) ((char *) pheader + hKey);
-
    do {
 
       /* check which client has record open */
@@ -11814,10 +11835,13 @@ static INT db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, H
       if (pkey->parent_keylist == 0 || !bWalk)
          return DB_SUCCESS;
 
+      // FIXME: validate pkey->parent_keylist
       pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
-      // FIXME: validate pkeylist->parent
-      pkey = (KEY *) ((char *) pheader + pkeylist->parent);
-      hKey = (POINTER_T) pkey - (POINTER_T) pheader;
+      pkey = db_get_pkey(pheader, pkeylist->parent, &status, "db_notify_clients", msg);
+      if (!pkey) {
+         return status;
+      }
+      hKey = db_pkey_to_hkey(pheader, pkey);
    } while (TRUE);
 
 }
@@ -11841,12 +11865,15 @@ INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
    
 #ifdef LOCAL_ROUTINES
    {
+      db_err_msg* msg = NULL;
       int status = db_lock_database(hDB);
       if (status != DB_SUCCESS)
          return status;
       DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
-      db_notify_clients_locked(pheader, hDB, hKeyMod, index, bWalk);
+      db_notify_clients_locked(pheader, hDB, hKeyMod, index, bWalk, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
    }
 #endif
    return DB_SUCCESS;
@@ -11873,12 +11900,15 @@ INT db_notify_clients_array(HNDLE hDB, HNDLE hKeys[], INT size)
       int status = db_lock_database(hDB);
       if (status != DB_SUCCESS)
          return status;
+      db_err_msg* msg = NULL;
       DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
       int count = size/sizeof(INT);
       for (int i=0 ; i<count; i++) {
-         db_notify_clients_locked(pheader, hDB, hKeys[i], -1, TRUE);
+         db_notify_clients_locked(pheader, hDB, hKeys[i], -1, TRUE, &msg);
       }
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
    }
 #endif
    return DB_SUCCESS;
