@@ -1854,12 +1854,14 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
             
             mode = atoi(param[1]);
             
-            if (strcmp(str, "/") != 0)
+            if (strcmp(str, "/") != 0) {
                status = db_find_key(hDB, 0, str, &hKey);
-            else
+            } else {
+               status = DB_SUCCESS;
                hKey = 0;
+            }
             
-            if (status == DB_SUCCESS || !hKey) {
+            if (status == DB_SUCCESS) {
                if (cmd_mode)
                   str[0] = 'y';
                else {
