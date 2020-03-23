@@ -10701,8 +10701,6 @@ static void db_recurse_record_tree_locked(HNDLE hDB, const DATABASE_HEADER* phea
    const KEY *pold;
    INT size, align, corr, total_size_tmp;
 
-   HNDLE hKey = db_pkey_to_hkey(pheader, pkey);
-
    KEYLIST *pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
    if (!pkeylist->first_key)
       return;
@@ -10714,26 +10712,16 @@ static void db_recurse_record_tree_locked(HNDLE hDB, const DATABASE_HEADER* phea
       pold = NULL;
       
       if (pkey->type == TID_LINK) {
-         char link_path[MAX_ODB_PATH];
-         strlcpy(link_path, (char *) pheader + pkey->data, sizeof(link_path));
+         const KEY *plink = db_resolve_link_locked(pheader, pkey, NULL, msg);
          
-         HNDLE hKeyLink;
-         if (link_path[0] == '/') {
-            db_find_key1(hDB, 0, link_path, &hKeyLink);
-         } else {
-            db_find_key1(hDB, hKey, link_path, &hKeyLink);
-         }
+         if (!plink)
+            return;
 
-         if (hKeyLink) {
-            const KEY* plink = db_get_pkey(pheader, hKeyLink, NULL, "db_recurse_record_tree", msg);
-            if (!plink)
-               return;
-            if (plink->type == TID_KEY) {
-               db_recurse_record_tree_locked(hDB, pheader, plink, data, total_size, base_align, NULL, bSet, convert_flags, msg);
-            } else {
-               pold = pkey;
-               pkey = plink;
-            }
+         if (plink->type == TID_KEY) {
+            db_recurse_record_tree_locked(hDB, pheader, plink, data, total_size, base_align, NULL, bSet, convert_flags, msg);
+         } else {
+            pold = pkey;
+            pkey = plink;
          }
       }
       
