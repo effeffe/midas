@@ -981,15 +981,6 @@ static bool db_validate_hkey(const DATABASE_HEADER * pheader, HNDLE hKey)
    return true;
 }
 
-static bool db_validate_pkey(const DATABASE_HEADER * pheader, const KEY* pkey)
-{
-   /* check key type */
-   if (pkey->type <= 0 || pkey->type >= TID_LAST) {
-      return false;
-   }
-   return true;
-}
-
 static const KEY* db_get_pkey(const DATABASE_HEADER* pheader, HNDLE hKey, int* pstatus, const char* caller, db_err_msg **msg)
 {
    BOOL hKey_is_root_key = FALSE;
@@ -4574,8 +4565,17 @@ static std::string db_get_path_locked(const DATABASE_HEADER* pheader, const KEY*
    while (1) {
       //printf("db_get_path_locked: hkey %d, pkey name \"%s\", type %d, parent %d, path \"%s\"\n", hKey, pkey->name, pkey->type, pkey->parent_keylist, path.c_str());
 
-      if (!db_validate_pkey(pheader, pkey)) {
-         return "(INVALID_PKEY)/" + path;
+      /* check key type */
+      if (pkey->type <= 0 || pkey->type >= TID_LAST) {
+         char buf[256];
+         sprintf(buf, "(INVALID_KEY_TYPE_%d)", pkey->type);
+         std::string xpath;
+         xpath += buf;
+         if (path.length() > 0) {
+            xpath += "/";
+            xpath += path;
+         }
+         return xpath;
       }
 
       /* add key name in front of path */
