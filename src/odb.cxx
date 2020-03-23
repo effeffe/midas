@@ -76,6 +76,7 @@ static std::string db_get_path_locked(const DATABASE_HEADER* pheader, const KEY 
 static int db_scan_tree_locked(const DATABASE_HEADER* pheader, const KEY* pkey, int level, int(*callback) (const DATABASE_HEADER*, const KEY*, int, void*, db_err_msg**), void *info, db_err_msg** msg);
 static int db_set_mode_wlocked(DATABASE_HEADER*,KEY*,WORD mode,int recurse,db_err_msg**);
 static const KEY* db_resolve_link_locked(const DATABASE_HEADER*, const KEY*,int *pstatus, db_err_msg**);
+static int db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk);
 #endif // LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
@@ -5001,7 +5002,7 @@ INT db_set_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *da
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, -1, TRUE);
+      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE);
       db_unlock_database(hDB);
 
    }
@@ -6800,7 +6801,7 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, -1, TRUE);
+      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE);
       db_unlock_database(hDB);
 
    }
@@ -7039,7 +7040,7 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, -1, TRUE);
+      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE);
       db_unlock_database(hDB);
 
    }
@@ -7166,7 +7167,7 @@ INT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values)
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, -1, TRUE);
+      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE);
       db_unlock_database(hDB);
 
    }
@@ -7326,7 +7327,7 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, idx, TRUE);
+      db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE);
       db_unlock_database(hDB);
 
    }
@@ -7446,7 +7447,7 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, idx, TRUE);
+      db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE);
       db_unlock_database(hDB);
 
    }
@@ -7583,8 +7584,8 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
       pkey->last_written = ss_time();
 
       if (bNotify)
-         db_notify_clients(hDB, hKey, idx, TRUE);
-
+         db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE);
+      
       db_unlock_database(hDB);
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -10763,7 +10764,7 @@ static void db_recurse_record_tree_locked(HNDLE hDB, const DATABASE_HEADER* phea
                   wpkey->last_written = ss_time();
 
                   /* notify clients which have key open */
-                  db_notify_clients(hDB, db_pkey_to_hkey(pheader, pkey), -1, TRUE);
+                  db_notify_clients_locked(pheader, hDB, db_pkey_to_hkey(pheader, pkey), -1, TRUE);
                }
             } else {
                /* copy key data if there is read access */
@@ -11771,7 +11772,7 @@ INT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock)
 
 #ifdef LOCAL_ROUTINES
 
-INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
+static INT db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
 /********************************************************************\
 
   Routine: db_notify_clients
@@ -11780,20 +11781,12 @@ INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
 
 \********************************************************************/
 {
-   DATABASE_HEADER *pheader;
-   DATABASE_CLIENT *pclient;
    HNDLE hKey;
    KEY *pkey;
    KEYLIST *pkeylist;
    INT i, j;
    char str[80];
 
-   if (hDB > _database_entries || hDB <= 0) {
-      cm_msg(MERROR, "db_notify_clients", "invalid database handle");
-      return DB_INVALID_HANDLE;
-   }
-
-   pheader = _database[hDB - 1].database_header;
    hKey = hKeyMod;
 
    /* check if hKey argument is correct */
@@ -11809,7 +11802,7 @@ INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
       /* check which client has record open */
       if (pkey->notify_count)
          for (i = 0; i < pheader->max_client_index; i++) {
-            pclient = &pheader->client[i];
+            const DATABASE_CLIENT* pclient = &pheader->client[i];
             for (j = 0; j < pclient->max_index; j++)
                if (pclient->open_record[j].handle == hKey) {
                   /* send notification to remote process */
@@ -11832,6 +11825,33 @@ INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
 #endif                          /* LOCAL_ROUTINES */
 /*------------------------------------------------------------------*/
 
+
+INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
+/********************************************************************\
+
+  Routine: db_notify_clients
+
+  Purpose: Gets called by db_set_xxx functions. Internal use only.
+ \********************************************************************/
+{
+   if (rpc_is_remote()) {
+      cm_msg(MERROR, "db_notify_clients", "db_notify_clients() does not work in remotely connected MIDAS clients");
+      return DB_INVALID_HANDLE;
+   }
+   
+#ifdef LOCAL_ROUTINES
+   {
+      int status = db_lock_database(hDB);
+      if (status != DB_SUCCESS)
+         return status;
+      DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
+      db_notify_clients_locked(pheader, hDB, hKeyMod, index, bWalk);
+      db_unlock_database(hDB);
+   }
+#endif
+   return DB_SUCCESS;
+}
+
 INT db_notify_clients_array(HNDLE hDB, HNDLE hKeys[], INT size)
 /********************************************************************\
  
@@ -11850,10 +11870,13 @@ INT db_notify_clients_array(HNDLE hDB, HNDLE hKeys[], INT size)
    
 #ifdef LOCAL_ROUTINES
    {
-      db_lock_database(hDB);
+      int status = db_lock_database(hDB);
+      if (status != DB_SUCCESS)
+         return status;
+      DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
       int count = size/sizeof(INT);
       for (int i=0 ; i<count; i++) {
-         db_notify_clients(hDB, hKeys[i], -1, TRUE);
+         db_notify_clients_locked(pheader, hDB, hKeys[i], -1, TRUE);
       }
       db_unlock_database(hDB);
    }

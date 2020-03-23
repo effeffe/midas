@@ -5277,9 +5277,7 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
 
    /* simulate odb key update for hot links connected to system history */
    if (!rpc_is_remote()) {
-      db_lock_database(hDB);
       db_notify_clients(hDB, hist_log[index].hKeyVar, -1, FALSE);
-      db_unlock_database(hDB);
    }
 
    maybe_flush_history(now);
