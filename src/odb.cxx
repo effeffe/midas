@@ -11612,13 +11612,15 @@ INT db_add_open_record(HNDLE hDB, HNDLE hKey, WORD access_mode)
    {
       DATABASE_HEADER *pheader;
       DATABASE_CLIENT *pclient;
-      KEY *pkey;
       INT i;
+      int status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_add_open_record", "invalid database handle");
          return DB_INVALID_HANDLE;
       }
+
+      db_err_msg* msg = NULL;
 
       /* lock database */
       db_lock_database(hDB);
@@ -11649,25 +11651,20 @@ INT db_add_open_record(HNDLE hDB, HNDLE hKey, WORD access_mode)
 
       db_allow_write_locked(&_database[hDB-1], "db_add_open_record");
 
+      KEY *pkey = (KEY*)db_get_pkey(pheader, hKey, &status, "db_add_open_record", &msg);
+
+      if (!pkey) {
+         db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
+      }
+
       if (i == pclient->max_index)
          pclient->max_index++;
 
       pclient->open_record[i].handle = hKey;
       pclient->open_record[i].access_mode = access_mode;
-
-      /* check if hKey argument is correct */
-      if (!db_validate_hkey(pheader, hKey)) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
-
-      pkey = (KEY *) ((char *) pheader + hKey);
-
-      /* check if pkey is correct */
-      if (!db_validate_pkey(pheader, pkey)) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
 
       /* increment notify_count */
       pkey->notify_count++;
