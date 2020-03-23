@@ -10688,63 +10688,51 @@ INT db_sscanf(const char *data_str, void *data, INT * data_size, INT i, DWORD ti
 
 #ifdef LOCAL_ROUTINES
 
-static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
-                                   INT * total_size, INT base_align, INT * max_align, BOOL bSet, INT convert_flags)
+static void db_recurse_record_tree_locked(HNDLE hDB, const DATABASE_HEADER* pheader, const KEY* pkey, void **data, INT * total_size, INT base_align, INT * max_align, BOOL bSet, INT convert_flags, db_err_msg** msg)
 /********************************************************************\
 
-  Routine: db_recurse_record_tree
+  Routine: db_recurse_record_tree_locked
 
   Purpose: Recurse a database tree and calculate its size or copy
            data. Internal use only.
 
 \********************************************************************/
 {
-   KEY *pold, link;
-   HNDLE hKeyLink;
+   const KEY *pold;
    INT size, align, corr, total_size_tmp;
-   char link_path[MAX_ODB_PATH];
 
-   /* get first subkey of hKey */
-   DATABASE_HEADER *pheader = _database[hDB - 1].database_header;
+   HNDLE hKey = db_pkey_to_hkey(pheader, pkey);
 
-   if (!db_validate_hkey(pheader, hKey)) {
-      cm_msg(MERROR, "db_recurse_record_tree", "invalid hKey %d", hKey);
-      return;
-   }
-   
-   KEY *pkey = (KEY *) ((char *) pheader + hKey);
-
-   if (!db_validate_pkey(pheader, pkey)) {
-      cm_msg(MERROR, "db_recurse_record_tree", "invalid pkey at hKey %d", hKey);
-      return;
-   }
-   
    KEYLIST *pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
    if (!pkeylist->first_key)
       return;
    // FIXME: validate pkeylist->first_key
-   pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
+   pkey = (const KEY *) ((char *) pheader + pkeylist->first_key);
 
    /* first browse through this level */
    do {
       pold = NULL;
       
       if (pkey->type == TID_LINK) {
+         char link_path[MAX_ODB_PATH];
          strlcpy(link_path, (char *) pheader + pkey->data, sizeof(link_path));
          
-         if (link_path[0] == '/')
+         HNDLE hKeyLink;
+         if (link_path[0] == '/') {
             db_find_key1(hDB, 0, link_path, &hKeyLink);
-         else
+         } else {
             db_find_key1(hDB, hKey, link_path, &hKeyLink);
+         }
 
          if (hKeyLink) {
-            db_get_key(hDB, hKeyLink, &link);
-            if (link.type == TID_KEY) {
-            db_recurse_record_tree(hDB, hKeyLink,
-                                   data, total_size, base_align, NULL, bSet, convert_flags);
+            const KEY* plink = db_get_pkey(pheader, hKeyLink, NULL, "db_recurse_record_tree", msg);
+            if (!plink)
+               return;
+            if (plink->type == TID_KEY) {
+               db_recurse_record_tree_locked(hDB, pheader, plink, data, total_size, base_align, NULL, bSet, convert_flags, msg);
             } else {
                pold = pkey;
-               pkey = &link;
+               pkey = plink;
             }
          }
       }
@@ -10769,6 +10757,7 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
 
          if (data) {
             if (bSet) {
+               KEY* wpkey = (KEY*)pkey;
                /* copy data if there is write access */
                if (pkey->access_mode & MODE_WRITE) {
                   memcpy((char *) pheader + pkey->data, *data, pkey->item_size * pkey->num_values);
@@ -10783,10 +10772,10 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
                   }
 
                   /* update time */
-                  pkey->last_written = ss_time();
+                  wpkey->last_written = ss_time();
 
                   /* notify clients which have key open */
-                  db_notify_clients(hDB, (POINTER_T) pkey - (POINTER_T) pheader, -1, TRUE);
+                  db_notify_clients(hDB, db_pkey_to_hkey(pheader, pkey), -1, TRUE);
                }
             } else {
                /* copy key data if there is read access */
@@ -10815,8 +10804,7 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
          align = 1;
 
          total_size_tmp = *total_size;
-         db_recurse_record_tree(hDB, (POINTER_T) pkey - (POINTER_T) pheader,
-                                NULL, &total_size_tmp, base_align, &align, bSet, convert_flags);
+         db_recurse_record_tree_locked(hDB, pheader, pkey, NULL, &total_size_tmp, base_align, &align, bSet, convert_flags, msg);
 
          if (max_align && align > *max_align)
             *max_align = align;
@@ -10827,8 +10815,7 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
             *data = (void *) ((char *) (*data) + corr);
 
          /* now recurse subtree */
-         db_recurse_record_tree(hDB, (POINTER_T) pkey - (POINTER_T) pheader,
-                                data, total_size, base_align, NULL, bSet, convert_flags);
+         db_recurse_record_tree_locked(hDB, pheader, pkey, data, total_size, base_align, NULL, bSet, convert_flags, msg);
 
          corr = VALIGN(*total_size, align) - *total_size;
          *total_size += corr;
@@ -10848,6 +10835,28 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
       pkey = (KEY *) ((char *) pheader + pkey->next_key);
    } while (TRUE);
 }
+
+static void db_recurse_record_tree_locked(HNDLE hDB, HNDLE hKey, void **data, INT * total_size, INT base_align, INT * max_align, BOOL bSet, INT convert_flags, db_err_msg** msg)
+/********************************************************************\
+
+  Routine: db_recurse_record_tree_locked
+
+  Purpose: Recurse a database tree and calculate its size or copy
+           data. Internal use only.
+
+\********************************************************************/
+{
+   /* get first subkey of hKey */
+   DATABASE_HEADER *pheader = _database[hDB - 1].database_header;
+
+   const KEY* pkey = db_get_pkey(pheader, hKey, NULL, "db_recurse_record_tree", msg);
+
+   if (!pkey) {
+      return;
+   }
+
+   db_recurse_record_tree_locked(hDB, pheader, pkey, data, total_size, base_align, max_align, bSet, convert_flags, msg);
+}   
 
 #endif                          /* LOCAL_ROUTINES */
 
@@ -10892,16 +10901,19 @@ INT db_get_record_size(HNDLE hDB, HNDLE hKey, INT align, INT * buf_size)
          return DB_SUCCESS;
       }
 
+      db_err_msg* msg = NULL;
       db_lock_database(hDB);
 
       /* determine record size */
       *buf_size = max_align = 0;
-      db_recurse_record_tree(hDB, hKey, NULL, buf_size, align, &max_align, 0, 0);
+      db_recurse_record_tree_locked(hDB, hKey, NULL, buf_size, align, &max_align, 0, 0, &msg);
 
       /* correct for byte padding */
       *buf_size = VALIGN(*buf_size, max_align);
 
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -11015,10 +11027,12 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
       pdata = data;
       total_size = 0;
 
+      db_err_msg* msg = NULL;
       db_lock_database(hDB);
-      db_recurse_record_tree(hDB, hKey, &pdata, &total_size, align, NULL, FALSE, convert_flags);
+      db_recurse_record_tree_locked(hDB, hKey, &pdata, &total_size, align, NULL, FALSE, convert_flags, &msg);
       db_unlock_database(hDB);
-
+      if (msg)
+         db_flush_msg(&msg);
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -11583,9 +11597,12 @@ INT db_set_record(HNDLE hDB, HNDLE hKey, void *data, INT buf_size, INT align)
       total_size = 0;
 
       db_lock_database(hDB);
+      db_err_msg* msg = NULL;
       db_allow_write_locked(&_database[hDB-1], "db_set_record");
-      db_recurse_record_tree(hDB, hKey, &pdata, &total_size, align, NULL, TRUE, convert_flags);
+      db_recurse_record_tree_locked(hDB, hKey, &pdata, &total_size, align, NULL, TRUE, convert_flags, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
    }
 #endif                          /* LOCAL_ROUTINES */
 
