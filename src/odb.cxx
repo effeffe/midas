@@ -72,6 +72,7 @@ static void db_flush_msg(db_err_msg** msg);
 static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const char *key_name, HNDLE * subhKey, db_err_msg** msg);
 static const KEY* db_find_pkey_locked(const DATABASE_HEADER *pheader, const KEY* pkey, const char *key_name, int *pstatus, db_err_msg** msg);
 static std::string db_get_path_locked(const DATABASE_HEADER* pheader, HNDLE hKey);
+static std::string db_get_path_locked(const DATABASE_HEADER* pheader, const KEY *pkey);
 static int db_scan_tree_locked(const DATABASE_HEADER* pheader, const KEY* pkey, int level, int(*callback) (const DATABASE_HEADER*, const KEY*, int, void*, db_err_msg**), void *info, db_err_msg** msg);
 static int db_set_mode_wlocked(DATABASE_HEADER*,KEY*,WORD mode,int recurse,db_err_msg**);
 static const KEY* db_resolve_link_locked(const DATABASE_HEADER*, const KEY*,int *pstatus, db_err_msg**);
@@ -4567,24 +4568,8 @@ INT db_scan_tree_link(HNDLE hDB, HNDLE hKey, INT level, void (*callback) (HNDLE,
 
 #ifdef LOCAL_ROUTINES
 /*------------------------------------------------------------------*/
-static std::string db_get_path_locked(const DATABASE_HEADER* pheader, HNDLE hKey)
+static std::string db_get_path_locked(const DATABASE_HEADER* pheader, const KEY* pkey)
 {
-   //printf("db_get_path_locked: hkey %d\n", hKey);
-
-   if (!hKey)
-      hKey = pheader->root_key;
-
-   if (hKey == pheader->root_key) {
-      return "/";
-   }
-
-   /* check if hKey argument is correct */
-   if (!db_validate_hkey(pheader, hKey)) {
-      return "(INVALID_HKEY)";
-   }
-
-   const KEY* pkey = (const KEY *) ((char *) pheader + hKey);
-
    std::string path = "";
    while (1) {
       //printf("db_get_path_locked: hkey %d, pkey name \"%s\", type %d, parent %d, path \"%s\"\n", hKey, pkey->name, pkey->type, pkey->parent_keylist, path.c_str());
@@ -4628,6 +4613,28 @@ static std::string db_get_path_locked(const DATABASE_HEADER* pheader, HNDLE hKey
    };
 
    /* NOT REACHED */
+}
+
+/*------------------------------------------------------------------*/
+static std::string db_get_path_locked(const DATABASE_HEADER* pheader, HNDLE hKey)
+{
+   //printf("db_get_path_locked: hkey %d\n", hKey);
+
+   if (!hKey)
+      hKey = pheader->root_key;
+
+   if (hKey == pheader->root_key) {
+      return "/";
+   }
+
+   /* check if hKey argument is correct */
+   if (!db_validate_hkey(pheader, hKey)) {
+      return "(INVALID_HKEY)";
+   }
+
+   const KEY* pkey = (const KEY *) ((char *) pheader + hKey);
+
+   return db_get_path_locked(pheader, pkey);
 }
 #endif /* LOCAL_ROUTINES */
 
