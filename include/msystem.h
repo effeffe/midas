@@ -536,9 +536,8 @@ typedef struct {
    /*---- common function ----*/
    INT EXPRT cm_set_path(const char *path);
    INT EXPRT cm_get_path(char *path, int path_size);
-#ifdef __cplusplus
+   std::string EXPRT cm_get_path();
    INT EXPRT cm_get_path_string(std::string* path);
-#endif
    INT EXPRT cm_set_experiment_name(const char *name);
    INT cm_dispatch_ipc(const char *message, int message_size, int client_socket);
    INT EXPRT cm_msg_log(INT message_type, const char *facility, const char *message);

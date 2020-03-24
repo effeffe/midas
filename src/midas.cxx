@@ -1470,7 +1470,7 @@ static HNDLE _hKeyClient = 0;   /* key handle for client in ODB */
 static HNDLE _hDB = 0;          /* Database handle */
 static char _experiment_name[NAME_LENGTH];
 static char _client_name[NAME_LENGTH];
-static char _path_name[MAX_STRING_LENGTH];
+static std::string _path_name;
 static INT _watchdog_timeout = DEFAULT_WATCHDOG_TIMEOUT;
 INT _semaphore_alarm   = -1;
 INT _semaphore_elog    = -1;
@@ -1511,11 +1511,14 @@ The path is then used for all shared memory routines.
 */
 INT cm_set_path(const char *path)
 {
-   strlcpy(_path_name, path, sizeof(_path_name));
+   assert(path);
+   assert(path[0] != 0);
 
-   /* check for trailing directory seperator */
-   if (strlen(_path_name) > 0 && _path_name[strlen(_path_name) - 1] != DIR_SEPARATOR)
-      strlcat(_path_name, DIR_SEPARATOR_STR, sizeof(_path_name));
+   _path_name = path;
+
+   if (_path_name.back() != DIR_SEPARATOR) {
+      _path_name += DIR_SEPARATOR_STR;
+   }
 
    return CM_SUCCESS;
 }
@@ -1532,10 +1535,24 @@ INT cm_get_path(char *path, int path_size)
    // with the size of the pointer to a string
    // instead of the size of the string buffer
    assert(path_size != sizeof(char*));
+   assert(path);
+   assert(_path_name.length() > 0);
 
-   strlcpy(path, _path_name, path_size);
+   strlcpy(path, _path_name.c_str(), path_size);
 
    return CM_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Return the path name previously set with cm_set_path.
+@param  path             Pathname
+@return CM_SUCCESS
+*/
+std::string cm_get_path()
+{
+   assert(_path_name.length() > 0);
+   return _path_name;
 }
 
 /********************************************************************/
@@ -1544,9 +1561,8 @@ INT cm_get_path(char *path, int path_size)
 INT EXPRT cm_get_path_string(std::string* path)
 {
    assert(path != NULL);
-   char buf[MAX_STRING_LENGTH]; // should match size of _path_name in midas.c
-   cm_get_path(buf, sizeof(buf));
-   *path = buf;
+   assert(_path_name.length() > 0);
+   *path = _path_name;
    return CM_SUCCESS;
 }
 
