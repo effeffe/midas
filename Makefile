@@ -939,6 +939,39 @@ static:
 
 #####################################################################
 
+test:
+	@echo \\n"make test" will create an empty experiment and run some basic tests\\n
+	rm -f exptab
+	rm -rf testexpt
+	mkdir testexpt
+	echo testexpt $(PWD)/testexpt testuser > exptab
+	@echo
+	@echo export MIDASSYS=$(PWD)
+	@echo export MIDAS_EXPTAB=$(PWD)/exptab
+	@echo
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbinit
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "ls -l"
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhttpd -D &
+	sleep 1
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./examples/experiment/frontend -D &
+	sleep 1
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mlogger -D &
+	sleep 1
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "scl"
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mtransition START
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mtransition STOP
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mtransition START
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mtransition STOP
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhist -l
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "sh \"sample frontend\""
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "sh logger"
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "sh mhttpd"
+
+testmhttpd:
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhttpd
+
+#####################################################################
+
 install:
 # system programs and utilities
 	@echo "... "
