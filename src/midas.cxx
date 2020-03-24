@@ -1520,6 +1520,8 @@ INT cm_set_path(const char *path)
       _path_name += DIR_SEPARATOR_STR;
    }
 
+   //printf("cm_set_path [%s]\n", _path_name.c_str());
+
    return CM_SUCCESS;
 }
 
@@ -2280,6 +2282,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
       cm_set_experiment_name(exptab[i].name);
       cm_set_path(exptab[i].directory);
+      ss_suspend_init_odb_port();
 
       /* create alarm and elog semaphores */
       status = ss_semaphore_create("ALARM", &semaphore_alarm);
@@ -2431,10 +2434,13 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    /* set experiment name in ODB */
    db_set_value(hDB, 0, "/Experiment/Name", exp_name1, NAME_LENGTH, 1, TID_STRING);
 
-   /* set data dir in ODB */
-   cm_get_path(str, sizeof(str));
-   size = sizeof(str);
-   db_get_value(hDB, 0, "/Logger/Data dir", str, &size, TID_STRING, TRUE);
+   if (!rpc_is_remote()) {
+      /* experiment path is only set for local connections */
+      /* set data dir in ODB */
+      cm_get_path(str, sizeof(str));
+      size = sizeof(str);
+      db_get_value(hDB, 0, "/Logger/Data dir", str, &size, TID_STRING, TRUE);
+   }
 
    /* register server to be able to be called by other clients */
    status = cm_register_server();
