@@ -1282,18 +1282,18 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
       // one byte "\0"
       if (pkey->total_size <= 2) {
          cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_LINK is an empty link", hkey, path);
+         flag = false;
+         //return false;
       }
-      flag = false;
-      //return false;
    }
 
    /* check for too long link */
    if (pkey->type == TID_LINK) {
       if (pkey->total_size >= MAX_ODB_PATH) {
          cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_LINK length %d exceeds MAX_ODB_PATH %d", hkey, path, pkey->total_size, MAX_ODB_PATH);
+         flag = false;
+         //return false;
       }
-      flag = false;
-      //return false;
    }
 
    /* check for link loop */
@@ -1305,6 +1305,8 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
          // check for link to itself
          if (equal_ustring(link, path)) {
             cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_LINK to \"%s\" is a link to itself", hkey, path, link);
+            flag = false;
+            //return false;
          }
       } else if (link_len < path_len) {
          // check for link to the "path" subdirectory
@@ -1313,10 +1315,10 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
          tmp[link_len] = 0;
          if (equal_ustring(link, tmp) && path[link_len] == DIR_SEPARATOR) {
             cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_LINK to \"%s\" is a loop", hkey, path, link);
+            flag = false;
+            //return false;
          }
       }
-      flag = false;
-      //return false;
    }
 
    /* check access mode */
@@ -1753,10 +1755,12 @@ static bool db_validate_and_repair_db_wlocked(DATABASE_HEADER * pheader)
       return false;
    }
 
+   printf("flag %d\n", flag);
+
    flag &= db_validate_and_repair_key(pheader, 1, "", 0, pheader->root_key, (KEY *) ((char *) pheader + pheader->root_key));
 
    if (!flag) {
-      cm_msg(MERROR, "db_validate_db", "Error: ODB corruption detected, maybe repaired");
+      cm_msg(MERROR, "db_validate_db", "Error: ODB corruption detected, see previous messages");
    }
 
    return flag;
