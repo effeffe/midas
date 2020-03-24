@@ -959,8 +959,11 @@ test:
 	sleep 1
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "scl"
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mtransition START
+	sleep 5
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mtransition STOP
+	sleep 1
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mtransition START
+	sleep 5
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mtransition STOP
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhist -l
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "sh \"sample frontend\""
