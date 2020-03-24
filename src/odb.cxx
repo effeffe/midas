@@ -11735,7 +11735,7 @@ INT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock)
       INT i, idx;
 
       if (hDB > _database_entries || hDB <= 0) {
-         cm_msg(MERROR, "db_remove_open_record", "invalid database handle");
+         cm_msg(MERROR, "db_remove_open_record", "invalid database handle %d", hDB);
          return DB_INVALID_HANDLE;
       }
 
@@ -13171,10 +13171,13 @@ INT db_unwatch(HNDLE hDB, HNDLE hKey)
  */
 INT db_unwatch_all()
 {
-   INT i;
-   
-   for (i = _watch_list_entries-1; i >= 0 ; i--)
+   for (int i = _watch_list_entries-1; i >= 0 ; i--) {
+      if ((_watch_list[i].hDB == 0) && (_watch_list[i].handle == 0)) {
+         // empty or deleted watch list entry
+         continue;
+      }
       db_unwatch(_watch_list[i].hDB, _watch_list[i].handle);
+   }
    
    return DB_SUCCESS;
 }
