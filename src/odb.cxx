@@ -1755,8 +1755,6 @@ static bool db_validate_and_repair_db_wlocked(DATABASE_HEADER * pheader)
       return false;
    }
 
-   printf("flag %d\n", flag);
-
    flag &= db_validate_and_repair_key(pheader, 1, "", 0, pheader->root_key, (KEY *) ((char *) pheader + pheader->root_key));
 
    if (!flag) {
