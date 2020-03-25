@@ -4,21 +4,21 @@ make test will create an empty experiment and run some basic tests
 rm -f exptab
 rm -rf testexpt
 mkdir testexpt
-echo testexpt PWB/testexpt testuser > exptab
+echo testexpt PWD/testexpt testuser > exptab
 
-export MIDASSYS=PWB
-export MIDAS_EXPTAB=PWB/exptab
+export MIDASSYS=PWD
+export MIDAS_EXPTAB=PWD/exptab
 
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./bin/odbinit
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbinit
 Checking environment... experiment name is "", remote hostname is ""
 Checking command line... experiment "", cleanup 0, dry_run 0, create_exptab 0, create_env 0
-Checking MIDASSYS......PWB
-Checking exptab... experiments defined in exptab file "PWB/exptab":
+Checking MIDASSYS......PWD
+Checking exptab... experiments defined in exptab file "PWD/exptab":
 0: "testexpt" <-- selected experiment
 
-Checking exptab... selected experiment "testexpt", experiment directory "PWB/testexpt/"
+Checking exptab... selected experiment "testexpt", experiment directory "PWD/testexpt/"
 
-Checking experiment directory "PWB/testexpt/"
+Checking experiment directory "PWD/testexpt/"
 Good: no ODB save file
 
 Checking shared memory...
@@ -31,9 +31,9 @@ Deleting old ODB semaphore... create status 1, delete status 1
 
 Checking ODB size...
 Requested ODB size is 0 bytes
-ODB size file is "PWB/testexpt//.ODB_SIZE.TXT"
-ODB size file "PWB/testexpt//.ODB_SIZE.TXT" does not exist, creating it...
-Saved ODB size from "PWB/testexpt//.ODB_SIZE.TXT" is 1048576 bytes
+ODB size file is "PWD/testexpt//.ODB_SIZE.TXT"
+ODB size file "PWD/testexpt//.ODB_SIZE.TXT" does not exist, creating it...
+Saved ODB size from "PWD/testexpt//.ODB_SIZE.TXT" is 1048576 bytes
 We will initialize ODB for experiment "testexpt" on host "" with size 1048576 bytes
 
 Creating ODB...
@@ -47,17 +47,17 @@ Checking experiment name... status 1, found "testexpt"
 Disconnecting from experiment...
 
 Done
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./bin/odbedit -c "ls -l"
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "ls -l"
 Key name                        Type    #Val  Size  Last Opn Mode Value
 ---------------------------------------------------------------------------
 Experiment                      DIR
 System                          DIR
 Programs                        DIR
 Logger                          DIR
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./bin/mhttpd -D &
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mhttpd -D &
 sleep 1
 Becoming a daemon...
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./examples/experiment/frontend -D &
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./examples/experiment/frontend -D &
 sleep 1
 Frontend name          :     Sample Frontend
 Event buffer size      :     1000000
@@ -67,27 +67,27 @@ User max frag. size    :     5242880
 
 
 Becoming a daemon...
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./bin/mlogger -D &
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mlogger -D &
 sleep 1
 Becoming a daemon...
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./bin/odbedit -c "scl"
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "scl"
 Name                Host
 mhttpd              localhost           
 Sample Frontend     localhost           
 Logger              localhost           
 ODBEdit             localhost           
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./bin/mtransition START
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mtransition START
 [mtransition,INFO] Run #1 started
 sleep 2
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./bin/mtransition STOP
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mtransition STOP
 [mtransition,INFO] Run #1 stopped
 sleep 1
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./bin/mtransition START
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mtransition START
 [mtransition,INFO] Run #2 started
 sleep 2
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./bin/mtransition STOP
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mtransition STOP
 [mtransition,INFO] Run #2 stopped
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./bin/mhist -l
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mhist -l
 
 Event 'System'
 0: Trigger per sec.
@@ -95,7 +95,7 @@ Event 'System'
 
 Event 'Periodic'
 0: PRDC[16]
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./bin/mhdump -L testexpt/*.hst
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mhdump -L testexpt/*.hst
 Event 101, "System", size 80, 2 tags.
   Tag 0: "Trigger per sec."[1], type "DOUBLE" (10), type size 8, offset 0+8
   Tag 1: "Trigger kB per sec."[1], type "DOUBLE" (10), type size 8, offset 8+8
@@ -104,11 +104,11 @@ Event 0, "Run transitions", size 80, 2 tags.
   Tag 1: "Run number"[1], type "DWORD" (6), type size 4, offset 4+4
 Event 2, "Periodic", size 40, 1 tags.
   Tag 0: "PRDC"[16], type "FLOAT" (9), type size 4, offset 0+64
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./bin/odbedit -c "sh \"sample frontend\""
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh \"sample frontend\""
 
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./bin/odbedit -c "sh logger"
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh logger"
 
-MIDASSYS=PWB MIDAS_EXPTAB=PWB/exptab ./bin/odbedit -c "sh mhttpd"
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh mhttpd"
 
 cut -b25- < testexpt/midas.log | sed 's/checksum: 0x.*, .* bytes/checksum: (omitted)/'
 [ODBInit,INFO] Program ODBInit on host localhost started
@@ -119,10 +119,10 @@ cut -b25- < testexpt/midas.log | sed 's/checksum: 0x.*, .* bytes/checksum: (omit
 [Logger,INFO] Equipment "Periodic" history is enabled, but there are no Variables in ODB
 [Logger,INFO] Equipment "Periodic" history is enabled, but there are no Variables in ODB
 [mtransition,INFO] Run #1 started
-[Logger,LOG] File 'PWB/testexpt/run00001.mid' CRC32C checksum: (omitted)
-[Logger,LOG] File 'PWB/testexpt/run00001.mid.lz4' CRC32C checksum: (omitted)
+[Logger,LOG] File 'PWD/testexpt/run00001.mid' CRC32C checksum: (omitted)
+[Logger,LOG] File 'PWD/testexpt/run00001.mid.lz4' CRC32C checksum: (omitted)
 [mtransition,INFO] Run #1 stopped
 [mtransition,INFO] Run #2 started
-[Logger,LOG] File 'PWB/testexpt/run00002.mid' CRC32C checksum: (omitted)
-[Logger,LOG] File 'PWB/testexpt/run00002.mid.lz4' CRC32C checksum: (omitted)
+[Logger,LOG] File 'PWD/testexpt/run00002.mid' CRC32C checksum: (omitted)
+[Logger,LOG] File 'PWD/testexpt/run00002.mid.lz4' CRC32C checksum: (omitted)
 [mtransition,INFO] Run #2 stopped
