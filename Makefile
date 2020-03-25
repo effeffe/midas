@@ -575,8 +575,7 @@ CMAKEGREPFLAGS+= -e build.make
 cmake:
 	-mkdir build
 	cd build; $(CMAKE) .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install | 2>&1 grep -v $(CMAKEGREPFLAGS)
-	-mkdir examples/experiment/build
-	cd examples/experiment/build; $(CMAKE) .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all | 2>&1 grep -v $(CMAKEGREPFLAGS); ln -sf build/frontend ..; ln -sf build/analyzer ..
+	cd examples/experiment; ln -sf ../../build/examples/experiment/frontend frontend
 
 cmake3:
 	-mkdir build
