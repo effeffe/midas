@@ -940,7 +940,9 @@ static:
 #####################################################################
 
 test:
-	@echo \\n"make test" will create an empty experiment and run some basic tests\\n
+	@echo
+	@echo "make test" will create an empty experiment and run some basic tests
+	@echo
 	rm -f exptab
 	rm -rf testexpt
 	mkdir testexpt
@@ -976,7 +978,12 @@ testmhttpd:
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhttpd
 
 testdiff:
-	$(MAKE) test 2>&1 | grep -v "on host localhost stopped" >& testexpt.log
+	#$(MAKE) --no-print-directory test 2>&1 | grep -v "on host localhost stopped" | sed "s/MIDASSYS=.* .\//.\//" | tee testexpt.log
+	$(MAKE) --no-print-directory test 2>&1 | grep -v "on host localhost stopped" | sed "sZ$(PWD)ZPWBZg" | tee testexpt.log
+	cat testexpt.log
+	@echo
+	@echo compare output of "make test" with testexpt.example
+	@echo
 	diff testexpt.example testexpt.log
 
 #####################################################################
