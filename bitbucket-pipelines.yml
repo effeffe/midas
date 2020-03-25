@@ -19,6 +19,7 @@ pipelines:
           - root-config --features
           - git submodule update --init
           - make
+          - make testdiff
 
     - step:
         name: Build on root-centos with cmake
@@ -31,6 +32,7 @@ pipelines:
           - root-config --features
           - git submodule update --init
           - make cmake3
+          - make testdiff
 
 #    - step:
 #        name: Build on el6 CERN SLC6
