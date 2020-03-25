@@ -1111,12 +1111,7 @@ static const KEY* db_resolve_link_locked(const DATABASE_HEADER* pheader, const K
       return pkey;
 
    if (*((char *) pheader + pkey->data) == '/') {
-      const KEY* plink = NULL;
-      HNDLE hSubkey;
-      int status =  db_find_key_locked(pheader, 0, (char*)pheader + pkey->data, &hSubkey, msg);
-      if (pstatus)
-         *pstatus = status;
-      return plink;
+      return db_find_pkey_locked(pheader, NULL, (char*)pheader + pkey->data, pstatus, msg);
    } else {
       return db_find_pkey_locked(pheader, pkey, (char*)pheader + pkey->data, pstatus, msg);
    }
