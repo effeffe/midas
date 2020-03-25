@@ -31,7 +31,7 @@ pipelines:
           - root-config --cflags
           - root-config --features
           - git submodule update --init
-          - make cmake3
+          - make cmake
           - make testdiff
 
 #    - step:

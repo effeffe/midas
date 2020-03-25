@@ -519,6 +519,14 @@ ALL+= $(EXAMPLES)
 
 all: check-mxml $(GIT_REVISION) $(ALL)
 
+CMAKE:=cmake
+#ifneq (,$(wildcard /opt/local/bin/cmake))
+#CMAKE:=/opt/local/bin/cmake
+#endif
+ifneq (,$(wildcard /usr/bin/cmake3))
+CMAKE:=/usr/bin/cmake3
+endif
+
 CMAKEFLAGS:=
 
 ifdef NO_ROOT
@@ -566,7 +574,9 @@ CMAKEGREPFLAGS+= -e build.make
 
 cmake:
 	-mkdir build
-	cd build; cmake .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install | 2>&1 grep -v $(CMAKEGREPFLAGS)
+	cd build; $(CMAKE) .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install | 2>&1 grep -v $(CMAKEGREPFLAGS)
+	-mkdir examples/experiment/build
+	cd examples/experiment/build; $(CMAKE) .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all | 2>&1 grep -v $(CMAKEGREPFLAGS); ln -sf build/frontend ..; ln -sf build/analyzer ..
 
 cmake3:
 	-mkdir build
@@ -576,6 +586,7 @@ cclean:
 	-rm -f lib/*
 	-rm -f bin/*
 	-rm -rf build
+	-rm -rf examples/experiment/build
 
 dox:
 	doxygen
@@ -978,9 +989,7 @@ testmhttpd:
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhttpd
 
 testdiff:
-	#$(MAKE) --no-print-directory test 2>&1 | grep -v "on host localhost stopped" | sed "s/MIDASSYS=.* .\//.\//" | tee testexpt.log
-	$(MAKE) --no-print-directory test 2>&1 | grep -v "on host localhost stopped" | sed "sZ$(PWD)ZPWBZg" | tee testexpt.log
-	cat testexpt.log
+	$(MAKE) --no-print-directory test 2>&1 | grep -v "on host localhost stopped" | sed "sZ$(PWD)ZPWDZg" | tee testexpt.log
 	@echo
 	@echo compare output of "make test" with testexpt.example
 	@echo
