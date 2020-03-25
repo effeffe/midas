@@ -164,7 +164,7 @@ endif
 # Common flags
 #
 CC = gcc $(USERFLAGS)
-CXX = g++ $(USERFLAGS)
+CXX = g++ -std=c++11 $(USERFLAGS)
 CFLAGS = -g -O2 -Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -I$(INC_DIR) -I$(DRV_DIR) -I$(MXML_DIR) -I$(MSCB_DIR)/include -DHAVE_FTPLIB
 
 #-----------------------
@@ -727,11 +727,13 @@ ifdef HAVE_MSCB
 MHTTPD_OBJS += $(LIB_DIR)/mscb.o
 endif
 
-MHTTPD_OBJS += $(LIB_DIR)/mongoose6.o
-CFLAGS      += -DHAVE_MONGOOSE6
+MHTTPD_OBJS += $(LIB_DIR)/mongoose616.o
+CFLAGS      += -DHAVE_MONGOOSE616
 CFLAGS      += -DMG_ENABLE_THREADS
 CFLAGS      += -DMG_DISABLE_CGI
 CFLAGS      += -DMG_ENABLE_EXTRA_ERRORS_DESC
+CFLAGS      += -DMG_ENABLE_IPV6
+CFLAGS      += -DMG_ENABLE_URL_REWRITES
 ifndef NO_SSL
 CFLAGS      += -DMG_ENABLE_SSL
 endif
@@ -744,7 +746,7 @@ endif
 #CFLAGS      += -DMG_ENABLE_SSL
 #endif
 
-$(LIB_DIR)/mongoose6.o: $(PROGS_DIR)/mongoose6.cxx $(INC_DIR)/mongoose6.h 
+$(LIB_DIR)/mongoose616.o: $(PROGS_DIR)/mongoose616.cxx $(INC_DIR)/mongoose616.h 
 	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 $(LIB_DIR)/mgd.o: $(PROGS_DIR)/mgd.cxx $(INC_DIR)/mgd.h 
 	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
