@@ -374,6 +374,11 @@ MhistoryGraph.prototype.loadInitialData = function () {
       this.scroll = false;
    } else {
       this.tScale = timeToSec(this.odb["Timescale"]);
+
+      // overwrite via <div ... data-scale=<value> >
+      if (this.parentDiv.dataset.scale !== undefined)
+         this.tScale = timeToSec(this.parentDiv.dataset.scale);
+
       this.tMax = Math.floor(new Date() / 1000);
       this.tMin = this.tMax - this.tScale;
    }
