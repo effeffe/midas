@@ -613,35 +613,22 @@ MhistoryGraph.prototype.loadInitialData = function () {
    table = document.createElement("table");
    let mhg = this;
 
-   row = document.createElement("tr");
-   cell = document.createElement("td");
-   link = document.createElement("a");
-   link.href = "#";
-   link.innerHTML = "CSV";
-   link.title = "Download data in Comma Separated Value format";
-   link.onclick = function () {
-      mhg.downloadSelector.style.display = "none";
-      mhg.download("CSV");
-      return false;
-   }.bind(this);
-   cell.appendChild(link);
-   row.appendChild(cell);
-   table.appendChild(row);
-
-   row = document.createElement("tr");
-   cell = document.createElement("td");
-   link = document.createElement("a");
-   link.href = "#";
-   link.innerHTML = "PNG";
-   link.title = "Download image in PNG format";
-   link.onclick = function () {
-      mhg.downloadSelector.style.display = "none";
-      this.download("PNG");
-      return false;
-   }.bind(this);
-   cell.appendChild(link);
-   row.appendChild(cell);
-   table.appendChild(row);
+   new Set(['CSV', 'PNG', 'URL']).forEach(v => {
+      row = document.createElement("tr");
+      cell = document.createElement("td");
+      link = document.createElement("a");
+      link.href = "#";
+      link.innerHTML = v;
+      link.title = "Download data in Comma Separated Value format";
+      link.onclick = function () {
+         mhg.downloadSelector.style.display = "none";
+         mhg.download(v);
+         return false;
+      }.bind(this);
+      cell.appendChild(link);
+      row.appendChild(cell);
+      table.appendChild(row);
+   });
 
    this.downloadSelector.appendChild(table);
    document.body.appendChild(this.downloadSelector);
@@ -2746,6 +2733,27 @@ MhistoryGraph.prototype.download = function (mode) {
          dlgAlert("Image downloaded to '" + filename + "'");
 
       }, 'image/png');
+   } else if (mode === "URL") {
+      // Create new element
+      let el = document.createElement('textarea');
+
+      // Set value (string to be copied)
+      let url = this.baseURL + "&group=" + this.group + "&panel=" + this.panel +
+         "&A=" + Math.round(leftDate.getTime()/1000) + "&B=" + Math.round(rightDate.getTime()/1000);
+      el.value = url;
+
+      // Set non-editable to avoid focus and move outside of view
+      el.setAttribute('readonly', '');
+      el.style = {position: 'absolute', left: '-9999px'};
+      document.body.appendChild(el);
+      // Select text inside element
+      el.select();
+      // Copy text to clipboard
+      document.execCommand('copy');
+      // Remove temporary element
+      document.body.removeChild(el);
+
+      dlgMessage("Info", "URL<br/><br/>" + url + "<br/><br/>copied to clipboard", true, false);
    }
 
 };
