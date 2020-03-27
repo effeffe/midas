@@ -17,3 +17,4 @@ set_env.sh
 *.egg-info
 *.pyc
 examples/experiment/*.o
+midas.srctrl*
