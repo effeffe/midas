@@ -51,6 +51,14 @@ function mhistory_create(parentElement, baseURL, group, panel, tMin, tMax) {
    return d;
 }
 
+function getUrlVars() {
+   let vars = {};
+   window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function (m, key, value) {
+      vars[key] = value;
+   });
+   return vars;
+}
+
 function MhistoryGraph(divElement) { // Constructor
 
    // create canvas inside the div
@@ -86,6 +94,18 @@ function MhistoryGraph(divElement) { // Constructor
    this.scroll = true;
    this.yZoom = false;
    this.showZoomButtons = true;
+
+   // overwrite scale from URL if present
+   let tMin = decodeURI(getUrlVars()["A"]);
+   if (tMin !== "undefined") {
+      this.initTMin = tMin;
+      this.tMin = tMin;
+   }
+   let tMax = decodeURI(getUrlVars()["B"]);
+   if (tMax !== "undefined") {
+      this.initTMax = tMax;
+      this.tMax = tMax;
+   }
 
    // data arrays
    this.data = [];
@@ -187,9 +207,10 @@ function MhistoryGraph(divElement) { // Constructor
          click: function (t) {
             if (t.intSelector.style.display === "none") {
                t.intSelector.style.display = "block";
-               t.intSelector.style.left = ((t.canvas.getBoundingClientRect().x + t.x2) -
-                  t.intSelector.offsetWidth) + "px";
-               t.intSelector.style.top = (t.parentDiv.getBoundingClientRect().y + this.y1 - 1) + "px";
+               t.intSelector.style.left = ((t.canvas.getBoundingClientRect().x + window.pageXOffset +
+                  t.x2) - t.intSelector.offsetWidth) + "px";
+               t.intSelector.style.top = (t.canvas.getBoundingClientRect().y + window.pageYOffset +
+                  this.y1 - 1) + "px";
             } else {
                t.intSelector.style.display = "none";
             }
@@ -201,9 +222,10 @@ function MhistoryGraph(divElement) { // Constructor
          click: function (t) {
             if (t.downloadSelector.style.display === "none") {
                t.downloadSelector.style.display = "block";
-               t.downloadSelector.style.left = ((t.canvas.getBoundingClientRect().x + t.x2) -
-                  t.downloadSelector.offsetWidth) + "px";
-               t.downloadSelector.style.top = (t.parentDiv.getBoundingClientRect().y + this.y1 - 1) + "px";
+               t.downloadSelector.style.left = ((t.canvas.getBoundingClientRect().x + window.pageXOffset +
+                  t.x2) - t.downloadSelector.offsetWidth) + "px";
+               t.downloadSelector.style.top = (t.canvas.getBoundingClientRect().y + window.pageYOffset +
+                  this.y1 - 1) + "px";
             } else {
                t.downloadSelector.style.display = "none";
             }
@@ -454,6 +476,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
          row = document.createElement("tr");
 
       cell = document.createElement("td");
+      cell.style.padding = "0";
 
       link = document.createElement("a");
       link.href = "#";
@@ -603,7 +626,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    // download selector
    this.downloadSelector = document.createElement("div");
-   this.downloadSelector.id = "intSel";
+   this.downloadSelector.id = "downloadSel";
    this.downloadSelector.style.display = "none";
    this.downloadSelector.style.position = "absolute";
    this.downloadSelector.className = "mtable";
@@ -618,22 +641,37 @@ MhistoryGraph.prototype.loadInitialData = function () {
    table = document.createElement("table");
    let mhg = this;
 
-   new Set(['CSV', 'PNG', 'URL']).forEach(v => {
-      row = document.createElement("tr");
-      cell = document.createElement("td");
-      link = document.createElement("a");
-      link.href = "#";
-      link.innerHTML = v;
-      link.title = "Download data in Comma Separated Value format";
-      link.onclick = function () {
-         mhg.downloadSelector.style.display = "none";
-         mhg.download(v);
-         return false;
-      }.bind(this);
-      cell.appendChild(link);
-      row.appendChild(cell);
-      table.appendChild(row);
-   });
+   row = document.createElement("tr");
+   cell = document.createElement("td");
+   cell.style.padding = "0";
+   link = document.createElement("a");
+   link.href = "#";
+   link.innerHTML = "CSV";
+   link.title = "Download data in Comma Separated Value format";
+   link.onclick = function () {
+      mhg.downloadSelector.style.display = "none";
+      mhg.download("CSV");
+      return false;
+   }.bind(this);
+   cell.appendChild(link);
+   row.appendChild(cell);
+   table.appendChild(row);
+
+   row = document.createElement("tr");
+   cell = document.createElement("td");
+   cell.style.padding = "0";
+   link = document.createElement("a");
+   link.href = "#";
+   link.innerHTML = "PNG";
+   link.title = "Download image in PNG format";
+   link.onclick = function () {
+      mhg.downloadSelector.style.display = "none";
+      mhg.download("PNG");
+      return false;
+   }.bind(this);
+   cell.appendChild(link);
+   row.appendChild(cell);
+   table.appendChild(row);
 
    this.downloadSelector.appendChild(table);
    document.body.appendChild(this.downloadSelector);
@@ -928,6 +966,9 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
    let title = "";
 
    if (e.type === "mousedown") {
+
+      this.intSelector.style.display = "none";
+      this.downloadSelector.style.display = "none";
 
       // check for buttons
       this.button.forEach(b => {
