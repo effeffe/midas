@@ -3356,7 +3356,7 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
        (pevent->event_id == EVENTID_FRAG1) ||
        (pevent->event_id == EVENTID_FRAG)) {
       // Cannot write system event into ROOT file
-      return SS_INVALID_FORMAT;
+      return SS_SUCCESS;
    }
 
    EVENT_DEF *event_def = db_get_event_definition(pevent->event_id);
