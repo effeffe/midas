@@ -3355,7 +3355,7 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
        (pevent->event_id == EVENTID_MESSAGE) ||
        (pevent->event_id == EVENTID_FRAG1) ||
        (pevent->event_id == EVENTID_FRAG)) {
-      cm_msg(MERROR, "root_write", "Cannot write system event into ROOT file, event_id 0x%04x", pevent->event_id);
+      // Cannot write system event into ROOT file
       return SS_INVALID_FORMAT;
    }
 
