@@ -1476,6 +1476,16 @@ function convertLastWritten(last) {
    return "last data: " + d;
 }
 
+MhistoryGraph.prototype.updateURL = function() {
+   let url = window.location.href;
+   //url += "&abcd";
+   if (url.search("&A=") !== -1)
+      url = url.slice(0, url.search("&A="));
+   url += "&A=" + Math.round(this.tMin) + "&B=" + Math.round(this.tMax);
+
+   window.history.replaceState(null, "History", url);
+}
+
 MhistoryGraph.prototype.draw = function () {
    // draw maximal 20 times per second
    if (new Date().getTime() < this.lastDrawTime + 50)
@@ -2089,7 +2099,14 @@ MhistoryGraph.prototype.draw = function () {
    }
 
    this.lastDrawTime = new Date().getTime();
+
+   // update URL
+   if (this.updateURLTimer !== undefined)
+      window.clearTimeout(this.updateURLTimer);
+   this.updateURLTimer = window.setTimeout(this.updateURL.bind(this), 500);
 };
+
+
 
 /*
 MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor, major,
@@ -2744,7 +2761,8 @@ MhistoryGraph.prototype.download = function (mode) {
 
       // Set value (string to be copied)
       let url = this.baseURL + "&group=" + this.group + "&panel=" + this.panel +
-         "&A=" + Math.round(leftDate.getTime()/1000) + "&B=" + Math.round(rightDate.getTime()/1000);
+         "&A=" + this.tMin + "&B=" + this.tMax;
+      url = encodeURI(url);
       el.value = url;
 
       // Set non-editable to avoid focus and move outside of view
