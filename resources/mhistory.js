@@ -1384,6 +1384,9 @@ MhistoryGraph.prototype.findMinMax = function () {
 
    let n = 0;
 
+   if (this.yZoom)
+      return;
+
    if (!this.autoscaleMin)
       this.yMin0 = this.odb["Minimum"];
 
