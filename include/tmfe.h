@@ -168,6 +168,7 @@ class TMFeRpcHandlerInterface
    virtual void HandleEndRun();
    virtual void HandlePauseRun();
    virtual void HandleResumeRun();
+   virtual void HandleStartAbortRun();
    virtual std::string HandleRpc(const char* cmd, const char* args);
 };
 
@@ -265,11 +266,14 @@ class TMFE
    void SetTransitionSequenceStop(int seqno);
    void SetTransitionSequencePause(int seqno);
    void SetTransitionSequenceResume(int seqno);
+   void SetTransitionSequenceStartAbort(int seqno);
    void DeregisterTransitions();
    void DeregisterTransitionStart();
    void DeregisterTransitionStop();
    void DeregisterTransitionPause();
    void DeregisterTransitionResume();
+   void DeregisterTransitionStartAbort();
+   void RegisterTransitionStartAbort();
 
    static double GetTime(); ///< return current time in seconds, with micro-second precision
    static void Sleep(double sleep_time_sec); ///< sleep, with micro-second precision
