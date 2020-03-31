@@ -2459,7 +2459,7 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
                // label
                if (label !== 0) {
                   let str;
-                  if (Math.abs(y_act) < 0.001)
+                  if (Math.abs(y_act) < 0.001 && Math.abs(y_act) > 1E-20)
                      str = y_act.toExponential(n_sig1).stripZeros();
                   else
                      str = y_act.toPrecision(n_sig1).stripZeros();
@@ -2503,7 +2503,7 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
          if (logaxis) {
             if (label !== 0) {
                let str;
-               if (Math.abs(y_act) < 0.001)
+               if (Math.abs(y_act) < 0.001 && Math.abs(y_act) > 1E-20)
                   str = y_act.toExponential(n_sig1).stripZeros();
                else
                   str = y_act.toPrecision(n_sig1).stripZeros();
