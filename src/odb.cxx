@@ -1073,7 +1073,7 @@ static const KEY* db_enum_first_locked(const DATABASE_HEADER *pheader, const KEY
 
    if (pkey->type != TID_KEY) {
       std::string path = db_get_path_locked(pheader, hKey);
-      db_msg(msg, MERROR, "db_find_key", "hkey %d path \"%s\" tid %d is not a directory", hKey, path.c_str(), pkey->type);
+      db_msg(msg, MERROR, "db_enum_first_locked", "hkey %d path \"%s\" tid %d is not a directory", hKey, path.c_str(), pkey->type);
       return NULL;
    }
    
