@@ -2801,7 +2801,7 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
       /* flush buffer */
       written += midas_flush_buffer(log_chn);
       if (written < 0)
-         return SS_FILE_ERROR;
+         return -1;
 
       /* several writes for large events */
       while (evt_size - size_left >= TAPE_BUFFER_SIZE) {
@@ -2811,7 +2811,7 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 
          i = midas_flush_buffer(log_chn);
          if (i < 0)
-            return SS_FILE_ERROR;
+            return -1;
 
          written += i;
       }
@@ -2826,12 +2826,7 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
    }
 
    /* update statistics */
-   log_chn->statistics.events_written++;
-   log_chn->statistics.bytes_written_uncompressed += evt_size;
-   log_chn->statistics.bytes_written += written;
-   log_chn->statistics.bytes_written_subrun += written;
-   log_chn->statistics.bytes_written_total += written;
-   return SS_SUCCESS;
+   return written;
 }
 
 /*------------------------------------------------------------------*/
@@ -3356,13 +3351,13 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
        (pevent->event_id == EVENTID_FRAG1) ||
        (pevent->event_id == EVENTID_FRAG)) {
       // Cannot write system event into ROOT file
-      return SS_SUCCESS;
+      return 0;
    }
 
    EVENT_DEF *event_def = db_get_event_definition(pevent->event_id);
    if (event_def == NULL) {
       cm_msg(MERROR, "root_write", "Definition for event #%d not found under /Equipment", pevent->event_id);
-      return SS_INVALID_FORMAT;
+      return -1;
    }
 
    TREE_STRUCT *ts = log_chn->root_tree_struct;
@@ -3382,7 +3377,7 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
 
       if (i == ts->n_tree) {
          cm_msg(MERROR, "root_write", "Event #%d not booked by root_book_events()", pevent->event_id);
-         return SS_INVALID_FORMAT;
+         return -1;
       }
 
       et = ts->event_tree + i;
@@ -3452,14 +3447,7 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
       et->tree->Fill();
    }
 
-   size = (INT) ts->f->GetBytesWritten() - size;
-
-   /* update statistics */
-   log_chn->statistics.events_written++;
-   log_chn->statistics.bytes_written += size;
-   log_chn->statistics.bytes_written_total += size;
-
-   return SS_SUCCESS;
+   return (INT) ts->f->GetBytesWritten();
 }
 
 /*------------------------------------------------------------------*/
@@ -3600,11 +3588,8 @@ public:
 
       fBytesIn += size;
 
-      int status = root_write(log_chn, (const EVENT_HEADER*)data, size);
-      if (status != SUCCESS)
-         return status;
-
-      return SUCCESS;
+      int written = root_write(log_chn, (const EVENT_HEADER*)data, size);
+      return written;
    }
 
    int wr_close(LOG_CHN* log_chn, int run_number)
@@ -4212,42 +4197,42 @@ int start_the_run()
 
 INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 {
-   INT status = 0, size;
+   INT status = 0, size, written = 0;
    DWORD actual_time, start_time, duration;
    BOOL next_subrun;
 
    //printf("log_write %d\n", pevent->data_size + sizeof(EVENT_HEADER));
 
    start_time = ss_millitime();
+   int evt_size = pevent->data_size + sizeof(EVENT_HEADER);
 
    if (log_chn->writer) {
-      int evt_size = pevent->data_size + sizeof(EVENT_HEADER);
-
       WriterInterface* wr = log_chn->writer;
-      status = wr->wr_write(log_chn, pevent, evt_size);
-
-      if (status == SUCCESS) {
-         /* update statistics */
-         log_chn->statistics.events_written++;
-         log_chn->statistics.bytes_written_uncompressed += evt_size;
-      }
-
-      double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
-      if (incr < 0)
-         incr = 0;
+      written = wr->wr_write(log_chn, pevent, evt_size);
 
       //printf("events %.0f, bytes out %.0f, incr %.0f, subrun %.0f, written %.0f, total %.0f\n", log_chn->statistics.events_written, wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
-      
-      log_chn->statistics.bytes_written += incr;
-      log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
-      log_chn->statistics.bytes_written_total += incr;
+
    } else if (log_chn->format == FORMAT_MIDAS) {
-      status = midas_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
+      written = midas_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
 #ifdef HAVE_ROOT
    } else if (log_chn->format == FORMAT_ROOT) {
-      status = root_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
+      written = root_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
 #endif
    }
+
+   /* update statistics */
+   if (written > 0) {
+      log_chn->statistics.events_written++;
+      log_chn->statistics.bytes_written_uncompressed += evt_size;
+      log_chn->statistics.bytes_written += written;
+      log_chn->statistics.bytes_written_total += written;
+      log_chn->statistics.bytes_written_subrun += written;
+   }
+
+   if (written < 0)
+      status = SS_FILE_ERROR;
+   else
+      status = SS_SUCCESS;
 
    actual_time = ss_millitime();
    if ((int) actual_time - (int) start_time > 3000)
