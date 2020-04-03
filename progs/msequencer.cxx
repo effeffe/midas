@@ -1427,10 +1427,10 @@ void sequencer()
          if (!seq.transition_request) {
             seq.transition_request = TRUE;
             size = sizeof(state);
-            db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
+            db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT32, FALSE);
             if (state != STATE_RUNNING) {
                size = sizeof(run_number);
-               db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, &size, TID_INT, FALSE);
+               db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, &size, TID_INT32, FALSE);
                status = cm_transition(TR_START, run_number+1, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
                if (status != CM_SUCCESS) {
                   char errorstr[512];
@@ -1441,7 +1441,7 @@ void sequencer()
          } else {
             // Wait until transition has finished
             size = sizeof(state);
-            db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
+            db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT32, FALSE);
             if (state == STATE_RUNNING) {
                seq.transition_request = FALSE;
                seq.current_line_number++;
@@ -1451,7 +1451,7 @@ void sequencer()
          if (!seq.transition_request) {
             seq.transition_request = TRUE;
             size = sizeof(state);
-            db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
+            db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT32, FALSE);
             if (state != STATE_STOPPED) {
                status = cm_transition(TR_STOP, 0, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
                if (status == CM_DEFERRED_TRANSITION) {
@@ -1465,7 +1465,7 @@ void sequencer()
          } else {
             // Wait until transition has finished
             size = sizeof(state);
-            db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT, FALSE);
+            db_get_value(hDB, 0, "/Runinfo/State", &state, &size, TID_INT32, FALSE);
             if (state == STATE_STOPPED) {
                size = sizeof(seq);
                db_get_record(hDB, hKeySeq, &seq, &size, 0);

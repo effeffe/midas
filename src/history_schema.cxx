@@ -221,13 +221,13 @@ static std::string MidasNameToFileName(const char* s)
 #ifdef HAVE_SQLITE
 static const char *sql_type_sqlite[TID_LAST] = {
    "xxxINVALIDxxxNULL", // TID_NULL
-   "INTEGER",           // TID_BYTE
-   "INTEGER",           // TID_SBYTE
+   "INTEGER",           // TID_UINT8
+   "INTEGER",           // TID_INT8
    "TEXT",              // TID_CHAR
-   "INTEGER",           // TID_WORD
-   "INTEGER",           // TID_SHORT
-   "INTEGER",           // TID_DWORD
-   "INTEGER",           // TID_INT
+   "INTEGER",           // TID_UINT16
+   "INTEGER",           // TID_INT16
+   "INTEGER",           // TID_UINT32
+   "INTEGER",           // TID_INT32
    "INTEGER",           // TID_BOOL
    "REAL",              // TID_FLOAT
    "REAL",              // TID_DOUBLE

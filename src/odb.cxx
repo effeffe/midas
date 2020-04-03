@@ -4892,7 +4892,7 @@ and key_name is interpreted relative to that directory like "Settings/Level1".
 \code
 INT level1;
   db_set_value(hDB, 0, "/Equipment/Trigger/Settings/Level1",
-                          &level1, sizeof(level1), 1, TID_INT);
+                          &level1, sizeof(level1), 1, TID_INT32);
 \endcode
 @param hDB          ODB handle obtained via cm_get_experiment_database().
 @param hKeyRoot Handle for key where search starts, zero for root.
@@ -5023,7 +5023,7 @@ and key_name is interpreted relative to that directory like "Settings/Level1".
 \code
 INT level1;
   db_set_value_index(hDB, 0, "/Equipment/Trigger/Settings/Level1",
-                          &level1, sizeof(level1), 15, TID_INT, FALSE);
+                          &level1, sizeof(level1), 15, TID_INT32, FALSE);
 \endcode
 @param hDB          ODB handle obtained via cm_get_experiment_database().
 @param hKeyRoot Handle for key where search starts, zero for root.
@@ -5073,7 +5073,7 @@ like "Settings/Level1".
 INT level1, size;
   size = sizeof(level1);
   db_get_value(hDB, 0, "/Equipment/Trigger/Settings/Level1",
-                                   &level1, &size, TID_INT, 0);
+                                   &level1, &size, TID_INT32, 0);
 \endcode
 @param hDB          ODB handle obtained via cm_get_experiment_database().
 @param hKeyRoot Handle for key where search starts, zero for root.
@@ -6181,7 +6181,7 @@ which is checked against the type stored in the ODB.
   db_find_key(hDB, 0, "/Runinfo/Run number", &hkey);
   // return run number
   size = sizeof(run_number);
-  db_get_data(hDB, hkey, &run_number, &size,TID_INT);
+  db_get_data(hDB, hkey, &run_number, &size,TID_INT32);
 \endcode
 @param hDB          ODB handle obtained via cm_get_experiment_database().
 @param hKey         Handle for key where search starts, zero for root.
@@ -6679,7 +6679,7 @@ HNLDE hkey;
  // get key handle for run number
  db_find_key(hDB, 0, "/Runinfo/Run number", &hkey);
  // set run number
- db_set_data(hDB, hkey, &run_number, sizeof(run_number),TID_INT);
+ db_set_data(hDB, hkey, &run_number, sizeof(run_number),TID_INT32);
 \endcode
 @param hDB          ODB handle obtained via cm_get_experiment_database().
 @param hKey Handle for key where search starts, zero for root.
@@ -8275,6 +8275,11 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
             for (tid = 0; tid < TID_LAST; tid++)
                if (strcmp(rpc_tid_name(tid), line) == 0)
                   break;
+            if (tid == TID_LAST) {
+               for (tid = 0; tid < TID_LAST; tid++)
+                  if (strcmp(rpc_tid_name_old(tid), line) == 0)
+                     break;
+            }
 
             string_length = 0;
 
@@ -8799,11 +8804,11 @@ static void db_save_tree_struct(HNDLE hDB, HNDLE hKey, int hfile, INT level)
          }
 
          switch (key.type) {
-         case TID_SBYTE:
+         case TID_INT8:
          case TID_CHAR:
             strcpy(line, "char");
             break;
-         case TID_SHORT:
+         case TID_INT16:
             strcpy(line, "short");
             break;
          case TID_FLOAT:
@@ -9272,11 +9277,11 @@ static void json_write_data(char **buffer, int* buffer_size, int* buffer_end, in
 {
    char str[256];
    switch (key->type) {
-   case TID_BYTE:
+   case TID_UINT8:
       sprintf(str, "%u", *(unsigned char*)p);
       json_write(buffer, buffer_size, buffer_end, 0, str, 0);
       break;
-   case TID_SBYTE:
+   case TID_INT8:
       sprintf(str, "%d", *(char*)p);
       json_write(buffer, buffer_size, buffer_end, 0, str, 0);
       break;
@@ -9284,19 +9289,19 @@ static void json_write_data(char **buffer, int* buffer_size, int* buffer_end, in
       sprintf(str, "%c", *(char*)p);
       json_write(buffer, buffer_size, buffer_end, 0, str, 1);
       break;
-   case TID_WORD:
+   case TID_UINT16:
       sprintf(str, "\"0x%04x\"", *(WORD*)p);
       json_write(buffer, buffer_size, buffer_end, 0, str, 0);
       break;
-   case TID_SHORT:
+   case TID_INT16:
       sprintf(str, "%d", *(short*)p);
       json_write(buffer, buffer_size, buffer_end, 0, str, 0);
       break;
-   case TID_DWORD:
+   case TID_UINT32:
       sprintf(str, "\"0x%08x\"", *(DWORD*)p);
       json_write(buffer, buffer_size, buffer_end, 0, str, 0);
       break;
-   case TID_INT:
+   case TID_INT32:
       sprintf(str, "%d", *(int*)p);
       json_write(buffer, buffer_size, buffer_end, 0, str, 0);
       break;
@@ -9629,11 +9634,11 @@ static int db_save_json_key_obsolete(HNDLE hDB, HNDLE hKey, INT level, char **bu
             json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
 
          switch (key.type) {
-         case TID_BYTE:
+         case TID_UINT8:
             sprintf(str, "%u", *(unsigned char*)p);
             json_write(buffer, buffer_size, buffer_end, 0, str, 0);
             break;
-         case TID_SBYTE:
+         case TID_INT8:
             sprintf(str, "%d", *(char*)p);
             json_write(buffer, buffer_size, buffer_end, 0, str, 0);
             break;
@@ -9641,19 +9646,19 @@ static int db_save_json_key_obsolete(HNDLE hDB, HNDLE hKey, INT level, char **bu
             sprintf(str, "%c", *(char*)p);
             json_write(buffer, buffer_size, buffer_end, 0, str, 1);
             break;
-         case TID_WORD:
+         case TID_UINT16:
             sprintf(str, "\"0x%04x\"", *(WORD*)p);
             json_write(buffer, buffer_size, buffer_end, 0, str, 0);
             break;
-         case TID_SHORT:
+         case TID_INT16:
             sprintf(str, "%d", *(short*)p);
             json_write(buffer, buffer_size, buffer_end, 0, str, 0);
             break;
-         case TID_DWORD:
+         case TID_UINT32:
             sprintf(str, "\"0x%08x\"", *(DWORD*)p);
             json_write(buffer, buffer_size, buffer_end, 0, str, 0);
             break;
-         case TID_INT:
+         case TID_INT32:
             sprintf(str, "%d", *(int*)p);
             json_write(buffer, buffer_size, buffer_end, 0, str, 0);
             break;
@@ -10402,25 +10407,25 @@ INT db_sprintf(char *string, const void *data, INT data_size, INT idx, DWORD typ
       sprintf(string, "<NULL>");
    else
       switch (type) {
-      case TID_BYTE:
+      case TID_UINT8:
          sprintf(string, "%d", *(((BYTE *) data) + idx));
          break;
-      case TID_SBYTE:
+      case TID_INT8:
          sprintf(string, "%d", *(((char *) data) + idx));
          break;
       case TID_CHAR:
          sprintf(string, "%c", *(((char *) data) + idx));
          break;
-      case TID_WORD:
+      case TID_UINT16:
          sprintf(string, "%u", *(((WORD *) data) + idx));
          break;
-      case TID_SHORT:
+      case TID_INT16:
          sprintf(string, "%d", *(((short *) data) + idx));
          break;
-      case TID_DWORD:
+      case TID_UINT32:
          sprintf(string, "%u", *(((DWORD *) data) + idx));
          break;
-      case TID_INT:
+      case TID_INT32:
          sprintf(string, "%d", *(((INT *) data) + idx));
          break;
       case TID_BOOL:
@@ -10472,25 +10477,25 @@ INT db_sprintff(char *string, const char *format, const void *data, INT data_siz
       sprintf(string, "<NULL>");
    else
       switch (type) {
-      case TID_BYTE:
+      case TID_UINT8:
          sprintf(string, format, *(((BYTE *) data) + idx));
          break;
-      case TID_SBYTE:
+      case TID_INT8:
          sprintf(string, format, *(((char *) data) + idx));
          break;
       case TID_CHAR:
          sprintf(string, format, *(((char *) data) + idx));
          break;
-      case TID_WORD:
+      case TID_UINT16:
          sprintf(string, format, *(((WORD *) data) + idx));
          break;
-      case TID_SHORT:
+      case TID_INT16:
          sprintf(string, format, *(((short *) data) + idx));
          break;
-      case TID_DWORD:
+      case TID_UINT32:
          sprintf(string, format, *(((DWORD *) data) + idx));
          break;
-      case TID_INT:
+      case TID_INT32:
          sprintf(string, format, *(((INT *) data) + idx));
          break;
       case TID_BOOL:
@@ -10553,25 +10558,25 @@ INT db_sprintfh(char *string, const void *data, INT data_size, INT idx, DWORD ty
       sprintf(string, "<NULL>");
    else
       switch (type) {
-      case TID_BYTE:
+      case TID_UINT8:
          sprintf(string, "0x%X", *(((BYTE *) data) + idx));
          break;
-      case TID_SBYTE:
+      case TID_INT8:
          sprintf(string, "0x%X", *(((char *) data) + idx));
          break;
       case TID_CHAR:
          sprintf(string, "%c", *(((char *) data) + idx));
          break;
-      case TID_WORD:
+      case TID_UINT16:
          sprintf(string, "0x%X", *(((WORD *) data) + idx));
          break;
-      case TID_SHORT:
+      case TID_INT16:
          sprintf(string, "0x%hX", *(((short *) data) + idx));
          break;
-      case TID_DWORD:
+      case TID_UINT32:
          sprintf(string, "0x%X", *(((DWORD *) data) + idx));
          break;
-      case TID_INT:
+      case TID_INT32:
          sprintf(string, "0x%X", *(((INT *) data) + idx));
          break;
       case TID_BOOL:
@@ -10639,8 +10644,8 @@ INT db_sscanf(const char *data_str, void *data, INT * data_size, INT i, DWORD ti
    }
 
    switch (tid) {
-   case TID_BYTE:
-   case TID_SBYTE:
+   case TID_UINT8:
+   case TID_INT8:
       if (hex)
          *((char *) data + i) = (char) value;
       else
@@ -10649,25 +10654,25 @@ INT db_sscanf(const char *data_str, void *data, INT * data_size, INT i, DWORD ti
    case TID_CHAR:
       *((char *) data + i) = data_str[0];
       break;
-   case TID_WORD:
+   case TID_UINT16:
       if (hex)
          *((WORD *) data + i) = (WORD) value;
       else
          *((WORD *) data + i) = (WORD) atoi(data_str);
       break;
-   case TID_SHORT:
+   case TID_INT16:
       if (hex)
          *((short int *) data + i) = (short int) value;
       else
          *((short int *) data + i) = (short int) atoi(data_str);
       break;
-   case TID_DWORD:
+   case TID_UINT32:
       if (!hex)
          sscanf(data_str, "%u", &value);
 
       *((DWORD *) data + i) = value;
       break;
-   case TID_INT:
+   case TID_INT32:
       if (hex)
          *((INT *) data + i) = value;
       else
@@ -12327,6 +12332,11 @@ INT db_check_record(HNDLE hDB, HNDLE hKey, const char *keyname, const char *rec_
             for (tid = 0; tid < TID_LAST; tid++)
                if (strcmp(rpc_tid_name(tid), line) == 0)
                   break;
+            if (tid == TID_LAST) {
+               for (tid = 0; tid < TID_LAST; tid++)
+                  if (strcmp(rpc_tid_name_old(tid), line) == 0)
+                     break;
+            }
 
             string_length = 0;
 
@@ -12863,12 +12873,12 @@ INT db_update_record_mserver(INT hDB, INT hKeyRoot, INT hKey, int index, int cli
    *((INT *) nc->param + 3) = index;
    
    if (convert_flags) {
-      rpc_convert_single(&nc->header.routine_id, TID_DWORD, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&nc->header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&nc->param[0], TID_DWORD, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&nc->param[4], TID_DWORD, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&nc->param[8], TID_DWORD, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&nc->param[12], TID_DWORD, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->header.routine_id, TID_UINT32, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->header.param_size, TID_UINT32, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->param[0], TID_UINT32, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->param[4], TID_UINT32, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->param[8], TID_UINT32, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->param[12], TID_UINT32, RPC_OUTGOING, convert_flags);
    }
    
    /* send the update notification to the client */
