@@ -333,7 +333,7 @@ MIDAS Data Type Definitions                             min      max    */
 #define TID_INT64    17       /**< 8 bytes int          -2^63   2^63-1  */
 #define TID_UINT64   18       /**< 8 bytes unsigned int  0      2^64-1  */
 #define TID_QWORD    18       /**< 8 bytes unsigned int  0      2^64-1  */
-#define TID_LAST     18       /**< end of TID list indicator            */
+#define TID_LAST     19       /**< end of TID list indicator            */
 
 /**
 Transition flags */
