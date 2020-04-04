@@ -321,7 +321,9 @@ MIDAS Data Type Definitions                             min      max    */
 #define TID_INT32     7       /**< signed dword        -2^31    2^31-1  */
 #define TID_BOOL      8       /**< four bytes bool       0        1     */
 #define TID_FLOAT     9       /**< 4 Byte float format                  */
+#define TID_FLOAT32   9       /**< 4 Byte float format                  */
 #define TID_DOUBLE   10       /**< 8 Byte float format                  */
+#define TID_FLOAT64  10       /**< 8 Byte float format                  */
 #define TID_BITFIELD 11       /**< 32 Bits Bitfield      0  111... (32) */
 #define TID_STRING   12       /**< zero terminated string               */
 #define TID_ARRAY    13       /**< array with unknown contents          */
@@ -330,6 +332,7 @@ MIDAS Data Type Definitions                             min      max    */
 #define TID_LINK     16       /**< link in online database              */
 #define TID_INT64    17       /**< 8 bytes int          -2^63   2^63-1  */
 #define TID_UINT64   18       /**< 8 bytes unsigned int  0      2^64-1  */
+#define TID_QWORD    18       /**< 8 bytes unsigned int  0      2^64-1  */
 #define TID_LAST     18       /**< end of TID list indicator            */
 
 /**
@@ -1173,6 +1176,13 @@ typedef struct {
    DWORD type;                         /**< - */
    DWORD data_size;                    /**< - */
 } BANK32;
+
+typedef struct {
+   char name[4];                       /**< - */
+   DWORD type;                         /**< - */
+   DWORD data_size;                    /**< - */
+   DWORD reserved;                     /**< - */
+} BANK32A;
 
 typedef struct {
    char name[NAME_LENGTH];             /**< - */
