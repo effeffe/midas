@@ -1724,6 +1724,8 @@ Data conversion flags */
 
    BOOL EXPRT equal_ustring(const char *str1, const char *str2);
    BOOL EXPRT ends_with_ustring(const char *str, const char *suffix);
+   BOOL EXPRT strmatch(char* pattern, char*str);
+   void EXPRT strarrayindex(char* odbpath, int* index1, int* index2);
 
    std::string cm_expand_env(const char* str);
 
@@ -1786,6 +1788,7 @@ Data conversion flags */
    INT EXPRT db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
    INT EXPRT db_find_key1(HNDLE hdb, HNDLE hkey, const char *name, HNDLE * hsubkey);
    INT EXPRT db_find_link1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
+   INT EXPRT db_find_keys(HNDLE hDB, HNDLE hKey, char *odbpath, std::vector<HNDLE> &hKeyVector);
    INT EXPRT db_get_parent(HNDLE hDB, HNDLE hKey, HNDLE * parenthKey);
    INT EXPRT db_scan_tree(HNDLE hDB, HNDLE hKey, int level, INT(*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
    INT EXPRT db_scan_tree_link(HNDLE hDB, HNDLE hKey, int level, void (*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
