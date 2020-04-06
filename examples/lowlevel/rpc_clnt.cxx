@@ -20,21 +20,21 @@
 RPC_LIST rpc_list[] = {
 
    {RPC_MYTEST, "rpc_mytest",
-    {{TID_BYTE, RPC_IN}
+    {{TID_UINT8, RPC_IN}
      ,
-     {TID_WORD, RPC_IN}
+     {TID_UINT16, RPC_IN}
      ,
-     {TID_INT, RPC_IN}
+     {TID_INT32, RPC_IN}
      ,
      {TID_FLOAT, RPC_IN}
      ,
      {TID_DOUBLE, RPC_IN}
      ,
-     {TID_BYTE, RPC_OUT}
+     {TID_UINT8, RPC_OUT}
      ,
-     {TID_WORD, RPC_OUT}
+     {TID_UINT16, RPC_OUT}
      ,
-     {TID_INT, RPC_OUT}
+     {TID_INT32, RPC_OUT}
      ,
      {TID_FLOAT, RPC_OUT}
      ,

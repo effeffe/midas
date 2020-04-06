@@ -69,13 +69,13 @@ void create_runlog_ascii_tree();
 "Type = STRING : [8] Disk",\
 "Filename = STRING : [256] run%05d.mid",\
 "Format = STRING : [8] MIDAS",\
-"Compression = INT : 0",\
+"Compression = INT32 : 0",\
 "ODB dump = BOOL : 1",\
 "ODB dump format = STRING : [32] json",\
-"Log messages = DWORD : 0",\
+"Log messages = UINT32 : 0",\
 "Buffer = STRING : [32] SYSTEM",\
-"Event ID = INT : -1",\
-"Trigger mask = INT : -1",\
+"Event ID = INT32 : -1",\
+"Trigger mask = INT32 : -1",\
 "Event limit = DOUBLE : 0",\
 "Byte limit = DOUBLE : 0",\
 "Subrun Byte limit = DOUBLE : 0",\
@@ -127,12 +127,12 @@ typedef struct {
 "Type = STRING : [8] Disk",\
 "Filename = STRING : [256] run%05d.mid",\
 "Format = STRING : [8] MIDAS",\
-"Compression = INT : 0",\
+"Compression = INT32 : 0",\
 "ODB dump = BOOL : 1",\
-"Log messages = DWORD : 0",\
+"Log messages = UINT32 : 0",\
 "Buffer = STRING : [32] SYSTEM",\
-"Event ID = INT : -1",\
-"Trigger mask = INT : -1",\
+"Event ID = INT32 : -1",\
+"Trigger mask = INT32 : -1",\
 "Event limit = DOUBLE : 0",\
 "Byte limit = DOUBLE : 0",\
 "Subrun Byte limit = DOUBLE : 0",\
@@ -1559,7 +1559,7 @@ void logger_init()
 
    delay = 0;
    size = sizeof(INT);
-   db_get_value(hDB, 0, "/Logger/Auto restart delay", &delay, &size, TID_INT, TRUE);
+   db_get_value(hDB, 0, "/Logger/Auto restart delay", &delay, &size, TID_INT32, TRUE);
 
    flag = TRUE;
    db_get_value(hDB, 0, "/Logger/Tape message", &flag, &size, TID_BOOL, TRUE);
@@ -1907,25 +1907,25 @@ int sql_get_columns(HNDLE hKeyRoot, SQL_LIST ** sql_list)
 
       } else {
          switch (key.type) {
-         case TID_BYTE:
+         case TID_UINT8:
             strcpy(str, "TINYINT UNSIGNED ");
             break;
-         case TID_SBYTE:
+         case TID_INT8:
             strcpy(str, "TINYINT  ");
             break;
          case TID_CHAR:
             strcpy(str, "CHAR ");
             break;
-         case TID_WORD:
+         case TID_UINT16:
             strcpy(str, "SMALLINT UNSIGNED ");
             break;
-         case TID_SHORT:
+         case TID_INT16:
             strcpy(str, "SMALLINT ");
             break;
-         case TID_DWORD:
+         case TID_UINT32:
             strcpy(str, "INT UNSIGNED ");
             break;
-         case TID_INT:
+         case TID_INT32:
             strcpy(str, "INT ");
             break;
          case TID_BOOL:
@@ -2801,7 +2801,7 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
       /* flush buffer */
       written += midas_flush_buffer(log_chn);
       if (written < 0)
-         return SS_FILE_ERROR;
+         return -1;
 
       /* several writes for large events */
       while (evt_size - size_left >= TAPE_BUFFER_SIZE) {
@@ -2811,7 +2811,7 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
 
          i = midas_flush_buffer(log_chn);
          if (i < 0)
-            return SS_FILE_ERROR;
+            return -1;
 
          written += i;
       }
@@ -2826,12 +2826,7 @@ INT midas_write(LOG_CHN * log_chn, EVENT_HEADER * pevent, INT evt_size)
    }
 
    /* update statistics */
-   log_chn->statistics.events_written++;
-   log_chn->statistics.bytes_written_uncompressed += evt_size;
-   log_chn->statistics.bytes_written += written;
-   log_chn->statistics.bytes_written_subrun += written;
-   log_chn->statistics.bytes_written_total += written;
-   return SS_SUCCESS;
+   return written;
 }
 
 /*------------------------------------------------------------------*/
@@ -3096,7 +3091,7 @@ EVENT_DEF *db_get_event_definition(short int event_id)
       }
 
       size = sizeof(id);
-      status = db_get_value(hDB, hKey, "Common/Event ID", &id, &size, TID_WORD, TRUE);
+      status = db_get_value(hDB, hKey, "Common/Event ID", &id, &size, TID_UINT16, TRUE);
       if (status != DB_SUCCESS)
          continue;
 
@@ -3184,7 +3179,7 @@ INT root_book_trees(TREE_STRUCT * tree_struct)
       et = tree_struct->event_tree + (tree_struct->n_tree - 1);
 
       size = sizeof(id);
-      status = db_get_value(hDB, hKeyEq, "Common/Event ID", &id, &size, TID_WORD, TRUE);
+      status = db_get_value(hDB, hKeyEq, "Common/Event ID", &id, &size, TID_UINT16, TRUE);
       if (status != DB_SUCCESS)
          continue;
 
@@ -3239,23 +3234,23 @@ INT root_book_bank(EVENT_TREE * et, HNDLE hKeyDef, int event_id, char *bank_name
       sprintf(str, "n%s/I:%s[n%s]/", varkey.name, varkey.name, varkey.name);
 
       switch (varkey.type) {
-      case TID_BYTE:
+      case TID_UINT8:
       case TID_CHAR:
          strcat(str, "b");
          break;
-      case TID_SBYTE:
+      case TID_INT8:
          strcat(str, "B");
          break;
-      case TID_WORD:
+      case TID_UINT16:
          strcat(str, "s");
          break;
-      case TID_SHORT:
+      case TID_INT16:
          strcat(str, "S");
          break;
-      case TID_DWORD:
+      case TID_UINT32:
          strcat(str, "i");
          break;
-      case TID_INT:
+      case TID_INT32:
          strcat(str, "I");
          break;
       case TID_BOOL:
@@ -3292,23 +3287,23 @@ INT root_book_bank(EVENT_TREE * et, HNDLE hKeyDef, int event_id, char *bank_name
          strcat(str, subvarkey.name);
          strcat(str, "/");
          switch (subvarkey.type) {
-         case TID_BYTE:
+         case TID_UINT8:
          case TID_CHAR:
             strcat(str, "b");
             break;
-         case TID_SBYTE:
+         case TID_INT8:
             strcat(str, "B");
             break;
-         case TID_WORD:
+         case TID_UINT16:
             strcat(str, "s");
             break;
-         case TID_SHORT:
+         case TID_INT16:
             strcat(str, "S");
             break;
-         case TID_DWORD:
+         case TID_UINT32:
             strcat(str, "i");
             break;
-         case TID_INT:
+         case TID_INT32:
             strcat(str, "I");
             break;
          case TID_BOOL:
@@ -3355,14 +3350,14 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
        (pevent->event_id == EVENTID_MESSAGE) ||
        (pevent->event_id == EVENTID_FRAG1) ||
        (pevent->event_id == EVENTID_FRAG)) {
-      cm_msg(MERROR, "root_write", "Cannot write system event into ROOT file, event_id 0x%04x", pevent->event_id);
-      return SS_INVALID_FORMAT;
+      // Cannot write system event into ROOT file
+      return 0;
    }
 
    EVENT_DEF *event_def = db_get_event_definition(pevent->event_id);
    if (event_def == NULL) {
       cm_msg(MERROR, "root_write", "Definition for event #%d not found under /Equipment", pevent->event_id);
-      return SS_INVALID_FORMAT;
+      return -1;
    }
 
    TREE_STRUCT *ts = log_chn->root_tree_struct;
@@ -3382,7 +3377,7 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
 
       if (i == ts->n_tree) {
          cm_msg(MERROR, "root_write", "Event #%d not booked by root_book_events()", pevent->event_id);
-         return SS_INVALID_FORMAT;
+         return -1;
       }
 
       et = ts->event_tree + i;
@@ -3452,14 +3447,7 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
       et->tree->Fill();
    }
 
-   size = (INT) ts->f->GetBytesWritten() - size;
-
-   /* update statistics */
-   log_chn->statistics.events_written++;
-   log_chn->statistics.bytes_written += size;
-   log_chn->statistics.bytes_written_total += size;
-
-   return SS_SUCCESS;
+   return (INT) ts->f->GetBytesWritten();
 }
 
 /*------------------------------------------------------------------*/
@@ -3506,7 +3494,7 @@ INT root_log_open(LOG_CHN * log_chn, INT run_number)
       /* set compression level */
       level = 0;
       size = sizeof(level);
-      db_get_value(hDB, log_chn->settings_hkey, "Compression", &level, &size, TID_INT, FALSE);
+      db_get_value(hDB, log_chn->settings_hkey, "Compression", &level, &size, TID_INT32, FALSE);
       f->SetCompressionLevel(level);
 
       /* create root structure with trees and branches */
@@ -3600,11 +3588,8 @@ public:
 
       fBytesIn += size;
 
-      int status = root_write(log_chn, (const EVENT_HEADER*)data, size);
-      if (status != SUCCESS)
-         return status;
-
-      return SUCCESS;
+      int written = root_write(log_chn, (const EVENT_HEADER*)data, size);
+      return written;
    }
 
    int wr_close(LOG_CHN* log_chn, int run_number)
@@ -4156,7 +4141,7 @@ int start_the_run()
 
    /* check if really stopped */
    size = sizeof(state);
-   status = db_get_value(hDB, 0, "Runinfo/State", &state, &size, TID_INT, TRUE);
+   status = db_get_value(hDB, 0, "Runinfo/State", &state, &size, TID_INT32, TRUE);
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "start_the_run", "cannot get Runinfo/State in database, db_get_value() status %d", status);
       return status;
@@ -4179,7 +4164,7 @@ int start_the_run()
    backoff = 1;
 
    size = sizeof(run_number);
-   status = db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
+   status = db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, &size, TID_INT32, TRUE);
    assert(status == SUCCESS);
     
    if (run_number <= 0) {
@@ -4212,42 +4197,42 @@ int start_the_run()
 
 INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
 {
-   INT status = 0, size;
+   INT status = 0, size, written = 0;
    DWORD actual_time, start_time, duration;
    BOOL next_subrun;
 
    //printf("log_write %d\n", pevent->data_size + sizeof(EVENT_HEADER));
 
    start_time = ss_millitime();
+   int evt_size = pevent->data_size + sizeof(EVENT_HEADER);
 
    if (log_chn->writer) {
-      int evt_size = pevent->data_size + sizeof(EVENT_HEADER);
-
       WriterInterface* wr = log_chn->writer;
-      status = wr->wr_write(log_chn, pevent, evt_size);
-
-      if (status == SUCCESS) {
-         /* update statistics */
-         log_chn->statistics.events_written++;
-         log_chn->statistics.bytes_written_uncompressed += evt_size;
-      }
-
-      double incr = wr->fBytesOut - log_chn->statistics.bytes_written_subrun;
-      if (incr < 0)
-         incr = 0;
+      written = wr->wr_write(log_chn, pevent, evt_size);
 
       //printf("events %.0f, bytes out %.0f, incr %.0f, subrun %.0f, written %.0f, total %.0f\n", log_chn->statistics.events_written, wr->fBytesOut, incr, log_chn->statistics.bytes_written_subrun, log_chn->statistics.bytes_written, log_chn->statistics.bytes_written_total);
-      
-      log_chn->statistics.bytes_written += incr;
-      log_chn->statistics.bytes_written_subrun = wr->fBytesOut;
-      log_chn->statistics.bytes_written_total += incr;
+
    } else if (log_chn->format == FORMAT_MIDAS) {
-      status = midas_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
+      written = midas_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
 #ifdef HAVE_ROOT
    } else if (log_chn->format == FORMAT_ROOT) {
-      status = root_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
+      written = root_write(log_chn, pevent, pevent->data_size + sizeof(EVENT_HEADER));
 #endif
    }
+
+   /* update statistics */
+   if (written > 0) {
+      log_chn->statistics.events_written++;
+      log_chn->statistics.bytes_written_uncompressed += evt_size;
+      log_chn->statistics.bytes_written += written;
+      log_chn->statistics.bytes_written_total += written;
+      log_chn->statistics.bytes_written_subrun += written;
+   }
+
+   if (written < 0)
+      status = SS_FILE_ERROR;
+   else
+      status = SS_SUCCESS;
 
    actual_time = ss_millitime();
    if ((int) actual_time - (int) start_time > 3000)
@@ -4277,14 +4262,14 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
    /* check if duration is reached for subrun */
    duration = 0;
    size = sizeof(duration);
-   db_get_value(hDB, 0, "/Logger/Subrun duration", &duration, &size, TID_DWORD, TRUE);
+   db_get_value(hDB, 0, "/Logger/Subrun duration", &duration, &size, TID_UINT32, TRUE);
    if (!stop_requested && duration > 0 && ss_time() >= subrun_start_time + duration) {
       int run_number;
 
       // cm_msg(MTALK, "main", "stopping subrun after %d seconds", duration);
 
       size = sizeof(run_number);
-      status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
+      status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT32, TRUE);
       assert(status == SUCCESS);
 
       stop_requested = TRUE; // avoid recursive call thourgh log_odb_dump
@@ -4306,7 +4291,7 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
       // cm_msg(MTALK, "main", "stopping subrun after %1.0lf bytes", log_chn->settings.subrun_byte_limit);
 
       size = sizeof(run_number);
-      status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
+      status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT32, TRUE);
       assert(status == SUCCESS);
 
       stop_requested = TRUE; // avoid recursive call thourgh log_odb_dump
@@ -4330,7 +4315,7 @@ INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pevent)
       // cm_msg(MTALK, "main", "stopping subrun by user request");
 
       size = sizeof(run_number);
-      status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
+      status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT32, TRUE);
       assert(status == SUCCESS);
 
       stop_requested = TRUE; // avoid recursive call thourgh log_odb_dump
@@ -4557,7 +4542,7 @@ INT open_history()
 
       debug = 0;
       size = sizeof(debug);
-      status = db_get_value(hDB, 0, "/Logger/History/MIDAS/Debug", &debug, &size, TID_INT, TRUE);
+      status = db_get_value(hDB, 0, "/Logger/History/MIDAS/Debug", &debug, &size, TID_INT32, TRUE);
       assert(status==DB_SUCCESS);
 
       // create entry for ODBC (MySQL) history
@@ -4573,7 +4558,7 @@ INT open_history()
 
       debug = 0;
       size = sizeof(debug);
-      status = db_get_value(hDB, 0, "/Logger/History/ODBC/Debug", &debug, &size, TID_INT, TRUE);
+      status = db_get_value(hDB, 0, "/Logger/History/ODBC/Debug", &debug, &size, TID_INT32, TRUE);
       assert(status==DB_SUCCESS);
 
       // create entry for SQLITE history
@@ -4589,7 +4574,7 @@ INT open_history()
 
       debug = 0;
       size = sizeof(debug);
-      status = db_get_value(hDB, 0, "/Logger/History/SQLITE/Debug", &debug, &size, TID_INT, TRUE);
+      status = db_get_value(hDB, 0, "/Logger/History/SQLITE/Debug", &debug, &size, TID_INT32, TRUE);
       assert(status==DB_SUCCESS);
 
       // create entry for MYSQL history writer
@@ -4605,7 +4590,7 @@ INT open_history()
 
       debug = 0;
       size = sizeof(debug);
-      status = db_get_value(hDB, 0, "/Logger/History/MYSQL/Debug", &debug, &size, TID_INT, TRUE);
+      status = db_get_value(hDB, 0, "/Logger/History/MYSQL/Debug", &debug, &size, TID_INT32, TRUE);
       assert(status==DB_SUCCESS);
 
       // create entry for FILE history
@@ -4621,7 +4606,7 @@ INT open_history()
 
       debug = 0;
       size = sizeof(debug);
-      status = db_get_value(hDB, 0, "/Logger/History/FILE/Debug", &debug, &size, TID_INT, TRUE);
+      status = db_get_value(hDB, 0, "/Logger/History/FILE/Debug", &debug, &size, TID_INT32, TRUE);
       assert(status==DB_SUCCESS);
 
       // get newly created /Logger/History
@@ -4649,7 +4634,7 @@ INT open_history()
          if (strcasecmp(hi->type, "MIDAS")==0) {
             i = 0;
             size = sizeof(i);
-            status = db_get_value(hDB, hKey, "PerVariableHistory", &i, &size, TID_INT, TRUE);
+            status = db_get_value(hDB, hKey, "PerVariableHistory", &i, &size, TID_INT32, TRUE);
             assert(status==DB_SUCCESS);
             
             if (i)
@@ -4657,7 +4642,7 @@ INT open_history()
 	 } else if (strcasecmp(hi->type, "FILE")==0) {
             i = 0;
             size = sizeof(i);
-            status = db_get_value(hDB, hKey, "PerVariableHistory", &i, &size, TID_INT, TRUE);
+            status = db_get_value(hDB, hKey, "PerVariableHistory", &i, &size, TID_INT32, TRUE);
             assert(status==DB_SUCCESS);
             
             if (i)
@@ -4688,7 +4673,7 @@ INT open_history()
 
    i = 0;
    size = sizeof(i);
-   status = db_get_value(hDB, 0, "/History/PerVariableHistory", &i, &size, TID_INT, FALSE);
+   status = db_get_value(hDB, 0, "/History/PerVariableHistory", &i, &size, TID_INT32, FALSE);
    if (status==DB_SUCCESS) {
       cm_msg(MERROR, "open_history", "mlogger ODB setting /History/PerVariableHistory is obsolete, please delete it. Use /Logger/History/MIDAS/PerVariableHistory instead");
       if (i)
@@ -4746,7 +4731,7 @@ INT open_history()
 
       /* check history flag */
       size = sizeof(history);
-      db_get_value(hDB, hKeyEq, "Common/Log history", &history, &size, TID_INT, TRUE);
+      db_get_value(hDB, hKeyEq, "Common/Log history", &history, &size, TID_INT32, TRUE);
 
       /* define history tags only if log history flag is on */
       if (history > 0) {
@@ -4766,11 +4751,11 @@ INT open_history()
          }
 
          size = sizeof(eq_id);
-         status = db_get_value(hDB, hKeyEq, "Common/Event ID", &eq_id, &size, TID_WORD, TRUE);
+         status = db_get_value(hDB, hKeyEq, "Common/Event ID", &eq_id, &size, TID_UINT16, TRUE);
          assert(status == DB_SUCCESS);
 
          size = sizeof(int);
-         status = db_get_value(hDB, hKeyEq, "Settings/PerVariableHistory", &per_variable_history, &size, TID_INT, FALSE);
+         status = db_get_value(hDB, hKeyEq, "Settings/PerVariableHistory", &per_variable_history, &size, TID_INT32, FALSE);
          assert(status == DB_SUCCESS || status == DB_NO_KEY);
 
          if (verbose)
@@ -5089,11 +5074,11 @@ INT open_history()
    tag = (TAG *) calloc(sizeof(TAG), 2);
 
    strcpy(tag[0].name, "State");
-   tag[0].type = TID_DWORD;
+   tag[0].type = TID_UINT32;
    tag[0].n_data = 1;
 
    strcpy(tag[1].name, "Run number");
-   tag[1].type = TID_DWORD;
+   tag[1].type = TID_UINT32;
    tag[1].n_data = 1;
 
    const char* event_name = "Run transitions";
@@ -5277,9 +5262,7 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
 
    /* simulate odb key update for hot links connected to system history */
    if (!rpc_is_remote()) {
-      db_lock_database(hDB);
       db_notify_clients(hDB, hist_log[index].hKeyVar, -1, FALSE);
-      db_unlock_database(hDB);
    }
 
    maybe_flush_history(now);
@@ -5301,7 +5284,7 @@ int log_generate_file_name(LOG_CHN *log_chn)
 
    chn_settings = &log_chn->settings;
    size = sizeof(run_number);
-   status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
+   status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT32, TRUE);
    assert(status == SUCCESS);
 
    data_dir[0] = 0;
@@ -5694,7 +5677,7 @@ INT tr_start(INT run_number, char *error)
          /* set compression level */
          chn->compression = 0;
          size = sizeof(chn->compression);
-         status = db_get_value(hDB, chn->settings_hkey, "Compression", &chn->compression, &size, TID_INT, FALSE);
+         status = db_get_value(hDB, chn->settings_hkey, "Compression", &chn->compression, &size, TID_INT32, FALSE);
          
          /* initialize subrun number */
          chn->subrun_number = 0;
@@ -5951,7 +5934,7 @@ INT tr_stop(INT run_number, char *error)
    if (start_requested) {
       int delay = 0;
       size = sizeof(delay);
-      db_get_value(hDB, 0, "/Logger/Auto restart delay", &delay, &size, TID_INT, TRUE);
+      db_get_value(hDB, 0, "/Logger/Auto restart delay", &delay, &size, TID_INT32, TRUE);
       auto_restart = ss_time() + delay; /* start after specified delay */
       start_requested = FALSE;
    }
@@ -6121,7 +6104,7 @@ int main(int argc, char *argv[])
    else {
       DWORD timeout = LOGGER_DEFAULT_TIMEOUT;
       int size = sizeof(timeout);
-      status = db_get_value(hDB, 0, "/Logger/Watchdog timeout", &timeout, &size, TID_DWORD, TRUE);
+      status = db_get_value(hDB, 0, "/Logger/Watchdog timeout", &timeout, &size, TID_UINT32, TRUE);
       assert(status == DB_SUCCESS);
 
       /* set default watchdog timeout */
@@ -6151,7 +6134,7 @@ int main(int argc, char *argv[])
    /* obtain current state */
    local_state = STATE_STOPPED;
    size = sizeof(local_state);
-   status = db_get_value(hDB, 0, "/Runinfo/State", &local_state, &size, TID_INT, true);
+   status = db_get_value(hDB, 0, "/Runinfo/State", &local_state, &size, TID_INT32, true);
 
    /* open history logging */
    if (open_history() != CM_SUCCESS) {
@@ -6241,7 +6224,7 @@ int main(int argc, char *argv[])
       /* check if time is reached to stop run */
       duration = 0;
       size = sizeof(duration);
-      db_get_value(hDB, 0, "/Logger/Run duration", &duration, &size, TID_DWORD, true);
+      db_get_value(hDB, 0, "/Logger/Run duration", &duration, &size, TID_UINT32, true);
       if (!stop_requested && !in_stop_transition && local_state != STATE_STOPPED &&
           duration > 0 && ss_time() >= run_start_time + duration) {
          cm_msg(MTALK, "main", "stopping run after %d seconds", duration);

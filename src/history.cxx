@@ -55,7 +55,7 @@
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 static std::vector<HISTORY*> _history;
-static char _hs_path_name[MAX_STRING_LENGTH];
+static std::string _hs_path_name;
 
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
@@ -189,11 +189,14 @@ be called before any other history function is called.
 */
 static INT hs_set_path(const char *path)
 {
-   strcpy(_hs_path_name, path);
+   assert(path);
+   assert(path[0] != 0);
+   
+   _hs_path_name = path;
 
    /* check for trailing directory seperator */
-   if (strlen(_hs_path_name) > 0 && _hs_path_name[strlen(_hs_path_name) - 1] != DIR_SEPARATOR)
-      strcat(_hs_path_name, DIR_SEPARATOR_STR);
+   if (_hs_path_name.back() != DIR_SEPARATOR)
+      _hs_path_name += DIR_SEPARATOR_STR;
 
    return HS_SUCCESS;
 }

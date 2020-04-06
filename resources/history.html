@@ -18,14 +18,6 @@
 
 <script>
 
-   function getUrlVars() {
-      let vars = {};
-      window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function (m, key, value) {
-         vars[key] = value;
-      });
-      return vars;
-   }
-
    function panelCreate() {
       let selGroup = document.getElementById('dlgNewSelGroup').value;
       let newGroup = document.getElementById('dlgNewNewGroup').value;
@@ -96,8 +88,8 @@
 
          let curGroup = decodeURI(getUrlVars()["group"]);
          let curPanel = decodeURI(getUrlVars()["panel"]);
-         let tMin = decodeURI(getUrlVars()["tmin"]);
-         let tMax = decodeURI(getUrlVars()["tmax"]);
+         let tMin = decodeURI(getUrlVars()["A"]);
+         let tMax = decodeURI(getUrlVars()["B"]);
          let baseURL = window.location.href;
          if (baseURL.search("&group") > 0)
             baseURL = baseURL.substr(0, baseURL.search("&group"));
@@ -229,7 +221,7 @@
 
             if (document.getElementById('keepTAxis') !== null &&
                document.getElementById('keepTAxis').checked)
-               url += "&tmin=" + Math.floor(d.mhg.tMin) + "&tmax=" + Math.floor(d.mhg.tMax);
+               url += "&A=" + Math.floor(d.mhg.tMin) + "&B=" + Math.floor(d.mhg.tMax);
 
             window.location.href = url;
          });
@@ -244,7 +236,7 @@
 
             if (document.getElementById('keepTAxis') !== null &&
                document.getElementById('keepTAxis').checked)
-               url += "&tmin=" + Math.floor(d.mhg.tMin) + "&tmax=" + Math.floor(d.mhg.tMax);
+               url += "&A=" + Math.floor(d.mhg.tMin) + "&B=" + Math.floor(d.mhg.tMax);
 
             window.location.href = url;
          });

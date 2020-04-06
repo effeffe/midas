@@ -300,29 +300,40 @@ Data format */
 
 /**
 Event Sampling type */
-#define GET_ALL   (1<<0)      /**< get all events (consume)           */
+#define GET_ALL   (1<<0)      /**< get all events (consume)             */
 #define GET_NONBLOCKING (1<<1)/**< get as much as possible without blocking producer */
 #define GET_RECENT (1<<2)     /**< get recent event (not older than 1 s)*/
 
 /**
-Data types Definition                         min      max    */
-#define TID_BYTE      1       /**< unsigned byte         0       255    */
-#define TID_SBYTE     2       /**< signed byte         -128      127    */
+MIDAS Data Type Definitions                             min      max    */
+#define TID_BYTE      1       /**< DEPRECATED, use TID_UINT8 instead    */
+#define TID_UINT8     1       /**< unsigned byte         0       255    */
+#define TID_SBYTE     2       /**< DEPRECATED, use TID_INT8 instead     */
+#define TID_INT8      2       /**< signed byte         -128      127    */
 #define TID_CHAR      3       /**< single character      0       255    */
-#define TID_WORD      4       /**< two bytes             0      65535   */
-#define TID_SHORT     5       /**< signed word        -32768    32767   */
-#define TID_DWORD     6       /**< four bytes            0      2^32-1  */
-#define TID_INT       7       /**< signed dword        -2^31    2^31-1  */
+#define TID_WORD      4       /**< DEPRECATED, use TID_UINT16 instead   */
+#define TID_UINT16    4       /**< two bytes             0      65535   */
+#define TID_SHORT     5       /**< DEPRECATED, use TID_INT16 instead    */
+#define TID_INT16     5       /**< signed word        -32768    32767   */
+#define TID_DWORD     6       /**< DEPRECATED, use TID_UINT32 instead   */
+#define TID_UINT32    6       /**< four bytes            0      2^32-1  */
+#define TID_INT       7       /**< DEPRECATED, use TID_INT32 instead    */
+#define TID_INT32     7       /**< signed dword        -2^31    2^31-1  */
 #define TID_BOOL      8       /**< four bytes bool       0        1     */
 #define TID_FLOAT     9       /**< 4 Byte float format                  */
+#define TID_FLOAT32   9       /**< 4 Byte float format                  */
 #define TID_DOUBLE   10       /**< 8 Byte float format                  */
+#define TID_FLOAT64  10       /**< 8 Byte float format                  */
 #define TID_BITFIELD 11       /**< 32 Bits Bitfield      0  111... (32) */
 #define TID_STRING   12       /**< zero terminated string               */
 #define TID_ARRAY    13       /**< array with unknown contents          */
 #define TID_STRUCT   14       /**< structure with fixed length          */
 #define TID_KEY      15       /**< key in online database               */
 #define TID_LINK     16       /**< link in online database              */
-#define TID_LAST     17       /**< end of TID list indicator            */
+#define TID_INT64    17       /**< 8 bytes int          -2^63   2^63-1  */
+#define TID_UINT64   18       /**< 8 bytes unsigned int  0      2^64-1  */
+#define TID_QWORD    18       /**< 8 bytes unsigned int  0      2^64-1  */
+#define TID_LAST     19       /**< end of TID list indicator            */
 
 /**
 Transition flags */
@@ -1167,6 +1178,13 @@ typedef struct {
 } BANK32;
 
 typedef struct {
+   char name[4];                       /**< - */
+   DWORD type;                         /**< - */
+   DWORD data_size;                    /**< - */
+   DWORD reserved;                     /**< - */
+} BANK32A;
+
+typedef struct {
    char name[NAME_LENGTH];             /**< - */
    DWORD type;                         /**< - */
    DWORD n_data;                       /**< - */
@@ -1793,6 +1811,7 @@ Data conversion flags */
    INT EXPRT db_scan_tree(HNDLE hDB, HNDLE hKey, int level, INT(*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
    INT EXPRT db_scan_tree_link(HNDLE hDB, HNDLE hKey, int level, void (*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info);
    INT EXPRT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size);
+   std::string EXPRT db_get_path(HNDLE hDB, HNDLE hKey);
    INT EXPRT db_delete_key(HNDLE database_handle, HNDLE key_handle, BOOL follow_links);
    INT EXPRT db_enum_key(HNDLE hdb, HNDLE key_handle, INT index, HNDLE * subkey_handle);
    INT EXPRT db_enum_link(HNDLE hdb, HNDLE key_handle, INT index, HNDLE * subkey_handle);
@@ -1920,6 +1939,7 @@ Data conversion flags */
    INT EXPRT rpc_call(DWORD routine_id, ...);
    INT EXPRT rpc_tid_size(INT id);
    const char EXPRT *rpc_tid_name(INT id);
+   const char EXPRT *rpc_tid_name_old(INT id);
    INT EXPRT rpc_server_connect(const char *host_name, const char *exp_name);
    INT EXPRT rpc_client_connect(const char *host_name, INT midas_port, const char *client_name, HNDLE * hConnection);
    INT EXPRT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown);

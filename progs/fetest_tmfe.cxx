@@ -79,6 +79,12 @@ public:
       fEq->SetStatus("Stopped", "#00FF00");
    }
 
+   //void HandleStartAbortRun()
+   //{
+   //   fMfe->Msg(MINFO, "HandleStartAbortRun", "Begin run aborted!");
+   //   fEq->SetStatus("Stopped", "#00FF00");
+   //}
+
    void HandlePeriodic()
    {
       printf("periodic!\n");
@@ -141,6 +147,7 @@ int main(int argc, char* argv[])
    //mfe->SetTransitionSequenceStop(90);
    //mfe->DeregisterTransitionPause();
    //mfe->DeregisterTransitionResume();
+   //mfe->RegisterTransitionStartAbort();
 
    myfe->Init();
 

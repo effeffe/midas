@@ -384,6 +384,10 @@ void TMFeRpcHandlerInterface::HandleResumeRun()
 {
 }
 
+void TMFeRpcHandlerInterface::HandleStartAbortRun()
+{
+}
+
 static INT rpc_callback(INT index, void *prpc_param[])
 {
    const char* cmd  = CSTRING(0);
@@ -467,6 +471,18 @@ static INT tr_resume(INT runno, char *errstr)
    return SUCCESS;
 }
 
+static INT tr_startabort(INT runno, char *errstr)
+{
+   cm_msg(MINFO, "tr_startabort", "tr_startabort");
+
+   TMFE* mfe = TMFE::Instance();
+   for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
+      mfe->fRpcHandlers[i]->HandleStartAbortRun();
+   }
+
+   return SUCCESS;
+}
+
 void TMFE::RegisterRpcHandler(TMFeRpcHandlerInterface* h)
 {
    if (fRpcHandlers.size() == 0) {
@@ -476,6 +492,7 @@ void TMFE::RegisterRpcHandler(TMFeRpcHandlerInterface* h)
       cm_register_transition(TR_STOP, tr_stop, 500);
       cm_register_transition(TR_PAUSE, tr_pause, 500);
       cm_register_transition(TR_RESUME, tr_resume, 500);
+      //cm_register_transition(TR_STARTABORT, tr_startabort, 500);
    }
 
    fRpcHandlers.push_back(h);
@@ -501,12 +518,18 @@ void TMFE::SetTransitionSequenceResume(int seqno)
    cm_set_transition_sequence(TR_RESUME, seqno);
 }
 
+void TMFE::SetTransitionSequenceStartAbort(int seqno)
+{
+   cm_set_transition_sequence(TR_STARTABORT, seqno);
+}
+
 void TMFE::DeregisterTransitions()
 {
    cm_deregister_transition(TR_START);
    cm_deregister_transition(TR_STOP);
    cm_deregister_transition(TR_PAUSE);
    cm_deregister_transition(TR_RESUME);
+   cm_deregister_transition(TR_STARTABORT);
 }
 
 void TMFE::DeregisterTransitionStart()
@@ -527,6 +550,16 @@ void TMFE::DeregisterTransitionPause()
 void TMFE::DeregisterTransitionResume()
 {
    cm_deregister_transition(TR_RESUME);
+}
+
+void TMFE::DeregisterTransitionStartAbort()
+{
+   cm_deregister_transition(TR_STARTABORT);
+}
+
+void TMFE::RegisterTransitionStartAbort()
+{
+   cm_register_transition(TR_STARTABORT, tr_startabort, 500);
 }
 
 TMFePeriodicHandler::TMFePeriodicHandler()

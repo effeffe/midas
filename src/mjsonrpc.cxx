@@ -20,6 +20,8 @@
 
 #include "mjsonrpc.h"
 
+#include <mutex> // std::mutex
+
 //////////////////////////////////////////////////////////////////////
 //
 // Specifications for JSON-RPC
@@ -3620,14 +3622,29 @@ static MJsonNode* get_schema(const MJsonNode* params)
 //
 /////////////////////////////////////////////////////////////////////////////////
 
-typedef std::map<std::string, mjsonrpc_handler_t*> MethodHandlers;
-typedef MethodHandlers::iterator MethodHandlersIterator;
-
-static MethodHandlers gHandlers;
-
-void mjsonrpc_add_handler(const char* method, mjsonrpc_handler_t* handler)
+struct MethodsTableEntry
 {
-   gHandlers[method] = handler;
+   mjsonrpc_handler_t* fHandler = NULL;
+   bool fNeedsLocking = false;
+};
+   
+typedef std::map<std::string, MethodsTableEntry> MethodsTable;
+typedef MethodsTable::iterator MethodsTableIterator;
+
+static MethodsTable gMethodsTable;
+static std::mutex* gMutex = NULL;
+
+void mjsonrpc_add_handler(const char* method, mjsonrpc_handler_t* handler, bool needs_locking)
+{
+   MethodsTableEntry e;
+   e.fHandler = handler;
+   e.fNeedsLocking = needs_locking;
+   gMethodsTable[method] = e;
+}
+
+void mjsonrpc_set_std_mutex(void* mutex)
+{
+   gMutex = (std::mutex*)mutex;
 }
 
 void mjsonrpc_init()
@@ -3646,16 +3663,16 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("set_time",    set_time);
    mjsonrpc_add_handler("get_schema",  get_schema);
    // interface to alarm functions
-   mjsonrpc_add_handler("al_reset_alarm",    js_al_reset_alarm);
-   mjsonrpc_add_handler("al_trigger_alarm",  js_al_trigger_alarm);
-   mjsonrpc_add_handler("al_trigger_class",  js_al_trigger_class);
+   mjsonrpc_add_handler("al_reset_alarm",    js_al_reset_alarm,    true);
+   mjsonrpc_add_handler("al_trigger_alarm",  js_al_trigger_alarm,  true);
+   mjsonrpc_add_handler("al_trigger_class",  js_al_trigger_class,  true);
    // interface to midas.c functions
-   mjsonrpc_add_handler("cm_exist",    js_cm_exist);
+   mjsonrpc_add_handler("cm_exist",          js_cm_exist,          true);
    mjsonrpc_add_handler("cm_msg_facilities", js_cm_msg_facilities);
    mjsonrpc_add_handler("cm_msg_retrieve",   js_cm_msg_retrieve);
-   mjsonrpc_add_handler("cm_msg1",     js_cm_msg1);
-   mjsonrpc_add_handler("cm_shutdown", js_cm_shutdown);
-   mjsonrpc_add_handler("cm_transition", js_cm_transition);
+   mjsonrpc_add_handler("cm_msg1",           js_cm_msg1);
+   mjsonrpc_add_handler("cm_shutdown",   js_cm_shutdown,   true);
+   mjsonrpc_add_handler("cm_transition", js_cm_transition, true);
    // interface to odb functions
    mjsonrpc_add_handler("db_copy",     js_db_copy);
    mjsonrpc_add_handler("db_paste",    js_db_paste);
@@ -3670,23 +3687,23 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("db_reorder", js_db_reorder);
    mjsonrpc_add_handler("db_key",    js_db_key);
    // interface to elog functions
-   mjsonrpc_add_handler("el_retrieve", js_el_retrieve);
-   mjsonrpc_add_handler("el_query",    js_el_query);
-   mjsonrpc_add_handler("el_delete",   js_el_delete);
+   mjsonrpc_add_handler("el_retrieve", js_el_retrieve, true);
+   mjsonrpc_add_handler("el_query",    js_el_query,    true);
+   mjsonrpc_add_handler("el_delete",   js_el_delete,   true);
    // interface to midas history
-   mjsonrpc_add_handler("hs_get_active_events", js_hs_get_active_events);
-   mjsonrpc_add_handler("hs_get_channels", js_hs_get_channels);
-   mjsonrpc_add_handler("hs_get_events", js_hs_get_events);
-   mjsonrpc_add_handler("hs_get_tags", js_hs_get_tags);
-   mjsonrpc_add_handler("hs_get_last_written", js_hs_get_last_written);
-   mjsonrpc_add_handler("hs_reopen", js_hs_reopen);
-   mjsonrpc_add_handler("hs_read", js_hs_read);
-   mjsonrpc_add_handler("hs_read_binned", js_hs_read_binned);
-   mjsonrpc_add_handler("hs_read_arraybuffer", js_hs_read_arraybuffer);
-   mjsonrpc_add_handler("hs_read_binned_arraybuffer", js_hs_read_binned_arraybuffer);
+   mjsonrpc_add_handler("hs_get_active_events", js_hs_get_active_events, true);
+   mjsonrpc_add_handler("hs_get_channels", js_hs_get_channels, true);
+   mjsonrpc_add_handler("hs_get_events", js_hs_get_events, true);
+   mjsonrpc_add_handler("hs_get_tags", js_hs_get_tags, true);
+   mjsonrpc_add_handler("hs_get_last_written", js_hs_get_last_written, true);
+   mjsonrpc_add_handler("hs_reopen", js_hs_reopen, true);
+   mjsonrpc_add_handler("hs_read", js_hs_read, true);
+   mjsonrpc_add_handler("hs_read_binned", js_hs_read_binned, true);
+   mjsonrpc_add_handler("hs_read_arraybuffer", js_hs_read_arraybuffer, true);
+   mjsonrpc_add_handler("hs_read_binned_arraybuffer", js_hs_read_binned_arraybuffer, true);
    // sequencer
-   mjsonrpc_add_handler("seq_list_files", js_seq_list_files);
-   mjsonrpc_add_handler("seq_save_script", js_seq_save_script);
+   mjsonrpc_add_handler("seq_list_files", js_seq_list_files, true);
+   mjsonrpc_add_handler("seq_save_script", js_seq_save_script, true);
    // interface to ss_system functions
    mjsonrpc_add_handler("ss_millitime", js_ss_millitime);
    // methods that perform computations or invoke actions
@@ -3699,7 +3716,7 @@ void mjsonrpc_init()
    mjsonrpc_user_init();
 }
 
-static MJsonNode* mjsonrpc_make_schema(MethodHandlers* h)
+static MJsonNode* mjsonrpc_make_schema(MethodsTable* h)
 {
    MJsonNode* s = MJsonNode::MakeObject();
 
@@ -3711,11 +3728,11 @@ static MJsonNode* mjsonrpc_make_schema(MethodHandlers* h)
 
    MJsonNode* m = MJsonNode::MakeObject();
 
-   for (MethodHandlersIterator iterator = h->begin(); iterator != h->end(); iterator++) {
+   for (MethodsTableIterator iterator = h->begin(); iterator != h->end(); iterator++) {
       // iterator->first = key
       // iterator->second = value
       //printf("build schema for method \"%s\"!\n", iterator->first.c_str());
-      MJsonNode* doc = iterator->second(NULL);
+      MJsonNode* doc = iterator->second.fHandler(NULL);
       if (doc == NULL)
          doc = MJsonNode::MakeObject();
       m->AddToObject(iterator->first.c_str(), doc);
@@ -3729,7 +3746,7 @@ static MJsonNode* mjsonrpc_make_schema(MethodHandlers* h)
 
 MJsonNode* mjsonrpc_get_schema()
 {
-   return mjsonrpc_make_schema(&gHandlers);
+   return mjsonrpc_make_schema(&gMethodsTable);
 }
 
 #ifdef MJSON_DEBUG
@@ -3760,101 +3777,103 @@ struct NestedLine {
    std::string text;
 };
 
-typedef std::vector<NestedLine> NestedText;
-
-static NestedText nested_output;
-
-static void nested_clear()
+class NestedOutput
 {
-   nested_output.clear();
-}
+public:
+   std::vector<NestedLine> fLines;
+public:
+   void Clear()
+   {
+      fLines.clear();
+   }
 
-static void output(int nest, bool span, std::string text)
-{
-   if (text.length() < 1)
-      return;
+   void Output(int nest, bool span, std::string text)
+   {
+      if (text.length() < 1)
+         return;
 
-   NestedLine l;
-   l.nest = nest;
-   l.span = span;
-   l.text = text;
-   nested_output.push_back(l);
+      NestedLine l;
+      l.nest = nest;
+      l.span = span;
+      l.text = text;
+      fLines.push_back(l);
+   };
+
+   std::string Print()
+   {
+      std::vector<int> tablen;
+      std::vector<std::string> tab;
+      std::vector<std::string> tabx;
+      
+      tablen.push_back(0);
+      tab.push_back("");
+      tabx.push_back("");
+      
+      std::string xtab = "";
+      int maxlen = 0;
+      for (int n=0; ; n++) {
+         int len = -1;
+         for (unsigned i=0; i<fLines.size(); i++) {
+            int nn = fLines[i].nest;
+            bool pp = fLines[i].span;
+            if (pp)
+               continue;
+            if (nn != n)
+               continue;
+            int l = fLines[i].text.length();
+            if (l>len)
+               len = l;
+         }
+         //printf("nest %d len %d\n", n, len);
+         if (len < 0)
+            break; // nothing with this nest level
+         tablen.push_back(len);
+         tab.push_back(indent(len, " ") + " | ");
+         xtab += indent(len, " ") + " | ";
+         tabx.push_back(xtab);
+         maxlen += 3+len;
+      }
+      
+      std::string s;
+      int nest = 0;
+      
+      for (unsigned i=0; i<fLines.size(); i++) {
+         int n = fLines[i].nest;
+         bool p = fLines[i].span;
+         
+         std::string pad;
+         
+         if (!p) {
+            int ipad = tablen[n+1] - fLines[i].text.length();
+            pad = indent(ipad, " ");
+         }
+         
+         std::string hr = indent(maxlen-tabx[n].length(), "-");
+         
+         if (n > nest)
+            s += std::string(" | ") + fLines[i].text + pad;
+         else if (n == nest) {
+            s += "\n";
+            if (n == 0 || n == 1)
+               s += tabx[n] + hr + "\n";
+            s += tabx[n] + fLines[i].text + pad;
+         } else {
+            s += "\n";
+            if (n == 0 || n == 1)
+               s += tabx[n] + hr + "\n";
+            s += tabx[n] + fLines[i].text + pad;
+         }
+         
+         nest = n;
+      }
+
+      return s;
+   }
 };
 
-static std::string nested_print()
-{
-   std::vector<int> tablen;
-   std::vector<std::string> tab;
-   std::vector<std::string> tabx;
+static std::string mjsonrpc_schema_to_html_anything(const MJsonNode* schema, int nest_level, NestedOutput* o);
 
-   tablen.push_back(0);
-   tab.push_back("");
-   tabx.push_back("");
-
-   std::string xtab = "";
-   int maxlen = 0;
-   for (int n=0; ; n++) {
-      int len = -1;
-      for (unsigned i=0; i<nested_output.size(); i++) {
-         int nn = nested_output[i].nest;
-         bool pp = nested_output[i].span;
-         if (pp)
-            continue;
-         if (nn != n)
-            continue;
-         int l = nested_output[i].text.length();
-         if (l>len)
-            len = l;
-      }
-      //printf("nest %d len %d\n", n, len);
-      if (len < 0)
-         break; // nothing with this nest level
-      tablen.push_back(len);
-      tab.push_back(indent(len, " ") + " | ");
-      xtab += indent(len, " ") + " | ";
-      tabx.push_back(xtab);
-      maxlen += 3+len;
-   }
-
-   std::string s;
-   int nest = 0;
-
-   for (unsigned i=0; i<nested_output.size(); i++) {
-      int n = nested_output[i].nest;
-      bool p = nested_output[i].span;
-
-      std::string pad;
-
-      if (!p) {
-         int ipad = tablen[n+1] - nested_output[i].text.length();
-         pad = indent(ipad, " ");
-      }
-
-      std::string hr = indent(maxlen-tabx[n].length(), "-");
-
-      if (n > nest)
-         s += std::string(" | ") + nested_output[i].text + pad;
-      else if (n == nest) {
-         s += "\n";
-         if (n == 0 || n == 1)
-            s += tabx[n] + hr + "\n";
-         s += tabx[n] + nested_output[i].text + pad;
-      } else {
-         s += "\n";
-         if (n == 0 || n == 1)
-            s += tabx[n] + hr + "\n";
-         s += tabx[n] + nested_output[i].text + pad;
-      }
-
-      nest = n;
-   }
-
-   return s;
-}
-
-std::string mjsonrpc_schema_to_html_anything(const MJsonNode* schema, int nest_level);
-
-static std::string mjsonrpc_schema_to_html_object(const MJsonNode* schema, int nest_level)
+static std::string mjsonrpc_schema_to_html_object(const MJsonNode* schema, int nest_level, NestedOutput* o)
 {
    const MJsonNode* d = schema->FindObjectNode("description");
    std::string description;
@@ -3873,8 +3892,8 @@ static std::string mjsonrpc_schema_to_html_object(const MJsonNode* schema, int n
       required_list = r->GetArray();
 
    if (!properties) {
-      output(nest_level, false, "object");
-      output(nest_level+1, true, description);
+      o->Output(nest_level, false, "object");
+      o->Output(nest_level+1, true, description);
       return xshort;
    }
 
@@ -3882,8 +3901,8 @@ static std::string mjsonrpc_schema_to_html_object(const MJsonNode* schema, int n
    const MJsonNodeVector *nodes = properties->GetObjectNodes();
 
    if (!names || !nodes) {
-      output(nest_level, false, "object");
-      output(nest_level+1, true, description);
+      o->Output(nest_level, false, "object");
+      o->Output(nest_level+1, true, description);
       return xshort;
    }
 
@@ -3899,7 +3918,7 @@ static std::string mjsonrpc_schema_to_html_object(const MJsonNode* schema, int n
       s += nest + "</tr>\n";
    }
 
-   output(nest_level, true, description);
+   o->Output(nest_level, true, description);
 
    for (unsigned i=0; i<names->size(); i++) {
       std::string name = (*names)[i];
@@ -3925,12 +3944,12 @@ static std::string mjsonrpc_schema_to_html_object(const MJsonNode* schema, int n
       if (!required)
          name += "?";
 
-      output(nest_level, false, name);
+      o->Output(nest_level, false, name);
 
       s += nest + "<tr>\n";
       s += nest + "  <td>" + name + "</td>\n";
       s += nest + "  <td>";
-      s += mjsonrpc_schema_to_html_anything(node, nest_level + 1);
+      s += mjsonrpc_schema_to_html_anything(node, nest_level + 1, o);
       s += "</td>\n";
       s += nest + "</tr>\n";
    }
@@ -3940,7 +3959,7 @@ static std::string mjsonrpc_schema_to_html_object(const MJsonNode* schema, int n
    return s;
 }
 
-static std::string mjsonrpc_schema_to_html_array(const MJsonNode* schema, int nest_level)
+static std::string mjsonrpc_schema_to_html_array(const MJsonNode* schema, int nest_level, NestedOutput* o)
 {
    const MJsonNode* d = schema->FindObjectNode("description");
    std::string description;
@@ -3954,16 +3973,16 @@ static std::string mjsonrpc_schema_to_html_array(const MJsonNode* schema, int ne
    const MJsonNode* items = schema->FindObjectNode("items");
 
    if (!items) {
-      output(nest_level, false, "array");
-      output(nest_level+1, true, description);
+      o->Output(nest_level, false, "array");
+      o->Output(nest_level+1, true, description);
       return xshort;
    }
 
    const MJsonNodeVector *nodes = items->GetArray();
 
    if (!nodes) {
-      output(nest_level, false, "array");
-      output(nest_level+1, true, description);
+      o->Output(nest_level, false, "array");
+      o->Output(nest_level+1, true, description);
       return xshort;
    }
 
@@ -3981,13 +4000,13 @@ static std::string mjsonrpc_schema_to_html_array(const MJsonNode* schema, int ne
       s += nest + "</tr>\n";
    }
 
-   output(nest_level, true, description);
+   o->Output(nest_level, true, description);
 
    for (unsigned i=0; i<nodes->size(); i++) {
-      output(nest_level, false, "array of");
+      o->Output(nest_level, false, "array of");
 
       s += nest + "<tr>\n";
-      s += nest + "  <td> array of " + mjsonrpc_schema_to_html_anything((*nodes)[i], nest_level + 1) + "</td>\n";
+      s += nest + "  <td> array of " + mjsonrpc_schema_to_html_anything((*nodes)[i], nest_level + 1, o) + "</td>\n";
       s += nest + "</tr>\n";
    }
 
@@ -3996,7 +4015,7 @@ static std::string mjsonrpc_schema_to_html_array(const MJsonNode* schema, int ne
    return s;
 }
 
-std::string mjsonrpc_schema_to_html_anything(const MJsonNode* schema, int nest_level)
+std::string mjsonrpc_schema_to_html_anything(const MJsonNode* schema, int nest_level, NestedOutput* o)
 {
    std::string type;
    std::string description;
@@ -4017,16 +4036,16 @@ std::string mjsonrpc_schema_to_html_anything(const MJsonNode* schema, int nest_l
    //   optional = o->GetBool();
 
    if (type == "object") {
-      return mjsonrpc_schema_to_html_object(schema, nest_level);
+      return mjsonrpc_schema_to_html_object(schema, nest_level, o);
    } else if (type == "array") {
-      return mjsonrpc_schema_to_html_array(schema, nest_level);
+      return mjsonrpc_schema_to_html_array(schema, nest_level, o);
    } else {
       //if (optional)
       //   output(nest_level, false, "?");
       //else
       //   output(nest_level, false, "!");
-      output(nest_level, false, type);
-      output(nest_level+1, true, description);
+      o->Output(nest_level, false, type);
+      o->Output(nest_level+1, true, description);
       if (description.length() > 1) {
          return (type + "</td><td>" + description);
       } else {
@@ -4038,12 +4057,13 @@ std::string mjsonrpc_schema_to_html_anything(const MJsonNode* schema, int nest_l
 std::string mjsonrpc_schema_to_text(const MJsonNode* schema)
 {
    std::string s;
-   nested_clear();
-   mjsonrpc_schema_to_html_anything(schema, 0);
+   NestedOutput out;
+   out.Clear();
+   mjsonrpc_schema_to_html_anything(schema, 0, &out);
    //s += "<pre>\n";
    //s += nested_dump();
    //s += "</pre>\n";
-   s += nested_print();
+   s += out.Print();
    return s;
 }
 
@@ -4147,9 +4167,14 @@ static MJsonNode* mjsonrpc_handle_request(const MJsonNode* request)
       *((double*)(ptr+4*2*3)) = 3.14; // float64[3]
       return MJsonNode::MakeArrayBuffer(ptr, size);
    } else {
-      MethodHandlersIterator s = gHandlers.find(ms);
-      if (s != gHandlers.end()) {
-         result = s->second(params);
+      MethodsTableIterator s = gMethodsTable.find(ms);
+      if (s != gMethodsTable.end()) {
+         bool lock = s->second.fNeedsLocking;
+         if (lock && gMutex)
+            gMutex->lock();
+         result = s->second.fHandler(params);
+         if (lock && gMutex)
+            gMutex->unlock();
       } else {
          result = mjsonrpc_make_error(-32601, "Method not found", (std::string("unknown method: ") + ms).c_str());
       }
@@ -4301,4 +4326,3 @@ MJsonNode* mjsonrpc_decode_post_data(const char* post_data)
  * indent-tabs-mode: nil
  * End:
  */
-

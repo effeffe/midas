@@ -360,6 +360,9 @@ int main(int argc, char **argv)
       if (callback.experiment.length() > 0)
          cm_set_experiment_name(callback.experiment.c_str());
 
+      /* must be done after cm_set_path() */
+      ss_suspend_init_odb_port();
+
       /* switch rpc to mserver mode */
       rpc_set_mserver_mode();
 

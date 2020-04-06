@@ -39,13 +39,13 @@
 /* data type sizes */
 static const int tid_size[] = {
    0,                           /* tid == 0 not defined                               */
-   1,                           /* TID_BYTE      unsigned byte         0       255    */
-   1,                           /* TID_SBYTE     signed byte         -128      127    */
+   1,                           /* TID_UINT8     unsigned byte         0       255    */
+   1,                           /* TID_INT8      signed byte         -128      127    */
    1,                           /* TID_CHAR      single character      0       255    */
-   2,                           /* TID_WORD      two bytes             0      65535   */
-   2,                           /* TID_SHORT     signed word        -32768    32767   */
-   4,                           /* TID_DWORD     four bytes            0      2^32-1  */
-   4,                           /* TID_INT       signed dword        -2^31    2^31-1  */
+   2,                           /* TID_UINT16    two bytes             0      65535   */
+   2,                           /* TID_INT16     signed word        -32768    32767   */
+   4,                           /* TID_UINT32    four bytes            0      2^32-1  */
+   4,                           /* TID_INT32     signed dword        -2^31    2^31-1  */
    4,                           /* TID_BOOL      four bytes bool       0        1     */
    4,                           /* TID_FLOAT     4 Byte float format                  */
    8,                           /* TID_DOUBLE    8 Byte float format                  */
@@ -54,19 +54,21 @@ static const int tid_size[] = {
    0,                           /* TID_ARRAY     variable length array of unkown type */
    0,                           /* TID_STRUCT    C structure                          */
    0,                           /* TID_KEY       key in online database               */
-   0                            /* TID_LINK      link in online database              */
+   0,                           /* TID_LINK      link in online database              */
+   8,                           /* TID_INT64     8 bytes int          -2^63   2^63-1  */
+   8                            /* TID_UINT64    8 bytes unsigned int  0      2^64-1  */
 };
 
 /* data type names */
 static const char *tid_name[] = {
    "NULL",
-   "BYTE",
-   "SBYTE",
+   "UINT8",
+   "INT8",
    "CHAR",
-   "WORD",
-   "SHORT",
-   "DWORD",
-   "INT",
+   "UINT16",
+   "INT16",
+   "UINT32",
+   "INT32",
    "BOOL",
    "FLOAT",
    "DOUBLE",
@@ -75,7 +77,9 @@ static const char *tid_name[] = {
    "ARRAY",
    "STRUCT",
    "KEY",
-   "LINK"
+   "LINK",
+   "INT64",
+   "UINT64"
 };
 
 // SQL types
@@ -103,13 +107,13 @@ static const char *sql_type_pgsql[] = {
 
 static const char *sql_type_mysql[] = {
    "xxxINVALIDxxxNULL", // TID_NULL
-   "tinyint unsigned",  // TID_BYTE
-   "tinyint",           // TID_SBYTE
+   "tinyint unsigned",  // TID_UINT8
+   "tinyint",           // TID_INT8
    "char",              // TID_CHAR
-   "smallint unsigned", // TID_WORD
-   "smallint",          // TID_SHORT
-   "integer unsigned",  // TID_DWORD
-   "integer",           // TID_INT
+   "smallint unsigned", // TID_UINT16
+   "smallint",          // TID_INT16
+   "integer unsigned",  // TID_UINT32
+   "integer",           // TID_INT32
    "tinyint",           // TID_BOOL
    "float",             // TID_FLOAT
    "double",            // TID_DOUBLE
@@ -168,12 +172,12 @@ static bool isCompatible(int tid, const char* sqlType)
 
    // T2K quirk!
    // permit writing BYTE into signed tinyint
-   if (tid==TID_BYTE && strcmp(sqlType, "tinyint")==0)
+   if (tid==TID_UINT8 && strcmp(sqlType, "tinyint")==0)
       return true;
 
    // T2K quirk!
    // permit writing WORD into signed tinyint
-   if (tid==TID_WORD && strcmp(sqlType, "tinyint")==0)
+   if (tid==TID_UINT16 && strcmp(sqlType, "tinyint")==0)
       return true;
 
    return false;

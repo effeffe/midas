@@ -75,8 +75,8 @@ ASUM_BANK_STR(asum_bank_str);
 BANK_LIST ana_trigger_bank_list[] = {
 
    /* online banks */
-   {"ADC0", TID_WORD, N_ADC, NULL},
-   {"TDC0", TID_WORD, N_TDC, NULL},
+   {"ADC0", TID_UINT16, N_ADC, NULL},
+   {"TDC0", TID_UINT16, N_TDC, NULL},
 
    /* calculated banks */
    {"CADC", TID_FLOAT, N_ADC, NULL},
@@ -87,7 +87,7 @@ BANK_LIST ana_trigger_bank_list[] = {
 
 BANK_LIST ana_scaler_bank_list[] = {
    /* online banks */
-   {"SCLR", TID_DWORD, N_ADC, NULL},
+   {"SCLR", TID_UINT32, N_ADC, NULL},
 
    /* calculated banks */
    {"ACUM", TID_DOUBLE, N_ADC, NULL},

@@ -156,8 +156,7 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
       }
    } else if (strcasecmp(type.c_str(), "SQLITE")==0) {
 
-      std::string expt_path;
-      cm_get_path_string(&expt_path);
+      std::string expt_path = cm_get_path();
 
       std::string dir;
 
@@ -200,7 +199,7 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
       if (status != DB_SUCCESS)
          status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &expt_path, TRUE);
       if (status != DB_SUCCESS || expt_path.length() < 1)
-         cm_get_path_string(&expt_path);
+         expt_path = cm_get_path();
 
       std::string dir;
       std::string path;
@@ -259,8 +258,7 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
       if (dsn[0] == DIR_SEPARATOR)
          path = dsn;
       else {
-         std::string expt_path;
-         cm_get_path_string(&expt_path);
+         std::string expt_path = cm_get_path();
 
          path = expt_path;
          // normally expt_path has the trailing '/', see midas.c::cm_set_path()
@@ -354,8 +352,7 @@ int hs_find_reader_channel(HNDLE hDB, HNDLE* hKeyOut, int debug_flag)
 
 static std::string hs_event_list_filename()
 {
-   std::string path;
-   cm_get_path_string(&path);
+   std::string path = cm_get_path();
    return path + ".LOGGER_HISTORY_EVENTS.TXT";
 }
 

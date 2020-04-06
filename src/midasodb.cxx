@@ -39,6 +39,15 @@ public:
       fPrintError = true;
    }
 
+   ~MidasOdb() // dtor
+   {
+      // poison the data members
+      fDB = 0;
+      fRoot = "deleted";
+      fTrace = false;
+      fPrintError = false;
+   }
+
    std::string Path(const char* varname)
    {
       std::string path;

@@ -124,9 +124,9 @@ void mscb_define(const char *submaster, const char *equipment, const char *devna
 
    chn_index = driver[dev_index].channels;
    sprintf(str, "/Equipment/%s/Settings/Devices/%s/MSCB Address", equipment, devname);
-   db_set_value_index(hDB, 0, str, &address, sizeof(int), chn_index, TID_INT, TRUE);
+   db_set_value_index(hDB, 0, str, &address, sizeof(int), chn_index, TID_INT32, TRUE);
    sprintf(str, "/Equipment/%s/Settings/Devices/%s/MSCB Index", equipment, devname);
-   db_set_value_index(hDB, 0, str, &var_index, sizeof(char), chn_index, TID_BYTE, TRUE);
+   db_set_value_index(hDB, 0, str, &var_index, sizeof(char), chn_index, TID_UINT8, TRUE);
 
    if (threshold != -1) {
      sprintf(str, "/Equipment/%s/Settings/Update Threshold", equipment);

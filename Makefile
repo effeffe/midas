@@ -164,7 +164,7 @@ endif
 # Common flags
 #
 CC = gcc $(USERFLAGS)
-CXX = g++ $(USERFLAGS)
+CXX = g++ -std=c++11 $(USERFLAGS)
 CFLAGS = -g -O2 -Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -I$(INC_DIR) -I$(DRV_DIR) -I$(MXML_DIR) -I$(MSCB_DIR)/include -DHAVE_FTPLIB
 
 #-----------------------
@@ -469,7 +469,6 @@ PROGS += $(BIN_DIR)/msysmon-nvidia
 endif
 OBJS = \
 	$(LIB_DIR)/midas.o \
-	$(LIB_DIR)/midas_cxx.o \
 	$(LIB_DIR)/system.o \
 	$(LIB_DIR)/mrpc.o \
 	$(LIB_DIR)/odb.o \
@@ -520,6 +519,14 @@ ALL+= $(EXAMPLES)
 
 all: check-mxml $(GIT_REVISION) $(ALL)
 
+CMAKE:=cmake
+#ifneq (,$(wildcard /opt/local/bin/cmake))
+#CMAKE:=/opt/local/bin/cmake
+#endif
+ifneq (,$(wildcard /usr/bin/cmake3))
+CMAKE:=/usr/bin/cmake3
+endif
+
 CMAKEFLAGS:=
 
 ifdef NO_ROOT
@@ -540,6 +547,10 @@ endif
 
 ifdef NO_SSL
 CMAKEFLAGS+= -DNO_SSL=1
+endif
+
+ifdef NO_MBEDTLS
+CMAKEFLAGS+= -DNO_MBEDTLS=1
 endif
 
 ifndef NO_EXPORT_COMPILE_COMMANDS
@@ -563,7 +574,8 @@ CMAKEGREPFLAGS+= -e build.make
 
 cmake:
 	-mkdir build
-	cd build; cmake .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install | 2>&1 grep -v $(CMAKEGREPFLAGS)
+	cd build; $(CMAKE) .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install | 2>&1 grep -v $(CMAKEGREPFLAGS)
+	cd examples/experiment; ln -sf ../../build/examples/experiment/frontend frontend
 
 cmake3:
 	-mkdir build
@@ -573,6 +585,7 @@ cclean:
 	-rm -f lib/*
 	-rm -f bin/*
 	-rm -rf build
+	-rm -rf examples/experiment/build
 
 dox:
 	doxygen
@@ -636,7 +649,7 @@ $(BIN_DIR):
 #
 # put current GIT revision into header file to be included by programs
 #
-$(GIT_REVISION): $(SRC_DIR)/midas.cxx $(SRC_DIR)/midas_cxx.cxx $(SRC_DIR)/odb.cxx $(SRC_DIR)/system.cxx $(PROGS_DIR)/mhttpd.cxx $(INC_DIR)/midas.h
+$(GIT_REVISION): $(SRC_DIR)/midas.cxx $(SRC_DIR)/odb.cxx $(SRC_DIR)/system.cxx $(PROGS_DIR)/mhttpd.cxx $(INC_DIR)/midas.h
 	echo \#define GIT_REVISION \"`git log -1 --format="%ad"` - `git describe --abbrev=8 --tags --dirty` on branch `git rev-parse --abbrev-ref HEAD`\" > $(GIT_REVISION)-new
 	rsync --checksum $(GIT_REVISION)-new $(GIT_REVISION) # only update git-revision.h and update it's timestamp if it's contents have changed
 	-/bin/rm -f $(GIT_REVISION)-new
@@ -713,10 +726,13 @@ ifdef HAVE_MSCB
 MHTTPD_OBJS += $(LIB_DIR)/mscb.o
 endif
 
-MHTTPD_OBJS += $(LIB_DIR)/mongoose6.o
-CFLAGS      += -DHAVE_MONGOOSE6
+MHTTPD_OBJS += $(LIB_DIR)/mongoose616.o
+CFLAGS      += -DHAVE_MONGOOSE616
 CFLAGS      += -DMG_ENABLE_THREADS
 CFLAGS      += -DMG_DISABLE_CGI
+CFLAGS      += -DMG_ENABLE_EXTRA_ERRORS_DESC
+CFLAGS      += -DMG_ENABLE_IPV6
+CFLAGS      += -DMG_ENABLE_URL_REWRITES
 ifndef NO_SSL
 CFLAGS      += -DMG_ENABLE_SSL
 endif
@@ -729,7 +745,7 @@ endif
 #CFLAGS      += -DMG_ENABLE_SSL
 #endif
 
-$(LIB_DIR)/mongoose6.o: $(PROGS_DIR)/mongoose6.cxx $(INC_DIR)/mongoose6.h 
+$(LIB_DIR)/mongoose616.o: $(PROGS_DIR)/mongoose616.cxx $(INC_DIR)/mongoose616.h 
 	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 $(LIB_DIR)/mgd.o: $(PROGS_DIR)/mgd.cxx $(INC_DIR)/mgd.h 
 	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
@@ -932,6 +948,53 @@ $(BIN_DIR)/stripchart.tcl: $(PROGS_DIR)/stripchart.tcl
 static:
 	rm -f $(PROGS)
 	make USERFLAGS=-static
+
+#####################################################################
+
+test:
+	@echo
+	@echo "make test" will create an empty experiment and run some basic tests
+	@echo
+	rm -f exptab
+	rm -rf testexpt
+	mkdir testexpt
+	echo testexpt $(PWD)/testexpt testuser > exptab
+	@echo
+	@echo export MIDASSYS=$(PWD)
+	@echo export MIDAS_EXPTAB=$(PWD)/exptab
+	@echo
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbinit
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "ls -l"
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhttpd -D &
+	sleep 1
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./examples/experiment/frontend -D &
+	sleep 1
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mlogger -D &
+	sleep 1
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "scl"
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mtransition START
+	sleep 2
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mtransition STOP
+	sleep 1
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mtransition START
+	sleep 2
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mtransition STOP
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhist -l
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhdump -L testexpt/*.hst
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "sh \"sample frontend\""
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "sh logger"
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "sh mhttpd"
+	cut -b25- < testexpt/midas.log | sed 's/checksum: 0x.*, .* bytes/checksum: (omitted)/'
+
+testmhttpd:
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhttpd
+
+testdiff:
+	$(MAKE) --no-print-directory test 2>&1 | grep -v "on host localhost stopped" | sed "sZ$(PWD)ZPWDZg" | tee testexpt.log
+	@echo
+	@echo compare output of "make test" with testexpt.example
+	@echo
+	diff testexpt.example testexpt.log
 
 #####################################################################
 

@@ -536,9 +536,8 @@ typedef struct {
    /*---- common function ----*/
    INT EXPRT cm_set_path(const char *path);
    INT EXPRT cm_get_path(char *path, int path_size);
-#ifdef __cplusplus
+   std::string EXPRT cm_get_path();
    INT EXPRT cm_get_path_string(std::string* path);
-#endif
    INT EXPRT cm_set_experiment_name(const char *name);
    INT cm_dispatch_ipc(const char *message, int message_size, int client_socket);
    INT EXPRT cm_msg_log(INT message_type, const char *facility, const char *message);
@@ -619,6 +618,7 @@ typedef struct {
    INT EXPRT ss_mutex_release(MUTEX_T *mutex);
    INT EXPRT ss_mutex_delete(MUTEX_T *mutex);
    INT ss_alarm(INT millitime, void (*func) (int));
+   INT ss_suspend_init_odb_port();
    INT ss_suspend_get_odb_port(INT * port);
    INT ss_suspend_get_buffer_port(midas_thread_t thread_id, INT * port);
    INT ss_suspend_set_rpc_thread(midas_thread_t thread_id);

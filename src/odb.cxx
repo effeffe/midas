@@ -70,7 +70,13 @@ static void db_msg(db_err_msg** msg, INT message_type, const char *filename, INT
 static void db_print_msg(const db_err_msg* msg);
 static void db_flush_msg(db_err_msg** msg);
 static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const char *key_name, HNDLE * subhKey, db_err_msg** msg);
-static INT db_get_path_locked(const DATABASE_HEADER* pheader, HNDLE hKey, char *path, INT buf_size);
+static const KEY* db_find_pkey_locked(const DATABASE_HEADER *pheader, const KEY* pkey, const char *key_name, int *pstatus, db_err_msg** msg);
+static std::string db_get_path_locked(const DATABASE_HEADER* pheader, HNDLE hKey);
+static std::string db_get_path_locked(const DATABASE_HEADER* pheader, const KEY *pkey);
+static int db_scan_tree_locked(const DATABASE_HEADER* pheader, const KEY* pkey, int level, int(*callback) (const DATABASE_HEADER*, const KEY*, int, void*, db_err_msg**), void *info, db_err_msg** msg);
+static int db_set_mode_wlocked(DATABASE_HEADER*,KEY*,WORD mode,int recurse,db_err_msg**);
+static const KEY* db_resolve_link_locked(const DATABASE_HEADER*, const KEY*,int *pstatus, db_err_msg**);
+static int db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk, db_err_msg** msg);
 #endif // LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
@@ -83,12 +89,12 @@ static INT db_get_path_locked(const DATABASE_HEADER* pheader, HNDLE hKey, char *
 
 struct db_err_msg_struct
 {
-   db_err_msg *next;
-   int message_type;
-   char filename[256];
-   int line;
-   char routine[256];
-   char text[1];
+   db_err_msg *next = NULL;
+   int message_type = 0;
+   std::string filename;
+   int line = 0;
+   std::string routine;
+   std::string text;
 };
 
 static db_err_msg* _last_error_message = NULL; // for debuging core dumps
@@ -96,13 +102,16 @@ static db_err_msg* _last_error_message = NULL; // for debuging core dumps
 void db_print_msg(const db_err_msg* msg)
 {
    while (msg != NULL) {
-      printf("db_err_msg: %p, next %p, type %d, file \'%s:%d\', function \'%s\': %s\n", msg, msg->next, msg->message_type, msg->filename, msg->line, msg->routine, msg->text);
+      printf("db_err_msg: %p, next %p, type %d, file \'%s:%d\', function \'%s\': %s\n", msg, msg->next, msg->message_type, msg->filename.c_str(), msg->line, msg->routine.c_str(), msg->text.c_str());
       msg = msg->next;
    }
 }
 
 void db_msg(db_err_msg** msgp, INT message_type, const char *filename, INT line, const char *routine, const char *format, ...)
 {
+   if (!msgp)
+      return;
+   
    va_list argptr;
    char message[1000];
 
@@ -112,17 +121,14 @@ void db_msg(db_err_msg** msgp, INT message_type, const char *filename, INT line,
    va_end(argptr);
    message[sizeof(message)-1] = 0; // ensure string is NUL-terminated
 
-   int len = strlen(message)+1;
-   int size = sizeof(db_err_msg) + len;
-
-   db_err_msg* msg = (db_err_msg*)malloc(size);
+   db_err_msg* msg = new db_err_msg;
 
    msg->next = NULL;
    msg->message_type = message_type;
-   strlcpy(msg->filename, filename, sizeof(msg->filename));
+   msg->filename = filename;
    msg->line = line;
-   strlcpy(msg->routine, routine, sizeof(msg->routine));
-   memcpy(&msg->text[0], message, len);
+   msg->routine = routine;
+   msg->text = message;
 
    _last_error_message = msg;
 
@@ -158,9 +164,11 @@ void db_flush_msg(db_err_msg** msgp)
    }
 
    while (msg != NULL) {
-      cm_msg(msg->message_type, msg->filename, msg->line, msg->routine, "%s", msg->text);
+      cm_msg(msg->message_type, msg->filename.c_str(), msg->line, msg->routine.c_str(), "%s", msg->text.c_str());
       db_err_msg* next = msg->next;
-      free(msg);
+      msg->message_type = 0;
+      msg->next = NULL;
+      delete msg;
       msg = next;
    }
 }
@@ -572,6 +580,21 @@ char *strcomb(const char **list)
 
 /*------------------------------------------------------------------*/
 
+std::string strcomb1(const char **list)
+/* convert list of strings into single string to be used by db_paste() */
+{
+   std::string s;
+
+   for (int i = 0; list[i]; i++) {
+      s += list[i];
+      s += "\n";
+   }
+
+   return s;
+}
+
+/*------------------------------------------------------------------*/
+
 struct print_key_info_buf
 {
    int alloc_size;
@@ -625,8 +648,8 @@ static INT print_key_info(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *in
    return SUCCESS;
 }
 
-static int db_validate_key_offset(const DATABASE_HEADER * pheader, int offset);
-static int db_validate_data_offset(const DATABASE_HEADER * pheader, int offset);
+static bool db_validate_key_offset(const DATABASE_HEADER * pheader, int offset);
+static bool db_validate_data_offset(const DATABASE_HEADER * pheader, int offset);
 
 INT db_show_mem(HNDLE hDB, char **result, BOOL verbose)
 {
@@ -673,6 +696,10 @@ INT db_show_mem(HNDLE hDB, char **result, BOOL verbose)
               (int) ((POINTER_T) pfree - (POINTER_T) pheader - sizeof(DATABASE_HEADER)),
               pfree->size, pfree->next_free ? (int) (pfree->next_free - sizeof(DATABASE_HEADER)) : 0);
       add_to_buf(&buf, str);
+      if (!db_validate_key_offset(pheader, pfree->next_free)) {
+         add_to_buf(&buf, "ODB is corrupted: next_free is invalid!");
+         break;
+      }
       pfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
    }
 
@@ -702,6 +729,10 @@ INT db_show_mem(HNDLE hDB, char **result, BOOL verbose)
               (int) ((POINTER_T) pfree - (POINTER_T) pheader - sizeof(DATABASE_HEADER)),
               pfree->size, pfree->next_free ? (int) (pfree->next_free - sizeof(DATABASE_HEADER)) : 0);
       add_to_buf(&buf, str);
+      if (!db_validate_data_offset(pheader, pfree->next_free)) {
+         add_to_buf(&buf, "ODB is corrupted: next_free is invalid!");
+         break;
+      }
       pfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
    }
 
@@ -767,10 +798,10 @@ INT db_get_free_mem(HNDLE hDB, INT *key_size, INT *data_size)
 // Method to check if a given string is valid UTF-8.  Returns 1 if it is.
 // This method was taken from stackoverflow user Christoph, specifically
 // http://stackoverflow.com/questions/1031645/how-to-detect-utf-8-in-plain-c
-static BOOL is_utf8(const char * string)
+static bool is_utf8(const char * string)
 {
     if(!string)
-        return 0;
+        return false;
 
     const unsigned char * bytes = (const unsigned char *)string;
     while(*bytes)
@@ -844,10 +875,10 @@ static BOOL is_utf8(const char * string)
         //printf("is_utf8: string [%s], not utf8 at offset %d, byte %d, [%s]\n", string, (int)((char*)bytes-(char*)string), (int)(0xFF&bytes[0]), bytes);
         //abort();
 
-        return 0;
+        return false;
     }
 
-    return 1;
+    return true;
 }
 
 static BOOL utfCheckEnvVar = 0;
@@ -914,74 +945,267 @@ static int db_validate_name(const char* name, int maybe_path, const char* caller
 }
 
 /*------------------------------------------------------------------*/
-static int db_validate_key_offset(const DATABASE_HEADER * pheader, int offset)
+static bool db_validate_key_offset(const DATABASE_HEADER * pheader, int offset)
 /* check if key offset lies in valid range */
 {
    if (offset != 0 && offset < (int) sizeof(DATABASE_HEADER))
-      return 0;
+      return false;
 
    if (offset > (int) sizeof(DATABASE_HEADER) + pheader->key_size)
-      return 0;
+      return false;
 
-   return 1;
+   return true;
 }
 
-static int db_validate_data_offset(const DATABASE_HEADER * pheader, int offset)
+static bool db_validate_data_offset(const DATABASE_HEADER * pheader, int offset)
 /* check if data offset lies in valid range */
 {
    if (offset != 0 && offset < (int) sizeof(DATABASE_HEADER))
-      return 0;
+      return false;
 
    if (offset > (int) sizeof(DATABASE_HEADER) + pheader->key_size + pheader->data_size)
-      return 0;
+      return false;
 
-   return 1;
+   return true;
 }
 
-static int db_validate_hkey(const DATABASE_HEADER * pheader, HNDLE hKey)
+static bool db_validate_hkey(const DATABASE_HEADER * pheader, HNDLE hKey)
 {
    if (hKey == 0) {
       cm_msg(MERROR, "db_validate_hkey", "Error: invalid zero hkey %d", hKey);
-      return 0;
+      return false;
    }
    if (!db_validate_key_offset(pheader, hKey)) {
       cm_msg(MERROR, "db_validate_hkey", "Error: invalid hkey %d", hKey);
-      return 0;
+      return false;
    }
-   return 1;
+   return true;
 }
 
-static int db_validate_pkey(const DATABASE_HEADER * pheader, const KEY* pkey)
+static const KEY* db_get_pkey(const DATABASE_HEADER* pheader, HNDLE hKey, int* pstatus, const char* caller, db_err_msg **msg)
 {
-   /* check key type */
-   if (pkey->type <= 0 || pkey->type >= TID_LAST) {
-      //cm_msg(MERROR, "db_validate_key", "Warning: invalid key type, key \"%s\", type %d", path, pkey->type);
-      return 0;
+   BOOL hKey_is_root_key = FALSE;
+
+   if (!hKey) {
+      hKey_is_root_key = TRUE;
+      hKey = pheader->root_key;
    }
-   return 1;
+
+   /* check if hKey argument is correct */
+   if (!db_validate_hkey(pheader, hKey)) {
+      if (pstatus)
+         *pstatus = DB_INVALID_HANDLE;
+      return NULL;
+   }
+
+   const KEY* pkey = (const KEY *) ((char *) pheader + hKey);
+
+   if (pkey->type < 1 || pkey->type >= TID_LAST) {
+      DWORD tid = pkey->type;
+      if (hKey_is_root_key) {
+         db_msg(msg, MERROR, caller, "db_get_pkey: root_key hkey %d invalid key type %d, database root directory is corrupted", hKey, tid);
+         if (pstatus)
+            *pstatus = DB_CORRUPTED;
+         return NULL;
+      } else {
+         std::string path = db_get_path_locked(pheader, hKey);
+         db_msg(msg, MERROR, caller, "db_get_pkey: hkey %d path \"%s\" invalid key type %d", hKey, path.c_str(), tid);
+      }
+      if (pstatus)
+         *pstatus = DB_NO_KEY;
+      return NULL;
+   }
+
+   if (pkey->name[0] == 0) {
+      std::string path = db_get_path_locked(pheader, hKey);
+      db_msg(msg, MERROR, caller, "db_get_pkey: hkey %d path \"%s\" invalid name \"%s\" is empty", hKey, path.c_str(), pkey->name);
+      if (pstatus)
+         *pstatus = DB_NO_KEY;
+      return NULL;
+   }
+
+   return pkey;
 }
 
-static int db_validate_key(DATABASE_HEADER * pheader, int recurse, const char *path, KEY * pkey)
+static const KEYLIST* db_get_pkeylist(const DATABASE_HEADER* pheader, HNDLE hKey, const KEY* pkey, const char* caller, db_err_msg **msg)
 {
-   KEYLIST *pkeylist;
-   int i;
-   int status;
-   static time_t t_min = 0, t_max;
+   if (pkey->type != TID_KEY) {
+      std::string path = db_get_path_locked(pheader, hKey);
+      db_msg(msg, MERROR, caller, "db_get_pkeylist: hkey %d path \"%s\" unexpected call to db_get_pkeylist(), not a subdirectory, pkey->type %d", hKey, path.c_str(), pkey->type);
+      return NULL;
+   }
 
-   if (!db_validate_key_offset(pheader, (POINTER_T) pkey - (POINTER_T) pheader)) {
-      cm_msg(MERROR, "db_validate_key", "Warning: database corruption, path \"%s\", key offset %d is invalid", path, (int)((char*)pkey - (char*)pheader));
-      return 0;
+   if (!hKey) {
+      hKey = pheader->root_key;
    }
 
    if (!db_validate_data_offset(pheader, pkey->data)) {
-      cm_msg(MERROR, "db_validate_key", "Warning: database corruption, path \"%s\", data offset 0x%08X is invalid", path, pkey->data - (int)sizeof(DATABASE_HEADER));
+      std::string path = db_get_path_locked(pheader, hKey);
+      db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid pkey->data %d", hKey, path.c_str(), pkey->data);
+      return NULL;
+   }
+
+   const KEYLIST *pkeylist = (const KEYLIST *) ((char *) pheader + pkey->data);
+
+   if (pkeylist->parent != hKey) {
+      std::string path = db_get_path_locked(pheader, hKey);
+      db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid pkeylist->parent %d should be hkey %d", hKey, path.c_str(), pkeylist->parent, hKey);
+      return NULL;
+   }
+
+   if (pkeylist->first_key == 0 && pkeylist->num_keys != 0) {
+      std::string path = db_get_path_locked(pheader, hKey);
+      db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid pkeylist->first_key %d should be non zero for num_keys %d", hKey, path.c_str(), pkeylist->first_key, pkeylist->num_keys);
+      return NULL;
+   }
+
+   return pkeylist;
+}
+
+static HNDLE db_pkey_to_hkey(const DATABASE_HEADER* pheader, const KEY* pkey)
+{
+   return (POINTER_T) pkey - (POINTER_T) pheader;
+}
+
+static const KEY* db_enum_first_locked(const DATABASE_HEADER *pheader, const KEY* pkey, db_err_msg **msg)
+{
+   HNDLE hKey = db_pkey_to_hkey(pheader, pkey);
+
+   if (pkey->type != TID_KEY) {
+      std::string path = db_get_path_locked(pheader, hKey);
+      db_msg(msg, MERROR, "db_enum_first_locked", "hkey %d path \"%s\" tid %d is not a directory", hKey, path.c_str(), pkey->type);
+      return NULL;
+   }
+   
+   const KEYLIST *pkeylist = db_get_pkeylist(pheader, hKey, pkey, "db_find_key", msg);
+
+   if (!pkeylist) {
+      // error
+      return NULL;
+   }
+
+   if (pkeylist->num_keys == 0) {
+      // empty directory
+      return NULL;
+   }
+
+   if (pkeylist->first_key == 0) {
+      // empty directory
+      return NULL;
+   }
+
+   return db_get_pkey(pheader, pkeylist->first_key, NULL, "db_enum_first_locked", msg);
+}
+
+static const KEY* db_enum_next_locked(const DATABASE_HEADER *pheader, const KEY* pdir, const KEY* pkey, db_err_msg **msg)
+{
+   if (pkey->next_key == 0)
       return 0;
+   
+   return db_get_pkey(pheader, pkey->next_key, NULL, "db_enum_next_locked", msg);
+}
+
+static const KEY* db_resolve_link_locked(const DATABASE_HEADER* pheader, const KEY* pkey, int* pstatus, db_err_msg** msg)
+{
+   if (pkey->type != TID_LINK)
+      return pkey;
+
+   if (*((char *) pheader + pkey->data) == '/') {
+      return db_find_pkey_locked(pheader, NULL, (char*)pheader + pkey->data, pstatus, msg);
+   } else {
+      return db_find_pkey_locked(pheader, pkey, (char*)pheader + pkey->data, pstatus, msg);
+   }
+}
+
+static void db_print_pkey(const DATABASE_HEADER * pheader, const KEY* pkey, int recurse = 0, const char *path = NULL, HNDLE parenthkeylist = 0)
+{
+   HNDLE hkey = db_pkey_to_hkey(pheader, pkey);
+
+   std::string xpath;
+   if (path == NULL) {
+      xpath = db_get_path_locked(pheader, hkey);
+      path = xpath.c_str();
+   }
+
+   printf("path \"%s\", parenthkey %d, hkey %d, name \"%s\", type %d, parent %d, data %d, total_size %d", path, parenthkeylist, hkey, pkey->name, pkey->type, pkey->parent_keylist, pkey->data, pkey->total_size);
+
+   if (pkey->type != TID_KEY) {
+      printf("\n");
+   } else {
+      const KEYLIST *pkeylist = db_get_pkeylist(pheader, hkey, pkey, "db_validate_key", NULL);
+
+      if (pkeylist) {
+         printf(", pkeylist parent %d, num_keys %d, first_key %d", pkeylist->parent, pkeylist->num_keys, pkeylist->first_key);
+         printf("\n");
+
+#if 0
+         HNDLE subhkey = pkeylist->first_key;
+
+         int count = 0;
+         while (subhkey != 0) {
+            db_err_msg* msg = NULL;
+            KEY* subpkey = (KEY*)db_get_pkey(pheader, subhkey, NULL, "db_validate_key", &msg);
+            if (!subpkey) {
+               db_flush_msg(&msg);
+               cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_KEY invalid subhkey %d", hkey, path, subhkey);
+               pkeylist_ok = false;
+               flag = false;
+               break;
+            }
+            
+            std::string buf;
+            buf += path;
+            buf += "/";
+            buf += subpkey->name;
+            
+            //printf("pkey %p, next %d, name [%s], path %s\n", subpkey, subpkey->next_key, subpkey->name, buf.c_str());
+            
+            if (recurse) {
+               flag &= db_validate_and_repair_key(pheader, recurse + 1, buf.c_str(), pkey->data, subhkey, subpkey);
+            }
+            
+            count++;
+            subhkey = subpkey->next_key;
+         }
+#endif
+      }
+   }
+}
+
+static void db_print_hkey(const DATABASE_HEADER * pheader, HNDLE hkey, int recurse = 0, const char *path = NULL, HNDLE parenthkeylist = 0)
+{
+   const KEY *pkey = db_get_pkey(pheader, hkey, NULL, "db_print_key", NULL);
+
+   if (!pkey) {
+      return;
+   }
+
+   db_print_pkey(pheader, pkey, recurse, path, parenthkeylist);
+}
+
+static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, const char *path, HNDLE parenthkeylist, HNDLE hkey, KEY * pkey)
+{
+   int status;
+   static time_t t_min = 0, t_max;
+   bool flag = true;
+
+   //printf("path \"%s\", parenthkey %d, hkey %d, pkey->name \"%s\", type %d\n", path, parenthkeylist, hkey, pkey->name, pkey->type);
+
+   //std::string xpath = db_get_path_locked(pheader, hkey);
+   //if (xpath != path)
+   //   printf("hkey %d, path \"%s\" vs \"%s\"\n", hkey, path, xpath.c_str());
+
+   //db_print_key(pheader, 0, path, parenthkeylist, hkey);
+
+   if (hkey==0 || !db_validate_key_offset(pheader, hkey)) {
+      cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", invalid hkey", hkey, path);
+      return false;
    }
 
    /* check key type */
    if (pkey->type <= 0 || pkey->type >= TID_LAST) {
-      cm_msg(MERROR, "db_validate_key", "Warning: invalid key type, key \"%s\", type %d", path, pkey->type);
-      return 0;
+      cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", name \"%s\", invalid key type %d", hkey, path, pkey->name, pkey->type);
+      return false;
    }
 
    /* check key name */
@@ -989,40 +1213,60 @@ static int db_validate_key(DATABASE_HEADER * pheader, int recurse, const char *p
    if (status != DB_SUCCESS) {
       char newname[NAME_LENGTH];
       sprintf(newname, "%p", pkey);
-      cm_msg(MERROR, "db_validate_key", "Warning: corrected key \"%s\": invalid name \"%s\" replaced with \"%s\"", path, pkey->name, newname);
+      cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\": invalid name \"%s\" replaced with \"%s\"", hkey, path, pkey->name, newname);
       strlcpy(pkey->name, newname, sizeof(pkey->name));
-      //return 0;
+      flag = false;
+      //return false;
+   }
+
+   /* check parent */
+   if (pkey->parent_keylist != parenthkeylist) {
+      cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", name \"%s\", invalid parent_keylist %d should be %d", hkey, path, pkey->name, pkey->parent_keylist, parenthkeylist);
+      return false;
+   }
+
+   if (!db_validate_data_offset(pheader, pkey->data)) {
+      cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", invalid data offset 0x%08X is invalid", hkey, path, pkey->data - (int)sizeof(DATABASE_HEADER));
+      return false;
    }
 
    /* check key sizes */
-   if ((pkey->total_size < 0) || (pkey->total_size > pheader->key_size)) {
-      cm_msg(MERROR, "db_validate_key", "Warning: invalid key \"%s\" total_size: %d", path, pkey->total_size);
-      return 0;
+   if ((pkey->total_size < 0) || (pkey->total_size > pheader->data_size)) {
+      cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", invalid pkey->total_size %d", hkey, path, pkey->total_size);
+      return false;
    }
 
-   if ((pkey->item_size < 0) || (pkey->item_size > pheader->key_size)) {
-      cm_msg(MERROR, "db_validate_key", "Warning: invalid key \"%s\" item_size: %d", path, pkey->item_size);
-      return 0;
+   if ((pkey->item_size < 0) || (pkey->item_size > pheader->data_size)) {
+      cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", invalid pkey->item_size: %d", hkey, path, pkey->item_size);
+      return false;
    }
 
-   if ((pkey->num_values < 0) || (pkey->num_values > pheader->key_size)) {
-      cm_msg(MERROR, "db_validate_key", "Warning: invalid key \"%s\" num_values: %d", path, pkey->num_values);
-      return 0;
+   if ((pkey->num_values < 0) || (pkey->num_values > pheader->data_size)) {
+      cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", invalid pkey->num_values: %d", hkey, path, pkey->num_values);
+      return false;
    }
 
    /* check and correct key size */
    if (pkey->total_size != pkey->item_size * pkey->num_values) {
-      cm_msg(MINFO, "db_validate_key",
-             "Warning: corrected key \"%s\" size: total_size=%d, should be %d*%d=%d",
-             path, pkey->total_size, pkey->item_size, pkey->num_values, pkey->item_size * pkey->num_values);
+      cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", corrected pkey->total_size from %d to %d*%d=%d", hkey, path, pkey->total_size, pkey->item_size, pkey->num_values, pkey->item_size * pkey->num_values);
       pkey->total_size = pkey->item_size * pkey->num_values;
+      flag = false;
    }
 
    /* check and correct key size */
    if (pkey->data == 0 && pkey->total_size != 0) {
-      cm_msg(MINFO, "db_validate_key", "Warning: corrected key \"%s\" size: data pointer is zero, total_size is %d, should be zero", path, pkey->total_size);
+      cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", pkey->data is zero, corrected pkey->num_values %d and pkey->total_size %d to be zero, should be zero", hkey, path, pkey->num_values, pkey->total_size);
       pkey->num_values = 0;
       pkey->total_size = 0;
+      flag = false;
+   }
+
+   if (pkey->type == TID_STRING || pkey->type == TID_LINK) {
+      const char* s = (char*)pheader + pkey->data;
+      if (!is_utf8(s)) {
+         cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", string value is not valid UTF-8", hkey, path);
+         //flag = false;
+      }
    }
 
    /* check for empty link */
@@ -1032,17 +1276,19 @@ static int db_validate_key(DATABASE_HEADER * pheader, int recurse, const char *p
       // one byte odb entry name
       // one byte "\0"
       if (pkey->total_size <= 2) {
-         cm_msg(MERROR, "db_validate_key", "Warning: Link \"%s\" is an empty link", path);
+         cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_LINK is an empty link", hkey, path);
+         flag = false;
+         //return false;
       }
-      //return 0;
    }
 
    /* check for too long link */
    if (pkey->type == TID_LINK) {
       if (pkey->total_size >= MAX_ODB_PATH) {
-         cm_msg(MERROR, "db_validate_key", "Warning: Link \"%s\" length %d exceeds MAX_ODB_PATH %d", path, pkey->total_size, MAX_ODB_PATH);
+         cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_LINK length %d exceeds MAX_ODB_PATH %d", hkey, path, pkey->total_size, MAX_ODB_PATH);
+         flag = false;
+         //return false;
       }
-      //return 0;
    }
 
    /* check for link loop */
@@ -1050,21 +1296,31 @@ static int db_validate_key(DATABASE_HEADER * pheader, int recurse, const char *p
       const char* link = (char*)pheader + pkey->data;
       int link_len = strlen(link);
       int path_len = strlen(path);
-      if (link_len <= path_len) {
+      if (link_len == path_len) {
+         // check for link to itself
+         if (equal_ustring(link, path)) {
+            cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_LINK to \"%s\" is a link to itself", hkey, path, link);
+            flag = false;
+            //return false;
+         }
+      } else if (link_len < path_len) {
+         // check for link to the "path" subdirectory
          char tmp[MAX_ODB_PATH];
          memcpy(tmp, path, link_len);
          tmp[link_len] = 0;
-         if (equal_ustring(link, tmp)) {
-            cm_msg(MERROR, "db_validate_key", "Warning: Link \"%s\" to \"%s\" is a loop", path, link);
+         if (equal_ustring(link, tmp) && path[link_len] == DIR_SEPARATOR) {
+            cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_LINK to \"%s\" is a loop", hkey, path, link);
+            flag = false;
+            //return false;
          }
       }
-      //return 0;
    }
 
    /* check access mode */
    if ((pkey->access_mode & ~(MODE_READ | MODE_WRITE | MODE_DELETE | MODE_EXCLUSIVE | MODE_ALLOC))) {
-      cm_msg(MERROR, "db_validate_key", "Warning: invalid access mode, key \"%s\", mode %d", path, pkey->access_mode);
-      return 0;
+      cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", invalid pkey->access_mode %d", hkey, path, pkey->access_mode);
+      flag = false;
+      //return false;
    }
 
    /* check access time, consider valid if within +- 10 years */
@@ -1074,41 +1330,83 @@ static int db_validate_key(DATABASE_HEADER * pheader, int recurse, const char *p
    }
 
    if (pkey->last_written > 0 && (pkey->last_written < t_min || pkey->last_written > t_max)) {
-      cm_msg(MERROR, "db_validate_key", "Warning: invalid access time, key \"%s\", time %d", path, pkey->last_written);
-      return 0;
+      cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", invalid pkey->last_written time %d", hkey, path, pkey->last_written);
+      flag = false;
+      //return false;
    }
 
-   if (pkey->type == TID_KEY && recurse) {
-      /* if key has subkeys, go through whole list */
+   if (pkey->type == TID_KEY) {
+      bool pkeylist_ok = true;
+      db_err_msg* msg = NULL;
+      const KEYLIST *pkeylist = db_get_pkeylist(pheader, hkey, pkey, "db_validate_key", &msg);
 
-      pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
-
-      if (pkeylist->num_keys != 0 &&
-          (pkeylist->first_key == 0 || !db_validate_key_offset(pheader, pkeylist->first_key))) {
-         cm_msg(MERROR, "db_validate_key", "Warning: database corruption, key \"%s\", first_key 0x%08X", path, pkeylist->first_key - (int)sizeof(DATABASE_HEADER));
-         return 0;
-      }
-
-      /* check if key is in keylist */
-      pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
-
-      for (i = 0; i < pkeylist->num_keys; i++) {
-         char buf[1024];
-         sprintf(buf, "%s/%s", path, pkey->name);
-
-         if (!db_validate_key_offset(pheader, pkey->next_key)) {
-            cm_msg(MERROR, "db_validate_key", "Warning: database corruption, key \"%s\", next_key 0x%08X is invalid", buf, pkey->next_key - (int)sizeof(DATABASE_HEADER));
-            return 0;
+      if (!pkeylist) {
+         db_flush_msg(&msg);
+         cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", invalid pkey->data %d", hkey, path, pkey->data);
+         flag = false;
+      } else {
+         if (pkeylist->parent != hkey) {
+            cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_KEY invalid pkeylist->parent %d is not hkey %d", hkey, path, pkeylist->parent, hkey);
+            flag = false;
+            pkeylist_ok = false;
          }
 
-         if (!db_validate_key(pheader, recurse + 1, buf, pkey))
-            return 0;
+         if (pkeylist->num_keys < 0 || pkeylist->num_keys > pheader->key_size) {
+            cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_KEY invalid pkeylist->num_keys %d", hkey, path, pkeylist->num_keys);
+            flag = false;
+            pkeylist_ok = false;
+         }
+         
+         if (pkeylist->num_keys == 0 && pkeylist->first_key == 0) {
+            // empty key
+         } else if (pkeylist->first_key == 0 || !db_validate_key_offset(pheader, pkeylist->first_key)) {
+            cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_KEY invalid pkeylist->first_key %d", hkey, path, pkeylist->first_key);
+            flag = false;
+            pkeylist_ok = false;
+         }
+         
+         if (pkeylist_ok) {
+            //printf("hkey %d, path \"%s\", pkey->data %d, pkeylist parent %d, num_keys %d, first_key %d: ", hkey, path, pkey->data, pkeylist->parent, pkeylist->num_keys, pkeylist->first_key);
+            
+            HNDLE subhkey = pkeylist->first_key;
 
-         pkey = (KEY *) ((char *) pheader + pkey->next_key);
+            int count = 0;
+            while (subhkey != 0) {
+               db_err_msg* msg = NULL;
+               KEY* subpkey = (KEY*)db_get_pkey(pheader, subhkey, NULL, "db_validate_key", &msg);
+               if (!subpkey) {
+                  db_flush_msg(&msg);
+                  cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_KEY invalid subhkey %d", hkey, path, subhkey);
+                  pkeylist_ok = false;
+                  flag = false;
+                  break;
+               }
+
+               std::string buf;
+               buf += path;
+               buf += "/";
+               buf += subpkey->name;
+               
+               //printf("pkey %p, next %d, name [%s], path %s\n", subpkey, subpkey->next_key, subpkey->name, buf.c_str());
+               
+               if (recurse) {
+                  flag &= db_validate_and_repair_key(pheader, recurse + 1, buf.c_str(), pkey->data, subhkey, subpkey);
+               }
+
+               count++;
+               subhkey = subpkey->next_key;
+            }
+
+            if (count != pkeylist->num_keys) {
+               cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_KEY mismatch of pkeylist->num_keys %d against key chain length %d", hkey, path, pkeylist->num_keys, count);
+               flag = false;
+               pkeylist_ok = false;
+            }
+         }
       }
    }
 
-   return 1;
+   return flag;
 }
 
 /*------------------------------------------------------------------*/
@@ -1211,17 +1509,17 @@ typedef struct {
    int num_modified;
 } UPDATE_OPEN_RECORDS;
 
-static int db_update_open_record_locked(HNDLE hDB, HNDLE hKey, KEY* xkey, INT level, void* voidp)
+static int db_update_open_record_wlocked(const DATABASE_HEADER* xpheader, const KEY* xpkey, int level, void* voidp, db_err_msg **msg)
 {
    int found = 0;
    int count = 0;
    int status;
    int k;
    UPDATE_OPEN_RECORDS *uorp = (UPDATE_OPEN_RECORDS *)voidp;
-   char path[MAX_ODB_PATH];
 
-   if (!hKey)
-      hKey = uorp->pheader->root_key;
+   KEY* pkey = (KEY*)xpkey; // drop "const": we already have "allow_write"
+
+   HNDLE hKey = db_pkey_to_hkey(uorp->pheader, pkey);
 
    for (k=0; k<uorp->num_keys; k++)
       if (uorp->hkeys[k] == hKey) {
@@ -1230,54 +1528,56 @@ static int db_update_open_record_locked(HNDLE hDB, HNDLE hKey, KEY* xkey, INT le
          break;
       }
 
-   if (xkey->notify_count == 0 && !found)
+   if (pkey->notify_count == 0 && !found)
       return DB_SUCCESS; // no open record here
 
-   status = db_get_path_locked(uorp->pheader, hKey, path, sizeof(path));
-   if (status != DB_SUCCESS)
-      return DB_SUCCESS;
-
-   if (!db_validate_hkey(uorp->pheader, hKey)) {
-      cm_msg(MINFO, "db_update_open_record", "Invalid hKey %d", hKey);
+   std::string path = db_get_path_locked(uorp->pheader, hKey);
+   if (path == "") {
+      db_msg(msg, MINFO, "db_update_open_record", "Invalid hKey %d", hKey);
       return DB_SUCCESS;
    }
 
-   KEY* pkey = (KEY *) ((char *) uorp->pheader + hKey);
+   //if (!db_validate_hkey(uorp->pheader, hKey)) {
+   //   cm_msg(MINFO, "db_update_open_record", "Invalid hKey %d", hKey);
+   //   return DB_SUCCESS;
+   //}
+   //
+   //KEY* pkey = (KEY *) ((char *) uorp->pheader + hKey);
 
    //printf("path [%s], type %d, notify_count %d\n", path, pkey->type, pkey->notify_count);
 
    // extra check: are we looking at the same key?
-   assert(xkey->notify_count == pkey->notify_count);
+   //assert(xkey->notify_count == pkey->notify_count);
 
 #if 0
    printf("%s, notify_count %d, found %d, our count %d\n", path, pkey->notify_count, found, count);
 #endif
    
    if (pkey->notify_count==0 && found) {
-      cm_msg(MINFO, "db_update_open_record", "Added missing open record flag to \"%s\"", path);
+      db_msg(msg, MINFO, "db_update_open_record", "Added missing open record flag to \"%s\"", path.c_str());
       pkey->notify_count = count;
       uorp->num_modified++;
       return DB_SUCCESS;
    }
 
    if (pkey->notify_count!=0 && !found) {
-      cm_msg(MINFO, "db_update_open_record", "Removed open record flag from \"%s\"", path);
+      db_msg(msg, MINFO, "db_update_open_record", "Removed open record flag from \"%s\"", path.c_str());
       pkey->notify_count = 0;
       uorp->num_modified++;
 
       if (pkey->access_mode | MODE_EXCLUSIVE) {
-         status = db_set_mode(hDB, hKey, (WORD) (pkey->access_mode & ~MODE_EXCLUSIVE), 2);
+         status = db_set_mode_wlocked(uorp->pheader, pkey, (WORD) (pkey->access_mode & ~MODE_EXCLUSIVE), 1, msg);
          if (status != DB_SUCCESS) {
-            cm_msg(MERROR, "db_update_open_record", "Cannot remove exclusive access mode from \"%s\", db_set_mode() status %d", path, status);
+            db_msg(msg, MERROR, "db_update_open_record", "Cannot remove exclusive access mode from \"%s\", db_set_mode() status %d", path.c_str(), status);
             return DB_SUCCESS;
          }
-         cm_msg(MINFO, "db_update_open_record", "Removed exclusive access mode from \"%s\"", path);
+         db_msg(msg, MINFO, "db_update_open_record", "Removed exclusive access mode from \"%s\"", path.c_str());
       }
       return DB_SUCCESS;
    }
 
    if (pkey->notify_count != uorp->counts[k]) {
-      cm_msg(MINFO, "db_update_open_record", "Updated notify_count of \"%s\" from %d to %d", path, pkey->notify_count, count);
+      db_msg(msg, MINFO, "db_update_open_record", "Updated notify_count of \"%s\" from %d to %d", path.c_str(), pkey->notify_count, count);
       pkey->notify_count = count;
       uorp->num_modified++;
       return DB_SUCCESS;
@@ -1286,16 +1586,11 @@ static int db_update_open_record_locked(HNDLE hDB, HNDLE hKey, KEY* xkey, INT le
    return DB_SUCCESS;
 }
 
-static int db_validate_open_records(HNDLE hDB)
+static int db_validate_open_records_wlocked(DATABASE_HEADER* pheader, db_err_msg** msg)
 {
+   int status = DB_SUCCESS;
    UPDATE_OPEN_RECORDS uor;
-   DATABASE_HEADER * pheader;
    int i, j, k;
-
-   if (hDB > _database_entries || hDB <= 0) {
-      cm_msg(MERROR, "db_validate_open_records", "invalid database handle");
-      return DB_INVALID_HANDLE;
-   }
 
    uor.max_keys = MAX_CLIENTS*MAX_OPEN_RECORDS;
    uor.num_keys = 0;
@@ -1307,10 +1602,6 @@ static int db_validate_open_records(HNDLE hDB)
    assert(uor.hkeys != NULL);
    assert(uor.counts != NULL);
    assert(uor.modes != NULL);
-
-   db_lock_database(hDB);
-
-   pheader = _database[hDB - 1].database_header;
 
    uor.pheader = pheader;
 
@@ -1339,29 +1630,32 @@ static int db_validate_open_records(HNDLE hDB)
    for (i=0; i<uor.num_keys; i++)
       printf("index %d, handle %d, count %d, access mode %d\n", i, uor.hkeys[i], uor.counts[i], uor.modes[i]);
 #endif
-   
-   db_scan_tree(hDB, 0, 0, db_update_open_record_locked, &uor);
 
-   if (uor.num_modified) {
-      cm_msg(MINFO, "db_validate_open_records", "Corrected %d ODB entries", uor.num_modified);
+   const KEY* proot = db_get_pkey(pheader, 0, &status, "db_validate_open_record", msg);
+
+   if (proot) {
+      db_scan_tree_locked(pheader, proot, 0, db_update_open_record_wlocked, &uor, msg);
    }
 
-   db_unlock_database(hDB);
+   if (uor.num_modified) {
+      db_msg(msg, MINFO, "db_validate_open_records", "Corrected %d ODB entries", uor.num_modified);
+   }
 
    free(uor.hkeys);
    free(uor.counts);
    free(uor.modes);
 
-   return DB_SUCCESS;
+   return status;
 }
 
 /*------------------------------------------------------------------*/
-static int db_validate_db(DATABASE_HEADER * pheader)
+static bool db_validate_and_repair_db_wlocked(DATABASE_HEADER * pheader)
 {
    int total_size_key = 0;
    int total_size_data = 0;
    double ratio;
    FREE_DESCRIP *pfree;
+   bool flag = true;
 
    /* validate size of data structures (miscompiled, 32/64 bit mismatch, etc */
 
@@ -1370,28 +1664,29 @@ static int db_validate_db(DATABASE_HEADER * pheader)
    /* validate the key free list */
 
    if (!db_validate_key_offset(pheader, pheader->first_free_key)) {
-      cm_msg(MERROR, "db_validate_db", "Warning: database corruption, first_free_key 0x%08X", pheader->first_free_key - (int)sizeof(DATABASE_HEADER));
-      return 0;
+      cm_msg(MERROR, "db_validate_db", "Error: database corruption, invalid pheader->first_free_key 0x%08X", pheader->first_free_key - (int)sizeof(DATABASE_HEADER));
+      return false;
    }
 
    pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_key);
 
    while ((POINTER_T) pfree != (POINTER_T) pheader) {
-      FREE_DESCRIP *nextpfree;
 
       if (pfree->next_free != 0 && !db_validate_key_offset(pheader, pfree->next_free)) {
-         cm_msg(MERROR, "db_validate_db", "Warning: database corruption, key area next_free 0x%08X", pfree->next_free - (int)sizeof(DATABASE_HEADER));
-         return 0;
+         cm_msg(MERROR, "db_validate_db", "Warning: database corruption, invalid key area next_free 0x%08X", pfree->next_free - (int)sizeof(DATABASE_HEADER));
+         flag = false;
+         break;
       }
 
       total_size_key += pfree->size;
-      nextpfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
+      FREE_DESCRIP *nextpfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
 
       if (pfree->next_free != 0 && nextpfree == pfree) {
          cm_msg(MERROR, "db_validate_db", "Warning: database corruption, key area next_free 0x%08X is same as current free %p, truncating the free list", pfree->next_free, pfree - (int)sizeof(DATABASE_HEADER));
          pfree->next_free = 0;
+         flag = false;
          break;
-         //return 0;
+         //return false;
       }
 
       pfree = nextpfree;
@@ -1402,35 +1697,37 @@ static int db_validate_db(DATABASE_HEADER * pheader)
       cm_msg(MERROR, "db_validate_db", "Warning: database key area is %.0f%% full", ratio * 100.0);
 
    if (total_size_key > pheader->key_size) {
-      cm_msg(MERROR, "db_validate_db", "Warning: database corruption, total_key_size 0x%08X", total_size_key);
-      return 0;
+      cm_msg(MERROR, "db_validate_db", "Error: database corruption, total_key_size 0x%08X bigger than pheader->key_size 0x%08X", total_size_key, pheader->key_size);
+      flag = false;
    }
 
    /* validate the data free list */
 
    if (!db_validate_data_offset(pheader, pheader->first_free_data)) {
-      cm_msg(MERROR, "db_validate_db", "Warning: database corruption, first_free_data 0x%08X", pheader->first_free_data - (int)sizeof(DATABASE_HEADER));
-      return 0;
+      cm_msg(MERROR, "db_validate_db", "Error: database corruption, invalid pheader->first_free_data 0x%08X", pheader->first_free_data - (int)sizeof(DATABASE_HEADER));
+      return false;
    }
 
    pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_data);
 
    while ((POINTER_T) pfree != (POINTER_T) pheader) {
-      FREE_DESCRIP *nextpfree;
 
       if (pfree->next_free != 0 && !db_validate_data_offset(pheader, pfree->next_free)) {
-         cm_msg(MERROR, "db_validate_db", "Warning: database corruption, data area next_free 0x%08X", pfree->next_free - (int)sizeof(DATABASE_HEADER));
-         return 0;
+         cm_msg(MERROR, "db_validate_db", "Warning: database corruption, invalid data area next_free 0x%08X", pfree->next_free - (int)sizeof(DATABASE_HEADER));
+         flag = false;
+         break;
+         //return false;
       }
 
       total_size_data += pfree->size;
-      nextpfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
+      FREE_DESCRIP *nextpfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
 
       if (pfree->next_free != 0 && nextpfree == pfree) {
          cm_msg(MERROR, "db_validate_db", "Warning: database corruption, data area next_free 0x%08X is same as current free %p, truncating the free list", pfree->next_free, pfree - (int)sizeof(DATABASE_HEADER));
          pfree->next_free = 0;
+         flag = false;
          break;
-         //return 0;
+         //return false;
       }
 
       pfree = nextpfree;
@@ -1441,23 +1738,25 @@ static int db_validate_db(DATABASE_HEADER * pheader)
       cm_msg(MERROR, "db_validate_db", "Warning: database data area is %.0f%% full", ratio * 100.0);
 
    if (total_size_data > pheader->data_size) {
-      cm_msg(MERROR, "db_validate_db", "Warning: database corruption, total_size_data 0x%08X", total_size_key);
-      return 0;
+      cm_msg(MERROR, "db_validate_db", "Error: database corruption, total_size_data 0x%08X bigger than pheader->data_size 0x%08X", total_size_key, pheader->data_size);
+      flag = false;
+      //return false;
    }
 
    /* validate the tree of keys, starting from the root key */
 
    if (!db_validate_key_offset(pheader, pheader->root_key)) {
-      cm_msg(MERROR, "db_validate_db", "Warning: database corruption, root_key 0x%08X is invalid", pheader->root_key - (int)sizeof(DATABASE_HEADER));
-      return 0;
+      cm_msg(MERROR, "db_validate_db", "Error: database corruption, pheader->root_key 0x%08X is invalid", pheader->root_key - (int)sizeof(DATABASE_HEADER));
+      return false;
    }
 
-   if (!db_validate_key(pheader, 1, "", (KEY *) ((char *) pheader + pheader->root_key))) {
-      //cm_msg(MERROR, "db_validate_db", "Warning: database corruption ... what do we say here??? db_validate_key() already complained");
-      return 0;
+   flag &= db_validate_and_repair_key(pheader, 1, "", 0, pheader->root_key, (KEY *) ((char *) pheader + pheader->root_key));
+
+   if (!flag) {
+      cm_msg(MERROR, "db_validate_db", "Error: ODB corruption detected, see previous messages");
    }
 
-   return 1;
+   return flag;
 }
 
 /**dox***************************************************************/
@@ -1651,7 +1950,13 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
          return DB_VERSION_MISMATCH;
       }
 
-      if (!db_validate_key(pheader, 0, "", pkey)) {
+      // what if we are connecting to an incompatible ODB?
+      // A call to db_validate_and_repair_key() maybe will
+      // corrupt it here. But we have no choice,
+      // if we skip it here and continue,
+      // db_validate_and_repair_db() will call it later anyway... K.O.
+      
+      if (!db_validate_and_repair_key(pheader, 0, "", 0, pheader->root_key, pkey)) {
          cm_msg(MERROR, "db_open_database", "Invalid, incompatible or corrupted database: root key is invalid");
          return DB_VERSION_MISMATCH;
       }
@@ -1675,10 +1980,16 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    }
    _database[handle].lock_cnt = 0;
 
+   _database[handle].protect = FALSE;
+   _database[handle].protect_read = FALSE;
+   _database[handle].protect_write = FALSE;
+
    /* first lock database */
    status = db_lock_database(handle + 1);
    if (status != DB_SUCCESS)
       return status;
+
+   /* we have the database locked, without write protection */
 
    /*
     Now we have a DATABASE_HEADER, so let's setup a CLIENT
@@ -1763,7 +2074,7 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    pclient->watchdog_timeout = timeout;
 
    /* check ODB for corruption */
-   if (!db_validate_db(pheader)) {
+   if (!db_validate_and_repair_db_wlocked(pheader)) {
       /* do not treat corrupted odb as a fatal error- allow the user
        to preceed at own risk- the database is already corrupted,
        so no further harm can possibly be made. */
@@ -1783,14 +2094,21 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
 
    *hDB = (handle + 1);
 
-   status = db_validate_open_records(handle + 1);
+   db_err_msg *msg = NULL;
+
+   status = db_validate_open_records_wlocked(pheader, &msg);
    if (status != DB_SUCCESS) {
       db_unlock_database(handle + 1);
+      if (msg)
+         db_flush_msg(&msg);
       cm_msg(MERROR, "db_open_database", "Error: db_validate_open_records() status %d", status);
       return status;
    }
 
    db_unlock_database(handle + 1);
+
+   if (msg)
+      db_flush_msg(&msg);
 
    if (shm_created)
       return DB_CREATED;
@@ -2857,7 +3175,7 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
    {
       DATABASE_HEADER *pheader;
       KEYLIST *pkeylist;
-      KEY *pkey, *pprev_key, *pkeyparent;
+      KEY *pprev_key, *pkeyparent;
       const char *pkey_name;
       INT i;
       int status;
@@ -2878,9 +3196,8 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
 
       /* check type */
       if (type <= 0 || type >= TID_LAST) {
-         char str[MAX_ODB_PATH];
-         db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_create_key", "invalid key type %d to create \'%s\' in \'%s\'", type, key_name, str);
+         std::string path = db_get_path(hDB, hKey);
+         cm_msg(MERROR, "db_create_key", "invalid key type %d to create \'%s\' in \'%s\'", type, key_name, path.c_str());
          return DB_INVALID_PARAM;
       }
 
@@ -2888,25 +3205,25 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
       db_lock_database(hDB);
 
       pheader = _database[hDB - 1].database_header;
-      if (!hKey)
-         hKey = pheader->root_key;
 
-      /* check if hKey argument is correct */
-      if (!db_validate_hkey(pheader, hKey)) {
+      db_err_msg *msg = NULL;
+      
+      KEY* pkey = (KEY*)db_get_pkey(pheader, hKey, &status, "db_create_key", &msg);
+
+      if (!pkey) {
          db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
          return DB_INVALID_HANDLE;
       }
-      
-      pkey = (KEY *) ((char *) pheader + hKey);
 
       db_allow_write_locked(&_database[hDB-1], "db_create_key");
 
       if (pkey->type != TID_KEY) {
          DWORD xtid = pkey->type;
+         std::string path = db_get_path_locked(pheader, hKey);
          db_unlock_database(hDB);
-         char str[MAX_ODB_PATH];
-         db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_create_key", "cannot create \'%s\' in \'%s\' tid is %d, not a directory", key_name, str, xtid);
+         cm_msg(MERROR, "db_create_key", "cannot create \'%s\' in \'%s\' tid is %d, not a directory", key_name, path.c_str(), xtid);
          return DB_NO_KEY;
       }
       pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
@@ -2943,19 +3260,30 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
          }
          if (strcmp(str, ".") == 0)
             continue;
-
+         
          /* check if key is in keylist */
-         // FIXME: validate pkeylist->first_key
-         pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
+         db_err_msg *msg = NULL;
+         KEY* npkey = (KEY*) db_get_pkey(pheader, pkeylist->first_key, &status, "db_create_key", &msg);
+
+         if (!npkey) {
+            int pkey_first_key = pkeylist->first_key;
+            HNDLE pkey_hkey = db_pkey_to_hkey(pheader, pkey);
+            std::string path = db_get_path_locked(pheader, pkey_hkey);
+            db_unlock_database(hDB);
+            cm_msg(MERROR, "db_create_key", "hkey %d path \"%s\" invalid first_key %d, while creating \'%s\' in \'%s\'", pkey_hkey, path.c_str(), pkey_first_key, key_name, str);
+            return DB_CORRUPTED;
+         }
+
+         pkey = npkey;
          pprev_key = NULL;
 
          for (i = 0; i < pkeylist->num_keys; i++) {
             if (!db_validate_key_offset(pheader, pkey->next_key)) {
                int pkey_next_key = pkey->next_key;
+               HNDLE pkey_hkey = db_pkey_to_hkey(pheader, pkey);
+               std::string path = db_get_path_locked(pheader, pkey_hkey);
                db_unlock_database(hDB);
-               char str[MAX_ODB_PATH];
-               db_get_path(hDB, hKey, str, sizeof(str));
-               cm_msg(MERROR, "db_create_key", "Error: database corruption, key \"%s\", next_key 0x%08X, while creating \'%s\' in \'%s\'", key_name, pkey_next_key - (int)sizeof(DATABASE_HEADER), key_name, str);
+               cm_msg(MERROR, "db_create_key", "hkey %d path \"%s\" invalid next_key %d, while creating \'%s\' in \'%s\'", pkey_hkey, path.c_str(), pkey_next_key, key_name, str);
                return DB_CORRUPTED;
             }
 
@@ -3375,64 +3703,48 @@ INT db_delete_key(HNDLE hDB, HNDLE hKey, BOOL follow_links)
 }
 
 #ifdef LOCAL_ROUTINES
-static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const char *key_name, HNDLE * subhKey, db_err_msg **msg)
+static const KEY* db_find_pkey_locked(const DATABASE_HEADER *pheader, const KEY* pkey, const char *key_name, int *pstatus, db_err_msg **msg)
 {
-   BOOL hKey_is_root_key = FALSE;
-
-   //db_msg(msg, MINFO, "db_find_key", "db_find_key(%d, \'%s\')", hKey, key_name);
-
-   if (!hKey) {
-      hKey_is_root_key = TRUE;
-      hKey = pheader->root_key;
-   }
-
-   /* check if hKey argument is correct */
-   if (!db_validate_hkey(pheader, hKey)) {
-      *subhKey = 0;
-      return DB_INVALID_HANDLE;
-   }
-
-   const KEY* pkey = (const KEY *) ((char *) pheader + hKey);
-
-   if (pkey->type < 1 || pkey->type >= TID_LAST) {
-      *subhKey = 0;
-      DWORD xtid = pkey->type;
-      if (hKey_is_root_key) {
-         db_msg(msg, MERROR, "db_find_key", "root_key hkey %d invalid key type %d, database root directory is corrupted", hKey, xtid);
-         return DB_CORRUPTED;
-      } else {
-         char str[MAX_ODB_PATH];
-         db_get_path_locked(pheader, hKey, str, sizeof(str));
-         db_msg(msg, MERROR, "db_find_key", "hkey %d path \'%s\' invalid key type %d", hKey, str, xtid);
+   if (pkey == NULL) {
+      pkey = db_get_pkey(pheader, pheader->root_key, pstatus, "db_find_key", msg);
+      if (!pkey) {
+         return NULL;
       }
-      *subhKey = 0;
-      return DB_NO_KEY;
    }
+
+   HNDLE hKey = db_pkey_to_hkey(pheader, pkey);
 
    if (pkey->type != TID_KEY) {
-      DWORD xtid = pkey->type;
-      char str[MAX_ODB_PATH];
-      db_get_path_locked(pheader, hKey, str, sizeof(str));
-      *subhKey = 0;
-      db_msg(msg, MERROR, "db_find_key", "hkey %d path \"%s\" tid %d is not a directory", hKey, str, xtid);
-      return DB_NO_KEY;
+      DWORD tid = pkey->type;
+      std::string path = db_get_path_locked(pheader, hKey);
+      db_msg(msg, MERROR, "db_find_key", "hkey %d path \"%s\" tid %d is not a directory, looking for \"%s\"", hKey, path.c_str(), tid, key_name);
+      if (pstatus)
+         *pstatus = DB_NO_KEY;
+      return NULL;
    }
    
-   const KEYLIST *pkeylist = (const KEYLIST *) ((char *) pheader + pkey->data);
-
    if (key_name[0] == 0 || strcmp(key_name, "/") == 0) {
       if (!(pkey->access_mode & MODE_READ)) {
-         *subhKey = 0;
-         return DB_NO_ACCESS;
+         if (pstatus)
+            *pstatus = DB_NO_ACCESS;
+         return NULL;
       }
-
-      *subhKey = (POINTER_T) pkey - (POINTER_T) pheader;
-
-      return DB_SUCCESS;
+      return pkey;
    }
+
+   const KEYLIST *pkeylist = db_get_pkeylist(pheader, hKey, pkey, "db_find_key", msg);
+   if (!pkeylist) {
+      if (pstatus)
+         *pstatus = DB_CORRUPTED;
+      return NULL;
+   }
+
+   HNDLE last_good_hkey = hKey;
 
    const char *pkey_name = key_name;
    do {
+      assert(pkeylist!=NULL); // should never happen!
+
       char str[MAX_ODB_PATH];
          
       /* extract single subkey from key_name */
@@ -3454,28 +3766,51 @@ static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const 
       if (strcmp(str, ".") == 0)
          continue;
 
-      /* check if key is in keylist */
-      // FIXME: validate pkeylist->first_key
-      pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
+      last_good_hkey = hKey;
+
+      hKey = pkeylist->first_key;
+
+      if (hKey == 0) {
+         // empty subdirectory
+         if (pstatus)
+            *pstatus = DB_NO_KEY;
+         return NULL;
+      }
 
       int i;
       for (i = 0; i < pkeylist->num_keys; i++) {
-         if (pkey->name[0] == 0 || !db_validate_key_offset(pheader, pkey->next_key)) {
-            int pkey_next_key = pkey->next_key;
-            db_msg(msg, MERROR, "db_find_key", "Error: database corruption, key \"%s\", next_key 0x%08X is invalid", key_name, pkey_next_key - (int)sizeof(DATABASE_HEADER));
-            *subhKey = 0;
-            return DB_CORRUPTED;
+         pkey = db_get_pkey(pheader, hKey, pstatus, "db_find_key", msg);
+         
+         if (!pkey) {
+            std::string path = db_get_path_locked(pheader, last_good_hkey);
+            db_msg(msg, MERROR, "db_find_key", "hkey %d path \"%s\" invalid subdirectory entry hkey %d, looking for \"%s\"", last_good_hkey, path.c_str(), hKey, key_name);
+            return NULL;
+         }
+
+         if (!db_validate_key_offset(pheader, pkey->next_key)) {
+            std::string path = db_get_path_locked(pheader, hKey);
+            db_msg(msg, MERROR, "db_find_key", "hkey %d path \"%s\" invalid next_key %d, looking for \"%s\"", hKey, path.c_str(), pkey->next_key, key_name);
+            if (pstatus)
+               *pstatus = DB_CORRUPTED;
+            return NULL;
          }
 
          if (equal_ustring(str, pkey->name))
             break;
 
-         pkey = (KEY *) ((char *) pheader + pkey->next_key); // FIXME: pkey->next_key could be zero
+         if (pkey->next_key == 0) {
+            if (pstatus)
+               *pstatus = DB_NO_KEY;
+            return NULL;
+         }
+
+         hKey = pkey->next_key;
       }
 
       if (i == pkeylist->num_keys) {
-         *subhKey = 0;
-         return DB_NO_KEY;
+         if (pstatus)
+            *pstatus = DB_NO_KEY;
+         return NULL;
       }
 
       /* resolve links */
@@ -3492,30 +3827,66 @@ static INT db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const 
          /* append rest of key name if existing */
          if (pkey_name[0]) {
             strlcat(str, pkey_name, sizeof(str));
-            return db_find_key_locked(pheader, 0, str, subhKey, msg);
+            return db_find_pkey_locked(pheader, NULL, str, pstatus, msg);
          } else {
             /* if last key in chain is a link, return its destination */
-            int status = db_find_key_locked(pheader, 0, str, subhKey, msg);
-            if (status == DB_NO_KEY)
-               return DB_INVALID_LINK;
-            return status;
+            int status = 0;
+            const KEY *plink = db_find_pkey_locked(pheader, NULL, str, &status, msg);
+            if (pstatus) {
+               if (status == DB_NO_KEY)
+                  *pstatus = DB_INVALID_LINK;
+               else
+                  *pstatus = status;
+            }
+            return plink;
          }
       }
 
       /* key found: check if last in chain */
       if (*pkey_name == '/') {
          if (pkey->type != TID_KEY) {
-            *subhKey = 0;
-            return DB_NO_KEY;
+            if (pstatus)
+               *pstatus = DB_NO_KEY;
+            return NULL;
          }
       }
 
-      /* descend one level */
-      pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
+      if (pkey->type == TID_KEY) {
+         /* descend one level */
+         pkeylist = db_get_pkeylist(pheader, hKey, pkey, "db_find_key", msg);
+         
+         if (!pkeylist) {
+            if (pstatus)
+               *pstatus = DB_CORRUPTED;
+            return NULL;
+         }
+      } else {
+         pkeylist = NULL;
+      }
 
    } while (*pkey_name == '/' && *(pkey_name + 1));
 
-   *subhKey = (POINTER_T) pkey - (POINTER_T) pheader;
+   return pkey;
+}
+
+static int db_find_key_locked(const DATABASE_HEADER *pheader, HNDLE hKey, const char *key_name, HNDLE *subhKey, db_err_msg **msg)
+{
+   int status;
+   const KEY* pkey = db_get_pkey(pheader, hKey, &status, "db_find_key", msg);
+   if (!pkey) {
+      if (subhKey)
+         *subhKey = 0;
+      return status;
+   }
+
+   const KEY* plink = db_find_pkey_locked(pheader, pkey, key_name, &status, msg);
+
+   if (!plink) {
+      *subhKey = 0;
+      return status;
+   }
+
+   *subhKey = db_pkey_to_hkey(pheader, plink);
 
    return DB_SUCCESS;
 }
@@ -4288,6 +4659,26 @@ INT db_scan_tree(HNDLE hDB, HNDLE hKey, INT level, INT(*callback) (HNDLE, HNDLE,
    return DB_SUCCESS;
 }
 
+int db_scan_tree_locked(const DATABASE_HEADER* pheader, const KEY* pkey, int level, int(*callback) (const DATABASE_HEADER* pheader, const KEY *, int, void *, db_err_msg** msg), void *info, db_err_msg** msg)
+{
+   assert(pkey != NULL);
+   assert(level < MAX_ODB_PATH);
+
+   int status = callback(pheader, pkey, level, info, msg);
+   if (status == 0)
+      return status;
+
+   if (pkey->type == TID_KEY) {
+      const KEY* subkey = db_enum_first_locked(pheader, pkey, msg);
+      while (subkey != NULL) {
+         db_scan_tree_locked(pheader, subkey, level + 1, callback, info, msg);
+         subkey = db_enum_next_locked(pheader, pkey, subkey, msg);
+      }
+   }
+
+   return DB_SUCCESS;
+}
+
 /*------------------------------------------------------------------*/
 INT db_scan_tree_link(HNDLE hDB, HNDLE hKey, INT level, void (*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info)
 /********************************************************************\
@@ -4344,58 +4735,82 @@ INT db_scan_tree_link(HNDLE hDB, HNDLE hKey, INT level, void (*callback) (HNDLE,
 
 #ifdef LOCAL_ROUTINES
 /*------------------------------------------------------------------*/
-static INT db_get_path_locked(const DATABASE_HEADER* pheader, HNDLE hKey, char *path, INT buf_size)
+static std::string db_get_path_locked(const DATABASE_HEADER* pheader, const KEY* pkey)
 {
-   if (!hKey)
-      hKey = pheader->root_key;
+   std::string path = "";
+   while (1) {
+      //printf("db_get_path_locked: hkey %d, pkey name \"%s\", type %d, parent %d, path \"%s\"\n", hKey, pkey->name, pkey->type, pkey->parent_keylist, path.c_str());
 
-   /* check if hKey argument is correct */
-   if (!db_validate_hkey(pheader, hKey)) {
-      return DB_INVALID_HANDLE;
-   }
-
-   const KEY* pkey = (const KEY *) ((char *) pheader + hKey);
-
-   if (hKey == pheader->root_key) {
-      strcpy(path, "/");
-      return DB_SUCCESS;
-   }
-
-   *path = 0;
-   do {
-      if (!db_validate_pkey(pheader, pkey)) {
-         return DB_INVALID_HANDLE;
+      /* check key type */
+      if (pkey->type <= 0 || pkey->type >= TID_LAST) {
+         char buf[256];
+         sprintf(buf, "(INVALID_KEY_TYPE_%d)", pkey->type);
+         std::string xpath;
+         xpath += buf;
+         if (path.length() > 0) {
+            xpath += "/";
+            xpath += path;
+         }
+         return xpath;
       }
-
-      char str[MAX_ODB_PATH];
 
       /* add key name in front of path */
-      strcpy(str, path);
-      strcpy(path, "/");
-      strcat(path, pkey->name);
-
-      if (strlen(path) + strlen(str) + 1 > (DWORD) buf_size) {
-         *path = 0;
-         return DB_NO_MEMORY;
+      std::string str = path;
+      path = "";
+      if (pkey->name[0] == 0) {
+         path += "(EMPTY_NAME)";
+      } else {
+         path += pkey->name;
       }
-      strcat(path, str);
+      if (str.length() > 0)
+         path += "/";
+      path += str;
 
-      if (!db_validate_hkey(pheader, pkey->parent_keylist)) {
-         return DB_INVALID_HANDLE;
+      if (!pkey->parent_keylist) {
+         return path;
+      }
+      
+      if (!db_validate_data_offset(pheader, pkey->parent_keylist)) {
+         return "(INVALID_PARENT_KEYLIST)/" + path;
       }
 
       /* find parent key */
       const KEYLIST* pkeylist = (const KEYLIST *) ((char *) pheader + pkey->parent_keylist);
 
-      if (!db_validate_hkey(pheader, pkeylist->parent)) {
-         return DB_INVALID_HANDLE;
+      if (pkeylist->parent == pheader->root_key) {
+         return "/" + path;
       }
 
-      // FIXME: validate pkeylist->parent
-      pkey = (const KEY *) ((char *) pheader + pkeylist->parent);
-   } while (pkey->parent_keylist);
+      if (!db_validate_hkey(pheader, pkeylist->parent)) {
+         return "(INVALID_PARENT)/" + path;
+      }
 
-   return DB_SUCCESS;
+      pkey = (const KEY *) ((char *) pheader + pkeylist->parent);
+   };
+
+   /* NOT REACHED */
+}
+
+/*------------------------------------------------------------------*/
+static std::string db_get_path_locked(const DATABASE_HEADER* pheader, HNDLE hKey)
+{
+   //printf("db_get_path_locked: hkey %d\n", hKey);
+
+   if (!hKey)
+      hKey = pheader->root_key;
+
+   if (hKey == pheader->root_key) {
+      return "/";
+   }
+
+   /* check if hKey argument is correct */
+   if (!db_validate_hkey(pheader, hKey)) {
+      return "(INVALID_HKEY)";
+   }
+
+   const KEY* pkey = (const KEY *) ((char *) pheader + hKey);
+
+   return db_get_path_locked(pheader, pkey);
 }
 #endif /* LOCAL_ROUTINES */
 
@@ -4430,7 +4845,6 @@ INT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size)
 #ifdef LOCAL_ROUTINES
    {
       DATABASE_HEADER *pheader;
-      INT status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_get_path", "invalid database handle");
@@ -4446,15 +4860,71 @@ INT db_get_path(HNDLE hDB, HNDLE hKey, char *path, INT buf_size)
 
       pheader = _database[hDB - 1].database_header;
 
-      status = db_get_path_locked(pheader, hKey, path, buf_size);
+      std::string xpath = db_get_path_locked(pheader, hKey);
 
       db_unlock_database(hDB);
 
-      return status;
+      strlcpy(path, xpath.c_str(), buf_size);
+
+      return DB_SUCCESS;
    }
 #endif /* LOCAL_ROUTINES */
 
    return DB_SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
+std::string db_get_path(HNDLE hDB, HNDLE hKey)
+/********************************************************************\
+
+  Routine: db_get_path
+
+  Purpose: Get full path of a key
+
+  Input:
+    HNDLE  hDB              Handle to the database
+    HNDLE  hKey             Key handle
+
+  Function value:           Path string
+
+\********************************************************************/
+{
+   if (rpc_is_remote()) {
+      char path[MAX_ODB_PATH];
+      int status = rpc_call(RPC_DB_GET_PATH, hDB, hKey, path, sizeof(path));
+      if (status != DB_SUCCESS) {
+         sprintf(path, "(RPC_DB_GET_PATH status %d)", status);
+      }
+      return path;
+   }
+
+#ifdef LOCAL_ROUTINES
+   {
+      DATABASE_HEADER *pheader;
+
+      if (hDB > _database_entries || hDB <= 0) {
+         cm_msg(MERROR, "db_get_path", "invalid database handle");
+         return "(DB_INVALID_HANDLE)";
+      }
+
+      if (!_database[hDB - 1].attached) {
+         cm_msg(MERROR, "db_get_path", "invalid database handle");
+         return "(DB_INVALID_HANDLE)";
+      }
+
+      db_lock_database(hDB);
+
+      pheader = _database[hDB - 1].database_header;
+
+      std::string xpath = db_get_path_locked(pheader, hKey);
+
+      db_unlock_database(hDB);
+
+      return xpath;
+   }
+#endif /* LOCAL_ROUTINES */
+
+   return "(no LOCAL_ROUTINES)";
 }
 
 /*------------------------------------------------------------------*/
@@ -4600,7 +5070,7 @@ and key_name is interpreted relative to that directory like "Settings/Level1".
 \code
 INT level1;
   db_set_value(hDB, 0, "/Equipment/Trigger/Settings/Level1",
-                          &level1, sizeof(level1), 1, TID_INT);
+                          &level1, sizeof(level1), 1, TID_INT32);
 \endcode
 @param hDB          ODB handle obtained via cm_get_experiment_database().
 @param hKeyRoot Handle for key where search starts, zero for root.
@@ -4707,8 +5177,11 @@ INT db_set_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *da
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, -1, TRUE);
+      db_err_msg* msg = NULL;
+      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
 
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -4728,7 +5201,7 @@ and key_name is interpreted relative to that directory like "Settings/Level1".
 \code
 INT level1;
   db_set_value_index(hDB, 0, "/Equipment/Trigger/Settings/Level1",
-                          &level1, sizeof(level1), 15, TID_INT, FALSE);
+                          &level1, sizeof(level1), 15, TID_INT32, FALSE);
 \endcode
 @param hDB          ODB handle obtained via cm_get_experiment_database().
 @param hKeyRoot Handle for key where search starts, zero for root.
@@ -4778,7 +5251,7 @@ like "Settings/Level1".
 INT level1, size;
   size = sizeof(level1);
   db_get_value(hDB, 0, "/Equipment/Trigger/Settings/Level1",
-                                   &level1, &size, TID_INT, 0);
+                                   &level1, &size, TID_INT32, 0);
 \endcode
 @param hDB          ODB handle obtained via cm_get_experiment_database().
 @param hKeyRoot Handle for key where search starts, zero for root.
@@ -4953,8 +5426,6 @@ INT db_enum_key(HNDLE hDB, HNDLE hKey, INT idx, HNDLE * subkey_handle)
 #ifdef LOCAL_ROUTINES
    {
       DATABASE_HEADER *pheader;
-      KEYLIST *pkeylist;
-      KEY *pkey;
       INT i;
       char str[256];
       HNDLE parent;
@@ -4984,24 +5455,64 @@ INT db_enum_key(HNDLE hDB, HNDLE hKey, INT idx, HNDLE * subkey_handle)
          return DB_INVALID_HANDLE;
       }
 
-      pkey = (KEY *) ((char *) pheader + hKey);
+      db_err_msg *msg = NULL;
+      int status;
+
+      const KEY* pkey = db_get_pkey(pheader, hKey, &status, "db_enum_key", &msg);
+
+      if (!pkey) {
+         db_unlock_database(hDB);
+         db_flush_msg(&msg);
+         return DB_NO_MORE_SUBKEYS;
+      }
 
       if (pkey->type != TID_KEY) {
          db_unlock_database(hDB);
          return DB_NO_MORE_SUBKEYS;
       }
-      pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
+
+      const KEYLIST* pkeylist = db_get_pkeylist(pheader, hKey, pkey, "db_enum_key", &msg);
+
+      if (!pkeylist) {
+         db_unlock_database(hDB);
+         db_flush_msg(&msg);
+         return DB_NO_MORE_SUBKEYS;
+      }
 
       if (idx >= pkeylist->num_keys) {
          db_unlock_database(hDB);
          return DB_NO_MORE_SUBKEYS;
       }
 
-      // FIXME: validate pkeylist->first_key
-      pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
+      pkey = db_get_pkey(pheader, pkeylist->first_key, &status, "db_enum_key", &msg);
+      
+      if (!pkey) {
+         std::string path = db_get_path_locked(pheader, hKey);
+         HNDLE xfirst_key = pkeylist->first_key;
+         db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+         cm_msg(MERROR, "db_enum_key", "hkey %d path \"%s\" invalid first_key %d", hKey, path.c_str(), xfirst_key);
+         return DB_NO_MORE_SUBKEYS;
+      }
+
       for (i = 0; i < idx; i++) {
-         // FIXME: validate pkey->next_key
-         pkey = (KEY *) ((char *) pheader + pkey->next_key);
+         if (pkey->next_key == 0) {
+            std::string path = db_get_path_locked(pheader, hKey);
+            db_unlock_database(hDB);
+            cm_msg(MERROR, "db_enum_key", "hkey %d path \"%s\" unexpected end of key list at index %d", hKey, path.c_str(), i);
+            return DB_NO_MORE_SUBKEYS;
+         }
+
+         pkey = db_get_pkey(pheader, pkey->next_key, &status, "db_enum_key", &msg);
+
+         if (!pkey) {
+            std::string path = db_get_path_locked(pheader, hKey);
+            db_unlock_database(hDB);
+            db_flush_msg(&msg);
+            cm_msg(MERROR, "db_enum_key", "hkey %d path \"%s\" invalid key list at index %d, next_key %d", hKey, path.c_str(), i, pkey->next_key);
+            return DB_NO_MORE_SUBKEYS;
+         }
       }
 
       /* resolve links */
@@ -5277,13 +5788,13 @@ static INT db_get_key_locked(const DATABASE_HEADER* pheader, HNDLE hKey, KEY * k
    
    if (pkey->type < 1 || pkey->type >= TID_LAST) {
       int pkey_type = pkey->type;
-      db_msg(msg, MERROR, "db_get_key", "invalid key type %d", pkey_type);
+      db_msg(msg, MERROR, "db_get_key", "hkey %d invalid key type %d", hKey, pkey_type);
       return DB_INVALID_HANDLE;
    }
    
    /* check for link to array index */
    if (pkey->type == TID_LINK) {
-      char link_name[256];
+      char link_name[MAX_ODB_PATH];
       strlcpy(link_name, (char *) pheader + pkey->data, sizeof(link_name));
       if (strlen(link_name) > 0 && link_name[strlen(link_name) - 1] == ']') {
          if (strchr(link_name, '[') == NULL)
@@ -5325,9 +5836,8 @@ typedef struct {
 } KEY;
 \endcode
 Most of these values are used for internal purposes, the values which are of
-public interest are type, num_values, and name. For keys which contain a
-single value, num_values equals to one and total_size equals to
-item_size. For keys which contain an array of strings (TID_STRING),
+public interest are type, name, num_values, item_size and total_size.
+For keys which contain a single value, num_values equals to one and total_size equals to item_size. For keys which contain an array of strings (TID_STRING),
 item_size equals to the length of one string.
 \code
 KEY   key;
@@ -5337,7 +5847,7 @@ db_get_key(hDB, hkey, &key);
 printf("The run number is of type %s\n", rpc_tid_name(key.type));
 \endcode
 @param hDB          ODB handle obtained via cm_get_experiment_database().
-@param hKey Handle for key where search starts, zero for root.
+@param hKey Handle for key where search starts, zero for root. If Key is a link to an array element, this link is resolved. In this case function returns the key of the link destination and num_values is set to 1.
 @param key Pointer to KEY stucture.
 @return DB_SUCCESS, DB_INVALID_HANDLE
 */
@@ -5388,7 +5898,7 @@ INT db_get_key(HNDLE hDB, HNDLE hKey, KEY * key)
 
 /********************************************************************/
 /**
-Same as db_get_key, but it does not follow a link to an array index
+Same as db_get_key, but it does not follow links
 @param hDB          ODB handle obtained via cm_get_experiment_database().
 @param hKey Handle for key where search starts, zero for root.
 @param key Pointer to KEY stucture.
@@ -5402,7 +5912,6 @@ INT db_get_link(HNDLE hDB, HNDLE hKey, KEY * key)
 #ifdef LOCAL_ROUTINES
    {
       DATABASE_HEADER *pheader;
-      KEY *pkey;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_get_link", "invalid database handle");
@@ -5419,32 +5928,28 @@ INT db_get_link(HNDLE hDB, HNDLE hKey, KEY * key)
          return DB_INVALID_HANDLE;
       }
 
+      db_err_msg *msg = NULL;
+
       db_lock_database(hDB);
 
       pheader = _database[hDB - 1].database_header;
 
-      if (!hKey)
-         hKey = pheader->root_key;
+      int status = DB_SUCCESS;
 
-      /* check if hKey argument is correct */
-      if (!db_validate_hkey(pheader, hKey)) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
+      const KEY* pkey = db_get_pkey(pheader, hKey, &status, "db_get_link", &msg);
+      if (pkey) {
+         memcpy(key, pkey, sizeof(KEY));
+      } else {
+         memset(key, 0, sizeof(KEY));
+         //abort();
       }
-
-      pkey = (KEY *) ((char *) pheader + hKey);
-
-      if (pkey->type < 1 || pkey->type >= TID_LAST) {
-         int pkey_type = pkey->type;
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_link", "hkey %d invalid key type %d", hKey, pkey_type);
-         return DB_INVALID_HANDLE;
-      }
-
-      memcpy(key, pkey, sizeof(KEY));
 
       db_unlock_database(hDB);
 
+      if (msg)
+         db_flush_msg(&msg);
+
+      return status;
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -5668,7 +6173,7 @@ INT db_rename_key(HNDLE hDB, HNDLE hKey, const char *name)
       if (!pkey->type) {
          int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_rename_key", "invalid key type %d", pkey_type);
+         cm_msg(MERROR, "db_rename_key", "hkey %d invalid key type %d", hKey, pkey_type);
          return DB_INVALID_HANDLE;
       }
 
@@ -5749,7 +6254,7 @@ INT db_reorder_key(HNDLE hDB, HNDLE hKey, INT idx)
       if (!pkey->type) {
          int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_reorder_key", "invalid key type %d", pkey_type);
+         cm_msg(MERROR, "db_reorder_key", "hkey %d invalid key type %d", hKey, pkey_type);
          return DB_INVALID_HANDLE;
       }
 
@@ -5854,7 +6359,7 @@ which is checked against the type stored in the ODB.
   db_find_key(hDB, 0, "/Runinfo/Run number", &hkey);
   // return run number
   size = sizeof(run_number);
-  db_get_data(hDB, hkey, &run_number, &size,TID_INT);
+  db_get_data(hDB, hkey, &run_number, &size,TID_INT32);
 \endcode
 @param hDB          ODB handle obtained via cm_get_experiment_database().
 @param hKey         Handle for key where search starts, zero for root.
@@ -5910,7 +6415,7 @@ INT db_get_data(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type)
       if (!pkey->type) {
          int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data", "invalid key type %d", pkey_type);
+         cm_msg(MERROR, "db_get_data", "hkey %d invalid key type %d", hKey, pkey_type);
          return DB_INVALID_HANDLE;
       }
 
@@ -6039,7 +6544,7 @@ INT db_get_link_data(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD ty
       if (!pkey->type) {
          int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data", "invalid key type %d", pkey_type);
+         cm_msg(MERROR, "db_get_data", "hkey %d invalid key type %d", hKey, pkey_type);
          return DB_INVALID_HANDLE;
       }
 
@@ -6164,7 +6669,7 @@ INT db_get_data1(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type, 
       if (!pkey->type) {
          int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data", "invalid key type %d", pkey_type);
+         cm_msg(MERROR, "db_get_data", "hkey %d invalid key type %d", hKey, pkey_type);
          return DB_INVALID_HANDLE;
       }
 
@@ -6279,7 +6784,7 @@ INT db_get_data_index(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT idx
       if (!pkey->type) {
          int pkey_type = pkey->type;
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data_index", "invalid key type %d", pkey_type);
+         cm_msg(MERROR, "db_get_data_index", "hkey %d invalid key type %d", hKey, pkey_type);
          return DB_INVALID_HANDLE;
       }
 
@@ -6352,7 +6857,7 @@ HNLDE hkey;
  // get key handle for run number
  db_find_key(hDB, 0, "/Runinfo/Run number", &hkey);
  // set run number
- db_set_data(hDB, hkey, &run_number, sizeof(run_number),TID_INT);
+ db_set_data(hDB, hkey, &run_number, sizeof(run_number),TID_INT32);
 \endcode
 @param hDB          ODB handle obtained via cm_get_experiment_database().
 @param hKey Handle for key where search starts, zero for root.
@@ -6474,8 +6979,12 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, -1, TRUE);
+      db_err_msg* msg = NULL;
+      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
+
 
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -6713,8 +7222,11 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, -1, TRUE);
+      db_err_msg* msg = NULL;
+      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
 
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -6840,8 +7352,11 @@ INT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values)
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, -1, TRUE);
+      db_err_msg* msg = NULL;
+      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
 
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -7000,8 +7515,11 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, idx, TRUE);
+      db_err_msg* msg = NULL;
+      db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
 
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -7120,8 +7638,11 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
       /* update time */
       pkey->last_written = ss_time();
 
-      db_notify_clients(hDB, hKey, idx, TRUE);
+      db_err_msg* msg = NULL;
+      db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
 
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -7256,10 +7777,14 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
       /* update time */
       pkey->last_written = ss_time();
 
+      db_err_msg* msg = NULL;
       if (bNotify)
-         db_notify_clients(hDB, hKey, idx, TRUE);
-
+         db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE, &msg);
+      
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
+
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -7316,6 +7841,56 @@ INT db_merge_data(HNDLE hDB, HNDLE hKeyRoot, const char *name, void *data, INT d
    return status;
 }
 
+#ifdef LOCAL_ROUTINES
+
+/*------------------------------------------------------------------*/
+static int db_set_mode_wlocked(DATABASE_HEADER *pheader, KEY *pkey, WORD mode, int recurse, db_err_msg** msg)
+/********************************************************************\
+
+  Routine: db_set_mode_wlocked()
+
+  Purpose: Set access mode of key
+
+  Input:
+    pheader                 Database
+    pkey                    Key
+    DWORD  mode             Access mode, any or'ed combination of
+                            MODE_READ, MODE_WRITE, MODE_EXCLUSIVE
+                            and MODE_DELETE
+    recurse                 Value of 0: do not recurse subtree,
+                            value of 1: recurse subtree, becomes recurse level
+
+  Function value:
+    DB_SUCCESS              Successful completion
+
+\********************************************************************/
+{
+   /* resolve links */
+   if (pkey->type == TID_LINK) {
+      int status;
+      pkey = (KEY*)db_resolve_link_locked(pheader, pkey, &status, msg);
+      if (!pkey) {
+         return status;
+      }
+   }
+
+   if (pkey->type == TID_KEY && recurse) {
+      // drop "const" from KEY* we are permitted to write to ODB!
+      KEY* psubkey = (KEY*)db_enum_first_locked(pheader, pkey, msg);
+      while (psubkey) {
+         db_set_mode_wlocked(pheader, psubkey, mode, recurse+1, msg);
+         psubkey = (KEY*)db_enum_next_locked(pheader, pkey, psubkey, msg);
+      }
+   }
+
+   /* now set mode */
+   pkey->access_mode = mode;
+
+   return DB_SUCCESS;
+}
+
+#endif
+
 /*------------------------------------------------------------------*/
 INT db_set_mode(HNDLE hDB, HNDLE hKey, WORD mode, BOOL recurse)
 /********************************************************************\
@@ -7349,9 +7924,6 @@ INT db_set_mode(HNDLE hDB, HNDLE hKey, WORD mode, BOOL recurse)
 #ifdef LOCAL_ROUTINES
    {
       DATABASE_HEADER *pheader;
-      KEYLIST *pkeylist;
-      KEY *pkey, *pnext_key;
-      HNDLE hKeyLink;
       BOOL locked = FALSE;
 
       if (hDB > _database_entries || hDB <= 0) {
@@ -7370,58 +7942,32 @@ INT db_set_mode(HNDLE hDB, HNDLE hKey, WORD mode, BOOL recurse)
       }
 
       pheader = _database[hDB - 1].database_header;
-      if (!hKey)
-         hKey = pheader->root_key;
 
-      /* check if hKey argument is correct */
-      if (!db_validate_hkey(pheader, hKey)) {
-         if (locked)
+      db_err_msg* msg = NULL;
+      int status = 0;
+
+      KEY *pkey = (KEY*)db_get_pkey(pheader, hKey, &status, "db_set_mode", &msg);
+
+      if (!pkey) {
+         if (locked) {
             db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
+            if (msg)
+               db_flush_msg(&msg);
+            return status;
+         }
       }
-
-      pkey = (KEY *) ((char *) pheader + hKey);
 
       db_allow_write_locked(&_database[hDB-1], "db_set_mode");
 
-      pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
+      status = db_set_mode_wlocked(pheader, pkey, mode, recurse, &msg);
 
-      if (pkey->type == TID_KEY && pkeylist->first_key && recurse) {
-         /* first recurse subtree */
-         // FIXME: validate pkeylist->first_key
-         pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
-
-         do {
-            pnext_key = (KEY *) (POINTER_T) pkey->next_key; // FIXME: what is this pointer cast?
-
-            db_set_mode(hDB, (POINTER_T) pkey - (POINTER_T) pheader, mode, recurse + 1);
-
-            if (pnext_key) {
-               // FIXME: validate pnext_key
-               pkey = (KEY *) ((char *) pheader + (POINTER_T) pnext_key);
-            }
-         } while (pnext_key);
-      }
-
-      pkey = (KEY *) ((char *) pheader + hKey); // NB: hKey is already validated
-
-      /* resolve links */
-      if (pkey->type == TID_LINK) {
-         if (*((char *) pheader + pkey->data) == '/')
-            db_find_key1(hDB, 0, (char *) pheader + pkey->data, &hKeyLink);
-         else
-            db_find_key1(hDB, hKey, (char *) pheader + pkey->data, &hKeyLink);
-         if (hKeyLink)
-            db_set_mode(hDB, hKeyLink, mode, recurse > 0);
-         pheader = _database[hDB - 1].database_header;
-         pkey = (KEY *) ((char *) pheader + hKey); // NB: hKey is already validated
-      }
-
-      /* now set mode */
-      pkey->access_mode = mode;
-
-      if (locked)
+      if (locked) {
          db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+      }
+
+      return status;
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -7907,6 +8453,11 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
             for (tid = 0; tid < TID_LAST; tid++)
                if (strcmp(rpc_tid_name(tid), line) == 0)
                   break;
+            if (tid == TID_LAST) {
+               for (tid = 0; tid < TID_LAST; tid++)
+                  if (strcmp(rpc_tid_name_old(tid), line) == 0)
+                     break;
+            }
 
             string_length = 0;
 
@@ -8431,11 +8982,11 @@ static void db_save_tree_struct(HNDLE hDB, HNDLE hKey, int hfile, INT level)
          }
 
          switch (key.type) {
-         case TID_SBYTE:
+         case TID_INT8:
          case TID_CHAR:
             strcpy(line, "char");
             break;
-         case TID_SHORT:
+         case TID_INT16:
             strcpy(line, "short");
             break;
          case TID_FLOAT:
@@ -8904,11 +9455,11 @@ static void json_write_data(char **buffer, int* buffer_size, int* buffer_end, in
 {
    char str[256];
    switch (key->type) {
-   case TID_BYTE:
+   case TID_UINT8:
       sprintf(str, "%u", *(unsigned char*)p);
       json_write(buffer, buffer_size, buffer_end, 0, str, 0);
       break;
-   case TID_SBYTE:
+   case TID_INT8:
       sprintf(str, "%d", *(char*)p);
       json_write(buffer, buffer_size, buffer_end, 0, str, 0);
       break;
@@ -8916,19 +9467,19 @@ static void json_write_data(char **buffer, int* buffer_size, int* buffer_end, in
       sprintf(str, "%c", *(char*)p);
       json_write(buffer, buffer_size, buffer_end, 0, str, 1);
       break;
-   case TID_WORD:
+   case TID_UINT16:
       sprintf(str, "\"0x%04x\"", *(WORD*)p);
       json_write(buffer, buffer_size, buffer_end, 0, str, 0);
       break;
-   case TID_SHORT:
+   case TID_INT16:
       sprintf(str, "%d", *(short*)p);
       json_write(buffer, buffer_size, buffer_end, 0, str, 0);
       break;
-   case TID_DWORD:
+   case TID_UINT32:
       sprintf(str, "\"0x%08x\"", *(DWORD*)p);
       json_write(buffer, buffer_size, buffer_end, 0, str, 0);
       break;
-   case TID_INT:
+   case TID_INT32:
       sprintf(str, "%d", *(int*)p);
       json_write(buffer, buffer_size, buffer_end, 0, str, 0);
       break;
@@ -9261,11 +9812,11 @@ static int db_save_json_key_obsolete(HNDLE hDB, HNDLE hKey, INT level, char **bu
             json_write(buffer, buffer_size, buffer_end, 0, ", ", 0);
 
          switch (key.type) {
-         case TID_BYTE:
+         case TID_UINT8:
             sprintf(str, "%u", *(unsigned char*)p);
             json_write(buffer, buffer_size, buffer_end, 0, str, 0);
             break;
-         case TID_SBYTE:
+         case TID_INT8:
             sprintf(str, "%d", *(char*)p);
             json_write(buffer, buffer_size, buffer_end, 0, str, 0);
             break;
@@ -9273,19 +9824,19 @@ static int db_save_json_key_obsolete(HNDLE hDB, HNDLE hKey, INT level, char **bu
             sprintf(str, "%c", *(char*)p);
             json_write(buffer, buffer_size, buffer_end, 0, str, 1);
             break;
-         case TID_WORD:
+         case TID_UINT16:
             sprintf(str, "\"0x%04x\"", *(WORD*)p);
             json_write(buffer, buffer_size, buffer_end, 0, str, 0);
             break;
-         case TID_SHORT:
+         case TID_INT16:
             sprintf(str, "%d", *(short*)p);
             json_write(buffer, buffer_size, buffer_end, 0, str, 0);
             break;
-         case TID_DWORD:
+         case TID_UINT32:
             sprintf(str, "\"0x%08x\"", *(DWORD*)p);
             json_write(buffer, buffer_size, buffer_end, 0, str, 0);
             break;
-         case TID_INT:
+         case TID_INT32:
             sprintf(str, "%d", *(int*)p);
             json_write(buffer, buffer_size, buffer_end, 0, str, 0);
             break;
@@ -10034,25 +10585,25 @@ INT db_sprintf(char *string, const void *data, INT data_size, INT idx, DWORD typ
       sprintf(string, "<NULL>");
    else
       switch (type) {
-      case TID_BYTE:
+      case TID_UINT8:
          sprintf(string, "%d", *(((BYTE *) data) + idx));
          break;
-      case TID_SBYTE:
+      case TID_INT8:
          sprintf(string, "%d", *(((char *) data) + idx));
          break;
       case TID_CHAR:
          sprintf(string, "%c", *(((char *) data) + idx));
          break;
-      case TID_WORD:
+      case TID_UINT16:
          sprintf(string, "%u", *(((WORD *) data) + idx));
          break;
-      case TID_SHORT:
+      case TID_INT16:
          sprintf(string, "%d", *(((short *) data) + idx));
          break;
-      case TID_DWORD:
+      case TID_UINT32:
          sprintf(string, "%u", *(((DWORD *) data) + idx));
          break;
-      case TID_INT:
+      case TID_INT32:
          sprintf(string, "%d", *(((INT *) data) + idx));
          break;
       case TID_BOOL:
@@ -10104,25 +10655,25 @@ INT db_sprintff(char *string, const char *format, const void *data, INT data_siz
       sprintf(string, "<NULL>");
    else
       switch (type) {
-      case TID_BYTE:
+      case TID_UINT8:
          sprintf(string, format, *(((BYTE *) data) + idx));
          break;
-      case TID_SBYTE:
+      case TID_INT8:
          sprintf(string, format, *(((char *) data) + idx));
          break;
       case TID_CHAR:
          sprintf(string, format, *(((char *) data) + idx));
          break;
-      case TID_WORD:
+      case TID_UINT16:
          sprintf(string, format, *(((WORD *) data) + idx));
          break;
-      case TID_SHORT:
+      case TID_INT16:
          sprintf(string, format, *(((short *) data) + idx));
          break;
-      case TID_DWORD:
+      case TID_UINT32:
          sprintf(string, format, *(((DWORD *) data) + idx));
          break;
-      case TID_INT:
+      case TID_INT32:
          sprintf(string, format, *(((INT *) data) + idx));
          break;
       case TID_BOOL:
@@ -10185,25 +10736,25 @@ INT db_sprintfh(char *string, const void *data, INT data_size, INT idx, DWORD ty
       sprintf(string, "<NULL>");
    else
       switch (type) {
-      case TID_BYTE:
+      case TID_UINT8:
          sprintf(string, "0x%X", *(((BYTE *) data) + idx));
          break;
-      case TID_SBYTE:
+      case TID_INT8:
          sprintf(string, "0x%X", *(((char *) data) + idx));
          break;
       case TID_CHAR:
          sprintf(string, "%c", *(((char *) data) + idx));
          break;
-      case TID_WORD:
+      case TID_UINT16:
          sprintf(string, "0x%X", *(((WORD *) data) + idx));
          break;
-      case TID_SHORT:
+      case TID_INT16:
          sprintf(string, "0x%hX", *(((short *) data) + idx));
          break;
-      case TID_DWORD:
+      case TID_UINT32:
          sprintf(string, "0x%X", *(((DWORD *) data) + idx));
          break;
-      case TID_INT:
+      case TID_INT32:
          sprintf(string, "0x%X", *(((INT *) data) + idx));
          break;
       case TID_BOOL:
@@ -10271,8 +10822,8 @@ INT db_sscanf(const char *data_str, void *data, INT * data_size, INT i, DWORD ti
    }
 
    switch (tid) {
-   case TID_BYTE:
-   case TID_SBYTE:
+   case TID_UINT8:
+   case TID_INT8:
       if (hex)
          *((char *) data + i) = (char) value;
       else
@@ -10281,25 +10832,25 @@ INT db_sscanf(const char *data_str, void *data, INT * data_size, INT i, DWORD ti
    case TID_CHAR:
       *((char *) data + i) = data_str[0];
       break;
-   case TID_WORD:
+   case TID_UINT16:
       if (hex)
          *((WORD *) data + i) = (WORD) value;
       else
          *((WORD *) data + i) = (WORD) atoi(data_str);
       break;
-   case TID_SHORT:
+   case TID_INT16:
       if (hex)
          *((short int *) data + i) = (short int) value;
       else
          *((short int *) data + i) = (short int) atoi(data_str);
       break;
-   case TID_DWORD:
+   case TID_UINT32:
       if (!hex)
          sscanf(data_str, "%u", &value);
 
       *((DWORD *) data + i) = value;
       break;
-   case TID_INT:
+   case TID_INT32:
       if (hex)
          *((INT *) data + i) = value;
       else
@@ -10341,64 +10892,40 @@ INT db_sscanf(const char *data_str, void *data, INT * data_size, INT i, DWORD ti
 
 #ifdef LOCAL_ROUTINES
 
-static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
-                                   INT * total_size, INT base_align, INT * max_align, BOOL bSet, INT convert_flags)
+static void db_recurse_record_tree_locked(HNDLE hDB, const DATABASE_HEADER* pheader, const KEY* pkey, void **data, INT * total_size, INT base_align, INT * max_align, BOOL bSet, INT convert_flags, db_err_msg** msg)
 /********************************************************************\
 
-  Routine: db_recurse_record_tree
+  Routine: db_recurse_record_tree_locked
 
   Purpose: Recurse a database tree and calculate its size or copy
            data. Internal use only.
 
 \********************************************************************/
 {
-   KEY *pold, link;
-   HNDLE hKeyLink;
+   const KEY *pold;
    INT size, align, corr, total_size_tmp;
-   char link_path[MAX_ODB_PATH];
 
-   /* get first subkey of hKey */
-   DATABASE_HEADER *pheader = _database[hDB - 1].database_header;
-
-   if (!db_validate_hkey(pheader, hKey)) {
-      cm_msg(MERROR, "db_recurse_record_tree", "invalid hKey %d", hKey);
-      return;
-   }
-   
-   KEY *pkey = (KEY *) ((char *) pheader + hKey);
-
-   if (!db_validate_pkey(pheader, pkey)) {
-      cm_msg(MERROR, "db_recurse_record_tree", "invalid pkey at hKey %d", hKey);
-      return;
-   }
-   
    KEYLIST *pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
    if (!pkeylist->first_key)
       return;
    // FIXME: validate pkeylist->first_key
-   pkey = (KEY *) ((char *) pheader + pkeylist->first_key);
+   pkey = (const KEY *) ((char *) pheader + pkeylist->first_key);
 
    /* first browse through this level */
    do {
       pold = NULL;
       
       if (pkey->type == TID_LINK) {
-         strlcpy(link_path, (char *) pheader + pkey->data, sizeof(link_path));
+         const KEY *plink = db_resolve_link_locked(pheader, pkey, NULL, msg);
          
-         if (link_path[0] == '/')
-            db_find_key1(hDB, 0, link_path, &hKeyLink);
-         else
-            db_find_key1(hDB, hKey, link_path, &hKeyLink);
+         if (!plink)
+            return;
 
-         if (hKeyLink) {
-            db_get_key(hDB, hKeyLink, &link);
-            if (link.type == TID_KEY) {
-            db_recurse_record_tree(hDB, hKeyLink,
-                                   data, total_size, base_align, NULL, bSet, convert_flags);
-            } else {
-               pold = pkey;
-               pkey = &link;
-            }
+         if (plink->type == TID_KEY) {
+            db_recurse_record_tree_locked(hDB, pheader, plink, data, total_size, base_align, NULL, bSet, convert_flags, msg);
+         } else {
+            pold = pkey;
+            pkey = plink;
          }
       }
       
@@ -10422,6 +10949,7 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
 
          if (data) {
             if (bSet) {
+               KEY* wpkey = (KEY*)pkey;
                /* copy data if there is write access */
                if (pkey->access_mode & MODE_WRITE) {
                   memcpy((char *) pheader + pkey->data, *data, pkey->item_size * pkey->num_values);
@@ -10436,10 +10964,10 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
                   }
 
                   /* update time */
-                  pkey->last_written = ss_time();
+                  wpkey->last_written = ss_time();
 
                   /* notify clients which have key open */
-                  db_notify_clients(hDB, (POINTER_T) pkey - (POINTER_T) pheader, -1, TRUE);
+                  db_notify_clients_locked(pheader, hDB, db_pkey_to_hkey(pheader, pkey), -1, TRUE, msg);
                }
             } else {
                /* copy key data if there is read access */
@@ -10468,8 +10996,7 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
          align = 1;
 
          total_size_tmp = *total_size;
-         db_recurse_record_tree(hDB, (POINTER_T) pkey - (POINTER_T) pheader,
-                                NULL, &total_size_tmp, base_align, &align, bSet, convert_flags);
+         db_recurse_record_tree_locked(hDB, pheader, pkey, NULL, &total_size_tmp, base_align, &align, bSet, convert_flags, msg);
 
          if (max_align && align > *max_align)
             *max_align = align;
@@ -10480,8 +11007,7 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
             *data = (void *) ((char *) (*data) + corr);
 
          /* now recurse subtree */
-         db_recurse_record_tree(hDB, (POINTER_T) pkey - (POINTER_T) pheader,
-                                data, total_size, base_align, NULL, bSet, convert_flags);
+         db_recurse_record_tree_locked(hDB, pheader, pkey, data, total_size, base_align, NULL, bSet, convert_flags, msg);
 
          corr = VALIGN(*total_size, align) - *total_size;
          *total_size += corr;
@@ -10501,6 +11027,28 @@ static void db_recurse_record_tree(HNDLE hDB, HNDLE hKey, void **data,
       pkey = (KEY *) ((char *) pheader + pkey->next_key);
    } while (TRUE);
 }
+
+static void db_recurse_record_tree_locked(HNDLE hDB, HNDLE hKey, void **data, INT * total_size, INT base_align, INT * max_align, BOOL bSet, INT convert_flags, db_err_msg** msg)
+/********************************************************************\
+
+  Routine: db_recurse_record_tree_locked
+
+  Purpose: Recurse a database tree and calculate its size or copy
+           data. Internal use only.
+
+\********************************************************************/
+{
+   /* get first subkey of hKey */
+   DATABASE_HEADER *pheader = _database[hDB - 1].database_header;
+
+   const KEY* pkey = db_get_pkey(pheader, hKey, NULL, "db_recurse_record_tree", msg);
+
+   if (!pkey) {
+      return;
+   }
+
+   db_recurse_record_tree_locked(hDB, pheader, pkey, data, total_size, base_align, max_align, bSet, convert_flags, msg);
+}   
 
 #endif                          /* LOCAL_ROUTINES */
 
@@ -10545,16 +11093,19 @@ INT db_get_record_size(HNDLE hDB, HNDLE hKey, INT align, INT * buf_size)
          return DB_SUCCESS;
       }
 
+      db_err_msg* msg = NULL;
       db_lock_database(hDB);
 
       /* determine record size */
       *buf_size = max_align = 0;
-      db_recurse_record_tree(hDB, hKey, NULL, buf_size, align, &max_align, 0, 0);
+      db_recurse_record_tree_locked(hDB, hKey, NULL, buf_size, align, &max_align, 0, 0, &msg);
 
       /* correct for byte padding */
       *buf_size = VALIGN(*buf_size, max_align);
 
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -10668,10 +11219,12 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
       pdata = data;
       total_size = 0;
 
+      db_err_msg* msg = NULL;
       db_lock_database(hDB);
-      db_recurse_record_tree(hDB, hKey, &pdata, &total_size, align, NULL, FALSE, convert_flags);
+      db_recurse_record_tree_locked(hDB, hKey, &pdata, &total_size, align, NULL, FALSE, convert_flags, &msg);
       db_unlock_database(hDB);
-
+      if (msg)
+         db_flush_msg(&msg);
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -11236,9 +11789,12 @@ INT db_set_record(HNDLE hDB, HNDLE hKey, void *data, INT buf_size, INT align)
       total_size = 0;
 
       db_lock_database(hDB);
+      db_err_msg* msg = NULL;
       db_allow_write_locked(&_database[hDB-1], "db_set_record");
-      db_recurse_record_tree(hDB, hKey, &pdata, &total_size, align, NULL, TRUE, convert_flags);
+      db_recurse_record_tree_locked(hDB, hKey, &pdata, &total_size, align, NULL, TRUE, convert_flags, &msg);
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -11265,13 +11821,15 @@ INT db_add_open_record(HNDLE hDB, HNDLE hKey, WORD access_mode)
    {
       DATABASE_HEADER *pheader;
       DATABASE_CLIENT *pclient;
-      KEY *pkey;
       INT i;
+      int status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_add_open_record", "invalid database handle");
          return DB_INVALID_HANDLE;
       }
+
+      db_err_msg* msg = NULL;
 
       /* lock database */
       db_lock_database(hDB);
@@ -11302,25 +11860,20 @@ INT db_add_open_record(HNDLE hDB, HNDLE hKey, WORD access_mode)
 
       db_allow_write_locked(&_database[hDB-1], "db_add_open_record");
 
+      KEY *pkey = (KEY*)db_get_pkey(pheader, hKey, &status, "db_add_open_record", &msg);
+
+      if (!pkey) {
+         db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
+      }
+
       if (i == pclient->max_index)
          pclient->max_index++;
 
       pclient->open_record[i].handle = hKey;
       pclient->open_record[i].access_mode = access_mode;
-
-      /* check if hKey argument is correct */
-      if (!db_validate_hkey(pheader, hKey)) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
-
-      pkey = (KEY *) ((char *) pheader + hKey);
-
-      /* check if pkey is correct */
-      if (!db_validate_pkey(pheader, pkey)) {
-         db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
 
       /* increment notify_count */
       pkey->notify_count++;
@@ -11360,7 +11913,7 @@ INT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock)
       INT i, idx;
 
       if (hDB > _database_entries || hDB <= 0) {
-         cm_msg(MERROR, "db_remove_open_record", "invalid database handle");
+         cm_msg(MERROR, "db_remove_open_record", "invalid database handle %d", hDB);
          return DB_INVALID_HANDLE;
       }
 
@@ -11422,7 +11975,7 @@ INT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock)
 
 #ifdef LOCAL_ROUTINES
 
-INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
+static INT db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk, db_err_msg** msg)
 /********************************************************************\
 
   Routine: db_notify_clients
@@ -11431,36 +11984,26 @@ INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
 
 \********************************************************************/
 {
-   DATABASE_HEADER *pheader;
-   DATABASE_CLIENT *pclient;
    HNDLE hKey;
-   KEY *pkey;
    KEYLIST *pkeylist;
    INT i, j;
    char str[80];
+   int status;
 
-   if (hDB > _database_entries || hDB <= 0) {
-      cm_msg(MERROR, "db_notify_clients", "invalid database handle");
-      return DB_INVALID_HANDLE;
-   }
-
-   pheader = _database[hDB - 1].database_header;
    hKey = hKeyMod;
 
-   /* check if hKey argument is correct */
-   if (!db_validate_hkey(pheader, hKey)) {
-      return DB_INVALID_HANDLE;
+   const KEY* pkey = db_get_pkey(pheader, hKey, &status, "db_notify_clients", msg);
+   
+   if (!pkey) {
+      return status;
    }
    
-   /* check if key or parent has notify_flag set */
-   pkey = (KEY *) ((char *) pheader + hKey);
-
    do {
 
       /* check which client has record open */
       if (pkey->notify_count)
          for (i = 0; i < pheader->max_client_index; i++) {
-            pclient = &pheader->client[i];
+            const DATABASE_CLIENT* pclient = &pheader->client[i];
             for (j = 0; j < pclient->max_index; j++)
                if (pclient->open_record[j].handle == hKey) {
                   /* send notification to remote process */
@@ -11472,16 +12015,49 @@ INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
       if (pkey->parent_keylist == 0 || !bWalk)
          return DB_SUCCESS;
 
+      // FIXME: validate pkey->parent_keylist
       pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
-      // FIXME: validate pkeylist->parent
-      pkey = (KEY *) ((char *) pheader + pkeylist->parent);
-      hKey = (POINTER_T) pkey - (POINTER_T) pheader;
+      pkey = db_get_pkey(pheader, pkeylist->parent, &status, "db_notify_clients", msg);
+      if (!pkey) {
+         return status;
+      }
+      hKey = db_pkey_to_hkey(pheader, pkey);
    } while (TRUE);
 
 }
 
 #endif                          /* LOCAL_ROUTINES */
 /*------------------------------------------------------------------*/
+
+
+INT db_notify_clients(HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk)
+/********************************************************************\
+
+  Routine: db_notify_clients
+
+  Purpose: Gets called by db_set_xxx functions. Internal use only.
+ \********************************************************************/
+{
+   if (rpc_is_remote()) {
+      cm_msg(MERROR, "db_notify_clients", "db_notify_clients() does not work in remotely connected MIDAS clients");
+      return DB_INVALID_HANDLE;
+   }
+   
+#ifdef LOCAL_ROUTINES
+   {
+      db_err_msg* msg = NULL;
+      int status = db_lock_database(hDB);
+      if (status != DB_SUCCESS)
+         return status;
+      DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
+      db_notify_clients_locked(pheader, hDB, hKeyMod, index, bWalk, &msg);
+      db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
+   }
+#endif
+   return DB_SUCCESS;
+}
 
 INT db_notify_clients_array(HNDLE hDB, HNDLE hKeys[], INT size)
 /********************************************************************\
@@ -11501,12 +12077,18 @@ INT db_notify_clients_array(HNDLE hDB, HNDLE hKeys[], INT size)
    
 #ifdef LOCAL_ROUTINES
    {
-      db_lock_database(hDB);
+      int status = db_lock_database(hDB);
+      if (status != DB_SUCCESS)
+         return status;
+      db_err_msg* msg = NULL;
+      DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
       int count = size/sizeof(INT);
       for (int i=0 ; i<count; i++) {
-         db_notify_clients(hDB, hKeys[i], -1, TRUE);
+         db_notify_clients_locked(pheader, hDB, hKeys[i], -1, TRUE, &msg);
       }
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
    }
 #endif
    return DB_SUCCESS;
@@ -11928,6 +12510,11 @@ INT db_check_record(HNDLE hDB, HNDLE hKey, const char *keyname, const char *rec_
             for (tid = 0; tid < TID_LAST; tid++)
                if (strcmp(rpc_tid_name(tid), line) == 0)
                   break;
+            if (tid == TID_LAST) {
+               for (tid = 0; tid < TID_LAST; tid++)
+                  if (strcmp(rpc_tid_name_old(tid), line) == 0)
+                     break;
+            }
 
             string_length = 0;
 
@@ -12464,12 +13051,12 @@ INT db_update_record_mserver(INT hDB, INT hKeyRoot, INT hKey, int index, int cli
    *((INT *) nc->param + 3) = index;
    
    if (convert_flags) {
-      rpc_convert_single(&nc->header.routine_id, TID_DWORD, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&nc->header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&nc->param[0], TID_DWORD, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&nc->param[4], TID_DWORD, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&nc->param[8], TID_DWORD, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&nc->param[12], TID_DWORD, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->header.routine_id, TID_UINT32, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->header.param_size, TID_UINT32, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->param[0], TID_UINT32, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->param[4], TID_UINT32, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->param[8], TID_UINT32, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->param[12], TID_UINT32, RPC_OUTGOING, convert_flags);
    }
    
    /* send the update notification to the client */
@@ -12767,15 +13354,193 @@ INT db_unwatch(HNDLE hDB, HNDLE hKey)
  */
 INT db_unwatch_all()
 {
-   INT i;
-   
-   for (i = _watch_list_entries-1; i >= 0 ; i--)
+   for (int i = _watch_list_entries-1; i >= 0 ; i--) {
+      if ((_watch_list[i].hDB == 0) && (_watch_list[i].handle == 0)) {
+         // empty or deleted watch list entry
+         continue;
+      }
       db_unwatch(_watch_list[i].hDB, _watch_list[i].handle);
+   }
    
    return DB_SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
+
+/* C++ wrapper for db_get_value */
+
+INT EXPRT db_get_value_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int index, std::string* s, BOOL create, int create_string_length)
+{
+   int status;
+   int hkey;
+
+   //printf("db_get_value_string: key_name [%s], index %d, string [%s], create %d, create_string_length %d\n", key_name, index, s->c_str(), create, create_string_length);
+
+   if (index > 0 && create) {
+      cm_msg(MERROR, "db_get_value_string", "cannot resize odb string arrays, please use db_resize_string() instead");
+      return DB_OUT_OF_RANGE;
+   }
+
+   status = db_find_key(hdb, hKeyRoot, key_name, &hkey);
+   if (status == DB_SUCCESS) {
+      KEY key;
+      status = db_get_key(hdb, hkey, &key);
+      if (status != DB_SUCCESS)
+         return status;
+      if (index < 0 || index >= key.num_values)
+         return DB_OUT_OF_RANGE;
+      int size = key.item_size;
+      if (size == 0) {
+         if (s)
+            *s = "";
+         //printf("db_get_value_string: return empty string, item_size %d\n", key.item_size);
+         return DB_SUCCESS;
+      }
+      char* buf = (char*)malloc(size);
+      assert(buf != NULL);
+      status = db_get_data_index(hdb, hkey, buf, &size, index, TID_STRING);
+      if (status != DB_SUCCESS) {
+         free(buf);
+         return status;
+      }
+      if (s)
+         *s = buf;
+      free(buf);
+      //printf("db_get_value_string: return [%s], len %d, item_size %d, size %d\n", s->c_str(), s->length(), key.item_size, size);
+      return DB_SUCCESS;
+   } else if (!create) {
+      // does not exist and not asked to create it
+      return status;
+   } else {
+      //printf("db_get_value_string: creating [%s]\n", key_name);
+      status = db_create_key(hdb, hKeyRoot, key_name, TID_STRING);
+      if (status != DB_SUCCESS)
+         return status;
+      status = db_find_key(hdb, hKeyRoot, key_name, &hkey);
+      if (status != DB_SUCCESS)
+         return status;
+      assert(s != NULL);
+      if (create_string_length == 0) {
+         int size = s->length() + 1; // 1 byte for final \0
+         status = db_set_data_index(hdb, hkey, s->c_str(), size, index, TID_STRING);
+      } else {
+         char* buf = (char*)malloc(create_string_length);
+         assert(buf);
+         strlcpy(buf, s->c_str(), create_string_length);
+         status = db_set_data_index(hdb, hkey, buf, create_string_length, index, TID_STRING);
+         free(buf);
+      }
+      if (status != DB_SUCCESS)
+         return status;
+      //printf("db_get_value_string: created with value [%s]\n", s->c_str());
+      return DB_SUCCESS;
+   }
+   // NOT REACHED
+}
+
+/* C++ wrapper for db_set_value */
+
+INT EXPRT db_set_value_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const std::string* s)
+{
+   assert(s != NULL);
+   int size = s->length() + 1; // 1 byte for final \0
+   //printf("db_set_value_string: key_name [%s], string [%s], size %d\n", key_name, s->c_str(), size);
+   return db_set_value(hDB, hKeyRoot, key_name, s->c_str(), size, 1, TID_STRING);
+}
+
+/********************************************************************/
+/**
+Change size of string arrays.
+
+This function can change the number of elements and the string element length of an array of strings.
+@param hDB  ODB handle obtained via cm_get_experiment_database().
+@param hKey Handle for key where search starts, zero for root.
+@param key_name Odb key name, if NULL, will resize ODB entry pointed to by hKey
+@param num_values New number of array elements, if 0, remains unchanged
+@param max_string_length New max string length for array elements, if 0, remains unchanged
+@return DB_SUCCESS, or error from db_find_key, db_create_key, db_get_data(), db_set_data()
+*/
+INT EXPRT db_resize_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int num_values, int max_string_length)
+{
+   int status;
+   int hkey;
+
+   //printf("db_resize_string: key_name [%s], num_values %d, max_string_length %d\n", key_name, num_values, max_string_length);
+
+   int old_num_values = 0;
+   int old_item_size = 0;
+   int old_size = 0;
+   char* old_data = NULL;
+
+   if (key_name) {
+      status = db_find_key(hdb, hKeyRoot, key_name, &hkey);
+   } else {
+      hkey = hKeyRoot;
+      status = DB_SUCCESS;
+   }
+   if (status == DB_SUCCESS) {
+      KEY key;
+      status = db_get_key(hdb, hkey, &key);
+      if (status != DB_SUCCESS)
+         return status;
+      old_num_values = key.num_values;
+      old_item_size = key.item_size;
+      old_size = old_num_values * old_item_size;
+      old_data = (char*)malloc(old_size);
+      assert(old_data != NULL);
+      int size = old_size;
+      status = db_get_data(hdb, hkey, old_data, &size, TID_STRING);
+      if (status != DB_SUCCESS) {
+         free(old_data);
+         return status;
+      }
+      assert(size == old_size);
+   } else {
+      status = db_create_key(hdb, hKeyRoot, key_name, TID_STRING);
+      if (status != DB_SUCCESS)
+         return status;
+      status = db_find_key(hdb, hKeyRoot, key_name, &hkey);
+      if (status != DB_SUCCESS)
+         return status;
+   }
+
+   //printf("old_num_values %d, old_item_size %d, old_size %d\n", old_num_values, old_item_size, old_size);
+
+   int item_size = max_string_length;
+
+   if (item_size < 1)
+      item_size = old_item_size;
+
+   if (num_values < 1)
+      num_values = old_num_values;
+
+   int new_size = num_values * item_size;
+   char* new_data = (char*)malloc(new_size);
+   assert(new_data);
+
+   int num = old_num_values;
+   if (num > num_values)
+      num = num_values;
+
+   //printf("new num_values %d, item_size %d, new_size %d, to copy %d values\n", num_values, item_size, new_size, num);
+
+   memset(new_data, 0, new_size);
+
+   for (int i=0; i<num; i++) {
+      const char* old_ptr = old_data + i*old_item_size;
+      char* new_ptr = new_data + i*item_size;
+      strlcpy(new_ptr, old_ptr, item_size);
+   }
+
+   status = db_set_data(hdb, hkey, new_data, new_size, num_values, TID_STRING);
+
+   if (old_data)
+      free(old_data);
+   if (new_data)
+      free(new_data);
+   
+   return status;
+}
 
 /** @} *//* end of odbfunctionc */
 

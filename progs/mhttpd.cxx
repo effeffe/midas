@@ -13,6 +13,10 @@
 #include <math.h> // fabs()
 #include <assert.h>
 #include <algorithm> // std::sort()
+#include <thread> // std::thread
+#include <deque>  // std::deque
+#include <mutex>  // std::mutex
+#include <condition_variable>  // std::condition_variable
 
 #include "midas.h"
 #include "msystem.h"
@@ -30,6 +34,7 @@
 #endif
 
 #include "mjsonrpc.h"
+#include "mvodb.h"
 
 #define STRLCPY(dst, src) strlcpy((dst), (src), sizeof(dst))
 #define STRLCAT(dst, src) strlcat((dst), (src), sizeof(dst))
@@ -37,7 +42,11 @@
 /* refresh times in seconds */
 #define DEFAULT_REFRESH 60
 
+#ifdef HAVE_MONGOOSE6
 static MUTEX_T* request_mutex = NULL;
+#endif
+
+static std::mutex gMutex;
 
 // FIXME: what does "referer" do?!?
 //char referer[256];
@@ -61,13 +70,15 @@ static std::string toString(int i)
 class Attachment
 {
 public:
-   char *_attachment_buffer[3];
-   INT _attachment_size[3];
+   char*  attachment_buffer[3];
+   size_t attachment_size[3];
 public:
    Attachment() // ctor
    {
-      _attachment_buffer[0] = _attachment_buffer[1] = _attachment_buffer[2] = NULL;
-      _attachment_size[0] = _attachment_size[1] = _attachment_size[2] = 0;
+      for (int i=0; i<3; i++) {
+         attachment_buffer[i] = NULL;
+         attachment_size[i] = 0;
+      }
    }
    ~Attachment() // dtor
    {
@@ -77,18 +88,16 @@ public:
    }
    void clear(int i)
    {
-      if (_attachment_size[i]) {
-         // FIXME: this is a pointer to (probably) the request memory buffer //free(_attachment_buffer[i]);
-         _attachment_size[i] = 0;
-         _attachment_buffer[i] = NULL;
+      if (attachment_size[i]) {
+         attachment_size[i] = 0;
+         free(attachment_buffer[i]);
+         attachment_buffer[i] = NULL;
       }
    }
 };
 static BOOL elog_mode = FALSE;
 static BOOL history_mode = FALSE;
 static BOOL verbose = FALSE;
-static char midas_hostname[256];
-static char midas_expt[256];
 
 // month name from midas.c
 extern const char *mname[];
@@ -117,42 +126,87 @@ static const char default_system_list[20][NAME_LENGTH] = {
    "Beamline"
 };
 
-struct Filetype {
-   char ext[32];
-   char type[32];
+struct MimetypeTableEntry {
+   std::string ext;
+   std::string mimetype;
 };
 
-const Filetype filetype[] = {
+const MimetypeTableEntry gMimetypeTable[] = {
+   { ".HTML",  "text/html"  },
+   { ".HTM",   "text/html"  },
+   { ".CSS",   "text/css"   },
+   { ".TXT",   "text/plain" },
+   { ".ASC",   "text/plain" },
+   
+   { ".ICO",   "image/x-icon"  },
+   { ".GIF",   "image/gif"     },
+   { ".JPG",   "image/jpeg"    },
+   { ".JPEG",  "image/jpeg"    },
+   { ".PNG",   "image/png"     },
+   { ".SVG",   "image/svg+xml" },
+   { ".BMP",   "image/bmp"     },
+                               
+   { ".MP3",   "audio/mpeg"    },
+   { ".OGG",   "audio/ogg"     },
+   { ".MID",   "audio/midi"    },
+   { ".WAV",   "audio/wav"     },
 
-   {
-   ".JPG", "image/jpeg",}, {
-   ".GIF", "image/gif",}, {
-   ".PNG", "image/png",}, {
-   ".SVG", "image/svg+xml",}, {
-   ".PS",  "application/postscript",}, {
-   ".EPS", "application/postscript",}, {
-   ".HTML","text/html",}, {
-   ".HTM", "text/html",}, {
-   ".XLS", "application/x-msexcel",}, {
-   ".DOC", "application/msword",}, {
-   ".PDF", "application/pdf",}, {
-   ".TXT", "text/plain",}, {
-   ".ASC", "text/plain",}, {
-   ".ZIP", "application/zip",}, {
-   ".MP3", "audio/mpeg",}, {
-   ".CSS", "text/css",}, {
-   ".JS",  "application/javascript"}, {
-   ".JSON",  "application/json"}, {
-   ""},};
+   { ".XML",   "application/xml"        },
+   { ".JS",    "application/javascript" },
+   { ".JSON",  "application/json"       },
+   { ".PS",    "application/postscript" },
+   { ".EPS",   "application/postscript" },
+   { ".PDF",   "application/pdf"        },
+   { ".ZIP",   "application/zip"        },
+   { ".XLS",   "application/x-msexcel"  },
+   { ".DOC",   "application/msword"     },
+   { "", "" }
+};
+
+static MVOdb* gMimeTypesOdb = NULL;
+
+static std::string GetMimetype(const std::string& ext)
+{
+   if (gMimeTypesOdb) {
+      std::string mimetype;
+      gMimeTypesOdb->RS(ext.c_str(), &mimetype);
+      if (mimetype.length() > 0) {
+         //printf("GetMimetype: %s -> %s from ODB\n", ext.c_str(), mimetype.c_str());
+         return mimetype;
+      }
+   }
+
+   for (int i=0; gMimetypeTable[i].ext[0]; i++) {
+      if (ext == gMimetypeTable[i].ext) {
+         //printf("GetMimetype: %s -> %s from built-in table\n", ext.c_str(), gMimetypeTable[i].mimetype.c_str());
+         return gMimetypeTable[i].mimetype;
+      }
+   }
+
+   //printf("GetMimetype: %s -> not found\n", ext.c_str());
+   return "";
+}
+
+static void SaveMimetypes(MVOdb* odb)
+{
+   gMimeTypesOdb = odb;
+
+   for (int i=0; gMimetypeTable[i].ext.length() > 0; i++) {
+      std::string tmp = gMimetypeTable[i].mimetype;
+      gMimeTypesOdb->RS(gMimetypeTable[i].ext.c_str(), &tmp, true);
+   }
+}
 
 #define HTTP_ENCODING "UTF-8"
 
+#ifdef OBSOLETE
 typedef struct {
    char user[256];
    char msg[256];
    time_t last_time;
    time_t prev_time;
 } LASTMSG;
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -1080,13 +1134,9 @@ std::string get_content_type(const char* filename)
 
    //printf("filename: [%s], ext [%s]\n", filename, ext_upper.c_str());
 
-   for (int i=0; filetype[i].ext[0]; i++) {
-      if (ext_upper == filetype[i].ext) {
-         const char* type = filetype[i].type;
-         //printf("filename: [%s], ext [%s] return content-type [%s]\n", filename, ext_upper.c_str(), type);
-         return type;
-      }
-   }
+   std::string type = GetMimetype(ext_upper);
+   if (type.length() > 0)
+      return type;
 
    cm_msg(MERROR, "get_content_type", "Unknown HTTP Content-Type for resource file \'%s\', file extension \'%s\'", filename, ext_upper.c_str());
 
@@ -1183,6 +1233,7 @@ bool send_resource(Return* r, const std::string& name, bool generate_404 = true)
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 static LASTMSG lastMsg;
 static LASTMSG lastChatMsg;
 static LASTMSG lastTalkMsg;
@@ -1223,6 +1274,7 @@ void receive_message(HNDLE hBuf, HNDLE id, EVENT_HEADER * pheader, void *message
 {
    print_message((const char *)message);
 }
+#endif
 
 /*-------------------------------------------------------------------*/
 
@@ -1432,24 +1484,27 @@ struct search_data
 INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 {
    search_data* sinfo = (search_data*)info;
-   INT i, size, status;
-   char *p;
-   static char data_str[MAX_ODB_PATH];
-   static char str1[MAX_ODB_PATH], str2[MAX_ODB_PATH];
-   char path[MAX_ODB_PATH], data[10000];
+   int i;
+   INT size, status;
 
    Return* r = sinfo->r;
    const char* search_name = sinfo->search_name;
 
    /* convert strings to uppercase */
+
+   char str1[MAX_ODB_PATH];
    for (i = 0; key->name[i]; i++)
       str1[i] = toupper(key->name[i]);
    str1[i] = 0;
+
+   char str2[MAX_ODB_PATH];
    for (i = 0; key->name[i]; i++)
       str2[i] = toupper(search_name[i]);
    str2[i] = 0;
 
    if (strstr(str1, str2) != NULL) {
+      char path[MAX_ODB_PATH];
+      char data[10000];
       db_get_path(hDB, hKey, str1, MAX_ODB_PATH);
       strlcpy(path, str1 + 1, sizeof(path));    /* strip leading '/' */
       strlcpy(str1, path, sizeof(str1));
@@ -1460,7 +1515,7 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
          r->rsprintf("<tr><td class=\"ODBkey\"><a href=\"?cmd=odb&odb_path=/%s\">/%s</a></tr>\n", path, path);
       } else {
          /* strip variable name from path */
-         p = path + strlen(path) - 1;
+         char* p = path + strlen(path) - 1;
          while (*p && *p != '/')
             *p-- = 0;
          if (*p == '/')
@@ -1468,6 +1523,7 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 
          /* display single value */
          if (key->num_values == 1) {
+            char data_str[MAX_ODB_PATH];
             size = sizeof(data);
             status = db_get_data(hDB, hKey, data, &size, key->type);
             if (status == DB_NO_ACCESS)
@@ -1483,9 +1539,11 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
             r->rsprintf("<tr><td rowspan=%d class=\"ODBkey\">", key->num_values);
             r->rsprintf("<a href=\"?cmd=odb&odb_path=/%s\">/%s/%s\n", path, path, key->name);
 
-            for (i = 0; i < key->num_values; i++) {
+            for (int i = 0; i < key->num_values; i++) {
                size = sizeof(data);
                db_get_data(hDB, hKey, data, &size, key->type);
+
+               char data_str[MAX_ODB_PATH];
                db_sprintf(data_str, data, key->item_size, i, key->type);
 
                if (i > 0)
@@ -1918,6 +1976,13 @@ void init_mhttpd_odb()
    if (status == DB_SUCCESS) {
       cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/Pause-Resume Buttons\" is obsolete, please delete it.");
    }
+
+#ifdef HAVE_MONGOOSE616
+   check_obsolete_odb(hDB, "/Experiment/midas http port");
+   check_obsolete_odb(hDB, "/Experiment/midas https port");
+   check_obsolete_odb(hDB, "/Experiment/http redirect to https");
+   check_obsolete_odb(hDB, "/Experiment/Security/mhttpd hosts");
+#endif
 }
 
 /*------------------------------------------------------------------*/
@@ -3464,7 +3529,7 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
    char path[256], path1[256];
    char mail_to[256], mail_from[256], mail_text[10000], mail_list[256],
        smtp_host[256], tag[80], mail_param[1000];
-   char *buffer[3], *p, *pitem;
+   char *p, *pitem;
    HNDLE hDB, hkey;
    char att_file[3][256];
    int fh, size, n_mail;
@@ -3477,11 +3542,10 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
 
    /* check for valid attachment files */
    for (int i = 0; i < 3; i++) {
-      buffer[i] = NULL;
       char str[256];
       sprintf(str, "attachment%d", i);
       //printf("submit_elog: att %d, [%s] param [%s], size %d\n", i, str, pp->getparam(str), a->_attachment_size[i]);
-      if (pp->getparam(str) && *pp->getparam(str) && a->_attachment_size[i] == 0) {
+      if (pp->getparam(str) && *pp->getparam(str) && a->attachment_size[i] == 0) {
          /* replace '\' by '/' */
          strlcpy(path, pp->getparam(str), sizeof(path));
          strlcpy(path1, path, sizeof(path1));
@@ -3493,27 +3557,27 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
             std::string bout;
             gen_odb_attachment(r, path, bout);
             int bufsize = bout.length()+1;
-            buffer[i] = (char*)M_MALLOC(bufsize);
-            memcpy(buffer[i], bout.c_str(), bufsize);
+            char* buf = (char*)M_MALLOC(bufsize);
+            memcpy(buf, bout.c_str(), bufsize);
             strlcpy(att_file[i], path, sizeof(att_file[0]));
             strlcat(att_file[i], ".html", sizeof(att_file[0]));
-            a->_attachment_buffer[i] = buffer[i];
-            a->_attachment_size[i] = bufsize;
+            a->attachment_buffer[i] = buf;
+            a->attachment_size[i] = bufsize;
          }
          /* check if local file */
          else if ((fh = open(path1, O_RDONLY | O_BINARY)) >= 0) {
             size = lseek(fh, 0, SEEK_END);
-            buffer[i] = (char*)M_MALLOC(size);
+            char* buf = (char*)M_MALLOC(size);
             lseek(fh, 0, SEEK_SET);
-            int rd = read(fh, buffer[i], size);
+            int rd = read(fh, buf, size);
             if (rd < 0)
                rd = 0;
             close(fh);
             strlcpy(att_file[i], path, sizeof(att_file[0]));
-            a->_attachment_buffer[i] = buffer[i];
-            a->_attachment_size[i] = rd;
+            a->attachment_buffer[i] = buf;
+            a->attachment_size[i] = rd;
          } else if (strncmp(path, "/HS/", 4) == 0) {
-           buffer[i] = (char*)M_MALLOC(100000);
+            char* buf = (char*)M_MALLOC(100000);
             size = 100000;
             strlcpy(str, path + 4, sizeof(str));
             if (strchr(str, '?')) {
@@ -3534,10 +3598,10 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
                }
                *strchr(str, '?') = 0;
             }
-            show_hist_page(pp, r, "image.gif", buffer[i], &size, 0);
+            show_hist_page(pp, r, "image.gif", buf, &size, 0);
             strlcpy(att_file[i], str, sizeof(att_file[0]));
-            a->_attachment_buffer[i] = buffer[i];
-            a->_attachment_size[i] = size;
+            a->attachment_buffer[i] = buf;
+            a->attachment_size[i] = size;
             pp->unsetparam("scale");
             pp->unsetparam("offset");
             pp->unsetparam("width");
@@ -3576,9 +3640,9 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
                           pp->getparam("text"),
                           pp->getparam("orig"),
                           *pp->getparam("html") ? "HTML" : "plain",
-                          att_file[0], a->_attachment_buffer[0], a->_attachment_size[0],
-                          att_file[1], a->_attachment_buffer[1], a->_attachment_size[1],
-                          att_file[2], a->_attachment_buffer[2], a->_attachment_size[2],
+                          att_file[0], a->attachment_buffer[0], a->attachment_size[0],
+                          att_file[1], a->attachment_buffer[1], a->attachment_size[1],
+                          att_file[2], a->attachment_buffer[2], a->attachment_size[2],
                           tag, sizeof(tag));
 
    //printf("el_submit status %d, tag [%s]\n", status, tag);
@@ -3661,12 +3725,6 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
          }
       }
    }
-
-   for (int i = 0; i < 3; i++)
-      if (buffer[i]) {
-         M_FREE(buffer[i]);
-         buffer[i] = NULL;
-      }
 
    r->rsprintf("HTTP/1.1 302 Found\r\n");
    r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
@@ -3794,23 +3852,7 @@ void show_elog_attachment(Param* p, Return* r, const char* path)
       r->rsprintf("Accept-Ranges: bytes\r\n");
       //r->rsprintf("Content-disposition: attachment; filename=%s\r\n", path);
 
-      /* return proper header for file type */
-      char str[256];
-      int i;
-      for (i = 0; i < (int) strlen(path); i++)
-         str[i] = toupper(path[i]);
-      str[i] = 0;
-
-      for (i = 0; filetype[i].ext[0]; i++)
-         if (strstr(str, filetype[i].ext))
-            break;
-
-      if (filetype[i].ext[0])
-         r->rsprintf("Content-Type: %s\r\n", filetype[i].type);
-      else if (strchr(str, '.') == NULL)
-         r->rsprintf("Content-Type: text/plain\r\n");
-      else
-         r->rsprintf("Content-Type: application/octet-stream\r\n");
+      r->rsprintf("Content-Type: %s\r\n", get_content_type(file_name).c_str());
 
       r->rsprintf("Content-Length: %d\r\n\r\n", length);
 
@@ -6308,6 +6350,13 @@ bool starts_with(const std::string& s1, const char* s2)
    return (strncasecmp(s1.c_str(), s2, strlen(s2)) == 0);
 }
 
+bool ends_with_char(const std::string& s, char c)
+{
+   if (s.length() < 1)
+      return false;
+   return s[s.length()-1] == c;
+}
+
 /*------------------------------------------------------------------*/
 
 void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
@@ -7505,7 +7554,7 @@ void show_custom_page(Param* pp, Return* r, const char *cookie_cpwd)
 
 /*------------------------------------------------------------------*/
 
-void show_cnaf_page(Param* p, Return* rr)
+static void show_cnaf_page(Param* p, Return* rr)
 {
    char str[256];
    int c, n, a, f, d, q, x, r, ia, id, w;
@@ -8578,13 +8627,11 @@ void show_password_page(Return* r, const char* dec_path, const char *password)
 
 /*------------------------------------------------------------------*/
 
-BOOL check_web_password(Return* r, const char* dec_path, const char *password, const char *redir)
+BOOL check_web_password(Return* r, HNDLE hDB, const char* dec_path, const char *password, const char *redir)
 {
-   HNDLE hDB, hkey;
+   HNDLE hkey;
    INT size;
    char str[256];
-
-   cm_get_experiment_database(&hDB, NULL);
 
    /* check for password */
    db_find_key(hDB, 0, "/Experiment/Security/Web Password", &hkey);
@@ -13869,6 +13916,7 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
 
 /*------------------------------------------------------------------*/
 
+#ifdef OBSOLETE
 void get_password(char *password)
 {
    static char last_password[32];
@@ -13878,6 +13926,7 @@ void get_password(char *password)
    else
       strcpy(password, last_password);  // unsafe: do not know size of password string, has to be this way because of cm_connect_experiment() KO 27-Jul-2006
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -13924,7 +13973,7 @@ void send_icon(Return* r, const char *icon)
 
 #define XNAME_LENGTH 256
 
-PMXML_NODE pnseq;
+static PMXML_NODE pnseq;
 
 /*------------------------------------------------------------------*/
 
@@ -15600,7 +15649,32 @@ void show_seq_page(Param* p, Return* r)
 
 /*------------------------------------------------------------------*/
 
-void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, const char *dec_path, int refresh, int expand_equipment)
+struct Cookies
+{
+   std::string cookie_pwd;
+   std::string cookie_wpwd;
+   std::string cookie_cpwd;
+   int refresh = 0;
+   //int expand_equipment = 0;
+};
+
+/*------------------------------------------------------------------*/
+
+void Lock(RequestTrace* t)
+{
+   gMutex.lock();
+   t->fTimeLocked = GetTimeSec();
+}
+
+void Unlock(RequestTrace* t)
+{
+   t->fTimeUnlocked = GetTimeSec();
+   gMutex.unlock();
+}
+
+/*------------------------------------------------------------------*/
+
+void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char *dec_path, RequestTrace* t)
 /********************************************************************\
 
  Routine: interprete
@@ -15634,7 +15708,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
             return;
          }
 
-         show_hist_page(p, r, dec_path, NULL, NULL, refresh);
+         Lock(t);
+         show_hist_page(p, r, dec_path, NULL, NULL, c->refresh);
+         Unlock(t);
          return;
       }
       return;
@@ -15649,8 +15725,10 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
       /* check for excemption */
       db_find_key(hDB, 0, "/Experiment/Security/Allowed programs/mhttpd", &hkey);
-      if (hkey == 0 && strcmp(cookie_pwd, str) != 0) {
+      if (hkey == 0 && strcmp(c->cookie_pwd.c_str(), str) != 0) {
+         Lock(t);
          show_password_page(r, dec_path, "");
+         Unlock(t);
          return;
       }
    }
@@ -15680,7 +15758,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (wpassword[0]) {
       /* check if password correct */
-      if (!check_web_password(r, dec_path, ss_crypt(wpassword, "mi"), p->getparam("redir")))
+      if (!check_web_password(r, hDB, dec_path, ss_crypt(wpassword, "mi"), p->getparam("redir")))
          return;
 
       r->rsprintf("HTTP/1.1 302 Found\r\n");
@@ -15776,14 +15854,18 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       char str[256];
 
       sprintf(str, "%s?script=%s", dec_path, p->getparam("script")); // FIXME: overflows str[]
-      if (!check_web_password(r, dec_path, cookie_wpwd, str))
+      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str))
          return;
 
       std::string path;
       path += "/Script/";
       path += p->getparam("script");
 
+      Lock(t);
+
       cm_exec_script(path.c_str());
+
+      Unlock(t);
 
       if (p->isparam("redir"))
          redirect2(r, p->getparam("redir"));
@@ -15799,14 +15881,18 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       char str[256];
 
       sprintf(str, "%s?customscript=%s", dec_path, p->getparam("customscript")); // FIXME: overflows str[]
-      if (!check_web_password(r, dec_path, cookie_wpwd, str))
+      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str))
          return;
 
       std::string path;
       path += "/CustomScript/";
       path += p->getparam("customscript");
 
+      Lock(t);
+
       cm_exec_script(path.c_str());
+
+      Unlock(t);
 
       if (p->isparam("redir"))
          redirect2(r, p->getparam("redir"));
@@ -15933,7 +16019,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
        equal_ustring(command, "jrpc_rev0") ||
        equal_ustring(command, "jrpc_rev1") ||
        equal_ustring(command, "jrpc")) {
-      javascript_commands(p, r, cookie_cpwd);
+      Lock(t);
+      javascript_commands(p, r, c->cookie_cpwd.c_str());
+      Unlock(t);
       return;
    }
 
@@ -15962,7 +16050,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- history command -------------------------------------------*/
 
    if (equal_ustring(command, "oldhistory")) {
-      show_hist_page(p, r, dec_path, NULL, NULL, refresh);
+      Lock(t);
+      show_hist_page(p, r, dec_path, NULL, NULL, c->refresh);
+      Unlock(t);
       return;
    }
 
@@ -15977,22 +16067,28 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       if (equal_ustring(command, "set")) {
          char str[256];
          sprintf(str, "%s?cmd=%s", dec_path, command);
-         if (!check_web_password(r, dec_path, cookie_wpwd, str))
+         if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str))
             return;
       }
 
+      Lock(t);
+
 #ifdef HAVE_MSCB
-      show_mscb_page(p, r, refresh);
+      show_mscb_page(p, r, c->refresh);
 #else
       show_error(r, "MSCB support not compiled into this version of mhttpd");
 #endif
+
+      Unlock(t);
       return;
    }
 
    /*---- help command ----------------------------------------------*/
 
    if (equal_ustring(command, "help")) {
+      Lock(t);
       show_help_page(r, dec_path);
+      Unlock(t);
       return;
    }
 
@@ -16001,8 +16097,10 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    if (strncmp(command, "Trigger", 7) == 0) {
       char str[256];
       sprintf(str, "?cmd=%s", command);
-      if (!check_web_password(r, dec_path, cookie_wpwd, str))
+      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str))
          return;
+
+      Lock(t);
 
       /* extract equipment name */
       char eq_name[NAME_LENGTH];
@@ -16043,6 +16141,8 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
          }
       }
 
+      Unlock(t);
+
       return;
    }
 
@@ -16070,14 +16170,16 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    if (equal_ustring(command, "set")) {
       char str[256];
       strlcpy(str, "?cmd=set", sizeof(str));
-      if (!check_web_password(r, dec_path, cookie_wpwd, str))
+      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str))
          return;
 
       const char* group = p->getparam("group");
       int index = atoi(p->getparam("index"));
       const char* value = p->getparam("value");
 
+      Lock(t);
       show_set_page(p, r, group, index, value);
+      Unlock(t);
       return;
    }
 
@@ -16085,17 +16187,21 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 
    if (equal_ustring(command, "find")) {
       const char* value = p->getparam("value");
+      Lock(t);
       show_find_page(r, value);
+      Unlock(t);
       return;
    }
 
    /*---- CAMAC CNAF command ----------------------------------------*/
 
    if (equal_ustring(command, "CNAF") || strncmp(dec_path, "CNAF", 4) == 0) {
-      if (!check_web_password(r, dec_path, cookie_wpwd, "?cmd=CNAF"))
+      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), "?cmd=CNAF"))
          return;
 
+      Lock(t);
       show_cnaf_page(p, r);
+      Unlock(t);
       return;
    }
 
@@ -16147,7 +16253,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    }
 
    if (equal_ustring(command, "Submit elog")) {
+      Lock(t);
       submit_elog(p, r, a);
+      Unlock(t);
       return;
    }
 
@@ -16159,7 +16267,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
 #endif
 
    if (equal_ustring(command, "elog_att")) {
+      Lock(t);
       show_elog_attachment(p, r, dec_path);
+      Unlock(t);
       return;
    }
 
@@ -16168,7 +16278,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       if (equal_ustring(command, "new") || equal_ustring(command, "edit")
           || equal_ustring(command, "reply")) {
          sprintf(str, "%s?cmd=%s", dec_path, command);
-         if (!check_web_password(r, dec_path, cookie_wpwd, str))
+         if (!check_web_password(r, dec_path, c->cookie_wpwd.c_str(), str))
             return;
       }
 
@@ -16181,7 +16291,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- accept command --------------------------------------------*/
 
    if (equal_ustring(command, "accept")) {
-      refresh = atoi(p->getparam("refr"));
+      int refresh = atoi(p->getparam("refr"));
 
       /* redirect with cookie */
       r->rsprintf("HTTP/1.1 302 Found\r\n");
@@ -16207,7 +16317,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- slow control display --------------------------------------*/
 
    if (equal_ustring(command, "eqtable")) {
-      show_eqtable_page(p, r, refresh);
+      Lock(t);
+      show_eqtable_page(p, r, c->refresh);
+      Unlock(t);
       return;
    }
 
@@ -16239,68 +16351,94 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    }
 
    if (equal_ustring(command, "Sequencer")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Start script")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Cancel script")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Load script")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "New script")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Save script")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Edit script")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "SPause")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "SResume")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Stop immediately")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Stop after current run")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
    if (equal_ustring(command, "Cancel \'Stop after current run\'")) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 
 #ifdef OBSOLETE
    if (strncmp(dec_path, "SEQ/", 4) == 0) {
+      Lock(t);
       show_seq_page(p, r);
+      Unlock(t);
       return;
    }
 #endif
@@ -16314,7 +16452,7 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
          char str[256];
          int size = sizeof(str);
          db_get_data(hDB, hkey, str, &size, TID_STRING);
-         if (strcmp(cookie_wpwd, str) == 0)
+         if (strcmp(c->cookie_wpwd.c_str(), str) == 0)
             write_access = TRUE;
          else
             write_access = FALSE;
@@ -16328,7 +16466,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
       strlcpy(odb_dec_path, odb_enc_path, sizeof(odb_dec_path));
       urlDecode(odb_dec_path);
 
+      Lock(t);
       show_odb_page(p, r, odb_enc_path, sizeof(odb_enc_path), odb_dec_path, write_access);
+      Unlock(t);
       return;
    }
 
@@ -16376,7 +16516,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
    /*---- custom page -----------------------------------------------*/
 
    if (equal_ustring(command, "custom")) {
-      show_custom_page(p, r, cookie_cpwd);
+      Lock(t);
+      show_custom_page(p, r, c->cookie_cpwd.c_str());
+      Unlock(t);
       return;
    }
 
@@ -16406,7 +16548,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
             return;
          }
 
+         Lock(t);
          show_custom_gif(r, dec_path);
+         Unlock(t);
          return;
       }
 
@@ -16462,7 +16606,9 @@ void interprete(Param* p, Return* r, Attachment* a, const char *cookie_pwd, cons
          }
 
          p->setparam("page", dec_path);
-         show_custom_page(p, r, cookie_cpwd);
+         Lock(t);
+         show_custom_page(p, r, c->cookie_cpwd.c_str());
+         Unlock(t);
          return;
       }
    }
@@ -16547,7 +16693,7 @@ void decode_query(Param* pp, const char *query_string)
    free(buf);
 }
 
-void decode_get(Return* rr, char *string, const char *cookie_pwd, const char *cookie_wpwd, const char *cookie_cpwd, int refresh, int expand_equipment, bool decode_url, const char* url, const char* query_string)
+void decode_get(Return* rr, char *string, const Cookies* c, const char* url, const char* query_string, RequestTrace* t)
 {
    char path[256];
 
@@ -16568,25 +16714,16 @@ void decode_get(Return* rr, char *string, const char *cookie_pwd, const char *co
 
    param->setparam("path", path);
 
-   if (query_string) {
-      decode_query(param, query_string);
-      param->setparam("query", query_string);
-   } else if (string && strchr(string, '?')) {
-      char* p = strchr(string, '?') + 1;
+   assert(query_string != NULL);
 
-      /* cut trailing "/" from netscape */
-      if (p[strlen(p) - 1] == '/')
-         p[strlen(p) - 1] = 0;
+   decode_query(param, query_string);
 
-      decode_query(param, p);
-   }
+   param->setparam("query", query_string);
 
    char dec_path[256];
    strlcpy(dec_path, path, sizeof(dec_path));
-   if (decode_url)
-      urlDecode(dec_path);
 
-   interprete(param, rr, NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, dec_path, refresh, expand_equipment);
+   interprete(param, rr, NULL, c, dec_path, t);
 
    param->freeparam();
    delete param;
@@ -16594,15 +16731,15 @@ void decode_get(Return* rr, char *string, const char *cookie_pwd, const char *co
 
 /*------------------------------------------------------------------*/
 
-void decode_post(Return* rr, const char *header, char *string, const char *boundary, int length,
-                 const char *cookie_pwd, const char *cookie_wpwd, int refresh, int expand_equipment, bool decode_url, const char* url)
+void decode_post(Return* rr, const char *header, const char *string, const char *boundary, int length, const Cookies* c, const char* url, RequestTrace* t)
 {
-   char *pinit, *p, *pitem, *ptmp, file_name[256], str[256], path[256];
-   int n;
-
+   bool debug_decode_post = false;
+   
    Param* param = new Param;
 
    param->initparam();
+
+   char path[256];
 
    if (url)
       strlcpy(path, url + 1, sizeof(path));     /* strip leading '/' */
@@ -16617,7 +16754,7 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
 
    Attachment* a = new Attachment;
 
-   pinit = string;
+   const char* pinit = string;
 
    /* return if no boundary defined */
    if (!boundary[0])
@@ -16626,44 +16763,57 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
    if (strstr(string, boundary))
       string = strstr(string, boundary) + strlen(boundary);
 
+   if (debug_decode_post)
+      printf("decode_post: -->[%s]<--\n", string);
+
    do {
       //printf("decode_post: [%s]\n", string);
       if (strstr(string, "name=")) {
-         pitem = strstr(string, "name=") + 5;
+         const char* pitem = strstr(string, "name=") + 5;
          if (*pitem == '\"')
             pitem++;
 
          //printf("decode_post: pitem [%s]\n", pitem);
 
          if (strncmp(pitem, "attfile", 7) == 0) {
-            n = pitem[7] - '1';
+            int n = pitem[7] - '1';
+
+            char file_name[256];
+            file_name[0] = 0;
 
             /* evaluate file attachment */
             if (strstr(pitem, "filename=")) {
-               p = strstr(pitem, "filename=") + 9;
+               const char* p = strstr(pitem, "filename=") + 9;
                if (*p == '\"')
                   p++;
                if (strstr(p, "\r\n\r\n"))
                   string = strstr(p, "\r\n\r\n") + 4;
                else if (strstr(p, "\r\r\n\r\r\n"))
                   string = strstr(p, "\r\r\n\r\r\n") + 6;
-               if (strchr(p, '\"'))
-                  *strchr(p, '\"') = 0;
+
+               strlcpy(file_name, p, sizeof(file_name));
+
+               char* pp = file_name;
+               if (strchr(pp, '\"'))
+                  *strchr(pp, '\"') = 0;
 
                /* set attachment filename */
-               strlcpy(file_name, p, sizeof(file_name));
+               char str[256];
                sprintf(str, "attachment%d", n);
+               if (debug_decode_post)
+                  printf("decode_post: [%s] = [%s]\n", str, file_name);
                param->setparam(str, file_name); // file_name should be decoded?
-            } else
-               file_name[0] = 0;
+            }
 
             /* find next boundary */
-            ptmp = string;
+            const char* ptmp = string;
+            const char* p = NULL;
             do {
                while (*ptmp != '-')
                   ptmp++;
 
-               if ((p = strstr(ptmp, boundary)) != NULL) {
+               p = strstr(ptmp, boundary);
+               if (p != NULL) {
                   while (*p == '-')
                      p--;
                   if (*p == 10)
@@ -16679,31 +16829,44 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
 
             /* save pointer to file */
             if (file_name[0]) {
-               a->_attachment_buffer[n] = string;
-               a->_attachment_size[n] = (POINTER_T) p - (POINTER_T) string;
+               size_t size = (POINTER_T) p - (POINTER_T) string;
+               char* buf = (char*)malloc(size+1);
+               if (!buf) {
+                  return;
+               }
+               memcpy(buf, string, size);
+               buf[size] = 0; // make sure string is NUL terminated
+               a->attachment_buffer[n] = buf;
+               a->attachment_size[n] = size;
+               if (debug_decode_post)
+                  printf("decode_post: attachment[%d] size %d data --->[%s]<---\n", n, (int)a->attachment_size[n], a->attachment_buffer[n]);
             }
 
             string = strstr(p, boundary) + strlen(boundary);
          } else {
-            p = pitem;
+            const char* p = pitem;
             if (strstr(p, "\r\n\r\n"))
                p = strstr(p, "\r\n\r\n") + 4;
             else if (strstr(p, "\r\r\n\r\r\n"))
                p = strstr(p, "\r\r\n\r\r\n") + 6;
 
-            if (strchr(pitem, '\"'))
-               *strchr(pitem, '\"') = 0;
+            char* ppitem = (char*)strchr(pitem, '\"'); // NB: defeat "const char* string"
+            if (ppitem)
+               *ppitem = 0;
 
-            if (strstr(p, boundary)) {
-               string = strstr(p, boundary) + strlen(boundary);
-               *strstr(p, boundary) = 0;
-               ptmp = p + (strlen(p) - 1);
+            char* pb = (char*)(strstr(p, boundary)); // NB: defeat "const char* string"
+            if (pb) {
+               string = pb + strlen(boundary);
+               *pb = 0;
+               char* ptmp = (char*)(p + (strlen(p) - 1)); // NB: defeat "const char* string"
                while (*ptmp == '-' || *ptmp == '\n' || *ptmp == '\r')
                   *ptmp-- = 0;
             } else {
                show_error(rr, "Invalid POST request");
                return;
             }
+            if (debug_decode_post)
+               printf("decode_post: [%s] = [%s]\n", pitem, p);
             param->setparam(pitem, p); // in decode_post()
          }
 
@@ -16715,10 +16878,8 @@ void decode_post(Return* rr, const char *header, char *string, const char *bound
 
    char dec_path[256];
    strlcpy(dec_path, path, sizeof(dec_path));
-   if (decode_url)
-      urlDecode(dec_path);
 
-   interprete(param, rr, a, cookie_pwd, cookie_wpwd, "", dec_path, refresh, expand_equipment);
+   interprete(param, rr, a, c, dec_path, t);
 
    delete a;
    delete param;
@@ -16797,11 +16958,15 @@ void ctrlc_handler(int sig)
 
 /*------------------------------------------------------------------*/
 
-
+#ifdef HAVE_MONGOOSE6
 static std::vector<std::string> gUserAllowedHosts;
+#endif
 static std::vector<std::string> gAllowedHosts;
+#ifdef HAVE_MONGOOSE6
 static const std::string gOdbAllowedHosts = "/Experiment/Security/mhttpd hosts/Allowed hosts";
+#endif
 
+#ifdef HAVE_MONGOOSE6
 static void load_allowed_hosts(HNDLE hDB, HNDLE hKey, int index, void* info)
 {
    if (hKey != 0)
@@ -16903,7 +17068,7 @@ static int init_allowed_hosts()
       //printf("connection from [%s], status %d (%s)\n", hname, status, status_string);
 
       if (status != 0) {
-         printf("Rejecting http connection from \'%s\', getnameinfo() status %d (%s)\n", hname, status, status_string);
+         printf("Rejecting connection from \'%s\', getnameinfo() status %d (%s)\n", hname, status, status_string);
          return 0;
       }
 
@@ -16918,7 +17083,7 @@ static int init_allowed_hosts()
             return 1;
          }
 
-      printf("Rejecting http connection from \'%s\'\n", hname);
+      printf("Rejecting connection from \'%s\'\n", hname);
       return 0;
    }
 
@@ -16968,6 +17133,7 @@ int open_listening_socket(int port)
 
    return lsock;
 }
+#endif
 
 /*------------------------------------------------------------------*/
 
@@ -17030,19 +17196,24 @@ int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace
 #include "mongoose6.h"
 #endif
 
-#ifdef HAVE_MONGOOSE614
-#include "mongoose614.h"
-// mongoose 6.14 uses "#if MG_ENABLE_THREADS" instead of "#ifdef MG_ENABLE_THREADS"
-#if !MG_ENABLE_THREADS
-#undef MG_ENABLE_THREADS
-#endif
+#ifdef HAVE_MONGOOSE616
+#undef closesocket
+#include "mongoose616.h"
 // cs_md5() in not in mongoose.h
 extern void cs_md5(char buf[33], ...);
 #endif
 
 static bool verbose_mg = false;
 static bool trace_mg = false;
+static bool trace_mg_recv = false;
+static bool trace_mg_send = false;
+#ifdef HAVE_MONGOOSE616
+static bool multithread_mg = true;
+#endif
+
+#ifdef HAVE_MONGOOSE6
 static struct mg_mgr mgr_mg;
+#endif
 
 struct AuthEntry {
    std::string username;
@@ -17050,14 +17221,39 @@ struct AuthEntry {
    std::string password;
 };
 
-struct Auth {
-   bool active;
+class Auth {
+public:
    std::string realm;
    std::string passwd_filename;
    std::vector<AuthEntry> passwords;
+public:
+   int Init();
 };
 
-static Auth gAuthMg;
+static bool read_passwords(Auth* auth);
+
+int Auth::Init()
+{
+   char exptname[256];
+   exptname[0] = 0;
+   cm_get_experiment_name(exptname, sizeof(exptname));
+   
+   if (strlen(exptname) > 0)
+      realm = exptname;
+   else
+      realm = "midas";
+   
+   bool ok = read_passwords(this);
+   if (!ok) {
+      cm_msg(MERROR, "mongoose", "mongoose web server password file \"%s\" has no passwords for realm \"%s\"", passwd_filename.c_str(), realm.c_str());
+      cm_msg(MERROR, "mongoose", "please add passwords by running: htdigest %s %s midas", passwd_filename.c_str(), realm.c_str());
+      return SS_FILE_ERROR;
+   }
+
+   return SUCCESS;
+}
+
+static Auth *gAuthMg = NULL;
 
 static void xmg_mkmd5resp(const char *method, size_t method_len, const char *uri,
                          size_t uri_len, const char *ha1, size_t ha1_len,
@@ -17147,9 +17343,58 @@ static bool read_passwords(Auth* auth)
    return have_realm;
 }
 
+#ifdef HAVE_MONGOOSE6
+std::string find_var_mg(struct mg_str *hdr, const char* var_name)
+{
+   assert(!"this code is untested!");
+   
+   char* buf = NULL;
+   int buf_size = 0;
+
+   while (1) {
+      if (buf_size == 0) {
+         buf_size = 256;
+         buf = (char*)malloc(buf_size);
+         assert(buf != NULL);
+      }
+         
+      int size = mg_http_parse_header(hdr, var_name, buf, buf_size);
+
+      if (size <= 0) {
+         free(buf);
+         return "";
+      }
+
+      if (size < buf_size) {
+         std::string s = buf;
+         free(buf);
+         return s;
+      }
+
+      buf_size = buf_size*2 + 16;
+      buf = (char*)realloc(buf, buf_size);
+      assert(buf != NULL);
+   }
+}
+#endif
+
+#ifdef HAVE_MONGOOSE616
+std::string find_var_mg(struct mg_str *hdr, const char* var_name)
+{
+   char* buf = NULL;
+   int buf_size = 0;
+   int size = mg_http_parse_header2(hdr, var_name, &buf, buf_size);
+   if (size <= 0)
+      return "";
+   assert(buf != NULL);
+   std::string s = buf;
+   free(buf);
+   return s;
+}
+#endif
+
 static std::string check_digest_auth(struct http_message *hm, Auth* auth)
 {
-   char user[255], cnonce[33], response[40], uri[4000], qop[20], nc[20], nonce[30];
    char expected_response[33];
 
    //printf("HereA!\n");
@@ -17162,21 +17407,23 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
 
    //printf("HereB!\n");
 
-   if (mg_http_parse_header(hdr, "username", user, sizeof(user)) == 0) return "";
-   //printf("HereB1!\n");
-   if (mg_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0) return "";
-   //printf("HereB2!\n");
-   if (mg_http_parse_header(hdr, "response", response, sizeof(response)) == 0) return "";
-   //printf("HereB3!\n");
-   if (mg_http_parse_header(hdr, "uri", uri, sizeof(uri)) == 0) return "";
-   //printf("HereB4!\n");
-   if (mg_http_parse_header(hdr, "qop", qop, sizeof(qop)) == 0) return "";
-   //printf("HereB5!\n");
-   if (mg_http_parse_header(hdr, "nc", nc, sizeof(nc)) == 0) return "";
-   //printf("HereB6!\n");
-   if (mg_http_parse_header(hdr, "nonce", nonce, sizeof(nonce)) == 0) return "";
-   //printf("HereB7!\n");
-   if (xmg_check_nonce(nonce) == 0) return "";
+   std::string user     = find_var_mg(hdr, "username");
+   std::string cnonce   = find_var_mg(hdr, "cnonce");
+   std::string response = find_var_mg(hdr, "response");
+   std::string uri      = find_var_mg(hdr, "uri");
+   std::string qop      = find_var_mg(hdr, "qop");
+   std::string nc       = find_var_mg(hdr, "nc");
+   std::string nonce    = find_var_mg(hdr, "nonce");
+
+   if (user.length()<1) return "";
+   if (cnonce.length()<1) return "";
+   if (response.length()<1) return "";
+   if (uri.length()<1) return "";
+   if (qop.length()<1) return "";
+   if (nc.length()<1) return "";
+   if (nonce.length()<1) return "";
+
+   if (xmg_check_nonce(nonce.c_str()) == 0) return "";
    //printf("HereB8!\n");
 
    //printf("HereC!\n");
@@ -17184,12 +17431,12 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
    const char* uri_end = strchr(hm->uri.p, ' ');
    if (!uri_end) return "";
 
-   int uri_length = uri_end - hm->uri.p;
+   size_t uri_length = uri_end - hm->uri.p;
 
-   if (uri_length != (int)strlen(uri))
+   if (uri_length != uri.length())
       return "";
 
-   int cmp = strncmp(hm->uri.p, uri, uri_length);
+   int cmp = strncmp(hm->uri.p, uri.c_str(), uri_length);
 
    //printf("check URI: message %d %d [%d] authorization [%s]\n", (int)hm->uri.len, uri_length, cmp, uri);
 
@@ -17209,19 +17456,186 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
       xmg_mkmd5resp(hm->method.p, hm->method.len,
                     hm->uri.p, uri_len,
                     f_ha1, strlen(f_ha1),
-                    nonce, strlen(nonce),
-                    nc, strlen(nc),
-                    cnonce, strlen(cnonce),
-                    qop, strlen(qop),
+                    nonce.c_str(), nonce.length(),
+                    nc.c_str(), nc.length(),
+                    cnonce.c_str(), cnonce.length(),
+                    qop.c_str(), qop.length(),
                     expected_response);
-      //printf("digest_auth: expected %s, got %s\n", expected_response, response);
-      if (mg_casecmp(response, expected_response) == 0) {
+      int cmp = strcasecmp(response.c_str(), expected_response);
+      //printf("digest_auth: expected %s, got %s, cmp %d\n", expected_response, response.c_str(), cmp);
+      if (cmp == 0) {
          return e->username;
       }
     }
 
    return "";
 }
+
+#ifdef HAVE_MONGOOSE616
+
+struct HostlistCacheEntry
+{
+   time_t time_created = 0;
+   time_t time_last_used = 0;
+   int count_used = 0;
+   bool ipv4 = false;
+   bool ipv6 = false;
+   uint32_t ipv4addr = 0;
+   struct in6_addr ipv6addr;
+   std::string hostname;
+   int gai_status = 0;
+   std::string gai_strerror;
+   bool ok = false;
+};
+
+static std::vector<HostlistCacheEntry*> gHostlistCache;
+
+static void print_hostlist_cache()
+{
+   time_t now = time(NULL);
+   
+   for (unsigned i=0; i<gHostlistCache.size(); i++) {
+      HostlistCacheEntry* e = gHostlistCache[i];
+      if (!e) {
+         // empty slot
+         continue;
+      }
+
+      printf("%3d: %s \"%s\", ok %d, count_used %d, age created: %d, last_used %d",
+             i,
+             e->ipv4?"IPv4":(e->ipv6?"IPv6":"????"),
+             e->hostname.c_str(),
+             e->ok,
+             e->count_used,
+             (int)(now - e->time_created),
+             (int)(now - e->time_last_used));
+
+      if (e->gai_status) {
+         printf(", getnameinfo() status %d (%s)", e->gai_status, e->gai_strerror.c_str());
+      }
+
+      printf("\n");
+   }
+}
+
+static bool mongoose_check_hostlist(const union socket_address *sa)
+{
+   time_t now = time(NULL);
+   bool ipv4 = false;
+   bool ipv6 = false;
+   uint32_t ipv4addr = 0;
+   struct in6_addr ipv6addr;
+
+   if (sa->sa.sa_family == AF_INET) {
+      ipv4 = true;
+      ipv4addr = sa->sin.sin_addr.s_addr;
+   } else if (sa->sa.sa_family == AF_INET6) {
+      ipv6 = true;
+      memcpy(&ipv6addr, &sa->sin6.sin6_addr, sizeof(ipv6addr));
+   } else {
+      printf("Rejecting connection from unknown address family %d (AF_xxx)\n", sa->sa.sa_family);
+      return false;
+   }
+   
+   for (unsigned i=0; i<gHostlistCache.size(); i++) {
+      HostlistCacheEntry* e = gHostlistCache[i];
+      if (!e) {
+         // empty slot
+         continue;
+      }
+      
+      if ((ipv4 == e->ipv4) && (ipv4addr == e->ipv4addr)) {
+         // IPv4 address match
+         e->time_last_used = now;
+         e->count_used++;
+         return e->ok;
+      }
+
+      if ((ipv6 == e->ipv6) && (memcmp(&ipv6addr, &e->ipv6addr, sizeof(ipv6addr)) == 0)) {
+         // IPv6 address match
+         e->time_last_used = now;
+         e->count_used++;
+         return e->ok;
+      }
+
+      // not this one. maybe expire old entries?
+
+      if (e->time_last_used < now - 24*60*60) {
+         printf("hostlist: expire \"%s\", ok %d, age %d, count_used: %d\n", e->hostname.c_str(), e->ok, (int)(now - e->time_last_used), e->count_used);
+         gHostlistCache[i] = NULL;
+         delete e;
+      }
+   }
+
+   // not found in cache
+
+   assert(ipv4 || ipv6);
+
+   HostlistCacheEntry* e = new HostlistCacheEntry;
+
+   bool found = false;
+   for (unsigned i=0; i<gHostlistCache.size(); i++) {
+      if (gHostlistCache[i] == NULL) {
+         gHostlistCache[i] = e;
+         found = true;
+      }
+   }
+   if (!found) {
+      gHostlistCache.push_back(e);
+   }
+   
+   e->time_created = now;
+   e->time_last_used = now;
+   e->count_used = 1;
+   e->ipv4 = ipv4;
+   e->ipv6 = ipv6;
+   if (ipv4)
+      e->ipv4addr = ipv4addr;
+   if (ipv6)
+      memcpy(&e->ipv6addr, &ipv6addr, sizeof(ipv6addr));
+   e->ok = false;
+
+   char hname[NI_MAXHOST];
+   hname[0] = 0;
+   
+   e->gai_status = getnameinfo(&sa->sa, sizeof(*sa), hname, sizeof(hname), NULL, 0, 0);
+   
+   if (e->gai_status) {
+      e->gai_strerror = gai_strerror(e->gai_status);
+
+      printf("Rejecting connection from \'%s\', getnameinfo() status %d (%s)\n", hname, e->gai_status, e->gai_strerror.c_str());
+
+      e->ok = false;
+      return e->ok;
+   }
+   
+   printf("connection from \"%s\"\n", hname);
+   
+   e->hostname = hname;
+
+   /* always permit localhost */
+   if (e->hostname == "localhost.localdomain")
+      e->ok = true;
+   else if (e->hostname == "localhost")
+      e->ok = true;
+   else {
+      for (unsigned int i=0 ; i<gAllowedHosts.size() ; i++) {
+         if (e->hostname == gAllowedHosts[i]) {
+            e->ok = true;
+         }
+      }
+   }
+
+   if (!e->ok) {
+      printf("Rejecting connection from \'%s\'\n", hname);
+   }
+
+   print_hostlist_cache();
+
+   return e->ok;
+}
+
+#endif
 
 static std::string mgstr(const mg_str* s)
 {
@@ -17293,10 +17707,8 @@ static void handle_event_mg(struct mg_connection *nc, int ev, void *ev_data)
    }
 }
 
-static bool handle_decode_get(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
+void decode_cookies(Cookies *c, const http_message* msg)
 {
-   int status;
-
    // extract password cookies
 
    char cookie_pwd[256]; // general access password
@@ -17326,23 +17738,40 @@ static bool handle_decode_get(struct mg_connection *nc, const http_message* msg,
    }
 
    // extract refresh rate
-   int refresh = DEFAULT_REFRESH;
+   c->refresh = DEFAULT_REFRESH;
    s = find_cookie_mg(msg, "midas_refr");
    if (s.length() > 0)
-      refresh = atoi(s.c_str());
+      c->refresh = atoi(s.c_str());
 
-   // extract expand flag
-   int expand = 0;
-   s = find_cookie_mg(msg, "midas_expeq");
-   if (s.length() > 0)
-      expand = atoi(s.c_str());
+   // extract equipment expand flag
+   //c->expand_equipment = 0;
+   //s = find_cookie_mg(msg, "midas_expeq");
+   //if (s.length() > 0)
+   //   c->expand_equipment = atoi(s.c_str());
+
+   c->cookie_pwd  = cookie_pwd;
+   c->cookie_wpwd = cookie_wpwd;
+   c->cookie_cpwd = cookie_cpwd;
+}
+
+#define RESPONSE_SENT   1
+#define RESPONSE_QUEUED 2
+#define RESPONSE_501    3
+
+static int handle_decode_get(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
+{
+   Cookies cookies;
+
+   decode_cookies(&cookies, msg);
 
    // lock shared structures
 
-   status = ss_mutex_wait_for(request_mutex, 0);
+#ifdef HAVE_MONGOOSE6
+   int status = ss_mutex_wait_for(request_mutex, 0);
    assert(status == SS_SUCCESS);
+#endif
 
-   t->fTimeLocked = GetTimeSec();
+   //t->fTimeLocked = GetTimeSec();
 
    // prepare return buffer
 
@@ -17352,7 +17781,7 @@ static bool handle_decode_get(struct mg_connection *nc, const http_message* msg,
 
    // call midas
 
-   decode_get(rr, NULL, cookie_pwd, cookie_wpwd, cookie_cpwd, refresh, expand, false, uri, query_string);
+   decode_get(rr, NULL, &cookies, uri, query_string, t);
 
    if (trace_mg)
       printf("handle_decode_get: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
@@ -17361,17 +17790,21 @@ static bool handle_decode_get(struct mg_connection *nc, const http_message* msg,
 
    if (rr->return_length == -1) {
       delete rr;
-      t->fTimeUnlocked = GetTimeSec();
+#ifdef HAVE_MONGOOSE6
+      //t->fTimeUnlocked = GetTimeSec();
       ss_mutex_release(request_mutex);
-      return false;
+#endif
+      return RESPONSE_501;
    }
 
    if (rr->return_length == 0)
       rr->return_length = strlen(rr->return_buffer);
 
-   t->fTimeUnlocked = GetTimeSec();
+   //t->fTimeUnlocked = GetTimeSec();
 
+#ifdef HAVE_MONGOOSE6
    ss_mutex_release(request_mutex);
+#endif
 
    mg_send(nc, rr->return_buffer, rr->return_length);
 
@@ -17386,52 +17819,355 @@ static bool handle_decode_get(struct mg_connection *nc, const http_message* msg,
 
    delete rr;
 
-   return true;
+   return RESPONSE_SENT;
 }
 
-static bool handle_decode_post(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string)
+#ifdef HAVE_MONGOOSE616
+
+static uint32_t s_mwo_seqno = 0;
+
+struct MongooseWorkObject
 {
-   int status;
+   uint32_t seqno = 0;
+   void* nc = NULL;
+   bool http_get  = false;
+   bool http_post = false;
+   bool mjsonrpc  = false;
+   Cookies cookies;
+   std::string origin;
+   std::string uri;
+   std::string query_string;
+   std::string post_body;
+   std::string post_boundary;
+   RequestTrace* t = NULL;
+   bool send_done = false;
+};
 
-   // extract password cookies
+struct MongooseThreadObject
+{
+   std::thread* fThread = NULL; // thread
+   void*        fNc     = NULL; // thread is attached to this network connection
+   std::mutex   fMutex;
+   std::deque<MongooseWorkObject*> fQueue;
+   std::condition_variable fNotify;
+};
 
-   char cookie_pwd[256]; // general access password
-   char cookie_wpwd[256]; // "write mode" password
-   char cookie_cpwd[256]; // custom page and javascript password
+static std::vector<MongooseThreadObject*> gMongooseThreads;
 
-   cookie_pwd[0] = 0;
-   cookie_wpwd[0] = 0;
-   cookie_cpwd[0] = 0;
+static void mongoose_thread(MongooseThreadObject*);
 
-   std::string s = find_cookie_mg(msg, "midas_pwd");
-   if (s.length() > 0) {
-      STRLCPY(cookie_pwd, s.c_str());
-      cookie_pwd[strcspn(cookie_pwd, " ;\r\n")] = 0;
+MongooseThreadObject* FindThread(void* nc)
+{
+   MongooseThreadObject* last_not_connected = NULL;
+   
+   for (auto it : gMongooseThreads) {
+      MongooseThreadObject* to = it;
+      if (to->fNc == nc) {
+         //printf("to %p, nc %p: found thread\n", to, nc);
+         return to;
+      }
+      if (to->fNc == NULL) {
+         last_not_connected = to;
+      }
    }
 
-   s = find_cookie_mg(msg, "midas_wpwd");
-   if (s.length()) {
-      STRLCPY(cookie_wpwd, s.c_str());
-      cookie_wpwd[strcspn(cookie_wpwd, " ;\r\n")] = 0;
+   if (last_not_connected) {
+      MongooseThreadObject* to = last_not_connected;
+      to->fNc = nc;
+      //printf("to %p, nc %p: reusing thread\n", to, nc);
+      return to;
    }
 
-   s = find_cookie_mg(msg, "cpwd");
-   if (s.length()) {
-      STRLCPY(cookie_cpwd, s.c_str());
-      cookie_cpwd[strcspn(cookie_cpwd, " ;\r\n")] = 0;
+   MongooseThreadObject* to = new MongooseThreadObject();
+
+   to->fNc = nc;
+
+   //printf("to %p, nc %p: new thread\n", to, nc);
+
+   gMongooseThreads.push_back(to);
+
+   printf("Mongoose web server is using %d threads\n", (int)gMongooseThreads.size());
+
+   to->fThread = new std::thread(mongoose_thread, to);
+   to->fThread->detach();
+
+   return to;
+}
+
+void FreeThread(void* nc)
+{
+   for (auto it : gMongooseThreads) {
+      MongooseThreadObject* to = it;
+      if (to->fNc == nc) {
+         //printf("to %p, nc %p: connection closed\n", to, nc);
+         to->fNc = NULL;
+         return;
+      }
    }
 
-   // extract refresh rate
-   int refresh = DEFAULT_REFRESH;
-   s = find_cookie_mg(msg, "midas_refr");
-   if (s.length() > 0)
-      refresh = atoi(s.c_str());
+   //printf("to %p, nc %p: connection closed, but no thread\n", nullptr, nc);
+}
 
-   // extract equipment expand flag
-   int expand_equipment = 0;
-   s = find_cookie_mg(msg, "midas_expeq");
-   if (s.length() > 0)
-      expand_equipment = atoi(s.c_str());
+static void mongoose_queue(void* nc, MongooseWorkObject* w)
+{
+   w->nc = nc;
+   MongooseThreadObject* to = FindThread(nc);
+   assert(to->fNc == nc);
+   to->fMutex.lock();
+   to->fQueue.push_back(w);
+   to->fMutex.unlock();
+   to->fNotify.notify_one();
+}
+
+static void mongoose_send(void* nc, MongooseWorkObject* w, const char* p1, size_t s1, const char* p2, size_t s2, bool close_flag = false);
+
+static int queue_decode_get(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
+{
+   MongooseWorkObject* w = new MongooseWorkObject();
+   w->seqno = s_mwo_seqno++;
+   w->http_get = true;
+   decode_cookies(&w->cookies, msg);
+   w->uri = uri;
+   w->query_string = query_string;
+   w->t = t;
+
+   mongoose_queue(nc, w);
+
+   return RESPONSE_QUEUED;
+}
+
+static int queue_decode_post(struct mg_connection *nc, const http_message* msg, const char* boundary, const char* uri, const char* query_string, RequestTrace* t)
+{
+   MongooseWorkObject* w = new MongooseWorkObject();
+   w->seqno = s_mwo_seqno++;
+   w->http_post = true;
+   decode_cookies(&w->cookies, msg);
+   w->uri = uri;
+   w->query_string = query_string;
+   w->post_body = mgstr(&msg->body);
+   w->post_boundary = boundary;
+   w->t = t;
+
+   mongoose_queue(nc, w);
+
+   return RESPONSE_QUEUED;
+}
+
+static int queue_mjsonrpc(struct mg_connection *nc, const std::string& origin, const std::string& post_body, RequestTrace* t)
+{
+   MongooseWorkObject* w = new MongooseWorkObject();
+   w->seqno = s_mwo_seqno++;
+   w->mjsonrpc = true;
+   w->origin = origin;
+   w->post_body = post_body;
+   w->t = t;
+
+   mongoose_queue(nc, w);
+
+   return RESPONSE_QUEUED;
+}
+
+static int thread_http_get(void *nc, MongooseWorkObject *w)
+{
+   // lock shared structures
+
+   //int status = ss_mutex_wait_for(request_mutex, 0);
+   //assert(status == SS_SUCCESS);
+
+   //w->t->fTimeLocked = GetTimeSec();
+
+   // prepare return buffer
+
+   Return *rr = new Return();
+
+   rr->zero();
+
+   // call midas
+
+   decode_get(rr, NULL, &w->cookies, w->uri.c_str(), w->query_string.c_str(), w->t);
+
+   if (trace_mg)
+      printf("handle_decode_get: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
+
+   w->t->fTimeProcessed = GetTimeSec();
+
+   if (rr->return_length == -1) {
+      delete rr;
+      //w->t->fTimeUnlocked = GetTimeSec();
+      //ss_mutex_release(request_mutex);
+      return RESPONSE_501;
+   }
+
+   if (rr->return_length == 0)
+      rr->return_length = strlen(rr->return_buffer);
+
+   //w->t->fTimeUnlocked = GetTimeSec();
+
+   //ss_mutex_release(request_mutex);
+
+   bool close_flag = false;
+
+   if (!strstr(rr->return_buffer, "Content-Length")) {
+      // cannot do pipelined http if response generated by mhttpd
+      // decode_get() has no Content-Length header.
+      // must close the connection.
+      close_flag = true;
+   }
+
+   mongoose_send(nc, w, rr->return_buffer, rr->return_length, NULL, 0, close_flag);
+
+   w->t->fTimeSent = GetTimeSec();
+
+   delete rr;
+
+   return RESPONSE_SENT;
+}
+
+static int thread_http_post(void *nc, MongooseWorkObject *w)
+{
+   const char* post_data = w->post_body.c_str();
+   int post_data_len = w->post_body.length();
+
+   // lock shared strctures
+
+   //int status = ss_mutex_wait_for(request_mutex, 0);
+   //assert(status == SS_SUCCESS);
+
+   // prepare return buffer
+
+   Return* rr = new Return;
+
+   rr->zero();
+
+   //printf("post_data_len %d, data [%s], boundary [%s]\n", post_data_len, post_data, boundary);
+
+   decode_post(rr, NULL, (char*)post_data, w->post_boundary.c_str(), post_data_len, &w->cookies, w->uri.c_str(), w->t);
+
+   if (trace_mg)
+      printf("handle_decode_post: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
+
+   if (rr->return_length == -1) {
+      //ss_mutex_release(request_mutex);
+      delete rr;
+      return RESPONSE_501;
+   }
+
+   if (rr->return_length == 0)
+      rr->return_length = strlen(rr->return_buffer);
+
+   //ss_mutex_release(request_mutex);
+
+   bool close_flag = false;
+   if (!strstr(rr->return_buffer, "Content-Length")) {
+      // cannot do pipelined http if response generated by mhttpd
+      // decode_get() has no Content-Length header.
+      // must close the connection.
+      close_flag = true;
+   }
+
+   mongoose_send(nc, w, rr->return_buffer, rr->return_length, NULL, 0, close_flag);
+
+   delete rr;
+
+   return RESPONSE_SENT;
+
+}
+
+static int thread_mjsonrpc(void *nc, MongooseWorkObject *w)
+{
+   w->t->fRPC = w->post_body;
+
+   //int status = ss_mutex_wait_for(request_mutex, 0);
+   //assert(status == SS_SUCCESS);
+
+   //gMutex.lock();
+   //w->t->fTimeLocked = GetTimeSec();
+
+   MJsonNode* reply = mjsonrpc_decode_post_data(w->post_body.c_str());
+
+   //w->t->fTimeUnlocked = GetTimeSec();
+   //gMutex.unlock();
+   
+   //ss_mutex_release(request_mutex);
+
+   if (reply->GetType() == MJSON_ARRAYBUFFER) {
+      const char* ptr;
+      size_t size;
+      reply->GetArrayBuffer(&ptr, &size);
+      
+      std::string headers;
+      headers += "HTTP/1.1 200 OK\n";
+      if (w->origin.length() > 0)
+         headers += "Access-Control-Allow-Origin: " + w->origin + "\n";
+      else
+         headers += "Access-Control-Allow-Origin: *\n";
+      headers += "Access-Control-Allow-Credentials: true\n";
+      headers += "Content-Length: " + toString(size) + "\n";
+      headers += "Content-Type: application/octet-stream\n";
+      //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+      
+      //printf("sending headers: %s\n", headers.c_str());
+      //printf("sending reply: %s\n", reply_string.c_str());
+      
+      std::string send = headers + "\n";
+      
+      w->t->fTimeProcessed = GetTimeSec();
+      
+      mongoose_send(nc, w, send.c_str(), send.length(), ptr, size);
+      
+      w->t->fTimeSent = GetTimeSec();
+      
+      delete reply;
+      
+      return RESPONSE_SENT;
+   }
+   
+   std::string reply_string = reply->Stringify();
+   int reply_length = reply_string.length();
+   
+   std::string headers;
+   headers += "HTTP/1.1 200 OK\n";
+   if (w->origin.length() > 0)
+      headers += "Access-Control-Allow-Origin: " + w->origin + "\n";
+   else
+      headers += "Access-Control-Allow-Origin: *\n";
+   headers += "Access-Control-Allow-Credentials: true\n";
+   headers += "Content-Length: " + toString(reply_length) + "\n";
+   headers += "Content-Type: application/json\n";
+   //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
+   
+   //printf("sending headers: %s\n", headers.c_str());
+   //printf("sending reply: %s\n", reply_string.c_str());
+   
+   std::string send = headers + "\n" + reply_string;
+   
+   w->t->fTimeProcessed = GetTimeSec();
+   
+   mongoose_send(nc, w, send.c_str(), send.length(), NULL, 0);
+   
+   w->t->fTimeSent = GetTimeSec();
+   
+   delete reply;
+   
+   return RESPONSE_SENT;
+}
+
+static int thread_work_function(void *nc, MongooseWorkObject *w)
+{
+   if (w->http_get)
+      return thread_http_get(nc, w);
+   else if (w->http_post)
+      return thread_http_post(nc, w);
+   else if (w->mjsonrpc)
+      return thread_mjsonrpc(nc, w);
+   else
+      return RESPONSE_501;
+}
+
+#endif
+
+static int handle_decode_post(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
+{
 
    char boundary[256];
    boundary[0] = 0;
@@ -17442,13 +18178,24 @@ static bool handle_decode_post(struct mg_connection *nc, const http_message* msg
          strlcpy(boundary, s+9, sizeof(boundary));
    }
 
+#ifdef HAVE_MONGOOSE616
+   if (multithread_mg)
+      return queue_decode_post(nc, msg, boundary, uri, query_string, t);
+#endif
+
+   Cookies cookies;
+
+   decode_cookies(&cookies, msg);
+
    const char* post_data = msg->body.p;
    int post_data_len = msg->body.len;
 
    // lock shared strctures
 
-   status = ss_mutex_wait_for(request_mutex, 0);
+#ifdef HAVE_MONGOOSE6
+   int status = ss_mutex_wait_for(request_mutex, 0);
    assert(status == SS_SUCCESS);
+#endif
 
    // prepare return buffer
 
@@ -17458,22 +18205,25 @@ static bool handle_decode_post(struct mg_connection *nc, const http_message* msg
 
    //printf("post_data_len %d, data [%s], boundary [%s]\n", post_data_len, post_data, boundary);
 
-   decode_post(rr, NULL, (char*)post_data, boundary, post_data_len, cookie_pwd, cookie_wpwd,
-               refresh, expand_equipment, false, uri);
+   decode_post(rr, NULL, (char*)post_data, boundary, post_data_len, &cookies, uri, t);
 
    if (trace_mg)
       printf("handle_decode_post: return buffer length %d bytes, strlen %d\n", rr->return_length, (int)strlen(rr->return_buffer));
 
    if (rr->return_length == -1) {
+#ifdef HAVE_MONGOOSE6
       ss_mutex_release(request_mutex);
+#endif
       delete rr;
-      return false;
+      return RESPONSE_501;
    }
 
    if (rr->return_length == 0)
       rr->return_length = strlen(rr->return_buffer);
 
+#ifdef HAVE_MONGOOSE6
    ss_mutex_release(request_mutex);
+#endif
 
    mg_send(nc, rr->return_buffer, rr->return_length);
 
@@ -17486,10 +18236,10 @@ static bool handle_decode_post(struct mg_connection *nc, const http_message* msg
 
    delete rr;
 
-   return true;
+   return RESPONSE_SENT;
 }
 
-static bool handle_http_get(struct mg_connection *nc, const http_message* msg, const char* uri, RequestTrace* t)
+static int handle_http_get(struct mg_connection *nc, const http_message* msg, const char* uri, RequestTrace* t)
 {
    std::string query_string = mgstr(&msg->query_string);
 
@@ -17527,7 +18277,7 @@ static bool handle_http_get(struct mg_connection *nc, const http_message* msg, c
 
       t->fTimeSent = GetTimeSec();
 
-      return true;
+      return RESPONSE_SENT;
    }
 
    if (query_string == "mjsonrpc_schema_text") {
@@ -17561,13 +18311,18 @@ static bool handle_http_get(struct mg_connection *nc, const http_message* msg, c
 
       t->fTimeSent = GetTimeSec();
 
-      return true;
+      return RESPONSE_SENT;
    }
+
+#ifdef HAVE_MONGOOSE616
+   if (multithread_mg)
+      return queue_decode_get(nc, msg, uri, query_string.c_str(), t);
+#endif
 
    return handle_decode_get(nc, msg, uri, query_string.c_str(), t);
 }
 
-static bool handle_http_post(struct mg_connection *nc, const http_message* msg, const char* uri, RequestTrace* t)
+static int handle_http_post(struct mg_connection *nc, const http_message* msg, const char* uri, RequestTrace* t)
 {
    std::string query_string = mgstr(&msg->query_string);
    std::string post_data = mgstr(&msg->body);
@@ -17576,6 +18331,7 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg, 
       printf("handle_http_post: uri [%s], query [%s], post data %d bytes\n", uri, query_string.c_str(), (int)post_data.length());
 
    if (query_string == "mjsonrpc") {
+      const std::string origin_header = find_header_mg(msg, "Origin");
       const std::string ctype_header = find_header_mg(msg, "Content-Type");
 
       if (strstr(ctype_header.c_str(), "application/json") == NULL) {
@@ -17594,27 +18350,34 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg, 
 
          t->fTimeSent = GetTimeSec();
 
-         return true;
+         return RESPONSE_SENT;
       }
+
+#ifdef HAVE_MONGOOSE616
+      if (multithread_mg)
+         return queue_mjsonrpc(nc, origin_header, post_data, t);
+#endif
 
       //printf("post body: %s\n", post_data.c_str());
 
       t->fRPC = post_data;
 
+#ifdef HAVE_MONGOOSE6
       int status = ss_mutex_wait_for(request_mutex, 0);
       assert(status == SS_SUCCESS);
+#endif
 
-      t->fTimeLocked = GetTimeSec();
+      //t->fTimeLocked = GetTimeSec();
 
       MJsonNode* reply = mjsonrpc_decode_post_data(post_data.c_str());
 
-      t->fTimeUnlocked = GetTimeSec();
-
+      //t->fTimeUnlocked = GetTimeSec();
+      
+#ifdef HAVE_MONGOOSE6
       ss_mutex_release(request_mutex);
+#endif
 
       if (reply->GetType() == MJSON_ARRAYBUFFER) {
-         const std::string origin_header = find_header_mg(msg, "Origin");
-
          const char* ptr;
          size_t size;
          reply->GetArrayBuffer(&ptr, &size);
@@ -17644,13 +18407,11 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg, 
 
          delete reply;
 
-         return true;
+         return RESPONSE_SENT;
       }
 
       std::string reply_string = reply->Stringify();
       int reply_length = reply_string.length();
-
-      const std::string origin_header = find_header_mg(msg, "Origin");
 
       std::string headers;
       headers += "HTTP/1.1 200 OK\n";
@@ -17676,13 +18437,13 @@ static bool handle_http_post(struct mg_connection *nc, const http_message* msg, 
 
       delete reply;
 
-      return true;
+      return RESPONSE_SENT;
    }
 
-   return handle_decode_post(nc, msg, uri, query_string.c_str());
+   return handle_decode_post(nc, msg, uri, query_string.c_str(), t);
 }
 
-static bool handle_http_options_cors(struct mg_connection *nc, const http_message* msg, RequestTrace* t)
+static void handle_http_options_cors(struct mg_connection *nc, const http_message* msg, RequestTrace* t)
 {
    //
    // JSON-RPC CORS pre-flight request, see
@@ -17742,11 +18503,15 @@ static bool handle_http_options_cors(struct mg_connection *nc, const http_messag
    mg_send(nc, send.c_str(), send.length());
 
    t->fTimeSent = GetTimeSec();
-
-   return true;
 }
 
 // HTTP event handler
+
+static bool mongoose_passwords_enabled(const struct mg_connection *nc);
+
+#ifdef HAVE_MONGOOSE616
+static MVOdb* gProxyOdb = NULL;
+#endif
 
 static void handle_http_message(struct mg_connection *nc, http_message* msg)
 {
@@ -17764,8 +18529,6 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
    t->fUri = uri;
    t->fQuery = query_string;
 
-   bool response_sent = false;
-
    // process OPTIONS for Cross-origin (CORS) preflight request
    // see https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS
    if (method == "OPTIONS" && query_string == "mjsonrpc" && mg_get_http_header(msg, "Access-Control-Request-Method") != NULL) {
@@ -17775,8 +18538,8 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       return;
    }
 
-   if (gAuthMg.active) {
-      std::string username = check_digest_auth(msg, &gAuthMg);
+   if (gAuthMg && mongoose_passwords_enabled(nc)) {
+      std::string username = check_digest_auth(msg, gAuthMg);
 
       // Cannot re-read the password file - it is not thread safe to do so
       // unless I lock gAuthMg for each call check_digest_auth() and if I do so,
@@ -17795,9 +18558,9 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
 
       if (username.length() == 0) {
          if (trace_mg||verbose_mg)
-            printf("handle_http_message: method [%s] uri [%s] query [%s] proto [%s], sending auth request for realm \"%s\"\n", method.c_str(), uri.c_str(), query_string.c_str(), mgstr(&msg->proto).c_str(), gAuthMg.realm.c_str());
+            printf("handle_http_message: method [%s] uri [%s] query [%s] proto [%s], sending auth request for realm \"%s\"\n", method.c_str(), uri.c_str(), query_string.c_str(), mgstr(&msg->proto).c_str(), gAuthMg->realm.c_str());
 
-         xmg_http_send_digest_auth_request(nc, gAuthMg.realm.c_str());
+         xmg_http_send_digest_auth_request(nc, gAuthMg->realm.c_str());
          t->fCompleted = true;
          gTraceBuf->AddTraceMTS(t);
          return;
@@ -17807,12 +18570,76 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       t->fAuthOk = true;
    }
 
-   if (method == "GET")
-      response_sent = handle_http_get(nc, msg, uri.c_str(), t);
-   else if (method == "POST")
-      response_sent = handle_http_post(nc, msg, uri.c_str(), t);
+#ifdef HAVE_MONGOOSE616
+   if (gProxyOdb && starts_with(uri, "/proxy/")) {
+      std::string::size_type p1 = uri.find("/", 1);
+      if (p1 == uri.length()-1) {
+         std::string response = "404 Not Found (Proxy name is missing)";
+         mg_send_head(nc, 404, response.length(), NULL);
+         mg_send(nc, response.c_str(), response.length());
+         return;
+      }
+      std::string::size_type p2 = uri.find("/", p1+1);
+      if (p2 == std::string::npos) {
+         std::string response = "404 Not Found (Proxy URL should end with a slash)";
+         mg_send_head(nc, 404, response.length(), NULL);
+         mg_send(nc, response.c_str(), response.length());
+         return;
+      }
+      std::string p = uri.substr(p1+1, p2-p1-1);
+      //printf("uri [%s], p1: %d, p2: %d, substr: [%s]\n", uri.c_str(), (int)p1, (int)p2, p.c_str());
+      if (p.length() < 1) {
+         std::string response = "404 Not Found (Double-slash or Proxy name is too short)";
+         mg_send_head(nc, 404, response.length(), NULL);
+         mg_send(nc, response.c_str(), response.length());
+         return;
+      }
+      std::string destination;
+      gProxyOdb->RS(p.c_str(), &destination);
+      if (destination.length() < 1) {
+         std::string response = "404 Not Found (Proxy not found in ODB)";
+         mg_send_head(nc, 404, response.length(), NULL);
+         mg_send(nc, response.c_str(), response.length());
+         return;
+      } else if (destination[0] == '#') {
+         std::string response = "404 Not Found (Proxy commented-out in ODB)";
+         mg_send_head(nc, 404, response.length(), NULL);
+         mg_send(nc, response.c_str(), response.length());
+         return;
+      } else if (ends_with_char(destination, '/')) {
+         std::string response = "404 Not Found (Proxy address should not end with a slash)";
+         mg_send_head(nc, 404, response.length(), NULL);
+         mg_send(nc, response.c_str(), response.length());
+         return;
+      } else if (!starts_with(destination, "http")) {
+         std::string response = "404 Not Found (Proxy address does not start with http";
+         mg_send_head(nc, 404, response.length(), NULL);
+         mg_send(nc, response.c_str(), response.length());
+         return;
+      } else {
+         std::string m;
+         m += "/proxy";
+         m += "/";
+         m += p;
+         mg_str mount = mg_mk_str(m.c_str());
+         mg_str upstream = mg_mk_str(destination.c_str());
+         if (verbose_mg||trace_mg) {
+            printf("proxy: uri [%s] mount [%s] upstream [%s]\n", uri.c_str(), mgstr(&mount).c_str(), mgstr(&upstream).c_str());
+         }
+         mg_http_reverse_proxy(nc, msg, mount, upstream);
+         return;
+      }
+   }
+#endif
 
-   if (!response_sent) {
+   int response = RESPONSE_501;
+
+   if (method == "GET")
+      response = handle_http_get(nc, msg, uri.c_str(), t);
+   else if (method == "POST")
+      response = handle_http_post(nc, msg, uri.c_str(), t);
+
+   if (response == RESPONSE_501) {
       if (trace_mg||verbose_mg)
          printf("handle_http_message: sending 501 Not Implemented error\n");
 
@@ -17821,9 +18648,13 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
       mg_send(nc, response.c_str(), response.length());
    }
 
-   t->fCompleted = true;
-   gTraceBuf->AddTraceMTS(t);
+   if (response != RESPONSE_QUEUED) {
+      t->fCompleted = true;
+      gTraceBuf->AddTraceMTS(t);
+   }
 }
+
+#ifdef HAVE_MONGOOSE6
 
 static void handle_http_event_mg(struct mg_connection *nc, int ev, void *ev_data)
 {
@@ -17859,6 +18690,542 @@ static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data
       if (trace_mg)
          printf("handle_http_redirect: nc %p, ev %d, ev_data %p\n", nc, ev, ev_data);
    }
+}
+
+#endif
+
+#ifdef HAVE_MONGOOSE616
+
+// from mongoose examples/multithreaded/multithreaded.c
+
+//static sock_t s_sock[2];
+static bool s_shutdown = false;
+static struct mg_mgr s_mgr;
+static uint32_t s_seqno = 0;
+static std::mutex s_mg_broadcast_mutex;
+
+#if 0
+// This info is passed to the worker thread
+struct work_request {
+   void* nc;
+   MongooseWorkObject* w;
+};
+#endif
+
+// This info is passed by the worker thread to mg_broadcast
+struct work_result {
+   void* nc = NULL;
+   uint32_t check = 0x12345678;
+   uint32_t seqno = 0;
+   MongooseWorkObject* w = NULL;
+   const char* p1 = NULL;
+   size_t s1 = 0;
+   const char* p2 = NULL;
+   size_t s2 = 0;
+   bool close_flag = false;
+   bool send_501 = false;
+};
+
+#if 0
+static void mongoose_queue(void *nc, MongooseWorkObject *w)
+{
+   struct work_request req = {nc, w};
+
+   //printf("nc: %p: w: %d, queue work object!\n", nc, w->seqno);
+         
+   if (write(s_sock[0], &req, sizeof(req)) < 0) {
+      fprintf(stderr, "mongoose_queue: Error: write(s_sock(0)) error %d (%s)\n", errno, strerror(errno));
+      abort();
+   }
+}
+#endif
+
+static void on_work_complete(struct mg_connection *nc, int ev, void *ev_data)
+{
+   (void) ev;
+   struct work_result *res = (struct work_result *)ev_data;
+
+   //printf("nc: %p: w: %d, seqno: %d, check 0x%08x, offered nc %p, flags 0x%08x\n", res->nc, res->w->seqno, res->seqno, res->check, nc, (int)nc->flags);
+
+   if (res->nc != nc)
+      return;
+
+   //printf("nc: %p: w: %d, on_work_complete: seqno: %d, send_501: %d, s1 %d, s2: %d, close_flag: %d\n", res->nc, res->w->seqno, res->seqno, res->send_501, (int)res->s1, (int)res->s2, res->close_flag);
+
+   if (res->send_501) {
+      std::string response = "501 Not Implemented";
+      mg_send_head(nc, 501, response.length(), NULL); // 501 Not Implemented
+      mg_send(nc, response.c_str(), response.length());
+   }
+
+   if (res->s1 > 0)
+      mg_send(nc, res->p1, res->s1);
+
+   if (res->s2 > 0)
+      mg_send(nc, res->p2, res->s2);
+
+   if (res->close_flag) {
+      // cannot do pipelined http if response generated by mhttpd
+      // decode_get() has no Content-Length header.
+      // must close the connection.
+      nc->flags |= MG_F_SEND_AND_CLOSE;
+   }
+
+   res->w->send_done = true;
+}
+
+static void mongoose_send(void* nc, MongooseWorkObject* w, const char* p1, size_t s1, const char* p2, size_t s2, bool close_flag)
+{
+   //printf("nc: %p: send %d and %d\n", nc, (int)s1, (int)s2);
+   struct work_result res;
+   res.nc = nc;
+   res.w  = w;
+   res.seqno = s_seqno++;
+   res.p1 = p1;
+   res.s1 = s1;
+   res.p2 = p2;
+   res.s2 = s2;
+   res.close_flag = close_flag;
+   res.send_501 = false;
+   //printf("nc: %p: call mg_broadcast()\n", nc);
+
+   // NB: mg_broadcast() is advertised as thread-safe, but it is not.
+   //
+   // in mongoose 6.16, mg_brodacast() and mg_mgr_handle_ctl_sock() have several problems:
+   //
+   // a) "wrong thread" read from mgr->ctl[0], defeating the handshake
+   //
+   // b) "lost messages". if more than one message is written to mgr->ctl[0], the second message
+   //    will be "eaten" by mg_mgr_handle_ctl_sock() because of mistatch between number of bytes read and written
+   //    in the two functions. mg_mgr_handle_ctl_sock() always reads about 8000 bytes while mg_broadcast()
+   //    writes 8 bytes per message, (per examples/multithreaded/multithreaded.c. mhttpd messages are a bit longer).
+   //    So if multiple messages are present in the msg->ctl[0] pipe, the read call (of about 8000 bytes)
+   //    in mg_mgr_handle_ctl_sock() will return several messages (last message may be truncated)
+   //    but only the first message will be processed by the code. any additional messages are ignored.
+   //
+   // Problems (a) and (b) are easy to fix by using a mutex to serialize mg_broadcast().
+   //
+   // c) if the mg_broadcast() message contains pointers to the data buffer to be sent out,
+   //    the caller of mg_broadcast() should not free these data buffers until mg_send() is called
+   //    in "on_work_complete()". In theory, the caller of mg_broadcast() could wait until on_work_complete()
+   //    sets a "done" flag. In practice, if the corresponding network connection is closed before
+   //    mg_mgr_handle_ctl_sock() has looped over it, on_work_complete() will never run
+   //    and the "done" flag will never be set. (Of course, network connections are permitted to close
+   //    at any time without warning, but) the firefox browser closes the network connections "a lot"
+   //    especially when user pressed the "page reload" button at the moment when HTTP transations
+   //    are "in flight". (google-chrome tends to permit these "lame duck" transactions to complete and mongoose
+   //    does not see unexpected socket closures, at least not as many).
+   //
+   // To fix problem (c) I need to know when mg_mgr_handle_ctl_sock()'s loop over network connections
+   // has completed (two cases: (a) my on_work_complete() was hopefully called and finished,
+   // and (b) the "right" network connection was already closed (for whatever reason) and my on_work_complete()
+   // was never called).
+   //
+   // My solution is to change the handshake between mg_broadcast() and mg_mgr_handle_ctl_sock() by sending
+   // the handshake reply after looping over the network connections instead of after reading the message
+   // from msg->ctl[1].
+   //
+   // This requires a modification to the code in mongoose.c. If this change is lost/undone, nothing will work.
+   //
+
+   s_mg_broadcast_mutex.lock();
+   mg_broadcast(&s_mgr, on_work_complete, (void *)&res, sizeof(res));
+   s_mg_broadcast_mutex.unlock();
+}
+
+static void mongoose_send_501(void* nc, MongooseWorkObject* w)
+{
+   struct work_result res;
+   res.nc = nc;
+   res.w  = w;
+   res.seqno = s_seqno++;
+   res.p1 = 0;
+   res.s1 = 0;
+   res.p2 = 0;
+   res.s2 = 0;
+   res.close_flag = false;
+   res.send_501 = true;
+   //printf("nc: %p, call mg_broadcast()\n", nc);
+
+   s_mg_broadcast_mutex.lock();
+   mg_broadcast(&s_mgr, on_work_complete, (void *)&res, sizeof(res));
+   s_mg_broadcast_mutex.unlock();
+}
+
+#if 0
+void *worker_thread_proc(void *param)
+{
+   //struct mg_mgr *mgr = (struct mg_mgr *) param;
+   struct work_request req = {0};
+   
+   while ((! _abort) && (! s_shutdown)) {
+      int rd = read(s_sock[1], &req, sizeof(req));
+      if (rd == 0) {
+         // socket closed, shutdown the thread
+         break;
+      }
+      if (rd < 0) {
+         if (_abort || s_shutdown) {
+            return NULL;
+         }
+         fprintf(stderr, "worker_thread_proc: Error: read(s_sock(1)) returned %d, error %d (%s)\n", rd, errno, strerror(errno));
+         abort();
+         return NULL;
+      }
+      
+      //printf("nc: %p: received request!\n", req.nc);
+
+      int response = thread_work_function(req.nc, req.w);
+
+      if (response == RESPONSE_501) {
+         if (trace_mg||verbose_mg)
+            printf("handle_http_message: sending 501 Not Implemented error\n");
+         mongoose_send_501(req.nc, req.w);
+      }
+
+      req.w->t->fCompleted = true;
+      gTraceBuf->AddTraceMTS(req.w->t);
+
+      //printf("nc: %p: w: %d, delete work object!\n", req.nc, req.w->seqno);
+
+      delete req.w;
+      req.w = NULL;
+   }
+   return NULL;
+}
+#endif
+
+static void mongoose_thread(MongooseThreadObject* to)
+{
+   //printf("to %p, nc %p: thread started!\n", to, to->fNc);
+
+   std::unique_lock<std::mutex> ulm(to->fMutex, std::defer_lock);
+   
+   while ((! _abort) && (! s_shutdown)) {
+      MongooseWorkObject *w = NULL;
+
+      ulm.lock();
+      while (to->fQueue.empty()) {
+         //printf("to %p, nc %p: waiting!\n", to, to->fNc);
+         to->fNotify.wait(ulm);
+      }
+      
+      w = to->fQueue.front();
+      to->fQueue.pop_front();
+      ulm.unlock();
+
+      //printf("to %p, nc %p: w: %d, received request!\n", to, w->nc, w->seqno);
+
+      int response = thread_work_function(w->nc, w);
+
+      if (response == RESPONSE_501) {
+         if (trace_mg||verbose_mg)
+            printf("handle_http_message: sending 501 Not Implemented error\n");
+         mongoose_send_501(w->nc, w);
+      }
+
+      w->t->fCompleted = true;
+      gTraceBuf->AddTraceMTS(w->t);
+
+      //printf("nc: %p: w: %d, delete work object!\n", w->nc, w->seqno);
+
+      delete w;
+   }
+
+   //printf("to %p, nc %p: thread finished!\n", to, to->fNc);
+}
+
+static bool mongoose_hostlist_enabled(const struct mg_connection *nc);
+
+static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
+{
+   (void) nc;
+   (void) ev_data;
+
+   //if (trace_mg && ev != 0) {
+   //   printf("ev_handler: connection %p, event %d\n", nc, ev);
+   //}
+   
+   switch (ev) {
+   case 0:
+      break;
+   default: { 
+      if (trace_mg) {
+         printf("ev_handler: connection %p, event %d\n", nc, ev);
+      }
+      break;
+   }
+   case MG_EV_ACCEPT:
+      if (trace_mg) {
+         printf("ev_handler: connection %p, MG_EV_ACCEPT\n", nc);
+      }
+      if (mongoose_hostlist_enabled(nc)) {
+         if (!mongoose_check_hostlist(&nc->sa)) {
+            nc->flags |= MG_F_CLOSE_IMMEDIATELY;
+         }
+      }
+      break;
+   case MG_EV_RECV:
+      if (trace_mg_recv) {
+         printf("ev_handler: connection %p, MG_EV_RECV, %d bytes\n", nc, *(int*)ev_data);
+      }
+      break;
+   case MG_EV_SEND:
+      if (trace_mg_send) {
+         printf("ev_handler: connection %p, MG_EV_SEND, %d bytes\n", nc, *(int*)ev_data);
+      }
+      break;
+   case MG_EV_HTTP_CHUNK: {
+      if (trace_mg) {
+         printf("ev_handler: connection %p, MG_EV_HTTP_CHUNK\n", nc);
+      }
+      break;
+   }
+   case MG_EV_HTTP_REQUEST: {
+      struct http_message* msg = (struct http_message*)ev_data;
+      if (trace_mg) {
+         printf("ev_handler: connection %p, MG_EV_HTTP_REQUEST \"%s\" \"%s\"\n", nc, mgstr(&msg->method).c_str(), mgstr(&msg->uri).c_str());
+      }
+      handle_http_message(nc, msg);
+      break;
+   }
+   case MG_EV_CLOSE: {
+      if (trace_mg) {
+         printf("ev_handler: connection %p, MG_EV_CLOSE\n", nc);
+      }
+      FreeThread(nc);
+   }
+   }
+}
+
+#define FLAG_HTTPS     (1<<0)
+#define FLAG_PASSWORDS (1<<1)
+#define FLAG_HOSTLIST  (1<<2)
+
+static bool mongoose_passwords_enabled(const struct mg_connection *nc)
+{
+   int flags = 0;
+   if (nc && nc->listener && nc->listener->user_data) {
+      flags = *(int*)nc->listener->user_data;
+   }
+   //printf("mongoose_passwords_enabled: nc %p, listener %p, user_data %p, flags 0x%x\n", nc, nc->listener, nc->listener->user_data, flags);
+   return flags & FLAG_PASSWORDS;
+}
+
+static bool mongoose_hostlist_enabled(const struct mg_connection *nc)
+{
+   int flags = 0;
+   if (nc && nc->listener && nc->listener->user_data) {
+      flags = *(int*)nc->listener->user_data;
+   }
+   //printf("mongoose_hostlist_enabled: nc %p, listener %p, user_data %p, flags 0x%x\n", nc, nc->listener, nc->listener->user_data, flags);
+   return flags & FLAG_HOSTLIST;
+}
+
+static int mongoose_listen(const char* address, int flags)
+{
+   struct mg_connection *nc = mg_bind(&s_mgr, address, ev_handler);
+   if (nc == NULL) {
+      cm_msg(MERROR, "mongoose_listen", "Cannot mg_bind address \"%s\"", address);
+      return SS_SOCKET_ERROR;
+   }
+
+   if (flags & FLAG_HTTPS) {
+#if MG_ENABLE_SSL
+      std::string cert_file;
+
+      int status = find_file_mg("ssl_cert.pem", cert_file, NULL, trace_mg);
+
+      if (status != SUCCESS) {
+         cm_msg(MERROR, "mongoose_listen", "cannot find SSL certificate file \"%s\"", cert_file.c_str());
+         cm_msg(MERROR, "mongoose_listen", "please create SSL certificate file: cd $MIDASSYS; openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key -subj \"/C=/ST=/L=/O=midas/OU=mhttpd/CN=localhost\"; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
+         return SS_FILE_ERROR;
+      }
+
+      printf("Mongoose web server will use https certificate file \"%s\"\n", cert_file.c_str());
+
+      const char* errmsg = mg_set_ssl(nc, cert_file.c_str(), NULL);
+      if (errmsg) {
+         cm_msg(MERROR, "mongoose_listen", "Cannot enable https with certificate file \"%s\", error: %s\n", cert_file.c_str(), errmsg);
+         return SS_SOCKET_ERROR;
+      }
+
+      // NB: where is the warning that the SSL certificate has expired?!? K.O.
+#else
+      cm_msg(MERROR, "mongoose_listen", "https port \"%s\" requested, but mhttpd compiled without MG_ENABLE_SSL", address);
+      return SS_SOCKET_ERROR;
+#endif
+   }
+
+   mg_set_protocol_http_websocket(nc);
+
+   int* flagsp = new int;
+   *flagsp = flags;
+   nc->user_data = flagsp;
+
+   printf("Mongoose web server listening on %s address \"%s\", passwords %s, hostlist %s\n", (flags&FLAG_HTTPS)?"https":"http", address, (flags&FLAG_PASSWORDS)?"enabled":"OFF", (flags&FLAG_HOSTLIST)?"enabled":"OFF");
+
+   return SUCCESS;
+}
+
+static int mongoose_init(MVOdb* odb, bool no_passwords, bool no_hostlist, const std::vector<std::string>& user_hostlist)
+{
+   bool enable_localhost_port = true;
+   int  localhost_port           = 8080;
+   bool localhost_port_passwords = false;
+
+   bool enable_insecure_port     = false;
+   int  insecure_port            = 8081;
+   bool insecure_port_passwords  = true;
+   bool insecure_port_hostlist   = true;
+
+   bool enable_https_port        = false;
+   int  https_port               = 8443;
+   bool https_port_passwords     = true;
+   bool https_port_hostlist      = false;
+
+   std::vector<std::string> hostlist;
+   hostlist.push_back("localhost");
+
+   bool enable_ipv6 = true;
+
+   odb->RB("Enable localhost port", &enable_localhost_port, true);
+   odb->RI("localhost port", &localhost_port, true);
+   odb->RB("localhost port passwords", &localhost_port_passwords, true);
+   odb->RB("Enable insecure port", &enable_insecure_port, true);
+   odb->RI("insecure port", &insecure_port, true);
+   odb->RB("insecure port passwords", &insecure_port_passwords, true);
+   odb->RB("insecure port host list", &insecure_port_hostlist, true);
+   odb->RB("Enable https port", &enable_https_port, true);
+   odb->RI("https port", &https_port, true);
+   odb->RB("https port passwords", &https_port_passwords, true);
+   odb->RB("https port host list", &https_port_hostlist, true);
+   odb->RSA("Host list", &hostlist, true, 10, 32);
+   odb->RB("Enable IPv6", &enable_ipv6, true);
+
+   // populate the MIME.types table
+   gProxyOdb = odb->Chdir("Proxy", true);
+   std::string proxy_example = "#http://localhost:8080";
+   gProxyOdb->RS("example", &proxy_example, true);
+   
+   // populate the MIME.types table
+   SaveMimetypes(odb->Chdir("mime.types", true));
+   
+   if (!no_passwords
+       && ((enable_localhost_port && localhost_port_passwords)
+           || (enable_insecure_port && insecure_port_passwords)
+           || (enable_https_port && https_port_passwords))) {
+      gAuthMg = new Auth();
+      int status = gAuthMg->Init();
+      if (status != SUCCESS) {
+         printf("mongoose_init: Error: Cannot initialize authorization object!\n");
+         return status;
+      }
+      printf("Mongoose web server will use HTTP Digest authentication with realm \"%s\" and password file \"%s\"\n", gAuthMg->realm.c_str(), gAuthMg->passwd_filename.c_str());
+   } else {
+      printf("Mongoose web server will not use password protection\n");
+   }
+
+   if (!no_hostlist
+       && ((enable_insecure_port && insecure_port_hostlist)
+           || (enable_https_port && https_port_hostlist))) {
+      gAllowedHosts.clear();
+
+      // copy the user allowed hosts
+      for (unsigned int i=0; i<user_hostlist.size(); i++)
+         gAllowedHosts.push_back(user_hostlist[i]);
+
+      for (unsigned i=0; i<hostlist.size(); i++) {
+         std::string s = hostlist[i];
+         if (s.length() < 1) // skip emties
+            continue;
+
+         if (s[0] == '#') // skip commented-out entries
+            continue;
+
+         //printf("add allowed hosts %d [%s]\n", i, s.c_str());
+         gAllowedHosts.push_back(s);
+      }
+
+      printf("Mongoose web server will use the hostlist, connections will be accepted only from: ");
+      for (unsigned i=0; i<gAllowedHosts.size(); i++) {
+         if (i>0)
+            printf(", ");
+         printf("%s", gAllowedHosts[i].c_str());
+      }
+      printf("\n");
+   } else {
+      printf("Mongoose web server will not use the hostlist, connections from anywhere will be accepted\n");
+   }
+
+   mg_mgr_init(&s_mgr, NULL);
+
+   if (enable_localhost_port) {
+      char str[256];
+      sprintf(str, "localhost:%d", localhost_port);
+      mongoose_listen(str, 0);
+      if (enable_ipv6) {
+         sprintf(str, "[::1]:%d", localhost_port);
+         mongoose_listen(str, 0);
+      }
+   }
+
+   if (enable_insecure_port) {
+      char str[256];
+      sprintf(str, "%d", insecure_port);
+      int flags = 0;
+      if (insecure_port_passwords)
+         flags |= FLAG_PASSWORDS;
+      if (insecure_port_hostlist)
+         flags |= FLAG_HOSTLIST;
+      mongoose_listen(str, flags);
+      if (enable_ipv6) {
+         sprintf(str, "[::0]:%d", insecure_port);
+         mongoose_listen(str, flags);
+      }
+   }
+
+   if (enable_https_port) {
+      char str[256];
+      sprintf(str, "%d", https_port);
+      int flags = 0;
+      if (https_port_passwords)
+         flags |= FLAG_PASSWORDS;
+      if (https_port_hostlist)
+         flags |= FLAG_HOSTLIST;
+      flags |= FLAG_HTTPS;
+      mongoose_listen(str, flags);
+      if (enable_ipv6) {
+         sprintf(str, "[::0]:%d", https_port);
+         mongoose_listen(str, flags);
+      }
+   }
+
+   return SUCCESS;
+}
+
+static void mongoose_poll(int msec = 200)
+{
+   mg_mgr_poll(&s_mgr, msec);
+}
+
+static void mongoose_cleanup()
+{
+   s_shutdown = true;
+   
+   mg_mgr_free(&s_mgr);
+   
+   //closesocket(s_sock[0]);
+   //closesocket(s_sock[1]);
+}
+
+#endif
+
+#ifdef HAVE_MONGOOSE6
+
+static bool mongoose_passwords_enabled(const struct mg_connection *nc)
+{
+   return true;
 }
 
 int start_mg(int user_http_port, int user_https_port, int socket_priviledged_port, int verbose)
@@ -17934,28 +19301,14 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
       printf("Mongoose web server will use SSL certificate file \"%s\"\n", cert_file.c_str());
    }
 
-   gAuthMg.active = false;
-
    if (need_password_file) {
-      char exptname[256];
-      exptname[0] = 0;
-      cm_get_experiment_name(exptname, sizeof(exptname));
-
-      if (strlen(exptname) > 0)
-         gAuthMg.realm = exptname;
-      else
-         gAuthMg.realm = "midas";
-
-      bool ok = read_passwords(&gAuthMg);
-      if (!ok) {
-         cm_msg(MERROR, "mongoose", "mongoose web server password file \"%s\" has no passwords for realm \"%s\"", gAuthMg.passwd_filename.c_str(), gAuthMg.realm.c_str());
-         cm_msg(MERROR, "mongoose", "please add passwords by running: htdigest %s %s midas", gAuthMg.passwd_filename.c_str(), gAuthMg.realm.c_str());
-         return SS_FILE_ERROR;
+      gAuthMg = new Auth();
+      status = gAuthMg->Init();
+      if (status != SUCCESS) {
+         printf("Error: Cannot initialize authorization object!\n");
+         return status;
       }
-
-      gAuthMg.active = true;
-
-      printf("Mongoose web server will use authentication realm \"%s\", password file \"%s\"\n", gAuthMg.realm.c_str(), gAuthMg.passwd_filename.c_str());
+      printf("Mongoose web server will use authentication realm \"%s\", password file \"%s\"\n", gAuthMg->realm.c_str(), gAuthMg->passwd_filename.c_str());
    } else {
       printf("Mongoose web server will not use password protection\n");
    }
@@ -18085,14 +19438,20 @@ int loop_mg()
 
       /* cm_yield() is not thread safe, need to take a lock */
 
+#ifdef HAVE_MONGOOSE6
       status = ss_mutex_wait_for(request_mutex, 0);
+#endif
+      gMutex.lock();
 
       /* check for shutdown message */
       status = cm_yield(0);
       if (status == RPC_SHUTDOWN)
          break;
 
+      gMutex.unlock();
+#ifdef HAVE_MONGOOSE6
       status = ss_mutex_release(request_mutex);
+#endif
 
       //ss_sleep(10);
 
@@ -18101,6 +19460,7 @@ int loop_mg()
 
    return status;
 }
+#endif
 
 static MJsonNode* get_http_trace(const MJsonNode* params)
 {
@@ -18142,8 +19502,14 @@ int main(int argc, const char *argv[])
    int status;
    int daemon = FALSE;
    char str[256];
+#ifdef HAVE_MONGOOSE6
    int user_http_port = 0;
    int user_https_port = 0;
+#endif
+#ifdef HAVE_MONGOOSE616
+   bool no_passwords = false;
+   bool no_hostlist  = false;
+#endif
    const char *myname = "mhttpd";
 
    setbuf(stdout, NULL);
@@ -18153,6 +19519,7 @@ int main(int argc, const char *argv[])
    signal(SIGPIPE, SIG_IGN);
 #endif
 
+#ifdef HAVE_MONGOOSE6
    //
    // if running setuid-root, unconditionally bind to port 80.
    //
@@ -18185,12 +19552,20 @@ int main(int argc, const char *argv[])
       }
    }
 #endif
+#endif
+
+   char midas_hostname[256];
+   char midas_expt[256];
 
    /* get default from environment */
    cm_get_environment(midas_hostname, sizeof(midas_hostname), midas_expt, sizeof(midas_expt));
 
    /* parse command line parameters */
+#ifdef HAVE_MONGOOSE6
    gUserAllowedHosts.clear();
+#else
+   std::vector<std::string> user_hostlist;
+#endif
    for (int i = 1; i < argc; i++) {
       if (argv[i][0] == '-' && argv[i][1] == 'D')
          daemon = TRUE;
@@ -18200,6 +19575,7 @@ int main(int argc, const char *argv[])
          elog_mode = TRUE;
       else if (argv[i][0] == '-' && argv[i][1] == 'H') {
          history_mode = TRUE;
+#ifdef HAVE_MONGOOSE6
       } else if (strcmp(argv[i], "--http") == 0) {
          if (argv[i+1]) {
             user_http_port = atoi(argv[i+1]);
@@ -18208,6 +19584,25 @@ int main(int argc, const char *argv[])
          if (argv[i+1]) {
             user_https_port = atoi(argv[i+1]);
          }
+#endif
+      } else if (strcmp(argv[i], "--trace-mg") == 0) {
+         trace_mg = true;
+         trace_mg_recv = true;
+         trace_mg_send = true;
+      } else if (strcmp(argv[i], "--no-trace-mg-recv") == 0) {
+         trace_mg_recv = false;
+      } else if (strcmp(argv[i], "--no-trace-mg-send") == 0) {
+         trace_mg_send = false;
+      } else if (strcmp(argv[i], "--verbose-mg") == 0) {
+         verbose_mg = true;
+#ifdef HAVE_MONGOOSE616
+      } else if (strcmp(argv[i], "--no-multithread") == 0) {
+         multithread_mg = false;
+      } else if (strcmp(argv[i], "--no-passwords") == 0) {
+         no_passwords = true;
+      } else if (strcmp(argv[i], "--no-hostlist") == 0) {
+         no_hostlist = true;
+#endif
       } else if (argv[i][0] == '-') {
          if (i + 1 >= argc || argv[i + 1][0] == '-')
             goto usage;
@@ -18216,7 +19611,11 @@ int main(int argc, const char *argv[])
          else if (argv[i][1] == 'e')
             strlcpy(midas_expt, argv[++i], sizeof(midas_hostname));
          else if (argv[i][1] == 'a') {
+#ifdef HAVE_MONGOOSE6
             gUserAllowedHosts.push_back(argv[++i]);
+#else
+            user_hostlist.push_back(argv[++i]);
+#endif
          } else if (argv[i][1] == 'p') {
             printf("Option \"-p port_number\" for the old web server is obsolete.\n");
             printf("mongoose web server is the new default, port number is set in ODB or with \"--http port_number\".\n");
@@ -18225,15 +19624,26 @@ int main(int argc, const char *argv[])
          } else {
           usage:
             printf("usage: %s [-h Hostname[:port]] [-e Experiment] [-v] [-D] [-a Hostname]\n\n", argv[0]);
-            printf("       -a only allow access for specific host(s), several [-a Hostname] statements might be given (default list is ODB \"/Experiment/security/mhttpd hosts/allowed hosts\")\n");
+            printf("       -a add hostname to the hostlist of hosts allowed to connect to mhttpd\n");
             printf("       -e experiment to connect to\n");
             printf("       -h connect to midas server (mserver) on given host\n");
             printf("       -v display verbose HTTP communication\n");
             printf("       -D become a daemon\n");
             printf("       -E only display ELog system\n");
             printf("       -H only display history plots\n");
+#ifdef HAVE_MONGOOSE6
             printf("       --http port - bind to specified HTTP port (default is ODB \"/Experiment/midas http port\")\n");
             printf("       --https port - bind to specified HTTP port (default is ODB \"/Experiment/midas https port\")\n");
+#endif
+            printf("       --verbose-mg - trace mongoose web requests\n");
+            printf("       --trace-mg - trace mongoose events\n");
+            printf("       --no-trace-mg-recv - do not trace mongoose recv events\n");
+            printf("       --no-trace-mg-send - dop not trace mongoose send events\n");
+#ifdef HAVE_MONGOOSE616
+            printf("       --no-multithread - disable mongoose multithreading\n");
+            printf("       --no-passwords - disable password protection\n");
+            printf("       --no-hostlist - disable access control host list\n");
+#endif
             return 0;
          }
       }
@@ -18276,6 +19686,14 @@ int main(int argc, const char *argv[])
     * that can take arbitrary long time */
    cm_start_watchdog_thread();
 
+   /* Get ODB handles */
+
+   HNDLE hDB;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   MVOdb *odb = MakeMidasOdb(hDB);
+
    /* do ODB record checking */
    if (!check_odb_records()) {
       // check_odb_records() fails with nothing printed to the terminal
@@ -18286,6 +19704,7 @@ int main(int argc, const char *argv[])
       return 1;
    }
 
+#ifdef HAVE_MONGOOSE6
    if (init_allowed_hosts() != SUCCESS) {
       printf("init_allowed_hosts() failed, see messages and midas.log, bye!\n");
       cm_disconnect_experiment();
@@ -18306,6 +19725,10 @@ int main(int argc, const char *argv[])
       }
    }
 
+   // populate the MIME.types table
+   SaveMimetypes(odb->Chdir("WebServer/mime.types", true));
+#endif
+
    /* initialize odb entries needed for mhttpd and midas web pages */
    init_mhttpd_odb();
 
@@ -18320,9 +19743,11 @@ int main(int argc, const char *argv[])
 
    /* initialize the JSON RPC handlers */
    mjsonrpc_init();
+   mjsonrpc_set_std_mutex(&gMutex);
 
    add_rpc_functions();
 
+#ifdef HAVE_MONGOOSE6
    status = start_mg(user_http_port, user_https_port, socket_priviledged_port, verbose);
    if (status != SUCCESS) {
       // At least print something!
@@ -18330,16 +19755,74 @@ int main(int argc, const char *argv[])
       cm_disconnect_experiment();
       return 1;
    }
+#endif
+   
+#ifdef HAVE_MONGOOSE616
 
+#ifdef SIGPIPE
+#ifdef SIG_IGN
+   signal(SIGPIPE, SIG_IGN);
+#endif
+#endif
+
+   if (!gTraceBuf) {
+      gTraceBuf = new RequestTraceBuf;
+   }
+
+   //if (!request_mutex) {
+   //   status = ss_mutex_create(&request_mutex, FALSE);
+   //   assert(status==SS_SUCCESS || status==SS_CREATED);
+   //}
+
+   /* establish Ctrl-C handler - will set _abort to TRUE */
+   ss_ctrlc_handler(ctrlc_handler);
+
+   status = mongoose_init(odb->Chdir("WebServer", true), no_passwords, no_hostlist, user_hostlist);
+   if (status != SUCCESS) {
+      // At least print something!
+      printf("Error: Could not start the mongoose web server, see messages and midas.log, bye!\n");
+      cm_disconnect_experiment();
+      return 1;
+   }
+
+#endif
+
+#ifdef OBSOLETE   
    /* place a request for system messages */
    cm_msg_register(receive_message);
 
    /* redirect message display, turn on message logging */
    cm_set_msg_print(MT_ALL, MT_ALL, print_message);
+#endif
 
+#ifdef HAVE_MONGOOSE6
    loop_mg();
-
    stop_mg();
+#endif
+
+#ifdef HAVE_MONGOOSE616
+   while (!_abort) {
+
+      /* cm_yield() is not thread safe, need to take a lock */
+
+      //status = ss_mutex_wait_for(request_mutex, 0);
+      gMutex.lock();
+
+      /* check for shutdown message */
+      status = cm_yield(0);
+      if (status == RPC_SHUTDOWN)
+         break;
+
+      gMutex.unlock();
+      //status = ss_mutex_release(request_mutex);
+
+      //ss_sleep(10);
+
+      mongoose_poll(10);
+   }
+
+   mongoose_cleanup();
+#endif
 
    cm_disconnect_experiment();
    return 0;

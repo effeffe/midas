@@ -429,7 +429,7 @@ int main(int argc, char *argv[])
 
    cm_set_experiment_name(exp_name);
    cm_set_path(exp_dir);
-
+   ss_suspend_init_odb_port();
 
    printf("\n");
 

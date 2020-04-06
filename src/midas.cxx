@@ -59,46 +59,73 @@ can be found through the MIDAS Wiki at http://midas.triumf.ca
 
 /********************************************************************/
 /* data type sizes */
-static const INT tid_size[] = {
-   0,                           /* tid == 0 not defined                               */
-   1,                           /* TID_BYTE      unsigned byte         0       255    */
-   1,                           /* TID_SBYTE     signed byte         -128      127    */
-   1,                           /* TID_CHAR      single character      0       255    */
-   2,                           /* TID_WORD      two bytes             0      65535   */
-   2,                           /* TID_SHORT     signed word        -32768    32767   */
-   4,                           /* TID_DWORD     four bytes            0      2^32-1  */
-   4,                           /* TID_INT       signed dword        -2^31    2^31-1  */
-   4,                           /* TID_BOOL      four bytes bool       0        1     */
-   4,                           /* TID_FLOAT     4 Byte float format                  */
-   8,                           /* TID_DOUBLE    8 Byte float format                  */
-   1,                           /* TID_BITFIELD  8 Bits Bitfield    00000000 11111111 */
-   0,                           /* TID_STRING    zero terminated string               */
-   0,                           /* TID_ARRAY     variable length array of unkown type */
-   0,                           /* TID_STRUCT    C structure                          */
-   0,                           /* TID_KEY       key in online database               */
-   0                            /* TID_LINK      link in online database              */
+static const int tid_size[] = {
+   0,   /* tid == 0 not defined                               */
+   1,   /* TID_UINT8     unsigned byte         0       255    */
+   1,   /* TID_INT8      signed byte         -128      127    */
+   1,   /* TID_CHAR      single character      0       255    */
+   2,   /* TID_UINT16    two bytes             0      65535   */
+   2,   /* TID_INT16     signed word        -32768    32767   */
+   4,   /* TID_UINT32    four bytes            0      2^32-1  */
+   4,   /* TID_INT32     signed dword        -2^31    2^31-1  */
+   4,   /* TID_BOOL      four bytes bool       0        1     */
+   4,   /* TID_FLOAT     4 Byte float format                  */
+   8,   /* TID_DOUBLE    8 Byte float format                  */
+   1,   /* TID_BITFIELD  8 Bits Bitfield    00000000 11111111 */
+   0,   /* TID_STRING    zero terminated string               */
+   0,   /* TID_ARRAY     variable length array of unkown type */
+   0,   /* TID_STRUCT    C structure                          */
+   0,   /* TID_KEY       key in online database               */
+   0,   /* TID_LINK      link in online database              */
+   8,   /* TID_INT64     8 bytes int          -2^63   2^63-1  */
+   8    /* TID_UINT64    8 bytes unsigned int  0      2^64-1  */
 };
 
 /* data type names */
-static const char *tid_name[] = {
-   "NULL",
-   "BYTE",
-   "SBYTE",
-   "CHAR",
-   "WORD",
-   "SHORT",
-   "DWORD",
-   "INT",
-   "BOOL",
-   "FLOAT",
-   "DOUBLE",
-   "BITFIELD",
-   "STRING",
-   "ARRAY",
-   "STRUCT",
-   "KEY",
-   "LINK"
+static const char *tid_name_old[] = {
+        "NULL",
+        "BYTE",
+        "SBYTE",
+        "CHAR",
+        "WORD",
+        "SHORT",
+        "DWORD",
+        "INT",
+        "BOOL",
+        "FLOAT",
+        "DOUBLE",
+        "BITFIELD",
+        "STRING",
+        "ARRAY",
+        "STRUCT",
+        "KEY",
+        "LINK",
+        "INT64",
+        "UINT64"
 };
+
+static const char *tid_name[] = {
+    "NULL",
+    "UINT8",
+    "INT8",
+    "CHAR",
+    "UINT16",
+    "INT16",
+    "UINT32",
+    "INT32",
+    "BOOL",
+    "FLOAT",
+    "DOUBLE",
+    "BITFIELD",
+    "STRING",
+    "ARRAY",
+    "STRUCT",
+    "KEY",
+    "LINK",
+    "INT64",
+    "UINT64"
+};
+
 
 static struct {
    int transition;
@@ -392,6 +419,44 @@ int cm_msg_close_buffer(void)
       _msg_buffer = 0;
    }
    return CM_SUCCESS;
+}
+
+/********************************************************************/
+
+/**
+ Retrieve list of message facilities by searching logfiles on disk
+ @param  list             List of facilities
+ @return status           SUCCESS
+ */
+
+INT EXPRT cm_msg_facilities(STRING_LIST *list)
+{
+   char path[256], *flist;
+   
+   cm_msg_get_logfile("midas", 0, path, sizeof(path), NULL, 0);
+   
+   if (strrchr(path, DIR_SEPARATOR))
+      *strrchr(path, DIR_SEPARATOR) = 0;
+   else
+      path[0] = 0;
+   
+   int n = ss_file_find(path, "*.log", &flist);
+
+   for (int i=0 ; i<n ; i++) {
+      char* p = flist+i*MAX_STRING_LENGTH;
+      if (strchr(p, '_') == NULL && !(p[0] >= '0' && p[0] <= '9')) {
+         char *s = strchr(p, '.');
+         if (s)
+            *s = 0;
+         list->push_back(p);
+      }
+   }
+   
+   if (n > 0) {
+      free(flist);
+   }
+
+   return SUCCESS;
 }
 
 /********************************************************************/
@@ -1432,7 +1497,7 @@ static HNDLE _hKeyClient = 0;   /* key handle for client in ODB */
 static HNDLE _hDB = 0;          /* Database handle */
 static char _experiment_name[NAME_LENGTH];
 static char _client_name[NAME_LENGTH];
-static char _path_name[MAX_STRING_LENGTH];
+static std::string _path_name;
 static INT _watchdog_timeout = DEFAULT_WATCHDOG_TIMEOUT;
 INT _semaphore_alarm   = -1;
 INT _semaphore_elog    = -1;
@@ -1473,11 +1538,16 @@ The path is then used for all shared memory routines.
 */
 INT cm_set_path(const char *path)
 {
-   strlcpy(_path_name, path, sizeof(_path_name));
+   assert(path);
+   assert(path[0] != 0);
 
-   /* check for trailing directory seperator */
-   if (strlen(_path_name) > 0 && _path_name[strlen(_path_name) - 1] != DIR_SEPARATOR)
-      strlcat(_path_name, DIR_SEPARATOR_STR, sizeof(_path_name));
+   _path_name = path;
+
+   if (_path_name.back() != DIR_SEPARATOR) {
+      _path_name += DIR_SEPARATOR_STR;
+   }
+
+   //printf("cm_set_path [%s]\n", _path_name.c_str());
 
    return CM_SUCCESS;
 }
@@ -1494,9 +1564,34 @@ INT cm_get_path(char *path, int path_size)
    // with the size of the pointer to a string
    // instead of the size of the string buffer
    assert(path_size != sizeof(char*));
+   assert(path);
+   assert(_path_name.length() > 0);
 
-   strlcpy(path, _path_name, path_size);
+   strlcpy(path, _path_name.c_str(), path_size);
 
+   return CM_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Return the path name previously set with cm_set_path.
+@param  path             Pathname
+@return CM_SUCCESS
+*/
+std::string cm_get_path()
+{
+   assert(_path_name.length() > 0);
+   return _path_name;
+}
+
+/********************************************************************/
+/* C++ wrapper for cm_get_path */
+
+INT EXPRT cm_get_path_string(std::string* path)
+{
+   assert(path != NULL);
+   assert(_path_name.length() > 0);
+   *path = _path_name;
    return CM_SUCCESS;
 }
 
@@ -1724,7 +1819,7 @@ INT cm_delete_client_info(HNDLE hDB, INT pid)
 
       /* touch notify key to inform others */
       status = 0;
-      db_set_value(hDB, 0, "/System/Client Notify", &status, sizeof(status), 1, TID_INT);
+      db_set_value(hDB, 0, "/System/Client Notify", &status, sizeof(status), 1, TID_INT32);
    }
 #endif                          /*LOCAL_ROUTINES */
 
@@ -1880,7 +1975,7 @@ INT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient, const char *host_name,
       }
 
       /* set computer id */
-      status = db_set_value(hDB, hKey, "Hardware type", &hw_type, sizeof(hw_type), 1, TID_INT);
+      status = db_set_value(hDB, hKey, "Hardware type", &hw_type, sizeof(hw_type), 1, TID_INT32);
       if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
          return status;
@@ -1888,7 +1983,7 @@ INT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient, const char *host_name,
 
       /* set server port */
       data = 0;
-      status = db_set_value(hDB, hKey, "Server Port", &data, sizeof(INT), 1, TID_INT);
+      status = db_set_value(hDB, hKey, "Server Port", &data, sizeof(INT), 1, TID_INT32);
       if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
          return status;
@@ -1900,7 +1995,7 @@ INT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient, const char *host_name,
       /* get (set) default watchdog timeout */
       size = sizeof(watchdog_timeout);
       sprintf(str, "/Programs/%s/Watchdog Timeout", orig_name);
-      db_get_value(hDB, 0, str, &watchdog_timeout, &size, TID_INT, TRUE);
+      db_get_value(hDB, 0, str, &watchdog_timeout, &size, TID_INT32, TRUE);
 
       /* define /programs entry */
       sprintf(str, "/Programs/%s", orig_name);
@@ -1919,7 +2014,7 @@ INT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient, const char *host_name,
 
       /* touch notify key to inform others */
       data = 0;
-      db_set_value(hDB, 0, "/System/Client Notify", &data, sizeof(data), 1, TID_INT);
+      db_set_value(hDB, 0, "/System/Client Notify", &data, sizeof(data), 1, TID_INT32);
 
       *hKeyClient = hKey;
    }
@@ -2214,6 +2309,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
       cm_set_experiment_name(exptab[i].name);
       cm_set_path(exptab[i].directory);
+      ss_suspend_init_odb_port();
 
       /* create alarm and elog semaphores */
       status = ss_semaphore_create("ALARM", &semaphore_alarm);
@@ -2255,8 +2351,10 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
    int odb_timeout = db_set_lock_timeout(hDB, 0);
    size = sizeof(odb_timeout);
-   status = db_get_value(hDB, 0, "/Experiment/ODB timeout", &odb_timeout, &size, TID_INT, TRUE);
-   assert(status == DB_SUCCESS);
+   status = db_get_value(hDB, 0, "/Experiment/ODB timeout", &odb_timeout, &size, TID_INT32, TRUE);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "cm_connect_experiment1", "cannot get ODB /Experiment/ODB timeout, status %d", status);
+   }
 
    if (odb_timeout > 0) {
       db_set_lock_timeout(hDB, odb_timeout);
@@ -2265,7 +2363,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    BOOL protect_odb = FALSE;
    size = sizeof(protect_odb);
    status = db_get_value(hDB, 0, "/Experiment/Protect ODB", &protect_odb, &size, TID_BOOL, TRUE);
-   assert(status == DB_SUCCESS);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "cm_connect_experiment1", "cannot get ODB /Experiment/Protect ODB, status %d", status);
+   }
 
    if (protect_odb) {
       db_protect_database(hDB);
@@ -2274,7 +2374,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    BOOL enable_core_dumps = FALSE;
    size = sizeof(enable_core_dumps);
    status = db_get_value(hDB, 0, "/Experiment/Enable core dumps", &enable_core_dumps, &size, TID_BOOL, TRUE);
-   assert(status == DB_SUCCESS);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "cm_connect_experiment1", "cannot get ODB /Experiment/Enable core dumps, status %d", status);
+   }
 
    if (enable_core_dumps) {
 #ifdef RLIMIT_CORE
@@ -2292,7 +2394,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
    size = sizeof(disable_bind_rpc_to_localhost);
    status = db_get_value(hDB, 0, "/Experiment/Security/Enable non-localhost RPC", &disable_bind_rpc_to_localhost, &size, TID_BOOL, TRUE);
-   assert(status == DB_SUCCESS);
+   if (status != DB_SUCCESS) {
+      cm_msg(MERROR, "cm_connect_experiment1", "cannot get ODB /Experiment/Security/Enable non-localhost RPC, status %d", status);
+   }
 
    /* now setup client info */
    if (!disable_bind_rpc_to_localhost)
@@ -2357,10 +2461,13 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    /* set experiment name in ODB */
    db_set_value(hDB, 0, "/Experiment/Name", exp_name1, NAME_LENGTH, 1, TID_STRING);
 
-   /* set data dir in ODB */
-   cm_get_path(str, sizeof(str));
-   size = sizeof(str);
-   db_get_value(hDB, 0, "/Logger/Data dir", str, &size, TID_STRING, TRUE);
+   if (!rpc_is_remote()) {
+      /* experiment path is only set for local connections */
+      /* set data dir in ODB */
+      cm_get_path(str, sizeof(str));
+      size = sizeof(str);
+      db_get_value(hDB, 0, "/Logger/Data dir", str, &size, TID_STRING, TRUE);
+   }
 
    /* register server to be able to be called by other clients */
    status = cm_register_server();
@@ -2375,7 +2482,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    cm_get_watchdog_params(&call_watchdog, &watchdog_timeout);
    size = sizeof(watchdog_timeout);
    sprintf(str, "/Programs/%s/Watchdog Timeout", client_name);
-   db_get_value(hDB, 0, str, &watchdog_timeout, &size, TID_INT, TRUE);
+   db_get_value(hDB, 0, str, &watchdog_timeout, &size, TID_INT32, TRUE);
    cm_set_watchdog_params(call_watchdog, watchdog_timeout);
 
    /* send startup notification */
@@ -2601,7 +2708,7 @@ INT cm_connect_client(const char *client_name, HNDLE * hConn)
             return status;
 
          length = sizeof(INT);
-         status = db_get_data(hDB, hKey, &port, &length, TID_INT);
+         status = db_get_data(hDB, hKey, &port, &length, TID_INT32);
          if (status != DB_SUCCESS)
             return status;
 
@@ -2959,7 +3066,7 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
 
       if (hDB) {
          db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE, TRUE);
-         db_set_value(hDB, hKey, "Link timeout", &timeout, sizeof(timeout), 1, TID_INT);
+         db_set_value(hDB, hKey, "Link timeout", &timeout, sizeof(timeout), 1, TID_INT32);
          db_set_mode(hDB, hKey, MODE_READ, TRUE);
       }
    } else {
@@ -3174,7 +3281,7 @@ INT cm_register_server(void)
       strlcat(str, name, sizeof(str));
 
       size = sizeof(port);
-      status = db_get_value(hDB, 0, str, &port, &size, TID_DWORD, TRUE);
+      status = db_get_value(hDB, 0, str, &port, &size, TID_UINT32, TRUE);
 
       if (status != DB_SUCCESS) {
          cm_msg(MERROR, "cm_register_server", "cannot get RPC port number, db_get_value(%s) status %d", str, status);
@@ -3206,7 +3313,7 @@ INT cm_register_server(void)
       db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE, TRUE);
 
       /* set value */
-      status = db_set_data(hDB, hKey, &lport, sizeof(INT), 1, TID_INT);
+      status = db_set_data(hDB, hKey, &lport, sizeof(INT), 1, TID_INT32);
       if (status != DB_SUCCESS) {
          cm_msg(MERROR, "cm_register_server", "error, db_set_data(\"Server Port\"=%d) status %d", port, status);
          return status;
@@ -3321,14 +3428,14 @@ INT cm_register_transition(INT transition, INT(*func) (INT, char *), INT sequenc
    /* set value */
    status = db_find_key(hDB, hKey, str, &hKeyTrans);
    if (!hKeyTrans) {
-      status = db_set_value(hDB, hKey, str, &sequence_number, sizeof(INT), 1, TID_INT);
+      status = db_set_value(hDB, hKey, str, &sequence_number, sizeof(INT), 1, TID_INT32);
       if (status != DB_SUCCESS)
          return status;
    } else {
       status = db_get_key(hDB, hKeyTrans, &key);
       if (status != DB_SUCCESS)
          return status;
-      status = db_set_data_index(hDB, hKeyTrans, &sequence_number, sizeof(INT), key.num_values, TID_INT);
+      status = db_set_data_index(hDB, hKeyTrans, &sequence_number, sizeof(INT), key.num_values, TID_INT32);
       if (status != DB_SUCCESS)
          return status;
    }
@@ -3429,7 +3536,7 @@ INT cm_set_transition_sequence(INT transition, INT sequence_number)
    db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE, TRUE);
 
    /* set value */
-   status = db_set_value(hDB, hKey, str, &sequence_number, sizeof(INT), 1, TID_INT);
+   status = db_set_value(hDB, hKey, str, &sequence_number, sizeof(INT), 1, TID_INT32);
    if (status != DB_SUCCESS)
       return status;
 
@@ -3460,7 +3567,7 @@ INT cm_set_client_run_state(INT state)
    db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE, TRUE);
 
    /* set value */
-   status = db_set_value(hDB, hKey, "Run state", &state, sizeof(INT), 1, TID_INT);
+   status = db_set_value(hDB, hKey, "Run state", &state, sizeof(INT), 1, TID_INT32);
    if (status != DB_SUCCESS)
       return status;
 
@@ -3519,7 +3626,7 @@ INT cm_register_deferred_transition(INT transition, BOOL(*func) (INT, BOOL))
 
    /* set value */
    i = 0;
-   status = db_set_value(hDB, hKey, tr_key_name, &i, sizeof(INT), 1, TID_INT);
+   status = db_set_value(hDB, hKey, tr_key_name, &i, sizeof(INT), 1, TID_INT32);
    if (status != DB_SUCCESS)
       return status;
 
@@ -3528,7 +3635,7 @@ INT cm_register_deferred_transition(INT transition, BOOL(*func) (INT, BOOL))
 
    /* hot link requested transition */
    size = sizeof(_requested_transition);
-   db_get_value(hDB, 0, "/Runinfo/Requested Transition", &_requested_transition, &size, TID_INT, TRUE);
+   db_get_value(hDB, 0, "/Runinfo/Requested Transition", &_requested_transition, &size, TID_INT32, TRUE);
    db_find_key(hDB, 0, "/Runinfo/Requested Transition", &hKey);
    status = db_open_record(hDB, hKey, &_requested_transition, sizeof(INT), MODE_READ, NULL, NULL);
    if (status != DB_SUCCESS) {
@@ -3648,8 +3755,8 @@ static int tr_finish(HNDLE hDB, int transition, int status, const char* errorstr
    DWORD end_time = ss_millitime();
 
    if (transition != TR_STARTABORT) {
-      db_set_value(hDB, 0, "/System/Transition/end_time",   &end_time,   sizeof(DWORD), 1, TID_DWORD);
-      db_set_value(hDB, 0, "/System/Transition/status",     &status,     sizeof(INT),   1, TID_INT);
+      db_set_value(hDB, 0, "/System/Transition/end_time",   &end_time,   sizeof(DWORD), 1, TID_UINT32);
+      db_set_value(hDB, 0, "/System/Transition/status",     &status,     sizeof(INT),   1, TID_INT32);
       
       if (errorstr) {
          db_set_value(hDB, 0, "/System/Transition/error",   errorstr,    strlen(errorstr)+1, 1, TID_STRING);
@@ -3705,22 +3812,22 @@ static void write_tr_client_to_odb(HNDLE hDB, const TR_CLIENT* tr_client)
    //int   run_number;
    //int   async_flag;
    //int   debug_flag;
-   status = db_set_value(hDB, hKey, "sequence_number",    &tr_client->sequence_number,    sizeof(INT),   1, TID_INT);
+   status = db_set_value(hDB, hKey, "sequence_number",    &tr_client->sequence_number,    sizeof(INT),   1, TID_INT32);
    status = db_set_value(hDB, hKey, "client_name",        &tr_client->client_name,        strlen(tr_client->client_name) + 1, 1, TID_STRING);
    status = db_set_value(hDB, hKey, "host_name",          &tr_client->host_name,          strlen(tr_client->host_name) + 1, 1, TID_STRING);
-   status = db_set_value(hDB, hKey, "port",               &tr_client->port,               sizeof(INT),   1, TID_INT);
-   status = db_set_value(hDB, hKey, "init_time",          &tr_client->init_time,          sizeof(DWORD), 1, TID_DWORD);
+   status = db_set_value(hDB, hKey, "port",               &tr_client->port,               sizeof(INT),   1, TID_INT32);
+   status = db_set_value(hDB, hKey, "init_time",          &tr_client->init_time,          sizeof(DWORD), 1, TID_UINT32);
    status = db_set_value(hDB, hKey, "waiting_for_client", &tr_client->waiting_for_client, strlen(tr_client->waiting_for_client) + 1, 1, TID_STRING);
-   status = db_set_value(hDB, hKey, "connect_timeout",    &tr_client->connect_timeout,    sizeof(DWORD), 1, TID_DWORD);
-   status = db_set_value(hDB, hKey, "connect_start_time", &tr_client->connect_start_time, sizeof(DWORD), 1, TID_DWORD);
-   status = db_set_value(hDB, hKey, "connect_end_time",   &tr_client->connect_end_time,   sizeof(DWORD), 1, TID_DWORD);
-   status = db_set_value(hDB, hKey, "rpc_timeout",        &tr_client->rpc_timeout,        sizeof(DWORD), 1, TID_DWORD);
-   status = db_set_value(hDB, hKey, "rpc_start_time",     &tr_client->rpc_start_time,     sizeof(DWORD), 1, TID_DWORD);
-   status = db_set_value(hDB, hKey, "rpc_end_time",       &tr_client->rpc_end_time,       sizeof(DWORD), 1, TID_DWORD);
-   status = db_set_value(hDB, hKey, "end_time",           &tr_client->end_time,           sizeof(DWORD), 1, TID_DWORD);
-   status = db_set_value(hDB, hKey, "status", &tr_client->status, sizeof(INT), 1, TID_INT);
+   status = db_set_value(hDB, hKey, "connect_timeout",    &tr_client->connect_timeout,    sizeof(DWORD), 1, TID_UINT32);
+   status = db_set_value(hDB, hKey, "connect_start_time", &tr_client->connect_start_time, sizeof(DWORD), 1, TID_UINT32);
+   status = db_set_value(hDB, hKey, "connect_end_time",   &tr_client->connect_end_time,   sizeof(DWORD), 1, TID_UINT32);
+   status = db_set_value(hDB, hKey, "rpc_timeout",        &tr_client->rpc_timeout,        sizeof(DWORD), 1, TID_UINT32);
+   status = db_set_value(hDB, hKey, "rpc_start_time",     &tr_client->rpc_start_time,     sizeof(DWORD), 1, TID_UINT32);
+   status = db_set_value(hDB, hKey, "rpc_end_time",       &tr_client->rpc_end_time,       sizeof(DWORD), 1, TID_UINT32);
+   status = db_set_value(hDB, hKey, "end_time",           &tr_client->end_time,           sizeof(DWORD), 1, TID_UINT32);
+   status = db_set_value(hDB, hKey, "status", &tr_client->status, sizeof(INT), 1, TID_INT32);
    status = db_set_value(hDB, hKey, "error", &tr_client->errorstr, strlen(tr_client->errorstr) + 1, 1, TID_STRING);
-   status = db_set_value(hDB, hKey, "last_updated",       &now,                           sizeof(DWORD), 1, TID_DWORD);
+   status = db_set_value(hDB, hKey, "last_updated",       &now,                           sizeof(DWORD), 1, TID_UINT32);
 }
 
 /*------------------------------------------------------------------*/
@@ -3868,7 +3975,7 @@ int cm_transition_call(void *param)
 
          i = 0;
          size = sizeof(i);
-         status = db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT, FALSE);
+         status = db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT32, FALSE);
 
          if (status == DB_SUCCESS && i == 0) {
             cm_msg(MERROR, "cm_transition_call", "Client \"%s\" transition %d aborted while waiting for client \"%s\": \"/Runinfo/Transition in progress\" was cleared", tr_client->client_name, tr_client->transition, tr_client->pred[wait_for]->client_name);
@@ -3896,14 +4003,14 @@ int cm_transition_call(void *param)
 
    /* get transition timeout for rpc connect */
    size = sizeof(timeout);
-   db_get_value(hDB, 0, "/Experiment/Transition connect timeout", &connect_timeout, &size, TID_INT, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Transition connect timeout", &connect_timeout, &size, TID_INT32, TRUE);
 
    if (connect_timeout < 1000)
       connect_timeout = 1000;
 
    /* get transition timeout */
    size = sizeof(timeout);
-   db_get_value(hDB, 0, "/Experiment/Transition timeout", &timeout, &size, TID_INT, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Transition timeout", &timeout, &size, TID_INT32, TRUE);
 
    if (timeout < 1000)
       timeout = 1000;
@@ -3940,9 +4047,9 @@ int cm_transition_call(void *param)
       if (tr_client->transition != TR_STOP) {
          /* indicate abort */
          i = 1;
-         db_set_value(hDB, 0, "/Runinfo/Start abort", &i, sizeof(INT), 1, TID_INT);
+         db_set_value(hDB, 0, "/Runinfo/Start abort", &i, sizeof(INT), 1, TID_INT32);
          i = 0;
-         db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
+         db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT32);
       }
 
       tr_client->status = status;
@@ -4096,7 +4203,7 @@ tapes.
 \code
 ...
     i = 1;
-    db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
+    db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT32);
 
       status = cm_transition(TR_START, new_run_number, str, sizeof(str), SYNC, debug_flag);
       if (status != CM_SUCCESS)
@@ -4207,12 +4314,12 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    DWORD end_time = 0;
 
    if (transition != TR_STARTABORT) {
-      db_set_value(hDB, 0, "/System/Transition/transition", &transition, sizeof(INT), 1, TID_INT);
-      db_set_value(hDB, 0, "/System/Transition/run_number", &run_number, sizeof(INT), 1, TID_INT);
-      db_set_value(hDB, 0, "/System/Transition/start_time", &start_time, sizeof(DWORD), 1, TID_DWORD);
-      db_set_value(hDB, 0, "/System/Transition/end_time",   &end_time,   sizeof(DWORD), 1, TID_DWORD);
+      db_set_value(hDB, 0, "/System/Transition/transition", &transition, sizeof(INT), 1, TID_INT32);
+      db_set_value(hDB, 0, "/System/Transition/run_number", &run_number, sizeof(INT), 1, TID_INT32);
+      db_set_value(hDB, 0, "/System/Transition/start_time", &start_time, sizeof(DWORD), 1, TID_UINT32);
+      db_set_value(hDB, 0, "/System/Transition/end_time",   &end_time,   sizeof(DWORD), 1, TID_UINT32);
       status = 0;
-      db_set_value(hDB, 0, "/System/Transition/status",     &status,     sizeof(INT),   1, TID_INT);
+      db_set_value(hDB, 0, "/System/Transition/status",     &status,     sizeof(INT),   1, TID_INT32);
       db_set_value(hDB, 0, "/System/Transition/error",      "",     1,   1, TID_STRING);
       db_set_value(hDB, 0, "/System/Transition/deferred",   "",     1,   1, TID_STRING);
    }
@@ -4284,13 +4391,13 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
    if (debug_flag == 0) {
       size = sizeof(i);
-      db_get_value(hDB, 0, "/Experiment/Transition debug flag", &debug_flag, &size, TID_INT, TRUE);
+      db_get_value(hDB, 0, "/Experiment/Transition debug flag", &debug_flag, &size, TID_INT32, TRUE);
    }
 
    /* if no run number is given, get it from ODB and increment it */
    if (run_number == 0) {
       size = sizeof(run_number);
-      status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT, TRUE);
+      status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT32, TRUE);
       assert(status == SUCCESS);
       if (transition == TR_START) {
          run_number++;
@@ -4298,7 +4405,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       tr_current_transition->run_number = run_number;
 
       if (transition != TR_STARTABORT) {
-         db_set_value(hDB, 0, "/System/Transition/run_number", &run_number, sizeof(INT), 1, TID_INT);
+         db_set_value(hDB, 0, "/System/Transition/run_number", &run_number, sizeof(INT), 1, TID_INT32);
       }
    }
 
@@ -4311,7 +4418,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    if (!deferred) {
       i = 0;
       size = sizeof(i);
-      db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT, TRUE);
+      db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT32, TRUE);
       if (i == 1) {
          if (errstr) {
             sprintf(errstr, "Start/Stop transition %d already in progress, please try again later\n", i);
@@ -4323,11 +4430,11 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
    /* indicate transition in progress */
    i = transition;
-   db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
+   db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT32);
 
    /* clear run abort flag */
    i = 0;
-   db_set_value(hDB, 0, "/Runinfo/Start abort", &i, sizeof(INT), 1, TID_INT);
+   db_set_value(hDB, 0, "/Runinfo/Start abort", &i, sizeof(INT), 1, TID_INT32);
 
    /* Set new run number in ODB */
    if (transition == TR_START) {
@@ -4336,7 +4443,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       if (debug_flag == 2)
          cm_msg(MINFO, "cm_transition", "cm_transition: Setting run number %d in ODB", run_number);
 
-      status = db_set_value(hDB, 0, "Runinfo/Run number", &run_number, sizeof(run_number), 1, TID_INT);
+      status = db_set_value(hDB, 0, "Runinfo/Run number", &run_number, sizeof(run_number), 1, TID_INT32);
       if (status != DB_SUCCESS) {
          cm_msg(MERROR, "cm_transition", "cannot set Runinfo/Run number in database, status %d", status);
          abort();
@@ -4351,7 +4458,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       
       /* remove transition request */
       i = 0;
-      db_set_value(hDB, 0, "/Runinfo/Requested transition", &i, sizeof(int), 1, TID_INT);
+      db_set_value(hDB, 0, "/Runinfo/Requested transition", &i, sizeof(int), 1, TID_INT32);
    } else {
       status = db_find_key(hDB, 0, "System/Clients", &hRootKey);
       if (status != DB_SUCCESS) {
@@ -4363,7 +4470,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
       /* check if deferred transition already in progress */
       size = sizeof(i);
-      db_get_value(hDB, 0, "/Runinfo/Requested transition", &i, &size, TID_INT, TRUE);
+      db_get_value(hDB, 0, "/Runinfo/Requested transition", &i, &size, TID_INT32, TRUE);
       if (i) {
          if (errstr) {
             strlcpy(errstr, "Deferred transition already in progress", errstr_size);
@@ -4388,7 +4495,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
          if (status == DB_SUCCESS) {
             size = sizeof(sequence_number);
-            status = db_get_value(hDB, hSubkey, tr_key_name, &sequence_number, &size, TID_INT, FALSE);
+            status = db_get_value(hDB, hSubkey, tr_key_name, &sequence_number, &size, TID_INT32, FALSE);
 
             /* if registered for deferred transition, set flag in ODB and return */
             if (status == DB_SUCCESS) {
@@ -4409,7 +4516,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
                 * will activate the deferred transition code in the frontend.
                 * the transition itself will be run from the frontend via cm_transition(TR_DEFERRED) */
 
-               db_set_value(hDB, 0, "/Runinfo/Requested transition", &transition, sizeof(int), 1, TID_INT);
+               db_set_value(hDB, 0, "/Runinfo/Requested transition", &transition, sizeof(int), 1, TID_INT32);
 
                db_set_value(hDB, 0, "/System/Transition/deferred", str, strlen(str)+1, 1, TID_STRING);
                
@@ -4490,15 +4597,15 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
       /* reset stop time */
       seconds = 0;
-      db_set_value(hDB, 0, "Runinfo/Stop Time binary", &seconds, sizeof(seconds), 1, TID_DWORD);
+      db_set_value(hDB, 0, "Runinfo/Stop Time binary", &seconds, sizeof(seconds), 1, TID_UINT32);
 
       /* Seconds since 1.1.1970 */
       cm_time(&seconds);
-      db_set_value(hDB, 0, "Runinfo/Start Time binary", &seconds, sizeof(seconds), 1, TID_DWORD);
+      db_set_value(hDB, 0, "Runinfo/Start Time binary", &seconds, sizeof(seconds), 1, TID_UINT32);
    }
 
    size = sizeof(state);
-   status = db_get_value(hDB, 0, "Runinfo/State", &state, &size, TID_INT, TRUE);
+   status = db_get_value(hDB, 0, "Runinfo/State", &state, &size, TID_INT32, TRUE);
 
    /* set stop time in database */
    if (transition == TR_STOP) {
@@ -4508,7 +4615,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       if (state != STATE_STOPPED) {
          /* stop time binary */
          cm_time(&seconds);
-         status = db_set_value(hDB, 0, "Runinfo/Stop Time binary", &seconds, sizeof(seconds), 1, TID_DWORD);
+         status = db_set_value(hDB, 0, "Runinfo/Stop Time binary", &seconds, sizeof(seconds), 1, TID_UINT32);
          if (status != DB_SUCCESS)
             cm_msg(MERROR, "cm_transition", "cannot set \"Runinfo/Stop Time binary\" in database");
 
@@ -4587,7 +4694,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
             for (j = 0; j < key.num_values; j++) {
                size = sizeof(sequence_number);
-               status = db_get_data_index(hDB, hKeyTrans, &sequence_number, &size, j, TID_INT);
+               status = db_get_data_index(hDB, hKeyTrans, &sequence_number, &size, j, TID_INT32);
                assert(status == DB_SUCCESS);
 
                if (tr_client == NULL)
@@ -4624,7 +4731,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
                   c->port = 0;
                } else {
                   size = sizeof(port);
-                  db_get_value(hDB, hSubkey, "Server Port", &port, &size, TID_INT, TRUE);
+                  db_get_value(hDB, hSubkey, "Server Port", &port, &size, TID_INT32, TRUE);
                   c->port = port;
                }
 
@@ -4719,7 +4826,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
          i = 0;
          size = sizeof(i);
-         status = db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT, FALSE);
+         status = db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT32, FALSE);
 
          if (status == DB_SUCCESS && i == 0) {
             cm_msg(MERROR, "cm_transition", "transition %s aborted: \"/Runinfo/Transition in progress\" was cleared", trname);
@@ -4749,9 +4856,9 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    if (transition != TR_STOP && status != CM_SUCCESS) {
       /* indicate abort */
       i = 1;
-      db_set_value(hDB, 0, "/Runinfo/Start abort", &i, sizeof(INT), 1, TID_INT);
+      db_set_value(hDB, 0, "/Runinfo/Start abort", &i, sizeof(INT), 1, TID_INT32);
       i = 0;
-      db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
+      db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT32);
 
       return tr_finish(hDB, transition, status, errstr);
    }
@@ -4775,7 +4882,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       state = STATE_STOPPED;
 
    size = sizeof(state);
-   status = db_set_value(hDB, 0, "Runinfo/State", &state, size, 1, TID_INT);
+   status = db_set_value(hDB, 0, "Runinfo/State", &state, size, 1, TID_INT32);
    if (status != DB_SUCCESS)
       cm_msg(MERROR, "cm_transition", "cannot set Runinfo/State in database, db_set_value() status %d", status);
 
@@ -4848,7 +4955,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
    /* indicate success */
    i = 0;
-   db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT);
+   db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT32);
 
    if (errstr != NULL)
       strlcpy(errstr, "Success", errstr_size);
@@ -5016,6 +5123,109 @@ void cm_ack_ctrlc_pressed()
    _ctrlc_pressed = FALSE;
 }
 
+/********************************************************************/
+int cm_exec_script(const char* odb_path_to_script)
+/********************************************************************\
+
+  Routine: cm_exec_script
+
+  Purpose: Execute script from /Script tree
+
+  exec_script is enabled by the tree /Script
+  The /Script struct is composed of list of keys
+  from which the name of the key is the button name
+  and the sub-structure is a record as follow:
+
+  /Script/<button_name> = <script command> (TID_STRING)
+
+  The "Script command", containing possible arguements,
+  is directly executed.
+
+  /Script/<button_name>/<script command>
+                        <soft link1>|<arg1>
+                        <soft link2>|<arg2>
+                           ...
+
+  The arguments for the script are derived from the
+  subtree below <button_name>, where <button_name> must be
+  TID_KEY. The subtree may then contain arguments or links
+  to other values in the ODB, like run number etc.
+
+\********************************************************************/
+{
+   HNDLE hDB, hkey;
+   KEY key;
+   int status;
+
+   status = cm_get_experiment_database(&hDB, NULL);
+   if (status != DB_SUCCESS)
+      return status;
+
+   status = db_find_key(hDB, 0, odb_path_to_script, &hkey);
+   if (status != DB_SUCCESS)
+      return status;
+   
+   status = db_get_key(hDB, hkey, &key);
+   if (status != DB_SUCCESS)
+      return status;
+
+   std::string command;
+
+   if (key.type == TID_STRING) {
+      int status = db_get_value_string(hDB, 0, odb_path_to_script, 0, &command, FALSE);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "cm_exec_script", "Script ODB \"%s\" of type TID_STRING, db_get_value_string() error %d", odb_path_to_script, status);
+         return status;
+      }
+   } else if (key.type == TID_KEY) {
+      for (int i = 0;; i++) {
+         HNDLE hsubkey;
+         KEY subkey;
+         db_enum_key(hDB, hkey, i, &hsubkey);
+         if (!hsubkey)
+            break;
+         db_get_key(hDB, hsubkey, &subkey);
+
+         if (i > 0)
+            command += " ";
+
+         if (subkey.type == TID_KEY) {
+            cm_msg(MERROR, "cm_exec_script", "Script ODB \"%s/%s\" should not be TID_KEY", odb_path_to_script, subkey.name);
+            return DB_TYPE_MISMATCH;
+         } else {
+            int size = subkey.item_size;
+            char *buf = (char*)malloc(size);
+            assert(buf != NULL);
+            int status = db_get_data(hDB, hsubkey, buf, &size, subkey.type);
+            if (status != DB_SUCCESS) {
+               cm_msg(MERROR, "cm_exec_script", "Script ODB \"%s/%s\" of type %d, db_get_data() error %d", odb_path_to_script, subkey.name, subkey.type, status);
+               free(buf);
+               return status;
+            }
+            if (subkey.type == TID_STRING) {
+               command += buf;
+            } else {
+               char str[256];
+               db_sprintf(str, buf, subkey.item_size, 0, subkey.type);
+               command += str;
+            }
+            free(buf);
+         }
+      }
+   } else {
+      cm_msg(MERROR, "cm_exec_script", "Script ODB \"%s\" has invalid type %d, should be TID_STRING or TID_KEY", odb_path_to_script, key.type);
+      return DB_TYPE_MISMATCH;
+   }
+
+   // printf("exec_script: %s\n", command.c_str());
+
+   if (command.length() > 0) {
+      cm_msg(MINFO, "cm_exec_script", "Executing script \"%s\" from ODB \"%s\"", command.c_str(), odb_path_to_script);
+      ss_system(command.c_str());
+   }
+
+   return SUCCESS;
+}
 
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
@@ -5813,13 +6023,13 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER* pbuf, BOOL forc
          return;
    }
    
-   db_set_value(hDB, hKeyClient, "count_lock", &pbuf->count_lock,   sizeof(int),    1, TID_INT);
-   db_set_value(hDB, hKeyClient, "count_sent", &pbuf->count_sent,   sizeof(int),    1, TID_INT);
+   db_set_value(hDB, hKeyClient, "count_lock", &pbuf->count_lock,   sizeof(int),    1, TID_INT32);
+   db_set_value(hDB, hKeyClient, "count_sent", &pbuf->count_sent,   sizeof(int),    1, TID_INT32);
    db_set_value(hDB, hKeyClient, "bytes_sent", &pbuf->bytes_sent,   sizeof(double), 1, TID_DOUBLE);
-   db_set_value(hDB, hKeyClient, "count_write_wait", &pbuf->count_write_wait, sizeof(int), 1, TID_INT);
-   db_set_value(hDB, hKeyClient, "time_write_wait", &pbuf->time_write_wait, sizeof(DWORD), 1, TID_DWORD);
-   db_set_value(hDB, hKeyClient, "max_bytes_write_wait", &pbuf->max_requested_space, sizeof(INT), 1, TID_INT);
-   db_set_value(hDB, hKeyClient, "count_read",   &pbuf->count_read, sizeof(int),    1, TID_INT);
+   db_set_value(hDB, hKeyClient, "count_write_wait", &pbuf->count_write_wait, sizeof(int), 1, TID_INT32);
+   db_set_value(hDB, hKeyClient, "time_write_wait", &pbuf->time_write_wait, sizeof(DWORD), 1, TID_UINT32);
+   db_set_value(hDB, hKeyClient, "max_bytes_write_wait", &pbuf->max_requested_space, sizeof(INT), 1, TID_INT32);
+   db_set_value(hDB, hKeyClient, "count_read",   &pbuf->count_read, sizeof(int),    1, TID_INT32);
    db_set_value(hDB, hKeyClient, "bytes_read",   &pbuf->bytes_read, sizeof(double), 1, TID_DOUBLE);
    db_set_value(hDB, hKeyClient, "get_all_flag", &pbuf->get_all_flag, sizeof(BOOL), 1, TID_BOOL);
    db_set_value(hDB, hKeyClient, "read_pointer", &buf_cptr,         sizeof(double), 1, TID_DOUBLE);
@@ -5841,15 +6051,15 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER* pbuf, BOOL forc
          char str[100+NAME_LENGTH];
 
          sprintf(str, "writes_blocked_by/%s/count_write_wait", pbuf->buffer_header->client[i].name);
-         db_set_value(hDB, hKeyClient, str, &pbuf->client_count_write_wait[i], sizeof(int), 1, TID_INT);
+         db_set_value(hDB, hKeyClient, str, &pbuf->client_count_write_wait[i], sizeof(int), 1, TID_INT32);
 
          sprintf(str, "writes_blocked_by/%s/time_write_wait", pbuf->buffer_header->client[i].name);
-         db_set_value(hDB, hKeyClient, str, &pbuf->client_time_write_wait[i], sizeof(DWORD), 1, TID_DWORD);
+         db_set_value(hDB, hKeyClient, str, &pbuf->client_time_write_wait[i], sizeof(DWORD), 1, TID_UINT32);
       }
    }
 
-   db_set_value(hDB, hKeyBuffer, "Last updated", &now, sizeof(DWORD), 1, TID_DWORD);
-   db_set_value(hDB, hKeyClient, "last_updated", &now, sizeof(DWORD), 1, TID_DWORD);
+   db_set_value(hDB, hKeyBuffer, "Last updated", &now, sizeof(DWORD), 1, TID_UINT32);
+   db_set_value(hDB, hKeyClient, "last_updated", &now, sizeof(DWORD), 1, TID_UINT32);
 
    pbuf->last_count_lock = pbuf->count_lock;
 }
@@ -5919,7 +6129,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       _bm_max_event_size = DEFAULT_MAX_EVENT_SIZE;
 
       int size = sizeof(INT);
-      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &_bm_max_event_size, &size, TID_DWORD, TRUE);
+      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &_bm_max_event_size, &size, TID_UINT32, TRUE);
 
       if (status != DB_SUCCESS) {
          cm_msg(MERROR, "bm_open_buffer", "Cannot get ODB /Experiment/MAX_EVENT_SIZE, db_get_value() status %d", status);
@@ -5964,7 +6174,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       strlcat(odb_path, buffer_name, sizeof(odb_path));
 
       size = sizeof(INT);
-      status = db_get_value(hDB, 0, odb_path, &buffer_size, &size, TID_DWORD, TRUE);
+      status = db_get_value(hDB, 0, odb_path, &buffer_size, &size, TID_UINT32, TRUE);
 
       if (buffer_size <= 0 || buffer_size > max_buffer_size) {
          cm_msg(MERROR, "bm_open_buffer", "Cannot open buffer \"%s\", invalid buffer size %d in ODB \"%s\", maximum buffer size is %d", buffer_name, buffer_size, odb_path, max_buffer_size);
@@ -5974,7 +6184,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle
       _bm_max_event_size = DEFAULT_MAX_EVENT_SIZE;
 
       size = sizeof(INT);
-      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &_bm_max_event_size, &size, TID_DWORD, TRUE);
+      status = db_get_value(hDB, 0, "/Experiment/MAX_EVENT_SIZE", &_bm_max_event_size, &size, TID_UINT32, TRUE);
 
       if (status != DB_SUCCESS) {
          cm_msg(MERROR, "bm_open_buffer", "Cannot get ODB /Experiment/MAX_EVENT_SIZE, db_get_value() status %d", status);
@@ -6516,7 +6726,7 @@ INT cm_shutdown(const char *name, BOOL bUnique)
             continue;
 
          size = sizeof(port);
-         db_get_value(hDB, hSubkey, "Server Port", &port, &size, TID_INT, TRUE);
+         db_get_value(hDB, hSubkey, "Server Port", &port, &size, TID_INT32, TRUE);
 
          size = sizeof(remote_host);
          db_get_value(hDB, hSubkey, "Host", remote_host, &size, TID_STRING, TRUE);
@@ -7968,11 +8178,11 @@ static void bm_convert_event_header(EVENT_HEADER * pevent, int convert_flags)
 {
    /* now convert event header */
    if (convert_flags) {
-      rpc_convert_single(&pevent->event_id, TID_SHORT, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&pevent->trigger_mask, TID_SHORT, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&pevent->serial_number, TID_DWORD, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&pevent->time_stamp, TID_DWORD, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&pevent->data_size, TID_DWORD, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&pevent->event_id, TID_INT16, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&pevent->trigger_mask, TID_INT16, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&pevent->serial_number, TID_UINT32, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&pevent->time_stamp, TID_UINT32, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&pevent->data_size, TID_UINT32, RPC_OUTGOING, convert_flags);
    }
 }
 
@@ -9385,8 +9595,8 @@ static INT bm_notify_client(const char *buffer_name, int client_socket)
    nc->header.param_size = 0;
 
    if (convert_flags) {
-      rpc_convert_single(&nc->header.routine_id, TID_DWORD, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&nc->header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->header.routine_id, TID_UINT32, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc->header.param_size, TID_UINT32, RPC_OUTGOING, convert_flags);
    }
    
    //printf("bm_notify_client: Sending MSG_BM! buffer [%s]\n", buffer_name);
@@ -9818,9 +10028,9 @@ void rpc_convert_single(void *data, INT tid, INT flags, INT convert_flags)
 {
 
    if (convert_flags & CF_ENDIAN) {
-      if (tid == TID_WORD || tid == TID_SHORT)
+      if (tid == TID_UINT16 || tid == TID_INT16)
          WORD_SWAP(data);
-      if (tid == TID_DWORD || tid == TID_INT || tid == TID_BOOL || tid == TID_FLOAT)
+      if (tid == TID_UINT32 || tid == TID_INT32 || tid == TID_BOOL || tid == TID_FLOAT)
          DWORD_SWAP(data);
       if (tid == TID_DOUBLE)
          QWORD_SWAP(data);
@@ -9913,6 +10123,13 @@ const char *rpc_tid_name(INT id)
       return "<unknown>";
 }
 
+const char *rpc_tid_name_old(INT id)
+{
+   if (id >= 0 && id < TID_LAST)
+      return tid_name_old[id];
+   else
+      return "<unknown>";
+}
 
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
@@ -11345,20 +11562,20 @@ void rpc_va_arg(va_list * arg_ptr, INT arg_type, void *arg)
       /* On the stack, the minimum parameter size is sizeof(int).
          To avoid problems on little endian systems, treat all
          smaller parameters as int's */
-   case TID_BYTE:
-   case TID_SBYTE:
+   case TID_UINT8:
+   case TID_INT8:
    case TID_CHAR:
-   case TID_WORD:
-   case TID_SHORT:
+   case TID_UINT16:
+   case TID_INT16:
       *((int *) arg) = va_arg(*arg_ptr, int);
       break;
 
-   case TID_INT:
+   case TID_INT32:
    case TID_BOOL:
       *((INT *) arg) = va_arg(*arg_ptr, INT);
       break;
 
-   case TID_DWORD:
+   case TID_UINT32:
       *((DWORD *) arg) = va_arg(*arg_ptr, DWORD);
       break;
 
@@ -11493,10 +11710,10 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
 
       /* shift 1- and 2-byte parameters to the LSB on big endian systems */
       if (bbig) {
-         if (tid == TID_BYTE || tid == TID_CHAR || tid == TID_SBYTE) {
+         if (tid == TID_UINT8 || tid == TID_CHAR || tid == TID_INT8) {
             arg[0] = arg[3];
          }
-         if (tid == TID_WORD || tid == TID_SHORT) {
+         if (tid == TID_UINT16 || tid == TID_INT16) {
             arg[0] = arg[2];
             arg[1] = arg[3];
          }
@@ -11654,6 +11871,13 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
       rpc_va_arg(&ap, arg_type, arg);
 
       if (rpc_list[rpc_index].param[i].flags & RPC_OUT) {
+
+         if (param_ptr == NULL) {
+            cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": no data in RPC reply, needed to decode an RPC_OUT parameter. param_ptr is NULL", client_name, host_name, rpc_name);
+            rpc_status = RPC_NET_ERROR;
+            break;
+         }
+
          tid = rpc_list[rpc_index].param[i].tid;
          flags = rpc_list[rpc_index].param[i].flags;
 
@@ -11822,10 +12046,10 @@ INT rpc_call(DWORD routine_id, ...)
 
       /* shift 1- and 2-byte parameters to the LSB on big endian systems */
       if (bbig) {
-         if (tid == TID_BYTE || tid == TID_CHAR || tid == TID_SBYTE) {
+         if (tid == TID_UINT8 || tid == TID_CHAR || tid == TID_INT8) {
             arg[0] = arg[3];
          }
-         if (tid == TID_WORD || tid == TID_SHORT) {
+         if (tid == TID_UINT16 || tid == TID_INT16) {
             arg[0] = arg[2];
             arg[1] = arg[3];
          }
@@ -11999,6 +12223,13 @@ INT rpc_call(DWORD routine_id, ...)
       rpc_va_arg(&ap, arg_type, arg);
 
       if (rpc_list[idx].param[i].flags & RPC_OUT) {
+
+         if (param_ptr == NULL) {
+            cm_msg(MERROR, "rpc_call", "routine \"%s\": no data in RPC reply, needed to decode an RPC_OUT parameter. param_ptr is NULL", rpc_list[idx].name);
+            rpc_status = RPC_NET_ERROR;
+            break;
+         }
+
          tid = rpc_list[idx].param[i].tid;
          arg_size = tid_size[tid];
 
@@ -12537,7 +12768,7 @@ static int recv_net_command_realloc(INT idx, char **pbuf, int* pbufsize, INT * r
             }
 
             if (_server_acception[idx].convert_flags)
-               rpc_convert_single(&param_size, TID_DWORD, 0, _server_acception[idx].convert_flags);
+               rpc_convert_single(&param_size, TID_UINT32, 0, _server_acception[idx].convert_flags);
          }
 
          //printf("recv_net_command: param_size %d, NET_COMMAND_HEADER %d, buffer_size %d\n", param_size, (int)sizeof(NET_COMMAND_HEADER), *pbufsize);
@@ -12736,12 +12967,12 @@ int recv_event_server_realloc(INT idx, char **pbuffer, int *pbuffer_size)
 
    /* convert header little endian/big endian */
    if (psa->convert_flags) {
-      rpc_convert_single(&pbh, TID_INT, 0, psa->convert_flags);
-      rpc_convert_single(&pevent->event_id, TID_SHORT, 0, psa->convert_flags);
-      rpc_convert_single(&pevent->trigger_mask, TID_SHORT, 0, psa->convert_flags);
-      rpc_convert_single(&pevent->serial_number, TID_DWORD, 0, psa->convert_flags);
-      rpc_convert_single(&pevent->time_stamp, TID_DWORD, 0, psa->convert_flags);
-      rpc_convert_single(&pevent->data_size, TID_DWORD, 0, psa->convert_flags);
+      rpc_convert_single(&pbh, TID_INT32, 0, psa->convert_flags);
+      rpc_convert_single(&pevent->event_id, TID_INT16, 0, psa->convert_flags);
+      rpc_convert_single(&pevent->trigger_mask, TID_INT16, 0, psa->convert_flags);
+      rpc_convert_single(&pevent->serial_number, TID_UINT32, 0, psa->convert_flags);
+      rpc_convert_single(&pevent->time_stamp, TID_UINT32, 0, psa->convert_flags);
+      rpc_convert_single(&pevent->data_size, TID_UINT32, 0, psa->convert_flags);
    }
 
    int event_size = pevent->data_size + sizeof(EVENT_HEADER);
@@ -13072,8 +13303,8 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
 
    /* convert header format (byte swapping) */
    if (convert_flags) {
-      rpc_convert_single(&nc_in->header.routine_id, TID_DWORD, 0, convert_flags);
-      rpc_convert_single(&nc_in->header.param_size, TID_DWORD, 0, convert_flags);
+      rpc_convert_single(&nc_in->header.routine_id, TID_UINT32, 0, convert_flags);
+      rpc_convert_single(&nc_in->header.param_size, TID_UINT32, 0, convert_flags);
    }
 
    //if (nc_in->header.routine_id & RPC_NO_REPLY) {
@@ -13121,7 +13352,7 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
             /* for arrays, the size is stored as a INT in front of the array */
             param_size = *((INT *) in_param_ptr);
             if (convert_flags)
-               rpc_convert_single(&param_size, TID_INT, 0, convert_flags);
+               rpc_convert_single(&param_size, TID_INT32, 0, convert_flags);
             param_size = ALIGN8(param_size);
 
             in_param_ptr += ALIGN8(sizeof(INT));
@@ -13168,7 +13399,7 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
             max_size = *((INT *) in_param_ptr);
 
             if (convert_flags)
-               rpc_convert_single(&max_size, TID_INT, 0, convert_flags);
+               rpc_convert_single(&max_size, TID_INT32, 0, convert_flags);
             max_size = ALIGN8(max_size);
 
             *((INT *) out_param_ptr) = max_size;
@@ -13294,7 +13525,7 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
             param_size = *((INT *) prpc_param[i + 1]);
             *((INT *) out_param_ptr) = param_size;      // store new array size
             if (convert_flags)
-               rpc_convert_single(out_param_ptr, TID_INT, RPC_OUTGOING, convert_flags);
+               rpc_convert_single(out_param_ptr, TID_INT32, RPC_OUTGOING, convert_flags);
 
             out_param_ptr += ALIGN8(sizeof(INT));       // step over array size
 
@@ -13332,8 +13563,8 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
 
    /* convert header format (byte swapping) if necessary */
    if (convert_flags) {
-      rpc_convert_single(&nc_out->header.routine_id, TID_DWORD, RPC_OUTGOING, convert_flags);
-      rpc_convert_single(&nc_out->header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc_out->header.routine_id, TID_UINT32, RPC_OUTGOING, convert_flags);
+      rpc_convert_single(&nc_out->header.param_size, TID_UINT32, RPC_OUTGOING, convert_flags);
    }
 
    // valgrind complains about sending uninitialized data, if you care about this, uncomment
@@ -14427,8 +14658,8 @@ INT rpc_check_channels(void)
 
          convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
          if (convert_flags) {
-            rpc_convert_single(&nc.header.routine_id, TID_DWORD, RPC_OUTGOING, convert_flags);
-            rpc_convert_single(&nc.header.param_size, TID_DWORD, RPC_OUTGOING, convert_flags);
+            rpc_convert_single(&nc.header.routine_id, TID_UINT32, RPC_OUTGOING, convert_flags);
+            rpc_convert_single(&nc.header.param_size, TID_UINT32, RPC_OUTGOING, convert_flags);
          }
 
          /* send the header to the client */
@@ -14587,7 +14818,7 @@ the function bk_close() to finish the bank creation.
 \code
 INT *pdata;
 bk_init(pevent);
-bk_create(pevent, "ADC0", TID_INT, &pdata);
+bk_create(pevent, "ADC0", TID_INT32, &pdata);
 *pdata++ = 123
 *pdata++ = 456
 bk_close(pevent, pdata);
@@ -15125,16 +15356,16 @@ INT bk_swap(void *event, BOOL force)
       }
 
       switch (type) {
-      case TID_WORD:
-      case TID_SHORT:
+      case TID_UINT16:
+      case TID_INT16:
          while ((char *) pdata < (char *) pbk) {
             WORD_SWAP(pdata);
             pdata = (void *) (((WORD *) pdata) + 1);
          }
          break;
 
-      case TID_DWORD:
-      case TID_INT:
+      case TID_UINT32:
+      case TID_INT32:
       case TID_BOOL:
       case TID_FLOAT:
          while ((char *) pdata < (char *) pbk) {

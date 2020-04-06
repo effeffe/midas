@@ -449,7 +449,7 @@ function dlgLoad(url) {
                document.body.appendChild(d);
                resolve(xhr.responseText);
             } else {
-               dlgAlert("Cannot laod " + xhr.responseURL);
+               dlgAlert("network error: see javascript console: dlgLoad() cannot load " + url + ", HTTP status: " + xhr.status);
                reject(xhr.responseURL);
             }
          }

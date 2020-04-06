@@ -249,7 +249,7 @@ INT read_trigger_event(char *pevent, INT off)
    bk_init(pevent);
 
    /* create structured ADC0 bank */
-   bk_create(pevent, "ADC0", TID_WORD, (void **)&pdata);
+   bk_create(pevent, "ADC0", TID_UINT16, (void **)&pdata);
 
    /* following code to "simulates" some ADC data */
    for (a = 0; a < 4; a++)
@@ -258,7 +258,7 @@ INT read_trigger_event(char *pevent, INT off)
    bk_close(pevent, pdata);
 
    /* create variable length TDC bank */
-   bk_create(pevent, "TDC0", TID_WORD, (void **)&pdata);
+   bk_create(pevent, "TDC0", TID_UINT16, (void **)&pdata);
 
    /* following code to "simulates" some TDC data */
    for (a = 0; a < 4; a++)

@@ -3736,21 +3736,16 @@ static INT ss_suspend_init_struct(SUSPEND_STRUCT* psuspend)
    /* decide if UDP sockets are bound to localhost (they are only use for local communications)
       or to hostname (for compatibility with old clients - their hotlinks will not work) */
    {
-      FILE* fp;
-      char path[256];
-      cm_get_path(path, sizeof(path));
-      if (path[0] == 0) {
-         if (!getcwd(path, sizeof(path)))
-            path[0] = 0;
-         strlcat(path, "/", sizeof(path));
-      }
+      std::string path = cm_get_path();
+      path += ".UDP_BIND_HOSTNAME";
 
-      strlcat(path, ".UDP_BIND_HOSTNAME", sizeof(path));
+      //cm_msg(MERROR, "ss_suspend_init_ipc", "check file [%s]", path.c_str());
 
-      fp = fopen(path, "r");
+      FILE *fp = fopen(path.c_str(), "r");
       if (fp) {
          udp_bind_hostname = 1;
          fclose(fp);
+         fp = NULL;
       }
    }
 
@@ -3973,6 +3968,27 @@ INT ss_suspend_set_server_acceptions_array(int num, RPC_SERVER_ACCEPTION* accept
    return SS_SUCCESS;
 }
 
+INT ss_suspend_init_odb_port()
+/********************************************************************\
+
+  Routine: ss_suspend_init_odb_port
+
+  Purpose: Setup UDP port to receive ODB notifications (db_watch & co)
+
+  Function value:
+    SS_SUCCESS              Successful completion
+
+\********************************************************************/
+{
+   if (!_ss_suspend_odb) {
+      _ss_suspend_odb = new SUSPEND_STRUCT;
+      _ss_suspend_odb->thread_id = ss_gettid();
+      ss_suspend_init_struct(_ss_suspend_odb);
+   }
+
+   return SS_SUCCESS;
+}
+
 /*------------------------------------------------------------------*/
 INT ss_suspend_get_odb_port(INT * port)
 /********************************************************************\
@@ -3992,11 +4008,7 @@ INT ss_suspend_get_odb_port(INT * port)
 
 \********************************************************************/
 {
-   if (!_ss_suspend_odb) {
-      _ss_suspend_odb = new SUSPEND_STRUCT;
-      _ss_suspend_odb->thread_id = ss_gettid();
-      ss_suspend_init_struct(_ss_suspend_odb);
-   }
+   assert(_ss_suspend_odb);
 
    *port = _ss_suspend_odb->ipc_recv_port;
 
@@ -4433,10 +4445,6 @@ INT ss_resume(INT port, const char *message)
 
 \********************************************************************/
 {
-   if (!_ss_suspend_odb) {
-      int port = 0;
-      ss_suspend_get_odb_port(&port);
-   }
    assert(_ss_suspend_odb);
 
    struct sockaddr_in bind_addr;

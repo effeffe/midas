@@ -19,13 +19,19 @@
 
 // from midas.h
 
-#define TID_BYTE      1       /**< unsigned byte         0       255    */
-#define TID_SBYTE     2       /**< signed byte         -128      127    */
+#define TID_BYTE      1       /**< DEPRECATED, use TID_UINT8 instead    */
+#define TID_UINT8     1       /**< unsigned byte         0       255    */
+#define TID_SBYTE     2       /**< DEPRECATED, use TID_INT8 instead     */
+#define TID_INT8      2       /**< signed byte         -128      127    */
 #define TID_CHAR      3       /**< single character      0       255    */
-#define TID_WORD      4       /**< two bytes             0      65535   */
-#define TID_SHORT     5       /**< signed word        -32768    32767   */
-#define TID_DWORD     6       /**< four bytes            0      2^32-1  */
-#define TID_INT       7       /**< signed dword        -2^31    2^31-1  */
+#define TID_WORD      4       /**< DEPRECATED, use TID_UINT16 instead   */
+#define TID_UINT16    4       /**< two bytes             0      65535   */
+#define TID_SHORT     5       /**< DEPRECATED, use TID_INT16 instead    */
+#define TID_INT16     5       /**< signed word        -32768    32767   */
+#define TID_DWORD     6       /**< DEPRECATED, use TID_UINT32 instead   */
+#define TID_UINT32    6       /**< four bytes            0      2^32-1  */
+#define TID_INT       7       /**< DEPRECATED, use TID_INT32 instead    */
+#define TID_INT32     7       /**< signed dword        -2^31    2^31-1  */
 #define TID_BOOL      8       /**< four bytes bool       0        1     */
 #define TID_FLOAT     9       /**< 4 Byte float format                  */
 #define TID_DOUBLE   10       /**< 8 Byte float format                  */
@@ -35,7 +41,9 @@
 #define TID_STRUCT   14       /**< structure with fixed length          */
 #define TID_KEY      15       /**< key in online database               */
 #define TID_LINK     16       /**< link in online database              */
-#define TID_LAST     17       /**< end of TID list indicator            */
+#define TID_INT64    17       /**< 8 bytes int          -2^63   2^63-1  */
+#define TID_UINT64   18       /**< 8 bytes unsigned int  0      2^64-1  */
+#define TID_LAST     18       /**< end of TID list indicator            */
 
 /**
 System message types */
@@ -168,6 +176,7 @@ class TMFeRpcHandlerInterface
    virtual void HandleEndRun();
    virtual void HandlePauseRun();
    virtual void HandleResumeRun();
+   virtual void HandleStartAbortRun();
    virtual std::string HandleRpc(const char* cmd, const char* args);
 };
 
@@ -265,11 +274,14 @@ class TMFE
    void SetTransitionSequenceStop(int seqno);
    void SetTransitionSequencePause(int seqno);
    void SetTransitionSequenceResume(int seqno);
+   void SetTransitionSequenceStartAbort(int seqno);
    void DeregisterTransitions();
    void DeregisterTransitionStart();
    void DeregisterTransitionStop();
    void DeregisterTransitionPause();
    void DeregisterTransitionResume();
+   void DeregisterTransitionStartAbort();
+   void RegisterTransitionStartAbort();
 
    static double GetTime(); ///< return current time in seconds, with micro-second precision
    static void Sleep(double sleep_time_sec); ///< sleep, with micro-second precision

@@ -81,11 +81,11 @@ else (NO_ROOT)
       find_package(ROOT REQUIRED COMPONENTS MathCore RIO Hist Tree Net)
 
       #---Define useful ROOT functions and macros (e.g. ROOT_GENERATE_DICTIONARY)
-      include(${ROOT_USE_FILE})
+      #include(${ROOT_USE_FILE}) #  this pollutes midas cflags & co with ROOT include and library paths 
 
       if (ROOT_FOUND)
          separate_arguments(ROOT_CXX_FLAGS UNIX_COMMAND "${ROOT_CXX_FLAGS}")
-         message(STATUS "MIDAS: Found ROOT version " ${ROOT_VERSION})
+         message(STATUS "MIDAS: Found ROOT version " ${ROOT_VERSION} " in " $ENV{ROOTSYS})
          set(HAVE_ROOT true)
       else (ROOT_FOUND)
          message(STATUS "MIDAS: ROOT not found")
@@ -117,7 +117,7 @@ endif (NO_ZLIB)
 # Optional SSL support for mhttpd
 #
 if (NO_SSL)
-   message(STATUS "MIDAS: OpenSSL support is disabled via NO_SSL")
+   message(STATUS "MIDAS: OpenSSL https support is disabled via NO_SSL")
 else (NO_SSL)
 find_package(OpenSSL)
 if (OPENSSL_FOUND)
@@ -126,6 +126,22 @@ else ()
    message(STATUS "MIDAS: OpenSSL not found")
 endif ()
 endif (NO_SSL)
+
+#
+# Optional MBEDTLS SSL support for mhttpd
+#
+if (NO_MBEDTLS)
+   message(STATUS "MIDAS: MBEDTLS https support is disabled via NO_MBEDTLS")
+else (NO_MBEDTLS)
+   if (EXISTS ../../mbedtls/include/mbedtls/debug.h)
+      message(STATUS "MIDAS: Found MBEDTLS ...")
+      set(MBEDTLS_FOUND 1)
+      add_compile_options(-I../../../mbedtls/include -I../../../mbedtls/crypto/include)
+      set(MBEDTLS_LIBS ${MBEDTLS_LIBS} -L../../../mbedtls/library -lmbedtls -lmbedx509 -L../../../mbedtls/crypto/library -lmbedcrypto)
+   else ()
+      message(STATUS "MIDAS: MBEDTLS not found")
+   endif ()
+endif (NO_MBEDTLS)
 
 #
 # Check for MYSQL library for mlogger and for the history
@@ -258,7 +274,6 @@ endif()
 #
 set(libsrc
    src/midas
-   src/midas_cxx
    src/odb
    src/device_driver
    src/system

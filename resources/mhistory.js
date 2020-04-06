@@ -51,6 +51,14 @@ function mhistory_create(parentElement, baseURL, group, panel, tMin, tMax) {
    return d;
 }
 
+function getUrlVars() {
+   let vars = {};
+   window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function (m, key, value) {
+      vars[key] = value;
+   });
+   return vars;
+}
+
 function MhistoryGraph(divElement) { // Constructor
 
    // create canvas inside the div
@@ -86,6 +94,18 @@ function MhistoryGraph(divElement) { // Constructor
    this.scroll = true;
    this.yZoom = false;
    this.showZoomButtons = true;
+
+   // overwrite scale from URL if present
+   let tMin = decodeURI(getUrlVars()["A"]);
+   if (tMin !== "undefined") {
+      this.initTMin = tMin;
+      this.tMin = tMin;
+   }
+   let tMax = decodeURI(getUrlVars()["B"]);
+   if (tMax !== "undefined") {
+      this.initTMax = tMax;
+      this.tMax = tMax;
+   }
 
    // data arrays
    this.data = [];
@@ -187,9 +207,10 @@ function MhistoryGraph(divElement) { // Constructor
          click: function (t) {
             if (t.intSelector.style.display === "none") {
                t.intSelector.style.display = "block";
-               t.intSelector.style.left = ((t.canvas.getBoundingClientRect().x + t.x2) -
-                  t.intSelector.offsetWidth) + "px";
-               t.intSelector.style.top = (t.parentDiv.getBoundingClientRect().y + this.y1 - 1) + "px";
+               t.intSelector.style.left = ((t.canvas.getBoundingClientRect().x + window.pageXOffset +
+                  t.x2) - t.intSelector.offsetWidth) + "px";
+               t.intSelector.style.top = (t.canvas.getBoundingClientRect().y + window.pageYOffset +
+                  this.y1 - 1) + "px";
             } else {
                t.intSelector.style.display = "none";
             }
@@ -201,9 +222,10 @@ function MhistoryGraph(divElement) { // Constructor
          click: function (t) {
             if (t.downloadSelector.style.display === "none") {
                t.downloadSelector.style.display = "block";
-               t.downloadSelector.style.left = ((t.canvas.getBoundingClientRect().x + t.x2) -
-                  t.downloadSelector.offsetWidth) + "px";
-               t.downloadSelector.style.top = (t.parentDiv.getBoundingClientRect().y + this.y1 - 1) + "px";
+               t.downloadSelector.style.left = ((t.canvas.getBoundingClientRect().x + window.pageXOffset +
+                  t.x2) - t.downloadSelector.offsetWidth) + "px";
+               t.downloadSelector.style.top = (t.canvas.getBoundingClientRect().y + window.pageYOffset +
+                  this.y1 - 1) + "px";
             } else {
                t.downloadSelector.style.display = "none";
             }
@@ -374,6 +396,11 @@ MhistoryGraph.prototype.loadInitialData = function () {
       this.scroll = false;
    } else {
       this.tScale = timeToSec(this.odb["Timescale"]);
+
+      // overwrite via <div ... data-scale=<value> >
+      if (this.parentDiv.dataset.scale !== undefined)
+         this.tScale = timeToSec(this.parentDiv.dataset.scale);
+
       this.tMax = Math.floor(new Date() / 1000);
       this.tMin = this.tMax - this.tScale;
    }
@@ -449,6 +476,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
          row = document.createElement("tr");
 
       cell = document.createElement("td");
+      cell.style.padding = "0";
 
       link = document.createElement("a");
       link.href = "#";
@@ -598,7 +626,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    // download selector
    this.downloadSelector = document.createElement("div");
-   this.downloadSelector.id = "intSel";
+   this.downloadSelector.id = "downloadSel";
    this.downloadSelector.style.display = "none";
    this.downloadSelector.style.position = "absolute";
    this.downloadSelector.className = "mtable";
@@ -615,6 +643,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    row = document.createElement("tr");
    cell = document.createElement("td");
+   cell.style.padding = "0";
    link = document.createElement("a");
    link.href = "#";
    link.innerHTML = "CSV";
@@ -630,13 +659,14 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    row = document.createElement("tr");
    cell = document.createElement("td");
+   cell.style.padding = "0";
    link = document.createElement("a");
    link.href = "#";
    link.innerHTML = "PNG";
    link.title = "Download image in PNG format";
    link.onclick = function () {
       mhg.downloadSelector.style.display = "none";
-      this.download("PNG");
+      mhg.download("PNG");
       return false;
    }.bind(this);
    cell.appendChild(link);
@@ -936,6 +966,9 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
    let title = "";
 
    if (e.type === "mousedown") {
+
+      this.intSelector.style.display = "none";
+      this.downloadSelector.style.display = "none";
 
       // check for buttons
       this.button.forEach(b => {
@@ -1392,6 +1425,9 @@ MhistoryGraph.prototype.findMinMax = function () {
 
    let n = 0;
 
+   if (this.yZoom)
+      return;
+
    if (!this.autoscaleMin)
       this.yMin0 = this.odb["Minimum"];
 
@@ -1482,6 +1518,16 @@ function convertLastWritten(last) {
    );
 
    return "last data: " + d;
+}
+
+MhistoryGraph.prototype.updateURL = function() {
+   let url = window.location.href;
+   //url += "&abcd";
+   if (url.search("&A=") !== -1)
+      url = url.slice(0, url.search("&A="));
+   url += "&A=" + Math.round(this.tMin) + "&B=" + Math.round(this.tMax);
+
+   window.history.replaceState(null, "History", url);
 }
 
 MhistoryGraph.prototype.draw = function () {
@@ -2097,7 +2143,14 @@ MhistoryGraph.prototype.draw = function () {
    }
 
    this.lastDrawTime = new Date().getTime();
+
+   // update URL
+   if (this.updateURLTimer !== undefined)
+      window.clearTimeout(this.updateURLTimer);
+   this.updateURLTimer = window.setTimeout(this.updateURL.bind(this), 500);
 };
+
+
 
 /*
 MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor, major,
@@ -2406,7 +2459,7 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
                // label
                if (label !== 0) {
                   let str;
-                  if (Math.abs(y_act) < 0.001)
+                  if (Math.abs(y_act) < 0.001 && Math.abs(y_act) > 1E-20)
                      str = y_act.toExponential(n_sig1).stripZeros();
                   else
                      str = y_act.toPrecision(n_sig1).stripZeros();
@@ -2450,7 +2503,7 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
          if (logaxis) {
             if (label !== 0) {
                let str;
-               if (Math.abs(y_act) < 0.001)
+               if (Math.abs(y_act) < 0.001 && Math.abs(y_act) > 1E-20)
                   str = y_act.toExponential(n_sig1).stripZeros();
                else
                   str = y_act.toPrecision(n_sig1).stripZeros();
@@ -2746,6 +2799,28 @@ MhistoryGraph.prototype.download = function (mode) {
          dlgAlert("Image downloaded to '" + filename + "'");
 
       }, 'image/png');
+   } else if (mode === "URL") {
+      // Create new element
+      let el = document.createElement('textarea');
+
+      // Set value (string to be copied)
+      let url = this.baseURL + "&group=" + this.group + "&panel=" + this.panel +
+         "&A=" + this.tMin + "&B=" + this.tMax;
+      url = encodeURI(url);
+      el.value = url;
+
+      // Set non-editable to avoid focus and move outside of view
+      el.setAttribute('readonly', '');
+      el.style = {position: 'absolute', left: '-9999px'};
+      document.body.appendChild(el);
+      // Select text inside element
+      el.select();
+      // Copy text to clipboard
+      document.execCommand('copy');
+      // Remove temporary element
+      document.body.removeChild(el);
+
+      dlgMessage("Info", "URL<br/><br/>" + url + "<br/><br/>copied to clipboard", true, false);
    }
 
 };
