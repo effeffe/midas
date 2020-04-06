@@ -1800,47 +1800,19 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          /* check if index is supplied */
          index1 = index2 = 0;
          strcpy(str, param[1]);
-         if (str[strlen(str) - 1] == ']') {
-            if (strchr(str, '[')) {
-               if (*(strchr(str, '[') + 1) == '*')
-                  index1 = -1;
-               else if (strchr((strchr(str, '[') + 1), '.') ||
-                        strchr((strchr(str, '[') + 1), '-')) {
-                  index1 = atoi(strchr(str, '[') + 1);
-                  pc = strchr(str, '[') + 1;
-                  while (*pc != '.' && *pc != '-')
-                     pc++;
-                  while (*pc == '.' || *pc == '-')
-                     pc++;
-                  index2 = atoi(pc);
-               } else
-                  index1 = atoi(strchr(str, '[') + 1);
-            }
-            *strchr(str, '[') = 0;
-         }
+         strarrayindex(str, &index1, &index2);
+         compose_name(pwd, str, name);
 
-         if (strpbrk(str, "*?") != NULL) {
-            db_find_key(hDB, 0, pwd, &hKey);
-            for (i = 0;; i++) {
-               db_enum_link(hDB, hKey, i, &hSubkey);
+         std::vector<HNDLE> keys;
+         status = db_find_keys(hDB, 0, name, keys);
 
-               if (!hSubkey)
-                  break;
-
-               db_get_key(hDB, hSubkey, &key);
-               if (match(str, key.name))
-                  set_key(hDB, hSubkey, index1, index2, param[2]);
-            }
+         if(status != DB_SUCCESS){
+            printf("Error: Key \"%s\" not found\n", name);
+            if (cmd_mode)
+               return -1;
          } else {
-            compose_name(pwd, str, name);
-
-            status = db_find_key(hDB, 0, name, &hKey);
-            if (status == DB_SUCCESS)
-               set_key(hDB, hKey, index1, index2, param[2]);
-            else {
-               printf("Error: Key \"%s\" not found\n", name);
-               if (cmd_mode)
-                  return -1;
+            for(HNDLE hMatchedKey: keys){
+               set_key(hDB, hMatchedKey, index1, index2, param[2]);
             }
          }
       }

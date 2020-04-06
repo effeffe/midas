@@ -14,6 +14,8 @@
 #include "mvodb.h"
 #include "sequencer.h"
 #include <assert.h>
+#include <string.h>
+#include <vector>
 
 #define XNAME_LENGTH 256
 
@@ -1051,12 +1053,76 @@ static void seq_watch_command(HNDLE hDB, HNDLE hKeyChanged, int index, void* inf
 
 /*------------------------------------------------------------------*/
 
+//performs array index extraction including sequencer variables
+void seq_array_index(char* odbpath, int* index1, int* index2){
+   char value[256], str[256];
+   *index1=*index2=0;
+   if (odbpath[strlen(odbpath) - 1] == ']') {
+      if (strchr(odbpath, '[')) {
+         //check for sequencer variables
+         if (*(strchr(odbpath, '[') + 1) == '$') {
+            strlcpy(str, strchr(odbpath, '[') + 1, sizeof(str));
+            if (strchr(str, ']'))
+               *strchr(str, ']') = 0;
+            if (!eval_var(seq, str, value, sizeof(value)))
+               return;
+            *index1 = atoi(value);
+
+            *strchr(odbpath, '[') = 0;
+         } else {
+            //standard expansion
+            strarrayindex(odbpath, index1, index2);
+         }
+      }
+   }
+}
+
+/*------------------------------------------------------------------*/
+
+//set all matching keys to a value
+int set_all_matching(HNDLE hDB, HNDLE hBaseKey, char* odbpath, char* value, int index1, int index2, int notify){
+   int status, size;
+   char data[256];
+   KEY key;
+
+   std::vector<HNDLE> keys;
+   status = db_find_keys(hDB, hBaseKey, odbpath, keys);
+
+   if (status != DB_SUCCESS)
+      return status;
+
+   for(HNDLE hKey : keys){
+      db_get_key(hDB, hKey, &key);
+      size = sizeof(data);
+      db_sscanf(value, data, &size, 0, key.type);
+
+      if (key.num_values > 1 && index1 == -1) {
+         for (int i=0 ; i<key.num_values ; i++)
+            status = db_set_data_index1(hDB, hKey, data, key.item_size, i, key.type, notify);
+      } else if (key.num_values > 1 && index2 > index1) {
+         for (int i=index1; i<key.num_values && i<=index2; i++)
+            status = db_set_data_index1(hDB, hKey, data, key.item_size, i, key.type, notify);
+      } else
+         status = db_set_data_index1(hDB, hKey, data, key.item_size, index1, key.type, notify);
+
+      if(status != DB_SUCCESS){
+         return status;
+      }
+   }
+
+   return DB_SUCCESS;
+
+}
+
+
+/*------------------------------------------------------------------*/
+
 void sequencer()
 {
    PMXML_NODE pn, pr, pt, pe;
    char odbpath[256], value[256], data[256], str[256], str1[256], name[32], op[32];
-   char list[100][XNAME_LENGTH], *pc;
-   int i, j, l, n, status, size, index, index1, index2, state, run_number, cont;
+   char list[100][XNAME_LENGTH];
+   int i, j, l, n, status, size, index1, index2, state, run_number, cont;
    HNDLE hDB, hKey, hKeySeq;
    KEY key;
    double d;
@@ -1220,76 +1286,33 @@ void sequencer()
          if (strlen(odbpath) > 0 && odbpath[strlen(odbpath)-1] != '/')
             strlcat(odbpath, "/", sizeof(odbpath));
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
-         
-         /* check if index is supplied */
+
+         int notify = TRUE;
+         if (seq.subdir_not_notify)
+            notify = FALSE;
+         if (mxml_get_attribute(pn, "notify"))
+            notify = atoi(mxml_get_attribute(pn, "notify"));
+
          index1 = index2 = 0;
-         if (odbpath[strlen(odbpath) - 1] == ']') {
-            if (strchr(odbpath, '[')) {
-               if (*(strchr(odbpath, '[') + 1) == '*')
-                  index1 = -1;
-               else if (strchr((strchr(odbpath, '[') + 1), '.') ||
-                        strchr((strchr(odbpath, '[') + 1), '-')) {
-                  index1 = atoi(strchr(odbpath, '[') + 1);
-                  pc = strchr(odbpath, '[') + 1;
-                  while (*pc != '.' && *pc != '-')
-                     pc++;
-                  while (*pc == '.' || *pc == '-')
-                     pc++;
-                  index2 = atoi(pc);
-               } else {
-                  if (*(strchr(odbpath, '[') + 1) == '$') {
-                     strlcpy(str, strchr(odbpath, '[') + 1, sizeof(str));
-                     if (strchr(str, ']'))
-                        *strchr(str, ']') = 0;
-                     if (!eval_var(seq, str, value, sizeof(value)))
-                        return;
-                     index1 = atoi(value);
-                  } else
-                     index1 = atoi(strchr(odbpath, '[') + 1);
-               }
-            }
-            *strchr(odbpath, '[') = 0;
-         }
+         seq_array_index(odbpath, &index1, &index2);
 
          if (!eval_var(seq, mxml_get_value(pn), value, sizeof(value)))
             return;
-         status = db_find_key(hDB, 0, odbpath, &hKey);
-         if (status != DB_SUCCESS) {
-            char errorstr[512];
-            sprintf(errorstr, "Cannot find ODB key \"%s\"", odbpath);
-            seq_error(seq, errorstr);
-            return;
-         } else {
-            db_get_key(hDB, hKey, &key);
-            size = sizeof(data);
-            db_sscanf(value, data, &size, 0, key.type);
-            
-            int notify = TRUE;
-            if (seq.subdir_not_notify)
-               notify = FALSE;
-            if (mxml_get_attribute(pn, "notify"))
-               notify = atoi(mxml_get_attribute(pn, "notify"));
 
-            if (key.num_values > 1 && index1 == -1) {
-               for (i=0 ; i<key.num_values ; i++)
-                  status = db_set_data_index1(hDB, hKey, data, key.item_size, i, key.type, notify);
-            } else if (key.num_values > 1 && index2 > index1) {
-               for (i=index1; i<key.num_values && i<=index2; i++)
-                  status = db_set_data_index1(hDB, hKey, data, key.item_size, i, key.type, notify);
-            } else
-               status = db_set_data_index1(hDB, hKey, data, key.item_size, index1, key.type, notify);
-            
-            if (status != DB_SUCCESS) {
-               char errorstr[512];
-               sprintf(errorstr, "Cannot set ODB key \"%s\"", odbpath);
-               seq_error(seq, errorstr);
-               return;
-            }
-            
+         status = set_all_matching(hDB, 0, odbpath, value, index1, index2, notify);
+
+         if(status == DB_SUCCESS){
             size = sizeof(seq);
             db_get_record1(hDB, hKeySeq, &seq, &size, 0, strcomb1(sequencer_str).c_str()); // could have changed seq tree
             seq.current_line_number++;
+         } else if(status == DB_NO_KEY){
+            seq_error(seq, "Could not match any key!");
+         } else {
+            //something went really wrong
+            seq_error(seq, "Internal error setting key!");
+            return;
          }
+
       }
    }
    
@@ -1304,22 +1327,8 @@ void sequencer()
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
          
          /* check if index is supplied */
-         index1 = 0;
-         if (odbpath[strlen(odbpath) - 1] == ']') {
-            if (strchr(odbpath, '[')) {
-             
-               if (*(strchr(odbpath, '[') + 1) == '$') {
-                  strlcpy(str, strchr(odbpath, '[') + 1, sizeof(str));
-                  if (strchr(str, ']'))
-                     *strchr(str, ']') = 0;
-                  if (!eval_var(seq, str, value, sizeof(value)))
-                     return;
-                  index1 = atoi(value);
-               } else
-                  index1 = atoi(strchr(odbpath, '[') + 1);
-            }
-            *strchr(odbpath, '[') = 0;
-         }
+         index1 = index2 = 0;
+         seq_array_index(odbpath, &index1, &index2);
          
          strlcpy(name, mxml_get_value(pn), sizeof(name));
          status = db_find_key(hDB, 0, odbpath, &hKey);
@@ -1360,11 +1369,8 @@ void sequencer()
          if (strlen(odbpath) > 0 && odbpath[strlen(odbpath)-1] != '/')
             strlcat(odbpath, "/", sizeof(odbpath));
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
-         if (strchr(odbpath, '[')) {
-            index = atoi(strchr(odbpath, '[')+1);
-            *strchr(odbpath, '[') = 0;
-         } else
-            index = 0;
+         index1 = index2 = 0;
+         seq_array_index(odbpath, &index1, &index2);
          if (!eval_var(seq, mxml_get_value(pn), value, sizeof(value)))
             return;
          status = db_find_key(hDB, 0, odbpath, &hKey);
@@ -1375,7 +1381,7 @@ void sequencer()
          } else {
             db_get_key(hDB, hKey, &key);
             size = sizeof(data);
-            db_get_data_index(hDB, hKey, data, &size, index, key.type);
+            db_get_data_index(hDB, hKey, data, &size, index1, key.type);
             db_sprintf(str, data, size, 0, key.type);
             d = atof(str);
             d += atof(value);
@@ -1391,7 +1397,7 @@ void sequencer()
             
             if (key.item_size < 32)
                key.item_size = 32;
-            db_set_data_index1(hDB, hKey, data, key.item_size, index, key.type, notify);
+            db_set_data_index1(hDB, hKey, data, key.item_size, index1, key.type, notify);
             seq.current_line_number++;
          }
       }
@@ -1521,11 +1527,8 @@ void sequencer()
             return;
          } else {
             strlcpy(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
-            if (strchr(odbpath, '[')) {
-               index = atoi(strchr(odbpath, '[')+1);
-               *strchr(odbpath, '[') = 0;
-            } else
-               index = 0;
+            index1 = index2 = 0;
+            seq_array_index(odbpath, &index1, &index2);
             status = db_find_key(hDB, 0, odbpath, &hKey);
             if (status != DB_SUCCESS) {
                char errorstr[512];
@@ -1541,7 +1544,7 @@ void sequencer()
 
                db_get_key(hDB, hKey, &key);
                size = sizeof(data);
-               db_get_data_index(hDB, hKey, data, &size, index, key.type);
+               db_get_data_index(hDB, hKey, data, &size, index1, key.type);
                if (key.type == TID_BOOL)
                   strlcpy(str, *((int*)data) > 0 ? "1" : "0", sizeof(str));
                else

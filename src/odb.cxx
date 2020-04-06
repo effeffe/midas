@@ -3091,6 +3091,71 @@ BOOL ends_with_ustring(const char *str, const char *suffix)
    return equal_ustring(str + len_str - len_suffix, suffix);
 }
 
+//utility function to match string against wildcard pattern
+BOOL strmatch(char* pattern, char* str){
+   switch(*pattern){
+      case 0:
+         if(*str == 0){
+            //end of pattern
+            return true;
+         }else
+            return false;
+      case '*':
+         {
+            int i=0;
+            // check for end of the string
+            if(pattern[1] == 0) return true;
+            // loop on all possible matches
+            while(str[i] != 0) if(strmatch(pattern + 1, str+(i++))) return true;
+            return false;
+         }
+      case '?':
+         if(*str == 0){
+            //end of string
+            return false;
+         } else {
+            return strmatch(pattern+1, str+1);
+         }
+      default:
+         if(*str == 0){
+            //end of string
+            return false;
+         } else if(toupper(*str) == toupper(*pattern)){
+            //recursion
+            return strmatch(pattern+1, str+1);
+         } else {
+            return false;
+         }
+   }
+}
+
+//utility function to extract array indexes
+void strarrayindex(char* odbpath, int* index1, int* index2){
+   char* pc;
+
+   *index1 = *index2 = 0;
+   if (odbpath[strlen(odbpath) - 1] == ']') {
+      if (strchr(odbpath, '[')) {
+         if (*(strchr(odbpath, '[') + 1) == '*')
+            *index1 = -1;
+         else if (strchr((strchr(odbpath, '[') + 1), '.') ||
+                  strchr((strchr(odbpath, '[') + 1), '-')) {
+            *index1 = atoi(strchr(odbpath, '[') + 1);
+            pc = strchr(odbpath, '[') + 1;
+            while (*pc != '.' && *pc != '-')
+               pc++;
+            while (*pc == '.' || *pc == '-')
+               pc++;
+            *index2 = atoi(pc);
+         } else
+            *index1 = atoi(strchr(odbpath, '[') + 1);
+      }
+
+      //remove everything after bracket
+      *strchr(odbpath, '[') = 0;
+   }
+}
+
 /********************************************************************/
 /**
 Create a new key in a database
@@ -4356,6 +4421,119 @@ INT db_find_link1(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey)
 #endif                          /* LOCAL_ROUTINES */
 
    return DB_SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
+INT db_find_keys(HNDLE hDB, HNDLE hKeyRoot, char* odbpath, std::vector<HNDLE> &hKeyVector)
+/********************************************************************\
+
+  Routine: db_find_keys
+
+  Purpose: finds all ODB keys matching an odb path
+           '*' and '?' wildcard expansion available
+
+  Input:
+    HNDLE               hDB              Handle to the database
+    HNDLE               hKeyRoot         Key handle to start the search
+    char                *odbpath         Pattern of keys in the form "/key/key/key", can include '*' and '?'
+
+  Output:
+    std::vector<HNDLE>  &hKeyVector      Key handle
+
+  Function value:
+    DB_SUCCESS              Successful completion
+    DB_INVALID_HANDLE       Database handle is invalid
+    DB_NO_KEY               No access to any key
+    DB_NO_ACCESS            No access to a read key
+
+\********************************************************************/
+{
+      HNDLE hKey, hSubKey=0;
+      KEY key;
+      INT status;
+      char *pattern = NULL;
+      char *subkeypath = NULL;
+      char *parentkeypath = NULL;
+      char localpath[256];
+
+      //make work on a local copy od odbpath to allow recursion
+      strcpy(localpath, odbpath);
+      parentkeypath = localpath;
+
+      char *wildcard = strpbrk(localpath, "*?");
+      if(wildcard){
+         //wildcard found
+         subkeypath = strchr(wildcard, '/');
+         if(subkeypath){
+            //truncate the string at slash
+            *subkeypath = 0;
+            subkeypath++;
+         }
+         parentkeypath = strrchr(localpath, '/');
+         if(parentkeypath){
+            //truncate there too
+            *parentkeypath = 0;
+            pattern = parentkeypath+1;
+            if((parentkeypath-1) == localpath){
+               //path starts with '/', no parent path
+               parentkeypath = NULL;
+            } else {
+               parentkeypath = localpath;
+            }
+         } else {
+            //wildcard at top level, start with pattern
+            pattern = localpath;
+            parentkeypath = NULL;
+         }
+      }
+
+      //if available search for parent key path
+      if(parentkeypath){
+         status = db_find_key(hDB, hKeyRoot, parentkeypath, &hKey);
+         if (status != DB_SUCCESS)
+            return status;
+      } else {
+         hKey = hKeyRoot;
+      }
+
+      //if a pattern is found
+      if(pattern){
+         //try match all subkeys
+         status = DB_NO_KEY;
+         for (int i=0 ; ; i++)
+         {
+            db_enum_key(hDB, hKey, i, &hSubKey);
+            if (!hSubKey)
+               break; // end of list reached
+            db_get_key(hDB, hSubKey, &key);
+
+            if(strmatch(pattern, key.name)){
+               //match
+               if(!subkeypath){
+                  //found
+                  hKeyVector.push_back(hSubKey);
+
+               } else if (key.type == TID_KEY){
+                  //recurse with hSubKey as root key and subkeypath as path
+                  int subkeystatus = db_find_keys(hDB, hSubKey, subkeypath, hKeyVector);
+                  if (subkeystatus != DB_NO_KEY)
+                     status = subkeystatus;
+
+                  if (status != DB_SUCCESS && status != DB_NO_KEY)
+                     break;
+               }
+            }
+         }
+
+         return status;
+      } else {
+         //no pattern: hKey matches!
+         db_get_key(hDB, hKey, &key);
+         hKeyVector.push_back(hKey);
+
+         return DB_SUCCESS;
+      }
+
 }
 
 /*------------------------------------------------------------------*/
