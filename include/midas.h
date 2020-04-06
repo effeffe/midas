@@ -1154,8 +1154,9 @@ INT device_driver(DEVICE_DRIVER *device_driver, INT cmd, ...);
 
 /*---- Banks -------------------------------------------------------*/
 
-#define BANK_FORMAT_VERSION     1      /**< - */
-#define BANK_FORMAT_32BIT   (1<<4)     /**< - */
+#define BANK_FORMAT_VERSION             1  /**< - */
+#define BANK_FORMAT_32BIT           (1<<4) /**< - */
+#define BANK_FORMAT_64BIT_ALIGNED   (1<<5) /**< - */
 
 /** @addtogroup msectionh
  *  @{  */
@@ -1899,7 +1900,9 @@ Data conversion flags */
    /*---- Bank routines ----*/
    void EXPRT bk_init(void *pbh);
    void EXPRT bk_init32(void *event);
+   void EXPRT bk_init32a(void *event);
    BOOL EXPRT bk_is32(const void *event);
+   BOOL EXPRT bk_is32a(const void *event);
    INT EXPRT bk_size(const void *pbh);
    void EXPRT bk_create(void *pbh, const char *name, WORD type, void **pdata);
    INT EXPRT bk_delete(void *event, const char *name);
@@ -1908,6 +1911,7 @@ Data conversion flags */
    INT EXPRT bk_locate(const void *pbh, const char *name, void *pdata);
    INT EXPRT bk_iterate(const void *pbh, BANK ** pbk, void *pdata);
    INT EXPRT bk_iterate32(const void *pbh, BANK32 ** pbk, void *pdata);
+   INT EXPRT bk_iterate32a(const void *pbh, BANK32A ** pbk, void *pdata);
    INT EXPRT bk_copy(char * pevent, char * psrce, const char * bkname);
    INT EXPRT bk_swap(void *event, BOOL force);
    INT EXPRT bk_find(const BANK_HEADER * pbkh, const char *name, DWORD * bklen, DWORD * bktype, void **pdata);
