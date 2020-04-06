@@ -245,7 +245,7 @@ class Bank:
         """
         return ((self.size_bytes + 7) & ~7) - self.size_bytes
     
-    def get_pack_fmt(self, is_bank_32):
+    def get_pack_fmt(self, is_bank_32, is_64bit_aligned):
         """
         The format string to pass to struct.unpack to extract the bank header
         data.
@@ -253,13 +253,22 @@ class Bank:
         Args:
             * is_bank_32 (bool) - Whether the bank size is given by a 32-bit 
                 number of a 16-bit number.
+            * is_64bit_aligned (bool) - Whether bank data starts at 64-bit
+                alignment
         """
+        fmt = midas.endian_format_flag + "cccc"
+        
         if is_bank_32:
-            return midas.endian_format_flag + "ccccII"
+            fmt += "II"
+            
+            if is_64bit_aligned:
+                fmt += "I"
         else:
-            return midas.endian_format_flag + "ccccHH"
+            fmt += "HH"
+                
+        return fmt
 
-    def fill_header_from_bytes(self, bank_header_data, is_bank_32):
+    def fill_header_from_bytes(self, bank_header_data, is_bank_32, is_64bit_aligned):
         """
         Fill this `EventHeader` object from a set of bytes.
         
@@ -268,11 +277,13 @@ class Bank:
                 is_bank_32 is False; 12 bytes if is_bank_32 is True.
             * is_bank_32 (bool) - Whether the bank size is given by a 32-bit 
                 number of a 16-bit number.
+            * is_64bit_aligned (bool) - Whether bank data starts at 64-bit
+                alignment
             
         Returns:
             None (but the attributes of this object have been filled)
         """
-        unpacked = struct.unpack(self.get_pack_fmt(is_bank_32), bank_header_data)
+        unpacked = struct.unpack(self.get_pack_fmt(is_bank_32, is_64bit_aligned), bank_header_data)
         
         self.name = "".join(x.decode('ascii') for x in unpacked[:4])
         self.type = unpacked[4]
@@ -318,10 +329,28 @@ class Event:
     * non_bank_data (bytes or None) - Content of some special events that don't 
         use banks (e.g. begin-of-run ODB dump)
     """
-    def __init__(self):
+    def __init__(self, bank32=True, align64=False):
+        """
+        Args:
+            * bank32 (bool) - 32-bit banks
+            * align64 (bool) - Make bank data start at 64-bit alignment
+        """
         self.header = EventHeader()
         self.all_bank_size_bytes = None
-        self.flags = (1<<4) # Default to BANK32
+        self.flags = 1 # Data format v1
+        
+        self._flag_32bit = (1<<4)
+        self._flag_align64 = (1<<5)
+        
+        if bank32:
+            self.flags |= self._flag_32bit
+            
+        if align64:
+            if not bank32:
+                raise ValueError("16-bit banks with 64-bit alignment are not supported")
+            
+            self.flags |= self._flag_align64
+        
         self.banks = {}
         self.non_bank_data = None
         
@@ -428,17 +457,28 @@ class Event:
         self.all_bank_size_bytes = unpacked[0]
         self.flags = unpacked[1]
         
+    def is_bank_data_64bit_aligned(self):
+        """
+        Whether bank data payload is 64-bit aligned or not.
+        """
+        return (self.flags & self._flag_align64) != 0
+        
     def is_bank_32(self):
         """
         Whether the size of banks are stored as 16-bit or 32-bit integers.
         """
-        return (self.flags & (1<<4)) != 0
+        return (self.flags & self._flag_32bit) != 0
     
     def get_bank_header_size(self):
         """
         Get the number of bytes needed to store the header of a `Bank` object.
         """
-        return 12 if self.is_bank_32() else 8
+        if self.is_bank_data_64bit_aligned():
+            return 16
+        elif self.is_bank_32():
+            return 12
+        else:
+            return 8
         
     def calculate_bank_sizes(self):
         """
@@ -490,15 +530,22 @@ class Event:
         buf_offset += all_bank_header_size
         
         for bank in self.banks.values():
-            fmt = bank.get_pack_fmt(self.is_bank_32())
+            fmt = bank.get_pack_fmt(self.is_bank_32(), self.is_bank_data_64bit_aligned())
+            
             # Need to make each char a bytes object of len 1
             name_bytes = [bytes(bank.name[i].encode("ascii")) for i in range(4)]
-            struct.pack_into(fmt, buf, buf_offset, name_bytes[0], 
-                                                   name_bytes[1], 
-                                                   name_bytes[2], 
-                                                   name_bytes[3], 
-                                                   bank.type,
-                                                   bank.size_bytes)
+            header_info = [name_bytes[0], 
+                           name_bytes[1], 
+                           name_bytes[2], 
+                           name_bytes[3], 
+                           bank.type,
+                           bank.size_bytes]
+            
+            if self.is_bank_data_64bit_aligned():
+                # Extra reserved word to get 64-bit alignment
+                header_info.append(0)
+                
+            struct.pack_into(fmt, buf, buf_offset, *header_info)
             
             buf_offset += self.get_bank_header_size()
             
@@ -551,7 +598,7 @@ class Event:
                 buf_offset += self.get_bank_header_size()
                 
                 bank = midas.event.Bank()
-                bank.fill_header_from_bytes(bank_header_data, self.is_bank_32())
+                bank.fill_header_from_bytes(bank_header_data, self.is_bank_32(), self.is_bank_data_64bit_aligned())
                     
                 raw_data = buf[buf_offset:buf_offset+bank.size_bytes]
                 buf_offset += bank.size_bytes

@@ -11,8 +11,22 @@ class TestEvents(unittest.TestCase):
     def tearDownClass(cls):
         cls.client.disconnect()
           
-    def testBuffers(self):
-        event = midas.event.Event()
+    def testBank16(self):
+        event = midas.event.Event(bank32=False, align64=False)
+        self._testBuffers(event, 8)
+        
+    def testBank16Align64(self):
+        self.assertRaises(ValueError, midas.event.Event, bank32=False, align64=True)
+        
+    def testBank32(self):
+        event = midas.event.Event(bank32=True, align64=False)
+        self._testBuffers(event, 12)
+        
+    def testBank32Align64(self):
+        event = midas.event.Event(bank32=True, align64=True)
+        self._testBuffers(event, 16)
+          
+    def _testBuffers(self, event, expected_bank_header_size_bytes):
         event.header.event_id = 1
         event.header.trigger_mask = 0
         event.create_bank("BYTE", midas.TID_BYTE, b"abcdefg")
@@ -46,6 +60,7 @@ class TestEvents(unittest.TestCase):
             else:
                 break
         
+        self.assertEqual(recv_event.get_bank_header_size(), expected_bank_header_size_bytes)
         self.assertEqual(event.header.serial_number, recv_event.header.serial_number)
         self.assertEqual(len(event.banks), len(recv_event.banks))
         
