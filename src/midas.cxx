@@ -15143,6 +15143,7 @@ INT bk_list(const void *event, char *bklist) {                               /* 
    INT nbk;
    BANK *pmbk = NULL;
    BANK32 *pmbk32 = NULL;
+   BANK32A *pmbk32a = NULL;
    char *pdata;
 
    /* compose bank list */
@@ -15150,7 +15151,11 @@ INT bk_list(const void *event, char *bklist) {                               /* 
    nbk = 0;
    do {
       /* scan all banks for bank name only */
-      if (bk_is32(event)) {
+      if (bk_is32a(event)) {
+         bk_iterate32a(event, &pmbk32a, &pdata);
+         if (pmbk32a == NULL)
+            break;
+      } else if (bk_is32(event)) {
          bk_iterate32(event, &pmbk32, &pdata);
          if (pmbk32 == NULL)
             break;
@@ -15165,7 +15170,9 @@ INT bk_list(const void *event, char *bklist) {                               /* 
          cm_msg(MINFO, "bk_list", "over %i banks -> truncated", BANKLIST_MAX);
          return (nbk - 1);
       }
-      if (bk_is32(event))
+      if (bk_is32a(event))
+         strncat(bklist, (char *) pmbk32a->name, 4);
+      else if (bk_is32(event))
          strncat(bklist, (char *) pmbk32->name, 4);
       else
          strncat(bklist, (char *) pmbk->name, 4);
@@ -15184,9 +15191,23 @@ Locates a MIDAS bank of given name inside an event.
 INT bk_locate(const void *event, const char *name, void *pdata) {
    BANK *pbk;
    BANK32 *pbk32;
+   BANK32A *pbk32a;
    DWORD dname;
 
-   if (bk_is32(event)) {
+   if (bk_is32a(event)) {
+      pbk32a = (BANK32A *) (((BANK_HEADER *) event) + 1);
+      strncpy((char *) &dname, name, 4);
+      while ((DWORD) ((char *) pbk32a - (char *) event) <
+             ((BANK_HEADER *) event)->data_size + sizeof(BANK_HEADER)) {
+         if (*((DWORD *) pbk32a->name) == dname) {
+            *((void **) pdata) = pbk32a + 1;
+            if (tid_size[pbk32a->type & 0xFF] == 0)
+               return pbk32a->data_size;
+            return pbk32a->data_size / tid_size[pbk32a->type & 0xFF];
+         }
+         pbk32a = (BANK32A *) ((char *) (pbk32a + 1) + ALIGN8(pbk32a->data_size));
+      }
+   } else if (bk_is32(event)) {
       pbk32 = (BANK32 *) (((BANK_HEADER *) event) + 1);
       strncpy((char *) &dname, name, 4);
       while ((DWORD) ((char *) pbk32 - (char *) event) <

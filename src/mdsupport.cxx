@@ -903,10 +903,9 @@ none
       }
       /* event header (skip it if in single bank display) */
       if (!single)
-         printf
-                 ("Evid:%4.4x- Mask:%4.4x- Serial:%i- Time:0x%x- Dsize:%i/0x%x",
-                  (WORD) pheader->event_id, (WORD) pheader->trigger_mask,
-                  pheader->serial_number, pheader->time_stamp, pheader->data_size, pheader->data_size);
+         printf("Evid:%4.4x- Mask:%4.4x- Serial:%i- Time:0x%x- Dsize:%i/0x%x",
+                (WORD) pheader->event_id, (WORD) pheader->trigger_mask,
+                pheader->serial_number, pheader->time_stamp, pheader->data_size, pheader->data_size);
 
       if ((pbh->data_size + 8) == pheader->data_size) {
          /* bank list */
