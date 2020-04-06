@@ -30,31 +30,44 @@ The Midas Dump support file
 /* moved #define HAVE_FTPLIB into makefile (!vxWorks) */
 
 #define TRACE
+
 #include "midas.h"
 #include "msystem.h"
 
 #ifdef HAVE_FTPLIB
+
 #include "ftplib.h"
+
 FTP_CON *ftp_con;
 #endif
 
 #ifdef HAVE_ZLIB
+
 #include "zlib.h"
+
 #endif
 
 #include "mdsupport.h"
 
-INT  md_dev_os_read(INT handle, INT type, void *prec, DWORD nbytes, DWORD * nread);
-INT  md_dev_os_write(INT handle, INT type, void *prec, DWORD nbytes, DWORD * written);
+INT md_dev_os_read(INT handle, INT type, void *prec, DWORD nbytes, DWORD *nread);
+
+INT md_dev_os_write(INT handle, INT type, void *prec, DWORD nbytes, DWORD *written);
+
 void md_bank_event_display(void *pevent, INT data_fmt, INT dsp_fmt, INT dsp_mode, char *bn);
+
 void md_raw_event_display(void *pevent, INT data_fmt, INT dsp_fmt);
+
 void md_raw_bank_display(void *pbank, INT data_fmt, INT dsp_fmt);
 
-INT  midas_event_get(void **pevent, DWORD * size);
-INT  midas_physrec_get(void *prec, DWORD * readn);
-INT  midas_event_skip(INT evtn);
-void midas_bank_display(BANK * pbk, INT dsp_fmt);
-void midas_bank_display32(BANK32 * pbk, INT dsp_fmt);
+INT midas_event_get(void **pevent, DWORD *size);
+
+INT midas_physrec_get(void *prec, DWORD *readn);
+
+INT midas_event_skip(INT evtn);
+
+void midas_bank_display(BANK *pbk, INT dsp_fmt);
+
+void midas_bank_display32(BANK32 *pbk, INT dsp_fmt);
 
 struct stat *filestat;
 char *ptopmrd;
@@ -89,13 +102,13 @@ MY my;
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
 #ifdef HAVE_FTPLIB
+
 /*------------------------------------------------------------------*/
-INT mftp_open(char *destination, FTP_CON ** con)
-{
+INT mftp_open(char *destination, FTP_CON **con) {
    INT status;
    short port = 0;
    char *token, host_name[HOST_NAME_LENGTH],
-       user[256], pass[256], directory[256], file_name[256], file_mode[256];
+           user[256], pass[256], directory[256], file_name[256], file_mode[256];
 
    /* 
       destination should have the form:
@@ -168,6 +181,7 @@ INT mftp_open(char *destination, FTP_CON ** con)
 
    return SS_SUCCESS;
 }
+
 #endif // HAVE_FTPLIB
 
 /*------------------------------------------------------------------*/
@@ -197,10 +211,10 @@ status : from lower function
       /* disk device */
       my.type = LOG_TYPE_DISK;
       if (strncmp(infile + strlen(infile) - 3, ".gz", 3) == 0) {
-        // FALSE will for now prevent the mdump to see inside the .gz
-	// But lazylogger will NOT unzip during copy!
-	if (openzip == 0) my.zipfile = FALSE; // ignore zip, copy blindly blocks
-	else my.zipfile = TRUE; // Open Zip file
+         // FALSE will for now prevent the mdump to see inside the .gz
+         // But lazylogger will NOT unzip during copy!
+         if (openzip == 0) my.zipfile = FALSE; // ignore zip, copy blindly blocks
+         else my.zipfile = TRUE; // Open Zip file
       }
    }
 
@@ -271,18 +285,18 @@ status : from lower function
 *******************************************************************/
 {
    switch (my.type) {
-   case LOG_TYPE_TAPE:
-   case LOG_TYPE_DISK:
-      /* close file */
-      if (my.zipfile) {
+      case LOG_TYPE_TAPE:
+      case LOG_TYPE_DISK:
+         /* close file */
+         if (my.zipfile) {
 #ifdef HAVE_ZLIB
-         gzclose(filegz);
+            gzclose(filegz);
 #endif
-      } else {
-         if (my.handle != 0)
-            close(my.handle);
-      }
-      break;
+         } else {
+            if (my.handle != 0)
+               close(my.handle);
+         }
+         break;
    }
    if (ptopmrd != NULL)
       free(ptopmrd);
@@ -296,7 +310,7 @@ status : from lower function
 }
 
 /*------------------------------------------------------------------*/
-INT md_file_wopen(INT type, INT data_fmt, char *filename, INT * hDev)
+INT md_file_wopen(INT type, INT data_fmt, char *filename, INT *hDev)
 /********************************************************************
 Routine: external md_file_wopen
 Purpose: Open a data file for the given data format
@@ -316,26 +330,26 @@ status : from lower function
       /* takes care of TapeLX/NT under ss_tape_open , DiskLX/NT here */
    {
       if (data_fmt == FORMAT_YBOS) {
-	 assert(!"YBOS not supported anymore");
+         assert(!"YBOS not supported anymore");
       } else if (data_fmt == FORMAT_MIDAS) {
 #ifdef OS_WINNT
          *hDev =
-	   (int) CreateFile(filename, GENERIC_WRITE, FILE_SHARE_READ,
-			    NULL, CREATE_ALWAYS,
-			    FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH | FILE_FLAG_SEQUENTIAL_SCAN, 0);
+      (int) CreateFile(filename, GENERIC_WRITE, FILE_SHARE_READ,
+             NULL, CREATE_ALWAYS,
+             FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH | FILE_FLAG_SEQUENTIAL_SCAN, 0);
 #else
          *hDev = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_LARGEFILE, 0644);
 #endif
          status = *hDev < 0 ? SS_FILE_ERROR : SS_SUCCESS;
       }
    } else if (type == LOG_TYPE_TAPE) {
-     if (data_fmt == FORMAT_YBOS) {
-	 assert(!"YBOS not supported anymore");
+      if (data_fmt == FORMAT_YBOS) {
+         assert(!"YBOS not supported anymore");
       } else if (data_fmt == FORMAT_MIDAS)
          status = ss_tape_open(filename, O_WRONLY | O_CREAT | O_TRUNC, hDev);
    } else if (type == LOG_TYPE_FTP) {
 #ifdef HAVE_FTPLIB
-      status = mftp_open(filename, (FTP_CON **) & ftp_con);
+      status = mftp_open(filename, (FTP_CON **) &ftp_con);
       if (status != SS_SUCCESS) {
          *hDev = 0;
          return status;
@@ -367,53 +381,53 @@ status : from lower function
 
    status = SS_SUCCESS;
    switch (type) {
-   case LOG_TYPE_TAPE:
-      /* writing EOF mark on tape Fonly */
-      status = ss_tape_write_eof(handle);
-      ss_tape_close(handle);
-      break;
-   case LOG_TYPE_DISK:
-      /* close file */
-      if (handle != 0)
+      case LOG_TYPE_TAPE:
+         /* writing EOF mark on tape Fonly */
+         status = ss_tape_write_eof(handle);
+         ss_tape_close(handle);
+         break;
+      case LOG_TYPE_DISK:
+         /* close file */
+         if (handle != 0)
 #ifdef OS_WINNT
-         CloseHandle((HANDLE) handle);
+            CloseHandle((HANDLE) handle);
 #else
-         close(handle);
+            close(handle);
 #endif
-      break;
-   case LOG_TYPE_FTP:
+         break;
+      case LOG_TYPE_FTP:
 #ifdef HAVE_FTPLIB
       {
-      char *p, filename[256];
-      int  i;
+         char *p, filename[256];
+         int i;
 
-      ftp_close(ftp_con);
+         ftp_close(ftp_con);
 
-      /* 
-         destination should have the form:
-         host, port, user, password, directory, run%05d.mid, file_mode, command, ...
-      */
-      p = destination;
-      for (i=0 ; i<5 && p != NULL ; i++) {
-         p = strchr(p, ',');
-         if (*p == ',')
-            p++;
-      }
-      if (p != NULL) {
-         strlcpy(filename, p, sizeof(filename));
-         if (strchr(filename, ','))
-            *strchr(filename, ',') = 0;
-      } else
-         strlcpy(filename, destination, sizeof(filename));
+         /*
+            destination should have the form:
+            host, port, user, password, directory, run%05d.mid, file_mode, command, ...
+         */
+         p = destination;
+         for (i = 0; i < 5 && p != NULL; i++) {
+            p = strchr(p, ',');
+            if (*p == ',')
+               p++;
+         }
+         if (p != NULL) {
+            strlcpy(filename, p, sizeof(filename));
+            if (strchr(filename, ','))
+               *strchr(filename, ',') = 0;
+         } else
+            strlcpy(filename, destination, sizeof(filename));
 
-      /* if filename starts with a '.' rename it */
-      if (filename[0] == '.')
-         ftp_move(ftp_con, filename, filename+1);
+         /* if filename starts with a '.' rename it */
+         if (filename[0] == '.')
+            ftp_move(ftp_con, filename, filename + 1);
 
-      ftp_bye(ftp_con);
+         ftp_bye(ftp_con);
       }
 #endif
-      break;
+         break;
    }
    if (status != SS_SUCCESS)
       return status;
@@ -421,7 +435,7 @@ status : from lower function
 }
 
 /*------------------------------------------------------------------*/
-INT md_dev_os_read(INT handle, INT type, void *prec, DWORD nbytes, DWORD * readn)
+INT md_dev_os_read(INT handle, INT type, void *prec, DWORD nbytes, DWORD *readn)
 /********************************************************************\
 Routine: md_dev_os_read
 Purpose: read nbytes from the type device.
@@ -448,7 +462,7 @@ MD_SUCCESS         Ok
          status = SS_SUCCESS;
       return status;
    }
-   /* --------- TAPE ---------- */
+      /* --------- TAPE ---------- */
 #ifdef OS_UNIX
    else if (type == LOG_TYPE_TAPE) {
       *readn = read(handle, prec, nbytes);
@@ -461,23 +475,23 @@ MD_SUCCESS         Ok
 #endif
 
 #ifdef OS_WINNT
-   else if (type == LOG_TYPE_TAPE) {
-      if (!ReadFile((HANDLE) handle, prec, nbytes, readn, NULL))
-         status = GetLastError();
-      else
-         status = SS_SUCCESS;
-      if (status == ERROR_NO_DATA_DETECTED)
-         status = SS_END_OF_TAPE;
+      else if (type == LOG_TYPE_TAPE) {
+         if (!ReadFile((HANDLE) handle, prec, nbytes, readn, NULL))
+            status = GetLastError();
+         else
+            status = SS_SUCCESS;
+         if (status == ERROR_NO_DATA_DETECTED)
+            status = SS_END_OF_TAPE;
 
-      return status;
-   }
+         return status;
+      }
 #endif                          /* OS_WINNT */
    else
       return SS_SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
-INT md_dev_os_write(INT handle, INT type, void *prec, DWORD nbytes, DWORD * written)
+INT md_dev_os_write(INT handle, INT type, void *prec, DWORD nbytes, DWORD *written)
 /********************************************************************\
 Routine: md_dev_os_write
 Purpose: write nbytes to the device.
@@ -497,14 +511,14 @@ SS_SUCCESS         Ok
    INT status;
    if (type == LOG_TYPE_DISK)
 #ifdef OS_WINNT
-   {                            /* --------- DISK ---------- */
-      WriteFile((HANDLE) handle, (char *) prec, nbytes, written, NULL);
-      status = *written == nbytes ? SS_SUCCESS : SS_FILE_ERROR;
-      return status;            /* return for DISK */
-   }
+      {                            /* --------- DISK ---------- */
+         WriteFile((HANDLE) handle, (char *) prec, nbytes, written, NULL);
+         status = *written == nbytes ? SS_SUCCESS : SS_FILE_ERROR;
+         return status;            /* return for DISK */
+      }
 #else
    {                            /* --------- DISK ---------- */
-     status = *written = write(handle, (char *) prec, nbytes) == (INT) nbytes ? SS_SUCCESS : SS_FILE_ERROR;
+      status = *written = write(handle, (char *) prec, nbytes) == (INT) nbytes ? SS_SUCCESS : SS_FILE_ERROR;
       return status;            /* return for DISK */
    }
 #endif
@@ -551,7 +565,7 @@ SS_SUCCESS         Ok
 }
 
 /*------------------------------------------------------------------*/
-INT md_physrec_get(INT data_fmt, void **precord, DWORD * readn)
+INT md_physrec_get(INT data_fmt, void **precord, DWORD *readn)
 /********************************************************************\
 Routine: external md_physrec_get
 Purpose: Retrieve a physical record for the given data format
@@ -568,7 +582,7 @@ status : from lower function
    if (data_fmt == FORMAT_MIDAS) {
       return midas_physrec_get(*precord, readn);
    } else
-     return MD_UNKNOWN_FORMAT;
+      return MD_UNKNOWN_FORMAT;
 }
 
 /*------------------------------------------------------------------*/
@@ -677,10 +691,10 @@ status          Lower function
       printf(">>> No physical record structure for Midas format <<<\n");
       return MD_DONE;
    } else if (data_fmt == FORMAT_YBOS) {
-     assert(!"YBOS not supported anymore");
-     return (MD_SUCCESS);
+      assert(!"YBOS not supported anymore");
+      return (MD_SUCCESS);
    } else
-     return MD_UNKNOWN_FORMAT;
+      return MD_UNKNOWN_FORMAT;
 }
 
 /*------------------------------------------------------------------*/
@@ -698,27 +712,27 @@ MD_DONE
 \********************************************************************/
 {
    if (my.fmt == FORMAT_YBOS) {
-     assert(!"YBOS not supported anymore");
+      assert(!"YBOS not supported anymore");
    } else if (my.fmt == FORMAT_MIDAS) {
-     DWORD mbn, run, ser;
-     WORD id, msk;
-     mbn = my.evtn;
-     run = my.runn;
-     id = my.pmh->event_id;
-     msk = my.pmh->trigger_mask;
-     ser = my.pmh->serial_number;
-     switch (what) {
-     case D_RECORD:
-     case D_HEADER:
-       printf(">>> No physical record structure for Midas format <<<\n");
-       return MD_DONE;
-       break;
-     case D_EVTLEN:
-       printf("Evt#%d- ", my.evtn);
-       printf("%irun 0x%4.4uxid 0x%4.4uxmsk %5dmevt#", run, id, msk, mbn);
-       printf("%5del/x%x %5dserial\n", my.evtlen, my.evtlen, ser);
-       break;
-     }
+      DWORD mbn, run, ser;
+      WORD id, msk;
+      mbn = my.evtn;
+      run = my.runn;
+      id = my.pmh->event_id;
+      msk = my.pmh->trigger_mask;
+      ser = my.pmh->serial_number;
+      switch (what) {
+         case D_RECORD:
+         case D_HEADER:
+            printf(">>> No physical record structure for Midas format <<<\n");
+            return MD_DONE;
+            break;
+         case D_EVTLEN:
+            printf("Evt#%d- ", my.evtn);
+            printf("%irun 0x%4.4uxid 0x%4.4uxmsk %5dmevt#", run, id, msk, mbn);
+            printf("%5del/x%x %5dserial\n", my.evtlen, my.evtlen, ser);
+            break;
+      }
    }
    return MD_SUCCESS;
 }
@@ -749,14 +763,14 @@ status :  from the lower function
       status = bk_swap(pbh, FALSE);
       return status == CM_SUCCESS ? MD_EVENT_NOT_SWAPPED : MD_SUCCESS;
    } else if (data_fmt == FORMAT_YBOS) {
-     assert(!"YBOS not supported anymore");
+      assert(!"YBOS not supported anymore");
    }
 
    return MD_UNKNOWN_FORMAT;
 }
 
 /*------------------------------------------------------------------*/
-INT md_event_get(INT data_fmt, void **pevent, DWORD * readn)
+INT md_event_get(INT data_fmt, void **pevent, DWORD *readn)
 /********************************************************************\
 Routine: external md_event_get
 Purpose: Retrieve an event from the given data format.
@@ -773,9 +787,9 @@ status : from lower function
 
    *pevent = NULL;
    if (data_fmt == FORMAT_MIDAS)
-     status = midas_event_get(pevent, readn);
+      status = midas_event_get(pevent, readn);
    else if (data_fmt == FORMAT_YBOS)
-     assert(!"YBOS not supported anymore");
+      assert(!"YBOS not supported anymore");
    return (status);
 }
 
@@ -824,7 +838,8 @@ none
    if (data_fmt == FORMAT_YBOS) {
       assert(!"YBOS not supported anymore");
    } else if (data_fmt == FORMAT_MIDAS) {
-      lrl = ((((EVENT_HEADER *) pevent)->data_size) + sizeof(EVENT_HEADER)) / sizeof(DWORD);    /* in I*4 for raw including the header */
+      lrl = ((((EVENT_HEADER *) pevent)->data_size) + sizeof(EVENT_HEADER)) /
+            sizeof(DWORD);    /* in I*4 for raw including the header */
       pevt = (DWORD *) pevent;  /* local copy starting from the pheader */
    }
 
@@ -865,71 +880,83 @@ none
    BANK_HEADER *pbh = NULL;
    BANK *pmbk;
    BANK32 *pmbk32;
+   BANK32A *pmbk32a;
    EVENT_HEADER *pheader;
    INT status, single = 0;
 
    if (data_fmt == FORMAT_YBOS) {
-     assert(!"YBOS not supported anymore");
+      assert(!"YBOS not supported anymore");
    } else if (data_fmt == FORMAT_MIDAS) {
-     /* skip these special events (NO bank structure) */
-     pheader = (EVENT_HEADER *) pevent;
-     if (pheader->event_id == EVENTID_BOR ||
-	 pheader->event_id == EVENTID_EOR || pheader->event_id == EVENTID_MESSAGE)
-       return;
-     
-     /* check if format is MIDAS or FIXED */
-     pbh = (BANK_HEADER *) (pheader + 1);
-     
-     /* Check for single bank display request */
-     if (dsp_mode == DSP_BANK_SINGLE) {
-       bk_locate(pbh, bn, &pdata1);
-       single = 1;
-     }
-     /* event header (skip it if in single bank display) */
-     if (!single)
-       printf
-	 ("Evid:%4.4x- Mask:%4.4x- Serial:%i- Time:0x%x- Dsize:%i/0x%x",
-	  (WORD) pheader->event_id, (WORD) pheader->trigger_mask,
-	  pheader->serial_number, pheader->time_stamp, pheader->data_size, pheader->data_size);
-     
-     if ((pbh->data_size + 8) == pheader->data_size) {
-       /* bank list */
-       if (!single) {
-	 /* Skip list if in single bank display */
-	 status = bk_list((BANK_HEADER *) (pheader + 1), banklist);
-	 printf("\n#banks:%i - Bank list:-%s-\n", status, banklist);
-       }
-       
-       /* display bank content */
-       if (bk_is32(pbh)) {
-	 pmbk32 = NULL;
-	 do {
-	   bk_iterate32(pbh, &pmbk32, &pdata);
-	   if (pmbk32 != NULL)
-	     if (single && (pdata == pdata1))
-	       midas_bank_display32(pmbk32, dsp_fmt);
-	   if (!single)
-	     if (pmbk32 != NULL)
-	       midas_bank_display32(pmbk32, dsp_fmt);
-	 } while (pmbk32 != NULL);
-       } else {
-	 pmbk = NULL;
-	 do {
-	   bk_iterate(pbh, &pmbk, &pdata);
-	   if (pmbk != NULL)
-	     if (single && (pdata == pdata1))
-	       midas_bank_display(pmbk, dsp_fmt);
-	   if (!single)
-	     if (pmbk != NULL)
-	       midas_bank_display(pmbk, dsp_fmt);
-	 } while (pmbk != NULL);
-       }
-     } else {
-       printf("\nFIXED event with Midas Header\n");
-       md_raw_event_display(pevent, data_fmt, dsp_fmt);
-     }
+      /* skip these special events (NO bank structure) */
+      pheader = (EVENT_HEADER *) pevent;
+      if (pheader->event_id == EVENTID_BOR ||
+          pheader->event_id == EVENTID_EOR || pheader->event_id == EVENTID_MESSAGE)
+         return;
+
+      /* check if format is MIDAS or FIXED */
+      pbh = (BANK_HEADER *) (pheader + 1);
+
+      /* Check for single bank display request */
+      if (dsp_mode == DSP_BANK_SINGLE) {
+         bk_locate(pbh, bn, &pdata1);
+         single = 1;
+      }
+      /* event header (skip it if in single bank display) */
+      if (!single)
+         printf
+                 ("Evid:%4.4x- Mask:%4.4x- Serial:%i- Time:0x%x- Dsize:%i/0x%x",
+                  (WORD) pheader->event_id, (WORD) pheader->trigger_mask,
+                  pheader->serial_number, pheader->time_stamp, pheader->data_size, pheader->data_size);
+
+      if ((pbh->data_size + 8) == pheader->data_size) {
+         /* bank list */
+         if (!single) {
+            /* Skip list if in single bank display */
+            status = bk_list((BANK_HEADER *) (pheader + 1), banklist);
+            printf("\n#banks:%i - Bank list:-%s-\n", status, banklist);
+         }
+
+         /* display bank content */
+         if (bk_is32a(pbh)) {
+            pmbk32a = NULL;
+            do {
+               bk_iterate32a(pbh, &pmbk32a, &pdata);
+               if (pmbk32a != NULL)
+                  if (single && (pdata == pdata1))
+                     midas_bank_display32((BANK32*)pmbk32a, dsp_fmt);
+               if (!single)
+                  if (pmbk32a != NULL)
+                     midas_bank_display32((BANK32*)pmbk32a, dsp_fmt);
+            } while (pmbk32a != NULL);
+         } else if (bk_is32(pbh)) {
+            pmbk32 = NULL;
+            do {
+               bk_iterate32(pbh, &pmbk32, &pdata);
+               if (pmbk32 != NULL)
+                  if (single && (pdata == pdata1))
+                     midas_bank_display32(pmbk32, dsp_fmt);
+               if (!single)
+                  if (pmbk32 != NULL)
+                     midas_bank_display32(pmbk32, dsp_fmt);
+            } while (pmbk32 != NULL);
+         } else {
+            pmbk = NULL;
+            do {
+               bk_iterate(pbh, &pmbk, &pdata);
+               if (pmbk != NULL)
+                  if (single && (pdata == pdata1))
+                     midas_bank_display(pmbk, dsp_fmt);
+               if (!single)
+                  if (pmbk != NULL)
+                     midas_bank_display(pmbk, dsp_fmt);
+            } while (pmbk != NULL);
+         }
+      } else {
+         printf("\nFIXED event with Midas Header\n");
+         md_raw_event_display(pevent, data_fmt, dsp_fmt);
+      }
    }
-   
+
    return;
 }
 
@@ -958,7 +985,7 @@ none
          else
             midas_bank_display((BANK *) pbk, dsp_fmt);
       } else if (data_fmt == FORMAT_YBOS)
-      assert(!"YBOS not supported anymore");
+         assert(!"YBOS not supported anymore");
    }
    return;
 }
@@ -981,7 +1008,7 @@ none
    DWORD *pdata = NULL, lrl = 0, j, i;
 
    if (data_fmt == FORMAT_YBOS) {
-     assert(!"YBOS not supported any ore");
+      assert(!"YBOS not supported any ore");
    } else if (data_fmt == FORMAT_MIDAS) {
       lrl = ((BANK *) pbank)->data_size >> 2;   /* in DWORD */
       pdata = (DWORD *) ((BANK *) (pbank) + 1);
@@ -1005,7 +1032,7 @@ none
 }
 
 /*------------------------------------------------------------------*/
-INT midas_event_get(void **pevent, DWORD * readn)
+INT midas_event_get(void **pevent, DWORD *readn)
 /********************************************************************\
 Routine: midas_event_get
 Purpose: read one MIDAS event.
@@ -1039,10 +1066,10 @@ MD_SUCCESS        Ok
          return (MD_DONE);
    }
 
-  /*-PAA- Jul 12/2002
-    if (((my.pmp+size) - (char *)my.pme) == 0)
-        return (MD_DONE);
-  */
+   /*-PAA- Jul 12/2002
+     if (((my.pmp+size) - (char *)my.pme) == 0)
+         return (MD_DONE);
+   */
 
    /* copy header only */
    if (((my.pmp + size) - (char *) my.pme) < (int) sizeof(EVENT_HEADER)) {
@@ -1057,7 +1084,7 @@ MD_SUCCESS        Ok
       my.pme = (EVENT_HEADER *) my.pmp;
       memcpy(my.pmh, my.pme, leftover);
       my.pme = (EVENT_HEADER *) (((char *) my.pme) + leftover);
-      my.pmh = (EVENT_HEADER *) * pevent;
+      my.pmh = (EVENT_HEADER *) *pevent;
    } else {
       memcpy(my.pmh, my.pme, sizeof(EVENT_HEADER));
       my.pme = (EVENT_HEADER *) (((char *) my.pme) + sizeof(EVENT_HEADER));
@@ -1097,7 +1124,7 @@ MD_SUCCESS        Ok
 }
 
 /*------------------------------------------------------------------*/
-INT midas_physrec_get(void *prec, DWORD * readn)
+INT midas_physrec_get(void *prec, DWORD *readn)
 /********************************************************************\
 Routine: midas_physrec_get
 Purpose: read one physical record.from a MIDAS run
@@ -1141,7 +1168,7 @@ MD_SUCCESS         Ok
 }
 
 /*------------------------------------------------------------------*/
-void midas_bank_display(BANK * pbk, INT dsp_fmt)
+void midas_bank_display(BANK *pbk, INT dsp_fmt)
 /******************************* *************************************\
 Routine: midas_bank_display
 Purpose: display on screen the pointed MIDAS bank data using MIDAS Bank structure.
@@ -1223,138 +1250,138 @@ none
    pendbk = pdata + lrl;
    while (pdata < pendbk) {
       switch (type) {
-      case TID_DOUBLE:
-         if (j > 3) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 4;
-         }
-         printf("%15.5le    ", *((double *) pdata));
-         pdata = (char *) (((double *) pdata) + 1);
-         j++;
-         break;
-      case TID_FLOAT:
-         if (j > 7) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 8;
-         }
-         if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
-            printf("%8.3e ", *((float *) pdata));
-         if (dsp_fmt == DSP_HEX)
-            printf("0x%8.8x ", *((DWORD *) pdata));
-         pdata = (char *) (((DWORD *) pdata) + 1);
-         j++;
-         break;
-      case TID_DWORD:
-         if (j > 7) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 8;
-         }
-         if (dsp_fmt == DSP_DEC)
-            printf("%8.1i ", *((DWORD *) pdata));
-         if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
-            printf("0x%8.8x ", *((DWORD *) pdata));
-         pdata = (char *) (((DWORD *) pdata) + 1);
-         j++;
-         break;
-      case TID_INT:
-         if (j > 7) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 8;
-         }
-         if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
-            printf("%8.1i ", *((DWORD *) pdata));
-         if (dsp_fmt == DSP_HEX)
-            printf("0x%8.8x ", *((DWORD *) pdata));
-         pdata = (char *) (((DWORD *) pdata) + 1);
-         j++;
-         break;
-      case TID_WORD:
-         if (j > 7) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 8;
-         }
-         if (dsp_fmt == DSP_DEC)
-            printf("%5.1i ", *((WORD *) pdata));
-         if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
-            printf("0x%4.4x ", *((WORD *) pdata));
-         pdata = (char *) (((WORD *) pdata) + 1);
-         j++;
-         break;
-      case TID_SHORT:
-         if (j > 7) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 8;
-         }
-         if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
-            printf("%5.1i ", *((short *) pdata));
-         if (dsp_fmt == DSP_HEX)
-            printf("0x%4.4x ", *((short *) pdata));
-         pdata = (char *) (((short *) pdata) + 1);
-         j++;
-         break;
-      case TID_BYTE:
-      case TID_STRUCT:
-         if (j > 15) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 16;
-         }
-         if (dsp_fmt == DSP_DEC)
-            printf("%4.i ", *((BYTE *) pdata));
-         if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
-            printf("0x%2.2x ", *((BYTE *) pdata));
-         pdata++;
-         j++;
-         break;
-      case TID_SBYTE:
-         if (j > 15) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 16;
-         }
-         if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
-            printf("%4.i ", *((BYTE *) pdata));
-         if (dsp_fmt == DSP_HEX)
-            printf("0x%2.2x ", *((BYTE *) pdata));
-         pdata++;
-         j++;
-         break;
-      case TID_BOOL:
-         if (j > 15) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 16;
-         }
-         (*((BOOL *) pdata) != 0) ? printf("Y ") : printf("N ");
-         pdata = (char *) (((DWORD *) pdata) + 1);
-         j++;
-         break;
-      case TID_CHAR:
-      case TID_STRING:
-         if (j > 15) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 16;
-         }
-         if (dsp_fmt == DSP_DEC)
-            printf("%3.i ", *((BYTE *) pdata));
-         if ((dsp_fmt == DSP_ASC) || (dsp_fmt == DSP_UNK))
-            printf("%1.1s ", (char *) pdata);
-         if (dsp_fmt == DSP_HEX)
-            printf("0x%2.2x ", *((BYTE *) pdata));
-         pdata++;
-         j++;
-         break;
-      default:
-         printf("bank type not supported (%d)\n", type);
-         return;
-         break;
+         case TID_DOUBLE:
+            if (j > 3) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 4;
+            }
+            printf("%15.5le    ", *((double *) pdata));
+            pdata = (char *) (((double *) pdata) + 1);
+            j++;
+            break;
+         case TID_FLOAT:
+            if (j > 7) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 8;
+            }
+            if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
+               printf("%8.3e ", *((float *) pdata));
+            if (dsp_fmt == DSP_HEX)
+               printf("0x%8.8x ", *((DWORD *) pdata));
+            pdata = (char *) (((DWORD *) pdata) + 1);
+            j++;
+            break;
+         case TID_DWORD:
+            if (j > 7) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 8;
+            }
+            if (dsp_fmt == DSP_DEC)
+               printf("%8.1i ", *((DWORD *) pdata));
+            if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
+               printf("0x%8.8x ", *((DWORD *) pdata));
+            pdata = (char *) (((DWORD *) pdata) + 1);
+            j++;
+            break;
+         case TID_INT:
+            if (j > 7) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 8;
+            }
+            if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
+               printf("%8.1i ", *((DWORD *) pdata));
+            if (dsp_fmt == DSP_HEX)
+               printf("0x%8.8x ", *((DWORD *) pdata));
+            pdata = (char *) (((DWORD *) pdata) + 1);
+            j++;
+            break;
+         case TID_WORD:
+            if (j > 7) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 8;
+            }
+            if (dsp_fmt == DSP_DEC)
+               printf("%5.1i ", *((WORD *) pdata));
+            if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
+               printf("0x%4.4x ", *((WORD *) pdata));
+            pdata = (char *) (((WORD *) pdata) + 1);
+            j++;
+            break;
+         case TID_SHORT:
+            if (j > 7) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 8;
+            }
+            if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
+               printf("%5.1i ", *((short *) pdata));
+            if (dsp_fmt == DSP_HEX)
+               printf("0x%4.4x ", *((short *) pdata));
+            pdata = (char *) (((short *) pdata) + 1);
+            j++;
+            break;
+         case TID_BYTE:
+         case TID_STRUCT:
+            if (j > 15) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 16;
+            }
+            if (dsp_fmt == DSP_DEC)
+               printf("%4.i ", *((BYTE *) pdata));
+            if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
+               printf("0x%2.2x ", *((BYTE *) pdata));
+            pdata++;
+            j++;
+            break;
+         case TID_SBYTE:
+            if (j > 15) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 16;
+            }
+            if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
+               printf("%4.i ", *((BYTE *) pdata));
+            if (dsp_fmt == DSP_HEX)
+               printf("0x%2.2x ", *((BYTE *) pdata));
+            pdata++;
+            j++;
+            break;
+         case TID_BOOL:
+            if (j > 15) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 16;
+            }
+            (*((BOOL *) pdata) != 0) ? printf("Y ") : printf("N ");
+            pdata = (char *) (((DWORD *) pdata) + 1);
+            j++;
+            break;
+         case TID_CHAR:
+         case TID_STRING:
+            if (j > 15) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 16;
+            }
+            if (dsp_fmt == DSP_DEC)
+               printf("%3.i ", *((BYTE *) pdata));
+            if ((dsp_fmt == DSP_ASC) || (dsp_fmt == DSP_UNK))
+               printf("%1.1s ", (char *) pdata);
+            if (dsp_fmt == DSP_HEX)
+               printf("0x%2.2x ", *((BYTE *) pdata));
+            pdata++;
+            j++;
+            break;
+         default:
+            printf("bank type not supported (%d)\n", type);
+            return;
+            break;
       }
    }                            /* end of bank */
    printf("\n");
@@ -1362,7 +1389,7 @@ none
 }
 
 /*------------------------------------------------------------------*/
-void midas_bank_display32(BANK32 * pbk, INT dsp_fmt)
+void midas_bank_display32(BANK32 *pbk, INT dsp_fmt)
 /********************************************************************\
 Routine: midas_bank_display32
 Purpose: display on screen the pointed MIDAS bank data using MIDAS Bank structure.
@@ -1445,138 +1472,138 @@ none
    pendbk = pdata + lrl;
    while (pdata < pendbk) {
       switch (type) {
-      case TID_DOUBLE:
-         if (j > 3) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 4;
-         }
-         printf("%15.5e    ", *((double *) pdata));
-         pdata = (char *) (((double *) pdata) + 1);
-         j++;
-         break;
-      case TID_FLOAT:
-         if (j > 7) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 8;
-         }
-         if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
-            printf("%8.3e ", *((float *) pdata));
-         if (dsp_fmt == DSP_HEX)
-            printf("0x%8.8x ", *((DWORD *) pdata));
-         pdata = (char *) (((DWORD *) pdata) + 1);
-         j++;
-         break;
-      case TID_DWORD:
-         if (j > 7) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 8;
-         }
-         if (dsp_fmt == DSP_DEC)
-            printf("%8.1i ", *((DWORD *) pdata));
-         if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
-            printf("0x%8.8x ", *((DWORD *) pdata));
-         pdata = (char *) (((DWORD *) pdata) + 1);
-         j++;
-         break;
-      case TID_INT:
-         if (j > 7) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 8;
-         }
-         if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
-            printf("%8.1i ", *((DWORD *) pdata));
-         if (dsp_fmt == DSP_HEX)
-            printf("0x%8.8x ", *((DWORD *) pdata));
-         pdata = (char *) (((DWORD *) pdata) + 1);
-         j++;
-         break;
-      case TID_WORD:
-         if (j > 7) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 8;
-         }
-         if (dsp_fmt == DSP_DEC)
-            printf("%5.1i ", *((WORD *) pdata));
-         if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
-            printf("0x%4.4x ", *((WORD *) pdata));
-         pdata = (char *) (((WORD *) pdata) + 1);
-         j++;
-         break;
-      case TID_SHORT:
-         if (j > 7) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 8;
-         }
-         if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
-            printf("%5.1i ", *((short *) pdata));
-         if (dsp_fmt == DSP_HEX)
-            printf("0x%4.4x ", *((short *) pdata));
-         pdata = (char *) (((short *) pdata) + 1);
-         j++;
-         break;
-      case TID_BYTE:
-      case TID_STRUCT:
-         if (j > 15) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 16;
-         }
-         if (dsp_fmt == DSP_DEC)
-            printf("%4.i ", *((BYTE *) pdata));
-         if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
-            printf("0x%2.2x ", *((BYTE *) pdata));
-         pdata++;
-         j++;
-         break;
-      case TID_SBYTE:
-         if (j > 15) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 16;
-         }
-         if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
-            printf("%4.i ", *((BYTE *) pdata));
-         if (dsp_fmt == DSP_HEX)
-            printf("0x%2.2x ", *((BYTE *) pdata));
-         pdata++;
-         j++;
-         break;
-      case TID_BOOL:
-         if (j > 15) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 16;
-         }
-         (*((BOOL *) pdata) != 0) ? printf("Y ") : printf("N ");
-         pdata = (char *) (((DWORD *) pdata) + 1);
-         j++;
-         break;
-      case TID_CHAR:
-      case TID_STRING:
-         if (j > 15) {
-            printf("\n%4i-> ", i);
-            j = 0;
-            i += 16;
-         }
-         if (dsp_fmt == DSP_DEC)
-            printf("%3.i ", *((BYTE *) pdata));
-         if (dsp_fmt == DSP_ASC || (dsp_fmt == DSP_UNK))
-            printf("%1.1s ", (char *) pdata);
-         if (dsp_fmt == DSP_HEX)
-            printf("0x%2.2x ", *((BYTE *) pdata));
-         pdata++;
-         j++;
-         break;
-      default:
-         printf("bank type not supported (%d)\n", type);
-         return;
-         break;
+         case TID_DOUBLE:
+            if (j > 3) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 4;
+            }
+            printf("%15.5e    ", *((double *) pdata));
+            pdata = (char *) (((double *) pdata) + 1);
+            j++;
+            break;
+         case TID_FLOAT:
+            if (j > 7) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 8;
+            }
+            if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
+               printf("%8.3e ", *((float *) pdata));
+            if (dsp_fmt == DSP_HEX)
+               printf("0x%8.8x ", *((DWORD *) pdata));
+            pdata = (char *) (((DWORD *) pdata) + 1);
+            j++;
+            break;
+         case TID_DWORD:
+            if (j > 7) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 8;
+            }
+            if (dsp_fmt == DSP_DEC)
+               printf("%8.1i ", *((DWORD *) pdata));
+            if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
+               printf("0x%8.8x ", *((DWORD *) pdata));
+            pdata = (char *) (((DWORD *) pdata) + 1);
+            j++;
+            break;
+         case TID_INT:
+            if (j > 7) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 8;
+            }
+            if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
+               printf("%8.1i ", *((DWORD *) pdata));
+            if (dsp_fmt == DSP_HEX)
+               printf("0x%8.8x ", *((DWORD *) pdata));
+            pdata = (char *) (((DWORD *) pdata) + 1);
+            j++;
+            break;
+         case TID_WORD:
+            if (j > 7) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 8;
+            }
+            if (dsp_fmt == DSP_DEC)
+               printf("%5.1i ", *((WORD *) pdata));
+            if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
+               printf("0x%4.4x ", *((WORD *) pdata));
+            pdata = (char *) (((WORD *) pdata) + 1);
+            j++;
+            break;
+         case TID_SHORT:
+            if (j > 7) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 8;
+            }
+            if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
+               printf("%5.1i ", *((short *) pdata));
+            if (dsp_fmt == DSP_HEX)
+               printf("0x%4.4x ", *((short *) pdata));
+            pdata = (char *) (((short *) pdata) + 1);
+            j++;
+            break;
+         case TID_BYTE:
+         case TID_STRUCT:
+            if (j > 15) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 16;
+            }
+            if (dsp_fmt == DSP_DEC)
+               printf("%4.i ", *((BYTE *) pdata));
+            if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
+               printf("0x%2.2x ", *((BYTE *) pdata));
+            pdata++;
+            j++;
+            break;
+         case TID_SBYTE:
+            if (j > 15) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 16;
+            }
+            if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
+               printf("%4.i ", *((BYTE *) pdata));
+            if (dsp_fmt == DSP_HEX)
+               printf("0x%2.2x ", *((BYTE *) pdata));
+            pdata++;
+            j++;
+            break;
+         case TID_BOOL:
+            if (j > 15) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 16;
+            }
+            (*((BOOL *) pdata) != 0) ? printf("Y ") : printf("N ");
+            pdata = (char *) (((DWORD *) pdata) + 1);
+            j++;
+            break;
+         case TID_CHAR:
+         case TID_STRING:
+            if (j > 15) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 16;
+            }
+            if (dsp_fmt == DSP_DEC)
+               printf("%3.i ", *((BYTE *) pdata));
+            if (dsp_fmt == DSP_ASC || (dsp_fmt == DSP_UNK))
+               printf("%1.1s ", (char *) pdata);
+            if (dsp_fmt == DSP_HEX)
+               printf("0x%2.2x ", *((BYTE *) pdata));
+            pdata++;
+            j++;
+            break;
+         default:
+            printf("bank type not supported (%d)\n", type);
+            return;
+            break;
       }
    }                            /* end of bank */
    printf("\n");
@@ -1588,4 +1615,4 @@ none
 /*------------------------------------------------------------------*/
 
 /**dox***************************************************************/
-                   /** @} *//* end of mdsupportincludecode */
+/** @} *//* end of mdsupportincludecode */

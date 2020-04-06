@@ -918,6 +918,7 @@ static void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
    BANK_HEADER *pbh;
    BANK *pbk;
    BANK32 *pbk32;
+   BANK32A *pbk32a;
    DWORD bkname;
    WORD bktype;
    HNDLE hKeyRoot, hKeyl, *hKeys;
@@ -932,10 +933,15 @@ static void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
       pbh = (BANK_HEADER *) (pevent + 1);
       pbk = NULL;
       pbk32 = NULL;
+      pbk32a = NULL;
 
       /* count number of banks */
       for (n=0 ; ; n++) {
-         if (bk_is32(pbh)) {
+         if (bk_is32a(pbh)) {
+            bk_iterate32a(pbh, &pbk32a, &pdata);
+            if (pbk32a == NULL)
+               break;
+         } else if (bk_is32(pbh)) {
             bk_iterate32(pbh, &pbk32, &pdata);
             if (pbk32 == NULL)
                break;
@@ -954,7 +960,13 @@ static void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
       n = 0;
       do {
          /* scan all banks */
-         if (bk_is32(pbh)) {
+         if (bk_is32a(pbh)) {
+            size = bk_iterate32a(pbh, &pbk32a, &pdata);
+            if (pbk32a == NULL)
+               break;
+            bkname = *((DWORD *) pbk32a->name);
+            bktype = (WORD) pbk32a->type;
+         } else if (bk_is32(pbh)) {
             size = bk_iterate32(pbh, &pbk32, &pdata);
             if (pbk32 == NULL)
                break;

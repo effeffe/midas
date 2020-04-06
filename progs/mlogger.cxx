@@ -3340,6 +3340,7 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
    EVENT_TREE *et;
    BANK *pbk;
    BANK32 *pbk32;
+   BANK32A *pbk32a;
    DWORD bklen;
    DWORD bkname;
    WORD bktype;
@@ -3389,9 +3390,16 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
       /* go thourgh all banks and set the address */
       pbk = NULL;
       pbk32 = NULL;
+      pbk32a = NULL;
       do {
          /* scan all banks */
-         if (bk_is32(pbh)) {
+         if (bk_is32a(pbh)) {
+            bklen = bk_iterate32a(pbh, &pbk32a, &pdata);
+            if (pbk32a == NULL)
+               break;
+            bkname = *((DWORD *) pbk32a->name);
+            bktype = (WORD) pbk32a->type;
+         } else if (bk_is32(pbh)) {
             bklen = bk_iterate32(pbh, &pbk32, &pdata);
             if (pbk32 == NULL)
                break;

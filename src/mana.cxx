@@ -2119,6 +2119,7 @@ INT write_event_ascii(FILE * file, EVENT_HEADER * pevent, ANALYZE_REQUEST * par)
    EVENT_DEF *event_def;
    BANK *pbk;
    BANK32 *pbk32;
+   BANK32A *pbk32a;
    void *pdata;
    char *pbuf, name[5], type_name[10];
    LRS1882_DATA *lrs1882;
@@ -2152,9 +2153,16 @@ INT write_event_ascii(FILE * file, EVENT_HEADER * pevent, ANALYZE_REQUEST * par)
       pbh = (BANK_HEADER *) (pevent + 1);
       pbk = NULL;
       pbk32 = NULL;
+      pbk32a = NULL;
       do {
          /* scan all banks */
-         if (bk_is32(pbh)) {
+         if (bk_is32a(pbh)) {
+            size = bk_iterate32a(pbh, &pbk32a, &pdata);
+            if (pbk32a == NULL)
+               break;
+            bkname = *((DWORD *) pbk32a->name);
+            bktype = (WORD) pbk32a->type;
+         } else if (bk_is32(pbh)) {
             size = bk_iterate32(pbh, &pbk32, &pdata);
             if (pbk32 == NULL)
                break;
@@ -2338,6 +2346,7 @@ INT write_event_midas(FILE * file, EVENT_HEADER * pevent, ANALYZE_REQUEST * par)
    EVENT_DEF *event_def;
    BANK *pbk;
    BANK32 *pbk32;
+   BANK32A *pbk32a;
    char *pdata, *pdata_copy;
    char *pbuf;
    EVENT_HEADER *pevent_copy;
@@ -2378,10 +2387,18 @@ INT write_event_midas(FILE * file, EVENT_HEADER * pevent, ANALYZE_REQUEST * par)
 
          pbk = NULL;
          pbk32 = NULL;
+         pbk32a = NULL;
          pdata_copy = pbuf;
          do {
             /* scan all banks */
-            if (bk_is32(pbh)) {
+            if (bk_is32a(pbh)) {
+               size = bk_iterate32a(pbh, &pbk32a, &pdata);
+               if (pbk32a == NULL)
+                  break;
+               bkname = *((DWORD *) pbk32a->name);
+               bktype = (WORD) pbk32a->type;
+               bksize = pbk32a->data_size;
+            } else if (bk_is32(pbh)) {
                size = bk_iterate32(pbh, &pbk32, &pdata);
                if (pbk32 == NULL)
                   break;
@@ -2455,6 +2472,7 @@ INT write_event_hbook(FILE * file, EVENT_HEADER * pevent, ANALYZE_REQUEST * par)
    INT i, j, k, n, size, item_size, status;
    BANK *pbk;
    BANK32 *pbk32;
+   BANK32A *pbk32a;
    BANK_LIST *pbl;
    BANK_HEADER *pbh;
    char *pdata;
@@ -2500,11 +2518,18 @@ INT write_event_hbook(FILE * file, EVENT_HEADER * pevent, ANALYZE_REQUEST * par)
 
       pbk = NULL;
       pbk32 = NULL;
+      pbk32a = NULL;
       exclude_all = TRUE;
       do {
          pbh = (BANK_HEADER *) (pevent + 1);
          /* scan all banks */
-         if (bk_is32(pbh)) {
+         if (bk_is32a(pbh)) {
+            size = bk_iterate32a(pbh, &pbk32a, &pdata);
+            if (pbk32a == NULL)
+               break;
+            bkname = *((DWORD *) pbk32a->name);
+            bktype = (WORD) pbk32a->type;
+         } else if (bk_is32(pbh)) {
             size = bk_iterate32(pbh, &pbk32, &pdata);
             if (pbk32 == NULL)
                break;
@@ -2766,6 +2791,7 @@ INT write_event_ttree(FILE * file, EVENT_HEADER * pevent, ANALYZE_REQUEST * par)
    INT i, bklen;
    BANK *pbk;
    BANK32 *pbk32;
+   BANK32A *pbk32a;
    BANK_LIST *pbl;
    BANK_HEADER *pbh;
    void *pdata;
@@ -2818,11 +2844,18 @@ INT write_event_ttree(FILE * file, EVENT_HEADER * pevent, ANALYZE_REQUEST * par)
 
       pbk = NULL;
       pbk32 = NULL;
+      pbk32a = NULL;
       exclude_all = TRUE;
       do {
          pbh = (BANK_HEADER *) (pevent + 1);
          /* scan all banks */
-         if (bk_is32(pbh)) {
+         if (bk_is32a(pbh)) {
+            bklen = bk_iterate32a(pbh, &pbk32a, &pdata);
+            if (pbk32a == NULL)
+               break;
+            bkname = *((DWORD *) pbk32a->name);
+            bktype = (WORD) pbk32a->type;
+         } else if (bk_is32(pbh)) {
             bklen = bk_iterate32(pbh, &pbk32, &pdata);
             if (pbk32 == NULL)
                break;
@@ -2945,6 +2978,7 @@ INT write_event_odb(EVENT_HEADER * pevent)
    EVENT_DEF *event_def;
    BANK *pbk;
    BANK32 *pbk32;
+   BANK32A *pbk32a;
    void *pdata;
    char name[5];
    HNDLE hKeyRoot, hKey;
@@ -2962,9 +2996,16 @@ INT write_event_odb(EVENT_HEADER * pevent)
       pbh = (BANK_HEADER *) (pevent + 1);
       pbk = NULL;
       pbk32 = NULL;
+      pbk32a = NULL;
       do {
          /* scan all banks */
-         if (bk_is32(pbh)) {
+         if (bk_is32a(pbh)) {
+            size = bk_iterate32a(pbh, &pbk32a, &pdata);
+            if (pbk32a == NULL)
+               break;
+            bkname = *((DWORD *) pbk32a->name);
+            bktype = (WORD) pbk32a->type;
+         } else if (bk_is32(pbh)) {
             size = bk_iterate32(pbh, &pbk32, &pdata);
             if (pbk32 == NULL)
                break;
