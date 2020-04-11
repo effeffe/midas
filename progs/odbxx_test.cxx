@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <string>
 #include <iostream>
+#include <stdexcept>
 
 /*
 #include <json.hpp>
