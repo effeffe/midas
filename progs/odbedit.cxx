@@ -1648,7 +1648,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
          if (i == TID_LAST) {
             printf("Unknown type. Must be one of:\n");
-            printf("{ BYTE,CHAR,WORD,SHORT,DWORD,INT,BOOL,FLOAT,DOUBLE,STRING }\n");
+            printf("{ UINT8,INT8,UINT16,INT16,UINT32,INT32,BOOL,FLOAT,DOUBLE,STRING }\n");
          } else {
             db_create_key(hDB, 0, str, i);
             db_find_key(hDB, 0, str, &hKey);
