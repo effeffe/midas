@@ -89,7 +89,7 @@ namespace midas {
       void set(double v) {
          m_double = v;
       }
-      void set(char *v) {
+      void set(const char *v) {
          m_string = new std::string(v);
       }
       void set(const std::string &v) {
@@ -143,7 +143,7 @@ namespace midas {
       static HNDLE m_hDB;
 
       // various parameters
-      bool         m_preserve_sting_size;
+      bool         m_preserve_string_size;
 
       // type of this object, one of TID_xxx
       int          m_tid;
@@ -166,7 +166,7 @@ namespace midas {
    public:
       // Default constructor
       odb() :
-         m_preserve_sting_size(true),
+         m_preserve_string_size(true),
          m_tid{0},
          m_data{nullptr}
          {}
@@ -195,8 +195,8 @@ namespace midas {
       }
 
       // Setters and Getters
-      bool is_preserve_sting_size() const { return m_preserve_sting_size; }
-      void set_preserve_sting_size(bool f) { m_preserve_sting_size = f; }
+      bool is_preserve_string_size() const { return m_preserve_string_size; }
+      void set_preserve_string_size(bool f) { m_preserve_string_size = f; }
       int get_tid() { return m_tid; }
       std::string get_name() { return m_name; }
 
@@ -213,7 +213,20 @@ namespace midas {
          return v;
       }
 
-      // overload the conversion operator for std::string
+      template <typename T>
+      const std::vector<T> &operator=(const std::vector<T> &v) {
+         if (v.size() != m_num_values)
+            throw std::runtime_error("ODB key \"" + get_full_path() +
+            "\["+std::to_string(m_num_values)+"] is assigned a vector of size " +
+            std::to_string(v.size()));
+
+         for (int i=0 ; i<m_num_values ; i++)
+            m_data[i].set(v[i]);
+         send_data_to_odb();
+         return v;
+      }
+
+      // overload conversion operator for std::string
       operator std::string() {
          std::string s;
          if (m_tid == TID_KEY)
@@ -221,6 +234,15 @@ namespace midas {
          else
             get(s); // forward to get(std::string)
          return s;
+      }
+
+      // overload conversion operator for std::vector<T>
+      template <typename T>
+      operator std::vector<T>() {
+         std::vector<T> v(m_num_values);
+         for (int i=0 ; i<m_num_values ; i++)
+            v[i] = m_data[i];
+         return v;
       }
 
       // overload all other conversion operators
@@ -464,25 +486,40 @@ namespace midas {
       void send_data_to_odb() {
          int status{}, size{};
          if (m_tid == TID_UINT8) {
-            uint8_t d;
-            d = m_data[0];
-            status = db_set_data(m_hDB, m_hKey, &d, sizeof(d), 1, m_tid);
+            size = sizeof(uint8_t) * m_num_values;
+            uint8_t *d = (uint8_t *)malloc(size);
+            for (int i=0 ; i<m_num_values ; i++)
+               d[i] = m_data[i];
+            status = db_set_data(m_hDB, m_hKey, d, size, m_num_values, m_tid);
+            free(d);
          } else if (m_tid == TID_INT8) {
-            int8_t d;
-            d = m_data[0];
-            status = db_set_data(m_hDB, m_hKey, &d, sizeof(d), 1, m_tid);
+            size = sizeof(int8_t) * m_num_values;
+            int8_t *d = (int8_t *)malloc(size);
+            for (int i=0 ; i<m_num_values ; i++)
+               d[i] = m_data[i];
+            status = db_set_data(m_hDB, m_hKey, d, size, m_num_values, m_tid);
+            free(d);
          } else if (m_tid == TID_UINT16) {
-            uint16_t d;
-            d = m_data[0];
-            status = db_set_data(m_hDB, m_hKey, &d, sizeof(d), 1, m_tid);
+            size = sizeof(uint16_t) * m_num_values;
+            uint16_t *d = (uint16_t *)malloc(size);
+            for (int i=0 ; i<m_num_values ; i++)
+               d[i] = m_data[i];
+            status = db_set_data(m_hDB, m_hKey, d, size, m_num_values, m_tid);
+            free(d);
          } else if (m_tid == TID_INT16) {
-            int16_t d;
-            d = m_data[0];
-            status = db_set_data(m_hDB, m_hKey, &d, sizeof(d), 1, m_tid);
+            size = sizeof(int16_t) * m_num_values;
+            int16_t *d = (int16_t *)malloc(size);
+            for (int i=0 ; i<m_num_values ; i++)
+               d[i] = m_data[i];
+            status = db_set_data(m_hDB, m_hKey, d, size, m_num_values, m_tid);
+            free(d);
          } else if (m_tid == TID_UINT32) {
-            uint32_t d;
-            d = m_data[0];
-            status = db_set_data(m_hDB, m_hKey, &d, sizeof(d), 1, m_tid);
+            size = sizeof(uint32_t) * m_num_values;
+            uint32_t *d = (uint32_t *)malloc(size);
+            for (int i=0 ; i<m_num_values ; i++)
+               d[i] = m_data[i];
+            status = db_set_data(m_hDB, m_hKey, d, size, m_num_values, m_tid);
+            free(d);
          } else if (m_tid == TID_INT32) {
             size = sizeof(int32_t) * m_num_values;
             int32_t *d = (int32_t *)malloc(size);
@@ -498,22 +535,36 @@ namespace midas {
             status = db_set_data(m_hDB, m_hKey, d, size, m_num_values, m_tid);
             free(d);
          } else if (m_tid == TID_FLOAT) {
-            float d;
-            d = m_data[0];
-            status = db_set_data(m_hDB, m_hKey, &d, sizeof(d), 1, m_tid);
+            size = sizeof(float) * m_num_values;
+            float *d = (float *)malloc(size);
+            for (int i=0 ; i<m_num_values ; i++)
+               d[i] = m_data[i];
+            status = db_set_data(m_hDB, m_hKey, d, size, m_num_values, m_tid);
+            free(d);
          } else if (m_tid == TID_DOUBLE) {
-            double d;
-            d = m_data[0];
-            status = db_set_data(m_hDB, m_hKey, &d, sizeof(d), 1, m_tid);
+            size = sizeof(double) * m_num_values;
+            double *d = (double *)malloc(size);
+            for (int i=0 ; i<m_num_values ; i++)
+               d[i] = m_data[i];
+            status = db_set_data(m_hDB, m_hKey, d, size, m_num_values, m_tid);
+            free(d);
          } else if (m_tid == TID_STRING) {
-            std::string d;
-            m_data[0].get(d);
-            if (is_preserve_sting_size()) {
+            if (is_preserve_string_size() || m_num_values > 1) {
                KEY key;
                db_get_key(m_hDB, m_hKey, &key);
-               status = db_set_data(m_hDB, m_hKey, d.c_str(), key.total_size, 1, m_tid);
-            } else
-               status = db_set_data(m_hDB, m_hKey, d.c_str(), d.length()+1, 1, m_tid);
+               char *str = (char *)malloc(key.total_size);
+               for (int i=0 ; i<m_num_values ; i++) {
+                  std::string d;
+                  m_data[i].get(d);
+                  strncpy(str + i * key.item_size, d.c_str(), key.item_size);
+               }
+               status = db_set_data(m_hDB, m_hKey, str, key.total_size, m_num_values, m_tid);
+               free(str);
+            } else {
+               std::string d;
+               m_data[0].get(d);
+               status = db_set_data(m_hDB, m_hKey, d.c_str(), d.length() + 1, 1, m_tid);
+            }
          }
 
          if (status != DB_SUCCESS)
@@ -602,10 +653,19 @@ int main() {
 
    cm_connect_experiment(NULL, NULL, "test", NULL);
 
+
    /*
-   midas::odb ok("/Experiment/Buffer sizes");
-   std::cout << ok;
-    */
+   midas::odb ok("/Experiment/Security/RPC hosts/Allowed hosts");
+   std::cout << ok.print() << std::endl;
+   std::vector<std::string> v = ok;
+   v[2] = "Host2";
+   ok = v;
+   */
+   midas::odb oa("/Experiment/Test");
+   std::cout << oa.print() << std::endl;
+   std::vector<int> v = oa;
+   v[3] = 33333;
+   oa = v;
 
    /*
    midas::odb oi("/Experiment/ODB Timeout");
