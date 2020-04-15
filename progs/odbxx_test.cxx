@@ -52,6 +52,8 @@ namespace midas {
       // Destructor
       ~u_odb();
 
+      odb *get_odb() { return m_odb; }
+
       void set_parent(odb *o) {
          m_parent_odb = o;
       }
@@ -196,6 +198,8 @@ namespace midas {
       bool is_preserve_sting_size() const { return m_preserve_sting_size; }
       void set_preserve_sting_size(bool f) { m_preserve_sting_size = f; }
       int get_tid() { return m_tid; }
+      std::string get_name() { return m_name; }
+
       std::string get_full_path() {
          char str[256];
          db_get_path(m_hDB, m_hKey, str, sizeof(str));
@@ -212,7 +216,10 @@ namespace midas {
       // overload the conversion operator for std::string
       operator std::string() {
          std::string s;
-         get(s); // forward to get(std::string)
+         if (m_tid == TID_KEY)
+            print(s, 0);
+         else
+            get(s); // forward to get(std::string)
          return s;
       }
 
@@ -238,13 +245,28 @@ namespace midas {
          return output;
       };
 
-      // overload index operator
+      // overload index operator for arrays
       u_odb& operator[](int index) {
          if (index < 0 || index >= m_num_values)
             throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" +
             get_full_path() + "\"");
 
          return m_data[index];
+      }
+
+      // overload index operator for subkeys
+      odb& operator[](std::string str) {
+         if (m_tid != TID_KEY)
+            throw std::runtime_error("ODB key \"" + get_full_path() + "\" does not have subkeys");
+
+         int i;
+         for (i=0 ; i<m_num_values ; i++)
+            if (m_data[i].get_odb()->get_name() == str)
+               break;
+         if (i == m_num_values)
+            throw std::runtime_error("ODB key \"" + get_full_path() + "\" does not contain subkey \"" + str + "\"");
+
+         return *m_data[i].get_odb();
       }
 
       // get function for basic type
@@ -254,14 +276,56 @@ namespace midas {
       }
 
       // get function for strings
-      void get(std::string &s) {
+      void get(std::string &s, bool quotes = false) {
          s = "";
          std::string sd;
          for (int i=0 ; i<m_num_values ; i++) {
             m_data[i].get(sd);
+            if (quotes)
+               s += "\"";
             s += sd;
+            if (quotes)
+               s += "\"";
             if (i < m_num_values-1)
                s += ",";
+         }
+      }
+
+      std::string print() {
+         std::string s;
+         s = "{\n";
+         print(s, 1);
+         s += "\n}";
+         return s;
+      }
+
+      void print(std::string &s, int indent) {
+         for (int i = 0; i < indent; i++)
+            s += "   ";
+         if (m_tid == TID_KEY) {
+            s += "\"" + m_name + "\": {\n";
+            for (int i= 0; i<m_num_values ; i++) {
+               std::string v;
+               m_data[i].get_odb()->print(v, indent+1);
+               s += v;
+               if (i < m_num_values-1)
+                  s += ",\n";
+               else
+                  s += "\n";
+            }
+            for (int i = 0; i < indent; i++)
+               s += "   ";
+            s += "}";
+
+         } else {
+            s += "\"" + m_name + "\": ";
+            if (m_num_values > 1)
+               s += "[";
+            std::string v;
+            get(v, m_tid == TID_STRING);
+            s += v;
+            if (m_num_values > 1)
+               s += "]";
          }
       }
 
@@ -285,37 +349,65 @@ namespace midas {
             throw std::runtime_error("db_get_key for ODB key \"" + get_full_path() + "\" failed with status " + std::to_string(status));
          m_tid = key.type;
          m_num_values = key.num_values;
+         m_name = key.name;
       }
 
       void get_data_from_odb() {
          int status = 0;
          int size = 0;
          if (m_data == nullptr) {
+            if (m_tid == TID_KEY) {
+               std::vector<HNDLE> hlist;
+               for (int i = 0;; i++) {
+                  HNDLE h;
+                  status = db_enum_key(m_hDB, m_hKey, i, &h);
+                  if (status != DB_SUCCESS)
+                     break;
+                  hlist.push_back(h);
+                  m_num_values = i + 1;
+               }
+               m_data = new u_odb[m_num_values]{};
+               for (int i = 0; i < m_num_values; i++) {
+                  m_data[i].set(new odb(hlist[i]));
+                  m_data[i].set_parent(this);
+               }
+
+               return;
+            }
+
             m_data = new u_odb[m_num_values]{};
-            for (int i=0 ; i < m_num_values ; i++)
+            for (int i = 0; i < m_num_values; i++)
                m_data[i].set_parent(this);
          }
 
          if (m_tid == TID_UINT8) {
-            uint8_t d;
-            size = sizeof(d);
-            status = db_get_data(m_hDB, m_hKey, &d, &size, m_tid);
-            m_data[0].set(d);
+            size = sizeof(uint8_t) * m_num_values;
+            uint8_t *d = (uint8_t *)malloc(size);
+            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
+            for (int i=0 ; i<m_num_values ; i++)
+               m_data[i].set(d[i]);
+            free(d);
          } else if (m_tid == TID_INT8) {
-            int8_t d;
-            size = sizeof(d);
-            status = db_get_data(m_hDB, m_hKey, &d, &size, m_tid);
-            m_data[0].set(d);
+            size = sizeof(int8_t) * m_num_values;
+            int8_t *d = (int8_t *)malloc(size);
+            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
+            for (int i=0 ; i<m_num_values ; i++)
+               m_data[i].set(d[i]);
+            free(d);
          } else if (m_tid == TID_UINT16) {
-            uint16_t d;
-            size = sizeof(d);
-            status = db_get_data(m_hDB, m_hKey, &d, &size, m_tid);
-            m_data[0].set(d);
+            size = sizeof(uint16_t) * m_num_values;
+            uint16_t *d = (uint16_t *)malloc(size);
+            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
+            for (int i=0 ; i<m_num_values ; i++)
+               m_data[i].set(d[i]);
+            free(d);
          } else if (m_tid == TID_INT16) {
-            int16_t d;
-            size = sizeof(d);
-            status = db_get_data(m_hDB, m_hKey, &d, &size, m_tid);
-            m_data[0].set(d);
+            size = sizeof(int16_t) * m_num_values;
+            int16_t *d = (int16_t *)malloc(size);
+            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
+            for (int i=0 ; i<m_num_values ; i++)
+               m_data[i].set(d[i]);
+            free(d);
          } else if (m_tid == TID_UINT32) {
             size = sizeof(uint32_t) * m_num_values;
             uint32_t *d = (uint32_t *)malloc(size);
@@ -338,30 +430,28 @@ namespace midas {
                m_data[i].set(d[i]);
             free(d);
          } else if (m_tid == TID_FLOAT) {
-            float d;
-            size = sizeof(d);
-            status = db_get_data(m_hDB, m_hKey, &d, &size, m_tid);
-            m_data[0].set(d);
+            size = sizeof(float) * m_num_values;
+            float *d = (float *)malloc(size);
+            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
+            for (int i=0 ; i<m_num_values ; i++)
+               m_data[i].set(d[i]);
+            free(d);
          } else if (m_tid == TID_DOUBLE) {
-            double d;
-            size = sizeof(d);
-            status = db_get_data(m_hDB, m_hKey, &d, &size, m_tid);
-            m_data[0].set(d);
+            size = sizeof(double) * m_num_values;
+            double *d = (double *)malloc(size);
+            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
+            for (int i=0 ; i<m_num_values ; i++)
+               m_data[i].set(d[i]);
+            free(d);
          }  else if (m_tid == TID_STRING) {
             KEY key;
             db_get_key(m_hDB, m_hKey, &key);
             char *str = (char *)malloc(key.total_size);
             size = key.total_size;
             status = db_get_data(m_hDB, m_hKey, str, &size, m_tid);
-            m_data[0].set(str);
-            free(str);
-         }  else if (m_tid == TID_KEY) {
-            size = sizeof(HNDLE) * m_num_values;
-            HNDLE *d = (int32_t *)malloc(size);
-            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
             for (int i=0 ; i<m_num_values ; i++)
-               m_data[i].set(new odb(d[i]));
-            free(d);
+               m_data[i].set(str + i*key.item_size);
+            free(str);
          } else
             throw std::runtime_error("get_data for ODB key \"" + get_full_path() +
                                      "\" failed due to unsupported type " + std::to_string(m_tid));
@@ -512,6 +602,10 @@ int main() {
 
    cm_connect_experiment(NULL, NULL, "test", NULL);
 
+   /*
+   midas::odb ok("/Experiment/Buffer sizes");
+   std::cout << ok;
+    */
 
    /*
    midas::odb oi("/Experiment/ODB Timeout");
@@ -522,19 +616,23 @@ int main() {
    midas::odb ob("/Experiment/Prevent start on alarms");
    std::cout << ob << std::endl;
    ob = true;
+   */
 
+   midas::odb ot("/Experiment");
+   std::cout << ot["ODB timeout"] << std::endl;
+   ot["ODB timeout"] = 12345;
+   ot["Security"]["Enable non-localhost RPC"] = true;
 
-   midas::odb ot("/Experiment/Test");
+   std::cout << ot.print() << std::endl;
+   /*
    ot[0] = 123456;
-   ot[9] = 987654;
    std::string s = ot[0];
    int i = ot[0];
    std::cout << i << std::endl;
-   */
 
    midas::odb on("/Experiment/Name");
    std::cout << on << std::endl;
-   /*
+
    std::string s2 = on;
    s2 = on;
    std::cout << s2 << std::endl;
