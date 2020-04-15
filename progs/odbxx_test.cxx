@@ -12,6 +12,7 @@
 #include <string>
 #include <iostream>
 #include <stdexcept>
+#include <string.h>
 
 /*
 #include <json.hpp>
