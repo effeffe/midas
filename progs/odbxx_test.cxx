@@ -216,10 +216,24 @@ namespace midas {
 
       template <typename T>
       const std::vector<T> &operator=(const std::vector<T> &v) {
-         if (v.size() != m_num_values)
-            throw std::runtime_error("ODB key \"" + get_full_path() +
-            "\["+std::to_string(m_num_values)+"] is assigned a vector of size " +
-            std::to_string(v.size()));
+
+         // resize internal array if different
+         if (v.size() != m_num_values) {
+            if (m_tid == TID_STRING) {
+               // TBD
+            } else {
+               u_odb* new_array = new u_odb[v.size()]{};
+               if (v.size() < m_num_values)
+                  memcpy(new_array, m_data, v.size()*sizeof(u_odb));
+               else
+                  memcpy(new_array, m_data, m_num_values*sizeof(u_odb));
+               delete[] m_data;
+               m_data = new_array;
+               m_num_values = v.size();
+               for (int i = 0; i < m_num_values; i++)
+                  m_data[i].set_parent(this);
+            }
+         }
 
          for (int i=0 ; i<m_num_values ; i++)
             m_data[i].set(v[i]);
@@ -236,13 +250,6 @@ namespace midas {
          else
             get(s); // forward to get(std::string)
          return s;
-      }
-
-      // overload conversion operator for bool
-      operator bool() {
-         bool b;
-         get(b);
-         return b;
       }
 
       // overload conversion operator for std::vector<T>
@@ -263,6 +270,7 @@ namespace midas {
               std::is_same<T, int16_t>::value ||
               std::is_same<T, uint32_t>::value ||
               std::is_same<T, int32_t>::value ||
+              std::is_same<T, bool>::value ||
               std::is_same<T, float>::value ||
               std::is_same<T, double>::value
               ,T>::type* = nullptr>
@@ -281,7 +289,7 @@ namespace midas {
       u_odb& operator[](int index) {
          if (index < 0 || index >= m_num_values)
             throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" +
-            get_full_path() + "\"");
+                                    get_full_path() + "[0..." + std::to_string(m_num_values-1) + "]\"");
 
          m_last_index = index;
          return m_data[index];
@@ -325,8 +333,9 @@ namespace midas {
       }
 
       // get function for strings
-      void get(std::string &s, bool quotes = false) {
-         get_data_from_odb();
+      void get(std::string &s, bool quotes = false, bool refresh=true) {
+         if (refresh)
+            get_data_from_odb();
 
          // put value into quotes
          s = "";
@@ -416,7 +425,7 @@ namespace midas {
          m_tid = key.type;
          m_num_values = key.num_values;
          if (m_debug) {
-            std::cout << "Get definition for ODB key " + get_full_path() << std::endl;
+            std::cout << "Get definition for ODB key \"" + get_full_path() + "\"" << std::endl;
          }
       }
 
@@ -430,7 +439,7 @@ namespace midas {
          m_num_values = key.num_values;
          m_name = key.name;
          if (m_debug) {
-            std::cout << "Get definition for ODB key " + get_full_path() << std::endl;
+            std::cout << "Get definition for ODB key \"" + get_full_path() + "\"" << std::endl;
          }
       }
 
@@ -544,8 +553,13 @@ namespace midas {
                                      "\" failed with status " + std::to_string(status));
          if (m_debug) {
             std::string s;
-            get(s);
-            std::cout << "Get ODB key " + get_full_path() + ": " + s << std::endl;
+            get(s, false, false);
+            if (m_num_values)
+               std::cout << "Get ODB key \"" + get_full_path() + "[0..." +
+                            std::to_string(m_num_values - 1) + "]\": [" + s + "]" << std::endl;
+            else
+               std::cout << "Get ODB key \"" + get_full_path() + "\": " + s << std::endl;
+
          }
       }
 
@@ -558,14 +572,17 @@ namespace midas {
             m_data[0].get(s);
             status = db_set_data_index(m_hDB, m_hKey, s.c_str(), key.item_size, index, m_tid);
             if (m_debug)
-               std::cout << "Set ODB key " + get_full_path() + "[" + std::to_string(index) + "] = " + s << std:: endl;
+               std::cout << "Set ODB key \"" + get_full_path() + "[" + std::to_string(index) + "]\" = " + s << std:: endl;
          } else {
             u_odb u = m_data[index];
             status = db_set_data_index(m_hDB, m_hKey, &u, rpc_tid_size(m_tid), index, m_tid);
             if (m_debug) {
                std::string s;
                u.get(s);
-               std::cout << "Set ODB key " + get_full_path() + "[" + std::to_string(index) + "] = " + s << std::endl;
+               if (m_num_values > 1)
+                  std::cout << "Set ODB key \"" + get_full_path() + "[" + std::to_string(index) + "]\" = " + s << std::endl;
+               else
+                  std::cout << "Set ODB key \"" + get_full_path() + "\" = " + s << std::endl;
             }
          }
          if (status != DB_SUCCESS)
@@ -601,14 +618,18 @@ namespace midas {
                }
                status = db_set_data(m_hDB, m_hKey, str, key.total_size, m_num_values, m_tid);
                free(str);
-               if (m_debug)
-                  std::cout << "Set ODB key " + get_full_path() + "[0..." + std::to_string(m_num_values) + "]" << std:: endl;
+               if (m_debug) {
+                  std::string s;
+                  get(s, false, false);
+                  std::cout << "Set ODB key \"" + get_full_path() +
+                               "[0..." + std::to_string(m_num_values-1) + "]\" = [" + s +"]" << std::endl;
+               }
             } else {
                std::string s;
                m_data[0].get(s);
                status = db_set_data(m_hDB, m_hKey, s.c_str(), s.length() + 1, 1, m_tid);
                if (m_debug)
-                  std::cout << "Set ODB key " + get_full_path() + " = " + s << std:: endl;
+                  std::cout << "Set ODB key \"" + get_full_path() + "\" = " + s << std:: endl;
             }
          } else {
             int size = rpc_tid_size(m_tid) * m_num_values;
@@ -622,8 +643,12 @@ namespace midas {
             free(buffer);
             if (m_debug) {
                std::string s;
-               get(s);
-               std::cout << "Set ODB key " + get_full_path() + " = " + s << std::endl;
+               get(s, false, false);
+               if (m_num_values > 1)
+                  std::cout << "Set ODB key \"" + get_full_path() + "[0..." + std::to_string(m_num_values - 1) +
+                                                  "]\" = [" + s + "]" << std::endl;
+               else
+                  std::cout << "Set ODB key \"" + get_full_path() + "\" = " + s << std::endl;
             }
          }
 
@@ -740,13 +765,27 @@ int main() {
    ob = b;
    std::cout << ob << std::endl;
 
+   // test with std::satring
+   midas::odb on("/Experiment/Name");
+   std::cout << on << std::endl;
+
+   std::string s2 = on;
+   s2 = on;
+   std::cout << s2 << std::endl;
+   on = "MEG";
+   on = std::string("Online");
+
    // test with a vector
    midas::odb oa("/Experiment/Test", TID_INT, 10);
-   oa[5] = 5555;
+   oa[4] = 5555;
    std::vector<int> v = oa;
    v[3] = 33333;
    oa = v;
    std::cout << oa.print() << std::endl;
+   v.resize(5);
+   oa = v;
+   v.resize(10);
+   oa = v;
 
    midas::odb ot("/Experiment");
    std::cout << ot["ODB timeout"] << std::endl;
