@@ -242,6 +242,24 @@ namespace midas {
          return v;
       }
 
+      void resize(int size) {
+         if (m_tid == TID_STRING) {
+            // TBD
+         } else {
+            u_odb* new_array = new u_odb[size]{};
+            if (size < m_num_values)
+               memcpy(new_array, m_data, size*sizeof(u_odb));
+            else
+               memcpy(new_array, m_data, m_num_values*sizeof(u_odb));
+            delete[] m_data;
+            m_data = new_array;
+            m_num_values = size;
+            for (int i = 0; i < m_num_values; i++)
+               m_data[i].set_parent(this);
+         }
+         send_data_to_odb();
+      }
+
       // overload conversion operator for std::string
       operator std::string() {
          std::string s;
@@ -786,6 +804,8 @@ int main() {
    oa = v;
    v.resize(10);
    oa = v;
+   oa.resize(8);
+   oa.resize(10);
 
    midas::odb ot("/Experiment");
    std::cout << ot["ODB timeout"] << std::endl;
