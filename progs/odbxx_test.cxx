@@ -146,6 +146,7 @@ namespace midas {
 
       // various parameters
       bool         m_preserve_string_size;
+      bool         m_auto_refresh;
 
       // type of this object, one of TID_xxx
       int          m_tid;
@@ -160,7 +161,8 @@ namespace midas {
    public:
       // Default constructor
       odb() :
-         m_preserve_string_size(true),
+         m_preserve_string_size(false),
+         m_auto_refresh{true},
          m_tid{0},
          m_data{nullptr},
          m_name{},
@@ -198,6 +200,8 @@ namespace midas {
 
       bool is_preserve_string_size() const { return m_preserve_string_size; }
       void set_preserve_string_size(bool f) { m_preserve_string_size = f; }
+      bool is_auto_refresh() const { return m_auto_refresh; }
+      void set_auto_refresh(bool f) { m_auto_refresh = f; }
       int get_tid() { return m_tid; }
       std::string get_name() { return m_name; }
 
@@ -238,7 +242,7 @@ namespace midas {
          for (int i=0 ; i<m_num_values ; i++)
             m_data[i].set(v[i]);
          m_last_index = -1; // force update of all values to ODB
-         send_data_to_odb();
+         push();
          return v;
       }
 
@@ -257,7 +261,7 @@ namespace midas {
             for (int i = 0; i < m_num_values; i++)
                m_data[i].set_parent(this);
          }
-         send_data_to_odb();
+         push();
       }
 
       // overload conversion operator for std::string
@@ -273,7 +277,8 @@ namespace midas {
       // overload conversion operator for std::vector<T>
       template <typename T>
       operator std::vector<T>() {
-         get_data_from_odb();
+         if (m_auto_refresh)
+            pull();
          std::vector<T> v(m_num_values);
          for (int i=0 ; i<m_num_values ; i++)
             v[i] = m_data[i];
@@ -339,21 +344,23 @@ namespace midas {
       // get function for basic types
       template <typename T>
       T get() {
-         get_data_from_odb();
+         if (m_auto_refresh)
+            pull();
          return (T)m_data[0];
       }
 
       // get function for basic types as a parameter
       template <typename T>
       void get(T& v) {
-         get_data_from_odb();
+         if (m_auto_refresh)
+            pull();
          v = (T)m_data[0];
       }
 
       // get function for strings
       void get(std::string &s, bool quotes = false, bool refresh=true) {
-         if (refresh)
-            get_data_from_odb();
+         if (refresh && m_auto_refresh)
+            pull();
 
          // put value into quotes
          s = "";
@@ -488,7 +495,7 @@ namespace midas {
          }
       }
 
-      void get_data_from_odb() {
+      void pull() {
          int status{}, size{};
          if (m_tid == TID_UINT8) {
             size = sizeof(uint8_t) * m_num_values;
@@ -581,7 +588,7 @@ namespace midas {
          }
       }
 
-      void send_data_to_odb(int index) {
+      void push(int index) {
          int status{};
          if (m_tid == TID_STRING) {
             KEY key;
@@ -608,18 +615,18 @@ namespace midas {
                                      "\" failed with status " + std::to_string(status));
       }
 
-      void send_data_to_odb() {
+      void push() {
 
          if (m_tid == TID_KEY)
             return;
 
          if (m_num_values == 1) {
-            send_data_to_odb(0);
+            push(0);
             return;
          }
 
          if (m_last_index != -1) {
-            send_data_to_odb(m_last_index);
+            push(m_last_index);
             return;
          }
 
@@ -742,11 +749,11 @@ namespace midas {
          throw std::runtime_error("Invalid type ID %s" + std::to_string(tid));
    }
 
-   //---- u_odb assignment operator overload which call db::send_data_to_odb()
+   //---- u_odb assignment operator overload which call db::push()
    template <typename T>
    T u_odb::operator=(T v) {
       set(v);
-      m_parent_odb->send_data_to_odb();
+      m_parent_odb->push();
       return v;
    }
 
@@ -768,6 +775,10 @@ int main() {
    // test with int
    midas::odb oi("/Experiment/ODB Timeout");
    oi.set_debug(true);
+   //oi.set_auto_refresh(false);
+   int i = oi;
+   oi.pull();
+   i = oi;
 
    oi = 10000;
    std::cout << oi << std::endl;
@@ -783,7 +794,7 @@ int main() {
    ob = b;
    std::cout << ob << std::endl;
 
-   // test with std::satring
+   // test with std::string
    midas::odb on("/Experiment/Name");
    std::cout << on << std::endl;
 
@@ -807,27 +818,15 @@ int main() {
    oa.resize(8);
    oa.resize(10);
 
+   // test with subkeys
    midas::odb ot("/Experiment");
    std::cout << ot["ODB timeout"] << std::endl;
    ot["ODB timeout"] = 12345;
    ot["Security"]["Enable non-localhost RPC"] = true;
+   ot["Security/Enable non-localhost RPC"] = false;
 
+   // print whole subtree
    std::cout << ot.print() << std::endl;
-   /*
-   ot[0] = 123456;
-   std::string s = ot[0];
-   int i = ot[0];
-   std::cout << i << std::endl;
-
-   midas::odb on("/Experiment/Name");
-   std::cout << on << std::endl;
-
-   std::string s2 = on;
-   s2 = on;
-   std::cout << s2 << std::endl;
-   on = "MEG";
-   on = std::string("Test");
-   */
 
    cm_disconnect_experiment();
    return 1;
