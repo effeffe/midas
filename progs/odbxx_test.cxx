@@ -331,12 +331,22 @@ namespace midas {
          if (m_tid != TID_KEY)
             throw std::runtime_error("ODB key \"" + get_full_path() + "\" does not have subkeys");
 
+         std::string first = str;
+         std::string tail{""};
+         if (str.find('/') != std::string::npos) {
+            first = str.substr(0, str.find('/'));
+            tail = str.substr(str.find('/')+1);
+         }
+
          int i;
          for (i=0 ; i<m_num_values ; i++)
-            if (m_data[i].get_odb()->get_name() == str)
+            if (m_data[i].get_odb()->get_name() == first)
                break;
          if (i == m_num_values)
-            throw std::runtime_error("ODB key \"" + get_full_path() + "\" does not contain subkey \"" + str + "\"");
+            throw std::runtime_error("ODB key \"" + get_full_path() + "\" does not contain subkey \"" + first + "\"");
+
+         if (tail != "")
+            return m_data[i].get_odb()->get_subkey(tail);
 
          return *m_data[i].get_odb();
       }
@@ -765,21 +775,9 @@ int main() {
 
    cm_connect_experiment(NULL, NULL, "test", NULL);
 
-
-//   midas::odb ok("/Experiment/Security/RPC hosts/Allowed hosts");
-//   std::cout << ok.print() << std::endl;
-//   std::vector<std::string> v = ok;
-//   v[2] = "Host2";
-//   ok = v;
-
    // test with int
    midas::odb oi("/Experiment/ODB Timeout");
    oi.set_debug(true);
-   //oi.set_auto_refresh(false);
-   int i = oi;
-   oi.pull();
-   i = oi;
-
    oi = 10000;
    std::cout << oi << std::endl;
    oi = oi + 1;
@@ -824,6 +822,14 @@ int main() {
    ot["ODB timeout"] = 12345;
    ot["Security"]["Enable non-localhost RPC"] = true;
    ot["Security/Enable non-localhost RPC"] = false;
+   ot["Security/RPC ports/ODBEdit"] = 123;
+
+   // test auto refresh
+   midas::odb oir("/Experiment/ODB Timeout");
+   oir.set_auto_refresh(false);
+   std::cout << oir << std::endl;
+   oir.pull();
+   std::cout << oir << std::endl;
 
    // print whole subtree
    std::cout << ot.print() << std::endl;
