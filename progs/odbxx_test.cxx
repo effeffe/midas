@@ -7,12 +7,11 @@
 
 \********************************************************************/
 
-#include <stdio.h>
-#include <assert.h>
 #include <string>
 #include <iostream>
 #include <stdexcept>
-#include <string.h>
+#include <initializer_list>
+#include <cstring>
 
 /*
 #include <json.hpp>
@@ -175,6 +174,16 @@ namespace midas {
    //-----------------------------------------------
 
    class odb {
+   public:
+      class iterator {
+      public:
+         iterator(u_odb * pu) : pu_odb(pu) {}
+         iterator operator++() { ++pu_odb; return *this; }
+         bool operator!=(const iterator & other) const { return pu_odb != other.pu_odb; }
+         u_odb& operator*() { return *pu_odb; }
+      private:
+         u_odb* pu_odb;
+      };
    private:
 
       // handle to ODB, same for all instances
@@ -232,9 +241,11 @@ namespace midas {
       }
 
       // Constructor with ODB object
-      explicit odb(odb& o) : odb() {
-         odb(o.get_full_path());
-      }
+      explicit odb(odb& o) : odb(o.get_full_path()) {}
+
+      // Constructor with u_odb union
+      explicit odb(u_odb& u) : odb(*u.get_odb()) {}
+
       // Setters and Getters
       static void set_debug(bool flag) { m_debug = flag; }
       static bool get_debug() { return m_debug; }
@@ -449,6 +460,10 @@ namespace midas {
                s += ",";
          }
       }
+
+      // iterator support
+      iterator begin() const { return iterator(m_data); }
+      iterator end() const { return iterator(m_data+m_num_values); }
 
       // overload arithmetic operators
       template <typename T>
@@ -1001,7 +1016,7 @@ namespace midas {
       else if (tid == TID_STRING)
          s = *m_string;
       else if (tid == TID_KEY) {
-         s = m_odb->get_name();
+         m_odb->print(s, 0);
       } else
          throw std::runtime_error("Invalid type ID " + std::to_string(tid));
    }
@@ -1132,6 +1147,11 @@ int main() {
    std::cout << o5.print() << std::endl;
    o5 /= 13;
 
+   // iterate over vector
+   int sum = 0;
+   for (int i : o5)
+      sum += i;
+
    // test with subkeys
    midas::odb o6("/Experiment");
    std::cout << o6["ODB timeout"] << std::endl;
@@ -1150,6 +1170,10 @@ int main() {
    std::cout << o8 << std::endl;
    o8.pull();
    std::cout << o8 << std::endl;
+
+   // test iterator
+   for (auto& oit : o6)
+      std::cout << oit << std::endl;
 
    // print whole subtree
    std::cout << o6.print() << std::endl;
