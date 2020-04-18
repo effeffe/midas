@@ -225,12 +225,16 @@ namespace midas {
          init_mdata();
       }
 
-      // Constuctor with ODB key
+      // Constructor with ODB key
       explicit odb(HNDLE hkey) : odb() {
          get_hkey(hkey);
          init_mdata();
       }
 
+      // Constructor with ODB object
+      explicit odb(odb& o) : odb() {
+         odb(o.get_full_path());
+      }
       // Setters and Getters
       static void set_debug(bool flag) { m_debug = flag; }
       static bool get_debug() { return m_debug; }
@@ -407,6 +411,10 @@ namespace midas {
       // get function for basic types
       template <typename T>
       T get() {
+         if (m_num_values > 1)
+            throw std::runtime_error("ODB key \"" + get_full_path() +
+                                     "\[0..."+std::to_string(m_num_values-1) +
+                                     "]\" contains array. Please assign to std::vector.");
          if (m_auto_refresh)
             pull();
          return (T)m_data[0];
@@ -415,6 +423,8 @@ namespace midas {
       // get function for basic types as a parameter
       template <typename T>
       void get(T& v) {
+         if (m_num_values > 1)
+            throw std::runtime_error("ODB key \"" + get_full_path() + "\" contains array. Please assign to std::vector.");
          if (m_auto_refresh)
             pull();
          v = (T)m_data[0];
@@ -443,6 +453,9 @@ namespace midas {
       // overload arithmetic operators
       template <typename T>
       T operator+(const T i) {
+         if (m_num_values > 1)
+            throw std::runtime_error("ODB key \"" + get_full_path() +
+                                     "\" contains array which cannot be used in basic arithmetic operation.");
          T s;
          get(s);
          return s + i;
@@ -450,6 +463,9 @@ namespace midas {
 
       template <typename T>
       T operator-(const T i) {
+         if (m_num_values > 1)
+            throw std::runtime_error("ODB key \"" + get_full_path() +
+                                     "\" contains array which cannot be used in basic arithmetic operation.");
          T s;
          get(s);
          return s - i;
@@ -457,6 +473,9 @@ namespace midas {
 
       template <typename T>
       T operator*(const T i) {
+         if (m_num_values > 1)
+            throw std::runtime_error("ODB key \"" + get_full_path() +
+                                     "\" contains array which cannot be used in basic arithmetic operation.");
          T s;
          get(s);
          return s * i;
@@ -464,6 +483,9 @@ namespace midas {
 
       template <typename T>
       T operator/(const T i) {
+         if (m_num_values > 1)
+            throw std::runtime_error("ODB key \"" + get_full_path() +
+                                     "\" contains array which cannot be used in basic arithmetic operation.");
          T s;
          get(s);
          return s / i;
@@ -1118,12 +1140,16 @@ int main() {
    o6["Security/Enable non-localhost RPC"] = false;
    o6["Security/RPC ports/ODBEdit"] = 123;
 
+   // creat key from other key
+   midas::odb o7(o6["Security"]);
+   std::cout << o7 << std::endl;
+
    // test auto refresh
-   midas::odb o7("/Experiment/ODB Timeout");
-   o7.set_auto_refresh(false);
-   std::cout << o7 << std::endl;
-   o7.pull();
-   std::cout << o7 << std::endl;
+   midas::odb o8("/Experiment/ODB Timeout");
+   o8.set_auto_refresh(false);
+   std::cout << o8 << std::endl;
+   o8.pull();
+   std::cout << o8 << std::endl;
 
    // print whole subtree
    std::cout << o6.print() << std::endl;
