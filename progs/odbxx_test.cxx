@@ -62,10 +62,7 @@ namespace midas {
       u_odb(std::string* v) : m_string{v},m_tid{TID_STRING} {};
 
       // Destructor
-      ~u_odb() {
-         if (m_tid == TID_STRING)
-            delete m_string;
-      }
+      ~u_odb();
 
       // Setters and getters
       void set_parent(odb *o) { m_parent_odb = o; }
@@ -312,7 +309,7 @@ namespace midas {
               m_tid{0},
               m_data{nullptr},
               m_name{},
-              m_num_values{1},
+              m_num_values{0},
               m_last_index{-1},
               m_hKey{}
               {}
@@ -346,10 +343,30 @@ namespace midas {
       // Constructor with u_odb union
       explicit odb(u_odb& u) : odb(*u.get_odb()) {}
 
+      // Constructor with odb_initializer
+      explicit odb(odb_initializer& i) : odb() {
+         m_tid = i.value.get_tid();
+         m_name = i.name;
+         m_num_values = 1;
+         m_data = new u_odb[m_num_values];
+         m_data[0] = i.value;
+         m_data[0].set_parent(this);
+         m_data[0].set_tid(m_tid);
+      }
+
       // Constructor with std::initializer_list
       odb(std::initializer_list<odb_initializer> list) {
+         m_tid = TID_KEY;
+         m_num_values = list.size();
+         m_data = new u_odb[m_num_values];
+         m_name = "Unnamed";
+         int i = 0;
          for (auto element: list) {
-            m_num_values++;
+            midas::odb* o = new midas::odb(element);
+            m_data[i].set_tid(TID_KEY);
+            m_data[i].set_parent(this);
+            m_data[i].set(o);
+            i++;
          }
       }
 
@@ -388,9 +405,33 @@ namespace midas {
       // Overload the Assignment Operators
       template <typename T>
       const T &operator=(const T &v) {
-         for (int i=0 ; i<m_num_values ; i++)
-            m_data[i].set(v);
-         push();
+         if (m_num_values == 0) {
+            // initialize this
+            m_num_values = 1;
+            if (std::is_same<T, uint8_t>::value)
+               m_tid = TID_UINT8;
+            if (std::is_same<T, int8_t>::value)
+               m_tid = TID_INT8;
+            if (std::is_same<T, uint16_t>::value)
+               m_tid = TID_UINT16;
+            if (std::is_same<T, int16_t>::value)
+               m_tid = TID_INT16;
+            if (std::is_same<T, uint32_t>::value)
+               m_tid = TID_UINT32;
+            if (std::is_same<T, int32_t>::value)
+                m_tid = TID_INT32;
+            if (std::is_same<T, bool>::value)
+               m_tid = TID_BOOL;
+            if (std::is_same<T, float>::value)
+               m_tid = TID_FLOAT;
+            if (std::is_same<T, double>::value)
+               m_tid = TID_DOUBLE;
+            init_mdata();
+         } else {
+            for (int i = 0; i < m_num_values; i++)
+               m_data[i].set(v);
+            push();
+         }
          return v;
       }
 
@@ -801,75 +842,19 @@ namespace midas {
 
       // retrieve data or array of data from ODB and assign it to this object
       void pull() {
-         int status{}, size{};
-         if (m_tid == TID_UINT8) {
-            size = sizeof(uint8_t) * m_num_values;
-            uint8_t *d = (uint8_t *)malloc(size);
-            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
-            for (int i=0 ; i<m_num_values ; i++)
-               m_data[i].set(d[i]);
-            free(d);
-         } else if (m_tid == TID_INT8) {
-            size = sizeof(int8_t) * m_num_values;
-            int8_t *d = (int8_t *)malloc(size);
-            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
-            for (int i=0 ; i<m_num_values ; i++)
-               m_data[i].set(d[i]);
-            free(d);
-         } else if (m_tid == TID_UINT16) {
-            size = sizeof(uint16_t) * m_num_values;
-            uint16_t *d = (uint16_t *)malloc(size);
-            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
-            for (int i=0 ; i<m_num_values ; i++)
-               m_data[i].set(d[i]);
-            free(d);
-         } else if (m_tid == TID_INT16) {
-            size = sizeof(int16_t) * m_num_values;
-            int16_t *d = (int16_t *)malloc(size);
-            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
-            for (int i=0 ; i<m_num_values ; i++)
-               m_data[i].set(d[i]);
-            free(d);
-         } else if (m_tid == TID_UINT32) {
-            size = sizeof(uint32_t) * m_num_values;
-            uint32_t *d = (uint32_t *)malloc(size);
-            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
-            for (int i=0 ; i<m_num_values ; i++)
-               m_data[i].set(d[i]);
-            free(d);
-         } else if (m_tid == TID_INT32) {
-            size = sizeof(int32_t) * m_num_values;
-            int32_t *d = (int32_t *)malloc(size);
-            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
-            for (int i=0 ; i<m_num_values ; i++)
-               m_data[i].set(d[i]);
-            free(d);
-         } else if (m_tid == TID_BOOL) {
-            size = sizeof(BOOL) * m_num_values;
-            bool *d = (bool *)malloc(size);
-            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
-            for (int i=0 ; i<m_num_values ; i++)
-               m_data[i].set(d[i]);
-            free(d);
-         } else if (m_tid == TID_FLOAT) {
-            size = sizeof(float) * m_num_values;
-            float *d = (float *)malloc(size);
-            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
-            for (int i=0 ; i<m_num_values ; i++)
-               m_data[i].set(d[i]);
-            free(d);
-         } else if (m_tid == TID_DOUBLE) {
-            size = sizeof(double) * m_num_values;
-            double *d = (double *)malloc(size);
-            status = db_get_data(m_hDB, m_hKey, d, &size, m_tid);
-            for (int i=0 ; i<m_num_values ; i++)
-               m_data[i].set(d[i]);
-            free(d);
-         }  else if (m_tid == TID_STRING) {
+         // don't pull un-connected objects
+         if (m_hKey == 0)
+            return;
+
+         if (m_tid == 0)
+            throw std::runtime_error("Invalid midas::odb object");
+
+         int status{};
+         if (m_tid == TID_STRING) {
             KEY key;
             db_get_key(m_hDB, m_hKey, &key);
             char *str = (char *) malloc(key.total_size);
-            size = key.total_size;
+            int size = key.total_size;
             status = db_get_data(m_hDB, m_hKey, str, &size, m_tid);
             for (int i = 0; i < m_num_values; i++)
                m_data[i].set(str + i * key.item_size);
@@ -879,11 +864,17 @@ namespace midas {
             m_data = nullptr;
             init_mdata();
             status = DB_SUCCESS;
-         } else if (m_tid == 0)
-            throw std::runtime_error("Invalid midas::odb object");
-         else
-            throw std::runtime_error("get_data for ODB key \"" + get_full_path() +
-                                     "\" failed due to unsupported type " + std::to_string(m_tid));
+         } else {
+            int size = rpc_tid_size(m_tid) * m_num_values;
+            uint8_t *buffer = (uint8_t *) malloc(size);
+            uint8_t *p = buffer;
+            status = db_get_data(m_hDB, m_hKey, p, &size, m_tid);
+            for (int i = 0; i < m_num_values; i++) {
+               memcpy(&m_data[i], p, rpc_tid_size(m_tid));
+               p += rpc_tid_size(m_tid);
+            }
+            free(buffer);
+         }
 
          if (status != DB_SUCCESS)
             throw std::runtime_error("db_get_data for ODB key \"" + get_full_path() +
@@ -902,8 +893,14 @@ namespace midas {
 
       // push individual member of an array
       void push(int index) {
+         // don't push un-connected objects
+         if (m_hKey == 0)
+            return;
+
+         // don't push keys
          if (m_tid == TID_KEY)
             return;
+
          int status{};
          if (m_tid == TID_STRING) {
             KEY key;
@@ -911,8 +908,13 @@ namespace midas {
             std::string s;
             m_data[0].get(s);
             status = db_set_data_index(m_hDB, m_hKey, s.c_str(), key.item_size, index, m_tid);
-            if (m_debug)
-               std::cout << "Set ODB key \"" + get_full_path() + "[" + std::to_string(index) + "]\" = " + s << std:: endl;
+            if (m_debug) {
+               if (m_num_values > 1)
+                  std::cout << "Set ODB key \"" + get_full_path() + "[" + std::to_string(index) + "]\" = " + s
+                            << std::endl;
+               else
+                  std::cout << "Set ODB key \"" + get_full_path() + "\" = " + s << std::endl;
+            }
          } else {
             u_odb u = m_data[index];
             status = db_set_data_index(m_hDB, m_hKey, &u, rpc_tid_size(m_tid), index, m_tid);
@@ -932,6 +934,11 @@ namespace midas {
 
       // push all members of an array
       void push() {
+         // don't push un-connected objects
+         if (m_hKey == 0)
+            return;
+
+         // don't push keys
          if (m_tid == TID_KEY)
             return;
 
@@ -1013,8 +1020,12 @@ namespace midas {
 
    //---- u_odb implementations calling functions from odb
 
-
-
+   u_odb::~u_odb() {
+      if (m_tid == TID_STRING)
+         delete m_string;
+      else if (m_tid == TID_KEY)
+         delete m_odb;
+   }
 
    // get function for strings
    inline void u_odb::get(std::string &s) {
@@ -1118,12 +1129,13 @@ int main() {
 
    // test with initializers
    midas::odb o;
-   o = 1.2;
+   o = 1.2f;
 
-   midas::odb oini{
-           {"Key1", 0},
+   midas::odb oini = {
+           {"Key1", 1},
            {"Key2", 1.2}
    };
+   std::cout << oini.print() << std::endl;
 
    // test with int
    midas::odb o2("/Experiment/ODB Timeout");
