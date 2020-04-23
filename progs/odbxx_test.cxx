@@ -270,6 +270,11 @@ namespace midas {
       u_odb       value;
    };
 
+   struct odb_initializer_array {
+      std::string name;
+      u_odb       *value;
+   };
+
    class odb {
    public:
       class iterator {
@@ -368,6 +373,9 @@ namespace midas {
             m_data[i].set(o);
             i++;
          }
+      }
+
+      odb(std::initializer_list<odb_initializer_array> list) {
       }
 
       // Setters and Getters
@@ -724,6 +732,14 @@ namespace midas {
          return s;
       }
 
+      std::string dump() {
+         std::string s;
+         s = "{\n";
+         dump(s, 1);
+         s += "\n}";
+         return s;
+      }
+
       void print(std::string &s, int indent) {
          for (int i = 0; i < indent; i++)
             s += "   ";
@@ -741,8 +757,44 @@ namespace midas {
             for (int i = 0; i < indent; i++)
                s += "   ";
             s += "}";
-
          } else {
+            s += "\"" + m_name + "\": ";
+            if (m_num_values > 1)
+               s += "[";
+            std::string v;
+            get(v, m_tid == TID_STRING);
+            s += v;
+            if (m_num_values > 1)
+               s += "]";
+         }
+      }
+
+      void dump(std::string &s, int indent) {
+         for (int i = 0; i < indent; i++)
+            s += "   ";
+         if (m_tid == TID_KEY) {
+            s += "\"" + m_name + "\": {\n";
+            for (int i= 0; i<m_num_values ; i++) {
+               std::string v;
+               m_data[i].get_odb()->dump(v, indent+1);
+               s += v;
+               if (i < m_num_values-1)
+                  s += ",\n";
+               else
+                  s += "\n";
+            }
+            for (int i = 0; i < indent; i++)
+               s += "   ";
+            s += "}";
+         } else {
+            KEY key;
+            db_get_key(m_hDB, m_hKey, &key);
+            s += "\"" + m_name + "/key\": ";
+            s += "{ \"type\": " + std::to_string(m_tid) + ", ";
+            s += "\"access_mode\": " + std::to_string(key.access_mode) + ", ";
+            s += "\"last_written\": " + std::to_string(key.last_written) + "},\n";
+            for (int i = 0; i < indent; i++)
+               s += "   ";
             s += "\"" + m_name + "\": ";
             if (m_num_values > 1)
                s += "[";
@@ -782,7 +834,7 @@ namespace midas {
                                      "\" failed with status " + std::to_string(status));
 
          // check for correct type if given as parameter
-         if (tid > 0 && tid != key.type)
+         if (tid > 0 && tid != (int)key.type)
             throw std::runtime_error("ODB key \"" + get_full_path() +
                                      "\" has differnt type than specified");
 
@@ -1221,6 +1273,9 @@ int main() {
 
    // print whole subtree
    std::cout << o6.print() << std::endl;
+
+   // dump whole subtree
+   std::cout << o6.dump() << std::endl;
 
    cm_disconnect_experiment();
    return 1;
