@@ -26,8 +26,6 @@ set(TESTPROGS
    get_record_test
    odb_lock_test
    odbxx_test
-   test_class
-   test_json
 )
 
 set(MFEPROGS
