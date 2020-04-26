@@ -35,6 +35,17 @@ pipelines:
           - make testdiff
 
     - step:
+        name: Build on CentOS-8
+        image: centos:centos8
+        script:
+          - yum -y install gcc g++ cmake git
+          - gcc -v
+          - cmake --version
+          - git submodule update --init
+          - make cmake
+          - make testdiff
+
+    - step:
         name: Build on Ubuntu LTS 18.04
         image: ubuntu:18.04
         script:
