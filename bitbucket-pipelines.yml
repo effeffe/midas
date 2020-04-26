@@ -36,7 +36,7 @@ pipelines:
 
     - step:
         name: Build on Ubuntu LTS 18.04
-        image: ubuntu/18.04
+        image: ubuntu/ubuntu:18.04
         script:
           - gcc -v
           - git submodule update --init
@@ -45,7 +45,7 @@ pipelines:
 
     - step:
         name: Build on Ubuntu LTS 20.04
-        image: ubuntu/20.04
+        image: ubuntu/ubuntu:20.04
         script:
           - gcc -v
           - git submodule update --init
