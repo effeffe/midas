@@ -42,9 +42,7 @@ pipelines:
           - gcc -v
           - cmake --version
           - git submodule update --init
-          - mkdir build
-          - cd build; /usr/bin/cmake3 ..; make all install
-          - echo make cmake
+          - make cmake
           - make testdiff
 
     - step:
