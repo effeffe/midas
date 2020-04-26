@@ -38,7 +38,7 @@ pipelines:
         name: Build on CentOS-8
         image: centos:centos8
         script:
-          - yum -y install gcc g++ cmake git
+          - yum -y install gcc cmake git
           - gcc -v
           - cmake --version
           - git submodule update --init
