@@ -5832,6 +5832,8 @@ INT tr_start(INT run_number, char *error)
    local_state = STATE_RUNNING;
    run_start_time = subrun_start_time = ss_time();
 
+   cm_msg_flush_buffer();
+
    return CM_SUCCESS;
 }
 
@@ -5858,6 +5860,8 @@ INT tr_start_abort(INT run_number, char *error)
    in_stop_transition = FALSE;
 
    local_state = STATE_STOPPED;
+
+   cm_msg_flush_buffer();
 
    return CM_SUCCESS;
 }
@@ -5961,6 +5965,8 @@ INT tr_stop(INT run_number, char *error)
 
    local_state = STATE_STOPPED;
 
+   cm_msg_flush_buffer();
+
    return CM_SUCCESS;
 }
 
@@ -5975,6 +5981,8 @@ INT tr_pause(INT run_number, char *error)
 
    local_state = STATE_PAUSED;
 
+   cm_msg_flush_buffer();
+
    return CM_SUCCESS;
 }
 
@@ -5984,6 +5992,8 @@ INT tr_resume(INT run_number, char *error)
    write_history(STATE_RUNNING, run_number);
 
    local_state = STATE_RUNNING;
+
+   cm_msg_flush_buffer();
 
    return CM_SUCCESS;
 }
