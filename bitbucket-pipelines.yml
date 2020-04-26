@@ -38,7 +38,7 @@ pipelines:
         name: Build on CentOS-8
         image: centos:centos8
         script:
-          - yum -y install make gcc gcc-c++ cmake git
+          - yum -y install make gcc gcc-c++ cmake git zlib-devel openssl-devel
           - gcc -v
           - cmake --version
           - git submodule update --init
