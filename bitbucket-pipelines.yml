@@ -38,6 +38,7 @@ pipelines:
         name: Build on Ubuntu LTS 18.04
         image: ubuntu:18.04
         script:
+          - apt-get update
           - apt-get install gcc g++ cmake
           - gcc -v
           - cmake --version
@@ -49,6 +50,7 @@ pipelines:
         name: Build on Ubuntu LTS 20.04
         image: ubuntu:20.04
         script:
+          - apt-get update
           - apt-get install gcc g++ cmake
           - gcc -v
           - cmake --version
