@@ -54,11 +54,10 @@ Experiment                      DIR
 System                          DIR
 Programs                        DIR
 Logger                          DIR
-MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mhttpd -D &
-sleep 1
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mhttpd -D
 Becoming a daemon...
-MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./examples/experiment/frontend -D &
 sleep 1
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./examples/experiment/frontend -D
 Frontend name          :     Sample Frontend
 Event buffer size      :     1000000
 User max event size    :     10000
@@ -67,9 +66,10 @@ User max frag. size    :     5242880
 
 
 Becoming a daemon...
-MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mlogger -D &
 sleep 1
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mlogger -D
 Becoming a daemon...
+sleep 1
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "scl"
 Name                Host
 mhttpd              localhost           

@@ -965,11 +965,11 @@ test:
 	@echo
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbinit
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "ls -l"
-	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhttpd -D &
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhttpd -D
 	sleep 1
-	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./examples/experiment/frontend -D &
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./examples/experiment/frontend -D
 	sleep 1
-	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mlogger -D &
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mlogger -D
 	sleep 1
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "scl"
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mtransition START
@@ -995,6 +995,9 @@ testdiff:
 	@echo compare output of "make test" with testexpt.example
 	@echo
 	diff testexpt.example testexpt.log
+	@echo
+	@echo MIDAS self test completed with no errors
+	@echo
 
 #####################################################################
 
