@@ -39,7 +39,7 @@ pipelines:
         image: ubuntu:18.04
         script:
           - apt-get update
-          - apt-get -y install gcc g++ cmake
+          - apt-get -y install gcc g++ cmake git
           - gcc -v
           - cmake --version
           - git submodule update --init
@@ -51,7 +51,7 @@ pipelines:
         image: ubuntu:20.04
         script:
           - apt-get update
-          - apt-get -y install gcc g++ cmake
+          - apt-get -y install gcc g++ cmake git
           - gcc -v
           - cmake --version
           - git submodule update --init
