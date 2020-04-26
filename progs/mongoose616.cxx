@@ -9605,6 +9605,7 @@ static void mg_send_file_data(struct mg_connection *nc, FILE *fp) {
   }
 }
 
+#if 0
 static void mg_do_ssi_include(struct mg_connection *nc, struct http_message *hm,
                               const char *ssi, char *tag, int include_level,
                               const struct mg_serve_http_opts *opts) {
@@ -9651,6 +9652,7 @@ static void mg_do_ssi_include(struct mg_connection *nc, struct http_message *hm,
     fclose(fp);
   }
 }
+#endif
 
 #if MG_ENABLE_HTTP_SSI_EXEC
 static void do_ssi_exec(struct mg_connection *nc, char *tag) {
@@ -9672,6 +9674,7 @@ static void do_ssi_exec(struct mg_connection *nc, char *tag) {
  * SSI directive has the following format:
  * <!--#directive parameter=value parameter=value -->
  */
+#if 0
 static void mg_send_ssi_file(struct mg_connection *nc, struct http_message *hm,
                              const char *path, FILE *fp, int include_level,
                              const struct mg_serve_http_opts *opts) {
@@ -9777,6 +9780,7 @@ MG_INTERNAL void mg_handle_ssi_request(struct mg_connection *nc,
     nc->flags |= MG_F_SEND_AND_CLOSE;
   }
 }
+#endif
 
 #endif /* MG_ENABLE_HTTP_SSI && MG_ENABLE_HTTP && MG_ENABLE_FILESYSTEM */
 #ifdef MG_MODULE_LINES

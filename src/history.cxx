@@ -505,7 +505,7 @@ static INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DW
       rec.event_id = event_id;
       rec.time = (DWORD) time(NULL);
       rec.data_size = size;
-      strncpy(event_name, name, NAME_LENGTH);
+      strlcpy(event_name, name, NAME_LENGTH);
 
       /* if history structure not set up, do so now */
       if (!_history[index]->hist_fh) {

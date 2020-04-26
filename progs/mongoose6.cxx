@@ -5661,6 +5661,7 @@ static void mg_send_file_data(struct mg_connection *nc, FILE *fp) {
   }
 }
 
+#if 0
 static void mg_do_ssi_include(struct mg_connection *nc, const char *ssi,
                               char *tag, int include_level,
                               const struct mg_serve_http_opts *opts) {
@@ -5706,6 +5707,7 @@ static void mg_do_ssi_include(struct mg_connection *nc, const char *ssi,
     fclose(fp);
   }
 }
+#endif
 
 #ifndef MG_DISABLE_POPEN
 static void do_ssi_exec(struct mg_connection *nc, char *tag) {
@@ -5734,6 +5736,8 @@ static void mg_do_ssi_call(struct mg_connection *nc, char *tag) {
 static void mg_send_ssi_file(struct mg_connection *nc, const char *path,
                              FILE *fp, int include_level,
                              const struct mg_serve_http_opts *opts) {
+  abort();
+#if 0
   static const struct mg_str btag = MG_MK_STR("<!--#");
   static const struct mg_str d_include = MG_MK_STR("include");
   static const struct mg_str d_call = MG_MK_STR("call");
@@ -5802,6 +5806,7 @@ static void mg_send_ssi_file(struct mg_connection *nc, const char *path,
   if (len > 0) {
     mg_send(nc, buf, (size_t) len);
   }
+#endif
 }
 
 static void mg_handle_ssi_request(struct mg_connection *nc, const char *path,
@@ -9254,7 +9259,7 @@ int mg_dns_reply_record(struct mg_dns_reply *reply,
 
 static const char *mg_default_dns_server = "udp://" MG_DEFAULT_NAMESERVER ":53";
 
-MG_INTERNAL char mg_dns_server[256];
+MG_INTERNAL char mg_dns_server[300];
 
 struct mg_resolve_async_request {
   char name[1024];
