@@ -95,9 +95,10 @@ target_link_libraries(mhttpd6 ${DB_LIBS})
 target_compile_options(mhttpd6 PRIVATE -DHAVE_MONGOOSE6 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI -DMG_ENABLE_EXTRA_ERRORS_DESC)
 if (OPENSSL_FOUND)
    target_compile_options(mhttpd6 PRIVATE -DMG_ENABLE_SSL)
+   target_link_libraries(mhttpd6 ${OPENSSL_LIBRARIES})
 endif(OPENSSL_FOUND)
 
-target_link_libraries(mhttpd6 midas ${OPENSSL_LIBRARIES} ${LIBS} ${DB_LIBS})
+target_link_libraries(mhttpd6 midas ${LIBS} ${DB_LIBS})
 
 #
 # odbedit
