@@ -452,10 +452,8 @@ namespace midas {
                // TBD
             } else {
                auto new_array = new u_odb[v.size()]{};
-               if (v.size() < m_num_values)
-                  memcpy(new_array, m_data, v.size()*sizeof(u_odb));
-               else
-                  memcpy(new_array, m_data, m_num_values*sizeof(u_odb));
+               for (int i = 0; i < m_num_values && i < v.size(); i++)
+                  new_array[i] = m_data[i];
                delete[] m_data;
                m_data = new_array;
                m_num_values = v.size();
@@ -477,10 +475,8 @@ namespace midas {
             // TBD
          } else {
             u_odb* new_array = new u_odb[size]{};
-            if (size < m_num_values)
-               memcpy(new_array, m_data, size*sizeof(u_odb));
-            else
-               memcpy(new_array, m_data, m_num_values*sizeof(u_odb));
+            for (int i = 0; i < m_num_values && i < size; i++)
+               new_array[i] = m_data[i];
             delete[] m_data;
             m_data = new_array;
             m_num_values = size;
@@ -918,12 +914,35 @@ namespace midas {
             status = DB_SUCCESS;
          } else {
             int size = rpc_tid_size(m_tid) * m_num_values;
-            uint8_t *buffer = (uint8_t *) malloc(size);
-            uint8_t *p = buffer;
+            void *buffer = malloc(size);
+            void *p = buffer;
             status = db_get_data(m_hDB, m_hKey, p, &size, m_tid);
             for (int i = 0; i < m_num_values; i++) {
+               if (m_tid == TID_UINT8)
+                  m_data[i].set(*static_cast<uint8_t*>(p));
+               else if (m_tid == TID_INT8)
+                  m_data[i].set(*static_cast<int8_t*>(p));
+               else if (m_tid == TID_UINT16)
+                  m_data[i].set(*static_cast<uint16_t*>(p));
+               else if (m_tid == TID_INT16)
+                  m_data[i].set(*static_cast<int16_t*>(p));
+               else if (m_tid == TID_UINT32)
+                  m_data[i].set(*static_cast<uint32_t*>(p));
+               else if (m_tid == TID_INT32)
+                  m_data[i].set(*static_cast<int32_t*>(p));
+               else if (m_tid == TID_BOOL)
+                  m_data[i].set(*static_cast<bool*>(p));
+               else if (m_tid == TID_FLOAT)
+                  m_data[i].set(*static_cast<float*>(p));
+               else if (m_tid == TID_DOUBLE)
+                  m_data[i].set(*static_cast<double*>(p));
+               else if (m_tid == TID_STRING)
+                  m_data[i].set(std::string(static_cast<const char *>(p)));
+               else
+                  throw std::runtime_error("Invalid type ID " + std::to_string(m_tid));
+
                memcpy(&m_data[i], p, rpc_tid_size(m_tid));
-               p += rpc_tid_size(m_tid);
+               p = static_cast<char*>(p) + rpc_tid_size(m_tid);
             }
             free(buffer);
          }
