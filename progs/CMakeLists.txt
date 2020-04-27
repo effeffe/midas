@@ -114,8 +114,8 @@ if (HAVE_ROOT)
    add_executable(rmlogger mlogger)
    target_include_directories(rmlogger PUBLIC ${ROOT_INCLUDE_DIRS})
    target_compile_options(rmlogger PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
-   target_link_options(rmlogger PRIVATE -Wl,-rpath,${ROOT_LIBRARY_DIR})
    target_link_libraries(rmlogger midas ${LIBS} ${ROOT_LIBRARIES} ${DB_LIBS})
+   set_target_properties(rmlogger PROPERTIES LINK_FLAGS "-Wl,-rpath,${ROOT_LIBRARY_DIR}")
 endif(HAVE_ROOT)
 
 #
