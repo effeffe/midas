@@ -1789,18 +1789,18 @@ function mhttpd_refresh() {
       var idata = 0;
 
       for (var i = 0; i < modb.length; i++, idata++) {
-         value = rpc[0].result.data[idata];
-         if (modb[i].value === undefined) {
-            modb[i].value = value;
+         let x = rpc[0].result.data[idata];
+         if (modb[i].x === undefined) {
+            modb[i].value = x;
          } else {
-            if (typeof value === 'object' && value !== null) { // subdircectory
+            if (typeof x === 'object' && x !== null) { // subdircectory
                if (modb[i].onchange !== null) {
-                  modb[i].value = value;
+                  modb[i].value = x;
                   modb[i].onchange();
                }
             } else {                         // individual value
-               if (modb[i].onchange !== null && value !== modb[i].value) {
-                  modb[i].value = value;
+               if (modb[i].onchange !== null && x !== modb[i].value) {
+                  modb[i].value = x;
                   modb[i].onchange();
                }
             }
@@ -1811,9 +1811,11 @@ function mhttpd_refresh() {
          if (rpc[0].result.status[i] === 312) {
             modbvalue[i].innerHTML = "ODB key \"" + modbvalue[i].dataset.odbPath + "\" not found";
          } else {
-            var value = rpc[0].result.data[idata];
-            var tid = rpc[0].result.tid[idata];
-            var mvalue = mie_to_string(tid, value, modbvalue[i].dataset.format);
+            let x = rpc[0].result.data[idata];
+            let tid = rpc[0].result.tid[idata];
+            if (modbvalue[i].dataset.formula !== undefined)
+               x = eval(modbvalue[i].dataset.formula);
+            var mvalue = mie_to_string(tid, x, modbvalue[i].dataset.format);
             if (mvalue === "")
                mvalue = "(empty)";
             var html = mhttpd_escape(mvalue);
@@ -1837,15 +1839,17 @@ function mhttpd_refresh() {
       }
 
       for (i = 0; i < modbcheckbox.length; i++, idata++) {
-         value = rpc[0].result.data[idata];
-         modbcheckbox[i].checked = (value === 1 || value === true);
+         let x = rpc[0].result.data[idata];
+         modbcheckbox[i].checked = (x === 1 || x === true);
          if (modbcheckbox[i].onchange !== null)
             modbcheckbox[i].onchange();
       }
 
       for (i = 0; i < modbbox.length; i++, idata++) {
-         value = rpc[0].result.data[idata];
-         if (value === 1 || value === true) {
+         let x = rpc[0].result.data[idata];
+         if (modbbox[i].dataset.mask !== undefined)
+            x = (x & modbbox[i].dataset.mask);
+         if (x > 0 || x === true) {
             modbbox[i].style.backgroundColor = modbbox[i].dataset.color;
          } else {
             if (modbbox[i].dataset.backgroundColor !== undefined)
@@ -1858,13 +1862,15 @@ function mhttpd_refresh() {
       }
 
       for (i = 0; i < modbhbar.length; i++, idata++) {
-         value = rpc[0].result.data[idata];
-         tid = rpc[0].result.tid[idata];
-         mvalue = mie_to_string(tid, value, modbhbar[i].dataset.format);
+         let x = rpc[0].result.data[idata];
+         let tid = rpc[0].result.tid[idata];
+         if (modbhbar[i].dataset.formula !== undefined)
+            x = eval(modbhbar[i].dataset.formula);
+         mvalue = mie_to_string(tid, x, modbhbar[i].dataset.format);
          if (mvalue === "")
             mvalue = "(empty)";
          html = mhttpd_escape("&nbsp;" + mvalue);
-         modbhbar[i].value = value;
+         modbhbar[i].value = x;
          if (modbhbar[i].dataset.printValue === "1")
             modbhbar[i].children[0].innerHTML = html;
          var minValue = parseFloat(modbhbar[i].dataset.minValue);
@@ -1877,10 +1883,10 @@ function mhttpd_refresh() {
          if (isNaN(maxValue))
             maxValue = 1;
          if (modbhbar[i].dataset.log === "1")
-            percent = Math.round(100 * (Math.log(value) - Math.log(minValue)) /
+            percent = Math.round(100 * (Math.log(x) - Math.log(minValue)) /
                (Math.log(maxValue) - Math.log(minValue)));
          else
-            percent = Math.round(100 * (value - minValue) /
+            percent = Math.round(100 * (x - minValue) /
                (maxValue - minValue));
          if (percent < 0)
             percent = 0;
@@ -1893,13 +1899,15 @@ function mhttpd_refresh() {
       }
 
       for (i = 0; i < modbvbar.length; i++, idata++) {
-         value = rpc[0].result.data[idata];
-         tid = rpc[0].result.tid[idata];
-         mvalue = mie_to_string(tid, value, modbvbar[i].dataset.format);
+         let x = rpc[0].result.data[idata];
+         let tid = rpc[0].result.tid[idata];
+         if (modbvbar[i].dataset.formula !== undefined)
+            x = eval(modbvbar[i].dataset.formula);
+         mvalue = mie_to_string(tid, x, modbvbar[i].dataset.format);
          if (mvalue === "")
             mvalue = "(empty)";
          html = mhttpd_escape("&nbsp;" + mvalue);
-         modbvbar[i].value = value;
+         modbvbar[i].value = x;
          if (modbvbar[i].dataset.printValue === "1")
             modbvbar[i].children[0].innerHTML = html;
          minValue = parseFloat(modbvbar[i].dataset.minValue);
@@ -1912,10 +1920,10 @@ function mhttpd_refresh() {
          if (isNaN(maxValue))
             maxValue = 1;
          if (modbvbar[i].dataset.log === "1")
-            percent = Math.round(100 * (Math.log(value) - Math.log(minValue)) /
+            percent = Math.round(100 * (Math.log(x) - Math.log(minValue)) /
                (Math.log(maxValue) - Math.log(minValue)));
          else
-            percent = Math.round(100 * (value - minValue) /
+            percent = Math.round(100 * (x - minValue) /
                (maxValue - minValue));
          if (percent < 0)
             percent = 0;
@@ -1928,12 +1936,14 @@ function mhttpd_refresh() {
       }
 
       for (i = 0; i < modbthermo.length; i++, idata++) {
-         value = rpc[0].result.data[idata];
-         tid = rpc[0].result.tid[idata];
-         mvalue = mie_to_string(tid, value, modbthermo[i].dataset.format);
+         let x = rpc[0].result.data[idata];
+         let tid = rpc[0].result.tid[idata];
+         if (modbthermo[i].dataset.formula !== undefined)
+            x = eval(modbthermo[i].dataset.formula);
+         mvalue = mie_to_string(tid, x, modbthermo[i].dataset.format);
          if (mvalue === "")
             mvalue = "(empty)";
-         modbthermo[i].value = value;
+         modbthermo[i].value = x;
 
          if (modbthermo[i].onchange !== null)
             modbthermo[i].onchange();
@@ -1942,12 +1952,14 @@ function mhttpd_refresh() {
       }
 
       for (i = 0; i < modbgauge.length; i++, idata++) {
-         value = rpc[0].result.data[idata];
-         tid = rpc[0].result.tid[idata];
-         mvalue = mie_to_string(tid, value, modbgauge[i].dataset.format);
+         let x = rpc[0].result.data[idata];
+         let tid = rpc[0].result.tid[idata];
+         if (modbgauge[i].dataset.formula !== undefined)
+            x = eval(modbgauge[i].dataset.formula);
+         mvalue = mie_to_string(tid, x, modbgauge[i].dataset.format);
          if (mvalue === "")
             mvalue = "(empty)";
-         modbgauge[i].value = value;
+         modbgauge[i].value = x;
 
          if (modbgauge[i].onchange !== null)
             modbgauge[i].onchange();
