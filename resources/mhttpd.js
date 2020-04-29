@@ -1847,8 +1847,8 @@ function mhttpd_refresh() {
 
       for (i = 0; i < modbbox.length; i++, idata++) {
          let x = rpc[0].result.data[idata];
-         if (modbbox[i].dataset.mask !== undefined)
-            x = (x & modbbox[i].dataset.mask);
+         if (modbbox[i].dataset.formula !== undefined)
+            x = eval(modbbox[i].dataset.formula);
          if (x > 0 || x === true) {
             modbbox[i].style.backgroundColor = modbbox[i].dataset.color;
          } else {
