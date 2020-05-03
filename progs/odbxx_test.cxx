@@ -50,6 +50,7 @@ int main() {
            {"String Array", {"Hello1","Hello2","Hello3"}}
    };
    std::cout << oini.print() << std::endl;
+   oini.push("/Test");
 
    // test with int
    midas::odb o2("/Experiment/ODB Timeout");

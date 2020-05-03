@@ -382,7 +382,7 @@ namespace midas {
       template<typename T>
       odb(T v):odb(){
          m_num_values = 1;
-         m_data = new u_odb[m_num_values]{v};
+         m_data = new u_odb[1]{v};
          m_tid = m_data[0].get_tid();
          m_data[0].set_parent(this);
       }
@@ -1189,6 +1189,12 @@ namespace midas {
             throw std::runtime_error("db_set_data for ODB key \"" + get_full_path() +
             "\" failed with status " + std::to_string(status));
       }
+
+      // push key and optional subkeys to path in ODB
+      void push(std::string path, bool force = false) {
+         
+      }
+
    };
 
    //-----------------------------------------------
