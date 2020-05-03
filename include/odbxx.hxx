@@ -388,7 +388,6 @@ namespace midas {
       }
 
       // Constructor for strings
-      template<>
       odb(const char* v):odb(){
          if (v[0] == '/') {
             std::string path(v);
@@ -404,7 +403,7 @@ namespace midas {
          } else {
             // Construct object from initializer_list
             m_num_values = 1;
-            m_data = new u_odb[m_num_values]{new std::string{v}};
+            m_data = new u_odb[1]{new std::string{v}};
             m_tid = m_data[0].get_tid();
             m_data[0].set_parent(this);
          }
@@ -443,7 +442,6 @@ namespace midas {
       }
 
       // Constructor with string array
-      template<>
       odb(std::initializer_list<const char *> list) : odb() {
          m_num_values = list.size();
          m_data = new u_odb[m_num_values]{};
