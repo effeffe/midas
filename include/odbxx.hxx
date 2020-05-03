@@ -1,0 +1,1297 @@
+/********************************************************************\
+
+  Name:         odbxx.cxx
+  Created by:   Stefan Ritt
+
+  Contents:     Object oriented interface to ODB
+
+\********************************************************************/
+
+#include <string>
+#include <iostream>
+#include <stdexcept>
+#include <initializer_list>
+#include <cstring>
+#include <bitset>
+
+#include "midas.h"
+
+/*------------------------------------------------------------------*/
+
+namespace midas {
+
+   class odb;
+
+   //================================================================
+   // u_odb class is a union to hold one ODB value, either a basic
+   // type, a std::string or a pointer to an odb object
+   //================================================================
+
+   class u_odb {
+   private:
+      // union to hold data
+      union {
+         uint8_t      m_uint8;
+         int8_t       m_int8;
+         uint16_t     m_uint16;
+         int16_t      m_int16;
+         uint32_t     m_uint32;
+         int32_t      m_int32;
+         bool         m_bool;
+         float        m_float;
+         double       m_double;
+         std::string* m_string;
+         odb*         m_odb;
+      };
+
+      int  m_tid;
+      odb* m_parent_odb;
+
+   public:
+      u_odb() : m_string{} {};
+      u_odb(odb* o) : m_string{} {};
+
+      u_odb(uint8_t v) : m_uint8{v},m_tid{TID_UINT8} {};
+      u_odb(int8_t v) : m_int8{v},m_tid{TID_INT8} {};
+      u_odb(uint16_t v) : m_uint16{v},m_tid{TID_UINT16} {};
+      u_odb(int16_t v) : m_int16{v},m_tid{TID_INT16} {};
+      u_odb(uint32_t v) : m_uint32{v},m_tid{TID_UINT32} {};
+      u_odb(int32_t v) : m_int32{v},m_tid{TID_INT32} {};
+      u_odb(bool v) : m_bool{v},m_tid{TID_BOOL} {};
+      u_odb(float v) : m_float{v},m_tid{TID_FLOAT} {};
+      u_odb(double v) : m_double{v},m_tid{TID_DOUBLE} {};
+      u_odb(std::string* v) : m_string{v},m_tid{TID_STRING} {};
+
+      // Destructor
+      ~u_odb();
+
+      // Setters and getters
+      void set_parent(odb *o) { m_parent_odb = o; }
+      void set_tid(int tid) { m_tid = tid; }
+      int get_tid() { return m_tid; }
+
+      // Overload the Assignment Operators
+      template <typename T>
+      T operator=(T);
+
+      template <typename T>
+      void set(T v) {
+         if (m_tid == TID_UINT8)
+            m_uint8 = v;
+         else if (m_tid == TID_INT8)
+            m_int8 = v;
+         else if (m_tid == TID_UINT16)
+            m_uint16 = v;
+         else if (m_tid == TID_INT16)
+            m_int16 = v;
+         else if (m_tid == TID_UINT32)
+            m_uint32 = v;
+         else if (m_tid == TID_INT32)
+            m_int32 = v;
+         else if (m_tid == TID_BOOL)
+            m_bool = v;
+         else if (m_tid == TID_FLOAT)
+            m_float = v;
+         else if (m_tid == TID_DOUBLE)
+            m_double = v;
+         else if (m_tid == TID_STRING)
+            m_string = new std::string(std::to_string(v));
+         else
+            throw std::runtime_error("Invalid type ID " + std::to_string(m_tid));
+      }
+
+      void set_string(std::string s) {
+         m_string = new std::string(s);
+      }
+
+      void set(odb* v) {
+         if (m_tid != TID_KEY)
+            throw std::runtime_error("Subkey can only be assigned to ODB key");
+         m_odb = v;
+      }
+
+      void set(std::string v)  {
+         if (m_tid == TID_UINT8)
+            m_uint8 = std::stoi(v);
+         else if (m_tid == TID_INT8)
+            m_int8 = std::stoi(v);
+         else if (m_tid == TID_UINT16)
+            m_uint16 = std::stoi(v);
+         else if (m_tid == TID_INT16)
+            m_int16 = std::stoi(v);
+         else if (m_tid == TID_UINT32)
+            m_uint32 = std::stoi(v);
+         else if (m_tid == TID_INT32)
+            m_int32 = std::stoi(v);
+         else if (m_tid == TID_BOOL)
+            m_bool = std::stoi(v);
+         else if (m_tid == TID_FLOAT)
+            m_float = std::stof(v);
+         else if (m_tid == TID_DOUBLE)
+            m_double = std::stof(v);
+         else if (m_tid == TID_STRING)
+            m_string = new std::string(v);
+         else
+            throw std::runtime_error("Invalid type ID " + std::to_string(m_tid));
+      }
+
+      void set(const char* v){
+         set(std::string(v));
+      }
+
+      void set(char* v){
+         set(std::string(v));
+      }
+
+      void add(double inc, bool push=true);
+      void mult(double f, bool push=true);
+
+      // overload the conversion operator for std::string
+      operator std::string() {
+         std::string s;
+         get(s);
+         return s;
+      }
+
+      // overload all standard conversion operators
+      template <typename T>
+      operator T() {
+         return get<T>(); // forward to get<T>()
+      }
+
+      // overlaod arithemetic operators
+      u_odb& operator++(int) {
+         add(1);
+         return *this;
+      }
+      u_odb& operator++() {
+         add(1);
+         return *this;
+      }
+      u_odb& operator--(int) {
+         add(-1);
+         return *this;
+      }
+      u_odb& operator--() {
+         add(-1);
+         return *this;
+      }
+      u_odb& operator+=(double d) {
+         add(d);
+         return *this;
+      }
+      u_odb& operator-=(double d) {
+         add(-d);
+         return *this;
+      }
+      u_odb& operator*=(double d) {
+         mult(d);
+         return *this;
+      }
+      u_odb& operator/=(double d) {
+         if (d == 0)
+            throw std::runtime_error("Division by zero");
+         mult(1/d);
+         return *this;
+      }
+
+      template <typename T>
+      u_odb& operator+(T v) {
+         double d = *this;
+         d += v;
+         set(v);
+         return *this;
+      }
+      template <typename T>
+      u_odb& operator-(T v) {
+         double d = *this;
+         d -= v;
+         set(v);
+         return *this;
+      }
+      template <typename T>
+      u_odb& operator*(T v) {
+         double d = *this;
+         d *= v;
+         set(v);
+         return *this;
+      }
+      template <typename T>
+      u_odb& operator/(T v) {
+         double d = *this;
+         d /= v;
+         set(v);
+         return *this;
+      }
+
+      // get function for basic type
+      template <typename T>
+      T get() {
+         if (m_tid == TID_UINT8)
+            return (T)m_uint8;
+         else if (m_tid == TID_INT8)
+            return (T)m_int8;
+         else if (m_tid == TID_UINT16)
+            return (T)m_uint16;
+         else if (m_tid == TID_INT16)
+            return (T)m_int16;
+         else if (m_tid == TID_UINT32)
+            return (T) m_uint32;
+         else if (m_tid == TID_INT32)
+            return (T)m_int32;
+         else if (m_tid == TID_BOOL)
+            return (T)m_bool;
+         else if (m_tid == TID_FLOAT)
+            return (T)m_float;
+         else if (m_tid == TID_DOUBLE)
+            return (T)m_double;
+         else
+            throw std::runtime_error("Invalid type ID %s" + std::to_string(m_tid));
+      }
+
+      // get function for string
+      std::string get() {
+         std::string s;
+         get(s);
+         return s;
+      }
+
+      // get function for strings
+      void get(std::string &s);
+
+      // get_function for keys
+      odb* get_odb() {
+         if (m_tid != TID_KEY)
+            throw std::runtime_error("odb_get() called for non-key object");
+         return m_odb;
+      }
+
+      // overload stream out operator
+      friend std::ostream &operator<<(std::ostream &output, u_odb &o) {
+         std::string s = o;
+         output << s;
+         return output;
+      };
+
+   };
+
+   //-----------------------------------------------
+
+   enum odb_flags {
+      AUTO_REFRESH_READ = 0,
+      AUTO_REFRESH_WRITE,
+      PRESERVE_STRING_SIZE,
+      DIRTY
+   };
+
+   //================================================================
+   // the odb object holds an ODB entry with name, type,
+   // hKey and array of u_odb values
+   //================================================================
+
+   class odb {
+   public:
+      class iterator {
+      public:
+         iterator(u_odb * pu) : pu_odb(pu) {}
+         iterator operator++() { ++pu_odb; return *this; }
+         bool operator!=(const iterator & other) const { return pu_odb != other.pu_odb; }
+         u_odb& operator*() { return *pu_odb; }
+      private:
+         u_odb* pu_odb;
+      };
+   private:
+
+      // handle to ODB, same for all instances
+      static HNDLE m_hDB;
+      // global debug flag for all instances
+      static bool  m_debug;
+
+      // various parameters defined in odb_flags
+      std::bitset<8> m_flags;
+      // type of this object, one of TID_xxx
+      int          m_tid;
+      // vector containing data for this object
+      u_odb*       m_data;
+
+      // name of ODB entry
+      std::string  m_name;
+      // number of values of ODB entry
+      int          m_num_values;
+      // last index accessed, needed for o[i] = x
+      int          m_last_index;
+      // ODB handle for this key
+      HNDLE        m_hKey;
+
+   public:
+      // Default constructor
+      odb() :
+         m_flags{odb_flags::AUTO_REFRESH_READ | odb_flags::AUTO_REFRESH_WRITE},
+         m_tid{0},
+         m_data{nullptr},
+         m_name{},
+         m_num_values{0},
+         m_last_index{-1},
+         m_hKey{}
+         {}
+
+      // Destructor
+      ~odb() {
+         delete[] m_data;
+      }
+
+      // Deep copy constructor
+      odb(const odb &o) : odb() {
+         m_tid = o.m_tid;
+         m_name = o.m_name;
+         m_num_values = o.m_num_values;
+         m_hKey = o.m_hKey;
+         m_data = new midas::u_odb[m_num_values];
+         for (int i=0 ; i<m_num_values ; i++) {
+            m_data[i].set_tid(m_tid);
+            m_data[i].set_parent(this);
+            if (m_tid == TID_STRING) {
+               // set_string() creates a copy of our string
+               m_data[i].set_string(o.m_data[i]);
+            } else if (m_tid == TID_KEY) {
+               // recursive call to create a copy of the odb object
+               m_data[i].set(new midas::odb(*o.m_data[i].get_odb()));
+            } else {
+               // simply pass basic types
+               m_data[i] = o.m_data[i];
+            }
+         }
+      }
+
+      // Delete shallow assignment operator
+      odb operator=(odb&& o) = delete;
+
+      // Constructor with ODB path
+      explicit odb(std::string path, int tid = 0, int num_values = 1) : odb() {
+         if (m_hDB == 0)
+            cm_get_experiment_database(&m_hDB, nullptr);
+         if (path.find_last_of('/') == std::string::npos)
+            m_name = path;
+         else
+            m_name = path.substr(path.find_last_of('/')+1);
+         get_hkey(path, tid, num_values);
+         init_mdata();
+      }
+
+      // Constructor for single basic types
+      template<typename T>
+      odb(T v):odb(){
+         m_num_values = 1;
+         m_data = new u_odb[m_num_values]{v};
+         m_tid = m_data[0].get_tid();
+         m_data[0].set_parent(this);
+      }
+
+      // Constructor for strings
+      template<>
+      odb(const char* v):odb(){
+         if (v[0] == '/') {
+            std::string path(v);
+            // Construct object from ODB path
+            if (m_hDB == 0)
+               cm_get_experiment_database(&m_hDB, nullptr);
+            if (path.find_last_of('/') == std::string::npos)
+               m_name = path;
+            else
+               m_name = path.substr(path.find_last_of('/')+1);
+            get_hkey(path, 0, 1);
+            init_mdata();
+         } else {
+            // Construct object from initializer_list
+            m_num_values = 1;
+            m_data = new u_odb[m_num_values]{new std::string{v}};
+            m_tid = m_data[0].get_tid();
+            m_data[0].set_parent(this);
+         }
+      }
+
+      // Constructor with std::initializer_list
+      odb(std::initializer_list<std::pair<std::string,midas::odb>> list) : odb() {
+         m_tid = TID_KEY;
+         m_num_values = list.size();
+         m_data = new u_odb[m_num_values];
+         int i = 0;
+         for (auto& element: list) {
+            auto o = new midas::odb(element.second);
+            o->set_name(element.first);
+            m_data[i].set_tid(TID_KEY);
+            m_data[i].set_parent(this);
+            m_data[i].set(o);
+            i++;
+         }
+      }
+
+      // Constructor with basic type array
+      template<typename T>
+      odb(std::initializer_list<T> list) : odb() {
+         m_num_values = list.size();
+         m_data = new u_odb[m_num_values]{};
+         int i=0;
+         for(auto& element : list) {
+            u_odb u(element);
+            m_data[i].set_tid(u.get_tid());
+            m_data[i].set_parent(this);
+            m_data[i].set(element);
+            i++;
+         }
+         m_tid = m_data[0].get_tid();
+      }
+
+      // Constructor with string array
+      template<>
+      odb(std::initializer_list<const char *> list) : odb() {
+         m_num_values = list.size();
+         m_data = new u_odb[m_num_values]{};
+         int i=0;
+         for(auto & element : list) {
+            m_data[i].set_tid(TID_STRING);
+            m_data[i].set_parent(this);
+            m_data[i].set(element);
+            i++;
+         }
+         m_tid = m_data[0].get_tid();
+      }
+
+      // Setters and Getters
+      static void set_debug(bool flag) { m_debug = flag; }
+      static bool get_debug() { return m_debug; }
+
+      bool is_preserve_string_size() const { return m_flags[odb_flags::PRESERVE_STRING_SIZE]; }
+      void set_preserve_string_size(bool f) { m_flags[odb_flags::PRESERVE_STRING_SIZE] = f; }
+      bool is_auto_refresh_read() const { return m_flags[odb_flags::AUTO_REFRESH_READ]; }
+      void set_auto_refresh_read(bool f) { m_flags[odb_flags::AUTO_REFRESH_READ] = f; }
+      bool is_auto_refresh_write() const { return m_flags[odb_flags::AUTO_REFRESH_WRITE]; }
+      void set_auto_refresh_write(bool f) { m_flags[odb_flags::AUTO_REFRESH_WRITE] = f; }
+      bool is_dirty() const { return m_flags[odb_flags::DIRTY]; }
+      void set_dirty(bool f) { m_flags[odb_flags::DIRTY] = f; }
+
+      int get_tid() { return m_tid; }
+      void set_tid(int tid) { m_tid = tid; }
+      HNDLE get_hkey() { return m_hKey; }
+      void set_hkey(HNDLE hKey) { m_hKey = hKey; }
+      int get_num_values() { return m_num_values; }
+      void set_num_values(int n) { m_num_values = n; }
+      std::string get_name() { return m_name; }
+      void set_name(std::string s) { m_name= s; }
+      u_odb& get_mdata(int index=0) { return m_data[index]; }
+
+      std::string get_full_path() {
+         char str[256];
+         db_get_path(m_hDB, m_hKey, str, sizeof(str));
+         return str;
+      }
+
+      void remove() {
+         // delete key in ODB
+         int status = db_delete_key(m_hDB, m_hKey, FALSE);
+         if (status != DB_SUCCESS)
+            throw std::runtime_error("db_delete_key for ODB key \"" + get_full_path() +
+                                     "\" returnd error code " + std::to_string(status));
+         // invalidate this object
+         delete[] m_data;
+         m_data = nullptr;
+         m_num_values = 0;
+         m_tid = 0;
+         m_hKey = 0;
+         m_name = "";
+      }
+
+      // Overload the Assignment Operators
+      template <typename T>
+      const T &operator=(const T &v) {
+         if (m_num_values == 0) {
+            // initialize this
+            m_num_values = 1;
+            if (std::is_same<T, uint8_t>::value)
+               m_tid = TID_UINT8;
+            if (std::is_same<T, int8_t>::value)
+               m_tid = TID_INT8;
+            if (std::is_same<T, uint16_t>::value)
+               m_tid = TID_UINT16;
+            if (std::is_same<T, int16_t>::value)
+               m_tid = TID_INT16;
+            if (std::is_same<T, uint32_t>::value)
+               m_tid = TID_UINT32;
+            if (std::is_same<T, int32_t>::value)
+                m_tid = TID_INT32;
+            if (std::is_same<T, bool>::value)
+               m_tid = TID_BOOL;
+            if (std::is_same<T, float>::value)
+               m_tid = TID_FLOAT;
+            if (std::is_same<T, double>::value)
+               m_tid = TID_DOUBLE;
+            init_mdata();
+         } else {
+            for (int i = 0; i < m_num_values; i++)
+               m_data[i].set(v);
+            push();
+         }
+         return v;
+      }
+
+      // Overload the Assignment Operators for std::vector
+      template <typename T>
+      const std::vector<T> &operator=(const std::vector<T> &v) {
+
+         // resize internal array if different
+         if (v.size() != m_num_values) {
+            if (m_tid == TID_STRING) {
+               // TBD
+            } else {
+               auto new_array = new u_odb[v.size()]{};
+               for (int i = 0; i < m_num_values && i < v.size(); i++)
+                  new_array[i] = m_data[i];
+               delete[] m_data;
+               m_data = new_array;
+               m_num_values = v.size();
+               for (int i = 0; i < m_num_values; i++) {
+                  m_data[i].set_tid(m_tid);
+                  m_data[i].set_parent(this);
+               }
+            }
+         }
+
+         for (int i=0 ; i<m_num_values ; i++)
+            m_data[i].set(v[i]);
+         push();
+         return v;
+      }
+
+      // Resize an ODB key
+      void resize(int size) {
+         if (m_tid == TID_STRING) {
+            // TBD
+         } else {
+            auto new_array = new u_odb[size]{};
+            for (int i = 0; i < m_num_values && i < size; i++)
+               new_array[i] = m_data[i];
+            delete[] m_data;
+            m_data = new_array;
+            m_num_values = size;
+            for (int i = 0; i < m_num_values; i++) {
+               m_data[i].set_tid(m_tid);
+               m_data[i].set_parent(this);
+            }
+         }
+         push();
+      }
+
+      // overload conversion operator for std::string
+      operator std::string() {
+         std::string s;
+         if (m_tid == TID_KEY)
+            print(s, 0);
+         else
+            get(s); // forward to get(std::string)
+         return s;
+      }
+
+      // overload conversion operator for std::vector<T>
+      template <typename T>
+      operator std::vector<T>() {
+         if (is_auto_refresh_read())
+            pull();
+         std::vector<T> v(m_num_values);
+         for (int i=0 ; i<m_num_values ; i++)
+            v[i] = m_data[i];
+         return v;
+      }
+
+      // overload all other conversion operators
+      template <typename T, typename std::enable_if<
+              std::is_same<T, uint8_t>::value ||
+              std::is_same<T, int8_t>::value ||
+              std::is_same<T, uint16_t>::value ||
+              std::is_same<T, int16_t>::value ||
+              std::is_same<T, uint32_t>::value ||
+              std::is_same<T, int32_t>::value ||
+              std::is_same<T, bool>::value ||
+              std::is_same<T, float>::value ||
+              std::is_same<T, double>::value
+              ,T>::type* = nullptr>
+      operator T() {
+         return get<T>(); // forward to get<T>()
+      }
+
+      // overload stream out operator
+      friend std::ostream &operator<<(std::ostream &output, odb &o) {
+         std::string s = static_cast<std::string>(o);
+         output << s;
+         return output;
+      };
+
+      // overload index operator for arrays
+      u_odb& operator[](int index) {
+         if (index < 0 || index >= m_num_values)
+            throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" +
+                                    get_full_path() + "[0..." + std::to_string(m_num_values-1) + "]\"");
+
+         m_last_index = index;
+         return m_data[index];
+      }
+
+      // overload index operator for subkeys
+      odb& operator[](std::string& str) {
+         return get_subkey(str);
+      }
+
+      odb& operator[](const char *str) {
+         return get_subkey(std::string(str));
+      }
+
+      odb& get_subkey(std::string str) {
+         if (m_tid != TID_KEY)
+            throw std::runtime_error("ODB key \"" + get_full_path() + "\" does not have subkeys");
+
+         std::string first = str;
+         std::string tail{};
+         if (str.find('/') != std::string::npos) {
+            first = str.substr(0, str.find('/'));
+            tail = str.substr(str.find('/')+1);
+         }
+
+         int i;
+         for (i=0 ; i<m_num_values ; i++)
+            if (m_data[i].get_odb()->get_name() == first)
+               break;
+         if (i == m_num_values)
+            throw std::runtime_error("ODB key \"" + get_full_path() + "\" does not contain subkey \"" + first + "\"");
+
+         if (!tail.empty())
+            return m_data[i].get_odb()->get_subkey(tail);
+
+         return *m_data[i].get_odb();
+      }
+
+      // get function for basic types
+      template <typename T>
+      T get() {
+         if (m_num_values > 1)
+            throw std::runtime_error("ODB key \"" + get_full_path() +
+                                     "[0..."+std::to_string(m_num_values-1) +
+                                     "]\" contains array. Please assign to std::vector.");
+         if (is_auto_refresh_read())
+            pull();
+         return (T)m_data[0];
+      }
+
+      // get function for basic types as a parameter
+      template <typename T>
+      void get(T& v) {
+         if (m_num_values > 1)
+            throw std::runtime_error("ODB key \"" + get_full_path() + "\" contains array. Please assign to std::vector.");
+         if (is_auto_refresh_read())
+            pull();
+         v = (T)m_data[0];
+      }
+
+      // get function for strings
+      void get(std::string &s, bool quotes = false, bool refresh=true) {
+         if (refresh && is_auto_refresh_read())
+            pull();
+
+         // put value into quotes
+         s = "";
+         std::string sd;
+         for (int i=0 ; i<m_num_values ; i++) {
+            m_data[i].get(sd);
+            if (quotes)
+               s += "\"";
+            s += sd;
+            if (quotes)
+               s += "\"";
+            if (i < m_num_values-1)
+               s += ",";
+         }
+      }
+
+      // iterator support
+      iterator begin() const { return iterator(m_data); }
+      iterator end() const { return iterator(m_data+m_num_values); }
+
+      // overload arithmetic operators
+      template <typename T>
+      T operator+(const T i) {
+         if (m_num_values > 1)
+            throw std::runtime_error("ODB key \"" + get_full_path() +
+                                     "\" contains array which cannot be used in basic arithmetic operation.");
+         T s;
+         get(s);
+         return s + i;
+      }
+
+      template <typename T>
+      T operator-(const T i) {
+         if (m_num_values > 1)
+            throw std::runtime_error("ODB key \"" + get_full_path() +
+                                     "\" contains array which cannot be used in basic arithmetic operation.");
+         T s;
+         get(s);
+         return s - i;
+      }
+
+      template <typename T>
+      T operator*(const T i) {
+         if (m_num_values > 1)
+            throw std::runtime_error("ODB key \"" + get_full_path() +
+                                     "\" contains array which cannot be used in basic arithmetic operation.");
+         T s;
+         get(s);
+         return s * i;
+      }
+
+      template <typename T>
+      T operator/(const T i) {
+         if (m_num_values > 1)
+            throw std::runtime_error("ODB key \"" + get_full_path() +
+                                     "\" contains array which cannot be used in basic arithmetic operation.");
+         T s;
+         get(s);
+         return s / i;
+      }
+
+      odb& operator++() {
+         for (int i=0 ; i<m_num_values ; i++)
+            m_data[i].add(1, false);
+         push();
+         return *this;
+      }
+
+      odb operator++(int) {
+         // create temporary object
+         odb o(this);
+         for (int i=0 ; i<m_num_values ; i++)
+            m_data[i].add(1, false);
+         push();
+         return o;
+      }
+
+      odb& operator--() {
+         for (int i=0 ; i<m_num_values ; i++)
+            m_data[i].add(-1, false);
+         push();
+         return *this;
+      }
+
+      odb operator--(int) {
+         // create temporary object
+         odb o(this);
+         for (int i=0 ; i<m_num_values ; i++)
+            m_data[i].add(-1, false);
+         push();
+         return o;
+      }
+
+      odb& operator+=(double d) {
+         for (int i=0 ; i<m_num_values ; i++)
+            m_data[i].add(d, false);
+         push();
+         return *this;
+      }
+
+      odb& operator-=(double d) {
+         for (int i=0 ; i<m_num_values ; i++)
+            m_data[i].add(-d, false);
+         push();
+         return *this;
+      }
+
+      odb& operator*=(double d) {
+         for (int i=0 ; i<m_num_values ; i++)
+            m_data[i].mult(d, false);
+         push();
+         return *this;
+      }
+
+      odb& operator/=(double d) {
+         if (d == 0)
+            throw std::runtime_error("Division by zero");
+         for (int i=0 ; i<m_num_values ; i++)
+            m_data[i].mult(1/d, false);
+         push();
+         return *this;
+      }
+
+      std::string print() {
+         std::string s;
+         s = "{\n";
+         print(s, 1);
+         s += "\n}";
+         return s;
+      }
+
+      std::string dump() {
+         std::string s;
+         s = "{\n";
+         dump(s, 1);
+         s += "\n}";
+         return s;
+      }
+
+      // print current object with all sub-objects nicely indented
+      void print(std::string &s, int indent) {
+         for (int i = 0; i < indent; i++)
+            s += "   ";
+         if (m_tid == TID_KEY) {
+            s += "\"" + m_name + "\": {\n";
+            for (int i= 0; i<m_num_values ; i++) {
+               std::string v;
+               // recursive call
+               m_data[i].get_odb()->print(v, indent+1);
+               s += v;
+               if (i < m_num_values-1)
+                  s += ",\n";
+               else
+                  s += "\n";
+            }
+            for (int i = 0; i < indent; i++)
+               s += "   ";
+            s += "}";
+         } else {
+            s += "\"" + m_name + "\": ";
+            if (m_num_values > 1)
+               s += "[";
+            std::string v;
+            get(v, m_tid == TID_STRING);
+            s += v;
+            if (m_num_values > 1)
+               s += "]";
+         }
+      }
+
+      // dump current object in the same way as odbedit saves as json
+      void dump(std::string &s, int indent) {
+         for (int i = 0; i < indent; i++)
+            s += "   ";
+         if (m_tid == TID_KEY) {
+            s += "\"" + m_name + "\": {\n";
+            for (int i= 0; i<m_num_values ; i++) {
+               std::string v;
+               m_data[i].get_odb()->dump(v, indent+1);
+               s += v;
+               if (i < m_num_values-1)
+                  s += ",\n";
+               else
+                  s += "\n";
+            }
+            for (int i = 0; i < indent; i++)
+               s += "   ";
+            s += "}";
+         } else {
+            KEY key;
+            db_get_key(m_hDB, m_hKey, &key);
+            s += "\"" + m_name + "/key\": ";
+            s += "{ \"type\": " + std::to_string(m_tid) + ", ";
+            s += "\"access_mode\": " + std::to_string(key.access_mode) + ", ";
+            s += "\"last_written\": " + std::to_string(key.last_written) + "},\n";
+            for (int i = 0; i < indent; i++)
+               s += "   ";
+            s += "\"" + m_name + "\": ";
+            if (m_num_values > 1)
+               s += "[";
+            std::string v;
+            get(v, m_tid == TID_STRING);
+            s += v;
+            if (m_num_values > 1)
+               s += "]";
+         }
+      }
+
+      // obtains key from ODB via path
+      // if key does not exist, create with with tid and n_values
+      // if key exists, check its type
+      void get_hkey(std::string& path, int tid, int n_values) {
+         int status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
+         if (status != DB_SUCCESS) {
+            if (tid > 0) {
+               status = db_create_key(m_hDB, 0, path.c_str(), tid);
+               if (status != DB_SUCCESS)
+                  throw std::runtime_error("ODB key \"" + path + "\" cannot be created");
+               status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
+               if (status != DB_SUCCESS)
+                  throw std::runtime_error("ODB key \"" + path + "\" not found after creation");
+               if (m_debug)
+                  std::cout << "Created ODB key " + get_full_path() << std::endl;
+               if (n_values > 1) {
+                  char dummy[8]{};
+                  status = db_set_data_index(m_hDB, m_hKey, &dummy, rpc_tid_size(tid), n_values - 1, tid);
+                  if (status != DB_SUCCESS)
+                     throw std::runtime_error("ODB key \"" + path + "\" cannot be resized");
+               }
+            } else
+               throw std::runtime_error("ODB key \"" + path + "\" cannot be found");
+         }
+         KEY key;
+         status = db_get_key(m_hDB, m_hKey, &key);
+         if (status != DB_SUCCESS)
+            throw std::runtime_error("db_get_key for ODB key \"" + path +
+                                     "\" failed with status " + std::to_string(status));
+
+         // check for correct type if given as parameter
+         if (tid > 0 && tid != (int)key.type)
+            throw std::runtime_error("ODB key \"" + get_full_path() +
+                                     "\" has differnt type than specified");
+
+         m_tid = key.type;
+         m_num_values = key.num_values;
+         if (m_debug) {
+            std::cout << "Get definition for ODB key \"" + get_full_path() + "\"" << std::endl;
+         }
+      }
+
+      // obtains key from ODB via handle
+      void get_odb_key(HNDLE hkey) {
+         m_hKey = hkey;
+         KEY key;
+         int status = db_get_key(m_hDB, m_hKey, &key);
+         if (status != DB_SUCCESS)
+            throw std::runtime_error("db_get_key for ODB key \"" + get_full_path() + "\" failed with status " + std::to_string(status));
+         m_tid = key.type;
+         m_num_values = key.num_values;
+         m_name = key.name;
+         if (m_debug) {
+            std::cout << "Get definition for ODB key \"" + get_full_path() + "\"" << std::endl;
+         }
+      }
+
+      // initialize ODB object data m_data depending on type
+      void init_mdata() {
+         if (m_data == nullptr) {
+            if (m_tid == TID_KEY) {
+               if (m_hKey == 0)
+                  throw std::runtime_error("init_mdata called with invalid m_hKey for ODB key \"" + m_name + "\"");
+
+               // count number of subkeys in ODB
+               std::vector<HNDLE> hlist;
+               m_num_values = 0;
+               for (int i = 0;; i++) {
+                  HNDLE h;
+                  int status = db_enum_key(m_hDB, m_hKey, i, &h);
+                  if (status != DB_SUCCESS)
+                     break;
+                  hlist.push_back(h);
+                  m_num_values = i + 1;
+               }
+               // create sub-keys and initialize them from ODB
+               if (m_num_values > 0) {
+                  m_data = new u_odb[m_num_values]{};
+                  for (int i = 0; i < m_num_values; i++) {
+                     m_data[i].set_tid(TID_KEY);
+                     m_data[i].set_parent(this);
+                     auto *o = new midas::odb();
+                     o->get_odb_key(hlist[i]);
+                     o->init_mdata();
+                     m_data[i].set(o);
+                  }
+               }
+
+               return;
+            }
+
+            m_data = new u_odb[m_num_values]{};
+            for (int i = 0; i < m_num_values; i++) {
+               m_data[i].set_tid(m_tid);
+               m_data[i].set_parent(this);
+            }
+         }
+      }
+
+      // retrieve data or array of data from ODB and assign it to this object
+      void pull() {
+         // don't pull un-connected objects
+         if (m_hKey == 0)
+            return;
+
+         if (m_tid == 0)
+            throw std::runtime_error("Invalid midas::odb object");
+
+         int status{};
+         if (m_tid == TID_STRING) {
+            KEY key;
+            db_get_key(m_hDB, m_hKey, &key);
+            char *str = (char *) malloc(key.total_size);
+            int size = key.total_size;
+            status = db_get_data(m_hDB, m_hKey, str, &size, m_tid);
+            for (int i = 0; i < m_num_values; i++)
+               m_data[i].set(str + i * key.item_size);
+            free(str);
+         } else if (m_tid == TID_KEY) {
+            delete[] m_data;
+            m_data = nullptr;
+            init_mdata();
+            status = DB_SUCCESS;
+         } else {
+            int size = rpc_tid_size(m_tid) * m_num_values;
+            void *buffer = malloc(size);
+            void *p = buffer;
+            status = db_get_data(m_hDB, m_hKey, p, &size, m_tid);
+            for (int i = 0; i < m_num_values; i++) {
+               if (m_tid == TID_UINT8)
+                  m_data[i].set(*static_cast<uint8_t*>(p));
+               else if (m_tid == TID_INT8)
+                  m_data[i].set(*static_cast<int8_t*>(p));
+               else if (m_tid == TID_UINT16)
+                  m_data[i].set(*static_cast<uint16_t*>(p));
+               else if (m_tid == TID_INT16)
+                  m_data[i].set(*static_cast<int16_t*>(p));
+               else if (m_tid == TID_UINT32)
+                  m_data[i].set(*static_cast<uint32_t*>(p));
+               else if (m_tid == TID_INT32)
+                  m_data[i].set(*static_cast<int32_t*>(p));
+               else if (m_tid == TID_BOOL)
+                  m_data[i].set(*static_cast<bool*>(p));
+               else if (m_tid == TID_FLOAT)
+                  m_data[i].set(*static_cast<float*>(p));
+               else if (m_tid == TID_DOUBLE)
+                  m_data[i].set(*static_cast<double*>(p));
+               else if (m_tid == TID_STRING)
+                  m_data[i].set(std::string(static_cast<const char *>(p)));
+               else
+                  throw std::runtime_error("Invalid type ID " + std::to_string(m_tid));
+
+               p = static_cast<char*>(p) + rpc_tid_size(m_tid);
+            }
+            free(buffer);
+         }
+
+         if (status != DB_SUCCESS)
+            throw std::runtime_error("db_get_data for ODB key \"" + get_full_path() +
+                                     "\" failed with status " + std::to_string(status));
+         if (m_debug) {
+            std::string s;
+            get(s, false, false);
+            if (m_num_values > 1)
+               std::cout << "Get ODB key \"" + get_full_path() + "[0..." +
+                            std::to_string(m_num_values - 1) + "]\": [" + s + "]" << std::endl;
+            else
+               std::cout << "Get ODB key \"" + get_full_path() + "\": " + s << std::endl;
+
+         }
+      }
+
+      // push individual member of an array
+      void push(int index) {
+         // don't push un-connected objects
+         if (m_hKey == 0)
+            return;
+
+         // don't push keys
+         if (m_tid == TID_KEY)
+            return;
+
+         int status{};
+         if (m_tid == TID_STRING) {
+            KEY key;
+            db_get_key(m_hDB, m_hKey, &key);
+            std::string s;
+            m_data[0].get(s);
+            status = db_set_data_index(m_hDB, m_hKey, s.c_str(), key.item_size, index, m_tid);
+            if (m_debug) {
+               if (m_num_values > 1)
+                  std::cout << "Set ODB key \"" + get_full_path() + "[" + std::to_string(index) + "]\" = " + s
+                            << std::endl;
+               else
+                  std::cout << "Set ODB key \"" + get_full_path() + "\" = " + s << std::endl;
+            }
+         } else {
+            u_odb u = m_data[index];
+            status = db_set_data_index(m_hDB, m_hKey, &u, rpc_tid_size(m_tid), index, m_tid);
+            if (m_debug) {
+               std::string s;
+               u.get(s);
+               if (m_num_values > 1)
+                  std::cout << "Set ODB key \"" + get_full_path() + "[" + std::to_string(index) + "]\" = " + s << std::endl;
+               else
+                  std::cout << "Set ODB key \"" + get_full_path() + "\" = " + s << std::endl;
+            }
+         }
+         if (status != DB_SUCCESS)
+            throw std::runtime_error("db_set_data for ODB key \"" + get_full_path() +
+                                     "\" failed with status " + std::to_string(status));
+      }
+
+      // push all members of an array
+      void push() {
+         // don't push un-connected objects
+         if (m_hKey == 0)
+            return;
+
+         // don't push keys
+         if (m_tid == TID_KEY)
+            return;
+
+         if (m_tid < 1 || m_tid >= TID_LAST)
+            throw std::runtime_error("Invalid TID for ODB key \"" + get_full_path() + "\"");
+
+         // if index operator [] returned previously a certain index, push only this one
+         if (m_last_index != -1) {
+            push(m_last_index);
+            m_last_index = -1;
+            return;
+         }
+
+         if (m_num_values == 1) {
+            push(0);
+            return;
+         }
+
+         int status{};
+         if (m_tid == TID_STRING) {
+            if (is_preserve_string_size() || m_num_values > 1) {
+               KEY key;
+               db_get_key(m_hDB, m_hKey, &key);
+               char *str = (char *)malloc(key.total_size);
+               for (int i=0 ; i<m_num_values ; i++) {
+                  std::string d;
+                  m_data[i].get(d);
+                  strncpy(str + i * key.item_size, d.c_str(), key.item_size);
+               }
+               status = db_set_data(m_hDB, m_hKey, str, key.total_size, m_num_values, m_tid);
+               free(str);
+               if (m_debug) {
+                  std::string s;
+                  get(s, false, false);
+                  std::cout << "Set ODB key \"" + get_full_path() +
+                               "[0..." + std::to_string(m_num_values-1) + "]\" = [" + s +"]" << std::endl;
+               }
+            } else {
+               std::string s;
+               m_data[0].get(s);
+               status = db_set_data(m_hDB, m_hKey, s.c_str(), s.length() + 1, 1, m_tid);
+               if (m_debug)
+                  std::cout << "Set ODB key \"" + get_full_path() + "\" = " + s << std:: endl;
+            }
+         } else {
+            int size = rpc_tid_size(m_tid) * m_num_values;
+            uint8_t *buffer = (uint8_t *) malloc(size);
+            uint8_t *p = buffer;
+            for (int i = 0; i < m_num_values; i++) {
+               memcpy(p, &m_data[i], rpc_tid_size(m_tid));
+               p += rpc_tid_size(m_tid);
+            }
+            status = db_set_data(m_hDB, m_hKey, buffer, size, m_num_values, m_tid);
+            free(buffer);
+            if (m_debug) {
+               std::string s;
+               get(s, false, false);
+               if (m_num_values > 1)
+                  std::cout << "Set ODB key \"" + get_full_path() + "[0..." + std::to_string(m_num_values - 1) +
+                                                  "]\" = [" + s + "]" << std::endl;
+               else
+                  std::cout << "Set ODB key \"" + get_full_path() + "\" = " + s << std::endl;
+            }
+         }
+
+         if (status != DB_SUCCESS)
+            throw std::runtime_error("db_set_data for ODB key \"" + get_full_path() +
+            "\" failed with status " + std::to_string(status));
+      }
+   };
+
+   //-----------------------------------------------
+
+   // initialize static variables
+   HNDLE odb::m_hDB = 0;
+   bool odb::m_debug = false;
+
+   //-----------------------------------------------
+
+   //---- u_odb implementations calling functions from odb
+
+   u_odb::~u_odb() {
+      if (m_tid == TID_STRING)
+         delete m_string;
+      else if (m_tid == TID_KEY)
+         delete m_odb;
+   }
+
+   // get function for strings
+   inline void u_odb::get(std::string &s) {
+      if (m_tid == TID_UINT8)
+         s = std::to_string(m_uint8);
+      else if (m_tid == TID_INT8)
+         s = std::to_string(m_int8);
+      else if (m_tid == TID_UINT16)
+         s = std::to_string(m_uint16);
+      else if (m_tid == TID_INT16)
+         s = std::to_string(m_int16);
+      else if (m_tid == TID_UINT32)
+         s = std::to_string(m_uint32);
+      else if (m_tid == TID_INT32)
+         s = std::to_string(m_int32);
+      else if (m_tid == TID_BOOL)
+         s = std::string(m_bool ? "true" : "false");
+      else if (m_tid == TID_FLOAT)
+         s = std::to_string(m_float);
+      else if (m_tid == TID_DOUBLE)
+         s = std::to_string(m_double);
+      else if (m_tid == TID_STRING)
+         s = *m_string;
+      else if (m_tid == TID_KEY) {
+         m_odb->print(s, 0);
+      } else
+         throw std::runtime_error("Invalid type ID " + std::to_string(m_tid));
+   }
+
+   //---- u_odb assignment and arithmetic operators overloads which call odb::push()
+   template <typename T>
+   inline T u_odb::operator=(T v) {
+      set(v);
+      m_parent_odb->push();
+      return v;
+   }
+
+   void u_odb::add(double inc, bool push) {
+      if (m_tid == TID_UINT8)
+         m_uint8 += inc;
+      else if (m_tid == TID_INT8)
+         m_int8 += inc;
+      else if (m_tid == TID_UINT16)
+         m_uint16 += inc;
+      else if (m_tid == TID_INT16)
+         m_int16 += inc;
+      else if (m_tid == TID_UINT32)
+         m_uint32 += inc;
+      else if (m_tid == TID_INT32)
+         m_int32 += inc;
+      else if (m_tid == TID_FLOAT)
+         m_float += inc;
+      else if (m_tid == TID_DOUBLE)
+         m_double += inc;
+      else
+         throw std::runtime_error("Invalid arithmetic operation for ODB key \"" +
+                                  m_parent_odb->get_full_path() + "\"");
+      if (push)
+         m_parent_odb->push();
+   }
+
+   void u_odb::mult(double f, bool push) {
+      int tid = m_parent_odb->get_tid();
+      if (tid == TID_UINT8)
+         m_uint8 *= f;
+      else if (tid == TID_INT8)
+         m_int8 *= f;
+      else if (tid == TID_UINT16)
+         m_uint16 *= f;
+      else if (tid == TID_INT16)
+         m_int16 *= f;
+      else if (tid == TID_UINT32)
+         m_uint32 *= f;
+      else if (tid == TID_INT32)
+         m_int32 *= f;
+      else if (tid == TID_FLOAT)
+         m_float *= f;
+      else if (tid == TID_DOUBLE)
+         m_double *= f;
+      else
+         throw std::runtime_error("Invalid operation for ODB key \"" +
+                                  m_parent_odb->get_full_path() + "\"");
+      if (push)
+         m_parent_odb->push();
+   }
+}
