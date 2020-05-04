@@ -24,17 +24,7 @@ int main() {
    cm_connect_experiment(NULL, NULL, "test", NULL);
    midas::odb::set_debug(true);
 
-    /*
-   // test with creating keys
-   midas::odb oc("/Test", TID_KEY);
-   midas::odb od("/Test/Number", TID_FLOAT32);
-   oc.pull();
-   std::cout << oc.print() << std::endl;
-   */
-
-   // test with initializers
-   midas::odb o{1.2f};
-
+   // create ODB structure
    midas::odb oini = {
            {"Key1", 42},
            {"Subdir", {
@@ -50,7 +40,7 @@ int main() {
            {"String Array", {"Hello1","Hello2","Hello3"}}
    };
    std::cout << oini.print() << std::endl;
-   oini.push("/Test");
+   oini.push("/Test", "Settings");
 
    // test with int
    midas::odb o2("/Experiment/ODB Timeout");
@@ -83,7 +73,8 @@ int main() {
    o4 = std::string("Online");
 
    // test with a vector
-   midas::odb o5("/Experiment/Test", TID_INT, 10);
+   midas::odb o5 = {"Test", {1,2,3,4,5,6,7,8,9,10} };
+   o5.push("/Experiment");
    o5[4] = 5555;
    std::vector<int> v = o5;
    v[3] = 33333;
