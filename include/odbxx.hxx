@@ -1136,9 +1136,16 @@ namespace midas {
             db_get_key(m_hDB, m_hKey, &key);
             std::string s;
             m_data[0].get(s);
-            if (key.item_size == 0)
-               key.item_size = s.size()+1;
-            status = db_set_data_index(m_hDB, m_hKey, s.c_str(), key.item_size, index, m_tid);
+            if (m_num_values == 1) {
+               int size = key.item_size;
+               if (key.item_size == 0 || !is_preserve_string_size())
+                  size = s.size() + 1;
+               status = db_set_data(m_hDB, m_hKey, s.c_str(), size, 1, m_tid);
+            } else {
+               if (key.item_size == 0)
+                  key.item_size = s.size() + 1;
+               status = db_set_data_index(m_hDB, m_hKey, s.c_str(), key.item_size, index, m_tid);
+            }
             if (m_debug) {
                if (m_num_values > 1)
                   std::cout << "Set ODB key \"" + get_full_path() + "[" + std::to_string(index) + "]\" = " + s
@@ -1175,6 +1182,10 @@ namespace midas {
 
          if (m_tid < 1 || m_tid >= TID_LAST)
             throw std::runtime_error("Invalid TID for ODB key \"" + get_full_path() + "\"");
+
+         if (m_hKey  == 0)
+            throw std::runtime_error("push for ODB key \"" + m_name +
+                                     "\" not possible because of invalid key handle");
 
          // if index operator [] returned previously a certain index, push only this one
          if (m_last_index != -1) {
@@ -1261,12 +1272,30 @@ namespace midas {
          path += "/" + m_name;
          bool created = push_key(path, force);
 
+         // correct wrong parent ODB from initializer_list
+         for (int i=0 ; i<m_num_values ; i++)
+            m_data[i].set_parent(this);
+
          if (m_tid == TID_KEY) {
             for (int i=0 ; i<m_num_values ; i++)
                m_data[i].get_odb()->push(get_full_path(), m_data[i].get_odb()->get_name(), force);
          } else if (created || force) {
             push();
          }
+      }
+
+      void push(std::string str, bool force = false) {
+         std::string name;
+         std::string path;
+         if (str.find_last_of('/') == std::string::npos) {
+            name = str;
+            path = "/";
+         } else {
+            name = str.substr(str.find_last_of('/') + 1);
+            path = str.substr(0, str.find_last_of('/'));
+         }
+
+         push(path, name, force);
       }
 
    };

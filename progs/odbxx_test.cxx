@@ -1,18 +1,14 @@
 /********************************************************************\
 
-  Name:         odbxx.cxx
+  Name:         odbxx_test.cxx
   Created by:   Stefan Ritt
 
-  Contents:     Object oriented interface to ODB
+  Contents:     Test and Demo of Object oriented interface to ODB
 
 \********************************************************************/
 
 #include <string>
 #include <iostream>
-#include <stdexcept>
-#include <initializer_list>
-#include <cstring>
-#include <bitset>
 
 #include "odbxx.hxx"
 #include "midas.h"
@@ -24,115 +20,77 @@ int main() {
    cm_connect_experiment(NULL, NULL, "test", NULL);
    midas::odb::set_debug(true);
 
-   // create ODB structure
-   midas::odb oini = {
-           {"Key1", 42},
+   // create ODB structure...
+   midas::odb o = {
+           {"Int32 Key", 42},
+           {"Bool Key", true},
            {"Subdir", {
-              {"Int", 123 },
-              {"Key2", 1.2},
+              {"Int32 key", 123 },
+              {"Double Key", 1.2},
               {"Subsub", {
-                 {"Key3", true},
-                 {"Key4", "Hello"},
+                 {"Float key", 1.2f},     // floats must be explicitly specified
+                 {"String Key", "Hello"},
               }}
            }},
-           {"Int Array", {1,2,3}},
-           {"Float Array", {1.2,2.3,3.4}},
-           {"String Array", {"Hello1","Hello2","Hello3"}}
+           {"Int Array", {1, 2, 3}},
+           {"Double Array", {1.2, 2.3, 3.4}},
+           {"String Array", {"Hello1", "Hello2", "Hello3"}}
    };
-   std::cout << oini.print() << std::endl;
-   oini.push("/Test", "Settings");
 
-   // test with int
-   midas::odb o2("/Experiment/ODB Timeout");
-   o2 = 10000;
-   std::cout << o2 << std::endl;
-   o2 = o2 * 1.3;
-   std::cout << o2 << std::endl;
-   o2 = o2 - 1;
-   std::cout << o2 << std::endl;
-   o2++;
-   std::cout << o2 << std::endl;
+   // ...and push it to ODB. If keys are present in the
+   // ODB, their value is kept. If not, the default values
+   // from above are copied to the ODB
+   o.push("/Test/Settings", true);
+
+   // retrieve, set, and change ODB value
+   int i = o["Int32 Key"];
+   o["Int32 Key"] = i+1;
+   o["Int32 Key"]++;
+   o["Int32 Key"] *= 1.3;
+   std::cout << "Should be 57: " << o["Int32 Key"] << std::endl;
 
    // test with bool
-   midas::odb o3("/Experiment/Enable core dumps");
-   bool b = o3;
-   std::cout << o3 << std::endl;
-   o3 = true;
-   std::cout << o3 << std::endl;
-   o3 = b;
-   std::cout << o3 << std::endl;
+   o["Bool Key"] = !o["Bool Key"];
 
    // test with std::string
-   midas::odb o4("/Experiment/Name");
-   std::cout << o4 << std::endl;
-
-   std::string s2 = o4;
-   s2 = o4;
-   std::cout << s2 << std::endl;
-   o4 = "MEG";
-   o4 = std::string("Online");
+   std::string s = o["Subdir"]["Subsub"]["String Key"];
+   s += " world!";
+   o["Subdir"]["Subsub"]["String Key"] = s;
 
    // test with a vector
-   midas::odb o5 = {"Test", {1,2,3,4,5,6,7,8,9,10} };
-   o5.push("/Experiment");
-   o5[4] = 5555;
-   std::vector<int> v = o5;
-   v[3] = 33333;
-   o5 = v;
-   std::cout << o5.print() << std::endl;
-   v.resize(5);
-   o5 = v;
-   v.resize(10);
-   o5 = v;
-   o5.resize(8);
-   o5.resize(10);
-   o5[0]++;
-   o5[0] += 2.5;
-   std::cout << o5.print() << std::endl;
-   o5++;
-   std::cout << o5.print() << std::endl;
-   o5 = 10;
-   std::cout << o5.print() << std::endl;
-   o5 *= 13;
-   std::cout << o5.print() << std::endl;
-   o5 /= 13;
+   std::vector<int> v = o["Int Array"];
+   v[1] = 10;
+   o["Int Array"] = v;        // assign vector to ODB object
+   o["Int Array"][1] = 2;     // modify ODB object directly
+   o["Int Array"].resize(5);  // resize array
+   o["Int Array"]++;          // increment all values of array
 
-   // iterate over vector
+   // iterate over array
    int sum = 0;
-   for (int i : o5)
+   for (int i : o["Int Array"])
       sum += i;
-
-   // test with subkeys
-   midas::odb o6("/Experiment");
-   std::cout << o6 << std::endl;
-   std::cout << o6["ODB timeout"] << std::endl;
-   std::string s{"ODB timeout"};
-   o6["ODB timeout"] = 12345;
-   o6[s] = 54321;
-   o6["Security"]["Enable non-localhost RPC"] = true;
-   o6["Security/Enable non-localhost RPC"] = false;
-   o6["Security/RPC ports/ODBEdit"] = 123;
+   std::cout << "Sum should be 11: " << sum << std::endl;
 
    // creat key from other key
-   midas::odb o7(o6["Security"]);
-   std::cout << o7 << std::endl;
+   midas::odb oi(o["Int32 Key"]);
+   oi = 123;
 
    // test auto refresh
-   midas::odb o8("/Experiment/ODB Timeout");
-   o8.set_auto_refresh_read(false);
-   std::cout << o8 << std::endl;
-   o8.pull();
-   std::cout << o8 << std::endl;
+   std::cout << oi << std::endl;    // each read access pulls value from ODB
+   oi.set_auto_refresh_read(false); // turn off auto refresh
+   std::cout << oi << std::endl;    // this does not pull value from ODB
+   oi.pull();                       // this does manual pull
+   std::cout << oi << std::endl;
 
-   // test iterator
-   for (auto& oit : o6)
-      std::cout << oit << std::endl;
+   // iterate over subkeys
+   for (auto& oit : o)
+      std::cout << oit.get_odb()->get_name() << std::endl;
 
    // print whole subtree
-   std::cout << o6.print() << std::endl;
+   std::cout << o.print() << std::endl;
 
    // dump whole subtree
-   std::cout << o6.dump() << std::endl;
+   std::cout << o.dump() << std::endl;
 
    cm_disconnect_experiment();
    return 1;
