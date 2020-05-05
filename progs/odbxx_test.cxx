@@ -9,6 +9,7 @@
 
 #include <string>
 #include <iostream>
+#include <array>
 
 #include "odbxx.hxx"
 #include "midas.h"
@@ -34,13 +35,18 @@ int main() {
            }},
            {"Int Array", {1, 2, 3}},
            {"Double Array", {1.2, 2.3, 3.4}},
-           {"String Array", {"Hello1", "Hello2", "Hello3"}}
+           {"String Array", {"Hello1", "Hello2", "Hello3"}},
+           {"Large Array", std::array<int, 10>{} }
    };
 
    // ...and push it to ODB. If keys are present in the
    // ODB, their value is kept. If not, the default values
    // from above are copied to the ODB
    o.push("/Test/Settings", true);
+
+   // alternatively, a structure can be created from an existing ODB subtree
+   midas::odb o2("/Test/Settings/Subdir");
+   std::cout << o2 << std::endl;
 
    // retrieve, set, and change ODB value
    int i = o["Int32 Key"];
@@ -67,8 +73,8 @@ int main() {
 
    // iterate over array
    int sum = 0;
-   for (int i : o["Int Array"])
-      sum += i;
+   for (int e : o["Int Array"])
+      sum += e;
    std::cout << "Sum should be 11: " << sum << std::endl;
 
    // creat key from other key
@@ -82,15 +88,18 @@ int main() {
    oi.pull();                       // this does manual pull
    std::cout << oi << std::endl;
 
-   // iterate over subkeys
+   // iterate over sub-keys
    for (auto& oit : o)
       std::cout << oit.get_odb()->get_name() << std::endl;
 
-   // print whole subtree
+   // print whole sub-tree
    std::cout << o.print() << std::endl;
 
    // dump whole subtree
    std::cout << o.dump() << std::endl;
+
+   // delete test key from ODB
+   o.delete_key();
 
    cm_disconnect_experiment();
    return 1;
