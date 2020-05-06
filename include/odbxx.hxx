@@ -330,8 +330,11 @@ namespace midas {
       int m_last_index;
       // ODB handle for this key
       HNDLE m_hKey;
+      // callback for watch funciton
+      std::function<void(midas::odb&)> m_watch_callback;
 
    public:
+
       // Default constructor
       odb() :
          m_flags{odb_flags::AUTO_REFRESH_READ | odb_flags::AUTO_REFRESH_WRITE},
@@ -347,12 +350,21 @@ namespace midas {
          delete[] m_data;
       }
 
+      static void watch_callback(INT hDB, INT hKey, INT index, void *info) {
+         midas::odb* po = static_cast<midas::odb *>(info);
+         midas::odb o(*po);
+         o.m_last_index = index;
+         o.m_watch_callback(o);
+         o.m_last_index = -1;
+      }
+
       // Deep copy constructor
       odb(const odb &o) : odb() {
          m_tid = o.m_tid;
          m_name = o.m_name;
          m_num_values = o.m_num_values;
          m_hKey = o.m_hKey;
+         m_watch_callback = o.m_watch_callback;
          m_data = new midas::u_odb[m_num_values];
          for (int i = 0; i < m_num_values; i++) {
             m_data[i].set_tid(m_tid);
@@ -1312,6 +1324,13 @@ namespace midas {
          push(path, name, force);
       }
 
+      void watch(std::function<void(midas::odb&)> f) {
+         if (m_hKey == 0)
+            throw std::runtime_error("watch() called for ODB key \"" + m_name +
+                                     "\" which is not connected to ODB");
+         m_watch_callback = f;
+         db_watch(m_hDB, m_hKey, midas::odb::watch_callback, this);
+      }
    };
 
    //-----------------------------------------------

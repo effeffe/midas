@@ -10,6 +10,7 @@
 #include <string>
 #include <iostream>
 #include <array>
+#include <functional>
 
 #include "odbxx.hxx"
 #include "midas.h"
@@ -51,7 +52,7 @@ int main() {
    // retrieve, set, and change ODB value
    int i = o["Int32 Key"];
    o["Int32 Key"] = i+1;
-   o["Int32 Key"]++;
+//   o["Int32 Key"]++;
    o["Int32 Key"] *= 1.3;
    std::cout << "Should be 57: " << o["Int32 Key"] << std::endl;
 
@@ -80,6 +81,15 @@ int main() {
    // creat key from other key
    midas::odb oi(o["Int32 Key"]);
    oi = 123;
+   oi.watch([](midas::odb &o) {
+      std::cout << "Value changed to: " << o << std::endl;
+   });
+
+   do {
+      int status = cm_yield(100);
+      if (status == SS_ABORT || status == RPC_SHUTDOWN)
+         break;
+   } while (!ss_kbhit());
 
    // test auto refresh
    std::cout << oi << std::endl;    // each read access pulls value from ODB
