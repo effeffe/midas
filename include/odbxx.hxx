@@ -279,7 +279,8 @@ namespace midas {
       AUTO_REFRESH_READ = 0,
       AUTO_REFRESH_WRITE,
       PRESERVE_STRING_SIZE,
-      DIRTY
+      DIRTY,
+      DELETED
    };
 
    //================================================================
@@ -521,6 +522,10 @@ namespace midas {
 
       void set_dirty(bool f) { m_flags[odb_flags::DIRTY] = f; }
 
+      bool is_deleted() const { return m_flags[odb_flags::DELETED]; }
+
+      void set_deleted(bool f) { m_flags[odb_flags::DELETED] = f; }
+
       int get_tid() { return m_tid; }
 
       void set_tid(int tid) { m_tid = tid; }
@@ -550,18 +555,24 @@ namespace midas {
       }
 
       void delete_key() {
+         // keep the name for debugging
+         m_name = get_full_path();
+
          // delete key in ODB
          int status = db_delete_key(m_hDB, m_hKey, FALSE);
          if (status != DB_SUCCESS)
             throw std::runtime_error("db_delete_key for ODB key \"" + get_full_path() +
                                      "\" returnd error code " + std::to_string(status));
+
          // invalidate this object
          delete[] m_data;
          m_data = nullptr;
          m_num_values = 0;
          m_tid = 0;
          m_hKey = 0;
-         m_name = "";
+
+         // set flag that this object has been deleted
+         set_deleted(true);
       }
 
       // Overload the Assignment Operators
@@ -1096,6 +1107,10 @@ namespace midas {
 
       // retrieve data from ODB and assign it to this object
       void pull() {
+         // check if deleted
+         if (is_deleted())
+            throw std::runtime_error("ODB key \"" + m_name + "\" cannot be pulled because it has been deleted");
+
          if (m_hKey == 0)
             return; // needed to print un-connected objects
 
@@ -1279,6 +1294,10 @@ namespace midas {
 
       // push all members of an array to the ODB
       void push() {
+
+         // check if deleted
+         if (is_deleted())
+            throw std::runtime_error("ODB key \"" + m_name + "\" cannot be pushed because it has been deleted");
 
          // push subkeys
          if (m_tid == TID_KEY) {
