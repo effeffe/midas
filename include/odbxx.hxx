@@ -74,6 +74,10 @@ namespace midas {
       template <typename T>
       T operator=(T);
 
+      // Overlaod the Conversion Operators
+      template <typename T>
+      inline operator T();
+
       template <typename T>
       void set(T v) {
          if (m_tid == TID_UINT8)
@@ -151,12 +155,6 @@ namespace midas {
          std::string s;
          get(s);
          return s;
-      }
-
-      // overload all standard conversion operators
-      template <typename T>
-      operator T() {
-         return get<T>(); // forward to get<T>()
       }
 
       // overlaod arithemetic operators
@@ -350,12 +348,25 @@ namespace midas {
          delete[] m_data;
       }
 
-      static void watch_callback(INT hDB, INT hKey, INT index, void *info) {
+      static midas::odb* search_hkey(midas::odb* po, int hKey) {
+         if (po->m_hKey == hKey)
+            return po;
+         if (po->m_tid == TID_KEY) {
+            for (int i=0 ; i<po->m_num_values ; i++) {
+               midas::odb *pot = search_hkey(po->m_data[i].get_odb(), hKey);
+               if (pot != nullptr)
+                  return pot;
+            }
+         }
+         return nullptr;
+      }
+
+      static void watch_callback(int hDB, int hKey, int index, void *info) {
          midas::odb* po = static_cast<midas::odb *>(info);
-         midas::odb o(*po);
-         o.m_last_index = index;
-         o.m_watch_callback(o);
-         o.m_last_index = -1;
+         midas::odb* poh = search_hkey(po, hKey);
+         poh->m_last_index = index;
+         po->m_watch_callback(*poh);
+         poh->m_last_index = -1;
       }
 
       // Deep copy constructor
@@ -522,6 +533,10 @@ namespace midas {
 
       void set_num_values(int n) { m_num_values = n; }
 
+      int get_last_index() { return m_last_index; }
+
+      void set_last_index(int i) { m_last_index = i; }
+
       std::string get_name() { return m_name; }
 
       void set_name(std::string s) { m_name = s; }
@@ -682,6 +697,9 @@ namespace midas {
          if (index < 0 || index >= m_num_values)
             throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" +
                                     get_full_path() + "[0..." + std::to_string(m_num_values - 1) + "]\"");
+
+         if (is_auto_refresh_read())
+            pull(index);
 
          m_last_index = index;
          return m_data[index];
@@ -1147,6 +1165,69 @@ namespace midas {
          }
       }
 
+      // retrieve individual member of array
+      void pull(int index) {
+         if (m_hKey == 0)
+            return; // needed to print un-connected objects
+
+         if (m_tid == 0)
+            throw std::runtime_error("Pull of invalid ODB key \"" + m_name + "\"");
+
+         int status{};
+         if (m_tid == TID_STRING) {
+            KEY key;
+            db_get_key(m_hDB, m_hKey, &key);
+            char *str = (char *) malloc(key.item_size);
+            int size = key.item_size;
+            status = db_get_data_index(m_hDB, m_hKey, str, &size, index, m_tid);
+            m_data[index].set(str);
+            free(str);
+         } else if (m_tid == TID_KEY) {
+            m_data[index].get_odb()->pull();
+            status = DB_SUCCESS;
+         } else {
+            int size = rpc_tid_size(m_tid);
+            void *buffer = malloc(size);
+            void *p = buffer;
+            status = db_get_data_index(m_hDB, m_hKey, p, &size, index, m_tid);
+            if (m_tid == TID_UINT8)
+               m_data[index].set(*static_cast<uint8_t*>(p));
+            else if (m_tid == TID_INT8)
+               m_data[index].set(*static_cast<int8_t*>(p));
+            else if (m_tid == TID_UINT16)
+               m_data[index].set(*static_cast<uint16_t*>(p));
+            else if (m_tid == TID_INT16)
+               m_data[index].set(*static_cast<int16_t*>(p));
+            else if (m_tid == TID_UINT32)
+               m_data[index].set(*static_cast<uint32_t*>(p));
+            else if (m_tid == TID_INT32)
+               m_data[index].set(*static_cast<int32_t*>(p));
+            else if (m_tid == TID_BOOL)
+               m_data[index].set(*static_cast<bool*>(p));
+            else if (m_tid == TID_FLOAT)
+               m_data[index].set(*static_cast<float*>(p));
+            else if (m_tid == TID_DOUBLE)
+               m_data[index].set(*static_cast<double*>(p));
+            else if (m_tid == TID_STRING)
+               m_data[index].set(std::string(static_cast<const char *>(p)));
+            else
+               throw std::runtime_error("Invalid type ID " + std::to_string(m_tid));
+
+            free(buffer);
+         }
+
+         if (status != DB_SUCCESS)
+            throw std::runtime_error("db_get_data for ODB key \"" + get_full_path() +
+                                     "\" failed with status " + std::to_string(status));
+         if (m_debug) {
+            std::string s;
+            m_data[index].get(s);
+            std::cout << "Get ODB key \"" + get_full_path() + "[" +
+                            std::to_string(index) + "]\": [" + s + "]" << std::endl;
+
+         }
+      }
+
       // push individual member of an array
       void push(int index) {
          if (m_hKey == 0)
@@ -1379,11 +1460,19 @@ namespace midas {
    }
 
    //---- u_odb assignment and arithmetic operators overloads which call odb::push()
+
    template <typename T>
    inline T u_odb::operator=(T v) {
       set(v);
       m_parent_odb->push();
       return v;
+   }
+
+   // overload all standard conversion operators
+   template <typename T>
+   inline u_odb::operator T() {
+      m_parent_odb->set_last_index(-1);
+      return get<T>(); // forward to get<T>()
    }
 
    void u_odb::add(double inc, bool push) {

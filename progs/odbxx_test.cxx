@@ -69,6 +69,7 @@ int main() {
    v[1] = 10;
    o["Int Array"] = v;        // assign vector to ODB object
    o["Int Array"][1] = 2;     // modify ODB object directly
+   i = o["Int Array"][1];     // read from ODB object
    o["Int Array"].resize(5);  // resize array
    o["Int Array"]++;          // increment all values of array
 
@@ -81,15 +82,6 @@ int main() {
    // creat key from other key
    midas::odb oi(o["Int32 Key"]);
    oi = 123;
-   oi.watch([](midas::odb &o) {
-      std::cout << "Value changed to: " << o << std::endl;
-   });
-
-   do {
-      int status = cm_yield(100);
-      if (status == SS_ABORT || status == RPC_SHUTDOWN)
-         break;
-   } while (!ss_kbhit());
 
    // test auto refresh
    std::cout << oi << std::endl;    // each read access pulls value from ODB
@@ -110,6 +102,18 @@ int main() {
 
    // delete test key from ODB
    o.delete_key();
+
+   // watch ODB key for any change with lambda function
+   midas::odb ow("/Experiment");
+   ow.watch([](midas::odb &o) {
+      std::cout << "Value of key \"" + o.get_full_path() + "\" changed to " << o << std::endl;
+   });
+
+   do {
+      int status = cm_yield(100);
+      if (status == SS_ABORT || status == RPC_SHUTDOWN)
+         break;
+   } while (!ss_kbhit());
 
    cm_disconnect_experiment();
    return 1;
