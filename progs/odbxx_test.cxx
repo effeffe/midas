@@ -43,7 +43,7 @@ int main() {
    // ...and push it to ODB. If keys are present in the
    // ODB, their value is kept. If not, the default values
    // from above are copied to the ODB
-   o.push("/Test/Settings", true);
+   o.write("/Test/Settings", true);
 
    // alternatively, a structure can be created from an existing ODB subtree
    midas::odb o2("/Test/Settings/Subdir");
@@ -84,10 +84,10 @@ int main() {
    oi = 123;
 
    // test auto refresh
-   std::cout << oi << std::endl;    // each read access pulls value from ODB
+   std::cout << oi << std::endl;    // each read access reads value from ODB
    oi.set_auto_refresh_read(false); // turn off auto refresh
-   std::cout << oi << std::endl;    // this does not pull value from ODB
-   oi.pull();                       // this does manual pull
+   std::cout << oi << std::endl;    // this does not read value from ODB
+   oi.read();                       // this does manual read
    std::cout << oi << std::endl;
 
    // iterate over sub-keys
