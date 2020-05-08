@@ -37,7 +37,8 @@ int main() {
            {"Int Array", {1, 2, 3}},
            {"Double Array", {1.2, 2.3, 3.4}},
            {"String Array", {"Hello1", "Hello2", "Hello3"}},
-           {"Large Array", std::array<int, 10>{} }
+           {"Large Array", std::array<int, 10>{} },   // array with explicit size
+           {"Large String", std::string(63, '\0') },  // string with explicit size
    };
 
    // ...and push it to ODB. If keys are present in the
@@ -52,7 +53,7 @@ int main() {
    // retrieve, set, and change ODB value
    int i = o["Int32 Key"];
    o["Int32 Key"] = i+1;
-//   o["Int32 Key"]++;
+   o["Int32 Key"]++;
    o["Int32 Key"] *= 1.3;
    std::cout << "Should be 57: " << o["Int32 Key"] << std::endl;
 

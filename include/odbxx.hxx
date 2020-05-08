@@ -487,7 +487,17 @@ namespace midas {
          m_tid = m_data[0].get_tid();
       }
 
-      // Constructor with string array
+      // Constructor with string
+      odb(const std::string &s) : odb() {
+         m_num_values = 1;
+         m_data = new u_odb[1]{};
+         m_data[0].set_tid(TID_STRING);
+         m_data[0].set_parent(this);
+         m_data[0].set(s);
+         m_tid = m_data[0].get_tid();
+      }
+
+      // Constructor with const char * array
       odb(std::initializer_list<const char *> list) : odb() {
          m_num_values = list.size();
          m_data = new u_odb[m_num_values]{};
@@ -500,6 +510,25 @@ namespace midas {
          }
          m_tid = m_data[0].get_tid();
       }
+
+//      The following constructor would be needed for an string array with explicit
+//      size like
+//         { "Array", { std::string(63, '\0'), "", "" } }
+//      but it clashes with
+//         odb(std::initializer_list<std::pair<std::string, midas::odb>> list)
+//
+//      odb(std::initializer_list<std::string> list) : odb() {
+//         m_num_values = list.size();
+//         m_data = new u_odb[m_num_values]{};
+//         int i = 0;
+//         for (auto &element : list) {
+//            m_data[i].set_tid(TID_STRING);
+//            m_data[i].set_parent(this);
+//            m_data[i].set(element);
+//            i++;
+//         }
+//         m_tid = m_data[0].get_tid();
+//      }
 
       // Setters and Getters
       static void set_debug(bool flag) { m_debug = flag; }
@@ -1331,7 +1360,7 @@ namespace midas {
                KEY key;
                db_get_key(m_hDB, m_hKey, &key);
                if (key.item_size == 0 || key.total_size == 0) {
-                  int size = 0;
+                  int size = 1;
                   for (int i=0 ; i<m_num_values ; i++) {
                      std::string d;
                      m_data[i].get(d);
@@ -1339,7 +1368,7 @@ namespace midas {
                         size = d.size()+1;
                   }
                   // round up to multiples of 32
-                  size = ((size / 32) + 1) * 32;
+                  size = (((size-1) / 32) + 1) * 32;
                   key.item_size = size;
                   key.total_size = size * m_num_values;
                }
