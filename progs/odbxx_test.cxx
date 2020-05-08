@@ -44,7 +44,7 @@ int main() {
    // ...and push it to ODB. If keys are present in the
    // ODB, their value is kept. If not, the default values
    // from above are copied to the ODB
-   o.write("/Test/Settings", true);
+   o.connect("/Test/Settings", true);
 
    // alternatively, a structure can be created from an existing ODB subtree
    midas::odb o2("/Test/Settings/Subdir");
@@ -90,6 +90,19 @@ int main() {
    std::cout << oi << std::endl;    // this does not read value from ODB
    oi.read();                       // this does manual read
    std::cout << oi << std::endl;
+
+   // create ODB entries on-the-fly
+   midas::odb ot;
+   ot.connect("/Test/OTF", true);     // this forces /Test/OTF to be created if not already there
+   ot.set_auto_create(true);        // this turns on auto-creation
+   ot["Int32 Key"] = 1;
+   ot["Double Key"] = 1.23;
+   ot["String Key"] = "Hello";
+   ot["Subdir"]["Int32 Key"] = 42;
+   std::cout << ot << std::endl;
+
+   o.read();
+   std::cout << o.print() << std::endl;
 
    // iterate over sub-keys
    for (auto& oit : o)

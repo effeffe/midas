@@ -114,6 +114,12 @@ namespace midas {
          m_odb = v;
       }
 
+      void set_odb(odb* v) {
+         if (m_tid != TID_KEY)
+            throw std::runtime_error("Subkey can only be assigned to ODB key");
+         m_odb = v;
+      }
+
       void set(std::string v)  {
          if (m_tid == TID_UINT8)
             m_uint8 = std::stoi(v);
@@ -279,6 +285,7 @@ namespace midas {
       AUTO_REFRESH_READ = 0,
       AUTO_REFRESH_WRITE,
       PRESERVE_STRING_SIZE,
+      AUTO_CREATE,
       DIRTY,
       DELETED
    };
@@ -535,6 +542,10 @@ namespace midas {
 
       static bool get_debug() { return m_debug; }
 
+      void set_flags(uint32_t f) { m_flags = f; }
+
+      uint32_t get_flags() { return static_cast<uint32_t>(m_flags.to_ulong()); }
+
       bool is_preserve_string_size() const { return m_flags[odb_flags::PRESERVE_STRING_SIZE]; }
 
       void set_preserve_string_size(bool f) { m_flags[odb_flags::PRESERVE_STRING_SIZE] = f; }
@@ -550,6 +561,10 @@ namespace midas {
       bool is_dirty() const { return m_flags[odb_flags::DIRTY]; }
 
       void set_dirty(bool f) { m_flags[odb_flags::DIRTY] = f; }
+
+      bool is_auto_create() const { return m_flags[odb_flags::AUTO_CREATE]; }
+
+      void set_auto_create(bool f) { m_flags[odb_flags::AUTO_CREATE] = f; }
 
       bool is_deleted() const { return m_flags[odb_flags::DELETED]; }
 
@@ -612,22 +627,24 @@ namespace midas {
             m_num_values = 1;
             if (std::is_same<T, uint8_t>::value)
                m_tid = TID_UINT8;
-            if (std::is_same<T, int8_t>::value)
+            else if (std::is_same<T, int8_t>::value)
                m_tid = TID_INT8;
-            if (std::is_same<T, uint16_t>::value)
+            else if (std::is_same<T, uint16_t>::value)
                m_tid = TID_UINT16;
-            if (std::is_same<T, int16_t>::value)
+            else if (std::is_same<T, int16_t>::value)
                m_tid = TID_INT16;
-            if (std::is_same<T, uint32_t>::value)
+            else if (std::is_same<T, uint32_t>::value)
                m_tid = TID_UINT32;
-            if (std::is_same<T, int32_t>::value)
+            else if (std::is_same<T, int32_t>::value)
                m_tid = TID_INT32;
-            if (std::is_same<T, bool>::value)
+            else if (std::is_same<T, bool>::value)
                m_tid = TID_BOOL;
-            if (std::is_same<T, float>::value)
+            else if (std::is_same<T, float>::value)
                m_tid = TID_FLOAT;
-            if (std::is_same<T, double>::value)
+            else if (std::is_same<T, double>::value)
                m_tid = TID_DOUBLE;
+            else
+               m_tid = TID_STRING;
 
             m_data = new u_odb[1]{};
             m_data[0].set_tid(m_tid);
@@ -755,6 +772,20 @@ namespace midas {
       }
 
       odb &get_subkey(std::string str) {
+         if (m_tid == 0) {
+            if (is_auto_create()) {
+               m_tid = TID_KEY;
+               int status = db_create_key(m_hDB, 0, m_name.c_str(), m_tid);
+               if (status != DB_SUCCESS && status != DB_CREATED && status != DB_KEY_EXIST)
+                  throw std::runtime_error("Cannot create ODB key \"" + m_name + "\", status" + std::to_string(status));
+               db_find_key(m_hDB, 0, m_name.c_str(), &m_hKey);
+               // strip path from name
+               if (m_name.find_last_of('/') != std::string::npos)
+                  m_name = m_name.substr(m_name.find_last_of('/') + 1);
+            } else
+               throw std::runtime_error("Invalid key \"" + m_name + "\" does not have subkeys");
+
+         }
          if (m_tid != TID_KEY)
             throw std::runtime_error("ODB key \"" + get_full_path() + "\" does not have subkeys");
 
@@ -769,9 +800,35 @@ namespace midas {
          for (i = 0; i < m_num_values; i++)
             if (m_data[i].get_odb()->get_name() == first)
                break;
-         if (i == m_num_values)
-            throw std::runtime_error("ODB key \"" + get_full_path() + "\" does not contain subkey \"" + first + "\"");
-
+         if (i == m_num_values) {
+            if (is_auto_create()) {
+               if (m_num_values == 0) {
+                  m_num_values = 1;
+                  m_data = new u_odb[1]{};
+                  i = 0;
+               } else {
+                  // resize array
+                  auto new_array = new u_odb[m_num_values+1]{};
+                  for (i = 0; i < m_num_values ; i++) {
+                     new_array[i] = m_data[i];
+                     m_data[i].set_odb(nullptr);
+                  }
+                  delete[] m_data;
+                  m_data = new_array;
+                  m_num_values++;
+                  i = m_num_values - 1;
+               }
+               midas::odb *o = new midas::odb();
+               m_data[i].set_tid(TID_KEY);
+               m_data[i].set_parent(this);
+               o->set_name(get_full_path() + "/" + str);
+               o->set_tid(0); // tid is currently undefined
+               o->set_flags(get_flags());
+               m_data[i].set(o);
+            } else
+               throw std::runtime_error(
+                       "ODB key \"" + get_full_path() + "\" does not contain subkey \"" + first + "\"");
+         }
          if (!tail.empty())
             return m_data[i].get_odb()->get_subkey(tail);
 
@@ -1083,9 +1140,11 @@ namespace midas {
       }
 
       // create key in ODB if it does not exist, otherwise check key type
-      bool write_key(std::string &path, bool force = false) {
+      bool write_key(std::string &path, bool write_defaults = false) {
          int status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
          if (status != DB_SUCCESS) {
+            if (m_tid == 0 && write_defaults) // auto-create subdir
+               m_tid = TID_KEY;
             if (m_tid > 0 && m_tid < TID_LAST) {
                status = db_create_key(m_hDB, 0, path.c_str(), m_tid);
                if (status != DB_SUCCESS)
@@ -1100,6 +1159,8 @@ namespace midas {
             return true;
          } else {
             KEY key;
+            if (m_tid == 0 && write_defaults) // auto-create subdir
+               m_tid = TID_KEY;
             status = db_get_key(m_hDB, m_hKey, &key);
             if (status != DB_SUCCESS)
                throw std::runtime_error("db_get_key for ODB key \"" + path +
@@ -1107,7 +1168,7 @@ namespace midas {
 
             // check for correct type
             if (m_tid > 0 && m_tid != (int) key.type) {
-               if (force) {
+               if (write_defaults) {
                   // delete and recreate key
                   status = db_delete_key(m_hDB, m_hKey, false);
                   if (status != DB_SUCCESS)
@@ -1157,10 +1218,24 @@ namespace midas {
                m_data[i].set(str + i * key.item_size);
             free(str);
          } else if (m_tid == TID_KEY) {
+            // ## TBD: read key if number of sub-keys changed
             for (int i=0 ; i<m_num_values ; i++)
                m_data[i].get_odb()->read();
             status = DB_SUCCESS;
          } else {
+            // resize local array if number of values has changed
+            KEY key;
+            status = db_get_key(m_hDB, m_hKey, &key);
+            if (key.num_values != m_num_values) {
+               delete m_data;
+               m_num_values = key.num_values;
+               m_data = new midas::u_odb[m_num_values]{};
+               for (int i = 0; i < m_num_values; i++) {
+                  m_data[i].set_tid(m_tid);
+                  m_data[i].set_parent(this);
+               }
+            }
+
             int size = rpc_tid_size(m_tid) * m_num_values;
             void *buffer = malloc(size);
             void *p = buffer;
@@ -1274,8 +1349,18 @@ namespace midas {
 
       // push individual member of an array
       void write(int index) {
-         if (m_hKey == 0)
-            throw std::runtime_error("Write of un-connected ODB key \"" + m_name + "\" not possible");
+         if (m_hKey == 0) {
+            if (is_auto_create()) {
+               int status = db_create_key(m_hDB, 0, m_name.c_str(), m_tid);
+               if (status != DB_SUCCESS && status != DB_CREATED && status != DB_KEY_EXIST)
+                  throw std::runtime_error("Cannot create ODB key \"" + m_name + "\", status" + std::to_string(status));
+               db_find_key(m_hDB, 0, m_name.c_str(), &m_hKey);
+               // strip path from name
+               if (m_name.find_last_of('/') != std::string::npos)
+                  m_name = m_name.substr(m_name.find_last_of('/') + 1);
+            } else
+               throw std::runtime_error("Write of un-connected ODB key \"" + m_name + "\" not possible");
+         }
 
          // don't write keys
          if (m_tid == TID_KEY)
@@ -1338,7 +1423,7 @@ namespace midas {
          if (m_tid < 1 || m_tid >= TID_LAST)
             throw std::runtime_error("Invalid TID for ODB key \"" + get_full_path() + "\"");
 
-         if (m_hKey  == 0)
+         if (m_hKey  == 0 && !is_auto_create())
             throw std::runtime_error("Writing ODB key \"" + m_name +
                                      "\" is not possible because of invalid key handle");
 
@@ -1419,13 +1504,13 @@ namespace midas {
             "\" failed with status " + std::to_string(status));
       }
 
-      // send key definitions and data with optional subkeys to certain path in ODB
-      void write(std::string path, std::string name = "", bool force = false) {
+      // write function with separated path and key name
+      void connect(std::string path, std::string name, bool write_defaults) {
          init_hdb();
          if (!name.empty())
             m_name = name;
          path += "/" + m_name;
-         bool created = write_key(path, force);
+         bool created = write_key(path, write_defaults);
 
          // correct wrong parent ODB from initializer_list
          for (int i=0 ; i<m_num_values ; i++)
@@ -1433,24 +1518,26 @@ namespace midas {
 
          if (m_tid == TID_KEY) {
             for (int i=0 ; i<m_num_values ; i++)
-               m_data[i].get_odb()->write(get_full_path(), m_data[i].get_odb()->get_name(), force);
-         } else if (created || force) {
+               m_data[i].get_odb()->connect(get_full_path(), m_data[i].get_odb()->get_name(), write_defaults);
+         } else if (created || write_defaults) {
             write();
-         }
+         } else
+            read();
       }
 
-      void write(std::string str, bool force = false) {
+      // send key definitions and data with optional subkeys to certain path in ODB
+      void connect(std::string str, bool write_defaults = false) {
          std::string name;
          std::string path;
          if (str.find_last_of('/') == std::string::npos) {
             name = str;
-            path = "/";
+            path = "";
          } else {
             name = str.substr(str.find_last_of('/') + 1);
             path = str.substr(0, str.find_last_of('/'));
          }
 
-         write(path, name, force);
+         connect(path, name, write_defaults);
       }
 
       void watch(std::function<void(midas::odb&)> f) {
