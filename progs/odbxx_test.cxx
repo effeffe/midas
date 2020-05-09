@@ -49,6 +49,16 @@ int main() {
    // alternatively, a structure can be created from an existing ODB subtree
    midas::odb o2("/Test/Settings/Subdir");
    std::cout << o2 << std::endl;
+   o2.read();
+   std::cout << o2 << std::endl;
+
+   midas::odb o3;
+   o3.connect("/Test/Settings/Subdir", true);
+   o3.set_auto_create(true);
+   o3["XXX Key"] = 1;
+
+   o2.read();
+   std::cout << o2 << std::endl;
 
    // retrieve, set, and change ODB value
    int i = o["Int32 Key"];
@@ -93,7 +103,7 @@ int main() {
 
    // create ODB entries on-the-fly
    midas::odb ot;
-   ot.connect("/Test/OTF", true);     // this forces /Test/OTF to be created if not already there
+   ot.connect("/Test/OTF", true);   // this forces /Test/OTF to be created if not already there
    ot.set_auto_create(true);        // this turns on auto-creation
    ot["Int32 Key"] = 1;
    ot["Double Key"] = 1.23;

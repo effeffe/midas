@@ -443,7 +443,7 @@ namespace midas {
       }
 
       // Constructor with std::initializer_list
-      odb(std::initializer_list<std::pair<std::string, midas::odb>> list) : odb() {
+      odb(std::initializer_list<std::pair<const char *, midas::odb>> list) : odb() {
          m_tid = TID_KEY;
          m_num_values = list.size();
          m_data = new u_odb[m_num_values];
@@ -456,12 +456,6 @@ namespace midas {
             m_data[i].set(o);
             i++;
          }
-      }
-
-      odb(std::string name, midas::odb element) : odb(element) {
-         m_name = name;
-         for (int i = 0; i < m_num_values; i++)
-            m_data[i].set_parent(this);
       }
 
       // Constructor with basic type array
@@ -1218,7 +1212,22 @@ namespace midas {
                m_data[i].set(str + i * key.item_size);
             free(str);
          } else if (m_tid == TID_KEY) {
-            // ## TBD: read key if number of sub-keys changed
+            std::vector<std::string> name;
+            int n = get_subkeys(name);
+            if (n != m_num_values) {
+               // if subdirs have changed, rebuild it
+               delete m_data;
+               m_num_values = n;
+               m_data = new midas::u_odb[m_num_values]{};
+               for (int i = 0; i < m_num_values; i++) {
+                  std::string k(get_full_path());
+                  k += "/" + name[i];
+                  midas::odb* o = new midas::odb(k.c_str());
+                  m_data[i].set_tid(TID_KEY);
+                  m_data[i].set_parent(this);
+                  m_data[i].set(o);
+               }
+            }
             for (int i=0 ; i<m_num_values ; i++)
                m_data[i].get_odb()->read();
             status = DB_SUCCESS;
