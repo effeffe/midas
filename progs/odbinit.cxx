@@ -101,6 +101,14 @@ int DecodeSize(const char* s)
    }
 
    const char units[] = {'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'};
+   int one_k=1024;
+   //Search of 'i' in string (for kiB, MiB, GiB etc)
+   for (size_t i=0; i<sizeof(s); i++)
+   {
+      if (s[i]=='i')
+         one_k=1000;
+   }
+   //Search of major unit
    for (size_t i=0; i<sizeof(s); i++)
    {
       for (int j=0; j<8; j++)
@@ -110,7 +118,7 @@ int DecodeSize(const char* s)
             //Only the first unit is used... kMB is meaningless
             while (j>-1)
             {
-               size*=1000;
+               size*=one_k;
                j--;
             }
             return size;
@@ -640,8 +648,8 @@ int main(int argc, char *argv[])
          exit(1);
       }
    }
-   
-   printf("We will initialize ODB for experiment \"%s\" on host \"%s\" with size %d bytes\n", exp_name, host_name, odb_size);
+   std::pair<double,std::string> odb_size_human=HumanUnits(odb_size);
+   printf("We will initialize ODB for experiment \"%s\" on host \"%s\" with size %d bytes (%.2f%s)\n", exp_name, host_name, odb_size, odb_size_human.first, odb_size_human.second.c_str());
    printf("\n");
 
 
@@ -672,7 +680,7 @@ int main(int argc, char *argv[])
    }
 
    printf("\n");
-   printf("Connected to ODB for experiment \"%s\" on host \"%s\" with size %d bytes\n", exp_name, host_name, odb_size);
+   printf("Connected to ODB for experiment \"%s\" on host \"%s\" with size %d bytes (%.2f%s)\n", exp_name, host_name, odb_size,odb_size_human.first,odb_size_human.second.c_str());
 
    cm_msg_flush_buffer();
 
