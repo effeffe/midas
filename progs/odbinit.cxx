@@ -680,7 +680,7 @@ int main(int argc, char *argv[])
    }
 
    printf("\n");
-   printf("Connected to ODB for experiment \"%s\" on host \"%s\" with size %d bytes\n", exp_name, host_name, odb_size);
+   printf("Connected to ODB for experiment \"%s\" on host \"%s\" with size %d bytes (%.2f%s)\n", exp_name, host_name, odb_size,odb_size_human.first,odb_size_human.second.c_str());
 
    cm_msg_flush_buffer();
 
