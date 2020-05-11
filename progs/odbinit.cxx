@@ -80,13 +80,56 @@ static void usage()
    printf("usage: odbinit [options...]\n");
    printf("options:\n");
    printf("  [-e Experiment] --- specify experiment name\n");
-   printf("  [-s size] --- specify new size of ODB in bytes, default is %d\n", DEFAULT_ODB_SIZE);
+   printf("  [-s size] --- specify new size of ODB in bytes, default is %d (optional units: B,kB,MB)\n", DEFAULT_ODB_SIZE);
    printf("  [--env] --- create new env.sh and env.csh files in the current directory\n");
    printf("  [--exptab] --- create new exptab file in the current directory\n");
    printf("  [--cleanup] --- cleanup (preserve) old (existing) ODB files\n");
    printf("  [-n] --- dry run, report everything that will be done, but do not actually do anything\n");
    //printf("  [-g] --- debug\n");
    exit(1);
+}
+
+int DecodeSize(const char* s)
+{
+   // The disticntion between kB and kb is ignored... 
+   // We assume the user means Bytes not bits
+
+   int size=0;
+   if (s) {
+     //strtoul ignores any no numic characters (the UNITS)
+     size = strtoul(s, NULL, 0);
+   }
+
+   const char units[] = {'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'};
+   for (size_t i=0; i<sizeof(s); i++)
+   {
+      for (int j=0; j<8; j++)
+      {
+         if (s[i]==units[j])
+         {
+            //Only the first unit is used... kMB is meaningless
+            while (j>-1)
+            {
+               size*=1000;
+               j--;
+            }
+            return size;
+         }
+      }
+   }
+   return size;
+}
+
+std::pair<double,std::string> HumanUnits(int odb_size)
+{
+   int unit_index=0;
+   double odb_human_size=(double)odb_size;
+   const char* units[] = {"B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"};
+   while (odb_human_size > 1024) {
+     odb_human_size /= 1024;
+     unit_index++;
+   }
+   return {odb_human_size,units[unit_index]};
 }
 
 /*------------------------------------------------------------------*/
@@ -138,7 +181,7 @@ int main(int argc, char *argv[])
          strlcpy(exp_name, argv[i], sizeof(exp_name));
       } else if (strcmp(argv[i], "-s") == 0) {
          i++;
-         odb_size = strtoul(argv[i], NULL, 0);
+         odb_size = DecodeSize(argv[i]);
       } else {
          usage(); // DOES NOT RETURN
       }
@@ -533,7 +576,10 @@ int main(int argc, char *argv[])
 
    {
       printf("Checking ODB size...\n");
-      printf("Requested ODB size is %d bytes\n", odb_size);
+
+      std::pair<double,std::string> odb_size_human=HumanUnits(odb_size);
+
+      printf("Requested ODB size is %d bytes (%.2f%s)\n", odb_size,odb_size_human.first,odb_size_human.second.c_str());
 
       std::string path1;
       path1 += exp_dir;
@@ -552,9 +598,14 @@ int main(int argc, char *argv[])
             exit(1);
          }
          if (odb_size == 0)
-            fprintf(fp, "%d\n", DEFAULT_ODB_SIZE);
+         {
+            std::pair<double,std::string> default_odb_size_human=HumanUnits(DEFAULT_ODB_SIZE);
+            fprintf(fp, "%d (%.2f%s)\n", DEFAULT_ODB_SIZE,default_odb_size_human.first,default_odb_size_human.second.c_str());
+         }
          else
-            fprintf(fp, "%d\n", odb_size);
+         {
+            fprintf(fp, "%d (%.2f%s)\n", odb_size,odb_size_human.first,odb_size_human.second.c_str());
+         }
          fclose(fp);
 
          fp = fopen(path1.c_str(), "r");
@@ -566,16 +617,18 @@ int main(int argc, char *argv[])
       }
 
       int file_odb_size = 0;
+      std::pair<double,std::string> file_odb_size_human;
       {
          char buf[256];
          char *s = fgets(buf, sizeof(buf), fp);
          if (s) {
-            file_odb_size = strtoul(s, NULL, 0);
+            file_odb_size = DecodeSize(s);
+            file_odb_size_human=HumanUnits(file_odb_size);
          }
       }
       fclose(fp);
 
-      printf("Saved ODB size from \"%s\" is %d bytes\n", path1.c_str(), file_odb_size);
+      printf("Saved ODB size from \"%s\" is %d bytes (%.2f%s)\n", path1.c_str(), file_odb_size,file_odb_size_human.first,file_odb_size_human.second.c_str());
 
       if (odb_size == 0)
          odb_size = file_odb_size;
