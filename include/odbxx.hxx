@@ -421,7 +421,7 @@ namespace midas {
             if (m_tid == TID_KEY) {
                std::vector<std::string> name;
                m_num_values = get_subkeys(name);
-               delete m_data;
+               delete[] m_data;
                m_data = new midas::u_odb[m_num_values]{};
                for (int i=0 ; i<m_num_values ; i++) {
                   std::string k(s);
@@ -1100,6 +1100,8 @@ namespace midas {
 
       // obtain key definition from ODB and allocate local data array
       bool pull_key(std::string &path) {
+         init_hdb();
+
          int status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
          if (status != DB_SUCCESS)
             return false;
@@ -1122,7 +1124,7 @@ namespace midas {
          m_num_values = key.num_values;
          m_name = key.name;
          if (m_tid != TID_KEY) {
-            delete m_data;
+            delete[] m_data;
             m_data = new midas::u_odb[m_num_values]{};
             for (int i = 0; i < m_num_values; i++) {
                m_data[i].set_tid(m_tid);
@@ -1216,7 +1218,7 @@ namespace midas {
             int n = get_subkeys(name);
             if (n != m_num_values) {
                // if subdirs have changed, rebuild it
-               delete m_data;
+               delete[] m_data;
                m_num_values = n;
                m_data = new midas::u_odb[m_num_values]{};
                for (int i = 0; i < m_num_values; i++) {
@@ -1236,7 +1238,7 @@ namespace midas {
             KEY key;
             status = db_get_key(m_hDB, m_hKey, &key);
             if (key.num_values != m_num_values) {
-               delete m_data;
+               delete[] m_data;
                m_num_values = key.num_values;
                m_data = new midas::u_odb[m_num_values]{};
                for (int i = 0; i < m_num_values; i++) {
