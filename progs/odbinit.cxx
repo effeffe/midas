@@ -120,6 +120,17 @@ int DecodeSize(const char* s)
    return size;
 }
 
+std::pair<double,std::string> HumanUnits(int odb_size)
+{
+   int unit_index=0;
+   double odb_human_size=(double)odb_size;
+   const char* units[] = {"B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"};
+   while (odb_human_size > 1024) {
+     odb_human_size /= 1024;
+     unit_index++;
+   }
+   return {odb_human_size,units[unit_index]};
+}
 
 /*------------------------------------------------------------------*/
 
@@ -566,15 +577,9 @@ int main(int argc, char *argv[])
    {
       printf("Checking ODB size...\n");
 
-      int unit_index=0;
-      double odb_human_size=(double)odb_size;
-      const char* units[] = {"B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"};
-      while (odb_human_size > 1024) {
-        odb_human_size /= 1024;
-        unit_index++;
-      }
-      
-      printf("Requested ODB size is %d bytes (%.2f%s)\n", odb_size,odb_human_size,units[unit_index]);
+      std::pair<double,std::string> odb_size_human=HumanUnits(odb_size);
+
+      printf("Requested ODB size is %d bytes (%.2f%s)\n", odb_size,odb_size_human.first,odb_size_human.second.c_str());
 
       std::string path1;
       path1 += exp_dir;
@@ -593,9 +598,14 @@ int main(int argc, char *argv[])
             exit(1);
          }
          if (odb_size == 0)
-            fprintf(fp, "%d\n", DEFAULT_ODB_SIZE);
+         {
+            std::pair<double,std::string> default_odb_size_human=HumanUnits(DEFAULT_ODB_SIZE);
+            fprintf(fp, "%d (%.2f%s)\n", DEFAULT_ODB_SIZE,default_odb_size_human.first,default_odb_size_human.second.c_str());
+         }
          else
-            fprintf(fp, "%d\n", odb_size);
+         {
+            fprintf(fp, "%d (%.2f%s)\n", odb_size,odb_size_human.first,odb_size_human.second.c_str());
+         }
          fclose(fp);
 
          fp = fopen(path1.c_str(), "r");
@@ -607,16 +617,18 @@ int main(int argc, char *argv[])
       }
 
       int file_odb_size = 0;
+      std::pair<double,std::string> file_odb_size_human;
       {
          char buf[256];
          char *s = fgets(buf, sizeof(buf), fp);
          if (s) {
             file_odb_size = DecodeSize(s);
+            file_odb_size_human=HumanUnits(file_odb_size);
          }
       }
       fclose(fp);
 
-      printf("Saved ODB size from \"%s\" is %d bytes\n", path1.c_str(), file_odb_size);
+      printf("Saved ODB size from \"%s\" is %d bytes (%.2f%s)\n", path1.c_str(), file_odb_size,file_odb_size_human.first,file_odb_size_human.second.c_str());
 
       if (odb_size == 0)
          odb_size = file_odb_size;
