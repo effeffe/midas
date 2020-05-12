@@ -93,15 +93,16 @@ int main() {
 
    // create ODB entries on-the-fly
    midas::odb ot;
-   ot.connect("/Test/OTF", true);   // this forces /Test/OTF to be created if not already there
+   ot.connect("/Test/Settings/OTF", true);   // this forces /Test/OTF to be created if not already there
    ot.set_auto_create(true);        // this turns on auto-creation
    ot["Int32 Key"] = 1;
    ot["Double Key"] = 1.23;
    ot["String Key"] = "Hello";
+   ot["Int Array"] = std::array<int, 10>{};
    ot["Subdir"]["Int32 Key"] = 42;
    std::cout << ot << std::endl;
 
-   o.read();
+   o.read();                        // re-read the underlying ODB tree which got changed by above OTF code
    std::cout << o.print() << std::endl;
 
    // iterate over sub-keys
