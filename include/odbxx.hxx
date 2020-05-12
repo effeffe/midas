@@ -48,19 +48,18 @@ namespace midas {
       odb* m_parent_odb;
 
    public:
-      u_odb() : m_string{} {};
-      u_odb(odb* o) : m_string{} {};
+      u_odb() : m_string{},m_tid{},m_parent_odb{nullptr} {};
 
-      u_odb(uint8_t v) : m_uint8{v},m_tid{TID_UINT8} {};
-      u_odb(int8_t v) : m_int8{v},m_tid{TID_INT8} {};
-      u_odb(uint16_t v) : m_uint16{v},m_tid{TID_UINT16} {};
-      u_odb(int16_t v) : m_int16{v},m_tid{TID_INT16} {};
-      u_odb(uint32_t v) : m_uint32{v},m_tid{TID_UINT32} {};
-      u_odb(int32_t v) : m_int32{v},m_tid{TID_INT32} {};
-      u_odb(bool v) : m_bool{v},m_tid{TID_BOOL} {};
-      u_odb(float v) : m_float{v},m_tid{TID_FLOAT} {};
-      u_odb(double v) : m_double{v},m_tid{TID_DOUBLE} {};
-      u_odb(std::string* v) : m_string{v},m_tid{TID_STRING} {};
+      u_odb(uint8_t v) : m_uint8{v},m_tid{TID_UINT8},m_parent_odb{nullptr} {};
+      u_odb(int8_t v) : m_int8{v},m_tid{TID_INT8},m_parent_odb{nullptr} {};
+      u_odb(uint16_t v) : m_uint16{v},m_tid{TID_UINT16},m_parent_odb{nullptr} {};
+      u_odb(int16_t v) : m_int16{v},m_tid{TID_INT16},m_parent_odb{nullptr} {};
+      u_odb(uint32_t v) : m_uint32{v},m_tid{TID_UINT32},m_parent_odb{nullptr} {};
+      u_odb(int32_t v) : m_int32{v},m_tid{TID_INT32},m_parent_odb{nullptr} {};
+      u_odb(bool v) : m_bool{v},m_tid{TID_BOOL},m_parent_odb{nullptr} {};
+      u_odb(float v) : m_float{v},m_tid{TID_FLOAT},m_parent_odb{nullptr} {};
+      u_odb(double v) : m_double{v},m_tid{TID_DOUBLE},m_parent_odb{nullptr} {};
+      u_odb(std::string* v) : m_string{v},m_tid{TID_STRING},m_parent_odb{nullptr} {};
 
       // Destructor
       ~u_odb();
@@ -384,7 +383,7 @@ namespace midas {
          m_num_values = o.m_num_values;
          m_hKey = o.m_hKey;
          m_watch_callback = o.m_watch_callback;
-         m_data = new midas::u_odb[m_num_values];
+         m_data = new midas::u_odb[m_num_values]{};
          for (int i = 0; i < m_num_values; i++) {
             m_data[i].set_tid(m_tid);
             m_data[i].set_parent(this);
@@ -613,6 +612,23 @@ namespace midas {
          set_deleted(true);
       }
 
+      // resize ingternal m_data array, keeping old values
+      void resize_mdata(int size) {
+         auto new_array = new u_odb[size]{};
+         for (int i = 0; i < m_num_values && i < size; i++) {
+            new_array[i] = m_data[i];
+            if (m_tid == TID_KEY)
+               m_data[i].set_odb(nullptr); // move odb*
+         }
+         delete[] m_data;
+         m_data = new_array;
+         m_num_values = size;
+         for (int i = 0; i < m_num_values; i++) {
+            m_data[i].set_tid(m_tid);
+            m_data[i].set_parent(this);
+         }
+      }
+
       // Overload the Assignment Operators
       template<typename T>
       const T &operator=(const T &v) {
@@ -660,18 +676,9 @@ namespace midas {
          // resize internal array if different
          if (v.size() != m_num_values) {
             if (m_tid == TID_STRING) {
-               // TBD
+               //## TBD
             } else {
-               auto new_array = new u_odb[v.size()]{};
-               for (int i = 0; i < m_num_values && i < v.size(); i++)
-                  new_array[i] = m_data[i];
-               delete[] m_data;
-               m_data = new_array;
-               m_num_values = v.size();
-               for (int i = 0; i < m_num_values; i++) {
-                  m_data[i].set_tid(m_tid);
-                  m_data[i].set_parent(this);
-               }
+               resize_mdata(v.size());
             }
          }
 
@@ -686,17 +693,9 @@ namespace midas {
          if (m_tid == TID_STRING) {
             // TBD
          } else {
-            auto new_array = new u_odb[size]{};
-            for (int i = 0; i < m_num_values && i < size; i++)
-               new_array[i] = m_data[i];
-            delete[] m_data;
-            m_data = new_array;
-            m_num_values = size;
-            for (int i = 0; i < m_num_values; i++) {
-               m_data[i].set_tid(m_tid);
-               m_data[i].set_parent(this);
-            }
+            resize_mdata(size);
          }
+
          write();
       }
 
@@ -802,14 +801,7 @@ namespace midas {
                   i = 0;
                } else {
                   // resize array
-                  auto new_array = new u_odb[m_num_values+1]{};
-                  for (i = 0; i < m_num_values ; i++) {
-                     new_array[i] = m_data[i];
-                     m_data[i].set_odb(nullptr);
-                  }
-                  delete[] m_data;
-                  m_data = new_array;
-                  m_num_values++;
+                  resize_mdata(m_num_values+1);
                   i = m_num_values - 1;
                }
                midas::odb *o = new midas::odb();
@@ -1201,7 +1193,7 @@ namespace midas {
             return; // needed to print un-connected objects
 
          if (m_tid == 0)
-            throw std::runtime_error("Pull of invalid ODB key \"" + m_name + "\"");
+            throw std::runtime_error("Read of invalid ODB key \"" + m_name + "\"");
 
          int status{};
          if (m_tid == TID_STRING) {
@@ -1518,6 +1510,7 @@ namespace midas {
       // write function with separated path and key name
       void connect(std::string path, std::string name, bool write_defaults) {
          init_hdb();
+
          if (!name.empty())
             m_name = name;
          path += "/" + m_name;
