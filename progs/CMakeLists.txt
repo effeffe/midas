@@ -41,6 +41,7 @@ foreach(PROG ${PROGS} ${TESTPROGS})
    target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
    target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
    target_link_libraries(${PROG} midas ${LIBS} ${DB_LIBS})
+#   set(CMAKE_CXX_FLAGS "-fsanitize=address")
 endforeach()
 
 

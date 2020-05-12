@@ -108,13 +108,15 @@ namespace midas {
             m_float = v;
          else if (m_tid == TID_DOUBLE)
             m_double = v;
-         else if (m_tid == TID_STRING)
+         else if (m_tid == TID_STRING) {
+            delete m_string;
             m_string = new std::string(std::to_string(v));
-         else
+         } else
             throw std::runtime_error("Invalid type ID " + std::to_string(m_tid));
       }
 
       void set_string(std::string s) {
+         delete m_string;
          m_string = new std::string(s);
       }
 
@@ -153,9 +155,10 @@ namespace midas {
             m_float = std::stof(v);
          else if (m_tid == TID_DOUBLE)
             m_double = std::stof(v);
-         else if (m_tid == TID_STRING)
+         else if (m_tid == TID_STRING) {
+            delete m_string;
             m_string = new std::string(v);
-         else
+         } else
             throw std::runtime_error("Invalid type ID " + std::to_string(m_tid));
       }
 
