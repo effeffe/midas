@@ -1363,14 +1363,18 @@ namespace midas {
             throw std::runtime_error("db_get_data for ODB key \"" + get_full_path() +
                                      "\" failed with status " + std::to_string(status));
          if (m_debug) {
-            std::string s;
-            get(s, false, false);
-            if (m_num_values > 1)
+            if (m_tid == TID_KEY) {
                std::cout << "Get ODB key \"" + get_full_path() + "[0..." +
-                            std::to_string(m_num_values - 1) + "]\": [" + s + "]" << std::endl;
-            else
-               std::cout << "Get ODB key \"" + get_full_path() + "\": " + s << std::endl;
-
+                            std::to_string(m_num_values - 1) + "]\"" << std::endl;
+            } else {
+               std::string s;
+               get(s, false, false);
+               if (m_num_values > 1)
+                  std::cout << "Get ODB key \"" + get_full_path() + "[0..." +
+                               std::to_string(m_num_values - 1) + "]\": [" + s + "]" << std::endl;
+               else
+                  std::cout << "Get ODB key \"" + get_full_path() + "\": " + s << std::endl;
+            }
          }
       }
 
