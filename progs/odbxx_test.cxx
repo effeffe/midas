@@ -74,6 +74,13 @@ int main() {
    o["Int Array"].resize(5);  // resize array
    o["Int Array"]++;          // increment all values of array
 
+   // test with a string vector
+   std::vector<std::string> sv;
+   sv = o["String Array"];
+   sv[1] = "New String";
+   o["String Array"] = sv;
+   o["String Array"][2] = "Another String";
+
    // iterate over array
    int sum = 0;
    for (int e : o["Int Array"])
@@ -91,15 +98,19 @@ int main() {
    oi.read();                       // this does manual read
    std::cout << oi << std::endl;
 
+   midas::odb ox("/Test/Settings/OTF");
+   ox.delete_key();
+
    // create ODB entries on-the-fly
    midas::odb ot;
    ot.connect("/Test/Settings/OTF", true);   // this forces /Test/OTF to be created if not already there
    ot.set_auto_create(true);        // this turns on auto-creation
-   ot["Int32 Key"] = 1;
+   ot["Int32 Key"] = 1;             // create all these keys with different types
    ot["Double Key"] = 1.23;
    ot["String Key"] = "Hello";
    ot["Int Array"] = std::array<int, 10>{};
    ot["Subdir"]["Int32 Key"] = 42;
+   ot["String Array"] = std::vector<std::string>{"S1", "S2", "S3"};
    std::cout << ot << std::endl;
 
    o.read();                        // re-read the underlying ODB tree which got changed by above OTF code
