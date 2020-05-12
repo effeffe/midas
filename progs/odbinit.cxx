@@ -101,12 +101,12 @@ int DecodeSize(const char* s)
    }
 
    const char units[] = {'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'};
-   int one_k=1024;
+   int one_k=1000;
    //Search of 'i' in string (for kiB, MiB, GiB etc)
    for (size_t i=0; i<sizeof(s); i++)
    {
       if (s[i]=='i')
-         one_k=1000;
+         one_k=1024;
    }
    //Search of major unit
    for (size_t i=0; i<sizeof(s); i++)
@@ -133,8 +133,8 @@ std::pair<double,std::string> HumanUnits(int odb_size)
    int unit_index=0;
    double odb_human_size=(double)odb_size;
    const char* units[] = {"B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"};
-   while (odb_human_size > 1024) {
-     odb_human_size /= 1024;
+   while (odb_human_size > 1000) {
+     odb_human_size /= 1000;
      unit_index++;
    }
    return {odb_human_size,units[unit_index]};
